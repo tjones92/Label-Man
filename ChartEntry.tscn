@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://4v07s5f1navm"]
+
+[ext_resource type="Script" uid="uid://c74stxr5b77rs" path="res://UI/ChartEntryUI.cs" id="1_hgsxp"]
+
+[node name="ChartEntry" type="Control" unique_id=1413358445 node_paths=PackedStringArray("rankText", "songText", "artistText", "labelText")]
+custom_minimum_size = Vector2(55, 45)
+layout_mode = 3
+anchors_preset = 0
+offset_bottom = 45.0
+script = ExtResource("1_hgsxp")
+rankText = NodePath("RankText")
+songText = NodePath("SongText")
+artistText = NodePath("ArtistText")
+labelText = NodePath("LabelText")
+
+[node name="RankText" type="Label" parent="." unique_id=2013025076]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 12.0
+offset_right = 45.0
+offset_bottom = 35.0
+text = "Rank"
+
+[node name="SongText" type="Label" parent="." unique_id=1721460391]
+layout_mode = 0
+offset_left = 271.0
+offset_top = 15.0
+offset_right = 309.0
+offset_bottom = 38.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 14
+text = "Song"
+
+[node name="ArtistText" type="Label" parent="." unique_id=175596058]
+layout_mode = 0
+offset_left = 119.0
+offset_top = 12.0
+offset_right = 162.0
+offset_bottom = 35.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+text = "Artist"
+
+[node name="LabelText" type="Label" parent="." unique_id=1535205074]
+layout_mode = 0
+offset_left = 450.0
+offset_top = 12.0
+offset_right = 492.0
+offset_bottom = 35.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+text = "Label"

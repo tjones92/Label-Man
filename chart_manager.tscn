@@ -1,0 +1,1638 @@
+[gd_scene format=3 uid="uid://t4ywl6fyxi6d"]
+
+[ext_resource type="Script" uid="uid://cbefawh2t56ed" path="res://Systems/ChartManager.cs" id="1_o3mq1"]
+[ext_resource type="Script" uid="uid://ck2ykr1kmstw" path="res://Data/MarketRegion.cs" id="2_66ao4"]
+[ext_resource type="Script" uid="uid://vawg4r2hf31w" path="res://Data/DistributionNetwork.cs" id="2_ku6sc"]
+[ext_resource type="Script" uid="uid://0gmh86vjv8up" path="res://Data/GenrePreference.cs" id="2_pc72m"]
+[ext_resource type="Script" uid="uid://bb5ll6a022k0t" path="res://Data/MediaInfrastructure.cs" id="4_ddtov"]
+[ext_resource type="Script" uid="uid://c7ua0jy16dehg" path="res://Data/MusicInfrastructure.cs" id="5_w1ett"]
+
+[sub_resource type="Resource" id="Resource_ku6sc"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.3
+recordStoreCount = 512
+departmentStoreCount = 1020
+inventoryDepth = 0.6
+hasIndieDistribution = true
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_pnh0t"]
+script = ExtResource("2_pc72m")
+baseAcceptance = 0.75
+affinity = 0.3500000000000001
+hasLocalScene = true
+yearlyDrift = -0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_jhd2u"]
+script = ExtResource("2_pc72m")
+genre = 1
+baseAcceptance = 0.6
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_1vb7w"]
+script = ExtResource("2_pc72m")
+genre = 2
+baseAcceptance = 0.55
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_r6sj5"]
+script = ExtResource("2_pc72m")
+genre = 3
+baseAcceptance = 0.6
+affinity = 0.44999999999999996
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ui36f"]
+script = ExtResource("2_pc72m")
+genre = 4
+baseAcceptance = 0.55
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = -0.05
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vc3af"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.5
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_uanyb"]
+script = ExtResource("2_pc72m")
+genre = 6
+baseAcceptance = 0.55
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_b0dlr"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.55
+affinity = 0.3500000000000001
+hasLocalScene = true
+yearlyDrift = 0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vulxa"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.15
+affinity = 0.10000000000000009
+yearlyDrift = 0.07
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_hwfb3"]
+script = ExtResource("2_pc72m")
+genre = 9
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_bf3g8"]
+script = ExtResource("2_pc72m")
+genre = 10
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_6rqk6"]
+script = ExtResource("2_pc72m")
+genre = 11
+baseAcceptance = 0.08
+affinity = 0.050000000000000044
+yearlyDrift = 0.04999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_i26ee"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.55
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_65oqt"]
+script = ExtResource("2_pc72m")
+genre = 13
+baseAcceptance = 0.35
+affinity = 0.1499999999999999
+hasLocalScene = true
+yearlyDrift = 0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_4o1pl"]
+script = ExtResource("2_pc72m")
+genre = 14
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vksiw"]
+script = ExtResource("2_pc72m")
+genre = 15
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_4unbu"]
+script = ExtResource("2_pc72m")
+genre = 16
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_avrjv"]
+script = ExtResource("2_pc72m")
+genre = 17
+baseAcceptance = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_hsrg8"]
+script = ExtResource("2_pc72m")
+genre = 18
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_qic4d"]
+script = ExtResource("2_pc72m")
+genre = 19
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_qltyh"]
+script = ExtResource("2_pc72m")
+genre = 20
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_v1ppj"]
+script = ExtResource("2_pc72m")
+genre = 21
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_qll7k"]
+script = ExtResource("2_pc72m")
+genre = 22
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_yq3k4"]
+script = ExtResource("2_pc72m")
+genre = 23
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_2vjxx"]
+script = ExtResource("2_pc72m")
+genre = 24
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_v2v0u"]
+script = ExtResource("2_pc72m")
+genre = 25
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_qipfm"]
+script = ExtResource("2_pc72m")
+genre = 26
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vdx5b"]
+script = ExtResource("2_pc72m")
+genre = 27
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_551fx"]
+script = ExtResource("2_pc72m")
+genre = 28
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_0va4a"]
+script = ExtResource("2_pc72m")
+genre = 29
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_woude"]
+script = ExtResource("2_pc72m")
+genre = 30
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_mjo0r"]
+script = ExtResource("2_pc72m")
+genre = 31
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_832ns"]
+script = ExtResource("2_pc72m")
+genre = 32
+baseAcceptance = 0.55
+affinity = 0.3999999999999999
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_v70d0"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 1270
+hasTop40Stations = true
+hasRnBStations = true
+hasCountryStations = true
+radioReach = 0.85
+payolaSusceptibility = 0.75
+tvMarketRank = 3
+hasLocalMusicShow = true
+bandstandReach = 0.65
+jukeboxCount = 144000
+concertVenueCount = 720
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_jcfuy"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 150
+studioQuality = 0.65
+hasSignatureSound = true
+localLabelCount = 190
+hasMajorLabelPresence = true
+talentPool = 0.7
+talentDevelopment = 0.5
+clubCount = 3120
+theaterCount = 5253
+hasChitlinCircuitVenues = true
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
+[sub_resource type="Resource" id="Resource_77lym"]
+script = ExtResource("2_66ao4")
+regionId = "midwest"
+regionName = "Midwest"
+regionType = 1
+population = 51.6
+urbanization = 0.7
+averageIncome = 1.05
+youthPercentage = 0.35
+blackPopulation = 0.08
+collegeCount = 420
+integrationLevel = 0.4
+culturalProgressivism = 0.45
+regionalInsularity = 0.45
+trendAdoptionSpeed = 1.2
+genrePreferences = Array[Object]([SubResource("Resource_pnh0t"), SubResource("Resource_jhd2u"), SubResource("Resource_1vb7w"), SubResource("Resource_r6sj5"), SubResource("Resource_ui36f"), SubResource("Resource_vc3af"), SubResource("Resource_uanyb"), SubResource("Resource_b0dlr"), SubResource("Resource_vulxa"), SubResource("Resource_hwfb3"), SubResource("Resource_bf3g8"), SubResource("Resource_6rqk6"), SubResource("Resource_i26ee"), SubResource("Resource_65oqt"), SubResource("Resource_4o1pl"), SubResource("Resource_vksiw"), SubResource("Resource_4unbu"), SubResource("Resource_avrjv"), SubResource("Resource_hsrg8"), SubResource("Resource_qic4d"), SubResource("Resource_qltyh"), SubResource("Resource_v1ppj"), SubResource("Resource_qll7k"), SubResource("Resource_yq3k4"), SubResource("Resource_2vjxx"), SubResource("Resource_v2v0u"), SubResource("Resource_qipfm"), SubResource("Resource_vdx5b"), SubResource("Resource_551fx"), SubResource("Resource_0va4a"), SubResource("Resource_woude"), SubResource("Resource_mjo0r"), SubResource("Resource_832ns")])
+media = SubResource("Resource_v70d0")
+musicIndustry = SubResource("Resource_jcfuy")
+distribution = SubResource("Resource_ku6sc")
+specialModifiers = Array[Object]([])
+metadata/_custom_type_script = "uid://ck2ykr1kmstw"
+
+[sub_resource type="Resource" id="Resource_rsh5e"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.25
+recordStoreCount = 615
+departmentStoreCount = 1167
+inventoryDepth = 0.75
+hasIndieDistribution = true
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_5dgyf"]
+script = ExtResource("2_pc72m")
+baseAcceptance = 0.85
+affinity = 0.44999999999999996
+hasLocalScene = true
+yearlyDrift = -0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_0ab7o"]
+script = ExtResource("2_pc72m")
+genre = 1
+baseAcceptance = 0.65
+affinity = 0.3500000000000001
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_hdics"]
+script = ExtResource("2_pc72m")
+genre = 2
+baseAcceptance = 0.7
+affinity = 0.44999999999999996
+hasLocalScene = true
+yearlyDrift = -0.010000000000000009
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_3qamu"]
+script = ExtResource("2_pc72m")
+genre = 3
+baseAcceptance = 0.45
+affinity = 0.25
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_dtxcb"]
+script = ExtResource("2_pc72m")
+genre = 4
+baseAcceptance = 0.55
+affinity = 0.1499999999999999
+hasLocalScene = true
+yearlyDrift = -0.05
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_jeyb3"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.65
+affinity = 0.3999999999999999
+hasLocalScene = true
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_nwrjd"]
+script = ExtResource("2_pc72m")
+genre = 6
+baseAcceptance = 0.7
+affinity = 0.44999999999999996
+hasLocalScene = true
+yearlyDrift = 0.04999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_1d0lf"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.55
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_f6dl4"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.15
+affinity = 0.10000000000000009
+yearlyDrift = 0.06
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_wofqw"]
+script = ExtResource("2_pc72m")
+genre = 9
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_mkp55"]
+script = ExtResource("2_pc72m")
+genre = 10
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vjya3"]
+script = ExtResource("2_pc72m")
+genre = 11
+baseAcceptance = 0.15
+affinity = 0.10000000000000009
+hasLocalScene = true
+yearlyDrift = 0.07
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vfrp3"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.3
+affinity = 0.050000000000000044
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_6jypl"]
+script = ExtResource("2_pc72m")
+genre = 13
+baseAcceptance = 0.55
+affinity = 0.3500000000000001
+hasLocalScene = true
+yearlyDrift = 0.06
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_3aa1t"]
+script = ExtResource("2_pc72m")
+genre = 14
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_t245b"]
+script = ExtResource("2_pc72m")
+genre = 15
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_j1s1a"]
+script = ExtResource("2_pc72m")
+genre = 16
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_oeoxu"]
+script = ExtResource("2_pc72m")
+genre = 17
+baseAcceptance = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_s836w"]
+script = ExtResource("2_pc72m")
+genre = 18
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_722na"]
+script = ExtResource("2_pc72m")
+genre = 19
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_1enwl"]
+script = ExtResource("2_pc72m")
+genre = 20
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_klwhi"]
+script = ExtResource("2_pc72m")
+genre = 21
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_25txi"]
+script = ExtResource("2_pc72m")
+genre = 22
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_35d0h"]
+script = ExtResource("2_pc72m")
+genre = 23
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_f4g2v"]
+script = ExtResource("2_pc72m")
+genre = 24
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_kgpy0"]
+script = ExtResource("2_pc72m")
+genre = 25
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_s6y1u"]
+script = ExtResource("2_pc72m")
+genre = 26
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_a1jf0"]
+script = ExtResource("2_pc72m")
+genre = 27
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_qr1sh"]
+script = ExtResource("2_pc72m")
+genre = 28
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_l35t4"]
+script = ExtResource("2_pc72m")
+genre = 29
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ymuee"]
+script = ExtResource("2_pc72m")
+genre = 30
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ykyty"]
+script = ExtResource("2_pc72m")
+genre = 31
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_308nb"]
+script = ExtResource("2_pc72m")
+genre = 32
+baseAcceptance = 0.45
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_voyol"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 1235
+hasTop40Stations = true
+hasRnBStations = true
+hasCountryStations = true
+radioReach = 0.9
+payolaSusceptibility = 0.8
+tvMarketRank = 1
+hasLocalMusicShow = true
+bandstandReach = 0.9
+jukeboxCount = 143000
+concertVenueCount = 860
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_ffht0"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 190
+studioQuality = 0.85
+hasSignatureSound = true
+localLabelCount = 235
+hasMajorLabelPresence = true
+talentPool = 0.8
+talentDevelopment = 0.75
+clubCount = 3915
+theaterCount = 5199
+hasChitlinCircuitVenues = true
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
+[sub_resource type="Resource" id="Resource_4xj30"]
+script = ExtResource("2_66ao4")
+regionId = "eastcoast"
+regionName = "East Coast"
+population = 52.2
+urbanization = 0.7
+averageIncome = 1.15
+youthPercentage = 0.32
+blackPopulation = 0.1
+collegeCount = 480
+integrationLevel = 0.45
+culturalProgressivism = 0.65
+regionalInsularity = 0.2
+trendAdoptionSpeed = 1.6
+genrePreferences = Array[Object]([SubResource("Resource_5dgyf"), SubResource("Resource_0ab7o"), SubResource("Resource_hdics"), SubResource("Resource_3qamu"), SubResource("Resource_dtxcb"), SubResource("Resource_jeyb3"), SubResource("Resource_nwrjd"), SubResource("Resource_1d0lf"), SubResource("Resource_f6dl4"), SubResource("Resource_wofqw"), SubResource("Resource_mkp55"), SubResource("Resource_vjya3"), SubResource("Resource_vfrp3"), SubResource("Resource_6jypl"), SubResource("Resource_3aa1t"), SubResource("Resource_t245b"), SubResource("Resource_j1s1a"), SubResource("Resource_oeoxu"), SubResource("Resource_s836w"), SubResource("Resource_722na"), SubResource("Resource_1enwl"), SubResource("Resource_klwhi"), SubResource("Resource_25txi"), SubResource("Resource_35d0h"), SubResource("Resource_f4g2v"), SubResource("Resource_kgpy0"), SubResource("Resource_s6y1u"), SubResource("Resource_a1jf0"), SubResource("Resource_qr1sh"), SubResource("Resource_l35t4"), SubResource("Resource_ymuee"), SubResource("Resource_ykyty"), SubResource("Resource_308nb")])
+media = SubResource("Resource_voyol")
+musicIndustry = SubResource("Resource_ffht0")
+distribution = SubResource("Resource_rsh5e")
+specialModifiers = null
+metadata/_custom_type_script = "uid://ck2ykr1kmstw"
+
+[sub_resource type="Resource" id="Resource_nr63e"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.35
+recordStoreCount = 240
+departmentStoreCount = 478
+inventoryDepth = 0.65
+hasIndieDistribution = true
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_m35o6"]
+script = ExtResource("2_pc72m")
+baseAcceptance = 0.75
+affinity = 0.3999999999999999
+hasLocalScene = true
+yearlyDrift = -0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_dygua"]
+script = ExtResource("2_pc72m")
+genre = 1
+baseAcceptance = 0.65
+affinity = 0.3500000000000001
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_wmih5"]
+script = ExtResource("2_pc72m")
+genre = 2
+baseAcceptance = 0.65
+affinity = 0.44999999999999996
+hasLocalScene = true
+yearlyDrift = -0.010000000000000009
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_cttqe"]
+script = ExtResource("2_pc72m")
+genre = 3
+baseAcceptance = 0.45
+affinity = 0.25
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_pvtjd"]
+script = ExtResource("2_pc72m")
+genre = 4
+baseAcceptance = 0.55
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = -0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_t3uwg"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.4
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_a7g5r"]
+script = ExtResource("2_pc72m")
+genre = 6
+baseAcceptance = 0.55
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_i8hbk"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.5
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_juaf7"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.1
+affinity = 0.050000000000000044
+yearlyDrift = 0.04999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_258si"]
+script = ExtResource("2_pc72m")
+genre = 9
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ho25f"]
+script = ExtResource("2_pc72m")
+genre = 10
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_01xeb"]
+script = ExtResource("2_pc72m")
+genre = 11
+baseAcceptance = 0.08
+affinity = 0.050000000000000044
+yearlyDrift = 0.04999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ex02u"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.5
+affinity = 0.25
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_6p2h2"]
+script = ExtResource("2_pc72m")
+genre = 13
+baseAcceptance = 0.5
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.04999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_d6ltr"]
+script = ExtResource("2_pc72m")
+genre = 14
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_nee68"]
+script = ExtResource("2_pc72m")
+genre = 15
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_pl8j5"]
+script = ExtResource("2_pc72m")
+genre = 16
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_cb77d"]
+script = ExtResource("2_pc72m")
+genre = 17
+baseAcceptance = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_q0bmc"]
+script = ExtResource("2_pc72m")
+genre = 18
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_s662u"]
+script = ExtResource("2_pc72m")
+genre = 19
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_4qvv3"]
+script = ExtResource("2_pc72m")
+genre = 20
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_pfepv"]
+script = ExtResource("2_pc72m")
+genre = 21
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_8f1hw"]
+script = ExtResource("2_pc72m")
+genre = 22
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_kjf3a"]
+script = ExtResource("2_pc72m")
+genre = 23
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_cwicg"]
+script = ExtResource("2_pc72m")
+genre = 24
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_fl4er"]
+script = ExtResource("2_pc72m")
+genre = 25
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_hhxmy"]
+script = ExtResource("2_pc72m")
+genre = 26
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_6iyav"]
+script = ExtResource("2_pc72m")
+genre = 27
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_3xafr"]
+script = ExtResource("2_pc72m")
+genre = 28
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_d3tc4"]
+script = ExtResource("2_pc72m")
+genre = 29
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_exvdo"]
+script = ExtResource("2_pc72m")
+genre = 30
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_snml7"]
+script = ExtResource("2_pc72m")
+genre = 31
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_p83p1"]
+script = ExtResource("2_pc72m")
+genre = 32
+baseAcceptance = 0.4
+affinity = 0.25
+hasLocalScene = true
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gqktv"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 470
+hasTop40Stations = true
+hasRnBStations = true
+hasCountryStations = true
+radioReach = 0.85
+payolaSusceptibility = 0.65
+tvMarketRank = 2
+hasLocalMusicShow = true
+bandstandReach = 0.5
+jukeboxCount = 55400
+concertVenueCount = 305
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_ddtov"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 100
+studioQuality = 0.85
+localLabelCount = 95
+hasMajorLabelPresence = true
+talentPool = 0.7
+talentDevelopment = 0.55
+clubCount = 1393
+theaterCount = 2007
+hasChitlinCircuitVenues = true
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
+[sub_resource type="Resource" id="Resource_w3svk"]
+script = ExtResource("2_66ao4")
+regionId = "westcoast"
+regionName = "West Coast"
+population = 20.3
+urbanization = 0.82
+averageIncome = 1.18
+youthPercentage = 0.38
+blackPopulation = 0.05
+collegeCount = 170
+integrationLevel = 0.5
+culturalProgressivism = 0.65
+regionalInsularity = 0.25
+trendAdoptionSpeed = 1.5
+genrePreferences = Array[Object]([SubResource("Resource_m35o6"), SubResource("Resource_dygua"), SubResource("Resource_wmih5"), SubResource("Resource_cttqe"), SubResource("Resource_pvtjd"), SubResource("Resource_t3uwg"), SubResource("Resource_a7g5r"), SubResource("Resource_i8hbk"), SubResource("Resource_juaf7"), SubResource("Resource_258si"), SubResource("Resource_ho25f"), SubResource("Resource_01xeb"), SubResource("Resource_ex02u"), SubResource("Resource_6p2h2"), SubResource("Resource_d6ltr"), SubResource("Resource_nee68"), SubResource("Resource_pl8j5"), SubResource("Resource_cb77d"), SubResource("Resource_q0bmc"), SubResource("Resource_s662u"), SubResource("Resource_4qvv3"), SubResource("Resource_pfepv"), SubResource("Resource_8f1hw"), SubResource("Resource_kjf3a"), SubResource("Resource_cwicg"), SubResource("Resource_fl4er"), SubResource("Resource_hhxmy"), SubResource("Resource_6iyav"), SubResource("Resource_3xafr"), SubResource("Resource_d3tc4"), SubResource("Resource_exvdo"), SubResource("Resource_snml7"), SubResource("Resource_p83p1")])
+media = SubResource("Resource_gqktv")
+musicIndustry = SubResource("Resource_ddtov")
+distribution = SubResource("Resource_nr63e")
+specialModifiers = null
+metadata/_custom_type_script = "uid://ck2ykr1kmstw"
+
+[sub_resource type="Resource" id="Resource_sxscx"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.6
+recordStoreCount = 181
+departmentStoreCount = 225
+inventoryDepth = 0.4
+hasIndieDistribution = true
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_5uxrh"]
+script = ExtResource("2_pc72m")
+baseAcceptance = 0.65
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = -0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_mk5pw"]
+script = ExtResource("2_pc72m")
+genre = 1
+baseAcceptance = 0.45
+affinity = 0.1499999999999999
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_v7pyr"]
+script = ExtResource("2_pc72m")
+genre = 2
+baseAcceptance = 0.55
+affinity = 0.3500000000000001
+hasLocalScene = true
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_eo3td"]
+script = ExtResource("2_pc72m")
+genre = 3
+baseAcceptance = 0.7
+affinity = 0.5
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vmi24"]
+script = ExtResource("2_pc72m")
+genre = 4
+baseAcceptance = 0.6
+affinity = -0.09999999999999998
+hasLocalScene = true
+yearlyDrift = -0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_lpvgb"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.45
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_0fego"]
+script = ExtResource("2_pc72m")
+genre = 6
+baseAcceptance = 0.45
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_vq5go"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.65
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ompnh"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.2
+affinity = 0.1499999999999999
+hasLocalScene = true
+yearlyDrift = 0.07
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_7vyck"]
+script = ExtResource("2_pc72m")
+genre = 9
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_h36p2"]
+script = ExtResource("2_pc72m")
+genre = 10
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gpngl"]
+script = ExtResource("2_pc72m")
+genre = 11
+baseAcceptance = 0.05
+affinity = 0.050000000000000044
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_rg1ti"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.7
+affinity = 0.5
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_raxsj"]
+script = ExtResource("2_pc72m")
+genre = 13
+baseAcceptance = 0.2
+affinity = 0.050000000000000044
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_s3wna"]
+script = ExtResource("2_pc72m")
+genre = 14
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_hktev"]
+script = ExtResource("2_pc72m")
+genre = 15
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_2d6y4"]
+script = ExtResource("2_pc72m")
+genre = 16
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_tftb2"]
+script = ExtResource("2_pc72m")
+genre = 17
+baseAcceptance = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_hujqm"]
+script = ExtResource("2_pc72m")
+genre = 18
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_bmyul"]
+script = ExtResource("2_pc72m")
+genre = 19
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_mx76w"]
+script = ExtResource("2_pc72m")
+genre = 20
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_cfhne"]
+script = ExtResource("2_pc72m")
+genre = 21
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_lidgu"]
+script = ExtResource("2_pc72m")
+genre = 22
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_k5f1e"]
+script = ExtResource("2_pc72m")
+genre = 23
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_1hjs7"]
+script = ExtResource("2_pc72m")
+genre = 24
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_jdgug"]
+script = ExtResource("2_pc72m")
+genre = 25
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_k3e0x"]
+script = ExtResource("2_pc72m")
+genre = 26
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_rwrhv"]
+script = ExtResource("2_pc72m")
+genre = 27
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_oukn0"]
+script = ExtResource("2_pc72m")
+genre = 28
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_rdsks"]
+script = ExtResource("2_pc72m")
+genre = 29
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_dr807"]
+script = ExtResource("2_pc72m")
+genre = 30
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_sh5cm"]
+script = ExtResource("2_pc72m")
+genre = 31
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_5374m"]
+script = ExtResource("2_pc72m")
+genre = 32
+baseAcceptance = 0.75
+affinity = 0.6000000000000001
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_6fj14"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 400
+hasTop40Stations = true
+hasRnBStations = true
+hasCountryStations = true
+radioReach = 0.75
+payolaSusceptibility = 0.55
+tvMarketRank = 5
+hasLocalMusicShow = true
+bandstandReach = 0.4
+jukeboxCount = 43300
+concertVenueCount = 130
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_i1hyj"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 30
+studioQuality = 0.55
+hasSignatureSound = true
+localLabelCount = 35
+talentPool = 0.75
+talentDevelopment = 0.35
+clubCount = 690
+theaterCount = 1588
+hasChitlinCircuitVenues = true
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
+[sub_resource type="Resource" id="Resource_wkcml"]
+script = ExtResource("2_66ao4")
+regionId = "deepsouth"
+regionName = "Deep South"
+regionType = 2
+population = 15.0
+urbanization = 0.48
+averageIncome = 0.78
+youthPercentage = 0.4
+blackPopulation = 0.33
+collegeCount = 130
+integrationLevel = 0.05
+culturalProgressivism = 0.15
+regionalInsularity = 0.75
+trendAdoptionSpeed = 0.8
+genrePreferences = Array[Object]([SubResource("Resource_5uxrh"), SubResource("Resource_mk5pw"), SubResource("Resource_v7pyr"), SubResource("Resource_eo3td"), SubResource("Resource_vmi24"), SubResource("Resource_lpvgb"), SubResource("Resource_0fego"), SubResource("Resource_vq5go"), SubResource("Resource_ompnh"), SubResource("Resource_7vyck"), SubResource("Resource_h36p2"), SubResource("Resource_gpngl"), SubResource("Resource_rg1ti"), SubResource("Resource_raxsj"), SubResource("Resource_s3wna"), SubResource("Resource_hktev"), SubResource("Resource_2d6y4"), SubResource("Resource_tftb2"), SubResource("Resource_hujqm"), SubResource("Resource_bmyul"), SubResource("Resource_mx76w"), SubResource("Resource_cfhne"), SubResource("Resource_lidgu"), SubResource("Resource_k5f1e"), SubResource("Resource_1hjs7"), SubResource("Resource_jdgug"), SubResource("Resource_k3e0x"), SubResource("Resource_rwrhv"), SubResource("Resource_oukn0"), SubResource("Resource_rdsks"), SubResource("Resource_dr807"), SubResource("Resource_sh5cm"), SubResource("Resource_5374m")])
+media = SubResource("Resource_6fj14")
+musicIndustry = SubResource("Resource_i1hyj")
+distribution = SubResource("Resource_sxscx")
+specialModifiers = null
+metadata/_custom_type_script = "uid://ck2ykr1kmstw"
+
+[sub_resource type="Resource" id="Resource_hmbhd"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.75
+recordStoreCount = 39
+departmentStoreCount = 86
+inventoryDepth = 0.3
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_ytes2"]
+script = ExtResource("2_pc72m")
+baseAcceptance = 0.8
+affinity = 0.5
+hasLocalScene = true
+yearlyDrift = -0.010000000000000009
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_w1ett"]
+script = ExtResource("2_pc72m")
+genre = 1
+baseAcceptance = 0.7
+affinity = 0.3999999999999999
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_8f7s7"]
+script = ExtResource("2_pc72m")
+genre = 2
+baseAcceptance = 0.25
+affinity = 0.050000000000000044
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_rl0ut"]
+script = ExtResource("2_pc72m")
+genre = 3
+baseAcceptance = 0.15
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_fyul1"]
+script = ExtResource("2_pc72m")
+genre = 4
+baseAcceptance = 0.3
+affinity = 0.10000000000000009
+yearlyDrift = -0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_jv8ps"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.15
+yearlyDrift = -0.010000000000000009
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_cwgk7"]
+script = ExtResource("2_pc72m")
+genre = 6
+baseAcceptance = 0.35
+affinity = 0.1499999999999999
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_3ciy7"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.15
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_sq4ss"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.02
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_sulfc"]
+script = ExtResource("2_pc72m")
+genre = 9
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_63arv"]
+script = ExtResource("2_pc72m")
+genre = 10
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_qea5k"]
+script = ExtResource("2_pc72m")
+genre = 11
+baseAcceptance = 0.01
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_dejtc"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.7
+affinity = 0.5
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_x8g25"]
+script = ExtResource("2_pc72m")
+genre = 13
+baseAcceptance = 0.2
+affinity = 0.050000000000000044
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_0p7dm"]
+script = ExtResource("2_pc72m")
+genre = 14
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_yppqo"]
+script = ExtResource("2_pc72m")
+genre = 15
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_4yc0j"]
+script = ExtResource("2_pc72m")
+genre = 16
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_0b2hb"]
+script = ExtResource("2_pc72m")
+genre = 17
+baseAcceptance = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_j7itx"]
+script = ExtResource("2_pc72m")
+genre = 18
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_7lfkw"]
+script = ExtResource("2_pc72m")
+genre = 19
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_wqxcb"]
+script = ExtResource("2_pc72m")
+genre = 20
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_s386c"]
+script = ExtResource("2_pc72m")
+genre = 21
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_y1pxy"]
+script = ExtResource("2_pc72m")
+genre = 22
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_2wlvk"]
+script = ExtResource("2_pc72m")
+genre = 23
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_n1wyc"]
+script = ExtResource("2_pc72m")
+genre = 24
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_c5o53"]
+script = ExtResource("2_pc72m")
+genre = 25
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_hr6qd"]
+script = ExtResource("2_pc72m")
+genre = 26
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_3r542"]
+script = ExtResource("2_pc72m")
+genre = 27
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_fdyoh"]
+script = ExtResource("2_pc72m")
+genre = 28
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_o1nih"]
+script = ExtResource("2_pc72m")
+genre = 29
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ytme5"]
+script = ExtResource("2_pc72m")
+genre = 30
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_akg8w"]
+script = ExtResource("2_pc72m")
+genre = 31
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_yuquv"]
+script = ExtResource("2_pc72m")
+genre = 32
+baseAcceptance = 0.15
+affinity = 0.050000000000000044
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_6cxmc"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 115
+hasTop40Stations = true
+hasCountryStations = true
+radioReach = 0.55
+payolaSusceptibility = 0.35
+tvMarketRank = 6
+hasLocalMusicShow = true
+bandstandReach = 0.3
+jukeboxCount = 12900
+concertVenueCount = 40
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_h8g1a"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 8
+studioQuality = 0.35
+localLabelCount = 7
+talentPool = 0.3
+talentDevelopment = 0.2
+clubCount = 189
+theaterCount = 472
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
+[sub_resource type="Resource" id="Resource_om038"]
+script = ExtResource("2_66ao4")
+regionId = "rockies"
+regionName = "Rockies"
+regionType = 3
+population = 4.6
+urbanization = 0.58
+averageIncome = 0.95
+youthPercentage = 0.39
+blackPopulation = 0.01
+collegeCount = 50
+integrationLevel = 0.55
+culturalProgressivism = 0.3
+regionalInsularity = 0.7
+trendAdoptionSpeed = 0.6
+genrePreferences = Array[Object]([SubResource("Resource_ytes2"), SubResource("Resource_w1ett"), SubResource("Resource_8f7s7"), SubResource("Resource_rl0ut"), SubResource("Resource_fyul1"), SubResource("Resource_jv8ps"), SubResource("Resource_cwgk7"), SubResource("Resource_3ciy7"), SubResource("Resource_sq4ss"), SubResource("Resource_sulfc"), SubResource("Resource_63arv"), SubResource("Resource_qea5k"), SubResource("Resource_dejtc"), SubResource("Resource_x8g25"), SubResource("Resource_0p7dm"), SubResource("Resource_yppqo"), SubResource("Resource_4yc0j"), SubResource("Resource_0b2hb"), SubResource("Resource_j7itx"), SubResource("Resource_7lfkw"), SubResource("Resource_wqxcb"), SubResource("Resource_s386c"), SubResource("Resource_y1pxy"), SubResource("Resource_2wlvk"), SubResource("Resource_n1wyc"), SubResource("Resource_c5o53"), SubResource("Resource_hr6qd"), SubResource("Resource_3r542"), SubResource("Resource_fdyoh"), SubResource("Resource_o1nih"), SubResource("Resource_ytme5"), SubResource("Resource_akg8w"), SubResource("Resource_yuquv")])
+media = SubResource("Resource_6cxmc")
+musicIndustry = SubResource("Resource_h8g1a")
+distribution = SubResource("Resource_hmbhd")
+specialModifiers = null
+metadata/_custom_type_script = "uid://ck2ykr1kmstw"
+
+[sub_resource type="Resource" id="Resource_3mrow"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.5
+recordStoreCount = 148
+departmentStoreCount = 295
+inventoryDepth = 0.45
+hasIndieDistribution = true
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_rqnqm"]
+script = ExtResource("2_pc72m")
+baseAcceptance = 0.65
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = -0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_7p7h0"]
+script = ExtResource("2_pc72m")
+genre = 1
+baseAcceptance = 0.5
+affinity = 0.19999999999999996
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_lx3ch"]
+script = ExtResource("2_pc72m")
+genre = 2
+baseAcceptance = 0.35
+affinity = 0.10000000000000009
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_0q5xb"]
+script = ExtResource("2_pc72m")
+genre = 3
+baseAcceptance = 0.55
+affinity = 0.3500000000000001
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_2quet"]
+script = ExtResource("2_pc72m")
+genre = 4
+baseAcceptance = 0.55
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = -0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_awrrb"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.3
+affinity = 0.10000000000000009
+yearlyDrift = -0.020000000000000004
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_s0bgi"]
+script = ExtResource("2_pc72m")
+genre = 6
+baseAcceptance = 0.45
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_xlpp0"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.45
+affinity = 0.19999999999999996
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_a3e7i"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.08
+affinity = 0.050000000000000044
+yearlyDrift = 0.04000000000000001
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_j0q2n"]
+script = ExtResource("2_pc72m")
+genre = 9
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_mm8hc"]
+script = ExtResource("2_pc72m")
+genre = 10
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_f6wi7"]
+script = ExtResource("2_pc72m")
+genre = 11
+baseAcceptance = 0.04
+affinity = 0.020000000000000018
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_jr2d2"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.75
+affinity = 0.55
+hasLocalScene = true
+yearlyDrift = 0.01999999999999999
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_55eqv"]
+script = ExtResource("2_pc72m")
+genre = 13
+baseAcceptance = 0.25
+affinity = 0.10000000000000009
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_jiww4"]
+script = ExtResource("2_pc72m")
+genre = 14
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_8plmb"]
+script = ExtResource("2_pc72m")
+genre = 15
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_fipl5"]
+script = ExtResource("2_pc72m")
+genre = 16
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_othyd"]
+script = ExtResource("2_pc72m")
+genre = 17
+baseAcceptance = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ldls8"]
+script = ExtResource("2_pc72m")
+genre = 18
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_tbhd3"]
+script = ExtResource("2_pc72m")
+genre = 19
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_j0hjr"]
+script = ExtResource("2_pc72m")
+genre = 20
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_j4yae"]
+script = ExtResource("2_pc72m")
+genre = 21
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_7e3q4"]
+script = ExtResource("2_pc72m")
+genre = 22
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ysmw1"]
+script = ExtResource("2_pc72m")
+genre = 23
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_evrrp"]
+script = ExtResource("2_pc72m")
+genre = 24
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_8iaxw"]
+script = ExtResource("2_pc72m")
+genre = 25
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_ay23j"]
+script = ExtResource("2_pc72m")
+genre = 26
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_wcp6b"]
+script = ExtResource("2_pc72m")
+genre = 27
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_lq7to"]
+script = ExtResource("2_pc72m")
+genre = 28
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_mu4a3"]
+script = ExtResource("2_pc72m")
+genre = 29
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_0bwlq"]
+script = ExtResource("2_pc72m")
+genre = 30
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_jabc3"]
+script = ExtResource("2_pc72m")
+genre = 31
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_7upiy"]
+script = ExtResource("2_pc72m")
+genre = 32
+baseAcceptance = 0.45
+affinity = 0.30000000000000004
+hasLocalScene = true
+yearlyDrift = 0.009999999999999995
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_3su5o"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 345
+hasTop40Stations = true
+hasRnBStations = true
+hasCountryStations = true
+radioReach = 0.7
+payolaSusceptibility = 0.55
+tvMarketRank = 4
+hasLocalMusicShow = true
+bandstandReach = 0.45
+jukeboxCount = 39300
+concertVenueCount = 160
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_j3t6e"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 40
+studioQuality = 0.55
+hasSignatureSound = true
+localLabelCount = 42
+talentPool = 0.65
+talentDevelopment = 0.35
+clubCount = 774
+theaterCount = 1429
+hasChitlinCircuitVenues = true
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
+[sub_resource type="Resource" id="Resource_gx6p6"]
+script = ExtResource("2_66ao4")
+regionId = "southwest"
+regionName = "Southwest"
+regionType = 3
+population = 14.2
+urbanization = 0.62
+averageIncome = 0.9
+youthPercentage = 0.41
+blackPopulation = 0.09
+collegeCount = 110
+integrationLevel = 0.25
+culturalProgressivism = 0.35
+regionalInsularity = 0.55
+trendAdoptionSpeed = 1.0
+genrePreferences = Array[Object]([SubResource("Resource_rqnqm"), SubResource("Resource_7p7h0"), SubResource("Resource_lx3ch"), SubResource("Resource_0q5xb"), SubResource("Resource_2quet"), SubResource("Resource_awrrb"), SubResource("Resource_s0bgi"), SubResource("Resource_xlpp0"), SubResource("Resource_a3e7i"), SubResource("Resource_j0q2n"), SubResource("Resource_mm8hc"), SubResource("Resource_f6wi7"), SubResource("Resource_jr2d2"), SubResource("Resource_55eqv"), SubResource("Resource_jiww4"), SubResource("Resource_8plmb"), SubResource("Resource_fipl5"), SubResource("Resource_othyd"), SubResource("Resource_ldls8"), SubResource("Resource_tbhd3"), SubResource("Resource_j0hjr"), SubResource("Resource_j4yae"), SubResource("Resource_7e3q4"), SubResource("Resource_ysmw1"), SubResource("Resource_evrrp"), SubResource("Resource_8iaxw"), SubResource("Resource_ay23j"), SubResource("Resource_wcp6b"), SubResource("Resource_lq7to"), SubResource("Resource_mu4a3"), SubResource("Resource_0bwlq"), SubResource("Resource_jabc3"), SubResource("Resource_7upiy")])
+media = SubResource("Resource_3su5o")
+musicIndustry = SubResource("Resource_j3t6e")
+distribution = SubResource("Resource_3mrow")
+specialModifiers = null
+metadata/_custom_type_script = "uid://ck2ykr1kmstw"
+
+[node name="ChartManager" type="Node" unique_id=233342509]
+script = ExtResource("1_o3mq1")
+allRegions = Array[Object]([SubResource("Resource_77lym"), SubResource("Resource_4xj30"), SubResource("Resource_w3svk"), SubResource("Resource_wkcml"), SubResource("Resource_om038"), SubResource("Resource_gx6p6")])

@@ -1,0 +1,207 @@
+[gd_scene format=3 uid="uid://crwoi352i6e2b"]
+
+[ext_resource type="Script" uid="uid://dce20t7kgyhn6" path="res://UI/UIManager.cs" id="1_eiy7p"]
+[ext_resource type="Texture2D" uid="uid://bj62eu8ah1jwo" path="res://983378b0-fa8d-4d8b-a742-9074092aca4f.png" id="2_h7a2f"]
+[ext_resource type="Script" uid="uid://ijrv605mspwk" path="res://UI/ChartUI.cs" id="3_qoqlk"]
+[ext_resource type="Texture2D" uid="uid://1pd6mcmr0a6j" path="res://a40a2761-2ec0-4953-90f6-66858329e3b9.png" id="4_iwfq2"]
+[ext_resource type="PackedScene" uid="uid://4v07s5f1navm" path="res://ChartEntry.tscn" id="5_iwfq2"]
+
+[node name="MainMenu" type="Control" unique_id=1275337543 node_paths=PackedStringArray("chartPanel")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 7.0
+offset_bottom = 2.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_eiy7p")
+chartPanel = NodePath("ChartPanel")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=2044183199]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_h7a2f")
+
+[node name="BillboardButton" type="TextureButton" parent="." unique_id=1732141028]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.469
+anchor_right = 0.261
+anchor_bottom = 0.61200005
+offset_left = 21.0
+offset_top = -0.4580078
+offset_right = 4.0529785
+offset_bottom = 3.815918
+
+[node name="ChartPanel" type="Control" parent="." unique_id=699117346 node_paths=PackedStringArray("chartPanel", "dateHeader", "slots", "nextPageButton", "prevPageButton", "closeButton")]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_qoqlk")
+chartPanel = NodePath(".")
+dateHeader = NodePath("Date")
+slots = [NodePath("VBoxContainer/ChartEntry"), NodePath("VBoxContainer/ChartEntry2"), NodePath("VBoxContainer/ChartEntry3"), NodePath("VBoxContainer/ChartEntry4"), NodePath("VBoxContainer/ChartEntry5"), NodePath("VBoxContainer/ChartEntry6"), NodePath("VBoxContainer/ChartEntry7"), NodePath("VBoxContainer/ChartEntry8"), NodePath("VBoxContainer/ChartEntry9"), NodePath("VBoxContainer/ChartEntry10"), NodePath("VBoxContainer/ChartEntry11"), NodePath("VBoxContainer/ChartEntry12"), NodePath("VBoxContainer/ChartEntry13"), NodePath("VBoxContainer/ChartEntry14"), NodePath("VBoxContainer/ChartEntry15"), NodePath("VBoxContainer2/ChartEntry"), NodePath("VBoxContainer2/ChartEntry2"), NodePath("VBoxContainer2/ChartEntry3"), NodePath("VBoxContainer2/ChartEntry4"), NodePath("VBoxContainer2/ChartEntry5"), NodePath("VBoxContainer2/ChartEntry6"), NodePath("VBoxContainer2/ChartEntry7"), NodePath("VBoxContainer2/ChartEntry8"), NodePath("VBoxContainer2/ChartEntry9"), NodePath("VBoxContainer2/ChartEntry10"), NodePath("VBoxContainer2/ChartEntry11"), NodePath("VBoxContainer2/ChartEntry12"), NodePath("VBoxContainer2/ChartEntry13"), NodePath("VBoxContainer2/ChartEntry14"), NodePath("VBoxContainer2/ChartEntry15")]
+nextPageButton = NodePath("NextPgBtn")
+prevPageButton = NodePath("BackPgBtn")
+closeButton = NodePath("CloseBtn")
+
+[node name="TextureRect" type="TextureRect" parent="ChartPanel" unique_id=234448066]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_iwfq2")
+
+[node name="Date" type="Label" parent="ChartPanel" unique_id=1524411108]
+layout_mode = 0
+offset_left = 547.0
+offset_top = 48.0
+offset_right = 798.0
+offset_bottom = 80.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ChartPanel" unique_id=390945156]
+layout_mode = 0
+offset_left = 425.0
+offset_top = 309.0
+offset_right = 923.0
+offset_bottom = 1048.0
+
+[node name="ChartEntry" parent="ChartPanel/VBoxContainer" unique_id=1413358445 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry2" parent="ChartPanel/VBoxContainer" unique_id=1431685784 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry3" parent="ChartPanel/VBoxContainer" unique_id=822348694 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry4" parent="ChartPanel/VBoxContainer" unique_id=1161308675 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry5" parent="ChartPanel/VBoxContainer" unique_id=2114409757 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry6" parent="ChartPanel/VBoxContainer" unique_id=1750805323 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry7" parent="ChartPanel/VBoxContainer" unique_id=383778240 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry8" parent="ChartPanel/VBoxContainer" unique_id=1407144332 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry9" parent="ChartPanel/VBoxContainer" unique_id=786653558 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry10" parent="ChartPanel/VBoxContainer" unique_id=1475578556 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry11" parent="ChartPanel/VBoxContainer" unique_id=135621664 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry12" parent="ChartPanel/VBoxContainer" unique_id=1243786179 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry13" parent="ChartPanel/VBoxContainer" unique_id=1017761206 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry14" parent="ChartPanel/VBoxContainer" unique_id=1988040371 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry15" parent="ChartPanel/VBoxContainer" unique_id=1310019198 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="VBoxContainer2" type="VBoxContainer" parent="ChartPanel" unique_id=1718840512]
+layout_mode = 0
+offset_left = 935.0
+offset_top = 308.0
+offset_right = 1433.0
+offset_bottom = 1047.0
+
+[node name="ChartEntry" parent="ChartPanel/VBoxContainer2" unique_id=835024141 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry2" parent="ChartPanel/VBoxContainer2" unique_id=2104520984 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry3" parent="ChartPanel/VBoxContainer2" unique_id=865630242 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry4" parent="ChartPanel/VBoxContainer2" unique_id=848836136 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry5" parent="ChartPanel/VBoxContainer2" unique_id=390330804 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry6" parent="ChartPanel/VBoxContainer2" unique_id=741296320 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry7" parent="ChartPanel/VBoxContainer2" unique_id=727679239 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry8" parent="ChartPanel/VBoxContainer2" unique_id=1358937497 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry9" parent="ChartPanel/VBoxContainer2" unique_id=371084994 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry10" parent="ChartPanel/VBoxContainer2" unique_id=166555674 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry11" parent="ChartPanel/VBoxContainer2" unique_id=123489461 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry12" parent="ChartPanel/VBoxContainer2" unique_id=1486139896 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry13" parent="ChartPanel/VBoxContainer2" unique_id=831062639 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry14" parent="ChartPanel/VBoxContainer2" unique_id=581592213 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="ChartEntry15" parent="ChartPanel/VBoxContainer2" unique_id=1355643781 instance=ExtResource("5_iwfq2")]
+layout_mode = 2
+
+[node name="NextPgBtn" type="Button" parent="ChartPanel" unique_id=1350701173]
+layout_mode = 0
+offset_left = 494.0
+offset_top = 211.0
+offset_right = 539.0
+offset_bottom = 261.0
+scale = Vector2(1.08, 0.88)
+theme_override_font_sizes/font_size = 30
+text = "->"
+
+[node name="BackPgBtn" type="Button" parent="ChartPanel" unique_id=586519710]
+layout_mode = 0
+offset_left = 431.00003
+offset_top = 211.0
+offset_right = 476.00003
+offset_bottom = 261.0
+scale = Vector2(1.08, 0.88)
+theme_override_font_sizes/font_size = 30
+text = "<-"
+
+[node name="CloseBtn" type="Button" parent="ChartPanel" unique_id=854154238]
+layout_mode = 0
+offset_left = 405.0
+offset_top = 32.0
+offset_right = 450.0
+offset_bottom = 82.0
+scale = Vector2(1.08, 0.72)
+theme_override_font_sizes/font_size = 30
+text = "X"
+
+[connection signal="pressed" from="BillboardButton" to="." method="OnClick_Charts"]

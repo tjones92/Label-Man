@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://6wvafx3pflnh"]
+
+[ext_resource type="Texture2D" uid="uid://bj62eu8ah1jwo" path="res://983378b0-fa8d-4d8b-a742-9074092aca4f.png" id="1_kv1ut"]
+
+[node name="983378b0Fa8d4d8bA7429074092Aca4f" type="Sprite2D" unique_id=220473620]
+position = Vector2(641.25006, 359.5)
+scale = Vector2(0.7726449, 0.7526317)
+texture = ExtResource("1_kv1ut")
+
+[node name="Control" type="Control" parent="." unique_id=788654695]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
