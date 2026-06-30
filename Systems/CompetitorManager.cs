@@ -4,6 +4,7 @@ using Godot;
 
 public partial class CompetitorManager : Node {
 	public static CompetitorManager Instance { get; private set; }
+	private const float AnnualReleaseGrowthRate = 0.30f;
 	
 	[ExportGroup("Configuration")]
 	[Export] private int targetActiveRecords = 500;
@@ -198,22 +199,12 @@ public partial class CompetitorManager : Node {
 				if (artist.unrecoupedAdvance > 0) artist.unrecoupedAdvance -= artistPayment;
 			}
 			
-			if (runtimeData.weeksOnChart > 24 && weeklyUnits < 50) deadRecords.Add(recordId);
 		}
 		
 		foreach (var dead in deadRecords) {
 			recordIds.Remove(dead);
-			NotifyChartRunComplete(dead);
 		}
 		return totalRevenue;
-	}
-	
-	private void NotifyChartRunComplete(string recordId) {
-		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(recordId);
-		if (runtimeData == null) return;
-		var artist = ArtistManager.Instance?.GetArtist(runtimeData.baseRecord.artistId);
-		if (artist == null) return;
-		RosterManager.Instance?.RecordChartRunComplete(artist, runtimeData);
 	}
 	
 	private void ProcessWeeklyReleases(GameDate date) {
@@ -232,6 +223,8 @@ public partial class CompetitorManager : Node {
 	
 	private float CalculateWeeklyReleaseChance(AILabel label) {
 		float baseChance = label.releasesPerMonth / 4f;
+		int yearOffset = Mathf.Max(0, (TimeManager.Instance?.CurrentDate.year ?? 1960) - 1960);
+		float yearScale = 1f + (yearOffset * AnnualReleaseGrowthRate);
 		float statusMod = label.status switch {
 			LabelStatus.Bankrupt => 0f, LabelStatus.Defunct => 0f, LabelStatus.Dying => 0.3f,
 			LabelStatus.Struggling => 0.5f, LabelStatus.Stable => 1f, LabelStatus.Rising => 1.2f,
@@ -240,7 +233,14 @@ public partial class CompetitorManager : Node {
 		int availableArtists = label.roster.Count(a => a.weeksSinceLastRelease >= 10);
 		if (availableArtists == 0) return 0f;
 		float availabilityMod = Mathf.Clamp((float)availableArtists / 3f, 0f, 1f);
-		return baseChance * statusMod * availabilityMod;
+		return baseChance * yearScale * statusMod * availabilityMod;
+	}
+
+	public void RecordRetired(string labelId, string recordId) {
+		if (string.IsNullOrEmpty(labelId) || string.IsNullOrEmpty(recordId)) return;
+		if (labelActiveRecords.TryGetValue(labelId, out var recordIds)) {
+			recordIds.Remove(recordId);
+		}
 	}
 	
 	private bool TryReleaseRecord(AILabel label, GameDate date) {

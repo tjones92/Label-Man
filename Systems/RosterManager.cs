@@ -233,7 +233,9 @@ public partial class RosterManager : Node {
 	}
 	
 	public void RecordChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
+		if (artist == null || record == null || record.artistChartRunCompleted) return;
 		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold);
+		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
 		if (label != null && label.ShouldDropArtist(artist)) {
 			int year = TimeManager.Instance?.CurrentDate.year ?? 1960;

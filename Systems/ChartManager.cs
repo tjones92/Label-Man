@@ -37,6 +37,8 @@ public partial class ChartManager : Node {
 	private List<RecordRuntimeData> allRecords = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
 	private const int BubblingUnderSize = 15;
+	private const int NeverChartedHorizonWeeks = 14;
+	private const int RetirementSalesFloor = 50;
 	private Dictionary<RecordRuntimeData, int> bubblingUnderPositions = new Dictionary<RecordRuntimeData, int>();
 	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
@@ -342,9 +344,7 @@ public partial class ChartManager : Node {
 
 		UpdateGenreMomentum();
 
-		if (currentChartWeek % 4 == 0) {
-			CullDeadRecords();
-		}
+		CullDeadRecords(includeChartedRecords: currentChartWeek % 4 == 0);
 	}
 
 	private void OnYearChanged(GameDate date) {
@@ -498,6 +498,7 @@ public partial class ChartManager : Node {
 			}
 
 			ChartSimulator.FinalizeWeeklySales(record, totalSales);
+			ChartSimulator.UpdateSaturation(record, allRegions);
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
@@ -803,20 +804,37 @@ public partial class ChartManager : Node {
 		return 0.75f;
 	}
 
-	private void CullDeadRecords() {
-		int preCount = allRecords.Count;
+	private void CullDeadRecords(bool includeChartedRecords) {
+		var recordsToRetire = allRecords.Where(record => {
+			if (record.currentPosition != 0 || record.unitsThisWeek >= RetirementSalesFloor) return false;
 
-		allRecords.RemoveAll(r =>
-			r.currentPosition == 0 &&
-			r.weeksOnChart > 0 &&
-			r.unitsThisWeek < 50 &&
-			r.totalUnitsSold > 0 &&
-			GetTotalRadioPlay(r) < 0.1f
-		);
+			bool neverChartedExpired = record.weeksOnChart == 0 &&
+				record.weeksSinceRelease > NeverChartedHorizonWeeks;
+			bool chartedExpired = includeChartedRecords &&
+				record.weeksOnChart > 0 &&
+				record.totalUnitsSold > 0 &&
+				GetTotalRadioPlay(record) < 0.1f;
 
-		if (debugMode && preCount != allRecords.Count) {
-			GD.Print($"ChartManager: Culled {preCount - allRecords.Count} dead records. Active: {allRecords.Count}");
+			return neverChartedExpired || chartedExpired;
+		}).ToList();
+
+		foreach (var record in recordsToRetire) RetireRecord(record);
+
+		if (debugMode && recordsToRetire.Count > 0) {
+			GD.Print($"ChartManager: Retired {recordsToRetire.Count} dead records. Active: {allRecords.Count}");
 		}
+	}
+
+	private void RetireRecord(RecordRuntimeData record) {
+		if (record?.baseRecord == null) return;
+
+		var artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
+		if (artist != null) {
+			RosterManager.Instance?.RecordChartRunComplete(artist, record);
+		}
+
+		CompetitorManager.Instance?.RecordRetired(record.baseRecord.labelId, record.baseRecord.recordId);
+		allRecords.Remove(record);
 	}
 
 	private float GetTotalRadioPlay(RecordRuntimeData record) {

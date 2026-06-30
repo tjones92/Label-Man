@@ -12,6 +12,7 @@ public static class ChartSimulator {
 	private const float RADIO_AWARENESS_MULT = 0.18f;
 	private const float WORD_OF_MOUTH_MULT = 0.14f;     
 	private const float ARTIST_HEAT_AWARENESS_BONUS = 0.18f;
+	private const float AWARENESS_DECAY_RATE = 0.95f;
 	
 	private const float RADIO_QUALITY_WEIGHT = 0.7f;    
 	private const float RADIO_MOMENTUM_WEIGHT = 0.25f;
@@ -20,7 +21,8 @@ public static class ChartSimulator {
 	
 	private const float BASE_PURCHASE_RATE = 0.10f;
 	private const float QUALITY_EXPONENT = 4.0f;
-	private const float SATURATION_POWER = 2.2f;
+	private const float SATURATION_POWER = 0.45f;
+	private const float DEMAND_AGE_DECAY_RATE = 0.91f;
 	
 	private const float TOP_5_VISIBILITY_MULT = 4.5f;
 	private const float TOP_10_VISIBILITY_MULT = 3.0f;
@@ -54,7 +56,6 @@ public static class ChartSimulator {
 		UpdateRadioHeat(record, label, quality, genreAcceptance);
 		UpdateAwareness(record, quality);
 		UpdateWordOfMouth(record, quality);
-		UpdateSaturation(record);
 	}
 	
 	public static void FinalizeWeeklySales(RecordRuntimeData record, int totalSales) {
@@ -94,14 +95,12 @@ public static class ChartSimulator {
 		float awareBuyers = potentialBuyers * effectiveAwareness;
 		
 		// === 3. MARKET EXHAUSTION ===
-		float qualityAppeal = 0.3f + (quality * 0.7f);
-		float genreReach = GetGenreMarketReach(record.baseRecord.primaryGenre);
-		float potentialAudience = BASE_POTENTIAL_AUDIENCE * qualityAppeal * genreReach * (region.population / 50f);
+		float potentialAudience = GetRegionalPotentialAudience(record, region, quality);
 		
 		float regionalSold = regionalData.unitsSoldTotal;
 		float penetration = regionalSold / Mathf.Max(1f, potentialAudience);
 		
-		float exhaustionFactor = 1f / (1f + (penetration * 3f));
+		float exhaustionFactor = 1f / (1f + Mathf.Pow(penetration * 3f, SATURATION_POWER));
 		exhaustionFactor = Mathf.Max(exhaustionFactor, 0.08f);
 		
 		// === 4. DEMAND CURVE ===
@@ -126,6 +125,13 @@ public static class ChartSimulator {
 		// === 7. MOMENTUM BONUS ===
 		float momentumBonus = 1f + Mathf.Clamp(record.momentum, -0.2f, 0.5f);
 		conversionRate *= momentumBonus;
+
+		// Records eventually leave the active demand cycle even when chart
+		// visibility keeps their effective awareness artificially high.
+		if (record.weeksSinceRelease > 8) {
+			int weeksOverThreshold = record.weeksSinceRelease - 8;
+			conversionRate *= Mathf.Pow(DEMAND_AGE_DECAY_RATE, weeksOverThreshold);
+		}
 		
 		// === 8. OTHER MODIFIERS ===
 		conversionRate *= 0.6f + genreAcceptance * 0.5f;
@@ -326,6 +332,12 @@ public static class ChartSimulator {
 		
 		float totalGrowth = (radioGrowth + womGrowth + chartVisibility + organicGrowth) * growthRoom;
 		record.awareness = Mathf.Clamp(record.awareness + totalGrowth, 0f, 1f);
+
+		if (record.weeksSinceRelease > 8) {
+			int weeksOverThreshold = record.weeksSinceRelease - 8;
+			float decay = Mathf.Pow(AWARENESS_DECAY_RATE, weeksOverThreshold);
+			record.awareness *= decay;
+		}
 	}
 	
 	// =======================================================================
@@ -350,9 +362,29 @@ public static class ChartSimulator {
 	// SATURATION
 	// =======================================================================
 	
-	private static void UpdateSaturation(RecordRuntimeData record) {
-		float estimatedMarketSize = 8000000f;
-		record.saturation = record.totalUnitsSold / estimatedMarketSize;
+	public static void UpdateSaturation(RecordRuntimeData record, MarketRegion[] regions) {
+		float weightedPenetration = 0f;
+		float totalPotentialAudience = 0f;
+		float quality = record.GetQuality();
+
+		foreach (var region in regions) {
+			if (!record.regionalData.TryGetValue(region.regionId, out var regionalData)) continue;
+
+			float potentialAudience = GetRegionalPotentialAudience(record, region, quality);
+			float penetration = regionalData.unitsSoldTotal / Mathf.Max(1f, potentialAudience);
+			weightedPenetration += penetration * potentialAudience;
+			totalPotentialAudience += potentialAudience;
+		}
+
+		record.saturation = totalPotentialAudience > 0f
+			? weightedPenetration / totalPotentialAudience
+			: 0f;
+	}
+
+	private static float GetRegionalPotentialAudience(RecordRuntimeData record, MarketRegion region, float quality) {
+		float qualityAppeal = 0.3f + (quality * 0.7f);
+		float genreReach = GetGenreMarketReach(record.baseRecord.primaryGenre);
+		return BASE_POTENTIAL_AUDIENCE * qualityAppeal * genreReach * (region.population / 50f);
 	}
 	
 	// =======================================================================
