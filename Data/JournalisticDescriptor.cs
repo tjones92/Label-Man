@@ -228,7 +228,7 @@ public static class JournalisticDescriptor {
 
 	// === ARTIST DESCRIPTIONS ===
 	
-	public static string DescribeArtist(ArtistProfile artist) {
+	public static string DescribeArtist(ArtistPublicProfile artist) {
 		var lines = new List<string>();
 		
 		if (artist.isBand) {
@@ -493,23 +493,4 @@ public static class JournalisticDescriptor {
 		
 		return "Steady performance across all regions.";
 	}
-}
-
-[System.Serializable]
-public class ArtistProfile {
-	public string artistId;
-	public string name;
-	public bool isBand;
-	public string homeCity;
-	public Genre primaryGenre;
-	public string labelId;
-	public string labelName;
-	
-	public int totalCharted;
-	public int highestPosition;
-	public int numberOneHits;
-	public int totalWeeksOnChart;
-	public int totalRecordsReleased;
-	
-	public List<ReputationTag> reputationTags;
 }

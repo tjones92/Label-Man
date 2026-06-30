@@ -11,6 +11,7 @@ public partial class ChartDetailPanel : Control
 	[Export] private Label titleText;
 	[Export] private Label artistText;
 	[Export] private Label labelGenreText;
+	[Export] private Label releaseDateText;
 
 	[ExportGroup("Chart Performance")]
 	[Export] private Label positionText;
@@ -102,10 +103,13 @@ public partial class ChartDetailPanel : Control
 		if (artistText != null)
 			artistText.Text = baseRecord.artistName;
 
+		if (releaseDateText != null)
+			releaseDateText.Text = $"Released {baseRecord.releaseDate.ToHeadlineString()}";
+
 		if (labelGenreText != null)
 		{
 			string label = GetLabelDisplayName(baseRecord.labelId);
-			string genre = FormatGenreName(baseRecord.primaryGenre);
+			string genre = GenreNameFormatter.Format(baseRecord.primaryGenre);
 			labelGenreText.Text = $"{label}  •  {genre}";
 		}
 	}
@@ -244,7 +248,7 @@ public partial class ChartDetailPanel : Control
 		salesSummaryText.Text = sb.ToString();
 	}
 
-	private string GetSalesTierDescription(int totalSales)
+	public static string GetSalesTierDescription(int totalSales)
 	{
 		if (totalSales >= 1000000) return "★ MILLION SELLER ★";
 		else if (totalSales >= 500000) return "Gold Record territory.";
@@ -364,21 +368,6 @@ public partial class ChartDetailPanel : Control
 		}
 
 		return labelId;
-	}
-
-	private string FormatGenreName(Genre genre)
-	{
-		string name = genre.ToString();
-		var result = new StringBuilder();
-
-		foreach (char c in name)
-		{
-			if (char.IsUpper(c) && result.Length > 0)
-				result.Append(' ');
-			result.Append(c);
-		}
-
-		return result.ToString();
 	}
 
 	private string FormatNumber(int number)

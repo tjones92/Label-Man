@@ -26,6 +26,10 @@ public partial class ChartUI : Control
 		if (nextPageButton != null) nextPageButton.Pressed += NextPage;
 		if (prevPageButton != null) prevPageButton.Pressed += PrevPage;
 		if (closeButton != null) closeButton.Pressed += CloseChart;
+		if (detailPanel != null) {
+			detailPanel.OnViewArtistClicked += HandleViewArtist;
+			detailPanel.OnViewLabelClicked += HandleViewLabel;
+		}
 
 		if (ChartManager.Instance != null)
 			ChartManager.Instance.OnChartCalculated += UpdateDisplay;
@@ -41,6 +45,10 @@ public partial class ChartUI : Control
 
 	public override void _ExitTree()
 	{
+		if (detailPanel != null) {
+			detailPanel.OnViewArtistClicked -= HandleViewArtist;
+			detailPanel.OnViewLabelClicked -= HandleViewLabel;
+		}
 		if (ChartManager.Instance != null)
 			ChartManager.Instance.OnChartCalculated -= UpdateDisplay;
 
@@ -52,6 +60,9 @@ public partial class ChartUI : Control
 			}
 		}
 	}
+
+	private void HandleViewArtist(RecordRuntimeData record) => UIManager.Instance?.OpenArtist(record?.baseRecord?.artistId, record?.baseRecord?.isPlayerOwned ?? false);
+	private void HandleViewLabel(RecordRuntimeData record) => UIManager.Instance?.OpenLabel(record?.baseRecord?.labelId, record?.baseRecord?.isPlayerOwned ?? false);
 
 	private void HandleEntryClicked(RecordRuntimeData record)
 	{

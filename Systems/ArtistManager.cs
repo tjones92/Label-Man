@@ -27,6 +27,27 @@ public partial class ArtistManager : Node {
 		}
 		Instance = this;
 	}
+
+	public override void _Ready() {
+		if (ChartManager.Instance != null) {
+			ChartManager.Instance.OnRecordLeftChart += OnRecordLeftChart;
+		}
+	}
+
+	public override void _ExitTree() {
+		if (ChartManager.Instance != null) {
+			ChartManager.Instance.OnRecordLeftChart -= OnRecordLeftChart;
+		}
+	}
+
+	private void OnRecordLeftChart(RecordRuntimeData record) {
+		if (record?.baseRecord == null) return;
+
+		var artist = GetArtist(record.baseRecord.artistId);
+		if (artist == null) return;
+
+		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold);
+	}
 	
 	public void GenerateInitialPool(int year) {
 		GD.Print($"ArtistManager: Generating initial pool of {initialPoolSize} artists...");
@@ -50,11 +71,9 @@ public partial class ArtistManager : Node {
 	public SimulatedArtist GenerateArtist(ArtistType type, Genre genre, int year, string region) {
 		artistIdCounter++;
 		string id = $"artist_{artistIdCounter:D5}";
-		string stageName = GenerateStageName(type, genre, year);
 		
 		var artist = new SimulatedArtist {
 			artistId = id,
-			stageName = stageName,
 			type = type,
 			primaryGenre = genre,
 			secondaryGenre = GetRelatedGenre(genre),
@@ -64,6 +83,9 @@ public partial class ArtistManager : Node {
 		};
 		
 		GenerateMembers(artist, type, genre, year);
+		artist.stageName = type is ArtistType.SoloMale or ArtistType.SoloFemale
+			? artist.members[0].FullName
+			: GenerateStageName(type, genre, year);
 		artist.RecalculateStats();
 		
 		artist.momentum = 0f;
@@ -311,6 +333,32 @@ public partial class ArtistManager : Node {
 	}
 	
 	public SimulatedArtist GetArtist(string artistId) => artistRegistry.TryGetValue(artistId, out var artist) ? artist : null;
+
+	public ArtistPublicProfile GetPublicProfile(string artistId) {
+		var artist = GetArtist(artistId);
+		if (artist == null) return null;
+		var records = ChartManager.Instance?.GetAllRecords()
+			.Where(r => r?.baseRecord?.artistId == artistId).ToList() ?? new List<RecordRuntimeData>();
+		var profile = new ArtistPublicProfile {
+			artistId = artist.artistId, name = artist.stageName, artistType = artist.type,
+			isBand = artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup,
+			homeRegion = artist.homeRegion, primaryGenre = artist.primaryGenre, secondaryGenre = artist.secondaryGenre,
+			formedYear = artist.formedYear, careerState = artist.careerState, labelId = artist.labelId,
+			labelName = ChartManager.Instance?.GetLabelName(artist.labelId) ?? "Independent",
+			totalCharted = artist.charted, top40Hits = artist.top40Hits, top10Hits = artist.top10Hits,
+			numberOneHits = artist.numberOnes, totalRecordsReleased = artist.totalReleases,
+			highestPosition = records.Where(r => r.peakPosition > 0).Select(r => r.peakPosition).DefaultIfEmpty(0).Min(),
+			totalWeeksOnChart = records.Sum(r => r.weeksOnChart)
+		};
+		profile.personnel = artist.members.Select(m => new ArtistPersonnelProfile {
+			name = m.FullName, role = m.primaryRole, joinedYear = m.joinedYear,
+			isFoundingMember = m.isFoundingMember, isActive = m.isActive, reasonLeft = m.reasonLeft
+		}).ToList();
+		if (artist.numberOnes > 0) profile.reputationTags.Add(ReputationTag.HitMachine);
+		if (artist.careerState >= CareerState.Established) profile.reputationTags.Add(ReputationTag.Established);
+		if (artist.momentum > 0.5f) profile.reputationTags.Add(ReputationTag.RisingStar);
+		return profile;
+	}
 	public Musician GetMusician(string musicianId) => musicianRegistry.TryGetValue(musicianId, out var musician) ? musician : null;
 	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(a => a.careerState == CareerState.Unsigned && a.isActive).ToList();
 	

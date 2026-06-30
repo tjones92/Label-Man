@@ -24,6 +24,7 @@ public class SimulatedArtist {
 
 	public CareerState careerState = CareerState.Unsigned;
 	public string labelId;
+	public bool isPlayerOwned;
 	public int signedYear;
 	public bool isActive = true;
 	public string disbandReason;

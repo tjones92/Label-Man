@@ -8,6 +8,8 @@ public partial class UIManager : Control
 	[Export] private Control ledgerPanel;
 	[Export] private Control dialoguePanel;
 	[Export] private Control chartPanel;
+	[Export] private ArtistDetailPanel artistDetailPanel;
+	[Export] private LabelDetailPanel labelDetailPanel;
 
 	[ExportGroup("State")]
 	public bool isUIOpen = false;
@@ -15,6 +17,26 @@ public partial class UIManager : Control
 	public override void _EnterTree()
 	{
 		Instance = this;
+	}
+
+	public override void _Ready()
+	{
+		if (artistDetailPanel != null) artistDetailPanel.LabelRequested += id => OpenLabel(id);
+		if (labelDetailPanel != null) labelDetailPanel.ArtistRequested += id => OpenArtist(id);
+	}
+
+	public void OpenArtist(string artistId, bool isOwnedByPlayer = false)
+	{
+		if (string.IsNullOrEmpty(artistId) || artistDetailPanel == null) return;
+		artistDetailPanel.ShowArtist(artistId, isOwnedByPlayer);
+		isUIOpen = true;
+	}
+
+	public void OpenLabel(string labelId, bool isOwnedByPlayer = false)
+	{
+		if (string.IsNullOrEmpty(labelId) || labelDetailPanel == null) return;
+		labelDetailPanel.ShowLabel(labelId, isOwnedByPlayer);
+		isUIOpen = true;
 	}
 
 	public void OnClick_Ledger()
@@ -62,13 +84,13 @@ public partial class UIManager : Control
 	public void OnClick_Calendar()
 	{
 		if (isUIOpen) return;
-		GD.Print("Week Advanced! (Calendar Page Rip Animation goes here)");
-		
-		// Advance time
-		if (TimeManager.Instance != null)
-		{
-			TimeManager.Instance.EndDay();
-		}
+		if (TimeManager.Instance == null) return;
+
+		var interruptedBy = TimeManager.Instance.SkipToFriday();
+		if (interruptedBy != null)
+			GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()} for {interruptedBy.title}.");
+		else
+			GD.Print($"Calendar advanced to Friday, {TimeManager.Instance.CurrentDate.ToLongString()}.");
 	}
 
 	public void OnClick_CloseAll()
@@ -76,6 +98,8 @@ public partial class UIManager : Control
 		if (ledgerPanel != null) ledgerPanel.Visible = false;
 		if (dialoguePanel != null) dialoguePanel.Visible = false;
 		if (chartPanel != null) chartPanel.Visible = false;
+		if (artistDetailPanel != null) artistDetailPanel.Visible = false;
+		if (labelDetailPanel != null) labelDetailPanel.Visible = false;
 		
 		isUIOpen = false;
 	}

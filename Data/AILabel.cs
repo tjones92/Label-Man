@@ -15,6 +15,7 @@ public partial class AILabel : Resource {
 	[Export] public LabelTier tier;
 	[Export] public int foundedYear;
 	[Export] public bool isHistorical;
+	[Export] public bool isPlayerOwned;
 	
 	[ExportGroup("Genres")]
 	public Genre[] preferredGenres;
@@ -151,6 +152,7 @@ public partial class AILabel : Resource {
 		float advance = CalculateAdvanceOffer(artist);
 		
 		artist.labelId = labelId;
+		artist.isPlayerOwned = isPlayerOwned;
 		artist.signedYear = currentYear;
 		artist.careerState = artist.careerState == CareerState.Unsigned ? CareerState.NewSigning : artist.careerState;
 		artist.royaltyRate = CalculateRoyaltyRate(artist);
@@ -166,9 +168,32 @@ public partial class AILabel : Resource {
 	public void DropArtist(SimulatedArtist artist, int currentYear, string reason = "dropped") {
 		roster?.Remove(artist);
 		artist.labelId = null;
+		artist.isPlayerOwned = false;
 		artist.careerState = CareerState.Dropped;
 		artist.careerEvents.Add($"{currentYear}: Released from {labelName} ({reason})");
 	}
+
+	public LabelPublicProfile GetPublicProfile() {
+		return new LabelPublicProfile {
+			labelId = labelId, labelName = labelName, founderName = founderName,
+			headquartersCity = headquartersCity, archetype = archetype, tier = tier,
+			foundedYear = foundedYear, preferredGenres = preferredGenres ?? Array.Empty<Genre>(),
+			totalReleases = totalReleases, top40Hits = top40Hits, numberOneHits = numberOneHits,
+			rosterArtistNames = roster?.Where(a => a != null).Select(a => a.stageName).ToList() ?? new List<string>(),
+			statusImpression = GetStatusImpression(),
+			descriptionBlurb = JournalisticDescriptor.DescribeLabel(this)
+		};
+	}
+
+	private string GetStatusImpression() => status switch {
+		LabelStatus.Rising => "Industry talk says they're on the way up.",
+		LabelStatus.Stable => "Word is business remains steady.",
+		LabelStatus.Struggling => "The trade press hears they're struggling.",
+		LabelStatus.Dying => "Insiders wonder how long they can keep the doors open.",
+		LabelStatus.Bankrupt or LabelStatus.Defunct => "The operation has gone quiet.",
+		LabelStatus.Acquired => "They now operate under new ownership.",
+		_ => "Little is being said about their present condition."
+	};
 	
 	public SimulatedArtist GetArtistForRelease(int currentYear) {
 		if (roster == null || roster.Count == 0) return null;

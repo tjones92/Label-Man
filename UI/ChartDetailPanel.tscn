@@ -1,0 +1,109 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://UI/ChartDetailPanel.cs" id="1"]
+[sub_resource type="StyleBoxFlat" id="folder"]
+bg_color = Color(0.91, 0.81, 0.58, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.36, 0.25, 0.12, 1)
+
+[node name="ChartDetailPanel" type="Control" node_paths=PackedStringArray("panelRoot", "titleText", "artistText", "labelGenreText", "releaseDateText", "positionText", "movementText", "chartStatsText", "recordDescriptionText", "chartCommentaryText", "regionalHintText", "salesSummaryText", "tagsContainer", "closeButton", "viewArtistButton", "viewLabelButton")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+panelRoot = NodePath(".")
+titleText = NodePath("Folder/Margin/Body/Title")
+artistText = NodePath("Folder/Margin/Body/Artist")
+labelGenreText = NodePath("Folder/Margin/Body/LabelGenre")
+releaseDateText = NodePath("Folder/Margin/Body/ReleaseDate")
+positionText = NodePath("Folder/Margin/Body/ChartLine/Position")
+movementText = NodePath("Folder/Margin/Body/ChartLine/Movement")
+chartStatsText = NodePath("Folder/Margin/Body/ChartStats")
+recordDescriptionText = NodePath("Folder/Margin/Body/Description")
+chartCommentaryText = NodePath("Folder/Margin/Body/Commentary")
+regionalHintText = NodePath("Folder/Margin/Body/Regional")
+salesSummaryText = NodePath("Folder/Margin/Body/Sales")
+tagsContainer = NodePath("Folder/Margin/Body/Tags")
+closeButton = NodePath("Folder/Margin/Body/Buttons/Close")
+viewArtistButton = NodePath("Folder/Margin/Body/Buttons/Artist")
+viewLabelButton = NodePath("Folder/Margin/Body/Buttons/Label")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.38)
+
+[node name="Folder" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -430.0
+offset_top = -350.0
+offset_right = 430.0
+offset_bottom = 350.0
+theme_override_styles/panel = SubResource("folder")
+
+[node name="Margin" type="MarginContainer" parent="Folder"]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 24
+[node name="Body" type="VBoxContainer" parent="Folder/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+[node name="Title" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+[node name="Artist" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+[node name="LabelGenre" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="ReleaseDate" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="ChartLine" type="HBoxContainer" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="Position" type="Label" parent="Folder/Margin/Body/ChartLine"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+[node name="Movement" type="Label" parent="Folder/Margin/Body/ChartLine"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+[node name="ChartStats" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="Description" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+autowrap_mode = 2
+[node name="Commentary" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="Regional" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="Sales" type="Label" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="Tags" type="HBoxContainer" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="Buttons" type="HBoxContainer" parent="Folder/Margin/Body"]
+layout_mode = 2
+[node name="Artist" type="Button" parent="Folder/Margin/Body/Buttons"]
+layout_mode = 2
+text = "VIEW ARTIST"
+[node name="Label" type="Button" parent="Folder/Margin/Body/Buttons"]
+layout_mode = 2
+text = "VIEW LABEL"
+[node name="Close" type="Button" parent="Folder/Margin/Body/Buttons"]
+layout_mode = 2
+text = "CLOSE"

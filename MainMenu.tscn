@@ -5,8 +5,11 @@
 [ext_resource type="Script" uid="uid://ijrv605mspwk" path="res://UI/ChartUI.cs" id="3_qoqlk"]
 [ext_resource type="Texture2D" uid="uid://1pd6mcmr0a6j" path="res://a40a2761-2ec0-4953-90f6-66858329e3b9.png" id="4_iwfq2"]
 [ext_resource type="PackedScene" uid="uid://4v07s5f1navm" path="res://ChartEntry.tscn" id="5_iwfq2"]
+[ext_resource type="PackedScene" path="res://UI/ChartDetailPanel.tscn" id="6_detail"]
+[ext_resource type="PackedScene" path="res://UI/ArtistDetailPanel.tscn" id="7_artist"]
+[ext_resource type="PackedScene" path="res://UI/LabelDetailPanel.tscn" id="8_label"]
 
-[node name="MainMenu" type="Control" unique_id=1275337543 node_paths=PackedStringArray("chartPanel")]
+[node name="MainMenu" type="Control" unique_id=1275337543 node_paths=PackedStringArray("chartPanel", "artistDetailPanel", "labelDetailPanel")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -17,6 +20,8 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_eiy7p")
 chartPanel = NodePath("ChartPanel")
+artistDetailPanel = NodePath("ArtistDetailPanel")
+labelDetailPanel = NodePath("LabelDetailPanel")
 
 [node name="TextureRect" type="TextureRect" parent="." unique_id=2044183199]
 layout_mode = 1
@@ -38,7 +43,16 @@ offset_top = -0.4580078
 offset_right = 4.0529785
 offset_bottom = 3.815918
 
-[node name="ChartPanel" type="Control" parent="." unique_id=699117346 node_paths=PackedStringArray("chartPanel", "dateHeader", "slots", "nextPageButton", "prevPageButton", "closeButton")]
+[node name="CalendarBtn" type="Button" parent="." unique_id=469256875]
+layout_mode = 0
+offset_left = 1315.0
+offset_top = 454.99997
+offset_right = 1659.0
+offset_bottom = 522.0
+rotation = 0.15777898
+scale = Vector2(1.4390271, 2.3790245)
+
+[node name="ChartPanel" type="Control" parent="." unique_id=699117346 node_paths=PackedStringArray("chartPanel", "dateHeader", "slots", "nextPageButton", "prevPageButton", "closeButton", "detailPanel")]
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -53,6 +67,7 @@ slots = [NodePath("VBoxContainer/ChartEntry"), NodePath("VBoxContainer/ChartEntr
 nextPageButton = NodePath("NextPgBtn")
 prevPageButton = NodePath("BackPgBtn")
 closeButton = NodePath("CloseBtn")
+detailPanel = NodePath("ChartDetailPanel")
 
 [node name="TextureRect" type="TextureRect" parent="ChartPanel" unique_id=234448066]
 layout_mode = 1
@@ -204,4 +219,14 @@ scale = Vector2(1.08, 0.72)
 theme_override_font_sizes/font_size = 30
 text = "X"
 
+[node name="ChartDetailPanel" parent="ChartPanel" unique_id=464067799 instance=ExtResource("6_detail")]
+layout_mode = 1
+
+[node name="ArtistDetailPanel" parent="." unique_id=105649969 instance=ExtResource("7_artist")]
+layout_mode = 1
+
+[node name="LabelDetailPanel" parent="." unique_id=9676878 instance=ExtResource("8_label")]
+layout_mode = 1
+
 [connection signal="pressed" from="BillboardButton" to="." method="OnClick_Charts"]
+[connection signal="pressed" from="CalendarBtn" to="." method="OnClick_Calendar"]
