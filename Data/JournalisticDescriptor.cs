@@ -317,9 +317,9 @@ public static class JournalisticDescriptor {
 		// Fix: Genre[] uses .Length, and convert with LINQ .Select() instead of .ConvertAll()
 		if (label.preferredGenres != null) {
 			if (label.preferredGenres.Length == 1) {
-				lines.Add($"Known primarily for {label.preferredGenres[0].ToString().ToLower()}.");
+				lines.Add($"Known primarily for {GenreNameFormatter.Format(label.preferredGenres[0]).ToLowerInvariant()}.");
 			} else if (label.preferredGenres.Length <= 3) {
-				var genres = string.Join(" and ", label.preferredGenres.Select(g => g.ToString().ToLower()));
+				var genres = string.Join(" and ", label.preferredGenres.Select(g => GenreNameFormatter.Format(g).ToLowerInvariant()));
 				lines.Add($"Specializing in {genres}.");
 			} else {
 				lines.Add("A diverse roster spanning multiple genres.");

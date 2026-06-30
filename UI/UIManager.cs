@@ -10,6 +10,9 @@ public partial class UIManager : Control
 	[Export] private Control chartPanel;
 	[Export] private ArtistDetailPanel artistDetailPanel;
 	[Export] private LabelDetailPanel labelDetailPanel;
+	private Button calendarButton;
+	private PopupPanel calendarPopup;
+	private SpinBox skipDaysInput;
 
 	[ExportGroup("State")]
 	public bool isUIOpen = false;
@@ -23,6 +26,17 @@ public partial class UIManager : Control
 	{
 		if (artistDetailPanel != null) artistDetailPanel.LabelRequested += id => OpenLabel(id);
 		if (labelDetailPanel != null) labelDetailPanel.ArtistRequested += id => OpenArtist(id);
+		calendarButton = GetNodeOrNull<Button>("CalendarBtn");
+		if (calendarButton != null) {
+			calendarButton.GuiInput += OnCalendarGuiInput;
+			UpdateCalendarButton(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
+		}
+		if (TimeManager.Instance != null) TimeManager.Instance.OnDayStarted += UpdateCalendarButton;
+	}
+
+	public override void _ExitTree()
+	{
+		if (TimeManager.Instance != null) TimeManager.Instance.OnDayStarted -= UpdateCalendarButton;
 	}
 
 	public void OpenArtist(string artistId, bool isOwnedByPlayer = false)
@@ -85,12 +99,79 @@ public partial class UIManager : Control
 	{
 		if (isUIOpen) return;
 		if (TimeManager.Instance == null) return;
+		TimeManager.Instance.SkipDays(1);
+		GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}.");
+	}
 
-		var interruptedBy = TimeManager.Instance.SkipToFriday();
-		if (interruptedBy != null)
-			GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()} for {interruptedBy.title}.");
-		else
-			GD.Print($"Calendar advanced to Friday, {TimeManager.Instance.CurrentDate.ToLongString()}.");
+	private void OnCalendarGuiInput(InputEvent @event)
+	{
+		if (@event is not InputEventMouseButton mouse || !mouse.Pressed || mouse.ButtonIndex != MouseButton.Right) return;
+		ShowCalendarPopup();
+		calendarButton.AcceptEvent();
+	}
+
+	private void ShowCalendarPopup()
+	{
+		if (TimeManager.Instance == null) return;
+		if (calendarPopup == null) BuildCalendarPopup();
+
+		var nextEvent = TimeManager.Instance.GetNextEvent();
+		var nextButton = calendarPopup.GetNode<Button>("Margin/Options/NextEvent");
+		nextButton.Text = nextEvent == null
+			? "No upcoming event"
+			: $"Skip to next event ({nextEvent.title}, {nextEvent.date.ToHeadlineString()})";
+		nextButton.Disabled = nextEvent == null;
+		calendarPopup.PopupCentered(new Vector2I(500, 300));
+	}
+
+	private void BuildCalendarPopup()
+	{
+		calendarPopup = new PopupPanel { Name = "CalendarPopup" };
+		AddChild(calendarPopup);
+		var margin = new MarginContainer { Name = "Margin" };
+		margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		margin.AddThemeConstantOverride("margin_left", 22);
+		margin.AddThemeConstantOverride("margin_right", 22);
+		margin.AddThemeConstantOverride("margin_top", 18);
+		margin.AddThemeConstantOverride("margin_bottom", 18);
+		calendarPopup.AddChild(margin);
+		var options = new VBoxContainer { Name = "Options" };
+		options.AddThemeConstantOverride("separation", 10);
+		margin.AddChild(options);
+		var title = new Label { Text = "ADVANCE CALENDAR" };
+		title.AddThemeFontSizeOverride("font_size", 22);
+		options.AddChild(title);
+
+		var friday = new Button { Text = "Skip to Friday" };
+		friday.Pressed += () => RunCalendarSkip(() => TimeManager.Instance.SkipToFriday());
+		options.AddChild(friday);
+		var next = new Button { Name = "NextEvent", Text = "Skip to next event" };
+		next.Pressed += () => RunCalendarSkip(() => TimeManager.Instance.SkipToNextEvent());
+		options.AddChild(next);
+
+		var daysRow = new HBoxContainer();
+		skipDaysInput = new SpinBox { MinValue = 1, MaxValue = 365, Value = 7, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		daysRow.AddChild(skipDaysInput);
+		var skipDays = new Button { Text = "Skip days" };
+		skipDays.Pressed += () => RunCalendarSkip(() => TimeManager.Instance.SkipDays((int)skipDaysInput.Value));
+		daysRow.AddChild(skipDays);
+		options.AddChild(daysRow);
+		var close = new Button { Text = "Close" };
+		close.Pressed += calendarPopup.Hide;
+		options.AddChild(close);
+	}
+
+	private void RunCalendarSkip(System.Func<ScheduledEvent> skip)
+	{
+		calendarPopup.Hide();
+		var interruptedBy = skip();
+		string reason = interruptedBy == null ? "" : $" (stopped for {interruptedBy.title})";
+		GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}{reason}.");
+	}
+
+	private void UpdateCalendarButton(GameDate date)
+	{
+		if (calendarButton != null) calendarButton.Text = date.ToHeadlineString();
 	}
 
 	public void OnClick_CloseAll()

@@ -30,13 +30,38 @@ public partial class ArtistManager : Node {
 
 	public override void _Ready() {
 		if (ChartManager.Instance != null) {
+			ChartManager.Instance.OnRecordChartUpdated += OnRecordChartUpdated;
 			ChartManager.Instance.OnRecordLeftChart += OnRecordLeftChart;
 		}
 	}
 
 	public override void _ExitTree() {
 		if (ChartManager.Instance != null) {
+			ChartManager.Instance.OnRecordChartUpdated -= OnRecordChartUpdated;
 			ChartManager.Instance.OnRecordLeftChart -= OnRecordLeftChart;
+		}
+	}
+
+	private void OnRecordChartUpdated(RecordRuntimeData record) {
+		if (record?.baseRecord == null) return;
+		var artist = GetArtist(record.baseRecord.artistId);
+		if (artist == null) return;
+
+		if (!record.artistChartEntryCredited) {
+			artist.RegisterChartEntry();
+			record.artistChartEntryCredited = true;
+		}
+		if (record.currentPosition <= 40 && !record.artistTop40Credited) {
+			artist.RegisterTop40Hit();
+			record.artistTop40Credited = true;
+		}
+		if (record.currentPosition <= 10 && !record.artistTop10Credited) {
+			artist.RegisterTop10Hit();
+			record.artistTop10Credited = true;
+		}
+		if (record.currentPosition == 1 && !record.artistNumberOneCredited) {
+			artist.RegisterNumberOne();
+			record.artistNumberOneCredited = true;
 		}
 	}
 
@@ -46,7 +71,9 @@ public partial class ArtistManager : Node {
 		var artist = GetArtist(record.baseRecord.artistId);
 		if (artist == null) return;
 
-		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold);
+		if (record.artistChartRunCompleted) return;
+		artist.CompleteChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold);
+		record.artistChartRunCompleted = true;
 	}
 	
 	public void GenerateInitialPool(int year) {

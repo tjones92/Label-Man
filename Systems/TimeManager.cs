@@ -181,7 +181,7 @@ public partial class TimeManager : Node {
 	}
 
 	public ScheduledEvent GetNextEvent() {
-		return scheduledEvents.Where(e => e.date >= currentDate).OrderBy(e => e.date).FirstOrDefault();
+		return scheduledEvents.Where(e => e.date > currentDate).OrderBy(e => e.date).FirstOrDefault();
 	}
 
 	private ScheduledEvent GetInterruptEventForDate(GameDate date) {

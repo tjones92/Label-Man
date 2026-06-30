@@ -13,6 +13,11 @@ public class RecordRuntimeData {
 	public int weeksOnChart;
 	public int weeksSinceRelease;
 	public int weeksInTopTen;
+	public bool artistChartEntryCredited;
+	public bool artistTop40Credited;
+	public bool artistTop10Credited;
+	public bool artistNumberOneCredited;
+	public bool artistChartRunCompleted;
 	
 	// === MOMENTUM INDICATORS ===
 	public bool isBullet;

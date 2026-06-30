@@ -30,6 +30,8 @@ ChartManager="*uid://t4ywl6fyxi6d"
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
+window/size/mode=3
+window/stretch/mode="canvas_items"
 
 [dotnet]
 

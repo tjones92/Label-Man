@@ -53,6 +53,7 @@ public partial class ChartManager : Node {
 	public event Action<List<RecordRuntimeData>> OnChartCalculated;
 	public event Action<RecordRuntimeData> OnRecordEnteredChart;
 	public event Action<RecordRuntimeData> OnRecordHitNumberOne;
+	public event Action<RecordRuntimeData> OnRecordChartUpdated;
 	public event Action<RecordRuntimeData> OnRecordLeftChart;
 	public event Action<Genre, float> OnGenreMomentumChanged;
 
@@ -633,6 +634,7 @@ public partial class ChartManager : Node {
 			}
 
 			record.currentPosition = newPosition;
+			if (triggerEvents) OnRecordChartUpdated?.Invoke(record);
 			wasOnChart.Remove(record);
 		}
 

@@ -98,27 +98,51 @@ public class SimulatedArtist {
 	}
 
 	public void UpdateAfterChartRun(int peakPosition, int weeksOnChart, int unitsSold) {
+		if (peakPosition > 0 && peakPosition <= 100) RegisterChartEntry();
+		if (peakPosition > 0 && peakPosition <= 40) RegisterTop40Hit();
+		if (peakPosition > 0 && peakPosition <= 10) RegisterTop10Hit();
+		if (peakPosition == 1) RegisterNumberOne();
+		CompleteChartRun(peakPosition, weeksOnChart, unitsSold);
+	}
+
+	public void RegisterChartEntry() {
+		charted++;
+		UpdateCareerState();
+	}
+
+	public void RegisterTop40Hit() {
+		top40Hits++;
+		consecutiveHits++;
+		consecutiveFlops = 0;
+		momentum = Mathf.Clamp(momentum + 0.02f, 0f, 1f);
+		reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
+		UpdateCareerState();
+	}
+
+	public void RegisterTop10Hit() {
+		top10Hits++;
+		momentum = Mathf.Clamp(momentum + 0.10f, 0f, 1f);
+		reputation = Mathf.Clamp(reputation + 0.02f, 0f, 1f);
+		UpdateCareerState();
+	}
+
+	public void RegisterNumberOne() {
+		numberOnes++;
+		momentum = Mathf.Clamp(momentum + 0.18f, 0f, 1f);
+		UpdateCareerState();
+	}
+
+	public void CompleteChartRun(int peakPosition, int weeksOnChart, int unitsSold) {
 		totalUnitsSold += unitsSold;
-		if (peakPosition > 0 && peakPosition <= 100) charted++;
-
-		bool wasHit = peakPosition > 0 && peakPosition <= 40;
-		bool wasFlop = peakPosition == 0 || peakPosition > 60;
-
-		if (peakPosition == 1) numberOnes++;
-		if (peakPosition > 0 && peakPosition <= 10) top10Hits++;
-		if (wasHit) { top40Hits++; consecutiveHits++; consecutiveFlops = 0; }
-		else if (wasFlop) { consecutiveFlops++; consecutiveHits = 0; }
-
-		float momentumDelta = peakPosition switch {
-			1 => 0.30f, <= 5 => 0.20f, <= 10 => 0.12f, <= 20 => 0.06f, <= 40 => 0.02f,
-			<= 60 => -0.05f, <= 100 => -0.10f, _ => -0.15f
-		};
-		momentum = Mathf.Clamp(momentum + momentumDelta, 0f, 1f);
-
-		if (peakPosition <= 10) reputation = Mathf.Clamp(reputation + 0.03f, 0f, 1f);
-		else if (peakPosition <= 40) reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
+		if (peakPosition == 0 || peakPosition > 60) {
+			consecutiveFlops++;
+			consecutiveHits = 0;
+		}
+		if (peakPosition > 40) {
+			float penalty = peakPosition <= 60 ? -0.05f : peakPosition <= 100 ? -0.10f : -0.15f;
+			momentum = Mathf.Clamp(momentum + penalty, 0f, 1f);
+		}
 		reputation = Mathf.Clamp(reputation - 0.005f, 0f, 1f);
-
 		UpdateCareerState();
 	}
 
