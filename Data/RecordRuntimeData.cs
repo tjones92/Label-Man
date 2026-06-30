@@ -43,6 +43,12 @@ public class RecordRuntimeData {
 	// === LABEL PUSH ===
 	public float currentLabelPush;    // 0-1: How hard is the label pushing THIS WEEK
 	public float totalLabelInvestment;// Running total of label push
+
+	// === AUDIT TELEMETRY (write-only from launch paths) ===
+	public float initialLaunchAwareness;
+	public int initialLaunchStock;
+	public CareerState launchCareerState;
+	public float perceivedQualityMultiplier = 1f;
 	
 	// === DERIVED METRICS ===
 	public float peakMomentum;        // Highest momentum achieved

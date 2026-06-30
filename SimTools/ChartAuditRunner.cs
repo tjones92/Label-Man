@@ -91,7 +91,7 @@ public partial class ChartAuditRunner : Node {
 		weekWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-weeks.csv"));
 		lifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-lifecycles.csv"));
 
-		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints");
+		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
 	}
@@ -199,7 +199,11 @@ public partial class ChartAuditRunner : Node {
 			F(record.wordOfMouth),
 			F(record.momentum),
 			F(record.saturation),
-			F(ChartSimulator.CalculateChartPoints(record, regions))
+			F(ChartSimulator.CalculateChartPoints(record, regions)),
+			F(record.initialLaunchAwareness),
+			record.initialLaunchStock.ToString(CultureInfo.InvariantCulture),
+			Csv(record.launchCareerState.ToString()),
+			F(record.perceivedQualityMultiplier)
 		}));
 	}
 

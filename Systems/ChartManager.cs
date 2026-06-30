@@ -366,6 +366,13 @@ public partial class ChartManager : Node {
 
 	public void ReleaseRecord(Record record, AILabel releasingLabel = null) {
 		var runtimeData = new RecordRuntimeData(record);
+		float perceivedQualityMult = 1f;
+		if (releasingLabel != null && !record.isPlayerOwned) {
+			float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
+			float noiseRange = Mathf.Lerp(0.30f, 0.10f, releasingLabel.scoutingAbility);
+			float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
+			perceivedQualityMult = 0.6f + (perceivedQuality * 0.8f);
+		}
 
 		float quality = runtimeData.GetQuality();
 		float labelPush = releasingLabel != null ? releasingLabel.marketingPower * releasingLabel.budgetLevel : 0.2f;
@@ -381,13 +388,13 @@ public partial class ChartManager : Node {
 		allRecords.Add(runtimeData);
 
 		if (releasingLabel != null && !record.isPlayerOwned) {
-			PromoteRecordAI(runtimeData, releasingLabel);
+			PromoteRecordAI(runtimeData, releasingLabel, perceivedQualityMult);
 		}
 
 		if (debugMode) GD.Print($"Released: {record.title} by {record.artistName} (awareness: {runtimeData.awareness:F2}, radio: {runtimeData.radioHeat:F2})");
 	}
 
-	private void PromoteRecordAI(RecordRuntimeData record, AILabel label) {
+	private void PromoteRecordAI(RecordRuntimeData record, AILabel label, float perceivedQualityMult) {
 		float minAwareness = label.tier switch {
 			LabelTier.Major => 0.25f,
 			LabelTier.MidTier => 0.18f,
@@ -424,6 +431,7 @@ public partial class ChartManager : Node {
 				baseStock *
 				regionStrength *
 				label.distributionStrength *
+				perceivedQualityMult *
 				(0.7f + region.distribution.inventoryDepth * 0.3f) *
 				(float)GD.RandRange(0.8, 1.2)
 			);
@@ -439,6 +447,11 @@ public partial class ChartManager : Node {
 			float genreFit = GetGenreFit(record.baseRecord.primaryGenre, region);
 			data.sentiment = (quality * 0.7f + genreFit * 0.3f) + (float)GD.RandRange(-0.05, 0.1);
 		}
+
+		record.initialLaunchAwareness = record.awareness;
+		record.initialLaunchStock = record.regionalData.Values.Sum(data => data.unitsInStores);
+		record.launchCareerState = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId)?.careerState ?? CareerState.Unsigned;
+		record.perceivedQualityMultiplier = perceivedQualityMult;
 
 		if (debugMode) {
 			int totalStock = record.regionalData.Values.Sum(d => d.unitsInStores);
@@ -585,16 +598,21 @@ public partial class ChartManager : Node {
 
 	private void RestockHotRecords() {
 		foreach (var record in allRecords) {
-			if (record.currentPosition <= 0) continue;
-
 			AILabel label = GetLabelById(record.baseRecord.labelId);
 			if (label == null) continue;
 
 			foreach (var region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out var data)) continue;
 
-				bool needsRestock = data.unitsBackordered > 500 ||
-								(data.unitsInStores < data.unitsSoldThisWeek * 2 && record.currentPosition <= 40);
+				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
+				bool preChartBreakout = record.currentPosition == 0 &&
+					record.weeksSinceRelease <= 3 &&
+					stockBeforeSales > 0 &&
+					(data.unitsSoldThisWeek >= stockBeforeSales * 0.5f || data.unitsBackordered > 500);
+				bool chartedNeedsRestock = record.currentPosition > 0 &&
+					(data.unitsBackordered > 500 ||
+					(data.unitsInStores < data.unitsSoldThisWeek * 2 && record.currentPosition <= 40));
+				bool needsRestock = chartedNeedsRestock || preChartBreakout;
 
 				if (needsRestock) {
 					float demandSignal = data.unitsSoldThisWeek + (data.unitsBackordered * 0.5f);

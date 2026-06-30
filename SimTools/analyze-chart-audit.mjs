@@ -61,6 +61,13 @@ function summarize(values) {
   return {count: values.length, min: values.length ? Math.min(...values) : null, median: median(values), mean: mean(values), p95: percentile(values, .95), max: values.length ? Math.max(...values) : null};
 }
 
+function coefficientOfVariation(values) {
+  const average = mean(values);
+  if (!values.length || !average) return null;
+  const variance = mean(values.map(value => (value - average) ** 2));
+  return Math.sqrt(variance) / average;
+}
+
 function analyzeRun(directory, run) {
   const weeks = readCsv(path.join(directory, `${run}-weeks.csv`));
   const rows = readCsv(path.join(directory, `${run}-records.csv`));
@@ -160,6 +167,40 @@ function analyzeRun(directory, run) {
     delete tier.top20Qualities;
   }
 
+	const launchesByCareerState = {};
+	const launchesByCareerAndTier = {};
+	for (const record of records.values()) {
+		const first = record.rows[0];
+		const initialAwareness = num(first.initialLaunchAwareness);
+		const initialStock = num(first.initialLaunchStock);
+		if (record.leftCensored || initialStock <= 0) continue;
+		const careerState = first.launchCareerState || "Unknown";
+		const careerAndTier = `${careerState}:${record.tier || "Unknown"}`;
+		const launchStrength = initialAwareness + (initialStock / 100000);
+		launchesByCareerState[careerState] ??= {awareness: [], stock: [], strength: [], multiplier: []};
+		launchesByCareerAndTier[careerAndTier] ??= {awareness: [], stock: [], strength: [], multiplier: []};
+		launchesByCareerState[careerState].awareness.push(initialAwareness);
+		launchesByCareerState[careerState].stock.push(initialStock);
+		launchesByCareerState[careerState].strength.push(launchStrength);
+		launchesByCareerState[careerState].multiplier.push(num(first.perceivedQualityMultiplier));
+		launchesByCareerAndTier[careerAndTier].awareness.push(initialAwareness);
+		launchesByCareerAndTier[careerAndTier].stock.push(initialStock);
+		launchesByCareerAndTier[careerAndTier].strength.push(launchStrength);
+		launchesByCareerAndTier[careerAndTier].multiplier.push(num(first.perceivedQualityMultiplier));
+	}
+	for (const groups of [launchesByCareerState, launchesByCareerAndTier]) {
+		for (const [group, values] of Object.entries(groups)) {
+		groups[group] = {
+			count: values.strength.length,
+			awareness: summarize(values.awareness),
+			stock: summarize(values.stock),
+			strength: summarize(values.strength),
+			strengthCoefficientOfVariation: coefficientOfVariation(values.strength),
+			perceivedQualityMultiplier: summarize(values.multiplier)
+		};
+		}
+	}
+
   let pointTiesAtTop = 0, unitTiesAtTop = 0;
   const pointGaps = [];
   for (const chartRows of weeklyChart.values()) {
@@ -228,6 +269,8 @@ function analyzeRun(directory, run) {
 			medianWithinRecordCorrelationWithNextWeekNormalizedUnits: median(withinRecordSaturationCorrelations)
     },
     tiers,
+		launchesByCareerState,
+		launchesByCareerAndTier,
     totalDistinctRecords: records.size
   };
 }

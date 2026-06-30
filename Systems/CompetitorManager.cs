@@ -246,9 +246,15 @@ public partial class CompetitorManager : Node {
 	private bool TryReleaseRecord(AILabel label, GameDate date) {
 		var artist = RosterManager.Instance?.GetArtistForRelease(label) ?? label.GetArtistForRelease(date.year);
 		if (artist == null) return false;
-		
+
+		var record = GenerateRecordFromArtist(label, artist, date.year);
+		float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
+		float noiseRange = Mathf.Lerp(0.30f, 0.10f, label.scoutingAbility);
+		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
+		float perceivedQualityMult = 0.6f + (perceivedQuality * 0.8f);
+
 		float productionCost = label.GetProductionCost();
-		float marketingBudget = label.GetMarketingBudget(artist);
+		float marketingBudget = label.GetMarketingBudget(artist) * perceivedQualityMult;
 		float totalCost = productionCost + marketingBudget;
 		float minReserve = label.GetMonthlyOverhead();
 		
@@ -266,10 +272,9 @@ public partial class CompetitorManager : Node {
 			financials.lastMonthExpenses += totalCost;
 		}
 		
-		var record = GenerateRecordFromArtist(label, artist, date.year);
 		record.releaseDate = date;
 		ChartManager.Instance.ReleaseRecord(record);
-		ApplyReleasePromotion(record, artist, label, marketingBudget);
+		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
 		TrackRelease(label.labelId, record.recordId);
 		RosterManager.Instance?.RecordReleased(artist, record.recordId);
 		artist.weeksSinceLastRelease = 0;
@@ -321,7 +326,7 @@ public partial class CompetitorManager : Node {
 		return record;
 	}
 	
-	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget) {
+	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult) {
 		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
 		if (runtimeData == null) return;
 		
@@ -357,13 +362,18 @@ public partial class CompetitorManager : Node {
 				CareerState.Rising => 1.2f, _ => 1.0f
 			};
 			
-			regionalData.unitsInStores = Mathf.RoundToInt(baseStock * stockScale * regionStrength * label.distributionStrength * (float)GD.RandRange(0.8, 1.2));
+			regionalData.unitsInStores = Mathf.RoundToInt(baseStock * stockScale * regionStrength * label.distributionStrength * perceivedQualityMult * (float)GD.RandRange(0.8, 1.2));
 			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GD.RandRange(0.8, 1.1), 0f, 1f);
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
 			regionalData.radioPlay = Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GD.RandRange(0.7, 1.0), 0f, 1f);
 			float genreFit = GetGenreFit(record.primaryGenre, region);
 			regionalData.sentiment = Mathf.Clamp((quality * 0.6f) + (genreFit * 0.3f) + (float)GD.RandRange(-0.1, 0.15), -1f, 1f);
 		}
+
+		runtimeData.initialLaunchAwareness = runtimeData.awareness;
+		runtimeData.initialLaunchStock = runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
+		runtimeData.launchCareerState = artist.careerState;
+		runtimeData.perceivedQualityMultiplier = perceivedQualityMult;
 		
 		if (debugMode) GD.Print($"  Promotion: Awareness={runtimeData.awareness:F2}, Radio={runtimeData.radioHeat:F2}");
 	}
