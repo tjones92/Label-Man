@@ -73,7 +73,9 @@ public static class ChartSimulator {
 		MarketRegion region, 
 		RegionalRecordData regionalData,
 		float quality,
-		float genreAcceptance) 
+		float genreAcceptance,
+		int month,
+		int internalChartPosition)
 	{
 		// === 1. POTENTIAL BUYERS ===
 		float populationMillions = region.population;
@@ -107,7 +109,7 @@ public static class ChartSimulator {
 		float conversionRate = BASE_PURCHASE_RATE * demandCurve * exhaustionFactor;
 		
 		// === 5. CHART VISIBILITY BONUS ===
-		float chartVisibility = GetChartVisibilityMultiplier(record.currentPosition);
+		float chartVisibility = GetChartVisibilityMultiplier(internalChartPosition);
 		conversionRate *= chartVisibility;
 		
 		// === 6. LAUNCH BOOST ===
@@ -131,6 +133,7 @@ public static class ChartSimulator {
 		conversionRate *= 0.75f + Mathf.Max(0, regionalData.sentiment) * 0.25f;
 		conversionRate *= record.GetAwardMultiplier();
 		conversionRate *= 1f - (region.distribution.difficulty * 0.3f);
+		conversionRate *= GetSeasonalSalesMultiplier(month);
 		
 		float rawSales = awareBuyers * conversionRate;
 		
@@ -182,8 +185,42 @@ public static class ChartSimulator {
 
 	private static float GetChartVisibilityMultiplier(int position) {
 		if (position <= 0) return 0.4f;
-		float multiplier = 2.5f * Mathf.Pow(0.98f, position - 1);
-		return Mathf.Max(multiplier, 0.2f);
+		if (position <= 5) return TOP_5_VISIBILITY_MULT;
+		if (position <= 10) return TOP_10_VISIBILITY_MULT;
+		if (position <= 20) return TOP_20_VISIBILITY_MULT;
+		if (position <= 40) return TOP_40_VISIBILITY_MULT;
+		return TOP_100_VISIBILITY_MULT;
+	}
+
+	private static float GetSeasonalSalesMultiplier(int month) {
+		return month switch {
+			12 => 1.20f,
+			11 => 1.10f,
+			1 => 0.90f,
+			6 or 7 or 8 => 1.05f,
+			_ => 1f
+		};
+	}
+
+	// Returns the furthest position an established record may fall this week.
+	// Low-quality novelty records receive less protection; quality itself never adds
+	// protection beyond BASE_INERTIA. Weak sales and sustained decline remove it.
+	public static int GetInertiaPositionCap(RecordRuntimeData record, int previousPosition, int rawPosition) {
+		if (previousPosition <= 0 || rawPosition <= previousPosition) return rawPosition;
+		if (record.unitsThisWeek <= 0 || record.weeksNegative >= 3 || record.momentum <= -0.20f) return rawPosition;
+
+		float salesGate = Mathf.Clamp(record.unitsThisWeek / MIN_SALES_FOR_FULL_INERTIA, 0f, 1f);
+		float quality = record.GetQuality();
+		float qualityAdjustment = (1f - quality) * INERTIA_QUALITY_OVERRIDE;
+		float inertia = Mathf.Max(0f, BASE_INERTIA - qualityAdjustment) * salesGate;
+
+		if (previousPosition <= 40 && record.momentum > 0f) {
+			inertia = Mathf.Min(BASE_INERTIA, inertia + record.momentum * HIT_MOMENTUM_BONUS * salesGate);
+		}
+
+		int rawDrop = rawPosition - previousPosition;
+		int allowedDrop = Mathf.Max(1, Mathf.CeilToInt(rawDrop * (1f - inertia)));
+		return previousPosition + allowedDrop;
 	}
 		
 	// =======================================================================

@@ -36,6 +36,9 @@ public partial class ChartManager : Node {
 	private Dictionary<Genre, float> genreMomentum;
 	private List<RecordRuntimeData> allRecords = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
+	private const int BubblingUnderSize = 15;
+	private Dictionary<RecordRuntimeData, int> bubblingUnderPositions = new Dictionary<RecordRuntimeData, int>();
+	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
 
 	// Artist heat cache
@@ -482,7 +485,9 @@ public partial class ChartManager : Node {
 					region,
 					regionalData,
 					quality,
-					blendedAcceptance
+					blendedAcceptance,
+					TimeManager.Instance?.CurrentDate.month ?? 1,
+					GetInternalPreviousPosition(record)
 				);
 
 				regionalData.unitsInStores = Mathf.Max(0, regionalData.unitsInStores - regionalSales);
@@ -514,16 +519,67 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 5: Sort by points ===
-		var sortedByPoints = chartPoints
+		var rawRanking = chartPoints
 			.OrderByDescending(kvp => kvp.Value)
 			.ThenByDescending(kvp => kvp.Key.unitsThisWeek)
 			.Select(kvp => kvp.Key)
-			.Take(chartSize)
 			.ToList();
+
+		var rawPositions = rawRanking
+			.Select((record, index) => new { record, position = index + 1 })
+			.ToDictionary(x => x.record, x => x.position);
+
+		// Rank by the best of raw position and the sales-gated inertia cap. This
+		// preserves relative point order when no record qualifies for protection.
+		var sortedByPoints = rawRanking
+			.Select(record => {
+				int previousPosition = GetInternalPreviousPosition(record);
+				int rawPosition = rawPositions[record];
+				return new {
+					record,
+					rawPosition,
+					effectivePosition = ChartSimulator.GetInertiaPositionCap(record, previousPosition, rawPosition)
+				};
+			})
+			.OrderBy(x => x.effectivePosition)
+			.ThenBy(x => x.rawPosition)
+			.Take(chartSize + BubblingUnderSize)
+			.Select(x => x.record)
+			.ToList();
+
+		LogMidChartExits(chartPoints, rawRanking, sortedByPoints);
 
 		// === STEP 6: Apply position calculations ===
 		AssignChartPositions(sortedByPoints, triggerEvents);
-		currentChart = sortedByPoints;
+		currentChart = sortedByPoints.Take(chartSize).ToList();
+		previousChartPoints = chartPoints;
+	}
+
+	private int GetInternalPreviousPosition(RecordRuntimeData record) {
+		if (record.currentPosition > 0) return record.currentPosition;
+		return bubblingUnderPositions.TryGetValue(record, out int position) ? position : 0;
+	}
+
+	private void LogMidChartExits(
+		Dictionary<RecordRuntimeData, float> chartPoints,
+		List<RecordRuntimeData> rawRanking,
+		List<RecordRuntimeData> bufferedRanking) {
+		if (!debugMode || rawRanking.Count < chartSize) return;
+
+		float cutoff = chartPoints[rawRanking[chartSize - 1]];
+		var establishedOnly = rawRanking.Where(r => r.weeksSinceRelease > 3).ToList();
+		float establishedCutoff = establishedOnly.Count >= chartSize
+			? chartPoints[establishedOnly[chartSize - 1]]
+			: 0f;
+		float entrantCutoffLift = Mathf.Max(0f, cutoff - establishedCutoff);
+		var published = new HashSet<RecordRuntimeData>(bufferedRanking.Take(chartSize));
+
+		foreach (var record in allRecords.Where(r => r.currentPosition >= 40 && r.currentPosition <= 60 && r.weeksOnChart >= 10 && !published.Contains(r))) {
+			float points = chartPoints.TryGetValue(record, out float current) ? current : 0f;
+			float prior = previousChartPoints.TryGetValue(record, out float previous) ? previous : points;
+			float organicDecline = Mathf.Max(0f, prior - points);
+			GD.Print($"CHART EXIT DIAGNOSTIC: {record.baseRecord.title} | prior #{record.currentPosition}, weeks {record.weeksOnChart} | raw points {points:F1}, #100 cutoff {cutoff:F1}, gap {Mathf.Max(0f, cutoff - points):F1} | own organic decline {organicDecline:F1} | new-release cutoff lift {entrantCutoffLift:F1}");
+		}
 	}
 
 	private void RestockHotRecords() {
@@ -597,15 +653,35 @@ public partial class ChartManager : Node {
 		var wasOnChart = new HashSet<RecordRuntimeData>(
 			allRecords.Where(r => r.currentPosition > 0)
 		);
+		var previousBubbling = new HashSet<RecordRuntimeData>(bubblingUnderPositions.Keys);
+		bubblingUnderPositions.Clear();
 
 		for (int i = 0; i < sortedRecords.Count; i++) {
 			var record = sortedRecords[i];
 			int newPosition = i + 1;
+			bool isPublished = newPosition <= chartSize;
 
-			record.lastWeekPosition = record.currentPosition;
+			if (!isPublished) {
+				bubblingUnderPositions[record] = newPosition;
+				if (record.currentPosition > 0) {
+					record.lastWeekPosition = record.currentPosition;
+					record.currentPosition = 0;
+					record.isBullet = false;
+					record.isAnchor = true;
+					if (triggerEvents) OnRecordLeftChart?.Invoke(record);
+				}
+				wasOnChart.Remove(record);
+				continue;
+			}
+
+			int internalPreviousPosition = record.currentPosition > 0
+				? record.currentPosition
+				: (previousBubbling.Contains(record) ? chartSize + 1 : 0);
+			record.lastWeekPosition = internalPreviousPosition <= chartSize ? internalPreviousPosition : 0;
 
 			if (record.currentPosition == 0) {
-				record.weeksOnChart = 1;
+				if (record.weeksOnChart == 0) record.weeksOnChart = 1;
+				else record.weeksOnChart++;
 				if (triggerEvents) OnRecordEnteredChart?.Invoke(record);
 			} else {
 				record.weeksOnChart++;
