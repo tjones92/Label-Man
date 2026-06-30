@@ -230,3 +230,4 @@ layout_mode = 1
 
 [connection signal="pressed" from="BillboardButton" to="." method="OnClick_Charts"]
 [connection signal="pressed" from="CalendarBtn" to="." method="OnClick_Calendar"]
+[connection signal="pressed" from="ChartPanel/CloseBtn" to="." method="OnClick_CloseAll"]

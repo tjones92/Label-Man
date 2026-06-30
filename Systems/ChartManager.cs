@@ -304,7 +304,18 @@ public partial class ChartManager : Node {
 
 		currentChartWeek = 0;
 
-		if (debugMode) {
+	foreach (var record in allRecords) {
+		if (record.peakPosition > 0) {
+			OnRecordChartUpdated?.Invoke(record);
+			
+			if (record.currentPosition == 0) {
+				OnRecordLeftChart?.Invoke(record);
+			}
+		}
+	}
+
+
+	if (debugMode) {
 			GD.Print($"ChartManager: Pre-warm complete. Culled {preCount - allRecords.Count} dead records.");
 			GD.Print($"ChartManager: {allRecords.Count} active records, {currentChart.Count} on chart.");
 			DebugPrintTopTen();
