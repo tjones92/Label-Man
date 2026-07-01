@@ -37,7 +37,8 @@ public partial class ChartManager : Node {
 	private List<RecordRuntimeData> allRecords = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
 	private const int BubblingUnderSize = 15;
-	private const int NeverChartedHorizonWeeks = 14;
+	private const int NeverChartedHorizonWeeks = 5;
+	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
 	private const int RetirementSalesFloor = 50;
 	private const float RetirementRegionRadioCap = 0.05f;
@@ -457,6 +458,7 @@ public partial class ChartManager : Node {
 		foreach (var record in allRecords) {
 			int totalSales = 0;
 			float quality = record.GetQuality();
+			AILabel label = GetLabelById(record.baseRecord.labelId);
 
 			foreach (var region in allRegions) {
 				if (!record.regionalData.ContainsKey(region.regionId)) {
@@ -476,7 +478,8 @@ public partial class ChartManager : Node {
 					quality,
 					blendedAcceptance,
 					TimeManager.Instance?.CurrentDate.month ?? 1,
-					GetInternalPreviousPosition(record)
+					GetInternalPreviousPosition(record),
+					label
 				);
 
 				regionalData.unitsInStores = Mathf.Max(0, regionalData.unitsInStores - regionalSales);
@@ -1011,7 +1014,11 @@ public partial class ChartManager : Node {
 			if (record.currentPosition != 0 || record.unitsThisWeek >= RetirementSalesFloor) return false;
 
 			bool neverChartedExpired = record.weeksOnChart == 0 &&
-				record.weeksSinceRelease > NeverChartedHorizonWeeks;
+				// Confirmed dead stock leaves after five consecutive under-floor weeks.
+				// The older-catalog backstop prevents a title that repeatedly resets the
+				// clock from receiving an effectively open-ended shelf life.
+				(GetWeeksSinceSalesAboveRetirementFloor(record) >= NeverChartedHorizonWeeks ||
+				 record.weeksSinceRelease > NeverChartedMaximumAgeWeeks);
 			bool chartedExpired = includeChartedRecords &&
 				record.weeksOnChart > 0 &&
 				record.totalUnitsSold > 0 &&

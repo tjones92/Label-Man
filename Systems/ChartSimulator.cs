@@ -24,6 +24,8 @@ public static class ChartSimulator {
 	private const float QUALITY_EXPONENT = 4.0f;
 	private const float SATURATION_POWER = 0.45f;
 	private const float DEMAND_AGE_DECAY_RATE = 0.91f;
+	private const float MAJOR_DEMAND_SCALE = 0.60f;
+	private const float MID_TIER_DEMAND_SCALE = 0.85f;
 	
 	private const float TOP_5_VISIBILITY_MULT = 4.5f;
 	private const float TOP_10_VISIBILITY_MULT = 3.0f;
@@ -77,7 +79,8 @@ public static class ChartSimulator {
 		float quality,
 		float genreAcceptance,
 		int month,
-		int internalChartPosition)
+		int internalChartPosition,
+		AILabel label)
 	{
 		// === 1. POTENTIAL BUYERS ===
 		float populationMillions = region.population;
@@ -107,6 +110,11 @@ public static class ChartSimulator {
 		// === 4. DEMAND CURVE ===
 		float demandCurve = Mathf.Pow(quality, QUALITY_EXPONENT);
 		float conversionRate = BASE_PURCHASE_RATE * demandCurve * exhaustionFactor;
+		// The high-volume label families dominate every measured sales window.
+		// Keep indie-family conversion intact instead of applying another blanket
+		// purchase-rate reduction that erases their narrow charting margin.
+		if (label?.tier == LabelTier.Major) conversionRate *= MAJOR_DEMAND_SCALE;
+		else if (label?.tier == LabelTier.MidTier) conversionRate *= MID_TIER_DEMAND_SCALE;
 		
 		// === 5. CHART VISIBILITY BONUS ===
 		float chartVisibility = GetChartVisibilityMultiplier(internalChartPosition);
