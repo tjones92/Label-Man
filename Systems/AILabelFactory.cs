@@ -112,6 +112,7 @@ public static class AILabelFactory {
 		label.labelId = $"label_{idCounter:D4}";
 		label.labelName = template.baseName + GetLabelSuffix();
 		label.headquartersCity = template.city;
+		label.homeRegion = CityToRegion(template.city);
 		label.archetype = template.archetype;
 		label.tier = tier;
 		label.foundedYear = (int)GD.RandRange(1945, 1960);
@@ -138,6 +139,7 @@ public static class AILabelFactory {
 		label.labelId = $"label_{idCounter:D4}";
 		label.labelName = GenerateLabelName(archetype);
 		label.headquartersCity = city;
+		label.homeRegion = CityToRegion(city);
 		label.archetype = archetype;
 		label.tier = tier;
 		label.foundedYear = (int)GD.RandRange(1948, 1962);

@@ -20,7 +20,7 @@ public static class ChartSimulator {
 	private const float RADIO_LABEL_WEIGHT = 0.4f;
 	private const float RADIO_FATIGUE_DECAY = 0.88f;
 	
-	private const float BASE_PURCHASE_RATE = 0.10f;
+	private const float BASE_PURCHASE_RATE = 0.07f;
 	private const float QUALITY_EXPONENT = 4.0f;
 	private const float SATURATION_POWER = 0.45f;
 	private const float DEMAND_AGE_DECAY_RATE = 0.91f;
@@ -320,11 +320,16 @@ public static class ChartSimulator {
 		if (label == null) return 0;
 		bool strong = label.strongRegions?.Contains(regionId) ?? false;
 		bool covered = label.distributionRegions?.Contains(regionId) ?? true;
+		bool isHome = !string.IsNullOrEmpty(label.homeRegion) && label.homeRegion == regionId;
 		float access = covered ? 1f : 0.18f;
-		float localDepth = 0.25f + (label.distributionStrength * 0.75f);
+		float localDepth = isHome || strong
+			? 0.25f + (label.distributionStrength * 0.75f)
+			: 0.10f + (label.distributionStrength * 0.75f);
 		float strongDepth = strong ? 1.45f : 1f;
 		float noise = (float)GD.RandRange(0.85, 1.15);
-		return Mathf.Max(100, Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise));
+		int raw = Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise);
+		int floor = isHome || strong ? 100 : 0;
+		return Mathf.Max(floor, raw);
 	}
 
 	private static void UpdateLabelPush(RecordRuntimeData record, AILabel label) {

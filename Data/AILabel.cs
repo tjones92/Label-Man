@@ -33,6 +33,7 @@ public partial class AILabel : Resource {
 	[Export] public float payolaWillingness;
 	
 	[ExportGroup("Regional")]
+	[Export] public string homeRegion;
 	[Export] public string[] strongRegions;
 	[Export] public string[] distributionRegions;
 	
