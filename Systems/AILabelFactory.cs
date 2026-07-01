@@ -154,17 +154,26 @@ public static class AILabelFactory {
 	}
 	
 	private static void ApplyTierStats(AILabel label, LabelTier tier, LabelArchetype archetype) {
-		float tierMod = tier switch {
-			LabelTier.Major => 1.0f, LabelTier.MidTier => 0.75f, LabelTier.Independent => 0.5f, 
-			LabelTier.Small => 0.3f, LabelTier.Boutique => 0.4f, _ => 0.5f
+		// Capacity remains strongly tiered, while scouting and production retain
+		// enough overlap for a focused small label to identify or polish a great record.
+		(float budgetMin, float budgetMax, float marketingMin, float marketingMax,
+			float distributionMin, float distributionMax, float reachMin, float reachMax,
+			float scoutingMin, float scoutingMax, float productionMin, float productionMax) = tier switch {
+			LabelTier.Major => (0.78f, 1.00f, 0.70f, 0.98f, 0.75f, 1.00f, 0.75f, 1.00f, 0.68f, 0.96f, 0.72f, 0.98f),
+			LabelTier.MidTier => (0.52f, 0.82f, 0.48f, 0.82f, 0.50f, 0.82f, 0.45f, 0.78f, 0.54f, 0.90f, 0.55f, 0.90f),
+			LabelTier.Independent => (0.28f, 0.62f, 0.30f, 0.72f, 0.28f, 0.62f, 0.18f, 0.50f, 0.44f, 0.91f, 0.40f, 0.91f),
+			LabelTier.Boutique => (0.20f, 0.52f, 0.30f, 0.70f, 0.22f, 0.54f, 0.12f, 0.42f, 0.48f, 0.93f, 0.45f, 0.93f),
+			LabelTier.Small => (0.10f, 0.40f, 0.18f, 0.56f, 0.12f, 0.42f, 0.07f, 0.30f, 0.34f, 0.84f, 0.28f, 0.80f),
+			_ => (0.25f, 0.60f, 0.30f, 0.70f, 0.25f, 0.60f, 0.15f, 0.50f, 0.40f, 0.85f, 0.40f, 0.85f)
 		};
-		
-		label.budgetLevel = Mathf.Clamp(tierMod * (float)GD.RandRange(0.7, 1.1), 0f, 1f);
-		label.scoutingAbility = Mathf.Clamp(tierMod * (float)GD.RandRange(0.6, 1.2), 0f, 1f);
-		label.productionQuality = Mathf.Clamp(tierMod * (float)GD.RandRange(0.7, 1.1), 0f, 1f);
-		label.marketingPower = Mathf.Clamp(tierMod * (float)GD.RandRange(0.6, 1.1), 0f, 1f);
-		label.distributionStrength = Mathf.Clamp(tierMod * (float)GD.RandRange(0.7, 1.2), 0f, 1f);
-		label.nationalReach = Mathf.Clamp(tierMod * (float)GD.RandRange(0.5, 1.1), 0f, 1f);
+
+		label.budgetLevel = (float)GD.RandRange(budgetMin, budgetMax);
+		label.marketingPower = (float)GD.RandRange(marketingMin, marketingMax);
+		label.distributionStrength = (float)GD.RandRange(distributionMin, distributionMax);
+		label.nationalReach = (float)GD.RandRange(reachMin, reachMax);
+		label.scoutingAbility = (float)GD.RandRange(scoutingMin, scoutingMax);
+		label.productionQuality = (float)GD.RandRange(productionMin, productionMax);
+		float tierMod = (budgetMin + budgetMax) * 0.5f;
 		
 		label.releasesPerMonth = tier switch {
 			LabelTier.Major => (float)GD.RandRange(2f, 4f), LabelTier.MidTier => (float)GD.RandRange(1f, 2.5f),
@@ -309,7 +318,9 @@ public static class AILabelFactory {
 		"Memphis" or "Nashville" or "Atlanta" or "New Orleans" or "Jackson" or "Miami" => "deepsouth",
 		"Houston" or "Dallas" => "southwest",
 		"Los Angeles" or "San Francisco" or "Oakland" or "Seattle" or "Hollywood" or "Pasadena" => "westcoast",
-		"London" or "Liverpool" or "Manchester" or "Birmingham" or "Glasgow" or "Bristol" => "UK",
+		// The current market model has six canonical US sales regions. British
+		// imports enter through the East Coast until an international region exists.
+		"London" or "Liverpool" or "Manchester" or "Birmingham" or "Glasgow" or "Bristol" => "eastcoast",
 		_ => "eastcoast"
 	};
 	

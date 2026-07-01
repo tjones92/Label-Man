@@ -49,6 +49,16 @@ public class RecordRuntimeData {
 	public int initialLaunchStock;
 	public CareerState launchCareerState;
 	public float perceivedQualityMultiplier = 1f;
+
+	// Aggregate breakout/distributor-facing seam. A future deal system can read
+	// these outputs without participating in demand creation.
+	public int regionalBreakoutCount;
+	public int neighboringMarketTestCount;
+	public float crossoverCandidateStrength;
+	public float peakRegionalBreakoutStrength;
+	public float sustainedSalesVelocity;
+	public int unmetRegionalDemand;
+	public int coveredRegionCount;
 	
 	// === DERIVED METRICS ===
 	public float peakMomentum;        // Highest momentum achieved

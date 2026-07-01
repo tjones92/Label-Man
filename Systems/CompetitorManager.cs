@@ -121,8 +121,9 @@ public partial class CompetitorManager : Node {
 		float quality = runtimeData.GetQuality();
 		float ageFactor = Mathf.Pow(0.92f, weeksOld);
 		
-		runtimeData.awareness = Mathf.Clamp(0.15f + (artist.reputation * 0.3f) + (artist.momentum * 0.2f) + (label.marketingPower * 0.2f * ageFactor), 0f, 1f);
-		runtimeData.radioHeat = Mathf.Clamp((quality * 0.4f + label.marketingPower * 0.3f) * ageFactor, 0f, 1f);
+		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
+		runtimeData.awareness = Mathf.Clamp(0.15f + (artist.reputation * 0.3f) + (artist.momentum * 0.2f) + (campaignImpact * 0.2f * ageFactor), 0f, 1f);
+		runtimeData.radioHeat = Mathf.Clamp((quality * 0.4f + campaignImpact * 0.3f) * ageFactor, 0f, 1f);
 		
 		if (quality > 0.7f && GD.Randf() < 0.4f) {
 			runtimeData.weeksOnChart = (int)GD.RandRange(2, weeksOld);
@@ -304,17 +305,16 @@ public partial class CompetitorManager : Node {
 		}
 		
 		float artistQuality = artist.CalculateRecordQuality();
-		float labelBoost = label.productionQuality * 0.2f;
 		float studioMod = 1f;
 		if (label.strongRegions != null && label.strongRegions.Length > 0) {
 			var region = ChartManager.Instance?.GetRegionById(label.strongRegions[0]);
 			if (region != null) studioMod = ChartSimulator.GetStudioQualityModifier(region);
 		}
 		
-		float baseQuality = (artistQuality * 0.6f) + (label.productionQuality * 0.25f) + (labelBoost * 0.15f);
+		float baseQuality = (artistQuality * 0.82f) + (studioMod * 0.18f);
 		baseQuality *= studioMod;
 		
-		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.5f) + (baseQuality * 0.3f) + (float)GD.RandRange(-0.1, 0.2), 0f, 1f);
+		record.hookStrength = Mathf.Clamp((artist.songwritingAbility * 0.55f) + (baseQuality * 0.35f) + (float)GD.RandRange(-0.12, 0.18), 0f, 1f);
 		record.productionQuality = Mathf.Clamp((label.productionQuality * 0.4f) + (artist.studioPerformance * 0.3f) + (studioMod * 0.2f) + (float)GD.RandRange(-0.05, 0.1), 0f, 1f);
 		record.originality = Mathf.Clamp(artist.members.Max(m => m.creativity) * 0.7f + (float)GD.RandRange(0f, 0.3f), 0f, 1f);
 		record.danceability = (float)GD.RandRange(0.3, 0.95);
@@ -332,13 +332,13 @@ public partial class CompetitorManager : Node {
 		
 		float quality = runtimeData.GetQuality();
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
-		float marketingAwareness = BudgetToImpact(marketingBudget, label.tier) * 0.3f;
+		float marketingAwareness = BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
 		float labelAwareness = label.reputation * 0.1f;
 		
 		runtimeData.awareness = Mathf.Clamp(0.08f + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
 		
 		float baseRadio = quality * 0.3f;
-		float pushRadio = label.marketingPower * 0.3f;
+		float pushRadio = ChartSimulator.GetCampaignImpact(label) * 0.3f;
 		float payolaRadio = label.payolaWillingness * 0.15f;
 		runtimeData.radioHeat = Mathf.Clamp(baseRadio + pushRadio + payolaRadio, 0f, 1f);
 		
@@ -350,19 +350,13 @@ public partial class CompetitorManager : Node {
 			var regionalData = runtimeData.regionalData[region.regionId];
 			bool isStrongRegion = label.strongRegions?.Contains(region.regionId) ?? false;
 			bool hasDistribution = label.distributionRegions?.Contains(region.regionId) ?? true;
-			float regionStrength = isStrongRegion ? 1.6f : 1f;
-			if (!hasDistribution) regionStrength *= 0.3f;
-			
-			int baseStock = label.tier switch {
-				LabelTier.Major => 12000, LabelTier.MidTier => 6000, LabelTier.Independent => 3000,
-				LabelTier.Small => 1500, LabelTier.Boutique => 2000, _ => 2000
-			};
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
 			float stockScale = artist.careerState switch {
 				CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 				CareerState.Rising => 1.2f, _ => 1.0f
 			};
 			
-			regionalData.unitsInStores = Mathf.RoundToInt(baseStock * stockScale * regionStrength * label.distributionStrength * perceivedQualityMult * (float)GD.RandRange(0.8, 1.2));
+			regionalData.unitsInStores = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, stockScale, perceivedQualityMult);
 			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GD.RandRange(0.8, 1.1), 0f, 1f);
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
 			regionalData.radioPlay = Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GD.RandRange(0.7, 1.0), 0f, 1f);

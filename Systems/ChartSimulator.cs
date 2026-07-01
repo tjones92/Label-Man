@@ -1,4 +1,5 @@
 // Scripts/Systems/ChartSimulator.cs
+using System.Linq;
 using Godot;
 
 public static class ChartSimulator {
@@ -109,6 +110,14 @@ public static class ChartSimulator {
 		
 		// === 5. CHART VISIBILITY BONUS ===
 		float chartVisibility = GetChartVisibilityMultiplier(internalChartPosition);
+		if (internalChartPosition <= 0) {
+			// Proven local discovery softens, but never erases, the uncharted moat.
+			// Even the strongest regional signal remains below #100's 1.0 exposure.
+			float regionalDiscovery = Mathf.Clamp((regionalData.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
+			regionalDiscovery = Mathf.Max(regionalDiscovery, regionalData.neighboringMarketTestStrength * 0.60f);
+			chartVisibility = 0.40f + regionalDiscovery * 0.55f;
+		}
+		regionalData.breakoutVisibilityMultiplier = chartVisibility;
 		conversionRate *= chartVisibility;
 		
 		// === 6. LAUNCH BOOST ===
@@ -142,10 +151,13 @@ public static class ChartSimulator {
 		conversionRate *= GetSeasonalSalesMultiplier(month);
 		
 		float rawSales = awareBuyers * conversionRate;
+		// Backorders represent recent unmet intent, not a permanent bank of future
+		// purchases. Most stale intent expires before this week's demand is added.
+		regionalData.unitsBackordered = Mathf.RoundToInt(regionalData.unitsBackordered * 0.35f);
+		regionalData.rawDemandThisWeek = rawSales;
 		bool captureBreakoutDiagnostic = !record.baseRecord.isPlayerOwned &&
-			record.currentPosition == 0 &&
 			record.weeksSinceRelease >= 1 &&
-			record.weeksSinceRelease <= 3;
+			record.weeksSinceRelease <= 14;
 		if (captureBreakoutDiagnostic) {
 			regionalData.breakoutDiagnosticAge = record.weeksSinceRelease;
 			regionalData.breakoutWeekStartStock = regionalData.unitsInStores;
@@ -287,13 +299,41 @@ public static class ChartSimulator {
 	// LABEL PUSH
 	// =======================================================================
 	
+	public static float GetCampaignImpact(AILabel label) {
+		if (label == null) return 0.02f;
+		// Budget sustains and broadens campaigns; marketing controls spend efficiency.
+		// Distribution is deliberately absent: it fulfills demand rather than creating it.
+		float spendCapacity = 0.45f + (label.budgetLevel * 0.55f);
+		return Mathf.Clamp(label.marketingPower * spendCapacity, 0f, 1f);
+	}
+
+	public static float GetRegionalLaunchFactor(AILabel label, string regionId) {
+		if (label == null) return 1f;
+		bool strong = label.strongRegions?.Contains(regionId) ?? false;
+		bool covered = label.distributionRegions?.Contains(regionId) ?? true;
+		if (strong) return 1.35f;
+		if (covered) return 0.55f + (label.nationalReach * 0.45f);
+		return 0.12f + (label.nationalReach * 0.18f);
+	}
+
+	public static int CalculateInitialRegionalStock(AILabel label, string regionId, float careerScale, float perceivedQualityMultiplier) {
+		if (label == null) return 0;
+		bool strong = label.strongRegions?.Contains(regionId) ?? false;
+		bool covered = label.distributionRegions?.Contains(regionId) ?? true;
+		float access = covered ? 1f : 0.18f;
+		float localDepth = 0.25f + (label.distributionStrength * 0.75f);
+		float strongDepth = strong ? 1.45f : 1f;
+		float noise = (float)GD.RandRange(0.85, 1.15);
+		return Mathf.Max(100, Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise));
+	}
+
 	private static void UpdateLabelPush(RecordRuntimeData record, AILabel label) {
 		if (label == null) {
 			record.currentLabelPush = 0.02f;
 			return;
 		}
 		
-		float basePush = (label.marketingPower + label.distributionStrength) / 2f;
+		float basePush = GetCampaignImpact(label);
 		
 		float weekFactor = record.weeksSinceRelease switch {
 			0 or 1 => 1.0f,
@@ -309,7 +349,7 @@ public static class ChartSimulator {
 			weekFactor = Mathf.Max(weekFactor, 0.7f);
 		}
 		
-		record.currentLabelPush = basePush * weekFactor * label.budgetLevel;
+		record.currentLabelPush = basePush * weekFactor;
 		record.totalLabelInvestment += record.currentLabelPush;
 	}
 	

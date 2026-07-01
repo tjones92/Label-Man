@@ -375,7 +375,7 @@ public partial class ChartManager : Node {
 		}
 
 		float quality = runtimeData.GetQuality();
-		float labelPush = releasingLabel != null ? releasingLabel.marketingPower * releasingLabel.budgetLevel : 0.2f;
+		float labelPush = releasingLabel != null ? ChartSimulator.GetCampaignImpact(releasingLabel) : 0.2f;
 
 		runtimeData.awareness = 0.12f + (quality * 0.08f) + (labelPush * 0.15f);
 		runtimeData.radioHeat = 0.08f + (labelPush * 0.12f);
@@ -395,53 +395,26 @@ public partial class ChartManager : Node {
 	}
 
 	private void PromoteRecordAI(RecordRuntimeData record, AILabel label, float perceivedQualityMult) {
-		float minAwareness = label.tier switch {
-			LabelTier.Major => 0.25f,
-			LabelTier.MidTier => 0.18f,
-			LabelTier.Independent => 0.12f,
-			LabelTier.Small => 0.08f,
-			LabelTier.Boutique => 0.10f,
-			_ => 0.10f
-		};
-
-		record.awareness = Mathf.Max(minAwareness, record.awareness);
-		record.awareness += label.marketingPower * label.budgetLevel * 0.15f;
+		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
+		float broadLaunch = 0.06f + (campaignImpact * (0.10f + label.nationalReach * 0.10f));
+		record.awareness = Mathf.Max(broadLaunch, record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness, 0f, 1f);
 
 		record.radioHeat = Mathf.Max(0.1f, record.radioHeat);
-		record.radioHeat += label.marketingPower * label.budgetLevel * 0.12f;
+		record.radioHeat += campaignImpact * 0.12f;
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 
 		foreach (var region in allRegions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
 
 			var data = record.regionalData[region.regionId];
-			float regionStrength = label.strongRegions.Contains(region.regionId) ? 1.8f : 1f;
-
-			int baseStock = label.tier switch {
-				LabelTier.Major => 15000,
-				LabelTier.MidTier => 8000,
-				LabelTier.Independent => 4000,
-				LabelTier.Small => 2000,
-				LabelTier.Boutique => 3000,
-				_ => 3000
-			};
-
-			int units = Mathf.RoundToInt(
-				baseStock *
-				regionStrength *
-				label.distributionStrength *
-				perceivedQualityMult *
-				(0.7f + region.distribution.inventoryDepth * 0.3f) *
-				(float)GD.RandRange(0.8, 1.2)
-			);
-
-			units = Mathf.Max(units, 1500);
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
+			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, 1f, perceivedQualityMult);
 			data.unitsInStores = units;
 
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
-			data.radioPlay = (0.15f + (float)GD.RandRange(0.1, 0.25)) * label.budgetLevel * regionStrength / radioDifficulty;
-			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * label.budgetLevel * regionStrength;
+			data.radioPlay = (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty;
+			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
 			float genreFit = GetGenreFit(record.baseRecord.primaryGenre, region);
@@ -514,12 +487,19 @@ public partial class ChartManager : Node {
 			ChartSimulator.UpdateSaturation(record, allRegions);
 		}
 
+		// Demand evidence is evaluated before replenishment so inventory exhaustion
+		// cannot masquerade as audience growth.
+		foreach (var record in allRecords) {
+			UpdateRegionalBreakoutState(record, year);
+		}
+
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
 		RestockHotRecords();
 
 		// === STEP 3: Update regional awareness/radio ===
 		foreach (var record in allRecords) {
 			UpdateRecordRegionalData(record);
+			ApplyBreakoutDiscovery(record);
 		}
 
 		// === STEP 4: Calculate chart points ===
@@ -603,38 +583,46 @@ public partial class ChartManager : Node {
 
 			foreach (var region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out var data)) continue;
+				bool isCovered = label.distributionRegions?.Contains(region.regionId) ?? true;
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
-				bool preChartBreakout = record.currentPosition == 0 &&
-					record.weeksSinceRelease <= 3 &&
-					stockBeforeSales > 0 &&
-					(data.unitsSoldThisWeek >= stockBeforeSales * 0.5f || data.unitsBackordered > 500);
+				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
+					data.breakoutScore >= 0.20f &&
+					(data.unitsBackordered > 250 || data.rawDemandThisWeek > data.unitsInStores * 0.45f);
 				bool chartedNeedsRestock = record.currentPosition > 0 &&
 					(data.unitsBackordered > 500 ||
 					(data.unitsInStores < data.unitsSoldThisWeek * 2 && record.currentPosition <= 40));
-				bool needsRestock = chartedNeedsRestock || preChartBreakout;
+				bool needsRestock = chartedNeedsRestock || preChartDemandNeedsRestock;
 				bool captureBreakoutDiagnostic = !record.baseRecord.isPlayerOwned &&
-					record.currentPosition == 0 &&
 					record.weeksSinceRelease >= 1 &&
-					record.weeksSinceRelease <= 3;
+					record.weeksSinceRelease <= 14;
 				if (captureBreakoutDiagnostic) {
 					data.breakoutDiagnosticObserved = true;
 					data.breakoutPreRestockStock = data.unitsInStores;
-					data.breakoutTriggered = preChartBreakout;
+					data.breakoutTriggered = preChartDemandNeedsRestock;
 					data.breakoutRequestedRestock = 0;
 					data.breakoutAppliedRestock = 0;
-					data.breakoutMaxCapacity = region.distribution.recordStoreCount * 100 +
+					int physicalCapacity = region.distribution.recordStoreCount * 100 +
 						region.distribution.departmentStoreCount * 200;
+					data.breakoutMaxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
+						? 0.55f + label.distributionStrength * 0.65f
+						: 0.20f));
 					data.breakoutCapacityCapped = false;
 				}
 
 				if (needsRestock) {
-					float demandSignal = data.unitsSoldThisWeek + (data.unitsBackordered * 0.5f);
-					int restockAmount = Mathf.RoundToInt(demandSignal * label.distributionStrength * 1.5f);
+					float demandSignal = (data.rawDemandThisWeek * 0.65f) + (data.unitsSoldThisWeek * 0.35f) + (data.unitsBackordered * 0.25f);
+					float serviceLevel = isCovered
+						? 0.70f + (label.distributionStrength * 0.80f)
+						: 0.18f + (label.distributionStrength * 0.25f);
+					int restockAmount = Mathf.RoundToInt(demandSignal * serviceLevel);
 					int requestedRestock = restockAmount;
 
-					int maxCapacity = region.distribution.recordStoreCount * 100 +
+					int physicalCapacity = region.distribution.recordStoreCount * 100 +
 									region.distribution.departmentStoreCount * 200;
+					int maxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
+						? 0.55f + label.distributionStrength * 0.65f
+						: 0.20f));
 					restockAmount = Mathf.Min(restockAmount, maxCapacity - data.unitsInStores);
 					if (captureBreakoutDiagnostic) {
 						data.breakoutRequestedRestock = requestedRestock;
@@ -687,6 +675,169 @@ public partial class ChartManager : Node {
 			}
 		}
 	}
+
+	private void UpdateRegionalBreakoutState(RecordRuntimeData record, int year) {
+		AILabel label = GetLabelById(record.baseRecord.labelId);
+		if (label == null) return;
+
+		float quality = record.GetQuality();
+		int breakoutMarkets = 0;
+		int testMarkets = 0;
+		float strongest = 0f;
+		float velocityTotal = 0f;
+		int velocityCount = 0;
+		int unmetDemand = 0;
+		int coveredCount = 0;
+
+		foreach (MarketRegion region in allRegions) {
+			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+			bool covered = label.distributionRegions?.Contains(region.regionId) ?? true;
+			if (covered) coveredCount++;
+
+			float previousDemand = data.previousRawDemand;
+			float velocity = previousDemand >= 150f
+				? (data.rawDemandThisWeek - previousDemand) / previousDemand
+				: 0f;
+			data.salesVelocity = Mathf.Clamp(velocity, -1f, 2f);
+			if (previousDemand >= 150f && velocity > 0.04f) data.sustainedGrowthWeeks++;
+			else if (velocity < -0.08f) data.sustainedGrowthWeeks = 0;
+
+			float rawVolume = Mathf.Clamp((data.rawDemandThisWeek - 150f) / 3500f, 0f, 1f);
+			float fulfilledVolume = Mathf.Clamp(data.unitsSoldThisWeek / 3000f, 0f, 1f);
+			float volumeInput = rawVolume * 0.70f + fulfilledVolume * 0.30f;
+			float velocityInput = Mathf.Clamp((velocity + 0.10f) / 0.65f, 0f, 1f);
+			float audienceInput = Mathf.Clamp(data.awareness, 0f, 1f);
+			float mediaInput = Mathf.Clamp(data.radioPlay * 0.75f + data.jukeboxPlay * 0.25f, 0f, 1f);
+			float genreFit = region.GetGenreAcceptance(record.baseRecord.primaryGenre, year);
+			float unmetInput = volumeInput * Mathf.Clamp(data.unitsBackordered / Mathf.Max(750f, data.rawDemandThisWeek), 0f, 1f);
+			float sustainedInput = Mathf.Clamp(data.sustainedGrowthWeeks / 3f, 0f, 1f);
+
+			float evidence = volumeInput * 0.34f + velocityInput * 0.15f + sustainedInput * 0.09f +
+				audienceInput * 0.12f + mediaInput * 0.10f + genreFit * 0.08f +
+				quality * 0.08f + unmetInput * 0.04f;
+			evidence *= 0.55f + volumeInput * 0.45f;
+			float response = evidence >= data.breakoutScore ? 0.48f : 0.28f;
+			data.breakoutScore = Mathf.Lerp(data.breakoutScore, evidence, response);
+			data.peakBreakoutScore = Mathf.Max(data.peakBreakoutScore, data.breakoutScore);
+
+			if (data.breakoutScore >= 0.24f) {
+				data.tractionWeeks++;
+			} else {
+				data.tractionWeeks = Mathf.Max(0, data.tractionWeeks - 1);
+			}
+			if (evidence < 0.18f || (velocity < -0.35f && data.rawDemandThisWeek < 1500f)) data.collapseWeeks++;
+			else data.collapseWeeks = 0;
+
+			if (data.breakoutScore >= 0.40f && data.tractionWeeks >= 2) {
+				data.breakoutStage = RegionalBreakoutStage.RegionalBreakout;
+			} else if (data.breakoutScore >= 0.24f && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
+				data.breakoutStage = RegionalBreakoutStage.LocalTraction;
+			} else if (data.collapseWeeks >= 2 && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
+				data.breakoutStage = RegionalBreakoutStage.None;
+			}
+			if (data.collapseWeeks >= 2 && data.breakoutStage >= RegionalBreakoutStage.RegionalBreakout) {
+				data.breakoutStage = RegionalBreakoutStage.LocalTraction;
+			}
+
+			if (data.breakoutStage >= RegionalBreakoutStage.RegionalBreakout) breakoutMarkets++;
+			if (data.neighboringMarketTestStrength >= 0.08f) testMarkets++;
+			strongest = Mathf.Max(strongest, data.breakoutScore);
+			if (previousDemand >= 150f) { velocityTotal += data.salesVelocity; velocityCount++; }
+			unmetDemand += data.unitsBackordered;
+
+			data.breakoutVolumeInput = volumeInput;
+			data.breakoutVelocityInput = velocityInput;
+			data.breakoutAudienceInput = audienceInput;
+			data.breakoutMediaInput = mediaInput;
+			data.breakoutGenreFitInput = genreFit;
+			data.breakoutQualityInput = quality;
+			data.breakoutUnmetDemandInput = unmetInput;
+			data.breakoutAwarenessGain = 0f;
+			data.breakoutRadioGain = 0f;
+			data.breakoutWordOfMouthGain = 0f;
+			data.previousRawDemand = data.rawDemandThisWeek;
+		}
+
+		record.regionalBreakoutCount = breakoutMarkets;
+		record.neighboringMarketTestCount = testMarkets;
+		record.peakRegionalBreakoutStrength = Mathf.Max(record.peakRegionalBreakoutStrength, strongest);
+		record.sustainedSalesVelocity = velocityCount > 0 ? velocityTotal / velocityCount : 0f;
+		record.unmetRegionalDemand = unmetDemand;
+		record.coveredRegionCount = coveredCount;
+		float marketBreadth = Mathf.Clamp((breakoutMarkets + testMarkets * 0.35f) / 2.5f, 0f, 1f);
+		record.crossoverCandidateStrength = strongest * marketBreadth;
+		if ((breakoutMarkets >= 2 || (breakoutMarkets >= 1 && testMarkets >= 2)) && strongest >= 0.46f) {
+			foreach (RegionalRecordData data in record.regionalData.Values) {
+				if (data.breakoutStage >= RegionalBreakoutStage.RegionalBreakout)
+					data.breakoutStage = RegionalBreakoutStage.NationalCrossoverCandidate;
+			}
+		}
+	}
+
+	private void ApplyBreakoutDiscovery(RecordRuntimeData record) {
+		AILabel label = GetLabelById(record.baseRecord.labelId);
+		if (label == null) return;
+		// Chart exposure remains the larger engine, but proven regional discovery
+		// does not disappear merely because the record crossed position 100.
+		float discoveryScale = record.currentPosition > 0 ? 0.75f : 1f;
+
+		float nationalGain = 0f;
+		foreach (MarketRegion sourceRegion in allRegions) {
+			if (!record.regionalData.TryGetValue(sourceRegion.regionId, out RegionalRecordData source)) continue;
+			if (source.breakoutStage < RegionalBreakoutStage.LocalTraction) continue;
+
+			float strength = Mathf.Clamp((source.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
+			float localAwarenessGain = source.breakoutStage >= RegionalBreakoutStage.RegionalBreakout
+				? 0.006f + strength * 0.014f
+				: 0.001f + strength * 0.003f;
+			float localRadioGain = source.breakoutStage >= RegionalBreakoutStage.RegionalBreakout
+				? 0.0025f + strength * 0.007f
+				: strength * 0.001f;
+			localAwarenessGain *= discoveryScale;
+			localRadioGain *= discoveryScale;
+			source.awareness = Mathf.Min(0.58f, source.awareness + localAwarenessGain);
+			source.radioPlay = Mathf.Min(0.45f, source.radioPlay + localRadioGain);
+			source.jukeboxPlay = Mathf.Min(0.55f, source.jukeboxPlay + strength * 0.006f * discoveryScale);
+			source.breakoutAwarenessGain += localAwarenessGain;
+			source.breakoutRadioGain += localRadioGain;
+
+			float womGain = strength * (source.breakoutStage >= RegionalBreakoutStage.RegionalBreakout ? 0.005f : 0.001f) * discoveryScale;
+			record.wordOfMouth = Mathf.Min(0.72f, record.wordOfMouth + womGain);
+			source.breakoutWordOfMouthGain += womGain;
+			nationalGain += womGain * 0.30f;
+
+			if (source.breakoutStage < RegionalBreakoutStage.RegionalBreakout || source.tractionWeeks < 2) continue;
+			float propagationCapacity = 0.25f + label.nationalReach * 0.45f + label.distributionStrength * 0.30f;
+			foreach (string neighborId in GetNeighborRegionIds(sourceRegion.regionId)) {
+				if (!record.regionalData.TryGetValue(neighborId, out RegionalRecordData neighbor)) continue;
+				float testGain = strength * propagationCapacity * 0.10f * discoveryScale;
+				neighbor.neighboringMarketTestStrength = Mathf.Clamp(neighbor.neighboringMarketTestStrength * 0.78f + testGain, 0f, 1f);
+				neighbor.breakoutSourceRegionId = sourceRegion.regionId;
+				if (neighbor.breakoutStage < RegionalBreakoutStage.RegionalBreakout)
+					neighbor.breakoutStage = RegionalBreakoutStage.NeighboringMarketTest;
+				float neighborAwarenessGain = 0.002f + testGain * 0.040f;
+				float neighborRadioGain = testGain * 0.012f;
+				neighbor.awareness = Mathf.Min(0.34f, neighbor.awareness + neighborAwarenessGain);
+				neighbor.radioPlay = Mathf.Min(0.24f, neighbor.radioPlay + neighborRadioGain);
+				neighbor.breakoutAwarenessGain += neighborAwarenessGain;
+				neighbor.breakoutRadioGain += neighborRadioGain;
+			}
+		}
+		float crossoverBreadth = Mathf.Clamp((record.crossoverCandidateStrength - 0.15f) / 0.35f, 0f, 1f);
+		float crossoverGain = crossoverBreadth * 0.015f * discoveryScale;
+		record.awareness = Mathf.Min(0.60f,
+			record.awareness + Mathf.Min(0.005f * discoveryScale, nationalGain) + crossoverGain);
+	}
+
+	private static string[] GetNeighborRegionIds(string regionId) => regionId switch {
+		"eastcoast" => new[] { "midwest", "deepsouth" },
+		"midwest" => new[] { "eastcoast", "deepsouth", "rockies" },
+		"deepsouth" => new[] { "eastcoast", "midwest", "southwest" },
+		"southwest" => new[] { "deepsouth", "rockies", "westcoast" },
+		"rockies" => new[] { "midwest", "southwest", "westcoast" },
+		"westcoast" => new[] { "rockies", "southwest" },
+		_ => Array.Empty<string>()
+	};
 
 	private void AssignChartPositions(List<RecordRuntimeData> sortedRecords, bool triggerEvents) {
 		var wasOnChart = new HashSet<RecordRuntimeData>(

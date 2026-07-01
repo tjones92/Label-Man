@@ -93,10 +93,10 @@ public partial class ChartAuditRunner : Node {
 		lifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-lifecycles.csv"));
 		breakoutWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-breakout-funnel.csv"));
 
-		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
+		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
-		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,preChartBreakoutTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped");
+		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
 	}
 
 	private static StreamWriter CreateWriter(string path) =>
@@ -118,6 +118,7 @@ public partial class ChartAuditRunner : Node {
 		GameDate date = TimeManager.Instance.CurrentDate;
 		List<RecordRuntimeData> records = ChartManager.Instance.GetAllRecords();
 		List<RecordRuntimeData> chart = ChartManager.Instance.GetCurrentChart();
+		float chartCutoff = chart.Count >= 100 ? ChartSimulator.CalculateChartPoints(chart[99], regions) : 0f;
 		var activeIds = records.Select(record => record.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
 		var chartIds = chart.Select(record => record.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
 
@@ -127,7 +128,7 @@ public partial class ChartAuditRunner : Node {
 				state.DebutPosition = record.currentPosition;
 			}
 			if (record.currentPosition == 1) state.WeeksAtNumberOne++;
-			if (!aggregateOnly) WriteRecordRow(week, date.year, record);
+			if (!aggregateOnly) WriteRecordRow(week, date.year, record, chartCutoff);
 			WriteBreakoutRows(week, record);
 		}
 
@@ -179,8 +180,9 @@ public partial class ChartAuditRunner : Node {
 		return state;
 	}
 
-	private void WriteRecordRow(int week, int year, RecordRuntimeData record) {
+	private void WriteRecordRow(int week, int year, RecordRuntimeData record, float chartCutoff) {
 		AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
+		float chartPoints = ChartSimulator.CalculateChartPoints(record, regions);
 		recordWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture),
 			year.ToString(CultureInfo.InvariantCulture),
@@ -203,7 +205,16 @@ public partial class ChartAuditRunner : Node {
 			F(record.wordOfMouth),
 			F(record.momentum),
 			F(record.saturation),
-			F(ChartSimulator.CalculateChartPoints(record, regions)),
+			F(chartPoints),
+			F(chartCutoff),
+			F(chartPoints - chartCutoff),
+			record.regionalBreakoutCount.ToString(CultureInfo.InvariantCulture),
+			record.neighboringMarketTestCount.ToString(CultureInfo.InvariantCulture),
+			F(record.crossoverCandidateStrength),
+			F(record.peakRegionalBreakoutStrength),
+			F(record.sustainedSalesVelocity),
+			record.unmetRegionalDemand.ToString(CultureInfo.InvariantCulture),
+			record.coveredRegionCount.ToString(CultureInfo.InvariantCulture),
 			F(record.initialLaunchAwareness),
 			record.initialLaunchStock.ToString(CultureInfo.InvariantCulture),
 			Csv(record.launchCareerState.ToString()),
@@ -243,7 +254,12 @@ public partial class ChartAuditRunner : Node {
 				data.unitsSoldThisWeek.ToString(CultureInfo.InvariantCulture), data.breakoutBackordersBeforeRestock.ToString(CultureInfo.InvariantCulture),
 				F(data.breakoutAwareBuyers), F(data.breakoutConversionRate), data.breakoutTriggered ? "true" : "false",
 				data.breakoutRequestedRestock.ToString(CultureInfo.InvariantCulture), data.breakoutAppliedRestock.ToString(CultureInfo.InvariantCulture),
-				data.breakoutMaxCapacity.ToString(CultureInfo.InvariantCulture), data.breakoutCapacityCapped ? "true" : "false"
+				data.breakoutMaxCapacity.ToString(CultureInfo.InvariantCulture), data.breakoutCapacityCapped ? "true" : "false",
+				F(data.breakoutScore), Csv(data.breakoutStage.ToString()), data.tractionWeeks.ToString(CultureInfo.InvariantCulture),
+				data.sustainedGrowthWeeks.ToString(CultureInfo.InvariantCulture), F(data.salesVelocity), F(data.breakoutVolumeInput),
+				F(data.breakoutVelocityInput), F(data.breakoutAudienceInput), F(data.breakoutMediaInput), F(data.breakoutGenreFitInput),
+				F(data.breakoutQualityInput), F(data.breakoutUnmetDemandInput), F(data.breakoutVisibilityMultiplier), F(data.breakoutAwarenessGain), F(data.breakoutRadioGain),
+				F(data.breakoutWordOfMouthGain), F(data.neighboringMarketTestStrength), Csv(data.breakoutSourceRegionId)
 			}));
 			data.breakoutDiagnosticObserved = false;
 		}
