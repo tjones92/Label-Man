@@ -357,7 +357,7 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	private Genre RandomPick(params Genre[] options) => options[(int)GD.RandRange(0, options.Length - 1)];
 	
 	private string GetRandomRegion() {
-		string[] regions = { "Northeast", "Southeast", "Midwest", "Southwest", "WestCoast", "UK" };
+		string[] regions = { "East Coast", "West Coast", "Midwest", "Southwest", "Deep South", "Rockies", "UK" };
 		return regions[(int)GD.RandRange(0, regions.Length - 1)];
 	}
 	

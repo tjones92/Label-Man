@@ -142,6 +142,17 @@ public static class ChartSimulator {
 		conversionRate *= GetSeasonalSalesMultiplier(month);
 		
 		float rawSales = awareBuyers * conversionRate;
+		bool captureBreakoutDiagnostic = !record.baseRecord.isPlayerOwned &&
+			record.currentPosition == 0 &&
+			record.weeksSinceRelease >= 1 &&
+			record.weeksSinceRelease <= 3;
+		if (captureBreakoutDiagnostic) {
+			regionalData.breakoutDiagnosticAge = record.weeksSinceRelease;
+			regionalData.breakoutWeekStartStock = regionalData.unitsInStores;
+			regionalData.breakoutRawSales = rawSales;
+			regionalData.breakoutAwareBuyers = awareBuyers;
+			regionalData.breakoutConversionRate = conversionRate;
+		}
 		
 		// === 9. SUPPLY CONSTRAINTS ===
 		float storeCapacity = region.distribution.recordStoreCount * WEEKLY_SALES_PER_RECORD_STORE;
@@ -162,6 +173,9 @@ public static class ChartSimulator {
 		if (regionalData.unitsInStores < rawSales) {
 			regionalData.unitsBackordered += Mathf.RoundToInt(rawSales - regionalData.unitsInStores);
 			rawSales = regionalData.unitsInStores;
+		}
+		if (captureBreakoutDiagnostic) {
+			regionalData.breakoutBackordersBeforeRestock = regionalData.unitsBackordered;
 		}
 		
 		rawSales = Mathf.Min(rawSales, totalCapacity);

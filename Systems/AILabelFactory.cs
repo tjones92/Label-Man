@@ -295,7 +295,7 @@ public static class AILabelFactory {
 			LabelTier.Independent => (int)GD.RandRange(1, 4), LabelTier.Small => (int)GD.RandRange(0, 2),
 			LabelTier.Boutique => (int)GD.RandRange(1, 3), _ => 1
 		};
-		string[] allRegions = { "Northeast", "Southeast", "Midwest", "Southwest", "WestCoast", "MidAtlantic", "DeepSouth", "GreatLakes" };
+		string[] allRegions = { "eastcoast", "westcoast", "midwest", "southwest", "deepsouth", "rockies" };
 		for (int i = 0; i < additionalRegions; i++) {
 			string region = allRegions[(int)GD.RandRange(0, allRegions.Length - 1)];
 			if (!regions.Contains(region)) regions.Add(region);
@@ -304,22 +304,24 @@ public static class AILabelFactory {
 	}
 	
 	private static string CityToRegion(string city) => city switch {
-		"New York" or "Philadelphia" or "Newark" or "Boston" or "Baltimore" or "Washington D.C." => "Northeast",
-		"Chicago" or "Detroit" or "Cleveland" or "Cincinnati" or "Indianapolis" or "Milwaukee" or "St. Louis" => "Midwest",
-		"Memphis" or "Nashville" or "Atlanta" or "New Orleans" => "Southeast",
-		"Houston" or "Dallas" => "Southwest",
-		"Los Angeles" or "San Francisco" or "Oakland" or "Seattle" or "Hollywood" or "Pasadena" => "WestCoast",
+		"New York" or "Philadelphia" or "Newark" or "Boston" or "Baltimore" or "Washington D.C." or "Pittsburgh" => "eastcoast",
+		"Chicago" or "Detroit" or "Cleveland" or "Cincinnati" or "Indianapolis" or "Milwaukee" or "St. Louis" => "midwest",
+		"Memphis" or "Nashville" or "Atlanta" or "New Orleans" or "Jackson" or "Miami" => "deepsouth",
+		"Houston" or "Dallas" => "southwest",
+		"Los Angeles" or "San Francisco" or "Oakland" or "Seattle" or "Hollywood" or "Pasadena" => "westcoast",
 		"London" or "Liverpool" or "Manchester" or "Birmingham" or "Glasgow" or "Bristol" => "UK",
-		_ => "Northeast"
+		_ => "eastcoast"
 	};
 	
 	private static string GetAdjacentRegion(string region) => region switch {
-		"Northeast" => GD.Randf() < 0.5f ? "Midwest" : "MidAtlantic",
-		"Midwest" => GD.Randf() < 0.5f ? "Northeast" : "GreatLakes",
-		"Southeast" => GD.Randf() < 0.5f ? "DeepSouth" : "MidAtlantic",
-		"Southwest" => GD.Randf() < 0.5f ? "WestCoast" : "Southeast",
-		"WestCoast" => GD.Randf() < 0.5f ? "Southwest" : "Midwest",
-		_ => "Northeast"
+		"eastcoast" => GD.Randf() < 0.5f ? "midwest" : "deepsouth",
+		"midwest" => GD.Randf() < 0.5f ? "eastcoast" : "rockies",
+		"deepsouth" => GD.Randf() < 0.5f ? "eastcoast" : "southwest",
+		"southwest" => GD.Randf() < 0.5f ? "deepsouth" : "rockies",
+		"rockies" => GD.Randf() < 0.5f ? "midwest" : "westcoast",
+		"westcoast" => GD.Randf() < 0.5f ? "rockies" : "southwest",
+		"UK" => string.Empty,
+		_ => "eastcoast"
 	};
 	
 	private class LabelTemplate {

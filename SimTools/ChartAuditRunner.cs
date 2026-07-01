@@ -24,6 +24,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter recordWriter;
 	private StreamWriter weekWriter;
 	private StreamWriter lifecycleWriter;
+	private StreamWriter breakoutWriter;
 	private MarketRegion[] regions;
 	private int requestedWeeks = 52;
 	private string runName = "audit";
@@ -90,10 +91,12 @@ public partial class ChartAuditRunner : Node {
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
 		weekWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-weeks.csv"));
 		lifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-lifecycles.csv"));
+		breakoutWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-breakout-funnel.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
+		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,preChartBreakoutTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped");
 	}
 
 	private static StreamWriter CreateWriter(string path) =>
@@ -125,6 +128,7 @@ public partial class ChartAuditRunner : Node {
 			}
 			if (record.currentPosition == 1) state.WeeksAtNumberOne++;
 			if (!aggregateOnly) WriteRecordRow(week, date.year, record);
+			WriteBreakoutRows(week, record);
 		}
 
 		foreach ((string id, LifecycleState state) in lifecycle.ToArray()) {
@@ -222,6 +226,29 @@ public partial class ChartAuditRunner : Node {
 		}));
 	}
 
+	private void WriteBreakoutRows(int week, RecordRuntimeData record) {
+		AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
+		if (label == null || record.baseRecord.isPlayerOwned) return;
+
+		foreach (MarketRegion region in regions) {
+			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data) ||
+				!data.breakoutDiagnosticObserved) continue;
+
+			bool covered = label.distributionRegions?.Contains(region.regionId) ?? true;
+			breakoutWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), Csv(record.baseRecord.recordId), Csv(label.tier.ToString()),
+				Csv(record.launchCareerState.ToString()), Csv(region.regionId), covered ? "true" : "false",
+				data.breakoutDiagnosticAge.ToString(CultureInfo.InvariantCulture), data.breakoutWeekStartStock.ToString(CultureInfo.InvariantCulture),
+				data.breakoutPreRestockStock.ToString(CultureInfo.InvariantCulture), F(data.breakoutRawSales),
+				data.unitsSoldThisWeek.ToString(CultureInfo.InvariantCulture), data.breakoutBackordersBeforeRestock.ToString(CultureInfo.InvariantCulture),
+				F(data.breakoutAwareBuyers), F(data.breakoutConversionRate), data.breakoutTriggered ? "true" : "false",
+				data.breakoutRequestedRestock.ToString(CultureInfo.InvariantCulture), data.breakoutAppliedRestock.ToString(CultureInfo.InvariantCulture),
+				data.breakoutMaxCapacity.ToString(CultureInfo.InvariantCulture), data.breakoutCapacityCapped ? "true" : "false"
+			}));
+			data.breakoutDiagnosticObserved = false;
+		}
+	}
+
 	private static string F(float value) => value.ToString("0.######", CultureInfo.InvariantCulture);
 
 	private static string Csv(string value) {
@@ -238,8 +265,10 @@ public partial class ChartAuditRunner : Node {
 		recordWriter?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
+		breakoutWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
+		breakoutWriter = null;
 	}
 }

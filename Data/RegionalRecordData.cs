@@ -21,6 +21,21 @@ public class RegionalRecordData {
 	// Sales Tracking
 	public int unitsSoldThisWeek;
 	public int unitsSoldTotal;
+
+	// Audit-only snapshot for the first three never-charted release weeks.
+	public bool breakoutDiagnosticObserved;
+	public int breakoutDiagnosticAge;
+	public int breakoutWeekStartStock;
+	public int breakoutPreRestockStock;
+	public float breakoutRawSales;
+	public float breakoutAwareBuyers;
+	public float breakoutConversionRate;
+	public int breakoutBackordersBeforeRestock;
+	public bool breakoutTriggered;
+	public int breakoutRequestedRestock;
+	public int breakoutAppliedRestock;
+	public int breakoutMaxCapacity;
+	public bool breakoutCapacityCapped;
 	
 	public RegionalRecordData(string regionId) {
 		this.regionId = regionId;

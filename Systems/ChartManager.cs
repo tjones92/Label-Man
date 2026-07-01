@@ -613,14 +613,34 @@ public partial class ChartManager : Node {
 					(data.unitsBackordered > 500 ||
 					(data.unitsInStores < data.unitsSoldThisWeek * 2 && record.currentPosition <= 40));
 				bool needsRestock = chartedNeedsRestock || preChartBreakout;
+				bool captureBreakoutDiagnostic = !record.baseRecord.isPlayerOwned &&
+					record.currentPosition == 0 &&
+					record.weeksSinceRelease >= 1 &&
+					record.weeksSinceRelease <= 3;
+				if (captureBreakoutDiagnostic) {
+					data.breakoutDiagnosticObserved = true;
+					data.breakoutPreRestockStock = data.unitsInStores;
+					data.breakoutTriggered = preChartBreakout;
+					data.breakoutRequestedRestock = 0;
+					data.breakoutAppliedRestock = 0;
+					data.breakoutMaxCapacity = region.distribution.recordStoreCount * 100 +
+						region.distribution.departmentStoreCount * 200;
+					data.breakoutCapacityCapped = false;
+				}
 
 				if (needsRestock) {
 					float demandSignal = data.unitsSoldThisWeek + (data.unitsBackordered * 0.5f);
 					int restockAmount = Mathf.RoundToInt(demandSignal * label.distributionStrength * 1.5f);
+					int requestedRestock = restockAmount;
 
 					int maxCapacity = region.distribution.recordStoreCount * 100 +
 									region.distribution.departmentStoreCount * 200;
 					restockAmount = Mathf.Min(restockAmount, maxCapacity - data.unitsInStores);
+					if (captureBreakoutDiagnostic) {
+						data.breakoutRequestedRestock = requestedRestock;
+						data.breakoutAppliedRestock = Mathf.Max(0, restockAmount);
+						data.breakoutCapacityCapped = requestedRestock > Mathf.Max(0, maxCapacity - data.unitsInStores);
+					}
 
 					if (restockAmount > 0) {
 						data.unitsInStores += restockAmount;
