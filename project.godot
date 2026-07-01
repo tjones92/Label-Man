@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+SimulationSeedBootstrap="*res://Systems/SimulationSeedBootstrap.cs"
 TimeManager="*uid://coae331dmsphv"
 NameGenerator="*uid://dy0vhuc0l4wbe"
 ArtistManager="*uid://duu50na8n0igp"

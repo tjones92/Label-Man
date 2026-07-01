@@ -25,7 +25,9 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter weekWriter;
 	private StreamWriter lifecycleWriter;
 	private StreamWriter breakoutWriter;
+	private StreamWriter retirementWriter;
 	private MarketRegion[] regions;
+	private int currentAuditWeek;
 	private int requestedWeeks = 52;
 	private string runName = "audit";
 	private ulong? requestedSeed;
@@ -41,12 +43,15 @@ public partial class ChartAuditRunner : Node {
 			if (requestedSeed.HasValue) GD.Seed(requestedSeed.Value);
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			OpenOutputs();
+			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			InitializeObservedState();
 
 			for (int week = 1; week <= requestedWeeks; week++) {
+				currentAuditWeek = week;
 				AdvanceOneChartWeek();
 				CaptureWeek(week);
 			}
+			WriteActiveOffChartRetirementRows();
 
 			FlushAndClose();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
@@ -92,11 +97,33 @@ public partial class ChartAuditRunner : Node {
 		weekWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-weeks.csv"));
 		lifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-lifecycles.csv"));
 		breakoutWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-breakout-funnel.csv"));
+		retirementWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retirement.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
+		retirementWriter.WriteLine("week,status,recordId,labelTier,weeksSinceRelease,weeksOnChart,weeksSinceLastTop100,weeksSinceSalesAboveFloor,unitsThisWeek,totalRadioPlay");
+	}
+
+	private void OnRecordRetired(RecordRuntimeData record) => WriteRetirementRow("retired", record);
+
+	private void WriteActiveOffChartRetirementRows() {
+		foreach (RecordRuntimeData record in ChartManager.Instance.GetAllRecords().Where(record => record.currentPosition == 0)) {
+			WriteRetirementRow("active_off_chart_week52", record);
+		}
+	}
+
+	private void WriteRetirementRow(string status, RecordRuntimeData record) {
+		AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
+		retirementWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), Csv(status), Csv(record.baseRecord.recordId),
+			Csv(label?.tier.ToString()), record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
+			record.weeksOnChart.ToString(CultureInfo.InvariantCulture),
+			ChartManager.Instance.GetWeeksSinceLastCharted(record).ToString(CultureInfo.InvariantCulture),
+			ChartManager.Instance.GetWeeksSinceSalesAboveRetirementFloor(record).ToString(CultureInfo.InvariantCulture),
+			record.unitsThisWeek.ToString(CultureInfo.InvariantCulture), F(ChartManager.Instance.GetRetirementRadioPlay(record))
+		}));
 	}
 
 	private static StreamWriter CreateWriter(string path) =>
@@ -278,13 +305,16 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void FlushAndClose() {
+		if (ChartManager.Instance != null) ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
 		recordWriter?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
 		breakoutWriter?.Dispose();
+		retirementWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
 		breakoutWriter = null;
+		retirementWriter = null;
 	}
 }

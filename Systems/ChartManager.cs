@@ -38,7 +38,9 @@ public partial class ChartManager : Node {
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
 	private const int BubblingUnderSize = 15;
 	private const int NeverChartedHorizonWeeks = 14;
+	private const int ChartedRelevanceHorizonWeeks = 8;
 	private const int RetirementSalesFloor = 50;
+	private const float RetirementRegionRadioCap = 0.05f;
 	private Dictionary<RecordRuntimeData, int> bubblingUnderPositions = new Dictionary<RecordRuntimeData, int>();
 	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
@@ -60,6 +62,7 @@ public partial class ChartManager : Node {
 	public event Action<RecordRuntimeData> OnRecordHitNumberOne;
 	public event Action<RecordRuntimeData> OnRecordChartUpdated;
 	public event Action<RecordRuntimeData> OnRecordLeftChart;
+	public event Action<RecordRuntimeData> OnRecordRetired;
 	public event Action<Genre, float> OnGenreMomentumChanged;
 
 	// ========================================================================
@@ -546,7 +549,17 @@ public partial class ChartManager : Node {
 		// === STEP 6: Apply position calculations ===
 		AssignChartPositions(sortedByPoints, triggerEvents);
 		currentChart = sortedByPoints.Take(chartSize).ToList();
+		UpdateRecordRelevanceClocks();
 		previousChartPoints = chartPoints;
+	}
+
+	private void UpdateRecordRelevanceClocks() {
+		foreach (RecordRuntimeData record in allRecords) {
+			if (record.currentPosition > 0) record.lastChartedAge = record.weeksSinceRelease;
+			if (record.unitsThisWeek >= RetirementSalesFloor) {
+				record.lastSalesAboveRetirementFloorAge = record.weeksSinceRelease;
+			}
+		}
 	}
 
 	private int GetInternalPreviousPosition(RecordRuntimeData record) {
@@ -1003,8 +1016,12 @@ public partial class ChartManager : Node {
 				record.weeksOnChart > 0 &&
 				record.totalUnitsSold > 0 &&
 				GetTotalRadioPlay(record) < 0.1f;
+			bool chartedRelevanceExpired = record.weeksOnChart > 0 &&
+				record.totalUnitsSold > 0 &&
+				(GetWeeksSinceLastCharted(record) >= ChartedRelevanceHorizonWeeks ||
+				 GetWeeksSinceSalesAboveRetirementFloor(record) >= ChartedRelevanceHorizonWeeks);
 
-			return neverChartedExpired || chartedExpired;
+			return neverChartedExpired || chartedExpired || chartedRelevanceExpired;
 		}).ToList();
 
 		foreach (var record in recordsToRetire) RetireRecord(record);
@@ -1016,6 +1033,7 @@ public partial class ChartManager : Node {
 
 	private void RetireRecord(RecordRuntimeData record) {
 		if (record?.baseRecord == null) return;
+		OnRecordRetired?.Invoke(record);
 
 		var artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
 		if (artist != null) {
@@ -1029,10 +1047,20 @@ public partial class ChartManager : Node {
 	private float GetTotalRadioPlay(RecordRuntimeData record) {
 		float total = 0f;
 		foreach (var data in record.regionalData.Values) {
-			total += data.radioPlay;
+			total += Mathf.Min(data.radioPlay, RetirementRegionRadioCap);
 		}
 		return total;
 	}
+
+	public int GetWeeksSinceLastCharted(RecordRuntimeData record) =>
+		record.lastChartedAge >= 0 ? record.weeksSinceRelease - record.lastChartedAge : record.weeksSinceRelease;
+
+	public int GetWeeksSinceSalesAboveRetirementFloor(RecordRuntimeData record) =>
+		record.lastSalesAboveRetirementFloorAge >= 0
+			? record.weeksSinceRelease - record.lastSalesAboveRetirementFloorAge
+			: record.weeksSinceRelease;
+
+	public float GetRetirementRadioPlay(RecordRuntimeData record) => GetTotalRadioPlay(record);
 
 	// ========================================================================
 	// PUBLIC API

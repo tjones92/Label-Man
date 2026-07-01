@@ -12,6 +12,8 @@ public class RecordRuntimeData {
 	public int peakPosition;
 	public int weeksOnChart;
 	public int weeksSinceRelease;
+	public int lastChartedAge = -1;
+	public int lastSalesAboveRetirementFloorAge = -1;
 	public int weeksInTopTen;
 	public bool artistChartEntryCredited;
 	public bool artistTop40Credited;

@@ -13,7 +13,6 @@ Example (PowerShell):
 For long pool-stability runs, add `--aggregate-only` to omit the large
 per-record stream while retaining weekly stock/flow and lifecycle telemetry.
 
-The seed is applied after the normal startup/prewarm because the runner scene is
-created after autoloads. Separate processes therefore provide independent
-startup populations; the explicit seed makes the measured 52-week portion
-repeatable given that initialized state.
+When `--seed` is present, the first autoload applies it before any population
+generation. The runner reapplies the same seed after startup/prewarm so both the
+initialized world and measured 52-week period are reproducible across processes.
