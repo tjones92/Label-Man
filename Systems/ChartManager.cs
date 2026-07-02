@@ -122,6 +122,9 @@ public partial class ChartManager : Node {
 		} else {
 			GD.PushError($"CompetitorManager.Instance: {CompetitorManager.Instance != null}");
 		}
+		if (LabelLifecycleManager.Instance != null && aiLabels != null) {
+			LabelLifecycleManager.Instance.InitializeLabels(aiLabels, year);
+		}
 
 		// 5. Initialize regions
 		InitializeRegions();
@@ -599,7 +602,7 @@ public partial class ChartManager : Node {
 
 			foreach (var region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out var data)) continue;
-				bool isCovered = label.distributionRegions?.Contains(region.regionId) ?? true;
+				bool isCovered = label.HasDistributionInRegion(region.regionId);
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
@@ -707,7 +710,7 @@ public partial class ChartManager : Node {
 
 		foreach (MarketRegion region in allRegions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
-			bool covered = label.distributionRegions?.Contains(region.regionId) ?? true;
+			bool covered = label.HasDistributionInRegion(region.regionId);
 			if (covered) coveredCount++;
 
 			float previousDemand = data.previousRawDemand;

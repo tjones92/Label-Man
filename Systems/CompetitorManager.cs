@@ -12,6 +12,7 @@ public partial class CompetitorManager : Node {
 	
 	[ExportGroup("Economic Settings")]
 	[Export] private float baseRoyaltyRate = 0.04f;
+	[Export(PropertyHint.Range, "0,0.89,0.01")] private float pressingCostPerUnit = 0.30f;
 	[Export] private float bankruptcyThreshold = 200f;
 	[Export] private float monthlyOverheadRate = 0.02f;
 	[Export] private bool enableBankruptcy = true;
@@ -165,6 +166,14 @@ public partial class CompetitorManager : Node {
 	
 	private void ProcessWeeklyRevenue() {
 		foreach (var label in aiLabels) {
+			label.weeklyGrossRevenue = 0f;
+			label.weeklyCogs = 0f;
+			label.weeklyDistributionSkim = 0f;
+			label.weeklyArtistRoyalty = 0f;
+			label.weeklyNetRevenue = 0f;
+			label.weeklyDistributionIncome = 0f;
+		}
+		foreach (var label in aiLabels) {
 			if (label.status == LabelStatus.Bankrupt || label.status == LabelStatus.Defunct) continue;
 			float weeklyRevenue = CalculateLabelRevenue(label);
 			label.cashReserves += weeklyRevenue;
@@ -186,18 +195,31 @@ public partial class CompetitorManager : Node {
 			
 			float weeklyUnits = runtimeData.unitsThisWeek;
 			float pricePerUnit = 0.89f;
+			float grossPerUnit = Mathf.Max(0f, pricePerUnit - pressingCostPerUnit);
 			var artist = ArtistManager.Instance?.GetArtist(runtimeData.baseRecord.artistId);
 			float artistRoyalty = artist?.royaltyRate ?? 0.05f;
-			float labelShare = 1f - artistRoyalty;
-			float distributionCut = 0.25f * (1f - label.distributionStrength);
-			float netShare = labelShare - distributionCut;
-			
-			float recordRevenue = weeklyUnits * pricePerUnit * netShare;
+			float skimFraction = label.activeDeal != null
+				? Mathf.Clamp(label.activeDeal.marginSkim, 0f, 1f)
+				: 0.25f * (1f - label.ownedReach);
+			float retailGross = weeklyUnits * pricePerUnit;
+			float cogs = weeklyUnits * pressingCostPerUnit;
+			float skimAmount = weeklyUnits * grossPerUnit * skimFraction;
+			// Keep the existing artist contract convention (royalty on retail). The
+			// distribution skim is based on revenue after manufacturing cost.
+			float artistPayment = retailGross * artistRoyalty;
+			float recordRevenue = weeklyUnits * grossPerUnit - skimAmount - artistPayment;
 			totalRevenue += recordRevenue;
+			label.weeklyGrossRevenue += retailGross;
+			label.weeklyCogs += cogs;
+			label.weeklyDistributionSkim += skimAmount;
+			label.weeklyArtistRoyalty += artistPayment;
+			label.weeklyNetRevenue += recordRevenue;
+			RouteDistributionSkim(label, skimAmount);
 			
 			if (artist != null) {
-				float artistPayment = weeklyUnits * pricePerUnit * artistRoyalty;
-				if (artist.unrecoupedAdvance > 0) artist.unrecoupedAdvance -= artistPayment;
+				float recouped = Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), artistPayment);
+				artist.unrecoupedAdvance = Mathf.Max(0f, artist.unrecoupedAdvance - recouped);
+				artist.totalRoyaltyEarnings += artistPayment - recouped;
 			}
 			
 		}
@@ -206,6 +228,22 @@ public partial class CompetitorManager : Node {
 			recordIds.Remove(dead);
 		}
 		return totalRevenue;
+	}
+
+	private void RouteDistributionSkim(AILabel client, float skimAmount) {
+		DistributionDeal deal = client.activeDeal;
+		if (deal == null || skimAmount <= 0f) return;
+		AILabel distributor = GetLabel(deal.distributorId);
+		if (distributor == null || distributor == client) return;
+
+		float recouped = Mathf.Min(Mathf.Max(0f, deal.unrecoupedAdvance), skimAmount);
+		deal.unrecoupedAdvance = Mathf.Max(0f, deal.unrecoupedAdvance - recouped);
+		distributor.cashReserves += skimAmount;
+		distributor.monthlyRevenue += skimAmount;
+		distributor.weeklyDistributionIncome += skimAmount;
+		if (labelFinancials.TryGetValue(distributor.labelId, out LabelFinancialHistory financials)) {
+			financials.lastMonthRevenue += skimAmount;
+		}
 	}
 	
 	private void ProcessWeeklyReleases(GameDate date) {
@@ -349,7 +387,6 @@ public partial class CompetitorManager : Node {
 			}
 			var regionalData = runtimeData.regionalData[region.regionId];
 			bool isStrongRegion = label.strongRegions?.Contains(region.regionId) ?? false;
-			bool hasDistribution = label.distributionRegions?.Contains(region.regionId) ?? true;
 			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
 			float stockScale = artist.careerState switch {
 				CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
@@ -412,6 +449,7 @@ public partial class CompetitorManager : Node {
 		financials.lastMonthExpenses += overhead;
 		
 		float netIncome = financials.lastMonthRevenue - financials.lastMonthExpenses;
+		label.lastMonthlyProfit = netIncome;
 		UpdateLabelStatus(label, financials, netIncome);
 		
 		label.monthlyRevenue = 0f;
@@ -425,6 +463,7 @@ public partial class CompetitorManager : Node {
 	private void UpdateLabelStatus(AILabel label, LabelFinancialHistory financials, float netIncome) {
 		if (netIncome < 0) financials.consecutiveLossMonths++;
 		else financials.consecutiveLossMonths = Mathf.Max(0, financials.consecutiveLossMonths - 1);
+		label.consecutiveLossMonths = financials.consecutiveLossMonths;
 		
 		if (label.cashReserves < bankruptcyThreshold) {
 			if (enableBankruptcy && financials.consecutiveLossMonths >= 6) {
@@ -445,6 +484,16 @@ public partial class CompetitorManager : Node {
 	}
 	
 	public AILabel GetLabel(string labelId) => aiLabels?.FirstOrDefault(l => l.labelId == labelId);
+	public IReadOnlyList<AILabel> GetAllLabels() => aiLabels ?? (IReadOnlyList<AILabel>)System.Array.Empty<AILabel>();
+
+	public void RecordExpense(AILabel label, float amount) {
+		if (label == null || amount <= 0f) return;
+		label.cashReserves -= amount;
+		label.monthlyExpenses += amount;
+		if (labelFinancials.TryGetValue(label.labelId, out LabelFinancialHistory financials)) {
+			financials.lastMonthExpenses += amount;
+		}
+	}
 	
 	public List<AILabel> GetActiveLabelsByStatus(LabelStatus status) => aiLabels?.Where(l => l.status == status).ToList() ?? new List<AILabel>();
 	

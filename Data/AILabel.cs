@@ -26,7 +26,7 @@ public partial class AILabel : Resource {
 	[Export] public float scoutingAbility;
 	[Export] public float productionQuality;
 	[Export] public float marketingPower;
-	[Export] public float distributionStrength;
+	[Export] public float ownedReach;
 	[Export] public float nationalReach;
 	[Export] public float riskTolerance;
 	[Export] public float artistLoyalty;
@@ -41,6 +41,7 @@ public partial class AILabel : Resource {
 	[Export] public float cashReserves;
 	[Export] public float monthlyRevenue;
 	[Export] public float monthlyExpenses;
+	public float lastMonthlyProfit;
 	[Export] public float debtLevel;
 	[Export] public float marketShare;
 	
@@ -60,6 +61,28 @@ public partial class AILabel : Resource {
 	public List<SimulatedArtist> roster = new List<SimulatedArtist>();
 	public int maxRosterSize;
 	public float reputation;
+	public DistributionDeal activeDeal;
+
+	// Runtime finance telemetry (reset and populated by CompetitorManager each week)
+	public float weeklyGrossRevenue;
+	public float weeklyCogs;
+	public float weeklyDistributionSkim;
+	public float weeklyArtistRoyalty;
+	public float weeklyNetRevenue;
+	public float weeklyDistributionIncome;
+
+	// Backward-compatible combined reach. Existing generators assign owned reach
+	// through this property; fulfillment code automatically sees borrowed reach.
+	public float distributionStrength {
+		get => Mathf.Clamp(ownedReach + borrowedReach, 0f, 1f);
+		set => ownedReach = Mathf.Clamp(value, 0f, 1f);
+	}
+	public float borrowedReach => Mathf.Clamp(activeDeal?.reachGranted ?? 0f, 0f, 1f);
+
+	public bool HasDistributionInRegion(string regionId) =>
+		!string.IsNullOrEmpty(regionId) &&
+		((distributionRegions?.Contains(regionId) ?? false) ||
+		(activeDeal?.grantedRegions?.Contains(regionId) ?? false));
 	
 	public int CurrentRosterSize => roster?.Count ?? 0;
 	public bool HasRosterSpace => roster == null || roster.Count < maxRosterSize;
@@ -99,7 +122,7 @@ public partial class AILabel : Resource {
 			float monthsOfRunway = cashReserves / Mathf.Max(1f, GetMonthlyOverhead());
 			financialHealth = Mathf.Clamp(monthsOfRunway / 12f, 0f, 1f);
 		}
-		if (MonthlyProfit > 0) financialHealth += 0.3f;
+		if (lastMonthlyProfit > 0) financialHealth += 0.3f;
 		if (consecutiveLossMonths == 0) financialHealth += 0.2f;
 		score += Mathf.Clamp(financialHealth, 0f, 1f) * 0.4f;
 		
@@ -148,7 +171,7 @@ public partial class AILabel : Resource {
 		};
 	}
 	
-	public void SignArtist(SimulatedArtist artist, int currentYear) {
+	public float SignArtist(SimulatedArtist artist, int currentYear) {
 		if (roster == null) roster = new List<SimulatedArtist>();
 		float advance = CalculateAdvanceOffer(artist);
 		
@@ -161,9 +184,9 @@ public partial class AILabel : Resource {
 		artist.contractLength = CalculateContractLength(artist);
 		artist.contractExpiresYear = currentYear + artist.contractLength;
 		
-		cashReserves -= advance;
 		roster.Add(artist);
 		artist.careerEvents.Add($"{currentYear}: Signed to {labelName} (${advance:N0} advance, {artist.contractLength}yr)");
+		return advance;
 	}
 	
 	public void DropArtist(SimulatedArtist artist, int currentYear, string reason = "dropped") {

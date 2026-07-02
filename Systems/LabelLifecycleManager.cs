@@ -27,6 +27,7 @@ public partial class LabelLifecycleManager : Node {
 	
 	private int currentYear = 1960;
 	private int currentMonth = 1;
+	private bool processingEnabled = true;
 	
 	public event Action<AILabel, string> OnLabelDefunct;
 	public event Action<AILabel> OnLabelFounded;
@@ -36,6 +37,14 @@ public partial class LabelLifecycleManager : Node {
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
 		Instance = this;
+	}
+
+	public override void _Ready() {
+		if (TimeManager.Instance != null) TimeManager.Instance.OnMonthChanged += OnMonthChanged;
+	}
+
+	public override void _ExitTree() {
+		if (TimeManager.Instance != null) TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
 	}
 	
 	private int GetTargetLabelCount(int year) {
@@ -47,22 +56,22 @@ public partial class LabelLifecycleManager : Node {
 		return 145;
 	}
 	
-	public void InitializeLabels(int startYear = 1960) {
+	public void InitializeLabels(List<AILabel> labels, int startYear = 1960) {
 		currentYear = startYear;
 		currentMonth = 1;
 		DefunctThisYear = 0;
 		FoundedThisYear = 0;
 		
-		activeLabels.AddRange(generator.GenerateHistoricalMajors(regions));
-		
-		int target = GetTargetLabelCount(startYear);
-		int remaining = target - activeLabels.Count;
-		
-		activeLabels.AddRange(generator.GenerateLabels(regions, remaining, startYear));
-		GD.Print($"[LabelManager] Initialized {activeLabels.Count} labels for {startYear}");
+		activeLabels = labels ?? new List<AILabel>();
+		defunctLabels.Clear();
+		GD.Print($"[LabelManager] Attached lifecycle to {activeLabels.Count} live labels for {startYear}");
 	}
+
+	private void OnMonthChanged(GameDate date) => ProcessMonth(date.year, date.month);
+	public void SetProcessingEnabled(bool enabled) => processingEnabled = enabled;
 	
 	public void ProcessMonth(int year, int month) {
+		if (!processingEnabled) return;
 		currentYear = year;
 		currentMonth = month;
 		
@@ -80,48 +89,10 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void UpdateLabelHealth(AILabel label) {
 		label.monthsActive++;
-		label.monthlyRevenue = CalculateMonthlyRevenue(label);
-		label.monthlyExpenses = CalculateMonthlyExpenses(label);
-		label.cashReserves += label.MonthlyProfit;
-		
-		if (label.MonthlyProfit < 0) label.consecutiveLossMonths++;
-		else label.consecutiveLossMonths = 0;
-		
 		label.momentumScore = Mathf.Lerp(label.momentumScore, CalculateMomentum(label), 0.3f);
-		UpdateLabelStatus(label);
-	}
-	
-	private float CalculateMonthlyRevenue(AILabel label) {
-		float tierMultiplier = label.tier switch {
-			LabelTier.Major => 500f, LabelTier.MidTier => 150f, LabelTier.Independent => 50f,
-			LabelTier.Small => 15f, _ => 20f
-		};
-		float marketFactor = 1f + (label.marketShare * 20f);
-		float hitBonus = label.top40Hits * 5f + label.numberOneHits * 25f;
-		float rosterFactor = Mathf.Sqrt(label.CurrentRosterSize + 1);
-		return tierMultiplier * marketFactor * rosterFactor + hitBonus;
-	}
-	
-	private float CalculateMonthlyExpenses(AILabel label) {
-		float baseCost = label.tier switch {
-			LabelTier.Major => 400f, LabelTier.MidTier => 100f, LabelTier.Independent => 35f,
-			LabelTier.Small => 12f, _ => 15f
-		};
-		float rosterCost = label.CurrentRosterSize * 2f;
-		float productionCost = label.releasesPerMonth * label.productionQuality * 10f;
-		float marketingCost = label.marketingPower * 20f;
-		return baseCost + rosterCost + productionCost + marketingCost;
 	}
 	
 	private float CalculateMomentum(AILabel label) => Mathf.Clamp(label.reputation + (label.top40Hits * 0.05f), 0f, 1f);
-	
-	private void UpdateLabelStatus(AILabel label) {
-		float health = label.CalculateHealthScore();
-		if (health > 0.7f && label.MonthlyProfit > 0) label.status = LabelStatus.Rising;
-		else if (health > 0.4f) label.status = LabelStatus.Stable;
-		else if (health > 0.2f || label.consecutiveLossMonths < 6) label.status = LabelStatus.Struggling;
-		else label.status = LabelStatus.Dying;
-	}
 	
 	private void CheckForDeath(AILabel label) {
 		if (label.status != LabelStatus.Dying) return;

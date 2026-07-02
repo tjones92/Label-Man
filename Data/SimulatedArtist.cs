@@ -48,6 +48,7 @@ public class SimulatedArtist {
 
 	public float royaltyRate;
 	public float unrecoupedAdvance;
+	public float totalRoyaltyEarnings;
 	public int contractExpiresYear;
 	public int contractLength;
 

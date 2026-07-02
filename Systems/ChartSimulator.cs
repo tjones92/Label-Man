@@ -318,7 +318,7 @@ public static class ChartSimulator {
 	public static float GetRegionalLaunchFactor(AILabel label, string regionId) {
 		if (label == null) return 1f;
 		bool strong = label.strongRegions?.Contains(regionId) ?? false;
-		bool covered = label.distributionRegions?.Contains(regionId) ?? true;
+		bool covered = label.HasDistributionInRegion(regionId);
 		if (strong) return 1.35f;
 		if (covered) return 0.55f + (label.nationalReach * 0.45f);
 		return 0.12f + (label.nationalReach * 0.18f);
@@ -327,7 +327,7 @@ public static class ChartSimulator {
 	public static int CalculateInitialRegionalStock(AILabel label, string regionId, float careerScale, float perceivedQualityMultiplier) {
 		if (label == null) return 0;
 		bool strong = label.strongRegions?.Contains(regionId) ?? false;
-		bool covered = label.distributionRegions?.Contains(regionId) ?? true;
+		bool covered = label.HasDistributionInRegion(regionId);
 		bool isHome = !string.IsNullOrEmpty(label.homeRegion) && label.homeRegion == regionId;
 		float access = covered ? 1f : 0.18f;
 		float localDepth = isHome || strong

@@ -27,12 +27,19 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter breakoutWriter;
 	private StreamWriter retirementWriter;
 	private StreamWriter tierVolumeWriter;
+	private StreamWriter labelFinanceWriter;
 	private MarketRegion[] regions;
 	private int currentAuditWeek;
 	private int requestedWeeks = 52;
 	private string runName = "audit";
 	private ulong? requestedSeed;
 	private bool aggregateOnly;
+	private bool forceDistributionDeal;
+	private bool disableLabelLifecycle;
+	private AILabel forcedDealClient;
+	private AILabel forcedDealDistributor;
+	private float forcedDealInitialAdvance;
+	private float forcedDealRoutedTotal;
 
 	public override void _Ready() {
 		try {
@@ -42,8 +49,10 @@ public partial class ChartAuditRunner : Node {
 			}
 
 			if (requestedSeed.HasValue) GD.Seed(requestedSeed.Value);
+			if (disableLabelLifecycle) LabelLifecycleManager.Instance?.SetProcessingEnabled(false);
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			OpenOutputs();
+			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			InitializeObservedState();
 
@@ -53,6 +62,7 @@ public partial class ChartAuditRunner : Node {
 				CaptureWeek(week);
 			}
 			WriteActiveOffChartRetirementRows();
+			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
 			FlushAndClose();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
@@ -85,10 +95,51 @@ public partial class ChartAuditRunner : Node {
 				requestedSeed = ulong.Parse(argument[7..], CultureInfo.InvariantCulture);
 			} else if (argument == "--aggregate-only") {
 				aggregateOnly = true;
+			} else if (argument == "--force-distribution-deal") {
+				forceDistributionDeal = true;
+			} else if (argument == "--disable-label-lifecycle") {
+				disableLabelLifecycle = true;
 			}
 		}
 
 		if (requestedWeeks < 1) throw new ArgumentOutOfRangeException(nameof(requestedWeeks));
+	}
+
+	private void InstallForcedDistributionDeal() {
+		IReadOnlyList<AILabel> labels = CompetitorManager.Instance.GetAllLabels();
+		forcedDealClient = labels.FirstOrDefault(label => label.tier != LabelTier.Major &&
+			label.IsActive && CompetitorManager.Instance.GetLabelActiveRecordCount(label.labelId) > 0);
+		forcedDealDistributor = labels.FirstOrDefault(label => label.tier == LabelTier.Major && label.IsActive);
+		if (forcedDealClient == null || forcedDealDistributor == null) {
+			throw new InvalidOperationException("Could not find labels for a forced distribution deal.");
+		}
+
+		string grantedRegion = regions.Select(region => region.regionId)
+			.FirstOrDefault(regionId => !forcedDealClient.HasDistributionInRegion(regionId));
+		grantedRegion ??= regions.First().regionId;
+		forcedDealInitialAdvance = 5000f;
+		forcedDealClient.activeDeal = new DistributionDeal {
+			distributorId = forcedDealDistributor.labelId,
+			reachGranted = 0.35f,
+			grantedRegions = new[] { grantedRegion },
+			marginSkim = 0.20f,
+			ownsMasters = false,
+			advance = forcedDealInitialAdvance,
+			unrecoupedAdvance = forcedDealInitialAdvance,
+			signedWeek = ChartManager.Instance.GetCurrentChartWeek(),
+			termWeeks = 52,
+			origin = DealOrigin.LabelSought
+		};
+		if (!forcedDealClient.HasDistributionInRegion(grantedRegion)) {
+			throw new InvalidOperationException("Forced deal did not grant its configured region.");
+		}
+	}
+
+	private void ValidateForcedDistributionDeal() {
+		float expectedRemaining = Mathf.Max(0f, forcedDealInitialAdvance - forcedDealRoutedTotal);
+		if (!Mathf.IsEqualApprox(forcedDealClient.activeDeal.unrecoupedAdvance, expectedRemaining)) {
+			throw new InvalidOperationException($"Deal recoup mismatch: expected {expectedRemaining}, got {forcedDealClient.activeDeal.unrecoupedAdvance}.");
+		}
 	}
 
 	private void OpenOutputs() {
@@ -100,6 +151,7 @@ public partial class ChartAuditRunner : Node {
 		breakoutWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-breakout-funnel.csv"));
 		retirementWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retirement.csv"));
 		tierVolumeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-tier-volume.csv"));
+		labelFinanceWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-finance.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
@@ -107,6 +159,7 @@ public partial class ChartAuditRunner : Node {
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
 		retirementWriter.WriteLine("week,status,recordId,labelTier,weeksSinceRelease,weeksOnChart,weeksSinceLastTop100,weeksSinceSalesAboveFloor,floorBreachAge,unitsThisWeek,totalRadioPlay");
 		tierVolumeWriter.WriteLine("week,labelTier,launchRecords,launchUnits,middleRecords,middleUnits,catalogTailRecords,catalogTailUnits,totalRecords,totalUnits");
+		labelFinanceWriter.WriteLine("week,year,labelId,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,dealDistributorId,dealUnrecoupedAdvance");
 	}
 
 	private void OnRecordRetired(RecordRuntimeData record) => WriteRetirementRow("retired", record);
@@ -149,6 +202,12 @@ public partial class ChartAuditRunner : Node {
 		GameDate date = TimeManager.Instance.CurrentDate;
 		List<RecordRuntimeData> records = ChartManager.Instance.GetAllRecords();
 		List<RecordRuntimeData> chart = ChartManager.Instance.GetCurrentChart();
+		if (forceDistributionDeal) {
+			if (!Mathf.IsEqualApprox(forcedDealClient.weeklyDistributionSkim, forcedDealDistributor.weeklyDistributionIncome)) {
+				throw new InvalidOperationException("Forced deal skim was not credited to its distributor.");
+			}
+			forcedDealRoutedTotal += forcedDealClient.weeklyDistributionSkim;
+		}
 		float chartCutoff = chart.Count >= 100 ? ChartSimulator.CalculateChartPoints(chart[99], regions) : 0f;
 		var activeIds = records.Select(record => record.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
 		var chartIds = chart.Select(record => record.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
@@ -179,6 +238,7 @@ public partial class ChartAuditRunner : Node {
 		int newRecords = activeIds.Count(id => !previousActiveIds.Contains(id));
 		int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
 		WriteTierVolumeRows(week, records);
+		WriteLabelFinanceRows(week, date.year);
 
 		weekWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture),
@@ -197,6 +257,18 @@ public partial class ChartAuditRunner : Node {
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;
+	}
+
+	private void WriteLabelFinanceRows(int week, int year) {
+		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
+			labelFinanceWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(label.labelId),
+				Csv(label.tier.ToString()), Csv(label.status.ToString()), F(label.cashReserves), F(label.monthlyRevenue),
+				F(label.monthlyExpenses), F(label.weeklyGrossRevenue), F(label.weeklyCogs),
+				F(label.weeklyDistributionSkim), F(label.weeklyArtistRoyalty), F(label.weeklyNetRevenue),
+				F(label.weeklyDistributionIncome), Csv(label.activeDeal?.distributorId), F(label.activeDeal?.unrecoupedAdvance ?? 0f)
+			}));
+		}
 	}
 
 	private void WriteTierVolumeRows(int week, List<RecordRuntimeData> records) {
@@ -295,7 +367,7 @@ public partial class ChartAuditRunner : Node {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data) ||
 				!data.breakoutDiagnosticObserved) continue;
 
-			bool covered = label.distributionRegions?.Contains(region.regionId) ?? true;
+			bool covered = label.HasDistributionInRegion(region.regionId);
 			breakoutWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), Csv(record.baseRecord.recordId), Csv(label.tier.ToString()),
 				Csv(record.launchCareerState.ToString()), Csv(region.regionId), covered ? "true" : "false",
@@ -335,11 +407,13 @@ public partial class ChartAuditRunner : Node {
 		breakoutWriter?.Dispose();
 		retirementWriter?.Dispose();
 		tierVolumeWriter?.Dispose();
+		labelFinanceWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
 		breakoutWriter = null;
 		retirementWriter = null;
 		tierVolumeWriter = null;
+		labelFinanceWriter = null;
 	}
 }

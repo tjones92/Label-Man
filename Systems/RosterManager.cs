@@ -170,7 +170,8 @@ public partial class RosterManager : Node {
 		
 		var bestCandidate = label.EvaluateForSigning(candidates);
 		if (bestCandidate != null && label.CanAffordToSign(label.CalculateAdvanceOffer(bestCandidate))) {
-			label.SignArtist(bestCandidate, year);
+			float advance = label.SignArtist(bestCandidate, year);
+			CompetitorManager.Instance?.RecordExpense(label, advance);
 			ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
 			if (debugMode) GD.Print($"SIGNING: {label.labelName} signs {bestCandidate.stageName} ({bestCandidate.primaryGenre})");
 		}
@@ -195,7 +196,7 @@ public partial class RosterManager : Node {
 				artist.contractLength = label.CalculateContractLength(artist);
 				artist.contractExpiresYear = year + artist.contractLength;
 				artist.royaltyRate = label.CalculateRoyaltyRate(artist);
-				label.cashReserves -= newAdvance;
+				CompetitorManager.Instance?.RecordExpense(label, newAdvance);
 				artist.careerEvents.Add($"{year}: Re-signed with {label.labelName}");
 				if (debugMode) GD.Print($"RE-SIGN: {label.labelName} re-signs {artist.stageName}");
 			} else {
