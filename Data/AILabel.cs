@@ -5,6 +5,10 @@ using Godot;
 
 [GlobalClass]
 public partial class AILabel : Resource {
+	public const float CapabilityOwnedReachWeight = 0.35f;
+	public const float CapabilityNationalReachWeight = 0.25f;
+	public const float CapabilityRunwayWeight = 0.20f;
+	public const float CapabilityMarketingWeight = 0.20f;
 	
 	[ExportGroup("Identity")]
 	[Export] public string labelId;
@@ -56,6 +60,8 @@ public partial class AILabel : Resource {
 	[Export] public int numberOneHits;
 	[Export] public int consecutiveLossMonths;
 	[Export] public float momentumScore;
+	[Export] public int sustainedCapabilityQuarters;
+	[Export] public int sustainedLowCapabilityQuarters;
 	
 	// Runtime Roster (Not exported, generated at runtime)
 	public List<SimulatedArtist> roster = new List<SimulatedArtist>();
@@ -87,7 +93,18 @@ public partial class AILabel : Resource {
 	public int CurrentRosterSize => roster?.Count ?? 0;
 	public bool HasRosterSpace => roster == null || roster.Count < maxRosterSize;
 	public float MonthlyProfit => monthlyRevenue - monthlyExpenses;
-	public bool IsActive => status != LabelStatus.Bankrupt && status != LabelStatus.Defunct;
+	public bool IsActive => status != LabelStatus.Bankrupt && status != LabelStatus.Defunct && status != LabelStatus.Acquired;
+	public float DistributionDependency => borrowedReach / (borrowedReach + ownedReach + 0.01f);
+
+	public float CalculateCapabilityScore() {
+		float annualOverhead = Mathf.Max(1f, GetMonthlyOverhead() * 12f);
+		float runwayNorm = Mathf.Clamp(cashReserves / annualOverhead, 0f, 1f);
+		return Mathf.Clamp(
+			(CapabilityOwnedReachWeight * ownedReach) +
+			(CapabilityNationalReachWeight * nationalReach) +
+			(CapabilityRunwayWeight * runwayNorm) +
+			(CapabilityMarketingWeight * marketingPower), 0f, 1f);
+	}
 	
 	public void InitializeRoster() {
 		if (roster == null) roster = new List<SimulatedArtist>();

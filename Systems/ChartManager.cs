@@ -197,6 +197,12 @@ public partial class ChartManager : Node {
 		return label;
 	}
 
+	public void RegisterLabel(AILabel label) {
+		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
+		if (aiLabels != null && !aiLabels.Contains(label)) aiLabels.Add(label);
+		labelLookup[label.labelId] = label;
+	}
+
 	public string GetLabelName(string labelId) {
 		var label = GetLabelById(labelId);
 		return label != null ? label.labelName : labelId;

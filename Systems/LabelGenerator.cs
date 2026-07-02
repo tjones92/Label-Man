@@ -282,8 +282,8 @@ public class LabelGenerator {
 		(float minCash, float maxCash, float minRep, float maxRep, float minShare, float maxShare) = tier switch {
 			LabelTier.Major => (5000f, 15000f, 0.7f, 0.9f, 0.08f, 0.15f),
 			LabelTier.MidTier => (500f, 2000f, 0.4f, 0.7f, 0.02f, 0.06f),
-			LabelTier.Independent => (100f, 500f, 0.2f, 0.5f, 0.005f, 0.02f),
-			LabelTier.Small => (20f, 150f, 0.05f, 0.25f, 0.001f, 0.005f),
+			LabelTier.Independent => (5000f, 20000f, 0.2f, 0.5f, 0.005f, 0.02f),
+			LabelTier.Small => (1000f, 8000f, 0.05f, 0.25f, 0.001f, 0.005f),
 			_ => (50f, 200f, 0.1f, 0.3f, 0.002f, 0.01f)
 		};
 		label.cashReserves = (float)GD.RandRange(minCash, maxCash);

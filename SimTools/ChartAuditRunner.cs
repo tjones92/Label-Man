@@ -28,6 +28,12 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter retirementWriter;
 	private StreamWriter tierVolumeWriter;
 	private StreamWriter labelFinanceWriter;
+	private StreamWriter dealLedgerWriter;
+	private StreamWriter labelDirectoryWriter;
+	private StreamWriter concentrationWriter;
+	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
+	private int concentrationYear;
 	private MarketRegion[] regions;
 	private int currentAuditWeek;
 	private int requestedWeeks = 52;
@@ -36,10 +42,14 @@ public partial class ChartAuditRunner : Node {
 	private bool aggregateOnly;
 	private bool forceDistributionDeal;
 	private bool disableLabelLifecycle;
+	private bool disableDistributionDeals;
 	private AILabel forcedDealClient;
 	private AILabel forcedDealDistributor;
 	private float forcedDealInitialAdvance;
 	private float forcedDealRoutedTotal;
+	private string forcedDealResolution;
+	private int forcedDealSignedWeek;
+	private int forcedClientInitialRoster;
 
 	public override void _Ready() {
 		try {
@@ -50,8 +60,10 @@ public partial class ChartAuditRunner : Node {
 
 			if (requestedSeed.HasValue) GD.Seed(requestedSeed.Value);
 			if (disableLabelLifecycle) LabelLifecycleManager.Instance?.SetProcessingEnabled(false);
+			if (disableDistributionDeals) CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			OpenOutputs();
+			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			InitializeObservedState();
@@ -62,6 +74,7 @@ public partial class ChartAuditRunner : Node {
 				CaptureWeek(week);
 			}
 			WriteActiveOffChartRetirementRows();
+			WriteConcentrationYear();
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
 			FlushAndClose();
@@ -97,8 +110,13 @@ public partial class ChartAuditRunner : Node {
 				aggregateOnly = true;
 			} else if (argument == "--force-distribution-deal") {
 				forceDistributionDeal = true;
+			} else if (argument.StartsWith("--force-deal-resolution=", StringComparison.Ordinal)) {
+				forceDistributionDeal = true;
+				forcedDealResolution = argument[24..].ToLowerInvariant();
 			} else if (argument == "--disable-label-lifecycle") {
 				disableLabelLifecycle = true;
+			} else if (argument == "--disable-distribution-deals") {
+				disableDistributionDeals = true;
 			}
 		}
 
@@ -106,6 +124,10 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void InstallForcedDistributionDeal() {
+		if (forcedDealResolution != null && forcedDealResolution is not ("exit" or "renew" or "absorb")) {
+			throw new ArgumentException($"Unknown forced deal resolution '{forcedDealResolution}'.");
+		}
+		if (forcedDealResolution != null) CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);
 		IReadOnlyList<AILabel> labels = CompetitorManager.Instance.GetAllLabels();
 		forcedDealClient = labels.FirstOrDefault(label => label.tier != LabelTier.Major &&
 			label.IsActive && CompetitorManager.Instance.GetLabelActiveRecordCount(label.labelId) > 0);
@@ -118,16 +140,21 @@ public partial class ChartAuditRunner : Node {
 			.FirstOrDefault(regionId => !forcedDealClient.HasDistributionInRegion(regionId));
 		grantedRegion ??= regions.First().regionId;
 		forcedDealInitialAdvance = 5000f;
+		forcedDealSignedWeek = ChartManager.Instance.GetCurrentChartWeek();
+		forcedClientInitialRoster = forcedDealClient.CurrentRosterSize;
+		if (forcedDealResolution == "exit") forcedDealClient.ownedReach = 0.95f;
+		else if (forcedDealResolution == "renew") forcedDealClient.ownedReach = 0.50f;
+		else if (forcedDealResolution == "absorb") forcedDealClient.ownedReach = 0.05f;
 		forcedDealClient.activeDeal = new DistributionDeal {
 			distributorId = forcedDealDistributor.labelId,
-			reachGranted = 0.35f,
+			reachGranted = forcedDealResolution == "absorb" ? 0.80f : forcedDealResolution == "exit" ? 0.10f : 0.50f,
 			grantedRegions = new[] { grantedRegion },
 			marginSkim = 0.20f,
-			ownsMasters = false,
+			ownsMasters = forcedDealResolution == "absorb",
 			advance = forcedDealInitialAdvance,
 			unrecoupedAdvance = forcedDealInitialAdvance,
-			signedWeek = ChartManager.Instance.GetCurrentChartWeek(),
-			termWeeks = 52,
+			signedWeek = forcedDealSignedWeek,
+			termWeeks = forcedDealResolution == null ? 52 : 1,
 			origin = DealOrigin.LabelSought
 		};
 		if (!forcedDealClient.HasDistributionInRegion(grantedRegion)) {
@@ -137,8 +164,21 @@ public partial class ChartAuditRunner : Node {
 
 	private void ValidateForcedDistributionDeal() {
 		float expectedRemaining = Mathf.Max(0f, forcedDealInitialAdvance - forcedDealRoutedTotal);
-		if (!Mathf.IsEqualApprox(forcedDealClient.activeDeal.unrecoupedAdvance, expectedRemaining)) {
-			throw new InvalidOperationException($"Deal recoup mismatch: expected {expectedRemaining}, got {forcedDealClient.activeDeal.unrecoupedAdvance}.");
+		if (forcedDealResolution == null) {
+			if (!Mathf.IsEqualApprox(forcedDealClient.activeDeal.unrecoupedAdvance, expectedRemaining)) {
+				throw new InvalidOperationException($"Deal recoup mismatch: expected {expectedRemaining}, got {forcedDealClient.activeDeal.unrecoupedAdvance}.");
+			}
+			return;
+		}
+		if (forcedDealResolution == "exit" && forcedDealClient.activeDeal != null) {
+			throw new InvalidOperationException("Forced exit deal did not terminate.");
+		}
+		if (forcedDealResolution == "renew" && (forcedDealClient.activeDeal == null || forcedDealClient.activeDeal.signedWeek <= forcedDealSignedWeek)) {
+			throw new InvalidOperationException("Forced renewal did not reset its signed week.");
+		}
+		if (forcedDealResolution == "absorb" && (forcedDealClient.status != LabelStatus.Acquired ||
+			CompetitorManager.Instance.GetOperatingLabels().Contains(forcedDealClient) || forcedDealClient.CurrentRosterSize != 0 || forcedClientInitialRoster <= 0)) {
+			throw new InvalidOperationException("Forced absorption did not fully retire and transfer the client.");
 		}
 	}
 
@@ -152,6 +192,9 @@ public partial class ChartAuditRunner : Node {
 		retirementWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retirement.csv"));
 		tierVolumeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-tier-volume.csv"));
 		labelFinanceWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-finance.csv"));
+		dealLedgerWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-deal-ledger.csv"));
+		labelDirectoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-directory.csv"));
+		concentrationWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-concentration.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
@@ -159,7 +202,27 @@ public partial class ChartAuditRunner : Node {
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
 		retirementWriter.WriteLine("week,status,recordId,labelTier,weeksSinceRelease,weeksOnChart,weeksSinceLastTop100,weeksSinceSalesAboveFloor,floorBreachAge,unitsThisWeek,totalRadioPlay");
 		tierVolumeWriter.WriteLine("week,labelTier,launchRecords,launchUnits,middleRecords,middleUnits,catalogTailRecords,catalogTailUnits,totalRecords,totalUnits");
-		labelFinanceWriter.WriteLine("week,year,labelId,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,dealDistributorId,dealUnrecoupedAdvance");
+		labelFinanceWriter.WriteLine("week,year,labelId,labelName,archetype,isHistorical,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,ownedReach,borrowedReach,capability,dealDistributorId,dealUnrecoupedAdvance");
+		dealLedgerWriter.WriteLine("eventWeek,year,resolution,origin,distributorId,distributorName,clientId,clientName,reachGranted,marginSkim,ownsMasters,advance,signedWeek,termWeeks,dependency");
+		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
+		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits");
+		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
+			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
+				label.isHistorical ? "true" : "false", Csv(label.tier.ToString()) }));
+		}
+	}
+
+	private void OnDistributionDealEvent(DistributionDealTelemetry dealEvent) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		dealLedgerWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(dealEvent.resolution.ToString()),
+			Csv(dealEvent.origin.ToString()), Csv(dealEvent.distributorId), Csv(dealEvent.distributorName), Csv(dealEvent.clientId), Csv(dealEvent.clientName),
+			F(dealEvent.reachGranted), F(dealEvent.marginSkim), dealEvent.ownsMasters ? "true" : "false", F(dealEvent.advance),
+			dealEvent.signedWeek.ToString(CultureInfo.InvariantCulture), dealEvent.termWeeks.ToString(CultureInfo.InvariantCulture), F(dealEvent.dependency)
+		}));
+		if (dealEvent.resolution == DealResolution.Absorb && !string.IsNullOrEmpty(dealEvent.clientId) && !string.IsNullOrEmpty(dealEvent.distributorId)) {
+			acquiredBy[dealEvent.clientId] = dealEvent.distributorId;
+		}
 	}
 
 	private void OnRecordRetired(RecordRuntimeData record) => WriteRetirementRow("retired", record);
@@ -202,6 +265,7 @@ public partial class ChartAuditRunner : Node {
 		GameDate date = TimeManager.Instance.CurrentDate;
 		List<RecordRuntimeData> records = ChartManager.Instance.GetAllRecords();
 		List<RecordRuntimeData> chart = ChartManager.Instance.GetCurrentChart();
+		AccumulateConcentration(date.year, chart);
 		if (forceDistributionDeal) {
 			if (!Mathf.IsEqualApprox(forcedDealClient.weeklyDistributionSkim, forcedDealDistributor.weeklyDistributionIncome)) {
 				throw new InvalidOperationException("Forced deal skim was not credited to its distributor.");
@@ -259,14 +323,58 @@ public partial class ChartAuditRunner : Node {
 		previousActiveIds = activeIds;
 	}
 
+	private void AccumulateConcentration(int year, List<RecordRuntimeData> chart) {
+		if (concentrationYear == 0) concentrationYear = year;
+		if (year != concentrationYear) {
+			WriteConcentrationYear();
+			annualChartUnitsByLabel.Clear();
+			concentrationYear = year;
+		}
+		foreach (RecordRuntimeData record in chart) {
+			string labelId = record.baseRecord.labelId;
+			if (string.IsNullOrEmpty(labelId)) continue;
+			annualChartUnitsByLabel[labelId] = annualChartUnitsByLabel.GetValueOrDefault(labelId) + record.unitsThisWeek;
+		}
+	}
+
+	private void WriteConcentrationYear() {
+		if (concentrationYear == 0 || annualChartUnitsByLabel.Count == 0 || concentrationWriter == null) return;
+		var rolledUp = new Dictionary<string, long>(StringComparer.Ordinal);
+		foreach (var pair in annualChartUnitsByLabel) {
+			string ownerId = ResolveCurrentOwner(pair.Key);
+			rolledUp[ownerId] = rolledUp.GetValueOrDefault(ownerId) + pair.Value;
+		}
+		long total = rolledUp.Values.Sum();
+		long indieUnits = rolledUp.Sum(pair => IsIndieFamily(CompetitorManager.Instance.GetLabel(pair.Key)) ? pair.Value : 0L);
+		long majorUnits = total - indieUnits;
+		long[] ranked = rolledUp.Values.OrderByDescending(value => value).ToArray();
+		float c4 = total > 0 ? (float)ranked.Take(4).Sum() / total : 0f;
+		float c8 = total > 0 ? (float)ranked.Take(8).Sum() / total : 0f;
+		concentrationWriter.WriteLine(string.Join(",", new[] {
+			concentrationYear.ToString(CultureInfo.InvariantCulture), F(c4), F(c8), rolledUp.Count.ToString(CultureInfo.InvariantCulture),
+			F(total > 0 ? (float)indieUnits / total : 0f), F(total > 0 ? (float)majorUnits / total : 0f), total.ToString(CultureInfo.InvariantCulture)
+		}));
+	}
+
+	private string ResolveCurrentOwner(string labelId) {
+		var visited = new HashSet<string>(StringComparer.Ordinal);
+		while (acquiredBy.TryGetValue(labelId, out string ownerId) && visited.Add(labelId)) labelId = ownerId;
+		return labelId;
+	}
+
+	private static bool IsIndieFamily(AILabel label) => label != null &&
+		(label.tier == LabelTier.Independent || label.tier == LabelTier.Boutique || label.tier == LabelTier.Small);
+
 	private void WriteLabelFinanceRows(int week, int year) {
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelFinanceWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(label.labelId),
+				Csv(label.labelName), Csv(label.archetype.ToString()), label.isHistorical ? "true" : "false",
 				Csv(label.tier.ToString()), Csv(label.status.ToString()), F(label.cashReserves), F(label.monthlyRevenue),
 				F(label.monthlyExpenses), F(label.weeklyGrossRevenue), F(label.weeklyCogs),
 				F(label.weeklyDistributionSkim), F(label.weeklyArtistRoyalty), F(label.weeklyNetRevenue),
-				F(label.weeklyDistributionIncome), Csv(label.activeDeal?.distributorId), F(label.activeDeal?.unrecoupedAdvance ?? 0f)
+				F(label.weeklyDistributionIncome), F(label.ownedReach), F(label.borrowedReach), F(label.CalculateCapabilityScore()),
+				Csv(label.activeDeal?.distributorId), F(label.activeDeal?.unrecoupedAdvance ?? 0f)
 			}));
 		}
 	}
@@ -401,6 +509,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void FlushAndClose() {
 		if (ChartManager.Instance != null) ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
+		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
 		recordWriter?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
@@ -408,6 +517,9 @@ public partial class ChartAuditRunner : Node {
 		retirementWriter?.Dispose();
 		tierVolumeWriter?.Dispose();
 		labelFinanceWriter?.Dispose();
+		dealLedgerWriter?.Dispose();
+		labelDirectoryWriter?.Dispose();
+		concentrationWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -415,5 +527,8 @@ public partial class ChartAuditRunner : Node {
 		retirementWriter = null;
 		tierVolumeWriter = null;
 		labelFinanceWriter = null;
+		dealLedgerWriter = null;
+		labelDirectoryWriter = null;
+		concentrationWriter = null;
 	}
 }

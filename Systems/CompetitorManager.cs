@@ -5,6 +5,10 @@ using Godot;
 public partial class CompetitorManager : Node {
 	public static CompetitorManager Instance { get; private set; }
 	private const float AnnualReleaseGrowthRate = 0.30f;
+	public const float DealReinvestRate = 0.02f;
+	public const float DealReinvestCost = 5000000f;
+	public const float DealDependencyLow = 0.35f;
+	public const float DealDependencyHigh = 0.56f;
 	
 	[ExportGroup("Configuration")]
 	[Export] private int targetActiveRecords = 500;
@@ -16,6 +20,20 @@ public partial class CompetitorManager : Node {
 	[Export] private float bankruptcyThreshold = 200f;
 	[Export] private float monthlyOverheadRate = 0.02f;
 	[Export] private bool enableBankruptcy = true;
+
+	[ExportGroup("Distribution Deals")]
+	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPullOfferProbability = 0.12f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPushOfferProbability = 0.04f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float annualPost1966PushRamp = 0.05f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float pushMastersOwnershipRate = 0.80f;
+	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pullMarginSkimMin = 0.15f;
+	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pullMarginSkimMax = 0.25f;
+	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pushMarginSkimMin = 0.20f;
+	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pushMarginSkimMax = 0.35f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float dealReinvestRate = DealReinvestRate;
+	[Export] private float dealReinvestCost = DealReinvestCost;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyLow = DealDependencyLow;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyHigh = DealDependencyHigh;
 	
 	[ExportGroup("Historical Records")]
 	[Export] private Record[] historicalRecords;
@@ -28,6 +46,9 @@ public partial class CompetitorManager : Node {
 	private Dictionary<string, LabelFinancialHistory> labelFinancials = new Dictionary<string, LabelFinancialHistory>();
 	
 	private List<AILabel> aiLabels;
+	private bool distributionOfferProcessingEnabled = true;
+	public int DistributorCollapseCount { get; private set; }
+	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
 	
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
@@ -174,7 +195,7 @@ public partial class CompetitorManager : Node {
 			label.weeklyDistributionIncome = 0f;
 		}
 		foreach (var label in aiLabels) {
-			if (label.status == LabelStatus.Bankrupt || label.status == LabelStatus.Defunct) continue;
+			if (!label.IsActive) continue;
 			float weeklyRevenue = CalculateLabelRevenue(label);
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
@@ -249,7 +270,7 @@ public partial class CompetitorManager : Node {
 	private void ProcessWeeklyReleases(GameDate date) {
 		int releasesThisWeek = 0;
 		foreach (var label in aiLabels) {
-			if (label.status == LabelStatus.Bankrupt || label.status == LabelStatus.Defunct) continue;
+			if (!label.IsActive) continue;
 			if (label.roster.Count == 0) continue;
 			
 			float releaseChance = CalculateWeeklyReleaseChance(label);
@@ -431,11 +452,12 @@ public partial class CompetitorManager : Node {
 	
 	private void OnMonthChanged(GameDate date) {
 		foreach (var label in aiLabels) ProcessLabelMonth(label, date);
+		ProcessDistributionDeals(date);
 		if (debugMode) PrintMonthlyReport(date);
 	}
 	
 	private void ProcessLabelMonth(AILabel label, GameDate date) {
-		if (label.status == LabelStatus.Bankrupt || label.status == LabelStatus.Defunct) return;
+		if (!label.IsActive) return;
 		
 		var financials = labelFinancials.TryGetValue(label.labelId, out var f) ? f : null;
 		if (financials == null) {
@@ -450,6 +472,7 @@ public partial class CompetitorManager : Node {
 		
 		float netIncome = financials.lastMonthRevenue - financials.lastMonthExpenses;
 		label.lastMonthlyProfit = netIncome;
+		ReinvestDistributionProfit(label, netIncome);
 		UpdateLabelStatus(label, financials, netIncome);
 		
 		label.monthlyRevenue = 0f;
@@ -458,6 +481,233 @@ public partial class CompetitorManager : Node {
 		financials.lastMonthExpenses = 0f;
 		
 		if (date.month == 1) financials.totalReleasesThisYear = 0;
+	}
+
+	public void SetDistributionOfferProcessingEnabled(bool enabled) => distributionOfferProcessingEnabled = enabled;
+
+	private void ReinvestDistributionProfit(AILabel label, float netIncome) {
+		if (label.activeDeal == null || netIncome <= 0f) return;
+		float reinvestment = netIncome * dealReinvestRate;
+		label.cashReserves -= reinvestment;
+		label.ownedReach = Mathf.Min(1f, label.ownedReach + (reinvestment / Mathf.Max(1f, dealReinvestCost)));
+	}
+
+	private void ProcessDistributionDeals(GameDate date) {
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		foreach (AILabel client in aiLabels.Where(label => label.activeDeal != null).ToList()) {
+			DistributionDeal deal = client.activeDeal;
+			AILabel distributor = GetLabel(deal.distributorId);
+			if (!client.IsActive) {
+				deal.unrecoupedAdvance = 0f;
+				EmitDealEvent(client, distributor, deal, DealResolution.ClientClosed, client.DistributionDependency);
+				client.activeDeal = null;
+				continue;
+			}
+			if (distributor == null || !distributor.IsActive) {
+				EmitDealEvent(client, distributor, deal, DealResolution.DistributorCollapsed, client.DistributionDependency);
+				client.activeDeal = null;
+				DistributorCollapseCount++;
+				continue;
+			}
+			if (currentWeek >= deal.signedWeek + deal.termWeeks) ResolveDistributionDeal(client, distributor, currentWeek);
+		}
+
+		if (!distributionOfferProcessingEnabled) return;
+		foreach (AILabel client in aiLabels.Where(label => label.IsActive && label.activeDeal == null).ToList()) {
+			TryGenerateDistributionOffer(client, date.year, currentWeek);
+		}
+	}
+
+	private void TryGenerateDistributionOffer(AILabel client, int year, int currentWeek) {
+		bool eligibleTier = client.tier == LabelTier.Small || client.tier == LabelTier.Boutique || client.tier == LabelTier.Independent;
+		if (!eligibleTier) return;
+
+		bool pullTrigger = client.nationalReach < 0.40f && HasStrongRegionalChartRecord(client);
+		float pushChance = monthlyPushOfferProbability + (Mathf.Max(0, year - 1966) * annualPost1966PushRamp);
+		bool pushTrigger = (client.momentumScore > 0.60f || HasRecentTop40Record(client)) && GD.Randf() < pushChance;
+		bool pullOffer = pullTrigger && GD.Randf() < monthlyPullOfferProbability;
+		if (!pushTrigger && !pullOffer) return;
+
+		DealOrigin origin = pushTrigger ? DealOrigin.DistributorCourted : DealOrigin.LabelSought;
+		AILabel distributor = SelectDistributor(client, origin);
+		if (distributor == null) return;
+		DistributionDeal offer = GenerateDealTerms(client, distributor, origin, year, currentWeek);
+		if (!ShouldAcceptDeal(client, offer)) return;
+
+		client.activeDeal = offer;
+		client.cashReserves += offer.advance;
+		distributor.cashReserves -= offer.advance;
+		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
+	}
+
+	private bool HasStrongRegionalChartRecord(AILabel label) {
+		if (ChartManager.Instance == null || label.strongRegions == null) return false;
+		var strongRegions = label.strongRegions.ToHashSet(System.StringComparer.Ordinal);
+		return ChartManager.Instance.GetAllRecords().Any(record =>
+			record.baseRecord.labelId == label.labelId && record.currentPosition > 0 && record.GetQuality() > 0.70f &&
+			record.regionalData.Any(pair => strongRegions.Contains(pair.Key) && pair.Value.unitsSoldThisWeek > 0));
+	}
+
+	private bool HasRecentTop40Record(AILabel label) => ChartManager.Instance != null &&
+		ChartManager.Instance.GetAllRecords().Any(record => record.baseRecord.labelId == label.labelId &&
+			record.currentPosition > 0 && record.currentPosition <= 40 && record.weeksSinceRelease <= 52);
+
+	private AILabel SelectDistributor(AILabel client, DealOrigin origin) {
+		var weighted = new List<(AILabel Label, float Weight)>();
+		foreach (AILabel distributor in aiLabels) {
+			if (!IsEligibleDistributor(distributor, client, origin)) continue;
+			bool genreFit = distributor.preferredGenres?.Intersect(client.preferredGenres ?? System.Array.Empty<Genre>()).Any() ?? false;
+			float weight = (distributor.ownedReach * 0.50f) + (distributor.reputation * 0.30f) + (genreFit ? 0.20f : 0f);
+			weight *= distributor.tier switch { LabelTier.Major => 6f, LabelTier.MidTier => 1.5f, _ => 1f };
+			if (weight > 0f) weighted.Add((distributor, weight));
+		}
+		if (weighted.Count == 0) return null;
+
+		float total = weighted.Sum(entry => entry.Weight);
+		float roll = GD.Randf() * total;
+		foreach (var entry in weighted) {
+			roll -= entry.Weight;
+			if (roll <= 0f) return entry.Label;
+		}
+		return weighted[^1].Label;
+	}
+
+	private bool IsEligibleDistributor(AILabel distributor, AILabel client, DealOrigin origin) {
+		if (distributor == null || distributor == client || !distributor.IsActive) return false;
+		bool validTier = distributor.tier == LabelTier.Major || distributor.tier == LabelTier.MidTier ||
+			(distributor.tier == LabelTier.Independent && distributor.ownedReach >= 0.65f);
+		if (!validTier || WouldCreateCircularDeal(client, distributor)) return false;
+		int capacity = distributor.tier switch { LabelTier.Major => 12, LabelTier.MidTier => 6, _ => 3 };
+		if (aiLabels.Count(label => label.activeDeal?.distributorId == distributor.labelId) >= capacity) return false;
+		float minimumAdvance = origin == DealOrigin.DistributorCourted ? client.GetMonthlyOverhead() * 6f : 0f;
+		if (distributor.cashReserves - minimumAdvance <= distributor.GetMonthlyOverhead() * 3f) return false;
+
+		var offeredRegions = distributor.distributionRegions ?? System.Array.Empty<string>();
+		if (origin == DealOrigin.LabelSought) {
+			return (client.strongRegions ?? System.Array.Empty<string>()).Any(region =>
+				!client.HasDistributionInRegion(region) && offeredRegions.Contains(region));
+		}
+		return offeredRegions.Any(region => !client.HasDistributionInRegion(region));
+	}
+
+	private static bool WouldCreateCircularDeal(AILabel client, AILabel distributor) {
+		var visited = new HashSet<string>(System.StringComparer.Ordinal);
+		AILabel current = distributor;
+		while (current?.activeDeal != null && visited.Add(current.labelId)) {
+			if (current.activeDeal.distributorId == client.labelId) return true;
+			current = Instance?.GetLabel(current.activeDeal.distributorId);
+		}
+		return false;
+	}
+
+	private DistributionDeal GenerateDealTerms(AILabel client, AILabel distributor, DealOrigin origin, int year, int currentWeek) {
+		bool push = origin == DealOrigin.DistributorCourted;
+		string[] availableRegions = (distributor.distributionRegions ?? System.Array.Empty<string>())
+			.Where(region => !client.HasDistributionInRegion(region)).Distinct().ToArray();
+		string[] grantedRegions = push
+			? availableRegions
+			: availableRegions.Intersect(client.strongRegions ?? System.Array.Empty<string>()).ToArray();
+		float advance = push
+			? client.GetMonthlyOverhead() * (float)GD.RandRange(6f, 12f)
+			: (GD.Randf() < 0.35f ? 0f : client.GetMonthlyOverhead() * (float)GD.RandRange(0.5f, 2f));
+		advance = Mathf.Min(advance, Mathf.Max(0f, distributor.cashReserves - (distributor.GetMonthlyOverhead() * 3f)));
+		return new DistributionDeal {
+			distributorId = distributor.labelId,
+			reachGranted = push ? (float)GD.RandRange(0.50f, 0.80f) : (float)GD.RandRange(0.30f, 0.50f),
+			grantedRegions = grantedRegions,
+			marginSkim = push ? (float)GD.RandRange(pushMarginSkimMin, pushMarginSkimMax) : (float)GD.RandRange(pullMarginSkimMin, pullMarginSkimMax),
+			ownsMasters = GD.Randf() < (push ? pushMastersOwnershipRate : 0.15f),
+			advance = advance,
+			unrecoupedAdvance = advance,
+			signedWeek = currentWeek,
+			termWeeks = push ? (int)GD.RandRange(78, year >= 1967 ? 104 : 156) : (int)GD.RandRange(52, 104),
+			origin = origin
+		};
+	}
+
+	private static bool ShouldAcceptDeal(AILabel client, DistributionDeal offer) {
+		float currentReach = client.distributionStrength;
+		float projectedReach = Mathf.Clamp(client.ownedReach + offer.reachGranted, 0f, 1f);
+		if (projectedReach <= currentReach + 0.05f) return false;
+
+		bool cashPressured = client.cashReserves < client.GetMonthlyOverhead() * 6f || client.consecutiveLossMonths >= 3;
+		bool momentumHungry = client.momentumScore > 0.55f || client.status == LabelStatus.Rising;
+		float acceptance = 0.20f + (cashPressured ? 0.35f : 0f) + (momentumHungry ? 0.30f : 0f);
+		if (offer.origin == DealOrigin.LabelSought) acceptance += 0.20f;
+		if (client.tier == LabelTier.Independent && client.ownedReach >= 0.45f && !cashPressured) acceptance -= 0.35f;
+		return GD.Randf() < Mathf.Clamp(acceptance, 0.05f, 0.95f);
+	}
+
+	private void ResolveDistributionDeal(AILabel client, AILabel distributor, int currentWeek) {
+		DistributionDeal deal = client.activeDeal;
+		float dependency = client.DistributionDependency;
+		if (dependency < dealDependencyLow) {
+			client.ownedReach = Mathf.Min(1f, client.ownedReach + (deal.reachGranted * 0.50f));
+			EmitDealEvent(client, distributor, deal, DealResolution.Exit, dependency);
+			client.activeDeal = null;
+		} else if (dependency < dealDependencyHigh) {
+			EmitDealEvent(client, distributor, deal, DealResolution.Renew, dependency);
+			deal.signedWeek = currentWeek;
+		} else if (deal.ownsMasters) {
+			AbsorbLabel(client, distributor, dependency);
+		} else {
+			EmitDealEvent(client, distributor, deal, DealResolution.Renew, dependency);
+			deal.marginSkim = Mathf.Min(0.50f, deal.marginSkim + 0.05f);
+			deal.reachGranted = Mathf.Max(0.10f, deal.reachGranted * 0.85f);
+			deal.signedWeek = currentWeek;
+		}
+	}
+
+	private void AbsorbLabel(AILabel client, AILabel distributor, float dependency) {
+		if (client == null || distributor == null || client == distributor || !client.IsActive || !distributor.IsActive) return;
+		DistributionDeal deal = client.activeDeal;
+		if (deal == null || deal.distributorId != distributor.labelId || WouldCreateCircularDeal(client, distributor)) return;
+
+		distributor.marketShare += client.marketShare;
+		distributor.top40Hits += client.top40Hits;
+		distributor.numberOneHits += client.numberOneHits;
+		foreach (SimulatedArtist artist in client.roster.ToList()) {
+			artist.labelId = distributor.labelId;
+			artist.isPlayerOwned = false;
+			if (!distributor.roster.Contains(artist)) distributor.roster.Add(artist);
+		}
+		client.roster.Clear();
+		distributor.maxRosterSize = Mathf.Max(distributor.maxRosterSize, distributor.CurrentRosterSize);
+
+		if (!labelActiveRecords.TryGetValue(distributor.labelId, out List<string> distributorRecords)) {
+			distributorRecords = new List<string>();
+			labelActiveRecords[distributor.labelId] = distributorRecords;
+		}
+		if (labelActiveRecords.TryGetValue(client.labelId, out List<string> clientRecords)) {
+			foreach (string recordId in clientRecords) if (!distributorRecords.Contains(recordId)) distributorRecords.Add(recordId);
+			clientRecords.Clear();
+		}
+		foreach (RecordRuntimeData record in ChartManager.Instance.GetAllRecords().Where(record => record.baseRecord.labelId == client.labelId)) {
+			record.baseRecord.labelId = distributor.labelId;
+		}
+
+		EmitDealEvent(client, distributor, deal, DealResolution.Absorb, dependency);
+		client.activeDeal = null;
+		if (LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.MarkLabelAcquired(client, distributor);
+		else client.status = LabelStatus.Acquired;
+	}
+
+	private void EmitDealEvent(AILabel client, AILabel distributor, DistributionDeal deal, DealResolution resolution, float dependency) {
+		OnDistributionDealEvent?.Invoke(new DistributionDealTelemetry {
+			resolution = resolution,
+			origin = deal.origin,
+			distributorId = deal.distributorId,
+			distributorName = distributor?.labelName ?? deal.distributorId,
+			clientId = client?.labelId,
+			clientName = client?.labelName,
+			reachGranted = deal.reachGranted,
+			marginSkim = deal.marginSkim,
+			ownsMasters = deal.ownsMasters,
+			advance = deal.advance,
+			signedWeek = deal.signedWeek,
+			termWeeks = deal.termWeeks,
+			dependency = dependency
+		});
 	}
 	
 	private void UpdateLabelStatus(AILabel label, LabelFinancialHistory financials, float netIncome) {
@@ -486,6 +736,13 @@ public partial class CompetitorManager : Node {
 	public AILabel GetLabel(string labelId) => aiLabels?.FirstOrDefault(l => l.labelId == labelId);
 	public IReadOnlyList<AILabel> GetAllLabels() => aiLabels ?? (IReadOnlyList<AILabel>)System.Array.Empty<AILabel>();
 
+	public void RegisterLabel(AILabel label) {
+		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
+		if (aiLabels != null && !aiLabels.Contains(label)) aiLabels.Add(label);
+		if (!labelActiveRecords.ContainsKey(label.labelId)) labelActiveRecords[label.labelId] = new List<string>();
+		if (!labelFinancials.ContainsKey(label.labelId)) labelFinancials[label.labelId] = new LabelFinancialHistory();
+	}
+
 	public void RecordExpense(AILabel label, float amount) {
 		if (label == null || amount <= 0f) return;
 		label.cashReserves -= amount;
@@ -497,9 +754,17 @@ public partial class CompetitorManager : Node {
 	
 	public List<AILabel> GetActiveLabelsByStatus(LabelStatus status) => aiLabels?.Where(l => l.status == status).ToList() ?? new List<AILabel>();
 	
-	public List<AILabel> GetOperatingLabels() => aiLabels?.Where(l => l.status != LabelStatus.Bankrupt && l.status != LabelStatus.Defunct).ToList() ?? new List<AILabel>();
+	public List<AILabel> GetOperatingLabels() => aiLabels?.Where(l => l.IsActive).ToList() ?? new List<AILabel>();
 	
 	public int GetLabelActiveRecordCount(string labelId) => labelActiveRecords.TryGetValue(labelId, out var records) ? records.Count : 0;
+
+	public int GetRecentChartingRecordCount(string labelId, int maxAgeWeeks = 52) {
+		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
+		return ChartManager.Instance.GetAllRecords().Count(record =>
+			record.baseRecord.labelId == labelId &&
+			record.weeksSinceRelease <= maxAgeWeeks &&
+			record.weeksOnChart > 0);
+	}
 	
 	private void PrintMonthlyReport(GameDate date) {
 		GD.Print($"=== INDUSTRY REPORT - {date.month}/{date.year} ===");

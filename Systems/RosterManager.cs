@@ -40,6 +40,12 @@ public partial class RosterManager : Node {
 		if (debugMode) PrintRosterStats(labels);
 		GD.Print("RosterManager: Initialization complete");
 	}
+
+	public void InitializeRosterForLabel(AILabel label, int year) {
+		if (label == null) return;
+		label.InitializeRoster();
+		PopulateInitialRoster(label, year);
+	}
 	
 	private void PopulateInitialRoster(AILabel label, int year) {
 		float fillRatio = label.tier switch {

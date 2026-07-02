@@ -389,10 +389,12 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		return profile;
 	}
 	public Musician GetMusician(string musicianId) => musicianRegistry.TryGetValue(musicianId, out var musician) ? musician : null;
-	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(a => a.careerState == CareerState.Unsigned && a.isActive).ToList();
+	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(a =>
+		(a.careerState == CareerState.Unsigned || a.careerState == CareerState.Dropped) && a.isActive).ToList();
 	
 	public List<SimulatedArtist> GetUnsignedByGenre(Genre genre) {
-		return unsignedArtists.Where(a => a.careerState == CareerState.Unsigned && a.isActive && (a.primaryGenre == genre || a.secondaryGenre == genre)).ToList();
+		return unsignedArtists.Where(a => (a.careerState == CareerState.Unsigned || a.careerState == CareerState.Dropped) &&
+			a.isActive && (a.primaryGenre == genre || a.secondaryGenre == genre)).ToList();
 	}
 	
 	public List<SimulatedArtist> GetTopUnsignedTalent(int count, Genre? preferredGenre = null) {
