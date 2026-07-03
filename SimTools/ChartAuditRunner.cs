@@ -18,6 +18,13 @@ public partial class ChartAuditRunner : Node {
 		public bool WasPresentAtStart;
 	}
 
+	private sealed class RevenueRollup {
+		public long Units;
+		public double Gross;
+		public double LabelNet;
+		public double DistributionIncome;
+	}
+
 	private readonly Dictionary<string, LifecycleState> lifecycle = new();
 	private HashSet<string> previousChartIds = new();
 	private HashSet<string> previousActiveIds = new();
@@ -31,9 +38,13 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter dealLedgerWriter;
 	private StreamWriter labelDirectoryWriter;
 	private StreamWriter concentrationWriter;
+	private StreamWriter marketRevenueWriter;
+	private StreamWriter releaseCapacityWriter;
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
+	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
 	private int concentrationYear;
+	private int marketRevenueYear;
 	private MarketRegion[] regions;
 	private int currentAuditWeek;
 	private int requestedWeeks = 52;
@@ -75,6 +86,7 @@ public partial class ChartAuditRunner : Node {
 			}
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
+			WriteMarketRevenueYear();
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
 			FlushAndClose();
@@ -195,6 +207,8 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-deal-ledger.csv"));
 		labelDirectoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-directory.csv"));
 		concentrationWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-concentration.csv"));
+		marketRevenueWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-market-revenue.csv"));
+		releaseCapacityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-capacity.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
@@ -206,6 +220,8 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter.WriteLine("eventWeek,year,resolution,origin,distributorId,distributorName,clientId,clientName,reachGranted,marginSkim,ownsMasters,advance,signedWeek,termWeeks,dependency");
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
 		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits");
+		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
+		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
 				label.isHistorical ? "true" : "false", Csv(label.tier.ToString()) }));
@@ -303,6 +319,8 @@ public partial class ChartAuditRunner : Node {
 		int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
 		WriteTierVolumeRows(week, records);
 		WriteLabelFinanceRows(week, date.year);
+		WriteMarketRevenueRows(week, date.year, records);
+		WriteReleaseCapacityRow(week, date.year);
 
 		weekWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture),
@@ -395,6 +413,128 @@ public partial class ChartAuditRunner : Node {
 				group.Count().ToString(CultureInfo.InvariantCulture), group.Sum(record => record.unitsThisWeek).ToString(CultureInfo.InvariantCulture)
 			}));
 		}
+	}
+
+	private void WriteMarketRevenueRows(int week, int year, List<RecordRuntimeData> records) {
+		if (marketRevenueYear == 0) marketRevenueYear = year;
+		if (year != marketRevenueYear) {
+			WriteMarketRevenueYear();
+			annualMarketRevenue.Clear();
+			marketRevenueYear = year;
+		}
+
+		var weekly = new Dictionary<(string Tier, string Format), RevenueRollup>();
+		IReadOnlyList<AILabel> labels = CompetitorManager.Instance.GetAllLabels();
+		AddLabelRevenue(weekly, ("All", "All"), labels);
+		foreach (IGrouping<LabelTier, AILabel> tierGroup in labels.GroupBy(label => label.tier)) {
+			AddLabelRevenue(weekly, (tierGroup.Key.ToString(), "All"), tierGroup);
+		}
+
+		IReadOnlyDictionary<(string LabelId, ReleaseFormat Format), RevenueTelemetry> formatRevenue =
+			CompetitorManager.Instance.GetWeeklyRevenueByLabelAndFormat();
+		foreach (var pair in formatRevenue) {
+			string tier = CompetitorManager.Instance.GetLabel(pair.Key.LabelId)?.tier.ToString() ?? "Unknown";
+			AddFormatRevenue(weekly, (tier, pair.Key.Format.ToString()), pair.Value);
+			AddFormatRevenue(weekly, ("All", pair.Key.Format.ToString()), pair.Value);
+		}
+
+		weekly[("All", "All")].Units = records.Sum(record => (long)record.unitsThisWeek);
+		foreach (RecordRuntimeData record in records) {
+			string tier = ChartManager.Instance.GetLabelById(record.baseRecord.labelId)?.tier.ToString() ?? "Unknown";
+			string format = record.baseRecord.format.ToString();
+			AddUnits(weekly, (tier, "All"), record.unitsThisWeek);
+			AddUnits(weekly, ("All", format), record.unitsThisWeek);
+			AddUnits(weekly, (tier, format), record.unitsThisWeek);
+		}
+
+		foreach (var pair in weekly.OrderBy(pair => pair.Key.Tier, StringComparer.Ordinal)
+			.ThenBy(pair => pair.Key.Format, StringComparer.Ordinal)) {
+			WriteMarketRevenueRow("weekly", week.ToString(CultureInfo.InvariantCulture), year, pair.Key, pair.Value);
+			AccumulateAnnualMarketRevenue(pair.Key, pair.Value);
+		}
+	}
+
+	private static void AddLabelRevenue(
+		Dictionary<(string Tier, string Format), RevenueRollup> rows,
+		(string Tier, string Format) key,
+		IEnumerable<AILabel> labels) {
+		RevenueRollup row = GetRevenueRow(rows, key);
+		foreach (AILabel label in labels) {
+			row.Gross += label.weeklyGrossRevenue;
+			row.LabelNet += label.weeklyNetRevenue;
+			row.DistributionIncome += label.weeklyDistributionIncome;
+		}
+	}
+
+	private static void AddFormatRevenue(
+		Dictionary<(string Tier, string Format), RevenueRollup> rows,
+		(string Tier, string Format) key,
+		RevenueTelemetry telemetry) {
+		RevenueRollup row = GetRevenueRow(rows, key);
+		row.Gross += telemetry.gross;
+		row.LabelNet += telemetry.labelNet;
+		row.DistributionIncome += telemetry.distributionIncome;
+	}
+
+	private static void AddUnits(
+		Dictionary<(string Tier, string Format), RevenueRollup> rows,
+		(string Tier, string Format) key,
+		int units) => GetRevenueRow(rows, key).Units += units;
+
+	private static RevenueRollup GetRevenueRow(
+		Dictionary<(string Tier, string Format), RevenueRollup> rows,
+		(string Tier, string Format) key) {
+		if (!rows.TryGetValue(key, out RevenueRollup row)) {
+			row = new RevenueRollup();
+			rows[key] = row;
+		}
+		return row;
+	}
+
+	private void AccumulateAnnualMarketRevenue((string Tier, string Format) key, RevenueRollup weekly) {
+		RevenueRollup annual = GetRevenueRow(annualMarketRevenue, key);
+		annual.Units += weekly.Units;
+		annual.Gross += weekly.Gross;
+		annual.LabelNet += weekly.LabelNet;
+		annual.DistributionIncome += weekly.DistributionIncome;
+	}
+
+	private void WriteMarketRevenueYear() {
+		if (marketRevenueYear == 0 || annualMarketRevenue.Count == 0 || marketRevenueWriter == null) return;
+		foreach (var pair in annualMarketRevenue.OrderBy(pair => pair.Key.Tier, StringComparer.Ordinal)
+			.ThenBy(pair => pair.Key.Format, StringComparer.Ordinal)) {
+			WriteMarketRevenueRow("annual", string.Empty, marketRevenueYear, pair.Key, pair.Value);
+		}
+	}
+
+	private void WriteMarketRevenueRow(
+		string period,
+		string week,
+		int year,
+		(string Tier, string Format) key,
+		RevenueRollup revenue) {
+		marketRevenueWriter.WriteLine(string.Join(",", new[] {
+			period, week, year.ToString(CultureInfo.InvariantCulture), Csv(key.Tier), Csv(key.Format),
+			revenue.Units.ToString(CultureInfo.InvariantCulture), F(revenue.Gross), F(revenue.LabelNet),
+			F(revenue.DistributionIncome), F(revenue.LabelNet + revenue.DistributionIncome)
+		}));
+	}
+
+	private void WriteReleaseCapacityRow(int week, int year) {
+		CompetitorManager manager = CompetitorManager.Instance;
+		int otherFailures = manager.WeeklyFailedReleaseRolls - manager.WeeklyCooldownMismatchRolls;
+		float failedRate = manager.WeeklyReleaseRollsFired > 0
+			? (float)manager.WeeklyFailedReleaseRolls / manager.WeeklyReleaseRollsFired : 0f;
+		float mismatchRate = manager.WeeklyReleaseRollsFired > 0
+			? (float)manager.WeeklyCooldownMismatchRolls / manager.WeeklyReleaseRollsFired : 0f;
+		releaseCapacityWriter.WriteLine(string.Join(",", new[] {
+			week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			manager.WeeklyReleaseRollsFired.ToString(CultureInfo.InvariantCulture),
+			manager.WeeklySuccessfulReleases.ToString(CultureInfo.InvariantCulture),
+			manager.WeeklyFailedReleaseRolls.ToString(CultureInfo.InvariantCulture),
+			manager.WeeklyCooldownMismatchRolls.ToString(CultureInfo.InvariantCulture),
+			otherFailures.ToString(CultureInfo.InvariantCulture), F(failedRate), F(mismatchRate)
+		}));
 	}
 
 	private LifecycleState ObserveRecord(RecordRuntimeData record, bool wasPresentAtStart) {
@@ -496,6 +636,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private static string F(float value) => value.ToString("0.######", CultureInfo.InvariantCulture);
+	private static string F(double value) => value.ToString("0.######", CultureInfo.InvariantCulture);
 
 	private static string Csv(string value) {
 		value ??= string.Empty;
@@ -520,6 +661,8 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter?.Dispose();
 		labelDirectoryWriter?.Dispose();
 		concentrationWriter?.Dispose();
+		marketRevenueWriter?.Dispose();
+		releaseCapacityWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -530,5 +673,7 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter = null;
 		labelDirectoryWriter = null;
 		concentrationWriter = null;
+		marketRevenueWriter = null;
+		releaseCapacityWriter = null;
 	}
 }

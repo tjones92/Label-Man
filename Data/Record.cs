@@ -8,6 +8,7 @@ public partial class Record : Resource {
 	[Export] public string artistName;
 	[Export] public string artistId;
 	[Export] public string labelId;
+	[Export] public ReleaseFormat format = ReleaseFormat.Single;
 	[Export] public bool isPlayerOwned;
 	[Export] public bool isNPC;
 	
@@ -24,3 +25,5 @@ public partial class Record : Resource {
 	// GameDate is a struct, cannot be exported to Godot inspector natively
 	public GameDate releaseDate; 
 }
+
+public enum ReleaseFormat { Single }

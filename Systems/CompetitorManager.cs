@@ -17,6 +17,10 @@ public partial class CompetitorManager : Node {
 	[ExportGroup("Economic Settings")]
 	[Export] private float baseRoyaltyRate = 0.04f;
 	[Export(PropertyHint.Range, "0,0.89,0.01")] private float pressingCostPerUnit = 0.30f;
+	[Export] private Godot.Collections.Dictionary<string, float> pricePerUnitByFormat = new() {
+		{ nameof(ReleaseFormat.Single), 0.89f },
+		{ "Album", 3.98f }
+	};
 	[Export] private float bankruptcyThreshold = 200f;
 	[Export] private float monthlyOverheadRate = 0.02f;
 	[Export] private bool enableBankruptcy = true;
@@ -47,7 +51,13 @@ public partial class CompetitorManager : Node {
 	
 	private List<AILabel> aiLabels;
 	private bool distributionOfferProcessingEnabled = true;
+	private readonly Dictionary<(string LabelId, ReleaseFormat Format), RevenueTelemetry> weeklyRevenueByLabelAndFormat = new();
 	public int DistributorCollapseCount { get; private set; }
+	public int WeeklyReleaseRollsFired { get; private set; }
+	public int WeeklySuccessfulReleases { get; private set; }
+	public int WeeklyFailedReleaseRolls { get; private set; }
+	public int WeeklyCooldownMismatchRolls { get; private set; }
+	private bool lastReleaseAttemptFailedArtistSelection;
 	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
 	
 	public override void _EnterTree() {
@@ -186,6 +196,7 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private void ProcessWeeklyRevenue() {
+		weeklyRevenueByLabelAndFormat.Clear();
 		foreach (var label in aiLabels) {
 			label.weeklyGrossRevenue = 0f;
 			label.weeklyCogs = 0f;
@@ -215,7 +226,8 @@ public partial class CompetitorManager : Node {
 			if (runtimeData == null) { deadRecords.Add(recordId); continue; }
 			
 			float weeklyUnits = runtimeData.unitsThisWeek;
-			float pricePerUnit = 0.89f;
+			ReleaseFormat format = runtimeData.baseRecord.format;
+			float pricePerUnit = GetPricePerUnit(format);
 			float grossPerUnit = Mathf.Max(0f, pricePerUnit - pressingCostPerUnit);
 			var artist = ArtistManager.Instance?.GetArtist(runtimeData.baseRecord.artistId);
 			float artistRoyalty = artist?.royaltyRate ?? 0.05f;
@@ -235,7 +247,10 @@ public partial class CompetitorManager : Node {
 			label.weeklyDistributionSkim += skimAmount;
 			label.weeklyArtistRoyalty += artistPayment;
 			label.weeklyNetRevenue += recordRevenue;
-			RouteDistributionSkim(label, skimAmount);
+			RevenueTelemetry formatRevenue = GetOrCreateRevenueTelemetry(label.labelId, format);
+			formatRevenue.gross += retailGross;
+			formatRevenue.labelNet += recordRevenue;
+			RouteDistributionSkim(label, skimAmount, format);
 			
 			if (artist != null) {
 				float recouped = Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), artistPayment);
@@ -251,7 +266,26 @@ public partial class CompetitorManager : Node {
 		return totalRevenue;
 	}
 
-	private void RouteDistributionSkim(AILabel client, float skimAmount) {
+	private float GetPricePerUnit(ReleaseFormat format) {
+		string key = format.ToString();
+		return pricePerUnitByFormat != null && pricePerUnitByFormat.TryGetValue(key, out float price)
+			? price
+			: 0.89f;
+	}
+
+	private RevenueTelemetry GetOrCreateRevenueTelemetry(string labelId, ReleaseFormat format) {
+		var key = (labelId, format);
+		if (!weeklyRevenueByLabelAndFormat.TryGetValue(key, out RevenueTelemetry telemetry)) {
+			telemetry = new RevenueTelemetry();
+			weeklyRevenueByLabelAndFormat[key] = telemetry;
+		}
+		return telemetry;
+	}
+
+	public IReadOnlyDictionary<(string LabelId, ReleaseFormat Format), RevenueTelemetry> GetWeeklyRevenueByLabelAndFormat() =>
+		weeklyRevenueByLabelAndFormat;
+
+	private void RouteDistributionSkim(AILabel client, float skimAmount, ReleaseFormat format) {
 		DistributionDeal deal = client.activeDeal;
 		if (deal == null || skimAmount <= 0f) return;
 		AILabel distributor = GetLabel(deal.distributorId);
@@ -262,6 +296,7 @@ public partial class CompetitorManager : Node {
 		distributor.cashReserves += skimAmount;
 		distributor.monthlyRevenue += skimAmount;
 		distributor.weeklyDistributionIncome += skimAmount;
+		GetOrCreateRevenueTelemetry(distributor.labelId, format).distributionIncome += skimAmount;
 		if (labelFinancials.TryGetValue(distributor.labelId, out LabelFinancialHistory financials)) {
 			financials.lastMonthRevenue += skimAmount;
 		}
@@ -269,13 +304,24 @@ public partial class CompetitorManager : Node {
 	
 	private void ProcessWeeklyReleases(GameDate date) {
 		int releasesThisWeek = 0;
+		WeeklyReleaseRollsFired = 0;
+		WeeklySuccessfulReleases = 0;
+		WeeklyFailedReleaseRolls = 0;
+		WeeklyCooldownMismatchRolls = 0;
 		foreach (var label in aiLabels) {
 			if (!label.IsActive) continue;
 			if (label.roster.Count == 0) continue;
 			
 			float releaseChance = CalculateWeeklyReleaseChance(label);
 			if (GD.Randf() < releaseChance) {
-				if (TryReleaseRecord(label, date)) releasesThisWeek++;
+				WeeklyReleaseRollsFired++;
+				if (TryReleaseRecord(label, date)) {
+					releasesThisWeek++;
+					WeeklySuccessfulReleases++;
+				} else {
+					WeeklyFailedReleaseRolls++;
+					if (lastReleaseAttemptFailedArtistSelection) WeeklyCooldownMismatchRolls++;
+				}
 			}
 		}
 		if (debugMode && releasesThisWeek > 0) GD.Print($"Week {date}: {releasesThisWeek} new releases");
@@ -304,10 +350,15 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private bool TryReleaseRecord(AILabel label, GameDate date) {
+		lastReleaseAttemptFailedArtistSelection = false;
 		var artist = RosterManager.Instance?.GetArtistForRelease(label) ?? label.GetArtistForRelease(date.year);
-		if (artist == null) return false;
+		if (artist == null) {
+			lastReleaseAttemptFailedArtistSelection = true;
+			return false;
+		}
 
-		var record = GenerateRecordFromArtist(label, artist, date.year);
+		ReleasePlan plan = DecideRelease(label, artist, date.year);
+		var record = GenerateRecordFromArtist(label, artist, date.year, plan.format);
 		float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
 		float noiseRange = Mathf.Lerp(0.30f, 0.10f, label.scoutingAbility);
 		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
@@ -345,12 +396,20 @@ public partial class CompetitorManager : Node {
 		}
 		return true;
 	}
+
+	private static ReleasePlan DecideRelease(AILabel label, SimulatedArtist artist, int year) =>
+		new() { format = ReleaseFormat.Single };
+
+	private struct ReleasePlan {
+		public ReleaseFormat format;
+	}
 	
-	private Record GenerateRecordFromArtist(AILabel label, SimulatedArtist artist, int year) {
+	private Record GenerateRecordFromArtist(AILabel label, SimulatedArtist artist, int year, ReleaseFormat format = ReleaseFormat.Single) {
 		var record = new Record(); // Godot Resource instantiation
 		generatedRecordCounter++;
 		record.recordId = $"gen_{generatedRecordCounter}";
 		record.labelId = label.labelId;
+		record.format = format;
 		record.isPlayerOwned = false;
 		record.artistName = artist.stageName;
 		record.artistId = artist.artistId;
@@ -804,4 +863,11 @@ public class LabelFinancialHistory {
 	public float lastMonthExpenses;
 	public int consecutiveLossMonths;
 	public int totalReleasesThisYear;
+}
+
+public sealed class RevenueTelemetry {
+	public float gross;
+	public float labelNet;
+	public float distributionIncome;
+	public float MarketNet => labelNet + distributionIncome;
 }
