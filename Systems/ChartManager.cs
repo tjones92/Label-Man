@@ -1121,7 +1121,7 @@ public partial class ChartManager : Node {
 			RosterManager.Instance?.RecordChartRunComplete(artist, record);
 		}
 
-		CompetitorManager.Instance?.RecordRetired(record.baseRecord.labelId, record.baseRecord.recordId);
+		CompetitorManager.Instance?.RecordRetired(record);
 		allRecords.Remove(record);
 	}
 

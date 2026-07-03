@@ -53,6 +53,9 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter albumCompositionWriter;
 	private StreamWriter formatMixWriter;
 	private StreamWriter retiredTrackWriter;
+	private StreamWriter releaseStrategyWriter;
+	private StreamWriter releaseOutcomeWriter;
+	private StreamWriter revenueMemoryWriter;
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
@@ -96,6 +99,8 @@ public partial class ChartAuditRunner : Node {
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			OpenOutputs();
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
+			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
+			CompetitorManager.Instance.OnReleaseOutcome += OnReleaseOutcome;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			InitializeObservedState();
@@ -237,6 +242,9 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-composition.csv"));
 		formatMixWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-mix.csv"));
 		retiredTrackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retired-track-availability.csv"));
+		releaseStrategyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-strategy.csv"));
+		releaseOutcomeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-outcomes.csv"));
+		revenueMemoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-revenue-memory.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
@@ -254,6 +262,9 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
+		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat");
+		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet");
+		revenueMemoryWriter.WriteLine("week,year,labelId,format,emaNetPerRelease,releasesObserved");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
 				label.isHistorical ? "true" : "false", Csv(label.tier.ToString()) }));
@@ -271,6 +282,25 @@ public partial class ChartAuditRunner : Node {
 		if (dealEvent.resolution == DealResolution.Absorb && !string.IsNullOrEmpty(dealEvent.clientId) && !string.IsNullOrEmpty(dealEvent.distributorId)) {
 			acquiredBy[dealEvent.clientId] = dealEvent.distributorId;
 		}
+	}
+
+	private void OnReleaseStrategy(ReleaseStrategyTelemetry strategy) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		releaseStrategyWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(strategy.recordId), Csv(strategy.labelId), Csv(strategy.tier.ToString()), Csv(strategy.artistId),
+			Csv(strategy.genre.ToString()), Csv(strategy.careerState.ToString()), F(strategy.projectedSingleNet),
+			F(strategy.projectedAlbumNet), F(strategy.confidenceSingle), F(strategy.confidenceAlbum), Csv(strategy.chosenFormat.ToString())
+		}));
+	}
+
+	private void OnReleaseOutcome(ReleaseOutcomeTelemetry outcome) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		releaseOutcomeWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(outcome.labelId), Csv(outcome.recordId), Csv(outcome.format.ToString()), outcome.memoryEligible ? "true" : "false",
+			F(outcome.lifetimeLabelNet), F(outcome.sunkProductionCost), F(outcome.realizedNet)
+		}));
 	}
 
 	private void OnRecordRetired(RecordRuntimeData record) {
@@ -360,6 +390,7 @@ public partial class ChartAuditRunner : Node {
 		WriteReleaseCapacityRow(week, date.year);
 		WriteAlbumRows(week, date, records, albumChart);
 		WriteFormatMixRows(week, date.year, records);
+		WriteRevenueMemoryRows(week, date.year);
 
 		weekWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture),
@@ -378,6 +409,19 @@ public partial class ChartAuditRunner : Node {
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;
+	}
+
+	private void WriteRevenueMemoryRows(int week, int year) {
+		ReleaseFormat[] formats = { ReleaseFormat.Single, ReleaseFormat.Album };
+		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
+			foreach (ReleaseFormat format in formats) {
+				label.revenueMemory.TryGetValue(format, out FormatRevenueMemory memory);
+				revenueMemoryWriter.WriteLine(string.Join(",", new[] {
+					week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(label.labelId), Csv(format.ToString()),
+					F(memory?.emaNetPerRelease ?? 0f), (memory?.releasesObserved ?? 0).ToString(CultureInfo.InvariantCulture)
+				}));
+			}
+		}
 	}
 
 	private void AccumulateConcentration(int year, List<RecordRuntimeData> chart) {
@@ -786,7 +830,11 @@ public partial class ChartAuditRunner : Node {
 
 	private void FlushAndClose() {
 		if (ChartManager.Instance != null) ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
-		if (CompetitorManager.Instance != null) CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
+		if (CompetitorManager.Instance != null) {
+			CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
+			CompetitorManager.Instance.OnReleaseStrategy -= OnReleaseStrategy;
+			CompetitorManager.Instance.OnReleaseOutcome -= OnReleaseOutcome;
+		}
 		recordWriter?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
@@ -803,6 +851,9 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter?.Dispose();
 		formatMixWriter?.Dispose();
 		retiredTrackWriter?.Dispose();
+		releaseStrategyWriter?.Dispose();
+		releaseOutcomeWriter?.Dispose();
+		revenueMemoryWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -819,5 +870,8 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter = null;
 		formatMixWriter = null;
 		retiredTrackWriter = null;
+		releaseStrategyWriter = null;
+		releaseOutcomeWriter = null;
+		revenueMemoryWriter = null;
 	}
 }

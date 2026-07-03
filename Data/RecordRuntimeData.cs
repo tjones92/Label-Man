@@ -31,6 +31,9 @@ public class RecordRuntimeData {
 	public int unitsThisWeek;
 	public int unitsPreviousWeek;
 	public int totalUnitsSold;
+	public float lifetimeLabelNet;
+	public float sunkProductionCost;
+	public bool revenueMemoryEligible;
 	
 	// === SIMULATION FORCES ===
 	public float awareness;           // 0-1: Do people know this song exists?
@@ -100,6 +103,9 @@ public class RecordRuntimeData {
 		unitsThisWeek = 0;
 		unitsPreviousWeek = 0;
 		totalUnitsSold = 0;
+		lifetimeLabelNet = 0f;
+		sunkProductionCost = 0f;
+		revenueMemoryEligible = false;
 		
 		// Simulation forces - all start at zero
 		awareness = 0f;

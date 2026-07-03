@@ -76,6 +76,15 @@ public partial class AILabel : Resource {
 	public float weeklyArtistRoyalty;
 	public float weeklyNetRevenue;
 	public float weeklyDistributionIncome;
+	public Dictionary<ReleaseFormat, FormatRevenueMemory> revenueMemory = new();
+
+	public FormatRevenueMemory GetOrCreateRevenueMemory(ReleaseFormat format) {
+		if (!revenueMemory.TryGetValue(format, out FormatRevenueMemory memory)) {
+			memory = new FormatRevenueMemory();
+			revenueMemory[format] = memory;
+		}
+		return memory;
+	}
 
 	// Backward-compatible combined reach. Existing generators assign owned reach
 	// through this property; fulfillment code automatically sees borrowed reach.
@@ -365,4 +374,9 @@ public partial class AILabel : Resource {
 		};
 		return baseBudget * artistMult * marketingPower;
 	}
+}
+
+public sealed class FormatRevenueMemory {
+	public float emaNetPerRelease;
+	public int releasesObserved;
 }
