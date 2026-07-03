@@ -36,13 +36,20 @@ public partial class ChartManager : Node {
 	private Dictionary<Genre, float> genreMomentum;
 	private List<RecordRuntimeData> allRecords = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
+	private List<RecordRuntimeData> currentAlbumChart = new List<RecordRuntimeData>();
 	private const int BubblingUnderSize = 15;
 	private const int NeverChartedHorizonWeeks = 5;
 	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
 	private const int RetirementSalesFloor = 50;
+	[ExportGroup("Album Catalog")]
+	[Export] private int albumCatalogSalesFloor = 10;
+	[Export] private int albumNeverChartedToleranceWeeks = 26;
+	[Export] private int albumChartedToleranceWeeks = 52;
 	private const float RetirementRegionRadioCap = 0.05f;
 	private Dictionary<RecordRuntimeData, int> bubblingUnderPositions = new Dictionary<RecordRuntimeData, int>();
+	private Dictionary<RecordRuntimeData, int> albumBubblingUnderPositions = new Dictionary<RecordRuntimeData, int>();
+	private readonly Dictionary<string, AlbumTrack> retiredTrackArchive = new();
 	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
 
@@ -59,12 +66,16 @@ public partial class ChartManager : Node {
 
 	// Events
 	public event Action<List<RecordRuntimeData>> OnChartCalculated;
+	public event Action<List<RecordRuntimeData>> OnAlbumChartCalculated;
 	public event Action<RecordRuntimeData> OnRecordEnteredChart;
 	public event Action<RecordRuntimeData> OnRecordHitNumberOne;
 	public event Action<RecordRuntimeData> OnRecordChartUpdated;
 	public event Action<RecordRuntimeData> OnRecordLeftChart;
 	public event Action<RecordRuntimeData> OnRecordRetired;
 	public event Action<Genre, float> OnGenreMomentumChanged;
+	public int RetiredTrackResolutionAttempts { get; private set; }
+	public int RetiredTrackResolutionMisses { get; private set; }
+	public int RetiredTrackArchiveHits { get; private set; }
 
 	// ========================================================================
 	// GODOT LIFECYCLE
@@ -390,8 +401,13 @@ public partial class ChartManager : Node {
 		float quality = runtimeData.GetQuality();
 		float labelPush = releasingLabel != null ? ChartSimulator.GetCampaignImpact(releasingLabel) : 0.2f;
 
-		runtimeData.awareness = 0.12f + (quality * 0.08f) + (labelPush * 0.15f);
-		runtimeData.radioHeat = 0.08f + (labelPush * 0.12f);
+		if (record.format == ReleaseFormat.Album) {
+			runtimeData.awareness = 0.06f + quality * 0.06f + labelPush * 0.08f;
+			runtimeData.radioHeat = 0f;
+		} else {
+			runtimeData.awareness = 0.12f + (quality * 0.08f) + (labelPush * 0.15f);
+			runtimeData.radioHeat = 0.08f + (labelPush * 0.12f);
+		}
 
 		foreach (var region in allRegions) {
 			var regionalData = new RegionalRecordData(region.regionId);
@@ -408,13 +424,16 @@ public partial class ChartManager : Node {
 	}
 
 	private void PromoteRecordAI(RecordRuntimeData record, AILabel label, float perceivedQualityMult) {
+		bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
 		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
-		float broadLaunch = 0.06f + (campaignImpact * (0.10f + label.nationalReach * 0.10f));
+		float broadLaunch = isAlbum
+			? 0.035f + campaignImpact * (0.06f + label.nationalReach * 0.06f)
+			: 0.06f + (campaignImpact * (0.10f + label.nationalReach * 0.10f));
 		record.awareness = Mathf.Max(broadLaunch, record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness, 0f, 1f);
 
-		record.radioHeat = Mathf.Max(0.1f, record.radioHeat);
-		record.radioHeat += campaignImpact * 0.12f;
+		record.radioHeat = isAlbum ? 0f : Mathf.Max(0.1f, record.radioHeat);
+		record.radioHeat += isAlbum ? 0f : campaignImpact * 0.12f;
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 
 		foreach (var region in allRegions) {
@@ -422,11 +441,11 @@ public partial class ChartManager : Node {
 
 			var data = record.regionalData[region.regionId];
 			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
-			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, 1f, perceivedQualityMult);
+			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, isAlbum ? 0.45f : 1f, perceivedQualityMult);
 			data.unitsInStores = units;
 
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
-			data.radioPlay = (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty;
+			data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty;
 			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
@@ -460,7 +479,8 @@ public partial class ChartManager : Node {
 			float genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId);
 
-			ChartSimulator.UpdateRecord(record, label, genreAcceptance, artistHeat);
+			if (record.baseRecord.format == ReleaseFormat.Album) AlbumSimulator.UpdateAlbum(record, label, artistHeat);
+			else ChartSimulator.UpdateRecord(record, label, genreAcceptance, artistHeat);
 		}
 
 		// === STEP 2: Calculate regional sales ===
@@ -480,16 +500,18 @@ public partial class ChartManager : Node {
 				float nationalAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 				float blendedAcceptance = (regionalAcceptance * 0.6f) + (nationalAcceptance * 0.4f);
 
-				int regionalSales = ChartSimulator.CalculateRegionalSales(
-					record,
-					region,
-					regionalData,
-					quality,
-					blendedAcceptance,
-					TimeManager.Instance?.CurrentDate.month ?? 1,
-					GetInternalPreviousPosition(record),
-					label
-				);
+				int regionalSales = record.baseRecord.format == ReleaseFormat.Album
+					? AlbumSimulator.CalculateRegionalSales(record, region, regionalData, year, TimeManager.Instance?.CurrentDate.month ?? 1, label)
+					: ChartSimulator.CalculateRegionalSales(
+						record,
+						region,
+						regionalData,
+						quality,
+						blendedAcceptance,
+						TimeManager.Instance?.CurrentDate.month ?? 1,
+						GetInternalPreviousPosition(record),
+						label
+					);
 
 				regionalData.unitsInStores = Mathf.Max(0, regionalData.unitsInStores - regionalSales);
 				regionalData.unitsSoldThisWeek = regionalSales;
@@ -499,13 +521,13 @@ public partial class ChartManager : Node {
 			}
 
 			ChartSimulator.FinalizeWeeklySales(record, totalSales);
-			ChartSimulator.UpdateSaturation(record, allRegions);
+			if (record.baseRecord.format != ReleaseFormat.Album) ChartSimulator.UpdateSaturation(record, allRegions);
 		}
 
 		// Demand evidence is evaluated before replenishment so inventory exhaustion
 		// cannot masquerade as audience growth.
 		foreach (var record in allRecords) {
-			UpdateRegionalBreakoutState(record, year);
+			if (record.baseRecord.format != ReleaseFormat.Album) UpdateRegionalBreakoutState(record, year);
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
@@ -513,13 +535,17 @@ public partial class ChartManager : Node {
 
 		// === STEP 3: Update regional awareness/radio ===
 		foreach (var record in allRecords) {
-			UpdateRecordRegionalData(record);
-			ApplyBreakoutDiscovery(record);
+			if (record.baseRecord.format == ReleaseFormat.Album) {
+				foreach (var data in record.regionalData.Values) AlbumSimulator.UpdateRegionalState(record, data);
+			} else {
+				UpdateRecordRegionalData(record);
+				ApplyBreakoutDiscovery(record);
+			}
 		}
 
 		// === STEP 4: Calculate chart points ===
 		var chartPoints = new Dictionary<RecordRuntimeData, float>();
-		foreach (var record in allRecords) {
+		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
 			float points = ChartSimulator.CalculateChartPoints(record, allRegions);
 			if (record.unitsThisWeek == 0 && points > 0) points *= 0.1f;
 			if (points > 0) {
@@ -561,6 +587,18 @@ public partial class ChartManager : Node {
 		// === STEP 6: Apply position calculations ===
 		AssignChartPositions(sortedByPoints, triggerEvents);
 		currentChart = sortedByPoints.Take(chartSize).ToList();
+		OnChartCalculated?.Invoke(new List<RecordRuntimeData>(currentChart));
+
+		int albumChartSize = GetAlbumChartSize(TimeManager.Instance?.CurrentDate ?? new GameDate(year, 1, 1));
+		var albumRanking = allRecords
+			.Where(record => record.baseRecord.format == ReleaseFormat.Album && record.unitsThisWeek > 0)
+			.OrderByDescending(AlbumSimulator.CalculateChartPoints)
+			.ThenByDescending(record => record.unitsThisWeek)
+			.Take(albumChartSize + BubblingUnderSize)
+			.ToList();
+		AssignChartPositions(albumRanking, triggerEvents, ReleaseFormat.Album, albumChartSize, albumBubblingUnderPositions);
+		currentAlbumChart = albumRanking.Take(albumChartSize).ToList();
+		OnAlbumChartCalculated?.Invoke(new List<RecordRuntimeData>(currentAlbumChart));
 		UpdateRecordRelevanceClocks();
 		previousChartPoints = chartPoints;
 	}
@@ -568,7 +606,8 @@ public partial class ChartManager : Node {
 	private void UpdateRecordRelevanceClocks() {
 		foreach (RecordRuntimeData record in allRecords) {
 			if (record.currentPosition > 0) record.lastChartedAge = record.weeksSinceRelease;
-			if (record.unitsThisWeek >= RetirementSalesFloor) {
+			int salesFloor = record.baseRecord.format == ReleaseFormat.Album ? albumCatalogSalesFloor : RetirementSalesFloor;
+			if (record.unitsThisWeek >= salesFloor) {
 				record.lastSalesAboveRetirementFloorAge = record.weeksSinceRelease;
 			}
 		}
@@ -576,7 +615,15 @@ public partial class ChartManager : Node {
 
 	private int GetInternalPreviousPosition(RecordRuntimeData record) {
 		if (record.currentPosition > 0) return record.currentPosition;
-		return bubblingUnderPositions.TryGetValue(record, out int position) ? position : 0;
+		var positions = record.baseRecord.format == ReleaseFormat.Album ? albumBubblingUnderPositions : bubblingUnderPositions;
+		return positions.TryGetValue(record, out int position) ? position : 0;
+	}
+
+	public int GetAlbumChartSize(GameDate date) {
+		if (date < new GameDate(1961, 4, 1)) return 40;
+		if (date < new GameDate(1963, 8, 1)) return 50;
+		if (date < new GameDate(1967, 5, 1)) return 150;
+		return 200;
 	}
 
 	private void LogMidChartExits(
@@ -865,19 +912,28 @@ public partial class ChartManager : Node {
 	};
 
 	private void AssignChartPositions(List<RecordRuntimeData> sortedRecords, bool triggerEvents) {
+		AssignChartPositions(sortedRecords, triggerEvents, ReleaseFormat.Single, chartSize, bubblingUnderPositions);
+	}
+
+	private void AssignChartPositions(
+		List<RecordRuntimeData> sortedRecords,
+		bool triggerEvents,
+		ReleaseFormat format,
+		int publishedChartSize,
+		Dictionary<RecordRuntimeData, int> bubblingPositions) {
 		var wasOnChart = new HashSet<RecordRuntimeData>(
-			allRecords.Where(r => r.currentPosition > 0)
+			allRecords.Where(r => r.baseRecord.format == format && r.currentPosition > 0)
 		);
-		var previousBubbling = new HashSet<RecordRuntimeData>(bubblingUnderPositions.Keys);
-		bubblingUnderPositions.Clear();
+		var previousBubbling = new HashSet<RecordRuntimeData>(bubblingPositions.Keys);
+		bubblingPositions.Clear();
 
 		for (int i = 0; i < sortedRecords.Count; i++) {
 			var record = sortedRecords[i];
 			int newPosition = i + 1;
-			bool isPublished = newPosition <= chartSize;
+			bool isPublished = newPosition <= publishedChartSize;
 
 			if (!isPublished) {
-				bubblingUnderPositions[record] = newPosition;
+				bubblingPositions[record] = newPosition;
 				if (record.currentPosition > 0) {
 					record.lastWeekPosition = record.currentPosition;
 					record.currentPosition = 0;
@@ -891,8 +947,8 @@ public partial class ChartManager : Node {
 
 			int internalPreviousPosition = record.currentPosition > 0
 				? record.currentPosition
-				: (previousBubbling.Contains(record) ? chartSize + 1 : 0);
-			record.lastWeekPosition = internalPreviousPosition <= chartSize ? internalPreviousPosition : 0;
+				: (previousBubbling.Contains(record) ? publishedChartSize + 1 : 0);
+			record.lastWeekPosition = internalPreviousPosition <= publishedChartSize ? internalPreviousPosition : 0;
 
 			if (record.currentPosition == 0) {
 				if (record.weeksOnChart == 0) record.weeksOnChart = 1;
@@ -903,7 +959,7 @@ public partial class ChartManager : Node {
 			}
 
 			// Update peak - ONLY if actually on chart
-			if (newPosition > 0 && newPosition <= chartSize) {
+			if (newPosition > 0 && newPosition <= publishedChartSize) {
 				if (record.peakPosition == 0 || newPosition < record.peakPosition) {
 					record.peakPosition = newPosition;
 				}
@@ -1020,6 +1076,12 @@ public partial class ChartManager : Node {
 
 	private void CullDeadRecords(bool includeChartedRecords) {
 		var recordsToRetire = allRecords.Where(record => {
+			if (record.baseRecord.format == ReleaseFormat.Album) {
+				if (record.currentPosition != 0 || record.unitsThisWeek >= albumCatalogSalesFloor) return false;
+				if (record.weeksOnChart == 0) return record.weeksSinceRelease >= albumNeverChartedToleranceWeeks;
+				return GetWeeksSinceLastCharted(record) >= albumChartedToleranceWeeks &&
+					GetWeeksSinceSalesAboveRetirementFloor(record) >= albumChartedToleranceWeeks;
+			}
 			if (record.currentPosition != 0 || record.unitsThisWeek >= RetirementSalesFloor) return false;
 
 			bool neverChartedExpired = record.weeksOnChart == 0 &&
@@ -1049,6 +1111,9 @@ public partial class ChartManager : Node {
 
 	private void RetireRecord(RecordRuntimeData record) {
 		if (record?.baseRecord == null) return;
+		if (record.baseRecord.format == ReleaseFormat.Single) {
+			retiredTrackArchive[record.baseRecord.recordId] = CreateTrackSnapshot(record);
+		}
 		OnRecordRetired?.Invoke(record);
 
 		var artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
@@ -1058,6 +1123,34 @@ public partial class ChartManager : Node {
 
 		CompetitorManager.Instance?.RecordRetired(record.baseRecord.labelId, record.baseRecord.recordId);
 		allRecords.Remove(record);
+	}
+
+	private static AlbumTrack CreateTrackSnapshot(RecordRuntimeData record) => new() {
+		sourceRecordId = record.baseRecord.recordId,
+		title = record.baseRecord.title,
+		genre = record.baseRecord.primaryGenre,
+		quality = record.GetQuality(),
+		isReleasedSingle = true
+	};
+
+	public bool TryResolveTrackSnapshot(string recordId, out AlbumTrack track, out bool resolvedFromRetiredArchive) {
+		RetiredTrackResolutionAttempts++;
+		RecordRuntimeData live = GetRecordRuntimeData(recordId);
+		if (live != null && live.baseRecord.format == ReleaseFormat.Single) {
+			track = CreateTrackSnapshot(live);
+			resolvedFromRetiredArchive = false;
+			return true;
+		}
+		if (retiredTrackArchive.TryGetValue(recordId, out AlbumTrack archived)) {
+			RetiredTrackArchiveHits++;
+			track = archived;
+			resolvedFromRetiredArchive = true;
+			return true;
+		}
+		RetiredTrackResolutionMisses++;
+		track = null;
+		resolvedFromRetiredArchive = false;
+		return false;
 	}
 
 	private float GetTotalRadioPlay(RecordRuntimeData record) {
@@ -1085,6 +1178,7 @@ public partial class ChartManager : Node {
 	public List<MarketRegion> GetAllRegions() => new List<MarketRegion>(allRegions);
 
 	public List<RecordRuntimeData> GetCurrentChart() => new List<RecordRuntimeData>(currentChart);
+	public List<RecordRuntimeData> GetCurrentAlbumChart() => new List<RecordRuntimeData>(currentAlbumChart);
 
 	public RecordRuntimeData GetRecordAtPosition(int position) {
 		if (position > 0 && position <= currentChart.Count) {

@@ -73,6 +73,36 @@ public partial class MarketRegion : Resource {
 		float segregationFactor = GetSegregationFactor(genre);
 		return buyingPopulation * acceptance * segregationFactor;
 	}
+
+	public float GetAlbumMarketSize(Genre genre, int year) {
+		float baseMarket = population * 1000000f;
+		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
+		return buyingPopulation * GetGenreAcceptance(genre, year) * GetSegregationFactor(genre) *
+			GetAlbumAffinity(genre, year) * GetAlbumPurchaseWillingness(year);
+	}
+
+	public float GetAlbumAffinity(Genre genre, int year) {
+		float baseline = genre switch {
+			Genre.Jazz => 0.90f,
+			Genre.EasyListening => 0.88f,
+			Genre.Folk => 0.78f,
+			Genre.TraditionalPop => 0.72f,
+			Genre.BossaNova => 0.72f,
+			Genre.Country or Genre.Gospel or Genre.Blues => 0.58f,
+			Genre.RockAndRoll or Genre.TeenPop or Genre.RnB or Genre.DooWop or Genre.GirlGroup => 0.22f,
+			_ => 0.40f
+		};
+		float decadeLift = Mathf.SmoothStep(0f, 0.58f, Mathf.Clamp((year - 1960f) / 9f, 0f, 1f));
+		float youthPenalty = youthPercentage * Mathf.Lerp(0.75f, 0.12f, Mathf.Clamp((year - 1960f) / 9f, 0f, 1f));
+		return Mathf.Clamp(baseline * (1f - youthPenalty) + decadeLift, 0.05f, 1f);
+	}
+
+	public float GetAlbumPurchaseWillingness(int year) {
+		float normalizedIncome = Mathf.Clamp((averageIncome - 0.70f) / 0.55f, 0f, 1f);
+		float audienceAging = Mathf.Clamp((year - 1960f) / 9f, 0f, 1f);
+		float youthPricePenalty = youthPercentage * Mathf.Lerp(1.25f, 0.35f, audienceAging);
+		return Mathf.Clamp(0.30f + normalizedIncome * 0.48f + audienceAging * 0.25f - youthPricePenalty, 0.08f, 1f);
+	}
 	
 	public float GetBuyingPopulationPercentage() {
 		float youthFactor = 0.3f + (youthPercentage * 0.5f);

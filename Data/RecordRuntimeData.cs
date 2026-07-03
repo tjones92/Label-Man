@@ -5,6 +5,7 @@ using System.Collections.Generic;
 [System.Serializable]
 public class RecordRuntimeData {
 	public Record baseRecord;
+	public AlbumRuntimeData albumRuntime;
 	
 	// === CHART POSITION TRACKING ===
 	public int currentPosition;
@@ -78,6 +79,9 @@ public class RecordRuntimeData {
 	// === CONSTRUCTOR ===
 	public RecordRuntimeData(Record record) {
 		baseRecord = record;
+		if (record.format == ReleaseFormat.Album && record.album != null) {
+			albumRuntime = new AlbumRuntimeData(record.album, record.releaseDate.year);
+		}
 		
 		// Chart tracking
 		currentPosition = 0;
@@ -132,6 +136,7 @@ public class RecordRuntimeData {
 	}
 	
 	public float GetQuality() {
+		if (baseRecord.format == ReleaseFormat.Album && baseRecord.album != null) return baseRecord.album.pooledAppeal;
 		return (baseRecord.hookStrength * 0.5f) + 
 			   (baseRecord.productionQuality * 0.3f) + 
 			   (baseRecord.danceability * 0.2f);

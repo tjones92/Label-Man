@@ -45,6 +45,7 @@ public class SimulatedArtist {
 
 	public int weeksSinceLastRelease = 999;
 	public List<string> releaseHistory = new List<string>();
+	public List<string> releasedSingleIds = new List<string>();
 
 	public float royaltyRate;
 	public float unrecoupedAdvance;

@@ -9,6 +9,7 @@ public partial class Record : Resource {
 	[Export] public string artistId;
 	[Export] public string labelId;
 	[Export] public ReleaseFormat format = ReleaseFormat.Single;
+	[Export] public Album album;
 	[Export] public bool isPlayerOwned;
 	[Export] public bool isNPC;
 	
@@ -26,4 +27,4 @@ public partial class Record : Resource {
 	public GameDate releaseDate; 
 }
 
-public enum ReleaseFormat { Single }
+public enum ReleaseFormat { Single, Album, EP }
