@@ -1153,6 +1153,24 @@ public partial class ChartManager : Node {
 		return false;
 	}
 
+	/// <summary>
+	/// Resolves a reusable-single snapshot without changing audit counters. Analytic
+	/// release priors use this read-only seam so evaluating a strategy has no side effects.
+	/// </summary>
+	public bool TryGetTrackSnapshot(string recordId, out AlbumTrack track) {
+		RecordRuntimeData live = GetRecordRuntimeData(recordId);
+		if (live != null && live.baseRecord.format == ReleaseFormat.Single) {
+			track = CreateTrackSnapshot(live);
+			return true;
+		}
+		if (retiredTrackArchive.TryGetValue(recordId, out AlbumTrack archived)) {
+			track = archived;
+			return true;
+		}
+		track = null;
+		return false;
+	}
+
 	private float GetTotalRadioPlay(RecordRuntimeData record) {
 		float total = 0f;
 		foreach (var data in record.regionalData.Values) {
