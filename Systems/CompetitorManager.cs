@@ -34,14 +34,24 @@ public partial class CompetitorManager : Node {
 	[Export(PropertyHint.Range, "0,2,0.05")] private float compilationProductionMultiplier = 0.60f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float revenueMemoryAlpha = 0.30f;
 	[Export(PropertyHint.Range, "0.1,20,0.1")] private float revenueMemoryConfidenceK = 4.0f;
-	[Export] private float priorUnitScalarSingle = 12000f;
-	[Export] private float priorUnitScalarAlbum = 100000f;
-	[Export] private float priorSingleExpectedTailUnitScalar = 300000f;
+	[Export] private float priorUnitScalarAlbum = 175000f;
+	[Export] private float priorCompHitUnitScalar = 20000f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float priorAssumedAlbumPackaging = 0.50f;
 	[Export(PropertyHint.Range, "1958,1965,0.1")] private float albumEraWeightStartYear = 1960f;
 	[Export(PropertyHint.Range, "1965,1972,0.1")] private float albumEraWeightEndYear = 1968f;
 	[Export(PropertyHint.Range, "1960,1967,0.1")] private float albumCohesionRiseStartYear = 1964f;
 	[Export(PropertyHint.Range, "1965,1972,0.1")] private float albumCohesionRiseEndYear = 1968f;
+
+	[ExportGroup("Album Project Pipeline")]
+	[Export(PropertyHint.Range, "1,12,1")] private int albumDropGapWeeksMin = 3;
+	[Export(PropertyHint.Range, "1,12,1")] private int albumDropGapWeeksMax = 5;
+	[Export(PropertyHint.Range, "1,100,1")] private int promoFlopThreshold = 80;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float promoAwarenessBonusMax = 0.25f;
+	[Export(PropertyHint.Range, "0,2,0.01")] private float promoStockBonusMax = 0.80f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float promoStockFlopFloor = 0.85f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float cannibalizationStrength = 0.15f;
+	[Export] private float expectedPromoLiftScalar = 10000f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float expectedPromoHeat = 0.50f;
 
 	[ExportGroup("Distribution Deals")]
 	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPullOfferProbability = 0.12f;
@@ -64,6 +74,11 @@ public partial class CompetitorManager : Node {
 	[Export] private bool debugMode = false;
 	
 	private int generatedRecordCounter = 0;
+	private long generatedProjectCounter;
+	private int pipelineWeek;
+	private readonly List<AlbumProject> albumProjects = new();
+	private readonly Dictionary<string, AlbumProject> projectById = new();
+	private readonly Dictionary<string, AlbumProject> projectByRecordId = new();
 	private Dictionary<string, List<string>> labelActiveRecords = new Dictionary<string, List<string>>();
 	private Dictionary<string, LabelFinancialHistory> labelFinancials = new Dictionary<string, LabelFinancialHistory>();
 	
@@ -75,9 +90,12 @@ public partial class CompetitorManager : Node {
 	public int WeeklySuccessfulReleases { get; private set; }
 	public int WeeklyFailedReleaseRolls { get; private set; }
 	public int WeeklyCooldownMismatchRolls { get; private set; }
+	public int WeeklyPipelineAlbumDrops { get; private set; }
+	public float CannibalizationStrength => cannibalizationStrength;
 	private bool lastReleaseAttemptFailedArtistSelection;
 	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
 	public event System.Action<ReleaseStrategyTelemetry> OnReleaseStrategy;
+	public event System.Action<CalibrationDecisionTelemetry> OnCalibrationDecision;
 	public event System.Action<ReleaseOutcomeTelemetry> OnReleaseOutcome;
 	
 	public override void _EnterTree() {
@@ -217,6 +235,9 @@ public partial class CompetitorManager : Node {
 			}
 		}
 		ProcessWeeklyRevenue();
+		pipelineWeek++;
+		ResetWeeklyReleaseCounters();
+		ProcessDueAlbumProjects(date);
 		ProcessWeeklyReleases(date);
 	}
 	
@@ -344,10 +365,6 @@ public partial class CompetitorManager : Node {
 	
 	private void ProcessWeeklyReleases(GameDate date) {
 		int releasesThisWeek = 0;
-		WeeklyReleaseRollsFired = 0;
-		WeeklySuccessfulReleases = 0;
-		WeeklyFailedReleaseRolls = 0;
-		WeeklyCooldownMismatchRolls = 0;
 		foreach (var label in aiLabels) {
 			if (!label.IsActive) continue;
 			if (label.roster.Count == 0) continue;
@@ -365,6 +382,14 @@ public partial class CompetitorManager : Node {
 			}
 		}
 		if (debugMode && releasesThisWeek > 0) GD.Print($"Week {date}: {releasesThisWeek} new releases");
+	}
+
+	private void ResetWeeklyReleaseCounters() {
+		WeeklyReleaseRollsFired = 0;
+		WeeklySuccessfulReleases = 0;
+		WeeklyFailedReleaseRolls = 0;
+		WeeklyCooldownMismatchRolls = 0;
+		WeeklyPipelineAlbumDrops = 0;
 	}
 	
 	private float CalculateWeeklyReleaseChance(AILabel label) {
@@ -401,14 +426,53 @@ public partial class CompetitorManager : Node {
 		});
 
 		if (!runtimeData.revenueMemoryEligible) return;
+		if (!string.IsNullOrEmpty(runtimeData.albumProjectId) && projectById.TryGetValue(runtimeData.albumProjectId, out AlbumProject project)) {
+			if (runtimeData.projectRole == ProjectRecordRole.PromoSingle) {
+				project.promoRetired = true;
+				project.heldPromoOutcome = realizedNet;
+				project.promoOutcomeState = ProjectOutcomeState.Retired;
+				if (runtimeData.peakPosition > 0) project.promoPeakAtDrop = runtimeData.peakPosition;
+				if (project.terminalState == AlbumProjectTerminalState.Cancelled) RedirectCancelledPromoOutcome(project);
+				else TryFoldProjectMemory(project);
+				return;
+			}
+			if (runtimeData.projectRole is ProjectRecordRole.LinkedAlbum or ProjectRecordRole.StandaloneAlbum) {
+				project.rawDemandBeforeCannibalization = runtimeData.rawAlbumDemandBeforeCannibalization;
+				project.suppressedDemand = runtimeData.suppressedAlbumDemand;
+				project.albumRetired = true;
+				project.heldAlbumOutcome = realizedNet;
+				project.albumOutcomeState = ProjectOutcomeState.Retired;
+				TryFoldProjectMemory(project);
+				return;
+			}
+		}
+		ApplyMemoryObservation(labelId, runtimeData.baseRecord.format, realizedNet);
+	}
+
+	private void ApplyMemoryObservation(string labelId, ReleaseFormat format, float realizedNet) {
 		AILabel label = GetLabel(labelId);
 		if (label == null) return;
-		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(runtimeData.baseRecord.format);
+		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(format);
 		float alpha = Mathf.Clamp(revenueMemoryAlpha, 0f, 1f);
-		memory.emaNetPerRelease = memory.releasesObserved == 0
-			? realizedNet
-			: Mathf.Lerp(memory.emaNetPerRelease, realizedNet, alpha);
+		memory.emaNetPerRelease = memory.releasesObserved == 0 ? realizedNet : Mathf.Lerp(memory.emaNetPerRelease, realizedNet, alpha);
 		memory.releasesObserved++;
+	}
+
+	private void TryFoldProjectMemory(AlbumProject project) {
+		if (project == null || project.albumMemoryFolded || project.heldAlbumOutcome == null) return;
+		if (project.strategy == ReleaseStrategy.AlbumWithPromo && project.heldPromoOutcome == null) return;
+		float combined = project.heldAlbumOutcome.Value + (project.heldPromoOutcome ?? 0f);
+		ApplyMemoryObservation(project.currentLabelId, ReleaseFormat.Album, combined);
+		project.projectRealizedNet = combined;
+		project.albumMemoryFolded = true;
+		project.albumOutcomeState = ProjectOutcomeState.FoldedToAlbum;
+		if (project.strategy == ReleaseStrategy.AlbumWithPromo) project.promoOutcomeState = ProjectOutcomeState.FoldedToAlbum;
+	}
+
+	private void RedirectCancelledPromoOutcome(AlbumProject project) {
+		if (project?.heldPromoOutcome == null || project.promoOutcomeState == ProjectOutcomeState.RedirectedToSingle) return;
+		ApplyMemoryObservation(project.currentLabelId, ReleaseFormat.Single, project.heldPromoOutcome.Value);
+		project.promoOutcomeState = ProjectOutcomeState.RedirectedToSingle;
 	}
 	
 	private bool TryReleaseRecord(AILabel label, GameDate date) {
@@ -419,7 +483,11 @@ public partial class CompetitorManager : Node {
 			return false;
 		}
 
-		ReleasePlan plan = DecideRelease(label, artist, date.year);
+		// Snapshot only information available at the release fork. These pure reads are
+		// also emitted for album-disabled calibration runs; they consume no RNG.
+		DecisionContext decision = BuildDecisionContext(label, artist, date.year);
+		ReleasePlan plan = DecideRelease(label, artist, date.year, decision);
+		if (plan.format == ReleaseFormat.Album) return TryInitiateAlbumProject(label, artist, date, decision, plan);
 		var record = GenerateRecordFromArtist(label, artist, date.year, plan.format);
 		float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
 		float noiseRange = Mathf.Lerp(0.30f, 0.10f, label.scoutingAbility);
@@ -451,12 +519,25 @@ public partial class CompetitorManager : Node {
 		if (runtimeData == null) throw new System.InvalidOperationException($"Released record '{record.recordId}' has no runtime data.");
 		runtimeData.sunkProductionCost = productionCost;
 		runtimeData.revenueMemoryEligible = true;
+		runtimeData.projectRole = ProjectRecordRole.OrphanSingle;
 		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
 		TrackRelease(label.labelId, record.recordId);
 		RosterManager.Instance?.RecordReleased(artist, record.recordId);
 		artist.weeksSinceLastRelease = 0;
 		artist.releaseHistory.Add(record.recordId);
 		if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
+		OnCalibrationDecision?.Invoke(new CalibrationDecisionTelemetry {
+			recordId = record.recordId,
+			labelId = label.labelId,
+			artistId = artist.artistId,
+			genre = artist.primaryGenre,
+			careerState = artist.careerState,
+			qualityEstimate = decision.qualityEstimate,
+			reachFactor = decision.reachFactor,
+			genreSinglesMarketFactor = decision.genreSinglesMarketFactor,
+			singleProductionCost = decision.singleProductionCost,
+			chosenFormat = plan.format
+		});
 		if (plan.economicsEvaluated) {
 			OnReleaseStrategy?.Invoke(new ReleaseStrategyTelemetry {
 				recordId = record.recordId,
@@ -465,13 +546,34 @@ public partial class CompetitorManager : Node {
 				artistId = artist.artistId,
 				genre = artist.primaryGenre,
 				careerState = artist.careerState,
+				careerBand = GetCareerBandLabel(plan.careerBand, plan.unexpectedCareerState),
+				qualityEstimate = decision.qualityEstimate,
+				qualityQuartile = $"Q{plan.qualityQuartile + 1}",
+				reachFactor = decision.reachFactor,
+				genreSinglesMarketFactor = decision.genreSinglesMarketFactor,
+				priorSingleNet = plan.priorSingleNet,
+				priorAlbumNet = plan.priorAlbumNet,
 				projectedSingleNet = plan.projectedSingleNet,
 				projectedAlbumNet = plan.projectedAlbumNet,
 				confidenceSingle = plan.confidenceSingle,
 				confidenceAlbum = plan.confidenceAlbum,
 				chosenFormat = plan.format,
-				assumedCompilationCost = plan.assumedCompilationCost,
-				actualAlbumFormat = record.album?.albumFormat
+				assumedCompilationCost = plan.legacyFourResolvableSingles,
+				compCostWeight = plan.compCostWeight,
+				expectedFormatMultiplier = plan.expectedFormatMultiplier,
+				releasedSingleIdsExamined = plan.releasedSingleIdsExamined,
+				resolvedSingles = plan.resolvedSingles,
+				chartedSingles = plan.chartedSingles,
+				hitScore = plan.hitScore,
+				unweightedHitUnits = plan.unweightedHitUnits,
+				weightedHitUnits = plan.weightedHitUnits,
+				affinityUnits = plan.affinityUnits,
+				totalExpectedAlbumUnits = plan.totalExpectedAlbumUnits,
+				actualAlbumFormat = record.album?.albumFormat,
+				strategy = ReleaseStrategy.OrphanSingle,
+				projectedOrphanSingleNet = plan.projectedSingleNet,
+				projectedAlbumStandaloneNet = plan.projectedAlbumNet,
+				projectedAlbumWithPromoNet = plan.projectedAlbumWithPromoNet
 			});
 		}
 		
@@ -481,12 +583,154 @@ public partial class CompetitorManager : Node {
 		return true;
 	}
 
-	private ReleasePlan DecideRelease(AILabel label, SimulatedArtist artist, int year) {
-		if (!enableAlbums) return new() { format = ReleaseFormat.Single };
+	private bool TryInitiateAlbumProject(AILabel label, SimulatedArtist artist, GameDate date, DecisionContext decision, ReleasePlan plan) {
+		Record album = GenerateRecordFromArtist(label, artist, date.year, ReleaseFormat.Album);
+		float albumProductionCost = CalculateProductionCost(label, album);
+		float albumPerceivedMult;
+		float albumMarketingPlanned;
+		Record promo = null;
+		int gapWeeks = 0;
+		PromotionSnapshot albumPromotion = null;
+		float promoProductionCost = 0f;
+		float promoMarketingBudget = 0f;
+		float promoPerceivedMult = 1f;
 
-		bool assumedCompilationCost = HasFourResolvableSingles(artist);
-		float priorSingle = CalculatePriorNet(ReleaseFormat.Single, label, artist, year, assumedCompilationCost);
-		float priorAlbum = CalculatePriorNet(ReleaseFormat.Album, label, artist, year, assumedCompilationCost);
+		if (plan.strategy == ReleaseStrategy.AlbumWithPromo) {
+			promo = CreatePromoSingleFromAlbum(album);
+			gapWeeks = (int)GD.RandRange(Mathf.Min(albumDropGapWeeksMin, albumDropGapWeeksMax), Mathf.Max(albumDropGapWeeksMin, albumDropGapWeeksMax));
+			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
+			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
+			albumPromotion = BuildPromotionSnapshot(album, artist, albumPerceivedMult);
+			promoProductionCost = CalculateProductionCost(label, promo);
+			promoPerceivedMult = DrawPerceivedQualityMultiplier(promo, label);
+			promoMarketingBudget = label.GetMarketingBudget(artist) * promoPerceivedMult;
+		} else {
+			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
+			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
+		}
+
+		float firstMarketing = plan.strategy == ReleaseStrategy.AlbumStandalone ? albumMarketingPlanned : promoMarketingBudget;
+		float productionTotal = albumProductionCost + promoProductionCost;
+		if (!TryClampFirstEventCost(label, productionTotal, ref firstMarketing)) return false;
+		if (plan.strategy == ReleaseStrategy.AlbumStandalone) albumMarketingPlanned = firstMarketing;
+		else promoMarketingBudget = firstMarketing;
+		ChargeProjectCost(label, artist, productionTotal + firstMarketing, productionTotal);
+
+		string projectId = $"project_{++generatedProjectCounter}";
+		var project = new AlbumProject {
+			projectId = projectId, creationSequence = generatedProjectCounter,
+			originalLabelId = label.labelId, currentLabelId = label.labelId, tierAtSchedule = label.tier,
+			artistId = artist.artistId, genre = artist.primaryGenre, careerStateAtSchedule = artist.careerState,
+			scheduledWeek = pipelineWeek, scheduledDate = date, dropWeek = pipelineWeek + gapWeeks,
+			dropDate = date.AddDays(gapWeeks * 7), strategy = plan.strategy, albumRecord = album,
+			promoSingleRecord = promo, promoSingleId = promo?.recordId, albumProductionCost = albumProductionCost,
+			promoProductionCost = promoProductionCost, albumPromotionSnapshot = albumPromotion,
+			albumMarketingBudgetPlanned = albumMarketingPlanned, projectedAlbumNet = plan.projectedAlbumStandaloneNet,
+			projectedPromoSingleNet = plan.expectedPromoSingleNet, projectedProjectNet = plan.projectedAlbumWithPromoNet,
+			albumOutcomeState = ProjectOutcomeState.Pending,
+			promoOutcomeState = promo == null ? ProjectOutcomeState.None : ProjectOutcomeState.Pending
+		};
+		albumProjects.Add(project);
+		projectById[projectId] = project;
+		projectByRecordId[album.recordId] = project;
+		if (promo != null) projectByRecordId[promo.recordId] = project;
+
+		if (plan.strategy == ReleaseStrategy.AlbumStandalone) {
+			project.terminalState = AlbumProjectTerminalState.Released;
+			ReleasePreparedRecord(album, artist, label, date, albumProductionCost, ProjectRecordRole.StandaloneAlbum, projectId);
+			ApplyReleasePromotion(album, artist, label, albumMarketingPlanned, albumPerceivedMult);
+		} else {
+			ReleasePreparedRecord(promo, artist, label, date, promoProductionCost, ProjectRecordRole.PromoSingle, projectId);
+			ApplyReleasePromotion(promo, artist, label, promoMarketingBudget, promoPerceivedMult);
+		}
+		artist.weeksSinceLastRelease = 0;
+		EmitAlbumDecisionTelemetry(label, artist, decision, plan, album, project);
+		return true;
+	}
+
+	private float DrawPerceivedQualityMultiplier(Record record, AILabel label) {
+		float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
+		float noiseRange = Mathf.Lerp(0.30f, 0.10f, label.scoutingAbility);
+		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
+		return 0.6f + perceivedQuality * 0.8f;
+	}
+
+	private bool TryClampFirstEventCost(AILabel label, float productionCost, ref float marketingBudget) {
+		float minReserve = label.GetMonthlyOverhead();
+		if (label.cashReserves - productionCost - marketingBudget >= minReserve) return true;
+		float available = label.cashReserves - minReserve - productionCost;
+		if (available < 0f) return false;
+		marketingBudget = available * 0.8f;
+		return true;
+	}
+
+	private void ChargeProjectCost(AILabel label, SimulatedArtist artist, float totalCost, float productionCost) {
+		label.cashReserves -= totalCost;
+		label.monthlyExpenses += totalCost;
+		artist.unrecoupedAdvance += productionCost;
+		if (labelFinancials.TryGetValue(label.labelId, out var financials)) financials.lastMonthExpenses += totalCost;
+	}
+
+	private void ReleasePreparedRecord(Record record, SimulatedArtist artist, AILabel label, GameDate date, float productionCost,
+		ProjectRecordRole role, string projectId) {
+		record.labelId = label.labelId;
+		record.releaseDate = date;
+		ChartManager.Instance.ReleaseRecord(record);
+		RecordRuntimeData runtime = ChartManager.Instance.GetRecordRuntimeData(record.recordId)
+			?? throw new System.InvalidOperationException($"Released record '{record.recordId}' has no runtime data.");
+		runtime.sunkProductionCost = productionCost;
+		runtime.revenueMemoryEligible = true;
+		runtime.projectRole = role;
+		runtime.albumProjectId = projectId;
+		if (role == ProjectRecordRole.LinkedAlbum && projectById.TryGetValue(projectId, out AlbumProject project)) runtime.linkedPromoSingleId = project.promoSingleId;
+		TrackRelease(label.labelId, record.recordId);
+		if (artist != null) {
+			RosterManager.Instance?.RecordReleased(artist, record.recordId);
+			artist.releaseHistory.Add(record.recordId);
+			if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
+		}
+	}
+
+	private void EmitAlbumDecisionTelemetry(AILabel label, SimulatedArtist artist, DecisionContext decision, ReleasePlan plan,
+		Record album, AlbumProject project) {
+		OnCalibrationDecision?.Invoke(new CalibrationDecisionTelemetry {
+			recordId = album.recordId, labelId = label.labelId, artistId = artist.artistId, genre = artist.primaryGenre,
+			careerState = artist.careerState, qualityEstimate = decision.qualityEstimate, reachFactor = decision.reachFactor,
+			genreSinglesMarketFactor = decision.genreSinglesMarketFactor, singleProductionCost = decision.singleProductionCost,
+			chosenFormat = ReleaseFormat.Album
+		});
+		OnReleaseStrategy?.Invoke(BuildReleaseStrategyTelemetry(label, artist, decision, plan, album, project));
+	}
+
+	private ReleaseStrategyTelemetry BuildReleaseStrategyTelemetry(AILabel label, SimulatedArtist artist, DecisionContext decision,
+		ReleasePlan plan, Record album, AlbumProject project) => new() {
+		recordId = album.recordId, labelId = label.labelId, tier = label.tier, artistId = artist.artistId,
+		genre = artist.primaryGenre, careerState = artist.careerState,
+		careerBand = GetCareerBandLabel(plan.careerBand, plan.unexpectedCareerState), qualityEstimate = decision.qualityEstimate,
+		qualityQuartile = $"Q{plan.qualityQuartile + 1}", reachFactor = decision.reachFactor,
+		genreSinglesMarketFactor = decision.genreSinglesMarketFactor, priorSingleNet = plan.priorSingleNet,
+		priorAlbumNet = plan.priorAlbumNet, projectedSingleNet = plan.projectedSingleNet, projectedAlbumNet = plan.projectedAlbumNet,
+		confidenceSingle = plan.confidenceSingle, confidenceAlbum = plan.confidenceAlbum, chosenFormat = ReleaseFormat.Album,
+		assumedCompilationCost = plan.legacyFourResolvableSingles, compCostWeight = plan.compCostWeight,
+		expectedFormatMultiplier = plan.expectedFormatMultiplier, releasedSingleIdsExamined = plan.releasedSingleIdsExamined,
+		resolvedSingles = plan.resolvedSingles, chartedSingles = plan.chartedSingles, hitScore = plan.hitScore,
+		unweightedHitUnits = plan.unweightedHitUnits, weightedHitUnits = plan.weightedHitUnits,
+		affinityUnits = plan.affinityUnits, totalExpectedAlbumUnits = plan.totalExpectedAlbumUnits,
+		actualAlbumFormat = album.album?.albumFormat, projectId = project.projectId, strategy = plan.strategy,
+		projectedOrphanSingleNet = plan.projectedOrphanSingleNet, projectedAlbumStandaloneNet = plan.projectedAlbumStandaloneNet,
+		projectedAlbumWithPromoNet = plan.projectedAlbumWithPromoNet, promoSingleId = project.promoSingleId
+	};
+
+	private ReleasePlan DecideRelease(AILabel label, SimulatedArtist artist, int year, DecisionContext decision) {
+		if (!enableAlbums) return new() { format = ReleaseFormat.Single, strategy = ReleaseStrategy.OrphanSingle };
+
+		decision.qualityQuartile = GetQualityQuartile(decision.qualityEstimate);
+		decision.careerBand = GetCareerBandIndex(artist.careerState, out bool unexpectedCareerState);
+		decision.unexpectedCareerState = unexpectedCareerState;
+		float compCostWeight = CalculateCompilationCostWeight(artist.primaryGenre, year);
+		HitInventory hitInventory = ResolveHitInventory(artist);
+		float priorSingle = CalculateSinglePriorNet(decision);
+		float priorAlbum = CalculateAlbumPriorNet(label, artist, year, decision, compCostWeight, hitInventory, out AlbumPriorDiagnostics albumPrior);
 		FormatRevenueMemory singleMemory = label.GetOrCreateRevenueMemory(ReleaseFormat.Single);
 		FormatRevenueMemory albumMemory = label.GetOrCreateRevenueMemory(ReleaseFormat.Album);
 		float confidenceK = Mathf.Max(0.1f, revenueMemoryConfidenceK);
@@ -498,51 +742,141 @@ public partial class CompetitorManager : Node {
 		float noiseRange = Mathf.Lerp(0.50f, 0.15f, Mathf.Clamp(label.scoutingAbility, 0f, 1f));
 		projectedSingle *= 1f + (float)GD.RandRange(-noiseRange, noiseRange);
 		projectedAlbum *= 1f + (float)GD.RandRange(-noiseRange, noiseRange);
+		bool albumWins = projectedAlbum > projectedSingle;
+		float projectedLaunchAwareness = ProjectLaunchAwareness(label, artist, label.GetMarketingBudget(artist));
+		float expectedPromoLift = (1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f)) * expectedPromoLiftScalar;
+		float expectedCannibalizationLoss = Mathf.Max(0f, priorAlbum) * Mathf.Clamp(cannibalizationStrength, 0f, 1f) * Mathf.Clamp(expectedPromoHeat, 0f, 1f);
+		float expectedPromoSingleNet = CalculateSinglePriorNet(decision);
+		float projectedAlbumWithPromo = projectedAlbum + expectedPromoLift - expectedCannibalizationLoss + expectedPromoSingleNet;
+		ReleaseStrategy strategy = !albumWins ? ReleaseStrategy.OrphanSingle :
+			(projectedAlbumWithPromo > projectedAlbum ? ReleaseStrategy.AlbumWithPromo : ReleaseStrategy.AlbumStandalone);
 		return new ReleasePlan {
-			format = projectedAlbum > projectedSingle ? ReleaseFormat.Album : ReleaseFormat.Single,
+			format = albumWins ? ReleaseFormat.Album : ReleaseFormat.Single,
+			strategy = strategy,
 			economicsEvaluated = true,
+			priorSingleNet = priorSingle,
+			priorAlbumNet = priorAlbum,
 			projectedSingleNet = projectedSingle,
 			projectedAlbumNet = projectedAlbum,
+			projectedOrphanSingleNet = projectedSingle,
+			projectedAlbumStandaloneNet = projectedAlbum,
+			projectedAlbumWithPromoNet = projectedAlbumWithPromo,
+			expectedPromoSingleNet = expectedPromoSingleNet,
 			confidenceSingle = confidenceSingle,
 			confidenceAlbum = confidenceAlbum,
-			assumedCompilationCost = assumedCompilationCost
+			legacyFourResolvableSingles = hitInventory.resolvedSingles >= 4,
+			compCostWeight = compCostWeight,
+			expectedFormatMultiplier = albumPrior.expectedFormatMultiplier,
+			releasedSingleIdsExamined = hitInventory.idsExamined,
+			resolvedSingles = hitInventory.resolvedSingles,
+			chartedSingles = hitInventory.chartedSingles,
+			hitScore = hitInventory.hitScore,
+			unweightedHitUnits = albumPrior.unweightedHitUnits,
+			weightedHitUnits = albumPrior.weightedHitUnits,
+			affinityUnits = albumPrior.affinityUnits,
+			totalExpectedAlbumUnits = albumPrior.totalExpectedUnits,
+			qualityQuartile = decision.qualityQuartile,
+			careerBand = decision.careerBand,
+			unexpectedCareerState = decision.unexpectedCareerState
 		};
 	}
 
-	private float CalculatePriorNet(ReleaseFormat format, AILabel label, SimulatedArtist artist, int year, bool assumedCompilationCost) {
+	private float ProjectLaunchAwareness(AILabel label, SimulatedArtist artist, float marketingBudget) {
+		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
+		float marketingAwareness = BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		return Mathf.Clamp(0.04f + artistAwareness + marketingAwareness + label.reputation * 0.1f, 0f, 1f);
+	}
+
+	private static readonly float[] SinglePriorQualityCutPoints = { 0.465511f, 0.550559f, 0.623968f };
+	// Rows are Q1-Q4; columns are New/Unsigned, Rising, Established, Star/Superstar.
+	// Sparse cells contain the prescribed borrowed effective value, not an implicit fallback.
+	private static readonly float[,] SinglePriorNormalizedContribution = {
+		{ 7765.792292f, 12767.924457f, 12767.924457f, 12767.924457f },
+		{ 12230.041078f, 34084.882066f, 34084.882066f, 34084.882066f },
+		{ 19197.010405f, 39072.383069f, 119155.241436f, 39072.383069f },
+		{ 47135.125181f, 84751.249664f, 119155.241436f, 119155.241436f }
+	};
+	private static readonly int[,] SinglePriorRawSampleCounts = {
+		{ 3481, 105, 3, 0 }, { 3452, 124, 8, 0 },
+		{ 3380, 191, 16, 0 }, { 3156, 407, 22, 0 }
+	};
+	// Encoded as quality-row * 4 + career-column for the effective source bucket.
+	private static readonly int[,] SinglePriorSourceBuckets = {
+		{ 0, 1, 1, 1 }, { 4, 5, 5, 5 },
+		{ 8, 9, 14, 9 }, { 12, 13, 14, 14 }
+	};
+	private static readonly int[,] SinglePriorSourceSampleCounts = {
+		{ 3481, 105, 105, 105 }, { 3452, 124, 124, 124 },
+		{ 3380, 191, 22, 191 }, { 3156, 407, 22, 22 }
+	};
+
+	private static DecisionContext BuildDecisionContext(AILabel label, SimulatedArtist artist, int year) {
 		float qualityEstimate = artist.CalculateBaseQuality();
+		return new DecisionContext {
+			qualityEstimate = qualityEstimate,
+			reachFactor = Mathf.Max(0f, label.distributionStrength),
+			genreSinglesMarketFactor = CalculateSingleGenreMarketFactor(artist.primaryGenre, year),
+			singleProductionCost = label.GetProductionCost()
+		};
+	}
+
+	private static float CalculateSinglePriorNet(DecisionContext decision) {
+		float expectedContribution = SinglePriorNormalizedContribution[decision.qualityQuartile, decision.careerBand]
+			* decision.reachFactor * decision.genreSinglesMarketFactor;
+		return expectedContribution - decision.singleProductionCost;
+	}
+
+	private float CalculateAlbumPriorNet(AILabel label, SimulatedArtist artist, int year, DecisionContext decision,
+		float compCostWeight, HitInventory hitInventory, out AlbumPriorDiagnostics diagnostics) {
 		float statureMultiplier = artist.careerState switch {
 			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 			CareerState.Rising => 1.2f, _ => 1.0f
 		};
-		float demandFactor = format == ReleaseFormat.Album ? CalculateAlbumDemandFactor(artist.primaryGenre, year) : 1f;
-		float unitScalar = format == ReleaseFormat.Album ? priorUnitScalarAlbum : priorUnitScalarSingle;
-		float expectedUnits = unitScalar * qualityEstimate * statureMultiplier * label.distributionStrength * demandFactor;
-		if (format == ReleaseFormat.Single) {
-			// A risk-neutral expected-value term for the observed right tail. Keeping it
-			// separate from the ordinary cohort prevents the base prior from declaring
-			// every release a hit. It uses only scheduling-time state and consumes no RNG.
-			float tailQuality = Mathf.Pow(Mathf.Clamp(qualityEstimate, 0f, 1f), 4f);
-			float singleMarketFactor = CalculateSingleGenreMarketFactor(artist.primaryGenre, year);
-			expectedUnits += priorSingleExpectedTailUnitScalar * tailQuality * statureMultiplier *
-				Mathf.Max(0f, label.distributionStrength) * singleMarketFactor;
-		}
-
-		float assumedPackaging = format == ReleaseFormat.Album ? priorAssumedAlbumPackaging : 0f;
-		float manufacturingPerUnit = GetPressingCostPerUnit(format) + albumPackagingCostPerUnit * assumedPackaging;
-		float grossAfterManufacturing = Mathf.Max(0f, GetPricePerUnit(format) - manufacturingPerUnit);
+		float affinityUnits = priorUnitScalarAlbum * decision.qualityEstimate * statureMultiplier *
+			decision.reachFactor * CalculateAlbumDemandFactor(artist.primaryGenre, year);
+		float unweightedHitUnits = priorCompHitUnitScalar * hitInventory.hitScore;
+		float weightedHitUnits = compCostWeight * unweightedHitUnits;
+		float expectedUnits = affinityUnits + weightedHitUnits;
+		float manufacturingPerUnit = GetPressingCostPerUnit(ReleaseFormat.Album) + albumPackagingCostPerUnit * priorAssumedAlbumPackaging;
+		float grossAfterManufacturing = Mathf.Max(0f, GetPricePerUnit(ReleaseFormat.Album) - manufacturingPerUnit);
 		float skimFraction = label.activeDeal != null
 			? Mathf.Clamp(label.activeDeal.marginSkim, 0f, 1f)
 			: 0.25f * (1f - label.ownedReach);
 		float royaltyRate = artist?.royaltyRate ?? baseRoyaltyRate;
-		float marginPerUnit = grossAfterManufacturing * (1f - skimFraction) - GetPricePerUnit(format) * royaltyRate;
-		float productionCost = label.GetProductionCost();
-		if (format == ReleaseFormat.Album) {
-			float multiplier = assumedCompilationCost ? compilationProductionMultiplier : 2.4f;
-			productionCost = productionCost * multiplier + albumPackagingFixedCost * assumedPackaging;
-		}
+		float marginPerUnit = grossAfterManufacturing * (1f - skimFraction) - GetPricePerUnit(ReleaseFormat.Album) * royaltyRate;
+		float multiplier = compCostWeight * compilationProductionMultiplier + (1f - compCostWeight) * 2.4f;
+		float productionCost = label.GetProductionCost() * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging;
+		diagnostics = new AlbumPriorDiagnostics {
+			expectedFormatMultiplier = multiplier,
+			affinityUnits = affinityUnits,
+			unweightedHitUnits = unweightedHitUnits,
+			weightedHitUnits = weightedHitUnits,
+			totalExpectedUnits = expectedUnits
+		};
 		return expectedUnits * marginPerUnit - productionCost;
 	}
+
+	private static int GetQualityQuartile(float qualityEstimate) {
+		if (qualityEstimate <= SinglePriorQualityCutPoints[0]) return 0;
+		if (qualityEstimate <= SinglePriorQualityCutPoints[1]) return 1;
+		if (qualityEstimate <= SinglePriorQualityCutPoints[2]) return 2;
+		return 3;
+	}
+
+	private static int GetCareerBandIndex(CareerState state, out bool unexpected) {
+		unexpected = false;
+		return state switch {
+			CareerState.NewSigning or CareerState.Unsigned => 0,
+			CareerState.Rising => 1,
+			CareerState.Established => 2,
+			CareerState.Star or CareerState.Superstar => 3,
+			_ => UnexpectedCareerFallback(out unexpected)
+		};
+	}
+
+	private static int UnexpectedCareerFallback(out bool unexpected) { unexpected = true; return 0; }
+	private static string GetCareerBandLabel(int band, bool unexpected) => unexpected ? "New/Unsigned (unexpected-state fallback)" :
+		band switch { 0 => "New/Unsigned", 1 => "Rising", 2 => "Established", _ => "Star/Superstar" };
 
 	private float CalculateProductionCost(AILabel label, Record record) {
 		float baseCost = label.GetProductionCost();
@@ -553,14 +887,28 @@ public partial class CompetitorManager : Node {
 		return baseCost * multiplier + albumPackagingFixedCost * (record.album?.packaging ?? 0f);
 	}
 
-	private static bool HasFourResolvableSingles(SimulatedArtist artist) {
-		if (artist?.releasedSingleIds == null || ChartManager.Instance == null) return false;
-		int resolved = 0;
+	private static float CalculateCompilationCostWeight(Genre genre, int year) {
+		if (!IsGeneratorAdultGenre(genre)) return 1f;
+		return year <= 1963 ? 0.48f : 0f;
+	}
+
+	private static bool IsGeneratorAdultGenre(Genre genre) => genre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
+		Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
+
+	private static HitInventory ResolveHitInventory(SimulatedArtist artist) {
+		var result = new HitInventory();
+		if (artist?.releasedSingleIds == null || ChartManager.Instance == null) return result;
 		foreach (string recordId in artist.releasedSingleIds.AsEnumerable().Reverse()) {
-			if (ChartManager.Instance.TryGetTrackSnapshot(recordId, out _)) resolved++;
-			if (resolved >= 4) return true;
+			result.idsExamined++;
+			if (!ChartManager.Instance.TryGetTrackSnapshot(recordId, out AlbumTrack track)) continue;
+			result.resolvedSingles++;
+			if (track.peakPosition is >= 1 and <= 100) {
+				result.chartedSingles++;
+				result.hitScore += (101f - track.peakPosition) / 100f;
+			}
+			if (result.resolvedSingles >= 4) break;
 		}
-		return false;
+		return result;
 	}
 
 	private static float CalculateSingleGenreMarketFactor(Genre genre, int year) {
@@ -586,12 +934,57 @@ public partial class CompetitorManager : Node {
 
 	private struct ReleasePlan {
 		public ReleaseFormat format;
+		public ReleaseStrategy strategy;
 		public bool economicsEvaluated;
+		public float priorSingleNet;
+		public float priorAlbumNet;
 		public float projectedSingleNet;
 		public float projectedAlbumNet;
+		public float projectedOrphanSingleNet;
+		public float projectedAlbumStandaloneNet;
+		public float projectedAlbumWithPromoNet;
+		public float expectedPromoSingleNet;
 		public float confidenceSingle;
 		public float confidenceAlbum;
-		public bool assumedCompilationCost;
+		public bool legacyFourResolvableSingles;
+		public float compCostWeight;
+		public float expectedFormatMultiplier;
+		public int releasedSingleIdsExamined;
+		public int resolvedSingles;
+		public int chartedSingles;
+		public float hitScore;
+		public float unweightedHitUnits;
+		public float weightedHitUnits;
+		public float affinityUnits;
+		public float totalExpectedAlbumUnits;
+		public int qualityQuartile;
+		public int careerBand;
+		public bool unexpectedCareerState;
+	}
+
+	private struct HitInventory {
+		public int idsExamined;
+		public int resolvedSingles;
+		public int chartedSingles;
+		public float hitScore;
+	}
+
+	private struct AlbumPriorDiagnostics {
+		public float expectedFormatMultiplier;
+		public float affinityUnits;
+		public float unweightedHitUnits;
+		public float weightedHitUnits;
+		public float totalExpectedUnits;
+	}
+
+	private struct DecisionContext {
+		public float qualityEstimate;
+		public int qualityQuartile;
+		public int careerBand;
+		public bool unexpectedCareerState;
+		public float reachFactor;
+		public float genreSinglesMarketFactor;
+		public float singleProductionCost;
 	}
 	
 	private Record GenerateRecordFromArtist(AILabel label, SimulatedArtist artist, int year, ReleaseFormat format = ReleaseFormat.Single) {
@@ -702,6 +1095,121 @@ public partial class CompetitorManager : Node {
 		string generated = NameGenerator.Instance?.GenerateSongTitle(record.primaryGenre, year, record.artistName);
 		return string.IsNullOrWhiteSpace(generated) ? $"{record.artistName} Album" : generated;
 	}
+
+	private Record CreatePromoSingleFromAlbum(Record albumRecord) {
+		Album album = albumRecord.album ?? throw new System.InvalidOperationException("Promo project requires a generated album.");
+		if (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0) throw new System.InvalidOperationException("Promo project album has no eligible original track.");
+		int bestIndex = 0;
+		for (int i = 1; i < album.nonSingleTracks.Length; i++) {
+			if (album.nonSingleTracks[i].quality > album.nonSingleTracks[bestIndex].quality) bestIndex = i;
+		}
+		AlbumTrack source = album.nonSingleTracks[bestIndex];
+		var promo = new Record {
+			recordId = $"gen_{++generatedRecordCounter}", title = source.title, artistName = albumRecord.artistName,
+			artistId = albumRecord.artistId, labelId = albumRecord.labelId, format = ReleaseFormat.Single,
+			isPlayerOwned = false, isNPC = albumRecord.isNPC, primaryGenre = source.genre,
+			secondaryGenre = albumRecord.secondaryGenre, hookStrength = source.quality,
+			productionQuality = source.quality, danceability = source.quality,
+			originality = albumRecord.originality, controversy = albumRecord.controversy
+		};
+		var remaining = album.nonSingleTracks.ToList();
+		remaining.RemoveAt(bestIndex);
+		var refs = album.trackRefs?.ToList() ?? new List<AlbumTrack>();
+		refs.Add(new AlbumTrack {
+			sourceRecordId = promo.recordId, title = source.title, genre = source.genre,
+			quality = source.quality, isReleasedSingle = true, peakPosition = 0
+		});
+		album.nonSingleTracks = remaining.ToArray();
+		album.trackRefs = refs.ToArray();
+		album.leadSingleIds = (album.leadSingleIds ?? System.Array.Empty<string>()).Append(promo.recordId).ToArray();
+		album.pooledAppeal = AlbumModel.CalculatePooledAppeal(album.GetAllTracks(), album.thematicCohesion, albumRecord.releaseDate.year > 0 ? albumRecord.releaseDate.year : (TimeManager.Instance?.CurrentDate.year ?? 1960));
+		return promo;
+	}
+
+	private PromotionSnapshot BuildPromotionSnapshot(Record record, SimulatedArtist artist, float perceivedQualityMult) {
+		var snapshot = new PromotionSnapshot {
+			careerState = artist.careerState,
+			artistAwareness = artist.GetNewReleaseAwarenessBonus(),
+			perceivedQualityMultiplier = perceivedQualityMult
+		};
+		foreach (MarketRegion region in ChartManager.Instance.GetAllRegions()) {
+			snapshot.regions.Add(new RegionalPromotionSnapshot {
+				regionId = region.regionId,
+				awarenessRandom = (float)GD.RandRange(0.8, 1.1),
+				radioRandom = 1f,
+				sentimentRandom = (float)GD.RandRange(-0.1, 0.15)
+			});
+		}
+		return snapshot;
+	}
+
+	private void ApplyPromotionSnapshot(Record record, AILabel label, float marketingBudget, PromotionSnapshot snapshot,
+		float awarenessBonus, float stockMultiplier) {
+		RecordRuntimeData runtime = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtime == null || snapshot == null) return;
+		float quality = runtime.GetQuality();
+		float marketingAwareness = BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + label.reputation * 0.1f;
+		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
+		runtime.radioHeat = 0f;
+		float careerStockScale = snapshot.careerState switch {
+			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
+			CareerState.Rising => 1.2f, _ => 1.0f
+		};
+		foreach (RegionalPromotionSnapshot regional in snapshot.regions) {
+			MarketRegion region = ChartManager.Instance.GetRegionById(regional.regionId);
+			if (region == null) continue;
+			var data = new RegionalRecordData(region.regionId);
+			runtime.regionalData[region.regionId] = data;
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
+			float baseStock = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, careerStockScale * 0.45f, snapshot.perceivedQualityMultiplier);
+			data.unitsInStores = Mathf.RoundToInt(baseStock * stockMultiplier);
+			data.awareness = Mathf.Clamp(runtime.awareness * regionStrength * regional.awarenessRandom, 0f, 1f);
+			data.radioPlay = 0f;
+			float genreFit = GetGenreFit(record.primaryGenre, region);
+			data.sentiment = Mathf.Clamp(quality * 0.6f + genreFit * 0.3f + regional.sentimentRandom, -1f, 1f);
+		}
+		runtime.initialLaunchAwareness = runtime.awareness;
+		runtime.initialLaunchStock = runtime.regionalData.Values.Sum(data => data.unitsInStores);
+		runtime.launchCareerState = snapshot.careerState;
+		runtime.perceivedQualityMultiplier = snapshot.perceivedQualityMultiplier;
+	}
+
+	private void ProcessDueAlbumProjects(GameDate date) {
+		foreach (AlbumProject project in albumProjects.Where(project => project.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd && project.dropWeek <= pipelineWeek).OrderBy(project => project.creationSequence)) {
+			AILabel owner = GetLabel(project.currentLabelId);
+			if (owner == null || !owner.IsActive) {
+				project.terminalState = AlbumProjectTerminalState.Cancelled;
+				RedirectCancelledPromoOutcome(project);
+				continue;
+			}
+			float marketingBudget = project.albumMarketingBudgetPlanned;
+			float available = Mathf.Max(0f, owner.cashReserves - owner.GetMonthlyOverhead());
+			marketingBudget = Mathf.Min(marketingBudget, available * 0.8f);
+			owner.cashReserves -= marketingBudget;
+			owner.monthlyExpenses += marketingBudget;
+			if (labelFinancials.TryGetValue(owner.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += marketingBudget;
+
+			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(project.artistId);
+			ReleasePreparedRecord(project.albumRecord, artist, owner, date, project.albumProductionCost, ProjectRecordRole.LinkedAlbum, project.projectId);
+			RecordRuntimeData promoRuntime = ChartManager.Instance.GetRecordRuntimeData(project.promoSingleId);
+			int promoPeak = promoRuntime?.peakPosition ?? project.promoPeakAtDrop;
+			project.promoPeakAtDrop = promoPeak;
+			project.promoPeakScore = promoPeak <= 0 || promoPeak > promoFlopThreshold ? 0f : (promoFlopThreshold - promoPeak) / Mathf.Max(1f, promoFlopThreshold - 1f);
+			project.synergyAwarenessApplied = promoAwarenessBonusMax * project.promoPeakScore;
+			project.synergyStockMultiplier = project.promoPeakScore == 0f ? promoStockFlopFloor : 1f + promoStockBonusMax * project.promoPeakScore;
+			ApplyPromotionSnapshot(project.albumRecord, owner, marketingBudget, project.albumPromotionSnapshot,
+				project.synergyAwarenessApplied, project.synergyStockMultiplier);
+			RecordRuntimeData albumRuntime = ChartManager.Instance.GetRecordRuntimeData(project.albumRecord.recordId);
+			project.initialLaunchAwareness = albumRuntime?.initialLaunchAwareness ?? 0f;
+			project.initialLaunchStock = albumRuntime?.initialLaunchStock ?? 0;
+			if (artist != null) artist.weeksSinceLastRelease = 0;
+			project.terminalState = AlbumProjectTerminalState.Released;
+			WeeklyPipelineAlbumDrops++;
+		}
+	}
+
+	public IReadOnlyList<AlbumProject> GetAlbumProjects() => albumProjects;
 	
 	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult) {
 		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
@@ -1004,6 +1512,14 @@ public partial class CompetitorManager : Node {
 		foreach (RecordRuntimeData record in ChartManager.Instance.GetAllRecords().Where(record => record.baseRecord.labelId == client.labelId)) {
 			record.baseRecord.labelId = distributor.labelId;
 		}
+		foreach (AlbumProject project in albumProjects.Where(project =>
+			project.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd && project.currentLabelId == client.labelId)
+			.OrderBy(project => project.creationSequence)) {
+			project.currentLabelId = distributor.labelId;
+			project.albumRecord.labelId = distributor.labelId;
+			project.transferCount++;
+			project.wasTransferred = true;
+		}
 
 		EmitDealEvent(client, distributor, deal, DealResolution.Absorb, dependency);
 		client.activeDeal = null;
@@ -1142,13 +1658,50 @@ public sealed class ReleaseStrategyTelemetry {
 	public string artistId;
 	public Genre genre;
 	public CareerState careerState;
+	public string careerBand;
+	public float qualityEstimate;
+	public string qualityQuartile;
+	public float reachFactor;
+	public float genreSinglesMarketFactor;
+	public float priorSingleNet;
+	public float priorAlbumNet;
 	public float projectedSingleNet;
 	public float projectedAlbumNet;
 	public float confidenceSingle;
 	public float confidenceAlbum;
 	public ReleaseFormat chosenFormat;
+	// Preserves the A2 diagnostic column's meaning; no longer participates in the prior.
 	public bool assumedCompilationCost;
+	public float compCostWeight;
+	public float expectedFormatMultiplier;
+	public int releasedSingleIdsExamined;
+	public int resolvedSingles;
+	public int chartedSingles;
+	public float hitScore;
+	public float unweightedHitUnits;
+	public float weightedHitUnits;
+	public float affinityUnits;
+	public float totalExpectedAlbumUnits;
 	public AlbumFormat? actualAlbumFormat;
+	public string projectId;
+	public ReleaseStrategy strategy;
+	public float projectedOrphanSingleNet;
+	public float projectedAlbumStandaloneNet;
+	public float projectedAlbumWithPromoNet;
+	public string promoSingleId;
+}
+
+public sealed class CalibrationDecisionTelemetry {
+	public string recordId;
+	public string labelId;
+	public string artistId;
+	public Genre genre;
+	public CareerState careerState;
+	public float qualityEstimate;
+	public float reachFactor;
+	public float genreSinglesMarketFactor;
+	public float singleProductionCost;
+	public ReleaseFormat chosenFormat;
 }
 
 public sealed class ReleaseOutcomeTelemetry {

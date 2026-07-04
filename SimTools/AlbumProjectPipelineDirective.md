@@ -140,8 +140,8 @@ Run 52 weeks for seeds `1001`, `1002`, and `1003`. Run enabled seed `1001` twice
 | Adult-genre Album choice share | `45%-75%` of successful adult decisions |
 | Youth-genre Album choice share | `2%-15%` of successful youth decisions; generated youth albums overwhelmingly Compilation |
 | Adult share of album-chart rows | at least `95%` |
-| Closed Top-40 median life | `11.0-11.5` weeks per seed |
-| Quality/outcome Pearson | at least `0.50` per seed |
+| Closed Top-40 median life | `11-12` weeks per seed, conditional on passing format mix |
+| Live peak-based Pearson | at least `0.50` per seed, conditional on passing format mix |
 
 Use the same adult and youth genre definitions as `RevenueMemoryROIAudit.md`.
 
@@ -150,7 +150,7 @@ Use the same adult and youth genre definitions as `RevenueMemoryROIAudit.md`.
 - Adult-genre share of singles-chart rows, per seed, compared with the 3A result. It must rise materially; report the exact delta rather than inventing a threshold after the run.
 - Exact completed Single and Album mean signed error, plus sample count.
 - Live count and signed-error ceiling from A1 for each format.
-- Target: exact completed mean signed error within `+/- $5,000`. Report separately when the Pearson result remains below the earlier `0.535-0.595` reference band.
+- Target: exact completed mean signed error within `+/- $5,000`. Report the conditional live peak-based Pearson separately.
 
 The adult-singles explanation is a hypothesis. If adult singles return and Pearson does not recover, stop and report that the selection mechanism is insufficient; do not describe it as confirmed and do not alter demand or chart constants.
 

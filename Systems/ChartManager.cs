@@ -1130,7 +1130,8 @@ public partial class ChartManager : Node {
 		title = record.baseRecord.title,
 		genre = record.baseRecord.primaryGenre,
 		quality = record.GetQuality(),
-		isReleasedSingle = true
+		isReleasedSingle = true,
+		peakPosition = record.peakPosition
 	};
 
 	public bool TryResolveTrackSnapshot(string recordId, out AlbumTrack track, out bool resolvedFromRetiredArchive) {

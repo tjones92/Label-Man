@@ -34,6 +34,12 @@ public class RecordRuntimeData {
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public bool revenueMemoryEligible;
+	public ProjectRecordRole projectRole;
+	public string albumProjectId;
+	public string linkedPromoSingleId;
+	public float cannibalizationSuppression;
+	public double rawAlbumDemandBeforeCannibalization;
+	public double suppressedAlbumDemand;
 	
 	// === SIMULATION FORCES ===
 	public float awareness;           // 0-1: Do people know this song exists?

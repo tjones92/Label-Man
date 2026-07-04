@@ -6,6 +6,11 @@ public static class AlbumSimulator {
 	private const float CatalogWeeklyDecay = 0.985f;
 
 	public static void UpdateAlbum(RecordRuntimeData record, AILabel label, float artistHeat) {
+		RecordRuntimeData linkedPromo = string.IsNullOrEmpty(record.linkedPromoSingleId)
+			? null
+			: ChartManager.Instance?.GetRecordRuntimeData(record.linkedPromoSingleId);
+		float singleHeat = linkedPromo != null ? Mathf.Clamp(linkedPromo.radioHeat, 0f, 1f) : 0f;
+		record.cannibalizationSuppression = Mathf.Clamp(CompetitorManager.Instance?.CannibalizationStrength ?? 0f, 0f, 1f) * singleHeat;
 		float appeal = record.GetQuality();
 		record.artistHeat = artistHeat;
 		float campaign = ChartSimulator.GetCampaignImpact(label);
@@ -44,7 +49,10 @@ public static class AlbumSimulator {
 		if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;
 
-		float rawSales = buyerPool * awareness * conversion;
+		float rawDemandBeforeCannibalization = buyerPool * awareness * conversion;
+		float rawSales = rawDemandBeforeCannibalization * (1f - record.cannibalizationSuppression);
+		record.rawAlbumDemandBeforeCannibalization += rawDemandBeforeCannibalization;
+		record.suppressedAlbumDemand += rawDemandBeforeCannibalization - rawSales;
 		data.rawDemandThisWeek = rawSales;
 		data.unitsBackordered = Mathf.RoundToInt(data.unitsBackordered * 0.55f);
 		if (data.unitsInStores < rawSales) {

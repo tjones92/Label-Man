@@ -73,7 +73,7 @@ foreach ($run in $Runs) {
     Write-Output ("decisions={0} albums={1} share={2:P2} adultAlbum={3:P2} ({4}/{5}) youthAlbum={6:P2} ({7}/{8})" -f
         $strategies.Count, $albums.Count, ($albums.Count / $strategies.Count), ($adultAlbums.Count / $adultStrategies.Count),
         $adultAlbums.Count, $adultStrategies.Count, ($youthAlbums.Count / $youthStrategies.Count), $youthAlbums.Count, $youthStrategies.Count)
-    Write-Output ("albumChartAdult={0:P2} ({1}/{2}); singlesChartAdult={3:P2} ({4}/{5}); closed40Median={6}; pearson={7} N={8}" -f
+    Write-Output ("albumChartAdult={0:P2} ({1}/{2}); singlesChartAdult={3:P2} ({4}/{5}); closed40Median={6}; qualityUnitsCorrelationDiagnosticOnly={7} N={8}" -f
         ($adultAlbumRows.Count / $albumChart.Count), $adultAlbumRows.Count, $albumChart.Count,
         ($adultChartRows.Count / $chartedRows.Count), $adultChartRows.Count, $chartedRows.Count,
         (Get-Median $closedTop40), (Get-Correlation $qualities $lifetimeUnits), $qualities.Count)

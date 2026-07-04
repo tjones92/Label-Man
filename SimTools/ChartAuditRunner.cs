@@ -59,6 +59,12 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter liveRecordsSnapshotWriter;
 	private StreamWriter priorCostAssumptionWriter;
 	private StreamWriter albumTrackLinkWriter;
+	private StreamWriter calibrationDecisionWriter;
+	private StreamWriter forkRatioWriter;
+	private StreamWriter a3EconomicDecisionWriter;
+	private StreamWriter albumProjectWriter;
+	private StreamWriter albumProjectDemandWriter;
+	private StreamWriter albumProjectWeeklyWriter;
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
@@ -103,6 +109,7 @@ public partial class ChartAuditRunner : Node {
 			OpenOutputs();
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
+			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome += OnReleaseOutcome;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
@@ -118,6 +125,7 @@ public partial class ChartAuditRunner : Node {
 			WriteMarketRevenueYear();
 			WriteAnnualFormatMixRows();
 			WriteLiveRecordsSnapshot();
+			WriteAlbumProjectSnapshots();
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
 			FlushAndClose();
@@ -252,6 +260,12 @@ public partial class ChartAuditRunner : Node {
 		liveRecordsSnapshotWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-live-records-snapshot.csv"));
 		priorCostAssumptionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-prior-cost-assumptions.csv"));
 		albumTrackLinkWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-track-links.csv"));
+		calibrationDecisionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-calibration-decisions.csv"));
+		forkRatioWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-fork-ratios.csv"));
+		a3EconomicDecisionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-a3-economic-decisions.csv"));
+		albumProjectWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-projects.csv"));
+		albumProjectDemandWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-project-demand.csv"));
+		albumProjectWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-project-weekly.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
@@ -269,12 +283,18 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
-		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat");
+		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId");
 		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet");
 		revenueMemoryWriter.WriteLine("week,year,labelId,format,emaNetPerRelease,releasesObserved");
 		liveRecordsSnapshotWriter.WriteLine("week,year,recordId,labelId,artistId,format,ageWeeks,lifetimeLabelNet,sunkProductionCost,observedNetLowerBound,currentPosition,totalUnitsSold");
 		priorCostAssumptionWriter.WriteLine("week,year,recordId,assumedCompilationCost,actualAlbumFormat");
 		albumTrackLinkWriter.WriteLine("week,year,albumRecordId,artistId,sourceRecordId");
+		calibrationDecisionWriter.WriteLine("week,year,recordId,labelId,artistId,genre,careerState,qualityEstimate,reachFactor,genreSinglesMarketFactor,singleProductionCost,chosenFormat");
+		forkRatioWriter.WriteLine("week,year,recordId,labelId,artistId,genre,genreGroup,careerState,careerBand,qualityEstimate,qualityQuartile,reachFactor,genreSinglesMarketFactor,priorSingleNet,priorAlbumNet,projectedSingleNet,projectedAlbumNet,albumMinusSingleNet,albumToSingleRatio,chosenFormat");
+		a3EconomicDecisionWriter.WriteLine("week,year,recordId,labelId,artistId,genre,genreGroup,careerState,compCostWeight,expectedFormatMultiplier,actualAlbumFormat,releasedSingleIdsExamined,resolvedSingles,chartedSingles,hitScore,unweightedHitUnits,weightedHitUnits,affinityUnits,totalExpectedAlbumUnits,priorSingleNet,priorAlbumNet,projectedSingleNet,projectedAlbumNet,chosenFormat");
+		albumProjectWriter.WriteLine("projectId,creationSequence,originalLabelId,currentLabelId,tierAtSchedule,genre,careerStateAtSchedule,scheduledWeek,dropWeek,strategy,albumRecordId,promoSingleId,promoPeakAtDrop,promoPeakScore,synergyAwarenessApplied,synergyStockMultiplier,terminalState,wasTransferred,transferCount,albumRetired,promoRetired,projectRealizedNet");
+		albumProjectDemandWriter.WriteLine("projectId,strategy,albumRecordId,rawDemandBeforeCannibalization,suppressedDemand,demandWeightedSuppression,initialLaunchAwareness,initialLaunchStock");
+		albumProjectWeeklyWriter.WriteLine("week,year,pipelineAlbumDrops");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
 				label.isHistorical ? "true" : "false", Csv(label.tier.ToString()) }));
@@ -300,12 +320,53 @@ public partial class ChartAuditRunner : Node {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 			Csv(strategy.recordId), Csv(strategy.labelId), Csv(strategy.tier.ToString()), Csv(strategy.artistId),
 			Csv(strategy.genre.ToString()), Csv(strategy.careerState.ToString()), F(strategy.projectedSingleNet),
-			F(strategy.projectedAlbumNet), F(strategy.confidenceSingle), F(strategy.confidenceAlbum), Csv(strategy.chosenFormat.ToString())
+			F(strategy.projectedAlbumNet), F(strategy.confidenceSingle), F(strategy.confidenceAlbum), Csv(strategy.chosenFormat.ToString()),
+			Csv(strategy.projectId), Csv(strategy.strategy.ToString()), F(strategy.projectedOrphanSingleNet),
+			F(strategy.projectedAlbumStandaloneNet), F(strategy.projectedAlbumWithPromoNet), Csv(strategy.promoSingleId)
 		}));
 		priorCostAssumptionWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 			Csv(strategy.recordId), strategy.assumedCompilationCost ? "true" : "false",
 			Csv(strategy.actualAlbumFormat?.ToString())
+		}));
+		float difference = strategy.projectedAlbumNet - strategy.projectedSingleNet;
+		string ratio = strategy.projectedAlbumNet > 0f && strategy.projectedSingleNet > ForkRatioEpsilon
+			? F(strategy.projectedAlbumNet / strategy.projectedSingleNet) : string.Empty;
+		forkRatioWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(strategy.recordId), Csv(strategy.labelId), Csv(strategy.artistId), Csv(strategy.genre.ToString()),
+			Csv(GetGenreGroup(strategy.genre)), Csv(strategy.careerState.ToString()), Csv(strategy.careerBand),
+			F(strategy.qualityEstimate), Csv(strategy.qualityQuartile), F(strategy.reachFactor), F(strategy.genreSinglesMarketFactor),
+			F(strategy.priorSingleNet), F(strategy.priorAlbumNet), F(strategy.projectedSingleNet), F(strategy.projectedAlbumNet),
+			F(difference), ratio, Csv(strategy.chosenFormat.ToString())
+		}));
+		a3EconomicDecisionWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(strategy.recordId), Csv(strategy.labelId), Csv(strategy.artistId), Csv(strategy.genre.ToString()),
+			Csv(GetGenreGroup(strategy.genre)), Csv(strategy.careerState.ToString()), F(strategy.compCostWeight),
+			F(strategy.expectedFormatMultiplier), Csv(strategy.actualAlbumFormat?.ToString()),
+			strategy.releasedSingleIdsExamined.ToString(CultureInfo.InvariantCulture), strategy.resolvedSingles.ToString(CultureInfo.InvariantCulture),
+			strategy.chartedSingles.ToString(CultureInfo.InvariantCulture), F(strategy.hitScore), F(strategy.unweightedHitUnits),
+			F(strategy.weightedHitUnits), F(strategy.affinityUnits), F(strategy.totalExpectedAlbumUnits),
+			F(strategy.priorSingleNet), F(strategy.priorAlbumNet), F(strategy.projectedSingleNet), F(strategy.projectedAlbumNet),
+			Csv(strategy.chosenFormat.ToString())
+		}));
+	}
+
+	private const float ForkRatioEpsilon = 0.000001f;
+	private static bool IsAdultGenre(Genre genre) => genre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
+		Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
+	private static bool IsYouthGenre(Genre genre) => genre is Genre.RockAndRoll or Genre.TeenPop or Genre.RnB or
+		Genre.DooWop or Genre.GirlGroup;
+	private static string GetGenreGroup(Genre genre) => IsAdultGenre(genre) ? "Adult" : IsYouthGenre(genre) ? "Youth" : "Other";
+
+	private void OnCalibrationDecision(CalibrationDecisionTelemetry decision) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		calibrationDecisionWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(decision.recordId), Csv(decision.labelId), Csv(decision.artistId), Csv(decision.genre.ToString()),
+			Csv(decision.careerState.ToString()), F(decision.qualityEstimate), F(decision.reachFactor),
+			F(decision.genreSinglesMarketFactor), F(decision.singleProductionCost), Csv(decision.chosenFormat.ToString())
 		}));
 	}
 
@@ -318,6 +379,30 @@ public partial class ChartAuditRunner : Node {
 				Csv(record.baseRecord.format.ToString()), record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
 				F(record.lifetimeLabelNet), F(record.sunkProductionCost), F(record.lifetimeLabelNet - record.sunkProductionCost),
 				record.currentPosition.ToString(CultureInfo.InvariantCulture), record.totalUnitsSold.ToString(CultureInfo.InvariantCulture)
+			}));
+		}
+	}
+
+	private void WriteAlbumProjectSnapshots() {
+		foreach (AlbumProject project in CompetitorManager.Instance.GetAlbumProjects().OrderBy(project => project.creationSequence)) {
+			albumProjectWriter.WriteLine(string.Join(",", new[] {
+				Csv(project.projectId), project.creationSequence.ToString(CultureInfo.InvariantCulture), Csv(project.originalLabelId),
+				Csv(project.currentLabelId), Csv(project.tierAtSchedule.ToString()), Csv(project.genre.ToString()),
+				Csv(project.careerStateAtSchedule.ToString()), project.scheduledWeek.ToString(CultureInfo.InvariantCulture),
+				project.dropWeek.ToString(CultureInfo.InvariantCulture), Csv(project.strategy.ToString()), Csv(project.albumRecord?.recordId),
+				Csv(project.promoSingleId), project.promoPeakAtDrop.ToString(CultureInfo.InvariantCulture), F(project.promoPeakScore),
+				F(project.synergyAwarenessApplied), F(project.synergyStockMultiplier), Csv(project.terminalState.ToString()),
+				project.wasTransferred ? "true" : "false", project.transferCount.ToString(CultureInfo.InvariantCulture),
+				project.albumRetired ? "true" : "false", project.promoRetired ? "true" : "false",
+				project.projectRealizedNet.HasValue ? F(project.projectRealizedNet.Value) : string.Empty
+			}));
+			RecordRuntimeData albumRuntime = ChartManager.Instance.GetRecordRuntimeData(project.albumRecord?.recordId);
+			double raw = albumRuntime?.rawAlbumDemandBeforeCannibalization ?? project.rawDemandBeforeCannibalization;
+			double suppressed = albumRuntime?.suppressedAlbumDemand ?? project.suppressedDemand;
+			albumProjectDemandWriter.WriteLine(string.Join(",", new[] {
+				Csv(project.projectId), Csv(project.strategy.ToString()), Csv(project.albumRecord?.recordId), F(raw), F(suppressed),
+				raw > 0d ? F(suppressed / raw) : string.Empty, F(project.initialLaunchAwareness),
+				project.initialLaunchStock.ToString(CultureInfo.InvariantCulture)
 			}));
 		}
 	}
@@ -372,6 +457,10 @@ public partial class ChartAuditRunner : Node {
 
 	private void CaptureWeek(int week) {
 		GameDate date = TimeManager.Instance.CurrentDate;
+		albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
+			week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
+			CompetitorManager.Instance.WeeklyPipelineAlbumDrops.ToString(CultureInfo.InvariantCulture)
+		}));
 		List<RecordRuntimeData> records = ChartManager.Instance.GetAllRecords();
 		List<RecordRuntimeData> singleRecords = records.Where(record => record.baseRecord.format == ReleaseFormat.Single).ToList();
 		List<RecordRuntimeData> chart = ChartManager.Instance.GetCurrentChart();
@@ -867,6 +956,7 @@ public partial class ChartAuditRunner : Node {
 		if (CompetitorManager.Instance != null) {
 			CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy -= OnReleaseStrategy;
+			CompetitorManager.Instance.OnCalibrationDecision -= OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome -= OnReleaseOutcome;
 		}
 		recordWriter?.Dispose();
@@ -891,6 +981,12 @@ public partial class ChartAuditRunner : Node {
 		liveRecordsSnapshotWriter?.Dispose();
 		priorCostAssumptionWriter?.Dispose();
 		albumTrackLinkWriter?.Dispose();
+		calibrationDecisionWriter?.Dispose();
+		forkRatioWriter?.Dispose();
+		a3EconomicDecisionWriter?.Dispose();
+		albumProjectWriter?.Dispose();
+		albumProjectDemandWriter?.Dispose();
+		albumProjectWeeklyWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -913,5 +1009,11 @@ public partial class ChartAuditRunner : Node {
 		liveRecordsSnapshotWriter = null;
 		priorCostAssumptionWriter = null;
 		albumTrackLinkWriter = null;
+		calibrationDecisionWriter = null;
+		forkRatioWriter = null;
+		a3EconomicDecisionWriter = null;
+		albumProjectWriter = null;
+		albumProjectDemandWriter = null;
+		albumProjectWeeklyWriter = null;
 	}
 }
