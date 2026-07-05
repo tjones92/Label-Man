@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -33,6 +34,60 @@ public partial class ChartAuditRunner : Node {
 		public double Royalty;
 		public double LabelNet;
 	}
+	private sealed class DecadeAnnualRollup {
+		public readonly FormatMixRollup Single = new();
+		public readonly FormatMixRollup Album = new();
+		public int Decisions;
+		public int AlbumDecisions;
+		public int AdultDecisions;
+		public int AdultAlbumDecisions;
+		public int YouthDecisions;
+		public int YouthAlbumDecisions;
+		public int OrphanDecisions;
+		public int PromoDecisions;
+		public int StandaloneDecisions;
+		public double SingleConfidence;
+		public int SingleConfidenceCount;
+		public double AlbumConfidence;
+		public int AlbumConfidenceCount;
+		public int CompilationAlbums;
+		public int CompilationTrackRefs;
+		public int FreshnessUse0;
+		public int FreshnessUse1;
+		public int FreshnessUse2;
+		public int FreshnessUse3Plus;
+		public double FreshnessSum;
+		public float FreshnessMin = float.PositiveInfinity;
+		public float FreshnessMax;
+		public double SingleMemoryEma;
+		public int SingleMemoryLabels;
+		public int SingleMemoryN;
+		public double AlbumMemoryEma;
+		public int AlbumMemoryLabels;
+		public int AlbumMemoryN;
+		public int CompletedMatched;
+		public double CompletedExpected;
+		public double CompletedRealized;
+		public int YouthCompCompleted;
+		public double YouthCompExpected;
+		public double YouthCompRealized;
+		public int PromoCompleted;
+		public double PromoExpected;
+		public double PromoRealized;
+		public readonly Dictionary<string, (double Quality, int BestPosition)> ChartingSingles = new(StringComparer.Ordinal);
+		public readonly List<int> ClosedTop40Weeks = new();
+		public int ActiveSingles;
+		public int ActiveAlbums;
+		public List<int> AlbumAges = new();
+		public List<int> AlbumUnits = new();
+		public int AlbumsEverReleased;
+		public int AlbumsRetired;
+	}
+	private sealed class DecisionExpectation {
+		public float Expected;
+		public bool YouthCompilation;
+		public bool Promo;
+	}
 
 	private readonly Dictionary<string, LifecycleState> lifecycle = new();
 	private HashSet<string> previousChartIds = new();
@@ -65,12 +120,18 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter albumProjectWriter;
 	private StreamWriter albumProjectDemandWriter;
 	private StreamWriter albumProjectWeeklyWriter;
+	private StreamWriter decadeAnnualRollupWriter;
+	private StreamWriter performanceProfileWriter;
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
 	private readonly Dictionary<(int Year, string Format), FormatMixRollup> annualFormatMix = new();
 	private readonly HashSet<string> observedReleaseIds = new(StringComparer.Ordinal);
 	private readonly HashSet<string> observedAlbumIds = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, DecisionExpectation> decisionExpectations = new(StringComparer.Ordinal);
+	private readonly HashSet<string> retiredAlbumIds = new(StringComparer.Ordinal);
+	private DecadeAnnualRollup decadeAnnual = new();
+	private int decadeAnnualYear;
 	private int concentrationYear;
 	private int marketRevenueYear;
 	private MarketRegion[] regions;
@@ -79,6 +140,8 @@ public partial class ChartAuditRunner : Node {
 	private string runName = "audit";
 	private ulong? requestedSeed;
 	private bool aggregateOnly;
+	private bool leanProbe;
+	private bool profilePerformance;
 	private bool forceDistributionDeal;
 	private bool disableLabelLifecycle;
 	private bool disableDistributionDeals;
@@ -97,6 +160,7 @@ public partial class ChartAuditRunner : Node {
 	public override void _Ready() {
 		try {
 			ParseArguments();
+			SimulationPerformanceProfiler.Enabled = profilePerformance;
 			if (TimeManager.Instance == null || ChartManager.Instance == null) {
 				throw new InvalidOperationException("The TimeManager and ChartManager autoloads must be available.");
 			}
@@ -115,15 +179,24 @@ public partial class ChartAuditRunner : Node {
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			InitializeObservedState();
 
+			var annualWallTime = Stopwatch.StartNew();
 			for (int week = 1; week <= requestedWeeks; week++) {
 				currentAuditWeek = week;
 				AdvanceOneChartWeek();
+				long captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
+				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
+				if (week % 52 == 0) {
+					WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds);
+					FlushAnnualStreams();
+					annualWallTime.Restart();
+				}
 			}
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
 			WriteMarketRevenueYear();
 			WriteAnnualFormatMixRows();
+			WriteDecadeAnnualYear();
 			WriteLiveRecordsSnapshot();
 			WriteAlbumProjectSnapshots();
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
@@ -159,6 +232,11 @@ public partial class ChartAuditRunner : Node {
 				requestedSeed = ulong.Parse(argument[7..], CultureInfo.InvariantCulture);
 			} else if (argument == "--aggregate-only") {
 				aggregateOnly = true;
+			} else if (argument == "--lean-probe") {
+				leanProbe = true;
+				aggregateOnly = true;
+			} else if (argument == "--profile-performance") {
+				profilePerformance = true;
 			} else if (argument == "--force-distribution-deal") {
 				forceDistributionDeal = true;
 			} else if (argument.StartsWith("--force-deal-resolution=", StringComparison.Ordinal)) {
@@ -266,6 +344,8 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-projects.csv"));
 		albumProjectDemandWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-project-demand.csv"));
 		albumProjectWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-project-weekly.csv"));
+		decadeAnnualRollupWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-decade-annual-rollup.csv"));
+		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
@@ -295,6 +375,8 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWriter.WriteLine("projectId,creationSequence,originalLabelId,currentLabelId,tierAtSchedule,genre,careerStateAtSchedule,scheduledWeek,dropWeek,strategy,albumRecordId,promoSingleId,promoPeakAtDrop,promoPeakScore,synergyAwarenessApplied,synergyStockMultiplier,terminalState,wasTransferred,transferCount,albumRetired,promoRetired,projectRealizedNet");
 		albumProjectDemandWriter.WriteLine("projectId,strategy,albumRecordId,rawDemandBeforeCannibalization,suppressedDemand,demandWeightedSuppression,initialLaunchAwareness,initialLaunchStock,linkedPromoId,demandWithActiveLinkedPromo,demandWithInactiveLinkedPromo,demandWeightedSingleHeat,demandWeightedSubstitutionPropensity,reconciledDemandWeightedSuppression");
 		albumProjectWeeklyWriter.WriteLine("week,year,pipelineAlbumDrops");
+		decadeAnnualRollupWriter.WriteLine("seed,year,singleUnits,singleGross,singleNet,albumUnits,albumGross,albumNet,albumToSingleGross,decisions,albumDecisionShare,adultDecisions,adultAlbumShare,youthDecisions,youthAlbumShare,orphanShare,promoShare,standaloneShare,meanSingleConfidence,meanAlbumConfidence,compilationAlbums,compilationTrackRefs,freshnessUse0,freshnessUse1,freshnessUse2,freshnessUse3Plus,meanFreshness,minFreshness,maxFreshness,singleMemoryMeanEma,singleMemoryN,albumMemoryMeanEma,albumMemoryN,completedMatched,completedMeanExpected,completedMeanRealized,completedSignedError,youthCompCompleted,youthCompMeanExpected,youthCompMeanRealized,youthCompSignedError,promoCompleted,promoMeanExpected,promoMeanRealized,promoSignedError,singlePearson,singlePearsonN,closedTop40Median,closedTop40N,activeSingles,activeAlbums,albumAgeMedian,albumAgeP90,albumUnitsMin,albumUnitsP25,albumUnitsMedian,albumUnitsP75,albumUnitsP90,albumUnitsMax,albumsBelowSalesFloor,albumsAtOrAboveSalesFloor,albumsBelowSalesFloorShare,albumsEverReleased,albumsRetired,albumsNeverRetiredShare");
+		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
 				label.isHistorical ? "true" : "false", Csv(label.tier.ToString()) }));
@@ -316,6 +398,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void OnReleaseStrategy(ReleaseStrategyTelemetry strategy) {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		EnsureDecadeAnnualYear(year);
 		releaseStrategyWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 			Csv(strategy.recordId), Csv(strategy.labelId), Csv(strategy.tier.ToString()), Csv(strategy.artistId),
@@ -366,6 +449,39 @@ public partial class ChartAuditRunner : Node {
 			F(strategy.priorSingleNet), F(strategy.priorAlbumNet), F(strategy.projectedSingleNet), F(strategy.projectedAlbumNet),
 			Csv(strategy.chosenFormat.ToString())
 		}));
+		decadeAnnual.Decisions++;
+		bool albumDecision = strategy.chosenFormat == ReleaseFormat.Album;
+		bool adult = IsAdultGenre(strategy.genre);
+		bool youth = IsYouthGenre(strategy.genre);
+		if (albumDecision) decadeAnnual.AlbumDecisions++;
+		if (adult) {
+			decadeAnnual.AdultDecisions++;
+			if (albumDecision) decadeAnnual.AdultAlbumDecisions++;
+		}
+		if (youth) {
+			decadeAnnual.YouthDecisions++;
+			if (albumDecision) decadeAnnual.YouthAlbumDecisions++;
+		}
+		if (strategy.strategy == ReleaseStrategy.OrphanSingle) decadeAnnual.OrphanDecisions++;
+		else if (strategy.strategy == ReleaseStrategy.AlbumWithPromo) decadeAnnual.PromoDecisions++;
+		else if (strategy.strategy == ReleaseStrategy.AlbumStandalone) decadeAnnual.StandaloneDecisions++;
+		if (albumDecision) {
+			decadeAnnual.AlbumConfidence += strategy.confidenceAlbum;
+			decadeAnnual.AlbumConfidenceCount++;
+		} else {
+			decadeAnnual.SingleConfidence += strategy.confidenceSingle;
+			decadeAnnual.SingleConfidenceCount++;
+		}
+		float expected = strategy.strategy switch {
+			ReleaseStrategy.AlbumWithPromo => strategy.projectedAlbumWithPromoNet,
+			ReleaseStrategy.AlbumStandalone => strategy.projectedAlbumStandaloneNet,
+			_ => strategy.projectedOrphanSingleNet
+		};
+		if (!string.IsNullOrEmpty(strategy.recordId)) decisionExpectations[strategy.recordId] = new DecisionExpectation {
+			Expected = expected,
+			YouthCompilation = youth && strategy.actualAlbumFormat == AlbumFormat.Compilation,
+			Promo = strategy.strategy == ReleaseStrategy.AlbumWithPromo
+		};
 	}
 
 	private const float ForkRatioEpsilon = 0.000001f;
@@ -432,15 +548,36 @@ public partial class ChartAuditRunner : Node {
 
 	private void OnReleaseOutcome(ReleaseOutcomeTelemetry outcome) {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		EnsureDecadeAnnualYear(year);
 		releaseOutcomeWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
 			Csv(outcome.labelId), Csv(outcome.recordId), Csv(outcome.format.ToString()), outcome.memoryEligible ? "true" : "false",
 			F(outcome.lifetimeLabelNet), F(outcome.sunkProductionCost), F(outcome.realizedNet)
 		}));
+		if (!string.IsNullOrEmpty(outcome.recordId) && decisionExpectations.TryGetValue(outcome.recordId, out DecisionExpectation expectation)) {
+			decadeAnnual.CompletedMatched++;
+			decadeAnnual.CompletedExpected += expectation.Expected;
+			decadeAnnual.CompletedRealized += outcome.realizedNet;
+			if (expectation.YouthCompilation) {
+				decadeAnnual.YouthCompCompleted++;
+				decadeAnnual.YouthCompExpected += expectation.Expected;
+				decadeAnnual.YouthCompRealized += outcome.realizedNet;
+			}
+			if (expectation.Promo) {
+				decadeAnnual.PromoCompleted++;
+				decadeAnnual.PromoExpected += expectation.Expected;
+				decadeAnnual.PromoRealized += outcome.realizedNet;
+			}
+			decisionExpectations.Remove(outcome.recordId);
+		}
 	}
 
 	private void OnRecordRetired(RecordRuntimeData record) {
 		if (record.baseRecord.format == ReleaseFormat.Single) WriteRetirementRow("retired", record);
+		else if (record.baseRecord.album != null) {
+			observedAlbumIds.Add(record.baseRecord.album.albumId);
+			retiredAlbumIds.Add(record.baseRecord.album.albumId);
+		}
 	}
 
 	private void WriteActiveOffChartRetirementRows() {
@@ -480,6 +617,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void CaptureWeek(int week) {
 		GameDate date = TimeManager.Instance.CurrentDate;
+		EnsureDecadeAnnualYear(date.year);
 		albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
 			CompetitorManager.Instance.WeeklyPipelineAlbumDrops.ToString(CultureInfo.InvariantCulture)
@@ -498,6 +636,14 @@ public partial class ChartAuditRunner : Node {
 		float chartCutoff = chart.Count >= 100 ? ChartSimulator.CalculateChartPoints(chart[99], regions) : 0f;
 		var activeIds = singleRecords.Select(record => record.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
 		var chartIds = chart.Select(record => record.baseRecord.recordId).ToHashSet(StringComparer.Ordinal);
+		foreach (RecordRuntimeData record in singleRecords.Where(record => record.currentPosition > 0)) {
+			string id = record.baseRecord.recordId;
+			if (!decadeAnnual.ChartingSingles.TryGetValue(id, out var observed)) {
+				decadeAnnual.ChartingSingles[id] = (record.GetQuality(), record.currentPosition);
+			} else if (record.currentPosition < observed.BestPosition) {
+				decadeAnnual.ChartingSingles[id] = (observed.Quality, record.currentPosition);
+			}
+		}
 
 		foreach (RecordRuntimeData record in singleRecords) {
 			LifecycleState state = ObserveRecord(record, wasPresentAtStart: false);
@@ -506,12 +652,13 @@ public partial class ChartAuditRunner : Node {
 			}
 			if (record.currentPosition == 1) state.WeeksAtNumberOne++;
 			if (!aggregateOnly) WriteRecordRow(week, date.year, record, chartCutoff);
-			WriteBreakoutRows(week, record);
+			if (!leanProbe) WriteBreakoutRows(week, record);
 		}
 
 		foreach ((string id, LifecycleState state) in lifecycle.ToArray()) {
 			if (!activeIds.Contains(id)) {
 				WriteLifecycleRow(week, state);
+				if (state.Record.peakPosition > 0 && state.Record.peakPosition <= 40) decadeAnnual.ClosedTop40Weeks.Add(state.Record.weeksOnChart);
 				lifecycle.Remove(id);
 			}
 		}
@@ -531,6 +678,7 @@ public partial class ChartAuditRunner : Node {
 		WriteAlbumRows(week, date, records, albumChart);
 		WriteFormatMixRows(week, date.year, records);
 		WriteRevenueMemoryRows(week, date.year);
+		CaptureRetirementCohortSnapshot(records);
 
 		weekWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture),
@@ -552,13 +700,31 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void WriteRevenueMemoryRows(int week, int year) {
+		EnsureDecadeAnnualYear(year);
+		decadeAnnual.SingleMemoryEma = 0d;
+		decadeAnnual.SingleMemoryLabels = 0;
+		decadeAnnual.SingleMemoryN = 0;
+		decadeAnnual.AlbumMemoryEma = 0d;
+		decadeAnnual.AlbumMemoryLabels = 0;
+		decadeAnnual.AlbumMemoryN = 0;
 		ReleaseFormat[] formats = { ReleaseFormat.Single, ReleaseFormat.Album };
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			foreach (ReleaseFormat format in formats) {
 				label.revenueMemory.TryGetValue(format, out FormatRevenueMemory memory);
+				float ema = memory?.emaNetPerRelease ?? 0f;
+				int observations = memory?.releasesObserved ?? 0;
+				if (format == ReleaseFormat.Single) {
+					decadeAnnual.SingleMemoryEma += ema;
+					decadeAnnual.SingleMemoryLabels++;
+					decadeAnnual.SingleMemoryN += observations;
+				} else {
+					decadeAnnual.AlbumMemoryEma += ema;
+					decadeAnnual.AlbumMemoryLabels++;
+					decadeAnnual.AlbumMemoryN += observations;
+				}
 				revenueMemoryWriter.WriteLine(string.Join(",", new[] {
 					week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(label.labelId), Csv(format.ToString()),
-					F(memory?.emaNetPerRelease ?? 0f), (memory?.releasesObserved ?? 0).ToString(CultureInfo.InvariantCulture)
+					F(ema), observations.ToString(CultureInfo.InvariantCulture)
 				}));
 			}
 		}
@@ -786,12 +952,26 @@ public partial class ChartAuditRunner : Node {
 				F(total > 0 ? (float)reused / total : 0f), F(album.runtimeMinutes), F(album.packaging), album.isStereo ? "true" : "false"
 			}));
 			AlbumTrack[] trackRefs = album.trackRefs ?? Array.Empty<AlbumTrack>();
+			if (album.albumFormat == AlbumFormat.Compilation) {
+				EnsureDecadeAnnualYear(date.year);
+				decadeAnnual.CompilationAlbums++;
+				decadeAnnual.CompilationTrackRefs += trackRefs.Length;
+			}
 			for (int trackIndex = 0; trackIndex < trackRefs.Length; trackIndex++) {
 				AlbumTrack track = trackRefs[trackIndex];
 				float freshness = trackIndex < (album.trackRefFreshnessApplied?.Length ?? 0)
 					? album.trackRefFreshnessApplied[trackIndex] : 1f;
 				int timesCompUsed = trackIndex < (album.trackRefCompUsesAtGeneration?.Length ?? 0)
 					? album.trackRefCompUsesAtGeneration[trackIndex] : 0;
+				if (album.albumFormat == AlbumFormat.Compilation) {
+					decadeAnnual.FreshnessSum += freshness;
+					decadeAnnual.FreshnessMin = Mathf.Min(decadeAnnual.FreshnessMin, freshness);
+					decadeAnnual.FreshnessMax = Mathf.Max(decadeAnnual.FreshnessMax, freshness);
+					if (timesCompUsed <= 0) decadeAnnual.FreshnessUse0++;
+					else if (timesCompUsed == 1) decadeAnnual.FreshnessUse1++;
+					else if (timesCompUsed == 2) decadeAnnual.FreshnessUse2++;
+					else decadeAnnual.FreshnessUse3Plus++;
+				}
 				albumTrackLinkWriter.WriteLine(string.Join(",", new[] {
 					week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
 					Csv(record.baseRecord.recordId), Csv(record.baseRecord.artistId), Csv(track.sourceRecordId), F(freshness),
@@ -816,6 +996,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void WriteFormatMixRows(int week, int year, List<RecordRuntimeData> records) {
+		EnsureDecadeAnnualYear(year);
 		var newReleases = records.Where(record => observedReleaseIds.Add(record.baseRecord.recordId)).ToList();
 		var releasesByFormat = newReleases.GroupBy(record => record.baseRecord.format.ToString()).ToDictionary(group => group.Key, group => group.Count());
 		var unitsByFormat = records.GroupBy(record => record.baseRecord.format.ToString()).ToDictionary(group => group.Key, group => (long)group.Sum(record => record.unitsThisWeek));
@@ -847,7 +1028,143 @@ public partial class ChartAuditRunner : Node {
 			annual.Skim += revenue.Skim;
 			annual.Royalty += revenue.Royalty;
 			annual.LabelNet += revenue.LabelNet;
+			FormatMixRollup decadeFormat = format == ReleaseFormat.Single.ToString() ? decadeAnnual.Single
+				: format == ReleaseFormat.Album.ToString() ? decadeAnnual.Album : null;
+			if (decadeFormat != null) {
+				decadeFormat.Releases += releases;
+				decadeFormat.Units += units;
+				decadeFormat.Gross += revenue.Gross;
+				decadeFormat.Cogs += revenue.Cogs;
+				decadeFormat.Skim += revenue.Skim;
+				decadeFormat.Royalty += revenue.Royalty;
+				decadeFormat.LabelNet += revenue.LabelNet;
+			}
 		}
+	}
+
+	private void EnsureDecadeAnnualYear(int year) {
+		if (decadeAnnualYear == 0) {
+			decadeAnnualYear = year;
+			return;
+		}
+		if (year == decadeAnnualYear) return;
+		WriteDecadeAnnualYear();
+		FlushAnnualStreams();
+		decadeAnnual = new DecadeAnnualRollup();
+		decadeAnnualYear = year;
+	}
+
+	private void WriteDecadeAnnualYear() {
+		if (decadeAnnualYear == 0 || decadeAnnualRollupWriter == null) return;
+		double singleNet = decadeAnnual.Single.LabelNet;
+		double albumNet = decadeAnnual.Album.LabelNet;
+		List<int> albumAges = decadeAnnual.AlbumAges;
+		List<int> albumUnits = decadeAnnual.AlbumUnits;
+		int albumsBelowFloor = albumUnits.Count(value => value < 10);
+		int albumsAtOrAboveFloor = albumUnits.Count - albumsBelowFloor;
+		double? pearson = Correlation(decadeAnnual.ChartingSingles.Values.Select(value => (value.Quality, 101d - value.BestPosition)));
+		decadeAnnualRollupWriter.WriteLine(string.Join(",", new[] {
+			(requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
+			decadeAnnualYear.ToString(CultureInfo.InvariantCulture),
+			decadeAnnual.Single.Units.ToString(CultureInfo.InvariantCulture), F(decadeAnnual.Single.Gross), F(singleNet),
+			decadeAnnual.Album.Units.ToString(CultureInfo.InvariantCulture), F(decadeAnnual.Album.Gross), F(albumNet),
+			Ratio(decadeAnnual.Album.Gross, decadeAnnual.Single.Gross),
+			decadeAnnual.Decisions.ToString(CultureInfo.InvariantCulture), Ratio(decadeAnnual.AlbumDecisions, decadeAnnual.Decisions),
+			decadeAnnual.AdultDecisions.ToString(CultureInfo.InvariantCulture), Ratio(decadeAnnual.AdultAlbumDecisions, decadeAnnual.AdultDecisions),
+			decadeAnnual.YouthDecisions.ToString(CultureInfo.InvariantCulture), Ratio(decadeAnnual.YouthAlbumDecisions, decadeAnnual.YouthDecisions),
+			Ratio(decadeAnnual.OrphanDecisions, decadeAnnual.Decisions), Ratio(decadeAnnual.PromoDecisions, decadeAnnual.Decisions),
+			Ratio(decadeAnnual.StandaloneDecisions, decadeAnnual.Decisions),
+			Ratio(decadeAnnual.SingleConfidence, decadeAnnual.SingleConfidenceCount), Ratio(decadeAnnual.AlbumConfidence, decadeAnnual.AlbumConfidenceCount),
+			decadeAnnual.CompilationAlbums.ToString(CultureInfo.InvariantCulture), decadeAnnual.CompilationTrackRefs.ToString(CultureInfo.InvariantCulture),
+			decadeAnnual.FreshnessUse0.ToString(CultureInfo.InvariantCulture), decadeAnnual.FreshnessUse1.ToString(CultureInfo.InvariantCulture),
+			decadeAnnual.FreshnessUse2.ToString(CultureInfo.InvariantCulture), decadeAnnual.FreshnessUse3Plus.ToString(CultureInfo.InvariantCulture),
+			Ratio(decadeAnnual.FreshnessSum, decadeAnnual.CompilationTrackRefs),
+			decadeAnnual.CompilationTrackRefs > 0 ? F(decadeAnnual.FreshnessMin) : string.Empty,
+			decadeAnnual.CompilationTrackRefs > 0 ? F(decadeAnnual.FreshnessMax) : string.Empty,
+			Ratio(decadeAnnual.SingleMemoryEma, decadeAnnual.SingleMemoryLabels), decadeAnnual.SingleMemoryN.ToString(CultureInfo.InvariantCulture),
+			Ratio(decadeAnnual.AlbumMemoryEma, decadeAnnual.AlbumMemoryLabels), decadeAnnual.AlbumMemoryN.ToString(CultureInfo.InvariantCulture),
+			decadeAnnual.CompletedMatched.ToString(CultureInfo.InvariantCulture),
+			Ratio(decadeAnnual.CompletedExpected, decadeAnnual.CompletedMatched), Ratio(decadeAnnual.CompletedRealized, decadeAnnual.CompletedMatched),
+			Ratio(decadeAnnual.CompletedExpected - decadeAnnual.CompletedRealized, decadeAnnual.CompletedMatched),
+			decadeAnnual.YouthCompCompleted.ToString(CultureInfo.InvariantCulture), Ratio(decadeAnnual.YouthCompExpected, decadeAnnual.YouthCompCompleted),
+			Ratio(decadeAnnual.YouthCompRealized, decadeAnnual.YouthCompCompleted),
+			Ratio(decadeAnnual.YouthCompExpected - decadeAnnual.YouthCompRealized, decadeAnnual.YouthCompCompleted),
+			decadeAnnual.PromoCompleted.ToString(CultureInfo.InvariantCulture), Ratio(decadeAnnual.PromoExpected, decadeAnnual.PromoCompleted),
+			Ratio(decadeAnnual.PromoRealized, decadeAnnual.PromoCompleted),
+			Ratio(decadeAnnual.PromoExpected - decadeAnnual.PromoRealized, decadeAnnual.PromoCompleted),
+			pearson.HasValue ? F(pearson.Value) : string.Empty,
+			decadeAnnual.ChartingSingles.Count.ToString(CultureInfo.InvariantCulture),
+			Statistic(decadeAnnual.ClosedTop40Weeks, 0.5), decadeAnnual.ClosedTop40Weeks.Count.ToString(CultureInfo.InvariantCulture),
+			decadeAnnual.ActiveSingles.ToString(CultureInfo.InvariantCulture), decadeAnnual.ActiveAlbums.ToString(CultureInfo.InvariantCulture),
+			Statistic(albumAges, 0.5), Statistic(albumAges, 0.9),
+			Statistic(albumUnits, 0), Statistic(albumUnits, 0.25), Statistic(albumUnits, 0.5),
+			Statistic(albumUnits, 0.75), Statistic(albumUnits, 0.9), Statistic(albumUnits, 1),
+			albumsBelowFloor.ToString(CultureInfo.InvariantCulture), albumsAtOrAboveFloor.ToString(CultureInfo.InvariantCulture),
+			Ratio(albumsBelowFloor, decadeAnnual.ActiveAlbums), decadeAnnual.AlbumsEverReleased.ToString(CultureInfo.InvariantCulture),
+			decadeAnnual.AlbumsRetired.ToString(CultureInfo.InvariantCulture),
+			Ratio(decadeAnnual.AlbumsEverReleased - decadeAnnual.AlbumsRetired, decadeAnnual.AlbumsEverReleased)
+		}));
+	}
+
+	private void CaptureRetirementCohortSnapshot(List<RecordRuntimeData> records) {
+		decadeAnnual.ActiveSingles = records.Count(record => record.baseRecord.format == ReleaseFormat.Single);
+		var albums = records.Where(record => record.baseRecord.format == ReleaseFormat.Album).ToList();
+		decadeAnnual.ActiveAlbums = albums.Count;
+		decadeAnnual.AlbumAges = albums.Select(record => record.weeksSinceRelease).OrderBy(value => value).ToList();
+		decadeAnnual.AlbumUnits = albums.Select(record => record.unitsThisWeek).OrderBy(value => value).ToList();
+		decadeAnnual.AlbumsEverReleased = observedAlbumIds.Count;
+		decadeAnnual.AlbumsRetired = retiredAlbumIds.Count;
+	}
+
+	private static string Ratio(double numerator, double denominator) => denominator != 0d ? F(numerator / denominator) : string.Empty;
+	private static string Statistic(IReadOnlyList<int> sorted, double quantile) {
+		if (sorted.Count == 0) return string.Empty;
+		double position = Math.Clamp(quantile, 0d, 1d) * (sorted.Count - 1);
+		int lower = (int)Math.Floor(position);
+		int upper = (int)Math.Ceiling(position);
+		double value = sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+		return F(value);
+	}
+	private static double? Correlation(IEnumerable<(double X, double Y)> values) {
+		var pairs = values.ToList();
+		if (pairs.Count < 2) return null;
+		double meanX = pairs.Average(pair => pair.X);
+		double meanY = pairs.Average(pair => pair.Y);
+		double covariance = 0d;
+		double varianceX = 0d;
+		double varianceY = 0d;
+		foreach (var pair in pairs) {
+			double dx = pair.X - meanX;
+			double dy = pair.Y - meanY;
+			covariance += dx * dy;
+			varianceX += dx * dx;
+			varianceY += dy * dy;
+		}
+		return varianceX > 0d && varianceY > 0d ? covariance / Math.Sqrt(varianceX * varianceY) : null;
+	}
+
+	private void WritePerformanceYear(int year, double wallSeconds) {
+		if (performanceProfileWriter == null) return;
+		SimulationPerformanceProfiler.Snapshot profile = SimulationPerformanceProfiler.TakeSnapshotAndReset();
+		performanceProfileWriter.WriteLine(string.Join(",", new[] {
+			requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty, year.ToString(CultureInfo.InvariantCulture), F(wallSeconds),
+			ChartManager.Instance.GetAllRecords().Count.ToString(CultureInfo.InvariantCulture), F(profile.SimulateWeekSeconds),
+			F(profile.CalculateLabelRevenueSeconds), F(profile.RecordLookupSeconds), F(profile.RevenueArithmeticSeconds),
+			F(profile.AlbumUpdateSeconds), F(profile.DueAlbumProjectsSeconds), F(profile.CaptureWeekSeconds),
+			profile.RecordLookups.ToString(CultureInfo.InvariantCulture)
+		}));
+	}
+
+	private void FlushAnnualStreams() {
+		decadeAnnualRollupWriter?.Flush();
+		performanceProfileWriter?.Flush();
+		weekWriter?.Flush();
+		lifecycleWriter?.Flush();
+		concentrationWriter?.Flush();
+		marketRevenueWriter?.Flush();
+		releaseCapacityWriter?.Flush();
+		formatMixWriter?.Flush();
+		albumProjectWeeklyWriter?.Flush();
 	}
 
 	private void WriteAnnualFormatMixRows() {
@@ -1017,6 +1334,8 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWriter?.Dispose();
 		albumProjectDemandWriter?.Dispose();
 		albumProjectWeeklyWriter?.Dispose();
+		decadeAnnualRollupWriter?.Dispose();
+		performanceProfileWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -1045,5 +1364,7 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWriter = null;
 		albumProjectDemandWriter = null;
 		albumProjectWeeklyWriter = null;
+		decadeAnnualRollupWriter = null;
+		performanceProfileWriter = null;
 	}
 }

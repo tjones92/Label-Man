@@ -88,6 +88,7 @@ public partial class CompetitorManager : Node {
 	private long generatedProjectCounter;
 	private int pipelineWeek;
 	private readonly List<AlbumProject> albumProjects = new();
+	private readonly List<AlbumProject> pendingAlbumProjects = new();
 	private readonly Dictionary<string, AlbumProject> projectById = new();
 	private readonly Dictionary<string, AlbumProject> projectByRecordId = new();
 	private Dictionary<string, List<string>> labelActiveRecords = new Dictionary<string, List<string>>();
@@ -277,11 +278,14 @@ public partial class CompetitorManager : Node {
 	
 	private float CalculateLabelRevenue(AILabel label) {
 		if (!labelActiveRecords.TryGetValue(label.labelId, out var recordIds)) return 0f;
+		long profileStart = SimulationPerformanceProfiler.Begin();
 		float totalRevenue = 0f;
 		var deadRecords = new List<string>();
 		
 		foreach (var recordId in recordIds) {
+			long lookupProfileStart = SimulationPerformanceProfiler.Begin();
 			var runtimeData = ChartManager.Instance.GetRecordRuntimeData(recordId);
+			SimulationPerformanceProfiler.EndRecordLookup(lookupProfileStart);
 			if (runtimeData == null) { deadRecords.Add(recordId); continue; }
 			
 			float weeklyUnits = runtimeData.unitsThisWeek;
@@ -328,6 +332,7 @@ public partial class CompetitorManager : Node {
 		foreach (var dead in deadRecords) {
 			recordIds.Remove(dead);
 		}
+		SimulationPerformanceProfiler.EndCalculateLabelRevenue(profileStart);
 		return totalRevenue;
 	}
 
@@ -658,6 +663,7 @@ public partial class CompetitorManager : Node {
 			ReleasePreparedRecord(album, artist, label, date, albumProductionCost, ProjectRecordRole.StandaloneAlbum, projectId);
 			ApplyReleasePromotion(album, artist, label, albumMarketingPlanned, albumPerceivedMult);
 		} else {
+			pendingAlbumProjects.Add(project);
 			ReleasePreparedRecord(promo, artist, label, date, promoProductionCost, ProjectRecordRole.PromoSingle, projectId);
 			ApplyReleasePromotion(promo, artist, label, promoMarketingBudget, promoPerceivedMult);
 		}
@@ -1278,11 +1284,18 @@ public partial class CompetitorManager : Node {
 	}
 
 	private void ProcessDueAlbumProjects(GameDate date) {
-		foreach (AlbumProject project in albumProjects.Where(project => project.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd && project.dropWeek <= pipelineWeek).OrderBy(project => project.creationSequence)) {
+		long profileStart = SimulationPerformanceProfiler.Begin();
+		for (int index = 0; index < pendingAlbumProjects.Count;) {
+			AlbumProject project = pendingAlbumProjects[index];
+			if (project.dropWeek > pipelineWeek) {
+				index++;
+				continue;
+			}
 			AILabel owner = GetLabel(project.currentLabelId);
 			if (owner == null || !owner.IsActive) {
 				project.terminalState = AlbumProjectTerminalState.Cancelled;
 				RedirectCancelledPromoOutcome(project);
+				pendingAlbumProjects.RemoveAt(index);
 				continue;
 			}
 			float marketingBudget = project.albumMarketingBudgetPlanned;
@@ -1308,7 +1321,9 @@ public partial class CompetitorManager : Node {
 			if (artist != null) artist.weeksSinceLastRelease = 0;
 			project.terminalState = AlbumProjectTerminalState.Released;
 			WeeklyPipelineAlbumDrops++;
+			pendingAlbumProjects.RemoveAt(index);
 		}
+		SimulationPerformanceProfiler.EndDueAlbumProjects(profileStart);
 	}
 
 	public IReadOnlyList<AlbumProject> GetAlbumProjects() => albumProjects;

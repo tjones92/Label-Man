@@ -27,7 +27,7 @@ public partial class ChartManager : Node {
 	[Export] private bool debugMode = false;
 
 	public RecordRuntimeData GetRecordRuntimeData(string recordId) {
-		return allRecords.FirstOrDefault(r => r.baseRecord.recordId == recordId);
+		return recordById.TryGetValue(recordId ?? string.Empty, out RecordRuntimeData record) ? record : null;
 	}
 
 	// Runtime state
@@ -35,6 +35,7 @@ public partial class ChartManager : Node {
 	private Zeitgeist baseZeitgeist;
 	private Dictionary<Genre, float> genreMomentum;
 	private List<RecordRuntimeData> allRecords = new List<RecordRuntimeData>();
+	private readonly Dictionary<string, RecordRuntimeData> recordById = new(StringComparer.Ordinal);
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentAlbumChart = new List<RecordRuntimeData>();
 	private const int BubblingUnderSize = 15;
@@ -332,6 +333,7 @@ public partial class ChartManager : Node {
 			r.peakPosition == 0 &&
 			r.totalUnitsSold < 500
 		);
+		RebuildRecordIndex();
 
 		currentChartWeek = 0;
 
@@ -417,6 +419,7 @@ public partial class ChartManager : Node {
 		}
 
 		allRecords.Add(runtimeData);
+		recordById[runtimeData.baseRecord.recordId] = runtimeData;
 
 		if (releasingLabel != null && !record.isPlayerOwned) {
 			PromoteRecordAI(runtimeData, releasingLabel, perceivedQualityMult);
@@ -471,6 +474,7 @@ public partial class ChartManager : Node {
 	// ========================================================================
 
 	private void SimulateWeek(bool triggerEvents) {
+		long profileStart = SimulationPerformanceProfiler.Begin();
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 
 		// === STEP 1: Update global record state ===
@@ -481,7 +485,11 @@ public partial class ChartManager : Node {
 			float genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId);
 
-			if (record.baseRecord.format == ReleaseFormat.Album) AlbumSimulator.UpdateAlbum(record, label, artistHeat);
+			if (record.baseRecord.format == ReleaseFormat.Album) {
+				long albumProfileStart = SimulationPerformanceProfiler.Begin();
+				AlbumSimulator.UpdateAlbum(record, label, artistHeat);
+				SimulationPerformanceProfiler.EndAlbumUpdate(albumProfileStart);
+			}
 			else ChartSimulator.UpdateRecord(record, label, genreAcceptance, artistHeat);
 		}
 
@@ -603,6 +611,7 @@ public partial class ChartManager : Node {
 		OnAlbumChartCalculated?.Invoke(new List<RecordRuntimeData>(currentAlbumChart));
 		UpdateRecordRelevanceClocks();
 		previousChartPoints = chartPoints;
+		SimulationPerformanceProfiler.EndSimulateWeek(profileStart);
 	}
 
 	private void UpdateRecordRelevanceClocks() {
@@ -1125,6 +1134,12 @@ public partial class ChartManager : Node {
 
 		CompetitorManager.Instance?.RecordRetired(record);
 		allRecords.Remove(record);
+		recordById.Remove(record.baseRecord.recordId);
+	}
+
+	private void RebuildRecordIndex() {
+		recordById.Clear();
+		foreach (RecordRuntimeData record in allRecords) recordById[record.baseRecord.recordId] = record;
 	}
 
 	private static AlbumTrack CreateTrackSnapshot(RecordRuntimeData record) => new() {
@@ -1230,7 +1245,7 @@ public partial class ChartManager : Node {
 	public Zeitgeist GetCurrentZeitgeist() => baseZeitgeist;
 
 	public void AddRadioPlay(string recordId, string regionId, float amount) {
-		var record = allRecords.FirstOrDefault(r => r.baseRecord.recordId == recordId);
+		var record = GetRecordRuntimeData(recordId);
 		if (record != null && record.regionalData.ContainsKey(regionId)) {
 			record.regionalData[regionId].radioPlay += amount;
 			record.regionalData[regionId].awareness += amount * 0.1f;
