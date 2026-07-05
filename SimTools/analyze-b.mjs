@@ -18,6 +18,7 @@ function csv(file) {
 const n = value => Number(value || 0);
 const mean = values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
 function median(values) { if (!values.length) return null; const s = [...values].sort((a,b)=>a-b), i=(s.length-1)/2; return (s[Math.floor(i)]+s[Math.ceil(i)])/2; }
+function percentile(values, p) { if (!values.length) return null; const s=[...values].sort((a,b)=>a-b), i=(s.length-1)*p, lo=Math.floor(i), hi=Math.ceil(i); return s[lo]+(s[hi]-s[lo])*(i-lo); }
 function corr(xs, ys) {
   if (xs.length < 2) return null; const mx=mean(xs), my=mean(ys); let xy=0, xx=0, yy=0;
   for(let i=0;i<xs.length;i++){const x=xs[i]-mx,y=ys[i]-my;xy+=x*y;xx+=x*x;yy+=y*y;} return xx&&yy?xy/Math.sqrt(xx*yy):null;
@@ -71,25 +72,36 @@ function analyze(dir, run, seed) {
   const demandByProject=new Map(demand.map(r=>[r.projectId,r]));
   for(const p of projects.filter(p=>p.strategy==="AlbumWithPromo"&&p.terminalState==="Released")){const launch=demandByProject.get(p.projectId);if(launch)promoLaunch.push({score:n(p.promoPeakScore),awareness:n(launch.initialLaunchAwareness),stock:n(launch.initialLaunchStock)});}
   const raw=demand.reduce((s,r)=>s+n(r.rawDemandBeforeCannibalization),0), suppressed=demand.reduce((s,r)=>s+n(r.suppressedDemand),0);
+	const activeLinked=demand.reduce((s,r)=>s+n(r.demandWithActiveLinkedPromo),0), inactiveLinked=demand.reduce((s,r)=>s+n(r.demandWithInactiveLinkedPromo),0);
+	const reconciledWeightedSuppression=demand.reduce((s,r)=>s+n(r.reconciledDemandWeightedSuppression)*n(r.rawDemandBeforeCannibalization),0);
   const standaloneDemand=demand.filter(r=>r.strategy==="AlbumStandalone"), standRaw=standaloneDemand.reduce((s,r)=>s+n(r.rawDemandBeforeCannibalization),0), standSupp=standaloneDemand.reduce((s,r)=>s+n(r.suppressedDemand),0);
+	const albumStrategyRows=strategies.filter(r=>r.bucketMeanNet!=="");
+	const groupOf=genre=>adult.has(genre)?"Adult":youth.has(genre)?"Youth":"Other";
+	const summarizePromo=items=>({n:items.length,meanAlbumDemandFactor:mean(items.map(r=>n(r.albumDemandFactor))),mean:mean(items.map(r=>n(r.promoAdvantage))),median:median(items.map(r=>n(r.promoAdvantage))),p10:percentile(items.map(r=>n(r.promoAdvantage)),.1),p90:percentile(items.map(r=>n(r.promoAdvantage)),.9)});
+	const promoAdvantageByGenre=Object.fromEntries(["Adult","Youth","Other"].map(group=>[group,summarizePromo(albumStrategyRows.filter(r=>groupOf(r.genre)===group))]));
+	const sortedPromo=[...albumStrategyRows].sort((a,b)=>n(a.albumDemandFactor)-n(b.albumDemandFactor));
+	const promoAdvantageBins=[];
+	for(let bin=0;bin<5;bin++){const lo=Math.floor(sortedPromo.length*bin/5), hi=Math.floor(sortedPromo.length*(bin+1)/5), items=sortedPromo.slice(lo,hi);promoAdvantageBins.push({bin:bin+1,n:items.length,minDemandFactor:items.length?n(items[0].albumDemandFactor):null,maxDemandFactor:items.length?n(items.at(-1).albumDemandFactor):null,...summarizePromo(items)});}
   return {run,seed,decisions:choices.length,albumDecisions:albums.length,albumShare:albums.length/choices.length,
     adultAlbum:[adultAlbums.length,adultChoices.length,adultAlbums.length/adultChoices.length],youthAlbum:[youthAlbums.length,youthChoices.length,youthAlbums.length/youthChoices.length],
     youthCompilation:[youthCompilation.length,youthAlbums.length],physicalAlbumDrops:state("Released"),strategySplit:Object.fromEntries(Object.entries(Object.groupBy(choices,r=>r.strategy||r.chosenFormat)).map(([k,v])=>[k,v.length])),
     adultAlbumChart:[albumAdultRows,albumChart.length,albumAdultRows/albumChart.length],adultSingleChart:[adultSingleRows,singleChartRows.length,adultSingleRows/singleChartRows.length],
-    pearson,pearsonDelta:pearson-baselines[seed],closedTop40Median:median(life.filter(r=>n(r.peakPosition)>0&&n(r.peakPosition)<=40).map(r=>n(r.weeksOnChart))),
+    pearsonN:charting.length,pearson,pearsonDelta:pearson-baselines[seed],closedTop40Median:median(life.filter(r=>n(r.peakPosition)>0&&n(r.peakPosition)<=40).map(r=>n(r.weeksOnChart))),
     singleError:{n:singleErrors.length,mean:mean(singleErrors)},competition:{numerator:allSingles,orphanNumerator:orphanStrategies.length,denominator,ratio:allSingles/denominator,orphanRatio:orphanStrategies.length/denominator},
     projects:{scheduled:projects.length,released:state("Released"),cancelled:state("Cancelled"),pending:state("PendingAtAuditEnd"),transferred:projects.filter(p=>p.wasTransferred==="true").length,transferCount:projects.reduce((s,p)=>s+n(p.transferCount),0),overduePending:projects.filter(p=>p.terminalState==="PendingAtAuditEnd"&&n(p.dropWeek)<=52).length},
     memory:{eligibleRetiredRecords:eligible,orphanSingleObservations:orphanOutcomes.length,standaloneAlbumObservations:standaloneCompleted.length,promoProjectAlbumObservations:promoCompleted.length,heldPromo:heldPromo.length,redirectedPromo:redirected.length,unresolvedAlbum:unresolvedAlbum.length,recordEquivalent,
       singleObservations:orphanOutcomes.length+redirected.length,albumObservations:standaloneCompleted.length+promoCompleted.length,heldUnresolvedObservations:heldPromo.length+unresolvedAlbum.length},
     synergy:{n:promoLaunch.length,positiveScores:promoLaunch.filter(v=>v.score>0).length,awarenessCorrelation:corr(promoLaunch.map(v=>v.score),promoLaunch.map(v=>v.awareness)),stockCorrelation:corr(promoLaunch.map(v=>v.score),promoLaunch.map(v=>v.stock))},
-    cannibalization:{raw,suppressed,ratio:raw? suppressed/raw:null,standaloneN:standaloneDemand.length,standaloneRaw:standRaw,standaloneSuppressed:standSupp,standaloneRatio:standRaw?standSupp/standRaw:null},
+    cannibalization:{raw,suppressed,ratio:raw? suppressed/raw:null,activeLinkedDemand:activeLinked,inactiveLinkedDemand:inactiveLinked,linkStateReconciliation:raw? (activeLinked+inactiveLinked)/raw:null,reconciledWeightedSuppression:raw?reconciledWeightedSuppression/raw:null,standaloneN:standaloneDemand.length,standaloneRaw:standRaw,standaloneSuppressed:standSupp,standaloneRatio:standRaw?standSupp/standRaw:null},
+	promoAdvantageByGenre,promoAdvantageBins,
     youthCompilationWatch:cohort(youthCompilation,"projectedAlbumNet",p=>n(outcomeById.get(p.albumRecordId)?.realizedNet)),
     promoProjectWatch:cohort(projects.filter(p=>p.strategy==="AlbumWithPromo"),"projectedAlbumWithPromoNet",p=>n(p.projectRealizedNet))};
 }
 
 const dir=process.argv[2]??"SimLogs";
-const specs=[["b-enabled-1001a",1001],["b-enabled-1002",1002],["b-enabled-1003",1003]];
+const requestedSpecs=process.argv.slice(3).map(spec=>{const split=spec.lastIndexOf(":");return [spec.slice(0,split),Number(spec.slice(split+1))];});
+const specs=requestedSpecs.length?requestedSpecs:[["b-enabled-1001a",1001],["b-enabled-1002",1002],["b-enabled-1003",1003]];
 const result=specs.map(([run,seed])=>analyze(dir,run,seed));
 for(const item of result){const frozenRun=`a3-final-${item.seed===1001?"1001b":item.seed}`;const frozen=csv(path.join(dir,`${frozenRun}-release-strategy.csv`));const frozenWeeks=csv(path.join(dir,`${frozenRun}-weeks.csv`));const frozenDen=frozenWeeks.reduce((s,r)=>s+n(r.newEntriesTop100),0), orphan=frozen.filter(r=>r.chosenFormat==="Single").length;item.competition.frozenOrphanNumerator=orphan;item.competition.frozenDenominator=frozenDen;item.competition.frozenOrphanRatio=orphan/frozenDen;item.competition.orphanAbsoluteChange=item.competition.orphanRatio-orphan/frozenDen;item.competition.orphanPercentageChange=(item.competition.orphanRatio/(orphan/frozenDen)-1);}
-fs.writeFileSync(path.join(dir,"b-validation-analysis.json"),JSON.stringify(result,null,2));
+fs.writeFileSync(path.join(dir,`${specs.map(([run])=>run).join("_")}-b-analysis.json`),JSON.stringify(result,null,2));
 console.log(JSON.stringify(result,null,2));

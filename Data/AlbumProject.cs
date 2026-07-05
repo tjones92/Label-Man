@@ -46,6 +46,11 @@ public sealed class AlbumProject {
 	public float projectedProjectNet;
 	public double rawDemandBeforeCannibalization;
 	public double suppressedDemand;
+	public double demandWithActiveLinkedPromo;
+	public double demandWithInactiveLinkedPromo;
+	public double demandWeightedSingleHeat;
+	public double demandWeightedSubstitutionPropensity;
+	public double demandWeightedSuppression;
 	public float initialLaunchAwareness;
 	public int initialLaunchStock;
 }

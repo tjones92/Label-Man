@@ -50,6 +50,8 @@ public partial class ChartManager : Node {
 	private Dictionary<RecordRuntimeData, int> bubblingUnderPositions = new Dictionary<RecordRuntimeData, int>();
 	private Dictionary<RecordRuntimeData, int> albumBubblingUnderPositions = new Dictionary<RecordRuntimeData, int>();
 	private readonly Dictionary<string, AlbumTrack> retiredTrackArchive = new();
+	[Export(PropertyHint.Range, "0,1,0.01")] private float compStalenessFactor = 0.70f;
+	private readonly Dictionary<string, int> compUseCountByRecordId = new();
 	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
 
@@ -1170,6 +1172,17 @@ public partial class ChartManager : Node {
 		}
 		track = null;
 		return false;
+	}
+
+	public int GetCompUseCount(string recordId) =>
+		!string.IsNullOrEmpty(recordId) && compUseCountByRecordId.TryGetValue(recordId, out int count) ? count : 0;
+
+	public float GetCompFreshness(string recordId) =>
+		Mathf.Pow(Mathf.Clamp(compStalenessFactor, 0f, 1f), GetCompUseCount(recordId));
+
+	public void RegisterCompUse(string recordId) {
+		if (string.IsNullOrEmpty(recordId)) return;
+		compUseCountByRecordId[recordId] = GetCompUseCount(recordId) + 1;
 	}
 
 	private float GetTotalRadioPlay(RecordRuntimeData record) {

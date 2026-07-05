@@ -40,6 +40,14 @@ public class RecordRuntimeData {
 	public float cannibalizationSuppression;
 	public double rawAlbumDemandBeforeCannibalization;
 	public double suppressedAlbumDemand;
+	public bool linkedPromoRuntimeActive;
+	public float linkedPromoSingleHeat;
+	public float albumSubstitutionPropensity;
+	public double albumDemandWithActiveLinkedPromo;
+	public double albumDemandWithInactiveLinkedPromo;
+	public double albumDemandWeightedSingleHeat;
+	public double albumDemandWeightedSubstitutionPropensity;
+	public double albumDemandWeightedSuppression;
 	
 	// === SIMULATION FORCES ===
 	public float awareness;           // 0-1: Do people know this song exists?

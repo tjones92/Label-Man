@@ -12,8 +12,8 @@ public static class AlbumModel {
 	public static float GetAlbumEraWeight(int year) => Mathf.SmoothStep(0f, 1f,
 		Mathf.Clamp((year - EraWeightStartYear) / (EraWeightEndYear - EraWeightStartYear), 0f, 1f));
 
-	public static float CalculatePooledAppeal(IEnumerable<AlbumTrack> tracks, float thematicCohesion, int year) {
-		float[] qualities = tracks?.Where(track => track != null).Select(track => Mathf.Clamp(track.quality, 0f, 1f)).ToArray()
+	public static float CalculatePooledAppeal(IEnumerable<float> trackQualities, float thematicCohesion, int year) {
+		float[] qualities = trackQualities?.Select(quality => Mathf.Clamp(quality, 0f, 1f)).ToArray()
 			?? System.Array.Empty<float>();
 		if (qualities.Length == 0) return 0f;
 		float peakTrack = qualities.Max();

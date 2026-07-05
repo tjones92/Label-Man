@@ -9,6 +9,10 @@ public partial class Album : Resource {
 
 	[ExportGroup("Composition")]
 	[Export] public AlbumTrack[] trackRefs = System.Array.Empty<AlbumTrack>();
+	// Index-aligned with trackRefs. Captured when the Album is assembled so audit
+	// output never has to re-derive freshness from a later counter state.
+	[Export] public float[] trackRefFreshnessApplied = System.Array.Empty<float>();
+	[Export] public int[] trackRefCompUsesAtGeneration = System.Array.Empty<int>();
 	[Export] public AlbumTrack[] nonSingleTracks = System.Array.Empty<AlbumTrack>();
 	[Export] public string[] leadSingleIds = System.Array.Empty<string>();
 	[Export] public float runtimeMinutes;

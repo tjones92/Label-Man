@@ -283,17 +283,17 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
-		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId");
+		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,expectedPromoLift,expectedPromoSingleNet,promoAdvantage");
 		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet");
 		revenueMemoryWriter.WriteLine("week,year,labelId,format,emaNetPerRelease,releasesObserved");
 		liveRecordsSnapshotWriter.WriteLine("week,year,recordId,labelId,artistId,format,ageWeeks,lifetimeLabelNet,sunkProductionCost,observedNetLowerBound,currentPosition,totalUnitsSold");
 		priorCostAssumptionWriter.WriteLine("week,year,recordId,assumedCompilationCost,actualAlbumFormat");
-		albumTrackLinkWriter.WriteLine("week,year,albumRecordId,artistId,sourceRecordId");
+		albumTrackLinkWriter.WriteLine("week,year,albumRecordId,artistId,sourceRecordId,freshnessApplied,timesCompUsedAtGeneration");
 		calibrationDecisionWriter.WriteLine("week,year,recordId,labelId,artistId,genre,careerState,qualityEstimate,reachFactor,genreSinglesMarketFactor,singleProductionCost,chosenFormat");
 		forkRatioWriter.WriteLine("week,year,recordId,labelId,artistId,genre,genreGroup,careerState,careerBand,qualityEstimate,qualityQuartile,reachFactor,genreSinglesMarketFactor,priorSingleNet,priorAlbumNet,projectedSingleNet,projectedAlbumNet,albumMinusSingleNet,albumToSingleRatio,chosenFormat");
 		a3EconomicDecisionWriter.WriteLine("week,year,recordId,labelId,artistId,genre,genreGroup,careerState,compCostWeight,expectedFormatMultiplier,actualAlbumFormat,releasedSingleIdsExamined,resolvedSingles,chartedSingles,hitScore,unweightedHitUnits,weightedHitUnits,affinityUnits,totalExpectedAlbumUnits,priorSingleNet,priorAlbumNet,projectedSingleNet,projectedAlbumNet,chosenFormat");
 		albumProjectWriter.WriteLine("projectId,creationSequence,originalLabelId,currentLabelId,tierAtSchedule,genre,careerStateAtSchedule,scheduledWeek,dropWeek,strategy,albumRecordId,promoSingleId,promoPeakAtDrop,promoPeakScore,synergyAwarenessApplied,synergyStockMultiplier,terminalState,wasTransferred,transferCount,albumRetired,promoRetired,projectRealizedNet");
-		albumProjectDemandWriter.WriteLine("projectId,strategy,albumRecordId,rawDemandBeforeCannibalization,suppressedDemand,demandWeightedSuppression,initialLaunchAwareness,initialLaunchStock");
+		albumProjectDemandWriter.WriteLine("projectId,strategy,albumRecordId,rawDemandBeforeCannibalization,suppressedDemand,demandWeightedSuppression,initialLaunchAwareness,initialLaunchStock,linkedPromoId,demandWithActiveLinkedPromo,demandWithInactiveLinkedPromo,demandWeightedSingleHeat,demandWeightedSubstitutionPropensity,reconciledDemandWeightedSuppression");
 		albumProjectWeeklyWriter.WriteLine("week,year,pipelineAlbumDrops");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
@@ -322,7 +322,22 @@ public partial class ChartAuditRunner : Node {
 			Csv(strategy.genre.ToString()), Csv(strategy.careerState.ToString()), F(strategy.projectedSingleNet),
 			F(strategy.projectedAlbumNet), F(strategy.confidenceSingle), F(strategy.confidenceAlbum), Csv(strategy.chosenFormat.ToString()),
 			Csv(strategy.projectId), Csv(strategy.strategy.ToString()), F(strategy.projectedOrphanSingleNet),
-			F(strategy.projectedAlbumStandaloneNet), F(strategy.projectedAlbumWithPromoNet), Csv(strategy.promoSingleId)
+			F(strategy.projectedAlbumStandaloneNet), F(strategy.projectedAlbumWithPromoNet), Csv(strategy.promoSingleId),
+			strategy.albumStrategyEvaluated ? F(strategy.priorSingleNet) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.singleProductionCost) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.singleNetMarginPerUnit) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.expectedSingleUnits) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.albumDemandFactor) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.substitutionK) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.substitutionCap) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.substitutionPropensity) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.expectedOverlapFraction) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.divertedUnits) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.albumMarginPerUnit) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.cannibalizationLoss) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.expectedPromoLift) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.expectedPromoSingleNet) : string.Empty,
+			strategy.albumStrategyEvaluated ? F(strategy.promoAdvantage) : string.Empty
 		}));
 		priorCostAssumptionWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
@@ -399,10 +414,18 @@ public partial class ChartAuditRunner : Node {
 			RecordRuntimeData albumRuntime = ChartManager.Instance.GetRecordRuntimeData(project.albumRecord?.recordId);
 			double raw = albumRuntime?.rawAlbumDemandBeforeCannibalization ?? project.rawDemandBeforeCannibalization;
 			double suppressed = albumRuntime?.suppressedAlbumDemand ?? project.suppressedDemand;
+			double activeLinked = albumRuntime?.albumDemandWithActiveLinkedPromo ?? project.demandWithActiveLinkedPromo;
+			double inactiveLinked = albumRuntime?.albumDemandWithInactiveLinkedPromo ?? project.demandWithInactiveLinkedPromo;
+			double weightedHeat = albumRuntime?.albumDemandWeightedSingleHeat ?? project.demandWeightedSingleHeat;
+			double weightedPropensity = albumRuntime?.albumDemandWeightedSubstitutionPropensity ?? project.demandWeightedSubstitutionPropensity;
+			double weightedSuppression = albumRuntime?.albumDemandWeightedSuppression ?? project.demandWeightedSuppression;
 			albumProjectDemandWriter.WriteLine(string.Join(",", new[] {
 				Csv(project.projectId), Csv(project.strategy.ToString()), Csv(project.albumRecord?.recordId), F(raw), F(suppressed),
 				raw > 0d ? F(suppressed / raw) : string.Empty, F(project.initialLaunchAwareness),
-				project.initialLaunchStock.ToString(CultureInfo.InvariantCulture)
+				project.initialLaunchStock.ToString(CultureInfo.InvariantCulture), Csv(project.promoSingleId), F(activeLinked), F(inactiveLinked),
+				raw > 0d ? F(weightedHeat / raw) : string.Empty,
+				raw > 0d ? F(weightedPropensity / raw) : string.Empty,
+				raw > 0d ? F(weightedSuppression / raw) : string.Empty
 			}));
 		}
 	}
@@ -762,10 +785,17 @@ public partial class ChartAuditRunner : Node {
 				total.ToString(CultureInfo.InvariantCulture), reused.ToString(CultureInfo.InvariantCulture), originals.ToString(CultureInfo.InvariantCulture),
 				F(total > 0 ? (float)reused / total : 0f), F(album.runtimeMinutes), F(album.packaging), album.isStereo ? "true" : "false"
 			}));
-			foreach (AlbumTrack track in album.trackRefs ?? Array.Empty<AlbumTrack>()) {
+			AlbumTrack[] trackRefs = album.trackRefs ?? Array.Empty<AlbumTrack>();
+			for (int trackIndex = 0; trackIndex < trackRefs.Length; trackIndex++) {
+				AlbumTrack track = trackRefs[trackIndex];
+				float freshness = trackIndex < (album.trackRefFreshnessApplied?.Length ?? 0)
+					? album.trackRefFreshnessApplied[trackIndex] : 1f;
+				int timesCompUsed = trackIndex < (album.trackRefCompUsesAtGeneration?.Length ?? 0)
+					? album.trackRefCompUsesAtGeneration[trackIndex] : 0;
 				albumTrackLinkWriter.WriteLine(string.Join(",", new[] {
 					week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
-					Csv(record.baseRecord.recordId), Csv(record.baseRecord.artistId), Csv(track.sourceRecordId)
+					Csv(record.baseRecord.recordId), Csv(record.baseRecord.artistId), Csv(track.sourceRecordId), F(freshness),
+					timesCompUsed.ToString(CultureInfo.InvariantCulture)
 				}));
 			}
 		}

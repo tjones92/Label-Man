@@ -10,7 +10,14 @@ public static class AlbumSimulator {
 			? null
 			: ChartManager.Instance?.GetRecordRuntimeData(record.linkedPromoSingleId);
 		float singleHeat = linkedPromo != null ? Mathf.Clamp(linkedPromo.radioHeat, 0f, 1f) : 0f;
-		record.cannibalizationSuppression = Mathf.Clamp(CompetitorManager.Instance?.CannibalizationStrength ?? 0f, 0f, 1f) * singleHeat;
+		int currentYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		float substitutionPropensity = CompetitorManager.Instance?.CalculateSubstitutionPropensity(
+			record.baseRecord.primaryGenre, currentYear) ?? 0f;
+		record.linkedPromoRuntimeActive = linkedPromo != null;
+		record.linkedPromoSingleHeat = singleHeat;
+		record.albumSubstitutionPropensity = substitutionPropensity;
+		record.cannibalizationSuppression = Mathf.Clamp(CompetitorManager.Instance?.CannibalizationStrength ?? 0f, 0f, 1f)
+			* singleHeat * substitutionPropensity;
 		float appeal = record.GetQuality();
 		record.artistHeat = artistHeat;
 		float campaign = ChartSimulator.GetCampaignImpact(label);
@@ -53,6 +60,11 @@ public static class AlbumSimulator {
 		float rawSales = rawDemandBeforeCannibalization * (1f - record.cannibalizationSuppression);
 		record.rawAlbumDemandBeforeCannibalization += rawDemandBeforeCannibalization;
 		record.suppressedAlbumDemand += rawDemandBeforeCannibalization - rawSales;
+		if (record.linkedPromoRuntimeActive) record.albumDemandWithActiveLinkedPromo += rawDemandBeforeCannibalization;
+		else record.albumDemandWithInactiveLinkedPromo += rawDemandBeforeCannibalization;
+		record.albumDemandWeightedSingleHeat += rawDemandBeforeCannibalization * record.linkedPromoSingleHeat;
+		record.albumDemandWeightedSubstitutionPropensity += rawDemandBeforeCannibalization * record.albumSubstitutionPropensity;
+		record.albumDemandWeightedSuppression += rawDemandBeforeCannibalization * record.cannibalizationSuppression;
 		data.rawDemandThisWeek = rawSales;
 		data.unitsBackordered = Mathf.RoundToInt(data.unitsBackordered * 0.55f);
 		if (data.unitsInStores < rawSales) {
