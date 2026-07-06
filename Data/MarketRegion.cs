@@ -38,6 +38,10 @@ public partial class MarketRegion : Resource {
 	[ExportGroup("Special Modifiers")]
 	// FIX: Changed List to Array for Godot Export compatibility
 	[Export] public RegionalModifier[] specialModifiers;
+
+	[ExportGroup("Album Demand Timing")]
+	[Export(PropertyHint.Range, "1958,1970,0.1")] public float albumDemandRiseStartYear = 1964f;
+	[Export(PropertyHint.Range, "1960,1975,0.1")] public float albumDemandRiseEndYear = 1972f;
 	
 		public MarketRegion() {
 		media = new MediaInfrastructure();
@@ -92,16 +96,24 @@ public partial class MarketRegion : Resource {
 			Genre.RockAndRoll or Genre.TeenPop or Genre.RnB or Genre.DooWop or Genre.GirlGroup => 0.22f,
 			_ => 0.40f
 		};
-		float decadeLift = Mathf.SmoothStep(0f, 0.58f, Mathf.Clamp((year - 1960f) / 9f, 0f, 1f));
-		float youthPenalty = youthPercentage * Mathf.Lerp(0.75f, 0.12f, Mathf.Clamp((year - 1960f) / 9f, 0f, 1f));
+		float eraProgress = GetAlbumDemandEraProgress(year);
+		float decadeLift = Mathf.SmoothStep(0f, 0.58f, eraProgress);
+		float youthPenalty = youthPercentage * Mathf.Lerp(0.75f, 0.12f, eraProgress);
 		return Mathf.Clamp(baseline * (1f - youthPenalty) + decadeLift, 0.05f, 1f);
 	}
 
 	public float GetAlbumPurchaseWillingness(int year) {
 		float normalizedIncome = Mathf.Clamp((averageIncome - 0.70f) / 0.55f, 0f, 1f);
-		float audienceAging = Mathf.Clamp((year - 1960f) / 9f, 0f, 1f);
+		float audienceAging = GetAlbumDemandEraProgress(year);
 		float youthPricePenalty = youthPercentage * Mathf.Lerp(1.25f, 0.35f, audienceAging);
 		return Mathf.Clamp(0.30f + normalizedIncome * 0.48f + audienceAging * 0.25f - youthPricePenalty, 0.08f, 1f);
+	}
+
+	private float GetAlbumDemandEraProgress(int year) {
+		if (albumDemandRiseEndYear <= albumDemandRiseStartYear)
+			return year >= albumDemandRiseEndYear ? 1f : 0f;
+		return Mathf.Clamp((year - albumDemandRiseStartYear) /
+			(albumDemandRiseEndYear - albumDemandRiseStartYear), 0f, 1f);
 	}
 	
 	public float GetBuyingPopulationPercentage() {

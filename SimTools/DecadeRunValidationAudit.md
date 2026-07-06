@@ -1,248 +1,121 @@
-# Directive 3D decade-run validation audit — interrupted diagnostic checkpoint
+# Directive 3D-R final validation audit
 
-Measured 2026-07-05 with Godot 4.7 Mono, headless. This audit records all valid evidence recovered after the album-enabled diagnostic was stopped at the user's request because of extreme runtime. It is intentionally not an acceptance audit.
+Measured 2026-07-05 through 2026-07-06 with Godot 4.7 Mono, headless. This audit supersedes the interrupted Directive 3D diagnostic previously stored at this path. The binding resumption authority is `Directive3DR2-Codex.md`.
 
 ## Decision
 
-**Directive 3D is not accepted.** The six prescribed album-disabled baselines completed and the year-one structural/RNG-inert telemetry checks pass. The first three album-enabled diagnostic seeds were interrupted during 1966 after roughly two and a half hours, so no enabled decade, measurement-seed checkpoint, determinism repeat, or hold-out pair completed.
+**FAIL - hold-out seed overfit.**
 
-The interruption is not the only reason for the negative decision. The complete 1960-1965 portions already establish three hard-gate failures:
+The final `hitRecencyDecay = 0.75` candidate passes every hard gate on measurement seeds 1001-1006, preserves all frozen disabled anchors, repeats deterministically across 29 simulation/telemetry streams, and materially compresses the effective source-hit age distribution. Hold-out seeds 2001 and 2003 confirm the candidate. Hold-out seed 2002 does not: its 1969 closed Top-40 median expands by +3 weeks while enabled competition is `7.375`, above the same-seed disabled value `7.255`. The approved volume adjudication therefore does not apply.
 
-1. album gross crosses above Single gross in **1963** in seeds 1001-1003, earlier than the allowed 1965 boundary;
-2. `AlbumStandalone` appears in **1962** and reaches 13.22%-14.25% of all decisions in 1963, violating the required `<0.5%` standalone share through 1963; and
-3. the paired closed Top-40 median is worse than `+/-2` weeks by 1964 or 1965 in every recovered seed.
+Per the directive, no tuning was performed after hold-out inspection. The implementation is left at the coherent measurement-seed candidate, but Phase 3D-R is not accepted.
 
-No calibration knob was changed, the contingency mechanic was not built, and hold-out seeds 2001-2003 were never run.
+## Directive review
 
-## Scope and files changed
+Sign-Off #2 is internally consistent and agrees with the repository evidence:
 
-- `SimTools/ChartAuditRunner.cs`: adds RNG-free `decade-annual-rollup.csv` observation state and output. It aggregates format units/gross/net, decision and strategy shares, compilation freshness, confidence, year-end revenue memory, expected-versus-realized completion cohorts, and album-to-Single gross ratio.
-- `SimTools/analyze-3d.mjs`: adds a streaming annual analyzer for large decade CSVs, plus compact output. It does not load multi-hundred-megabyte record streams into memory.
-- `SimTools/DecadeRunValidationAudit.md`: this checkpoint audit.
+- M3's 1964-1972 timing window is frozen.
+- M1 is closed and its reverted state is retained.
+- M2 alone is authorized as a level/realism mechanism, with softening toward 1.0 allowed if the suggested 0.5/year value destabilizes M3.
+- M3 may not be retuned to absorb M2.
+- Hold-out failure after a measurement-seed pass is a stop-and-report seed-overfit finding.
 
-No production simulation mechanic or exported calibration value was changed.
+The phrase "source-hit age distributions compress" needs one measurement qualification. Generation still references the artist's four most recent resolvable Singles, so raw reference age is not mechanically forced downward. The causal M2 measure is the freshness-weighted age distribution: age contribution after multiplying recency decay by existing per-use freshness. Both raw and weighted ages are reported below.
 
-## Phase 3D-0: frozen album-disabled baselines
+## Files changed
 
-All six `--disable-albums --weeks=520` runs completed before any enabled decade output was inspected. Runs were batched three at a time. Competition ratio below is successful releases divided by new Top-100 entries; album-disabled format decisions bypass `OnReleaseStrategy`, so that event stream cannot supply its usual numerator.
+- `Directive3DR2-Codex.md`: self-contained Markdown transcription of Sign-Off #2 and its binding milestone table.
+- `Systems/CompetitorManager.cs`: adds exported `hitRecencyDecay`; applies `hitRecencyDecay ^ (ageWeeks / 52)` multiplicatively with existing per-use freshness in `ResolveHitInventory` and compilation pooled appeal. No RNG, source-selection order, retirement rule, generation constant, Single table, peak-fit table, or M3 curve changed.
+- `SimTools/analyze-3d.mjs`: reports freshness-weighted source age, genre-stage pivots, Youth compilation arc, concept/cohesion emergence, non-adult album-chart share, standalone onset concentration, and project cancellation/transfer counts.
+- `SimTools/DecadeRunValidationAudit.md`: this final audit.
 
-### Annual units
+Pre-existing working-tree instrumentation in `AlbumTrack.cs`, `ChartManager.cs`, `ChartAuditRunner.cs`, and `analyze-3d.mjs` remains the source of the decade telemetry used here.
 
-| Year | Seed 1001 | Seed 1002 | Seed 1003 | Seed 1004 | Seed 1005 | Seed 1006 |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1960 | 154,810,982 | 158,812,169 | 165,617,751 | 161,038,169 | 161,990,515 | 164,662,011 |
-| 1961 | 184,816,416 | 191,481,726 | 204,741,885 | 194,614,773 | 192,597,473 | 196,712,799 |
-| 1962 | 193,942,990 | 207,650,554 | 216,780,875 | 211,245,523 | 207,702,218 | 211,906,062 |
-| 1963 | 197,359,432 | 204,214,989 | 223,962,982 | 220,136,193 | 209,382,724 | 216,348,689 |
-| 1964 | 204,277,839 | 210,759,388 | 221,832,809 | 216,854,707 | 210,957,827 | 217,416,164 |
-| 1965 | 212,735,370 | 222,691,660 | 233,007,693 | 231,356,927 | 226,202,388 | 224,470,934 |
-| 1966 | 217,992,043 | 218,291,507 | 239,959,051 | 232,629,841 | 223,528,133 | 227,151,548 |
-| 1967 | 227,324,481 | 228,800,558 | 243,940,045 | 234,766,803 | 229,677,422 | 231,152,905 |
-| 1968 | 236,389,006 | 243,371,598 | 253,815,443 | 244,817,778 | 244,125,763 | 242,622,985 |
-| 1969 | 229,598,919 | 232,967,958 | 248,424,467 | 241,196,500 | 229,869,576 | 236,673,709 |
+## Calibration change log
 
-### Annual Pearson / closed Top-40 median / competition ratio
+### M3 - frozen result
 
-Each cell is `Pearson / median weeks / competition ratio`.
+| Iteration | Window | Result |
+|---:|---:|---|
+| 1 | 1964-1969 | Removed the 1961 doubling; crossover 1966; zero standalone through 1963. Rejected because the 1969 median expansion was not volume-adjudicable in both seeds. |
+| 2 | 1963-1969 | Confirmed the pre-1964 trajectory and early guards; transition was unnecessarily abrupt. |
+| 3 | 1964-1970 | Crossover 1966/1967; seed 1002 still had a non-adjudicable 1969 median expansion. |
+| 4 | **1964-1972** | Six-seed pass; accepted and frozen by Sign-Off #2. |
 
-| Year | Seed 1001 | Seed 1002 | Seed 1003 |
-|---:|---:|---:|---:|
-| 1960 | .494339 / 10.5 / 4.204 | .528871 / 11 / 4.222 | .577964 / 11 / 4.315 |
-| 1961 | .424083 / 10 / 5.171 | .466723 / 10 / 5.044 | .484858 / 10 / 5.443 |
-| 1962 | .405224 / 10 / 5.739 | .412503 / 9 / 5.818 | .465416 / 10 / 6.132 |
-| 1963 | .367873 / 10 / 6.395 | .345667 / 10 / 6.425 | .438621 / 10 / 6.470 |
-| 1964 | .364771 / 10 / 6.738 | .385291 / 10 / 6.746 | .467953 / 10 / 7.067 |
-| 1965 | .357560 / 10 / 7.264 | .376584 / 10 / 7.034 | .418194 / 11 / 7.179 |
-| 1966 | .331085 / 10 / 7.340 | .320875 / 10 / 7.217 | .466689 / 10 / 7.457 |
-| 1967 | .302052 / 10 / 7.657 | .335894 / 10 / 7.432 | .390497 / 11 / 7.478 |
-| 1968 | .340726 / 10 / 7.580 | .368118 / 10 / 7.776 | .388881 / 10 / 7.810 |
-| 1969 | .316002 / 10 / 7.886 | .308458 / 10 / 7.886 | .361276 / 10 / 8.007 |
+### M1 - closed
 
-| Year | Seed 1004 | Seed 1005 | Seed 1006 |
-|---:|---:|---:|---:|
-| 1960 | .589329 / 10 / 4.157 | .538867 / 10 / 4.286 | .552586 / 11 / 4.130 |
-| 1961 | .585817 / 10 / 4.926 | .508668 / 9 / 4.986 | .542446 / 10 / 4.967 |
-| 1962 | .541200 / 10 / 5.704 | .525188 / 9 / 5.653 | .509789 / 9 / 5.716 |
-| 1963 | .514463 / 10 / 6.174 | .487574 / 9 / 6.143 | .477988 / 9 / 6.260 |
-| 1964 | .486335 / 10 / 6.655 | .506590 / 10 / 6.402 | .490463 / 10 / 6.733 |
-| 1965 | .486760 / 10 / 6.846 | .475266 / 10 / 6.818 | .465609 / 10 / 6.927 |
-| 1966 | .506497 / 10 / 7.305 | .526021 / 10 / 6.999 | .425411 / 10 / 7.089 |
-| 1967 | .437699 / 10 / 7.272 | .463884 / 10 / 7.194 | .414789 / 10 / 7.375 |
-| 1968 | .449944 / 10 / 7.423 | .454774 / 10 / 7.381 | .409639 / 10 / 7.504 |
-| 1969 | .456030 / 10 / 7.570 | .426222 / 10 / 7.434 | .397657 / 10 / 7.669 |
+The prior M1 iterations (weekly decay/floor `0.96/5%`, `0.94/1%`, and `0.80/0%`) could not reach the struck cumulative never-retired target without destroying plausible catalog contribution or crossover. Sign-Off #2 closes M1; none of its code is present.
 
-### Disabled runtime
+### M2
 
-| Batch | Seed | Wall time |
-|---|---:|---:|
-| 1 | 1001 | 345.63 s |
-| 1 | 1002 | 339.30 s |
-| 1 | 1003 | 355.35 s |
-| 2 | 1004 | 232.37 s |
-| 2 | 1005 | 235.23 s |
-| 2 | 1006 | 235.00 s |
+| Iteration | `hitRecencyDecay` | Probe/checkpoint | Result |
+|---:|---:|---|---|
+| 1 | 0.50 | Seeds 1001/1002 probe, then 1001-1006 checkpoint | Headline arc passed and weighted source age compressed about 26%, but seed 1001 breached the Pearson floor (`-0.0845`) and seed 1005's 1969 +3 median expansion had competition above disabled. Rejected. |
+| 2 | **0.75** | Adverse seeds 1001/1005, then 1001-1006 checkpoint | All measurement hard gates passed; weighted source age compressed 12.7%-15.3%. Frozen before hold-outs. |
 
-## Structural and telemetry-inertness evidence
+No Album-arm decision scalar was changed. No post-hold-out iteration exists.
 
-The post-telemetry 52-week album-disabled seed-1001 verification reproduces all frozen anchors:
+## Structural validation
 
 | Check | Result |
 |---|---|
-| 1960 annual market units | `154,810,982` exact |
-| `market-revenue.csv` SHA-256 | `765897841BCB1C62225EF2A7861CF46ACC282FE206A10BADCF895330612A3866` exact |
-| `release-capacity.csv` SHA-256 | `8B84BBFDBA5F8B38729F29A1FDF14F8F7598A7AF18DCBAD053BC6C8238A9A461` exact |
-| Build | succeeded, 0 warnings, 0 errors |
+| Build | Pass: 0 errors; one pre-existing unused-event warning (`ChartManager.OnGenreMomentumChanged`). |
+| Disabled seed-1001 1960 Single units | Pass: `154,810,982`. |
+| Disabled `market-revenue.csv` SHA-256 | Pass: `765897841BCB1C62225EF2A7861CF46ACC282FE206A10BADCF895330612A3866`. |
+| Disabled `release-capacity.csv` SHA-256 | Pass: `8B84BBFDBA5F8B38729F29A1FDF14F8F7598A7AF18DCBAD053BC6C8238A9A461`. |
+| Disabled-path inertness | Pass: M2 is downstream of the `enableAlbums` early return; fresh disabled decade pairs were generated for every measurement and hold-out seed. |
+| Seed-1001 decade determinism | Pass: all 29 deterministic CSV streams byte-identical. The excluded performance profile contains wall-clock measurements by design. |
+| RNG/order | Pass by inspection: M2 adds only snapshot lookup and deterministic arithmetic; no `GD.Rand*` call or iteration-order change. |
 
-The annual telemetry reads existing events, record state, album snapshots, label memory, and weekly revenue dictionaries. It has no `GD.Rand*` call and does not invoke simulation decision methods. The byte-identical frozen hashes prove that adding it did not change the established year-one draw order or behavior.
+Every completed Godot run exited code 0 and emitted `CHART_AUDIT_COMPLETE`. Godot also prints the known post-run `MissingSingletonsTemp.cs` autoload diagnostic after completion; it did not truncate or invalidate output.
 
-The decade-scale determinism repeat and decade-scale cannibalization/freshness inertness checks were not reached.
+## Measurement-seed milestone table
 
-## Interrupted Phase 3D-1 evidence
+All shares are decision shares. Pearson values are paired against each seed's fresh disabled decade. Late median expansions are volume-adjudicated only when positive and enabled competition is below disabled.
 
-Seeds 1001-1003 were launched together with albums enabled and the frozen configuration. All three remained responsive and CPU-active until manually stopped. Because `StreamWriter` buffers differ by stream, the interrupted files end at different weeks and some final lines are truncated. Final-only streams such as `decade-annual-rollup.csv` remained zero bytes because orderly end-of-run flushing never occurred.
+| Seed | Crossover | Standalone onset | 1960 overall / adult / youth | 1969 Album | Pearson mean / min | Early median max | 1969 deflation |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1001 | 1967 | 1966 | 25.7% / 59.3% / 11.7% | 82.4% | +0.0742 / -0.0389 | 0.5 | 21.5% |
+| 1002 | 1968 | 1965 | 23.3% / 50.9% / 11.1% | 82.9% | +0.0864 / -0.0422 | 1.0 | 20.8% |
+| 1003 | 1967 | 1966 | 24.2% / 55.3% / 11.1% | 85.4% | +0.0868 / -0.0032 | 1.0 | 24.0% |
+| 1004 | 1968 | 1966 | 25.6% / 54.4% / 10.4% | 85.0% | +0.0846 / +0.0048 | 1.0 | 20.0% |
+| 1005 | 1967 | 1966 | 24.3% / 53.9% / 12.0% | 81.8% | +0.0387 / -0.0540 | 1.0 | 17.0% |
+| 1006 | 1967 | 1966 | 23.4% / 52.8% / 9.8% | 79.4% | +0.0757 / -0.0147 | 1.0 | 22.5% |
 
-The recovered weekly, record, lifecycle, release-strategy, market-revenue, album-chart, and album-composition streams contain six complete years, 1960-1965. Only those complete years are used below. Partial 1966 rows are excluded. These are diagnostic observations, not checkpoint measurements.
+Measurement decision: all six pass. Standalone is exactly zero through 1963 in every seed. No median compression is worse than -1. All late breaches are positive and have enabled competition below the paired disabled value.
 
-### Milestone-relevant enabled results
+## M2 source-age result
 
-| Seed | Year | Album share | Adult Album | Youth Album | Standalone share | Album/Single gross |
-|---:|---:|---:|---:|---:|---:|---:|
-| 1001 | 1960 | 26.62% | 57.63% | 12.11% | 0.00% | 0.062 |
-| 1001 | 1961 | 55.47% | 83.62% | 50.72% | 0.00% | 0.245 |
-| 1001 | 1962 | 84.34% | 94.93% | 91.26% | 3.56% | 0.677 |
-| 1001 | 1963 | 88.87% | 95.59% | 95.78% | 14.25% | **1.244** |
-| 1001 | 1964 | 90.04% | 93.06% | 96.07% | 32.89% | 1.612 |
-| 1001 | 1965 | 88.10% | 94.01% | 94.32% | 40.85% | 1.624 |
-| 1002 | 1960 | 24.17% | 54.92% | 10.74% | 0.00% | 0.051 |
-| 1002 | 1961 | 54.17% | 81.67% | 50.61% | 0.00% | 0.213 |
-| 1002 | 1962 | 82.67% | 92.51% | 90.95% | 3.05% | 0.637 |
-| 1002 | 1963 | 88.64% | 93.01% | 97.63% | 13.96% | **1.250** |
-| 1002 | 1964 | 90.32% | 92.80% | 96.23% | 35.60% | 1.570 |
-| 1002 | 1965 | 89.40% | 93.22% | 95.05% | 43.94% | 1.599 |
-| 1003 | 1960 | 26.27% | 55.69% | 12.09% | 0.00% | 0.056 |
-| 1003 | 1961 | 58.34% | 84.94% | 52.93% | 0.00% | 0.251 |
-| 1003 | 1962 | 86.59% | 93.93% | 92.60% | 3.23% | 0.726 |
-| 1003 | 1963 | 90.31% | 94.69% | 96.35% | 13.22% | **1.234** |
-| 1003 | 1964 | 90.83% | 95.78% | 97.14% | 38.57% | 1.632 |
-| 1003 | 1965 | 90.48% | 97.19% | 95.03% | 51.51% | 1.799 |
+At 1969, raw referenced-hit mean age is 63.4-75.5 weeks. The freshness-weighted mean falls from the M3 range of 36.6-39.5 weeks to 31.8-34.1 weeks under M2, a 12.7%-15.3% compression across all six seeds. This is the distribution actually consumed by hit inventory and compilation pooled appeal.
 
-Interpretation:
+## Soft bands and report-only watches
 
-- The 1960 mix gate passes in all three recovered seeds.
-- Album choice then jumps to 54%-58% in 1961 and 83%-87% in 1962. The intended rising arc is an abrupt takeover.
-- Revenue crosses in 1963 in all three seeds, a binding early-crossover failure.
-- Standalone choice remains zero in 1960-1961 but begins in 1962, a binding withheld-ordering failure.
-- The contingency trigger does not fire: Youth Album share is never below 2%; it exceeds 50% in 1961 and 90% from 1962 onward.
-- Rung 1 only affects pooled appeal and cohesion ceilings. These results strongly suggest the timing failure is rooted in the decision/demand path identified in the directive's correction 1, not merely chart-quality timing. No calibration was attempted after this diagnostic.
+- **Album trend:** pass. 1969 Album decision share is more than 3x 1960 in every measurement seed. Seeds 1005/1006 finish slightly below the report-level 82%-86% range; this is not a hard gate.
+- **Substitution deflation:** pass, 17.0%-24.0% below same-seed disabled 1969 combined units.
+- **Adult ghetto dissolution:** miss. Non-adult album-chart rows rise from 1.4%-3.2% in 1960 to 16.1%-21.4% in 1969, below the expected >=30%. The direction is correct but magnitude is insufficient; no frozen mechanic was changed to force it.
+- **Withheld concentration:** onset is 1965-1966. At onset, 43.9%-100% of standalone decisions are Established-or-higher, and mean demand factor rises thereafter as standalone broadens.
+- **Youth compilation arc:** pass in level/continuity. Youth compilations are never extinct and rise from 185-248 releases in 1960 to 2,588-3,008 in 1969; they remain 90.5%-91.7% of Youth Albums in 1969.
+- **Genre stagger:** pass using the declared 50% Album-decision pivot. Adult genres pivot in 1960; country/blues in 1961-1962; rock/R&B/soul in 1965-1966.
+- **Concept/cohesion:** concepts emerge in 1967 in every seed and reach 477-534 releases in 1969. Mean cohesion rises from 0.08 in 1960 to 0.51-0.52 in 1969.
+- **Memory:** 1969 mean confidence is 0.971-0.978 for Singles and 0.922-0.927 for Albums.
+- **Promo overprojection:** carried. 1969 promo signed error remains +$19.3K to +$22.5K; M2 was not authorized as a promo repair.
+- **Youth-comp overprojection:** carried. 1969 signed error is +$15.4K to +$20.6K despite the healthy release arc.
+- **Lifecycle:** cancellations are nonzero (2-10 per seed). Transfers are zero in five seeds and one in seed 1003; transfer scarcity remains report-only.
 
-### Recovered singles guards
+## Hold-out results - consumed once
 
-Annual Pearson populations use distinct Singles charting within the year, with outcome `101 - best annual position`. Closed medians use terminal lifecycle rows mapped to the terminal year. Deltas are against the same-seed frozen disabled year.
+| Seed | Crossover | Standalone onset | 1960 overall / adult / youth | Pearson mean / min | Early median max | 1969 deflation | Decision |
+|---:|---:|---:|---:|---:|---:|---:|---|
+| 2001 | 1968 | 1966 | 23.8% / 55.2% / 10.3% | +0.1150 / +0.0176 | 1.0 | 22.9% | Confirm |
+| 2002 | 1967 | 1966 | 25.6% / 51.6% / 13.0% | +0.0833 / -0.0096 | 1.0 | 21.0% | **Fail: 1969 median adjudication** |
+| 2003 | 1967 | 1965 | 24.6% / 54.8% / 10.7% | +0.1081 / -0.0006 | 0.0 | 23.3% | Confirm |
 
-| Seed | Year | Pearson delta | Disabled/enabled median | Median delta |
-|---:|---:|---:|---:|---:|
-| 1001 | 1960 | -0.02630 | 10.5 / 10 | -0.5 |
-| 1001 | 1961 | +0.02834 | 10 / 10 | 0 |
-| 1001 | 1962 | -0.02807 | 10 / 10 | 0 |
-| 1001 | 1963 | +0.08556 | 10 / 12 | +2 |
-| 1001 | 1964 | +0.14817 | 10 / 12 | +2 |
-| 1001 | 1965 | +0.16658 | 10 / 13 | **+3** |
-| 1002 | 1960 | -0.03179 | 11 / 11 | 0 |
-| 1002 | 1961 | +0.02790 | 10 / 10 | 0 |
-| 1002 | 1962 | +0.05210 | 9 / 11 | +2 |
-| 1002 | 1963 | +0.11534 | 10 / 12 | +2 |
-| 1002 | 1964 | +0.17731 | 10 / 13 | **+3** |
-| 1002 | 1965 | +0.16591 | 10 / 13 | **+3** |
-| 1003 | 1960 | +0.01248 | 11 / 11 | 0 |
-| 1003 | 1961 | +0.04715 | 10 / 10 | 0 |
-| 1003 | 1962 | +0.09175 | 10 / 11 | +1 |
-| 1003 | 1963 | +0.14991 | 10 / 12 | +2 |
-| 1003 | 1964 | +0.11041 | 10 / 13 | **+3** |
-| 1003 | 1965 | +0.19083 | 11 / 13 | +2 |
+Seed 2002's 1969 median delta is `+3`; enabled competition is `7.375`, disabled competition is `7.255`. Because enabled is not below disabled, condition (iii) of the approved late-decade volume adjudication fails. This is precisely the directive's seed-overfit stop condition.
 
-No recovered Pearson year violates the `-0.06` floor. The ten-year mean cannot be evaluated. The median hard gate is already impossible because each seed has at least one year worse than `+/-2`.
+## Runtime and batching
 
-### Report-only emergence evidence
-
-Album composition rows show zero Concept albums through 1965 in all three seeds. Mean thematic cohesion is `0.080` in every recovered seed-year despite the configured cohesion-rise window beginning in 1964. The intended concept emergence and filler-death narrative is therefore not visible in the complete recovered interval.
-
-The 1969 substitution, non-adult album-chart share, genre pivot ordering, final freshness bound, full memory convergence, two-sided decade error, cancellation/transfer reconciliation, and final B5 gradient cannot be adjudicated from an interrupted 1966 run.
-
-## Extreme album-enabled runtime
-
-### Observation
-
-- Disabled decades completed in 3.9-5.9 minutes per seed in three-process batches.
-- Enabled seeds 1001-1003 ran for approximately 2.5 hours wall time without reaching the end of 1966.
-- At the last recorded health sample, each simulation had consumed about `8,242-8,249` CPU seconds (roughly 137.5 CPU-minutes), remained responsive, and used only 268-312 MB. They continued running for several minutes after that sample.
-- The three interrupted runs had already flushed 792,375,296; 787,443,712; and 767,275,008 bytes across 22 nonempty CSVs. Seven final/small streams remained empty.
-- The last fully parseable `weeks.csv` rows were around weeks 317-318, early 1966. Other buffered streams reached later 1966 weeks, confirming continued forward progress rather than a deadlock.
-
-This was CPU-bound pathological scaling, not a hang or a memory leak.
-
-### Leading theory: quadratic record lookup under catalog growth
-
-`ChartManager.GetRecordRuntimeData` uses `allRecords.FirstOrDefault`, a linear scan. `CompetitorManager.CalculateLabelRevenue` loops over every active record ID for every active label and calls that linear lookup once per ID. With `N` active records, this is approximately `O(N^2)` lookup work every week.
-
-The enabled active pool grew from roughly 2,400-2,600 records at end-1960 to 14,125-14,680 at end-1965:
-
-| Year end | Seed 1001 | Seed 1002 | Seed 1003 |
-|---:|---:|---:|---:|
-| 1960 | 2,537 | 2,439 | 2,589 |
-| 1961 | 4,871 | 4,695 | 5,069 |
-| 1962 | 8,296 | 8,078 | 8,562 |
-| 1963 | 11,160 | 11,046 | 11,513 |
-| 1964 | 13,193 | 13,058 | 13,513 |
-| 1965 | 14,234 | 14,125 | 14,680 |
-
-At 14,000 active records, an `N`-by-linear-scan pattern can imply on the order of 196 million record comparisons per simulated week before other simulation work. This is the strongest code-grounded explanation for the superlinear slowdown.
-
-Album updates add a second instance of the same risk: every linked Album calls `GetRecordRuntimeData(linkedPromoSingleId)` during `AlbumSimulator.UpdateAlbum`, again scanning the full active list.
-
-### Catalog retention amplifies every weekly pass
-
-Albums retire only when they are off-chart, below `albumCatalogSalesFloor = 10`, and either never-charted for 26 weeks or charted and simultaneously 52 weeks past both charting and above-floor sales. The recovered decision mix creates thousands of Albums annually, while long-tail demand can keep them at or above ten units. This makes the active catalog much larger than the disabled Single-only pool.
-
-`ChartManager.SimulateWeek` then performs several full active-record passes, including six regional sales/state iterations per record, chart construction/sorting, relevance updates, and retirement checks. These paths are mostly `O(N * regions)` or `O(N log N)` rather than quadratic, but at 14,000 records they become substantial and magnify the lookup problem.
-
-### Lifetime project scans are a secondary suspect
-
-`CompetitorManager.ProcessDueAlbumProjects` filters and orders the entire lifetime `albumProjects` list every week. Released and cancelled projects remain in that list for audit/reconciliation. With tens of thousands of decisions, this adds a growing `O(P)` scan and avoidable ordering work each week. It is unlikely to dominate the quadratic record lookup, but it contributes to the decade slope.
-
-### Telemetry volume contributes but does not explain the shape alone
-
-The full harness observes and writes every active record across several streams. By interruption it had emitted about 2.35 GB for only three partial runs. That increases serialization and disk cost, and `CaptureWeek` itself performs multiple `GetAllRecords`/grouping passes. However, all Godot workers remained continuously CPU-saturated with stable memory, and the production weekly loops already contain the catalog-size hot paths above. Telemetry is an amplifier, not a sufficient explanation for the disabled/enabled runtime ratio.
-
-### Recommended performance-only investigation before another decade run
-
-These are investigation targets, not changes authorized or made by this pass:
-
-1. profile one enabled seed by simulated year and record active count;
-2. index live records by ID so `GetRecordRuntimeData` is `O(1)`, preserving `allRecords` order separately for deterministic iteration;
-3. maintain a due-project queue/index instead of filtering and sorting all historical projects weekly;
-4. measure Album retirement cohorts to determine why so many titles remain active at or above ten units;
-5. add explicit periodic flush/progress rows for long runs so an interrupted process retains the annual rollup; and
-6. compare a no-telemetry enabled run against the full harness to isolate observation overhead without changing simulation behavior.
-
-Any optimization must preserve iteration order, RNG calls, and the frozen year-one hashes before its output can be used for Directive 3D.
-
-## Calibration and contingency log
-
-No Rung-1 or Rung-2 value changed. Therefore there is no before/after calibration mix to report.
-
-The comp launch-awareness contingency trigger did not fire in the recovered complete years: Youth Album share was 10.74%-12.11% in 1960, exceeded 50% in 1961, and exceeded 90% thereafter. `compAwarenessScalar` was not added.
-
-## Work not completed
-
-- enabled diagnostic seeds 1004-1006;
-- any six-seed calibration checkpoint;
-- decade determinism repeat;
-- decade-long project and memory reconciliation;
-- decade cannibalization/freshness inertness proof;
-- complete 1969 milestone table and emergent-arc narrative;
-- one-shot enabled/disabled hold-outs 2001-2003; and
-- a pass decision.
+Runs used `--aggregate-only`, which preserves the milestone, project, composition, strategy, and annual telemetry while omitting the largest per-record stream. Enabled decades were batched two to four at a time and generally completed in about 247-341 seconds per batch; the six disabled measurement baselines completed together in about 146 seconds. Hold-out enabled+disabled pairs completed together in about 337 seconds.
 
 ## Final disposition
 
-**Fail/incomplete checkpoint.** Phase 3D cannot pass from this evidence, and the recovered complete interval already contains binding early-crossover, withheld-ordering, and median-guard failures. The implementation remains at a coherent telemetry-only checkpoint with frozen simulation mechanics and no calibration changes.
+The implementation is technically coherent and passes the full measurement checkpoint, but the one-shot hold-out result prevents acceptance. Do not tune against seed 2002. Any future resumption requires new written direction: either accept the observed hold-out variance, revise the late-median guard before a newly prespecified hold-out set, or reject M2/Phase 3D-R. The current directive is exhausted at its mandated stop condition.

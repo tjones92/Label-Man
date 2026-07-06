@@ -1148,6 +1148,7 @@ public partial class ChartManager : Node {
 		genre = record.baseRecord.primaryGenre,
 		quality = record.GetQuality(),
 		isReleasedSingle = true,
+		releaseDate = record.baseRecord.releaseDate,
 		peakPosition = record.peakPosition
 	};
 

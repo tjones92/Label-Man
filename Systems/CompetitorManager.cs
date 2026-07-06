@@ -36,6 +36,7 @@ public partial class CompetitorManager : Node {
 	[Export(PropertyHint.Range, "0.1,20,0.1")] private float revenueMemoryConfidenceK = 4.0f;
 	[Export] private float priorUnitScalarAlbum = 175000f;
 	[Export] private float priorCompHitUnitScalar = 20000f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float hitRecencyDecay = 0.75f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float priorAssumedAlbumPackaging = 0.50f;
 	[Export(PropertyHint.Range, "1958,1965,0.1")] private float albumEraWeightStartYear = 1960f;
 	[Export(PropertyHint.Range, "1965,1972,0.1")] private float albumEraWeightEndYear = 1968f;
@@ -973,7 +974,7 @@ public partial class CompetitorManager : Node {
 	private static bool IsGeneratorAdultGenre(Genre genre) => genre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
 		Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
 
-	private static HitInventory ResolveHitInventory(SimulatedArtist artist) {
+	private HitInventory ResolveHitInventory(SimulatedArtist artist) {
 		var result = new HitInventory();
 		if (artist?.releasedSingleIds == null || ChartManager.Instance == null) return result;
 		foreach (string recordId in artist.releasedSingleIds.AsEnumerable().Reverse()) {
@@ -982,12 +983,24 @@ public partial class CompetitorManager : Node {
 			result.resolvedSingles++;
 			if (track.peakPosition is >= 1 and <= 100) {
 				result.chartedSingles++;
-				float freshness = ChartManager.Instance.GetCompFreshness(recordId);
+				float freshness = GetSourceHitFreshness(recordId, track);
 				result.hitScore += freshness * (101f - track.peakPosition) / 100f;
 			}
 			if (result.resolvedSingles >= 4) break;
 		}
 		return result;
+	}
+
+	private float GetSourceHitFreshness(string recordId, AlbumTrack track = null) {
+		float perUseFreshness = ChartManager.Instance?.GetCompFreshness(recordId) ?? 1f;
+		if (track == null && (ChartManager.Instance == null ||
+			!ChartManager.Instance.TryGetTrackSnapshot(recordId, out track))) return perUseFreshness;
+		if (track.releaseDate.year <= 0 || TimeManager.Instance == null) return perUseFreshness;
+
+		GameDate currentDate = TimeManager.Instance.CurrentDate;
+		int ageWeeks = currentDate >= track.releaseDate ? currentDate.WeeksDifference(track.releaseDate) : 0;
+		float annualDecay = Mathf.Clamp(hitRecencyDecay, 0f, 1f);
+		return perUseFreshness * Mathf.Pow(annualDecay, ageWeeks / 52f);
 	}
 
 	private static float CalculateSingleGenreMarketFactor(Genre genre, int year) {
@@ -1173,7 +1186,7 @@ public partial class CompetitorManager : Node {
 
 		float avgTrackMinutes = (float)GD.RandRange(2.45, year >= 1967 ? 4.10 : 3.35);
 		float[] referencedFreshness = referencedSingles
-			.Select(track => ChartManager.Instance.GetCompFreshness(track.sourceRecordId)).ToArray();
+			.Select(track => GetSourceHitFreshness(track.sourceRecordId, track)).ToArray();
 		int[] referencedCompUses = referencedSingles
 			.Select(track => ChartManager.Instance.GetCompUseCount(track.sourceRecordId)).ToArray();
 		var album = new Album {
