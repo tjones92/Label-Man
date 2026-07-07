@@ -124,6 +124,9 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter albumProjectWeeklyWriter;
 	private StreamWriter decadeAnnualRollupWriter;
 	private StreamWriter performanceProfileWriter;
+	private StreamWriter cityRosterWriter;
+	private StreamWriter distanceMatrixWriter;
+	private StreamWriter labelGeographyWriter;
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
@@ -180,6 +183,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome += OnReleaseOutcome;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
+			WriteDistanceSubstrateRows();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			InitializeObservedState();
 
@@ -349,6 +353,9 @@ public partial class ChartAuditRunner : Node {
 		albumProjectDemandWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-project-demand.csv"));
 		albumProjectWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-project-weekly.csv"));
 		decadeAnnualRollupWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-decade-annual-rollup.csv"));
+		cityRosterWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-city-roster.csv"));
+		distanceMatrixWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-distance-matrix.csv"));
+		labelGeographyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-geography.csv"));
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
@@ -380,10 +387,44 @@ public partial class ChartAuditRunner : Node {
 		albumProjectDemandWriter.WriteLine("projectId,strategy,albumRecordId,rawDemandBeforeCannibalization,suppressedDemand,demandWeightedSuppression,initialLaunchAwareness,initialLaunchStock,linkedPromoId,demandWithActiveLinkedPromo,demandWithInactiveLinkedPromo,demandWeightedSingleHeat,demandWeightedSubstitutionPropensity,reconciledDemandWeightedSuppression");
 		albumProjectWeeklyWriter.WriteLine("week,year,pipelineAlbumDrops");
 		decadeAnnualRollupWriter.WriteLine("seed,year,singleUnits,singleGross,singleNet,albumUnits,albumGross,albumNet,albumToSingleGross,albumGrossOver26WeeksShare,albumGrossOver52WeeksShare,decisions,albumDecisionShare,adultDecisions,adultAlbumShare,youthDecisions,youthAlbumShare,orphanShare,promoShare,standaloneShare,meanSingleConfidence,meanAlbumConfidence,compilationAlbums,compilationTrackRefs,freshnessUse0,freshnessUse1,freshnessUse2,freshnessUse3Plus,meanFreshness,minFreshness,maxFreshness,singleMemoryMeanEma,singleMemoryN,albumMemoryMeanEma,albumMemoryN,completedMatched,completedMeanExpected,completedMeanRealized,completedSignedError,youthCompCompleted,youthCompMeanExpected,youthCompMeanRealized,youthCompSignedError,promoCompleted,promoMeanExpected,promoMeanRealized,promoSignedError,singlePearson,singlePearsonN,closedTop40Median,closedTop40N,activeSingles,activeAlbums,albumAgeMedian,albumAgeP90,albumUnitsMin,albumUnitsP25,albumUnitsMedian,albumUnitsP75,albumUnitsP90,albumUnitsMax,albumsBelowSalesFloor,albumsAtOrAboveSalesFloor,albumsBelowSalesFloorShare,albumsEverReleased,albumsRetired,albumsNeverRetiredShare");
+		cityRosterWriter.WriteLine("cityId,name,mapX,mapY,parentRegionId,futureRegionId,isRegionalHub,distributionTier,difficulty,recordStoreCount,departmentStoreCount,inventoryDepth,hasOneStopDistributors,hasIndieDistribution,projection");
+		distanceMatrixWriter.WriteLine("fromCityId,fromCityName,toCityId,toCityName,distance");
+		labelGeographyWriter.WriteLine("labelId,labelName,headquartersCity,homeRegion,homeCityId,homeCityName,assignmentSource,nodeSet");
 		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
 				label.isHistorical ? "true" : "false", Csv(label.tier.ToString()) }));
+		}
+	}
+
+	private void WriteDistanceSubstrateRows() {
+		foreach (MarketCity city in DistanceModel.GetCities().OrderBy(city => city.cityId, StringComparer.Ordinal)) {
+			DistributionNetwork network = city.distribution;
+			cityRosterWriter.WriteLine(string.Join(",", new[] {
+				Csv(city.cityId), Csv(city.name), F(city.mapCoords.X), F(city.mapCoords.Y), Csv(city.parentRegionId),
+				Csv(city.futureRegionId), city.isRegionalHub ? "true" : "false",
+				city.distributionTier.ToString(CultureInfo.InvariantCulture), F(network.difficulty),
+				network.recordStoreCount.ToString(CultureInfo.InvariantCulture),
+				network.departmentStoreCount.ToString(CultureInfo.InvariantCulture), F(network.inventoryDepth),
+				network.hasOneStopDistributors ? "true" : "false", network.hasIndieDistribution ? "true" : "false",
+				Csv(DistanceModel.ProjectionDescription)
+			}));
+		}
+
+		foreach (var row in DistanceModel.GetDistanceMatrixRows()) {
+			distanceMatrixWriter.WriteLine(string.Join(",", new[] {
+				Csv(row.From.cityId), Csv(row.From.name), Csv(row.To.cityId), Csv(row.To.name), F(row.Distance)
+			}));
+		}
+
+		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
+			var resolved = DistanceModel.ResolveHomeCity(label);
+			string[] nodeNames = DistanceModel.GetDistributionNodeNames(label);
+			labelGeographyWriter.WriteLine(string.Join(",", new[] {
+				Csv(label.labelId), Csv(label.labelName), Csv(label.headquartersCity), Csv(label.homeRegion),
+				Csv(label.homeCityId), Csv(resolved.City?.name), Csv(label.homeCityAssignmentSource),
+				Csv(string.Join("|", nodeNames))
+			}));
 		}
 	}
 
@@ -1218,6 +1259,9 @@ public partial class ChartAuditRunner : Node {
 		releaseCapacityWriter?.Flush();
 		formatMixWriter?.Flush();
 		albumProjectWeeklyWriter?.Flush();
+		cityRosterWriter?.Flush();
+		distanceMatrixWriter?.Flush();
+		labelGeographyWriter?.Flush();
 	}
 
 	private void WriteAnnualFormatMixRows() {
@@ -1389,6 +1433,9 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWeeklyWriter?.Dispose();
 		decadeAnnualRollupWriter?.Dispose();
 		performanceProfileWriter?.Dispose();
+		cityRosterWriter?.Dispose();
+		distanceMatrixWriter?.Dispose();
+		labelGeographyWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -1419,5 +1466,8 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWeeklyWriter = null;
 		decadeAnnualRollupWriter = null;
 		performanceProfileWriter = null;
+		cityRosterWriter = null;
+		distanceMatrixWriter = null;
+		labelGeographyWriter = null;
 	}
 }

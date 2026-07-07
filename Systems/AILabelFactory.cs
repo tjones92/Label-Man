@@ -125,6 +125,7 @@ public static class AILabelFactory {
 		ApplyTierStats(label, tier, template.archetype);
 		label.strongRegions = GetRegionalStrength(template.city);
 		label.distributionRegions = GetDistributionRegions(tier, template.city);
+		DistanceModel.AssignHomeCity(label);
 		return label;
 	}
 	
@@ -152,6 +153,7 @@ public static class AILabelFactory {
 		ApplyTierStats(label, tier, archetype);
 		label.strongRegions = GetRegionalStrength(city);
 		label.distributionRegions = GetDistributionRegions(tier, city);
+		DistanceModel.AssignHomeCity(label);
 		return label;
 	}
 	

@@ -335,7 +335,9 @@ public static class ChartSimulator {
 			: 0.10f + (label.distributionStrength * 0.75f);
 		float strongDepth = strong ? 1.45f : 1f;
 		float noise = (float)GD.RandRange(0.85, 1.15);
-		int raw = Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise);
+		// DISTANCE-4B: neutral in 4a; 4b turns regional reach into real stock friction.
+		float reachFactor = DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(regionId));
+		int raw = Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise * reachFactor);
 		int floor = isHome || strong ? 100 : 0;
 		return Mathf.Max(floor, raw);
 	}

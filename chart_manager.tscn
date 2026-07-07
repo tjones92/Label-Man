@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://0gmh86vjv8up" path="res://Data/GenrePreference.cs" id="2_pc72m"]
 [ext_resource type="Script" uid="uid://bb5ll6a022k0t" path="res://Data/MediaInfrastructure.cs" id="4_ddtov"]
 [ext_resource type="Script" uid="uid://c7ua0jy16dehg" path="res://Data/MusicInfrastructure.cs" id="5_w1ett"]
+[ext_resource type="Script" path="res://Systems/DistanceModel.cs" id="7_distance"]
 
 [sub_resource type="Resource" id="Resource_ku6sc"]
 script = ExtResource("2_ku6sc")
@@ -1636,3 +1637,6 @@ metadata/_custom_type_script = "uid://ck2ykr1kmstw"
 [node name="ChartManager" type="Node" unique_id=233342509]
 script = ExtResource("1_o3mq1")
 allRegions = Array[Object]([SubResource("Resource_77lym"), SubResource("Resource_4xj30"), SubResource("Resource_w3svk"), SubResource("Resource_wkcml"), SubResource("Resource_om038"), SubResource("Resource_gx6p6")])
+
+[node name="DistanceModel" type="Node" parent="."]
+script = ExtResource("7_distance")

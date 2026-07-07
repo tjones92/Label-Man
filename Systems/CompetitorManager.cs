@@ -294,19 +294,21 @@ public partial class CompetitorManager : Node {
 			float pricePerUnit = GetPricePerUnit(format);
 			float pressingCost = GetPressingCostPerUnit(format);
 			if (format == ReleaseFormat.Album) pressingCost += albumPackagingCostPerUnit * (runtimeData.baseRecord.album?.packaging ?? 0f);
-			float grossPerUnit = Mathf.Max(0f, pricePerUnit - pressingCost);
 			var artist = ArtistManager.Instance?.GetArtist(runtimeData.baseRecord.artistId);
 			float artistRoyalty = artist?.royaltyRate ?? 0.05f;
 			float skimFraction = label.activeDeal != null
 				? Mathf.Clamp(label.activeDeal.marginSkim, 0f, 1f)
 				: 0.25f * (1f - label.ownedReach);
 			float retailGross = weeklyUnits * pricePerUnit;
-			float cogs = weeklyUnits * pressingCost;
-			float skimAmount = weeklyUnits * grossPerUnit * skimFraction;
+			// DISTANCE-4B: 4a sums by current-region hub with a neutral cost factor; 4b
+			// makes manufacturing margin, skim basis, and artist recoupment region-weighted.
+			float cogs = CalculateRegionalCogs(label, runtimeData, pressingCost);
+			float grossAfterCogs = Mathf.Max(0f, retailGross - cogs);
+			float skimAmount = grossAfterCogs * skimFraction;
 			// Keep the existing artist contract convention (royalty on retail). The
 			// distribution skim is based on revenue after manufacturing cost.
 			float artistPayment = retailGross * artistRoyalty;
-			float recordRevenue = weeklyUnits * grossPerUnit - skimAmount - artistPayment;
+			float recordRevenue = grossAfterCogs - skimAmount - artistPayment;
 			runtimeData.lifetimeLabelNet += recordRevenue;
 			totalRevenue += recordRevenue;
 			label.weeklyGrossRevenue += retailGross;
@@ -335,6 +337,28 @@ public partial class CompetitorManager : Node {
 		}
 		SimulationPerformanceProfiler.EndCalculateLabelRevenue(profileStart);
 		return totalRevenue;
+	}
+
+	private float CalculateRegionalCogs(AILabel label, RecordRuntimeData runtimeData, float pressingCost) {
+		if (runtimeData.regionalData == null || runtimeData.regionalData.Count == 0) {
+			return runtimeData.unitsThisWeek * pressingCost * DistanceModel.GetDistributionCostFactor(label, label.headquartersCity);
+		}
+
+		float cogs = 0f;
+		int regionalUnits = 0;
+		foreach (var pair in runtimeData.regionalData) {
+			int units = pair.Value?.unitsSoldThisWeek ?? 0;
+			if (units <= 0) continue;
+			regionalUnits += units;
+			string regionHubCity = DistanceModel.GetHubCityIdForRegion(pair.Key);
+			cogs += units * pressingCost * DistanceModel.GetDistributionCostFactor(label, regionHubCity);
+		}
+
+		int unassignedUnits = runtimeData.unitsThisWeek - regionalUnits;
+		if (unassignedUnits != 0) {
+			cogs += unassignedUnits * pressingCost * DistanceModel.GetDistributionCostFactor(label, label.headquartersCity);
+		}
+		return cogs;
 	}
 
 	private float GetPricePerUnit(ReleaseFormat format) {

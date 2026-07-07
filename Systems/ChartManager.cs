@@ -698,6 +698,8 @@ public partial class ChartManager : Node {
 					float serviceLevel = isCovered
 						? 0.70f + (label.distributionStrength * 0.80f)
 						: 0.18f + (label.distributionStrength * 0.25f);
+					// DISTANCE-4B: neutral in 4a; 4b applies city-distance reach to restock service.
+					serviceLevel *= DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(region.regionId));
 					int restockAmount = Mathf.RoundToInt(demandSignal * serviceLevel);
 					int requestedRestock = restockAmount;
 

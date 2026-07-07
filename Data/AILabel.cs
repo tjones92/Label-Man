@@ -38,6 +38,8 @@ public partial class AILabel : Resource {
 	
 	[ExportGroup("Regional")]
 	[Export] public string homeRegion;
+	[Export] public string homeCityId;
+	[Export] public string homeCityAssignmentSource;
 	[Export] public string[] strongRegions;
 	[Export] public string[] distributionRegions;
 	
