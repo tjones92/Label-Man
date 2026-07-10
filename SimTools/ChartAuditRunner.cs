@@ -34,6 +34,15 @@ public partial class ChartAuditRunner : Node {
 		public double Royalty;
 		public double LabelNet;
 	}
+	private sealed class GeographyRollup {
+		public int RecordCount;
+		public long TotalUnits;
+		public long ChartedUnits;
+		public long Backorders;
+		public long HomeRegionUnits;
+		public long NonNationalUnits;
+		public long NonNationalBackorders;
+	}
 	private sealed class DecadeAnnualRollup {
 		public readonly FormatMixRollup Single = new();
 		public readonly FormatMixRollup Album = new();
@@ -127,6 +136,8 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter cityRosterWriter;
 	private StreamWriter distanceMatrixWriter;
 	private StreamWriter labelGeographyWriter;
+	private StreamWriter geographyMetricsWriter;
+	private StreamWriter dealMetricsWriter;
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
@@ -163,6 +174,7 @@ public partial class ChartAuditRunner : Node {
 	private int previousTrackResolutionAttempts;
 	private int previousTrackResolutionMisses;
 	private int previousTrackArchiveHits;
+	private int signedDealEvents;
 
 	public override void _Ready() {
 		try {
@@ -177,6 +189,7 @@ public partial class ChartAuditRunner : Node {
 			if (disableDistributionDeals) CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);
 			if (disableAlbums) CompetitorManager.Instance.SetAlbumsEnabled(false);
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
+			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
@@ -207,6 +220,7 @@ public partial class ChartAuditRunner : Node {
 			WriteDecadeAnnualYear();
 			WriteLiveRecordsSnapshot();
 			WriteAlbumProjectSnapshots();
+			WriteDealMetrics();
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
 			FlushAndClose();
@@ -260,6 +274,22 @@ public partial class ChartAuditRunner : Node {
 		}
 
 		if (requestedWeeks < 1) throw new ArgumentOutOfRangeException(nameof(requestedWeeks));
+	}
+
+	private static void ValidateLiveRegionTaxonomy(MarketRegion[] liveRegions) {
+		string[] expected = { "eastcoast", "greatlakes", "greatplains", "deepsouth", "southwest", "rockies", "westcoast" };
+		string[] actual = liveRegions.Select(region => region?.regionId).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+		string[] expectedSorted = expected.OrderBy(id => id, StringComparer.Ordinal).ToArray();
+		if (!actual.SequenceEqual(expectedSorted, StringComparer.Ordinal))
+			throw new InvalidOperationException($"Live region taxonomy mismatch: [{string.Join(",", actual)}].");
+		if (DistanceModel.GetHubCityIdForRegion("greatlakes") != "chicago" ||
+			DistanceModel.GetHubCityIdForRegion("greatplains") != "minneapolis")
+			throw new InvalidOperationException("Great Lakes/Great Plains hub resolution is not live.");
+		if (liveRegions.Any(region => DistanceModel.GetHubCityIdForRegion(region.regionId) == "new_york" && region.regionId != "eastcoast"))
+			throw new InvalidOperationException("A live non-East-Coast region resolved to the New York fallback hub.");
+		if (ChartManager.GetNeighborRegionIds("greatlakes").Length == 0 ||
+			ChartManager.GetNeighborRegionIds("greatplains").Length == 0)
+			throw new InvalidOperationException("Great Lakes/Great Plains breakout neighbor graph is empty.");
 	}
 
 	private void InstallForcedDistributionDeal() {
@@ -356,6 +386,8 @@ public partial class ChartAuditRunner : Node {
 		cityRosterWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-city-roster.csv"));
 		distanceMatrixWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-distance-matrix.csv"));
 		labelGeographyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-geography.csv"));
+		geographyMetricsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-geography-metrics.csv"));
+		dealMetricsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-deal-metrics.csv"));
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
@@ -390,6 +422,8 @@ public partial class ChartAuditRunner : Node {
 		cityRosterWriter.WriteLine("cityId,name,mapX,mapY,parentRegionId,futureRegionId,isRegionalHub,distributionTier,difficulty,recordStoreCount,departmentStoreCount,inventoryDepth,hasOneStopDistributors,hasIndieDistribution,projection");
 		distanceMatrixWriter.WriteLine("fromCityId,fromCityName,toCityId,toCityName,distance");
 		labelGeographyWriter.WriteLine("labelId,labelName,headquartersCity,homeRegion,homeCityId,homeCityName,assignmentSource,nodeSet");
+		geographyMetricsWriter.WriteLine("week,year,regionId,destinationTier,labelTier,genre,recordCount,totalUnits,chartedUnits,backorders,homeRegionUnits,nonNationalUnits,nonNationalBackorders");
+		dealMetricsWriter.WriteLine("offersGenerated,offersAccepted,acceptanceRate,signedDeals");
 		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
@@ -402,7 +436,7 @@ public partial class ChartAuditRunner : Node {
 			DistributionNetwork network = city.distribution;
 			cityRosterWriter.WriteLine(string.Join(",", new[] {
 				Csv(city.cityId), Csv(city.name), F(city.mapCoords.X), F(city.mapCoords.Y), Csv(city.parentRegionId),
-				Csv(city.futureRegionId), city.isRegionalHub ? "true" : "false",
+				string.Empty, city.isRegionalHub ? "true" : "false",
 				city.distributionTier.ToString(CultureInfo.InvariantCulture), F(network.difficulty),
 				network.recordStoreCount.ToString(CultureInfo.InvariantCulture),
 				network.departmentStoreCount.ToString(CultureInfo.InvariantCulture), F(network.inventoryDepth),
@@ -428,8 +462,63 @@ public partial class ChartAuditRunner : Node {
 		}
 	}
 
+	private void WriteGeographyMetricRows(int week, int year, List<RecordRuntimeData> records) {
+		var rollups = new Dictionary<(string RegionId, int DestinationTier, string LabelTier, string Genre), GeographyRollup>();
+		foreach (RecordRuntimeData record in records) {
+			AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
+			if (label == null || record.regionalData == null) continue;
+			string labelTier = label.tier.ToString();
+			string genre = record.baseRecord.primaryGenre.ToString();
+			bool nonNational = label.nationalReach < 0.50f;
+			foreach (var pair in record.regionalData) {
+				RegionalRecordData data = pair.Value;
+				if (data == null) continue;
+				int destinationTier = DistanceModel.GetHubCityForRegion(pair.Key)?.distributionTier ?? 0;
+				var key = (pair.Key, destinationTier, labelTier, genre);
+				if (!rollups.TryGetValue(key, out GeographyRollup row)) {
+					row = new GeographyRollup();
+					rollups[key] = row;
+				}
+				row.RecordCount++;
+				row.TotalUnits += data.unitsSoldThisWeek;
+				if (record.currentPosition > 0) row.ChartedUnits += data.unitsSoldThisWeek;
+				row.Backorders += data.unitsBackordered;
+				if (pair.Key == label.homeRegion) row.HomeRegionUnits += data.unitsSoldThisWeek;
+				if (nonNational) {
+					row.NonNationalUnits += data.unitsSoldThisWeek;
+					row.NonNationalBackorders += data.unitsBackordered;
+				}
+			}
+		}
+
+		foreach (var pair in rollups.OrderBy(pair => pair.Key.RegionId, StringComparer.Ordinal)
+			.ThenBy(pair => pair.Key.DestinationTier).ThenBy(pair => pair.Key.LabelTier, StringComparer.Ordinal)
+			.ThenBy(pair => pair.Key.Genre, StringComparer.Ordinal)) {
+			GeographyRollup row = pair.Value;
+			geographyMetricsWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(pair.Key.RegionId),
+				pair.Key.DestinationTier.ToString(CultureInfo.InvariantCulture), Csv(pair.Key.LabelTier), Csv(pair.Key.Genre),
+				row.RecordCount.ToString(CultureInfo.InvariantCulture), row.TotalUnits.ToString(CultureInfo.InvariantCulture),
+				row.ChartedUnits.ToString(CultureInfo.InvariantCulture), row.Backorders.ToString(CultureInfo.InvariantCulture),
+				row.HomeRegionUnits.ToString(CultureInfo.InvariantCulture), row.NonNationalUnits.ToString(CultureInfo.InvariantCulture),
+				row.NonNationalBackorders.ToString(CultureInfo.InvariantCulture)
+			}));
+		}
+	}
+
+	private void WriteDealMetrics() {
+		int generated = CompetitorManager.Instance?.DistributionOffersGenerated ?? 0;
+		int accepted = CompetitorManager.Instance?.DistributionOffersAccepted ?? 0;
+		dealMetricsWriter.WriteLine(string.Join(",", new[] {
+			generated.ToString(CultureInfo.InvariantCulture), accepted.ToString(CultureInfo.InvariantCulture),
+			generated > 0 ? F((double)accepted / generated) : string.Empty,
+			signedDealEvents.ToString(CultureInfo.InvariantCulture)
+		}));
+	}
+
 	private void OnDistributionDealEvent(DistributionDealTelemetry dealEvent) {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		if (dealEvent.resolution == DealResolution.Signed) signedDealEvents++;
 		dealLedgerWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(dealEvent.resolution.ToString()),
 			Csv(dealEvent.origin.ToString()), Csv(dealEvent.distributorId), Csv(dealEvent.distributorName), Csv(dealEvent.clientId), Csv(dealEvent.clientName),
@@ -759,6 +848,7 @@ public partial class ChartAuditRunner : Node {
 		WriteAlbumRows(week, date, records, albumChart);
 		WriteFormatMixRows(week, date.year, records);
 		WriteRevenueMemoryRows(week, date.year);
+		WriteGeographyMetricRows(week, date.year, records);
 		CaptureRetirementCohortSnapshot(records);
 
 		weekWriter.WriteLine(string.Join(",", new[] {
@@ -1262,6 +1352,8 @@ public partial class ChartAuditRunner : Node {
 		cityRosterWriter?.Flush();
 		distanceMatrixWriter?.Flush();
 		labelGeographyWriter?.Flush();
+		geographyMetricsWriter?.Flush();
+		dealMetricsWriter?.Flush();
 	}
 
 	private void WriteAnnualFormatMixRows() {
@@ -1436,6 +1528,8 @@ public partial class ChartAuditRunner : Node {
 		cityRosterWriter?.Dispose();
 		distanceMatrixWriter?.Dispose();
 		labelGeographyWriter?.Dispose();
+		geographyMetricsWriter?.Dispose();
+		dealMetricsWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -1469,5 +1563,7 @@ public partial class ChartAuditRunner : Node {
 		cityRosterWriter = null;
 		distanceMatrixWriter = null;
 		labelGeographyWriter = null;
+		geographyMetricsWriter = null;
+		dealMetricsWriter = null;
 	}
 }

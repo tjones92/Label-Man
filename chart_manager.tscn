@@ -262,25 +262,206 @@ theaterCount = 5253
 hasChitlinCircuitVenues = true
 metadata/_custom_type_script = "uid://c7ua0jy16dehg"
 
+[sub_resource type="Resource" id="Resource_gl_doo"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.62
+affinity = 0.35
+hasLocalScene = true
+yearlyDrift = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gl_rnb"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.70
+affinity = 0.45
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gl_soul"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.22
+affinity = 0.22
+hasLocalScene = true
+yearlyDrift = 0.05
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gl_country"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.40
+affinity = 0.22
+hasLocalScene = true
+yearlyDrift = 0.01
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gl_dist"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.30
+recordStoreCount = 358
+departmentStoreCount = 714
+inventoryDepth = 0.65
+hasIndieDistribution = true
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_gl_media"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 900
+hasTop40Stations = true
+hasRnBStations = true
+hasCountryStations = true
+radioReach = 0.88
+payolaSusceptibility = 0.78
+tvMarketRank = 4
+hasLocalMusicShow = true
+bandstandReach = 0.70
+jukeboxCount = 100800
+concertVenueCount = 500
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_gl_music"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 105
+studioQuality = 0.70
+hasSignatureSound = true
+localLabelCount = 135
+hasMajorLabelPresence = true
+talentPool = 0.74
+talentDevelopment = 0.56
+clubCount = 2200
+theaterCount = 3700
+hasChitlinCircuitVenues = true
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
 [sub_resource type="Resource" id="Resource_77lym"]
 script = ExtResource("2_66ao4")
-regionId = "midwest"
-regionName = "Midwest"
-regionType = 1
-population = 51.6
-urbanization = 0.7
-averageIncome = 1.05
+regionId = "greatlakes"
+regionName = "Great Lakes"
+regionType = 4
+population = 36.1
+urbanization = 0.76
+averageIncome = 1.08
 youthPercentage = 0.35
-blackPopulation = 0.08
-collegeCount = 420
-integrationLevel = 0.4
+blackPopulation = 0.11
+collegeCount = 260
+integrationLevel = 0.42
 culturalProgressivism = 0.45
-regionalInsularity = 0.45
-trendAdoptionSpeed = 1.2
-genrePreferences = Array[Object]([SubResource("Resource_pnh0t"), SubResource("Resource_jhd2u"), SubResource("Resource_1vb7w"), SubResource("Resource_r6sj5"), SubResource("Resource_ui36f"), SubResource("Resource_vc3af"), SubResource("Resource_uanyb"), SubResource("Resource_b0dlr"), SubResource("Resource_vulxa"), SubResource("Resource_hwfb3"), SubResource("Resource_bf3g8"), SubResource("Resource_6rqk6"), SubResource("Resource_i26ee"), SubResource("Resource_65oqt"), SubResource("Resource_4o1pl"), SubResource("Resource_vksiw"), SubResource("Resource_4unbu"), SubResource("Resource_avrjv"), SubResource("Resource_hsrg8"), SubResource("Resource_qic4d"), SubResource("Resource_qltyh"), SubResource("Resource_v1ppj"), SubResource("Resource_qll7k"), SubResource("Resource_yq3k4"), SubResource("Resource_2vjxx"), SubResource("Resource_v2v0u"), SubResource("Resource_qipfm"), SubResource("Resource_vdx5b"), SubResource("Resource_551fx"), SubResource("Resource_0va4a"), SubResource("Resource_woude"), SubResource("Resource_mjo0r"), SubResource("Resource_832ns")])
-media = SubResource("Resource_v70d0")
-musicIndustry = SubResource("Resource_jcfuy")
-distribution = SubResource("Resource_ku6sc")
+regionalInsularity = 0.4
+trendAdoptionSpeed = 1.3
+genrePreferences = Array[Object]([SubResource("Resource_pnh0t"), SubResource("Resource_jhd2u"), SubResource("Resource_1vb7w"), SubResource("Resource_r6sj5"), SubResource("Resource_ui36f"), SubResource("Resource_gl_doo"), SubResource("Resource_uanyb"), SubResource("Resource_gl_rnb"), SubResource("Resource_gl_soul"), SubResource("Resource_hwfb3"), SubResource("Resource_bf3g8"), SubResource("Resource_6rqk6"), SubResource("Resource_gl_country"), SubResource("Resource_65oqt"), SubResource("Resource_4o1pl"), SubResource("Resource_vksiw"), SubResource("Resource_4unbu"), SubResource("Resource_avrjv"), SubResource("Resource_hsrg8"), SubResource("Resource_qic4d"), SubResource("Resource_qltyh"), SubResource("Resource_v1ppj"), SubResource("Resource_qll7k"), SubResource("Resource_yq3k4"), SubResource("Resource_2vjxx"), SubResource("Resource_v2v0u"), SubResource("Resource_qipfm"), SubResource("Resource_vdx5b"), SubResource("Resource_551fx"), SubResource("Resource_0va4a"), SubResource("Resource_woude"), SubResource("Resource_mjo0r"), SubResource("Resource_832ns")])
+media = SubResource("Resource_gl_media")
+musicIndustry = SubResource("Resource_gl_music")
+distribution = SubResource("Resource_gl_dist")
+specialModifiers = Array[Object]([])
+metadata/_custom_type_script = "uid://ck2ykr1kmstw"
+
+[sub_resource type="Resource" id="Resource_gp_rock"]
+script = ExtResource("2_pc72m")
+genre = 4
+baseAcceptance = 0.68
+affinity = 0.30
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gp_doo"]
+script = ExtResource("2_pc72m")
+genre = 5
+baseAcceptance = 0.38
+affinity = 0.30
+hasLocalScene = true
+yearlyDrift = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gp_rnb"]
+script = ExtResource("2_pc72m")
+genre = 7
+baseAcceptance = 0.35
+affinity = 0.20
+hasLocalScene = true
+yearlyDrift = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gp_soul"]
+script = ExtResource("2_pc72m")
+genre = 8
+baseAcceptance = 0.10
+affinity = 0.10
+hasLocalScene = true
+yearlyDrift = 0.03
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gp_country"]
+script = ExtResource("2_pc72m")
+genre = 12
+baseAcceptance = 0.734
+affinity = 0.40
+hasLocalScene = true
+yearlyDrift = 0.02
+metadata/_custom_type_script = "uid://0gmh86vjv8up"
+
+[sub_resource type="Resource" id="Resource_gp_dist"]
+script = ExtResource("2_ku6sc")
+difficulty = 0.38
+recordStoreCount = 154
+departmentStoreCount = 306
+inventoryDepth = 0.48
+hasIndieDistribution = true
+hasOneStopDistributors = true
+metadata/_custom_type_script = "uid://vawg4r2hf31w"
+
+[sub_resource type="Resource" id="Resource_gp_media"]
+script = ExtResource("4_ddtov")
+totalRadioStations = 370
+hasTop40Stations = true
+hasRnBStations = false
+hasCountryStations = true
+radioReach = 0.72
+payolaSusceptibility = 0.62
+tvMarketRank = 7
+hasLocalMusicShow = true
+bandstandReach = 0.50
+jukeboxCount = 43200
+concertVenueCount = 220
+metadata/_custom_type_script = "uid://bb5ll6a022k0t"
+
+[sub_resource type="Resource" id="Resource_gp_music"]
+script = ExtResource("5_w1ett")
+recordingStudioCount = 45
+studioQuality = 0.55
+hasSignatureSound = true
+localLabelCount = 55
+hasMajorLabelPresence = true
+talentPool = 0.62
+talentDevelopment = 0.42
+clubCount = 920
+theaterCount = 1550
+hasChitlinCircuitVenues = false
+metadata/_custom_type_script = "uid://c7ua0jy16dehg"
+
+[sub_resource type="Resource" id="Resource_gp"]
+script = ExtResource("2_66ao4")
+regionId = "greatplains"
+regionName = "Great Plains"
+regionType = 1
+population = 15.5
+urbanization = 0.56
+averageIncome = 0.98
+youthPercentage = 0.35
+blackPopulation = 0.01
+collegeCount = 160
+integrationLevel = 0.35
+culturalProgressivism = 0.45
+regionalInsularity = 0.57
+trendAdoptionSpeed = 0.97
+genrePreferences = Array[Object]([SubResource("Resource_pnh0t"), SubResource("Resource_jhd2u"), SubResource("Resource_1vb7w"), SubResource("Resource_r6sj5"), SubResource("Resource_gp_rock"), SubResource("Resource_gp_doo"), SubResource("Resource_uanyb"), SubResource("Resource_gp_rnb"), SubResource("Resource_gp_soul"), SubResource("Resource_hwfb3"), SubResource("Resource_bf3g8"), SubResource("Resource_6rqk6"), SubResource("Resource_gp_country"), SubResource("Resource_65oqt"), SubResource("Resource_4o1pl"), SubResource("Resource_vksiw"), SubResource("Resource_4unbu"), SubResource("Resource_avrjv"), SubResource("Resource_hsrg8"), SubResource("Resource_qic4d"), SubResource("Resource_qltyh"), SubResource("Resource_v1ppj"), SubResource("Resource_qll7k"), SubResource("Resource_yq3k4"), SubResource("Resource_2vjxx"), SubResource("Resource_v2v0u"), SubResource("Resource_qipfm"), SubResource("Resource_vdx5b"), SubResource("Resource_551fx"), SubResource("Resource_0va4a"), SubResource("Resource_woude"), SubResource("Resource_mjo0r"), SubResource("Resource_832ns")])
+media = SubResource("Resource_gp_media")
+musicIndustry = SubResource("Resource_gp_music")
+distribution = SubResource("Resource_gp_dist")
 specialModifiers = Array[Object]([])
 metadata/_custom_type_script = "uid://ck2ykr1kmstw"
 
@@ -1636,7 +1817,8 @@ metadata/_custom_type_script = "uid://ck2ykr1kmstw"
 
 [node name="ChartManager" type="Node" unique_id=233342509]
 script = ExtResource("1_o3mq1")
-allRegions = Array[Object]([SubResource("Resource_77lym"), SubResource("Resource_4xj30"), SubResource("Resource_w3svk"), SubResource("Resource_wkcml"), SubResource("Resource_om038"), SubResource("Resource_gx6p6")])
+allRegions = Array[Object]([SubResource("Resource_77lym"), SubResource("Resource_gp"), SubResource("Resource_4xj30"), SubResource("Resource_w3svk"), SubResource("Resource_wkcml"), SubResource("Resource_om038"), SubResource("Resource_gx6p6")])
 
 [node name="DistanceModel" type="Node" parent="."]
 script = ExtResource("7_distance")
+distanceModelEnabled = false

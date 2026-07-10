@@ -914,12 +914,13 @@ public partial class ChartManager : Node {
 			record.awareness + Mathf.Min(0.005f * discoveryScale, nationalGain) + crossoverGain);
 	}
 
-	private static string[] GetNeighborRegionIds(string regionId) => regionId switch {
-		"eastcoast" => new[] { "midwest", "deepsouth" },
-		"midwest" => new[] { "eastcoast", "deepsouth", "rockies" },
-		"deepsouth" => new[] { "eastcoast", "midwest", "southwest" },
-		"southwest" => new[] { "deepsouth", "rockies", "westcoast" },
-		"rockies" => new[] { "midwest", "southwest", "westcoast" },
+	public static string[] GetNeighborRegionIds(string regionId) => regionId switch {
+		"eastcoast" => new[] { "greatlakes", "deepsouth" },
+		"greatlakes" => new[] { "eastcoast", "deepsouth", "greatplains" },
+		"greatplains" => new[] { "greatlakes", "rockies", "southwest" },
+		"deepsouth" => new[] { "eastcoast", "greatlakes", "southwest" },
+		"southwest" => new[] { "deepsouth", "rockies", "westcoast", "greatplains" },
+		"rockies" => new[] { "greatplains", "southwest", "westcoast" },
 		"westcoast" => new[] { "rockies", "southwest" },
 		_ => Array.Empty<string>()
 	};

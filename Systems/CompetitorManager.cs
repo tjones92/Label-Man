@@ -104,6 +104,8 @@ public partial class CompetitorManager : Node {
 	public int WeeklyFailedReleaseRolls { get; private set; }
 	public int WeeklyCooldownMismatchRolls { get; private set; }
 	public int WeeklyPipelineAlbumDrops { get; private set; }
+	public int DistributionOffersGenerated { get; private set; }
+	public int DistributionOffersAccepted { get; private set; }
 	public float CannibalizationStrength => cannibalizationStrength;
 	public float CalculateSubstitutionPropensity(Genre genre, int year) =>
 		Mathf.Clamp(substitutionK * CalculateAlbumDemandFactor(genre, year), 0f, substitutionCap);
@@ -1513,7 +1515,9 @@ public partial class CompetitorManager : Node {
 		AILabel distributor = SelectDistributor(client, origin);
 		if (distributor == null) return;
 		DistributionDeal offer = GenerateDealTerms(client, distributor, origin, year, currentWeek);
+		DistributionOffersGenerated++;
 		if (!ShouldAcceptDeal(client, offer)) return;
+		DistributionOffersAccepted++;
 
 		client.activeDeal = offer;
 		client.cashReserves += offer.advance;

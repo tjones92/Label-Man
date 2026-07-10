@@ -8,7 +8,6 @@ public partial class MarketCity : Resource {
 	[Export] public Vector2 mapCoords;
 	[Export] public string parentRegionId;
 	[Export] public bool isRegionalHub;
-	[Export] public string futureRegionId;
 	[Export] public int distributionTier;
 
 	[ExportGroup("Distribution")]

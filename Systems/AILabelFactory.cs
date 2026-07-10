@@ -79,8 +79,10 @@ public static class AILabelFactory {
 	};
 	
 	private static readonly string[] northeastCities = { "New York", "Philadelphia", "Newark", "Boston", "Pittsburgh", "Baltimore", "Washington D.C." };
-	private static readonly string[] midwestCities = { "Chicago", "Detroit", "Cleveland", "Cincinnati", "St. Louis", "Indianapolis", "Milwaukee" };
-	private static readonly string[] southernCities = { "Memphis", "Nashville", "New Orleans", "Atlanta", "Houston", "Dallas", "Miami" };
+	private static readonly string[] greatLakesCities = { "Chicago", "Detroit", "Cleveland", "Cincinnati", "Indianapolis", "Milwaukee" };
+	private static readonly string[] greatPlainsCities = { "Minneapolis", "St. Louis", "Kansas City", "Omaha" };
+	private static readonly string[] southernCities = { "Memphis", "Nashville", "New Orleans", "Atlanta", "Houston", "Dallas", "Miami", "San Antonio", "Phoenix", "Albuquerque" };
+	private static readonly string[] rockiesCities = { "Denver", "Salt Lake City", "Billings" };
 	private static readonly string[] westCoastCities = { "Los Angeles", "San Francisco", "Oakland", "Seattle", "Hollywood", "Pasadena" };
 	
 	public static List<AILabel> GenerateAllLabels(int targetCount = 50) {
@@ -243,7 +245,7 @@ public static class AILabelFactory {
 	
 	private static string GetRandomCity(LabelArchetype archetype) => archetype switch {
 		LabelArchetype.CountrySpecialist => "Nashville",
-		LabelArchetype.SoulFactory => GD.Randf() < 0.6f ? "Detroit" : midwestCities[(int)GD.RandRange(0, midwestCities.Length - 1)],
+		LabelArchetype.SoulFactory => GD.Randf() < 0.6f ? "Detroit" : greatLakesCities[(int)GD.RandRange(0, greatLakesCities.Length - 1)],
 		LabelArchetype.RockRebel => GD.Randf() < 0.5f ? southernCities[(int)GD.RandRange(0, southernCities.Length - 1)] : westCoastCities[(int)GD.RandRange(0, westCoastCities.Length - 1)],
 		LabelArchetype.TeenHitMachine => GD.Randf() < 0.6f ? "New York" : "Philadelphia",
 		LabelArchetype.BluesRoots => GD.Randf() < 0.4f ? "Chicago" : southernCities[(int)GD.RandRange(0, southernCities.Length - 1)],
@@ -254,9 +256,11 @@ public static class AILabelFactory {
 	
 	private static string GetRandomCityAny() {
 		float roll = GD.Randf();
-		if (roll < 0.35f) return northeastCities[(int)GD.RandRange(0, northeastCities.Length - 1)];
-		if (roll < 0.55f) return midwestCities[(int)GD.RandRange(0, midwestCities.Length - 1)];
-		if (roll < 0.75f) return southernCities[(int)GD.RandRange(0, southernCities.Length - 1)];
+		if (roll < 0.30f) return northeastCities[(int)GD.RandRange(0, northeastCities.Length - 1)];
+		if (roll < 0.40f) return greatLakesCities[(int)GD.RandRange(0, greatLakesCities.Length - 1)];
+		if (roll < 0.50f) return greatPlainsCities[(int)GD.RandRange(0, greatPlainsCities.Length - 1)];
+		if (roll < 0.70f) return southernCities[(int)GD.RandRange(0, southernCities.Length - 1)];
+		if (roll < 0.80f) return rockiesCities[(int)GD.RandRange(0, rockiesCities.Length - 1)];
 		return westCoastCities[(int)GD.RandRange(0, westCoastCities.Length - 1)];
 	}
 	
@@ -308,7 +312,7 @@ public static class AILabelFactory {
 			LabelTier.Independent => (int)GD.RandRange(1, 4), LabelTier.Small => (int)GD.RandRange(0, 2),
 			LabelTier.Boutique => (int)GD.RandRange(1, 3), _ => 1
 		};
-		string[] allRegions = { "eastcoast", "westcoast", "midwest", "southwest", "deepsouth", "rockies" };
+		string[] allRegions = { "eastcoast", "greatlakes", "greatplains", "southwest", "deepsouth", "rockies", "westcoast" };
 		for (int i = 0; i < additionalRegions; i++) {
 			string region = allRegions[(int)GD.RandRange(0, allRegions.Length - 1)];
 			if (!regions.Contains(region)) regions.Add(region);
@@ -318,22 +322,25 @@ public static class AILabelFactory {
 	
 	private static string CityToRegion(string city) => city switch {
 		"New York" or "Philadelphia" or "Newark" or "Boston" or "Baltimore" or "Washington D.C." or "Pittsburgh" => "eastcoast",
-		"Chicago" or "Detroit" or "Cleveland" or "Cincinnati" or "Indianapolis" or "Milwaukee" or "St. Louis" => "midwest",
+		"Chicago" or "Detroit" or "Cleveland" or "Cincinnati" or "Indianapolis" or "Milwaukee" => "greatlakes",
+		"Minneapolis" or "St. Louis" or "Kansas City" or "Omaha" => "greatplains",
 		"Memphis" or "Nashville" or "Atlanta" or "New Orleans" or "Jackson" or "Miami" => "deepsouth",
-		"Houston" or "Dallas" => "southwest",
+		"Houston" or "Dallas" or "San Antonio" or "Phoenix" or "Albuquerque" => "southwest",
+		"Denver" or "Salt Lake City" or "Billings" => "rockies",
 		"Los Angeles" or "San Francisco" or "Oakland" or "Seattle" or "Hollywood" or "Pasadena" => "westcoast",
-		// The current market model has six canonical US sales regions. British
+		// The current market model has seven canonical US sales regions. British
 		// imports enter through the East Coast until an international region exists.
 		"London" or "Liverpool" or "Manchester" or "Birmingham" or "Glasgow" or "Bristol" => "eastcoast",
 		_ => "eastcoast"
 	};
 	
 	private static string GetAdjacentRegion(string region) => region switch {
-		"eastcoast" => GD.Randf() < 0.5f ? "midwest" : "deepsouth",
-		"midwest" => GD.Randf() < 0.5f ? "eastcoast" : "rockies",
+		"eastcoast" => GD.Randf() < 0.5f ? "greatlakes" : "deepsouth",
+		"greatlakes" => GD.Randf() < 0.5f ? "eastcoast" : "greatplains",
+		"greatplains" => GD.Randf() < 0.5f ? "rockies" : "southwest",
 		"deepsouth" => GD.Randf() < 0.5f ? "eastcoast" : "southwest",
 		"southwest" => GD.Randf() < 0.5f ? "deepsouth" : "rockies",
-		"rockies" => GD.Randf() < 0.5f ? "midwest" : "westcoast",
+		"rockies" => GD.Randf() < 0.5f ? "greatplains" : "westcoast",
 		"westcoast" => GD.Randf() < 0.5f ? "rockies" : "southwest",
 		"UK" => string.Empty,
 		_ => "eastcoast"
