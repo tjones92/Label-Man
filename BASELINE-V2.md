@@ -1,8 +1,8 @@
 # Baseline v2 — Directive 4b
 
-Status: **not frozen — blocked at the Stage 1 national-conservation hard gate.**
+Status: **Stage 1 closed; Stage 2 calibration checkpoint passed; Baseline v2 is not frozen.**
 
-Directive 4b is strictly staged. The seven-region taxonomy is implemented and loads, but its disabled national-unit series is not within ±3% of the same-seed v1 series in every year. Therefore distance remains disabled, Stage 2 calibration was not run, seed 2004 was not consumed, and no v2 hashes are declared.
+Directive 4b is strictly staged. The seven-region taxonomy is implemented and loads. Six-v1 versus six-v2 ensemble evidence accepted Stage 1 conservation without parameter calibration; see `SimTools/Stage1ClosureAudit.md`. Distance passed its three-seed calibration checkpoint, but the one-shot seed-2004 Stage 3 holdout exceeded the paired chart-lifetime guard. No v2 reference streams, hashes, or final unit anchors are declared; see `SimTools/Stage2CalibrationAudit.md` and `SimTools/Stage3HoldoutAudit.md`.
 
 ## Task 0 — 4a finance-path disposition
 
@@ -77,7 +77,7 @@ The configured generic-city bands are Northeast 30%, Great Lakes 10%, Great Plai
 
 Great Lakes versus Great Plains charted-unit texture is visible in the final probes. For seed 1001, R&B charted units split 76.7%/23.3% and Soul 76.1%/23.9%; for seed 1002, R&B split 80.3%/19.7% and Soul 75.8%/24.2%. These exceed the regions' 70.0%/30.0% population split in the intended Great Lakes direction.
 
-### Failed hard gate
+### Superseded same-seed gate record
 
 The initial authored table was run for all three disabled seeds. Eight of 30 same-seed year cells failed the ±3% gate; the worst was seed 1002 in 1968 at −5.610%. It also exposed two out-of-spec static genre rows (Doo Wop and Country), which were corrected.
 
@@ -96,12 +96,12 @@ The permitted two-seed probe of the corrected, fully compliant table still fails
 
 The failure is not a uniform level error: the initial table put 1965 at +4.489% for seed 1001 and −3.419% for seed 1002. Correcting the genre rows moved individual years in both directions. This is consistent with the directive's expected seventh-region RNG-topology divergence, but it does not satisfy the stated per-seed/per-year hard band. Forcing it would require further taxonomy overfitting or changes to chart/RNG mechanics, both outside the approved guardrails.
 
-Because this hard gate failed, the albums-enabled Stage 1 regression and final determinism repeat were not consumed.
+This historical same-seed result is superseded for gate purposes by the six-v1/six-v2 closure audit in `SimTools/Stage1ClosureAudit.md`. The enabled three-seed regression and seed-1001 determinism repeat both pass; Stage 1 is closed.
 
-## Stage 2 — not entered
+## Stage 2 — calibrated checkpoint
 
-`distanceModelEnabled = false` in `chart_manager.tscn`. No falloff, difficulty, or cost parameter was calibrated. The three prepared distance call sites and deal-node integration remain present but neutral. Geography concentration, distant-starvation, and Stage 2 deal-relevance comparisons are therefore intentionally not reported as live-distance results.
+`distanceModelEnabled = true` in `chart_manager.tscn`. The checkpoint configuration is `reachHalfDistance = 10000` and `costPerDistance = 0.0001`; `difficultyWeight` remains frozen at `0.35`. The three disabled calibration seeds keep every national annual-unit delta within +/-5%, preserve the required tiered home-market concentration, and keep distribution deals active. The enabled regression and its seed-1001 repeat pass. Full evidence is in `SimTools/Stage2CalibrationAudit.md`.
 
-## Stage 3 — not entered
+## Stage 3 — holdout stop
 
-Seed 2004 was not run. No v2 reference streams, unit anchors, or SHA-256 anchors were frozen. The historical v1 figure `154,810,982` remains historical and is not a v2 tuning target, but Baseline v1 is not formally retired until Stage 1 and Stage 2 pass and a valid Baseline v2 is frozen.
+The terminal seed-2004 pair was run exactly once. Its headline mix, timing, and Pearson checks pass, but its closed Top-40 median is 11 weeks enabled versus 9 disabled (+2 weeks); 1964 also reaches +2. This violates the inherited +/-1 paired-median guard. Per the no-post-holdout-tuning rule, no further calibration was attempted. Baseline v2 is therefore not frozen and Baseline v1 is not retired. The historical v1 figure `154,810,982` remains historical rather than a v2 target.

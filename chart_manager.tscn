@@ -1821,4 +1821,6 @@ allRegions = Array[Object]([SubResource("Resource_77lym"), SubResource("Resource
 
 [node name="DistanceModel" type="Node" parent="."]
 script = ExtResource("7_distance")
-distanceModelEnabled = false
+distanceModelEnabled = true
+reachHalfDistance = 10000.0
+costPerDistance = 0.0001

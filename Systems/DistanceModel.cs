@@ -15,7 +15,7 @@ public partial class DistanceModel : Node {
 	[Export] private bool distanceModelEnabled = false;
 
 	[ExportGroup("Reach Parameters")]
-	[Export(PropertyHint.Range, "1,300,1")] private float reachHalfDistance = 65f;
+	[Export(PropertyHint.Range, "1,10000,1")] private float reachHalfDistance = 65f;
 	[Export(PropertyHint.Range, "0.1,4,0.05")] private float falloffCurveShape = 1.25f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float difficultyWeight = 0.35f;
 	[Export(PropertyHint.Range, "0,0.05,0.0001")] private float costPerDistance = 0.003f;
