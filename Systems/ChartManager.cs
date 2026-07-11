@@ -13,6 +13,7 @@ public partial class ChartManager : Node {
 	[Export] private int chartSize = 100;
 	[Export] private int targetActiveRecords = 500;
 	[Export] private int prewarmWeeks = 8;
+	[Export] private bool marketSeasonalityEnabled = true;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -90,6 +91,9 @@ public partial class ChartManager : Node {
 			return;
 		}
 		Instance = this;
+		// Resolve the scene default and any audit override before population or
+		// prewarming can consume simulation state.
+		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
@@ -450,7 +454,11 @@ public partial class ChartManager : Node {
 			data.unitsInStores = units;
 
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
-			data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty;
+			if (MarketSeasonality.Enabled && currentChartWeek > 0) {
+				float radioOpportunity = MarketSeasonality.GetRadioOpportunity(TimeManager.Instance?.CurrentDate.year ?? 1960,
+					TimeManager.Instance?.CurrentDate.month ?? 1, liveTick: true);
+				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity;
+			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty;
 			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
@@ -476,6 +484,7 @@ public partial class ChartManager : Node {
 	private void SimulateWeek(bool triggerEvents) {
 		long profileStart = SimulationPerformanceProfiler.Begin();
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
 
 		// === STEP 1: Update global record state ===
 		foreach (var record in allRecords) {
@@ -511,14 +520,16 @@ public partial class ChartManager : Node {
 				float blendedAcceptance = (regionalAcceptance * 0.6f) + (nationalAcceptance * 0.4f);
 
 				int regionalSales = record.baseRecord.format == ReleaseFormat.Album
-					? AlbumSimulator.CalculateRegionalSales(record, region, regionalData, year, TimeManager.Instance?.CurrentDate.month ?? 1, label)
+					? AlbumSimulator.CalculateRegionalSales(record, region, regionalData, year, month, triggerEvents, label)
 					: ChartSimulator.CalculateRegionalSales(
 						record,
 						region,
 						regionalData,
 						quality,
 						blendedAcceptance,
-						TimeManager.Instance?.CurrentDate.month ?? 1,
+						year,
+						month,
+						triggerEvents,
 						GetInternalPreviousPosition(record),
 						label
 					);
@@ -731,6 +742,10 @@ public partial class ChartManager : Node {
 	}
 
 	private void UpdateRecordRegionalData(RecordRuntimeData record) {
+		bool seasonalRadio = MarketSeasonality.Enabled && currentChartWeek > 0;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
+		float radioOpportunity = seasonalRadio ? MarketSeasonality.GetRadioOpportunity(year, month, liveTick: true) : 1f;
 		foreach (var region in allRegions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) {
 				record.regionalData[region.regionId] = new RegionalRecordData(region.regionId);
@@ -743,7 +758,7 @@ public partial class ChartManager : Node {
 
 			// Radio play: decay + pull toward national heat
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
-			float targetRegionalRadio = record.radioHeat / radioDifficulty;
+			float targetRegionalRadio = seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity : record.radioHeat / radioDifficulty;
 			data.radioPlay = Mathf.Lerp(data.radioPlay * 0.85f, targetRegionalRadio, 0.2f);
 
 			// Radio builds regional awareness

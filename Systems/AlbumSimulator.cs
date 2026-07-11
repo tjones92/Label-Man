@@ -33,7 +33,7 @@ public static class AlbumSimulator {
 		record.radioHeat = Mathf.Lerp(record.radioHeat, 0.05f * campaign, 0.18f);
 	}
 
-	public static int CalculateRegionalSales(RecordRuntimeData record, MarketRegion region, RegionalRecordData data, int year, int month, AILabel label) {
+	public static int CalculateRegionalSales(RecordRuntimeData record, MarketRegion region, RegionalRecordData data, int year, int month, bool liveTick, AILabel label) {
 		Album album = record.baseRecord.album;
 		float appeal = record.GetQuality();
 		float buyerPool = region.GetAlbumMarketSize(record.baseRecord.primaryGenre, year);
@@ -51,7 +51,7 @@ public static class AlbumSimulator {
 		if (record.weeksSinceRelease > CatalogDecayStartWeeks) {
 			conversion *= Mathf.Pow(CatalogWeeklyDecay, record.weeksSinceRelease - CatalogDecayStartWeeks);
 		}
-		conversion *= month switch { 12 => 1.25f, 11 => 1.12f, 1 => 0.90f, _ => 1f };
+		conversion *= MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick);
 		conversion *= 1f - region.distribution.difficulty * 0.25f;
 		if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;

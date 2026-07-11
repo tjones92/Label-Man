@@ -1,8 +1,8 @@
 # Baseline v2 — Directive 4b
 
-Status: **Stage 1 closed; Stage 2 calibration checkpoint passed; Baseline v2 is not frozen.**
+Status: **Frozen 2026-07-10. Stage 1 closed; Stage 2 calibration checkpoint passed; and the fresh Stage 3b holdout passed.**
 
-Directive 4b is strictly staged. The seven-region taxonomy is implemented and loads. Six-v1 versus six-v2 ensemble evidence accepted Stage 1 conservation without parameter calibration; see `SimTools/Stage1ClosureAudit.md`. Distance passed its three-seed calibration checkpoint, but the one-shot seed-2004 Stage 3 holdout exceeded the paired chart-lifetime guard. No v2 reference streams, hashes, or final unit anchors are declared; see `SimTools/Stage2CalibrationAudit.md` and `SimTools/Stage3HoldoutAudit.md`.
+Directive 4b is strictly staged. The seven-region taxonomy is implemented and loads. Six-v1 versus six-v2 ensemble evidence accepted Stage 1 conservation without parameter calibration; see `SimTools/Stage1ClosureAudit.md`. Distance passed its three-seed calibration checkpoint. The original one-shot seed-2004 Stage 3 holdout remains a historical fail under its then-binding +/-1-week paired chart-lifetime guard; the separately authorized fresh seed-2005 Stage 3b holdout passed under the now-binding +/-2-week guard. The enabled seed-1001 decade anchor below is frozen; see `SimTools/Stage2CalibrationAudit.md` and `SimTools/Stage3bHoldoutAudit.md`.
 
 ## Task 0 — 4a finance-path disposition
 
@@ -64,7 +64,7 @@ Infrastructure count conservation is exact for radio stations (1270), jukeboxes 
 - The full symmetric ten-edge breakout graph and both curated adjacency rows match Directive 4b exactly.
 - The Plains, Southwest, and Rockies pools include the resolved cities, including Minneapolis and Billings. Procedural aliases resolve to the directed nearest roster cities.
 - `parentRegionId` is live; `futureRegionId` is retired while its CSV column remains blank for header compatibility.
-- No quoted `"midwest"` identifier remains in live C#, data, the chart scene, or the audit runner.
+- No quoted `"midwest"` identifier remains in live C#, data, the chart scene, or the audit runner. The artist-profile region picker also uses the seven-region taxonomy; its seven entries preserve the prior one-draw RNG shape.
 
 Observed generated-label home regions in the final two-seed probe:
 
@@ -102,6 +102,39 @@ This historical same-seed result is superseded for gate purposes by the six-v1/s
 
 `distanceModelEnabled = true` in `chart_manager.tscn`. The checkpoint configuration is `reachHalfDistance = 10000` and `costPerDistance = 0.0001`; `difficultyWeight` remains frozen at `0.35`. The three disabled calibration seeds keep every national annual-unit delta within +/-5%, preserve the required tiered home-market concentration, and keep distribution deals active. The enabled regression and its seed-1001 repeat pass. Full evidence is in `SimTools/Stage2CalibrationAudit.md`.
 
-## Stage 3 — holdout stop
+## Stage 3 — historical holdout and recalibrated fresh validation
 
-The terminal seed-2004 pair was run exactly once. Its headline mix, timing, and Pearson checks pass, but its closed Top-40 median is 11 weeks enabled versus 9 disabled (+2 weeks); 1964 also reaches +2. This violates the inherited +/-1 paired-median guard. Per the no-post-holdout-tuning rule, no further calibration was attempted. Baseline v2 is therefore not frozen and Baseline v1 is not retired. The historical v1 figure `154,810,982` remains historical rather than a v2 target.
+The terminal seed-2004 pair was run exactly once. Its headline mix, timing, and Pearson checks pass, but its closed Top-40 median is 11 weeks enabled versus 9 disabled (+2 weeks); 1964 also reaches +2. This violated the then-binding +/-1 paired-median guard. Per the no-post-holdout-tuning rule, no calibration was attempted and that holdout remains consumed as a historical fail.
+
+Alice subsequently approved a prospective widening of the paired closed Top-40 median guard to +/-2 weeks. Seed 2003 was unavailable because it was already used in the earlier `DecadeRunValidationAudit.md` holdout history, so confirmed-fresh seed 2005 was used instead. Its disabled/enabled pair ran once at the frozen Stage 2 configuration and passed every inherited guard: its all-decade closed Top-40 medians are 11 weeks disabled and 11 weeks enabled (delta 0). See `SimTools/Stage3bHoldoutAudit.md` for the full result. The historical v1 figure `154,810,982` remains historical rather than a v2 target.
+
+## Frozen Baseline v2 anchor
+
+Frozen 2026-07-10 from an enabled 520-week seed-1001 run using the shipping `chart_manager.tscn` configuration: `distanceModelEnabled = true`, `reachHalfDistance = 10000`, `costPerDistance = 0.0001`, and `difficultyWeight = 0.35`. The same command was repeated in an independent process; all emitted streams were byte-identical. The SHA-256 anchors are:
+
+| Stream | SHA-256 |
+|---|---|
+| `market-revenue.csv` | `7FBB45A28AEF4C9BB5BAD61ACF0D821718916C249AE911BB68BF54467FDDC686` |
+| `release-capacity.csv` | `14B4931B5F83A4D01D86ED447E8F8DC1CA3D39DAD10CBFD83DE009AA216D7C8D` |
+| `label-geography.csv` | `AFD9D12F0C14C46553CFC87441120E9C3B3E7BE3808B55766870DA866F98CB32` |
+| `geography-metrics.csv` | `AF49EAC9E2843AC1E5B0917E1F23E68340D7C5938F51762DDFFD170CDAA01E4D` |
+
+## Baseline v1 retirement
+
+Alice retired Baseline v1 on 2026-07-10. Its artifacts and figures remain preserved as historical evidence, including the historical 1960 figure `154,810,982`, but v1 is no longer an active parallel reference or a target for future comparisons. Baseline v2 is the sole active frozen reference.
+
+## Directive 4C / 4C-R acceptance
+
+Accepted 2026-07-10. Directive 4C's original same-seed/year +/-5% unit gate
+failed under the frozen release-timing treatment; Directive 4C-R prospectively
+replaced that defective cell gate with a three-seed pooled calendar-year gate
+while retaining per-seed decade and catastrophic individual-year protections.
+The frozen candidate uses the published raw tables, calendar/legacy
+normalization, `EnabledSingleSalesLevel = 1.00`, `EnabledAlbumSalesLevel =
+0.98`, release-only artist availability, and no venue consumer. Disabled
+seed-1001 remains byte-exact to the frozen 4b anchors above; enabled seed-1001
+repeated byte-identically. Three final measurement seeds (1001-1003) and fresh
+holdout seed 2006 passed their applicable gates. `marketSeasonalityEnabled` now
+ships enabled; `--disable-market-seasonality` remains the exact-off control.
+Full evidence, commands, calibration history, and output hashes are in
+`SimTools/MarketSeasonalityAudit.md`.

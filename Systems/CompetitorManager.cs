@@ -104,6 +104,12 @@ public partial class CompetitorManager : Node {
 	public int WeeklyFailedReleaseRolls { get; private set; }
 	public int WeeklyCooldownMismatchRolls { get; private set; }
 	public int WeeklyPipelineAlbumDrops { get; private set; }
+	public int WeeklySingleReleases { get; private set; }
+	public int WeeklyAlbumProjectsScheduled { get; private set; }
+	public float WeeklyProductionSpend { get; private set; }
+	public int WeeklyProductionEvents { get; private set; }
+	public float WeeklyMarketingSpend { get; private set; }
+	public int WeeklyMarketingEvents { get; private set; }
 	public int DistributionOffersGenerated { get; private set; }
 	public int DistributionOffersAccepted { get; private set; }
 	public float CannibalizationStrength => cannibalizationStrength;
@@ -370,6 +376,8 @@ public partial class CompetitorManager : Node {
 			: 0.89f;
 	}
 
+	public float GetPricePerUnitForAudit(ReleaseFormat format) => GetPricePerUnit(format);
+
 	private float GetPressingCostPerUnit(ReleaseFormat format) {
 		string key = format.ToString();
 		return pressingCostPerUnitByFormat != null && pressingCostPerUnitByFormat.TryGetValue(key, out float cost)
@@ -414,7 +422,7 @@ public partial class CompetitorManager : Node {
 			if (!label.IsActive) continue;
 			if (label.roster.Count == 0) continue;
 			
-			float releaseChance = CalculateWeeklyReleaseChance(label);
+			float releaseChance = CalculateWeeklyReleaseChance(label, date.year, date.month);
 			if (GD.Randf() < releaseChance) {
 				WeeklyReleaseRollsFired++;
 				if (TryReleaseRecord(label, date)) {
@@ -435,11 +443,17 @@ public partial class CompetitorManager : Node {
 		WeeklyFailedReleaseRolls = 0;
 		WeeklyCooldownMismatchRolls = 0;
 		WeeklyPipelineAlbumDrops = 0;
+		WeeklySingleReleases = 0;
+		WeeklyAlbumProjectsScheduled = 0;
+		WeeklyProductionSpend = 0f;
+		WeeklyProductionEvents = 0;
+		WeeklyMarketingSpend = 0f;
+		WeeklyMarketingEvents = 0;
 	}
 	
-	private float CalculateWeeklyReleaseChance(AILabel label) {
+	private float CalculateWeeklyReleaseChance(AILabel label, int year, int month) {
 		float baseChance = label.releasesPerMonth / 4f;
-		int yearOffset = Mathf.Max(0, (TimeManager.Instance?.CurrentDate.year ?? 1960) - 1960);
+		int yearOffset = Mathf.Max(0, year - 1960);
 		float yearScale = 1f + (yearOffset * AnnualReleaseGrowthRate);
 		float statusMod = label.status switch {
 			LabelStatus.Bankrupt => 0f, LabelStatus.Defunct => 0f, LabelStatus.Dying => 0.3f,
@@ -449,7 +463,9 @@ public partial class CompetitorManager : Node {
 		int availableArtists = label.roster.Count(a => a.weeksSinceLastRelease >= 10);
 		if (availableArtists == 0) return 0f;
 		float availabilityMod = Mathf.Clamp((float)availableArtists / 3f, 0f, 1f);
-		return baseChance * yearScale * statusMod * availabilityMod;
+		if (!MarketSeasonality.Enabled) return baseChance * yearScale * statusMod * availabilityMod;
+		return Mathf.Clamp(baseChance * yearScale * statusMod * availabilityMod *
+			MarketSeasonality.GetArtistAvailabilityMultiplier(year, month, liveTick: true), 0f, 1f);
 	}
 
 	public void RecordRetired(RecordRuntimeData runtimeData) {
@@ -535,7 +551,7 @@ public partial class CompetitorManager : Node {
 
 		// Snapshot only information available at the release fork. These pure reads are
 		// also emitted for album-disabled calibration runs; they consume no RNG.
-		DecisionContext decision = BuildDecisionContext(label, artist, date.year);
+		DecisionContext decision = BuildDecisionContext(label, artist, date.year, date.month);
 		ReleasePlan plan = DecideRelease(label, artist, date.year, decision);
 		if (plan.format == ReleaseFormat.Album) return TryInitiateAlbumProject(label, artist, date, decision, plan);
 		var record = GenerateRecordFromArtist(label, artist, date.year, plan.format);
@@ -544,7 +560,7 @@ public partial class CompetitorManager : Node {
 		float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
 		float perceivedQualityMult = 0.6f + (perceivedQuality * 0.8f);
 
-		float productionCost = CalculateProductionCost(label, record);
+		float productionCost = CalculateProductionCost(label, record, date);
 		float marketingBudget = label.GetMarketingBudget(artist) * perceivedQualityMult;
 		float totalCost = productionCost + marketingBudget;
 		float minReserve = label.GetMonthlyOverhead();
@@ -559,6 +575,10 @@ public partial class CompetitorManager : Node {
 		label.cashReserves -= totalCost;
 		label.monthlyExpenses += totalCost;
 		artist.unrecoupedAdvance += productionCost;
+		WeeklyProductionSpend += productionCost;
+		WeeklyProductionEvents++;
+		WeeklyMarketingSpend += marketingBudget;
+		WeeklyMarketingEvents++;
 		if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
 			financials.lastMonthExpenses += totalCost;
 		}
@@ -572,6 +592,7 @@ public partial class CompetitorManager : Node {
 		runtimeData.projectRole = ProjectRecordRole.OrphanSingle;
 		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
 		TrackRelease(label.labelId, record.recordId);
+		WeeklySingleReleases++;
 		RosterManager.Instance?.RecordReleased(artist, record.recordId);
 		artist.weeksSinceLastRelease = 0;
 		artist.releaseHistory.Add(record.recordId);
@@ -635,7 +656,7 @@ public partial class CompetitorManager : Node {
 
 	private bool TryInitiateAlbumProject(AILabel label, SimulatedArtist artist, GameDate date, DecisionContext decision, ReleasePlan plan) {
 		Record album = GenerateRecordFromArtist(label, artist, date.year, ReleaseFormat.Album);
-		float albumProductionCost = CalculateProductionCost(label, album);
+		float albumProductionCost = CalculateProductionCost(label, album, date);
 		float albumPerceivedMult;
 		float albumMarketingPlanned;
 		Record promo = null;
@@ -651,7 +672,7 @@ public partial class CompetitorManager : Node {
 			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
 			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
 			albumPromotion = BuildPromotionSnapshot(album, artist, albumPerceivedMult);
-			promoProductionCost = CalculateProductionCost(label, promo);
+			promoProductionCost = CalculateProductionCost(label, promo, date);
 			promoPerceivedMult = DrawPerceivedQualityMultiplier(promo, label);
 			promoMarketingBudget = label.GetMarketingBudget(artist) * promoPerceivedMult;
 		} else {
@@ -665,6 +686,10 @@ public partial class CompetitorManager : Node {
 		if (plan.strategy == ReleaseStrategy.AlbumStandalone) albumMarketingPlanned = firstMarketing;
 		else promoMarketingBudget = firstMarketing;
 		ChargeProjectCost(label, artist, productionTotal + firstMarketing, productionTotal);
+		WeeklyProductionSpend += productionTotal;
+		WeeklyProductionEvents += promo == null ? 1 : 2;
+		WeeklyMarketingSpend += firstMarketing;
+		WeeklyMarketingEvents++;
 
 		string projectId = $"project_{++generatedProjectCounter}";
 		var project = new AlbumProject {
@@ -681,6 +706,7 @@ public partial class CompetitorManager : Node {
 			promoOutcomeState = promo == null ? ProjectOutcomeState.None : ProjectOutcomeState.Pending
 		};
 		albumProjects.Add(project);
+		WeeklyAlbumProjectsScheduled++;
 		projectById[projectId] = project;
 		projectByRecordId[album.recordId] = project;
 		if (promo != null) projectByRecordId[promo.recordId] = project;
@@ -875,7 +901,7 @@ public partial class CompetitorManager : Node {
 
 	private float ProjectLaunchAwareness(AILabel label, SimulatedArtist artist, float marketingBudget) {
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
-		float marketingAwareness = BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		return Mathf.Clamp(0.04f + artistAwareness + marketingAwareness + label.reputation * 0.1f, 0f, 1f);
 	}
 
@@ -902,13 +928,18 @@ public partial class CompetitorManager : Node {
 		{ 3380, 191, 22, 191 }, { 3156, 407, 22, 22 }
 	};
 
-	private static DecisionContext BuildDecisionContext(AILabel label, SimulatedArtist artist, int year) {
+	private static DecisionContext BuildDecisionContext(AILabel label, SimulatedArtist artist, int year, int month) {
 		float qualityEstimate = artist.CalculateBaseQuality();
+		float recordingCostMultiplier = MarketSeasonality.Enabled
+			? MarketSeasonality.GetRecordingCostMultiplier(year, month, liveTick: true) : 1f;
+		float singleProductionCost = MarketSeasonality.Enabled
+			? label.GetProductionCost() * recordingCostMultiplier : label.GetProductionCost();
 		return new DecisionContext {
 			qualityEstimate = qualityEstimate,
 			reachFactor = Mathf.Max(0f, label.distributionStrength),
 			genreSinglesMarketFactor = CalculateSingleGenreMarketFactor(artist.primaryGenre, year),
-			singleProductionCost = label.GetProductionCost()
+			singleProductionCost = singleProductionCost,
+			recordingCostMultiplier = recordingCostMultiplier
 		};
 	}
 
@@ -937,7 +968,9 @@ public partial class CompetitorManager : Node {
 		float royaltyRate = artist?.royaltyRate ?? baseRoyaltyRate;
 		float marginPerUnit = grossAfterManufacturing * (1f - skimFraction) - GetPricePerUnit(ReleaseFormat.Album) * royaltyRate;
 		float multiplier = compCostWeight * compilationProductionMultiplier + (1f - compCostWeight) * 2.4f;
-		float productionCost = label.GetProductionCost() * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging;
+		float productionCost = MarketSeasonality.Enabled
+			? label.GetProductionCost() * decision.recordingCostMultiplier * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging
+			: label.GetProductionCost() * multiplier + albumPackagingFixedCost * priorAssumedAlbumPackaging;
 		float expectedRevenueAtMargin = expectedUnits * marginPerUnit;
 		diagnostics = new AlbumPriorDiagnostics {
 			expectedFormatMultiplier = multiplier,
@@ -983,8 +1016,10 @@ public partial class CompetitorManager : Node {
 	private static string GetCareerBandLabel(int band, bool unexpected) => unexpected ? "New/Unsigned (unexpected-state fallback)" :
 		band switch { 0 => "New/Unsigned", 1 => "Rising", 2 => "Established", _ => "Star/Superstar" };
 
-	private float CalculateProductionCost(AILabel label, Record record) {
-		float baseCost = label.GetProductionCost();
+	private float CalculateProductionCost(AILabel label, Record record, GameDate date) {
+		float baseCost = MarketSeasonality.Enabled
+			? label.GetProductionCost() * MarketSeasonality.GetRecordingCostMultiplier(date.year, date.month, liveTick: true)
+			: label.GetProductionCost();
 		if (record?.format != ReleaseFormat.Album) return baseCost;
 		float multiplier = record.album?.albumFormat == AlbumFormat.Compilation
 			? compilationProductionMultiplier
@@ -1119,6 +1154,7 @@ public partial class CompetitorManager : Node {
 		public float reachFactor;
 		public float genreSinglesMarketFactor;
 		public float singleProductionCost;
+		public float recordingCostMultiplier;
 	}
 	
 	private Record GenerateRecordFromArtist(AILabel label, SimulatedArtist artist, int year, ReleaseFormat format = ReleaseFormat.Single) {
@@ -1295,7 +1331,7 @@ public partial class CompetitorManager : Node {
 		RecordRuntimeData runtime = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
 		if (runtime == null || snapshot == null) return;
 		float quality = runtime.GetQuality();
-		float marketingAwareness = BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + label.reputation * 0.1f;
 		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
 		runtime.radioHeat = 0f;
@@ -1343,6 +1379,8 @@ public partial class CompetitorManager : Node {
 			owner.cashReserves -= marketingBudget;
 			owner.monthlyExpenses += marketingBudget;
 			if (labelFinancials.TryGetValue(owner.labelId, out LabelFinancialHistory financials)) financials.lastMonthExpenses += marketingBudget;
+			WeeklyMarketingSpend += marketingBudget;
+			WeeklyMarketingEvents++;
 
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(project.artistId);
 			ReleasePreparedRecord(project.albumRecord, artist, owner, date, project.albumProductionCost, ProjectRecordRole.LinkedAlbum, project.projectId);
@@ -1374,7 +1412,7 @@ public partial class CompetitorManager : Node {
 		
 		float quality = runtimeData.GetQuality();
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
-		float marketingAwareness = BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float labelAwareness = label.reputation * 0.1f;
 		
 		runtimeData.awareness = Mathf.Clamp((isAlbum ? 0.04f : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
@@ -1400,7 +1438,11 @@ public partial class CompetitorManager : Node {
 			regionalData.unitsInStores = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult);
 			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GD.RandRange(0.8, 1.1), 0f, 1f);
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
-			regionalData.radioPlay = isAlbum ? 0f : Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GD.RandRange(0.7, 1.0), 0f, 1f);
+			if (MarketSeasonality.Enabled) {
+				float radioOpportunity = MarketSeasonality.GetRadioOpportunity(TimeManager.Instance?.CurrentDate.year ?? 1960,
+					TimeManager.Instance?.CurrentDate.month ?? 1, liveTick: true);
+				regionalData.radioPlay = isAlbum ? 0f : Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GD.RandRange(0.7, 1.0) * radioOpportunity, 0f, 1f);
+			} else regionalData.radioPlay = isAlbum ? 0f : Mathf.Clamp(runtimeData.radioHeat * regionStrength / radioDifficulty * (float)GD.RandRange(0.7, 1.0), 0f, 1f);
 			float genreFit = GetGenreFit(record.primaryGenre, region);
 			regionalData.sentiment = Mathf.Clamp((quality * 0.6f) + (genreFit * 0.3f) + (float)GD.RandRange(-0.1, 0.15), -1f, 1f);
 		}
@@ -1420,6 +1462,15 @@ public partial class CompetitorManager : Node {
 		};
 		float normalized = budget / baseline;
 		return Mathf.Clamp((Mathf.Log(1 + normalized * 9) / Mathf.Log(10)) / 1.5f, 0f, 1f);
+	}
+
+	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label) {
+		if (!MarketSeasonality.Enabled) return BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
+		float impact = BudgetToImpact(marketingBudget, label.tier) *
+			MarketSeasonality.GetMarketingEfficiencyMultiplier(year, month, liveTick: true);
+		return Mathf.Clamp(impact, 0f, 1f) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
 	}
 	
 	private float GetGenreFit(Genre genre, MarketRegion region) {

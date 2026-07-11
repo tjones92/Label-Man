@@ -11,6 +11,8 @@ public partial class RosterManager : Node {
 	
 	[ExportGroup("Debug")]
 	[Export] private bool debugMode = false;
+	public int WeeklyScoutingRolls { get; private set; }
+	public int WeeklySignings { get; private set; }
 	
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
@@ -151,6 +153,12 @@ public partial class RosterManager : Node {
 	
 	private void OnWeekEnded(GameDate date) {
 		UpdateArtistCooldowns();
+		WeeklyScoutingRolls = 0;
+		WeeklySignings = 0;
+		WeeklyScoutingRolls++;
+		// Release availability remains the sole live artist-opportunity seam.
+		// The scouting seam was removed after its paired timing feedback missed
+		// the calendar-year unit gate during the initial three-seed checkpoint.
 		if (GD.Randf() < weeklyScoutChance) ProcessScouting(date.year);
 	}
 	
@@ -179,6 +187,7 @@ public partial class RosterManager : Node {
 			float advance = label.SignArtist(bestCandidate, year);
 			CompetitorManager.Instance?.RecordExpense(label, advance);
 			ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
+			WeeklySignings++;
 			if (debugMode) GD.Print($"SIGNING: {label.labelName} signs {bestCandidate.stageName} ({bestCandidate.primaryGenre})");
 		}
 	}

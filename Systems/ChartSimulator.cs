@@ -78,7 +78,9 @@ public static class ChartSimulator {
 		RegionalRecordData regionalData,
 		float quality,
 		float genreAcceptance,
+		int year,
 		int month,
+		bool liveTick,
 		int internalChartPosition,
 		AILabel label)
 	{
@@ -156,7 +158,7 @@ public static class ChartSimulator {
 		conversionRate *= 0.75f + Mathf.Max(0, regionalData.sentiment) * 0.25f;
 		conversionRate *= record.GetAwardMultiplier();
 		conversionRate *= 1f - (region.distribution.difficulty * 0.3f);
-		conversionRate *= GetSeasonalSalesMultiplier(month);
+		conversionRate *= MarketSeasonality.GetSingleSalesMultiplier(year, month, liveTick);
 		
 		float rawSales = awareBuyers * conversionRate;
 		// Backorders represent recent unmet intent, not a permanent bank of future
@@ -230,16 +232,6 @@ public static class ChartSimulator {
 		if (position <= 20) return TOP_20_VISIBILITY_MULT;
 		if (position <= 40) return TOP_40_VISIBILITY_MULT;
 		return TOP_100_VISIBILITY_MULT;
-	}
-
-	private static float GetSeasonalSalesMultiplier(int month) {
-		return month switch {
-			12 => 1.20f,
-			11 => 1.10f,
-			1 => 0.90f,
-			6 or 7 or 8 => 1.05f,
-			_ => 1f
-		};
 	}
 
 	// Returns the furthest position an established record may fall this week.

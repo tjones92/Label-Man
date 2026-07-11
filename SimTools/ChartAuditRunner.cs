@@ -99,6 +99,26 @@ public partial class ChartAuditRunner : Node {
 		public bool YouthCompilation;
 		public bool Promo;
 	}
+	private sealed class SeasonalityMonthRollup {
+		public int LiveWeeks;
+		public long SingleUnits;
+		public long AlbumUnits;
+		public double SingleGross;
+		public double AlbumGross;
+		public int ReleaseRolls;
+		public int SuccessfulReleases;
+		public int SingleReleases;
+		public int AlbumProjectsScheduled;
+		public int AlbumDrops;
+		public double ProductionSpend;
+		public int ProductionEvents;
+		public double MarketingSpend;
+		public int MarketingEvents;
+		public int ScoutingRolls;
+		public int Signings;
+		public double RadioPlaySum;
+		public int RadioPlayCount;
+	}
 
 	private readonly Dictionary<string, LifecycleState> lifecycle = new();
 	private HashSet<string> previousChartIds = new();
@@ -115,6 +135,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter concentrationWriter;
 	private StreamWriter marketRevenueWriter;
 	private StreamWriter releaseCapacityWriter;
+	private StreamWriter seasonalityMonthlyWriter;
 	private StreamWriter albumChartWriter;
 	private StreamWriter albumCompositionWriter;
 	private StreamWriter formatMixWriter;
@@ -175,6 +196,7 @@ public partial class ChartAuditRunner : Node {
 	private int previousTrackResolutionMisses;
 	private int previousTrackArchiveHits;
 	private int signedDealEvents;
+	private readonly Dictionary<(int Year, int Month), SeasonalityMonthRollup> seasonalityMonths = new();
 
 	public override void _Ready() {
 		try {
@@ -366,6 +388,7 @@ public partial class ChartAuditRunner : Node {
 		concentrationWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-concentration.csv"));
 		marketRevenueWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-market-revenue.csv"));
 		releaseCapacityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-capacity.csv"));
+		seasonalityMonthlyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-seasonality-monthly.csv"));
 		albumChartWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-chart.csv"));
 		albumCompositionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-composition.csv"));
 		formatMixWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-mix.csv"));
@@ -402,6 +425,7 @@ public partial class ChartAuditRunner : Node {
 		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
 		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
+		seasonalityMonthlyWriter.WriteLine("seed,enabled,year,month,liveWeeks,singleSalesMultiplier,albumSalesMultiplier,radioOpportunity,venueAttendanceMultiplier,recordingCostMultiplier,marketingEfficiencyMultiplier,artistAvailabilityMultiplier,singleUnits,albumUnits,singleGross,albumGross,releaseRolls,successfulReleases,singleReleases,albumProjectsScheduled,albumDrops,productionSpend,productionEvents,marketingSpend,marketingEvents,scoutingRolls,signings,meanRadioPlay");
 		albumChartWriter.WriteLine("week,year,month,chartSize,position,previousPosition,recordId,title,artistId,labelId,genre,albumFormat,unitsThisWeek,totalUnitsSold,weeksOnChart,pooledAppeal,thematicCohesion,packaging");
 		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
@@ -783,6 +807,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void CaptureWeek(int week) {
 		GameDate date = TimeManager.Instance.CurrentDate;
+		GameDate salesDate = date.IsFriday ? date : date.AddDays(-1);
 		EnsureDecadeAnnualYear(date.year);
 		albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
@@ -836,6 +861,7 @@ public partial class ChartAuditRunner : Node {
 		RecordRuntimeData numberOne = chart.FirstOrDefault();
 		int totalChartUnits = chart.Sum(record => record.unitsThisWeek);
 		int totalMarketUnits = records.Sum(record => record.unitsThisWeek);
+		CaptureSeasonalityMonth(salesDate, records);
 		int newTop100 = chartIds.Count(id => !previousChartIds.Contains(id));
 		int newTop40 = chart.Take(40).Count(record => !previousChartIds.Contains(record.baseRecord.recordId));
 		int exits = previousChartIds.Count(id => !chartIds.Contains(id));
@@ -868,6 +894,54 @@ public partial class ChartAuditRunner : Node {
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;
+	}
+
+	private void CaptureSeasonalityMonth(GameDate date, List<RecordRuntimeData> records) {
+		var key = (date.year, date.month);
+		if (!seasonalityMonths.TryGetValue(key, out SeasonalityMonthRollup rollup)) {
+			rollup = new SeasonalityMonthRollup();
+			seasonalityMonths[key] = rollup;
+		}
+		CompetitorManager competitors = CompetitorManager.Instance;
+		RosterManager roster = RosterManager.Instance;
+		long singleUnits = records.Where(record => record.baseRecord.format == ReleaseFormat.Single).Sum(record => (long)record.unitsThisWeek);
+		long albumUnits = records.Where(record => record.baseRecord.format == ReleaseFormat.Album).Sum(record => (long)record.unitsThisWeek);
+		rollup.LiveWeeks++;
+		rollup.SingleUnits += singleUnits;
+		rollup.AlbumUnits += albumUnits;
+		rollup.SingleGross += singleUnits * competitors.GetPricePerUnitForAudit(ReleaseFormat.Single);
+		rollup.AlbumGross += albumUnits * competitors.GetPricePerUnitForAudit(ReleaseFormat.Album);
+		rollup.ReleaseRolls += competitors.WeeklyReleaseRollsFired;
+		rollup.SuccessfulReleases += competitors.WeeklySuccessfulReleases;
+		rollup.SingleReleases += competitors.WeeklySingleReleases;
+		rollup.AlbumProjectsScheduled += competitors.WeeklyAlbumProjectsScheduled;
+		rollup.AlbumDrops += competitors.WeeklyPipelineAlbumDrops;
+		rollup.ProductionSpend += competitors.WeeklyProductionSpend;
+		rollup.ProductionEvents += competitors.WeeklyProductionEvents;
+		rollup.MarketingSpend += competitors.WeeklyMarketingSpend;
+		rollup.MarketingEvents += competitors.WeeklyMarketingEvents;
+		rollup.ScoutingRolls += roster?.WeeklyScoutingRolls ?? 0;
+		rollup.Signings += roster?.WeeklySignings ?? 0;
+		foreach (RegionalRecordData data in records.SelectMany(record => record.regionalData.Values)) { rollup.RadioPlaySum += data.radioPlay; rollup.RadioPlayCount++; }
+	}
+
+	private void WriteSeasonalityMonthlyRows() {
+		if (seasonalityMonthlyWriter == null) return;
+		foreach (var pair in seasonalityMonths.OrderBy(pair => pair.Key.Year).ThenBy(pair => pair.Key.Month)) {
+			int year = pair.Key.Year;
+			int month = pair.Key.Month;
+			SeasonalityMonthRollup row = pair.Value;
+			seasonalityMonthlyWriter.WriteLine(string.Join(",", new[] {
+				requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty, MarketSeasonality.Enabled ? "true" : "false",
+				year.ToString(CultureInfo.InvariantCulture), month.ToString(CultureInfo.InvariantCulture), row.LiveWeeks.ToString(CultureInfo.InvariantCulture),
+				F(MarketSeasonality.GetSingleSalesMultiplier(year, month, true)), F(MarketSeasonality.GetAlbumSalesMultiplier(year, month, true)), F(MarketSeasonality.GetRadioOpportunity(year, month, true)),
+				F(MarketSeasonality.GetVenueAttendanceMultiplier(year, month, true)), F(MarketSeasonality.GetRecordingCostMultiplier(year, month, true)), F(MarketSeasonality.GetMarketingEfficiencyMultiplier(year, month, true)), F(MarketSeasonality.GetArtistAvailabilityMultiplier(year, month, true)),
+				row.SingleUnits.ToString(CultureInfo.InvariantCulture), row.AlbumUnits.ToString(CultureInfo.InvariantCulture), F(row.SingleGross), F(row.AlbumGross),
+				row.ReleaseRolls.ToString(CultureInfo.InvariantCulture), row.SuccessfulReleases.ToString(CultureInfo.InvariantCulture), row.SingleReleases.ToString(CultureInfo.InvariantCulture), row.AlbumProjectsScheduled.ToString(CultureInfo.InvariantCulture), row.AlbumDrops.ToString(CultureInfo.InvariantCulture),
+				F(row.ProductionSpend), row.ProductionEvents.ToString(CultureInfo.InvariantCulture), F(row.MarketingSpend), row.MarketingEvents.ToString(CultureInfo.InvariantCulture),
+				row.ScoutingRolls.ToString(CultureInfo.InvariantCulture), row.Signings.ToString(CultureInfo.InvariantCulture), F(row.RadioPlayCount > 0 ? row.RadioPlaySum / row.RadioPlayCount : 0d)
+			}));
+		}
 	}
 
 	private void WriteRevenueMemoryRows(int week, int year) {
@@ -1495,6 +1569,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnCalibrationDecision -= OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome -= OnReleaseOutcome;
 		}
+		WriteSeasonalityMonthlyRows();
 		recordWriter?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
@@ -1507,6 +1582,7 @@ public partial class ChartAuditRunner : Node {
 		concentrationWriter?.Dispose();
 		marketRevenueWriter?.Dispose();
 		releaseCapacityWriter?.Dispose();
+		seasonalityMonthlyWriter?.Dispose();
 		albumChartWriter?.Dispose();
 		albumCompositionWriter?.Dispose();
 		formatMixWriter?.Dispose();
@@ -1542,6 +1618,7 @@ public partial class ChartAuditRunner : Node {
 		concentrationWriter = null;
 		marketRevenueWriter = null;
 		releaseCapacityWriter = null;
+		seasonalityMonthlyWriter = null;
 		albumChartWriter = null;
 		albumCompositionWriter = null;
 		formatMixWriter = null;
