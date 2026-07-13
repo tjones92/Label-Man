@@ -16,6 +16,11 @@ public partial class Record : Resource {
 	[ExportGroup("Musical Attributes")]
 	[Export] public Genre primaryGenre;
 	[Export] public Genre secondaryGenre;
+	// Durable identities for Directive 5 saves and telemetry. Enums remain for Godot/type safety.
+	[Export] public int genreSchemaVersion;
+	[Export] public string primaryGenreId;
+	[Export] public string secondaryGenreId;
+	[Export] public string[] genreTagIds = System.Array.Empty<string>();
 	[Export(PropertyHint.Range, "0,1")] public float hookStrength;
 	[Export(PropertyHint.Range, "0,1")] public float productionQuality;
 	[Export(PropertyHint.Range, "0,1")] public float originality;

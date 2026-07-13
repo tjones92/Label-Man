@@ -97,6 +97,11 @@ public static class ChartSimulator {
 		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {
 			effectiveAwareness = Mathf.Max(effectiveAwareness, 0.4f);
 		}
+		regionalData.salesRecordAwarenessThisWeek = record.awareness;
+		regionalData.salesRegionalAwarenessThisWeek = regionalData.awareness;
+		regionalData.salesEffectiveAwarenessThisWeek = effectiveAwareness;
+		regionalData.salesRadioHeatThisWeek = record.radioHeat;
+		regionalData.salesRegionalRadioPlayThisWeek = regionalData.radioPlay;
 		
 		float awareBuyers = potentialBuyers * effectiveAwareness;
 		
@@ -153,7 +158,13 @@ public static class ChartSimulator {
 		}
 		
 		// === 8. OTHER MODIFIERS ===
-		conversionRate *= 0.6f + genreAcceptance * 0.5f;
+		bool useGenreMarketV2DemandTransfer = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		conversionRate *= useGenreMarketV2DemandTransfer
+			? GenreAcceptanceService.GetEnabledSingleDemandMultiplier(genreAcceptance)
+			: 0.6f + genreAcceptance * 0.5f;
+		conversionRate *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
+			record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
+			region.GetAlbumDemandEraProgress(year), useGenreMarketV2DemandTransfer);
 		conversionRate *= 0.75f + record.radioHeat * 0.5f;
 		conversionRate *= 0.75f + Mathf.Max(0, regionalData.sentiment) * 0.25f;
 		conversionRate *= record.GetAwardMultiplier();

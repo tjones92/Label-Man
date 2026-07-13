@@ -252,9 +252,7 @@ public partial class AILabel : Resource {
 		var candidates = new List<(SimulatedArtist artist, float priority)>();
 		
 		foreach (var artist in roster) {
-			if (!artist.isActive) continue;
-			int minWeeks = GetMinimumReleaseCooldown(artist);
-			if (artist.weeksSinceLastRelease < minWeeks) continue;
+			if (!IsEligibleForRelease(artist, currentYear)) continue;
 			float priority = CalculateReleasePriority(artist, currentYear);
 			if (priority > 0) candidates.Add((artist, priority));
 		}
@@ -269,6 +267,14 @@ public partial class AILabel : Resource {
 			if (roll <= cumulative) return artist;
 		}
 		return candidates[0].artist;
+	}
+
+	public int CountArtistsEligibleForRelease(int currentYear) => roster?.Count(artist => IsEligibleForRelease(artist, currentYear)) ?? 0;
+
+	private bool IsEligibleForRelease(SimulatedArtist artist, int currentYear) {
+		if (!GenreSupplyService.IsEligibleExistingArtistForRelease(artist)) return false;
+		// Lifecycle only governs new identity creation. Existing artists retain release capacity.
+		return artist.weeksSinceLastRelease >= GetMinimumReleaseCooldown(artist);
 	}
 	
 	private int GetMinimumReleaseCooldown(SimulatedArtist artist) {

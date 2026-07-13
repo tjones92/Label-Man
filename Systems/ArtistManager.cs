@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -100,21 +101,29 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	public SimulatedArtist GenerateArtist(ArtistType type, Genre genre, int year, string region) {
 		artistIdCounter++;
 		string id = $"artist_{artistIdCounter:D5}";
+		Genre primaryGenre;
+		Genre secondaryGenre;
+		if (GenreMarketV2.Enabled) {
+			(primaryGenre, secondaryGenre) = CanonicalizeEnabledInitialGenres(genre, year, GetRelatedGenre);
+		} else {
+			primaryGenre = genre;
+			secondaryGenre = GetRelatedGenre(genre);
+		}
 		
 		var artist = new SimulatedArtist {
 			artistId = id,
 			type = type,
-			primaryGenre = genre,
-			secondaryGenre = GetRelatedGenre(genre),
+			primaryGenre = primaryGenre,
+			secondaryGenre = secondaryGenre,
 			homeRegion = region ?? GetRandomRegion(),
 			formedYear = year - (int)GD.RandRange(0, 5),
 			careerState = CareerState.Unsigned
 		};
 		
-		GenerateMembers(artist, type, genre, year);
+		GenerateMembers(artist, type, primaryGenre, year);
 		artist.stageName = type is ArtistType.SoloMale or ArtistType.SoloFemale
 			? artist.members[0].FullName
-			: GenerateStageName(type, genre, year);
+			: GenerateStageName(type, primaryGenre, year);
 		artist.RecalculateStats();
 		
 		artist.momentum = 0f;
@@ -310,7 +319,18 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 	
 	private Genre GetRandomGenre() {
-		float roll = GD.Randf();
+		return GetLegacyInitialGenreForProbe(GD.Randf(), vocalGroup: false);
+	}
+
+	internal static Genre GetLegacyInitialGenreForProbe(float roll, bool vocalGroup) {
+		if (vocalGroup) {
+			if (roll < 0.35f) return Genre.DooWop;
+			if (roll < 0.55f) return Genre.GirlGroup;
+			if (roll < 0.75f) return Genre.Motown;
+			if (roll < 0.85f) return Genre.Soul;
+			if (roll < 0.92f) return Genre.RnB;
+			return Genre.Gospel;
+		}
 		if (roll < 0.18f) return Genre.RockAndRoll;
 		if (roll < 0.32f) return Genre.RnB;
 		if (roll < 0.42f) return Genre.TraditionalPop;
@@ -326,18 +346,23 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		if (roll < 0.95f) return Genre.SurfRock;
 		return Genre.BluesRock;
 	}
-	
+
 	private Genre GetVocalGroupGenre() {
-		float roll = GD.Randf();
-		if (roll < 0.35f) return Genre.DooWop;
-		if (roll < 0.55f) return Genre.GirlGroup;
-		if (roll < 0.75f) return Genre.Motown;
-		if (roll < 0.85f) return Genre.Soul;
-		if (roll < 0.92f) return Genre.RnB;
-		return Genre.Gospel;
+		return GetLegacyInitialGenreForProbe(GD.Randf(), vocalGroup: true);
+	}
+
+	/// <summary>Draws the legacy secondary once, then applies deterministic enabled-path migration.</summary>
+	internal static (Genre Primary, Genre Secondary) CanonicalizeEnabledInitialGenres(
+		Genre legacyPrimary, int year, Func<Genre, Genre> drawSecondary) {
+		if (drawSecondary == null) throw new ArgumentNullException(nameof(drawSecondary));
+		Genre primary = legacyPrimary;
+		Genre secondary = drawSecondary(legacyPrimary);
+		GenreMigration.Canonicalize(ref primary, ref secondary, year);
+		return (primary, secondary);
 	}
 	
 	private Genre GetRelatedGenre(Genre primary) {
+		if (GenreMarketV2.Enabled && primary == Genre.Soul) return RandomPick(Genre.RnB, Genre.Gospel, Genre.TeenPop);
 		return primary switch {
 			Genre.RockAndRoll => RandomPick(Genre.RnB, Genre.TeenPop, Genre.BluesRock),
 			Genre.RnB => RandomPick(Genre.Soul, Genre.DooWop, Genre.Gospel),

@@ -25,6 +25,7 @@ public partial class MarketRegion : Resource {
 	[Export(PropertyHint.Range, "0,1")] public float culturalProgressivism;
 	[Export(PropertyHint.Range, "0,1")] public float regionalInsularity;
 	[Export(PropertyHint.Range, "0.5,2")] public float trendAdoptionSpeed;
+	[Export(PropertyHint.Range, "0,1")] public float churchNetworkStrength = 0.25f;
 	
 	[ExportGroup("Genre Affinities - 1960 Baseline")]
 	// FIX: Changed List to Array for Godot Export compatibility
@@ -54,6 +55,34 @@ public partial class MarketRegion : Resource {
 	public Dictionary<Genre, float> genreMomentum;
 	public float currentIntegration;
 	public float currentProgressivism;
+	private bool genreMarketV2Live;
+
+	/// <summary>
+	/// Fixed-input decomposition of the Album buyer-pool seam.  The enabled
+	/// routed acceptance may differ materially from the accepted regional Album
+	/// baseline, so callers can inspect and normalize the opportunity before any
+	/// format tilt or record-specific conversion is applied.
+	/// </summary>
+	public readonly struct AlbumDemandExplanation {
+		public readonly float RoutedAcceptance, LegacyAcceptance, SegregationFactor, AlbumAffinity, PurchaseWillingness;
+		public readonly float EnabledPreTiltBuyerPool, AcceptedPreTiltBuyerPool, OpportunityNormalization;
+
+		public AlbumDemandExplanation(float routedAcceptance, float legacyAcceptance, float segregationFactor,
+			float albumAffinity, float purchaseWillingness, float enabledPreTiltBuyerPool, float acceptedPreTiltBuyerPool) {
+			RoutedAcceptance = routedAcceptance;
+			LegacyAcceptance = legacyAcceptance;
+			SegregationFactor = segregationFactor;
+			AlbumAffinity = albumAffinity;
+			PurchaseWillingness = purchaseWillingness;
+			EnabledPreTiltBuyerPool = enabledPreTiltBuyerPool;
+			AcceptedPreTiltBuyerPool = acceptedPreTiltBuyerPool;
+			OpportunityNormalization = acceptedPreTiltBuyerPool / Mathf.Max(.000001f, enabledPreTiltBuyerPool);
+		}
+	}
+	public SegmentCapacityModel segmentCapacities;
+
+	/// <summary>ChartManager switches this only after the legacy prewarm completes.</summary>
+	public void SetGenreMarketV2Live(bool live) => genreMarketV2Live = live;
 	
 	public void InitializeRuntimeState(int startYear) {
 		currentGenreAcceptance = new Dictionary<Genre, float>();
@@ -68,22 +97,69 @@ public partial class MarketRegion : Resource {
 		
 		currentIntegration = integrationLevel;
 		currentProgressivism = culturalProgressivism;
+		segmentCapacities = SegmentCapacityModel.Create(this, startYear);
 	}
 	
 	public float GetGenreMarketSize(Genre genre, int year) {
 		float baseMarket = population * 1000000f;
 		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
+		if (GenreMarketV2.Enabled && genreMarketV2Live) {
+			float momentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
+			return buyingPopulation * GenreAcceptanceService.GetRegionalDemandAcceptance(genre, genre, this, year, momentum);
+		}
 		float acceptance = GetGenreAcceptance(genre, year);
 		float segregationFactor = GetSegregationFactor(genre);
 		return buyingPopulation * acceptance * segregationFactor;
 	}
 
 	public float GetAlbumMarketSize(Genre genre, int year) {
+		if (GenreMarketV2.Enabled && genreMarketV2Live) {
+			AlbumDemandExplanation explanation = GetAlbumDemandExplanation(genre, year);
+			// Segment routing supplies texture, but Album opportunity is accepted at
+			// the established regional baseline.  Normalize from fixed inputs here,
+			// before record quality, awareness, stock, or format tilt can compound it.
+			return explanation.EnabledPreTiltBuyerPool * explanation.OpportunityNormalization;
+		}
 		float baseMarket = population * 1000000f;
 		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
 		return buyingPopulation * GetGenreAcceptance(genre, year) * GetSegregationFactor(genre) *
 			GetAlbumAffinity(genre, year) * GetAlbumPurchaseWillingness(year);
 	}
+
+	public AlbumDemandExplanation GetAlbumDemandExplanation(Genre genre, float year) {
+		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		float momentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
+		float routedAcceptance = GenreAcceptanceService.GetRegionalDemandAcceptance(genre, genre, this, year, momentum);
+		float legacyAcceptance = GetLegacyGenreAcceptance(genre, year);
+		float segregation = GetSegregationFactor(genre);
+		float affinity = GetAlbumAffinity(genre, (int)year);
+		float willingness = GetAlbumPurchaseWillingness((int)year);
+		float shared = buyingPopulation * segregation * affinity * willingness;
+		return new AlbumDemandExplanation(routedAcceptance, legacyAcceptance, segregation, affinity, willingness,
+			shared * routedAcceptance, shared * legacyAcceptance);
+	}
+
+	/// <summary>Accepted regional calculation without the live V2 routing branch.</summary>
+	public float GetLegacyGenreAcceptance(Genre genre, float year) {
+		if (currentGenreAcceptance == null || !currentGenreAcceptance.ContainsKey(genre)) return culturalProgressivism * 0.3f;
+		float momentum = genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f;
+		return Mathf.Clamp(currentGenreAcceptance[genre] + GetYearEvolution(genre, (int)year) + momentum, 0f, 1f);
+	}
+
+	/// <summary>Accepted pre-tilt Album opportunity as a share of the regional genre buyer pool.</summary>
+	public float GetAcceptedAlbumOpportunityWeight(Genre genre, float year) {
+		return GetAcceptedPreTiltAlbumMarketSize(genre, year) / Mathf.Max(.000001f, GetAcceptedLegacyGenreMarketSize(genre, year));
+	}
+
+	/// <summary>Accepted legacy genre buyer pool used as the common Album-prior denominator.</summary>
+	public float GetAcceptedLegacyGenreMarketSize(Genre genre, float year) {
+		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		return buyingPopulation * GetLegacyGenreAcceptance(genre, year) * GetSegregationFactor(genre);
+	}
+
+	/// <summary>Accepted Album buyer pool before format tilt and record-specific conversion.</summary>
+	public float GetAcceptedPreTiltAlbumMarketSize(Genre genre, float year) =>
+		GetAlbumDemandExplanation(genre, year).AcceptedPreTiltBuyerPool;
 
 	public float GetAlbumAffinity(Genre genre, int year) {
 		float baseline = genre switch {
@@ -109,7 +185,7 @@ public partial class MarketRegion : Resource {
 		return Mathf.Clamp(0.30f + normalizedIncome * 0.48f + audienceAging * 0.25f - youthPricePenalty, 0.08f, 1f);
 	}
 
-	private float GetAlbumDemandEraProgress(int year) {
+	public float GetAlbumDemandEraProgress(float year) {
 		if (albumDemandRiseEndYear <= albumDemandRiseStartYear)
 			return year >= albumDemandRiseEndYear ? 1f : 0f;
 		return Mathf.Clamp((year - albumDemandRiseStartYear) /
@@ -123,17 +199,17 @@ public partial class MarketRegion : Resource {
 		return Mathf.Clamp(youthFactor * incomeFactor * urbanFactor * 0.032f, 0f, 1f);
 	}
 	
-	public float GetGenreAcceptance(Genre genre, int year) {
-		if (currentGenreAcceptance == null || !currentGenreAcceptance.ContainsKey(genre)) {
-			return culturalProgressivism * 0.3f;
+	public float GetGenreAcceptance(Genre genre, int year) => GetGenreAcceptance(genre, (float)year);
+
+	public float GetGenreAcceptance(Genre genre, float year) {
+		if (GenreMarketV2.Enabled && genreMarketV2Live) {
+			float legacyMomentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
+			return GenreAcceptanceService.GetRegionalDemandAcceptance(genre, genre, this, year, legacyMomentum);
 		}
-		float baseAcceptance = currentGenreAcceptance[genre];
-		float yearModifier = GetYearEvolution(genre, year);
-		float momentum = (genreMomentum != null && genreMomentum.ContainsKey(genre)) ? genreMomentum[genre] : 0f;
-		return Mathf.Clamp(baseAcceptance + yearModifier + momentum, 0f, 1f);
+		return GetLegacyGenreAcceptance(genre, year);
 	}
 	
-	private float GetSegregationFactor(Genre genre) {
+	public float GetSegregationFactor(Genre genre) {
 		bool isBlackGenre = genre == Genre.RnB || genre == Genre.Soul || genre == Genre.Gospel || genre == Genre.DooWop;
 		if (!isBlackGenre) return 1f;
 		float whiteAccess = currentIntegration;

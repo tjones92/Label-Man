@@ -5,14 +5,11 @@ public static class AlbumSimulator {
 	private const float CatalogDecayStartWeeks = 26f;
 	private const float CatalogWeeklyDecay = 0.985f;
 
-	public static void UpdateAlbum(RecordRuntimeData record, AILabel label, float artistHeat) {
+	public static void UpdateAlbum(RecordRuntimeData record, AILabel label, float artistHeat, float substitutionPropensity) {
 		RecordRuntimeData linkedPromo = string.IsNullOrEmpty(record.linkedPromoSingleId)
 			? null
 			: ChartManager.Instance?.GetRecordRuntimeData(record.linkedPromoSingleId);
 		float singleHeat = linkedPromo != null ? Mathf.Clamp(linkedPromo.radioHeat, 0f, 1f) : 0f;
-		int currentYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		float substitutionPropensity = CompetitorManager.Instance?.CalculateSubstitutionPropensity(
-			record.baseRecord.primaryGenre, currentYear) ?? 0f;
 		record.linkedPromoRuntimeActive = linkedPromo != null;
 		record.linkedPromoSingleHeat = singleHeat;
 		record.albumSubstitutionPropensity = substitutionPropensity;
@@ -52,6 +49,10 @@ public static class AlbumSimulator {
 			conversion *= Mathf.Pow(CatalogWeeklyDecay, record.weeksSinceRelease - CatalogDecayStartWeeks);
 		}
 		conversion *= MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick);
+		bool genreMarketLive = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		conversion *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
+			record.baseRecord.secondaryGenre, ReleaseFormat.Album, year,
+			region.GetAcceptedAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), genreMarketLive);
 		conversion *= 1f - region.distribution.difficulty * 0.25f;
 		if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;

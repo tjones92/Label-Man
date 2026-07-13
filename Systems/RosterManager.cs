@@ -179,7 +179,9 @@ public partial class RosterManager : Node {
 	}
 	
 	private void TrySignNewArtist(AILabel label, int year) {
-		var candidates = ArtistManager.Instance.GetTopUnsignedTalent(20, label.preferredGenres.FirstOrDefault());
+		var candidates = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
+			? GetEnabledSupplyCandidates(label, year)
+			: ArtistManager.Instance.GetTopUnsignedTalent(20, label.preferredGenres.FirstOrDefault());
 		if (candidates.Count == 0) return;
 		
 		var bestCandidate = label.EvaluateForSigning(candidates);
@@ -190,6 +192,16 @@ public partial class RosterManager : Node {
 			WeeklySignings++;
 			if (debugMode) GD.Print($"SIGNING: {label.labelName} signs {bestCandidate.stageName} ({bestCandidate.primaryGenre})");
 		}
+	}
+
+	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year) {
+		MarketRegion region = ChartManager.Instance?.GetRegionById(label.homeRegion);
+		return ArtistManager.Instance.GetUnsignedArtists()
+			.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
+			.OrderByDescending(artist => artist.CalculateBaseQuality() *
+				GenreSupplyService.GetSupplyWeight(artist.primaryGenre, label, artist, region, year))
+			.ThenBy(artist => artist.artistId, System.StringComparer.Ordinal)
+			.Take(40).ToList();
 	}
 	
 	private void OnMonthChanged(GameDate date) {

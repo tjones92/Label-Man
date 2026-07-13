@@ -29,6 +29,20 @@ public class RegionalRecordData {
 	// Sales Tracking
 	public int unitsSoldThisWeek;
 	public int unitsSoldTotal;
+	// Directive 5 acceptance is evaluated during the sales pass and reused by
+	// the later radio pass. These values are transient, week-local simulation
+	// state; they do not change audit output or the acceptance calculation.
+	public int genreMarketAcceptanceWeek = int.MinValue;
+	public float genreDemandAcceptanceThisWeek = 1f;
+	public float genreRadioOpportunityThisWeek = 1f;
+	// Read-only demand-pass snapshots. The later regional radio pass mutates
+	// awareness and radioPlay, so audit telemetry must retain the state actually
+	// used to calculate this week's sales.
+	public float salesRecordAwarenessThisWeek;
+	public float salesRegionalAwarenessThisWeek;
+	public float salesEffectiveAwarenessThisWeek;
+	public float salesRadioHeatThisWeek;
+	public float salesRegionalRadioPlayThisWeek;
 	public float previousRawDemand;
 	public float rawDemandThisWeek;
 	public float salesVelocity;

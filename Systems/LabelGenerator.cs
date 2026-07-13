@@ -234,7 +234,7 @@ public class LabelGenerator {
 				label.secondaryGenres = new Genre[] { Genre.Soul };
 				break;
 			case LabelArchetype.RegionalHustler:
-				var allGenres = System.Enum.GetValues(typeof(Genre)).Cast<Genre>().ToList();
+				var allGenres = GenreDomains.Current;
 				label.preferredGenres = new Genre[] { allGenres[(int)GD.RandRange(0, allGenres.Count - 1)], allGenres[(int)GD.RandRange(0, allGenres.Count - 1)] };
 				break;
 		}

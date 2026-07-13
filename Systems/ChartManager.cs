@@ -14,6 +14,7 @@ public partial class ChartManager : Node {
 	[Export] private int targetActiveRecords = 500;
 	[Export] private int prewarmWeeks = 8;
 	[Export] private bool marketSeasonalityEnabled = true;
+	[Export] private bool genreMarketV2Enabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -21,6 +22,8 @@ public partial class ChartManager : Node {
 	[ExportGroup("Genre Momentum Settings")]
 	[Export] private float momentumDecayRate = 0.9f;
 	[Export] private float momentumInfluence = 0.3f;
+	public float GenreMomentumInfluence => momentumInfluence;
+	public bool IsGenreMarketV2Live => GenreMarketV2.Enabled && currentChartWeek > 0;
 	[Export] private float chartPositionWeight = 0.01f;
 	[Export] private float salesWeight = 0.00001f;
 
@@ -33,6 +36,7 @@ public partial class ChartManager : Node {
 
 	// Runtime state
 	private int currentChartWeek;
+	private bool canonicalLiveIdentitiesApplied;
 	private Zeitgeist baseZeitgeist;
 	private Dictionary<Genre, float> genreMomentum;
 	private List<RecordRuntimeData> allRecords = new List<RecordRuntimeData>();
@@ -94,6 +98,7 @@ public partial class ChartManager : Node {
 		// Resolve the scene default and any audit override before population or
 		// prewarming can consume simulation state.
 		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
+		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
@@ -171,7 +176,7 @@ public partial class ChartManager : Node {
 
 	private void InitializeGenreMomentum() {
 		genreMomentum = new Dictionary<Genre, float>();
-		foreach (Genre g in Enum.GetValues(typeof(Genre))) {
+		foreach (Genre g in GenreDomains.Current) {
 			genreMomentum[g] = 0f;
 		}
 	}
@@ -317,6 +322,7 @@ public partial class ChartManager : Node {
 
 	private void PrewarmSimulation() {
 		if (debugMode) GD.Print("ChartManager: Pre-warming simulation...");
+		foreach (var region in allRegions) region.SetGenreMarketV2Live(false);
 
 		for (int week = 0; week < prewarmWeeks; week++) {
 			SimulateWeek(triggerEvents: false);
@@ -365,6 +371,8 @@ public partial class ChartManager : Node {
 
 	private void OnWeekEnded(GameDate date) {
 		currentChartWeek++;
+		ApplyCanonicalLiveIdentities(date.year);
+		foreach (var region in allRegions) region.SetGenreMarketV2Live(true);
 
 		SimulateWeek(triggerEvents: true);
 
@@ -377,6 +385,34 @@ public partial class ChartManager : Node {
 		UpdateGenreMomentum();
 
 		CullDeadRecords(includeChartedRecords: currentChartWeek % 4 == 0);
+	}
+
+
+	private void ApplyCanonicalLiveIdentities(int year) {
+		if (!GenreMarketV2.Enabled || canonicalLiveIdentitiesApplied) return;
+		foreach (AILabel label in aiLabels ?? Enumerable.Empty<AILabel>()) {
+			label.preferredGenres = CanonicalizeGenres(label.preferredGenres, year);
+			label.secondaryGenres = CanonicalizeGenres(label.secondaryGenres, year);
+			foreach (SimulatedArtist artist in label.roster ?? Enumerable.Empty<SimulatedArtist>()) CanonicalizeArtistGenres(artist, year);
+		}
+		foreach (SimulatedArtist artist in ArtistManager.Instance?.GetUnsignedArtists() ?? new List<SimulatedArtist>()) CanonicalizeArtistGenres(artist, year);
+		foreach (RecordRuntimeData runtime in allRecords) {
+			GenreMigration.Canonicalize(runtime.baseRecord);
+			CanonicalizeAlbumTrackGenres(runtime.baseRecord.album, year);
+		}
+		canonicalLiveIdentitiesApplied = true;
+	}
+
+	private static Genre[] CanonicalizeGenres(IEnumerable<Genre> genres, int year) => (genres ?? Enumerable.Empty<Genre>())
+		.Select(genre => GenreCatalog.MapLegacy(genre, year)).Distinct().ToArray();
+	private static void CanonicalizeArtistGenres(SimulatedArtist artist, int year) {
+		if (artist == null) return;
+		artist.primaryGenre = GenreCatalog.MapLegacy(artist.primaryGenre, year);
+		artist.secondaryGenre = GenreCatalog.MapLegacy(artist.secondaryGenre, year);
+	}
+	private static void CanonicalizeAlbumTrackGenres(Album album, int year) {
+		if (album == null) return;
+		foreach (AlbumTrack track in album.GetAllTracks()) if (track != null) track.genre = GenreCatalog.MapLegacy(track.genre, track.releaseDate.year > 0 ? track.releaseDate.year : year);
 	}
 
 	private void OnYearChanged(GameDate date) {
@@ -397,6 +433,9 @@ public partial class ChartManager : Node {
 	// ========================================================================
 
 	public void ReleaseRecord(Record record, AILabel releasingLabel = null) {
+		// Prewarm stays on its historical path. New live enabled releases acquire
+		// durable canonical identities before any market calculation sees them.
+		if (GenreMarketV2.Enabled && currentChartWeek > 0) GenreMigration.Canonicalize(record);
 		var runtimeData = new RecordRuntimeData(record);
 		float perceivedQualityMult = 1f;
 		if (releasingLabel != null && !record.isPlayerOwned) {
@@ -434,6 +473,9 @@ public partial class ChartManager : Node {
 
 	private void PromoteRecordAI(RecordRuntimeData record, AILabel label, float perceivedQualityMult) {
 		bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
+		bool genreMarketLive = GenreMarketV2.Enabled && currentChartWeek > 0;
+		float acceptanceYear = genreMarketLive ? GetContinuousSimulationYear() : 0f;
+		float legacyMomentum = genreMarketLive ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
 		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
 		float broadLaunch = isAlbum
 			? 0.035f + campaignImpact * (0.06f + label.nationalReach * 0.06f)
@@ -454,11 +496,14 @@ public partial class ChartManager : Node {
 			data.unitsInStores = units;
 
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
+			float genreRadio = genreMarketLive
+				? GenreAcceptanceService.GetRegionalRadioOpportunity(record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum)
+				: 1f;
 			if (MarketSeasonality.Enabled && currentChartWeek > 0) {
 				float radioOpportunity = MarketSeasonality.GetRadioOpportunity(TimeManager.Instance?.CurrentDate.year ?? 1960,
 					TimeManager.Instance?.CurrentDate.month ?? 1, liveTick: true);
-				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity;
-			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty;
+				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio;
+			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio;
 			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
@@ -485,18 +530,36 @@ public partial class ChartManager : Node {
 		long profileStart = SimulationPerformanceProfiler.Begin();
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
+		bool genreMarketLive = GenreMarketV2.Enabled && currentChartWeek > 0;
+		float acceptanceYear = GetContinuousSimulationYear();
+		var albumSubstitutionByGenre = new Dictionary<Genre, float>();
 
 		// === STEP 1: Update global record state ===
 		foreach (var record in allRecords) {
 			record.weeksSinceRelease++;
 
 			AILabel label = GetLabelById(record.baseRecord.labelId);
-			float genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
+			// Radio heat is record-wide, so resolve its single national input from the
+			// population-weighted regional routes. Passing 1 here removed the legacy
+			// acceptance damping altogether and inflated the enabled economy.
+			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
+			float genreAcceptance = 1f;
+			if (!isAlbum) {
+				genreAcceptance = genreMarketLive
+					? GenreAcceptanceService.GetNationalDemandAcceptance(record.baseRecord.primaryGenre,
+						record.baseRecord.secondaryGenre, allRegions, acceptanceYear, GetGenreMomentum(record.baseRecord.primaryGenre))
+					: GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
+			}
 			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId);
 
-			if (record.baseRecord.format == ReleaseFormat.Album) {
+			if (isAlbum) {
 				long albumProfileStart = SimulationPerformanceProfiler.Begin();
-				AlbumSimulator.UpdateAlbum(record, label, artistHeat);
+				if (!albumSubstitutionByGenre.TryGetValue(record.baseRecord.primaryGenre, out float substitutionPropensity)) {
+					substitutionPropensity = CompetitorManager.Instance?.CalculateSubstitutionPropensity(
+						record.baseRecord.primaryGenre, year) ?? 0f;
+					albumSubstitutionByGenre[record.baseRecord.primaryGenre] = substitutionPropensity;
+				}
+				AlbumSimulator.UpdateAlbum(record, label, artistHeat, substitutionPropensity);
 				SimulationPerformanceProfiler.EndAlbumUpdate(albumProfileStart);
 			}
 			else ChartSimulator.UpdateRecord(record, label, genreAcceptance, artistHeat);
@@ -507,19 +570,32 @@ public partial class ChartManager : Node {
 			int totalSales = 0;
 			float quality = record.GetQuality();
 			AILabel label = GetLabelById(record.baseRecord.labelId);
+			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
+			float legacyMomentum = genreMarketLive && !isAlbum ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
+			float legacyNationalAcceptance = !genreMarketLive && !isAlbum ? GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre) : 1f;
 
 			foreach (var region in allRegions) {
-				if (!record.regionalData.ContainsKey(region.regionId)) {
-					record.regionalData[region.regionId] = new RegionalRecordData(region.regionId);
+				if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData regionalData)) {
+					regionalData = new RegionalRecordData(region.regionId);
+					record.regionalData[region.regionId] = regionalData;
 				}
 
-				var regionalData = record.regionalData[region.regionId];
+				// Albums do not consume this argument. Avoid resolving seven unused
+				// acceptances per album, and retain the single's routed result for radio.
+				float blendedAcceptance = 1f;
+				if (!isAlbum) {
+					blendedAcceptance = genreMarketLive
+						? GenreAcceptanceService.GetRegionalDemandAcceptance(record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum)
+						: (region.GetGenreAcceptance(record.baseRecord.primaryGenre, acceptanceYear) * 0.6f) + (legacyNationalAcceptance * 0.4f);
+					if (genreMarketLive) {
+						regionalData.genreMarketAcceptanceWeek = currentChartWeek;
+						regionalData.genreDemandAcceptanceThisWeek = blendedAcceptance;
+						regionalData.genreRadioOpportunityThisWeek = GenreAcceptanceService.GetRegionalRadioOpportunity(
+							record.baseRecord.primaryGenre, region, acceptanceYear, blendedAcceptance);
+					}
+				}
 
-				float regionalAcceptance = region.GetGenreAcceptance(record.baseRecord.primaryGenre, year);
-				float nationalAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
-				float blendedAcceptance = (regionalAcceptance * 0.6f) + (nationalAcceptance * 0.4f);
-
-				int regionalSales = record.baseRecord.format == ReleaseFormat.Album
+				int regionalSales = isAlbum
 					? AlbumSimulator.CalculateRegionalSales(record, region, regionalData, year, month, triggerEvents, label)
 					: ChartSimulator.CalculateRegionalSales(
 						record,
@@ -743,22 +819,30 @@ public partial class ChartManager : Node {
 
 	private void UpdateRecordRegionalData(RecordRuntimeData record) {
 		bool seasonalRadio = MarketSeasonality.Enabled && currentChartWeek > 0;
+		bool genreMarketLive = GenreMarketV2.Enabled && currentChartWeek > 0;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
 		float radioOpportunity = seasonalRadio ? MarketSeasonality.GetRadioOpportunity(year, month, liveTick: true) : 1f;
+		float acceptanceYear = genreMarketLive ? GetContinuousSimulationYear() : 0f;
+		float legacyMomentum = genreMarketLive ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
 		foreach (var region in allRegions) {
-			if (!record.regionalData.ContainsKey(region.regionId)) {
-				record.regionalData[region.regionId] = new RegionalRecordData(region.regionId);
+			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
+				data = new RegionalRecordData(region.regionId);
+				record.regionalData[region.regionId] = data;
 			}
-
-			var data = record.regionalData[region.regionId];
 
 			// Awareness decay
 			data.awareness *= 0.92f;
 
 			// Radio play: decay + pull toward national heat
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
-			float targetRegionalRadio = seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity : record.radioHeat / radioDifficulty;
+			float genreRadio = 1f;
+			if (genreMarketLive) {
+				genreRadio = data.genreMarketAcceptanceWeek == currentChartWeek
+					? data.genreRadioOpportunityThisWeek
+					: GenreAcceptanceService.GetRegionalRadioOpportunity(record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum);
+			}
+			float targetRegionalRadio = seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio;
 			data.radioPlay = Mathf.Lerp(data.radioPlay * 0.85f, targetRegionalRadio, 0.2f);
 
 			// Radio builds regional awareness
@@ -1040,7 +1124,7 @@ public partial class ChartManager : Node {
 	// ========================================================================
 
 	private void UpdateGenreMomentum() {
-		foreach (Genre g in Enum.GetValues(typeof(Genre))) {
+		foreach (Genre g in GenreDomains.Current) {
 			genreMomentum[g] *= momentumDecayRate;
 		}
 
@@ -1061,7 +1145,7 @@ public partial class ChartManager : Node {
 			}
 		}
 
-		foreach (Genre g in Enum.GetValues(typeof(Genre))) {
+		foreach (Genre g in GenreDomains.Current) {
 			genreMomentum[g] = Mathf.Clamp(genreMomentum[g], -0.5f, 1f);
 		}
 
@@ -1074,6 +1158,13 @@ public partial class ChartManager : Node {
 	}
 
 	public float GetEffectiveGenreAcceptance(Genre genre) {
+		if (GenreMarketV2.Enabled && currentChartWeek > 0) {
+			int releaseYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
+			Genre canonical = GenreCatalog.MapLegacy(genre, releaseYear);
+			float baseline = GenreCatalog.Get(canonical).GetBaseline(GetContinuousSimulationYear());
+			float legacyMomentum = genreMomentum.ContainsKey(genre) ? genreMomentum[genre] : 0f;
+			return Mathf.Clamp(baseline + (legacyMomentum * momentumInfluence), 0.05f, 1f);
+		}
 		float baseAcceptance = 0.5f;
 		if (baseZeitgeist != null && baseZeitgeist.genreAcceptance.ContainsKey(genre)) {
 			baseAcceptance = baseZeitgeist.genreAcceptance[genre];
@@ -1083,6 +1174,13 @@ public partial class ChartManager : Node {
 		float adjusted = baseAcceptance + (momentum * momentumInfluence);
 
 		return Mathf.Clamp(adjusted, 0.05f, 1f);
+	}
+
+	private static float GetContinuousSimulationYear() {
+		GameDate date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int daysInYear = DateTime.IsLeapYear(date.year) ? 366 : 365;
+		int dayOfYear = new DateTime(date.year, date.month, date.day).DayOfYear;
+		return date.year + (dayOfYear - 1f) / daysInYear;
 	}
 
 	public float GetGenreMomentum(Genre genre) {

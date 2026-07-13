@@ -17,7 +17,7 @@ public class Zeitgeist {
 			genreAcceptance = new Dictionary<Genre, float>()
 		};
 		
-		foreach (Genre g in Enum.GetValues(typeof(Genre))) {
+		foreach (Genre g in GenreDomains.Current) {
 			z.genreAcceptance[g] = 0.3f;
 		}
 		
@@ -201,7 +201,7 @@ public class Zeitgeist {
 			genreAcceptance = new Dictionary<Genre, float>()
 		};
 		
-		foreach (Genre g in Enum.GetValues(typeof(Genre))) {
+		foreach (Genre g in GenreDomains.Current) {
 			float aVal = a.genreAcceptance.ContainsKey(g) ? a.genreAcceptance[g] : 0.3f;
 			float bVal = b.genreAcceptance.ContainsKey(g) ? b.genreAcceptance[g] : 0.3f;
 			result.genreAcceptance[g] = Mathf.Lerp(aVal, bVal, t);
