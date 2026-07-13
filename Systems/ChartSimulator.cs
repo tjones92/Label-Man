@@ -82,7 +82,8 @@ public static class ChartSimulator {
 		int month,
 		bool liveTick,
 		int internalChartPosition,
-		AILabel label)
+		AILabel label,
+		float singleOpportunityNormalization = 1f)
 	{
 		// === 1. POTENTIAL BUYERS ===
 		float populationMillions = region.population;
@@ -159,9 +160,10 @@ public static class ChartSimulator {
 		
 		// === 8. OTHER MODIFIERS ===
 		bool useGenreMarketV2DemandTransfer = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
-		conversionRate *= useGenreMarketV2DemandTransfer
-			? GenreAcceptanceService.GetEnabledSingleDemandMultiplier(genreAcceptance)
-			: 0.6f + genreAcceptance * 0.5f;
+		if (useGenreMarketV2DemandTransfer) {
+			conversionRate *= GenreAcceptanceService.GetEnabledSingleDemandMultiplier(genreAcceptance);
+			if (singleOpportunityNormalization != 1f) conversionRate *= singleOpportunityNormalization;
+		} else conversionRate *= 0.6f + genreAcceptance * 0.5f;
 		conversionRate *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
 			region.GetAlbumDemandEraProgress(year), useGenreMarketV2DemandTransfer);

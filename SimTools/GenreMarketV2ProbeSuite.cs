@@ -33,13 +33,13 @@ public static class GenreMarketV2ProbeSuite {
 		Require(GenreNameFormatter.Format(Genre.RnB) == "R&B" && GenreNameFormatter.Format(Genre.Childrens) == "Children's", "canonical formatter");
 		results.Add("catalog/keyframe/interpolation/clamp/lifecycle/migration/enabled-seeding/formatter probes passed");
 		if (GenreMarketV2.Enabled) {
-			ProbePhase2RoutingAndOrientation();
-			results.Add("segment normalization/conservation/FM/texture/R&B/format-prior/AI-market probes passed");
+			string singleReconciliation = ProbePhase2RoutingAndOrientation();
+			results.Add("segment normalization/conservation/FM/texture/R&B/format-prior/AI-market probes passed; " + singleReconciliation);
 		}
 		return results;
 	}
 
-	private static void ProbePhase2RoutingAndOrientation() {
+	private static string ProbePhase2RoutingAndOrientation() {
 		MarketRegion neutral = CreateRegion("greatlakes", fm: true, integration: .5f, church: .25f);
 		foreach (GenreProfile profile in GenreCatalog.All) {
 			float sum = profile.SegmentWeights.Values.Sum();
@@ -51,6 +51,25 @@ public static class GenreMarketV2ProbeSuite {
 		Require(GenreAcceptanceService.GetEnabledSingleDemandMultiplier(.01f) < .03f, "single demand near-zero transfer");
 		Require(Math.Abs(GenreAcceptanceService.GetEnabledSingleDemandMultiplier(.5f) - .85f) < .000001f, "single demand legacy midpoint transfer");
 		Require(Math.Abs(GenreAcceptanceService.GetEnabledSingleDemandMultiplier(1f) - 1.10f) < .000001f, "single demand legacy high-end transfer");
+		GenreAcceptanceService.SingleOpportunityReconciliation single1960 =
+			GenreAcceptanceService.GetSingleOpportunityReconciliation(new[] { neutral }, 1960f);
+		GenreAcceptanceService.SingleOpportunityReconciliation single1968 =
+			GenreAcceptanceService.GetSingleOpportunityReconciliation(new[] { neutral }, 1968f);
+		GenreAcceptanceService.SingleOpportunityReconciliation single1964 =
+			GenreAcceptanceService.GetSingleOpportunityReconciliation(new[] { neutral }, 1964f);
+		GenreAcceptanceService.SingleOpportunityReconciliation single1966 =
+			GenreAcceptanceService.GetSingleOpportunityReconciliation(new[] { neutral }, 1966f);
+		GenreAcceptanceService.SingleOpportunityReconciliation single1969 =
+			GenreAcceptanceService.GetSingleOpportunityReconciliation(new[] { neutral }, 1969f);
+		Require(Math.Abs(single1960.Normalization - 1f) < .000001f,
+			"Single supplied-portfolio reconciliation is neutral at the 1960 anchor");
+		Require(Math.Abs(single1964.Normalization - 1f) < .000001f,
+			"Single supplied-portfolio reconciliation preserves the pre-expansion boundary");
+		Require(single1968.Normalization >= .90f && single1968.Normalization <= 1.10f &&
+			single1968.Normalization < single1960.Normalization,
+			"Single supplied-portfolio reconciliation is bounded and corrects late drift");
+		Require(Math.Abs(GenreAcceptanceService.GetLiveSingleOpportunityNormalization(new[] { neutral }, 1968f, live: false) - 1f) < .000001f,
+			"disabled Single supplied-portfolio reconciliation is neutral");
 		// Fixed-input Album seam: compare the routed calculation with the accepted
 		// regional baseline before any record count, awareness, stock, or quality can
 		// influence the result.  These are shared 1960 genres in both paths.
@@ -212,6 +231,9 @@ public static class GenreMarketV2ProbeSuite {
 		float weightedAlbum = GenreAcceptanceService.GetFormatMultiplier(Genre.ProgressiveRock, Genre.ProgressiveRock, ReleaseFormat.Album, 1966f, albumOpportunity);
 		Require(Math.Abs((1f - albumOpportunity) * weightedSingle + albumOpportunity * weightedAlbum - 1f) < .000001f,
 			"era-weighted format opportunity conservation");
+		return $"Single portfolio normalization 1960/64/66/68/69={single1960.Normalization:F4}/" +
+			$"{single1964.Normalization:F4}/{single1966.Normalization:F4}/{single1968.Normalization:F4}/{single1969.Normalization:F4}, " +
+			$"enabled/accepted drift {single1960.EnabledToAcceptedRatio:F4}->{single1969.EnabledToAcceptedRatio:F4}";
 	}
 
 	private static MarketRegion CreateRegion(string id, bool fm, float integration, float church) {
@@ -225,6 +247,11 @@ public static class GenreMarketV2ProbeSuite {
 	}
 
 	private static void ProbeEnabledInitialSeeding() {
+		IReadOnlyDictionary<Genre, float> initialPrior = ArtistManager.GetEnabledInitialPrimaryGenrePrior();
+		Require(Math.Abs(initialPrior.Values.Sum() - 1f) < .000001f &&
+			Math.Abs(initialPrior.GetValueOrDefault(Genre.RockAndRoll) - .1476f) < .000001f &&
+			Math.Abs(initialPrior.GetValueOrDefault(Genre.DooWop) - .1286f) < .000001f,
+			"enabled initial primary-identity prior matches frozen picker bands");
 		var soloRolls = new (float Roll, Genre Legacy)[] {
 			(.17f, Genre.RockAndRoll), (.31f, Genre.RnB), (.41f, Genre.TraditionalPop), (.49f, Genre.DooWop),
 			(.57f, Genre.Soul), (.63f, Genre.Country), (.68f, Genre.Jazz), (.73f, Genre.Gospel),

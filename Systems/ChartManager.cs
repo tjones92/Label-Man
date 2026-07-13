@@ -532,6 +532,8 @@ public partial class ChartManager : Node {
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
 		bool genreMarketLive = GenreMarketV2.Enabled && currentChartWeek > 0;
 		float acceptanceYear = GetContinuousSimulationYear();
+		float singleOpportunityNormalization = GenreAcceptanceService.GetLiveSingleOpportunityNormalization(
+			allRegions, acceptanceYear, genreMarketLive);
 		var albumSubstitutionByGenre = new Dictionary<Genre, float>();
 
 		// === STEP 1: Update global record state ===
@@ -607,7 +609,8 @@ public partial class ChartManager : Node {
 						month,
 						triggerEvents,
 						GetInternalPreviousPosition(record),
-						label
+						label,
+						singleOpportunityNormalization
 					);
 
 				regionalData.unitsInStores = Mathf.Max(0, regionalData.unitsInStores - regionalSales);

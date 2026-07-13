@@ -508,3 +508,192 @@ The closed historical shapes are provisionally strong:
 The first over-broad TexMex correction was rejected because it lowered two regions and moved 1960 Album units to `1.163x` control. The final localized correction restores the accepted short-gate profile: total units `1.007x`, gross `1.013x`, label net `1.021x`, Single units `1.006x`, Album units `1.123x`, decisions `0.943x`, and Album decision share `25.277%`.
 
 **Next-run sign-off:** run seed 1001 for 520 weeks with `--enable-genre-market-v2 --lean-probe --profile-performance`. Do not tune the 1966 annual bump from this one partial seed. Accept or reject only after the complete 1960-1969 decade totals, late Psychedelic-to-Hard/Blues/Proto-Metal/Progressive succession, late Funk rise, final regional gates, and all inherited checks are available. If seed 1001 passes, proceed to the prescribed seeds 1002 and 1003; no holdout is authorized before the three-seed candidate is frozen.
+
+### Three-seed late-Single rejection and supplied-portfolio reconciliation (2026-07-13)
+
+The complete lean runs `d5-album-market-reconciliation-520r3-enabled-1001`, `-1002`, and `-1003` reject the preceding candidate. All three individual decade economic gates, decade format gates, successful-release gates, scheduled-Album-project gates, and catastrophic individual-year guards pass, but pooled annual units are `1.1579x` in 1968 and `1.2238x` in 1969, above the binding `1.15` ceiling. No additional seed or holdout was consumed.
+
+The rejection is a repeatable late Single seam rather than broad economic instability. Against the matching `4c-releaseonly-enabled` controls, individual 1969 unit ratios are `1.2444x`, `1.1871x`, and `1.2404x`. Pooled 1969 units are `663.1m` enabled versus `541.9m` control (`+121.3m`): Singles contribute `+147.5m`, partly offset by Albums at `-26.2m`. In 1969, Single decision-count ratios are `1.167x`, `1.057x`, and `1.262x`, while Single units per decision are independently elevated at `1.210x`, `1.251x`, and `1.146x`. Album units are below control in every late seed. A fixed replay of the recorded format forks from tilt strength `.22` to zero moves the pooled 1969 Album decision share only from `81.38%` to `81.61%`; format tilt does not have enough causal leverage to repair the failure.
+
+The bounded full-telemetry sample from the interrupted predecessor run isolates the growing demand seam. For Single records, the exposure-weighted enabled demand seam divided by the same-observation accepted legacy transfer is approximately `1.134x` in 1960, `1.114x` in 1964, `1.203x` in 1965, `1.329x` in 1966, `1.349x` in 1967, and `1.430x` in the partial 1968 sample. Mean legacy momentum is already approximately saturated in 1960 and remains flat; the drift comes from the routed/catalog baseline rising after 1964 while the accepted comparator declines. `SimTools/analyze-late-single-opportunity.mjs` reproduces the exact annual decision/yield bridge and the optional bounded explanation-sample comparison.
+
+The first pure new-supply average was rejected before simulation because it produced only a `0.9711` 1968 correction and omitted retained seed-scene artists. An opportunity-reweighted variant was also rejected because it was effectively neutral (`0.9978`). Adding the exact expected 1960 primary-identity prior and the existing prospective project-retention probabilities correctly represents the fixed retained cohort without reading realized releases, release timing, units, charts, or annual results. Applying its raw correction immediately was still rejected because it would have reduced 1964 to `0.9166` despite the already-low 1964 annual result.
+
+The retained candidate therefore activates the supplied-portfolio reconciliation across the authored catalog-expansion boundary: neutral through 1964, smooth transition during 1965, fully active from 1966. It applies one national factor and therefore preserves within-year genre and regional rankings. The factor is bounded to `[0.90,1.10]`; fixed probe values for 1960/1964/1966/1968/1969 are `1.0000 / 1.0000 / 0.9000 / 0.9000 / 0.9000`. The final prospective supply prior deliberately excludes the live regional-acceptance path because that path contains mutable momentum; its fixed enabled/accepted drift is `1.0293x` in 1960 and `1.1545x` in 1969. The accepted transfer endpoints, catalog keyframes, genre segment weights, format tilt, Album demand/prior, finance, release growth, stock, chart, seasonality, and RNG order are unchanged. Disabled and pre-expansion execution bypass the reconciliation exactly.
+
+Validation before the long-probe stop point:
+
+- `dotnet build "Label Man.sln" --no-restore` passes with only the existing unused `OnGenreMomentumChanged` warning.
+- `d5-single-portfolio-reconciliation-probes-ready-1001` emits both `D5_PROBE_PASS` groups and locks the initial-identity prior, 1960/1964 neutrality, late bounded correction, fixed-input supply weighting, and disabled neutrality.
+- `d5-single-portfolio-reconciliation-52-control-1001` is byte-identical to `d5-album-market-reconciliation-52-control-1001` in all 45 CSV streams.
+- `d5-single-portfolio-reconciliation-52-enabled-1001` and `d5-single-portfolio-reconciliation-52b-enabled-1001` are byte-identical in all 45 streams; the final current-code replay `d5-single-portfolio-reconciliation-52-ready-enabled-1001` is also byte-identical to that repeat in all 45. The 1960 reconciliation is inactive, so the short gate retains total units `1.0074x`, gross `1.0133x`, label net `1.0212x`, market net `1.0212x`, successful releases `0.9430x`, scheduled Album projects `0.9431x`, Single units `1.0059x`, Album units `1.1226x`, and Album decision share `25.2766%` versus `25.2724%` control.
+- The only terminal diagnostic remains the known non-fatal `MissingSingletonsTemp.cs` autoload warning. The sandboxed console runner had one native startup crash before initialization; rerunning the same Downloads runner outside the sandbox completed normally.
+
+**Prepared stop point:** the candidate is ready for the authorized two-seed 520-week probe, but neither long run has been launched. Run exactly:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=520 --run=d5-single-portfolio-reconciliation-520p1-enabled-1001 --seed=1001 --enable-genre-market-v2 --lean-probe --profile-performance
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=520 --run=d5-single-portfolio-reconciliation-520p1-enabled-1002 --seed=1002 --enable-genre-market-v2 --lean-probe --profile-performance
+```
+
+Do not run seed 1003 or a holdout from this calibration candidate. The two-seed probe must re-evaluate every annual unit ratio, decade economics and formats, release/project gates, historical shapes, concentration, regional gates, chart lifetime, finance reconciliation, and inherited health checks before a formal three-seed checkpoint is authorized.
+
+### Supplied-portfolio reconciliation two-seed probe (2026-07-13)
+
+The authorized completed probes were run directly with the Downloads Godot console executable, with no code or constant changes between seeds:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=520 --run=d5-single-portfolio-reconciliation-520p1-enabled-1001 --seed=1001 --enable-genre-market-v2 --lean-probe --profile-performance
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=520 --run=d5-single-portfolio-reconciliation-520p1-enabled-1002 --seed=1002 --enable-genre-market-v2 --lean-probe --profile-performance
+```
+
+Both completed with `CHART_AUDIT_COMPLETE` at week 520. The accepted artifacts are the complete CSV families rooted at `SimLogs/d5-single-portfolio-reconciliation-520p1-enabled-1001-*` and `-1002-*`, compared only with the matching `SimLogs/4c-releaseonly-enabled-1001-*` and `-1002-*` controls. No `1003` or holdout artifact exists.
+
+One earlier monitored wrapper invocation for seed 1001 stopped at week 104 and is **not** a measurement result. Its captured logs, `d5-single-portfolio-reconciliation-520p1-enabled-1001-console.log` and `.err.log`, remain as runner-failure evidence. The subsequent direct invocation above overwrote that incomplete run's same-stem CSVs; only its completed 520-week CSVs are used below. The known non-fatal `MissingSingletonsTemp.cs` autoload diagnostic remains at normal process exit.
+
+#### Economic and format gates
+
+| Seed | Decade units | Gross | Label net | Market net | Single units | Album units | Successful releases | Scheduled Album projects | Result |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 1001 | 0.9867 | 0.9567 | 0.9556 | 0.9521 | 1.0004 | 0.8837 | 0.9569 | 1.0082 | Pass |
+| 1002 | 0.9785 | 0.9645 | 0.9675 | 0.9628 | 0.9849 | 0.9296 | 0.9642 | 1.0511 | Pass |
+
+All decade economics are inside `[0.90, 1.10]`; each format, successful-release count, and scheduled-project count is inside `[0.85, 1.15]`. Project terminal accounting also reconciles exactly: seed 1001 is `32,056 = 31,775 released + 2 cancelled + 279 pending`; seed 1002 is `32,290 = 32,044 + 3 + 243`.
+
+| Year | Pooled units | Pooled market net | Enabled units (m) | Control units (m) | Result |
+|---:|---:|---:|---:|---:|---|
+| 1960 | 0.9898 | 0.9969 | 295.62 | 298.65 | Pass |
+| 1961 | 1.0080 | 1.0185 | 342.82 | 340.11 | Pass |
+| 1962 | 0.9640 | 0.9760 | 362.59 | 376.13 | Pass |
+| 1963 | 0.9536 | 0.9523 | 360.45 | 377.98 | Pass |
+| 1964 | 0.8996 | 0.8924 | 373.88 | 415.61 | Pass |
+| 1965 | 0.8884 | 0.8830 | 388.47 | 437.27 | Pass |
+| 1966 | 1.0113 | 0.9624 | 380.37 | 376.10 | Pass |
+| 1967 | 1.0031 | 0.9570 | 368.15 | 367.03 | Pass |
+| 1968 | 1.0418 | 0.9574 | 385.16 | 369.71 | Pass |
+| 1969 | 1.1021 | 0.9978 | 390.32 | 354.15 | Pass |
+
+The correction removes the rejected pooled upper breaches (`1.1579` in 1968 and `1.2238` in 1969). It creates no 1966-69 pooled lower-bound miss: those unit ratios are `1.0113`, `1.0031`, `1.0418`, and `1.1021`. The lowest individual annual unit ratio is seed-1002 1965 at `0.8687`, before the fully-active 1966 correction and still above the catastrophic `[0.75, 1.25]` guard.
+
+| Year | Seed 1001 units / market net | Seed 1002 units / market net | Catastrophic guard |
+|---:|---:|---:|---|
+| 1960 | 1.0074 / 1.0212 | 0.9735 / 0.9741 | Pass |
+| 1961 | 1.0129 / 1.0261 | 1.0032 / 1.0110 | Pass |
+| 1962 | 0.9824 / 0.9893 | 0.9466 / 0.9633 | Pass |
+| 1963 | 0.9752 / 0.9699 | 0.9331 / 0.9354 | Pass |
+| 1964 | 0.9039 / 0.8821 | 0.8953 / 0.9027 | Pass |
+| 1965 | 0.9093 / 0.8882 | 0.8687 / 0.8780 | Pass |
+| 1966 | 1.0159 / 0.9565 | 1.0069 / 0.9681 | Pass |
+| 1967 | 0.9912 / 0.9280 | 1.0149 / 0.9858 | Pass |
+| 1968 | 0.9893 / 0.9231 | 1.0950 / 0.9914 | Pass |
+| 1969 | 1.1164 / 0.9953 | 1.0886 / 1.0002 | Pass |
+
+The Album gross crossover remains 1967 for both enabled seeds and both matching controls. The 1960 Album decision shares are `25.3382%` enabled versus `25.2737%` control for seed 1001 and `24.1004%` versus `22.9545%` for seed 1002; the accepted 1960 allocation remains intact. All-decade closed Top-40 medians are `11` versus `11` weeks for seed 1001 and `10` versus `11` for seed 1002, within the `+/-2` week gate.
+
+#### Historical, concentration, and regional gates
+
+| Gate | Evidence | Result |
+|---|---|---|
+| Doo-Wop decline | 1961/1967 units are `22.71m / 0.71m` in seed 1001; `25.12m / 0.91m` in seed 1002. | Pass |
+| British break | British Beat and Pop are zero in 1960-63 and first carry units in 1964 in both seeds. | Pass |
+| Surf arc | Surf peaks in 1963 (`3.09m`, `5.28m`) and is `0.07m`, `0.02m` in 1969. | Pass |
+| Folk/Folk Rock timing | Seed 1001 crests at `7.45m` in 1968; seed 1002 at `16.98m` in 1966. | Pass relative to the observed psychedelic timing, but see the failed psychedelic gate. |
+| Psychedelic-to-late-rock succession | Psychedelic peaks in 1968 (`2.69m`) for seed 1001 and 1969 (`2.09m`) for seed 1002, not around 1967. The late Hard/Blues/Proto-Metal/Progressive aggregate is strong (`14.99m`, `19.00m` in 1969), but seed 1002 has no completed post-psychedelic succession within the decade. | **Fail** |
+| Soul and Funk | Soul remains strong late (`56.65m`, `66.27m` in 1969); Funk rises from 1967 to 1969 (`1.63 -> 12.07m`, `3.11 -> 8.39m`). | Pass |
+| Specialist survival | Country, Jazz, Easy Listening, Gospel, Blues, Classical, Childrens, and TexMex remain nonzero annually. Boogaloo is appropriately absent before emergence, then nonzero from 1966 through 1969 in both seeds. | Pass |
+| FM constraint | Pre-1967 Acid Rock is only `0.38m` / `0.98m` versus `9.41m` / `3.59m` from 1967 onward; Progressive Rock and Proto-Punk are zero before 1967 in both seeds. | Pass |
+| Concentration cap | Largest annual canonical share is Soul at `29.49%` (seed 1001, 1969) and `33.43%` (seed 1002, 1969), below 35%. | Pass |
+| Seasonality / special products | All 120 raw monthly 4C seasonality multipliers are exactly unchanged from each matching control. No special-product rows were emitted, so there is no special-product crowding signal. | Pass |
+| Country regional share | Seed 1001 is above national (`5.97%`) in Deep South / Great Plains / Southwest (`7.49% / 6.62% / 7.72%`). Seed 1002 Southwest is `7.82%`, below its `8.26%` national share. | **Fail** |
+| TexMex regional peak | Seed 1001 peaks in Deep South (`0.23%`) rather than Southwest (`0.21%`). Seed 1002 ties Great Plains and Southwest at `0.22%`, rather than making Southwest uniquely highest. | **Fail** |
+| Boogaloo regional peak | Seed 1001 peaks in Great Plains (`0.17%`; East Coast `0.16%`). Seed 1002 ties East and West Coast at `0.12%`. | **Fail** |
+| Gospel / Urban R&B direction | Gospel is above national in the church-strong southern/southwestern regions in both seeds (for example, `3.57%` vs `2.53%` national in seed 1001 Deep South). Lean telemetry emits only `AllSegments` rows, so this two-seed output cannot independently measure Urban R&B's `MainstreamAM` crossover; the earlier fixed input probe remains the only direct proof. | Gospel directional pass; Urban R&B not independently reverified |
+
+#### Inherited health checks
+
+| Check | Evidence | Result |
+|---|---|---|
+| Finance reconciliation | For each of 520 weeks in both seeds, market gross equals summed label gross, market label net equals summed label net, and market net equals summed label net plus distribution income. Maximum absolute difference is `0`. | Pass |
+| Distance | Each enabled `distance-matrix.csv` SHA-256 is byte-identical to its matching control. | Pass |
+| Concentration health | C4/C8 ranges are `45.11-61.98% / 66.32-78.01%` (1001) and `40.90-60.66% / 58.29-74.91%` (1002); firms charting remain `81-151` and `80-140`. | Pass |
+| Distribution deals | Seed 1001 records `35 / 14 / 14` generated / accepted / signed deals; seed 1002 `42 / 15 / 15`. Signed counts reconcile to accepted counts and no invalid rate is present. | Pass |
+
+**Decision: no-go for a formal three-seed checkpoint.** The supplied-portfolio correction successfully repairs the binding late economic upper breach without creating a 1966-69 lower-bound miss, and the economic, format, release/project, crossover, chart-life, finance, distance, concentration, and seasonality gates pass. It does not preserve all required unattended historical and regional behavior: seed 1002's psychedelic peak is 1969 rather than around 1967, seed 1002 misses the Country Southwest share requirement, TexMex fails to be uniquely Southwest-highest in both seeds, and Boogaloo fails to be East-Coast-highest in both seeds. Do not tune between these seeds, do not run seed 1003, and do not select or run a holdout. Preserve this failed two-seed evidence; any next change needs a new directive and must keep the protected finance, chart, release-growth, Album, seasonality, and historical-keyframe constants fixed.
+
+### Evidence-only diagnosis: psychedelic timing and specialist routing (2026-07-13)
+
+This investigation used only the completed `d5-single-portfolio-reconciliation-520p1-enabled-1001` and `-1002` artifacts. It launched no simulation and made no behavior, constant, or telemetry change. The supplied-portfolio reconciliation remains the current economic base.
+
+#### 1. Psychedelic Rock, 1966-1969
+
+`supply-selections.csv`, `release-strategy.csv`, `album-projects.csv`, `genre-market-weekly.csv`, `lifecycles.csv`, and `live-records-snapshot.csv` give the following bridge. Counts are per seed; eligible/charted counts are the weekly national sum of the seven `AllSegments` rows, and acceptance is their mean.
+
+| Year | Supply selections (1001 / 1002) | Scheduled projects; mean delay weeks (1001 / 1002) | Mean acceptance (1001 / 1002) | Mean eligible / charted (1001 / 1002) | Annual units (1001 / 1002) | Units per supplied project (1001 / 1002) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1966 | 64 / 50 | 52 / 44; 3.50 / 3.57 | .7727 / .7278 | 269.63 / 2.02; 226.02 / 2.15 | 0.638m / 0.546m | 9,970 / 10,922 |
+| 1967 | **108 / 116** | 103 / 108; 1.38 / 0.86 | **.9129 / .8744** | 828.69 / 4.71; 756.54 / 3.50 | 1.734m / 0.872m | 16,056 / 7,513 |
+| 1968 | 93 / 89 | 91 / 82; 0.44 / 0.93 | .8548 / .7874 | 1,291.90 / 10.90; 1,335.92 / 1.35 | **2.692m** / 0.758m | **28,946** / 8,518 |
+| 1969 | 76 / 77 | 74 / 77; 0.77 / 0.69 | .7039 / .7748 | 1,406.87 / 1.35; 1,409.02 / **11.58** | 0.657m / **2.092m** | 8,642 / **27,175** |
+
+Supply and routing do not cause the late peak. Both seeds select the most Psychedelic projects in 1967, exactly when routed acceptance peaks. All 341 / 332 1966-69 selected projects serialize as primary `PsychedelicRock` in `release-strategy.csv`; no other primary project uses Psychedelic as its raw secondary. Every one was selected from a non-Psychedelic artist identity, as expected for the emerging catalog, but project scheduling is not late: after 1967, mean Album delay is below 1.4 weeks and scheduled/drop counts track closely.
+
+Carry-in expands the eligible catalog, but it is not the primary timing failure. First-week eligible totals rise from 518 / 413 in 1967 to 1,463 / 1,519 in 1969. At the 1969 endpoint, 135 / 134 of 207 live Psychedelic records were from pre-1969 cohorts. However, seed 1002's 1969 cohort alone has 1.552m observed units, versus 0.761m from the live pre-1969 cohorts. Thus catalog persistence is background capacity, not the source of the 1969 spike.
+
+The late shape is a record-yield event concentrated in cross-identity, primary-Psychedelic Singles:
+
+- Seed 1001's 1968 high-yield closed Singles include `gen_64191` (1.173m observed lifetime units, raw secondary TeenPop) and `gen_64759` (0.432m, DooWop), while the annual Psychedelic total is 2.692m.
+- Seed 1002's 1969 peak is dominated by `gen_78782`: a primary Psychedelic, raw-secondary DooWop, orphan Single released in week 498. It is Q4 quality (`.802883`), has four charted prior Singles and hit score `1.024168`, entered with `0.973856` Single confidence, and has 1.328m units by week 520. That is 63.4% of seed 1002's entire 1969 Psychedelic annual total. Its current chart position is already zero, so this is not a slow late-decade chart-persistence effect.
+
+The common runtime route gives every distinct primary/secondary pair a fixed 80/20 acceptance and format blend. The lean decade runs intentionally suppress per-record `record-genre-explanation.csv`, so they cannot apportion the 20% secondary contribution to those individual outliers. They nevertheless establish the first causal seam: **late Psychedelic timing is a record-level demand/yield issue on non-identity transition projects, not a supply-count, release-delay, or catalog-keyframe issue.** The catalog baseline already reaches its intended high point in 1967; no historical keyframe change is supported.
+
+**Smallest future Psychedelic repair to evaluate, not implement here:** constrain the existing non-retained transition route before record construction so an emerging Psychedelic primary can draw a legacy secondary only from the existing compatible/adjacent transition set. Preserve the selected project count, the 1966-67 floor, the 80/20 blend for compatible pairs, and all release rolls; reallocate an incompatible selection through the existing prospective candidate weighting rather than creating demand. This directly excludes the observed late TeenPop/DooWop-to-Psychedelic outlier path, shifts the supplied transition mix toward the authored 1967 emergence window, and does not require a baseline-keyframe, finance, chart, Album, or seasonality change. A future fixed probe must first prove that the compatibility predicate is static, deterministic, and neutral for retained identities; a bounded existing full-telemetry replay must then confirm the primary/secondary demand decomposition before any long run.
+
+#### 2. Country, TexMex, and Boogaloo regional funnel
+
+The existing aggregate streams resolve the location of the specialist failures. `genre-market-weekly.csv` is pre-fulfillment route evidence; `geography-metrics.csv` contains fulfilled units and explicit backorders. In the lean runs `breakout-funnel.csv` and `records.csv` contain headers only, so they cannot provide per-record raw demand, stock coverage, or launch-level regional attribution. The figures below are therefore deliberately aggregate: fulfilled share uses the required regional total-unit denominator, and backorder percent is `backorders / (fulfilled + backorders)`.
+
+For each target and seed, eligible and charted counts are identical across all seven regions, eliminating region-specific selection, primary/secondary mix, and chart-entry count as the first divergence:
+
+| Genre | Seed 1001 mean eligible / charted | Seed 1002 mean eligible / charted |
+|---|---:|---:|
+| Country | 578.83 / 14.49 | 672.21 / 19.53 |
+| TexMex | 30.12 / 0.21 | 36.61 / 0.11 |
+| Boogaloo (1966-69) | 61.92 / 0.46 | 74.87 / 0.57 |
+
+`effectiveAcceptance` retains the authored ordering before fulfillment. Country is .898-.899 in Deep South, Great Plains, and Southwest versus .638 elsewhere; TexMex is .437 / .414 in Southwest versus .352 / .334 in Deep South and Great Plains; Boogaloo is .465 / .440 on East Coast versus .335 / .317 elsewhere. Radio does not reverse TexMex: Southwest radio is 211 / 238, higher than both Deep South (198 / 228) and Great Plains (193 / 220). The regional fulfilled-share funnel is:
+
+| Genre / region | Acceptance 1001 / 1002 | Fulfilled units m 1001 / 1002 | Share % 1001 / 1002 | Backorder % 1001 / 1002 | Home-region share % 1001 / 1002 |
+|---|---:|---:|---:|---:|---:|
+| Country — Deep South | .898 / .899 | 9.226 / 11.207 | 7.494 / 9.612 | 17.237 / 25.560 | 33.07 / 37.08 |
+| Country — East Coast | .638 / .638 | 37.359 / 55.114 | 5.392 / 7.605 | 40.421 / 38.438 | 58.33 / 78.85 |
+| Country — Great Lakes | .638 / .638 | 22.094 / 33.891 | 5.001 / 7.625 | 47.450 / 45.306 | 7.73 / 3.78 |
+| Country — Great Plains | .899 / .899 | 8.876 / 15.173 | 6.617 / **10.184** | 49.556 / 41.243 | 0.35 / 0.56 |
+| Country — Rockies | .638 / .638 | 2.632 / 3.584 | 6.013 / 8.392 | 26.755 / 30.502 | 2.51 / 0.88 |
+| Country — Southwest | .898 / .898 | 10.767 / 10.233 | **7.720** / 7.818 | 24.886 / **50.367** | 55.58 / 10.37 |
+| Country — West Coast | .638 / .638 | 16.475 / 23.605 | 7.379 / 9.789 | 45.769 / 43.537 | 32.41 / 11.32 |
+| TexMex — Deep South | .352 / .334 | 0.279 / 0.215 | **0.226** / 0.184 | 12.003 / 19.184 | 14.70 / 19.63 |
+| TexMex — East Coast | .240 / .227 | 1.095 / 1.040 | 0.158 / 0.144 | 35.883 / 37.166 | 54.57 / 60.71 |
+| TexMex — Great Lakes | .240 / .227 | 0.751 / 0.665 | 0.170 / 0.150 | 23.595 / 26.908 | 39.05 / 28.27 |
+| TexMex — Great Plains | .352 / .334 | 0.302 / 0.325 | 0.225 / **0.218** | 29.246 / 14.639 | 2.46 / 0.17 |
+| TexMex — Rockies | .240 / .227 | 0.071 / 0.061 | 0.161 / 0.143 | 8.566 / 3.809 | 2.09 / 0.93 |
+| TexMex — Southwest | **.437 / .414** | 0.299 / 0.283 | 0.214 / 0.216 | 28.155 / 14.220 | 15.87 / 17.11 |
+| TexMex — West Coast | .240 / .227 | 0.354 / 0.448 | 0.159 / 0.186 | 44.616 / 27.907 | 14.89 / 19.99 |
+| Boogaloo — Deep South | .335 / .317 | 0.173 / 0.092 | 0.141 / 0.079 | 7.883 / 17.693 | 16.38 / 22.29 |
+| Boogaloo — East Coast | **.465 / .440** | **1.132 / 0.847** | 0.163 / 0.117 | 35.469 / **48.770** | 67.56 / 67.83 |
+| Boogaloo — Great Lakes | .335 / .317 | 0.557 / 0.412 | 0.126 / 0.093 | 35.967 / 41.073 | 25.82 / 27.66 |
+| Boogaloo — Great Plains | .335 / .317 | 0.223 / 0.142 | **0.166** / 0.096 | 18.678 / 27.763 | 0.89 / 0.00 |
+| Boogaloo — Rockies | .335 / .317 | 0.052 / 0.040 | 0.118 / 0.094 | 15.472 / 2.937 | 2.52 / 3.39 |
+| Boogaloo — Southwest | .335 / .317 | 0.160 / 0.127 | 0.115 / 0.097 | 25.010 / 15.731 | 5.42 / 16.81 |
+| Boogaloo — West Coast | .335 / .317 | 0.342 / 0.287 | 0.153 / **0.119** | **41.498** / 45.883 | 25.89 / 19.88 |
+
+The first causal seam differs slightly by target but is downstream of authored acceptance:
+
+- **Country:** the three preferred regions receive equal high routed acceptance and equal national eligible/charted counts. Seed 1002 Southwest then loses at fulfilled-share accounting, with a 50.367% backorder rate and a larger regional total-unit denominator. This is a fulfillment/denominator failure, not routing or radio.
+- **TexMex:** Southwest has the highest acceptance and higher radio, but its relative uplift is too small to survive the different regional total-unit denominators. Fulfillment is not a common explanation: Southwest backorders are high in seed 1001 but lower than Deep South and tied with Great Plains in seed 1002. The first stable failure is therefore the population/denominator-unbalanced specialist acceptance contrast, not coverage, stock, or secondary blending.
+- **Boogaloo:** East Coast has the highest acceptance and by far the most absolute fulfilled units, yet its much larger regional denominator produces only a tie/loss in share. High East Coast backorders (35.469% / 48.770%) then further suppress fulfillment. The route is correct; the share failure begins at population/denominator scaling and is worsened by fulfillment, not by selection, charting, or radio.
+
+**Smallest future regional repair to evaluate, not implement here:** replace the three uncentered specialist constants in `GenreAcceptanceService.GetRegionalFactor` with one static, population-centered specialist texture helper. Its inputs must be only fixed regional buying-population/capacity priors and the authored target ordering; its population-weighted national mean must be exactly 1.0 for each specialist genre/year. Country must distinguish Southwest above the other two preferred regions; TexMex must give Southwest sufficient centered relative texture to exceed Deep South and Great Plains after their fixed denominators; Boogaloo must give East Coast sufficient centered texture to exceed the West/Great Plains share competition. Do not use realized units, release timing, charting, live momentum, backorders, or any annual result to normalize it.
+
+This is intentionally an acceptance-route repair first, not a change to distance, finance, release capacity, chart rules, or a stock/coverage rule. A fixed population-conservation probe must demonstrate the national opportunity is unchanged and the regional ordering is correct before a new 52-week check. That check must report raw demand and fulfilled/backordered units through the existing full breakout telemetry; if the centered route raises East Coast Boogaloo demand without improving fulfillment, stop and separately diagnose fixed-stock allocation rather than widening demand again.
+
+**Recommended next implementation directive:** authorize only (1) a deterministic compatibility predicate for non-retained emerging Psychedelic transitions, preserving the existing project budget and 80/20 blend for compatible pairs, and (2) the static population-centered Country/TexMex/Boogaloo route helper described above, with fixed probes for identity neutrality, regional-ordering, and conserved national opportunity. Keep the supplied-portfolio reconciliation, finance, charts, release-capacity growth, Album behavior, seasonality, distance, and historical keyframes unchanged. Require an enabled 52-week full-telemetry checkpoint before any additional 520-week measurement; do not use seed 1003 or a holdout unless a subsequent directive expressly authorizes them.

@@ -4,6 +4,16 @@ using System.Linq;
 using Godot;
 
 public partial class ArtistManager : Node {
+	private static readonly (float Upper, Genre Genre)[] InitialGeneralGenreBands = {
+		(.18f, Genre.RockAndRoll), (.32f, Genre.RnB), (.42f, Genre.TraditionalPop), (.50f, Genre.DooWop),
+		(.58f, Genre.Soul), (.64f, Genre.Country), (.69f, Genre.Jazz), (.74f, Genre.Gospel),
+		(.79f, Genre.TeenPop), (.84f, Genre.Folk), (.88f, Genre.GirlGroup), (.92f, Genre.Motown),
+		(.95f, Genre.SurfRock), (1f, Genre.BluesRock)
+	};
+	private static readonly (float Upper, Genre Genre)[] InitialVocalGenreBands = {
+		(.35f, Genre.DooWop), (.55f, Genre.GirlGroup), (.75f, Genre.Motown),
+		(.85f, Genre.Soul), (.92f, Genre.RnB), (1f, Genre.Gospel)
+	};
 	public static ArtistManager Instance { get; private set; }
 	
 	[ExportGroup("Configuration")]
@@ -323,28 +333,38 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 
 	internal static Genre GetLegacyInitialGenreForProbe(float roll, bool vocalGroup) {
-		if (vocalGroup) {
-			if (roll < 0.35f) return Genre.DooWop;
-			if (roll < 0.55f) return Genre.GirlGroup;
-			if (roll < 0.75f) return Genre.Motown;
-			if (roll < 0.85f) return Genre.Soul;
-			if (roll < 0.92f) return Genre.RnB;
-			return Genre.Gospel;
+		foreach ((float upper, Genre genre) in vocalGroup ? InitialVocalGenreBands : InitialGeneralGenreBands)
+			if (roll < upper) return genre;
+		return (vocalGroup ? InitialVocalGenreBands : InitialGeneralGenreBands)[^1].Genre;
+	}
+
+	/// <summary>
+	/// Exact expected primary-identity prior of the frozen 1960 pool. The general
+	/// picker supplies 82% of artists and the vocal picker 18%; Girl Group's
+	/// three-way secondary draw maps one-third to Soul and two-thirds to Teen Pop.
+	/// This is a fixed prospective cohort, not a realized release-count input.
+	/// </summary>
+	internal static IReadOnlyDictionary<Genre, float> GetEnabledInitialPrimaryGenrePrior() {
+		var result = new Dictionary<Genre, float>();
+		AddInitialBandWeights(result, InitialGeneralGenreBands, .82f);
+		AddInitialBandWeights(result, InitialVocalGenreBands, .18f);
+		return result;
+	}
+
+	private static void AddInitialBandWeights(Dictionary<Genre, float> result,
+		IReadOnlyList<(float Upper, Genre Genre)> bands, float cohortWeight) {
+		float lower = 0f;
+		foreach ((float upper, Genre legacy) in bands) {
+			float weight = cohortWeight * (upper - lower);
+			lower = upper;
+			if (legacy == Genre.GirlGroup) {
+				result[Genre.Soul] = result.GetValueOrDefault(Genre.Soul) + weight / 3f;
+				result[Genre.TeenPop] = result.GetValueOrDefault(Genre.TeenPop) + weight * 2f / 3f;
+				continue;
+			}
+			Genre canonical = GenreCatalog.MapLegacy(legacy, 1960);
+			result[canonical] = result.GetValueOrDefault(canonical) + weight;
 		}
-		if (roll < 0.18f) return Genre.RockAndRoll;
-		if (roll < 0.32f) return Genre.RnB;
-		if (roll < 0.42f) return Genre.TraditionalPop;
-		if (roll < 0.50f) return Genre.DooWop;
-		if (roll < 0.58f) return Genre.Soul;
-		if (roll < 0.64f) return Genre.Country;
-		if (roll < 0.69f) return Genre.Jazz;
-		if (roll < 0.74f) return Genre.Gospel;
-		if (roll < 0.79f) return Genre.TeenPop;
-		if (roll < 0.84f) return Genre.Folk;
-		if (roll < 0.88f) return Genre.GirlGroup;
-		if (roll < 0.92f) return Genre.Motown;
-		if (roll < 0.95f) return Genre.SurfRock;
-		return Genre.BluesRock;
 	}
 
 	private Genre GetVocalGroupGenre() {

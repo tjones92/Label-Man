@@ -140,9 +140,9 @@ public partial class MarketRegion : Resource {
 	}
 
 	/// <summary>Accepted regional calculation without the live V2 routing branch.</summary>
-	public float GetLegacyGenreAcceptance(Genre genre, float year) {
+	public float GetLegacyGenreAcceptance(Genre genre, float year, bool includeMomentum = true) {
 		if (currentGenreAcceptance == null || !currentGenreAcceptance.ContainsKey(genre)) return culturalProgressivism * 0.3f;
-		float momentum = genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f;
+		float momentum = includeMomentum && genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f;
 		return Mathf.Clamp(currentGenreAcceptance[genre] + GetYearEvolution(genre, (int)year) + momentum, 0f, 1f);
 	}
 

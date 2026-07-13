@@ -109,6 +109,9 @@ public static class GenreSupplyService {
 		};
 	}
 
+	internal static float GetProjectIdentityRetentionForPortfolio(Genre genre, float year) =>
+		GetProjectIdentityRetention(GenreCatalog.MapLegacy(genre, (int)MathF.Floor(year)), year);
+
 	// This is a prospective project-selection brake, not a normalization from realized sales.
 	private static float GetGlobalConcentrationBrake(Genre genre, IReadOnlyDictionary<Genre, int> globalRecentSupply) {
 		if (globalRecentSupply == null) return 1f;

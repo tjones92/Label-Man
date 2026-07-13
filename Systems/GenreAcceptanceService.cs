@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 public readonly struct GenreAcceptanceExplanation {
@@ -35,6 +36,23 @@ public static class GenreAcceptanceService {
 	private const float DefaultLegacyMomentumInfluence = .3f;
 	private const float SingleDemandLegacyIntercept = .60f;
 	private const float SingleDemandLegacySlope = .50f;
+	private const float SingleOpportunityNormalizationFloor = .90f;
+	private const float SingleOpportunityNormalizationCeiling = 1.10f;
+	private const float SingleOpportunityNormalizationStartYear = 1964f;
+	private const float SingleOpportunityNormalizationFullYear = 1966f;
+
+	public readonly struct SingleOpportunityReconciliation {
+		public readonly float EnabledOpportunity, AcceptedOpportunity, EnabledToAcceptedRatio;
+		public readonly float AnchorEnabledToAcceptedRatio, Normalization;
+		public SingleOpportunityReconciliation(float enabledOpportunity, float acceptedOpportunity,
+			float enabledToAcceptedRatio, float anchorEnabledToAcceptedRatio, float normalization) {
+			EnabledOpportunity = enabledOpportunity;
+			AcceptedOpportunity = acceptedOpportunity;
+			EnabledToAcceptedRatio = enabledToAcceptedRatio;
+			AnchorEnabledToAcceptedRatio = anchorEnabledToAcceptedRatio;
+			Normalization = normalization;
+		}
+	}
 	private readonly record struct RegionalDemandKey(Genre Primary, Genre Secondary, ulong RegionInstanceId, int YearBits, int MomentumBits);
 	private static readonly Dictionary<RegionalDemandKey, float> RegionalDemandCache = new();
 	private static int cacheYearBits = int.MinValue;
@@ -153,6 +171,88 @@ public static class GenreAcceptanceService {
 		float legacyTransfer = SingleDemandLegacyIntercept + SingleDemandLegacySlope * bounded;
 		float availabilityGate = Mathf.SmoothStep(0f, .50f, bounded);
 		return legacyTransfer * availabilityGate;
+	}
+
+	/// <summary>
+	/// Reconciles only the time drift of the supplied Single portfolio. The 1960
+	/// enabled/accepted relationship is the anchor, so the V2 catalog's starting
+	/// level and all within-year genre/region differences remain intact. Supply
+	/// weights are prospective fixed inputs; realized releases, units, chart
+	/// outcomes, and annual gate results never enter this calculation.
+	/// </summary>
+	public static SingleOpportunityReconciliation GetSingleOpportunityReconciliation(
+		IEnumerable<MarketRegion> regions, float year) {
+		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? Array.Empty<MarketRegion>();
+		(float enabled, float accepted) current = CalculateSuppliedSingleOpportunity(regionArray, year);
+		(float enabled, float accepted) anchor = CalculateSuppliedSingleOpportunity(regionArray, 1960f);
+		float currentRatio = current.enabled / Mathf.Max(.000001f, current.accepted);
+		float anchorRatio = anchor.enabled / Mathf.Max(.000001f, anchor.accepted);
+		float boundedNormalization = Mathf.Clamp(anchorRatio / Mathf.Max(.000001f, currentRatio),
+			SingleOpportunityNormalizationFloor, SingleOpportunityNormalizationCeiling);
+		float activation = Mathf.Clamp((year - SingleOpportunityNormalizationStartYear) /
+			(SingleOpportunityNormalizationFullYear - SingleOpportunityNormalizationStartYear), 0f, 1f);
+		activation = activation * activation * (3f - 2f * activation);
+		float normalization = Mathf.Lerp(1f, boundedNormalization, activation);
+		return new SingleOpportunityReconciliation(current.enabled, current.accepted, currentRatio, anchorRatio, normalization);
+	}
+
+	public static float GetLiveSingleOpportunityNormalization(IEnumerable<MarketRegion> regions, float year, bool live) =>
+		!live || year <= SingleOpportunityNormalizationStartYear
+			? 1f
+			: GetSingleOpportunityReconciliation(regions, year).Normalization;
+
+	private static (float enabled, float accepted) CalculateSuppliedSingleOpportunity(
+		IReadOnlyList<MarketRegion> regions, float year) {
+		IReadOnlyList<Genre> supplied = GenreSupplyService.GetAvailableGenres(year);
+		IReadOnlyDictionary<Genre, float> initialIdentities = ArtistManager.GetEnabledInitialPrimaryGenrePrior();
+		if (regions.Count == 0 || supplied.Count == 0) return (1f, 1f);
+		float enabledTotal = 0f;
+		float acceptedTotal = 0f;
+		float populationTotal = 0f;
+		foreach (MarketRegion region in regions) {
+			float populationWeight = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			if (populationWeight <= 0f) continue;
+			float newEnabled = 0f;
+			float newAccepted = 0f;
+			float supplyTotal = 0f;
+			foreach (Genre genre in supplied) {
+				// Use the catalog/lifecycle supply prior rather than the live regional
+				// acceptance path. The latter contains mutable genre momentum and would
+				// turn a structural normalizer into an evaluation-order-sensitive cache.
+				float supplyWeight = GenreSupplyService.GetSupplyWeight(genre, null, null, null, year);
+				if (supplyWeight <= 0f) continue;
+				float routedAcceptance = GetRegionalDemandAcceptance(genre, genre, region, year, 0f);
+				float albumOpportunity = region.GetAcceptedAlbumOpportunityWeight(genre, year);
+				float formatTilt = GetFormatMultiplier(genre, genre, ReleaseFormat.Single, year, albumOpportunity);
+				float acceptedAcceptance = region.GetLegacyGenreAcceptance(genre, year, includeMomentum: false);
+				newEnabled += supplyWeight * GetEnabledSingleDemandMultiplier(routedAcceptance) * formatTilt;
+				newAccepted += supplyWeight * (SingleDemandLegacyIntercept + SingleDemandLegacySlope * acceptedAcceptance);
+				supplyTotal += supplyWeight;
+			}
+			float retainedEnabled = 0f;
+			float retainedAccepted = 0f;
+			float retainedShare = 0f;
+			foreach ((Genre genre, float initialShare) in initialIdentities) {
+				float retention = GenreSupplyService.GetProjectIdentityRetentionForPortfolio(genre, year);
+				float weight = initialShare * retention;
+				float routedAcceptance = GetRegionalDemandAcceptance(genre, genre, region, year, 0f);
+				float albumOpportunity = region.GetAcceptedAlbumOpportunityWeight(genre, year);
+				float formatTilt = GetFormatMultiplier(genre, genre, ReleaseFormat.Single, year, albumOpportunity);
+				float acceptedAcceptance = region.GetLegacyGenreAcceptance(genre, year, includeMomentum: false);
+				retainedEnabled += weight * GetEnabledSingleDemandMultiplier(routedAcceptance) * formatTilt;
+				retainedAccepted += weight * (SingleDemandLegacyIntercept + SingleDemandLegacySlope * acceptedAcceptance);
+				retainedShare += weight;
+			}
+			float newShare = Mathf.Max(0f, 1f - retainedShare);
+			float regionEnabled = retainedEnabled + (supplyTotal > 0f ? newShare * newEnabled / supplyTotal : 0f);
+			float regionAccepted = retainedAccepted + (supplyTotal > 0f ? newShare * newAccepted / supplyTotal : 0f);
+			enabledTotal += populationWeight * regionEnabled;
+			acceptedTotal += populationWeight * regionAccepted;
+			populationTotal += populationWeight;
+		}
+		return populationTotal > 0f
+			? (enabledTotal / populationTotal, acceptedTotal / populationTotal)
+			: (1f, 1f);
 	}
 
 	/// <summary>Applies the same configured legacy accumulator influence used by the established national path.</summary>
