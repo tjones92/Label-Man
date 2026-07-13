@@ -31,6 +31,25 @@ public readonly struct RegionalDemandAcceptanceComponents {
 	}
 }
 
+/// <summary>Population-weighted fixed-input specialist-route audit after routing, clamping, and Single conversion.</summary>
+internal readonly struct SpecialistRoutingProbe {
+	public readonly float EffectiveAcceptance, ClampLoss, FinalSingleOpportunity;
+	public readonly float ProtectedEffectiveAcceptance, ProtectedClampLoss, ProtectedFinalSingleOpportunity;
+	public readonly float SingleOpportunityNormalizer, NormalizedFinalSingleOpportunity;
+	public SpecialistRoutingProbe(float effectiveAcceptance, float clampLoss, float finalSingleOpportunity,
+		float protectedEffectiveAcceptance, float protectedClampLoss, float protectedFinalSingleOpportunity,
+		float singleOpportunityNormalizer, float normalizedFinalSingleOpportunity) {
+		EffectiveAcceptance = effectiveAcceptance;
+		ClampLoss = clampLoss;
+		FinalSingleOpportunity = finalSingleOpportunity;
+		ProtectedEffectiveAcceptance = protectedEffectiveAcceptance;
+		ProtectedClampLoss = protectedClampLoss;
+		ProtectedFinalSingleOpportunity = protectedFinalSingleOpportunity;
+		SingleOpportunityNormalizer = singleOpportunityNormalizer;
+		NormalizedFinalSingleOpportunity = normalizedFinalSingleOpportunity;
+	}
+}
+
 /// <summary>Single enabled Phase-2 acceptance owner. It intentionally consumes, but does not evolve, legacy momentum.</summary>
 public static class GenreAcceptanceService {
 	private const float DefaultLegacyMomentumInfluence = .3f;
@@ -53,9 +72,12 @@ public static class GenreAcceptanceService {
 			Normalization = normalization;
 		}
 	}
-	private readonly record struct RegionalDemandKey(Genre Primary, Genre Secondary, ulong RegionInstanceId, int YearBits, int MomentumBits);
+	private readonly record struct RegionalDemandKey(Genre Primary, Genre Secondary, ulong RegionInstanceId, int YearBits, int MomentumBits,
+		bool IncludeCenteredSpecialistTexture);
 	private static readonly Dictionary<RegionalDemandKey, float> RegionalDemandCache = new();
 	private static int cacheYearBits = int.MinValue;
+	private readonly record struct SpecialistSingleNormalizerKey(Genre Primary, Genre Secondary, int Year);
+	private static readonly Dictionary<SpecialistSingleNormalizerKey, float> SpecialistSingleNormalizerCache = new();
 
 	public static GenreAcceptanceExplanation Evaluate(Genre genre, MarketRegion region, AudienceSegment segment, float year, float legacyMomentum) {
 		Genre canonical = GenreCatalog.MapLegacy(genre, (int)MathF.Floor(year));
@@ -63,7 +85,7 @@ public static class GenreAcceptanceService {
 		float baseline = profile.GetBaseline(year);
 		float capacity = region.segmentCapacities?.Shares.TryGetValue(segment, out float share) == true ? share : 0f;
 		float reach = profile.SegmentWeights.TryGetValue(segment.ToString(), out float weight) ? weight : 0f;
-		float regional = GetRegionalFactor(canonical, region, segment);
+		float regional = GetRegionalFactor(canonical, region, segment, year);
 		float weightedMean = GetWeightedSegmentReach(profile, region);
 		float routing = Mathf.Max(.25f, 1f + (reach - weightedMean) * 1.25f);
 		return new GenreAcceptanceExplanation(baseline, reach, capacity, regional, legacyMomentum,
@@ -72,12 +94,27 @@ public static class GenreAcceptanceService {
 
 	/// <summary>Blends the normalized segment routes without multiplying population.</summary>
 	public static float GetRegionalDemandAcceptance(Genre primary, Genre secondary, MarketRegion region, float year, float legacyMomentum = 0f) {
+		return GetRegionalDemandAcceptance(primary, secondary, region, year, legacyMomentum, includeCenteredSpecialistTexture: true);
+	}
+
+	/// <summary>
+	/// Prospective specialist supply retains the enabled catalog, segment, regional,
+	/// lifecycle, and momentum route while excluding only the realized-demand
+	/// centered specialist texture.
+	/// </summary>
+	internal static float GetRegionalDemandAcceptanceWithoutCenteredSpecialistTexture(
+		Genre primary, Genre secondary, MarketRegion region, float year, float legacyMomentum = 0f) =>
+		GetRegionalDemandAcceptance(primary, secondary, region, year, legacyMomentum, includeCenteredSpecialistTexture: false);
+
+	private static float GetRegionalDemandAcceptance(Genre primary, Genre secondary, MarketRegion region, float year,
+		float legacyMomentum, bool includeCenteredSpecialistTexture) {
 		int yearBits = BitConverter.SingleToInt32Bits(year);
 		if (yearBits != cacheYearBits) {
 			RegionalDemandCache.Clear();
 			cacheYearBits = yearBits;
 		}
-		var key = new RegionalDemandKey(primary, secondary, region.GetInstanceId(), yearBits, BitConverter.SingleToInt32Bits(legacyMomentum));
+		var key = new RegionalDemandKey(primary, secondary, region.GetInstanceId(), yearBits, BitConverter.SingleToInt32Bits(legacyMomentum),
+			includeCenteredSpecialistTexture);
 		if (RegionalDemandCache.TryGetValue(key, out float cached)) return cached;
 		float secondaryWeight = primary == secondary ? 0f : .20f;
 		float primaryWeight = 1f - secondaryWeight;
@@ -91,8 +128,10 @@ public static class GenreAcceptanceService {
 		foreach (AudienceSegment segment in SegmentCapacityModel.All) {
 			float capacity = region.segmentCapacities?.Shares.TryGetValue(segment, out float share) == true ? share : 0f;
 			if (capacity <= 0f) continue;
-			float acceptance = Evaluate(canonicalPrimary, primaryProfile, primaryMean, region, segment, year, legacyMomentum).Effective * primaryWeight;
-			if (secondaryWeight > 0f) acceptance += Evaluate(canonicalSecondary, secondaryProfile, secondaryMean, region, segment, year, legacyMomentum).Effective * secondaryWeight;
+			float acceptance = Evaluate(canonicalPrimary, primaryProfile, primaryMean, region, segment, year, legacyMomentum,
+				includeCenteredSpecialistTexture).Effective * primaryWeight;
+			if (secondaryWeight > 0f) acceptance += Evaluate(canonicalSecondary, secondaryProfile, secondaryMean, region, segment, year,
+				legacyMomentum, includeCenteredSpecialistTexture).Effective * secondaryWeight;
 			total += capacity * acceptance;
 		}
 		return RegionalDemandCache[key] = Mathf.Clamp(total, 0f, 1f);
@@ -101,6 +140,11 @@ public static class GenreAcceptanceService {
 	/// <summary>Pure audit decomposition that exactly follows the blended regional acceptance calculation.</summary>
 	public static RegionalDemandAcceptanceComponents GetRegionalDemandAcceptanceComponents(
 		Genre primary, Genre secondary, MarketRegion region, float year, float legacyMomentum = 0f) {
+		return GetRegionalDemandAcceptanceComponents(primary, secondary, region, year, legacyMomentum, includeCenteredSpecialistTexture: true);
+	}
+
+	private static RegionalDemandAcceptanceComponents GetRegionalDemandAcceptanceComponents(
+		Genre primary, Genre secondary, MarketRegion region, float year, float legacyMomentum, bool includeCenteredSpecialistTexture) {
 		float secondaryWeight = primary == secondary ? 0f : .20f;
 		float primaryWeight = 1f - secondaryWeight;
 		GenreProfile primaryProfile = GenreCatalog.Get(GenreCatalog.MapLegacy(primary, (int)MathF.Floor(year)));
@@ -117,7 +161,7 @@ public static class GenreAcceptanceService {
 			float capacity = region.segmentCapacities?.Shares.TryGetValue(segment, out float share) == true ? share : 0f;
 			if (capacity <= 0f) continue;
 			float primaryBaseline = primaryProfile.GetBaseline(year);
-			float primaryRegional = primaryBaseline * GetRegionalFactor(canonicalPrimary, region, segment);
+			float primaryRegional = primaryBaseline * GetRegionalFactor(canonicalPrimary, region, segment, year, includeCenteredSpecialistTexture);
 			float primaryRouting = Mathf.Max(.25f, 1f + (primaryProfile.SegmentWeights.GetValueOrDefault(segment.ToString()) - primaryMean) * 1.25f);
 			float primaryRouted = primaryRegional * primaryRouting;
 			float primaryUnclamped = primaryRouted * (1f + momentumFactor);
@@ -125,7 +169,7 @@ public static class GenreAcceptanceService {
 			float secondaryBaseline = 0f, secondaryRegional = 0f, secondaryRouted = 0f, secondaryUnclamped = 0f, secondaryEffective = 0f;
 			if (secondaryProfile != null) {
 				secondaryBaseline = secondaryProfile.GetBaseline(year);
-				secondaryRegional = secondaryBaseline * GetRegionalFactor(canonicalSecondary, region, segment);
+				secondaryRegional = secondaryBaseline * GetRegionalFactor(canonicalSecondary, region, segment, year, includeCenteredSpecialistTexture);
 				float secondaryRouting = Mathf.Max(.25f, 1f + (secondaryProfile.SegmentWeights.GetValueOrDefault(segment.ToString()) - secondaryMean) * 1.25f);
 				secondaryRouted = secondaryRegional * secondaryRouting;
 				secondaryUnclamped = secondaryRouted * (1f + momentumFactor);
@@ -312,22 +356,145 @@ public static class GenreAcceptanceService {
 	public static float GetLiveFormatMultiplier(Genre primary, Genre secondary, ReleaseFormat format, float year,
 		float albumOpportunity, bool live) =>
 		live ? GetFormatMultiplier(primary, secondary, format, year, albumOpportunity) : 1f;
-	private static float GetRegionalFactor(Genre genre, MarketRegion region, AudienceSegment segment) {
+
+	/// <summary>
+	/// Fixed-input correction for the nonlinear Single-transfer seam.  It preserves
+	/// regional acceptance texture for radio/routing while restoring the protected
+	/// population-weighted Single opportunity after the runtime transfer and format
+	/// operations.  The cache key intentionally excludes live momentum and outcomes.
+	/// </summary>
+	internal static float GetLiveSpecialistSingleOpportunityNormalizer(Genre primary, Genre secondary, int year, bool live) {
+		Genre canonicalPrimary = GenreCatalog.MapLegacy(primary, year);
+		Genre canonicalSecondary = GenreCatalog.MapLegacy(secondary, year);
+		if (!live || !IsSpecialist(canonicalPrimary) && !IsSpecialist(canonicalSecondary)) return 1f;
+		var key = new SpecialistSingleNormalizerKey(canonicalPrimary, canonicalSecondary, year);
+		if (SpecialistSingleNormalizerCache.TryGetValue(key, out float cached)) return cached;
+		return SpecialistSingleNormalizerCache[key] = GetFixedInputSpecialistRoutingProbe(canonicalPrimary, canonicalSecondary, year).SingleOpportunityNormalizer;
+	}
+
+	internal static SpecialistRoutingProbe GetFixedInputSpecialistRoutingProbe(Genre genre, float year) =>
+		GetFixedInputSpecialistRoutingProbe(genre, genre, year);
+
+	internal static SpecialistRoutingProbe GetFixedInputSpecialistRoutingProbe(Genre primary, Genre secondary, float year) {
+		MarketRegion[] regions = SpecialistBuyingPopulationPriors.Select(pair => {
+			var region = new MarketRegion {
+				regionId = pair.Key,
+				population = pair.Value,
+				youthPercentage = .25f,
+				averageIncome = 1f,
+				urbanization = .6f,
+				blackPopulation = .15f,
+				collegeCount = 12,
+				culturalProgressivism = .5f,
+				churchNetworkStrength = .25f,
+				currentIntegration = .5f,
+				media = new MediaInfrastructure { hasFMUnderground = true, radioReach = .5f }
+			};
+			region.segmentCapacities = SegmentCapacityModel.Create(region, (int)MathF.Floor(year));
+			return region;
+		}).ToArray();
+		return GetPostRoutingSpecialistProbe(primary, secondary, regions, year);
+	}
+
+	private static SpecialistRoutingProbe GetPostRoutingSpecialistProbe(Genre primary, Genre secondary, IEnumerable<MarketRegion> regions, float year) {
+		MarketRegion[] fixedRegions = regions.Where(region => region != null).ToArray();
+		float globalSingleNormalization = GetLiveSingleOpportunityNormalization(fixedRegions, year, live: true);
+		float effective = 0f, clampLoss = 0f, finalSingle = 0f;
+		float protectedEffective = 0f, protectedClampLoss = 0f, protectedFinalSingle = 0f, totalPopulation = 0f;
+		foreach (MarketRegion region in fixedRegions) {
+			float buyingPopulation = region.population * 1000000f * region.GetBuyingPopulationPercentage();
+			if (buyingPopulation <= 0f) continue;
+			RegionalDemandAcceptanceComponents route = GetRegionalDemandAcceptanceComponents(primary, secondary, region, year, 0f,
+				includeCenteredSpecialistTexture: true);
+			RegionalDemandAcceptanceComponents protectedRoute = GetRegionalDemandAcceptanceComponents(primary, secondary, region, year, 0f,
+				includeCenteredSpecialistTexture: false);
+			float runtimeFormat = GetLiveFormatMultiplier(primary, secondary, ReleaseFormat.Single, year,
+				region.GetAlbumDemandEraProgress(year), live: true);
+			float singleOpportunity = GetEnabledSingleDemandMultiplier(route.Effective) * globalSingleNormalization * runtimeFormat;
+			float protectedSingleOpportunity = GetEnabledSingleDemandMultiplier(protectedRoute.Effective) * globalSingleNormalization * runtimeFormat;
+			effective += buyingPopulation * route.Effective;
+			clampLoss += buyingPopulation * route.ClampDelta;
+			finalSingle += buyingPopulation * singleOpportunity;
+			protectedEffective += buyingPopulation * protectedRoute.Effective;
+			protectedClampLoss += buyingPopulation * protectedRoute.ClampDelta;
+			protectedFinalSingle += buyingPopulation * protectedSingleOpportunity;
+			totalPopulation += buyingPopulation;
+		}
+		if (totalPopulation <= 0f) return new SpecialistRoutingProbe(0f, 0f, 0f, 0f, 0f, 0f, 1f, 0f);
+		effective /= totalPopulation;
+		clampLoss /= totalPopulation;
+		finalSingle /= totalPopulation;
+		protectedEffective /= totalPopulation;
+		protectedClampLoss /= totalPopulation;
+		protectedFinalSingle /= totalPopulation;
+		float normalizer = protectedFinalSingle / Mathf.Max(.000001f, finalSingle);
+		return new SpecialistRoutingProbe(effective, clampLoss, finalSingle, protectedEffective, protectedClampLoss,
+			protectedFinalSingle, normalizer, finalSingle * normalizer);
+	}
+
+	private static bool IsSpecialist(Genre genre) => genre is Genre.Country or Genre.TexMex or Genre.Boogaloo;
+	// Fixed 1960 buying-population priors, derived from the seven authored region
+	// resources and their static purchasing-capacity inputs.  These are only used
+	// to center a texture; they never read release, sales, stock, chart, or momentum
+	// state.  Their absolute scale is immaterial, but the explicit values make the
+	// national conservation invariant stable and independently probeable.
+	private static readonly IReadOnlyDictionary<string, float> SpecialistBuyingPopulationPriors =
+		new Dictionary<string, float>(StringComparer.Ordinal) {
+			["eastcoast"] = .725120036f, ["greatlakes"] = .515502883f, ["greatplains"] = .192183251f,
+			["deepsouth"] = .167874111f, ["southwest"] = .184606423f, ["rockies"] = .059087843f,
+			["westcoast"] = .320871449f
+		};
+
+	private static float GetRegionalFactor(Genre genre, MarketRegion region, AudienceSegment segment, float year,
+		bool includeCenteredSpecialistTexture = true) {
 		float factor = 1f;
-		if (genre == Genre.Country) factor *= region.regionId == "southwest" || region.regionId == "deepsouth" || region.regionId == "greatplains" ? 1.25f : .85f;
-		if (genre == Genre.TexMex) factor *= region.regionId == "southwest" ? 1.55f :
-			region.regionId == "deepsouth" || region.regionId == "greatplains" ? 1.25f : .85f;
-		if (genre == Genre.Boogaloo) factor *= region.regionId == "eastcoast" ? 1.25f : .90f;
+		if (includeCenteredSpecialistTexture) factor *= GetCenteredSpecialistTexture(genre, year, region?.regionId);
 		if (genre == Genre.Gospel && segment == AudienceSegment.GospelChurch) factor *= .75f + region.churchNetworkStrength * .5f;
 		if ((genre == Genre.RnB || genre == Genre.Soul || genre == Genre.Funk) && segment == AudienceSegment.MainstreamAM) factor *= .6f + region.currentIntegration * .4f;
 		return factor;
 	}
 
-	private static GenreAcceptanceExplanation Evaluate(Genre canonical, GenreProfile profile, float weightedMean, MarketRegion region, AudienceSegment segment, float year, float legacyMomentum) {
+	/// <summary>
+	/// Pure authored specialist texture.  The target multipliers encode only the
+	/// desired regional order; the fixed buying-population priors center every
+	/// affected genre/year to exactly one national opportunity.
+	/// </summary>
+	internal static float GetCenteredSpecialistTextureForProbe(Genre genre, float year, string regionId) =>
+		GetCenteredSpecialistTexture(genre, year, regionId);
+
+	private static float GetCenteredSpecialistTexture(Genre genre, float year, string regionId) {
+		if (genre is not (Genre.Country or Genre.TexMex or Genre.Boogaloo)) return 1f;
+		float target = GetAuthoredSpecialistTarget(genre, year, regionId);
+		float weightedTarget = SpecialistBuyingPopulationPriors.Sum(pair =>
+			pair.Value * GetAuthoredSpecialistTarget(genre, year, pair.Key));
+		float totalPopulation = SpecialistBuyingPopulationPriors.Values.Sum();
+		return weightedTarget > 0f ? target * totalPopulation / weightedTarget : 1f;
+	}
+
+	private static float GetAuthoredSpecialistTarget(Genre genre, float year, string regionId) {
+		// The texture is deliberately time-invariant within the decade.  Year remains
+		// an explicit fixed input so a future authored table can vary by historical
+		// era without turning this helper into a realized-outcome normalizer.
+		_ = year;
+		return genre switch {
+			Genre.Country => regionId switch {
+				"southwest" => 1.55f, "deepsouth" => 1.30f, "greatplains" => 1.25f, _ => .80f
+			},
+			Genre.TexMex => regionId switch {
+				"southwest" => 1.80f, "deepsouth" => 1.20f, "greatplains" => 1.15f, _ => .75f
+			},
+			Genre.Boogaloo => regionId == "eastcoast" ? 1.60f : .80f,
+			_ => 1f
+		};
+	}
+
+	private static GenreAcceptanceExplanation Evaluate(Genre canonical, GenreProfile profile, float weightedMean, MarketRegion region,
+		AudienceSegment segment, float year, float legacyMomentum, bool includeCenteredSpecialistTexture = true) {
 		float capacity = region.segmentCapacities?.Shares.TryGetValue(segment, out float share) == true ? share : 0f;
 		float reach = profile.SegmentWeights.TryGetValue(segment.ToString(), out float weight) ? weight : 0f;
 		float routing = Mathf.Max(.25f, 1f + (reach - weightedMean) * 1.25f);
-		return new GenreAcceptanceExplanation(profile.GetBaseline(year), reach, capacity, GetRegionalFactor(canonical, region, segment),
+		return new GenreAcceptanceExplanation(profile.GetBaseline(year), reach, capacity,
+			GetRegionalFactor(canonical, region, segment, year, includeCenteredSpecialistTexture),
 			legacyMomentum, GetLegacyMomentumContribution(legacyMomentum), routing);
 	}
 

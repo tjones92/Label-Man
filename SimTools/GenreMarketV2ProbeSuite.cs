@@ -151,6 +151,7 @@ public static class GenreMarketV2ProbeSuite {
 		Require(GenreSupplyService.ChooseGenre(null, legacyArtist, null, 1967f, null, .119f) == Genre.DooWop &&
 			GenreSupplyService.ChooseGenre(null, legacyArtist, null, 1967f, null, .121f) != Genre.DooWop,
 			"legacy identity retention threshold");
+		ProbeProspectivePsychedelicCompatibility();
 		var legacyOnlyLabel = new AILabel { roster = new List<SimulatedArtist> { legacyArtist } };
 		Require(legacyOnlyLabel.CountArtistsEligibleForRelease(1967) == 1, "legacy-only roster has no phantom release roll");
 		var globallyConcentrated = new Dictionary<Genre, int> { [Genre.Soul] = 20, [Genre.Country] = 1 };
@@ -160,21 +161,29 @@ public static class GenreMarketV2ProbeSuite {
 		float balancedSoulRelativeWeight = GenreSupplyService.GetSupplyWeight(Genre.Soul, null, null, null, 1961f, null, globallyBalanced) /
 			GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, null, 1961f, null, globallyBalanced);
 		Require(concentratedSoulRelativeWeight < balancedSoulRelativeWeight, "global supply concentration reduces relative selection weight");
-		MarketRegion youthHeavy = CreateRegion("greatlakes", fm: true, integration: .5f, church: .25f);
-		MarketRegion adultHeavy = CreateRegion("greatlakes", fm: true, integration: .5f, church: .25f);
-		youthHeavy.youthPercentage = .55f;
-		adultHeavy.youthPercentage = 0f;
-		youthHeavy.segmentCapacities = SegmentCapacityModel.Create(youthHeavy, 1964);
-		adultHeavy.segmentCapacities = SegmentCapacityModel.Create(adultHeavy, 1964);
-		youthHeavy.SetGenreMarketV2Live(true);
-		adultHeavy.SetGenreMarketV2Live(true);
-		float youthAcceptance = youthHeavy.GetGenreAcceptance(Genre.Jazz, 1964f);
-		float adultAcceptance = adultHeavy.GetGenreAcceptance(Genre.Jazz, 1964f);
-		float expectedRoutedDemandRatio = (.20f + .80f * youthAcceptance) / (.20f + .80f * adultAcceptance);
-		float actualSupplyRatio = GenreSupplyService.GetSupplyWeight(Genre.Jazz, null, null, youthHeavy, 1964f) /
-			GenreSupplyService.GetSupplyWeight(Genre.Jazz, null, null, adultHeavy, 1964f);
-		Require(Math.Abs(actualSupplyRatio - expectedRoutedDemandRatio) < .000001f,
-			"supply regional acceptance enters exactly once");
+		MarketRegion supplySouthwest = CreateRegion("southwest", fm: true, integration: .5f, church: .25f);
+		MarketRegion supplyEastCoast = CreateRegion("eastcoast", fm: true, integration: .5f, church: .25f);
+		supplySouthwest.SetGenreMarketV2Live(true);
+		supplyEastCoast.SetGenreMarketV2Live(true);
+		float routedSupplyRatio = (.20f + .80f * supplySouthwest.GetGenreAcceptance(Genre.Country, 1964f)) /
+			(.20f + .80f * supplyEastCoast.GetGenreAcceptance(Genre.Country, 1964f));
+		float protectedSupplyRatio = (.20f + .80f * GenreSupplyService.GetProspectiveSupplyAcceptanceForProbe(Genre.Country, supplySouthwest, 1964f)) /
+			(.20f + .80f * GenreSupplyService.GetProspectiveSupplyAcceptanceForProbe(Genre.Country, supplyEastCoast, 1964f));
+		float actualSupplyRatio = GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, supplySouthwest, 1964f) /
+			GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, supplyEastCoast, 1964f);
+		Require(Math.Abs(actualSupplyRatio - protectedSupplyRatio) < .000001f &&
+			Math.Abs(actualSupplyRatio - routedSupplyRatio) > .000001f,
+			"prospective supply bypasses live routed texture");
+		float jazzProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.Jazz, null, null, supplyEastCoast, 1964f);
+		float countryProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, supplySouthwest, 1964f);
+		float texMexProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.TexMex, null, null, supplySouthwest, 1964f);
+		Require(Math.Abs(jazzProtectedWeight - .52f) < .000001f && Math.Abs(countryProtectedWeight - .64f) < .000001f &&
+			Math.Abs(texMexProtectedWeight - .40f) < .000001f,
+			$"protected prospective supply weights match explicit pre-texture V2 values actual={jazzProtectedWeight:F6}/{countryProtectedWeight:F6}/{texMexProtectedWeight:F6}");
+		Genre[] specialistCandidates = { Genre.Country, Genre.TexMex };
+		Require(GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .61f, specialistCandidates) == Genre.Country &&
+			GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .62f, specialistCandidates) == Genre.TexMex,
+			"protected prospective specialist selections match explicit pre-texture V2 boundaries");
 		var britishBeatCandidates = new[] { Genre.BritishBeat, Genre.Country };
 		var britishPopCandidates = new[] { Genre.BritishPop, Genre.Country };
 		Require(GenreSupplyService.ChooseGenre(null, null, null, 1962f, null, 0f, britishBeatCandidates) == Genre.Country &&
@@ -195,6 +204,7 @@ public static class GenreMarketV2ProbeSuite {
 			GenreAcceptanceService.GetRegionalRadioOpportunity(Genre.ProgressiveRock, yesFm, 1968f, routedProg)) < .000001f,
 			"cached radio opportunity parity");
 
+		string specialistRouting = ProbeCenteredSpecialistTextures();
 		MarketRegion south = CreateRegion("deepsouth", fm: true, integration: .5f, church: .80f);
 		MarketRegion coast = CreateRegion("eastcoast", fm: true, integration: .5f, church: .10f);
 		MarketRegion southwest = CreateRegion("southwest", fm: true, integration: .5f, church: .25f);
@@ -233,7 +243,90 @@ public static class GenreMarketV2ProbeSuite {
 			"era-weighted format opportunity conservation");
 		return $"Single portfolio normalization 1960/64/66/68/69={single1960.Normalization:F4}/" +
 			$"{single1964.Normalization:F4}/{single1966.Normalization:F4}/{single1968.Normalization:F4}/{single1969.Normalization:F4}, " +
-			$"enabled/accepted drift {single1960.EnabledToAcceptedRatio:F4}->{single1969.EnabledToAcceptedRatio:F4}";
+			$"enabled/accepted drift {single1960.EnabledToAcceptedRatio:F4}->{single1969.EnabledToAcceptedRatio:F4}; {specialistRouting}";
+	}
+
+	private static void ProbeProspectivePsychedelicCompatibility() {
+		const float year = 1966f;
+		Genre[] candidates = { Genre.PsychedelicRock, Genre.Country };
+		Require(!GenreSupplyService.IsPsychedelicTransitionCompatible(Genre.TeenPop, year) &&
+			!GenreSupplyService.IsPsychedelicTransitionCompatible(Genre.DooWop, year),
+			"Teen Pop and Doo Wop prospective Psychedelic transitions rejected");
+		Require(GenreSupplyService.IsPsychedelicTransitionCompatible(Genre.RockAndRoll, year) &&
+			GenreSupplyService.IsPsychedelicTransitionCompatible(Genre.AcidRock, year),
+			"authored family and adjacency Psychedelic transitions retained");
+		Require(GenreSupplyService.GetProspectivePsychedelicCandidatesForProbe(candidates, Genre.TeenPop, year, true)
+			.SequenceEqual(new[] { Genre.Country }) &&
+			GenreSupplyService.GetProspectivePsychedelicCandidatesForProbe(candidates, Genre.TeenPop, year, false)
+			.SequenceEqual(candidates), "Psychedelic compatibility is static and disabled/prewarm bypass is exact");
+		var teen = new SimulatedArtist { primaryGenre = Genre.TeenPop, secondaryGenre = Genre.TraditionalPop };
+		GenreSelectionFromAnnualFloor(teen, year, new[] { Genre.PsychedelicRock });
+		var retained = new SimulatedArtist { primaryGenre = Genre.PsychedelicRock, secondaryGenre = Genre.RockAndRoll };
+		GenreSupplyService.GenreSelection retainedEnabled = GenreSupplyService.ChooseGenreWithSelection(null, retained, null, year, null, .01f,
+			globalRecentSupply: null, applyPsychedelicTransitionCompatibility: true);
+		GenreSupplyService.GenreSelection retainedBaseline = GenreSupplyService.ChooseGenreWithSelection(null, retained, null, year, null, .01f);
+		Require(retainedEnabled.RetainedIdentity && retainedBaseline.RetainedIdentity && retainedEnabled.Genre == retainedBaseline.Genre,
+			"retained Psychedelic identity bypass is neutral");
+		MarketRegion neutral = CreateRegion("greatlakes", fm: true, integration: .5f, church: .25f);
+		float blended = GenreAcceptanceService.GetRegionalDemandAcceptance(Genre.PsychedelicRock, Genre.RockAndRoll, neutral, year);
+		float expectedBlend = .8f * GenreAcceptanceService.GetRegionalDemandAcceptance(Genre.PsychedelicRock, Genre.PsychedelicRock, neutral, year) +
+			.2f * GenreAcceptanceService.GetRegionalDemandAcceptance(Genre.RockAndRoll, Genre.RockAndRoll, neutral, year);
+		Require(Math.Abs(blended - expectedBlend) < .000001f, "compatible Psychedelic record retains 80/20 blend");
+	}
+
+	private static void GenreSelectionFromAnnualFloor(SimulatedArtist artist, float year, IReadOnlyList<Genre> annualFloorCandidates) {
+		const float roll = .137f;
+		GenreSupplyService.GenreSelection fallback = GenreSupplyService.ChooseGenreWithSelection(null, artist, null, year, null, roll,
+			annualFloorCandidates, null, applyPsychedelicTransitionCompatibility: true);
+		GenreSupplyService.GenreSelection normal = GenreSupplyService.ChooseGenreWithSelection(null, artist, null, year, null, roll,
+			GenreSupplyService.GetAvailableGenres(year), null, applyPsychedelicTransitionCompatibility: true);
+		Require(fallback.Genre == normal.Genre && fallback.Genre != Genre.PsychedelicRock && !fallback.RetainedIdentity &&
+			!fallback.UsedCandidateOverride,
+			"annual-floor fallback reroutes with the same roll and reports weighted transition");
+	}
+
+	private static string ProbeCenteredSpecialistTextures() {
+		const float year = 1968f;
+		float Texture(Genre genre, string region) => GenreAcceptanceService.GetCenteredSpecialistTextureForProbe(genre, year, region);
+		Require(Texture(Genre.Country, "southwest") > Texture(Genre.Country, "deepsouth") &&
+			Texture(Genre.Country, "southwest") > Texture(Genre.Country, "greatplains") &&
+			Texture(Genre.Country, "deepsouth") > Texture(Genre.Country, "eastcoast") &&
+			Texture(Genre.Country, "greatplains") > Texture(Genre.Country, "eastcoast"), "Country centered specialist order");
+		Require(Texture(Genre.TexMex, "southwest") > Texture(Genre.TexMex, "deepsouth") &&
+			Texture(Genre.TexMex, "southwest") > Texture(Genre.TexMex, "greatplains") &&
+			Texture(Genre.TexMex, "deepsouth") > Texture(Genre.TexMex, "eastcoast") &&
+			Texture(Genre.TexMex, "greatplains") > Texture(Genre.TexMex, "eastcoast"), "TexMex centered specialist order");
+		Require(new[] { "greatlakes", "greatplains", "deepsouth", "southwest", "rockies", "westcoast" }
+			.All(region => Texture(Genre.Boogaloo, "eastcoast") > Texture(Genre.Boogaloo, region)), "Boogaloo centered specialist order");
+		// Centered texture is population-conserved before clamping.  The fixed
+		// Country route may lose a bounded amount at the acceptance cap, so enforce
+		// a 1% post-routing tolerance against the explicit texture-free V2 baseline.
+		const float nationalOpportunityTolerance = .01f;
+		var routing = new List<string>();
+		foreach (Genre specialist in new[] { Genre.Country, Genre.TexMex, Genre.Boogaloo }) {
+			SpecialistRoutingProbe postRouting = GenreAcceptanceService.GetFixedInputSpecialistRoutingProbe(specialist, year);
+			Require(float.IsFinite(postRouting.EffectiveAcceptance) && postRouting.EffectiveAcceptance >= 0f && postRouting.EffectiveAcceptance <= 1f &&
+				float.IsFinite(postRouting.ClampLoss) && postRouting.ClampLoss <= .000001f &&
+				float.IsFinite(postRouting.FinalSingleOpportunity) && postRouting.FinalSingleOpportunity > 0f,
+				specialist + " post-routing specialist probe");
+			Require(Math.Abs(postRouting.EffectiveAcceptance - postRouting.ProtectedEffectiveAcceptance) <= nationalOpportunityTolerance &&
+				Math.Abs(postRouting.ClampLoss - postRouting.ProtectedClampLoss) <= nationalOpportunityTolerance &&
+				Math.Abs(postRouting.NormalizedFinalSingleOpportunity - postRouting.ProtectedFinalSingleOpportunity) < .000001f,
+				$"{specialist} population-weighted post-routing opportunity matches protected baseline actual=" +
+				$"{postRouting.EffectiveAcceptance:F6}/{postRouting.ClampLoss:F6}/{postRouting.NormalizedFinalSingleOpportunity:F6} protected=" +
+				$"{postRouting.ProtectedEffectiveAcceptance:F6}/{postRouting.ProtectedClampLoss:F6}/{postRouting.ProtectedFinalSingleOpportunity:F6}");
+			routing.Add($"{specialist} effective/clamp/single={postRouting.EffectiveAcceptance:F4}/{postRouting.ClampLoss:F4}/{postRouting.FinalSingleOpportunity:F4}" +
+				$" normalized={postRouting.NormalizedFinalSingleOpportunity:F4} normalizer={postRouting.SingleOpportunityNormalizer:F4}" +
+				$" protected={postRouting.ProtectedEffectiveAcceptance:F4}/{postRouting.ProtectedClampLoss:F4}/{postRouting.ProtectedFinalSingleOpportunity:F4}");
+		}
+		SpecialistRoutingProbe blendedPair = GenreAcceptanceService.GetFixedInputSpecialistRoutingProbe(Genre.TexMex, Genre.Country, year);
+		Require(Math.Abs(blendedPair.NormalizedFinalSingleOpportunity - blendedPair.ProtectedFinalSingleOpportunity) < .000001f &&
+			GenreAcceptanceService.GetLiveSpecialistSingleOpportunityNormalizer(Genre.TexMex, Genre.Country, (int)year, live: false) == 1f &&
+			GenreAcceptanceService.GetLiveSpecialistSingleOpportunityNormalizer(Genre.Jazz, Genre.TraditionalPop, (int)year, live: true) == 1f,
+			"blended specialist normalizer is exact and disabled/prewarm-neutral");
+		Require(Math.Abs(Texture(Genre.Gospel, "deepsouth") - 1f) < .000001f &&
+			Math.Abs(Texture(Genre.RnB, "eastcoast") - 1f) < .000001f, "unaffected genres bypass specialist texture");
+		return string.Join(", ", routing);
 	}
 
 	private static MarketRegion CreateRegion(string id, bool fm, float integration, float church) {

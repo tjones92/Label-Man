@@ -11,7 +11,13 @@ public static class GenreSupplyService {
 	public readonly struct GenreSelection {
 		public readonly Genre Genre;
 		public readonly bool RetainedIdentity;
-		public GenreSelection(Genre genre, bool retainedIdentity) { Genre = genre; RetainedIdentity = retainedIdentity; }
+		/// <summary>True only when the requested annual-floor pool supplied the final weighted choice.</summary>
+		public readonly bool UsedCandidateOverride;
+		public GenreSelection(Genre genre, bool retainedIdentity, bool usedCandidateOverride = false) {
+			Genre = genre;
+			RetainedIdentity = retainedIdentity;
+			UsedCandidateOverride = usedCandidateOverride;
+		}
 	}
 	public static bool IsAvailableForNewSupply(Genre genre, float year) {
 		Genre canonical = GenreCatalog.MapLegacy(genre, (int)MathF.Floor(year));
@@ -52,13 +58,14 @@ public static class GenreSupplyService {
 
 	public static Genre ChooseGenre(AILabel label, SimulatedArtist artist, MarketRegion region, float year,
 		IReadOnlyDictionary<Genre, int> recentSupply, float roll, IReadOnlyList<Genre> candidateOverride = null,
-		IReadOnlyDictionary<Genre, int> globalRecentSupply = null) =>
-		ChooseGenreWithSelection(label, artist, region, year, recentSupply, roll, candidateOverride, globalRecentSupply).Genre;
+		IReadOnlyDictionary<Genre, int> globalRecentSupply = null, bool applyPsychedelicTransitionCompatibility = false) =>
+		ChooseGenreWithSelection(label, artist, region, year, recentSupply, roll, candidateOverride, globalRecentSupply,
+			applyPsychedelicTransitionCompatibility).Genre;
 
 	/// <summary>Returns the existing deterministic selection plus whether identity retention selected the project.</summary>
 	public static GenreSelection ChooseGenreWithSelection(AILabel label, SimulatedArtist artist, MarketRegion region, float year,
 		IReadOnlyDictionary<Genre, int> recentSupply, float roll, IReadOnlyList<Genre> candidateOverride = null,
-		IReadOnlyDictionary<Genre, int> globalRecentSupply = null) {
+		IReadOnlyDictionary<Genre, int> globalRecentSupply = null, bool applyPsychedelicTransitionCompatibility = false) {
 		IReadOnlyList<Genre> candidates = candidateOverride ?? GetAvailableGenres(year);
 		if (candidates.Count == 0) return new GenreSelection(GenreCatalog.MapLegacy(artist?.primaryGenre ?? Genre.TraditionalPop, (int)year), false);
 		Genre identity = GenreCatalog.MapLegacy(artist?.primaryGenre ?? Genre.TraditionalPop, (int)year);
@@ -67,16 +74,50 @@ public static class GenreSupplyService {
 			if (roll < retention) return new GenreSelection(identity, true);
 			roll = (roll - retention) / (1f - retention);
 		}
+		bool usedCandidateOverride = candidateOverride != null;
+		if (applyPsychedelicTransitionCompatibility) {
+			IReadOnlyList<Genre> compatible = FilterProspectivePsychedelicCandidates(candidates, identity, year);
+			// An annual supply floor may contain only an incompatible Psychedelic
+			// candidate. Preserve the release opportunity by reusing this exact roll
+			// against the compatible normal set; never force an incompatible blend.
+			if (compatible.Count == 0 && candidateOverride != null) {
+				compatible = FilterProspectivePsychedelicCandidates(GetAvailableGenres(year), identity, year);
+				usedCandidateOverride = false;
+			}
+			candidates = compatible;
+		}
+		if (candidates.Count == 0) return new GenreSelection(identity, false);
 		var weighted = candidates.Select(genre => (genre, weight: GetSupplyWeight(genre, label, artist, region, year, recentSupply, globalRecentSupply))).ToArray();
 		float total = weighted.Sum(entry => entry.weight);
-		if (total <= 0f) return new GenreSelection(weighted[0].genre, false);
+		if (total <= 0f) return new GenreSelection(weighted[0].genre, false, usedCandidateOverride);
 		float target = Mathf.Clamp(roll, 0f, .99999994f) * total;
 		float cumulative = 0f;
 		foreach ((Genre genre, float weight) in weighted) {
 			cumulative += weight;
-			if (target < cumulative) return new GenreSelection(genre, false);
+			if (target < cumulative) return new GenreSelection(genre, false, usedCandidateOverride);
 		}
-		return new GenreSelection(weighted[^1].genre, false);
+		return new GenreSelection(weighted[^1].genre, false, usedCandidateOverride);
+	}
+
+	/// <summary>
+	/// Static prospective lineage guard for the one emerging Psychedelic project
+	/// seam.  The record's secondary will be the artist's primary identity, so the
+	/// authored family/adjacency graph is sufficient; realized releases, timing,
+	/// demand, charts, and momentum are deliberately absent.
+	/// </summary>
+	public static bool IsPsychedelicTransitionCompatible(Genre artistIdentity, float year) {
+		Genre canonicalIdentity = GenreCatalog.MapLegacy(artistIdentity, (int)MathF.Floor(year));
+		return GenreMarketMomentumService.GetAdjacency(canonicalIdentity, Genre.PsychedelicRock) >= .12f;
+	}
+
+	internal static IReadOnlyList<Genre> GetProspectivePsychedelicCandidatesForProbe(
+		IReadOnlyList<Genre> candidates, Genre artistIdentity, float year, bool applyCompatibility) =>
+		applyCompatibility ? FilterProspectivePsychedelicCandidates(candidates, artistIdentity, year) : candidates;
+
+	private static IReadOnlyList<Genre> FilterProspectivePsychedelicCandidates(
+		IReadOnlyList<Genre> candidates, Genre artistIdentity, float year) {
+		if (candidates == null || candidates.Count == 0 || IsPsychedelicTransitionCompatible(artistIdentity, year)) return candidates ?? Array.Empty<Genre>();
+		return candidates.Where(candidate => GenreCatalog.MapLegacy(candidate, (int)MathF.Floor(year)) != Genre.PsychedelicRock).ToArray();
 	}
 
 	public static float GetSupplyWeight(Genre genre, AILabel label, SimulatedArtist artist, MarketRegion region,
@@ -84,7 +125,7 @@ public static class GenreSupplyService {
 		Genre canonical = GenreCatalog.MapLegacy(genre, (int)MathF.Floor(year));
 		if (!IsAvailableForNewSupply(canonical, year)) return 0f;
 		GenreProfile profile = GenreCatalog.Get(canonical);
-		float acceptance = region != null ? region.GetGenreAcceptance(canonical, year) : profile.GetBaseline(year);
+		float acceptance = GetProspectiveSupplyAcceptance(canonical, profile, region, year);
 		float demand = .20f + .80f * Mathf.Clamp(acceptance, 0f, 1f);
 		float artistFit = GetIdentityFit(canonical, profile.Family, artist);
 		float labelFit = GetLabelFit(canonical, profile.Family, label);
@@ -98,6 +139,23 @@ public static class GenreSupplyService {
 		float globalConcentrationBrake = GetGlobalConcentrationBrake(canonical, globalRecentSupply);
 		float britishBridge = GetBritishBridgeWeight(canonical, year);
 		return Mathf.Max(.000001f, demand * artistFit * labelFit * lifecycle * concentrationBrake * globalConcentrationBrake * britishBridge);
+	}
+
+	internal static float GetProspectiveSupplyAcceptanceForProbe(Genre genre, MarketRegion region, float year) {
+		Genre canonical = GenreCatalog.MapLegacy(genre, (int)MathF.Floor(year));
+		return GetProspectiveSupplyAcceptance(canonical, GenreCatalog.Get(canonical), region, year);
+	}
+
+	private static float GetProspectiveSupplyAcceptance(Genre canonical, GenreProfile profile, MarketRegion region, float year) {
+		if (region == null) return profile.GetBaseline(year);
+		if (canonical is not (Genre.Country or Genre.TexMex or Genre.Boogaloo)) return region.GetGenreAcceptance(canonical, year);
+		float legacyMomentum = ChartManager.Instance?.GetGenreMomentum(canonical) ??
+			(region.genreMomentum != null && region.genreMomentum.TryGetValue(canonical, out float value) ? value : 0f);
+		// Do not replace the enabled V2 route with legacy acceptance.  Specialist
+		// supply retains catalog, segment, regional, lifecycle, and momentum inputs;
+		// only the new centered realized-demand texture is excluded prospectively.
+		return GenreAcceptanceService.GetRegionalDemandAcceptanceWithoutCenteredSpecialistTexture(
+			canonical, canonical, region, year, legacyMomentum);
 	}
 
 	private static float GetProjectIdentityRetention(Genre genre, float year) {

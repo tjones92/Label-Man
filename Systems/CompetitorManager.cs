@@ -697,11 +697,12 @@ public partial class CompetitorManager : Node {
 		bool annualFloor = required.Length > 0;
 		GenreSupplyService.GenreSelection selection = GenreSupplyService.ChooseGenreWithSelection(label, artist, region, year, recent,
 			GetDeterministicSupplyRoll(label.labelId, artist.artistId, year, pipelineWeek, recent.Values.Sum()),
-			annualFloor ? required : null, annualGenreSupplyGlobal);
+			annualFloor ? required : null, annualGenreSupplyGlobal, applyPsychedelicTransitionCompatibility: true);
 		Genre chosen = selection.Genre;
 		OnSupplySelection?.Invoke(new SupplySelectionTelemetry {
 			labelId = label.labelId, artistId = artist.artistId, artistIdentity = artist.primaryGenre, chosenProjectGenre = chosen,
-			selectionMode = annualFloor ? SupplySelectionMode.AnnualFloor : selection.RetainedIdentity ? SupplySelectionMode.Retained : SupplySelectionMode.WeightedTransition
+			selectionMode = selection.UsedCandidateOverride ? SupplySelectionMode.AnnualFloor :
+				selection.RetainedIdentity ? SupplySelectionMode.Retained : SupplySelectionMode.WeightedTransition
 		});
 		recent[chosen] = recent.GetValueOrDefault(chosen) + 1;
 		annualGenreSupplyGlobal[chosen] = annualGenreSupplyGlobal.GetValueOrDefault(chosen) + 1;

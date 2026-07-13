@@ -167,6 +167,8 @@ public static class ChartSimulator {
 		conversionRate *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
 			region.GetAlbumDemandEraProgress(year), useGenreMarketV2DemandTransfer);
+		if (useGenreMarketV2DemandTransfer) conversionRate *= GenreAcceptanceService.GetLiveSpecialistSingleOpportunityNormalizer(
+			record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, year, live: true);
 		conversionRate *= 0.75f + record.radioHeat * 0.5f;
 		conversionRate *= 0.75f + Mathf.Max(0, regionalData.sentiment) * 0.25f;
 		conversionRate *= record.GetAwardMultiplier();
