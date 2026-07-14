@@ -205,6 +205,8 @@ public static class GenreMarketV2ProbeSuite {
 			"cached radio opportunity parity");
 
 		string specialistRouting = ProbeCenteredSpecialistTextures();
+		string repairSurfaces = ProbeSpecialistFulfillmentAndEmergingMemoryRepairs();
+		string rosterLifecycle = ProbeDroppedArtistRosterLifecycle();
 		MarketRegion south = CreateRegion("deepsouth", fm: true, integration: .5f, church: .80f);
 		MarketRegion coast = CreateRegion("eastcoast", fm: true, integration: .5f, church: .10f);
 		MarketRegion southwest = CreateRegion("southwest", fm: true, integration: .5f, church: .25f);
@@ -243,7 +245,7 @@ public static class GenreMarketV2ProbeSuite {
 			"era-weighted format opportunity conservation");
 		return $"Single portfolio normalization 1960/64/66/68/69={single1960.Normalization:F4}/" +
 			$"{single1964.Normalization:F4}/{single1966.Normalization:F4}/{single1968.Normalization:F4}/{single1969.Normalization:F4}, " +
-			$"enabled/accepted drift {single1960.EnabledToAcceptedRatio:F4}->{single1969.EnabledToAcceptedRatio:F4}; {specialistRouting}";
+			$"enabled/accepted drift {single1960.EnabledToAcceptedRatio:F4}->{single1969.EnabledToAcceptedRatio:F4}; {specialistRouting}; {repairSurfaces}; {rosterLifecycle}";
 	}
 
 	private static void ProbeProspectivePsychedelicCompatibility() {
@@ -327,6 +329,70 @@ public static class GenreMarketV2ProbeSuite {
 		Require(Math.Abs(Texture(Genre.Gospel, "deepsouth") - 1f) < .000001f &&
 			Math.Abs(Texture(Genre.RnB, "eastcoast") - 1f) < .000001f, "unaffected genres bypass specialist texture");
 		return string.Join(", ", routing);
+	}
+
+	private static string ProbeSpecialistFulfillmentAndEmergingMemoryRepairs() {
+		string[] regions = { "greatplains", "southwest", "eastcoast" };
+		int[] baseline = { 1000, 1000, 1000 };
+		int[] texMex = ChartSimulator.AllocateSpecialistInitialStockForProbe(Genre.TexMex, 1968, live: true, regions, baseline);
+		int[] disabled = ChartSimulator.AllocateSpecialistInitialStockForProbe(Genre.TexMex, 1968, live: false, regions, baseline);
+		int[] unaffected = ChartSimulator.AllocateSpecialistInitialStockForProbe(Genre.Jazz, 1968, live: true, regions, baseline);
+		Require(texMex.Sum() == baseline.Sum() && texMex[1] > texMex[0] &&
+			disabled.SequenceEqual(baseline) && unaffected.SequenceEqual(baseline),
+			"specialist launch stock conserves national budget and is disabled/unaffected neutral");
+		Require(ChartManager.IsSpecialistUnchartedRestockEligible(Genre.TexMex, live: true, backorders: 183, rawDemand: 35f) &&
+			!ChartManager.IsSpecialistUnchartedRestockEligible(Genre.Jazz, live: true, backorders: 183, rawDemand: 35f) &&
+			!ChartManager.IsSpecialistUnchartedRestockEligible(Genre.TexMex, live: false, backorders: 183, rawDemand: 35f),
+			"specialist uncharted restock serves physical backorders only when live");
+		bool nonRetainedEmerging = CompetitorManager.IsNonRetainedEmergingProjectForFormatMemory(Genre.PsychedelicRock,
+			retainedIdentity: false, year: 1967, live: true);
+		Require(nonRetainedEmerging &&
+			Math.Abs(CompetitorManager.GetProjectFormatMemoryConfidence(.98f, nonRetainedEmerging)) < .000001f &&
+			Math.Abs(CompetitorManager.GetProjectFormatMemoryConfidence(.98f,
+				CompetitorManager.IsNonRetainedEmergingProjectForFormatMemory(Genre.PsychedelicRock, retainedIdentity: true, year: 1967, live: true)) - .98f) < .000001f &&
+			Math.Abs(CompetitorManager.GetProjectFormatMemoryConfidence(.98f,
+				CompetitorManager.IsNonRetainedEmergingProjectForFormatMemory(Genre.PsychedelicRock, retainedIdentity: false, year: 1967, live: false)) - .98f) < .000001f,
+			"non-retained emerging projects bypass only label-wide format memory");
+		return $"TexMex launch stock GP/SW={texMex[0]}/{texMex[1]}, emerging-memory confidence=.0000/.9800";
+	}
+
+	private static string ProbeDroppedArtistRosterLifecycle() {
+		var oldLabel = new AILabel { labelId = "old", labelName = "Old Label", roster = new List<SimulatedArtist>() };
+		var newLabel = new AILabel { labelId = "new", labelName = "New Label", roster = new List<SimulatedArtist>() };
+		Genre availableGenre = GenreSupplyService.GetAvailableGenres(1960f).First();
+		var artist = new SimulatedArtist {
+			artistId = "dropped-probe", stageName = "Dropped Probe", labelId = oldLabel.labelId,
+			careerState = CareerState.Dropped, isActive = true, primaryGenre = availableGenre, secondaryGenre = Genre.RnB
+		};
+		oldLabel.roster.Add(artist);
+		var pool = new List<SimulatedArtist>();
+		Require(ArtistManager.ReconcileDroppedArtistForProbe(artist, oldLabel, pool, 1960, "terminal career transition") &&
+			artist.careerState == CareerState.Dropped && artist.isActive && string.IsNullOrEmpty(artist.labelId) &&
+			oldLabel.roster.Count == 0 && pool.Count(candidate => candidate == artist) == 1,
+			"Dropped transition atomically clears roster ownership and enters free-agent pool");
+		int eventsAfterTransition = artist.careerEvents.Count;
+		Require(!ArtistManager.ReconcileDroppedArtistForProbe(artist, oldLabel, pool, 1960, "terminal career transition") &&
+			pool.Count(candidate => candidate == artist) == 1 && artist.careerEvents.Count == eventsAfterTransition,
+			"Dropped lifecycle reconciliation is idempotent");
+		Require(!GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist) &&
+			!CompetitorManager.IsEligibleForEnabledFormatDecision(artist) &&
+			GenreSupplyService.IsEligibleExistingArtistForRelease(artist),
+			"live terminal release and format guards preserve legacy eligibility predicate");
+		Require(ArtistManager.IsEligibleUnsignedCandidateForProbe(artist) &&
+			GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, 1960f),
+			"Dropped active artist is available to enabled signing supply");
+		newLabel.SignArtist(artist, 1960);
+		ArtistManager.ReconcileSignedArtistForProbe(artist, pool, newLabel.labelId, 1960);
+		Require(artist.careerState == CareerState.NewSigning && artist.labelId == newLabel.labelId &&
+			newLabel.roster.Count(candidate => candidate == artist) == 1 && pool.Count(candidate => candidate == artist) == 0,
+			"re-signing assigns one owner, resets state, and removes free-agent membership");
+		foreach (CareerState terminal in new[] { CareerState.Disbanded, CareerState.Retired }) {
+			artist.careerState = terminal;
+			artist.labelId = null;
+			Require(!ArtistManager.IsEligibleUnsignedCandidateForProbe(artist) &&
+				!GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist), terminal + " is neither signable nor release-eligible");
+		}
+		return "dropped roster/pool/re-sign/terminal guards passed";
 	}
 
 	private static MarketRegion CreateRegion(string id, bool fm, float integration, float church) {

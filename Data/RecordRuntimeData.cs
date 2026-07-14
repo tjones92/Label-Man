@@ -21,6 +21,9 @@ public class RecordRuntimeData {
 	public bool artistTop10Credited;
 	public bool artistNumberOneCredited;
 	public bool artistChartRunCompleted;
+	// Captures the artist's owning contract when this record was released. A
+	// later contract must not inherit probation evidence from this chart run.
+	public int artistContractSequenceAtRelease = -1;
 	
 	// === MOMENTUM INDICATORS ===
 	public bool isBullet;

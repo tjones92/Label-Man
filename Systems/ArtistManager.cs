@@ -30,6 +30,29 @@ public partial class ArtistManager : Node {
 	private int musicianIdCounter = 0;
 	
 	private List<SimulatedArtist> unsignedArtists = new List<SimulatedArtist>();
+	private const int AnnualRuntimeFormationCount = 300;
+	// Directive 6 authorized one-variable candidate after the C=26 Gate C
+	// capacity failure. All probation, formation, scouting, and exit constants
+	// remain frozen while this cooldown candidate is evaluated.
+	public const int PerformanceDropCooldownWeeks = 13;
+	private const int InactivityHorizonWeeks = 78;
+	private const int TerminalInactivityWeeks = 52;
+	private const int MinimumSoloRetirementAge = 35;
+	private readonly Dictionary<Genre, int> recentRuntimeFormationCounts = new();
+	private RandomNumberGenerator populationRng;
+	private float formationAccumulator;
+	private int formationYear = -1;
+	private int formedThisWeek;
+	private int formedYtd;
+	private bool generatingRuntimePopulation;
+
+	public int FormedThisWeek => formedThisWeek;
+	public int FormedYtd => formedYtd;
+	public IReadOnlyCollection<SimulatedArtist> GetAllArtists() => artistRegistry.Values;
+	public event System.Action<string, SimulatedArtist> OnPopulationEvent;
+	private void EmitPopulationEvent(string eventType, SimulatedArtist artist) {
+		if (ArtistPopulationLifecycle.Enabled && artist != null) OnPopulationEvent?.Invoke(eventType, artist);
+	}
 	
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) {
@@ -63,7 +86,7 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		record.artistChartEntryCredited = true;
 	}
 	if (record.peakPosition > 0 && record.peakPosition <= 40 && !record.artistTop40Credited) {
-		artist.RegisterTop40Hit();
+		artist.RegisterTop40Hit(CreditsCurrentContract(record, artist));
 		record.artistTop40Credited = true;
 	}
 	if (record.peakPosition > 0 && record.peakPosition <= 10 && !record.artistTop10Credited) {
@@ -85,9 +108,16 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		if (artist == null) return;
 
 		if (record.artistChartRunCompleted) return;
-		artist.CompleteChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold);
+		artist.CompleteChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
+			CreditsCurrentContract(record, artist));
 		record.artistChartRunCompleted = true;
+		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
+			RosterManager.Instance?.RecordChartRunComplete(artist, record);
 	}
+
+	internal static bool CreditsCurrentContract(RecordRuntimeData record, SimulatedArtist artist) =>
+		!ArtistPopulationLifecycle.Enabled || (record != null && artist != null &&
+			record.artistContractSequenceAtRelease == artist.contractSequence);
 	
 	public void GenerateInitialPool(int year) {
 		GD.Print($"ArtistManager: Generating initial pool of {initialPoolSize} artists...");
@@ -126,8 +156,12 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 			primaryGenre = primaryGenre,
 			secondaryGenre = secondaryGenre,
 			homeRegion = region ?? GetRandomRegion(),
-			formedYear = year - (int)GD.RandRange(0, 5),
-			careerState = CareerState.Unsigned
+			formedYear = generatingRuntimePopulation ? year : year - RandInt(0, 5),
+			careerState = CareerState.Unsigned,
+			cohort = generatingRuntimePopulation ? ArtistCohort.RuntimeFormation : ArtistCohort.InitialLegacy,
+			formationPrimaryGenre = primaryGenre,
+			formationSecondaryGenre = secondaryGenre,
+			lifecycleStatus = ArtistLifecycleStatus.Active
 		};
 		
 		GenerateMembers(artist, type, primaryGenre, year);
@@ -137,13 +171,19 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		artist.RecalculateStats();
 		
 		artist.momentum = 0f;
-		artist.reputation = (float)GD.RandRange(0f, 0.1f);
+		artist.reputation = RandRange(0f, 0.1f);
 		
 		artistRegistry[id] = artist;
 		return artist;
 	}
 	
 	private string GenerateStageName(ArtistType type, Genre genre, int year) {
+		if (generatingRuntimePopulation)
+			return type switch {
+				ArtistType.Duo => $"The {genre} Pair {artistIdCounter}",
+				ArtistType.VocalGroup => $"The {genre} Voices {artistIdCounter}",
+				_ => $"The {genre} Group {artistIdCounter}"
+			};
 		if (NameGenerator.Instance != null) {
 			return NameGenerator.Instance.GenerateArtistName(genre, year, type, null, LabelArchetype.RegionalHustler);
 		}
@@ -170,7 +210,7 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		var musician = GenerateMusician(isMale, year);
 		musician.primaryRole = MusicianRole.LeadVocals;
 		musician.isLeadVocalist = true;
-		musician.isPrimaryWriter = GD.Randf() > 0.4f;
+		musician.isPrimaryWriter = Randf() > 0.4f;
 		musician.isBandLeader = true;
 		musician.stagePresence = Mathf.Clamp(musician.stagePresence + 0.15f, 0f, 1f);
 		musician.ego = Mathf.Clamp(musician.ego + 0.1f, 0f, 1f);
@@ -179,14 +219,14 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 	
 	private void GenerateDuo(SimulatedArtist artist, Genre genre, int year) {
-		bool sameSex = GD.Randf() > 0.3f;
-		bool member1Male = GD.Randf() > 0.35f;
+		bool sameSex = Randf() > 0.3f;
+		bool member1Male = Randf() > 0.35f;
 		bool member2Male = sameSex ? member1Male : !member1Male;
 		
 		var member1 = GenerateMusician(member1Male, year);
 		member1.primaryRole = MusicianRole.LeadVocals;
 		member1.isLeadVocalist = true;
-		member1.isPrimaryWriter = GD.Randf() > 0.5f;
+		member1.isPrimaryWriter = Randf() > 0.5f;
 		
 		var member2 = GenerateMusician(member2Male, year);
 		member2.primaryRole = genre switch {
@@ -194,9 +234,9 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 			Genre.Jazz => MusicianRole.Piano,
 			_ => MusicianRole.BackingVocals
 		};
-		member2.isPrimaryWriter = GD.Randf() > 0.5f;
+		member2.isPrimaryWriter = Randf() > 0.5f;
 		
-		if (GD.Randf() > 0.5f) member1.isBandLeader = true;
+		if (Randf() > 0.5f) member1.isBandLeader = true;
 		else member2.isBandLeader = true;
 		
 		artist.AddMember(member1, year, true);
@@ -208,14 +248,14 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		bool firstMember = true;
 		
 		foreach (var role in lineup) {
-			bool isMale = role.isMale ?? (GD.Randf() < maleArtistRatio);
+			bool isMale = role.isMale ?? (Randf() < maleArtistRatio);
 			var musician = GenerateMusician(isMale, year);
 			musician.primaryRole = role.role;
 			musician.isLeadVocalist = role.isLead;
 			musician.isBandLeader = firstMember && role.isLead;
 			
-			if (firstMember || (role.role == MusicianRole.LeadGuitar && GD.Randf() > 0.5f)) {
-				musician.isPrimaryWriter = GD.Randf() > 0.3f;
+			if (firstMember || (role.role == MusicianRole.LeadGuitar && Randf() > 0.5f)) {
+				musician.isPrimaryWriter = Randf() > 0.3f;
 			}
 			
 			artist.AddMember(musician, year, true);
@@ -224,15 +264,15 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 	
 	private void GenerateVocalGroup(SimulatedArtist artist, Genre genre, int year) {
-		bool isGirlGroup = genre == Genre.GirlGroup || (genre == Genre.Motown && GD.Randf() > 0.6f);
-		int memberCount = (int)GD.RandRange(3, 6);
+		bool isGirlGroup = genre == Genre.GirlGroup || (genre == Genre.Motown && Randf() > 0.6f);
+		int memberCount = RandInt(3, 6);
 		bool hasLeadDesignated = false;
 		
 		for (int i = 0; i < memberCount; i++) {
-			bool isMale = !isGirlGroup && (GD.Randf() < 0.85f);
+			bool isMale = !isGirlGroup && (Randf() < 0.85f);
 			var musician = GenerateMusician(isMale, year);
 			
-			if (!hasLeadDesignated && GD.Randf() > 0.3f) {
+			if (!hasLeadDesignated && Randf() > 0.3f) {
 				musician.primaryRole = MusicianRole.LeadVocals;
 				musician.isLeadVocalist = true;
 				musician.isBandLeader = true;
@@ -251,7 +291,7 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 			bestSinger.isBandLeader = true;
 		}
 		
-		if (GD.Randf() > 0.7f) {
+		if (Randf() > 0.7f) {
 			var smartest = artist.members.OrderByDescending(m => m.creativity).First();
 			smartest.isPrimaryWriter = true;
 		}
@@ -262,14 +302,14 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		string id = $"mus_{musicianIdCounter:D6}";
 		string firstName, lastName;
 		
-		if (NameGenerator.Instance != null) {
+		if (NameGenerator.Instance != null && !generatingRuntimePopulation) {
 			(firstName, lastName) = NameGenerator.Instance.GeneratePersonName(isMale);
 		} else {
 			firstName = isMale ? $"John{musicianIdCounter}" : $"Jane{musicianIdCounter}";
 			lastName = $"Doe{musicianIdCounter}";
 		}
 		
-		int birthYear = currentYear - (GD.Randf() < 0.85f ? (int)GD.RandRange(18, 29) : (int)GD.RandRange(29, 42));
+		int birthYear = currentYear - (Randf() < 0.85f ? RandInt(18, 29) : RandInt(29, 42));
 		
 		var musician = new Musician(id, firstName, lastName, isMale, birthYear);
 		
@@ -290,8 +330,8 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 	
 	private float GenerateStat(float mean, float stdDev) {
-		float u1 = GD.Randf();
-		float u2 = GD.Randf();
+		float u1 = Mathf.Max(.000001f, Randf());
+		float u2 = Randf();
 		float normal = Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(2f * Mathf.Pi * u2);
 		return Mathf.Clamp(mean + normal * stdDev, 0f, 1f);
 	}
@@ -329,7 +369,7 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 	
 	private Genre GetRandomGenre() {
-		return GetLegacyInitialGenreForProbe(GD.Randf(), vocalGroup: false);
+		return GetLegacyInitialGenreForProbe(Randf(), vocalGroup: false);
 	}
 
 	internal static Genre GetLegacyInitialGenreForProbe(float roll, bool vocalGroup) {
@@ -368,7 +408,7 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 
 	private Genre GetVocalGroupGenre() {
-		return GetLegacyInitialGenreForProbe(GD.Randf(), vocalGroup: true);
+		return GetLegacyInitialGenreForProbe(Randf(), vocalGroup: true);
 	}
 
 	/// <summary>Draws the legacy secondary once, then applies deterministic enabled-path migration.</summary>
@@ -399,12 +439,147 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		};
 	}
 	
-	private Genre RandomPick(params Genre[] options) => options[(int)GD.RandRange(0, options.Length - 1)];
+	private Genre RandomPick(params Genre[] options) => options[RandInt(0, options.Length - 1)];
 	
 	private string GetRandomRegion() {
 		string[] regions = { "East Coast", "Great Lakes", "Great Plains", "Deep South", "Southwest", "Rockies", "West Coast" };
-		return regions[(int)GD.RandRange(0, regions.Length - 1)];
+		return regions[RandInt(0, regions.Length - 1)];
 	}
+
+	private float Randf() => generatingRuntimePopulation ? populationRng.Randf() : GD.Randf();
+	private float RandRange(float min, float max) => generatingRuntimePopulation ? populationRng.RandfRange(min, max) : (float)GD.RandRange(min, max);
+	private int RandInt(int min, int max) => generatingRuntimePopulation ? populationRng.RandiRange(min, max) : (int)GD.RandRange(min, max);
+
+	/// <summary>Called only by ChartManager's explicit post-chart live sequence.</summary>
+	public void AdvancePopulationLifecycle(GameDate date) {
+		if (!ArtistPopulationLifecycle.IsLive) return;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		formedThisWeek = 0;
+		if (formationYear != date.year) {
+			formationYear = date.year;
+			formedYtd = 0;
+			recentRuntimeFormationCounts.Clear();
+		}
+		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
+		ApplyLifecycleExits(date.year, week);
+		MaterializeRuntimeFormation(date.year);
+		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: false);
+	}
+
+	private void MaterializeRuntimeFormation(int year) {
+		EnsurePopulationRng();
+		formationAccumulator += AnnualRuntimeFormationCount / 52f;
+		int count = Mathf.FloorToInt(formationAccumulator + .00001f);
+		formationAccumulator -= count;
+		for (int i = 0; i < count; i++) {
+			generatingRuntimePopulation = true;
+			try {
+				// This scope includes every runtime-formation decision.  In
+				// particular, genre and artist-type selection must not consume the
+				// global simulation stream before attribute generation begins.
+				Genre primary = ChooseRuntimeFormationGenre(year);
+				Genre secondary = ChooseRuntimeSecondaryGenre(primary, year);
+				ArtistType type = ChooseRuntimeArtistType();
+				SimulatedArtist artist = GenerateArtist(type, primary, year, null);
+				artist.secondaryGenre = secondary;
+				artist.formationSecondaryGenre = secondary;
+				artist.formedYear = year;
+				artist.cohort = ArtistCohort.RuntimeFormation;
+				unsignedArtists.Add(artist);
+				recentRuntimeFormationCounts[primary] = recentRuntimeFormationCounts.GetValueOrDefault(primary) + 1;
+				formedThisWeek++;
+				formedYtd++;
+				EmitPopulationEvent("formation", artist);
+			} finally {
+				generatingRuntimePopulation = false;
+			}
+		}
+	}
+
+	private void EnsurePopulationRng() {
+		if (populationRng != null) return;
+		populationRng = new RandomNumberGenerator();
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		populationRng.Seed = seed ^ 0x617274697374706fUL; // "artistpo", stable namespace
+	}
+
+	private ArtistType ChooseRuntimeArtistType() {
+		float roll = Randf();
+		return roll < .25f ? ArtistType.SoloMale : roll < .37f ? ArtistType.SoloFemale :
+			roll < .77f ? ArtistType.Band : roll < .95f ? ArtistType.VocalGroup : ArtistType.Duo;
+	}
+
+	private Genre ChooseRuntimeFormationGenre(int year) {
+		IReadOnlyList<Genre> genres = GenreSupplyService.GetAvailableGenres(year);
+		if (genres.Count == 0) return Genre.TraditionalPop;
+		float total = genres.Sum(genre => GenreSupplyService.GetSupplyWeight(genre, null, null, null, year,
+			recentRuntimeFormationCounts, recentRuntimeFormationCounts));
+		float target = Randf() * total;
+		foreach (Genre genre in genres) {
+			target -= GenreSupplyService.GetSupplyWeight(genre, null, null, null, year, recentRuntimeFormationCounts, recentRuntimeFormationCounts);
+			if (target <= 0f) return genre;
+		}
+		return genres[^1];
+	}
+
+	private Genre ChooseRuntimeSecondaryGenre(Genre primary, int year) {
+		IReadOnlyList<Genre> available = GenreSupplyService.GetAvailableGenres(year);
+		Genre[] related = available.Where(candidate => candidate != primary &&
+			GenreMarketMomentumService.GetAdjacency(primary, candidate) > 0f).ToArray();
+		if (related.Length == 0) related = available.Where(candidate => candidate != primary).ToArray();
+		return related.Length == 0 ? primary : related[RandInt(0, related.Length - 1)];
+	}
+
+	private void ReconcileLifecycleAndOwnership(int year, int week, bool advanceUnownedWeeks) {
+		foreach (SimulatedArtist artist in artistRegistry.Values) {
+			if (artist.lifecycleStatus != ArtistLifecycleStatus.Active) {
+				artist.isActive = false;
+				artist.labelId = null;
+				unsignedArtists.RemoveAll(candidate => candidate == artist);
+				foreach (AILabel label in ChartManager.Instance?.GetAllLabels() ?? new List<AILabel>()) label.roster?.RemoveAll(candidate => candidate == artist);
+				continue;
+			}
+			artist.isActive = true;
+			if (string.IsNullOrEmpty(artist.labelId)) {
+				if (advanceUnownedWeeks) artist.weeksContinuouslyUnowned++;
+			} else {
+				artist.weeksContinuouslyUnowned = 0;
+			}
+		}
+		ReconcileEnabledUnsignedPool();
+	}
+
+	private void ApplyLifecycleExits(int year, int week) {
+		foreach (SimulatedArtist artist in artistRegistry.Values.Where(candidate => candidate.lifecycleStatus == ArtistLifecycleStatus.Active &&
+			string.IsNullOrEmpty(candidate.labelId) && candidate.weeksContinuouslyUnowned >= InactivityHorizonWeeks).ToArray()) {
+			if (HasLiveRecordOrPendingProject(artist)) continue;
+			artist.lifecycleStatus = ArtistLifecycleStatus.Inactive;
+			artist.inactiveSinceWeek = week;
+			artist.isActive = false;
+			artist.careerEvents.Add($"{year}: Became inactive after {artist.weeksContinuouslyUnowned} unowned weeks");
+			unsignedArtists.RemoveAll(candidate => candidate == artist);
+			EmitPopulationEvent("inactivity", artist);
+		}
+		foreach (SimulatedArtist artist in artistRegistry.Values.Where(candidate => candidate.lifecycleStatus == ArtistLifecycleStatus.Inactive &&
+			candidate.inactiveSinceWeek >= 0 && week - candidate.inactiveSinceWeek >= TerminalInactivityWeeks).ToArray()) {
+			bool group = artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup;
+			Musician lead = artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive);
+			if (!group && (lead == null || lead.GetAge(year) < MinimumSoloRetirementAge)) continue;
+			artist.lifecycleStatus = group ? ArtistLifecycleStatus.Disbanded : ArtistLifecycleStatus.Retired;
+			artist.careerState = group ? CareerState.Disbanded : CareerState.Retired;
+			artist.disbandReason = "Lifecycle inactivity";
+			foreach (Musician member in artist.members.Where(member => member.isActive)) { member.isActive = false; member.reasonLeft = artist.lifecycleStatus.ToString(); }
+			artist.careerEvents.Add($"{year}: {artist.lifecycleStatus} after prolonged inactivity");
+			EmitPopulationEvent(artist.lifecycleStatus == ArtistLifecycleStatus.Retired ? "retirement" : "disbandment", artist);
+		}
+	}
+
+	private static bool HasLiveRecordOrPendingProject(SimulatedArtist artist) =>
+		IsExitDeferred(
+			ChartManager.Instance?.GetAllRecords().Any(record => record?.baseRecord?.artistId == artist.artistId && !record.artistChartRunCompleted) == true,
+			CompetitorManager.Instance?.HasPendingProjectForArtist(artist.artistId) == true);
+	internal static bool IsExitDeferredForProbe(bool hasLiveChartCallback, bool hasPendingAlbumProject) => IsExitDeferred(hasLiveChartCallback, hasPendingAlbumProject);
+	private static bool IsExitDeferred(bool hasLiveChartCallback, bool hasPendingAlbumProject) => hasLiveChartCallback || hasPendingAlbumProject;
 	
 	public SimulatedArtist GetArtist(string artistId) => artistRegistry.TryGetValue(artistId, out var artist) ? artist : null;
 
@@ -434,32 +609,162 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		return profile;
 	}
 	public Musician GetMusician(string musicianId) => musicianRegistry.TryGetValue(musicianId, out var musician) ? musician : null;
-	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(a =>
-		(a.careerState == CareerState.Unsigned || a.careerState == CareerState.Dropped) && a.isActive).ToList();
+	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(IsEligibleUnsignedCandidate).ToList();
+	public bool IsEligibleForPopulationSigning(SimulatedArtist artist, int currentWeek) =>
+		IsEligibleUnsignedCandidate(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active &&
+		!IsPopulationCooldownBlocked(artist, currentWeek);
+	public int GetWeeksSincePerformanceDrop(SimulatedArtist artist, int currentWeek) => artist?.lastPerformanceDropWeek >= 0 ? currentWeek - artist.lastPerformanceDropWeek : -1;
+	internal static bool IsPopulationCooldownBlockedForProbe(SimulatedArtist artist, int currentWeek) => IsPopulationCooldownBlocked(artist, currentWeek);
+	internal static bool IsEligibleForPopulationSigningForProbe(SimulatedArtist artist, int currentWeek) =>
+		IsEligibleUnsignedCandidate(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active && !IsPopulationCooldownBlocked(artist, currentWeek);
+	internal static ArtistLifecycleStatus ClassifyTerminalLifecycleForProbe(SimulatedArtist artist, int year) =>
+		artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup ? ArtistLifecycleStatus.Disbanded :
+		((artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive))?.GetAge(year) ?? 0) >= MinimumSoloRetirementAge
+			? ArtistLifecycleStatus.Retired : ArtistLifecycleStatus.Inactive;
+	private static bool IsPopulationCooldownBlocked(SimulatedArtist artist, int currentWeek) => artist?.careerState == CareerState.Dropped &&
+		artist.lastDropReason == ArtistDropReason.Performance && artist.lastPerformanceDropWeek >= 0 &&
+		currentWeek - artist.lastPerformanceDropWeek < PerformanceDropCooldownWeeks;
+
+	internal static SimulatedArtist GenerateRuntimeArtistForProbe(int year, ulong seed) {
+		var manager = new ArtistManager {
+			populationRng = new RandomNumberGenerator { Seed = seed ^ 0x617274697374706fUL },
+			generatingRuntimePopulation = true
+		};
+		try {
+			return manager.GenerateRuntimeArtistForProbeCore(year);
+		} finally { manager.generatingRuntimePopulation = false; }
+	}
+	internal static IReadOnlyList<SimulatedArtist> GenerateRuntimeArtistsForProbe(int year, ulong seed, int count) {
+		var manager = new ArtistManager {
+			populationRng = new RandomNumberGenerator { Seed = seed ^ 0x617274697374706fUL },
+			generatingRuntimePopulation = true
+		};
+		try {
+			var artists = new List<SimulatedArtist>();
+			for (int i = 0; i < count; i++) artists.Add(manager.GenerateRuntimeArtistForProbeCore(year));
+			return artists;
+		} finally { manager.generatingRuntimePopulation = false; }
+	}
+	internal static Genre ChooseRuntimeSecondaryGenreForProbe(Genre primary, int year, ulong seed) {
+		var manager = new ArtistManager { populationRng = new RandomNumberGenerator { Seed = seed }, generatingRuntimePopulation = true };
+		try { return manager.ChooseRuntimeSecondaryGenre(primary, year); }
+		finally { manager.generatingRuntimePopulation = false; }
+	}
+	private SimulatedArtist GenerateRuntimeArtistForProbeCore(int year) {
+		Genre primary = ChooseRuntimeFormationGenre(year);
+		Genre secondary = ChooseRuntimeSecondaryGenre(primary, year);
+		SimulatedArtist artist = GenerateArtist(ChooseRuntimeArtistType(), primary, year, null);
+		artist.secondaryGenre = secondary;
+		artist.formationSecondaryGenre = secondary;
+		recentRuntimeFormationCounts[primary] = recentRuntimeFormationCounts.GetValueOrDefault(primary) + 1;
+		return artist;
+	}
 	
 	public List<SimulatedArtist> GetUnsignedByGenre(Genre genre) {
-		return unsignedArtists.Where(a => (a.careerState == CareerState.Unsigned || a.careerState == CareerState.Dropped) &&
-			a.isActive && (a.primaryGenre == genre || a.secondaryGenre == genre)).ToList();
+		return unsignedArtists.Where(a => IsEligibleUnsignedCandidate(a) &&
+			(a.primaryGenre == genre || a.secondaryGenre == genre)).ToList();
 	}
 	
 	public List<SimulatedArtist> GetTopUnsignedTalent(int count, Genre? preferredGenre = null) {
 		var pool = preferredGenre.HasValue ? GetUnsignedByGenre(preferredGenre.Value) : GetUnsignedArtists();
 		return pool.OrderByDescending(a => a.CalculateBaseQuality()).Take(count).ToList();
 	}
+
+	public int GetEnabledFreeAgentPoolSize() => unsignedArtists.Count(IsEligibleUnsignedCandidate);
+	public int GetEnabledPoolOwnershipConflicts() => unsignedArtists.Count(artist => artist != null && !string.IsNullOrEmpty(artist.labelId));
+	public int GetEnabledDuplicatePoolEntries() {
+		var seen = new HashSet<SimulatedArtist>();
+		return unsignedArtists.Count(artist => artist != null && !seen.Add(artist));
+	}
+
+	/// <summary>Live-path integrity sweep: a pool entry is unique and unowned.</summary>
+	public void ReconcileEnabledUnsignedPool() {
+		var seen = new HashSet<SimulatedArtist>();
+		unsignedArtists.RemoveAll(artist => !IsEligibleUnsignedCandidate(artist) || !seen.Add(artist));
+	}
 	
 	public void SignArtist(SimulatedArtist artist, string labelId, int year) {
+		bool reSigning = artist?.careerState == CareerState.Dropped;
+		ReconcileSignedArtist(artist, unsignedArtists, labelId, year, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		EmitPopulationEvent(reSigning ? "re-signing" : "signing", artist);
+	}
+
+	internal static void ReconcileSignedArtistForProbe(SimulatedArtist artist, List<SimulatedArtist> unsignedPool,
+		string labelId, int year) => ReconcileSignedArtist(artist, unsignedPool, labelId, year, 0);
+
+	internal static bool IsEligibleUnsignedCandidateForProbe(SimulatedArtist artist) => IsEligibleUnsignedCandidate(artist);
+
+	private static bool IsEligibleUnsignedCandidate(SimulatedArtist artist) => artist != null &&
+		(artist.careerState == CareerState.Unsigned || artist.careerState == CareerState.Dropped) &&
+		artist.isActive && string.IsNullOrEmpty(artist.labelId);
+
+	private static void ReconcileSignedArtist(SimulatedArtist artist, List<SimulatedArtist> unsignedPool,
+		string labelId, int year, int currentWeek) {
+		if (artist == null || unsignedPool == null) return;
+		// AILabel applies commercial terms before this atomic ownership seam and
+		// may already have changed Unsigned to NewSigning. Pool membership is the
+		// authoritative indication that this is a new free-agent contract cycle.
+		bool freeAgentSigning = unsignedPool.Contains(artist) || artist.careerState == CareerState.Dropped;
 		artist.labelId = labelId;
 		artist.signedYear = year;
 		artist.careerState = CareerState.NewSigning;
-		unsignedArtists.Remove(artist);
+		artist.weeksContinuouslyUnowned = 0;
+		if (ArtistPopulationLifecycle.Enabled && freeAgentSigning) {
+			artist.contractSequence++;
+			artist.contractStartWeek = currentWeek;
+			artist.contractTop40Hits = 0;
+			artist.contractConsecutiveFlops = 0;
+			artist.contractCompletedChartRuns = 0;
+		}
+		unsignedPool.RemoveAll(candidate => candidate == artist);
 		artist.careerEvents.Add($"{year}: Signed to {labelId}");
 	}
 	
+	/// <summary>Legacy drop behavior retained for the disabled replay boundary.</summary>
 	public void DropArtist(SimulatedArtist artist, int year) {
+		if (artist == null) return;
 		artist.labelId = null;
 		artist.careerState = CareerState.Dropped;
 		unsignedArtists.Add(artist);
 		artist.careerEvents.Add($"{year}: Dropped from label");
+	}
+
+	/// <summary>
+	/// Performs the free-agent half of a roster departure.  When an owning label
+	/// is supplied, its roster membership is removed in the same operation.
+	/// Repeated reconciliation normalizes the pool without creating a second
+	/// event or a duplicate free-agent entry.
+	/// </summary>
+	public bool DropArtist(SimulatedArtist artist, int year, AILabel owner, ArtistDropReason reason) {
+		bool changed = ReconcileDroppedArtist(artist, owner, unsignedArtists, year, reason);
+		if (changed) EmitPopulationEvent("drop", artist);
+		return changed;
+	}
+
+	internal static bool ReconcileDroppedArtistForProbe(SimulatedArtist artist, AILabel owner,
+		List<SimulatedArtist> unsignedPool, int year, string reason = "dropped") =>
+		ReconcileDroppedArtist(artist, owner, unsignedPool, year, ArtistDropReason.Voluntary);
+
+	private static bool ReconcileDroppedArtist(SimulatedArtist artist, AILabel owner,
+		List<SimulatedArtist> unsignedPool, int year, ArtistDropReason reason) {
+		if (artist == null || unsignedPool == null) return false;
+		int rosterEntries = owner?.roster?.Count(candidate => candidate == artist) ?? 0;
+		bool ownershipTransition = artist.careerState != CareerState.Dropped || !string.IsNullOrEmpty(artist.labelId) || rosterEntries > 0;
+		owner?.roster?.RemoveAll(candidate => candidate == artist);
+		artist.labelId = null;
+		artist.careerState = CareerState.Dropped;
+		artist.isActive = true;
+		artist.lifecycleStatus = ArtistLifecycleStatus.Active;
+		artist.lastDropReason = reason;
+		if (ArtistPopulationLifecycle.Enabled && reason == ArtistDropReason.Performance)
+			artist.lastPerformanceDropWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		unsignedPool.RemoveAll(candidate => candidate == artist);
+		unsignedPool.Add(artist);
+		if (ownershipTransition) {
+			string labelName = owner?.labelName ?? "label";
+			artist.careerEvents.Add($"{year}: Released from {labelName} ({reason})");
+		}
+		return ownershipTransition;
 	}
 	
 	private void PrintPoolStats() {

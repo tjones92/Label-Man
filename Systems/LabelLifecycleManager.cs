@@ -127,7 +127,12 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void KillLabel(AILabel label, string reason) {
 		if (label.status == LabelStatus.Defunct || label.status == LabelStatus.Acquired) return;
-		foreach (SimulatedArtist artist in label.roster.ToList()) ArtistManager.Instance?.DropArtist(artist, currentYear);
+		foreach (SimulatedArtist artist in label.roster.ToList()) {
+			if (ArtistPopulationLifecycle.Enabled && RosterManager.Instance != null)
+				RosterManager.Instance.HandleLabelClosure(label, artist, currentYear);
+			else
+				ArtistManager.Instance?.DropArtist(artist, currentYear);
+		}
 		label.roster.Clear();
 		label.status = LabelStatus.Defunct;
 		defunctLabels.Add(label);

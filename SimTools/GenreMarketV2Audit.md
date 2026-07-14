@@ -697,3 +697,63 @@ The first causal seam differs slightly by target but is downstream of authored a
 This is intentionally an acceptance-route repair first, not a change to distance, finance, release capacity, chart rules, or a stock/coverage rule. A fixed population-conservation probe must demonstrate the national opportunity is unchanged and the regional ordering is correct before a new 52-week check. That check must report raw demand and fulfilled/backordered units through the existing full breakout telemetry; if the centered route raises East Coast Boogaloo demand without improving fulfillment, stop and separately diagnose fixed-stock allocation rather than widening demand again.
 
 **Recommended next implementation directive:** authorize only (1) a deterministic compatibility predicate for non-retained emerging Psychedelic transitions, preserving the existing project budget and 80/20 blend for compatible pairs, and (2) the static population-centered Country/TexMex/Boogaloo route helper described above, with fixed probes for identity neutrality, regional-ordering, and conserved national opportunity. Keep the supplied-portfolio reconciliation, finance, charts, release-capacity growth, Album behavior, seasonality, distance, and historical keyframes unchanged. Require an enabled 52-week full-telemetry checkpoint before any additional 520-week measurement; do not use seed 1003 or a holdout unless a subsequent directive expressly authorizes them.
+
+### Evidence-only diagnosis: specialist fulfillment and late compatible Psychedelic yield (2026-07-13)
+
+This investigation used only the completed frozen-candidate artifacts from commit `67567f5`, principally `d5-specialist-opportunity-normalizer-520p1-enabled-1001` plus the preceding full-telemetry 52-week run. It launched no simulation and changed no behavior, acceptance texture, historical keyframe, finance, chart, Album, release-capacity, seasonality, or distance input. Seed 1002 remains unrun.
+
+#### 1. TexMex fixed-stock allocation and fulfillment
+
+The centered acceptance route succeeds before fulfillment. Across the decade, Southwest mean TexMex acceptance is `.560432`, versus `.374302` in Deep South and `.358706` in Great Plains. Eligible and charted record counts are identical across regions (`36.6538 / .2808` weekly means), and Southwest radio is also highest (`251` versus `248` and `234`). Fulfilled units plus surviving backorders retain a uniquely Southwest-highest demand proxy: Southwest is `622,487 / 137,531,002 = .4526%`, versus Great Plains `581,562 / 139,025,363 = .4183%`. Fulfillment alone reverses that order:
+
+| Region | Fulfilled units | Fulfilled share | Surviving backorders | Backorder percent |
+|---|---:|---:|---:|---:|
+| Great Plains | 474,980 | .34165% | 106,582 | 18.33% |
+| Southwest | 440,599 | .32036% | 181,888 | 29.22% |
+
+The reversal begins only after scale rises. Southwest has the higher intent share in every year, but its fulfilled share falls below Great Plains in 1966-69. The annual Southwest versus Great Plains backorder rates are `33.04% / 19.17%` in 1966, `39.09% / 25.75%` in 1967, `40.81% / 8.48%` in 1968, and `28.13% / 16.12%` in 1969.
+
+MidTier repertoire is the binding cohort. Its Southwest fulfilled/backordered units are `205,682 / 116,921`, versus `286,593 / 31,044` in Great Plains. Removing only MidTier from the fulfilled comparison restores the intended order (`234,917` Southwest versus `188,387` Great Plains). Non-national MidTier rows account for `77,065` Southwest backorders versus `22,718` in Great Plains, while national MidTier rows are also worse (`39,856` versus `8,326`). Major-label TexMex has zero Southwest backorders, so this is not a universal Southwest capacity failure.
+
+The runtime explains the first physical seam. `ChartSimulator.CalculateInitialRegionalStock` receives label, destination, career scale, and perceived quality, but no genre or routed regional opportunity. Initial placement is therefore genre-blind. Uncharted replenishment in `ChartManager.RestockHotRecords` then requires `breakoutScore >= .20` before either stock exhaustion or backorders can trigger restock. The full-telemetry 1960 checkpoint exposes the failure directly for TexMex record `gen_3648`: Southwest stock falls from `532` to zero by age four; backorders then reach `183`, raw demand remains positive, and no restock is requested or applied because breakout score never exceeds `.0611`. Great Plains shows the same mechanism at lower demand, reaching `135` backorders with a maximum breakout score of `.0562`. The lean decade run suppresses those record-level rows, but its tier/year aggregates show the same stock-limited signature once MidTier TexMex scales up.
+
+**Diagnosis:** the first confirmed TexMex failure is genre-blind initial stock followed by a breakout-gated uncharted restock path that cannot serve dispersed niche demand. The centered acceptance texture is already sufficient and must not be widened. A future repair should be evaluated only at fixed-stock placement or uncharted fulfillment, should conserve each record's national initial-stock budget, and should not change destination capacity, distance, finance, charts, release supply, or demand.
+
+#### 2. Late compatible Psychedelic orphan Singles and carry-in
+
+The compatibility predicate works. Every 1966-69 supplied Psychedelic project has a compatible Rock and Roll, Surf Rock, or Blues Rock artist identity/secondary; Teen Pop and Doo-Wop are absent. Routed acceptance peaks in 1967, not 1969, while supply peaks in 1968:
+
+| Year | Supply selections | Mean acceptance | Mean eligible / charted | Units |
+|---:|---:|---:|---:|---:|
+| 1966 | 14 | .6768 | 13.17 / 0 | 127,639 |
+| 1967 | 28 | **.7993** | 31.29 / 0 | 131,578 |
+| 1968 | **37** | .7001 | 52.56 / 0 | 180,306 |
+| 1969 | 19 | .7210 | 68.43 / .2353 | **281,784** |
+
+Two 1969 compatible orphan Singles supply the binding late increment:
+
+| Record | Week | Secondary | Quality | Prior Single / Album net | Projected Single / Album net | Observed units |
+|---|---:|---|---:|---:|---:|---:|
+| `gen_76102` | 481 | Surf Rock | .6662 | 27,089 / 121,511 | 12,209 / 10,146 | 49,082 |
+| `gen_80893` | 507 | Rock and Roll | .6268 | 26,239 / 129,916 | 10,060 / 9,111 | 73,781 |
+
+Together they contribute `122,863`, or `43.60%`, of all 1969 Psychedelic units. Subtracting only their observed units leaves `158,921`, below the 1968 total; this is an arithmetic attribution, not a replay counterfactual, but it proves the two Singles are sufficient to create the observed 1969 peak. The 19 new 1969 Psychedelic records have `165,243` observed lifetime units by week 520, of which the two Singles supply `74.35%`; the remaining `116,541` annual units are the bounded contribution from pre-1969 carry-in. Without the two Singles, carry-in plus the new Album cohort does not independently create the late peak.
+
+Both format forks have a strong Album prior, but high-confidence label-wide format memories replace most of that genre-specific prior before independent noise is applied. `gen_76102` has Single/Album confidence `.9819 / .9385`; `gen_80893` `.9570 / .9802`. Their final margins differ by only `$2,063` and `$949`. The memory store is keyed only by label and format, not project genre, so unrelated catalog outcomes dominate the emerging-genre prior at this fork.
+
+Both artists serialize as `Dropped`, and the runtime reveals why they remain eligible: `SimulatedArtist.UpdateCareerState` can assign `Dropped`; `AILabel.ShouldDropArtist` does not recognize that terminal state; `GenreSupplyService.IsEligibleExistingArtistForRelease` checks only `artist.isActive`; and `DecideRelease` maps the unexpected state back to the New/Unsigned career band. This is not a narrow two-record anomaly: by 1969, `5,932 / 6,166` release decisions (`96.20%`) use Dropped artists, and all 98 supplied Psychedelic projects in 1966-69 do. A global terminal-artist exclusion would therefore destroy the protected release topology and is not an acceptable repair.
+
+**Diagnosis:** the compatibility and carry-in paths are not the remaining binding defect. The first narrow fork is the combination of prospective emerging-genre projects with genre-agnostic, high-confidence label-format memory; it lets two otherwise compatible late projects reverse overwhelming Album priors and become high-yield orphan Singles. The broader Dropped-roster lifecycle leak is real but cannot be repaired inside this directive without replacing most release capacity. Do not change Album constants, format noise, historical keyframes, release growth, or global roster eligibility from this evidence. Any future repair needs a separately authorized, fixed-input rule at the non-retained emerging-project format-memory seam, preserving the project count and disabled RNG boundary, followed by exact fork probes before another simulation.
+
+**Stop decision:** no seed 1002, seed 1003, or holdout is authorized. The smallest independently supported future surfaces are (1) conserved genre-aware initial stock or uncharted restock service for specialist demand, and (2) the non-retained emerging-project format-memory fork. Both require a new directive; no implementation was made here.
+
+### Specialist fulfillment and emerging-project memory repair (2026-07-13)
+
+The subsequently authorized repair is intentionally limited to the two diagnosed seams. It does not change acceptance texture, historical keyframes, supply weights, charts, finance, distance, release capacity, Album priors, format noise, or roster eligibility.
+
+- At launch, Country/TexMex/Boogaloo now redistribute only a record's already-drawn regional stock across its existing regions using the fixed centered specialist texture. The integer allocation preserves the exact national launch-stock total, makes no additional random draw, and uses no realized demand, units, charts, stock, backorders, or annual result. Uncharted specialist records with a physical backorder may use the existing replenishment calculation without first clearing the broad-market breakout gate; this creates no demand and remains subject to the existing coverage, reach, and physical-capacity limits.
+- A non-retained project in a catalog genre introduced in 1966 or later now uses its project-specific Single/Album priors at the format fork instead of a genre-agnostic label-wide format-memory EMA. Retained identities, earlier catalog genres, disabled execution, and prewarm retain the established memory route. The audit telemetry records this as `ProjectPrior` rather than `LabelFormat`.
+
+Fixed probes pass for national-stock conservation, TexMex Southwest-over-Great-Plains allocation, specialist-only uncharted service, emerging-project memory bypass, retained/disabled neutrality, supply-selection boundaries, acceptance conservation, and the post-transfer Single-opportunity normalizer. The final current-code disabled replay, `d6-fulfillment-emerging-memory-52b-control-1001`, is byte-identical to `d5-specialist-opportunity-normalizer-52-control-1001` in all 45 CSV streams.
+
+The enabled full-telemetry checkpoint, `d6-fulfillment-emerging-memory-52b-enabled-1001`, completed 52 weeks with total units `1.0318x`, gross `1.0361x`, label net `1.0320x`, market net `1.0402x`, Single units `1.0305x`, Album units `1.1337x`, and Album decision share `26.1922%` versus `25.2724%` control. TexMex fulfilled share is uniquely highest in Southwest (`.0543%`), ahead of Deep South (`.0327%`) and Great Plains (`.0275%`); Southwest TexMex backorders are zero in this short checkpoint. The known non-fatal `MissingSingletonsTemp.cs` autoload diagnostic remains the only runner diagnostic. No 520-week run, seed 1002, seed 1003, or holdout was launched from this repair.

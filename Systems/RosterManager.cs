@@ -13,6 +13,98 @@ public partial class RosterManager : Node {
 	[Export] private bool debugMode = false;
 	public int WeeklyScoutingRolls { get; private set; }
 	public int WeeklySignings { get; private set; }
+	private readonly Dictionary<LabelTier, RosterLifecycleFlow> weeklyLifecycleFlowByTier = new();
+	private readonly HashSet<string> uniquelyResignedArtistIds = new();
+	private readonly Dictionary<string, int> lastReSignWeekByArtistId = new();
+	// Observational only. These dictionaries never participate in simulation decisions.
+	private readonly Dictionary<string, LabelScoutingVacancyObservation> weeklyScoutingVacancyByLabelId = new(System.StringComparer.Ordinal);
+	private readonly Dictionary<string, int> consecutiveVacancyWeeksByLabelId = new(System.StringComparer.Ordinal);
+	private readonly Dictionary<string, int> consecutiveEmptyWeeksByLabelId = new(System.StringComparer.Ordinal);
+	// Enabled-only decision state. This is intentionally separate from the
+	// observational vacancy telemetry so a capture can never influence scouting.
+	private readonly Dictionary<string, int> scoutingUrgencyAgeByLabelId = new(System.StringComparer.Ordinal);
+	private const int ShortWindowRedropWeeks = 26;
+	public const int ScoutingUrgencyThresholdWeeks = 12;
+	public const float ScoutingUrgencyProbabilityFloor = 0.25f;
+
+	public sealed class LabelScoutingVacancyObservation {
+		public string LabelId { get; init; }
+		public LabelTier LabelTier { get; init; }
+		public int MaxRosterSize { get; init; }
+		public int ScoutingRosterSize { get; init; }
+		public int ScoutingUnusedRosterSlots { get; init; }
+		public bool ScoutingIsEmptyRoster { get; init; }
+		public float ScoutingAbility { get; init; }
+		public float ScoutingRosterFullness { get; init; }
+		public bool HasRecentHit { get; init; }
+		public float RecentHitFactor { get; init; }
+		public int DecliningArtistCount { get; init; }
+		public float DecliningFactor { get; init; }
+		public float EstimatedAdvance { get; init; }
+		public bool CanAffordEstimatedAdvance { get; init; }
+		public float ComputedScoutProbability { get; init; }
+		public float? ScoutRandomRoll { get; init; }
+		public bool ScoutingGatePassed { get; init; }
+		public int? EligibleCandidateCount { get; set; }
+		public float? BestCandidateScore { get; set; }
+		public bool SigningAttempted { get; set; }
+		public bool SigningSucceeded { get; set; }
+		public string SigningKind { get; set; }
+		public string FailureReason { get; set; }
+		public int RosterSize { get; set; }
+		public int UnusedRosterSlots { get; set; }
+		public bool IsEmptyRoster { get; set; }
+		public int ConsecutiveVacancyWeeks { get; set; }
+		public int ConsecutiveEmptyWeeks { get; set; }
+	}
+
+	public readonly struct RosterLifecycleFlow {
+		public readonly int DropsToPool;
+		public readonly int FirstTimeSignings;
+		public readonly int ReSignings;
+		public readonly int UniqueReSignings;
+		public readonly int ShortWindowRedrops;
+		public readonly int ScoutingGatePasses;
+		public readonly int SigningAttempts;
+		public readonly int CandidateRejections;
+		public readonly int AffordabilityRejections;
+		public readonly int PerformanceDrops;
+		public readonly int OtherDepartures;
+		public readonly int RecentPerformanceReSignings;
+		public readonly int PrematureProbationDrops;
+		public readonly int NoEligibleCandidatePasses;
+		public readonly int ScoreRejections;
+		public RosterLifecycleFlow(int dropsToPool, int firstTimeSignings, int reSignings, int uniqueReSignings,
+			int shortWindowRedrops, int scoutingGatePasses, int signingAttempts, int candidateRejections, int affordabilityRejections,
+			int performanceDrops = 0, int otherDepartures = 0, int recentPerformanceReSignings = 0,
+			int prematureProbationDrops = 0, int noEligibleCandidatePasses = 0, int scoreRejections = 0) {
+			DropsToPool = dropsToPool;
+			FirstTimeSignings = firstTimeSignings;
+			ReSignings = reSignings;
+			UniqueReSignings = uniqueReSignings;
+			ShortWindowRedrops = shortWindowRedrops;
+			ScoutingGatePasses = scoutingGatePasses;
+			SigningAttempts = signingAttempts;
+			CandidateRejections = candidateRejections;
+			AffordabilityRejections = affordabilityRejections;
+			PerformanceDrops = performanceDrops;
+			OtherDepartures = otherDepartures;
+			RecentPerformanceReSignings = recentPerformanceReSignings;
+			PrematureProbationDrops = prematureProbationDrops;
+			NoEligibleCandidatePasses = noEligibleCandidatePasses;
+			ScoreRejections = scoreRejections;
+		}
+
+		public static RosterLifecycleFlow Combine(RosterLifecycleFlow left, RosterLifecycleFlow right) => new(
+			left.DropsToPool + right.DropsToPool, left.FirstTimeSignings + right.FirstTimeSignings,
+			left.ReSignings + right.ReSignings, left.UniqueReSignings + right.UniqueReSignings,
+			left.ShortWindowRedrops + right.ShortWindowRedrops, left.ScoutingGatePasses + right.ScoutingGatePasses,
+			left.SigningAttempts + right.SigningAttempts, left.CandidateRejections + right.CandidateRejections,
+			left.AffordabilityRejections + right.AffordabilityRejections, left.PerformanceDrops + right.PerformanceDrops,
+			left.OtherDepartures + right.OtherDepartures, left.RecentPerformanceReSignings + right.RecentPerformanceReSignings,
+			left.PrematureProbationDrops + right.PrematureProbationDrops,
+			left.NoEligibleCandidatePasses + right.NoEligibleCandidatePasses, left.ScoreRejections + right.ScoreRejections);
+	}
 	
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
@@ -152,14 +244,19 @@ public partial class RosterManager : Node {
 	}
 	
 	private void OnWeekEnded(GameDate date) {
+		ReconcileEnabledLifecycleForCurrentWeek();
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;
+		weeklyLifecycleFlowByTier.Clear();
+		weeklyScoutingVacancyByLabelId.Clear();
 		WeeklyScoutingRolls++;
-		// Release availability remains the sole live artist-opportunity seam.
-		// The scouting seam was removed after its paired timing feedback missed
-		// the calendar-year unit gate during the initial three-seed checkpoint.
-		if (GD.Randf() < weeklyScoutChance) ProcessScouting(date.year);
+		if (IsLiveGenreMarket()) {
+			ProcessEnabledVacancyResponsiveScouting(date.year);
+		} else if (GD.Randf() < weeklyScoutChance) {
+			// Frozen disabled boundary: retain the global throttle and three-label cap.
+			ProcessScouting(date.year);
+		}
 	}
 	
 	private void UpdateArtistCooldowns() {
@@ -173,30 +270,195 @@ public partial class RosterManager : Node {
 	private void ProcessScouting(int year) {
 		var labels = GetAllLabels();
 		if (labels == null) return;
+		if (ArtistPopulationLifecycle.Enabled && GenreMarketV2.Enabled) {
+			ProcessLegacyScoutingWithTelemetry(labels, year);
+			return;
+		}
 		
 		var scoutingLabels = labels.Where(l => l.ShouldScoutNewArtist()).OrderBy(_ => GD.Randf()).Take(3);
 		foreach (var label in scoutingLabels) TrySignNewArtist(label, year);
 	}
+
+	/// <summary>
+	/// The first audit tick occurs before ChartManager marks Genre Market V2 live.
+	/// Preserve its legacy three-label throttle while observing each existing gate
+	/// evaluation, so the enabled-only stream remains one-row-per-label-per-week.
+	/// </summary>
+	private void ProcessLegacyScoutingWithTelemetry(List<AILabel> labels, int year) {
+		var scoutingLabels = new List<(AILabel Label, LabelScoutingVacancyObservation Observation)>();
+		foreach (AILabel label in labels) {
+			AILabel.ScoutingGateEvaluation gate = label.EvaluateScoutingGate();
+			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
+			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
+			if (gate.ScoutingGatePassed) scoutingLabels.Add((label, observation));
+		}
+		foreach ((AILabel label, LabelScoutingVacancyObservation observation) in scoutingLabels.OrderBy(_ => GD.Randf()).Take(3))
+			TrySignNewArtist(label, year, observation);
+	}
+
+	private void ProcessEnabledVacancyResponsiveScouting(int year) {
+		var labels = GetAllLabels();
+		if (labels == null) return;
+		foreach (AILabel label in labels) {
+			if (!IsEligibleForEnabledScouting(label)) {
+				// ChartManager retains historical/closed labels for lookup and audit history.
+				// They must remain observable, but must never consume scouting RNG or
+				// re-acquire artists after LabelLifecycleManager has closed them.
+				AILabel.ScoutingGateEvaluation inactivePreview = label.PreviewScoutingGate();
+				LabelScoutingVacancyObservation inactiveObservation = CreateScoutingVacancyObservation(label, inactivePreview);
+				inactiveObservation.FailureReason = "InactiveLabel";
+				weeklyScoutingVacancyByLabelId[label.labelId] = inactiveObservation;
+				scoutingUrgencyAgeByLabelId.Remove(label.labelId);
+				continue;
+			}
+			int urgencyAge = GetScoutingUrgencyAgeForWeek(label.HasRosterSpace,
+				scoutingUrgencyAgeByLabelId.GetValueOrDefault(label.labelId));
+			float minimumProbability = GetScoutingProbabilityFloorForPath(true, urgencyAge);
+			AILabel.ScoutingGateEvaluation gate = label.EvaluateScoutingGate(minimumProbability: minimumProbability);
+			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
+			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
+			bool signingSucceeded = false;
+			if (gate.ScoutingGatePassed) {
+				RecordScoutingGatePass(label.tier);
+				// Exactly one scouting roll and one signing attempt per qualifying label per live week.
+				signingSucceeded = TrySignNewArtist(label, year, observation);
+			}
+			UpdateScoutingUrgencyAge(label, urgencyAge, signingSucceeded);
+		}
+	}
+
+	private static LabelScoutingVacancyObservation CreateScoutingVacancyObservation(AILabel label, AILabel.ScoutingGateEvaluation gate) => new() {
+		LabelId = label.labelId,
+		LabelTier = label.tier,
+		MaxRosterSize = gate.MaxRosterSize,
+		ScoutingRosterSize = gate.RosterSize,
+		ScoutingUnusedRosterSlots = Mathf.Max(0, gate.MaxRosterSize - gate.RosterSize),
+		ScoutingIsEmptyRoster = gate.RosterSize == 0,
+		ScoutingAbility = label.scoutingAbility,
+		ScoutingRosterFullness = gate.RosterFullness,
+		HasRecentHit = gate.HasRecentHit,
+		RecentHitFactor = gate.RecentHitFactor,
+		DecliningArtistCount = gate.DecliningArtistCount,
+		DecliningFactor = gate.DecliningFactor,
+		EstimatedAdvance = gate.EstimatedAdvance,
+		CanAffordEstimatedAdvance = gate.FailureReason != "EstimatedAdvanceUnaffordable",
+		ComputedScoutProbability = gate.ComputedScoutProbability,
+		ScoutRandomRoll = gate.RandomRoll,
+		ScoutingGatePassed = gate.ScoutingGatePassed,
+		FailureReason = gate.FailureReason
+	};
 	
-	private void TrySignNewArtist(AILabel label, int year) {
+	private bool TrySignNewArtist(AILabel label, int year, LabelScoutingVacancyObservation observation = null) {
 		var candidates = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
 			? GetEnabledSupplyCandidates(label, year)
 			: ArtistManager.Instance.GetTopUnsignedTalent(20, label.preferredGenres.FirstOrDefault());
-		if (candidates.Count == 0) return;
+		if (observation != null) observation.EligibleCandidateCount = candidates.Count;
+		if (candidates.Count == 0) {
+			if (observation != null) observation.FailureReason = "NoEligibleCandidate";
+			if (IsLiveGenreMarket()) RecordNoEligibleCandidatePass(label.tier);
+			return false;
+		}
 		
-		var bestCandidate = label.EvaluateForSigning(candidates);
-		if (bestCandidate != null && label.CanAffordToSign(label.CalculateAdvanceOffer(bestCandidate))) {
+		AILabel.SigningEvaluation signingEvaluation = label.EvaluateSigning(candidates);
+		var bestCandidate = signingEvaluation.BestCandidate;
+		if (observation != null) observation.BestCandidateScore = signingEvaluation.BestCandidateScore;
+		if (bestCandidate == null) {
+			if (observation != null) observation.FailureReason = "CandidateScore";
+			if (IsLiveGenreMarket()) RecordScoreRejection(label.tier);
+			return false;
+		}
+		if (observation != null) observation.SigningAttempted = true;
+		if (IsLiveGenreMarket()) RecordSigningAttempt(label.tier);
+		if (label.CanAffordToSign(label.CalculateAdvanceOffer(bestCandidate))) {
+			bool reSigningDroppedArtist = IsLiveGenreMarket() && bestCandidate.careerState == CareerState.Dropped;
+			string signingKind = GetSigningKindForTelemetry(bestCandidate);
 			float advance = label.SignArtist(bestCandidate, year);
 			CompetitorManager.Instance?.RecordExpense(label, advance);
 			ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
 			WeeklySignings++;
+			if (IsLiveGenreMarket()) RecordSigning(label.tier, bestCandidate, reSigningDroppedArtist);
+			if (observation != null) {
+				observation.SigningSucceeded = true;
+				observation.SigningKind = signingKind;
+				observation.FailureReason = observation.SigningKind;
+			}
 			if (debugMode) GD.Print($"SIGNING: {label.labelName} signs {bestCandidate.stageName} ({bestCandidate.primaryGenre})");
+			return true;
+		} else if (IsLiveGenreMarket()) {
+			if (observation != null) observation.FailureReason = "ActualAdvanceUnaffordable";
+			RecordAffordabilityRejection(label.tier);
+		}
+		return false;
+	}
+
+	private void FinalizeScoutingVacancyTelemetry(IEnumerable<AILabel> labels) {
+		var observedLabelIds = new HashSet<string>(System.StringComparer.Ordinal);
+		foreach (AILabel label in labels.Where(label => label != null)) {
+			observedLabelIds.Add(label.labelId);
+			if (!weeklyScoutingVacancyByLabelId.TryGetValue(label.labelId, out LabelScoutingVacancyObservation observation)) continue;
+			observation.RosterSize = label.CurrentRosterSize;
+			observation.UnusedRosterSlots = Mathf.Max(0, label.maxRosterSize - observation.RosterSize);
+			observation.IsEmptyRoster = observation.RosterSize == 0;
+			observation.ConsecutiveVacancyWeeks = AdvanceConsecutiveAge(observation.UnusedRosterSlots > 0,
+				consecutiveVacancyWeeksByLabelId.GetValueOrDefault(label.labelId));
+			observation.ConsecutiveEmptyWeeks = AdvanceConsecutiveAge(observation.IsEmptyRoster,
+				consecutiveEmptyWeeksByLabelId.GetValueOrDefault(label.labelId));
+			consecutiveVacancyWeeksByLabelId[label.labelId] = observation.ConsecutiveVacancyWeeks;
+			consecutiveEmptyWeeksByLabelId[label.labelId] = observation.ConsecutiveEmptyWeeks;
+		}
+		foreach (string labelId in consecutiveVacancyWeeksByLabelId.Keys.Where(id => !observedLabelIds.Contains(id)).ToArray()) {
+			consecutiveVacancyWeeksByLabelId.Remove(labelId);
+			consecutiveEmptyWeeksByLabelId.Remove(labelId);
 		}
 	}
 
+	public IReadOnlyList<LabelScoutingVacancyObservation> GetWeeklyScoutingVacancyObservations() =>
+		weeklyScoutingVacancyByLabelId.Values.OrderBy(observation => observation.LabelId, System.StringComparer.Ordinal).ToArray();
+
+	/// <summary>Finalizes observational roster state at the chart-capture boundary.</summary>
+	public void FinalizeScoutingVacancyTelemetryForCapture() {
+		if (!ArtistPopulationLifecycle.Enabled || !GenreMarketV2.Enabled) return;
+		EnsureScoutingVacancyTelemetrySnapshot();
+		List<AILabel> labels = GetAllLabels();
+		if (labels != null) FinalizeScoutingVacancyTelemetry(labels);
+	}
+
+	/// <summary>
+	/// ChartAuditRunner can capture an initial chart snapshot before the first
+	/// Friday scouting event. This is observational only: previewing never rolls
+	/// RNG and candidate enumeration is intentionally not reached.
+	/// </summary>
+	public void EnsureScoutingVacancyTelemetrySnapshot() {
+		if (!ArtistPopulationLifecycle.Enabled || !GenreMarketV2.Enabled || weeklyScoutingVacancyByLabelId.Count > 0) return;
+		List<AILabel> labels = GetAllLabels();
+		if (labels == null) return;
+		foreach (AILabel label in labels) {
+			AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate();
+			weeklyScoutingVacancyByLabelId[label.labelId] = CreateScoutingVacancyObservation(label, preview);
+		}
+	}
+
+	public static int AdvanceConsecutiveAge(bool condition, int priorAge) => condition ? priorAge + 1 : 0;
+	public static bool IsEligibleForEnabledScouting(AILabel label) => label?.IsActive == true;
+	public static int GetScoutingUrgencyAgeForWeek(bool hasRosterSpace, int priorAge) => hasRosterSpace ? priorAge + 1 : 0;
+	public static float GetScoutingProbabilityFloorForPath(bool enabledLifecyclePath, int urgencyAge) =>
+		enabledLifecyclePath && urgencyAge >= ScoutingUrgencyThresholdWeeks ? ScoutingUrgencyProbabilityFloor : 0f;
+	public static int FinalizeScoutingUrgencyAge(bool hasRosterSpace, bool signingSucceeded, int urgencyAge) =>
+		signingSucceeded || !hasRosterSpace ? 0 : urgencyAge;
+
+	private void UpdateScoutingUrgencyAge(AILabel label, int urgencyAge, bool signingSucceeded) {
+		int finalizedAge = FinalizeScoutingUrgencyAge(label.HasRosterSpace, signingSucceeded, urgencyAge);
+		if (finalizedAge == 0) scoutingUrgencyAgeByLabelId.Remove(label.labelId);
+		else scoutingUrgencyAgeByLabelId[label.labelId] = finalizedAge;
+	}
+	public static string GetSigningKindForTelemetry(SimulatedArtist artist) => artist?.careerState == CareerState.Dropped
+		? "SignedFreeAgent" : "SignedFirstTime";
+
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year) {
 		MarketRegion region = ChartManager.Instance?.GetRegionById(label.homeRegion);
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		return ArtistManager.Instance.GetUnsignedArtists()
+			.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, currentWeek))
 			.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
 			.OrderByDescending(artist => artist.CalculateBaseQuality() *
 				GenreSupplyService.GetSupplyWeight(artist.primaryGenre, label, artist, region, year))
@@ -207,6 +469,7 @@ public partial class RosterManager : Node {
 	private void OnMonthChanged(GameDate date) {
 		var labels = GetAllLabels();
 		if (labels == null) return;
+		if (IsLiveGenreMarket()) ReconcileEnabledRosterLifecycle(labels, date.year);
 		foreach (var label in labels) {
 			ProcessContractExpirations(label, date.year);
 			if (GD.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
@@ -227,8 +490,7 @@ public partial class RosterManager : Node {
 				artist.careerEvents.Add($"{year}: Re-signed with {label.labelName}");
 				if (debugMode) GD.Print($"RE-SIGN: {label.labelName} re-signs {artist.stageName}");
 			} else {
-				label.DropArtist(artist, year, "contract expired");
-				ArtistManager.Instance.DropArtist(artist, year);
+				TransitionDroppedArtist(label, artist, year, ArtistDropReason.ContractExpired);
 				if (debugMode) GD.Print($"CONTRACT END: {artist.stageName} leaves {label.labelName}");
 			}
 		}
@@ -244,10 +506,10 @@ public partial class RosterManager : Node {
 	}
 	
 	private void ProcessRosterReview(AILabel label, int year) {
+		if (IsLiveGenreMarket()) ReconcileEnabledTerminalRosterMembers(label, year);
 		var toReview = label.roster.Where(a => label.ShouldDropArtist(a)).ToList();
 		foreach (var artist in toReview) {
-			label.DropArtist(artist, year, "poor performance");
-			ArtistManager.Instance.DropArtist(artist, year);
+			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
 			if (debugMode) GD.Print($"DROPPED: {label.labelName} drops {artist.stageName} (flops: {artist.consecutiveFlops})");
 		}
 	}
@@ -261,14 +523,151 @@ public partial class RosterManager : Node {
 	}
 	
 	public void RecordChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
-		if (artist == null || record == null || record.artistChartRunCompleted) return;
-		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold);
+		if (artist == null || record == null) return;
+		if (record.artistChartRunCompleted) {
+			if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped) {
+				int completedYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
+				TransitionDroppedArtist(GetLabelById(artist.labelId), artist, completedYear, ArtistDropReason.Performance);
+			}
+			return;
+		}
+		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
+			ArtistManager.CreditsCurrentContract(record, artist));
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped) {
+			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
+			return;
+		}
 		if (label != null && label.ShouldDropArtist(artist)) {
-			int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-			label.DropArtist(artist, year, "poor performance");
-			ArtistManager.Instance.DropArtist(artist, year);
+			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
+		}
+	}
+
+	private static bool IsLiveGenreMarket() => GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+
+	/// <summary>
+	/// Idempotent live-tick reconciliation used after chart processing as well as
+	/// at the normal weekly boundary. It performs no random draws.
+	/// </summary>
+	public void ReconcileEnabledLifecycleForCurrentWeek() {
+		if (!IsLiveGenreMarket()) return;
+		var labels = GetAllLabels();
+		if (labels != null) ReconcileEnabledRosterLifecycle(labels, TimeManager.Instance?.CurrentDate.year ?? 1960);
+	}
+
+	public RosterLifecycleFlow GetWeeklyLifecycleFlow(LabelTier tier) =>
+		weeklyLifecycleFlowByTier.TryGetValue(tier, out RosterLifecycleFlow flow) ? flow : default;
+	public RosterLifecycleFlow GetAggregateWeeklyLifecycleFlow() =>
+		weeklyLifecycleFlowByTier.Values.Aggregate(default(RosterLifecycleFlow), RosterLifecycleFlow.Combine);
+
+	private void RecordSigning(LabelTier tier, SimulatedArtist artist, bool reSigningDroppedArtist) {
+		RosterLifecycleFlow current = GetWeeklyLifecycleFlow(tier);
+		int uniqueReSignings = current.UniqueReSignings;
+		string artistId = artist?.artistId;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (reSigningDroppedArtist && uniquelyResignedArtistIds.Add(artistId)) uniqueReSignings++;
+		if (reSigningDroppedArtist) lastReSignWeekByArtistId[artistId] = currentWeek;
+		bool recentPerformanceReSigning = reSigningDroppedArtist && artist?.lastDropReason == ArtistDropReason.Performance &&
+			artist.lastPerformanceDropWeek >= 0 && currentWeek - artist.lastPerformanceDropWeek < ArtistManager.PerformanceDropCooldownWeeks;
+		weeklyLifecycleFlowByTier[tier] = new RosterLifecycleFlow(current.DropsToPool,
+			current.FirstTimeSignings + (reSigningDroppedArtist ? 0 : 1), current.ReSignings + (reSigningDroppedArtist ? 1 : 0),
+			uniqueReSignings, current.ShortWindowRedrops, current.ScoutingGatePasses, current.SigningAttempts,
+			current.CandidateRejections, current.AffordabilityRejections, current.PerformanceDrops, current.OtherDepartures,
+			current.RecentPerformanceReSignings + (recentPerformanceReSigning ? 1 : 0), current.PrematureProbationDrops,
+			current.NoEligibleCandidatePasses, current.ScoreRejections);
+	}
+
+	private void RecordScoutingGatePass(LabelTier tier) => UpdateFlow(tier, flow => new RosterLifecycleFlow(flow.DropsToPool,
+		flow.FirstTimeSignings, flow.ReSignings, flow.UniqueReSignings, flow.ShortWindowRedrops, flow.ScoutingGatePasses + 1,
+		flow.SigningAttempts, flow.CandidateRejections, flow.AffordabilityRejections, flow.PerformanceDrops, flow.OtherDepartures,
+		flow.RecentPerformanceReSignings, flow.PrematureProbationDrops, flow.NoEligibleCandidatePasses, flow.ScoreRejections));
+	private void RecordSigningAttempt(LabelTier tier) => UpdateFlow(tier, flow => new RosterLifecycleFlow(flow.DropsToPool,
+		flow.FirstTimeSignings, flow.ReSignings, flow.UniqueReSignings, flow.ShortWindowRedrops, flow.ScoutingGatePasses,
+		flow.SigningAttempts + 1, flow.CandidateRejections, flow.AffordabilityRejections, flow.PerformanceDrops, flow.OtherDepartures,
+		flow.RecentPerformanceReSignings, flow.PrematureProbationDrops, flow.NoEligibleCandidatePasses, flow.ScoreRejections));
+	private void RecordNoEligibleCandidatePass(LabelTier tier) => UpdateFlow(tier, flow => new RosterLifecycleFlow(flow.DropsToPool,
+		flow.FirstTimeSignings, flow.ReSignings, flow.UniqueReSignings, flow.ShortWindowRedrops, flow.ScoutingGatePasses,
+		flow.SigningAttempts, flow.CandidateRejections + 1, flow.AffordabilityRejections, flow.PerformanceDrops, flow.OtherDepartures,
+		flow.RecentPerformanceReSignings, flow.PrematureProbationDrops, flow.NoEligibleCandidatePasses + 1, flow.ScoreRejections));
+	private void RecordScoreRejection(LabelTier tier) => UpdateFlow(tier, flow => new RosterLifecycleFlow(flow.DropsToPool,
+		flow.FirstTimeSignings, flow.ReSignings, flow.UniqueReSignings, flow.ShortWindowRedrops, flow.ScoutingGatePasses,
+		flow.SigningAttempts, flow.CandidateRejections + 1, flow.AffordabilityRejections, flow.PerformanceDrops, flow.OtherDepartures,
+		flow.RecentPerformanceReSignings, flow.PrematureProbationDrops, flow.NoEligibleCandidatePasses, flow.ScoreRejections + 1));
+	private void RecordAffordabilityRejection(LabelTier tier) => UpdateFlow(tier, flow => new RosterLifecycleFlow(flow.DropsToPool,
+		flow.FirstTimeSignings, flow.ReSignings, flow.UniqueReSignings, flow.ShortWindowRedrops, flow.ScoutingGatePasses,
+		flow.SigningAttempts, flow.CandidateRejections, flow.AffordabilityRejections + 1, flow.PerformanceDrops, flow.OtherDepartures,
+		flow.RecentPerformanceReSignings, flow.PrematureProbationDrops, flow.NoEligibleCandidatePasses, flow.ScoreRejections));
+	private void UpdateFlow(LabelTier tier, System.Func<RosterLifecycleFlow, RosterLifecycleFlow> update) =>
+		weeklyLifecycleFlowByTier[tier] = update(GetWeeklyLifecycleFlow(tier));
+
+	private void TransitionDroppedArtist(AILabel label, SimulatedArtist artist, int year, ArtistDropReason reason) {
+		if (IsLiveGenreMarket()) {
+			bool prematureProbationDrop = ArtistPopulationLifecycle.Enabled && reason == ArtistDropReason.Performance &&
+				artist?.careerState == CareerState.NewSigning && artist.contractConsecutiveFlops < 2;
+			if (ArtistManager.Instance?.DropArtist(artist, year, label, reason) == true && label != null) {
+				RosterLifecycleFlow current = GetWeeklyLifecycleFlow(label.tier);
+				int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+				int shortWindowRedrops = current.ShortWindowRedrops;
+				if (!string.IsNullOrEmpty(artist.artistId) && lastReSignWeekByArtistId.TryGetValue(artist.artistId, out int reSignWeek) &&
+					currentWeek >= reSignWeek && currentWeek - reSignWeek <= ShortWindowRedropWeeks) shortWindowRedrops++;
+				weeklyLifecycleFlowByTier[label.tier] = new RosterLifecycleFlow(current.DropsToPool + 1,
+					current.FirstTimeSignings, current.ReSignings, current.UniqueReSignings, shortWindowRedrops,
+					current.ScoutingGatePasses, current.SigningAttempts, current.CandidateRejections, current.AffordabilityRejections,
+					current.PerformanceDrops + (reason == ArtistDropReason.Performance ? 1 : 0),
+					current.OtherDepartures + (reason == ArtistDropReason.Performance ? 0 : 1), current.RecentPerformanceReSignings,
+					current.PrematureProbationDrops + (prematureProbationDrop ? 1 : 0),
+					current.NoEligibleCandidatePasses, current.ScoreRejections);
+			}
+		} else {
+			label?.DropArtist(artist, year, reason.ToString());
+			ArtistManager.Instance?.DropArtist(artist, year);
+		}
+	}
+
+	/// <summary>
+	/// Label shutdown is an enabled lifecycle departure, not a performance
+	/// failure. Route it through the atomic owner/pool seam so an artist cannot
+	/// inherit an earlier performance cooldown and closure flow stays auditable.
+	/// </summary>
+	public void HandleLabelClosure(AILabel label, SimulatedArtist artist, int year) =>
+		TransitionDroppedArtist(label, artist, year, ArtistDropReason.LabelClosure);
+
+	private void ReconcileEnabledRosterLifecycle(IEnumerable<AILabel> labels, int year) {
+		AILabel[] allLabels = labels.Where(label => label != null).OrderBy(label => label.labelId, System.StringComparer.Ordinal).ToArray();
+		foreach (AILabel label in allLabels) ReconcileEnabledTerminalRosterMembers(label, year);
+		var memberships = new Dictionary<SimulatedArtist, List<AILabel>>();
+		foreach (AILabel label in allLabels) {
+			foreach (SimulatedArtist artist in label.roster.Where(artist => artist != null).Distinct().ToArray()) {
+				if (!memberships.TryGetValue(artist, out List<AILabel> owners)) memberships[artist] = owners = new List<AILabel>();
+				owners.Add(label);
+			}
+		}
+		foreach ((SimulatedArtist artist, List<AILabel> owners) in memberships) {
+			AILabel owner = !string.IsNullOrEmpty(artist.labelId)
+				? allLabels.FirstOrDefault(label => label.labelId == artist.labelId)
+				: null;
+			if (owner == null) {
+				foreach (AILabel roster in owners) roster.roster.RemoveAll(candidate => candidate == artist);
+				continue;
+			}
+			foreach (AILabel roster in owners) roster.roster.RemoveAll(candidate => candidate == artist);
+			owner.roster.Add(artist);
+		}
+		ArtistManager.Instance?.ReconcileEnabledUnsignedPool();
+	}
+
+	private void ReconcileEnabledTerminalRosterMembers(AILabel label, int year) {
+		if (label?.roster == null) return;
+		foreach (SimulatedArtist artist in label.roster.Where(artist => artist != null &&
+			GenreSupplyService.IsTerminalCareerState(artist.careerState)).ToList()) {
+			if (artist.careerState == CareerState.Dropped) {
+				TransitionDroppedArtist(label, artist, year, ArtistDropReason.LifecycleReconciliation);
+			} else {
+				label.roster.RemoveAll(candidate => candidate == artist);
+				if (artist.labelId == label.labelId) artist.labelId = null;
+			}
 		}
 	}
 	

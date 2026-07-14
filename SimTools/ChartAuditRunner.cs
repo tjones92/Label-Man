@@ -169,6 +169,14 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter supplySelectionWriter;
 	private StreamWriter genreEventsWriter;
 	private StreamWriter specialProductsWriter;
+	// Enabled-only: absent from disabled runs so the frozen 45-stream boundary is unchanged.
+	private StreamWriter rosterLifecycleWriter;
+	private StreamWriter labelScoutingVacancyWriter;
+	private StreamWriter artistPopulationEventsWriter;
+	private StreamWriter artistPopulationWeeklyWriter;
+	private StreamWriter artistCohortAnnualWriter;
+	private StreamWriter artistProjectIdentityWriter;
+	private readonly HashSet<string> observedPopulationProjectIds = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
@@ -204,6 +212,7 @@ public partial class ChartAuditRunner : Node {
 	private bool disableDistributionDeals;
 	private bool disableAlbums;
 	private bool runGenreMarketV2Probes;
+	private bool runArtistPopulationLifecycleProbes;
 	private AILabel forcedDealClient;
 	private AILabel forcedDealDistributor;
 	private float forcedDealInitialAdvance;
@@ -230,9 +239,14 @@ public partial class ChartAuditRunner : Node {
 			if (disableDistributionDeals) CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);
 			if (disableAlbums) CompetitorManager.Instance.SetAlbumsEnabled(false);
 			if (runGenreMarketV2Probes) foreach (string result in GenreMarketV2ProbeSuite.Run()) GD.Print("D5_PROBE_PASS: " + result);
+			if (runArtistPopulationLifecycleProbes) {
+				if (!ArtistPopulationLifecycle.Enabled) throw new InvalidOperationException("Artist population lifecycle probes require --enable-artist-population-lifecycle.");
+				foreach (string result in ArtistPopulationLifecycleProbeSuite.Run()) GD.Print("D6_PROBE_PASS: " + result);
+			}
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
+			if (ArtistPopulationLifecycle.Enabled && ArtistManager.Instance != null) ArtistManager.Instance.OnPopulationEvent += WriteArtistPopulationEvent;
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
@@ -244,10 +258,13 @@ public partial class ChartAuditRunner : Node {
 			InitializeObservedState();
 
 			var annualWallTime = Stopwatch.StartNew();
-			for (int week = 1; week <= requestedWeeks; week++) {
-				currentAuditWeek = week;
-				AdvanceOneChartWeek();
-				long captureProfileStart = SimulationPerformanceProfiler.Begin();
+		for (int week = 1; week <= requestedWeeks; week++) {
+			currentAuditWeek = week;
+			AdvanceOneChartWeek();
+			// The live tick has completed; run the idempotent roster ownership sweep
+			// before recording lifecycle telemetry for this week.
+			RosterManager.Instance?.ReconcileEnabledLifecycleForCurrentWeek();
+			long captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
 				if (week % 52 == 0) {
@@ -316,6 +333,8 @@ public partial class ChartAuditRunner : Node {
 				disableAlbums = true;
 			} else if (argument == "--genre-market-v2-probes") {
 				runGenreMarketV2Probes = true;
+			} else if (argument == "--artist-population-lifecycle-probes") {
+				runArtistPopulationLifecycleProbes = true;
 			}
 		}
 
@@ -445,6 +464,15 @@ public partial class ChartAuditRunner : Node {
 		supplySelectionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-supply-selections.csv"));
 		genreEventsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-genre-events.csv"));
 		specialProductsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-special-products.csv"));
+		if (GenreMarketV2.Enabled) rosterLifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-roster-lifecycle.csv"));
+		if (ArtistPopulationLifecycle.Enabled && GenreMarketV2.Enabled)
+			labelScoutingVacancyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-scouting-vacancy-weekly.csv"));
+		if (ArtistPopulationLifecycle.Enabled) {
+			artistPopulationEventsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-population-events.csv"));
+			artistPopulationWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-population-weekly.csv"));
+			artistCohortAnnualWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-cohort-annual.csv"));
+			artistProjectIdentityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-project-identity.csv"));
+		}
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
@@ -492,6 +520,12 @@ public partial class ChartAuditRunner : Node {
 		supplySelectionWriter.WriteLine("week,year,labelId,artistId,artistIdentity,chosenProjectGenre,selectionMode");
 		genreEventsWriter.WriteLine("seed,enabled,year,month,week,eventType,sourceRecordId,recipientGenreId,donorGenreId,field,amount,detail");
 		specialProductsWriter.WriteLine("seed,enabled,year,recordId,subtype,externalProfile,correlatedProfileBucket,costs,promotion,tieIn,units,chartResult,catalogTail,financialReconciliation");
+		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
+		labelScoutingVacancyWriter?.WriteLine("week,year,labelId,labelTier,maxRosterSize,rosterSize,unusedRosterSlots,isEmptyRoster,consecutiveVacancyWeeks,consecutiveEmptyWeeks,scoutingAbility,rosterFullness,hasRecentHit,recentHitFactor,decliningArtistCount,decliningFactor,estimatedAdvance,canAffordEstimatedAdvance,computedScoutProbability,scoutRandomRoll,scoutingGatePassed,eligibleCandidateCount,bestCandidateScore,signingAttempted,signingSucceeded,signingKind,failureReason,scoutingRosterSize,scoutingUnusedRosterSlots,scoutingIsEmptyRoster");
+		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,labelId,labelTier,dropReason,contractSequence,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
+		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
+		artistCohortAnnualWriter?.WriteLine("year,cohort,formationPrimaryGenre,lifecycleStatus,currentRosterTier,count,firstTimeSignings,repeatSignings,releases,activeUnsigned,medianActAge,medianMemberAge,inactivityCount,retirementCount,disbandmentCount,activePopulationShare,signedRosterShare");
+		artistProjectIdentityWriter?.WriteLine("week,year,recordId,projectId,artistId,formedYear,cohort,formationPrimaryGenre,currentArtistGenre,projectGenre,nativeIdentityProject,transitionedProject,labelId,labelTier,format");
 		WriteGenreCatalogRows();
 		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
@@ -801,7 +835,8 @@ public partial class ChartAuditRunner : Node {
 			F(strategy.singleFormatTilt), F(strategy.albumFormatTilt), F(strategy.singleProductionCost), F(strategy.albumProductionCost),
 			F(strategy.singleMemoryEma), F(strategy.albumMemoryEma), F(strategy.confidenceSingle), F(strategy.confidenceAlbum),
 			F(strategy.singleMemoryBlend), F(strategy.albumMemoryBlend), F(strategy.singleNoiseMultiplier), F(strategy.albumNoiseMultiplier),
-			F(strategy.projectedSingleNet), F(strategy.projectedAlbumNet), "LabelFormat", string.Empty
+			F(strategy.projectedSingleNet), F(strategy.projectedAlbumNet),
+			strategy.labelFormatMemoryBypassed ? "ProjectPrior" : "LabelFormat", string.Empty
 		}));
 		EnsureDecadeAnnualYear(year);
 		bool careerTransitionThisYear = ObserveCareerTransition(strategy.artistId, strategy.careerState, year);
@@ -1138,6 +1173,9 @@ public partial class ChartAuditRunner : Node {
 		WriteLabelFinanceRows(week, date.year);
 		WriteMarketRevenueRows(week, date.year, records);
 		WriteReleaseCapacityRow(week, date.year);
+		WriteRosterLifecycleRows(week, date.year);
+		WriteLabelScoutingVacancyRows(week, date.year);
+		WriteArtistPopulationRows(week, date.year, records);
 		WriteAlbumRows(week, date, records, albumChart);
 		WriteFormatMixRows(week, date.year, records);
 		WriteRevenueMemoryRows(week, date.year);
@@ -1169,6 +1207,190 @@ public partial class ChartAuditRunner : Node {
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;
+	}
+
+	private void WriteRosterLifecycleRows(int week, int year) {
+		if (rosterLifecycleWriter == null) return;
+		AILabel[] labels = ChartManager.Instance.GetAllLabels().Where(label => label?.roster != null).ToArray();
+		var membershipCounts = new Dictionary<SimulatedArtist, int>();
+		foreach (AILabel label in labels) {
+			foreach (SimulatedArtist artist in label.roster.Where(artist => artist != null))
+				membershipCounts[artist] = membershipCounts.GetValueOrDefault(artist) + 1;
+		}
+		ArtistManager artists = ArtistManager.Instance;
+		RosterManager roster = RosterManager.Instance;
+		CompetitorManager competitors = CompetitorManager.Instance;
+		int freeAgentPoolSize = artists?.GetEnabledFreeAgentPoolSize() ?? 0;
+		int duplicatePoolEntries = artists?.GetEnabledDuplicatePoolEntries() ?? 0;
+		int poolOwnershipConflicts = artists?.GetEnabledPoolOwnershipConflicts() ?? 0;
+		int totalRosterSize = 0;
+		int totalEmptyRosters = 0;
+		int totalEligible = 0;
+		int totalTerminalRostered = 0;
+		int totalOwnershipConflicts = poolOwnershipConflicts;
+		int totalDrops = 0;
+		int totalFirstTimeSignings = 0;
+		int totalReSignings = 0;
+		int totalUniqueReSignings = 0;
+		int totalShortWindowRedrops = 0;
+		int totalScoutingGatePasses = 0;
+		int totalSigningAttempts = 0;
+		int totalCandidateRejections = 0;
+		int totalAffordabilityRejections = 0;
+		int totalAttempts = 0;
+		int totalSuccessful = 0;
+		int totalSelectionFailures = 0;
+		foreach (LabelTier tier in new[] { LabelTier.Major, LabelTier.MidTier, LabelTier.Independent, LabelTier.Small, LabelTier.Boutique }) {
+			AILabel[] tierLabels = labels.Where(label => label.tier == tier).ToArray();
+			SimulatedArtist[] tierArtists = tierLabels.SelectMany(label => label.roster).Where(artist => artist != null).ToArray();
+			int rosterSize = tierArtists.Length;
+			int emptyRosters = tierLabels.Count(label => label.roster.Count == 0);
+			int eligible = tierLabels.Sum(label => label.CountArtistsEligibleForRelease(year));
+			int terminalRostered = tierArtists.Count(artist => GenreSupplyService.IsTerminalCareerState(artist.careerState));
+			int ownershipConflicts = tierArtists.Count(artist => artist.labelId != tierLabels.FirstOrDefault(label => label.roster.Contains(artist))?.labelId ||
+				membershipCounts.GetValueOrDefault(artist) != 1);
+			RosterManager.RosterLifecycleFlow rosterFlow = roster?.GetWeeklyLifecycleFlow(tier) ?? default;
+			CompetitorManager.ReleaseLifecycleFlow releaseFlow = competitors?.GetWeeklyReleaseLifecycleFlow(tier) ?? default;
+			WriteRosterLifecycleRow(week, year, tier.ToString(), rosterSize, emptyRosters, eligible, rosterFlow, freeAgentPoolSize,
+				terminalRostered, ownershipConflicts, duplicatePoolEntries, releaseFlow);
+			totalRosterSize += rosterSize;
+			totalEmptyRosters += emptyRosters;
+			totalEligible += eligible;
+			totalTerminalRostered += terminalRostered;
+			totalOwnershipConflicts += ownershipConflicts;
+			totalDrops += rosterFlow.DropsToPool;
+			totalFirstTimeSignings += rosterFlow.FirstTimeSignings;
+			totalReSignings += rosterFlow.ReSignings;
+			totalUniqueReSignings += rosterFlow.UniqueReSignings;
+			totalShortWindowRedrops += rosterFlow.ShortWindowRedrops;
+			totalScoutingGatePasses += rosterFlow.ScoutingGatePasses;
+			totalSigningAttempts += rosterFlow.SigningAttempts;
+			totalCandidateRejections += rosterFlow.CandidateRejections;
+			totalAffordabilityRejections += rosterFlow.AffordabilityRejections;
+			totalAttempts += releaseFlow.Attempts;
+			totalSuccessful += releaseFlow.SuccessfulReleases;
+			totalSelectionFailures += releaseFlow.ArtistSelectionFailures;
+		}
+		WriteRosterLifecycleRow(week, year, "All", totalRosterSize, totalEmptyRosters, totalEligible,
+			new RosterManager.RosterLifecycleFlow(totalDrops, totalFirstTimeSignings, totalReSignings, totalUniqueReSignings,
+				totalShortWindowRedrops, totalScoutingGatePasses, totalSigningAttempts, totalCandidateRejections, totalAffordabilityRejections), freeAgentPoolSize,
+			totalTerminalRostered, totalOwnershipConflicts, duplicatePoolEntries,
+			new CompetitorManager.ReleaseLifecycleFlow(totalAttempts, totalSuccessful, totalSelectionFailures));
+	}
+
+	private void WriteArtistPopulationEvent(string eventType, SimulatedArtist artist) {
+		if (artistPopulationEventsWriter == null || artist == null) return;
+		int year = TimeManager.Instance?.CurrentDate.year ?? artist.formedYear;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		Musician lead = artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive);
+		AILabel label = ChartManager.Instance?.GetLabelById(artist.labelId);
+		artistPopulationEventsWriter.WriteLine(string.Join(",", new[] {
+			(SimulationSeedBootstrap.RequestedSeed ?? 0UL).ToString(CultureInfo.InvariantCulture), week.ToString(CultureInfo.InvariantCulture),
+			Csv(TimeManager.Instance?.CurrentDate.ToString()), Csv(eventType), Csv(artist.artistId), Csv(artist.type.ToString()), Csv(artist.cohort.ToString()),
+			artist.formedYear.ToString(CultureInfo.InvariantCulture), Csv(artist.formationPrimaryGenre.ToString()), Csv(artist.formationSecondaryGenre.ToString()),
+			Csv(artist.primaryGenre.ToString()), Csv(artist.homeRegion), Csv(artist.lifecycleStatus.ToString()), Csv(artist.careerState.ToString()),
+			Csv(artist.labelId), Csv(label?.tier.ToString() ?? ""), Csv(artist.lastDropReason.ToString()), artist.contractSequence.ToString(CultureInfo.InvariantCulture),
+			artist.contractStartWeek.ToString(CultureInfo.InvariantCulture), artist.contractTop40Hits.ToString(CultureInfo.InvariantCulture),
+			artist.contractConsecutiveFlops.ToString(CultureInfo.InvariantCulture), artist.contractCompletedChartRuns.ToString(CultureInfo.InvariantCulture),
+			ArtistManager.Instance.GetWeeksSincePerformanceDrop(artist, week).ToString(CultureInfo.InvariantCulture), artist.weeksContinuouslyUnowned.ToString(CultureInfo.InvariantCulture),
+			(year - artist.formedYear).ToString(CultureInfo.InvariantCulture), (lead?.GetAge(year) ?? 0).ToString(CultureInfo.InvariantCulture)
+		}));
+	}
+
+	private void WriteLabelScoutingVacancyRows(int week, int year) {
+		if (labelScoutingVacancyWriter == null || RosterManager.Instance == null) return;
+		RosterManager.Instance.FinalizeScoutingVacancyTelemetryForCapture();
+		foreach (RosterManager.LabelScoutingVacancyObservation observation in RosterManager.Instance.GetWeeklyScoutingVacancyObservations()) {
+			labelScoutingVacancyWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(observation.LabelId), Csv(observation.LabelTier.ToString()),
+				observation.MaxRosterSize.ToString(CultureInfo.InvariantCulture), observation.RosterSize.ToString(CultureInfo.InvariantCulture),
+				observation.UnusedRosterSlots.ToString(CultureInfo.InvariantCulture), observation.IsEmptyRoster ? "true" : "false",
+				observation.ConsecutiveVacancyWeeks.ToString(CultureInfo.InvariantCulture), observation.ConsecutiveEmptyWeeks.ToString(CultureInfo.InvariantCulture),
+				F(observation.ScoutingAbility), F(observation.ScoutingRosterFullness), observation.HasRecentHit ? "true" : "false", F(observation.RecentHitFactor),
+				observation.DecliningArtistCount.ToString(CultureInfo.InvariantCulture), F(observation.DecliningFactor), F(observation.EstimatedAdvance),
+				observation.CanAffordEstimatedAdvance ? "true" : "false", F(observation.ComputedScoutProbability),
+				observation.ScoutRandomRoll.HasValue ? F(observation.ScoutRandomRoll.Value) : "", observation.ScoutingGatePassed ? "true" : "false",
+				observation.EligibleCandidateCount?.ToString(CultureInfo.InvariantCulture) ?? "", observation.BestCandidateScore.HasValue ? F(observation.BestCandidateScore.Value) : "",
+				observation.SigningAttempted ? "true" : "false", observation.SigningSucceeded ? "true" : "false", Csv(observation.SigningKind), Csv(observation.FailureReason),
+				observation.ScoutingRosterSize.ToString(CultureInfo.InvariantCulture), observation.ScoutingUnusedRosterSlots.ToString(CultureInfo.InvariantCulture), observation.ScoutingIsEmptyRoster ? "true" : "false"
+			}));
+		}
+	}
+
+	private void WriteArtistPopulationRows(int week, int year, List<RecordRuntimeData> records) {
+		if (artistPopulationWeeklyWriter == null) return;
+		ArtistManager manager = ArtistManager.Instance;
+		SimulatedArtist[] artists = manager.GetAllArtists().OrderBy(artist => artist.artistId, StringComparer.Ordinal).ToArray();
+		AILabel[] labels = ChartManager.Instance.GetAllLabels().Where(label => label != null).ToArray();
+		var memberships = labels.SelectMany(label => label.roster ?? new List<SimulatedArtist>())
+			.Where(artist => artist != null).GroupBy(artist => artist).ToDictionary(group => group.Key, group => group.Count());
+		int currentWeek = ChartManager.Instance.GetCurrentChartWeek();
+		IEnumerable<(string Tier, SimulatedArtist[] Scope)> scopes = new[] { ("All", artists) }.Concat(
+			labels.GroupBy(label => label.tier).Select(group => (group.Key.ToString(), artists.Where(artist => labels.Any(label => label.tier == group.Key && label.roster.Contains(artist))).ToArray())));
+		foreach ((string tier, SimulatedArtist[] scope) in scopes) {
+			int rostered = scope.Count(artist => !string.IsNullOrEmpty(artist.labelId));
+			int eligibleDropped = scope.Count(artist => artist.careerState == CareerState.Dropped && manager.IsEligibleForPopulationSigning(artist, currentWeek));
+			int cooldown = scope.Count(artist => artist.careerState == CareerState.Dropped && artist.lastDropReason == ArtistDropReason.Performance && !manager.IsEligibleForPopulationSigning(artist, currentWeek));
+			int duplicates = memberships.Where(pair => pair.Value > 1 && scope.Contains(pair.Key)).Sum(pair => pair.Value - 1);
+			RosterManager.RosterLifecycleFlow flow = tier == "All"
+				? RosterManager.Instance.GetAggregateWeeklyLifecycleFlow()
+				: RosterManager.Instance.GetWeeklyLifecycleFlow(Enum.Parse<LabelTier>(tier));
+			int terminalRostered = scope.Count(artist => !string.IsNullOrEmpty(artist.labelId) &&
+				(GenreSupplyService.IsTerminalCareerState(artist.careerState) || artist.lifecycleStatus is ArtistLifecycleStatus.Retired or ArtistLifecycleStatus.Disbanded));
+			int terminalReleaseEligible = scope.Count(artist => GenreSupplyService.IsTerminalCareerState(artist.careerState) &&
+				GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist));
+			artistPopulationWeeklyWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(tier), scope.Length.ToString(CultureInfo.InvariantCulture),
+				scope.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Active).ToString(CultureInfo.InvariantCulture), rostered.ToString(CultureInfo.InvariantCulture),
+				scope.Count(artist => artist.careerState == CareerState.Unsigned && string.IsNullOrEmpty(artist.labelId)).ToString(CultureInfo.InvariantCulture), eligibleDropped.ToString(CultureInfo.InvariantCulture), cooldown.ToString(CultureInfo.InvariantCulture),
+				scope.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Inactive).ToString(CultureInfo.InvariantCulture), scope.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Retired).ToString(CultureInfo.InvariantCulture), scope.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Disbanded).ToString(CultureInfo.InvariantCulture),
+				(tier == "All" ? manager.FormedThisWeek : 0).ToString(CultureInfo.InvariantCulture), (tier == "All" ? manager.FormedYtd : 0).ToString(CultureInfo.InvariantCulture),
+				flow.FirstTimeSignings.ToString(CultureInfo.InvariantCulture), flow.ReSignings.ToString(CultureInfo.InvariantCulture),
+				flow.PerformanceDrops.ToString(CultureInfo.InvariantCulture), flow.OtherDepartures.ToString(CultureInfo.InvariantCulture),
+				flow.RecentPerformanceReSignings.ToString(CultureInfo.InvariantCulture), flow.PrematureProbationDrops.ToString(CultureInfo.InvariantCulture),
+				flow.NoEligibleCandidatePasses.ToString(CultureInfo.InvariantCulture), flow.ScoreRejections.ToString(CultureInfo.InvariantCulture),
+				flow.AffordabilityRejections.ToString(CultureInfo.InvariantCulture), manager.GetEnabledPoolOwnershipConflicts().ToString(CultureInfo.InvariantCulture),
+				duplicates.ToString(CultureInfo.InvariantCulture), manager.GetEnabledDuplicatePoolEntries().ToString(CultureInfo.InvariantCulture),
+				terminalRostered.ToString(CultureInfo.InvariantCulture), terminalReleaseEligible.ToString(CultureInfo.InvariantCulture)
+			}));
+		}
+		foreach (RecordRuntimeData record in records.Where(record => record?.baseRecord != null && observedPopulationProjectIds.Add(record.baseRecord.recordId))) {
+			SimulatedArtist artist = manager.GetArtist(record.baseRecord.artistId);
+			if (artist == null) continue;
+			AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
+			bool native = record.baseRecord.primaryGenre == artist.formationPrimaryGenre;
+			artistProjectIdentityWriter.WriteLine(string.Join(",", new[] { week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(record.baseRecord.recordId), Csv(record.albumProjectId), Csv(artist.artistId), artist.formedYear.ToString(CultureInfo.InvariantCulture), Csv(artist.cohort.ToString()), Csv(artist.formationPrimaryGenre.ToString()), Csv(artist.primaryGenre.ToString()), Csv(record.baseRecord.primaryGenre.ToString()), native ? "true" : "false", native ? "false" : "true", Csv(record.baseRecord.labelId), Csv(label?.tier.ToString() ?? ""), Csv(record.baseRecord.format.ToString()) }));
+		}
+		if (week % 52 != 0) return;
+		int active = artists.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Active);
+		int signed = artists.Count(artist => !string.IsNullOrEmpty(artist.labelId));
+		foreach (var group in artists.GroupBy(artist => (artist.cohort, artist.formationPrimaryGenre, artist.lifecycleStatus, Tier: ChartManager.Instance.GetLabelById(artist.labelId)?.tier.ToString() ?? "Unsigned"))) {
+			SimulatedArtist[] cohort = group.ToArray();
+			artistCohortAnnualWriter.WriteLine(string.Join(",", new[] { year.ToString(CultureInfo.InvariantCulture), Csv(group.Key.cohort.ToString()), Csv(group.Key.formationPrimaryGenre.ToString()), Csv(group.Key.lifecycleStatus.ToString()), Csv(group.Key.Tier), cohort.Length.ToString(CultureInfo.InvariantCulture), "0", "0", cohort.Sum(artist => artist.totalReleases).ToString(CultureInfo.InvariantCulture), cohort.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(artist.labelId)).ToString(CultureInfo.InvariantCulture), Median(cohort.Select(artist => year - artist.formedYear)).ToString(CultureInfo.InvariantCulture), Median(cohort.SelectMany(artist => artist.members).Select(member => member.GetAge(year))).ToString(CultureInfo.InvariantCulture), cohort.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Inactive).ToString(CultureInfo.InvariantCulture), cohort.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Retired).ToString(CultureInfo.InvariantCulture), cohort.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Disbanded).ToString(CultureInfo.InvariantCulture), F(active == 0 ? 0f : (float)cohort.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Active) / active), F(signed == 0 ? 0f : (float)cohort.Count(artist => !string.IsNullOrEmpty(artist.labelId)) / signed) }));
+		}
+	}
+
+	private static int Median(IEnumerable<int> values) {
+		int[] ordered = values.OrderBy(value => value).ToArray();
+		return ordered.Length == 0 ? 0 : ordered[ordered.Length / 2];
+	}
+
+	private void WriteRosterLifecycleRow(int week, int year, string tier, int rosterSize, int emptyRosters, int releaseEligible,
+		RosterManager.RosterLifecycleFlow rosterFlow, int freeAgentPoolSize, int terminalRostered, int ownershipConflicts,
+		int duplicatePoolEntries, CompetitorManager.ReleaseLifecycleFlow releaseFlow) {
+		rosterLifecycleWriter.WriteLine(string.Join(",", new[] {
+			week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(tier),
+			rosterSize.ToString(CultureInfo.InvariantCulture), emptyRosters.ToString(CultureInfo.InvariantCulture),
+			releaseEligible.ToString(CultureInfo.InvariantCulture),
+			rosterFlow.DropsToPool.ToString(CultureInfo.InvariantCulture), rosterFlow.FirstTimeSignings.ToString(CultureInfo.InvariantCulture),
+			rosterFlow.ReSignings.ToString(CultureInfo.InvariantCulture), rosterFlow.UniqueReSignings.ToString(CultureInfo.InvariantCulture),
+			rosterFlow.ShortWindowRedrops.ToString(CultureInfo.InvariantCulture), rosterFlow.ScoutingGatePasses.ToString(CultureInfo.InvariantCulture),
+			rosterFlow.SigningAttempts.ToString(CultureInfo.InvariantCulture), rosterFlow.CandidateRejections.ToString(CultureInfo.InvariantCulture),
+			rosterFlow.AffordabilityRejections.ToString(CultureInfo.InvariantCulture), freeAgentPoolSize.ToString(CultureInfo.InvariantCulture),
+			terminalRostered.ToString(CultureInfo.InvariantCulture), ownershipConflicts.ToString(CultureInfo.InvariantCulture),
+			duplicatePoolEntries.ToString(CultureInfo.InvariantCulture), releaseFlow.Attempts.ToString(CultureInfo.InvariantCulture),
+			releaseFlow.SuccessfulReleases.ToString(CultureInfo.InvariantCulture), releaseFlow.ArtistSelectionFailures.ToString(CultureInfo.InvariantCulture)
+		}));
 	}
 
 	private void CaptureSeasonalityMonth(GameDate date, List<RecordRuntimeData> records) {
@@ -1845,6 +2067,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void FlushAndClose() {
 		if (ChartManager.Instance != null) ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
+		if (ArtistManager.Instance != null) ArtistManager.Instance.OnPopulationEvent -= WriteArtistPopulationEvent;
 		if (CompetitorManager.Instance != null) {
 			CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy -= OnReleaseStrategy;
@@ -1899,6 +2122,12 @@ public partial class ChartAuditRunner : Node {
 		supplySelectionWriter?.Dispose();
 		genreEventsWriter?.Dispose();
 		specialProductsWriter?.Dispose();
+		rosterLifecycleWriter?.Dispose();
+		labelScoutingVacancyWriter?.Dispose();
+		artistPopulationEventsWriter?.Dispose();
+		artistPopulationWeeklyWriter?.Dispose();
+		artistCohortAnnualWriter?.Dispose();
+		artistProjectIdentityWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -1945,5 +2174,11 @@ public partial class ChartAuditRunner : Node {
 		supplySelectionWriter = null;
 		genreEventsWriter = null;
 		specialProductsWriter = null;
+		rosterLifecycleWriter = null;
+		labelScoutingVacancyWriter = null;
+		artistPopulationEventsWriter = null;
+		artistPopulationWeeklyWriter = null;
+		artistCohortAnnualWriter = null;
+		artistProjectIdentityWriter = null;
 	}
 }

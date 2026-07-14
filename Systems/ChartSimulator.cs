@@ -1,4 +1,5 @@
 // Scripts/Systems/ChartSimulator.cs
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -347,6 +348,59 @@ public static class ChartSimulator {
 		int raw = Mathf.RoundToInt(10000f * access * localDepth * strongDepth * careerScale * perceivedQualityMultiplier * noise * reachFactor);
 		int floor = isHome || strong ? 100 : 0;
 		return Mathf.Max(floor, raw);
+	}
+
+	/// <summary>
+	/// Redistributes already-drawn per-region stock. Callers use this after their
+	/// established launch loop so disabled execution retains its exact RNG order.
+	/// </summary>
+	public static IReadOnlyDictionary<string, int> RedistributeInitialRegionalStockAllocation(Genre primaryGenre, int year,
+		bool live, IEnumerable<MarketRegion> regions, IReadOnlyDictionary<string, int> baselineStock) {
+		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
+		int[] baseline = regionArray.Select(region => baselineStock?.GetValueOrDefault(region.regionId) ?? 0).ToArray();
+		int[] allocated = AllocateSpecialistInitialStock(primaryGenre, year, live,
+			regionArray.Select(region => region.regionId).ToArray(), baseline);
+		var result = new Dictionary<string, int>(regionArray.Length, System.StringComparer.Ordinal);
+		for (int i = 0; i < regionArray.Length; i++) result[regionArray[i].regionId] = allocated[i];
+		return result;
+	}
+
+	internal static int[] AllocateSpecialistInitialStockForProbe(Genre primaryGenre, int year, bool live,
+		IReadOnlyList<string> regionIds, IReadOnlyList<int> baselineStock) =>
+		AllocateSpecialistInitialStock(primaryGenre, year, live, regionIds, baselineStock);
+
+	private static int[] AllocateSpecialistInitialStock(Genre primaryGenre, int year, bool live,
+		IReadOnlyList<string> regionIds, IReadOnlyList<int> baselineStock) {
+		int count = System.Math.Min(regionIds?.Count ?? 0, baselineStock?.Count ?? 0);
+		var unchanged = Enumerable.Range(0, count).Select(index => System.Math.Max(0, baselineStock[index])).ToArray();
+		Genre canonical = GenreCatalog.MapLegacy(primaryGenre, year);
+		if (!live || !GenreAcceptanceService.IsSpecialistFulfillmentGenre(canonical) || count == 0) return unchanged;
+
+		int nationalBudget = unchanged.Sum();
+		if (nationalBudget <= 0) return unchanged;
+		var weighted = new float[count];
+		float weightedTotal = 0f;
+		for (int i = 0; i < count; i++) {
+			weighted[i] = unchanged[i] * GenreAcceptanceService.GetCenteredSpecialistTextureForProbe(canonical, year, regionIds[i]);
+			weightedTotal += weighted[i];
+		}
+		if (weightedTotal <= 0f) return unchanged;
+
+		var allocated = new int[count];
+		var remainders = new float[count];
+		int assigned = 0;
+		for (int i = 0; i < count; i++) {
+			float exact = nationalBudget * weighted[i] / weightedTotal;
+			allocated[i] = Mathf.FloorToInt(exact);
+			remainders[i] = exact - allocated[i];
+			assigned += allocated[i];
+		}
+		foreach (int index in Enumerable.Range(0, count).OrderByDescending(index => remainders[index]).ThenBy(index => index)) {
+			if (assigned >= nationalBudget) break;
+			allocated[index]++;
+			assigned++;
+		}
+		return allocated;
 	}
 
 	private static void UpdateLabelPush(RecordRuntimeData record, AILabel label) {

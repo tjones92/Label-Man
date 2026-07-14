@@ -30,6 +30,17 @@ public static class GenreSupplyService {
 	public static bool IsEligibleExistingArtistForRelease(SimulatedArtist artist) => artist != null && artist.isActive;
 
 	/// <summary>
+	/// Terminal career states are never valid live-release candidates.  This is
+	/// deliberately separate from the legacy predicate above: the disabled
+	/// replay keeps its historical selection and RNG boundary byte-for-byte.
+	/// </summary>
+	public static bool IsTerminalCareerState(CareerState state) => state is
+		CareerState.Dropped or CareerState.Disbanded or CareerState.Retired;
+
+	public static bool IsEligibleExistingArtistForEnabledRelease(SimulatedArtist artist) =>
+		IsEligibleExistingArtistForRelease(artist) && !IsTerminalCareerState(artist.careerState);
+
+	/// <summary>
 	/// Existing canonical identities may retain their genre even when the catalog
 	/// is not yet accepting new supply. Their authored pre-emergence baseline is
 	/// the seed-scene constraint; rerouting the identity would erase that

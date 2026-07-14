@@ -433,6 +433,9 @@ public static class GenreAcceptanceService {
 	}
 
 	private static bool IsSpecialist(Genre genre) => genre is Genre.Country or Genre.TexMex or Genre.Boogaloo;
+
+	/// <summary>Fixed specialist membership shared by the stock-service seam; this is not a live demand signal.</summary>
+	internal static bool IsSpecialistFulfillmentGenre(Genre genre) => IsSpecialist(genre);
 	// Fixed 1960 buying-population priors, derived from the seven authored region
 	// resources and their static purchasing-capacity inputs.  These are only used
 	// to center a texture; they never read release, sales, stock, chart, or momentum

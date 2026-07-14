@@ -15,6 +15,7 @@ public partial class ChartManager : Node {
 	[Export] private int prewarmWeeks = 8;
 	[Export] private bool marketSeasonalityEnabled = true;
 	[Export] private bool genreMarketV2Enabled = false;
+	[Export] private bool artistPopulationLifecycleEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -99,6 +100,7 @@ public partial class ChartManager : Node {
 		// prewarming can consume simulation state.
 		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
 		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
+		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
@@ -385,6 +387,9 @@ public partial class ChartManager : Node {
 		UpdateGenreMomentum();
 
 		CullDeadRecords(includeChartedRecords: currentChartWeek % 4 == 0);
+		// Directive 6 owns one explicit post-chart sequence.  Formation is never
+		// reached by prewarm because this method only runs on a live weekly tick.
+		ArtistManager.Instance?.AdvancePopulationLifecycle(date);
 	}
 
 
@@ -437,6 +442,10 @@ public partial class ChartManager : Node {
 		// durable canonical identities before any market calculation sees them.
 		if (GenreMarketV2.Enabled && currentChartWeek > 0) GenreMigration.Canonicalize(record);
 		var runtimeData = new RecordRuntimeData(record);
+		if (ArtistPopulationLifecycle.Enabled) {
+			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.artistId);
+			runtimeData.artistContractSequenceAtRelease = artist?.contractSequence ?? -1;
+		}
 		float perceivedQualityMult = 1f;
 		if (releasingLabel != null && !record.isPlayerOwned) {
 			float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
@@ -487,12 +496,14 @@ public partial class ChartManager : Node {
 		record.radioHeat += isAlbum ? 0f : campaignImpact * 0.12f;
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 
+		var initialStock = new Dictionary<string, int>(StringComparer.Ordinal);
 		foreach (var region in allRegions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
 
 			var data = record.regionalData[region.regionId];
 			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
 			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, isAlbum ? 0.45f : 1f, perceivedQualityMult);
+			initialStock[region.regionId] = units;
 			data.unitsInStores = units;
 
 			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
@@ -509,6 +520,12 @@ public partial class ChartManager : Node {
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
 			float genreFit = GetGenreFit(record.baseRecord.primaryGenre, region);
 			data.sentiment = (quality * 0.7f + genreFit * 0.3f) + (float)GD.RandRange(-0.05, 0.1);
+		}
+		IReadOnlyDictionary<string, int> allocatedStock = ChartSimulator.RedistributeInitialRegionalStockAllocation(
+			record.baseRecord.primaryGenre, TimeManager.Instance?.CurrentDate.year ?? 1960, genreMarketLive, allRegions, initialStock);
+		foreach (var region in allRegions) {
+			if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data))
+				data.unitsInStores = allocatedStock.GetValueOrDefault(region.regionId);
 		}
 
 		record.initialLaunchAwareness = record.awareness;
@@ -759,8 +776,10 @@ public partial class ChartManager : Node {
 				bool isCovered = label.HasDistributionInRegion(region.regionId);
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
+				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
+					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek);
 				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
-					data.breakoutScore >= 0.20f &&
+					(data.breakoutScore >= 0.20f || specialistUnchartedService) &&
 					(data.unitsBackordered > 250 || data.rawDemandThisWeek > data.unitsInStores * 0.45f);
 				bool chartedNeedsRestock = record.currentPosition > 0 &&
 					(data.unitsBackordered > 500 ||
@@ -813,6 +832,16 @@ public partial class ChartManager : Node {
 			}
 		}
 	}
+
+	/// <summary>
+	/// Specialist demand that has already produced a physical backorder may request
+	/// ordinary uncharted replenishment without first satisfying a broad-market
+	/// breakout score. It neither changes demand nor applies to disabled/prewarm
+	/// execution or non-specialist records.
+	/// </summary>
+	internal static bool IsSpecialistUnchartedRestockEligible(Genre primaryGenre, bool live, int backorders, float rawDemand) =>
+		live && GenreAcceptanceService.IsSpecialistFulfillmentGenre(primaryGenre) &&
+		backorders > 0 && rawDemand > 0f;
 
 	// Legacy method for external calls
 	public void CalculateChart() {

@@ -14,6 +14,9 @@ public class SimulatedArtist {
 	public Genre secondaryGenre;
 	public string homeRegion;
 	public int formedYear;
+	public ArtistCohort cohort = ArtistCohort.InitialLegacy;
+	public Genre formationPrimaryGenre;
+	public Genre formationSecondaryGenre;
 
 	public float vocalPower;
 	public float musicianship;
@@ -28,6 +31,19 @@ public class SimulatedArtist {
 	public int signedYear;
 	public bool isActive = true;
 	public string disbandReason;
+	public ArtistLifecycleStatus lifecycleStatus = ArtistLifecycleStatus.Active;
+	public ArtistDropReason lastDropReason = ArtistDropReason.Voluntary;
+	public int lastPerformanceDropWeek = -1;
+	public int weeksContinuouslyUnowned;
+	public int inactiveSinceWeek = -1;
+
+	// These counters intentionally coexist with lifetime career counters.  They
+	// are reset only by a free-agent signing, never by a same-label renewal.
+	public int contractSequence;
+	public int contractStartWeek = -1;
+	public int contractTop40Hits;
+	public int contractConsecutiveFlops;
+	public int contractCompletedChartRuns;
 
 	public float momentum;
 	public float reputation;
@@ -99,12 +115,12 @@ public class SimulatedArtist {
 		return Mathf.Clamp(baseQuality + variance + luck, 0f, 1f);
 	}
 
-	public void UpdateAfterChartRun(int peakPosition, int weeksOnChart, int unitsSold) {
+	public void UpdateAfterChartRun(int peakPosition, int weeksOnChart, int unitsSold, bool creditCurrentContract = true) {
 		if (peakPosition > 0 && peakPosition <= 100) RegisterChartEntry();
-		if (peakPosition > 0 && peakPosition <= 40) RegisterTop40Hit();
+		if (peakPosition > 0 && peakPosition <= 40) RegisterTop40Hit(creditCurrentContract);
 		if (peakPosition > 0 && peakPosition <= 10) RegisterTop10Hit();
 		if (peakPosition == 1) RegisterNumberOne();
-		CompleteChartRun(peakPosition, weeksOnChart, unitsSold);
+		CompleteChartRun(peakPosition, weeksOnChart, unitsSold, creditCurrentContract);
 	}
 
 	public void RegisterChartEntry() {
@@ -112,12 +128,13 @@ public class SimulatedArtist {
 		UpdateCareerState();
 	}
 
-	public void RegisterTop40Hit() {
+	public void RegisterTop40Hit(bool creditCurrentContract = true) {
 		top40Hits++;
 		consecutiveHits++;
 		consecutiveFlops = 0;
 		momentum = Mathf.Clamp(momentum + 0.02f, 0f, 1f);
 		reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
+		if (ArtistPopulationLifecycle.Enabled && careerState == CareerState.NewSigning && creditCurrentContract) contractTop40Hits++;
 		UpdateCareerState();
 	}
 
@@ -134,12 +151,14 @@ public class SimulatedArtist {
 		UpdateCareerState();
 	}
 
-	public void CompleteChartRun(int peakPosition, int weeksOnChart, int unitsSold) {
+	public void CompleteChartRun(int peakPosition, int weeksOnChart, int unitsSold, bool creditCurrentContract = true) {
 		totalUnitsSold += unitsSold;
 		if (peakPosition == 0 || peakPosition > 60) {
 			consecutiveFlops++;
 			consecutiveHits = 0;
+			if (ArtistPopulationLifecycle.Enabled && careerState == CareerState.NewSigning && creditCurrentContract) contractConsecutiveFlops++;
 		}
+		if (ArtistPopulationLifecycle.Enabled && careerState == CareerState.NewSigning && creditCurrentContract) contractCompletedChartRuns++;
 		if (peakPosition > 40) {
 			float penalty = peakPosition <= 60 ? -0.05f : peakPosition <= 100 ? -0.10f : -0.15f;
 			momentum = Mathf.Clamp(momentum + penalty, 0f, 1f);
@@ -151,8 +170,8 @@ public class SimulatedArtist {
 	private void UpdateCareerState() {
 		careerState = careerState switch {
 			CareerState.Unsigned => careerState,
-			CareerState.NewSigning when top40Hits >= 1 => CareerState.Rising,
-			CareerState.NewSigning when consecutiveFlops >= 2 => CareerState.Dropped,
+			CareerState.NewSigning when (ArtistPopulationLifecycle.Enabled ? contractTop40Hits : top40Hits) >= 1 => CareerState.Rising,
+			CareerState.NewSigning when (ArtistPopulationLifecycle.Enabled ? contractConsecutiveFlops : consecutiveFlops) >= 2 => CareerState.Dropped,
 			CareerState.Rising when top10Hits >= 2 => CareerState.Established,
 			CareerState.Rising when consecutiveFlops >= 2 => CareerState.Declining,
 			CareerState.Established when consecutiveHits >= 3 && numberOnes >= 1 => CareerState.Star,
@@ -203,3 +222,7 @@ public class SimulatedArtist {
 public enum CareerState {
 	Unsigned, NewSigning, Rising, Established, Star, Superstar, Declining, Dropped, Disbanded, Retired
 }
+
+public enum ArtistLifecycleStatus { Active, Inactive, Retired, Disbanded }
+public enum ArtistDropReason { Performance, ContractExpired, LabelClosure, Financial, Voluntary, LifecycleReconciliation }
+public enum ArtistCohort { InitialLegacy, RuntimeFormation }
