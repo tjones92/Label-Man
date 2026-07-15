@@ -3,4 +3,6 @@
 /android/
 
 # Scratch output from the removable headless chart-realism audit harness.
-/SimLogs/
+# Keep Godot's ignore marker tracked so the editor never imports this archive.
+/SimLogs/*
+!/SimLogs/.gdignore

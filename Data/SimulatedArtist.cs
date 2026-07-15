@@ -15,6 +15,12 @@ public class SimulatedArtist {
 	public string homeRegion;
 	public int formedYear;
 	public ArtistCohort cohort = ArtistCohort.InitialLegacy;
+	// Participation in the enabled first-contract labor market is intentionally
+	// distinct from lifecycle, career, and ownership state.
+	public ProspectMarketStatus prospectMarketStatus = ProspectMarketStatus.NotProspect;
+	public ProspectMarketStatus prospectMarketStatusBeforeContract = ProspectMarketStatus.NotProspect;
+	public int prospectSeekingWeeks;
+	public int prospectMarketSpellCount;
 	public Genre formationPrimaryGenre;
 	public Genre formationSecondaryGenre;
 
@@ -279,4 +285,5 @@ public enum CareerState {
 public enum ArtistLifecycleStatus { Active, Inactive, Retired, Disbanded }
 public enum ArtistPerformanceEvaluationMode { FirstContractProbation, ExperiencedComebackProbation, NormalCareer }
 public enum ArtistDropReason { Performance, PerformanceExhaustion, ContractExpired, LabelClosure, Financial, Voluntary, LifecycleReconciliation }
-public enum ArtistCohort { InitialLegacy, RuntimeFormation }
+public enum ArtistCohort { InitialLegacy, EnabledInitialReserve, RuntimeFormation }
+public enum ProspectMarketStatus { NotProspect, Latent, Seeking }

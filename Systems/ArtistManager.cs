@@ -52,10 +52,32 @@ public partial class ArtistManager : Node {
 	private int formedYtd;
 	private bool generatingRuntimePopulation;
 	private bool generatingInitialReserve;
+	private LaborMarketWeeklySnapshot laborMarketWeekly = new();
 	private bool UsesPopulationRng => generatingRuntimePopulation || generatingInitialReserve;
 
 	public int FormedThisWeek => formedThisWeek;
 	public int FormedYtd => formedYtd;
+	public LaborMarketWeeklySnapshot GetLaborMarketWeeklySnapshot() => laborMarketWeekly;
+
+	/// <summary>Pre-contract facts and the resulting classification from the sole signing reconciliation seam.</summary>
+	public readonly struct SigningTransition {
+		public readonly int PriorContractSequence;
+		public readonly CareerState PriorCareerState;
+		public readonly ArtistDropReason PriorDropReason;
+		public readonly ProspectMarketStatus PriorProspectMarketStatus;
+		public readonly bool WasDroppedFreeAgent;
+		public readonly bool WasFirstContractProspect;
+		public readonly bool IsFreeAgentSigning;
+		public readonly bool IsReSigning;
+		public SigningTransition(int priorContractSequence, CareerState priorCareerState, ArtistDropReason priorDropReason,
+			ProspectMarketStatus priorProspectMarketStatus, bool wasDroppedFreeAgent, bool wasFirstContractProspect,
+			bool isFreeAgentSigning, bool isReSigning) {
+			PriorContractSequence = priorContractSequence; PriorCareerState = priorCareerState; PriorDropReason = priorDropReason;
+			PriorProspectMarketStatus = priorProspectMarketStatus; WasDroppedFreeAgent = wasDroppedFreeAgent;
+			WasFirstContractProspect = wasFirstContractProspect; IsFreeAgentSigning = isFreeAgentSigning; IsReSigning = isReSigning;
+		}
+	}
+
 	public IReadOnlyCollection<SimulatedArtist> GetAllArtists() => artistRegistry.Values;
 	public event System.Action<string, SimulatedArtist> OnPopulationEvent;
 	private void EmitPopulationEvent(string eventType, SimulatedArtist artist) {
@@ -107,6 +129,34 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 }
 
+/// <summary>Enabled-only aggregate stock/flow accounting captured at the weekly population boundary.</summary>
+public sealed class LaborMarketWeeklySnapshot {
+	public int registryPopulation;
+	public int initialLegacyPopulation;
+	public int enabledInitialReservePopulation;
+	public int runtimeFormationPopulation;
+	public int activeRostered;
+	public int experiencedFreeAgents;
+	public int freshSeeking;
+	public int freshLatent;
+	public int affordableHiringOpportunityLabels;
+	public int requestedProspectActivations;
+	public int actualProspectActivations;
+	public int prospectSearchSpellExpirations;
+	public float meanSeekingQuality;
+	public float meanLatentQuality;
+	public float activationMeanQuality;
+	public float activationQ1;
+	public float activationQ2;
+	public float activationQ3;
+	public float activationQ4;
+	public int maxProspectMarketSpellCount;
+	public int duplicateSeekingEntries;
+	public int latentUnsignedPoolEntries;
+	public int seekingMissingFromUnsignedPool;
+	public int prospectStatusContractConflicts;
+}
+
 
 
 	private void OnRecordLeftChart(RecordRuntimeData record) {
@@ -150,13 +200,23 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	}
 
 	public void MaterializeEnabledInitialUnsignedReserve(int year) {
-		if (!ArtistPopulationLifecycle.Enabled) return;
+		if (!ArtistPopulationLifecycle.ShouldMaterializeInitialReserveFor(ArtistPopulationLifecycle.Enabled,
+			ArtistPopulationLifecycle.SuppressInitialReserve)) return;
 		int reserveCount = Mathf.Max(0, enabledLifecycleInitialPoolSize - artistRegistry.Count);
 		if (reserveCount == 0) return;
 		EnsurePopulationRng();
 		generatingInitialReserve = true;
 		try { GenerateInitialArtists(reserveCount, year); }
 		finally { generatingInitialReserve = false; }
+		// The legacy launch allocation stays searchable if it survived initial
+		// roster allocation. The new reserve remains population, not a shelf.
+		foreach (SimulatedArtist artist in unsignedArtists.Where(artist => artist.contractSequence == 0 &&
+			artist.cohort == ArtistCohort.InitialLegacy).ToArray()) artist.prospectMarketStatus = ProspectMarketStatus.Seeking;
+		foreach (SimulatedArtist artist in artistRegistry.Values.Where(artist => artist.cohort == ArtistCohort.EnabledInitialReserve)) {
+			artist.prospectMarketStatus = ProspectMarketStatus.Latent;
+			unsignedArtists.RemoveAll(candidate => candidate == artist);
+		}
+		ReconcileEnabledUnsignedPool();
 		GD.Print($"ArtistManager: Added {reserveCount} isolated-RNG unsigned reserve artists; " +
 			$"market total={artistRegistry.Count}, unsigned={unsignedArtists.Count}");
 	}
@@ -184,7 +244,9 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 			homeRegion = region ?? GetRandomRegion(),
 			formedYear = generatingRuntimePopulation ? year : year - RandInt(0, 5),
 			careerState = CareerState.Unsigned,
-			cohort = generatingRuntimePopulation ? ArtistCohort.RuntimeFormation : ArtistCohort.InitialLegacy,
+			cohort = generatingRuntimePopulation ? ArtistCohort.RuntimeFormation :
+				(generatingInitialReserve ? ArtistCohort.EnabledInitialReserve : ArtistCohort.InitialLegacy),
+			prospectMarketStatus = generatingRuntimePopulation ? ProspectMarketStatus.Seeking : ProspectMarketStatus.NotProspect,
 			formationPrimaryGenre = primaryGenre,
 			formationSecondaryGenre = secondaryGenre,
 			lifecycleStatus = ArtistLifecycleStatus.Active
@@ -490,6 +552,8 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
 		ApplyLifecycleExits(date.year, week);
 		MaterializeRuntimeFormation(date);
+		ExpireCompletedProspectSearchSpells();
+		ActivateProspectsForHiringOpportunities();
 		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: false);
 	}
 
@@ -510,6 +574,7 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 				artist.formationSecondaryGenre = secondary;
 				artist.formedYear = date.year;
 				artist.cohort = ArtistCohort.RuntimeFormation;
+				artist.prospectMarketStatus = ProspectMarketStatus.Seeking;
 				unsignedArtists.Add(artist);
 				recentRuntimeFormationCounts[primary] = recentRuntimeFormationCounts.GetValueOrDefault(primary) + 1;
 				formedThisWeek++;
@@ -519,6 +584,92 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 				generatingRuntimePopulation = false;
 			}
 		}
+	}
+
+	private void ExpireCompletedProspectSearchSpells() {
+		int expirations = 0;
+		foreach (SimulatedArtist artist in artistRegistry.Values.Where(IsSeekingProspect).ToArray()) {
+			if (!AdvanceProspectSearchWeekForProbe(artist)) continue;
+			unsignedArtists.RemoveAll(candidate => candidate == artist);
+			expirations++;
+			EmitPopulationEvent("prospect-search-expired", artist);
+		}
+		laborMarketWeekly.prospectSearchSpellExpirations = expirations;
+	}
+
+	private void ActivateProspectsForHiringOpportunities() {
+		SimulatedArtist[] seeking = artistRegistry.Values.Where(IsSeekingProspect).ToArray();
+		SimulatedArtist[] latent = artistRegistry.Values.Where(IsLatentProspect).ToArray();
+		int opportunities = (ChartManager.Instance?.GetAllLabels() ?? new List<AILabel>()).Count(label => label?.IsActive == true &&
+			label.CurrentRosterSize < label.OperatingRosterTarget && label.CanAffordToSign(label.PreviewScoutingGate(useOperatingRosterTarget: true).EstimatedAdvance));
+		int requested = CalculateProspectActivationCount(latent.Length, seeking.Length, opportunities);
+		SimulatedArtist[] activated = OrderLatentProspects(latent).Take(requested).ToArray();
+		foreach (SimulatedArtist artist in activated) {
+			artist.prospectMarketStatus = ProspectMarketStatus.Seeking;
+			artist.prospectSeekingWeeks = 0;
+			unsignedArtists.Add(artist);
+			EmitPopulationEvent("prospect-activated", artist);
+		}
+		laborMarketWeekly = BuildLaborMarketSnapshot(opportunities, requested, activated);
+	}
+
+	private LaborMarketWeeklySnapshot BuildLaborMarketSnapshot(int opportunities, int requested, IReadOnlyList<SimulatedArtist> activated) {
+		SimulatedArtist[] all = artistRegistry.Values.ToArray();
+		SimulatedArtist[] seeking = all.Where(IsSeekingProspect).ToArray();
+		SimulatedArtist[] latent = all.Where(IsLatentProspect).ToArray();
+		float[] activationQuality = activated.Select(artist => artist.CalculateBaseQuality()).OrderBy(value => value).ToArray();
+		return new LaborMarketWeeklySnapshot {
+			registryPopulation = all.Length,
+			initialLegacyPopulation = all.Count(artist => artist.cohort == ArtistCohort.InitialLegacy),
+			enabledInitialReservePopulation = all.Count(artist => artist.cohort == ArtistCohort.EnabledInitialReserve),
+			runtimeFormationPopulation = all.Count(artist => artist.cohort == ArtistCohort.RuntimeFormation),
+			activeRostered = all.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Active && !string.IsNullOrEmpty(artist.labelId)),
+			experiencedFreeAgents = all.Count(artist => artist.contractSequence > 0 && string.IsNullOrEmpty(artist.labelId) && artist.lifecycleStatus == ArtistLifecycleStatus.Active),
+			freshSeeking = seeking.Length, freshLatent = latent.Length, affordableHiringOpportunityLabels = opportunities,
+			requestedProspectActivations = requested, actualProspectActivations = activated.Count,
+			prospectSearchSpellExpirations = laborMarketWeekly.prospectSearchSpellExpirations,
+			meanSeekingQuality = MeanQuality(seeking), meanLatentQuality = MeanQuality(latent), activationMeanQuality = MeanQuality(activated),
+			activationQ1 = Quartile(activationQuality, .25f), activationQ2 = Quartile(activationQuality, .50f),
+			activationQ3 = Quartile(activationQuality, .75f), activationQ4 = Quartile(activationQuality, 1f),
+			maxProspectMarketSpellCount = all.Select(artist => artist.prospectMarketSpellCount).DefaultIfEmpty(0).Max(),
+			duplicateSeekingEntries = GetDuplicateSeekingEntries(), latentUnsignedPoolEntries = unsignedArtists.Count(IsLatentProspect),
+			seekingMissingFromUnsignedPool = seeking.Count(artist => !unsignedArtists.Contains(artist)),
+			prospectStatusContractConflicts = all.Count(artist => artist.prospectMarketStatus != ProspectMarketStatus.NotProspect && artist.contractSequence > 0)
+		};
+	}
+
+	private static bool IsSeekingProspect(SimulatedArtist artist) => artist != null && artist.prospectMarketStatus == ProspectMarketStatus.Seeking &&
+		artist.contractSequence == 0 && artist.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(artist.labelId);
+	private static bool IsLatentProspect(SimulatedArtist artist) => artist != null && artist.prospectMarketStatus == ProspectMarketStatus.Latent &&
+		artist.contractSequence == 0 && artist.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(artist.labelId);
+	private static float MeanQuality(IEnumerable<SimulatedArtist> artists) {
+		float[] values = artists.Select(artist => artist.CalculateBaseQuality()).ToArray();
+		return values.Length == 0 ? 0f : values.Average();
+	}
+	private static float Quartile(float[] ordered, float fraction) => ordered.Length == 0 ? 0f : ordered[Mathf.Clamp(Mathf.CeilToInt(ordered.Length * fraction) - 1, 0, ordered.Length - 1)];
+	internal static ulong GetProspectActivationKey(string artistId) {
+		const ulong offset = 14695981039346656037UL, prime = 1099511628211UL;
+		ulong hash = offset;
+		foreach (char value in $"prospect-participation-v1|{artistId}") { hash ^= value; hash *= prime; }
+		return hash;
+	}
+	internal static int CalculateProspectActivationCount(int latentCount, int seekingCount, int hiringOpportunities) =>
+		Mathf.Min(Mathf.Max(0, latentCount), Mathf.Max(0, hiringOpportunities - Mathf.Max(0, seekingCount)));
+	internal static IReadOnlyList<SimulatedArtist> OrderLatentProspects(IEnumerable<SimulatedArtist> latent) => latent
+		.OrderBy(artist => artist.prospectMarketSpellCount).ThenBy(artist => GetProspectActivationKey(artist.artistId))
+		.ThenBy(artist => artist.artistId, StringComparer.Ordinal).ToArray();
+	internal static bool AdvanceProspectSearchWeekForProbe(SimulatedArtist artist) {
+		if (!IsSeekingProspect(artist)) return false;
+		artist.prospectSeekingWeeks++;
+		if (artist.prospectSeekingWeeks < InactivityHorizonWeeks) return false;
+		artist.prospectMarketStatus = ProspectMarketStatus.Latent;
+		artist.prospectSeekingWeeks = 0;
+		artist.prospectMarketSpellCount++;
+		return true;
+	}
+	private int GetDuplicateSeekingEntries() {
+		var seen = new HashSet<SimulatedArtist>();
+		return unsignedArtists.Count(artist => IsSeekingProspect(artist) && !seen.Add(artist));
 	}
 
 	internal static int CalculateCalendarFormationCount(ref float accumulator, int formedYtd) {
@@ -645,14 +796,14 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		return profile;
 	}
 	public Musician GetMusician(string musicianId) => musicianRegistry.TryGetValue(musicianId, out var musician) ? musician : null;
-	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(IsEligibleUnsignedCandidate).ToList();
+	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(artist => IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist)).ToList();
 	public bool IsEligibleForPopulationSigning(SimulatedArtist artist, int currentWeek) =>
-		IsEligibleUnsignedCandidate(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active &&
+		IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active &&
 		!IsPopulationCooldownBlocked(artist, currentWeek);
 	public int GetWeeksSincePerformanceDrop(SimulatedArtist artist, int currentWeek) => artist?.lastPerformanceDropWeek >= 0 ? currentWeek - artist.lastPerformanceDropWeek : -1;
 	internal static bool IsPopulationCooldownBlockedForProbe(SimulatedArtist artist, int currentWeek) => IsPopulationCooldownBlocked(artist, currentWeek);
 	internal static bool IsEligibleForPopulationSigningForProbe(SimulatedArtist artist, int currentWeek) =>
-		IsEligibleUnsignedCandidate(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active && !IsPopulationCooldownBlocked(artist, currentWeek);
+		IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active && !IsPopulationCooldownBlocked(artist, currentWeek);
 	internal static ArtistLifecycleStatus ClassifyTerminalLifecycleForProbe(SimulatedArtist artist, int year) =>
 		artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup ? ArtistLifecycleStatus.Disbanded :
 		((artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive))?.GetAge(year) ?? 0) >= MinimumSoloRetirementAge
@@ -718,16 +869,17 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	/// <summary>Live-path integrity sweep: a pool entry is unique and unowned.</summary>
 	public void ReconcileEnabledUnsignedPool() {
 		var seen = new HashSet<SimulatedArtist>();
-		unsignedArtists.RemoveAll(artist => !IsEligibleUnsignedCandidate(artist) || !seen.Add(artist));
+		unsignedArtists.RemoveAll(artist => !IsEligibleUnsignedCandidate(artist) || !IsProspectSearchEligible(artist) || !seen.Add(artist));
 	}
 	
-	public void SignArtist(SimulatedArtist artist, string labelId, int year) {
-		bool reSigning = artist?.careerState == CareerState.Dropped;
-		ReconcileSignedArtist(artist, unsignedArtists, labelId, year, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
-		EmitPopulationEvent(reSigning ? "re-signing" : "signing", artist);
+	public SigningTransition SignArtist(SimulatedArtist artist, string labelId, int year) {
+		int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		SigningTransition transition = ReconcileSignedArtist(artist, unsignedArtists, labelId, year, chartWeek);
+		EmitPopulationEvent(transition.IsReSigning ? "re-signing" : "signing", artist);
+		return transition;
 	}
 
-	internal static void ReconcileSignedArtistForProbe(SimulatedArtist artist, List<SimulatedArtist> unsignedPool,
+	internal static SigningTransition ReconcileSignedArtistForProbe(SimulatedArtist artist, List<SimulatedArtist> unsignedPool,
 		string labelId, int year) => ReconcileSignedArtist(artist, unsignedPool, labelId, year, 0);
 
 	internal static bool IsEligibleUnsignedCandidateForProbe(SimulatedArtist artist) => IsEligibleUnsignedCandidate(artist);
@@ -735,16 +887,24 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 	private static bool IsEligibleUnsignedCandidate(SimulatedArtist artist) => artist != null &&
 		(artist.careerState == CareerState.Unsigned || artist.careerState == CareerState.Dropped) &&
 		artist.isActive && string.IsNullOrEmpty(artist.labelId);
+	private static bool IsProspectSearchEligible(SimulatedArtist artist) => !ArtistPopulationLifecycle.Enabled ||
+		artist?.careerState == CareerState.Dropped || artist?.contractSequence > 0 || artist?.prospectMarketStatus == ProspectMarketStatus.Seeking;
 
-	private static void ReconcileSignedArtist(SimulatedArtist artist, List<SimulatedArtist> unsignedPool,
+	private static SigningTransition ReconcileSignedArtist(SimulatedArtist artist, List<SimulatedArtist> unsignedPool,
 		string labelId, int year, int currentWeek) {
-		if (artist == null || unsignedPool == null) return;
+		if (artist == null || unsignedPool == null) return default;
 		// AILabel applies commercial terms before this atomic ownership seam and
 		// may already have changed Unsigned to NewSigning. Pool membership is the
 		// authoritative indication that this is a new free-agent contract cycle.
-		bool droppedFreeAgent = artist.careerState == CareerState.Dropped;
+		int priorContractSequence = artist.contractSequence;
+		CareerState priorCareerState = artist.careerState;
+		ArtistDropReason priorDropReason = artist.lastDropReason;
+		ProspectMarketStatus priorProspectMarketStatus = artist.prospectMarketStatus;
+		bool droppedFreeAgent = priorCareerState == CareerState.Dropped;
 		bool freeAgentSigning = unsignedPool.Contains(artist) || droppedFreeAgent;
-		int priorContractCount = artist.contractSequence;
+		bool isReSigning = priorContractSequence > 0 || droppedFreeAgent;
+		bool firstContractProspect = priorContractSequence == 0 && priorProspectMarketStatus == ProspectMarketStatus.Seeking;
+		artist.prospectMarketStatusBeforeContract = artist.prospectMarketStatus;
 		artist.labelId = labelId;
 		artist.signedYear = year;
 		artist.weeksContinuouslyUnowned = 0;
@@ -755,13 +915,22 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 			artist.contractConsecutiveFlops = 0;
 			artist.contractCompletedChartRuns = 0;
 		}
-		artist.contractUsesExperiencedComebackPolicy = ArtistPopulationLifecycle.Enabled && droppedFreeAgent && priorContractCount > 0;
+		// A dropped artist with no completed prior contract is a legacy/repair
+		// boundary case: it remains a repeat signing for telemetry, but only an
+		// actual prior contract enters the experienced-comeback evidence policy.
+		artist.contractUsesExperiencedComebackPolicy = ArtistPopulationLifecycle.Enabled && freeAgentSigning && priorContractSequence > 0;
 		artist.careerState = artist.contractUsesExperiencedComebackPolicy
 			? GetExperiencedComebackCareerState(artist.careerStateBeforeDrop)
 			: CareerState.NewSigning;
 		artist.contractEntryCareerState = artist.careerState;
+		if (artist.contractSequence > 0) {
+			artist.prospectMarketStatus = ProspectMarketStatus.NotProspect;
+			artist.prospectSeekingWeeks = 0;
+		}
 		unsignedPool.RemoveAll(candidate => candidate == artist);
 		artist.careerEvents.Add($"{year}: Signed to {labelId}");
+		return new SigningTransition(priorContractSequence, priorCareerState, priorDropReason, priorProspectMarketStatus,
+			droppedFreeAgent, firstContractProspect, freeAgentSigning, isReSigning);
 	}
 
 	internal static CareerState GetExperiencedComebackCareerState(CareerState stateBeforeDrop) => stateBeforeDrop switch {

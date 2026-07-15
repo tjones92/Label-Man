@@ -4,7 +4,6 @@ using Godot;
 
 public partial class CompetitorManager : Node {
 	public static CompetitorManager Instance { get; private set; }
-	private const float AnnualReleaseGrowthRate = 0.30f;
 	public const float DealReinvestRate = 0.02f;
 	public const float DealReinvestCost = 5000000f;
 	public const float DealDependencyLow = 0.35f;
@@ -482,22 +481,31 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private float CalculateWeeklyReleaseChance(AILabel label, int year, int month) {
-		float baseChance = label.releasesPerMonth / 4f;
-		int yearOffset = Mathf.Max(0, year - 1960);
-		float yearScale = 1f + (yearOffset * AnnualReleaseGrowthRate);
-		float statusMod = label.status switch {
+		int availableArtists = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
+			? label.CountArtistsEligibleForRelease(year)
+			: label.roster.Count(a => a.weeksSinceLastRelease >= 10);
+		float seasonalityMultiplier = MarketSeasonality.Enabled
+			? MarketSeasonality.GetArtistAvailabilityMultiplier(year, month, liveTick: true)
+			: 1f;
+		return CalculateLabelReleaseCapacityChance(label.releasesPerMonth, label.status, availableArtists, seasonalityMultiplier);
+	}
+
+	/// <summary>
+	/// Converts a label's modeled monthly release capacity into one weekly release
+	/// opportunity. Calendar time must not expand this capacity implicitly; any
+	/// future label growth belongs in an explicit investment/capability system.
+	/// </summary>
+	internal static float CalculateLabelReleaseCapacityChance(float releasesPerMonth, LabelStatus status,
+		int availableArtists, float seasonalityMultiplier = 1f) {
+		if (availableArtists <= 0) return 0f;
+		float weeklyCapacity = Mathf.Max(0f, releasesPerMonth) / 4f;
+		float statusMod = status switch {
 			LabelStatus.Bankrupt => 0f, LabelStatus.Defunct => 0f, LabelStatus.Dying => 0.3f,
 			LabelStatus.Struggling => 0.5f, LabelStatus.Stable => 1f, LabelStatus.Rising => 1.2f,
 			LabelStatus.Acquired => 0.8f, _ => 1f
 		};
-		int availableArtists = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
-			? label.CountArtistsEligibleForRelease(year)
-			: label.roster.Count(a => a.weeksSinceLastRelease >= 10);
-		if (availableArtists == 0) return 0f;
 		float availabilityMod = Mathf.Clamp((float)availableArtists / 3f, 0f, 1f);
-		if (!MarketSeasonality.Enabled) return baseChance * yearScale * statusMod * availabilityMod;
-		return Mathf.Clamp(baseChance * yearScale * statusMod * availabilityMod *
-			MarketSeasonality.GetArtistAvailabilityMultiplier(year, month, liveTick: true), 0f, 1f);
+		return Mathf.Clamp(weeklyCapacity * statusMod * availabilityMod * Mathf.Max(0f, seasonalityMultiplier), 0f, 1f);
 	}
 
 	public void RecordRetired(RecordRuntimeData runtimeData) {

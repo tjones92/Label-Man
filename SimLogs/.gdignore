@@ -1,0 +1,3 @@
+# Audit CSVs are runtime outputs, not Godot resources. Keeping this marker in
+# the directory prevents editor/headless startup from importing a very large
+# historical log archive.

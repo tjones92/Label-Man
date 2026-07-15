@@ -65,7 +65,15 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeRosterThroughputBootstrap();                        // 50
 		ProbeFirstContractProbationThreshold();                  // 51
 		ProbeNormalCareerAfterProbation();                       // 52
-		results.Add("D6 fixed probes 1-52 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion)");
+		ProbeLabelReleaseCapacityBoundary();                     // 53
+		ProbeEconomicYieldDiagnosticBoundaries();                 // 54
+		ProbeRotatingProspectParticipation();                     // 55
+		ProbeRuntimeLabelBootstrapInitialization();               // 56
+		ProbeRuntimeLabelRecoveryBoundary();                       // 57
+		ProbeRuntimeSigningTransitionClassification();             // 58
+		ProbeRuntimeFirstContractClassification();                 // 59
+		ProbeRuntimeBootstrapCannotBurst();                        // 60
+		results.Add("D6 fixed probes 1-60 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap)");
 		return results;
 	}
 
@@ -74,6 +82,79 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		formationPrimaryGenre = Genre.RnB, formationSecondaryGenre = Genre.Soul, formedYear = 1960,
 		careerState = CareerState.NewSigning, lifecycleStatus = ArtistLifecycleStatus.Active, isActive = true
 	};
+
+	private static void ProbeEconomicYieldDiagnosticBoundaries() {
+		Require(ArtistPopulationLifecycle.ShouldMaterializeInitialReserveFor(true, false) &&
+			!ArtistPopulationLifecycle.ShouldMaterializeInitialReserveFor(true, true) &&
+			!ArtistPopulationLifecycle.ShouldMaterializeInitialReserveFor(false, false) &&
+			!ArtistPopulationLifecycle.ShouldMaterializeInitialReserveFor(false, true),
+			"54 diagnostic reserve boundary preserves enabled 7,000 default, suppresses only the opt-in enabled reserve, and leaves disabled independent");
+	}
+
+	private static void ProbeRotatingProspectParticipation() {
+		Require(Enum.GetValues<ArtistCohort>().Contains(ArtistCohort.EnabledInitialReserve) &&
+			ArtistManager.CalculateProspectActivationCount(4, 3, 0) == 0 &&
+			ArtistManager.CalculateProspectActivationCount(4, 3, 3) == 0 &&
+			ArtistManager.CalculateProspectActivationCount(4, 3, 5) == 2 &&
+			ArtistManager.CalculateProspectActivationCount(1, 0, 4) == 1,
+			"55a reserve cohort and vacancy-minus-seeker exposure budget honor zero, exact, under-supplied, and latent-exhausted boundaries");
+		SimulatedArtist first = NewArtist("first"); first.careerState = CareerState.Unsigned; first.prospectMarketStatus = ProspectMarketStatus.Latent; first.prospectMarketSpellCount = 0; first.vocalPower = .05f;
+		SimulatedArtist repeat = NewArtist("repeat"); repeat.careerState = CareerState.Unsigned; repeat.prospectMarketStatus = ProspectMarketStatus.Latent; repeat.prospectMarketSpellCount = 1; repeat.vocalPower = .99f;
+		SimulatedArtist second = NewArtist("second"); second.careerState = CareerState.Unsigned; second.prospectMarketStatus = ProspectMarketStatus.Latent; second.prospectMarketSpellCount = 0; second.vocalPower = .99f;
+		string[] ordered = ArtistManager.OrderLatentProspects(new[] { repeat, second, first }).Select(artist => artist.artistId).ToArray();
+		Require(ordered[0] != "repeat" && ordered[1] != "repeat" && ordered.SequenceEqual(ArtistManager.OrderLatentProspects(new[] { first, second, repeat }).Select(artist => artist.artistId)),
+			"55b deterministic activation is quality-blind and serves never-exposed prospects before repeat spells");
+		SimulatedArtist seeking = NewArtist("seeking"); seeking.careerState = CareerState.Unsigned; seeking.prospectMarketStatus = ProspectMarketStatus.Seeking; seeking.prospectSeekingWeeks = 76;
+		Require(!ArtistManager.AdvanceProspectSearchWeekForProbe(seeking) && seeking.prospectMarketStatus == ProspectMarketStatus.Seeking && seeking.prospectSeekingWeeks == 77 &&
+			ArtistManager.AdvanceProspectSearchWeekForProbe(seeking) && seeking.prospectMarketStatus == ProspectMarketStatus.Latent && seeking.prospectSeekingWeeks == 0 && seeking.prospectMarketSpellCount == 1 && seeking.lifecycleStatus == ArtistLifecycleStatus.Active && seeking.careerState == CareerState.Unsigned,
+			"55c prospect search stays searchable through week 77 and rotates to latent at week 78 without lifecycle mutation");
+		var pool = new List<SimulatedArtist> { seeking }; seeking.prospectMarketStatus = ProspectMarketStatus.Seeking;
+		ArtistManager.ReconcileSignedArtistForProbe(seeking, pool, "label", 1960);
+		Require(seeking.prospectMarketStatus == ProspectMarketStatus.NotProspect && seeking.prospectMarketStatusBeforeContract == ProspectMarketStatus.Seeking && !pool.Contains(seeking),
+			"55d first signing atomically exits prospect participation and records the pre-contract status");
+	}
+
+	private static void ProbeRuntimeLabelBootstrapInitialization() {
+		AILabel runtime = NewScoutingLabel(); runtime.maxRosterSize = 4;
+		RosterManager.InitializeRuntimeRosterForProbe(runtime);
+		Require(runtime.CurrentRosterSize == 0 && runtime.OperatingRosterTarget == 1 && runtime.operatingRosterTargetSource == "OneArtistBootstrap",
+			"56 runtime label initialization remains empty with the one-artist bootstrap target and consumes no launch population");
+	}
+
+	private static void ProbeRuntimeLabelRecoveryBoundary() {
+		var empty = RosterManager.GetTalentServiceSnapshotForProbe(0, 1, 4, 0, 0);
+		Require(empty.HeadcountDeficit == 1 && empty.ServiceMode == "Recovery" && RosterManager.CanAttemptMarketClearingSigning(0, 1),
+			"57 an empty runtime label enters Recovery at its next scouting boundary with exactly one operating vacancy");
+	}
+
+	private static void ProbeRuntimeSigningTransitionClassification() {
+		SimulatedArtist comeback = NewArtist("runtime-comeback");
+		comeback.contractSequence = 1; comeback.careerState = CareerState.Dropped; comeback.careerStateBeforeDrop = CareerState.Rising;
+		comeback.lastDropReason = ArtistDropReason.Performance; comeback.performanceDropCount = 1;
+		var pool = new List<SimulatedArtist> { comeback };
+		ArtistManager.SigningTransition transition = ArtistManager.ReconcileSignedArtistForProbe(comeback, pool, "runtime", 1961);
+		Require(transition.IsReSigning && transition.PriorContractSequence == 1 && transition.WasDroppedFreeAgent &&
+			comeback.contractSequence == 2 && comeback.careerState == CareerState.Rising && comeback.IsExperiencedComebackContract() &&
+			comeback.performanceDropCount == 1 && pool.Count == 0,
+			"58 runtime prior-contract signing preserves comeback history and uses the authoritative repeat-signing transition");
+	}
+
+	private static void ProbeRuntimeFirstContractClassification() {
+		SimulatedArtist prospect = NewArtist("runtime-prospect");
+		prospect.careerState = CareerState.Unsigned; prospect.prospectMarketStatus = ProspectMarketStatus.Seeking;
+		var pool = new List<SimulatedArtist> { prospect };
+		ArtistManager.SigningTransition transition = ArtistManager.ReconcileSignedArtistForProbe(prospect, pool, "runtime", 1961);
+		Require(!transition.IsReSigning && transition.WasFirstContractProspect && transition.PriorContractSequence == 0 &&
+			prospect.contractSequence == 1 && prospect.careerState == CareerState.NewSigning && !prospect.IsExperiencedComebackContract(),
+			"59 a Seeking first-contract prospect remains a first-contract probation case");
+	}
+
+	private static void ProbeRuntimeBootstrapCannotBurst() {
+		AILabel runtime = NewScoutingLabel(); runtime.maxRosterSize = 7;
+		RosterManager.InitializeRuntimeRosterForProbe(runtime);
+		Require(runtime.OperatingRosterTarget == 1 && !RosterManager.CanAttemptMarketClearingSigning(1, runtime.OperatingRosterTarget),
+			"60 one successful runtime bootstrap signing closes the only operating vacancy, preventing a birth-week bulk burst");
+	}
 
 	private static void ProbeContractHistoricalSeparation() {
 		SimulatedArtist artist = NewArtist();
@@ -688,6 +769,17 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		artist.CompleteChartRun(0, 1, 0);
 		Require(artist.careerState == CareerState.Dropped && !artist.ShouldDepartForCurrentContractPerformance(),
 			"52b a cleared probation does not suppress normal Declining performance departure");
+	}
+
+	private static void ProbeLabelReleaseCapacityBoundary() {
+		float stable = CompetitorManager.CalculateLabelReleaseCapacityChance(2f, LabelStatus.Stable, 3);
+		float scarce = CompetitorManager.CalculateLabelReleaseCapacityChance(2f, LabelStatus.Stable, 1);
+		float seasonallyBusy = CompetitorManager.CalculateLabelReleaseCapacityChance(4f, LabelStatus.Rising, 3, 1.5f);
+		float closed = CompetitorManager.CalculateLabelReleaseCapacityChance(4f, LabelStatus.Defunct, 3, 1.5f);
+		float noRosterCapacity = CompetitorManager.CalculateLabelReleaseCapacityChance(4f, LabelStatus.Stable, 0);
+		Require(Math.Abs(stable - 0.5f) < .000001f && Math.Abs(scarce - (1f / 6f)) < .000001f &&
+			Math.Abs(seasonallyBusy - 1f) < .000001f && closed == 0f && noRosterCapacity == 0f,
+			"53 label cadence derives only from explicit monthly capacity, status, availability, and bounded seasonality");
 	}
 
 	private static void Require(bool condition, string message) {

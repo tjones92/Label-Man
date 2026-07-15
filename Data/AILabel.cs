@@ -214,7 +214,9 @@ public partial class AILabel : Resource {
 		artist.labelId = labelId;
 		artist.isPlayerOwned = isPlayerOwned;
 		artist.signedYear = currentYear;
-		artist.careerState = artist.careerState == CareerState.Unsigned ? CareerState.NewSigning : artist.careerState;
+		// ArtistManager owns the atomic career-state transition after it captures
+		// the pre-contract history needed to distinguish first contracts from
+		// experienced free-agent returns.
 		artist.royaltyRate = CalculateRoyaltyRate(artist);
 		artist.unrecoupedAdvance = advance;
 		artist.contractLength = CalculateContractLength(artist);

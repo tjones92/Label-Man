@@ -168,7 +168,7 @@ public partial class LabelLifecycleManager : Node {
 	private void SpawnNewLabel() {
 		LabelTier tier = GD.Randf() < 0.7f ? LabelTier.Small : LabelTier.Independent;
 		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier);
-		RosterManager.Instance?.InitializeRosterForLabel(newLabel, currentYear);
+		RosterManager.Instance?.InitializeRuntimeRosterForLabel(newLabel);
 		activeLabels.Add(newLabel);
 		ChartManager.Instance?.RegisterLabel(newLabel);
 		CompetitorManager.Instance?.RegisterLabel(newLabel);

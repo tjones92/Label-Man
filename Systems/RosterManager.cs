@@ -167,10 +167,21 @@ public partial class RosterManager : Node {
 		GD.Print("RosterManager: Initialization complete");
 	}
 
-	public void InitializeRosterForLabel(AILabel label, int year) {
+	/// <summary>
+	/// Initializes a label founded during live play.  Runtime labels deliberately
+	/// enter the ordinary talent market empty; launch population is reserved for
+	/// the frozen initial label set in <see cref="InitializeAllRosters"/>.
+	/// </summary>
+	public void InitializeRuntimeRosterForLabel(AILabel label) {
+		InitializeRuntimeRoster(label);
+	}
+
+	internal static void InitializeRuntimeRosterForProbe(AILabel label) => InitializeRuntimeRoster(label);
+
+	private static void InitializeRuntimeRoster(AILabel label) {
 		if (label == null) return;
 		label.InitializeRoster();
-		PopulateInitialRoster(label, year);
+		label.SetOperatingRosterTargetFromCurrent();
 	}
 	
 	private void PopulateInitialRoster(AILabel label, int year) {
@@ -501,12 +512,11 @@ public partial class RosterManager : Node {
 			observation.FailureReason = "ActualAdvanceUnaffordable"; observation.RecoveryFailureReason = "ActualAdvanceUnaffordable";
 			RecordAffordabilityRejection(label.tier); return false;
 		}
-		bool reSigningDroppedArtist = selected.careerState == CareerState.Dropped;
-		string signingKind = GetSigningKindForTelemetry(selected);
 		float advance = label.SignArtist(selected, year);
 		CompetitorManager.Instance?.RecordExpense(label, advance);
-		ArtistManager.Instance.SignArtist(selected, label.labelId, year);
-		WeeklySignings++; RecordSigning(label.tier, selected, reSigningDroppedArtist);
+		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(selected, label.labelId, year);
+		string signingKind = transition.IsReSigning ? "ReSigning" : "FirstSigning";
+		WeeklySignings++; RecordSigning(label.tier, selected, transition.IsReSigning);
 		observation.SigningSucceeded = true; observation.SigningKind = signingKind; observation.FailureReason = signingKind;
 		return true;
 	}
@@ -555,13 +565,12 @@ public partial class RosterManager : Node {
 		if (observation != null) observation.SigningAttempted = true;
 		if (IsLiveGenreMarket()) RecordSigningAttempt(label.tier);
 		if (label.CanAffordToSign(label.CalculateAdvanceOffer(bestCandidate))) {
-			bool reSigningDroppedArtist = IsLiveGenreMarket() && bestCandidate.careerState == CareerState.Dropped;
-			string signingKind = GetSigningKindForTelemetry(bestCandidate);
 			float advance = label.SignArtist(bestCandidate, year);
 			CompetitorManager.Instance?.RecordExpense(label, advance);
-			ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
+			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
+			string signingKind = transition.IsReSigning ? "ReSigning" : "FirstSigning";
 			WeeklySignings++;
-			if (IsLiveGenreMarket()) RecordSigning(label.tier, bestCandidate, reSigningDroppedArtist);
+			if (IsLiveGenreMarket()) RecordSigning(label.tier, bestCandidate, transition.IsReSigning);
 			if (observation != null) {
 				observation.SigningSucceeded = true;
 				observation.SigningKind = signingKind;

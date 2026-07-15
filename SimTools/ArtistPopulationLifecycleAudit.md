@@ -857,3 +857,138 @@ Both required 104-week commands completed with `CHART_AUDIT_COMPLETE`:
 The independently generated runs have the same 51 stream suffixes and every suffix-matched CSV is byte-identical (length and SHA-256): deterministic-repeat requirement **passes**. Calendar year 1960 repeats the N2 pass: 4,459 successful releases (`1.0339x`) and 1,181 scheduled Albums (`1.0835x`). In calendar year 1961, however, the treatment has 4,936 successful releases (`1.1444x`, within band) and 1,551 scheduled Albums (`1.4230x`, above the 1.15 ceiling).
 
 **Stop decision:** N3 fails the required annual Album gate in 1961. Per the handoff, no N4 maturity, disabled replay, decade, later-seed, or holdout run was launched, and source remains unchanged after this hard failure.
+
+## Systemic label-release capacity repair (2026-07-15): **104-week capacity pass / no decade run**
+
+Live-source review confirmed that `CompetitorManager.CalculateWeeklyReleaseChance` multiplied every active label's weekly opportunity by `1 + 0.30 * (year - 1960)`. The multiplier applied with or without Directive 6 and grew without a ceiling. When Market Seasonality was disabled, the method also returned before the only explicit probability clamp. This made the inherited control a mechanically rising target rather than a stable label-capacity baseline.
+
+The secondary hit-inventory diagnosis required correction before changing format economics. Current source already limits Album hit inventory to the four newest resolvable Singles, applies `0.75 ^ ageYears` recency decay, and applies the independent `0.70 ^ compilationUses` reuse decay. No second catalog-decay rule, Album threshold, format tilt, veteran priority, or market-wide quota was added in this repair.
+
+The systemic change removes `AnnualReleaseGrowthRate` and the calendar offset entirely. A shared production helper now derives the weekly opportunity only from the label's explicit `releasesPerMonth`, current status, release-eligible roster availability, and optional seasonality, with one final `[0,1]` clamp on every path. The helper comment makes future label growth the responsibility of an explicit investment/capability model rather than elapsed calendar time. D6 fixed probe 53 covers full availability, scarce availability, closed labels, missing release lanes, and bounded high-season demand.
+
+`SimLogs/.gdignore` now prevents Godot from importing the large audit archive. The root ignore rule retains scratch CSV behavior while allowing that marker to remain versioned.
+
+Validation used the full `Godot_v4.7-stable_mono_win64.exe` in Downloads. The build passed with zero errors, the one-week D5/D6 probe process exited 0, and both 104-week seed-1001 processes emitted `CHART_AUDIT_COMPLETE`. The known non-fatal `MissingSingletonsTemp.cs` autoload diagnostic remained unchanged.
+
+| Year | Control releases | Enabled releases | Ratio | Control Albums | Enabled Albums | Ratio |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 4,313 | 4,459 | 1.0339 | 1,090 | 1,181 | 1.0835 |
+| 1961 | 3,917 | 3,993 | 1.0194 | 1,307 | 1,250 | 0.9564 |
+
+The 1960 results remain exactly equal to the N2 values, as expected because the removed scale was `1.0` in 1960. Against the prior N3 source, enabled 1961 output falls from 4,936 to 3,993 releases and from 1,551 to 1,250 Album projects. The new control no longer rises from 4,313 to 4,810 releases; it settles at 3,917 in 1961 as label status, availability, and finances evolve without an automatic calendar boost.
+
+This checkpoint validates the release/Album capacity correction, not full Directive 6 economic acceptance. Enabled/control 1961 ratios are `1.1622` units, `1.1641` gross, `1.1709` label net, and `1.1610` market net, so those separate economic surfaces require attribution before any Directive 6 acceptance ladder resumes. No deterministic repeat, 260-week checkpoint, decade run, later seed, or holdout was launched.
+
+## Economic-yield attribution and bounded diagnostics (2026-07-15): **reserve/labor-market amendment required**
+
+This checkpoint implements `ArtistPopulationEconomicYieldInvestigationHandoff.md` without changing release cadence, Album choice, market demand, finance arithmetic, lifecycle thresholds, the default 7,000 enabled market, or the disabled replay boundary. The removable analyzer is `SimTools/analyze-economic-yield-attribution.mjs`:
+
+```powershell
+& 'C:\Users\grohl\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' SimTools/analyze-economic-yield-attribution.mjs systemic-label-capacity-control-104-1001 systemic-label-capacity-enabled-104-1001 --output SimLogs/economic-yield-baseline-report.md
+& 'C:\Users\grohl\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' SimTools/analyze-economic-yield-attribution.mjs d6-economic-yield-label-freeze-control-104-1001 d6-economic-yield-label-freeze-enabled-104-1001 --output SimLogs/economic-yield-label-freeze-report.md
+& 'C:\Users\grohl\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' SimTools/analyze-economic-yield-attribution.mjs systemic-label-capacity-control-104-1001 d6-economic-yield-no-reserve-enabled-104-1001 --output SimLogs/economic-yield-no-reserve-report.md
+```
+
+It uses release-time `artist-project-identity.csv` cohort metadata when present, so `RuntimeFormation` is explicit even in the no-reserve run; the 3,000/7,000 ID split is used only to distinguish the two initial cohorts. It does not infer runtime membership from `formedYear`. It reports annual/13-week economics, release capacity, scheduled Albums, source/career/tier/quartile groups, initial promotion metrics, label states, Album appeal/reuse, and final-record snapshot reconciliation. Annual economic totals are read directly from annual all-label `market-revenue.csv`; the reconciliation separately warns that `records.csv` is an active/final-snapshot subset and cannot be made to equal market totals after retirements. Per-record gross, label net, and market net are consequently labelled as unit-proportional allocations, not invented finance telemetry. Album freshness is not present per record in the frozen composition stream and remains explicitly unavailable.
+
+The baseline analyzer reproduces the 1961 capacity and economic checkpoint:
+
+| Year | Release ratio | Scheduled-Album ratio | Units | Gross | Label net | Market net |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 1.0339 | 1.0835 | 1.0786 | 1.0872 | 1.0890 | 1.0891 |
+| 1961 | 1.0194 | 0.9564 | 1.1622 | 1.1641 | 1.1709 | 1.1610 |
+
+The 1961 final 13-week block is `1.2191x` units and approximately `1.20x` gross. The existing decision and record streams again show the first-order composition effect: enabled current-year Singles include a larger Q4 decision population, and the default reserve contributes 2,173 current-year 1961 Single records (58.86M final-snapshot units) while 256 runtime records contribute 9.38M. The baseline document's full current-year release ledger remains the source of the exact 2,104/52.7% new-Single reserve share calculated from new-release telemetry; the analyzer's final-snapshot view is intentionally a different, disclosed measure.
+
+### Dropped-control comparator classification
+
+**Classification: expected legacy compatibility behavior, not stale lineage, pending-project telemetry, or an enabled-path defect.** `AILabel.IsEligibleForRelease` selects `GenreSupplyService.IsEligibleExistingArtistForRelease` whenever Genre Market V2 is not live (`Data/AILabel.cs`, lines 282-289). That legacy predicate requires only a non-null active artist (`Systems/GenreSupplyService.cs`, line 30). The live predicate adds the explicit terminal-state exclusion (`Systems/GenreSupplyService.cs`, lines 37-41), and `CompetitorManager.TryReleaseRecord` independently rejects a terminal artist only on the live branch (`Systems/CompetitorManager.cs`, lines 585-597).
+
+Event order supports the same conclusion: `ChartManager.OnWeekEnded` runs chart simulation/culling and only then advances the population lifecycle (`Systems/ChartManager.cs`, lines 379-398); `RosterManager.RecordChartRunComplete` immediately routes a live Dropped artist through `TransitionDroppedArtist` (`Systems/RosterManager.cs`, lines 801-821), while the disabled path calls the legacy drop handling (`Systems/RosterManager.cs`, lines 881-902). `a3-economic-decisions.careerState` is the release-fork `ReleaseStrategyTelemetry` state written by `ChartAuditRunner.OnReleaseStrategy`; `records.launchCareerState` is separately captured when runtime promotion is initialized (`Systems/CompetitorManager.cs`, lines 1711 and 1822). Pending Album projects carry their schedule-time state (`Systems/CompetitorManager.cs`, lines 846-847) and later resolve through their project owner, so they do not reinterpret a pre-drop project as a Dropped launch.
+
+Changing the legacy predicate would alter frozen disabled behavior. It is therefore documented and left untouched. The accepted disabled control is a compatibility boundary with this known behavior, but the bounded reserve diagnostic below identifies the more immediate economic mechanism; no comparator amendment is recommended in this pass.
+
+### E3: label-lifecycle-disabled pair
+
+The first lean attempt was discarded because `--lean-probe` intentionally suppresses record snapshots and could not produce the required attribution tables. The following full-telemetry commands are the valid diagnostic pair; both emitted `CHART_AUDIT_COMPLETE` at week 104 (the known `MissingSingletonsTemp.cs` autoload error remains non-fatal):
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=104 --run=d6-economic-yield-label-freeze-control-104-1001 --seed=1001 --enable-genre-market-v2 --disable-label-lifecycle
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=104 --run=d6-economic-yield-label-freeze-enabled-104-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --disable-label-lifecycle
+```
+
+| Year | Release ratio | Album ratio | Units | Gross | Label net | Market net |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 1.0776 | 1.1426 | 1.1115 | 1.1155 | 1.1178 | 1.1185 |
+| 1961 | 1.1572 | 1.0040 | 1.1526 | 1.1512 | 1.1303 | 1.1436 |
+
+At week 104 the freeze control has 107 `Bankrupt`, 240 `Dying`, 187 `Rising`, 47 `Stable`, and **zero Defunct** labels; enabled has 72 `Bankrupt`, 183 `Dying`, 264 `Rising`, 78 `Stable`, and **zero Defunct** labels. The absence of `Defunct` transitions in both arms, compared with baseline control/enabled 254/187 Defunct labels, confirms that the lifecycle owner was disabled even though finance can still mark labels Bankrupt. Disabling the owner removes only about 6% of the baseline unit excess above 1.0 (`0.1622 -> 0.1526`), far short of half. Upstream release-quality and buyer-pool amplification remain sufficient to fail the economic gate.
+
+### E4: opt-in no-reserve boundary
+
+`ArtistPopulationLifecycle` now accepts `--suppress-enabled-initial-reserve` only on the enabled lifecycle path; a contradictory `--materialize-enabled-initial-reserve` pair is rejected. `MaterializeEnabledInitialUnsignedReserve` exits before it obtains the population RNG when suppression is selected. Fixed D6 probe 54 proves default enabled materialization, diagnostic suppression, and disabled-path independence. The default behavior still prints a 4,000-artist isolated-RNG reserve and reaches 7,000 before runtime formation.
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=104 --run=d6-economic-yield-no-reserve-enabled-104-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --suppress-enabled-initial-reserve
+```
+
+The command emitted `CHART_AUDIT_COMPLETE` at week 104. It keeps the 3,000 launch allocation intact and finishes with registry/rostered totals of 3,300/2,609 in 1960 and 3,594/2,557 in 1961; the default enabled path finishes at 7,300/2,949 and 7,594/2,761. Current-year 1961 Single records are 2,982 Original3000 (118.12M final-snapshot units, mean quality 0.56) and 581 RuntimeFormation (19.02M, 0.57); there is no EnabledInitialReserve cohort. The event ledger records 343 first-time / 280 repeat signings in 1960 and 566 / 1,104 in 1961. All recorded ownership, duplicate-pool, duplicate-roster, terminal-rostered, and terminal-release-eligible invariants remain zero.
+
+| Year | Release ratio | Album ratio | Units | Gross | Label net | Market net |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 0.9685 | 1.0872 | 1.0181 | 1.0253 | 1.0284 | 1.0302 |
+| 1961 | 0.9096 | 1.0046 | 1.0163 | 1.0195 | 1.0245 | 1.0188 |
+
+Both the capacity and economic measures are inside their respective bands in this single boundary diagnostic. This isolates the default initial reserve as the binding supply-quality mechanism for this seed; it is not authority to permanently remove the reserve or to sweep alternative pool sizes.
+
+### Verification, manifests, and stop decision
+
+`dotnet build "Label Man.sln" --no-restore` succeeds with only the inherited unused `ChartManager.OnGenreMomentumChanged` warning. `git diff --check` passes. The full D5 suite and D6 probes 1-54 pass under the one-week headless command, including the RNG-neutral diagnostic boundary. Functional source manifest:
+
+```text
+Systems/ArtistPopulationLifecycle.cs=5FF3B7F9625D5DB994B25AD37E883317331C1060E38292945AE53135D7FBFD84
+Systems/ArtistManager.cs=C8E16279243F5A00D49B8EFE1FE72548FB836E5EE3C6349B4B0A854373F369C5
+SimTools/ArtistPopulationLifecycleProbeSuite.cs=6CE776A6DEE894A74C6B032304E65F3EE5CE90B8402A444D82997DD22C13765A
+SimTools/analyze-economic-yield-attribution.mjs=FD51F58BC3F4A6C685356CE4424D2C733EC0BE73F5A5279439D439DD2A7B801E
+```
+
+The valid diagnostic stream manifests contain 46 control freeze CSVs, 51 enabled freeze CSVs, and 51 no-reserve enabled CSVs; each ends at week 104. (`SimLogs/` remains ignored.) No decade, later-seed, holdout, acceptance-band, market-clearing, or economic-constant work was launched.
+
+**Stop decision and recommendation: Reserve/labor-market amendment.** The 7,000 reserve plus fresh selection supplies a high-volume commercially viable replacement population whose improved quality is amplified by independent per-record buyer pools. The no-reserve boundary restores both capacity and economics for this seed, while the label-freeze result shows label feedback is not the dominant cause. The next pass requires explicit authority for a supply-policy design that preserves the required mature market and chronology while controlling this reserve-mediated quality/capacity tradeoff. It must not silently remove the reserve, tune financial constants, or use a compensating market penalty.
+
+## Runtime-label bootstrap repair S2a (2026-07-15): **structurally repaired; capacity gate remains failed**
+
+Implemented `ArtistPopulationRuntimeLabelBootstrapRepairHandoff.md` without changing the launch population path. `LabelLifecycleManager.SpawnNewLabel` now calls `RosterManager.InitializeRuntimeRosterForLabel`, which initializes an empty roster with the one-artist operating target and `OneArtistBootstrap` source; it neither selects nor signs a launch artist. `InitializeAllRosters` and `PopulateInitialRoster` remain the only launch-population route.
+
+`ArtistManager.SignArtist` now returns the single `SigningTransition` classification used for reconciliation, event type, roster telemetry, and contract setup. It captures prior contract sequence, career state, drop reason, and prospect status before reconciliation. Prior-contract artists enter the experienced-comeback policy; first Seeking prospects remain first-contract cases. `AILabel.SignArtist` no longer overwrites career state before this capture. Audit labor-market signing flows are now event-owned, keyed by the exact ledger chart week, and deferred until final output flush so the final simulated week is not omitted and rows cannot inherit a callback offset.
+
+Verification passed:
+
+```powershell
+dotnet build "Label Man.sln" --no-restore
+git diff --check
+& '<Godot-console.exe>' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=1 --run=d6-runtime-label-bootstrap-probes-r3-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --genre-market-v2-probes --artist-population-lifecycle-probes --lean-probe
+```
+
+The build has only the inherited unused `ChartManager.OnGenreMomentumChanged` warning; D5 passed and D6 probes 1-60 passed. The relevant current source hashes are:
+
+```text
+Data/AILabel.cs=DB7DE2B04379B38FA762E7A4355D28AFC9F38DAA4454EB52B28E43FF706C5FC8
+Systems/ArtistManager.cs=BE65F2294E2B87117A64D69FEA0173938E2301406CF2718E6818169AD938C0E0
+Systems/LabelLifecycleManager.cs=7CBAD97277B3321AF27A1FD05D2FF694EED7C357B045739B2CAC39B86B74B037
+Systems/RosterManager.cs=993A8EB0A73FBAEC4E63652B592A7BF040B380DB03AE3070D5E4CB12D00EB1CC
+SimTools/ChartAuditRunner.cs=DF73936970F03CC46D41064CBB34296062CD6BF34B70C0A8EC24BB6FEBF85D5D
+SimTools/ArtistPopulationLifecycleProbeSuite.cs=E47DE82AE42AA1B726252280BCE164B581247EC529F795A1124B35EAC1E48927
+```
+
+The fresh control/treatment runs `d6-runtime-label-bootstrap-control-r2-52-1001` and `d6-runtime-label-bootstrap-enabled-r3-52-1001` both emitted `CHART_AUDIT_COMPLETE`. The enabled treatment reconciles exactly: 487 first-contract and 291 repeat-signing event rows equal the annual labor-market sums, all 52 weekly rows are present, and there are zero weekly event/flow mismatches. Ten generated runtime labels were observed; each entered Recovery with target one and empty roster, and none received an immediate birth-week signing burst or a guaranteed contract.
+
+| Measure | Control | Treatment | Ratio | Gate |
+|---|---:|---:|---:|---|
+| Successful releases | 5,300 | 5,482 | 1.0343 | Pass |
+| Scheduled Albums | 1,083 | 1,274 | 1.1764 | **Fail** |
+| Units | 144,715,423 | 147,464,843 | 1.0190 | Pass |
+| Gross | 132,865,355.30 | 136,486,898.88 | 1.0273 | Pass |
+| Label net | 72,065,107.39 | 74,629,175.75 | 1.0356 | Pass |
+
+The strict integer Album ceiling is 1,245; treatment is 29 projects above it. Per the handoff, stop here: no further calibration, seed, duration, or policy changes were made. The runtime-label and telemetry behavior defects are corrected, but S2a does not pass the scheduled-Album gate and requires the specified attribution/continuation decision.
