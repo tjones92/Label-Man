@@ -60,7 +60,12 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeNonPerformanceDepartureDoesNotExhaust();            // 45
 		ProbeNoThirdComebackSigning();                           // 46
 		ProbeMarketClearingTelemetryFields();                    // 47
-		results.Add("D6 fixed probes 1-47 passed (contract/cooldown/calendar formation/identity/lifecycle/service recovery/discovery lanes/performance exhaustion)");
+		ProbeHeadcountOnlyRecovery();                            // 48
+		ProbeHeadcountRecoveryBoundaries();                      // 49
+		ProbeRosterThroughputBootstrap();                        // 50
+		ProbeFirstContractProbationThreshold();                  // 51
+		ProbeNormalCareerAfterProbation();                       // 52
+		results.Add("D6 fixed probes 1-52 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion)");
 		return results;
 	}
 
@@ -83,10 +88,10 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		hit.RegisterTop40Hit();
 		Require(hit.careerState == CareerState.Rising && hit.contractTop40Hits == 1, "2a current-contract Top 40 advances probation");
 		SimulatedArtist flop = NewArtist("flop");
-		flop.CompleteChartRun(0, 1, 0); flop.CompleteChartRun(0, 1, 0);
-		Require(flop.careerState == CareerState.NewSigning && flop.contractConsecutiveFlops == 2, "2b two current-contract flops retain probation");
 		flop.CompleteChartRun(0, 1, 0);
-		Require(flop.careerState == CareerState.Dropped && flop.contractCompletedChartRuns == 3, "2c three current-contract flops depart");
+		Require(flop.careerState == CareerState.NewSigning && flop.contractConsecutiveFlops == 1, "2b one current-contract flop retains first-contract probation");
+		flop.CompleteChartRun(0, 1, 0);
+		Require(flop.careerState == CareerState.Dropped && flop.contractCompletedChartRuns == 2, "2c two current-contract flops depart a first contract");
 	}
 
 	private static void ProbeMarketClearingServiceModes() {
@@ -398,7 +403,6 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ArtistManager.ReconcileSignedArtistForProbe(artist, pool, "first", 1960);
 		artist.CompleteChartRun(0, 1, 0);
 		artist.CompleteChartRun(0, 1, 0);
-		artist.CompleteChartRun(0, 1, 0);
 		Require(artist.careerState == CareerState.Dropped && artist.careerStateBeforeDrop == CareerState.NewSigning,
 			"34b first-contract probation retains the state that preceded its performance drop");
 
@@ -589,15 +593,16 @@ public static class ArtistPopulationLifecycleProbeSuite {
 
 	private static void ProbePerformanceContractScope() {
 		SimulatedArtist artist = NewArtist("scope"); artist.consecutiveFlops = 99;
-		artist.CompleteChartRun(0, 1, 0); artist.CompleteChartRun(0, 1, 0);
-		Require(artist.careerState != CareerState.Dropped && artist.contractCompletedChartRuns == 2,
+		artist.CompleteChartRun(0, 1, 0, false); artist.CompleteChartRun(0, 1, 0, false);
+		Require(artist.careerState != CareerState.Dropped && artist.contractCompletedChartRuns == 0,
 			"41 stale career evidence cannot cause a current-contract departure");
 	}
 
 	private static void ProbePerformanceTop40Clearance() {
 		SimulatedArtist artist = NewArtist("clearance"); artist.RegisterTop40Hit();
-		artist.CompleteChartRun(0, 1, 0); artist.CompleteChartRun(0, 1, 0); artist.CompleteChartRun(0, 1, 0);
-		Require(artist.careerState != CareerState.Dropped && artist.contractTop40Hits == 1,
+		artist.CompleteChartRun(0, 1, 0);
+		Require(artist.careerState == CareerState.Rising && artist.contractTop40Hits == 1 &&
+			!artist.IsContractPerformanceProbationPending(),
 			"42 a current-contract Top 40 result clears performance probation");
 	}
 
@@ -625,6 +630,64 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		var observation = new RosterManager.LabelScoutingVacancyObservation { ServiceMode = "Recovery", FreshDiscoveryScope = "National", RecoveryFailureReason = "FreshRecoveryQualified" };
 		Require(observation.ServiceMode == "Recovery" && observation.FreshDiscoveryScope == "National" && observation.RecoveryFailureReason == "FreshRecoveryQualified",
 			"47 market-clearing telemetry records the production service and discovery branches");
+	}
+
+	private static void ProbeHeadcountOnlyRecovery() {
+		var atTargetWithoutReleaseLanes = RosterManager.GetTalentServiceSnapshotForProbe(3, 3, 6, 0, 0);
+		Require(atTargetWithoutReleaseLanes.HeadcountDeficit == 0 && atTargetWithoutReleaseLanes.ReleaseLaneDeficit == 3 &&
+			atTargetWithoutReleaseLanes.ServiceDeficit == 0 && atTargetWithoutReleaseLanes.ServiceMode == "Normal" &&
+			!RosterManager.CanAttemptMarketClearingSigning(3, 3),
+			"48 release-lane telemetry cannot create Recovery or a signing at the operating target");
+	}
+
+	private static void ProbeHeadcountRecoveryBoundaries() {
+		var watch1 = RosterManager.GetTalentServiceSnapshotForProbe(2, 3, 6, 3, 0);
+		var watch3 = RosterManager.GetTalentServiceSnapshotForProbe(2, 3, 6, 3, 2);
+		var recovery4 = RosterManager.GetTalentServiceSnapshotForProbe(2, 3, 6, 3, 3);
+		var deep = RosterManager.GetTalentServiceSnapshotForProbe(1, 3, 6, 3, 0);
+		Require(watch1.ServiceMode == "Watch" && watch3.ServiceMode == "Watch" && recovery4.ServiceMode == "Recovery" &&
+			deep.ServiceMode == "Recovery" && RosterManager.GetTalentServiceModeForProbe(3, 3, 6, 0, 9) == "Normal" &&
+			RosterManager.CanAttemptMarketClearingSigning(2, 3),
+			"49 headcount Recovery follows watch timing, clears exactly at target, and never uses a temporary ceiling");
+	}
+
+	private static void ProbeRosterThroughputBootstrap() {
+		AILabel populated = NewScoutingLabel();
+		populated.roster.AddRange(new[] { NewArtist("launch-1"), NewArtist("launch-2") });
+		populated.SetOperatingRosterTargetFromCurrent();
+		AILabel empty = NewScoutingLabel(); empty.SetOperatingRosterTargetFromCurrent();
+		var noLaneVacancy = RosterManager.GetTalentServiceSnapshotForProbe(2, 2, 4, 0, 0);
+		Require(populated.OperatingRosterTarget == 2 && populated.operatingRosterTargetSource == "PopulatedLaunchRoster" &&
+			empty.OperatingRosterTarget == 1 && empty.operatingRosterTargetSource == "OneArtistBootstrap" &&
+			noLaneVacancy.ServiceDeficit == 0 && !RosterManager.CanAttemptMarketClearingSigning(2, 2),
+			"50 operating targets retain initialized headcount or exactly one empty-label bootstrap; release eligibility cannot create a vacancy");
+	}
+
+	private static void ProbeFirstContractProbationThreshold() {
+		SimulatedArtist first = NewArtist("first-contract");
+		first.CompleteChartRun(0, 1, 0);
+		Require(first.careerState == CareerState.NewSigning && first.GetPerformanceEvaluationMode() == ArtistPerformanceEvaluationMode.FirstContractProbation,
+			"51a a first-contract artist survives one current-contract flop");
+		first.CompleteChartRun(0, 1, 0);
+		Require(first.careerState == CareerState.Dropped && first.contractCompletedChartRuns == 2 && first.contractConsecutiveFlops == 2,
+			"51b a first-contract artist drops on two completed current-contract flops");
+
+		SimulatedArtist stale = NewArtist("stale-contract"); stale.contractSequence = 2;
+		stale.CompleteChartRun(0, 1, 0, false); stale.CompleteChartRun(0, 1, 0, false);
+		Require(stale.careerState == CareerState.NewSigning && stale.contractCompletedChartRuns == 0,
+			"51c stale prior-contract evidence cannot satisfy first-contract probation");
+	}
+
+	private static void ProbeNormalCareerAfterProbation() {
+		SimulatedArtist artist = NewArtist("normal-career");
+		artist.RegisterTop40Hit();
+		artist.CompleteChartRun(0, 1, 0); artist.CompleteChartRun(0, 1, 0);
+		Require(artist.careerState == CareerState.Declining && artist.GetPerformanceEvaluationMode() == ArtistPerformanceEvaluationMode.NormalCareer &&
+			!artist.IsContractPerformanceProbationPending(),
+			"52a a current-contract Top 40 clears probation and permits normal Rising-to-Declining progression");
+		artist.CompleteChartRun(0, 1, 0);
+		Require(artist.careerState == CareerState.Dropped && !artist.ShouldDepartForCurrentContractPerformance(),
+			"52b a cleared probation does not suppress normal Declining performance departure");
 	}
 
 	private static void Require(bool condition, string message) {

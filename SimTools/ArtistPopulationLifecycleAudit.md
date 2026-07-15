@@ -725,16 +725,17 @@ It emitted 51 CSV streams totaling 29,083,736 bytes (27.73 MiB). The source was 
 
 | Measure | Treatment | Control | Ratio / limit | Result |
 |---|---:|---:|---:|---|
-| Successful release-outcome rows | 4,141 | 4,313 | 0.9601 | Pass |
+| Successful releases (`release-capacity`) | 5,565 | 4,313 | 1.2903 | **Fail** (`>1.15`) |
+| Retired `release-outcomes` rows | 4,141 | 3,373 | 1.2277 | Diagnostic; also outside band |
 | Scheduled Album projects | 1,326 | 1,090 | 1.2165 | **Fail** (`>1.15`) |
 | Lean CSV bytes | 29,083,736 | 24,676,717 prior lean family | +17.86% | Observed; no longer an acceptance gate |
 | Recovery label-weeks | 7,391 | — | exercised | Observed |
 | Fresh-potential selections | 2,981 | — | exercised | Observed |
 | Experienced-production selections | 7 | — | bounded fallback | Observed |
 
-The diagnostic was initially read through the cumulative tier lifecycle counter, which is not the release acceptance measure. The authoritative `release-outcomes.csv` count is 4,141 and passes the release band. The M2 stop is decisive on Album overproduction. The telemetry increase is retained for reproducibility but, by user direction on 2026-07-15, is not an acceptance failure.
+The diagnostic was initially read through the cumulative tier lifecycle counter and then incorrectly replaced with retired `release-outcomes.csv` rows. The established successful-release acceptance measure is the sum of `release-capacity.successfulReleases`: 5,565, or `1.2903x` control. M2 therefore fails both release and Album capacity. The telemetry increase is retained for reproducibility but, by user direction on 2026-07-15, is not an acceptance failure.
 
-**Stop decision:** Gate M2 did not pass because scheduled Albums were `1.2165x` control. No 104-week repeat, 260-week checkpoint, disabled replay, date-complete decade, additional seed, or holdout was launched. This source is unaccepted and remains subject to the headcount-only recovery correction below rather than a constant sweep.
+**Stop decision:** Gate M2 did not pass because successful releases were `1.2903x` and scheduled Albums were `1.2165x` control. No 104-week repeat, 260-week checkpoint, disabled replay, date-complete decade, additional seed, or holdout was launched. This source is unaccepted and remains subject to the headcount-only recovery correction below rather than a constant sweep.
 
 ### M2 diagnosis and headcount-only recovery correction (2026-07-15)
 
@@ -742,7 +743,7 @@ Telemetry size is no longer a gate. It should still avoid obviously catastrophic
 
 The first service implementation treated instantaneous release cooldown as a staffing deficit. That was incorrect. A label could be at its operating target while fewer than three artists were release-eligible; `releaseLaneDeficit` then entered Recovery and permitted hiring above target. Across 52 weeks this produced 2,981 first-time signings, only 7 free-agent signings, and an ending roster of 5,169. The prior fresh-priority candidate produced 493 first-time signings, 29 free-agent signings, and an ending roster of 2,573. Label-closure departures rose from 134 to 910, consistent with the advance and roster expansion shock.
 
-The Album excess is concentrated in new-contract projects: 1,190 of 1,326 scheduled projects had `careerStateAtSchedule = NewSigning`, versus 1,035 of 1,205 in the prior candidate. Total authoritative releases still passed at `0.9601x`, so release cadence does not need expansion.
+The Album excess is concentrated in new-contract projects: 1,190 of 1,326 scheduled projects had `careerStateAtSchedule = NewSigning`, versus 1,035 of 1,205 in the prior candidate. Successful releases were also excessive at `1.2903x`, so release cadence does not need expansion; roster opportunity must be normalized upstream.
 
 The authorized correction retains separate fresh-potential scoring, deterministic discovery lanes, three-current-contract-flop evidence, and second-performance-departure exhaustion. It changes service recovery to headcount only:
 
@@ -755,3 +756,104 @@ The authorized correction retains separate fresh-potential scoring, deterministi
 The next checkpoint must bring Albums inside `[0.85,1.15]` while retaining the passing release ratio. Telemetry volume is recorded, not gated.
 
 The focused Codex execution contract for this correction is `SimTools/ArtistPopulationHeadcountRecoveryHandoff.md`. It supersedes the broader market-clearing handoff where they differ and authorizes the corrected 52/104/260/disabled/522-week ladder plus later seeds after a complete seed-1001 pass.
+
+## Headcount-only Recovery H0-H2 stop (2026-07-15): **H2 FAIL / no H3+ run**
+
+`ArtistPopulationHeadcountRecoveryHandoff.md` was followed from the unaccepted M2 source. H0 traced every behavior-producing use of `releaseLaneDeficit`, `serviceDeficit`, `recoveryRosterCeilingByLabelId`, `OperatingRosterTarget`, and `HasOperatingRosterSpace`.
+
+- `releaseLaneDeficit` is retained only in `RosterManager` service-state construction and `ChartAuditRunner` label-week telemetry.
+- `serviceDeficit` is now exactly `headcountDeficit`; only that value ages or selects Normal/Watch/Recovery.
+- The temporary `recoveryRosterCeilingByLabelId` state was removed.
+- Both Recovery and Normal evaluation use `rosterSize < OperatingRosterTarget`; no release-lane condition can widen the gate.
+- Initial populated rosters now capture their actual initialized headcount as `OperatingRosterTarget`. Without this, the serialized zero default falls back to `maxRosterSize` and creates artificial headcount vacancies immediately after initialization.
+
+The final functional-source manifest covers `Data/AILabel.cs`, `Data/AlbumProject.cs`, `Data/SimulatedArtist.cs`, `Systems/ArtistManager.cs`, `Systems/ChartManager.cs`, `Systems/CompetitorManager.cs`, `Systems/RosterManager.cs`, `SimTools/ArtistPopulationLifecycleProbeSuite.cs`, and `SimTools/ChartAuditRunner.cs`. Its sorted `path=SHA-256` manifest hash is `1D1B856BE9B39A72986C5EB22F0AA521F1A862DCF9DECE7E7CBE222947633F7A`.
+
+H1 passed: `dotnet build "Label Man.sln" --no-restore` completed with only the inherited unused `ChartManager.OnGenreMomentumChanged` warning, and `git diff --check` passed. The accepted D5 probes and D6 probes 1-49 passed, including the new production-helper coverage for headcount-only service deficit, accurate release-lane telemetry, Watch weeks 1-3 / Recovery week 4, immediate deep-deficit Recovery, clearance exactly at target, and no above-target signing authorization.
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=1 --run=d6-headcount-recovery-probes-r2-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --genre-market-v2-probes --artist-population-lifecycle-probes --lean-probe
+```
+
+The command emitted both accepted `D5_PROBE_PASS` lines, `D6_PROBE_PASS: D6 fixed probes 1-49 passed`, and `CHART_AUDIT_COMPLETE run=d6-headcount-recovery-probes-r2-1001 weeks=1`. The existing post-completion `MissingSingletonsTemp.cs` autoload diagnostic remains non-fatal.
+
+The first H2 diagnostic treatment (`d6-headcount-recovery-gateb-1001`) exposed the initialization seam: despite release-lane Recovery being absent, first-time signings remained 2,721 because populated labels still had hard capacity as their effective operating target. Its 51 streams totaled 28,196,743 bytes; the sorted `name=length=SHA-256` stream-manifest hash is `023BCF4333A3D5957B7ABE2C12A03490CD4739E1ECEB99EE32BAB17BCEF1BCD0`. The initialization correction above was the single evidence-driven headcount correction; no Album rule, release cadence, finance, market, or acceptance threshold was changed.
+
+The corrected H2 treatment completed:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=52 --run=d6-headcount-recovery-gateb-r2-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --lean-probe
+```
+
+It emitted `CHART_AUDIT_COMPLETE run=d6-headcount-recovery-gateb-r2-1001 weeks=52`. Its 51 streams total 27,095,029 bytes; the sorted `name=length=SHA-256` stream-manifest hash is `752D5904C9CBD2C552C592B49F6AEF89B8CD893B6405FC9E8B35827E2E101D9B`.
+
+| Measure | Treatment | Control | Ratio / limit | Result |
+|---|---:|---:|---:|---|
+| Successful releases (`release-capacity`) | 5,079 | 4,313 | 1.1776 | **Fail** (`>1.15`) |
+| Retired `release-outcomes` rows | 3,896 | 3,373 | 1.1551 | Diagnostic; also outside band |
+| Scheduled Album projects | 1,384 | 1,090 | 1.2697 | **Fail** (`>1.15`) |
+| 1960 formations | 300 | 300 | exact | Pass |
+| First-time signings | 590 | — | no longer near 2,981 | Observed |
+| Free-agent signings | 2 | — | bounded | Observed |
+| Ending roster | 3,355 | — | — | Observed |
+| Label-closure departures | 162 | — | — | Observed |
+| Recovery label-weeks | 778 | — | headcount-driven | Observed |
+| Market-clearing attempts at/above operating target | 0 | 0 | invariant | Pass |
+| Recovery rows with zero headcount deficit | 0 | 0 | invariant | Pass |
+
+Scheduled Albums by `careerStateAtSchedule` were NewSigning 1,193; Rising 159; Established 12; Declining 15; and Star 5. The final aggregate population row reports zero ownership conflicts, duplicate roster entries, duplicate pool entries, and terminal artists rostered. Both successful-release and Album envelopes fail; no later economic/format, H3 repeat, H4 maturity, disabled replay, decade, extra-seed, or holdout run is authorized.
+
+**Stop decision:** H2 fails at `1.1776x` successful releases and `1.2697x` scheduled Albums. The earlier `3,896 / 4,313` release comparison mixed retired-outcome rows with successful-release rows and is invalid. The headcount-only correction removed the release-lane and above-target hiring seam, but the ladder stops here.
+
+## Roster-throughput systemic investigation (2026-07-15)
+
+The Album failure is proportional to a broader release-opportunity expansion, not a changed Album-choice preference. Against `d6-pool7000-fresh-priority-gateb-1001`, average roster increased from 2,956.4 to 3,441.2 (`+16.4%`), average release-eligible artists from 1,930.7 to 2,224.1 (`+15.2%`), successful releases from 4,400 to 5,079 (`+15.4%`), and scheduled Albums from 1,205 to 1,384 (`+14.9%`). Album share was effectively unchanged at `27.39%` versus `27.25%`; NewSigning conditional Album share also fell slightly from `25.48%` to `25.17%`.
+
+Two state changes account for the capacity expansion. First, the 173 empty labels at week 1 were each assigned an operating target of three, making aggregate target 3,519 against a 3,000 roster; the prior one-artist bootstrap produced target 3,173. Second, the unified three-current-contract-flop rule reduced 1960 performance departures from 851 to 141 and incorrectly replaced normal post-probation career departure. Because contract counters stop after a Top-40 clears probation while all enabled drops are gated through the contract predicate, proven artists can become immune to ordinary performance departure.
+
+Fresh-potential scouting is already active and should remain. The H2 run selected 590 fresh-potential artists, one experienced artist, and recorded zero candidate-score rejections. The potential score removes the low-reputation penalty rather than granting artificial quality; it can refill genuine vacancies after correct departure behavior is restored.
+
+The next authoritative pass is governed by `SimTools/ArtistPopulationRosterThroughputNormalizationHandoff.md`. It restores a one-artist empty-label bootstrap, separates two-result first-contract probation from three-result experienced-comeback probation, restores normal career decline after probation clears, retains second-failure exhaustion and fresh-potential discovery, corrects the release gate metric, and forbids speculative format-rule changes.
+
+## Roster-throughput normalization N0-N2 (2026-07-15): **N2 PASS**
+
+N0 was reproduced from the recorded H2 evidence: 5,079 `release-capacity.successfulReleases`, 1,384 scheduled Albums, 3,896 retired outcome rows against 3,373 control rows, week-one roster/target `3,000 / 3,519` with 173 empty labels, average roster/release eligibility `3,441.2 / 2,224.1`, 141 performance departures, and 590 fresh versus one experienced market selection.
+
+The correction removes the three-artist empty-label override, records target source as populated launch roster or one-artist bootstrap, and separates first-contract, experienced-comeback, and normal-career performance evaluation. First contracts require two completed current-contract consecutive flops; experienced comebacks require three; a current-contract Top 40 returns an artist to normal career progression. Departure telemetry captures the pre-drop evaluation mode and threshold evidence. No format, release, finance, formation, pool-size, or disabled-path rule changed.
+
+N1 passed with `dotnet build "Label Man.sln" --no-restore` (only the inherited unused `ChartManager.OnGenreMomentumChanged` warning), `git diff --check`, accepted D5 probes, and D6 fixed probes 1-52:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=1 --run=d6-roster-normalization-probes-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --genre-market-v2-probes --artist-population-lifecycle-probes --lean-probe
+```
+
+N2 command:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=52 --run=d6-roster-normalization-gateb-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --lean-probe
+```
+
+It emitted `CHART_AUDIT_COMPLETE run=d6-roster-normalization-gateb-1001 weeks=52`. The six-file changed-source manifest (`Data/AILabel.cs`, `Data/SimulatedArtist.cs`, `Systems/ArtistManager.cs`, `Systems/RosterManager.cs`, `SimTools/ArtistPopulationLifecycleProbeSuite.cs`, `SimTools/ChartAuditRunner.cs`) hashes to `2A73FDCD72801FEB58641916DB450E33F7774C781145B27C7DF1AAED01BAAA83`. The 51-stream sorted `name=length=SHA-256` manifest hashes to `1D2D21C7F46B7A81800C015353BF22CDDE6B5ED62B7CE5FD0649C236A30D44C1`.
+
+| Measure | Treatment | Control | Ratio | Result |
+|---|---:|---:|---:|---|
+| Successful releases (`release-capacity`) | 4,459 | 4,313 | 1.0339 | Pass |
+| Scheduled Album projects | 1,181 | 1,090 | 1.0835 | Pass |
+| Retired `release-outcomes` rows (diagnostic only) | 3,518 | 3,373 | 1.0430 | Observed |
+
+There were 4,459 format decisions with 1,181 Albums (26.49%), average/ending roster `3,088.2 / 2,949`, and average release-eligible artists `2,044.7`. Operating targets were 3,173 at week 1 (173 exact one-artist bootstraps) and 3,226 at week 52; market-clearing attempts at/above target were zero. Signings were 910 first-time and four re-signings. Performance departures were 840 `FirstContractProbation` with required `2 / 2` current-contract evidence and 30 `NormalCareer`; no exhausted artist remained rostered, pooled, signed, or released. All recorded ownership, duplicate, cooldown, terminal, chronology, closed-label, hard-cap, release-selection, and above-target-signing invariants were zero.
+
+**Decision:** N2 passes. Continue to N3 deterministic 104-week treatment and independent repeat without source changes.
+
+## Roster-throughput normalization N3 (2026-07-15): **FAIL / stop**
+
+Both required 104-week commands completed with `CHART_AUDIT_COMPLETE`:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=104 --run=d6-roster-normalization-gatec-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --lean-probe
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=104 --run=d6-roster-normalization-gatec-repeat-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --lean-probe
+```
+
+The independently generated runs have the same 51 stream suffixes and every suffix-matched CSV is byte-identical (length and SHA-256): deterministic-repeat requirement **passes**. Calendar year 1960 repeats the N2 pass: 4,459 successful releases (`1.0339x`) and 1,181 scheduled Albums (`1.0835x`). In calendar year 1961, however, the treatment has 4,936 successful releases (`1.1444x`, within band) and 1,551 scheduled Albums (`1.4230x`, above the 1.15 ceiling).
+
+**Stop decision:** N3 fails the required annual Album gate in 1961. Per the handoff, no N4 maturity, disabled replay, decade, later-seed, or holdout run was launched, and source remains unchanged after this hard failure.

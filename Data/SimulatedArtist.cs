@@ -49,6 +49,13 @@ public class SimulatedArtist {
 	public CareerState careerStateBeforeDrop = CareerState.Unsigned;
 	public CareerState contractEntryCareerState = CareerState.Unsigned;
 	public bool contractUsesExperiencedComebackPolicy;
+	// Captured before a performance departure mutates careerState to Dropped, so
+	// event telemetry retains the predicate that actually authorized the exit.
+	public ArtistPerformanceEvaluationMode lastPerformanceEvaluationMode = ArtistPerformanceEvaluationMode.NormalCareer;
+	public int lastRequiredPerformanceCompletedRuns;
+	public int lastRequiredPerformanceConsecutiveFlops;
+	public bool lastContractProbationPending;
+	public const int FirstContractFlopThreshold = 2;
 	public const int ExperiencedComebackFlopThreshold = 3;
 
 	public float momentum;
@@ -193,18 +200,43 @@ public class SimulatedArtist {
 			CareerState.Declining when consecutiveFlops >= 3 => CareerState.Dropped,
 			_ => careerState
 		};
-		if (ArtistPopulationLifecycle.Enabled && nextState == CareerState.Dropped && !ShouldDepartForCurrentContractPerformance()) nextState = priorState;
-		if (nextState == CareerState.Dropped && priorState != CareerState.Dropped) careerStateBeforeDrop = priorState;
+		// Pending contracts may leave only through their own current-contract
+		// evidence. Normal careers retain the established state-transition rules.
+		if (ArtistPopulationLifecycle.Enabled && IsContractPerformanceProbationPending() &&
+			nextState == CareerState.Dropped && !ShouldDepartForCurrentContractPerformance()) nextState = priorState;
+		if (nextState == CareerState.Dropped && priorState != CareerState.Dropped) {
+			if (ArtistPopulationLifecycle.Enabled) {
+				lastPerformanceEvaluationMode = GetPerformanceEvaluationMode();
+				lastRequiredPerformanceCompletedRuns = RequiredPerformanceCompletedRuns;
+				lastRequiredPerformanceConsecutiveFlops = RequiredPerformanceConsecutiveFlops;
+				lastContractProbationPending = IsContractPerformanceProbationPending();
+			}
+			careerStateBeforeDrop = priorState;
+		}
 		careerState = nextState;
 	}
 
 	public bool IsExperiencedComebackContract() => contractUsesExperiencedComebackPolicy;
 	public bool IsExperiencedComebackEvaluationPending() => IsExperiencedComebackContract() &&
 		contractTop40Hits == 0 && careerState != CareerState.Dropped;
-	private bool IsContractEvaluationPending() => careerState == CareerState.NewSigning || IsExperiencedComebackEvaluationPending();
+	public ArtistPerformanceEvaluationMode GetPerformanceEvaluationMode() {
+		if (IsExperiencedComebackEvaluationPending()) return ArtistPerformanceEvaluationMode.ExperiencedComebackProbation;
+		if (careerState == CareerState.NewSigning && !IsExperiencedComebackContract()) return ArtistPerformanceEvaluationMode.FirstContractProbation;
+		return ArtistPerformanceEvaluationMode.NormalCareer;
+	}
+	public bool IsContractPerformanceProbationPending() =>
+		GetPerformanceEvaluationMode() != ArtistPerformanceEvaluationMode.NormalCareer;
+	private bool IsContractEvaluationPending() => IsContractPerformanceProbationPending();
+	public int RequiredPerformanceCompletedRuns => GetPerformanceEvaluationMode() switch {
+		ArtistPerformanceEvaluationMode.FirstContractProbation => FirstContractFlopThreshold,
+		ArtistPerformanceEvaluationMode.ExperiencedComebackProbation => ExperiencedComebackFlopThreshold,
+		_ => 0
+	};
+	public int RequiredPerformanceConsecutiveFlops => RequiredPerformanceCompletedRuns;
 	public bool ShouldDepartForCurrentContractPerformance() => ArtistPopulationLifecycle.Enabled &&
-		contractTop40Hits == 0 && contractCompletedChartRuns >= 3 &&
-		contractConsecutiveFlops >= ExperiencedComebackFlopThreshold;
+		IsContractPerformanceProbationPending() && contractTop40Hits == 0 &&
+		contractCompletedChartRuns >= RequiredPerformanceCompletedRuns &&
+		contractConsecutiveFlops >= RequiredPerformanceConsecutiveFlops;
 
 	public float GetNewReleaseAwarenessBonus() {
 		return (momentum * 0.5f) + (reputation * 0.3f) + (careerState switch {
@@ -245,5 +277,6 @@ public enum CareerState {
 }
 
 public enum ArtistLifecycleStatus { Active, Inactive, Retired, Disbanded }
+public enum ArtistPerformanceEvaluationMode { FirstContractProbation, ExperiencedComebackProbation, NormalCareer }
 public enum ArtistDropReason { Performance, PerformanceExhaustion, ContractExpired, LabelClosure, Financial, Voluntary, LifecycleReconciliation }
 public enum ArtistCohort { InitialLegacy, RuntimeFormation }

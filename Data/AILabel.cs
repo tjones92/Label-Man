@@ -106,7 +106,11 @@ public partial class AILabel : Resource {
 	[Export] public int operatingRosterTarget;
 	public int OperatingRosterTarget => Mathf.Clamp(operatingRosterTarget > 0 ? operatingRosterTarget : maxRosterSize, 1, Mathf.Max(1, maxRosterSize));
 	public bool HasOperatingRosterSpace => roster == null || roster.Count < OperatingRosterTarget;
-	public void SetOperatingRosterTargetFromCurrent() => operatingRosterTarget = Mathf.Clamp(Mathf.Max(1, CurrentRosterSize), 1, Mathf.Max(1, maxRosterSize));
+	public string operatingRosterTargetSource = "Unset";
+	public void SetOperatingRosterTargetFromCurrent() {
+		operatingRosterTarget = Mathf.Clamp(Mathf.Max(1, CurrentRosterSize), 1, Mathf.Max(1, maxRosterSize));
+		operatingRosterTargetSource = CurrentRosterSize > 0 ? "PopulatedLaunchRoster" : "OneArtistBootstrap";
+	}
 	public float MonthlyProfit => monthlyRevenue - monthlyExpenses;
 	public bool IsActive => status != LabelStatus.Bankrupt && status != LabelStatus.Defunct && status != LabelStatus.Acquired;
 	public float DistributionDependency => borrowedReach / (borrowedReach + ownedReach + 0.01f);
@@ -454,11 +458,11 @@ public partial class AILabel : Resource {
 	
 	public bool ShouldDropArtist(SimulatedArtist artist) {
 		if (artist.careerState == CareerState.Superstar) return false;
-		// Directive 6 probation is resolved only by current-contract evidence in
-		// SimulatedArtist.UpdateCareerState.  The legacy monthly review reads
-		// lifetime consecutiveFlops and would otherwise re-drop a newly signed
-		// free agent before two results in the new contract.
-		if (ArtistPopulationLifecycle.Enabled) return artist.ShouldDepartForCurrentContractPerformance();
+		// Contract probation excludes stale history only while it is unresolved.
+		// Once a current-contract Top 40 clears probation, ordinary career-state
+		// review is again authoritative.
+		if (ArtistPopulationLifecycle.Enabled && artist.IsContractPerformanceProbationPending())
+			return artist.ShouldDepartForCurrentContractPerformance();
 		if (artist.consecutiveFlops >= 3 && artist.careerState <= CareerState.Rising) return (float)GD.RandRange(0f, 1f) < 0.6f;
 		if (artist.consecutiveFlops >= 4 && artist.careerState == CareerState.Established) return (float)GD.RandRange(0f, 1f) < 0.4f;
 		if (artist.careerState == CareerState.Declining && artist.consecutiveFlops >= 2) return (float)GD.RandRange(0f, 1f) < 0.5f;

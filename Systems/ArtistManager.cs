@@ -804,6 +804,12 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 		int rosterEntries = owner?.roster?.Count(candidate => candidate == artist) ?? 0;
 		bool ownershipTransition = artist.careerState != CareerState.Dropped || !string.IsNullOrEmpty(artist.labelId) || rosterEntries > 0;
 		owner?.roster?.RemoveAll(candidate => candidate == artist);
+		if (ArtistPopulationLifecycle.Enabled && reason == ArtistDropReason.Performance && artist.careerState != CareerState.Dropped) {
+			artist.lastPerformanceEvaluationMode = artist.GetPerformanceEvaluationMode();
+			artist.lastRequiredPerformanceCompletedRuns = artist.RequiredPerformanceCompletedRuns;
+			artist.lastRequiredPerformanceConsecutiveFlops = artist.RequiredPerformanceConsecutiveFlops;
+			artist.lastContractProbationPending = artist.IsContractPerformanceProbationPending();
+		}
 		if (artist.careerState != CareerState.Dropped) artist.careerStateBeforeDrop = artist.careerState;
 		artist.labelId = null;
 		artist.careerState = CareerState.Dropped;

@@ -22,7 +22,7 @@ public partial class RosterManager : Node {
 	private readonly Dictionary<string, int> consecutiveEmptyWeeksByLabelId = new(System.StringComparer.Ordinal);
 	// Enabled-only service state. It is independent from observational telemetry.
 	private readonly Dictionary<string, int> serviceDeficitAgeByLabelId = new(System.StringComparer.Ordinal);
-	private readonly Dictionary<string, int> recoveryRosterCeilingByLabelId = new(System.StringComparer.Ordinal);
+	public int MarketClearingAttemptsAtOrAboveOperatingTarget { get; private set; }
 	private const int ShortWindowRedropWeeks = 26;
 	public const int ScoutingUrgencyThresholdWeeks = 12;
 	public const float ScoutingUrgencyProbabilityFloor = 0.25f;
@@ -87,6 +87,7 @@ public partial class RosterManager : Node {
 		public string SelectedLane { get; set; }
 		public bool RecoveryThresholdFallbackUsed { get; set; }
 		public string RecoveryFailureReason { get; set; }
+		public int MarketClearingAttemptsAtOrAboveOperatingTarget { get; set; }
 	}
 
 	public readonly struct RosterLifecycleFlow {
@@ -187,8 +188,10 @@ public partial class RosterManager : Node {
 			var artist = FindArtistForLabel(label, year);
 			if (artist != null) InitialSignArtist(label, artist, year);
 		}
-		label.operatingRosterTarget = label.CurrentRosterSize == 0
-			? Mathf.Min(3, label.maxRosterSize) : label.OperatingRosterTarget;
+		// The live roster is the operating baseline. Leaving the serialized default
+		// at zero would make OperatingRosterTarget fall back to hard capacity and
+		// manufacture headcount vacancies on otherwise healthy initial rosters.
+		label.SetOperatingRosterTargetFromCurrent();
 	}
 	
 	private SimulatedArtist FindArtistForLabel(AILabel label, int year) {
@@ -331,39 +334,43 @@ public partial class RosterManager : Node {
 
 	private enum TalentServiceMode { Normal, Watch, Recovery }
 	internal static string GetTalentServiceModeForProbe(int rosterSize, int operatingTarget, int maxRosterSize, int releaseEligible, int priorDeficitAge) {
-		int headcount = Mathf.Max(0, operatingTarget - rosterSize);
-		int lanes = Mathf.Min(3, maxRosterSize);
-		int deficit = Mathf.Max(headcount, Mathf.Max(0, lanes - releaseEligible));
-		int age = deficit == 0 ? 0 : priorDeficitAge + 1;
-		return deficit == 0 ? TalentServiceMode.Normal.ToString() :
-			(rosterSize == 0 || deficit >= 2 || age >= 4 ? TalentServiceMode.Recovery.ToString() : TalentServiceMode.Watch.ToString());
+		return BuildTalentServiceState(rosterSize, operatingTarget, maxRosterSize, releaseEligible, priorDeficitAge).Mode.ToString();
 	}
+	internal static (int HeadcountDeficit, int ReleaseLaneDeficit, int ServiceDeficit, string ServiceMode) GetTalentServiceSnapshotForProbe(
+		int rosterSize, int operatingTarget, int maxRosterSize, int releaseEligible, int priorDeficitAge) {
+		TalentServiceState state = BuildTalentServiceState(rosterSize, operatingTarget, maxRosterSize, releaseEligible, priorDeficitAge);
+		return (state.HeadcountDeficit, state.ReleaseLaneDeficit, state.Deficit, state.Mode.ToString());
+	}
+	internal static bool CanAttemptMarketClearingSigning(int rosterSize, int operatingTarget) => rosterSize < operatingTarget;
 	private readonly struct TalentServiceState {
 		public readonly int ReleaseEligible; public readonly int RequiredLanes; public readonly int HeadcountDeficit;
-		public readonly int ReleaseLaneDeficit; public readonly int Deficit; public readonly int Age; public readonly TalentServiceMode Mode; public readonly int Ceiling;
-		public TalentServiceState(int eligible, int lanes, int headcount, int laneDeficit, int deficit, int age, TalentServiceMode mode, int ceiling) {
+		public readonly int ReleaseLaneDeficit; public readonly int Deficit; public readonly int Age; public readonly TalentServiceMode Mode;
+		public TalentServiceState(int eligible, int lanes, int headcount, int laneDeficit, int deficit, int age, TalentServiceMode mode) {
 			ReleaseEligible = eligible; RequiredLanes = lanes; HeadcountDeficit = headcount; ReleaseLaneDeficit = laneDeficit;
-			Deficit = deficit; Age = age; Mode = mode; Ceiling = ceiling;
+			Deficit = deficit; Age = age; Mode = mode;
 		}
+	}
+
+	private static TalentServiceState BuildTalentServiceState(int rosterSize, int operatingTarget, int maxRosterSize, int releaseEligible, int priorDeficitAge) {
+		int headcount = Mathf.Max(0, operatingTarget - rosterSize);
+		int lanes = Mathf.Min(3, maxRosterSize);
+		int laneDeficit = Mathf.Max(0, lanes - releaseEligible);
+		// Release lanes explain throughput but never create a staffing vacancy.
+		int serviceDeficit = headcount;
+		int age = serviceDeficit == 0 ? 0 : priorDeficitAge + 1;
+		TalentServiceMode mode = serviceDeficit == 0 ? TalentServiceMode.Normal :
+			(rosterSize == 0 || serviceDeficit >= 2 || age >= 4 ? TalentServiceMode.Recovery : TalentServiceMode.Watch);
+		return new TalentServiceState(releaseEligible, lanes, headcount, laneDeficit, serviceDeficit, age, mode);
 	}
 
 	private TalentServiceState GetTalentServiceState(AILabel label, int year) {
 		int eligible = label.CountArtistsEligibleForRelease(year);
-		int lanes = Mathf.Min(3, label.maxRosterSize);
-		int headcount = Mathf.Max(0, label.OperatingRosterTarget - label.CurrentRosterSize);
-		int laneDeficit = Mathf.Max(0, lanes - eligible);
-		int deficit = Mathf.Max(headcount, laneDeficit);
-		int age = deficit == 0 ? 0 : serviceDeficitAgeByLabelId.GetValueOrDefault(label.labelId) + 1;
-		TalentServiceMode mode = deficit == 0 ? TalentServiceMode.Normal :
-			(label.CurrentRosterSize == 0 || deficit >= 2 || age >= 4 ? TalentServiceMode.Recovery : TalentServiceMode.Watch);
-		if (mode == TalentServiceMode.Recovery && !recoveryRosterCeilingByLabelId.ContainsKey(label.labelId))
-			recoveryRosterCeilingByLabelId[label.labelId] = Mathf.Min(label.maxRosterSize, label.OperatingRosterTarget + laneDeficit);
-		int ceiling = recoveryRosterCeilingByLabelId.GetValueOrDefault(label.labelId, label.OperatingRosterTarget);
-		return new TalentServiceState(eligible, lanes, headcount, laneDeficit, deficit, age, mode, ceiling);
+		return BuildTalentServiceState(label.CurrentRosterSize, label.OperatingRosterTarget, label.maxRosterSize, eligible,
+			serviceDeficitAgeByLabelId.GetValueOrDefault(label.labelId));
 	}
 
 	private void FinalizeTalentServiceState(AILabel label, TalentServiceState state) {
-		if (state.Deficit == 0) { serviceDeficitAgeByLabelId.Remove(label.labelId); recoveryRosterCeilingByLabelId.Remove(label.labelId); }
+		if (state.Deficit == 0) serviceDeficitAgeByLabelId.Remove(label.labelId);
 		else serviceDeficitAgeByLabelId[label.labelId] = state.Age;
 	}
 
@@ -379,21 +386,20 @@ public partial class RosterManager : Node {
 				LabelScoutingVacancyObservation inactiveObservation = CreateScoutingVacancyObservation(label, inactivePreview);
 				inactiveObservation.FailureReason = "InactiveLabel";
 				weeklyScoutingVacancyByLabelId[label.labelId] = inactiveObservation;
-				serviceDeficitAgeByLabelId.Remove(label.labelId); recoveryRosterCeilingByLabelId.Remove(label.labelId);
+				serviceDeficitAgeByLabelId.Remove(label.labelId);
 				continue;
 			}
 			TalentServiceState service = GetTalentServiceState(label, year);
 			bool recovery = service.Mode == TalentServiceMode.Recovery;
-			bool mayEvaluate = label.CurrentRosterSize < (recovery ? service.Ceiling :
-				(service.ReleaseLaneDeficit > 0 ? label.maxRosterSize : label.OperatingRosterTarget));
+			bool mayEvaluate = CanAttemptMarketClearingSigning(label.CurrentRosterSize, label.OperatingRosterTarget);
 			AILabel.ScoutingGateEvaluation gate;
 			if (recovery) {
-				AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate(useOperatingRosterTarget: false);
+				AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate(useOperatingRosterTarget: true);
 				bool affordable = label.CanAffordToSign(preview.EstimatedAdvance);
-				gate = new AILabel.ScoutingGateEvaluation(label.CurrentRosterSize, label.maxRosterSize, preview.EstimatedAdvance,
+				gate = new AILabel.ScoutingGateEvaluation(label.CurrentRosterSize, label.OperatingRosterTarget, preview.EstimatedAdvance,
 					preview.RosterFullness, preview.HasRecentHit, preview.RecentHitFactor, preview.DecliningArtistCount, preview.DecliningFactor,
 					preview.ComputedScoutProbability, null, mayEvaluate && affordable, mayEvaluate ? (affordable ? null : "EstimatedAdvanceUnaffordable") : "RosterFull");
-			} else gate = label.EvaluateScoutingGate(useOperatingRosterTarget: service.ReleaseLaneDeficit == 0);
+			} else gate = label.EvaluateScoutingGate(useOperatingRosterTarget: true);
 			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
 			PopulateServiceObservation(observation, service, recovery);
 			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
@@ -436,6 +442,12 @@ public partial class RosterManager : Node {
 	};
 
 	private bool TrySignFromMarket(AILabel label, int year, TalentServiceState service, LabelScoutingVacancyObservation observation) {
+		if (!CanAttemptMarketClearingSigning(label.CurrentRosterSize, label.OperatingRosterTarget)) {
+			MarketClearingAttemptsAtOrAboveOperatingTarget++;
+			observation.MarketClearingAttemptsAtOrAboveOperatingTarget = MarketClearingAttemptsAtOrAboveOperatingTarget;
+			observation.FailureReason = "OperatingRosterTargetFull";
+			return false;
+		}
 		int discoveryPoolCount;
 		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, out discoveryPoolCount);
 		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, out _);
