@@ -103,6 +103,10 @@ public partial class AILabel : Resource {
 	
 	public int CurrentRosterSize => roster?.Count ?? 0;
 	public bool HasRosterSpace => roster == null || roster.Count < maxRosterSize;
+	[Export] public int operatingRosterTarget;
+	public int OperatingRosterTarget => Mathf.Clamp(operatingRosterTarget > 0 ? operatingRosterTarget : maxRosterSize, 1, Mathf.Max(1, maxRosterSize));
+	public bool HasOperatingRosterSpace => roster == null || roster.Count < OperatingRosterTarget;
+	public void SetOperatingRosterTargetFromCurrent() => operatingRosterTarget = Mathf.Clamp(Mathf.Max(1, CurrentRosterSize), 1, Mathf.Max(1, maxRosterSize));
 	public float MonthlyProfit => monthlyRevenue - monthlyExpenses;
 	public bool IsActive => status != LabelStatus.Bankrupt && status != LabelStatus.Defunct && status != LabelStatus.Acquired;
 	public float DistributionDependency => borrowedReach / (borrowedReach + ownedReach + 0.01f);
@@ -337,9 +341,24 @@ public partial class AILabel : Resource {
 	public readonly struct SigningEvaluation {
 		public readonly SimulatedArtist BestCandidate;
 		public readonly float? BestCandidateScore;
-		public SigningEvaluation(SimulatedArtist bestCandidate, float? bestCandidateScore) {
+		public readonly SimulatedArtist HighestScoredCandidate;
+		public readonly IReadOnlyList<SigningCandidateScore> CandidateScores;
+		public SigningEvaluation(SimulatedArtist bestCandidate, float? bestCandidateScore,
+			SimulatedArtist highestScoredCandidate = null, IReadOnlyList<SigningCandidateScore> candidateScores = null) {
 			BestCandidate = bestCandidate;
 			BestCandidateScore = bestCandidateScore;
+			HighestScoredCandidate = highestScoredCandidate;
+			CandidateScores = candidateScores ?? System.Array.Empty<SigningCandidateScore>();
+		}
+	}
+
+	/// <summary>One candidate's unchanged signing score, retained for deterministic policy selection.</summary>
+	public readonly struct SigningCandidateScore {
+		public readonly SimulatedArtist Artist;
+		public readonly float Score;
+		public SigningCandidateScore(SimulatedArtist artist, float score) {
+			Artist = artist;
+			Score = score;
 		}
 	}
 
@@ -349,23 +368,27 @@ public partial class AILabel : Resource {
 	/// Captures the one existing live scouting roll. Callers may supply a roll source
 	/// for probes; production passes none and consumes precisely the historical draw.
 	/// </summary>
-	public ScoutingGateEvaluation EvaluateScoutingGate(System.Func<float> rollSource = null, float minimumProbability = 0f) =>
-		EvaluateScoutingGateCore(rollSource, true, minimumProbability);
+	public ScoutingGateEvaluation EvaluateScoutingGate(System.Func<float> rollSource = null, float minimumProbability = 0f,
+		bool useOperatingRosterTarget = false) =>
+		EvaluateScoutingGateCore(rollSource, true, minimumProbability, useOperatingRosterTarget);
 
 	/// <summary>Observational snapshot for a chart capture with no scouting tick; never consumes RNG.</summary>
-	public ScoutingGateEvaluation PreviewScoutingGate() => EvaluateScoutingGateCore(null, false, 0f);
+	public ScoutingGateEvaluation PreviewScoutingGate(bool useOperatingRosterTarget = false) =>
+		EvaluateScoutingGateCore(null, false, 0f, useOperatingRosterTarget);
 
-	private ScoutingGateEvaluation EvaluateScoutingGateCore(System.Func<float> rollSource, bool consumeRoll, float minimumProbability) {
+	private ScoutingGateEvaluation EvaluateScoutingGateCore(System.Func<float> rollSource, bool consumeRoll, float minimumProbability,
+		bool useOperatingRosterTarget) {
 		int rosterSize = CurrentRosterSize;
+		int rosterCapacity = useOperatingRosterTarget ? OperatingRosterTarget : maxRosterSize;
 		float estimatedAdvance = tier switch {
 			LabelTier.Major => 5000f, LabelTier.MidTier => 2000f, _ => 800f
 		};
-		if (!HasRosterSpace) return new ScoutingGateEvaluation(rosterSize, maxRosterSize, estimatedAdvance, 1f,
+		if (rosterSize >= rosterCapacity) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, 1f,
 			false, 1f, 0, 1f, 0f, null, false, "RosterFull");
-		if (!CanAffordToSign(estimatedAdvance)) return new ScoutingGateEvaluation(rosterSize, maxRosterSize, estimatedAdvance,
-			maxRosterSize == 0 ? 1f : (float)rosterSize / maxRosterSize, false, 1f, 0, 1f, 0f, null, false, "EstimatedAdvanceUnaffordable");
+		if (!CanAffordToSign(estimatedAdvance)) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance,
+			rosterCapacity == 0 ? 1f : (float)rosterSize / rosterCapacity, false, 1f, 0, 1f, 0f, null, false, "EstimatedAdvanceUnaffordable");
 
-		float rosterFullness = maxRosterSize == 0 ? 1f : (float)rosterSize / maxRosterSize;
+		float rosterFullness = rosterCapacity == 0 ? 1f : (float)rosterSize / rosterCapacity;
 		float scoutChance = (1f - rosterFullness) * scoutingAbility;
 		bool hasRecentHit = (roster?.Count(a => a.consecutiveHits > 0) ?? 0) > 0;
 		float recentHitFactor = hasRecentHit ? 0.7f : 1f;
@@ -375,11 +398,11 @@ public partial class AILabel : Resource {
 		scoutChance *= decliningFactor;
 		float scoutingMultiplier = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true ? 0.20f : 0.15f;
 		float probability = Mathf.Max(scoutChance * scoutingMultiplier, minimumProbability);
-		if (!consumeRoll) return new ScoutingGateEvaluation(rosterSize, maxRosterSize, estimatedAdvance, rosterFullness, hasRecentHit,
+		if (!consumeRoll) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, rosterFullness, hasRecentHit,
 			recentHitFactor, decliningArtists, decliningFactor, probability, null, false, null);
 		float roll = rollSource?.Invoke() ?? (float)GD.RandRange(0f, 1f);
 		bool passed = roll < probability;
-		return new ScoutingGateEvaluation(rosterSize, maxRosterSize, estimatedAdvance, rosterFullness, hasRecentHit,
+		return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, rosterFullness, hasRecentHit,
 			recentHitFactor, decliningArtists, decliningFactor, probability, roll, passed,
 			passed ? null : "ScoutingRandomGate");
 	}
@@ -388,7 +411,7 @@ public partial class AILabel : Resource {
 
 	public SigningEvaluation EvaluateSigning(List<SimulatedArtist> candidates) {
 		if (candidates == null || candidates.Count == 0) return new SigningEvaluation(null, null);
-		var scored = new List<(SimulatedArtist artist, float score)>();
+		var scored = new List<SigningCandidateScore>();
 		
 		foreach (var artist in candidates) {
 			float score = 0f;
@@ -405,11 +428,28 @@ public partial class AILabel : Resource {
 			float estimatedCost = CalculateAdvanceOffer(artist);
 			float costRatio = estimatedCost / Mathf.Max(1f, cashReserves);
 			if (costRatio > 0.3f) score *= 0.7f;
-			scored.Add((artist, score));
+			scored.Add(new SigningCandidateScore(artist, score));
 		}
 		
-		var best = scored.OrderByDescending(s => s.score).FirstOrDefault();
-		return new SigningEvaluation(best.score < 0.3f ? null : best.artist, best.score);
+		SigningCandidateScore best = scored.OrderByDescending(candidate => candidate.Score).First();
+		return new SigningEvaluation(best.Score < 0.3f ? null : best.Artist, best.Score, best.Artist, scored);
+	}
+
+	/// <summary>Evaluates an unsigned prospect from potential, not career evidence.</summary>
+	public SigningEvaluation EvaluateFreshPotential(List<SimulatedArtist> candidates) {
+		if (candidates == null || candidates.Count == 0) return new SigningEvaluation(null, null);
+		var scored = new List<SigningCandidateScore>();
+		foreach (var artist in candidates) {
+			float score = artist.CalculateBaseQuality() * scoutingAbility * 2f;
+			if (preferredGenres != null && preferredGenres.Contains(artist.primaryGenre)) score += 0.3f;
+			else if (secondaryGenres != null && secondaryGenres.Contains(artist.primaryGenre)) score += 0.15f;
+			else score -= 0.2f;
+			float estimatedCost = CalculateAdvanceOffer(artist);
+			if (estimatedCost / Mathf.Max(1f, cashReserves) > 0.3f) score *= 0.7f;
+			scored.Add(new SigningCandidateScore(artist, score));
+		}
+		SigningCandidateScore best = scored.OrderByDescending(candidate => candidate.Score).First();
+		return new SigningEvaluation(best.Score < 0.3f ? null : best.Artist, best.Score, best.Artist, scored);
 	}
 	
 	public bool ShouldDropArtist(SimulatedArtist artist) {
@@ -418,7 +458,7 @@ public partial class AILabel : Resource {
 		// SimulatedArtist.UpdateCareerState.  The legacy monthly review reads
 		// lifetime consecutiveFlops and would otherwise re-drop a newly signed
 		// free agent before two results in the new contract.
-		if (ArtistPopulationLifecycle.Enabled && artist.careerState == CareerState.NewSigning) return false;
+		if (ArtistPopulationLifecycle.Enabled) return artist.ShouldDepartForCurrentContractPerformance();
 		if (artist.consecutiveFlops >= 3 && artist.careerState <= CareerState.Rising) return (float)GD.RandRange(0f, 1f) < 0.6f;
 		if (artist.consecutiveFlops >= 4 && artist.careerState == CareerState.Established) return (float)GD.RandRange(0f, 1f) < 0.4f;
 		if (artist.careerState == CareerState.Declining && artist.consecutiveFlops >= 2) return (float)GD.RandRange(0f, 1f) < 0.5f;

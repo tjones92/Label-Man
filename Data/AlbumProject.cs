@@ -14,6 +14,10 @@ public sealed class AlbumProject {
 	public string artistId;
 	public Genre genre;
 	public CareerState careerStateAtSchedule;
+	public CareerState careerStateBeforeDropAtSchedule;
+	public CareerState contractEntryCareerStateAtSchedule;
+	public int contractSequenceAtSchedule;
+	public int contractStartWeekAtSchedule = -1;
 	public int scheduledWeek;
 	public GameDate scheduledDate;
 	public int dropWeek;

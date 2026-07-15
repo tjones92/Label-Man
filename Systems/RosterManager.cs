@@ -20,17 +20,21 @@ public partial class RosterManager : Node {
 	private readonly Dictionary<string, LabelScoutingVacancyObservation> weeklyScoutingVacancyByLabelId = new(System.StringComparer.Ordinal);
 	private readonly Dictionary<string, int> consecutiveVacancyWeeksByLabelId = new(System.StringComparer.Ordinal);
 	private readonly Dictionary<string, int> consecutiveEmptyWeeksByLabelId = new(System.StringComparer.Ordinal);
-	// Enabled-only decision state. This is intentionally separate from the
-	// observational vacancy telemetry so a capture can never influence scouting.
-	private readonly Dictionary<string, int> scoutingUrgencyAgeByLabelId = new(System.StringComparer.Ordinal);
+	// Enabled-only service state. It is independent from observational telemetry.
+	private readonly Dictionary<string, int> serviceDeficitAgeByLabelId = new(System.StringComparer.Ordinal);
+	private readonly Dictionary<string, int> recoveryRosterCeilingByLabelId = new(System.StringComparer.Ordinal);
 	private const int ShortWindowRedropWeeks = 26;
 	public const int ScoutingUrgencyThresholdWeeks = 12;
 	public const float ScoutingUrgencyProbabilityFloor = 0.25f;
+	internal const int MinimumDiscoverySlateSize = 4;
+	internal const int MaximumDiscoverySlateSize = 12;
+	private const int DiscoveryRefreshWindowWeeks = 4;
 
 	public sealed class LabelScoutingVacancyObservation {
 		public string LabelId { get; init; }
 		public LabelTier LabelTier { get; init; }
 		public int MaxRosterSize { get; init; }
+		public int OperatingRosterTarget { get; init; }
 		public int ScoutingRosterSize { get; init; }
 		public int ScoutingUnusedRosterSlots { get; init; }
 		public bool ScoutingIsEmptyRoster { get; init; }
@@ -46,16 +50,43 @@ public partial class RosterManager : Node {
 		public float? ScoutRandomRoll { get; init; }
 		public bool ScoutingGatePassed { get; init; }
 		public int? EligibleCandidateCount { get; set; }
+		public int? DiscoveryPoolCount { get; set; }
 		public float? BestCandidateScore { get; set; }
+		public int? NeverSignedSlateCount { get; set; }
+		public int? QualifyingNeverSignedCount { get; set; }
+		public float? BestNeverSignedScore { get; set; }
+		public int? ThirdPlusPerformanceComebackCount { get; set; }
+		public int? OverallBestContractSequence { get; set; }
+		public bool FreshPreferenceApplied { get; set; }
+		public bool RepeatComebackDeferred { get; set; }
+		public string FreshPreferenceFallbackReason { get; set; }
 		public bool SigningAttempted { get; set; }
 		public bool SigningSucceeded { get; set; }
 		public string SigningKind { get; set; }
 		public string FailureReason { get; set; }
 		public int RosterSize { get; set; }
 		public int UnusedRosterSlots { get; set; }
+		public int UnusedOperatingRosterSlots { get; set; }
 		public bool IsEmptyRoster { get; set; }
 		public int ConsecutiveVacancyWeeks { get; set; }
 		public int ConsecutiveEmptyWeeks { get; set; }
+		public int ScoutingUnusedOperatingRosterSlots { get; init; }
+		public int ReleaseEligibleArtistCount { get; set; }
+		public int RequiredReleaseLanes { get; set; }
+		public int HeadcountDeficit { get; set; }
+		public int ReleaseLaneDeficit { get; set; }
+		public int ServiceDeficit { get; set; }
+		public int ServiceDeficitAge { get; set; }
+		public string ServiceMode { get; set; }
+		public bool ScoutingGateBypassed { get; set; }
+		public int FreshLaneCount { get; set; }
+		public int ExperiencedLaneCount { get; set; }
+		public string FreshDiscoveryScope { get; set; }
+		public float? BestFreshPotentialScore { get; set; }
+		public float? BestExperiencedProductionScore { get; set; }
+		public string SelectedLane { get; set; }
+		public bool RecoveryThresholdFallbackUsed { get; set; }
+		public string RecoveryFailureReason { get; set; }
 	}
 
 	public readonly struct RosterLifecycleFlow {
@@ -156,6 +187,8 @@ public partial class RosterManager : Node {
 			var artist = FindArtistForLabel(label, year);
 			if (artist != null) InitialSignArtist(label, artist, year);
 		}
+		label.operatingRosterTarget = label.CurrentRosterSize == 0
+			? Mathf.Min(3, label.maxRosterSize) : label.OperatingRosterTarget;
 	}
 	
 	private SimulatedArtist FindArtistForLabel(AILabel label, int year) {
@@ -287,13 +320,51 @@ public partial class RosterManager : Node {
 	private void ProcessLegacyScoutingWithTelemetry(List<AILabel> labels, int year) {
 		var scoutingLabels = new List<(AILabel Label, LabelScoutingVacancyObservation Observation)>();
 		foreach (AILabel label in labels) {
-			AILabel.ScoutingGateEvaluation gate = label.EvaluateScoutingGate();
+			AILabel.ScoutingGateEvaluation gate = label.EvaluateScoutingGate(useOperatingRosterTarget: true);
 			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
 			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
 			if (gate.ScoutingGatePassed) scoutingLabels.Add((label, observation));
 		}
 		foreach ((AILabel label, LabelScoutingVacancyObservation observation) in scoutingLabels.OrderBy(_ => GD.Randf()).Take(3))
 			TrySignNewArtist(label, year, observation);
+	}
+
+	private enum TalentServiceMode { Normal, Watch, Recovery }
+	internal static string GetTalentServiceModeForProbe(int rosterSize, int operatingTarget, int maxRosterSize, int releaseEligible, int priorDeficitAge) {
+		int headcount = Mathf.Max(0, operatingTarget - rosterSize);
+		int lanes = Mathf.Min(3, maxRosterSize);
+		int deficit = Mathf.Max(headcount, Mathf.Max(0, lanes - releaseEligible));
+		int age = deficit == 0 ? 0 : priorDeficitAge + 1;
+		return deficit == 0 ? TalentServiceMode.Normal.ToString() :
+			(rosterSize == 0 || deficit >= 2 || age >= 4 ? TalentServiceMode.Recovery.ToString() : TalentServiceMode.Watch.ToString());
+	}
+	private readonly struct TalentServiceState {
+		public readonly int ReleaseEligible; public readonly int RequiredLanes; public readonly int HeadcountDeficit;
+		public readonly int ReleaseLaneDeficit; public readonly int Deficit; public readonly int Age; public readonly TalentServiceMode Mode; public readonly int Ceiling;
+		public TalentServiceState(int eligible, int lanes, int headcount, int laneDeficit, int deficit, int age, TalentServiceMode mode, int ceiling) {
+			ReleaseEligible = eligible; RequiredLanes = lanes; HeadcountDeficit = headcount; ReleaseLaneDeficit = laneDeficit;
+			Deficit = deficit; Age = age; Mode = mode; Ceiling = ceiling;
+		}
+	}
+
+	private TalentServiceState GetTalentServiceState(AILabel label, int year) {
+		int eligible = label.CountArtistsEligibleForRelease(year);
+		int lanes = Mathf.Min(3, label.maxRosterSize);
+		int headcount = Mathf.Max(0, label.OperatingRosterTarget - label.CurrentRosterSize);
+		int laneDeficit = Mathf.Max(0, lanes - eligible);
+		int deficit = Mathf.Max(headcount, laneDeficit);
+		int age = deficit == 0 ? 0 : serviceDeficitAgeByLabelId.GetValueOrDefault(label.labelId) + 1;
+		TalentServiceMode mode = deficit == 0 ? TalentServiceMode.Normal :
+			(label.CurrentRosterSize == 0 || deficit >= 2 || age >= 4 ? TalentServiceMode.Recovery : TalentServiceMode.Watch);
+		if (mode == TalentServiceMode.Recovery && !recoveryRosterCeilingByLabelId.ContainsKey(label.labelId))
+			recoveryRosterCeilingByLabelId[label.labelId] = Mathf.Min(label.maxRosterSize, label.OperatingRosterTarget + laneDeficit);
+		int ceiling = recoveryRosterCeilingByLabelId.GetValueOrDefault(label.labelId, label.OperatingRosterTarget);
+		return new TalentServiceState(eligible, lanes, headcount, laneDeficit, deficit, age, mode, ceiling);
+	}
+
+	private void FinalizeTalentServiceState(AILabel label, TalentServiceState state) {
+		if (state.Deficit == 0) { serviceDeficitAgeByLabelId.Remove(label.labelId); recoveryRosterCeilingByLabelId.Remove(label.labelId); }
+		else serviceDeficitAgeByLabelId[label.labelId] = state.Age;
 	}
 
 	private void ProcessEnabledVacancyResponsiveScouting(int year) {
@@ -304,35 +375,51 @@ public partial class RosterManager : Node {
 				// ChartManager retains historical/closed labels for lookup and audit history.
 				// They must remain observable, but must never consume scouting RNG or
 				// re-acquire artists after LabelLifecycleManager has closed them.
-				AILabel.ScoutingGateEvaluation inactivePreview = label.PreviewScoutingGate();
+				AILabel.ScoutingGateEvaluation inactivePreview = label.PreviewScoutingGate(useOperatingRosterTarget: true);
 				LabelScoutingVacancyObservation inactiveObservation = CreateScoutingVacancyObservation(label, inactivePreview);
 				inactiveObservation.FailureReason = "InactiveLabel";
 				weeklyScoutingVacancyByLabelId[label.labelId] = inactiveObservation;
-				scoutingUrgencyAgeByLabelId.Remove(label.labelId);
+				serviceDeficitAgeByLabelId.Remove(label.labelId); recoveryRosterCeilingByLabelId.Remove(label.labelId);
 				continue;
 			}
-			int urgencyAge = GetScoutingUrgencyAgeForWeek(label.HasRosterSpace,
-				scoutingUrgencyAgeByLabelId.GetValueOrDefault(label.labelId));
-			float minimumProbability = GetScoutingProbabilityFloorForPath(true, urgencyAge);
-			AILabel.ScoutingGateEvaluation gate = label.EvaluateScoutingGate(minimumProbability: minimumProbability);
+			TalentServiceState service = GetTalentServiceState(label, year);
+			bool recovery = service.Mode == TalentServiceMode.Recovery;
+			bool mayEvaluate = label.CurrentRosterSize < (recovery ? service.Ceiling :
+				(service.ReleaseLaneDeficit > 0 ? label.maxRosterSize : label.OperatingRosterTarget));
+			AILabel.ScoutingGateEvaluation gate;
+			if (recovery) {
+				AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate(useOperatingRosterTarget: false);
+				bool affordable = label.CanAffordToSign(preview.EstimatedAdvance);
+				gate = new AILabel.ScoutingGateEvaluation(label.CurrentRosterSize, label.maxRosterSize, preview.EstimatedAdvance,
+					preview.RosterFullness, preview.HasRecentHit, preview.RecentHitFactor, preview.DecliningArtistCount, preview.DecliningFactor,
+					preview.ComputedScoutProbability, null, mayEvaluate && affordable, mayEvaluate ? (affordable ? null : "EstimatedAdvanceUnaffordable") : "RosterFull");
+			} else gate = label.EvaluateScoutingGate(useOperatingRosterTarget: service.ReleaseLaneDeficit == 0);
 			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
+			PopulateServiceObservation(observation, service, recovery);
 			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
-			bool signingSucceeded = false;
 			if (gate.ScoutingGatePassed) {
 				RecordScoutingGatePass(label.tier);
-				// Exactly one scouting roll and one signing attempt per qualifying label per live week.
-				signingSucceeded = TrySignNewArtist(label, year, observation);
+				TrySignFromMarket(label, year, service, observation);
 			}
-			UpdateScoutingUrgencyAge(label, urgencyAge, signingSucceeded);
+			FinalizeTalentServiceState(label, service);
 		}
+	}
+
+	private static void PopulateServiceObservation(LabelScoutingVacancyObservation observation, TalentServiceState state, bool bypassed) {
+		observation.ReleaseEligibleArtistCount = state.ReleaseEligible; observation.RequiredReleaseLanes = state.RequiredLanes;
+		observation.HeadcountDeficit = state.HeadcountDeficit; observation.ReleaseLaneDeficit = state.ReleaseLaneDeficit;
+		observation.ServiceDeficit = state.Deficit; observation.ServiceDeficitAge = state.Age; observation.ServiceMode = state.Mode.ToString();
+		observation.ScoutingGateBypassed = bypassed;
 	}
 
 	private static LabelScoutingVacancyObservation CreateScoutingVacancyObservation(AILabel label, AILabel.ScoutingGateEvaluation gate) => new() {
 		LabelId = label.labelId,
 		LabelTier = label.tier,
-		MaxRosterSize = gate.MaxRosterSize,
+		MaxRosterSize = label.maxRosterSize,
+		OperatingRosterTarget = label.OperatingRosterTarget,
 		ScoutingRosterSize = gate.RosterSize,
-		ScoutingUnusedRosterSlots = Mathf.Max(0, gate.MaxRosterSize - gate.RosterSize),
+		ScoutingUnusedRosterSlots = Mathf.Max(0, label.maxRosterSize - gate.RosterSize),
+		ScoutingUnusedOperatingRosterSlots = Mathf.Max(0, label.OperatingRosterTarget - gate.RosterSize),
 		ScoutingIsEmptyRoster = gate.RosterSize == 0,
 		ScoutingAbility = label.scoutingAbility,
 		ScoutingRosterFullness = gate.RosterFullness,
@@ -347,12 +434,86 @@ public partial class RosterManager : Node {
 		ScoutingGatePassed = gate.ScoutingGatePassed,
 		FailureReason = gate.FailureReason
 	};
+
+	private bool TrySignFromMarket(AILabel label, int year, TalentServiceState service, LabelScoutingVacancyObservation observation) {
+		int discoveryPoolCount;
+		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, out discoveryPoolCount);
+		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, out _);
+		AILabel.SigningEvaluation freshEvaluation = label.EvaluateFreshPotential(fresh);
+		AILabel.SigningEvaluation experiencedEvaluation = label.EvaluateSigning(experienced);
+		observation.EligibleCandidateCount = fresh.Count + experienced.Count;
+		observation.DiscoveryPoolCount = discoveryPoolCount;
+		observation.FreshLaneCount = fresh.Count; observation.ExperiencedLaneCount = experienced.Count;
+		observation.FreshDiscoveryScope = "Regional";
+		observation.BestFreshPotentialScore = freshEvaluation.BestCandidateScore;
+		observation.BestExperiencedProductionScore = experiencedEvaluation.BestCandidateScore;
+
+		SimulatedArtist selected = null;
+		string selectedLane = null;
+		bool recovery = service.Mode == TalentServiceMode.Recovery;
+		if (recovery) {
+			selected = BestAffordable(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false);
+			if (selected != null) { selectedLane = "FreshPotential"; observation.RecoveryFailureReason = "FreshThresholdQualified"; }
+			else {
+				List<SimulatedArtist> nationalFresh = GetEnabledSupplyCandidates(label, year, true, true, out _);
+				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(nationalFresh);
+				observation.FreshLaneCount = nationalFresh.Count; observation.FreshDiscoveryScope = "National";
+				observation.BestFreshPotentialScore = nationalEvaluation.BestCandidateScore;
+				selected = BestAffordable(label, nationalEvaluation.CandidateScores, 0f, positiveOnly: true);
+				if (selected != null) {
+					selectedLane = "FreshPotential"; observation.RecoveryThresholdFallbackUsed = true;
+					observation.RecoveryFailureReason = "FreshRecoveryQualified";
+				} else {
+					selected = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false);
+					if (selected != null) { selectedLane = "ExperiencedProduction"; observation.RecoveryFailureReason = "ExperiencedFallback"; }
+					else observation.RecoveryFailureReason = nationalFresh.Count == 0 ? "NoFreshNationalCandidate" : "NoPositiveFreshPotential";
+				}
+			}
+		} else {
+			SimulatedArtist bestFresh = BestAffordable(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false);
+			SimulatedArtist bestExperienced = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false);
+			float freshScore = ScoreOf(freshEvaluation.CandidateScores, bestFresh);
+			float experiencedScore = ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced);
+			if (bestFresh != null && (bestExperienced == null || freshScore >= experiencedScore)) { selected = bestFresh; selectedLane = "FreshPotential"; }
+			else if (bestExperienced != null) { selected = bestExperienced; selectedLane = "ExperiencedProduction"; }
+		}
+		if (selected == null) {
+			observation.FailureReason = "CandidateScore";
+			if (!recovery) RecordScoreRejection(label.tier);
+			if (string.IsNullOrEmpty(observation.RecoveryFailureReason)) observation.RecoveryFailureReason = fresh.Count == 0 ? "NoFreshRegionalCandidate" : "NoPositiveFreshPotential";
+			return false;
+		}
+		observation.SelectedLane = selectedLane; observation.SigningAttempted = true;
+		RecordSigningAttempt(label.tier);
+		if (!label.CanAffordToSign(label.CalculateAdvanceOffer(selected))) {
+			observation.FailureReason = "ActualAdvanceUnaffordable"; observation.RecoveryFailureReason = "ActualAdvanceUnaffordable";
+			RecordAffordabilityRejection(label.tier); return false;
+		}
+		bool reSigningDroppedArtist = selected.careerState == CareerState.Dropped;
+		string signingKind = GetSigningKindForTelemetry(selected);
+		float advance = label.SignArtist(selected, year);
+		CompetitorManager.Instance?.RecordExpense(label, advance);
+		ArtistManager.Instance.SignArtist(selected, label.labelId, year);
+		WeeklySignings++; RecordSigning(label.tier, selected, reSigningDroppedArtist);
+		observation.SigningSucceeded = true; observation.SigningKind = signingKind; observation.FailureReason = signingKind;
+		return true;
+	}
+
+	private static float ScoreOf(IReadOnlyList<AILabel.SigningCandidateScore> scores, SimulatedArtist artist) =>
+		artist == null ? float.NegativeInfinity : scores.First(score => score.Artist == artist).Score;
+	private static SimulatedArtist BestAffordable(AILabel label, IReadOnlyList<AILabel.SigningCandidateScore> scores, float minimum, bool positiveOnly) =>
+		scores.Where(score => score.Score >= minimum && (!positiveOnly || score.Score > 0f))
+			.Where(score => score.Artist != null && label.CanAffordToSign(label.CalculateAdvanceOffer(score.Artist)))
+			.OrderByDescending(score => score.Score).FirstOrDefault().Artist;
 	
 	private bool TrySignNewArtist(AILabel label, int year, LabelScoutingVacancyObservation observation = null) {
-		var candidates = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
-			? GetEnabledSupplyCandidates(label, year)
+		bool enabledSupply = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		int discoveryPoolCount = 0;
+		var candidates = enabledSupply
+			? GetEnabledSupplyCandidates(label, year, out discoveryPoolCount)
 			: ArtistManager.Instance.GetTopUnsignedTalent(20, label.preferredGenres.FirstOrDefault());
 		if (observation != null) observation.EligibleCandidateCount = candidates.Count;
+		if (observation != null && enabledSupply) observation.DiscoveryPoolCount = discoveryPoolCount;
 		if (candidates.Count == 0) {
 			if (observation != null) observation.FailureReason = "NoEligibleCandidate";
 			if (IsLiveGenreMarket()) RecordNoEligibleCandidatePass(label.tier);
@@ -360,8 +521,20 @@ public partial class RosterManager : Node {
 		}
 		
 		AILabel.SigningEvaluation signingEvaluation = label.EvaluateSigning(candidates);
-		var bestCandidate = signingEvaluation.BestCandidate;
+		FreshProspectPreferenceDecision preference = SelectFreshProspectCandidate(label, signingEvaluation,
+			ArtistPopulationLifecycle.Enabled && enabledSupply);
+		var bestCandidate = preference.SelectedCandidate;
 		if (observation != null) observation.BestCandidateScore = signingEvaluation.BestCandidateScore;
+		if (observation != null && ArtistPopulationLifecycle.Enabled && enabledSupply) {
+			observation.NeverSignedSlateCount = preference.NeverSignedSlateCount;
+			observation.QualifyingNeverSignedCount = preference.QualifyingNeverSignedCount;
+			observation.BestNeverSignedScore = preference.BestNeverSignedScore;
+			observation.ThirdPlusPerformanceComebackCount = preference.ThirdPlusPerformanceComebackCount;
+			observation.OverallBestContractSequence = preference.OverallBestContractSequence;
+			observation.FreshPreferenceApplied = preference.FreshPreferenceApplied;
+			observation.RepeatComebackDeferred = preference.RepeatComebackDeferred;
+			observation.FreshPreferenceFallbackReason = preference.FallbackReason;
+		}
 		if (bestCandidate == null) {
 			if (observation != null) observation.FailureReason = "CandidateScore";
 			if (IsLiveGenreMarket()) RecordScoreRejection(label.tier);
@@ -398,8 +571,9 @@ public partial class RosterManager : Node {
 			if (!weeklyScoutingVacancyByLabelId.TryGetValue(label.labelId, out LabelScoutingVacancyObservation observation)) continue;
 			observation.RosterSize = label.CurrentRosterSize;
 			observation.UnusedRosterSlots = Mathf.Max(0, label.maxRosterSize - observation.RosterSize);
+			observation.UnusedOperatingRosterSlots = Mathf.Max(0, label.OperatingRosterTarget - observation.RosterSize);
 			observation.IsEmptyRoster = observation.RosterSize == 0;
-			observation.ConsecutiveVacancyWeeks = AdvanceConsecutiveAge(observation.UnusedRosterSlots > 0,
+			observation.ConsecutiveVacancyWeeks = AdvanceConsecutiveAge(observation.UnusedOperatingRosterSlots > 0,
 				consecutiveVacancyWeeksByLabelId.GetValueOrDefault(label.labelId));
 			observation.ConsecutiveEmptyWeeks = AdvanceConsecutiveAge(observation.IsEmptyRoster,
 				consecutiveEmptyWeeksByLabelId.GetValueOrDefault(label.labelId));
@@ -433,7 +607,7 @@ public partial class RosterManager : Node {
 		List<AILabel> labels = GetAllLabels();
 		if (labels == null) return;
 		foreach (AILabel label in labels) {
-			AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate();
+			AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate(useOperatingRosterTarget: true);
 			weeklyScoutingVacancyByLabelId[label.labelId] = CreateScoutingVacancyObservation(label, preview);
 		}
 	}
@@ -441,29 +615,119 @@ public partial class RosterManager : Node {
 	public static int AdvanceConsecutiveAge(bool condition, int priorAge) => condition ? priorAge + 1 : 0;
 	public static bool IsEligibleForEnabledScouting(AILabel label) => label?.IsActive == true;
 	public static int GetScoutingUrgencyAgeForWeek(bool hasRosterSpace, int priorAge) => hasRosterSpace ? priorAge + 1 : 0;
-	public static float GetScoutingProbabilityFloorForPath(bool enabledLifecyclePath, int urgencyAge) =>
-		enabledLifecyclePath && urgencyAge >= ScoutingUrgencyThresholdWeeks ? ScoutingUrgencyProbabilityFloor : 0f;
-	public static int FinalizeScoutingUrgencyAge(bool hasRosterSpace, bool signingSucceeded, int urgencyAge) =>
-		signingSucceeded || !hasRosterSpace ? 0 : urgencyAge;
-
-	private void UpdateScoutingUrgencyAge(AILabel label, int urgencyAge, bool signingSucceeded) {
-		int finalizedAge = FinalizeScoutingUrgencyAge(label.HasRosterSpace, signingSucceeded, urgencyAge);
-		if (finalizedAge == 0) scoutingUrgencyAgeByLabelId.Remove(label.labelId);
-		else scoutingUrgencyAgeByLabelId[label.labelId] = finalizedAge;
+	public static float GetScoutingProbabilityFloorForPath(bool enabledLifecyclePath, int urgencyAge) {
+		if (!enabledLifecyclePath || urgencyAge < ScoutingUrgencyThresholdWeeks) return 0f;
+		return ScoutingUrgencyProbabilityFloor;
 	}
+	public static int FinalizeScoutingUrgencyAge(bool hasRosterSpace, bool signingSucceeded, int urgencyAge) =>
+		hasRosterSpace ? urgencyAge : 0;
+
 	public static string GetSigningKindForTelemetry(SimulatedArtist artist) => artist?.careerState == CareerState.Dropped
 		? "SignedFreeAgent" : "SignedFirstTime";
 
-	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year) {
+	public readonly struct FreshProspectPreferenceDecision {
+		public readonly SimulatedArtist SelectedCandidate;
+		public readonly int NeverSignedSlateCount;
+		public readonly int QualifyingNeverSignedCount;
+		public readonly float? BestNeverSignedScore;
+		public readonly int ThirdPlusPerformanceComebackCount;
+		public readonly int? OverallBestContractSequence;
+		public readonly bool FreshPreferenceApplied;
+		public readonly bool RepeatComebackDeferred;
+		public readonly string FallbackReason;
+		public FreshProspectPreferenceDecision(SimulatedArtist selectedCandidate, int neverSignedSlateCount,
+			int qualifyingNeverSignedCount, float? bestNeverSignedScore, int thirdPlusPerformanceComebackCount,
+			int? overallBestContractSequence, bool freshPreferenceApplied, bool repeatComebackDeferred, string fallbackReason) {
+			SelectedCandidate = selectedCandidate;
+			NeverSignedSlateCount = neverSignedSlateCount;
+			QualifyingNeverSignedCount = qualifyingNeverSignedCount;
+			BestNeverSignedScore = bestNeverSignedScore;
+			ThirdPlusPerformanceComebackCount = thirdPlusPerformanceComebackCount;
+			OverallBestContractSequence = overallBestContractSequence;
+			FreshPreferenceApplied = freshPreferenceApplied;
+			RepeatComebackDeferred = repeatComebackDeferred;
+			FallbackReason = fallbackReason;
+		}
+	}
+
+	private static bool IsNeverSignedProspect(SimulatedArtist artist) => artist != null && artist.contractSequence == 0 && artist.careerState != CareerState.Dropped;
+	private static bool IsThirdPlusPerformanceComeback(SimulatedArtist artist) => artist?.careerState == CareerState.Dropped &&
+		artist.lastDropReason == ArtistDropReason.Performance && artist.contractSequence >= 2;
+
+	/// <summary>
+	/// Resolves the enabled-only finite fresh-prospect preference from one scored discovery slate.
+	/// It consumes no RNG and never changes the score formula, threshold, or slate ordering.
+	/// </summary>
+	public static FreshProspectPreferenceDecision SelectFreshProspectCandidate(AILabel label, AILabel.SigningEvaluation evaluation,
+		bool enabledFreshPreference) {
+		SimulatedArtist overallBest = evaluation.HighestScoredCandidate;
+		int neverSignedCount = evaluation.CandidateScores.Count(candidate => IsNeverSignedProspect(candidate.Artist));
+		AILabel.SigningCandidateScore[] neverSigned = evaluation.CandidateScores.Where(candidate => IsNeverSignedProspect(candidate.Artist)).ToArray();
+		float? bestNeverSignedScore = neverSigned.Length == 0 ? null : neverSigned.Max(candidate => candidate.Score);
+		AILabel.SigningCandidateScore[] qualifyingNeverSigned = neverSigned.Where(candidate => candidate.Score >= .3f &&
+			label.CanAffordToSign(label.CalculateAdvanceOffer(candidate.Artist))).ToArray();
+		int thirdPlusCount = evaluation.CandidateScores.Count(candidate => IsThirdPlusPerformanceComeback(candidate.Artist));
+		int? overallSequence = overallBest?.contractSequence;
+		if (!enabledFreshPreference || evaluation.BestCandidate == null || !IsThirdPlusPerformanceComeback(evaluation.BestCandidate))
+			return new FreshProspectPreferenceDecision(evaluation.BestCandidate, neverSignedCount, qualifyingNeverSigned.Length,
+				bestNeverSignedScore, thirdPlusCount, overallSequence, false, false, "OverallBestNotGuarded");
+		if (neverSigned.Length == 0)
+			return new FreshProspectPreferenceDecision(evaluation.BestCandidate, 0, 0, null, thirdPlusCount, overallSequence,
+				false, false, "NoNeverSignedInSlate");
+		if (qualifyingNeverSigned.Length == 0) {
+			bool passedScore = neverSigned.Any(candidate => candidate.Score >= .3f);
+			return new FreshProspectPreferenceDecision(evaluation.BestCandidate, neverSignedCount, 0, bestNeverSignedScore,
+				thirdPlusCount, overallSequence, false, false, passedScore ? "FreshAdvanceUnaffordable" : "NoQualifyingNeverSigned");
+		}
+		SimulatedArtist preferredFresh = qualifyingNeverSigned.OrderByDescending(candidate => candidate.Score).First().Artist;
+		return new FreshProspectPreferenceDecision(preferredFresh, neverSignedCount, qualifyingNeverSigned.Length, bestNeverSignedScore,
+			thirdPlusCount, overallSequence, true, true, "FreshPreferred");
+	}
+
+	internal static int GetDiscoverySlateSize(float scoutingAbility) => Mathf.Clamp(
+		MinimumDiscoverySlateSize + Mathf.RoundToInt(Mathf.Clamp(scoutingAbility, 0f, 1f) *
+		(MaximumDiscoverySlateSize - MinimumDiscoverySlateSize)), MinimumDiscoverySlateSize, MaximumDiscoverySlateSize);
+	internal static ulong GetStableDiscoveryKey(string labelId, string artistId, int discoveryWindow) {
+		const ulong offset = 14695981039346656037UL;
+		const ulong prime = 1099511628211UL;
+		ulong hash = offset;
+		foreach (char value in $"{labelId}|{artistId}|{discoveryWindow}") { hash ^= value; hash *= prime; }
+		return hash;
+	}
+	private static string NormalizeRegionName(string value) => new((value ?? string.Empty)
+		.Where(System.Char.IsLetterOrDigit).Select(System.Char.ToLowerInvariant).ToArray());
+	private static bool IsInScoutingRegion(SimulatedArtist artist, MarketRegion region) => artist != null && region != null &&
+		NormalizeRegionName(artist.homeRegion) == NormalizeRegionName(region.regionName);
+
+	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, out int discoveryPoolCount) =>
+		GetEnabledSupplyCandidates(label, year, null, false, out discoveryPoolCount);
+
+	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool freshLane, bool nationalFreshRecovery,
+		out int discoveryPoolCount) => GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, out discoveryPoolCount);
+
+	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool? freshLane, bool nationalFreshRecovery,
+		out int discoveryPoolCount) {
 		MarketRegion region = ChartManager.Instance?.GetRegionById(label.homeRegion);
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		return ArtistManager.Instance.GetUnsignedArtists()
+		List<SimulatedArtist> eligible = ArtistManager.Instance.GetUnsignedArtists()
 			.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, currentWeek))
 			.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
+			.ToList();
+		if (freshLane.HasValue) eligible = eligible.Where(artist => freshLane.Value
+			? artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance
+			: !(artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance)).ToList();
+		int slateSize = GetDiscoverySlateSize(label.scoutingAbility);
+		List<SimulatedArtist> regional = eligible.Where(artist => IsInScoutingRegion(artist, region)).ToList();
+		List<SimulatedArtist> discoveryPool = nationalFreshRecovery ? eligible : (regional.Count >= slateSize ? regional : eligible);
+		discoveryPoolCount = discoveryPool.Count;
+		int discoveryWindow = Mathf.Max(0, currentWeek - 1) / DiscoveryRefreshWindowWeeks;
+		return discoveryPool
+			.OrderBy(artist => GetStableDiscoveryKey(label.labelId, artist.artistId, discoveryWindow))
+			.Take(nationalFreshRecovery ? slateSize * 4 : slateSize)
 			.OrderByDescending(artist => artist.CalculateBaseQuality() *
 				GenreSupplyService.GetSupplyWeight(artist.primaryGenre, label, artist, region, year))
 			.ThenBy(artist => artist.artistId, System.StringComparer.Ordinal)
-			.Take(40).ToList();
+			.ToList();
 	}
 	
 	private void OnMonthChanged(GameDate date) {

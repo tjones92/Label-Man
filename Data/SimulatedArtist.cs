@@ -34,6 +34,8 @@ public class SimulatedArtist {
 	public ArtistLifecycleStatus lifecycleStatus = ArtistLifecycleStatus.Active;
 	public ArtistDropReason lastDropReason = ArtistDropReason.Voluntary;
 	public int lastPerformanceDropWeek = -1;
+	public int performanceDropCount;
+	public bool usesRepeatPerformanceRecovery;
 	public int weeksContinuouslyUnowned;
 	public int inactiveSinceWeek = -1;
 
@@ -44,6 +46,10 @@ public class SimulatedArtist {
 	public int contractTop40Hits;
 	public int contractConsecutiveFlops;
 	public int contractCompletedChartRuns;
+	public CareerState careerStateBeforeDrop = CareerState.Unsigned;
+	public CareerState contractEntryCareerState = CareerState.Unsigned;
+	public bool contractUsesExperiencedComebackPolicy;
+	public const int ExperiencedComebackFlopThreshold = 3;
 
 	public float momentum;
 	public float reputation;
@@ -134,7 +140,7 @@ public class SimulatedArtist {
 		consecutiveFlops = 0;
 		momentum = Mathf.Clamp(momentum + 0.02f, 0f, 1f);
 		reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
-		if (ArtistPopulationLifecycle.Enabled && careerState == CareerState.NewSigning && creditCurrentContract) contractTop40Hits++;
+		if (ArtistPopulationLifecycle.Enabled && IsContractEvaluationPending() && creditCurrentContract) contractTop40Hits++;
 		UpdateCareerState();
 	}
 
@@ -156,9 +162,9 @@ public class SimulatedArtist {
 		if (peakPosition == 0 || peakPosition > 60) {
 			consecutiveFlops++;
 			consecutiveHits = 0;
-			if (ArtistPopulationLifecycle.Enabled && careerState == CareerState.NewSigning && creditCurrentContract) contractConsecutiveFlops++;
+			if (ArtistPopulationLifecycle.Enabled && IsContractEvaluationPending() && creditCurrentContract) contractConsecutiveFlops++;
 		}
-		if (ArtistPopulationLifecycle.Enabled && careerState == CareerState.NewSigning && creditCurrentContract) contractCompletedChartRuns++;
+		if (ArtistPopulationLifecycle.Enabled && IsContractEvaluationPending() && creditCurrentContract) contractCompletedChartRuns++;
 		if (peakPosition > 40) {
 			float penalty = peakPosition <= 60 ? -0.05f : peakPosition <= 100 ? -0.10f : -0.15f;
 			momentum = Mathf.Clamp(momentum + penalty, 0f, 1f);
@@ -168,10 +174,14 @@ public class SimulatedArtist {
 	}
 
 	private void UpdateCareerState() {
-		careerState = careerState switch {
+		CareerState priorState = careerState;
+		CareerState nextState;
+		if (ArtistPopulationLifecycle.Enabled && ShouldDepartForCurrentContractPerformance()) {
+			nextState = CareerState.Dropped;
+		} else nextState = careerState switch {
 			CareerState.Unsigned => careerState,
 			CareerState.NewSigning when (ArtistPopulationLifecycle.Enabled ? contractTop40Hits : top40Hits) >= 1 => CareerState.Rising,
-			CareerState.NewSigning when (ArtistPopulationLifecycle.Enabled ? contractConsecutiveFlops : consecutiveFlops) >= 2 => CareerState.Dropped,
+			CareerState.NewSigning when !ArtistPopulationLifecycle.Enabled && consecutiveFlops >= 2 => CareerState.Dropped,
 			CareerState.Rising when top10Hits >= 2 => CareerState.Established,
 			CareerState.Rising when consecutiveFlops >= 2 => CareerState.Declining,
 			CareerState.Established when consecutiveHits >= 3 && numberOnes >= 1 => CareerState.Star,
@@ -183,7 +193,18 @@ public class SimulatedArtist {
 			CareerState.Declining when consecutiveFlops >= 3 => CareerState.Dropped,
 			_ => careerState
 		};
+		if (ArtistPopulationLifecycle.Enabled && nextState == CareerState.Dropped && !ShouldDepartForCurrentContractPerformance()) nextState = priorState;
+		if (nextState == CareerState.Dropped && priorState != CareerState.Dropped) careerStateBeforeDrop = priorState;
+		careerState = nextState;
 	}
+
+	public bool IsExperiencedComebackContract() => contractUsesExperiencedComebackPolicy;
+	public bool IsExperiencedComebackEvaluationPending() => IsExperiencedComebackContract() &&
+		contractTop40Hits == 0 && careerState != CareerState.Dropped;
+	private bool IsContractEvaluationPending() => careerState == CareerState.NewSigning || IsExperiencedComebackEvaluationPending();
+	public bool ShouldDepartForCurrentContractPerformance() => ArtistPopulationLifecycle.Enabled &&
+		contractTop40Hits == 0 && contractCompletedChartRuns >= 3 &&
+		contractConsecutiveFlops >= ExperiencedComebackFlopThreshold;
 
 	public float GetNewReleaseAwarenessBonus() {
 		return (momentum * 0.5f) + (reputation * 0.3f) + (careerState switch {
@@ -224,5 +245,5 @@ public enum CareerState {
 }
 
 public enum ArtistLifecycleStatus { Active, Inactive, Retired, Disbanded }
-public enum ArtistDropReason { Performance, ContractExpired, LabelClosure, Financial, Voluntary, LifecycleReconciliation }
+public enum ArtistDropReason { Performance, PerformanceExhaustion, ContractExpired, LabelClosure, Financial, Voluntary, LifecycleReconciliation }
 public enum ArtistCohort { InitialLegacy, RuntimeFormation }

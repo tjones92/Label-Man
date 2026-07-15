@@ -836,6 +836,9 @@ public partial class CompetitorManager : Node {
 			projectId = projectId, creationSequence = generatedProjectCounter,
 			originalLabelId = label.labelId, currentLabelId = label.labelId, tierAtSchedule = label.tier,
 			artistId = artist.artistId, genre = projectGenre, careerStateAtSchedule = artist.careerState,
+			careerStateBeforeDropAtSchedule = artist.careerStateBeforeDrop,
+			contractEntryCareerStateAtSchedule = artist.contractEntryCareerState,
+			contractSequenceAtSchedule = artist.contractSequence, contractStartWeekAtSchedule = artist.contractStartWeek,
 			scheduledWeek = pipelineWeek, scheduledDate = date, dropWeek = pipelineWeek + gapWeeks,
 			dropDate = date.AddDays(gapWeeks * 7), strategy = plan.strategy, albumRecord = album,
 			promoSingleRecord = promo, promoSingleId = promo?.recordId, albumProductionCost = albumProductionCost,
@@ -1747,6 +1750,8 @@ public partial class CompetitorManager : Node {
 	}
 
 	public IReadOnlyList<AlbumProject> GetAlbumProjects() => albumProjects;
+	public AlbumProject GetAlbumProject(string projectId) => !string.IsNullOrEmpty(projectId) &&
+		projectById.TryGetValue(projectId, out AlbumProject project) ? project : null;
 	public bool HasPendingProjectForArtist(string artistId) => pendingAlbumProjects.Any(project => project.artistId == artistId);
 	
 	private void ApplyReleasePromotion(Record record, SimulatedArtist artist, AILabel label, float marketingBudget, float perceivedQualityMult) {

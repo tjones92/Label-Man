@@ -135,6 +135,11 @@ public partial class ChartManager : Node {
 			RosterManager.Instance.InitializeAllRosters(aiLabels, year);
 			int totalSigned = aiLabels.Sum(l => l.CurrentRosterSize);
 			GD.Print($"Total artists signed to labels: {totalSigned}");
+			// The enabled lifecycle needs a real unsigned talent market, but that
+			// reserve must not inflate or reorder the frozen 3,000-artist launch
+			// roster allocation. Generate it afterward on the isolated population
+			// stream, before pre-warm or live scouting begins.
+			ArtistManager.Instance?.MaterializeEnabledInitialUnsignedReserve(year);
 		} else {
 			GD.PushError($"RosterManager.Instance: {RosterManager.Instance != null}, aiLabels: {aiLabels != null}");
 		}
