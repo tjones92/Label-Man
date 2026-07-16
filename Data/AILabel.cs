@@ -107,9 +107,27 @@ public partial class AILabel : Resource {
 	public int OperatingRosterTarget => Mathf.Clamp(operatingRosterTarget > 0 ? operatingRosterTarget : maxRosterSize, 1, Mathf.Max(1, maxRosterSize));
 	public bool HasOperatingRosterSpace => roster == null || roster.Count < OperatingRosterTarget;
 	public string operatingRosterTargetSource = "Unset";
+	public LabelPopulationOrigin populationOrigin = LabelPopulationOrigin.Unspecified;
+	public int runtimeBirthWeek;
+	public int runtimeBirthYear;
+	public int runtimeBirthMonth;
+	public int runtimeBirthDay;
+	public LabelOperatingTargetReason operatingRosterTargetReason = LabelOperatingTargetReason.Unset;
+	public int operatingRosterTargetLastChangeWeek;
+	public int organicRosterTargetGrowthCount;
+	public int lastOrganicRosterTargetGrowthWeek = -1;
+	public string lastOrganicGrowthBlockingReason = "Unset";
+	public int lastOrganicGrowthEligibilityWeek = -1;
+
 	public void SetOperatingRosterTargetFromCurrent() {
 		operatingRosterTarget = Mathf.Clamp(Mathf.Max(1, CurrentRosterSize), 1, Mathf.Max(1, maxRosterSize));
 		operatingRosterTargetSource = CurrentRosterSize > 0 ? "PopulatedLaunchRoster" : "OneArtistBootstrap";
+	}
+	public void SetOperatingRosterTarget(int target, LabelOperatingTargetReason reason, int changeWeek) {
+		operatingRosterTarget = Mathf.Clamp(target, 1, Mathf.Max(1, maxRosterSize));
+		operatingRosterTargetReason = reason;
+		operatingRosterTargetSource = reason.ToString();
+		operatingRosterTargetLastChangeWeek = changeWeek;
 	}
 	public float MonthlyProfit => monthlyRevenue - monthlyExpenses;
 	public bool IsActive => status != LabelStatus.Bankrupt && status != LabelStatus.Defunct && status != LabelStatus.Acquired;

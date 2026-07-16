@@ -177,6 +177,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter artistLaborMarketWeeklyWriter;
 	private StreamWriter artistCohortAnnualWriter;
 	private StreamWriter artistProjectIdentityWriter;
+	private StreamWriter labelOperatingTargetEventWriter;
 	// Event-owned signing flows use the exact chart week written to the population
 	// ledger. This is observational state only and therefore cannot perturb play.
 	private readonly Dictionary<int, (int FirstTime, int Repeat)> populationSigningFlowByWeek = new();
@@ -252,6 +253,7 @@ public partial class ChartAuditRunner : Node {
 			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
 			if (ArtistPopulationLifecycle.Enabled && ArtistManager.Instance != null) ArtistManager.Instance.OnPopulationEvent += WriteArtistPopulationEvent;
+			if (ArtistPopulationLifecycle.Enabled && LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.OnOperatingRosterTargetChanged += WriteOperatingRosterTargetEvent;
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
@@ -478,6 +480,7 @@ public partial class ChartAuditRunner : Node {
 			artistLaborMarketWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-labor-market-weekly.csv"));
 			artistCohortAnnualWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-cohort-annual.csv"));
 			artistProjectIdentityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-project-identity.csv"));
+			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
 		}
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
@@ -527,7 +530,8 @@ public partial class ChartAuditRunner : Node {
 		genreEventsWriter.WriteLine("seed,enabled,year,month,week,eventType,sourceRecordId,recipientGenreId,donorGenreId,field,amount,detail");
 		specialProductsWriter.WriteLine("seed,enabled,year,recordId,subtype,externalProfile,correlatedProfileBucket,costs,promotion,tieIn,units,chartResult,catalogTail,financialReconciliation");
 		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
-		labelScoutingVacancyWriter?.WriteLine("week,year,labelId,labelTier,maxRosterSize,operatingRosterTarget,operatingRosterTargetSource,rosterSize,unusedRosterSlots,unusedOperatingRosterSlots,isEmptyRoster,consecutiveVacancyWeeks,consecutiveEmptyWeeks,scoutingAbility,rosterFullness,hasRecentHit,recentHitFactor,decliningArtistCount,decliningFactor,estimatedAdvance,canAffordEstimatedAdvance,computedScoutProbability,scoutRandomRoll,scoutingGatePassed,eligibleCandidateCount,discoveryPoolCount,bestCandidateScore,neverSignedSlateCount,qualifyingNeverSignedCount,bestNeverSignedScore,thirdPlusPerformanceComebackCount,overallBestContractSequence,freshPreferenceApplied,repeatComebackDeferred,freshPreferenceFallbackReason,signingAttempted,signingSucceeded,signingKind,failureReason,scoutingRosterSize,scoutingUnusedRosterSlots,scoutingUnusedOperatingRosterSlots,scoutingIsEmptyRoster,releaseEligibleArtistCount,requiredReleaseLanes,headcountDeficit,releaseLaneDeficit,serviceDeficit,serviceDeficitAge,serviceMode,scoutingGateBypassed,freshLaneCount,experiencedLaneCount,freshDiscoveryScope,bestFreshPotentialScore,bestExperiencedProductionScore,selectedLane,recoveryThresholdFallbackUsed,recoveryFailureReason,marketClearingAttemptsAtOrAboveOperatingTarget");
+		labelScoutingVacancyWriter?.WriteLine("week,year,labelId,labelTier,maxRosterSize,operatingRosterTarget,operatingRosterTargetSource,labelOrigin,runtimeBirthWeek,runtimeBirthDate,operatingTargetReason,organicGrowthCount,lastOrganicGrowthWeek,lastOrganicGrowthBlockingReason,rosterSize,unusedRosterSlots,unusedOperatingRosterSlots,isEmptyRoster,consecutiveVacancyWeeks,consecutiveEmptyWeeks,scoutingAbility,rosterFullness,hasRecentHit,recentHitFactor,decliningArtistCount,decliningFactor,estimatedAdvance,canAffordEstimatedAdvance,computedScoutProbability,scoutRandomRoll,scoutingGatePassed,eligibleCandidateCount,discoveryPoolCount,bestCandidateScore,neverSignedSlateCount,qualifyingNeverSignedCount,bestNeverSignedScore,thirdPlusPerformanceComebackCount,overallBestContractSequence,freshPreferenceApplied,repeatComebackDeferred,freshPreferenceFallbackReason,signingAttempted,signingSucceeded,signingKind,failureReason,scoutingRosterSize,scoutingUnusedRosterSlots,scoutingUnusedOperatingRosterSlots,scoutingIsEmptyRoster,releaseEligibleArtistCount,requiredReleaseLanes,headcountDeficit,releaseLaneDeficit,serviceDeficit,serviceDeficitAge,serviceMode,scoutingGateBypassed,freshLaneCount,experiencedLaneCount,freshDiscoveryScope,bestFreshPotentialScore,bestExperiencedProductionScore,selectedLane,recoveryThresholdFallbackUsed,recoveryFailureReason,marketClearingAttemptsAtOrAboveOperatingTarget");
+		labelOperatingTargetEventWriter?.WriteLine("week,date,labelId,labelOrigin,birthWeek,birthDate,reason,priorTarget,newTarget,hardCapacity,organicGrowthCount,weeksSincePriorOrganicIncrease,eligibilityResult,blockingReason,status,tier,rosterSize,releaseEligibleCount,recentChartingCount,lastMonthlyProfit,consecutiveLossMonths,cashReserves,monthlyOverhead,runwayMonths");
 		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,prospectMarketStatus,prospectMarketStatusBeforeContract,careerStateBeforeDrop,contractEntryCareerState,labelId,labelTier,dropReason,performanceDropCount,requiredPerformanceCooldownWeeks,contractSequence,priorContractCount,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,performanceEvaluationMode,requiredPerformanceCompletedRuns,requiredPerformanceConsecutiveFlops,contractProbationPending,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
 		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
 		artistLaborMarketWeeklyWriter?.WriteLine("seed,week,date,registryPopulation,initialLegacyPopulation,enabledInitialReservePopulation,runtimeFormationPopulation,activeRostered,experiencedFreeAgents,freshSeeking,freshLatent,affordableHiringOpportunityLabels,requestedProspectActivations,actualProspectActivations,prospectSearchSpellExpirations,firstTimeSignings,repeatSignings,meanSeekingQuality,meanLatentQuality,activationMeanQuality,activationQ1,activationQ2,activationQ3,activationQ4,maxProspectMarketSpellCount,duplicateSeekingEntries,latentUnsignedPoolEntries,seekingMissingFromUnsignedPool,prospectStatusContractConflicts");
@@ -1319,10 +1323,14 @@ public partial class ChartAuditRunner : Node {
 		if (labelScoutingVacancyWriter == null || RosterManager.Instance == null) return;
 		RosterManager.Instance.FinalizeScoutingVacancyTelemetryForCapture();
 		foreach (RosterManager.LabelScoutingVacancyObservation observation in RosterManager.Instance.GetWeeklyScoutingVacancyObservations()) {
+			AILabel label = ChartManager.Instance?.GetLabelById(observation.LabelId);
+			string birthDate = label != null && label.runtimeBirthYear > 0 ? $"{label.runtimeBirthMonth}/{label.runtimeBirthDay}/{label.runtimeBirthYear}" : "";
 			labelScoutingVacancyWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(observation.LabelId), Csv(observation.LabelTier.ToString()),
 				observation.MaxRosterSize.ToString(CultureInfo.InvariantCulture), observation.OperatingRosterTarget.ToString(CultureInfo.InvariantCulture),
-				Csv(ChartManager.Instance?.GetLabelById(observation.LabelId)?.operatingRosterTargetSource ?? "Unset"),
+				Csv(label?.operatingRosterTargetSource ?? "Unset"), Csv(label?.populationOrigin.ToString() ?? "Unspecified"),
+				(label?.runtimeBirthWeek ?? 0).ToString(CultureInfo.InvariantCulture), Csv(birthDate), Csv(label?.operatingRosterTargetReason.ToString() ?? "Unset"),
+				(label?.organicRosterTargetGrowthCount ?? 0).ToString(CultureInfo.InvariantCulture), (label?.lastOrganicRosterTargetGrowthWeek ?? -1).ToString(CultureInfo.InvariantCulture), Csv(label?.lastOrganicGrowthBlockingReason ?? "Unset"),
 				observation.RosterSize.ToString(CultureInfo.InvariantCulture), observation.UnusedRosterSlots.ToString(CultureInfo.InvariantCulture),
 				observation.UnusedOperatingRosterSlots.ToString(CultureInfo.InvariantCulture), observation.IsEmptyRoster ? "true" : "false",
 				observation.ConsecutiveVacancyWeeks.ToString(CultureInfo.InvariantCulture), observation.ConsecutiveEmptyWeeks.ToString(CultureInfo.InvariantCulture),
@@ -1349,6 +1357,21 @@ public partial class ChartAuditRunner : Node {
 				observation.MarketClearingAttemptsAtOrAboveOperatingTarget.ToString(CultureInfo.InvariantCulture)
 			}));
 		}
+	}
+
+	private void WriteOperatingRosterTargetEvent(LabelLifecycleManager.OperatingRosterTargetEvent targetEvent) {
+		if (labelOperatingTargetEventWriter == null || targetEvent?.Label == null) return;
+		AILabel label = targetEvent.Label;
+		string birthDate = label.runtimeBirthYear > 0 ? $"{label.runtimeBirthMonth}/{label.runtimeBirthDay}/{label.runtimeBirthYear}" : "";
+		float overhead = label.GetMonthlyOverhead();
+		labelOperatingTargetEventWriter.WriteLine(string.Join(",", new[] {
+			targetEvent.Week.ToString(CultureInfo.InvariantCulture), Csv(targetEvent.Date.ToString()), Csv(label.labelId), Csv(label.populationOrigin.ToString()),
+			label.runtimeBirthWeek.ToString(CultureInfo.InvariantCulture), Csv(birthDate), Csv(targetEvent.Reason.ToString()),
+			targetEvent.PriorTarget.ToString(CultureInfo.InvariantCulture), targetEvent.NewTarget.ToString(CultureInfo.InvariantCulture), label.maxRosterSize.ToString(CultureInfo.InvariantCulture),
+			label.organicRosterTargetGrowthCount.ToString(CultureInfo.InvariantCulture), targetEvent.WeeksSincePreviousOrganicIncrease.ToString(CultureInfo.InvariantCulture), Csv(targetEvent.EligibilityResult), Csv(targetEvent.BlockingReason),
+			Csv(label.status.ToString()), Csv(label.tier.ToString()), label.CurrentRosterSize.ToString(CultureInfo.InvariantCulture), label.CountArtistsEligibleForRelease(targetEvent.Date.year).ToString(CultureInfo.InvariantCulture),
+			targetEvent.RecentChartingCount.ToString(CultureInfo.InvariantCulture), F(label.lastMonthlyProfit), label.consecutiveLossMonths.ToString(CultureInfo.InvariantCulture), F(label.cashReserves), F(overhead), F(overhead > 0f ? label.cashReserves / overhead : 0f)
+		}));
 	}
 
 	private void WriteArtistPopulationRows(int week, int year, List<RecordRuntimeData> records) {
@@ -2188,6 +2211,7 @@ public partial class ChartAuditRunner : Node {
 		artistLaborMarketWeeklyWriter?.Dispose();
 		artistCohortAnnualWriter?.Dispose();
 		artistProjectIdentityWriter?.Dispose();
+		labelOperatingTargetEventWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;

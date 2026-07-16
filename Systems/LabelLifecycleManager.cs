@@ -4,6 +4,18 @@ using System.Linq;
 using Godot;
 
 public partial class LabelLifecycleManager : Node {
+	public sealed class OperatingRosterTargetEvent {
+		public AILabel Label;
+		public LabelOperatingTargetReason Reason;
+		public int PriorTarget;
+		public int NewTarget;
+		public int Week;
+		public GameDate Date;
+		public string EligibilityResult;
+		public string BlockingReason;
+		public int RecentChartingCount;
+		public int WeeksSincePreviousOrganicIncrease;
+	}
 	private const float IndependentPromotionCapability = 0.30f;
 	private const float BoutiquePromotionCapability = 0.32f;
 	private const float MidTierPromotionCapability = 0.55f;
@@ -48,6 +60,7 @@ public partial class LabelLifecycleManager : Node {
 	public event Action<AILabel> OnLabelFounded;
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelPromoted;
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelDemoted;
+	public event Action<OperatingRosterTargetEvent> OnOperatingRosterTargetChanged;
 	
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
@@ -168,7 +181,17 @@ public partial class LabelLifecycleManager : Node {
 	private void SpawnNewLabel() {
 		LabelTier tier = GD.Randf() < 0.7f ? LabelTier.Small : LabelTier.Independent;
 		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier);
+		if (ArtistPopulationLifecycle.Enabled) {
+			GameDate birthDate = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1);
+			newLabel.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
+			newLabel.runtimeBirthWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			newLabel.runtimeBirthYear = birthDate.year;
+			newLabel.runtimeBirthMonth = birthDate.month;
+			newLabel.runtimeBirthDay = birthDate.day;
+		}
 		RosterManager.Instance?.InitializeRuntimeRosterForLabel(newLabel);
+		if (ArtistPopulationLifecycle.Enabled) EmitTargetEvent(newLabel, LabelOperatingTargetReason.RuntimeBootstrap, 0,
+			newLabel.OperatingRosterTarget, "Initialized", "None", 0);
 		activeLabels.Add(newLabel);
 		ChartManager.Instance?.RegisterLabel(newLabel);
 		CompetitorManager.Instance?.RegisterLabel(newLabel);
@@ -180,8 +203,52 @@ public partial class LabelLifecycleManager : Node {
 	private void ProcessQuarterlyChanges() {
 		foreach (var label in activeLabels.Where(l => l.IsActive)) {
 			CheckForTierChange(label);
+			TryAuthorizeRuntimeOrganicGrowth(label);
 			DriftAttributes(label);
 		}
+	}
+
+	private void TryAuthorizeRuntimeOrganicGrowth(AILabel label) {
+		if (!ArtistPopulationLifecycle.Enabled || label.populationOrigin != LabelPopulationOrigin.RuntimeFounded) return;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		int chartingCount = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
+		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, week);
+		label.lastOrganicGrowthEligibilityWeek = week;
+		label.lastOrganicGrowthBlockingReason = blockingReason;
+		if (blockingReason != "Eligible") return;
+		int priorTarget = label.OperatingRosterTarget;
+		int weeksSincePreviousOrganicIncrease = label.lastOrganicRosterTargetGrowthWeek >= 0 ? week - label.lastOrganicRosterTargetGrowthWeek : 0;
+		label.SetOperatingRosterTarget(priorTarget + 1, LabelOperatingTargetReason.OrganicGrowth, week);
+		label.organicRosterTargetGrowthCount++;
+		label.lastOrganicRosterTargetGrowthWeek = week;
+		EmitTargetEvent(label, LabelOperatingTargetReason.OrganicGrowth, priorTarget, label.OperatingRosterTarget,
+			"Eligible", "None", chartingCount, weeksSincePreviousOrganicIncrease);
+	}
+
+	internal static string GetOrganicGrowthBlockingReason(AILabel label, int chartingCount, int week) {
+		if (label == null || label.populationOrigin != LabelPopulationOrigin.RuntimeFounded) return "NotRuntimeFounded";
+		if (!label.IsActive) return "InactiveLabel";
+		if (label.lastOrganicRosterTargetGrowthWeek == week) return "AlreadyReviewedThisQuarter";
+		if (label.CurrentRosterSize < label.OperatingRosterTarget) return "OperatingTargetUnfilled";
+		if (label.OperatingRosterTarget >= label.maxRosterSize) return "HardCapacityFull";
+		if (label.status != LabelStatus.Stable && label.status != LabelStatus.Rising) return "UnhealthyStatus";
+		if (label.consecutiveLossMonths != 0) return "ConsecutiveLosses";
+		if (label.lastMonthlyProfit <= 0f) return "NotProfitable";
+		if (label.cashReserves < 6f * label.GetMonthlyOverhead()) return "InsufficientRunway";
+		if (chartingCount < 1) return "NoRecentCharting";
+		return "Eligible";
+	}
+
+	internal static bool TryAuthorizeRuntimeOrganicGrowthForProbe(AILabel label, int chartingCount, int week) {
+		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, week);
+		label.lastOrganicGrowthEligibilityWeek = week;
+		label.lastOrganicGrowthBlockingReason = blockingReason;
+		if (blockingReason != "Eligible") return false;
+		int priorTarget = label.OperatingRosterTarget;
+		label.SetOperatingRosterTarget(priorTarget + 1, LabelOperatingTargetReason.OrganicGrowth, week);
+		label.organicRosterTargetGrowthCount++;
+		label.lastOrganicRosterTargetGrowthWeek = week;
+		return label.OperatingRosterTarget == priorTarget + 1;
 	}
 	
 	private void CheckForTierChange(AILabel label) {
@@ -258,8 +325,9 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void PromoteLabel(AILabel label, LabelTier newTier) {
 		var oldTier = label.tier;
+		int priorTarget = label.OperatingRosterTarget;
 		label.tier = newTier;
-		label.maxRosterSize = GetMaxRosterForTier(newTier);
+		ReconcileCapacityForTierChange(label, newTier, LabelOperatingTargetReason.PromotionReconciliation, priorTarget);
 		label.sustainedCapabilityQuarters = 0;
 		label.sustainedLowCapabilityQuarters = 0;
 		GD.Print($"[LabelManager] {label.labelName} promoted from {oldTier} to {newTier}!");
@@ -268,8 +336,9 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void DemoteLabel(AILabel label, LabelTier newTier) {
 		var oldTier = label.tier;
+		int priorTarget = label.OperatingRosterTarget;
 		label.tier = newTier;
-		label.maxRosterSize = GetMaxRosterForTier(newTier);
+		ReconcileCapacityForTierChange(label, newTier, LabelOperatingTargetReason.DemotionReconciliation, priorTarget);
 		label.sustainedCapabilityQuarters = 0;
 		label.sustainedLowCapabilityQuarters = 0;
 		GD.Print($"[LabelManager] {label.labelName} demoted from {oldTier} to {newTier}");
@@ -285,10 +354,48 @@ public partial class LabelLifecycleManager : Node {
 		label.riskTolerance = Mathf.Clamp(label.riskTolerance, 0f, 1f);
 	}
 	
-	private int GetMaxRosterForTier(LabelTier tier) => tier switch {
+	public static int GetRosterCapacityForTier(LabelTier tier) => tier switch {
 		LabelTier.Major => 50, LabelTier.MidTier => 25, LabelTier.Independent => 12,
 		LabelTier.Boutique => 8, LabelTier.Small => 5, _ => 8
 	};
+
+	private void ReconcileCapacityForTierChange(AILabel label, LabelTier tier, LabelOperatingTargetReason reason, int priorTarget) {
+		label.maxRosterSize = Mathf.Max(GetRosterCapacityForTier(tier), label.CurrentRosterSize);
+		int reconciledTarget = Mathf.Max(label.CurrentRosterSize, Mathf.Min(priorTarget, label.maxRosterSize));
+		label.SetOperatingRosterTarget(reconciledTarget, reason, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		if (ArtistPopulationLifecycle.Enabled) EmitTargetEvent(label, reason, priorTarget, label.OperatingRosterTarget,
+			"Reconciled", "None", CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0);
+	}
+
+	public void ReconcileAcquisitionRosterTarget(AILabel distributor) {
+		if (distributor == null) return;
+		int priorTarget = distributor.OperatingRosterTarget;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		ReconcileAcquisitionCapacity(distributor, week);
+		if (ArtistPopulationLifecycle.Enabled) EmitTargetEvent(distributor, LabelOperatingTargetReason.AcquisitionReconciliation,
+			priorTarget, distributor.OperatingRosterTarget, "Reconciled", "None",
+			CompetitorManager.Instance?.GetRecentChartingRecordCount(distributor.labelId, 52) ?? 0);
+	}
+
+	internal static void ReconcileAcquisitionRosterTargetForProbe(AILabel distributor, int week) => ReconcileAcquisitionCapacity(distributor, week);
+
+	private static void ReconcileAcquisitionCapacity(AILabel distributor, int week) {
+		distributor.maxRosterSize = Mathf.Max(Mathf.Max(distributor.maxRosterSize, GetRosterCapacityForTier(distributor.tier)), distributor.CurrentRosterSize);
+		distributor.SetOperatingRosterTarget(Mathf.Max(distributor.OperatingRosterTarget, distributor.CurrentRosterSize),
+			LabelOperatingTargetReason.AcquisitionReconciliation, week);
+	}
+
+	private void EmitTargetEvent(AILabel label, LabelOperatingTargetReason reason, int priorTarget, int newTarget,
+		string eligibilityResult, string blockingReason, int chartingCount, int weeksSincePreviousOrganicIncrease = 0) {
+		if (!ArtistPopulationLifecycle.Enabled) return;
+		OnOperatingRosterTargetChanged?.Invoke(new OperatingRosterTargetEvent {
+			Label = label, Reason = reason, PriorTarget = priorTarget, NewTarget = newTarget,
+			Week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
+			Date = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1),
+			EligibilityResult = eligibilityResult, BlockingReason = blockingReason, RecentChartingCount = chartingCount,
+			WeeksSincePreviousOrganicIncrease = weeksSincePreviousOrganicIncrease
+		});
+	}
 	
 	public List<AILabel> GetLabelsByTier(LabelTier tier) => activeLabels.Where(l => l.tier == tier && l.IsActive).ToList();
 	public List<AILabel> GetLabelsByGenre(Genre genre) => activeLabels.Where(l => l.preferredGenres.Contains(genre) && l.IsActive).ToList();

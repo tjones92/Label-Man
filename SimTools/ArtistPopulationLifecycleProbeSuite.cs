@@ -73,7 +73,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeRuntimeSigningTransitionClassification();             // 58
 		ProbeRuntimeFirstContractClassification();                 // 59
 		ProbeRuntimeBootstrapCannotBurst();                        // 60
-		results.Add("D6 fixed probes 1-60 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap)");
+		ProbeRuntimeLabelOrganicGrowth();                           // 61
+		results.Add("D6 fixed probes 1-61 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap and organic growth)");
 		return results;
 	}
 
@@ -117,7 +118,7 @@ public static class ArtistPopulationLifecycleProbeSuite {
 	private static void ProbeRuntimeLabelBootstrapInitialization() {
 		AILabel runtime = NewScoutingLabel(); runtime.maxRosterSize = 4;
 		RosterManager.InitializeRuntimeRosterForProbe(runtime);
-		Require(runtime.CurrentRosterSize == 0 && runtime.OperatingRosterTarget == 1 && runtime.operatingRosterTargetSource == "OneArtistBootstrap",
+		Require(runtime.CurrentRosterSize == 0 && runtime.OperatingRosterTarget == 1 && runtime.operatingRosterTargetSource == "RuntimeBootstrap",
 			"56 runtime label initialization remains empty with the one-artist bootstrap target and consumes no launch population");
 	}
 
@@ -154,6 +155,75 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		RosterManager.InitializeRuntimeRosterForProbe(runtime);
 		Require(runtime.OperatingRosterTarget == 1 && !RosterManager.CanAttemptMarketClearingSigning(1, runtime.OperatingRosterTarget),
 			"60 one successful runtime bootstrap signing closes the only operating vacancy, preventing a birth-week bulk burst");
+	}
+
+	private static void ProbeRuntimeLabelOrganicGrowth() {
+		Require(LabelLifecycleManager.GetRosterCapacityForTier(LabelTier.Small) == 5 &&
+			LabelLifecycleManager.GetRosterCapacityForTier(LabelTier.Boutique) == 8 &&
+			LabelLifecycleManager.GetRosterCapacityForTier(LabelTier.Independent) == 12 &&
+			LabelLifecycleManager.GetRosterCapacityForTier(LabelTier.MidTier) == 25 &&
+			LabelLifecycleManager.GetRosterCapacityForTier(LabelTier.Major) == 50,
+			"61a canonical lifecycle tier capacities are exactly 5/8/12/25/50");
+		int smallDraws = 0; int smallState = 0;
+		Action<int, int> smallDraw = (minimum, maximum) => { smallDraws++; smallState = (smallState * 31) + minimum + maximum; };
+		AILabel smallRuntime = NewScoutingLabel(); smallRuntime.tier = LabelTier.Small; smallRuntime.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
+		RosterManager.ConsumeLegacyRuntimeCapacityAlignmentDrawForProbe(smallRuntime, smallDraw);
+		Require(smallDraws == 1 && smallState == 13,
+			"61b runtime Small birth consumes exactly the legacy 3..10 compatibility draw");
+		int independentDraws = 0; int independentState = 0;
+		Action<int, int> independentDraw = (minimum, maximum) => { independentDraws++; independentState = (independentState * 31) + minimum + maximum; };
+		AILabel independentRuntime = NewScoutingLabel(); independentRuntime.tier = LabelTier.Independent; independentRuntime.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
+		RosterManager.ConsumeLegacyRuntimeCapacityAlignmentDrawForProbe(independentRuntime, independentDraw);
+		Require(independentDraws == 1 && independentState == 26,
+			"61c runtime Independent birth consumes exactly the legacy 8..18 compatibility draw");
+
+		AILabel launch = NewScoutingLabel(12); launch.roster.Add(NewArtist("launch")); launch.SetOperatingRosterTargetFromCurrent();
+		launch.populationOrigin = LabelPopulationOrigin.LaunchPopulation;
+		Require(launch.populationOrigin == LabelPopulationOrigin.LaunchPopulation && launch.OperatingRosterTarget == 1,
+			"61d launch labels retain launch origin and their populated operating baseline");
+
+		AILabel runtime = NewScoutingLabel(5);
+		runtime.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
+		runtime.roster.Add(NewArtist("runtime-1"));
+		runtime.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 10);
+		runtime.status = LabelStatus.Stable; runtime.lastMonthlyProfit = 100f; runtime.consecutiveLossMonths = 0; runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(runtime, 1, 13) == "Eligible" &&
+			LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 1, 13) && runtime.OperatingRosterTarget == 2 &&
+			runtime.organicRosterTargetGrowthCount == 1 && runtime.CurrentRosterSize == 1,
+			"61e a filled, profitable, recently charting runtime label gains exactly one planned slot without a signing");
+		Require(!LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 1, 13) && runtime.lastOrganicGrowthBlockingReason == "AlreadyReviewedThisQuarter",
+			"61f a quarterly pass cannot grant a second organic target decision");
+
+		runtime.roster.Add(NewArtist("runtime-2"));
+		runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
+		Require(LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 1, 26) && runtime.OperatingRosterTarget == 3 &&
+			runtime.organicRosterTargetGrowthCount == 2 && runtime.lastOrganicRosterTargetGrowthWeek == 26,
+			"61g a later qualifying quarterly review can authorize one additional ordinary vacancy");
+
+		AILabel blocked = NewScoutingLabel(5); blocked.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
+		blocked.SetOperatingRosterTarget(2, LabelOperatingTargetReason.RuntimeBootstrap, 0); blocked.roster.Add(NewArtist("blocked"));
+		blocked.status = LabelStatus.Stable; blocked.lastMonthlyProfit = 100f; blocked.cashReserves = blocked.GetMonthlyOverhead() * 6f;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "OperatingTargetUnfilled", "61h unfilled targets cannot grow");
+		blocked.roster.Add(NewArtist("blocked-2")); blocked.status = LabelStatus.Struggling;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "UnhealthyStatus", "61i distressed labels cannot grow");
+		blocked.status = LabelStatus.Stable; blocked.lastMonthlyProfit = -1f;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "NotProfitable", "61j loss-making labels cannot grow");
+		blocked.lastMonthlyProfit = 100f; blocked.cashReserves = 0f;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "InsufficientRunway", "61k under-runway labels cannot grow");
+		blocked.cashReserves = blocked.GetMonthlyOverhead() * 6f;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 0, 13) == "NoRecentCharting", "61l labels without a recent charting record cannot grow");
+		blocked.maxRosterSize = 2;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "HardCapacityFull", "61m hard-full labels cannot grow");
+		blocked.status = LabelStatus.Acquired;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "InactiveLabel", "61n acquired labels cannot grow");
+
+		AILabel acquired = NewScoutingLabel(5); acquired.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
+		acquired.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 0);
+		acquired.roster.Add(NewArtist("acquired-1")); acquired.roster.Add(NewArtist("acquired-2")); acquired.roster.Add(NewArtist("acquired-3"));
+		LabelLifecycleManager.ReconcileAcquisitionRosterTargetForProbe(acquired, 26);
+		Require(acquired.OperatingRosterTarget == 3 && acquired.maxRosterSize >= 3 && acquired.operatingRosterTargetReason == LabelOperatingTargetReason.AcquisitionReconciliation &&
+			!RosterManager.CanAttemptMarketClearingSigning(acquired.CurrentRosterSize, acquired.OperatingRosterTarget),
+			"61o acquisition reconciliation recognizes transferred roster without creating a vacancy");
 	}
 
 	private static void ProbeContractHistoricalSeparation() {

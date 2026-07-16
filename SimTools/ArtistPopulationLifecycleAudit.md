@@ -1069,3 +1069,87 @@ The streams are identical through week 34. The first observable difference is th
 **Write-off decision:** accept this known, attributed compatibility loss as an explicit owner exception for Codex closure work. Do not repair the old runtime-label population behavior, do not freeze or relabel a replacement compatibility baseline, and do not claim that C3 passed. This exception removes C3 as the blocker to beginning C4 from the unchanged frozen candidate; it changes no C4-C6 acceptance band, invariant, stop condition, or same-source control/treatment requirement. If Directive 6 otherwise closes, report it as **completed with the owner-approved C3 disabled-compatibility write-off**, not as an unqualified C1-C6 pass.
 
 No gameplay, telemetry, data, scene, constant, feature default, baseline artifact, or acceptance band changed for this decision. No C4-C6 process was launched while recording it.
+
+## Runtime-label organic-growth handoff (2026-07-16)
+
+The C4 diagnosis confirms a missing label-lifecycle mechanic: labels founded during live simulation correctly enter empty with a one-artist bootstrap target, but no production path can ever raise that operating target. Tier promotion raises only `maxRosterSize`; enabled scouting and Recovery continue to enforce the unchanged target of one. In 1966/1969, runtime-bootstrap labels account for 30.8%/30.3% of active label-weeks but only 1.25%/1.14% of roster and 1.08%/0.87% of release-eligible artists; 77.8%/81.2% of active runtime labels are empty.
+
+`ArtistPopulationRuntimeLabelOrganicGrowthHandoff.md` is the authoritative next-pass instruction. It preserves target one and no signing at birth, then makes the established lifecycle tier capacity operational. At each quarterly lifecycle review, a qualifying runtime-founded label may add exactly one target slot up to its live tier hard capacity: Small 5, Boutique 8, Independent 12, MidTier 25, and Major 50. Every increase requires a filled current target, Stable/Rising status, profit, no losses, six months of runway, and a charting record in the preceding year. Promotion unlocks the promoted tier's larger roster range; it does not bulk-fill that range. Growth changes planned capacity only, and the ordinary weekly labor market must fill each resulting vacancy.
+
+The separate per-release Single-yield excess is explicitly deferred and remains a required later correction: treatment has fewer Single releases than control in both failed years but approximately `1.414x` and `1.348x` units per released Single. This growth pass may not tune demand, sales, formats, releases, Albums, finance, or artist lifecycle to address it. C4 remains failed, C5/C6 remain unrun, and Directive 6 cannot close until the growth repair and later Single-yield surface both pass their required validation.
+
+## Runtime-label organic-growth G0-G3 (2026-07-16): **52-week Album gate failure / stop**
+
+G0 retained-artifact preflight reproduced the recorded C4 failure surface without modifying those artifacts: 1966 Single units were `1.2135x` control; later 1969 releases, scheduled Albums, and Single units were `0.8450x`, `0.7409x`, and `1.2846x`. The retained attribution remains 30.8%/30.3% runtime-label active-label-weeks in 1966/1969 versus 1.25%/1.14% roster and 1.08%/0.87% release-eligible contribution, with 77.8%/81.2% empty runtime labels. Target and capacity writers/readers were inventoried in `Data/AILabel.cs`, `Systems/RosterManager.cs`, `Systems/LabelLifecycleManager.cs`, `Systems/CompetitorManager.cs`, `Systems/ArtistManager.cs`, and `SimTools/ChartAuditRunner.cs`.
+
+G1 implemented the authorized state machine only: immutable launch/runtime origin, exact runtime birth week/date, deterministic canonical capacities `Small=5`, `Boutique=8`, `Independent=12`, `MidTier=25`, and `Major=50`, quarterly one-slot organic authorization, tier/acquisition reconciliation, compact enabled-only target events, and D6 probe 61. The first target-event writer implementation did not dispose its stream; probes and the first 52-week telemetry exposed the empty file. That single implementation defect was corrected by disposing the writer, then G1 was restarted. `git diff --check` passed and `dotnet build "Label Man.sln" --no-restore` passed with only the inherited unused `ChartManager.OnGenreMomentumChanged` warning. The rebuilt fixed harness `d6-runtime-label-growth-probes-1001` reached `CHART_AUDIT_COMPLETE ... weeks=1`; D5 passed and D6 reported fixed probes 1-61 passed.
+
+The corrected functional-source manifest is `Data/AILabel.cs=FFCF6D10E7B087A4AF9A1711156846A957BA79656C73F8F80F751E69F50CE4B9`, `Data/ContactEnums.cs=A4C614D11B5D029B6C7DA4C436DB1C8E3B5E1812C862727FC2F439F18C823F73`, `Systems/CompetitorManager.cs=76077FD72E78F1F2BBF3D400878D2521AB0DC225D61B3105FC791C1877C89D1F`, `Systems/LabelLifecycleManager.cs=048D3D148BFED9B0AB4EC1E53D08592F5869D80060BD70DDF5ED357C79871930`, `Systems/RosterManager.cs=A7178B80F128366498ED1AC230535416AB9DFBDF645ABB86080A3EB14EC3710A`, `SimTools/ChartAuditRunner.cs=DC898A7849D5A7AA673036BC78B57B7EAA21D33975F4644045983B1F00A57BEC`, and `SimTools/ArtistPopulationLifecycleProbeSuite.cs=405C75671413588790A7CDAEDB248F22B9C4292532CD13E494B3D63F21799C85`.
+
+G2 passed. Fresh `d6-runtime-label-growth-disabled-52-1001` completed at 52 weeks with exactly the 45 retained CSV suffixes, every CSV byte-identical to `d6-transition-envelope-disabled-52-1001`, no missing/extra stream, and no disabled target-event telemetry. The known post-completion `MissingSingletonsTemp.cs` autoload diagnostic remained non-fatal.
+
+G3 used fresh `d6-runtime-label-growth-control-52-1001` and `d6-runtime-label-growth-enabled-52-1001` 52-week seed-1001 processes; both completed. The first inherited gate failure is **scheduled Albums**: 1,310 enabled versus 1,083 control, ratio **`1.2096x`**, above the amended `[0.80,1.20]` ceiling. Successful releases are 5,536 versus 5,300 (`1.0445x`), completed Album releases are 1,218 versus 1,002 (`1.2156x`), Album units are `1.1493x`, Album gross is `1.1498x`, Single units are `1.0208x`, total units are `1.0224x`, total gross is `1.0283x`, and label net is `1.0344x`.
+
+Enabled target telemetry is structurally coherent for the measured boundary (51 event rows; 31,335 weekly snapshots): nine runtime births each record `RuntimeFounded`, exact birth date/week, target one, and hard capacity 5 or 12; 39 promotion and two demotion reconciliations record no target jump; and zero organic increases were authorized in 1960. Thus the G3 Album excess is not an immediate target-three or organic-growth burst. Per the handoff stop condition, preserve these artifacts and stop here. Do not alter quarterly cadence, runway/chart conditions, increment size, releases, Albums, demand, finance, or the deferred Single-yield surface; G4-G6, seeds 1002/1003, and holdout remain unrun.
+
+## Runtime-label growth RNG alignment R0-R5 and G6 (2026-07-16): **decade maturation failure / stop**
+
+`ArtistPopulationRuntimeLabelOrganicGrowthRngAlignmentHandoff.md` attributed the historical G3 movement to one omitted legacy hard-capacity RNG draw at the first enabled runtime-label birth. The correction restores exactly one discarded tier-specific legacy draw per enabled runtime birth, then assigns the unchanged canonical capacity. The discarded value does not control capacity, target, roster, or signing. Organic authorization and every tier, acquisition, and target reconciliation remain RNG-free.
+
+R0-R5 completed from the corrected source. `git diff --check` and `dotnet build "Label Man.sln" --no-restore` passed with only the inherited unused `ChartManager.OnGenreMomentumChanged` warning; the accepted D5 suite and amended D6 probe 61 passed. The fresh disabled replay remains 45/45 byte-identical to `d6-transition-envelope-disabled-52-1001`. R3 restored the expected 1960 result: 1,274 scheduled Albums versus 1,083 control (`1.1764x`). The two R4 enabled 104-week families contain 53 streams each and are 53/53 byte-identical by suffix, length, and SHA-256. R5 completed through 1964 with the required growth-scope maturity gates passing.
+
+The corrected functional-source manifest is:
+
+```text
+Data/AILabel.cs=FFCF6D10E7B087A4AF9A1711156846A957BA79656C73F8F80F751E69F50CE4B9
+Data/ContactEnums.cs=A4C614D11B5D029B6C7DA4C436DB1C8E3B5E1812C862727FC2F439F18C823F73
+Systems/CompetitorManager.cs=76077FD72E78F1F2BBF3D400878D2521AB0DC225D61B3105FC791C1877C89D1F
+Systems/LabelLifecycleManager.cs=048D3D148BFED9B0AB4EC1E53D08592F5869D80060BD70DDF5ED357C79871930
+Systems/RosterManager.cs=C693C6AE6A26A478EBCAEF4443C2E37208E8A47E0E1DD01967D05919AAB2C277
+SimTools/ChartAuditRunner.cs=DC898A7849D5A7AA673036BC78B57B7EAA21D33975F4644045983B1F00A57BEC
+SimTools/ArtistPopulationLifecycleProbeSuite.cs=2D9BDA6440F63E052D22DBD1AE17E252CE4ADA349BEAC8344E6CB6822FFB4EB1
+```
+
+### G6 control decision and execution
+
+The owner waived only the redundant fresh-control proof, not the G6 enabled decade. `d6-transition-envelope-decade-control-1001` remains the authoritative complete 522-Friday seed-1001 control. Reuse is supported by the R2 45/45 disabled equality, the exact R3 fresh-control match, and exact equality between the R5 control and the retained decade control for the first 260 `weeks.csv` and `release-capacity.csv` rows.
+
+A redundant fresh control was initially launched under the earlier paired-run instruction. It was stopped after the owner questioned the duplicate execution; despite 522 flushed week rows, it has no retained `CHART_AUDIT_COMPLETE` marker and `d6-runtime-label-growth-rngalign-decade-control-1001` is non-authoritative. It is not used for any ratio below.
+
+The requested enabled command used the unchanged corrected source and full performance telemetry:
+
+```powershell
+& '<Godot-console.exe>' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=522 --run=d6-runtime-label-growth-rngalign-decade-enabled-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance
+```
+
+It exited 0 with `CHART_AUDIT_COMPLETE run=d6-runtime-label-growth-rngalign-decade-enabled-1001 weeks=522`, ending on January 1, 1970. The known post-completion `MissingSingletonsTemp.cs` autoload diagnostic remained non-fatal. The enabled family contains 54 CSV streams.
+
+| Year | Releases | Scheduled Albums | Album units | Album gross | Single units | Total units | Gross | Label net | Market net |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 0.9986 | 1.1764 | 1.1666 | 1.1644 | 1.0171 | 1.0190 | 1.0273 | 1.0356 | 1.0375 |
+| 1961 | 0.9554 | 1.0708 | 1.1342 | 1.1308 | 1.0491 | 1.0516 | 1.0557 | 1.0594 | 1.0526 |
+| 1962 | 0.9763 | 1.0319 | 1.1358 | 1.1334 | 1.1245 | 1.1249 | 1.1258 | 1.1118 | 1.1174 |
+| 1963 | 0.9874 | 1.0353 | 1.0114 | 1.0141 | 1.1642 | 1.1576 | 1.1411 | 1.1208 | 1.1350 |
+| 1964 | 0.9802 | 1.1664 | 0.8874 | 0.8894 | 1.0370 | 1.0309 | 1.0135 | 0.9981 | 1.0097 |
+| 1965 | 0.9323 | 1.0850 | 0.8842 | 0.8839 | 0.9695 | 0.9641 | 0.9484 | 0.9435 | 0.9459 |
+| 1966 | 0.9627 | 1.0031 | 0.9096 | 0.9087 | 1.1555 | 1.1207 | 1.0493 | 1.0299 | 1.0496 |
+| 1967 | 0.9323 | 0.9077 | 0.9247 | 0.9219 | 1.1724 | 1.1210 | 1.0367 | 1.0392 | 1.0425 |
+| 1968 | 0.8715 | **0.7787** | 0.8778 | 0.8815 | 1.1908 | 1.1161 | 1.0129 | 1.0080 | 1.0092 |
+| 1969 | **0.8395** | **0.7088** | 0.8408 | 0.8407 | 1.2270 | 1.1201 | 0.9819 | 0.9634 | 0.9780 |
+
+The first growth-scope G6 failure is 1968 scheduled Albums: 2,066 enabled versus 2,653 control (`0.7787x`), below the unchanged `0.80` floor. The later 1969 block also fails successful releases at 2,773 / 3,303 (`0.8395x`) and scheduled Albums at 1,986 / 2,802 (`0.7088x`). The reported late Single-unit excess remains the separately deferred yield surface; it is not used to explain away the release and Album failures.
+
+### Decade target and contribution attribution
+
+The decade proves that the organic-growth state machine is behaviorally inert in production:
+
+- 662 runtime-founded labels were initialized with target one and canonical hard capacity;
+- zero `OrganicGrowth` target events occurred in 522 weeks;
+- runtime-founded labels produced zero release outcomes and zero scheduled Album projects;
+- at week 522, all 656 observable runtime-founded labels were empty and had zero release-eligible artists;
+- 77 of those labels remained active, and every active runtime label's latest quarterly blocker was `OperatingTargetUnfilled`; and
+- no label had `organicGrowthCount > 0`.
+
+This is not an RNG-alignment regression and must not be repaired by changing Album behavior or widening a gate. The compatibility draw successfully restored the intended pre-growth random stream. The remaining defect is upstream of organic eligibility: runtime labels never fill the required target-one bootstrap vacancy, so the filled-target prerequisite permanently prevents the growth state machine from operating.
+
+**Stop decision:** G6 fails and the runtime-label growth repair does not pass its scope. Preserve all R0-R6 artifacts. Do not run seeds 1002/1003, a holdout, or the deferred Single-yield correction from this source. The next pass requires a focused runtime-label first-signing/market-entry diagnosis that preserves target one, birth-week no-signing, ordinary weekly labor-market boundaries, deterministic capacities, and the accepted RNG alignment. Do not tune quarterly growth eligibility until the bootstrap vacancy can be filled through the authorized weekly market.

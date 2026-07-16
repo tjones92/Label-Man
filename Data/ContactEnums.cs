@@ -66,6 +66,12 @@ public enum LabelStatus {
 	Acquired    // Bought by another label
 }
 
+/// <summary>Immutable population path for a label's operating roster plan.</summary>
+public enum LabelPopulationOrigin { Unspecified, LaunchPopulation, RuntimeFounded }
+
+/// <summary>Why the label's operating roster target was most recently reconciled.</summary>
+public enum LabelOperatingTargetReason { Unset, LaunchPopulation, RuntimeBootstrap, OrganicGrowth, PromotionReconciliation, DemotionReconciliation, AcquisitionReconciliation }
+
 public enum ContactCategory {
 	Creative,
 	Promotion,

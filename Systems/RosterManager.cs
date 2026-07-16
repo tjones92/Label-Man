@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -162,6 +163,11 @@ public partial class RosterManager : Node {
 		foreach (var label in labels) {
 			label.InitializeRoster();
 			PopulateInitialRoster(label, year);
+			if (ArtistPopulationLifecycle.Enabled) {
+				label.populationOrigin = LabelPopulationOrigin.LaunchPopulation;
+				label.operatingRosterTargetReason = LabelOperatingTargetReason.LaunchPopulation;
+				label.operatingRosterTargetSource = LabelOperatingTargetReason.LaunchPopulation.ToString();
+			}
 		}
 		if (debugMode) PrintRosterStats(labels);
 		GD.Print("RosterManager: Initialization complete");
@@ -180,8 +186,42 @@ public partial class RosterManager : Node {
 
 	private static void InitializeRuntimeRoster(AILabel label) {
 		if (label == null) return;
+		if (ArtistPopulationLifecycle.Enabled) {
+			// Runtime labels use the deterministic lifecycle capacity, not a generated
+			// launch-population range. Preserve the one legacy capacity draw so enabled
+			// and disabled births retain the same shared-RNG call schedule.
+			if (label.roster == null) label.roster = new List<SimulatedArtist>();
+			if (label.populationOrigin == LabelPopulationOrigin.RuntimeFounded)
+				ConsumeLegacyRuntimeCapacityAlignmentDraw(label);
+			label.maxRosterSize = LabelLifecycleManager.GetRosterCapacityForTier(label.tier);
+			label.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap,
+				ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+			return;
+		}
 		label.InitializeRoster();
 		label.SetOperatingRosterTargetFromCurrent();
+	}
+
+	/// <summary>
+	/// Preserves the legacy global-RNG draw that <see cref="AILabel.InitializeRoster"/>
+	/// made for live-founded labels. The value is deliberately discarded: canonical
+	/// lifecycle capacity, not this draw, remains authoritative.
+	/// </summary>
+	private static void ConsumeLegacyRuntimeCapacityAlignmentDraw(AILabel label) =>
+		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, (minimum, maximum) => { _ = GD.RandRange(minimum, maximum); });
+
+	internal static void ConsumeLegacyRuntimeCapacityAlignmentDrawForProbe(AILabel label, Action<int, int> draw) =>
+		ConsumeLegacyRuntimeCapacityAlignmentDraw(label, draw);
+
+	private static void ConsumeLegacyRuntimeCapacityAlignmentDraw(AILabel label, Action<int, int> draw) {
+		if (label == null || draw == null) return;
+		switch (label.tier) {
+			case LabelTier.Major: draw(35, 60); break;
+			case LabelTier.MidTier: draw(18, 35); break;
+			case LabelTier.Independent: draw(8, 18); break;
+			case LabelTier.Small: draw(3, 10); break;
+			case LabelTier.Boutique: draw(5, 12); break;
+		}
 	}
 	
 	private void PopulateInitialRoster(AILabel label, int year) {

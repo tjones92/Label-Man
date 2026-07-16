@@ -2078,7 +2078,8 @@ public partial class CompetitorManager : Node {
 			if (!distributor.roster.Contains(artist)) distributor.roster.Add(artist);
 		}
 		client.roster.Clear();
-		distributor.maxRosterSize = Mathf.Max(distributor.maxRosterSize, distributor.CurrentRosterSize);
+		if (LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.ReconcileAcquisitionRosterTarget(distributor);
+		else distributor.maxRosterSize = Mathf.Max(distributor.maxRosterSize, distributor.CurrentRosterSize);
 
 		if (!labelActiveRecords.TryGetValue(distributor.labelId, out List<string> distributorRecords)) {
 			distributorRecords = new List<string>();
