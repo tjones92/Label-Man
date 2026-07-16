@@ -992,3 +992,80 @@ The fresh control/treatment runs `d6-runtime-label-bootstrap-control-r2-52-1001`
 | Label net | 72,065,107.39 | 74,629,175.75 | 1.0356 | Pass |
 
 The strict integer Album ceiling is 1,245; treatment is 29 projects above it. Per the handoff, stop here: no further calibration, seed, duration, or policy changes were made. The runtime-label and telemetry behavior defects are corrected, but S2a does not pass the scheduled-Album gate and requires the specified attribution/continuation decision.
+
+## Album-specific guardrail amendment C0 (2026-07-16): **frozen-source preflight pass**
+
+`ArtistPopulationAlbumGuardrailAmendmentHandoff.md` records a prospective product decision: for this structurally repaired candidate and all later frozen validation runs, scheduled Album projects plus Album-specific units and gross use the acceptance band `[0.80, 1.20]`. The original S2a scheduled-Album result remains a historical **failure** at the prior `1.15` ceiling; it is not retroactively passed.
+
+The functional-source manifest exactly matches the recorded S2a checkpoint (all SHA-256): `Data/AILabel.cs=DB7DE2B04379B38FA762E7A4355D28AFC9F38DAA4454EB52B28E43FF706C5FC8`, `Systems/ArtistManager.cs=BE65F2294E2B87117A64D69FEA0173938E2301406CF2718E6818169AD938C0E0`, `Systems/LabelLifecycleManager.cs=7CBAD97277B3321AF27A1FD05D2FF694EED7C357B045739B2CAC39B86B74B037`, `Systems/RosterManager.cs=993A8EB0A73FBAEC4E63652B592A7BF040B380DB03AE3070D5E4CB12D00EB1CC`, `SimTools/ChartAuditRunner.cs=DF73936970F03CC46D41064CBB34296062CD6BF34B70C0A8EC24BB6FEBF85D5D`, and `SimTools/ArtistPopulationLifecycleProbeSuite.cs=E47DE82AE42AA1B726252280BCE164B581247EC529F795A1124B35EAC1E48927`. `git diff --check` passed; `dotnet build "Label Man.sln" --no-restore` succeeded with only the inherited unused `ChartManager.OnGenreMomentumChanged` warning. The retained S2a families are complete (45 control CSVs and 52 treatment CSVs) and reproduce the recorded 5,300 / 5,482 successful releases, 1,083 / 1,274 scheduled Albums, and 144,715,423 / 147,464,843 units. No gameplay or telemetry source changed after this manifest.
+
+The source is frozen before the C1 control, treatment, and deterministic-repeat processes. No D5/D6 probe rerun is required because functional source has not changed since the accepted probes 1-60 run.
+
+## Album-specific guardrail amendment C1 (2026-07-16): **104-week pass and deterministic repeat pass**
+
+The frozen-source processes `d6-album-amendment-control-104-1001`, `d6-album-amendment-enabled-104-1001`, and `d6-album-amendment-enabled-repeat-104-1001` each reached `CHART_AUDIT_COMPLETE ... weeks=104`; the known post-completion `MissingSingletonsTemp.cs` autoload diagnostic was non-fatal. The control produced 45 CSV streams. Each enabled process produced the same 52 CSV streams (55,418,321 bytes); every suffix-matched CSV is byte-identical by length and SHA-256. The sorted enabled stream-manifest SHA-256 is `1856A8E4384C08D2B751A5AA7BCA1DD16CF826A6AD3306EFDE888F7127120E5B`.
+
+| Year | Releases | Scheduled Albums | Album units | Album gross | Single units | Total units | Gross | Label net | Market net | Pending Albums |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1960 treatment/control ratio | 0.9986 | 1.1764 | 1.1666 | 1.1644 | 1.0171 | 1.0190 | 1.0273 | 1.0356 | 1.0375 | 84 / 1,274 (6.59%) |
+| 1961 treatment/control ratio | 0.9554 | 1.0708 | 1.1342 | 1.1308 | 1.0491 | 1.0516 | 1.0557 | 1.0594 | 1.0526 | 87 / 1,346 (6.46%) |
+
+All amended Album ratios are within `[0.80,1.20]`; release and Single-unit ratios are within `[0.85,1.15]`; and total-unit/economic ratios are within `[0.90,1.10]`. Scheduled/released/pending Album reconciliation is exact: treatment has 2,620 scheduled projects = 2,532 released + 1 cancelled + 87 pending. The final complete 13-week scheduled-Album ratios are `281 / 294 = 0.9558` for 1960 and `317 / 299 = 1.0602` for 1961, both below `1.25`. Album decision share is 21.71% versus 18.91% in 1960 and 26.58% versus 24.38% in 1961; released Albums are 1,190 versus 1,002 and 1,342 versus 1,251.
+
+The enabled labor-market stream has all 104 weekly rows and reconciles exactly with event-owned telemetry: 1,439 first-contract and 848 repeat-signing rows, 906 prospect activations, and 95 78-week search-spell expirations; every weekly event/flow comparison matches. Runtime formation is exactly 300 in 1960 and 294 in 1961. Recorded duplicate-seeking, unsigned-pool, contract-status, terminal-roster, ownership, duplicate-pool, and release-selection invariant totals are zero. Finance rows reconcile format parts to their all-format row to emitted CSV precision (maximum absolute serialization residual: 0 units, 0.3034 gross, 0.1283 label net, 0.000528 distribution income, and 0.127742 market net). No functional source changed between C0, control, treatment, or repeat.
+
+**Decision:** C1 passes. Continue directly to C2 from this frozen source.
+
+## Album-specific guardrail amendment C2 (2026-07-16): **maturity failure / stop**
+
+The frozen-source maturity processes `d6-album-amendment-maturity-control-260-1001` and `d6-album-amendment-maturity-enabled-260-1001` both reached `CHART_AUDIT_COMPLETE ... weeks=260`. No source, data, scene, constant, flag, telemetry, or acceptance change was made after C1.
+
+| Year | Releases | Scheduled Albums | Album units | Album gross | Single units | Total units | Gross | Label net | Market net |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 0.9986 | 1.1764 | 1.1666 | 1.1644 | 1.0171 | 1.0190 | 1.0273 | 1.0356 | 1.0375 |
+| 1961 | 0.9554 | 1.0708 | 1.1342 | 1.1308 | 1.0491 | 1.0516 | 1.0557 | 1.0594 | 1.0526 |
+| 1962 | 0.9694 | 1.0423 | 1.1359 | 1.1340 | 1.1292 | **1.1295** | **1.1316** | **1.1176** | **1.1226** |
+
+The 1962 total units, gross, label net, and market net ratios exceed the inherited `[0.90,1.10]` gate. This is a hard C2 failure; no later maturity block or aggregate result can average it away. The amended Album gates themselves remain within `[0.80,1.20]` through the completed five-year horizon, and final 13-week scheduled-Album ratios are 0.9558, 1.0602, 0.9544, 1.0196, and 1.0809 (1960-1964), but the unamended total economic gate is binding. For context only, the full-horizon ratios are 1.0641 units, 1.0606 gross, 1.0550 label net, and 1.0571 market net; they do not cure the annual 1962 miss.
+
+**Stop decision:** C2 fails at the first failed annual block (1962). C3 disabled compatibility replay and C4-C6 decade, later-seed, and holdout runs were not launched. Preserve these artifacts and diagnose; do not alter the Album band or tune source from this result.
+
+## Transition-envelope continuation (2026-07-16): **prospective C2 acceptance decision**
+
+`ArtistPopulationTransitionEnvelopeClosureHandoff.md` classifies the retained C2 1962-1963 economic excess as a bounded lifecycle/catalog transition, not a supply, release, Album, or finance runaway. The preceding C2 annual-band failure remains historical and is not edited or relabelled. For C3-C6, each seed's first five complete years use the authorized transition envelope: annual total units, gross, label net, and market net in `[0.85,1.15]`; first-five-year aggregate in `[0.90,1.10]`; and both the fifth complete year and its final 26 weeks in `[0.90,1.10]`. The retained C2 pair passes this envelope: its five-year aggregate ratios are 1.0641 units, 1.0606 gross, 1.0550 label net, and 1.0571 market net, while its 1964 and final-26-week values are within the required `[0.90,1.10]` band.
+
+The Album amendment and every release, Single, finance, population, chronology, structural, disabled-boundary, and later-seed requirement remain unchanged. The frozen functional manifest still exactly matches C0/S2a: `Data/AILabel.cs=DB7DE2B04379B38FA762E7A4355D28AFC9F38DAA4454EB52B28E43FF706C5FC8`, `Systems/ArtistManager.cs=BE65F2294E2B87117A64D69FEA0173938E2301406CF2718E6818169AD938C0E0`, `Systems/LabelLifecycleManager.cs=7CBAD97277B3321AF27A1FD05D2FF694EED7C357B045739B2CAC39B86B74B037`, `Systems/RosterManager.cs=993A8EB0A73FBAEC4E63652B592A7BF040B380DB03AE3070D5E4CB12D00EB1CC`, `SimTools/ChartAuditRunner.cs=DF73936970F03CC46D41064CBB34296062CD6BF34B70C0A8EC24BB6FEBF85D5D`, and `SimTools/ArtistPopulationLifecycleProbeSuite.cs=E47DE82AE42AA1B726252280BCE164B581247EC529F795A1124B35EAC1E48927`. `git diff --check` passes. No gameplay or telemetry source changed.
+
+**Decision:** resume sequential closure at C3 from this frozen source. Stop and record the first C3-C6 hard failure.
+
+## Transition-envelope C3 (2026-07-16): **disabled compatibility failure / stop**
+
+The fresh disabled process `d6-transition-envelope-disabled-52-1001` reached `CHART_AUDIT_COMPLETE ... weeks=52` from the verified frozen functional manifest. It produced exactly 45 CSV streams, the same suffix set as `d6-fulfillment-emerging-memory-52b-control-1001`, with no missing or extra streams. However, 31 suffix-matched streams differ by length and SHA-256; only 14/45 streams are byte-identical. Examples of changed frozen streams include `a3-economic-decisions.csv`, `album-chart.csv`, `album-projects.csv`, `format-mix.csv`, `market-revenue.csv`, `release-capacity.csv`, and `weeks.csv`.
+
+**Stop decision:** the required C3 45/45 byte-exact disabled replay fails. No replacement compatibility baseline was created, and C4-C6 date-complete, later-seed, pooled, or holdout runs were not launched. Preserve the artifacts and diagnose the disabled-path difference before any further closure work; do not change the transition envelope or source under this handoff.
+
+## Transition-envelope C4 seed-1001 (2026-07-16): **post-C3 measurement failure / stop**
+
+At the user's explicit direction, the frozen-source C4 pair was run as measurement despite the recorded C3 failure; this does not waive or replace that compatibility failure. Both `d6-transition-envelope-decade-control-1001` and `d6-transition-envelope-decade-enabled-1001` reached `CHART_AUDIT_COMPLETE ... weeks=522`, ending on 1970-01-01. No source, data, scene, constant, flag, telemetry, analyzer, or acceptance change occurred between the runs.
+
+| Year | Releases | Scheduled Albums | Album units | Album gross | Single units | Total units | Gross | Label net | Market net |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 0.9986 | 1.1764 | 1.1666 | 1.1644 | 1.0171 | 1.0190 | 1.0273 | 1.0356 | 1.0375 |
+| 1961 | 0.9554 | 1.0708 | 1.1342 | 1.1308 | 1.0491 | 1.0516 | 1.0557 | 1.0594 | 1.0526 |
+| 1962 | 0.9694 | 1.0423 | 1.1359 | 1.1340 | 1.1292 | 1.1295 | 1.1316 | 1.1176 | 1.1226 |
+| 1963 | 0.9882 | 1.0581 | 0.9972 | 1.0012 | 1.1245 | 1.1190 | 1.1042 | 1.0875 | 1.0919 |
+| 1964 | 0.9384 | 1.0840 | 0.8467 | 0.8492 | 1.0136 | 1.0067 | 0.9881 | 0.9794 | 0.9845 |
+| 1965 | 0.9051 | 1.0205 | 0.8502 | 0.8480 | 0.9800 | 0.9718 | 0.9472 | 0.9340 | 0.9413 |
+| 1966 | 0.9368 | 0.9200 | 0.8855 | 0.8852 | **1.2135** | 1.1670 | 1.0719 | 1.0542 | 1.0708 |
+
+**Stop decision:** C4 first fails in 1966 because the unchanged Single-unit gate is `[0.85,1.15]` and the observed ratio is `1.2135`. Later results are not used to average away that miss; they additionally include 1969 releases `0.8450`, scheduled Albums `0.7409`, and Single units `1.2846`, which violate their respective shared closure gates. The decade aggregate is reported only as context (1.0903 units, 1.0508 gross, 1.0371 label net, 1.0496 market net). C5 seeds 1002/1003 and C6 holdout were not launched.
+
+## Owner decision after C3 (2026-07-16): **Codex compatibility write-off**
+
+The C3 result remains a historical **failure**: only 14/45 streams match `d6-fulfillment-emerging-memory-52b-control-1001`, and this record must never be represented as disabled byte-exact compatibility. Diagnosis identified the bounded cause in commit `91f1321`: runtime labels previously called `InitializeRosterForLabel` and immediately populated a launch-style roster, while the accepted runtime-label repair now calls `InitializeRuntimeRosterForLabel` and starts the label empty with a one-artist operating target. Label lifecycle remains active in the dual-disabled process, so the intentional runtime-label behavior change also changes that legacy disabled surface.
+
+The streams are identical through week 34. The first observable difference is the week-35 runtime-label finance state (`Baltimore Recording Co.` capability `0.130699` in the legacy baseline versus `0.2` in the frozen candidate); release and market state diverge in week 36 and then propagate through the 31 dynamic streams. The fresh C3 family is nevertheless 45/45 byte-identical to the same-source `d6-runtime-label-bootstrap-control-r2-52-1001` family, establishing current-source determinism rather than legacy compatibility.
+
+**Write-off decision:** accept this known, attributed compatibility loss as an explicit owner exception for Codex closure work. Do not repair the old runtime-label population behavior, do not freeze or relabel a replacement compatibility baseline, and do not claim that C3 passed. This exception removes C3 as the blocker to beginning C4 from the unchanged frozen candidate; it changes no C4-C6 acceptance band, invariant, stop condition, or same-source control/treatment requirement. If Directive 6 otherwise closes, report it as **completed with the owner-approved C3 disabled-compatibility write-off**, not as an unqualified C1-C6 pass.
+
+No gameplay, telemetry, data, scene, constant, feature default, baseline artifact, or acceptance band changed for this decision. No C4-C6 process was launched while recording it.
