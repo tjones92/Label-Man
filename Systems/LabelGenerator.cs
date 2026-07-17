@@ -245,9 +245,11 @@ public class LabelGenerator {
 			LabelTier.Major => 1.0f, LabelTier.MidTier => 0.6f, LabelTier.Independent => 0.35f, LabelTier.Small => 0.15f, _ => 0.2f
 		};
 		
-		// I'm omitting the full switch here for brevity in this thought process, 
-		// but it maps 1:1 to the user's code with Random.value -> GD.Randf() and Random.Range -> GD.RandRange
-		// ... (Implemented fully in the final output)
+		// Legacy generator compatibility shell: this method intentionally remains
+		// incomplete. Completing it would add shared GD RNG draws and alter the
+		// disabled replay. Enabled runtime-founded labels receive their complete
+		// deterministic profile in RuntimeLabelProfileFactory instead. The broader
+		// launch-generator duplication remains deferred work.
 	}
 	
 	private void AssignRegions(AILabel label, MarketRegion[] regions, LabelTier tier) {

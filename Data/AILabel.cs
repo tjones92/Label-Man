@@ -118,6 +118,29 @@ public partial class AILabel : Resource {
 	public int lastOrganicRosterTargetGrowthWeek = -1;
 	public string lastOrganicGrowthBlockingReason = "Unset";
 	public int lastOrganicGrowthEligibilityWeek = -1;
+	// Enabled daily-talent-market state. Dates are stored as scalar fields so old
+	// saves can safely omit them and the scheduler can reconstruct a first visit.
+	[Export] public int vacancyGeneration;
+	[Export] public int vacancyOpenedYear;
+	[Export] public int vacancyOpenedMonth;
+	[Export] public int vacancyOpenedDay;
+	[Export] public int nextScoutingYear;
+	[Export] public int nextScoutingMonth;
+	[Export] public int nextScoutingDay;
+	[Export] public int lastScoutingYear;
+	[Export] public int lastScoutingMonth;
+	[Export] public int lastScoutingDay;
+	[Export] public string lastScoutingOutcome = "NoVacancy";
+	[Export] public int scoutingAppointmentOrdinal;
+
+	public bool HasNextScoutingDate => nextScoutingYear > 0;
+	public GameDate NextScoutingDate => new(nextScoutingYear, nextScoutingMonth, nextScoutingDay);
+	public GameDate VacancyOpenedDate => new(vacancyOpenedYear, vacancyOpenedMonth, vacancyOpenedDay);
+	public GameDate LastScoutingDate => new(lastScoutingYear, lastScoutingMonth, lastScoutingDay);
+	public void SetNextScoutingDate(GameDate date) { nextScoutingYear = date.year; nextScoutingMonth = date.month; nextScoutingDay = date.day; }
+	public void SetVacancyOpenedDate(GameDate date) { vacancyOpenedYear = date.year; vacancyOpenedMonth = date.month; vacancyOpenedDay = date.day; }
+	public void SetLastScoutingDate(GameDate date) { lastScoutingYear = date.year; lastScoutingMonth = date.month; lastScoutingDay = date.day; }
+	public void ClearScoutingAppointment() { nextScoutingYear = 0; nextScoutingMonth = 0; nextScoutingDay = 0; }
 
 	public void SetOperatingRosterTargetFromCurrent() {
 		operatingRosterTarget = Mathf.Clamp(Mathf.Max(1, CurrentRosterSize), 1, Mathf.Max(1, maxRosterSize));

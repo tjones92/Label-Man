@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 /// <summary>
@@ -74,7 +75,11 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeRuntimeFirstContractClassification();                 // 59
 		ProbeRuntimeBootstrapCannotBurst();                        // 60
 		ProbeRuntimeLabelOrganicGrowth();                           // 61
-		results.Add("D6 fixed probes 1-61 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap and organic growth)");
+		ProbeRuntimeFoundedOperatingProfiles();                     // 62
+		ProbeDailyTalentMarketScheduling();                         // 63
+		ProbeCatastrophicFailFastBoundaries();                       // 64
+		ProbeCatastrophicControlParsing();                           // 65
+		results.Add("D6 fixed probes 1-65 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, and schema-bound control parsing)");
 		return results;
 	}
 
@@ -225,6 +230,143 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			!RosterManager.CanAttemptMarketClearingSigning(acquired.CurrentRosterSize, acquired.OperatingRosterTarget),
 			"61o acquisition reconciliation recognizes transferred roster without creating a vacancy");
 	}
+
+	private static void ProbeRuntimeFoundedOperatingProfiles() {
+		var smallArchetypes = new HashSet<LabelArchetype>();
+		var independentArchetypes = new HashSet<LabelArchetype>();
+		for (int index = 0; index < 160; index++) {
+			AILabel small = NewRuntimeProfileProbeLabel("small-" + index, LabelTier.Small);
+			AILabel independent = NewRuntimeProfileProbeLabel("independent-" + index, LabelTier.Independent);
+			RuntimeLabelProfileFactory.Initialize(small, null, 17 + index, new GameDate(1964, 4, 1), 1001UL);
+			RuntimeLabelProfileFactory.Initialize(independent, null, 17 + index, new GameDate(1964, 4, 1), 1001UL);
+			smallArchetypes.Add(small.archetype); independentArchetypes.Add(independent.archetype);
+			Require(RuntimeLabelProfileFactory.IsValidRuntimePair(small.tier, small.archetype) && RuntimeLabelProfileFactory.IsValidRuntimePair(independent.tier, independent.archetype) &&
+				ProfileWithinEnvelope(small) && ProfileWithinEnvelope(independent) && RuntimeLabelProfileFactory.HasCompleteOperatingProfile(small) && RuntimeLabelProfileFactory.HasCompleteOperatingProfile(independent),
+				"62a every runtime profile has a tier-valid archetype and nonzero fields within the canonical envelope");
+		}
+		Require(smallArchetypes.SetEquals(new[] { LabelArchetype.RegionalHustler, LabelArchetype.RockRebel, LabelArchetype.BluesRoots, LabelArchetype.CountrySpecialist, LabelArchetype.GospelPowerhouse }) &&
+			independentArchetypes.SetEquals(new[] { LabelArchetype.SoulFactory, LabelArchetype.RockRebel, LabelArchetype.BluesRoots, LabelArchetype.CountrySpecialist, LabelArchetype.TeenHitMachine, LabelArchetype.GospelPowerhouse, LabelArchetype.RegionalHustler }),
+			"62b only the allowed Small and Independent archetypes are reachable; corporate, folk, and jazz profiles are excluded");
+
+		AILabel first = NewRuntimeProfileProbeLabel("stable-profile", LabelTier.Independent);
+		AILabel repeat = NewRuntimeProfileProbeLabel("stable-profile", LabelTier.Independent);
+		RuntimeLabelProfileFactory.Initialize(first, null, 91, new GameDate(1965, 2, 1), 1001UL);
+		RuntimeLabelProfileFactory.Initialize(repeat, null, 91, new GameDate(1965, 2, 1), 1001UL);
+		Require(ProfileFingerprint(first) == ProfileFingerprint(repeat) && first.foundedYear == 1965 && first.monthsActive == 0 && first.totalReleases == 0 &&
+			first.top40Hits == 0 && first.numberOneHits == 0 && first.momentumScore == 0f && first.consecutiveLossMonths == 0 &&
+			!string.IsNullOrEmpty(first.homeRegion) && !string.IsNullOrEmpty(first.homeCityId) && !string.IsNullOrEmpty(first.homeCityAssignmentSource),
+			"62c stable seed/identity/week inputs reproduce the profile while founding history and canonical geography reset exactly at birth");
+		AILabel changed = NewRuntimeProfileProbeLabel("changed-profile", LabelTier.Independent);
+		RuntimeLabelProfileFactory.Initialize(changed, null, 91, new GameDate(1965, 2, 1), 1001UL);
+		Require(ProfileFingerprint(first) != ProfileFingerprint(changed), "62d a changed stable identity yields a different isolated profile without global-RNG participation");
+		RosterManager.InitializeRuntimeRosterForProbe(first);
+		Require(first.CurrentRosterSize == 0 && first.OperatingRosterTarget == 1 && first.maxRosterSize == 12 &&
+			CompetitorManager.CalculateLabelReleaseCapacityChance(first.releasesPerMonth, first.status, 1) > 0f,
+			"62e production profile initialization leaves the runtime roster empty at target one with canonical capacity and positive signed-artist release chance");
+	}
+
+	private static void ProbeDailyTalentMarketScheduling() {
+		var offsets = new HashSet<int>();
+		for (int index = 0; index < 512; index++) offsets.Add(RosterManager.GetDailyScoutingOffsetForProbe(1001UL, "daily-probe-" + index, 1));
+		Require(offsets.SetEquals(Enumerable.Range(0, 7)), "63a stable daily vacancy schedules cover all seven offsets without global RNG");
+		GameDate opened = new(1960, 1, 1);
+		GameDate first = RosterManager.GetInitialDailyScoutingDateForProbe(1001UL, "daily-spacing", 2, opened);
+		Require(first >= opened && first <= opened.AddDays(6) && first.AddDays(7).AddDays(-7) == first,
+			"63b an unfilled vacancy is scheduled within seven days and then exactly weekly");
+		GameDate protectedDate = RosterManager.GetInitialDailyScoutingDateForProbe(1001UL, "runtime-birth", 1, opened, 1);
+		Require(RosterManager.GetCalendarChartWeekForProbe(protectedDate) > 1,
+			"63c runtime founders are advanced beyond their birth chart week before service");
+		var weekdays = new HashSet<DayOfWeek>();
+		for (int index = 0; index < 512; index++) weekdays.Add(RosterManager.GetInitialDailyScoutingDateForProbe(1001UL, "weekday-probe-" + index, 1, opened).DayOfWeek);
+		Require(weekdays.SetEquals(Enum.GetValues<DayOfWeek>()) && weekdays.Contains(DayOfWeek.Saturday) && weekdays.Contains(DayOfWeek.Sunday),
+			"63d daily appointment dates cover all weekdays including Saturday and Sunday");
+	}
+
+	private static void ProbeCatastrophicFailFastBoundaries() {
+		Require(!ChartAuditRunner.IsInvalidFailFastFinanceValueForProbe(-116.453125d) &&
+			!ChartAuditRunner.IsInvalidFailFastFinanceValueForProbe(0d) &&
+			ChartAuditRunner.IsInvalidFailFastFinanceValueForProbe(double.NaN) &&
+			ChartAuditRunner.IsInvalidFailFastFinanceValueForProbe(double.PositiveInfinity),
+			"64a finite terminal debt is valid finance state while NaN and infinity remain catastrophic");
+		Require(!ChartAuditRunner.ShouldValidateCompletedFailFastYear(1960, 1960) &&
+			ChartAuditRunner.ShouldValidateCompletedFailFastYear(1960, 1961) &&
+			ChartAuditRunner.ShouldValidateCompletedFailFastYear(1969, 1970),
+			"64b completed-year comparison fires on a real calendar transition rather than an arbitrary 52-week multiple");
+		Require(!ChartAuditRunner.IsCatastrophicFailFastRatioForProbe(.70d, 1d) &&
+			!ChartAuditRunner.IsCatastrophicFailFastRatioForProbe(1.30d, 1d) &&
+			ChartAuditRunner.IsCatastrophicFailFastRatioForProbe(.699999d, 1d) &&
+			ChartAuditRunner.IsCatastrophicFailFastRatioForProbe(1.300001d, 1d) &&
+			!ChartAuditRunner.IsCatastrophicFailFastRatioForProbe(1d, 0d),
+			"64c catastrophic ratios preserve inclusive 0.70/1.30 boundaries and the explicit zero-denominator non-abort");
+		AILabel runtime = NewScoutingLabel(); runtime.populationOrigin = LabelPopulationOrigin.RuntimeFounded; runtime.runtimeBirthWeek = 18;
+		AILabel launch = NewScoutingLabel(); launch.populationOrigin = LabelPopulationOrigin.LaunchPopulation;
+		Require(ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("signing", runtime, 18) &&
+			ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("re-signing", runtime, 17) &&
+			!ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("signing", runtime, 19) &&
+			!ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("formation", runtime, 18) &&
+			!ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("signing", launch, 18),
+			"64d birth-week protection validates signing events only and cannot misclassify later roster transfers");
+	}
+
+	private static void ProbeCatastrophicControlParsing() {
+		string[] releases = {
+			"successfulReleases,week,year",
+			"10,1,1960",
+			"20,2,1960"
+		};
+		var seasonality = new List<string> { "albumProjectsScheduled,year,successfulReleases,month" };
+		for (int month = 1; month <= 12; month++) {
+			int successful = month == 1 ? 10 : month == 2 ? 20 : 0;
+			seasonality.Add($"1,1960,{successful},{month}");
+		}
+		var albumProjects = new List<string> { "scheduledWeek,projectId" };
+		for (int project = 1; project <= 12; project++) albumProjects.Add($"{(project <= 6 ? 1 : 2)},project-{project}");
+		string[] revenue = {
+			"marketNet,labelNet,gross,totalMarketUnits,releaseFormat,labelTier,year,period",
+			"80,70,100,1234,\"All\",\"All\",1960,annual"
+		};
+		(int parsedReleases, int albums, long units) = ChartAuditRunner.ParseCatastrophicFailFastControlForProbe(releases, seasonality, albumProjects, revenue, 1960);
+		Require(parsedReleases == 30 && albums == 12 && units == 1234,
+			"65a control parsing binds by required header name and remains correct under reordered columns and quoted fields");
+
+		RequireThrows<InvalidDataException>(() => ChartAuditRunner.ParseCatastrophicFailFastControlForProbe(
+			new[] { "week,year", "1,1960" }, seasonality, albumProjects, revenue, 1960),
+			"65b missing required control columns fail closed before simulation");
+		RequireThrows<InvalidDataException>(() => ChartAuditRunner.ParseCatastrophicFailFastControlForProbe(
+			new[] { "successfulReleases,week,year", "oops,1,1960" }, seasonality, albumProjects, revenue, 1960),
+			"65c malformed numeric control fields fail closed before simulation");
+		var mismatchedSeasonality = seasonality.ToList();
+		mismatchedSeasonality[1] = "1,1960,9,1";
+		RequireThrows<InvalidDataException>(() => ChartAuditRunner.ParseCatastrophicFailFastControlForProbe(
+			releases, mismatchedSeasonality, albumProjects, revenue, 1960),
+			"65d independently sourced annual release totals must reconcile before simulation");
+		RequireThrows<InvalidDataException>(() => ChartAuditRunner.ParseCatastrophicFailFastControlForProbe(
+			releases, seasonality.Take(12), albumProjects, revenue, 1960),
+			"65e incomplete calendar-month coverage fails closed before simulation");
+		var unmappedProjects = albumProjects.ToList(); unmappedProjects[1] = "99,project-1";
+		RequireThrows<InvalidDataException>(() => ChartAuditRunner.ParseCatastrophicFailFastControlForProbe(
+			releases, seasonality, unmappedProjects, revenue, 1960),
+			"65f Album projects must map through an authoritative chart-week year before simulation");
+	}
+
+	private static AILabel NewRuntimeProfileProbeLabel(string id, LabelTier tier) => new() {
+		labelId = id, labelName = id, tier = tier, headquartersCity = "New York", status = LabelStatus.Stable,
+		populationOrigin = LabelPopulationOrigin.RuntimeFounded, roster = new List<SimulatedArtist>()
+	};
+
+	private static bool ProfileWithinEnvelope(AILabel label) {
+		(bool small, float budgetMin, float budgetMax, float marketingMin, float marketingMax, float reachMin, float reachMax, float nationalMin, float nationalMax, float scoutingMin, float scoutingMax, float productionMin, float productionMax, float cadenceMin, float cadenceMax) =
+			label.tier == LabelTier.Small ? (true, .10f, .40f, .18f, .56f, .12f, .42f, .07f, .30f, .34f, .84f, .28f, .80f, .20f, .80f) :
+			(false, .28f, .62f, .30f, .72f, .28f, .62f, .18f, .50f, .44f, .91f, .40f, .91f, .50f, 1.50f);
+		return label.budgetLevel >= budgetMin && label.budgetLevel <= budgetMax && label.marketingPower >= marketingMin && label.marketingPower <= marketingMax &&
+			label.ownedReach >= reachMin && label.ownedReach <= reachMax && label.nationalReach >= nationalMin && label.nationalReach <= nationalMax &&
+			label.scoutingAbility >= scoutingMin && label.scoutingAbility <= scoutingMax && label.productionQuality >= productionMin && label.productionQuality <= productionMax &&
+			label.releasesPerMonth >= cadenceMin && label.releasesPerMonth <= cadenceMax;
+	}
+
+	private static string ProfileFingerprint(AILabel label) => string.Join("|", label.archetype, label.homeRegion, label.homeCityId,
+		label.budgetLevel, label.scoutingAbility, label.productionQuality, label.marketingPower, label.ownedReach, label.nationalReach,
+		label.riskTolerance, label.artistLoyalty, label.payolaWillingness, label.releasesPerMonth);
 
 	private static void ProbeContractHistoricalSeparation() {
 		SimulatedArtist artist = NewArtist();
@@ -854,5 +996,11 @@ public static class ArtistPopulationLifecycleProbeSuite {
 
 	private static void Require(bool condition, string message) {
 		if (!condition) throw new InvalidOperationException("D6 probe failed: " + message);
+	}
+
+	private static void RequireThrows<TException>(Action action, string message) where TException : Exception {
+		try { action(); }
+		catch (TException) { return; }
+		throw new InvalidOperationException("D6 probe failed: " + message);
 	}
 }

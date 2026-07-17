@@ -178,6 +178,10 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter artistCohortAnnualWriter;
 	private StreamWriter artistProjectIdentityWriter;
 	private StreamWriter labelOperatingTargetEventWriter;
+	private StreamWriter runtimeLabelProfileWriter;
+	private StreamWriter dailyTalentMarketWriter;
+	private StreamWriter dailyTalentAppointmentWriter;
+	private StreamWriter catastrophicFailFastWriter;
 	// Event-owned signing flows use the exact chart week written to the population
 	// ledger. This is observational state only and therefore cannot perturb play.
 	private readonly Dictionary<int, (int FirstTime, int Repeat)> populationSigningFlowByWeek = new();
@@ -219,6 +223,39 @@ public partial class ChartAuditRunner : Node {
 	private bool disableAlbums;
 	private bool runGenreMarketV2Probes;
 	private bool runArtistPopulationLifecycleProbes;
+	private bool catastrophicFailFast;
+	private bool catastrophicControlPreflight;
+	private string gateControlRun;
+	private readonly Dictionary<int, FailFastControlYear> failFastControlYears = new();
+	private readonly Dictionary<int, FailFastYearAccumulator> failFastActualYears = new();
+	private int failFastCaptureYear;
+	private bool catastrophicAbortIssued;
+
+	private class FailFastControlYear {
+		public int Releases;
+		public int SeasonalityReleases;
+		public int ScheduledAlbums;
+		public long Units;
+		public double Gross, LabelNet, MarketNet;
+		public int ReleaseRows, SeasonalityMonths, RevenueRows;
+		public bool HasReleases, HasAlbums, HasRevenue;
+		public bool IsComplete => HasReleases && HasAlbums && HasRevenue;
+	}
+	private sealed class ControlCsvTable {
+		public readonly string Name;
+		public readonly Dictionary<string, int> Columns;
+		public readonly List<string[]> Rows;
+		public ControlCsvTable(string name, Dictionary<string, int> columns, List<string[]> rows) { Name = name; Columns = columns; Rows = rows; }
+		public string Field(string[] row, string name) => row[Columns[name]];
+	}
+	private sealed class FailFastYearAccumulator : FailFastControlYear { }
+	private sealed class CatastrophicAbortException : Exception {
+		public readonly string Gate, Metric, State;
+		public readonly double EnabledValue, ControlValue;
+		public CatastrophicAbortException(string gate, string metric, double enabledValue, double controlValue, string state) : base($"{gate}: {metric}; enabled={enabledValue}; control={controlValue}; {state}") {
+			Gate = gate; Metric = metric; EnabledValue = enabledValue; ControlValue = controlValue; State = state;
+		}
+	}
 	private AILabel forcedDealClient;
 	private AILabel forcedDealDistributor;
 	private float forcedDealInitialAdvance;
@@ -235,6 +272,12 @@ public partial class ChartAuditRunner : Node {
 	public override void _Ready() {
 		try {
 			ParseArguments();
+			if (catastrophicFailFast || catastrophicControlPreflight) LoadCatastrophicFailFastControl();
+			if (catastrophicControlPreflight) {
+				WriteCatastrophicControlPreflight();
+				GetTree().Quit(0);
+				return;
+			}
 			SimulationPerformanceProfiler.Enabled = profilePerformance;
 			if (TimeManager.Instance == null || ChartManager.Instance == null) {
 				throw new InvalidOperationException("The TimeManager and ChartManager autoloads must be available.");
@@ -253,7 +296,14 @@ public partial class ChartAuditRunner : Node {
 			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
 			if (ArtistPopulationLifecycle.Enabled && ArtistManager.Instance != null) ArtistManager.Instance.OnPopulationEvent += WriteArtistPopulationEvent;
-			if (ArtistPopulationLifecycle.Enabled && LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.OnOperatingRosterTargetChanged += WriteOperatingRosterTargetEvent;
+			if (ArtistPopulationLifecycle.Enabled && LabelLifecycleManager.Instance != null) {
+				LabelLifecycleManager.Instance.OnOperatingRosterTargetChanged += WriteOperatingRosterTargetEvent;
+				LabelLifecycleManager.Instance.OnRuntimeLabelProfileInitialized += WriteRuntimeLabelProfile;
+			}
+			if (ArtistPopulationLifecycle.Enabled && RosterManager.Instance != null) {
+				RosterManager.Instance.OnDailyTalentMarketCleared += WriteDailyTalentMarket;
+				RosterManager.Instance.OnDailyTalentMarketAppointment += WriteDailyTalentAppointment;
+			}
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
@@ -294,6 +344,13 @@ public partial class ChartAuditRunner : Node {
 			FlushAndClose();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
 			GetTree().Quit(0);
+		} catch (CatastrophicAbortException exception) {
+			catastrophicAbortIssued = true;
+			WriteCatastrophicAbort(exception);
+			WriteLiveRecordsSnapshot();
+			FlushAndClose();
+			GD.Print($"CHART_AUDIT_ABORTED_CATASTROPHIC run={runName} gate={exception.Gate} metric={exception.Metric} week={currentAuditWeek} date={TimeManager.Instance?.CurrentDate}");
+			GetTree().Quit(2);
 		} catch (Exception exception) {
 			GD.PushError($"CHART_AUDIT_FAILED: {exception}");
 			FlushAndClose();
@@ -342,10 +399,287 @@ public partial class ChartAuditRunner : Node {
 				runGenreMarketV2Probes = true;
 			} else if (argument == "--artist-population-lifecycle-probes") {
 				runArtistPopulationLifecycleProbes = true;
+			} else if (argument == "--catastrophic-fail-fast") {
+				catastrophicFailFast = true;
+			} else if (argument == "--catastrophic-control-preflight") {
+				catastrophicControlPreflight = true;
+			} else if (argument.StartsWith("--gate-control-run=", StringComparison.Ordinal)) {
+				gateControlRun = SanitizeFileName(argument[19..]);
 			}
 		}
 
 		if (requestedWeeks < 1) throw new ArgumentOutOfRangeException(nameof(requestedWeeks));
+		if (catastrophicFailFast && catastrophicControlPreflight)
+			throw new ArgumentException("--catastrophic-fail-fast and --catastrophic-control-preflight are mutually exclusive.");
+		if ((catastrophicFailFast || catastrophicControlPreflight) && string.IsNullOrEmpty(gateControlRun))
+			throw new ArgumentException("Catastrophic fail-fast and control preflight require --gate-control-run=<completed-control-run>.");
+		if (!catastrophicFailFast && !catastrophicControlPreflight && !string.IsNullOrEmpty(gateControlRun))
+			throw new ArgumentException("--gate-control-run is valid only with --catastrophic-fail-fast or --catastrophic-control-preflight.");
+	}
+
+	private void LoadCatastrophicFailFastControl() {
+		string directory = ProjectSettings.GlobalizePath("res://SimLogs");
+		string releases = Path.Combine(directory, $"{gateControlRun}-release-capacity.csv");
+		string seasonality = Path.Combine(directory, $"{gateControlRun}-seasonality-monthly.csv");
+		string albumProjects = Path.Combine(directory, $"{gateControlRun}-album-projects.csv");
+		string revenue = Path.Combine(directory, $"{gateControlRun}-market-revenue.csv");
+		if (!File.Exists(releases) || !File.Exists(seasonality) || !File.Exists(albumProjects) || !File.Exists(revenue))
+			throw new InvalidOperationException($"Catastrophic fail-fast control '{gateControlRun}' is incomplete: required release-capacity, seasonality-monthly, album-projects, and market-revenue rows must exist.");
+		Dictionary<int, FailFastControlYear> parsed = ParseCatastrophicFailFastControl(
+			File.ReadLines(releases), File.ReadLines(seasonality), File.ReadLines(albumProjects), File.ReadLines(revenue), 1960, 1969);
+		failFastControlYears.Clear();
+		foreach ((int year, FailFastControlYear row) in parsed) failFastControlYears[year] = row;
+	}
+
+	private static Dictionary<int, FailFastControlYear> ParseCatastrophicFailFastControl(IEnumerable<string> releaseLines,
+		IEnumerable<string> seasonalityLines, IEnumerable<string> albumProjectLines, IEnumerable<string> revenueLines,
+		int requiredFirstYear, int requiredLastYear) {
+		if (requiredFirstYear > requiredLastYear) throw new ArgumentOutOfRangeException(nameof(requiredFirstYear));
+		ControlCsvTable releases = ParseControlTable("release-capacity.csv", releaseLines, "week", "year", "successfulReleases");
+		ControlCsvTable seasonality = ParseControlTable("seasonality-monthly.csv", seasonalityLines,
+			"year", "month", "successfulReleases", "albumProjectsScheduled");
+		ControlCsvTable albumProjects = ParseControlTable("album-projects.csv", albumProjectLines, "projectId", "scheduledWeek");
+		ControlCsvTable revenue = ParseControlTable("market-revenue.csv", revenueLines,
+			"period", "year", "labelTier", "releaseFormat", "totalMarketUnits", "gross", "labelNet", "marketNet");
+		var years = new Dictionary<int, FailFastControlYear>();
+		FailFastControlYear Year(int year) {
+			if (!years.TryGetValue(year, out FailFastControlYear row)) years[year] = row = new FailFastControlYear();
+			return row;
+		}
+
+		var weekYears = new Dictionary<int, int>();
+		long releaseTotal = 0;
+		foreach (string[] fields in releases.Rows) {
+			int week = ParseControlInt(releases, fields, "week");
+			int year = ParseControlInt(releases, fields, "year");
+			int successful = ParseControlInt(releases, fields, "successfulReleases");
+			if (week <= 0 || !weekYears.TryAdd(week, year)) throw ControlError(releases, $"invalid or duplicate week {week}");
+			if (successful < 0) throw ControlError(releases, $"negative successfulReleases for week {week}");
+			FailFastControlYear row = Year(year);
+			checked { row.Releases += successful; row.ReleaseRows++; releaseTotal += successful; }
+			row.HasReleases = true;
+		}
+
+		var months = new HashSet<(int Year, int Month)>();
+		long seasonalityReleaseTotal = 0;
+		long seasonalityAlbumTotal = 0;
+		foreach (string[] fields in seasonality.Rows) {
+			int year = ParseControlInt(seasonality, fields, "year");
+			int month = ParseControlInt(seasonality, fields, "month");
+			int successful = ParseControlInt(seasonality, fields, "successfulReleases");
+			int scheduled = ParseControlInt(seasonality, fields, "albumProjectsScheduled");
+			if (month is < 1 or > 12 || !months.Add((year, month))) throw ControlError(seasonality, $"invalid or duplicate month {year}-{month}");
+			if (successful < 0 || scheduled < 0) throw ControlError(seasonality, $"negative completed count for {year}-{month}");
+			FailFastControlYear row = Year(year);
+			checked {
+				row.SeasonalityReleases += successful; row.SeasonalityMonths++;
+				seasonalityReleaseTotal += successful; seasonalityAlbumTotal += scheduled;
+			}
+		}
+
+		long albumProjectTotal = 0;
+		var projectIds = new HashSet<string>(StringComparer.Ordinal);
+		foreach (string[] fields in albumProjects.Rows) {
+			string projectId = albumProjects.Field(fields, "projectId");
+			int week = ParseControlInt(albumProjects, fields, "scheduledWeek");
+			if (string.IsNullOrEmpty(projectId) || !projectIds.Add(projectId)) throw ControlError(albumProjects, $"missing or duplicate projectId '{projectId}'");
+			if (!weekYears.TryGetValue(week, out int year)) throw ControlError(albumProjects, $"scheduledWeek {week} has no release-capacity year mapping");
+			FailFastControlYear row = Year(year);
+			checked { row.ScheduledAlbums++; albumProjectTotal++; }
+			row.HasAlbums = true;
+		}
+		if (releaseTotal != seasonalityReleaseTotal)
+			throw new InvalidDataException($"Fail-fast control whole-run release reconciliation failed: release-capacity={releaseTotal}, seasonality={seasonalityReleaseTotal}.");
+		if (albumProjectTotal != seasonalityAlbumTotal)
+			throw new InvalidDataException($"Fail-fast control whole-run Album reconciliation failed: album-projects={albumProjectTotal}, seasonality={seasonalityAlbumTotal}.");
+
+		foreach (string[] fields in revenue.Rows) {
+			if (revenue.Field(fields, "period") != "annual" || revenue.Field(fields, "labelTier") != "All" || revenue.Field(fields, "releaseFormat") != "All") continue;
+			int year = ParseControlInt(revenue, fields, "year");
+			FailFastControlYear row = Year(year);
+			if (row.RevenueRows != 0) throw ControlError(revenue, $"duplicate annual All/All row for year {year}");
+			row.Units = ParseControlLong(revenue, fields, "totalMarketUnits");
+			row.Gross = ParseControlDouble(revenue, fields, "gross");
+			row.LabelNet = ParseControlDouble(revenue, fields, "labelNet");
+			row.MarketNet = ParseControlDouble(revenue, fields, "marketNet");
+			if (row.Units < 0 || !IsFinite(row.Gross) || !IsFinite(row.LabelNet) || !IsFinite(row.MarketNet))
+				throw ControlError(revenue, $"invalid annual All/All value for year {year}");
+			row.RevenueRows = 1;
+			row.HasRevenue = true;
+		}
+
+		for (int year = requiredFirstYear; year <= requiredLastYear; year++) {
+			if (!years.TryGetValue(year, out FailFastControlYear row) || !row.IsComplete)
+				throw new InvalidDataException($"Fail-fast control is missing a complete required year {year}.");
+			if (row.ReleaseRows <= 0) throw new InvalidDataException($"Fail-fast control year {year} has no release-capacity rows.");
+			if (row.SeasonalityMonths != 12) throw new InvalidDataException($"Fail-fast control year {year} has {row.SeasonalityMonths} seasonality months; expected 12.");
+			if (row.RevenueRows != 1) throw new InvalidDataException($"Fail-fast control year {year} has {row.RevenueRows} annual All/All revenue rows; expected 1.");
+		}
+		return years;
+	}
+
+	private static ControlCsvTable ParseControlTable(string name, IEnumerable<string> lines, params string[] requiredColumns) {
+		string[] materialized = lines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
+		if (materialized.Length == 0) throw new InvalidDataException($"Fail-fast control stream {name} is empty.");
+		string[] header = ParseCsvFields(materialized[0]);
+		if (header.Length == 0) throw new InvalidDataException($"Fail-fast control stream {name} has no header.");
+		header[0] = header[0].TrimStart('\uFEFF');
+		var columns = new Dictionary<string, int>(StringComparer.Ordinal);
+		for (int index = 0; index < header.Length; index++)
+			if (!columns.TryAdd(header[index], index)) throw new InvalidDataException($"Fail-fast control stream {name} has duplicate column '{header[index]}'.");
+		foreach (string required in requiredColumns)
+			if (!columns.ContainsKey(required)) throw new InvalidDataException($"Fail-fast control stream {name} is missing required column '{required}'.");
+		var rows = new List<string[]>();
+		for (int lineNumber = 1; lineNumber < materialized.Length; lineNumber++) {
+			string[] row = ParseCsvFields(materialized[lineNumber]);
+			if (row.Length != header.Length) throw new InvalidDataException($"Fail-fast control stream {name} line {lineNumber + 1} has {row.Length} fields; expected {header.Length}.");
+			rows.Add(row);
+		}
+		if (rows.Count == 0) throw new InvalidDataException($"Fail-fast control stream {name} has a header but no rows.");
+		return new ControlCsvTable(name, columns, rows);
+	}
+
+	internal static string[] ParseCsvFields(string line) {
+		var fields = new List<string>();
+		var field = new StringBuilder();
+		bool quoted = false;
+		for (int index = 0; index < line.Length; index++) {
+			char value = line[index];
+			if (value == '"') {
+				if (quoted && index + 1 < line.Length && line[index + 1] == '"') { field.Append('"'); index++; }
+				else quoted = !quoted;
+			} else if (value == ',' && !quoted) {
+				fields.Add(field.ToString()); field.Clear();
+			} else field.Append(value);
+		}
+		if (quoted) throw new InvalidDataException("Fail-fast control CSV contains an unterminated quoted field.");
+		fields.Add(field.ToString());
+		return fields.ToArray();
+	}
+
+	private static int ParseControlInt(ControlCsvTable table, string[] row, string column) =>
+		int.TryParse(table.Field(row, column), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value) ? value :
+		throw ControlError(table, $"column '{column}' contains non-integer value '{table.Field(row, column)}'");
+	private static long ParseControlLong(ControlCsvTable table, string[] row, string column) =>
+		long.TryParse(table.Field(row, column), NumberStyles.Integer, CultureInfo.InvariantCulture, out long value) ? value :
+		throw ControlError(table, $"column '{column}' contains non-integer value '{table.Field(row, column)}'");
+	private static double ParseControlDouble(ControlCsvTable table, string[] row, string column) =>
+		double.TryParse(table.Field(row, column), NumberStyles.Float, CultureInfo.InvariantCulture, out double value) ? value :
+		throw ControlError(table, $"column '{column}' contains non-numeric value '{table.Field(row, column)}'");
+	private static InvalidDataException ControlError(ControlCsvTable table, string message) => new($"Fail-fast control stream {table.Name}: {message}.");
+
+	internal static (int Releases, int ScheduledAlbums, long Units) ParseCatastrophicFailFastControlForProbe(
+		IEnumerable<string> releases, IEnumerable<string> seasonality, IEnumerable<string> albumProjects,
+		IEnumerable<string> revenue, int year) {
+		Dictionary<int, FailFastControlYear> parsed = ParseCatastrophicFailFastControl(releases, seasonality, albumProjects, revenue, year, year);
+		FailFastControlYear row = parsed[year];
+		return (row.Releases, row.ScheduledAlbums, row.Units);
+	}
+
+	private void WriteCatastrophicControlPreflight() {
+		foreach ((int year, FailFastControlYear row) in failFastControlYears.Where(pair => pair.Value.IsComplete).OrderBy(pair => pair.Key))
+			GD.Print($"FAIL_FAST_CONTROL_YEAR year={year} releases={row.Releases} scheduledAlbums={row.ScheduledAlbums} units={row.Units} gross={row.Gross.ToString("R", CultureInfo.InvariantCulture)} labelNet={row.LabelNet.ToString("R", CultureInfo.InvariantCulture)} marketNet={row.MarketNet.ToString("R", CultureInfo.InvariantCulture)}");
+		GD.Print($"CHART_AUDIT_CONTROL_PREFLIGHT_COMPLETE control={gateControlRun} years=1960-1969");
+	}
+
+	private void CaptureFailFastWeekly(GameDate date, List<RecordRuntimeData> records) {
+		if (!catastrophicFailFast) return;
+		if (failFastCaptureYear == 0) failFastCaptureYear = date.year;
+		else if (ShouldValidateCompletedFailFastYear(failFastCaptureYear, date.year)) {
+			ValidateCatastrophicCompletedYear(failFastCaptureYear);
+			failFastCaptureYear = date.year;
+		}
+		if (!failFastActualYears.TryGetValue(date.year, out FailFastYearAccumulator row)) failFastActualYears[date.year] = row = new FailFastYearAccumulator();
+		CompetitorManager competitors = CompetitorManager.Instance;
+		if (competitors.WeeklySuccessfulReleases < 0 || competitors.WeeklyAlbumProjectsScheduled < 0)
+			throw new CatastrophicAbortException("NegativeImpossibleCount", "weeklyReleaseFlow", competitors.WeeklySuccessfulReleases,
+				competitors.WeeklyAlbumProjectsScheduled, $"date={date}");
+		RecordRuntimeData negativeUnits = records.FirstOrDefault(record => record.unitsThisWeek < 0);
+		if (negativeUnits != null)
+			throw new CatastrophicAbortException("NegativeImpossibleCount", "weeklyRecordUnits", negativeUnits.unitsThisWeek, 0d,
+				$"record={negativeUnits.baseRecord?.recordId} date={date}");
+		row.Releases += competitors.WeeklySuccessfulReleases;
+		row.ScheduledAlbums += competitors.WeeklyAlbumProjectsScheduled;
+		row.Units += records.Sum(record => (long)record.unitsThisWeek);
+		foreach (AILabel label in competitors.GetAllLabels()) {
+			ValidateFiniteFinance(label, "cashReserves", label.cashReserves);
+			ValidateFiniteFinance(label, "weeklyGrossRevenue", label.weeklyGrossRevenue);
+			ValidateFiniteFinance(label, "weeklyCogs", label.weeklyCogs);
+			ValidateFiniteFinance(label, "weeklyDistributionSkim", label.weeklyDistributionSkim);
+			ValidateFiniteFinance(label, "weeklyArtistRoyalty", label.weeklyArtistRoyalty);
+			ValidateFiniteFinance(label, "weeklyNetRevenue", label.weeklyNetRevenue);
+			ValidateFiniteFinance(label, "weeklyDistributionIncome", label.weeklyDistributionIncome);
+			row.Gross += label.weeklyGrossRevenue; row.LabelNet += label.weeklyNetRevenue;
+			row.MarketNet += label.weeklyNetRevenue + label.weeklyDistributionIncome;
+		}
+		ValidateCatastrophicStructural(date);
+	}
+
+	private static void ValidateFiniteFinance(AILabel label, string metric, double value) {
+		if (!IsFinite(value)) throw new CatastrophicAbortException("InvalidFinance", metric, value, 0d,
+			$"label={label?.labelId} status={label?.status}");
+	}
+
+	private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
+	internal static bool IsInvalidFailFastFinanceValueForProbe(double value) => !IsFinite(value);
+	internal static bool ShouldValidateCompletedFailFastYear(int capturedYear, int currentYear) => capturedYear > 0 && currentYear != capturedYear;
+
+	private void ValidateCatastrophicCompletedYear(int year) {
+		if (!failFastControlYears.TryGetValue(year, out FailFastControlYear control) || !control.IsComplete ||
+			!failFastActualYears.TryGetValue(year, out FailFastYearAccumulator actual))
+			throw new CatastrophicAbortException("MissingControlRow", "completedYear", year, year, $"control={gateControlRun}");
+		CheckCatastrophicRatio("successfulReleases", actual.Releases, control.Releases);
+		CheckCatastrophicRatio("scheduledAlbumProjects", actual.ScheduledAlbums, control.ScheduledAlbums);
+		CheckCatastrophicRatio("totalUnits", actual.Units, control.Units);
+		CheckCatastrophicRatio("grossRevenue", actual.Gross, control.Gross);
+		CheckCatastrophicRatio("labelNet", actual.LabelNet, control.LabelNet);
+		CheckCatastrophicRatio("marketNet", actual.MarketNet, control.MarketNet);
+	}
+
+	private void CheckCatastrophicRatio(string metric, double enabled, double control) {
+		if (!IsFinite(enabled) || !IsFinite(control))
+			throw new CatastrophicAbortException("InvalidAnnualComparison", metric, enabled, control, "non-finite completed-year value");
+		if (control == 0d) {
+			if (metric is "successfulReleases" or "scheduledAlbumProjects" && enabled == 0d) return;
+			return; // Zero-denominator values are logged in the endpoint stream, never inferred catastrophic.
+		}
+		double ratio = enabled / control;
+		if (IsCatastrophicFailFastRatioForProbe(enabled, control))
+			throw new CatastrophicAbortException("CompletedYearCatastrophicDivergence", metric, enabled, control, $"ratio={ratio.ToString("F6", CultureInfo.InvariantCulture)} band=[0.70,1.30]");
+	}
+
+	internal static bool IsCatastrophicFailFastRatioForProbe(double enabled, double control) {
+		if (!IsFinite(enabled) || !IsFinite(control)) return true;
+		if (control == 0d) return false;
+		double ratio = enabled / control;
+		return !IsFinite(ratio) || ratio < .70d || ratio > 1.30d;
+	}
+
+	private void ValidateCatastrophicStructural(GameDate date) {
+		var owners = new Dictionary<SimulatedArtist, string>();
+		foreach (AILabel label in ChartManager.Instance.GetAllLabels().Where(label => label?.roster != null)) {
+			if (!label.IsActive && label.CurrentRosterSize > 0)
+				throw new CatastrophicAbortException("TerminalRoster", "rosterHeadcount", label.CurrentRosterSize, 0d, $"label={label.labelId} status={label.status}");
+			if (label.IsActive && (label.CurrentRosterSize > label.OperatingRosterTarget || label.CurrentRosterSize > label.maxRosterSize))
+				throw new CatastrophicAbortException("RosterCapacity", "rosterHeadcount", label.CurrentRosterSize, Math.Min(label.OperatingRosterTarget, label.maxRosterSize), $"label={label.labelId}");
+			foreach (SimulatedArtist artist in label.roster) {
+				if (artist == null || !owners.TryAdd(artist, label.labelId)) throw new CatastrophicAbortException("OwnershipConflict", "artistOwnership", 2d, 1d, $"artist={artist?.artistId}");
+				if (artist.labelId != label.labelId)
+					throw new CatastrophicAbortException("OwnershipConflict", "artistLabelId", 0d, 1d, $"label={label.labelId} artist={artist.artistId} artistLabel={artist.labelId}");
+				if (!artist.isActive || artist.lifecycleStatus is ArtistLifecycleStatus.Retired or ArtistLifecycleStatus.Disbanded)
+					throw new CatastrophicAbortException("TerminalRoster", "artistLifecycle", 1d, 0d, $"label={label.labelId} artist={artist.artistId} state={artist.lifecycleStatus} date={date}");
+			}
+		}
+	}
+
+	internal static bool IsRuntimeBirthWeekSigningViolationForProbe(string eventType, AILabel label, int eventWeek) =>
+		eventType is "signing" or "re-signing" && label?.populationOrigin == LabelPopulationOrigin.RuntimeFounded &&
+		label.runtimeBirthWeek > 0 && eventWeek <= label.runtimeBirthWeek;
+
+	private void WriteCatastrophicAbort(CatastrophicAbortException exception) {
+		catastrophicFailFastWriter?.WriteLine(string.Join(",", new[] { Csv(exception.Gate), Csv(exception.Metric), exception.EnabledValue.ToString("R", CultureInfo.InvariantCulture), exception.ControlValue.ToString("R", CultureInfo.InvariantCulture),
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), Csv(TimeManager.Instance?.CurrentDate.ToString()), Csv(exception.State) }));
+		catastrophicFailFastWriter?.Flush();
 	}
 
 	private static void ValidateLiveRegionTaxonomy(MarketRegion[] liveRegions) {
@@ -481,6 +815,10 @@ public partial class ChartAuditRunner : Node {
 			artistCohortAnnualWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-cohort-annual.csv"));
 			artistProjectIdentityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-project-identity.csv"));
 			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
+			runtimeLabelProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-runtime-label-profiles.csv"));
+			dailyTalentMarketWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-daily-talent-market.csv"));
+			dailyTalentAppointmentWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-daily-talent-appointments.csv"));
+			if (catastrophicFailFast) catastrophicFailFastWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-catastrophic-fail-fast.csv"));
 		}
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
@@ -532,6 +870,10 @@ public partial class ChartAuditRunner : Node {
 		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
 		labelScoutingVacancyWriter?.WriteLine("week,year,labelId,labelTier,maxRosterSize,operatingRosterTarget,operatingRosterTargetSource,labelOrigin,runtimeBirthWeek,runtimeBirthDate,operatingTargetReason,organicGrowthCount,lastOrganicGrowthWeek,lastOrganicGrowthBlockingReason,rosterSize,unusedRosterSlots,unusedOperatingRosterSlots,isEmptyRoster,consecutiveVacancyWeeks,consecutiveEmptyWeeks,scoutingAbility,rosterFullness,hasRecentHit,recentHitFactor,decliningArtistCount,decliningFactor,estimatedAdvance,canAffordEstimatedAdvance,computedScoutProbability,scoutRandomRoll,scoutingGatePassed,eligibleCandidateCount,discoveryPoolCount,bestCandidateScore,neverSignedSlateCount,qualifyingNeverSignedCount,bestNeverSignedScore,thirdPlusPerformanceComebackCount,overallBestContractSequence,freshPreferenceApplied,repeatComebackDeferred,freshPreferenceFallbackReason,signingAttempted,signingSucceeded,signingKind,failureReason,scoutingRosterSize,scoutingUnusedRosterSlots,scoutingUnusedOperatingRosterSlots,scoutingIsEmptyRoster,releaseEligibleArtistCount,requiredReleaseLanes,headcountDeficit,releaseLaneDeficit,serviceDeficit,serviceDeficitAge,serviceMode,scoutingGateBypassed,freshLaneCount,experiencedLaneCount,freshDiscoveryScope,bestFreshPotentialScore,bestExperiencedProductionScore,selectedLane,recoveryThresholdFallbackUsed,recoveryFailureReason,marketClearingAttemptsAtOrAboveOperatingTarget");
 		labelOperatingTargetEventWriter?.WriteLine("week,date,labelId,labelOrigin,birthWeek,birthDate,reason,priorTarget,newTarget,hardCapacity,organicGrowthCount,weeksSincePriorOrganicIncrease,eligibilityResult,blockingReason,status,tier,rosterSize,releaseEligibleCount,recentChartingCount,lastMonthlyProfit,consecutiveLossMonths,cashReserves,monthlyOverhead,runwayMonths");
+		runtimeLabelProfileWriter?.WriteLine("seed,birthWeek,birthDate,labelId,labelName,birthTier,archetype,headquartersCity,homeRegion,homeCityId,homeCityAssignmentSource,preferredGenres,secondaryGenres,budgetLevel,scoutingAbility,productionQuality,marketingPower,ownedReach,nationalReach,riskTolerance,artistLoyalty,payolaWillingness,releasesPerMonth,cashReserves,reputation,marketShare,debtLevel,foundedYear,monthsActive,totalReleases,top40Hits,numberOneHits,maxRosterSize,operatingRosterTarget,profileVersion");
+		dailyTalentMarketWriter?.WriteLine("date,chartWeek,eligibleVacancies,dueLabels,supplySnapshotCount,freshSupplySnapshotCount,experiencedSupplySnapshotCount,nominations,uniqueNominatedArtists,collisionArtists,collisionOffers,acceptedOffers,collisionLosers,invalidatedBeforeCommit");
+		dailyTalentAppointmentWriter?.WriteLine("date,chartWeek,labelId,labelOrigin,labelTier,vacancyGeneration,vacancyOpenedDate,scheduledScoutingDate,actualScoutingDate,appointmentOrdinal,serviceMode,freshLaneCount,experiencedLaneCount,selectedArtistId,selectedLane,offerOutcome,collisionOfferCount,winnerLabelId,artistChoiceUtility,genreUtility,localityUtility,royaltyUtility,advanceUtility,reputationUtility,reachUtility,rosterOpportunityUtility,affinityUtility,nextScoutingDate");
+		catastrophicFailFastWriter?.WriteLine("gate,metric,enabledValue,controlValue,week,date,state");
 		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,prospectMarketStatus,prospectMarketStatusBeforeContract,careerStateBeforeDrop,contractEntryCareerState,labelId,labelTier,dropReason,performanceDropCount,requiredPerformanceCooldownWeeks,contractSequence,priorContractCount,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,performanceEvaluationMode,requiredPerformanceCompletedRuns,requiredPerformanceConsecutiveFlops,contractProbationPending,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
 		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
 		artistLaborMarketWeeklyWriter?.WriteLine("seed,week,date,registryPopulation,initialLegacyPopulation,enabledInitialReservePopulation,runtimeFormationPopulation,activeRostered,experiencedFreeAgents,freshSeeking,freshLatent,affordableHiringOpportunityLabels,requestedProspectActivations,actualProspectActivations,prospectSearchSpellExpirations,firstTimeSignings,repeatSignings,meanSeekingQuality,meanLatentQuality,activationMeanQuality,activationQ1,activationQ2,activationQ3,activationQ4,maxProspectMarketSpellCount,duplicateSeekingEntries,latentUnsignedPoolEntries,seekingMissingFromUnsignedPool,prospectStatusContractConflicts");
@@ -1127,6 +1469,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.WeeklyPipelineAlbumDrops.ToString(CultureInfo.InvariantCulture)
 		}));
 		List<RecordRuntimeData> records = ChartManager.Instance.GetAllRecords();
+		CaptureFailFastWeekly(date, records);
 		foreach (RecordRuntimeData album in records.Where(record => record.baseRecord.format == ReleaseFormat.Album)) {
 			if (album.weeksSinceRelease > 26) decadeAnnual.AlbumUnitsOver26Weeks += album.unitsThisWeek;
 			if (album.weeksSinceRelease > 52) decadeAnnual.AlbumUnitsOver52Weeks += album.unitsThisWeek;
@@ -1290,15 +1633,19 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void WriteArtistPopulationEvent(string eventType, SimulatedArtist artist) {
-		if (artistPopulationEventsWriter == null || artist == null) return;
+		if (artist == null) return;
 		int year = TimeManager.Instance?.CurrentDate.year ?? artist.formedYear;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		AILabel label = ChartManager.Instance?.GetLabelById(artist.labelId);
+		if (catastrophicFailFast && IsRuntimeBirthWeekSigningViolationForProbe(eventType, label, week))
+			throw new CatastrophicAbortException("BirthWeekSigning", "runtimeFounderContract", week, label.runtimeBirthWeek,
+				$"label={label.labelId} artist={artist.artistId} date={TimeManager.Instance?.CurrentDate}");
+		if (artistPopulationEventsWriter == null) return;
 		if (eventType is "signing" or "re-signing") {
 			(int firstTime, int repeat) = populationSigningFlowByWeek.GetValueOrDefault(week);
 			populationSigningFlowByWeek[week] = eventType == "re-signing" ? (firstTime, repeat + 1) : (firstTime + 1, repeat);
 		}
 		Musician lead = artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive);
-		AILabel label = ChartManager.Instance?.GetLabelById(artist.labelId);
 		artistPopulationEventsWriter.WriteLine(string.Join(",", new[] {
 			(SimulationSeedBootstrap.RequestedSeed ?? 0UL).ToString(CultureInfo.InvariantCulture), week.ToString(CultureInfo.InvariantCulture),
 			Csv(TimeManager.Instance?.CurrentDate.ToString()), Csv(eventType), Csv(artist.artistId), Csv(artist.type.ToString()), Csv(artist.cohort.ToString()),
@@ -1371,6 +1718,46 @@ public partial class ChartAuditRunner : Node {
 			label.organicRosterTargetGrowthCount.ToString(CultureInfo.InvariantCulture), targetEvent.WeeksSincePreviousOrganicIncrease.ToString(CultureInfo.InvariantCulture), Csv(targetEvent.EligibilityResult), Csv(targetEvent.BlockingReason),
 			Csv(label.status.ToString()), Csv(label.tier.ToString()), label.CurrentRosterSize.ToString(CultureInfo.InvariantCulture), label.CountArtistsEligibleForRelease(targetEvent.Date.year).ToString(CultureInfo.InvariantCulture),
 			targetEvent.RecentChartingCount.ToString(CultureInfo.InvariantCulture), F(label.lastMonthlyProfit), label.consecutiveLossMonths.ToString(CultureInfo.InvariantCulture), F(label.cashReserves), F(overhead), F(overhead > 0f ? label.cashReserves / overhead : 0f)
+		}));
+	}
+
+	private void WriteRuntimeLabelProfile(RuntimeLabelProfileFactory.Result profile) {
+		if (runtimeLabelProfileWriter == null || profile?.Label == null) return;
+		AILabel label = profile.Label;
+		runtimeLabelProfileWriter.WriteLine(string.Join(",", new[] {
+			profile.Seed.ToString(CultureInfo.InvariantCulture), profile.BirthWeek.ToString(CultureInfo.InvariantCulture), Csv(profile.BirthDate.ToString()),
+			Csv(label.labelId), Csv(label.labelName), Csv(label.tier.ToString()), Csv(label.archetype.ToString()), Csv(label.headquartersCity),
+			Csv(label.homeRegion), Csv(label.homeCityId), Csv(label.homeCityAssignmentSource),
+			Csv(string.Join(";", label.preferredGenres ?? Array.Empty<Genre>())), Csv(string.Join(";", label.secondaryGenres ?? Array.Empty<Genre>())),
+			F(label.budgetLevel), F(label.scoutingAbility), F(label.productionQuality), F(label.marketingPower), F(label.ownedReach), F(label.nationalReach),
+			F(label.riskTolerance), F(label.artistLoyalty), F(label.payolaWillingness), F(label.releasesPerMonth), F(label.cashReserves), F(label.reputation),
+			F(label.marketShare), F(label.debtLevel), label.foundedYear.ToString(CultureInfo.InvariantCulture), label.monthsActive.ToString(CultureInfo.InvariantCulture),
+			label.totalReleases.ToString(CultureInfo.InvariantCulture), label.top40Hits.ToString(CultureInfo.InvariantCulture), label.numberOneHits.ToString(CultureInfo.InvariantCulture),
+			label.maxRosterSize.ToString(CultureInfo.InvariantCulture), label.OperatingRosterTarget.ToString(CultureInfo.InvariantCulture), Csv(RuntimeLabelProfileFactory.ProfileVersion)
+		}));
+	}
+
+	private void WriteDailyTalentMarket(RosterManager.DailyTalentMarketSummary summary) {
+		if (dailyTalentMarketWriter == null || summary == null) return;
+		dailyTalentMarketWriter.WriteLine(string.Join(",", new[] {
+			Csv(summary.Date.ToString()), summary.ChartWeek.ToString(CultureInfo.InvariantCulture), summary.EligibleVacancies.ToString(CultureInfo.InvariantCulture),
+			summary.DueLabels.ToString(CultureInfo.InvariantCulture), summary.SupplySnapshotCount.ToString(CultureInfo.InvariantCulture), summary.FreshSupplySnapshotCount.ToString(CultureInfo.InvariantCulture),
+			summary.ExperiencedSupplySnapshotCount.ToString(CultureInfo.InvariantCulture), summary.Nominations.ToString(CultureInfo.InvariantCulture), summary.UniqueNominatedArtists.ToString(CultureInfo.InvariantCulture),
+			summary.CollisionArtists.ToString(CultureInfo.InvariantCulture), summary.CollisionOffers.ToString(CultureInfo.InvariantCulture), summary.AcceptedOffers.ToString(CultureInfo.InvariantCulture),
+			summary.CollisionLosers.ToString(CultureInfo.InvariantCulture), summary.InvalidatedBeforeCommit.ToString(CultureInfo.InvariantCulture)
+		}));
+	}
+
+	private void WriteDailyTalentAppointment(RosterManager.DailyTalentMarketAppointment appointment) {
+		if (dailyTalentAppointmentWriter == null || appointment?.Label == null) return;
+		AILabel label = appointment.Label; RosterManager.ArtistChoiceUtility utility = appointment.Choice;
+		string opened = label.vacancyOpenedYear > 0 ? label.VacancyOpenedDate.ToString() : "";
+		dailyTalentAppointmentWriter.WriteLine(string.Join(",", new[] {
+			Csv(appointment.Date.ToString()), (ChartManager.Instance?.GetCurrentChartWeek() ?? 0).ToString(CultureInfo.InvariantCulture), Csv(label.labelId), Csv(label.populationOrigin.ToString()), Csv(label.tier.ToString()),
+			label.vacancyGeneration.ToString(CultureInfo.InvariantCulture), Csv(opened), Csv(appointment.ScheduledDate.ToString()), Csv(appointment.Date.ToString()), label.scoutingAppointmentOrdinal.ToString(CultureInfo.InvariantCulture),
+			Csv("DailyTwoPhase"), appointment.FreshLaneCount.ToString(CultureInfo.InvariantCulture), appointment.ExperiencedLaneCount.ToString(CultureInfo.InvariantCulture), Csv(appointment.SelectedArtist?.artistId), Csv(appointment.SelectedLane), Csv(appointment.Outcome),
+			appointment.CollisionOfferCount.ToString(CultureInfo.InvariantCulture), Csv(appointment.WinnerLabelId), F(utility.Total), F(utility.Genre), F(utility.Locality), F(utility.Royalty), F(utility.Advance), F(utility.Reputation), F(utility.Reach), F(utility.RosterOpportunity), F(utility.Affinity),
+			Csv(label.HasNextScoutingDate ? label.NextScoutingDate.ToString() : "")
 		}));
 	}
 
@@ -2144,6 +2531,14 @@ public partial class ChartAuditRunner : Node {
 	private void FlushAndClose() {
 		if (ChartManager.Instance != null) ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
 		if (ArtistManager.Instance != null) ArtistManager.Instance.OnPopulationEvent -= WriteArtistPopulationEvent;
+		if (LabelLifecycleManager.Instance != null) {
+			LabelLifecycleManager.Instance.OnOperatingRosterTargetChanged -= WriteOperatingRosterTargetEvent;
+			LabelLifecycleManager.Instance.OnRuntimeLabelProfileInitialized -= WriteRuntimeLabelProfile;
+		}
+		if (RosterManager.Instance != null) {
+			RosterManager.Instance.OnDailyTalentMarketCleared -= WriteDailyTalentMarket;
+			RosterManager.Instance.OnDailyTalentMarketAppointment -= WriteDailyTalentAppointment;
+		}
 		if (CompetitorManager.Instance != null) {
 			CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
 			CompetitorManager.Instance.OnReleaseStrategy -= OnReleaseStrategy;
@@ -2212,6 +2607,10 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter?.Dispose();
 		artistProjectIdentityWriter?.Dispose();
 		labelOperatingTargetEventWriter?.Dispose();
+		runtimeLabelProfileWriter?.Dispose();
+		dailyTalentMarketWriter?.Dispose();
+		dailyTalentAppointmentWriter?.Dispose();
+		catastrophicFailFastWriter?.Dispose();
 		recordWriter = null;
 		weekWriter = null;
 		lifecycleWriter = null;
@@ -2264,5 +2663,10 @@ public partial class ChartAuditRunner : Node {
 		artistPopulationWeeklyWriter = null;
 		artistCohortAnnualWriter = null;
 		artistProjectIdentityWriter = null;
+		labelOperatingTargetEventWriter = null;
+		runtimeLabelProfileWriter = null;
+		dailyTalentMarketWriter = null;
+		dailyTalentAppointmentWriter = null;
+		catastrophicFailFastWriter = null;
 	}
 }

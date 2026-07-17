@@ -61,6 +61,7 @@ public partial class LabelLifecycleManager : Node {
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelPromoted;
 	public event Action<AILabel, LabelTier, LabelTier> OnLabelDemoted;
 	public event Action<OperatingRosterTargetEvent> OnOperatingRosterTargetChanged;
+	public event Action<RuntimeLabelProfileFactory.Result> OnRuntimeLabelProfileInitialized;
 	
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
@@ -188,8 +189,13 @@ public partial class LabelLifecycleManager : Node {
 			newLabel.runtimeBirthYear = birthDate.year;
 			newLabel.runtimeBirthMonth = birthDate.month;
 			newLabel.runtimeBirthDay = birthDate.day;
+			RuntimeLabelProfileFactory.Result profile = RuntimeLabelProfileFactory.Initialize(newLabel, regions, newLabel.runtimeBirthWeek,
+				birthDate, SimulationSeedBootstrap.RequestedSeed ?? 0UL);
+			RosterManager.Instance?.InitializeRuntimeRosterForLabel(newLabel);
+			OnRuntimeLabelProfileInitialized?.Invoke(profile);
+		} else {
+			RosterManager.Instance?.InitializeRuntimeRosterForLabel(newLabel);
 		}
-		RosterManager.Instance?.InitializeRuntimeRosterForLabel(newLabel);
 		if (ArtistPopulationLifecycle.Enabled) EmitTargetEvent(newLabel, LabelOperatingTargetReason.RuntimeBootstrap, 0,
 			newLabel.OperatingRosterTarget, "Initialized", "None", 0);
 		activeLabels.Add(newLabel);

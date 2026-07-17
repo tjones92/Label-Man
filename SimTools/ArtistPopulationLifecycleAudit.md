@@ -1153,3 +1153,123 @@ The decade proves that the organic-growth state machine is behaviorally inert in
 This is not an RNG-alignment regression and must not be repaired by changing Album behavior or widening a gate. The compatibility draw successfully restored the intended pre-growth random stream. The remaining defect is upstream of organic eligibility: runtime labels never fill the required target-one bootstrap vacancy, so the filled-target prerequisite permanently prevents the growth state machine from operating.
 
 **Stop decision:** G6 fails and the runtime-label growth repair does not pass its scope. Preserve all R0-R6 artifacts. Do not run seeds 1002/1003, a holdout, or the deferred Single-yield correction from this source. The next pass requires a focused runtime-label first-signing/market-entry diagnosis that preserves target one, birth-week no-signing, ordinary weekly labor-market boundaries, deterministic capacities, and the accepted RNG alignment. Do not tune quarterly growth eligibility until the bootstrap vacancy can be filled through the authorized weekly market.
+
+## Daily talent-market and catastrophic fail-fast validation (2026-07-16): **M5 retained-control prefix failure / stop**
+
+Implemented the enabled-only daily two-phase talent market, persisted vacancy scheduling state, daily aggregate/detail telemetry, deterministic schedule probes, and optional `--catastrophic-fail-fast --gate-control-run=<run>` control loading. The fail-fast loader successfully loaded `d6-transition-envelope-decade-control-1001`; it remains off by default and was not used to launch an enabled decade.
+
+M1 passed: `dotnet build "Label Man.sln" --no-restore` succeeded with only the inherited unused `ChartManager.OnGenreMomentumChanged` warning; `git diff --check` passed; and the headless D5/D6 harness reported fixed probes 1-63 passed. M2 passed with the retained control arguments: `d6-daily-market-disabled-r3-52-1001` (`--weeks=52 --seed=1001 --aggregate-only`) reached `CHART_AUDIT_COMPLETE` and is 45/45 byte-identical to `d6-transition-envelope-disabled-52-1001`. Earlier disabled attempts with an extra genre toggle or without `--aggregate-only` are configuration checks only and are not ladder artifacts.
+
+M3 passed. `d6-daily-market-enabled-52-1001` completed with 364 daily rows and 4,218 due appointments across Friday through Thursday; 720 detail accepted offers equal 720 daily aggregate accepts, and 2,120 detail collision losses equal the daily aggregate. Runtime birth-week signing violations, roster ownership conflicts, pool conflicts, and operating-target/capacity overshoots are all zero.
+
+M4 passed. `d6-daily-market-enabled-104-1001` and `d6-daily-market-enabled-repeat-104-1001` each completed at 104 weeks and produced 56 suffix-matched CSV streams; all 56 are byte-identical. The proof observed 80 runtime founders, 1,318 first signings, 816 re-signings, 151 runtime appointments, 81 runtime accepted offers, and 51 runtime collision losses.
+
+**M5 stop:** current disabled M2 output matches the retained 52-week disabled control, but its prefix does not match every comparable stream of `d6-transition-envelope-decade-control-1001`: 36 match and 9 differ. The first-year mismatch is already present in retained artifacts: the 52-week control's `decade-annual-rollup.csv` reports 4,298 decisions while the decade control reports 4,377; `album-project-demand.csv` differs at its first project (22,246.019292 vs 41,716.264102 raw demand). Additional non-prefix-safe/end-state streams are also divergent. This fails M5(3), so the retained decade control is not proven reusable under this handoff. Do not run M6, seeds 1002/1003, or a holdout. Preserve all new artifacts and request explicit authorization for a compatible control or a bounded control-reuse exception.
+
+### Owner-approved M5 normalized-control-reuse exception and M6 outcome (2026-07-16): **CATASTROPHIC ABORT / STOP**
+
+The owner-approved exception in `ArtistPopulationDailyTalentMarketM5ControlReuseExceptionHandoff.md` is recorded exactly as:
+
+```text
+M5: PASS_BY_OWNER_APPROVED_NORMALIZED_CONTROL_REUSE_EXCEPTION
+```
+
+This preserves the historical M5 result above: the raw comparison remains 36/45 prefix-identical streams, with nine documented terminal/rollup/snapshot exceptions. It authorizes reuse of the retained `d6-transition-envelope-decade-control-1001` only for this one M6 enabled seed-1001 run; it does not rewrite M5 as a raw 45/45 pass.
+
+Before launch, source-integrity checks found no post-M4/M5 gameplay, data, scene, constant, runner, or configuration change: `git diff --check` passed; the daily-market source files were last written no later than 19:20, while the completed M4 enabled and repeat artifacts were written at 19:28 and 19:30; and the retained control's required `release-capacity`, `seasonality-monthly`, and `market-revenue` streams were present and readable. The existing M1 build/probe evidence therefore remained applicable; no rebuild or probe rerun was performed.
+
+The exact authorized M6 command was run without added switches:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=522 --run=d6-daily-market-failfast-decade-enabled-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance --catastrophic-fail-fast --gate-control-run=d6-transition-envelope-decade-control-1001
+```
+
+M6 did not complete. It emitted the required marker:
+
+```text
+CHART_AUDIT_ABORTED_CATASTROPHIC run=d6-daily-market-failfast-decade-enabled-1001 gate=InvalidFinance metric=cashReserves week=18 date=5/6/1960
+```
+
+`d6-daily-market-failfast-decade-enabled-1001-catastrophic-fail-fast.csv` was flushed and closed with `InvalidFinance,cashReserves,-116.453125,0,18,5/6/1960,label=label_0344`. The failing label is historical `label_0344` / Sultans Records; it had 183.5469 cash reserves at week 17 and reached -116.453125 on the week-18 fail-fast capture. No `CHART_AUDIT_COMPLETE ... weeks=522` marker exists. The post-run Godot `MissingSingletonsTemp.cs` autoload diagnostic occurred after the abort and does not alter the catastrophic result.
+
+All inherited annual and decade final gates -- including late-decade release, scheduled-Album, and Single-yield surfaces -- are **NOT_ADJUDICABLE** because no calendar year completed and the 522-week process aborted at week 18. No ordinary final-band miss was inferred or converted into a pass/fail result. No seeds 1002/1003, holdout, deferred Single-yield correction, replacement control, or source/configuration change was run.
+
+**Next bounded recommendation:** preserve the M6 artifacts and request a new explicit handoff to diagnose the week-18 `InvalidFinance` abort and its relationship to enabled historical-label finance. Do not change fail-fast semantics, finance behavior, controls, or acceptance bands under this handoff.
+
+### M6 fail-fast repair/resume ladder (2026-07-16): **R1 PASS / R2 CONTROL-LOADER FAILURE / STOP**
+
+The new owner handoff classifies the preserved first M6 run as `M6_ATTEMPT_1: FALSE_POSITIVE_FAIL_FAST_ABORT`: finite terminal debt on `label_0344` / Sultans Records is legal. The bounded repair is limited to fail-fast behavior and its probes; no production finance, lifecycle, market, demand, RNG, control, or acceptance-band change was made while executing this ladder.
+
+R1 source integrity passed: `git diff --check` remained clean, and the repaired `ChartAuditRunner.cs` / `ArtistPopulationLifecycleProbeSuite.cs` were unchanged during execution. The complete D5/D6 harness command was:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=1 --run=d6-failfast-semantics-probes-r3-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --genre-market-v2-probes --artist-population-lifecycle-probes
+```
+
+It exited successfully and emitted both accepted `D5_PROBE_PASS` lines, `D6 fixed probes 1-64 passed`, and `CHART_AUDIT_COMPLETE run=d6-failfast-semantics-probes-r3-1001 weeks=1`. The known post-completion `MissingSingletonsTemp.cs` autoload diagnostic and ObjectDB leak warning did not prevent the successful completion marker.
+
+R2 was then launched with the exact authorized bounded-regression command:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=18 --run=d6-daily-market-failfast-finance-regression-18-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance --catastrophic-fail-fast --gate-control-run=d6-transition-envelope-decade-control-1001
+```
+
+R2 did not start simulation or open any named run artifacts. It stopped during `_Ready()` with:
+
+```text
+CHART_AUDIT_FAILED: System.InvalidOperationException: Catastrophic fail-fast control 'd6-transition-envelope-decade-control-1001' has no valid comparable annual rows.
+```
+
+The retained control is present and complete, but the repaired loader has a column-index defect: `release-capacity.csv` is headed `week,year,releaseRollsFired,successfulReleases,...`, while `LoadCatastrophicFailFastControl()` parses field 2 as `year` and field 3 as successful releases. It therefore keys release totals by `releaseRollsFired` rather than calendar year, so they cannot join the correctly calendar-keyed seasonality and annual `"All"/"All"` revenue rows into an `IsComplete` control year. This is a fail-fast control-loader defect, not an R2 finance, ownership, daily-market, or acceptance-gate result.
+
+**Stop decision:** R1 passes, but R2 fails before week 1 and before creation of `d6-daily-market-failfast-finance-regression-18-1001` artifacts. Do not launch R3, seeds 1002/1003, a holdout, or any behavioral candidate. A new explicit handoff is required to correct and probe the control-loader mapping; no source, control, or acceptance change is authorized under the completed resume handoff.
+
+### Fail-fast control-loader hardening (2026-07-16): **REPAIR AND PREFLIGHT PASS / READY FOR R2 RETRY**
+
+The control loader was replaced with exact-header, schema-bound CSV parsing. It now handles BOMs and quoted fields; rejects missing or duplicate headers, malformed row widths, malformed/non-finite values, duplicate keys, incomplete 1960-1969 year/month coverage, and cross-file inconsistencies; derives authoritative chart years from `release-capacity.csv`; and joins Album projects by `scheduledWeek`. Whole-control release and Album totals are independently reconciled against `seasonality-monthly.csv`. No production simulation, control artifact, or acceptance band changed.
+
+The implementation also adds `--catastrophic-control-preflight --gate-control-run=<run>`, which validates the real control and exits before requested chart weeks or run-artifact creation. `git diff --check` and `dotnet build "Label Man.sln" --no-restore` passed; the build retained only the known unused-event warning.
+
+The one-week adversarial harness command was:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=1 --run=d6-failfast-control-loader-probes-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --genre-market-v2-probes --artist-population-lifecycle-probes
+```
+
+It exited 0 with both accepted D5 lines, `D6 fixed probes 1-65 passed`, and `CHART_AUDIT_COMPLETE run=d6-failfast-control-loader-probes-1001 weeks=1`. Probe 65 covers reordered headers and quoted fields plus fail-closed cases for missing columns, malformed numerics, incomplete month coverage, unknown scheduled weeks, and cross-file total mismatches.
+
+The retained-control no-simulation preflight emitted annual rows for 1960-1969 and:
+
+```text
+CHART_AUDIT_CONTROL_PREFLIGHT_COMPLETE control=d6-transition-envelope-decade-control-1001 years=1960-1969
+```
+
+Its annual denominators match the established control, including releases/Albums `4298/1083` in 1960, `3314/2653` in 1968, and `3303/2802` in 1969. The preflight did not launch R2 or R3. The rewritten `ArtistPopulationDailyTalentMarketM5ControlReuseExceptionHandoff.md` authorizes the next Codex task to start at the new-prefix 18-week R2 retry and, only if that passes, the new-prefix decade R3.
+
+### M6 hardened fail-fast resume ladder (2026-07-16): **R2 PASS / R3 CATASTROPHIC ABORT / STOP**
+
+The hardened handoff's completed source verification remained applicable; immediately before R2, `git diff --check` passed and the repaired fail-fast source hashes were `ChartAuditRunner.cs` `C749DF1703A381EA9A94835B6B705C7EF3A15AF7F9ACE98CDB66C1E2F8E83080` and `ArtistPopulationLifecycleProbeSuite.cs` `197AE91D787540879F7741A76648A199F2C6D5C48254F4BE1197E248135F4AE4`. No source, data, control, or acceptance change was made while executing R2/R3.
+
+R2 used the exact authorized command:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=18 --run=d6-daily-market-failfast-finance-regression-r2-18-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance --catastrophic-fail-fast --gate-control-run=d6-transition-envelope-decade-control-1001
+```
+
+It emitted `CHART_AUDIT_COMPLETE run=d6-daily-market-failfast-finance-regression-r2-18-1001 weeks=18` and no catastrophic-abort marker. Its catastrophic stream is header-only. At week 18, historical `label_0344` / Sultans Records is `Defunct` with finite cash reserves `-116.4531` in the finance telemetry (the established underlying balance is `-116.453125`). All 43 comparable prefix-safe weekly/event streams are byte-prefix-identical to accepted `d6-daily-market-enabled-104-1001`, including weekly, population-event, daily-market, appointment, lifecycle, roster, release, and finance ledgers. The 13 non-prefix-safe terminal/rollup/snapshot streams were not used as a regression criterion; the new catastrophic and performance streams have no M4 counterpart. R2 therefore passes.
+
+R3 then used the exact authorized resumed-decade command:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=522 --run=d6-daily-market-failfast-decade-enabled-r2-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance --catastrophic-fail-fast --gate-control-run=d6-transition-envelope-decade-control-1001
+```
+
+R3 advanced through the completed 1968 calendar year, flushed 58 artifact streams, and then emitted:
+
+```text
+CHART_AUDIT_ABORTED_CATASTROPHIC run=d6-daily-market-failfast-decade-enabled-r2-1001 gate=CompletedYearCatastrophicDivergence metric=successfulReleases week=470 date=1/3/1969
+```
+
+The flushed catastrophic row is `CompletedYearCatastrophicDivergence,successfulReleases,2045,3314,470,1/3/1969,ratio=0.617079 band=[0.70,1.30]`. The hardened loader had already preflighted the retained control and its annual 1968 release total is independently reproducible from `release-capacity.csv` as 3,314; the enabled 1968 total is 2,045. This is a genuine completed-year catastrophic divergence below the inclusive `0.70` floor, not a terminal-debt false positive, loader failure, or ordinary inherited-band miss.
+
+No `CHART_AUDIT_COMPLETE ... weeks=522` marker exists. Final decade and late-decade inherited gates -- including the 1968/1969 release, scheduled-Album, and deferred Single-yield surfaces -- are **NOT_ADJUDICABLE** because the run correctly stopped at the catastrophic 1968 completed-year gate before completing the decade. Do not run R3 again, seeds 1002/1003, a holdout, a replacement control, the deferred Single-yield correction, or another behavioral candidate. Preserve R2/R3 artifacts and request a new explicit handoff before any further change or measurement.

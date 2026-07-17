@@ -23,6 +23,9 @@ public partial class RosterManager : Node {
 	private readonly Dictionary<string, int> consecutiveEmptyWeeksByLabelId = new(System.StringComparer.Ordinal);
 	// Enabled-only service state. It is independent from observational telemetry.
 	private readonly Dictionary<string, int> serviceDeficitAgeByLabelId = new(System.StringComparer.Ordinal);
+	private readonly List<DailyTalentMarketSummary> dailyTalentMarketSummaries = new();
+	public event Action<DailyTalentMarketSummary> OnDailyTalentMarketCleared;
+	public event Action<DailyTalentMarketAppointment> OnDailyTalentMarketAppointment;
 	public int MarketClearingAttemptsAtOrAboveOperatingTarget { get; private set; }
 	private const int ShortWindowRedropWeeks = 26;
 	public const int ScoutingUrgencyThresholdWeeks = 12;
@@ -49,7 +52,7 @@ public partial class RosterManager : Node {
 		public bool CanAffordEstimatedAdvance { get; init; }
 		public float ComputedScoutProbability { get; init; }
 		public float? ScoutRandomRoll { get; init; }
-		public bool ScoutingGatePassed { get; init; }
+		public bool ScoutingGatePassed { get; set; }
 		public int? EligibleCandidateCount { get; set; }
 		public int? DiscoveryPoolCount { get; set; }
 		public float? BestCandidateScore { get; set; }
@@ -89,6 +92,45 @@ public partial class RosterManager : Node {
 		public bool RecoveryThresholdFallbackUsed { get; set; }
 		public string RecoveryFailureReason { get; set; }
 		public int MarketClearingAttemptsAtOrAboveOperatingTarget { get; set; }
+	}
+
+	public sealed class DailyTalentMarketSummary {
+		public GameDate Date { get; init; }
+		public int ChartWeek { get; init; }
+		public int EligibleVacancies { get; set; }
+		public int DueLabels { get; set; }
+		public int SupplySnapshotCount { get; set; }
+		public int FreshSupplySnapshotCount { get; set; }
+		public int ExperiencedSupplySnapshotCount { get; set; }
+		public int Nominations { get; set; }
+		public int UniqueNominatedArtists { get; set; }
+		public int CollisionArtists { get; set; }
+		public int CollisionOffers { get; set; }
+		public int AcceptedOffers { get; set; }
+		public int CollisionLosers { get; set; }
+		public int InvalidatedBeforeCommit { get; set; }
+	}
+
+	public sealed class DailyTalentMarketAppointment {
+		public GameDate Date { get; init; }
+		public GameDate ScheduledDate { get; init; }
+		public AILabel Label { get; init; }
+		public string Outcome { get; set; }
+		public int FreshLaneCount { get; set; }
+		public int ExperiencedLaneCount { get; set; }
+		public SimulatedArtist SelectedArtist { get; set; }
+		public string SelectedLane { get; set; }
+		public int CollisionOfferCount { get; set; }
+		public string WinnerLabelId { get; set; }
+		public ArtistChoiceUtility Choice { get; set; }
+	}
+
+	public readonly struct ArtistChoiceUtility {
+		public readonly float Total, Genre, Locality, Royalty, Advance, Reputation, Reach, RosterOpportunity, Affinity;
+		public ArtistChoiceUtility(float genre, float locality, float royalty, float advance, float reputation, float reach, float rosterOpportunity, float affinity) {
+			Genre = genre; Locality = locality; Royalty = royalty; Advance = advance; Reputation = reputation; Reach = reach; RosterOpportunity = rosterOpportunity; Affinity = affinity;
+			Total = genre + locality + royalty + advance + reputation + reach + rosterOpportunity + affinity;
+		}
 	}
 
 	public readonly struct RosterLifecycleFlow {
@@ -147,6 +189,7 @@ public partial class RosterManager : Node {
 	public override void _Ready() {
 		if (TimeManager.Instance != null) {
 			TimeManager.Instance.OnWeekEnded += OnWeekEnded;
+			TimeManager.Instance.OnDayStarted += OnDayStarted;
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 		}
 	}
@@ -154,6 +197,7 @@ public partial class RosterManager : Node {
 	public override void _ExitTree() {
 		if (TimeManager.Instance != null) {
 			TimeManager.Instance.OnWeekEnded -= OnWeekEnded;
+			TimeManager.Instance.OnDayStarted -= OnDayStarted;
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
 		}
 	}
@@ -336,14 +380,206 @@ public partial class RosterManager : Node {
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;
 		weeklyLifecycleFlowByTier.Clear();
-		weeklyScoutingVacancyByLabelId.Clear();
+		// Enabled scouting is serviced by OnDayStarted.  Keep the latest daily
+		// observations available until the chart capture, but preserve the frozen
+		// disabled weekly telemetry reset.
+		if (!IsLiveGenreMarket()) weeklyScoutingVacancyByLabelId.Clear();
 		WeeklyScoutingRolls++;
-		if (IsLiveGenreMarket()) {
-			ProcessEnabledVacancyResponsiveScouting(date.year);
-		} else if (GD.Randf() < weeklyScoutChance) {
+		if (!IsLiveGenreMarket() && GD.Randf() < weeklyScoutChance) {
 			// Frozen disabled boundary: retain the global throttle and three-label cap.
 			ProcessScouting(date.year);
 		}
+	}
+
+	private void OnDayStarted(GameDate date) {
+		if (!IsLiveGenreMarket()) return;
+		ProcessDailyTalentMarket(date);
+	}
+
+	private sealed class DailyNomination {
+		public DailyTalentMarketAppointment Appointment;
+		public TalentServiceState Service;
+		public AILabel Label => Appointment.Label;
+		public SimulatedArtist Artist => Appointment.SelectedArtist;
+	}
+
+	/// <summary>
+	/// Clears one calendar date as a two-phase market.  Nomination receives the
+	/// same unsigned snapshot for every due label; ownership changes only after
+	/// every collision has been resolved.
+	/// </summary>
+	private void ProcessDailyTalentMarket(GameDate date) {
+		List<AILabel> labels = GetAllLabels();
+		if (labels == null) return;
+		int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? CalendarChartWeek(date);
+		var summary = new DailyTalentMarketSummary { Date = date, ChartWeek = chartWeek };
+		foreach (AILabel label in labels.OrderBy(label => label.labelId, StringComparer.Ordinal)) {
+			if (!IsEligibleForEnabledScouting(label)) { label.ClearScoutingAppointment(); serviceDeficitAgeByLabelId.Remove(label.labelId); continue; }
+			if (!HasDailyVacancy(label)) { label.ClearScoutingAppointment(); continue; }
+			summary.EligibleVacancies++;
+			EnsureDailyAppointment(label, date);
+		}
+
+		List<AILabel> due = labels.Where(label => IsEligibleForEnabledScouting(label) && label.HasNextScoutingDate && label.NextScoutingDate == date && HasDailyVacancy(label))
+			.OrderBy(label => label.labelId, StringComparer.Ordinal).ToList();
+		summary.DueLabels = due.Count;
+		List<SimulatedArtist> supplySnapshot = ArtistManager.Instance?.GetUnsignedArtists() ?? new List<SimulatedArtist>();
+		summary.SupplySnapshotCount = supplySnapshot.Count;
+		summary.FreshSupplySnapshotCount = supplySnapshot.Count(IsFreshSupplyCandidate);
+		summary.ExperiencedSupplySnapshotCount = summary.SupplySnapshotCount - summary.FreshSupplySnapshotCount;
+		var nominations = new List<DailyNomination>();
+		var appointments = new List<DailyTalentMarketAppointment>();
+
+		foreach (AILabel label in due) {
+			label.SetLastScoutingDate(date); label.scoutingAppointmentOrdinal++;
+			var appointment = new DailyTalentMarketAppointment { Date = date, ScheduledDate = label.NextScoutingDate, Label = label, Outcome = "NoCandidate" };
+			appointments.Add(appointment);
+			if (IsRuntimeBirthWeekBlocked(label, chartWeek)) {
+				appointment.Outcome = "NotYetEligibleBirthWeek";
+				label.lastScoutingOutcome = appointment.Outcome;
+				label.SetNextScoutingDate(date.AddDays(7));
+				continue;
+			}
+			TalentServiceState service = GetTalentServiceState(label, date.year);
+			AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate(useOperatingRosterTarget: true);
+			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, preview);
+			PopulateServiceObservation(observation, service, true);
+			observation.ScoutingGatePassed = HasDailyVacancy(label) && label.CanAffordToSign(preview.EstimatedAdvance);
+			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
+			if (!observation.ScoutingGatePassed) {
+				appointment.Outcome = HasDailyVacancy(label) ? "EstimatedAdvanceUnaffordable" : "NoVacancy";
+				observation.FailureReason = appointment.Outcome;
+				label.lastScoutingOutcome = appointment.Outcome;
+				FinalizeTalentServiceState(label, service);
+				continue;
+			}
+
+			DailyNomination nomination = NominateFromDailySnapshot(label, date.year, service, supplySnapshot, appointment, observation);
+			if (nomination != null) { nominations.Add(nomination); summary.Nominations++; }
+			label.lastScoutingOutcome = appointment.Outcome;
+			FinalizeTalentServiceState(label, service);
+		}
+
+		summary.UniqueNominatedArtists = nominations.Select(nomination => nomination.Artist).Distinct().Count();
+		var winners = new List<DailyNomination>();
+		foreach (IGrouping<SimulatedArtist, DailyNomination> group in nominations.GroupBy(nomination => nomination.Artist)) {
+			List<DailyNomination> offers = group.OrderBy(nomination => nomination.Label.labelId, StringComparer.Ordinal).ToList();
+			foreach (DailyNomination offer in offers) offer.Appointment.CollisionOfferCount = offers.Count;
+			DailyNomination winner;
+			if (offers.Count == 1) {
+				winner = offers[0]; winner.Appointment.Outcome = "AcceptedUncontested";
+			} else {
+				summary.CollisionArtists++; summary.CollisionOffers += offers.Count;
+				winner = offers.OrderByDescending(offer => CalculateArtistChoiceUtility(offer.Artist, offer.Label).Total)
+					.ThenBy(offer => offer.Label.labelId, StringComparer.Ordinal).First();
+				foreach (DailyNomination offer in offers) {
+					offer.Appointment.Choice = CalculateArtistChoiceUtility(offer.Artist, offer.Label);
+					offer.Appointment.WinnerLabelId = winner.Label.labelId;
+					if (offer != winner) { offer.Appointment.Outcome = "LostArtistChoice"; offer.Label.lastScoutingOutcome = offer.Appointment.Outcome; summary.CollisionLosers++; }
+				}
+				winner.Appointment.Outcome = "AcceptedArtistChoice";
+			}
+			winner.Appointment.WinnerLabelId = winner.Label.labelId;
+			winners.Add(winner);
+		}
+
+		foreach (DailyNomination winner in winners.OrderBy(winner => winner.Label.labelId, StringComparer.Ordinal)) {
+			if (!CanCommitDailyOffer(winner, chartWeek)) {
+				winner.Appointment.Outcome = "InvalidatedBeforeCommit"; winner.Label.lastScoutingOutcome = winner.Appointment.Outcome;
+				summary.InvalidatedBeforeCommit++; continue;
+			}
+			float advance = winner.Label.SignArtist(winner.Artist, date.year);
+			CompetitorManager.Instance?.RecordExpense(winner.Label, advance);
+			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(winner.Artist, winner.Label.labelId, date.year);
+			WeeklySignings++; RecordSigning(winner.Label.tier, winner.Artist, transition.IsReSigning);
+			winner.Appointment.Outcome = winner.Appointment.CollisionOfferCount > 1 ? "AcceptedArtistChoice" : "AcceptedUncontested";
+			winner.Label.lastScoutingOutcome = winner.Appointment.Outcome;
+			summary.AcceptedOffers++;
+		}
+
+		foreach (AILabel label in due) {
+			if (HasDailyVacancy(label)) label.SetNextScoutingDate(date.AddDays(7));
+			else { label.ClearScoutingAppointment(); label.lastScoutingOutcome = "ServiceSatisfied"; }
+		}
+		foreach (DailyTalentMarketAppointment appointment in appointments) OnDailyTalentMarketAppointment?.Invoke(appointment);
+		dailyTalentMarketSummaries.Add(summary);
+		OnDailyTalentMarketCleared?.Invoke(summary);
+	}
+
+	private DailyNomination NominateFromDailySnapshot(AILabel label, int year, TalentServiceState service, List<SimulatedArtist> snapshot,
+		DailyTalentMarketAppointment appointment, LabelScoutingVacancyObservation observation) {
+		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, snapshot, out int discoveryPoolCount);
+		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out _);
+		AILabel.SigningEvaluation freshEvaluation = label.EvaluateFreshPotential(fresh);
+		AILabel.SigningEvaluation experiencedEvaluation = label.EvaluateSigning(experienced);
+		appointment.FreshLaneCount = fresh.Count; appointment.ExperiencedLaneCount = experienced.Count;
+		observation.EligibleCandidateCount = fresh.Count + experienced.Count; observation.DiscoveryPoolCount = discoveryPoolCount;
+		observation.FreshLaneCount = fresh.Count; observation.ExperiencedLaneCount = experienced.Count; observation.FreshDiscoveryScope = "Regional";
+		observation.BestFreshPotentialScore = freshEvaluation.BestCandidateScore; observation.BestExperiencedProductionScore = experiencedEvaluation.BestCandidateScore;
+		SimulatedArtist selected = null; string lane = null;
+		if (service.Mode == TalentServiceMode.Recovery) {
+			selected = BestAffordable(label, freshEvaluation.CandidateScores, .3f, false); lane = selected == null ? null : "FreshPotential";
+			if (selected == null) {
+				List<SimulatedArtist> national = GetEnabledSupplyCandidates(label, year, true, true, snapshot, out _);
+				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(national);
+				selected = BestAffordable(label, nationalEvaluation.CandidateScores, 0f, true); lane = selected == null ? null : "FreshPotential";
+				if (selected == null) { selected = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, false); lane = selected == null ? null : "ExperiencedProduction"; }
+			}
+		} else {
+			SimulatedArtist bestFresh = BestAffordable(label, freshEvaluation.CandidateScores, .3f, false);
+			SimulatedArtist bestExperienced = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, false);
+			if (bestFresh != null && (bestExperienced == null || ScoreOf(freshEvaluation.CandidateScores, bestFresh) >= ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced))) { selected = bestFresh; lane = "FreshPotential"; }
+			else { selected = bestExperienced; lane = selected == null ? null : "ExperiencedProduction"; }
+		}
+		if (selected == null) { appointment.Outcome = snapshot.Count == 0 ? "NoCandidate" : "NoQualifyingCandidate"; observation.FailureReason = appointment.Outcome; return null; }
+		appointment.SelectedArtist = selected; appointment.SelectedLane = lane; appointment.Outcome = "Nominated";
+		observation.SelectedLane = lane; observation.SigningAttempted = true; observation.FailureReason = "Nominated";
+		RecordSigningAttempt(label.tier);
+		return new DailyNomination { Appointment = appointment, Service = service };
+	}
+
+	private static bool HasDailyVacancy(AILabel label) => label != null && label.CurrentRosterSize < label.OperatingRosterTarget && label.CurrentRosterSize < label.maxRosterSize;
+	private static bool IsFreshSupplyCandidate(SimulatedArtist artist) => artist?.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance;
+	private static bool IsRuntimeBirthWeekBlocked(AILabel label, int chartWeek) => label.populationOrigin == LabelPopulationOrigin.RuntimeFounded && label.runtimeBirthWeek > 0 && chartWeek <= label.runtimeBirthWeek;
+	private static int CalendarChartWeek(GameDate date) => (int)((new DateTime(date.year, date.month, date.day) - new DateTime(GameDate.StartDate.year, GameDate.StartDate.month, GameDate.StartDate.day)).TotalDays / 7) + 1;
+
+	private void EnsureDailyAppointment(AILabel label, GameDate date) {
+		if (label.HasNextScoutingDate) return;
+		label.vacancyGeneration = Math.Max(1, label.vacancyGeneration + 1);
+		label.SetVacancyOpenedDate(date);
+		GameDate scheduled = date.AddDays(GetDailyScoutingOffsetForProbe(SimulationSeedBootstrap.RequestedSeed ?? 0UL, label.labelId, label.vacancyGeneration));
+		while (label.populationOrigin == LabelPopulationOrigin.RuntimeFounded && CalendarChartWeek(scheduled) <= label.runtimeBirthWeek) scheduled = scheduled.AddDays(7);
+		label.SetNextScoutingDate(scheduled);
+	}
+
+	private static ulong StableDailyMarketHash(string value) {
+		ulong hash = 14695981039346656037UL;
+		foreach (char character in value) { hash ^= character; hash *= 1099511628211UL; }
+		return hash;
+	}
+	internal static int GetDailyScoutingOffsetForProbe(ulong seed, string labelId, int vacancyGeneration) =>
+		(int)(StableDailyMarketHash($"{seed}|{labelId}|{vacancyGeneration}|DailyTalentMarket") % 7UL);
+	internal static GameDate GetInitialDailyScoutingDateForProbe(ulong seed, string labelId, int vacancyGeneration, GameDate opened, int runtimeBirthWeek = 0) {
+		GameDate date = opened.AddDays(GetDailyScoutingOffsetForProbe(seed, labelId, vacancyGeneration));
+		while (runtimeBirthWeek > 0 && CalendarChartWeek(date) <= runtimeBirthWeek) date = date.AddDays(7);
+		return date;
+	}
+	internal static int GetCalendarChartWeekForProbe(GameDate date) => CalendarChartWeek(date);
+
+	private bool CanCommitDailyOffer(DailyNomination nomination, int chartWeek) => nomination?.Label != null && nomination.Artist != null &&
+		IsEligibleForEnabledScouting(nomination.Label) && HasDailyVacancy(nomination.Label) && !IsRuntimeBirthWeekBlocked(nomination.Label, chartWeek) &&
+		ArtistManager.Instance != null && ArtistManager.Instance.IsEligibleForPopulationSigning(nomination.Artist, chartWeek) &&
+		nomination.Label.CanAffordToSign(nomination.Label.CalculateAdvanceOffer(nomination.Artist));
+
+	private static ArtistChoiceUtility CalculateArtistChoiceUtility(SimulatedArtist artist, AILabel label) {
+		float genreFit = (label.preferredGenres?.Contains(artist.primaryGenre) ?? false) ? 1f : (label.secondaryGenres?.Contains(artist.primaryGenre) ?? false) ? .55f : 0f;
+		float locality = NormalizeRegionName(artist.homeRegion) == NormalizeRegionName(label.homeRegion) ? 1f : 0f;
+		float royalty = Mathf.Clamp(label.CalculateRoyaltyRate(artist) / .15f, 0f, 1f);
+		float advance = Mathf.Clamp(label.CalculateAdvanceOffer(artist) / 12000f, 0f, 1f);
+		float opportunity = Mathf.Clamp(1f - ((float)label.CurrentRosterSize / Mathf.Max(1, label.OperatingRosterTarget)), 0f, 1f);
+		float affinity = (StableDailyMarketHash($"ArtistLabelAffinity|{artist.artistId}|{label.labelId}") % 10001UL) / 10000f;
+		return new ArtistChoiceUtility(.22f * genreFit, .18f * locality, .15f * royalty, .07f * advance,
+			.10f * Mathf.Clamp(label.reputation, 0f, 1f), .10f * Mathf.Clamp(label.distributionStrength + label.nationalReach * .5f, 0f, 1f), .18f * opportunity, .08f * affinity);
 	}
 	
 	private void UpdateArtistCooldowns() {
@@ -765,12 +1001,18 @@ public partial class RosterManager : Node {
 
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool freshLane, bool nationalFreshRecovery,
 		out int discoveryPoolCount) => GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, out discoveryPoolCount);
+	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool freshLane, bool nationalFreshRecovery,
+		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount) =>
+		GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, supplySnapshot, out discoveryPoolCount);
 
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool? freshLane, bool nationalFreshRecovery,
-		out int discoveryPoolCount) {
+		out int discoveryPoolCount) => GetEnabledSupplyCandidates(label, year, freshLane, nationalFreshRecovery, null, out discoveryPoolCount);
+
+	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool? freshLane, bool nationalFreshRecovery,
+		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount) {
 		MarketRegion region = ChartManager.Instance?.GetRegionById(label.homeRegion);
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		List<SimulatedArtist> eligible = ArtistManager.Instance.GetUnsignedArtists()
+		List<SimulatedArtist> eligible = (supplySnapshot ?? ArtistManager.Instance.GetUnsignedArtists())
 			.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, currentWeek))
 			.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
 			.ToList();
