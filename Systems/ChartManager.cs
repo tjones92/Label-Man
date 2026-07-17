@@ -61,6 +61,25 @@ public partial class ChartManager : Node {
 	private readonly Dictionary<string, int> compUseCountByRecordId = new();
 	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
+	private const float WeeklyRegionalPurchaseCapacityMultiplier = 1.34f;
+	private readonly List<MarketClearingRegionalSummary> lastMarketClearingSummaries = new();
+
+	public sealed class MarketClearingRegionalSummary {
+		public string RegionId;
+		public int ActiveIntentCount, PurchaseCapacity, ClearedSingleUnits, ClearedAlbumUnits, PhysicalBackorders, MarketDisplacedDemand;
+		public float RawSingleDemand, RawAlbumDemand, ServiceableSingleIntent, ServiceableAlbumIntent;
+		public int InventoryViolationCount, AllocationViolationCount, ReconciliationDelta;
+		public int ClearedTotalUnits => ClearedSingleUnits + ClearedAlbumUnits;
+		public int ServiceableTotalIntent => Mathf.RoundToInt(ServiceableSingleIntent + ServiceableAlbumIntent);
+	}
+	private sealed class MarketIntent {
+		public RecordRuntimeData Record;
+		public RegionalRecordData Data;
+		public int Serviceable;
+		public int Cleared;
+		public float Fraction;
+	}
+	public IReadOnlyList<MarketClearingRegionalSummary> GetLastMarketClearingSummaries() => lastMarketClearingSummaries;
 
 	// Artist heat cache
 	private Dictionary<string, float> artistHeatCache = new Dictionary<string, float>();
@@ -590,7 +609,12 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 2: Calculate regional sales ===
-		foreach (var record in allRecords) {
+		// The frozen route intentionally remains byte-for-byte the former immediate
+		// commit path.  Common clearing is enabled only after the live boundary.
+		if (genreMarketLive) {
+			CalculateLiveRegionalSalesWithMarketClearing(year, month, triggerEvents, acceptanceYear,
+				singleOpportunityNormalization);
+		} else foreach (var record in allRecords) {
 			int totalSales = 0;
 			float quality = record.GetQuality();
 			AILabel label = GetLabelById(record.baseRecord.labelId);
@@ -724,6 +748,87 @@ public partial class ChartManager : Node {
 		UpdateRecordRelevanceClocks();
 		previousChartPoints = chartPoints;
 		SimulationPerformanceProfiler.EndSimulateWeek(profileStart);
+	}
+
+	private void CalculateLiveRegionalSalesWithMarketClearing(int year, int month, bool triggerEvents,
+		float acceptanceYear, float singleOpportunityNormalization) {
+		lastMarketClearingSummaries.Clear();
+		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(), StringComparer.Ordinal);
+		// Demand evaluation deliberately retains record-major / region-minor order so
+		// the existing sales jitter consumes precisely the same RNG sequence.
+		foreach (RecordRuntimeData record in allRecords) {
+			float quality = record.GetQuality();
+			AILabel label = GetLabelById(record.baseRecord.labelId);
+			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
+			float legacyMomentum = !isAlbum ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
+			foreach (MarketRegion region in allRegions) {
+				if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
+					data = new RegionalRecordData(region.regionId);
+					record.regionalData[region.regionId] = data;
+				}
+				float blendedAcceptance = 1f;
+				if (!isAlbum) {
+					blendedAcceptance = GenreAcceptanceService.GetRegionalDemandAcceptance(record.baseRecord.primaryGenre,
+						record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum);
+					data.genreMarketAcceptanceWeek = currentChartWeek;
+					data.genreDemandAcceptanceThisWeek = blendedAcceptance;
+					data.genreRadioOpportunityThisWeek = GenreAcceptanceService.GetRegionalRadioOpportunity(
+						record.baseRecord.primaryGenre, region, acceptanceYear, blendedAcceptance);
+				}
+				int serviceable = isAlbum
+					? AlbumSimulator.CalculateRegionalSales(record, region, data, year, month, triggerEvents, label)
+					: ChartSimulator.CalculateRegionalSales(record, region, data, quality, blendedAcceptance, year, month,
+						triggerEvents, GetInternalPreviousPosition(record), label, singleOpportunityNormalization);
+				int physicalLimit = Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek);
+				serviceable = Mathf.Clamp(serviceable, 0, Mathf.Max(0, physicalLimit));
+				data.serviceableIntentThisWeek = serviceable;
+				data.marketDisplacedDemandThisWeek = 0;
+				intentsByRegion[region.regionId].Add(new MarketIntent { Record = record, Data = data, Serviceable = serviceable });
+			}
+		}
+
+		foreach (MarketRegion region in allRegions) {
+			List<MarketIntent> intents = intentsByRegion[region.regionId];
+			int capacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
+				* WeeklyRegionalPurchaseCapacityMultiplier));
+			int totalIntent = intents.Sum(intent => intent.Serviceable);
+			if (totalIntent <= capacity) {
+				foreach (MarketIntent intent in intents) intent.Cleared = intent.Serviceable;
+			} else if (totalIntent > 0) {
+				foreach (MarketIntent intent in intents) {
+					float exact = intent.Serviceable * (float)capacity / totalIntent;
+					intent.Cleared = Mathf.FloorToInt(exact);
+					intent.Fraction = exact - intent.Cleared;
+				}
+				int remaining = capacity - intents.Sum(intent => intent.Cleared);
+				foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction)
+					.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) intent.Cleared++;
+			}
+			var summary = new MarketClearingRegionalSummary { RegionId = region.regionId, PurchaseCapacity = capacity };
+			foreach (MarketIntent intent in intents) {
+				bool album = intent.Record.baseRecord.format == ReleaseFormat.Album;
+				summary.ActiveIntentCount += intent.Serviceable > 0 ? 1 : 0;
+				if (album) { summary.RawAlbumDemand += intent.Data.rawDemandThisWeek; summary.ServiceableAlbumIntent += intent.Serviceable; summary.ClearedAlbumUnits += intent.Cleared; }
+				else { summary.RawSingleDemand += intent.Data.rawDemandThisWeek; summary.ServiceableSingleIntent += intent.Serviceable; summary.ClearedSingleUnits += intent.Cleared; }
+				intent.Data.marketDisplacedDemandThisWeek = intent.Serviceable - intent.Cleared;
+				summary.MarketDisplacedDemand += intent.Data.marketDisplacedDemandThisWeek;
+				summary.PhysicalBackorders += intent.Data.unitsBackordered;
+				if (intent.Cleared > intent.Serviceable || intent.Cleared > intent.Data.unitsInStores || intent.Cleared > intent.Data.storeCapacityThisWeek)
+					summary.InventoryViolationCount++;
+				intent.Data.unitsInStores = Mathf.Max(0, intent.Data.unitsInStores - intent.Cleared);
+				intent.Data.unitsSoldThisWeek = intent.Cleared;
+				intent.Data.unitsSoldTotal += intent.Cleared;
+			}
+			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
+			if (summary.ClearedTotalUnits > capacity || summary.ClearedTotalUnits > totalIntent || summary.ReconciliationDelta != 0)
+				summary.AllocationViolationCount++;
+			lastMarketClearingSummaries.Add(summary);
+		}
+		foreach (RecordRuntimeData record in allRecords) {
+			int totalSales = record.regionalData.Values.Sum(data => data.unitsSoldThisWeek);
+			ChartSimulator.FinalizeWeeklySales(record, totalSales);
+			if (record.baseRecord.format != ReleaseFormat.Album) ChartSimulator.UpdateSaturation(record, allRegions);
+		}
 	}
 
 	private void UpdateRecordRelevanceClocks() {

@@ -218,8 +218,17 @@ public static class ChartSimulator {
 		
 		rawSales = Mathf.Min(rawSales, totalCapacity);
 		rawSales *= (float)GD.RandRange(0.96, 1.04);
-		
-		return Mathf.Max(0, Mathf.RoundToInt(rawSales));
+		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) {
+			// Frozen disabled/prewarm behavior, including the historical post-jitter
+			// rounding semantics, is intentionally retained unchanged.
+			return Mathf.Max(0, Mathf.RoundToInt(rawSales));
+		}
+		regionalData.storeCapacityThisWeek = Mathf.Max(0, Mathf.FloorToInt(totalCapacity));
+		// Jitter is deliberately drawn in the legacy order.  The live caller may
+		// subsequently ration this serviceable intent against the common market.
+		regionalData.serviceableIntentThisWeek = Mathf.Clamp(Mathf.RoundToInt(rawSales), 0,
+			Mathf.Min(regionalData.unitsInStores, regionalData.storeCapacityThisWeek));
+		return regionalData.serviceableIntentThisWeek;
 	}
 		
 	private static float GetGenreMarketReach(Genre genre) {

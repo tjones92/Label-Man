@@ -45,6 +45,11 @@ public class RegionalRecordData {
 	public float salesRegionalRadioPlayThisWeek;
 	public float previousRawDemand;
 	public float rawDemandThisWeek;
+	// Live common-market clearing keeps physical fulfillment distinct from demand
+	// displaced by simultaneous competing records.  These are week-local values.
+	public int serviceableIntentThisWeek;
+	public int storeCapacityThisWeek;
+	public int marketDisplacedDemandThisWeek;
 	public float salesVelocity;
 	public int sustainedGrowthWeeks;
 	public int tractionWeeks;

@@ -74,7 +74,13 @@ public static class AlbumSimulator {
 		}
 		float capacity = (region.distribution.recordStoreCount * 130f + region.distribution.departmentStoreCount * 300f) * region.distribution.inventoryDepth;
 		rawSales = Mathf.Min(rawSales, capacity) * (float)GD.RandRange(0.97, 1.03);
-		return Mathf.Max(0, Mathf.RoundToInt(rawSales));
+		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) {
+			return Mathf.Max(0, Mathf.RoundToInt(rawSales));
+		}
+		data.storeCapacityThisWeek = Mathf.Max(0, Mathf.FloorToInt(capacity));
+		data.serviceableIntentThisWeek = Mathf.Clamp(Mathf.RoundToInt(rawSales), 0,
+			Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek));
+		return data.serviceableIntentThisWeek;
 	}
 
 	public static void UpdateRegionalState(RecordRuntimeData record, RegionalRecordData data) {

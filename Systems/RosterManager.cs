@@ -518,16 +518,21 @@ public partial class RosterManager : Node {
 		observation.BestFreshPotentialScore = freshEvaluation.BestCandidateScore; observation.BestExperiencedProductionScore = experiencedEvaluation.BestCandidateScore;
 		SimulatedArtist selected = null; string lane = null;
 		if (service.Mode == TalentServiceMode.Recovery) {
-			selected = BestAffordable(label, freshEvaluation.CandidateScores, .3f, false); lane = selected == null ? null : "FreshPotential";
+			selected = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, false, "RegionalFreshRecovery");
+			lane = selected == null ? null : "FreshPotential";
 			if (selected == null) {
 				List<SimulatedArtist> national = GetEnabledSupplyCandidates(label, year, true, true, snapshot, out _);
 				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(national);
-				selected = BestAffordable(label, nationalEvaluation.CandidateScores, 0f, true); lane = selected == null ? null : "FreshPotential";
-				if (selected == null) { selected = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, false); lane = selected == null ? null : "ExperiencedProduction"; }
+				selected = SelectAffordableCandidate(label, nationalEvaluation.CandidateScores, 0f, true, "NationalFreshRecovery");
+				lane = selected == null ? null : "FreshPotential";
+				if (selected == null) {
+					selected = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, false, "RegionalExperiencedRecovery");
+					lane = selected == null ? null : "ExperiencedProduction";
+				}
 			}
 		} else {
-			SimulatedArtist bestFresh = BestAffordable(label, freshEvaluation.CandidateScores, .3f, false);
-			SimulatedArtist bestExperienced = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, false);
+			SimulatedArtist bestFresh = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, false, "RegionalFreshNormal");
+			SimulatedArtist bestExperienced = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, false, "RegionalExperiencedNormal");
 			if (bestFresh != null && (bestExperienced == null || ScoreOf(freshEvaluation.CandidateScores, bestFresh) >= ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced))) { selected = bestFresh; lane = "FreshPotential"; }
 			else { selected = bestExperienced; lane = selected == null ? null : "ExperiencedProduction"; }
 		}
@@ -751,26 +756,26 @@ public partial class RosterManager : Node {
 		string selectedLane = null;
 		bool recovery = service.Mode == TalentServiceMode.Recovery;
 		if (recovery) {
-			selected = BestAffordable(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false);
+			selected = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalFreshRecovery");
 			if (selected != null) { selectedLane = "FreshPotential"; observation.RecoveryFailureReason = "FreshThresholdQualified"; }
 			else {
 				List<SimulatedArtist> nationalFresh = GetEnabledSupplyCandidates(label, year, true, true, out _);
 				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(nationalFresh);
 				observation.FreshLaneCount = nationalFresh.Count; observation.FreshDiscoveryScope = "National";
 				observation.BestFreshPotentialScore = nationalEvaluation.BestCandidateScore;
-				selected = BestAffordable(label, nationalEvaluation.CandidateScores, 0f, positiveOnly: true);
+				selected = SelectAffordableCandidate(label, nationalEvaluation.CandidateScores, 0f, positiveOnly: true, "NationalFreshRecovery");
 				if (selected != null) {
 					selectedLane = "FreshPotential"; observation.RecoveryThresholdFallbackUsed = true;
 					observation.RecoveryFailureReason = "FreshRecoveryQualified";
 				} else {
-					selected = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false);
+					selected = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalExperiencedRecovery");
 					if (selected != null) { selectedLane = "ExperiencedProduction"; observation.RecoveryFailureReason = "ExperiencedFallback"; }
 					else observation.RecoveryFailureReason = nationalFresh.Count == 0 ? "NoFreshNationalCandidate" : "NoPositiveFreshPotential";
 				}
 			}
 		} else {
-			SimulatedArtist bestFresh = BestAffordable(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false);
-			SimulatedArtist bestExperienced = BestAffordable(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false);
+			SimulatedArtist bestFresh = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalFreshNormal");
+			SimulatedArtist bestExperienced = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalExperiencedNormal");
 			float freshScore = ScoreOf(freshEvaluation.CandidateScores, bestFresh);
 			float experiencedScore = ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced);
 			if (bestFresh != null && (bestExperienced == null || freshScore >= experiencedScore)) { selected = bestFresh; selectedLane = "FreshPotential"; }
@@ -799,10 +804,55 @@ public partial class RosterManager : Node {
 
 	private static float ScoreOf(IReadOnlyList<AILabel.SigningCandidateScore> scores, SimulatedArtist artist) =>
 		artist == null ? float.NegativeInfinity : scores.First(score => score.Artist == artist).Score;
-	private static SimulatedArtist BestAffordable(AILabel label, IReadOnlyList<AILabel.SigningCandidateScore> scores, float minimum, bool positiveOnly) =>
-		scores.Where(score => score.Score >= minimum && (!positiveOnly || score.Score > 0f))
-			.Where(score => score.Artist != null && label.CanAffordToSign(label.CalculateAdvanceOffer(score.Artist)))
-			.OrderByDescending(score => score.Score).FirstOrDefault().Artist;
+	/// <summary>
+	/// Chooses a good-enough affordable act from the slate instead of making every
+	/// label converge on its global maximum. Scouting ability changes how strongly
+	/// the local stream favors the better scores; it never guarantees the top act.
+	/// </summary>
+	private static SimulatedArtist SelectAffordableCandidate(AILabel label, IReadOnlyList<AILabel.SigningCandidateScore> scores,
+		float minimum, bool positiveOnly, string selectionDomain) {
+		List<AILabel.SigningCandidateScore> candidates = scores
+			.Where(candidate => candidate.Score >= minimum && (!positiveOnly || candidate.Score > 0f))
+			.Where(candidate => candidate.Artist != null && label.CanAffordToSign(label.CalculateAdvanceOffer(candidate.Artist)))
+			.OrderBy(candidate => candidate.Artist.artistId, StringComparer.Ordinal)
+			.ToList();
+		if (candidates.Count == 0) return null;
+		if (candidates.Count == 1) return candidates[0].Artist;
+
+		float lowest = candidates.Min(candidate => candidate.Score);
+		float highest = candidates.Max(candidate => candidate.Score);
+		float range = highest - lowest;
+		float ability = Mathf.Clamp(label.scoutingAbility, 0f, 1f);
+		float scoreInfluence = Mathf.Lerp(.25f, 5f, ability * ability);
+		var weights = new float[candidates.Count];
+		float totalWeight = 0f;
+		for (int index = 0; index < candidates.Count; index++) {
+			float relativeScore = range <= .000001f ? .5f : (candidates[index].Score - lowest) / range;
+			weights[index] = 1f + relativeScore * scoreInfluence;
+			totalWeight += weights[index];
+		}
+
+		ulong seed = StableDailyMarketHash($"{SimulationSeedBootstrap.RequestedSeed ?? 0UL}|{label.labelId}|{label.vacancyGeneration}|{label.scoutingAppointmentOrdinal}|{selectionDomain}|ScoutingSelectionV1");
+		var random = new StableScoutingRandom(seed);
+		float roll = random.Next01() * totalWeight;
+		for (int index = 0; index < candidates.Count; index++) {
+			roll -= weights[index];
+			if (roll <= 0f) return candidates[index].Artist;
+		}
+		return candidates[^1].Artist;
+	}
+
+	private struct StableScoutingRandom {
+		private ulong state;
+		public StableScoutingRandom(ulong state) => this.state = state;
+		public float Next01() {
+			state += 0x9E3779B97F4A7C15UL;
+			state = (state ^ (state >> 30)) * 0xBF58476D1CE4E5B9UL;
+			state = (state ^ (state >> 27)) * 0x94D049BB133111EBUL;
+			state ^= state >> 31;
+			return (state >> 40) * (1f / 16777216f);
+		}
+	}
 	
 	private bool TrySignNewArtist(AILabel label, int year, LabelScoutingVacancyObservation observation = null) {
 		bool enabledSupply = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
@@ -1021,7 +1071,10 @@ public partial class RosterManager : Node {
 			: !(artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance)).ToList();
 		int slateSize = GetDiscoverySlateSize(label.scoutingAbility);
 		List<SimulatedArtist> regional = eligible.Where(artist => IsInScoutingRegion(artist, region)).ToList();
-		List<SimulatedArtist> discoveryPool = nationalFreshRecovery ? eligible : (regional.Count >= slateSize ? regional : eligible);
+		// A regional call now exhausts the available regional supply even when it
+		// cannot fill the entire slate. National supply is a separate Recovery pass,
+		// not an automatic replacement for a thin home market.
+		List<SimulatedArtist> discoveryPool = nationalFreshRecovery ? eligible : regional;
 		discoveryPoolCount = discoveryPool.Count;
 		int discoveryWindow = Mathf.Max(0, currentWeek - 1) / DiscoveryRefreshWindowWeeks;
 		return discoveryPool

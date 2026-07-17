@@ -1273,3 +1273,71 @@ CHART_AUDIT_ABORTED_CATASTROPHIC run=d6-daily-market-failfast-decade-enabled-r2-
 The flushed catastrophic row is `CompletedYearCatastrophicDivergence,successfulReleases,2045,3314,470,1/3/1969,ratio=0.617079 band=[0.70,1.30]`. The hardened loader had already preflighted the retained control and its annual 1968 release total is independently reproducible from `release-capacity.csv` as 3,314; the enabled 1968 total is 2,045. This is a genuine completed-year catastrophic divergence below the inclusive `0.70` floor, not a terminal-debt false positive, loader failure, or ordinary inherited-band miss.
 
 No `CHART_AUDIT_COMPLETE ... weeks=522` marker exists. Final decade and late-decade inherited gates -- including the 1968/1969 release, scheduled-Album, and deferred Single-yield surfaces -- are **NOT_ADJUDICABLE** because the run correctly stopped at the catastrophic 1968 completed-year gate before completing the decade. Do not run R3 again, seeds 1002/1003, a holdout, a replacement control, the deferred Single-yield correction, or another behavioral candidate. Preserve R2/R3 artifacts and request a new explicit handoff before any further change or measurement.
+
+## Historical regional scouting implementation (2026-07-16): **IMPLEMENTED / DISABLED BOUNDARY PASS / STOP BEFORE DECADE**
+
+At the owner's explicit direction, the enabled scouting policy now treats the home region as a real first market. A regional discovery call uses all available regional supply up to its slate size even when that supply cannot fill the slate; it no longer silently substitutes the national pool. A Recovery appointment considers the national fresh pool only after the regional fresh slate contains no affordable candidate clearing the established `0.30` floor. The existing positive-score national Recovery fallback remains available so an empty target-one label is not stranded when its home market genuinely has no qualifying act.
+
+Candidate choice is now satisficing and probabilistic rather than a deterministic global argmax. After score-floor and affordability filtering, a label makes a weighted selection across the qualifying slate. `scoutingAbility` controls the strength of the score bias: stronger scouts are more likely, but never guaranteed, to choose the highest-scored act; weaker scouts more often choose a respectable mid-slate act. The selection uses an isolated SplitMix-style stream seeded from the requested simulation seed, label, vacancy generation, persisted appointment ordinal, and lane/scope domain. It consumes no Godot global RNG and cannot perturb the disabled shared-RNG schedule. Collision reduction is intentionally not claimed without a later enabled measurement.
+
+`Systems/RosterManager.cs` hashes to `21B13D09CEB69A7991350210A4B156B1CB0D459A69A912C521B3988F950A5EDB`. `git diff --check` passed. `dotnet build "Label Man.sln" --no-restore` passed with only the inherited unused `ChartManager.OnGenreMomentumChanged` warning.
+
+The sole simulation check was the requested disabled compatibility boundary:
+
+```powershell
+& '<Godot-console.exe>' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=52 --run=d6-historical-scouting-disabled-52-1001 --seed=1001 --aggregate-only
+```
+
+It exited 0 with `CHART_AUDIT_COMPLETE run=d6-historical-scouting-disabled-52-1001 weeks=52`. The candidate and retained `d6-transition-envelope-disabled-52-1001` control each contain 45 CSV streams, with the same suffix set, and all **45/45** suffix-matched streams are byte-identical by SHA-256. No enabled simulation, deterministic repeat, collision measurement, decade run, later seed, holdout, or acceptance-gate adjudication was performed. The next action is the already requested decade checkpoint; this pass stops before launching it.
+
+## Historical regional scouting validation (2026-07-16): **V1 PASS / V2 COMPLETED WITH INHERITED-GATE FAILURES / STOP**
+
+Immediately before V1, `Systems/RosterManager.cs` SHA-256 was `21B13D09CEB69A7991350210A4B156B1CB0D459A69A912C521B3988F950A5EDB`, exactly matching the authorized manifest, and `git diff --check` passed. No source, data, configuration, or telemetry change was made between V1 and V2. The already-recorded build and disabled-boundary evidence remained applicable, so neither was repeated.
+
+V1 used the exact authorized command:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=104 --run=d6-historical-regional-scouting-enabled-104-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance --catastrophic-fail-fast --gate-control-run=d6-transition-envelope-decade-control-1001
+```
+
+It exited 0 and emitted `CHART_AUDIT_COMPLETE run=d6-historical-regional-scouting-enabled-104-1001 weeks=104`. Its catastrophic stream is header-only. Detail/aggregate reconciliation is exact: 2,308 accepted appointment offers equal daily accepted offers and 2,144 `LostArtistChoice` rows equal daily collision losers. Across every `All` weekly population row, ownership conflicts, duplicate roster/pool membership, terminal roster/release eligibility, and premature probation drops are zero. There are no hard-capacity or operating-target overshoots, no runtime-founder birth-week accepted signing, and 79 runtime founders produced 210 due appointments, 80 accepted offers, and 37 release outcomes. At week 104, launch labels have 155 empty / 171 operating-vacant labels (550 observed); runtime labels have 7 empty / 7 operating-vacant labels (79 observed).
+
+The authoritative `release-capacity.csv` week/year map and `album-projects.csv.scheduledWeek` join give the V1 emergency comparisons below. The release and scheduled-Album values both remain inside the required inclusive `[0.70,1.30]` envelope, so V1 authorizes V2. The ordinary observations are diagnostic only at this rung: 1960/1961 total-unit ratios are 1.0349/1.0279; gross 1.0495/1.0389; label net 1.0599/1.0375; market net 1.0600/1.0356; Single units 1.0310/1.0227; and Album units 1.3279/1.1976.
+
+| Year | Successful releases | Control | Ratio | Scheduled Albums | Control | Ratio |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 4,260 | 4,298 | 0.9912 | 1,293 | 1,083 | 1.1939 |
+| 1961 | 3,760 | 3,880 | 0.9691 | 1,356 | 1,257 | 1.0788 |
+
+V1 collision movement supports a reduction rather than merely a raw-count claim. Against accepted M4 `d6-daily-market-enabled-104-1001`, the new policy has 8,386 due labels / 4,452 nominations / 2,308 unique nominations and accepts, versus 8,027 / 6,248 / 2,134. Collision artists/offers/losers are 719 / 2,863 / 2,144 versus 897 / 5,011 / 4,114. Normalized collision offers per nomination are 0.6431 versus 0.8020; collision losers per nomination 0.4816 versus 0.6585; and unique nominations per nomination 0.5184 versus 0.3416. Candidate-selection concentration also falls at this comparable 104-week boundary: 2,185 selected artists, top selected 35 times (0.7862%), HHI 0.001313, versus 2,043, 39 (0.6242%), and 0.001486. The lower HHI is the relevant broadening measure; the slightly higher top-share is reported rather than hidden.
+
+V2 then used the exact authorized command with no added switch:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=522 --run=d6-historical-regional-scouting-failfast-decade-enabled-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance --catastrophic-fail-fast --gate-control-run=d6-transition-envelope-decade-control-1001
+```
+
+The desktop command wrapper timed out after ten minutes while the Godot child remained live; it was not relaunched. The existing child continued to week 522, then exited. The flushed family contains 522 weekly data rows through 1970, and `catastrophic-fail-fast.csv` is header-only. The wrapper did not retain the child's terminal console line after its timeout, but the completed row count, child-process exit, and absence of any abort row establish normal runner completion; the known post-completion autoload diagnostic remains non-fatal under the handoff rule.
+
+V2 daily reconciliation remains exact: 11,078 detail accepted offers equal the aggregate and 10,773 detail collision losses equal the aggregate. The decade records 42,038 due labels, 21,851 nominations, 11,078 unique nominations/accepts, 3,307 collision artists, 14,080 collision offers, and 10,773 collision losers: rates 0.6444 collision offers, 0.4930 collision losers, and 0.5070 unique nominations per nomination. It selects 8,218 artists; the most-selected artist appears 52 times (0.2380%) and the HHI is 0.000332. There is no comparable pre-change decade artifact, so this is reported as a decade measurement rather than an asserted decade-on-decade improvement.
+
+Runtime-founded labels materially participate: 661 founders generate 4,386 appointments and 909 accepted offers, with zero accepted offers in a birth week; they produce 1,227 release outcomes and 560 scheduled Albums. Final lifecycle counters are structurally reconciled (0 ownership/duplicate/terminal/premature-probation violations) and the final enabled population is 10,000 registry / 2,693 active / 1,597 rostered, with 3,843 inactive, 623 retired, and 2,841 disbanded. Hard-capacity overshoots remain zero. However, **49** weekly snapshots across six launch labels exceed their operating roster target (first week 118, last week 522), even though none exceeds hard capacity; this is an inherited capacity-invariant failure. Examples include `label_0059` at 32 rostered against target 29 and `label_0004` at 39 against target 35.
+
+The annual ratios below are treatment/control. Release comparisons stay within the emergency band and the ordinary `[0.85,1.15]` release range, including 1968 `0.9188` and 1969 `0.9146`; this repairs the prior catastrophic 1968 collapse. Scheduled Albums nevertheless miss the inherited `[0.80,1.20]` surface in 1963 (1.2497), 1964 (1.2262), and 1969 (0.7769). Single units exceed 1.15 in 1967-1969 (1.2591, 1.1802, 1.3523), and total units exceed the transition/economic annual upper envelope in 1967 (1.1971) and 1969 (1.2334). Gross, label net, and market net remain within 0.85-1.15 annually. Single yield remains separately deferred and is reported, not explained away by scouting.
+
+| Year | Releases | Scheduled Albums | Single units | Album units | Total units | Single yield |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 0.9912 | 1.1939 | 1.0310 | 1.3279 | 1.0349 | 1.1172 |
+| 1961 | 0.9691 | 1.0788 | 1.0227 | 1.1976 | 1.0279 | 1.1158 |
+| 1962 | 1.0116 | 1.1683 | 1.0950 | 1.1286 | 1.0962 | 1.1915 |
+| 1963 | 1.0529 | 1.2497 | 1.1202 | 1.1339 | 1.1208 | 1.2344 |
+| 1964 | 1.0631 | 1.2262 | 1.0546 | 1.0177 | 1.0531 | 1.1035 |
+| 1965 | 1.0366 | 1.1955 | 0.9978 | 0.9446 | 0.9944 | 1.1850 |
+| 1966 | 1.0411 | 1.1322 | 1.1286 | 0.9683 | 1.1059 | 1.3928 |
+| 1967 | 0.9897 | 0.9735 | 1.2591 | 0.9606 | 1.1971 | 1.1992 |
+| 1968 | 0.9188 | 0.8722 | 1.1802 | 0.9479 | 1.1247 | 1.0672 |
+| 1969 | 0.9146 | 0.7769 | 1.3523 | 0.9271 | 1.2334 | 0.8035 |
+
+The decade aggregate is releases 0.9983, scheduled Albums 1.0444, Single units 1.1077, Album units 0.9762, total units 1.0936, gross 1.0622, label net 1.0428, market net 1.0580, and Single yield 1.1704. Aggregate economics therefore do not cure the annual capacity/format/economic failures.
+
+**Stop decision:** V1 passes its strictly limited structural/emergency checkpoint, and V2 completes without a catastrophic abort while restoring late-decade release capacity. The validation ladder nevertheless fails final inherited acceptance because of the 49 operating-target overshoots, scheduled-Album misses, annual Single-unit/total-unit misses, and the separately deferred Single-yield surface. No enabled repeat, additional seed, holdout, control, source/configuration change, or follow-on behavioral candidate is authorized from this handoff.

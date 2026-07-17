@@ -698,6 +698,8 @@ public partial class CompetitorManager : Node {
 				projectedAlbumNet = plan.projectedAlbumNet,
 				confidenceSingle = plan.confidenceSingle,
 				confidenceAlbum = plan.confidenceAlbum,
+				rawConfidenceSingle = plan.rawConfidenceSingle, rawConfidenceAlbum = plan.rawConfidenceAlbum,
+				singleMemoryCapApplied = plan.singleMemoryCapApplied, albumMemoryCapApplied = plan.albumMemoryCapApplied,
 				chosenFormat = plan.format,
 				assumedCompilationCost = plan.legacyFourResolvableSingles,
 				compCostWeight = plan.compCostWeight,
@@ -956,6 +958,8 @@ public partial class CompetitorManager : Node {
 		genreSinglesMarketFactor = decision.genreSinglesMarketFactor, priorSingleNet = plan.priorSingleNet,
 		priorAlbumNet = plan.priorAlbumNet, projectedSingleNet = plan.projectedSingleNet, projectedAlbumNet = plan.projectedAlbumNet,
 		confidenceSingle = plan.confidenceSingle, confidenceAlbum = plan.confidenceAlbum, chosenFormat = ReleaseFormat.Album,
+		rawConfidenceSingle = plan.rawConfidenceSingle, rawConfidenceAlbum = plan.rawConfidenceAlbum,
+		singleMemoryCapApplied = plan.singleMemoryCapApplied, albumMemoryCapApplied = plan.albumMemoryCapApplied,
 		assumedCompilationCost = plan.legacyFourResolvableSingles, compCostWeight = plan.compCostWeight,
 		expectedFormatMultiplier = plan.expectedFormatMultiplier, releasedSingleIdsExamined = plan.releasedSingleIdsExamined,
 		resolvedSingles = plan.resolvedSingles, chartedSingles = plan.chartedSingles, hitScore = plan.hitScore,
@@ -998,6 +1002,13 @@ public partial class CompetitorManager : Node {
 		float confidenceAlbum = albumMemory.releasesObserved / (albumMemory.releasesObserved + confidenceK);
 		confidenceSingle = GetProjectFormatMemoryConfidence(confidenceSingle, decision.nonRetainedEmergingProject);
 		confidenceAlbum = GetProjectFormatMemoryConfidence(confidenceAlbum, decision.nonRetainedEmergingProject);
+		float rawConfidenceSingle = confidenceSingle;
+		float rawConfidenceAlbum = confidenceAlbum;
+		bool applyLiveMemoryCeiling = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		if (applyLiveMemoryCeiling) {
+			confidenceSingle = Mathf.Min(confidenceSingle, .75f);
+			confidenceAlbum = Mathf.Min(confidenceAlbum, .75f);
+		}
 		float projectedSingle = Mathf.Lerp(priorSingle, singleMemory.emaNetPerRelease, confidenceSingle);
 		float projectedAlbum = Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum);
 
@@ -1022,6 +1033,10 @@ public partial class CompetitorManager : Node {
 			projectedAlbumWithPromoNet = projectedAlbum,
 			confidenceSingle = confidenceSingle,
 			confidenceAlbum = confidenceAlbum,
+			rawConfidenceSingle = rawConfidenceSingle,
+			rawConfidenceAlbum = rawConfidenceAlbum,
+			singleMemoryCapApplied = applyLiveMemoryCeiling && rawConfidenceSingle > confidenceSingle,
+			albumMemoryCapApplied = applyLiveMemoryCeiling && rawConfidenceAlbum > confidenceAlbum,
 			legacyFourResolvableSingles = hitInventory.resolvedSingles >= 4,
 			compCostWeight = compCostWeight,
 			expectedFormatMultiplier = albumPrior.expectedFormatMultiplier,
@@ -1450,6 +1465,10 @@ public partial class CompetitorManager : Node {
 		public float albumNoiseMultiplier;
 		public float confidenceSingle;
 		public float confidenceAlbum;
+		public float rawConfidenceSingle;
+		public float rawConfidenceAlbum;
+		public bool singleMemoryCapApplied;
+		public bool albumMemoryCapApplied;
 		public bool legacyFourResolvableSingles;
 		public float compCostWeight;
 		public float expectedFormatMultiplier;
@@ -2251,6 +2270,10 @@ public sealed class ReleaseStrategyTelemetry {
 	public float projectedAlbumNet;
 	public float confidenceSingle;
 	public float confidenceAlbum;
+	public float rawConfidenceSingle;
+	public float rawConfidenceAlbum;
+	public bool singleMemoryCapApplied;
+	public bool albumMemoryCapApplied;
 	public ReleaseFormat chosenFormat;
 	// Preserves the A2 diagnostic column's meaning; no longer participates in the prior.
 	public bool assumedCompilationCost;

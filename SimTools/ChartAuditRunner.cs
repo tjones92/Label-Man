@@ -182,6 +182,8 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter dailyTalentMarketWriter;
 	private StreamWriter dailyTalentAppointmentWriter;
 	private StreamWriter catastrophicFailFastWriter;
+	private StreamWriter marketClearingWriter;
+	private StreamWriter formatMemoryAdjustmentWriter;
 	// Event-owned signing flows use the exact chart week written to the population
 	// ledger. This is observational state only and therefore cannot perturb play.
 	private readonly Dictionary<int, (int FirstTime, int Repeat)> populationSigningFlowByWeek = new();
@@ -808,6 +810,10 @@ public partial class ChartAuditRunner : Node {
 		if (GenreMarketV2.Enabled) rosterLifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-roster-lifecycle.csv"));
 		if (ArtistPopulationLifecycle.Enabled && GenreMarketV2.Enabled)
 			labelScoutingVacancyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-scouting-vacancy-weekly.csv"));
+		if (GenreMarketV2.Enabled) {
+			marketClearingWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-market-clearing-weekly.csv"));
+			formatMemoryAdjustmentWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-memory-adjustment.csv"));
+		}
 		if (ArtistPopulationLifecycle.Enabled) {
 			artistPopulationEventsWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-population-events.csv"));
 			artistPopulationWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-population-weekly.csv"));
@@ -833,6 +839,8 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
 		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
+		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,serviceableTotalIntent,purchaseCapacity,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta");
+		formatMemoryAdjustmentWriter?.WriteLine("week,year,recordId,labelId,memoryScope,rawSingleConfidence,rawAlbumConfidence,effectiveSingleConfidence,effectiveAlbumConfidence,singleCapApplied,albumCapApplied");
 		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
 		seasonalityMonthlyWriter.WriteLine("seed,enabled,year,month,liveWeeks,singleSalesMultiplier,albumSalesMultiplier,radioOpportunity,venueAttendanceMultiplier,recordingCostMultiplier,marketingEfficiencyMultiplier,artistAvailabilityMultiplier,singleUnits,albumUnits,singleGross,albumGross,releaseRolls,successfulReleases,singleReleases,albumProjectsScheduled,albumDrops,productionSpend,productionEvents,marketingSpend,marketingEvents,scoutingRolls,signings,meanRadioPlay");
 		albumChartWriter.WriteLine("week,year,month,chartSize,position,previousPosition,recordId,title,artistId,labelId,genre,albumFormat,unitsThisWeek,totalUnitsSold,weeksOnChart,pooledAppeal,thematicCohesion,packaging");
@@ -1177,6 +1185,13 @@ public partial class ChartAuditRunner : Node {
 
 	private void OnReleaseStrategy(ReleaseStrategyTelemetry strategy) {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		if (formatMemoryAdjustmentWriter != null && ChartManager.Instance?.IsGenreMarketV2Live == true) {
+			formatMemoryAdjustmentWriter.WriteLine(string.Join(",", new[] {
+				currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(strategy.recordId), Csv(strategy.labelId),
+				Csv(strategy.labelFormatMemoryBypassed ? "ProjectPrior" : "LabelFormat"), F(strategy.rawConfidenceSingle), F(strategy.rawConfidenceAlbum),
+				F(strategy.confidenceSingle), F(strategy.confidenceAlbum), strategy.singleMemoryCapApplied ? "true" : "false", strategy.albumMemoryCapApplied ? "true" : "false"
+			}));
+		}
 		if (!string.IsNullOrEmpty(strategy.recordId)) formatDecisionCohorts[strategy.recordId] = new FormatDecisionCohort {
 			Year = year, PrimaryGenre = strategy.genre, SecondaryGenre = strategy.secondaryGenre, Format = strategy.chosenFormat
 		};
@@ -1526,6 +1541,7 @@ public partial class ChartAuditRunner : Node {
 		WriteTierVolumeRows(week, records);
 		WriteLabelFinanceRows(week, date.year);
 		WriteMarketRevenueRows(week, date.year, records);
+		WriteMarketClearingRows(week, date.year);
 		WriteReleaseCapacityRow(week, date.year);
 		WriteRosterLifecycleRows(week, date.year);
 		WriteLabelScoutingVacancyRows(week, date.year);
@@ -1674,7 +1690,7 @@ public partial class ChartAuditRunner : Node {
 			string birthDate = label != null && label.runtimeBirthYear > 0 ? $"{label.runtimeBirthMonth}/{label.runtimeBirthDay}/{label.runtimeBirthYear}" : "";
 			labelScoutingVacancyWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(observation.LabelId), Csv(observation.LabelTier.ToString()),
-				observation.MaxRosterSize.ToString(CultureInfo.InvariantCulture), observation.OperatingRosterTarget.ToString(CultureInfo.InvariantCulture),
+				observation.MaxRosterSize.ToString(CultureInfo.InvariantCulture), (label?.OperatingRosterTarget ?? observation.OperatingRosterTarget).ToString(CultureInfo.InvariantCulture),
 				Csv(label?.operatingRosterTargetSource ?? "Unset"), Csv(label?.populationOrigin.ToString() ?? "Unspecified"),
 				(label?.runtimeBirthWeek ?? 0).ToString(CultureInfo.InvariantCulture), Csv(birthDate), Csv(label?.operatingRosterTargetReason.ToString() ?? "Unset"),
 				(label?.organicRosterTargetGrowthCount ?? 0).ToString(CultureInfo.InvariantCulture), (label?.lastOrganicRosterTargetGrowthWeek ?? -1).ToString(CultureInfo.InvariantCulture), Csv(label?.lastOrganicGrowthBlockingReason ?? "Unset"),
@@ -1702,6 +1718,27 @@ public partial class ChartAuditRunner : Node {
 				observation.BestExperiencedProductionScore.HasValue ? F(observation.BestExperiencedProductionScore.Value) : "", Csv(observation.SelectedLane),
 				observation.RecoveryThresholdFallbackUsed ? "1" : "0", Csv(observation.RecoveryFailureReason),
 				observation.MarketClearingAttemptsAtOrAboveOperatingTarget.ToString(CultureInfo.InvariantCulture)
+			}));
+		}
+	}
+
+	private void WriteMarketClearingRows(int week, int year) {
+		if (marketClearingWriter == null || ChartManager.Instance?.IsGenreMarketV2Live != true) return;
+		foreach (ChartManager.MarketClearingRegionalSummary row in ChartManager.Instance.GetLastMarketClearingSummaries()
+			.OrderBy(row => row.RegionId, StringComparer.Ordinal)) {
+			int cleared = row.ClearedTotalUnits;
+			int serviceable = row.ServiceableTotalIntent;
+			int unused = Mathf.Max(0, row.PurchaseCapacity - cleared);
+			float factor = serviceable > 0 ? Mathf.Min(1f, (float)cleared / serviceable) : 1f;
+			marketClearingWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(row.RegionId),
+				row.ActiveIntentCount.ToString(CultureInfo.InvariantCulture), F(row.RawSingleDemand), F(row.RawAlbumDemand), F(row.RawSingleDemand + row.RawAlbumDemand),
+				F(row.ServiceableSingleIntent), F(row.ServiceableAlbumIntent), serviceable.ToString(CultureInfo.InvariantCulture),
+				row.PurchaseCapacity.ToString(CultureInfo.InvariantCulture), row.ClearedSingleUnits.ToString(CultureInfo.InvariantCulture),
+				row.ClearedAlbumUnits.ToString(CultureInfo.InvariantCulture), cleared.ToString(CultureInfo.InvariantCulture), unused.ToString(CultureInfo.InvariantCulture),
+				F(factor), row.PhysicalBackorders.ToString(CultureInfo.InvariantCulture), row.MarketDisplacedDemand.ToString(CultureInfo.InvariantCulture),
+				row.InventoryViolationCount.ToString(CultureInfo.InvariantCulture), row.AllocationViolationCount.ToString(CultureInfo.InvariantCulture),
+				row.ReconciliationDelta.ToString(CultureInfo.InvariantCulture)
 			}));
 		}
 	}
@@ -2380,6 +2417,8 @@ public partial class ChartAuditRunner : Node {
 		lifecycleWriter?.Flush();
 		concentrationWriter?.Flush();
 		marketRevenueWriter?.Flush();
+		marketClearingWriter?.Flush();
+		formatMemoryAdjustmentWriter?.Flush();
 		releaseCapacityWriter?.Flush();
 		formatMixWriter?.Flush();
 		albumProjectWeeklyWriter?.Flush();
@@ -2564,6 +2603,8 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter?.Dispose();
 		concentrationWriter?.Dispose();
 		marketRevenueWriter?.Dispose();
+		marketClearingWriter?.Dispose();
+		formatMemoryAdjustmentWriter?.Dispose();
 		releaseCapacityWriter?.Dispose();
 		seasonalityMonthlyWriter?.Dispose();
 		albumChartWriter?.Dispose();
@@ -2622,6 +2663,8 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter = null;
 		concentrationWriter = null;
 		marketRevenueWriter = null;
+		marketClearingWriter = null;
+		formatMemoryAdjustmentWriter = null;
 		releaseCapacityWriter = null;
 		seasonalityMonthlyWriter = null;
 		albumChartWriter = null;
