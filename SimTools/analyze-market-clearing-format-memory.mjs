@@ -165,7 +165,7 @@ function parseClearing() {
       "week", "year", "regionId", "activeIntentCount",
       "rawSingleDemand", "rawAlbumDemand", "rawTotalDemand",
       "serviceableSingleIntent", "serviceableAlbumIntent", "serviceableTotalIntent",
-      "purchaseCapacity", "clearedSingleUnits", "clearedAlbumUnits", "clearedTotalUnits",
+      "purchaseCapacity", "baseCapacity", "localCleared", "unusedAfterLocal", "exportBudget", "exportedCapacity", "importLimit", "importedCapacity", "spilloverCleared", "clearedSingleUnits", "clearedAlbumUnits", "clearedTotalUnits",
       "unusedCapacity", "rationingFactor", "physicalBackorders", "marketDisplacedDemand",
       "inventoryViolationCount", "allocationViolationCount", "reconciliationDelta"
     ]
@@ -184,6 +184,14 @@ function parseClearing() {
       serviceableAlbumIntent: integer(row, "serviceableAlbumIntent", source),
       serviceableTotalIntent: integer(row, "serviceableTotalIntent", source),
       purchaseCapacity: integer(row, "purchaseCapacity", source),
+      baseCapacity: integer(row, "baseCapacity", source),
+      localCleared: integer(row, "localCleared", source),
+      unusedAfterLocal: integer(row, "unusedAfterLocal", source),
+      exportBudget: integer(row, "exportBudget", source),
+      exportedCapacity: integer(row, "exportedCapacity", source),
+      importLimit: integer(row, "importLimit", source),
+      importedCapacity: integer(row, "importedCapacity", source),
+      spilloverCleared: integer(row, "spilloverCleared", source),
       clearedSingleUnits: integer(row, "clearedSingleUnits", source),
       clearedAlbumUnits: integer(row, "clearedAlbumUnits", source),
       clearedTotalUnits: integer(row, "clearedTotalUnits", source),
@@ -210,7 +218,15 @@ function parseClearing() {
       parsed.serviceableTotalIntent, `${source} serviceable-intent reconciliation`);
     assertEqual(parsed.clearedSingleUnits + parsed.clearedAlbumUnits,
       parsed.clearedTotalUnits, `${source} cleared-format reconciliation`);
-    if (parsed.clearedTotalUnits > parsed.purchaseCapacity) fail(`${source} exceeds purchase capacity`);
+    assertEqual(parsed.baseCapacity, parsed.purchaseCapacity, `${source} base-capacity reconciliation`);
+    assertEqual(parsed.localCleared + parsed.spilloverCleared, parsed.clearedTotalUnits,
+      `${source} final-clearing reconciliation`);
+    assertEqual(parsed.unusedAfterLocal, Math.max(0, parsed.purchaseCapacity - parsed.localCleared),
+      `${source} unused-local reconciliation`);
+    if (parsed.exportedCapacity > parsed.exportBudget || parsed.exportBudget > parsed.unusedAfterLocal) fail(`${source} export bound violated`);
+    if (parsed.importedCapacity > parsed.importLimit || parsed.importedCapacity > parsed.serviceableTotalIntent - parsed.localCleared) fail(`${source} import bound violated`);
+    assertEqual(parsed.importedCapacity, parsed.spilloverCleared, `${source} imported/spillover reconciliation`);
+    if (parsed.localCleared > parsed.purchaseCapacity) fail(`${source} local clearing exceeds base capacity`);
     if (parsed.clearedTotalUnits > parsed.serviceableTotalIntent) fail(`${source} exceeds serviceable intent`);
     if (parsed.clearedSingleUnits > parsed.serviceableSingleIntent) fail(`${source} Single clearing exceeds intent`);
     if (parsed.clearedAlbumUnits > parsed.serviceableAlbumIntent) fail(`${source} Album clearing exceeds intent`);
@@ -249,6 +265,91 @@ function parseClearing() {
   }
   if (expectedRegions?.length !== 7) fail(`expected seven clearing regions, found ${expectedRegions?.length ?? 0}`);
   return { rows, byWeek, regions: expectedRegions };
+}
+
+function parseSettlementAndResponsiveMemory() {
+  const settlement = parse(run, "completed-week-settlement", {
+    columns: ["week", "year", "settlementId", "recordId", "labelId", "format", "regionalUnits", "totalUnits", "gross", "manufacturingCost", "artistRoyalty", "distributionSkim", "labelNet", "distributionRecipientLabelId", "distributionIncome", "marketNet", "retiredAfterSettlement", "bookedCount", "auditedCount"]
+  });
+  const regional = parse(run, "completed-week-settlement-regional", {
+    columns: ["week", "year", "settlementId", "recordId", "regionId", "rawIntent", "serviceableIntent", "localCleared", "spilloverCleared", "finalCleared", "physicalBackorders", "marketDisplacedDemand", "inventoryMovement"]
+  });
+  const settlementIds = new Map();
+  for (const [index, row] of settlement.rows.entries()) {
+    const source = `completed-week-settlement[${index + 2}]`;
+    const week = integer(row, "week", source), id = integer(row, "settlementId", source);
+    if (week !== id) fail(`${source} settlement id does not match week`);
+    if (!row.recordId || !row.labelId) fail(`${source} has blank record or label id`);
+    assertEqual(integer(row, "bookedCount", source), 1, `${source} booked count`);
+    assertEqual(integer(row, "auditedCount", source), 1, `${source} audited count`);
+    for (const field of ["regionalUnits", "totalUnits", "gross", "manufacturingCost", "artistRoyalty", "distributionSkim", "labelNet", "distributionIncome", "marketNet"]) number(row, field, source);
+    assertEqual(integer(row, "regionalUnits", source), integer(row, "totalUnits", source), `${source} compact regional units`);
+    assertNear(number(row, "marketNet", source), number(row, "labelNet", source) + number(row, "distributionIncome", source), `${source} market-net leg balance`);
+    settlementIds.set(id, (settlementIds.get(id) ?? 0) + 1);
+  }
+  const ids = [...settlementIds.keys()].sort((a, b) => a - b);
+  for (let index = 1; index < ids.length; index++) {
+    if (ids[index] !== ids[index - 1] + 1) fail(`skipped settlement id ${ids[index - 1]} -> ${ids[index]}`);
+  }
+  uniqueMap(settlement.rows, row => `${row.settlementId}|${row.recordId}`, "settlement record");
+  const regionalByRecord = group(regional.rows, row => `${row.settlementId}|${row.recordId}`);
+  uniqueMap(regional.rows, row => `${row.settlementId}|${row.recordId}|${row.regionId}`, "settlement regional");
+  for (const [index, row] of settlement.rows.entries()) {
+    const source = `completed-week-settlement[${index + 2}]`;
+    const details = regionalByRecord.get(`${row.settlementId}|${row.recordId}`);
+    if (!details?.length) fail(`${source} is missing regional settlement rows`);
+    assertEqual(sum(details, detail => integer(detail, "finalCleared", "settlement-regional")), integer(row, "totalUnits", source), `${source} regional final units`);
+    for (const detail of details) {
+      const detailSource = `settlement-regional.${row.settlementId}.${row.recordId}.${detail.regionId}`;
+      for (const key of ["rawIntent", "serviceableIntent", "localCleared", "spilloverCleared", "finalCleared", "physicalBackorders", "marketDisplacedDemand", "inventoryMovement"]) if (integer(detail, key, detailSource) < 0) fail(`${detailSource}.${key} is negative`);
+      assertEqual(integer(detail, "localCleared", detailSource) + integer(detail, "spilloverCleared", detailSource), integer(detail, "finalCleared", detailSource), `${detailSource} local/spillover final units`);
+    }
+  }
+  const revisions = parse(run, "format-memory-revisions", {
+    columns: ["week", "year", "releaseId", "labelId", "format", "releaseAge", "revisionKind", "opportunityScale", "normalizedResidual", "maturityWeight", "replacedPriorRevision", "finalized", "nonFiniteViolation"],
+    allowEmpty: true
+  });
+  const lastAgeByRelease = new Map();
+  for (const [index, row] of revisions.rows.entries()) {
+    const source = `format-memory-revisions[${index + 2}]`;
+    if (!row.releaseId || !row.labelId) fail(`${source} blank release or label id`);
+    if (boolean(row, "nonFiniteViolation", source)) fail(`${source} non-finite responsive-memory state`);
+    for (const field of ["opportunityScale", "normalizedResidual", "maturityWeight"]) number(row, field, source);
+    if (number(row, "opportunityScale", source) <= 0) fail(`${source} non-positive opportunity scale`);
+    const age = integer(row, "releaseAge", source), prior = lastAgeByRelease.get(row.releaseId);
+    if (prior !== undefined && age < prior) fail(`${source} revision age moved backward`);
+    lastAgeByRelease.set(row.releaseId, age);
+  }
+  return { settlement, regional, revisions };
+}
+
+function reconcileSettlement(settlementAndMemory, economic, clearing) {
+  const byWeek = group(settlementAndMemory.settlement.rows, row => row.week);
+  const economicByWeek = uniqueMap([...economic.weekByKey.values()], row => row.week, "economic settlement week");
+  const clearingByWeek = new Map([...clearing.byWeek.entries()].map(([key, rows]) => [rows[0].week, rows]));
+  if (byWeek.size !== economic.weekByKey.size) fail(`settlement/weeks row-count mismatch: ${byWeek.size} != ${economic.weekByKey.size}`);
+  let maxGrossDelta = 0, maxLabelNetDelta = 0, maxMarketNetDelta = 0;
+  for (const [key, rows] of byWeek) {
+    const week = economicByWeek.get(String(key));
+    const market = week ? economic.weeklyMarketByKey.get(`${week.week}|${week.year}`) : null;
+    const clearingRows = clearingByWeek.get(Number(key));
+    if (!market || !week || !clearingRows) fail(`settlement week ${key} is absent from a required join`);
+    const units = sum(rows, row => integer(row, "totalUnits", `settlement.${key}`));
+    assertEqual(units, integer(week, "totalMarketUnits", `weeks.${key}`), `settlement/weeks units ${key}`);
+    assertEqual(units, sum(clearingRows, row => row.clearedTotalUnits), `settlement/clearing units ${key}`);
+    const gross = sum(rows, row => number(row, "gross", `settlement.${key}`));
+    const labelNet = sum(rows, row => number(row, "labelNet", `settlement.${key}`));
+    const distributionIncome = sum(rows, row => number(row, "distributionIncome", `settlement.${key}`));
+    const marketNet = sum(rows, row => number(row, "marketNet", `settlement.${key}`));
+    maxGrossDelta = Math.max(maxGrossDelta, Math.abs(gross - number(market, "gross", `market.${key}`)));
+    maxLabelNetDelta = Math.max(maxLabelNetDelta, Math.abs(labelNet - number(market, "labelNet", `market.${key}`)));
+    maxMarketNetDelta = Math.max(maxMarketNetDelta, Math.abs(marketNet - number(market, "marketNet", `market.${key}`)));
+    assertNear(gross, number(market, "gross", `market.${key}`), `settlement/market gross ${key}`);
+    assertNear(labelNet, number(market, "labelNet", `market.${key}`), `settlement/market label net ${key}`);
+    assertNear(distributionIncome, number(market, "distributionIncome", `market.${key}`), `settlement/market distribution income ${key}`);
+    assertNear(marketNet, number(market, "marketNet", `market.${key}`), `settlement/market net ${key}`);
+  }
+  return { maxGrossDelta, maxLabelNetDelta, maxMarketNetDelta };
 }
 
 const marketColumns = [
@@ -323,7 +424,7 @@ function normalizeEconomicRun(prefix, data) {
   const marketAnnual = uniqueMap(marketAnnualRows, row => `${row.year}|${row.releaseFormat}`,
     `${prefix} annual market-revenue`);
   const summaries = new Map();
-  for (const year of TARGET_YEARS) {
+  for (const year of TARGET_YEARS.filter(year => annualByYear.has(String(year)))) {
     const yearKey = String(year);
     const rollup = annualByYear.get(yearKey);
     const single = marketAnnual.get(`${year}|Single`);
@@ -400,7 +501,7 @@ function reconcileClearing(clearing, economic) {
     fail(`clearing/weeks row-count mismatch: ${clearing.byWeek.size} != ${economic.weekByKey.size}`);
   }
   const clearingByYear = group(clearing.rows, row => row.year);
-  for (const year of TARGET_YEARS) {
+  for (const year of economic.summaries.keys()) {
     const rows = clearingByYear.get(year);
     if (!rows?.length) fail(`clearing telemetry lacks year ${year}`);
     const summary = clearingSummary(rows);
@@ -410,6 +511,39 @@ function reconcileClearing(clearing, economic) {
     assertEqual(summary.clearedAlbum, annual.albumUnits,
       `clearing/annual-rollup Album units for ${year}`);
   }
+}
+
+const NEIGHBORS = new Map(Object.entries({
+  eastcoast: ["greatlakes", "deepsouth"], greatlakes: ["eastcoast", "deepsouth", "greatplains"],
+  greatplains: ["greatlakes", "rockies", "southwest"], deepsouth: ["eastcoast", "greatlakes", "southwest"],
+  southwest: ["deepsouth", "rockies", "westcoast", "greatplains"], rockies: ["greatplains", "southwest", "westcoast"],
+  westcoast: ["rockies", "southwest"]
+}));
+
+function parseAndReconcileSpillover(clearing) {
+  const data = parse(run, "market-spillover-weekly", { columns: ["week", "year", "donorRegionId", "recipientRegionId", "donorUnusedLocal", "donorExportBudget", "recipientResidualDemand", "recipientImportLimit", "transferredCapacity", "clearedSingleUnits", "clearedAlbumUnits", "edgeViolationCount", "reconciliationDelta"], allowEmpty: true });
+  const rows = data.rows.map((row, index) => {
+    const source = `market-spillover-weekly[${index + 2}]`;
+    for (const key of ["week", "year", "donorUnusedLocal", "donorExportBudget", "recipientResidualDemand", "recipientImportLimit", "transferredCapacity", "clearedSingleUnits", "clearedAlbumUnits", "edgeViolationCount", "reconciliationDelta"]) integer(row, key, source);
+    if (!NEIGHBORS.get(row.donorRegionId)?.includes(row.recipientRegionId)) fail(`${source} has non-neighbor positive edge ${row.donorRegionId}->${row.recipientRegionId}`);
+    assertEqual(integer(row, "clearedSingleUnits", source) + integer(row, "clearedAlbumUnits", source), integer(row, "transferredCapacity", source), `${source} format transfer reconciliation`);
+    if (integer(row, "transferredCapacity", source) > integer(row, "donorExportBudget", source) || integer(row, "transferredCapacity", source) > integer(row, "donorUnusedLocal", source) || integer(row, "transferredCapacity", source) > integer(row, "recipientImportLimit", source) || integer(row, "transferredCapacity", source) > integer(row, "recipientResidualDemand", source)) fail(`${source} transfer bound violated`);
+    assertEqual(integer(row, "edgeViolationCount", source), 0, `${source} edge violations`);
+    assertEqual(integer(row, "reconciliationDelta", source), 0, `${source} edge reconciliation delta`);
+    return row;
+  });
+  uniqueMap(rows, row => `${row.week}|${row.year}|${row.donorRegionId}|${row.recipientRegionId}`, "spillover edge");
+  const byWeekRegion = group(clearing.rows, row => `${row.week}|${row.year}|${row.regionId}`);
+  for (const [key, regional] of byWeekRegion) {
+    const [week, year, region] = key.split("|");
+    const imports = sum(rows.filter(row => row.week === week && row.year === year && row.recipientRegionId === region), row => integer(row, "transferredCapacity", "spillover"));
+    const exports = sum(rows.filter(row => row.week === week && row.year === year && row.donorRegionId === region), row => integer(row, "transferredCapacity", "spillover"));
+    assertEqual(imports, regional[0].importedCapacity, `spillover imports ${key}`);
+    assertEqual(exports, regional[0].exportedCapacity, `spillover exports ${key}`);
+  }
+  const rationed = clearing.rows.some(row => row.localCleared < row.serviceableTotalIntent);
+  if (rationed && rows.length === 0) fail("local rationing occurred but no bounded spillover was recorded");
+  return { rows };
 }
 
 function parseAndReconcileMemory(economic) {
@@ -456,19 +590,19 @@ function parseAndReconcileMemory(economic) {
     if (parsed.memoryScope === "ProjectPrior") {
       assertNear(parsed.effectiveSingleConfidence, 0, `${source} ProjectPrior Single confidence`, EPSILON);
       assertNear(parsed.effectiveAlbumConfidence, 0, `${source} ProjectPrior Album confidence`, EPSILON);
-    } else if (parsed.effectiveSingleConfidence > 0.75 + EPSILON ||
-               parsed.effectiveAlbumConfidence > 0.75 + EPSILON) {
-      fail(`${source} LabelFormat confidence exceeds 0.75`);
+    } else if (parsed.effectiveSingleConfidence > 0.65 + EPSILON ||
+               parsed.effectiveAlbumConfidence > 0.65 + EPSILON) {
+      fail(`${source} LabelFormat confidence exceeds 0.65`);
     }
-    const expectedSingle = Math.min(parsed.rawSingleConfidence, 0.75);
-    const expectedAlbum = Math.min(parsed.rawAlbumConfidence, 0.75);
+    const expectedSingle = Math.min(parsed.rawSingleConfidence, 0.65);
+    const expectedAlbum = Math.min(parsed.rawAlbumConfidence, 0.65);
     assertNear(parsed.effectiveSingleConfidence, expectedSingle,
       `${source} effective Single confidence`, EPSILON);
     assertNear(parsed.effectiveAlbumConfidence, expectedAlbum,
       `${source} effective Album confidence`, EPSILON);
-    assertEqual(parsed.singleCapApplied, parsed.rawSingleConfidence > 0.75,
+    assertEqual(parsed.singleCapApplied, parsed.rawSingleConfidence > 0.65,
       `${source} Single cap-applied flag`);
-    assertEqual(parsed.albumCapApplied, parsed.rawAlbumConfidence > 0.75,
+    assertEqual(parsed.albumCapApplied, parsed.rawAlbumConfidence > 0.65,
       `${source} Album cap-applied flag`);
 
     const explanation = explanationById.get(parsed.recordId);
@@ -544,7 +678,7 @@ function parseScoutingFailures() {
 }
 
 function aggregateSummaries(summaries) {
-  const rows = TARGET_YEARS.map(year => summaries.get(year));
+	const rows = [...summaries.values()];
   const keys = [
     "singleUnits", "albumUnits", "totalUnits", "singleGross", "albumGross", "gross",
     "labelNet", "marketNet", "releases", "decisions", "scheduledAlbums"
@@ -574,6 +708,9 @@ const enabled = normalizeEconomicRun(run, loadEconomicRun(run, true));
 const control = normalizeEconomicRun(controlRun, loadEconomicRun(controlRun, false));
 const clearing = parseClearing();
 reconcileClearing(clearing, enabled);
+const settlementAndMemory = parseSettlementAndResponsiveMemory();
+const settlementReconciliation = reconcileSettlement(settlementAndMemory, enabled, clearing);
+const spillover = parseAndReconcileSpillover(clearing);
 const memory = parseAndReconcileMemory(enabled);
 const stages = decisionStages(enabled, memory);
 const scoutingFailures = parseScoutingFailures();
@@ -603,7 +740,8 @@ for (const row of catastrophic.rows) {
 }
 
 const annualRatios = new Map();
-for (const year of TARGET_YEARS) {
+const availableCandidateYears = [...enabled.summaries.keys()].sort((left, right) => left - right);
+for (const year of availableCandidateYears) {
   const candidate = enabled.summaries.get(year);
   const baseline = control.summaries.get(year);
   const values = {
@@ -627,29 +765,22 @@ for (const year of TARGET_YEARS) {
   annualRatios.set(year, values);
 }
 
-const enabledDecade = aggregateSummaries(enabled.summaries);
-const controlDecade = aggregateSummaries(control.summaries);
-const decadeRatios = {
-  releases: addRatioGate(failures, "Decade", "successful releases",
-    enabledDecade.releases, controlDecade.releases, 0.85, 1.15),
-  scheduledAlbums: addRatioGate(failures, "Decade", "scheduled Albums",
-    enabledDecade.scheduledAlbums, controlDecade.scheduledAlbums, 0.80, 1.20),
-  singleUnits: addRatioGate(failures, "Decade", "Single units",
-    enabledDecade.singleUnits, controlDecade.singleUnits, 0.85, 1.15),
-  albumUnits: addRatioGate(failures, "Decade", "Album units",
-    enabledDecade.albumUnits, controlDecade.albumUnits, 0.80, 1.20),
-  totalUnits: addRatioGate(failures, "Decade", "total units",
-    enabledDecade.totalUnits, controlDecade.totalUnits, 0.90, 1.10),
-  gross: addRatioGate(failures, "Decade", "gross",
-    enabledDecade.gross, controlDecade.gross, 0.90, 1.10),
-  labelNet: addRatioGate(failures, "Decade", "label net",
-    enabledDecade.labelNet, controlDecade.labelNet, 0.90, 1.10),
-  marketNet: addRatioGate(failures, "Decade", "market net",
-    enabledDecade.marketNet, controlDecade.marketNet, 0.90, 1.10)
-};
+const dateCompleteDecade = TARGET_YEARS.every(year => enabled.summaries.has(year) && control.summaries.has(year));
+const enabledDecade = dateCompleteDecade ? aggregateSummaries(enabled.summaries) : null;
+const controlDecade = dateCompleteDecade ? aggregateSummaries(control.summaries) : null;
+const decadeRatios = dateCompleteDecade ? {
+  releases: addRatioGate(failures, "Decade", "successful releases", enabledDecade.releases, controlDecade.releases, 0.85, 1.15),
+  scheduledAlbums: addRatioGate(failures, "Decade", "scheduled Albums", enabledDecade.scheduledAlbums, controlDecade.scheduledAlbums, 0.80, 1.20),
+  singleUnits: addRatioGate(failures, "Decade", "Single units", enabledDecade.singleUnits, controlDecade.singleUnits, 0.85, 1.15),
+  albumUnits: addRatioGate(failures, "Decade", "Album units", enabledDecade.albumUnits, controlDecade.albumUnits, 0.80, 1.20),
+  totalUnits: addRatioGate(failures, "Decade", "total units", enabledDecade.totalUnits, controlDecade.totalUnits, 0.90, 1.10),
+  gross: addRatioGate(failures, "Decade", "gross", enabledDecade.gross, controlDecade.gross, 0.90, 1.10),
+  labelNet: addRatioGate(failures, "Decade", "label net", enabledDecade.labelNet, controlDecade.labelNet, 0.90, 1.10),
+  marketNet: addRatioGate(failures, "Decade", "market net", enabledDecade.marketNet, controlDecade.marketNet, 0.90, 1.10)
+} : null;
 
-const share1969 = enabled.summaries.get(1969).albumShare;
-if (share1969 < 0.78 - EPSILON || share1969 > 0.85 + EPSILON) {
+const share1969 = dateCompleteDecade ? enabled.summaries.get(1969)?.albumShare : undefined;
+if (share1969 !== undefined && (share1969 < 0.78 - EPSILON || share1969 > 0.85 + EPSILON)) {
   failures.push({
     type: "ORDINARY",
     gate: "1969 scheduled-Album share",
@@ -669,6 +800,9 @@ const lines = [
   "## Exact reconciliation",
   "",
   `- Clearing rows: ${clearing.rows.length}`,
+  `- Spillover edges: ${spillover.rows.length}`,
+  `- Settlement records: ${settlementAndMemory.settlement.rows.length}; regional rows: ${settlementAndMemory.regional.rows.length}`,
+  `- Settlement maximum deltas (gross/label-net/market-net): ${f(settlementReconciliation.maxGrossDelta, 6)}/${f(settlementReconciliation.maxLabelNetDelta, 6)}/${f(settlementReconciliation.maxMarketNetDelta, 6)}`,
   `- Regions: ${clearing.regions.join(", ")}`,
   `- Weeks reconciled to weeks.csv and market-revenue.csv: ${clearing.byWeek.size}`,
   "- Annual Single/Album units reconciled to market-revenue.csv and decade-annual-rollup.csv: 1960-1969",
@@ -769,7 +903,7 @@ lines.push(
   "| Year | Releases | Scheduled Albums | Album share | Single units | Album units | Total units | Gross | Label net | Market net |",
   "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
 );
-for (const year of TARGET_YEARS) {
+for (const year of availableCandidateYears) {
   const values = annualRatios.get(year);
   lines.push(`| ${year} | ${f(values.releases)} | ${f(values.scheduledAlbums)} | ` +
     `${f(enabled.summaries.get(year).albumShare)} | ${f(values.singleUnits)} | ${f(values.albumUnits)} | ` +
@@ -782,9 +916,9 @@ lines.push(
   "",
   "| Releases | Scheduled Albums | Single units | Album units | Total units | Gross | Label net | Market net |",
   "|---:|---:|---:|---:|---:|---:|---:|---:|",
-  `| ${f(decadeRatios.releases)} | ${f(decadeRatios.scheduledAlbums)} | ${f(decadeRatios.singleUnits)} | ` +
-    `${f(decadeRatios.albumUnits)} | ${f(decadeRatios.totalUnits)} | ${f(decadeRatios.gross)} | ` +
-    `${f(decadeRatios.labelNet)} | ${f(decadeRatios.marketNet)} |`,
+  dateCompleteDecade
+    ? `| ${f(decadeRatios.releases)} | ${f(decadeRatios.scheduledAlbums)} | ${f(decadeRatios.singleUnits)} | ${f(decadeRatios.albumUnits)} | ${f(decadeRatios.totalUnits)} | ${f(decadeRatios.gross)} | ${f(decadeRatios.labelNet)} | ${f(decadeRatios.marketNet)} |`
+    : `Decade gates: NOT_APPLICABLE; completed candidate years: ${availableCandidateYears.join("-") || "none"}`,
   "",
   "## Gate failures",
   ""

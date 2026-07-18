@@ -62,24 +62,64 @@ public partial class ChartManager : Node {
 	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
 	private const float WeeklyRegionalPurchaseCapacityMultiplier = 1.34f;
+	// A donor contributes only portable purchase opportunity left idle by its own
+	// local market.  These bounds deliberately prevent the region graph from
+	// becoming a disguised national pool.
+	private const float SpilloverMaximumExportShare = 0.50f;
+	private const float SpilloverMaximumImportShare = 0.15f;
 	private readonly List<MarketClearingRegionalSummary> lastMarketClearingSummaries = new();
+	private readonly List<MarketSpilloverTransfer> lastMarketSpilloverTransfers = new();
+	private CompletedWeekSettlement lastCompletedWeekSettlement;
 
 	public sealed class MarketClearingRegionalSummary {
 		public string RegionId;
 		public int ActiveIntentCount, PurchaseCapacity, ClearedSingleUnits, ClearedAlbumUnits, PhysicalBackorders, MarketDisplacedDemand;
+		public int LocalClearedUnits, UnusedAfterLocal, ExportBudget, ExportedCapacity, ImportLimit, ImportedCapacity, SpilloverClearedUnits;
 		public float RawSingleDemand, RawAlbumDemand, ServiceableSingleIntent, ServiceableAlbumIntent;
 		public int InventoryViolationCount, AllocationViolationCount, ReconciliationDelta;
 		public int ClearedTotalUnits => ClearedSingleUnits + ClearedAlbumUnits;
 		public int ServiceableTotalIntent => Mathf.RoundToInt(ServiceableSingleIntent + ServiceableAlbumIntent);
 	}
+	public sealed class MarketSpilloverTransfer {
+		public string DonorRegionId;
+		public string RecipientRegionId;
+		public int DonorUnusedLocal, DonorExportBudget, RecipientResidualDemand, RecipientImportLimit, TransferredCapacity;
+		public int ClearedSingleUnits, ClearedAlbumUnits, EdgeViolationCount, ReconciliationDelta;
+	}
+	public sealed class CompletedWeekSettlement {
+		public int SettlementId;
+		public GameDate Date;
+		public IReadOnlyList<CompletedWeekSettlementEntry> Entries;
+		public bool IsBooked;
+		public bool IsAuditAcknowledged;
+		public int TotalUnits => Entries?.Sum(entry => entry.Units) ?? 0;
+	}
+	public sealed class CompletedWeekSettlementEntry {
+		public RecordRuntimeData Record;
+		public string RecordId, LabelId;
+		public ReleaseFormat Format;
+		public int Units;
+		public IReadOnlyList<CompletedWeekSettlementRegion> Regions;
+		public float Gross, ManufacturingCost, ArtistRoyalty, DistributionSkim, LabelNet, DistributionIncome, MarketNet;
+		public string DistributionRecipientLabelId;
+		public int BookedCount, AuditedCount;
+		public bool RetiredAfterSettlement;
+	}
+	public sealed class CompletedWeekSettlementRegion {
+		public string RegionId;
+		public int RawIntent, ServiceableIntent, LocalCleared, SpilloverCleared, FinalCleared;
+		public int PhysicalBackorders, MarketDisplacedDemand, InventoryMovement;
+	}
 	private sealed class MarketIntent {
 		public RecordRuntimeData Record;
 		public RegionalRecordData Data;
-		public int Serviceable;
+		public int Serviceable, SpilloverCleared;
 		public int Cleared;
 		public float Fraction;
 	}
 	public IReadOnlyList<MarketClearingRegionalSummary> GetLastMarketClearingSummaries() => lastMarketClearingSummaries;
+	public IReadOnlyList<MarketSpilloverTransfer> GetLastMarketSpilloverTransfers() => lastMarketSpilloverTransfers;
+	public CompletedWeekSettlement GetLastCompletedWeekSettlement() => lastCompletedWeekSettlement;
 
 	// Artist heat cache
 	private Dictionary<string, float> artistHeatCache = new Dictionary<string, float>();
@@ -101,6 +141,8 @@ public partial class ChartManager : Node {
 	public event Action<RecordRuntimeData> OnRecordLeftChart;
 	public event Action<RecordRuntimeData> OnRecordRetired;
 	public event Action<Genre, float> OnGenreMomentumChanged;
+	/// <summary>Raised once after sales are frozen and before any record can retire.</summary>
+	public event Action<CompletedWeekSettlement> OnWeekSettlement;
 	public int RetiredTrackResolutionAttempts { get; private set; }
 	public int RetiredTrackResolutionMisses { get; private set; }
 	public int RetiredTrackArchiveHits { get; private set; }
@@ -401,6 +443,17 @@ public partial class ChartManager : Node {
 		foreach (var region in allRegions) region.SetGenreMarketV2Live(true);
 
 		SimulateWeek(triggerEvents: true);
+		if (GenreMarketV2.Enabled) {
+			FreezeCompletedWeekSettlement(date);
+			// Booking is an explicit state transition, not an unordered event subscriber.
+			// It must complete before the immutable settlement becomes visible to audit.
+			CompetitorManager.Instance?.BookCompletedWeekSettlement(lastCompletedWeekSettlement);
+			if (lastCompletedWeekSettlement?.IsBooked != true)
+				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement?.SettlementId} was not booked.");
+			OnWeekSettlement?.Invoke(lastCompletedWeekSettlement);
+			if (OnWeekSettlement != null && lastCompletedWeekSettlement?.IsAuditAcknowledged != true)
+				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement.SettlementId} was not acknowledged by its audit consumer.");
+		}
 
 		foreach (var record in allRecords) {
 			if (record.isGrammyWinner && record.weeksOfGrammyBump > 0) {
@@ -414,6 +467,44 @@ public partial class ChartManager : Node {
 		// Directive 6 owns one explicit post-chart sequence.  Formation is never
 		// reached by prewarm because this method only runs on a live weekly tick.
 		ArtistManager.Instance?.AdvancePopulationLifecycle(date);
+	}
+
+	private void FreezeCompletedWeekSettlement(GameDate date) {
+		lastCompletedWeekSettlement = new CompletedWeekSettlement {
+			SettlementId = currentChartWeek,
+			Date = date,
+			Entries = allRecords.Select(record => new CompletedWeekSettlementEntry {
+				Record = record,
+				RecordId = record.baseRecord.recordId,
+				LabelId = record.baseRecord.labelId,
+				Format = record.baseRecord.format,
+				Units = record.unitsThisWeek,
+				RetiredAfterSettlement = IsRecordRetirable(record, currentChartWeek % 4 == 0),
+				Regions = record.regionalData.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new CompletedWeekSettlementRegion {
+					RegionId = pair.Key,
+					RawIntent = Mathf.RoundToInt(pair.Value.rawDemandThisWeek),
+					ServiceableIntent = pair.Value.serviceableIntentThisWeek,
+					FinalCleared = pair.Value.unitsSoldThisWeek,
+					LocalCleared = pair.Value.localClearedThisWeek,
+					SpilloverCleared = pair.Value.spilloverClearedThisWeek,
+					PhysicalBackorders = pair.Value.unitsBackordered,
+					MarketDisplacedDemand = pair.Value.marketDisplacedDemandThisWeek,
+					InventoryMovement = pair.Value.unitsSoldThisWeek
+				}).ToArray()
+			}).OrderBy(entry => entry.RecordId, StringComparer.Ordinal).ToArray()
+		};
+	}
+
+	public void AcknowledgeSettlementAudit(CompletedWeekSettlement settlement) {
+		if (settlement == null || settlement != lastCompletedWeekSettlement || !settlement.IsBooked)
+			throw new InvalidOperationException("Attempted to acknowledge a stale or unbooked settlement.");
+		if (settlement.IsAuditAcknowledged)
+			throw new InvalidOperationException($"Settlement {settlement.SettlementId} was acknowledged more than once.");
+		foreach (CompletedWeekSettlementEntry entry in settlement.Entries) {
+			if (entry.AuditedCount != 0) throw new InvalidOperationException($"Settlement {settlement.SettlementId} record {entry.RecordId} was audited more than once.");
+			entry.AuditedCount = 1;
+		}
+		settlement.IsAuditAcknowledged = true;
 	}
 
 
@@ -753,6 +844,7 @@ public partial class ChartManager : Node {
 	private void CalculateLiveRegionalSalesWithMarketClearing(int year, int month, bool triggerEvents,
 		float acceptanceYear, float singleOpportunityNormalization) {
 		lastMarketClearingSummaries.Clear();
+		lastMarketSpilloverTransfers.Clear();
 		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(), StringComparer.Ordinal);
 		// Demand evaluation deliberately retains record-major / region-minor order so
 		// the existing sales jitter consumes precisely the same RNG sequence.
@@ -787,6 +879,8 @@ public partial class ChartManager : Node {
 			}
 		}
 
+		var summariesByRegion = new Dictionary<string, MarketClearingRegionalSummary>(StringComparer.Ordinal);
+		// Stage A: retain the accepted common local clearing unchanged.
 		foreach (MarketRegion region in allRegions) {
 			List<MarketIntent> intents = intentsByRegion[region.regionId];
 			int capacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
@@ -808,11 +902,33 @@ public partial class ChartManager : Node {
 			foreach (MarketIntent intent in intents) {
 				bool album = intent.Record.baseRecord.format == ReleaseFormat.Album;
 				summary.ActiveIntentCount += intent.Serviceable > 0 ? 1 : 0;
-				if (album) { summary.RawAlbumDemand += intent.Data.rawDemandThisWeek; summary.ServiceableAlbumIntent += intent.Serviceable; summary.ClearedAlbumUnits += intent.Cleared; }
-				else { summary.RawSingleDemand += intent.Data.rawDemandThisWeek; summary.ServiceableSingleIntent += intent.Serviceable; summary.ClearedSingleUnits += intent.Cleared; }
-				intent.Data.marketDisplacedDemandThisWeek = intent.Serviceable - intent.Cleared;
-				summary.MarketDisplacedDemand += intent.Data.marketDisplacedDemandThisWeek;
+				if (album) { summary.RawAlbumDemand += intent.Data.rawDemandThisWeek; summary.ServiceableAlbumIntent += intent.Serviceable; }
+				else { summary.RawSingleDemand += intent.Data.rawDemandThisWeek; summary.ServiceableSingleIntent += intent.Serviceable; }
 				summary.PhysicalBackorders += intent.Data.unitsBackordered;
+			}
+			foreach (MarketIntent intent in intents) intent.Data.localClearedThisWeek = intent.Cleared;
+			summary.LocalClearedUnits = intents.Sum(intent => intent.Cleared);
+			summary.UnusedAfterLocal = Mathf.Max(0, capacity - summary.LocalClearedUnits);
+			summary.ExportBudget = Mathf.FloorToInt(summary.UnusedAfterLocal * SpilloverMaximumExportShare);
+			summary.ImportLimit = Mathf.FloorToInt(capacity * SpilloverMaximumImportShare);
+			summariesByRegion[region.regionId] = summary;
+		}
+
+		// Stage B: a deterministic maximum flow over the one-hop region graph.
+		// Donors and recipients are disjoint after local clearing, so no capacity can
+		// be forwarded through an intermediate market in the same week.
+		ApplyBoundedRegionalSpillover(intentsByRegion, summariesByRegion);
+
+		foreach (MarketRegion region in allRegions) {
+			List<MarketIntent> intents = intentsByRegion[region.regionId];
+			MarketClearingRegionalSummary summary = summariesByRegion[region.regionId];
+			foreach (MarketIntent intent in intents) {
+				bool album = intent.Record.baseRecord.format == ReleaseFormat.Album;
+				if (album) summary.ClearedAlbumUnits += intent.Cleared;
+				else summary.ClearedSingleUnits += intent.Cleared;
+				intent.Data.marketDisplacedDemandThisWeek = intent.Serviceable - intent.Cleared;
+				intent.Data.spilloverClearedThisWeek = intent.SpilloverCleared;
+				summary.MarketDisplacedDemand += intent.Data.marketDisplacedDemandThisWeek;
 				if (intent.Cleared > intent.Serviceable || intent.Cleared > intent.Data.unitsInStores || intent.Cleared > intent.Data.storeCapacityThisWeek)
 					summary.InventoryViolationCount++;
 				intent.Data.unitsInStores = Mathf.Max(0, intent.Data.unitsInStores - intent.Cleared);
@@ -820,7 +936,9 @@ public partial class ChartManager : Node {
 				intent.Data.unitsSoldTotal += intent.Cleared;
 			}
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
-			if (summary.ClearedTotalUnits > capacity || summary.ClearedTotalUnits > totalIntent || summary.ReconciliationDelta != 0)
+			if (summary.LocalClearedUnits > summary.PurchaseCapacity || summary.ExportedCapacity > summary.ExportBudget ||
+				summary.ImportedCapacity > summary.ImportLimit || summary.ImportedCapacity > summary.ServiceableTotalIntent - summary.LocalClearedUnits ||
+				summary.ClearedTotalUnits > summary.ServiceableTotalIntent || summary.ReconciliationDelta != 0)
 				summary.AllocationViolationCount++;
 			lastMarketClearingSummaries.Add(summary);
 		}
@@ -828,6 +946,116 @@ public partial class ChartManager : Node {
 			int totalSales = record.regionalData.Values.Sum(data => data.unitsSoldThisWeek);
 			ChartSimulator.FinalizeWeeklySales(record, totalSales);
 			if (record.baseRecord.format != ReleaseFormat.Album) ChartSimulator.UpdateSaturation(record, allRegions);
+		}
+	}
+
+	private sealed class SpilloverFlowEdge {
+		public int To, Reverse, Capacity, InitialCapacity;
+		public string DonorRegionId, RecipientRegionId;
+	}
+
+	private static SpilloverFlowEdge AddSpilloverFlowEdge(List<SpilloverFlowEdge>[] graph, int from, int to, int capacity,
+		string donorRegionId = null, string recipientRegionId = null) {
+		var forward = new SpilloverFlowEdge { To = to, Reverse = graph[to].Count, Capacity = capacity,
+			InitialCapacity = capacity, DonorRegionId = donorRegionId, RecipientRegionId = recipientRegionId };
+		var reverse = new SpilloverFlowEdge { To = from, Reverse = graph[from].Count, Capacity = 0 };
+		graph[from].Add(forward); graph[to].Add(reverse);
+		return forward;
+	}
+
+	private void ApplyBoundedRegionalSpillover(Dictionary<string, List<MarketIntent>> intentsByRegion,
+		Dictionary<string, MarketClearingRegionalSummary> summaries) {
+		var donors = summaries.Values.Where(row => row.ExportBudget > 0).OrderBy(row => row.RegionId, StringComparer.Ordinal).ToList();
+		var recipients = summaries.Values.Where(row => row.ImportLimit > 0 && row.ServiceableTotalIntent > row.LocalClearedUnits)
+			.OrderBy(row => row.RegionId, StringComparer.Ordinal).ToList();
+		if (donors.Count == 0 || recipients.Count == 0) return;
+		var donorIndex = donors.Select((row, index) => (row.RegionId, Node: index + 1)).ToDictionary(pair => pair.RegionId, pair => pair.Node, StringComparer.Ordinal);
+		var recipientIndex = recipients.Select((row, index) => (row.RegionId, Node: index + 1 + donors.Count)).ToDictionary(pair => pair.RegionId, pair => pair.Node, StringComparer.Ordinal);
+		int source = 0, sink = donors.Count + recipients.Count + 1;
+		var graph = Enumerable.Range(0, sink + 1).Select(_ => new List<SpilloverFlowEdge>()).ToArray();
+		foreach (MarketClearingRegionalSummary donor in donors) AddSpilloverFlowEdge(graph, source, donorIndex[donor.RegionId], donor.ExportBudget);
+		foreach (MarketClearingRegionalSummary recipient in recipients) {
+			int residual = recipient.ServiceableTotalIntent - recipient.LocalClearedUnits;
+			AddSpilloverFlowEdge(graph, recipientIndex[recipient.RegionId], sink, Mathf.Min(residual, recipient.ImportLimit));
+		}
+		var transferEdges = new List<SpilloverFlowEdge>();
+		foreach (MarketClearingRegionalSummary donor in donors) {
+			foreach (string neighborId in GetNeighborRegionIds(donor.RegionId).OrderBy(id => id, StringComparer.Ordinal)) {
+				if (!recipientIndex.TryGetValue(neighborId, out int recipientNode)) continue;
+				transferEdges.Add(AddSpilloverFlowEdge(graph, donorIndex[donor.RegionId], recipientNode, donor.ExportBudget,
+					donor.RegionId, neighborId));
+			}
+		}
+		// Edmonds-Karp is compact, deterministic under the sorted graph construction,
+		// and exact for this small fixed regional graph.
+		while (true) {
+			var parentNode = Enumerable.Repeat(-1, graph.Length).ToArray();
+			var parentEdge = Enumerable.Repeat(-1, graph.Length).ToArray();
+			var queue = new Queue<int>(); queue.Enqueue(source); parentNode[source] = source;
+			while (queue.Count > 0 && parentNode[sink] < 0) {
+				int node = queue.Dequeue();
+				for (int edgeIndex = 0; edgeIndex < graph[node].Count; edgeIndex++) {
+					SpilloverFlowEdge edge = graph[node][edgeIndex];
+					if (edge.Capacity <= 0 || parentNode[edge.To] >= 0) continue;
+					parentNode[edge.To] = node; parentEdge[edge.To] = edgeIndex; queue.Enqueue(edge.To);
+				}
+			}
+			if (parentNode[sink] < 0) break;
+			int pushed = int.MaxValue;
+			for (int node = sink; node != source; node = parentNode[node]) pushed = Mathf.Min(pushed, graph[parentNode[node]][parentEdge[node]].Capacity);
+			for (int node = sink; node != source; node = parentNode[node]) {
+				SpilloverFlowEdge edge = graph[parentNode[node]][parentEdge[node]];
+				edge.Capacity -= pushed; graph[node][edge.Reverse].Capacity += pushed;
+			}
+		}
+		var imports = new Dictionary<string, int>(StringComparer.Ordinal);
+		foreach (SpilloverFlowEdge edge in transferEdges) {
+			int transfer = edge.InitialCapacity - edge.Capacity;
+			if (transfer <= 0) continue;
+			MarketClearingRegionalSummary donor = summaries[edge.DonorRegionId], recipient = summaries[edge.RecipientRegionId];
+			donor.ExportedCapacity += transfer; recipient.ImportedCapacity += transfer;
+			imports[edge.RecipientRegionId] = imports.TryGetValue(edge.RecipientRegionId, out int previous) ? previous + transfer : transfer;
+			lastMarketSpilloverTransfers.Add(new MarketSpilloverTransfer { DonorRegionId = edge.DonorRegionId, RecipientRegionId = edge.RecipientRegionId,
+				DonorUnusedLocal = donor.UnusedAfterLocal, DonorExportBudget = donor.ExportBudget,
+				RecipientResidualDemand = recipient.ServiceableTotalIntent - recipient.LocalClearedUnits, RecipientImportLimit = recipient.ImportLimit,
+				TransferredCapacity = transfer });
+		}
+		foreach (var pair in imports.OrderBy(pair => pair.Key, StringComparer.Ordinal)) {
+			List<MarketIntent> residualIntents = intentsByRegion[pair.Key].Where(intent => intent.Serviceable > intent.Cleared).ToList();
+			AllocateProportionalSpillover(residualIntents, pair.Value);
+			summaries[pair.Key].SpilloverClearedUnits = residualIntents.Sum(intent => intent.SpilloverCleared);
+		}
+		// Attribute recipient format results across its inbound edges deterministically.
+		foreach (IGrouping<string, MarketSpilloverTransfer> group in lastMarketSpilloverTransfers.GroupBy(row => row.RecipientRegionId)) {
+			int single = intentsByRegion[group.Key].Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Single).Sum(intent => intent.SpilloverCleared);
+			single = Mathf.Clamp(single, 0, group.Sum(row => row.TransferredCapacity));
+			AllocateTransferFormats(group.OrderBy(row => row.DonorRegionId, StringComparer.Ordinal).ToList(), single);
+		}
+	}
+
+	private static void AllocateProportionalSpillover(List<MarketIntent> intents, int capacity) {
+		int total = intents.Sum(intent => intent.Serviceable - intent.Cleared);
+		int allocated = Mathf.Min(Mathf.Max(0, capacity), total);
+		if (allocated == 0 || total == 0) return;
+		int assigned = 0;
+		foreach (MarketIntent intent in intents) {
+			float exact = (intent.Serviceable - intent.Cleared) * (float)allocated / total;
+			int units = Mathf.FloorToInt(exact); intent.Cleared += units; intent.SpilloverCleared += units; intent.Fraction = exact - units; assigned += units;
+		}
+		int remaining = allocated - assigned;
+		foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction).ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) { intent.Cleared++; intent.SpilloverCleared++; }
+	}
+
+	private static void AllocateTransferFormats(List<MarketSpilloverTransfer> transfers, int singleUnits) {
+		int total = transfers.Sum(row => row.TransferredCapacity), assigned = 0;
+		var fractions = new Dictionary<MarketSpilloverTransfer, float>();
+		foreach (MarketSpilloverTransfer transfer in transfers) {
+			float exact = transfer.TransferredCapacity * (float)singleUnits / Mathf.Max(1, total);
+			transfer.ClearedSingleUnits = Mathf.FloorToInt(exact); transfer.ClearedAlbumUnits = transfer.TransferredCapacity - transfer.ClearedSingleUnits;
+			assigned += transfer.ClearedSingleUnits; fractions[transfer] = exact - transfer.ClearedSingleUnits;
+		}
+		foreach (MarketSpilloverTransfer transfer in transfers.OrderByDescending(row => fractions[row]).ThenBy(row => row.DonorRegionId, StringComparer.Ordinal).Take(singleUnits - assigned)) {
+			transfer.ClearedSingleUnits++; transfer.ClearedAlbumUnits--;
 		}
 	}
 
@@ -1344,7 +1572,16 @@ public partial class ChartManager : Node {
 	}
 
 	private void CullDeadRecords(bool includeChartedRecords) {
-		var recordsToRetire = allRecords.Where(record => {
+		var recordsToRetire = allRecords.Where(record => IsRecordRetirable(record, includeChartedRecords)).ToList();
+
+		foreach (var record in recordsToRetire) RetireRecord(record);
+
+		if (debugMode && recordsToRetire.Count > 0) {
+			GD.Print($"ChartManager: Retired {recordsToRetire.Count} dead records. Active: {allRecords.Count}");
+		}
+	}
+
+	private bool IsRecordRetirable(RecordRuntimeData record, bool includeChartedRecords) {
 			if (record.baseRecord.format == ReleaseFormat.Album) {
 				if (record.currentPosition != 0 || record.unitsThisWeek >= albumCatalogSalesFloor) return false;
 				if (record.weeksOnChart == 0) return record.weeksSinceRelease >= albumNeverChartedToleranceWeeks;
@@ -1369,17 +1606,15 @@ public partial class ChartManager : Node {
 				 GetWeeksSinceSalesAboveRetirementFloor(record) >= ChartedRelevanceHorizonWeeks);
 
 			return neverChartedExpired || chartedExpired || chartedRelevanceExpired;
-		}).ToList();
-
-		foreach (var record in recordsToRetire) RetireRecord(record);
-
-		if (debugMode && recordsToRetire.Count > 0) {
-			GD.Print($"ChartManager: Retired {recordsToRetire.Count} dead records. Active: {allRecords.Count}");
-		}
 	}
 
 	private void RetireRecord(RecordRuntimeData record) {
 		if (record?.baseRecord == null) return;
+		if (lastCompletedWeekSettlement?.Entries != null) {
+			CompletedWeekSettlementEntry entry = lastCompletedWeekSettlement.Entries
+				.FirstOrDefault(candidate => candidate.RecordId == record.baseRecord.recordId);
+			if (entry != null) entry.RetiredAfterSettlement = true;
+		}
 		if (record.baseRecord.format == ReleaseFormat.Single) {
 			retiredTrackArchive[record.baseRecord.recordId] = CreateTrackSnapshot(record);
 		}

@@ -50,6 +50,9 @@ public class RegionalRecordData {
 	public int serviceableIntentThisWeek;
 	public int storeCapacityThisWeek;
 	public int marketDisplacedDemandThisWeek;
+	// Immutable settlement inputs captured after the two clearing stages.
+	public int localClearedThisWeek;
+	public int spilloverClearedThisWeek;
 	public float salesVelocity;
 	public int sustainedGrowthWeeks;
 	public int tractionWeeks;

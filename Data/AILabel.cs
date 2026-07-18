@@ -545,6 +545,20 @@ public partial class AILabel : Resource {
 }
 
 public sealed class FormatRevenueMemory {
+	// Legacy fields remain diagnostic-only for old saved state; live decisions use
+	// the bounded, release-time normalized observations below.
 	public float emaNetPerRelease;
 	public int releasesObserved;
+	public List<FormatMemoryObservation> observations = new();
+}
+
+public sealed class FormatMemoryObservation {
+	public string releaseId;
+	public int releaseWeek;
+	public float expectedNet;
+	public float opportunityScale;
+	public float normalizedResidual;
+	public float maturityWeight;
+	public int lastRevisionAge;
+	public bool finalized;
 }

@@ -33,6 +33,10 @@ public partial class CompetitorManager : Node {
 	[Export(PropertyHint.Range, "0,2,0.05")] private float compilationProductionMultiplier = 0.60f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float revenueMemoryAlpha = 0.30f;
 	[Export(PropertyHint.Range, "0.1,20,0.1")] private float revenueMemoryConfidenceK = 4.0f;
+	private const int ResponsiveMemoryMaximumHistoryWeeks = 104;
+	private const float ResponsiveMemoryHalfLifeWeeks = 52f;
+	private const float ResponsiveMemoryMaximumConfidence = .65f;
+	private const float ResponsiveMemoryResidualLimit = 3f;
 	[Export] private float priorUnitScalarAlbum = 175000f;
 	[Export] private float priorCompHitUnitScalar = 20000f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float hitRecencyDecay = 0.75f;
@@ -100,6 +104,7 @@ public partial class CompetitorManager : Node {
 	private List<AILabel> aiLabels;
 	private bool distributionOfferProcessingEnabled = true;
 	private readonly Dictionary<(string LabelId, ReleaseFormat Format), RevenueTelemetry> weeklyRevenueByLabelAndFormat = new();
+	private int lastBookedSettlementId;
 	public int DistributorCollapseCount { get; private set; }
 	public int WeeklyReleaseRollsFired { get; private set; }
 	public int WeeklySuccessfulReleases { get; private set; }
@@ -134,6 +139,7 @@ public partial class CompetitorManager : Node {
 	public event System.Action<ReleaseStrategyTelemetry> OnReleaseStrategy;
 	public event System.Action<CalibrationDecisionTelemetry> OnCalibrationDecision;
 	public event System.Action<ReleaseOutcomeTelemetry> OnReleaseOutcome;
+	public event System.Action<FormatMemoryRevisionTelemetry> OnFormatMemoryRevision;
 	public event System.Action<SupplySelectionTelemetry> OnSupplySelection;
 	
 	public override void _EnterTree() {
@@ -272,14 +278,44 @@ public partial class CompetitorManager : Node {
 				}
 			}
 		}
-		ProcessWeeklyRevenue();
+		// The disabled route is a byte-frozen compatibility boundary. It retains
+		// the historical prior-week booking timing and never consumes settlement
+		// state, spillover, or responsive-memory observations.
+		if (!GenreMarketV2.Enabled) ProcessWeeklyRevenue(CreateLegacyRevenueSettlement(date));
 		pipelineWeek++;
 		ResetWeeklyReleaseCounters();
 		ProcessDueAlbumProjects(date);
 		ProcessWeeklyReleases(date);
 	}
+
+	/// <summary>Explicit, ordered booking transition for a frozen live settlement.</summary>
+	public void BookCompletedWeekSettlement(ChartManager.CompletedWeekSettlement settlement) {
+		if (settlement == null || !GenreMarketV2.Enabled || ChartManager.Instance?.IsGenreMarketV2Live != true)
+			throw new System.InvalidOperationException("Attempted to book a non-live settlement.");
+		if (settlement.IsBooked || settlement.SettlementId <= 0 || settlement.SettlementId != lastBookedSettlementId + 1)
+			throw new System.InvalidOperationException($"Rejected duplicate, stale, skipped, or out-of-order settlement {settlement.SettlementId} after {lastBookedSettlementId}.");
+		ProcessWeeklyRevenue(settlement);
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
+			RecordRuntimeData record = entry.Record;
+			if (record?.revenueMemoryEligible != true) continue;
+			int age = record.weeksSinceRelease;
+			if (age == 13 || age == 26 || (record.baseRecord.format == ReleaseFormat.Album && age == 52))
+				UpdateResponsiveMemoryObservation(record, finalized: false);
+		}
+		settlement.IsBooked = true;
+		lastBookedSettlementId = settlement.SettlementId;
+	}
+
+	private ChartManager.CompletedWeekSettlement CreateLegacyRevenueSettlement(GameDate date) => new() {
+		SettlementId = -1,
+		Date = date,
+		Entries = ChartManager.Instance?.GetAllRecords().Select(record => new ChartManager.CompletedWeekSettlementEntry {
+			Record = record, RecordId = record.baseRecord.recordId, LabelId = record.baseRecord.labelId,
+			Format = record.baseRecord.format, Units = record.unitsThisWeek
+		}).ToArray() ?? System.Array.Empty<ChartManager.CompletedWeekSettlementEntry>()
+	};
 	
-	private void ProcessWeeklyRevenue() {
+	private void ProcessWeeklyRevenue(ChartManager.CompletedWeekSettlement settlement) {
 		weeklyRevenueByLabelAndFormat.Clear();
 		foreach (var label in aiLabels) {
 			label.weeklyGrossRevenue = 0f;
@@ -290,8 +326,12 @@ public partial class CompetitorManager : Node {
 			label.weeklyDistributionIncome = 0f;
 		}
 		foreach (var label in aiLabels) {
-			if (!label.IsActive) continue;
-			float weeklyRevenue = CalculateLabelRevenue(label);
+			// A frozen enabled settlement may still contain a record from a label whose
+			// lifecycle status changed earlier in the week. It remains an economic fact
+			// and must be booked exactly once before retirement. The legacy route keeps
+			// its historical inactive-label exclusion for byte-identical replay.
+			if (!label.IsActive && settlement.SettlementId < 1) continue;
+			float weeklyRevenue = CalculateLabelRevenue(label, settlement);
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
@@ -300,19 +340,18 @@ public partial class CompetitorManager : Node {
 		}
 	}
 	
-	private float CalculateLabelRevenue(AILabel label) {
-		if (!labelActiveRecords.TryGetValue(label.labelId, out var recordIds)) return 0f;
+	private float CalculateLabelRevenue(AILabel label, ChartManager.CompletedWeekSettlement settlement) {
+		if (settlement?.Entries == null) return 0f;
 		long profileStart = SimulationPerformanceProfiler.Begin();
 		float totalRevenue = 0f;
-		var deadRecords = new List<string>();
 		
-		foreach (var recordId in recordIds) {
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries.Where(entry => entry.LabelId == label.labelId)) {
 			long lookupProfileStart = SimulationPerformanceProfiler.Begin();
-			var runtimeData = ChartManager.Instance.GetRecordRuntimeData(recordId);
+			var runtimeData = entry.Record;
 			SimulationPerformanceProfiler.EndRecordLookup(lookupProfileStart);
-			if (runtimeData == null) { deadRecords.Add(recordId); continue; }
+			if (runtimeData == null) continue;
 			
-			float weeklyUnits = runtimeData.unitsThisWeek;
+			float weeklyUnits = entry.Units;
 			ReleaseFormat format = runtimeData.baseRecord.format;
 			float pricePerUnit = GetPricePerUnit(format);
 			float pressingCost = GetPressingCostPerUnit(format);
@@ -332,6 +371,15 @@ public partial class CompetitorManager : Node {
 			// distribution skim is based on revenue after manufacturing cost.
 			float artistPayment = retailGross * artistRoyalty;
 			float recordRevenue = grossAfterCogs - skimAmount - artistPayment;
+			entry.Gross = retailGross;
+			entry.ManufacturingCost = cogs;
+			entry.ArtistRoyalty = artistPayment;
+			entry.DistributionSkim = skimAmount;
+			entry.LabelNet = recordRevenue;
+			entry.MarketNet = recordRevenue;
+			entry.DistributionIncome = 0f;
+			entry.DistributionRecipientLabelId = string.Empty;
+			entry.BookedCount = 1;
 			runtimeData.lifetimeLabelNet += recordRevenue;
 			totalRevenue += recordRevenue;
 			label.weeklyGrossRevenue += retailGross;
@@ -345,7 +393,7 @@ public partial class CompetitorManager : Node {
 			formatRevenue.distributionSkim += skimAmount;
 			formatRevenue.artistRoyalty += artistPayment;
 			formatRevenue.labelNet += recordRevenue;
-			RouteDistributionSkim(label, skimAmount, format);
+			RouteDistributionSkim(label, skimAmount, format, entry);
 			
 			if (artist != null) {
 				float recouped = Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), artistPayment);
@@ -355,9 +403,6 @@ public partial class CompetitorManager : Node {
 			
 		}
 		
-		foreach (var dead in deadRecords) {
-			recordIds.Remove(dead);
-		}
 		SimulationPerformanceProfiler.EndCalculateLabelRevenue(profileStart);
 		return totalRevenue;
 	}
@@ -414,11 +459,17 @@ public partial class CompetitorManager : Node {
 
 	public void SetAlbumsEnabled(bool enabled) => enableAlbums = enabled;
 
-	private void RouteDistributionSkim(AILabel client, float skimAmount, ReleaseFormat format) {
+	private void RouteDistributionSkim(AILabel client, float skimAmount, ReleaseFormat format,
+		ChartManager.CompletedWeekSettlementEntry sourceEntry = null) {
 		DistributionDeal deal = client.activeDeal;
 		if (deal == null || skimAmount <= 0f) return;
 		AILabel distributor = GetLabel(deal.distributorId);
 		if (distributor == null || distributor == client) return;
+		if (sourceEntry != null) {
+			sourceEntry.DistributionIncome = skimAmount;
+			sourceEntry.DistributionRecipientLabelId = distributor.labelId;
+			sourceEntry.MarketNet = sourceEntry.LabelNet + skimAmount;
+		}
 
 		float recouped = Mathf.Min(Mathf.Max(0f, deal.unrecoupedAdvance), skimAmount);
 		deal.unrecoupedAdvance = Mathf.Max(0f, deal.unrecoupedAdvance - recouped);
@@ -528,6 +579,7 @@ public partial class CompetitorManager : Node {
 		});
 
 		if (!runtimeData.revenueMemoryEligible) return;
+		UpdateResponsiveMemoryObservation(runtimeData, finalized: true);
 		if (!string.IsNullOrEmpty(runtimeData.albumProjectId) && projectById.TryGetValue(runtimeData.albumProjectId, out AlbumProject project)) {
 			if (runtimeData.projectRole == ProjectRecordRole.PromoSingle) {
 				project.promoRetired = true;
@@ -553,16 +605,74 @@ public partial class CompetitorManager : Node {
 				return;
 			}
 		}
-		ApplyMemoryObservation(labelId, runtimeData.baseRecord.format, realizedNet);
+		// The release keyed residual is authoritative only in the enabled live
+		// route. The frozen disabled route retains its historical EMA update.
+		if (!GenreMarketV2.Enabled) ApplyMemoryObservation(labelId, runtimeData.baseRecord.format, realizedNet);
 	}
 
 	private void ApplyMemoryObservation(string labelId, ReleaseFormat format, float realizedNet) {
+		// Retained only for project-state compatibility and diagnostics. The live
+		// decision path uses UpdateResponsiveMemoryObservation instead.
 		AILabel label = GetLabel(labelId);
 		if (label == null) return;
 		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(format);
 		float alpha = Mathf.Clamp(revenueMemoryAlpha, 0f, 1f);
 		memory.emaNetPerRelease = memory.releasesObserved == 0 ? realizedNet : Mathf.Lerp(memory.emaNetPerRelease, realizedNet, alpha);
 		memory.releasesObserved++;
+	}
+
+	private void UpdateResponsiveMemoryObservation(RecordRuntimeData runtimeData, bool finalized) {
+		if (runtimeData?.baseRecord == null || string.IsNullOrEmpty(runtimeData.baseRecord.labelId)) return;
+		AILabel label = GetLabel(runtimeData.baseRecord.labelId);
+		if (label == null) return;
+		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(runtimeData.baseRecord.format);
+		string releaseId = runtimeData.baseRecord.recordId;
+		int age = Mathf.Max(0, runtimeData.weeksSinceRelease);
+		float expectedNet = runtimeData.releaseTimeExpectedNet;
+		float scale = Mathf.Max(1f, Mathf.Max(runtimeData.releaseTimeOpportunityScale, Mathf.Abs(expectedNet)));
+		float terminalAge = runtimeData.baseRecord.format == ReleaseFormat.Album ? 52f : 20f;
+		float maturity = finalized ? 1f : Mathf.Clamp((age + 1f) / terminalAge, .05f, 1f);
+		// Partial outcomes are annualized to an age-matched terminal estimate before
+		// comparison; raw partial Album net is never compared to a full prior.
+		float realizedToDate = runtimeData.lifetimeLabelNet - runtimeData.sunkProductionCost;
+		float estimatedOutcome = finalized ? realizedToDate : realizedToDate / maturity;
+		float residual = Mathf.Clamp((estimatedOutcome - expectedNet) / scale, -ResponsiveMemoryResidualLimit, ResponsiveMemoryResidualLimit);
+		if (float.IsNaN(residual) || float.IsInfinity(residual)) return;
+		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == releaseId);
+		if (observation == null) {
+			observation = new FormatMemoryObservation { releaseId = releaseId, releaseWeek = runtimeData.releaseMemoryWeek,
+				expectedNet = expectedNet, opportunityScale = scale };
+			memory.observations.Add(observation);
+		}
+		if (!finalized && observation.lastRevisionAge >= age) return;
+		bool replacedPriorRevision = observation.lastRevisionAge >= 0;
+		observation.normalizedResidual = residual;
+		observation.maturityWeight = maturity;
+		observation.lastRevisionAge = age;
+		observation.finalized |= finalized;
+		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
+			releaseId = releaseId, labelId = runtimeData.baseRecord.labelId, format = runtimeData.baseRecord.format,
+			genre = runtimeData.baseRecord.primaryGenre, releaseAge = age, revisionKind = finalized ? "Final" : $"Age{age}",
+			releaseTimeExpectedNet = expectedNet, ageMatchedExpectedNet = expectedNet * maturity,
+			realizedNetToDate = realizedToDate, estimatedOutcomeNet = estimatedOutcome, opportunityScale = scale,
+			normalizedResidual = residual, maturityWeight = maturity,
+			recencyWeight = 1f, replacedPriorRevision = replacedPriorRevision, finalized = observation.finalized
+		});
+	}
+
+	private (float Residual, float EffectiveWeight, float Confidence) GetResponsiveMemory(FormatRevenueMemory memory, int currentWeek) {
+		if (memory?.observations == null) return (0f, 0f, 0f);
+		float weightedResidual = 0f, weight = 0f;
+		foreach (FormatMemoryObservation observation in memory.observations) {
+			int age = Mathf.Max(0, currentWeek - observation.releaseWeek);
+			if (age > ResponsiveMemoryMaximumHistoryWeeks) continue;
+			float recency = Mathf.Pow(.5f, age / ResponsiveMemoryHalfLifeWeeks);
+			float itemWeight = recency * Mathf.Clamp(observation.maturityWeight, .05f, 1f);
+			weightedResidual += observation.normalizedResidual * itemWeight;
+			weight += itemWeight;
+		}
+		float confidence = Mathf.Min(ResponsiveMemoryMaximumConfidence, weight / (weight + Mathf.Max(.1f, revenueMemoryConfidenceK)));
+		return (weight > 0f ? weightedResidual / weight : 0f, weight, confidence);
 	}
 
 	private void TryFoldProjectMemory(AlbumProject project) {
@@ -658,6 +768,9 @@ public partial class CompetitorManager : Node {
 		if (runtimeData == null) throw new System.InvalidOperationException($"Released record '{record.recordId}' has no runtime data.");
 		runtimeData.sunkProductionCost = productionCost;
 		runtimeData.revenueMemoryEligible = true;
+		runtimeData.releaseTimeExpectedNet = plan.format == ReleaseFormat.Album ? plan.priorAlbumNet : plan.priorSingleNet;
+		runtimeData.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(runtimeData.releaseTimeExpectedNet), productionCost));
+		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtimeData.projectRole = ProjectRecordRole.OrphanSingle;
 		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
 		TrackRelease(label.labelId, record.recordId);
@@ -924,6 +1037,9 @@ public partial class CompetitorManager : Node {
 			?? throw new System.InvalidOperationException($"Released record '{record.recordId}' has no runtime data.");
 		runtime.sunkProductionCost = productionCost;
 		runtime.revenueMemoryEligible = true;
+		runtime.releaseTimeExpectedNet = -productionCost;
+		runtime.releaseTimeOpportunityScale = Mathf.Max(1f, productionCost);
+		runtime.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtime.projectRole = role;
 		runtime.albumProjectId = projectId;
 		if (role == ProjectRecordRole.LinkedAlbum && projectById.TryGetValue(projectId, out AlbumProject project)) runtime.linkedPromoSingleId = project.promoSingleId;
@@ -997,20 +1113,24 @@ public partial class CompetitorManager : Node {
 		float priorAlbum = CalculateAlbumPriorNet(label, artist, year, decision, compCostWeight, hitInventory, out AlbumPriorDiagnostics albumPrior);
 		FormatRevenueMemory singleMemory = label.GetOrCreateRevenueMemory(ReleaseFormat.Single);
 		FormatRevenueMemory albumMemory = label.GetOrCreateRevenueMemory(ReleaseFormat.Album);
-		float confidenceK = Mathf.Max(0.1f, revenueMemoryConfidenceK);
-		float confidenceSingle = singleMemory.releasesObserved / (singleMemory.releasesObserved + confidenceK);
-		float confidenceAlbum = albumMemory.releasesObserved / (albumMemory.releasesObserved + confidenceK);
+		bool useResponsiveMemory = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		var singleResponsive = GetResponsiveMemory(singleMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		var albumResponsive = GetResponsiveMemory(albumMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		float confidenceSingle = useResponsiveMemory ? singleResponsive.Confidence : singleMemory.releasesObserved / (singleMemory.releasesObserved + Mathf.Max(.1f, revenueMemoryConfidenceK));
+		float confidenceAlbum = useResponsiveMemory ? albumResponsive.Confidence : albumMemory.releasesObserved / (albumMemory.releasesObserved + Mathf.Max(.1f, revenueMemoryConfidenceK));
 		confidenceSingle = GetProjectFormatMemoryConfidence(confidenceSingle, decision.nonRetainedEmergingProject);
 		confidenceAlbum = GetProjectFormatMemoryConfidence(confidenceAlbum, decision.nonRetainedEmergingProject);
 		float rawConfidenceSingle = confidenceSingle;
 		float rawConfidenceAlbum = confidenceAlbum;
-		bool applyLiveMemoryCeiling = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
-		if (applyLiveMemoryCeiling) {
-			confidenceSingle = Mathf.Min(confidenceSingle, .75f);
-			confidenceAlbum = Mathf.Min(confidenceAlbum, .75f);
-		}
-		float projectedSingle = Mathf.Lerp(priorSingle, singleMemory.emaNetPerRelease, confidenceSingle);
-		float projectedAlbum = Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum);
+		bool applyLiveMemoryCeiling = useResponsiveMemory;
+		// Current priors remain the centre of the decision; memory is only a bounded
+		// relative-performance adjustment scaled to the opportunity visible today.
+		float projectedSingle = useResponsiveMemory
+			? priorSingle + confidenceSingle * singleResponsive.Residual * Mathf.Max(1f, Mathf.Abs(priorSingle))
+			: Mathf.Lerp(priorSingle, singleMemory.emaNetPerRelease, confidenceSingle);
+		float projectedAlbum = useResponsiveMemory
+			? priorAlbum + confidenceAlbum * albumResponsive.Residual * Mathf.Max(1f, Mathf.Abs(priorAlbum))
+			: Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum);
 
 		float noiseRange = Mathf.Lerp(0.50f, 0.15f, Mathf.Clamp(label.scoutingAbility, 0f, 1f));
 		float singleNoiseMultiplier = 1f + (float)GD.RandRange(-noiseRange, noiseRange);
@@ -1055,9 +1175,10 @@ public partial class CompetitorManager : Node {
 			singlePreTiltContribution = singlePreTiltContribution, singleFormatTilt = singleFormatTilt,
 			albumAffinity = albumPrior.albumAffinity, acceptedAlbumOpportunity = albumPrior.acceptedOpportunity,
 			albumFormatTilt = albumPrior.formatTilt, albumPreTiltContribution = albumPrior.preTiltAffinityUnits,
-			albumProductionCost = albumPrior.productionCost, singleMemoryEma = singleMemory.emaNetPerRelease,
-			albumMemoryEma = albumMemory.emaNetPerRelease, singleMemoryBlend = Mathf.Lerp(priorSingle, singleMemory.emaNetPerRelease, confidenceSingle),
-			albumMemoryBlend = Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum),
+			albumProductionCost = albumPrior.productionCost, singleMemoryEma = useResponsiveMemory ? singleResponsive.Residual : singleMemory.emaNetPerRelease,
+			albumMemoryEma = useResponsiveMemory ? albumResponsive.Residual : albumMemory.emaNetPerRelease,
+			singleMemoryBlend = useResponsiveMemory ? projectedSingle : Mathf.Lerp(priorSingle, singleMemory.emaNetPerRelease, confidenceSingle),
+			albumMemoryBlend = useResponsiveMemory ? projectedAlbum : Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum),
 			labelFormatMemoryBypassed = decision.nonRetainedEmergingProject,
 			singleNoiseMultiplier = singleNoiseMultiplier, albumNoiseMultiplier = albumNoiseMultiplier
 		};
@@ -2357,4 +2478,14 @@ public sealed class ReleaseOutcomeTelemetry {
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public float realizedNet;
+}
+
+public sealed class FormatMemoryRevisionTelemetry {
+	public string releaseId, labelId, revisionKind;
+	public ReleaseFormat format;
+	public Genre genre;
+	public int releaseAge;
+	public float releaseTimeExpectedNet, ageMatchedExpectedNet, realizedNetToDate, estimatedOutcomeNet, opportunityScale;
+	public float normalizedResidual, maturityWeight, recencyWeight;
+	public bool replacedPriorRevision, finalized;
 }

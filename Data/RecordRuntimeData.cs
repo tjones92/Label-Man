@@ -37,6 +37,10 @@ public class RecordRuntimeData {
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public bool revenueMemoryEligible;
+	// Immutable-at-launch context for normalized, opportunity-relative memory.
+	public float releaseTimeExpectedNet;
+	public float releaseTimeOpportunityScale;
+	public int releaseMemoryWeek;
 	public ProjectRecordRole projectRole;
 	public string albumProjectId;
 	public string linkedPromoSingleId;
