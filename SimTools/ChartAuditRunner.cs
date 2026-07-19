@@ -258,8 +258,11 @@ public partial class ChartAuditRunner : Node {
 	private sealed class CatastrophicAbortException : Exception {
 		public readonly string Gate, Metric, State;
 		public readonly double EnabledValue, ControlValue;
-		public CatastrophicAbortException(string gate, string metric, double enabledValue, double controlValue, string state) : base($"{gate}: {metric}; enabled={enabledValue}; control={controlValue}; {state}") {
-			Gate = gate; Metric = metric; EnabledValue = enabledValue; ControlValue = controlValue; State = state;
+		public readonly int CompletedYear;
+		public CatastrophicAbortException(string gate, string metric, double enabledValue, double controlValue,
+			string state, int completedYear = 0) : base($"{gate}: {metric}; enabled={enabledValue}; control={controlValue}; {state}") {
+			Gate = gate; Metric = metric; EnabledValue = enabledValue; ControlValue = controlValue;
+			State = state; CompletedYear = completedYear;
 		}
 	}
 	private AILabel forcedDealClient;
@@ -635,26 +638,34 @@ public partial class ChartAuditRunner : Node {
 	private void ValidateCatastrophicCompletedYear(int year) {
 		if (!failFastControlYears.TryGetValue(year, out FailFastControlYear control) || !control.IsComplete ||
 			!failFastActualYears.TryGetValue(year, out FailFastYearAccumulator actual))
-			throw new CatastrophicAbortException("MissingControlRow", "completedYear", year, year, $"control={gateControlRun}");
-		CheckCatastrophicRatio("successfulReleases", actual.Releases, control.Releases);
-		CheckCatastrophicRatio("scheduledAlbumProjects", actual.ScheduledAlbums, control.ScheduledAlbums);
-		CheckCatastrophicRatio("totalUnits", actual.Units, control.Units);
-		CheckCatastrophicRatio("grossRevenue", actual.Gross, control.Gross);
-		CheckCatastrophicRatio("labelNet", actual.LabelNet, control.LabelNet);
-		CheckCatastrophicRatio("marketNet", actual.MarketNet, control.MarketNet);
+			throw new CatastrophicAbortException("MissingControlRow", "completedYear", year, year,
+				$"completedYear={year} control={gateControlRun}", year);
+		CheckCatastrophicRatio(year, "successfulReleases", actual.Releases, control.Releases);
+		CheckCatastrophicRatio(year, "scheduledAlbumProjects", actual.ScheduledAlbums, control.ScheduledAlbums);
+		CheckCatastrophicRatio(year, "totalUnits", actual.Units, control.Units);
+		CheckCatastrophicRatio(year, "grossRevenue", actual.Gross, control.Gross);
+		CheckCatastrophicRatio(year, "labelNet", actual.LabelNet, control.LabelNet);
+		CheckCatastrophicRatio(year, "marketNet", actual.MarketNet, control.MarketNet);
 	}
 
-	private void CheckCatastrophicRatio(string metric, double enabled, double control) {
+	private void CheckCatastrophicRatio(int completedYear, string metric, double enabled, double control) {
 		if (!IsFinite(enabled) || !IsFinite(control))
-			throw new CatastrophicAbortException("InvalidAnnualComparison", metric, enabled, control, "non-finite completed-year value");
+			throw new CatastrophicAbortException("InvalidAnnualComparison", metric, enabled, control,
+				$"completedYear={completedYear} non-finite completed-year value", completedYear);
 		if (control == 0d) {
 			if (metric is "successfulReleases" or "scheduledAlbumProjects" && enabled == 0d) return;
 			return; // Zero-denominator values are logged in the endpoint stream, never inferred catastrophic.
 		}
 		double ratio = enabled / control;
 		if (IsCatastrophicFailFastRatioForProbe(enabled, control))
-			throw new CatastrophicAbortException("CompletedYearCatastrophicDivergence", metric, enabled, control, $"ratio={ratio.ToString("F6", CultureInfo.InvariantCulture)} band=[0.70,1.30]");
+			throw new CatastrophicAbortException("CompletedYearCatastrophicDivergence", metric, enabled, control,
+				FormatCompletedYearRatioState(completedYear, ratio), completedYear);
 	}
+
+	private static string FormatCompletedYearRatioState(int completedYear, double ratio) =>
+		$"completedYear={completedYear} ratio={ratio.ToString("F6", CultureInfo.InvariantCulture)} band=[0.70,1.30]";
+	internal static string FormatCompletedYearRatioStateForProbe(int completedYear, double ratio) =>
+		FormatCompletedYearRatioState(completedYear, ratio);
 
 	internal static bool IsCatastrophicFailFastRatioForProbe(double enabled, double control) {
 		if (!IsFinite(enabled) || !IsFinite(control)) return true;
@@ -686,6 +697,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void WriteCatastrophicAbort(CatastrophicAbortException exception) {
 		catastrophicFailFastWriter?.WriteLine(string.Join(",", new[] { Csv(exception.Gate), Csv(exception.Metric), exception.EnabledValue.ToString("R", CultureInfo.InvariantCulture), exception.ControlValue.ToString("R", CultureInfo.InvariantCulture),
+			exception.CompletedYear > 0 ? exception.CompletedYear.ToString(CultureInfo.InvariantCulture) : string.Empty,
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), Csv(TimeManager.Instance?.CurrentDate.ToString()), Csv(exception.State) }));
 		catastrophicFailFastWriter?.Flush();
 	}
@@ -853,7 +865,7 @@ public partial class ChartAuditRunner : Node {
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
 		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount");
 		completedWeekSettlementRegionalWriter?.WriteLine("week,year,settlementId,recordId,regionId,rawIntent,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,inventoryMovement");
-		formatMemoryRevisionWriter?.WriteLine("week,year,releaseId,labelId,format,genre,releaseAge,revisionKind,releaseTimeExpectedNet,ageMatchedExpectedNet,realizedNetToDate,estimatedOutcomeNet,opportunityScale,normalizedResidual,maturityWeight,recencyWeight,replacedPriorRevision,finalized,nonFiniteViolation");
+		formatMemoryRevisionWriter?.WriteLine("week,year,releaseId,labelId,format,genre,releaseAge,revisionKind,revisionOrdinal,releaseTimeExpectedNet,ageMatchedExpectedNet,realizedNetToDate,estimatedOutcomeNet,opportunityScale,normalizedResidual,maturityWeight,recencyWeight,replacedPriorRevision,finalized,nonFiniteViolation");
 		formatMemoryAdjustmentWriter?.WriteLine("week,year,recordId,labelId,memoryScope,rawSingleConfidence,rawAlbumConfidence,effectiveSingleConfidence,effectiveAlbumConfidence,singleCapApplied,albumCapApplied");
 		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
 		seasonalityMonthlyWriter.WriteLine("seed,enabled,year,month,liveWeeks,singleSalesMultiplier,albumSalesMultiplier,radioOpportunity,venueAttendanceMultiplier,recordingCostMultiplier,marketingEfficiencyMultiplier,artistAvailabilityMultiplier,singleUnits,albumUnits,singleGross,albumGross,releaseRolls,successfulReleases,singleReleases,albumProjectsScheduled,albumDrops,productionSpend,productionEvents,marketingSpend,marketingEvents,scoutingRolls,signings,meanRadioPlay");
@@ -895,7 +907,7 @@ public partial class ChartAuditRunner : Node {
 		runtimeLabelProfileWriter?.WriteLine("seed,birthWeek,birthDate,labelId,labelName,birthTier,archetype,headquartersCity,homeRegion,homeCityId,homeCityAssignmentSource,preferredGenres,secondaryGenres,budgetLevel,scoutingAbility,productionQuality,marketingPower,ownedReach,nationalReach,riskTolerance,artistLoyalty,payolaWillingness,releasesPerMonth,cashReserves,reputation,marketShare,debtLevel,foundedYear,monthsActive,totalReleases,top40Hits,numberOneHits,maxRosterSize,operatingRosterTarget,profileVersion");
 		dailyTalentMarketWriter?.WriteLine("date,chartWeek,eligibleVacancies,dueLabels,supplySnapshotCount,freshSupplySnapshotCount,experiencedSupplySnapshotCount,nominations,uniqueNominatedArtists,collisionArtists,collisionOffers,acceptedOffers,collisionLosers,invalidatedBeforeCommit");
 		dailyTalentAppointmentWriter?.WriteLine("date,chartWeek,labelId,labelOrigin,labelTier,vacancyGeneration,vacancyOpenedDate,scheduledScoutingDate,actualScoutingDate,appointmentOrdinal,serviceMode,freshLaneCount,experiencedLaneCount,selectedArtistId,selectedLane,offerOutcome,collisionOfferCount,winnerLabelId,artistChoiceUtility,genreUtility,localityUtility,royaltyUtility,advanceUtility,reputationUtility,reachUtility,rosterOpportunityUtility,affinityUtility,nextScoutingDate");
-		catastrophicFailFastWriter?.WriteLine("gate,metric,enabledValue,controlValue,week,date,state");
+		catastrophicFailFastWriter?.WriteLine("gate,metric,enabledValue,controlValue,completedYear,week,date,state");
 		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,prospectMarketStatus,prospectMarketStatusBeforeContract,careerStateBeforeDrop,contractEntryCareerState,labelId,labelTier,dropReason,performanceDropCount,requiredPerformanceCooldownWeeks,contractSequence,priorContractCount,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,performanceEvaluationMode,requiredPerformanceCompletedRuns,requiredPerformanceConsecutiveFlops,contractProbationPending,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
 		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
 		artistLaborMarketWeeklyWriter?.WriteLine("seed,week,date,registryPopulation,initialLegacyPopulation,enabledInitialReservePopulation,runtimeFormationPopulation,activeRostered,experiencedFreeAgents,freshSeeking,freshLatent,affordableHiringOpportunityLabels,requestedProspectActivations,actualProspectActivations,prospectSearchSpellExpirations,firstTimeSignings,repeatSignings,meanSeekingQuality,meanLatentQuality,activationMeanQuality,activationQ1,activationQ2,activationQ3,activationQ4,maxProspectMarketSpellCount,duplicateSeekingEntries,latentUnsignedPoolEntries,seekingMissingFromUnsignedPool,prospectStatusContractConflicts");
@@ -1201,11 +1213,9 @@ public partial class ChartAuditRunner : Node {
 		if (completedWeekSettlementWriter == null || settlement?.Entries == null) return;
 		ChartManager.Instance?.AcknowledgeSettlementAudit(settlement);
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
-			RecordRuntimeData record = entry.Record;
-			AILabel label = ChartManager.Instance?.GetLabelById(entry.LabelId);
 			completedWeekSettlementWriter.WriteLine(string.Join(",", new[] {
 				settlement.SettlementId.ToString(CultureInfo.InvariantCulture), settlement.Date.year.ToString(CultureInfo.InvariantCulture), settlement.SettlementId.ToString(CultureInfo.InvariantCulture),
-				Csv(entry.RecordId), Csv(entry.LabelId), Csv(label?.tier.ToString() ?? "Unknown"), Csv(entry.Format.ToString()), Csv(record?.baseRecord?.primaryGenre.ToString() ?? "Unknown"),
+				Csv(entry.RecordId), Csv(entry.LabelId), Csv(entry.LabelTier), Csv(entry.Format.ToString()), Csv(entry.Genre),
 				entry.Regions?.Sum(region => region.FinalCleared).ToString(CultureInfo.InvariantCulture) ?? "0", entry.Units.ToString(CultureInfo.InvariantCulture),
 				F(entry.Gross), F(entry.ManufacturingCost), F(entry.ArtistRoyalty), F(entry.DistributionSkim), F(entry.LabelNet), Csv(entry.DistributionRecipientLabelId), F(entry.DistributionIncome), F(entry.MarketNet),
 				entry.RetiredAfterSettlement ? "true" : "false", entry.BookedCount.ToString(CultureInfo.InvariantCulture), entry.AuditedCount.ToString(CultureInfo.InvariantCulture)
@@ -1227,6 +1237,7 @@ public partial class ChartAuditRunner : Node {
 		formatMemoryRevisionWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), (TimeManager.Instance?.CurrentDate.year ?? 1960).ToString(CultureInfo.InvariantCulture),
 			Csv(revision.releaseId), Csv(revision.labelId), Csv(revision.format.ToString()), Csv(revision.genre.ToString()), revision.releaseAge.ToString(CultureInfo.InvariantCulture), Csv(revision.revisionKind),
+			revision.revisionOrdinal.ToString(CultureInfo.InvariantCulture),
 			F(revision.releaseTimeExpectedNet), F(revision.ageMatchedExpectedNet), F(revision.realizedNetToDate), F(revision.estimatedOutcomeNet), F(revision.opportunityScale),
 			F(revision.normalizedResidual), F(revision.maturityWeight), F(revision.recencyWeight), revision.replacedPriorRevision ? "true" : "false", revision.finalized ? "true" : "false", nonFinite ? "true" : "false"
 		}));
@@ -1528,6 +1539,9 @@ public partial class ChartAuditRunner : Node {
 		GameDate date = TimeManager.Instance.CurrentDate;
 		GameDate salesDate = date.IsFriday ? date : date.AddDays(-1);
 		EnsureDecadeAnnualYear(date.year);
+		// Flush the fully completed prior-year revenue row before fail-fast may
+		// abort at the new-year boundary. Do not emit a partial current-week row.
+		AdvanceMarketRevenueYear(date.year);
 		albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
 			CompetitorManager.Instance.WeeklyPipelineAlbumDrops.ToString(CultureInfo.InvariantCulture)
@@ -2113,12 +2127,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void WriteMarketRevenueRows(int week, int year, List<RecordRuntimeData> records) {
-		if (marketRevenueYear == 0) marketRevenueYear = year;
-		if (year != marketRevenueYear) {
-			WriteMarketRevenueYear();
-			annualMarketRevenue.Clear();
-			marketRevenueYear = year;
-		}
+		AdvanceMarketRevenueYear(year);
 
 		var weekly = new Dictionary<(string Tier, string Format), RevenueRollup>();
 		IReadOnlyList<AILabel> labels = CompetitorManager.Instance.GetAllLabels();
@@ -2161,6 +2170,18 @@ public partial class ChartAuditRunner : Node {
 			.ThenBy(pair => pair.Key.Format, StringComparer.Ordinal)) {
 			WriteMarketRevenueRow("weekly", week.ToString(CultureInfo.InvariantCulture), year, pair.Key, pair.Value);
 			AccumulateAnnualMarketRevenue(pair.Key, pair.Value);
+		}
+	}
+
+	private void AdvanceMarketRevenueYear(int year) {
+		if (marketRevenueYear == 0) {
+			marketRevenueYear = year;
+			return;
+		}
+		if (year != marketRevenueYear) {
+			WriteMarketRevenueYear();
+			annualMarketRevenue.Clear();
+			marketRevenueYear = year;
 		}
 	}
 

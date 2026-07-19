@@ -559,6 +559,9 @@ public sealed class FormatMemoryObservation {
 	public float opportunityScale;
 	public float normalizedResidual;
 	public float maturityWeight;
-	public int lastRevisionAge;
+	// -1 is the unobserved sentinel. Age zero is a valid first observation and
+	// must not be reported as a replacement.
+	public int lastRevisionAge = -1;
+	public int revisionOrdinal;
 	public bool finalized;
 }

@@ -79,7 +79,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeDailyTalentMarketScheduling();                         // 63
 		ProbeCatastrophicFailFastBoundaries();                       // 64
 		ProbeCatastrophicControlParsing();                           // 65
-		results.Add("D6 fixed probes 1-65 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, and schema-bound control parsing)");
+		ProbeAlbumMonotonicPenetration();                            // 66
+		results.Add("D6 fixed probes 1-66 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, and Album monotonic penetration)");
 		return results;
 	}
 
@@ -298,6 +299,9 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			ChartAuditRunner.IsCatastrophicFailFastRatioForProbe(1.300001d, 1d) &&
 			!ChartAuditRunner.IsCatastrophicFailFastRatioForProbe(1d, 0d),
 			"64c catastrophic ratios preserve inclusive 0.70/1.30 boundaries and the explicit zero-denominator non-abort");
+		Require(ChartAuditRunner.FormatCompletedYearRatioStateForProbe(1963, 999d / 1446d)
+			.StartsWith("completedYear=1963 ratio=0.690871 ", StringComparison.Ordinal),
+			"64d fail-fast state names the completed year instead of implying the new checkpoint year");
 		AILabel runtime = NewScoutingLabel(); runtime.populationOrigin = LabelPopulationOrigin.RuntimeFounded; runtime.runtimeBirthWeek = 18;
 		AILabel launch = NewScoutingLabel(); launch.populationOrigin = LabelPopulationOrigin.LaunchPopulation;
 		Require(ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("signing", runtime, 18) &&
@@ -305,7 +309,7 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			!ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("signing", runtime, 19) &&
 			!ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("formation", runtime, 18) &&
 			!ChartAuditRunner.IsRuntimeBirthWeekSigningViolationForProbe("signing", launch, 18),
-			"64d birth-week protection validates signing events only and cannot misclassify later roster transfers");
+			"64e birth-week protection validates signing events only and cannot misclassify later roster transfers");
 	}
 
 	private static void ProbeCatastrophicControlParsing() {
@@ -347,6 +351,26 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		RequireThrows<InvalidDataException>(() => ChartAuditRunner.ParseCatastrophicFailFastControlForProbe(
 			releases, seasonality, unmappedProjects, revenue, 1960),
 			"65f Album projects must map through an authoritative chart-week year before simulation");
+	}
+
+	private static void ProbeAlbumMonotonicPenetration() {
+		var data = new RegionalRecordData("probe-region");
+		float first = AlbumSimulator.CalculateEffectiveRegionalPenetration(data, 100, 1_000f, true);
+		float firstExhaustion = AlbumSimulator.CalculateAlbumExhaustion(first);
+		Require(first == .1f && data.albumPeakEffectivePenetration == .1f,
+			"66a first live Album penetration observation uses the existing observed value");
+		float grownPool = AlbumSimulator.CalculateEffectiveRegionalPenetration(data, 100, 2_000f, true);
+		float grownPoolExhaustion = AlbumSimulator.CalculateAlbumExhaustion(grownPool);
+		Require(grownPool == first && grownPoolExhaustion <= firstExhaustion && data.albumPeakEffectivePenetration == first,
+			"66b buyer-pool growth cannot reduce effective penetration or raise exhaustion headroom");
+		float higherSales = AlbumSimulator.CalculateEffectiveRegionalPenetration(data, 300, 2_000f, true);
+		float higherSalesExhaustion = AlbumSimulator.CalculateAlbumExhaustion(higherSales);
+		Require(higherSales == .15f && data.albumPeakEffectivePenetration == .15f && higherSalesExhaustion >= .15f,
+			"66c cumulative Album sales increase the stored peak while exhaustion retains its floor");
+		float disabled = AlbumSimulator.CalculateEffectiveRegionalPenetration(data, 100, 2_000f, false);
+		Require(disabled == .05f && data.albumPeakEffectivePenetration == .15f &&
+			AlbumSimulator.CalculateRawDemandBeforeCannibalization(2_000f, .5f, .02f) == 2f * AlbumSimulator.CalculateRawDemandBeforeCannibalization(1_000f, .5f, .02f),
+			"66d disabled/prewarm penetration remains stateless and buyer-pool growth still directly multiplies raw Album demand without RNG participation");
 	}
 
 	private static AILabel NewRuntimeProfileProbeLabel(string id, LabelTier tier) => new() {

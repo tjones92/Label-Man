@@ -344,6 +344,79 @@ public static class GenreMarketV2ProbeSuite {
 			!ChartManager.IsSpecialistUnchartedRestockEligible(Genre.Jazz, live: true, backorders: 183, rawDemand: 35f) &&
 			!ChartManager.IsSpecialistUnchartedRestockEligible(Genre.TexMex, live: false, backorders: 183, rawDemand: 35f),
 			"specialist uncharted restock serves physical backorders only when live");
+		Require(ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Album, live: true, backorders: 183, rawDemand: 35f) &&
+			!ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Single, live: true, backorders: 183, rawDemand: 35f) &&
+			!ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Album, live: false, backorders: 183, rawDemand: 35f) &&
+			!ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Album, live: true, backorders: 0, rawDemand: 35f),
+			"Album uncharted restock opens only the live physical-backorder path");
+		Require(Math.Abs(ChartManager.CalculateRestockDemandSignal(rawDemand: 100f, unitsSold: 40,
+				backorders: 50, livePhysicalBackorder: true) - 150f) < .000001f &&
+			Math.Abs(ChartManager.CalculateRestockDemandSignal(rawDemand: 100f, unitsSold: 40,
+				backorders: 50, livePhysicalBackorder: false) - 91.5f) < .000001f,
+			"live physical backorders replenish from full current demand plus recent backlog while the frozen blend is unchanged");
+		Require(ChartManager.CalculateRestockAmount(rawDemand: 100f, backorders: 50, demandSignal: 150f,
+				serviceLevel: .5f, fulfillAlbumBacklog: true, albumRetailMaturity: 0f) == 100 &&
+			ChartManager.CalculateRestockAmount(rawDemand: 100f, backorders: 50, demandSignal: 150f,
+				serviceLevel: .5f, fulfillAlbumBacklog: true, albumRetailMaturity: 1f) == 150 &&
+			ChartManager.CalculateRestockAmount(rawDemand: 100f, backorders: 50, demandSignal: 150f,
+				serviceLevel: .5f, fulfillAlbumBacklog: false, albumRetailMaturity: 1f) == 75 &&
+			AlbumModel.GetRetailFulfillmentMaturity(1963) == 0f &&
+			AlbumModel.GetRetailFulfillmentMaturity(1964) == 1f,
+			"Album backlog avoids duplicate attrition and full retail fulfillment begins at the established-era midpoint");
+		var ownedNetwork = new AILabel {
+			homeCityId = "new_york",
+			distributionRegions = new[] { "greatlakes" }
+		};
+		string[] liveNodes = DistanceModel.GetDistributionNodesForProbe(ownedNetwork, live: true);
+		string[] frozenNodes = DistanceModel.GetDistributionNodesForProbe(ownedNetwork, live: false);
+		Require(liveNodes.Contains("new_york") && liveNodes.Contains("chicago") &&
+			frozenNodes.SequenceEqual(new[] { "new_york" }),
+			"live distance nodes include owned regional distribution while the frozen route remains home-only");
+		var scopedDealLabel = new AILabel {
+			ownedReach = .4f,
+			activeDeal = new DistributionDeal {
+				marginSkim = .3f,
+				grantedRegions = new[] { "eastcoast" }
+			}
+		};
+		Require(Math.Abs(CompetitorManager.GetSettlementDistributionSkimFractionForProbe(scopedDealLabel,
+				new Dictionary<string, int> { ["eastcoast"] = 60, ["westcoast"] = 40 }, 100) - .18f) < .000001f &&
+			Math.Abs(CompetitorManager.GetSettlementDistributionSkimFractionForProbe(scopedDealLabel,
+				new Dictionary<string, int> { ["eastcoast"] = 60, ["westcoast"] = 40 }, 100,
+				liveSettlement: false) - .3f) < .000001f &&
+			Math.Abs(CompetitorManager.GetSettlementDistributionSkimFractionForProbe(
+				new AILabel { ownedReach = .4f }, new Dictionary<string, int> { ["eastcoast"] = 100 }, 100) - .15f) < .000001f &&
+			Math.Abs(CompetitorManager.GetSettlementDistributionSkimFractionForProbe(
+				new AILabel { ownedReach = .4f }, new Dictionary<string, int> { ["eastcoast"] = 100 }, 100,
+				liveSettlement: false) - .15f) < .000001f,
+			"distribution-deal margin is region-scoped only live while frozen deal and no-deal formulas remain unchanged");
+		Require(ChartManager.CalculateSpilloverExportBudget(100) == 75 &&
+			ChartManager.CalculateSpilloverExportBudget(-1) == 0,
+			"bounded one-hop spillover exports at most 75 percent of otherwise-idle local capacity");
+		var revision = new FormatMemoryObservation();
+		Require(revision.lastRevisionAge == -1 &&
+			CompetitorManager.TryAdvanceResponsiveMemoryRevision(revision, 13, finalized: false, out bool firstReplaced, out int firstOrdinal) &&
+			!firstReplaced && firstOrdinal == 1 && revision.lastRevisionAge == 13 && !revision.finalized &&
+			!CompetitorManager.TryAdvanceResponsiveMemoryRevision(revision, 13, finalized: false, out _, out _) &&
+			CompetitorManager.TryAdvanceResponsiveMemoryRevision(revision, 13, finalized: true, out bool finalReplaced, out int finalOrdinal) &&
+			finalReplaced && finalOrdinal == 2 && revision.finalized &&
+			!CompetitorManager.TryAdvanceResponsiveMemoryRevision(revision, 26, finalized: true, out _, out _),
+			"responsive memory revisions have an explicit first/replacement/final lifecycle");
+		(float provisionalOutcome, float provisionalExpected) =
+			CompetitorManager.GetResponsiveMemoryEconomicsForProbe(lifetimeLabelNet: 1000f,
+				sunkProductionCost: 200f, terminalExpectedNet: 1800f, maturity: .25f, finalized: false);
+		(float finalOutcome, float finalExpected) =
+			CompetitorManager.GetResponsiveMemoryEconomicsForProbe(lifetimeLabelNet: 1000f,
+				sunkProductionCost: 200f, terminalExpectedNet: 1800f, maturity: .25f, finalized: true);
+		Require(Math.Abs(provisionalOutcome - 3800f) < .000001f &&
+			Math.Abs(provisionalExpected - 300f) < .000001f &&
+			Math.Abs(finalOutcome - 800f) < .000001f &&
+			Math.Abs(finalExpected - 1800f) < .000001f,
+			"responsive memory annualizes revenue while charging one-time production cost exactly once");
+		Require(Math.Abs(CompetitorManager.GetResponsiveMemoryConfidenceForProbe(12f) - .5f) < .000001f &&
+			Math.Abs(CompetitorManager.GetResponsiveMemoryConfidenceForProbe(24f) - .65f) < .000001f &&
+			CompetitorManager.GetResponsiveMemoryConfidenceForProbe(-1f) == 0f,
+			"responsive memory requires twelve effective observations for half confidence and preserves the 0.65 ceiling");
 		bool nonRetainedEmerging = CompetitorManager.IsNonRetainedEmergingProjectForFormatMemory(Genre.PsychedelicRock,
 			retainedIdentity: false, year: 1967, live: true);
 		Require(nonRetainedEmerging &&
@@ -353,7 +426,7 @@ public static class GenreMarketV2ProbeSuite {
 			Math.Abs(CompetitorManager.GetProjectFormatMemoryConfidence(.98f,
 				CompetitorManager.IsNonRetainedEmergingProjectForFormatMemory(Genre.PsychedelicRock, retainedIdentity: false, year: 1967, live: false)) - .98f) < .000001f,
 			"non-retained emerging projects bypass only label-wide format memory");
-		return $"TexMex launch stock GP/SW={texMex[0]}/{texMex[1]}, emerging-memory confidence=.0000/.9800";
+		return $"TexMex launch stock GP/SW={texMex[0]}/{texMex[1]}, Album backlog avoids duplicate service attrition, memory revision lifecycle 1->2 final, one-time cost annualization exact, weighted confidence K=12/cap=.65, emerging-memory confidence=.0000/.9800";
 	}
 
 	private static string ProbeDroppedArtistRosterLifecycle() {

@@ -65,7 +65,7 @@ public partial class ChartManager : Node {
 	// A donor contributes only portable purchase opportunity left idle by its own
 	// local market.  These bounds deliberately prevent the region graph from
 	// becoming a disguised national pool.
-	private const float SpilloverMaximumExportShare = 0.50f;
+	private const float SpilloverMaximumExportShare = 0.75f;
 	private const float SpilloverMaximumImportShare = 0.15f;
 	private readonly List<MarketClearingRegionalSummary> lastMarketClearingSummaries = new();
 	private readonly List<MarketSpilloverTransfer> lastMarketSpilloverTransfers = new();
@@ -96,7 +96,7 @@ public partial class ChartManager : Node {
 	}
 	public sealed class CompletedWeekSettlementEntry {
 		public RecordRuntimeData Record;
-		public string RecordId, LabelId;
+		public string RecordId, LabelId, LabelTier, Genre;
 		public ReleaseFormat Format;
 		public int Units;
 		public IReadOnlyList<CompletedWeekSettlementRegion> Regions;
@@ -472,25 +472,34 @@ public partial class ChartManager : Node {
 	private void FreezeCompletedWeekSettlement(GameDate date) {
 		lastCompletedWeekSettlement = new CompletedWeekSettlement {
 			SettlementId = currentChartWeek,
-			Date = date,
-			Entries = allRecords.Select(record => new CompletedWeekSettlementEntry {
-				Record = record,
-				RecordId = record.baseRecord.recordId,
-				LabelId = record.baseRecord.labelId,
-				Format = record.baseRecord.format,
-				Units = record.unitsThisWeek,
-				RetiredAfterSettlement = IsRecordRetirable(record, currentChartWeek % 4 == 0),
-				Regions = record.regionalData.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new CompletedWeekSettlementRegion {
-					RegionId = pair.Key,
-					RawIntent = Mathf.RoundToInt(pair.Value.rawDemandThisWeek),
-					ServiceableIntent = pair.Value.serviceableIntentThisWeek,
-					FinalCleared = pair.Value.unitsSoldThisWeek,
-					LocalCleared = pair.Value.localClearedThisWeek,
-					SpilloverCleared = pair.Value.spilloverClearedThisWeek,
-					PhysicalBackorders = pair.Value.unitsBackordered,
-					MarketDisplacedDemand = pair.Value.marketDisplacedDemandThisWeek,
-					InventoryMovement = pair.Value.unitsSoldThisWeek
-				}).ToArray()
+			// Audit checkpoints describe the state reached by this completed tick.
+			// TimeManager advances to that next-week checkpoint after the synchronous
+			// Friday callback, so key settlement years to the same calendar boundary.
+			Date = date.AddDays(7),
+			Entries = allRecords.Select(record => {
+				bool retirementEligible = IsRecordRetirable(record, currentChartWeek % 4 == 0);
+				var entry = new CompletedWeekSettlementEntry {
+					Record = record,
+					RecordId = record.baseRecord.recordId,
+					LabelId = record.baseRecord.labelId,
+					LabelTier = GetLabelById(record.baseRecord.labelId)?.tier.ToString() ?? "Unknown",
+					Genre = record.baseRecord.primaryGenre.ToString(),
+					Format = record.baseRecord.format,
+					Units = record.unitsThisWeek,
+					RetiredAfterSettlement = retirementEligible,
+					Regions = record.regionalData.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new CompletedWeekSettlementRegion {
+						RegionId = pair.Key,
+						RawIntent = Mathf.RoundToInt(pair.Value.rawDemandThisWeek),
+						ServiceableIntent = pair.Value.serviceableIntentThisWeek,
+						FinalCleared = pair.Value.unitsSoldThisWeek,
+						LocalCleared = pair.Value.localClearedThisWeek,
+						SpilloverCleared = pair.Value.spilloverClearedThisWeek,
+						PhysicalBackorders = pair.Value.unitsBackordered,
+						MarketDisplacedDemand = pair.Value.marketDisplacedDemandThisWeek,
+						InventoryMovement = pair.Value.unitsSoldThisWeek
+					}).ToArray()
+				};
+				return entry;
 			}).OrderBy(entry => entry.RecordId, StringComparer.Ordinal).ToArray()
 		};
 	}
@@ -909,7 +918,7 @@ public partial class ChartManager : Node {
 			foreach (MarketIntent intent in intents) intent.Data.localClearedThisWeek = intent.Cleared;
 			summary.LocalClearedUnits = intents.Sum(intent => intent.Cleared);
 			summary.UnusedAfterLocal = Mathf.Max(0, capacity - summary.LocalClearedUnits);
-			summary.ExportBudget = Mathf.FloorToInt(summary.UnusedAfterLocal * SpilloverMaximumExportShare);
+			summary.ExportBudget = CalculateSpilloverExportBudget(summary.UnusedAfterLocal);
 			summary.ImportLimit = Mathf.FloorToInt(capacity * SpilloverMaximumImportShare);
 			summariesByRegion[region.regionId] = summary;
 		}
@@ -1046,6 +1055,9 @@ public partial class ChartManager : Node {
 		foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction).ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) { intent.Cleared++; intent.SpilloverCleared++; }
 	}
 
+	internal static int CalculateSpilloverExportBudget(int unusedAfterLocal) =>
+		Mathf.FloorToInt(Mathf.Max(0, unusedAfterLocal) * SpilloverMaximumExportShare);
+
 	private static void AllocateTransferFormats(List<MarketSpilloverTransfer> transfers, int singleUnits) {
 		int total = transfers.Sum(row => row.TransferredCapacity), assigned = 0;
 		var fractions = new Dictionary<MarketSpilloverTransfer, float>();
@@ -1116,8 +1128,12 @@ public partial class ChartManager : Node {
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
 					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek);
+				bool albumUnchartedService = IsAlbumUnchartedRestockEligible(record.baseRecord.format,
+					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek);
+				bool livePhysicalBackorder = GenreMarketV2.Enabled && IsGenreMarketV2Live &&
+					data.unitsBackordered > 0 && data.rawDemandThisWeek > 0f;
 				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
-					(data.breakoutScore >= 0.20f || specialistUnchartedService) &&
+					(data.breakoutScore >= 0.20f || specialistUnchartedService || albumUnchartedService) &&
 					(data.unitsBackordered > 250 || data.rawDemandThisWeek > data.unitsInStores * 0.45f);
 				bool chartedNeedsRestock = record.currentPosition > 0 &&
 					(data.unitsBackordered > 500 ||
@@ -1141,13 +1157,16 @@ public partial class ChartManager : Node {
 				}
 
 				if (needsRestock) {
-					float demandSignal = (data.rawDemandThisWeek * 0.65f) + (data.unitsSoldThisWeek * 0.35f) + (data.unitsBackordered * 0.25f);
+					float demandSignal = CalculateRestockDemandSignal(data.rawDemandThisWeek,
+						data.unitsSoldThisWeek, data.unitsBackordered, livePhysicalBackorder);
 					float serviceLevel = isCovered
 						? 0.70f + (label.distributionStrength * 0.80f)
 						: 0.18f + (label.distributionStrength * 0.25f);
 					// DISTANCE-4B: neutral in 4a; 4b applies city-distance reach to restock service.
 					serviceLevel *= DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(region.regionId));
-					int restockAmount = Mathf.RoundToInt(demandSignal * serviceLevel);
+					int restockAmount = CalculateRestockAmount(data.rawDemandThisWeek, data.unitsBackordered,
+						demandSignal, serviceLevel, albumUnchartedService,
+						AlbumModel.GetRetailFulfillmentMaturity(TimeManager.Instance?.CurrentDate.year ?? 1960));
 					int requestedRestock = restockAmount;
 
 					int physicalCapacity = region.distribution.recordStoreCount * 100 +
@@ -1180,6 +1199,47 @@ public partial class ChartManager : Node {
 	internal static bool IsSpecialistUnchartedRestockEligible(Genre primaryGenre, bool live, int backorders, float rawDemand) =>
 		live && GenreAcceptanceService.IsSpecialistFulfillmentGenre(primaryGenre) &&
 		backorders > 0 && rawDemand > 0f;
+
+	/// <summary>
+	/// Album demand is not required to win a Singles-oriented breakout score
+	/// before the physical distribution system may replenish it. This only opens
+	/// the ordinary bounded regional restock path; its reach, service-level, and
+	/// store-capacity limits remain authoritative.
+	/// </summary>
+	internal static bool IsAlbumUnchartedRestockEligible(ReleaseFormat format, bool live, int backorders, float rawDemand) =>
+		live && format == ReleaseFormat.Album && backorders > 0 && rawDemand > 0f;
+
+	/// <summary>
+	/// Live replenishment with an observed physical backlog is driven by current
+	/// demand plus that recent backlog. The legacy breakout blend discounts both
+	/// inputs and can keep any stocked format below its regional purchase capacity
+	/// after the restock path has opened. Coverage, distance reach, service level,
+	/// and shelf capacity still bound the resulting request in RestockHotRecords.
+	/// </summary>
+	internal static float CalculateRestockDemandSignal(float rawDemand, int unitsSold, int backorders,
+		bool livePhysicalBackorder) =>
+		livePhysicalBackorder
+			? Mathf.Max(0f, rawDemand) + Mathf.Max(0, backorders)
+			: Mathf.Max(0f, rawDemand) * 0.65f + Mathf.Max(0, unitsSold) * 0.35f + Mathf.Max(0, backorders) * 0.25f;
+
+	/// <summary>
+	/// Current demand remains subject to the regional delivery service level until
+	/// the established half of the Album-era curve, when retail fulfillment closes
+	/// the remaining delivery gap.
+	/// An Album backorder is already an observed local physical order, so applying
+	/// delivery attrition to it again creates a persistent shortfall. Catch-up
+	/// remains bounded by the same per-record regional shelf capacity.
+	/// </summary>
+	internal static int CalculateRestockAmount(float rawDemand, int backorders, float demandSignal,
+		float serviceLevel, bool fulfillAlbumBacklog, float albumRetailMaturity) {
+		float boundedService = Mathf.Max(0f, serviceLevel);
+		float albumCurrentDemandService = Mathf.Lerp(boundedService, 1f,
+			Mathf.Clamp(albumRetailMaturity, 0f, 1f));
+		float requested = fulfillAlbumBacklog
+			? Mathf.Max(0f, rawDemand) * albumCurrentDemandService + Mathf.Max(0, backorders)
+			: Mathf.Max(0f, demandSignal) * boundedService;
+		return Mathf.Max(0, Mathf.RoundToInt(requested));
+	}
 
 	// Legacy method for external calls
 	public void CalculateChart() {

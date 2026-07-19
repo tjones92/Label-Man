@@ -12,6 +12,14 @@ public static class AlbumModel {
 	public static float GetAlbumEraWeight(int year) => Mathf.SmoothStep(0f, 1f,
 		Mathf.Clamp((year - EraWeightStartYear) / (EraWeightEndYear - EraWeightStartYear), 0f, 1f));
 
+	/// <summary>
+	/// The retail channel becomes established when the existing Album-adoption
+	/// curve reaches its midpoint. This reuses the exogenous era transition
+	/// without changing its demand keyframes and leaves the early market untouched.
+	/// </summary>
+	public static float GetRetailFulfillmentMaturity(int year) =>
+		GetAlbumEraWeight(year) >= .5f ? 1f : 0f;
+
 	public static float CalculatePooledAppeal(IEnumerable<float> trackQualities, float thematicCohesion, int year) {
 		float[] qualities = trackQualities?.Select(quality => Mathf.Clamp(quality, 0f, 1f)).ToArray()
 			?? System.Array.Empty<float>();

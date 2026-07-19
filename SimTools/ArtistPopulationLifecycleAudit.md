@@ -1342,6 +1342,28 @@ The decade aggregate is releases 0.9983, scheduled Albums 1.0444, Single units 1
 
 **Stop decision:** V1 passes its strictly limited structural/emergency checkpoint, and V2 completes without a catastrophic abort while restoring late-decade release capacity. The validation ladder nevertheless fails final inherited acceptance because of the 49 operating-target overshoots, scheduled-Album misses, annual Single-unit/total-unit misses, and the separately deferred Single-yield surface. No enabled repeat, additional seed, holdout, control, source/configuration change, or follow-on behavioral candidate is authorized from this handoff.
 
+## Frozen-source M5 trend adjudication (2026-07-18): **LAUNCH CRASH / FAIL / STOP**
+
+Immediately before the one authorized M5 launch, all nine frozen-source SHA-256 values in `ArtistPopulationM5TrendAdjudicationHandoff.md` matched exactly: `Data/AILabel.cs`, `Data/AlbumProject.cs`, `SimTools/ArtistPopulationLifecycleProbeSuite.cs`, `SimTools/ChartAuditRunner.cs`, `SimTools/GenreMarketV2ProbeSuite.cs`, `Systems/AlbumModel.cs`, `Systems/ChartManager.cs`, `Systems/CompetitorManager.cs`, and `Systems/DistanceModel.cs`. The working tree retained the expected frozen-source modifications, intentional deletion of `SimTools/analyze-market-clearing-format-memory.mjs`, and unrelated `.uid`/handoff files; no source or configuration was changed.
+
+The exact authorized command was launched once:
+
+```powershell
+& 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe' --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=522 --run=d6-bounded-spillover-75-decade-enabled-1001 --seed=1001 --enable-genre-market-v2 --enable-artist-population-lifecycle --profile-performance --catastrophic-fail-fast --gate-control-run=d6-transition-envelope-decade-control-1001
+```
+
+Godot crashed after 6.8 seconds with `CrashHandlerException: Program crashed with signal 11` and process exit code `1`. It emitted no `CHART_AUDIT_COMPLETE` marker. The mandatory M5 normal-completion/exit-zero/522-completed-ticks gate therefore **FAILED**. No file matching `SimLogs/d6-bounded-spillover-75-decade-enabled-1001-*` exists, so no catastrophic stream, annual rows, raw economic telemetry, or other partial M5 artifact was created to preserve.
+
+**Trend evidence and classification:** `NOT_ADJUDICABLE`; there are zero M5 weekly or annual observations, so none of the required year-by-year trend measures or classifications can be supported.
+
+**Stop decision:** This was the one authorized frozen-source seed-1001 M5 launch. Do not retry it, run another seed or control, alter source, or infer a health classification. A new explicit handoff is required to diagnose the Godot launch crash.
+
+### User-directed headless continuation: **STALL / TERMINATED / NO THIRD LAUNCH**
+
+At the user's subsequent direction to continue with the Downloads console executable and no UI, the same 522-week command was started with `--headless`, the same source, seed, control, and run prefix. The command wrapper timed out after 64 seconds. The child (`PID 8256`) remained live and, at inspection, showed one thread, zero reported CPU time, no window, and 64 initially zero-byte M5-named streams. The child was terminated. During shutdown its buffered partial output flushed: the preserved 64-stream family totals `555,215,891` bytes, and `weeks.csv` contains 104 data rows through week 104 / 1961. Several required streams, including `catastrophic-fail-fast.csv` and `album-projects.csv`, remain zero bytes; no `CHART_AUDIT_COMPLETE` marker exists.
+
+This continuation again fails the mandatory normal-completion/exit-zero/522-completed-ticks gate. Its partial 1960-1961 telemetry is insufficient for the required decade gates or trend report, so the trend classification remains `NOT_ADJUDICABLE`. No third launch was performed.
+
 ## Bounded spillover / responsive-memory closure (2026-07-18): **M4 RECONCILED, ORDINARY GATE FAIL / M5 NOT LAUNCHED**
 
 Implemented an enabled-only settlement sequence: freeze immutable record/region allocations, book once through `CompetitorManager.BookCompletedWeekSettlement`, acknowledge once through `ChartManager.AcknowledgeSettlementAudit`, then cull. The settlement ledger now includes weekly economics and companion regional allocations. The analyzer now joins settlement, regional allocations, clearing, weeks, and market revenue; verifies fixed-neighbor spillover; and marks decade gates `NOT_APPLICABLE` until date-complete.
@@ -1349,3 +1371,55 @@ Implemented an enabled-only settlement sequence: freeze immutable record/region 
 M1 build/diff check passed (retaining the known unused `OnGenreMomentumChanged` warning); inherited D5/D6 probes passed. M2 disabled replay `d6-bounded-spillover-memory-closure-disabled-52-1001-r3` was 45/45 byte-identical to `d6-market-clearing-disabled-52-1001`, and retained-control preflight passed. M3 candidate/repeat completed 104 weeks with analyzer passes and byte-identical comparable streams, excluding only `performance-profile.csv`. The retained r2 candidate exposed unbooked inactive-label sales; r3 fixes that enabled-only booking omission.
 
 M4 `d6-bounded-spillover-memory-closure-through-1965-1001-r3` completed all 313 ticks with header-only catastrophic output. Its analyzer required `--max-old-space-size=8192`, then reported zero structural/reconciliation/catastrophic failures and decade gates `NOT_APPLICABLE`, but failed ordinary gates: 1964 Album units `0.756715` (floor `0.80`) and label net `0.848948` (floor `0.85`); 1965 Single units `0.839707` (floor `0.85`), Album units `0.624096` (floor `0.80`), total units `0.826059`, gross `0.791357`, label net `0.768783`, and market net `0.780409` (each floor `0.85`). M5 was not launched. A causal correction within bounded spillover or responsive memory must be evidenced before restarting M1–M4; protected surfaces remain unchanged.
+
+## Frozen-source M5 trend adjudication (2026-07-18): **FAIL-FAST 1968 GROSS UPPER-BAND BREACH / STOP**
+
+All nine required frozen-source SHA-256 values matched before launch. The retained partial 104-week family was moved intact to `SimLogs/Archive/d6-bounded-spillover-75-decade-enabled-1001-partial-104w-20260718`; no source or configuration changed. The one authorized seed-1001 M5 run then used `d6-transition-envelope-decade-control-1001` and `d6-bounded-spillover-75-decade-enabled-1001`.
+
+The process exited after 469 completed ticks through 1968, before `CHART_AUDIT_COMPLETE` and the 522-week endpoint. Its catastrophic stream records `CompletedYearCatastrophicDivergence` for `grossRevenue`: completed year 1968, candidate `297,153,766.647076`, control `224,777,772.118624`, ratio `1.321989`, above the inclusive `[0.70,1.30]` band at week 470 / 1969-01-03. The 1969 annual and all decade gates are therefore not adjudicable; no additional run, seed, control, or source change is authorized.
+
+| Year | Candidate total units | Total ratio | Gross ratio | Single ratio | Album ratio | Successful releases | Scheduled Albums | Album drops |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 141,582,066 | 0.9783 | 0.9935 | 0.9776 | 1.0388 | 4,187 | 1,172 | 1,089 |
+| 1961 | 149,026,445 | 0.9940 | 1.0096 | 0.9889 | 1.1608 | 3,595 | 1,303 | 1,292 |
+| 1962 | 149,131,143 | 1.0035 | 1.0325 | 0.9942 | 1.2492 | 3,505 | 1,257 | 1,253 |
+| 1963 | 149,078,667 | 1.0481 | 1.0611 | 1.0441 | 1.1378 | 3,536 | 1,265 | 1,273 |
+| 1964 | 147,891,363 | 0.9275 | 0.9313 | 0.9266 | 0.9485 | 3,520 | 1,107 | 1,127 |
+| 1965 | 151,673,634 | 0.8627 | 0.8600 | 0.8644 | 0.8375 | 3,432 | 1,997 | 1,949 |
+| 1966 | 146,407,641 | 1.0758 | 1.0753 | 1.0761 | 1.0741 | 3,418 | 2,673 | 2,003 |
+| 1967 | 148,598,754 | 1.1283 | 1.2308 | 1.0660 | 1.3661 | 3,209 | 2,576 | 1,409 |
+| 1968 | 149,941,112 | 1.0806 | 1.3220 | 0.9179 | 1.5992 | 3,185 | 2,554 | 1,090 |
+
+Late-decade clearing indicates saturation: in 1968, `149,941,112` cleared units used 99.38% of `150,874,412` base capacity while serviceable intent reached `196,927,649`, residual displaced demand reached `46,986,537`, and physical backorders were `37,293,788`. The candidate cleared only 76.14% of serviceable intent. The 1967-to-1968 gross increase (`247,716,234.60` to `297,153,766.65`) coincided with Album units reaching `1.5992x` control; it did not establish a healthy completed-decade transition because the inherited gross ceiling failed before 1969.
+
+**Classification: `CAPACITY_SATURATION`.**
+
+## Album monotonic-penetration candidate (2026-07-18): **M1 EXECUTION FAILURE / STOP**
+
+The authorized mixed starting manifest matched exactly. The abandoned Album settlement diagnostic source path was retired, and the live-only `albumPeakEffectivePenetration` candidate was added. The post-candidate SHA-256 manifest is:
+
+```text
+B4EAF714EFAB143EB347F443A0B9A5D76D5AA7CF5CDDD297CFCFF544A5BB6FEF  Data/RegionalRecordData.cs
+28ED008294F612B55F4FA665356388DC12F467D5A53675EE0AC611A5E5A3AF1F  Systems/AlbumSimulator.cs
+A0B02835E642CE1224B3B9513BA2A8FC5E896C9F1BA0962247BCF3A9E0931564  Systems/ChartManager.cs
+E04E506A2783C514C40891F1CE68B5A1F548F175AA81ED5277D44C425431EA4C  SimTools/ChartAuditRunner.cs
+B3BD80FCBCF9764C9640DC831EEC6FAB25025CFDD23692949D7F7915E41CFD22  SimTools/ArtistPopulationLifecycleProbeSuite.cs
+```
+
+`git diff --check` passed. The build succeeded with only the pre-existing unused `ChartManager.OnGenreMomentumChanged` warning. The scoped retired-diagnostic search returned no matches.
+
+The one authorized M1 probe launch used `d6-album-monotonic-penetration-probes-1001` and exited with code `1` after 5.2 seconds, before simulation began: `CrashHandlerException: Program crashed with signal 11`. It emitted no `CHART_AUDIT_COMPLETE` marker and created no prefix-matching artifact under the workspace. This is an **execution failure**, not evidence of an early Album-floor regression, unchanged late-catalog excess, economic/format miss, or structural violation.
+
+**Stop decision:** M1 did not pass. M2-M5 were not launched; do not retry this prefix, tune the candidate, run another candidate, seed, control, or holdout without a new owner handoff.
+
+### User-directed M1 retry: **SAME LAUNCH CRASH**
+
+The owner subsequently directed a retry with the Downloads console executable and the same one-week M1 arguments. It again exited with code `1`, this time after 2.9 seconds, with the same `CrashHandlerException: Program crashed with signal 11` before any `CHART_AUDIT_COMPLETE` output or prefix-matching workspace artifact. This confirms the failure is currently at Godot process launch, not a candidate simulation gate.
+
+### User-directed outside-sandbox continuation: **M1–M3 PASS; M4 ANNUAL ALBUM UPPER-BAND FAIL / STOP**
+
+Running the Downloads console executable outside the filesystem sandbox resolved the launch crash. M1 exited zero with `CHART_AUDIT_COMPLETE run=d6-album-monotonic-penetration-probes-1001 weeks=1`; D5 and D6 fixed probes passed, including D6 probe 66. M2 exited zero with `CHART_AUDIT_COMPLETE run=d6-album-monotonic-penetration-disabled-52-1001 weeks=52`. Its 45 CSV suffixes exactly matched `d6-market-clearing-disabled-52-1001`, and all 45 SHA-256 values were byte-identical.
+
+The initial M3 wrapper expired at 64 seconds after all 104 weekly rows had been flushed. At the owner's direction it was rerun with a patient external wait: candidate and repeat each exited zero after about 90 seconds with `CHART_AUDIT_COMPLETE ... weeks=104`. All 62 corresponding CSVs were byte-identical. The 1960–61 release, scheduled-Album, unit, gross, label-net, and market-net ratios remained within their inherited M3 bands; checked allocation/reconciliation, ownership, duplicate-membership, terminal-eligibility, and premature-probation counters were zero.
+
+M4 `d6-album-monotonic-penetration-through-1968-1001` completed normally through all 469 weeks. Its 470-line `weeks.csv` ends at week 469 / 1968, and `decade-annual-rollup.csv` has complete 1960–1968 rows. The first required annual gate failure is **1962 Album units = 1.2181x control**, exceeding the inclusive `1.20` ceiling. Later evidence confirms the same late-catalog excess: 1967 Album units 1.3798x, gross 1.2253x, label net 1.2662x, market net 1.2582x; 1968 Album units 1.6237x, gross 1.3332x, label net 1.3833x, and market net 1.3663x. The candidate therefore fails as an **unchanged late-catalog/economic excess**, with an earlier 1962 Album upper-band breach. M5 was not launched, and no tuning, additional candidate, seed, control, or holdout is authorized.

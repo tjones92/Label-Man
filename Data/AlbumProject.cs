@@ -45,6 +45,10 @@ public sealed class AlbumProject {
 	public bool albumRetired;
 	public bool promoRetired;
 	public float? projectRealizedNet;
+	// The deterministic, pre-memory Album prior is the release-time comparison
+	// baseline. Keep it with delayed projects so linked Albums do not fall back to
+	// the production-cost-only placeholder when they drop.
+	public float releaseTimeAlbumExpectedNet;
 	public float projectedAlbumNet;
 	public float projectedPromoSingleNet;
 	public float projectedProjectNet;

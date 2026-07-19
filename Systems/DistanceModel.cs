@@ -118,12 +118,26 @@ public partial class DistanceModel : Node {
 	}
 
 	public static string[] GetDistributionNodes(AILabel label) {
+		bool live = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		return BuildDistributionNodes(label, live);
+	}
+
+	private static string[] BuildDistributionNodes(AILabel label, bool live) {
 		if (label == null) return Array.Empty<string>();
 		var nodes = new List<string>();
 		string homeCityId = !string.IsNullOrEmpty(label.homeCityId)
 			? label.homeCityId
 			: ResolveHomeCity(label).City?.cityId;
 		AddNode(nodes, homeCityId);
+		// Owned regional distribution is a physical node, not merely a coverage
+		// flag. The live model previously ignored these hubs while recognizing
+		// borrowed deal regions, charging covered sales distance from headquarters.
+		// Keep the frozen disabled/prewarm route byte-compatible.
+		if (live && label.distributionRegions != null) {
+			foreach (string regionId in label.distributionRegions) {
+				AddNode(nodes, GetHubCityIdForRegion(regionId));
+			}
+		}
 		if (label.activeDeal?.grantedRegions != null) {
 			foreach (string regionId in label.activeDeal.grantedRegions) {
 				AddNode(nodes, GetHubCityIdForRegion(regionId));
@@ -131,6 +145,9 @@ public partial class DistanceModel : Node {
 		}
 		return nodes.ToArray();
 	}
+
+	internal static string[] GetDistributionNodesForProbe(AILabel label, bool live) =>
+		BuildDistributionNodes(label, live);
 
 	public static string[] GetDistributionNodeNames(AILabel label) =>
 		GetDistributionNodes(label)

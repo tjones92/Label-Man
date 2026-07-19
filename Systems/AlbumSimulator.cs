@@ -32,24 +32,25 @@ public static class AlbumSimulator {
 
 	public static int CalculateRegionalSales(RecordRuntimeData record, MarketRegion region, RegionalRecordData data, int year, int month, bool liveTick, AILabel label) {
 		Album album = record.baseRecord.album;
+		bool genreMarketLive = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		float appeal = record.GetQuality();
 		float buyerPool = region.GetAlbumMarketSize(record.baseRecord.primaryGenre, year);
 		float awareness = record.awareness * 0.45f + data.awareness * 0.55f;
 		if (record.currentPosition > 0 && record.currentPosition <= 10) awareness = Mathf.Max(awareness, 0.48f);
 		else if (record.currentPosition > 0 && record.currentPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
 
-		float penetration = data.unitsSoldTotal / Mathf.Max(1f, buyerPool);
-		float exhaustion = Mathf.Max(0.15f, 1f / (1f + penetration * 4f));
+		int regionalCumulativeUnitsBeforeSale = data.unitsSoldTotal;
+		float penetration = CalculateEffectiveRegionalPenetration(data, regionalCumulativeUnitsBeforeSale, buyerPool, genreMarketLive);
+		float exhaustion = CalculateAlbumExhaustion(penetration);
 		float conversion = BasePurchaseRate * Mathf.Pow(appeal, 2.5f) * exhaustion;
 		conversion *= 0.72f + record.wordOfMouth * 0.45f;
 		conversion *= 0.85f + Mathf.Max(0f, data.sentiment) * 0.25f;
 		conversion *= 1f + AlbumModel.GetAlbumEraWeight(year) * (album?.packaging ?? 0f) * 0.12f;
 		conversion *= record.weeksSinceRelease switch { <= 2 => 0.72f, <= 6 => 1.05f, <= 12 => 1f, _ => 0.92f };
-		if (record.weeksSinceRelease > CatalogDecayStartWeeks) {
-			conversion *= Mathf.Pow(CatalogWeeklyDecay, record.weeksSinceRelease - CatalogDecayStartWeeks);
-		}
+		float catalogDecayMultiplier = record.weeksSinceRelease > CatalogDecayStartWeeks
+			? Mathf.Pow(CatalogWeeklyDecay, record.weeksSinceRelease - CatalogDecayStartWeeks) : 1f;
+		conversion *= catalogDecayMultiplier;
 		conversion *= MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick);
-		bool genreMarketLive = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		conversion *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Album, year,
 			region.GetAcceptedAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), genreMarketLive);
@@ -57,7 +58,7 @@ public static class AlbumSimulator {
 		if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;
 
-		float rawDemandBeforeCannibalization = buyerPool * awareness * conversion;
+		float rawDemandBeforeCannibalization = CalculateRawDemandBeforeCannibalization(buyerPool, awareness, conversion);
 		float rawSales = rawDemandBeforeCannibalization * (1f - record.cannibalizationSuppression);
 		record.rawAlbumDemandBeforeCannibalization += rawDemandBeforeCannibalization;
 		record.suppressedAlbumDemand += rawDemandBeforeCannibalization - rawSales;
@@ -82,6 +83,21 @@ public static class AlbumSimulator {
 			Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek));
 		return data.serviceableIntentThisWeek;
 	}
+
+	internal static float CalculateEffectiveRegionalPenetration(RegionalRecordData data, int regionalCumulativeUnitsBeforeSale,
+		float buyerPool, bool genreMarketLive) {
+		float observedPenetration = regionalCumulativeUnitsBeforeSale / Mathf.Max(1f, buyerPool);
+		if (!genreMarketLive) return observedPenetration;
+		float effectivePenetration = Mathf.Max(data.albumPeakEffectivePenetration, observedPenetration);
+		data.albumPeakEffectivePenetration = effectivePenetration;
+		return effectivePenetration;
+	}
+
+	internal static float CalculateRawDemandBeforeCannibalization(float buyerPool, float awareness, float conversion) =>
+		buyerPool * awareness * conversion;
+
+	internal static float CalculateAlbumExhaustion(float effectivePenetration) =>
+		Mathf.Max(0.15f, 1f / (1f + effectivePenetration * 4f));
 
 	public static void UpdateRegionalState(RecordRuntimeData record, RegionalRecordData data) {
 		float localGrowth = (record.currentLabelPush * 0.018f + record.wordOfMouth * 0.010f) * (1f - data.awareness);

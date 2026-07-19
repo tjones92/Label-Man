@@ -50,6 +50,9 @@ public class RegionalRecordData {
 	public int serviceableIntentThisWeek;
 	public int storeCapacityThisWeek;
 	public int marketDisplacedDemandThisWeek;
+	// Live Genre-Market-V2 Albums retain their greatest observed regional
+	// penetration so buyer-pool growth cannot rejuvenate catalog exhaustion.
+	public float albumPeakEffectivePenetration;
 	// Immutable settlement inputs captured after the two clearing stages.
 	public int localClearedThisWeek;
 	public int spilloverClearedThisWeek;

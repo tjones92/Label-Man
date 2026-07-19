@@ -37,6 +37,10 @@ public partial class CompetitorManager : Node {
 	private const float ResponsiveMemoryHalfLifeWeeks = 52f;
 	private const float ResponsiveMemoryMaximumConfidence = .65f;
 	private const float ResponsiveMemoryResidualLimit = 3f;
+	// The live revision model observes high-variance, annualized outcomes and
+	// therefore needs more evidence than the frozen retirement-time EMA. Keeping
+	// this separate also preserves the disabled route's legacy K=4 behavior.
+	private const float ResponsiveMemoryConfidenceK = 12f;
 	[Export] private float priorUnitScalarAlbum = 175000f;
 	[Export] private float priorCompHitUnitScalar = 20000f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float hitRecencyDecay = 0.75f;
@@ -358,9 +362,8 @@ public partial class CompetitorManager : Node {
 			if (format == ReleaseFormat.Album) pressingCost += albumPackagingCostPerUnit * (runtimeData.baseRecord.album?.packaging ?? 0f);
 			var artist = ArtistManager.Instance?.GetArtist(runtimeData.baseRecord.artistId);
 			float artistRoyalty = artist?.royaltyRate ?? 0.05f;
-			float skimFraction = label.activeDeal != null
-				? Mathf.Clamp(label.activeDeal.marginSkim, 0f, 1f)
-				: 0.25f * (1f - label.ownedReach);
+			float skimFraction = GetSettlementDistributionSkimFraction(label, runtimeData, weeklyUnits,
+				liveSettlement: GenreMarketV2.Enabled && settlement.SettlementId > 0);
 			float retailGross = weeklyUnits * pricePerUnit;
 			// DISTANCE-4B: 4a sums by current-region hub with a neutral cost factor; 4b
 			// makes manufacturing margin, skim basis, and artist recoupment region-weighted.
@@ -406,6 +409,45 @@ public partial class CompetitorManager : Node {
 		SimulationPerformanceProfiler.EndCalculateLabelRevenue(profileStart);
 		return totalRevenue;
 	}
+
+	/// <summary>
+	/// A distribution contract may skim only the regions it actually grants.
+	/// Applying its margin to the client's owned or otherwise ungranted sales
+	/// transfers unrelated label revenue to the distributor. The frozen no-deal
+	/// route retains its established owned-reach formula.
+	/// </summary>
+	private static float GetSettlementDistributionSkimFraction(AILabel label,
+		RecordRuntimeData runtimeData, float weeklyUnits, bool liveSettlement) {
+		if (!liveSettlement) return GetLegacyDistributionSkimFraction(label);
+		IEnumerable<KeyValuePair<string, int>> regionalUnits = runtimeData?.regionalData?
+			.Select(pair => new KeyValuePair<string, int>(pair.Key,
+				Mathf.Max(0, pair.Value?.unitsSoldThisWeek ?? 0)));
+		return GetSettlementDistributionSkimFraction(label, regionalUnits, weeklyUnits);
+	}
+
+	private static float GetLegacyDistributionSkimFraction(AILabel label) =>
+		label?.activeDeal != null
+			? Mathf.Clamp(label.activeDeal.marginSkim, 0f, 1f)
+			: 0.25f * (1f - (label?.ownedReach ?? 0f));
+
+	private static float GetSettlementDistributionSkimFraction(AILabel label,
+		IEnumerable<KeyValuePair<string, int>> regionalUnits, float weeklyUnits) {
+		if (label?.activeDeal == null) return 0.25f * (1f - Mathf.Clamp(label?.ownedReach ?? 0f, 0f, 1f));
+		if (weeklyUnits <= 0f || regionalUnits == null) return 0f;
+		var granted = new HashSet<string>(label.activeDeal.grantedRegions ?? System.Array.Empty<string>(),
+			System.StringComparer.Ordinal);
+		int grantedUnits = regionalUnits
+			.Where(pair => granted.Contains(pair.Key))
+			.Sum(pair => Mathf.Max(0, pair.Value));
+		float grantedShare = Mathf.Clamp(grantedUnits / weeklyUnits, 0f, 1f);
+		return Mathf.Clamp(label.activeDeal.marginSkim, 0f, 1f) * grantedShare;
+	}
+
+	internal static float GetSettlementDistributionSkimFractionForProbe(AILabel label,
+		IReadOnlyDictionary<string, int> regionalUnits, int totalUnits, bool liveSettlement = true) =>
+		liveSettlement
+			? GetSettlementDistributionSkimFraction(label, regionalUnits, totalUnits)
+			: GetLegacyDistributionSkimFraction(label);
 
 	private float CalculateRegionalCogs(AILabel label, RecordRuntimeData runtimeData, float pressingCost) {
 		if (runtimeData.regionalData == null || runtimeData.regionalData.Count == 0) {
@@ -632,10 +674,15 @@ public partial class CompetitorManager : Node {
 		float scale = Mathf.Max(1f, Mathf.Max(runtimeData.releaseTimeOpportunityScale, Mathf.Abs(expectedNet)));
 		float terminalAge = runtimeData.baseRecord.format == ReleaseFormat.Album ? 52f : 20f;
 		float maturity = finalized ? 1f : Mathf.Clamp((age + 1f) / terminalAge, .05f, 1f);
-		// Partial outcomes are annualized to an age-matched terminal estimate before
-		// comparison; raw partial Album net is never compared to a full prior.
 		float realizedToDate = runtimeData.lifetimeLabelNet - runtimeData.sunkProductionCost;
-		float estimatedOutcome = finalized ? realizedToDate : realizedToDate / maturity;
+		// Production is a one-time sunk cost. Annualize only the accumulating
+		// revenue, then subtract that cost once; dividing realized net by maturity
+		// repeatedly charged the same production cost and made young Albums appear
+		// catastrophically unprofitable.
+		float estimatedOutcome = EstimateResponsiveMemoryOutcome(runtimeData.lifetimeLabelNet,
+			runtimeData.sunkProductionCost, maturity, finalized);
+		float ageMatchedExpectedNet = GetAgeMatchedExpectedNet(expectedNet,
+			runtimeData.sunkProductionCost, maturity);
 		float residual = Mathf.Clamp((estimatedOutcome - expectedNet) / scale, -ResponsiveMemoryResidualLimit, ResponsiveMemoryResidualLimit);
 		if (float.IsNaN(residual) || float.IsInfinity(residual)) return;
 		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == releaseId);
@@ -644,20 +691,54 @@ public partial class CompetitorManager : Node {
 				expectedNet = expectedNet, opportunityScale = scale };
 			memory.observations.Add(observation);
 		}
-		if (!finalized && observation.lastRevisionAge >= age) return;
-		bool replacedPriorRevision = observation.lastRevisionAge >= 0;
+		if (!TryAdvanceResponsiveMemoryRevision(observation, age, finalized,
+			out bool replacedPriorRevision, out int revisionOrdinal)) return;
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = maturity;
-		observation.lastRevisionAge = age;
-		observation.finalized |= finalized;
 		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
 			releaseId = releaseId, labelId = runtimeData.baseRecord.labelId, format = runtimeData.baseRecord.format,
 			genre = runtimeData.baseRecord.primaryGenre, releaseAge = age, revisionKind = finalized ? "Final" : $"Age{age}",
-			releaseTimeExpectedNet = expectedNet, ageMatchedExpectedNet = expectedNet * maturity,
+			revisionOrdinal = revisionOrdinal,
+			releaseTimeExpectedNet = expectedNet, ageMatchedExpectedNet = ageMatchedExpectedNet,
 			realizedNetToDate = realizedToDate, estimatedOutcomeNet = estimatedOutcome, opportunityScale = scale,
 			normalizedResidual = residual, maturityWeight = maturity,
 			recencyWeight = 1f, replacedPriorRevision = replacedPriorRevision, finalized = observation.finalized
 		});
+	}
+
+	private static float EstimateResponsiveMemoryOutcome(float lifetimeLabelNet, float sunkProductionCost,
+		float maturity, bool finalized) {
+		float realizedToDate = lifetimeLabelNet - sunkProductionCost;
+		if (finalized) return realizedToDate;
+		return lifetimeLabelNet / Mathf.Max(.05f, maturity) - sunkProductionCost;
+	}
+
+	private static float GetAgeMatchedExpectedNet(float terminalExpectedNet, float sunkProductionCost, float maturity) =>
+		(terminalExpectedNet + sunkProductionCost) * Mathf.Clamp(maturity, .05f, 1f) - sunkProductionCost;
+
+	internal static (float EstimatedOutcome, float AgeMatchedExpected) GetResponsiveMemoryEconomicsForProbe(
+		float lifetimeLabelNet, float sunkProductionCost, float terminalExpectedNet, float maturity, bool finalized) =>
+		(EstimateResponsiveMemoryOutcome(lifetimeLabelNet, sunkProductionCost, maturity, finalized),
+			GetAgeMatchedExpectedNet(terminalExpectedNet, sunkProductionCost, finalized ? 1f : maturity));
+
+	/// <summary>
+	/// Advances one release-keyed memory observation. The first revision is not a
+	/// replacement; provisional duplicates, backward ages, and all post-final
+	/// revisions are rejected. A final revision may replace a provisional row at
+	/// the same age.
+	/// </summary>
+	internal static bool TryAdvanceResponsiveMemoryRevision(FormatMemoryObservation observation, int age, bool finalized,
+		out bool replacedPriorRevision, out int revisionOrdinal) {
+		replacedPriorRevision = false;
+		revisionOrdinal = observation?.revisionOrdinal ?? 0;
+		if (observation == null || age < 0 || observation.finalized || age < observation.lastRevisionAge) return false;
+		if (!finalized && age <= observation.lastRevisionAge) return false;
+		replacedPriorRevision = observation.lastRevisionAge >= 0;
+		observation.lastRevisionAge = age;
+		observation.revisionOrdinal++;
+		observation.finalized = finalized;
+		revisionOrdinal = observation.revisionOrdinal;
+		return true;
 	}
 
 	private (float Residual, float EffectiveWeight, float Confidence) GetResponsiveMemory(FormatRevenueMemory memory, int currentWeek) {
@@ -671,9 +752,16 @@ public partial class CompetitorManager : Node {
 			weightedResidual += observation.normalizedResidual * itemWeight;
 			weight += itemWeight;
 		}
-		float confidence = Mathf.Min(ResponsiveMemoryMaximumConfidence, weight / (weight + Mathf.Max(.1f, revenueMemoryConfidenceK)));
+		float confidence = CalculateResponsiveMemoryConfidence(weight);
 		return (weight > 0f ? weightedResidual / weight : 0f, weight, confidence);
 	}
+
+	private static float CalculateResponsiveMemoryConfidence(float effectiveWeight) =>
+		Mathf.Min(ResponsiveMemoryMaximumConfidence,
+			Mathf.Max(0f, effectiveWeight) / (Mathf.Max(0f, effectiveWeight) + ResponsiveMemoryConfidenceK));
+
+	internal static float GetResponsiveMemoryConfidenceForProbe(float effectiveWeight) =>
+		CalculateResponsiveMemoryConfidence(effectiveWeight);
 
 	private void TryFoldProjectMemory(AlbumProject project) {
 		if (project == null || project.albumMemoryFolded || project.heldAlbumOutcome == null) return;
@@ -966,7 +1054,8 @@ public partial class CompetitorManager : Node {
 			dropDate = date.AddDays(gapWeeks * 7), strategy = plan.strategy, albumRecord = album,
 			promoSingleRecord = promo, promoSingleId = promo?.recordId, albumProductionCost = albumProductionCost,
 			promoProductionCost = promoProductionCost, albumPromotionSnapshot = albumPromotion,
-			albumMarketingBudgetPlanned = albumMarketingPlanned, projectedAlbumNet = plan.projectedAlbumStandaloneNet,
+			albumMarketingBudgetPlanned = albumMarketingPlanned, releaseTimeAlbumExpectedNet = plan.priorAlbumNet,
+			projectedAlbumNet = plan.projectedAlbumStandaloneNet,
 			projectedPromoSingleNet = plan.expectedPromoSingleNet, projectedProjectNet = plan.projectedAlbumWithPromoNet,
 			albumOutcomeState = ProjectOutcomeState.Pending,
 			promoOutcomeState = promo == null ? ProjectOutcomeState.None : ProjectOutcomeState.Pending
@@ -979,11 +1068,13 @@ public partial class CompetitorManager : Node {
 
 		if (plan.strategy == ReleaseStrategy.AlbumStandalone) {
 			project.terminalState = AlbumProjectTerminalState.Released;
-			ReleasePreparedRecord(album, artist, label, date, albumProductionCost, ProjectRecordRole.StandaloneAlbum, projectId);
+			ReleasePreparedRecord(album, artist, label, date, albumProductionCost, plan.priorAlbumNet,
+				ProjectRecordRole.StandaloneAlbum, projectId);
 			ApplyReleasePromotion(album, artist, label, albumMarketingPlanned, albumPerceivedMult);
 		} else {
 			pendingAlbumProjects.Add(project);
-			ReleasePreparedRecord(promo, artist, label, date, promoProductionCost, ProjectRecordRole.PromoSingle, projectId);
+			ReleasePreparedRecord(promo, artist, label, date, promoProductionCost, plan.expectedPromoSingleNet,
+				ProjectRecordRole.PromoSingle, projectId);
 			ApplyReleasePromotion(promo, artist, label, promoMarketingBudget, promoPerceivedMult);
 		}
 		artist.weeksSinceLastRelease = 0;
@@ -1024,7 +1115,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private void ReleasePreparedRecord(Record record, SimulatedArtist artist, AILabel label, GameDate date, float productionCost,
-		ProjectRecordRole role, string projectId) {
+		float releaseTimeExpectedNet, ProjectRecordRole role, string projectId) {
 		record.labelId = label.labelId;
 		record.releaseDate = date;
 		ChartManager.Instance.ReleaseRecord(record);
@@ -1037,8 +1128,8 @@ public partial class CompetitorManager : Node {
 			?? throw new System.InvalidOperationException($"Released record '{record.recordId}' has no runtime data.");
 		runtime.sunkProductionCost = productionCost;
 		runtime.revenueMemoryEligible = true;
-		runtime.releaseTimeExpectedNet = -productionCost;
-		runtime.releaseTimeOpportunityScale = Mathf.Max(1f, productionCost);
+		runtime.releaseTimeExpectedNet = releaseTimeExpectedNet;
+		runtime.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(releaseTimeExpectedNet), productionCost));
 		runtime.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
 		runtime.projectRole = role;
 		runtime.albumProjectId = projectId;
@@ -1877,7 +1968,8 @@ public partial class CompetitorManager : Node {
 			WeeklyMarketingEvents++;
 
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(project.artistId);
-			ReleasePreparedRecord(project.albumRecord, artist, owner, date, project.albumProductionCost, ProjectRecordRole.LinkedAlbum, project.projectId);
+			ReleasePreparedRecord(project.albumRecord, artist, owner, date, project.albumProductionCost,
+				project.releaseTimeAlbumExpectedNet, ProjectRecordRole.LinkedAlbum, project.projectId);
 			RecordRuntimeData promoRuntime = ChartManager.Instance.GetRecordRuntimeData(project.promoSingleId);
 			int promoPeak = promoRuntime?.peakPosition ?? project.promoPeakAtDrop;
 			project.promoPeakAtDrop = promoPeak;
@@ -2484,7 +2576,7 @@ public sealed class FormatMemoryRevisionTelemetry {
 	public string releaseId, labelId, revisionKind;
 	public ReleaseFormat format;
 	public Genre genre;
-	public int releaseAge;
+	public int releaseAge, revisionOrdinal;
 	public float releaseTimeExpectedNet, ageMatchedExpectedNet, realizedNetToDate, estimatedOutcomeNet, opportunityScale;
 	public float normalizedResidual, maturityWeight, recencyWeight;
 	public bool replacedPriorRevision, finalized;
