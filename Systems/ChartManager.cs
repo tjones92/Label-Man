@@ -62,6 +62,13 @@ public partial class ChartManager : Node {
 	private Dictionary<RecordRuntimeData, float> previousChartPoints = new Dictionary<RecordRuntimeData, float>();
 	private Dictionary<string, AILabel> labelLookup = new Dictionary<string, AILabel>();
 	private const float WeeklyRegionalPurchaseCapacityMultiplier = 1.34f;
+	// Album title intents substantially overlap because each title is evaluated
+	// against the same format buyer pool. Convert their summed serviceable intent
+	// into one market-wide format opportunity before common regional clearing.
+	private const float AlbumIntentOverlapPressure = 2f;
+	private const int AlbumDistinctMarketCatalogAgeWeeks = 104;
+	private const float AlbumDistinctMarketShareStart = 0.05f;
+	private const float AlbumDistinctMarketShareFull = 0.06f;
 	// A donor contributes only portable purchase opportunity left idle by its own
 	// local market.  These bounds deliberately prevent the region graph from
 	// becoming a disguised national pool.
@@ -74,8 +81,11 @@ public partial class ChartManager : Node {
 	public sealed class MarketClearingRegionalSummary {
 		public string RegionId;
 		public int ActiveIntentCount, PurchaseCapacity, ClearedSingleUnits, ClearedAlbumUnits, PhysicalBackorders, MarketDisplacedDemand;
+		public int SingleFormatBudget, AlbumFormatBudget, YoungAlbumFormatBudget, CatalogAlbumFormatBudget;
 		public int LocalClearedUnits, UnusedAfterLocal, ExportBudget, ExportedCapacity, ImportLimit, ImportedCapacity, SpilloverClearedUnits;
 		public float RawSingleDemand, RawAlbumDemand, ServiceableSingleIntent, ServiceableAlbumIntent;
+		public float ServiceableYoungAlbumIntent, ServiceableCatalogAlbumIntent;
+		public float EffectiveAlbumIntent, AlbumDistinctMarketMaturity;
 		public int InventoryViolationCount, AllocationViolationCount, ReconciliationDelta;
 		public int ClearedTotalUnits => ClearedSingleUnits + ClearedAlbumUnits;
 		public int ServiceableTotalIntent => Mathf.RoundToInt(ServiceableSingleIntent + ServiceableAlbumIntent);
@@ -117,9 +127,24 @@ public partial class ChartManager : Node {
 		public int Cleared;
 		public float Fraction;
 	}
+
+	internal readonly struct FormatClearingBudget {
+		public readonly int Single, Album, YoungAlbum, CatalogAlbum;
+		public readonly float EffectiveAlbum, DistinctMarketMaturity;
+		public FormatClearingBudget(int single, int youngAlbum, int catalogAlbum,
+			float effectiveAlbum, float distinctMarketMaturity) {
+			Single = single;
+			YoungAlbum = youngAlbum;
+			CatalogAlbum = catalogAlbum;
+			Album = youngAlbum + catalogAlbum;
+			EffectiveAlbum = effectiveAlbum;
+			DistinctMarketMaturity = distinctMarketMaturity;
+		}
+	}
 	public IReadOnlyList<MarketClearingRegionalSummary> GetLastMarketClearingSummaries() => lastMarketClearingSummaries;
 	public IReadOnlyList<MarketSpilloverTransfer> GetLastMarketSpilloverTransfers() => lastMarketSpilloverTransfers;
 	public CompletedWeekSettlement GetLastCompletedWeekSettlement() => lastCompletedWeekSettlement;
+	public int GetAlbumCatalogSalesFloor() => albumCatalogSalesFloor;
 
 	// Artist heat cache
 	private Dictionary<string, float> artistHeatCache = new Dictionary<string, float>();
@@ -894,27 +919,38 @@ public partial class ChartManager : Node {
 			List<MarketIntent> intents = intentsByRegion[region.regionId];
 			int capacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
 				* WeeklyRegionalPurchaseCapacityMultiplier));
-			int totalIntent = intents.Sum(intent => intent.Serviceable);
-			if (totalIntent <= capacity) {
-				foreach (MarketIntent intent in intents) intent.Cleared = intent.Serviceable;
-			} else if (totalIntent > 0) {
-				foreach (MarketIntent intent in intents) {
-					float exact = intent.Serviceable * (float)capacity / totalIntent;
-					intent.Cleared = Mathf.FloorToInt(exact);
-					intent.Fraction = exact - intent.Cleared;
-				}
-				int remaining = capacity - intents.Sum(intent => intent.Cleared);
-				foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction)
-					.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) intent.Cleared++;
-			}
 			var summary = new MarketClearingRegionalSummary { RegionId = region.regionId, PurchaseCapacity = capacity };
 			foreach (MarketIntent intent in intents) {
 				bool album = intent.Record.baseRecord.format == ReleaseFormat.Album;
 				summary.ActiveIntentCount += intent.Serviceable > 0 ? 1 : 0;
-				if (album) { summary.RawAlbumDemand += intent.Data.rawDemandThisWeek; summary.ServiceableAlbumIntent += intent.Serviceable; }
+				if (album) {
+					summary.RawAlbumDemand += intent.Data.rawDemandThisWeek;
+					summary.ServiceableAlbumIntent += intent.Serviceable;
+					if (intent.Record.weeksSinceRelease < AlbumDistinctMarketCatalogAgeWeeks)
+						summary.ServiceableYoungAlbumIntent += intent.Serviceable;
+					else summary.ServiceableCatalogAlbumIntent += intent.Serviceable;
+				}
 				else { summary.RawSingleDemand += intent.Data.rawDemandThisWeek; summary.ServiceableSingleIntent += intent.Serviceable; }
 				summary.PhysicalBackorders += intent.Data.unitsBackordered;
 			}
+			FormatClearingBudget budget = CalculateFormatClearingBudget(
+				Mathf.RoundToInt(summary.ServiceableSingleIntent),
+				Mathf.RoundToInt(summary.ServiceableYoungAlbumIntent),
+				Mathf.RoundToInt(summary.ServiceableCatalogAlbumIntent), capacity);
+			summary.SingleFormatBudget = budget.Single;
+			summary.AlbumFormatBudget = budget.Album;
+			summary.YoungAlbumFormatBudget = budget.YoungAlbum;
+			summary.CatalogAlbumFormatBudget = budget.CatalogAlbum;
+			summary.EffectiveAlbumIntent = budget.EffectiveAlbum;
+			summary.AlbumDistinctMarketMaturity = budget.DistinctMarketMaturity;
+			AllocateProportionalLocal(intents.Where(intent =>
+				intent.Record.baseRecord.format == ReleaseFormat.Single).ToList(), budget.Single);
+			AllocateProportionalLocal(intents.Where(intent =>
+				intent.Record.baseRecord.format == ReleaseFormat.Album &&
+				intent.Record.weeksSinceRelease < AlbumDistinctMarketCatalogAgeWeeks).ToList(), budget.YoungAlbum);
+			AllocateProportionalLocal(intents.Where(intent =>
+				intent.Record.baseRecord.format == ReleaseFormat.Album &&
+				intent.Record.weeksSinceRelease >= AlbumDistinctMarketCatalogAgeWeeks).ToList(), budget.CatalogAlbum);
 			foreach (MarketIntent intent in intents) intent.Data.localClearedThisWeek = intent.Cleared;
 			summary.LocalClearedUnits = intents.Sum(intent => intent.Cleared);
 			summary.UnusedAfterLocal = Mathf.Max(0, capacity - summary.LocalClearedUnits);
@@ -947,7 +983,8 @@ public partial class ChartManager : Node {
 			summary.ReconciliationDelta = intents.Sum(intent => intent.Cleared) - summary.ClearedTotalUnits;
 			if (summary.LocalClearedUnits > summary.PurchaseCapacity || summary.ExportedCapacity > summary.ExportBudget ||
 				summary.ImportedCapacity > summary.ImportLimit || summary.ImportedCapacity > summary.ServiceableTotalIntent - summary.LocalClearedUnits ||
-				summary.ClearedTotalUnits > summary.ServiceableTotalIntent || summary.ReconciliationDelta != 0)
+				summary.ClearedTotalUnits > summary.ServiceableTotalIntent || summary.ClearedAlbumUnits > summary.AlbumFormatBudget ||
+				summary.ReconciliationDelta != 0)
 				summary.AllocationViolationCount++;
 			lastMarketClearingSummaries.Add(summary);
 		}
@@ -975,7 +1012,8 @@ public partial class ChartManager : Node {
 	private void ApplyBoundedRegionalSpillover(Dictionary<string, List<MarketIntent>> intentsByRegion,
 		Dictionary<string, MarketClearingRegionalSummary> summaries) {
 		var donors = summaries.Values.Where(row => row.ExportBudget > 0).OrderBy(row => row.RegionId, StringComparer.Ordinal).ToList();
-		var recipients = summaries.Values.Where(row => row.ImportLimit > 0 && row.ServiceableTotalIntent > row.LocalClearedUnits)
+		var recipients = summaries.Values.Where(row => row.ImportLimit > 0 &&
+			GetAllocatableResidual(intentsByRegion[row.RegionId], row) > 0)
 			.OrderBy(row => row.RegionId, StringComparer.Ordinal).ToList();
 		if (donors.Count == 0 || recipients.Count == 0) return;
 		var donorIndex = donors.Select((row, index) => (row.RegionId, Node: index + 1)).ToDictionary(pair => pair.RegionId, pair => pair.Node, StringComparer.Ordinal);
@@ -984,7 +1022,7 @@ public partial class ChartManager : Node {
 		var graph = Enumerable.Range(0, sink + 1).Select(_ => new List<SpilloverFlowEdge>()).ToArray();
 		foreach (MarketClearingRegionalSummary donor in donors) AddSpilloverFlowEdge(graph, source, donorIndex[donor.RegionId], donor.ExportBudget);
 		foreach (MarketClearingRegionalSummary recipient in recipients) {
-			int residual = recipient.ServiceableTotalIntent - recipient.LocalClearedUnits;
+			int residual = GetAllocatableResidual(intentsByRegion[recipient.RegionId], recipient);
 			AddSpilloverFlowEdge(graph, recipientIndex[recipient.RegionId], sink, Mathf.Min(residual, recipient.ImportLimit));
 		}
 		var transferEdges = new List<SpilloverFlowEdge>();
@@ -1026,13 +1064,20 @@ public partial class ChartManager : Node {
 			imports[edge.RecipientRegionId] = imports.TryGetValue(edge.RecipientRegionId, out int previous) ? previous + transfer : transfer;
 			lastMarketSpilloverTransfers.Add(new MarketSpilloverTransfer { DonorRegionId = edge.DonorRegionId, RecipientRegionId = edge.RecipientRegionId,
 				DonorUnusedLocal = donor.UnusedAfterLocal, DonorExportBudget = donor.ExportBudget,
-				RecipientResidualDemand = recipient.ServiceableTotalIntent - recipient.LocalClearedUnits, RecipientImportLimit = recipient.ImportLimit,
+				RecipientResidualDemand = GetAllocatableResidual(intentsByRegion[recipient.RegionId], recipient),
+				RecipientImportLimit = recipient.ImportLimit,
 				TransferredCapacity = transfer });
 		}
 		foreach (var pair in imports.OrderBy(pair => pair.Key, StringComparer.Ordinal)) {
-			List<MarketIntent> residualIntents = intentsByRegion[pair.Key].Where(intent => intent.Serviceable > intent.Cleared).ToList();
+			MarketClearingRegionalSummary summary = summaries[pair.Key];
+			int remainingAlbumBudget = Mathf.Max(0, summary.AlbumFormatBudget -
+				intentsByRegion[pair.Key].Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Album)
+					.Sum(intent => intent.Cleared));
+			List<MarketIntent> residualIntents = intentsByRegion[pair.Key]
+				.Where(intent => intent.Serviceable > intent.Cleared &&
+					(intent.Record.baseRecord.format != ReleaseFormat.Album || remainingAlbumBudget > 0)).ToList();
 			AllocateProportionalSpillover(residualIntents, pair.Value);
-			summaries[pair.Key].SpilloverClearedUnits = residualIntents.Sum(intent => intent.SpilloverCleared);
+			summary.SpilloverClearedUnits = residualIntents.Sum(intent => intent.SpilloverCleared);
 		}
 		// Attribute recipient format results across its inbound edges deterministically.
 		foreach (IGrouping<string, MarketSpilloverTransfer> group in lastMarketSpilloverTransfers.GroupBy(row => row.RecipientRegionId)) {
@@ -1053,6 +1098,78 @@ public partial class ChartManager : Node {
 		}
 		int remaining = allocated - assigned;
 		foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction).ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) { intent.Cleared++; intent.SpilloverCleared++; }
+	}
+
+	private static void AllocateProportionalLocal(List<MarketIntent> intents, int budget) {
+		int total = intents.Sum(intent => intent.Serviceable);
+		int allocated = Mathf.Min(Mathf.Max(0, budget), total);
+		if (allocated == 0 || total == 0) return;
+		int assigned = 0;
+		foreach (MarketIntent intent in intents) {
+			float exact = intent.Serviceable * (float)allocated / total;
+			intent.Cleared = Mathf.FloorToInt(exact);
+			intent.Fraction = exact - intent.Cleared;
+			assigned += intent.Cleared;
+		}
+		int remaining = allocated - assigned;
+		foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction)
+			.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) intent.Cleared++;
+	}
+
+	private static int GetAllocatableResidual(List<MarketIntent> intents, MarketClearingRegionalSummary summary) {
+		int single = intents.Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Single)
+			.Sum(intent => intent.Serviceable - intent.Cleared);
+		int albumCleared = intents.Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Album)
+			.Sum(intent => intent.Cleared);
+		int album = Mathf.Min(
+			Mathf.Max(0, summary.AlbumFormatBudget - albumCleared),
+			intents.Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Album)
+				.Sum(intent => intent.Serviceable - intent.Cleared));
+		return Mathf.Max(0, single + album);
+	}
+
+	internal static FormatClearingBudget CalculateFormatClearingBudget(
+		int singleIntent, int youngAlbumIntent, int catalogAlbumIntent, int capacity) {
+		int single = Mathf.Max(0, singleIntent);
+		int youngAlbum = Mathf.Max(0, youngAlbumIntent);
+		int catalogAlbum = Mathf.Max(0, catalogAlbumIntent);
+		int album = youngAlbum + catalogAlbum;
+		int available = Mathf.Max(0, capacity);
+		if (available == 0 || (single == 0 && album == 0))
+			return new FormatClearingBudget(0, 0, 0, 0f, 0f);
+		// Every Album title currently presents the full regional buyer pool. Treat
+		// their aggregate serviceable intent as overlapping format demand in a
+		// Single-led market. As Album intent establishes a distinct market, recent
+		// releases retain their opportunity while 104+ catalog remains overlapping.
+		float allOverlap = album * (float)available /
+			Mathf.Max(1f, available + AlbumIntentOverlapPressure * album);
+		float allOverlapFactor = album > 0 ? allOverlap / album : 0f;
+		float distinctCatalog = catalogAlbum * (float)available /
+			Mathf.Max(1f, available + AlbumIntentOverlapPressure * catalogAlbum);
+		float albumIntentShare = album / Mathf.Max(1f, single + album);
+		float maturity = Mathf.SmoothStep(AlbumDistinctMarketShareStart,
+			AlbumDistinctMarketShareFull, albumIntentShare);
+		float effectiveYoungAlbum = Mathf.Lerp(youngAlbum * allOverlapFactor, youngAlbum, maturity);
+		float effectiveCatalogAlbum = Mathf.Lerp(catalogAlbum * allOverlapFactor, distinctCatalog, maturity);
+		float effectiveAlbum = effectiveYoungAlbum + effectiveCatalogAlbum;
+		float effectiveTotal = single + effectiveAlbum;
+		int albumBudget = effectiveTotal <= available
+			? Mathf.Min(album, Mathf.RoundToInt(effectiveAlbum))
+			: Mathf.Min(album, Mathf.RoundToInt(available * effectiveAlbum / effectiveTotal));
+		int singleBudget = Mathf.Min(single, available - albumBudget);
+		int youngBudget = effectiveAlbum > 0f
+			? Mathf.Min(youngAlbum, Mathf.RoundToInt(albumBudget * effectiveYoungAlbum / effectiveAlbum))
+			: 0;
+		int catalogBudget = Mathf.Min(catalogAlbum, albumBudget - youngBudget);
+		int unassigned = albumBudget - youngBudget - catalogBudget;
+		if (unassigned > 0) {
+			int youngRoom = youngAlbum - youngBudget;
+			int toYoung = Mathf.Min(unassigned, youngRoom);
+			youngBudget += toYoung;
+			catalogBudget += Mathf.Min(unassigned - toYoung, catalogAlbum - catalogBudget);
+		}
+		return new FormatClearingBudget(Mathf.Max(0, singleBudget),
+			Mathf.Max(0, youngBudget), Mathf.Max(0, catalogBudget), effectiveAlbum, maturity);
 	}
 
 	internal static int CalculateSpilloverExportBudget(int unusedAfterLocal) =>

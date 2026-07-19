@@ -187,6 +187,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter formatMemoryAdjustmentWriter;
 	private StreamWriter completedWeekSettlementWriter;
 	private StreamWriter completedWeekSettlementRegionalWriter;
+	private StreamWriter albumRealizationBridgeWriter;
 	private StreamWriter formatMemoryRevisionWriter;
 	// Event-owned signing flows use the exact chart week written to the population
 	// ledger. This is observational state only and therefore cannot perturb play.
@@ -834,6 +835,7 @@ public partial class ChartAuditRunner : Node {
 			formatMemoryAdjustmentWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-memory-adjustment.csv"));
 			completedWeekSettlementWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-completed-week-settlement.csv"));
 			completedWeekSettlementRegionalWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-completed-week-settlement-regional.csv"));
+			albumRealizationBridgeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-realization-bridge.csv"));
 			formatMemoryRevisionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-memory-revisions.csv"));
 		}
 		if (ArtistPopulationLifecycle.Enabled) {
@@ -861,10 +863,11 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
 		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
-		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,serviceableTotalIntent,purchaseCapacity,baseCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
+		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,serviceableYoungAlbumIntent,serviceableCatalogAlbumIntent,albumDistinctMarketMaturity,effectiveAlbumIntent,singleFormatBudget,albumFormatBudget,youngAlbumFormatBudget,catalogAlbumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
 		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount");
 		completedWeekSettlementRegionalWriter?.WriteLine("week,year,settlementId,recordId,regionId,rawIntent,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,inventoryMovement");
+		albumRealizationBridgeWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,genre,regionId,releaseYear,ageWeeks,buyerPool,awareness,observedPenetration,effectivePenetration,peakEffectivePenetration,exhaustion,catalogDecayMultiplier,formatTilt,conversion,cannibalizationSuppression,rawDemandBeforeCannibalization,rawDemandAfterCannibalization,roundedRawIntent,unitsInStoresBeforeSale,storeCapacity,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,currentPosition,weeksSinceLastCharted,weeksSinceSalesAboveFloor,retirementFloor,retiredAfterSettlement");
 		formatMemoryRevisionWriter?.WriteLine("week,year,releaseId,labelId,format,genre,releaseAge,revisionKind,revisionOrdinal,releaseTimeExpectedNet,ageMatchedExpectedNet,realizedNetToDate,estimatedOutcomeNet,opportunityScale,normalizedResidual,maturityWeight,recencyWeight,replacedPriorRevision,finalized,nonFiniteViolation");
 		formatMemoryAdjustmentWriter?.WriteLine("week,year,recordId,labelId,memoryScope,rawSingleConfidence,rawAlbumConfidence,effectiveSingleConfidence,effectiveAlbumConfidence,singleCapApplied,albumCapApplied");
 		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
@@ -1226,6 +1229,37 @@ public partial class ChartAuditRunner : Node {
 					region.RawIntent.ToString(CultureInfo.InvariantCulture), region.ServiceableIntent.ToString(CultureInfo.InvariantCulture), region.LocalCleared.ToString(CultureInfo.InvariantCulture), region.SpilloverCleared.ToString(CultureInfo.InvariantCulture), region.FinalCleared.ToString(CultureInfo.InvariantCulture),
 					region.PhysicalBackorders.ToString(CultureInfo.InvariantCulture), region.MarketDisplacedDemand.ToString(CultureInfo.InvariantCulture), region.InventoryMovement.ToString(CultureInfo.InvariantCulture)
 				}));
+				if (entry.Format == ReleaseFormat.Album && entry.Record != null &&
+					entry.Record.regionalData.TryGetValue(region.RegionId, out RegionalRecordData data)) {
+					albumRealizationBridgeWriter?.WriteLine(string.Join(",", new[] {
+						settlement.SettlementId.ToString(CultureInfo.InvariantCulture),
+						settlement.Date.year.ToString(CultureInfo.InvariantCulture),
+						settlement.SettlementId.ToString(CultureInfo.InvariantCulture),
+						Csv(entry.RecordId), Csv(entry.LabelId), Csv(entry.LabelTier), Csv(entry.Genre), Csv(region.RegionId),
+						entry.Record.baseRecord.releaseDate.year.ToString(CultureInfo.InvariantCulture),
+						entry.Record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
+						F(data.albumBuyerPoolThisWeek), F(data.albumAwarenessThisWeek),
+						F(data.albumObservedPenetrationThisWeek), F(data.albumEffectivePenetrationThisWeek),
+						F(data.albumPeakEffectivePenetration), F(data.albumExhaustionThisWeek),
+						F(data.albumCatalogDecayMultiplierThisWeek), F(data.albumFormatTiltThisWeek),
+						F(data.albumConversionThisWeek), F(entry.Record.cannibalizationSuppression),
+						F(data.albumRawDemandBeforeCannibalizationThisWeek), F(data.albumRawDemandAfterCannibalizationThisWeek),
+						region.RawIntent.ToString(CultureInfo.InvariantCulture),
+						data.albumUnitsInStoresBeforeSaleThisWeek.ToString(CultureInfo.InvariantCulture),
+						data.storeCapacityThisWeek.ToString(CultureInfo.InvariantCulture),
+						region.ServiceableIntent.ToString(CultureInfo.InvariantCulture),
+						region.LocalCleared.ToString(CultureInfo.InvariantCulture),
+						region.SpilloverCleared.ToString(CultureInfo.InvariantCulture),
+						region.FinalCleared.ToString(CultureInfo.InvariantCulture),
+						region.PhysicalBackorders.ToString(CultureInfo.InvariantCulture),
+						region.MarketDisplacedDemand.ToString(CultureInfo.InvariantCulture),
+						entry.Record.currentPosition.ToString(CultureInfo.InvariantCulture),
+						ChartManager.Instance.GetWeeksSinceLastCharted(entry.Record).ToString(CultureInfo.InvariantCulture),
+						ChartManager.Instance.GetWeeksSinceSalesAboveRetirementFloor(entry.Record).ToString(CultureInfo.InvariantCulture),
+						ChartManager.Instance.GetAlbumCatalogSalesFloor().ToString(CultureInfo.InvariantCulture),
+						entry.RetiredAfterSettlement ? "true" : "false"
+					}));
+				}
 			}
 		}
 	}
@@ -1800,7 +1834,12 @@ public partial class ChartAuditRunner : Node {
 			marketClearingWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(row.RegionId),
 				row.ActiveIntentCount.ToString(CultureInfo.InvariantCulture), F(row.RawSingleDemand), F(row.RawAlbumDemand), F(row.RawSingleDemand + row.RawAlbumDemand),
-				F(row.ServiceableSingleIntent), F(row.ServiceableAlbumIntent), serviceable.ToString(CultureInfo.InvariantCulture),
+				F(row.ServiceableSingleIntent), F(row.ServiceableAlbumIntent),
+				F(row.ServiceableYoungAlbumIntent), F(row.ServiceableCatalogAlbumIntent),
+				F(row.AlbumDistinctMarketMaturity), F(row.EffectiveAlbumIntent),
+				row.SingleFormatBudget.ToString(CultureInfo.InvariantCulture), row.AlbumFormatBudget.ToString(CultureInfo.InvariantCulture),
+				row.YoungAlbumFormatBudget.ToString(CultureInfo.InvariantCulture), row.CatalogAlbumFormatBudget.ToString(CultureInfo.InvariantCulture),
+				serviceable.ToString(CultureInfo.InvariantCulture),
 				row.PurchaseCapacity.ToString(CultureInfo.InvariantCulture), row.PurchaseCapacity.ToString(CultureInfo.InvariantCulture),
 				row.LocalClearedUnits.ToString(CultureInfo.InvariantCulture), row.UnusedAfterLocal.ToString(CultureInfo.InvariantCulture),
 				row.ExportBudget.ToString(CultureInfo.InvariantCulture), row.ExportedCapacity.ToString(CultureInfo.InvariantCulture),
@@ -2525,6 +2564,7 @@ public partial class ChartAuditRunner : Node {
 		marketSpilloverWriter?.Flush();
 		completedWeekSettlementWriter?.Flush();
 		completedWeekSettlementRegionalWriter?.Flush();
+		albumRealizationBridgeWriter?.Flush();
 		formatMemoryRevisionWriter?.Flush();
 		formatMemoryAdjustmentWriter?.Flush();
 		releaseCapacityWriter?.Flush();
@@ -2719,6 +2759,7 @@ public partial class ChartAuditRunner : Node {
 		marketSpilloverWriter?.Dispose();
 		completedWeekSettlementWriter?.Dispose();
 		completedWeekSettlementRegionalWriter?.Dispose();
+		albumRealizationBridgeWriter?.Dispose();
 		formatMemoryRevisionWriter?.Dispose();
 		formatMemoryAdjustmentWriter?.Dispose();
 		releaseCapacityWriter?.Dispose();
@@ -2783,6 +2824,7 @@ public partial class ChartAuditRunner : Node {
 		marketSpilloverWriter = null;
 		completedWeekSettlementWriter = null;
 		completedWeekSettlementRegionalWriter = null;
+		albumRealizationBridgeWriter = null;
 		formatMemoryRevisionWriter = null;
 		formatMemoryAdjustmentWriter = null;
 		releaseCapacityWriter = null;

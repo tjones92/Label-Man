@@ -50,6 +50,19 @@ public class RegionalRecordData {
 	public int serviceableIntentThisWeek;
 	public int storeCapacityThisWeek;
 	public int marketDisplacedDemandThisWeek;
+	// Population-complete Album realization snapshots. These are assigned during
+	// the demand pass and consumed only by the enabled settlement audit.
+	public float albumBuyerPoolThisWeek;
+	public float albumAwarenessThisWeek;
+	public float albumObservedPenetrationThisWeek;
+	public float albumEffectivePenetrationThisWeek;
+	public float albumExhaustionThisWeek;
+	public float albumCatalogDecayMultiplierThisWeek;
+	public float albumFormatTiltThisWeek;
+	public float albumConversionThisWeek;
+	public float albumRawDemandBeforeCannibalizationThisWeek;
+	public float albumRawDemandAfterCannibalizationThisWeek;
+	public int albumUnitsInStoresBeforeSaleThisWeek;
 	// Live Genre-Market-V2 Albums retain their greatest observed regional
 	// penetration so buyer-pool growth cannot rejuvenate catalog exhaustion.
 	public float albumPeakEffectivePenetration;

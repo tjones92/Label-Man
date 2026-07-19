@@ -80,7 +80,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeCatastrophicFailFastBoundaries();                       // 64
 		ProbeCatastrophicControlParsing();                           // 65
 		ProbeAlbumMonotonicPenetration();                            // 66
-		results.Add("D6 fixed probes 1-66 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, and Album monotonic penetration)");
+		ProbeAlbumFormatClearingBudget();                             // 67
+		results.Add("D6 fixed probes 1-67 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, and market-wide Album format clearing)");
 		return results;
 	}
 
@@ -371,6 +372,26 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(disabled == .05f && data.albumPeakEffectivePenetration == .15f &&
 			AlbumSimulator.CalculateRawDemandBeforeCannibalization(2_000f, .5f, .02f) == 2f * AlbumSimulator.CalculateRawDemandBeforeCannibalization(1_000f, .5f, .02f),
 			"66d disabled/prewarm penetration remains stateless and buyer-pool growth still directly multiplies raw Album demand without RNG participation");
+	}
+
+	private static void ProbeAlbumFormatClearingBudget() {
+		ChartManager.FormatClearingBudget noAlbum = ChartManager.CalculateFormatClearingBudget(1_200, 0, 0, 1_000);
+		Require(noAlbum.Single == 1_000 && noAlbum.Album == 0 && noAlbum.EffectiveAlbum == 0f,
+			"67a a market without Album intent retains the full common Single capacity");
+		ChartManager.FormatClearingBudget crowded = ChartManager.CalculateFormatClearingBudget(1_200, 0, 100, 1_000);
+		int legacyAlbumShare = (int)Math.Round(1_000f * 100f / 1_300f);
+		float unpressuredOverlap = 1_000f * 100f / 1_100f;
+		Require(crowded.Album > 0 && crowded.Album < legacyAlbumShare &&
+			crowded.EffectiveAlbum < unpressuredOverlap &&
+			crowded.Single + crowded.Album <= 1_000,
+			"67b shared-pool overlap pressure gives Album intent a smaller bounded format budget than cloned common clearing");
+		ChartManager.FormatClearingBudget doubled = ChartManager.CalculateFormatClearingBudget(1_200, 0, 200, 1_000);
+		Require(doubled.Album > crowded.Album && doubled.Album < crowded.Album * 2,
+			"67c additional Album intent increases its budget sublinearly");
+		ChartManager.FormatClearingBudget recent = ChartManager.CalculateFormatClearingBudget(1_200, 100, 0, 1_000);
+		Require(recent.DistinctMarketMaturity == 1f && recent.YoungAlbum > crowded.CatalogAlbum &&
+			recent.CatalogAlbum == 0 && recent.Album <= 100,
+			"67d a mature Album-intent share protects recent releases while equally sized 104+ catalog remains overlap-limited");
 	}
 
 	private static AILabel NewRuntimeProfileProbeLabel(string id, LabelTier tier) => new() {

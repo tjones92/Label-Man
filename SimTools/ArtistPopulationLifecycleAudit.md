@@ -1423,3 +1423,121 @@ Running the Downloads console executable outside the filesystem sandbox resolved
 The initial M3 wrapper expired at 64 seconds after all 104 weekly rows had been flushed. At the owner's direction it was rerun with a patient external wait: candidate and repeat each exited zero after about 90 seconds with `CHART_AUDIT_COMPLETE ... weeks=104`. All 62 corresponding CSVs were byte-identical. The 1960–61 release, scheduled-Album, unit, gross, label-net, and market-net ratios remained within their inherited M3 bands; checked allocation/reconciliation, ownership, duplicate-membership, terminal-eligibility, and premature-probation counters were zero.
 
 M4 `d6-album-monotonic-penetration-through-1968-1001` completed normally through all 469 weeks. Its 470-line `weeks.csv` ends at week 469 / 1968, and `decade-annual-rollup.csv` has complete 1960–1968 rows. The first required annual gate failure is **1962 Album units = 1.2181x control**, exceeding the inclusive `1.20` ceiling. Later evidence confirms the same late-catalog excess: 1967 Album units 1.3798x, gross 1.2253x, label net 1.2662x, market net 1.2582x; 1968 Album units 1.6237x, gross 1.3332x, label net 1.3833x, and market net 1.3663x. The candidate therefore fails as an **unchanged late-catalog/economic excess**, with an earlier 1962 Album upper-band breach. M5 was not launched, and no tuning, additional candidate, seed, control, or holdout is authorized.
+
+## Album systemic sweep (2026-07-18): **TWO SURFACES / EXPERIMENT REJECTED / HANDOFF**
+
+The attached external review correctly redirected the investigation into shared
+Genre Market V2 / Album-economy code, but its proposed reuse of the Album AI
+prior's `MarketReconciliation` in realized sales was rejected. Fixed inputs show
+that factor is above one for Traditional Pop, Easy Listening, Rock and Roll, and
+Soul in 1962, so applying it would worsen the first annual gate. The retained M4
+sample also has a settlement-genre-weighted sampled Album format tilt of
+`1.0376` in 1962 but below one in 1967-1968; a raw format-tilt inflation does not
+explain the late `1.38x-1.62x` Album excess.
+
+The systemic evidence separates two failures. In 1962 the candidate has a lower
+Album decision share than control (`0.362852` versus `0.374274`) but `1.218112x`
+Album units, locating the first miss in realization/yield and catalog carry-in
+rather than scheduling alone. By 1968 cumulative Album releases are nearly
+equal (`15,782` versus `15,624`), while the candidate has `9,138` active Albums
+versus `7,002`, only `6,644` retirements versus `8,622`, and a `43.19%` 52+ gross
+share versus `20.55%`; the late miss is catalog persistence.
+
+A no-scalar experiment that prevented each Album-region buyer pool from growing
+above its first live value completed 104 and 157 weeks but worsened Album ratios
+to `1.197831` in 1961 and `1.232518` in 1962. It was rejected and fully reverted.
+No replacement M4 or M5 was launched. The reproducible analyzer and complete
+next-owner instructions are in `SimTools/AlbumSystemicSweepHandoff.md`.
+
+## Album realization/clearing correction through 1962 (2026-07-18): **PASS / STOP AT REQUESTED BOUNDARY**
+
+The required population-complete, enabled-only
+`album-realization-bridge.csv` was added at the completed-settlement seam. It
+records every Album/region/week from buyer pool and penetration through raw
+intent, serviceability, local/spillover clearing, and retirement state. The
+stream is observational: it does not draw RNG or change the disabled path.
+`analyze-album-realization-bridge.mjs` and
+`analyze-album-retirement-bridge.mjs` provide streaming cohort and retirement
+analysis for the large files.
+
+The V2-only versus V2+lifecycle isolation located the first failure:
+
+| 1962 configuration | Album units | Ratio to control |
+|---|---:|---:|
+| V2 only | 6,301,914 | 1.1590 |
+| V2 + lifecycle | 6,625,476 | 1.2181 |
+
+Lifecycle restored control-like release supply rather than oversupplying it:
+1962 successful releases / scheduled Albums were `3,632 / 1,349` in control,
+`3,577 / 1,295` with V2+lifecycle, and only `2,506 / 863` with V2 alone.
+Nevertheless, the V2+lifecycle bridge contained 3,160 Album records and 114,018
+record-weeks versus 2,449 and 92,241 under V2 alone. Raw Album demand rose
+16.7%, but finite common clearing reduced the annual cleared difference to
+323,562 units. D6 was therefore exposing a realization error already present in
+the shared D5 market: every Album title presented a largely overlapping full
+buyer-pool opportunity to common regional clearing.
+
+Two narrower candidates were rejected and reverted:
+
+- changing enabled catalog decay from `.985` to `.984` raised 1961 Album units
+  to `1.208x` control through economic/capacity feedback;
+- raising the enabled Album retirement floor from 10 to 15 passed 1961 narrowly
+  but worsened 1962 to `6,673,218` units (`1.227x`).
+
+The retained correction is market-wide format clearing in `ChartManager`.
+Before Album title intents compete with Singles, summed Album serviceable intent
+`A` is converted to an overlapping format opportunity:
+
+```text
+effectiveAlbumIntent = A * regionalPurchaseCapacity
+                     / (regionalPurchaseCapacity + 2 * A)
+```
+
+Singles and Albums then receive deterministic format budgets within the same
+regional capacity; titles compete proportionally inside their format budget.
+Album spillover cannot refill capacity beyond that budget. This is enabled-only,
+year-agnostic, genre-agnostic, and contains no control lookup. The weekly
+clearing stream now reports `effectiveAlbumIntent`, `singleFormatBudget`, and
+`albumFormatBudget`, and the live invariant explicitly rejects cleared Album
+units above the Album budget.
+
+Pressure `1.0` and `1.25` variants were retained as negative evidence. They
+completed 157 weeks but remained above the 1962 ceiling at `6,581,928`
+(`1.2101x`) and `6,573,264` (`1.2085x`) respectively. Small direct reductions
+were reabsorbed by label-finance, release-decision, and capacity feedback.
+Pressure `2.0` creates enough structural margin without approaching the lower
+annual envelope.
+
+Final exact-source validation:
+
+- build passed with only the inherited unused
+  `ChartManager.OnGenreMomentumChanged` warning;
+- D5 probes and D6 fixed probes 1-67 passed;
+- the 52-week disabled run was 45/45 CSVs byte-identical to
+  `d6-market-clearing-disabled-52-1001`;
+- the 104-week candidate and repeat completed normally, and all 63 CSVs were
+  byte-identical;
+- 1961 Album units were `4,717,344`, or `1.062844x` control;
+- the 157-week run completed normally through all of 1962.
+
+The accepted 1962 results are:
+
+| Metric | Candidate | Control | Ratio |
+|---|---:|---:|---:|
+| Album units | 6,130,092 | 5,439,136 | 1.127034 |
+| Album gross | 24,397,766.31 | 21,570,426.06 | 1.131075 |
+| Album label net | 14,690,681.38 | 13,166,432.09 | 1.115768 |
+| Album market net | 14,696,649.53 | 13,296,367.29 | 1.105313 |
+| Single units | 143,042,030 | 143,165,932 | 0.999135 |
+| Total units | 149,172,122 | 148,605,068 | 1.003816 |
+
+Across 1,099 regional clearing rows there were zero allocation violations,
+inventory violations, reconciliation deltas, or Album-budget excesses. The 1962
+bridge reconciles 9,647,136 raw Album intent to 6,130,092 cleared units:
+1,715,345 from ages 0-25, 1,782,006 from 26-51, 2,101,151 from 52-103, and
+531,590 from 104+.
+
+**Stop decision:** the requested 1962 issue is fixed with meaningful margin.
+No 1965 extension, replacement M4, or M5 was launched. The known 1967-1968
+catalog-persistence surface remains unadjudicated under this new systemic
+clearing model and is the next authorized boundary.

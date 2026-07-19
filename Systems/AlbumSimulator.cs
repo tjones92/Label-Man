@@ -40,6 +40,7 @@ public static class AlbumSimulator {
 		else if (record.currentPosition > 0 && record.currentPosition <= 40) awareness = Mathf.Max(awareness, 0.30f);
 
 		int regionalCumulativeUnitsBeforeSale = data.unitsSoldTotal;
+		float observedPenetration = regionalCumulativeUnitsBeforeSale / Mathf.Max(1f, buyerPool);
 		float penetration = CalculateEffectiveRegionalPenetration(data, regionalCumulativeUnitsBeforeSale, buyerPool, genreMarketLive);
 		float exhaustion = CalculateAlbumExhaustion(penetration);
 		float conversion = BasePurchaseRate * Mathf.Pow(appeal, 2.5f) * exhaustion;
@@ -51,15 +52,27 @@ public static class AlbumSimulator {
 			? Mathf.Pow(CatalogWeeklyDecay, record.weeksSinceRelease - CatalogDecayStartWeeks) : 1f;
 		conversion *= catalogDecayMultiplier;
 		conversion *= MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick);
-		conversion *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
+		float formatTilt = GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Album, year,
 			region.GetAcceptedAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), genreMarketLive);
+		conversion *= formatTilt;
 		conversion *= 1f - region.distribution.difficulty * 0.25f;
 		if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;
 
 		float rawDemandBeforeCannibalization = CalculateRawDemandBeforeCannibalization(buyerPool, awareness, conversion);
 		float rawSales = rawDemandBeforeCannibalization * (1f - record.cannibalizationSuppression);
+		data.albumBuyerPoolThisWeek = buyerPool;
+		data.albumAwarenessThisWeek = awareness;
+		data.albumObservedPenetrationThisWeek = observedPenetration;
+		data.albumEffectivePenetrationThisWeek = penetration;
+		data.albumExhaustionThisWeek = exhaustion;
+		data.albumCatalogDecayMultiplierThisWeek = catalogDecayMultiplier;
+		data.albumFormatTiltThisWeek = formatTilt;
+		data.albumConversionThisWeek = conversion;
+		data.albumRawDemandBeforeCannibalizationThisWeek = rawDemandBeforeCannibalization;
+		data.albumRawDemandAfterCannibalizationThisWeek = rawSales;
+		data.albumUnitsInStoresBeforeSaleThisWeek = data.unitsInStores;
 		record.rawAlbumDemandBeforeCannibalization += rawDemandBeforeCannibalization;
 		record.suppressedAlbumDemand += rawDemandBeforeCannibalization - rawSales;
 		if (record.linkedPromoRuntimeActive) record.albumDemandWithActiveLinkedPromo += rawDemandBeforeCannibalization;
