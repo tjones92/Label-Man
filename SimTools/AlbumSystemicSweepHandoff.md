@@ -391,3 +391,11 @@ Start from this exact source and keep the same stop discipline:
 
 No 1965 extension, M4 replacement, additional seed, holdout, or M5 was run in
 this implementation pass.
+
+## Successor handoff (2026-07-21)
+
+The 1967-1968 investigation and retained work-in-progress implementation are
+documented in `SimTools/AlbumCatalogPersistenceHandoff.md`. The bounded mature
+Album channel and three-year restock closure bring all Album annuals inside
+band and pass 1965, but the full candidate is not globally accepted because
+1966-1967 Single units remain above their inherited ceiling. M5 was not run.

@@ -42,6 +42,7 @@ function parseCsvLine(line) {
 
 const thresholds = [26, 52, 104];
 const pressureValues = [1, 2, 3, 4, 6, 8, 10, 12];
+const uniformPressureValues = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const transitionRanges = [
   [0.05, 0.06],
   [0.052, 0.062],
@@ -122,11 +123,17 @@ const annual = new Map();
         album: 0,
         replay: new Map(),
         transitionReplay: new Map(),
+		uniformReplay: new Map(),
       };
       annual.set(year, result);
     }
     result.actual += Number(row[column.get("clearedAlbumUnits")]);
     result.album += album;
+	for (const pressure of uniformPressureValues) {
+	  const effectiveAlbum = album * capacity / Math.max(1, capacity + pressure * album);
+	  const replay = albumBudget(single, album, capacity, effectiveAlbum);
+	  result.uniformReplay.set(pressure, (result.uniformReplay.get(pressure) ?? 0) + replay);
+	}
     for (const threshold of thresholds) {
       const { young, catalog } = cohorts.byThreshold.get(threshold);
       for (const pressure of pressureValues) {
@@ -155,6 +162,16 @@ const annual = new Map();
 
 for (const [year, result] of [...annual.entries()].sort(([left], [right]) => left - right)) {
   console.log(`\n${year} actual=${result.actual} serviceable=${result.album}`);
+  console.log("uniformPressure replay delta ratioToActual");
+  for (const pressure of uniformPressureValues) {
+	const replay = result.uniformReplay.get(pressure);
+	console.log([
+	  pressure.toFixed(2).padStart(15),
+	  String(replay).padStart(10),
+	  String(replay - result.actual).padStart(10),
+	  (replay / Math.max(1, result.actual)).toFixed(4).padStart(13),
+	].join(" "));
+  }
   console.log("threshold pressure replay delta ratioToActual");
   for (const threshold of thresholds) {
     for (const pressure of pressureValues) {

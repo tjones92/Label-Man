@@ -66,9 +66,8 @@ public partial class ChartManager : Node {
 	// against the same format buyer pool. Convert their summed serviceable intent
 	// into one market-wide format opportunity before common regional clearing.
 	private const float AlbumIntentOverlapPressure = 2f;
-	private const int AlbumDistinctMarketCatalogAgeWeeks = 104;
-	private const float AlbumDistinctMarketShareStart = 0.05f;
-	private const float AlbumDistinctMarketShareFull = 0.06f;
+	private const float MatureAlbumChannelBaselineShare = 0.08f;
+	private const float MatureAlbumChannelEraExpansionShare = 0.35f;
 	// A donor contributes only portable purchase opportunity left idle by its own
 	// local market.  These bounds deliberately prevent the region graph from
 	// becoming a disguised national pool.
@@ -80,12 +79,10 @@ public partial class ChartManager : Node {
 
 	public sealed class MarketClearingRegionalSummary {
 		public string RegionId;
-		public int ActiveIntentCount, PurchaseCapacity, ClearedSingleUnits, ClearedAlbumUnits, PhysicalBackorders, MarketDisplacedDemand;
-		public int SingleFormatBudget, AlbumFormatBudget, YoungAlbumFormatBudget, CatalogAlbumFormatBudget;
+		public int ActiveIntentCount, BasePurchaseCapacity, AlbumChannelCapacity, PurchaseCapacity, ClearedSingleUnits, ClearedAlbumUnits, PhysicalBackorders, MarketDisplacedDemand;
+		public int SingleFormatBudget, AlbumFormatBudget;
 		public int LocalClearedUnits, UnusedAfterLocal, ExportBudget, ExportedCapacity, ImportLimit, ImportedCapacity, SpilloverClearedUnits;
-		public float RawSingleDemand, RawAlbumDemand, ServiceableSingleIntent, ServiceableAlbumIntent;
-		public float ServiceableYoungAlbumIntent, ServiceableCatalogAlbumIntent;
-		public float EffectiveAlbumIntent, AlbumDistinctMarketMaturity;
+		public float RawSingleDemand, RawAlbumDemand, ServiceableSingleIntent, ServiceableAlbumIntent, EffectiveAlbumIntent, AlbumOverlapPressure;
 		public int InventoryViolationCount, AllocationViolationCount, ReconciliationDelta;
 		public int ClearedTotalUnits => ClearedSingleUnits + ClearedAlbumUnits;
 		public int ServiceableTotalIntent => Mathf.RoundToInt(ServiceableSingleIntent + ServiceableAlbumIntent);
@@ -129,16 +126,12 @@ public partial class ChartManager : Node {
 	}
 
 	internal readonly struct FormatClearingBudget {
-		public readonly int Single, Album, YoungAlbum, CatalogAlbum;
-		public readonly float EffectiveAlbum, DistinctMarketMaturity;
-		public FormatClearingBudget(int single, int youngAlbum, int catalogAlbum,
-			float effectiveAlbum, float distinctMarketMaturity) {
+		public readonly int Single, Album;
+		public readonly float EffectiveAlbum;
+		public FormatClearingBudget(int single, int album, float effectiveAlbum) {
 			Single = single;
-			YoungAlbum = youngAlbum;
-			CatalogAlbum = catalogAlbum;
-			Album = youngAlbum + catalogAlbum;
+			Album = album;
 			EffectiveAlbum = effectiveAlbum;
-			DistinctMarketMaturity = distinctMarketMaturity;
 		}
 	}
 	public IReadOnlyList<MarketClearingRegionalSummary> GetLastMarketClearingSummaries() => lastMarketClearingSummaries;
@@ -917,40 +910,42 @@ public partial class ChartManager : Node {
 		// Stage A: retain the accepted common local clearing unchanged.
 		foreach (MarketRegion region in allRegions) {
 			List<MarketIntent> intents = intentsByRegion[region.regionId];
-			int capacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
+			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
 				* WeeklyRegionalPurchaseCapacityMultiplier));
-			var summary = new MarketClearingRegionalSummary { RegionId = region.regionId, PurchaseCapacity = capacity };
+			float albumChannelMaturity = AlbumModel.GetRetailFulfillmentMaturity(year);
+			float albumChannelShare = albumChannelMaturity * (MatureAlbumChannelBaselineShare +
+				MatureAlbumChannelEraExpansionShare * region.GetAlbumDemandEraProgress(year));
+			int albumChannelCapacity = Mathf.RoundToInt(baseCapacity * albumChannelShare);
+			int capacity = baseCapacity + albumChannelCapacity;
+			var summary = new MarketClearingRegionalSummary {
+				RegionId = region.regionId,
+				BasePurchaseCapacity = baseCapacity,
+				AlbumChannelCapacity = albumChannelCapacity,
+				PurchaseCapacity = capacity
+			};
 			foreach (MarketIntent intent in intents) {
 				bool album = intent.Record.baseRecord.format == ReleaseFormat.Album;
 				summary.ActiveIntentCount += intent.Serviceable > 0 ? 1 : 0;
 				if (album) {
 					summary.RawAlbumDemand += intent.Data.rawDemandThisWeek;
 					summary.ServiceableAlbumIntent += intent.Serviceable;
-					if (intent.Record.weeksSinceRelease < AlbumDistinctMarketCatalogAgeWeeks)
-						summary.ServiceableYoungAlbumIntent += intent.Serviceable;
-					else summary.ServiceableCatalogAlbumIntent += intent.Serviceable;
 				}
 				else { summary.RawSingleDemand += intent.Data.rawDemandThisWeek; summary.ServiceableSingleIntent += intent.Serviceable; }
 				summary.PhysicalBackorders += intent.Data.unitsBackordered;
 			}
 			FormatClearingBudget budget = CalculateFormatClearingBudget(
 				Mathf.RoundToInt(summary.ServiceableSingleIntent),
-				Mathf.RoundToInt(summary.ServiceableYoungAlbumIntent),
-				Mathf.RoundToInt(summary.ServiceableCatalogAlbumIntent), capacity);
+				Mathf.RoundToInt(summary.ServiceableAlbumIntent), baseCapacity,
+				CalculateAlbumIntentOverlapPressure(albumChannelMaturity), albumChannelMaturity,
+				albumChannelCapacity);
 			summary.SingleFormatBudget = budget.Single;
 			summary.AlbumFormatBudget = budget.Album;
-			summary.YoungAlbumFormatBudget = budget.YoungAlbum;
-			summary.CatalogAlbumFormatBudget = budget.CatalogAlbum;
 			summary.EffectiveAlbumIntent = budget.EffectiveAlbum;
-			summary.AlbumDistinctMarketMaturity = budget.DistinctMarketMaturity;
+			summary.AlbumOverlapPressure = CalculateAlbumIntentOverlapPressure(albumChannelMaturity);
 			AllocateProportionalLocal(intents.Where(intent =>
 				intent.Record.baseRecord.format == ReleaseFormat.Single).ToList(), budget.Single);
 			AllocateProportionalLocal(intents.Where(intent =>
-				intent.Record.baseRecord.format == ReleaseFormat.Album &&
-				intent.Record.weeksSinceRelease < AlbumDistinctMarketCatalogAgeWeeks).ToList(), budget.YoungAlbum);
-			AllocateProportionalLocal(intents.Where(intent =>
-				intent.Record.baseRecord.format == ReleaseFormat.Album &&
-				intent.Record.weeksSinceRelease >= AlbumDistinctMarketCatalogAgeWeeks).ToList(), budget.CatalogAlbum);
+				intent.Record.baseRecord.format == ReleaseFormat.Album).ToList(), budget.Album);
 			foreach (MarketIntent intent in intents) intent.Data.localClearedThisWeek = intent.Cleared;
 			summary.LocalClearedUnits = intents.Sum(intent => intent.Cleared);
 			summary.UnusedAfterLocal = Mathf.Max(0, capacity - summary.LocalClearedUnits);
@@ -1128,48 +1123,38 @@ public partial class ChartManager : Node {
 		return Mathf.Max(0, single + album);
 	}
 
+	internal static float CalculateAlbumIntentOverlapPressure(float retailMaturity) =>
+		Mathf.Lerp(AlbumIntentOverlapPressure, 0f, Mathf.Clamp(retailMaturity, 0f, 1f));
+
 	internal static FormatClearingBudget CalculateFormatClearingBudget(
-		int singleIntent, int youngAlbumIntent, int catalogAlbumIntent, int capacity) {
+		int singleIntent, int albumIntent, int capacity, float overlapPressure = AlbumIntentOverlapPressure,
+		float albumChannelMaturity = 0f, int albumChannelCapacity = 0) {
 		int single = Mathf.Max(0, singleIntent);
-		int youngAlbum = Mathf.Max(0, youngAlbumIntent);
-		int catalogAlbum = Mathf.Max(0, catalogAlbumIntent);
-		int album = youngAlbum + catalogAlbum;
+		int album = Mathf.Max(0, albumIntent);
 		int available = Mathf.Max(0, capacity);
 		if (available == 0 || (single == 0 && album == 0))
-			return new FormatClearingBudget(0, 0, 0, 0f, 0f);
+			return new FormatClearingBudget(0, 0, 0f);
+		if (albumChannelMaturity >= 1f) {
+			// Once the existing retail transition is mature, Singles and Albums each
+			// have a bounded regional purchase channel. Album capacity expands with the
+			// existing demand-era curve instead of cloning the full Singles channel.
+			return new FormatClearingBudget(Mathf.Min(single, available),
+				Mathf.Min(album, Mathf.Max(0, albumChannelCapacity)), album);
+		}
 		// Every Album title currently presents the full regional buyer pool. Treat
 		// their aggregate serviceable intent as overlapping format demand in a
-		// Single-led market. As Album intent establishes a distinct market, recent
-		// releases retain their opportunity while 104+ catalog remains overlapping.
-		float allOverlap = album * (float)available /
-			Mathf.Max(1f, available + AlbumIntentOverlapPressure * album);
-		float allOverlapFactor = album > 0 ? allOverlap / album : 0f;
-		float distinctCatalog = catalogAlbum * (float)available /
-			Mathf.Max(1f, available + AlbumIntentOverlapPressure * catalogAlbum);
-		float albumIntentShare = album / Mathf.Max(1f, single + album);
-		float maturity = Mathf.SmoothStep(AlbumDistinctMarketShareStart,
-			AlbumDistinctMarketShareFull, albumIntentShare);
-		float effectiveYoungAlbum = Mathf.Lerp(youngAlbum * allOverlapFactor, youngAlbum, maturity);
-		float effectiveCatalogAlbum = Mathf.Lerp(catalogAlbum * allOverlapFactor, distinctCatalog, maturity);
-		float effectiveAlbum = effectiveYoungAlbum + effectiveCatalogAlbum;
+		// Single-led market before allocating common regional capacity. The existing
+		// retail-maturity transition removes that correction once Albums have their
+		// own established fulfillment channel.
+		float effectiveAlbum = album * (float)available /
+			Mathf.Max(1f, available + Mathf.Max(0f, overlapPressure) * album);
 		float effectiveTotal = single + effectiveAlbum;
 		int albumBudget = effectiveTotal <= available
 			? Mathf.Min(album, Mathf.RoundToInt(effectiveAlbum))
 			: Mathf.Min(album, Mathf.RoundToInt(available * effectiveAlbum / effectiveTotal));
 		int singleBudget = Mathf.Min(single, available - albumBudget);
-		int youngBudget = effectiveAlbum > 0f
-			? Mathf.Min(youngAlbum, Mathf.RoundToInt(albumBudget * effectiveYoungAlbum / effectiveAlbum))
-			: 0;
-		int catalogBudget = Mathf.Min(catalogAlbum, albumBudget - youngBudget);
-		int unassigned = albumBudget - youngBudget - catalogBudget;
-		if (unassigned > 0) {
-			int youngRoom = youngAlbum - youngBudget;
-			int toYoung = Mathf.Min(unassigned, youngRoom);
-			youngBudget += toYoung;
-			catalogBudget += Mathf.Min(unassigned - toYoung, catalogAlbum - catalogBudget);
-		}
 		return new FormatClearingBudget(Mathf.Max(0, singleBudget),
-			Mathf.Max(0, youngBudget), Mathf.Max(0, catalogBudget), effectiveAlbum, maturity);
+			Mathf.Max(0, albumBudget), effectiveAlbum);
 	}
 
 	internal static int CalculateSpilloverExportBudget(int unusedAfterLocal) =>
@@ -1246,7 +1231,9 @@ public partial class ChartManager : Node {
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
 					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek);
 				bool albumUnchartedService = IsAlbumUnchartedRestockEligible(record.baseRecord.format,
-					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek);
+					GenreMarketV2.Enabled && IsGenreMarketV2Live, data.unitsBackordered, data.rawDemandThisWeek,
+					record.weeksSinceRelease, record.weeksOnChart > 0, GetWeeksSinceLastCharted(record),
+					albumChartedToleranceWeeks * 3, albumNeverChartedToleranceWeeks);
 				bool livePhysicalBackorder = GenreMarketV2.Enabled && IsGenreMarketV2Live &&
 					data.unitsBackordered > 0 && data.rawDemandThisWeek > 0f;
 				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
@@ -1325,6 +1312,19 @@ public partial class ChartManager : Node {
 	/// </summary>
 	internal static bool IsAlbumUnchartedRestockEligible(ReleaseFormat format, bool live, int backorders, float rawDemand) =>
 		live && format == ReleaseFormat.Album && backorders > 0 && rawDemand > 0f;
+
+	/// <summary>
+	/// Automatic Album backorder service launches a title and carries a recently
+	/// charted title through a bounded catalog grace period. It is not a perpetual
+	/// replenishment entitlement: once an uncharted title exhausts that relevance
+	/// window, its remaining shelf stock must sell through before retirement.
+	/// </summary>
+	internal static bool IsAlbumUnchartedRestockEligible(ReleaseFormat format, bool live,
+		int backorders, float rawDemand, int ageWeeks, bool hasCharted,
+		int weeksSinceLastCharted, int automaticAgeWeeks, int chartGraceWeeks) =>
+		IsAlbumUnchartedRestockEligible(format, live, backorders, rawDemand) &&
+		(ageWeeks < Mathf.Max(0, automaticAgeWeeks) ||
+		 (hasCharted && weeksSinceLastCharted < Mathf.Max(0, chartGraceWeeks)));
 
 	/// <summary>
 	/// Live replenishment with an observed physical backlog is driven by current

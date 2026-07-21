@@ -375,23 +375,33 @@ public static class ArtistPopulationLifecycleProbeSuite {
 	}
 
 	private static void ProbeAlbumFormatClearingBudget() {
-		ChartManager.FormatClearingBudget noAlbum = ChartManager.CalculateFormatClearingBudget(1_200, 0, 0, 1_000);
+		ChartManager.FormatClearingBudget noAlbum = ChartManager.CalculateFormatClearingBudget(1_200, 0, 1_000);
 		Require(noAlbum.Single == 1_000 && noAlbum.Album == 0 && noAlbum.EffectiveAlbum == 0f,
 			"67a a market without Album intent retains the full common Single capacity");
-		ChartManager.FormatClearingBudget crowded = ChartManager.CalculateFormatClearingBudget(1_200, 0, 100, 1_000);
+		ChartManager.FormatClearingBudget crowded = ChartManager.CalculateFormatClearingBudget(1_200, 100, 1_000);
 		int legacyAlbumShare = (int)Math.Round(1_000f * 100f / 1_300f);
 		float unpressuredOverlap = 1_000f * 100f / 1_100f;
 		Require(crowded.Album > 0 && crowded.Album < legacyAlbumShare &&
 			crowded.EffectiveAlbum < unpressuredOverlap &&
 			crowded.Single + crowded.Album <= 1_000,
 			"67b shared-pool overlap pressure gives Album intent a smaller bounded format budget than cloned common clearing");
-		ChartManager.FormatClearingBudget doubled = ChartManager.CalculateFormatClearingBudget(1_200, 0, 200, 1_000);
+		ChartManager.FormatClearingBudget doubled = ChartManager.CalculateFormatClearingBudget(1_200, 200, 1_000);
 		Require(doubled.Album > crowded.Album && doubled.Album < crowded.Album * 2,
 			"67c additional Album intent increases its budget sublinearly");
-		ChartManager.FormatClearingBudget recent = ChartManager.CalculateFormatClearingBudget(1_200, 100, 0, 1_000);
-		Require(recent.DistinctMarketMaturity == 1f && recent.YoungAlbum > crowded.CatalogAlbum &&
-			recent.CatalogAlbum == 0 && recent.Album <= 100,
-			"67d a mature Album-intent share protects recent releases while equally sized 104+ catalog remains overlap-limited");
+		ChartManager.FormatClearingBudget mature = ChartManager.CalculateFormatClearingBudget(1_200, 100, 1_000,
+			ChartManager.CalculateAlbumIntentOverlapPressure(1f), albumChannelMaturity: 1f, albumChannelCapacity: 80);
+		Require(mature.Single == 1_000 && mature.EffectiveAlbum == 100f && mature.Album == 80 &&
+			ChartManager.CalculateAlbumIntentOverlapPressure(0f) == 2f,
+			"67d the established retail transition exposes separate bounded Single and Album channels without changing early pressure");
+		Require(ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Album, true, 100, 20f,
+			ageWeeks: 155, hasCharted: false, weeksSinceLastCharted: 155, automaticAgeWeeks: 156, chartGraceWeeks: 26) &&
+			!ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Album, true, 100, 20f,
+				ageWeeks: 156, hasCharted: false, weeksSinceLastCharted: 156, automaticAgeWeeks: 156, chartGraceWeeks: 26) &&
+			ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Album, true, 100, 20f,
+				ageWeeks: 220, hasCharted: true, weeksSinceLastCharted: 25, automaticAgeWeeks: 156, chartGraceWeeks: 26) &&
+			!ChartManager.IsAlbumUnchartedRestockEligible(ReleaseFormat.Album, true, 100, 20f,
+				ageWeeks: 220, hasCharted: true, weeksSinceLastCharted: 26, automaticAgeWeeks: 156, chartGraceWeeks: 26),
+			"67e automatic uncharted Album replenishment closes after the three-year establishment or post-chart grace window");
 	}
 
 	private static AILabel NewRuntimeProfileProbeLabel(string id, LabelTier tier) => new() {

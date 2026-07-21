@@ -1541,3 +1541,31 @@ bridge reconciles 9,647,136 raw Album intent to 6,130,092 cleared units:
 No 1965 extension, replacement M4, or M5 was launched. The known 1967-1968
 catalog-persistence surface remains unadjudicated under this new systemic
 clearing model and is the next authorized boundary.
+
+## Album mature-channel/catalog persistence pass (2026-07-21): **ALBUM SURFACE PASS / M4 SINGLE FAIL / HANDOFF**
+
+The accepted pressure-2 early Album overlap correction was preserved through
+1963. At the existing retail-maturity boundary, the retained work-in-progress
+source now exposes a bounded Album purchase channel equal to 8% of regional
+base capacity plus 35% of the existing Album-demand-era progress. Automatic
+uncharted Album restock closes after 156 weeks, except for a 26-week grace after
+a later chart appearance. The channel and its base capacity are explicit in
+enabled market-clearing telemetry.
+
+The final 469-week seed-1001 family
+`d6-album-bounded-mature-channel08-through-1968-1001` completed normally. It
+passes the 1965 hard gate: Album units/gross `0.8199x/0.8276x`, total units
+`0.9347x`, and gross/label-net/market-net
+`0.9160x/0.9268x/0.9268x`. The former late Album failure is also inside band:
+1967 units/gross `1.0108x/1.0183x`; 1968 `1.0886x/1.0951x`. Active 1968 Albums
+fell from the old M4's 9,138 to 7,363 versus 7,002 control; retired Albums rose
+from 6,644 to 8,397 versus 8,622 control. All clearing, inventory,
+reconciliation, and settlement deltas are zero.
+
+This is not a globally accepted M4. The first remaining annual failure is 1966
+Single units `1.1584x`, above the unchanged 1.15 ceiling; 1967 Single and total
+units are `1.1933x` and `1.1554x`. Catalog composition also remains open despite
+the corrected aggregate: 1968 52+ Album gross share is 0.4223 versus 0.2055
+control. M5 and a deterministic M4 repeat were not launched. Exact results,
+rejected variants, source hashes, and next-pass constraints are in
+`SimTools/AlbumCatalogPersistenceHandoff.md`.

@@ -863,7 +863,7 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
 		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
-		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,serviceableYoungAlbumIntent,serviceableCatalogAlbumIntent,albumDistinctMarketMaturity,effectiveAlbumIntent,singleFormatBudget,albumFormatBudget,youngAlbumFormatBudget,catalogAlbumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
+		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,effectiveAlbumIntent,albumOverlapPressure,singleFormatBudget,albumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,albumChannelCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
 		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount");
 		completedWeekSettlementRegionalWriter?.WriteLine("week,year,settlementId,recordId,regionId,rawIntent,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,inventoryMovement");
@@ -1835,12 +1835,11 @@ public partial class ChartAuditRunner : Node {
 				week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(row.RegionId),
 				row.ActiveIntentCount.ToString(CultureInfo.InvariantCulture), F(row.RawSingleDemand), F(row.RawAlbumDemand), F(row.RawSingleDemand + row.RawAlbumDemand),
 				F(row.ServiceableSingleIntent), F(row.ServiceableAlbumIntent),
-				F(row.ServiceableYoungAlbumIntent), F(row.ServiceableCatalogAlbumIntent),
-				F(row.AlbumDistinctMarketMaturity), F(row.EffectiveAlbumIntent),
+				F(row.EffectiveAlbumIntent), F(row.AlbumOverlapPressure),
 				row.SingleFormatBudget.ToString(CultureInfo.InvariantCulture), row.AlbumFormatBudget.ToString(CultureInfo.InvariantCulture),
-				row.YoungAlbumFormatBudget.ToString(CultureInfo.InvariantCulture), row.CatalogAlbumFormatBudget.ToString(CultureInfo.InvariantCulture),
 				serviceable.ToString(CultureInfo.InvariantCulture),
-				row.PurchaseCapacity.ToString(CultureInfo.InvariantCulture), row.PurchaseCapacity.ToString(CultureInfo.InvariantCulture),
+				row.PurchaseCapacity.ToString(CultureInfo.InvariantCulture), row.BasePurchaseCapacity.ToString(CultureInfo.InvariantCulture),
+				row.AlbumChannelCapacity.ToString(CultureInfo.InvariantCulture),
 				row.LocalClearedUnits.ToString(CultureInfo.InvariantCulture), row.UnusedAfterLocal.ToString(CultureInfo.InvariantCulture),
 				row.ExportBudget.ToString(CultureInfo.InvariantCulture), row.ExportedCapacity.ToString(CultureInfo.InvariantCulture),
 				row.ImportLimit.ToString(CultureInfo.InvariantCulture), row.ImportedCapacity.ToString(CultureInfo.InvariantCulture), row.SpilloverClearedUnits.ToString(CultureInfo.InvariantCulture),
