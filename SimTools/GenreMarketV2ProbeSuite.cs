@@ -34,9 +34,30 @@ public static class GenreMarketV2ProbeSuite {
 		results.Add("catalog/keyframe/interpolation/clamp/lifecycle/migration/enabled-seeding/formatter probes passed");
 		if (GenreMarketV2.Enabled) {
 			string singleReconciliation = ProbePhase2RoutingAndOrientation();
-			results.Add("segment normalization/conservation/FM/texture/R&B/format-prior/AI-market probes passed; " + singleReconciliation);
+			ProbeSingleDemandStages();
+			results.Add("segment normalization/conservation/FM/texture/R&B/format-prior/AI-market and Single demand-stage probes passed; " + singleReconciliation);
 		}
 		return results;
+	}
+
+	private static void ProbeSingleDemandStages() {
+		SingleDemandStages neutral = ChartSimulator.CalculateSingleDemandStages(1000f, .20f, 1f, 1f, 1f, .5f, .5f, 1f, 1f);
+		SingleDemandStages weak = ChartSimulator.CalculateSingleDemandStages(1000f, .20f, .8f, .8f, .8f, .5f, .5f, 1f, 1f);
+		SingleDemandStages chart = ChartSimulator.CalculateSingleDemandStages(1000f, .20f, 1.5f, 1f, 1f, .5f, .5f, 1f, 1f);
+		SingleDemandStages stacked = ChartSimulator.CalculateSingleDemandStages(1000f, .20f, 1.5f, 1.5f, 1.5f, .5f, .5f, 1f, 1f);
+		SingleDemandStages stronger = ChartSimulator.CalculateSingleDemandStages(1000f, .20f, 2f, 1.5f, 1.5f, .5f, .5f, 1f, 1f);
+		Require(Math.Abs(neutral.AwareBuyers - 200f) < .0001f && neutral.AwareBuyers <= neutral.PotentialAudience,
+			"Single discovery neutral/bounded awareness");
+		Require(chart.AwareBuyers > neutral.AwareBuyers && stacked.AwareBuyers > chart.AwareBuyers && stronger.AwareBuyers > stacked.AwareBuyers,
+			"Single discovery monotonicity");
+		Require(weak.AwareBuyers < neutral.AwareBuyers, "Single discovery below-neutral suppression");
+		Require((stronger.AwareBuyers - stacked.AwareBuyers) < (chart.AwareBuyers - neutral.AwareBuyers),
+			"Single discovery diminishing returns");
+		Require(Math.Abs(neutral.AwareBuyers * neutral.IntrinsicConversionRate - 7f) < .0001f,
+			"Single raw-demand stage reconstruction");
+		SingleDemandStages oneWeak = ChartSimulator.CalculateSingleDemandStages(1000f, .20f, .8f, 1f, 1f, .5f, .5f, 1f, 1f);
+		Require(Math.Abs(weak.AwareBuyers - (1000f / 6f)) < .0001f && oneWeak.AwareBuyers > weak.AwareBuyers,
+			"correlated discovery uses a geometric mean rather than multiplying three audience copies");
 	}
 
 	private static string ProbePhase2RoutingAndOrientation() {
@@ -417,6 +438,43 @@ public static class GenreMarketV2ProbeSuite {
 			Math.Abs(CompetitorManager.GetResponsiveMemoryConfidenceForProbe(24f) - .65f) < .000001f &&
 			CompetitorManager.GetResponsiveMemoryConfidenceForProbe(-1f) == 0f,
 			"responsive memory requires twelve effective observations for half confidence and preserves the 0.65 ceiling");
+		(bool underperformingProjectAlbumWins, bool underperformingProjectPromoPreferred, float underperformingProjectGate) =
+			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 120f,
+				componentProjectedAlbumWithPromo: 250f, totalProjectMemoryProjection: 40f, promoProjectDelayPremium: .08f);
+		(bool positiveProjectAlbumWins, bool positiveProjectPromoPreferred, float positiveProjectGate) =
+			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 90f, projectedStandaloneAlbum: 90f,
+				componentProjectedAlbumWithPromo: 250f, totalProjectMemoryProjection: 150f, promoProjectDelayPremium: .08f);
+		(bool nonviableProjectAlbumWins, bool nonviableProjectPromoPreferred, float nonviableProjectGate) =
+			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 120f,
+				componentProjectedAlbumWithPromo: 250f, totalProjectMemoryProjection: -10f, promoProjectDelayPremium: .08f);
+		(bool componentRejectedAlbumWins, bool componentRejectedPromoPreferred, float componentRejectedGate) =
+			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 120f,
+				componentProjectedAlbumWithPromo: 110f, totalProjectMemoryProjection: 150f, promoProjectDelayPremium: .08f);
+		(bool capacityRejectedAlbumWins, bool capacityRejectedPromoPreferred, float capacityRejectedGate) =
+			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 100f,
+				componentProjectedAlbumWithPromo: 190f, totalProjectMemoryProjection: 20f, promoProjectDelayPremium: .08f);
+		Require(underperformingProjectAlbumWins && underperformingProjectPromoPreferred && Math.Abs(underperformingProjectGate - 120f) < .000001f &&
+			!positiveProjectAlbumWins && positiveProjectPromoPreferred && Math.Abs(positiveProjectGate - 90f) < .000001f &&
+			nonviableProjectAlbumWins && !nonviableProjectPromoPreferred && Math.Abs(nonviableProjectGate - 120f) < .000001f &&
+			componentRejectedAlbumWins && !componentRejectedPromoPreferred && Math.Abs(componentRejectedGate - 120f) < .000001f &&
+			!capacityRejectedAlbumWins && capacityRejectedPromoPreferred && Math.Abs(capacityRejectedGate - 95f) < .000001f,
+			"physical Album memory owns eligibility, promo projects clear mean component net per product, components rank strategy, and total-project memory guards only viability");
+		Require(!CompetitorManager.IsAlbumProjectSharePressureHighForProbe(99, 99) &&
+			!CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 66) &&
+			CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 67) &&
+			CompetitorManager.CanScheduleAnnualAlbumProjectForProbe(3, albumProjectPressure: false) &&
+			CompetitorManager.CanScheduleAnnualAlbumProjectForProbe(1, albumProjectPressure: true) &&
+			!CompetitorManager.CanScheduleAnnualAlbumProjectForProbe(2, albumProjectPressure: true),
+			"repeat artist Album workload is bounded only after a sampled year exceeds a two-thirds project mix");
+		Require(CompetitorManager.GetApplicableEstimatorLanes(ProjectRecordRole.OrphanSingle)
+			.SequenceEqual(new[] { RevenueEstimatorLane.OrphanSingle }) &&
+			CompetitorManager.GetApplicableEstimatorLanes(ProjectRecordRole.PromoSingle)
+			.SequenceEqual(new[] { RevenueEstimatorLane.PromoSingle }) &&
+			CompetitorManager.GetApplicableEstimatorLanes(ProjectRecordRole.LinkedAlbum)
+			.SequenceEqual(new[] { RevenueEstimatorLane.AlbumComponent }) &&
+			CompetitorManager.GetApplicableEstimatorLanes(ProjectRecordRole.StandaloneAlbum)
+			.SequenceEqual(new[] { RevenueEstimatorLane.AlbumComponent, RevenueEstimatorLane.StandaloneAlbum }),
+			"physical Album outcomes feed eligibility while strategy estimators remain lane-separated");
 		bool nonRetainedEmerging = CompetitorManager.IsNonRetainedEmergingProjectForFormatMemory(Genre.PsychedelicRock,
 			retainedIdentity: false, year: 1967, live: true);
 		Require(nonRetainedEmerging &&
@@ -426,7 +484,7 @@ public static class GenreMarketV2ProbeSuite {
 			Math.Abs(CompetitorManager.GetProjectFormatMemoryConfidence(.98f,
 				CompetitorManager.IsNonRetainedEmergingProjectForFormatMemory(Genre.PsychedelicRock, retainedIdentity: false, year: 1967, live: false)) - .98f) < .000001f,
 			"non-retained emerging projects bypass only label-wide format memory");
-		return $"TexMex launch stock GP/SW={texMex[0]}/{texMex[1]}, Album backlog avoids duplicate service attrition, memory revision lifecycle 1->2 final, one-time cost annualization exact, weighted confidence K=12/cap=.65, emerging-memory confidence=.0000/.9800";
+		return $"TexMex launch stock GP/SW={texMex[0]}/{texMex[1]}, Album backlog avoids duplicate service attrition, memory revision lifecycle 1->2 final, one-time cost annualization exact, weighted confidence K=12/cap=.65, Album/project estimator ownership exact, emerging-memory confidence=.0000/.9800";
 	}
 
 	private static string ProbeDroppedArtistRosterLifecycle() {

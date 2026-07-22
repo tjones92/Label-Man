@@ -45,6 +45,11 @@ public class RegionalRecordData {
 	public float salesRegionalRadioPlayThisWeek;
 	public float previousRawDemand;
 	public float rawDemandThisWeek;
+	// Enabled Single demand-stage audit. These values are captured before supply
+	// clearing so raw demand can be reconstructed independently.
+	public float demandPotentialAudience, demandBaselineAwareness, demandEarnedDiscoveryExposure, demandAwareBuyers;
+	public float demandIntrinsicQualityFactor, demandAcceptanceFactor, demandFormatFactor, demandIntrinsicConversionRate;
+	public float demandChartSignal, demandMomentumSignal, demandRadioSignal;
 	// Live common-market clearing keeps physical fulfillment distinct from demand
 	// displaced by simultaneous competing records.  These are week-local values.
 	public int serviceableIntentThisWeek;

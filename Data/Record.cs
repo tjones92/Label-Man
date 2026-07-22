@@ -12,6 +12,11 @@ public partial class Record : Resource {
 	[Export] public Album album;
 	[Export] public bool isPlayerOwned;
 	[Export] public bool isNPC;
+	// Release identity is assigned at creation and is durable independently of an
+	// AlbumProject's later lifecycle. None is a compatibility sentinel for saves
+	// made before release lanes existed.
+	[Export] public ProjectRecordRole projectRole = ProjectRecordRole.None;
+	[Export] public string albumProjectId;
 	
 	[ExportGroup("Musical Attributes")]
 	[Export] public Genre primaryGenre;

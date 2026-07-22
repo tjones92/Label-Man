@@ -20,6 +20,17 @@ The 469-week process exited normally with
 `CHART_AUDIT_COMPLETE ... weeks=469`. All market-clearing inventory,
 allocation, reconciliation, and settlement deltas are zero.
 
+The 2026-07-21 spillover-origin exclusion follow-up was run and **falsified**.
+Its gameplay and telemetry edits were reverted after validation; the retained
+source hashes at the end of this handoff are restored. The rejected run
+artifacts remain under:
+
+```text
+d6-album-spillover-origin-probes-1001-*
+d6-album-spillover-origin-disabled-52-1001-*
+d6-album-spillover-origin-through-1968-1001-*
+```
+
 ## Retained implementation
 
 The implementation treats early realization and mature catalog persistence as
@@ -119,9 +130,57 @@ unit/economic level; it does not resolve it.
 5. A bounded mature baseline of 4.5% solved late Albums but failed 1965 Album
    units (`0.7807x`) and economics. A 6% baseline missed by less than one point:
    Album units `0.7920x`, Album gross `0.7995x`, total gross `0.8989x`.
+6. Excluding mature unused Album-channel capacity from regional spillover did
+   not repair the late Single surface. It brought 1966 Single units into band,
+   but failed the 1965 Album hard gate and made 1967-1968 Singles materially
+   worse through downstream economic feedback. The candidate was reverted and
+   must not be used as evidence for export/import share tuning.
 
 These runs are retained as negative evidence. Do not return to an endogenous
 live-share threshold or a full cloned Album channel.
+
+## Spillover-origin negative evidence
+
+The narrow candidate split regional slack into base and Album-channel origins,
+excluded the mature Album-channel origin from `ExportBudget`, and appended
+enabled-only origin telemetry. It did not change demand, acceptance, yield,
+the Album channel formula, early overlap correction, or catalog replenishment.
+
+Validation completed as specified:
+
+- `dotnet build "Label Man.sln" --no-restore` passed with the inherited unused
+  `ChartManager.OnGenreMomentumChanged` warning; `git diff --check` passed.
+- Both D5 suites and temporary D6 probes 1-68 passed.
+- The disabled 52-week replay completed normally. Its frozen
+  `market-revenue.csv` and `release-capacity.csv` hashes were
+  `06FF1BD3815C816718C380F921360DEBF75754A0F5B4A2CA24AF3B8023BCFE03`
+  and `75516019E251C4EC76B6E90295B3A3F241E5AF12A7668F828D52507FBC86683C`,
+  byte-identical to the retained disabled families.
+- The single combined 469-week seed-1001 run completed normally with a
+  header-only catastrophic stream. Inventory, allocation, reconciliation,
+  settlement, edge, and origin-reconciliation deltas were all zero.
+- No deterministic repeat was run because the annual gates failed.
+
+Annual effects below compare the rejected candidate with the retained 8%
+channel run. `Single change` is candidate units minus retained units. The old
+Album-origin Single-import estimate is reconstructed from the retained run's
+exact donor slack and edge-format output, proportionally attributing each
+donor's transferred Singles by its unused capacity origins.
+
+| Year | Retained Single ratio | Candidate Single ratio | Single change | Old Album-origin Single imports |
+|---:|---:|---:|---:|---:|
+| 1964 | 0.9748 | 0.9638 | -1,686,874 | 2,546,521 |
+| 1965 | 0.9425 | 0.9034 | -6,439,192 | 4,603,123 |
+| 1966 | 1.1584 | 1.1376 | -2,427,273 | 879,695 |
+| 1967 | 1.1933 | **1.2272** | +3,540,007 | 70,111 |
+| 1968 | 1.0620 | **1.1746** | +11,895,200 | 0 |
+
+The hypothesis therefore fails its own falsification check. The direct
+Album-origin import estimate is small relative to the 1966 movement and is
+negligible or zero precisely where 1967-1968 Singles worsen. The rejected run
+also produced 1965 Album units at `0.7946x`, 1967 total units at `1.1822x`, and
+1968 total units at `1.1534x`. This is negative evidence against treating the
+reported late Single ceiling breach as a mechanical spillover-capacity leak.
 
 ## Required next pass
 
@@ -144,6 +203,14 @@ Single record count, raw/serviceable intent, regional capacity, and per-title
 yield before modifying the Album baseline. The 4.5%, 6%, and 8% runs show that
 the Single response is nonlinear and is not safely repaired by lowering the
 Album channel again.
+
+That attribution is now complete. The authorized systemic repair and validation
+contract are in `SimTools/SingleVolumeLaneAndHitTailRepairHandoff.md`. It replaces
+this paragraph as the operative Single directive. In particular, the next pass
+must treat orphan and promo Singles as separate lanes, repair synthetic promo-track
+construction and hidden promo memory, replace the fixed-portfolio opportunity
+normalizer, and bound correlated discovery feedback. Do not substitute another
+Album-channel or spillover experiment.
 
 ### 3. Validation
 

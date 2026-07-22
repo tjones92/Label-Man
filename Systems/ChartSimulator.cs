@@ -93,6 +93,7 @@ public static class ChartSimulator {
 		
 		// === 2. AWARENESS FILTER ===
 		float effectiveAwareness = (record.awareness * 0.4f) + (regionalData.awareness * 0.6f);
+		bool stagedLiveDemand = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		
 		if (record.currentPosition > 0 && record.currentPosition <= 10) {
 			effectiveAwareness = Mathf.Max(effectiveAwareness, 0.7f);
@@ -105,7 +106,7 @@ public static class ChartSimulator {
 		regionalData.salesRadioHeatThisWeek = record.radioHeat;
 		regionalData.salesRegionalRadioPlayThisWeek = regionalData.radioPlay;
 		
-		float awareBuyers = potentialBuyers * effectiveAwareness;
+		float baselineAwareness = Mathf.Clamp(effectiveAwareness, 0f, 1f);
 		
 		// === 3. MARKET EXHAUSTION ===
 		float potentialAudience = GetRegionalPotentialAudience(record, region, quality);
@@ -135,7 +136,8 @@ public static class ChartSimulator {
 			chartVisibility = 0.40f + regionalDiscovery * 0.55f;
 		}
 		regionalData.breakoutVisibilityMultiplier = chartVisibility;
-		conversionRate *= chartVisibility;
+		float chartSignal = Mathf.Max(.01f, chartVisibility);
+		if (!stagedLiveDemand) conversionRate *= chartVisibility;
 		
 		// === 6. LAUNCH BOOST ===
 		float launchBoost = 1.0f;
@@ -150,7 +152,7 @@ public static class ChartSimulator {
 		
 		// === 7. MOMENTUM BONUS ===
 		float momentumBonus = 1f + Mathf.Clamp(record.momentum, -0.2f, 0.5f);
-		conversionRate *= momentumBonus;
+		if (!stagedLiveDemand) conversionRate *= momentumBonus;
 
 		// Records eventually leave the active demand cycle even when chart
 		// visibility keeps their effective awareness artificially high.
@@ -160,7 +162,7 @@ public static class ChartSimulator {
 		}
 		
 		// === 8. OTHER MODIFIERS ===
-		bool useGenreMarketV2DemandTransfer = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		bool useGenreMarketV2DemandTransfer = stagedLiveDemand;
 		if (useGenreMarketV2DemandTransfer) {
 			conversionRate *= GenreAcceptanceService.GetEnabledSingleDemandMultiplier(genreAcceptance);
 			if (singleOpportunityNormalization != 1f) conversionRate *= singleOpportunityNormalization;
@@ -170,12 +172,35 @@ public static class ChartSimulator {
 			region.GetAlbumDemandEraProgress(year), useGenreMarketV2DemandTransfer);
 		if (useGenreMarketV2DemandTransfer) conversionRate *= GenreAcceptanceService.GetLiveSpecialistSingleOpportunityNormalizer(
 			record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, year, live: true);
-		conversionRate *= 0.75f + record.radioHeat * 0.5f;
+		if (!stagedLiveDemand) conversionRate *= 0.75f + record.radioHeat * 0.5f;
 		conversionRate *= 0.75f + Mathf.Max(0, regionalData.sentiment) * 0.25f;
 		conversionRate *= record.GetAwardMultiplier();
 		conversionRate *= 1f - (region.distribution.difficulty * 0.3f);
 		conversionRate *= MarketSeasonality.GetSingleSalesMultiplier(year, month, liveTick);
 		
+		// The enabled staged model requires a bounded baseline. The disabled branch
+		// retains its historical un-clamped awareness value and rounding contract.
+		float awareBuyers = potentialBuyers * (stagedLiveDemand ? baselineAwareness : effectiveAwareness);
+		if (stagedLiveDemand) {
+			SingleDemandStages stages = CalculateSingleDemandStages(potentialBuyers, baselineAwareness, chartSignal,
+				Mathf.Max(.01f, momentumBonus), Mathf.Max(.01f, .75f + record.radioHeat * .5f), demandCurve,
+				genreAcceptance, GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
+					record.baseRecord.secondaryGenre, ReleaseFormat.Single, year, region.GetAlbumDemandEraProgress(year), true),
+				conversionRate / Mathf.Max(.000001f, BASE_PURCHASE_RATE * demandCurve));
+			awareBuyers = stages.AwareBuyers;
+			conversionRate = stages.IntrinsicConversionRate;
+			regionalData.demandPotentialAudience = stages.PotentialAudience;
+			regionalData.demandBaselineAwareness = stages.BaselineAwareness;
+			regionalData.demandEarnedDiscoveryExposure = stages.EarnedDiscoveryExposure;
+			regionalData.demandAwareBuyers = stages.AwareBuyers;
+			regionalData.demandIntrinsicQualityFactor = stages.IntrinsicQualityFactor;
+			regionalData.demandAcceptanceFactor = stages.AcceptanceFactor;
+			regionalData.demandFormatFactor = stages.FormatFactor;
+			regionalData.demandIntrinsicConversionRate = stages.IntrinsicConversionRate;
+			regionalData.demandChartSignal = chartSignal;
+			regionalData.demandMomentumSignal = Mathf.Max(.01f, momentumBonus);
+			regionalData.demandRadioSignal = Mathf.Max(.01f, .75f + record.radioHeat * .5f);
+		}
 		float rawSales = awareBuyers * conversionRate;
 		// Backorders represent recent unmet intent, not a permanent bank of future
 		// purchases. Most stale intent expires before this week's demand is added.
@@ -231,6 +256,30 @@ public static class ChartSimulator {
 		return regionalData.serviceableIntentThisWeek;
 	}
 		
+	/// <summary>Pure enabled Single demand stages; discovery is owned only here.</summary>
+	internal static SingleDemandStages CalculateSingleDemandStages(float potentialAudience, float baselineAwareness,
+		float chartSignal, float momentumSignal, float radioSignal, float intrinsicQualityFactor,
+		float acceptanceFactor, float formatFactor, float otherConversionFactor) {
+		float boundedBase = Mathf.Clamp(baselineAwareness, 0f, 1f);
+		// Move the historical discovery multipliers into awareness odds exactly once.
+		// Chart, momentum, and radio are correlated views of the same discovery event,
+		// so use their geometric mean instead of compounding all three as independent
+		// multipliers. One stays neutral, equally weak/strong signals retain their
+		// level, and a second or third signal cannot multiply the audience again.
+		float discoveryProduct = Mathf.Max(.000001f, chartSignal) *
+			Mathf.Max(.000001f, momentumSignal) * Mathf.Max(.000001f, radioSignal);
+		float discoveryMultiplier = Mathf.Pow(discoveryProduct, 1f / 3f);
+		float awareFraction = boundedBase <= 0f ? 0f : boundedBase >= 1f ? 1f :
+			boundedBase * discoveryMultiplier / (1f - boundedBase + boundedBase * discoveryMultiplier);
+		float exposure = awareFraction > boundedBase
+			? (awareFraction - boundedBase) / Mathf.Max(.000001f, 1f - boundedBase)
+			: 0f;
+		float conversion = BASE_PURCHASE_RATE * Mathf.Max(0f, intrinsicQualityFactor) * Mathf.Max(0f, otherConversionFactor);
+		return new SingleDemandStages(Mathf.Max(0f, potentialAudience), boundedBase, exposure,
+			Mathf.Max(0f, potentialAudience) * Mathf.Clamp(awareFraction, 0f, 1f), intrinsicQualityFactor,
+			acceptanceFactor, formatFactor, conversion);
+	}
+
 	private static float GetGenreMarketReach(Genre genre) {
 		return genre switch {
 			Genre.TraditionalPop => 0.95f,
@@ -599,5 +648,16 @@ public static class ChartSimulator {
 		float majorBonus = infra.hasMajorLabelPresence ? 0.05f : 0f;
 		
 		return Mathf.Clamp(modifier + studioBonus + signatureBonus + majorBonus, 0.5f, 1.15f);
+	}
+}
+
+public readonly struct SingleDemandStages {
+	public readonly float PotentialAudience, BaselineAwareness, EarnedDiscoveryExposure, AwareBuyers;
+	public readonly float IntrinsicQualityFactor, AcceptanceFactor, FormatFactor, IntrinsicConversionRate;
+	public SingleDemandStages(float potentialAudience, float baselineAwareness, float earnedDiscoveryExposure, float awareBuyers,
+		float intrinsicQualityFactor, float acceptanceFactor, float formatFactor, float intrinsicConversionRate) {
+		PotentialAudience = potentialAudience; BaselineAwareness = baselineAwareness; EarnedDiscoveryExposure = earnedDiscoveryExposure;
+		AwareBuyers = awareBuyers; IntrinsicQualityFactor = intrinsicQualityFactor; AcceptanceFactor = acceptanceFactor;
+		FormatFactor = formatFactor; IntrinsicConversionRate = intrinsicConversionRate;
 	}
 }

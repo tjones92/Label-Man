@@ -79,11 +79,19 @@ public partial class AILabel : Resource {
 	public float weeklyNetRevenue;
 	public float weeklyDistributionIncome;
 	public Dictionary<ReleaseFormat, FormatRevenueMemory> revenueMemory = new();
+	public Dictionary<RevenueEstimatorLane, FormatRevenueMemory> laneRevenueMemory = new();
 
 	public FormatRevenueMemory GetOrCreateRevenueMemory(ReleaseFormat format) {
 		if (!revenueMemory.TryGetValue(format, out FormatRevenueMemory memory)) {
 			memory = new FormatRevenueMemory();
 			revenueMemory[format] = memory;
+		}
+		return memory;
+	}
+	public FormatRevenueMemory GetOrCreateRevenueMemory(RevenueEstimatorLane lane) {
+		if (!laneRevenueMemory.TryGetValue(lane, out FormatRevenueMemory memory)) {
+			memory = new FormatRevenueMemory();
+			laneRevenueMemory[lane] = memory;
 		}
 		return memory;
 	}
@@ -544,6 +552,8 @@ public partial class AILabel : Resource {
 	}
 }
 
+public enum RevenueEstimatorLane { OrphanSingle, PromoSingle, StandaloneAlbum, AlbumWithPromo, AlbumComponent }
+
 public sealed class FormatRevenueMemory {
 	// Legacy fields remain diagnostic-only for old saved state; live decisions use
 	// the bounded, release-time normalized observations below.
@@ -554,6 +564,9 @@ public sealed class FormatRevenueMemory {
 
 public sealed class FormatMemoryObservation {
 	public string releaseId;
+	public string projectId;
+	public ProjectRecordRole releaseLane;
+	public RevenueEstimatorLane estimatorLane;
 	public int releaseWeek;
 	public float expectedNet;
 	public float opportunityScale;

@@ -37,6 +37,9 @@ public partial class CompetitorManager : Node {
 	private const float ResponsiveMemoryHalfLifeWeeks = 52f;
 	private const float ResponsiveMemoryMaximumConfidence = .65f;
 	private const float ResponsiveMemoryResidualLimit = 3f;
+	private const int MaximumAlbumProjectsPerArtistYear = 2;
+	private const int AlbumProjectPressureMinimumDecisions = 100;
+	private const float AlbumProjectPressureShare = 2f / 3f;
 	// The live revision model observes high-variance, annualized outcomes and
 	// therefore needs more evidence than the frozen retirement-time EMA. Keeping
 	// this separate also preserves the disabled route's legacy K=4 behavior.
@@ -99,6 +102,13 @@ public partial class CompetitorManager : Node {
 	private readonly List<AlbumProject> pendingAlbumProjects = new();
 	private readonly Dictionary<string, AlbumProject> projectById = new();
 	private readonly Dictionary<string, AlbumProject> projectByRecordId = new();
+	private readonly Dictionary<(string ArtistId, int Year), int> annualAlbumProjectsByArtist = new();
+	private int annualFormatCapacityYear = int.MinValue;
+	private int annualFormatDecisions;
+	private int annualAlbumProjectsScheduled;
+	// Album-with-promo performance contains a market-wide structural component.
+	// Pool it for shrinkage, then let each label refine that baseline locally.
+	private readonly FormatRevenueMemory pooledAlbumWithPromoMemory = new();
 	private Dictionary<string, List<string>> labelActiveRecords = new Dictionary<string, List<string>>();
 	private Dictionary<string, LabelFinancialHistory> labelFinancials = new Dictionary<string, LabelFinancialHistory>();
 	private readonly Dictionary<string, Dictionary<Genre, int>> annualGenreSupplyByLabel = new();
@@ -299,13 +309,20 @@ public partial class CompetitorManager : Node {
 		if (settlement.IsBooked || settlement.SettlementId <= 0 || settlement.SettlementId != lastBookedSettlementId + 1)
 			throw new System.InvalidOperationException($"Rejected duplicate, stale, skipped, or out-of-order settlement {settlement.SettlementId} after {lastBookedSettlementId}.");
 		ProcessWeeklyRevenue(settlement);
+		var projectMemoryUpdates = new HashSet<string>(System.StringComparer.Ordinal);
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
 			RecordRuntimeData record = entry.Record;
 			if (record?.revenueMemoryEligible != true) continue;
 			int age = record.weeksSinceRelease;
 			if (age == 13 || age == 26 || (record.baseRecord.format == ReleaseFormat.Album && age == 52))
-				UpdateResponsiveMemoryObservation(record, finalized: false);
+				UpdateApplicableResponsiveMemoryObservations(record, finalized: false);
+			if (!string.IsNullOrEmpty(record.albumProjectId) &&
+				record.projectRole is ProjectRecordRole.PromoSingle or ProjectRecordRole.LinkedAlbum &&
+				(age == 13 || age == 26 || (record.baseRecord.format == ReleaseFormat.Album && age == 52)))
+				projectMemoryUpdates.Add(record.albumProjectId);
 		}
+		foreach (string projectId in projectMemoryUpdates) if (projectById.TryGetValue(projectId, out AlbumProject project))
+			UpdateAlbumWithPromoProjectMemoryObservation(project, finalized: false);
 		settlement.IsBooked = true;
 		lastBookedSettlementId = settlement.SettlementId;
 	}
@@ -621,7 +638,8 @@ public partial class CompetitorManager : Node {
 		});
 
 		if (!runtimeData.revenueMemoryEligible) return;
-		UpdateResponsiveMemoryObservation(runtimeData, finalized: true);
+		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
+			UpdateApplicableResponsiveMemoryObservations(runtimeData, finalized: true);
 		if (!string.IsNullOrEmpty(runtimeData.albumProjectId) && projectById.TryGetValue(runtimeData.albumProjectId, out AlbumProject project)) {
 			if (runtimeData.projectRole == ProjectRecordRole.PromoSingle) {
 				project.promoRetired = true;
@@ -663,11 +681,29 @@ public partial class CompetitorManager : Node {
 		memory.releasesObserved++;
 	}
 
-	private void UpdateResponsiveMemoryObservation(RecordRuntimeData runtimeData, bool finalized) {
+	private void UpdateApplicableResponsiveMemoryObservations(RecordRuntimeData runtimeData, bool finalized) {
+		if (runtimeData == null) return;
+		foreach (RevenueEstimatorLane lane in GetApplicableEstimatorLanes(runtimeData.projectRole))
+			UpdateResponsiveMemoryObservation(runtimeData, lane, finalized);
+	}
+
+	internal static RevenueEstimatorLane[] GetApplicableEstimatorLanes(ProjectRecordRole role) => role switch {
+		ProjectRecordRole.OrphanSingle => new[] { RevenueEstimatorLane.OrphanSingle },
+		ProjectRecordRole.PromoSingle => new[] { RevenueEstimatorLane.PromoSingle },
+		// One physical outcome is applicable to both general Album eligibility
+		// and the standalone-strategy estimator. Finance is still posted once.
+		ProjectRecordRole.StandaloneAlbum => new[] { RevenueEstimatorLane.AlbumComponent, RevenueEstimatorLane.StandaloneAlbum },
+		// Combined promo-plus-Album economics are observed separately by project
+		// memory; the physical Album component owns eligibility feedback.
+		ProjectRecordRole.LinkedAlbum => new[] { RevenueEstimatorLane.AlbumComponent },
+		_ => System.Array.Empty<RevenueEstimatorLane>()
+	};
+
+	private void UpdateResponsiveMemoryObservation(RecordRuntimeData runtimeData, RevenueEstimatorLane lane, bool finalized) {
 		if (runtimeData?.baseRecord == null || string.IsNullOrEmpty(runtimeData.baseRecord.labelId)) return;
 		AILabel label = GetLabel(runtimeData.baseRecord.labelId);
 		if (label == null) return;
-		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(runtimeData.baseRecord.format);
+		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(lane);
 		string releaseId = runtimeData.baseRecord.recordId;
 		int age = Mathf.Max(0, runtimeData.weeksSinceRelease);
 		float expectedNet = runtimeData.releaseTimeExpectedNet;
@@ -687,8 +723,9 @@ public partial class CompetitorManager : Node {
 		if (float.IsNaN(residual) || float.IsInfinity(residual)) return;
 		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == releaseId);
 		if (observation == null) {
-			observation = new FormatMemoryObservation { releaseId = releaseId, releaseWeek = runtimeData.releaseMemoryWeek,
-				expectedNet = expectedNet, opportunityScale = scale };
+			observation = new FormatMemoryObservation { releaseId = releaseId, projectId = runtimeData.albumProjectId,
+				releaseLane = runtimeData.projectRole, estimatorLane = lane,
+				releaseWeek = runtimeData.releaseMemoryWeek, expectedNet = expectedNet, opportunityScale = scale };
 			memory.observations.Add(observation);
 		}
 		if (!TryAdvanceResponsiveMemoryRevision(observation, age, finalized,
@@ -697,6 +734,7 @@ public partial class CompetitorManager : Node {
 		observation.maturityWeight = maturity;
 		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
 			releaseId = releaseId, labelId = runtimeData.baseRecord.labelId, format = runtimeData.baseRecord.format,
+			projectId = runtimeData.albumProjectId, releaseLane = runtimeData.projectRole, estimatorLane = lane,
 			genre = runtimeData.baseRecord.primaryGenre, releaseAge = age, revisionKind = finalized ? "Final" : $"Age{age}",
 			revisionOrdinal = revisionOrdinal,
 			releaseTimeExpectedNet = expectedNet, ageMatchedExpectedNet = ageMatchedExpectedNet,
@@ -767,21 +805,101 @@ public partial class CompetitorManager : Node {
 		if (project == null || project.albumMemoryFolded || project.heldAlbumOutcome == null) return;
 		if (project.strategy == ReleaseStrategy.AlbumWithPromo && project.heldPromoOutcome == null) return;
 		float combined = project.heldAlbumOutcome.Value + (project.heldPromoOutcome ?? 0f);
-		ApplyMemoryObservation(project.currentLabelId, ReleaseFormat.Album, combined);
+		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true) {
+			UpdateAlbumWithPromoProjectMemoryObservation(project, finalized: true);
+		} else ApplyMemoryObservation(project.currentLabelId, ReleaseFormat.Album, combined);
 		project.projectRealizedNet = combined;
 		project.albumMemoryFolded = true;
 		project.albumOutcomeState = ProjectOutcomeState.FoldedToAlbum;
 		if (project.strategy == ReleaseStrategy.AlbumWithPromo) project.promoOutcomeState = ProjectOutcomeState.FoldedToAlbum;
 	}
 
+	private void UpdateAlbumWithPromoProjectMemoryObservation(AlbumProject project, bool finalized) {
+		if (project?.strategy != ReleaseStrategy.AlbumWithPromo || string.IsNullOrEmpty(project.projectId)) return;
+		AILabel label = GetLabel(project.currentLabelId);
+		if (label == null) return;
+		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(RevenueEstimatorLane.AlbumWithPromo);
+		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == project.projectId);
+		if (observation == null) {
+			observation = new FormatMemoryObservation {
+				releaseId = project.projectId, projectId = project.projectId,
+				releaseLane = ProjectRecordRole.LinkedAlbum, estimatorLane = RevenueEstimatorLane.AlbumWithPromo,
+				releaseWeek = project.scheduledWeek, expectedNet = project.projectedProjectNet,
+				opportunityScale = Mathf.Max(1f, Mathf.Abs(project.projectedProjectNet))
+			};
+			memory.observations.Add(observation);
+		}
+
+		float promoDelta = GetProjectComponentOutcomeDelta(project.promoSingleId, project.heldPromoOutcome,
+			project.projectedPromoSingleNet, terminalAge: 20f, finalized, out float promoMaturity);
+		float albumDelta = GetProjectComponentOutcomeDelta(project.albumRecord?.recordId, project.heldAlbumOutcome,
+			project.projectedAlbumNet, terminalAge: 52f, finalized, out float albumMaturity);
+		float estimatedProject = project.projectedProjectNet + promoDelta + albumDelta;
+		float residual = Mathf.Clamp((estimatedProject - project.projectedProjectNet) /
+			Mathf.Max(1f, Mathf.Abs(project.projectedProjectNet)), -ResponsiveMemoryResidualLimit, ResponsiveMemoryResidualLimit);
+		int projectAge = Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? project.scheduledWeek) - project.scheduledWeek);
+		if (!TryAdvanceResponsiveMemoryRevision(observation, projectAge, finalized,
+			out bool replacedPriorRevision, out int revisionOrdinal)) return;
+		observation.normalizedResidual = residual;
+		observation.maturityWeight = finalized ? 1f : Mathf.Clamp((promoMaturity + albumMaturity) * .5f, .05f, 1f);
+		UpdatePooledAlbumWithPromoObservation(project, projectAge, finalized, residual, observation.maturityWeight);
+		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
+			releaseId = project.projectId, projectId = project.projectId, labelId = project.currentLabelId,
+			format = ReleaseFormat.Album, releaseLane = ProjectRecordRole.LinkedAlbum,
+			estimatorLane = RevenueEstimatorLane.AlbumWithPromo, genre = project.genre,
+			releaseAge = projectAge, revisionKind = finalized ? "Final" : $"Age{projectAge}", revisionOrdinal = revisionOrdinal,
+			releaseTimeExpectedNet = project.projectedProjectNet, ageMatchedExpectedNet = project.projectedProjectNet,
+			realizedNetToDate = (project.heldPromoOutcome ?? 0f) + (project.heldAlbumOutcome ?? 0f),
+			estimatedOutcomeNet = estimatedProject, opportunityScale = observation.opportunityScale,
+			normalizedResidual = residual, maturityWeight = observation.maturityWeight, recencyWeight = 1f,
+			replacedPriorRevision = replacedPriorRevision, finalized = observation.finalized
+		});
+	}
+
+	private void UpdatePooledAlbumWithPromoObservation(AlbumProject project, int projectAge, bool finalized,
+		float residual, float maturityWeight) {
+		FormatMemoryObservation observation = pooledAlbumWithPromoMemory.observations
+			.FirstOrDefault(item => item.releaseId == project.projectId);
+		if (observation == null) {
+			observation = new FormatMemoryObservation {
+				releaseId = project.projectId, projectId = project.projectId,
+				releaseLane = ProjectRecordRole.LinkedAlbum, estimatorLane = RevenueEstimatorLane.AlbumWithPromo,
+				releaseWeek = project.scheduledWeek, expectedNet = project.projectedProjectNet,
+				opportunityScale = Mathf.Max(1f, Mathf.Abs(project.projectedProjectNet))
+			};
+			pooledAlbumWithPromoMemory.observations.Add(observation);
+		}
+		if (!TryAdvanceResponsiveMemoryRevision(observation, projectAge, finalized, out _, out _)) return;
+		observation.normalizedResidual = residual;
+		observation.maturityWeight = maturityWeight;
+	}
+
+	private float GetProjectComponentOutcomeDelta(string recordId, float? heldOutcome, float expectedNet,
+		float terminalAge, bool finalized, out float maturity) {
+		if (heldOutcome.HasValue) {
+			maturity = 1f;
+			return heldOutcome.Value - expectedNet;
+		}
+		RecordRuntimeData runtime = string.IsNullOrEmpty(recordId) ? null : ChartManager.Instance?.GetRecordRuntimeData(recordId);
+		if (runtime == null) {
+			maturity = finalized ? 1f : 0f;
+			return 0f;
+		}
+		maturity = Mathf.Clamp((runtime.weeksSinceRelease + 1f) / terminalAge, .05f, 1f);
+		float estimated = EstimateResponsiveMemoryOutcome(runtime.lifetimeLabelNet, runtime.sunkProductionCost, maturity, finalized: false);
+		return estimated - expectedNet;
+	}
+
 	private void RedirectCancelledPromoOutcome(AlbumProject project) {
 		if (project?.heldPromoOutcome == null || project.promoOutcomeState == ProjectOutcomeState.RedirectedToSingle) return;
-		ApplyMemoryObservation(project.currentLabelId, ReleaseFormat.Single, project.heldPromoOutcome.Value);
+		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true))
+			ApplyMemoryObservation(project.currentLabelId, ReleaseFormat.Single, project.heldPromoOutcome.Value);
 		project.promoOutcomeState = ProjectOutcomeState.RedirectedToSingle;
 	}
 	
 	private bool TryReleaseRecord(AILabel label, GameDate date) {
 		lastReleaseAttemptFailedArtistSelection = false;
+		PrepareAnnualFormatCapacity(date.year);
 		var artist = RosterManager.Instance?.GetArtistForRelease(label) ?? label.GetArtistForRelease(date.year);
 		if (artist == null) {
 			lastReleaseAttemptFailedArtistSelection = true;
@@ -851,6 +969,8 @@ public partial class CompetitorManager : Node {
 		}
 		
 		record.releaseDate = date;
+		record.projectRole = ProjectRecordRole.OrphanSingle;
+		record.albumProjectId = string.Empty;
 		ChartManager.Instance.ReleaseRecord(record);
 		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
 		if (runtimeData == null) throw new System.InvalidOperationException($"Released record '{record.recordId}' has no runtime data.");
@@ -859,14 +979,16 @@ public partial class CompetitorManager : Node {
 		runtimeData.releaseTimeExpectedNet = plan.format == ReleaseFormat.Album ? plan.priorAlbumNet : plan.priorSingleNet;
 		runtimeData.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(runtimeData.releaseTimeExpectedNet), productionCost));
 		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
-		runtimeData.projectRole = ProjectRecordRole.OrphanSingle;
+		runtimeData.projectRole = record.projectRole;
 		ApplyReleasePromotion(record, artist, label, marketingBudget, perceivedQualityMult);
+		CaptureSingleOpportunity(runtimeData, label, date.year);
 		TrackRelease(label.labelId, record.recordId);
 		WeeklySingleReleases++;
 		RosterManager.Instance?.RecordReleased(artist, record.recordId);
 		artist.weeksSinceLastRelease = 0;
 		artist.releaseHistory.Add(record.recordId);
 		if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
+		annualFormatDecisions++;
 		OnCalibrationDecision?.Invoke(new CalibrationDecisionTelemetry {
 			recordId = record.recordId,
 			labelId = label.labelId,
@@ -916,7 +1038,7 @@ public partial class CompetitorManager : Node {
 				actualAlbumFormat = record.album?.albumFormat,
 				strategy = ReleaseStrategy.OrphanSingle,
 				projectedOrphanSingleNet = plan.projectedSingleNet,
-				projectedAlbumStandaloneNet = plan.projectedAlbumNet,
+				projectedAlbumStandaloneNet = plan.projectedAlbumStandaloneNet,
 				projectedAlbumWithPromoNet = plan.projectedAlbumWithPromoNet,
 				singlePreTiltContribution = plan.singlePreTiltContribution, singleFormatTilt = plan.singleFormatTilt,
 				albumAffinity = plan.albumAffinity, acceptedAlbumOpportunity = plan.acceptedAlbumOpportunity,
@@ -1061,6 +1183,10 @@ public partial class CompetitorManager : Node {
 			promoOutcomeState = promo == null ? ProjectOutcomeState.None : ProjectOutcomeState.Pending
 		};
 		albumProjects.Add(project);
+		(string ArtistId, int Year) artistYear = (artist.artistId, date.year);
+		annualAlbumProjectsByArtist[artistYear] = annualAlbumProjectsByArtist.GetValueOrDefault(artistYear) + 1;
+		annualAlbumProjectsScheduled++;
+		annualFormatDecisions++;
 		WeeklyAlbumProjectsScheduled++;
 		projectById[projectId] = project;
 		projectByRecordId[album.recordId] = project;
@@ -1076,6 +1202,7 @@ public partial class CompetitorManager : Node {
 			ReleasePreparedRecord(promo, artist, label, date, promoProductionCost, plan.expectedPromoSingleNet,
 				ProjectRecordRole.PromoSingle, projectId);
 			ApplyReleasePromotion(promo, artist, label, promoMarketingBudget, promoPerceivedMult);
+			CaptureSingleOpportunity(ChartManager.Instance.GetRecordRuntimeData(promo.recordId), label, date.year);
 		}
 		artist.weeksSinceLastRelease = 0;
 		EmitAlbumDecisionTelemetry(label, artist, decision, plan, album, project);
@@ -1118,6 +1245,8 @@ public partial class CompetitorManager : Node {
 		float releaseTimeExpectedNet, ProjectRecordRole role, string projectId) {
 		record.labelId = label.labelId;
 		record.releaseDate = date;
+		record.projectRole = role;
+		record.albumProjectId = projectId;
 		ChartManager.Instance.ReleaseRecord(record);
 		if (record.format == ReleaseFormat.Album && record.album?.albumFormat == AlbumFormat.Compilation) {
 			foreach (AlbumTrack track in record.album.trackRefs ?? System.Array.Empty<AlbumTrack>()) {
@@ -1131,8 +1260,8 @@ public partial class CompetitorManager : Node {
 		runtime.releaseTimeExpectedNet = releaseTimeExpectedNet;
 		runtime.releaseTimeOpportunityScale = Mathf.Max(1f, Mathf.Max(Mathf.Abs(releaseTimeExpectedNet), productionCost));
 		runtime.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
-		runtime.projectRole = role;
-		runtime.albumProjectId = projectId;
+		runtime.projectRole = record.projectRole;
+		runtime.albumProjectId = record.albumProjectId;
 		if (role == ProjectRecordRole.LinkedAlbum && projectById.TryGetValue(projectId, out AlbumProject project)) runtime.linkedPromoSingleId = project.promoSingleId;
 		TrackRelease(label.labelId, record.recordId);
 		if (artist != null) {
@@ -1140,6 +1269,11 @@ public partial class CompetitorManager : Node {
 			artist.releaseHistory.Add(record.recordId);
 			if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
 		}
+	}
+
+	private static void CaptureSingleOpportunity(RecordRuntimeData runtime, AILabel label, int year) {
+		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
+			SingleOpportunityLedger.CaptureAtRelease(runtime, label, ChartManager.Instance.GetAllRegions(), year);
 	}
 
 	private void EmitAlbumDecisionTelemetry(AILabel label, SimulatedArtist artist, DecisionContext decision, ReleasePlan plan,
@@ -1202,15 +1336,40 @@ public partial class CompetitorManager : Node {
 		HitInventory hitInventory = ResolveHitInventory(artist);
 		float priorSingle = CalculateSinglePriorNet(decision);
 		float priorAlbum = CalculateAlbumPriorNet(label, artist, year, decision, compCostWeight, hitInventory, out AlbumPriorDiagnostics albumPrior);
-		FormatRevenueMemory singleMemory = label.GetOrCreateRevenueMemory(ReleaseFormat.Single);
-		FormatRevenueMemory albumMemory = label.GetOrCreateRevenueMemory(ReleaseFormat.Album);
 		bool useResponsiveMemory = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		// Live choices read only the estimator that answers that exact decision.
+		// Legacy format memories remain untouched for disabled replay compatibility.
+		FormatRevenueMemory singleMemory = useResponsiveMemory
+			? label.GetOrCreateRevenueMemory(RevenueEstimatorLane.OrphanSingle) : label.GetOrCreateRevenueMemory(ReleaseFormat.Single);
+		FormatRevenueMemory albumMemory = useResponsiveMemory
+			? label.GetOrCreateRevenueMemory(RevenueEstimatorLane.AlbumComponent) : label.GetOrCreateRevenueMemory(ReleaseFormat.Album);
+		FormatRevenueMemory standaloneMemory = useResponsiveMemory
+			? label.GetOrCreateRevenueMemory(RevenueEstimatorLane.StandaloneAlbum) : albumMemory;
+		FormatRevenueMemory promoMemory = useResponsiveMemory
+			? label.GetOrCreateRevenueMemory(RevenueEstimatorLane.PromoSingle) : singleMemory;
+		FormatRevenueMemory projectMemory = useResponsiveMemory
+			? label.GetOrCreateRevenueMemory(RevenueEstimatorLane.AlbumWithPromo) : albumMemory;
 		var singleResponsive = GetResponsiveMemory(singleMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		var albumResponsive = GetResponsiveMemory(albumMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		var standaloneResponsive = GetResponsiveMemory(standaloneMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		var promoResponsive = GetResponsiveMemory(promoMemory, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		var labelProjectResponsive = GetResponsiveMemory(projectMemory, currentWeek);
+		var pooledProjectResponsive = GetResponsiveMemory(pooledAlbumWithPromoMemory, currentWeek);
+		float projectLocalBlend = labelProjectResponsive.Confidence /
+			Mathf.Max(.000001f, labelProjectResponsive.Confidence + pooledProjectResponsive.Confidence);
+		var projectResponsive = (
+			Residual: pooledProjectResponsive.Confidence > 0f
+				? Mathf.Lerp(pooledProjectResponsive.Residual, labelProjectResponsive.Residual, projectLocalBlend)
+				: labelProjectResponsive.Residual,
+			EffectiveWeight: pooledProjectResponsive.EffectiveWeight + labelProjectResponsive.EffectiveWeight,
+			Confidence: Mathf.Max(pooledProjectResponsive.Confidence, labelProjectResponsive.Confidence));
 		float confidenceSingle = useResponsiveMemory ? singleResponsive.Confidence : singleMemory.releasesObserved / (singleMemory.releasesObserved + Mathf.Max(.1f, revenueMemoryConfidenceK));
 		float confidenceAlbum = useResponsiveMemory ? albumResponsive.Confidence : albumMemory.releasesObserved / (albumMemory.releasesObserved + Mathf.Max(.1f, revenueMemoryConfidenceK));
+		float confidenceStandalone = useResponsiveMemory ? standaloneResponsive.Confidence : confidenceAlbum;
 		confidenceSingle = GetProjectFormatMemoryConfidence(confidenceSingle, decision.nonRetainedEmergingProject);
 		confidenceAlbum = GetProjectFormatMemoryConfidence(confidenceAlbum, decision.nonRetainedEmergingProject);
+		confidenceStandalone = GetProjectFormatMemoryConfidence(confidenceStandalone, decision.nonRetainedEmergingProject);
 		float rawConfidenceSingle = confidenceSingle;
 		float rawConfidenceAlbum = confidenceAlbum;
 		bool applyLiveMemoryCeiling = useResponsiveMemory;
@@ -1222,28 +1381,70 @@ public partial class CompetitorManager : Node {
 		float projectedAlbum = useResponsiveMemory
 			? priorAlbum + confidenceAlbum * albumResponsive.Residual * Mathf.Max(1f, Mathf.Abs(priorAlbum))
 			: Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum);
+		float projectedStandaloneAlbum = useResponsiveMemory && confidenceStandalone > 0f
+			? priorAlbum + confidenceStandalone * standaloneResponsive.Residual * Mathf.Max(1f, Mathf.Abs(priorAlbum))
+			: projectedAlbum;
 
 		float noiseRange = Mathf.Lerp(0.50f, 0.15f, Mathf.Clamp(label.scoutingAbility, 0f, 1f));
 		float singleNoiseMultiplier = 1f + (float)GD.RandRange(-noiseRange, noiseRange);
 		float albumNoiseMultiplier = 1f + (float)GD.RandRange(-noiseRange, noiseRange);
 		projectedSingle *= singleNoiseMultiplier;
 		projectedAlbum *= albumNoiseMultiplier;
+		projectedStandaloneAlbum *= albumNoiseMultiplier;
 		float singleFormatTilt = GetFormatPriorMultiplier(artist.primaryGenre, ReleaseFormat.Single, year);
 		float singlePreTiltContribution = (priorSingle + decision.singleProductionCost) / Mathf.Max(.000001f, singleFormatTilt);
-		bool albumWins = projectedAlbum > projectedSingle;
+		float projectedLaunchAwareness = ProjectLaunchAwareness(label, artist, label.GetMarketingBudget(artist));
+		float expectedPromoLift = (1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f)) * expectedPromoLiftScalar;
+		float meanAlbumDropGapWeeks = (albumDropGapWeeksMin + albumDropGapWeeksMax) * 0.5f;
+		float expectedOverlapFraction = Mathf.Clamp(
+			(expectedOverlapWeeks - meanAlbumDropGapWeeks) / Mathf.Max(1f, expectedOverlapWeeks), 0f, 1f);
+		float expectedPromoSingleNet = CalculateSinglePriorNet(decision);
+		float promoConfidence = useResponsiveMemory ? promoResponsive.Confidence : confidenceSingle;
+		if (useResponsiveMemory) expectedPromoSingleNet += promoConfidence * promoResponsive.Residual * Mathf.Max(1f, Mathf.Abs(expectedPromoSingleNet));
+		float expectedSingleUnits = Mathf.Max(0f,
+			(expectedPromoSingleNet + decision.singleProductionCost) / Mathf.Max(singleNetMarginPerUnit, 0.000001f));
+		float albumDemandFactor = CalculateAlbumDemandFactor(artist.primaryGenre, year);
+		float substitutionPropensity = Mathf.Clamp(substitutionK * albumDemandFactor, 0f, substitutionCap);
+		float divertedUnits = substitutionPropensity * expectedOverlapFraction * expectedSingleUnits;
+		float cannibalizationLoss = divertedUnits * albumPrior.marginPerUnit;
+		float promoAdvantage = expectedPromoLift + expectedPromoSingleNet - cannibalizationLoss;
+		float componentProjectedAlbumWithPromo = projectedAlbum + promoAdvantage;
+		float projectedAlbumWithPromo = componentProjectedAlbumWithPromo;
+		if (useResponsiveMemory) projectedAlbumWithPromo += projectResponsive.Confidence * projectResponsive.Residual *
+			Mathf.Max(1f, Mathf.Abs(projectedAlbumWithPromo));
+		float promoProjectDelayPremium = meanAlbumDropGapWeeks / 52f;
+
+		(bool albumWins, bool promoPreferred, float albumGateProjection) = useResponsiveMemory
+			? ResolveAlbumDecision(projectedSingle, projectedAlbum, projectedStandaloneAlbum,
+				componentProjectedAlbumWithPromo, projectedAlbumWithPromo, promoProjectDelayPremium)
+			: (projectedAlbum > projectedSingle, componentProjectedAlbumWithPromo > projectedAlbum, projectedAlbum);
+		bool albumProjectPressure = useResponsiveMemory &&
+			IsAlbumProjectSharePressureHigh(annualFormatDecisions, annualAlbumProjectsScheduled);
+		if (albumWins && !CanScheduleAnnualAlbumProject(
+			annualAlbumProjectsByArtist.GetValueOrDefault((artist.artistId, year)), albumProjectPressure)) {
+			albumWins = false;
+			promoPreferred = false;
+		}
+		// Physical Album-component memory owns format eligibility. Standalone and
+		// promo component memories rank the strategies. Total-project memory observes
+		// the same component outcomes, so stacking its residual would count their
+		// underperformance twice; it is only a fail-closed viability guard here.
+		float decisionAlbumConfidence = confidenceAlbum;
+		float decisionAlbumResidual = albumResponsive.Residual;
+
 		ReleasePlan plan = new() {
 			format = albumWins ? ReleaseFormat.Album : ReleaseFormat.Single,
-			strategy = ReleaseStrategy.OrphanSingle,
+			strategy = albumWins ? (promoPreferred ? ReleaseStrategy.AlbumWithPromo : ReleaseStrategy.AlbumStandalone) : ReleaseStrategy.OrphanSingle,
 			economicsEvaluated = true,
 			priorSingleNet = priorSingle,
 			priorAlbumNet = priorAlbum,
 			projectedSingleNet = projectedSingle,
-			projectedAlbumNet = projectedAlbum,
+			projectedAlbumNet = albumGateProjection,
 			projectedOrphanSingleNet = projectedSingle,
-			projectedAlbumStandaloneNet = projectedAlbum,
-			projectedAlbumWithPromoNet = projectedAlbum,
+			projectedAlbumStandaloneNet = projectedStandaloneAlbum,
+			projectedAlbumWithPromoNet = albumWins ? projectedAlbumWithPromo : projectedAlbum,
 			confidenceSingle = confidenceSingle,
-			confidenceAlbum = confidenceAlbum,
+			confidenceAlbum = decisionAlbumConfidence,
 			rawConfidenceSingle = rawConfidenceSingle,
 			rawConfidenceAlbum = rawConfidenceAlbum,
 			singleMemoryCapApplied = applyLiveMemoryCeiling && rawConfidenceSingle > confidenceSingle,
@@ -1266,49 +1467,64 @@ public partial class CompetitorManager : Node {
 			singlePreTiltContribution = singlePreTiltContribution, singleFormatTilt = singleFormatTilt,
 			albumAffinity = albumPrior.albumAffinity, acceptedAlbumOpportunity = albumPrior.acceptedOpportunity,
 			albumFormatTilt = albumPrior.formatTilt, albumPreTiltContribution = albumPrior.preTiltAffinityUnits,
-			albumProductionCost = albumPrior.productionCost, singleMemoryEma = useResponsiveMemory ? singleResponsive.Residual : singleMemory.emaNetPerRelease,
-			albumMemoryEma = useResponsiveMemory ? albumResponsive.Residual : albumMemory.emaNetPerRelease,
+			albumProductionCost = albumPrior.productionCost,
+			singleMemoryEma = useResponsiveMemory ? singleResponsive.Residual : singleMemory.emaNetPerRelease,
+			albumMemoryEma = useResponsiveMemory ? decisionAlbumResidual : albumMemory.emaNetPerRelease,
 			singleMemoryBlend = useResponsiveMemory ? projectedSingle : Mathf.Lerp(priorSingle, singleMemory.emaNetPerRelease, confidenceSingle),
-			albumMemoryBlend = useResponsiveMemory ? projectedAlbum : Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum),
+			albumMemoryBlend = useResponsiveMemory ? albumGateProjection : Mathf.Lerp(priorAlbum, albumMemory.emaNetPerRelease, confidenceAlbum),
 			labelFormatMemoryBypassed = decision.nonRetainedEmergingProject,
-			singleNoiseMultiplier = singleNoiseMultiplier, albumNoiseMultiplier = albumNoiseMultiplier
+			singleNoiseMultiplier = singleNoiseMultiplier, albumNoiseMultiplier = albumNoiseMultiplier,
+			expectedPromoSingleNet = expectedPromoSingleNet,
+			albumStrategyEvaluated = albumWins,
+			singleNetMarginPerUnit = singleNetMarginPerUnit,
+			expectedSingleUnits = expectedSingleUnits,
+			albumDemandFactor = albumDemandFactor,
+			substitutionK = substitutionK,
+			substitutionCap = substitutionCap,
+			substitutionPropensity = substitutionPropensity,
+			expectedOverlapFraction = expectedOverlapFraction,
+			divertedUnits = divertedUnits,
+			albumMarginPerUnit = albumPrior.marginPerUnit,
+			cannibalizationLoss = cannibalizationLoss,
+			expectedPromoLift = expectedPromoLift,
+			promoAdvantage = promoAdvantage
 		};
-		if (!albumWins) return plan;
-
-		float projectedLaunchAwareness = ProjectLaunchAwareness(label, artist, label.GetMarketingBudget(artist));
-		float expectedPromoLift = (1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f)) * expectedPromoLiftScalar;
-		float meanAlbumDropGapWeeks = (albumDropGapWeeksMin + albumDropGapWeeksMax) * 0.5f;
-		float expectedOverlapFraction = Mathf.Clamp(
-			(expectedOverlapWeeks - meanAlbumDropGapWeeks) / Mathf.Max(1f, expectedOverlapWeeks), 0f, 1f);
-		float expectedPromoSingleNet = CalculateSinglePriorNet(decision);
-		float expectedSingleUnits = Mathf.Max(0f,
-			(expectedPromoSingleNet + decision.singleProductionCost) / Mathf.Max(singleNetMarginPerUnit, 0.000001f));
-		float albumDemandFactor = CalculateAlbumDemandFactor(artist.primaryGenre, year);
-		float substitutionPropensity = Mathf.Clamp(substitutionK * albumDemandFactor, 0f, substitutionCap);
-		float divertedUnits = substitutionPropensity * expectedOverlapFraction * expectedSingleUnits;
-		float cannibalizationLoss = divertedUnits * albumPrior.marginPerUnit;
-		float promoAdvantage = expectedPromoLift + expectedPromoSingleNet - cannibalizationLoss;
-		float projectedAlbumWithPromo = projectedAlbum + promoAdvantage;
-
-		plan.strategy = projectedAlbumWithPromo > projectedAlbum
-			? ReleaseStrategy.AlbumWithPromo : ReleaseStrategy.AlbumStandalone;
-		plan.projectedAlbumWithPromoNet = projectedAlbumWithPromo;
-		plan.expectedPromoSingleNet = expectedPromoSingleNet;
-		plan.albumStrategyEvaluated = true;
-		plan.singleNetMarginPerUnit = singleNetMarginPerUnit;
-		plan.expectedSingleUnits = expectedSingleUnits;
-		plan.albumDemandFactor = albumDemandFactor;
-		plan.substitutionK = substitutionK;
-		plan.substitutionCap = substitutionCap;
-		plan.substitutionPropensity = substitutionPropensity;
-		plan.expectedOverlapFraction = expectedOverlapFraction;
-		plan.divertedUnits = divertedUnits;
-		plan.albumMarginPerUnit = albumPrior.marginPerUnit;
-		plan.cannibalizationLoss = cannibalizationLoss;
-		plan.expectedPromoLift = expectedPromoLift;
-		plan.promoAdvantage = promoAdvantage;
 		return plan;
 	}
+
+	internal static (bool AlbumWins, bool PromoPreferred, float AlbumGateProjection) ResolveAlbumDecision(
+		float projectedSingle, float projectedAlbumEligibility, float projectedStandaloneAlbum,
+		float componentProjectedAlbumWithPromo, float totalProjectMemoryProjection, float promoProjectDelayPremium) {
+		bool promoPreferred = componentProjectedAlbumWithPromo > projectedStandaloneAlbum && totalProjectMemoryProjection > 0f;
+		// A promo project consumes two release products. Both the physical Album
+		// component and the component project's mean net per product must beat the
+		// orphan-Single alternative after the configured drop delay's annualized
+		// opportunity cost; total-project memory remains viability-only.
+		float albumGateProjection = promoPreferred
+			? Mathf.Min(projectedAlbumEligibility, componentProjectedAlbumWithPromo * .5f)
+			: projectedAlbumEligibility;
+		float delayHurdle = promoPreferred
+			? projectedSingle + Mathf.Max(0f, promoProjectDelayPremium) * Mathf.Max(1f, Mathf.Abs(projectedSingle))
+			: projectedSingle;
+		return (albumGateProjection > delayHurdle, promoPreferred, albumGateProjection);
+	}
+
+	private void PrepareAnnualFormatCapacity(int year) {
+		if (annualFormatCapacityYear == year) return;
+		annualFormatCapacityYear = year;
+		annualFormatDecisions = 0;
+		annualAlbumProjectsScheduled = 0;
+	}
+
+	private static bool IsAlbumProjectSharePressureHigh(int decisions, int albumProjects) =>
+		decisions >= AlbumProjectPressureMinimumDecisions &&
+		(float)albumProjects / Mathf.Max(1, decisions) >= AlbumProjectPressureShare;
+	private static bool CanScheduleAnnualAlbumProject(int projectsAlreadyScheduled, bool albumProjectPressure) =>
+		!albumProjectPressure || projectsAlreadyScheduled < MaximumAlbumProjectsPerArtistYear;
+	internal static bool IsAlbumProjectSharePressureHighForProbe(int decisions, int albumProjects) =>
+		IsAlbumProjectSharePressureHigh(decisions, albumProjects);
+	internal static bool CanScheduleAnnualAlbumProjectForProbe(int projectsAlreadyScheduled, bool albumProjectPressure) =>
+		CanScheduleAnnualAlbumProject(projectsAlreadyScheduled, albumProjectPressure);
 
 	private float ProjectLaunchAwareness(AILabel label, SimulatedArtist artist, float marketingBudget) {
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
@@ -1780,6 +1996,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year) {
+		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		bool adultGenre = artist.primaryGenre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
 			Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
 		float artistTalent = artist.CalculateBaseQuality();
@@ -1812,10 +2029,15 @@ public partial class CompetitorManager : Node {
 		float originalMaterialScale = albumFormat == AlbumFormat.Compilation ? 0.68f : albumFormat == AlbumFormat.Live ? 0.80f : 0.88f;
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
 			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f + (float)GD.RandRange(-0.16, 0.12), 0.12f, 0.95f);
+			string trackTitle = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.stageName) ?? $"Album Track {nonSingleTracks.Count + 1}";
+			(float hook, float production, float dance) = useStructuredPromoTracks
+				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
+				: (0f, 0f, 0f);
 			nonSingleTracks.Add(new AlbumTrack {
-				title = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.stageName) ?? $"Album Track {nonSingleTracks.Count + 1}",
+				title = trackTitle,
 				genre = artist.primaryGenre,
 				quality = trackQuality,
+				hookStrength = hook, productionQuality = production, danceability = dance,
 				isReleasedSingle = false
 			});
 		}
@@ -1851,17 +2073,30 @@ public partial class CompetitorManager : Node {
 	private Record CreatePromoSingleFromAlbum(Record albumRecord) {
 		Album album = albumRecord.album ?? throw new System.InvalidOperationException("Promo project requires a generated album.");
 		if (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0) throw new System.InvalidOperationException("Promo project album has no eligible original track.");
+		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		int bestIndex = 0;
 		for (int i = 1; i < album.nonSingleTracks.Length; i++) {
-			if (album.nonSingleTracks[i].quality > album.nonSingleTracks[bestIndex].quality) bestIndex = i;
+			if (useStructuredPromoTracks) {
+				int selectionYear = albumRecord.releaseDate.year > 0 ? albumRecord.releaseDate.year : (TimeManager.Instance?.CurrentDate.year ?? 1960);
+				float candidate = GetLeadSingleSuitability(album.nonSingleTracks[i], albumRecord.primaryGenre, selectionYear);
+				float current = GetLeadSingleSuitability(album.nonSingleTracks[bestIndex], albumRecord.primaryGenre, selectionYear);
+				if (candidate > current || (Mathf.IsEqualApprox(candidate, current) && string.CompareOrdinal(album.nonSingleTracks[i].title, album.nonSingleTracks[bestIndex].title) < 0)) bestIndex = i;
+			} else if (album.nonSingleTracks[i].quality > album.nonSingleTracks[bestIndex].quality) {
+				// Preserve the frozen disabled branch exactly: max scalar quality wins,
+				// with the first occurrence retaining ties.
+				bestIndex = i;
+			}
 		}
 		AlbumTrack source = album.nonSingleTracks[bestIndex];
+		(float hook, float production, float dance) = useStructuredPromoTracks
+			? GetTrackTraitsForPromo(source)
+			: (source.quality, source.quality, source.quality);
 		var promo = new Record {
 			recordId = $"gen_{++generatedRecordCounter}", title = source.title, artistName = albumRecord.artistName,
 			artistId = albumRecord.artistId, labelId = albumRecord.labelId, format = ReleaseFormat.Single,
 			isPlayerOwned = false, isNPC = albumRecord.isNPC, primaryGenre = source.genre,
-			secondaryGenre = albumRecord.secondaryGenre, hookStrength = source.quality,
-			productionQuality = source.quality, danceability = source.quality,
+			secondaryGenre = albumRecord.secondaryGenre, hookStrength = hook,
+			productionQuality = production, danceability = dance,
 			originality = albumRecord.originality, controversy = albumRecord.controversy
 		};
 		var remaining = album.nonSingleTracks.ToList();
@@ -1869,7 +2104,11 @@ public partial class CompetitorManager : Node {
 		var refs = album.trackRefs?.ToList() ?? new List<AlbumTrack>();
 		refs.Add(new AlbumTrack {
 			sourceRecordId = promo.recordId, title = source.title, genre = source.genre,
-			quality = source.quality, isReleasedSingle = true, peakPosition = 0
+			quality = source.quality,
+			hookStrength = useStructuredPromoTracks ? hook : 0f,
+			productionQuality = useStructuredPromoTracks ? production : 0f,
+			danceability = useStructuredPromoTracks ? dance : 0f,
+			isReleasedSingle = true, peakPosition = 0
 		});
 		album.nonSingleTracks = remaining.ToArray();
 		album.trackRefs = refs.ToArray();
@@ -1881,6 +2120,29 @@ public partial class CompetitorManager : Node {
 			.Concat(album.nonSingleTracks.Select(track => track.quality));
 		album.pooledAppeal = AlbumModel.CalculatePooledAppeal(qualities, album.thematicCohesion, albumRecord.releaseDate.year > 0 ? albumRecord.releaseDate.year : (TimeManager.Instance?.CurrentDate.year ?? 1960));
 		return promo;
+	}
+
+	// This projection is used only for pre-trait saved tracks. It is deterministic,
+	// consumes no RNG, and leaves newly generated tracks on their stored values.
+	private static (float hook, float production, float dance) GetTrackTraitsForPromo(AlbumTrack track) =>
+		track != null && track.HasStoredComponents
+			? (track.hookStrength, track.productionQuality, track.danceability)
+			: GetDeterministicTrackTraits(track?.quality ?? 0f, track?.title ?? string.Empty, track?.genre ?? Genre.TraditionalPop);
+
+	private static (float hook, float production, float dance) GetDeterministicTrackTraits(float quality, string identity, Genre genre) {
+		uint hash = 2166136261u;
+		foreach (char value in $"{identity}|{genre}") { hash ^= value; hash *= 16777619u; }
+		float a = ((hash & 1023u) / 1023f - .5f) * .18f;
+		float b = (((hash >> 10) & 1023u) / 1023f - .5f) * .14f;
+		return (Mathf.Clamp(quality + a, .02f, .98f), Mathf.Clamp(quality + b, .02f, .98f),
+			Mathf.Clamp(quality - a * .45f - b * .25f, .02f, .98f));
+	}
+
+	private static float GetLeadSingleSuitability(AlbumTrack track, Genre albumGenre, int year) {
+		(float hook, float production, float dance) = GetTrackTraitsForPromo(track);
+		float eraDanceWeight = year >= 1965 ? .24f : .14f;
+		float genreContinuity = track.genre == albumGenre ? .08f : 0f;
+		return hook * .52f + production * (1f - .52f - eraDanceWeight) + dance * eraDanceWeight + genreContinuity;
 	}
 
 	private PromotionSnapshot BuildPromotionSnapshot(Record record, SimulatedArtist artist, float perceivedQualityMult) {
@@ -2574,7 +2836,10 @@ public sealed class ReleaseOutcomeTelemetry {
 
 public sealed class FormatMemoryRevisionTelemetry {
 	public string releaseId, labelId, revisionKind;
+	public string projectId;
 	public ReleaseFormat format;
+	public ProjectRecordRole releaseLane;
+	public RevenueEstimatorLane estimatorLane;
 	public Genre genre;
 	public int releaseAge, revisionOrdinal;
 	public float releaseTimeExpectedNet, ageMatchedExpectedNet, realizedNetToDate, estimatedOutcomeNet, opportunityScale;

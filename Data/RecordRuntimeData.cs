@@ -43,6 +43,13 @@ public class RecordRuntimeData {
 	public int releaseMemoryWeek;
 	public ProjectRecordRole projectRole;
 	public string albumProjectId;
+	// Frozen, ex-ante Single cohort opportunity captured at release. These are
+	// never recomputed from later chart, revenue, or retirement outcomes.
+	public float enabledOpportunityMass;
+	public float acceptedOpportunityMass;
+	public float cohortOpportunityNormalizer = 1f;
+	public bool cohortOpportunityColdStartFallback;
+	public string cohortOpportunityNormalizerSource = "Legacy";
 	public string linkedPromoSingleId;
 	public float cannibalizationSuppression;
 	public double rawAlbumDemandBeforeCannibalization;
@@ -103,6 +110,8 @@ public class RecordRuntimeData {
 	// === CONSTRUCTOR ===
 	public RecordRuntimeData(Record record) {
 		baseRecord = record;
+		projectRole = record?.projectRole == ProjectRecordRole.None ? ProjectRecordRole.ExternalOrLegacy : record.projectRole;
+		albumProjectId = record?.albumProjectId;
 		if (record.format == ReleaseFormat.Album && record.album != null) {
 			albumRuntime = new AlbumRuntimeData(record.album, record.releaseDate.year);
 		}

@@ -142,6 +142,8 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter retiredTrackWriter;
 	private StreamWriter releaseStrategyWriter;
 	private StreamWriter releaseOutcomeWriter;
+	private StreamWriter singleReleaseLaneWriter;
+	private StreamWriter singleDemandStagesWriter;
 	private StreamWriter revenueMemoryWriter;
 	private StreamWriter liveRecordsSnapshotWriter;
 	private StreamWriter priorCostAssumptionWriter;
@@ -199,6 +201,7 @@ public partial class ChartAuditRunner : Node {
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
 	private readonly Dictionary<(int Year, string Format), FormatMixRollup> annualFormatMix = new();
 	private readonly HashSet<string> observedReleaseIds = new(StringComparer.Ordinal);
+	private readonly HashSet<string> singleReleaseLaneIdsWritten = new(StringComparer.Ordinal);
 	private readonly HashSet<string> observedAlbumIds = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, DecisionExpectation> decisionExpectations = new(StringComparer.Ordinal);
 	private sealed class FormatDecisionCohort {
@@ -232,6 +235,7 @@ public partial class ChartAuditRunner : Node {
 	private bool runArtistPopulationLifecycleProbes;
 	private bool catastrophicFailFast;
 	private bool catastrophicControlPreflight;
+	private bool strict1965AcceptanceGate;
 	private string gateControlRun;
 	private readonly Dictionary<int, FailFastControlYear> failFastControlYears = new();
 	private readonly Dictionary<int, FailFastYearAccumulator> failFastActualYears = new();
@@ -242,11 +246,12 @@ public partial class ChartAuditRunner : Node {
 		public int Releases;
 		public int SeasonalityReleases;
 		public int ScheduledAlbums;
-		public long Units;
+		public long Units, SingleUnits, AlbumUnits;
 		public double Gross, LabelNet, MarketNet;
-		public int ReleaseRows, SeasonalityMonths, RevenueRows;
+		public int ReleaseRows, SeasonalityMonths, RevenueRows, SingleRevenueRows, AlbumRevenueRows;
 		public bool HasReleases, HasAlbums, HasRevenue;
 		public bool IsComplete => HasReleases && HasAlbums && HasRevenue;
+		public bool HasStrictFormatUnits => SingleRevenueRows == 1 && AlbumRevenueRows == 1;
 	}
 	private sealed class ControlCsvTable {
 		public readonly string Name;
@@ -415,6 +420,8 @@ public partial class ChartAuditRunner : Node {
 				catastrophicFailFast = true;
 			} else if (argument == "--catastrophic-control-preflight") {
 				catastrophicControlPreflight = true;
+			} else if (argument == "--strict-1965-acceptance-gate") {
+				strict1965AcceptanceGate = true;
 			} else if (argument.StartsWith("--gate-control-run=", StringComparison.Ordinal)) {
 				gateControlRun = SanitizeFileName(argument[19..]);
 			}
@@ -425,6 +432,8 @@ public partial class ChartAuditRunner : Node {
 			throw new ArgumentException("--catastrophic-fail-fast and --catastrophic-control-preflight are mutually exclusive.");
 		if ((catastrophicFailFast || catastrophicControlPreflight) && string.IsNullOrEmpty(gateControlRun))
 			throw new ArgumentException("Catastrophic fail-fast and control preflight require --gate-control-run=<completed-control-run>.");
+		if (strict1965AcceptanceGate && !catastrophicFailFast)
+			throw new ArgumentException("--strict-1965-acceptance-gate requires --catastrophic-fail-fast and --gate-control-run=<completed-control-run>.");
 		if (!catastrophicFailFast && !catastrophicControlPreflight && !string.IsNullOrEmpty(gateControlRun))
 			throw new ArgumentException("--gate-control-run is valid only with --catastrophic-fail-fast or --catastrophic-control-preflight.");
 	}
@@ -506,18 +515,29 @@ public partial class ChartAuditRunner : Node {
 			throw new InvalidDataException($"Fail-fast control whole-run Album reconciliation failed: album-projects={albumProjectTotal}, seasonality={seasonalityAlbumTotal}.");
 
 		foreach (string[] fields in revenue.Rows) {
-			if (revenue.Field(fields, "period") != "annual" || revenue.Field(fields, "labelTier") != "All" || revenue.Field(fields, "releaseFormat") != "All") continue;
+			if (revenue.Field(fields, "period") != "annual" || revenue.Field(fields, "labelTier") != "All") continue;
 			int year = ParseControlInt(revenue, fields, "year");
 			FailFastControlYear row = Year(year);
-			if (row.RevenueRows != 0) throw ControlError(revenue, $"duplicate annual All/All row for year {year}");
-			row.Units = ParseControlLong(revenue, fields, "totalMarketUnits");
-			row.Gross = ParseControlDouble(revenue, fields, "gross");
-			row.LabelNet = ParseControlDouble(revenue, fields, "labelNet");
-			row.MarketNet = ParseControlDouble(revenue, fields, "marketNet");
-			if (row.Units < 0 || !IsFinite(row.Gross) || !IsFinite(row.LabelNet) || !IsFinite(row.MarketNet))
-				throw ControlError(revenue, $"invalid annual All/All value for year {year}");
-			row.RevenueRows = 1;
-			row.HasRevenue = true;
+			string releaseFormat = revenue.Field(fields, "releaseFormat");
+			long units = ParseControlLong(revenue, fields, "totalMarketUnits");
+			if (units < 0) throw ControlError(revenue, $"invalid annual All/{releaseFormat} units for year {year}");
+			if (releaseFormat == "All") {
+				if (row.RevenueRows != 0) throw ControlError(revenue, $"duplicate annual All/All row for year {year}");
+				row.Units = units;
+				row.Gross = ParseControlDouble(revenue, fields, "gross");
+				row.LabelNet = ParseControlDouble(revenue, fields, "labelNet");
+				row.MarketNet = ParseControlDouble(revenue, fields, "marketNet");
+				if (!IsFinite(row.Gross) || !IsFinite(row.LabelNet) || !IsFinite(row.MarketNet))
+					throw ControlError(revenue, $"invalid annual All/All value for year {year}");
+				row.RevenueRows = 1;
+				row.HasRevenue = true;
+			} else if (releaseFormat == "Single") {
+				if (row.SingleRevenueRows++ != 0) throw ControlError(revenue, $"duplicate annual All/Single row for year {year}");
+				row.SingleUnits = units;
+			} else if (releaseFormat == "Album") {
+				if (row.AlbumRevenueRows++ != 0) throw ControlError(revenue, $"duplicate annual All/Album row for year {year}");
+				row.AlbumUnits = units;
+			}
 		}
 
 		for (int year = requiredFirstYear; year <= requiredLastYear; year++) {
@@ -613,6 +633,8 @@ public partial class ChartAuditRunner : Node {
 		row.Releases += competitors.WeeklySuccessfulReleases;
 		row.ScheduledAlbums += competitors.WeeklyAlbumProjectsScheduled;
 		row.Units += records.Sum(record => (long)record.unitsThisWeek);
+		row.SingleUnits += records.Where(record => record.baseRecord.format == ReleaseFormat.Single).Sum(record => (long)record.unitsThisWeek);
+		row.AlbumUnits += records.Where(record => record.baseRecord.format == ReleaseFormat.Album).Sum(record => (long)record.unitsThisWeek);
 		foreach (AILabel label in competitors.GetAllLabels()) {
 			ValidateFiniteFinance(label, "cashReserves", label.cashReserves);
 			ValidateFiniteFinance(label, "weeklyGrossRevenue", label.weeklyGrossRevenue);
@@ -647,6 +669,29 @@ public partial class ChartAuditRunner : Node {
 		CheckCatastrophicRatio(year, "grossRevenue", actual.Gross, control.Gross);
 		CheckCatastrophicRatio(year, "labelNet", actual.LabelNet, control.LabelNet);
 		CheckCatastrophicRatio(year, "marketNet", actual.MarketNet, control.MarketNet);
+		if (strict1965AcceptanceGate && year == 1965) ValidateStrict1965Acceptance(control, actual);
+	}
+
+	private void ValidateStrict1965Acceptance(FailFastControlYear control, FailFastYearAccumulator actual) {
+		if (!control.HasStrictFormatUnits)
+			throw new CatastrophicAbortException("MissingControlRow", "strict1965FormatUnits", 0d, 0d,
+				$"completedYear=1965 control={gateControlRun} requires annual All/Single and All/Album market-revenue rows", 1965);
+		CheckStrict1965Floor("singleUnits", actual.SingleUnits, control.SingleUnits, .85d);
+		CheckStrict1965Floor("albumUnits", actual.AlbumUnits, control.AlbumUnits, .80d);
+		CheckStrict1965Floor("totalUnits", actual.Units, control.Units, .85d);
+		CheckStrict1965Floor("grossRevenue", actual.Gross, control.Gross, .85d);
+		CheckStrict1965Floor("labelNet", actual.LabelNet, control.LabelNet, .85d);
+		CheckStrict1965Floor("marketNet", actual.MarketNet, control.MarketNet, .85d);
+	}
+
+	private void CheckStrict1965Floor(string metric, double enabled, double control, double floor) {
+		if (!IsFinite(enabled) || !IsFinite(control) || control <= 0d)
+			throw new CatastrophicAbortException("InvalidAnnualComparison", metric, enabled, control,
+				$"completedYear=1965 strictFloor={floor.ToString("F2", CultureInfo.InvariantCulture)}", 1965);
+		double ratio = enabled / control;
+		if (!IsFinite(ratio) || ratio < floor)
+			throw new CatastrophicAbortException("Strict1965Acceptance", metric, enabled, control,
+				$"completedYear=1965 ratio={ratio.ToString("F6", CultureInfo.InvariantCulture)} floor={floor.ToString("F2", CultureInfo.InvariantCulture)}", 1965);
 	}
 
 	private void CheckCatastrophicRatio(int completedYear, string metric, double enabled, double control) {
@@ -800,6 +845,10 @@ public partial class ChartAuditRunner : Node {
 		retiredTrackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retired-track-availability.csv"));
 		releaseStrategyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-strategy.csv"));
 		releaseOutcomeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-outcomes.csv"));
+		if (GenreMarketV2.Enabled) {
+			singleReleaseLaneWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-release-lanes.csv"));
+			singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
+		}
 		revenueMemoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-revenue-memory.csv"));
 		liveRecordsSnapshotWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-live-records-snapshot.csv"));
 		priorCostAssumptionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-prior-cost-assumptions.csv"));
@@ -865,10 +914,10 @@ public partial class ChartAuditRunner : Node {
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
 		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,effectiveAlbumIntent,albumOverlapPressure,singleFormatBudget,albumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,albumChannelCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
-		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount");
+		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,releaseLane,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount");
 		completedWeekSettlementRegionalWriter?.WriteLine("week,year,settlementId,recordId,regionId,rawIntent,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,inventoryMovement");
 		albumRealizationBridgeWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,genre,regionId,releaseYear,ageWeeks,buyerPool,awareness,observedPenetration,effectivePenetration,peakEffectivePenetration,exhaustion,catalogDecayMultiplier,formatTilt,conversion,cannibalizationSuppression,rawDemandBeforeCannibalization,rawDemandAfterCannibalization,roundedRawIntent,unitsInStoresBeforeSale,storeCapacity,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,currentPosition,weeksSinceLastCharted,weeksSinceSalesAboveFloor,retirementFloor,retiredAfterSettlement");
-		formatMemoryRevisionWriter?.WriteLine("week,year,releaseId,labelId,format,genre,releaseAge,revisionKind,revisionOrdinal,releaseTimeExpectedNet,ageMatchedExpectedNet,realizedNetToDate,estimatedOutcomeNet,opportunityScale,normalizedResidual,maturityWeight,recencyWeight,replacedPriorRevision,finalized,nonFiniteViolation");
+		formatMemoryRevisionWriter?.WriteLine("week,year,releaseId,labelId,projectId,releaseLane,estimatorLane,format,genre,releaseAge,revisionKind,revisionOrdinal,releaseTimeExpectedNet,ageMatchedExpectedNet,realizedNetToDate,estimatedOutcomeNet,opportunityScale,normalizedResidual,maturityWeight,recencyWeight,replacedPriorRevision,finalized,nonFiniteViolation");
 		formatMemoryAdjustmentWriter?.WriteLine("week,year,recordId,labelId,memoryScope,rawSingleConfidence,rawAlbumConfidence,effectiveSingleConfidence,effectiveAlbumConfidence,singleCapApplied,albumCapApplied");
 		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
 		seasonalityMonthlyWriter.WriteLine("seed,enabled,year,month,liveWeeks,singleSalesMultiplier,albumSalesMultiplier,radioOpportunity,venueAttendanceMultiplier,recordingCostMultiplier,marketingEfficiencyMultiplier,artistAvailabilityMultiplier,singleUnits,albumUnits,singleGross,albumGross,releaseRolls,successfulReleases,singleReleases,albumProjectsScheduled,albumDrops,productionSpend,productionEvents,marketingSpend,marketingEvents,scoutingRolls,signings,meanRadioPlay");
@@ -878,6 +927,8 @@ public partial class ChartAuditRunner : Node {
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
 		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,expectedPromoLift,expectedPromoSingleNet,promoAdvantage");
 		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,genre,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet");
+		singleReleaseLaneWriter?.WriteLine("week,year,recordId,projectId,releaseLane,labelId,tier,artistId,genre,careerState,hookStrength,productionQuality,danceability,quality,enabledOpportunityMass,acceptedOpportunityMass,cohortNormalizer,normalizerSource,coldStartFallback");
+		singleDemandStagesWriter?.WriteLine("week,year,recordId,releaseLane,region,age,potentialAudience,baselineAwareness,earnedDiscoveryExposure,awareBuyers,intrinsicQualityFactor,acceptanceFactor,formatFactor,intrinsicConversionRate,rawDemand,serviceableDemand,clearedUnits,chartSignal,momentumSignal,radioSignal,inventoryFulfillmentRate,marketFulfillmentRate");
 		revenueMemoryWriter.WriteLine("week,year,labelId,format,emaNetPerRelease,releasesObserved");
 		liveRecordsSnapshotWriter.WriteLine("week,year,recordId,labelId,artistId,format,ageWeeks,lifetimeLabelNet,sunkProductionCost,observedNetLowerBound,currentPosition,totalUnitsSold");
 		priorCostAssumptionWriter.WriteLine("week,year,recordId,assumedCompilationCost,actualAlbumFormat");
@@ -1218,7 +1269,8 @@ public partial class ChartAuditRunner : Node {
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
 			completedWeekSettlementWriter.WriteLine(string.Join(",", new[] {
 				settlement.SettlementId.ToString(CultureInfo.InvariantCulture), settlement.Date.year.ToString(CultureInfo.InvariantCulture), settlement.SettlementId.ToString(CultureInfo.InvariantCulture),
-				Csv(entry.RecordId), Csv(entry.LabelId), Csv(entry.LabelTier), Csv(entry.Format.ToString()), Csv(entry.Genre),
+				Csv(entry.RecordId), Csv(entry.LabelId), Csv(entry.LabelTier), Csv(entry.Format.ToString()),
+				Csv(entry.Record?.projectRole.ToString() ?? ProjectRecordRole.ExternalOrLegacy.ToString()), Csv(entry.Genre),
 				entry.Regions?.Sum(region => region.FinalCleared).ToString(CultureInfo.InvariantCulture) ?? "0", entry.Units.ToString(CultureInfo.InvariantCulture),
 				F(entry.Gross), F(entry.ManufacturingCost), F(entry.ArtistRoyalty), F(entry.DistributionSkim), F(entry.LabelNet), Csv(entry.DistributionRecipientLabelId), F(entry.DistributionIncome), F(entry.MarketNet),
 				entry.RetiredAfterSettlement ? "true" : "false", entry.BookedCount.ToString(CultureInfo.InvariantCulture), entry.AuditedCount.ToString(CultureInfo.InvariantCulture)
@@ -1270,7 +1322,8 @@ public partial class ChartAuditRunner : Node {
 			float.IsNaN(revision.opportunityScale) || float.IsInfinity(revision.opportunityScale);
 		formatMemoryRevisionWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), (TimeManager.Instance?.CurrentDate.year ?? 1960).ToString(CultureInfo.InvariantCulture),
-			Csv(revision.releaseId), Csv(revision.labelId), Csv(revision.format.ToString()), Csv(revision.genre.ToString()), revision.releaseAge.ToString(CultureInfo.InvariantCulture), Csv(revision.revisionKind),
+			Csv(revision.releaseId), Csv(revision.labelId), Csv(revision.projectId), Csv(revision.releaseLane.ToString()), Csv(revision.estimatorLane.ToString()),
+			Csv(revision.format.ToString()), Csv(revision.genre.ToString()), revision.releaseAge.ToString(CultureInfo.InvariantCulture), Csv(revision.revisionKind),
 			revision.revisionOrdinal.ToString(CultureInfo.InvariantCulture),
 			F(revision.releaseTimeExpectedNet), F(revision.ageMatchedExpectedNet), F(revision.realizedNetToDate), F(revision.estimatedOutcomeNet), F(revision.opportunityScale),
 			F(revision.normalizedResidual), F(revision.maturityWeight), F(revision.recencyWeight), revision.replacedPriorRevision ? "true" : "false", revision.finalized ? "true" : "false", nonFinite ? "true" : "false"
@@ -1609,6 +1662,7 @@ public partial class ChartAuditRunner : Node {
 		}
 
 		foreach (RecordRuntimeData record in singleRecords) {
+			WriteSingleLaneDiagnostics(week, date.year, record);
 			LifecycleState state = ObserveRecord(record, wasPresentAtStart: false);
 			if (state.DebutPosition == 0 && record.currentPosition > 0) {
 				state.DebutPosition = record.currentPosition;
@@ -1678,6 +1732,27 @@ public partial class ChartAuditRunner : Node {
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;
+	}
+
+	private void WriteSingleLaneDiagnostics(int week, int year, RecordRuntimeData record) {
+		if (singleReleaseLaneWriter == null || record?.baseRecord == null) return;
+		AILabel label = ChartManager.Instance.GetLabelById(record.baseRecord.labelId);
+		if (singleReleaseLaneIdsWritten.Add(record.baseRecord.recordId)) singleReleaseLaneWriter.WriteLine(string.Join(",", new[] {
+			week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(record.baseRecord.recordId), Csv(record.albumProjectId),
+			Csv(record.projectRole.ToString()), Csv(record.baseRecord.labelId), Csv(label?.tier.ToString()), Csv(record.baseRecord.artistId),
+			Csv(record.baseRecord.primaryGenre.ToString()), Csv(record.launchCareerState.ToString()), F(record.baseRecord.hookStrength),
+			F(record.baseRecord.productionQuality), F(record.baseRecord.danceability), F(record.GetQuality()), F(record.enabledOpportunityMass),
+			F(record.acceptedOpportunityMass), F(record.cohortOpportunityNormalizer), Csv(record.cohortOpportunityNormalizerSource), record.cohortOpportunityColdStartFallback ? "true" : "false" }));
+		foreach (MarketRegion region in regions) if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
+			float inventoryRate = data.rawDemandThisWeek > 0f ? Mathf.Clamp(data.serviceableIntentThisWeek / data.rawDemandThisWeek, 0f, 1f) : 1f;
+			float marketRate = data.serviceableIntentThisWeek > 0 ? Mathf.Clamp((float)(data.localClearedThisWeek + data.spilloverClearedThisWeek) / data.serviceableIntentThisWeek, 0f, 1f) : 1f;
+			singleDemandStagesWriter.WriteLine(string.Join(",", new[] { week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+				Csv(record.baseRecord.recordId), Csv(record.projectRole.ToString()), Csv(region.regionId), record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
+				F(data.demandPotentialAudience), F(data.demandBaselineAwareness), F(data.demandEarnedDiscoveryExposure), F(data.demandAwareBuyers),
+				F(data.demandIntrinsicQualityFactor), F(data.demandAcceptanceFactor), F(data.demandFormatFactor), F(data.demandIntrinsicConversionRate),
+				F(data.rawDemandThisWeek), data.serviceableIntentThisWeek.ToString(CultureInfo.InvariantCulture), (data.localClearedThisWeek + data.spilloverClearedThisWeek).ToString(CultureInfo.InvariantCulture),
+				F(data.demandChartSignal), F(data.demandMomentumSignal), F(data.demandRadioSignal), F(inventoryRate), F(marketRate) }));
+		}
 	}
 
 	private void WriteRosterLifecycleRows(int week, int year) {
@@ -2769,6 +2844,8 @@ public partial class ChartAuditRunner : Node {
 		retiredTrackWriter?.Dispose();
 		releaseStrategyWriter?.Dispose();
 		releaseOutcomeWriter?.Dispose();
+		singleReleaseLaneWriter?.Dispose();
+		singleDemandStagesWriter?.Dispose();
 		revenueMemoryWriter?.Dispose();
 		liveRecordsSnapshotWriter?.Dispose();
 		priorCostAssumptionWriter?.Dispose();
@@ -2834,6 +2911,8 @@ public partial class ChartAuditRunner : Node {
 		retiredTrackWriter = null;
 		releaseStrategyWriter = null;
 		releaseOutcomeWriter = null;
+		singleReleaseLaneWriter = null;
+		singleDemandStagesWriter = null;
 		revenueMemoryWriter = null;
 		liveRecordsSnapshotWriter = null;
 		priorCostAssumptionWriter = null;

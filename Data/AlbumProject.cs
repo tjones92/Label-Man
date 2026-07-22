@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 public enum ReleaseStrategy { OrphanSingle, AlbumStandalone, AlbumWithPromo }
 public enum AlbumProjectTerminalState { Released, Cancelled, PendingAtAuditEnd }
-public enum ProjectRecordRole { None, OrphanSingle, StandaloneAlbum, PromoSingle, LinkedAlbum }
+public enum ProjectRecordRole { None, OrphanSingle, StandaloneAlbum, PromoSingle, LinkedAlbum, ExternalOrLegacy }
 public enum ProjectOutcomeState { None, Pending, Retired, RedirectedToSingle, FoldedToAlbum }
 
 public sealed class AlbumProject {

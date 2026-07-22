@@ -774,7 +774,7 @@ public partial class ChartManager : Node {
 						triggerEvents,
 						GetInternalPreviousPosition(record),
 						label,
-						singleOpportunityNormalization
+						genreMarketLive && !record.cohortOpportunityColdStartFallback ? record.cohortOpportunityNormalizer : singleOpportunityNormalization
 					);
 
 				regionalData.unitsInStores = Mathf.Max(0, regionalData.unitsInStores - regionalSales);
@@ -897,7 +897,8 @@ public partial class ChartManager : Node {
 				int serviceable = isAlbum
 					? AlbumSimulator.CalculateRegionalSales(record, region, data, year, month, triggerEvents, label)
 					: ChartSimulator.CalculateRegionalSales(record, region, data, quality, blendedAcceptance, year, month,
-						triggerEvents, GetInternalPreviousPosition(record), label, singleOpportunityNormalization);
+					triggerEvents, GetInternalPreviousPosition(record), label,
+					record.cohortOpportunityColdStartFallback ? singleOpportunityNormalization : record.cohortOpportunityNormalizer);
 				int physicalLimit = Mathf.Min(data.unitsInStores, data.storeCapacityThisWeek);
 				serviceable = Mathf.Clamp(serviceable, 0, Mathf.Max(0, physicalLimit));
 				data.serviceableIntentThisWeek = serviceable;
@@ -1817,6 +1818,9 @@ public partial class ChartManager : Node {
 		title = record.baseRecord.title,
 		genre = record.baseRecord.primaryGenre,
 		quality = record.GetQuality(),
+		hookStrength = record.baseRecord.hookStrength,
+		productionQuality = record.baseRecord.productionQuality,
+		danceability = record.baseRecord.danceability,
 		isReleasedSingle = true,
 		releaseDate = record.baseRecord.releaseDate,
 		peakPosition = record.peakPosition
