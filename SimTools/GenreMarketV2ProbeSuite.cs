@@ -453,19 +453,30 @@ public static class GenreMarketV2ProbeSuite {
 		(bool capacityRejectedAlbumWins, bool capacityRejectedPromoPreferred, float capacityRejectedGate) =
 			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 100f,
 				componentProjectedAlbumWithPromo: 190f, totalProjectMemoryProjection: 20f, promoProjectDelayPremium: .08f);
+		(bool eligibilityUpliftAlbumWins, bool eligibilityUpliftPromoPreferred, float eligibilityUpliftGate) =
+			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 102f, projectedStandaloneAlbum: 102f,
+				componentProjectedAlbumWithPromo: 102f, totalProjectMemoryProjection: -10f, promoProjectDelayPremium: .08f,
+				albumEligibilityScale: 1.07f);
 		Require(underperformingProjectAlbumWins && underperformingProjectPromoPreferred && Math.Abs(underperformingProjectGate - 120f) < .000001f &&
 			!positiveProjectAlbumWins && positiveProjectPromoPreferred && Math.Abs(positiveProjectGate - 90f) < .000001f &&
 			nonviableProjectAlbumWins && !nonviableProjectPromoPreferred && Math.Abs(nonviableProjectGate - 120f) < .000001f &&
 			componentRejectedAlbumWins && !componentRejectedPromoPreferred && Math.Abs(componentRejectedGate - 120f) < .000001f &&
-			!capacityRejectedAlbumWins && capacityRejectedPromoPreferred && Math.Abs(capacityRejectedGate - 95f) < .000001f,
-			"physical Album memory owns eligibility, promo projects clear mean component net per product, components rank strategy, and total-project memory guards only viability");
+			capacityRejectedAlbumWins && capacityRejectedPromoPreferred && Math.Abs(capacityRejectedGate - 120f) < .000001f &&
+			eligibilityUpliftAlbumWins && !eligibilityUpliftPromoPreferred && Math.Abs(eligibilityUpliftGate - 109.14f) < .00001f,
+			"physical Album memory owns eligibility, promo projects retain incremental portfolio value, components rank strategy, total-project memory guards only viability, and the live eligibility scale is explicit and bounded");
+		Require(Math.Abs(CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1960) - 1f) < .000001f &&
+			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1965) > 2f &&
+			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.MidTier, 1965) <
+				CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1965) &&
+			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Independent, 1965) == 1f,
+			"maturing Major Album portfolios receive the strongest long-horizon commitment without inflating independent projects");
 		Require(!CompetitorManager.IsAlbumProjectSharePressureHighForProbe(99, 99) &&
-			!CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 66) &&
-			CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 67) &&
+			!CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 74) &&
+			CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 75) &&
 			CompetitorManager.CanScheduleAnnualAlbumProjectForProbe(3, albumProjectPressure: false) &&
 			CompetitorManager.CanScheduleAnnualAlbumProjectForProbe(1, albumProjectPressure: true) &&
 			!CompetitorManager.CanScheduleAnnualAlbumProjectForProbe(2, albumProjectPressure: true),
-			"repeat artist Album workload is bounded only after a sampled year exceeds a two-thirds project mix");
+			"repeat artist Album workload is bounded only after a sampled year reaches a three-quarter project mix");
 		Require(CompetitorManager.GetApplicableEstimatorLanes(ProjectRecordRole.OrphanSingle)
 			.SequenceEqual(new[] { RevenueEstimatorLane.OrphanSingle }) &&
 			CompetitorManager.GetApplicableEstimatorLanes(ProjectRecordRole.PromoSingle)

@@ -25,8 +25,8 @@ public static class ChartSimulator {
 	private const float QUALITY_EXPONENT = 4.0f;
 	private const float SATURATION_POWER = 0.45f;
 	private const float DEMAND_AGE_DECAY_RATE = 0.91f;
-	private const float MAJOR_DEMAND_SCALE = 0.60f;
-	private const float MID_TIER_DEMAND_SCALE = 0.85f;
+	private const float LegacyMajorDemandScale = 0.60f;
+	private const float LegacyMidTierDemandScale = 0.85f;
 	
 	private const float TOP_5_VISIBILITY_MULT = 4.5f;
 	private const float TOP_10_VISIBILITY_MULT = 3.0f;
@@ -123,8 +123,9 @@ public static class ChartSimulator {
 		// The high-volume label families dominate every measured sales window.
 		// Keep indie-family conversion intact instead of applying another blanket
 		// purchase-rate reduction that erases their narrow charting margin.
-		if (label?.tier == LabelTier.Major) conversionRate *= MAJOR_DEMAND_SCALE;
-		else if (label?.tier == LabelTier.MidTier) conversionRate *= MID_TIER_DEMAND_SCALE;
+		if (stagedLiveDemand) conversionRate *= GetLiveLabelDemandScale(label?.tier);
+		else if (label?.tier == LabelTier.Major) conversionRate *= LegacyMajorDemandScale;
+		else if (label?.tier == LabelTier.MidTier) conversionRate *= LegacyMidTierDemandScale;
 		
 		// === 5. CHART VISIBILITY BONUS ===
 		float chartVisibility = GetChartVisibilityMultiplier(internalChartPosition);
@@ -279,6 +280,22 @@ public static class ChartSimulator {
 			Mathf.Max(0f, potentialAudience) * Mathf.Clamp(awareFraction, 0f, 1f), intrinsicQualityFactor,
 			acceptanceFactor, formatFactor, conversion);
 	}
+
+	/// <summary>
+	/// The bounded discovery model removed the old multiplicative hit feedback but
+	/// left its anti-concentration Major/MidTier scalars in place. That combination
+	/// moved nearly the entire market from established national labels to a broad
+	/// marginal-label tail. Keep discovery bounded while restoring the tier's
+	/// actual promotion/distribution leverage on the live path.
+	/// </summary>
+	internal static float GetLiveLabelDemandScale(LabelTier? tier) => tier switch {
+		LabelTier.Major => 1.20f,
+		LabelTier.MidTier => 0.94f,
+		LabelTier.Independent => 0.55f,
+		LabelTier.Boutique => 1.20f,
+		LabelTier.Small => 0.68f,
+		_ => 1f
+	};
 
 	private static float GetGenreMarketReach(Genre genre) {
 		return genre switch {

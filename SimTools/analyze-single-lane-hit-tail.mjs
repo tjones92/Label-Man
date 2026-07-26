@@ -10,14 +10,16 @@ const options = Object.fromEntries(process.argv.slice(2).filter(value => value.s
   return split < 0 ? [value.slice(2), true] : [value.slice(2, split), value.slice(split + 1)];
 }));
 const [logsDir, candidatePrefix] = positional;
-if (!logsDir || !candidatePrefix) {
+if (!options['self-test'] && (!logsDir || !candidatePrefix)) {
   throw new Error('usage: analyze-single-lane-hit-tail.mjs <logs-dir> <candidate-prefix> [--repeat-prefix=<prefix>] [--control-prefix=<prefix>] [--json=<file>]');
 }
 
-const failures = [];
-const warnings = [];
-const fail = message => failures.push(message);
-const warn = message => warnings.push(message);
+const structuralFailures = [];
+const jackpotFailures = [];
+const historicalWarnings = [];
+const fail = message => structuralFailures.push(message);
+const jackpotFail = message => jackpotFailures.push(message);
+const warn = message => historicalWarnings.push(message);
 const fileFor = (prefix, suffix) => path.join(logsDir, `${prefix}${suffix}`);
 
 function parseCsvLine(line) {
@@ -160,8 +162,26 @@ function distribution(values) {
     p99Median: median > 0 ? percentile(sorted, .99) / median : null,
     top10Share: topShare(sorted, .10),
     top1Share: topShare(sorted, .01),
-    gini: gini(sorted)
+    gini: gini(sorted),
+    largestReleaseShare: sorted.length && sorted.reduce((sum, value) => sum + value, 0) > 0
+      ? (sorted.at(-1) ?? 0) / sorted.reduce((sum, value) => sum + value, 0)
+      : 0,
+    maximumToP99: percentile(sorted, .99) > 0 ? (sorted.at(-1) ?? 0) / percentile(sorted, .99) : null
   };
+}
+
+function adjudicateTail(result, context, { applyJackpotGuards = true, onJackpot = jackpotFail, onWarning = warn } = {}) {
+  if (applyJackpotGuards && result.count >= 200) {
+    if (result.largestReleaseShare > .10) onJackpot(`${context} largest first-14 release share exceeds 10%`);
+    if (result.top1Share > .35) onJackpot(`${context} top-1% first-14 yield share exceeds 35%`);
+  }
+  if (result.top10Share < .40 || result.top10Share > .70) onWarning(`${context} top-10% first-14 yield share outside historical review range [40%,70%]`);
+  if (result.p99Median !== null && result.p99Median > 30) onWarning(`${context} p99/median first-14 yield ratio exceeds 30`);
+  if (result.maximumToP99 !== null && result.maximumToP99 > 5) onWarning(`${context} maximum/p99 first-14 yield ratio exceeds 5`);
+}
+
+function isMatureNonLegacy(row, maxWeek) {
+  return row.releaseLane !== 'ExternalOrLegacy' && maxWeek - Number(row.week) >= 13;
 }
 
 function analyze(prefix) {
@@ -304,9 +324,11 @@ function analyze(prefix) {
 
   const completedYears = completedAnnualYears(prefix);
   const yieldsByLane = {};
+  const combinedYields = { first3: [], weeks4To14: [], first14: [] };
   const yieldsByYearLane = new Map();
+  const combinedYieldsByYear = new Map();
   for (const row of releases.values()) {
-    if (row.releaseLane === 'ExternalOrLegacy' || maxWeek - Number(row.week) < 13) continue;
+    if (!isMatureNonLegacy(row, maxWeek)) continue;
     const recordYield = demandByRecord.get(row.recordId) ?? { first3: 0, weeks4To14: 0 };
     const first3 = recordYield.first3;
     const weeks4To14 = recordYield.weeks4To14;
@@ -315,6 +337,9 @@ function analyze(prefix) {
     lane.weeks4To14.push(weeks4To14);
     lane.first14.push(first3 + weeks4To14);
     yieldsByLane[row.releaseLane] = lane;
+    combinedYields.first3.push(first3);
+    combinedYields.weeks4To14.push(weeks4To14);
+    combinedYields.first14.push(first3 + weeks4To14);
     if (completedYears.has(row.year)) {
       const key = `${row.year}|${row.releaseLane}`;
       const yearLane = yieldsByYearLane.get(key) ?? { year: Number(row.year), lane: row.releaseLane, first3: [], weeks4To14: [], first14: [] };
@@ -322,6 +347,11 @@ function analyze(prefix) {
       yearLane.weeks4To14.push(weeks4To14);
       yearLane.first14.push(first3 + weeks4To14);
       yieldsByYearLane.set(key, yearLane);
+      const combined = combinedYieldsByYear.get(row.year) ?? { year: Number(row.year), first3: [], weeks4To14: [], first14: [] };
+      combined.first3.push(first3);
+      combined.weeks4To14.push(weeks4To14);
+      combined.first14.push(first3 + weeks4To14);
+      combinedYieldsByYear.set(row.year, combined);
     }
   }
   const distributions = {};
@@ -332,6 +362,11 @@ function analyze(prefix) {
       first14: distribution(values.first14)
     };
   }
+  distributions.CombinedSingle = {
+    first3: distribution(combinedYields.first3),
+    weeks4To14: distribution(combinedYields.weeks4To14),
+    first14: distribution(combinedYields.first14)
+  };
   const annualDistributions = {};
   for (const values of [...yieldsByYearLane.values()].sort((a, b) => a.year - b.year || a.lane.localeCompare(b.lane))) {
     const result = {
@@ -340,10 +375,16 @@ function analyze(prefix) {
       first14: distribution(values.first14)
     };
     (annualDistributions[values.year] ??= {})[values.lane] = result;
-    if (values.first14.length >= 200) {
-      if (result.first14.top1Share > .35) fail(`${values.year} ${values.lane} top-1% first-14 yield share exceeds 35%`);
-      if (result.first14.top10Share > .40) fail(`${values.year} ${values.lane} top-10% first-14 yield share exceeds 40%`);
-    }
+    adjudicateTail(result.first14, `${values.year} ${values.lane}`);
+  }
+  for (const values of [...combinedYieldsByYear.values()].sort((a, b) => a.year - b.year)) {
+    const result = {
+      first3: distribution(values.first3),
+      weeks4To14: distribution(values.weeks4To14),
+      first14: distribution(values.first14)
+    };
+    (annualDistributions[values.year] ??= {}).CombinedSingle = result;
+    adjudicateTail(result.first14, `${values.year} CombinedSingle`);
   }
 
   return {
@@ -425,6 +466,51 @@ function compareRepeat(candidate, repeat) {
   return { prefix: repeat, exactCoreTelemetry: differences.length === 0, differences };
 }
 
+function runSelfTests() {
+  const assert = (condition, message) => { if (!condition) throw new Error(`self-test failed: ${message}`); };
+  const adjudicate = values => {
+    const failures = [], warnings = [];
+    adjudicateTail(distribution(values), 'fixture', {
+      onJackpot: message => failures.push(message),
+      onWarning: message => warnings.push(message)
+    });
+    return { failures, warnings };
+  };
+  const heavyTail = [...Array(20).fill(.024), ...Array(180).fill(.52 / 180)];
+  const normal = adjudicate(heavyTail);
+  assert(Math.abs(distribution(heavyTail).top10Share - .48) < 1e-12, 'heavy-tail fixture must have top-10 share 0.48');
+  assert(normal.failures.length === 0, 'normal heavy tail must pass direct jackpot guards');
+  assert(normal.warnings.length === 0, 'normal heavy tail must not warn');
+  const largestFailure = adjudicate([.11, .01, ...Array(198).fill(.88 / 198)]);
+  assert(largestFailure.failures.some(message => message.includes('largest')), 'largest-release guard must fail below top-1 ceiling');
+  const topOneFailure = adjudicate([.18, .18, ...Array(198).fill(.64 / 198)]);
+  assert(topOneFailure.failures.some(message => message.includes('top-1')), 'top-1 guard must fail');
+  assert(adjudicate([...Array(20).fill(.024), ...Array(180).fill(.52 / 180)]).failures.length === 0, 'top-10 share above 0.40 alone must not fail');
+  const lowTopTen = adjudicate(Array(200).fill(1));
+  assert(lowTopTen.failures.length === 0 && lowTopTen.warnings.some(message => message.includes('top-10')), 'top-10 outside review range must warn only');
+  const tailWarnings = adjudicate([1000, 100, 100, ...Array(197).fill(1)]);
+  assert(tailWarnings.warnings.some(message => message.includes('p99/median')), 'p99/median warning must fire');
+  assert(tailWarnings.warnings.some(message => message.includes('maximum/p99')), 'maximum/p99 warning must fire');
+  const orphan = [1, 2, 5], promo = [3, 4, 6], combined = [...orphan, ...promo];
+  const union = distribution(combined), separatelyCombined = distribution([...orphan, ...promo]);
+  assert(JSON.stringify(union) === JSON.stringify(separatelyCombined), 'combined annual distribution must equal lane-yield union');
+  assert(!isMatureNonLegacy({ releaseLane: 'ExternalOrLegacy', week: '1' }, 100), 'ExternalOrLegacy must be excluded');
+  assert(!isMatureNonLegacy({ releaseLane: 'OrphanSingle', week: '88' }, 100), 'immature releases must be excluded');
+  assert(isMatureNonLegacy({ releaseLane: 'PromoSingle', week: '87' }, 100), 'mature nonlegacy releases must be included');
+  const smallCohort = adjudicate(Array(199).fill(1));
+  assert(smallCohort.failures.length === 0, 'sub-200 cohort must not receive jackpot adjudication');
+  const inheritedStructuralFailures = [];
+  const inheritedFail = message => inheritedStructuralFailures.push(message);
+  inheritedFail('fixture structural violation');
+  assert(inheritedStructuralFailures.length === 1, 'inherited structural failures must remain failures');
+  return { status: 'PASS', checks: 10 };
+}
+
+if (options['self-test']) {
+  console.log(JSON.stringify(runSelfTests(), null, 2));
+  process.exit(0);
+}
+
 const candidate = analyze(candidatePrefix);
 let repeat = null;
 if (options['repeat-prefix']) {
@@ -436,14 +522,17 @@ if (options['control-prefix']) annualControlComparison = compareAnnual(candidate
 else warn('no control prefix supplied; annual control ratios and control-tail health were not evaluated');
 
 const report = {
-  status: failures.length ? 'FAIL' : 'PASS',
+  status: structuralFailures.length || jackpotFailures.length ? 'FAIL' : 'PASS',
   candidate,
   repeat,
   annualControlComparison,
-  failures,
-  warnings
+  structuralFailures,
+  jackpotFailures,
+  historicalWarnings,
+  failures: [...structuralFailures, ...jackpotFailures],
+  warnings: historicalWarnings
 };
 const rendered = JSON.stringify(report, null, 2);
 if (options.json) fs.writeFileSync(options.json, `${rendered}\n`);
 console.log(rendered);
-if (failures.length) process.exitCode = 1;
+if (structuralFailures.length || jackpotFailures.length) process.exitCode = 1;

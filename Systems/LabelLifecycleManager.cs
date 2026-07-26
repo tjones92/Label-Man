@@ -14,6 +14,7 @@ public partial class LabelLifecycleManager : Node {
 		public string EligibilityResult;
 		public string BlockingReason;
 		public int RecentChartingCount;
+		public int RecentReleaseCount;
 		public int WeeksSincePreviousOrganicIncrease;
 	}
 	private const float IndependentPromotionCapability = 0.30f;
@@ -22,6 +23,21 @@ public partial class LabelLifecycleManager : Node {
 	private const float MajorPromotionCapability = 0.78f;
 	private const float DemotionHysteresis = 0.08f;
 	private const int BoutiqueAuteurRosterThreshold = 8;
+	private const int MidTierPromotionMinimumOperatingMonths = 18;
+	private const int MidTierPromotionMinimumSustainedQuarters = 4;
+	private const int MidTierPromotionMinimumRoster = 6;
+	private const int MidTierPromotionMinimumRecentChartingRecords = 2;
+	private const float MidTierPromotionMinimumRunwayMonths = 6f;
+	private const int LaunchCompetitionMinimumOperatingMonths = 6;
+	private const int RuntimeCompetitionMinimumOperatingMonths = 9;
+	private const int RuntimeEmergenceRunwayMonths = 9;
+	private const int RuntimeEmergenceReleaseLaneTarget = 3;
+	private const int CompetitiveExitSafeHarborChartingRecords = 2;
+	private const float CompetitiveExitOneChartMultiplier = 0.35f;
+	private const float CompetitiveExitStableBaseChance = 0.08f;
+	private const float CompetitiveExitProfitableMultiplier = 0.65f;
+	private const float CompetitiveExitLowRunwayMultiplier = 1.75f;
+	private const float CompetitiveExitMaximumChance = 0.50f;
 	private const int MajorRosterThreshold = 25;
 	private const float DependencyLowThreshold = 0.35f;
 	public static LabelLifecycleManager Instance { get; private set; }
@@ -207,18 +223,74 @@ public partial class LabelLifecycleManager : Node {
 	}
 	
 	private void ProcessQuarterlyChanges() {
-		foreach (var label in activeLabels.Where(l => l.IsActive)) {
+		foreach (var label in activeLabels.Where(l => l.IsActive).ToList()) {
 			CheckForTierChange(label);
+			if (!label.IsActive) continue;
 			TryAuthorizeRuntimeOrganicGrowth(label);
 			DriftAttributes(label);
+			TryApplyCompetitiveExit(label);
 		}
+	}
+
+	/// <summary>
+	/// The enabled talent market can keep a label rostered even when its releases
+	/// never establish demand. A quarterly, isolated-hash competition review lets
+	/// those marginal labels exit without removing daily scouting, runtime entry,
+	/// or the ordinary signing/release paths from viable labels.
+	/// </summary>
+	private void TryApplyCompetitiveExit(AILabel label) {
+		if (!ArtistPopulationLifecycle.Enabled) return;
+		int chartingLastYear = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
+		float chance = GetCompetitiveExitChance(label, chartingLastYear);
+		if (chance <= 0f) return;
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		float roll = GetCompetitiveExitRoll(seed, label.labelId, currentYear, currentMonth);
+		if (roll < chance) KillLabel(label, "Competitive exit");
+	}
+
+	internal static float GetCompetitiveExitChance(AILabel label, int chartingLastYear) {
+		if (label == null || !label.IsActive || label.tier == LabelTier.Major ||
+			chartingLastYear >= CompetitiveExitSafeHarborChartingRecords) return 0f;
+		int minimumMonths = label.populationOrigin == LabelPopulationOrigin.RuntimeFounded
+			? RuntimeCompetitionMinimumOperatingMonths
+			: LaunchCompetitionMinimumOperatingMonths;
+		if (label.monthsActive < minimumMonths) return 0f;
+
+		float statusMultiplier = label.status switch {
+			LabelStatus.Rising => 0.65f,
+			LabelStatus.Stable => 1f,
+			LabelStatus.Struggling => 2f,
+			LabelStatus.Dying => 3f,
+			_ => 0f
+		};
+		if (statusMultiplier <= 0f) return 0f;
+		float chance = CompetitiveExitStableBaseChance * statusMultiplier;
+		if (chartingLastYear == 1) chance *= CompetitiveExitOneChartMultiplier;
+		if (label.lastMonthlyProfit > 0f) chance *= CompetitiveExitProfitableMultiplier;
+		if (label.cashReserves < label.GetMonthlyOverhead() * 6f) chance *= CompetitiveExitLowRunwayMultiplier;
+		chance *= label.tier switch {
+			LabelTier.MidTier => 1.25f,
+			LabelTier.Independent => 1.15f,
+			_ => 1f
+		};
+		return Mathf.Clamp(chance, 0f, CompetitiveExitMaximumChance);
+	}
+
+	internal static float GetCompetitiveExitRoll(ulong seed, string labelId, int year, int month) {
+		ulong hash = 14695981039346656037UL;
+		foreach (char value in $"{seed}|{labelId}|{year}|{month}|LabelCompetitionV1") {
+			hash ^= value;
+			hash *= 1099511628211UL;
+		}
+		return (hash >> 40) * (1f / 16777216f);
 	}
 
 	private void TryAuthorizeRuntimeOrganicGrowth(AILabel label) {
 		if (!ArtistPopulationLifecycle.Enabled || label.populationOrigin != LabelPopulationOrigin.RuntimeFounded) return;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		int chartingCount = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
-		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, week);
+		int recentReleaseCount = CompetitorManager.Instance?.GetRecentReleasedRecordCount(label.labelId, 52) ?? 0;
+		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, recentReleaseCount, week);
 		label.lastOrganicGrowthEligibilityWeek = week;
 		label.lastOrganicGrowthBlockingReason = blockingReason;
 		if (blockingReason != "Eligible") return;
@@ -228,25 +300,32 @@ public partial class LabelLifecycleManager : Node {
 		label.organicRosterTargetGrowthCount++;
 		label.lastOrganicRosterTargetGrowthWeek = week;
 		EmitTargetEvent(label, LabelOperatingTargetReason.OrganicGrowth, priorTarget, label.OperatingRosterTarget,
-			"Eligible", "None", chartingCount, weeksSincePreviousOrganicIncrease);
+			"Eligible", "None", chartingCount, weeksSincePreviousOrganicIncrease, recentReleaseCount);
 	}
 
-	internal static string GetOrganicGrowthBlockingReason(AILabel label, int chartingCount, int week) {
+	internal static bool IsRuntimeFounderInEmergenceRunway(AILabel label) =>
+		ArtistPopulationLifecycle.Enabled &&
+		label?.populationOrigin == LabelPopulationOrigin.RuntimeFounded &&
+		label.monthsActive <= RuntimeEmergenceRunwayMonths;
+
+	internal static string GetOrganicGrowthBlockingReason(AILabel label, int chartingCount, int recentReleaseCount, int week) {
 		if (label == null || label.populationOrigin != LabelPopulationOrigin.RuntimeFounded) return "NotRuntimeFounded";
 		if (!label.IsActive) return "InactiveLabel";
 		if (label.lastOrganicRosterTargetGrowthWeek == week) return "AlreadyReviewedThisQuarter";
 		if (label.CurrentRosterSize < label.OperatingRosterTarget) return "OperatingTargetUnfilled";
 		if (label.OperatingRosterTarget >= label.maxRosterSize) return "HardCapacityFull";
 		if (label.status != LabelStatus.Stable && label.status != LabelStatus.Rising) return "UnhealthyStatus";
-		if (label.consecutiveLossMonths != 0) return "ConsecutiveLosses";
 		if (label.lastMonthlyProfit <= 0f) return "NotProfitable";
 		if (label.cashReserves < 6f * label.GetMonthlyOverhead()) return "InsufficientRunway";
+		if (label.OperatingRosterTarget < RuntimeEmergenceReleaseLaneTarget)
+			return recentReleaseCount < 1 ? "NoRecentRelease" : "Eligible";
+		if (label.consecutiveLossMonths != 0) return "ConsecutiveLosses";
 		if (chartingCount < 1) return "NoRecentCharting";
 		return "Eligible";
 	}
 
-	internal static bool TryAuthorizeRuntimeOrganicGrowthForProbe(AILabel label, int chartingCount, int week) {
-		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, week);
+	internal static bool TryAuthorizeRuntimeOrganicGrowthForProbe(AILabel label, int chartingCount, int recentReleaseCount, int week) {
+		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, recentReleaseCount, week);
 		label.lastOrganicGrowthEligibilityWeek = week;
 		label.lastOrganicGrowthBlockingReason = blockingReason;
 		if (blockingReason != "Eligible") return false;
@@ -287,7 +366,7 @@ public partial class LabelLifecycleManager : Node {
 			case LabelTier.Boutique when label.sustainedCapabilityQuarters >= 2 && label.CurrentRosterSize > BoutiqueAuteurRosterThreshold:
 				PromoteLabel(label, LabelTier.Independent);
 				return true;
-			case LabelTier.Independent when label.sustainedCapabilityQuarters >= 2 && label.ownedReach >= 0.50f && GetDependency(label) < DependencyLowThreshold:
+			case LabelTier.Independent when IsIndependentReadyForMidTier(label, chartingLastYear):
 				PromoteLabel(label, LabelTier.MidTier);
 				return true;
 			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold && CanSupportMajorBranches(label):
@@ -296,6 +375,21 @@ public partial class LabelLifecycleManager : Node {
 			default:
 				return false;
 		}
+	}
+
+	// MidTier represents a large, proven independent rather than a capability-only
+	// classification. Requiring observed operating scale and success prevents the
+	// launch population from promoting en masse at its second quarterly review.
+	internal static bool IsIndependentReadyForMidTier(AILabel label, int chartingLastYear) {
+		if (label == null || label.tier != LabelTier.Independent || !label.IsActive) return false;
+		if (label.monthsActive <= MidTierPromotionMinimumOperatingMonths ||
+			label.sustainedCapabilityQuarters < MidTierPromotionMinimumSustainedQuarters ||
+			label.CurrentRosterSize < MidTierPromotionMinimumRoster ||
+			chartingLastYear < MidTierPromotionMinimumRecentChartingRecords) return false;
+		if (label.ownedReach < 0.50f || GetDependency(label) >= DependencyLowThreshold) return false;
+		if (label.status != LabelStatus.Stable && label.status != LabelStatus.Rising) return false;
+		if (label.consecutiveLossMonths != 0 || label.lastMonthlyProfit <= 0f) return false;
+		return label.cashReserves >= MidTierPromotionMinimumRunwayMonths * label.GetMonthlyOverhead();
 	}
 
 	private static float GetPromotionFloor(LabelTier tier) => tier switch {
@@ -392,13 +486,15 @@ public partial class LabelLifecycleManager : Node {
 	}
 
 	private void EmitTargetEvent(AILabel label, LabelOperatingTargetReason reason, int priorTarget, int newTarget,
-		string eligibilityResult, string blockingReason, int chartingCount, int weeksSincePreviousOrganicIncrease = 0) {
+		string eligibilityResult, string blockingReason, int chartingCount, int weeksSincePreviousOrganicIncrease = 0,
+		int recentReleaseCount = 0) {
 		if (!ArtistPopulationLifecycle.Enabled) return;
 		OnOperatingRosterTargetChanged?.Invoke(new OperatingRosterTargetEvent {
 			Label = label, Reason = reason, PriorTarget = priorTarget, NewTarget = newTarget,
 			Week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Date = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1),
 			EligibilityResult = eligibilityResult, BlockingReason = blockingReason, RecentChartingCount = chartingCount,
+			RecentReleaseCount = recentReleaseCount,
 			WeeksSincePreviousOrganicIncrease = weeksSincePreviousOrganicIncrease
 		});
 	}

@@ -81,7 +81,9 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeCatastrophicControlParsing();                           // 65
 		ProbeAlbumMonotonicPenetration();                            // 66
 		ProbeAlbumFormatClearingBudget();                             // 67
-		results.Add("D6 fixed probes 1-67 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, and market-wide Album format clearing)");
+		ProbeMidTierPromotionBoundary();                               // 68
+		ProbeCompetitiveLabelExitBoundary();                            // 69
+		results.Add("D6 fixed probes 1-69 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, and bounded competitive label exit)");
 		return results;
 	}
 
@@ -194,35 +196,39 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		runtime.roster.Add(NewArtist("runtime-1"));
 		runtime.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 10);
 		runtime.status = LabelStatus.Stable; runtime.lastMonthlyProfit = 100f; runtime.consecutiveLossMonths = 0; runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(runtime, 1, 13) == "Eligible" &&
-			LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 1, 13) && runtime.OperatingRosterTarget == 2 &&
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(runtime, 0, 1, 13) == "Eligible" &&
+			LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.OperatingRosterTarget == 2 &&
 			runtime.organicRosterTargetGrowthCount == 1 && runtime.CurrentRosterSize == 1,
-			"61e a filled, profitable, recently charting runtime label gains exactly one planned slot without a signing");
-		Require(!LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 1, 13) && runtime.lastOrganicGrowthBlockingReason == "AlreadyReviewedThisQuarter",
+			"61e a filled, profitable founder with a recent release gains exactly one emergence slot without requiring a chart hit");
+		Require(!LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.lastOrganicGrowthBlockingReason == "AlreadyReviewedThisQuarter",
 			"61f a quarterly pass cannot grant a second organic target decision");
 
 		runtime.roster.Add(NewArtist("runtime-2"));
 		runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
-		Require(LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 1, 26) && runtime.OperatingRosterTarget == 3 &&
+		Require(LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 26) && runtime.OperatingRosterTarget == 3 &&
 			runtime.organicRosterTargetGrowthCount == 2 && runtime.lastOrganicRosterTargetGrowthWeek == 26,
-			"61g a later qualifying quarterly review can authorize one additional ordinary vacancy");
+			"61g release-backed emergence can mature a founder to the three-lane operating floor");
+		runtime.roster.Add(NewArtist("runtime-3"));
+		runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(runtime, 0, 1, 39) == "NoRecentCharting",
+			"61h growth beyond the emergence floor still requires demonstrated chart success");
 
 		AILabel blocked = NewScoutingLabel(5); blocked.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
 		blocked.SetOperatingRosterTarget(2, LabelOperatingTargetReason.RuntimeBootstrap, 0); blocked.roster.Add(NewArtist("blocked"));
 		blocked.status = LabelStatus.Stable; blocked.lastMonthlyProfit = 100f; blocked.cashReserves = blocked.GetMonthlyOverhead() * 6f;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "OperatingTargetUnfilled", "61h unfilled targets cannot grow");
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 1, 13) == "OperatingTargetUnfilled", "61i unfilled targets cannot grow");
 		blocked.roster.Add(NewArtist("blocked-2")); blocked.status = LabelStatus.Struggling;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "UnhealthyStatus", "61i distressed labels cannot grow");
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 1, 13) == "UnhealthyStatus", "61j distressed labels cannot grow");
 		blocked.status = LabelStatus.Stable; blocked.lastMonthlyProfit = -1f;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "NotProfitable", "61j loss-making labels cannot grow");
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 1, 13) == "NotProfitable", "61k loss-making labels cannot grow");
 		blocked.lastMonthlyProfit = 100f; blocked.cashReserves = 0f;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "InsufficientRunway", "61k under-runway labels cannot grow");
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 1, 13) == "InsufficientRunway", "61l under-runway labels cannot grow");
 		blocked.cashReserves = blocked.GetMonthlyOverhead() * 6f;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 0, 13) == "NoRecentCharting", "61l labels without a recent charting record cannot grow");
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 0, 0, 13) == "NoRecentRelease", "61m emergence cannot grow without demonstrated release activity");
 		blocked.maxRosterSize = 2;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "HardCapacityFull", "61m hard-full labels cannot grow");
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 1, 13) == "HardCapacityFull", "61n hard-full labels cannot grow");
 		blocked.status = LabelStatus.Acquired;
-		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 13) == "InactiveLabel", "61n acquired labels cannot grow");
+		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(blocked, 1, 1, 13) == "InactiveLabel", "61o acquired labels cannot grow");
 
 		AILabel acquired = NewScoutingLabel(5); acquired.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
 		acquired.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 0);
@@ -230,7 +236,14 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		LabelLifecycleManager.ReconcileAcquisitionRosterTargetForProbe(acquired, 26);
 		Require(acquired.OperatingRosterTarget == 3 && acquired.maxRosterSize >= 3 && acquired.operatingRosterTargetReason == LabelOperatingTargetReason.AcquisitionReconciliation &&
 			!RosterManager.CanAttemptMarketClearingSigning(acquired.CurrentRosterSize, acquired.OperatingRosterTarget),
-			"61o acquisition reconciliation recognizes transferred roster without creating a vacancy");
+			"61p acquisition reconciliation recognizes transferred roster without creating a vacancy");
+		runtime.monthsActive = 9;
+		Require(LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(runtime),
+			"61q runtime founders retain normal release status through their nine-month emergence runway");
+		runtime.monthsActive = 10;
+		Require(!LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(runtime) &&
+			!LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(launch),
+			"61r emergence protection ends after nine months and never applies to the launch population");
 	}
 
 	private static void ProbeRuntimeFoundedOperatingProfiles() {
@@ -1047,6 +1060,83 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(Math.Abs(stable - 0.5f) < .000001f && Math.Abs(scarce - (1f / 6f)) < .000001f &&
 			Math.Abs(seasonallyBusy - 1f) < .000001f && closed == 0f && noRosterCapacity == 0f,
 			"53 label cadence derives only from explicit monthly capacity, status, availability, and bounded seasonality");
+	}
+
+	private static void ProbeMidTierPromotionBoundary() {
+		AILabel candidate = NewScoutingLabel(12, 100000f);
+		candidate.tier = LabelTier.Independent;
+		candidate.status = LabelStatus.Stable;
+		candidate.monthsActive = 19;
+		candidate.sustainedCapabilityQuarters = 4;
+		candidate.ownedReach = .55f;
+		candidate.nationalReach = .50f;
+		candidate.marketingPower = .60f;
+		candidate.lastMonthlyProfit = 1000f;
+		candidate.consecutiveLossMonths = 0;
+		for (int index = 0; index < 6; index++) candidate.roster.Add(NewArtist($"mid-promotion-{index}"));
+
+		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68a a mature, scaled, charting, profitable Independent with runway qualifies for MidTier");
+		candidate.monthsActive = 18;
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68b the former second-quarter capability-only promotion wave is blocked by operating age");
+		candidate.monthsActive = 19; candidate.sustainedCapabilityQuarters = 3;
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68c fewer than four sustained capability quarters cannot promote");
+		candidate.sustainedCapabilityQuarters = 4;
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 1),
+			"68d capability and reach without two recent charting records cannot promote");
+		candidate.roster.RemoveAt(candidate.roster.Count - 1);
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68e fewer than six rostered artists cannot promote into the large-independent tier");
+		candidate.roster.Add(NewArtist("mid-promotion-restored")); candidate.lastMonthlyProfit = -1f;
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68f an unprofitable Independent cannot promote");
+		candidate.lastMonthlyProfit = 1000f; candidate.cashReserves = candidate.GetMonthlyOverhead() * 5f;
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68g fewer than six months of runway cannot promote");
+	}
+
+	private static void ProbeCompetitiveLabelExitBoundary() {
+		AILabel candidate = NewScoutingLabel(6, 100000f);
+		candidate.populationOrigin = LabelPopulationOrigin.LaunchPopulation;
+		candidate.tier = LabelTier.Independent;
+		candidate.status = LabelStatus.Stable;
+		candidate.monthsActive = 9;
+		candidate.lastMonthlyProfit = -1f;
+		candidate.consecutiveLossMonths = 1;
+		float weakChance = LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0);
+		float oneChartChance = LabelLifecycleManager.GetCompetitiveExitChance(candidate, 1);
+		Require(weakChance > 0f && oneChartChance > 0f && oneChartChance < weakChance &&
+			LabelLifecycleManager.GetCompetitiveExitChance(candidate, 2) == 0f,
+			"69a mature zero/one-chart labels face graduated review while two recent charts are the safe harbor");
+
+		candidate.lastMonthlyProfit = 100f;
+		float profitableChance = LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0);
+		Require(profitableChance > 0f && profitableChance < weakChance,
+			"69b positive monthly profit reduces but does not erase no-demand competitive pressure");
+
+		candidate.status = LabelStatus.Dying;
+		candidate.lastMonthlyProfit = -1f;
+		candidate.cashReserves = candidate.GetMonthlyOverhead() * 5f;
+		float distressedChance = LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0);
+		Require(distressedChance > weakChance && distressedChance <= .50f,
+			"69c status and runway raise competitive exit pressure within the hard cap");
+
+		candidate.tier = LabelTier.Major;
+		Require(LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0) == 0f,
+			"69d Majors remain exempt from the marginal-label competition review");
+		candidate.tier = LabelTier.Independent;
+		candidate.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
+		candidate.monthsActive = 8;
+		Require(LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0) == 0f,
+			"69e a runtime founder retains a nine-month market-entry runway");
+
+		float first = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 3);
+		float repeat = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 3);
+		float nextQuarter = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 6);
+		Require(first >= 0f && first < 1f && first == repeat && first != nextQuarter,
+			"69f competitive review uses a deterministic isolated quarterly roll");
 	}
 
 	private static void Require(bool condition, string message) {

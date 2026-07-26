@@ -39,7 +39,9 @@ public partial class CompetitorManager : Node {
 	private const float ResponsiveMemoryResidualLimit = 3f;
 	private const int MaximumAlbumProjectsPerArtistYear = 2;
 	private const int AlbumProjectPressureMinimumDecisions = 100;
-	private const float AlbumProjectPressureShare = 2f / 3f;
+	private const float AlbumProjectPressureShare = 0.75f;
+	private const float PromoProjectEligibilityWeight = 0.75f;
+	private const float LiveAlbumDecisionEligibilityScale = 1.07f;
 	// The live revision model observes high-variance, annualized outcomes and
 	// therefore needs more evidence than the frozen retirement-time EMA. Keeping
 	// this separate also preserves the disabled route's legacy K=4 behavior.
@@ -1391,6 +1393,9 @@ public partial class CompetitorManager : Node {
 		projectedSingle *= singleNoiseMultiplier;
 		projectedAlbum *= albumNoiseMultiplier;
 		projectedStandaloneAlbum *= albumNoiseMultiplier;
+		float albumPortfolioCommitment = GetAlbumPortfolioCommitmentMultiplier(label.tier, year);
+		projectedAlbum *= albumPortfolioCommitment;
+		projectedStandaloneAlbum *= albumPortfolioCommitment;
 		float singleFormatTilt = GetFormatPriorMultiplier(artist.primaryGenre, ReleaseFormat.Single, year);
 		float singlePreTiltContribution = (priorSingle + decision.singleProductionCost) / Mathf.Max(.000001f, singleFormatTilt);
 		float projectedLaunchAwareness = ProjectLaunchAwareness(label, artist, label.GetMarketingBudget(artist));
@@ -1416,7 +1421,8 @@ public partial class CompetitorManager : Node {
 
 		(bool albumWins, bool promoPreferred, float albumGateProjection) = useResponsiveMemory
 			? ResolveAlbumDecision(projectedSingle, projectedAlbum, projectedStandaloneAlbum,
-				componentProjectedAlbumWithPromo, projectedAlbumWithPromo, promoProjectDelayPremium)
+				componentProjectedAlbumWithPromo, projectedAlbumWithPromo, promoProjectDelayPremium,
+				LiveAlbumDecisionEligibilityScale)
 			: (projectedAlbum > projectedSingle, componentProjectedAlbumWithPromo > projectedAlbum, projectedAlbum);
 		bool albumProjectPressure = useResponsiveMemory &&
 			IsAlbumProjectSharePressureHigh(annualFormatDecisions, annualAlbumProjectsScheduled);
@@ -1494,15 +1500,17 @@ public partial class CompetitorManager : Node {
 
 	internal static (bool AlbumWins, bool PromoPreferred, float AlbumGateProjection) ResolveAlbumDecision(
 		float projectedSingle, float projectedAlbumEligibility, float projectedStandaloneAlbum,
-		float componentProjectedAlbumWithPromo, float totalProjectMemoryProjection, float promoProjectDelayPremium) {
+		float componentProjectedAlbumWithPromo, float totalProjectMemoryProjection, float promoProjectDelayPremium,
+		float albumEligibilityScale = 1f) {
 		bool promoPreferred = componentProjectedAlbumWithPromo > projectedStandaloneAlbum && totalProjectMemoryProjection > 0f;
 		// A promo project consumes two release products. Both the physical Album
 		// component and the component project's mean net per product must beat the
 		// orphan-Single alternative after the configured drop delay's annualized
 		// opportunity cost; total-project memory remains viability-only.
 		float albumGateProjection = promoPreferred
-			? Mathf.Min(projectedAlbumEligibility, componentProjectedAlbumWithPromo * .5f)
+			? Mathf.Min(projectedAlbumEligibility, componentProjectedAlbumWithPromo * PromoProjectEligibilityWeight)
 			: projectedAlbumEligibility;
+		albumGateProjection *= Mathf.Max(0f, albumEligibilityScale);
 		float delayHurdle = promoPreferred
 			? projectedSingle + Mathf.Max(0f, promoProjectDelayPremium) * Mathf.Max(1f, Mathf.Abs(projectedSingle))
 			: projectedSingle;
@@ -1525,6 +1533,23 @@ public partial class CompetitorManager : Node {
 		IsAlbumProjectSharePressureHigh(decisions, albumProjects);
 	internal static bool CanScheduleAnnualAlbumProjectForProbe(int projectsAlreadyScheduled, bool albumProjectPressure) =>
 		CanScheduleAnnualAlbumProject(projectsAlreadyScheduled, albumProjectPressure);
+
+	/// <summary>
+	/// Major-label LP programs are portfolio commitments, not independent one-week
+	/// products. The lane split's short-horizon component memory otherwise makes
+	/// them progressively abandon Albums exactly as the LP market matures.
+	/// </summary>
+	private static float GetAlbumPortfolioCommitmentMultiplier(LabelTier tier, int year) {
+		float era = AlbumModel.GetAlbumEraWeight(year);
+		return tier switch {
+			LabelTier.Major => 1f + 1.50f * era,
+			LabelTier.MidTier => 1f + 0.15f * era,
+			_ => 1f
+		};
+	}
+
+	internal static float GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier tier, int year) =>
+		GetAlbumPortfolioCommitmentMultiplier(tier, year);
 
 	private float ProjectLaunchAwareness(AILabel label, SimulatedArtist artist, float marketingBudget) {
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
@@ -2362,7 +2387,6 @@ public partial class CompetitorManager : Node {
 			financials = new LabelFinancialHistory();
 			labelFinancials[label.labelId] = financials;
 		}
-		
 		float overhead = label.GetMonthlyOverhead();
 		label.cashReserves -= overhead;
 		label.monthlyExpenses += overhead;
@@ -2633,6 +2657,8 @@ public partial class CompetitorManager : Node {
 			label.status = LabelStatus.Dying;
 		} else if (label.cashReserves < label.GetMonthlyOverhead() * 3) {
 			label.status = LabelStatus.Struggling;
+		} else if (LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(label)) {
+			label.status = netIncome > label.GetMonthlyOverhead() * 2f ? LabelStatus.Rising : LabelStatus.Stable;
 		} else if (financials.consecutiveLossMonths >= 3) {
 			label.status = LabelStatus.Dying;
 		} else if (netIncome > label.GetMonthlyOverhead() * 2) {
@@ -2673,6 +2699,13 @@ public partial class CompetitorManager : Node {
 			record.baseRecord.labelId == labelId &&
 			record.weeksSinceRelease <= maxAgeWeeks &&
 			record.weeksOnChart > 0);
+	}
+
+	public int GetRecentReleasedRecordCount(string labelId, int maxAgeWeeks = 52) {
+		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
+		return ChartManager.Instance.GetAllRecords().Count(record =>
+			record.baseRecord.labelId == labelId &&
+			record.weeksSinceRelease <= maxAgeWeeks);
 	}
 	
 	private void PrintMonthlyReport(GameDate date) {

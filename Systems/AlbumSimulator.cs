@@ -57,7 +57,8 @@ public static class AlbumSimulator {
 			region.GetAcceptedAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), genreMarketLive);
 		conversion *= formatTilt;
 		conversion *= 1f - region.distribution.difficulty * 0.25f;
-		if (label?.tier == LabelTier.Major) conversion *= 0.72f;
+		if (genreMarketLive) conversion *= GetLiveLabelDemandScale(label?.tier);
+		else if (label?.tier == LabelTier.Major) conversion *= 0.72f;
 		else if (label?.tier == LabelTier.MidTier) conversion *= 0.88f;
 
 		float rawDemandBeforeCannibalization = CalculateRawDemandBeforeCannibalization(buyerPool, awareness, conversion);
@@ -111,6 +112,15 @@ public static class AlbumSimulator {
 
 	internal static float CalculateAlbumExhaustion(float effectivePenetration) =>
 		Mathf.Max(0.15f, 1f / (1f + effectivePenetration * 4f));
+
+	internal static float GetLiveLabelDemandScale(LabelTier? tier) => tier switch {
+		LabelTier.Major => 1.36f,
+		LabelTier.MidTier => 0.95f,
+		LabelTier.Independent => 0.57f,
+		LabelTier.Boutique => 0.63f,
+		LabelTier.Small => 0.50f,
+		_ => 1f
+	};
 
 	public static void UpdateRegionalState(RecordRuntimeData record, RegionalRecordData data) {
 		float localGrowth = (record.currentLabelPush * 0.018f + record.wordOfMouth * 0.010f) * (1f - data.awareness);
