@@ -42,6 +42,7 @@ public partial class CompetitorManager : Node {
 	private const float AlbumProjectPressureShare = 0.75f;
 	private const float PromoProjectEligibilityWeight = 0.75f;
 	private const float LiveAlbumDecisionEligibilityScale = 1.07f;
+	private const float FormatChoiceExplorationFloor = 0.08f;
 	// The live revision model observes high-variance, annualized outcomes and
 	// therefore needs more evidence than the frozen retirement-time EMA. Keeping
 	// this separate also preserves the disabled route's legacy K=4 behavior.
@@ -1043,11 +1044,12 @@ public partial class CompetitorManager : Node {
 				projectedAlbumStandaloneNet = plan.projectedAlbumStandaloneNet,
 				projectedAlbumWithPromoNet = plan.projectedAlbumWithPromoNet,
 				singlePreTiltContribution = plan.singlePreTiltContribution, singleFormatTilt = plan.singleFormatTilt,
-				albumAffinity = plan.albumAffinity, acceptedAlbumOpportunity = plan.acceptedAlbumOpportunity,
+				albumAffinity = plan.albumAffinity, albumOpportunity = plan.albumOpportunity,
 				albumFormatTilt = plan.albumFormatTilt, albumPreTiltContribution = plan.albumPreTiltContribution,
 				albumProductionCost = plan.albumProductionCost, singleProductionCost = plan.singleProductionCost, singleMemoryEma = plan.singleMemoryEma,
 				albumMemoryEma = plan.albumMemoryEma, singleMemoryBlend = plan.singleMemoryBlend,
 				albumMemoryBlend = plan.albumMemoryBlend, singleNoiseMultiplier = plan.singleNoiseMultiplier,
+				albumChoiceProbability = plan.albumChoiceProbability, formatChoiceRoll = plan.formatChoiceRoll,
 				labelFormatMemoryBypassed = plan.labelFormatMemoryBypassed,
 				albumNoiseMultiplier = plan.albumNoiseMultiplier
 			});
@@ -1323,12 +1325,13 @@ public partial class CompetitorManager : Node {
 		expectedPromoLift = plan.expectedPromoLift, expectedPromoSingleNet = plan.expectedPromoSingleNet,
 		promoAdvantage = plan.promoAdvantage, singlePreTiltContribution = plan.singlePreTiltContribution,
 		singleFormatTilt = plan.singleFormatTilt, albumAffinity = plan.albumAffinity,
-		acceptedAlbumOpportunity = plan.acceptedAlbumOpportunity, albumFormatTilt = plan.albumFormatTilt,
+		albumOpportunity = plan.albumOpportunity, albumFormatTilt = plan.albumFormatTilt,
 		albumPreTiltContribution = plan.albumPreTiltContribution, albumProductionCost = plan.albumProductionCost,
 		singleMemoryEma = plan.singleMemoryEma, albumMemoryEma = plan.albumMemoryEma,
 		singleMemoryBlend = plan.singleMemoryBlend, albumMemoryBlend = plan.albumMemoryBlend,
 		labelFormatMemoryBypassed = plan.labelFormatMemoryBypassed,
 		singleNoiseMultiplier = plan.singleNoiseMultiplier, albumNoiseMultiplier = plan.albumNoiseMultiplier,
+		albumChoiceProbability = plan.albumChoiceProbability, formatChoiceRoll = plan.formatChoiceRoll,
 		albumCapacityReroute = plan.albumCapacityReroute
 	};
 
@@ -1423,11 +1426,23 @@ public partial class CompetitorManager : Node {
 			Mathf.Max(1f, Mathf.Abs(projectedAlbumWithPromo));
 		float promoProjectDelayPremium = meanAlbumDropGapWeeks / 52f;
 
-		(bool albumWins, bool promoPreferred, float albumGateProjection) = useResponsiveMemory
+		(bool economicAlbumWins, bool promoPreferred, float albumGateProjection) = useResponsiveMemory
 			? ResolveAlbumDecision(projectedSingle, projectedAlbum, projectedStandaloneAlbum,
 				componentProjectedAlbumWithPromo, projectedAlbumWithPromo, promoProjectDelayPremium,
 				LiveAlbumDecisionEligibilityScale)
 			: (projectedAlbum > projectedSingle, componentProjectedAlbumWithPromo > projectedAlbum, projectedAlbum);
+		float decisionSingleHurdle = promoPreferred
+			? projectedSingle + Mathf.Max(0f, promoProjectDelayPremium) * Mathf.Max(1f, Mathf.Abs(projectedSingle))
+			: projectedSingle;
+		float albumChoiceProbability = useResponsiveMemory
+			? CalculateAlbumChoiceProbability(decisionSingleHurdle, albumGateProjection)
+			: (economicAlbumWins ? 1f : 0f);
+		float formatChoiceRoll = useResponsiveMemory
+			? GetDeterministicFormatChoiceRoll(label.labelId, artist.artistId, year, currentWeek, annualFormatDecisions)
+			: 0f;
+		bool albumWins = useResponsiveMemory
+			? ResolvePositiveFormatChoice(decisionSingleHurdle, albumGateProjection, formatChoiceRoll)
+			: economicAlbumWins;
 		bool albumProjectPressure = useResponsiveMemory &&
 			IsAlbumProjectSharePressureHigh(annualFormatDecisions, annualAlbumProjectsScheduled);
 		bool albumCapacityReroute = false;
@@ -1477,7 +1492,7 @@ public partial class CompetitorManager : Node {
 			unexpectedCareerState = decision.unexpectedCareerState,
 			singleProductionCost = decision.singleProductionCost,
 			singlePreTiltContribution = singlePreTiltContribution, singleFormatTilt = singleFormatTilt,
-			albumAffinity = albumPrior.albumAffinity, acceptedAlbumOpportunity = albumPrior.acceptedOpportunity,
+			albumAffinity = albumPrior.albumAffinity, albumOpportunity = albumPrior.albumOpportunity,
 			albumFormatTilt = albumPrior.formatTilt, albumPreTiltContribution = albumPrior.preTiltAffinityUnits,
 			albumProductionCost = albumPrior.productionCost,
 			singleMemoryEma = useResponsiveMemory ? singleResponsive.Residual : singleMemory.emaNetPerRelease,
@@ -1500,6 +1515,8 @@ public partial class CompetitorManager : Node {
 			cannibalizationLoss = cannibalizationLoss,
 			expectedPromoLift = expectedPromoLift,
 			promoAdvantage = promoAdvantage,
+			albumChoiceProbability = albumChoiceProbability,
+			formatChoiceRoll = formatChoiceRoll,
 			albumCapacityReroute = albumCapacityReroute
 		};
 		return plan;
@@ -1510,10 +1527,10 @@ public partial class CompetitorManager : Node {
 		float componentProjectedAlbumWithPromo, float totalProjectMemoryProjection, float promoProjectDelayPremium,
 		float albumEligibilityScale = 1f) {
 		bool promoPreferred = componentProjectedAlbumWithPromo > projectedStandaloneAlbum && totalProjectMemoryProjection > 0f;
-		// A promo project consumes two release products. Both the physical Album
-		// component and the component project's mean net per product must beat the
-		// orphan-Single alternative after the configured drop delay's annualized
-		// opportunity cost; total-project memory remains viability-only.
+		// A promo project consumes two release products. Preserve its calibrated
+		// portfolio eligibility weight here; the physical Album component still
+		// has to beat the orphan-Single alternative after the configured drop
+		// delay's annualized opportunity cost. Total-project memory is viability-only.
 		float albumGateProjection = promoPreferred
 			? Mathf.Min(projectedAlbumEligibility, componentProjectedAlbumWithPromo * PromoProjectEligibilityWeight)
 			: projectedAlbumEligibility;
@@ -1524,22 +1541,28 @@ public partial class CompetitorManager : Node {
 		return (albumGateProjection > delayHurdle, promoPreferred, albumGateProjection);
 	}
 
-	private void PrepareAnnualFormatCapacity(int year) {
-		if (annualFormatCapacityYear == year) return;
-		annualFormatCapacityYear = year;
-		annualFormatDecisions = 0;
-		annualAlbumProjectsScheduled = 0;
+	internal static float CalculateAlbumChoiceProbability(float projectedSingle, float projectedAlbum) {
+		if (projectedAlbum <= 0f) return 0f;
+		if (projectedSingle <= 0f) return 1f;
+		float economicShare = projectedAlbum / Mathf.Max(.000001f, projectedSingle + projectedAlbum);
+		return Mathf.Lerp(FormatChoiceExplorationFloor, 1f - FormatChoiceExplorationFloor,
+			Mathf.Clamp(economicShare, 0f, 1f));
 	}
 
-	private static bool IsAlbumProjectSharePressureHigh(int decisions, int albumProjects) =>
-		decisions >= AlbumProjectPressureMinimumDecisions &&
-		(float)albumProjects / Mathf.Max(1, decisions) >= AlbumProjectPressureShare;
-	private static bool CanScheduleAnnualAlbumProject(int projectsAlreadyScheduled, bool albumProjectPressure) =>
-		!albumProjectPressure || projectsAlreadyScheduled < MaximumAlbumProjectsPerArtistYear;
-	internal static bool IsAlbumProjectSharePressureHighForProbe(int decisions, int albumProjects) =>
-		IsAlbumProjectSharePressureHigh(decisions, albumProjects);
-	internal static bool CanScheduleAnnualAlbumProjectForProbe(int projectsAlreadyScheduled, bool albumProjectPressure) =>
-		CanScheduleAnnualAlbumProject(projectsAlreadyScheduled, albumProjectPressure);
+	internal static bool ResolvePositiveFormatChoice(float projectedSingle, float projectedAlbum, float roll) =>
+		projectedAlbum > 0f && (projectedSingle <= 0f ||
+			Mathf.Clamp(roll, 0f, 1f) < CalculateAlbumChoiceProbability(projectedSingle, projectedAlbum));
+
+	internal static float GetDeterministicFormatChoiceRoll(
+		string labelId, string artistId, int year, int week, int sequence) {
+		uint hash = 2166136261u;
+		foreach (char value in
+			$"{SimulationSeedBootstrap.RequestedSeed ?? 0UL}|{labelId}|{artistId}|{year}|{week}|{sequence}|FormatChoiceV1") {
+			hash ^= value;
+			hash *= 16777619u;
+		}
+		return (hash & 0x00ffffffu) / 16777216f;
+	}
 
 	/// <summary>
 	/// Major-label LP programs are portfolio commitments, not independent one-week
@@ -1557,6 +1580,23 @@ public partial class CompetitorManager : Node {
 
 	internal static float GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier tier, int year) =>
 		GetAlbumPortfolioCommitmentMultiplier(tier, year);
+
+	private void PrepareAnnualFormatCapacity(int year) {
+		if (annualFormatCapacityYear == year) return;
+		annualFormatCapacityYear = year;
+		annualFormatDecisions = 0;
+		annualAlbumProjectsScheduled = 0;
+	}
+
+	private static bool IsAlbumProjectSharePressureHigh(int decisions, int albumProjects) =>
+		decisions >= AlbumProjectPressureMinimumDecisions &&
+		(float)albumProjects / Mathf.Max(1, decisions) >= AlbumProjectPressureShare;
+	private static bool CanScheduleAnnualAlbumProject(int projectsAlreadyScheduled, bool albumProjectPressure) =>
+		!albumProjectPressure || projectsAlreadyScheduled < MaximumAlbumProjectsPerArtistYear;
+	internal static bool IsAlbumProjectSharePressureHighForProbe(int decisions, int albumProjects) =>
+		IsAlbumProjectSharePressureHigh(decisions, albumProjects);
+	internal static bool CanScheduleAnnualAlbumProjectForProbe(int projectsAlreadyScheduled, bool albumProjectPressure) =>
+		CanScheduleAnnualAlbumProject(projectsAlreadyScheduled, albumProjectPressure);
 
 	private float ProjectLaunchAwareness(AILabel label, SimulatedArtist artist, float marketingBudget) {
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
@@ -1619,10 +1659,15 @@ public partial class CompetitorManager : Node {
 		AlbumPriorExplanation opportunity = GetAlbumPriorExplanation(artist.primaryGenre, regions, year, live);
 		float baseAffinityUnits = priorUnitScalarAlbum * decision.qualityEstimate * statureMultiplier * decision.reachFactor;
 		float preTiltAffinityUnits = baseAffinityUnits * opportunity.UntiltedAlbumDemandFactor * opportunity.MarketReconciliation;
-		float affinityUnits = preTiltAffinityUnits * opportunity.FormatTilt;
 		float unweightedHitUnits = priorCompHitUnitScalar * hitInventory.hitScore;
 		float weightedHitUnits = compCostWeight * unweightedHitUnits;
-		float expectedUnits = affinityUnits + weightedHitUnits;
+		// Format suitability applies to the whole Album proposition. Applying it
+		// only to affinity units let compilation/hit inventory bypass the catalog
+		// orientation and dominate the late format fork.
+		float preTiltExpectedUnits = preTiltAffinityUnits + weightedHitUnits;
+		float affinityUnits = preTiltAffinityUnits * opportunity.FormatTilt;
+		float expectedUnits = CalculateFormatTiltedAlbumExpectedUnits(
+			preTiltAffinityUnits, weightedHitUnits, opportunity.FormatTilt);
 		float manufacturingPerUnit = GetPressingCostPerUnit(ReleaseFormat.Album) + albumPackagingCostPerUnit * priorAssumedAlbumPackaging;
 		float grossAfterManufacturing = Mathf.Max(0f, GetPricePerUnit(ReleaseFormat.Album) - manufacturingPerUnit);
 		float skimFraction = label.activeDeal != null
@@ -1644,13 +1689,17 @@ public partial class CompetitorManager : Node {
 			expectedRevenueAtMargin = expectedRevenueAtMargin,
 			marginPerUnit = marginPerUnit,
 			albumAffinity = opportunity.AlbumAffinity,
-			acceptedOpportunity = opportunity.UntiltedAlbumDemandFactor,
+			albumOpportunity = opportunity.UntiltedAlbumDemandFactor,
 			formatTilt = opportunity.FormatTilt,
-			preTiltAffinityUnits = preTiltAffinityUnits,
+			preTiltAffinityUnits = preTiltExpectedUnits,
 			productionCost = productionCost
 		};
 		return expectedRevenueAtMargin - productionCost;
 	}
+
+	internal static float CalculateFormatTiltedAlbumExpectedUnits(
+		float preTiltAffinityUnits, float weightedHitUnits, float formatTilt) =>
+		Mathf.Max(0f, preTiltAffinityUnits + weightedHitUnits) * Mathf.Max(0f, formatTilt);
 
 	private static int GetQualityQuartile(float qualityEstimate) {
 		if (qualityEstimate <= SinglePriorQualityCutPoints[0]) return 0;
@@ -1763,15 +1812,19 @@ public partial class CompetitorManager : Node {
 
 	/// <summary>AI format priors deliberately share the realized demand tilt seam.</summary>
 	public static float GetFormatPriorMultiplier(Genre genre, ReleaseFormat format, int year,
-		bool? liveOverride = null, float? albumOpportunityOverride = null) =>
-		GenreAcceptanceService.GetLiveFormatMultiplier(genre, genre, format, year,
-			albumOpportunityOverride ?? GetNationalAlbumOpportunity(genre, year),
-			liveOverride ?? (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true));
+		bool? liveOverride = null, float? albumOpportunityOverride = null) {
+		bool live = liveOverride ?? (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
+		return GenreAcceptanceService.GetLiveFormatMultiplier(genre, genre, format, year,
+			albumOpportunityOverride ?? GetNationalAlbumOpportunity(genre, year, live), live);
+	}
 
-	private static float GetNationalAlbumOpportunity(Genre genre, int year) {
+	private static float GetNationalAlbumOpportunity(Genre genre, int year, bool live) {
 		MarketRegion[] regions = ChartManager.Instance?.GetAllRegions()?.Where(region => region != null).ToArray()
 			?? System.Array.Empty<MarketRegion>();
-		return regions.Length > 0 ? CalculateAcceptedAlbumOpportunityFactor(genre, regions, year) : .5f;
+		if (regions.Length == 0) return .5f;
+		return live
+			? CalculateEnabledAlbumOpportunityFactor(genre, regions, year)
+			: CalculateAcceptedAlbumOpportunityFactor(genre, regions, year);
 	}
 
 	/// <summary>
@@ -1784,6 +1837,16 @@ public partial class CompetitorManager : Node {
 		float acceptedAlbumPool = regionArray.Sum(region => region.GetAcceptedPreTiltAlbumMarketSize(genre, year));
 		float acceptedGenrePool = regionArray.Sum(region => region.GetAcceptedLegacyGenreMarketSize(genre, year));
 		return Mathf.Clamp(acceptedAlbumPool / Mathf.Max(1f, acceptedGenrePool), 0f, 1f);
+	}
+
+	/// <summary>Enabled Album opportunity, weighted by the routed canonical genre market.</summary>
+	public static float CalculateEnabledAlbumOpportunityFactor(Genre genre, IEnumerable<MarketRegion> regions, float year) {
+		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
+		float routedGenrePool = regionArray.Sum(region => region.GetGenreMarketSize(genre, (int)year));
+		if (routedGenrePool <= 0f) return 0f;
+		float weightedOpportunity = regionArray.Sum(region =>
+			region.GetGenreMarketSize(genre, (int)year) * region.GetEnabledAlbumOpportunityWeight(genre, year));
+		return Mathf.Clamp(weightedOpportunity / routedGenrePool, 0f, 1f);
 	}
 
 	public readonly struct AlbumPriorExplanation {
@@ -1806,9 +1869,20 @@ public partial class CompetitorManager : Node {
 		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
 		float acceptedAlbumPool = regionArray.Sum(region => region.GetAcceptedPreTiltAlbumMarketSize(genre, year));
 		float acceptedGenrePool = regionArray.Sum(region => region.GetAcceptedLegacyGenreMarketSize(genre, year));
-		float albumAffinity = regionArray.Sum(region => region.GetAcceptedLegacyGenreMarketSize(genre, year) * region.GetAlbumAffinity(genre, year)) /
-			Mathf.Max(1f, acceptedGenrePool);
-		float untilted = Mathf.Clamp(acceptedAlbumPool / Mathf.Max(1f, acceptedGenrePool), 0f, 1f);
+		float albumAffinity;
+		if (live) {
+			float routedGenrePool = regionArray.Sum(region => region.GetGenreMarketSize(genre, year));
+			albumAffinity = regionArray.Sum(region =>
+				region.GetGenreMarketSize(genre, year) * region.GetAlbumAffinity(genre, year)) /
+				Mathf.Max(1f, routedGenrePool);
+		} else {
+			albumAffinity = regionArray.Sum(region =>
+				region.GetAcceptedLegacyGenreMarketSize(genre, year) * region.GetAlbumAffinity(genre, year)) /
+				Mathf.Max(1f, acceptedGenrePool);
+		}
+		float untilted = live
+			? CalculateEnabledAlbumOpportunityFactor(genre, regionArray, year)
+			: Mathf.Clamp(acceptedAlbumPool / Mathf.Max(1f, acceptedGenrePool), 0f, 1f);
 		float marketReconciliation = live
 			? CalculateAlbumPriorMarketReconciliation(genre, regionArray, year)
 			: 1f;
@@ -1818,38 +1892,32 @@ public partial class CompetitorManager : Node {
 	}
 
 	/// <summary>
-	/// The accepted Album prior was calibrated against the legacy relative-market
-	/// comparison. V2 changes that relative market for a genre, while the Album
-	/// buyer pool remains normalized to the accepted legacy opportunity. Apply the
-	/// same relative-market change to the Album prior so the format fork compares
-	/// like with like instead of lowering only the Single side.
+	/// Live Album and Single priors use the same routed relative-market factor.
+	/// The former accepted/routed ratio was undefined for canonical genres whose
+	/// legacy comparator pool was zero, erasing their Album affinity at the fork.
 	/// </summary>
 	public static float CalculateAlbumPriorMarketReconciliation(Genre genre, IEnumerable<MarketRegion> regions, int year) {
 		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
 		if (regionArray.Length == 0) return 1f;
 		float routedSelected = regionArray.Sum(region => region.GetGenreMarketSize(genre, year));
 		IReadOnlyList<Genre> supplied = GenreSupplyService.GetAvailableGenres(year);
-		float routedRelative = CalculateRelativeSingleMarketFactor(routedSelected,
+		return CalculateRelativeSingleMarketFactor(routedSelected,
 			supplied.Select(candidate => regionArray.Sum(region => region.GetGenreMarketSize(candidate, year))));
-		float acceptedSelected = regionArray.Sum(region => region.GetAcceptedLegacyGenreMarketSize(genre, year));
-		float acceptedRelative = CalculateRelativeSingleMarketFactor(acceptedSelected,
-			GenreDomains.LegacyDomain.Select(candidate => regionArray.Sum(region => region.GetAcceptedLegacyGenreMarketSize(candidate, year))));
-		return Mathf.Clamp(routedRelative / Mathf.Max(.000001f, acceptedRelative), .25f, 4f);
 	}
 
 	/// <summary>Side-effect-free binary format decision decomposition for fixed probes.</summary>
 	public readonly struct FormatDecisionExplanation {
-		public readonly float SinglePreTiltContribution, AlbumPreTiltContribution, AlbumAffinity, AcceptedOpportunity;
+		public readonly float SinglePreTiltContribution, AlbumPreTiltContribution, AlbumAffinity, AlbumOpportunity;
 		public readonly float SingleTilt, AlbumTilt, SingleProductionCost, AlbumProductionCost;
 		public readonly float SingleMemoryBlend, AlbumMemoryBlend, SingleNoise, AlbumNoise, FinalSingleMargin, FinalAlbumMargin;
 		public readonly ReleaseFormat Choice;
 		public FormatDecisionExplanation(float singlePreTiltContribution, float albumPreTiltContribution, float albumAffinity,
-			float acceptedOpportunity, float singleTilt, float albumTilt, float singleProductionCost, float albumProductionCost,
+			float albumOpportunity, float singleTilt, float albumTilt, float singleProductionCost, float albumProductionCost,
 			float singleMemoryBlend, float albumMemoryBlend, float singleNoise, float albumNoise) {
 			SinglePreTiltContribution = singlePreTiltContribution;
 			AlbumPreTiltContribution = albumPreTiltContribution;
 			AlbumAffinity = albumAffinity;
-			AcceptedOpportunity = acceptedOpportunity;
+			AlbumOpportunity = albumOpportunity;
 			SingleTilt = singleTilt;
 			AlbumTilt = albumTilt;
 			SingleProductionCost = singleProductionCost;
@@ -1865,13 +1933,13 @@ public partial class CompetitorManager : Node {
 	}
 
 	public static FormatDecisionExplanation ExplainFixedFormatDecision(float singlePreTiltContribution, float albumPreTiltContribution,
-		float albumAffinity, float acceptedOpportunity, float singleTilt, float albumTilt, float singleProductionCost,
+		float albumAffinity, float albumOpportunity, float singleTilt, float albumTilt, float singleProductionCost,
 		float albumProductionCost, float singleMemory = 0f, float albumMemory = 0f, float singleNoise = 1f, float albumNoise = 1f) {
 		float singlePrior = singlePreTiltContribution * singleTilt - singleProductionCost;
 		float albumPrior = albumPreTiltContribution * albumTilt - albumProductionCost;
 		float singleBlend = singleMemory == 0f ? singlePrior : singleMemory;
 		float albumBlend = albumMemory == 0f ? albumPrior : albumMemory;
-		return new FormatDecisionExplanation(singlePreTiltContribution, albumPreTiltContribution, albumAffinity, acceptedOpportunity, singleTilt, albumTilt,
+		return new FormatDecisionExplanation(singlePreTiltContribution, albumPreTiltContribution, albumAffinity, albumOpportunity, singleTilt, albumTilt,
 			singleProductionCost, albumProductionCost, singleBlend, albumBlend, singleNoise, albumNoise);
 	}
 
@@ -1909,20 +1977,22 @@ public partial class CompetitorManager : Node {
 		public float cannibalizationLoss;
 		public float expectedPromoLift;
 		public float promoAdvantage;
+		public float albumChoiceProbability;
+		public float formatChoiceRoll;
 		public bool albumCapacityReroute;
 		public float singlePreTiltContribution;
 		public float singleFormatTilt;
 		public float albumAffinity;
-		public float acceptedAlbumOpportunity;
+		public float albumOpportunity;
 		public float albumFormatTilt;
 		public float albumPreTiltContribution;
 		public float albumProductionCost;
 		public float singleMemoryEma;
 		public float albumMemoryEma;
-		public float singleMemoryBlend;
-		public float albumMemoryBlend;
-		public bool labelFormatMemoryBypassed;
-		public float singleNoiseMultiplier;
+	public float singleMemoryBlend;
+	public float albumMemoryBlend;
+	public bool labelFormatMemoryBypassed;
+	public float singleNoiseMultiplier;
 		public float albumNoiseMultiplier;
 		public float confidenceSingle;
 		public float confidenceAlbum;
@@ -1962,7 +2032,7 @@ public partial class CompetitorManager : Node {
 		public float expectedRevenueAtMargin;
 		public float marginPerUnit;
 		public float albumAffinity;
-		public float acceptedOpportunity;
+		public float albumOpportunity;
 		public float formatTilt;
 		public float preTiltAffinityUnits;
 		public float productionCost;
@@ -2828,7 +2898,7 @@ public sealed class ReleaseStrategyTelemetry {
 	public float singlePreTiltContribution;
 	public float singleFormatTilt;
 	public float albumAffinity;
-	public float acceptedAlbumOpportunity;
+	public float albumOpportunity;
 	public float albumFormatTilt;
 	public float albumPreTiltContribution;
 	public float albumProductionCost;
@@ -2839,6 +2909,8 @@ public sealed class ReleaseStrategyTelemetry {
 		public bool labelFormatMemoryBypassed;
 		public float singleNoiseMultiplier;
 	public float albumNoiseMultiplier;
+	public float albumChoiceProbability;
+	public float formatChoiceRoll;
 	public bool albumCapacityReroute;
 }
 

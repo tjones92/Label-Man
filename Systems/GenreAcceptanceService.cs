@@ -267,7 +267,7 @@ public static class GenreAcceptanceService {
 				float supplyWeight = GenreSupplyService.GetSupplyWeight(genre, null, null, null, year);
 				if (supplyWeight <= 0f) continue;
 				float routedAcceptance = GetRegionalDemandAcceptance(genre, genre, region, year, 0f);
-				float albumOpportunity = region.GetAcceptedAlbumOpportunityWeight(genre, year);
+				float albumOpportunity = region.GetEnabledAlbumOpportunityWeight(genre, year);
 				float formatTilt = GetFormatMultiplier(genre, genre, ReleaseFormat.Single, year, albumOpportunity);
 				float acceptedAcceptance = region.GetLegacyGenreAcceptance(genre, year, includeMomentum: false);
 				newEnabled += supplyWeight * GetEnabledSingleDemandMultiplier(routedAcceptance) * formatTilt;
@@ -281,7 +281,7 @@ public static class GenreAcceptanceService {
 				float retention = GenreSupplyService.GetProjectIdentityRetentionForPortfolio(genre, year);
 				float weight = initialShare * retention;
 				float routedAcceptance = GetRegionalDemandAcceptance(genre, genre, region, year, 0f);
-				float albumOpportunity = region.GetAcceptedAlbumOpportunityWeight(genre, year);
+				float albumOpportunity = region.GetEnabledAlbumOpportunityWeight(genre, year);
 				float formatTilt = GetFormatMultiplier(genre, genre, ReleaseFormat.Single, year, albumOpportunity);
 				float acceptedAcceptance = region.GetLegacyGenreAcceptance(genre, year, includeMomentum: false);
 				retainedEnabled += weight * GetEnabledSingleDemandMultiplier(routedAcceptance) * formatTilt;
@@ -409,7 +409,7 @@ public static class GenreAcceptanceService {
 			RegionalDemandAcceptanceComponents protectedRoute = GetRegionalDemandAcceptanceComponents(primary, secondary, region, year, 0f,
 				includeCenteredSpecialistTexture: false);
 			float runtimeFormat = GetLiveFormatMultiplier(primary, secondary, ReleaseFormat.Single, year,
-				region.GetAlbumDemandEraProgress(year), live: true);
+				region.GetEnabledAlbumOpportunityWeight(primary, year), live: true);
 			float singleOpportunity = GetEnabledSingleDemandMultiplier(route.Effective) * globalSingleNormalization * runtimeFormat;
 			float protectedSingleOpportunity = GetEnabledSingleDemandMultiplier(protectedRoute.Effective) * globalSingleNormalization * runtimeFormat;
 			effective += buyingPopulation * route.Effective;

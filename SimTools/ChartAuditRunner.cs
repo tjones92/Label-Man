@@ -928,7 +928,7 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
-		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumCapacityReroute");
+		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumChoiceProbability,formatChoiceRoll,albumCapacityReroute");
 		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,genre,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet");
 		singleReleaseLaneWriter?.WriteLine("week,year,recordId,projectId,releaseLane,labelId,tier,artistId,genre,careerState,hookStrength,productionQuality,danceability,quality,enabledOpportunityMass,acceptedOpportunityMass,cohortNormalizer,normalizerSource,coldStartFallback");
 		singleDemandStagesWriter?.WriteLine("week,year,recordId,releaseLane,region,age,potentialAudience,baselineAwareness,earnedDiscoveryExposure,awareBuyers,intrinsicQualityFactor,acceptanceFactor,formatFactor,intrinsicConversionRate,rawDemand,serviceableDemand,clearedUnits,chartSignal,momentumSignal,radioSignal,inventoryFulfillmentRate,marketFulfillmentRate");
@@ -952,7 +952,7 @@ public partial class ChartAuditRunner : Node {
 		genreMarketWeeklyWriter.WriteLine("seed,enabled,year,month,week,region,segment,genre,baseline,lifecycleState,zeitgeistFactor,regionalFactor,segmentReach,preShock,decay,positiveImpulse,adjacentImpulse,donorPressure,postShock,emergenceAdvanceWeeks,effectiveAcceptance,eligibleRecords,chartedRecords,units,radioPlay");
 		recordGenreExplanationWriter.WriteLine("seed,enabled,year,month,week,recordId,region,primaryGenreId,secondaryGenreId,primaryWeight,secondaryWeight,tags,segmentBlend,formatTilt,genericSeasonality,recordSeasonalFactor,radioFactor,finalAcceptance,finalDemandSeam,legacyAcceptanceComparator,legacySingleDemandMultiplier,enabledSingleDemandMultiplier,singleDemandTransferRatio,chartVisibilityMultiplier,radioSalesMultiplier,sentimentMultiplier,awardMultiplier,distributionMultiplier,conversionSeasonalityMultiplier,catalogBaselineAcceptance,regionalAdjustedAcceptance,segmentRoutedAcceptance,primaryWeightedRoutedAcceptance,secondaryBlendAcceptanceContribution,legacyMomentum,legacyMomentumAcceptanceContribution,acceptanceClampDelta,salesRecordAwareness,salesRegionalAwareness,salesEffectiveAwareness,salesRadioHeat,salesRegionalRadioPlay");
 		albumDemandExplanationWriter.WriteLine("seed,enabled,year,month,week,recordId,region,genre,routedAcceptance,legacyAcceptance,segregationFactor,albumAffinity,purchaseWillingness,enabledPreTiltBuyerPool,acceptedPreTiltBuyerPool,opportunityNormalization,actualPreTiltBuyerPool,formatTilt,finalAlbumOpportunity");
-		formatDecisionExplanationWriter.WriteLine("week,year,recordId,labelId,artistId,genre,rawSecondaryGenre,careerState,careerBand,chosenFormat,singlePreTiltContribution,albumPreTiltContribution,albumAffinity,acceptedOpportunity,singleFormatTilt,albumFormatTilt,singleProductionCost,albumProductionCost,singleMemoryEma,albumMemoryEma,confidenceSingle,confidenceAlbum,singleMemoryBlend,albumMemoryBlend,singleNoise,albumNoise,finalSingleMargin,finalAlbumMargin,memoryScope,memoryScopeGenre");
+		formatDecisionExplanationWriter.WriteLine("week,year,recordId,labelId,artistId,genre,rawSecondaryGenre,careerState,careerBand,chosenFormat,singlePreTiltContribution,albumPreTiltContribution,albumAffinity,activeAlbumOpportunity,singleFormatTilt,albumFormatTilt,singleProductionCost,albumProductionCost,singleMemoryEma,albumMemoryEma,confidenceSingle,confidenceAlbum,singleMemoryBlend,albumMemoryBlend,singleNoise,albumNoise,finalSingleMargin,finalAlbumMargin,albumChoiceProbability,formatChoiceRoll,memoryScope,memoryScopeGenre");
 		formatDecisionCohortWriter.WriteLine("year,genre,format,decisions,realizedUnits,realizedUnitsPerDecision");
 		formatDecisionCohortDetailWriter.WriteLine("year,recordId,rawPrimaryGenre,rawSecondaryGenre,format,realizedUnits");
 			supplySelectionWriter.WriteLine("week,year,labelId,artistId,artistIdentity,chosenProjectGenre,artistIdentityAvailableForNewSupply,annualFloorRequested,annualFloorReroutedToNormalCandidates,selectionMode");
@@ -1135,7 +1135,8 @@ public partial class ChartAuditRunner : Node {
 				float actualPreTilt = region.GetAlbumMarketSize(record.baseRecord.primaryGenre, date.year);
 				float formatTilt = GenreAcceptanceService.GetFormatMultiplier(record.baseRecord.primaryGenre,
 					record.baseRecord.secondaryGenre, ReleaseFormat.Album, continuousYear,
-					region.GetAcceptedAlbumOpportunityWeight(record.baseRecord.primaryGenre, continuousYear));
+					region.GetAlbumOpportunityWeight(record.baseRecord.primaryGenre, continuousYear,
+						GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true));
 				albumDemandExplanationWriter.WriteLine(string.Join(",", new[] {
 					requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty, "true",
 					date.year.ToString(CultureInfo.InvariantCulture), date.month.ToString(CultureInfo.InvariantCulture), week.ToString(CultureInfo.InvariantCulture),
@@ -1360,11 +1361,12 @@ public partial class ChartAuditRunner : Node {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(strategy.recordId),
 			Csv(strategy.labelId), Csv(strategy.artistId), Csv(strategy.genre.ToString()), Csv(strategy.secondaryGenre.ToString()),
 			Csv(strategy.careerState.ToString()), Csv(strategy.careerBand), Csv(strategy.chosenFormat.ToString()), F(strategy.singlePreTiltContribution),
-			F(strategy.albumPreTiltContribution), F(strategy.albumAffinity), F(strategy.acceptedAlbumOpportunity),
+			F(strategy.albumPreTiltContribution), F(strategy.albumAffinity), F(strategy.albumOpportunity),
 			F(strategy.singleFormatTilt), F(strategy.albumFormatTilt), F(strategy.singleProductionCost), F(strategy.albumProductionCost),
 			F(strategy.singleMemoryEma), F(strategy.albumMemoryEma), F(strategy.confidenceSingle), F(strategy.confidenceAlbum),
 			F(strategy.singleMemoryBlend), F(strategy.albumMemoryBlend), F(strategy.singleNoiseMultiplier), F(strategy.albumNoiseMultiplier),
 			F(strategy.projectedSingleNet), F(strategy.projectedAlbumNet),
+			F(strategy.albumChoiceProbability), F(strategy.formatChoiceRoll),
 			strategy.labelFormatMemoryBypassed ? "ProjectPrior" : "LabelFormat", string.Empty
 		}));
 		EnsureDecadeAnnualYear(year);
@@ -1394,6 +1396,7 @@ public partial class ChartAuditRunner : Node {
 			strategy.albumStrategyEvaluated ? F(strategy.expectedPromoLift) : string.Empty,
 			strategy.albumStrategyEvaluated ? F(strategy.expectedPromoSingleNet) : string.Empty,
 			strategy.albumStrategyEvaluated ? F(strategy.promoAdvantage) : string.Empty,
+			F(strategy.albumChoiceProbability), F(strategy.formatChoiceRoll),
 			strategy.albumCapacityReroute ? "true" : "false"
 		}));
 		priorCostAssumptionWriter.WriteLine(string.Join(",", new[] {

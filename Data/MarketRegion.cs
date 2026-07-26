@@ -152,6 +152,18 @@ public partial class MarketRegion : Resource {
 		return GetAcceptedPreTiltAlbumMarketSize(genre, year) / Mathf.Max(.000001f, GetAcceptedLegacyGenreMarketSize(genre, year));
 	}
 
+	/// <summary>
+	/// Live pre-tilt Album opportunity conditional on an enabled genre buyer.
+	/// Unlike the legacy-pool ratio, this remains defined for every canonical
+	/// genre and is the opportunity actually used by enabled Album demand.
+	/// </summary>
+	public float GetEnabledAlbumOpportunityWeight(Genre genre, float year) =>
+		Mathf.Clamp(GetAlbumAffinity(genre, (int)year) * GetAlbumPurchaseWillingness((int)year), 0f, 1f);
+
+	/// <summary>Format-centering opportunity for the active demand route.</summary>
+	public float GetAlbumOpportunityWeight(Genre genre, float year, bool live) =>
+		live ? GetEnabledAlbumOpportunityWeight(genre, year) : GetAcceptedAlbumOpportunityWeight(genre, year);
+
 	/// <summary>Accepted legacy genre buyer pool used as the common Album-prior denominator.</summary>
 	public float GetAcceptedLegacyGenreMarketSize(Genre genre, float year) {
 		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();

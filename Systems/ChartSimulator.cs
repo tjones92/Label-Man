@@ -170,7 +170,8 @@ public static class ChartSimulator {
 		} else conversionRate *= 0.6f + genreAcceptance * 0.5f;
 		conversionRate *= GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
-			region.GetAlbumDemandEraProgress(year), useGenreMarketV2DemandTransfer);
+			region.GetAlbumOpportunityWeight(record.baseRecord.primaryGenre, year, useGenreMarketV2DemandTransfer),
+			useGenreMarketV2DemandTransfer);
 		if (useGenreMarketV2DemandTransfer) conversionRate *= GenreAcceptanceService.GetLiveSpecialistSingleOpportunityNormalizer(
 			record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, year, live: true);
 		if (!stagedLiveDemand) conversionRate *= 0.75f + record.radioHeat * 0.5f;
@@ -186,7 +187,8 @@ public static class ChartSimulator {
 			SingleDemandStages stages = CalculateSingleDemandStages(potentialBuyers, baselineAwareness, chartSignal,
 				Mathf.Max(.01f, momentumBonus), Mathf.Max(.01f, .75f + record.radioHeat * .5f), demandCurve,
 				genreAcceptance, GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
-					record.baseRecord.secondaryGenre, ReleaseFormat.Single, year, region.GetAlbumDemandEraProgress(year), true),
+					record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
+					region.GetEnabledAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), true),
 				conversionRate / Mathf.Max(.000001f, BASE_PURCHASE_RATE * demandCurve));
 			awareBuyers = stages.AwareBuyers;
 			conversionRate = stages.IntrinsicConversionRate;

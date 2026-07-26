@@ -14,11 +14,11 @@ public partial class ArtistManager : Node {
 		(.35f, Genre.DooWop), (.55f, Genre.GirlGroup), (.75f, Genre.Motown),
 		(.85f, Genre.Soul), (.92f, Genre.RnB), (1f, Genre.Gospel)
 	};
-	// Enabled-only 1960 commercial prior. The first measured pass showed that a
-	// literal share prior over-seeds genres carried by major-label Album channels.
-	// These cumulative weights are the fixed conversion-aware second-pass prior;
-	// no realized state or analysis file is read at runtime. It deliberately
-	// excludes Surf Rock and Blues Rock before their authored emergence.
+	// Enabled-only 1960 commercial prior. A literal historical unit-share prior
+	// over-seeds identities carried by the most efficient Adult/Album channels,
+	// so these fixed conversion-aware weights calibrate initial artist identity
+	// to the downstream commercial system. Runtime never reads analysis outputs,
+	// and the bands exclude Surf Rock and Blues Rock before emergence.
 	private static readonly (float Upper, Genre Genre)[] EnabledInitial1960GenreBands = {
 		(.0900f, Genre.TraditionalPop), (.2554f, Genre.RockAndRoll), (.3589f, Genre.TeenPop),
 		(.5021f, Genre.RnB), (.5659f, Genre.Country), (.7151f, Genre.Soul),

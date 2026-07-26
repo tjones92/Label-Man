@@ -54,7 +54,7 @@ public static class AlbumSimulator {
 		conversion *= MarketSeasonality.GetAlbumSalesMultiplier(year, month, liveTick);
 		float formatTilt = GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 			record.baseRecord.secondaryGenre, ReleaseFormat.Album, year,
-			region.GetAcceptedAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), genreMarketLive);
+			region.GetAlbumOpportunityWeight(record.baseRecord.primaryGenre, year, genreMarketLive), genreMarketLive);
 		conversion *= formatTilt;
 		conversion *= 1f - region.distribution.difficulty * 0.25f;
 		if (genreMarketLive) conversion *= GetLiveLabelDemandScale(label?.tier);

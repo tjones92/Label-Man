@@ -100,30 +100,31 @@ public static class GenreMarketV2ProbeSuite {
 			float enabledPool = neutral.GetAlbumMarketSize(genre, 1960);
 			Require(Math.Abs(enabledPool - album.EnabledPreTiltBuyerPool) < .001f,
 				"Album live buyer pool retains routed V2 acceptance " + genre);
-			float acceptedAlbumOpportunity = neutral.GetAcceptedAlbumOpportunityWeight(genre, 1960f);
-			float singleTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Single, 1960f, acceptedAlbumOpportunity);
-			float albumTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Album, 1960f, acceptedAlbumOpportunity);
-			Require(acceptedAlbumOpportunity > 0f && Math.Abs((1f - acceptedAlbumOpportunity) * singleTilt + acceptedAlbumOpportunity * albumTilt - 1f) < .000001f,
-				"Album accepted opportunity centering " + genre);
+			float enabledAlbumOpportunity = neutral.GetEnabledAlbumOpportunityWeight(genre, 1960f);
+			float singleTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Single, 1960f, enabledAlbumOpportunity);
+			float albumTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Album, 1960f, enabledAlbumOpportunity);
+			Require(enabledAlbumOpportunity > 0f &&
+				Math.Abs((1f - enabledAlbumOpportunity) * singleTilt + enabledAlbumOpportunity * albumTilt - 1f) < .000001f,
+				"Album enabled opportunity centering " + genre);
 			CompetitorManager.AlbumPriorExplanation prior = CompetitorManager.GetAlbumPriorExplanation(genre,
 				new[] { neutral }, 1960, live: true);
 			Require(Math.Abs(prior.AcceptedAlbumPool - album.AcceptedPreTiltBuyerPool) < .001f &&
 				Math.Abs(prior.AcceptedLegacyGenrePool - neutral.GetAcceptedLegacyGenreMarketSize(genre, 1960f)) < .001f,
 				"Album AI-prior accepted pool decomposition " + genre);
-			Require(Math.Abs(prior.UntiltedAlbumDemandFactor - acceptedAlbumOpportunity) < .000001f &&
+			Require(Math.Abs(prior.UntiltedAlbumDemandFactor - enabledAlbumOpportunity) < .000001f &&
 				Math.Abs(prior.FormatTilt - albumTilt) < .000001f &&
 				Math.Abs(prior.AlbumPrior - prior.UntiltedAlbumDemandFactor * prior.MarketReconciliation * prior.FormatTilt) < .000001f,
-				"Album AI-prior denominator/centering/tilt parity " + genre);
+				"Album AI-prior enabled denominator/centering/tilt parity " + genre);
 			// Fixed cohort: no revenue memory and unit noise. The neutral-orientation
 			// counterfactual retains accepted opportunity and changes only the two
 			// catalog orientation multipliers.
 			CompetitorManager.FormatDecisionExplanation oriented = CompetitorManager.ExplainFixedFormatDecision(
-				50000f, 50000f * acceptedAlbumOpportunity, prior.AlbumAffinity, acceptedAlbumOpportunity,
+				50000f, 50000f * enabledAlbumOpportunity, prior.AlbumAffinity, enabledAlbumOpportunity,
 				singleTilt, albumTilt, 1000f, 2500f);
 			CompetitorManager.FormatDecisionExplanation neutralOrientation = CompetitorManager.ExplainFixedFormatDecision(
-				50000f, 50000f * acceptedAlbumOpportunity, prior.AlbumAffinity, acceptedAlbumOpportunity,
+				50000f, 50000f * enabledAlbumOpportunity, prior.AlbumAffinity, enabledAlbumOpportunity,
 				1f, 1f, 1000f, 2500f);
-			Require(Math.Abs(oriented.AcceptedOpportunity - neutralOrientation.AcceptedOpportunity) < .000001f &&
+			Require(Math.Abs(oriented.AlbumOpportunity - neutralOrientation.AlbumOpportunity) < .000001f &&
 				Math.Abs(oriented.SingleMemoryBlend - (oriented.SinglePreTiltContribution * oriented.SingleTilt - oriented.SingleProductionCost)) < .000001f &&
 				Math.Abs(oriented.AlbumMemoryBlend - (oriented.AlbumPreTiltContribution * oriented.AlbumTilt - oriented.AlbumProductionCost)) < .000001f &&
 				Math.Abs(oriented.FinalSingleMargin - oriented.SingleMemoryBlend) < .000001f &&
@@ -282,6 +283,11 @@ public static class GenreMarketV2ProbeSuite {
 			1000f, 1000f);
 		Require(albumLeanDecision.Choice == ReleaseFormat.Album && singleLeanDecision.Choice == ReleaseFormat.Single,
 			"equal-input format fork follows catalog orientation endpoints");
+		Require(Math.Abs(CompetitorManager.CalculateFormatTiltedAlbumExpectedUnits(
+				preTiltAffinityUnits: 100f, weightedHitUnits: 50f, formatTilt: .60f) - 90f) < .000001f,
+			"Album format tilt covers affinity and hit-inventory units");
+		Require(GenreCatalog.Get(Genre.PsychedelicRock).SingleOrientation < .50f,
+			"Psychedelic Rock remains Album-leaning");
 		Require(Math.Abs(GenreAcceptanceService.GetLiveFormatMultiplier(Genre.Bubblegum, Genre.Bubblegum,
 			ReleaseFormat.Single, 1968f, .5f, live: false) - 1f) < .000001f, "prewarm format neutrality");
 		Require(Math.Abs(GenreAcceptanceService.GetLiveFormatMultiplier(Genre.Bubblegum, Genre.Bubblegum,
@@ -506,6 +512,20 @@ public static class GenreMarketV2ProbeSuite {
 				CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1965) &&
 			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Independent, 1965) == 1f,
 			"maturing Major Album portfolios receive the strongest long-horizon commitment without inflating independent projects");
+		Require(Math.Abs(CompetitorManager.CalculateAlbumChoiceProbability(100f, 100f) - .5f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateAlbumChoiceProbability(100f, 400f) - .752f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateAlbumChoiceProbability(400f, 100f) - .248f) < .000001f &&
+			CompetitorManager.CalculateAlbumChoiceProbability(100f, -1f) == 0f &&
+			CompetitorManager.CalculateAlbumChoiceProbability(-1f, 100f) == 1f &&
+			CompetitorManager.ResolvePositiveFormatChoice(100f, 400f, .70f) &&
+			!CompetitorManager.ResolvePositiveFormatChoice(100f, 400f, .80f) &&
+			!CompetitorManager.ResolvePositiveFormatChoice(100f, -1f, 0f),
+			"positive-profit format choice is bounded, symmetric, economically ordered, and excludes nonviable Albums");
+		float stableFormatRoll = CompetitorManager.GetDeterministicFormatChoiceRoll("label-a", "artist-a", 1969, 522, 12);
+		Require(stableFormatRoll >= 0f && stableFormatRoll < 1f &&
+			stableFormatRoll == CompetitorManager.GetDeterministicFormatChoiceRoll("label-a", "artist-a", 1969, 522, 12) &&
+			stableFormatRoll != CompetitorManager.GetDeterministicFormatChoiceRoll("label-a", "artist-b", 1969, 522, 12),
+			"format-choice exploration uses a stable isolated roll rather than reusing either format's economic noise");
 		Require(!CompetitorManager.IsAlbumProjectSharePressureHighForProbe(99, 99) &&
 			!CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 74) &&
 			CompetitorManager.IsAlbumProjectSharePressureHighForProbe(100, 75) &&
