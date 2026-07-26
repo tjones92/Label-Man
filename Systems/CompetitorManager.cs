@@ -1094,6 +1094,9 @@ public partial class CompetitorManager : Node {
 		Genre chosen = selection.Genre;
 		OnSupplySelection?.Invoke(new SupplySelectionTelemetry {
 			labelId = label.labelId, artistId = artist.artistId, artistIdentity = artist.primaryGenre, chosenProjectGenre = chosen,
+			artistIdentityAvailableForNewSupply = GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year),
+			annualFloorRequested = annualFloor,
+			annualFloorReroutedToNormalCandidates = annualFloor && !selection.RetainedIdentity && !selection.UsedCandidateOverride,
 			selectionMode = selection.UsedCandidateOverride ? SupplySelectionMode.AnnualFloor :
 				selection.RetainedIdentity ? SupplySelectionMode.Retained : SupplySelectionMode.WeightedTransition
 		});
@@ -1325,7 +1328,8 @@ public partial class CompetitorManager : Node {
 		singleMemoryEma = plan.singleMemoryEma, albumMemoryEma = plan.albumMemoryEma,
 		singleMemoryBlend = plan.singleMemoryBlend, albumMemoryBlend = plan.albumMemoryBlend,
 		labelFormatMemoryBypassed = plan.labelFormatMemoryBypassed,
-		singleNoiseMultiplier = plan.singleNoiseMultiplier, albumNoiseMultiplier = plan.albumNoiseMultiplier
+		singleNoiseMultiplier = plan.singleNoiseMultiplier, albumNoiseMultiplier = plan.albumNoiseMultiplier,
+		albumCapacityReroute = plan.albumCapacityReroute
 	};
 
 	private ReleasePlan DecideRelease(AILabel label, SimulatedArtist artist, int year, DecisionContext decision) {
@@ -1426,10 +1430,12 @@ public partial class CompetitorManager : Node {
 			: (projectedAlbum > projectedSingle, componentProjectedAlbumWithPromo > projectedAlbum, projectedAlbum);
 		bool albumProjectPressure = useResponsiveMemory &&
 			IsAlbumProjectSharePressureHigh(annualFormatDecisions, annualAlbumProjectsScheduled);
+		bool albumCapacityReroute = false;
 		if (albumWins && !CanScheduleAnnualAlbumProject(
 			annualAlbumProjectsByArtist.GetValueOrDefault((artist.artistId, year)), albumProjectPressure)) {
 			albumWins = false;
 			promoPreferred = false;
+			albumCapacityReroute = true;
 		}
 		// Physical Album-component memory owns format eligibility. Standalone and
 		// promo component memories rank the strategies. Total-project memory observes
@@ -1493,7 +1499,8 @@ public partial class CompetitorManager : Node {
 			albumMarginPerUnit = albumPrior.marginPerUnit,
 			cannibalizationLoss = cannibalizationLoss,
 			expectedPromoLift = expectedPromoLift,
-			promoAdvantage = promoAdvantage
+			promoAdvantage = promoAdvantage,
+			albumCapacityReroute = albumCapacityReroute
 		};
 		return plan;
 	}
@@ -1902,6 +1909,7 @@ public partial class CompetitorManager : Node {
 		public float cannibalizationLoss;
 		public float expectedPromoLift;
 		public float promoAdvantage;
+		public bool albumCapacityReroute;
 		public float singlePreTiltContribution;
 		public float singleFormatTilt;
 		public float albumAffinity;
@@ -2831,6 +2839,7 @@ public sealed class ReleaseStrategyTelemetry {
 		public bool labelFormatMemoryBypassed;
 		public float singleNoiseMultiplier;
 	public float albumNoiseMultiplier;
+	public bool albumCapacityReroute;
 }
 
 public sealed class CalibrationDecisionTelemetry {
@@ -2853,6 +2862,9 @@ public sealed class SupplySelectionTelemetry {
 	public string artistId;
 	public Genre artistIdentity;
 	public Genre chosenProjectGenre;
+	public bool artistIdentityAvailableForNewSupply;
+	public bool annualFloorRequested;
+	public bool annualFloorReroutedToNormalCandidates;
 	public SupplySelectionMode selectionMode;
 }
 

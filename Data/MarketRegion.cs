@@ -115,10 +115,11 @@ public partial class MarketRegion : Resource {
 	public float GetAlbumMarketSize(Genre genre, int year) {
 		if (GenreMarketV2.Enabled && genreMarketV2Live) {
 			AlbumDemandExplanation explanation = GetAlbumDemandExplanation(genre, year);
-			// Segment routing supplies texture, but Album opportunity is accepted at
-			// the established regional baseline.  Normalize from fixed inputs here,
-			// before record quality, awareness, stock, or format tilt can compound it.
-			return explanation.EnabledPreTiltBuyerPool * explanation.OpportunityNormalization;
+			// Album demand must retain the same prospective V2 genre acceptance as
+			// Singles. The former opportunity normalization exactly restored the
+			// legacy buyer pool, canceling authored declines and emerging-genre
+			// growth before quality, awareness, stock, or format tilt could act.
+			return explanation.EnabledPreTiltBuyerPool;
 		}
 		float baseMarket = population * 1000000f;
 		float buyingPopulation = baseMarket * GetBuyingPopulationPercentage();
@@ -163,11 +164,14 @@ public partial class MarketRegion : Resource {
 
 	public float GetAlbumAffinity(Genre genre, int year) {
 		float baseline = genre switch {
-			Genre.Jazz => 0.90f,
+			Genre.Classical => 0.82f,
+			Genre.Psychedelic or Genre.PsychedelicRock => 0.78f,
+			Genre.Jazz => 0.72f,
 			Genre.EasyListening => 0.88f,
 			Genre.Folk => 0.78f,
-			Genre.TraditionalPop => 0.72f,
+			Genre.TraditionalPop => 0.50f,
 			Genre.BossaNova => 0.72f,
+			Genre.Soul or Genre.Funk => 0.30f,
 			Genre.Country or Genre.Gospel or Genre.Blues => 0.58f,
 			Genre.RockAndRoll or Genre.TeenPop or Genre.RnB or Genre.DooWop or Genre.GirlGroup => 0.22f,
 			_ => 0.40f

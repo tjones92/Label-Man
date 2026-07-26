@@ -2,15 +2,29 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 
-const runs = [
+const defaultRuns = [
   { seed: 1001, prefix: "d6-economic-lifecycle-founder-emergence-decade-1001" },
   { seed: 1002, prefix: "d6-economic-lifecycle-founder-emergence-decade-1002" },
   { seed: 2007, prefix: "d6-economic-lifecycle-genre-label-holdout-2007" },
 ];
+const runArgument = process.argv.find((argument) => argument.startsWith("--runs="));
+const runs = runArgument
+  ? runArgument.slice(7).split(",").map((entry) => {
+    const [seed, prefix] = entry.split(":", 2);
+    if (!/^\d+$/.test(seed) || !prefix) throw new Error(`Invalid --runs entry '${entry}'; expected seed:prefix.`);
+    return { seed: Number(seed), prefix };
+  })
+  : defaultRuns;
+const positionalArgs = process.argv.slice(2).filter((argument) => !argument.startsWith("--runs="));
 const years = Array.from({ length: 10 }, (_, index) => 1960 + index);
-const logDirectory = process.argv[2] ?? "SimLogs";
-const annualOutput = process.argv[3] ?? "SimTools/GenreHistoricalBoundsAnnual.csv";
-const summaryOutput = process.argv[4] ?? "SimTools/GenreHistoricalBoundsSummary.md";
+const logDirectory = positionalArgs[0] ?? "SimLogs";
+const annualOutput = positionalArgs[1] ?? "SimTools/GenreHistoricalBoundsAnnual.csv";
+const summaryOutput = positionalArgs[2] ?? "SimTools/GenreHistoricalBoundsSummary.md";
+const shareOutput = positionalArgs[3] ?? "SimTools/GenreAnnualMarketShareTable.md";
+const targetInput = positionalArgs[4] ?? "SimTools/AdjustedHistoricalGenreShareTargets.csv";
+const comparisonOutput = positionalArgs[5] ?? "SimTools/AdjustedHistoricalGenreShareComparison.csv";
+const calibrationOutput = positionalArgs[6] ?? "SimTools/AdjustedHistoricalGenreCalibrationSummary.md";
+const flowOutput = positionalArgs[7] ?? "SimTools/GenreAnnualFlowLedger.csv";
 
 function parseCsvLine(line) {
   const fields = [];
@@ -88,6 +102,21 @@ function millions(value) {
   return `${(value / 1_000_000).toFixed(2)}m`;
 }
 
+function displayGenre(genre) {
+  const names = {
+    RnB: "R&B",
+    BossaNova: "Bossa Nova",
+    Childrens: "Children's",
+    DooWop: "Doo-Wop",
+    ProtoMetal: "Proto-Metal",
+    ProtoPunk: "Proto-Punk",
+    RockAndRoll: "Rock and Roll",
+    SingerSongwriter: "Singer-Songwriter",
+    TexMex: "Tex-Mex",
+  };
+  return names[genre] ?? genre.replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 function correlation(pairs) {
   const leftMean = pairs.reduce((sum, pair) => sum + pair[0], 0) / pairs.length;
   const rightMean = pairs.reduce((sum, pair) => sum + pair[1], 0) / pairs.length;
@@ -129,6 +158,7 @@ await readCsv(catalogFile, (fields, index) => {
 });
 
 const metrics = new Map();
+const selectionFlows = new Map();
 const annualTotals = new Map();
 const regionalTotals = new Map();
 const regionalGenreUnits = new Map();
@@ -143,6 +173,10 @@ for (const run of runs) {
         retainedSupply: 0,
         transitionSupply: 0,
         floorSupply: 0,
+        unavailableIdentityTransitions: 0,
+        annualFloorRequested: 0,
+        annualFloorReroutes: 0,
+        albumCapacityReroutes: 0,
         decisions: 0,
         singleDecisions: 0,
         albumDecisions: 0,
@@ -179,6 +213,21 @@ for (const run of runs) {
     if (mode === "Retained") metric.retainedSupply++;
     else if (mode === "WeightedTransition") metric.transitionSupply++;
     else if (mode === "AnnualFloor") metric.floorSupply++;
+    const identityAvailable = index.artistIdentityAvailableForNewSupply == null ||
+      fields[index.artistIdentityAvailableForNewSupply] !== "false";
+    if (!identityAvailable && mode !== "Retained") metric.unavailableIdentityTransitions++;
+    if (fields[index.annualFloorRequested] === "true") metric.annualFloorRequested++;
+    if (fields[index.annualFloorReroutedToNormalCandidates] === "true") metric.annualFloorReroutes++;
+    const flowKey = [run.seed, year, fields[index.artistIdentity], fields[index.chosenProjectGenre], mode].join("|");
+    const flow = selectionFlows.get(flowKey) ?? {
+      seed: run.seed, year, fromGenre: fields[index.artistIdentity], toGenre: fields[index.chosenProjectGenre], selectionMode: mode,
+      opportunities: 0, unavailableIdentity: 0, annualFloorRequested: 0, annualFloorReroutes: 0,
+    };
+    flow.opportunities++;
+    if (!identityAvailable) flow.unavailableIdentity++;
+    if (fields[index.annualFloorRequested] === "true") flow.annualFloorRequested++;
+    if (fields[index.annualFloorReroutedToNormalCandidates] === "true") flow.annualFloorReroutes++;
+    selectionFlows.set(flowKey, flow);
   });
 
   await readCsv(file("release-strategy"), (fields, index) => {
@@ -193,6 +242,7 @@ for (const run of runs) {
     if (strategy === "OrphanSingle") metric.orphanDecisions++;
     else if (strategy === "AlbumStandalone") metric.standaloneDecisions++;
     else if (strategy === "AlbumWithPromo") metric.promoDecisions++;
+    if (fields[index.albumCapacityReroute] === "true") metric.albumCapacityReroutes++;
   });
 
   await readCsv(file("genre-market-weekly"), (fields, index) => {
@@ -255,6 +305,7 @@ for (const row of annualRows) {
 const annualHeaders = [
   "seed", "year", "genre", "family", "emergenceYear", "deathYear", "singleOrientation", "authoredBaseline",
   "supply", "retainedSupply", "transitionSupply", "floorSupply",
+  "unavailableIdentityTransitions", "annualFloorRequested", "annualFloorReroutes", "albumCapacityReroutes",
   "decisions", "singleDecisions", "albumDecisions", "decisionSingleSharePct",
   "orphanDecisions", "standaloneDecisions", "promoDecisions",
   "fulfilledUnits", "marketSharePct", "backorders", "backorderRatePct", "unitsPerSupply",
@@ -311,7 +362,7 @@ const genreFormatPairs = catalog.map((profile) => {
 });
 const markdown = [];
 markdown.push("# Cross-seed genre historical-bounds summary", "");
-markdown.push("Generated from the immutable 522-week seeds 1001, 1002, and 2007. `geography-metrics.csv` owns fulfilled commercial units; `completed-week-settlement.csv` supplies the independent Single/Album unit split; `AllSegments` rows avoid audience-segment double counting.", "");
+markdown.push(`Generated from ${runs.map((run) => `seed ${run.seed}`).join(", ")}. \`geography-metrics.csv\` owns fulfilled commercial units; \`completed-week-settlement.csv\` supplies the independent Single/Album unit split; \`AllSegments\` rows avoid audience-segment double counting.`, "");
 markdown.push(`Largest annual canonical share: **${largestShare.genre} ${largestShare.seed}/${largestShare.year}, ${largestShare.marketSharePct.toFixed(2)}%**, below the 35% cap.`, "");
 markdown.push(`Across the 42 pooled active-genre portfolios, authored Single orientation correlates only **${correlation(genreFormatPairs).toFixed(3)}** with actual Single decision share. This is a diagnostic of realized format allocation, not a replacement for the fixed-input conservation probe.`, "");
 markdown.push("The table is diagnostic. Authored-peak distance is not automatically a binding historical failure; it identifies genres requiring human review alongside the explicit Directive 5 gates.", "");
@@ -401,5 +452,122 @@ for (const run of runs) {
 }
 
 fs.writeFileSync(summaryOutput, `${markdown.join("\n")}\n`);
+
+const shareMarkdown = [
+  "# Annual genre market share, 1960-1969",
+  "",
+  "Mean share of annual fulfilled units across immutable seeds 1001, 1002, and 2007. Each seed is normalized to its own annual market before the three percentages are averaged. Values are rounded to two decimal places, so columns may differ slightly from 100%.",
+  "",
+  `| Genre | ${years.join(" | ")} |`,
+  `| --- | ${years.map(() => "---:").join(" | ")} |`,
+];
+for (const profile of catalog) {
+  const shares = years.map((year) => {
+    const values = runs.map((run) => getMetric(run.seed, year, profile.genre).marketSharePct);
+    return (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2);
+  });
+  shareMarkdown.push(`| ${displayGenre(profile.genre)} | ${shares.join(" | ")} |`);
+}
+fs.writeFileSync(shareOutput, `${shareMarkdown.join("\n")}\n`);
+
+const flowHeaders = [
+  "seed", "year", "genre", "eligibleArtistProjectOpportunities", "retainedSelections", "transitionSelections", "annualFloorSelections",
+  "unavailableIdentityTransitions", "annualFloorRequested", "annualFloorReroutes", "albumCapacityReroutes",
+  "singleDecisions", "albumDecisions", "orphanDecisions", "promoDecisions", "fulfilledUnits", "settlementSingleUnits", "settlementAlbumUnits",
+];
+const flowLines = [flowHeaders.join(",")];
+for (const row of annualRows) {
+  flowLines.push([
+    row.seed, row.year, row.genre, row.supply, row.retainedSupply, row.transitionSupply, row.floorSupply,
+    row.unavailableIdentityTransitions, row.annualFloorRequested, row.annualFloorReroutes, row.albumCapacityReroutes,
+    row.singleDecisions, row.albumDecisions, row.orphanDecisions, row.promoDecisions, row.fulfilledUnits,
+    row.settlementSingleUnits, row.settlementAlbumUnits,
+  ].map(csv).join(","));
+}
+fs.writeFileSync(flowOutput, `${flowLines.join("\n")}\n`);
+const transitionOutput = flowOutput.replace(/\.csv$/i, "-transitions.csv");
+const transitionHeaders = ["seed", "year", "fromGenre", "toGenre", "selectionMode", "opportunities", "unavailableIdentity", "annualFloorRequested", "annualFloorReroutes"];
+const transitionLines = [transitionHeaders.join(",")];
+for (const flow of [...selectionFlows.values()].sort((left, right) => left.seed - right.seed || left.year - right.year ||
+  left.fromGenre.localeCompare(right.fromGenre) || left.toGenre.localeCompare(right.toGenre) || left.selectionMode.localeCompare(right.selectionMode))) {
+  transitionLines.push(transitionHeaders.map((header) => csv(flow[header])).join(","));
+}
+fs.writeFileSync(transitionOutput, `${transitionLines.join("\n")}\n`);
+
+// Historical targets are analysis-only inputs. The game runtime never reads
+// this table; it exists solely to keep calibration evidence reproducible.
+if (fs.existsSync(targetInput)) {
+  const targets = new Map();
+  await readCsv(targetInput, (fields, index) => {
+    const name = fields[index.genre];
+    const targetAliases = { "British Beat (Merseybeat)": "British Beat" };
+    const profile = catalog.find((candidate) => displayGenre(candidate.genre) === (targetAliases[name] ?? name));
+    if (!profile) throw new Error(`Target genre '${name}' has no canonical catalog profile.`);
+    targets.set(profile.genre, Object.fromEntries(years.map((year) => [year, number(fields[index[String(year)]])] )));
+  });
+  if (targets.size !== catalog.length) {
+    throw new Error(`Expected targets for ${catalog.length} canonical genres, found ${targets.size}.`);
+  }
+
+  const meanShare = new Map();
+  for (const profile of catalog) {
+    for (const year of years) {
+      const values = runs.map((run) => getMetric(run.seed, year, profile.genre).marketSharePct);
+      meanShare.set(`${profile.genre}|${year}`, values.reduce((sum, value) => sum + value, 0) / values.length);
+    }
+  }
+  const comparisonHeaders = ["genre", "family", "year", "targetSharePct", "currentThreeSeedMeanSharePct", "deltaPctPoints"];
+  const comparisonLines = [comparisonHeaders.join(",")];
+  for (const profile of catalog) {
+    for (const year of years) {
+      const target = targets.get(profile.genre)[year];
+      const current = meanShare.get(`${profile.genre}|${year}`);
+      comparisonLines.push([displayGenre(profile.genre), profile.family, year, target, current, current - target].map(csv).join(","));
+    }
+  }
+  fs.writeFileSync(comparisonOutput, `${comparisonLines.join("\n")}\n`);
+
+  function firstNonzero(values) {
+    return years.find((year) => values[year] > 0) ?? "-";
+  }
+  function peak(values) {
+    return years.reduce((best, year) => values[year] > values[best] ? year : best, years[0]);
+  }
+  function shape(values) {
+    const first = values[years[0]];
+    const last = values[years.at(-1)];
+    const peakYear = peak(values);
+    if (peakYear !== years[0] && peakYear !== years.at(-1) && values[peakYear] - Math.max(first, last) >= .75) return "finite wave";
+    if (last - first >= .75) return "rise";
+    if (first - last >= .75) return "fall";
+    return "stable niche";
+  }
+  const calibration = [
+    "# Adjusted historical genre calibration summary",
+    "",
+    `Analysis-only comparison of separately normalized annual means for ${runs.map((run) => `seed ${run.seed}`).join(", ")} against \`AdjustedHistoricalGenreShareTargets.csv\`. Positive bias means the simulation exceeds the target.`,
+    "",
+    "| Genre | MAE | Signed bias | Worst year (target -> current) | First nonzero target/current | Peak target/current | 1960->69 target/current | Target shape |",
+    "| --- | ---: | ---: | --- | --- | --- | --- | --- |",
+  ];
+  for (const profile of catalog) {
+    const target = targets.get(profile.genre);
+    const current = Object.fromEntries(years.map((year) => [year, meanShare.get(`${profile.genre}|${year}`)]));
+    const deltas = years.map((year) => current[year] - target[year]);
+    const mae = deltas.reduce((sum, value) => sum + Math.abs(value), 0) / years.length;
+    const bias = deltas.reduce((sum, value) => sum + value, 0) / years.length;
+    const worstYear = years.reduce((best, year) => Math.abs(current[year] - target[year]) > Math.abs(current[best] - target[best]) ? year : best, years[0]);
+    calibration.push(`| ${displayGenre(profile.genre)} | ${mae.toFixed(2)} | ${bias.toFixed(2)} | ${worstYear}: ${target[worstYear].toFixed(2)} -> ${current[worstYear].toFixed(2)} | ${firstNonzero(target)}/${firstNonzero(current)} | ${peak(target)}/${peak(current)} | ${(target[1969] - target[1960]).toFixed(2)}/${(current[1969] - current[1960]).toFixed(2)} | ${shape(target)} |`);
+  }
+  fs.writeFileSync(calibrationOutput, `${calibration.join("\n")}\n`);
+}
+
 console.log(`Wrote ${annualRows.length} annual rows to ${annualOutput}`);
 console.log(`Wrote ${catalog.length} genre summaries to ${summaryOutput}`);
+console.log(`Wrote ${catalog.length} genre share rows to ${shareOutput}`);
+console.log(`Wrote annual genre flow ledger to ${flowOutput}`);
+console.log(`Wrote genre transition ledger to ${transitionOutput}`);
+if (fs.existsSync(targetInput)) {
+  console.log(`Wrote target comparison to ${comparisonOutput}`);
+  console.log(`Wrote target calibration summary to ${calibrationOutput}`);
+}

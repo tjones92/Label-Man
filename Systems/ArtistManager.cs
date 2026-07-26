@@ -14,6 +14,19 @@ public partial class ArtistManager : Node {
 		(.35f, Genre.DooWop), (.55f, Genre.GirlGroup), (.75f, Genre.Motown),
 		(.85f, Genre.Soul), (.92f, Genre.RnB), (1f, Genre.Gospel)
 	};
+	// Enabled-only 1960 commercial prior. The first measured pass showed that a
+	// literal share prior over-seeds genres carried by major-label Album channels.
+	// These cumulative weights are the fixed conversion-aware second-pass prior;
+	// no realized state or analysis file is read at runtime. It deliberately
+	// excludes Surf Rock and Blues Rock before their authored emergence.
+	private static readonly (float Upper, Genre Genre)[] EnabledInitial1960GenreBands = {
+		(.0900f, Genre.TraditionalPop), (.2554f, Genre.RockAndRoll), (.3589f, Genre.TeenPop),
+		(.5021f, Genre.RnB), (.5659f, Genre.Country), (.7151f, Genre.Soul),
+		(.7601f, Genre.EasyListening), (.8023f, Genre.Jazz), (.8382f, Genre.DooWop),
+		(.8935f, Genre.Folk), (.9295f, Genre.Blues), (.9599f, Genre.Classical),
+		(.9762f, Genre.Gospel), (.9853f, Genre.LatinPop), (.9932f, Genre.Comedy),
+		(.9977f, Genre.Childrens), (1f, Genre.TexMex)
+	};
 	public static ArtistManager Instance { get; private set; }
 	
 	[ExportGroup("Configuration")]
@@ -457,7 +470,8 @@ public sealed class LaborMarketWeeklySnapshot {
 	}
 	
 	private Genre GetRandomGenre() {
-		return GetLegacyInitialGenreForProbe(Randf(), vocalGroup: false);
+		float roll = Randf();
+		return GenreMarketV2.Enabled ? GetEnabledInitialGenreForProbe(roll) : GetLegacyInitialGenreForProbe(roll, vocalGroup: false);
 	}
 
 	internal static Genre GetLegacyInitialGenreForProbe(float roll, bool vocalGroup) {
@@ -466,16 +480,20 @@ public sealed class LaborMarketWeeklySnapshot {
 		return (vocalGroup ? InitialVocalGenreBands : InitialGeneralGenreBands)[^1].Genre;
 	}
 
+	internal static Genre GetEnabledInitialGenreForProbe(float roll) {
+		foreach ((float upper, Genre genre) in EnabledInitial1960GenreBands)
+			if (roll < upper) return genre;
+		return EnabledInitial1960GenreBands[^1].Genre;
+	}
+
 	/// <summary>
-	/// Exact expected primary-identity prior of the frozen 1960 pool. The general
-	/// picker supplies 82% of artists and the vocal picker 18%; Girl Group's
-	/// three-way secondary draw maps one-third to Soul and two-thirds to Teen Pop.
+	/// Exact expected primary-identity prior of the enabled 1960 pool. Every
+	/// artist type reads the same commercial prior from one existing genre roll.
 	/// This is a fixed prospective cohort, not a realized release-count input.
 	/// </summary>
 	internal static IReadOnlyDictionary<Genre, float> GetEnabledInitialPrimaryGenrePrior() {
 		var result = new Dictionary<Genre, float>();
-		AddInitialBandWeights(result, InitialGeneralGenreBands, .82f);
-		AddInitialBandWeights(result, InitialVocalGenreBands, .18f);
+		AddInitialBandWeights(result, EnabledInitial1960GenreBands, 1f);
 		return result;
 	}
 
@@ -496,7 +514,8 @@ public sealed class LaborMarketWeeklySnapshot {
 	}
 
 	private Genre GetVocalGroupGenre() {
-		return GetLegacyInitialGenreForProbe(Randf(), vocalGroup: true);
+		float roll = Randf();
+		return GenreMarketV2.Enabled ? GetEnabledInitialGenreForProbe(roll) : GetLegacyInitialGenreForProbe(roll, vocalGroup: true);
 	}
 
 	/// <summary>Draws the legacy secondary once, then applies deterministic enabled-path migration.</summary>
@@ -512,19 +531,57 @@ public sealed class LaborMarketWeeklySnapshot {
 	private Genre GetRelatedGenre(Genre primary) {
 		if (GenreMarketV2.Enabled && primary == Genre.Soul) return RandomPick(Genre.RnB, Genre.Gospel, Genre.TeenPop);
 		return primary switch {
+			Genre.TraditionalPop => RandomPick(Genre.EasyListening, Genre.Jazz, Genre.TeenPop),
+			Genre.BaroquePop => RandomPick(Genre.SunshinePop, Genre.FolkRock, Genre.TraditionalPop),
+			Genre.SunshinePop => RandomPick(Genre.BaroquePop, Genre.TraditionalPop, Genre.TeenPop),
+			Genre.Bubblegum => RandomPick(Genre.TeenPop, Genre.SunshinePop, Genre.RockAndRoll),
+			Genre.BritishPop => RandomPick(Genre.BritishBeat, Genre.TeenPop, Genre.RockAndRoll),
 			Genre.RockAndRoll => RandomPick(Genre.RnB, Genre.TeenPop, Genre.BluesRock),
+			Genre.SurfRock => RandomPick(Genre.RockAndRoll, Genre.GarageRock, Genre.TeenPop),
+			Genre.GarageRock => RandomPick(Genre.SurfRock, Genre.BritishBeat, Genre.ProtoPunk),
+			Genre.PsychedelicRock => RandomPick(Genre.AcidRock, Genre.GarageRock, Genre.FolkRock),
+			Genre.AcidRock => RandomPick(Genre.PsychedelicRock, Genre.ProgressiveRock, Genre.BluesRock),
+			Genre.HardRock => RandomPick(Genre.BluesRock, Genre.ProtoMetal, Genre.AcidRock),
+			Genre.ProtoMetal => RandomPick(Genre.HardRock, Genre.BluesRock, Genre.AcidRock),
+			Genre.ProgressiveRock => RandomPick(Genre.AcidRock, Genre.PsychedelicRock, Genre.BaroquePop),
+			Genre.BluesRock => RandomPick(Genre.Blues, Genre.BritishBlues, Genre.RockAndRoll),
+			Genre.ProtoPunk => RandomPick(Genre.GarageRock, Genre.RockAndRoll, Genre.HardRock),
+			Genre.BritishBeat => RandomPick(Genre.GarageRock, Genre.RockAndRoll, Genre.BritishPop),
+			Genre.BritishBlues => RandomPick(Genre.BluesRock, Genre.Blues, Genre.BritishBeat),
 			Genre.RnB => RandomPick(Genre.Soul, Genre.DooWop, Genre.Gospel),
 			Genre.Soul => RandomPick(Genre.RnB, Genre.Motown, Genre.Gospel),
+			Genre.Funk => RandomPick(Genre.Soul, Genre.Boogaloo, Genre.RnB),
 			Genre.DooWop => RandomPick(Genre.RnB, Genre.TeenPop, Genre.Soul),
 			Genre.TeenPop => RandomPick(Genre.RockAndRoll, Genre.DooWop, Genre.TraditionalPop),
 			Genre.Country => RandomPick(Genre.Folk, Genre.RockAndRoll, Genre.Gospel),
+			Genre.CountryRock => RandomPick(Genre.Country, Genre.FolkRock, Genre.RockAndRoll),
 			Genre.Folk => RandomPick(Genre.Country, Genre.FolkRock, Genre.TraditionalPop),
+			Genre.FolkRock => RandomPick(Genre.Folk, Genre.SingerSongwriter, Genre.BaroquePop),
+			Genre.ContemporaryFolk => RandomPick(Genre.Folk, Genre.SingerSongwriter, Genre.Country),
+			Genre.SingerSongwriter => RandomPick(Genre.FolkRock, Genre.Folk, Genre.ContemporaryFolk),
 			Genre.Jazz => RandomPick(Genre.TraditionalPop, Genre.Soul, Genre.RnB),
+			Genre.BossaNova => RandomPick(Genre.Jazz, Genre.LatinPop, Genre.EasyListening),
 			Genre.Gospel => RandomPick(Genre.Soul, Genre.RnB, Genre.Country),
+			Genre.EasyListening => RandomPick(Genre.TraditionalPop, Genre.Jazz, Genre.LatinPop),
+			Genre.Blues => RandomPick(Genre.RnB, Genre.Jazz, Genre.RockAndRoll),
+			Genre.Classical => RandomPick(Genre.Jazz, Genre.TraditionalPop, Genre.EasyListening),
+			Genre.Boogaloo => RandomPick(Genre.LatinPop, Genre.Soul, Genre.Funk),
+			Genre.LatinPop => RandomPick(Genre.TexMex, Genre.BossaNova, Genre.Boogaloo),
+			Genre.Ska => RandomPick(Genre.LatinPop, Genre.Soul, Genre.RnB),
+			Genre.Rocksteady => RandomPick(Genre.Ska, Genre.Soul, Genre.LatinPop),
+			Genre.Reggae => RandomPick(Genre.Rocksteady, Genre.Ska, Genre.Soul),
+			Genre.Comedy => RandomPick(Genre.TraditionalPop, Genre.Childrens, Genre.TeenPop),
+			Genre.Childrens => RandomPick(Genre.TraditionalPop, Genre.Comedy, Genre.TeenPop),
+			Genre.TexMex => RandomPick(Genre.Country, Genre.LatinPop, Genre.Blues),
 			Genre.GirlGroup => RandomPick(Genre.Motown, Genre.TeenPop, Genre.Soul),
 			Genre.Motown => RandomPick(Genre.Soul, Genre.RnB, Genre.GirlGroup),
-			_ => Genre.TraditionalPop
+			_ => GetTraditionalPopFallback(primary)
 		};
+	}
+
+	private static Genre GetTraditionalPopFallback(Genre primary) {
+		GenreSupplyService.ReportTraditionalPopFallback("ArtistManager.GetRelatedGenre", primary);
+		return Genre.TraditionalPop;
 	}
 	
 	private Genre RandomPick(params Genre[] options) => options[RandInt(0, options.Length - 1)];
@@ -837,6 +894,11 @@ public sealed class LaborMarketWeeklySnapshot {
 	internal static Genre ChooseRuntimeSecondaryGenreForProbe(Genre primary, int year, ulong seed) {
 		var manager = new ArtistManager { populationRng = new RandomNumberGenerator { Seed = seed }, generatingRuntimePopulation = true };
 		try { return manager.ChooseRuntimeSecondaryGenre(primary, year); }
+		finally { manager.generatingRuntimePopulation = false; }
+	}
+	internal static Genre GetEnabledRelatedGenreForProbe(Genre primary, ulong seed) {
+		var manager = new ArtistManager { populationRng = new RandomNumberGenerator { Seed = seed }, generatingRuntimePopulation = true };
+		try { return manager.GetRelatedGenre(primary); }
 		finally { manager.generatingRuntimePopulation = false; }
 	}
 	private SimulatedArtist GenerateRuntimeArtistForProbeCore(int year) {

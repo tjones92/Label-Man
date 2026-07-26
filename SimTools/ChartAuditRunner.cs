@@ -169,6 +169,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter formatDecisionCohortWriter;
 	private StreamWriter formatDecisionCohortDetailWriter;
 	private StreamWriter supplySelectionWriter;
+	private StreamWriter traditionalPopFallbackWriter;
 	private StreamWriter genreEventsWriter;
 	private StreamWriter specialProductsWriter;
 	// Enabled-only: absent from disabled runs so the frozen 45-stream boundary is unchanged.
@@ -325,6 +326,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnReleaseOutcome += OnReleaseOutcome;
 			CompetitorManager.Instance.OnFormatMemoryRevision += OnFormatMemoryRevision;
 			CompetitorManager.Instance.OnSupplySelection += OnSupplySelection;
+			GenreSupplyService.OnTraditionalPopFallback += OnTraditionalPopFallback;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			WriteDistanceSubstrateRows();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
@@ -844,6 +846,7 @@ public partial class ChartAuditRunner : Node {
 		formatMixWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-mix.csv"));
 		retiredTrackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retired-track-availability.csv"));
 		releaseStrategyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-strategy.csv"));
+		traditionalPopFallbackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-traditional-pop-fallbacks.csv"));
 		releaseOutcomeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-outcomes.csv"));
 		if (GenreMarketV2.Enabled) {
 			singleReleaseLaneWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-release-lanes.csv"));
@@ -925,7 +928,7 @@ public partial class ChartAuditRunner : Node {
 		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
-		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,expectedPromoLift,expectedPromoSingleNet,promoAdvantage");
+		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumCapacityReroute");
 		releaseOutcomeWriter.WriteLine("week,year,labelId,recordId,format,genre,memoryEligible,lifetimeLabelNet,sunkProductionCost,realizedNet");
 		singleReleaseLaneWriter?.WriteLine("week,year,recordId,projectId,releaseLane,labelId,tier,artistId,genre,careerState,hookStrength,productionQuality,danceability,quality,enabledOpportunityMass,acceptedOpportunityMass,cohortNormalizer,normalizerSource,coldStartFallback");
 		singleDemandStagesWriter?.WriteLine("week,year,recordId,releaseLane,region,age,potentialAudience,baselineAwareness,earnedDiscoveryExposure,awareBuyers,intrinsicQualityFactor,acceptanceFactor,formatFactor,intrinsicConversionRate,rawDemand,serviceableDemand,clearedUnits,chartSignal,momentumSignal,radioSignal,inventoryFulfillmentRate,marketFulfillmentRate");
@@ -952,7 +955,8 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionExplanationWriter.WriteLine("week,year,recordId,labelId,artistId,genre,rawSecondaryGenre,careerState,careerBand,chosenFormat,singlePreTiltContribution,albumPreTiltContribution,albumAffinity,acceptedOpportunity,singleFormatTilt,albumFormatTilt,singleProductionCost,albumProductionCost,singleMemoryEma,albumMemoryEma,confidenceSingle,confidenceAlbum,singleMemoryBlend,albumMemoryBlend,singleNoise,albumNoise,finalSingleMargin,finalAlbumMargin,memoryScope,memoryScopeGenre");
 		formatDecisionCohortWriter.WriteLine("year,genre,format,decisions,realizedUnits,realizedUnitsPerDecision");
 		formatDecisionCohortDetailWriter.WriteLine("year,recordId,rawPrimaryGenre,rawSecondaryGenre,format,realizedUnits");
-		supplySelectionWriter.WriteLine("week,year,labelId,artistId,artistIdentity,chosenProjectGenre,selectionMode");
+			supplySelectionWriter.WriteLine("week,year,labelId,artistId,artistIdentity,chosenProjectGenre,artistIdentityAvailableForNewSupply,annualFloorRequested,annualFloorReroutedToNormalCandidates,selectionMode");
+			traditionalPopFallbackWriter.WriteLine("week,year,source,requestedGenre");
 		genreEventsWriter.WriteLine("seed,enabled,year,month,week,eventType,sourceRecordId,recipientGenreId,donorGenreId,field,amount,detail");
 		specialProductsWriter.WriteLine("seed,enabled,year,recordId,subtype,externalProfile,correlatedProfileBucket,costs,promotion,tieIn,units,chartResult,catalogTail,financialReconciliation");
 		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
@@ -1259,7 +1263,17 @@ public partial class ChartAuditRunner : Node {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		supplySelectionWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(selection.labelId),
-			Csv(selection.artistId), Csv(selection.artistIdentity.ToString()), Csv(selection.chosenProjectGenre.ToString()), Csv(selection.selectionMode.ToString())
+			Csv(selection.artistId), Csv(selection.artistIdentity.ToString()), Csv(selection.chosenProjectGenre.ToString()),
+			selection.artistIdentityAvailableForNewSupply ? "true" : "false", selection.annualFloorRequested ? "true" : "false",
+			selection.annualFloorReroutedToNormalCandidates ? "true" : "false", Csv(selection.selectionMode.ToString())
+		}));
+	}
+
+	private void OnTraditionalPopFallback(GenreSupplyService.TraditionalPopFallbackTelemetry fallback) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		traditionalPopFallbackWriter?.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(fallback.Source), Csv(fallback.RequestedGenre.ToString())
 		}));
 	}
 
@@ -1379,7 +1393,8 @@ public partial class ChartAuditRunner : Node {
 			strategy.albumStrategyEvaluated ? F(strategy.cannibalizationLoss) : string.Empty,
 			strategy.albumStrategyEvaluated ? F(strategy.expectedPromoLift) : string.Empty,
 			strategy.albumStrategyEvaluated ? F(strategy.expectedPromoSingleNet) : string.Empty,
-			strategy.albumStrategyEvaluated ? F(strategy.promoAdvantage) : string.Empty
+			strategy.albumStrategyEvaluated ? F(strategy.promoAdvantage) : string.Empty,
+			strategy.albumCapacityReroute ? "true" : "false"
 		}));
 		priorCostAssumptionWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
@@ -2657,6 +2672,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortWriter?.Flush();
 		formatDecisionCohortDetailWriter?.Flush();
 		supplySelectionWriter?.Flush();
+		traditionalPopFallbackWriter?.Flush();
 	}
 
 	private void WriteAnnualFormatMixRows() {
@@ -2872,6 +2888,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortWriter?.Dispose();
 		formatDecisionCohortDetailWriter?.Dispose();
 		supplySelectionWriter?.Dispose();
+		traditionalPopFallbackWriter?.Dispose();
 		genreEventsWriter?.Dispose();
 		specialProductsWriter?.Dispose();
 		rosterLifecycleWriter?.Dispose();
@@ -2939,6 +2956,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortWriter = null;
 		formatDecisionCohortDetailWriter = null;
 		supplySelectionWriter = null;
+		traditionalPopFallbackWriter = null;
 		genreEventsWriter = null;
 		specialProductsWriter = null;
 		rosterLifecycleWriter = null;

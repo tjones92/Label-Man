@@ -378,7 +378,7 @@ public partial class ChartManager : Node {
 			Genre.DooWop => year <= 1965,
 			Genre.RockAndRoll => true,
 			Genre.TeenPop => true,
-			Genre.Soul => year >= 1961,
+			Genre.Soul => year >= 1960,
 			Genre.GirlGroup => year >= 1961 && year <= 1966,
 			Genre.Motown => year >= 1961,
 			Genre.SurfRock => year >= 1962 && year <= 1966,

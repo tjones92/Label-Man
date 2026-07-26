@@ -86,9 +86,8 @@ public static class GenreMarketV2ProbeSuite {
 			"Single supplied-portfolio reconciliation is neutral at the 1960 anchor");
 		Require(Math.Abs(single1964.Normalization - 1f) < .000001f,
 			"Single supplied-portfolio reconciliation preserves the pre-expansion boundary");
-		Require(single1968.Normalization >= .90f && single1968.Normalization <= 1.10f &&
-			single1968.Normalization < single1960.Normalization,
-			"Single supplied-portfolio reconciliation is bounded and corrects late drift");
+		Require(single1968.Normalization >= .90f && single1968.Normalization <= 1.10f,
+			"Single supplied-portfolio reconciliation remains bounded after the 1960 Soul portfolio correction");
 		Require(Math.Abs(GenreAcceptanceService.GetLiveSingleOpportunityNormalization(new[] { neutral }, 1968f, live: false) - 1f) < .000001f,
 			"disabled Single supplied-portfolio reconciliation is neutral");
 		// Fixed-input Album seam: compare the routed calculation with the accepted
@@ -99,8 +98,8 @@ public static class GenreMarketV2ProbeSuite {
 		foreach (Genre genre in albumProbeGenres) {
 			MarketRegion.AlbumDemandExplanation album = neutral.GetAlbumDemandExplanation(genre, 1960f);
 			float enabledPool = neutral.GetAlbumMarketSize(genre, 1960);
-			Require(Math.Abs(enabledPool - album.AcceptedPreTiltBuyerPool) < .001f,
-				"Album accepted pre-tilt buyer-pool reconciliation " + genre);
+			Require(Math.Abs(enabledPool - album.EnabledPreTiltBuyerPool) < .001f,
+				"Album live buyer pool retains routed V2 acceptance " + genre);
 			float acceptedAlbumOpportunity = neutral.GetAcceptedAlbumOpportunityWeight(genre, 1960f);
 			float singleTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Single, 1960f, acceptedAlbumOpportunity);
 			float albumTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Album, 1960f, acceptedAlbumOpportunity);
@@ -146,17 +145,18 @@ public static class GenreMarketV2ProbeSuite {
 		Require(!GenreSupplyService.IsAvailableForNewSupply(Genre.PsychedelicRock, 1965f), "pre-emergent supply unavailable");
 		Require(GenreSupplyService.CanRetainExistingProjectGenre(Genre.PsychedelicRock, 1965f),
 			"existing pre-emergent identity retains seed-scene genre");
-		Require(GenreSupplyService.CanRetainExistingProjectGenre(Genre.Soul, 1960f),
-			"existing Soul identity retained before commercial emergence");
+		Require(GenreSupplyService.IsAvailableForNewSupply(Genre.Soul, 1960f) &&
+			GenreSupplyService.CanRetainExistingProjectGenre(Genre.Soul, 1960f),
+			"Soul supply and existing identity begin at authored 1960 emergence");
 		Require(GenreSupplyService.IsAvailableForNewSupply(Genre.PsychedelicRock, 1966f), "emerging supply available");
 		Require(!GenreSupplyService.IsAvailableForNewSupply(Genre.DooWop, 1966f), "legacy supply unavailable");
 		Require(!GenreSupplyService.IsAvailableForNewSupply(Genre.BritishBeat, 1962f), "British supply absent before bridge");
 		Require(!GenreSupplyService.CanRetainExistingProjectGenre(Genre.BritishBeat, 1962f),
 			"British identity cannot bypass import bridge");
-		Require(GenreSupplyService.IsAvailableForNewSupply(Genre.BritishBeat, 1964f), "British Beat bridge begins in 1964");
+		Require(GenreSupplyService.IsAvailableForNewSupply(Genre.BritishBeat, 1963f), "British Beat bridge begins at authored 1963 emergence");
 		Require(GenreSupplyService.IsAvailableForNewSupply(Genre.BritishPop, 1964f), "British Pop bridge begins in 1964");
-		Require(!GenreSupplyService.IsAvailableForNewSupply(Genre.BritishBlues, 1964f) &&
-			GenreSupplyService.IsAvailableForNewSupply(Genre.BritishBlues, 1965f), "British Blues bridge timing");
+		Require(!GenreSupplyService.IsAvailableForNewSupply(Genre.BritishBlues, 1963f) &&
+			GenreSupplyService.IsAvailableForNewSupply(Genre.BritishBlues, 1964f), "British Blues bridge begins at authored 1964 emergence");
 		Require(GenreSupplyService.GetAvailableGenres(1960f).Contains(Genre.Blues), "Blues supply included");
 		Require(GenreSupplyService.GetAvailableGenres(1960f).Contains(Genre.Classical), "Classical supply included");
 		Require(GenreSupplyService.GetAvailableGenres(1960f).Contains(Genre.Childrens), "Childrens supply included");
@@ -169,9 +169,14 @@ public static class GenreMarketV2ProbeSuite {
 		Require(!GenreSupplyService.IsAvailableForNewSupply(Genre.DooWop, 1967f) &&
 			GenreSupplyService.IsEligibleExistingArtistForRelease(legacyArtist) &&
 			GenreSupplyService.CanRetainExistingProjectGenre(Genre.DooWop, 1967f), "legacy artist release and project transition eligibility");
-		Require(GenreSupplyService.ChooseGenre(null, legacyArtist, null, 1967f, null, .119f) == Genre.DooWop &&
-			GenreSupplyService.ChooseGenre(null, legacyArtist, null, 1967f, null, .121f) != Genre.DooWop,
-			"legacy identity retention threshold");
+		float dooWopTail = GenreSupplyService.GetProjectIdentityRetentionForPortfolio(Genre.DooWop, 1967f);
+		float rnbTail = GenreSupplyService.GetProjectIdentityRetentionForPortfolio(Genre.RnB, 1966f);
+		float rockAndRoll1960 = GenreSupplyService.GetProjectIdentityRetentionForPortfolio(Genre.RockAndRoll, 1960f);
+		float rockAndRoll1969 = GenreSupplyService.GetProjectIdentityRetentionForPortfolio(Genre.RockAndRoll, 1969f);
+		Require(dooWopTail > .12f && rnbTail > .12f && rockAndRoll1969 < rockAndRoll1960 &&
+			GenreSupplyService.ChooseGenre(null, legacyArtist, null, 1967f, null, dooWopTail - .001f) == Genre.DooWop &&
+			GenreSupplyService.ChooseGenre(null, legacyArtist, null, 1967f, null, dooWopTail + .001f) != Genre.DooWop,
+			"lifecycle retention provides a smooth legacy tail and no-death decline");
 		ProbeProspectivePsychedelicCompatibility();
 		var legacyOnlyLabel = new AILabel { roster = new List<SimulatedArtist> { legacyArtist } };
 		Require(legacyOnlyLabel.CountArtistsEligibleForRelease(1967) == 1, "legacy-only roster has no phantom release roll");
@@ -186,10 +191,10 @@ public static class GenreMarketV2ProbeSuite {
 		MarketRegion supplyEastCoast = CreateRegion("eastcoast", fm: true, integration: .5f, church: .25f);
 		supplySouthwest.SetGenreMarketV2Live(true);
 		supplyEastCoast.SetGenreMarketV2Live(true);
-		float routedSupplyRatio = (.20f + .80f * supplySouthwest.GetGenreAcceptance(Genre.Country, 1964f)) /
-			(.20f + .80f * supplyEastCoast.GetGenreAcceptance(Genre.Country, 1964f));
-		float protectedSupplyRatio = (.20f + .80f * GenreSupplyService.GetProspectiveSupplyAcceptanceForProbe(Genre.Country, supplySouthwest, 1964f)) /
-			(.20f + .80f * GenreSupplyService.GetProspectiveSupplyAcceptanceForProbe(Genre.Country, supplyEastCoast, 1964f));
+		float routedSupplyRatio = (.05f + .95f * supplySouthwest.GetGenreAcceptance(Genre.Country, 1964f)) /
+			(.05f + .95f * supplyEastCoast.GetGenreAcceptance(Genre.Country, 1964f));
+		float protectedSupplyRatio = (.05f + .95f * GenreSupplyService.GetProspectiveSupplyAcceptanceForProbe(Genre.Country, supplySouthwest, 1964f)) /
+			(.05f + .95f * GenreSupplyService.GetProspectiveSupplyAcceptanceForProbe(Genre.Country, supplyEastCoast, 1964f));
 		float actualSupplyRatio = GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, supplySouthwest, 1964f) /
 			GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, supplyEastCoast, 1964f);
 		Require(Math.Abs(actualSupplyRatio - protectedSupplyRatio) < .000001f &&
@@ -198,21 +203,21 @@ public static class GenreMarketV2ProbeSuite {
 		float jazzProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.Jazz, null, null, supplyEastCoast, 1964f);
 		float countryProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, supplySouthwest, 1964f);
 		float texMexProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.TexMex, null, null, supplySouthwest, 1964f);
-		Require(Math.Abs(jazzProtectedWeight - .52f) < .000001f && Math.Abs(countryProtectedWeight - .64f) < .000001f &&
-			Math.Abs(texMexProtectedWeight - .40f) < .000001f,
+		Require(Math.Abs(jazzProtectedWeight - .316f) < .000001f && Math.Abs(countryProtectedWeight - .525f) < .000001f &&
+			Math.Abs(texMexProtectedWeight - .2875f) < .000001f,
 			$"protected prospective supply weights match explicit pre-texture V2 values actual={jazzProtectedWeight:F6}/{countryProtectedWeight:F6}/{texMexProtectedWeight:F6}");
 		Genre[] specialistCandidates = { Genre.Country, Genre.TexMex };
-		Require(GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .61f, specialistCandidates) == Genre.Country &&
-			GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .62f, specialistCandidates) == Genre.TexMex,
+		Require(GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .64f, specialistCandidates) == Genre.Country &&
+			GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .65f, specialistCandidates) == Genre.TexMex,
 			"protected prospective specialist selections match explicit pre-texture V2 boundaries");
 		var britishBeatCandidates = new[] { Genre.BritishBeat, Genre.Country };
 		var britishPopCandidates = new[] { Genre.BritishPop, Genre.Country };
 		Require(GenreSupplyService.ChooseGenre(null, null, null, 1962f, null, 0f, britishBeatCandidates) == Genre.Country &&
-			GenreSupplyService.ChooseGenre(null, null, null, 1962f, null, 0f, britishPopCandidates) == Genre.Country,
-			"British Beat and Pop are unselectable before bridge");
-		Require(GenreSupplyService.ChooseGenre(null, null, null, 1964f, null, 0f, britishBeatCandidates) == Genre.BritishBeat &&
+			GenreSupplyService.ChooseGenre(null, null, null, 1963f, null, 0f, britishPopCandidates) == Genre.Country,
+			"British Beat and Pop are unselectable before their authored bridges");
+		Require(GenreSupplyService.ChooseGenre(null, null, null, 1963f, null, 0f, britishBeatCandidates) == Genre.BritishBeat &&
 			GenreSupplyService.ChooseGenre(null, null, null, 1964f, null, 0f, britishPopCandidates) == Genre.BritishPop,
-			"British Beat and Pop are selectable at bridge");
+			"British Beat and Pop are selectable at their authored bridges");
 		GenreAcceptanceExplanation momentumProbe = GenreAcceptanceService.Evaluate(Genre.BritishBeat, neutral, AudienceSegment.MainstreamAM, 1960f, 1f);
 		Require(Math.Abs(momentumProbe.MomentumContribution - .3f) < .000001f, "legacy momentum configured influence");
 
@@ -246,6 +251,37 @@ public static class GenreMarketV2ProbeSuite {
 		float progAlbum = GenreAcceptanceService.GetFormatMultiplier(Genre.ProgressiveRock, Genre.ProgressiveRock, ReleaseFormat.Album, 1968f);
 		Require(Math.Abs((bubbleSingle + bubbleAlbum) - 2f) <= .000001f && Math.Abs((progSingle + progAlbum) - 2f) <= .000001f, "combined format opportunity conservation");
 		Require(bubbleSingle > bubbleAlbum && progAlbum > progSingle, "centered orientation contrast");
+		GenreProfile[] orientationSweep = GenreCatalog.All.OrderBy(profile => profile.SingleOrientation).ToArray();
+		float priorSingleTilt = float.NegativeInfinity;
+		float priorAlbumTilt = float.PositiveInfinity;
+		foreach (GenreProfile profile in orientationSweep) {
+			float singleTilt = GenreAcceptanceService.GetFormatMultiplier(
+				profile.Genre, profile.Genre, ReleaseFormat.Single, 1968f, .5f);
+			float albumTilt = GenreAcceptanceService.GetFormatMultiplier(
+				profile.Genre, profile.Genre, ReleaseFormat.Album, 1968f, .5f);
+			Require(singleTilt >= .40f && singleTilt <= 1.60f &&
+				albumTilt >= .40f && albumTilt <= 1.60f &&
+				Math.Abs(.5f * singleTilt + .5f * albumTilt - 1f) < .000001f,
+				"catalog-wide centered orientation bounds " + profile.Genre);
+			Require(singleTilt + .000001f >= priorSingleTilt && albumTilt <= priorAlbumTilt + .000001f,
+				"catalog-wide monotonic orientation response " + profile.Genre);
+			priorSingleTilt = singleTilt;
+			priorAlbumTilt = albumTilt;
+		}
+		GenreProfile albumLeanProfile = orientationSweep[0];
+		GenreProfile singleLeanProfile = orientationSweep[^1];
+		CompetitorManager.FormatDecisionExplanation albumLeanDecision = CompetitorManager.ExplainFixedFormatDecision(
+			50000f, 50000f, 1f, .5f,
+			GenreAcceptanceService.GetFormatMultiplier(albumLeanProfile.Genre, albumLeanProfile.Genre, ReleaseFormat.Single, 1968f, .5f),
+			GenreAcceptanceService.GetFormatMultiplier(albumLeanProfile.Genre, albumLeanProfile.Genre, ReleaseFormat.Album, 1968f, .5f),
+			1000f, 1000f);
+		CompetitorManager.FormatDecisionExplanation singleLeanDecision = CompetitorManager.ExplainFixedFormatDecision(
+			50000f, 50000f, 1f, .5f,
+			GenreAcceptanceService.GetFormatMultiplier(singleLeanProfile.Genre, singleLeanProfile.Genre, ReleaseFormat.Single, 1968f, .5f),
+			GenreAcceptanceService.GetFormatMultiplier(singleLeanProfile.Genre, singleLeanProfile.Genre, ReleaseFormat.Album, 1968f, .5f),
+			1000f, 1000f);
+		Require(albumLeanDecision.Choice == ReleaseFormat.Album && singleLeanDecision.Choice == ReleaseFormat.Single,
+			"equal-input format fork follows catalog orientation endpoints");
 		Require(Math.Abs(GenreAcceptanceService.GetLiveFormatMultiplier(Genre.Bubblegum, Genre.Bubblegum,
 			ReleaseFormat.Single, 1968f, .5f, live: false) - 1f) < .000001f, "prewarm format neutrality");
 		Require(Math.Abs(GenreAcceptanceService.GetLiveFormatMultiplier(Genre.Bubblegum, Genre.Bubblegum,
@@ -550,9 +586,19 @@ public static class GenreMarketV2ProbeSuite {
 	private static void ProbeEnabledInitialSeeding() {
 		IReadOnlyDictionary<Genre, float> initialPrior = ArtistManager.GetEnabledInitialPrimaryGenrePrior();
 		Require(Math.Abs(initialPrior.Values.Sum() - 1f) < .000001f &&
-			Math.Abs(initialPrior.GetValueOrDefault(Genre.RockAndRoll) - .1476f) < .000001f &&
-			Math.Abs(initialPrior.GetValueOrDefault(Genre.DooWop) - .1286f) < .000001f,
-			"enabled initial primary-identity prior matches frozen picker bands");
+			Math.Abs(initialPrior.GetValueOrDefault(Genre.TraditionalPop) - .09f) < .000001f &&
+			Math.Abs(initialPrior.GetValueOrDefault(Genre.Soul) - .1492f) < .000001f &&
+			!initialPrior.ContainsKey(Genre.SurfRock) && !initialPrior.ContainsKey(Genre.BluesRock) &&
+			initialPrior.Keys.All(genre => GenreSupplyService.IsAvailableForNewSupply(genre, 1960f)),
+			"enabled conversion-aware initial primary-identity prior is normalized, 1960-valid, and excludes ghost cohorts");
+		var enabledRolls = new (float Roll, Genre Genre)[] {
+			(.01f, Genre.TraditionalPop), (.16f, Genre.RockAndRoll), (.29f, Genre.TeenPop), (.54f, Genre.Country),
+			(.62f, Genre.Soul), (.77f, Genre.Jazz), (.88f, Genre.Folk), (.95f, Genre.Classical), (.99f, Genre.Comedy)
+		};
+		foreach ((float roll, Genre genre) in enabledRolls) {
+			Require(ArtistManager.GetEnabledInitialGenreForProbe(roll) == genre,
+				"enabled initial roll " + genre + " at " + roll);
+		}
 		var soloRolls = new (float Roll, Genre Legacy)[] {
 			(.17f, Genre.RockAndRoll), (.31f, Genre.RnB), (.41f, Genre.TraditionalPop), (.49f, Genre.DooWop),
 			(.57f, Genre.Soul), (.63f, Genre.Country), (.68f, Genre.Jazz), (.73f, Genre.Gospel),
@@ -586,6 +632,23 @@ public static class GenreMarketV2ProbeSuite {
 		Require(ArtistManager.CanonicalizeEnabledInitialGenres(Genre.GirlGroup, 1964, _ => Genre.TeenPop).Primary == Genre.TeenPop &&
 			ArtistManager.CanonicalizeEnabledInitialGenres(Genre.GirlGroup, 1964, _ => Genre.Soul).Primary == Genre.Soul,
 			"Girl Group canonical Teen Pop/Soul split");
+		int relatedFallbacks = 0;
+		void ObserveFallback(GenreSupplyService.TraditionalPopFallbackTelemetry fallback) {
+			_ = fallback;
+			relatedFallbacks++;
+		}
+		GenreSupplyService.OnTraditionalPopFallback += ObserveFallback;
+		try {
+			foreach (GenreProfile profile in GenreCatalog.All) {
+				Genre related = ArtistManager.GetEnabledRelatedGenreForProbe(
+					profile.Genre, 0xD7000000UL + (ulong)(int)profile.Genre);
+				Require(related != profile.Genre && GenreCatalog.TryGet(GenreCatalog.MapLegacy(related, 1969), out _),
+					"enabled related genre is distinct and canonical " + profile.Genre);
+			}
+		} finally {
+			GenreSupplyService.OnTraditionalPopFallback -= ObserveFallback;
+		}
+		Require(relatedFallbacks == 0, "all canonical identities have explicit enabled related-genre adjacency");
 	}
 
 	private static void ProbeMigration(Genre primary, Genre? secondary, int year, Genre expected, string[] tags) {

@@ -1,0 +1,43 @@
+enumNumber,genre,family,1960,1961,1962,1963,1964,1965,1966,1967,1968,1969,notes
+0,Traditional Pop,Pop,15,14.98,14.52,13.19,10.99,9.51,8.2,7.3,6.3,5.63,Sinatra/Andy Williams/soundtrack-adjacent adult pop. Declines but real: 'Sound of Music' OST was #1 album of 1966-68.
+1,Easy Listening,Pop,6.5,6.5,6.5,6,5.8,6,5.8,5.2,4.2,3.4,"Herb Alpert/Tijuana Brass instrumental pop. Mid-decade bump: 4 TJB albums in Billboard Top 10 simultaneously, 1966."
+6,Teen Pop,Pop,13.35,12.52,12.29,10.8,7.91,5.59,4,2.68,1.7,1.17,"Teen idols (Fabian, Bobby Vee, Lesley Gore). Collapses fast post-1964 as British Invasion displaces the format."
+33,British Pop,Pop,0,0,0,0.12,5.08,4.97,4,2.95,2.27,1.75,"Broader UK pop beyond Merseybeat proper - Kinks, Herman's Hermits, Dave Clark Five, Petula Clark, Peter & Gordon."
+24,Sunshine Pop,Pop,0,0,0,0,0,0.37,1.47,1.87,1.42,0.73,"Retrospective label for mid-60s bright-harmony pop (Association, 5th Dimension precursors). Real but never a trade category."
+23,Baroque Pop,Pop,0,0,0,0,0,0,0.4,0.8,0.57,0.29,"Retrospective label (Left Banke, Zombies orchestral material). Small, real, peaks 1967."
+29,Bubblegum,Pop,0,0,0,0,0,0,0,0.13,1.99,4.09,"1910 Fruitgum Co, Ohio Express (1968); Archies 'Sugar Sugar' was best-selling single of 1969."
+4,Rock and Roll,Rock,13.54,12.76,11.45,9.95,6.78,5.22,4,2.68,1.85,1.31,"Chuck Berry/Little Richard/early Elvis style. Declining tag, not a late-decade catch-all - superseded by named subgenres below."
+35,British Beat (Merseybeat),Rock,0,0,0,0.06,8.47,7.46,4.27,2.14,1.28,0.88,"Merseybeat proper: Beatles + Liverpool peers. Beatles held Billboard Hot 100 top 5 simultaneously, April 4 1964."
+36,British Blues,Rock,0,0,0,0,0.23,0.75,1.73,2.68,3.69,4.09,Stones/Yardbirds/Animals/Mayall's Bluesbreakers/Cream. Grows through decade as UK blues-rock scene matures.
+14,Folk Rock,Rock,0,0,0,0,0,2.24,4.67,5.62,5.11,4.38,"Breaks nationally with the Byrds' 'Mr. Tambourine Man' and Dylan going electric, 1965."
+15,Country Rock,Rock,0,0,0,0,0,0,0,0.07,0.57,1.31,"Late-decade Gram Parsons direction - Byrds' 'Sweetheart of the Rodeo' (1968), Dylan's 'Nashville Skyline' (1969)."
+18,Surf Rock,Rock,0,0.12,1.08,3.4,2.49,1.24,0.4,0.13,0.07,0.03,"Beach Boys/Jan & Dean/Dick Dale. Peaks 1963, dented hard by the British Invasion from 1964."
+19,Garage Rock,Rock,0,0,0,0,0.34,1.49,3.2,2.41,1.28,0.58,"Mid-60s British-Invasion-inspired US garage boom - '96 Tears', Nuggets-era bands. Fades as scene diffuses into psych, 1968+."
+20,Proto-Punk,Rock,0,0,0,0,0,0,0,0,0,0.07,"Velvet Underground (1967), Stooges/MC5 forming late 60s. Not a commercial chart force in this decade."
+22,Acid Rock,Rock,0,0,0,0,0,0,0.13,0.54,0.71,0.44,"Heavier psych variant (Hendrix, Cream). Overlaps PsychedelicRock; kept small and parallel to it."
+34,Psychedelic Rock,Rock,0,0,0,0,0,0,2.4,6.43,6.39,4.67,"Peaks 1967 - Sgt. Pepper, Are You Experienced, Surrealistic Pillow, Summer of Love. Diffuses into other rock forms by 1969."
+25,Progressive Rock,Rock,0,0,0,0,0,0,0,0.13,0.5,1.02,"British art-rock transition, Moody Blues/Procol Harum 1967-68; true commercial prog is 1969-71 (King Crimson, Oct 1969)."
+26,Blues Rock,Rock,0,0,0,0,0,0.12,0.4,0.8,1.56,2.34,"American wing of the blues-rock boom - Butterfield Blues Band, Canned Heat. Smaller than the British scene this decade."
+27,Hard Rock,Rock,0,0,0,0,0,0,0,0.27,1.28,3.07,"Cream/Who power, Steppenwolf, Blue Cheer edge. Full commercial emergence is 1970 (Zeppelin II, Sabbath), still building here."
+28,Proto-Metal,Rock,0,0,0,0,0,0,0,0.07,0.28,0.66,"Iron Butterfly, Blue Cheer, Sabbath-edges. 'In-A-Gadda-Da-Vida' was a top seller of 1969 despite the genre staying niche."
+5,Doo-Wop,Rhythm & Soul,5.09,3.78,2.17,0.85,0.23,0.06,0,0,0,0,Platters/Drifters style vocal harmony. Largely a 1950s style with an early-60s tail; gone as a chart force by 1963.
+7,R&B,Rhythm & Soul,11.32,12.05,11.09,12.37,9.94,9.2,9.33,8.84,8.38,7.74,Pre-soul rhythm & blues. Gradually cedes ground to Soul as the decade's Black-pop center of gravity shifts.
+8,Soul,Rhythm & Soul,7.92,8.86,10.24,11.53,12.2,15.53,16,18.08,18.47,17.53,"Otis Redding/Aretha/Sam Cooke/Motown-adjacent. Should be robust and rising mid-to-late decade, not middling."
+10,Funk,Rhythm & Soul,0,0,0,0,0,0,0,0.8,2.56,4.67,James Brown's late-60s evolution - 'Cold Sweat' (1967) is the usual root marker. Zero before that.
+32,Gospel,Gospel,1.13,1.18,1.21,1.21,1.13,1.24,1.33,1.47,1.7,2.63,"Steady niche; crossover bump from Edwin Hawkins Singers' 'Oh Happy Day', a #4 Hot 100 hit in 1969."
+12,Country,Country,8.38,8.27,9.16,9.1,9.04,10.07,11.33,10.98,11.36,11.69,"Nashville sound, Patsy Cline. Comparatively stable all decade - no mid-decade national mega-share explosion."
+13,Folk,Folk,4.53,5.02,5.72,6.55,5.2,4.47,3.07,1.87,1.28,0.73,Kingston Trio/early Dylan collegiate folk revival. Declines as Folk Rock and Contemporary Folk peel off its audience.
+46,Contemporary Folk,Folk,0,0,0,0.36,0.9,1.37,1.33,1.21,0.99,0.73,"More personal/poetic acoustic folk (Baez, Ochs, Tim Hardin) - bridge between Folk and Singer-Songwriter."
+47,Singer-Songwriter,Folk,0,0,0,0,0,0,0,0.13,0.5,1.02,"Emerging tendency - Cohen, early Joni Mitchell/Van Morrison/James Taylor. Mainstream breakthrough is 1970-71, still small here."
+2,Jazz,Jazz,6.22,6.5,6.27,6.07,5.31,5.34,5.07,4.42,4.26,4.09,Dave Brubeck/Miles Davis crossover. Steady gradual decline in pop-chart share as rock's share grows.
+3,Blues,Blues,2.6,2.72,2.65,2.55,2.26,2.36,2.27,2.01,1.85,1.75,"Straight electric/acoustic blues - B.B. King, Muddy Waters, John Lee Hooker. Small steady niche throughout."
+37,Classical,Classical,2.04,2.13,2.05,1.94,1.69,1.74,1.73,1.74,2.13,2.05,"Crossover classical/novelty. Small bump 1968 from 'Switched-On Bach' (Wendy Carlos), a genuine crossover hit."
+30,Bossa Nova,Latin,0,0.12,1.08,1.46,1.69,0.87,0.33,0.13,0.07,0.03,"Jazz Samba (1962) through Getz/Gilberto (1964, Grammy Album of the Year 1965). Craze fades by 1966."
+38,Boogaloo,Latin,0,0,0,0,0,0.12,0.4,0.6,0.5,0.22,"NYC Latin-soul fusion - Joe Cuba, Pete Rodriguez. Regional, peaks ~1966-68, fades as salsa emerges."
+39,Tex-Mex,Latin,0.23,0.24,0.24,0.3,0.34,0.5,0.47,0.4,0.36,0.29,Sir Douglas Quintet and similar. Small steady regional presence throughout.
+40,Latin Pop,Latin,0.91,0.95,0.96,0.97,0.9,1.12,1.2,1.21,1.28,1.31,"Mainstream Latin-flavored pop crossover. Small, steady presence."
+41,Ska,Caribbean,0,0,0,0,0,0,0,0.07,0.14,0.37,Jamaican ska; minimal US national chart share this decade. Desmond Dekker's 'Israelites' (1969) is the era's real US crossover.
+42,Rocksteady,Caribbean,0,0,0,0,0,0,0,0.07,0.11,0.07,"Jamaican transitional style 1966-68, between ska and reggae. Essentially no US national chart share."
+43,Reggae,Caribbean,0,0,0,0,0,0,0,0,0.04,0.15,"Term coined ~1968 (Toots and the Maytals). US mainstream reggae breakthrough is 1970s, not this decade."
+44,Comedy,Non-Music,0.79,0.83,0.84,0.73,0.68,0.62,0.67,0.67,0.57,0.58,"Novelty/comedy records - Allan Sherman, Ray Stevens. Small steady chart presence throughout."
+45,Children's,Non-Music,0.45,0.47,0.48,0.49,0.4,0.43,0.4,0.4,0.43,0.44,Disney and kiddie-market novelty records. Small steady niche.

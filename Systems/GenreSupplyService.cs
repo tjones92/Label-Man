@@ -8,6 +8,18 @@ using Godot;
 /// RNG and recent-release counts so the disabled stream cannot be disturbed.
 /// </summary>
 public static class GenreSupplyService {
+	public static event Action<TraditionalPopFallbackTelemetry> OnTraditionalPopFallback;
+	public sealed class TraditionalPopFallbackTelemetry {
+		public string Source;
+		public Genre RequestedGenre;
+	}
+
+	public static void ReportTraditionalPopFallback(string source, Genre requestedGenre) {
+		if (GenreMarketV2.Enabled) OnTraditionalPopFallback?.Invoke(new TraditionalPopFallbackTelemetry {
+			Source = source, RequestedGenre = requestedGenre
+		});
+	}
+
 	public readonly struct GenreSelection {
 		public readonly Genre Genre;
 		public readonly bool RetainedIdentity;
@@ -53,11 +65,10 @@ public static class GenreSupplyService {
 		return true;
 	}
 
-	public static bool IsBritishSupplyBridgeActive(Genre genre, float year) => genre switch {
-		Genre.BritishBeat or Genre.BritishPop => year >= 1964f,
-		Genre.BritishBlues => year >= 1965f,
-		_ => false
-	};
+	public static bool IsBritishSupplyBridgeActive(Genre genre, float year) {
+		Genre canonical = GenreCatalog.MapLegacy(genre, (int)MathF.Floor(year));
+		return IsBritishBridgeGenre(canonical) && year >= GenreCatalog.Get(canonical).EmergenceYear;
+	}
 
 	private static bool IsBritishBridgeGenre(Genre genre) => genre is Genre.BritishPop or Genre.BritishBeat or Genre.BritishBlues;
 
@@ -78,10 +89,14 @@ public static class GenreSupplyService {
 		IReadOnlyDictionary<Genre, int> recentSupply, float roll, IReadOnlyList<Genre> candidateOverride = null,
 		IReadOnlyDictionary<Genre, int> globalRecentSupply = null, bool applyPsychedelicTransitionCompatibility = false) {
 		IReadOnlyList<Genre> candidates = candidateOverride ?? GetAvailableGenres(year);
-		if (candidates.Count == 0) return new GenreSelection(GenreCatalog.MapLegacy(artist?.primaryGenre ?? Genre.TraditionalPop, (int)year), false);
+		if (candidates.Count == 0) {
+			Genre fallback = GenreCatalog.MapLegacy(artist?.primaryGenre ?? Genre.TraditionalPop, (int)year);
+			if (fallback == Genre.TraditionalPop) ReportTraditionalPopFallback("GenreSupplyService.EmptyCandidateSet", artist?.primaryGenre ?? Genre.TraditionalPop);
+			return new GenreSelection(fallback, false);
+		}
 		Genre identity = GenreCatalog.MapLegacy(artist?.primaryGenre ?? Genre.TraditionalPop, (int)year);
 		if (candidateOverride == null && CanRetainExistingProjectGenre(identity, year)) {
-			float retention = GetProjectIdentityRetention(identity, year);
+			float retention = GetProjectIdentityRetention(identity, year, artist);
 			if (roll < retention) return new GenreSelection(identity, true);
 			roll = (roll - retention) / (1f - retention);
 		}
@@ -97,7 +112,10 @@ public static class GenreSupplyService {
 			}
 			candidates = compatible;
 		}
-		if (candidates.Count == 0) return new GenreSelection(identity, false);
+		if (candidates.Count == 0) {
+			if (identity == Genre.TraditionalPop) ReportTraditionalPopFallback("GenreSupplyService.EmptyCompatibleCandidateSet", identity);
+			return new GenreSelection(identity, false);
+		}
 		var weighted = candidates.Select(genre => (genre, weight: GetSupplyWeight(genre, label, artist, region, year, recentSupply, globalRecentSupply))).ToArray();
 		float total = weighted.Sum(entry => entry.weight);
 		if (total <= 0f) return new GenreSelection(weighted[0].genre, false, usedCandidateOverride);
@@ -137,7 +155,10 @@ public static class GenreSupplyService {
 		if (!IsAvailableForNewSupply(canonical, year)) return 0f;
 		GenreProfile profile = GenreCatalog.Get(canonical);
 		float acceptance = GetProspectiveSupplyAcceptance(canonical, profile, region, year);
-		float demand = .20f + .80f * Mathf.Clamp(acceptance, 0f, 1f);
+		// Keep a small nonzero discovery floor, but preserve enough of the authored
+		// acceptance range for rising and declining genres to separate. The former
+		// .20 floor compressed a .10/.90 pair to only a 3.3x supply distinction.
+		float demand = .05f + .95f * Mathf.Clamp(acceptance, 0f, 1f);
 		float artistFit = GetIdentityFit(canonical, profile.Family, artist);
 		float labelFit = GetLabelFit(canonical, profile.Family, label);
 		float lifecycle = profile.GetLifecycle(year) switch {
@@ -169,13 +190,27 @@ public static class GenreSupplyService {
 			canonical, canonical, region, year, legacyMomentum);
 	}
 
-	private static float GetProjectIdentityRetention(Genre genre, float year) {
-		GenreLifecycleState lifecycle = GenreCatalog.Get(genre).GetLifecycle(year);
-		return lifecycle switch {
-			GenreLifecycleState.Legacy => .12f,
-			GenreLifecycleState.Declining => .30f,
-			_ => year < 1961f ? .95f : .78f
-		};
+	private static float GetProjectIdentityRetention(Genre genre, float year, SimulatedArtist artist = null) {
+		GenreProfile profile = GenreCatalog.Get(genre);
+		if (year <= profile.EmergenceYear) return .80f;
+		float peakBaseline = profile.BaselineKeyframes.Max();
+		float baselinePosition = peakBaseline > 0f ? Mathf.Clamp(profile.GetBaseline(year) / peakBaseline, 0f, 1f) : 0f;
+		float priorBaseline = profile.GetBaseline(Mathf.Max(1960f, year - 1f));
+		float slope = profile.GetBaseline(year) - priorBaseline;
+		float retention = .22f + .60f * baselinePosition;
+		if (profile.DeathYear.HasValue && year > profile.DeathYear.Value) {
+			float yearsSinceDeath = year - profile.DeathYear.Value;
+			float tailProgress = 1f - MathF.Exp(-.26f * yearsSinceDeath);
+			retention = Mathf.Lerp(retention, .18f, tailProgress);
+		} else if (!profile.DeathYear.HasValue && slope < 0f) {
+			// No-death profiles still need to leave the established plateau when their
+			// authored commercial baseline declines (notably Rock and Roll).
+			retention *= 1f - .80f * (1f - baselinePosition);
+		}
+		if (slope < 0f) retention += slope * .50f;
+		int projectHistory = artist?.releaseHistory?.Count ?? 0;
+		retention += Mathf.Min(projectHistory, 3) * .03f;
+		return Mathf.Clamp(retention, .12f, .88f);
 	}
 
 	internal static float GetProjectIdentityRetentionForPortfolio(Genre genre, float year) =>
@@ -191,12 +226,14 @@ public static class GenreSupplyService {
 		return 1f / (1f + Mathf.Max(0f, share - .20f) * 4f);
 	}
 
-	// A bounded 1964 import bridge reallocates existing project opportunities; it never adds release rolls.
+	// A bounded import bridge starts at each authored British genre's emergence year.
+	// It reallocates existing project opportunities; it never adds release rolls.
 	private static float GetBritishBridgeWeight(Genre genre, float year) => genre switch {
+		Genre.BritishBeat when year < 1964f => .03f,
 		Genre.BritishBeat or Genre.BritishPop when year < 1965f => 3.5f,
 		Genre.BritishBeat or Genre.BritishPop when year < 1966f => 2.25f,
-		Genre.BritishBlues when year < 1966f => 2.25f,
-		Genre.BritishBlues when year < 1967f => 1.5f,
+		Genre.BritishBlues when year < 1965f => .50f,
+		Genre.BritishBlues when year < 1966f => .75f,
 		_ => 1f
 	};
 

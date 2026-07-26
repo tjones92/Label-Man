@@ -52,6 +52,7 @@ internal readonly struct SpecialistRoutingProbe {
 
 /// <summary>Single enabled Phase-2 acceptance owner. It intentionally consumes, but does not evolve, legacy momentum.</summary>
 public static class GenreAcceptanceService {
+	private const float FormatOrientationStrength = .60f;
 	private const float DefaultLegacyMomentumInfluence = .3f;
 	private const float SingleDemandLegacyIntercept = .60f;
 	private const float SingleDemandLegacySlope = .50f;
@@ -340,9 +341,8 @@ public static class GenreAcceptanceService {
 		float orientation = GenreCatalog.Get(GenreCatalog.MapLegacy(primary, (int)MathF.Floor(year))).SingleOrientation * (1f - secondaryWeight);
 		if (secondaryWeight > 0f) orientation += GenreCatalog.Get(GenreCatalog.MapLegacy(secondary, (int)MathF.Floor(year))).SingleOrientation * secondaryWeight;
 		float centered = (orientation - .5f) * 2f;
-		const float tiltStrength = .22f;
-		float rawSingle = 1f + centered * tiltStrength;
-		float rawAlbum = 1f - centered * tiltStrength;
+		float rawSingle = 1f + centered * FormatOrientationStrength;
+		float rawAlbum = 1f - centered * FormatOrientationStrength;
 		float albumWeight = Mathf.Clamp(albumOpportunity, 0f, 1f);
 		float normalizer = (1f - albumWeight) * rawSingle + albumWeight * rawAlbum;
 		return (format == ReleaseFormat.Single ? rawSingle : rawAlbum) / Mathf.Max(.000001f, normalizer);
