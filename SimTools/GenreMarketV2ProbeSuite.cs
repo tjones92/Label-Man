@@ -512,15 +512,18 @@ public static class GenreMarketV2ProbeSuite {
 				CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1965) &&
 			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Independent, 1965) == 1f,
 			"maturing Major Album portfolios receive the strongest long-horizon commitment without inflating independent projects");
-		Require(Math.Abs(CompetitorManager.CalculateAlbumChoiceProbability(100f, 100f) - .5f) < .000001f &&
-			Math.Abs(CompetitorManager.CalculateAlbumChoiceProbability(100f, 400f) - .752f) < .000001f &&
-			Math.Abs(CompetitorManager.CalculateAlbumChoiceProbability(400f, 100f) - .248f) < .000001f &&
+		float balancedAlbumProbability = CompetitorManager.CalculateAlbumChoiceProbability(100f, 100f);
+		float strongAlbumProbability = CompetitorManager.CalculateAlbumChoiceProbability(100f, 400f);
+		float weakAlbumProbability = CompetitorManager.CalculateAlbumChoiceProbability(400f, 100f);
+		Require(Math.Abs(balancedAlbumProbability - .5f) < .000001f &&
+			strongAlbumProbability > .90f && weakAlbumProbability < .10f &&
+			Math.Abs(strongAlbumProbability + weakAlbumProbability - 1f) < .000001f &&
 			CompetitorManager.CalculateAlbumChoiceProbability(100f, -1f) == 0f &&
 			CompetitorManager.CalculateAlbumChoiceProbability(-1f, 100f) == 1f &&
-			CompetitorManager.ResolvePositiveFormatChoice(100f, 400f, .70f) &&
-			!CompetitorManager.ResolvePositiveFormatChoice(100f, 400f, .80f) &&
+			CompetitorManager.ResolvePositiveFormatChoice(100f, 400f, .90f) &&
+			!CompetitorManager.ResolvePositiveFormatChoice(100f, 400f, .95f) &&
 			!CompetitorManager.ResolvePositiveFormatChoice(100f, -1f, 0f),
-			"positive-profit format choice is bounded, symmetric, economically ordered, and excludes nonviable Albums");
+			"positive-profit format choice is bounded, symmetric, count-neutral around the fork, and excludes nonviable Albums");
 		float stableFormatRoll = CompetitorManager.GetDeterministicFormatChoiceRoll("label-a", "artist-a", 1969, 522, 12);
 		Require(stableFormatRoll >= 0f && stableFormatRoll < 1f &&
 			stableFormatRoll == CompetitorManager.GetDeterministicFormatChoiceRoll("label-a", "artist-a", 1969, 522, 12) &&

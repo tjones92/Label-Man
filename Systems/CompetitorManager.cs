@@ -42,7 +42,8 @@ public partial class CompetitorManager : Node {
 	private const float AlbumProjectPressureShare = 0.75f;
 	private const float PromoProjectEligibilityWeight = 0.75f;
 	private const float LiveAlbumDecisionEligibilityScale = 1.07f;
-	private const float FormatChoiceExplorationFloor = 0.08f;
+	private const float FormatChoiceExplorationFloor = 0.02f;
+	private const float FormatChoiceLogitSlope = 10f;
 	// The live revision model observes high-variance, annualized outcomes and
 	// therefore needs more evidence than the frozen retirement-time EMA. Keeping
 	// this separate also preserves the disabled route's legacy K=4 behavior.
@@ -1545,8 +1546,13 @@ public partial class CompetitorManager : Node {
 		if (projectedAlbum <= 0f) return 0f;
 		if (projectedSingle <= 0f) return 1f;
 		float economicShare = projectedAlbum / Mathf.Max(.000001f, projectedSingle + projectedAlbum);
-		return Mathf.Lerp(FormatChoiceExplorationFloor, 1f - FormatChoiceExplorationFloor,
-			Mathf.Clamp(economicShare, 0f, 1f));
+		// A bounded logistic preserves crossover choices near the economic fork
+		// without letting the much larger population of weak Album propositions
+		// accumulate a systemic project-count increase. Equal propositions remain
+		// exactly 50/50 and the isolated roll preserves deterministic replay.
+		float centeredShare = Mathf.Clamp(economicShare, 0f, 1f) - .5f;
+		float logisticShare = 1f / (1f + Mathf.Exp(-FormatChoiceLogitSlope * centeredShare));
+		return Mathf.Lerp(FormatChoiceExplorationFloor, 1f - FormatChoiceExplorationFloor, logisticShare);
 	}
 
 	internal static bool ResolvePositiveFormatChoice(float projectedSingle, float projectedAlbum, float roll) =>
