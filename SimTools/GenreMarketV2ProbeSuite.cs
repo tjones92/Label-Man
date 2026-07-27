@@ -30,8 +30,9 @@ public static class GenreMarketV2ProbeSuite {
 		ProbeMigration(Genre.SkaRocksteady, null, 1968, Genre.Reggae, new[] { "jamaican" });
 		ProbeMigration(Genre.SkaRocksteady, null, 0, Genre.Ska, new[] { "jamaican" });
 		ProbeEnabledInitialSeeding();
+		ProbeLegacyZeitgeistContinuity();
 		Require(GenreNameFormatter.Format(Genre.RnB) == "R&B" && GenreNameFormatter.Format(Genre.Childrens) == "Children's", "canonical formatter");
-		results.Add("catalog/keyframe/interpolation/clamp/lifecycle/migration/enabled-seeding/formatter probes passed");
+		results.Add("catalog/keyframe/interpolation/clamp/lifecycle/migration/enabled-seeding/zeitgeist-continuity/formatter probes passed");
 		if (GenreMarketV2.Enabled) {
 			string singleReconciliation = ProbePhase2RoutingAndOrientation();
 			ProbeSingleDemandStages();
@@ -482,13 +483,13 @@ public static class GenreMarketV2ProbeSuite {
 			"responsive memory requires twelve effective observations for half confidence and preserves the 0.65 ceiling");
 		(bool underperformingProjectAlbumWins, bool underperformingProjectPromoPreferred, float underperformingProjectGate) =
 			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 120f,
-				componentProjectedAlbumWithPromo: 250f, totalProjectMemoryProjection: 40f, promoProjectDelayPremium: .08f);
+				componentProjectedAlbumWithPromo: 250f, totalProjectMemoryProjection: -10f, promoProjectDelayPremium: .08f);
 		(bool positiveProjectAlbumWins, bool positiveProjectPromoPreferred, float positiveProjectGate) =
 			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 90f, projectedStandaloneAlbum: 90f,
 				componentProjectedAlbumWithPromo: 250f, totalProjectMemoryProjection: 150f, promoProjectDelayPremium: .08f);
 		(bool nonviableProjectAlbumWins, bool nonviableProjectPromoPreferred, float nonviableProjectGate) =
-			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 120f,
-				componentProjectedAlbumWithPromo: 250f, totalProjectMemoryProjection: -10f, promoProjectDelayPremium: .08f);
+			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: -50f,
+				componentProjectedAlbumWithPromo: -10f, totalProjectMemoryProjection: 150f, promoProjectDelayPremium: .08f);
 		(bool componentRejectedAlbumWins, bool componentRejectedPromoPreferred, float componentRejectedGate) =
 			CompetitorManager.ResolveAlbumDecision(projectedSingle: 100f, projectedAlbumEligibility: 120f, projectedStandaloneAlbum: 120f,
 				componentProjectedAlbumWithPromo: 110f, totalProjectMemoryProjection: 150f, promoProjectDelayPremium: .08f);
@@ -505,13 +506,51 @@ public static class GenreMarketV2ProbeSuite {
 			componentRejectedAlbumWins && !componentRejectedPromoPreferred && Math.Abs(componentRejectedGate - 120f) < .000001f &&
 			capacityRejectedAlbumWins && capacityRejectedPromoPreferred && Math.Abs(capacityRejectedGate - 120f) < .000001f &&
 			eligibilityUpliftAlbumWins && !eligibilityUpliftPromoPreferred && Math.Abs(eligibilityUpliftGate - 109.14f) < .00001f,
-			"physical Album memory owns eligibility, promo projects retain incremental portfolio value, components rank strategy, total-project memory guards only viability, and the live eligibility scale is explicit and bounded");
-		Require(Math.Abs(CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1960) - 1f) < .000001f &&
-			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1965) > 2f &&
-			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.MidTier, 1965) <
-				CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Major, 1965) &&
-			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier.Independent, 1965) == 1f,
-			"maturing Major Album portfolios receive the strongest long-horizon commitment without inflating independent projects");
+			"physical Album memory owns eligibility, promo projects retain incremental portfolio value, components rank strategy and own viability, a negative total-project residual no longer holds a permanent veto that starves its own lane of evidence, and the live eligibility scale is explicit and bounded");
+		Require(Math.Abs(CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(1f, 24, 1960) - 1f) < .000001f &&
+			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(1f, 24, 1965) > 2f &&
+			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(.67f, 10, 1965) <
+				CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(.89f, 28, 1965) &&
+			CompetitorManager.GetAlbumPortfolioCommitmentMultiplierForProbe(0f, 0, 1965) == 1f &&
+			CompetitorManager.CalculateAlbumPortfolioCapacity(.27f, 1) <
+				CompetitorManager.CalculateAlbumPortfolioCapacity(.45f, 1) &&
+			CompetitorManager.CalculateAlbumPortfolioCapacity(.45f, 2) <
+				CompetitorManager.CalculateAlbumPortfolioCapacity(.45f, 10),
+			"Album portfolio commitment is earned by distribution reach and roster depth, rises monotonically in both, starts neutral before the era, and confers nothing on a label with no capacity");
+		// A commitment is a subsidy on the proposition, never a scalar on a signed net:
+		// the marginal Album it exists to carry is exactly the one projected to lose.
+		Require(CompetitorManager.CalculateAlbumPortfolioCredit(1.75f, -800f) > 0f &&
+			CompetitorManager.CalculateAlbumPortfolioCredit(1f, -800f) == 0f &&
+			Math.Abs(CompetitorManager.CalculateAlbumPortfolioCredit(1.50f, 200f) - 100f) < .0001f &&
+			-800f + CompetitorManager.CalculateAlbumPortfolioCredit(1.75f, -800f) > -800f * 1.75f,
+			"Album portfolio credit is sign-safe and lifts a negative-net proposition toward the Single hurdle rather than away from it");
+		// Diversion and recruitment must stay in proportion as album demand rises, or
+		// the promo strategy crosses over into permanent non-viability market-wide.
+		float lateDiverted = .316f * .485f * 63262f * 2.116f;
+		float lateRecruited = CompetitorManager.CalculatePromoAlbumSynergyGain(.316f, .617f, 63262f, 2.116f);
+		float earlyDiverted = .035f * .30f * 20000f * .70f;
+		float earlyRecruited = CompetitorManager.CalculatePromoAlbumSynergyGain(.035f, .24f, 20000f, .70f);
+		// Awareness headroom scales recruitment down to a floor, it does not switch it off.
+		// This clause asserted that zero headroom recruits nothing, which is the behaviour
+		// PromoAwarenessConversionFloor was introduced to remove: a famous act's hit Single
+		// still sold enormous LP volume in 1967-69. The two shipped together and the
+		// assertion was never updated, so the suite has been red since.
+		float noHeadroom = CompetitorManager.CalculatePromoAlbumSynergyGain(.316f, 0f, 63262f, 2.116f);
+		float fullHeadroom = CompetitorManager.CalculatePromoAlbumSynergyGain(.316f, 1f, 63262f, 2.116f);
+		Require(lateRecruited > 0f && earlyRecruited > 0f &&
+			Math.Abs(lateRecruited / lateDiverted - earlyRecruited / earlyDiverted) < .35f &&
+			lateRecruited / lateDiverted < 1f &&
+			noHeadroom > 0f && noHeadroom < lateRecruited && lateRecruited < fullHeadroom &&
+			Math.Abs(noHeadroom / fullHeadroom - .25f) < .000001f &&
+			CompetitorManager.CalculatePromoAlbumSynergyGain(0f, .617f, 63262f, 2.116f) == 0f,
+			"promo Single Album recruitment scales on the same terms as diversion, stays mildly dilutive per unit, falls to but never below the awareness conversion floor, and vanishes without album demand");
+		Require(Math.Abs(CompetitorManager.CalculateAlbumPriorEraCalibration(1960) - 1f) < .000001f &&
+			CompetitorManager.CalculateAlbumPriorEraCalibration(1961) < .80f &&
+			CompetitorManager.CalculateAlbumPriorEraCalibration(1962) > CompetitorManager.CalculateAlbumPriorEraCalibration(1961) &&
+			CompetitorManager.CalculateAlbumPriorEraCalibration(1963) > CompetitorManager.CalculateAlbumPriorEraCalibration(1962) &&
+			Math.Abs(CompetitorManager.CalculateAlbumPriorEraCalibration(1964) - 1f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateAlbumPriorEraCalibration(1969) - 1f) < .000001f,
+			"Album prior calibration leaves the bootstrap year alone, tracks the fitted .65/.66/.74 early trajectory, and has fully retired by 1964");
 		float balancedAlbumProbability = CompetitorManager.CalculateAlbumChoiceProbability(100f, 100f);
 		float strongAlbumProbability = CompetitorManager.CalculateAlbumChoiceProbability(100f, 400f);
 		float weakAlbumProbability = CompetitorManager.CalculateAlbumChoiceProbability(400f, 100f);
@@ -672,6 +711,53 @@ public static class GenreMarketV2ProbeSuite {
 			GenreSupplyService.OnTraditionalPopFallback -= ObserveFallback;
 		}
 		Require(relatedFallbacks == 0, "all canonical identities have explicit enabled related-genre adjacency");
+	}
+
+	/// <summary>
+	/// The legacy zeitgeist tables are cumulative sparse overrides, so omission means
+	/// "unchanged", not "revert to the acceptance of a genre nobody has heard of". The
+	/// flat-default rebuild snapped five established genres to 0.3 in one step at 1966 and
+	/// bounced doo-wop back up to 0.3 at 1968, which read as a market-wide demand cliff in
+	/// the disabled route and made the gate control an invalid target for two metrics.
+	/// </summary>
+	private static void ProbeLegacyZeitgeistContinuity() {
+		int[] definedYears = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+		// Legacy-only identities are absent from the canonical seeding this suite runs
+		// under, so read them the same way Zeitgeist's own interpolation does.
+		float Acceptance(Genre genre, int year) =>
+			Zeitgeist.GetForYear(year).genreAcceptance.GetValueOrDefault(genre, .3f);
+
+		// Gospel is named once, in 1960. Under the flat-default rebuild it silently lost
+		// that value from 1962 on; carried forward it must hold for the whole decade.
+		foreach (int year in definedYears)
+			Require(Math.Abs(Acceptance(Genre.Gospel, year) - .35f) < .000001f,
+				"a genre omitted from a later zeitgeist table keeps its value " + year);
+
+		// The 1966 cohort: every one of these snapped from an established level to the
+		// unestablished default in a single keyframe, all at the same year.
+		foreach (Genre genre in new[] { Genre.EasyListening, Genre.TeenPop, Genre.Folk, Genre.SurfRock, Genre.BossaNova })
+			Require(Acceptance(genre, 1966) > .3f && Acceptance(genre, 1966) < Acceptance(genre, 1964),
+				"1966 declines rather than collapsing to the unestablished default " + genre);
+
+		// Genres authored below the default must not be lifted to it by omission, and a
+		// genre in terminal decline must never bounce back up.
+		foreach (Genre genre in new[] { Genre.HardRock, Genre.ProtoMetal, Genre.ProgressiveRock, Genre.ProtoPunk })
+			Require(Acceptance(genre, 1964) <= .05f, "pre-emergent acceptance is not lifted to the default " + genre);
+		for (int i = 3; i < definedYears.Length; i++)
+			Require(Acceptance(Genre.DooWop, definedYears[i]) <= Acceptance(Genre.DooWop, definedYears[i - 1]),
+				"a genre in terminal decline never rebounds " + definedYears[i]);
+
+		// No genre may lose more than a third of the scale in one keyframe step: the
+		// synchronized 1966 erasure is the failure this bound exists to catch.
+		foreach (Genre genre in GenreDomains.LegacyDomain)
+			for (int i = 1; i < definedYears.Length; i++)
+				Require(Acceptance(genre, definedYears[i]) - Acceptance(genre, definedYears[i - 1]) > -.35f,
+					"no single-keyframe acceptance collapse " + genre + " " + definedYears[i]);
+
+		// Regression guard on the authored 1960 bootstrap, which must be untouched.
+		Require(Math.Abs(Acceptance(Genre.TraditionalPop, 1960) - .9f) < .000001f &&
+			Math.Abs(Acceptance(Genre.BritishInvasion, 1960) - .05f) < .000001f,
+			"the 1960 zeitgeist bootstrap is unchanged");
 	}
 
 	private static void ProbeMigration(Genre primary, Genre? secondary, int year, Genre expected, string[] tags) {

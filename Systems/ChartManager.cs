@@ -1686,10 +1686,17 @@ public partial class ChartManager : Node {
 				positionScore *= 1.5f;
 			}
 
-			genreMomentum[genre] += positionScore + salesScore;
+			// Momentum is scoped to the active genre domain: it is seeded, decayed and
+			// clamped over GenreDomains.Current, so a genre outside that domain has no
+			// slot to accumulate into and would never be decayed if one were created.
+			// ArtistManager.GetRelatedGenre is not domain-aware and hands back canonical
+			// genres — BluesRock draws BritishBlues — which threw KeyNotFoundException on
+			// the disabled route as soon as such a pairing charted. Every read path here
+			// already guards the same way.
+			AddGenreMomentum(genre, positionScore + salesScore);
 
 			if (record.baseRecord.secondaryGenre != record.baseRecord.primaryGenre) {
-				genreMomentum[record.baseRecord.secondaryGenre] += (positionScore + salesScore) * 0.3f;
+				AddGenreMomentum(record.baseRecord.secondaryGenre, (positionScore + salesScore) * 0.3f);
 			}
 		}
 
@@ -1703,6 +1710,10 @@ public partial class ChartManager : Node {
 				.Take(5);
 			GD.Print($"Top genre momentum: {string.Join(", ", topGenres.Select(kvp => $"{kvp.Key}:{kvp.Value:F2}"))}");
 		}
+	}
+
+	private void AddGenreMomentum(Genre genre, float contribution) {
+		if (genreMomentum.ContainsKey(genre)) genreMomentum[genre] += contribution;
 	}
 
 	public float GetEffectiveGenreAcceptance(Genre genre) {

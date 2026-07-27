@@ -51,10 +51,10 @@ public static class GenreCatalog {
 		Add("easy-listening", Genre.EasyListening, GenreFamily.Pop, 1950, null, .15f, .35f, .65f,.60f,.52f,.42f,.36f,.30f,.24f);
 		Add("british-pop", Genre.BritishPop, GenreFamily.Pop, 1964, 1968, .90f, .80f, .01f,.02f,.80f,.75f,.55f,.40f,.30f);
 		Add("rock-and-roll", Genre.RockAndRoll, GenreFamily.Rock, 1955, null, .85f, .85f, .68f,.65f,.50f,.24f,.16f,.10f,.07f);
-		Add("surf-rock", Genre.SurfRock, GenreFamily.Rock, 1961, 1966, .90f, .80f, .05f,.60f,.65f,.40f,.30f,.25f,.20f);
+		Add("surf-rock", Genre.SurfRock, GenreFamily.Rock, 1961, 1966, .90f, .70f, .05f,.60f,.65f,.40f,.30f,.25f,.20f);
 		Add("garage-rock", Genre.GarageRock, GenreFamily.Rock, 1963, 1968, .90f, .85f, .10f,.20f,.50f,.65f,.55f,.40f,.30f);
-		Add("psychedelic-rock", Genre.PsychedelicRock, GenreFamily.Rock, 1966, 1971, .85f, .35f, .02f,.02f,.10f,.55f,.95f,.90f,.70f);
-		Add("acid-rock", Genre.AcidRock, GenreFamily.Rock, 1966, 1971, .85f, .40f, .02f,.02f,.05f,.10f,.15f,.18f,.12f);
+		Add("psychedelic-rock", Genre.PsychedelicRock, GenreFamily.Rock, 1966, 1971, .85f, .40f, .02f,.02f,.10f,.55f,.95f,.90f,.70f);
+		Add("acid-rock", Genre.AcidRock, GenreFamily.Rock, 1966, 1971, .85f, .28f, .02f,.02f,.05f,.10f,.15f,.18f,.12f);
 		Add("hard-rock", Genre.HardRock, GenreFamily.Rock, 1967, null, .85f, .40f, .01f,.02f,.05f,.15f,.30f,.50f,.65f);
 		Add("proto-metal", Genre.ProtoMetal, GenreFamily.Rock, 1968, null, .85f, .40f, .01f,.01f,.02f,.05f,.10f,.20f,.35f);
 		Add("progressive-rock", Genre.ProgressiveRock, GenreFamily.Rock, 1968, null, .80f, .25f, .01f,.01f,.02f,.05f,.10f,.25f,.40f);
@@ -66,7 +66,7 @@ public static class GenreCatalog {
 		Add("soul", Genre.Soul, GenreFamily.RhythmAndSoul, 1960, null, .75f, .80f, .20f,.55f,.75f,.85f,.90f,.90f,.90f);
 		Add("funk", Genre.Funk, GenreFamily.RhythmAndSoul, 1967, null, .80f, .70f, .02f,.05f,.10f,.25f,.40f,.55f,.70f);
 		Add("doo-wop", Genre.DooWop, GenreFamily.RhythmAndSoul, 1954, 1965, .80f, .85f, .75f,.50f,.20f,.10f,.05f,.03f,.02f);
-		Add("gospel", Genre.Gospel, GenreFamily.Gospel, 1950, null, .50f, .40f, .35f,.35f,.38f,.48f,.55f,.65f,.75f);
+		Add("gospel", Genre.Gospel, GenreFamily.Gospel, 1950, null, .50f, .70f, .35f,.35f,.38f,.48f,.55f,.65f,.75f);
 		Add("country", Genre.Country, GenreFamily.Country, 1950, null, .40f, .65f, .48f,.50f,.50f,.52f,.52f,.54f,.56f);
 		Add("country-rock", Genre.CountryRock, GenreFamily.Country, 1968, null, .70f, .40f, .01f,.02f,.05f,.10f,.20f,.40f,.55f);
 		Add("folk", Genre.Folk, GenreFamily.Folk, 1958, 1966, .60f, .50f, .40f,.50f,.60f,.45f,.35f,.30f,.30f);

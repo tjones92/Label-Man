@@ -41,13 +41,41 @@ public partial class CompetitorManager : Node {
 	private const int AlbumProjectPressureMinimumDecisions = 100;
 	private const float AlbumProjectPressureShare = 0.75f;
 	private const float PromoProjectEligibilityWeight = 0.75f;
-	private const float LiveAlbumDecisionEligibilityScale = 1.07f;
+	// The live route no longer needs an eligibility thumb. It compensated for a
+	// binary fork that discarded every near-miss Album, so it had to be biased up
+	// to keep crossover projects alive. The probabilistic chooser now carries that
+	// behavior explicitly and count-neutrally, leaving this as an unearned live-only
+	// project-count uplift. The scale stays plumbed through ResolveAlbumDecision so
+	// the seam remains explicit, bounded, and independently probeable.
+	private const float LiveAlbumDecisionEligibilityScale = 1f;
 	private const float FormatChoiceExplorationFloor = 0.02f;
 	private const float FormatChoiceLogitSlope = 10f;
 	// The live revision model observes high-variance, annualized outcomes and
 	// therefore needs more evidence than the frozen retirement-time EMA. Keeping
 	// this separate also preserves the disabled route's legacy K=4 behavior.
 	private const float ResponsiveMemoryConfidenceK = 12f;
+	// Ceiling retained from the former Major-tier coefficient so a fully-capable
+	// label lands where majors were already calibrated; the reference roster depth is
+	// the point past which a catalogue can keep an LP program fed on its own.
+	private const float AlbumPortfolioCommitmentCeiling = 1.50f;
+	private const float AlbumProgramRosterDepth = 12f;
+	private const float AlbumProgramReachWeight = .55f;
+	// Calibrated against measured 1967 means (overlap .485, awareness headroom .617)
+	// so recruited units run about .64 of diverted units per unit of shared exposure.
+	// The promo Single stays net-positive on its own margin while remaining mildly
+	// dilutive per unit — matching a decade in which promo Singles were the primary
+	// LP marketing vehicle rather than a strategy that dies at the LP takeover.
+	private const float PromoAlbumConversionK = .50f;
+	// A promo Single recruits Album buyers partly on novelty and partly on being the
+	// Album's advertisement. Gating recruitment purely on awareness headroom made the
+	// second effect vanish exactly where it was strongest: a famous act's hit Single
+	// still sold enormous LP volume in 1967-69. Measured headroom falls .90 -> .44
+	// across 1966-68 while shelf overlap rises, and that asymmetry — not the level —
+	// is what re-opened the crossover a year later.
+	private const float PromoAwarenessConversionFloor = .25f;
+	private const float AlbumPriorEarlyEraDiscount = .78f;
+	private const int AlbumPriorCalibrationBootstrapYear = 1960;
+	private const int AlbumPriorCalibrationRetiredYear = 1964;
 	[Export] private float priorUnitScalarAlbum = 175000f;
 	[Export] private float priorCompHitUnitScalar = 20000f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float hitRecencyDecay = 0.75f;
@@ -67,7 +95,13 @@ public partial class CompetitorManager : Node {
 	[Export(PropertyHint.Range, "0,1,0.01")] private float cannibalizationStrength = 0.15f;
 	[Export] private float singleNetMarginPerUnit = 0.40f;
 	[Export] private float substitutionK = 1.00f;
-	[Export(PropertyHint.Range, "0,1,0.01")] private float substitutionCap = 0.85f;
+	// Substitution saturates — a large part of the 45 market never converts to LPs at
+	// any level of album dominance — but the binding cap is deliberately loose. Once
+	// the absolute promo veto was removed, a declining promo advantage produces the
+	// control's gradual .66 -> .44 slide instead of a collapse, so cannibalization is
+	// allowed to keep growing. Capping it hard instead (.35) left promo unopposed and
+	// overshot the unit ceiling to 1.38 at 1967.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float substitutionCap = 0.60f;
 	[Export] private float expectedPromoLiftScalar = 10000f;
 	[Export] private float expectedOverlapWeeks = 10f;
 	// Flattened row-major because Godot does not export multidimensional arrays.
@@ -1401,9 +1435,17 @@ public partial class CompetitorManager : Node {
 		projectedSingle *= singleNoiseMultiplier;
 		projectedAlbum *= albumNoiseMultiplier;
 		projectedStandaloneAlbum *= albumNoiseMultiplier;
-		float albumPortfolioCommitment = GetAlbumPortfolioCommitmentMultiplier(label.tier, year);
-		projectedAlbum *= albumPortfolioCommitment;
-		projectedStandaloneAlbum *= albumPortfolioCommitment;
+		// Commitment is a portfolio subsidy, not a revenue estimate, so it is applied
+		// as an additive credit on a positive scale rather than as a scalar on a signed
+		// net. Scaling the net inverted the intent: an Album projected to lose money is
+		// the normal marginal case the commitment exists to carry, and multiplying it
+		// pushed it further below the Single hurdle, harder every year as era weight
+		// rose. The credit uses the same pre-noise prior scale as the memory residual
+		// above, and stays outside the noise draw because it is policy, not estimation.
+		float albumPortfolioCommitment = GetAlbumPortfolioCommitmentMultiplier(label, year);
+		float albumPortfolioCredit = CalculateAlbumPortfolioCredit(albumPortfolioCommitment, priorAlbum);
+		projectedAlbum += albumPortfolioCredit;
+		projectedStandaloneAlbum += albumPortfolioCredit;
 		float singleFormatTilt = GetFormatPriorMultiplier(artist.primaryGenre, ReleaseFormat.Single, year);
 		float singlePreTiltContribution = (priorSingle + decision.singleProductionCost) / Mathf.Max(.000001f, singleFormatTilt);
 		float projectedLaunchAwareness = ProjectLaunchAwareness(label, artist, label.GetMarketingBudget(artist));
@@ -1420,7 +1462,16 @@ public partial class CompetitorManager : Node {
 		float substitutionPropensity = Mathf.Clamp(substitutionK * albumDemandFactor, 0f, substitutionCap);
 		float divertedUnits = substitutionPropensity * expectedOverlapFraction * expectedSingleUnits;
 		float cannibalizationLoss = divertedUnits * albumPrior.marginPerUnit;
-		float promoAdvantage = expectedPromoLift + expectedPromoSingleNet - cannibalizationLoss;
+		// A promo Single does not only divert Album buyers, it recruits them — that is
+		// the entire reason a label runs one. Only the diversion was modelled, and it
+		// scales with albumDemandFactor while the awareness lift is a fixed scalar, so
+		// past a crossover year cannibalization exceeded the whole promo proposition
+		// and the strategy became permanently non-viable market-wide. Recruitment now
+		// scales on the same terms as diversion, so the two stay in proportion as the
+		// LP market matures instead of one outgrowing the other without bound.
+		float promoSynergyGain = CalculatePromoAlbumSynergyGain(albumDemandFactor,
+			1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f), expectedSingleUnits, albumPrior.marginPerUnit);
+		float promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - cannibalizationLoss;
 		float componentProjectedAlbumWithPromo = projectedAlbum + promoAdvantage;
 		float projectedAlbumWithPromo = componentProjectedAlbumWithPromo;
 		if (useResponsiveMemory) projectedAlbumWithPromo += projectResponsive.Confidence * projectResponsive.Residual *
@@ -1527,7 +1578,15 @@ public partial class CompetitorManager : Node {
 		float projectedSingle, float projectedAlbumEligibility, float projectedStandaloneAlbum,
 		float componentProjectedAlbumWithPromo, float totalProjectMemoryProjection, float promoProjectDelayPremium,
 		float albumEligibilityScale = 1f) {
-		bool promoPreferred = componentProjectedAlbumWithPromo > projectedStandaloneAlbum && totalProjectMemoryProjection > 0f;
+		// Viability is judged on current component economics, not on the memory-adjusted
+		// projection. Gating it on total-project memory made the strategy self-trapping:
+		// a negative lane residual vetoed promo everywhere at once, and because a vetoed
+		// strategy generates no further evidence, the lane could never recover. Promo
+		// share collapsed .53 -> .004 in one year with component promoAdvantage at
+		// +24,763. Memory still ranks strategies through the component projections; it
+		// no longer holds a permanent veto over one.
+		bool promoPreferred = componentProjectedAlbumWithPromo > projectedStandaloneAlbum &&
+			componentProjectedAlbumWithPromo > 0f;
 		// A promo project consumes two release products. Preserve its calibrated
 		// portfolio eligibility weight here; the physical Album component still
 		// has to beat the orphan-Single alternative after the configured drop
@@ -1571,21 +1630,80 @@ public partial class CompetitorManager : Node {
 	}
 
 	/// <summary>
-	/// Major-label LP programs are portfolio commitments, not independent one-week
-	/// products. The lane split's short-horizon component memory otherwise makes
-	/// them progressively abandon Albums exactly as the LP market matures.
+	/// LP programs are portfolio commitments, not independent one-week products. The
+	/// lane split's short-horizon component memory otherwise makes a label
+	/// progressively abandon Albums exactly as the LP market matures.
+	///
+	/// Commitment is earned, not conferred by tier. Running an LP program needs shelf
+	/// space to place it and roster depth to keep it fed; a label holding both commits
+	/// like a major whatever its tier reads, and one holding neither stays a jobbing
+	/// singles house. The former tier lookup was approximating this, but it reached
+	/// only the Major tier — roughly a tenth of release volume — so the market-wide
+	/// LP shift could not emerge from it.
 	/// </summary>
-	private static float GetAlbumPortfolioCommitmentMultiplier(LabelTier tier, int year) {
+	private static float GetAlbumPortfolioCommitmentMultiplier(AILabel label, int year) {
 		float era = AlbumModel.GetAlbumEraWeight(year);
-		return tier switch {
-			LabelTier.Major => 1f + 1.50f * era,
-			LabelTier.MidTier => 1f + 0.15f * era,
-			_ => 1f
-		};
+		if (label == null || era <= 0f) return 1f;
+		return 1f + AlbumPortfolioCommitmentCeiling * era *
+			CalculateAlbumPortfolioCapacity(label.distributionStrength, label.CurrentRosterSize);
 	}
 
-	internal static float GetAlbumPortfolioCommitmentMultiplierForProbe(LabelTier tier, int year) =>
-		GetAlbumPortfolioCommitmentMultiplier(tier, year);
+	/// <summary>Shared, fixed-input Album portfolio capacity seam for probes.</summary>
+	internal static float CalculateAlbumPortfolioCapacity(float distributionStrength, int rosterSize) =>
+		Mathf.Clamp(AlbumProgramReachWeight * Mathf.Clamp(distributionStrength, 0f, 1f) +
+			(1f - AlbumProgramReachWeight) *
+			Mathf.Clamp(rosterSize / AlbumProgramRosterDepth, 0f, 1f), 0f, 1f);
+
+	internal static float GetAlbumPortfolioCommitmentMultiplierForProbe(
+		float distributionStrength, int rosterSize, int year) =>
+		1f + AlbumPortfolioCommitmentCeiling * AlbumModel.GetAlbumEraWeight(year) *
+			CalculateAlbumPortfolioCapacity(distributionStrength, rosterSize);
+
+	/// <summary>
+	/// Album units recruited by a promo Single, on the same terms as the diverted
+	/// units it is weighed against: both scale with album demand, the Single's reach
+	/// and the Album's margin. Recruitment is gated on awareness headroom because a
+	/// Single adds least where the launch is already well known, which is exactly
+	/// where diversion is gated on shared shelf overlap instead.
+	/// </summary>
+	internal static float CalculatePromoAlbumSynergyGain(float albumDemandFactor,
+		float awarenessHeadroom, float expectedSingleUnits, float albumMarginPerUnit) =>
+		Mathf.Max(0f, PromoAlbumConversionK * Mathf.Max(0f, albumDemandFactor) *
+			Mathf.Lerp(PromoAwarenessConversionFloor, 1f, Mathf.Clamp(awarenessHeadroom, 0f, 1f)) *
+			Mathf.Max(0f, expectedSingleUnits) * albumMarginPerUnit);
+
+	/// <summary>
+	/// The Album prior's opportunity term is flat before `albumDemandRiseStartYear`
+	/// while the Album market it predicts is already growing, so the prior overstates a
+	/// niche early-decade LP and converges once the market matures. Decomposed against
+	/// completed cohorts the error is on the revenue side — realized production cost is
+	/// only ~9% of expected revenue — so it is genuinely a unit forecast error.
+	///
+	/// The correction is deliberately partial. Fitting it fully (.65/.66/.74/1.00, from
+	/// measured revenue realization) aborts the gate at 1961 — 798 Album projects against
+	/// 1257 — because the control's early-decade Album counts *require* an over-projecting
+	/// prior. That is not obviously a defect: the prior is the label's belief, not ground
+	/// truth, and early-60s A&R genuinely over-committed to LPs. The error also closes on
+	/// its own as the market matures (realized/prior .949 by 1964) with the memory residual
+	/// as the learning mechanism, so only the pre-boom years are damped.
+	///
+	/// Both endpoints are excluded. 1960 is the bootstrap year on a seeded catalog and
+	/// already measures nearly correct (.913); 1964 onward is correct without help, and
+	/// discounting it over-corrected to 1.106.
+	/// </summary>
+	internal static float CalculateAlbumPriorEraCalibration(int year) {
+		if (year <= AlbumPriorCalibrationBootstrapYear) return 1f;
+		if (year >= AlbumPriorCalibrationRetiredYear) return 1f;
+		return Mathf.Lerp(AlbumPriorEarlyEraDiscount, 1f, AlbumModel.GetAlbumEraWeight(year));
+	}
+
+	/// <summary>
+	/// Sign-safe portfolio commitment. Equivalent in magnitude to the former scalar
+	/// when the projection sits near its prior, but always moves the Album up, so a
+	/// marginal or negative-net proposition is carried rather than pushed away.
+	/// </summary>
+	internal static float CalculateAlbumPortfolioCredit(float commitmentMultiplier, float priorAlbum) =>
+		Mathf.Max(0f, commitmentMultiplier - 1f) * Mathf.Max(1f, Mathf.Abs(priorAlbum));
 
 	private void PrepareAnnualFormatCapacity(int year) {
 		if (annualFormatCapacityYear == year) return;
@@ -1663,7 +1781,8 @@ public partial class CompetitorManager : Node {
 		IEnumerable<MarketRegion> regions = ChartManager.Instance != null ? ChartManager.Instance.GetAllRegions() : Enumerable.Empty<MarketRegion>();
 		bool live = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		AlbumPriorExplanation opportunity = GetAlbumPriorExplanation(artist.primaryGenre, regions, year, live);
-		float baseAffinityUnits = priorUnitScalarAlbum * decision.qualityEstimate * statureMultiplier * decision.reachFactor;
+		float baseAffinityUnits = priorUnitScalarAlbum * decision.qualityEstimate * statureMultiplier *
+			decision.reachFactor * CalculateAlbumPriorEraCalibration(year);
 		float preTiltAffinityUnits = baseAffinityUnits * opportunity.UntiltedAlbumDemandFactor * opportunity.MarketReconciliation;
 		float unweightedHitUnits = priorCompHitUnitScalar * hitInventory.hitScore;
 		float weightedHitUnits = compCostWeight * unweightedHitUnits;
@@ -1899,16 +2018,24 @@ public partial class CompetitorManager : Node {
 
 	/// <summary>
 	/// Live Album and Single priors use the same routed relative-market factor.
-	/// The former accepted/routed ratio was undefined for canonical genres whose
-	/// legacy comparator pool was zero, erasing their Album affinity at the fork.
+	/// The Album prior's unit scalars were calibrated against the legacy relative
+	/// market, so a genre that has one must still be renormalized by it; dropping
+	/// that divisor handed every large legacy genre an unearned Album uplift at the
+	/// fork. Genres with no legacy comparator keep the bare routed factor, which is
+	/// what the divisor form could not express without erasing their Album affinity.
 	/// </summary>
 	public static float CalculateAlbumPriorMarketReconciliation(Genre genre, IEnumerable<MarketRegion> regions, int year) {
 		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
 		if (regionArray.Length == 0) return 1f;
 		float routedSelected = regionArray.Sum(region => region.GetGenreMarketSize(genre, year));
 		IReadOnlyList<Genre> supplied = GenreSupplyService.GetAvailableGenres(year);
-		return CalculateRelativeSingleMarketFactor(routedSelected,
+		float routedRelative = CalculateRelativeSingleMarketFactor(routedSelected,
 			supplied.Select(candidate => regionArray.Sum(region => region.GetGenreMarketSize(candidate, year))));
+		float acceptedSelected = regionArray.Sum(region => region.GetAcceptedLegacyGenreMarketSize(genre, year));
+		if (acceptedSelected <= 0f) return routedRelative;
+		float acceptedRelative = CalculateRelativeSingleMarketFactor(acceptedSelected,
+			GenreDomains.LegacyDomain.Select(candidate => regionArray.Sum(region => region.GetAcceptedLegacyGenreMarketSize(candidate, year))));
+		return Mathf.Clamp(routedRelative / Mathf.Max(.000001f, acceptedRelative), .25f, 4f);
 	}
 
 	/// <summary>Side-effect-free binary format decision decomposition for fixed probes.</summary>
