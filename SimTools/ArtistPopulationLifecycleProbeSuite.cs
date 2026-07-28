@@ -97,7 +97,11 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeExperiencedTalentReservoir();                                // 71
 		ProbeEarnedNationalReachBoundaries();                                // 72
 		ProbeEarnedReachDemandScale();                                          // 73
-		results.Add("D6 fixed probes 1-73 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, and the earned-reach Single-demand scale)");
+		ProbePersistentRegionalDealEvidence();                                      // 74
+		ProbeRetiredLabelEvidenceLookback();                                        // 75
+		ProbeWeeklyAwarenessAgeDecay();                                              // 76
+		ProbeReleaseImprintIdentity();                                                // 77
+		results.Add("D6 fixed probes 1-77 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, and immutable release-imprint identity)");
 		return results;
 	}
 
@@ -1294,7 +1298,79 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		float national = ChartSimulator.CalculateLiveLabelDemandScale(.90f, .90f);
 		Require(Math.Abs(regional - .595f) < .000001f && Math.Abs(established - .9275f) < .000001f &&
 			Math.Abs(national - 1.20f) < .000001f && regional < established && established < national,
-			"74 live Single demand rises continuously with earned distribution and national reach while respecting the national-label ceiling");
+			"73 live Single demand rises continuously with earned distribution and national reach while respecting the national-label ceiling");
+	}
+
+	private static void ProbePersistentRegionalDealEvidence() {
+		var record = new RecordRuntimeData(new Record {
+			recordId = "regional_deal_probe",
+			labelId = "regional_label",
+			format = ReleaseFormat.Single,
+			hookStrength = .45f,
+			productionQuality = .45f,
+			danceability = .45f
+		});
+		record.peakRegionalBreakoutStrength = .25f;
+		record.regionalData["eastcoast"] = new RegionalRecordData("eastcoast") {
+			peakBreakoutScore = .23f,
+			unitsSoldThisWeek = 0
+		};
+		record.regionalData["westcoast"] = new RegionalRecordData("westcoast") {
+			peakBreakoutScore = .25f,
+			unitsSoldThisWeek = 0
+		};
+		CompetitorManager.RegionalDealEvidence evidence = CompetitorManager.EvaluateRegionalDealEvidence(
+			new[] { record }, "regional_label", new[] { "eastcoast" }, .24f);
+		var highNationalReachClient = new AILabel { labelId = "regional_label", nationalReach = .85f };
+		Require(evidence.HasPersistentRegionalTraction &&
+			Math.Abs(evidence.BestStrongRegionPeak - .23f) < .000001f &&
+			Math.Abs(evidence.BestAnyRegionPeak - .25f) < .000001f &&
+			!evidence.PassesLegacyQualityAndCurrentSalesGate &&
+			CompetitorManager.IsPullDealTrigger(highNationalReachClient, evidence),
+			"74 persistent observed LocalTraction in any market survives a zero-sales processing week, does not require a static launch-time strong region, and is not closed by an arbitrary national-reach scalar");
+
+		record.regionalData["westcoast"].peakBreakoutScore = .23f;
+		evidence = CompetitorManager.EvaluateRegionalDealEvidence(
+			new[] { record }, "regional_label", new[] { "eastcoast" }, .24f);
+		Require(!evidence.HasPersistentRegionalTraction,
+			"74b sub-LocalTraction noise cannot qualify for distribution evidence in any region");
+	}
+
+	private static void ProbeRetiredLabelEvidenceLookback() {
+		var history = new[] {
+			new CompetitorManager.LabelRecordHistoryEntry(48, charted: true, top40: true),
+			new CompetitorManager.LabelRecordHistoryEntry(47, charted: true, top40: false),
+			new CompetitorManager.LabelRecordHistoryEntry(90, charted: false, top40: false)
+		};
+		Require(CompetitorManager.CountRecentRetiredRecordEvidence(history, 100, 52,
+				requireCharted: true, requireTop40: false) == 1 &&
+			CompetitorManager.CountRecentRetiredRecordEvidence(history, 100, 52,
+				requireCharted: false, requireTop40: true) == 1 &&
+			CompetitorManager.CountRecentRetiredRecordEvidence(history, 100, 52,
+				requireCharted: false, requireTop40: false) == 2,
+			"75 a retired record remains visible through the inclusive 52-week label-evidence window and expires after it");
+	}
+
+	private static void ProbeWeeklyAwarenessAgeDecay() {
+		float prePeak = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(.80f, 8);
+		float ageNine = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(.80f, 9);
+		float ageEighteen = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(.80f, 18);
+		float repeated = .80f;
+		for (int age = 9; age <= 18; age++)
+			repeated = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(repeated, age);
+		Require(Math.Abs(prePeak - .80f) < .000001f &&
+			Math.Abs(ageNine - .76f) < .000001f &&
+			Math.Abs(ageEighteen - .76f) < .000001f &&
+			Math.Abs(repeated - (.80f * MathF.Pow(.95f, 10f))) < .000001f,
+			"76 awareness receives one post-peak decay step per elapsed week rather than a triangular age exponent");
+	}
+
+	private static void ProbeReleaseImprintIdentity() {
+		var source = new Record { recordId = "imprint_probe", labelId = "original_imprint" };
+		var runtime = new RecordRuntimeData(source);
+		source.labelId = "acquiring_owner";
+		Require(runtime.releaseLabelId == "original_imprint" && runtime.baseRecord.labelId == "acquiring_owner",
+			"77 acquisition may transfer operating ownership without rewriting the immutable release-imprint identity");
 	}
 
 	private static void Require(bool condition, string message) {

@@ -43,3 +43,26 @@ public sealed class DistributionDealTelemetry {
 	public int termWeeks;
 	public float dependency;
 }
+
+public sealed class DistributionOfferAttemptTelemetry {
+	public int week;
+	public int year;
+	public string clientId;
+	public string clientName;
+	public LabelTier clientTier;
+	public LabelPopulationOrigin clientOrigin;
+	public int monthsActive;
+	public float ownedReach;
+	public float nationalReach;
+	public float bestAnyRegionPeak;
+	public float bestStrongRegionPeak;
+	public float bestPersistentEvidenceQuality;
+	public bool persistentRegionalEvidence;
+	public bool legacyQualityAndCurrentSalesEvidence;
+	public bool legacyNationalReachGate;
+	public bool pushEvidence;
+	public bool pushChancePassed;
+	public bool pullChancePassed;
+	public string outcome;
+	public string distributorId;
+}

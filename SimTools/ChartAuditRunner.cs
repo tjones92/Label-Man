@@ -133,6 +133,8 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter dealLedgerWriter;
 	private StreamWriter labelDirectoryWriter;
 	private StreamWriter concentrationWriter;
+	private StreamWriter firstChartEventWriter;
+	private StreamWriter distributionOfferAttemptWriter;
 	private StreamWriter marketRevenueWriter;
 	private StreamWriter releaseCapacityWriter;
 	private StreamWriter seasonalityMonthlyWriter;
@@ -199,7 +201,11 @@ public partial class ChartAuditRunner : Node {
 	private readonly HashSet<string> observedPopulationProjectIds = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, long> annualChartUnitsByLabel = new(StringComparer.Ordinal);
 	private readonly HashSet<string> cumulativeChartingLabelIds = new(StringComparer.Ordinal);
+	private readonly HashSet<string> cumulativeChartingLabelNames = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, LabelTier> firstChartTierByLabel = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, LabelTier> birthTierByLabel = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, int> signedDealCountByLabel = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, int> completedDealCountByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<(string Tier, string Format), RevenueRollup> annualMarketRevenue = new();
 	private readonly Dictionary<string, string> acquiredBy = new(StringComparer.Ordinal);
 	private readonly Dictionary<(int Year, string Format), FormatMixRollup> annualFormatMix = new();
@@ -324,6 +330,7 @@ public partial class ChartAuditRunner : Node {
 				RosterManager.Instance.OnDailyTalentMarketAppointment += WriteDailyTalentAppointment;
 			}
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
+			CompetitorManager.Instance.OnDistributionOfferAttempt += OnDistributionOfferAttempt;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome += OnReleaseOutcome;
@@ -937,6 +944,8 @@ public partial class ChartAuditRunner : Node {
 			artistProjectIdentityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-project-identity.csv"));
 			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
 			runtimeLabelProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-runtime-label-profiles.csv"));
+			firstChartEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-first-chart-events.csv"));
+			distributionOfferAttemptWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-distribution-offer-attempts.csv"));
 			dailyTalentMarketWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-daily-talent-market.csv"));
 			dailyTalentAppointmentWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-daily-talent-appointments.csv"));
 			if (catastrophicFailFast) catastrophicFailFastWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-catastrophic-fail-fast.csv"));
@@ -952,7 +961,9 @@ public partial class ChartAuditRunner : Node {
 		labelFinanceWriter.WriteLine("week,year,labelId,labelName,archetype,isHistorical,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,ownedReach,borrowedReach,nationalReach,capability,dealDistributorId,dealUnrecoupedAdvance");
 		dealLedgerWriter.WriteLine("eventWeek,year,resolution,origin,distributorId,distributorName,clientId,clientName,reachGranted,marginSkim,ownsMasters,advance,signedWeek,termWeeks,dependency");
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
-		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting");
+		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting,cumulativeExactLabelNamesCharting");
+		firstChartEventWriter?.WriteLine("week,year,date,observationKind,leftCensoredAtRunStart,recordId,title,releaseLabelId,currentOwnerLabelId,labelName,labelOrigin,runtimeBirthWeek,birthTier,firstChartTier,labelStatus,isHistorical,recordAge,currentPosition,unitsThisWeek,chartPoints,publishedCutoffPoints,quality,peakRegionalBreakoutStrength,bestStrongRegionPeak,regionalBreakoutCount,coveredRegionCount,signedDealCount,completedDealCount,activeDeal,dealOrigin,dealSignedWeek,permanentNationalReach,borrowedReach,effectiveNationalReach,ownedReach,distributionStrength,permanentRegionCount,grantedRegionCount,initialLaunchAwareness,initialLaunchStock");
+		distributionOfferAttemptWriter?.WriteLine("week,year,clientId,clientName,clientTier,clientOrigin,monthsActive,ownedReach,nationalReach,bestAnyRegionPeak,bestStrongRegionPeak,bestPersistentEvidenceQuality,persistentRegionalEvidence,legacyQualityAndCurrentSalesEvidence,legacyNationalReachGate,pushEvidence,pushChancePassed,pullChancePassed,outcome,distributorId");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
 		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,effectiveAlbumIntent,albumOverlapPressure,singleFormatBudget,albumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,albumChannelCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
@@ -1013,6 +1024,7 @@ public partial class ChartAuditRunner : Node {
 		WriteGenreCatalogRows();
 		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
+			birthTierByLabel[label.labelId] = label.tier;
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
 				label.isHistorical ? "true" : "false", Csv(label.tier.ToString()) }));
 		}
@@ -1287,7 +1299,14 @@ public partial class ChartAuditRunner : Node {
 
 	private void OnDistributionDealEvent(DistributionDealTelemetry dealEvent) {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		if (dealEvent.resolution == DealResolution.Signed) signedDealEvents++;
+		if (dealEvent.resolution == DealResolution.Signed) {
+			signedDealEvents++;
+			if (!string.IsNullOrEmpty(dealEvent.clientId))
+				signedDealCountByLabel[dealEvent.clientId] = signedDealCountByLabel.GetValueOrDefault(dealEvent.clientId) + 1;
+		} else if (dealEvent.resolution is DealResolution.Exit or DealResolution.Renew or DealResolution.Absorb) {
+			if (!string.IsNullOrEmpty(dealEvent.clientId))
+				completedDealCountByLabel[dealEvent.clientId] = completedDealCountByLabel.GetValueOrDefault(dealEvent.clientId) + 1;
+		}
 		dealLedgerWriter.WriteLine(string.Join(",", new[] {
 			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture), Csv(dealEvent.resolution.ToString()),
 			Csv(dealEvent.origin.ToString()), Csv(dealEvent.distributorId), Csv(dealEvent.distributorName), Csv(dealEvent.clientId), Csv(dealEvent.clientName),
@@ -1297,6 +1316,32 @@ public partial class ChartAuditRunner : Node {
 		if (dealEvent.resolution == DealResolution.Absorb && !string.IsNullOrEmpty(dealEvent.clientId) && !string.IsNullOrEmpty(dealEvent.distributorId)) {
 			acquiredBy[dealEvent.clientId] = dealEvent.distributorId;
 		}
+	}
+
+	private void OnDistributionOfferAttempt(DistributionOfferAttemptTelemetry attempt) {
+		if (distributionOfferAttemptWriter == null || attempt == null) return;
+		distributionOfferAttemptWriter.WriteLine(string.Join(",", new[] {
+			attempt.week.ToString(CultureInfo.InvariantCulture),
+			attempt.year.ToString(CultureInfo.InvariantCulture),
+			Csv(attempt.clientId),
+			Csv(attempt.clientName),
+			Csv(attempt.clientTier.ToString()),
+			Csv(attempt.clientOrigin.ToString()),
+			attempt.monthsActive.ToString(CultureInfo.InvariantCulture),
+			F(attempt.ownedReach),
+			F(attempt.nationalReach),
+			F(attempt.bestAnyRegionPeak),
+			F(attempt.bestStrongRegionPeak),
+			F(attempt.bestPersistentEvidenceQuality),
+			attempt.persistentRegionalEvidence ? "true" : "false",
+			attempt.legacyQualityAndCurrentSalesEvidence ? "true" : "false",
+			attempt.legacyNationalReachGate ? "true" : "false",
+			attempt.pushEvidence ? "true" : "false",
+			attempt.pushChancePassed ? "true" : "false",
+			attempt.pullChancePassed ? "true" : "false",
+			Csv(attempt.outcome),
+			Csv(attempt.distributorId)
+		}));
 	}
 
 	private void OnSupplySelection(SupplySelectionTelemetry selection) {
@@ -1671,7 +1716,12 @@ public partial class ChartAuditRunner : Node {
 			ObserveRecord(record, wasPresentAtStart: true);
 			observedReleaseIds.Add(record.baseRecord.recordId);
 		}
-		previousChartIds = ChartManager.Instance.GetCurrentChart()
+		List<RecordRuntimeData> initialChart = ChartManager.Instance.GetCurrentChart();
+		// A decade audit begins with an already-live chart. Seed those observed
+		// identities before week one so a left-censored prewarm record that falls
+		// off on the first live tick is not silently omitted from decade breadth.
+		ObserveFirstChartIdentities(initialChart, leftCensoredAtRunStart: true);
+		previousChartIds = initialChart
 			.Select(record => record.baseRecord.recordId)
 			.ToHashSet(StringComparer.Ordinal);
 		previousActiveIds = ChartManager.Instance.GetAllRecords()
@@ -2010,8 +2060,10 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void WriteRuntimeLabelProfile(RuntimeLabelProfileFactory.Result profile) {
-		if (runtimeLabelProfileWriter == null || profile?.Label == null) return;
+		if (profile?.Label == null) return;
 		AILabel label = profile.Label;
+		birthTierByLabel[label.labelId] = label.tier;
+		if (runtimeLabelProfileWriter == null) return;
 		runtimeLabelProfileWriter.WriteLine(string.Join(",", new[] {
 			profile.Seed.ToString(CultureInfo.InvariantCulture), profile.BirthWeek.ToString(CultureInfo.InvariantCulture), Csv(profile.BirthDate.ToString()),
 			Csv(label.labelId), Csv(label.labelName), Csv(label.tier.ToString()), Csv(label.archetype.ToString()), Csv(label.headquartersCity),
@@ -2237,14 +2289,102 @@ public partial class ChartAuditRunner : Node {
 			concentrationYear = year;
 		}
 		foreach (RecordRuntimeData record in chart) {
-			string labelId = record.baseRecord.labelId;
-			if (string.IsNullOrEmpty(labelId)) continue;
-			annualChartUnitsByLabel[labelId] = annualChartUnitsByLabel.GetValueOrDefault(labelId) + record.unitsThisWeek;
-			if (cumulativeChartingLabelIds.Add(labelId)) {
-				AILabel label = CompetitorManager.Instance.GetLabel(labelId);
-				if (label != null) firstChartTierByLabel[labelId] = label.tier;
+			string currentOwnerId = record.baseRecord.labelId;
+			if (string.IsNullOrEmpty(currentOwnerId)) continue;
+			annualChartUnitsByLabel[currentOwnerId] =
+				annualChartUnitsByLabel.GetValueOrDefault(currentOwnerId) + record.unitsThisWeek;
+		}
+		ObserveFirstChartIdentities(chart, leftCensoredAtRunStart: false);
+	}
+
+	private void ObserveFirstChartIdentities(IEnumerable<RecordRuntimeData> chart, bool leftCensoredAtRunStart) {
+		RecordRuntimeData[] observedChart = (chart ?? Enumerable.Empty<RecordRuntimeData>()).ToArray();
+		float publishedCutoff = observedChart.Length > 0
+			? ChartSimulator.CalculateChartPoints(observedChart[^1], regions)
+			: 0f;
+		foreach (RecordRuntimeData record in observedChart) {
+			string currentOwnerId = record?.baseRecord?.labelId;
+			if (string.IsNullOrEmpty(currentOwnerId)) continue;
+			// An acquisition transfers economics and operating control, but it does
+			// not retroactively change the imprint printed on a released single.
+			// Count that immutable release identity for decade breadth; annual firm
+			// concentration continues to follow the audit's owner rollup.
+			string releaseLabelId = string.IsNullOrEmpty(record.releaseLabelId)
+				? currentOwnerId
+				: record.releaseLabelId;
+			if (cumulativeChartingLabelIds.Add(releaseLabelId)) {
+				AILabel releaseLabel = CompetitorManager.Instance.GetLabel(releaseLabelId);
+				AILabel currentOwner = CompetitorManager.Instance.GetLabel(currentOwnerId);
+				LabelTier firstTier = releaseLabel?.tier ?? currentOwner?.tier ?? LabelTier.Small;
+				firstChartTierByLabel[releaseLabelId] = firstTier;
+				string labelName = releaseLabel?.labelName ?? currentOwner?.labelName ?? releaseLabelId;
+				if (!string.IsNullOrWhiteSpace(labelName)) cumulativeChartingLabelNames.Add(labelName.Trim());
+				WriteFirstChartEvent(record, releaseLabelId, currentOwnerId,
+					releaseLabel, currentOwner, firstTier, publishedCutoff, leftCensoredAtRunStart);
 			}
 		}
+	}
+
+	private void WriteFirstChartEvent(RecordRuntimeData record, string releaseLabelId,
+		string currentOwnerId, AILabel releaseLabel, AILabel currentOwner, LabelTier firstTier,
+		float publishedCutoff, bool leftCensoredAtRunStart) {
+		if (firstChartEventWriter == null || record?.baseRecord == null) return;
+		AILabel capabilityLabel = currentOwner ?? releaseLabel;
+		var strongRegions = (releaseLabel?.strongRegions ?? System.Array.Empty<string>())
+			.ToHashSet(StringComparer.Ordinal);
+		float bestStrongPeak = record.regionalData
+			.Where(pair => strongRegions.Contains(pair.Key))
+			.Select(pair => pair.Value?.peakBreakoutScore ?? 0f)
+			.DefaultIfEmpty(0f)
+			.Max();
+		LabelTier birthTier = birthTierByLabel.TryGetValue(releaseLabelId, out LabelTier observedBirthTier)
+			? observedBirthTier
+			: firstTier;
+		GameDate date = TimeManager.Instance?.CurrentDate ?? new GameDate(1960, 1, 1);
+		DistributionDeal deal = capabilityLabel?.activeDeal;
+		float points = ChartSimulator.CalculateChartPoints(record, regions);
+		firstChartEventWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture),
+			date.year.ToString(CultureInfo.InvariantCulture),
+			Csv(date.ToString()),
+			Csv(leftCensoredAtRunStart ? "RunStartChart" : "LiveFirstObserved"),
+			leftCensoredAtRunStart ? "true" : "false",
+			Csv(record.baseRecord.recordId),
+			Csv(record.baseRecord.title),
+			Csv(releaseLabelId),
+			Csv(currentOwnerId),
+			Csv(releaseLabel?.labelName ?? currentOwner?.labelName),
+			Csv((releaseLabel?.populationOrigin ?? LabelPopulationOrigin.Unspecified).ToString()),
+			(releaseLabel?.runtimeBirthWeek ?? 0).ToString(CultureInfo.InvariantCulture),
+			Csv(birthTier.ToString()),
+			Csv(firstTier.ToString()),
+			Csv((releaseLabel?.status ?? currentOwner?.status ?? LabelStatus.Stable).ToString()),
+			releaseLabel?.isHistorical == true ? "true" : "false",
+			record.weeksSinceRelease.ToString(CultureInfo.InvariantCulture),
+			record.currentPosition.ToString(CultureInfo.InvariantCulture),
+			record.unitsThisWeek.ToString(CultureInfo.InvariantCulture),
+			F(points),
+			F(publishedCutoff),
+			F(record.GetQuality()),
+			F(record.peakRegionalBreakoutStrength),
+			F(bestStrongPeak),
+			record.regionalBreakoutCount.ToString(CultureInfo.InvariantCulture),
+			record.coveredRegionCount.ToString(CultureInfo.InvariantCulture),
+			signedDealCountByLabel.GetValueOrDefault(releaseLabelId).ToString(CultureInfo.InvariantCulture),
+			completedDealCountByLabel.GetValueOrDefault(releaseLabelId).ToString(CultureInfo.InvariantCulture),
+			deal != null ? "true" : "false",
+			Csv(deal?.origin.ToString()),
+			(deal?.signedWeek ?? 0).ToString(CultureInfo.InvariantCulture),
+			F(capabilityLabel?.nationalReach ?? 0f),
+			F(capabilityLabel?.borrowedReach ?? 0f),
+			F(capabilityLabel?.effectiveNationalReach ?? 0f),
+			F(capabilityLabel?.ownedReach ?? 0f),
+			F(capabilityLabel?.distributionStrength ?? 0f),
+			(capabilityLabel?.distributionRegions?.Distinct(StringComparer.Ordinal).Count() ?? 0).ToString(CultureInfo.InvariantCulture),
+			(deal?.grantedRegions?.Distinct(StringComparer.Ordinal).Count() ?? 0).ToString(CultureInfo.InvariantCulture),
+			F(record.initialLaunchAwareness),
+			record.initialLaunchStock.ToString(CultureInfo.InvariantCulture)
+		}));
 	}
 
 	private void WriteConcentrationYear() {
@@ -2281,7 +2421,8 @@ public partial class ChartAuditRunner : Node {
 			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.Boutique).ToString(CultureInfo.InvariantCulture),
 			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.Independent).ToString(CultureInfo.InvariantCulture),
 			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.MidTier).ToString(CultureInfo.InvariantCulture),
-			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.Major).ToString(CultureInfo.InvariantCulture)
+			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.Major).ToString(CultureInfo.InvariantCulture),
+			cumulativeChartingLabelNames.Count.ToString(CultureInfo.InvariantCulture)
 		}));
 	}
 
@@ -2893,6 +3034,7 @@ public partial class ChartAuditRunner : Node {
 		}
 		if (CompetitorManager.Instance != null) {
 			CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
+			CompetitorManager.Instance.OnDistributionOfferAttempt -= OnDistributionOfferAttempt;
 			CompetitorManager.Instance.OnReleaseStrategy -= OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision -= OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome -= OnReleaseOutcome;
@@ -2916,6 +3058,8 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter?.Dispose();
 		labelDirectoryWriter?.Dispose();
 		concentrationWriter?.Dispose();
+		firstChartEventWriter?.Dispose();
+		distributionOfferAttemptWriter?.Dispose();
 		marketRevenueWriter?.Dispose();
 		marketClearingWriter?.Dispose();
 		marketSpilloverWriter?.Dispose();
@@ -2984,6 +3128,8 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter = null;
 		labelDirectoryWriter = null;
 		concentrationWriter = null;
+		firstChartEventWriter = null;
+		distributionOfferAttemptWriter = null;
 		marketRevenueWriter = null;
 		marketClearingWriter = null;
 		marketSpilloverWriter = null;

@@ -6,6 +6,11 @@ using System.Collections.Generic;
 public class RecordRuntimeData {
 	public Record baseRecord;
 	public AlbumRuntimeData albumRuntime;
+	// The operating owner may change after an acquisition, but the label/imprint
+	// printed on a released record does not change retroactively. Keep that
+	// release identity so chart-breadth audits do not erase an acquired label's
+	// first chart appearance when AbsorbLabel transfers the active catalogue.
+	public string releaseLabelId;
 	
 	// === CHART POSITION TRACKING ===
 	public int currentPosition;
@@ -110,6 +115,7 @@ public class RecordRuntimeData {
 	// === CONSTRUCTOR ===
 	public RecordRuntimeData(Record record) {
 		baseRecord = record;
+		releaseLabelId = record?.labelId;
 		projectRole = record?.projectRole == ProjectRecordRole.None ? ProjectRecordRole.ExternalOrLegacy : record.projectRole;
 		albumProjectId = record?.albumProjectId;
 		if (record.format == ReleaseFormat.Album && record.album != null) {

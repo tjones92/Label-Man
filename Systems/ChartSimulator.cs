@@ -540,12 +540,19 @@ public static class ChartSimulator {
 		float totalGrowth = (radioGrowth + womGrowth + chartVisibility + organicGrowth) * growthRoom;
 		record.awareness = Mathf.Clamp(record.awareness + totalGrowth, 0f, 1f);
 
-		if (record.weeksSinceRelease > 8) {
-			int weeksOverThreshold = record.weeksSinceRelease - 8;
-			float decay = Mathf.Pow(AWARENESS_DECAY_RATE, weeksOverThreshold);
-			record.awareness *= decay;
-		}
+		record.awareness = ApplyWeeklyAwarenessAgeDecay(record.awareness, record.weeksSinceRelease);
 	}
+
+	// Awareness is mutable stock, so the post-peak rate is applied once per
+	// elapsed week. Raising the rate to the record's age and then applying that
+	// increasingly large factor to last week's already-decayed stock produced a
+	// triangular exponent: by age 18 the stock had received .95^55 instead of
+	// .95^10. That erased the slow regional-to-national breakouts this system is
+	// intended to model.
+	internal static float ApplyWeeklyAwarenessAgeDecay(float awareness, int weeksSinceRelease) =>
+		weeksSinceRelease > 8
+			? Mathf.Max(0f, awareness) * AWARENESS_DECAY_RATE
+			: Mathf.Max(0f, awareness);
 	
 	// =======================================================================
 	// WORD OF MOUTH

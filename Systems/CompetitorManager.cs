@@ -135,9 +135,11 @@ public partial class CompetitorManager : Node {
 	[Export(PropertyHint.Range, "0,1,0.001")] private float selfBuiltNationalReachMonthlyGain = 0.008f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float selfBuiltReachReinvestRate = 0.10f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float completedDealNationalReachRetention = 0.25f;
-	// Peak regional breakout strength a record must reach before its label can seek a
-	// distributor. See HasStrongRegionalChartRecord for why this replaced a national chart test.
-	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.30f;
+	// LocalTraction begins at .24 in UpdateRegionalBreakoutState. That is the
+	// observed-market boundary at which a label has evidence worth taking to a
+	// distributor; the later .40 RegionalBreakout stage is intentionally not a
+	// prerequisite for obtaining the network that helps create it.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.24f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyLow = DealDependencyLow;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyHigh = DealDependencyHigh;
 	
@@ -162,6 +164,20 @@ public partial class CompetitorManager : Node {
 	// Pool it for shrinkage, then let each label refine that baseline locally.
 	private readonly FormatRevenueMemory pooledAlbumWithPromoMemory = new();
 	private Dictionary<string, List<string>> labelActiveRecords = new Dictionary<string, List<string>>();
+	internal readonly struct LabelRecordHistoryEntry {
+		public readonly int ReleaseWeek;
+		public readonly bool Charted;
+		public readonly bool Top40;
+		public LabelRecordHistoryEntry(int releaseWeek, bool charted, bool top40) {
+			ReleaseWeek = releaseWeek;
+			Charted = charted;
+			Top40 = top40;
+		}
+	}
+	private readonly Dictionary<string, List<LabelRecordHistoryEntry>> retiredLabelRecordHistory = new();
+	private readonly HashSet<string> creditedLabelTop40RecordIds = new(System.StringComparer.Ordinal);
+	private readonly HashSet<string> creditedLabelNumberOneRecordIds = new(System.StringComparer.Ordinal);
+	private ChartManager chartRecordEventSource;
 	private Dictionary<string, LabelFinancialHistory> labelFinancials = new Dictionary<string, LabelFinancialHistory>();
 	private readonly Dictionary<string, Dictionary<Genre, int>> annualGenreSupplyByLabel = new();
 	private readonly Dictionary<Genre, int> annualGenreSupplyGlobal = new();
@@ -195,6 +211,25 @@ public partial class CompetitorManager : Node {
 			ArtistSelectionFailures = artistSelectionFailures;
 		}
 	}
+
+	internal readonly struct RegionalDealEvidence {
+		public readonly float BestAnyRegionPeak;
+		public readonly float BestStrongRegionPeak;
+		public readonly float BestPersistentEvidenceQuality;
+		public readonly bool HasPersistentRegionalTraction;
+		public readonly bool PassesLegacyQualityAndCurrentSalesGate;
+
+		public RegionalDealEvidence(float bestAnyRegionPeak, float bestStrongRegionPeak,
+			float bestPersistentEvidenceQuality, bool hasPersistentRegionalTraction,
+			bool passesLegacyQualityAndCurrentSalesGate) {
+			BestAnyRegionPeak = bestAnyRegionPeak;
+			BestStrongRegionPeak = bestStrongRegionPeak;
+			BestPersistentEvidenceQuality = bestPersistentEvidenceQuality;
+			HasPersistentRegionalTraction = hasPersistentRegionalTraction;
+			PassesLegacyQualityAndCurrentSalesGate = passesLegacyQualityAndCurrentSalesGate;
+		}
+	}
+
 	public int DistributionOffersGenerated { get; private set; }
 	public int DistributionOffersAccepted { get; private set; }
 	public float CannibalizationStrength => cannibalizationStrength;
@@ -202,6 +237,7 @@ public partial class CompetitorManager : Node {
 		Mathf.Clamp(substitutionK * CalculateAlbumDemandFactor(genre, year), 0f, substitutionCap);
 	private bool lastReleaseAttemptFailedArtistSelection;
 	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
+	public event System.Action<DistributionOfferAttemptTelemetry> OnDistributionOfferAttempt;
 	public event System.Action<ReleaseStrategyTelemetry> OnReleaseStrategy;
 	public event System.Action<CalibrationDecisionTelemetry> OnCalibrationDecision;
 	public event System.Action<ReleaseOutcomeTelemetry> OnReleaseOutcome;
@@ -218,6 +254,7 @@ public partial class CompetitorManager : Node {
 			TimeManager.Instance.OnWeekEnded += OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 		}
+		EnsureChartRecordSubscription();
 	}
 	
 	public override void _ExitTree() {
@@ -225,9 +262,21 @@ public partial class CompetitorManager : Node {
 			TimeManager.Instance.OnWeekEnded -= OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
 		}
+		if (chartRecordEventSource != null) {
+			chartRecordEventSource.OnRecordChartUpdated -= OnRecordChartUpdated;
+			chartRecordEventSource = null;
+		}
 	}
 	
 	public void Initialize(List<AILabel> labels) {
+		// CompetitorManager precedes ChartManager in autoload order, so ChartManager
+		// may not exist during this node's _Ready. Initialize is invoked by
+		// ChartManager after its singleton is live and is therefore the reliable
+		// subscription boundary for record-outcome bookkeeping.
+		EnsureChartRecordSubscription();
+		retiredLabelRecordHistory.Clear();
+		creditedLabelTop40RecordIds.Clear();
+		creditedLabelNumberOneRecordIds.Clear();
 		AlbumModel.EraWeightStartYear = albumEraWeightStartYear;
 		AlbumModel.EraWeightEndYear = albumEraWeightEndYear;
 		AlbumModel.CohesionRiseStartYear = albumCohesionRiseStartYear;
@@ -235,10 +284,20 @@ public partial class CompetitorManager : Node {
 		aiLabels = labels;
 		foreach (var label in aiLabels) {
 			labelActiveRecords[label.labelId] = new List<string>();
+			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 			labelFinancials[label.labelId] = new LabelFinancialHistory();
 		}
 		PopulateInitialRecords();
 		GD.Print($"CompetitorManager: Initialized with {aiLabels.Count} labels");
+	}
+
+	private void EnsureChartRecordSubscription() {
+		ChartManager source = ChartManager.Instance;
+		if (source == null || source == chartRecordEventSource) return;
+		if (chartRecordEventSource != null)
+			chartRecordEventSource.OnRecordChartUpdated -= OnRecordChartUpdated;
+		source.OnRecordChartUpdated += OnRecordChartUpdated;
+		chartRecordEventSource = source;
 	}
 	
 	private void PopulateInitialRecords() {
@@ -676,6 +735,17 @@ public partial class CompetitorManager : Node {
 		string recordId = runtimeData.baseRecord.recordId;
 		if (!string.IsNullOrEmpty(labelId) && !string.IsNullOrEmpty(recordId) &&
 			labelActiveRecords.TryGetValue(labelId, out var recordIds)) recordIds.Remove(recordId);
+		if (!string.IsNullOrEmpty(labelId)) {
+			if (!retiredLabelRecordHistory.TryGetValue(labelId, out List<LabelRecordHistoryEntry> history)) {
+				history = new List<LabelRecordHistoryEntry>();
+				retiredLabelRecordHistory[labelId] = history;
+			}
+			int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			history.Add(new LabelRecordHistoryEntry(
+				Mathf.Max(0, currentWeek - Mathf.Max(0, runtimeData.weeksSinceRelease)),
+				runtimeData.weeksOnChart > 0,
+				runtimeData.peakPosition > 0 && runtimeData.peakPosition <= 40));
+		}
 
 		float realizedNet = runtimeData.lifetimeLabelNet - runtimeData.sunkProductionCost;
 		OnReleaseOutcome?.Invoke(new ReleaseOutcomeTelemetry {
@@ -2620,7 +2690,20 @@ public partial class CompetitorManager : Node {
 	
 	private void TrackRelease(string labelId, string recordId) {
 		if (!labelActiveRecords.ContainsKey(labelId)) labelActiveRecords[labelId] = new List<string>();
+		if (labelActiveRecords[labelId].Contains(recordId)) return;
 		labelActiveRecords[labelId].Add(recordId);
+		AILabel label = GetLabel(labelId);
+		if (label != null) label.totalReleases++;
+	}
+
+	private void OnRecordChartUpdated(RecordRuntimeData record) {
+		if (record?.baseRecord == null || string.IsNullOrEmpty(record.baseRecord.recordId)) return;
+		AILabel label = GetLabel(record.baseRecord.labelId);
+		if (label == null) return;
+		if (record.peakPosition > 0 && record.peakPosition <= 40 &&
+			creditedLabelTop40RecordIds.Add(record.baseRecord.recordId)) label.top40Hits++;
+		if (record.peakPosition == 1 &&
+			creditedLabelNumberOneRecordIds.Add(record.baseRecord.recordId)) label.numberOneHits++;
 	}
 	
 	private void OnMonthChanged(GameDate date) {
@@ -2735,51 +2818,124 @@ public partial class CompetitorManager : Node {
 		bool eligibleTier = client.tier == LabelTier.Small || client.tier == LabelTier.Boutique || client.tier == LabelTier.Independent;
 		if (!eligibleTier) return;
 
-		bool pullTrigger = client.nationalReach < 0.40f && HasStrongRegionalChartRecord(client);
+		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
+			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+		// A scalar national-awareness estimate is not a physical network. The old
+		// <0.40 test excluded every otherwise-qualified runtime Independent above
+		// that arbitrary line even when a distributor still had six new regions to
+		// offer. SelectDistributor already enforces the real boundary: at least one
+		// distributor region the client does not currently cover.
+		bool pullTrigger = IsPullDealTrigger(client, regionalEvidence);
 		float pushChance = monthlyPushOfferProbability + (Mathf.Max(0, year - 1966) * annualPost1966PushRamp);
-		bool pushTrigger = (client.momentumScore > 0.60f || HasRecentTop40Record(client)) && GD.Randf() < pushChance;
+		bool pushEvidence = client.momentumScore > 0.60f || HasRecentTop40Record(client);
+		bool pushTrigger = pushEvidence && GD.Randf() < pushChance;
 		bool pullOffer = pullTrigger && GD.Randf() < monthlyPullOfferProbability;
-		if (!pushTrigger && !pullOffer) return;
+		var attempt = new DistributionOfferAttemptTelemetry {
+			week = currentWeek,
+			year = year,
+			clientId = client.labelId,
+			clientName = client.labelName,
+			clientTier = client.tier,
+			clientOrigin = client.populationOrigin,
+			monthsActive = client.monthsActive,
+			ownedReach = client.ownedReach,
+			nationalReach = client.nationalReach,
+			bestAnyRegionPeak = regionalEvidence.BestAnyRegionPeak,
+			bestStrongRegionPeak = regionalEvidence.BestStrongRegionPeak,
+			bestPersistentEvidenceQuality = regionalEvidence.BestPersistentEvidenceQuality,
+			persistentRegionalEvidence = regionalEvidence.HasPersistentRegionalTraction,
+			legacyQualityAndCurrentSalesEvidence = regionalEvidence.PassesLegacyQualityAndCurrentSalesGate,
+			legacyNationalReachGate = client.nationalReach < 0.40f,
+			pushEvidence = pushEvidence,
+			pushChancePassed = pushTrigger,
+			pullChancePassed = pullOffer
+		};
+		if (!pushTrigger && !pullOffer) {
+			attempt.outcome = pushEvidence || pullTrigger ? "OfferChanceMiss" : "NoEvidence";
+			OnDistributionOfferAttempt?.Invoke(attempt);
+			return;
+		}
 
 		DealOrigin origin = pushTrigger ? DealOrigin.DistributorCourted : DealOrigin.LabelSought;
 		AILabel distributor = SelectDistributor(client, origin);
-		if (distributor == null) return;
+		if (distributor == null) {
+			attempt.outcome = "NoDistributor";
+			OnDistributionOfferAttempt?.Invoke(attempt);
+			return;
+		}
+		attempt.distributorId = distributor.labelId;
 		DistributionDeal offer = GenerateDealTerms(client, distributor, origin, year, currentWeek);
 		DistributionOffersGenerated++;
-		if (!ShouldAcceptDeal(client, offer)) return;
+		if (!ShouldAcceptDeal(client, offer)) {
+			attempt.outcome = "Rejected";
+			OnDistributionOfferAttempt?.Invoke(attempt);
+			return;
+		}
 		DistributionOffersAccepted++;
 
 		client.activeDeal = offer;
 		client.cashReserves += offer.advance;
 		distributor.cashReserves -= offer.advance;
+		attempt.outcome = "Signed";
+		OnDistributionOfferAttempt?.Invoke(attempt);
 		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
 	}
 
-	// This is the pull trigger: a label with a record selling hard in its own region goes looking
-	// for a distributor that can carry it national. It previously required
-	// record.currentPosition > 0 -- national chart presence -- which inverted the mechanism it
-	// exists to provide. Reach drives awareness drives units drives chart points, so a label
-	// needed the distribution to chart before it could seek the distribution, and the loop
-	// closed: no reach, no chart, no deal, no reach. Seven deals were signed in a whole decade,
-	// and at week 365 five of 302 live labels held one, all Boutique, none Small or Independent.
+	// This is the pull trigger: a label with a record selling hard in its own region
+	// goes looking for a distributor that can carry it national. The first repair
+	// replaced a national chart requirement with peakRegionalBreakoutStrength, but
+	// then re-closed most of the route in two subtler ways: it demanded omniscient
+	// intrinsic quality > .70 and a sale in the current processing week. A proven
+	// regional record therefore stopped being evidence whenever its shelf stock
+	// happened to be empty at the monthly check.
 	//
-	// Of the three conditions here only the national one was ever scarce. Measured across 1966,
-	// Small labels cleared the quality bar in 921 record-weeks and had regional sales in 135,
-	// but held a chart position in 4. peakRegionalBreakoutStrength is a running maximum on the
-	// same record, so it credits a record that broke out regionally at any point rather than
-	// only while it is charting this week -- which is the signal the method is named for.
-	private bool HasStrongRegionalChartRecord(AILabel label) {
-		if (ChartManager.Instance == null || label.strongRegions == null) return false;
-		var strongRegions = label.strongRegions.ToHashSet(System.StringComparer.Ordinal);
-		return ChartManager.Instance.GetAllRecords().Any(record =>
-			record.baseRecord.labelId == label.labelId &&
-			record.peakRegionalBreakoutStrength >= regionalBreakoutDealThreshold && record.GetQuality() > 0.70f &&
-			record.regionalData.Any(pair => strongRegions.Contains(pair.Key) && pair.Value.unitsSoldThisWeek > 0));
+	// RegionalRecordData.peakBreakoutScore already blends fulfilled and raw sales,
+	// velocity, sustained growth, audience, media, genre fit, quality, and unmet
+	// demand. Treat LocalTraction in any actual market as persistent observed
+	// evidence. A static launch-time "strong region" is useful attribution
+	// telemetry, but it is not an exclusive list of places where a record may prove
+	// itself organically. The former strong-region-only rule discarded 29 of 96
+	// runtime founders with a >=.30 market peak in the measured 1960-65 checkpoint.
+
+	internal static RegionalDealEvidence EvaluateRegionalDealEvidence(
+		IEnumerable<RecordRuntimeData> records, string labelId, IEnumerable<string> strongRegionIds, float threshold) {
+		var strongRegions = (strongRegionIds ?? System.Array.Empty<string>())
+			.Where(regionId => !string.IsNullOrEmpty(regionId))
+			.ToHashSet(System.StringComparer.Ordinal);
+		float boundedThreshold = Mathf.Clamp(threshold, 0f, 1f);
+		float bestAny = 0f;
+		float bestStrong = 0f;
+		float bestEvidenceQuality = 0f;
+		bool persistent = false;
+		bool legacy = false;
+		foreach (RecordRuntimeData record in records ?? System.Array.Empty<RecordRuntimeData>()) {
+			if (record?.baseRecord?.labelId != labelId) continue;
+			float quality = record.GetQuality();
+			bool currentStrongSale = false;
+			bool recordHasPersistentEvidence = false;
+			foreach (var pair in record.regionalData) {
+				float peak = Mathf.Max(0f, pair.Value?.peakBreakoutScore ?? 0f);
+				bestAny = Mathf.Max(bestAny, peak);
+				if (peak >= boundedThreshold) recordHasPersistentEvidence = true;
+				if (!strongRegions.Contains(pair.Key)) continue;
+				bestStrong = Mathf.Max(bestStrong, peak);
+				if ((pair.Value?.unitsSoldThisWeek ?? 0) > 0) currentStrongSale = true;
+			}
+			if (recordHasPersistentEvidence) {
+				persistent = true;
+				bestEvidenceQuality = Mathf.Max(bestEvidenceQuality, quality);
+			}
+			if (record.peakRegionalBreakoutStrength >= boundedThreshold &&
+				quality > 0.70f && currentStrongSale) legacy = true;
+		}
+		return new RegionalDealEvidence(bestAny, bestStrong, bestEvidenceQuality, persistent, legacy);
 	}
 
-	private bool HasRecentTop40Record(AILabel label) => ChartManager.Instance != null &&
-		ChartManager.Instance.GetAllRecords().Any(record => record.baseRecord.labelId == label.labelId &&
-			record.currentPosition > 0 && record.currentPosition <= 40 && record.weeksSinceRelease <= 52);
+	internal static bool IsPullDealTrigger(AILabel client, RegionalDealEvidence evidence) =>
+		client != null && evidence.HasPersistentRegionalTraction;
+
+	private bool HasRecentTop40Record(AILabel label) => label != null &&
+		GetRecentTop40RecordCount(label.labelId, 52) > 0;
 
 	private AILabel SelectDistributor(AILabel client, DealOrigin origin) {
 		var weighted = new List<(AILabel Label, float Weight)>();
@@ -2989,6 +3145,8 @@ public partial class CompetitorManager : Node {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
 		if (aiLabels != null && !aiLabels.Contains(label)) aiLabels.Add(label);
 		if (!labelActiveRecords.ContainsKey(label.labelId)) labelActiveRecords[label.labelId] = new List<string>();
+		if (!retiredLabelRecordHistory.ContainsKey(label.labelId))
+			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 		if (!labelFinancials.ContainsKey(label.labelId)) labelFinancials[label.labelId] = new LabelFinancialHistory();
 	}
 
@@ -3009,17 +3167,44 @@ public partial class CompetitorManager : Node {
 
 	public int GetRecentChartingRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
-		return ChartManager.Instance.GetAllRecords().Count(record =>
+		int active = ChartManager.Instance.GetAllRecords().Count(record =>
 			record.baseRecord.labelId == labelId &&
 			record.weeksSinceRelease <= maxAgeWeeks &&
 			record.weeksOnChart > 0);
+		return active + CountRecentRetiredRecordEvidence(
+			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+			maxAgeWeeks, requireCharted: true, requireTop40: false);
 	}
 
 	public int GetRecentReleasedRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
-		return ChartManager.Instance.GetAllRecords().Count(record =>
+		int active = ChartManager.Instance.GetAllRecords().Count(record =>
 			record.baseRecord.labelId == labelId &&
 			record.weeksSinceRelease <= maxAgeWeeks);
+		return active + CountRecentRetiredRecordEvidence(
+			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+			maxAgeWeeks, requireCharted: false, requireTop40: false);
+	}
+
+	private int GetRecentTop40RecordCount(string labelId, int maxAgeWeeks) {
+		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
+		int active = ChartManager.Instance.GetAllRecords().Count(record =>
+			record.baseRecord.labelId == labelId &&
+			record.weeksSinceRelease <= maxAgeWeeks &&
+			record.peakPosition > 0 && record.peakPosition <= 40);
+		return active + CountRecentRetiredRecordEvidence(
+			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+			maxAgeWeeks, requireCharted: false, requireTop40: true);
+	}
+
+	internal static int CountRecentRetiredRecordEvidence(IEnumerable<LabelRecordHistoryEntry> history,
+		int currentWeek, int maxAgeWeeks, bool requireCharted, bool requireTop40) {
+		int boundedAge = Mathf.Max(0, maxAgeWeeks);
+		return (history ?? System.Array.Empty<LabelRecordHistoryEntry>()).Count(entry =>
+			currentWeek - entry.ReleaseWeek >= 0 &&
+			currentWeek - entry.ReleaseWeek <= boundedAge &&
+			(!requireCharted || entry.Charted) &&
+			(!requireTop40 || entry.Top40));
 	}
 	
 	private void PrintMonthlyReport(GameDate date) {
