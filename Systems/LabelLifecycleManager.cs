@@ -27,6 +27,7 @@ public partial class LabelLifecycleManager : Node {
 	private const int MidTierPromotionMinimumSustainedQuarters = 4;
 	private const int MidTierPromotionMinimumRoster = 6;
 	private const int MidTierPromotionMinimumRecentChartingRecords = 2;
+	private const int IndependentPromotionMinimumRecentChartingRecords = 1;
 	private const float MidTierPromotionMinimumRunwayMonths = 6f;
 	private const int LaunchCompetitionMinimumOperatingMonths = 6;
 	private const int RuntimeCompetitionMinimumOperatingMonths = 9;
@@ -55,6 +56,15 @@ public partial class LabelLifecycleManager : Node {
 	[Export] private int targetLabels1965To1966 = 675;
 	[Export] private int targetLabels1967To1968 = 645;
 	[Export] private int targetLabels1969Plus = 625;
+	// The live population sits far enough below the authored target that both of
+	// CheckForBirths' deficit terms saturate, so this cap — not the target — is what
+	// actually sets founding volume, and through it the equilibrium level. See the
+	// comment on CheckForBirths.
+	//
+	// 7 is gate-clean at 522 weeks on its own and lifts the live population 317 -> 344,
+	// but it leaves only 0.036 of scheduledAlbumProjects headroom at 1966 and the tier
+	// ladder repairs below need 0.037 of it. The ladder was the priority, so this stays
+	// at 6. 8 breaches outright. See D7LabelPopulationChartCapacityHandoff.
 	[Export] private int maxMonthlyBirths = 6;
 	
 	[ExportGroup("References")]
@@ -181,6 +191,21 @@ public partial class LabelLifecycleManager : Node {
 		OnLabelDefunct?.Invoke(label, reason);
 	}
 	
+	/// <summary>
+	/// Founding is written as a deficit-seeking controller, but only its anti-overshoot
+	/// half is ever live. Below roughly 17 labels short of target the chance term clamps
+	/// to 1.0 and the attempt term clamps to maxMonthlyBirths, and the live population
+	/// runs hundreds short all decade, so founding is a flat maxMonthlyBirths per month
+	/// regardless of the deficit. Both terms only start modulating in the last stretch
+	/// before target, which is what stops the population overshooting it.
+	///
+	/// That makes maxMonthlyBirths the population governor. Equilibrium is founding
+	/// volume divided by the annual death rate, so the cap sets a level rather than a
+	/// ceiling, and it must clear the death rate for the population to hold at all.
+	/// It is deliberately staged below what the authored target would require: reaching
+	/// 600-675 live labels breaches the catastrophic gate on album-project volume, which
+	/// is a release-economics problem rather than a lifecycle one.
+	/// </summary>
 	private void CheckForBirths() {
 		int currentCount = TotalActiveLabels;
 		int targetCount = GetTargetLabelCount(currentYear);
@@ -321,6 +346,16 @@ public partial class LabelLifecycleManager : Node {
 	/// stay frozen deliberately: a handful of acts or death is the right shape for a
 	/// sixties independent, and growing them would be fitting the aggregate rather
 	/// than modelling it.
+	///
+	/// A promoted launch label stays frozen too, and that is a known compromise rather
+	/// than a design position. ReconcileCapacityForTierChange hands it a larger
+	/// maxRosterSize while preserving its old operating target, and nothing can raise
+	/// that target, so promotion moves the tier without moving appetite. Admitting
+	/// promoted labels here (via AILabel.hasEarnedTierPromotion, which is maintained for
+	/// exactly this purpose) was measured at 522 weeks and breaches the catastrophic gate:
+	/// thirteen promoted Boutiques growing from eight slots toward twelve carried
+	/// scheduledAlbumProjects to 1.3219 at 1966 against a 1.30 ceiling. It is available
+	/// once album-project economics have slack — see D7LabelPopulationChartCapacityHandoff.
 	/// </summary>
 	internal static bool IsOrganicGrowthEligibleOrigin(AILabel label) => label != null &&
 		(label.populationOrigin == LabelPopulationOrigin.RuntimeFounded ||
@@ -375,13 +410,37 @@ public partial class LabelLifecycleManager : Node {
 		}
 	}
 
+	// The charting evidence a promotion asks for scales with the roster that has to
+	// produce it. Small carries five slots against Independent's twelve and MidTier's
+	// twenty-five, so requiring the MidTier bar of two charting records off five slots
+	// made the bottom rung unreachable: across a gated decade of 300-480 live labels,
+	// Small -> Independent fired zero times while twelve labels demoted the other way.
+	// Two records is also exactly CompetitiveExitSafeHarborChartingRecords, so the only
+	// Small labels that qualified were the ones already immune from competitive exit.
+	// One record is the same signal the exit rule already credits through
+	// CompetitiveExitOneChartMultiplier, and the operating-months and sustained-capability
+	// gates below still carry the evidence requirement.
 	private bool TryPromoteLabel(AILabel label) {
 		int chartingLastYear = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId) ?? 0;
 		switch (label.tier) {
-			case LabelTier.Small when label.sustainedCapabilityQuarters >= 2 && label.monthsActive > 18 && chartingLastYear >= 2:
+			case LabelTier.Small when label.sustainedCapabilityQuarters >= 2 && label.monthsActive > 18 &&
+				chartingLastYear >= IndependentPromotionMinimumRecentChartingRecords:
 				PromoteLabel(label, LabelTier.Independent);
 				return true;
-			case LabelTier.Boutique when label.sustainedCapabilityQuarters >= 2 && label.CurrentRosterSize > BoutiqueAuteurRosterThreshold:
+			// BoutiqueAuteurRosterThreshold is also Boutique's hard capacity, so the strict
+			// comparison this replaces asked for a roster the tier can never hold: zero of
+			// 37 live Boutiques could satisfy it mid-decade, and the rung only ever fired
+			// for launch labels seeded above their own cap. At capacity is the readable
+			// intent — a boutique that has filled every slot has outgrown the niche.
+			//
+			// The operating-months gate is the same one Small and Independent already carry.
+			// Without it this rung promotes on seeded state rather than observed growth: the
+			// launch population is generated with full boutique rosters, so 21 labels
+			// promoted at the second quarterly review of 1960 before any of them had done
+			// anything. That is the en-masse launch promotion IsIndependentReadyForMidTier
+			// documents guarding against.
+			case LabelTier.Boutique when label.sustainedCapabilityQuarters >= 2 && label.monthsActive > 18 &&
+				label.CurrentRosterSize >= BoutiqueAuteurRosterThreshold:
 				PromoteLabel(label, LabelTier.Independent);
 				return true;
 			case LabelTier.Independent when IsIndependentReadyForMidTier(label, chartingLastYear):
@@ -445,6 +504,7 @@ public partial class LabelLifecycleManager : Node {
 		var oldTier = label.tier;
 		int priorTarget = label.OperatingRosterTarget;
 		label.tier = newTier;
+		label.hasEarnedTierPromotion = true;
 		ReconcileCapacityForTierChange(label, newTier, LabelOperatingTargetReason.PromotionReconciliation, priorTarget);
 		label.sustainedCapabilityQuarters = 0;
 		label.sustainedLowCapabilityQuarters = 0;
@@ -456,6 +516,7 @@ public partial class LabelLifecycleManager : Node {
 		var oldTier = label.tier;
 		int priorTarget = label.OperatingRosterTarget;
 		label.tier = newTier;
+		label.hasEarnedTierPromotion = false;
 		ReconcileCapacityForTierChange(label, newTier, LabelOperatingTargetReason.DemotionReconciliation, priorTarget);
 		label.sustainedCapabilityQuarters = 0;
 		label.sustainedLowCapabilityQuarters = 0;

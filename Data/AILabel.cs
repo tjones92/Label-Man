@@ -116,6 +116,13 @@ public partial class AILabel : Resource {
 	public bool HasOperatingRosterSpace => roster == null || roster.Count < OperatingRosterTarget;
 	public string operatingRosterTargetSource = "Unset";
 	public LabelPopulationOrigin populationOrigin = LabelPopulationOrigin.Unspecified;
+	/// <summary>True while the label holds a tier it earned at runtime rather than at launch.
+	/// Set on promotion, cleared on demotion, so it tracks current standing rather than a
+	/// one-time event. Maintained but not yet read: it is the intended input to
+	/// LabelLifecycleManager.IsOrganicGrowthEligibleOrigin, so that a promoted launch label
+	/// can grow into the capacity its promotion granted. That was measured at 522 weeks and
+	/// breaches the album-project gate — see D7LabelPopulationChartCapacityHandoff.</summary>
+	public bool hasEarnedTierPromotion;
 	public int runtimeBirthWeek;
 	public int runtimeBirthYear;
 	public int runtimeBirthMonth;
