@@ -547,6 +547,22 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		}
 		Require(partialFormed == 288 && partialCarry >= 0f && partialCarry < 1f,
 			"9 partial 1969 checkpoint reports only formations earned by its 50 processed Fridays");
+		// Formation answers unmet hiring demand. It must stay at the base rate while the
+		// prospect market can still cover openings, or the early decade moves.
+		Require(ArtistManager.CalculateResponsiveAnnualFormationTarget(24, 35, 3628) == 300 &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(0, 0, 0) == 300 &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(197, 6, 0) > 1000 &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(197, 6, 0) <= 1200 &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(100000, 0, 0) == 1200 &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(200, 50, 0) <
+				ArtistManager.CalculateResponsiveAnnualFormationTarget(200, 10, 0),
+			"9 responsive formation is inert while prospect supply covers openings, rises monotonically as it does not, and is bounded");
+		float responsiveCarry = 0f; int responsiveFormed = 0;
+		for (GameDate date = new(1968, 1, 1); date.year == 1968; date = date.NextDay()) {
+			if (!date.IsFriday) continue;
+			responsiveFormed += ArtistManager.CalculateCalendarFormationCount(ref responsiveCarry, responsiveFormed, 1200);
+		}
+		Require(responsiveFormed == 1200, "9 calendar formation quota is exact at the responsive ceiling");
 	}
 
 	private static void ProbeAvailabilityBoundary() {

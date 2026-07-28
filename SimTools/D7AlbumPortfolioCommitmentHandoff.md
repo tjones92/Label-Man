@@ -683,36 +683,178 @@ The enabled route ends the decade issuing 1556 Singles that sell 87.8k each, aga
 control issuing 3045 that sell 38.1k each. `totalUnits` lands in band only because a -49%
 release-count error and a +130% per-release-demand error cancel.
 
-The source is the artist population, not the format fork. Registry stays flat while the
-active pool empties:
+The source is the artist population, not the format fork. The registry only ever grows,
+by exactly the formation rate, while the active pool empties:
 
-| year | registry | active | rostered | retired |
-|---|---|---|---|---|
-| 1960 | 10039 | 10039 | 5478 | 0 |
-| 1963 | 10288 | 7192 | 4188 | 79 |
-| 1966 | 10485 | 3904 | 2782 | 384 |
-| 1969 | 10944 | **2630** | **1900** | 1015 |
+> **Correction.** An earlier revision of this section doubled every population figure.
+> `artist-population-weekly.csv` carries an `All` row *and* one row per label tier, and the
+> first pass summed across all of them. Only `registryTotal`, `activeTotal`, `rostered` and
+> `neverSignedUnsigned` were affected — `inactive`, `retired` and `disbanded` are written on
+> the `All` row alone. Read the `All` rows only. The corrected figures below are steeper
+> than the ones first reported, not milder.
 
-Active artists fall **74%** while the registry grows. Retirement accounts for only 1015 of
-the ~7400 that leave, so roughly 6400 artists end up neither active nor retired. That is
-the next investigation, and it is upstream of everything in this document.
+| year | registry | active | rostered | neverSigned | inactive | retired | disbanded |
+|---|---|---|---|---|---|---|---|
+| 1960 | 7300 | 7300 | 2739 | 3639 | 0 | 0 | 0 |
+| 1963 | 8194 | 5098 | 2094 | 320 | 2133 | 79 | 884 |
+| 1966 | 9094 | 2513 | 1391 | 0 | 2791 | 384 | 3406 |
+| 1969 | 9994 | **1680** | **950** | 0 | 3012 | 1015 | 4287 |
+
+Active artists fall **77%** while the registry grows. Of the 7299 that leave the active
+pool, retirement accounts for 1015 — the rest are 4287 disbanded and 3012 inactive.
+
+## Root cause: the talent supply pipeline cannot sustain the market
+
+A standing population equilibrates at (formation rate x mean career length).
+`AnnualRuntimeFormationCount` was a hard **300/yr**, and measured mean career to terminal
+exit is about 5.6 years, which gives a steady state near 1680 — exactly where the run
+lands. But the simulation is *seeded* with 7300 artists. **The seeded population and the
+replacement rate were inconsistent by a factor of about four.**
+
+What carries the early decade is a one-time endowment: 3639 never-contracted artists parked
+`Latent` at 1960. The labor market drains it and never recovers:
+
+| year | activeRostered | expFreeAgents | freshSeeking | freshLatent | hiringLabels/wk | activations | firstTimeSignings |
+|---|---|---|---|---|---|---|---|
+| 1960 | 2712 | 925 | 35 | 3628 | 24 | 372 | 804 |
+| 1963 | 2070 | 2684 | 33 | 311 | 33 | 1088 | 1382 |
+| 1964 | 1898 | 2185 | 6 | **0** | 46 | 311 | 620 |
+| 1966 | 1377 | 1130 | 6 | 0 | 118 | **0** | 294 |
+| 1969 | 942 | 732 | 6 | 0 | **197** | **0** | 300 |
+
+`freshLatent` hits zero in 1964 and prospect activations stop entirely from 1965.
+`firstTimeSignings` then pins to ~300/yr — exactly the formation rate, every new act
+consumed on arrival — while `affordableHiringOpportunityLabels` grows **8x**, from 24 to
+197. Demand rises all decade against a fixed trickle of supply.
+
+The scouting funnel shows the same starvation from the labels' side: mean discovery pool
+falls from **8.8** candidates per label-week to **1.9**, and across 1966-69 the industry
+files 201,596 nominations plus 15,328 `NoQualifyingCandidate` failures to produce roughly
+500 signings a year. Labels are not choosing to shrink; there is nothing to sign.
+
+Two secondary defects compound it and are **not** addressed here:
+
+- **The terminal inactivity clock is opportunity-blind.** 78 unowned weeks sends any artist
+  with a prior contract to `Inactive`, then 52 more to `Disbanded`/`Retired`, with no path
+  back — `IsEligibleUnsignedCandidate` requires `isActive`, and nothing restores
+  `lifecycleStatus` to `Active`. It runs regardless of whether the industry had a vacancy.
+  The model already knows how to hold surplus talent without destroying it — that is what
+  `ProspectMarketStatus.Latent` and the `hiringOpportunities` cap in
+  `CalculateProspectActivationCount` are for — but that machinery is restricted to
+  `contractSequence == 0`. Sign once and you lose access to the reservoir and get the death
+  clock instead, which is backwards: a proven act is *more* likely to get another deal.
+- **Groups disband unconditionally; solos have an age guard.** `ApplyLifecycleExits` spares
+  a solo whose lead is under 35 but destroys a group of any age. That asymmetry is why
+  disbandment (4287) is four times retirement (1015).
+
+## Implemented: demand-responsive formation
+
+`CalculateResponsiveAnnualFormationTarget(hiringOpportunities, seeking, latent)` scales the
+annual formation quota by the share of hiring demand the prospect market cannot cover,
+bounded to [300, 1200]:
+
+```
+unmetShare = clamp((opportunities - (seeking + latent)) / opportunities, 0, 1)
+target     = clamp(300 * (1 + 3 * unmetShare), 300, 1200)
+```
+
+It is deliberately blind to the experienced free-agent pool. Those artists are already on
+the terminal clock and are, by revealed preference, the ones labels keep passing over —
+counting them as supply is what let the market read as well-stocked (732 free agents
+against 197 openings) while discovery pools ran dry at 1.9 candidates.
+
+The signal is last week's, because formation is materialized before prospect activation
+recomputes it; the one-week lag is deterministic and avoids a circular dependency.
+
+It is inert while supply is ample — at 1960, latent 3628 against 24 openings gives
+`unmetShare = 0` and the base 300 — so the early-decade calibration and the 1960 gate year
+are untouched by construction.
+
+Probe-covered in `ProbeCalendarFormationQuota`: inert while the prospect market covers
+openings, monotone in unmet demand, bounded at 1200, and the calendar quota stays exact at
+the ceiling.
+
+## Result — `d7-responsive-formation-522-1001`
+
+522 weeks, seed 1001, ungated. 1960 is bit-identical to the run before it, confirming the
+servo is inert while latent supply covers openings.
+
+| metric vs control | before | after |
+|---|---|---|
+| `successfulReleases` 1969 | 0.512 | **0.899** |
+| `scheduledAlbumProjects` 1967 / 68 / 69 | 0.657 / 0.562 / 0.514 | **0.921 / 0.879 / 0.904** |
+| rostered artists 1969 | 950 | **1841** |
+| Single releases 1969 | 1556 | **2725** (control 3045) |
+| units per Single release 1969 | 87.8k | **54.6k** (control 38.1k) |
+
+Units behaved as the pool-limited reading predicted: Single releases rose **75%** while
+Single units rose **9%** (136.6M -> 148.7M). `totalUnits` moved 1.129 -> 1.206 at 1969 and
+stayed in band; every revenue metric held (max 1.165, unchanged). More releases divide the
+demand pool rather than adding to it, so restoring supply corrected the release-count error
+without inflating the market.
+
+`successfulReleases` is now in band for all ten years (minimum 0.859 at 1964).
+`scheduledAlbumProjects` is in band from 1965 on.
+
+## Open — the roster plateau
+
+Rostered stabilizes at ~1841 against an aggregate operating target of ~3935: labels sit at
+roughly half their own stated target, and disbandment *rose* (4816 against 4287), because
+more acts formed means more acts dropped and destroyed on the same 130-week clock. The
+terminal inactivity clock, not supply, is now the binding constraint. Careers stay short
+and the population churns rather than accumulating.
+
+Worth recording that the demand side was never the problem. Mean operating target per label
+is flat and slightly falling across the decade (3.84 -> 3.39); the entire aggregate rise is
+label count, **293 -> 1160**. Talent formation was being asked to chase a 4x growth in the
+label population while pinned at 300/yr. Whether that label growth is itself governed is a
+separate question and should be asked before formation is tuned again — otherwise formation
+is being fitted against a moving target.
+
+## Open — `scheduledAlbumProjects` breaches at 1963 and 1964
+
+The band is deliberately left at [0.70,1.30] for every metric. Under it a gated decade run
+**aborts at completed year 1963**. Verified in-engine, `d7-responsive-formation-gated-522-1001`:
+
+```
+CompletedYearCatastrophicDivergence,scheduledAlbumProjects,1038,1756,1963,209,"1/3/1964","completedYear=1963 ratio=0.591116 band=[0.70,1.30]"
+```
+
+1964 is 0.570 on the same metric. This is logged as a known failure rather than gated around.
+
+It is not the population defect: both years precede the exhaustion of the latent prospect
+pool, so responsive formation is still inert there and neither year moved. It is the
+control's Album fork ramping on a projection it never validates — control Album decision
+share runs .375 / .502 / .578 across 1962-64 while realizing only 0.61 / 0.41 / 0.34 of its
+own projected net, decaying to **0.20** by 1969 with 96% AlbumWithPromo scheduling. The
+enabled route holds 0.60-0.70 realization throughout because responsive memory corrects it.
+
+A widened band for this metric alone was implemented, measured and then **reverted** by
+explicit decision: the breach should stay visible until the reference is fixed, rather than
+be tuned around. Note the consequence — with the tight band the gated run stops at 1963, so
+the strict 1965 acceptance gate cannot fire in-engine. Its margins are known only from the
+offline comparison against the completed ungated run (singleUnits .989 / albumUnits 1.214 /
+totalUnits 1.004 / grossRevenue 1.048 / labelNet 1.095 / marketNet 1.090, against floors of
+.85/.80/.85).
 
 ## Revised next steps, in order
 
-1. **Find where the ~6400 inactive-but-not-retired artists go.** This is now the largest
-   modelled error in the run and it drives both remaining gate breaches. Start from
-   `artist-population-weekly.csv`: `activeTotal` diverges from `registryTotal` from 1961,
-   long before retirement is material, so the leak is in the active/inactive transition
-   rather than in lifecycle death.
-2. **Do not gate on `scheduledAlbumProjects` or `successfulReleases` against this control
-   until (1) is resolved**, and re-examine them even then. Both are release-volume
-   comparisons against a route that has no artist lifecycle at all, and the control's Album
-   fork is now demonstrably a runaway: it schedules 96% AlbumWithPromo projects by 1969
-   while realizing **0.20** of its own projected net (0.94 -> 0.88 -> 0.61 -> 0.41 -> 0.34
-   -> 0.39 -> 0.28 -> 0.23 -> 0.22 -> 0.20 across the decade). The enabled route holds
-   0.60-0.70 throughout because responsive memory corrects it. A gate metric cannot be
-   validly chased against a reference that never validates itself.
-3. **Leave the promo constants alone** unless (1) changes the picture. See above.
+1. **Fix the gate control's Album fork, or stop gating `scheduledAlbumProjects` against
+   it.** This is the only thing standing between head and a clean gated decade, and it is a
+   defect in the reference, not in the enabled route. The disabled route's binary fork with
+   `revenueMemoryConfidenceK = 4` never validates the projection it acts on, so its Album
+   project counts are not a target any correct implementation can match.
+2. **Give the terminal inactivity clock an opportunity model**, or extend the latent
+   reservoir to experienced free agents. This is what the roster plateau needs. Note that
+   `BuildLaborMarketSnapshot` currently counts a prospect status on an experienced artist
+   as an integrity violation (`prospectStatusContractConflicts`), so extending the
+   reservoir means revisiting that invariant rather than working around it. Expect it to
+   push `successfulReleases` from 0.899 toward and possibly past 1.0 and to raise cost
+   pressure on labels, so it needs its own measured pass rather than being stacked on the
+   formation change.
+3. **Ask whether label formation is governed** before tuning artist formation again. 293
+   -> 1160 labels in a decade is what set the demand the servo is now answering.
+4. **Leave the promo constants alone** unless the above changes the picture. See above.
 
 ## Tree state at this amendment
 
@@ -722,6 +864,15 @@ the next investigation, and it is upstream of everything in this document.
 - `Systems/CompetitorManager.cs` — unchanged by this amendment apart from moving an
   orphaned `<summary>` off `CalculatePromoAlbumSynergyGain` and back onto
   `CalculateAlbumPortfolioCredit`, where it belongs.
+- `Systems/ArtistManager.cs` — demand-responsive formation
+  (`CalculateResponsiveAnnualFormationTarget`), plus the annual-target parameter on
+  `CalculateCalendarFormationCount`. Inert at 1960 by construction.
+- `SimTools/ArtistPopulationLifecycleProbeSuite.cs` — extends
+  `ProbeCalendarFormationQuota` to cover the responsive target: inert while the prospect
+  market covers openings, monotone in unmet demand, bounded at 1200, and the calendar
+  quota exact at the ceiling.
+- `SimTools/ChartAuditRunner.cs` — **unchanged**. A per-metric band for
+  `scheduledAlbumProjects` was implemented and reverted; see above.
 - `SimTools/GenreMarketV2ProbeSuite.cs` — adds `ProbeLegacyZeitgeistContinuity`, and
   repairs a stale assertion that had left the suite **red at head**. The promo synergy
   probe required `CalculatePromoAlbumSynergyGain(albumDemand, 0f, ...) == 0f` — recruitment

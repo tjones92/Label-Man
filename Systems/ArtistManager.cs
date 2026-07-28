@@ -46,7 +46,20 @@ public partial class ArtistManager : Node {
 	private int musicianIdCounter = 0;
 	
 	private List<SimulatedArtist> unsignedArtists = new List<SimulatedArtist>();
-	private const int AnnualRuntimeFormationCount = 300;
+	// Formation was a hard 300/yr regardless of how much talent the industry was
+	// absorbing, which is inconsistent with the population the simulation is seeded
+	// with. A standing population equilibrates at (formation rate x mean career
+	// length); the seeded 1960 registry is 7300 and measured mean career to terminal
+	// exit is about 5.6 years, so holding that scale needs roughly 1300 formations a
+	// year, not 300. At 300 the one-time endowment of 3628 latent prospects is the
+	// only real supply, it is consumed by 1964, and from then on the entire industry
+	// competes for the ~300 acts formed each year: discovery pools fall from 8.8
+	// candidates per label-week to 1.9, and 200k nominations resolve to ~500 signings.
+	// Formation now answers unmet hiring demand and is inert while supply is ample, so
+	// the early decade — where latent supply dwarfs openings — is unchanged.
+	private const int BaseAnnualRuntimeFormationCount = 300;
+	private const int MaximumAnnualRuntimeFormationCount = 1200;
+	private const float FormationDemandGain = 3f;
 	private const int NominalRuntimeFormationWeeks = 52;
 	internal const int ExperiencedComebackStartYear = 1961;
 	// Directive 6 authorized one-variable candidate after the C=26 Gate C
@@ -60,6 +73,9 @@ public partial class ArtistManager : Node {
 	private readonly Dictionary<Genre, int> recentRuntimeFormationCounts = new();
 	private RandomNumberGenerator populationRng;
 	private float formationAccumulator;
+	private int lastHiringOpportunities;
+	private int lastSeekingProspects;
+	private int lastLatentProspects;
 	private int formationYear = -1;
 	private int formedThisWeek;
 	private int formedYtd;
@@ -616,7 +632,8 @@ public sealed class LaborMarketWeeklySnapshot {
 
 	private void MaterializeRuntimeFormation(GameDate date) {
 		EnsurePopulationRng();
-		int count = CalculateCalendarFormationCount(ref formationAccumulator, formedYtd);
+		int count = CalculateCalendarFormationCount(ref formationAccumulator, formedYtd,
+			CalculateResponsiveAnnualFormationTarget(lastHiringOpportunities, lastSeekingProspects, lastLatentProspects));
 		for (int i = 0; i < count; i++) {
 			generatingRuntimePopulation = true;
 			try {
@@ -659,6 +676,9 @@ public sealed class LaborMarketWeeklySnapshot {
 		SimulatedArtist[] latent = artistRegistry.Values.Where(IsLatentProspect).ToArray();
 		int opportunities = (ChartManager.Instance?.GetAllLabels() ?? new List<AILabel>()).Count(label => label?.IsActive == true &&
 			label.CurrentRosterSize < label.OperatingRosterTarget && label.CanAffordToSign(label.PreviewScoutingGate(useOperatingRosterTarget: true).EstimatedAdvance));
+		lastHiringOpportunities = opportunities;
+		lastSeekingProspects = seeking.Length;
+		lastLatentProspects = latent.Length;
 		int requested = CalculateProspectActivationCount(latent.Length, seeking.Length, opportunities);
 		SimulatedArtist[] activated = OrderLatentProspects(latent).Take(requested).ToArray();
 		foreach (SimulatedArtist artist in activated) {
@@ -729,13 +749,35 @@ public sealed class LaborMarketWeeklySnapshot {
 		return unsignedArtists.Count(artist => IsSeekingProspect(artist) && !seen.Add(artist));
 	}
 
-	internal static int CalculateCalendarFormationCount(ref float accumulator, int formedYtd) {
-		int remaining = Mathf.Max(0, AnnualRuntimeFormationCount - formedYtd);
+	internal static int CalculateCalendarFormationCount(ref float accumulator, int formedYtd,
+		int annualTarget = BaseAnnualRuntimeFormationCount) {
+		int target = Mathf.Clamp(annualTarget, BaseAnnualRuntimeFormationCount, MaximumAnnualRuntimeFormationCount);
+		int remaining = Mathf.Max(0, target - formedYtd);
 		if (remaining == 0) { accumulator = 0f; return 0; }
-		accumulator += AnnualRuntimeFormationCount / (float)NominalRuntimeFormationWeeks;
+		accumulator += target / (float)NominalRuntimeFormationWeeks;
 		int count = Mathf.Min(remaining, Mathf.FloorToInt(accumulator + .00001f));
 		accumulator -= count;
 		return count;
+	}
+
+	/// <summary>
+	/// Annual formation answers the share of hiring demand the existing prospect market
+	/// cannot cover. It is deliberately blind to the experienced free-agent pool: those
+	/// artists are already on the terminal inactivity clock and are, by revealed
+	/// preference, the ones labels keep passing over — counting them as supply is what
+	/// let the market read as well-stocked while discovery pools ran dry.
+	///
+	/// The signal is last week's, because formation is materialized before prospect
+	/// activation recomputes it. That one-week lag is deterministic and keeps the two
+	/// steps free of a circular dependency.
+	/// </summary>
+	internal static int CalculateResponsiveAnnualFormationTarget(int hiringOpportunities, int seekingProspects,
+		int latentProspects) {
+		if (hiringOpportunities <= 0) return BaseAnnualRuntimeFormationCount;
+		int supply = Mathf.Max(0, seekingProspects) + Mathf.Max(0, latentProspects);
+		float unmetShare = Mathf.Clamp((hiringOpportunities - supply) / (float)hiringOpportunities, 0f, 1f);
+		return Mathf.Clamp(Mathf.RoundToInt(BaseAnnualRuntimeFormationCount * (1f + FormationDemandGain * unmetShare)),
+			BaseAnnualRuntimeFormationCount, MaximumAnnualRuntimeFormationCount);
 	}
 
 	private void EnsurePopulationRng() {
