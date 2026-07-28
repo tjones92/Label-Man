@@ -241,6 +241,58 @@ decade, with `Small -> Independent` firing at all for the first time.
 3. If it is clean, re-measure promotions and demotions with `tiers.sh`-style transition counts
    from `label-finance.csv`, and confirm live-only fill has not moved.
 
+### Wanted: both births 7 and the ladder — and an answer on why there is no room
+
+Treating these as mutually exclusive is a concession to the gate, not a judgement that the
+system only deserves one. A healthy 1960s model should support a rising label population *and*
+a turning tier ladder at the same time; needing to choose is itself a symptom. Several previous
+passes have run into the same wall, so the question to settle is not "which one fits" but
+**why `scheduledAlbumProjects` has so little leeway in the first place.**
+
+There is a specific hypothesis worth testing first, because if it holds the constraint is
+partly illusory. The gate compares the enabled route against the frozen **disabled** control,
+and the two model different album eras. Annual album projects scheduled:
+
+| year | control (disabled) | enabled (head) | ratio |
+|---|---|---|---|
+| 1960 | 898 | 1,143 | 1.2728 |
+| 1962 | 1,277 | 1,034 | 0.8097 |
+| 1963 | 1,371 | 1,182 | 0.8621 |
+| 1965 | 1,832 | 2,126 | 1.1605 |
+| 1966 | 2,324 | 2,889 | **1.2431** |
+| 1967 | 2,716 | 3,053 | 1.1241 |
+| 1969 | 2,932 | 3,211 | 1.0952 |
+
+The ratio runs *below* 0.87 in 1962-63, peaks at 1966, then converges to 1.10 by 1969. Single
+releases move the opposite way over the same span (control 950 at 1966 against enabled 619).
+That is the signature of a **phase and slope difference in the LP transition**, not a volume
+problem: the enabled route ramps into albums later and then harder, so the curves diverge most
+mid-ramp and re-converge once both saturate.
+
+If that is what the 1966 number is measuring, then a ratio ceiling on album-project *count*
+is penalising the enabled route for adopting albums on a different schedule — which is
+authored behaviour, not structural risk. The whole 0.057 of headroom would then be consumed by
+an intended difference, leaving nothing for any lifecycle change, which is exactly the pattern
+these passes keep hitting.
+
+Things to establish, in order:
+
+1. **Is the 1966 peak transition timing or real excess?** Compare album projects per rostered
+   artist, and per active album-eligible artist, rather than in absolute count. If the
+   per-artist rate is close to control and only the timing differs, the ceiling is
+   mis-specified for this metric.
+2. **Should this metric be banded differently during the transition?** `successfulReleases`,
+   `totalUnits` and `marketNet` all sit at 1.06-1.17 with wide margins. Only
+   `scheduledAlbumProjects` runs near the ceiling, and only in the transition years. A
+   transition-aware band, or a control that models the same album era, may be the correct
+   instrument rather than a loosened one.
+3. **Only then, re-test births 7 + ladder together.** Their combined cost is 0.058 against
+   0.057 available — a miss of 0.0012. Almost any correction to the above releases both.
+
+Do not simply widen the band to 1.35 to make the pair fit. The band is the only thing standing
+between this work and unnoticed structural drift; the point is to establish whether it is
+measuring the right quantity, and to fix the instrument if it is not.
+
 ## 7. Recommendation
 
 **Charting breadth is the prerequisite for all of it.** One change unblocks population level,
