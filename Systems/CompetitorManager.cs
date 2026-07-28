@@ -6,6 +6,8 @@ public partial class CompetitorManager : Node {
 	public static CompetitorManager Instance { get; private set; }
 	public const float DealReinvestRate = 0.02f;
 	public const float DealReinvestCost = 5000000f;
+	// A self-built network tops out below the seeded Majors' 0.88-0.90 national reach.
+	public const float SelfBuiltReachCeiling = 0.75f;
 	public const float DealDependencyLow = 0.35f;
 	public const float DealDependencyHigh = 0.56f;
 	
@@ -124,6 +126,14 @@ public partial class CompetitorManager : Node {
 	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pushMarginSkimMax = 0.35f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealReinvestRate = DealReinvestRate;
 	[Export] private float dealReinvestCost = DealReinvestCost;
+	// Net income must clear this multiple of monthly overhead before a label can widen its own
+	// distribution, which is what keeps the self-built route uncommon rather than automatic.
+	[Export] private float selfBuiltReachSurplusMultiple = 2f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float selfBuiltReachMonthlyGain = 0.004f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float selfBuiltReachReinvestRate = 0.10f;
+	// Peak regional breakout strength a record must reach before its label can seek a
+	// distributor. See HasStrongRegionalChartRecord for why this replaced a national chart test.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.30f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyLow = DealDependencyLow;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyHigh = DealDependencyHigh;
 	
@@ -2631,6 +2641,7 @@ public partial class CompetitorManager : Node {
 		float netIncome = financials.lastMonthRevenue - financials.lastMonthExpenses;
 		label.lastMonthlyProfit = netIncome;
 		ReinvestDistributionProfit(label, netIncome);
+		GrowSelfBuiltDistributionReach(label, netIncome);
 		UpdateLabelStatus(label, financials, netIncome);
 		
 		label.monthlyRevenue = 0f;
@@ -2648,6 +2659,31 @@ public partial class CompetitorManager : Node {
 		float reinvestment = netIncome * dealReinvestRate;
 		label.cashReserves -= reinvestment;
 		label.ownedReach = Mathf.Min(1f, label.ownedReach + (reinvestment / Mathf.Max(1f, dealReinvestCost)));
+	}
+
+	// A label with no distributor builds its own network out of retained profit. Before this
+	// existed, ownedReach was written in exactly three places -- once at generation, and twice
+	// here behind an activeDeal null-check -- so a label that never signed a deal was frozen at
+	// its birth reach for life. Small labels are generated near 0.26 against a MidTier 0.66 and
+	// a Major 0.88, which left them at roughly an eighth of the chart cutoff and locked 72% of
+	// the population out of the national chart permanently.
+	//
+	// Surplus is measured against the label's own overhead rather than in absolute cash. The
+	// deal-backed path above reinvests 0.02 of net against a 5,000,000 cost per reach point,
+	// which is calibrated for Major-scale cash flow and gives a Small label nothing measurable;
+	// a ratio keeps the route open to a label that is thriving at its own scale. It stays
+	// uncommon because it needs profit at a multiple of overhead in a month with no loss
+	// history, which most Small labels never reach, and the ceiling keeps a self-built network
+	// short of the national reach the seeded Majors carry.
+	private void GrowSelfBuiltDistributionReach(AILabel label, float netIncome) {
+		if (label.activeDeal != null || netIncome <= 0f || label.consecutiveLossMonths > 0) return;
+		if (label.ownedReach >= SelfBuiltReachCeiling) return;
+		float overhead = Mathf.Max(1f, label.GetMonthlyOverhead());
+		float surplusMultiple = netIncome / overhead;
+		if (surplusMultiple < selfBuiltReachSurplusMultiple) return;
+		float investment = netIncome * selfBuiltReachReinvestRate;
+		label.cashReserves -= investment;
+		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling, label.ownedReach + selfBuiltReachMonthlyGain);
 	}
 
 	private void ProcessDistributionDeals(GameDate date) {
@@ -2700,11 +2736,25 @@ public partial class CompetitorManager : Node {
 		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
 	}
 
+	// This is the pull trigger: a label with a record selling hard in its own region goes looking
+	// for a distributor that can carry it national. It previously required
+	// record.currentPosition > 0 -- national chart presence -- which inverted the mechanism it
+	// exists to provide. Reach drives awareness drives units drives chart points, so a label
+	// needed the distribution to chart before it could seek the distribution, and the loop
+	// closed: no reach, no chart, no deal, no reach. Seven deals were signed in a whole decade,
+	// and at week 365 five of 302 live labels held one, all Boutique, none Small or Independent.
+	//
+	// Of the three conditions here only the national one was ever scarce. Measured across 1966,
+	// Small labels cleared the quality bar in 921 record-weeks and had regional sales in 135,
+	// but held a chart position in 4. peakRegionalBreakoutStrength is a running maximum on the
+	// same record, so it credits a record that broke out regionally at any point rather than
+	// only while it is charting this week -- which is the signal the method is named for.
 	private bool HasStrongRegionalChartRecord(AILabel label) {
 		if (ChartManager.Instance == null || label.strongRegions == null) return false;
 		var strongRegions = label.strongRegions.ToHashSet(System.StringComparer.Ordinal);
 		return ChartManager.Instance.GetAllRecords().Any(record =>
-			record.baseRecord.labelId == label.labelId && record.currentPosition > 0 && record.GetQuality() > 0.70f &&
+			record.baseRecord.labelId == label.labelId &&
+			record.peakRegionalBreakoutStrength >= regionalBreakoutDealThreshold && record.GetQuality() > 0.70f &&
 			record.regionalData.Any(pair => strongRegions.Contains(pair.Key) && pair.Value.unitsSoldThisWeek > 0));
 	}
 
