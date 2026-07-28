@@ -811,47 +811,91 @@ label population while pinned at 300/yr. Whether that label growth is itself gov
 separate question and should be asked before formation is tuned again — otherwise formation
 is being fitted against a moving target.
 
-## Open — `scheduledAlbumProjects` breaches at 1963 and 1964
+## Resolved — the control was carrying this directive's own mechanisms
 
-The band is deliberately left at [0.70,1.30] for every metric. Under it a gated decade run
-**aborts at completed year 1963**. Verified in-engine, `d7-responsive-formation-gated-522-1001`:
+`scheduledAlbumProjects` breached at 1963 (0.591) and 1964 (0.570) under the tight band. The
+cause was ours. Three mechanisms introduced by this directive were applied **unconditionally**
+in `EvaluateFormatDecision` and `CalculateAlbumPriorNet`, so the disabled control route was
+carrying repairs authored for the route being measured against it. The capacity derivation
+made it far worse than the old tier lookup: what had reached only Major labels now reached
+every label.
 
-```
-CompletedYearCatastrophicDivergence,scheduledAlbumProjects,1038,1756,1963,209,"1/3/1964","completedYear=1963 ratio=0.591116 band=[0.70,1.30]"
-```
+The rule applied, after getting it wrong once:
 
-1964 is 0.570 on the same metric. This is logged as a known failure rather than gated around.
+> **Gate a mechanism to the live route only if it repairs a defect unique to the live
+> route's architecture. Do not gate a correction to economics both routes share.**
 
-It is not the population defect: both years precede the exhaustion of the latent prospect
-pool, so responsive formation is still inert there and neither year moved. It is the
-control's Album fork ramping on a projection it never validates — control Album decision
-share runs .375 / .502 / .578 across 1962-64 while realizing only 0.61 / 0.41 / 0.34 of its
-own projected net, decaying to **0.20** by 1969 with 96% AlbumWithPromo scheduling. The
-enabled route holds 0.60-0.70 realization throughout because responsive memory corrects it.
+| mechanism | gated? | why |
+|---|---|---|
+| `albumPortfolioCredit` | **yes** | Exists to stop the *lane split's* short-horizon memory abandoning Albums. The disabled route has no lane split, so no such defect. |
+| `CalculateAlbumPriorEraCalibration` | **yes** | A calibration of the live Album prior against live realized outcomes. Applying it to the reference moves the yardstick by the amount it moves the measurement. |
+| `promoSynergyGain` | **no** | `cannibalizationLoss` scales with `albumDemandFactor` while `expectedPromoLift` is a fixed scalar *on both routes*. The asymmetry is an error in the shared economics, not in the lane split. Only the absorbing state it interacts with is live-specific, and that is fixed separately in `ResolveAlbumDecision`. |
 
-A widened band for this metric alone was implemented, measured and then **reverted** by
-explicit decision: the breach should stay visible until the reference is fixed, rather than
-be tuned around. Note the consequence — with the tight band the gated run stops at 1963, so
-the strict 1965 acceptance gate cannot fire in-engine. Its margins are known only from the
-offline comparison against the completed ungated run (singleUnits .989 / albumUnits 1.214 /
-totalUnits 1.004 / grossRevenue 1.048 / labelNet 1.095 / marketNet 1.090, against floors of
-.85/.80/.85).
+Gating all three was measured first and was wrong. It fixed `scheduledAlbumProjects`
+everywhere but dropped the control's promo share to .366 by 1969; since a promo project
+emits two products and a standalone emits one, the control lost the Singles those Album
+projects carried — Single units fell 116M -> 99.3M and took `totalUnits` (1.398/1.419),
+`grossRevenue`, `labelNet` and `marketNet` out of band at 1968-69. Restoring
+`promoSynergyGain` recovered them without re-inflating Album share, because the two are
+separable: the credit feeds `projectedAlbum` and therefore `albumWins`, while the synergy
+gain feeds `promoAdvantage` and only sets `promoPreferred` on the disabled route.
+
+Control Album decision share, across the three configurations:
+
+| year | contaminated | all three gated | **shipped** | old d6 control |
+|---|---|---|---|---|
+| 1963 | .502 | .380 | **.380** | .424 |
+| 1965 | .840 | .541 | **.541** | .551 |
+| 1969 | .963 | .846 | **.846** | .849 |
+
+The shipped control lands within a point or two of the historical d6 reference it replaces,
+which is the outcome to expect once the contamination is removed.
+
+**The band was never widened.** A per-metric widening to [0.50,2.00] was implemented,
+measured and reverted by explicit decision before the real cause was found; every metric
+remains at [0.70,1.30].
+
+Worth recording for the directive's own history: `scheduledAlbumProjects` is the metric whose
+0.644 abort opened this document. Part of the gap it was chasing was self-inflicted. The
+portfolio-commitment work is still sound and is what fixed Album *share* — but the *count*
+target it was measured against had been inflated by the same directive's mechanisms leaking
+into the reference.
+
+## Clean decade — `d7-portfolio-gated-decade-522-1001`
+
+522 weeks, seed 1001, `--catastrophic-fail-fast` and `--strict-1965-acceptance-gate` armed
+against `d7-portfolio-gated-decade-control-1001`. **Completes all 522 weeks with an empty
+catastrophic-fail-fast file — no rows.** All six gate metrics in band for every completed
+year:
+
+| metric | range 1960-1969 |
+|---|---|
+| `scheduledAlbumProjects` | 0.757 - 1.160 |
+| `successfulReleases` | 0.915 - 1.075 |
+| `totalUnits` | 0.952 - 1.084 |
+| `grossRevenue` | 0.987 - 1.115 |
+| `labelNet` | 1.021 - 1.193 |
+| `marketNet` | 1.000 - 1.154 |
+
+Strict 1965 clears with margin: singleUnits .948, albumUnits 1.597, totalUnits .980,
+grossRevenue 1.071, labelNet 1.137, marketNet 1.120, against floors of .85/.80/.85.
+
+The enabled route is bit-identical to the ungated `d7-responsive-formation-522-1001` at week
+400, confirming the gating changed only the control.
 
 ## Revised next steps, in order
 
-1. **Fix the gate control's Album fork, or stop gating `scheduledAlbumProjects` against
-   it.** This is the only thing standing between head and a clean gated decade, and it is a
-   defect in the reference, not in the enabled route. The disabled route's binary fork with
-   `revenueMemoryConfidenceK = 4` never validates the projection it acts on, so its Album
-   project counts are not a target any correct implementation can match.
+1. **The roster plateau.** See `D7ArtistPopulationPlateauHandoff.md`, which carries the full
+   diagnosis, the evidence, and the decisions already settled. It is the only substantive
+   modelling defect left open by this directive. Everything below is a sub-item of it and is
+   restated there.
 2. **Give the terminal inactivity clock an opportunity model**, or extend the latent
    reservoir to experienced free agents. This is what the roster plateau needs. Note that
    `BuildLaborMarketSnapshot` currently counts a prospect status on an experienced artist
    as an integrity violation (`prospectStatusContractConflicts`), so extending the
    reservoir means revisiting that invariant rather than working around it. Expect it to
-   push `successfulReleases` from 0.899 toward and possibly past 1.0 and to raise cost
-   pressure on labels, so it needs its own measured pass rather than being stacked on the
-   formation change.
+   push `successfulReleases` from 0.915-1.075 upward and to raise cost pressure on labels,
+   so it needs its own measured pass rather than being stacked on the formation change.
 3. **Ask whether label formation is governed** before tuning artist formation again. 293
    -> 1160 labels in a decade is what set the demand the servo is now answering.
 4. **Leave the promo constants alone** unless the above changes the picture. See above.
@@ -861,9 +905,12 @@ totalUnits 1.004 / grossRevenue 1.048 / labelNet 1.095 / marketNet 1.090, agains
 - `Data/Zeitgeist.cs` — cumulative sparse overrides plus authored decay for the 18 snap
   discontinuities. Affects the disabled route only.
 - `Systems/ChartManager.cs` — `AddGenreMomentum` guard. No-op on the enabled route.
-- `Systems/CompetitorManager.cs` — unchanged by this amendment apart from moving an
-  orphaned `<summary>` off `CalculatePromoAlbumSynergyGain` and back onto
-  `CalculateAlbumPortfolioCredit`, where it belongs.
+- `Systems/CompetitorManager.cs` — gates `albumPortfolioCredit` and
+  `CalculateAlbumPriorEraCalibration` to the live route so the control stops carrying this
+  directive's own repairs; `promoSynergyGain` stays ungated by explicit decision, see
+  above. Also moves an orphaned `<summary>` off `CalculatePromoAlbumSynergyGain` and back
+  onto `CalculateAlbumPortfolioCredit`, where it belongs. The enabled route is unchanged:
+  verified bit-identical at week 400.
 - `Systems/ArtistManager.cs` — demand-responsive formation
   (`CalculateResponsiveAnnualFormationTarget`), plus the annual-target parameter on
   `CalculateCalendarFormationCount`. Inert at 1960 by construction.
@@ -882,6 +929,13 @@ totalUnits 1.004 / grossRevenue 1.048 / labelNet 1.095 / marketNet 1.090, agains
   the floor share (.25 of the full-headroom value, exactly) and never below it, and still
   vanishes without album demand. Both suites now pass:
   `d7-zeitgeist-repair-probecheck-52-1001`.
-- New gate control: **`d7-zeitgeist-repair-decade-control-1001`**. The old
+- **Gate control: `d7-portfolio-gated-decade-control-1001`.** Use this one.
   `d6-transition-envelope-decade-control-1001` is superseded and should not be used again —
   it could not have been regenerated at head, since the disabled route crashed in week 2.
+  Two intermediate controls generated during this work are also superseded and kept only
+  for the record: `d7-zeitgeist-repair-decade-control-1001` (carries the contamination) and
+  `d7-uncontaminated-decade-control-1001` (over-gated, promo synergy removed).
+- Reference runs: **`d7-portfolio-gated-decade-522-1001`** is the clean gated decade;
+  `d7-responsive-formation-522-1001` is the same configuration ungated, for reading years a
+  gated run would not reach. Probes: `d7-zeitgeist-repair-probecheck-52-1001`, re-verified
+  after every subsequent change.

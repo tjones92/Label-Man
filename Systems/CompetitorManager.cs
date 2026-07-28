@@ -1442,7 +1442,16 @@ public partial class CompetitorManager : Node {
 		// pushed it further below the Single hurdle, harder every year as era weight
 		// rose. The credit uses the same pre-noise prior scale as the memory residual
 		// above, and stays outside the noise draw because it is policy, not estimation.
-		float albumPortfolioCommitment = GetAlbumPortfolioCommitmentMultiplier(label, year);
+		//
+		// Live-only. The commitment exists to stop the responsive lane split abandoning
+		// Albums as the LP market matures — a failure mode the disabled route does not
+		// have, because it has no lane split. Applying it there contaminated the gate
+		// reference with a mechanism authored for the route being measured against it,
+		// and the capacity derivation made that far worse than the old tier lookup: what
+		// had reached only Major labels now reached every label, pushing the control's
+		// Album decision share to .84/.91/.96 across 1965-69 and taking
+		// scheduledAlbumProjects out of band at 1963.
+		float albumPortfolioCommitment = useResponsiveMemory ? GetAlbumPortfolioCommitmentMultiplier(label, year) : 1f;
 		float albumPortfolioCredit = CalculateAlbumPortfolioCredit(albumPortfolioCommitment, priorAlbum);
 		projectedAlbum += albumPortfolioCredit;
 		projectedStandaloneAlbum += albumPortfolioCredit;
@@ -1469,6 +1478,18 @@ public partial class CompetitorManager : Node {
 		// and the strategy became permanently non-viable market-wide. Recruitment now
 		// scales on the same terms as diversion, so the two stay in proportion as the
 		// LP market matures instead of one outgrowing the other without bound.
+		//
+		// Deliberately NOT gated to the live route, unlike the portfolio credit above.
+		// The asymmetry it corrects is shared: cannibalizationLoss scales with
+		// albumDemandFactor and expectedPromoLift is a fixed scalar on both routes, so
+		// both model a promo Single that steals ever more from the Album and never sells
+		// one. That is an error in the economics, not a defect in the live lane split.
+		// Only the absorbing state it interacts with is live-specific, and that is fixed
+		// separately in ResolveAlbumDecision. Gating this was measured and reverted: it
+		// dropped the control's promo share to .37 by 1969, and since a promo project
+		// emits two products and a standalone emits one, the control lost the Singles
+		// those Album projects would have carried — Single units fell to 99.3M and took
+		// totalUnits, grossRevenue, labelNet and marketNet out of band at 1968-69.
 		float promoSynergyGain = CalculatePromoAlbumSynergyGain(albumDemandFactor,
 			1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f), expectedSingleUnits, albumPrior.marginPerUnit);
 		float promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - cannibalizationLoss;
@@ -1690,6 +1711,10 @@ public partial class CompetitorManager : Node {
 	/// Both endpoints are excluded. 1960 is the bootstrap year on a seeded catalog and
 	/// already measures nearly correct (.913); 1964 onward is correct without help, and
 	/// discounting it over-corrected to 1.106.
+	///
+	/// Applied on the live route only. It is a calibration of the live Album prior against
+	/// live realized outcomes, so applying it to the disabled route would move the gate
+	/// reference by the same amount it moves the thing being measured.
 	/// </summary>
 	internal static float CalculateAlbumPriorEraCalibration(int year) {
 		if (year <= AlbumPriorCalibrationBootstrapYear) return 1f;
@@ -1782,7 +1807,7 @@ public partial class CompetitorManager : Node {
 		bool live = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		AlbumPriorExplanation opportunity = GetAlbumPriorExplanation(artist.primaryGenre, regions, year, live);
 		float baseAffinityUnits = priorUnitScalarAlbum * decision.qualityEstimate * statureMultiplier *
-			decision.reachFactor * CalculateAlbumPriorEraCalibration(year);
+			decision.reachFactor * (live ? CalculateAlbumPriorEraCalibration(year) : 1f);
 		float preTiltAffinityUnits = baseAffinityUnits * opportunity.UntiltedAlbumDemandFactor * opportunity.MarketReconciliation;
 		float unweightedHitUnits = priorCompHitUnitScalar * hitInventory.hitScore;
 		float weightedHitUnits = compCostWeight * unweightedHitUnits;
