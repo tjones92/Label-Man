@@ -226,7 +226,7 @@ public partial class LabelLifecycleManager : Node {
 		foreach (var label in activeLabels.Where(l => l.IsActive).ToList()) {
 			CheckForTierChange(label);
 			if (!label.IsActive) continue;
-			TryAuthorizeRuntimeOrganicGrowth(label);
+			TryAuthorizeOrganicGrowth(label);
 			DriftAttributes(label);
 			TryApplyCompetitiveExit(label);
 		}
@@ -285,8 +285,8 @@ public partial class LabelLifecycleManager : Node {
 		return (hash >> 40) * (1f / 16777216f);
 	}
 
-	private void TryAuthorizeRuntimeOrganicGrowth(AILabel label) {
-		if (!ArtistPopulationLifecycle.Enabled || label.populationOrigin != LabelPopulationOrigin.RuntimeFounded) return;
+	private void TryAuthorizeOrganicGrowth(AILabel label) {
+		if (!ArtistPopulationLifecycle.Enabled || !IsOrganicGrowthEligibleOrigin(label)) return;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		int chartingCount = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
 		int recentReleaseCount = CompetitorManager.Instance?.GetRecentReleasedRecordCount(label.labelId, 52) ?? 0;
@@ -308,8 +308,26 @@ public partial class LabelLifecycleManager : Node {
 		label?.populationOrigin == LabelPopulationOrigin.RuntimeFounded &&
 		label.monthsActive <= RuntimeEmergenceRunwayMonths;
 
+	/// <summary>
+	/// Which labels may earn operating-target growth. Runtime founders grow out of
+	/// their one-artist bootstrap as before. Launch-population Majors and MidTiers are
+	/// added because appetite could otherwise only move through promotion or
+	/// acquisition reconciliation, which froze them at their 1960 rosters: mean Major
+	/// appetite pinned at exactly 25.10 from 1964 and MidTier at 10.67 from 1961, which
+	/// removes the demand-side counterpart of the LP takeover, when Columbia, Warner
+	/// and Atlantic all scaled up. They grow into the hard capacity they already have
+	/// (50 and 25) under the same earned rules below, so the slots are earned rather
+	/// than conferred by a tier lookup. Launch Small, Boutique and Independent labels
+	/// stay frozen deliberately: a handful of acts or death is the right shape for a
+	/// sixties independent, and growing them would be fitting the aggregate rather
+	/// than modelling it.
+	/// </summary>
+	internal static bool IsOrganicGrowthEligibleOrigin(AILabel label) => label != null &&
+		(label.populationOrigin == LabelPopulationOrigin.RuntimeFounded ||
+			(label.populationOrigin == LabelPopulationOrigin.LaunchPopulation && label.tier is LabelTier.Major or LabelTier.MidTier));
+
 	internal static string GetOrganicGrowthBlockingReason(AILabel label, int chartingCount, int recentReleaseCount, int week) {
-		if (label == null || label.populationOrigin != LabelPopulationOrigin.RuntimeFounded) return "NotRuntimeFounded";
+		if (!IsOrganicGrowthEligibleOrigin(label)) return "NotGrowthEligible";
 		if (!label.IsActive) return "InactiveLabel";
 		if (label.lastOrganicRosterTargetGrowthWeek == week) return "AlreadyReviewedThisQuarter";
 		if (label.CurrentRosterSize < label.OperatingRosterTarget) return "OperatingTargetUnfilled";
@@ -324,7 +342,7 @@ public partial class LabelLifecycleManager : Node {
 		return "Eligible";
 	}
 
-	internal static bool TryAuthorizeRuntimeOrganicGrowthForProbe(AILabel label, int chartingCount, int recentReleaseCount, int week) {
+	internal static bool TryAuthorizeOrganicGrowthForProbe(AILabel label, int chartingCount, int recentReleaseCount, int week) {
 		string blockingReason = GetOrganicGrowthBlockingReason(label, chartingCount, recentReleaseCount, week);
 		label.lastOrganicGrowthEligibilityWeek = week;
 		label.lastOrganicGrowthBlockingReason = blockingReason;

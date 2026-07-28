@@ -5,7 +5,17 @@ using System.Linq;
 
 /// <summary>
 /// Directive 6 fixed-input probes. They deliberately use detached artists and
-/// labels so they neither consume simulation RNG nor perturb an audit world.
+/// labels so they do not perturb an audit world's object graph.
+///
+/// They are NOT RNG-neutral, despite what this comment claimed until it was
+/// measured: several probes reach helpers that draw from the global stream
+/// (<see cref="RosterManager.InitializeRuntimeRosterForProbe"/> consumes the
+/// legacy capacity draw, for one). A 52-week run with the flag and without it
+/// diverge in 1960 — album units 2,271,329 against 2,426,185 on seed 1001. Never
+/// pass --artist-population-lifecycle-probes to a run being compared against a
+/// control; probe runs and comparison runs stay separate, exactly as they must
+/// for --genre-market-v2-probes.
+///
 /// The integration/replay gates remain the authority for full event ordering.
 /// </summary>
 public static class ArtistPopulationLifecycleProbeSuite {
@@ -83,7 +93,9 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeAlbumFormatClearingBudget();                             // 67
 		ProbeMidTierPromotionBoundary();                               // 68
 		ProbeCompetitiveLabelExitBoundary();                            // 69
-		results.Add("D6 fixed probes 1-69 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, and bounded competitive label exit)");
+		ProbeVacancyDenominatedHiringDemand();                           // 70
+		ProbeExperiencedTalentReservoir();                                // 71
+		results.Add("D6 fixed probes 1-71 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, and the experienced talent reservoir)");
 		return results;
 	}
 
@@ -191,21 +203,41 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(launch.populationOrigin == LabelPopulationOrigin.LaunchPopulation && launch.OperatingRosterTarget == 1,
 			"61d launch labels retain launch origin and their populated operating baseline");
 
+		Require(!LabelLifecycleManager.IsOrganicGrowthEligibleOrigin(launch) &&
+			LabelLifecycleManager.GetOrganicGrowthBlockingReason(launch, 4, 4, 13) == "NotGrowthEligible",
+			"61d2 a launch Independent stays frozen at the roster it opened with");
+		foreach (LabelTier flat in new[] { LabelTier.Small, LabelTier.Boutique, LabelTier.Independent }) {
+			launch.tier = flat;
+			Require(!LabelLifecycleManager.IsOrganicGrowthEligibleOrigin(launch),
+				$"61d3 launch {flat} appetite is deliberately flat across the decade");
+		}
+		foreach (LabelTier upper in new[] { LabelTier.Major, LabelTier.MidTier }) {
+			launch.tier = upper;
+			Require(LabelLifecycleManager.IsOrganicGrowthEligibleOrigin(launch) &&
+				LabelLifecycleManager.GetOrganicGrowthBlockingReason(launch, 4, 4, 13) != "NotGrowthEligible",
+				$"61d4 launch {upper} appetite can be earned rather than pinned at its 1960 roster");
+		}
+		launch.tier = LabelTier.Major; launch.status = LabelStatus.Stable; launch.lastMonthlyProfit = 100f;
+		launch.consecutiveLossMonths = 0; launch.cashReserves = launch.GetMonthlyOverhead() * 6f;
+		Require(LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(launch, 4, 4, 13) && launch.OperatingRosterTarget == 2 &&
+			LabelLifecycleManager.GetOrganicGrowthBlockingReason(launch, 4, 4, 26) == "OperatingTargetUnfilled",
+			"61d5 an upper-tier launch label earns exactly one slot per quarter and must fill it before the next");
+
 		AILabel runtime = NewScoutingLabel(5);
 		runtime.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
 		runtime.roster.Add(NewArtist("runtime-1"));
 		runtime.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 10);
 		runtime.status = LabelStatus.Stable; runtime.lastMonthlyProfit = 100f; runtime.consecutiveLossMonths = 0; runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
 		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(runtime, 0, 1, 13) == "Eligible" &&
-			LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.OperatingRosterTarget == 2 &&
+			LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.OperatingRosterTarget == 2 &&
 			runtime.organicRosterTargetGrowthCount == 1 && runtime.CurrentRosterSize == 1,
 			"61e a filled, profitable founder with a recent release gains exactly one emergence slot without requiring a chart hit");
-		Require(!LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.lastOrganicGrowthBlockingReason == "AlreadyReviewedThisQuarter",
+		Require(!LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.lastOrganicGrowthBlockingReason == "AlreadyReviewedThisQuarter",
 			"61f a quarterly pass cannot grant a second organic target decision");
 
 		runtime.roster.Add(NewArtist("runtime-2"));
 		runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
-		Require(LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 26) && runtime.OperatingRosterTarget == 3 &&
+		Require(LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(runtime, 0, 1, 26) && runtime.OperatingRosterTarget == 3 &&
 			runtime.organicRosterTargetGrowthCount == 2 && runtime.lastOrganicRosterTargetGrowthWeek == 26,
 			"61g release-backed emergence can mature a founder to the three-lane operating floor");
 		runtime.roster.Add(NewArtist("runtime-3"));
@@ -476,8 +508,12 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		SimulatedArtist artist = NewArtist("exhaustion"); artist.performanceDropCount = 1; artist.labelId = "owner";
 		AILabel owner = NewScoutingLabel(); owner.labelId = "owner"; owner.roster.Add(artist); var pool = new List<SimulatedArtist>();
 		ArtistManager.ReconcileDroppedArtistForProbe(artist, owner, pool, 1964, ArtistDropReason.Performance);
-		Require(artist.performanceDropCount == 2 && artist.lifecycleStatus == ArtistLifecycleStatus.Inactive && !artist.isActive && pool.Count == 0,
-			"32 second performance departure exhausts the career atomically");
+		Require(artist.performanceDropCount == 2 && artist.lastDropReason == ArtistDropReason.PerformanceExhaustion &&
+			artist.prospectMarketStatus == ProspectMarketStatus.Latent && artist.prospectMarketSpellCount == 1 && pool.Count == 0,
+			"32a a second performance departure leaves the active market for the reservoir, charged one search spell");
+		Require(!ArtistManager.IsProspectSearchEligibleForProbe(artist) && !ArtistManager.IsEligibleForPopulationSigningForProbe(artist, 1964) &&
+			artist.lifecycleStatus == ArtistLifecycleStatus.Active,
+			"32b the exhausted career is held rather than destroyed: unsearchable while reserved, but still a live career");
 	}
 
 	private static void ProbeFreeAgentResetAndRenewal() {
@@ -594,16 +630,71 @@ public static class ArtistPopulationLifecycleProbeSuite {
 	}
 
 	private static void ProbeTerminalClassification() {
-		SimulatedArtist group = NewArtist(); group.type = ArtistType.Band;
-		SimulatedArtist solo = NewArtist(); solo.type = ArtistType.SoloMale; solo.members.Add(new Musician("lead", "Lead", "Probe", true, 1920) { isLeadVocalist = true });
-		Require(ArtistManager.ClassifyTerminalLifecycleForProbe(group, 1960) == ArtistLifecycleStatus.Disbanded &&
-			ArtistManager.ClassifyTerminalLifecycleForProbe(solo, 1960) == ArtistLifecycleStatus.Retired, "15 group disbandment and qualified solo retirement classify correctly");
+		SimulatedArtist agedGroup = NewArtist(); agedGroup.type = ArtistType.Band;
+		agedGroup.members.Add(new Musician("group-lead", "Lead", "Probe", true, 1920) { isLeadVocalist = true });
+		SimulatedArtist agedSolo = NewArtist(); agedSolo.type = ArtistType.SoloMale;
+		agedSolo.members.Add(new Musician("solo-lead", "Lead", "Probe", true, 1920) { isLeadVocalist = true });
+		Require(ArtistManager.ClassifyTerminalLifecycleForProbe(agedGroup, 1960) == ArtistLifecycleStatus.Disbanded &&
+			ArtistManager.ClassifyTerminalLifecycleForProbe(agedSolo, 1960) == ArtistLifecycleStatus.Retired,
+			"15a aged-out acts classify as group disbandment and solo retirement");
+
+		SimulatedArtist youngGroup = NewArtist(); youngGroup.type = ArtistType.Band;
+		youngGroup.members.Add(new Musician("young-group-lead", "Lead", "Probe", true, 1938) { isLeadVocalist = true });
+		SimulatedArtist youngSolo = NewArtist(); youngSolo.type = ArtistType.SoloMale;
+		youngSolo.members.Add(new Musician("young-solo-lead", "Lead", "Probe", true, 1938) { isLeadVocalist = true });
+		Require(!ArtistManager.IsTerminalExitEarned(youngGroup, 1960) && !ArtistManager.IsTerminalExitEarned(youngSolo, 1960) &&
+			ArtistManager.ClassifyTerminalLifecycleForProbe(youngGroup, 1960) == ArtistLifecycleStatus.Inactive,
+			"15b a young band is spared on exactly the same terms as a young solo act");
+
+		youngGroup.prospectMarketSpellCount = 2; youngSolo.prospectMarketSpellCount = 3;
+		Require(!ArtistManager.IsTerminalExitEarned(youngGroup, 1960) && ArtistManager.IsTerminalExitEarned(youngSolo, 1960) &&
+			ArtistManager.ClassifyTerminalLifecycleForProbe(youngSolo, 1960) == ArtistLifecycleStatus.Retired,
+			"15c repeated rejection earns a terminal exit at the third completed search spell, not the second");
 	}
 
 	private static void ProbeTerminalSigningAndReleaseGuards() {
 		SimulatedArtist artist = NewArtist(); artist.lifecycleStatus = ArtistLifecycleStatus.Retired; artist.careerState = CareerState.Retired; artist.isActive = false;
 		Require(!ArtistManager.IsEligibleForPopulationSigningForProbe(artist, 1) && !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist),
 			"16 inactive/terminal artists cannot sign or release");
+	}
+
+	private static void ProbeVacancyDenominatedHiringDemand() {
+		AILabel major = NewScoutingLabel(40); major.tier = LabelTier.Major;
+		major.SetOperatingRosterTarget(9, LabelOperatingTargetReason.LaunchPopulation, 0);
+		major.roster.Add(NewArtist("major-1"));
+		AILabel small = NewScoutingLabel(5); small.tier = LabelTier.Small;
+		small.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 0);
+		AILabel filled = NewScoutingLabel(5); filled.roster.Add(NewArtist("filled-1")); filled.SetOperatingRosterTargetFromCurrent();
+		AILabel unaffordable = NewScoutingLabel(5, 0f);
+		unaffordable.SetOperatingRosterTarget(4, LabelOperatingTargetReason.RuntimeBootstrap, 0);
+		Require(ArtistManager.GetAffordableHiringVacancies(major) == 8 && ArtistManager.GetAffordableHiringVacancies(small) == 1 &&
+			ArtistManager.GetAffordableHiringVacancies(filled) == 0 && ArtistManager.GetAffordableHiringVacancies(unaffordable) == 0,
+			"70a hiring demand counts unfilled slots, so eight vacancies no longer read as the same demand as one");
+		Require(ArtistManager.CalculateProspectActivationCount(20, 0,
+				ArtistManager.GetAffordableHiringVacancies(major) + ArtistManager.GetAffordableHiringVacancies(small)) == 9,
+			"70b the activation budget is the slot count the market can actually pay for");
+	}
+
+	private static void ProbeExperiencedTalentReservoir() {
+		SimulatedArtist veteran = NewArtist("veteran"); veteran.careerState = CareerState.Dropped; veteran.contractSequence = 2;
+		veteran.prospectMarketStatus = ProspectMarketStatus.Seeking; veteran.prospectSeekingWeeks = 77;
+		veteran.members.Add(new Musician("veteran-lead", "Lead", "Probe", true, 1938) { isLeadVocalist = true });
+		Require(ArtistManager.AdvanceProspectSearchWeekForProbe(veteran) && veteran.prospectMarketStatus == ProspectMarketStatus.Latent &&
+			veteran.prospectMarketSpellCount == 1 && veteran.lifecycleStatus == ArtistLifecycleStatus.Active && veteran.isActive,
+			"71a a prior-contract career completes search spells instead of running an inactivity clock it cannot return from");
+		Require(!ArtistManager.IsProspectSearchEligibleForProbe(veteran) && !ArtistManager.IsTerminalExitEarned(veteran, 1964),
+			"71b reserved talent is held off the market until activation returns it, and one spell does not end a career");
+		veteran.prospectMarketStatus = ProspectMarketStatus.Seeking; veteran.prospectSeekingWeeks = 0;
+		Require(ArtistManager.IsProspectSearchEligibleForProbe(veteran) && ArtistManager.IsEligibleForPopulationSigningForProbe(veteran, 500),
+			"71c activation returns an experienced free agent to the searchable market on the same terms as a first-timer");
+
+		// Rotation is what stops the reservoir being a one-way pen: without it, once
+		// seeking saturates the vacancy budget nothing is ever activated, so nothing is
+		// ever seen by scouting and nothing can ever complete another spell either.
+		Require(ArtistManager.GetLatentRotationWeeksForProbe() > 0 &&
+			!ArtistManager.ShouldRotateLatentProspectForProbe(ArtistManager.GetLatentRotationWeeksForProbe() - 1) &&
+			ArtistManager.ShouldRotateLatentProspectForProbe(ArtistManager.GetLatentRotationWeeksForProbe()),
+			"71d a rested latent act returns to the market on its own clock rather than waiting to be sent for");
 	}
 
 	private static void ProbeExitDeferralPredicate() {
@@ -999,8 +1090,10 @@ public static class ArtistPopulationLifecycleProbeSuite {
 	}
 
 	private static void ProbeNoThirdComebackSigning() {
-		SimulatedArtist exhausted = NewArtist("no-third"); exhausted.performanceDropCount = 2; exhausted.isActive = false; exhausted.lifecycleStatus = ArtistLifecycleStatus.Inactive; exhausted.careerState = CareerState.Retired;
-		Require(!ArtistManager.IsEligibleUnsignedCandidateForProbe(exhausted), "46 exhausted artists are not signable for a third comeback");
+		SimulatedArtist exhausted = NewArtist("no-third"); exhausted.performanceDropCount = 2; exhausted.careerState = CareerState.Dropped;
+		exhausted.lastDropReason = ArtistDropReason.PerformanceExhaustion; exhausted.prospectMarketStatus = ProspectMarketStatus.Latent;
+		Require(!ArtistManager.IsEligibleForPopulationSigningForProbe(exhausted, 500),
+			"46 exhausted artists cannot walk into a third comeback: only activation can offer them back to the market");
 	}
 
 	private static void ProbeMarketClearingTelemetryFields() {

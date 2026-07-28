@@ -20,6 +20,7 @@ public class SimulatedArtist {
 	public ProspectMarketStatus prospectMarketStatus = ProspectMarketStatus.NotProspect;
 	public ProspectMarketStatus prospectMarketStatusBeforeContract = ProspectMarketStatus.NotProspect;
 	public int prospectSeekingWeeks;
+	public int prospectLatentWeeks;
 	public int prospectMarketSpellCount;
 	public Genre formationPrimaryGenre;
 	public Genre formationSecondaryGenre;
@@ -43,7 +44,6 @@ public class SimulatedArtist {
 	public int performanceDropCount;
 	public bool usesRepeatPerformanceRecovery;
 	public int weeksContinuouslyUnowned;
-	public int inactiveSinceWeek = -1;
 
 	// These counters intentionally coexist with lifetime career counters.  They
 	// are reset only by a free-agent signing, never by a same-label renewal.
