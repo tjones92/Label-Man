@@ -30,8 +30,8 @@ public partial class LabelLifecycleManager : Node {
 	private const int IndependentPromotionMinimumRecentChartingRecords = 1;
 	private const float MidTierPromotionMinimumRunwayMonths = 6f;
 	private const int LaunchCompetitionMinimumOperatingMonths = 6;
-	private const int RuntimeCompetitionMinimumOperatingMonths = 9;
-	private const int RuntimeEmergenceRunwayMonths = 9;
+	private const int RuntimeCompetitionMinimumOperatingMonths = 18;
+	private const int RuntimeEmergenceRunwayMonths = 18;
 	private const int RuntimeEmergenceReleaseLaneTarget = 3;
 	private const int CompetitiveExitSafeHarborChartingRecords = 2;
 	private const float CompetitiveExitOneChartMultiplier = 0.35f;
@@ -66,6 +66,10 @@ public partial class LabelLifecycleManager : Node {
 	// ladder repairs below need 0.037 of it. The ladder was the priority, so this stays
 	// at 6. 8 breaches outright. See D7LabelPopulationChartCapacityHandoff.
 	[Export] private int maxMonthlyBirths = 6;
+	// Most firms in the independent record business are represented by Independent rather
+	// than the deliberately shoestring Small tier. Keeping a Small tail while making
+	// Independent the common runtime entrant matches the desired below-MidTier composition.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float runtimeSmallFoundingShare = 0.25f;
 	
 	[ExportGroup("References")]
 	// FIX: Changed List to Array for Godot Export compatibility
@@ -221,7 +225,7 @@ public partial class LabelLifecycleManager : Node {
 	}
 	
 	private void SpawnNewLabel() {
-		LabelTier tier = GD.Randf() < 0.7f ? LabelTier.Small : LabelTier.Independent;
+		LabelTier tier = SelectRuntimeFoundingTier(GD.Randf(), runtimeSmallFoundingShare);
 		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier);
 		if (ArtistPopulationLifecycle.Enabled) {
 			GameDate birthDate = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1);
@@ -246,6 +250,9 @@ public partial class LabelLifecycleManager : Node {
 		GD.Print($"[LabelManager] New label founded: {newLabel.labelName} ({newLabel.archetype})");
 		OnLabelFounded?.Invoke(newLabel);
 	}
+
+	internal static LabelTier SelectRuntimeFoundingTier(float roll, float smallShare) =>
+		roll < Mathf.Clamp(smallShare, 0f, 1f) ? LabelTier.Small : LabelTier.Independent;
 	
 	private void ProcessQuarterlyChanges() {
 		foreach (var label in activeLabels.Where(l => l.IsActive).ToList()) {

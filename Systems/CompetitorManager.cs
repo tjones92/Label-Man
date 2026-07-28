@@ -8,6 +8,8 @@ public partial class CompetitorManager : Node {
 	public const float DealReinvestCost = 5000000f;
 	// A self-built network tops out below the seeded Majors' 0.88-0.90 national reach.
 	public const float SelfBuiltReachCeiling = 0.75f;
+	public const float SelfBuiltNationalReachCeiling = 0.70f;
+	public const float CompletedDealNationalReachCeiling = 0.80f;
 	public const float DealDependencyLow = 0.35f;
 	public const float DealDependencyHigh = 0.56f;
 	
@@ -116,7 +118,7 @@ public partial class CompetitorManager : Node {
 	};
 
 	[ExportGroup("Distribution Deals")]
-	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPullOfferProbability = 0.12f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPullOfferProbability = 0.40f;
 	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPushOfferProbability = 0.04f;
 	[Export(PropertyHint.Range, "0,1,0.001")] private float annualPost1966PushRamp = 0.05f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float pushMastersOwnershipRate = 0.80f;
@@ -130,7 +132,9 @@ public partial class CompetitorManager : Node {
 	// distribution, which is what keeps the self-built route uncommon rather than automatic.
 	[Export] private float selfBuiltReachSurplusMultiple = 2f;
 	[Export(PropertyHint.Range, "0,1,0.001")] private float selfBuiltReachMonthlyGain = 0.004f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float selfBuiltNationalReachMonthlyGain = 0.008f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float selfBuiltReachReinvestRate = 0.10f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float completedDealNationalReachRetention = 0.25f;
 	// Peak regional breakout strength a record must reach before its label can seek a
 	// distributor. See HasStrongRegionalChartRecord for why this replaced a national chart test.
 	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.30f;
@@ -2684,6 +2688,21 @@ public partial class CompetitorManager : Node {
 		float investment = netIncome * selfBuiltReachReinvestRate;
 		label.cashReserves -= investment;
 		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling, label.ownedReach + selfBuiltReachMonthlyGain);
+		label.nationalReach = CalculateNationalReachAfterSelfBuiltGain(
+			label.nationalReach, selfBuiltNationalReachMonthlyGain, SelfBuiltNationalReachCeiling);
+	}
+
+	internal static float CalculateNationalReachAfterSelfBuiltGain(float currentReach, float monthlyGain, float ceiling) {
+		float boundedCurrent = Mathf.Clamp(currentReach, 0f, 1f);
+		return Mathf.Max(boundedCurrent,
+			Mathf.Min(Mathf.Clamp(ceiling, 0f, 1f), boundedCurrent + Mathf.Max(0f, monthlyGain)));
+	}
+
+	internal static float CalculateNationalReachAfterCompletedDeal(
+		float currentReach, float dealReachGranted, float retention, float ceiling) {
+		float boundedCurrent = Mathf.Clamp(currentReach, 0f, 1f);
+		return Mathf.Max(boundedCurrent, Mathf.Min(Mathf.Clamp(ceiling, 0f, 1f),
+			boundedCurrent + Mathf.Max(0f, dealReachGranted) * Mathf.Max(0f, retention)));
 	}
 
 	private void ProcessDistributionDeals(GameDate date) {
@@ -2793,10 +2812,6 @@ public partial class CompetitorManager : Node {
 		if (distributor.cashReserves - minimumAdvance <= distributor.GetMonthlyOverhead() * 3f) return false;
 
 		var offeredRegions = distributor.distributionRegions ?? System.Array.Empty<string>();
-		if (origin == DealOrigin.LabelSought) {
-			return (client.strongRegions ?? System.Array.Empty<string>()).Any(region =>
-				!client.HasDistributionInRegion(region) && offeredRegions.Contains(region));
-		}
 		return offeredRegions.Any(region => !client.HasDistributionInRegion(region));
 	}
 
@@ -2812,11 +2827,7 @@ public partial class CompetitorManager : Node {
 
 	private DistributionDeal GenerateDealTerms(AILabel client, AILabel distributor, DealOrigin origin, int year, int currentWeek) {
 		bool push = origin == DealOrigin.DistributorCourted;
-		string[] availableRegions = (distributor.distributionRegions ?? System.Array.Empty<string>())
-			.Where(region => !client.HasDistributionInRegion(region)).Distinct().ToArray();
-		string[] grantedRegions = push
-			? availableRegions
-			: availableRegions.Intersect(client.strongRegions ?? System.Array.Empty<string>()).ToArray();
+		string[] availableRegions = GetGrantedDistributionRegions(client, distributor.distributionRegions);
 		float advance = push
 			? client.GetMonthlyOverhead() * (float)GD.RandRange(6f, 12f)
 			: (GD.Randf() < 0.35f ? 0f : client.GetMonthlyOverhead() * (float)GD.RandRange(0.5f, 2f));
@@ -2824,7 +2835,11 @@ public partial class CompetitorManager : Node {
 		return new DistributionDeal {
 			distributorId = distributor.labelId,
 			reachGranted = push ? (float)GD.RandRange(0.50f, 0.80f) : (float)GD.RandRange(0.30f, 0.50f),
-			grantedRegions = grantedRegions,
+			// The deal exists to carry a proven regional record beyond its home market.
+			// The former pull path intersected the distributor's network with the client's
+			// strong regions, so it granted only the market the client already served and
+			// never supplied the national bridge the contract represented.
+			grantedRegions = availableRegions,
 			marginSkim = push ? (float)GD.RandRange(pushMarginSkimMin, pushMarginSkimMax) : (float)GD.RandRange(pullMarginSkimMin, pullMarginSkimMax),
 			ownsMasters = GD.Randf() < (push ? pushMastersOwnershipRate : 0.15f),
 			advance = advance,
@@ -2834,6 +2849,12 @@ public partial class CompetitorManager : Node {
 			origin = origin
 		};
 	}
+
+	internal static string[] GetGrantedDistributionRegions(AILabel client, IEnumerable<string> distributorRegions) =>
+		(distributorRegions ?? System.Array.Empty<string>())
+			.Where(region => client != null && !client.HasDistributionInRegion(region))
+			.Distinct(System.StringComparer.Ordinal)
+			.ToArray();
 
 	private static bool ShouldAcceptDeal(AILabel client, DistributionDeal offer) {
 		float currentReach = client.distributionStrength;
@@ -2851,6 +2872,13 @@ public partial class CompetitorManager : Node {
 	private void ResolveDistributionDeal(AILabel client, AILabel distributor, int currentWeek) {
 		DistributionDeal deal = client.activeDeal;
 		float dependency = client.DistributionDependency;
+		// A completed term leaves a client with national relationships and market knowledge even
+		// when the contract renews. Before this coupling, nationalReach was a generation-only
+		// attribute, so labels could build or borrow a national distribution network for years
+		// while remaining permanently regional in the propagation path that actually feeds the
+		// chart. The retained fraction is bounded below seeded Major reach and consumes no RNG.
+		client.nationalReach = CalculateNationalReachAfterCompletedDeal(client.nationalReach,
+			deal.reachGranted, completedDealNationalReachRetention, CompletedDealNationalReachCeiling);
 		if (dependency < dealDependencyLow) {
 			client.ownedReach = Mathf.Min(1f, client.ownedReach + (deal.reachGranted * 0.50f));
 			EmitDealEvent(client, distributor, deal, DealResolution.Exit, dependency);

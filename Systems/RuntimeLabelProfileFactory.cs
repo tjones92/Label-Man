@@ -141,12 +141,26 @@ public static class RuntimeLabelProfileFactory {
 	private static void ReconcileFoundingAndGeography(AILabel label, MarketRegion[] regions, int birthYear) {
 		label.foundedYear = birthYear; label.monthsActive = 0; label.totalReleases = 0; label.top40Hits = 0; label.numberOneHits = 0;
 		label.momentumScore = 0f; label.consecutiveLossMonths = 0; label.sustainedCapabilityQuarters = 0; label.sustainedLowCapabilityQuarters = 0;
-		MarketRegion home = regions?.FirstOrDefault(region => region.majorCities?.Contains(label.headquartersCity) ?? false);
-		if (home == null && regions?.Length > 0) home = regions[0];
-		label.homeRegion = home?.regionId ?? "eastcoast";
+		// MarketRegion.majorCities is not the canonical city catalog and did not contain
+		// the generated headquarters names in live runs. Falling back to regions[0] therefore
+		// assigned every runtime-founded label to the East Coast -- 674/674 in the measured
+		// decade, including labels headquartered in San Francisco and Dallas. Resolve through
+		// the same canonical city substrate that assigns homeCityId.
+		MarketCity homeCity = DistanceModel.GetCityByName(label.headquartersCity);
+		string mappedRegionId = homeCity?.parentRegionId;
+		MarketRegion home = regions?.FirstOrDefault(region => region.regionId == mappedRegionId) ??
+			regions?.FirstOrDefault(region => region.majorCities?.Contains(label.headquartersCity) ?? false);
+		label.homeRegion = home?.regionId ?? mappedRegionId ?? "eastcoast";
 		if (string.IsNullOrWhiteSpace(label.headquartersCity)) label.headquartersCity = DistanceModel.GetHubCityForRegion(label.homeRegion)?.name ?? "New York";
 		label.strongRegions = new[] { label.homeRegion };
-		label.distributionRegions ??= Array.Empty<string>();
+		// A functioning home-market wholesale path is part of being a label, including at
+		// runtime. Preserve any wider network drawn by LabelGenerator and make the home market
+		// explicit so replenishment does not treat the founder's own strong region as uncovered.
+		label.distributionRegions = new[] { label.homeRegion }
+			.Concat(label.distributionRegions ?? Array.Empty<string>())
+			.Where(regionId => !string.IsNullOrEmpty(regionId))
+			.Distinct(StringComparer.Ordinal)
+			.ToArray();
 		DistanceModel.AssignHomeCity(label);
 	}
 

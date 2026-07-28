@@ -629,8 +629,8 @@ public partial class ChartManager : Node {
 		float legacyMomentum = genreMarketLive ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
 		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
 		float broadLaunch = isAlbum
-			? 0.035f + campaignImpact * (0.06f + label.nationalReach * 0.06f)
-			: 0.06f + (campaignImpact * (0.10f + label.nationalReach * 0.10f));
+			? 0.035f + campaignImpact * (0.06f + label.effectiveNationalReach * 0.06f)
+			: 0.06f + (campaignImpact * (0.10f + label.effectiveNationalReach * 0.10f));
 		record.awareness = Mathf.Max(broadLaunch, record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness, 0f, 1f);
 
@@ -1238,7 +1238,8 @@ public partial class ChartManager : Node {
 				bool livePhysicalBackorder = GenreMarketV2.Enabled && IsGenreMarketV2Live &&
 					data.unitsBackordered > 0 && data.rawDemandThisWeek > 0f;
 				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
-					(data.breakoutScore >= 0.20f || specialistUnchartedService || albumUnchartedService) &&
+					(data.breakoutScore >= 0.20f || specialistUnchartedService || albumUnchartedService ||
+					 (label.activeDeal?.grantedRegions?.Contains(region.regionId) ?? false)) &&
 					(data.unitsBackordered > 250 || data.rawDemandThisWeek > data.unitsInStores * 0.45f);
 				bool chartedNeedsRestock = record.currentPosition > 0 &&
 					(data.unitsBackordered > 500 ||
@@ -1539,7 +1540,7 @@ public partial class ChartManager : Node {
 			nationalGain += womGain * 0.30f;
 
 			if (source.breakoutStage < RegionalBreakoutStage.RegionalBreakout || source.tractionWeeks < 2) continue;
-			float propagationCapacity = 0.25f + label.nationalReach * 0.45f + label.distributionStrength * 0.30f;
+			float propagationCapacity = 0.25f + label.effectiveNationalReach * 0.45f + label.distributionStrength * 0.30f;
 			foreach (string neighborId in GetNeighborRegionIds(sourceRegion.regionId)) {
 				if (!record.regionalData.TryGetValue(neighborId, out RegionalRecordData neighbor)) continue;
 				float testGain = strength * propagationCapacity * 0.10f * discoveryScale;

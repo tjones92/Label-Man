@@ -123,7 +123,7 @@ public static class ChartSimulator {
 		// The high-volume label families dominate every measured sales window.
 		// Keep indie-family conversion intact instead of applying another blanket
 		// purchase-rate reduction that erases their narrow charting margin.
-		if (stagedLiveDemand) conversionRate *= GetLiveLabelDemandScale(label?.tier);
+		if (stagedLiveDemand) conversionRate *= GetLiveLabelDemandScale(label);
 		else if (label?.tier == LabelTier.Major) conversionRate *= LegacyMajorDemandScale;
 		else if (label?.tier == LabelTier.MidTier) conversionRate *= LegacyMidTierDemandScale;
 		
@@ -284,20 +284,20 @@ public static class ChartSimulator {
 	}
 
 	/// <summary>
-	/// The bounded discovery model removed the old multiplicative hit feedback but
-	/// left its anti-concentration Major/MidTier scalars in place. That combination
-	/// moved nearly the entire market from established national labels to a broad
-	/// marginal-label tail. Keep discovery bounded while restoring the tier's
-	/// actual promotion/distribution leverage on the live path.
+	/// Realized Single demand follows the distribution capabilities a label has now,
+	/// rather than the tier it had when it was generated. The former fixed switch
+	/// continued to charge Independent labels 0.55 after they built national reach
+	/// while granting Boutique labels 1.20 regardless of reach. That made promotion,
+	/// self-built expansion, and completed distribution deals largely cosmetic at
+	/// the chart-access seam. This continuous scale retains the calibrated national
+	/// label ceiling while allowing earned reach to change outcomes.
 	/// </summary>
-	internal static float GetLiveLabelDemandScale(LabelTier? tier) => tier switch {
-		LabelTier.Major => 1.20f,
-		LabelTier.MidTier => 0.94f,
-		LabelTier.Independent => 0.55f,
-		LabelTier.Boutique => 1.20f,
-		LabelTier.Small => 0.68f,
-		_ => 1f
-	};
+	internal static float GetLiveLabelDemandScale(AILabel label) =>
+		label == null ? 1f : CalculateLiveLabelDemandScale(label.distributionStrength, label.effectiveNationalReach);
+
+	internal static float CalculateLiveLabelDemandScale(float distributionStrength, float nationalReach) =>
+		Mathf.Clamp(0.45f + Mathf.Clamp(distributionStrength, 0f, 1f) * 0.55f +
+			Mathf.Clamp(nationalReach, 0f, 1f) * 0.35f, 0.55f, 1.20f);
 
 	private static float GetGenreMarketReach(Genre genre) {
 		return genre switch {
@@ -405,8 +405,8 @@ public static class ChartSimulator {
 		bool strong = label.strongRegions?.Contains(regionId) ?? false;
 		bool covered = label.HasDistributionInRegion(regionId);
 		if (strong) return 1.35f;
-		if (covered) return 0.55f + (label.nationalReach * 0.45f);
-		return 0.12f + (label.nationalReach * 0.18f);
+		if (covered) return 0.55f + (label.effectiveNationalReach * 0.45f);
+		return 0.12f + (label.effectiveNationalReach * 0.18f);
 	}
 
 	public static int CalculateInitialRegionalStock(AILabel label, string regionId, float careerScale, float perceivedQualityMultiplier) {

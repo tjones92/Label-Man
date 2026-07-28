@@ -95,7 +95,9 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeCompetitiveLabelExitBoundary();                            // 69
 		ProbeVacancyDenominatedHiringDemand();                           // 70
 		ProbeExperiencedTalentReservoir();                                // 71
-		results.Add("D6 fixed probes 1-71 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, and the experienced talent reservoir)");
+		ProbeEarnedNationalReachBoundaries();                                // 72
+		ProbeEarnedReachDemandScale();                                          // 73
+		results.Add("D6 fixed probes 1-73 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, and the earned-reach Single-demand scale)");
 		return results;
 	}
 
@@ -269,13 +271,13 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(acquired.OperatingRosterTarget == 3 && acquired.maxRosterSize >= 3 && acquired.operatingRosterTargetReason == LabelOperatingTargetReason.AcquisitionReconciliation &&
 			!RosterManager.CanAttemptMarketClearingSigning(acquired.CurrentRosterSize, acquired.OperatingRosterTarget),
 			"61p acquisition reconciliation recognizes transferred roster without creating a vacancy");
-		runtime.monthsActive = 9;
+		runtime.monthsActive = 18;
 		Require(LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(runtime),
-			"61q runtime founders retain normal release status through their nine-month emergence runway");
-		runtime.monthsActive = 10;
+			"61q runtime founders retain normal release status through their eighteen-month emergence runway");
+		runtime.monthsActive = 19;
 		Require(!LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(runtime) &&
 			!LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(launch),
-			"61r emergence protection ends after nine months and never applies to the launch population");
+			"61r emergence protection ends after eighteen months and never applies to the launch population");
 	}
 
 	private static void ProbeRuntimeFoundedOperatingProfiles() {
@@ -310,6 +312,15 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(first.CurrentRosterSize == 0 && first.OperatingRosterTarget == 1 && first.maxRosterSize == 12 &&
 			CompetitorManager.CalculateLabelReleaseCapacityChance(first.releasesPerMonth, first.status, 1) > 0f,
 			"62e production profile initialization leaves the runtime roster empty at target one with canonical capacity and positive signed-artist release chance");
+		AILabel westCoast = NewRuntimeProfileProbeLabel("west-coast-profile", LabelTier.Independent);
+		westCoast.headquartersCity = "San Francisco";
+		RuntimeLabelProfileFactory.Initialize(westCoast, null, 92, new GameDate(1965, 2, 1), 1001UL);
+		Require(westCoast.homeRegion == "westcoast" && westCoast.homeCityId == "san_francisco" &&
+			westCoast.distributionRegions.SequenceEqual(new[] { "westcoast" }),
+			"62f runtime geography resolves from the canonical headquarters city and includes a functioning home-market distribution path");
+		Require(LabelLifecycleManager.SelectRuntimeFoundingTier(.24f, .25f) == LabelTier.Small &&
+			LabelLifecycleManager.SelectRuntimeFoundingTier(.25f, .25f) == LabelTier.Independent,
+			"62g runtime founding preserves a bounded Small tail while making Independent the dominant entry tier");
 	}
 
 	private static void ProbeDailyTalentMarketScheduling() {
@@ -1237,15 +1248,53 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"69d Majors remain exempt from the marginal-label competition review");
 		candidate.tier = LabelTier.Independent;
 		candidate.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
-		candidate.monthsActive = 8;
+		candidate.monthsActive = 17;
 		Require(LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0) == 0f,
-			"69e a runtime founder retains a nine-month market-entry runway");
+			"69e a runtime founder retains an eighteen-month market-entry runway");
+		candidate.monthsActive = 18;
+		Require(LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0) > 0f,
+			"69f competitive review begins after the runtime market-entry runway");
 
 		float first = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 3);
 		float repeat = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 3);
 		float nextQuarter = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 6);
 		Require(first >= 0f && first < 1f && first == repeat && first != nextQuarter,
-			"69f competitive review uses a deterministic isolated quarterly roll");
+			"69g competitive review uses a deterministic isolated quarterly roll");
+	}
+
+	private static void ProbeEarnedNationalReachBoundaries() {
+		Require(Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.20f, .008f, .70f) - .208f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.699f, .008f, .70f) - .70f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.40f, -.10f, .70f) - .40f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.80f, .008f, .70f) - .80f) < .000001f,
+			"72a self-built national reach grows by the configured monthly step, respects its ceiling, and cannot regress");
+		Require(Math.Abs(CompetitorManager.CalculateNationalReachAfterCompletedDeal(.20f, .40f, .25f, .80f) - .30f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterCompletedDeal(.78f, .80f, .25f, .80f) - .80f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterCompletedDeal(.35f, -.50f, .25f, .80f) - .35f) < .000001f,
+			"72b a completed deal retains a bounded fraction of granted reach without allowing a negative grant to reduce reach");
+		var client = new AILabel {
+			nationalReach = .20f,
+			activeDeal = new DistributionDeal { reachGranted = .45f }
+		};
+		Require(Math.Abs(client.effectiveNationalReach - .65f) < .000001f,
+			"72c an active distributor adds temporary national reach without mutating the client's permanent field");
+		client.activeDeal = null;
+		Require(Math.Abs(client.effectiveNationalReach - .20f) < .000001f,
+			"72d borrowed national reach ends with the deal while permanent reach remains");
+		client.distributionRegions = new[] { "eastcoast" };
+		string[] granted = CompetitorManager.GetGrantedDistributionRegions(client,
+			new[] { "eastcoast", "westcoast", "deepsouth", "westcoast" });
+		Require(granted.SequenceEqual(new[] { "westcoast", "deepsouth" }),
+			"72e a distribution deal grants the distributor's full new network rather than intersecting it with the client's existing strong market");
+	}
+
+	private static void ProbeEarnedReachDemandScale() {
+		float regional = ChartSimulator.CalculateLiveLabelDemandScale(.20f, .10f);
+		float established = ChartSimulator.CalculateLiveLabelDemandScale(.55f, .50f);
+		float national = ChartSimulator.CalculateLiveLabelDemandScale(.90f, .90f);
+		Require(Math.Abs(regional - .595f) < .000001f && Math.Abs(established - .9275f) < .000001f &&
+			Math.Abs(national - 1.20f) < .000001f && regional < established && established < national,
+			"74 live Single demand rises continuously with earned distribution and national reach while respecting the national-label ceiling");
 	}
 
 	private static void Require(bool condition, string message) {

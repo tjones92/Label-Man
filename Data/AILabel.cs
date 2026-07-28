@@ -103,6 +103,10 @@ public partial class AILabel : Resource {
 		set => ownedReach = Mathf.Clamp(value, 0f, 1f);
 	}
 	public float borrowedReach => Mathf.Clamp(activeDeal?.reachGranted ?? 0f, 0f, 1f);
+	// A distributor supplies temporary national access while a deal is active. Keep the
+	// permanent nationalReach field separate so termination removes borrowed capability and
+	// only the bounded completed-term retention in CompetitorManager survives.
+	public float effectiveNationalReach => Mathf.Clamp(nationalReach + borrowedReach, 0f, 1f);
 
 	public bool HasDistributionInRegion(string regionId) =>
 		!string.IsNullOrEmpty(regionId) &&
