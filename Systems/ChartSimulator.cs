@@ -123,7 +123,7 @@ public static class ChartSimulator {
 		// The high-volume label families dominate every measured sales window.
 		// Keep indie-family conversion intact instead of applying another blanket
 		// purchase-rate reduction that erases their narrow charting margin.
-		if (stagedLiveDemand) conversionRate *= GetLiveLabelDemandScale(label);
+		if (stagedLiveDemand) conversionRate *= GetLiveLabelDemandScale(label, record.baseRecord?.recordId);
 		else if (label?.tier == LabelTier.Major) conversionRate *= LegacyMajorDemandScale;
 		else if (label?.tier == LabelTier.MidTier) conversionRate *= LegacyMidTierDemandScale;
 		
@@ -295,6 +295,15 @@ public static class ChartSimulator {
 	internal static float GetLiveLabelDemandScale(AILabel label) =>
 		label == null ? 1f : CalculateLiveLabelDemandScale(label.distributionStrength, label.effectiveNationalReach);
 
+	/// <summary>
+	/// Demand scale for one release. A distribution deal carries the record that
+	/// earned it and the label's subsequent output, so a record outside the contract
+	/// sells on the label's own reach rather than the distributor's borrowed network.
+	/// </summary>
+	internal static float GetLiveLabelDemandScale(AILabel label, string recordId) =>
+		label == null ? 1f : CalculateLiveLabelDemandScale(
+			label.DistributionStrengthForRecord(recordId), label.EffectiveNationalReachForRecord(recordId));
+
 	internal static float CalculateLiveLabelDemandScale(float distributionStrength, float nationalReach) =>
 		Mathf.Clamp(0.45f + Mathf.Clamp(distributionStrength, 0f, 1f) * 0.55f +
 			Mathf.Clamp(nationalReach, 0f, 1f) * 0.35f, 0.55f, 1.20f);
@@ -400,24 +409,26 @@ public static class ChartSimulator {
 		return Mathf.Clamp(label.marketingPower * spendCapacity, 0f, 1f);
 	}
 
-	public static float GetRegionalLaunchFactor(AILabel label, string regionId) {
+	public static float GetRegionalLaunchFactor(AILabel label, string regionId, string recordId = null) {
 		if (label == null) return 1f;
 		bool strong = label.strongRegions?.Contains(regionId) ?? false;
-		bool covered = label.HasDistributionInRegion(regionId);
+		bool covered = label.HasDistributionInRegionForRecord(regionId, recordId);
+		float reach = label.EffectiveNationalReachForRecord(recordId);
 		if (strong) return 1.35f;
-		if (covered) return 0.55f + (label.effectiveNationalReach * 0.45f);
-		return 0.12f + (label.effectiveNationalReach * 0.18f);
+		if (covered) return 0.55f + (reach * 0.45f);
+		return 0.12f + (reach * 0.18f);
 	}
 
-	public static int CalculateInitialRegionalStock(AILabel label, string regionId, float careerScale, float perceivedQualityMultiplier) {
+	public static int CalculateInitialRegionalStock(AILabel label, string regionId, float careerScale, float perceivedQualityMultiplier, string recordId = null) {
 		if (label == null) return 0;
 		bool strong = label.strongRegions?.Contains(regionId) ?? false;
-		bool covered = label.HasDistributionInRegion(regionId);
+		bool covered = label.HasDistributionInRegionForRecord(regionId, recordId);
 		bool isHome = !string.IsNullOrEmpty(label.homeRegion) && label.homeRegion == regionId;
+		float reachForRecord = label.DistributionStrengthForRecord(recordId);
 		float access = covered ? 1f : 0.18f;
 		float localDepth = isHome || strong
-			? 0.25f + (label.distributionStrength * 0.75f)
-			: 0.10f + (label.distributionStrength * 0.75f);
+			? 0.25f + (reachForRecord * 0.75f)
+			: 0.10f + (reachForRecord * 0.75f);
 		float strongDepth = strong ? 1.45f : 1f;
 		float noise = (float)GD.RandRange(0.85, 1.15);
 		// DISTANCE-4B: neutral in 4a; 4b turns regional reach into real stock friction.

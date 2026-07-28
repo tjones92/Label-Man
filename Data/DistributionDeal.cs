@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 public enum DealOrigin {
 	LabelSought,
@@ -26,6 +27,22 @@ public class DistributionDeal {
 	public int signedWeek;
 	public int termWeeks;
 	public DealOrigin origin;
+
+	/// <summary>
+	/// Records this deal actually carries. A 1960s distribution agreement was struck
+	/// for the record that was breaking regionally and then carried the label's output
+	/// for the contract term; it did not retroactively put the back catalog into the
+	/// distributor's network. Coverage is therefore the record whose regional breakout
+	/// earned the deal plus everything released while the deal is active.
+	/// </summary>
+	public readonly HashSet<string> coveredRecordIds = new(StringComparer.Ordinal);
+
+	public bool CoversRecord(string recordId) =>
+		!string.IsNullOrEmpty(recordId) && coveredRecordIds.Contains(recordId);
+
+	public void Cover(string recordId) {
+		if (!string.IsNullOrEmpty(recordId)) coveredRecordIds.Add(recordId);
+	}
 }
 
 public sealed class DistributionDealTelemetry {

@@ -218,15 +218,17 @@ public partial class CompetitorManager : Node {
 		public readonly float BestPersistentEvidenceQuality;
 		public readonly bool HasPersistentRegionalTraction;
 		public readonly bool PassesLegacyQualityAndCurrentSalesGate;
+		public readonly string EarningRecordId;
 
 		public RegionalDealEvidence(float bestAnyRegionPeak, float bestStrongRegionPeak,
 			float bestPersistentEvidenceQuality, bool hasPersistentRegionalTraction,
-			bool passesLegacyQualityAndCurrentSalesGate) {
+			bool passesLegacyQualityAndCurrentSalesGate, string earningRecordId = null) {
 			BestAnyRegionPeak = bestAnyRegionPeak;
 			BestStrongRegionPeak = bestStrongRegionPeak;
 			BestPersistentEvidenceQuality = bestPersistentEvidenceQuality;
 			HasPersistentRegionalTraction = hasPersistentRegionalTraction;
 			PassesLegacyQualityAndCurrentSalesGate = passesLegacyQualityAndCurrentSalesGate;
+			EarningRecordId = earningRecordId;
 		}
 	}
 
@@ -389,8 +391,17 @@ public partial class CompetitorManager : Node {
 			regionalData.awareness = runtimeData.awareness * regionMod * (float)GD.RandRange(0.7, 1.1);
 			regionalData.radioPlay = runtimeData.radioHeat * regionMod * (float)GD.RandRange(0.6, 1.0);
 			regionalData.sentiment = 0.5f + (quality * 0.3f) + (float)GD.RandRange(-0.1, 0.15);
-			regionalData.unitsInStores = (int)GD.RandRange(5000, 20000);
-			regionalData.unitsSoldTotal = (int)GD.RandRange(1000, 10000);
+			// Prewarm stock formerly bypassed the physical distribution model outright,
+			// seeding 5,000-20,000 units into every region regardless of the label's
+			// tier, owned reach, or whether it had any distribution there at all. A
+			// live Small-label release into an uncovered region receives roughly 530
+			// units from the same shelf the chart reads, so the seeded 1960 cohort
+			// began with national distribution no live entrant could ever obtain.
+			// Route prewarm through the same function live releases use.
+			int shelf = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, 1f, 1f, record.recordId);
+			regionalData.unitsInStores = Mathf.RoundToInt(shelf * (float)GD.RandRange(0.7, 1.1));
+			// A record already this old has sold part of its shelf through.
+			regionalData.unitsSoldTotal = Mathf.RoundToInt(shelf * (1f - ageFactor) * (float)GD.RandRange(0.6, 1.2));
 		}
 	}
 	
@@ -2528,9 +2539,9 @@ public partial class CompetitorManager : Node {
 			if (region == null) continue;
 			var data = new RegionalRecordData(region.regionId);
 			runtime.regionalData[region.regionId] = data;
-			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, runtime.baseRecord?.recordId);
 			int baseStock = Mathf.RoundToInt(ChartSimulator.CalculateInitialRegionalStock(label, region.regionId,
-				careerStockScale * 0.45f, snapshot.perceivedQualityMultiplier) * stockMultiplier);
+				careerStockScale * 0.45f, snapshot.perceivedQualityMultiplier, runtime.baseRecord?.recordId) * stockMultiplier);
 			initialStock[region.regionId] = baseStock;
 			data.unitsInStores = baseStock;
 			data.awareness = Mathf.Clamp(runtime.awareness * regionStrength * regional.awarenessRandom, 0f, 1f);
@@ -2629,9 +2640,9 @@ public partial class CompetitorManager : Node {
 				runtimeData.regionalData[region.regionId] = new RegionalRecordData(region.regionId);
 			}
 			var regionalData = runtimeData.regionalData[region.regionId];
-			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, runtimeData.baseRecord?.recordId);
 			int baseStock = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId,
-				stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult);
+				stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult, runtimeData.baseRecord?.recordId);
 			initialStock[region.regionId] = baseStock;
 			regionalData.unitsInStores = baseStock;
 			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GD.RandRange(0.8, 1.1), 0f, 1f);
@@ -2693,7 +2704,12 @@ public partial class CompetitorManager : Node {
 		if (labelActiveRecords[labelId].Contains(recordId)) return;
 		labelActiveRecords[labelId].Add(recordId);
 		AILabel label = GetLabel(labelId);
-		if (label != null) label.totalReleases++;
+		if (label == null) return;
+		label.totalReleases++;
+		// Output released while a distribution contract is running goes out through
+		// that distributor's network. Records already in the market when the deal was
+		// signed do not retroactively enter it.
+		label.activeDeal?.Cover(recordId);
 	}
 
 	private void OnRecordChartUpdated(RecordRuntimeData record) {
@@ -2873,6 +2889,10 @@ public partial class CompetitorManager : Node {
 		}
 		DistributionOffersAccepted++;
 
+		// The deal is struck to carry the record that broke out regionally. Everything
+		// the label releases while the contract runs then goes out through the same
+		// network; the back catalog stays on the label's own distribution.
+		offer.Cover(regionalEvidence.EarningRecordId);
 		client.activeDeal = offer;
 		client.cashReserves += offer.advance;
 		distributor.cashReserves -= offer.advance;
@@ -2908,14 +2928,21 @@ public partial class CompetitorManager : Node {
 		float bestEvidenceQuality = 0f;
 		bool persistent = false;
 		bool legacy = false;
+		// The record whose regional breakout actually earns the deal. The contract is
+		// struck to carry this record beyond its home market, so it is the one the
+		// deal must cover from the moment it is signed.
+		string earningRecordId = null;
+		float earningRecordPeak = 0f;
 		foreach (RecordRuntimeData record in records ?? System.Array.Empty<RecordRuntimeData>()) {
 			if (record?.baseRecord?.labelId != labelId) continue;
 			float quality = record.GetQuality();
 			bool currentStrongSale = false;
 			bool recordHasPersistentEvidence = false;
+			float recordBestPeak = 0f;
 			foreach (var pair in record.regionalData) {
 				float peak = Mathf.Max(0f, pair.Value?.peakBreakoutScore ?? 0f);
 				bestAny = Mathf.Max(bestAny, peak);
+				recordBestPeak = Mathf.Max(recordBestPeak, peak);
 				if (peak >= boundedThreshold) recordHasPersistentEvidence = true;
 				if (!strongRegions.Contains(pair.Key)) continue;
 				bestStrong = Mathf.Max(bestStrong, peak);
@@ -2925,10 +2952,17 @@ public partial class CompetitorManager : Node {
 				persistent = true;
 				bestEvidenceQuality = Mathf.Max(bestEvidenceQuality, quality);
 			}
+			// Tracked for every record, not only qualifying ones, so a distributor-courted
+			// deal still binds to the label's strongest current release. When the pull
+			// route qualifies, the strongest record is by construction a qualifying one.
+			if (earningRecordId == null || recordBestPeak > earningRecordPeak) {
+				earningRecordPeak = recordBestPeak;
+				earningRecordId = record.baseRecord.recordId;
+			}
 			if (record.peakRegionalBreakoutStrength >= boundedThreshold &&
 				quality > 0.70f && currentStrongSale) legacy = true;
 		}
-		return new RegionalDealEvidence(bestAny, bestStrong, bestEvidenceQuality, persistent, legacy);
+		return new RegionalDealEvidence(bestAny, bestStrong, bestEvidenceQuality, persistent, legacy, earningRecordId);
 	}
 
 	internal static bool IsPullDealTrigger(AILabel client, RegionalDealEvidence evidence) =>
@@ -2988,9 +3022,16 @@ public partial class CompetitorManager : Node {
 			? client.GetMonthlyOverhead() * (float)GD.RandRange(6f, 12f)
 			: (GD.Randf() < 0.35f ? 0f : client.GetMonthlyOverhead() * (float)GD.RandRange(0.5f, 2f));
 		advance = Mathf.Min(advance, Mathf.Max(0f, distributor.cashReserves - (distributor.GetMonthlyOverhead() * 3f)));
+		// Borrowed reach is worth the market the distributor's owned network actually
+		// reaches. It was formerly an independent random draw, so a distributor owning
+		// three regions could grant more national reach than one owning all seven.
+		// Scaling the negotiated range by that coverage leaves a genuinely national
+		// distributor at the authored terms and correctly discounts a partial one.
+		float distributorCoverage = ChartManager.Instance?.GetNationalMarketShareForRegions(distributor.distributionRegions) ?? 1f;
+		float negotiatedReach = push ? (float)GD.RandRange(0.50f, 0.80f) : (float)GD.RandRange(0.30f, 0.50f);
 		return new DistributionDeal {
 			distributorId = distributor.labelId,
-			reachGranted = push ? (float)GD.RandRange(0.50f, 0.80f) : (float)GD.RandRange(0.30f, 0.50f),
+			reachGranted = negotiatedReach * distributorCoverage,
 			// The deal exists to carry a proven regional record beyond its home market.
 			// The former pull path intersected the distributor's network with the client's
 			// strong regions, so it granted only the market the client already served and

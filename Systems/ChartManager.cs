@@ -49,6 +49,7 @@ public partial class ChartManager : Node {
 	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
 	private const int RetirementSalesFloor = 50;
+	private readonly Dictionary<string, float> regionalDemandScaleById = new(StringComparer.Ordinal);
 	[ExportGroup("Album Catalog")]
 	[Export] private int albumCatalogSalesFloor = 10;
 	[Export] private int albumNeverChartedToleranceWeeks = 26;
@@ -628,9 +629,10 @@ public partial class ChartManager : Node {
 		float acceptanceYear = genreMarketLive ? GetContinuousSimulationYear() : 0f;
 		float legacyMomentum = genreMarketLive ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
 		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
+		float launchReach = label.EffectiveNationalReachForRecord(record.baseRecord?.recordId);
 		float broadLaunch = isAlbum
-			? 0.035f + campaignImpact * (0.06f + label.effectiveNationalReach * 0.06f)
-			: 0.06f + (campaignImpact * (0.10f + label.effectiveNationalReach * 0.10f));
+			? 0.035f + campaignImpact * (0.06f + launchReach * 0.06f)
+			: 0.06f + (campaignImpact * (0.10f + launchReach * 0.10f));
 		record.awareness = Mathf.Max(broadLaunch, record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness, 0f, 1f);
 
@@ -643,8 +645,8 @@ public partial class ChartManager : Node {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
 
 			var data = record.regionalData[region.regionId];
-			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
-			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, isAlbum ? 0.45f : 1f, perceivedQualityMult);
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, record.baseRecord?.recordId);
+			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, isAlbum ? 0.45f : 1f, perceivedQualityMult, record.baseRecord?.recordId);
 			initialStock[region.regionId] = units;
 			data.unitsInStores = units;
 
@@ -1226,7 +1228,7 @@ public partial class ChartManager : Node {
 
 			foreach (var region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out var data)) continue;
-				bool isCovered = label.HasDistributionInRegion(region.regionId);
+				bool isCovered = label.HasDistributionInRegionForRecord(region.regionId, record.baseRecord?.recordId);
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
@@ -1409,6 +1411,69 @@ public partial class ChartManager : Node {
 		}
 	}
 
+	/// <summary>
+	/// This region's record-buying population as a share of the largest authored
+	/// region's, used to restate absolute weekly unit thresholds in region-relative
+	/// terms. Anchoring on the largest market leaves that market's long-standing
+	/// calibration untouched and only relieves the smaller ones, so this removes a
+	/// structural handicap rather than retuning the model.
+	/// </summary>
+	internal float GetRegionalDemandScale(MarketRegion region) {
+		if (region == null) return 1f;
+		if (regionalDemandScaleById.TryGetValue(region.regionId, out float cached)) return cached;
+
+		float reference = 0f;
+		if (allRegions != null) {
+			foreach (MarketRegion candidate in allRegions) {
+				if (candidate == null) continue;
+				reference = Mathf.Max(reference, candidate.GetRecordBuyingPopulation());
+			}
+		}
+		float scale = CalculateRegionalDemandScale(region.GetRecordBuyingPopulation(), reference);
+		regionalDemandScaleById[region.regionId] = scale;
+		return scale;
+	}
+
+	/// <summary>
+	/// Share of the national record-buying population covered by the given regions.
+	/// A distributor's borrowed reach is worth exactly the market its owned network
+	/// actually reaches, so this is the correct basis for deal terms.
+	/// </summary>
+	public float GetNationalMarketShareForRegions(IEnumerable<string> regionIds) {
+		if (regionIds == null || allRegions == null) return 0f;
+		var covered = new HashSet<string>(regionIds, StringComparer.Ordinal);
+		float total = 0f;
+		float reached = 0f;
+		foreach (MarketRegion region in allRegions) {
+			if (region == null) continue;
+			float buyingPopulation = region.GetRecordBuyingPopulation();
+			total += buyingPopulation;
+			if (covered.Contains(region.regionId)) reached += buyingPopulation;
+		}
+		return total > 0f ? Mathf.Clamp(reached / total, 0f, 1f) : 0f;
+	}
+
+	/// <summary>
+	/// A degenerate or unauthored region must not silently divide by zero; falling
+	/// back to the unscaled thresholds preserves the previous behavior exactly.
+	/// </summary>
+	internal static float CalculateRegionalDemandScale(float regionBuyingPopulation, float referenceBuyingPopulation) =>
+		referenceBuyingPopulation > 0f && regionBuyingPopulation > 0f
+			? regionBuyingPopulation / referenceBuyingPopulation
+			: 1f;
+
+	/// <summary>
+	/// Weekly volume evidence for one region, expressed against that region's own
+	/// buying population. Two records selling the same share of their local market
+	/// must produce the same evidence regardless of how large that market is.
+	/// </summary>
+	internal static float CalculateBreakoutVolumeInput(float rawDemandThisWeek, float unitsSoldThisWeek, float regionScale) {
+		float scale = Mathf.Max(regionScale, 0.000001f);
+		float rawVolume = Mathf.Clamp((rawDemandThisWeek - 150f * scale) / (3500f * scale), 0f, 1f);
+		float fulfilledVolume = Mathf.Clamp(unitsSoldThisWeek / (3000f * scale), 0f, 1f);
+		return rawVolume * 0.70f + fulfilledVolume * 0.30f;
+	}
+
 	private void UpdateRegionalBreakoutState(RecordRuntimeData record, int year) {
 		AILabel label = GetLabelById(record.baseRecord.labelId);
 		if (label == null) return;
@@ -1424,25 +1489,36 @@ public partial class ChartManager : Node {
 
 		foreach (MarketRegion region in allRegions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
-			bool covered = label.HasDistributionInRegion(region.regionId);
+			bool covered = label.HasDistributionInRegionForRecord(region.regionId, record.baseRecord?.recordId);
 			if (covered) coveredCount++;
 
+			// Regional breakout asks whether a record is breaking out *in this
+			// region*, which is a per-capita question. The thresholds below were
+			// authored as absolute weekly unit counts, so they silently encoded the
+			// largest market's scale and applied it everywhere. Regional record
+			// buying populations span roughly 12x, so a record performing
+			// identically per capita scored an order of magnitude less evidence
+			// outside the two biggest regions -- 99% of Rockies record-weeks and
+			// 90% of Deep South record-weeks fell under the flat 150-unit floor and
+			// produced no volume or velocity evidence at all. Because that evidence
+			// gates distribution offers and breakout diffusion, entire regions were
+			// structurally locked out of the national chart.
+			float regionScale = GetRegionalDemandScale(region);
+			float demandFloor = 150f * regionScale;
 			float previousDemand = data.previousRawDemand;
-			float velocity = previousDemand >= 150f
+			float velocity = previousDemand >= demandFloor
 				? (data.rawDemandThisWeek - previousDemand) / previousDemand
 				: 0f;
 			data.salesVelocity = Mathf.Clamp(velocity, -1f, 2f);
-			if (previousDemand >= 150f && velocity > 0.04f) data.sustainedGrowthWeeks++;
+			if (previousDemand >= demandFloor && velocity > 0.04f) data.sustainedGrowthWeeks++;
 			else if (velocity < -0.08f) data.sustainedGrowthWeeks = 0;
 
-			float rawVolume = Mathf.Clamp((data.rawDemandThisWeek - 150f) / 3500f, 0f, 1f);
-			float fulfilledVolume = Mathf.Clamp(data.unitsSoldThisWeek / 3000f, 0f, 1f);
-			float volumeInput = rawVolume * 0.70f + fulfilledVolume * 0.30f;
+			float volumeInput = CalculateBreakoutVolumeInput(data.rawDemandThisWeek, data.unitsSoldThisWeek, regionScale);
 			float velocityInput = Mathf.Clamp((velocity + 0.10f) / 0.65f, 0f, 1f);
 			float audienceInput = Mathf.Clamp(data.awareness, 0f, 1f);
 			float mediaInput = Mathf.Clamp(data.radioPlay * 0.75f + data.jukeboxPlay * 0.25f, 0f, 1f);
 			float genreFit = region.GetGenreAcceptance(record.baseRecord.primaryGenre, year);
-			float unmetInput = volumeInput * Mathf.Clamp(data.unitsBackordered / Mathf.Max(750f, data.rawDemandThisWeek), 0f, 1f);
+			float unmetInput = volumeInput * Mathf.Clamp(data.unitsBackordered / Mathf.Max(750f * regionScale, data.rawDemandThisWeek), 0f, 1f);
 			float sustainedInput = Mathf.Clamp(data.sustainedGrowthWeeks / 3f, 0f, 1f);
 
 			float evidence = volumeInput * 0.34f + velocityInput * 0.15f + sustainedInput * 0.09f +
@@ -1458,7 +1534,7 @@ public partial class ChartManager : Node {
 			} else {
 				data.tractionWeeks = Mathf.Max(0, data.tractionWeeks - 1);
 			}
-			if (evidence < 0.18f || (velocity < -0.35f && data.rawDemandThisWeek < 1500f)) data.collapseWeeks++;
+			if (evidence < 0.18f || (velocity < -0.35f && data.rawDemandThisWeek < 1500f * regionScale)) data.collapseWeeks++;
 			else data.collapseWeeks = 0;
 
 			if (data.breakoutScore >= 0.40f && data.tractionWeeks >= 2) {
@@ -1475,7 +1551,7 @@ public partial class ChartManager : Node {
 			if (data.breakoutStage >= RegionalBreakoutStage.RegionalBreakout) breakoutMarkets++;
 			if (data.neighboringMarketTestStrength >= 0.08f) testMarkets++;
 			strongest = Mathf.Max(strongest, data.breakoutScore);
-			if (previousDemand >= 150f) { velocityTotal += data.salesVelocity; velocityCount++; }
+			if (previousDemand >= demandFloor) { velocityTotal += data.salesVelocity; velocityCount++; }
 			unmetDemand += data.unitsBackordered;
 
 			data.breakoutVolumeInput = volumeInput;
@@ -1540,7 +1616,8 @@ public partial class ChartManager : Node {
 			nationalGain += womGain * 0.30f;
 
 			if (source.breakoutStage < RegionalBreakoutStage.RegionalBreakout || source.tractionWeeks < 2) continue;
-			float propagationCapacity = 0.25f + label.effectiveNationalReach * 0.45f + label.distributionStrength * 0.30f;
+			float propagationCapacity = 0.25f + label.EffectiveNationalReachForRecord(record.baseRecord?.recordId) * 0.45f +
+				label.DistributionStrengthForRecord(record.baseRecord?.recordId) * 0.30f;
 			foreach (string neighborId in GetNeighborRegionIds(sourceRegion.regionId)) {
 				if (!record.regionalData.TryGetValue(neighborId, out RegionalRecordData neighbor)) continue;
 				float testGain = strength * propagationCapacity * 0.10f * discoveryScale;

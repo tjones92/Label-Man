@@ -203,6 +203,14 @@ public partial class ChartAuditRunner : Node {
 	private readonly HashSet<string> cumulativeChartingLabelIds = new(StringComparer.Ordinal);
 	private readonly HashSet<string> cumulativeChartingLabelNames = new(StringComparer.OrdinalIgnoreCase);
 	private readonly Dictionary<string, LabelTier> firstChartTierByLabel = new(StringComparer.Ordinal);
+	// Firm headcount and chart-unit share answer different questions than "who is on
+	// the chart". A long tail of one-hit independents can be most of the firms while
+	// being a small slice of the chart, so tier guardrails stated as headcount cannot
+	// detect Major/MidTier over-representation. These track distinct charting records
+	// per year by release-imprint tier, which is the analogue of a Billboard chart
+	// entry and the figure historical major/independent splits are quoted against.
+	private readonly Dictionary<string, LabelTier> annualChartEntryTierByRecord = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, LabelTier> annualTop40TierByRecord = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, LabelTier> birthTierByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, int> signedDealCountByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, int> completedDealCountByLabel = new(StringComparer.Ordinal);
@@ -961,7 +969,7 @@ public partial class ChartAuditRunner : Node {
 		labelFinanceWriter.WriteLine("week,year,labelId,labelName,archetype,isHistorical,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,ownedReach,borrowedReach,nationalReach,capability,dealDistributorId,dealUnrecoupedAdvance");
 		dealLedgerWriter.WriteLine("eventWeek,year,resolution,origin,distributorId,distributorName,clientId,clientName,reachGranted,marginSkim,ownsMasters,advance,signedWeek,termWeeks,dependency");
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
-		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting,cumulativeExactLabelNamesCharting");
+		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting,cumulativeExactLabelNamesCharting,chartEntries,chartEntriesSmall,chartEntriesBoutique,chartEntriesIndependent,chartEntriesMidTier,chartEntriesMajor,top40Entries,top40Small,top40Boutique,top40Independent,top40MidTier,top40Major");
 		firstChartEventWriter?.WriteLine("week,year,date,observationKind,leftCensoredAtRunStart,recordId,title,releaseLabelId,currentOwnerLabelId,labelName,labelOrigin,runtimeBirthWeek,birthTier,firstChartTier,labelStatus,isHistorical,recordAge,currentPosition,unitsThisWeek,chartPoints,publishedCutoffPoints,quality,peakRegionalBreakoutStrength,bestStrongRegionPeak,regionalBreakoutCount,coveredRegionCount,signedDealCount,completedDealCount,activeDeal,dealOrigin,dealSignedWeek,permanentNationalReach,borrowedReach,effectiveNationalReach,ownedReach,distributionStrength,permanentRegionCount,grantedRegionCount,initialLaunchAwareness,initialLaunchStock");
 		distributionOfferAttemptWriter?.WriteLine("week,year,clientId,clientName,clientTier,clientOrigin,monthsActive,ownedReach,nationalReach,bestAnyRegionPeak,bestStrongRegionPeak,bestPersistentEvidenceQuality,persistentRegionalEvidence,legacyQualityAndCurrentSalesEvidence,legacyNationalReachGate,pushEvidence,pushChancePassed,pullChancePassed,outcome,distributorId");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
@@ -2286,6 +2294,8 @@ public partial class ChartAuditRunner : Node {
 		if (year != concentrationYear) {
 			WriteConcentrationYear();
 			annualChartUnitsByLabel.Clear();
+			annualChartEntryTierByRecord.Clear();
+			annualTop40TierByRecord.Clear();
 			concentrationYear = year;
 		}
 		foreach (RecordRuntimeData record in chart) {
@@ -2293,6 +2303,18 @@ public partial class ChartAuditRunner : Node {
 			if (string.IsNullOrEmpty(currentOwnerId)) continue;
 			annualChartUnitsByLabel[currentOwnerId] =
 				annualChartUnitsByLabel.GetValueOrDefault(currentOwnerId) + record.unitsThisWeek;
+
+			string recordId = record.baseRecord.recordId;
+			if (string.IsNullOrEmpty(recordId)) continue;
+			string releaseLabelId = string.IsNullOrEmpty(record.releaseLabelId) ? currentOwnerId : record.releaseLabelId;
+			AILabel releaseLabel = CompetitorManager.Instance.GetLabel(releaseLabelId);
+			LabelTier entryTier = releaseLabel?.tier
+				?? CompetitorManager.Instance.GetLabel(currentOwnerId)?.tier
+				?? LabelTier.Small;
+			annualChartEntryTierByRecord[recordId] = entryTier;
+			if (record.currentPosition >= 1 && record.currentPosition <= 40) {
+				annualTop40TierByRecord[recordId] = entryTier;
+			}
 		}
 		ObserveFirstChartIdentities(chart, leftCensoredAtRunStart: false);
 	}
@@ -2422,9 +2444,24 @@ public partial class ChartAuditRunner : Node {
 			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.Independent).ToString(CultureInfo.InvariantCulture),
 			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.MidTier).ToString(CultureInfo.InvariantCulture),
 			cumulativeFirmsByTier.GetValueOrDefault(LabelTier.Major).ToString(CultureInfo.InvariantCulture),
-			cumulativeChartingLabelNames.Count.ToString(CultureInfo.InvariantCulture)
+			cumulativeChartingLabelNames.Count.ToString(CultureInfo.InvariantCulture),
+			annualChartEntryTierByRecord.Count.ToString(CultureInfo.InvariantCulture),
+			CountEntriesAtTier(annualChartEntryTierByRecord, LabelTier.Small),
+			CountEntriesAtTier(annualChartEntryTierByRecord, LabelTier.Boutique),
+			CountEntriesAtTier(annualChartEntryTierByRecord, LabelTier.Independent),
+			CountEntriesAtTier(annualChartEntryTierByRecord, LabelTier.MidTier),
+			CountEntriesAtTier(annualChartEntryTierByRecord, LabelTier.Major),
+			annualTop40TierByRecord.Count.ToString(CultureInfo.InvariantCulture),
+			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Small),
+			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Boutique),
+			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Independent),
+			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.MidTier),
+			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Major)
 		}));
 	}
+
+	private static string CountEntriesAtTier(Dictionary<string, LabelTier> entriesByRecord, LabelTier tier) =>
+		entriesByRecord.Values.Count(value => value == tier).ToString(CultureInfo.InvariantCulture);
 
 	private string ResolveCurrentOwner(string labelId) {
 		var visited = new HashSet<string>(StringComparer.Ordinal);

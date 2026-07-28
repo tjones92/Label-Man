@@ -219,6 +219,10 @@ public partial class DistanceModel : Node {
 		AddCity("philadelphia", "Philadelphia", 40.0f, -75.2f, "eastcoast", false, 2, 0.22f, 0.72f, true, true, 4.3f);
 		AddCity("baltimore", "Baltimore", 39.3f, -76.6f, "eastcoast", false, 2, 0.30f, 0.62f, true, true, 2.0f);
 		AddCity("washington", "Washington", 38.9f, -77.0f, "eastcoast", false, 3, 0.38f, 0.50f, true, true, 2.0f);
+		// LabelGenerator founds labels in Pittsburgh, but it had no node here, so every
+		// Pittsburgh firm resolved as "domestic-unmapped" and was charged distance from
+		// the New York hub it does not sit in.
+		AddCity("pittsburgh", "Pittsburgh", 40.4f, -80.0f, "eastcoast", false, 2, 0.30f, 0.60f, true, true, 2.4f);
 
 		AddCity("chicago", "Chicago", 41.9f, -87.6f, "greatlakes", true, 1, 0.12f, 0.90f, true, true, 6.2f);
 		AddCity("detroit", "Detroit", 42.3f, -83.0f, "greatlakes", false, 2, 0.22f, 0.72f, true, true, 3.8f);

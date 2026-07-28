@@ -782,3 +782,397 @@ The awareness-decay correction and immutable release-imprint field were found
 sound. The strong-region evidence route is materially better grounded than
 the former hidden quality/current-sales/national-reach gates, subject to the
 bounded-retirement and repeated-offer concerns above.
+
+## 10. Root cause found: region-blind absolute breakout thresholds
+
+This section supersedes the prior judgment that the binding seam was deal
+eligibility. It was not. Deal access had already been opened: in the
+`d7-chart-access-systemic-312-1001` funnel, 173 of the 195 clients that ever
+produced qualifying evidence signed a deal — 89%. The gate had moved upstream
+to **producing regional evidence at all**, and that gate was structurally shut
+for most of the map.
+
+### 10.1 The defect
+
+`ChartManager.UpdateRegionalBreakoutState` scored regional breakout evidence
+against fixed absolute weekly unit counts:
+
+```text
+rawVolume      = clamp((rawDemand - 150) / 3500)
+fulfilledVolume= clamp(unitsSold / 3000)
+velocity gate  = previousDemand >= 150
+unmet          = backordered / max(750, rawDemand)
+collapse       = rawDemand < 1500
+```
+
+Authored region populations span 11.3x (East Coast 52.2M, Rockies 4.6M), and
+`rawDemand` scales directly with `region.population`. A record performing
+identically *per capita* therefore scored an order of magnitude less evidence
+outside the two largest regions. `volumeInput` enters the score twice — once
+weighted 0.34 and again as the multiplier `0.55 + volumeInput * 0.45` — so the
+penalty compounds.
+
+Measured from `geography-metrics.csv`, per-record weekly units for
+Independent/Boutique labels:
+
+| region | pop | mean | P90 | P99 | max |
+|---|---:|---:|---:|---:|---:|
+| eastcoast | 52.2 | 168 | 333 | 792 | 5216 |
+| greatlakes | 36.1 | 111 | 216 | 507 | 3273 |
+| westcoast | 20.3 | 75 | 149 | 359 | 1846 |
+| greatplains | 15.5 | 46 | 88 | 213 | 1265 |
+| deepsouth | 15.0 | 41 | 78 | 180 | 1073 |
+| southwest | 14.2 | 43 | 80 | 191 | 877 |
+| rockies | 4.6 | 14 | 27 | 57 | 354 |
+
+Against a flat 150-unit floor, **99% of Rockies and 90% of Deep South
+record-weeks produced zero volume and zero velocity evidence.** The all-time
+best Rockies record reached rawVolume 0.058.
+
+### 10.2 Consequence
+
+Charting was near-binary on regional breakout peak. Bucketing the 879 distinct
+offer-attempt clients by their best observed peak:
+
+| best peak | labels | charted | rate |
+|---|---:|---:|---:|
+| 0.00 (no signal) | 127 | 0 | 0% |
+| 0.00-0.10 | 52 | 0 | 0% |
+| 0.10-0.18 | 217 | 0 | 0% |
+| 0.18-0.24 | 127 | 0 | 0% |
+| 0.24-0.30 | 76 | 2 | 2.6% |
+| 0.30-0.40 | 143 | 77 | 53.8% |
+| 0.40+ | 137 | 90 | 65.7% |
+
+Zero of 523 labels below 0.24 ever charted. Runtime founder charting by home
+region made the mechanism unambiguous:
+
+| region | pop | founders | charted | rate |
+|---|---:|---:|---:|---:|
+| eastcoast | 52.2 | 76 | 19 | 25.0% |
+| greatlakes | 36.1 | 62 | 18 | 29.0% |
+| westcoast | 20.3 | 43 | 3 | 7.0% |
+| greatplains | 15.5 | 16 | 0 | 0% |
+| deepsouth | 15.0 | 80 | 0 | **0%** |
+| southwest | 14.2 | 18 | 0 | 0% |
+
+Confounds were ruled out: Deep South founders had the **highest** mean owned
+reach (0.425) and comparable production quality, scouting, marketing, and
+budget. Region population was the only differentiator. Zero Deep South labels
+charting across a decade — Memphis, Muscle Shoals, Nashville, New Orleans — is
+simultaneously the systemic chart-access cause and the single largest
+historical inaccuracy in the model.
+
+### 10.3 Repair
+
+`MarketRegion.GetRecordBuyingPopulation()` exposes the weekly record-buying
+population. `ChartManager.GetRegionalDemandScale(region)` returns that as a
+share of the largest authored region's, and every threshold above is multiplied
+by it. Anchoring on the largest market leaves that market's long-standing
+calibration untouched and only relieves the smaller ones.
+
+The authored buying-population model matches observed demand closely
+(deepsouth model 0.2315 vs observed 0.244; rockies 0.0815 vs 0.0833), and
+normalizing equalizes mean evidence across all seven regions to 0.005-0.008.
+No arbitrary floor is applied — a floor would reintroduce the handicap.
+
+Probe 78 asserts the largest market keeps its calibration, that equal
+per-capita performance yields equal evidence, that a smaller-market hit is no
+longer scored against the largest market's thresholds, and that a degenerate
+region falls back to unscaled behavior.
+
+### 10.4 Measured effect (region scaling alone)
+
+`d7-region-scaled-breakout-312-1001`, seed 1001:
+
+| year | prior | new | new IDs/yr | prior IDs/yr |
+|---|---:|---:|---:|---:|
+| 1960 | 162 | 177 | 177 | 162 |
+| 1961 | 188 | 221 | 44 | 26 |
+| 1962 | 209 | 250 | 29 | 21 |
+| 1963 | 229 | 282 | 32 | 20 |
+| 1964 | 246 | 307 | 25 | 17 |
+| 1965 | 258 | **331** | 24 | 12 |
+
+331 through 1965 clears the 280-320 credibility band. The per-year decay that
+capped the old trajectory is largely flat. Regional charting rates became
+eastcoast 31.8 / greatlakes 32.2 / westcoast 27.6 / deepsouth 22.9 /
+southwest 13.3 / greatplains 12.5 percent. Runtime founder conversion doubled
+from 11.0% to 21.7%. 1965 cumulative mix: Small 25, Boutique 43, Independent
+175, MidTier 78, Major 10 — below-MidTier is 73% of the population and 72% of
+that is Independent, with a 7.6% Small tail. Indie family chart share rose
+0.159 to 0.254 while C4 fell 0.378 to 0.261.
+
+## 11. Distribution deals are now per-song and coverage-derived
+
+Per user direction. Two defects were found in the deal model:
+
+1. **The grant was label-wide.** `activeDeal` is one field on `AILabel`, and
+   `borrowedReach` / `distributionStrength` / `effectiveNationalReach` feed
+   `GetLiveLabelDemandScale`, which multiplies weekly demand for every live
+   record. One breakout single put the label's entire back catalog into the
+   distributor's network.
+2. **`reachGranted` was unrelated to the distributor's network.** It was an
+   independent `RandRange(0.50,0.80)` push / `RandRange(0.30,0.50)` pull draw,
+   so a three-region distributor could grant more national reach than a
+   seven-region one.
+
+The region grant itself was already correct: `GetGrantedDistributionRegions`
+takes the distributor's owned `distributionRegions` minus what the client has.
+
+Repair: `DistributionDeal.coveredRecordIds` plus per-record accessors on
+`AILabel` (`HasDistributionInRegionForRecord`, `BorrowedReachForRecord`,
+`DistributionStrengthForRecord`, `EffectiveNationalReachForRecord`). Coverage
+is the record whose breakout earned the deal, bound at signing from
+`RegionalDealEvidence.EarningRecordId`, plus everything released during the
+term via `TrackRelease`. `reachGranted` is the negotiated range scaled by
+`GetNationalMarketShareForRegions(distributor.distributionRegions)`. Probe 79
+covers all five behaviors including withdrawal at termination.
+
+## 12. Calibration trap: mechanism fixes that inflate incumbents
+
+**Read this before fixing any other sampler or initializer in this repo.**
+
+Three genuine defects were fixed alongside the above:
+
+- `AILabelFactory.ApplyTierStats` never initialized `riskTolerance` (0, which
+  halves the evaluation score of any artist under 0.1 reputation), derived
+  `artistLoyalty` from its zero default, and left the archetype modifiers as an
+  unimplemented placeholder comment. `RuntimeLabelProfileFactory` is the
+  complete reference implementation, and its own `HasCompleteOperatingProfile`
+  contract requires `riskTolerance > 0` — which no launch label could satisfy.
+- `GetDistributionRegions` sampled with replacement and discarded duplicates.
+- Pittsburgh had no `DistanceModel` node, so every Pittsburgh firm resolved as
+  `domestic-unmapped` and was charged distance from the New York hub.
+
+The distribution-region fix was the trap. The authored counts encoded
+*observed* coverage under the bug, so reading them literally inflated coverage
+**regressively**:
+
+| tier | authored | old effective | literal | inflation |
+|---|---|---:|---:|---:|
+| Major | 5-8 | 4.76 | 7.00 | +59% |
+| MidTier | 3-6 | 3.96 | 5.50 | +52% |
+| Independent | 1-4 | 2.86 | 3.50 | +35% |
+| Boutique | 1-3 | 2.56 | 3.00 | +28% |
+| Small | 0-2 | 1.82 | 2.00 | +22% |
+
+Combined with the launch-factory initialization, this strengthened the 600
+incumbents enough to erase the entire region-scaling gain:
+`d7-per-song-deal-312-1001` fell to 150/187/211 for 1960-62 against 177/221/250,
+with indie chart share dropping to 0.057 — below the original baseline. That
+run was stopped at 1962 once the trajectory was unambiguous.
+
+Correction: non-Major counts restated to preserve former expected coverage
+(MidTier 2-4, Independent 1-3, Boutique 1-2, Small unchanged) while sampling
+stays without replacement. Majors keep the literal reading and are granted all
+seven regions, because a Major is a national distributor by definition and that
+is what makes a signed deal worth anything.
+
+**Rule for the next pass:** compute the old effective value of any constant
+whose sampler or initializer you repair, and restate the constant to preserve
+it, so the mechanism fix is calibration-neutral. Ship mechanism and calibration
+changes separately or the result is unattributable.
+
+### 12.1 Rejected: seeding `monthsActive` from `foundedYear`
+
+Section 6.1 and fix-now item 1 of the earlier audit list this as a defect. It is
+not, and it was implemented and then reverted after measurement.
+
+Despite its name, `monthsActive` is an **in-simulation observation counter**,
+not a historical attribute:
+
+- `LabelLifecycleManager.UpdateLabelHealth` increments it once per month
+  (`Systems/LabelLifecycleManager.cs:153`);
+- `RuntimeLabelProfileFactory.ReconcileFoundingAndGeography` resets it to zero
+  alongside `totalReleases`, `top40Hits`, `numberOneHits`, and `momentumScore`
+  — in-run accumulators, not authored history
+  (`Systems/RuntimeLabelProfileFactory.cs:142`);
+- every gate reading it pairs it with in-run evidence:
+  `MidTierPromotionMinimumOperatingMonths` sits beside a sustained-quarters and
+  recent-charting-records requirement, and `GetCompetitiveExitChance` beside
+  `chartingLastYear` (`Systems/LabelLifecycleManager.cs:283-289`).
+
+Seeding it with 144-180 months of pre-1960 history made every seeded incumbent
+immediately eligible for MidTier promotion and competitive exit without having
+earned either in-run, which is not what those gates are asking.
+
+The revert rests on that code reading, not on a measured effect. An earlier
+draft of this section attributed the elevated Major-tier count in
+`d7-recalibrated-coverage-312-1001` to this seeding; that attribution was wrong
+and is retracted. The same elevated count (12 cumulative Majors charting in
+1960, rising to 13) persists in `d7-systemic-consolidated-312-1001` *after* the
+revert, so it is RNG-composition drift from the two extra `GD.RandRange` draws
+`ApplyTierStats` now consumes and from the reworked region-sampling loop, not a
+promotion-gate effect. Any run comparison across these passes is a different
+random realization, not a controlled A/B.
+
+`foundedYear` remains the authored historical fact. Anything that wants "years
+since founding" should derive it from `foundedYear` rather than overloading the
+in-run counter.
+
+## 13. The tier-mix guardrail was unsound, and the seeded market was too big
+
+The user challenged the tier guardrail directly. It does not survive scrutiny,
+though the failure is the opposite of the one suspected.
+
+### 13.1 The guardrail measured headcount and was quoted against chart share
+
+`cumulative*FirmsCharting` counts **distinct label identities that ever
+charted**. `majorFamilyChartShare` measures **share of annual chart units**, and
+`IsIndieFamily` (`SimTools/ChartAuditRunner.cs:2435`) is
+Independent+Boutique+Small, so its complement is Major **plus MidTier**.
+
+These are not comparable. A long tail of 175 Independents each charting one or
+two records is 73% of the *firms* and 12% of the *chart*. Reporting "below-MidTier
+is 73% of the charting population" beside a chart-share target was an error in an
+earlier version of this document.
+
+The guardrail as originally written is also narrower than it was later quoted as
+being: it says the below-MidTier charting population should be dominated by
+Independents *rather than Small labels* — a composition rule **within** that
+group. It never constrained the overall split, and therefore **could be fully
+satisfied while Major+MidTier took 85% of chart entries**, which is what was
+happening.
+
+### 13.2 Measured entry-level mix, 1960-65
+
+From `d7-systemic-consolidated-312-1001`, joining `lifecycles.csv` to
+`single-release-lanes.csv` on release tier (use a real CSV parser — record titles
+contain commas and a naive split silently corrupts every column after `title`):
+
+| tier | chart entries | chart-weeks | Top 40 entries |
+|---|---:|---:|---:|
+| Major | 40.9% | 48.5% | 65.3% |
+| MidTier | 44.5% | 37.0% | 28.9% |
+| Independent | 12.2% | 12.2% | 5.2% |
+| Boutique | 2.1% | 1.9% | 0.6% |
+| Small | 0.3% | 0.3% | 0.0% |
+
+Major share was defensible. **MidTier at 44.5% of entries was the anomaly**, and
+the true independent tail at 14.6% was far too thin.
+
+### 13.3 Historical grounding, with its limits stated
+
+The best quantitative source located is Peter Tschmuck's Billboard Hot 100
+analysis of the 1960s, measured in **weeks at number one** across all 518 weeks
+of the decade:
+
+- decade: majors 57.3%, independents 42.7%;
+- 1960: 80.0% / 20.0%; 1963: 46.2% / 53.8%; 1964: 62.0% / 38.0%;
+  1965: 62.7% / 37.3%; 1967: 73.1% / 26.9%; 1969: 53.8% / 46.2%;
+- 57 distinct labels reached number one during the decade;
+- majors defined as EMI/Capitol, CBS-Columbia, RCA Victor, Warner Bros.
+  (with Reprise, and Atlantic after 1967), Decca, ABC, MGM, and the Hollywood
+  studio labels.
+
+**Three caveats that matter for using these numbers:**
+
+1. **Number-one weeks are the most concentrated metric available.** Entry-level
+   major share across all 100 positions is necessarily *lower* than the #1-week
+   share, because independents carried a long low-charting tail. Do not compare
+   a #1-week percentage directly against `chartEntries*` telemetry.
+2. **The period split is binary and does not map to this model's tiers.**
+   Industry usage was major (owns its distribution) versus independent (does
+   not). Motown, Atlantic before 1967, Vee-Jay, Chess and Stax are all
+   *independents* in that source. The model's MidTier/Independent boundary is a
+   modeling convenience with **no historical counterpart**, which is exactly why
+   it felt blurry. Any guardrail should therefore be stated primarily on the
+   binary Major-versus-everything-else split, with the MidTier/Independent
+   division as a secondary internal check only.
+3. **No published entry-level major/independent split for the 1960s Hot 100 was
+   found.** The 35-40% major and 20-25% MidTier figures in the directive are a
+   reasonable reading but are not sourced, and the MidTier figure in particular
+   has no period definition behind it.
+
+### 13.4 The seeded market carried four times too many large firms
+
+`GetRandomTier` drew Major at 1% and MidTier at 14%, which with the named
+templates produced **98 MidTier and 13 Major firms out of 600**. The 1960 market
+had roughly eight corporate majors and on the order of twenty to twenty-five
+national independents.
+
+Repairs:
+
+- `GetRandomTier` now draws Major 0.2% and MidTier 3.3%, with the freed mass
+  going mostly to Independent (25% to 33%).
+- `LabelTemplate` carries an optional per-template 1960 tier, because named firms
+  were previously tiered by which array they happened to sit in. Motown and Stax
+  now start Independent (Motown was months old; Stax was still Satellite) and
+  must earn MidTier through the promotion ladder. Chancellor, Colpix, Dimension
+  and Red Bird drop to Independent. EMI and Decca UK become Major.
+- Probe 81 pins majors to 4-14 and MidTier to 10-40, requires regional
+  independents to outnumber national ones by 3x, requires Motown and Stax to
+  start below MidTier, and requires every seeded label to satisfy the
+  operating-profile contract.
+
+Measured at 52 weeks (`d7-tier-population-probes-52-1001`): seeded large firms
+fell from 111 to 42 (Major 8, MidTier 34). The 1960 entry mix moved to Major
+40.4%, MidTier 31.2%, Independent 21.8%, Boutique 5.8%, Small 0.9% — indie family
+28.5%, up from 14.6%. Indie chart-unit share rose from 0.082 to 0.151.
+
+### 13.5 New telemetry
+
+`concentration.csv` gained twelve columns:
+`chartEntries`, `chartEntries{Small,Boutique,Independent,MidTier,Major}`,
+`top40Entries`, `top40{Small,Boutique,Independent,MidTier,Major}`. These count
+**distinct charting records per year by release-imprint tier**, which is the
+analogue of a Billboard chart entry and the figure historical splits are quoted
+against. The tier guardrail should be restated on these columns; the firm-count
+columns answer a different question and cannot detect over-representation.
+
+## 14. Open risk and required next step
+
+**Do not treat section 13 as accepted.** Two unresolved signals:
+
+1. **1960 cumulative charting identities fell to 142**, against roughly 173-177
+   in the runs before the re-tiering. Fewer large firms means fewer firms capable
+   of charting early. The thesis is that the promotion ladder lets Independents
+   climb across the decade and more than repay this, but **that is unmeasured** —
+   no run longer than one year has been executed against the re-tiered
+   population, per the user's instruction to hand off before any run longer than
+   two years.
+2. **Top 40 major share rose to 70.1% in 1960** from 65.3%, because fewer MidTier
+   firms compete at the top. Historically 1960 was the most major-dominated year
+   of the decade (80% of #1 weeks), so 70% of Top 40 entries in 1960 is not
+   obviously wrong, but it must be checked across later years where the
+   historical share falls to roughly 46-63%.
+
+### 14.1 Resume sequence
+
+1. Run the 312-week checkpoint:
+
+   ```powershell
+   & $godot --headless --path . SimTools/ChartAuditRunner.tscn -- `
+     --weeks=312 --run=d7-tier-population-312-1001 --seed=1001 `
+     --enable-genre-market-v2 --enable-artist-population-lifecycle `
+     --lean-probe --profile-performance
+   ```
+
+2. Read `chartEntries*` and `top40*` per year and compare against: Major 35-50%
+   of entries (higher in 1960-61, falling mid-decade), non-major 50-65%, and a
+   Major Top-40 share that declines from roughly 70% in 1960 toward 45-60% by
+   1965. Confirm the MidTier entry share sits well below its former 44.5%.
+3. Read `cumulativeFirmsCharting`. The prior best was 331 through 1965 with
+   region scaling alone; the consolidated configuration reached 291 and the
+   prewarm-corrected one 279. If the re-tiered run does not clear roughly 300
+   through 1965, the large-firm reduction is costing more breadth than the
+   promotion ladder returns, and the MidTier draw should be raised toward 5-6%
+   rather than the access model being retuned.
+4. Only then consider the 522-week acceptance run.
+
+### 14.2 Trajectory ledger for seed 1001
+
+| configuration | 1965 cumulative | note |
+|---|---:|---|
+| pre-existing baseline | 258 | before this pass |
+| region scaling only | **331** | best measured |
+| + per-song deals, factory init, region-count restatement | 291 | |
+| + prewarm physical distribution | 279 | |
+| + large-firm re-tiering | not run | 1960 = 142 vs ~173 |
+
+**These are not controlled comparisons.** Several changes altered the number of
+`GD.RandRange` draws consumed during label generation, so each configuration is a
+different random realization of the same seed. Differences of ten to twenty
+identities should not be read as causal. A holdout seed is required before any
+acceptance claim.

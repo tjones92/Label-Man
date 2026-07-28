@@ -101,7 +101,11 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeRetiredLabelEvidenceLookback();                                        // 75
 		ProbeWeeklyAwarenessAgeDecay();                                              // 76
 		ProbeReleaseImprintIdentity();                                                // 77
-		results.Add("D6 fixed probes 1-77 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, and immutable release-imprint identity)");
+		ProbeRegionScaledBreakoutEvidence();                                           // 78
+		ProbePerSongDistributionScope();                                                // 79
+		ProbePhysicalDistributionGovernsShelfStock();                                   // 80
+		ProbeSeededLargeFirmPopulation();                                                // 81
+		results.Add("D6 fixed probes 1-81 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, and a historically scaled seeded large-firm population)");
 		return results;
 	}
 
@@ -1371,6 +1375,140 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		source.labelId = "acquiring_owner";
 		Require(runtime.releaseLabelId == "original_imprint" && runtime.baseRecord.labelId == "acquiring_owner",
 			"77 acquisition may transfer operating ownership without rewriting the immutable release-imprint identity");
+	}
+
+	private static void ProbeRegionScaledBreakoutEvidence() {
+		// East Coast and Deep South as authored in chart_manager.tscn.
+		var eastCoast = new MarketRegion {
+			regionId = "eastcoast", population = 52.2f, urbanization = .70f, averageIncome = 1.15f, youthPercentage = .32f
+		};
+		var deepSouth = new MarketRegion {
+			regionId = "deepsouth", population = 15.0f, urbanization = .48f, averageIncome = .78f, youthPercentage = .40f
+		};
+		float reference = eastCoast.GetRecordBuyingPopulation();
+		float eastScale = ChartManager.CalculateRegionalDemandScale(eastCoast.GetRecordBuyingPopulation(), reference);
+		float southScale = ChartManager.CalculateRegionalDemandScale(deepSouth.GetRecordBuyingPopulation(), reference);
+		Require(Math.Abs(eastScale - 1f) < .000001f && southScale > .21f && southScale < .25f,
+			"78 the largest authored market keeps its existing calibration while a roughly quarter-sized market scales to its own buying population");
+
+		// The same share of each local market must yield the same evidence.
+		float eastVolume = ChartManager.CalculateBreakoutVolumeInput(3500f, 3000f, eastScale);
+		float southVolume = ChartManager.CalculateBreakoutVolumeInput(3500f * southScale, 3000f * southScale, southScale);
+		Require(Math.Abs(eastVolume - southVolume) < .000001f,
+			"78b equal per-capita regional performance produces equal breakout volume evidence regardless of market size");
+
+		// The historical defect: a genuine Deep South regional hit scored as noise.
+		float southHitUnderFlatThresholds = ChartManager.CalculateBreakoutVolumeInput(900f, 800f, 1f);
+		float southHitUnderRegionScale = ChartManager.CalculateBreakoutVolumeInput(900f, 800f, southScale);
+		Require(southHitUnderFlatThresholds < .25f && southHitUnderRegionScale > .75f &&
+			southHitUnderRegionScale > southHitUnderFlatThresholds,
+			"78c a regional hit in a smaller market is no longer scored against the largest market's absolute unit thresholds");
+
+		// A degenerate region must not divide by zero or change previous behavior.
+		Require(Math.Abs(ChartManager.CalculateRegionalDemandScale(0f, reference) - 1f) < .000001f &&
+			Math.Abs(ChartManager.CalculateRegionalDemandScale(reference, 0f) - 1f) < .000001f,
+			"78d an unauthored or degenerate region falls back to the unscaled thresholds");
+	}
+
+	private static void ProbePerSongDistributionScope() {
+		var label = new AILabel {
+			labelId = "scoped_deal_label",
+			homeRegion = "deepsouth",
+			nationalReach = .20f,
+			distributionRegions = new[] { "deepsouth" }
+		};
+		label.distributionStrength = .30f;
+		label.activeDeal = new DistributionDeal {
+			distributorId = "national_distributor",
+			reachGranted = .50f,
+			grantedRegions = new[] { "eastcoast", "greatlakes", "westcoast" },
+			signedWeek = 40,
+			termWeeks = 78
+		};
+		label.activeDeal.Cover("breakout_single");
+
+		// The record that earned the contract rides the distributor's network.
+		Require(label.RecordCoveredByActiveDeal("breakout_single") &&
+			label.HasDistributionInRegionForRecord("eastcoast", "breakout_single") &&
+			Math.Abs(label.BorrowedReachForRecord("breakout_single") - .50f) < .000001f &&
+			Math.Abs(label.EffectiveNationalReachForRecord("breakout_single") - .70f) < .000001f,
+			"79 the record whose regional breakout earned a distribution deal receives the distributor's regions and borrowed reach");
+
+		// A back-catalog record released before the deal does not.
+		Require(!label.RecordCoveredByActiveDeal("older_catalog_single") &&
+			!label.HasDistributionInRegionForRecord("eastcoast", "older_catalog_single") &&
+			label.BorrowedReachForRecord("older_catalog_single") == 0f &&
+			Math.Abs(label.EffectiveNationalReachForRecord("older_catalog_single") - .20f) < .000001f,
+			"79b a deal does not retroactively push the label's existing catalog into the distributor's network");
+
+		// The label's own regions still serve every record, deal or not.
+		Require(label.HasDistributionInRegionForRecord("deepsouth", "older_catalog_single") &&
+			Math.Abs(label.DistributionStrengthForRecord("older_catalog_single") - .30f) < .000001f,
+			"79c owned distribution continues to serve records the contract does not carry");
+
+		// Output released during the term joins the deal.
+		label.activeDeal.Cover("released_during_term");
+		Require(label.HasDistributionInRegionForRecord("greatlakes", "released_during_term") &&
+			Math.Abs(label.EffectiveNationalReachForRecord("released_during_term") - .70f) < .000001f,
+			"79d output released while the contract runs goes out through the distributor's network");
+
+		// Termination removes borrowed capability from every record at once.
+		label.activeDeal = null;
+		Require(!label.HasDistributionInRegionForRecord("eastcoast", "breakout_single") &&
+			label.BorrowedReachForRecord("breakout_single") == 0f,
+			"79e ending the contract withdraws the distributor's network from the records it carried");
+	}
+
+	private static void ProbePhysicalDistributionGovernsShelfStock() {
+		var major = new AILabel {
+			labelId = "national_major", homeRegion = "eastcoast",
+			strongRegions = new[] { "eastcoast" },
+			distributionRegions = new[] { "eastcoast", "greatlakes", "deepsouth" }
+		};
+		major.distributionStrength = .88f;
+		var small = new AILabel {
+			labelId = "regional_small", homeRegion = "deepsouth",
+			strongRegions = new[] { "deepsouth" },
+			distributionRegions = new[] { "deepsouth" }
+		};
+		small.distributionStrength = .26f;
+
+		int majorCovered = ChartSimulator.CalculateInitialRegionalStock(major, "greatlakes", 1f, 1f, "rec");
+		int smallUncovered = ChartSimulator.CalculateInitialRegionalStock(small, "greatlakes", 1f, 1f, "rec");
+		int smallHome = ChartSimulator.CalculateInitialRegionalStock(small, "deepsouth", 1f, 1f, "rec");
+
+		Require(majorCovered > smallUncovered * 3,
+			"80 shelf stock in a region a label does not distribute into is a small fraction of a national label's covered shelf");
+		Require(smallHome > smallUncovered,
+			"80b a label's own strong home market receives deeper shelf stock than a market it cannot reach");
+	}
+
+	private static void ProbeSeededLargeFirmPopulation() {
+		var labels = AILabelFactory.GenerateAllLabels(600);
+		int majors = labels.Count(label => label.tier == LabelTier.Major);
+		int midTier = labels.Count(label => label.tier == LabelTier.MidTier);
+		int independents = labels.Count(label => label.tier == LabelTier.Independent);
+
+		// The 1960 market had roughly eight corporate majors and on the order of
+		// twenty to twenty-five national independents. The former draw produced about
+		// 13 and 98 respectively, which took 85% of chart entries.
+		Require(majors >= 4 && majors <= 14,
+			"81 the seeded population carries a corporate-major count in the historical range rather than an inflated one");
+		Require(midTier >= 10 && midTier <= 40,
+			"81b the seeded population carries a national-independent count in the historical range rather than four times it");
+		Require(independents > midTier * 3,
+			"81c regional independents outnumber national independents in the seeded 1960 market");
+
+		// Motown and Stax must earn MidTier rather than begin there in January 1960.
+		AILabel motown = labels.FirstOrDefault(label => label.labelName != null && label.labelName.StartsWith("Motown", StringComparison.Ordinal));
+		AILabel stax = labels.FirstOrDefault(label => label.labelName != null && label.labelName.StartsWith("Stax", StringComparison.Ordinal));
+		Require(motown != null && motown.tier == LabelTier.Independent &&
+			stax != null && stax.tier == LabelTier.Independent,
+			"81d firms that were months old or trading under an earlier name in 1960 start below the mature large-independent tier");
+
+		// Every seeded label must satisfy the operating-profile contract.
+		Require(labels.All(label => label.riskTolerance > 0f && label.artistLoyalty > 0f),
+			"81e every seeded launch label carries a complete operating profile");
 	}
 
 	private static void Require(bool condition, string message) {

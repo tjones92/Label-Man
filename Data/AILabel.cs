@@ -112,7 +112,29 @@ public partial class AILabel : Resource {
 		!string.IsNullOrEmpty(regionId) &&
 		((distributionRegions?.Contains(regionId) ?? false) ||
 		(activeDeal?.grantedRegions?.Contains(regionId) ?? false));
-	
+
+	// A distribution deal carries specific records, not the whole catalog. The
+	// label-wide members above remain the right answer for questions about the firm
+	// -- deal eligibility, dependency, capability -- while the per-record members
+	// below are what physical fulfillment and demand for one release must use, so a
+	// deal cannot retroactively push a years-old B-side into national distribution.
+	public bool RecordCoveredByActiveDeal(string recordId) =>
+		activeDeal != null && activeDeal.CoversRecord(recordId);
+
+	public float BorrowedReachForRecord(string recordId) =>
+		RecordCoveredByActiveDeal(recordId) ? borrowedReach : 0f;
+
+	public float DistributionStrengthForRecord(string recordId) =>
+		Mathf.Clamp(ownedReach + BorrowedReachForRecord(recordId), 0f, 1f);
+
+	public float EffectiveNationalReachForRecord(string recordId) =>
+		Mathf.Clamp(nationalReach + BorrowedReachForRecord(recordId), 0f, 1f);
+
+	public bool HasDistributionInRegionForRecord(string regionId, string recordId) =>
+		!string.IsNullOrEmpty(regionId) &&
+		((distributionRegions?.Contains(regionId) ?? false) ||
+		(RecordCoveredByActiveDeal(recordId) && (activeDeal.grantedRegions?.Contains(regionId) ?? false)));
+
 	public int CurrentRosterSize => roster?.Count ?? 0;
 	public bool HasRosterSpace => roster == null || roster.Count < maxRosterSize;
 	[Export] public int operatingRosterTarget;
