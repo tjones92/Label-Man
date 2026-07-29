@@ -1169,10 +1169,887 @@ columns answer a different question and cannot detect over-representation.
 | region scaling only | **331** | best measured |
 | + per-song deals, factory init, region-count restatement | 291 | |
 | + prewarm physical distribution | 279 | |
-| + large-firm re-tiering | not run | 1960 = 142 vs ~173 |
+| + large-firm re-tiering | 293 | `d7-tier-population-312-1001`, see section 15 |
 
 **These are not controlled comparisons.** Several changes altered the number of
 `GD.RandRange` draws consumed during label generation, so each configuration is a
 different random realization of the same seed. Differences of ten to twenty
 identities should not be read as causal. A holdout seed is required before any
 acceptance claim.
+
+## 15. Re-tiered checkpoint measured, and the promotion thesis is refuted
+
+`d7-tier-population-312-1001` (seed 1001) completed all 312 weeks, exit code 0.
+No code changed between section 13 and this run; the only worktree action was
+restoring the deleted `SimLogs/.gdignore` marker. The 81 fixed probes therefore
+still stand from `d7-tier-population-probes-52-1001`.
+
+### 15.1 Trajectory
+
+| year | cumulative | new/yr | Small | Boutique | Independent | MidTier | Major |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 138 | 138 | 4 | 23 | 75 | 28 | 8 |
+| 1961 | 177 | 39 | 12 | 29 | 98 | 30 | 8 |
+| 1962 | 207 | 30 | 16 | 36 | 117 | 30 | 8 |
+| 1963 | 235 | 28 | 20 | 41 | 136 | 30 | 8 |
+| 1964 | 264 | 29 | 25 | 43 | 158 | 30 | 8 |
+| 1965 | **293** | 29 | 26 | 44 | 185 | 30 | 8 |
+
+293 narrowly misses the 300 credibility bar in section 14.1, but **the annual
+accretion is flat at 28-30 from 1962 onward**, where the pre-existing baseline
+decayed to +6..+8 and the consolidated configuration to +18. Linear extension of
++29/yr gives roughly **409 by 1969**, at the bottom edge of the 400-600 target.
+That extrapolation is the open question a 522-week run has to settle; it is not
+a result.
+
+### 15.2 The promotion ladder contributes nothing, and structurally cannot
+
+Section 14 rested on the thesis that promoted Independents would repay the lost
+seeded MidTier identities. **That is false, and it is false by construction.**
+
+Of 293 first-chart identities, only 6 differ between `birthTier` and
+`firstChartTier`: 2 Small→Independent, 2 Boutique→Independent, and 2
+Independent→Small *demotions*. **Zero promotions into MidTier.** All 30 MidTier
+and all 8 Major first-chart identities were born at that tier. The same holds in
+`d7-systemic-consolidated-312-1001`: 7 of 291 moved, zero into MidTier.
+
+The mechanism:
+
+- `firstChartTierByLabel[releaseLabelId]` is assigned only inside the
+  `cumulativeChartingLabelIds.Add(...)` branch (`SimTools/ChartAuditRunner.cs:2337-2341`)
+  and is never revised, so the tier bucket is frozen at a label's first chart.
+- `IsIndependentReadyForMidTier` requires `chartingLastYear >= 2`
+  (`Systems/LabelLifecycleManager.cs:467-477`). A label cannot meet that without
+  having already charted — by which point it is permanently bucketed Independent.
+
+Therefore `cumulativeMidTierFirmsCharting` can never exceed *seeded MidTier firms
+that ever chart*. It is pinned at 28-30 here against 34 seeded (88.2%), and
+saturates at 76-78 in every pre-re-tiering configuration against ~86-98 seeded.
+
+There is also a live deadlock worth recording: charting effectively requires an
+active deal (169 of 293 first charts, and 58 of 70 runtime-founded ones), while
+promotion requires `ownedReach >= 0.50` **and** dependency `< 0.35`, which an
+active deal defeats. `GrowSelfBuiltDistributionReach` additionally early-returns
+whenever `activeDeal != null`, so a label on a deal cannot even accrue owned
+reach. The two conditions compete inside the same 52-week window.
+
+### 15.3 The prescribed remedy is quantitatively inadequate
+
+Section 14.1 step 3 directs raising the MidTier draw toward 5-6% if the run misses
+300. Measured seeded conversion in this run:
+
+| seeded tier | seeded | charted | conversion |
+|---|---:|---:|---:|
+| Major | 8 | 8 | 100.0% |
+| MidTier | 34 | 30 | 88.2% |
+| Independent | 209 | 120 | 57.4% |
+| Boutique | 114 | 46 | 40.4% |
+| Small | 235 | 19 | 8.1% |
+
+Raising MidTier from 3.3% to 5.5% adds roughly 13 seeded MidTier firms, drawn
+from Independent. The expected identity gain is
+`13 x (0.882 - 0.574) ~= +4` — moving 293 to about 297, while re-inflating the
+MidTier entry share section 13 just corrected. **The remedy does not close a
+38-identity gap. Do not spend a run on it.**
+
+The whole 331→293 gap decomposes as MidTier −48 and Major −2, offset by
+Independent +10, Boutique +1, Small +1. Independent *seeded* count rose 160→209,
+but Independent *charted* rose only 175→185, because runtime-founded charting
+identities fell 83→70.
+
+### 15.4 Distributor capacity is not the constraint
+
+Cutting large firms from 96 to 42 did not starve the deal market. Across the full
+312 weeks, `NoDistributor` outcomes are **0** in both runs, and the re-tiered run
+signs *more* deals than the region-scaled one:
+
+| run | attempts | persistent evidence | signed | to runtime founders | rejected | no distributor |
+|---|---:|---:|---:|---:|---:|---:|
+| region-scaled | 13,300 | 1,744 | 373 | 145 | 359 | 0 |
+| re-tiered | 14,457 | 2,535 | 517 | 185 | 518 | 0 |
+
+So the lost breadth is not a distribution-access effect. Runtime founders get
+*more* deals and still convert to fewer charting identities, because chart units
+concentrate into the smaller surviving large-firm set (c4 rose 0.261 → 0.347).
+
+### 15.5 Entry mix against section 14.1 step 2
+
+| year | Major entries | MidTier | Independent | Major Top-40 | MidTier Top-40 | Ind Top-40 |
+|---|---:|---:|---:|---:|---:|---:|
+| 1960 | 41.2% | 31.5% | 21.8% | 71.9% | 17.9% | 8.6% |
+| 1961 | 39.5% | 32.9% | 22.9% | 68.7% | 21.7% | 8.8% |
+| 1962 | 40.6% | 34.6% | 21.3% | 67.2% | 23.7% | 8.3% |
+| 1963 | 42.6% | 32.5% | 21.6% | 66.8% | 24.8% | 8.1% |
+| 1964 | 42.2% | 30.9% | 23.5% | 64.7% | 22.2% | 12.0% |
+| 1965 | 41.5% | 28.7% | 26.6% | 63.4% | 20.3% | 14.8% |
+
+Read against the targets in section 14.1 step 2:
+
+- **Major entry share passes the band** (35-50%) every year, but is *flat* at
+  ~41% rather than falling mid-decade.
+- **MidTier entry share passes decisively**: 28.7% at 1965 against its former
+  44.5%, and trending down.
+- **Independent entry share rises** 21.8% → 26.6%; indie-family entry share
+  reaches 29.8% and `indieFamilyChartShare` 0.253.
+- **Major Top-40 share misses**: it declines 71.9% → 63.4%, the right direction,
+  but does not reach the 45-60% band by 1965.
+
+The tier-mix objective of section 13 is therefore substantially met; the breadth
+objective is 7 identities short of its checkpoint bar.
+
+### 15.6 Decision taken
+
+The choice was between accepting a marginal checkpoint and spending a run on it.
+The options weighed were:
+
+1. **Run the 522-week acceptance on the current configuration.** Justified by the
+   flat +29/yr accretion, which is the first configuration in this pass that does
+   not decay, and which extrapolates to ~409.
+2. **Recover breadth before spending it.** The only levers with enough mass are
+   Independent (57.4%) and Boutique (40.4%) conversion — *not* the seeded tier
+   mix, and not distribution access. Note section 1 forbids buying the target with
+   more label births.
+3. Raising the MidTier draw to 5-6% was rejected on the arithmetic in section 15.3.
+
+**Option 1 was chosen by the user.** `d7-tier-population-522-1001` was launched at
+seed 1001 against the *unmodified* section 13 configuration — no code changed
+between the 312-week checkpoint and this run, so the 81 fixed probes from
+`d7-tier-population-probes-52-1001` still stand and the two runs are the same
+configuration at different horizons.
+
+Acceptance criteria for that run:
+
+- 1969 cumulative release-imprint identities in **400-600**;
+- Major entry share staying inside 35-50% and preferably falling after mid-decade;
+- MidTier entry share staying well below its former 44.5%;
+- Major Top-40 share continuing down from 63.4% at 1965 toward 45-60%;
+- a small Small-label tail with the below-MidTier population Independent-dominated.
+
+A holdout seed is still required before acceptance, and the `monthsActive`/
+RNG-realization caveats in sections 12.1 and 14.2 still apply — the 331 and 293
+figures are different random realizations, not a controlled A/B.
+
+## 16. Decade run: acceptance fails, and a new late-decade defect is exposed
+
+`d7-tier-population-522-1001` completed all 522 weeks, exit code 0, on the
+unmodified section 13 configuration.
+
+### 16.1 Result: 391 at 1969
+
+| year | cumulative | new/yr | Small | Boutique | Independent | MidTier | Major |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1960 | 138 | 138 | 4 | 23 | 75 | 28 | 8 |
+| 1961 | 177 | 39 | 12 | 29 | 98 | 30 | 8 |
+| 1962 | 207 | 30 | 16 | 36 | 117 | 30 | 8 |
+| 1963 | 235 | 28 | 20 | 41 | 136 | 30 | 8 |
+| 1964 | 264 | 29 | 25 | 43 | 158 | 30 | 8 |
+| 1965 | 293 | 29 | 26 | 44 | 185 | 30 | 8 |
+| 1966 | 319 | 26 | 27 | 46 | 208 | 30 | 8 |
+| 1967 | 348 | 29 | 31 | 46 | 233 | 30 | 8 |
+| 1968 | 373 | 25 | 39 | 47 | 249 | 30 | 8 |
+| 1969 | **391** | 18 | 44 | 47 | 262 | 30 | 8 |
+
+**391 misses the 400-600 acceptance band by 9.** The 312-week extrapolation of
+~409 was close; actual accretion held at 25-29/yr through 1968 and then fell to
+18 in 1969.
+
+MidTier is pinned at **30 for the entire decade** and Major at **8**, exactly as
+section 15.2 predicts. All growth is Independent (75→262), Small (4→44) and
+Boutique (23→47). The Small tail reaches 44 identities, 11.3% of the total, which
+is larger than the "very small" tail section 1 asks for.
+
+### 16.2 The late-decade tier mix goes historically wrong
+
+This could not be seen at 312 weeks, because the break is in 1966-67.
+
+| year | Major entries | MidTier | Independent | Major Top-40 |
+|---|---:|---:|---:|---:|
+| 1965 | 41.3% | 28.8% | 26.9% | 63.5% |
+| 1966 | 35.3% | 29.8% | 31.1% | 56.0% |
+| 1967 | 22.5% | 30.8% | 41.9% | 36.0% |
+| 1968 | 20.8% | 30.5% | 43.9% | 31.9% |
+| 1969 | **17.5%** | 28.2% | 49.7% | **25.4%** |
+
+Major entry share falls out of the 35-50% band after 1966 and ends at 17.5%.
+Major Top-40 share ends at 25.4% against a period in which majors held **53.8% of
+number-one weeks in 1969** (section 13.3). Early-decade calibration is good; the
+model inverts in the second half. `c4` ends at 0.174.
+
+### 16.3 Cause: majors stop releasing singles, crowded out by the LP boom
+
+This is a supply collapse, not a competitive one. Total chart entries barely move
+(989 → 920), so it is not a denominator effect.
+
+Single releases per year:
+
+| year | Major | MidTier | Independent |
+|---|---:|---:|---:|
+| 1965 | 479 | 1,064 | 2,568 |
+| 1966 | 418 | 1,110 | 2,620 |
+| 1967 | **256** | 1,143 | 2,684 |
+| 1969 | **216** | 1,251 | 2,867 |
+
+Major single output falls 55% from 1965, tracking the chart-entry collapse
+(439 → 161) almost exactly, while every other tier grows. Album projects explain
+where the capacity went:
+
+| year | Major albums | MidTier | Independent |
+|---|---:|---:|---:|
+| 1960 | 56 | 186 | 428 |
+| 1965 | 282 | 693 | 1,430 |
+| 1969 | 445 | 1,273 | 2,666 |
+
+Majors go from 479 singles + 282 albums in 1965 to 216 singles + 445 albums in
+1969. Every tier shifts to albums, but only the Major tier *loses* singles output,
+because only the Major tier is capacity-bound at a small firm count.
+
+**This is the section 12 calibration rule violated again.** Section 13 cut the
+large-firm population from 111 to 42 — a 62% reduction in aggregate large-firm
+capacity — without restating per-firm capacity to compensate. `releasesPerMonth`
+is Major 2-4 against Independent 0.5-1.5, so one Major is only ~3x one
+Independent; 8 Majors are ~24 Independent-equivalents against 209 seeded
+Independents plus runtime founders. That is survivable while singles dominate and
+Major records enjoy a large per-record quality and reach advantage, but once the
+LP boom consumes their fixed capacity after 1966 the Major singles presence
+collapses.
+
+The firm *count* of roughly eight corporate majors is historically right. The
+error is treating firm count and capacity as the same knob: a real 1960s major
+had many times the release capacity of one independent, not three.
+
+### 16.4 Revised judgment on the section 14.1 remedy
+
+Section 15.3 rejected raising the MidTier draw because it buys only ~4 identities.
+That arithmetic stands for **breadth**. But section 16.3 is a separate and stronger
+argument about **chart mix**, and it points at per-firm capacity rather than firm
+count. The two should not be conflated:
+
+- to fix **breadth** (391 → 400+), the levers are Independent (57.4%) and Boutique
+  (40.4%) conversion, per section 15.3;
+- to fix the **late-decade mix**, raise per-Major and per-MidTier release capacity
+  so the LP transition does not evacuate the singles chart — and restate it to
+  preserve the pre-section-13 aggregate, per the section 12 rule.
+
+Ship those separately, or the result is unattributable.
+
+## 17. Breakout diagnosis from the instrumented prefix run
+
+`d7-tier-population-diag-156-1001` was run at seed 1001 **without** `--lean-probe`.
+Because `leanProbe` has only three call sites and all are telemetry writes
+(`SimTools/ChartAuditRunner.cs:1787,1827`), it is an exact prefix of the decade
+run. Verified: 1960-62 `cumulativeFirmsCharting`, `chartEntries` and
+`totalChartUnits` match `d7-tier-population-522-1001` to the unit.
+
+That lets the decade-wide charting outcome be joined to per-record/per-region
+breakout inputs, so labels that chart *later* are not misread as failures.
+1,272,537 breakout rows were attributed across 666 labels.
+
+### 17.1 Peak breakout inputs, eventually-charted vs never-charted
+
+| input | weight | Indep charted | Indep never | ratio |
+|---|---:|---:|---:|---:|
+| volume | 0.34 | 0.978 | 0.612 | 1.60x |
+| velocity | 0.15 | 0.871 | 0.602 | 1.45x |
+| audience | 0.12 | 0.509 | 0.366 | 1.39x |
+| media | 0.10 | 0.165 | 0.136 | 1.21x |
+| sustained | 0.09 | — | — | — |
+| genreFit | 0.08 | 0.919 | 0.762 | 1.21x |
+| quality | 0.08 | 0.787 | 0.644 | 1.22x |
+| unmetDemand | 0.04 | 0.593 | 0.202 | 2.94x |
+| — maxScore | | 0.543 | 0.263 | 2.06x |
+| — coverRate | | 0.744 | 0.508 | 1.47x |
+| — capRate | | 0.000 | 0.000 | — |
+
+The same ordering holds for Boutique (49 charted / 48 never) and Small (26 / 161).
+
+### 17.2 Readings
+
+1. **Failing labels are not making worse records.** quality differs by only 1.22x
+   and genreFit by 1.21x, and both carry a weight of just 0.08. The product side
+   is close to parity; the gap is demand- and distribution-side.
+2. **The binding input is volume, and it counts twice.** `evidence` weights
+   `volumeInput` at 0.34 and then multiplies the whole score by
+   `0.55 + volumeInput * 0.45` (`Systems/ChartManager.cs:1524-1527`). This is the
+   same double-counting section 10.1 identified; region scaling fixed the
+   *threshold*, not the double weighting.
+3. **`unmetDemand`'s 2.94x is partly an artefact.** It is defined as
+   `volumeInput * clamp(backordered / max(750*scale, rawDemand))`
+   (`Systems/ChartManager.cs:1521`), so it re-encodes volume rather than
+   contributing independent evidence, and it carries the smallest weight (0.04).
+4. **Capacity never binds.** `capacityCapped` is 0.000 for every group, so the
+   restock/max-capacity path is not a constraint anywhere and can be excluded from
+   further investigation.
+5. **Coverage is the upstream gate.** Never-charting Independents have
+   distribution coverage in 50.8% of their record-region-weeks against 74.4% for
+   those that chart. Evidence requires volume, volume requires stock in region,
+   in-region stock requires coverage — and coverage is what a distribution deal
+   grants, which itself requires evidence. That circularity is the remaining seam,
+   and it is consistent with the flat ~75-83% `NoEvidence` rate across the decade.
+6. **`mediaInput` is close to inert.** It carries a 0.10 weight but peaks at 0.165
+   even for labels that chart, contributing under 0.02 of evidence, because source
+   region `radioPlay` is capped at 0.45 (`Systems/ChartManager.cs:1608`) and sits
+   near 0.2 in practice. For a decade in which regional radio airplay was the
+   breakout mechanism, a 10% weight delivering ~1.7% is worth revisiting — but it
+   is an authored ceiling, not a demonstrated defect, so it needs a probe before
+   any change.
+
+### 17.3 Candidate levers, in order of evidence
+
+Not yet implemented. Section 12's rule applies to all of them: restate constants
+to preserve prior effective values and ship mechanism separately from calibration.
+
+1. **Break the coverage/evidence circularity** — the largest measured gap that is
+   not a product-quality gap. Let a record accumulate breakout evidence in the
+   label's home/strong region without requiring national coverage first.
+2. **Reduce the double weighting of volume**, moving some weight to velocity,
+   audience or sustained growth, so a smaller-market record with genuine traction
+   is not scored almost entirely on absolute units.
+3. **Reconsider the media ceiling**, with a probe.
+4. **Per-Major and per-MidTier release capacity**, per section 16.4 — this
+   addresses the late-decade mix, not breadth.
+
+## 18. Two measured repairs, and a correction to section 17
+
+### 18.1 Correction: coverage is mostly an effect, not the cause
+
+Section 17.2 item 5 named the coverage/evidence circularity as the remaining seam.
+**That was wrong and is retracted.** `GetDistributionRegions` always seeds the
+label's home region (`Systems/AILabelFactory.cs:376`), so no label is ever locked
+out of generating evidence at home.
+
+Seeded Independents draw home plus 1-3 regions, i.e. an expected coverRate of
+0.29-0.57. Measured in the diagnostic prefix run, split by whether the label ever
+signed a deal:
+
+| group | coverRate (all weeks) | coverRate (record age <= 8wk) | mean peak breakout |
+|---|---:|---:|---:|
+| Independent, ever signed | 0.747 | 0.745 | 0.523 |
+| Independent, never signed | 0.429 | 0.421 | 0.225 |
+| Boutique, ever signed | 0.705 | 0.701 | 0.493 |
+| Boutique, never signed | 0.345 | 0.332 | 0.172 |
+
+The never-signed group sits at **0.429, exactly the seeded expectation**. The
+signed group's 0.747 is ~5.2 of 7 regions, which the seeded draw cannot produce
+(its maximum is 4). That extra coverage therefore comes from deals. Coverage is
+downstream of success.
+
+The real gate is the one thing both groups differ on beforehand: **peak breakout
+score 0.225 against the 0.30 pull threshold.**
+
+### 18.2 `capacityCapped` is inert, and activating it would be wrong
+
+Measured across 1,272,537 record-region-weeks:
+
+| | covered | uncovered |
+|---|---:|---:|
+| mean weekStartStock | 7,126.6 | 579.7 |
+| mean maxCapacity | 131,342 | 18,833 |
+| capacityCapped | 0.00% | 0.00% |
+| weeks with backorders | 1.88% | 31.05% |
+| mean volumeInput | 0.3319 | 0.1679 |
+
+`maxCapacity` runs 18-32x the stock actually held, because
+`recordStoreCount * 100 + departmentStoreCount * 200` is a whole-region shelf
+figure applied per record. It is a latent modeling error with **zero current
+effect**: the service-level multiplier does all the physical work. Recalibrating
+it so it binds would only remove stock from small labels, which is the opposite of
+the goal, so the correct treatment is to leave behavior unchanged and record the
+inertness here.
+
+### 18.3 Repair A: breakout evidence no longer cancels constrained demand
+
+Two defects in `UpdateRegionalBreakoutState`:
+
+- `unmetInput` was multiplied by `volumeInput`, counting volume a third time and
+  cancelling the signal for exactly the labels it describes — a record selling out
+  where its label cannot restock has low fulfilled volume by construction. Uncovered
+  regions carry backorders in 31.05% of weeks against 1.88% covered.
+- the `0.55 + 0.45 * volumeInput` envelope multiplied the whole score by volume a
+  second time, on top of its 0.34 weight. This is the section 10.1 double count;
+  section 10.3 fixed the thresholds feeding volume but not the envelope.
+
+Now: `unmetInput` is independent at weight 0.08, `volumeInput` weight 0.30, and the
+envelope is `0.70 + 0.30 * volumeInput`. Weights remain a partition of unity.
+Extracted as `ChartManager.CalculateBreakoutEvidence`; probe 82 covers the
+constrained-demand credit, incumbent neutrality, continued volume dominance, and
+the partition.
+
+### 18.4 Repair B: artist project history is counted once
+
+`RosterManager.RecordReleased` already appends to `releaseHistory`, and both live
+release paths in `CompetitorManager` appended again. `GenreSupplyService` caps
+project history at three (`Systems/GenreSupplyService.cs:211-212`), so an artist
+reached the cap after two releases instead of three and carried up to 0.06 of
+unearned project-identity retention. The prewarm path was already correct — it
+never calls `RecordReleased`.
+
+Both sites now use `CompetitorManager.RecordArtistRelease`, which falls back to the
+manual bookkeeping when the `RosterManager` singleton is absent — the reason the
+redundant append existed. Probe 83 covers it.
+
+### 18.5 Measured, separately attributable
+
+Each repair measured at 156 weeks, seed 1001, against the run before it:
+
+| configuration | 1960 | 1961 | 1962 | Major entries | Major Top-40 |
+|---|---:|---:|---:|---:|---:|
+| baseline (`diag-156`) | 138 | 177 | 207 | 40.6% | 67.2% |
+| + repair A | 142 | 182 | 220 | 41.4% | 67.1% |
+| + repair B | 142 | 196 | **232** | 39.8% | 66.6% |
+
+**+25 cumulative identities at 1962, +12.1%**, with the tier mix stable — Major
+entry share moves 40.6% → 39.8% and Major Top-40 67.2% → 66.6%, so neither repair
+is an incumbent subsidy. The section 12 trap is avoided.
+
+Repair A's mechanism is confirmed end to end in the offer funnel: `NoEvidence`
+81.0% → 75.3%, qualifying persistent evidence +21.9%, signed deals +24.7%.
+
+All 83 fixed probes pass; `dotnet build` clean.
+
+### 18.6 Decade confirmation: 412, inside the target band
+
+`d7-evidence-repairs-522-1001`, seed 1001, both repairs, all 522 weeks, exit 0.
+
+| year | baseline | repaired | delta |
+|---|---:|---:|---:|
+| 1960 | 138 | 142 | +4 |
+| 1961 | 177 | 196 | +19 |
+| 1962 | 207 | 232 | +25 |
+| 1963 | 235 | 256 | +21 |
+| 1964 | 264 | 274 | +10 |
+| 1965 | 293 | 298 | +5 |
+| 1966 | 319 | 318 | -1 |
+| 1967 | 348 | 357 | +9 |
+| 1968 | 373 | 388 | +15 |
+| 1969 | **391** | **412** | **+21** |
+
+**412 clears the 400-600 acceptance band.** Note the delta is not monotonic — it
+peaks at +25 in 1962, decays to -1 by 1966, then recovers to +21. The repairs both
+pull identities forward and add new ones, and a mid-decade reading alone would have
+been misleading in either direction. Final mix: Small 40, Boutique 48, Independent
+284, MidTier 32, Major 8. The Small tail is 9.7%, down from 11.3%.
+
+MidTier reaches 32 against 30, the first movement in that bucket across this whole
+pass; it remains capped by the structural limit in section 15.2.
+
+### 18.7 What remains
+
+The section 16 late-decade Major collapse is **not addressed by either repair**, and
+the decade run confirms it is untouched:
+
+| year | baseline Major entries | repaired | baseline Major Top-40 | repaired |
+|---|---:|---:|---:|---:|
+| 1965 | 41.3% | 40.5% | 63.5% | 64.3% |
+| 1967 | 22.5% | 22.2% | 36.0% | 36.7% |
+| 1969 | 17.5% | **17.9%** | 25.4% | **25.3%** |
+
+Major entry share still falls out of the 35-50% band after 1966 and ends near 18%,
+against a period in which majors held 53.8% of number-one weeks in 1969.
+
+Its mechanism is now pinned: `CalculateLabelReleaseCapacityChance` gates on
+`availabilityMod = clamp(availableArtists / 3)`
+(`Systems/CompetitorManager.cs:730-741`), and album projects consume the artists
+that would otherwise be eligible for singles. With 8 Majors on rosters frozen near
+25, the LP boom evacuates their singles output. The lever is Major and MidTier
+**roster capacity**, not `releasesPerMonth`.
+
+This is the one remaining acceptance failure. It cannot be measured below ~1966, so
+any attempt at it needs a decade run to validate, and per section 12 it must ship
+separately from the breadth repairs above.
+
+Also still open, unchanged by this pass: the section 6.2 duplicate display-name
+inflation (412 imprint IDs correspond to 368 exact names), the section 6.3
+chronology of named templates, and the section 6.7 prewarm age/inventory
+inconsistency.
+
+## 19. The Major collapse: mechanism corrected, first repair attempt reverted
+
+### 19.1 Two wrong mechanisms, then the real one
+
+Section 16.3 and 18.7 attributed the collapse to Major roster capacity via
+`availabilityMod = clamp(availableArtists / 3)`. **That is wrong and is retracted.**
+Measured in `d7-evidence-repairs-522-1001`:
+
+- Majors are not roster-starved. `releaseEligibleCount` averages 22-33 against the
+  3 needed to saturate `availabilityMod`, and rosters grow 32.4 (1960) to 43.4
+  (1968) against a hard cap near 52. That gate is pinned at 1.0 throughout.
+- Majors are not status-degraded. Every Major label-week is `Rising`
+  (`statusMod` 1.2); zero weeks Struggling, Dying, or Bankrupt.
+
+The real mechanism, from `calibration-decisions.csv` joined to seeded tier:
+
+| year | Major album share | MidTier | Independent | Major decisions |
+|---|---:|---:|---:|---:|
+| 1960 | 23% | 24% | 19% | 360 |
+| 1965 | 64% | 67% | 66% | 398 |
+| 1969 | 90% | 91% | 92% | 408 |
+
+Two facts combine:
+
+1. **Every label gets exactly one Bernoulli release trial per week**
+   (`ProcessWeeklyReleases`), so output is capped at one release per label-week and
+   the `Mathf.Clamp(..., 0f, 1f)` in `CalculateLabelReleaseCapacityChance` silently
+   discards any `releasesPerMonth` above four. Major decisions sit flat at ~360-408
+   per year for 8 firms — about one per firm per week, exactly the cap.
+2. **Album share rises to ~90% in every tier alike**, and album and single compete
+   for that one slot.
+
+Market-wide singles output is therefore flat (4,570 in 1960 to 5,072 in 1969)
+because new Independent firms keep being founded and add slots. **Majors are the
+only tier whose firm count is fixed at 8**, so nothing offsets their conversion and
+their singles output halves. The collapse is not Major-specific behaviour; it is
+the only tier where the fixed firm count makes the universal conversion visible.
+
+### 19.2 Attempt and revert
+
+Tried: uncap the weekly opportunity so capacity above one release per week yields
+multiple attempts (bounded by a roster ceiling of one release per three artists),
+plus restate Major `releasesPerMonth` 2-4 to 5-9 and MidTier 1-2.5 to 1.5-3.5 as
+the section 12 restatement for section 13's 62% cut in large-firm count.
+
+All 84 probes passed. The decade run overshot badly and was stopped at 1965:
+
+| metric | verified (412 config) | attempt | target |
+|---|---:|---:|---:|
+| 1965 cumulative identities | 298 | **203** | — |
+| 1960 Major entry share | 41.4% | **70.9%** | 35-50% |
+| 1960 Major Top-40 share | 71.2% | **93.5%** | ~70% |
+| 1965 indie family chart share | 0.199 | **0.074** | — |
+| 1965 c4 | 0.355 | **0.597** | — |
+
+Raising mean Major capacity ~2.3x flooded the chart from 1960 onward and destroyed
+95 cumulative identities by 1965. **Reverted in full**; the tree reproduces the
+verified configuration byte-identically (`d7-revert-verify-52-1001` matches
+`d7-release-history-probes-52-1001` on 1960 cumulative, entries, units, Major
+entries and Major Top-40), and probes are back to 1-83.
+
+### 19.3 Why it failed, and what the next attempt must do differently
+
+A flat capacity multiplier is the wrong shape. The Major deficit **only exists after
+1966** — 1960-65 Major entry share was already correctly calibrated at ~41%, inside
+the band. Scaling capacity uniformly across the decade inflates precisely the years
+that were already right, and the early-decade damage dwarfs the late-decade gain.
+
+Two additional traps found the hard way:
+
+- `GetStatusReleaseModifier` at 1.2 for `Rising` means any uncapping immediately
+  grants every Major a 20% boost even at unchanged `releasesPerMonth`, because the
+  old code clamped that 1.2 back to 1.0. An uncapping change is therefore **not**
+  behaviour-neutral at existing constants.
+- Probe-enabled runs consume RNG draws, so a 52-week probe run cannot be compared
+  against a non-probe run to verify a revert. Compare probe-run to probe-run.
+
+The next attempt should make the relief **time- or album-share-dependent** rather
+than flat: preserve the existing singles throughput while the album pipeline grows,
+so albums add rather than displace, leaving 1960-65 untouched by construction. Size
+it against the 1969 gap only, and validate on a decade run — a short run cannot see
+this at all.
+
+## 20. The Major collapse is the promo Single being abandoned, not capacity
+
+### 20.1 Correction: capacity is not the channel, and section 19.1 is retracted
+
+Section 19.1 attributed the collapse to the one-Bernoulli-trial-per-week structure:
+albums and singles competing for a single weekly slot while album share rises to
+~90%. **That is wrong.** Measured over all 48,155 format decisions of
+`d7-evidence-repairs-522-1001` (`release-strategy.csv`, `tier` × `year`):
+
+| year | Major decisions | album share | AlbumStandalone | Singles emitted |
+|---|---:|---:|---:|---:|
+| 1960 | 360 | 22.5% | 0 | 360 |
+| 1963 | 477 | 39.2% | 0 | 477 |
+| 1965 | 475 | 63.4% | 7 | 468 |
+| 1967 | 472 | 89.8% | 219 | 253 |
+| 1969 | 495 | 90.3% | 274 | 221 |
+
+Major decisions are **flat at 360-495 for the whole decade**, so no capacity is
+being lost. Album share rises to ~90% in every tier alike, so the LP conversion is
+not Major-specific either. What is Major-specific is the *strategy*:
+
+| year | AlbumStandalone share of album decisions | Major | MidTier | Independent |
+|---|---|---:|---:|---:|
+| 1965 | | 0.2% | 0.0% | 0.0% |
+| 1967 | | 5.0% | 3.6% | 0.3% |
+| 1969 | | 54.5% | 6.6% | 1.6% |
+
+An `AlbumWithPromo` project emits an album **and** a promo single; an
+`AlbumStandalone` emits only the album. Majors abandoned the promo single for 274 of
+495 decisions in 1969 against 0 of 360 in 1960. Major singles fall 468 → 221 across
+1965-69, a loss of 247 against 274 standalone projects. **The abandonment of the
+promo single is the entire late-decade Major singles collapse**, and the section 16.3
+"LP boom consumes fixed capacity" reading is retracted with it.
+
+This also explains why the section 19.2 capacity attempt failed so badly: it acted on
+a channel that was never constrained, from 1960 onward, in a year range that was
+already calibrated.
+
+### 20.2 Cause: the promo Single's diversion is charged twice
+
+`promoPreferred` compares `projectedAlbum + promoAdvantage` against
+`projectedStandaloneAlbum`, where
+
+```text
+promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet
+                 - cannibalizationLoss
+```
+
+`projectedAlbum` is the **Album-component projection**, already moved off its prior by
+the `AlbumComponent` lane residual at weight `confidenceAlbum`
+(`Systems/CompetitorManager.cs:1533-1535`). That lane observes realized albums that
+were themselves released alongside a promo single
+(`Systems/CompetitorManager.cs:828,831`), so whatever diversion the promo actually
+caused is already inside the projection being adjusted. Subtracting the full modelled
+`cannibalizationLoss` on top charges it a second time, at exactly weight
+`confidenceAlbum`.
+
+The duplicate share scales with album unit economics — `cannibalizationLoss` is
+`substitutionPropensity × expectedOverlapFraction × expectedSingleUnits ×
+albumMarginPerUnit` — while the terms opposing it do not: `expectedPromoLift` is a
+fixed 10,000 scalar on awareness headroom, and `expectedPromoSingleNet` is one
+single's net. So the strategy is guaranteed to decay to non-viable as the LP market
+matures, and it decays **first for whoever carries the largest
+`expectedSingleUnits`** — the Majors, at roughly 2× MidTier's.
+
+Measured, mean over album decisions, with the last column being `promoAdvantage`
+recomputed with the duplicated share removed:
+
+| year | confidenceAlbum | cannibalizationLoss | promoAdvantage | charged once |
+|---|---:|---:|---:|---:|
+| Major 1960 | 0.054 | 23,794 | 46,070 | 47,344 |
+| Major 1963 | 0.407 | 19,762 | 48,990 | 57,033 |
+| Major 1965 | 0.472 | 31,095 | 45,279 | 59,956 |
+| Major 1967 | 0.569 | 83,610 | 13,880 | 61,448 |
+| Major 1969 | 0.510 | 112,959 | **-2,378** | **55,267** |
+
+Charged twice, the Major promo proposition decays to negative by 1969. Charged once,
+it is **flat across the whole decade** at 47,344-61,448 — which is what "preserve
+singles throughput as the album pipeline grows" means mechanically. MidTier
+(20,470 → 36,467) and Independent (17,523 → 31,091) are corrected in the same
+direction but were never close to the sign change.
+
+There is a second, weaker structural problem left in place deliberately:
+`PromoAlbumConversionK` (0.50) against `substitutionK × expectedOverlapFraction`
+(1.00 × 0.60) makes the promo single's album-unit effect **negative-definite** —
+recruitment is at most `0.50·D` and as little as `0.125·D` against diversion `0.60·D`,
+so no label at any awareness in any year can find the promo's audience effect
+favourable. The comment at `Systems/CompetitorManager.cs:1791-1797` claims recruitment
+is "on the same terms as diversion"; it is 21-83% of it. **Not changed in this pass**
+— it is a constant restatement, and section 12 requires it ship separately from the
+mechanism repair above.
+
+### 20.3 Repair: charge only the share the component projection has not absorbed
+
+```csharp
+internal static float CalculateChargedPromoCannibalization(
+    float cannibalizationLoss, float albumMemoryConfidence) =>
+    Mathf.Max(0f, cannibalizationLoss) * (1f - Mathf.Clamp(albumMemoryConfidence, 0f, 1f));
+```
+
+Applied on **both** routes, not gated to live, for the same reason the promo synergy
+gain was not gated: it corrects a shared accounting error, not a defect in the live
+lane split.
+
+The relief is confidence-weighted, so it is **time-dependent by construction** rather
+than by fitting: a label with no album evidence still carries the whole modelled
+diversion, and the relief arrives only as the lane accumulates the observations that
+already price it in. `release-strategy.csv` gained a `cannibalizationCharged` column
+beside the unchanged gross `cannibalizationLoss` so the two accountings stay
+separable in later runs.
+
+Probe 84 covers the no-evidence and full-confidence endpoints, monotonicity, clamping
+of out-of-range confidence and negative loss, and the measured 1969 Major inputs
+flipping from non-viable to viable.
+
+### 20.4 1960 is byte-identical, which is the section 19.3 constraint met exactly
+
+`d7-promo-cannibalization-probes-52-1001` versus the verified reference probe run
+`d7-release-history-probes-52-1001` — probe-to-probe, per the section 19.3 trap:
+
+- `concentration.csv` is **byte-identical** (SHA-256 `024AFAB7…9DCD3D`);
+- same 4,692 format decisions, same 1,069 album decisions, **0 standalone in both**;
+- mean modelled cannibalization unchanged at 6,181, of which 5,911 is still charged —
+  `confidenceAlbum` is near zero in 1960, so 4.4% is absorbed;
+- `promoAdvantage` moves 19,179 → 19,449, and since promo already won 100% of 1960
+  album decisions, no outcome moves at all.
+
+All 84 fixed probes pass; `dotnet build` clean apart from the pre-existing unused-event
+warning; `git diff --check` clean.
+
+### 20.5 Sizing, stated before the run so it can be falsified
+
+Major chart entries track Major singles closely (1965: 439 entries on 468 singles;
+1969: 161 on 221). Restoring the promo single to ~all Major album decisions returns
+1969 Major singles to roughly 495, near their 1965 level of 468. Total chart entries
+are roughly fixed by turnover (989 → 920 across the decade), so Major entries should
+land near **33-36%** against the 35-50% band — at the band edge, not comfortably
+inside it — with Major Top-40 share rising from 25.3% toward the 45-60% target.
+
+Aggregate singles supply should rise only from ~5,096 to ~5,507 (+8%), unlike the
+section 19.2 attempt's ~2.3× capacity multiplier. Breadth is expected to be roughly
+neutral: this repair moves a strategy split inside the album lane and adds no founders
+and no release opportunities.
+
+`d7-promo-cannibalization-522-1001` is running at seed 1001 on the same flags as
+`d7-evidence-repairs-522-1001`. 1960-63 must reproduce it exactly (the first standalone
+decisions are in 1964); divergence after that is a different random realization, per
+section 14.2.
+
+## 21. Decade result: the mix objective is met, breadth is unresolved
+
+`d7-promo-cannibalization-522-1001` completed all 522 weeks, exit code 0, no band
+violations. 1960-63 reproduce `d7-evidence-repairs-522-1001` **exactly**, row for row,
+as section 20.5 required; divergence begins in 1964 with the first strategy flip.
+
+### 21.1 The mechanism fired, and it is the only thing that moved
+
+Total format decisions 48,155 → 47,863 — no supply flood, unlike section 19.2's 2.3×
+capacity multiplier. `AlbumStandalone` projects, by tier, 1969:
+
+| tier | baseline | candidate | Singles emitted, baseline → candidate |
+|---|---:|---:|---|
+| Major | 274 | **119** | 221 → 355 |
+| MidTier | 92 | 44 | 1,425 → 1,433 |
+| Independent | 45 | 3 | 3,014 → 2,980 |
+
+Mean Major 1969 cannibalization is unchanged as modelled (96,417) with 44,164 still
+charged — 54% absorbed, matching `confidenceAlbum` ≈ 0.51. The repair is doing exactly
+and only what section 20.3 describes.
+
+### 21.2 Chart mix: the section 18.7 acceptance failure is fixed
+
+| year | Major entries base → cand | Major Top-40 base → cand | MidTier entries | indieFamilyChartShare |
+|---|---|---|---|---|
+| 1965 | 40.5% → 41.2% | 64.3% → 65.2% | 29.8% → 32.0% | 0.211 → 0.212 |
+| 1966 | 34.8% → 40.2% | 56.2% → 59.8% | 32.7% → 28.1% | 0.253 → 0.271 |
+| 1967 | 22.2% → **35.4%** | 36.7% → **55.8%** | 32.3% → 29.4% | 0.444 → 0.305 |
+| 1968 | 18.8% → 31.6% | 31.6% → 49.1% | 31.7% → 26.5% | 0.534 → 0.367 |
+| 1969 | 17.9% → **30.0%** | 25.3% → **47.2%** | 30.8% → 26.7% | 0.531 → 0.426 |
+
+- **Major Top-40 share reaches 47.2% at 1969, inside the 45-60% acceptance band**,
+  against 25.3% before and against majors holding 53.8% of number-one weeks in 1969
+  (section 13.3). This was the sharpest remaining acceptance failure and it is met.
+- **Major entry share stops collapsing**: 41.4% (1960) → 41.2% (1965) → 30.0% (1969), a
+  gentle decline of the right shape, against a baseline that fell to 17.9%. 1967 at
+  35.4% is inside the 35-50% band; 1968-69 sit below it.
+- MidTier entry share stays well under its former 44.5%, at 26.7%.
+- Guardrails hold: Small tail 9.4% of identities, below-MidTier population 76.6%
+  Independent.
+
+Section 20.5 predicted 33-36% Major entries. **The measured 30.0% is below that** — the
+repair recovered 155 of the 274 abandoned Major promo singles, not all of them, because
+the remaining 119 fail the comparison on the residual `promoAdvantage` shortfall rather
+than the double count. The section 20.2 `PromoAlbumConversionK` restatement is the lever
+for the rest, and it remains deliberately unshipped.
+
+### 21.3 Breadth: 394, and the -18 is not attributable
+
+| year | 1964 | 1965 | 1966 | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | 274 | 298 | 318 | 357 | 388 | **412** |
+| candidate | 273 | 301 | 323 | 343 | 367 | **394** |
+
+394 misses the 400-600 band by 6. Section 20.5 predicted roughly neutral breadth; that
+was wrong by 18.
+
+**But it is not a measured cost of the repair.** Joining `first-chart-events.csv` on
+`releaseLabelId`, the two runs share only 303 identities: **109 chart in the baseline
+only and 92 in the candidate only.** The charting population is 26% volatile between the
+two realizations, and the net decomposes by year as:
+
+| year | 1964 | 1965 | 1966 | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline-only | 2 | 10 | 15 | 33 | 26 | 23 |
+| candidate-only | 5 | 10 | 14 | 16 | 22 | 24 |
+| net | +3 | 0 | -1 | **-17** | -4 | +1 |
+
+**The entire net loss is 1967.** If the mechanism were Major entries crowding marginal
+independents off a fixed chart, the loss would grow with Major entry share — which peaks
+in 1969, where the net is **+1**. All churn is inside Independent/Small/Boutique (89/17/3
+out, 76/15/0 in); MidTier and Major are frozen seeded sets and do not move at all.
+
+The change alters `GD.RandRange` draw counts from 1964 onward (an `AlbumWithPromo`
+project draws a gap week and a second perceived-quality multiplier that an
+`AlbumStandalone` does not), so per section 14.2 these are different random realizations
+and a difference of ten to twenty identities must not be read as causal. That rule was
+written for exactly this situation and it applies here.
+
+### 21.4 Required next step
+
+**A holdout seed, which section 15.6 has required before acceptance since the 412 run.**
+Breadth cannot be resolved at seed 1001: the candidate and the baseline differ by less
+than the seed-to-seed churn already measured within a single seed. Running both
+configurations at one holdout seed separates a 6-identity band miss from a 4% realization
+swing, and it is the evidence the acceptance claim needs regardless of which way it lands.
+
+Do **not** reach for a breadth lever before that. The section 15.3 arithmetic still holds
+— seeded Independent (57.4%) and Boutique (40.4%) conversion are the only buckets with
+enough mass — and section 1 still forbids buying the target with more label births.
+
+### 21.5 Holdout run in flight, and what it can and cannot settle
+
+`d7-promo-cannibalization-522-2029` was launched at **seed 2029** — unused; prior runs in
+`SimLogs/` cover only 1001, 1002 and 2007 — on the candidate configuration, same flags as
+above. **The user chose the candidate-only variant** of the section 21.4 step over running
+both configurations at the holdout seed.
+
+State this plainly when reading the result:
+
+- It **can** answer whether the candidate reaches 400 on a second realization. If 2029
+  lands comfortably inside 400-600, the seed-1001 miss by 6 is realization noise and the
+  configuration is acceptable on breadth. If it lands near or below 394 again, the
+  shortfall is more likely real.
+- It **cannot** isolate whether the repair costs breadth, because there is no baseline run
+  at 2029 to compare against. A cross-seed comparison against `d7-evidence-repairs-522-1001`
+  is not an A/B — the whole point of section 14.2.
+- The mix result does **not** need this run. Major Top-40 share moving 25.3% → 47.2% is far
+  outside the churn measured in section 21.3, and the strategy-split mechanism in section
+  21.1 is directly observed rather than inferred.
+
+If the holdout also misses 400, the ordered candidates are: the section 20.2
+`PromoAlbumConversionK` restatement (helps mix, expected to cost breadth if anything);
+then seeded Independent and Boutique conversion per section 15.3. Neither should be
+attempted in the same run as the other, per section 12.
+
+### 21.6 Holdout result: 411, and the mix reproduces
+
+`d7-promo-cannibalization-522-2029` completed all 522 weeks, exit code 0, no band
+violations.
+
+| year | 1960 | 1963 | 1965 | 1967 | 1969 |
+|---|---:|---:|---:|---:|---:|
+| cumulative identities | 157 | 264 | 328 | 374 | **411** |
+
+**411 is inside the 400-600 band.** Read against seed 1001's 394, the section 21.3
+reading holds: the 6-identity miss at 1001 was realization noise, and the two seeds
+bracket the band edge rather than clearing it comfortably. Final mix Small 43, Boutique
+46, Independent 292, MidTier 21, Major 9; Small tail 10.5%, below-MidTier population
+76.6% Independent.
+
+The repaired quantities reproduce across two independent realizations, which is the
+part that matters:
+
+| 1969 metric | seed 1001 | seed 2029 | baseline (1001) | target |
+|---|---:|---:|---:|---|
+| cumulative identities | 394 | **411** | 412 | 400-600 |
+| Major chart entries | 30.0% | 30.5% | 17.9% | 35-50% |
+| Major Top-40 entries | **47.2%** | **48.7%** | 25.3% | 45-60% |
+| MidTier chart entries | 26.7% | 20.8% | 30.8% | « 44.5% |
+| Major `AlbumStandalone` | 119 | 91 | 274 | — |
+
+Against the section 15.6 acceptance criteria, **four of five are met on the holdout**:
+1969 breadth in band, Major Top-40 in band, MidTier entry share far below its former
+44.5%, and a small Independent-dominated tail below MidTier.
+
+**The one reproducible failure is Major entry share, ending near 30% on both seeds
+against the 35-50% band.** Both seeds agreeing to within 0.5 points makes this a real
+shortfall, not noise — and it is exactly the residue section 21.2 predicted, the 91-119
+Major album projects per year that still abandon the promo single on the
+`promoAdvantage` shortfall rather than the double count. The section 20.2
+`PromoAlbumConversionK` restatement (0.50 against `substitutionK × expectedOverlapFraction`
+= 0.60, which makes the promo single's album-unit effect negative-definite at any
+awareness in any year) is the lever for it, and per section 12 it must ship as its own
+calibration change with its own decade run.
+
+Caveat carried forward: 2029 is a holdout for the *candidate* only. No baseline run
+exists at that seed, so nothing here isolates whether the repair costs breadth; it
+establishes only that the candidate reaches the band on a second realization.

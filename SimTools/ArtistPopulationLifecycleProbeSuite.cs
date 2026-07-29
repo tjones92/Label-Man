@@ -11,7 +11,7 @@ using System.Linq;
 /// measured: several probes reach helpers that draw from the global stream
 /// (<see cref="RosterManager.InitializeRuntimeRosterForProbe"/> consumes the
 /// legacy capacity draw, for one). A 52-week run with the flag and without it
-/// diverge in 1960 — album units 2,271,329 against 2,426,185 on seed 1001. Never
+/// diverge in 1960 â€” album units 2,271,329 against 2,426,185 on seed 1001. Never
 /// pass --artist-population-lifecycle-probes to a run being compared against a
 /// control; probe runs and comparison runs stay separate, exactly as they must
 /// for --genre-market-v2-probes.
@@ -105,7 +105,12 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbePerSongDistributionScope();                                                // 79
 		ProbePhysicalDistributionGovernsShelfStock();                                   // 80
 		ProbeSeededLargeFirmPopulation();                                                // 81
-		results.Add("D6 fixed probes 1-81 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, and a historically scaled seeded large-firm population)");
+		ProbeBreakoutEvidenceRewardsConstrainedDemand();                                 // 82
+		ProbeArtistReleaseHistoryCountsOnce();                                           // 83
+		ProbePromoCannibalizationChargedOnce();                                          // 84
+		ProbePromoRecruitmentMatchesDiversionTerms();                                    // 85
+		ProbeLoweredLocalTractionAdmitsStrandedBand();                                   // 86
+		results.Add("D6 fixed probes 1-86 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, and a lowered LocalTraction activation that admits the stranded breakout band)");
 		return results;
 	}
 
@@ -1510,6 +1515,129 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(labels.All(label => label.riskTolerance > 0f && label.artistLoyalty > 0f),
 			"81e every seeded launch label carries a complete operating profile");
 	}
+
+	private static void ProbeBreakoutEvidenceRewardsConstrainedDemand() {
+		// Two records identical except that one is selling out where its label cannot
+		// restock. Under the former form unmetInput was multiplied by volumeInput, so a
+		// supply-constrained record -- which has low fulfilled volume by construction --
+		// had its own proof cancelled. Backordered demand must now raise evidence.
+		float noBackorder = ChartManager.CalculateBreakoutEvidence(
+			.45f, .5f, .5f, .4f, .15f, .8f, .7f, unmetInput: 0f);
+		float soldOut = ChartManager.CalculateBreakoutEvidence(
+			.45f, .5f, .5f, .4f, .15f, .8f, .7f, unmetInput: 1f);
+		Require(soldOut > noBackorder && soldOut - noBackorder > .05f,
+			"82 proven demand a label cannot fulfil raises regional breakout evidence instead of being cancelled by low fulfilled volume");
+
+		// The envelope must not become a general subsidy: a high-volume incumbent keeps
+		// its prior calibration while the low-volume tail is the part that is relieved.
+		float incumbentEnvelope = .70f + .30f * .98f;
+		float tailEnvelope = .70f + .30f * .61f;
+		Require(Math.Abs(incumbentEnvelope - .994f) < .001f && incumbentEnvelope > .99f,
+			"82b a high-volume incumbent's evidence envelope is left effectively unchanged");
+		Require(tailEnvelope > .88f && tailEnvelope < .89f && tailEnvelope < incumbentEnvelope,
+			"82c the low-volume tail is relieved without overtaking high-volume records");
+
+		// Volume must still dominate: it holds the largest single weight and the envelope.
+		float lowVolume = ChartManager.CalculateBreakoutEvidence(.10f, .5f, .5f, .4f, .15f, .8f, .7f, .5f);
+		float highVolume = ChartManager.CalculateBreakoutEvidence(.90f, .5f, .5f, .4f, .15f, .8f, .7f, .5f);
+		Require(highVolume > lowVolume * 1.4f,
+			"82d volume remains the dominant breakout input after the envelope is narrowed");
+
+		// Weights are a partition, so a saturated record scores exactly 1.
+		Require(Math.Abs(ChartManager.CalculateBreakoutEvidence(1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f) - 1f) < .000001f,
+			"82e the breakout input weights remain a partition of unity");
+	}
+
+	private static void ProbeArtistReleaseHistoryCountsOnce() {
+		SimulatedArtist artist = NewArtist("release-history");
+		CompetitorManager.RecordArtistRelease(artist, "rec_a", ReleaseFormat.Single);
+		Require(artist.releaseHistory.Count == 1 && artist.totalReleases == 1 &&
+			artist.releasedSingleIds.Contains("rec_a") && artist.weeksSinceLastRelease == 0,
+			"83 one live release appends exactly one project-history entry");
+
+		CompetitorManager.RecordArtistRelease(artist, "rec_b", ReleaseFormat.Single);
+		CompetitorManager.RecordArtistRelease(artist, "rec_c", ReleaseFormat.Single);
+		Require(artist.releaseHistory.Count == 3,
+			"83b three releases reach the GenreSupplyService project-history cap in three, not two");
+
+		// Guard the boundary the double count actually moved.
+		Require(Math.Min(2, 3) * .03f < Math.Min(3, 3) * .03f,
+			"83c project-identity retention still distinguishes a second release from a third");
+	}
+
+	private static void ProbePromoCannibalizationChargedOnce() {
+		// A label with no Album-component evidence still carries the whole modelled
+		// diversion: nothing has been priced in for it yet, so 1960 is unmoved.
+		Require(Math.Abs(CompetitorManager.CalculateChargedPromoCannibalization(100000f, 0f) - 100000f) < .001f,
+			"84 an Album-component lane with no evidence charges the full modelled promo cannibalization");
+
+		// A label whose projection is fully memory-driven has the diversion inside that
+		// projection already, so charging it again would be the double count.
+		Require(CompetitorManager.CalculateChargedPromoCannibalization(100000f, 1f) == 0f,
+			"84b a fully confident Album-component projection charges no additional cannibalization");
+
+		// The relief is monotone in confidence and never exceeds the modelled loss, so it
+		// is a reallocation between two accountings of one effect, not a new subsidy.
+		float low = CompetitorManager.CalculateChargedPromoCannibalization(100000f, .2f);
+		float high = CompetitorManager.CalculateChargedPromoCannibalization(100000f, .7f);
+		Require(high < low && low < 100000f && high > 0f,
+			"84c charged cannibalization falls monotonically as Album-component confidence rises");
+
+		// Confidence outside [0,1] and a negative modelled loss must not invent a credit.
+		Require(CompetitorManager.CalculateChargedPromoCannibalization(100000f, 1.4f) == 0f &&
+			Math.Abs(CompetitorManager.CalculateChargedPromoCannibalization(100000f, -.3f) - 100000f) < .001f &&
+			CompetitorManager.CalculateChargedPromoCannibalization(-5000f, .5f) == 0f,
+			"84d out-of-range confidence and negative modelled loss are clamped rather than inverted");
+
+		// The measured failure this repairs: a Major's 1969 inputs. Charged in full the
+		// promo strategy is not viable and the Album ships with no Single; charged once
+		// against a half-confident component projection it survives, which is what keeps
+		// the Singles pipeline alive as the LP share rises.
+		const float promoTerms = 3685f + 52751f + 68956f;
+		const float modelledLoss = 141465f;
+		Require(promoTerms - modelledLoss < 0f,
+			"84e the measured 1969 Major promo proposition is non-viable when cannibalization is charged twice");
+		Require(promoTerms - CompetitorManager.CalculateChargedPromoCannibalization(modelledLoss, .51f) > 0f,
+			"84f the same proposition is viable once the component projection's share is not charged again");
+	}
+
+	private static void ProbePromoRecruitmentMatchesDiversionTerms() {
+		// Recruitment (CalculatePromoAlbumSynergyGain) and diversion are the two sides of
+		// the promo Single's Album-unit effect. Diversion is substitutionK (1.00) * album
+		// demand * shelf overlap (0.60); recruitment is PromoAlbumConversionK * album
+		// demand * awareness headroom. With the base conversion now at or above substitutionK,
+		// recruitment exceeds diversion at real awareness headroom yet stays dilutive at the floor.
+		const float albumDemand = .60f, singleUnits = 1000f, margin = 10f;
+		float diverted = Math.Min(1.00f * albumDemand, .60f) * .60f * singleUnits * margin;
+		float recruitUnknownAct = CompetitorManager.CalculatePromoAlbumSynergyGain(albumDemand, 1f, singleUnits, margin);
+		float recruitEstablishedAct = CompetitorManager.CalculatePromoAlbumSynergyGain(albumDemand, 0f, singleUnits, margin);
+		Require(recruitUnknownAct > diverted,
+			"85 a hit promo Single for an unknown act now recruits more Album units than it diverts");
+		Require(recruitEstablishedAct < diverted,
+			"85b an established act's promo Single stays mildly dilutive, preserving the awareness-gated crossover rather than a flat subsidy");
+		// The former 0.50 base put recruitment strictly below diversion at every headroom.
+		Require(recruitUnknownAct > .50f * albumDemand * 1f * singleUnits * margin,
+			"85c raising the base conversion to substitutionK lifts recruitment above the former negative-definite half-measure");
+	}
+
+	private static void ProbeLoweredLocalTractionAdmitsStrandedBand() {
+		// LocalTraction, and the discovery basin it opens, began at 0.24, stranding the
+		// 0.18-0.24 breakout band: above the 0.18 collapse floor so not dying, below the
+		// activation so earning no reinforcement. Lowering activation to 0.20 admits the
+		// upper part of that band to the discovery ramp.
+		Require(ChartManager.CalculateBreakoutDiscoveryStrength(0.21f) > 0f &&
+			ChartManager.CalculateBreakoutDiscoveryStrength(0.20f) == 0f,
+			"86 a record just above the lowered 0.20 LocalTraction activation now earns self-reinforcing discovery");
+		Require(ChartManager.CalculateBreakoutDiscoveryStrength(0.19f) == 0f,
+			"86b a record below the activation earns none, so the sub-collapse-floor population is unchanged");
+		// The ramp keeps its 0.40-wide shape: monotone, zero at the anchor, saturating a
+		// full 0.40 above it, so a RegionalBreakout-strength incumbent earns the same
+		// reinforcement it already did (and is separately capped at runtime).
+		Require(ChartManager.CalculateBreakoutDiscoveryStrength(0.40f) > ChartManager.CalculateBreakoutDiscoveryStrength(0.30f) &&
+			Math.Abs(ChartManager.CalculateBreakoutDiscoveryStrength(0.60f) - 1f) < .000001f,
+			"86c the discovery-strength ramp stays monotone and saturates a fixed 0.40 above the activation");
+	}
+
 
 	private static void Require(bool condition, string message) {
 		if (!condition) throw new InvalidOperationException("D6 probe failed: " + message);

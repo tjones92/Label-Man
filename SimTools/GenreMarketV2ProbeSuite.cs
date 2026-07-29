@@ -524,8 +524,11 @@ public static class GenreMarketV2ProbeSuite {
 			Math.Abs(CompetitorManager.CalculateAlbumPortfolioCredit(1.50f, 200f) - 100f) < .0001f &&
 			-800f + CompetitorManager.CalculateAlbumPortfolioCredit(1.75f, -800f) > -800f * 1.75f,
 			"Album portfolio credit is sign-safe and lifts a negative-net proposition toward the Single hurdle rather than away from it");
-		// Diversion and recruitment must stay in proportion as album demand rises, or
-		// the promo strategy crosses over into permanent non-viability market-wide.
+		// Diversion and recruitment must stay in proportion as album demand rises, or the
+		// promo strategy crosses over into permanent non-viability market-wide. With the
+		// base conversion now equal to substitutionK, recruitment exceeds diversion at real
+		// awareness headroom (a hit Single is a net Album driver) and is dilutive only at
+		// the awareness floor -- the awareness-gated crossover, not a flat per-unit deficit.
 		float lateDiverted = .316f * .485f * 63262f * 2.116f;
 		float lateRecruited = CompetitorManager.CalculatePromoAlbumSynergyGain(.316f, .617f, 63262f, 2.116f);
 		float earlyDiverted = .035f * .30f * 20000f * .70f;
@@ -539,11 +542,11 @@ public static class GenreMarketV2ProbeSuite {
 		float fullHeadroom = CompetitorManager.CalculatePromoAlbumSynergyGain(.316f, 1f, 63262f, 2.116f);
 		Require(lateRecruited > 0f && earlyRecruited > 0f &&
 			Math.Abs(lateRecruited / lateDiverted - earlyRecruited / earlyDiverted) < .35f &&
-			lateRecruited / lateDiverted < 1f &&
+			lateRecruited / lateDiverted > 1f && noHeadroom / lateDiverted < 1f &&
 			noHeadroom > 0f && noHeadroom < lateRecruited && lateRecruited < fullHeadroom &&
 			Math.Abs(noHeadroom / fullHeadroom - .25f) < .000001f &&
 			CompetitorManager.CalculatePromoAlbumSynergyGain(0f, .617f, 63262f, 2.116f) == 0f,
-			"promo Single Album recruitment scales on the same terms as diversion, stays mildly dilutive per unit, falls to but never below the awareness conversion floor, and vanishes without album demand");
+			"promo Single Album recruitment scales on the same base terms as diversion: a net Album driver at real awareness headroom, dilutive only at the awareness floor, never falling below it, and vanishing without album demand");
 		Require(Math.Abs(CompetitorManager.CalculateAlbumPriorEraCalibration(1960) - 1f) < .000001f &&
 			CompetitorManager.CalculateAlbumPriorEraCalibration(1961) < .80f &&
 			CompetitorManager.CalculateAlbumPriorEraCalibration(1962) > CompetitorManager.CalculateAlbumPriorEraCalibration(1961) &&

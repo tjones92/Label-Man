@@ -74,6 +74,18 @@ public partial class ChartManager : Node {
 	// becoming a disguised national pool.
 	private const float SpilloverMaximumExportShare = 0.75f;
 	private const float SpilloverMaximumImportShare = 0.15f;
+	// The breakout score at which a record enters LocalTraction and, with it, the
+	// self-reinforcing discovery basin (ApplyBreakoutDiscovery adds awareness and radio
+	// that feed back into evidence). Below this a record neither collapses (that floor is
+	// 0.18) nor climbs — it stalls. Offer-attempt telemetry showed a large Independent/
+	// Boutique/Small population peaking in the resulting 0.18-0.24 limbo and signing at
+	// only ~35% against ~84% just above it, which is where the decade's charting breadth
+	// was being lost. Lowered 0.24 -> 0.20 to admit the upper part of that band to the
+	// discovery ramp while leaving the 0.18 collapse floor intact. Incumbents sit at the
+	// 0.40 RegionalBreakout stage with their discovery gains already capped, so the relief
+	// is confined to the tail. regionalBreakoutDealThreshold in CompetitorManager tracks
+	// this value.
+	private const float LocalTractionActivationScore = 0.20f;
 	private readonly List<MarketClearingRegionalSummary> lastMarketClearingSummaries = new();
 	private readonly List<MarketSpilloverTransfer> lastMarketSpilloverTransfers = new();
 	private CompletedWeekSettlement lastCompletedWeekSettlement;
@@ -1467,6 +1479,23 @@ public partial class ChartManager : Node {
 	/// buying population. Two records selling the same share of their local market
 	/// must produce the same evidence regardless of how large that market is.
 	/// </summary>
+	// Volume already carries the largest single weight below. The former
+	// 0.55 + 0.45 * volume envelope multiplied the whole score by volume a second time,
+	// so a record at volume 0.61 kept 82.5% of its evidence while one at 0.98 kept 99%.
+	// That is the double count section 10.1 of the chart-access handoff identified;
+	// region scaling corrected the thresholds feeding volumeInput but left this envelope
+	// intact. Narrowing it to 0.70 + 0.30 * volume leaves high-volume incumbents
+	// effectively unchanged (0.990 -> 0.993) and relieves the low-volume tail
+	// (0.825 -> 0.884), which is where the never-charting population sits.
+	internal static float CalculateBreakoutEvidence(float volumeInput, float velocityInput,
+		float sustainedInput, float audienceInput, float mediaInput, float genreFit,
+		float quality, float unmetInput) {
+		float evidence = volumeInput * 0.30f + velocityInput * 0.15f + sustainedInput * 0.09f +
+			audienceInput * 0.12f + mediaInput * 0.10f + genreFit * 0.08f +
+			quality * 0.08f + unmetInput * 0.08f;
+		return evidence * (0.70f + volumeInput * 0.30f);
+	}
+
 	internal static float CalculateBreakoutVolumeInput(float rawDemandThisWeek, float unitsSoldThisWeek, float regionScale) {
 		float scale = Mathf.Max(regionScale, 0.000001f);
 		float rawVolume = Mathf.Clamp((rawDemandThisWeek - 150f * scale) / (3500f * scale), 0f, 1f);
@@ -1518,18 +1547,24 @@ public partial class ChartManager : Node {
 			float audienceInput = Mathf.Clamp(data.awareness, 0f, 1f);
 			float mediaInput = Mathf.Clamp(data.radioPlay * 0.75f + data.jukeboxPlay * 0.25f, 0f, 1f);
 			float genreFit = region.GetGenreAcceptance(record.baseRecord.primaryGenre, year);
-			float unmetInput = volumeInput * Mathf.Clamp(data.unitsBackordered / Mathf.Max(750f * regionScale, data.rawDemandThisWeek), 0f, 1f);
+			// Unmet demand is deliberately NOT multiplied by volumeInput. Scaling it by
+			// volume counted volume a third time and cancelled the signal for exactly the
+			// labels it describes: a record selling out where its label cannot restock has
+			// low fulfilled volume by construction. Measured over 1.27M record-region-weeks,
+			// regions a label does not cover carry backorders in 31.05% of weeks against
+			// 1.88% for covered ones, so the old form muted proven demand precisely where
+			// distribution was the binding constraint -- which is the signal a distributor
+			// historically acted on.
+			float unmetInput = Mathf.Clamp(data.unitsBackordered / Mathf.Max(750f * regionScale, data.rawDemandThisWeek), 0f, 1f);
 			float sustainedInput = Mathf.Clamp(data.sustainedGrowthWeeks / 3f, 0f, 1f);
 
-			float evidence = volumeInput * 0.34f + velocityInput * 0.15f + sustainedInput * 0.09f +
-				audienceInput * 0.12f + mediaInput * 0.10f + genreFit * 0.08f +
-				quality * 0.08f + unmetInput * 0.04f;
-			evidence *= 0.55f + volumeInput * 0.45f;
+			float evidence = CalculateBreakoutEvidence(volumeInput, velocityInput, sustainedInput,
+				audienceInput, mediaInput, genreFit, quality, unmetInput);
 			float response = evidence >= data.breakoutScore ? 0.48f : 0.28f;
 			data.breakoutScore = Mathf.Lerp(data.breakoutScore, evidence, response);
 			data.peakBreakoutScore = Mathf.Max(data.peakBreakoutScore, data.breakoutScore);
 
-			if (data.breakoutScore >= 0.24f) {
+			if (data.breakoutScore >= LocalTractionActivationScore) {
 				data.tractionWeeks++;
 			} else {
 				data.tractionWeeks = Mathf.Max(0, data.tractionWeeks - 1);
@@ -1539,7 +1574,7 @@ public partial class ChartManager : Node {
 
 			if (data.breakoutScore >= 0.40f && data.tractionWeeks >= 2) {
 				data.breakoutStage = RegionalBreakoutStage.RegionalBreakout;
-			} else if (data.breakoutScore >= 0.24f && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
+			} else if (data.breakoutScore >= LocalTractionActivationScore && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
 				data.breakoutStage = RegionalBreakoutStage.LocalTraction;
 			} else if (data.collapseWeeks >= 2 && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
 				data.breakoutStage = RegionalBreakoutStage.None;
@@ -1583,6 +1618,13 @@ public partial class ChartManager : Node {
 		}
 	}
 
+	// Discovery reinforcement ramps from zero at LocalTractionActivationScore to full a
+	// fixed 0.40 above it, so lowering the activation shifts the whole ramp down in
+	// lockstep and a record newly admitted to the basin earns a correspondingly small
+	// initial gain rather than a step.
+	internal static float CalculateBreakoutDiscoveryStrength(float breakoutScore) =>
+		Mathf.Clamp((breakoutScore - LocalTractionActivationScore) / 0.40f, 0f, 1f);
+
 	private void ApplyBreakoutDiscovery(RecordRuntimeData record) {
 		AILabel label = GetLabelById(record.baseRecord.labelId);
 		if (label == null) return;
@@ -1595,7 +1637,7 @@ public partial class ChartManager : Node {
 			if (!record.regionalData.TryGetValue(sourceRegion.regionId, out RegionalRecordData source)) continue;
 			if (source.breakoutStage < RegionalBreakoutStage.LocalTraction) continue;
 
-			float strength = Mathf.Clamp((source.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
+			float strength = CalculateBreakoutDiscoveryStrength(source.breakoutScore);
 			float localAwarenessGain = source.breakoutStage >= RegionalBreakoutStage.RegionalBreakout
 				? 0.006f + strength * 0.014f
 				: 0.001f + strength * 0.003f;

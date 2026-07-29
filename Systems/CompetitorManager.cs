@@ -64,12 +64,23 @@ public partial class CompetitorManager : Node {
 	private const float AlbumPortfolioCommitmentCeiling = 1.50f;
 	private const float AlbumProgramRosterDepth = 12f;
 	private const float AlbumProgramReachWeight = .55f;
-	// Calibrated against measured 1967 means (overlap .485, awareness headroom .617)
-	// so recruited units run about .64 of diverted units per unit of shared exposure.
-	// The promo Single stays net-positive on its own margin while remaining mildly
-	// dilutive per unit — matching a decade in which promo Singles were the primary
-	// LP marketing vehicle rather than a strategy that dies at the LP takeover.
-	private const float PromoAlbumConversionK = .50f;
+	// A promo Single both diverts Album buyers (cannibalizationLoss) and recruits them
+	// (CalculatePromoAlbumSynergyGain). Diversion is substitutionK * albumDemand * shelf
+	// overlap; recruitment is PromoAlbumConversionK * albumDemand * awareness headroom.
+	// Holding the base conversion below substitutionK made recruitment net-dilutive at
+	// every awareness level, so as the LP market matured the promo proposition decayed to
+	// non-viable for the highest-volume acts first, evacuating the Major Singles chart
+	// after 1966 (30.0% of 1969 chart entries against a 35-50% band). Parity with
+	// substitutionK (1.0) recovered 1969 Major entry share to 35.3% but left it on the
+	// band floor, with ~71 Major Album decisions a year still dropping the promo Single.
+	// A promo Single is the Album's primary advertisement and for a breaking act net-
+	// expands the Album audience rather than reallocating it, so the base is set half
+	// again above substitutionK to hold late-decade Major entry share off the floor. It
+	// stays below 2.4, where even a well-known act's promo would cease to be dilutive, so
+	// the awareness-gated crossover is preserved: a net Album driver at real headroom,
+	// mildly dilutive at the floor. Only post-1966 standalone decisions move — 1960-65
+	// promo already wins every Album decision, so early-decade calibration is untouched.
+	private const float PromoAlbumConversionK = 1.50f;
 	// A promo Single recruits Album buyers partly on novelty and partly on being the
 	// Album's advertisement. Gating recruitment purely on awareness headroom made the
 	// second effect vanish exactly where it was strongest: a famous act's hit Single
@@ -135,11 +146,14 @@ public partial class CompetitorManager : Node {
 	[Export(PropertyHint.Range, "0,1,0.001")] private float selfBuiltNationalReachMonthlyGain = 0.008f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float selfBuiltReachReinvestRate = 0.10f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float completedDealNationalReachRetention = 0.25f;
-	// LocalTraction begins at .24 in UpdateRegionalBreakoutState. That is the
+	// LocalTraction begins at .20 in UpdateRegionalBreakoutState. That is the
 	// observed-market boundary at which a label has evidence worth taking to a
 	// distributor; the later .40 RegionalBreakout stage is intentionally not a
-	// prerequisite for obtaining the network that helps create it.
-	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.24f;
+	// prerequisite for obtaining the network that helps create it. This tracks
+	// LocalTractionActivationScore: the offer-attempt telemetry showed the sign rate
+	// cliff sitting exactly on this boundary (~36% just below, ~84% just above), so the
+	// two must move together or a record can climb the chart ramp yet be denied the deal.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.20f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyLow = DealDependencyLow;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyHigh = DealDependencyHigh;
 	
@@ -1117,10 +1131,7 @@ public partial class CompetitorManager : Node {
 		CaptureSingleOpportunity(runtimeData, label, date.year);
 		TrackRelease(label.labelId, record.recordId);
 		WeeklySingleReleases++;
-		RosterManager.Instance?.RecordReleased(artist, record.recordId);
-		artist.weeksSinceLastRelease = 0;
-		artist.releaseHistory.Add(record.recordId);
-		if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
+		RecordArtistRelease(artist, record.recordId, record.format);
 		annualFormatDecisions++;
 		OnCalibrationDecision?.Invoke(new CalibrationDecisionTelemetry {
 			recordId = record.recordId,
@@ -1401,11 +1412,27 @@ public partial class CompetitorManager : Node {
 		runtime.albumProjectId = record.albumProjectId;
 		if (role == ProjectRecordRole.LinkedAlbum && projectById.TryGetValue(projectId, out AlbumProject project)) runtime.linkedPromoSingleId = project.promoSingleId;
 		TrackRelease(label.labelId, record.recordId);
-		if (artist != null) {
-			RosterManager.Instance?.RecordReleased(artist, record.recordId);
-			artist.releaseHistory.Add(record.recordId);
-			if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
+		RecordArtistRelease(artist, record.recordId, record.format);
+	}
+
+	// RosterManager.RecordReleased already appends to releaseHistory, so the second
+	// append this replaces double-counted every live release. GenreSupplyService caps
+	// project history at three (Systems/GenreSupplyService.cs:211-212), so an artist hit
+	// that cap after two releases instead of three and carried up to 0.06 of unearned
+	// project-identity retention. The prewarm path is unaffected: it never calls
+	// RecordReleased and already appended exactly once. The fallback preserves the
+	// bookkeeping when the RosterManager singleton is unavailable, which is the reason
+	// the redundant append existed at the call sites.
+	internal static void RecordArtistRelease(SimulatedArtist artist, string recordId, ReleaseFormat format) {
+		if (artist == null || string.IsNullOrEmpty(recordId)) return;
+		if (RosterManager.Instance != null) {
+			RosterManager.Instance.RecordReleased(artist, recordId);
+		} else {
+			artist.totalReleases++;
+			artist.releaseHistory.Add(recordId);
 		}
+		artist.weeksSinceLastRelease = 0;
+		if (format == ReleaseFormat.Single) artist.releasedSingleIds.Add(recordId);
 	}
 
 	private static void CaptureSingleOpportunity(RecordRuntimeData runtime, AILabel label, int year) {
@@ -1452,6 +1479,7 @@ public partial class CompetitorManager : Node {
 		substitutionCap = plan.substitutionCap, substitutionPropensity = plan.substitutionPropensity,
 		expectedOverlapFraction = plan.expectedOverlapFraction, divertedUnits = plan.divertedUnits,
 		albumMarginPerUnit = plan.albumMarginPerUnit, cannibalizationLoss = plan.cannibalizationLoss,
+		cannibalizationCharged = plan.cannibalizationCharged,
 		expectedPromoLift = plan.expectedPromoLift, expectedPromoSingleNet = plan.expectedPromoSingleNet,
 		promoAdvantage = plan.promoAdvantage, singlePreTiltContribution = plan.singlePreTiltContribution,
 		singleFormatTilt = plan.singleFormatTilt, albumAffinity = plan.albumAffinity,
@@ -1587,7 +1615,24 @@ public partial class CompetitorManager : Node {
 		// totalUnits, grossRevenue, labelNet and marketNet out of band at 1968-69.
 		float promoSynergyGain = CalculatePromoAlbumSynergyGain(albumDemandFactor,
 			1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f), expectedSingleUnits, albumPrior.marginPerUnit);
-		float promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - cannibalizationLoss;
+		// projectedAlbum above is the Album-component projection, already moved off its
+		// prior by the AlbumComponent lane residual at weight confidenceAlbum — and that
+		// lane observes realized Albums that were themselves released alongside a promo
+		// Single. Whatever diversion the promo actually caused is therefore already
+		// inside the projection being adjusted, so subtracting the full modelled
+		// cannibalizationLoss on top charges it twice, at exactly that weight.
+		//
+		// The duplicate share scales with album unit economics while the terms opposing
+		// it — the promo Single's own net and a fixed awareness scalar — do not, so the
+		// strategy decays to non-viable precisely as the LP market matures, and it decays
+		// first for whoever carries the largest expectedSingleUnits. Measured over the
+		// 48,155 decisions of d7-evidence-repairs-522-1001, mean Major promoAdvantage
+		// falls 46,070 (1960) to -2,378 (1969); charged once it is flat, 47,344 to 55,267.
+		// Majors abandoned the promo Single for 274 of 495 decisions in 1969 against 0 of
+		// 360 in 1960, and a standalone Album emits no Single, which is the whole of the
+		// late-decade Major Singles collapse.
+		float chargedCannibalizationLoss = CalculateChargedPromoCannibalization(cannibalizationLoss, confidenceAlbum);
+		float promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - chargedCannibalizationLoss;
 		float componentProjectedAlbumWithPromo = projectedAlbum + promoAdvantage;
 		float projectedAlbumWithPromo = componentProjectedAlbumWithPromo;
 		if (useResponsiveMemory) projectedAlbumWithPromo += projectResponsive.Confidence * projectResponsive.Residual *
@@ -1681,6 +1726,7 @@ public partial class CompetitorManager : Node {
 			divertedUnits = divertedUnits,
 			albumMarginPerUnit = albumPrior.marginPerUnit,
 			cannibalizationLoss = cannibalizationLoss,
+			cannibalizationCharged = chargedCannibalizationLoss,
 			expectedPromoLift = expectedPromoLift,
 			promoAdvantage = promoAdvantage,
 			albumChoiceProbability = albumChoiceProbability,
@@ -1787,6 +1833,19 @@ public partial class CompetitorManager : Node {
 		Mathf.Max(0f, PromoAlbumConversionK * Mathf.Max(0f, albumDemandFactor) *
 			Mathf.Lerp(PromoAwarenessConversionFloor, 1f, Mathf.Clamp(awarenessHeadroom, 0f, 1f)) *
 			Mathf.Max(0f, expectedSingleUnits) * albumMarginPerUnit);
+
+	/// <summary>
+	/// The share of modelled promo cannibalization the format decision must still
+	/// charge explicitly. The Album-component projection it adjusts is already
+	/// memory-blended at <paramref name="albumMemoryConfidence"/> against realized
+	/// Albums released with a promo Single, so that much of the diversion is priced
+	/// in before the explicit charge is applied. Charging only the complement keeps
+	/// the promo proposition on one accounting of the same effect, and is inert
+	/// while the lane has no evidence.
+	/// </summary>
+	internal static float CalculateChargedPromoCannibalization(
+		float cannibalizationLoss, float albumMemoryConfidence) =>
+		Mathf.Max(0f, cannibalizationLoss) * (1f - Mathf.Clamp(albumMemoryConfidence, 0f, 1f));
 
 	/// <summary>
 	/// The Album prior's opportunity term is flat before `albumDemandRiseStartYear`
@@ -2228,6 +2287,7 @@ public partial class CompetitorManager : Node {
 		public float divertedUnits;
 		public float albumMarginPerUnit;
 		public float cannibalizationLoss;
+		public float cannibalizationCharged;
 		public float expectedPromoLift;
 		public float promoAdvantage;
 		public float albumChoiceProbability;
@@ -3354,6 +3414,7 @@ public sealed class ReleaseStrategyTelemetry {
 	public float divertedUnits;
 	public float albumMarginPerUnit;
 	public float cannibalizationLoss;
+	public float cannibalizationCharged;
 	public float expectedPromoLift;
 	public float expectedPromoSingleNet;
 	public float promoAdvantage;
