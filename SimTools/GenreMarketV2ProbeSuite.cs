@@ -526,7 +526,7 @@ public static class GenreMarketV2ProbeSuite {
 			"Album portfolio credit is sign-safe and lifts a negative-net proposition toward the Single hurdle rather than away from it");
 		// Diversion and recruitment must stay in proportion as album demand rises, or the
 		// promo strategy crosses over into permanent non-viability market-wide. With the
-		// base conversion now equal to substitutionK, recruitment exceeds diversion at real
+		// base conversion now at or above substitutionK, recruitment exceeds diversion at real
 		// awareness headroom (a hit Single is a net Album driver) and is dilutive only at
 		// the awareness floor -- the awareness-gated crossover, not a flat per-unit deficit.
 		float lateDiverted = .316f * .485f * 63262f * 2.116f;
@@ -546,7 +546,7 @@ public static class GenreMarketV2ProbeSuite {
 			noHeadroom > 0f && noHeadroom < lateRecruited && lateRecruited < fullHeadroom &&
 			Math.Abs(noHeadroom / fullHeadroom - .25f) < .000001f &&
 			CompetitorManager.CalculatePromoAlbumSynergyGain(0f, .617f, 63262f, 2.116f) == 0f,
-			"promo Single Album recruitment scales on the same base terms as diversion: a net Album driver at real awareness headroom, dilutive only at the awareness floor, never falling below it, and vanishing without album demand");
+			"promo Single Album recruitment scales at or above diversion's base: a net Album driver at real awareness headroom, dilutive only at the awareness floor, never falling below it, and vanishing without album demand");
 		Require(Math.Abs(CompetitorManager.CalculateAlbumPriorEraCalibration(1960) - 1f) < .000001f &&
 			CompetitorManager.CalculateAlbumPriorEraCalibration(1961) < .80f &&
 			CompetitorManager.CalculateAlbumPriorEraCalibration(1962) > CompetitorManager.CalculateAlbumPriorEraCalibration(1961) &&

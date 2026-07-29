@@ -1617,7 +1617,7 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"85b an established act's promo Single stays mildly dilutive, preserving the awareness-gated crossover rather than a flat subsidy");
 		// The former 0.50 base put recruitment strictly below diversion at every headroom.
 		Require(recruitUnknownAct > .50f * albumDemand * 1f * singleUnits * margin,
-			"85c raising the base conversion to substitutionK lifts recruitment above the former negative-definite half-measure");
+			"85c raising the base conversion to at least substitutionK lifts recruitment above the former negative-definite half-measure");
 	}
 
 	private static void ProbeLoweredLocalTractionAdmitsStrandedBand() {

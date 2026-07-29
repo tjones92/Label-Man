@@ -2053,3 +2053,204 @@ calibration change with its own decade run.
 Caveat carried forward: 2029 is a holdout for the *candidate* only. No baseline run
 exists at that seed, so nothing here isolates whether the repair costs breadth; it
 establishes only that the candidate reaches the band on a second realization.
+
+## 22. Breadth and late-decade Major share: both fixed and accepted across two seeds
+
+Per user direction, this pass took the two remaining acceptance gaps together — breadth
+sitting on the band edge and Major entry share collapsing after 1966 — diagnosed each
+from the candidate run's own telemetry, shipped a fix for each, and validated both on a
+decade run at seed 1001 and a holdout at seed 2029. The user chose to run both fixes in
+one decade run rather than two, accepting the reduced per-fix attribution.
+
+### 22.1 Breadth: the 0.18-0.24 breakout limbo band
+
+The candidate's `distribution-offer-attempts.csv` shows the below-MidTier sign rate is not
+a soft ramp but a **cliff at 0.18 breakout score**, with a second inflection at 0.24:
+
+| best strong-region peak | Independent labels | sign rate |
+|---|---:|---:|
+| < 0.10 | 63 | 0% |
+| 0.10-0.18 | 81 | 1% |
+| 0.18-0.24 | 99 | 36% |
+| 0.24-0.30 | 135 | 84% |
+| 0.30-0.40 | 136 | 89% |
+| 0.40+ | 194 | 94% |
+
+`ChartManager.UpdateRegionalBreakoutState` explains it exactly. Three zones exist around
+the breakout score: **below 0.18** a record collapses (`collapseWeeks` accrues, stage
+decays to None); **at or above 0.24** it enters `LocalTraction` and `ApplyBreakoutDiscovery`
+feeds it self-reinforcing awareness and radio that raise future evidence; the **0.18-0.24
+band is limbo** — not collapsing, but `breakoutStage < LocalTraction` so discovery skips it
+(`ChartManager.cs` line ~1631), and it never climbs to the 0.30-plus region where deals and
+charts happen. Roughly 190 Independent/Boutique/Small labels were stranded there. This is
+where the decade's charting breadth was being lost, and it is exactly the seeded-Independent
+(57.4%) and Boutique (40.4%) conversion the section 15.3 arithmetic pointed at.
+
+**Fix:** `LocalTractionActivationScore` (new named constant) lowers the LocalTraction /
+traction-accrual / discovery-activation anchor from 0.24 to **0.20**, admitting the upper
+part of the limbo band to the discovery ramp while leaving the 0.18 collapse floor intact,
+so genuinely dead records still die. The discovery ramp was extracted to
+`CalculateBreakoutDiscoveryStrength`. The coupled deal gate
+`CompetitorManager.regionalBreakoutDealThreshold` — which the code comment ties to the same
+LocalTraction boundary, and which is the actual sign gate producing the 0.24 cliff — moves
+to 0.20 with it. It is incumbent-neutral by construction: incumbents sit at the 0.40
+RegionalBreakout stage with their discovery gains already capped. Probe 86 pins it.
+
+The 1960 checkpoint confirmed the shape before the decade run: breadth +9 with all growth
+in Independent (MidTier and Major frozen), c4 unchanged at 0.48, Major entry still ~40%.
+
+### 22.2 Major share: the promo-recruitment negative-definite defect
+
+Section 20 charged promo cannibalization once, recovering 155 of 274 abandoned Major promo
+singles, but 1969 Major entry share still ended at 30.0%. The residual — 119 Major Album
+decisions a year still dropping the promo single — traces to `PromoAlbumConversionK`. The
+promo single's Album-unit **recruitment** (`CalculatePromoAlbumSynergyGain`) is
+`K * albumDemand * awarenessHeadroom`; its **diversion** is `substitutionK * albumDemand *
+overlap`. With `K = 0.50` against `substitutionK = 1.00` and overlap `0.60`, recruitment ran
+only 0.13-0.50x diversion — net-dilutive at *every* awareness level, so as the LP market
+matured the promo proposition decayed to non-viable for the highest-`expectedSingleUnits`
+acts first, which are the Majors.
+
+**Fix:** raise `PromoAlbumConversionK` so recruitment is on the same base terms as diversion
+(`= substitutionK`), making a hit single for an unknown act a net Album driver while
+remaining mildly dilutive for a well-known act (the awareness-gated crossover, preserved
+below K = 2.4). Sized from `release-strategy.csv`: K = 1.0 flips the majority of the residual
+standalone decisions; the user then directed a tune to **K = 1.5** for margin off the band
+floor. K only moves post-1966 decisions — 1960-65 promo already wins every Album decision —
+so there is no early-decade risk. Probe 85 pins the crossover; the D5 probe that had encoded
+the old "mildly dilutive per unit" invariant was updated. `release-strategy.csv` gained
+`cannibalizationCharged` (section 20) and the standalone-decision count is the direct
+mechanism read.
+
+### 22.3 Measured, two seeds, all five acceptance criteria met
+
+| metric (1969) | seed 1001 (K=1.0) | seed 2029 (K=1.5) | candidate 1001 | candidate 2029 | target |
+|---|---:|---:|---:|---:|---|
+| cumulative identities | 424 | 423 | 394 | 411 | 400-600 |
+| Major chart entries | 35.3% | 36.4% | 30.0% | 30.5% | 35-50% |
+| Major Top-40 entries | 52.1% | 55.4% | 47.2% | 48.7% | 45-60% |
+| MidTier chart entries | 22.8% | 17.4% | 26.7% | 20.8% | « 44.5% |
+| c4 | 0.286 | 0.284 | 0.227 | 0.236 | not cratered |
+| Small tail | 9.7% | 12.1% | 9.4% | 10.5% | small, Ind-dominated |
+
+Breadth is essentially seed-invariant here (~423-424) because it is driven by the
+LocalTraction fix, not K, so the two seeds validate it as one config despite the K
+difference. Both fixes are incumbent-neutral: MidTier and Major first-chart buckets stay
+frozen (section 15.2). The late-decade Major collapse is arrested — Major entry holds inside
+the band every year (`42.7 -> 41.4 -> 38.4 -> 36.4` on 2029 across 1966-69) instead of
+falling out to 30%. Runs: `d7-breadth-major-decade-522-1001`, `d7-major-tune-holdout-522-2029`;
+probes `d7-breadth-major-probes-52-1001`, `d7-major-tune-probes-52-1001`. All 86 D6 probes
+plus D5 pass; `dotnet build` clean apart from the pre-existing unused-event warning.
+
+Committed and pushed as `3b4a696` (an auto-generated message from a Codex run; the content is
+this breadth + Major-share pass on top of the section 18/20 evidence and promo repairs).
+
+### 22.4 The promo lever has a ~36% ceiling — this is why section 23 exists
+
+The K = 1.5 tune is the decisive measurement. It flipped Major `AlbumStandalone` decisions
+from 91 (candidate 2029) to **5** in 1969 — near-total promo restoration, the lever
+essentially maxed. Yet Major entry share moved only 35.3% -> 36.4%. **With Majors frozen at
+8 seeded firms, even full promo retention caps their chart-entry share near 36%**, because
+each restored single also grows the total-chart denominator. Pushing K higher is inert —
+there is almost nothing left to flip. `majorFamilyChartShare` tells the same story: 0.78 ->
+0.56 across the decade, falling throughout, with no late-decade rise.
+
+So the promo lever cannot deliver the historical late-1960s **consolidation** — majors'
+share *rising* into 1968-69 as they absorbed independents. That is a distinct mechanism,
+scoped in section 23. Also still open and unchanged: the section 6.2 duplicate display-name
+inflation, section 6.3 named-template chronology, and section 6.7 prewarm age/inventory.
+
+## 23. Next work: the consolidation lever (scoping, not yet implemented)
+
+**Goal (user):** Major chart-entry share should *rise* into 1968-69 to a **45-52%**
+late-decade consolidation level, reflecting the real late-1960s wave of majors absorbing and
+distributing independents (WB-Atlantic 1967, MCA forming from Decca/Kapp/Uni, ABC absorbing
+imprints, etc.). Trigger absorptions through the existing distribution-deal mechanic, within
+historical bounds; deeper consolidation mechanics can wait for future implementation.
+
+### 23.1 Resolve the metric first — this is the crux
+
+`chartEntries*Major` is keyed to the **immutable release-imprint tier** (section 5.5, 13.5).
+Acquisition already mutates `record.baseRecord.labelId` to the operating owner but
+deliberately preserves `releaseLabelId`, so an absorbed independent's records still count as
+**Independent** entries. Therefore consolidation-by-acquisition **cannot move the
+imprint-tier `chartEntriesMajor`** at all; only majors releasing more under their own names
+could, and that runs straight back into the section 22.4 firm-count ceiling.
+
+But the imprint-tier metric is also the *wrong* historical target. The section 13.3 source
+counts Atlantic's hits as major **only after WB acquired it in 1967** — i.e. industry "major
+share" is **major-distributed / owner-family share**, crediting the acquiring firm, not the
+imprint on the label. And `majorFamilyChartShare` (units) is already owner-based and already
+reads 0.56 at 1969. So:
+
+- **Recommendation:** measure the 45-52% target on a new **major-distributed chart-*entry*
+  share** — distinct charting records per year bucketed by the record's *current owner*
+  family — not on `chartEntriesMajor` (imprint). This is the metric consolidation actually
+  moves, and it is the one the historical numbers are quoted against. It will sit between the
+  imprint-entry 36% and the owner-*unit* 56%, so 45-52% is a reachable, well-posed target.
+- Keep the imprint-tier entries and the cumulative imprint IDs exactly as they are: breadth
+  (cumulative release-imprint identities) is **orthogonal** to consolidation and must not
+  fall when majors absorb indies. An absorbed imprint still counts once for breadth forever.
+  This orthogonality is the elegant part — consolidation raises owner-share while leaving the
+  breadth acceptance untouched.
+
+### 23.2 First, measure what acquisition already does
+
+Before adding anything, the next session must establish the current baseline, because the
+lever may already be partly wired:
+
+1. Is acquisition firing at all in the accepted decade runs? Check `deal-ledger.csv` and any
+   acquisition/absorption telemetry; count acquisitions by year and acquirer tier. The
+   suspicion is few or none, since `majorFamilyChartShare` *falls* 0.78 -> 0.56 rather than
+   rising late-decade.
+2. Compute the proposed **major-distributed entry share** by year from existing data — join
+   annual chart entries to current-owner family (the concentration audit already resolves
+   current owner for units; extend it to distinct-record entries). Report 1960-69. This is
+   the number the 45-52% target attaches to; know where it stands before moving it.
+3. Confirm how an acquired imprint's *ongoing* and *post-acquisition new* chart records are
+   attributed today (owner for units, imprint for entries) so the change is a deliberate
+   redefinition, not an accident.
+
+### 23.3 Implementation sketch (distribution-deal-triggered absorption)
+
+1. **Trigger off the existing deal relationship.** A `DistributionDeal` from a Major (or
+   national MidTier) distributor to a successful independent is the historical on-ramp to
+   absorption. After a deal of sufficient duration on an independent that has *charted*
+   (proven winner — majors bought success, not failure), roll a low-probability acquisition
+   that transfers the independent's roster/catalog ownership to the distributor, reusing the
+   existing `record.baseRecord.labelId` owner-mutation path and preserving `releaseLabelId`.
+2. **Gate to the historical window and cap the count.** Enable absorptions only from ~1966,
+   and bound the number to a handful across 1966-69 (order of the real wave — a few majors
+   absorbing a few dozen imprints, not wholesale). Over-consolidation would crush the indie
+   imprint tail that breadth and the section 1 guardrail require.
+3. **Attribution:** the absorbed imprint's records reattribute to the major *family* for the
+   new owner-based entry/unit share, while their **imprint identity still counts for breadth**.
+   Decide whether post-absorption *new* releases chart under the imprint name (historically
+   yes — Atlantic kept charting as Atlantic) but under major-family ownership.
+4. **Calibrate against the target.** Size the absorption rate so major-distributed entry
+   share rises from its mid-decade level toward **45-52% by 1969**, a gentle late-decade
+   *rise* — the shape section 22.4 could not produce. Cross-check it stays below the ~54%
+   #1-week share (section 13.3), discounted for entry level.
+
+### 23.4 Discipline and validation
+
+Per section 12, ship this as its own change with its own decade run — consolidation is a
+post-1966 effect, invisible on any short run, so a 52-week probe validates only mechanics and
+a full decade is required to see the trend. Restate any constant whose sampler you touch.
+Guard rails to watch on the decade run: cumulative breadth must **not** fall (imprint IDs are
+preserved), the Small tail must stay small and Independent-dominated, and the major-distributed
+entry share must *rise* into 1968-69 rather than merely flattening. New telemetry required: an
+acquisitions ledger (acquirer, target, week, target's charting history) and the owner-family
+entry/unit share alongside the retained imprint-tier entry share.
+
+### 23.5 Open questions to settle before coding
+
+- Which exact metric carries the 45-52% target — confirm major-distributed **entry** share
+  (recommended) versus unit share versus a redefined imprint attribution.
+- Absorption trigger conditions: minimum deal duration, the independent's success threshold
+  (charted once? sustained? Top 40?), and the per-year/whole-decade acquisition cap.
+- Whether MidTier national distributors also absorb, or only Majors, and whether an absorbed
+  MidTier counts toward the major family.
+- Whether this interacts with the frozen first-chart tier buckets (section 15.2): absorption
+  changes *owner*, not *first-chart imprint tier*, so it should be orthogonal, but verify the
+  audit does not double-count or re-bucket on ownership change.
