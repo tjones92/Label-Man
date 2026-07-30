@@ -925,7 +925,9 @@ public partial class ChartAuditRunner : Node {
 		releaseOutcomeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-outcomes.csv"));
 		if (GenreMarketV2.Enabled) {
 			singleReleaseLaneWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-release-lanes.csv"));
-			singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
+			// single-demand-stages is a per-record per-region per-week diagnostic (~1.8 GB/decade);
+			// suppress under --lean-probe like the heavy settlement dumps below.
+			if (!leanProbe) singleDemandStagesWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-demand-stages.csv"));
 		}
 		revenueMemoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-revenue-memory.csv"));
 		liveRecordsSnapshotWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-live-records-snapshot.csv"));
@@ -960,9 +962,15 @@ public partial class ChartAuditRunner : Node {
 			marketClearingWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-market-clearing-weekly.csv"));
 			marketSpilloverWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-market-spillover-weekly.csv"));
 			formatMemoryAdjustmentWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-memory-adjustment.csv"));
-			completedWeekSettlementWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-completed-week-settlement.csv"));
-			completedWeekSettlementRegionalWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-completed-week-settlement-regional.csv"));
-			albumRealizationBridgeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-realization-bridge.csv"));
+			// Per-settlement per-region per-week economic-debug dumps (album-realization-bridge
+			// ~4.6 GB, settlement-regional ~1.8 GB, settlement ~0.75 GB per decade). Not consumed by
+			// the breadth/owner-Major/album-project analysis, so suppress under --lean-probe. The
+			// AcknowledgeSettlementAudit sim invariant in OnWeekSettlement still runs regardless.
+			if (!leanProbe) {
+				completedWeekSettlementWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-completed-week-settlement.csv"));
+				completedWeekSettlementRegionalWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-completed-week-settlement-regional.csv"));
+				albumRealizationBridgeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-album-realization-bridge.csv"));
+			}
 			formatMemoryRevisionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-format-memory-revisions.csv"));
 		}
 		if (ArtistPopulationLifecycle.Enabled) {
@@ -1392,8 +1400,9 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void OnWeekSettlement(ChartManager.CompletedWeekSettlement settlement) {
-		if (completedWeekSettlementWriter == null || settlement?.Entries == null) return;
-		ChartManager.Instance?.AcknowledgeSettlementAudit(settlement);
+		if (settlement?.Entries == null) return;
+		ChartManager.Instance?.AcknowledgeSettlementAudit(settlement); // sim invariant -- must run even when telemetry is suppressed
+		if (completedWeekSettlementWriter == null) return; // heavy settlement telemetry suppressed under --lean-probe
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
 			completedWeekSettlementWriter.WriteLine(string.Join(",", new[] {
 				settlement.SettlementId.ToString(CultureInfo.InvariantCulture), settlement.Date.year.ToString(CultureInfo.InvariantCulture), settlement.SettlementId.ToString(CultureInfo.InvariantCulture),
@@ -1884,7 +1893,7 @@ public partial class ChartAuditRunner : Node {
 			Csv(record.baseRecord.primaryGenre.ToString()), Csv(record.launchCareerState.ToString()), F(record.baseRecord.hookStrength),
 			F(record.baseRecord.productionQuality), F(record.baseRecord.danceability), F(record.GetQuality()), F(record.enabledOpportunityMass),
 			F(record.acceptedOpportunityMass), F(record.cohortOpportunityNormalizer), Csv(record.cohortOpportunityNormalizerSource), record.cohortOpportunityColdStartFallback ? "true" : "false" }));
-		foreach (MarketRegion region in regions) if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
+		if (singleDemandStagesWriter != null) foreach (MarketRegion region in regions) if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
 			float inventoryRate = data.rawDemandThisWeek > 0f ? Mathf.Clamp(data.serviceableIntentThisWeek / data.rawDemandThisWeek, 0f, 1f) : 1f;
 			float marketRate = data.serviceableIntentThisWeek > 0 ? Mathf.Clamp((float)(data.localClearedThisWeek + data.spilloverClearedThisWeek) / data.serviceableIntentThisWeek, 0f, 1f) : 1f;
 			singleDemandStagesWriter.WriteLine(string.Join(",", new[] { week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),

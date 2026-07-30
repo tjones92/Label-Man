@@ -192,6 +192,12 @@ public partial class CompetitorManager : Node {
 	[Export] private int consolidationStartYear = 1966;
 	// Applied only to high-dependency deal expiries (the Stax->Atlantic branch); the roll and
 	// cap bound how many of those charted, major-distributed dependents are absorbed late-decade.
+	// DO NOT trim this to reduce owner-Major overshoot -- it backfires. Measured 0.75 -> 0.60 on the
+	// hard holdout seed (2029): owner-Major 1969 rose 55.5 -> 58.6. Averting an absorption does not
+	// free the client to chart as an Independent; it RENEWS the client on its Major P&D deal, which
+	// stays Major-owned via master-control (ownsMasters deal rows 755 -> 775). The client also loses
+	// the subsidiary reach boost, so total chart entries shrink (980 -> 958), lifting the ratio from
+	// both ends. Net owner-Major goes UP, not down.
 	[Export(PropertyHint.Range, "0,1,0.01")] private float consolidationAbsorbChance = 0.75f;
 	[Export] private int maxDecadeConsolidationAbsorptions = 40;
 	[Export] private bool consolidationRequireCharted = true;
