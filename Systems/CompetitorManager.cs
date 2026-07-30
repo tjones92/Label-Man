@@ -151,6 +151,9 @@ public partial class CompetitorManager : Node {
 	// Share of a market's retail one wholesale house actually reaches. A label placing its
 	// line with a single house in a region gets most of that market, not all of it.
 	[Export(PropertyHint.Range, "0,1,0.01")] private float independentCoverageReachFactor = 0.60f;
+	// Share of an unreliable house's arrears that is settled anyway. The wait is the squeeze;
+	// outright loss is the residue.
+	internal const float WholesaleSettledShareOfArrears = 0.70f;
 	// Section 28: a Major distributor takes masters on this share of its deals at minimum (P&D
 	// era), so its distributed records fold into the major corporate/control chart share.
 	// Section 29: this rate ramps across the decade rather than being flat. Early-60s indie deals
@@ -742,12 +745,90 @@ public partial class CompetitorManager : Node {
 			// its historical inactive-label exclusion for byte-identical replay.
 			if (!label.IsActive && settlement.SettlementId < 1) continue;
 			float weeklyRevenue = CalculateLabelRevenue(label, settlement);
+			// Billings against a wholesale house are booked but not banked: the house pays on
+			// its own terms, and only for what it admits it sold.
+			weeklyRevenue -= DeferWholesaleBillings(label, settlement, weeklyRevenue);
+			weeklyRevenue += CollectMaturedWholesaleReceivables(label);
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
 				financials.lastMonthRevenue += weeklyRevenue;
 			}
 		}
+	}
+
+	/// <summary>
+	/// Moves this week's revenue earned in wholesale-served markets out of cash and into
+	/// receivables (handoff section 33.1 stage 3). Returns the amount deferred. Revenue from
+	/// markets the label ships to itself, and from anything a distribution contract carries,
+	/// is unaffected -- this is the wholesale channel's payment behaviour, not a general tax.
+	/// </summary>
+	private float DeferWholesaleBillings(AILabel label, ChartManager.CompletedWeekSettlement settlement, float weeklyRevenue) {
+		if (weeklyRevenue <= 0f || label.independentDistributionRegions.Count == 0 || settlement?.Entries == null) return 0f;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		long wholesaleUnits = 0, totalUnits = 0;
+		var unitsByRegion = new Dictionary<string, long>(System.StringComparer.Ordinal);
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
+			if (entry.LabelId != label.labelId || entry.Regions == null) continue;
+			foreach (ChartManager.CompletedWeekSettlementRegion region in entry.Regions) {
+				if (region.FinalCleared <= 0) continue;
+				totalUnits += region.FinalCleared;
+				if (!label.independentDistributionRegions.Contains(region.RegionId)) continue;
+				wholesaleUnits += region.FinalCleared;
+				unitsByRegion[region.RegionId] = unitsByRegion.GetValueOrDefault(region.RegionId) + region.FinalCleared;
+			}
+		}
+		if (wholesaleUnits <= 0 || totalUnits <= 0) return 0f;
+
+		float deferred = 0f;
+		foreach (var pair in unitsByRegion) {
+			IndependentDistributor house = GetIndependentDistributorsInRegion(pair.Key)
+				.FirstOrDefault(candidate => candidate.CarriesLabel(label.labelId));
+			if (house == null) continue;
+			float billed = weeklyRevenue * (pair.Value / (float)totalUnits);
+			if (billed <= 0f) continue;
+			// Under-reporting was endemic: the label is billed for what the house admits it
+			// sold, never sees the rest, and never knows it existed. The return allowance is
+			// deliberately NOT applied here -- returns are units that shipped and did not
+			// sell, and the settlement this bills against is already units sold, so charging
+			// it again would take the same loss twice.
+			float collectable = billed * house.reportingHonesty;
+			label.wholesaleReceivables.Add(new WholesaleReceivable(
+				currentWeek + house.paymentTermWeeks, house.distributorId, collectable));
+			label.outstandingWholesaleReceivables += collectable;
+			label.lifetimeWholesaleWriteOffs += billed - collectable;
+			deferred += billed;
+		}
+		return deferred;
+	}
+
+	/// <summary>
+	/// Pays out receivables whose terms have run out. A house that is a poor payer settles
+	/// short rather than late -- the label writes the difference off, as it did.
+	/// </summary>
+	private float CollectMaturedWholesaleReceivables(AILabel label) {
+		if (label.wholesaleReceivables.Count == 0) return 0f;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		float collected = 0f;
+		for (int index = label.wholesaleReceivables.Count - 1; index >= 0; index--) {
+			WholesaleReceivable receivable = label.wholesaleReceivables[index];
+			if (receivable.DueWeek > currentWeek) continue;
+			label.wholesaleReceivables.RemoveAt(index);
+			label.outstandingWholesaleReceivables -= receivable.Amount;
+			IndependentDistributor house = independentDistributors
+				.FirstOrDefault(candidate => candidate.distributorId == receivable.DistributorId);
+			// Most invoices were eventually settled -- the damage was the wait, already
+			// charged by the term above. Reliability is the residue: the slow payer settles
+			// short and the label writes the rest off. Treating it as a flat pay-rate instead
+			// compounded with under-reporting into a ~40% realisation, which is not a squeeze,
+			// it is an economy that cannot run.
+			float reliability = Mathf.Clamp(house?.reliability ?? 1f, 0f, 1f);
+			float paid = receivable.Amount * (reliability + ((1f - reliability) * WholesaleSettledShareOfArrears));
+			collected += paid;
+			label.lifetimeWholesaleWriteOffs += receivable.Amount - paid;
+		}
+		label.outstandingWholesaleReceivables = Mathf.Max(0f, label.outstandingWholesaleReceivables);
+		return collected;
 	}
 	
 	private float CalculateLabelRevenue(AILabel label, ChartManager.CompletedWeekSettlement settlement) {

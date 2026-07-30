@@ -116,7 +116,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeIndependentDistributionLayer();                                             // 90
 		ProbeIndependentDistributionCoverage();                                          // 91
 		ProbeRackJobberChannel();                                                        // 92
-		results.Add("D6 fixed probes 1-92 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade)");
+		ProbeWholesaleCashFlowSqueeze();                                                 // 93
+		results.Add("D6 fixed probes 1-93 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets)");
 		return results;
 	}
 
@@ -1977,6 +1978,62 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"92p the rack lift is inert in 1960 and material by 1969");
 		Require(lift1969 < distributedService,
 			"92q racking a hit never matches shipping to the market yourself");
+	}
+
+	private static void ProbeWholesaleCashFlowSqueeze() {
+		// Section 33.1 stage 3: the house pays on 90-120 day terms, so a label that is selling
+		// has already spent on pressing and promotion long before the money arrives. This is
+		// the historically correct reason a small label became vulnerable to a major's offer.
+		var houses = IndependentDistributorFactory.Generate(
+			new List<MarketRegion> {
+				NewDistributionProbeRegion("easy", 615, .75f, .25f, indieTrade: true),
+				NewDistributionProbeRegion("hard", 181, .40f, .60f, indieTrade: true)
+			}, 1001UL);
+		Require(houses.All(house => house.paymentTermWeeks >= 12),
+			"93 wholesale billing is never payable inside a quarter");
+
+		// Under-reporting is taken at source; the label never sees it.
+		IndependentDistributor honest = houses.OrderByDescending(house => house.reportingHonesty).First();
+		Require(honest.reportingHonesty < 1f,
+			"93b even the straightest house reports less than it sells");
+		float billed = 1000f;
+		Require(billed * honest.reportingHonesty < billed,
+			"93c the label is billed for what the house admits, not what it sold");
+
+		// Returns are units that shipped and did not sell. The settlement this bills against
+		// is units sold, so charging the return allowance here would take the loss twice.
+		Require(houses.All(house => house.returnAllowance > 0f),
+			"93d houses carry a return allowance for the shipping model to use");
+
+		// Arrears: the wait is the squeeze, outright loss is the residue. A flat pay-rate
+		// compounded with under-reporting into a ~40% realisation, which is not a squeeze but
+		// an economy that cannot run.
+		foreach (IndependentDistributor house in houses) {
+			float settled = house.reliability +
+				((1f - house.reliability) * CompetitorManager.WholesaleSettledShareOfArrears);
+			Require(settled > house.reliability && settled < 1f,
+				"93e an unreliable house settles most of its arrears but never all of them");
+		}
+
+		// The geography of the squeeze comes out of authored market difficulty: a label
+		// selling through a hard market waits on a worse payer who admits less.
+		float easyReal = houses.Where(h => h.regionId == "easy")
+			.Average(h => h.reportingHonesty * (h.reliability + ((1f - h.reliability) * CompetitorManager.WholesaleSettledShareOfArrears)));
+		float hardReal = houses.Where(h => h.regionId == "hard")
+			.Average(h => h.reportingHonesty * (h.reliability + ((1f - h.reliability) * CompetitorManager.WholesaleSettledShareOfArrears)));
+		Require(hardReal < easyReal && hardReal > 0.4f,
+			"93f realisation is worse in harder markets but never collapses the channel");
+
+		// Receivables are the label's own ledger and survive its distribution arrangements.
+		var label = new AILabel { labelId = "squeeze", labelName = "Squeeze", tier = LabelTier.Independent };
+		Require(label.wholesaleReceivables.Count == 0 && label.outstandingWholesaleReceivables == 0f,
+			"93g a label starts with nothing owed to it");
+		label.wholesaleReceivables.Add(new WholesaleReceivable(40, houses[0].distributorId, 500f));
+		label.outstandingWholesaleReceivables += 500f;
+		Require(label.wholesaleReceivables[0].DueWeek == 40 &&
+			label.wholesaleReceivables[0].DistributorId == houses[0].distributorId &&
+			Math.Abs(label.outstandingWholesaleReceivables - 500f) < .001f,
+			"93h a billing records its due week, its house and its amount");
 	}
 
 	private static void Require(bool condition, string message) {

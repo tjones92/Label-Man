@@ -66,3 +66,19 @@ public sealed class IndependentDistributor {
 	public bool RemoveClient(string labelId) =>
 		!string.IsNullOrEmpty(labelId) && clientLabelIds.Remove(labelId);
 }
+
+/// <summary>
+/// One week's wholesale billing to one house, payable when the house's terms run out.
+/// </summary>
+[Serializable]
+public struct WholesaleReceivable {
+	public int DueWeek;
+	public string DistributorId;
+	public float Amount;
+
+	public WholesaleReceivable(int dueWeek, string distributorId, float amount) {
+		DueWeek = dueWeek;
+		DistributorId = distributorId;
+		Amount = amount;
+	}
+}

@@ -3459,7 +3459,52 @@ Not touched this slice: `AlbumSimulator` has its own department-store capacity t
 mattered at least as much for LPs, but album penetration has accepted probes and calibration of its
 own, so it is a separate change.
 
-### 33.9 Validation ladder (decade runs deferred)
+### 33.9 Slice 4 SHIPPED — the wholesale cash-flow squeeze
+
+`WholesaleReceivable` on `AILabel`, `DeferWholesaleBillings` / `CollectMaturedWholesaleReceivables` in
+`CompetitorManager`, receivables columns on `label-finance.csv`, probe 93 (suite 1-93).
+
+Revenue earned in a market served by a wholesale house is **booked but not banked**. It becomes a
+receivable due at `house.paymentTermWeeks` (12-18 weeks, the historical 90-120 day terms), billed only
+for what the house admits it sold (`reportingHonesty`), and settled short by a poor payer on maturity.
+Revenue from markets the label ships to itself, and anything a distribution contract carries, is
+untouched — this is the wholesale channel's payment behaviour, not a general tax. It is the
+historically correct reason a label that was *selling* became vulnerable to a major's offer, and it
+feeds the existing cash-pressure term in `ShouldAcceptDeal` and the absorption gate rather than adding
+new consolidation machinery.
+
+Two modelling errors were corrected before measuring:
+
+- **Returns were double-counted.** `returnAllowance` was being charged against billings, but returns
+  are units that shipped and did not sell, and the settlement being billed is units *sold*. The
+  allowance stays on the house for the shipping model; it is not charged here.
+- **Reliability as a flat pay-rate was ruinous.** Stacked with under-reporting it produced roughly 40%
+  realisation, which is not a squeeze but an economy that cannot run. Most invoices were eventually
+  settled — the damage was the wait, already charged by the term. Reliability is now the residue: an
+  unreliable house settles `reliability + (1-reliability) x 0.70` and the label writes off the rest.
+  Realisation lands near 68%.
+
+Measured at 52 weeks, seed 1001:
+
+| | reference | slice 3 | slice 4 |
+|---|---:|---:|---:|
+| cumulative charting IDs | 151 | 166 | **167** |
+| Independent entries | 233 | 264 | 258 |
+| indie chart share | 0.162 | 0.180 | 0.179 |
+| ownerMajor | 43.8% | 43.4% | 44.7% |
+| mean label cash | — | 111,681 | **105,659** |
+| Dying / Defunct | — | 70 / 127 | **81 / 133** |
+
+263 labels carry wholesale exposure, mean outstanding receivables 8,279 against mean cash 96,157. The
+economy is measurably tighter without breaking: breadth holds, mean cash is down 5.4%, and a few more
+labels are Dying or Defunct. Owner-Major ticks up 1.3 points, which is the mechanism working as
+intended — cash pressure is supposed to push labels toward deals.
+
+Note the 1960 owner-Major reads are not the objective; §29's user direction is that 1960 should sit
+*below* the late years. What matters is whether the decade arc rises into 45-52, and none of slices
+1-4 can be judged on a single year.
+
+### 33.10 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is
