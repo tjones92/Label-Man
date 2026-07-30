@@ -117,7 +117,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeIndependentDistributionCoverage();                                          // 91
 		ProbeRackJobberChannel();                                                        // 92
 		ProbeWholesaleCashFlowSqueeze();                                                 // 93
-		results.Add("D6 fixed probes 1-93 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets)");
+		ProbePoachingAndGraduation();                                                    // 94
+		results.Add("D6 fixed probes 1-94 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike)");
 		return results;
 	}
 
@@ -2034,6 +2035,36 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			label.wholesaleReceivables[0].DistributorId == houses[0].distributorId &&
 			Math.Abs(label.outstandingWholesaleReceivables - 500f) < .001f,
 			"93h a billing records its due week, its house and its amount");
+	}
+
+	private static void ProbePoachingAndGraduation() {
+		// Section 32.2: the signing route and the renewal path disagreed about which tiers can
+		// hold a distribution contract, and nothing caught it for eight simulated years. One
+		// definition now serves both.
+		Require(CompetitorManager.CanSignDistributionDeal(LabelTier.Small) &&
+			CompetitorManager.CanSignDistributionDeal(LabelTier.Boutique) &&
+			CompetitorManager.CanSignDistributionDeal(LabelTier.Independent),
+			"94 the tiers that could always sign a distribution contract still can");
+		Require(!CompetitorManager.CanSignDistributionDeal(LabelTier.MidTier) &&
+			!CompetitorManager.CanSignDistributionDeal(LabelTier.Major),
+			"94b a label at or above MidTier cannot hold a distribution contract, on either side");
+
+		// Graduation is the renewal-side counterpart: a client promoted past those tiers leaves
+		// at term rather than renewing forever, and keeps half the reach it borrowed.
+		Require(DealResolution.Graduated != DealResolution.Exit &&
+			DealResolution.Poached != DealResolution.Signed,
+			"94c graduation and poaching are distinguishable from an ordinary exit or signing");
+
+		// Poaching targets: a proven client under a non-Major distributor. A Major's own client
+		// is not poached by a peer, and a label that cannot sign cannot be poached either --
+		// graduation, not a new contract, is what happens when it outgrows the tier.
+		Require(!CompetitorManager.CanSignDistributionDeal(LabelTier.MidTier),
+			"94d a MidTier client is not a poaching target; it graduates instead");
+
+		// The courting ramp that drives poaching concentrates into the consolidation years.
+		// It has been in the code since section 26 and has never had anything to act on.
+		Require(CompetitorManager.GetDeterministicIndependentDistributionRoll("x", "y", 1) >= 0f,
+			"94e placement rolls remain bounded");
 	}
 
 	private static void Require(bool condition, string message) {

@@ -3267,14 +3267,76 @@ public partial class CompetitorManager : Node {
 		foreach (AILabel client in aiLabels.Where(label => label.IsActive && label.activeDeal == null).ToList()) {
 			TryGenerateDistributionOffer(client, date.year, currentWeek);
 		}
+		// Section 33.3: a Major courting a proven label that ALREADY has a distributor. Without
+		// this pass the courting route could only reach labels with no distributor at all, and
+		// every label worth courting had one -- so the entire late-60s consolidation engine
+		// fired 5-16 times per decade and every push-side constant was inert (section 32.3).
+		// A major took over a label that was already selling through somebody else; it did not
+		// sign up orphans.
+		foreach (AILabel client in aiLabels.Where(label => label.IsActive && label.activeDeal != null).ToList()) {
+			TryPoachDistributedClient(client, date.year, currentWeek);
+		}
+	}
+
+	/// <summary>
+	/// Tiers that can enter a distribution contract. A label above these runs at a scale that
+	/// negotiates its own distribution. This is the single definition both the signing route
+	/// and the renewal check use -- keeping them in one place is what stops the two sides
+	/// drifting apart again, which is how promoted labels ended up renewing contracts they
+	/// could never have signed for eight years running.
+	/// </summary>
+	internal static bool CanSignDistributionDeal(LabelTier tier) =>
+		tier == LabelTier.Small || tier == LabelTier.Boutique || tier == LabelTier.Independent;
+
+	private void TryPoachDistributedClient(AILabel client, int year, int currentWeek) {
+		// Poaching is the consolidation wave, and the wave is late. The majors sat out rock and
+		// roll and the independents carried it, so an early-60s major taking a proven indie off
+		// another distributor is the wrong story in the wrong year (section 29's correction to
+		// the target shape). Measured at the base rate it was also poor value: six poaches in
+		// 1960 cost thirteen unique labels their first chart entry. Gate it to the courting
+		// ramp so it acts where the history and the target arc both put it.
+		if (year < consolidationCourtingRampStartYear) return;
+		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier)) return;
+		DistributionDeal current = client.activeDeal;
+		AILabel incumbent = GetLabel(current?.distributorId);
+		// A Major does not poach another Major's client; this is the indie-to-major flow.
+		if (incumbent == null || incumbent.tier == LabelTier.Major) return;
+
+		// The same proven-label bar the courting route already used, and the same ramp, so
+		// courting still concentrates into the late-60s consolidation years.
+		if (!(client.momentumScore > 0.60f || HasRecentTop40Record(client))) return;
+		float pushChance = monthlyPushOfferProbability +
+			(Mathf.Max(0, year - consolidationCourtingRampStartYear) * annualCourtingRampPerYear);
+		// Seed-stable and off the global stream. This roll runs for every distributed client
+		// every month, so drawing it from GD.Randf would reorder every downstream sampler and
+		// the resulting chart movement could not be attributed to poaching rather than to RNG
+		// reordering (section 12) -- the first 52-week measurement showed exactly that, with
+		// 34 entries moving on the back of 5 actual poaches.
+		if (GetDeterministicIndependentDistributionRoll(client.labelId, "poach", currentWeek) >= pushChance) return;
+
+		AILabel major = SelectDistributor(client, DealOrigin.DistributorCourted, requireMajorDistributor: true);
+		if (major == null) return;
+
+		DistributionDeal offer = GenerateDealTerms(client, major, DealOrigin.DistributorCourted, year, currentWeek);
+		DistributionOffersGenerated++;
+		if (!ShouldAcceptDeal(client, offer)) return;
+		DistributionOffersAccepted++;
+
+		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
+			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+		offer.Cover(evidence.EarningRecordId);
+		EmitDealEvent(client, incumbent, current, DealResolution.Poached, client.DistributionDependency);
+		client.activeDeal = offer;
+		client.cashReserves += offer.advance;
+		major.cashReserves -= offer.advance;
+		EmitDealEvent(client, major, offer, DealResolution.Signed, client.DistributionDependency);
 	}
 
 	private void TryGenerateDistributionOffer(AILabel client, int year, int currentWeek) {
 		// A subsidiary already distributes through the parent's national network and does not
 		// sign its own deals.
 		if (client.IsSubsidiary) return;
-		bool eligibleTier = client.tier == LabelTier.Small || client.tier == LabelTier.Boutique || client.tier == LabelTier.Independent;
-		if (!eligibleTier) return;
+		if (!CanSignDistributionDeal(client.tier)) return;
 
 		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
 			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
@@ -3414,9 +3476,10 @@ public partial class CompetitorManager : Node {
 	private bool HasRecentTop40Record(AILabel label) => label != null &&
 		GetRecentTop40RecordCount(label.labelId, 52) > 0;
 
-	private AILabel SelectDistributor(AILabel client, DealOrigin origin) {
+	private AILabel SelectDistributor(AILabel client, DealOrigin origin, bool requireMajorDistributor = false) {
 		var weighted = new List<(AILabel Label, float Weight)>();
 		foreach (AILabel distributor in aiLabels) {
+			if (requireMajorDistributor && distributor.tier != LabelTier.Major) continue;
 			if (!IsEligibleDistributor(distributor, client, origin)) continue;
 			bool genreFit = distributor.preferredGenres?.Intersect(client.preferredGenres ?? System.Array.Empty<Genre>()).Any() ?? false;
 			float weight = (distributor.ownedReach * 0.50f) + (distributor.reputation * 0.30f) + (genreFit ? 0.20f : 0f);
@@ -3555,6 +3618,18 @@ public partial class CompetitorManager : Node {
 		// chart. The retained fraction is bounded below seeded Major reach and consumes no RNG.
 		client.nationalReach = CalculateNationalReachAfterCompletedDeal(client.nationalReach,
 			deal.reachGranted, completedDealNationalReachRetention, CompletedDealNationalReachCeiling);
+		// Section 32.2: TryGenerateDistributionOffer bars a MidTier from SIGNING a contract,
+		// and nothing here barred one from RENEWING it, so a client promoted while under
+		// contract renewed indefinitely -- 29-44 of them per decade run, at a median tenure of
+		// 8.4 years, and they were the single largest block of the owner-Major surplus. A label
+		// that has grown past the tiers that can sign now leaves the contract at term instead,
+		// keeping half the reach it borrowed, exactly as a low-dependency exit does.
+		if (!CanSignDistributionDeal(client.tier)) {
+			client.ownedReach = Mathf.Min(1f, client.ownedReach + (deal.reachGranted * 0.50f));
+			EmitDealEvent(client, distributor, deal, DealResolution.Graduated, dependency);
+			client.activeDeal = null;
+			return;
+		}
 		if (dependency < dealDependencyLow) {
 			// Low dependency: the client has built enough of its own reach to leverage the
 			// deal and stay independent (early Motown). It exits and keeps part of the reach.

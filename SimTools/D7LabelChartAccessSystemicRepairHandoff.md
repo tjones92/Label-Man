@@ -3504,7 +3504,52 @@ Note the 1960 owner-Major reads are not the objective; §29's user direction is 
 *below* the late years. What matters is whether the decade arc rises into 45-52, and none of slices
 1-4 can be judged on a single year.
 
-### 33.10 Validation ladder (decade runs deferred)
+### 33.10 Slice 5 SHIPPED — poaching and MidTier graduation
+
+`TryPoachDistributedClient` + a second pass in `ProcessDistributionDeals`, `CanSignDistributionDeal`
+as the single tier definition, a graduation branch in `ResolveDistributionDeal`, `DealResolution.Poached`
+and `.Graduated`, probe 94 (suite 1-94).
+
+**Poaching** closes §32.3: the courting route could only ever reach labels with *no* distributor, and
+every label worth courting had one, so the entire late-60s consolidation engine fired 5-16 times per
+decade while every push-side constant sat inert. A Major can now court a proven client out from under
+a non-Major distributor — a major took over a label that was already selling through somebody else, it
+did not sign up orphans. Bar and ramp are the existing ones (`momentumScore > 0.60` or a recent Top 40;
+`monthlyPushOfferProbability` + the courting ramp), terms come from `GenerateDealTerms` as
+`DistributorCourted`, so a poach carries the 0.80 push masters rate and feeds dependency and the
+absorption gate exactly as §26 intended.
+
+**Graduation** closes §32.2's asymmetry. `TryGenerateDistributionOffer` barred a MidTier from *signing*;
+nothing barred one from *renewing*, so a client promoted while under contract renewed indefinitely —
+29-44 per decade run at a median tenure of 8.4 years, and the single largest block of the owner-Major
+surplus. Both sides now consult one definition, `CanSignDistributionDeal`, which is what stops them
+drifting apart again. A label that outgrows those tiers leaves at term keeping half the reach it
+borrowed, exactly as a low-dependency exit does.
+
+Two corrections during the slice:
+
+1. **Attribution.** The poach chance rolled `GD.Randf()` for every distributed client every month,
+   reordering the whole downstream stream: the first measurement moved 34 chart entries on the back of
+   **5** actual poaches. Now a seed-stable hash off the global stream, as §30.1 and slice 2 do.
+2. **Timing.** At the pre-ramp base rate poaching fired six times in **1960** and cost **13** unique
+   labels their first chart entry. That is the wrong story in the wrong year — the majors sat out rock
+   and roll and the independents carried it, which is why §29 requires 1960 to sit below the late
+   years. Poaching is now gated to `consolidationCourtingRampStartYear` (1964), where the history and
+   the target arc both put it.
+
+**Consequence: slice 5 is byte-identical to slice 4 at 52 weeks** (`concentration`, `deal-ledger`,
+`lifecycles`, `retirement`, `first-chart-events` all match), because both halves are late-decade by
+construction — poaching starts 1964, and no label has been promoted to MidTier while under contract by
+week 52. Like the rack channel, **this slice cannot be validated at 52 weeks.** The 312-week checkpoint
+must report `Poached` and `Graduated` counts by year, and the decade run must show poaching supplying
+the late-decade owner-Major rise that the frozen roster used to manufacture.
+
+Watch at the checkpoint: poaching needs a free Major slot, and Majors were pinned at 212/240 by 1968 in
+the old runs. If the independent channel has not relieved that pressure, poaching will starve on
+capacity — which is the §33 carried note (Major ceiling to ~10) arriving from the other direction, and
+argues for doing slice 6 before the decade run rather than after.
+
+### 33.11 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is

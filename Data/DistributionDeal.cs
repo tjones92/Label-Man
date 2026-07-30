@@ -12,7 +12,15 @@ public enum DealResolution {
 	Renew,
 	Absorb,
 	DistributorCollapsed,
-	ClientClosed
+	ClientClosed,
+	/// <summary>A Major courted this client away from the distributor it was under.</summary>
+	Poached,
+	/// <summary>
+	/// The client outgrew the tiers that can sign a distribution contract and left the one it
+	/// was holding. Without this a promoted label renewed a contract it could never have
+	/// signed, indefinitely (handoff section 32.2).
+	/// </summary>
+	Graduated
 }
 
 [Serializable]
