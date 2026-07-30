@@ -1,6 +1,6 @@
 # D7 label chart access systemic repair — live handoff
 
-Last maintained: July 28, 2026.
+Last maintained: July 29, 2026.
 
 This handoff is intentionally maintained while the work is in progress so a
 replacement model can continue even if the current Codex run ends abruptly.
@@ -2254,3 +2254,645 @@ entry/unit share alongside the retained imprint-tier entry share.
 - Whether this interacts with the frozen first-chart tier buckets (section 15.2): absorption
   changes *owner*, not *first-chart imprint tier*, so it should be orthogonal, but verify the
   audit does not double-count or re-bucket on ownership change.
+
+## 24. Consolidation lever: metric shipped, absorption being redesigned to a subsidiary model
+
+This section continues section 23. The metric is resolved and shipped; the lever is gated and
+validated for mechanics; two decade runs then exposed that absorption **as historically
+implemented cannot raise major chart share at all**, and the user has approved the redesign
+that fixes it. The subsidiary redesign itself is **not yet implemented** — this is the live
+handoff point.
+
+All work is uncommitted on branch `d7-artist-population-plateau` (clean at session start). Three
+files are modified: `SimTools/ArtistPopulationLifecycleProbeSuite.cs`,
+`SimTools/ChartAuditRunner.cs`, `Systems/CompetitorManager.cs`. `Data/AILabel.cs` is **not yet
+touched** — the subsidiary field lands there. Build is clean (one pre-existing unused-event
+warning); all 87 D6 probes + D5 pass.
+
+### 24.1 The metric is resolved and shipped
+
+Per section 23.1 and user confirmation, the 45-52% target attaches to **owner-Major chart-ENTRY
+share**: distinct charting records per year whose *current owner*, resolved through the
+acquisition chain (`ResolveCurrentOwner` over `acquiredBy`), is a **Major**. "Owner family" means
+the corporate family headed by a Major — an absorbed independent joins that family via
+`acquiredBy`, so its records count as Major-owned while its release imprint is unchanged.
+
+Major+MidTier ("family") was rejected as the *target*: imprint Major+MidTier entries are already
+~58% at 1969, above the band, so only Major-tier owner share is well-posed (~36-40% baseline,
+must rise). Both are emitted so nothing is lost.
+
+Shipped as four **additive** columns in `concentration.csv`
+(`ChartAuditRunner.WriteConcentrationYear` / `CountOwnerFamilyEntries`):
+`ownerMajorEntries`, `ownerMajorFamilyEntries` (Major+MidTier), `ownerMajorTop40Entries`,
+`ownerMajorFamilyTop40Entries`. They consume no RNG and change no existing value. Invariant with
+zero absorptions (verified in 1960): `ownerMajorEntries == chartEntriesMajor` and
+`ownerMajorFamilyEntries == chartEntriesMidTier + chartEntriesMajor`.
+
+### 24.2 The lever was already partly wired, and wrong-shaped
+
+`DealResolution.Absorb` and `CompetitorManager.AbsorbLabel` already existed and the audit already
+consumed them. But absorption was ungated: it fired on any deal expiry with
+`dependency >= 0.56` **and** `deal.ownsMasters`, producing ~10-12 absorptions clustered in
+**1961-62** with random-tier acquirers (independent-on-independent, even a small label "absorbing"
+RCA, a self-absorb). That wrong shape is why `majorFamilyChartShare` *falls* 0.85 -> 0.64 across
+the decade instead of rising.
+
+### 24.3 Gated lever built and validated for mechanics (current tree)
+
+`ResolveDistributionDeal`'s high-dependency branch now gates absorption through
+`ShouldConsolidate` (private) = `IsConsolidationEligible` (internal static, pure, probeable)
+`&& GD.Randf() < consolidationAbsorbChance`. `IsConsolidationEligible` requires:
+`year >= consolidationStartYear` (1966), acquirer is Major (or, behind an off-by-default flag, a
+national MidTier), client is independent-family, client has charted, and the decade cap is not
+reached. Supporting state: `chartedLabelIds` (any Top-100 chart, filled in
+`OnRecordChartUpdated`), `consolidationAbsorptionsThisDecade` counter, cap
+`maxDecadeConsolidationAbsorptions`. `AbsorbLabel` now returns `bool` and increments the counter.
+`ForceConsolidationForTest` is a scoped test hook for the forced-deal harness. Probe 87
+(`ProbeConsolidationGate`) pins the gate seven ways. Constants:
+`consolidationStartYear=1966, consolidationAbsorbChance=0.50, maxDecadeConsolidationAbsorptions=40,
+consolidationRequireCharted=true, consolidationAllowNationalMidTier=false`.
+
+Validated on 52-week probe runs: build clean, all 87 D6 + D5 pass, and 1960 `concentration.csv`
+existing columns are **byte-identical** to reference `d7-major-tune-probes-52-1001` (the lever has
+no deal expiries inside 52 weeks, so it is provably inert pre-window; the metric is purely
+additive).
+
+### 24.4 Two decade runs, and the decisive finding: absorption cannot move the metric
+
+**v1 `d7-consolidation-lever-522-1001` (high-dependency gate):** only **2 absorptions** fired
+(1966, 1968). owner-Major entry share stayed flat at ~40% (39.8% imprint / 40.0% owner at 1969).
+
+Diagnosis: **high dependency is a transient early-decade state.** In 1966-69 there are 733 deal
+term-expiries but only **24** sit at `dependency >= 0.56`; 583 are in the mid 0.35-0.56 renewal
+band. Dependency erodes over renewals (the renew-worse branch shrinks `reachGranted` 0.85x each
+time). There are ~230 *major-distributor* expiries late-decade, but almost all at mid-dependency,
+invisible to the high-dep absorb branch.
+
+**v2 `d7-consolidation-lever-v2-522-1001` (BLANKET — absorption decoupled from dependency, fired
+on any major-distributor expiry, chance 0.35/cap 60):** fired **60 absorptions**, yet owner-Major
+entry share bumped to 42.6% (1966) then **decayed to 37.8% (1969)**. The smoking gun:
+
+| metric (1969) | v1 (2 absorptions) | v2 (60 absorptions) |
+|---|---:|---:|
+| owner-Major entries | 377 | **362** |
+| owner-Major entry share | 40.0% | 37.8% |
+| Major imprint entries (output) | 375 | **358** |
+
+**60 absorptions produced *fewer* Major-owned chart entries than 2.** Root cause: `AbsorbLabel`
+(shutdown-merge) deactivates the label and dumps its roster onto a **capacity-bound Major** (the
+section 16-22 result: 8 firms, one Bernoulli release slot per week each). The absorbed artists
+bottleneck — the Major's output cannot grow — while the independent's own output is destroyed.
+Absorption only briefly reattributes the *existing* records, which retire in ~5 weeks, then the
+share falls back. **Consolidation-by-absorption, as implemented, structurally cannot raise major
+chart share; it slightly lowers it.**
+
+### 24.5 User design decisions (all three confirmed this session)
+
+1. **Absorption stays gated to HIGH dependency** (Stax leaned on Atlantic's distribution and was
+   absorbed); low dependency lets a label leverage the deal while building its own infrastructure
+   and staying independent (early Motown). It is **never a blanket effect across all deals**. The
+   blanket v2 change was **reverted in full** — absorption is back in the high-dependency branch,
+   constants back to 0.50/40. (Memory: `absorption-tied-to-high-dependency`.)
+2. **Historically most small labels stayed dependent on majors and were absorbed by decade end;
+   Motown was the uncommon breakout-via-leverage exception.** So the approved direction is
+   **path (A): realistically grow/retain the dependent population** so most small labels reach
+   high dependency and are absorbed late-decade under the existing gate — **not** lowering the gate.
+3. **Absorption is redesigned to the SUBSIDIARY model (approved).** An absorbed label continues
+   operating as a **major-owned subsidiary imprint** (Atlantic kept charting as Atlantic under WB):
+   it keeps its own roster, release capacity and imprint — so it keeps charting, with no capacity
+   bottleneck — while **ownership** rolls up to the major. This is both historically accurate and
+   the only thing that moves the metric. **User requirement: the label must be clearly marked as a
+   subsidiary after absorption.**
+
+### 24.6 Subsidiary redesign plan (NOT yet implemented — the resume point)
+
+Reach model confirmed: `AILabel.borrowedReach` is a computed property = `activeDeal.reachGranted`,
+so nulling the deal drops borrowed reach to 0. A subsidiary must therefore *retain* that reach or
+it stops charting. Concrete plan:
+
+- **`Data/AILabel.cs`:** add `public string ownerLabelId;` (empty = independent) and
+  `public bool IsSubsidiary => !string.IsNullOrEmpty(ownerLabelId);`. Keep it **orthogonal to
+  `status`/`IsActive`** — a subsidiary stays operationally Rising/Stable and `IsActive` true (do
+  NOT reuse `LabelStatus.Acquired`, which is a dead state excluded from `IsActive`).
+- **`CompetitorManager.AbsorbLabel` (rewrite):** keep the guards (add `if (client.IsSubsidiary)
+  return false;`), then do NOT deactivate, NOT move the roster, NOT mutate records'
+  `baseRecord.labelId`, NOT transfer marketShare/hits/records/album-projects. Instead:
+  - capture reach before nulling the deal: `float borrowed = client.borrowedReach;`
+  - `client.ownedReach = Mathf.Clamp(client.ownedReach + borrowed, 0f, 1f);` (borrowed reach
+    becomes permanent — the subsidiary is now part of the parent's national network);
+  - grant the parent's regions permanently:
+    `client.distributionRegions = client.distributionRegions.Union(distributor.distributionRegions
+    ?? Array.Empty<string>(), StringComparer.Ordinal).ToArray();` (so `HasDistributionInRegion`
+    persists and it keeps charting nationally — verify this is the field driving per-region
+    coverage);
+  - `client.ownerLabelId = distributor.labelId;`
+  - `consolidationAbsorptionsThisDecade++; EmitDealEvent(..., DealResolution.Absorb, ...);
+    client.activeDeal = null;` (the deal is now ownership; no expiry cycle);
+  - `LabelLifecycleManager.Instance?.MarkLabelSubsidiary(client, distributor);` and `return true;`.
+- **`LabelLifecycleManager.MarkLabelSubsidiary` (new, replacing `MarkLabelAcquired` for this
+  path):** keep `status` operational, do NOT add to `defunctLabels` or increment `DefunctThisYear`,
+  log "now a subsidiary of <parent>", optionally fire a distinct `OnLabelSubsidiary` event. (Leave
+  `MarkLabelAcquired`/`LabelStatus.Acquired` for any genuine shut-down path.)
+- **Exclusions:** in `TryGenerateDistributionOffer` add `&& !client.IsSubsidiary` (a subsidiary
+  uses the family network, does not sign new deals); AbsorbLabel already guards re-absorption.
+- **Audit (`ChartAuditRunner`):** already correct via `acquiredBy` (set from the Absorb event) +
+  `releaseLabelId` for breadth + owner rollup. Because `baseRecord.labelId` stays the subsidiary,
+  `ResolveCurrentOwner` walks `acquiredBy` to the Major; breadth keeps the subsidiary imprint;
+  firm counts use the owner rollup so the subsidiary is not double-counted. Verify these on the run.
+- **Forced-deal harness (`ChartAuditRunner` ~line 884):** the `forcedDealResolution == "absorb"`
+  assertion currently checks the shutdown-merge outcome (`status == Acquired`, not in
+  `GetOperatingLabels`, roster == 0). **Update it** to the subsidiary outcome: `IsSubsidiary`,
+  `ownerLabelId == distributor`, still in `GetOperatingLabels`, roster retained.
+- **Probes:** add a subsidiary-invariant probe (absorbed label stays active, `ownerLabelId` set,
+  roster and imprint retained). Probe 87 (gate) is unaffected.
+
+### 24.7 Resume sequence
+
+1. Implement section 24.6. Build.
+2. 52-week probe run **and** `--forced-deal-resolution=absorb` to exercise the subsidiary path;
+   confirm 87+ probes pass and 1960 is byte-identical (existing columns) to
+   `d7-major-tune-probes-52-1001`.
+3. Decade run at seed 1001. The key check: with subsidiaries retained, does owner-Major entry
+   share now **rise** with absorptions (each subsidiary keeps producing as Major-owned) rather than
+   decay? Even the current high-dep trickle (~2 absorptions) should now *sustain* a gain.
+4. If the metric moves but the count is still a trickle (high-dependency scarcity, section 24.4),
+   implement **path (A)**: grow/retain the dependent population so most small labels stay dependent
+   and are absorbed late-decade — likely via the existing major-courting/push path (already ramps
+   post-1966 via `annualPost1966PushRamp`) and/or gentler dependency erosion. Ship as its own
+   calibration change (section 12 rule) and tune to 45-52% by 1969.
+5. Guardrails every decade run: cumulative imprint **breadth must not fall**; Small tail small and
+   Independent-dominated; owner-Major entry share **rises into 1968-69 to 45-52%**; cross-check
+   owner-unit `majorFamilyChartShare`.
+6. Holdout seed (2029) before acceptance; forced exit/renew/absorb integrations; all probes;
+   `git diff --check`.
+
+### 24.8 Runs, references, environment
+
+- **Reference for 1960 byte comparison** (existing columns): `d7-major-tune-probes-52-1001`
+  (matches HEAD; `PromoAlbumConversionK = 1.50`; K does not affect 1960).
+- **Decade runs this session:** `d7-consolidation-lever-522-1001` (high-dep gate, 2 absorptions,
+  owner-Major ~40%); `d7-consolidation-lever-v2-522-1001` (BLANKET/rejected, 60 absorptions,
+  owner-Major 37.8% — retained only as sensitivity evidence that proved the capacity bottleneck).
+  Probe runs: `d7-consolidation-lever-probes-52-1001`, `d7-consolidation-lever-v2-probes-52-1001`.
+- **Godot:** `C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe`,
+  run **outside the sandbox** (needs AppData). ~1 min for 52 weeks, ~15 min for 522. The
+  `MissingSingletonsTemp does not inherit from Node` error at startup is pre-existing and benign.
+- **Do not** raise Major release capacity to fix this (section 19.2 showed it floods the chart);
+  the subsidiary model is the capacity-neutral fix.
+
+## 25. Subsidiary redesign implemented (section 24.6)
+
+The section 24.6 plan is now implemented and building clean (one pre-existing unused-event
+warning). Six files modified: `Data/AILabel.cs`, `Systems/CompetitorManager.cs`,
+`Systems/LabelLifecycleManager.cs`, `SimTools/ChartAuditRunner.cs`,
+`SimTools/ArtistPopulationLifecycleProbeSuite.cs` (and this handoff).
+
+### 25.1 What changed
+
+- **`Data/AILabel.cs`:** added `public string ownerLabelId;` and
+  `public bool IsSubsidiary => !string.IsNullOrEmpty(ownerLabelId);`, orthogonal to
+  `status`/`IsActive` (a subsidiary stays operationally Rising/Stable and `IsActive` true).
+- **`CompetitorManager.AbsorbLabel` (rewrite):** no longer shuts the client down. It guards
+  (`+ if (client.IsSubsidiary) return false;`), emits the `Absorb` deal event, then calls the
+  new pure `ApplySubsidiaryAbsorption(client, distributor)` and
+  `LabelLifecycleManager.MarkLabelSubsidiary`. The old roster transfer, record `labelId`
+  mutation, marketShare/hits transfer, album-project reattribution and `LabelStatus.Acquired`
+  are all removed.
+- **`CompetitorManager.ApplySubsidiaryAbsorption` (new, `internal static`, probeable):** folds
+  `borrowedReach` into permanent `ownedReach`, unions the parent's `distributionRegions` into
+  the client's (so per-region coverage persists once the deal is nulled), sets
+  `ownerLabelId = distributor.labelId`, and nulls `activeDeal`. Roster/records/imprint untouched.
+- **`LabelLifecycleManager.MarkLabelSubsidiary` (new):** keeps `status` operational, does NOT
+  add to `defunctLabels` or increment `DefunctThisYear`, logs "now a subsidiary of <parent>".
+  `MarkLabelAcquired`/`LabelStatus.Acquired` are left intact for any genuine shut-down path.
+- **`TryGenerateDistributionOffer`:** early `if (client.IsSubsidiary) return;` — a subsidiary
+  uses the family network and does not sign new deals.
+- **Forced-deal harness (`ChartAuditRunner`):** the `absorb` assertion now checks the subsidiary
+  outcome (`IsSubsidiary`, `ownerLabelId == distributor`, still in `GetOperatingLabels`,
+  `activeDeal == null`, roster retained > 0) instead of the old shutdown outcome.
+- **Probe 88 `ProbeSubsidiaryAbsorptionRetainsLabel`:** pins the four subsidiary invariants on
+  `ApplySubsidiaryAbsorption`. Probe 87 (gate) is unaffected. Suite is now 1-88.
+
+### 25.2 Harness fix required by the subsidiary model
+
+The per-week forced-deal skim invariant (`ChartAuditRunner`, "Forced deal skim was not credited
+to its distributor") equated `forcedDealClient.weeklyDistributionSkim` to
+`forcedDealDistributor.weeklyDistributionIncome` **every week**. A retained subsidiary keeps
+selling records with no active deal, and `GetSettlementDistributionSkimFraction` returns a
+non-routed self-distribution fraction `0.25*(1-ownedReach)` for a deal-less label
+(`CompetitorManager.cs:619`), so the client accrues skim that `RouteDistributionSkim` never
+credits to any distributor (it early-returns when `activeDeal == null`). The check is now gated
+`&& forcedDealClient.activeDeal != null` — the equality is only well-defined while skim is
+actually routed. This is unchanged for the renew and deal-stays-active paths (deal always
+active) and correctly skips the post-resolution weeks for exit and absorb.
+
+### 25.3 Validation completed
+
+- Build clean; `git diff --check` clean.
+- 52-week probe run `d7-subsidiary-absorption-probes-52-1001`: D5 + all 88 D6 probes pass;
+  1960 `concentration.csv` existing columns **byte-identical** to `d7-major-tune-probes-52-1001`;
+  additive owner columns satisfy the zero-absorption invariant
+  (`ownerMajorEntries == chartEntriesMajor`, `ownerMajorFamilyEntries == MidTier + Major`).
+- Forced paths (`--force-deal-resolution=`): `absorb` now converts the client to a retained
+  subsidiary (`Motown Records is now a subsidiary of Columbia`) and passes; `exit` and `renew`
+  pass. Note the flag is spelled **`--force-deal-resolution`** (no "d"), not
+  `--forced-deal-resolution` as section 24.7 step 2 wrote — the misspelled form is silently
+  ignored.
+
+### 25.4 Pre-existing failure discovered (NOT a regression)
+
+The bare `--force-distribution-deal` run (null resolution, deal held active for the whole run,
+recoup validated at end) fails with the same "Forced deal skim was not credited" error **on
+clean HEAD**, before any of this session's changes (verified by stashing). It is unrelated to the
+subsidiary work and pre-dates it; document and fix separately. The exit/renew/absorb forced
+integrations all pass.
+
+### 25.5 Decade run: mechanism validated, count is the remaining lever
+
+`d7-subsidiary-absorption-522-1001`, seed 1001, completed clean (exit 0).
+
+**The subsidiary mechanism works.** Only **1 absorption** fired (Moon -> Mercury Records, 1966,
+dependency 0.561, just over the 0.56 high gate), yet from 1967 on `ownerMajorEntries` sustains a
+small surplus over imprint `chartEntriesMajor` (1967 385 vs 383, 1968 373 vs 372, 1969 367 vs
+366). A single retained subsidiary keeps producing charting records attributed to its Major owner
+across multiple years — precisely what the shutdown-merge model structurally could NOT do (v2's
+60 absorptions *decayed* owner share to 37.8%). Here owner-Major share holds flat and net-positive
+instead of decaying. That is the capacity-bottleneck fix, confirmed.
+
+**But the target is not reached, because the count is a trickle.** Owner-Major entry share stays
+~0.38 across 1966-69 (0.378 / 0.387 / 0.376 / 0.379), far from the 45-52% band. Deal-ledger
+resolutions over the decade: **Renew 1358, Signed 978, ClientClosed 357, Exit 271,
+DistributorCollapsed 54, Absorb 1.** This is exactly the section 24.4 high-dependency scarcity:
+dependency erodes over renewals (renew-worse shrinks `reachGranted` 0.85x each cycle), so almost
+no late-decade major-distributor expiry sits at `dependency >= 0.56`.
+
+**Guardrails held:** cumulative imprint breadth **397** (353 exact names) — did not fall. 1969
+cumulative tier mix Small/Boutique/Independent/MidTier/Major = **40 / 50 / 268 / 31 / 8**;
+below-MidTier is 358/397 = 90% of firms and 75% of that is Independent, Small tail 10%.
+
+**Next (section 24.7 step 4): path (A).** The subsidiary redesign is complete and correct; the
+remaining work is raising the absorption count so most small labels reach and hold high dependency
+and are absorbed late-decade — via the existing major-courting/push path (`annualPost1966PushRamp`)
+and/or gentler dependency erosion — **not** by lowering the gate. Ship that as its own calibration
+change (section 12 rule) and tune owner-Major share to 45-52% by 1969. Run reference:
+`d7-subsidiary-absorption-522-1001` (subsidiary mechanism, 1 absorption, owner-Major ~0.38).
+
+## 26. Path A: reviving the push route to feed absorption
+
+Diagnosis from the `d7-subsidiary-absorption-522-1001` telemetry (deal-ledger + offer-attempts),
+before spending another run:
+
+- **The push route is dead.** Of 978 signed deals, only **4** were `DistributorCourted` (push) and
+  **zero** in 1965-69; 974 were `LabelSought` (pull). Yet push deals grant far more reach (mean
+  `reachGranted` 0.483 vs pull 0.273) — they are the natural high-dependency generators, and
+  `SelectDistributor` weights Majors 6x so they are Major-distributed and absorb-eligible.
+- **Why push never fires:** `pushEvidence` (momentum > 0.60 or recent Top-40) fires ~45x/yr in
+  1967-69, but base `monthlyPushOfferProbability` was 0.04, so the chance roll passed only 38 times
+  all decade and only 4 reached signing (the rest lost to rejection — a proven built-reach indie
+  rejects a deal it does not need, the correct Motown behaviour, but it starves the pool).
+- **High-dependency expiries are front-loaded and erode away.** Distinct clients ever reaching
+  `dependency >= 0.56`: 62. But high-dep expiries run 20/27/19 in 1961-63 then collapse to 7/6/6/5/8/4
+  in 1964-69. The high-band renew-worse branch shrank `reachGranted` 0.85x/cycle, eroding
+  high-dependency labels into the mid band **before** the 1966 window opened. In 1966-69 only ~10 of
+  the ~24 high-dep expiries are Major-distributed, so the eligible (Major + charted + high-dep +
+  in-window) pool is ~1-2 — hence the single absorption.
+- **Timing constraint:** push terms are 78-104 wks, so only deals signed by ~1967 expire (and can
+  absorb) before the 522-week run ends. The base, not just the post-1966 ramp, therefore matters.
+
+### 26.1 The change (calibration, all in `CompetitorManager`)
+
+Per the section 12 rule this ships as its own calibration change, separate from the section 25
+mechanism. The consolidation **gate is untouched** (still `dependency >= 0.56`, Major acquirer,
+charted, 1966+, cap 40) — per section 24.5 the gate is not lowered.
+
+- `monthlyPushOfferProbability` **0.04 -> 0.10** — revive push from ~1965 so Major high-reach deals
+  form and their 78-156wk terms expire inside the window.
+- `annualPost1966PushRamp` **0.05 -> 0.10** — concentrate courting late (1967 0.20 / 1968 0.30 /
+  1969 0.40).
+- `consolidationAbsorbChance` **0.50 -> 0.75** — convert the eligible high-dep expiries the above
+  now produce more reliably (within the existing gate, not a gate relaxation).
+- High-band renew-worse reach erosion **0.85x -> 0.93x** — gentler dependency erosion so a genuinely
+  dependent label stays dependent and is still absorbable when the window opens.
+
+Cap stays 40 (the subsidiary model preserves imprint breadth, so a bounded wave cannot crush the
+indie tail; if 40 binds, that is informative for the next step). This is not byte-identical to 1960
+by design — it is a calibration change. Build clean; all probes still logic-valid (the four
+constants are not probe-pinned; probe 87 tests `IsConsolidationEligible` with explicit args).
+
+### 26.2 Measured effect — two iterations, and the real bottleneck
+
+**v1 `d7-pathA-pushramp-522-1001`** (the 26.1 change): absorptions 1 -> **4**; high-dep in-window
+expiries 24 -> 32 (the erosion softening working); owner-Major 1969 **0.385** (barely moved);
+breadth 407. Push still under-fired: 10 signings, and the offer-attempt telemetry showed 59
+`pushChancePassed` but 49 **rejected** by `ShouldAcceptDeal` — the "successful indie stays
+independent" penalty (-0.35 at ownedReach>=0.45) fired on exactly the proven labels a Major courts.
+
+**v2 `d7-pathA-accept-522-1001`** (added push-acceptance fix: `DistributorCourted` gets +0.35 and is
+exempt from the independence penalty): absorptions **7**; high-dep in-window expiries **40**; but
+owner-Major 1969 **0.380** — still flat. The acceptance fix multiplied push *signings* (10 -> 25) but
+they landed in the wrong years: **15 in 1960, 3 in 1961** (expire pre-window), the rest 1968-69
+(expire post-run); only **1** in the productive 1965-67 signing window.
+
+**The real bottleneck, from the v2 telemetry:**
+
+- **Push courtable pool is structurally tiny.** `pushEvidence` needs a proven (momentum>0.60 or
+  recent Top-40) **and deal-free** label, but by mid-decade proven labels already hold pull deals.
+  Distinct courtable labels in 1965-67: **4**. So no push-chance increase can supply volume there.
+- **Deal routing is the true constraint.** Of ~1088 signings, only **199 (18%) went to Majors**;
+  498 to MidTier, 191 to Independent distributors — all absorb-**ineligible** (gate needs a Major
+  acquirer). The 8 Majors (96 slots) were nowhere near capacity. Of v2's 40 in-window high-dep
+  expiries only **18 were Major-distributed** (20 MidTier, 2 Independent); after the charted filter
+  and 0.75 roll that 18 yields exactly the 7 absorptions observed.
+- **Magnitude:** reaching owner-Major 0.45 (~+90 entries over the ~365 imprint-Major baseline at
+  1969) needs ~35 in-window absorptions of chart-active labels, i.e. an eligible pool of ~45.
+
+### 26.3 v3 change: route the dependent population to Majors + shift courting to mid-decade
+
+User-approved (routing + ramp-shift; gate still not lowered). All in `CompetitorManager`:
+
+- **`SelectDistributor` Major weight 6x -> 12x** — the primary lever. Routes the dependent population
+  toward the 8 (uncapped) Majors so more high-dependency deals are Major-distributed and therefore
+  absorb-eligible. The high-dependency gate is untouched.
+- **Courting ramp start 1966 -> 1964, base 0.10 -> 0.05** (new fields `consolidationCourtingRampStartYear`
+  = 1964, `annualCourtingRampPerYear` = 0.12, replacing `annualPost1966PushRamp`). Concentrates
+  courting in the productive 1965-67 signing window (chance 0.05 pre-1964, 0.17/0.29/0.41 in
+  1965/66/67) so push deals expire inside the absorption window rather than in 1960 or post-run.
+  Push-term length (78-104wk) is left realistic — 1960s major-indie distribution deals were multi-year;
+  timing is fixed by *when* deals sign, not by truncating terms.
+
+Kept from v2: acceptance fix, `consolidationAbsorbChance` 0.75, erosion 0.93x, cap 40.
+
+**v3 `d7-pathA-routing-522-1001` result:** absorptions **8**, owner-Major 1969 **0.384** — still flat.
+Two hard findings:
+
+- **The routing weight did nothing.** Major share of signings stayed **18%** despite 6x->12x, because
+  Majors are **capacity-pinned**: all 8 sit at the 12-client cap essentially every week (~95 of 96
+  slots), so weight is irrelevant — they are almost never *eligible*. Capacity (12), not weight, is
+  the binding knob, and 12 is unrealistically low (a national Major distributed dozens of imprints).
+- **The metric is entry-volume-bound, not just count-bound.** The 8 absorbed subsidiaries added only
+  **+4 entries** at 1969 (`ownerMajorEntries` surplus over imprint Major). Absorbable labels are, by
+  the gate, high-dependency = small = **low chart volume** (~0.5-1 entry/yr, decaying). Reaching 0.45
+  (~+90 entries) would need ~90 such absorptions — impossible under cap/breadth/§24.5. The chart-entry
+  tier trend explains the gap: **Independents surge 22%->36.5%** across the decade while Major (41->38%)
+  and MidTier (30->23%) decline. The model has the mid-60s indie boom but not the historical
+  late-60s consolidation counter-wave, and only *high-volume* indie absorption can supply it.
+
+## 27. Capacity fix + the "Stax" dependent-hitmaker archetype (v4)
+
+User direction: fix capacity **and** create a minority of genuinely hit-making labels that are
+financially fragile and stay dependent (a "Stax"), so absorbing them moves real chart volume — while
+keeping the existing weak one-or-two-hit dependents and leaving Motown the build-reach-and-exit
+exception. Bundled with the capacity fix (both separable in telemetry). Gate still not lowered.
+
+- **Major distribution capacity 12 -> 24** (`IsEligibleDistributor`). The confirmed binding
+  constraint; opens the Major-distributed pool absorption feeds on. Realism-supported.
+- **Dependent-hitmaker archetype** (`AILabel.distributionDependentHitmaker`; generated in
+  `RuntimeLabelProfileFactory.ApplyOperatingProfile` for `DependentHitmakerShare` = 12% of runtime
+  Independents). Flagged labels get strong production/scouting (they chart), **low owned/national
+  reach** (must lean on a distributor for national access), and a fragile balance sheet at founding
+  (sign out of necessity). `GrowSelfBuiltDistributionReach` skips them, so they never graduate to
+  independence — they chart through a major's network, stay high-dependency, and are absorbed
+  late-decade with real volume. Roll uses the label's own PRNG (other labels unperturbed; non-flagged
+  Independents consume one extra draw with no downstream effect; Small tier never flagged). Probe 89
+  pins the archetype (minority, high production + low reach, deterministic, Independent-only). Suite
+  now 1-89.
+
+**v4 `d7-pathA-capacity-stax-522-1001` result:** capacity worked cleanly — Major share of signings
+**18% -> 47%**, absorptions **8 -> 13**. But owner-Major 1969 was still **0.374**: the 13 absorptions
+added only **+14 entries** (~1 each). The Stax archetype as built boosted creative *quality* but not
+*output* — an Independent releases few records regardless of quality, so it charts ~1-3 entries and
+absorbing it barely moves an entry-volume metric. Confirms a third time: the entry metric is
+volume-bound and cannot be moved by absorbing individually low-volume small labels.
+
+### 27.1 Candidate "other lever" (not yet actioned): master ownership
+
+Owner-Major share is entry-volume-bound and the late-decade gap is the Independent surge. A lever
+that does not depend on dozens of formal absorptions: **count Major-distributed records whose deal
+has `ownsMasters` = true as Major-controlled** in the owner rollup. Push deals already own masters
+80% of the time, so this is historically legitimate (owning the masters is owning the record) and
+could supply much of the 45-52% rise directly. It is a metric-*definition* change (§24.1 defined
+owner-Major via the acquisition chain only), so it is a user design call — flagged here with numbers
+to follow from v4.
+
+**User approved control-based ownership.** v4 sizing: 188 Major-distributed deals active at 1969 but
+only **33 own masters** (the flat 0.15 pull `ownsMasters` rate) — meaningful but alone only ~0.42-0.43.
+This motivated raising the Major `ownsMasters` rate (section 28).
+
+## 28. Section 28 bundle: control-based ownership, MidTier absorption, the studio-era barrier
+
+An outside review (Gemini, at the user's request) independently reached the same master-ownership
+conclusion and surfaced one lever this work had missed plus a strong baseline lever. Every code
+citation in that review was verified against the source before acting; all were accurate. The user
+agreed with the findings. This section is the resulting bundle. **Not yet run at decade length** —
+the user asked to stop after the probe pass and hand off. Build clean; 52-week probe run passes D5 +
+all D6 1-89 (`d7-sec28-probes-52-1001`).
+
+### 28.1 The missed lever and the correction to my own analysis
+
+Absorbing individually low-volume Small/Independent labels cannot bridge a 10-15% entry-share gap
+(v1-v4 confirm: ~1 entry per absorption). The historically dominant late-60s consolidation was
+majors absorbing **high-volume MidTier** labels — WB->Atlantic 1967, Transamerica->Liberty/UA 1968,
+MCA merging Decca/Kapp/Uni. Our gate (`IsConsolidationEligible`, and probe 87e) explicitly forbade
+MidTier clients. That exclusion was deliberate (protect the frozen first-chart tier buckets) but it
+locked Majors out of the only targets with enough chart volume to move the metric.
+
+I had earlier dismissed "MidTier" by conflating the distributor tier (who absorbs — a MidTier
+*distributor* absorbing yields a MidTier owner, no help) with the **client** tier (who is absorbed —
+a Major absorbing a MidTier *client* yields a Major owner, the WB->Atlantic case). The latter is the
+real lever.
+
+**Mechanism nuance (correction to the outside review):** MidTiers are not distribution-*dependent*
+(they hold their own reach), so merely opening the gate will not fire — a MidTier is not a
+high-dependency client at a Major deal's expiry. It only fires paired with the promotion-deadlock fix
+below, which lets a dependent hitmaker (the Stax archetype) *grow into* MidTier scale while still on
+a major's P&D deal, and then be absorbed. The "WB->Atlantic" event thus emerges from the simulation
+rather than being hardcoded. Magnitude caveat: our MidTiers average ~10-12 chart entries (~1% each),
+not the review's "4-7% each," so expect several MidTier absorptions + master-control to reach the
+band, not one giant event.
+
+### 28.2 The six changes (all bundled; separable in telemetry)
+
+1. **Control-based owner metric** (`ChartAuditRunner.CountOwnerFamilyEntries` +
+   `IsMajorMasterControlled`): a charting record whose operating label holds an **active Major deal
+   with `ownsMasters` = true covering that record** counts as Major-owned, alongside the acquisition
+   chain. Models the P&D-era corporate/distributor share. Additive to the owner columns only; the
+   existing chart columns are unchanged. *Attribution:* `ownerMajorEntries` jump vs imprint
+   `chartEntriesMajor`.
+2. **Higher Major `ownsMasters` rate** (`CompetitorManager.GenerateDealTerms`;
+   `majorDistributorMastersOwnershipRate` = 0.55): a Major distributor takes masters on >=55% of its
+   deals (was a flat 0.15 on pull), so its distributed records fold into the corporate share.
+   *Attribution:* deal-ledger `ownsMasters` fraction on Major-distributed deals.
+3. **MidTier clients absorbable** (`CompetitorManager.IsConsolidationEligible`): `absorbableClient`
+   is now `clientTier != Major` (Small/Boutique/Independent/**MidTier**; a Major peer is never a
+   target). Probe 87e updated. *Attribution:* Absorb events with a MidTier client.
+4. **MidTier promotion deadlock fixed** (`LabelLifecycleManager.IsIndependentReadyForMidTier`): two
+   routes now — the pre-existing organic owned-reach route, OR a **dependent-footprint route**
+   (`chartingLastYear >= 4` and roster `>= 8`) that does not require owned national reach. Lets a
+   Stax/A&M-style dependent hitmaker reach MidTier on a major's P&D deal. All other prerequisites
+   (18+ months, 4 sustained quarters, profitable, runway) unchanged. *Attribution:* Independent->MidTier
+   promotions of low-owned-reach labels.
+5. **Studio-era production barrier** (`LabelLifecycleManager.DriftAttributes`): the post-1963
+   +0.01/quarter production buff (up to +0.24 by 1969, previously granted to **every** active label
+   free) is now gated to labels with `cashReserves >= GetMonthlyOverhead() * StudioUpgradeRunwayMonths`
+   (6). Cash-starved small labels stagnate, as they historically did; Majors and capitalized labels
+   pull acoustically ahead. This is the **baseline** lever against the ahistorical Independent
+   chart surge (22%->36.5%). *Attribution:* production-quality distribution by tier over the decade;
+   watch breadth. **Expected to lower breadth** — the user accepts this: propped-up breadth from a
+   free buff is not real breadth, and healthier breadth levers come next.
+6. **Stax dependent-hitmaker archetype** (section 27; unchanged): the source of high-volume dependent
+   labels that ride the promotion->MidTier->absorption chain.
+
+### 28.3 Test/probe updates
+
+- Probe 87e: now asserts a Major **can** absorb a MidTier client but never another Major.
+- Probe 68h-k (in `ProbeMidTierPromotionBoundary`): the dependent-footprint promotion route — a
+  low-reach, high-dependency label with charting `>= 4` and roster `>= 8` promotes; charting 3 or
+  roster 7 does not. Existing 68a-g unaffected (base gates fire first; organic case keeps reach `>=`
+  0.50).
+- Suite remains 1-89 (no new numbered probe; behaviors folded into existing gate/promotion probes).
+
+### 28.4 Resume sequence
+
+1. Decade run `--weeks=522 --seed=1001` (suggested name `d7-sec28-522-1001`). Watch, in order:
+   - owner-Major entry share 1966-69 (target **0.45-0.52**), and the master-control surplus
+     (`ownerMajorEntries` - imprint `chartEntriesMajor`);
+   - MidTier `ownsMasters` fraction (should be ~0.55+) and Absorb events by **client tier** (expect
+     some MidTier absorptions now);
+   - Independent->MidTier promotions of dependent labels (the Stax chain firing);
+   - imprint chart-entry tier mix (Independent surge should recede from 36.5%; Major/MidTier recover);
+   - **breadth** (cumulative imprint IDs — expected to fall from ~407; judge whether the drop is only
+     the removed free-buff inflation);
+   - Small/Independent tail composition.
+2. Attribute any surprise via the per-lever telemetry in 28.2 before changing constants.
+3. If owner-Major overshoots >0.52, dial back `majorDistributorMastersOwnershipRate` and/or the
+   MidTier-absorption rate before touching the gate. If short, revisit `consolidationAbsorbChance`,
+   the dependent-footprint thresholds, or Stax share.
+4. Holdout seed (2029), forced exit/renew/absorb integrations, `git diff --check`, all probes before
+   acceptance.
+
+### 28.5 Deferred (validated but out of this bundle's scope)
+
+From the same review, valid and noted for later, not actioned:
+
+- **Talent signing ignores momentum** (`GetRandomLabelForSigning` weights only scouting+budget):
+  add `momentumScore`/`reputation` so artists gravitate to hot labels.
+- **Boutique auto-promotes at roster 8** (`BoutiqueAuteurRosterThreshold`): Boutique is a business
+  model, not a stepping stone; promotion should be a strategic pivot, not a roster cap.
+- **`maxMonthlyBirths` = 6 duct-tape cap**: acknowledged in-code as an album-economy stability hack
+  that flattens the mid-60s micro-label explosion; revisit once the album-project capacity is fixed.
+- **Healthier breadth levers** to offset the production-barrier breadth drop (per user): to be
+  designed after measuring section 28's breadth effect.
+
+## 29. Section 28 decade run + owner-Major masters-rate ramp
+
+The §28 bundle was run at decade length: `d7-sec28-522-1001`, seed 1001, clean.
+
+**§28 result:** primary target holds — cumulative imprint breadth **423** (400-600 band), below-MidTier
+Independent-dominated (291/385 = 76%), Small tail 8.7%, and the ahistorical Independent chart-entry
+surge is contained (~20-23%, down from 36.5%). Absorptions rose to **9** including MidTier clients
+(Capitol, Volt, Galactic) — the MidTier-absorption + Stax->promotion chain fires (Era-Parkway,
+Crown Way promoted then absorbed). 82 Independent->MidTier promotions. Masters 37% signed / 44% renew.
+
+**§28 problem:** owner-Major entry share **overshot and was flat** — 51.8% in 1960 rising only to
+55.8% in 1969, ~52-56% every year (target 45-52). The +190 entry surplus over imprint-Major is almost
+entirely the control-based master-ownership metric, not the 9 acquisitions.
+
+**User correction on the target shape:** majors were NOT dominant in 1960 — they sat out rock and roll
+in the mid/late 50s and the indies carried it, so **1960 major share must sit BELOW 1968-69**. The
+target is a RISE from a fragmented 1960 into 45-52% by 1968-69 (late-60s P&D consolidation), not a flat
+high line. §28's flat 51.8% at 1960 is backwards.
+
+### 29.1 The masters-rate ramp (calibration)
+
+`majorDistributorMastersOwnershipRate` (flat 0.55) was replaced with a year ramp
+(`GetMajorMastersOwnershipRate`, linear between `majorMastersRampStartYear` and `...FullYear`,
+`...Early`/`...Late` endpoints) in `CompetitorManager`. Rationale: early-60s indie deals were mostly
+distribution-only (indie keeps masters); the late-60s P&D consolidation is when majors took the masters.
+Isolated to owner columns — breadth/tier byte-identical to §28 (the §12 discipline held).
+
+Iterations, all seed 1001:
+- **`d7-sec29-522-1001`** (early 0.28 / late 0.52, ramp 1962-1969): 1960 **47.9** -> 1969 **50.3**. All
+  years in-band but the rise is only +2.4 — too shallow.
+- **`d7-sec29b-522-1001`** (early 0.15 / late 0.55, ramp 1962-1969): 1960 45.8 -> 1969 45.7 — **flat, no
+  rise, WORSE**. Steepening backfired.
+
+### 29.2 Root cause: renewals freeze the masters flag
+
+`ResolveDistributionDeal` renews by keeping the same deal object; `GenerateDealTerms` (and its masters
+roll) runs only at original signing. So a deal's `ownsMasters` is locked at signing and re-logged
+unchanged across all 1599 renewals. The active-deal masters composition is therefore sticky/lagged
+(blended rate only crawled 19%->27% for a 0.15->0.55 ramp), and lowering early/mid rates dragged the
+LATE years down (1969's charting deals were signed years earlier). **A flat OR a monotonic-ramp rate on
+signing-only cannot produce a rise.** `ownsMasters` is a **metric-only** flag — its sole consumers are
+`IsMajorMasterControlled` (owner-Major chart metric) and ledger logging; it does NOT touch deal
+economics, skim, reach, dependency, or the absorption gate. Verified by grep.
+
+## 30. Section 30 bundle: masters re-roll at renewal + Boutique archetype/breakout pivot (ACCEPTED)
+
+Two changes, user-approved as a bundle (user accepted the §12 attribution risk; they remain separable in
+telemetry — Boutique = promotion counts, owner-Major = masters columns). Run `d7-sec30-522-1001`, seed
+1001, clean. Probes: D5 + D6 1-89 pass (`d7-sec30-probes-52-1001`).
+
+### 30.1 The two changes
+
+1. **Masters re-roll at renewal** (`CompetitorManager`): both renew branches in `ResolveDistributionDeal`
+   now call `RerollMastersOnRenewal`, which re-rolls `deal.ownsMasters` at the CURRENT year's rate
+   (`CurrentDealMastersRate` = push/pull base, raised to `GetMajorMastersOwnershipRate(year)` for a Major
+   distributor). Models majors taking masters at renewal during consolidation. The roll uses a
+   seed-stable FNV hash (`GetDeterministicMastersRenewalRoll`), NOT the global RNG stream, so breadth and
+   tier composition are unperturbed. This makes the ramp finally propagate through the renewing pool.
+   Ramp retuned for the stronger propagation: **early 0.15 / late 0.45, ramp 1962-1968**.
+2. **Boutique archetype + breakout pivot** (`LabelLifecycleManager.TryPromoteLabel`): the roster-at-cap
+   trigger is replaced. A Boutique promotes to Independent only if `IsBoutiqueGrowthArchetype(archetype)`
+   (auteur/niche archetypes JazzPrestige, BluesRoots, FolkBoutique, GospelPowerhouse, CountrySpecialist
+   never promote) AND `chartingLastYear >= BoutiquePivotMinimumRecentChartingRecords` (=3, a genuine
+   breakout, above the Small->Independent bar of 1). 18-month + sustained-capability gates unchanged.
+
+### 30.2 Result — ACCEPTED by user
+
+- **Owner-Major: the rise landed.** 1960 **45.8** -> 1963 46.2 -> 1966 49.8 -> 1968 51.3 -> 1969 **53.7**
+  — a genuine +7.9 climb from a fragmented 1960 into late-60s consolidation, 1960 clearly below the late
+  years. Minor: 1969 (53.7) tips ~1.7 over the 52 ceiling (1968 51.3 in-band). User: "53%~ is fine for
+  Majors at the moment."
+- **Boutique fix verified:** 17 promotions (vs 9), ALL growth archetypes (SoulFactory, TeenHitMachine,
+  RegionalHustler, CorporateGiant), zero auteur — confirmed by cross-ref (an apparent GospelPowerhouse
+  was a duplicate-display-name collision: the real promoted "Thirsty Records" is `label_0565`, SoulFactory).
+- **Cost (attributable entirely to the Boutique gate — masters re-roll is metric-only):** cumulative
+  breadth **423 -> 402** (still in band, thin cushion). Mechanism: promoting genuine-breakout Boutiques
+  into stronger Independents crowds the late chart, so fewer brand-new IDs break through. Small tail grew
+  8.7% -> 11.2%; below-MidTier still 72% Independent. 1969 mix S/B/I/M/Maj = 45/57/262/30/8.
+
+### 30.3 Minor follow-up spotted (non-blocking)
+
+5 of the 17 Boutique promotions were `CorporateGiant` — possibly launch Boutiques with an uninitialized
+archetype defaulting to enum 0 (= CorporateGiant), i.e. the §6.1 launch-factory incomplete-init issue.
+CorporateGiant is a legitimate growth archetype so the promotions are not wrong, but the default-0
+suspicion is worth confirming in the launch factory.
+
+### 30.4 Resume sequence (holdout validation — next session)
+
+1. **Holdout seed run** `--seed=2029 --weeks=522` (suggested `d7-sec30-522-2029`), same flags. The key
+   checks: does breadth hold >=~400 on a second seed (402 on 1001 is thin), and does the owner-Major arc
+   still rise from a low-40s/mid-40s 1960 into ~50-53 by 1969? If breadth dips below 400, tune before
+   accepting (see below).
+2. **Breadth to ~500 must come from elsewhere, not Boutique** (explicit user goal). The Boutique gate
+   cost breadth; do NOT loosen it to buy breadth back. Candidate healthier breadth levers (§28.5, and the
+   deferred list): the `maxMonthlyBirths` = 6 duct-tape cap that flattens the mid-60s micro-label
+   explosion; the studio-era production barrier's breadth effect; talent-signing-ignores-momentum. Design
+   a dedicated breadth lever and ship it as its own calibration change.
+3. If tuning is wanted: late masters rate 0.45 -> 0.42 pulls 1969 from 53.7 to ~51; Boutique bar 3 -> 4
+   promotes fewer and recovers some breadth cushion. Both are one-line constant changes.
+4. Before final acceptance: forced exit/renew/absorb integrations, all probes, `git diff --check`.
+
+### 30.5 Genre shape (release-level, sec30)
+
+Quick look at `single-release-lanes.csv` (chart-level genre dump is suppressed by `--lean-probe`; this is
+what labels RELEASE by genre, a proxy — not chart outcomes, and not A/B-attributable to the lifecycle
+changes without a comparison run). The shape is historically faithful: RockAndRoll declines 14%->2%,
+TeenPop/DooWop/TraditionalPop fade, the British invasion (BritishPop/BritishBeat) appears exactly at
+1964-65, Soul stays strong (11-14%), Gospel rises 2%->6%, and the late-60s rock diversification
+(Psychedelic, FolkRock, GarageRock, HardRock, Funk, BluesRock, Progressive, AcidRock, ProtoPunk/Metal)
+emerges 1966-69; Reggae/Ska/Rocksteady appear late. ~40 genres with credible emergence/decline arcs.
+Note the genre diversity is realized per-record from market demand even though runtime label
+specialization is limited to 7 preferred genres (the §"Document/defer" concern) — worth a proper
+chart-level genre audit on a non-lean run next session.

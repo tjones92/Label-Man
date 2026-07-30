@@ -23,11 +23,22 @@ public partial class LabelLifecycleManager : Node {
 	private const float MajorPromotionCapability = 0.78f;
 	private const float DemotionHysteresis = 0.08f;
 	private const int BoutiqueAuteurRosterThreshold = 8;
+	// A Boutique pivot to Independent is a deliberate commercial breakout, not a roster-cap
+	// trigger. Set above the Small->Independent bar (1) so only a genuine hitmaker crosses it.
+	private const int BoutiquePivotMinimumRecentChartingRecords = 3;
 	private const int MidTierPromotionMinimumOperatingMonths = 18;
 	private const int MidTierPromotionMinimumSustainedQuarters = 4;
 	private const int MidTierPromotionMinimumRoster = 6;
 	private const int MidTierPromotionMinimumRecentChartingRecords = 2;
 	private const int IndependentPromotionMinimumRecentChartingRecords = 1;
+	// Section 28: a heavily distributor-dependent hitmaker (Stax, A&M) reached MidTier footprint on
+	// a major's P&D deal without ever building its own national network. The dependent-footprint
+	// promotion route requires a stronger sustained chart-and-roster showing than the organic route.
+	private const int MidTierPromotionDependentChartingRecords = 4;
+	private const int MidTierPromotionDependentRoster = 8;
+	// Section 28: months of overhead runway a label needs before it can fund studio upgrades and
+	// keep pace with the post-1963 production-quality climb; below it, production stagnates.
+	private const float StudioUpgradeRunwayMonths = 6f;
 	private const float MidTierPromotionMinimumRunwayMonths = 6f;
 	private const int LaunchCompetitionMinimumOperatingMonths = 6;
 	private const int RuntimeCompetitionMinimumOperatingMonths = 18;
@@ -193,6 +204,14 @@ public partial class LabelLifecycleManager : Node {
 		string reason = $"Absorbed by {distributor.labelName}";
 		GD.Print($"[LabelManager] {label.labelName} acquired by {distributor.labelName}.");
 		OnLabelDefunct?.Invoke(label, reason);
+	}
+
+	// Subsidiary absorption (section 24): the label rolls up to the parent's corporate family
+	// but keeps operating and charting. Unlike MarkLabelAcquired, status stays operational and
+	// the label is NOT added to defunctLabels or counted as defunct -- it is not a shut-down.
+	public void MarkLabelSubsidiary(AILabel label, AILabel distributor) {
+		if (label == null || distributor == null || label == distributor || !label.IsActive) return;
+		GD.Print($"[LabelManager] {label.labelName} is now a subsidiary of {distributor.labelName}.");
 	}
 	
 	/// <summary>
@@ -434,20 +453,20 @@ public partial class LabelLifecycleManager : Node {
 				chartingLastYear >= IndependentPromotionMinimumRecentChartingRecords:
 				PromoteLabel(label, LabelTier.Independent);
 				return true;
-			// BoutiqueAuteurRosterThreshold is also Boutique's hard capacity, so the strict
-			// comparison this replaces asked for a roster the tier can never hold: zero of
-			// 37 live Boutiques could satisfy it mid-decade, and the rung only ever fired
-			// for launch labels seeded above their own cap. At capacity is the readable
-			// intent — a boutique that has filled every slot has outgrown the niche.
-			//
-			// The operating-months gate is the same one Small and Independent already carry.
-			// Without it this rung promotes on seeded state rather than observed growth: the
-			// launch population is generated with full boutique rosters, so 21 labels
-			// promoted at the second quarterly review of 1960 before any of them had done
-			// anything. That is the en-masse launch promotion IsIndependentReadyForMidTier
-			// documents guarding against.
+			// A Boutique is an auteur-driven business model (its roster cap of 8 is the point,
+			// not a ceiling to grow out of), so promotion to Independent must be a deliberate
+			// strategic pivot rather than the mere fact of filling every slot. The former
+			// roster-at-capacity trigger promoted any successful Boutique -- exactly backwards.
+			// Two gates now express the pivot: (1) the archetype must be a growth-oriented one
+			// (a RegionalHustler is literally "trying to break out"); the auteur/niche archetypes
+			// (JazzPrestige, BluesRoots, FolkBoutique, GospelPowerhouse, CountrySpecialist) never
+			// promote, they stay curated boutiques by design. (2) genuine commercial breakout,
+			// proven by a stronger recent charting showing than the Small->Independent bar, not a
+			// full roster. The operating-months and sustained-capability gates are unchanged and
+			// still guard against the launch population promoting en masse on seeded state.
 			case LabelTier.Boutique when label.sustainedCapabilityQuarters >= 2 && label.monthsActive > 18 &&
-				label.CurrentRosterSize >= BoutiqueAuteurRosterThreshold:
+				IsBoutiqueGrowthArchetype(label.archetype) &&
+				chartingLastYear >= BoutiquePivotMinimumRecentChartingRecords:
 				PromoteLabel(label, LabelTier.Independent);
 				return true;
 			case LabelTier.Independent when IsIndependentReadyForMidTier(label, chartingLastYear):
@@ -470,11 +489,27 @@ public partial class LabelLifecycleManager : Node {
 			label.sustainedCapabilityQuarters < MidTierPromotionMinimumSustainedQuarters ||
 			label.CurrentRosterSize < MidTierPromotionMinimumRoster ||
 			chartingLastYear < MidTierPromotionMinimumRecentChartingRecords) return false;
-		if (label.ownedReach < 0.50f || GetDependency(label) >= DependencyLowThreshold) return false;
+		// MidTier footprint has two historical routes. The organic route builds its own national
+		// reach and sheds distributor dependency (the pre-existing test). The dependent-hitmaker
+		// route reaches MidTier scale on a major's P&D deal -- high owned reach was never required
+		// of a Stax or an A&M -- and instead proves footprint through a stronger sustained chart
+		// and roster showing. Requiring one of the two keeps promotion earned, not automatic.
+		bool organicReachRoute = label.ownedReach >= 0.50f && GetDependency(label) < DependencyLowThreshold;
+		bool dependentFootprintRoute = chartingLastYear >= MidTierPromotionDependentChartingRecords &&
+			label.CurrentRosterSize >= MidTierPromotionDependentRoster;
+		if (!organicReachRoute && !dependentFootprintRoute) return false;
 		if (label.status != LabelStatus.Stable && label.status != LabelStatus.Rising) return false;
 		if (label.consecutiveLossMonths != 0 || label.lastMonthlyProfit <= 0f) return false;
 		return label.cashReserves >= MidTierPromotionMinimumRunwayMonths * label.GetMonthlyOverhead();
 	}
+
+	// The auteur/niche archetypes are curated business models that do not seek to scale out of
+	// the boutique tier; the growth-oriented ones can pivot to Independent on a commercial breakout.
+	private static bool IsBoutiqueGrowthArchetype(LabelArchetype archetype) => archetype switch {
+		LabelArchetype.JazzPrestige or LabelArchetype.BluesRoots or LabelArchetype.FolkBoutique
+			or LabelArchetype.GospelPowerhouse or LabelArchetype.CountrySpecialist => false,
+		_ => true
+	};
 
 	private static float GetPromotionFloor(LabelTier tier) => tier switch {
 		LabelTier.Small => IndependentPromotionCapability,
@@ -533,7 +568,14 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void DriftAttributes(AILabel label) {
 		float drift = 0.02f;
-		if (currentYear > 1963) label.productionQuality = Mathf.Min(1f, label.productionQuality + drift * 0.5f);
+		// Section 28: the mid-60s multitrack studio era (3->4->8 track, orchestral arrangements)
+		// was exorbitantly expensive. The old code granted every active label a free +0.01/quarter
+		// production lift after 1963 -- up to +0.24 by 1969 -- which erased the capital barrier that
+		// let Majors pull acoustically ahead and is a driver of the ahistorical late-decade indie
+		// chart surge. Only a label with capital to fund studio upgrades keeps pace now; a
+		// cash-starved small label's production stagnates, as it historically did.
+		if (currentYear > 1963 && label.cashReserves >= label.GetMonthlyOverhead() * StudioUpgradeRunwayMonths)
+			label.productionQuality = Mathf.Min(1f, label.productionQuality + drift * 0.5f);
 		label.scoutingAbility += (float)GD.RandRange(-drift, drift);
 		label.riskTolerance += (float)GD.RandRange(-drift, drift);
 		label.scoutingAbility = Mathf.Clamp(label.scoutingAbility, 0f, 1f);

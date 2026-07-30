@@ -110,7 +110,10 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbePromoCannibalizationChargedOnce();                                          // 84
 		ProbePromoRecruitmentMatchesDiversionTerms();                                    // 85
 		ProbeLoweredLocalTractionAdmitsStrandedBand();                                   // 86
-		results.Add("D6 fixed probes 1-86 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, and a lowered LocalTraction activation that admits the stranded breakout band)");
+		ProbeConsolidationGate();                                                        // 87
+		ProbeSubsidiaryAbsorptionRetainsLabel();                                         // 88
+		ProbeDependentHitmakerArchetype();                                               // 89
+		results.Add("D6 fixed probes 1-89 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target)");
 		return results;
 	}
 
@@ -1228,6 +1231,23 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		candidate.lastMonthlyProfit = 1000f; candidate.cashReserves = candidate.GetMonthlyOverhead() * 5f;
 		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
 			"68g fewer than six months of runway cannot promote");
+
+		// Section 28: the dependent-hitmaker route. A label with low owned reach and high
+		// distributor dependency -- which the organic route rejects -- still reaches MidTier on a
+		// strong sustained chart-and-roster footprint (Stax/A&M on a major's P&D deal).
+		candidate.ownedReach = .28f;
+		candidate.activeDeal = new DistributionDeal { reachGranted = .60f };
+		while (candidate.roster.Count < 8) candidate.roster.Add(NewArtist($"mid-dep-{candidate.roster.Count}"));
+		candidate.cashReserves = candidate.GetMonthlyOverhead() * 6f;
+		Require(candidate.DistributionDependency >= 0.35f && candidate.ownedReach < 0.50f,
+			"68h setup: the dependent-hitmaker candidate is genuinely low-reach and high-dependency");
+		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+			"68i a distributor-dependent hitmaker with a strong chart-and-roster footprint promotes without owning national reach");
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 3),
+			"68j the dependent route needs the stronger sustained charting bar, not the base two records");
+		candidate.roster.RemoveAt(candidate.roster.Count - 1);
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+			"68k the dependent route needs the larger roster footprint as well");
 	}
 
 	private static void ProbeCompetitiveLabelExitBoundary() {
@@ -1636,6 +1656,119 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(ChartManager.CalculateBreakoutDiscoveryStrength(0.40f) > ChartManager.CalculateBreakoutDiscoveryStrength(0.30f) &&
 			Math.Abs(ChartManager.CalculateBreakoutDiscoveryStrength(0.60f) - 1f) < .000001f,
 			"86c the discovery-strength ramp stays monotone and saturates a fixed 0.40 above the activation");
+	}
+
+	private static void ProbeConsolidationGate() {
+		// The late-decade major-consolidation gate is split from its random roll so it can be
+		// asserted directly. Arguments below use the shipped defaults: start year 1966, cap 40,
+		// requireCharted on, allowNationalMidTier off. A Major absorbing a charted independent
+		// inside the window and under the cap is the one eligible shape.
+		Require(CompetitorManager.IsConsolidationEligible(1968, 1966,
+			LabelTier.Major, false, LabelTier.Independent, true, true, false, 5, 40),
+			"87 a Major absorbing a charted independent inside the window and under the cap is eligible");
+
+		// Before the window nothing consolidates, which preserves the calibrated early-decade
+		// major share and keeps pre-1966 realizations unperturbed by the lever.
+		Require(!CompetitorManager.IsConsolidationEligible(1965, 1966,
+			LabelTier.Major, false, LabelTier.Independent, true, true, false, 0, 40),
+			"87b no absorption fires before the consolidation start year");
+
+		// Only a Major -- or, when the flag is on, a genuinely national MidTier -- may acquire.
+		// A standalone MidTier or Independent absorbing is the wrong-tier noise the old ungated
+		// path produced (indie-on-indie, even small-on-major).
+		Require(!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.MidTier, false, LabelTier.Independent, true, true, false, 0, 40) &&
+			!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Independent, true, LabelTier.Boutique, true, true, false, 0, 40),
+			"87c a MidTier (national flag off) or Independent acquirer is not an eligible consolidator");
+		Require(CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.MidTier, true, LabelTier.Independent, true, true, true, 0, 40) &&
+			!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.MidTier, false, LabelTier.Independent, true, true, true, 0, 40),
+			"87d a national MidTier acquires only when the flag is on and it is genuinely national");
+
+		// Section 28: the historically dominant consolidation was majors absorbing high-volume
+		// MidTier labels (WB->Atlantic), so a MidTier client IS an eligible target. Only a Major
+		// client -- a peer, not an acquisition target -- is excluded.
+		Require(CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.MidTier, true, true, false, 0, 40) &&
+			!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.Major, true, true, false, 0, 40),
+			"87e a Major can absorb a MidTier client (WB->Atlantic) but never another Major");
+
+		// Majors bought success: an uncharted client is ineligible while requireCharted holds,
+		// and relaxing that flag admits it.
+		Require(!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.Independent, false, true, false, 0, 40) &&
+			CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.Independent, false, false, false, 0, 40),
+			"87f a client must have charted when requireCharted is set, and need not when it is cleared");
+
+		// The decade cap bounds the wave so it cannot crush the independent imprint tail that
+		// breadth and the section 1 tier guardrail require.
+		Require(!CompetitorManager.IsConsolidationEligible(1969, 1966,
+				LabelTier.Major, false, LabelTier.Independent, true, true, false, 40, 40),
+			"87g absorption stops once the decade cap is reached");
+	}
+
+	private static void ProbeSubsidiaryAbsorptionRetainsLabel() {
+		// Subsidiary model (section 24): absorption does not shut the label down. It folds the
+		// terminated deal's borrowed reach into permanent owned reach, unions the parent's
+		// distribution regions in so national coverage persists, and rolls ownership up to the
+		// parent -- while the label keeps its operational status, roster and release imprint so
+		// it keeps charting as a Major-owned subsidiary.
+		AILabel parent = new() {
+			labelId = "major-parent", tier = LabelTier.Major,
+			distributionRegions = new[] { "westcoast", "greatlakes" }, roster = new List<SimulatedArtist>()
+		};
+		AILabel client = new() {
+			labelId = "indie-sub", tier = LabelTier.Independent, status = LabelStatus.Rising,
+			ownedReach = 0.10f, distributionRegions = new[] { "eastcoast" },
+			roster = new List<SimulatedArtist> { NewArtist("sub-artist") },
+			activeDeal = new DistributionDeal { distributorId = "major-parent", reachGranted = 0.50f }
+		};
+
+		CompetitorManager.ApplySubsidiaryAbsorption(client, parent);
+
+		Require(client.IsSubsidiary && client.ownerLabelId == "major-parent",
+			"88 an absorbed label is marked a subsidiary of its acquiring parent");
+		Require(client.activeDeal == null && Math.Abs(client.ownedReach - 0.60f) < 0.0001f,
+			"88b the terminated deal's borrowed reach is folded into permanent owned reach");
+		Require(client.distributionRegions.Length == 3 && client.distributionRegions.Contains("eastcoast") &&
+			client.distributionRegions.Contains("westcoast") && client.distributionRegions.Contains("greatlakes"),
+			"88c the parent's distribution regions are unioned into the subsidiary's own");
+		Require(client.IsActive && client.status == LabelStatus.Rising && client.CurrentRosterSize == 1,
+			"88d the subsidiary keeps operating -- status, roster and imprint retained, not shut down");
+	}
+
+	private static void ProbeDependentHitmakerArchetype() {
+		// Section 27: a minority of runtime Independents are dependent "Stax" hitmakers -- strong
+		// production but low owned reach, so they chart through a major's network and stay
+		// absorbable -- while the rest of the dependent population is unchanged.
+		int flagged = 0; const int total = 200;
+		for (int i = 0; i < total; i++) {
+			AILabel l = NewRuntimeProfileProbeLabel("dh-" + i, LabelTier.Independent);
+			RuntimeLabelProfileFactory.Initialize(l, null, 30 + i, new GameDate(1963, 6, 1), 4242UL);
+			if (l.distributionDependentHitmaker) {
+				flagged++;
+				Require(l.productionQuality >= 0.60f && l.ownedReach <= 0.40f && RuntimeLabelProfileFactory.HasCompleteOperatingProfile(l),
+					"89 a dependent hitmaker has strong production and low owned reach within a complete profile");
+			}
+		}
+		Require(flagged > 0 && flagged < total,
+			"89b dependent hitmakers are a nonempty minority of runtime Independents, neither all nor none");
+
+		AILabel a = NewRuntimeProfileProbeLabel("dh-fixed", LabelTier.Independent);
+		AILabel b = NewRuntimeProfileProbeLabel("dh-fixed", LabelTier.Independent);
+		RuntimeLabelProfileFactory.Initialize(a, null, 55, new GameDate(1963, 6, 1), 4242UL);
+		RuntimeLabelProfileFactory.Initialize(b, null, 55, new GameDate(1963, 6, 1), 4242UL);
+		Require(a.distributionDependentHitmaker == b.distributionDependentHitmaker,
+			"89c the dependent-hitmaker roll is deterministic for a fixed seed and identity");
+
+		AILabel small = NewRuntimeProfileProbeLabel("dh-small", LabelTier.Small);
+		RuntimeLabelProfileFactory.Initialize(small, null, 55, new GameDate(1963, 6, 1), 4242UL);
+		Require(!small.distributionDependentHitmaker,
+			"89d the dependent-hitmaker archetype is confined to the Independent tier");
 	}
 
 

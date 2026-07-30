@@ -211,6 +211,14 @@ public partial class ChartAuditRunner : Node {
 	// entry and the figure historical major/independent splits are quoted against.
 	private readonly Dictionary<string, LabelTier> annualChartEntryTierByRecord = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, LabelTier> annualTop40TierByRecord = new(StringComparer.Ordinal);
+	// The imprint tier above is frozen at release; consolidation moves a record's
+	// *owner*, not its imprint, so an absorbed independent still counts as an
+	// Independent entry. To report the major-distributed share the late-decade
+	// 45-52% consolidation target attaches to, key each distinct entry to its
+	// current owner id and resolve the acquisition chain at year-end exactly as
+	// the unit rollup does. Owner-Major share is orthogonal to imprint breadth.
+	private readonly Dictionary<string, string> annualChartEntryOwnerByRecord = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, string> annualTop40OwnerByRecord = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, LabelTier> birthTierByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, int> signedDealCountByLabel = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, int> completedDealCountByLabel = new(StringComparer.Ordinal);
@@ -838,7 +846,13 @@ public partial class ChartAuditRunner : Node {
 		forcedClientInitialNationalReach = forcedDealClient.nationalReach;
 		if (forcedDealResolution == "exit") forcedDealClient.ownedReach = 0.95f;
 		else if (forcedDealResolution == "renew") forcedDealClient.ownedReach = 0.50f;
-		else if (forcedDealResolution == "absorb") forcedDealClient.ownedReach = 0.05f;
+		else if (forcedDealResolution == "absorb") {
+			forcedDealClient.ownedReach = 0.05f;
+			// Absorption is no longer triggered by ownsMasters; it is gated to the late-decade
+			// consolidation window, Major acquirers and charted indie clients. This harness
+			// installs its deal in 1960, so force this one client's expiry to absorb.
+			CompetitorManager.Instance.ForceConsolidationForTest(forcedDealClient.labelId);
+		}
 		forcedDealClient.activeDeal = new DistributionDeal {
 			distributorId = forcedDealDistributor.labelId,
 			reachGranted = forcedDealResolution == "absorb" ? 0.80f : forcedDealResolution == "exit" ? 0.10f : 0.50f,
@@ -873,9 +887,16 @@ public partial class ChartAuditRunner : Node {
 		if (forcedDealResolution is "exit" or "renew" && forcedDealClient.nationalReach <= forcedClientInitialNationalReach) {
 			throw new InvalidOperationException("A completed forced deal did not leave the client with earned national reach.");
 		}
-		if (forcedDealResolution == "absorb" && (forcedDealClient.status != LabelStatus.Acquired ||
-			CompetitorManager.Instance.GetOperatingLabels().Contains(forcedDealClient) || forcedDealClient.CurrentRosterSize != 0 || forcedClientInitialRoster <= 0)) {
-			throw new InvalidOperationException("Forced absorption did not fully retire and transfer the client.");
+		// Subsidiary outcome: the client rolled up to the Major (ownerLabelId set, deal converted
+		// to ownership) but is NOT shut down -- it stays in GetOperatingLabels and keeps its
+		// roster (retention, not the old transfer-to-zero). Roster size churns over the run, so
+		// the retention check is that it still operates a non-empty roster, not exact equality.
+		if (forcedDealResolution == "absorb" && (!forcedDealClient.IsSubsidiary ||
+			forcedDealClient.ownerLabelId != forcedDealDistributor.labelId ||
+			!CompetitorManager.Instance.GetOperatingLabels().Contains(forcedDealClient) ||
+			forcedDealClient.activeDeal != null || forcedDealClient.CurrentRosterSize <= 0 ||
+			forcedClientInitialRoster <= 0)) {
+			throw new InvalidOperationException("Forced absorption did not convert the client into a retained subsidiary.");
 		}
 	}
 
@@ -969,7 +990,7 @@ public partial class ChartAuditRunner : Node {
 		labelFinanceWriter.WriteLine("week,year,labelId,labelName,archetype,isHistorical,labelTier,status,cashReserves,monthlyRevenue,monthlyExpenses,weeklyGross,weeklyCogs,weeklySkim,weeklyRoyalty,weeklyNet,weeklyDistributionIncome,ownedReach,borrowedReach,nationalReach,capability,dealDistributorId,dealUnrecoupedAdvance");
 		dealLedgerWriter.WriteLine("eventWeek,year,resolution,origin,distributorId,distributorName,clientId,clientName,reachGranted,marginSkim,ownsMasters,advance,signedWeek,termWeeks,dependency");
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
-		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting,cumulativeExactLabelNamesCharting,chartEntries,chartEntriesSmall,chartEntriesBoutique,chartEntriesIndependent,chartEntriesMidTier,chartEntriesMajor,top40Entries,top40Small,top40Boutique,top40Independent,top40MidTier,top40Major");
+		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting,cumulativeExactLabelNamesCharting,chartEntries,chartEntriesSmall,chartEntriesBoutique,chartEntriesIndependent,chartEntriesMidTier,chartEntriesMajor,top40Entries,top40Small,top40Boutique,top40Independent,top40MidTier,top40Major,ownerMajorEntries,ownerMajorFamilyEntries,ownerMajorTop40Entries,ownerMajorFamilyTop40Entries");
 		firstChartEventWriter?.WriteLine("week,year,date,observationKind,leftCensoredAtRunStart,recordId,title,releaseLabelId,currentOwnerLabelId,labelName,labelOrigin,runtimeBirthWeek,birthTier,firstChartTier,labelStatus,isHistorical,recordAge,currentPosition,unitsThisWeek,chartPoints,publishedCutoffPoints,quality,peakRegionalBreakoutStrength,bestStrongRegionPeak,regionalBreakoutCount,coveredRegionCount,signedDealCount,completedDealCount,activeDeal,dealOrigin,dealSignedWeek,permanentNationalReach,borrowedReach,effectiveNationalReach,ownedReach,distributionStrength,permanentRegionCount,grantedRegionCount,initialLaunchAwareness,initialLaunchStock");
 		distributionOfferAttemptWriter?.WriteLine("week,year,clientId,clientName,clientTier,clientOrigin,monthsActive,ownedReach,nationalReach,bestAnyRegionPeak,bestStrongRegionPeak,bestPersistentEvidenceQuality,persistentRegionalEvidence,legacyQualityAndCurrentSalesEvidence,legacyNationalReachGate,pushEvidence,pushChancePassed,pullChancePassed,outcome,distributorId");
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
@@ -1759,7 +1780,11 @@ public partial class ChartAuditRunner : Node {
 		List<RecordRuntimeData> chart = ChartManager.Instance.GetCurrentChart();
 		List<RecordRuntimeData> albumChart = ChartManager.Instance.GetCurrentAlbumChart();
 		AccumulateConcentration(date.year, chart);
-		if (forceDistributionDeal) {
+		// Skim routing to the distributor is only defined while the deal is active. Once the
+		// deal resolves -- an exit that nulls it, or a subsidiary absorption that converts it
+		// to ownership -- the label self-distributes and its residual skim fraction
+		// (0.25*(1-ownedReach)) is not routed to anyone, so the equality no longer applies.
+		if (forceDistributionDeal && forcedDealClient.activeDeal != null) {
 			if (!Mathf.IsEqualApprox(forcedDealClient.weeklyDistributionSkim, forcedDealDistributor.weeklyDistributionIncome)) {
 				throw new InvalidOperationException("Forced deal skim was not credited to its distributor.");
 			}
@@ -2297,6 +2322,8 @@ public partial class ChartAuditRunner : Node {
 			annualChartUnitsByLabel.Clear();
 			annualChartEntryTierByRecord.Clear();
 			annualTop40TierByRecord.Clear();
+			annualChartEntryOwnerByRecord.Clear();
+			annualTop40OwnerByRecord.Clear();
 			concentrationYear = year;
 		}
 		foreach (RecordRuntimeData record in chart) {
@@ -2313,8 +2340,10 @@ public partial class ChartAuditRunner : Node {
 				?? CompetitorManager.Instance.GetLabel(currentOwnerId)?.tier
 				?? LabelTier.Small;
 			annualChartEntryTierByRecord[recordId] = entryTier;
+			annualChartEntryOwnerByRecord[recordId] = currentOwnerId;
 			if (record.currentPosition >= 1 && record.currentPosition <= 40) {
 				annualTop40TierByRecord[recordId] = entryTier;
+				annualTop40OwnerByRecord[recordId] = currentOwnerId;
 			}
 		}
 		ObserveFirstChartIdentities(chart, leftCensoredAtRunStart: false);
@@ -2431,6 +2460,8 @@ public partial class ChartAuditRunner : Node {
 			.ToDictionary(group => group.Key, group => group.Count());
 		float c4 = total > 0 ? (float)ranked.Take(4).Sum() / total : 0f;
 		float c8 = total > 0 ? (float)ranked.Take(8).Sum() / total : 0f;
+		var (ownerMajorEntries, ownerMajorFamilyEntries) = CountOwnerFamilyEntries(annualChartEntryOwnerByRecord);
+		var (ownerMajorTop40Entries, ownerMajorFamilyTop40Entries) = CountOwnerFamilyEntries(annualTop40OwnerByRecord);
 		concentrationWriter.WriteLine(string.Join(",", new[] {
 			concentrationYear.ToString(CultureInfo.InvariantCulture), F(c4), F(c8), rolledUp.Count.ToString(CultureInfo.InvariantCulture),
 			F(total > 0 ? (float)indieUnits / total : 0f), F(total > 0 ? (float)majorUnits / total : 0f), total.ToString(CultureInfo.InvariantCulture),
@@ -2457,12 +2488,54 @@ public partial class ChartAuditRunner : Node {
 			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Boutique),
 			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Independent),
 			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.MidTier),
-			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Major)
+			CountEntriesAtTier(annualTop40TierByRecord, LabelTier.Major),
+			ownerMajorEntries.ToString(CultureInfo.InvariantCulture),
+			ownerMajorFamilyEntries.ToString(CultureInfo.InvariantCulture),
+			ownerMajorTop40Entries.ToString(CultureInfo.InvariantCulture),
+			ownerMajorFamilyTop40Entries.ToString(CultureInfo.InvariantCulture)
 		}));
 	}
 
 	private static string CountEntriesAtTier(Dictionary<string, LabelTier> entriesByRecord, LabelTier tier) =>
 		entriesByRecord.Values.Count(value => value == tier).ToString(CultureInfo.InvariantCulture);
+
+	// Resolve each distinct entry's current owner through the acquisition chain and
+	// bucket by owner tier. ownerMajor counts records a Major distributes -- the
+	// historically grounded "major-distributed" share the 45-52% consolidation
+	// target attaches to; ownerMajorFamily additionally counts MidTier, matching the
+	// Major+MidTier grouping of majorFamilyChartShare. An absorbed independent's
+	// record thus leaves the Independent imprint bucket for the owner-Major bucket
+	// while its immutable release imprint still counts once for cumulative breadth.
+	private (int ownerMajor, int ownerMajorFamily) CountOwnerFamilyEntries(Dictionary<string, string> ownerByRecord) {
+		int ownerMajor = 0, ownerMajorFamily = 0;
+		foreach (var pair in ownerByRecord) {
+			AILabel owner = CompetitorManager.Instance.GetLabel(ResolveCurrentOwner(pair.Value));
+			if (owner == null) continue;
+			bool major = owner.tier == LabelTier.Major;
+			bool family = !IsIndieFamily(owner);
+			// Control-based ownership (section 27.1): the historical late-60s consolidation wave was
+			// mostly majors gaining CONTROL of independents through distribution deals in which the
+			// major owned the masters -- not outright buyouts. Owning the masters is owning the
+			// record, so a record a Major distributes under a master-owning deal counts as
+			// Major-owned even without a formal acquisition. This is what lets consolidation move the
+			// entry-share metric, which absorbing individually low-volume small labels cannot.
+			if (!major && IsMajorMasterControlled(pair.Value, pair.Key)) { major = true; family = true; }
+			if (major) ownerMajor++;
+			if (family) ownerMajorFamily++;
+		}
+		return (ownerMajor, ownerMajorFamily);
+	}
+
+	// The record's operating label (release imprint) holds the distribution deal. It is
+	// Major-controlled when that deal is active, owns the masters, covers this specific record
+	// (per-song scope, section 11), and the distributor is a Major.
+	private bool IsMajorMasterControlled(string operatingLabelId, string recordId) {
+		AILabel label = CompetitorManager.Instance.GetLabel(operatingLabelId);
+		DistributionDeal deal = label?.activeDeal;
+		if (deal == null || !deal.ownsMasters || !label.RecordCoveredByActiveDeal(recordId)) return false;
+		AILabel distributor = CompetitorManager.Instance.GetLabel(deal.distributorId);
+		return distributor != null && distributor.tier == LabelTier.Major;
+	}
 
 	private string ResolveCurrentOwner(string labelId) {
 		var visited = new HashSet<string>(StringComparer.Ordinal);

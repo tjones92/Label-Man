@@ -71,6 +71,23 @@ public partial class AILabel : Resource {
 	public float reputation;
 	public DistributionDeal activeDeal;
 
+	// Set when a high-dependency independent is absorbed into a Major's corporate family
+	// (section 24 consolidation lever). A subsidiary keeps operating -- its own roster,
+	// release imprint and chart access -- while ownership rolls up to the parent. This is
+	// orthogonal to status/IsActive: a subsidiary stays operationally Rising/Stable and
+	// IsActive true, unlike LabelStatus.Acquired, which is a dead shut-down state.
+	public string ownerLabelId;
+	public bool IsSubsidiary => !string.IsNullOrEmpty(ownerLabelId);
+
+	// A minority "Stax" archetype (section 27): a genuinely hit-making label that stays
+	// financially dependent on its distributor. It has strong creative capability (it charts)
+	// but low owned reach and it deliberately does NOT build its own national network -- it
+	// reinvests in music, not distribution infrastructure -- so it leans on the major's network,
+	// stays high-dependency, and is absorbed late-decade contributing real chart volume. This is
+	// distinct from the common weak one-or-two-hit dependents, and from a Motown that builds its
+	// own reach and exits. Set at generation for a fraction of runtime founders.
+	public bool distributionDependentHitmaker;
+
 	// Runtime finance telemetry (reset and populated by CompetitorManager each week)
 	public float weeklyGrossRevenue;
 	public float weeklyCogs;

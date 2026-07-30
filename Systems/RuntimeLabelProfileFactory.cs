@@ -12,6 +12,13 @@ using Godot;
 public static class RuntimeLabelProfileFactory {
 	public const string ProfileVersion = "runtime-founded-v1";
 
+	// Section 27: fraction of Independent founders generated as dependent "Stax" hitmakers --
+	// high creative capability, low owned reach, financially fragile, and locked out of
+	// self-built distribution -- so they chart through a major's network, stay dependent, and
+	// are absorbed late-decade with real chart volume. Deliberately a minority; the rest of the
+	// dependent population stays the weak one-or-two-hit labels.
+	public const float DependentHitmakerShare = 0.12f;
+
 	public sealed class Result {
 		public AILabel Label { get; }
 		public int BirthWeek { get; }
@@ -136,6 +143,23 @@ public static class RuntimeLabelProfileFactory {
 		label.riskTolerance = Clamp(label.riskTolerance, .05f, .95f);
 		label.artistLoyalty = Clamp(label.artistLoyalty, .05f, .95f);
 		label.payolaWillingness = Clamp(label.payolaWillingness, .01f, .95f);
+
+		// Section 27: a minority of Independent founders are dependent "Stax" hitmakers. Give them
+		// strong creative capability (so they genuinely chart) but low owned/national reach (so they
+		// must lean on a distributor for national access) and a fragile balance sheet at founding
+		// (so they sign out of necessity). GrowSelfBuiltDistributionReach then leaves them alone, so
+		// they stay high-dependency and are absorbed late-decade. All values stay within the
+		// canonical envelope; the roll uses the label's own stable PRNG so other labels are
+		// unaffected.
+		if (label.tier == LabelTier.Independent && random.Next01() < DependentHitmakerShare) {
+			label.distributionDependentHitmaker = true;
+			label.productionQuality = Clamp(Sample(.74f, .91f, ref random), envelope.ProductionMin, envelope.ProductionMax);
+			label.scoutingAbility = Clamp(Sample(.70f, .91f, ref random), envelope.ScoutingMin, envelope.ScoutingMax);
+			label.marketingPower = Clamp(Sample(.50f, .72f, ref random), envelope.MarketingMin, envelope.MarketingMax);
+			label.ownedReach = Clamp(Sample(.28f, .36f, ref random), envelope.ReachMin, envelope.ReachMax);
+			label.nationalReach = Clamp(Sample(.18f, .28f, ref random), envelope.NationalMin, envelope.NationalMax);
+			label.cashReserves = Mathf.Min(label.cashReserves, label.GetMonthlyOverhead() * 2f);
+		}
 	}
 
 	private static void ReconcileFoundingAndGeography(AILabel label, MarketRegion[] regions, int birthYear) {
