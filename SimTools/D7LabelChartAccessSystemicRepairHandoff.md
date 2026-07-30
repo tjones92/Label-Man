@@ -3241,7 +3241,61 @@ coefficient.
   `ResolveDistributionDeal` has no matching check at renewal, so 29-44 promoted labels renew a
   contract they could never sign (§32.2). Add the renewal-side check.
 
-### 33.4 Validation ladder (decade runs deferred)
+### 33.4 The authored substrate already exists and has never been read
+
+`MarketRegion.distribution` is a `DistributionNetwork` (`Data/DistributionNetwork.cs`) authored **per
+region** in `chart_manager.tscn`:
+
+```text
+recordStoreCount, departmentStoreCount, inventoryDepth, difficulty,
+hasIndieDistribution, hasOneStopDistributors
+```
+
+East Coast carries 512 record stores / 1020 department stores / depth 0.60; the Rockies-scale regions
+carry 154 / 306 / 0.48. **No C# code reads any field of it.** `media` and `musicIndustry` on the same
+resource are consumed (`GetRadioPlayPotential`), `distribution` is not. This is the natural anchor for
+the new channel — regional independent-distribution capacity should derive from authored retail
+infrastructure rather than from a new invented constant, and `departmentStoreCount` is exactly the
+rack-jobber channel from §33.1.
+
+### 33.5 Technical design
+
+**New entity `IndependentDistributor`** (`Data/IndependentDistributor.cs`), generated per region from
+the authored `DistributionNetwork`, roughly 3-6 per region scaled by `recordStoreCount` (~30-40
+nationally, matching the historical count). Each carries: home `regionId`, a client roster with a
+small capacity, `reliability` (payment behaviour), `paymentTermWeeks`, `returnAllowance`, and a
+`reportingHonesty` factor. Regions with `hasIndieDistribution = false` get none.
+
+**Coverage, not ownership.** A label signs distributors market by market. Signing distributor D adds
+D's region to the label's *physical* coverage without any deal, any `borrowedReach`, any
+`ownsMasters`, and without any owner attribution — the label keeps its masters and charts as an
+Independent. Mechanically this means extending `AILabel.HasDistributionInRegion(ForRecord)` and
+`ownedReach` from an `independentDistributionRegions` set, deliberately **not** through
+`activeDeal`, so `IsMajorMasterControlled` and `CountOwnerFamilyEntries` are untouched by
+construction. This is what breaks the "every charting indie is somebody's client" floor.
+
+**Access is earned by a hit, not by capital.** The trigger is the existing
+`EvaluateRegionalDealEvidence` breakout signal, replacing `GrowSelfBuiltDistributionReach`'s
+unreachable `netIncome >= 2x overhead` gate (§32.5). A regional breakout makes distributors in
+*adjacent* markets willing to take the line — which is the geographic diffusion the brief describes
+and which `DistanceModel` can already express.
+
+**Rack jobbers** as a parallel amplifier keyed to `departmentStoreCount`, gated on a record already
+being proven (racks stocked narrow high-turn inventory, so they amplify a hit rather than break one),
+with weight ramping across the decade as rack/discount retail displaced mom-and-pop.
+
+**The cash-flow squeeze** (§33.1 stage 3), staged second so its economic effect is separately
+measurable: distributor payment terms of 90-120 days with return privileges and imperfect reporting,
+against pressing costs paid up front. Success then *consumes* cash, which is the historically correct
+reason an indie becomes vulnerable to Major courtship. It should feed the existing
+`cashReserves` / `consecutiveLossMonths` / `DistributionDependency` state and therefore the existing
+`ShouldAcceptDeal` cash-pressure term and the absorption gate — no new consolidation machinery.
+
+Staging: (1) entity + region-anchored generation, (2) coverage and the breakout-driven signing route,
+(3) rack jobbers, (4) the cash-flow layer, (5) poaching + MidTier graduation (§33.3), (6) the Major
+client ceiling cut. Each slice builds and gets probes before the next.
+
+### 33.6 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is
