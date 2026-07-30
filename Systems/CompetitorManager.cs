@@ -235,6 +235,14 @@ public partial class CompetitorManager : Node {
 		}
 	}
 	private readonly Dictionary<string, List<LabelRecordHistoryEntry>> retiredLabelRecordHistory = new();
+	// The regional independent-distribution layer (handoff section 33): the wholesale
+	// houses that carried independent labels' lines into shops. Held here rather than in
+	// aiLabels because a house is not a firm that releases records, and because coverage
+	// it grants must never flow through activeDeal -- that is what keeps owner-Major
+	// attribution untouched by an independently distributed record.
+	private readonly List<IndependentDistributor> independentDistributors = new();
+	private readonly Dictionary<string, List<IndependentDistributor>> independentDistributorsByRegion =
+		new(System.StringComparer.Ordinal);
 	private readonly HashSet<string> creditedLabelTop40RecordIds = new(System.StringComparer.Ordinal);
 	private readonly HashSet<string> creditedLabelNumberOneRecordIds = new(System.StringComparer.Ordinal);
 	// Proven-winner signal for the consolidation lever: a label id enters this set
@@ -364,9 +372,40 @@ public partial class CompetitorManager : Node {
 			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 			labelFinancials[label.labelId] = new LabelFinancialHistory();
 		}
+		BuildIndependentDistributionLayer();
 		PopulateInitialRecords();
 		GD.Print($"CompetitorManager: Initialized with {aiLabels.Count} labels");
 	}
+
+	/// <summary>
+	/// Stands up the regional independent-distribution layer (handoff section 33). Slice 1
+	/// generates and registers the houses only -- nothing reads them yet, so this is inert
+	/// on the simulation by construction and a probe run must stay byte-identical.
+	/// </summary>
+	private void BuildIndependentDistributionLayer() {
+		independentDistributors.Clear();
+		independentDistributorsByRegion.Clear();
+		var regions = ChartManager.Instance?.GetAllRegions();
+		if (regions == null || regions.Count == 0) return;
+
+		independentDistributors.AddRange(
+			IndependentDistributorFactory.Generate(regions, SimulationSeedBootstrap.RequestedSeed ?? 0UL));
+		foreach (IndependentDistributor house in independentDistributors) {
+			if (string.IsNullOrEmpty(house.regionId)) continue;
+			if (!independentDistributorsByRegion.TryGetValue(house.regionId, out var inRegion))
+				independentDistributorsByRegion[house.regionId] = inRegion = new List<IndependentDistributor>();
+			inRegion.Add(house);
+		}
+		GD.Print($"CompetitorManager: independent distribution layer -- {independentDistributors.Count} houses " +
+			$"across {independentDistributorsByRegion.Count} regions");
+	}
+
+	public IReadOnlyList<IndependentDistributor> GetIndependentDistributors() => independentDistributors;
+
+	public IReadOnlyList<IndependentDistributor> GetIndependentDistributorsInRegion(string regionId) =>
+		!string.IsNullOrEmpty(regionId) && independentDistributorsByRegion.TryGetValue(regionId, out var houses)
+			? houses
+			: (IReadOnlyList<IndependentDistributor>)System.Array.Empty<IndependentDistributor>();
 
 	private void EnsureChartRecordSubscription() {
 		ChartManager source = ChartManager.Instance;

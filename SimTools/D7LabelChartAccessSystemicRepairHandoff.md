@@ -3295,7 +3295,47 @@ Staging: (1) entity + region-anchored generation, (2) coverage and the breakout-
 (3) rack jobbers, (4) the cash-flow layer, (5) poaching + MidTier graduation (§33.3), (6) the Major
 client ceiling cut. Each slice builds and gets probes before the next.
 
-### 33.6 Validation ladder (decade runs deferred)
+### 33.6 Slice 1 SHIPPED — entity + region-anchored generation (inert)
+
+`Data/IndependentDistributor.cs`, `Systems/IndependentDistributorFactory.cs`, a registry in
+`CompetitorManager` (`BuildIndependentDistributionLayer`, called from `Initialize`, with
+`GetIndependentDistributors` / `GetIndependentDistributorsInRegion`), a
+`<run>-independent-distributors.csv` roster emitted alongside its authored regional inputs, and
+probe 90 (suite now 1-90).
+
+Generated layer, seed 1001 — **23 houses across 6 regions**:
+
+| region | pop | stores | houses | capacity/house | reliability | reportingHonesty |
+|---|---:|---:|---:|---:|---|---|
+| eastcoast | 52.2 | 615 | 6 | 44 | 0.72-0.80 | 0.76-0.85 |
+| greatlakes | 36.1 | 358 | 4 | 41 | 0.69-0.77 | 0.75-0.86 |
+| westcoast | 20.3 | 240 | 4 | 41 | 0.63-0.73 | 0.72-0.83 |
+| greatplains | 15.5 | 154 | 3 | 36 | 0.63-0.75 | 0.74-0.83 |
+| deepsouth | 15.0 | 181 | 3 | 34 | **0.54-0.61** | **0.67-0.71** |
+| southwest | 14.2 | 148 | 3 | 36 | 0.59-0.68 | 0.67-0.75 |
+| rockies | 4.6 | 39 | **0** | — | — | — |
+
+The Rockies is authored `hasIndieDistribution = false` and correctly generates nothing — labels there
+must reach an adjacent market's houses, which is slice 2's diffusion case. Deep South houses are the
+worst payers and the worst reporters, straight out of authored `difficulty` 0.60 — the cash squeeze of
+§33.1 stage 3 arrives with the right geography already in it. Payment terms are 12-18 weeks (90-125
+days).
+
+**Verified inert.** `d7-indiedist-slice1b-probes-52-1001` against the reference
+`d7-births9-probes-52-1001`: `concentration`, `label-directory`, `deal-ledger`, `first-chart-events`,
+`lifecycles`, `retirement`, `geography-metrics` and `single-release-lanes` are all **byte-identical**.
+Generation runs on its own `RandomNumberGenerator` seeded `seed ^ 0x696e646965646973` ("indiedis"),
+consumes no global draws and mutates no label, region or record state. D5 + D6 1-90 pass; build clean;
+`git diff --check` clean.
+
+Capacity is deliberately generous — 910 label-lines nationally against a 24-client major ceiling. The
+lesson of §32.2 is that a saturating cap can freeze a market for a decade unnoticed, so occupancy is
+emitted from the first run that has a layer and must be watched as slice 2 starts filling it.
+
+Note: `MarketCity` also carries a `DistributionNetwork` (`WriteDistanceSubstrateRows` reads it), so
+city-level distribution granularity is available if the regional layer proves too coarse.
+
+### 33.7 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is

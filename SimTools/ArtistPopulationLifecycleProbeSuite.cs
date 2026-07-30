@@ -113,7 +113,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeConsolidationGate();                                                        // 87
 		ProbeSubsidiaryAbsorptionRetainsLabel();                                         // 88
 		ProbeDependentHitmakerArchetype();                                               // 89
-		results.Add("D6 fixed probes 1-89 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target)");
+		ProbeIndependentDistributionLayer();                                             // 90
+		results.Add("D6 fixed probes 1-90 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity)");
 		return results;
 	}
 
@@ -1771,6 +1772,85 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"89d the dependent-hitmaker archetype is confined to the Independent tier");
 	}
 
+
+	private static MarketRegion NewDistributionProbeRegion(
+		string regionId, int recordStores, float depth, float difficulty, bool indieTrade) =>
+		new() {
+			regionId = regionId,
+			regionName = regionId,
+			population = 20f,
+			distribution = new DistributionNetwork {
+				recordStoreCount = recordStores,
+				departmentStoreCount = recordStores * 2,
+				inventoryDepth = depth,
+				difficulty = difficulty,
+				hasIndieDistribution = indieTrade,
+				hasOneStopDistributors = true
+			}
+		};
+
+	private static void ProbeIndependentDistributionLayer() {
+		// Section 33: the regional independent-distribution layer is derived from each region's
+		// authored DistributionNetwork rather than from a new invented constant, so house counts
+		// track authored retail depth and a region authored without an independent trade -- the
+		// Rockies -- has no houses at all.
+		var regions = new List<MarketRegion> {
+			NewDistributionProbeRegion("big", 615, 0.75f, 0.25f, indieTrade: true),
+			NewDistributionProbeRegion("thin", 148, 0.45f, 0.50f, indieTrade: true),
+			NewDistributionProbeRegion("notrade", 39, 0.30f, 0.75f, indieTrade: false)
+		};
+
+		List<IndependentDistributor> houses = IndependentDistributorFactory.Generate(regions, 1001UL);
+		int big = houses.Count(house => house.regionId == "big");
+		int thin = houses.Count(house => house.regionId == "thin");
+
+		Require(houses.All(house => house.regionId != "notrade"),
+			"90 a region authored without an independent distribution trade generates no houses");
+		Require(big > thin && thin >= 2,
+			"90b house count scales with authored retail depth and floors above a single house per market");
+		Require(houses.Select(house => house.distributorId).Distinct(StringComparer.Ordinal).Count() == houses.Count,
+			"90c every generated house has a distinct id");
+
+		// Capacity must not be the scarce input. The major client ceiling saturated on every seed
+		// and froze the market for a decade; independent distribution was abundant and a hit was
+		// what was scarce, so a house carries far more lines than a major's 24-client cap.
+		Require(houses.All(house => house.clientCapacity > 24),
+			"90d independent house capacity is generous rather than a binding scarcity cap");
+		Require(houses.All(house =>
+				house.paymentTermWeeks >= 12 && house.paymentTermWeeks <= 18 &&
+				house.reliability > 0f && house.reliability <= 0.95f &&
+				house.reportingHonesty > 0f && house.reportingHonesty <= 0.99f),
+			"90e payment terms sit in the historical 90-120 day band with bounded reliability and reporting");
+
+		// Harder markets pay worse and report worse -- the squeeze that turned a regional hit into
+		// a cash crisis and made a major's offer attractive.
+		float bigReliability = houses.Where(house => house.regionId == "big").Average(house => house.reliability);
+		float thinReliability = houses.Where(house => house.regionId == "thin").Average(house => house.reliability);
+		Require(bigReliability > thinReliability,
+			"90f houses in harder authored markets are the worse payers");
+
+		// Generation runs on its own stream, so it is deterministic in (regions, seed) and cannot
+		// reorder the global RNG that decides which labels and artists exist.
+		List<IndependentDistributor> repeat = IndependentDistributorFactory.Generate(regions, 1001UL);
+		Require(repeat.Count == houses.Count &&
+			repeat.Zip(houses).All(pair =>
+				pair.First.distributorId == pair.Second.distributorId &&
+				pair.First.distributorName == pair.Second.distributorName &&
+				Math.Abs(pair.First.reliability - pair.Second.reliability) < .000001f),
+			"90g layer generation is deterministic for a fixed seed");
+		Require(IndependentDistributorFactory.Generate(regions, 2029UL)
+				.Zip(houses).Any(pair => Math.Abs(pair.First.reliability - pair.Second.reliability) > .000001f),
+			"90h a different seed yields a different layer");
+
+		// Slice 1 registers houses and nothing more: a house starts empty and honours its capacity.
+		IndependentDistributor first = houses[0];
+		Require(first.CurrentClientCount == 0 && first.HasCapacity && !first.CarriesLabel("label_0001"),
+			"90i a freshly generated house carries no label lines");
+		Require(first.AddClient("label_0001") && first.CarriesLabel("label_0001") && !first.AddClient("label_0001"),
+			"90j a house takes a label line once and rejects a duplicate");
+		Require(first.RemoveClient("label_0001") && !first.CarriesLabel("label_0001"),
+			"90k a house releases a label line");
+	}
 
 	private static void Require(bool condition, string message) {
 		if (!condition) throw new InvalidOperationException("D6 probe failed: " + message);
