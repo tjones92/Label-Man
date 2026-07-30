@@ -115,7 +115,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeDependentHitmakerArchetype();                                               // 89
 		ProbeIndependentDistributionLayer();                                             // 90
 		ProbeIndependentDistributionCoverage();                                          // 91
-		results.Add("D6 fixed probes 1-91 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody)");
+		ProbeRackJobberChannel();                                                        // 92
+		results.Add("D6 fixed probes 1-92 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade)");
 		return results;
 	}
 
@@ -1907,6 +1908,75 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(Math.Abs(first - CompetitorManager.GetDeterministicIndependentDistributionRoll("indie-cov", "target", 41)) > .000001f &&
 			Math.Abs(first - CompetitorManager.GetDeterministicIndependentDistributionRoll("other-label", "target", 40)) > .000001f,
 			"91l the placement roll varies by week and by label");
+	}
+
+	private static void ProbeRackJobberChannel() {
+		// Section 33.1 stage 2: rack jobbers stocked narrow, high-turn inventory, so the rack
+		// amplifies a record that is already selling and never breaks an unproven one.
+		Require(ChartSimulator.GetRackJobberAccess(0, 0f) == 0f,
+			"92 an unproven record claims no department-store rack shelf");
+		Require(Math.Abs(ChartSimulator.GetRackJobberAccess(12, 0f) - 1f) < .000001f,
+			"92b a national top-40 hit is fully racked");
+		Require(ChartSimulator.GetRackJobberAccess(75, 0f) > 0f && ChartSimulator.GetRackJobberAccess(75, 0f) < 1f,
+			"92c a record charting below the top 40 is partially racked");
+
+		// A regional hit reached mainstream retail through the jobber servicing its own
+		// market, with no major-label deal anywhere in the story.
+		Require(ChartSimulator.GetRackJobberAccess(0, .55f) > 0f,
+			"92d a record proven in a market is racked there even with no national chart position");
+		Require(ChartSimulator.GetRackJobberAccess(0, .55f) > ChartSimulator.GetRackJobberAccess(0, .32f),
+			"92e stronger regional proof claims more rack shelf");
+		Require(ChartSimulator.GetRackJobberAccess(0, .20f) == 0f,
+			"92f regional sales below the proof floor claim none");
+		// Never more than a fully racked national hit.
+		Require(ChartSimulator.GetRackJobberAccess(0, 1f) <= ChartSimulator.GetRackJobberAccess(1, 0f),
+			"92g regional proof does not out-rack a national hit");
+
+		// The channel grows across the decade as rack and discount retail displaced
+		// mom-and-pop record stores.
+		float sixty = ChartSimulator.GetRackJobberEraWeight(1960);
+		float sixtyNine = ChartSimulator.GetRackJobberEraWeight(1969);
+		Require(sixty > 0f && sixty < sixtyNine && Math.Abs(sixtyNine - 1f) < .000001f,
+			"92h rack weight rises across the decade from a nonzero 1960 floor to full by 1969");
+		Require(ChartSimulator.GetRackJobberEraWeight(1955) >= sixty &&
+			Math.Abs(ChartSimulator.GetRackJobberEraWeight(1975) - 1f) < .000001f,
+			"92i rack weight is clamped outside the authored decade");
+		Require(ChartSimulator.GetRackJobberEraWeight(1964) > sixty &&
+			ChartSimulator.GetRackJobberEraWeight(1964) < sixtyNine,
+			"92j rack weight interpolates within the decade");
+
+		// The authored department-store baseline is a 1960 calibration and the rack channel
+		// only ever adds to it. Gating the baseline on proof instead cut every unproven
+		// record's shelf and pushed cumulative breadth below the reference run.
+		Require(Math.Abs(ChartSimulator.GetRackJobberShelfMultiplier(0, 0f, 1960) - 1f) < .000001f &&
+			Math.Abs(ChartSimulator.GetRackJobberShelfMultiplier(0, 0f, 1969) - 1f) < .000001f,
+			"92k an unproven record keeps exactly the authored baseline shelf, in every year");
+		Require(ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1969) > 1f,
+			"92l a proven record earns shelf on top of the baseline");
+		Require(ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1969) >
+			ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1960),
+			"92m the rack bonus grows across the decade");
+		Require(ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1960) > 1f,
+			"92n rack jobbing already exists in 1960 rather than switching on mid-decade");
+
+		// A jobber restocking its own racks is a partial substitute for the label being able
+		// to ship to the market itself, never an equal one.
+		Require(ChartSimulator.RackServiceShareOfDistributed > 0f &&
+			ChartSimulator.RackServiceShareOfDistributed < 1f,
+			"92o rack service is a partial substitute for the label's own distribution");
+		// At that share the lift cannot beat an early-decade distributed record's service, so
+		// the channel stays out of the accepted 1960 calibration and grows into the mid-60s
+		// exactly as rack and discount retail did.
+		const float distributedService = 0.70f + (0.50f * 0.80f);
+		const float uncoveredService = 0.18f + (0.50f * 0.25f);
+		float lift1960 = ChartSimulator.GetRackJobberAccess(5, 0f) * ChartSimulator.GetRackJobberEraWeight(1960) *
+			ChartSimulator.RackServiceShareOfDistributed * distributedService;
+		float lift1969 = ChartSimulator.GetRackJobberAccess(5, 0f) * ChartSimulator.GetRackJobberEraWeight(1969) *
+			ChartSimulator.RackServiceShareOfDistributed * distributedService;
+		Require(lift1960 < uncoveredService && lift1969 > uncoveredService,
+			"92p the rack lift is inert in 1960 and material by 1969");
+		Require(lift1969 < distributedService,
+			"92q racking a hit never matches shipping to the market yourself");
 	}
 
 	private static void Require(bool condition, string message) {

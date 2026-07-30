@@ -36,7 +36,33 @@ public static class ChartSimulator {
 	
 	private const float WEEKLY_SALES_PER_RECORD_STORE = 250f;
 	private const float WEEKLY_SALES_PER_DEPT_STORE = 500f;
-	private const float INDIE_DISTRIBUTION_PENALTY = 0.65f;
+
+	// Rack jobbers ran the record departments of department stores, discount chains and
+	// supermarkets (handoff section 33.1 stage 2). They stocked narrow, high-turn inventory
+	// -- the proven hits -- so the rack is an amplifier of a record that is already selling,
+	// never a way to break an unproven one. Their share of retail grew across the decade at
+	// the expense of the mom-and-pop record store.
+	//
+	// The authored departmentStoreCount is a 1960 baseline and stays intact: gating it on
+	// proof instead cut every unproven record's shelf by ~79% and every 1960 record's by 60%,
+	// which crowded the chart onto incumbents and dropped cumulative breadth below the
+	// reference run. What a proven record earns is extra rack space on top of the authored
+	// baseline, and the decade's shift toward rack retail scales that bonus rather than the
+	// baseline (section 12: do not rewrite an accepted calibration to add a mechanism).
+	private const float RACK_ERA_FLOOR = 0.30f;
+	private const int RACK_ERA_START_YEAR = 1960;
+	private const int RACK_ERA_FULL_YEAR = 1969;
+	private const float RACK_MAX_SHELF_BONUS = 0.80f;
+	/// <summary>
+	/// A jobber restocking its own racks with a record that turns over is a real but partial
+	/// substitute for the label being able to ship to that market itself. Lifting an uncovered
+	/// record all the way to parity overstated it physically and, because the lift only reaches
+	/// records that are already proven, amplified the biggest sellers on a hundred-slot chart
+	/// and cost cumulative breadth.
+	/// </summary>
+	internal const float RackServiceShareOfDistributed = 0.50f;
+	private const float RACK_REGIONAL_PROOF_FLOOR = 0.30f;
+	private const float RACK_REGIONAL_PROOF_FULL = 0.55f;
 	
 	private const float HIT_MOMENTUM_BONUS = 0.3f;
 	
@@ -222,20 +248,31 @@ public static class ChartSimulator {
 		
 		// === 9. SUPPLY CONSTRAINTS ===
 		float storeCapacity = region.distribution.recordStoreCount * WEEKLY_SALES_PER_RECORD_STORE;
-		float deptCapacity = region.distribution.departmentStoreCount * WEEKLY_SALES_PER_DEPT_STORE;
+		// Department-store shelf: the authored baseline, plus rack shelf a proven record earns
+		// in a market its label cannot ship to itself. Applying that bonus to every proven
+		// record instead simply amplified the biggest sellers, and on a hundred-slot chart an
+		// amplifier is zero-sum -- it pushed marginal independents off and took cumulative
+		// breadth back to the reference run. Where the label already has a network the rack is
+		// part of the authored baseline; where it has none, the jobber buying a record that
+		// turns over is the only way onto that market's shelves.
+		bool labelShipsHere = label.HasDistributionInRegionForRecord(region.regionId, record.baseRecord?.recordId);
+		float rackShelf = labelShipsHere ? 1f : GetRackJobberShelfMultiplier(record.currentPosition,
+			regionalData?.peakBreakoutScore ?? 0f, TimeManager.Instance?.CurrentDate.year ?? RACK_ERA_START_YEAR);
+		float deptCapacity = region.distribution.departmentStoreCount * WEEKLY_SALES_PER_DEPT_STORE * rackShelf;
 		float totalCapacity = (storeCapacity + deptCapacity) * region.distribution.inventoryDepth;
-		
+
 		if (record.currentPosition > 0 && record.currentPosition <= 20) {
 			totalCapacity *= 1.5f;
 		}
-		
-		bool isIndie = record.baseRecord.labelId != null && 
-					!region.distribution.hasIndieDistribution &&
-					!region.distribution.hasOneStopDistributors;
-		if (isIndie) {
-			totalCapacity *= INDIE_DISTRIBUTION_PENALTY;
-		}
-		
+
+		// A former indie-distribution penalty stood here. It tested
+		// "!hasIndieDistribution && !hasOneStopDistributors", but every authored region has
+		// one-stops, so the branch was unreachable in every run this model has ever done --
+		// and it keyed off labelId being non-null rather than off the label being an
+		// independent, so it would have charged majors identically had it fired. Access for a
+		// label without its own network in a region is now carried by the coverage model and
+		// by the rack channel above.
+
 		if (regionalData.unitsInStores < rawSales) {
 			regionalData.unitsBackordered += Mathf.RoundToInt(rawSales - regionalData.unitsInStores);
 			rawSales = regionalData.unitsInStores;
@@ -408,6 +445,40 @@ public static class ChartSimulator {
 		float spendCapacity = 0.45f + (label.budgetLevel * 0.55f);
 		return Mathf.Clamp(label.marketingPower * spendCapacity, 0f, 1f);
 	}
+
+	/// <summary>
+	/// How much of a market's rack shelf a record can claim. A national top-40 hit is fully
+	/// racked; one charting below that is partially racked; one proven only in this region is
+	/// racked by the jobber servicing it, which is how a regional hit reached mainstream
+	/// retail with no major-label deal at all. An unproven record gets no rack space.
+	/// </summary>
+	internal static float GetRackJobberAccess(int chartPosition, float regionalBreakoutPeak) {
+		float national = chartPosition >= 1 && chartPosition <= 40 ? 1f
+			: chartPosition >= 1 && chartPosition <= 100 ? 0.55f
+			: 0f;
+		float regional = Mathf.Clamp(
+			(regionalBreakoutPeak - RACK_REGIONAL_PROOF_FLOOR) / (RACK_REGIONAL_PROOF_FULL - RACK_REGIONAL_PROOF_FLOOR),
+			0f, 1f) * 0.70f;
+		return Mathf.Clamp(Mathf.Max(national, regional), 0f, 1f);
+	}
+
+	/// <summary>
+	/// Weight of the rack channel by year. Rack jobbing and discount retail expanded through
+	/// the 1960s while mom-and-pop record stores contracted, so the same department-store
+	/// shelf is worth progressively more across the decade.
+	/// </summary>
+	internal static float GetRackJobberEraWeight(int year) => Mathf.Lerp(RACK_ERA_FLOOR, 1f,
+		Mathf.Clamp(
+			(year - RACK_ERA_START_YEAR) / (float)(RACK_ERA_FULL_YEAR - RACK_ERA_START_YEAR), 0f, 1f));
+
+	/// <summary>
+	/// Department-store shelf a record commands, as a multiple of the authored 1960 baseline.
+	/// Never below 1: the rack channel adds shelf for a record that has proven it turns over,
+	/// and cannot take shelf away from one that has not.
+	/// </summary>
+	internal static float GetRackJobberShelfMultiplier(int chartPosition, float regionalBreakoutPeak, int year) =>
+		1f + (GetRackJobberAccess(chartPosition, regionalBreakoutPeak) *
+			GetRackJobberEraWeight(year) * RACK_MAX_SHELF_BONUS);
 
 	public static float GetRegionalLaunchFactor(AILabel label, string regionId, string recordId = null) {
 		if (label == null) return 1f;

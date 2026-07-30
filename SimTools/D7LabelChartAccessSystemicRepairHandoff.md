@@ -3390,11 +3390,76 @@ Three defects were caught and fixed inside the 52-week loop rather than at decad
    140 + 120·depth (a house was its territory's wholesaler and carried hundreds of lines), and a dead
    label's lines are now released back to the market. Occupancy is now 6% mean / 18% peak.
 
-Still open, to fold in later: `GrowSelfBuiltDistributionReach` remains in place with its unreachable
-profit gate (4.3% active, §32.5). It is near-inert so it was left alone this slice to keep attribution
-clean, but it now overlaps the new route and should be retired or folded in.
+**`GrowSelfBuiltDistributionReach` revived itself — do not retire it.** An earlier note here proposed
+folding it in as near-dead overlap; measurement says the opposite. Its profit gate was never wrong,
+it was starved: an unsigned label charted 2.5% of the time so it had no income to reinvest (§32.5).
+Independent distribution supplies that income, and among never-signed labels in slice 2 **13.2% grow
+`ownedReach` by more than 0.02 in a single year, mean +0.033**, against the §32.5 decade baseline of
+4.3% at +0.005. At `selfBuiltReachMonthlyGain` = 0.004 a consistent grower can add ~0.48 reach across
+a decade — enough to climb from a founding 0.30 to the 0.75 ceiling.
 
-### 33.8 Validation ladder (decade runs deferred)
+That is the Motown arc arriving as an emergent consequence rather than a scripted one: indie-distributed
+hits fund the label's own network, and it stays independent. Per user direction the path stays on and
+stays an uncommon reward for real success; no constants were changed.
+
+### 33.8 Slice 3 SHIPPED — the rack-jobber channel, and what it cost to find
+
+`ChartSimulator.GetRackJobberAccess` / `GetRackJobberEraWeight` / `GetRackJobberShelfMultiplier` /
+`RackServiceShareOfDistributed`, applied to department-store shelf in the Singles supply constraint
+and to `RegionalPhysicalCapacity` + restock `serviceLevel` in `ChartManager`. Probe 92 (suite 1-92).
+
+Rack access is earned: a national top-40 hit is fully racked, one charting below that partially, one
+proven only in a region is racked by the jobber servicing that market, and an unproven record earns
+nothing. The channel's weight ramps 0.30 -> 1.0 across 1960-69 as rack and discount retail displaced
+mom-and-pop record stores. The material effect is the restock service floor: a jobber restocking its
+own racks with a record that turns over is a **partial** substitute (`RackServiceShareOfDistributed`
+= 0.50) for the label being able to ship to that market itself, which is how a regional label had a
+national hit with no major's branch distribution.
+
+**Three attempts, and the lesson is the finding.** On a hundred-slot chart every slot is contested,
+so *any* mechanic that amplifies proven records is zero-sum and is paid for in cumulative breadth:
+
+| attempt | what it did | breadth (cum IDs, 1960) | indie share |
+|---|---|---:|---:|
+| reference | — | 151 | 0.162 |
+| slice 2 | — | **166** | **0.180** |
+| 3a: gate the authored baseline on proof | cut unproven shelf ~79%, 1960 shelf 60% | 150 | 0.190 |
+| 3b: strictly additive bonus for proven records | nothing loses, hits gain | 151 | 0.168 |
+| 3c: bonus only where the label cannot ship | byte-identical to 3b — the shelf term is inert | 151 | 0.168 |
+| **3d/3e: partial service substitute (shipped)** | — | **166** | **0.180** |
+
+3a rewrote an accepted calibration and crowded the chart onto incumbents. 3b avoided that and *still*
+erased slice 2's entire gain, because an additive amplifier for proven records pushes marginal
+independents off the chart just as effectively. 3c proved the department-store *capacity* term is
+inert — capacity almost never binds — so the whole effect was coming from the restock service floor,
+which had been lifting uncovered proven records to full parity with distributed ones. That was both
+physically overstated and the breadth cost. Halving it to a partial substitute restores slice 2
+exactly.
+
+**Honest limitation:** at 0.50 the lift is below an uncovered record's base service until **1964** and
+material from there to 1969 — the correct historical shape, and the reason 1960 output is byte-identical
+to slice 2 (`concentration`, `lifecycles`, `retirement`, `deal-ledger`, `first-chart-events` all match).
+But it also means **the 52-week gate cannot validate this slice at all.** The 312-week checkpoint must
+measure the rack channel's mid-decade effect on breadth specifically; if breadth turns down after 1964,
+`RackServiceShareOfDistributed` is the dial.
+
+**Dead code removed.** `INDIE_DISTRIBUTION_PENALTY` (0.65) was applied behind
+`!hasIndieDistribution && !hasOneStopDistributors`. Every authored region has one-stops, so the branch
+was unreachable in every run this model has ever done — and it keyed off `labelId != null` rather than
+off the label being independent, so it would have charged majors identically had it fired.
+
+**Correction to §33.4.** That section claimed no C# read `MarketRegion.distribution`; a truncated grep
+hid the hits. `recordStoreCount`, `departmentStoreCount`, `inventoryDepth` and `difficulty` were all
+already consumed by `ChartSimulator`, `ChartManager`, `AlbumSimulator` and `DistanceModel`. Only
+`hasIndieDistribution` and `hasOneStopDistributors` were genuinely unused — and only inside the dead
+branch above. The design conclusion is unchanged (the authored substrate is the right anchor), but the
+"never read" framing was wrong.
+
+Not touched this slice: `AlbumSimulator` has its own department-store capacity term and rack jobbing
+mattered at least as much for LPs, but album penetration has accepted probes and calibration of its
+own, so it is a separate change.
+
+### 33.9 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is

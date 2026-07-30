@@ -1268,8 +1268,7 @@ public partial class ChartManager : Node {
 					data.breakoutTriggered = preChartDemandNeedsRestock;
 					data.breakoutRequestedRestock = 0;
 					data.breakoutAppliedRestock = 0;
-					int physicalCapacity = region.distribution.recordStoreCount * 100 +
-						region.distribution.departmentStoreCount * 200;
+					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered);
 					data.breakoutMaxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
 						: 0.20f));
@@ -1282,6 +1281,17 @@ public partial class ChartManager : Node {
 					float serviceLevel = isCovered
 						? 0.70f + (label.distributionStrength * 0.80f)
 						: 0.18f + (label.distributionStrength * 0.25f);
+					// The rack jobber serviced its own racks weekly and bought a proven record
+					// from whoever had it, so a hit stayed on department-store shelves in markets
+					// where its label had no network of its own. This is the commercial shortcut
+					// to retail of section 33.1 stage 2, and it is why a regional label could
+					// have a national hit without a major's branch distribution. It lifts an
+					// uncovered proven record toward -- never past -- a distributed one.
+					float rackService = ChartSimulator.GetRackJobberAccess(record.currentPosition, data.peakBreakoutScore) *
+						ChartSimulator.GetRackJobberEraWeight(TimeManager.Instance?.CurrentDate.year ?? 1960);
+					if (!isCovered && rackService > 0f)
+						serviceLevel = Mathf.Max(serviceLevel, rackService * ChartSimulator.RackServiceShareOfDistributed *
+							(0.70f + (label.distributionStrength * 0.80f)));
 					// DISTANCE-4B: neutral in 4a; 4b applies city-distance reach to restock service.
 					serviceLevel *= DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(region.regionId));
 					int restockAmount = CalculateRestockAmount(data.rawDemandThisWeek, data.unitsBackordered,
@@ -1289,8 +1299,7 @@ public partial class ChartManager : Node {
 						AlbumModel.GetRetailFulfillmentMaturity(TimeManager.Instance?.CurrentDate.year ?? 1960));
 					int requestedRestock = restockAmount;
 
-					int physicalCapacity = region.distribution.recordStoreCount * 100 +
-									region.distribution.departmentStoreCount * 200;
+					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered);
 					int maxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
 						: 0.20f));
@@ -1430,6 +1439,19 @@ public partial class ChartManager : Node {
 	/// calibration untouched and only relieves the smaller ones, so this removes a
 	/// structural handicap rather than retuning the model.
 	/// </summary>
+	// Shelf a record can physically occupy in a market: record-store racks it can always
+	// reach, plus department-store racks it has to earn. The rack share is gated on the
+	// record being proven and weighted by the decade's shift toward rack and discount retail.
+	private static float RegionalPhysicalCapacity(
+		MarketRegion region, RecordRuntimeData record, RegionalRecordData data, bool labelShipsHere) {
+		if (region?.distribution == null) return 0f;
+		float rackShelf = labelShipsHere ? 1f : ChartSimulator.GetRackJobberShelfMultiplier(
+			record?.currentPosition ?? 0, data?.peakBreakoutScore ?? 0f,
+			TimeManager.Instance?.CurrentDate.year ?? 1960);
+		return (region.distribution.recordStoreCount * 100f) +
+			(region.distribution.departmentStoreCount * 200f * rackShelf);
+	}
+
 	internal float GetRegionalDemandScale(MarketRegion region) {
 		if (region == null) return 1f;
 		if (regionalDemandScaleById.TryGetValue(region.regionId, out float cached)) return cached;
