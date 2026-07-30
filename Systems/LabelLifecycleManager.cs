@@ -72,11 +72,19 @@ public partial class LabelLifecycleManager : Node {
 	// actually sets founding volume, and through it the equilibrium level. See the
 	// comment on CheckForBirths.
 	//
-	// 7 is gate-clean at 522 weeks on its own and lifts the live population 317 -> 344,
-	// but it leaves only 0.036 of scheduledAlbumProjects headroom at 1966 and the tier
-	// ladder repairs below need 0.037 of it. The ladder was the priority, so this stays
-	// at 6. 8 breaches outright. See D7LabelPopulationChartCapacityHandoff.
-	[Export] private int maxMonthlyBirths = 6;
+	// History: this stayed at 6 because 8 breached the 1966 scheduledAlbumProjects gate
+	// (D7LabelPopulationChartCapacityHandoff). That gate is now REPORTED, NOT ENFORCED
+	// (ChartAuditRunner.ReportCompletedYearRatio) -- enforcing the album-project product
+	// charged a fixed ~1.17 LP-transition mix multiplier that turned the declared 1.30
+	// ceiling into an undeclared ~1.11 volume ceiling. The metrics actually policed now
+	// (successfulReleases, totalUnits, grossRevenue, labelNet, marketNet, band [0.70,1.30])
+	// scored 1.07-1.13 at the worst configuration measured, so the old wall no longer
+	// binds. Combined with the healthier post-sec28 album economy (0.4% project
+	// cancellation at decade end), the cap is raised to let the real mid-60s micro-label
+	// explosion express in birth volume -- adding Independent breadth and diluting the
+	// owner-Major chart-share overshoot with non-Major entrants. Still staged below the
+	// 600-675 authored target so the population never approaches the volume ceiling.
+	[Export] private int maxMonthlyBirths = 9;
 	// Most firms in the independent record business are represented by Independent rather
 	// than the deliberately shoestring Small tier. Keeping a Small tail while making
 	// Independent the common runtime entrant matches the desired below-MidTier composition.

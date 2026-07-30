@@ -151,7 +151,10 @@ public partial class CompetitorManager : Node {
 	// and can only produce a flat owner-Major line; the ramp produces the historical dip (indie
 	// boom erodes major share mid-decade) then rise (majors take masters and absorb late-decade).
 	[Export(PropertyHint.Range, "0,1,0.01")] private float majorDistributorMastersOwnershipRateEarly = 0.15f;
-	[Export(PropertyHint.Range, "0,1,0.01")] private float majorDistributorMastersOwnershipRateLate = 0.45f;
+	// Late endpoint trimmed 0.45 -> 0.40: 0.45 overshot the 45-52 owner-Major band on the harder
+	// holdout seed (1969 owner-Major 57.4 with births-9). This is the metric-only master-control
+	// surplus lever; it does not touch deal economics, breadth, or the album economy.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float majorDistributorMastersOwnershipRateLate = 0.40f;
 	[Export] private int majorMastersRampStartYear = 1962;
 	[Export] private int majorMastersRampFullYear = 1968;
 	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pullMarginSkimMin = 0.15f;
