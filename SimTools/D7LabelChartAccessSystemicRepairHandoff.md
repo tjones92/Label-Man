@@ -3335,7 +3335,66 @@ emitted from the first run that has a layer and must be watched as slice 2 start
 Note: `MarketCity` also carries a `DistributionNetwork` (`WriteDistanceSubstrateRows` reads it), so
 city-level distribution granularity is available if the regional layer proves too coarse.
 
-### 33.7 Validation ladder (decade runs deferred)
+### 33.7 Slice 2 SHIPPED — coverage and the breakout-driven placement route
+
+`PursueIndependentDistribution` in `CompetitorManager` (monthly, alongside the existing reach path),
+`AILabel.independentDistributionRegions` folded into `HasDistributionInRegion(ForRecord)` plus a new
+`AllCoveredRegions()`, `DistanceModel.GetAdjacentRegions` (canonical symmetric neighbour map),
+`IndependentDistributionTelemetry` -> `<run>-independent-distribution-events.csv`, and probe 91
+(suite now 1-91).
+
+Behaviour: a label with a record whose regional breakout peak clears `regionalBreakoutDealThreshold`
+places its line with a wholesale house — proven markets first, then bordering markets — at
+`independentDistributionMonthlyChance` = 0.35/month. Excluded: Majors (own branch system), labels
+under a P&D contract (the distributor ships for them), subsidiaries, and the §27 dependent-hitmaker
+archetype (which must stay dependent to remain absorbable). Coverage is label-wide, not per-song,
+because a wholesaler carried the whole line.
+
+**The load-bearing property:** no `DistributionDeal` is created, no reach is borrowed, no masters
+move, nothing enters the acquisition chain. `IsMajorMasterControlled` and `CountOwnerFamilyEntries`
+are untouched by construction, so an independently distributed record is attributable to nobody.
+Placement rolls use a seed-stable FNV hash off the global RNG stream (as §30.1 does), so breadth and
+tier changes are attributable to the channel rather than to RNG reordering.
+
+Measured at 52 weeks, seed 1001, against the reference `d7-births9-probes-52-1001`:
+
+| | reference | slice 2 |
+|---|---:|---:|
+| chart entries | 990 | 1027 |
+| Independent entries | 233 | **264** |
+| MidTier entries | 291 | 288 |
+| Major imprint entries | 403 | 408 |
+| ownerMajor | 434 (43.8%) | 446 (43.4%) |
+| cumulative charting IDs | 151 | **166** |
+| indie chart share | 0.162 | **0.180** |
+
+497 placements by 276 labels in year one; 32 were adjacent-market spreads. **Owner-Major is flat at
+one year** — expected and not yet evidence either way, since the frozen-roster ratchet it has to
+counteract compounds across the decade. The honest year-one reads are breadth +15, Independent
+entries +31 and indie share +11% with MidTier unchanged.
+
+Three defects were caught and fixed inside the 52-week loop rather than at decade length:
+
+1. **Incumbent inflation (§12 trap, again).** Deriving owned reach from *total* coverage paid a label
+   for the regions it was generated with, so the first placement handed the largest existing networks
+   a windfall: MidTier gained +23 entries, Independents only +7, and breadth actually fell to 149,
+   below reference. Crediting only the marginal market the placement opened (scaled by
+   `independentCoverageReachFactor` = 0.60, since one house reaches much of a market's retail but not
+   all) inverted it to Independents +31 / breadth +15.
+2. **The Rockies could not participate at all.** A proven-but-houseless market consumed the month's
+   placement opportunity and then failed, so all 18 Rockies-home labels placed zero lines across the
+   year. Candidates are now filtered to markets that can actually be placed in, which is what makes
+   the authored `hasIndieDistribution = false` case resolve through neighbours as designed.
+3. **Capacity would have saturated by mid-decade.** Peak house occupancy hit 94% inside twelve months
+   at the slice-1 numbers, silently rebuilding §32.2's frozen market somewhere new. Capacity raised to
+   140 + 120·depth (a house was its territory's wholesaler and carried hundreds of lines), and a dead
+   label's lines are now released back to the market. Occupancy is now 6% mean / 18% peak.
+
+Still open, to fold in later: `GrowSelfBuiltDistributionReach` remains in place with its unreachable
+profit gate (4.3% active, §32.5). It is near-inert so it was left alone this slice to keep attribution
+clean, but it now overlaps the new route and should be retired or folded in.
+
+### 33.8 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is

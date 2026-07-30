@@ -133,6 +133,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter dealLedgerWriter;
 	private StreamWriter labelDirectoryWriter;
 	private StreamWriter independentDistributorWriter;
+	private StreamWriter independentDistributionEventWriter;
 	private StreamWriter concentrationWriter;
 	private StreamWriter firstChartEventWriter;
 	private StreamWriter distributionOfferAttemptWriter;
@@ -348,6 +349,7 @@ public partial class ChartAuditRunner : Node {
 			}
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			CompetitorManager.Instance.OnDistributionOfferAttempt += OnDistributionOfferAttempt;
+			CompetitorManager.Instance.OnIndependentDistributionSigned += OnIndependentDistributionSigned;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome += OnReleaseOutcome;
@@ -914,6 +916,7 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-deal-ledger.csv"));
 		labelDirectoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-directory.csv"));
 		independentDistributorWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-independent-distributors.csv"));
+		independentDistributionEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-independent-distribution-events.csv"));
 		concentrationWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-concentration.csv"));
 		marketRevenueWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-market-revenue.csv"));
 		releaseCapacityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-capacity.csv"));
@@ -1002,6 +1005,8 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter.WriteLine("labelId,labelName,archetype,isHistorical,initialTier");
 		independentDistributorWriter.WriteLine("distributorId,distributorName,regionId,regionPopulation,recordStoreCount," +
 			"departmentStoreCount,inventoryDepth,difficulty,clientCapacity,reliability,paymentTermWeeks,returnAllowance,reportingHonesty");
+		independentDistributionEventWriter.WriteLine("week,year,labelId,labelName,labelTier,distributorId,distributorName," +
+			"regionId,provenInRegion,coveredRegionCount,coveredMarketShare,ownedReachBefore,ownedReachAfter,houseClientCount,houseClientCapacity");
 		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting,cumulativeExactLabelNamesCharting,chartEntries,chartEntriesSmall,chartEntriesBoutique,chartEntriesIndependent,chartEntriesMidTier,chartEntriesMajor,top40Entries,top40Small,top40Boutique,top40Independent,top40MidTier,top40Major,ownerMajorEntries,ownerMajorFamilyEntries,ownerMajorTop40Entries,ownerMajorFamilyTop40Entries");
 		firstChartEventWriter?.WriteLine("week,year,date,observationKind,leftCensoredAtRunStart,recordId,title,releaseLabelId,currentOwnerLabelId,labelName,labelOrigin,runtimeBirthWeek,birthTier,firstChartTier,labelStatus,isHistorical,recordAge,currentPosition,unitsThisWeek,chartPoints,publishedCutoffPoints,quality,peakRegionalBreakoutStrength,bestStrongRegionPeak,regionalBreakoutCount,coveredRegionCount,signedDealCount,completedDealCount,activeDeal,dealOrigin,dealSignedWeek,permanentNationalReach,borrowedReach,effectiveNationalReach,ownedReach,distributionStrength,permanentRegionCount,grantedRegionCount,initialLaunchAwareness,initialLaunchStock");
 		distributionOfferAttemptWriter?.WriteLine("week,year,clientId,clientName,clientTier,clientOrigin,monthsActive,ownedReach,nationalReach,bestAnyRegionPeak,bestStrongRegionPeak,bestPersistentEvidenceQuality,persistentRegionalEvidence,legacyQualityAndCurrentSalesEvidence,legacyNationalReachGate,pushEvidence,pushChancePassed,pullChancePassed,outcome,distributorId");
@@ -1385,6 +1390,21 @@ public partial class ChartAuditRunner : Node {
 		if (dealEvent.resolution == DealResolution.Absorb && !string.IsNullOrEmpty(dealEvent.clientId) && !string.IsNullOrEmpty(dealEvent.distributorId)) {
 			acquiredBy[dealEvent.clientId] = dealEvent.distributorId;
 		}
+	}
+
+	private void OnIndependentDistributionSigned(IndependentDistributionTelemetry signing) {
+		if (independentDistributionEventWriter == null || signing == null) return;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 0;
+		independentDistributionEventWriter.WriteLine(string.Join(",", new[] {
+			signing.week.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(signing.labelId), Csv(signing.labelName), Csv(signing.labelTier.ToString()),
+			Csv(signing.distributorId), Csv(signing.distributorName), Csv(signing.regionId),
+			signing.provenInRegion ? "true" : "false",
+			signing.coveredRegionCount.ToString(CultureInfo.InvariantCulture),
+			F(signing.coveredMarketShare), F(signing.ownedReachBefore), F(signing.ownedReachAfter),
+			signing.houseClientCount.ToString(CultureInfo.InvariantCulture),
+			signing.houseClientCapacity.ToString(CultureInfo.InvariantCulture)
+		}));
 	}
 
 	private void OnDistributionOfferAttempt(DistributionOfferAttemptTelemetry attempt) {
@@ -3187,6 +3207,7 @@ public partial class ChartAuditRunner : Node {
 		if (CompetitorManager.Instance != null) {
 			CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
 			CompetitorManager.Instance.OnDistributionOfferAttempt -= OnDistributionOfferAttempt;
+			CompetitorManager.Instance.OnIndependentDistributionSigned -= OnIndependentDistributionSigned;
 			CompetitorManager.Instance.OnReleaseStrategy -= OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision -= OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome -= OnReleaseOutcome;
@@ -3210,6 +3231,7 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter?.Dispose();
 		labelDirectoryWriter?.Dispose();
 		independentDistributorWriter?.Dispose();
+		independentDistributionEventWriter?.Dispose();
 		concentrationWriter?.Dispose();
 		firstChartEventWriter?.Dispose();
 		distributionOfferAttemptWriter?.Dispose();
@@ -3281,6 +3303,7 @@ public partial class ChartAuditRunner : Node {
 		dealLedgerWriter = null;
 		labelDirectoryWriter = null;
 		independentDistributorWriter = null;
+		independentDistributionEventWriter = null;
 		concentrationWriter = null;
 		firstChartEventWriter = null;
 		distributionOfferAttemptWriter = null;

@@ -42,6 +42,12 @@ public partial class AILabel : Resource {
 	[Export] public string homeCityAssignmentSource;
 	[Export] public string[] strongRegions;
 	[Export] public string[] distributionRegions;
+	// Markets where the label has placed its line with an independent wholesale house
+	// (handoff section 33). This is the label's own asset: it survives a distribution
+	// deal being signed and terminated, and unlike a deal it confers no ownership on
+	// anybody. Unlike the per-song scope of a P&D contract (section 11), a wholesaler
+	// carried the label's whole line in its market, so this coverage is label-wide.
+	public readonly HashSet<string> independentDistributionRegions = new(StringComparer.Ordinal);
 	
 	[ExportGroup("Financials")]
 	[Export] public float cashReserves;
@@ -128,6 +134,7 @@ public partial class AILabel : Resource {
 	public bool HasDistributionInRegion(string regionId) =>
 		!string.IsNullOrEmpty(regionId) &&
 		((distributionRegions?.Contains(regionId) ?? false) ||
+		independentDistributionRegions.Contains(regionId) ||
 		(activeDeal?.grantedRegions?.Contains(regionId) ?? false));
 
 	// A distribution deal carries specific records, not the whole catalog. The
@@ -150,7 +157,18 @@ public partial class AILabel : Resource {
 	public bool HasDistributionInRegionForRecord(string regionId, string recordId) =>
 		!string.IsNullOrEmpty(regionId) &&
 		((distributionRegions?.Contains(regionId) ?? false) ||
+		independentDistributionRegions.Contains(regionId) ||
 		(RecordCoveredByActiveDeal(recordId) && (activeDeal.grantedRegions?.Contains(regionId) ?? false)));
+
+	/// <summary>
+	/// Every market the label can physically ship to, ignoring the per-song deal scope.
+	/// Owned reach is anchored to this, so a label's national presence cannot exceed the
+	/// share of the map it actually serves.
+	/// </summary>
+	public IEnumerable<string> AllCoveredRegions() =>
+		(distributionRegions ?? Array.Empty<string>())
+			.Concat(independentDistributionRegions)
+			.Distinct(StringComparer.Ordinal);
 
 	public int CurrentRosterSize => roster?.Count ?? 0;
 	public bool HasRosterSpace => roster == null || roster.Count < maxRosterSize;

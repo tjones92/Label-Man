@@ -31,11 +31,12 @@ public static class IndependentDistributorFactory {
 	private const float RecordStoresPerHouse = 150f;
 
 	// Deliberately generous. Independent distribution was not the scarce input in the
-	// 1960s -- a hit was. The 24-client major ceiling saturated on every seed and froze
-	// the market for a decade (section 32.2); this capacity is instrumented so the same
-	// mistake is visible rather than silent.
-	private const float BaseClientCapacity = 24f;
-	private const float DepthClientCapacity = 26f;
+	// 1960s -- a hit was. A house was the wholesaler for its whole territory and carried
+	// hundreds of lines. The first slice-2 measurement peaked at 94% occupancy inside
+	// twelve months at a third of these numbers, which would have saturated by mid-decade
+	// and quietly rebuilt the frozen market of section 32.2 in a new place.
+	private const float BaseClientCapacity = 140f;
+	private const float DepthClientCapacity = 120f;
 
 	// Family names and trade words in the idiom of the period's wholesale houses. The pool
 	// is larger than the map needs so each house can take its own name.

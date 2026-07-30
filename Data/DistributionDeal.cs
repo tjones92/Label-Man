@@ -61,6 +61,24 @@ public sealed class DistributionDealTelemetry {
 	public float dependency;
 }
 
+public sealed class IndependentDistributionTelemetry {
+	public int week;
+	public string labelId;
+	public string labelName;
+	public LabelTier labelTier;
+	public string distributorId;
+	public string distributorName;
+	public string regionId;
+	/// <summary>True when the label had proven a record here; false when it spread from a bordering market.</summary>
+	public bool provenInRegion;
+	public int coveredRegionCount;
+	public float coveredMarketShare;
+	public float ownedReachBefore;
+	public float ownedReachAfter;
+	public int houseClientCount;
+	public int houseClientCapacity;
+}
+
 public sealed class DistributionOfferAttemptTelemetry {
 	public int week;
 	public int year;

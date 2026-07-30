@@ -98,6 +98,27 @@ public partial class DistanceModel : Node {
 
 	public static MarketCity GetHubCityForRegion(string regionId) => GetCityById(GetHubCityIdForRegion(regionId));
 
+	// Canonical, symmetric neighbour map for the seven-region board. Independent
+	// distribution spread this way: a house that took a label's line had standing
+	// arrangements with its peers in bordering markets, so a record breaking in one
+	// region became placeable in the next one over long before it was placeable
+	// nationally. AILabelFactory keeps its own randomized single-neighbour picker for
+	// generation; this is the full deterministic set and does not disturb it.
+	private static readonly Dictionary<string, string[]> AdjacentRegionIds = new(StringComparer.Ordinal) {
+		["eastcoast"] = new[] { "greatlakes", "deepsouth" },
+		["greatlakes"] = new[] { "eastcoast", "greatplains" },
+		["greatplains"] = new[] { "greatlakes", "rockies", "southwest" },
+		["deepsouth"] = new[] { "eastcoast", "southwest" },
+		["southwest"] = new[] { "deepsouth", "greatplains", "rockies", "westcoast" },
+		["rockies"] = new[] { "greatplains", "southwest", "westcoast" },
+		["westcoast"] = new[] { "rockies", "southwest" }
+	};
+
+	public static IReadOnlyList<string> GetAdjacentRegions(string regionId) =>
+		!string.IsNullOrEmpty(regionId) && AdjacentRegionIds.TryGetValue(regionId, out string[] neighbours)
+			? neighbours
+			: Array.Empty<string>();
+
 	public static void AssignHomeCity(AILabel label) {
 		if (label == null) return;
 		(MarketCity city, string source) = ResolveHomeCity(label);

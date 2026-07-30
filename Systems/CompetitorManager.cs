@@ -143,6 +143,14 @@ public partial class CompetitorManager : Node {
 	[Export] private int consolidationCourtingRampStartYear = 1964;
 	[Export(PropertyHint.Range, "0,1,0.001")] private float annualCourtingRampPerYear = 0.12f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float pushMastersOwnershipRate = 0.80f;
+	// Section 33: monthly chance a label with proven regional evidence places its line with a
+	// wholesale house in one more market. Assembling national coverage was months of travelling
+	// and pitching after a hit, not an immediate consequence of one, so this paces the spread at
+	// roughly a market a quarter rather than letting a single breakout go national at once.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float independentDistributionMonthlyChance = 0.35f;
+	// Share of a market's retail one wholesale house actually reaches. A label placing its
+	// line with a single house in a region gets most of that market, not all of it.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float independentCoverageReachFactor = 0.60f;
 	// Section 28: a Major distributor takes masters on this share of its deals at minimum (P&D
 	// era), so its distributed records fold into the major corporate/control chart share.
 	// Section 29: this rate ramps across the decade rather than being flat. Early-60s indie deals
@@ -320,6 +328,7 @@ public partial class CompetitorManager : Node {
 	private bool lastReleaseAttemptFailedArtistSelection;
 	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
 	public event System.Action<DistributionOfferAttemptTelemetry> OnDistributionOfferAttempt;
+	public event System.Action<IndependentDistributionTelemetry> OnIndependentDistributionSigned;
 	public event System.Action<ReleaseStrategyTelemetry> OnReleaseStrategy;
 	public event System.Action<CalibrationDecisionTelemetry> OnCalibrationDecision;
 	public event System.Action<ReleaseOutcomeTelemetry> OnReleaseOutcome;
@@ -398,6 +407,150 @@ public partial class CompetitorManager : Node {
 		}
 		GD.Print($"CompetitorManager: independent distribution layer -- {independentDistributors.Count} houses " +
 			$"across {independentDistributorsByRegion.Count} regions");
+	}
+
+	/// <summary>
+	/// The independent route to national reach (handoff section 33). A label with a record
+	/// proven in some market places its line with a wholesale house there, and then with
+	/// houses in bordering markets, one market at a time. This is what an independent label
+	/// actually did in the 1960s, and until it existed the only way to reach the country was
+	/// to become a bigger label's client -- which put a floor under major-owned chart share
+	/// that no calibration could move (section 32.5).
+	///
+	/// Deliberately grants coverage and nothing else. No DistributionDeal is created, no
+	/// reach is borrowed, no masters change hands, and nothing enters the acquisition chain,
+	/// so a record distributed this way is attributable to nobody.
+	/// </summary>
+	private void PursueIndependentDistribution(AILabel label) {
+		if (label == null || !label.IsActive || independentDistributors.Count == 0) return;
+		// A Major runs its own branch distribution and does not place its line with a
+		// regional wholesaler.
+		if (label.tier == LabelTier.Major) return;
+		// Under a P&D contract the distributor presses and ships; the label is not also
+		// building wholesale relationships. Markets it already holds stay held -- they are
+		// its own asset and are still there when the contract ends.
+		if (label.activeDeal != null || label.IsSubsidiary) return;
+		// Section 27: a dependent hitmaker leans on its distributor rather than building
+		// its own network, which is what keeps it a high-dependency absorption target.
+		if (label.distributionDependentHitmaker) return;
+
+		var proven = GetProvenBreakoutRegions(label);
+		if (proven.Count == 0) return;
+
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		string target = SelectIndependentDistributionTarget(label, proven, currentWeek);
+		if (target == null) return;
+
+		IndependentDistributor house = SelectIndependentHouse(label, target, currentWeek);
+		if (house == null || !house.AddClient(label.labelId)) return;
+
+		label.independentDistributionRegions.Add(target);
+		float coveredShare = ChartManager.Instance?.GetNationalMarketShareForRegions(label.AllCoveredRegions()) ?? 0f;
+		float before = label.ownedReach;
+		// Credit only the market this placement actually opened. Re-deriving owned reach from
+		// total coverage instead paid a label for the regions it was generated with, so the
+		// first placement handed the largest existing networks a windfall and the channel
+		// inflated MidTier incumbents rather than opening the chart to independents -- the
+		// section 12 trap in miniature, caught in the first 52-week measurement. One house
+		// reaches much of a market's retail but not all of it, hence the coverage factor.
+		float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { target }) ?? 0f;
+		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling,
+			label.ownedReach + (marginalShare * independentCoverageReachFactor));
+
+		OnIndependentDistributionSigned?.Invoke(new IndependentDistributionTelemetry {
+			week = currentWeek,
+			labelId = label.labelId,
+			labelName = label.labelName,
+			labelTier = label.tier,
+			distributorId = house.distributorId,
+			distributorName = house.distributorName,
+			regionId = target,
+			provenInRegion = proven.Contains(target),
+			coveredRegionCount = label.independentDistributionRegions.Count,
+			coveredMarketShare = coveredShare,
+			ownedReachBefore = before,
+			ownedReachAfter = label.ownedReach,
+			houseClientCount = house.CurrentClientCount,
+			houseClientCapacity = house.clientCapacity
+		});
+	}
+
+	/// <summary>
+	/// Markets where this label has actually proven a record. A wholesaler took a line it
+	/// could sell, so the evidence bar is the same regional breakout that earns a P&amp;D
+	/// offer -- not the profit the old self-built gate demanded, which a label with no
+	/// distribution could never earn (section 32.5).
+	/// </summary>
+	private HashSet<string> GetProvenBreakoutRegions(AILabel label) {
+		var proven = new HashSet<string>(System.StringComparer.Ordinal);
+		foreach (RecordRuntimeData record in ChartManager.Instance?.GetAllRecords() ?? Enumerable.Empty<RecordRuntimeData>()) {
+			if (record?.baseRecord?.labelId != label.labelId) continue;
+			foreach (var pair in record.regionalData) {
+				if ((pair.Value?.peakBreakoutScore ?? 0f) >= regionalBreakoutDealThreshold) proven.Add(pair.Key);
+			}
+		}
+		return proven;
+	}
+
+	// Proven markets first, then the markets bordering them. A house that took the line had
+	// standing arrangements with its peers one region over, which is how a regional hit
+	// spread before it was a national one.
+	private string SelectIndependentDistributionTarget(AILabel label, HashSet<string> proven, int currentWeek) {
+		// Only markets that can actually be placed in are candidates. Counting a market with
+		// no independent trade -- the Rockies -- would have consumed the month's opportunity
+		// and then failed, which left all 18 Rockies-home labels unable to place a single
+		// line. A label in a market without wholesalers has to reach the ones next door.
+		var candidates = new List<string>();
+		foreach (string regionId in proven)
+			if (CanPlaceLineIn(label, regionId)) candidates.Add(regionId);
+		if (candidates.Count == 0) {
+			foreach (string regionId in proven)
+				foreach (string neighbour in DistanceModel.GetAdjacentRegions(regionId))
+					if (CanPlaceLineIn(label, neighbour) && !candidates.Contains(neighbour)) candidates.Add(neighbour);
+		}
+		if (candidates.Count == 0) return null;
+
+		// Placing a line took months of travelling and pitching, so a label adds markets
+		// steadily rather than going national the month after a hit.
+		float roll = GetDeterministicIndependentDistributionRoll(label.labelId, "target", currentWeek);
+		if (roll >= independentDistributionMonthlyChance) return null;
+		int index = (int)(GetDeterministicIndependentDistributionRoll(label.labelId, "pick", currentWeek) * candidates.Count);
+		return candidates[Mathf.Clamp(index, 0, candidates.Count - 1)];
+	}
+
+	// A house drops a dead label's line and the slot returns to the market. Without this the
+	// layer would fill with closed labels and saturate on ghosts rather than on real demand.
+	private void ReleaseIndependentDistribution(AILabel label) {
+		if (label == null || label.independentDistributionRegions.Count == 0) return;
+		foreach (IndependentDistributor house in independentDistributors) house.RemoveClient(label.labelId);
+		label.independentDistributionRegions.Clear();
+	}
+
+	private bool CanPlaceLineIn(AILabel label, string regionId) =>
+		!label.HasDistributionInRegion(regionId) &&
+		GetIndependentDistributorsInRegion(regionId).Any(house => house.HasCapacity && !house.CarriesLabel(label.labelId));
+
+	private IndependentDistributor SelectIndependentHouse(AILabel label, string regionId, int currentWeek) {
+		var open = GetIndependentDistributorsInRegion(regionId)
+			.Where(house => house.HasCapacity && !house.CarriesLabel(label.labelId))
+			.ToList();
+		if (open.Count == 0) return null;
+		int index = (int)(GetDeterministicIndependentDistributionRoll(label.labelId, "house" + regionId, currentWeek) * open.Count);
+		return open[Mathf.Clamp(index, 0, open.Count - 1)];
+	}
+
+	// Seed-stable and drawn off the global RNG stream, exactly as the masters renewal roll
+	// is (section 30.1). A new decision route that consumed global draws would reorder every
+	// downstream sampler, and the resulting breadth and tier changes could not be attributed
+	// to independent distribution rather than to RNG reordering (section 12).
+	internal static float GetDeterministicIndependentDistributionRoll(string labelId, string salt, int week) {
+		uint hash = 2166136261u;
+		foreach (char value in
+			$"{SimulationSeedBootstrap.RequestedSeed ?? 0UL}|{labelId}|{salt}|{week}|IndependentDistributionV1") {
+			hash ^= value;
+			hash *= 16777619u;
+		}
+		return (hash & 0x00ffffffu) / 16777216f;
 	}
 
 	public IReadOnlyList<IndependentDistributor> GetIndependentDistributors() => independentDistributors;
@@ -2922,8 +3075,8 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private void ProcessLabelMonth(AILabel label, GameDate date) {
-		if (!label.IsActive) return;
-		
+		if (!label.IsActive) { ReleaseIndependentDistribution(label); return; }
+
 		var financials = labelFinancials.TryGetValue(label.labelId, out var f) ? f : null;
 		if (financials == null) {
 			financials = new LabelFinancialHistory();
@@ -2938,6 +3091,7 @@ public partial class CompetitorManager : Node {
 		label.lastMonthlyProfit = netIncome;
 		ReinvestDistributionProfit(label, netIncome);
 		GrowSelfBuiltDistributionReach(label, netIncome);
+		PursueIndependentDistribution(label);
 		UpdateLabelStatus(label, financials, netIncome);
 		
 		label.monthlyRevenue = 0f;
