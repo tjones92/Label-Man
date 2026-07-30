@@ -154,6 +154,8 @@ public partial class CompetitorManager : Node {
 	// Share of an unreliable house's arrears that is settled anyway. The wait is the squeeze;
 	// outright loss is the residue.
 	internal const float WholesaleSettledShareOfArrears = 0.70f;
+	// Concurrent independent imprints one Major distributes. See IsEligibleDistributor.
+	[Export(PropertyHint.Range, "4,32,1")] private int majorDistributionClientCeiling = 10;
 	// Section 28: a Major distributor takes masters on this share of its deals at minimum (P&D
 	// era), so its distributed records fold into the major corporate/control chart share.
 	// Section 29: this rate ramps across the decade rather than being flat. Early-60s indie deals
@@ -3508,12 +3510,25 @@ public partial class CompetitorManager : Node {
 		bool validTier = distributor.tier == LabelTier.Major || distributor.tier == LabelTier.MidTier ||
 			(distributor.tier == LabelTier.Independent && distributor.ownedReach >= 0.65f);
 		if (!validTier || WouldCreateCircularDeal(client, distributor)) return false;
-		// Path A (section 26): all 8 Majors sat pinned at the old cap of 12 essentially every week
-		// (~95 of 96 slots), so ~70% of deals were forced onto MidTier/Independent distributors that
-		// can never absorb, and raising the Major routing weight did nothing because Majors were
-		// almost never eligible. A national Major historically distributed dozens of imprints, so 12
-		// was unrealistically low; 24 opens the Major-distributed pool that absorption feeds on.
-		int capacity = distributor.tier switch { LabelTier.Major => 24, LabelTier.MidTier => 6, _ => 3 };
+		// Section 33 slice 6. The ceiling of 24 was set in section 27 purely to widen the pool
+		// absorption feeds on, and absorption fires 12-19 times per decade. What it actually built
+		// was a Major-distributed roster of 212 that saturated in 1960 and never turned over --
+		// median client tenure 8.4 years, 54% of it the 1960-61 cohort -- and that frozen roster,
+		// not the masters rate, is what drives the owner-Major overshoot (section 32.2).
+		//
+		// A 1960s major carried a handful of distributed imprints, not two dozen: ABC around seven,
+		// MGM about five, Mercury about four, and most of those were owned subsidiaries rather than
+		// independent clients. Ten is the realistic figure and is what the user's own research put
+		// the range at.
+		//
+		// This deliberately ships LAST. Major distribution is the chart-access gate for independents
+		// (60% of Major-distributed Independents chart, against 34% on a MidTier distributor and
+		// 2.5% undistributed, section 32.4), so cutting it before the independent channel existed
+		// would have stranded the displaced labels and cost breadth with nothing to catch them.
+		// Slices 1-5 built what catches them.
+		int capacity = distributor.tier switch {
+			LabelTier.Major => majorDistributionClientCeiling, LabelTier.MidTier => 6, _ => 3
+		};
 		if (aiLabels.Count(label => label.activeDeal?.distributorId == distributor.labelId) >= capacity) return false;
 		float minimumAdvance = origin == DealOrigin.DistributorCourted ? client.GetMonthlyOverhead() * 6f : 0f;
 		if (distributor.cashReserves - minimumAdvance <= distributor.GetMonthlyOverhead() * 3f) return false;

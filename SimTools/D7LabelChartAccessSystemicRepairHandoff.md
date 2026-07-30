@@ -3549,7 +3549,37 @@ the old runs. If the independent channel has not relieved that pressure, poachin
 capacity — which is the §33 carried note (Major ceiling to ~10) arriving from the other direction, and
 argues for doing slice 6 before the decade run rather than after.
 
-### 33.11 Validation ladder (decade runs deferred)
+### 33.11 Slice 6 SHIPPED — the Major client ceiling, 24 -> 10
+
+`majorDistributionClientCeiling` (exported, default 10) replaces the hard-coded 24 in
+`IsEligibleDistributor`.
+
+The 24 was set in §27 purely to widen the pool absorption feeds on, and absorption fires 12-19 times
+per decade. What it actually built was a 212-client Major roster that saturated in 1960 and never
+turned over, and that frozen roster — not the masters rate — is what drives the owner-Major overshoot
+(§32.2). A 1960s major carried a handful of distributed imprints, not two dozen: ABC ~7, MGM ~5,
+Mercury ~4, most of them owned subsidiaries rather than independent clients.
+
+**Shipping it last was the point, and it worked.** Major distribution is the chart-access gate for
+independents (60% of Major-distributed Independents chart against 34% on a MidTier distributor and
+2.5% undistributed, §32.4), so cutting the ceiling before the independent channel existed would have
+stranded the displaced labels and cost breadth with nothing to catch them — the self-healing trap that
+defeated every metric-side lever in §31.2. Measured at 52 weeks, seed 1001:
+
+| | slice 5 | slice 6 |
+|---|---:|---:|
+| Major-distributed clients | 165 | **80** (8 x 10, saturated) |
+| MidTier-distributed | 74 | 112 |
+| Independent-distributor clients | 43 | 82 |
+| labels using independent distribution | ~263 | 268 |
+| cumulative charting IDs | 167 | **171** |
+| ownerMajor | 458 (44.7%) | **434 (41.9%)** |
+
+Breadth went **up**, to the best figure of any run in this arc. Halving the Major roster cost nothing
+because slices 1-5 built somewhere for those labels to go. Note the Majors are saturated at the new
+ceiling too, so 10 is a binding constraint and therefore a real dial — occupancy must stay visible.
+
+### 33.12 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is
