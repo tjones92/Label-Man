@@ -2896,3 +2896,106 @@ emerges 1966-69; Reggae/Ska/Rocksteady appear late. ~40 genres with credible eme
 Note the genre diversity is realized per-record from market demand even though runtime label
 specialization is limited to 7 preferred genres (the §"Document/defer" concern) — worth a proper
 chart-level genre audit on a non-lean run next session.
+
+## 31. NEXT SESSION — owner-Major overshoot investigation (three-seed pattern)
+
+**Open here.** This is the primary unsolved problem. Everything else below (breadth, runtime) is either
+done or a secondary fold-in.
+
+Current committed state (branch `d7-artist-population-plateau`, HEAD `15e2401`):
+- `maxMonthlyBirths = 9` (was 6) — `LabelLifecycleManager.cs`. Breadth lever, accepted.
+- `majorDistributorMastersOwnershipRateLate = 0.40` (was 0.45) — `CompetitorManager.cs`. Owner-Major trim.
+- `consolidationAbsorbChance = 0.75` (unchanged; a trim was tried and reverted — see 31.2).
+- Heavy per-week telemetry gated behind `--lean-probe` (runtime, §31.4).
+- Probes D5 + D6 1-89 pass; builds clean.
+
+### 31.1 The pattern: owner-Major runs hot on harder seeds
+
+Committed config (births-9 + masters-0.40), 1969 owner-Major entry share vs the 45-52 target band:
+
+| seed | 1969 owner-Major | breadth (cum imprint IDs) | Small tail | note |
+|---|---:|---:|---:|---|
+| 1001 | **50.5** (in band) | 458 | 10.3% | measured at masters-**0.45**; masters-0.40 est ~48, NOT yet run |
+| 2029 | **55.5** (hot) | 472 | 10.3% | masters-0.40 |
+| 3407 | **54.6** (hot) | 455 | 8.8% | masters-0.40 |
+
+Two independent harder seeds land 2.6-3.5 over the 52 ceiling, with the correct rising arc (low-40s in
+1960 -> mid-50s in 1969). This is **systematic**, not a 2029 artifact. Breadth and the Small/Independent
+tail are healthy on all three seeds — the ONLY failing metric is the late-decade owner-Major level.
+First task: run `d7-...-522-1001` at masters-0.40 to confirm seed 1001's exact in-band number.
+
+### 31.2 Levers already tried and why they fail (do not repeat blindly)
+
+`ownerMajorEntries` = imprint-Major (stable ~350-360 entries) + master-control (indie on an active Major
+deal with `ownsMasters`, per-song covered) + acquisition-chain (indie absorbed by a Major, via
+`acquiredBy`/`ResolveCurrentOwner` in `ChartAuditRunner.CountOwnerFamilyEntries`). The surplus over
+imprint-Major is ~185-230 entries on the hard seeds. Every metric-side trim tried is **self-healing** —
+cut one Major-owned route and the records reappear through another:
+
+- **Births dilution is weak/unreliable for owner-Major.** More Small/Independent entrants raise unique-ID
+  breadth but do NOT grow the annual chart-entry *denominator* on the hard seed (2029: 994 -> 980, actually
+  down). The chart is saturated; new indies reshuffle the below-Major positions instead of displacing
+  Majors. births 6->9 moved 2029 owner-Major only -0.8. **births-12 would buy breadth, not owner-Major.**
+- **Masters-rate trim has weak leverage** (~ -0.38 owner-Major points per -0.01 of the late rate on seed
+  2029, ~4x weaker than §30.4's estimate) because of the renewal-freeze/re-roll lag (§29.2/§30.1). 0.45 ->
+  0.40 moved 2029 only 57.4 -> 55.5. A cut deep enough to fix the hard seeds (~0.31) flattens the
+  consolidation ramp (0.15 early -> 0.31 late) and pushes seed 1001 toward the 45 floor.
+- **Absorption trim BACKFIRES** (measured, `consolidationAbsorbChance` 0.75 -> 0.60 on seed 2029: owner-Major
+  1969 rose 55.5 -> 58.6). Averting an absorption does NOT free the client to chart as an Independent — it
+  RENEWS the client on its Major P&D deal, which stays Major-owned via master-control (`ownsMasters` deal
+  rows 755 -> 775), AND the client loses the subsidiary reach boost, so total chart entries shrink
+  (980 -> 958). Both ends push the ratio up. Gemini recommended this lever on static analysis; the
+  counterfactual (renewal-on-Major-deal, not independence) is what its analysis missed. Reverted, caution
+  comment left in code.
+
+### 31.3 Where to point the next investigation
+
+The metric-side levers are exhausted because they all fight the same mechanism that PRODUCES the
+historically-correct rise. Suggested first moves for the new session:
+
+1. **Decompose the surplus** on a hard seed: split `ownerMajorEntries - chartEntriesMajor` into
+   master-control vs acquisition-chain (instrument `CountOwnerFamilyEntries` to emit the two counts, or
+   cross-ref `IsMajorMasterControlled` against the `acquiredBy` set). We know the surplus is ~185-230 but
+   NOT the split. Which dominates on the hard seeds decides the lever.
+2. **If master-control dominates:** the real lever is fewer charting indies on Major-*master* deals — e.g.
+   steer breakout indies toward non-Major distributors, or reduce per-song master coverage — not the flat
+   masters rate. Watch the renewal-freeze (§29.2): signing-time changes lag; renewal re-roll (§30.1) is the
+   propagation path.
+3. **If acquisition dominates:** absorption count/timing is the driver, but trimming the *chance* backfires
+   (31.2). Consider instead *when* absorbed subsidiaries' entries are attributed, or the subsidiary
+   reach-boost that inflates their post-absorption chart volume.
+4. **Or accept a documented band tolerance:** seed 1001 in band, hard seeds ~54-55 with the correct arc.
+   The user earlier said "53%~ is fine for Majors." A documented stress-seed ceiling (~55) is a legitimate
+   close-out if no clean lever emerges. This was on the table before the investigation was deferred.
+
+Key files: `Systems/CompetitorManager.cs` (masters ramp `GetMajorMastersOwnershipRate`, `GenerateDealTerms`,
+`RerollMastersOnRenewal`, `CurrentDealMastersRate`; absorption `ShouldConsolidate`/`AbsorbLabel`/
+`IsConsolidationEligible`); `SimTools/ChartAuditRunner.cs` (metric `CountOwnerFamilyEntries`,
+`IsMajorMasterControlled`, `ResolveCurrentOwner`); `Data/DistributionDeal.cs` (`ownsMasters`,
+`coveredRecordIds`). Analysis columns: `concentration.csv` ownerMajorEntries ($32), chartEntriesMajor ($25),
+chartEntries ($20); `deal-ledger.csv` `ownsMasters` rows + `Absorb` events.
+
+### 31.4 Fold-in for the next decade run: bounded neutral-first runtime pass
+
+The decade run crept ~18 -> ~30 min. One easy win is DONE and committed (`15e2401`): the four largest
+per-week telemetry dumps (album-realization-bridge ~4.6 GB, settlement-regional ~1.8 GB, single-demand-stages
+~1.8 GB, settlement ~0.75 GB) are now suppressed under `--lean-probe`. Output I/O 11.3 GB -> 0.57 GB, decade
+wall ~30 -> ~25.7 min (~14%), verified byte-identical (1960-62 concentration + a 260-week A/B: 406.5s
+ungated vs 357.1s gated). `AcknowledgeSettlementAudit` (a sim invariant) was reordered ahead of the
+writer-null check in `OnWeekSettlement` so it still runs when telemetry is off.
+
+The REMAINING cost is NOT telemetry. Profiled loop time is ~339s but real wall is ~1543s at decade length,
+and the gap grows with horizon (real/loop 3.6x at 260wk -> 4.6x at decade). The driver is the **active-record
+set ballooning 3,557 (1960) -> 16,633 (1969)** — ~46% of albums never retire from the hot loop, and per-week
+work scales with the set. When it is time for the next decade run, do a bounded **neutral-first** pass:
+
+1. Profile the ~1,200s that lives OUTSIDE the current profiled span (the manager weekly/daily processing, not
+   `SimulateWeek`). `recordLookups` (~134k at 160wk, growing) is a suspect — if those are linear scans over
+   the record list, dict-izing is a pure speedup with identical output.
+2. Fix any O(n^2)/allocation hot spots with **byte-identical verification** (diff `concentration.csv` before/
+   after, same as the telemetry check).
+3. Separately, evaluate whether a tightly-defined **inert-record archive** (zero stock AND zero awareness AND
+   retired-from-chart AND past any revival age) can be lifted out of the hot loop as a provable no-op. That
+   would be the big win but is a sim-touching change — only ship it if provably neutral.
+4. If the cost turns out to be genuinely "process 16k live records," ~25 min is the honest floor without a
+   mechanism change, and accepting it is legitimate.
