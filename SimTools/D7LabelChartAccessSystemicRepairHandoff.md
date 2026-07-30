@@ -2999,3 +2999,252 @@ work scales with the set. When it is time for the next decade run, do a bounded 
    would be the big win but is a sim-touching change — only ship it if provably neutral.
 4. If the cost turns out to be genuinely "process 16k live records," ~25 min is the honest floor without a
    mechanism change, and accepting it is legitimate.
+
+## 32. Owner-Major overshoot: root cause is a frozen 1960 distribution roster, not the masters rate
+
+Artifact-only investigation across the three committed decade runs (`d7-births9-masters40-522-2029`,
+`...-3407`, `d7-births9-522-1001`). No new simulation was spent. Method: the metric was re-derived
+from `label-finance.csv` (weekly per-label tier + `dealDistributorId`), `deal-ledger.csv` (deal
+intervals + `ownsMasters`), `single-release-lanes.csv` (record -> release imprint) and
+`retirement.csv` (chart window = `week - weeksSinceLastTop100 - weeksOnChart + 1` .. `week -
+weeksSinceLastTop100`). The reconstruction reproduces `chartEntries` and `ownerMajorEntries` to
+within ~1 point every year 1960-1968 on both hard seeds, so counterfactuals computed on it are
+trustworthy. 1969 is NOT reconstructable (89% of records take 21-40 weeks after chart exit to
+retire, so records charting after ~week 490 never appear in `retirement.csv`).
+
+### 32.1 Decomposition (answers 31.3 step 1)
+
+**Master-control is ~97% of the surplus; acquisition is negligible.** Absorptions across the whole
+decade: 19 (2029), 12 (3407) — and they are mostly small labels, worth ~5 entries. The §31.3
+"which dominates" question is settled: it is master-control, and no absorption-side lever can matter.
+
+1968 surplus by imprint tier (seed 2029, 134 of the actual 143 reconstructed):
+
+| imprint tier | all entries | master-controlled | on a Major deal, no masters | labels | entries/label |
+|---|---:|---:|---:|---:|---:|
+| MidTier | 319 | 61 | 82 | 17 | 3.6 |
+| Independent | 266 | 65 | 128 | 27 | 2.4 |
+| Boutique | 21 | 8 | 10 | 3 | 2.7 |
+
+**73% of Independent chart entries and 45% of MidTier chart entries come from labels currently
+distributed by a Major.** The masters rate is only the last, small coefficient on that base — which
+is exactly why §31.2 measured it ~4x weaker than predicted.
+
+### 32.2 The chain (each step measured, all three seeds)
+
+```text
+1960 land-rush: 315-318 pull signings in year one (every prewarm label is deal-free)
+        ↓
+Majors saturate their 24-client cap immediately and stay there
+   (wk470 seed 2029: 9 of 10 Majors hold 20-24 clients, 212 total of 240 slots)
+        ↓
+exit needs DistributionDependency < 0.35, but a Major deal grants ~0.40 borrowed reach
+   (mean dependency: Major-distributed Independent 0.435-0.455, only 3-11% below the exit line;
+    MidTier-distributed 0.353-0.374, 21-32% below) — a better distributor makes the deal permanent
+        ↓
+§26 softened high-band reach erosion 0.85x -> 0.93x specifically to keep clients dependent
+        ↓
+the roster never turns over: median tenure of a Major's clients at wk470 is 8.4 YEARS;
+   114 of 212 (54%) have been continuously signed since 1960-61, only 21 (10%) signed since 1966
+        ↓
+29-44 of those clients are promoted to MidTier while still under contract. TryGenerateDistributionOffer
+   bars MidTier from SIGNING a deal; ResolveDistributionDeal has no matching check at RENEWAL, so
+   they renew forever. ALL 40 on seed 2029 signed before promotion — zero exceptions.
+        ↓
+they become the highest-volume non-Major chart producers (143 of 969 entries = 15% of the 1968 chart)
+        ↓
+the masters ramp (0.15 -> 0.40) plus renewal re-roll converts ~1/3 of that frozen pool
+        ↓
+surplus 49 (1960) -> 185 (1969), still climbing toward an equilibrium of ~0.40 x 212 x 2.6 ≈ 220
+```
+
+Cross-seed corroboration: the count of MidTier labels perpetually holding a Major deal tracks the
+overshoot — 29 (seed 1001, 1969 = 50.5, in band), 40 (2029, 55.5), 44 (3407, 54.6). Seed 1001 was
+run at the **higher** masters rate 0.45 and still came in lowest, which is further evidence the
+masters rate is not the driver.
+
+### 32.3 The push/courting route was never actually unblocked
+
+`ProcessDistributionDeals` only calls `TryGenerateDistributionOffer` for labels with
+`activeDeal == null`. A Major can therefore only court a label that has **no distributor at all**.
+Since 75% of Independents and 95-100% of Boutiques are permanently signed (32.2), the courtable pool
+is the tail. Measured `pushEvidence` (deal-free labels with momentum > 0.60 or a recent Top 40),
+per year 1961-1969:
+
+- seed 2029: 39, 1, 0, 5, 5, 8, 16, 1, 9
+- seed 3407: 17, 1, 0, 7, 5, 1, 5, 10, 3
+- seed 1001: 13, 4, 0, 9, 2, 0, 0, 5, 0
+
+Total `DistributorCourted` signings across a decade: **5 / 16 / 16**. So every push-side parameter
+is inert: `monthlyPushOfferProbability` 0.05 + `annualCourtingRampPerYear` 0.12 from 1964 (a ramp to
+0.65/month by 1969), `pushMastersOwnershipRate` 0.80, the `courted` +0.35 acceptance bonus and its
+exemption from the independence penalty. `pushMastersOwnershipRate = 0.80` is doubly inert: it enters
+as `Max(0.80, GetMajorMastersOwnershipRate(year))`, so the year ramp can never bind on a push deal.
+
+This exact diagnosis was already written down in §26.2 ("push needs a proven **and deal-free** label...
+distinct courtable labels in 1965-67: **4**"). The work then routed *around* it — §26.3 raised the
+Major routing weight, §27 raised Major capacity to 24, §27.1/§28 pivoted to the control-based
+ownership metric — and the deal-free precondition was never removed. Worse, those changes made the
+route strictly deader by signing more proven labels: `pushEvidence` in 1967-69 went 45/45/46
+(`d7-subsidiary-absorption-522-1001`) -> 15/12/12 (`d7-pathA-capacity-stax-522-1001`) -> ~0-16 now.
+
+**The 12x Major routing weight, the 24-client Major capacity and the 0.93x erosion softening were all
+built to feed absorption. Absorption fires 12-19 times per decade. What those knobs actually built is
+the 212-label frozen Major-distributed pool that now drives the failing metric.**
+
+### 32.4 Why the metric-side levers are exhausted (confirms §31.2 and adds the reason)
+
+Independent-tier labels at wk470, seed 2029, by distributor tier:
+
+| group | labels | mean borrowedReach | charted in 1968 | entries/charting label |
+|---|---:|---:|---:|---:|
+| Major-distributed | 131 | 0.397 | 78 (60%) | 2.47 |
+| MidTier-distributed | 104 | 0.245 | 35 (34%) | 1.49 |
+| no deal | 484 | 0.000 | 12 (2.5%) | 1.67 |
+
+Major distribution is the chart-access gate for Independents. Cutting the Major pool therefore
+removes indie entries from the **denominator** and costs breadth — the §12 self-healing trap again.
+A capacity cut 24 -> 12 projects to only ~-3.4 points at 1968 (50.7 -> ~47.3) while losing ~65 indie
+chart entries a year. Conversely, graduating the MidTier clients out (32.2) projects a clean drop
+(1968 50.7 -> 45.1, 1966 51.5 -> 44.5, 1967 46.6 -> 41.4 before refill) but **flattens the arc**,
+because that accumulating cohort IS what currently produces the late-decade rise.
+
+That is the real finding: the historically-correct rise is currently manufactured by an ahistorical
+artifact (a 1960 roster that never turns over, ratcheting into masters deals). Any honest fix to the
+artifact removes the arc, so the arc has to be re-sourced from a mechanism that genuinely grows
+late-decade — which is precisely what the courting ramp was designed to be, and it has never run.
+
+### 32.5 The deeper cause: there is no independent route to national reach
+
+`GrowSelfBuiltDistributionReach` (`CompetitorManager.cs:2941`) is supposed to be the "label builds its
+own network" path. It is inert. Of the **577 labels that never signed a deal** in the decade
+(seed 2029):
+
+- ever grew `ownedReach` by more than 0.02: **25 (4.3%)**
+- mean lifetime `ownedReach` change: **+0.005**
+- mean unsigned-Independent `ownedReach`, wk52 -> wk470: 0.473 -> **0.458**
+
+Two reasons. Its gate is `netIncome >= 2x overhead`, but an unsigned label charts 2.5% of the time so
+it has no income — a closed loop. And it is switched off entirely while a deal is active
+(`if (label.activeDeal != null) return`), so every label that does get a distributor stops building
+its own network for the rest of the decade.
+
+The gate is also wrong in kind. An indie in 1962 did not buy a national network out of profits; it
+signed up 25-35 independent regional distributors market by market. The barrier was **having a hit**,
+not having capital — and that signal is already computed in `EvaluateRegionalDealEvidence` and
+currently spent only on triggering a P&D offer.
+
+**Consequence: an indie has exactly two fates — be a bigger label's client, or stay regional
+forever. Every charting indie is by construction somebody's client, and the biggest clients are
+Major clients. The owner-Major share therefore has a structural floor that no calibration can move.**
+
+Supporting counts (seed 2029) — this is occupancy, not supply:
+
+| year | distinct UNSIGNED labels with qualifying breakout evidence | signings | of which to a Major |
+|---|---:|---:|---:|
+| 1960 | 411 | 318 | 217 (68%) |
+| 1961-63 | 158 / 162 / 154 | 100 / 116 / 106 | 25 / 25 / 29 (22-27%) |
+| 1964-66 | 154 / 171 / 158 | 95 / 117 / 102 | 38 / 42 / 36 (35-40%) |
+| 1967-69 | 138 / 126 / 120 | 91 / 75 / 77 | 31 / 19 / 29 (25-38%) |
+
+120-171 proven, wanted, unsigned candidates every year against ~30 Major slot openings. Raising
+`maxMonthlyBirths` cannot help this; the 1960 cohort holds the slots.
+
+## 33. Decision: build independent distribution as a first-class channel (user-directed)
+
+User direction after §32: **add independent-distributor entities.** The model targets realism and
+cannot have it while the only route to national reach is being a bigger label's client. This is
+accepted as a large addition and its own work branch. The existing acceptance targets stay the north
+star: 400-600 cumulative charting imprints, below-MidTier Independent-dominated, small Small tail,
+owner-Major 45-52 late-decade. **The new channel must help the economy, not hurt it.**
+
+Also directed: fold in **poaching** and **MidTier graduation** (§33.3), and **defer all decade runs**
+until the channel is built.
+
+> **CARRIED NOTE — reduce the Major client ceiling.** `IsEligibleDistributor` caps Majors at 24
+> concurrent clients. User research and §32 agree this is 2-4x too high: a 1960s major carried roughly
+> 5-15 distributed imprints (ABC ~7, MGM ~5, Mercury ~4), and most of those were owned subsidiaries
+> rather than independent clients. Target ~10. **Do not ship the cut before the independent channel
+> exists** — Major distribution is currently the chart-access gate for Independents (60% of
+> Major-distributed chart vs 34% MidTier-distributed vs 2.5% undistributed), so cutting it first would
+> cost breadth with nothing to absorb the displaced labels. Cut it once route 1 below can carry them.
+
+### 33.1 The historical model to implement (user brief, verified)
+
+Verified as accurate:
+
+- **Regional indie distributors were the first stop, not a Major.** Distribution was segregated by
+  geography rather than by label or content; a label with a Carolinas hit went to its regional
+  distributor and assembled coverage market by market. Retailers preferred dealing with a handful of
+  distributors, so distributors carried many labels. (One-stops — sub-wholesalers serving jukebox
+  operators and small shops — sat under this layer and are probably below our resolution.)
+- **Rack jobbers were a parallel retail channel** servicing department-store and discount-chain record
+  departments (Handleman, ABC Consolidated), reaching mainstream retail without any major deal, and
+  growing through the decade at the expense of mom-and-pop retail. **Refinement:** racks stocked
+  narrow, high-turn inventory — overwhelmingly proven hits and major catalog. Racks should therefore
+  *amplify* an already-proven record, not break an unproven one, and their weight should ramp across
+  the decade.
+- **The cash-flow paradox is real and is the best part of the brief.** Distributors took 90-120 day
+  terms with full return privileges while the label paid pressing up front, under-reported sales, and
+  sometimes bootlegged. A hit could bankrupt a poorly capitalised label before the money arrived, and
+  a failing distributor could take the label's receivables with it. This is the historically correct
+  reason an indie became vulnerable to Major courtship — and it maps directly onto existing state
+  (`cashReserves`, `consecutiveLossMonths`, `DistributionDependency`, the absorption gate).
+- **The Major arrives only after a proven regional hit,** via P&D (label keeps identity and roster) or
+  outright acquisition. The mid/late-60s acquisition wave is well attested: MGM–Verve 1963,
+  Liberty–Imperial 1963, ABC–Dunhill 1966, Warner-Seven Arts–Atlantic 1967, Gulf+Western–Stax 1968,
+  Transamerica–Liberty 1968, GRT–Chess 1969.
+
+Two corrections to carry forward:
+
+1. **The Motown/RCA P&D claim is wrong and would push the design the wrong way.** Motown was
+   independently distributed in the US throughout the 1960s and had no US major P&D deal; its first
+   major-label distribution came decades later. The RCA/EMI threads in the brief are overseas
+   licensing (UK: London American -> Oriole -> EMI Stateside -> the Tamla Motown imprint from 1965).
+   Motown is the archetype of **"successful indie stays independently distributed"**, not of
+   graduating to a major — which is what the existing §26 code comment already assumes ("the correct
+   Motown behaviour"). Keep it that way. Better P&D exemplars: Kama Sutra–MGM (1965-69, then Buddah
+   went independent), Dunhill–ABC (distributed 1965, bought 1966), Bang–Atlantic, Stax–Atlantic
+   (1961-68, the long outlier, and it ended over the masters).
+2. **The conglomerate framing is slightly late for our window.** RCA and CBS long predate the 1960s;
+   Warner Communications is 1972 and PolyGram 1972. The *acquisition wave* framing is right; the
+   *conglomerate formation* framing belongs to 1968-72 and should not shape 1960-69 behaviour.
+
+### 33.2 Target channel shape
+
+```text
+Regional hit (EvaluateRegionalDealEvidence, already computed)
+        ↓
+Regional independent distributor(s) — market by market, label keeps masters,
+grows real regional/national coverage. THE DEFAULT. Missing today.
+        ↓
+Rack jobbers — amplify a proven record into mainstream retail; weight ramps across the decade
+        ↓
+Success creates a cash-flow squeeze (terms, returns, under-reporting, distributor failure)
+        ↓
+Major approaches ──→ P&D deal (exists; must become a minority and must actually end)
+                └──→ Acquisition (exists as absorption; fires 12-19x/decade)
+```
+
+This is what produces a genuinely fragmented 1960 (indies self-distributing) consolidating into
+1968-69 (majors poaching and buying proven indies) from mechanism rather than from a masters-rate
+coefficient.
+
+### 33.3 Also in scope this pass
+
+- **Poaching.** `ProcessDistributionDeals` only offers to `activeDeal == null` labels, so a Major can
+  only court a label with no distributor at all (§32.3). A Major must be able to court a proven label
+  that already has a distributor — including one on independent distribution. The courting ramp,
+  0.80 push masters rate, acceptance bonus and independence-penalty exemption are all already built
+  and waiting.
+- **MidTier graduation.** `TryGenerateDistributionOffer` bars MidTier from signing;
+  `ResolveDistributionDeal` has no matching check at renewal, so 29-44 promoted labels renew a
+  contract they could never sign (§32.2). Add the renewal-side check.
+
+### 33.4 Validation ladder (decade runs deferred)
+
+Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
+graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is
+now genuinely informative: independent self-distribution, MidTier graduation and the 1964 courting ramp
+all show by 1965. Set the Major client ceiling and the masters ramp from those measurements before any
+decade run.
