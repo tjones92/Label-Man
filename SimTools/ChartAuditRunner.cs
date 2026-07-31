@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -175,6 +175,10 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter formatDecisionCohortDetailWriter;
 	private StreamWriter supplySelectionWriter;
 	private StreamWriter traditionalPopFallbackWriter;
+	private StreamWriter genreShapeWriter;
+	private int genreShapeYear;
+	private readonly Dictionary<Genre, GenreShapeYearState> genreShapeByYear = new();
+	private readonly HashSet<string> genreShapeSeenRecordIds = new(StringComparer.Ordinal);
 	private StreamWriter genreEventsWriter;
 	private StreamWriter specialProductsWriter;
 	// Enabled-only: absent from disabled runs so the frozen 45-stream boundary is unchanged.
@@ -382,6 +386,7 @@ public partial class ChartAuditRunner : Node {
 			}
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
+			WriteGenreShapeYear();
 			WriteMarketRevenueYear();
 			WriteAnnualFormatMixRows();
 			WriteDecadeAnnualYear();
@@ -937,6 +942,7 @@ public partial class ChartAuditRunner : Node {
 		retiredTrackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retired-track-availability.csv"));
 		releaseStrategyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-strategy.csv"));
 		traditionalPopFallbackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-traditional-pop-fallbacks.csv"));
+		genreShapeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-genre-decade-shape.csv"));
 		releaseOutcomeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-outcomes.csv"));
 		if (GenreMarketV2.Enabled) {
 			singleReleaseLaneWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-release-lanes.csv"));
@@ -1064,6 +1070,9 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter.WriteLine("year,recordId,rawPrimaryGenre,rawSecondaryGenre,format,realizedUnits");
 			supplySelectionWriter.WriteLine("week,year,labelId,artistId,artistIdentity,chosenProjectGenre,artistIdentityAvailableForNewSupply,annualFloorRequested,annualFloorReroutedToNormalCandidates,selectionMode");
 			traditionalPopFallbackWriter.WriteLine("week,year,source,requestedGenre");
+		// marketUnitsShare is whole-market commercial weight; chartWeekShare is chart presence;
+		// chartWeekShareMinusMarketShare is the divergence between them.
+		genreShapeWriter.WriteLine("seed,year,genre,family,emergenceYear,deathYear,baseline,lifecycleState,newReleases,activeRecordsYearEnd,marketUnits,marketUnitsShare,chartRecordWeeks,chartWeekShare,uniqueChartingRecords,chartUnits,chartUnitsShare,top40RecordWeeks,top10RecordWeeks,numberOneWeeks,meanChartPosition,chartWeekShareMinusMarketShare");
 		genreEventsWriter.WriteLine("seed,enabled,year,month,week,eventType,sourceRecordId,recipientGenreId,donorGenreId,field,amount,detail");
 		specialProductsWriter.WriteLine("seed,enabled,year,recordId,subtype,externalProfile,correlatedProfileBucket,costs,promotion,tieIn,units,chartResult,catalogTail,financialReconciliation");
 		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
@@ -1865,6 +1874,7 @@ public partial class ChartAuditRunner : Node {
 		List<RecordRuntimeData> chart = ChartManager.Instance.GetCurrentChart();
 		List<RecordRuntimeData> albumChart = ChartManager.Instance.GetCurrentAlbumChart();
 		AccumulateConcentration(date.year, chart);
+		AccumulateGenreShape(date.year, records, chart);
 		// Skim routing to the distributor is only defined while the deal is active. Once the
 		// deal resolves -- an exit that nulls it, or a subsidiary absorption that converts it
 		// to ownership -- the label self-distributes and its residual skim fraction
@@ -2397,6 +2407,102 @@ public partial class ChartAuditRunner : Node {
 					F(ema), observations.ToString(CultureInfo.InvariantCulture)
 				}));
 			}
+		}
+	}
+
+	private sealed class GenreShapeYearState {
+		public long MarketUnits, ChartUnits, ChartRecordWeeks, Top40RecordWeeks, Top10RecordWeeks, NumberOneWeeks, PositionSum;
+		public int NewReleases, ActiveRecordsYearEnd;
+		public readonly HashSet<string> ChartingRecordIds = new(StringComparer.Ordinal);
+	}
+
+	/// <summary>
+	/// Decade genre shape. Read-only: it observes the resolved weekly state after sales and
+	/// never draws RNG or mutates anything, so it is safe on any run and is deliberately not
+	/// gated behind --lean-probe -- the decade runs that matter all pass that flag.
+	///
+	/// The point of the file is that market influence and chart influence are separate
+	/// questions. A genre can hold a quarter of the chart on records that barely sell, which
+	/// is exactly what easy-listening and country do here, and no single share number shows
+	/// it. So units are accumulated over the whole live population, chart presence over the
+	/// chart, and the two shares are reported side by side with their difference.
+	/// </summary>
+	private void AccumulateGenreShape(int year, List<RecordRuntimeData> records, List<RecordRuntimeData> chart) {
+		if (genreShapeWriter == null) return;
+		if (genreShapeYear == 0) genreShapeYear = year;
+		if (year != genreShapeYear) {
+			WriteGenreShapeYear();
+			genreShapeByYear.Clear();
+			genreShapeYear = year;
+		}
+
+		GenreShapeYearState State(Genre genre) {
+			if (!genreShapeByYear.TryGetValue(genre, out GenreShapeYearState state)) {
+				state = new GenreShapeYearState();
+				genreShapeByYear[genre] = state;
+			}
+			return state;
+		}
+
+		foreach (RecordRuntimeData record in records) {
+			Genre genre = GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year);
+			GenreShapeYearState state = State(genre);
+			state.MarketUnits += record.unitsThisWeek;
+			// First sight of a record with no meaningful age is a release this year. Prewarm
+			// titles enter already aged, so they are excluded rather than banked onto 1960.
+			if (genreShapeSeenRecordIds.Add(record.baseRecord.recordId) && record.weeksSinceRelease <= 1) state.NewReleases++;
+		}
+
+		foreach (RecordRuntimeData record in chart) {
+			int position = record.currentPosition;
+			if (position <= 0) continue;
+			GenreShapeYearState state = State(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year));
+			state.ChartRecordWeeks++;
+			state.ChartUnits += record.unitsThisWeek;
+			state.PositionSum += position;
+			if (position <= 40) state.Top40RecordWeeks++;
+			if (position <= 10) state.Top10RecordWeeks++;
+			if (position == 1) state.NumberOneWeeks++;
+			state.ChartingRecordIds.Add(record.baseRecord.recordId);
+		}
+
+		foreach (GenreShapeYearState state in genreShapeByYear.Values) state.ActiveRecordsYearEnd = 0;
+		foreach (RecordRuntimeData record in records)
+			State(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year)).ActiveRecordsYearEnd++;
+	}
+
+	private void WriteGenreShapeYear() {
+		if (genreShapeWriter == null || genreShapeYear == 0 || genreShapeByYear.Count == 0) return;
+		long totalMarketUnits = genreShapeByYear.Values.Sum(state => state.MarketUnits);
+		long totalChartUnits = genreShapeByYear.Values.Sum(state => state.ChartUnits);
+		long totalChartWeeks = genreShapeByYear.Values.Sum(state => state.ChartRecordWeeks);
+		string seed = requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+		foreach (var pair in genreShapeByYear.OrderBy(pair => pair.Key.ToString(), StringComparer.Ordinal)) {
+			GenreShapeYearState state = pair.Value;
+			GenreProfile profile = GenreCatalog.All.FirstOrDefault(candidate => candidate.Genre == pair.Key);
+			float marketShare = totalMarketUnits > 0 ? (float)state.MarketUnits / totalMarketUnits : 0f;
+			float chartWeekShare = totalChartWeeks > 0 ? (float)state.ChartRecordWeeks / totalChartWeeks : 0f;
+			float chartUnitShare = totalChartUnits > 0 ? (float)state.ChartUnits / totalChartUnits : 0f;
+			genreShapeWriter.WriteLine(string.Join(",", new[] {
+				seed, genreShapeYear.ToString(CultureInfo.InvariantCulture), Csv(pair.Key.ToString()),
+				Csv(profile?.Family.ToString() ?? "Unknown"),
+				profile != null ? F(profile.EmergenceYear) : string.Empty,
+				profile?.DeathYear != null ? F(profile.DeathYear.Value) : string.Empty,
+				profile != null ? F(profile.GetBaseline(genreShapeYear)) : string.Empty,
+				Csv(profile?.GetLifecycle(genreShapeYear).ToString() ?? "Unknown"),
+				state.NewReleases.ToString(CultureInfo.InvariantCulture),
+				state.ActiveRecordsYearEnd.ToString(CultureInfo.InvariantCulture),
+				state.MarketUnits.ToString(CultureInfo.InvariantCulture), F(marketShare),
+				state.ChartRecordWeeks.ToString(CultureInfo.InvariantCulture), F(chartWeekShare),
+				state.ChartingRecordIds.Count.ToString(CultureInfo.InvariantCulture),
+				state.ChartUnits.ToString(CultureInfo.InvariantCulture), F(chartUnitShare),
+				state.Top40RecordWeeks.ToString(CultureInfo.InvariantCulture),
+				state.Top10RecordWeeks.ToString(CultureInfo.InvariantCulture),
+				state.NumberOneWeeks.ToString(CultureInfo.InvariantCulture),
+				state.ChartRecordWeeks > 0 ? F((float)state.PositionSum / state.ChartRecordWeeks) : string.Empty,
+				// The diagnostic column: chart presence a genre's sales do not support.
+				F(chartWeekShare - marketShare)
+			}));
 		}
 	}
 
@@ -3131,6 +3237,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter?.Flush();
 		supplySelectionWriter?.Flush();
 		traditionalPopFallbackWriter?.Flush();
+		genreShapeWriter?.Flush();
 	}
 
 	private void WriteAnnualFormatMixRows() {
@@ -3355,6 +3462,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter?.Dispose();
 		supplySelectionWriter?.Dispose();
 		traditionalPopFallbackWriter?.Dispose();
+		genreShapeWriter?.Dispose();
 		genreEventsWriter?.Dispose();
 		specialProductsWriter?.Dispose();
 		rosterLifecycleWriter?.Dispose();
@@ -3428,6 +3536,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter = null;
 		supplySelectionWriter = null;
 		traditionalPopFallbackWriter = null;
+		genreShapeWriter = null;
 		genreEventsWriter = null;
 		specialProductsWriter = null;
 		rosterLifecycleWriter = null;
