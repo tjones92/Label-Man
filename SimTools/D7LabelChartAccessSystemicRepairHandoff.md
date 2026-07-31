@@ -1,9 +1,18 @@
-# D7 label chart access systemic repair — live handoff
+# D7 label chart access systemic repair — CLOSED
 
-Last maintained: July 29, 2026.
+> **This arc is complete and merged to `main` (PR #1).** It is retained as the authority for label
+> chart access, the consolidation arc, the independent distribution channel and the runtime
+> optimization — §10 (region-blind breakout thresholds), §33 (distribution as a first-class channel)
+> and §36 (settlement indexing) are the load-bearing sections. **Do not extend this file.**
+>
+> Active work has moved to **`D7GenreDecadeCalibrationHandoff.md`**. Note that its §3.1 retracts two
+> chart-share findings that were derived from region-scoped telemetry; prefer it wherever the two
+> disagree about chart share.
 
-This handoff is intentionally maintained while the work is in progress so a
-replacement model can continue even if the current Codex run ends abruptly.
+Last maintained: July 30, 2026.
+
+This handoff was intentionally maintained while the work was in progress so a
+replacement model could continue even if the current run ended abruptly.
 It supersedes the resume sequence in
 `D7LabelChartAccessLoopContinuationHandoff.md`, while retaining that file as
 the detailed history of the preceding pass.
