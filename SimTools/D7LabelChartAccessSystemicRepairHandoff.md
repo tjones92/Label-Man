@@ -3579,7 +3579,54 @@ Breadth went **up**, to the best figure of any run in this arc. Halving the Majo
 because slices 1-5 built somewhere for those labels to go. Note the Majors are saturated at the new
 ceiling too, so 10 is a binding constraint and therefore a real dial — occupancy must stay visible.
 
-### 33.12 Validation ladder (decade runs deferred)
+### 33.12 The 312-week checkpoint: three runs
+
+`d7-indiedist-312-1001` (slices 1-6 as shipped), then two calibration passes on the MidTier gate.
+
+**Breadth is the headline and it holds.** 359 / 361 / 346 cumulative charting IDs by 1965 against the
+§7 credibility band of 280-320 and the 331 that produced the accepted 455-472 decade figures. The
+independent channel is the primary route: 375 labels distributing across a mean of 2.8 markets, against
+100 on Major deals and 165 on MidTier deals. Graduation fires 60 times. Cumulative firm mix stays
+healthy throughout (below-MidTier ~89%, Independents ~75% of that).
+
+**The defect the checkpoint found.** `IsIndependentReadyForMidTier`'s organic route asked for
+`ownedReach >= 0.50` and low dependency — a bar set when reach was unobtainable (§32.5: mean 0.458,
++0.005 across a decade). Independent distribution grants reach per market and leaves borrowed reach at
+zero, so both halves became routine. Reach is now saturated against its own ceiling (p75 = 0.750) and
+cannot discriminate at all: raising the bar to 0.70 still passes 40%. The fix had to be scale.
+
+| 1965 | v1 (as shipped) | v2 (reach+scale) | v3 (chart bars 6) | target |
+|---|---:|---:|---:|---|
+| MidTier firms charting | 103 | 73 | **52** | 25-40 |
+| MidTier entries | 537 | 478 | **381** | — |
+| Independent firms charting | 95 | 114 | **143** | — |
+| Independent entries | 203 | 230 | **300** | — |
+| indie chart share | 0.116 | 0.135 | **0.213** | — |
+| ownerMajor | 36.4% | 38.8% | 39.8% | rises to 45-52 by 1968-69 |
+| cumulative charting IDs | 359 | 361 | 346 | 400-600 by 1969 |
+
+v3 sizing came from the data rather than a guess: MidTier firms averaged 6.5 chart entries a year
+against Independents' 2.0, so a bar at 6 sits at the MidTier mean and cuts about half. Historically
+only ~20-25 labels were genuinely at Atlantic/Chess/Scepter scale in 1965, which is what makes 25-40
+the right target.
+
+**Open trade-off.** Each tightening pass converts MidTier firms into Independents — mix improves
+sharply (indie share 0.116 -> 0.213, the best figure in this whole arc) — but cumulative breadth drifts
+down (361 -> 346). v3 leaves MidTier at 52, still above the 25-40 band. Pushing the bar to 8 would
+likely reach the band and cost more breadth. That is a shape decision, not a technical one.
+
+**What 312 weeks structurally cannot answer.** Owner-Major falls 43.6% -> ~40% by 1965 and must reach
+45-52 by 1968-69. Poaching is the mechanism meant to supply that climb and its ramp only reaches 0.29
+in 1966 and 0.65 in 1969, so the arc is invisible at this horizon by construction. Same for the rack
+channel, inert until 1964. Both need the decade run.
+
+**Poaching starvation, fixed.** Every Major sat at the slice-6 client ceiling in v1, so poaching fired
+three times in two years. A Major may now drop its weakest-charting imprint to take a proven client
+(`DealResolution.Dropped`); it will not drop one selling at least as well as the client being courted,
+and the dropped imprint keeps what a completed term leaves behind and can place its line with wholesale
+houses instead.
+
+### 33.13 Validation ladder (decade runs deferred)
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is

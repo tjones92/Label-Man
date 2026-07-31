@@ -1219,33 +1219,33 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		candidate.consecutiveLossMonths = 0;
 		for (int index = 0; index < 6; index++) candidate.roster.Add(NewArtist($"mid-promotion-{index}"));
 
-		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68a a mature, scaled, charting, profitable Independent with runway qualifies for MidTier");
 		candidate.monthsActive = 18;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68b the former second-quarter capability-only promotion wave is blocked by operating age");
 		candidate.monthsActive = 19; candidate.sustainedCapabilityQuarters = 3;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68c fewer than four sustained capability quarters cannot promote");
 		candidate.sustainedCapabilityQuarters = 4;
 		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
 			"68d capability and reach without a regular charting showing cannot promote");
 		// Coverage is not scale. A label that has assembled a national network but is charting
 		// only occasionally is a well-distributed small label; before section 33 this promoted.
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 3),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 5),
 			"68d2 national reach alone does not promote without sustained chart output behind it");
 		candidate.ownedReach = .55f;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68d3 sustained chart output alone does not promote organically without the reach to match");
 		candidate.ownedReach = .65f;
 		candidate.roster.RemoveAt(candidate.roster.Count - 1);
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68e fewer than six rostered artists cannot promote into the large-independent tier");
 		candidate.roster.Add(NewArtist("mid-promotion-restored")); candidate.lastMonthlyProfit = -1f;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68f an unprofitable Independent cannot promote");
 		candidate.lastMonthlyProfit = 1000f; candidate.cashReserves = candidate.GetMonthlyOverhead() * 5f;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68g fewer than six months of runway cannot promote");
 
 		// Section 28: the dependent-hitmaker route. A label with low owned reach and high
@@ -1257,12 +1257,12 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		candidate.cashReserves = candidate.GetMonthlyOverhead() * 6f;
 		Require(candidate.DistributionDependency >= 0.35f && candidate.ownedReach < 0.50f,
 			"68h setup: the dependent-hitmaker candidate is genuinely low-reach and high-dependency");
-		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68i a distributor-dependent hitmaker with a strong chart-and-roster footprint promotes without owning national reach");
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 3),
-			"68j the dependent route needs the stronger sustained charting bar, not the base two records");
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 5),
+			"68j the dependent route needs the stronger sustained charting bar, not the base floor");
 		candidate.roster.RemoveAt(candidate.roster.Count - 1);
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 6),
 			"68k the dependent route needs the larger roster footprint as well");
 	}
 
