@@ -98,6 +98,27 @@ public partial class DistanceModel : Node {
 
 	public static MarketCity GetHubCityForRegion(string regionId) => GetCityById(GetHubCityIdForRegion(regionId));
 
+	// Canonical, symmetric neighbour map for the seven-region board. Independent
+	// distribution spread this way: a house that took a label's line had standing
+	// arrangements with its peers in bordering markets, so a record breaking in one
+	// region became placeable in the next one over long before it was placeable
+	// nationally. AILabelFactory keeps its own randomized single-neighbour picker for
+	// generation; this is the full deterministic set and does not disturb it.
+	private static readonly Dictionary<string, string[]> AdjacentRegionIds = new(StringComparer.Ordinal) {
+		["eastcoast"] = new[] { "greatlakes", "deepsouth" },
+		["greatlakes"] = new[] { "eastcoast", "greatplains" },
+		["greatplains"] = new[] { "greatlakes", "rockies", "southwest" },
+		["deepsouth"] = new[] { "eastcoast", "southwest" },
+		["southwest"] = new[] { "deepsouth", "greatplains", "rockies", "westcoast" },
+		["rockies"] = new[] { "greatplains", "southwest", "westcoast" },
+		["westcoast"] = new[] { "rockies", "southwest" }
+	};
+
+	public static IReadOnlyList<string> GetAdjacentRegions(string regionId) =>
+		!string.IsNullOrEmpty(regionId) && AdjacentRegionIds.TryGetValue(regionId, out string[] neighbours)
+			? neighbours
+			: Array.Empty<string>();
+
 	public static void AssignHomeCity(AILabel label) {
 		if (label == null) return;
 		(MarketCity city, string source) = ResolveHomeCity(label);
@@ -219,6 +240,10 @@ public partial class DistanceModel : Node {
 		AddCity("philadelphia", "Philadelphia", 40.0f, -75.2f, "eastcoast", false, 2, 0.22f, 0.72f, true, true, 4.3f);
 		AddCity("baltimore", "Baltimore", 39.3f, -76.6f, "eastcoast", false, 2, 0.30f, 0.62f, true, true, 2.0f);
 		AddCity("washington", "Washington", 38.9f, -77.0f, "eastcoast", false, 3, 0.38f, 0.50f, true, true, 2.0f);
+		// LabelGenerator founds labels in Pittsburgh, but it had no node here, so every
+		// Pittsburgh firm resolved as "domestic-unmapped" and was charged distance from
+		// the New York hub it does not sit in.
+		AddCity("pittsburgh", "Pittsburgh", 40.4f, -80.0f, "eastcoast", false, 2, 0.30f, 0.60f, true, true, 2.4f);
 
 		AddCity("chicago", "Chicago", 41.9f, -87.6f, "greatlakes", true, 1, 0.12f, 0.90f, true, true, 6.2f);
 		AddCity("detroit", "Detroit", 42.3f, -83.0f, "greatlakes", false, 2, 0.22f, 0.72f, true, true, 3.8f);

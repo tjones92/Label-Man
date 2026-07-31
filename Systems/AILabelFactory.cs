@@ -11,9 +11,13 @@ public static class AILabelFactory {
 		new LabelTemplate("Mercury", "Chicago", LabelArchetype.CorporateGiant, new[] { Genre.TraditionalPop, Genre.RnB, Genre.Country }),
 	};
 	
+	// 1960 tiers, not mid-decade ones. Atlantic, Chess and King were already
+	// national independents in 1960. Motown was months old with no national hit,
+	// and Stax was still Satellite, a Memphis storefront operation -- both must earn
+	// MidTier through the promotion ladder rather than start there.
 	private static readonly LabelTemplate[] soulFactoryTemplates = {
-		new LabelTemplate("Motown", "Detroit", LabelArchetype.SoulFactory, new[] { Genre.Soul, Genre.RnB, Genre.GirlGroup }),
-		new LabelTemplate("Stax", "Memphis", LabelArchetype.BluesRoots, new[] { Genre.Soul, Genre.RnB, Genre.Gospel }),
+		new LabelTemplate("Motown", "Detroit", LabelArchetype.SoulFactory, new[] { Genre.Soul, Genre.RnB, Genre.GirlGroup }, LabelTier.Independent),
+		new LabelTemplate("Stax", "Memphis", LabelArchetype.BluesRoots, new[] { Genre.Soul, Genre.RnB, Genre.Gospel }, LabelTier.Independent),
 		new LabelTemplate("Atlantic", "New York", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul, Genre.Jazz }),
 		new LabelTemplate("Chess", "Chicago", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul }),
 		new LabelTemplate("King", "Cincinnati", LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.Soul, Genre.Funk }),
@@ -26,12 +30,15 @@ public static class AILabelFactory {
 		new LabelTemplate("Liberty", "Los Angeles", LabelArchetype.RockRebel, new[] { Genre.RockAndRoll, Genre.TeenPop }),
 	};
 	
+	// Cameo-Parkway was a substantial Philadelphia independent by 1960. The rest were
+	// small New York/Philadelphia operations, and Dimension (1962) and Red Bird (1964)
+	// did not exist yet at all -- see the activation-chronology item in the handoff.
 	private static readonly LabelTemplate[] teenHitMachineTemplates = {
 		new LabelTemplate("Cameo-Parkway", "Philadelphia", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.DooWop, Genre.RockAndRoll }),
-		new LabelTemplate("Chancellor", "Philadelphia", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.DooWop }),
-		new LabelTemplate("Colpix", "New York", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.GirlGroup }),
-		new LabelTemplate("Dimension", "New York", LabelArchetype.TeenHitMachine, new[] { Genre.GirlGroup, Genre.TeenPop, Genre.Soul }),
-		new LabelTemplate("Red Bird", "New York", LabelArchetype.TeenHitMachine, new[] { Genre.GirlGroup, Genre.TeenPop }),
+		new LabelTemplate("Chancellor", "Philadelphia", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.DooWop }, LabelTier.Independent),
+		new LabelTemplate("Colpix", "New York", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.GirlGroup }, LabelTier.Independent),
+		new LabelTemplate("Dimension", "New York", LabelArchetype.TeenHitMachine, new[] { Genre.GirlGroup, Genre.TeenPop, Genre.Soul }, LabelTier.Independent),
+		new LabelTemplate("Red Bird", "New York", LabelArchetype.TeenHitMachine, new[] { Genre.GirlGroup, Genre.TeenPop }, LabelTier.Independent),
 	};
 	
 	private static readonly LabelTemplate[] indieTemplates = {
@@ -42,11 +49,14 @@ public static class AILabelFactory {
 		new LabelTemplate("Fire-Fury", "New York", LabelArchetype.RegionalHustler, new[] { Genre.RnB, Genre.DooWop }),
 	};
 	
+	// EMI and Decca UK were corporate majors with full value-chain control; Parlophone
+	// was an EMI imprint and Pye an independently distributed operation. The
+	// parent/imprint ontology problem is tracked separately in the handoff.
 	private static readonly LabelTemplate[] britishTemplates = {
 		new LabelTemplate("Parlophone", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }),
-		new LabelTemplate("Decca UK", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }),
+		new LabelTemplate("Decca UK", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.RockAndRoll }, LabelTier.Major),
 		new LabelTemplate("Pye", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.TraditionalPop }),
-		new LabelTemplate("EMI", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.TraditionalPop }),
+		new LabelTemplate("EMI", "London", LabelArchetype.CorporateGiant, new[] { Genre.BritishInvasion, Genre.TraditionalPop }, LabelTier.Major),
 	};
 	
 	private static readonly LabelTemplate[] countryTemplates = {
@@ -108,8 +118,9 @@ public static class AILabelFactory {
 		return labels;
 	}
 	
-	private static AILabel CreateFromTemplate(LabelTemplate template, LabelTier tier, ref int idCounter) {
+	private static AILabel CreateFromTemplate(LabelTemplate template, LabelTier defaultTier, ref int idCounter) {
 		var label = new AILabel();
+		LabelTier tier = template.tier ?? defaultTier;
 		idCounter++;
 		label.labelId = $"label_{idCounter:D4}";
 		label.labelName = template.baseName + GetLabelSuffix();
@@ -187,9 +198,58 @@ public static class AILabelFactory {
 			LabelTier.Boutique => (float)GD.RandRange(0.3f, 0.8f), _ => (float)GD.RandRange(0.5f, 1.5f)
 		};
 		
-		// Archetype tweaks (omitted for brevity but fully ported with GD.RandRange and Mathf.Clamp)
-		// ... implemented fully in final output ...
-		
+		// These two were never initialized, so every launch label operated at
+		// riskTolerance 0 -- which halves the evaluation score of any artist under
+		// 0.1 reputation -- and at an artistLoyalty of at most 0.1 derived from the
+		// zero default. The archetype modifiers below were left as a placeholder and
+		// never ported, so the advertised archetype identity did nothing. Envelopes
+		// and directional modifiers mirror RuntimeLabelProfileFactory so launch and
+		// runtime labels describe the same operating model.
+		label.riskTolerance = (float)GD.RandRange(0.18, 0.72);
+		label.artistLoyalty = (float)GD.RandRange(0.28, 0.78);
+
+		switch (archetype) {
+			case LabelArchetype.SoulFactory:
+				label.productionQuality += .08f; label.marketingPower += .06f; label.artistLoyalty += .08f;
+				label.releasesPerMonth += .18f; label.riskTolerance -= .08f; break;
+			case LabelArchetype.RockRebel:
+				label.riskTolerance += .14f; label.scoutingAbility += .08f; label.productionQuality -= .08f;
+				label.artistLoyalty -= .08f; break;
+			case LabelArchetype.TeenHitMachine:
+				label.marketingPower += .10f; label.productionQuality += .07f; label.scoutingAbility += .07f;
+				label.releasesPerMonth += .20f; label.artistLoyalty -= .10f; break;
+			case LabelArchetype.BluesRoots:
+				label.artistLoyalty += .08f; label.productionQuality += .05f; label.marketingPower -= .08f;
+				label.riskTolerance -= .08f; break;
+			case LabelArchetype.CountrySpecialist:
+				label.artistLoyalty += .10f; label.distributionStrength += .08f; label.riskTolerance -= .09f;
+				label.nationalReach -= .06f; break;
+			case LabelArchetype.GospelPowerhouse:
+				label.artistLoyalty += .12f; label.productionQuality += .07f; label.marketingPower -= .06f;
+				label.riskTolerance -= .10f; break;
+			case LabelArchetype.RegionalHustler:
+				label.budgetLevel -= .08f; label.distributionStrength -= .07f; label.nationalReach -= .06f;
+				label.scoutingAbility += .08f; label.riskTolerance += .08f; break;
+		}
+
+		// Directional modifiers must never escape the authored tier envelope.
+		label.budgetLevel = Mathf.Clamp(label.budgetLevel, budgetMin, budgetMax);
+		label.marketingPower = Mathf.Clamp(label.marketingPower, marketingMin, marketingMax);
+		label.distributionStrength = Mathf.Clamp(label.distributionStrength, distributionMin, distributionMax);
+		label.nationalReach = Mathf.Clamp(label.nationalReach, reachMin, reachMax);
+		label.scoutingAbility = Mathf.Clamp(label.scoutingAbility, scoutingMin, scoutingMax);
+		label.productionQuality = Mathf.Clamp(label.productionQuality, productionMin, productionMax);
+		label.riskTolerance = Mathf.Clamp(label.riskTolerance, .05f, .95f);
+
+		// monthsActive is deliberately NOT seeded from foundedYear. Despite its name it
+		// is an in-simulation observation counter, not a historical attribute:
+		// LabelLifecycleManager.UpdateLabelHealth increments it monthly, and
+		// RuntimeLabelProfileFactory resets it to zero alongside totalReleases,
+		// top40Hits, and momentumScore. The gates that read it -- MidTier promotion
+		// and competitive exit -- pair it with in-simulation evidence such as
+		// sustained quarters and charting last year, so they mean "observed operating
+		// for N months". Seeding it with pre-1960 history bypassed those gates and
+		// promoted seeded incumbents past tiers they had not earned in-run.
 		label.cashReserves = tier switch {
 			LabelTier.Major => (float)GD.RandRange(50000f, 200000f), LabelTier.MidTier => (float)GD.RandRange(15000f, 60000f),
 			LabelTier.Independent => (float)GD.RandRange(5000f, 20000f), LabelTier.Small => (float)GD.RandRange(1000f, 8000f),
@@ -234,12 +294,19 @@ public static class AILabelFactory {
 		return LabelArchetype.RegionalHustler;
 	}
 	
+	// The seeded 1960 market had roughly eight corporate majors and on the order of
+	// twenty to twenty-five national independents; everything else was a regional or
+	// specialist operation. The former 1%/14% draw produced about 98 MidTier and 13
+	// Major firms out of 600 -- four to five times too many large operators -- and
+	// those firms took 85% of chart entries, crowding out the long tail the decade
+	// is actually known for. Named templates already supply most of the intended
+	// large firms, so the procedural draw only tops them up.
 	private static LabelTier GetRandomTier() {
 		float roll = GD.Randf();
-		if (roll < 0.01f) return LabelTier.Major;
-		if (roll < 0.15f) return LabelTier.MidTier;
-		if (roll < 0.40f) return LabelTier.Independent;
-		if (roll < 0.83f) return LabelTier.Small;
+		if (roll < 0.002f) return LabelTier.Major;
+		if (roll < 0.035f) return LabelTier.MidTier;
+		if (roll < 0.365f) return LabelTier.Independent;
+		if (roll < 0.795f) return LabelTier.Small;
 		return LabelTier.Boutique;
 	}
 	
@@ -307,15 +374,37 @@ public static class AILabelFactory {
 	
 	private static string[] GetDistributionRegions(LabelTier tier, string hqCity) {
 		var regions = new List<string> { CityToRegion(hqCity) };
+		// Counts restated for without-replacement sampling. The originals were authored
+		// against the duplicate-discarding sampler below, where "three to six" yielded
+		// about three distinct regions, so reading them literally would have inflated
+		// every tier's coverage by 22-59% -- and regressively, since the largest tiers
+		// gained most. These preserve each non-Major tier's former expected coverage.
 		int additionalRegions = tier switch {
-			LabelTier.Major => (int)GD.RandRange(5, 8), LabelTier.MidTier => (int)GD.RandRange(3, 6),
-			LabelTier.Independent => (int)GD.RandRange(1, 4), LabelTier.Small => (int)GD.RandRange(0, 2),
-			LabelTier.Boutique => (int)GD.RandRange(1, 3), _ => 1
+			LabelTier.Major => (int)GD.RandRange(5, 8), LabelTier.MidTier => (int)GD.RandRange(2, 4),
+			LabelTier.Independent => (int)GD.RandRange(1, 3), LabelTier.Small => (int)GD.RandRange(0, 2),
+			LabelTier.Boutique => (int)GD.RandRange(1, 2), _ => 1
 		};
 		string[] allRegions = { "eastcoast", "greatlakes", "greatplains", "southwest", "deepsouth", "rockies", "westcoast" };
+		// The former sampler drew with replacement and silently discarded duplicate
+		// draws, so an authored "five to eight additional regions" Major actually
+		// covered about four or five of the seven. Because a deal grants the
+		// distributor's stored regions, that made nominally national distributors
+		// regional and left signed clients without the national bridge the contract
+		// represents. Draw without replacement so the authored counts are honest,
+		// consuming one draw per authored region to keep the RNG stream's shape.
+		var available = new List<string>(allRegions);
+		available.RemoveAll(region => regions.Contains(region));
 		for (int i = 0; i < additionalRegions; i++) {
-			string region = allRegions[(int)GD.RandRange(0, allRegions.Length - 1)];
-			if (!regions.Contains(region)) regions.Add(region);
+			int draw = (int)GD.RandRange(0, allRegions.Length - 1);
+			if (available.Count == 0) continue;
+			string region = available[draw % available.Count];
+			available.Remove(region);
+			regions.Add(region);
+		}
+		// A Major is a national distributor by definition.
+		if (tier == LabelTier.Major) {
+			foreach (string region in allRegions)
+				if (!regions.Contains(region)) regions.Add(region);
 		}
 		return regions.ToArray();
 	}
@@ -348,8 +437,14 @@ public static class AILabelFactory {
 	
 	private class LabelTemplate {
 		public string baseName; public string city; public LabelArchetype archetype; public Genre[] genres;
-		public LabelTemplate(string name, string city, LabelArchetype arch, Genre[] genres) {
-			this.baseName = name; this.city = city; this.archetype = arch; this.genres = genres;
+		/// <summary>
+		/// Per-template 1960 tier. Named firms were previously tiered by which array
+		/// they sat in, which put brand-new operations at the same tier as established
+		/// national independents. Null keeps the array's default.
+		/// </summary>
+		public LabelTier? tier;
+		public LabelTemplate(string name, string city, LabelArchetype arch, Genre[] genres, LabelTier? tier = null) {
+			this.baseName = name; this.city = city; this.archetype = arch; this.genres = genres; this.tier = tier;
 		}
 	}
 }

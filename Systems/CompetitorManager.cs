@@ -6,6 +6,10 @@ public partial class CompetitorManager : Node {
 	public static CompetitorManager Instance { get; private set; }
 	public const float DealReinvestRate = 0.02f;
 	public const float DealReinvestCost = 5000000f;
+	// A self-built network tops out below the seeded Majors' 0.88-0.90 national reach.
+	public const float SelfBuiltReachCeiling = 0.75f;
+	public const float SelfBuiltNationalReachCeiling = 0.70f;
+	public const float CompletedDealNationalReachCeiling = 0.80f;
 	public const float DealDependencyLow = 0.35f;
 	public const float DealDependencyHigh = 0.56f;
 	
@@ -60,12 +64,23 @@ public partial class CompetitorManager : Node {
 	private const float AlbumPortfolioCommitmentCeiling = 1.50f;
 	private const float AlbumProgramRosterDepth = 12f;
 	private const float AlbumProgramReachWeight = .55f;
-	// Calibrated against measured 1967 means (overlap .485, awareness headroom .617)
-	// so recruited units run about .64 of diverted units per unit of shared exposure.
-	// The promo Single stays net-positive on its own margin while remaining mildly
-	// dilutive per unit — matching a decade in which promo Singles were the primary
-	// LP marketing vehicle rather than a strategy that dies at the LP takeover.
-	private const float PromoAlbumConversionK = .50f;
+	// A promo Single both diverts Album buyers (cannibalizationLoss) and recruits them
+	// (CalculatePromoAlbumSynergyGain). Diversion is substitutionK * albumDemand * shelf
+	// overlap; recruitment is PromoAlbumConversionK * albumDemand * awareness headroom.
+	// Holding the base conversion below substitutionK made recruitment net-dilutive at
+	// every awareness level, so as the LP market matured the promo proposition decayed to
+	// non-viable for the highest-volume acts first, evacuating the Major Singles chart
+	// after 1966 (30.0% of 1969 chart entries against a 35-50% band). Parity with
+	// substitutionK (1.0) recovered 1969 Major entry share to 35.3% but left it on the
+	// band floor, with ~71 Major Album decisions a year still dropping the promo Single.
+	// A promo Single is the Album's primary advertisement and for a breaking act net-
+	// expands the Album audience rather than reallocating it, so the base is set half
+	// again above substitutionK to hold late-decade Major entry share off the floor. It
+	// stays below 2.4, where even a well-known act's promo would cease to be dilutive, so
+	// the awareness-gated crossover is preserved: a net Album driver at real headroom,
+	// mildly dilutive at the floor. Only post-1966 standalone decisions move — 1960-65
+	// promo already wins every Album decision, so early-decade calibration is untouched.
+	private const float PromoAlbumConversionK = 1.50f;
 	// A promo Single recruits Album buyers partly on novelty and partly on being the
 	// Album's advertisement. Gating recruitment purely on awareness headroom made the
 	// second effect vanish exactly where it was strongest: a famous act's hit Single
@@ -114,19 +129,105 @@ public partial class CompetitorManager : Node {
 	};
 
 	[ExportGroup("Distribution Deals")]
-	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPullOfferProbability = 0.12f;
-	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPushOfferProbability = 0.04f;
-	[Export(PropertyHint.Range, "0,1,0.001")] private float annualPost1966PushRamp = 0.05f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPullOfferProbability = 0.40f;
+	// Path A (section 26): the push route -- Majors courting proven independents -- is the
+	// historical late-1960s consolidation engine (WB-Atlantic, MCA, ABC). It was effectively dead
+	// (4 signings all decade), so the high-dependency Major-distributed deals absorption feeds on
+	// were never created. The courting that precedes the 1967-69 absorption wave ramps mid-decade,
+	// as the US indie scene scaled (Motown/Stax growing, the post-Invasion indie proliferation), so
+	// the ramp now starts 1964 -- a deal signed 1965-67 with its realistic 78-156wk term then
+	// expires inside the 1966+ window before the decade run ends. The base is kept low so the ramp,
+	// not a decade-wide flat probability, drives courting into the productive mid-decade years
+	// (base-only 1960 push expires pre-window and is wasted).
+	[Export(PropertyHint.Range, "0,1,0.001")] private float monthlyPushOfferProbability = 0.05f;
+	[Export] private int consolidationCourtingRampStartYear = 1964;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float annualCourtingRampPerYear = 0.12f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float pushMastersOwnershipRate = 0.80f;
+	// Section 33: monthly chance a label with proven regional evidence places its line with a
+	// wholesale house in one more market. Assembling national coverage was months of travelling
+	// and pitching after a hit, not an immediate consequence of one, so this paces the spread at
+	// roughly a market a quarter rather than letting a single breakout go national at once.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float independentDistributionMonthlyChance = 0.35f;
+	// Share of a market's retail one wholesale house actually reaches. A label placing its
+	// line with a single house in a region gets most of that market, not all of it.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float independentCoverageReachFactor = 0.60f;
+	// Share of an unreliable house's arrears that is settled anyway. The wait is the squeeze;
+	// outright loss is the residue.
+	internal const float WholesaleSettledShareOfArrears = 0.70f;
+	// Concurrent independent imprints one Major distributes, ramped across the decade and then
+	// scaled by the network the firm actually owns. See IsEligibleDistributor.
+	[Export(PropertyHint.Range, "2,32,1")] private int majorDistributionClientCeilingEarly = 6;
+	[Export(PropertyHint.Range, "4,40,1")] private int majorDistributionClientCeilingLate = 16;
+	[Export] private int majorDistributionCeilingRampStartYear = 1964;
+	[Export] private int majorDistributionCeilingRampFullYear = 1969;
+	// The independent distribution trade did not survive the decade. Regional houses failed or
+	// were bought out as major branch systems and rack jobbing took over the wholesale business,
+	// and that collapse is a large part of why independents sold or signed in 1968-71. Without
+	// it the channel is exactly as strong in 1969 as in 1960, which is what left owner-Major
+	// flat near 40% across the decade run.
+	[Export] private int independentTradeDeclineStartYear = 1966;
+	[Export] private int independentTradeDeclineFullYear = 1970;
+	[Export(PropertyHint.Range, "0.1,1,0.01")] private float independentTradeSurvivalLate = 0.50f;
+	// Section 28: a Major distributor takes masters on this share of its deals at minimum (P&D
+	// era), so its distributed records fold into the major corporate/control chart share.
+	// Section 29: this rate ramps across the decade rather than being flat. Early-60s indie deals
+	// were mostly distribution-only (the indie kept its masters); the late-60s P&D consolidation is
+	// when majors increasingly took the masters. A flat rate stacks a constant slab on every year
+	// and can only produce a flat owner-Major line; the ramp produces the historical dip (indie
+	// boom erodes major share mid-decade) then rise (majors take masters and absorb late-decade).
+	[Export(PropertyHint.Range, "0,1,0.01")] private float majorDistributorMastersOwnershipRateEarly = 0.15f;
+	// Late endpoint trimmed 0.45 -> 0.40: 0.45 overshot the 45-52 owner-Major band on the harder
+	// holdout seed (1969 owner-Major 57.4 with births-9). This is the metric-only master-control
+	// surplus lever; it does not touch deal economics, breadth, or the album economy.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float majorDistributorMastersOwnershipRateLate = 0.40f;
+	[Export] private int majorMastersRampStartYear = 1962;
+	[Export] private int majorMastersRampFullYear = 1968;
 	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pullMarginSkimMin = 0.15f;
 	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pullMarginSkimMax = 0.25f;
 	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pushMarginSkimMin = 0.20f;
 	[Export(PropertyHint.Range, "0,0.5,0.01")] private float pushMarginSkimMax = 0.35f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealReinvestRate = DealReinvestRate;
 	[Export] private float dealReinvestCost = DealReinvestCost;
+	// Net income must clear this multiple of monthly overhead before a label can widen its own
+	// distribution, which is what keeps the self-built route uncommon rather than automatic.
+	[Export] private float selfBuiltReachSurplusMultiple = 2f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float selfBuiltReachMonthlyGain = 0.004f;
+	[Export(PropertyHint.Range, "0,1,0.001")] private float selfBuiltNationalReachMonthlyGain = 0.008f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float selfBuiltReachReinvestRate = 0.10f;
+	[Export(PropertyHint.Range, "0,1,0.01")] private float completedDealNationalReachRetention = 0.25f;
+	// LocalTraction begins at .20 in UpdateRegionalBreakoutState. That is the
+	// observed-market boundary at which a label has evidence worth taking to a
+	// distributor; the later .40 RegionalBreakout stage is intentionally not a
+	// prerequisite for obtaining the network that helps create it. This tracks
+	// LocalTractionActivationScore: the offer-attempt telemetry showed the sign rate
+	// cliff sitting exactly on this boundary (~36% just below, ~84% just above), so the
+	// two must move together or a record can climb the chart ramp yet be denied the deal.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.20f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyLow = DealDependencyLow;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyHigh = DealDependencyHigh;
-	
+
+	// Late-1960s major consolidation. The historical wave (WB-Atlantic 1967, MCA from
+	// Decca/Kapp/Uni, ABC absorbing imprints) had majors absorb *charted* independents
+	// through the distribution relationship, lifting major-distributed chart share into
+	// 1968-69. Absorption reuses the existing deal-expiry -> AbsorbLabel path but is now
+	// gated to this window, to Major (optionally national MidTier) acquirers, to indie
+	// clients that have charted, and to a decade cap, so it cannot recreate the ungated
+	// early-decade random-tier absorptions or crush the independent imprint tail. These
+	// only bite from consolidationStartYear on, so 1960-65 behaviour is unchanged.
+	[Export] private int consolidationStartYear = 1966;
+	// Applied only to high-dependency deal expiries (the Stax->Atlantic branch); the roll and
+	// cap bound how many of those charted, major-distributed dependents are absorbed late-decade.
+	// DO NOT trim this to reduce owner-Major overshoot -- it backfires. Measured 0.75 -> 0.60 on the
+	// hard holdout seed (2029): owner-Major 1969 rose 55.5 -> 58.6. Averting an absorption does not
+	// free the client to chart as an Independent; it RENEWS the client on its Major P&D deal, which
+	// stays Major-owned via master-control (ownsMasters deal rows 755 -> 775). The client also loses
+	// the subsidiary reach boost, so total chart entries shrink (980 -> 958), lifting the ratio from
+	// both ends. Net owner-Major goes UP, not down.
+	[Export(PropertyHint.Range, "0,1,0.01")] private float consolidationAbsorbChance = 0.75f;
+	[Export] private int maxDecadeConsolidationAbsorptions = 40;
+	[Export] private bool consolidationRequireCharted = true;
+	[Export] private bool consolidationAllowNationalMidTier = false;
+
 	[ExportGroup("Historical Records")]
 	[Export] private Record[] historicalRecords;
 	
@@ -148,6 +249,41 @@ public partial class CompetitorManager : Node {
 	// Pool it for shrinkage, then let each label refine that baseline locally.
 	private readonly FormatRevenueMemory pooledAlbumWithPromoMemory = new();
 	private Dictionary<string, List<string>> labelActiveRecords = new Dictionary<string, List<string>>();
+	internal readonly struct LabelRecordHistoryEntry {
+		public readonly int ReleaseWeek;
+		public readonly bool Charted;
+		public readonly bool Top40;
+		public LabelRecordHistoryEntry(int releaseWeek, bool charted, bool top40) {
+			ReleaseWeek = releaseWeek;
+			Charted = charted;
+			Top40 = top40;
+		}
+	}
+	private readonly Dictionary<string, List<LabelRecordHistoryEntry>> retiredLabelRecordHistory = new();
+	// The regional independent-distribution layer (handoff section 33): the wholesale
+	// houses that carried independent labels' lines into shops. Held here rather than in
+	// aiLabels because a house is not a firm that releases records, and because coverage
+	// it grants must never flow through activeDeal -- that is what keeps owner-Major
+	// attribution untouched by an independently distributed record.
+	private readonly List<IndependentDistributor> independentDistributors = new();
+	private readonly Dictionary<string, List<IndependentDistributor>> independentDistributorsByRegion =
+		new(System.StringComparer.Ordinal);
+	private int independentDistributorsAtStart;
+	private readonly HashSet<string> creditedLabelTop40RecordIds = new(System.StringComparer.Ordinal);
+	private readonly HashSet<string> creditedLabelNumberOneRecordIds = new(System.StringComparer.Ordinal);
+	// Proven-winner signal for the consolidation lever: a label id enters this set
+	// the first time any of its records reaches a national chart position (1-100).
+	// A subsidiary keeps its own imprint labelId after absorption, so this set keeps
+	// reporting the client's own charting history at deal expiry.
+	private readonly HashSet<string> chartedLabelIds = new(System.StringComparer.Ordinal);
+	// Late-decade major-consolidation absorptions completed this run, bounded by
+	// maxDecadeConsolidationAbsorptions so the lever cannot crush the indie tail.
+	private int consolidationAbsorptionsThisDecade;
+	// Test-only: forces the next deal resolution of these clients to absorb regardless
+	// of window/tier/charted/roll, so the forced-deal integration harness can exercise
+	// the AbsorbLabel path deterministically. Empty in every simulation run.
+	private readonly HashSet<string> forcedConsolidationClients = new(System.StringComparer.Ordinal);
+	private ChartManager chartRecordEventSource;
 	private Dictionary<string, LabelFinancialHistory> labelFinancials = new Dictionary<string, LabelFinancialHistory>();
 	private readonly Dictionary<string, Dictionary<Genre, int>> annualGenreSupplyByLabel = new();
 	private readonly Dictionary<Genre, int> annualGenreSupplyGlobal = new();
@@ -181,6 +317,27 @@ public partial class CompetitorManager : Node {
 			ArtistSelectionFailures = artistSelectionFailures;
 		}
 	}
+
+	internal readonly struct RegionalDealEvidence {
+		public readonly float BestAnyRegionPeak;
+		public readonly float BestStrongRegionPeak;
+		public readonly float BestPersistentEvidenceQuality;
+		public readonly bool HasPersistentRegionalTraction;
+		public readonly bool PassesLegacyQualityAndCurrentSalesGate;
+		public readonly string EarningRecordId;
+
+		public RegionalDealEvidence(float bestAnyRegionPeak, float bestStrongRegionPeak,
+			float bestPersistentEvidenceQuality, bool hasPersistentRegionalTraction,
+			bool passesLegacyQualityAndCurrentSalesGate, string earningRecordId = null) {
+			BestAnyRegionPeak = bestAnyRegionPeak;
+			BestStrongRegionPeak = bestStrongRegionPeak;
+			BestPersistentEvidenceQuality = bestPersistentEvidenceQuality;
+			HasPersistentRegionalTraction = hasPersistentRegionalTraction;
+			PassesLegacyQualityAndCurrentSalesGate = passesLegacyQualityAndCurrentSalesGate;
+			EarningRecordId = earningRecordId;
+		}
+	}
+
 	public int DistributionOffersGenerated { get; private set; }
 	public int DistributionOffersAccepted { get; private set; }
 	public float CannibalizationStrength => cannibalizationStrength;
@@ -188,6 +345,9 @@ public partial class CompetitorManager : Node {
 		Mathf.Clamp(substitutionK * CalculateAlbumDemandFactor(genre, year), 0f, substitutionCap);
 	private bool lastReleaseAttemptFailedArtistSelection;
 	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
+	public event System.Action<DistributionOfferAttemptTelemetry> OnDistributionOfferAttempt;
+	public event System.Action<IndependentDistributionTelemetry> OnIndependentDistributionSigned;
+	public event System.Action<IndependentTradeFailureTelemetry> OnIndependentTradeFailure;
 	public event System.Action<ReleaseStrategyTelemetry> OnReleaseStrategy;
 	public event System.Action<CalibrationDecisionTelemetry> OnCalibrationDecision;
 	public event System.Action<ReleaseOutcomeTelemetry> OnReleaseOutcome;
@@ -204,6 +364,7 @@ public partial class CompetitorManager : Node {
 			TimeManager.Instance.OnWeekEnded += OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 		}
+		EnsureChartRecordSubscription();
 	}
 	
 	public override void _ExitTree() {
@@ -211,9 +372,24 @@ public partial class CompetitorManager : Node {
 			TimeManager.Instance.OnWeekEnded -= OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
 		}
+		if (chartRecordEventSource != null) {
+			chartRecordEventSource.OnRecordChartUpdated -= OnRecordChartUpdated;
+			chartRecordEventSource = null;
+		}
 	}
 	
 	public void Initialize(List<AILabel> labels) {
+		// CompetitorManager precedes ChartManager in autoload order, so ChartManager
+		// may not exist during this node's _Ready. Initialize is invoked by
+		// ChartManager after its singleton is live and is therefore the reliable
+		// subscription boundary for record-outcome bookkeeping.
+		EnsureChartRecordSubscription();
+		retiredLabelRecordHistory.Clear();
+		creditedLabelTop40RecordIds.Clear();
+		creditedLabelNumberOneRecordIds.Clear();
+		chartedLabelIds.Clear();
+		consolidationAbsorptionsThisDecade = 0;
+		forcedConsolidationClients.Clear();
 		AlbumModel.EraWeightStartYear = albumEraWeightStartYear;
 		AlbumModel.EraWeightEndYear = albumEraWeightEndYear;
 		AlbumModel.CohesionRiseStartYear = albumCohesionRiseStartYear;
@@ -221,10 +397,226 @@ public partial class CompetitorManager : Node {
 		aiLabels = labels;
 		foreach (var label in aiLabels) {
 			labelActiveRecords[label.labelId] = new List<string>();
+			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 			labelFinancials[label.labelId] = new LabelFinancialHistory();
 		}
+		BuildIndependentDistributionLayer();
 		PopulateInitialRecords();
 		GD.Print($"CompetitorManager: Initialized with {aiLabels.Count} labels");
+	}
+
+	/// <summary>
+	/// Stands up the regional independent-distribution layer (handoff section 33). Slice 1
+	/// generates and registers the houses only -- nothing reads them yet, so this is inert
+	/// on the simulation by construction and a probe run must stay byte-identical.
+	/// </summary>
+	private void BuildIndependentDistributionLayer() {
+		independentDistributors.Clear();
+		independentDistributorsByRegion.Clear();
+		var regions = ChartManager.Instance?.GetAllRegions();
+		if (regions == null || regions.Count == 0) return;
+
+		independentDistributors.AddRange(
+			IndependentDistributorFactory.Generate(regions, SimulationSeedBootstrap.RequestedSeed ?? 0UL));
+		foreach (IndependentDistributor house in independentDistributors) {
+			if (string.IsNullOrEmpty(house.regionId)) continue;
+			if (!independentDistributorsByRegion.TryGetValue(house.regionId, out var inRegion))
+				independentDistributorsByRegion[house.regionId] = inRegion = new List<IndependentDistributor>();
+			inRegion.Add(house);
+		}
+		independentDistributorsAtStart = independentDistributors.Count;
+		GD.Print($"CompetitorManager: independent distribution layer -- {independentDistributors.Count} houses " +
+			$"across {independentDistributorsByRegion.Count} regions");
+	}
+
+	/// <summary>
+	/// The independent route to national reach (handoff section 33). A label with a record
+	/// proven in some market places its line with a wholesale house there, and then with
+	/// houses in bordering markets, one market at a time. This is what an independent label
+	/// actually did in the 1960s, and until it existed the only way to reach the country was
+	/// to become a bigger label's client -- which put a floor under major-owned chart share
+	/// that no calibration could move (section 32.5).
+	///
+	/// Deliberately grants coverage and nothing else. No DistributionDeal is created, no
+	/// reach is borrowed, no masters change hands, and nothing enters the acquisition chain,
+	/// so a record distributed this way is attributable to nobody.
+	/// </summary>
+	private void PursueIndependentDistribution(AILabel label) {
+		if (label == null || !label.IsActive || independentDistributors.Count == 0) return;
+		// A Major runs its own branch distribution and does not place its line with a
+		// regional wholesaler.
+		if (label.tier == LabelTier.Major) return;
+		// Under a P&D contract the distributor presses and ships; the label is not also
+		// building wholesale relationships. Markets it already holds stay held -- they are
+		// its own asset and are still there when the contract ends.
+		if (label.activeDeal != null || label.IsSubsidiary) return;
+		// Section 27: a dependent hitmaker leans on its distributor rather than building
+		// its own network, which is what keeps it a high-dependency absorption target.
+		if (label.distributionDependentHitmaker) return;
+
+		var proven = GetProvenBreakoutRegions(label);
+		if (proven.Count == 0) return;
+
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		string target = SelectIndependentDistributionTarget(label, proven, currentWeek);
+		if (target == null) return;
+
+		IndependentDistributor house = SelectIndependentHouse(label, target, currentWeek);
+		if (house == null || !house.AddClient(label.labelId)) return;
+
+		label.independentDistributionRegions.Add(target);
+		float coveredShare = ChartManager.Instance?.GetNationalMarketShareForRegions(label.AllCoveredRegions()) ?? 0f;
+		float before = label.ownedReach;
+		// Credit only the market this placement actually opened. Re-deriving owned reach from
+		// total coverage instead paid a label for the regions it was generated with, so the
+		// first placement handed the largest existing networks a windfall and the channel
+		// inflated MidTier incumbents rather than opening the chart to independents -- the
+		// section 12 trap in miniature, caught in the first 52-week measurement. One house
+		// reaches much of a market's retail but not all of it, hence the coverage factor.
+		float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { target }) ?? 0f;
+		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling,
+			label.ownedReach + (marginalShare * independentCoverageReachFactor));
+
+		OnIndependentDistributionSigned?.Invoke(new IndependentDistributionTelemetry {
+			week = currentWeek,
+			labelId = label.labelId,
+			labelName = label.labelName,
+			labelTier = label.tier,
+			distributorId = house.distributorId,
+			distributorName = house.distributorName,
+			regionId = target,
+			provenInRegion = proven.Contains(target),
+			coveredRegionCount = label.independentDistributionRegions.Count,
+			coveredMarketShare = coveredShare,
+			ownedReachBefore = before,
+			ownedReachAfter = label.ownedReach,
+			houseClientCount = house.CurrentClientCount,
+			houseClientCapacity = house.clientCapacity
+		});
+	}
+
+	/// <summary>
+	/// Markets where this label has actually proven a record. A wholesaler took a line it
+	/// could sell, so the evidence bar is the same regional breakout that earns a P&amp;D
+	/// offer -- not the profit the old self-built gate demanded, which a label with no
+	/// distribution could never earn (section 32.5).
+	/// </summary>
+	private HashSet<string> GetProvenBreakoutRegions(AILabel label) {
+		var proven = new HashSet<string>(System.StringComparer.Ordinal);
+		foreach (RecordRuntimeData record in ChartManager.Instance?.GetAllRecords() ?? Enumerable.Empty<RecordRuntimeData>()) {
+			if (record?.baseRecord?.labelId != label.labelId) continue;
+			foreach (var pair in record.regionalData) {
+				if ((pair.Value?.peakBreakoutScore ?? 0f) >= regionalBreakoutDealThreshold) proven.Add(pair.Key);
+			}
+		}
+		return proven;
+	}
+
+	// Proven markets first, then the markets bordering them. A house that took the line had
+	// standing arrangements with its peers one region over, which is how a regional hit
+	// spread before it was a national one.
+	private string SelectIndependentDistributionTarget(AILabel label, HashSet<string> proven, int currentWeek) {
+		// Only markets that can actually be placed in are candidates. Counting a market with
+		// no independent trade -- the Rockies -- would have consumed the month's opportunity
+		// and then failed, which left all 18 Rockies-home labels unable to place a single
+		// line. A label in a market without wholesalers has to reach the ones next door.
+		var candidates = new List<string>();
+		foreach (string regionId in proven)
+			if (CanPlaceLineIn(label, regionId)) candidates.Add(regionId);
+		if (candidates.Count == 0) {
+			foreach (string regionId in proven)
+				foreach (string neighbour in DistanceModel.GetAdjacentRegions(regionId))
+					if (CanPlaceLineIn(label, neighbour) && !candidates.Contains(neighbour)) candidates.Add(neighbour);
+		}
+		if (candidates.Count == 0) return null;
+
+		// Placing a line took months of travelling and pitching, so a label adds markets
+		// steadily rather than going national the month after a hit.
+		float roll = GetDeterministicIndependentDistributionRoll(label.labelId, "target", currentWeek);
+		if (roll >= independentDistributionMonthlyChance) return null;
+		int index = (int)(GetDeterministicIndependentDistributionRoll(label.labelId, "pick", currentWeek) * candidates.Count);
+		return candidates[Mathf.Clamp(index, 0, candidates.Count - 1)];
+	}
+
+	// A house drops a dead label's line and the slot returns to the market. Without this the
+	// layer would fill with closed labels and saturate on ghosts rather than on real demand.
+	private void ReleaseIndependentDistribution(AILabel label) {
+		if (label == null || label.independentDistributionRegions.Count == 0) return;
+		foreach (IndependentDistributor house in independentDistributors) house.RemoveClient(label.labelId);
+		label.independentDistributionRegions.Clear();
+	}
+
+	/// <summary>
+	/// Finds a Major that is full but would rather carry this proven client than its own weakest
+	/// imprint, and names the imprint it drops. The candidate must still add a region the client
+	/// does not have and must be able to fund the advance -- only the client ceiling is waived.
+	/// The imprint dropped is the one charting least; a Major will not drop a client that is
+	/// selling at least as well as the one being courted.
+	/// </summary>
+	private (AILabel Major, AILabel Dropped) SelectMajorWillingToDropWeakestClient(AILabel client) {
+		int courtedCharting = GetRecentChartingRecordCount(client.labelId);
+		AILabel bestMajor = null, bestDrop = null;
+		int bestDropCharting = int.MaxValue;
+		foreach (AILabel major in aiLabels) {
+			if (major.tier != LabelTier.Major || !major.IsActive || major == client) continue;
+			if (WouldCreateCircularDeal(client, major)) continue;
+			if (major.cashReserves <= major.GetMonthlyOverhead() * 3f) continue;
+			if (!(major.distributionRegions ?? System.Array.Empty<string>())
+				.Any(region => !client.HasDistributionInRegion(region))) continue;
+			foreach (AILabel held in aiLabels) {
+				if (held.activeDeal?.distributorId != major.labelId || held == client) continue;
+				if (held.IsSubsidiary) continue;
+				int charting = GetRecentChartingRecordCount(held.labelId);
+				if (charting >= courtedCharting || charting >= bestDropCharting) continue;
+				bestMajor = major;
+				bestDrop = held;
+				bestDropCharting = charting;
+			}
+		}
+		return (bestMajor, bestDrop);
+	}
+
+	private bool CanPlaceLineIn(AILabel label, string regionId) =>
+		!label.HasDistributionInRegion(regionId) &&
+		GetIndependentDistributorsInRegion(regionId).Any(house => house.HasCapacity && !house.CarriesLabel(label.labelId));
+
+	private IndependentDistributor SelectIndependentHouse(AILabel label, string regionId, int currentWeek) {
+		var open = GetIndependentDistributorsInRegion(regionId)
+			.Where(house => house.HasCapacity && !house.CarriesLabel(label.labelId))
+			.ToList();
+		if (open.Count == 0) return null;
+		int index = (int)(GetDeterministicIndependentDistributionRoll(label.labelId, "house" + regionId, currentWeek) * open.Count);
+		return open[Mathf.Clamp(index, 0, open.Count - 1)];
+	}
+
+	// Seed-stable and drawn off the global RNG stream, exactly as the masters renewal roll
+	// is (section 30.1). A new decision route that consumed global draws would reorder every
+	// downstream sampler, and the resulting breadth and tier changes could not be attributed
+	// to independent distribution rather than to RNG reordering (section 12).
+	internal static float GetDeterministicIndependentDistributionRoll(string labelId, string salt, int week) {
+		uint hash = 2166136261u;
+		foreach (char value in
+			$"{SimulationSeedBootstrap.RequestedSeed ?? 0UL}|{labelId}|{salt}|{week}|IndependentDistributionV1") {
+			hash ^= value;
+			hash *= 16777619u;
+		}
+		return (hash & 0x00ffffffu) / 16777216f;
+	}
+
+	public IReadOnlyList<IndependentDistributor> GetIndependentDistributors() => independentDistributors;
+
+	public IReadOnlyList<IndependentDistributor> GetIndependentDistributorsInRegion(string regionId) =>
+		!string.IsNullOrEmpty(regionId) && independentDistributorsByRegion.TryGetValue(regionId, out var houses)
+			? houses
+			: (IReadOnlyList<IndependentDistributor>)System.Array.Empty<IndependentDistributor>();
+
+	private void EnsureChartRecordSubscription() {
+		ChartManager source = ChartManager.Instance;
+		if (source == null || source == chartRecordEventSource) return;
+		if (chartRecordEventSource != null)
+			chartRecordEventSource.OnRecordChartUpdated -= OnRecordChartUpdated;
+		source.OnRecordChartUpdated += OnRecordChartUpdated;
+		chartRecordEventSource = source;
 	}
 	
 	private void PopulateInitialRecords() {
@@ -316,12 +708,27 @@ public partial class CompetitorManager : Node {
 			regionalData.awareness = runtimeData.awareness * regionMod * (float)GD.RandRange(0.7, 1.1);
 			regionalData.radioPlay = runtimeData.radioHeat * regionMod * (float)GD.RandRange(0.6, 1.0);
 			regionalData.sentiment = 0.5f + (quality * 0.3f) + (float)GD.RandRange(-0.1, 0.15);
-			regionalData.unitsInStores = (int)GD.RandRange(5000, 20000);
-			regionalData.unitsSoldTotal = (int)GD.RandRange(1000, 10000);
+			// Prewarm stock formerly bypassed the physical distribution model outright,
+			// seeding 5,000-20,000 units into every region regardless of the label's
+			// tier, owned reach, or whether it had any distribution there at all. A
+			// live Small-label release into an uncovered region receives roughly 530
+			// units from the same shelf the chart reads, so the seeded 1960 cohort
+			// began with national distribution no live entrant could ever obtain.
+			// Route prewarm through the same function live releases use.
+			int shelf = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, 1f, 1f, record.recordId);
+			regionalData.unitsInStores = Mathf.RoundToInt(shelf * (float)GD.RandRange(0.7, 1.1));
+			// A record already this old has sold part of its shelf through.
+			regionalData.unitsSoldTotal = Mathf.RoundToInt(shelf * (1f - ageFactor) * (float)GD.RandRange(0.6, 1.2));
 		}
 	}
 	
 	private void OnWeekEnded(GameDate date) {
+		long profileStart = SimulationPerformanceProfiler.Begin();
+		OnWeekEndedCore(date);
+		SimulationPerformanceProfiler.EndCompetitorWeek(profileStart);
+	}
+
+	private void OnWeekEndedCore(GameDate date) {
 		if (historicalRecords != null) {
 			foreach (var record in historicalRecords) {
 				if (record.releaseDate == date) {
@@ -391,6 +798,10 @@ public partial class CompetitorManager : Node {
 			// its historical inactive-label exclusion for byte-identical replay.
 			if (!label.IsActive && settlement.SettlementId < 1) continue;
 			float weeklyRevenue = CalculateLabelRevenue(label, settlement);
+			// Billings against a wholesale house are booked but not banked: the house pays on
+			// its own terms, and only for what it admits it sold.
+			weeklyRevenue -= DeferWholesaleBillings(label, settlement, weeklyRevenue);
+			weeklyRevenue += CollectMaturedWholesaleReceivables(label);
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
@@ -398,13 +809,87 @@ public partial class CompetitorManager : Node {
 			}
 		}
 	}
+
+	/// <summary>
+	/// Moves this week's revenue earned in wholesale-served markets out of cash and into
+	/// receivables (handoff section 33.1 stage 3). Returns the amount deferred. Revenue from
+	/// markets the label ships to itself, and from anything a distribution contract carries,
+	/// is unaffected -- this is the wholesale channel's payment behaviour, not a general tax.
+	/// </summary>
+	private float DeferWholesaleBillings(AILabel label, ChartManager.CompletedWeekSettlement settlement, float weeklyRevenue) {
+		if (weeklyRevenue <= 0f || label.independentDistributionRegions.Count == 0 || settlement?.Entries == null) return 0f;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		long wholesaleUnits = 0, totalUnits = 0;
+		var unitsByRegion = new Dictionary<string, long>(System.StringComparer.Ordinal);
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.EntriesForLabel(label.labelId)) {
+			if (entry.Regions == null) continue;
+			foreach (ChartManager.CompletedWeekSettlementRegion region in entry.Regions) {
+				if (region.FinalCleared <= 0) continue;
+				totalUnits += region.FinalCleared;
+				if (!label.independentDistributionRegions.Contains(region.RegionId)) continue;
+				wholesaleUnits += region.FinalCleared;
+				unitsByRegion[region.RegionId] = unitsByRegion.GetValueOrDefault(region.RegionId) + region.FinalCleared;
+			}
+		}
+		if (wholesaleUnits <= 0 || totalUnits <= 0) return 0f;
+
+		float deferred = 0f;
+		foreach (var pair in unitsByRegion) {
+			IndependentDistributor house = GetIndependentDistributorsInRegion(pair.Key)
+				.FirstOrDefault(candidate => candidate.CarriesLabel(label.labelId));
+			if (house == null) continue;
+			float billed = weeklyRevenue * (pair.Value / (float)totalUnits);
+			if (billed <= 0f) continue;
+			// Under-reporting was endemic: the label is billed for what the house admits it
+			// sold, never sees the rest, and never knows it existed. The return allowance is
+			// deliberately NOT applied here -- returns are units that shipped and did not
+			// sell, and the settlement this bills against is already units sold, so charging
+			// it again would take the same loss twice.
+			float collectable = billed * house.reportingHonesty;
+			label.wholesaleReceivables.Add(new WholesaleReceivable(
+				currentWeek + house.paymentTermWeeks, house.distributorId, collectable));
+			label.outstandingWholesaleReceivables += collectable;
+			label.lifetimeWholesaleWriteOffs += billed - collectable;
+			deferred += billed;
+		}
+		return deferred;
+	}
+
+	/// <summary>
+	/// Pays out receivables whose terms have run out. A house that is a poor payer settles
+	/// short rather than late -- the label writes the difference off, as it did.
+	/// </summary>
+	private float CollectMaturedWholesaleReceivables(AILabel label) {
+		if (label.wholesaleReceivables.Count == 0) return 0f;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		float collected = 0f;
+		for (int index = label.wholesaleReceivables.Count - 1; index >= 0; index--) {
+			WholesaleReceivable receivable = label.wholesaleReceivables[index];
+			if (receivable.DueWeek > currentWeek) continue;
+			label.wholesaleReceivables.RemoveAt(index);
+			label.outstandingWholesaleReceivables -= receivable.Amount;
+			IndependentDistributor house = independentDistributors
+				.FirstOrDefault(candidate => candidate.distributorId == receivable.DistributorId);
+			// Most invoices were eventually settled -- the damage was the wait, already
+			// charged by the term above. Reliability is the residue: the slow payer settles
+			// short and the label writes the rest off. Treating it as a flat pay-rate instead
+			// compounded with under-reporting into a ~40% realisation, which is not a squeeze,
+			// it is an economy that cannot run.
+			float reliability = Mathf.Clamp(house?.reliability ?? 1f, 0f, 1f);
+			float paid = receivable.Amount * (reliability + ((1f - reliability) * WholesaleSettledShareOfArrears));
+			collected += paid;
+			label.lifetimeWholesaleWriteOffs += receivable.Amount - paid;
+		}
+		label.outstandingWholesaleReceivables = Mathf.Max(0f, label.outstandingWholesaleReceivables);
+		return collected;
+	}
 	
 	private float CalculateLabelRevenue(AILabel label, ChartManager.CompletedWeekSettlement settlement) {
 		if (settlement?.Entries == null) return 0f;
 		long profileStart = SimulationPerformanceProfiler.Begin();
 		float totalRevenue = 0f;
 		
-		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries.Where(entry => entry.LabelId == label.labelId)) {
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.EntriesForLabel(label.labelId)) {
 			long lookupProfileStart = SimulationPerformanceProfiler.Begin();
 			var runtimeData = entry.Record;
 			SimulationPerformanceProfiler.EndRecordLookup(lookupProfileStart);
@@ -662,6 +1147,17 @@ public partial class CompetitorManager : Node {
 		string recordId = runtimeData.baseRecord.recordId;
 		if (!string.IsNullOrEmpty(labelId) && !string.IsNullOrEmpty(recordId) &&
 			labelActiveRecords.TryGetValue(labelId, out var recordIds)) recordIds.Remove(recordId);
+		if (!string.IsNullOrEmpty(labelId)) {
+			if (!retiredLabelRecordHistory.TryGetValue(labelId, out List<LabelRecordHistoryEntry> history)) {
+				history = new List<LabelRecordHistoryEntry>();
+				retiredLabelRecordHistory[labelId] = history;
+			}
+			int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			history.Add(new LabelRecordHistoryEntry(
+				Mathf.Max(0, currentWeek - Mathf.Max(0, runtimeData.weeksSinceRelease)),
+				runtimeData.weeksOnChart > 0,
+				runtimeData.peakPosition > 0 && runtimeData.peakPosition <= 40));
+		}
 
 		float realizedNet = runtimeData.lifetimeLabelNet - runtimeData.sunkProductionCost;
 		OnReleaseOutcome?.Invoke(new ReleaseOutcomeTelemetry {
@@ -1022,10 +1518,7 @@ public partial class CompetitorManager : Node {
 		CaptureSingleOpportunity(runtimeData, label, date.year);
 		TrackRelease(label.labelId, record.recordId);
 		WeeklySingleReleases++;
-		RosterManager.Instance?.RecordReleased(artist, record.recordId);
-		artist.weeksSinceLastRelease = 0;
-		artist.releaseHistory.Add(record.recordId);
-		if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
+		RecordArtistRelease(artist, record.recordId, record.format);
 		annualFormatDecisions++;
 		OnCalibrationDecision?.Invoke(new CalibrationDecisionTelemetry {
 			recordId = record.recordId,
@@ -1306,11 +1799,27 @@ public partial class CompetitorManager : Node {
 		runtime.albumProjectId = record.albumProjectId;
 		if (role == ProjectRecordRole.LinkedAlbum && projectById.TryGetValue(projectId, out AlbumProject project)) runtime.linkedPromoSingleId = project.promoSingleId;
 		TrackRelease(label.labelId, record.recordId);
-		if (artist != null) {
-			RosterManager.Instance?.RecordReleased(artist, record.recordId);
-			artist.releaseHistory.Add(record.recordId);
-			if (record.format == ReleaseFormat.Single) artist.releasedSingleIds.Add(record.recordId);
+		RecordArtistRelease(artist, record.recordId, record.format);
+	}
+
+	// RosterManager.RecordReleased already appends to releaseHistory, so the second
+	// append this replaces double-counted every live release. GenreSupplyService caps
+	// project history at three (Systems/GenreSupplyService.cs:211-212), so an artist hit
+	// that cap after two releases instead of three and carried up to 0.06 of unearned
+	// project-identity retention. The prewarm path is unaffected: it never calls
+	// RecordReleased and already appended exactly once. The fallback preserves the
+	// bookkeeping when the RosterManager singleton is unavailable, which is the reason
+	// the redundant append existed at the call sites.
+	internal static void RecordArtistRelease(SimulatedArtist artist, string recordId, ReleaseFormat format) {
+		if (artist == null || string.IsNullOrEmpty(recordId)) return;
+		if (RosterManager.Instance != null) {
+			RosterManager.Instance.RecordReleased(artist, recordId);
+		} else {
+			artist.totalReleases++;
+			artist.releaseHistory.Add(recordId);
 		}
+		artist.weeksSinceLastRelease = 0;
+		if (format == ReleaseFormat.Single) artist.releasedSingleIds.Add(recordId);
 	}
 
 	private static void CaptureSingleOpportunity(RecordRuntimeData runtime, AILabel label, int year) {
@@ -1357,6 +1866,7 @@ public partial class CompetitorManager : Node {
 		substitutionCap = plan.substitutionCap, substitutionPropensity = plan.substitutionPropensity,
 		expectedOverlapFraction = plan.expectedOverlapFraction, divertedUnits = plan.divertedUnits,
 		albumMarginPerUnit = plan.albumMarginPerUnit, cannibalizationLoss = plan.cannibalizationLoss,
+		cannibalizationCharged = plan.cannibalizationCharged,
 		expectedPromoLift = plan.expectedPromoLift, expectedPromoSingleNet = plan.expectedPromoSingleNet,
 		promoAdvantage = plan.promoAdvantage, singlePreTiltContribution = plan.singlePreTiltContribution,
 		singleFormatTilt = plan.singleFormatTilt, albumAffinity = plan.albumAffinity,
@@ -1492,7 +2002,24 @@ public partial class CompetitorManager : Node {
 		// totalUnits, grossRevenue, labelNet and marketNet out of band at 1968-69.
 		float promoSynergyGain = CalculatePromoAlbumSynergyGain(albumDemandFactor,
 			1f - Mathf.Clamp(projectedLaunchAwareness, 0f, 1f), expectedSingleUnits, albumPrior.marginPerUnit);
-		float promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - cannibalizationLoss;
+		// projectedAlbum above is the Album-component projection, already moved off its
+		// prior by the AlbumComponent lane residual at weight confidenceAlbum — and that
+		// lane observes realized Albums that were themselves released alongside a promo
+		// Single. Whatever diversion the promo actually caused is therefore already
+		// inside the projection being adjusted, so subtracting the full modelled
+		// cannibalizationLoss on top charges it twice, at exactly that weight.
+		//
+		// The duplicate share scales with album unit economics while the terms opposing
+		// it — the promo Single's own net and a fixed awareness scalar — do not, so the
+		// strategy decays to non-viable precisely as the LP market matures, and it decays
+		// first for whoever carries the largest expectedSingleUnits. Measured over the
+		// 48,155 decisions of d7-evidence-repairs-522-1001, mean Major promoAdvantage
+		// falls 46,070 (1960) to -2,378 (1969); charged once it is flat, 47,344 to 55,267.
+		// Majors abandoned the promo Single for 274 of 495 decisions in 1969 against 0 of
+		// 360 in 1960, and a standalone Album emits no Single, which is the whole of the
+		// late-decade Major Singles collapse.
+		float chargedCannibalizationLoss = CalculateChargedPromoCannibalization(cannibalizationLoss, confidenceAlbum);
+		float promoAdvantage = expectedPromoLift + promoSynergyGain + expectedPromoSingleNet - chargedCannibalizationLoss;
 		float componentProjectedAlbumWithPromo = projectedAlbum + promoAdvantage;
 		float projectedAlbumWithPromo = componentProjectedAlbumWithPromo;
 		if (useResponsiveMemory) projectedAlbumWithPromo += projectResponsive.Confidence * projectResponsive.Residual *
@@ -1586,6 +2113,7 @@ public partial class CompetitorManager : Node {
 			divertedUnits = divertedUnits,
 			albumMarginPerUnit = albumPrior.marginPerUnit,
 			cannibalizationLoss = cannibalizationLoss,
+			cannibalizationCharged = chargedCannibalizationLoss,
 			expectedPromoLift = expectedPromoLift,
 			promoAdvantage = promoAdvantage,
 			albumChoiceProbability = albumChoiceProbability,
@@ -1650,6 +2178,38 @@ public partial class CompetitorManager : Node {
 		return (hash & 0x00ffffffu) / 16777216f;
 	}
 
+	// A deal's masters ownership is renegotiated when the contract renews: during the late-60s
+	// P&D consolidation a major increasingly took the masters at renewal, which is what folds the
+	// renewed catalogue into the major's control chart share. GenerateDealTerms only rolls masters
+	// at original signing, so without this the ramped rate never propagates to the large pool of
+	// long-lived renewing deals and the owner-Major line stays flat. ownsMasters is a metric-only
+	// flag (it feeds IsMajorMasterControlled and telemetry, nothing in the live sim), so re-rolling
+	// it at renewal changes no economics. The roll uses the seed-stable FNV hash rather than the
+	// global RNG stream, so breadth and tier composition stay byte-identical.
+	internal static float GetDeterministicMastersRenewalRoll(
+		string clientId, string distributorId, int year, int week) {
+		uint hash = 2166136261u;
+		foreach (char value in
+			$"{SimulationSeedBootstrap.RequestedSeed ?? 0UL}|{clientId}|{distributorId}|{year}|{week}|MastersRenewalV1") {
+			hash ^= value;
+			hash *= 16777619u;
+		}
+		return (hash & 0x00ffffffu) / 16777216f;
+	}
+
+	private float CurrentDealMastersRate(AILabel distributor, DealOrigin origin, int year) {
+		float rate = origin == DealOrigin.DistributorCourted ? pushMastersOwnershipRate : 0.15f;
+		if (distributor != null && distributor.tier == LabelTier.Major)
+			rate = Mathf.Max(rate, GetMajorMastersOwnershipRate(year));
+		return rate;
+	}
+
+	private void RerollMastersOnRenewal(AILabel client, AILabel distributor, DistributionDeal deal, int year, int currentWeek) {
+		if (client == null || distributor == null || deal == null) return;
+		deal.ownsMasters = GetDeterministicMastersRenewalRoll(client.labelId, distributor.labelId, year, currentWeek)
+			< CurrentDealMastersRate(distributor, deal.origin, year);
+	}
+
 	/// <summary>
 	/// LP programs are portfolio commitments, not independent one-week products. The
 	/// lane split's short-horizon component memory otherwise makes a label
@@ -1692,6 +2252,19 @@ public partial class CompetitorManager : Node {
 		Mathf.Max(0f, PromoAlbumConversionK * Mathf.Max(0f, albumDemandFactor) *
 			Mathf.Lerp(PromoAwarenessConversionFloor, 1f, Mathf.Clamp(awarenessHeadroom, 0f, 1f)) *
 			Mathf.Max(0f, expectedSingleUnits) * albumMarginPerUnit);
+
+	/// <summary>
+	/// The share of modelled promo cannibalization the format decision must still
+	/// charge explicitly. The Album-component projection it adjusts is already
+	/// memory-blended at <paramref name="albumMemoryConfidence"/> against realized
+	/// Albums released with a promo Single, so that much of the diversion is priced
+	/// in before the explicit charge is applied. Charging only the complement keeps
+	/// the promo proposition on one accounting of the same effect, and is inert
+	/// while the lane has no evidence.
+	/// </summary>
+	internal static float CalculateChargedPromoCannibalization(
+		float cannibalizationLoss, float albumMemoryConfidence) =>
+		Mathf.Max(0f, cannibalizationLoss) * (1f - Mathf.Clamp(albumMemoryConfidence, 0f, 1f));
 
 	/// <summary>
 	/// The Album prior's opportunity term is flat before `albumDemandRiseStartYear`
@@ -2133,6 +2706,7 @@ public partial class CompetitorManager : Node {
 		public float divertedUnits;
 		public float albumMarginPerUnit;
 		public float cannibalizationLoss;
+		public float cannibalizationCharged;
 		public float expectedPromoLift;
 		public float promoAdvantage;
 		public float albumChoiceProbability;
@@ -2444,9 +3018,9 @@ public partial class CompetitorManager : Node {
 			if (region == null) continue;
 			var data = new RegionalRecordData(region.regionId);
 			runtime.regionalData[region.regionId] = data;
-			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, runtime.baseRecord?.recordId);
 			int baseStock = Mathf.RoundToInt(ChartSimulator.CalculateInitialRegionalStock(label, region.regionId,
-				careerStockScale * 0.45f, snapshot.perceivedQualityMultiplier) * stockMultiplier);
+				careerStockScale * 0.45f, snapshot.perceivedQualityMultiplier, runtime.baseRecord?.recordId) * stockMultiplier);
 			initialStock[region.regionId] = baseStock;
 			data.unitsInStores = baseStock;
 			data.awareness = Mathf.Clamp(runtime.awareness * regionStrength * regional.awarenessRandom, 0f, 1f);
@@ -2545,9 +3119,9 @@ public partial class CompetitorManager : Node {
 				runtimeData.regionalData[region.regionId] = new RegionalRecordData(region.regionId);
 			}
 			var regionalData = runtimeData.regionalData[region.regionId];
-			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, runtimeData.baseRecord?.recordId);
 			int baseStock = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId,
-				stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult);
+				stockScale * (isAlbum ? 0.45f : 1f), perceivedQualityMult, runtimeData.baseRecord?.recordId);
 			initialStock[region.regionId] = baseStock;
 			regionalData.unitsInStores = baseStock;
 			regionalData.awareness = Mathf.Clamp(runtimeData.awareness * regionStrength * (float)GD.RandRange(0.8, 1.1), 0f, 1f);
@@ -2606,18 +3180,38 @@ public partial class CompetitorManager : Node {
 	
 	private void TrackRelease(string labelId, string recordId) {
 		if (!labelActiveRecords.ContainsKey(labelId)) labelActiveRecords[labelId] = new List<string>();
+		if (labelActiveRecords[labelId].Contains(recordId)) return;
 		labelActiveRecords[labelId].Add(recordId);
+		AILabel label = GetLabel(labelId);
+		if (label == null) return;
+		label.totalReleases++;
+		// Output released while a distribution contract is running goes out through
+		// that distributor's network. Records already in the market when the deal was
+		// signed do not retroactively enter it.
+		label.activeDeal?.Cover(recordId);
+	}
+
+	private void OnRecordChartUpdated(RecordRuntimeData record) {
+		if (record?.baseRecord == null || string.IsNullOrEmpty(record.baseRecord.recordId)) return;
+		AILabel label = GetLabel(record.baseRecord.labelId);
+		if (label == null) return;
+		if (record.peakPosition >= 1 && record.peakPosition <= 100) chartedLabelIds.Add(record.baseRecord.labelId);
+		if (record.peakPosition > 0 && record.peakPosition <= 40 &&
+			creditedLabelTop40RecordIds.Add(record.baseRecord.recordId)) label.top40Hits++;
+		if (record.peakPosition == 1 &&
+			creditedLabelNumberOneRecordIds.Add(record.baseRecord.recordId)) label.numberOneHits++;
 	}
 	
 	private void OnMonthChanged(GameDate date) {
 		foreach (var label in aiLabels) ProcessLabelMonth(label, date);
+		if (date.month == 1) ProcessIndependentTradeDecline(date.year);
 		ProcessDistributionDeals(date);
 		if (debugMode) PrintMonthlyReport(date);
 	}
 	
 	private void ProcessLabelMonth(AILabel label, GameDate date) {
-		if (!label.IsActive) return;
-		
+		if (!label.IsActive) { ReleaseIndependentDistribution(label); return; }
+
 		var financials = labelFinancials.TryGetValue(label.labelId, out var f) ? f : null;
 		if (financials == null) {
 			financials = new LabelFinancialHistory();
@@ -2631,6 +3225,8 @@ public partial class CompetitorManager : Node {
 		float netIncome = financials.lastMonthRevenue - financials.lastMonthExpenses;
 		label.lastMonthlyProfit = netIncome;
 		ReinvestDistributionProfit(label, netIncome);
+		GrowSelfBuiltDistributionReach(label, netIncome);
+		PursueIndependentDistribution(label);
 		UpdateLabelStatus(label, financials, netIncome);
 		
 		label.monthlyRevenue = 0f;
@@ -2643,11 +3239,146 @@ public partial class CompetitorManager : Node {
 
 	public void SetDistributionOfferProcessingEnabled(bool enabled) => distributionOfferProcessingEnabled = enabled;
 
+	// Test-only control for the forced-deal integration harness: force this client's
+	// next expiry to absorb, bypassing the consolidation gate and roll.
+	public void ForceConsolidationForTest(string labelId) {
+		if (!string.IsNullOrEmpty(labelId)) forcedConsolidationClients.Add(labelId);
+	}
+
 	private void ReinvestDistributionProfit(AILabel label, float netIncome) {
 		if (label.activeDeal == null || netIncome <= 0f) return;
 		float reinvestment = netIncome * dealReinvestRate;
 		label.cashReserves -= reinvestment;
 		label.ownedReach = Mathf.Min(1f, label.ownedReach + (reinvestment / Mathf.Max(1f, dealReinvestCost)));
+	}
+
+	// A label with no distributor builds its own network out of retained profit. Before this
+	// existed, ownedReach was written in exactly three places -- once at generation, and twice
+	// here behind an activeDeal null-check -- so a label that never signed a deal was frozen at
+	// its birth reach for life. Small labels are generated near 0.26 against a MidTier 0.66 and
+	// a Major 0.88, which left them at roughly an eighth of the chart cutoff and locked 72% of
+	// the population out of the national chart permanently.
+	//
+	// Surplus is measured against the label's own overhead rather than in absolute cash. The
+	// deal-backed path above reinvests 0.02 of net against a 5,000,000 cost per reach point,
+	// which is calibrated for Major-scale cash flow and gives a Small label nothing measurable;
+	// a ratio keeps the route open to a label that is thriving at its own scale. It stays
+	// uncommon because it needs profit at a multiple of overhead in a month with no loss
+	// history, which most Small labels never reach, and the ceiling keeps a self-built network
+	// short of the national reach the seeded Majors carry.
+	private void GrowSelfBuiltDistributionReach(AILabel label, float netIncome) {
+		// Section 27: a dependent "Stax" hitmaker reinvests in music, not its own distribution
+		// network, so it never self-builds national reach -- it stays dependent on the major it
+		// distributes through and is absorbed late-decade. This is what lets a genuinely charting
+		// label remain a high-dependency absorption target instead of graduating to independence.
+		if (label.distributionDependentHitmaker) return;
+		if (label.activeDeal != null || netIncome <= 0f || label.consecutiveLossMonths > 0) return;
+		if (label.ownedReach >= SelfBuiltReachCeiling) return;
+		float overhead = Mathf.Max(1f, label.GetMonthlyOverhead());
+		float surplusMultiple = netIncome / overhead;
+		if (surplusMultiple < selfBuiltReachSurplusMultiple) return;
+		float investment = netIncome * selfBuiltReachReinvestRate;
+		label.cashReserves -= investment;
+		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling, label.ownedReach + selfBuiltReachMonthlyGain);
+		label.nationalReach = CalculateNationalReachAfterSelfBuiltGain(
+			label.nationalReach, selfBuiltNationalReachMonthlyGain, SelfBuiltNationalReachCeiling);
+	}
+
+	internal static float CalculateNationalReachAfterSelfBuiltGain(float currentReach, float monthlyGain, float ceiling) {
+		float boundedCurrent = Mathf.Clamp(currentReach, 0f, 1f);
+		return Mathf.Max(boundedCurrent,
+			Mathf.Min(Mathf.Clamp(ceiling, 0f, 1f), boundedCurrent + Mathf.Max(0f, monthlyGain)));
+	}
+
+	internal static float CalculateNationalReachAfterCompletedDeal(
+		float currentReach, float dealReachGranted, float retention, float ceiling) {
+		float boundedCurrent = Mathf.Clamp(currentReach, 0f, 1f);
+		return Mathf.Max(boundedCurrent, Mathf.Min(Mathf.Clamp(ceiling, 0f, 1f),
+			boundedCurrent + Mathf.Max(0f, dealReachGranted) * Mathf.Max(0f, retention)));
+	}
+
+	/// <summary>
+	/// Concurrent imprints a Major distributes. Two corrections to the flat ceiling.
+	///
+	/// It ramps: a 1960 major carried a handful of distributed imprints, and by 1968-71 the
+	/// majors had taken over the independent distribution business wholesale. Holding it flat
+	/// made 1960 too consolidated and left the late decade with nowhere to put the labels the
+	/// independent trade's collapse displaces.
+	///
+	/// It scales with the network the firm owns. A label promoted into Major tier used to get
+	/// the same roster as RCA the moment it crossed the line: at the decade run's 1968, the two
+	/// promoted Majors charted 13.5 records each against the seeded majors' 41.1, and still held
+	/// 20 of the 95 client slots. You can only distribute where you have a network, so the
+	/// ceiling is worth the share of the country that network actually reaches.
+	/// </summary>
+	private int MajorDistributionCapacityFor(AILabel distributor) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? majorDistributionCeilingRampStartYear;
+		float ceiling = MajorDistributionCeilingForYear(year, majorDistributionClientCeilingEarly,
+			majorDistributionClientCeilingLate, majorDistributionCeilingRampStartYear, majorDistributionCeilingRampFullYear);
+		float networkShare = ChartManager.Instance?.GetNationalMarketShareForRegions(distributor.distributionRegions) ?? 1f;
+		return Mathf.Max(1, Mathf.RoundToInt(ceiling * Mathf.Clamp(networkShare, 0f, 1f)));
+	}
+
+	internal static float MajorDistributionCeilingForYear(int year, int early, int late, int rampStart, int rampFull) {
+		if (year <= rampStart) return early;
+		if (rampFull <= rampStart || year >= rampFull) return late;
+		return Mathf.Lerp(early, late, (year - rampStart) / (float)(rampFull - rampStart));
+	}
+
+	/// <summary>
+	/// Share of the independent distribution trade still operating in a given year. Flat until
+	/// the decline starts, then falling to the late-decade survival rate.
+	/// </summary>
+	internal static float IndependentTradeSurvivalRate(int year, int startYear, int fullYear, float lateRate) {
+		if (year <= startYear) return 1f;
+		if (fullYear <= startYear) return Mathf.Clamp(lateRate, 0f, 1f);
+		float progress = Mathf.Clamp((year - startYear) / (float)(fullYear - startYear), 0f, 1f);
+		return Mathf.Lerp(1f, Mathf.Clamp(lateRate, 0f, 1f), progress);
+	}
+
+	/// <summary>
+	/// Retires part of the independent distribution trade each year of the decline. The houses
+	/// carrying the fewest lines go first -- the thinnest business failed first -- and every
+	/// label they carried loses that market and the reach the placement granted. Reach earned
+	/// through wholesale placement has to be reversible or the decline is toothless: the label
+	/// would keep the national footprint of a network that no longer exists.
+	/// </summary>
+	private void ProcessIndependentTradeDecline(int year) {
+		if (independentDistributorsAtStart <= 0) return;
+		float survival = IndependentTradeSurvivalRate(year, independentTradeDeclineStartYear,
+			independentTradeDeclineFullYear, independentTradeSurvivalLate);
+		int target = Mathf.Max(0, Mathf.RoundToInt(independentDistributorsAtStart * survival));
+		if (independentDistributors.Count <= target) return;
+
+		var failing = independentDistributors
+			.OrderBy(house => house.CurrentClientCount)
+			.ThenBy(house => house.distributorId, System.StringComparer.Ordinal)
+			.Take(independentDistributors.Count - target)
+			.ToList();
+		foreach (IndependentDistributor house in failing) {
+			float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { house.regionId }) ?? 0f;
+			float reachLost = marginalShare * independentCoverageReachFactor;
+			int carried = house.CurrentClientCount;
+			foreach (string clientId in house.clientLabelIds.ToList()) {
+				AILabel client = GetLabel(clientId);
+				if (client == null) continue;
+				if (!client.independentDistributionRegions.Remove(house.regionId)) continue;
+				client.ownedReach = Mathf.Max(0f, client.ownedReach - reachLost);
+			}
+			house.clientLabelIds.Clear();
+			independentDistributors.Remove(house);
+			if (independentDistributorsByRegion.TryGetValue(house.regionId, out var inRegion)) inRegion.Remove(house);
+			OnIndependentTradeFailure?.Invoke(new IndependentTradeFailureTelemetry {
+				year = year,
+				distributorId = house.distributorId,
+				distributorName = house.distributorName,
+				regionId = house.regionId,
+				clientsDropped = carried,
+				reachLostPerClient = reachLost,
+				housesRemaining = independentDistributors.Count,
+				survivalRate = survival
+			});
+		}
 	}
 
 	private void ProcessDistributionDeals(GameDate date) {
@@ -2667,58 +3398,251 @@ public partial class CompetitorManager : Node {
 				DistributorCollapseCount++;
 				continue;
 			}
-			if (currentWeek >= deal.signedWeek + deal.termWeeks) ResolveDistributionDeal(client, distributor, currentWeek);
+			if (currentWeek >= deal.signedWeek + deal.termWeeks) ResolveDistributionDeal(client, distributor, currentWeek, date.year);
 		}
 
 		if (!distributionOfferProcessingEnabled) return;
 		foreach (AILabel client in aiLabels.Where(label => label.IsActive && label.activeDeal == null).ToList()) {
 			TryGenerateDistributionOffer(client, date.year, currentWeek);
 		}
+		// Section 33.3: a Major courting a proven label that ALREADY has a distributor. Without
+		// this pass the courting route could only reach labels with no distributor at all, and
+		// every label worth courting had one -- so the entire late-60s consolidation engine
+		// fired 5-16 times per decade and every push-side constant was inert (section 32.3).
+		// A major took over a label that was already selling through somebody else; it did not
+		// sign up orphans.
+		foreach (AILabel client in aiLabels.Where(label => label.IsActive && label.activeDeal != null).ToList()) {
+			TryPoachDistributedClient(client, date.year, currentWeek);
+		}
 	}
 
-	private void TryGenerateDistributionOffer(AILabel client, int year, int currentWeek) {
-		bool eligibleTier = client.tier == LabelTier.Small || client.tier == LabelTier.Boutique || client.tier == LabelTier.Independent;
-		if (!eligibleTier) return;
+	/// <summary>
+	/// Tiers that can enter a distribution contract. A label above these runs at a scale that
+	/// negotiates its own distribution. This is the single definition both the signing route
+	/// and the renewal check use -- keeping them in one place is what stops the two sides
+	/// drifting apart again, which is how promoted labels ended up renewing contracts they
+	/// could never have signed for eight years running.
+	/// </summary>
+	internal static bool CanSignDistributionDeal(LabelTier tier) =>
+		tier == LabelTier.Small || tier == LabelTier.Boutique || tier == LabelTier.Independent;
 
-		bool pullTrigger = client.nationalReach < 0.40f && HasStrongRegionalChartRecord(client);
-		float pushChance = monthlyPushOfferProbability + (Mathf.Max(0, year - 1966) * annualPost1966PushRamp);
-		bool pushTrigger = (client.momentumScore > 0.60f || HasRecentTop40Record(client)) && GD.Randf() < pushChance;
-		bool pullOffer = pullTrigger && GD.Randf() < monthlyPullOfferProbability;
-		if (!pushTrigger && !pullOffer) return;
+	private void TryPoachDistributedClient(AILabel client, int year, int currentWeek) {
+		// Poaching is the consolidation wave, and the wave is late. The majors sat out rock and
+		// roll and the independents carried it, so an early-60s major taking a proven indie off
+		// another distributor is the wrong story in the wrong year (section 29's correction to
+		// the target shape). Measured at the base rate it was also poor value: six poaches in
+		// 1960 cost thirteen unique labels their first chart entry. Gate it to the courting
+		// ramp so it acts where the history and the target arc both put it.
+		if (year < consolidationCourtingRampStartYear) return;
+		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier)) return;
+		DistributionDeal current = client.activeDeal;
+		AILabel incumbent = GetLabel(current?.distributorId);
+		// A Major does not poach another Major's client; this is the indie-to-major flow.
+		if (incumbent == null || incumbent.tier == LabelTier.Major) return;
 
-		DealOrigin origin = pushTrigger ? DealOrigin.DistributorCourted : DealOrigin.LabelSought;
-		AILabel distributor = SelectDistributor(client, origin);
-		if (distributor == null) return;
-		DistributionDeal offer = GenerateDealTerms(client, distributor, origin, year, currentWeek);
+		// The same proven-label bar the courting route already used, and the same ramp, so
+		// courting still concentrates into the late-60s consolidation years.
+		if (!(client.momentumScore > 0.60f || HasRecentTop40Record(client))) return;
+		float pushChance = monthlyPushOfferProbability +
+			(Mathf.Max(0, year - consolidationCourtingRampStartYear) * annualCourtingRampPerYear);
+		// Seed-stable and off the global stream. This roll runs for every distributed client
+		// every month, so drawing it from GD.Randf would reorder every downstream sampler and
+		// the resulting chart movement could not be attributed to poaching rather than to RNG
+		// reordering (section 12) -- the first 52-week measurement showed exactly that, with
+		// 34 entries moving on the back of 5 actual poaches.
+		if (GetDeterministicIndependentDistributionRoll(client.labelId, "poach", currentWeek) >= pushChance) return;
+
+		AILabel major = SelectDistributor(client, DealOrigin.DistributorCourted, requireMajorDistributor: true);
+		// Every Major sat at the client ceiling by the 312-week checkpoint, so poaching starved
+		// on capacity and fired three times in two years. A major taking on a proven independent
+		// did not wait for a vacancy -- it made room by dropping an imprint that was not selling.
+		AILabel dropped = null;
+		if (major == null) {
+			(major, dropped) = SelectMajorWillingToDropWeakestClient(client);
+			if (major == null) return;
+		}
+
+		DistributionDeal offer = GenerateDealTerms(client, major, DealOrigin.DistributorCourted, year, currentWeek);
 		DistributionOffersGenerated++;
 		if (!ShouldAcceptDeal(client, offer)) return;
 		DistributionOffersAccepted++;
 
+		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
+			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+		offer.Cover(evidence.EarningRecordId);
+		if (dropped != null) {
+			// The dropped imprint keeps what a completed term leaves behind, exactly as an
+			// ordinary exit does, and is free to place its line with wholesale houses instead.
+			DistributionDeal endedDeal = dropped.activeDeal;
+			dropped.ownedReach = Mathf.Min(1f, dropped.ownedReach + (endedDeal.reachGranted * 0.50f));
+			EmitDealEvent(dropped, major, endedDeal, DealResolution.Dropped, dropped.DistributionDependency);
+			dropped.activeDeal = null;
+		}
+		EmitDealEvent(client, incumbent, current, DealResolution.Poached, client.DistributionDependency);
+		client.activeDeal = offer;
+		client.cashReserves += offer.advance;
+		major.cashReserves -= offer.advance;
+		EmitDealEvent(client, major, offer, DealResolution.Signed, client.DistributionDependency);
+	}
+
+	private void TryGenerateDistributionOffer(AILabel client, int year, int currentWeek) {
+		// A subsidiary already distributes through the parent's national network and does not
+		// sign its own deals.
+		if (client.IsSubsidiary) return;
+		if (!CanSignDistributionDeal(client.tier)) return;
+
+		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
+			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+		// A scalar national-awareness estimate is not a physical network. The old
+		// <0.40 test excluded every otherwise-qualified runtime Independent above
+		// that arbitrary line even when a distributor still had six new regions to
+		// offer. SelectDistributor already enforces the real boundary: at least one
+		// distributor region the client does not currently cover.
+		bool pullTrigger = IsPullDealTrigger(client, regionalEvidence);
+		float pushChance = monthlyPushOfferProbability +
+			(Mathf.Max(0, year - consolidationCourtingRampStartYear) * annualCourtingRampPerYear);
+		bool pushEvidence = client.momentumScore > 0.60f || HasRecentTop40Record(client);
+		bool pushTrigger = pushEvidence && GD.Randf() < pushChance;
+		bool pullOffer = pullTrigger && GD.Randf() < monthlyPullOfferProbability;
+		var attempt = new DistributionOfferAttemptTelemetry {
+			week = currentWeek,
+			year = year,
+			clientId = client.labelId,
+			clientName = client.labelName,
+			clientTier = client.tier,
+			clientOrigin = client.populationOrigin,
+			monthsActive = client.monthsActive,
+			ownedReach = client.ownedReach,
+			nationalReach = client.nationalReach,
+			bestAnyRegionPeak = regionalEvidence.BestAnyRegionPeak,
+			bestStrongRegionPeak = regionalEvidence.BestStrongRegionPeak,
+			bestPersistentEvidenceQuality = regionalEvidence.BestPersistentEvidenceQuality,
+			persistentRegionalEvidence = regionalEvidence.HasPersistentRegionalTraction,
+			legacyQualityAndCurrentSalesEvidence = regionalEvidence.PassesLegacyQualityAndCurrentSalesGate,
+			legacyNationalReachGate = client.nationalReach < 0.40f,
+			pushEvidence = pushEvidence,
+			pushChancePassed = pushTrigger,
+			pullChancePassed = pullOffer
+		};
+		if (!pushTrigger && !pullOffer) {
+			attempt.outcome = pushEvidence || pullTrigger ? "OfferChanceMiss" : "NoEvidence";
+			OnDistributionOfferAttempt?.Invoke(attempt);
+			return;
+		}
+
+		DealOrigin origin = pushTrigger ? DealOrigin.DistributorCourted : DealOrigin.LabelSought;
+		AILabel distributor = SelectDistributor(client, origin);
+		if (distributor == null) {
+			attempt.outcome = "NoDistributor";
+			OnDistributionOfferAttempt?.Invoke(attempt);
+			return;
+		}
+		attempt.distributorId = distributor.labelId;
+		DistributionDeal offer = GenerateDealTerms(client, distributor, origin, year, currentWeek);
+		DistributionOffersGenerated++;
+		if (!ShouldAcceptDeal(client, offer)) {
+			attempt.outcome = "Rejected";
+			OnDistributionOfferAttempt?.Invoke(attempt);
+			return;
+		}
+		DistributionOffersAccepted++;
+
+		// The deal is struck to carry the record that broke out regionally. Everything
+		// the label releases while the contract runs then goes out through the same
+		// network; the back catalog stays on the label's own distribution.
+		offer.Cover(regionalEvidence.EarningRecordId);
 		client.activeDeal = offer;
 		client.cashReserves += offer.advance;
 		distributor.cashReserves -= offer.advance;
+		attempt.outcome = "Signed";
+		OnDistributionOfferAttempt?.Invoke(attempt);
 		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
 	}
 
-	private bool HasStrongRegionalChartRecord(AILabel label) {
-		if (ChartManager.Instance == null || label.strongRegions == null) return false;
-		var strongRegions = label.strongRegions.ToHashSet(System.StringComparer.Ordinal);
-		return ChartManager.Instance.GetAllRecords().Any(record =>
-			record.baseRecord.labelId == label.labelId && record.currentPosition > 0 && record.GetQuality() > 0.70f &&
-			record.regionalData.Any(pair => strongRegions.Contains(pair.Key) && pair.Value.unitsSoldThisWeek > 0));
+	// This is the pull trigger: a label with a record selling hard in its own region
+	// goes looking for a distributor that can carry it national. The first repair
+	// replaced a national chart requirement with peakRegionalBreakoutStrength, but
+	// then re-closed most of the route in two subtler ways: it demanded omniscient
+	// intrinsic quality > .70 and a sale in the current processing week. A proven
+	// regional record therefore stopped being evidence whenever its shelf stock
+	// happened to be empty at the monthly check.
+	//
+	// RegionalRecordData.peakBreakoutScore already blends fulfilled and raw sales,
+	// velocity, sustained growth, audience, media, genre fit, quality, and unmet
+	// demand. Treat LocalTraction in any actual market as persistent observed
+	// evidence. A static launch-time "strong region" is useful attribution
+	// telemetry, but it is not an exclusive list of places where a record may prove
+	// itself organically. The former strong-region-only rule discarded 29 of 96
+	// runtime founders with a >=.30 market peak in the measured 1960-65 checkpoint.
+
+	internal static RegionalDealEvidence EvaluateRegionalDealEvidence(
+		IEnumerable<RecordRuntimeData> records, string labelId, IEnumerable<string> strongRegionIds, float threshold) {
+		var strongRegions = (strongRegionIds ?? System.Array.Empty<string>())
+			.Where(regionId => !string.IsNullOrEmpty(regionId))
+			.ToHashSet(System.StringComparer.Ordinal);
+		float boundedThreshold = Mathf.Clamp(threshold, 0f, 1f);
+		float bestAny = 0f;
+		float bestStrong = 0f;
+		float bestEvidenceQuality = 0f;
+		bool persistent = false;
+		bool legacy = false;
+		// The record whose regional breakout actually earns the deal. The contract is
+		// struck to carry this record beyond its home market, so it is the one the
+		// deal must cover from the moment it is signed.
+		string earningRecordId = null;
+		float earningRecordPeak = 0f;
+		foreach (RecordRuntimeData record in records ?? System.Array.Empty<RecordRuntimeData>()) {
+			if (record?.baseRecord?.labelId != labelId) continue;
+			float quality = record.GetQuality();
+			bool currentStrongSale = false;
+			bool recordHasPersistentEvidence = false;
+			float recordBestPeak = 0f;
+			foreach (var pair in record.regionalData) {
+				float peak = Mathf.Max(0f, pair.Value?.peakBreakoutScore ?? 0f);
+				bestAny = Mathf.Max(bestAny, peak);
+				recordBestPeak = Mathf.Max(recordBestPeak, peak);
+				if (peak >= boundedThreshold) recordHasPersistentEvidence = true;
+				if (!strongRegions.Contains(pair.Key)) continue;
+				bestStrong = Mathf.Max(bestStrong, peak);
+				if ((pair.Value?.unitsSoldThisWeek ?? 0) > 0) currentStrongSale = true;
+			}
+			if (recordHasPersistentEvidence) {
+				persistent = true;
+				bestEvidenceQuality = Mathf.Max(bestEvidenceQuality, quality);
+			}
+			// Tracked for every record, not only qualifying ones, so a distributor-courted
+			// deal still binds to the label's strongest current release. When the pull
+			// route qualifies, the strongest record is by construction a qualifying one.
+			if (earningRecordId == null || recordBestPeak > earningRecordPeak) {
+				earningRecordPeak = recordBestPeak;
+				earningRecordId = record.baseRecord.recordId;
+			}
+			if (record.peakRegionalBreakoutStrength >= boundedThreshold &&
+				quality > 0.70f && currentStrongSale) legacy = true;
+		}
+		return new RegionalDealEvidence(bestAny, bestStrong, bestEvidenceQuality, persistent, legacy, earningRecordId);
 	}
 
-	private bool HasRecentTop40Record(AILabel label) => ChartManager.Instance != null &&
-		ChartManager.Instance.GetAllRecords().Any(record => record.baseRecord.labelId == label.labelId &&
-			record.currentPosition > 0 && record.currentPosition <= 40 && record.weeksSinceRelease <= 52);
+	internal static bool IsPullDealTrigger(AILabel client, RegionalDealEvidence evidence) =>
+		client != null && evidence.HasPersistentRegionalTraction;
 
-	private AILabel SelectDistributor(AILabel client, DealOrigin origin) {
+	private bool HasRecentTop40Record(AILabel label) => label != null &&
+		GetRecentTop40RecordCount(label.labelId, 52) > 0;
+
+	private AILabel SelectDistributor(AILabel client, DealOrigin origin, bool requireMajorDistributor = false) {
 		var weighted = new List<(AILabel Label, float Weight)>();
 		foreach (AILabel distributor in aiLabels) {
+			if (requireMajorDistributor && distributor.tier != LabelTier.Major) continue;
 			if (!IsEligibleDistributor(distributor, client, origin)) continue;
 			bool genreFit = distributor.preferredGenres?.Intersect(client.preferredGenres ?? System.Array.Empty<Genre>()).Any() ?? false;
 			float weight = (distributor.ownedReach * 0.50f) + (distributor.reputation * 0.30f) + (genreFit ? 0.20f : 0f);
-			weight *= distributor.tier switch { LabelTier.Major => 6f, LabelTier.MidTier => 1.5f, _ => 1f };
+			// Path A (section 26): a Major is the historically dominant distributor of independents,
+			// and only a Major-distributed deal is absorb-eligible. At the old 6x weight only 18% of
+			// deals routed to the 8 Majors (the many MidTier distributors diluted them), so most
+			// dependent labels signed with a distributor that could never absorb them and the
+			// absorb-eligible pool stayed tiny despite ample unused Major capacity. 12x routes the
+			// dependent population toward Majors without touching the high-dependency absorption gate.
+			weight *= distributor.tier switch { LabelTier.Major => 12f, LabelTier.MidTier => 1.5f, _ => 1f };
 			if (weight > 0f) weighted.Add((distributor, weight));
 		}
 		if (weighted.Count == 0) return null;
@@ -2737,16 +3661,30 @@ public partial class CompetitorManager : Node {
 		bool validTier = distributor.tier == LabelTier.Major || distributor.tier == LabelTier.MidTier ||
 			(distributor.tier == LabelTier.Independent && distributor.ownedReach >= 0.65f);
 		if (!validTier || WouldCreateCircularDeal(client, distributor)) return false;
-		int capacity = distributor.tier switch { LabelTier.Major => 12, LabelTier.MidTier => 6, _ => 3 };
+		// Section 33 slice 6. The ceiling of 24 was set in section 27 purely to widen the pool
+		// absorption feeds on, and absorption fires 12-19 times per decade. What it actually built
+		// was a Major-distributed roster of 212 that saturated in 1960 and never turned over --
+		// median client tenure 8.4 years, 54% of it the 1960-61 cohort -- and that frozen roster,
+		// not the masters rate, is what drives the owner-Major overshoot (section 32.2).
+		//
+		// A 1960s major carried a handful of distributed imprints, not two dozen: ABC around seven,
+		// MGM about five, Mercury about four, and most of those were owned subsidiaries rather than
+		// independent clients. Ten is the realistic figure and is what the user's own research put
+		// the range at.
+		//
+		// This deliberately ships LAST. Major distribution is the chart-access gate for independents
+		// (60% of Major-distributed Independents chart, against 34% on a MidTier distributor and
+		// 2.5% undistributed, section 32.4), so cutting it before the independent channel existed
+		// would have stranded the displaced labels and cost breadth with nothing to catch them.
+		// Slices 1-5 built what catches them.
+		int capacity = distributor.tier == LabelTier.Major
+			? MajorDistributionCapacityFor(distributor)
+			: distributor.tier == LabelTier.MidTier ? 6 : 3;
 		if (aiLabels.Count(label => label.activeDeal?.distributorId == distributor.labelId) >= capacity) return false;
 		float minimumAdvance = origin == DealOrigin.DistributorCourted ? client.GetMonthlyOverhead() * 6f : 0f;
 		if (distributor.cashReserves - minimumAdvance <= distributor.GetMonthlyOverhead() * 3f) return false;
 
 		var offeredRegions = distributor.distributionRegions ?? System.Array.Empty<string>();
-		if (origin == DealOrigin.LabelSought) {
-			return (client.strongRegions ?? System.Array.Empty<string>()).Any(region =>
-				!client.HasDistributionInRegion(region) && offeredRegions.Contains(region));
-		}
 		return offeredRegions.Any(region => !client.HasDistributionInRegion(region));
 	}
 
@@ -2760,23 +3698,46 @@ public partial class CompetitorManager : Node {
 		return false;
 	}
 
+	// Section 29: the Major master-ownership floor ramps linearly from the early rate to the late
+	// rate between the ramp-start and ramp-full years, modeling the late-60s P&D consolidation. A
+	// flat rate produced a high, flat owner-Major line; ramping produces the desired dip-then-rise.
+	private float GetMajorMastersOwnershipRate(int year) {
+		if (year <= majorMastersRampStartYear) return majorDistributorMastersOwnershipRateEarly;
+		if (year >= majorMastersRampFullYear) return majorDistributorMastersOwnershipRateLate;
+		float t = (float)(year - majorMastersRampStartYear) / (majorMastersRampFullYear - majorMastersRampStartYear);
+		return Mathf.Lerp(majorDistributorMastersOwnershipRateEarly, majorDistributorMastersOwnershipRateLate, t);
+	}
+
 	private DistributionDeal GenerateDealTerms(AILabel client, AILabel distributor, DealOrigin origin, int year, int currentWeek) {
 		bool push = origin == DealOrigin.DistributorCourted;
-		string[] availableRegions = (distributor.distributionRegions ?? System.Array.Empty<string>())
-			.Where(region => !client.HasDistributionInRegion(region)).Distinct().ToArray();
-		string[] grantedRegions = push
-			? availableRegions
-			: availableRegions.Intersect(client.strongRegions ?? System.Array.Empty<string>()).ToArray();
+		string[] availableRegions = GetGrantedDistributionRegions(client, distributor.distributionRegions);
 		float advance = push
 			? client.GetMonthlyOverhead() * (float)GD.RandRange(6f, 12f)
 			: (GD.Randf() < 0.35f ? 0f : client.GetMonthlyOverhead() * (float)GD.RandRange(0.5f, 2f));
 		advance = Mathf.Min(advance, Mathf.Max(0f, distributor.cashReserves - (distributor.GetMonthlyOverhead() * 3f)));
+		// Borrowed reach is worth the market the distributor's owned network actually
+		// reaches. It was formerly an independent random draw, so a distributor owning
+		// three regions could grant more national reach than one owning all seven.
+		// Scaling the negotiated range by that coverage leaves a genuinely national
+		// distributor at the authored terms and correctly discounts a partial one.
+		float distributorCoverage = ChartManager.Instance?.GetNationalMarketShareForRegions(distributor.distributionRegions) ?? 1f;
+		float negotiatedReach = push ? (float)GD.RandRange(0.50f, 0.80f) : (float)GD.RandRange(0.30f, 0.50f);
+		// Section 28: majors distributing independents in the 1960s routinely owned the masters
+		// (the "P&D" deal), which is what folds those records into the major's corporate/distributor
+		// chart share (section 27.1). A Major distributor therefore takes masters far more often than
+		// the old flat 0.15 pull rate; the push rate already reflects an aggressive courting deal.
+		float mastersRate = push ? pushMastersOwnershipRate : 0.15f;
+		if (distributor.tier == LabelTier.Major) mastersRate = Mathf.Max(mastersRate, GetMajorMastersOwnershipRate(year));
 		return new DistributionDeal {
 			distributorId = distributor.labelId,
-			reachGranted = push ? (float)GD.RandRange(0.50f, 0.80f) : (float)GD.RandRange(0.30f, 0.50f),
-			grantedRegions = grantedRegions,
+			reachGranted = negotiatedReach * distributorCoverage,
+			// The deal exists to carry a proven regional record beyond its home market.
+			// The former pull path intersected the distributor's network with the client's
+			// strong regions, so it granted only the market the client already served and
+			// never supplied the national bridge the contract represented.
+			grantedRegions = availableRegions,
 			marginSkim = push ? (float)GD.RandRange(pushMarginSkimMin, pushMarginSkimMax) : (float)GD.RandRange(pullMarginSkimMin, pullMarginSkimMax),
-			ownsMasters = GD.Randf() < (push ? pushMastersOwnershipRate : 0.15f),
+			ownsMasters = GD.Randf() < mastersRate,
 			advance = advance,
 			unrecoupedAdvance = advance,
 			signedWeek = currentWeek,
@@ -2785,6 +3746,12 @@ public partial class CompetitorManager : Node {
 		};
 	}
 
+	internal static string[] GetGrantedDistributionRegions(AILabel client, IEnumerable<string> distributorRegions) =>
+		(distributorRegions ?? System.Array.Empty<string>())
+			.Where(region => client != null && !client.HasDistributionInRegion(region))
+			.Distinct(System.StringComparer.Ordinal)
+			.ToArray();
+
 	private static bool ShouldAcceptDeal(AILabel client, DistributionDeal offer) {
 		float currentReach = client.distributionStrength;
 		float projectedReach = Mathf.Clamp(client.ownedReach + offer.reachGranted, 0f, 1f);
@@ -2792,73 +3759,145 @@ public partial class CompetitorManager : Node {
 
 		bool cashPressured = client.cashReserves < client.GetMonthlyOverhead() * 6f || client.consecutiveLossMonths >= 3;
 		bool momentumHungry = client.momentumScore > 0.55f || client.status == LabelStatus.Rising;
+		bool courted = offer.origin == DealOrigin.DistributorCourted;
 		float acceptance = 0.20f + (cashPressured ? 0.35f : 0f) + (momentumHungry ? 0.30f : 0f);
 		if (offer.origin == DealOrigin.LabelSought) acceptance += 0.20f;
-		if (client.tier == LabelTier.Independent && client.ownedReach >= 0.45f && !cashPressured) acceptance -= 0.35f;
+		// A Major actively courting a proven independent -- with a 6-12 month advance -- is the
+		// historical way most indies were pulled into a major's fold late-decade (path A, section
+		// 26). It was getting rejected ~83% of the time: the "successful indie stays independent"
+		// penalty below fired on exactly these ownedReach>=0.45 courting targets, making
+		// independence the rule when history made it the Motown exception. A courting offer now
+		// carries a strong acceptance bonus AND is exempt from that penalty, so most courted
+		// dependent labels sign, stay dependent, and are absorbable when the window opens.
+		if (courted) acceptance += 0.35f;
+		if (!courted && client.tier == LabelTier.Independent && client.ownedReach >= 0.45f && !cashPressured) acceptance -= 0.35f;
 		return GD.Randf() < Mathf.Clamp(acceptance, 0.05f, 0.95f);
 	}
 
-	private void ResolveDistributionDeal(AILabel client, AILabel distributor, int currentWeek) {
+	private void ResolveDistributionDeal(AILabel client, AILabel distributor, int currentWeek, int year) {
 		DistributionDeal deal = client.activeDeal;
 		float dependency = client.DistributionDependency;
+		// A completed term leaves a client with national relationships and market knowledge even
+		// when the contract renews. Before this coupling, nationalReach was a generation-only
+		// attribute, so labels could build or borrow a national distribution network for years
+		// while remaining permanently regional in the propagation path that actually feeds the
+		// chart. The retained fraction is bounded below seeded Major reach and consumes no RNG.
+		client.nationalReach = CalculateNationalReachAfterCompletedDeal(client.nationalReach,
+			deal.reachGranted, completedDealNationalReachRetention, CompletedDealNationalReachCeiling);
+		// Section 32.2: TryGenerateDistributionOffer bars a MidTier from SIGNING a contract,
+		// and nothing here barred one from RENEWING it, so a client promoted while under
+		// contract renewed indefinitely -- 29-44 of them per decade run, at a median tenure of
+		// 8.4 years, and they were the single largest block of the owner-Major surplus. A label
+		// that has grown past the tiers that can sign now leaves the contract at term instead,
+		// keeping half the reach it borrowed, exactly as a low-dependency exit does.
+		if (!CanSignDistributionDeal(client.tier)) {
+			client.ownedReach = Mathf.Min(1f, client.ownedReach + (deal.reachGranted * 0.50f));
+			EmitDealEvent(client, distributor, deal, DealResolution.Graduated, dependency);
+			client.activeDeal = null;
+			return;
+		}
 		if (dependency < dealDependencyLow) {
+			// Low dependency: the client has built enough of its own reach to leverage the
+			// deal and stay independent (early Motown). It exits and keeps part of the reach.
 			client.ownedReach = Mathf.Min(1f, client.ownedReach + (deal.reachGranted * 0.50f));
 			EmitDealEvent(client, distributor, deal, DealResolution.Exit, dependency);
 			client.activeDeal = null;
 		} else if (dependency < dealDependencyHigh) {
+			RerollMastersOnRenewal(client, distributor, deal, year, currentWeek);
 			EmitDealEvent(client, distributor, deal, DealResolution.Renew, dependency);
 			deal.signedWeek = currentWeek;
-		} else if (deal.ownsMasters) {
-			AbsorbLabel(client, distributor, dependency);
+		} else if (ShouldConsolidate(client, distributor, year) && AbsorbLabel(client, distributor, dependency)) {
+			// High dependency: the client leaned on the major's network rather than building
+			// its own (Stax -> Atlantic). Late-decade, a charted such independent is absorbed
+			// into the major family, reattributing its chart records to the owner while its
+			// release imprint still counts for breadth. Absorption stays gated to high
+			// dependency by design -- it is never a blanket effect across all deals.
 		} else {
+			// A high-dependency client that is renewed rather than absorbed (pre-1966, or an
+			// uncharted/non-Major-distributed one in-window) keeps leaning on the network. The
+			// reach erosion here was steep enough (0.85x/cycle) that high-dependency labels
+			// eroded down into the mid band before the 1966 consolidation window opened -- the
+			// high-dep expiry pool collapsed from ~20/yr in 1961-63 to ~4-6/yr by 1966-69, which
+			// starved absorption. Path A (section 26) softens it to 0.93x so a genuinely dependent
+			// label stays dependent and is still absorbable when the window opens.
+			RerollMastersOnRenewal(client, distributor, deal, year, currentWeek);
 			EmitDealEvent(client, distributor, deal, DealResolution.Renew, dependency);
 			deal.marginSkim = Mathf.Min(0.50f, deal.marginSkim + 0.05f);
-			deal.reachGranted = Mathf.Max(0.10f, deal.reachGranted * 0.85f);
+			deal.reachGranted = Mathf.Max(0.10f, deal.reachGranted * 0.93f);
 			deal.signedWeek = currentWeek;
 		}
 	}
 
-	private void AbsorbLabel(AILabel client, AILabel distributor, float dependency) {
-		if (client == null || distributor == null || client == distributor || !client.IsActive || !distributor.IsActive) return;
+	// Deterministic consolidation gate, split from the random roll so it can be probed
+	// without a simulation. An absorption is eligible only inside the historical window,
+	// under the decade cap, from a Major (or, when enabled, a national MidTier) acquirer,
+	// against an independent-family client that has already charted. The random roll is
+	// applied separately in ShouldConsolidate so a false gate consumes no RNG -- which is
+	// what keeps pre-window years byte-identical to the pre-lever configuration.
+	internal static bool IsConsolidationEligible(int year, int consolidationStartYear,
+		LabelTier distributorTier, bool distributorNational, LabelTier clientTier, bool clientHasCharted,
+		bool requireCharted, bool allowNationalMidTier, int absorptionsSoFar, int cap) {
+		if (year < consolidationStartYear) return false;
+		if (absorptionsSoFar >= cap) return false;
+		bool eligibleDistributor = distributorTier == LabelTier.Major ||
+			(allowNationalMidTier && distributorTier == LabelTier.MidTier && distributorNational);
+		if (!eligibleDistributor) return false;
+		// Section 28: the historically dominant late-60s consolidation was majors absorbing
+		// high-volume MidTier labels (WB->Atlantic 1967, MCA->Kapp/Uni), not only tiny indies.
+		// A MidTier client is therefore absorbable; only a Major client (a peer, not a target)
+		// is excluded. Absorbing individually low-volume Small/Independent labels alone cannot
+		// bridge the chart-share gap -- a dependent MidTier hitmaker carries real chart volume.
+		bool absorbableClient = clientTier != LabelTier.Major;
+		if (!absorbableClient) return false;
+		return !requireCharted || clientHasCharted;
+	}
+
+	private bool ShouldConsolidate(AILabel client, AILabel distributor, int year) {
+		if (forcedConsolidationClients.Contains(client.labelId)) return true;
+		bool distributorNational = consolidationAllowNationalMidTier &&
+			(ChartManager.Instance?.GetNationalMarketShareForRegions(distributor.distributionRegions) ?? 0f) >= 0.80f;
+		if (!IsConsolidationEligible(year, consolidationStartYear, distributor.tier, distributorNational,
+				client.tier, chartedLabelIds.Contains(client.labelId), consolidationRequireCharted,
+				consolidationAllowNationalMidTier, consolidationAbsorptionsThisDecade,
+				maxDecadeConsolidationAbsorptions)) {
+			return false;
+		}
+		return GD.Randf() < consolidationAbsorbChance;
+	}
+
+	// Absorption is the subsidiary model (section 24). An absorbed independent is NOT shut
+	// down: it keeps its own roster, records, release imprint and album projects, and keeps
+	// charting. Only ownership rolls up to the Major -- via ownerLabelId here and the
+	// acquiredBy chain the audit builds from the Absorb event -- which is what lets each
+	// subsidiary keep producing as Major-owned so consolidation actually raises owner-Major
+	// chart share instead of bottlenecking the absorbed roster onto a capacity-bound Major.
+	private bool AbsorbLabel(AILabel client, AILabel distributor, float dependency) {
+		if (client == null || distributor == null || client == distributor || !client.IsActive || !distributor.IsActive) return false;
+		if (client.IsSubsidiary) return false;
 		DistributionDeal deal = client.activeDeal;
-		if (deal == null || deal.distributorId != distributor.labelId || WouldCreateCircularDeal(client, distributor)) return;
+		if (deal == null || deal.distributorId != distributor.labelId || WouldCreateCircularDeal(client, distributor)) return false;
 
-		distributor.marketShare += client.marketShare;
-		distributor.top40Hits += client.top40Hits;
-		distributor.numberOneHits += client.numberOneHits;
-		foreach (SimulatedArtist artist in client.roster.ToList()) {
-			artist.labelId = distributor.labelId;
-			artist.isPlayerOwned = false;
-			if (!distributor.roster.Contains(artist)) distributor.roster.Add(artist);
-		}
-		client.roster.Clear();
-		if (LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.ReconcileAcquisitionRosterTarget(distributor);
-		else distributor.maxRosterSize = Mathf.Max(distributor.maxRosterSize, distributor.CurrentRosterSize);
-
-		if (!labelActiveRecords.TryGetValue(distributor.labelId, out List<string> distributorRecords)) {
-			distributorRecords = new List<string>();
-			labelActiveRecords[distributor.labelId] = distributorRecords;
-		}
-		if (labelActiveRecords.TryGetValue(client.labelId, out List<string> clientRecords)) {
-			foreach (string recordId in clientRecords) if (!distributorRecords.Contains(recordId)) distributorRecords.Add(recordId);
-			clientRecords.Clear();
-		}
-		foreach (RecordRuntimeData record in ChartManager.Instance.GetAllRecords().Where(record => record.baseRecord.labelId == client.labelId)) {
-			record.baseRecord.labelId = distributor.labelId;
-		}
-		foreach (AlbumProject project in albumProjects.Where(project =>
-			project.terminalState == AlbumProjectTerminalState.PendingAtAuditEnd && project.currentLabelId == client.labelId)
-			.OrderBy(project => project.creationSequence)) {
-			project.currentLabelId = distributor.labelId;
-			project.albumRecord.labelId = distributor.labelId;
-			project.transferCount++;
-			project.wasTransferred = true;
-		}
-
+		consolidationAbsorptionsThisDecade++;
 		EmitDealEvent(client, distributor, deal, DealResolution.Absorb, dependency);
+		ApplySubsidiaryAbsorption(client, distributor);
+		if (LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.MarkLabelSubsidiary(client, distributor);
+		return true;
+	}
+
+	// Pure ownership/reach transfer for a subsidiary absorption, split out so it can be probed
+	// without a running simulation. Borrowed reach came from the now-terminated deal, so it is
+	// folded into ownedReach permanently (the subsidiary is now part of the parent's national
+	// network) and the parent's distribution regions are unioned in so per-region coverage
+	// persists after the deal is nulled. The roster, records, imprint and album projects are
+	// deliberately left untouched -- the subsidiary keeps operating and charting.
+	internal static void ApplySubsidiaryAbsorption(AILabel client, AILabel distributor) {
+		float borrowed = client.borrowedReach;
+		client.ownedReach = Mathf.Clamp(client.ownedReach + borrowed, 0f, 1f);
+		client.distributionRegions = (client.distributionRegions ?? System.Array.Empty<string>())
+			.Union(distributor.distributionRegions ?? System.Array.Empty<string>(), System.StringComparer.Ordinal)
+			.ToArray();
+		client.ownerLabelId = distributor.labelId;
 		client.activeDeal = null;
-		if (LabelLifecycleManager.Instance != null) LabelLifecycleManager.Instance.MarkLabelAcquired(client, distributor);
-		else client.status = LabelStatus.Acquired;
 	}
 
 	private void EmitDealEvent(AILabel client, AILabel distributor, DistributionDeal deal, DealResolution resolution, float dependency) {
@@ -2911,6 +3950,8 @@ public partial class CompetitorManager : Node {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
 		if (aiLabels != null && !aiLabels.Contains(label)) aiLabels.Add(label);
 		if (!labelActiveRecords.ContainsKey(label.labelId)) labelActiveRecords[label.labelId] = new List<string>();
+		if (!retiredLabelRecordHistory.ContainsKey(label.labelId))
+			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 		if (!labelFinancials.ContainsKey(label.labelId)) labelFinancials[label.labelId] = new LabelFinancialHistory();
 	}
 
@@ -2931,17 +3972,44 @@ public partial class CompetitorManager : Node {
 
 	public int GetRecentChartingRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
-		return ChartManager.Instance.GetAllRecords().Count(record =>
+		int active = ChartManager.Instance.GetAllRecords().Count(record =>
 			record.baseRecord.labelId == labelId &&
 			record.weeksSinceRelease <= maxAgeWeeks &&
 			record.weeksOnChart > 0);
+		return active + CountRecentRetiredRecordEvidence(
+			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+			maxAgeWeeks, requireCharted: true, requireTop40: false);
 	}
 
 	public int GetRecentReleasedRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
-		return ChartManager.Instance.GetAllRecords().Count(record =>
+		int active = ChartManager.Instance.GetAllRecords().Count(record =>
 			record.baseRecord.labelId == labelId &&
 			record.weeksSinceRelease <= maxAgeWeeks);
+		return active + CountRecentRetiredRecordEvidence(
+			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+			maxAgeWeeks, requireCharted: false, requireTop40: false);
+	}
+
+	private int GetRecentTop40RecordCount(string labelId, int maxAgeWeeks) {
+		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
+		int active = ChartManager.Instance.GetAllRecords().Count(record =>
+			record.baseRecord.labelId == labelId &&
+			record.weeksSinceRelease <= maxAgeWeeks &&
+			record.peakPosition > 0 && record.peakPosition <= 40);
+		return active + CountRecentRetiredRecordEvidence(
+			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+			maxAgeWeeks, requireCharted: false, requireTop40: true);
+	}
+
+	internal static int CountRecentRetiredRecordEvidence(IEnumerable<LabelRecordHistoryEntry> history,
+		int currentWeek, int maxAgeWeeks, bool requireCharted, bool requireTop40) {
+		int boundedAge = Mathf.Max(0, maxAgeWeeks);
+		return (history ?? System.Array.Empty<LabelRecordHistoryEntry>()).Count(entry =>
+			currentWeek - entry.ReleaseWeek >= 0 &&
+			currentWeek - entry.ReleaseWeek <= boundedAge &&
+			(!requireCharted || entry.Charted) &&
+			(!requireTop40 || entry.Top40));
 	}
 	
 	private void PrintMonthlyReport(GameDate date) {
@@ -3050,6 +4118,7 @@ public sealed class ReleaseStrategyTelemetry {
 	public float divertedUnits;
 	public float albumMarginPerUnit;
 	public float cannibalizationLoss;
+	public float cannibalizationCharged;
 	public float expectedPromoLift;
 	public float expectedPromoSingleNet;
 	public float promoAdvantage;

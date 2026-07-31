@@ -12,6 +12,13 @@ using Godot;
 public static class RuntimeLabelProfileFactory {
 	public const string ProfileVersion = "runtime-founded-v1";
 
+	// Section 27: fraction of Independent founders generated as dependent "Stax" hitmakers --
+	// high creative capability, low owned reach, financially fragile, and locked out of
+	// self-built distribution -- so they chart through a major's network, stay dependent, and
+	// are absorbed late-decade with real chart volume. Deliberately a minority; the rest of the
+	// dependent population stays the weak one-or-two-hit labels.
+	public const float DependentHitmakerShare = 0.12f;
+
 	public sealed class Result {
 		public AILabel Label { get; }
 		public int BirthWeek { get; }
@@ -136,17 +143,48 @@ public static class RuntimeLabelProfileFactory {
 		label.riskTolerance = Clamp(label.riskTolerance, .05f, .95f);
 		label.artistLoyalty = Clamp(label.artistLoyalty, .05f, .95f);
 		label.payolaWillingness = Clamp(label.payolaWillingness, .01f, .95f);
+
+		// Section 27: a minority of Independent founders are dependent "Stax" hitmakers. Give them
+		// strong creative capability (so they genuinely chart) but low owned/national reach (so they
+		// must lean on a distributor for national access) and a fragile balance sheet at founding
+		// (so they sign out of necessity). GrowSelfBuiltDistributionReach then leaves them alone, so
+		// they stay high-dependency and are absorbed late-decade. All values stay within the
+		// canonical envelope; the roll uses the label's own stable PRNG so other labels are
+		// unaffected.
+		if (label.tier == LabelTier.Independent && random.Next01() < DependentHitmakerShare) {
+			label.distributionDependentHitmaker = true;
+			label.productionQuality = Clamp(Sample(.74f, .91f, ref random), envelope.ProductionMin, envelope.ProductionMax);
+			label.scoutingAbility = Clamp(Sample(.70f, .91f, ref random), envelope.ScoutingMin, envelope.ScoutingMax);
+			label.marketingPower = Clamp(Sample(.50f, .72f, ref random), envelope.MarketingMin, envelope.MarketingMax);
+			label.ownedReach = Clamp(Sample(.28f, .36f, ref random), envelope.ReachMin, envelope.ReachMax);
+			label.nationalReach = Clamp(Sample(.18f, .28f, ref random), envelope.NationalMin, envelope.NationalMax);
+			label.cashReserves = Mathf.Min(label.cashReserves, label.GetMonthlyOverhead() * 2f);
+		}
 	}
 
 	private static void ReconcileFoundingAndGeography(AILabel label, MarketRegion[] regions, int birthYear) {
 		label.foundedYear = birthYear; label.monthsActive = 0; label.totalReleases = 0; label.top40Hits = 0; label.numberOneHits = 0;
 		label.momentumScore = 0f; label.consecutiveLossMonths = 0; label.sustainedCapabilityQuarters = 0; label.sustainedLowCapabilityQuarters = 0;
-		MarketRegion home = regions?.FirstOrDefault(region => region.majorCities?.Contains(label.headquartersCity) ?? false);
-		if (home == null && regions?.Length > 0) home = regions[0];
-		label.homeRegion = home?.regionId ?? "eastcoast";
+		// MarketRegion.majorCities is not the canonical city catalog and did not contain
+		// the generated headquarters names in live runs. Falling back to regions[0] therefore
+		// assigned every runtime-founded label to the East Coast -- 674/674 in the measured
+		// decade, including labels headquartered in San Francisco and Dallas. Resolve through
+		// the same canonical city substrate that assigns homeCityId.
+		MarketCity homeCity = DistanceModel.GetCityByName(label.headquartersCity);
+		string mappedRegionId = homeCity?.parentRegionId;
+		MarketRegion home = regions?.FirstOrDefault(region => region.regionId == mappedRegionId) ??
+			regions?.FirstOrDefault(region => region.majorCities?.Contains(label.headquartersCity) ?? false);
+		label.homeRegion = home?.regionId ?? mappedRegionId ?? "eastcoast";
 		if (string.IsNullOrWhiteSpace(label.headquartersCity)) label.headquartersCity = DistanceModel.GetHubCityForRegion(label.homeRegion)?.name ?? "New York";
 		label.strongRegions = new[] { label.homeRegion };
-		label.distributionRegions ??= Array.Empty<string>();
+		// A functioning home-market wholesale path is part of being a label, including at
+		// runtime. Preserve any wider network drawn by LabelGenerator and make the home market
+		// explicit so replenishment does not treat the founder's own strong region as uncovered.
+		label.distributionRegions = new[] { label.homeRegion }
+			.Concat(label.distributionRegions ?? Array.Empty<string>())
+			.Where(regionId => !string.IsNullOrEmpty(regionId))
+			.Distinct(StringComparer.Ordinal)
+			.ToArray();
 		DistanceModel.AssignHomeCity(label);
 	}
 

@@ -68,8 +68,22 @@ public partial class ArtistManager : Node {
 	public const int PerformanceDropCooldownWeeks = 13;
 	public const int RepeatPerformanceDropCooldownWeeks = 52;
 	private const int InactivityHorizonWeeks = 78;
-	private const int TerminalInactivityWeeks = 52;
-	private const int MinimumSoloRetirementAge = 35;
+	// A career ends when the market has finished with it, not when a clock runs out.
+	// A search spell only completes while an artist is Seeking, and an artist is only
+	// Seeking because activation found industry demand for them, so three completed
+	// spells is four and a half years of standing available while labels looked and
+	// chose somebody else. The age test is the one reason a career ends regardless of
+	// what the market is doing, and it applies to groups and solo acts alike.
+	private const int TerminalProspectSpellCount = 3;
+	private const int MinimumTerminalExitAge = 35;
+	// A held career keeps trying; it does not wait for the industry to send for it.
+	// Demand-gated activation alone left the reservoir inert in both directions: once
+	// seeking saturated the vacancy budget, activations were zero from 1963 on, 8331
+	// artists sat invisible to scouting, and because a spell only completes while
+	// Seeking, none of them could reach a terminal exit either. A year off the market
+	// and then another spell is both how a real career behaves and what turns the
+	// reservoir back into supply the market can actually see.
+	private const int LatentRotationWeeks = 52;
 	private readonly Dictionary<Genre, int> recentRuntimeFormationCounts = new();
 	private RandomNumberGenerator populationRng;
 	private float formationAccumulator;
@@ -166,12 +180,15 @@ public sealed class LaborMarketWeeklySnapshot {
 	public int runtimeFormationPopulation;
 	public int activeRostered;
 	public int experiencedFreeAgents;
+	public int seekingProspects;
+	public int latentProspects;
 	public int freshSeeking;
 	public int freshLatent;
-	public int affordableHiringOpportunityLabels;
+	public int affordableHiringVacancies;
 	public int requestedProspectActivations;
 	public int actualProspectActivations;
 	public int prospectSearchSpellExpirations;
+	public int latentRotations;
 	public float meanSeekingQuality;
 	public float meanLatentQuality;
 	public float activationMeanQuality;
@@ -623,9 +640,10 @@ public sealed class LaborMarketWeeklySnapshot {
 			recentRuntimeFormationCounts.Clear();
 		}
 		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
-		ApplyLifecycleExits(date.year, week);
+		ApplyLifecycleExits(date.year);
 		MaterializeRuntimeFormation(date);
-		ExpireCompletedProspectSearchSpells();
+		ExpireCompletedProspectSearchSpells(date.year);
+		RotateRestedLatentProspects();
 		ActivateProspectsForHiringOpportunities();
 		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: false);
 	}
@@ -660,34 +678,78 @@ public sealed class LaborMarketWeeklySnapshot {
 		}
 	}
 
-	private void ExpireCompletedProspectSearchSpells() {
+	private void ExpireCompletedProspectSearchSpells(int year) {
 		int expirations = 0;
 		foreach (SimulatedArtist artist in artistRegistry.Values.Where(IsSeekingProspect).ToArray()) {
 			if (!AdvanceProspectSearchWeekForProbe(artist)) continue;
 			unsignedArtists.RemoveAll(candidate => candidate == artist);
 			expirations++;
-			EmitPopulationEvent("prospect-search-expired", artist);
+			// The completed spell is the only place a career can end. Everyone else
+			// stays held in the reservoir at the cost of one spell's seniority.
+			if (ShouldApplyTerminalExit(artist, year)) ApplyTerminalExit(artist, year);
+			else EmitPopulationEvent("prospect-search-expired", artist);
 		}
 		laborMarketWeekly.prospectSearchSpellExpirations = expirations;
 	}
 
+	/// <summary>
+	/// Returns rested talent to the searchable market on its own clock. Demand-driven
+	/// activation below still runs and still serves the least-exposed acts first; this
+	/// only guarantees that being passed over is a spell out of the market rather than
+	/// a permanent disappearance from it.
+	/// </summary>
+	private void RotateRestedLatentProspects() {
+		int rotations = 0;
+		foreach (SimulatedArtist artist in artistRegistry.Values.Where(IsLatentProspect).ToArray()) {
+			if (++artist.prospectLatentWeeks < LatentRotationWeeks) continue;
+			ReturnProspectToSearchableMarket(artist);
+			rotations++;
+			EmitPopulationEvent("prospect-rotated", artist);
+		}
+		laborMarketWeekly.latentRotations = rotations;
+	}
+
+	internal static int GetLatentRotationWeeksForProbe() => LatentRotationWeeks;
+	internal static bool ShouldRotateLatentProspectForProbe(int latentWeeks) => latentWeeks >= LatentRotationWeeks;
+
+	private void ReturnProspectToSearchableMarket(SimulatedArtist artist) {
+		artist.prospectMarketStatus = ProspectMarketStatus.Seeking;
+		artist.prospectSeekingWeeks = 0;
+		artist.prospectLatentWeeks = 0;
+		unsignedArtists.Add(artist);
+	}
+
+	/// <summary>
+	/// Hiring demand is a count of unfilled roster slots, not of labels that have
+	/// one. A major with eight vacancies and a one-artist label with one used to
+	/// contribute exactly 1 each, so the activation budget in
+	/// <see cref="CalculateProspectActivationCount"/> was capped far below the slots
+	/// actually on offer and the formation servo read the same under-count. Counting
+	/// slots is tier-neutral: it does not edge out small labels, it counts their
+	/// demand at its true size of one rather than inflating it to a major's. The
+	/// affordability gate is unchanged, so a label that cannot pay an advance still
+	/// contributes nothing.
+	/// </summary>
+	internal static int GetAffordableHiringVacancies(AILabel label) =>
+		label?.IsActive == true && label.CanAffordToSign(label.PreviewScoutingGate(useOperatingRosterTarget: true).EstimatedAdvance)
+			? Mathf.Max(0, label.OperatingRosterTarget - label.CurrentRosterSize) : 0;
+
 	private void ActivateProspectsForHiringOpportunities() {
 		SimulatedArtist[] seeking = artistRegistry.Values.Where(IsSeekingProspect).ToArray();
 		SimulatedArtist[] latent = artistRegistry.Values.Where(IsLatentProspect).ToArray();
-		int opportunities = (ChartManager.Instance?.GetAllLabels() ?? new List<AILabel>()).Count(label => label?.IsActive == true &&
-			label.CurrentRosterSize < label.OperatingRosterTarget && label.CanAffordToSign(label.PreviewScoutingGate(useOperatingRosterTarget: true).EstimatedAdvance));
+		int opportunities = (ChartManager.Instance?.GetAllLabels() ?? new List<AILabel>()).Sum(GetAffordableHiringVacancies);
 		lastHiringOpportunities = opportunities;
-		lastSeekingProspects = seeking.Length;
-		lastLatentProspects = latent.Length;
+		lastSeekingProspects = seeking.Count(IsFirstContractProspect);
+		lastLatentProspects = latent.Count(IsFirstContractProspect);
 		int requested = CalculateProspectActivationCount(latent.Length, seeking.Length, opportunities);
 		SimulatedArtist[] activated = OrderLatentProspects(latent).Take(requested).ToArray();
 		foreach (SimulatedArtist artist in activated) {
-			artist.prospectMarketStatus = ProspectMarketStatus.Seeking;
-			artist.prospectSeekingWeeks = 0;
-			unsignedArtists.Add(artist);
+			ReturnProspectToSearchableMarket(artist);
 			EmitPopulationEvent("prospect-activated", artist);
 		}
+		int rotations = laborMarketWeekly.latentRotations;
 		laborMarketWeekly = BuildLaborMarketSnapshot(opportunities, requested, activated);
+		laborMarketWeekly.latentRotations = rotations;
 	}
 
 	private LaborMarketWeeklySnapshot BuildLaborMarketSnapshot(int opportunities, int requested, IReadOnlyList<SimulatedArtist> activated) {
@@ -702,7 +764,9 @@ public sealed class LaborMarketWeeklySnapshot {
 			runtimeFormationPopulation = all.Count(artist => artist.cohort == ArtistCohort.RuntimeFormation),
 			activeRostered = all.Count(artist => artist.lifecycleStatus == ArtistLifecycleStatus.Active && !string.IsNullOrEmpty(artist.labelId)),
 			experiencedFreeAgents = all.Count(artist => artist.contractSequence > 0 && string.IsNullOrEmpty(artist.labelId) && artist.lifecycleStatus == ArtistLifecycleStatus.Active),
-			freshSeeking = seeking.Length, freshLatent = latent.Length, affordableHiringOpportunityLabels = opportunities,
+			seekingProspects = seeking.Length, latentProspects = latent.Length,
+			freshSeeking = seeking.Count(IsFirstContractProspect), freshLatent = latent.Count(IsFirstContractProspect),
+			affordableHiringVacancies = opportunities,
 			requestedProspectActivations = requested, actualProspectActivations = activated.Count,
 			prospectSearchSpellExpirations = laborMarketWeekly.prospectSearchSpellExpirations,
 			meanSeekingQuality = MeanQuality(seeking), meanLatentQuality = MeanQuality(latent), activationMeanQuality = MeanQuality(activated),
@@ -711,14 +775,28 @@ public sealed class LaborMarketWeeklySnapshot {
 			maxProspectMarketSpellCount = all.Select(artist => artist.prospectMarketSpellCount).DefaultIfEmpty(0).Max(),
 			duplicateSeekingEntries = GetDuplicateSeekingEntries(), latentUnsignedPoolEntries = unsignedArtists.Count(IsLatentProspect),
 			seekingMissingFromUnsignedPool = seeking.Count(artist => !unsignedArtists.Contains(artist)),
-			prospectStatusContractConflicts = all.Count(artist => artist.prospectMarketStatus != ProspectMarketStatus.NotProspect && artist.contractSequence > 0)
+			// Revisited invariant. The reservoir now holds experienced free agents as
+			// well as first-timers, so a prospect status on a prior-contract artist is
+			// the expected state rather than a conflict. What must never coexist with a
+			// prospect status is current ownership or a non-Active lifecycle, because
+			// both mean the artist is not available to be activated, and that is what
+			// this counts instead.
+			prospectStatusContractConflicts = all.Count(artist => artist.prospectMarketStatus != ProspectMarketStatus.NotProspect &&
+				(!string.IsNullOrEmpty(artist.labelId) || artist.lifecycleStatus != ArtistLifecycleStatus.Active))
 		};
 	}
 
+	// Participation is no longer restricted to artists who have never had a contract.
+	// A proven act with a chart history is more likely to get another deal than an
+	// unknown, so locking the reservoir behind contractSequence == 0 put exactly the
+	// wrong half of the market on a death clock.
 	private static bool IsSeekingProspect(SimulatedArtist artist) => artist != null && artist.prospectMarketStatus == ProspectMarketStatus.Seeking &&
-		artist.contractSequence == 0 && artist.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(artist.labelId);
+		artist.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(artist.labelId);
 	private static bool IsLatentProspect(SimulatedArtist artist) => artist != null && artist.prospectMarketStatus == ProspectMarketStatus.Latent &&
-		artist.contractSequence == 0 && artist.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(artist.labelId);
+		artist.lifecycleStatus == ArtistLifecycleStatus.Active && string.IsNullOrEmpty(artist.labelId);
+	// Participation is open to everyone; the *formation* signal is not. See
+	// CalculateResponsiveAnnualFormationTarget for why the two counts differ.
+	private static bool IsFirstContractProspect(SimulatedArtist artist) => artist?.contractSequence == 0;
 	private static float MeanQuality(IEnumerable<SimulatedArtist> artists) {
 		float[] values = artists.Select(artist => artist.CalculateBaseQuality()).ToArray();
 		return values.Length == 0 ? 0f : values.Average();
@@ -762,10 +840,14 @@ public sealed class LaborMarketWeeklySnapshot {
 
 	/// <summary>
 	/// Annual formation answers the share of hiring demand the existing prospect market
-	/// cannot cover. It is deliberately blind to the experienced free-agent pool: those
-	/// artists are already on the terminal inactivity clock and are, by revealed
-	/// preference, the ones labels keep passing over — counting them as supply is what
-	/// let the market read as well-stocked while discovery pools ran dry.
+	/// cannot cover, and both counts are deliberately first-contract only. The
+	/// reservoir now holds experienced free agents alongside first-timers, but an
+	/// artist is in it precisely because labels kept passing over them, and reading
+	/// that pool as supply is what let the market look well-stocked while discovery
+	/// pools ran dry. Measured with the reservoir included, the servo fell back to the
+	/// base rate for the whole back half of the decade and fresh supply visible to
+	/// scouts collapsed by a factor of ten. Holding surplus talent rather than
+	/// destroying it does not make it fungible with new talent.
 	///
 	/// The signal is last week's, because formation is materialized before prospect
 	/// activation recomputes it. That one-week lag is deterministic and keeps the two
@@ -833,32 +915,86 @@ public sealed class LaborMarketWeeklySnapshot {
 		ReconcileEnabledUnsignedPool();
 	}
 
-	private void ApplyLifecycleExits(int year, int week) {
+	/// <summary>
+	/// A career that nobody has signed for the inactivity horizon leaves the active
+	/// market through the prospect reservoir, not through a death clock. The clock this
+	/// replaces sent any prior-contract artist unsigned for
+	/// <see cref="InactivityHorizonWeeks"/> to Inactive, from which there was no return
+	/// path at all, and then destroyed them. It ran whether or not the industry had a
+	/// slot for them: roster slots are a small and shrinking fraction of the registry,
+	/// so most artists are unsigned at any moment through no fault of their own, and
+	/// the clock removed them for it. They now enter Latent — the hold
+	/// <see cref="ProspectMarketStatus"/> already provided for never-signed talent — and
+	/// come back when <see cref="ActivateProspectsForHiringOpportunities"/> sees demand.
+	/// Terminal exit is earned on a completed spell instead; see
+	/// <see cref="IsTerminalExitEarned"/>.
+	/// </summary>
+	private void ApplyLifecycleExits(int year) {
 		foreach (SimulatedArtist artist in artistRegistry.Values.Where(candidate => candidate.lifecycleStatus == ArtistLifecycleStatus.Active &&
 			string.IsNullOrEmpty(candidate.labelId) && HasPriorContractForInactivityExit(candidate) &&
+			candidate.prospectMarketStatus == ProspectMarketStatus.NotProspect &&
 			candidate.weeksContinuouslyUnowned >= InactivityHorizonWeeks).ToArray()) {
 			if (HasLiveRecordOrPendingProject(artist)) continue;
-			artist.lifecycleStatus = ArtistLifecycleStatus.Inactive;
-			artist.inactiveSinceWeek = week;
-			artist.isActive = false;
-			artist.careerEvents.Add($"{year}: Became inactive after {artist.weeksContinuouslyUnowned} unowned weeks");
-			unsignedArtists.RemoveAll(candidate => candidate == artist);
-			EmitPopulationEvent("inactivity", artist);
-		}
-		foreach (SimulatedArtist artist in artistRegistry.Values.Where(candidate => candidate.lifecycleStatus == ArtistLifecycleStatus.Inactive &&
-			candidate.inactiveSinceWeek >= 0 && week - candidate.inactiveSinceWeek >= TerminalInactivityWeeks).ToArray()) {
-			bool group = artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup;
-			Musician lead = artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive);
-			if (!group && (lead == null || lead.GetAge(year) < MinimumSoloRetirementAge)) continue;
-			artist.lifecycleStatus = group ? ArtistLifecycleStatus.Disbanded : ArtistLifecycleStatus.Retired;
-			artist.careerState = group ? CareerState.Disbanded : CareerState.Retired;
-			artist.disbandReason = "Lifecycle inactivity";
-			foreach (Musician member in artist.members.Where(member => member.isActive)) { member.isActive = false; member.reasonLeft = artist.lifecycleStatus.ToString(); }
-			artist.careerEvents.Add($"{year}: {artist.lifecycleStatus} after prolonged inactivity");
-			EmitPopulationEvent(artist.lifecycleStatus == ArtistLifecycleStatus.Retired ? "retirement" : "disbandment", artist);
+			artist.careerEvents.Add($"{year}: Entered the talent reservoir after {artist.weeksContinuouslyUnowned} unowned weeks");
+			EnterProspectReservoir(artist, year, "reservoir-entry");
 		}
 	}
 	internal static bool HasPriorContractForInactivityExit(SimulatedArtist artist) => artist?.contractSequence > 0;
+
+	/// <summary>
+	/// Holds an unsigned career instead of destroying it. The spell is charged on entry,
+	/// which costs the artist activation seniority in <see cref="OrderLatentProspects"/>
+	/// and brings a terminal exit one spell closer, so surplus talent is held at a price
+	/// rather than for free.
+	/// </summary>
+	private void EnterProspectReservoir(SimulatedArtist artist, int year, string eventType) {
+		artist.prospectMarketStatus = ProspectMarketStatus.Latent;
+		artist.prospectSeekingWeeks = 0;
+		artist.prospectLatentWeeks = 0;
+		artist.prospectMarketSpellCount++;
+		unsignedArtists.RemoveAll(candidate => candidate == artist);
+		if (ShouldApplyTerminalExit(artist, year)) ApplyTerminalExit(artist, year);
+		else EmitPopulationEvent(eventType, artist);
+	}
+
+	private bool ShouldApplyTerminalExit(SimulatedArtist artist, int year) =>
+		HasPriorContractForInactivityExit(artist) && IsTerminalExitEarned(artist, year) && !HasLiveRecordOrPendingProject(artist);
+
+	private void ApplyTerminalExit(SimulatedArtist artist, int year) {
+		bool group = IsGroupAct(artist);
+		artist.lifecycleStatus = group ? ArtistLifecycleStatus.Disbanded : ArtistLifecycleStatus.Retired;
+		artist.careerState = group ? CareerState.Disbanded : CareerState.Retired;
+		artist.prospectMarketStatus = ProspectMarketStatus.NotProspect;
+		artist.prospectSeekingWeeks = 0;
+		artist.prospectLatentWeeks = 0;
+		artist.isActive = false;
+		artist.disbandReason = "Lifecycle inactivity";
+		foreach (Musician member in artist.members.Where(member => member.isActive)) { member.isActive = false; member.reasonLeft = artist.lifecycleStatus.ToString(); }
+		artist.careerEvents.Add($"{year}: {artist.lifecycleStatus} after prolonged inactivity");
+		unsignedArtists.RemoveAll(candidate => candidate == artist);
+		EmitPopulationEvent(group ? "disbandment" : "retirement", artist);
+	}
+
+	/// <summary>
+	/// Two things end a career: age, and a market that keeps looking and passing.
+	/// Repeated rejection is measured in completed search spells rather than elapsed
+	/// weeks, because a spell only runs while the artist is Seeking and an artist is
+	/// only Seeking because activation found demand for them — so it separates a market
+	/// that considered them from a market that had no room. Groups and solo acts are
+	/// tested identically. The old rule disbanded a group of any age unconditionally
+	/// while sparing a young solo, which is why disbandments ran four times retirements;
+	/// a 22-year-old band two and a half years without a deal is not more permanently
+	/// finished than a 22-year-old solo act.
+	/// </summary>
+	internal static bool IsTerminalExitEarned(SimulatedArtist artist, int year) {
+		if (artist == null) return false;
+		if (artist.prospectMarketSpellCount >= TerminalProspectSpellCount) return true;
+		Musician lead = artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive);
+		return lead != null && lead.GetAge(year) >= MinimumTerminalExitAge;
+	}
+
+	internal static bool IsGroupAct(SimulatedArtist artist) =>
+		artist?.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup;
 
 	private static bool HasLiveRecordOrPendingProject(SimulatedArtist artist) =>
 		IsExitDeferred(
@@ -904,9 +1040,8 @@ public sealed class LaborMarketWeeklySnapshot {
 	internal static bool IsEligibleForPopulationSigningForProbe(SimulatedArtist artist, int currentWeek) =>
 		IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active && !IsPopulationCooldownBlocked(artist, currentWeek);
 	internal static ArtistLifecycleStatus ClassifyTerminalLifecycleForProbe(SimulatedArtist artist, int year) =>
-		artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup ? ArtistLifecycleStatus.Disbanded :
-		((artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive))?.GetAge(year) ?? 0) >= MinimumSoloRetirementAge
-			? ArtistLifecycleStatus.Retired : ArtistLifecycleStatus.Inactive;
+		!IsTerminalExitEarned(artist, year) ? ArtistLifecycleStatus.Inactive :
+		IsGroupAct(artist) ? ArtistLifecycleStatus.Disbanded : ArtistLifecycleStatus.Retired;
 	internal static int GetPerformanceDropCooldownWeeks(SimulatedArtist artist) =>
 		artist?.usesRepeatPerformanceRecovery == true ? RepeatPerformanceDropCooldownWeeks : PerformanceDropCooldownWeeks;
 	private static bool IsPopulationCooldownBlocked(SimulatedArtist artist, int currentWeek) => artist?.careerState == CareerState.Dropped &&
@@ -991,8 +1126,14 @@ public sealed class LaborMarketWeeklySnapshot {
 	private static bool IsEligibleUnsignedCandidate(SimulatedArtist artist) => artist != null &&
 		(artist.careerState == CareerState.Unsigned || artist.careerState == CareerState.Dropped) &&
 		artist.isActive && string.IsNullOrEmpty(artist.labelId);
+	// Latent is a hold, not a shelf entry: a reserved artist is not on offer until
+	// activation returns them to Seeking. The check is explicit because experienced
+	// free agents now reach Latent, and they would otherwise qualify on contract
+	// history alone and leave the reservoir searchable.
+	internal static bool IsProspectSearchEligibleForProbe(SimulatedArtist artist) => IsProspectSearchEligible(artist);
 	private static bool IsProspectSearchEligible(SimulatedArtist artist) => !ArtistPopulationLifecycle.Enabled ||
-		artist?.careerState == CareerState.Dropped || artist?.contractSequence > 0 || artist?.prospectMarketStatus == ProspectMarketStatus.Seeking;
+		(artist?.prospectMarketStatus != ProspectMarketStatus.Latent &&
+			(artist?.careerState == CareerState.Dropped || artist?.contractSequence > 0 || artist?.prospectMarketStatus == ProspectMarketStatus.Seeking));
 
 	private static SigningTransition ReconcileSignedArtist(SimulatedArtist artist, List<SimulatedArtist> unsignedPool,
 		string labelId, int year, int currentWeek) {
@@ -1097,11 +1238,17 @@ public sealed class LaborMarketWeeklySnapshot {
 			}
 		}
 		unsignedPool.RemoveAll(candidate => candidate == artist);
+		// Exhaustion used to be immediate permanent removal: CareerState.Retired and an
+		// Inactive lifecycle on the spot, with no clock and no appeal. It now costs the
+		// artist their place in the active market and one search spell, which puts them
+		// behind every other latent act in the activation order and one spell nearer a
+		// terminal exit, but the market can still come back for them.
 		if (ArtistPopulationLifecycle.Enabled && reason == ArtistDropReason.Performance && artist.performanceDropCount >= 2) {
-			artist.careerState = CareerState.Retired;
-			artist.lifecycleStatus = ArtistLifecycleStatus.Inactive;
-			artist.isActive = false;
 			artist.lastDropReason = ArtistDropReason.PerformanceExhaustion;
+			artist.prospectMarketStatus = ProspectMarketStatus.Latent;
+			artist.prospectSeekingWeeks = 0;
+			artist.prospectLatentWeeks = 0;
+			artist.prospectMarketSpellCount++;
 			if (ownershipTransition) artist.careerEvents.Add($"{year}: PerformanceExhaustion");
 			return ownershipTransition;
 		}

@@ -49,6 +49,7 @@ public partial class ChartManager : Node {
 	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
 	private const int RetirementSalesFloor = 50;
+	private readonly Dictionary<string, float> regionalDemandScaleById = new(StringComparer.Ordinal);
 	[ExportGroup("Album Catalog")]
 	[Export] private int albumCatalogSalesFloor = 10;
 	[Export] private int albumNeverChartedToleranceWeeks = 26;
@@ -73,6 +74,18 @@ public partial class ChartManager : Node {
 	// becoming a disguised national pool.
 	private const float SpilloverMaximumExportShare = 0.75f;
 	private const float SpilloverMaximumImportShare = 0.15f;
+	// The breakout score at which a record enters LocalTraction and, with it, the
+	// self-reinforcing discovery basin (ApplyBreakoutDiscovery adds awareness and radio
+	// that feed back into evidence). Below this a record neither collapses (that floor is
+	// 0.18) nor climbs — it stalls. Offer-attempt telemetry showed a large Independent/
+	// Boutique/Small population peaking in the resulting 0.18-0.24 limbo and signing at
+	// only ~35% against ~84% just above it, which is where the decade's charting breadth
+	// was being lost. Lowered 0.24 -> 0.20 to admit the upper part of that band to the
+	// discovery ramp while leaving the 0.18 collapse floor intact. Incumbents sit at the
+	// 0.40 RegionalBreakout stage with their discovery gains already capped, so the relief
+	// is confined to the tail. regionalBreakoutDealThreshold in CompetitorManager tracks
+	// this value.
+	private const float LocalTractionActivationScore = 0.20f;
 	private readonly List<MarketClearingRegionalSummary> lastMarketClearingSummaries = new();
 	private readonly List<MarketSpilloverTransfer> lastMarketSpilloverTransfers = new();
 	private CompletedWeekSettlement lastCompletedWeekSettlement;
@@ -100,6 +113,58 @@ public partial class ChartManager : Node {
 		public bool IsBooked;
 		public bool IsAuditAcknowledged;
 		public int TotalUnits => Entries?.Sum(entry => entry.Units) ?? 0;
+
+		// Booking filtered the whole frozen entry list once per label and retirement scanned
+		// it once per retired record: 1,496 labels x 17,030 entries a week by 1969, roughly six
+		// billion string comparisons across the decade. Both indexes are built once per frozen
+		// entry list on first use. Each label's list keeps source order, so per-label iteration
+		// -- and therefore the order revenue floats accumulate in -- is unchanged.
+		private static readonly CompletedWeekSettlementEntry[] NoEntries = Array.Empty<CompletedWeekSettlementEntry>();
+		private IReadOnlyList<CompletedWeekSettlementEntry> indexedEntries;
+		private Dictionary<string, List<CompletedWeekSettlementEntry>> entriesByLabelId;
+		private Dictionary<string, CompletedWeekSettlementEntry> entryByRecordId;
+
+		public IReadOnlyList<CompletedWeekSettlementEntry> EntriesForLabel(string labelId) {
+			EnsureIndexes();
+			return entriesByLabelId != null &&
+				entriesByLabelId.TryGetValue(labelId ?? string.Empty, out List<CompletedWeekSettlementEntry> forLabel)
+					? forLabel : NoEntries;
+		}
+
+		/// <summary>The first entry for a record id, matching the linear scan this replaces.</summary>
+		public CompletedWeekSettlementEntry FindEntry(string recordId) {
+			EnsureIndexes();
+			return entryByRecordId != null &&
+				entryByRecordId.TryGetValue(recordId ?? string.Empty, out CompletedWeekSettlementEntry entry)
+					? entry : null;
+		}
+
+		private void EnsureIndexes() {
+			if (Entries == null) {
+				indexedEntries = null;
+				entriesByLabelId = null;
+				entryByRecordId = null;
+				return;
+			}
+			if (ReferenceEquals(indexedEntries, Entries)) return;
+			var byLabel = new Dictionary<string, List<CompletedWeekSettlementEntry>>(StringComparer.Ordinal);
+			var byRecord = new Dictionary<string, CompletedWeekSettlementEntry>(StringComparer.Ordinal);
+			foreach (CompletedWeekSettlementEntry entry in Entries) {
+				// Both ids are non-null for every entry a settlement is built from; the coalesce
+				// only keeps the dictionary key legal and does not change which entries match.
+				string labelKey = entry.LabelId ?? string.Empty;
+				if (!byLabel.TryGetValue(labelKey, out List<CompletedWeekSettlementEntry> forLabel)) {
+					forLabel = new List<CompletedWeekSettlementEntry>();
+					byLabel[labelKey] = forLabel;
+				}
+				forLabel.Add(entry);
+				string recordKey = entry.RecordId ?? string.Empty;
+				if (!byRecord.ContainsKey(recordKey)) byRecord[recordKey] = entry;
+			}
+			entriesByLabelId = byLabel;
+			entryByRecordId = byRecord;
+			indexedEntries = Entries;
+		}
 	}
 	public sealed class CompletedWeekSettlementEntry {
 		public RecordRuntimeData Record;
@@ -462,13 +527,19 @@ public partial class ChartManager : Node {
 
 		SimulateWeek(triggerEvents: true);
 		if (GenreMarketV2.Enabled) {
+			long freezeProfileStart = SimulationPerformanceProfiler.Begin();
 			FreezeCompletedWeekSettlement(date);
+			SimulationPerformanceProfiler.EndFreezeSettlement(freezeProfileStart);
 			// Booking is an explicit state transition, not an unordered event subscriber.
 			// It must complete before the immutable settlement becomes visible to audit.
+			long bookProfileStart = SimulationPerformanceProfiler.Begin();
 			CompetitorManager.Instance?.BookCompletedWeekSettlement(lastCompletedWeekSettlement);
+			SimulationPerformanceProfiler.EndBookSettlement(bookProfileStart);
 			if (lastCompletedWeekSettlement?.IsBooked != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement?.SettlementId} was not booked.");
+			long auditEventProfileStart = SimulationPerformanceProfiler.Begin();
 			OnWeekSettlement?.Invoke(lastCompletedWeekSettlement);
+			SimulationPerformanceProfiler.EndSettlementAuditEvent(auditEventProfileStart);
 			if (OnWeekSettlement != null && lastCompletedWeekSettlement?.IsAuditAcknowledged != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement.SettlementId} was not acknowledged by its audit consumer.");
 		}
@@ -479,12 +550,18 @@ public partial class ChartManager : Node {
 			}
 		}
 
+		long momentumProfileStart = SimulationPerformanceProfiler.Begin();
 		UpdateGenreMomentum();
+		SimulationPerformanceProfiler.EndGenreMomentum(momentumProfileStart);
 
+		long cullProfileStart = SimulationPerformanceProfiler.Begin();
 		CullDeadRecords(includeChartedRecords: currentChartWeek % 4 == 0);
+		SimulationPerformanceProfiler.EndCullDeadRecords(cullProfileStart);
 		// Directive 6 owns one explicit post-chart sequence.  Formation is never
 		// reached by prewarm because this method only runs on a live weekly tick.
+		long lifecycleProfileStart = SimulationPerformanceProfiler.Begin();
 		ArtistManager.Instance?.AdvancePopulationLifecycle(date);
+		SimulationPerformanceProfiler.EndPopulationLifecycle(lifecycleProfileStart);
 	}
 
 	private void FreezeCompletedWeekSettlement(GameDate date) {
@@ -628,9 +705,10 @@ public partial class ChartManager : Node {
 		float acceptanceYear = genreMarketLive ? GetContinuousSimulationYear() : 0f;
 		float legacyMomentum = genreMarketLive ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
 		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
+		float launchReach = label.EffectiveNationalReachForRecord(record.baseRecord?.recordId);
 		float broadLaunch = isAlbum
-			? 0.035f + campaignImpact * (0.06f + label.nationalReach * 0.06f)
-			: 0.06f + (campaignImpact * (0.10f + label.nationalReach * 0.10f));
+			? 0.035f + campaignImpact * (0.06f + launchReach * 0.06f)
+			: 0.06f + (campaignImpact * (0.10f + launchReach * 0.10f));
 		record.awareness = Mathf.Max(broadLaunch, record.awareness);
 		record.awareness = Mathf.Clamp(record.awareness, 0f, 1f);
 
@@ -643,8 +721,8 @@ public partial class ChartManager : Node {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
 
 			var data = record.regionalData[region.regionId];
-			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId);
-			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, isAlbum ? 0.45f : 1f, perceivedQualityMult);
+			float regionStrength = ChartSimulator.GetRegionalLaunchFactor(label, region.regionId, record.baseRecord?.recordId);
+			int units = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, isAlbum ? 0.45f : 1f, perceivedQualityMult, record.baseRecord?.recordId);
 			initialStock[region.regionId] = units;
 			data.unitsInStores = units;
 
@@ -1226,7 +1304,7 @@ public partial class ChartManager : Node {
 
 			foreach (var region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out var data)) continue;
-				bool isCovered = label.HasDistributionInRegion(region.regionId);
+				bool isCovered = label.HasDistributionInRegionForRecord(region.regionId, record.baseRecord?.recordId);
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
@@ -1238,7 +1316,8 @@ public partial class ChartManager : Node {
 				bool livePhysicalBackorder = GenreMarketV2.Enabled && IsGenreMarketV2Live &&
 					data.unitsBackordered > 0 && data.rawDemandThisWeek > 0f;
 				bool preChartDemandNeedsRestock = record.currentPosition == 0 &&
-					(data.breakoutScore >= 0.20f || specialistUnchartedService || albumUnchartedService) &&
+					(data.breakoutScore >= 0.20f || specialistUnchartedService || albumUnchartedService ||
+					 (label.activeDeal?.grantedRegions?.Contains(region.regionId) ?? false)) &&
 					(data.unitsBackordered > 250 || data.rawDemandThisWeek > data.unitsInStores * 0.45f);
 				bool chartedNeedsRestock = record.currentPosition > 0 &&
 					(data.unitsBackordered > 500 ||
@@ -1253,8 +1332,7 @@ public partial class ChartManager : Node {
 					data.breakoutTriggered = preChartDemandNeedsRestock;
 					data.breakoutRequestedRestock = 0;
 					data.breakoutAppliedRestock = 0;
-					int physicalCapacity = region.distribution.recordStoreCount * 100 +
-						region.distribution.departmentStoreCount * 200;
+					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered);
 					data.breakoutMaxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
 						: 0.20f));
@@ -1267,6 +1345,17 @@ public partial class ChartManager : Node {
 					float serviceLevel = isCovered
 						? 0.70f + (label.distributionStrength * 0.80f)
 						: 0.18f + (label.distributionStrength * 0.25f);
+					// The rack jobber serviced its own racks weekly and bought a proven record
+					// from whoever had it, so a hit stayed on department-store shelves in markets
+					// where its label had no network of its own. This is the commercial shortcut
+					// to retail of section 33.1 stage 2, and it is why a regional label could
+					// have a national hit without a major's branch distribution. It lifts an
+					// uncovered proven record toward -- never past -- a distributed one.
+					float rackService = ChartSimulator.GetRackJobberAccess(record.currentPosition, data.peakBreakoutScore) *
+						ChartSimulator.GetRackJobberEraWeight(TimeManager.Instance?.CurrentDate.year ?? 1960);
+					if (!isCovered && rackService > 0f)
+						serviceLevel = Mathf.Max(serviceLevel, rackService * ChartSimulator.RackServiceShareOfDistributed *
+							(0.70f + (label.distributionStrength * 0.80f)));
 					// DISTANCE-4B: neutral in 4a; 4b applies city-distance reach to restock service.
 					serviceLevel *= DistanceModel.GetEffectiveReach(label, DistanceModel.GetHubCityIdForRegion(region.regionId));
 					int restockAmount = CalculateRestockAmount(data.rawDemandThisWeek, data.unitsBackordered,
@@ -1274,8 +1363,7 @@ public partial class ChartManager : Node {
 						AlbumModel.GetRetailFulfillmentMaturity(TimeManager.Instance?.CurrentDate.year ?? 1960));
 					int requestedRestock = restockAmount;
 
-					int physicalCapacity = region.distribution.recordStoreCount * 100 +
-									region.distribution.departmentStoreCount * 200;
+					float physicalCapacity = RegionalPhysicalCapacity(region, record, data, isCovered);
 					int maxCapacity = Mathf.RoundToInt(physicalCapacity * (isCovered
 						? 0.55f + label.distributionStrength * 0.65f
 						: 0.20f));
@@ -1408,6 +1496,99 @@ public partial class ChartManager : Node {
 		}
 	}
 
+	/// <summary>
+	/// This region's record-buying population as a share of the largest authored
+	/// region's, used to restate absolute weekly unit thresholds in region-relative
+	/// terms. Anchoring on the largest market leaves that market's long-standing
+	/// calibration untouched and only relieves the smaller ones, so this removes a
+	/// structural handicap rather than retuning the model.
+	/// </summary>
+	// Shelf a record can physically occupy in a market: record-store racks it can always
+	// reach, plus department-store racks it has to earn. The rack share is gated on the
+	// record being proven and weighted by the decade's shift toward rack and discount retail.
+	private static float RegionalPhysicalCapacity(
+		MarketRegion region, RecordRuntimeData record, RegionalRecordData data, bool labelShipsHere) {
+		if (region?.distribution == null) return 0f;
+		float rackShelf = labelShipsHere ? 1f : ChartSimulator.GetRackJobberShelfMultiplier(
+			record?.currentPosition ?? 0, data?.peakBreakoutScore ?? 0f,
+			TimeManager.Instance?.CurrentDate.year ?? 1960);
+		return (region.distribution.recordStoreCount * 100f) +
+			(region.distribution.departmentStoreCount * 200f * rackShelf);
+	}
+
+	internal float GetRegionalDemandScale(MarketRegion region) {
+		if (region == null) return 1f;
+		if (regionalDemandScaleById.TryGetValue(region.regionId, out float cached)) return cached;
+
+		float reference = 0f;
+		if (allRegions != null) {
+			foreach (MarketRegion candidate in allRegions) {
+				if (candidate == null) continue;
+				reference = Mathf.Max(reference, candidate.GetRecordBuyingPopulation());
+			}
+		}
+		float scale = CalculateRegionalDemandScale(region.GetRecordBuyingPopulation(), reference);
+		regionalDemandScaleById[region.regionId] = scale;
+		return scale;
+	}
+
+	/// <summary>
+	/// Share of the national record-buying population covered by the given regions.
+	/// A distributor's borrowed reach is worth exactly the market its owned network
+	/// actually reaches, so this is the correct basis for deal terms.
+	/// </summary>
+	public float GetNationalMarketShareForRegions(IEnumerable<string> regionIds) {
+		if (regionIds == null || allRegions == null) return 0f;
+		var covered = new HashSet<string>(regionIds, StringComparer.Ordinal);
+		float total = 0f;
+		float reached = 0f;
+		foreach (MarketRegion region in allRegions) {
+			if (region == null) continue;
+			float buyingPopulation = region.GetRecordBuyingPopulation();
+			total += buyingPopulation;
+			if (covered.Contains(region.regionId)) reached += buyingPopulation;
+		}
+		return total > 0f ? Mathf.Clamp(reached / total, 0f, 1f) : 0f;
+	}
+
+	/// <summary>
+	/// A degenerate or unauthored region must not silently divide by zero; falling
+	/// back to the unscaled thresholds preserves the previous behavior exactly.
+	/// </summary>
+	internal static float CalculateRegionalDemandScale(float regionBuyingPopulation, float referenceBuyingPopulation) =>
+		referenceBuyingPopulation > 0f && regionBuyingPopulation > 0f
+			? regionBuyingPopulation / referenceBuyingPopulation
+			: 1f;
+
+	/// <summary>
+	/// Weekly volume evidence for one region, expressed against that region's own
+	/// buying population. Two records selling the same share of their local market
+	/// must produce the same evidence regardless of how large that market is.
+	/// </summary>
+	// Volume already carries the largest single weight below. The former
+	// 0.55 + 0.45 * volume envelope multiplied the whole score by volume a second time,
+	// so a record at volume 0.61 kept 82.5% of its evidence while one at 0.98 kept 99%.
+	// That is the double count section 10.1 of the chart-access handoff identified;
+	// region scaling corrected the thresholds feeding volumeInput but left this envelope
+	// intact. Narrowing it to 0.70 + 0.30 * volume leaves high-volume incumbents
+	// effectively unchanged (0.990 -> 0.993) and relieves the low-volume tail
+	// (0.825 -> 0.884), which is where the never-charting population sits.
+	internal static float CalculateBreakoutEvidence(float volumeInput, float velocityInput,
+		float sustainedInput, float audienceInput, float mediaInput, float genreFit,
+		float quality, float unmetInput) {
+		float evidence = volumeInput * 0.30f + velocityInput * 0.15f + sustainedInput * 0.09f +
+			audienceInput * 0.12f + mediaInput * 0.10f + genreFit * 0.08f +
+			quality * 0.08f + unmetInput * 0.08f;
+		return evidence * (0.70f + volumeInput * 0.30f);
+	}
+
+	internal static float CalculateBreakoutVolumeInput(float rawDemandThisWeek, float unitsSoldThisWeek, float regionScale) {
+		float scale = Mathf.Max(regionScale, 0.000001f);
+		float rawVolume = Mathf.Clamp((rawDemandThisWeek - 150f * scale) / (3500f * scale), 0f, 1f);
+		float fulfilledVolume = Mathf.Clamp(unitsSoldThisWeek / (3000f * scale), 0f, 1f);
+		return rawVolume * 0.70f + fulfilledVolume * 0.30f;
+	}
+
 	private void UpdateRegionalBreakoutState(RecordRuntimeData record, int year) {
 		AILabel label = GetLabelById(record.baseRecord.labelId);
 		if (label == null) return;
@@ -1423,46 +1604,63 @@ public partial class ChartManager : Node {
 
 		foreach (MarketRegion region in allRegions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
-			bool covered = label.HasDistributionInRegion(region.regionId);
+			bool covered = label.HasDistributionInRegionForRecord(region.regionId, record.baseRecord?.recordId);
 			if (covered) coveredCount++;
 
+			// Regional breakout asks whether a record is breaking out *in this
+			// region*, which is a per-capita question. The thresholds below were
+			// authored as absolute weekly unit counts, so they silently encoded the
+			// largest market's scale and applied it everywhere. Regional record
+			// buying populations span roughly 12x, so a record performing
+			// identically per capita scored an order of magnitude less evidence
+			// outside the two biggest regions -- 99% of Rockies record-weeks and
+			// 90% of Deep South record-weeks fell under the flat 150-unit floor and
+			// produced no volume or velocity evidence at all. Because that evidence
+			// gates distribution offers and breakout diffusion, entire regions were
+			// structurally locked out of the national chart.
+			float regionScale = GetRegionalDemandScale(region);
+			float demandFloor = 150f * regionScale;
 			float previousDemand = data.previousRawDemand;
-			float velocity = previousDemand >= 150f
+			float velocity = previousDemand >= demandFloor
 				? (data.rawDemandThisWeek - previousDemand) / previousDemand
 				: 0f;
 			data.salesVelocity = Mathf.Clamp(velocity, -1f, 2f);
-			if (previousDemand >= 150f && velocity > 0.04f) data.sustainedGrowthWeeks++;
+			if (previousDemand >= demandFloor && velocity > 0.04f) data.sustainedGrowthWeeks++;
 			else if (velocity < -0.08f) data.sustainedGrowthWeeks = 0;
 
-			float rawVolume = Mathf.Clamp((data.rawDemandThisWeek - 150f) / 3500f, 0f, 1f);
-			float fulfilledVolume = Mathf.Clamp(data.unitsSoldThisWeek / 3000f, 0f, 1f);
-			float volumeInput = rawVolume * 0.70f + fulfilledVolume * 0.30f;
+			float volumeInput = CalculateBreakoutVolumeInput(data.rawDemandThisWeek, data.unitsSoldThisWeek, regionScale);
 			float velocityInput = Mathf.Clamp((velocity + 0.10f) / 0.65f, 0f, 1f);
 			float audienceInput = Mathf.Clamp(data.awareness, 0f, 1f);
 			float mediaInput = Mathf.Clamp(data.radioPlay * 0.75f + data.jukeboxPlay * 0.25f, 0f, 1f);
 			float genreFit = region.GetGenreAcceptance(record.baseRecord.primaryGenre, year);
-			float unmetInput = volumeInput * Mathf.Clamp(data.unitsBackordered / Mathf.Max(750f, data.rawDemandThisWeek), 0f, 1f);
+			// Unmet demand is deliberately NOT multiplied by volumeInput. Scaling it by
+			// volume counted volume a third time and cancelled the signal for exactly the
+			// labels it describes: a record selling out where its label cannot restock has
+			// low fulfilled volume by construction. Measured over 1.27M record-region-weeks,
+			// regions a label does not cover carry backorders in 31.05% of weeks against
+			// 1.88% for covered ones, so the old form muted proven demand precisely where
+			// distribution was the binding constraint -- which is the signal a distributor
+			// historically acted on.
+			float unmetInput = Mathf.Clamp(data.unitsBackordered / Mathf.Max(750f * regionScale, data.rawDemandThisWeek), 0f, 1f);
 			float sustainedInput = Mathf.Clamp(data.sustainedGrowthWeeks / 3f, 0f, 1f);
 
-			float evidence = volumeInput * 0.34f + velocityInput * 0.15f + sustainedInput * 0.09f +
-				audienceInput * 0.12f + mediaInput * 0.10f + genreFit * 0.08f +
-				quality * 0.08f + unmetInput * 0.04f;
-			evidence *= 0.55f + volumeInput * 0.45f;
+			float evidence = CalculateBreakoutEvidence(volumeInput, velocityInput, sustainedInput,
+				audienceInput, mediaInput, genreFit, quality, unmetInput);
 			float response = evidence >= data.breakoutScore ? 0.48f : 0.28f;
 			data.breakoutScore = Mathf.Lerp(data.breakoutScore, evidence, response);
 			data.peakBreakoutScore = Mathf.Max(data.peakBreakoutScore, data.breakoutScore);
 
-			if (data.breakoutScore >= 0.24f) {
+			if (data.breakoutScore >= LocalTractionActivationScore) {
 				data.tractionWeeks++;
 			} else {
 				data.tractionWeeks = Mathf.Max(0, data.tractionWeeks - 1);
 			}
-			if (evidence < 0.18f || (velocity < -0.35f && data.rawDemandThisWeek < 1500f)) data.collapseWeeks++;
+			if (evidence < 0.18f || (velocity < -0.35f && data.rawDemandThisWeek < 1500f * regionScale)) data.collapseWeeks++;
 			else data.collapseWeeks = 0;
 
 			if (data.breakoutScore >= 0.40f && data.tractionWeeks >= 2) {
 				data.breakoutStage = RegionalBreakoutStage.RegionalBreakout;
-			} else if (data.breakoutScore >= 0.24f && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
+			} else if (data.breakoutScore >= LocalTractionActivationScore && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
 				data.breakoutStage = RegionalBreakoutStage.LocalTraction;
 			} else if (data.collapseWeeks >= 2 && data.breakoutStage < RegionalBreakoutStage.RegionalBreakout) {
 				data.breakoutStage = RegionalBreakoutStage.None;
@@ -1474,7 +1672,7 @@ public partial class ChartManager : Node {
 			if (data.breakoutStage >= RegionalBreakoutStage.RegionalBreakout) breakoutMarkets++;
 			if (data.neighboringMarketTestStrength >= 0.08f) testMarkets++;
 			strongest = Mathf.Max(strongest, data.breakoutScore);
-			if (previousDemand >= 150f) { velocityTotal += data.salesVelocity; velocityCount++; }
+			if (previousDemand >= demandFloor) { velocityTotal += data.salesVelocity; velocityCount++; }
 			unmetDemand += data.unitsBackordered;
 
 			data.breakoutVolumeInput = volumeInput;
@@ -1506,6 +1704,13 @@ public partial class ChartManager : Node {
 		}
 	}
 
+	// Discovery reinforcement ramps from zero at LocalTractionActivationScore to full a
+	// fixed 0.40 above it, so lowering the activation shifts the whole ramp down in
+	// lockstep and a record newly admitted to the basin earns a correspondingly small
+	// initial gain rather than a step.
+	internal static float CalculateBreakoutDiscoveryStrength(float breakoutScore) =>
+		Mathf.Clamp((breakoutScore - LocalTractionActivationScore) / 0.40f, 0f, 1f);
+
 	private void ApplyBreakoutDiscovery(RecordRuntimeData record) {
 		AILabel label = GetLabelById(record.baseRecord.labelId);
 		if (label == null) return;
@@ -1518,7 +1723,7 @@ public partial class ChartManager : Node {
 			if (!record.regionalData.TryGetValue(sourceRegion.regionId, out RegionalRecordData source)) continue;
 			if (source.breakoutStage < RegionalBreakoutStage.LocalTraction) continue;
 
-			float strength = Mathf.Clamp((source.breakoutScore - 0.24f) / 0.40f, 0f, 1f);
+			float strength = CalculateBreakoutDiscoveryStrength(source.breakoutScore);
 			float localAwarenessGain = source.breakoutStage >= RegionalBreakoutStage.RegionalBreakout
 				? 0.006f + strength * 0.014f
 				: 0.001f + strength * 0.003f;
@@ -1539,7 +1744,8 @@ public partial class ChartManager : Node {
 			nationalGain += womGain * 0.30f;
 
 			if (source.breakoutStage < RegionalBreakoutStage.RegionalBreakout || source.tractionWeeks < 2) continue;
-			float propagationCapacity = 0.25f + label.nationalReach * 0.45f + label.distributionStrength * 0.30f;
+			float propagationCapacity = 0.25f + label.EffectiveNationalReachForRecord(record.baseRecord?.recordId) * 0.45f +
+				label.DistributionStrengthForRecord(record.baseRecord?.recordId) * 0.30f;
 			foreach (string neighborId in GetNeighborRegionIds(sourceRegion.regionId)) {
 				if (!record.regionalData.TryGetValue(neighborId, out RegionalRecordData neighbor)) continue;
 				float testGain = strength * propagationCapacity * 0.10f * discoveryScale;
@@ -1800,8 +2006,7 @@ public partial class ChartManager : Node {
 	private void RetireRecord(RecordRuntimeData record) {
 		if (record?.baseRecord == null) return;
 		if (lastCompletedWeekSettlement?.Entries != null) {
-			CompletedWeekSettlementEntry entry = lastCompletedWeekSettlement.Entries
-				.FirstOrDefault(candidate => candidate.RecordId == record.baseRecord.recordId);
+			CompletedWeekSettlementEntry entry = lastCompletedWeekSettlement.FindEntry(record.baseRecord.recordId);
 			if (entry != null) entry.RetiredAfterSettlement = true;
 		}
 		if (record.baseRecord.format == ReleaseFormat.Single) {

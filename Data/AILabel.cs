@@ -42,6 +42,19 @@ public partial class AILabel : Resource {
 	[Export] public string homeCityAssignmentSource;
 	[Export] public string[] strongRegions;
 	[Export] public string[] distributionRegions;
+	// Markets where the label has placed its line with an independent wholesale house
+	// (handoff section 33). This is the label's own asset: it survives a distribution
+	// deal being signed and terminated, and unlike a deal it confers no ownership on
+	// anybody. Unlike the per-song scope of a P&D contract (section 11), a wholesaler
+	// carried the label's whole line in its market, so this coverage is label-wide.
+	public readonly HashSet<string> independentDistributionRegions = new(StringComparer.Ordinal);
+	// Money a wholesale house owes but has not paid yet (handoff section 33.1 stage 3).
+	// Distributors took 90-120 day terms with full return privileges while the label had
+	// already paid to press and ship, so a hit consumed a small label's cash long before it
+	// produced any -- which is what made a major's offer attractive.
+	public readonly List<WholesaleReceivable> wholesaleReceivables = new();
+	public float outstandingWholesaleReceivables;
+	public float lifetimeWholesaleWriteOffs;
 	
 	[ExportGroup("Financials")]
 	[Export] public float cashReserves;
@@ -64,12 +77,30 @@ public partial class AILabel : Resource {
 	[Export] public float momentumScore;
 	[Export] public int sustainedCapabilityQuarters;
 	[Export] public int sustainedLowCapabilityQuarters;
+	[Export] public int sustainedLowChartingQuarters;
 	
 	// Runtime Roster (Not exported, generated at runtime)
 	public List<SimulatedArtist> roster = new List<SimulatedArtist>();
 	public int maxRosterSize;
 	public float reputation;
 	public DistributionDeal activeDeal;
+
+	// Set when a high-dependency independent is absorbed into a Major's corporate family
+	// (section 24 consolidation lever). A subsidiary keeps operating -- its own roster,
+	// release imprint and chart access -- while ownership rolls up to the parent. This is
+	// orthogonal to status/IsActive: a subsidiary stays operationally Rising/Stable and
+	// IsActive true, unlike LabelStatus.Acquired, which is a dead shut-down state.
+	public string ownerLabelId;
+	public bool IsSubsidiary => !string.IsNullOrEmpty(ownerLabelId);
+
+	// A minority "Stax" archetype (section 27): a genuinely hit-making label that stays
+	// financially dependent on its distributor. It has strong creative capability (it charts)
+	// but low owned reach and it deliberately does NOT build its own national network -- it
+	// reinvests in music, not distribution infrastructure -- so it leans on the major's network,
+	// stays high-dependency, and is absorbed late-decade contributing real chart volume. This is
+	// distinct from the common weak one-or-two-hit dependents, and from a Motown that builds its
+	// own reach and exits. Set at generation for a fraction of runtime founders.
+	public bool distributionDependentHitmaker;
 
 	// Runtime finance telemetry (reset and populated by CompetitorManager each week)
 	public float weeklyGrossRevenue;
@@ -103,12 +134,50 @@ public partial class AILabel : Resource {
 		set => ownedReach = Mathf.Clamp(value, 0f, 1f);
 	}
 	public float borrowedReach => Mathf.Clamp(activeDeal?.reachGranted ?? 0f, 0f, 1f);
+	// A distributor supplies temporary national access while a deal is active. Keep the
+	// permanent nationalReach field separate so termination removes borrowed capability and
+	// only the bounded completed-term retention in CompetitorManager survives.
+	public float effectiveNationalReach => Mathf.Clamp(nationalReach + borrowedReach, 0f, 1f);
 
 	public bool HasDistributionInRegion(string regionId) =>
 		!string.IsNullOrEmpty(regionId) &&
 		((distributionRegions?.Contains(regionId) ?? false) ||
+		independentDistributionRegions.Contains(regionId) ||
 		(activeDeal?.grantedRegions?.Contains(regionId) ?? false));
-	
+
+	// A distribution deal carries specific records, not the whole catalog. The
+	// label-wide members above remain the right answer for questions about the firm
+	// -- deal eligibility, dependency, capability -- while the per-record members
+	// below are what physical fulfillment and demand for one release must use, so a
+	// deal cannot retroactively push a years-old B-side into national distribution.
+	public bool RecordCoveredByActiveDeal(string recordId) =>
+		activeDeal != null && activeDeal.CoversRecord(recordId);
+
+	public float BorrowedReachForRecord(string recordId) =>
+		RecordCoveredByActiveDeal(recordId) ? borrowedReach : 0f;
+
+	public float DistributionStrengthForRecord(string recordId) =>
+		Mathf.Clamp(ownedReach + BorrowedReachForRecord(recordId), 0f, 1f);
+
+	public float EffectiveNationalReachForRecord(string recordId) =>
+		Mathf.Clamp(nationalReach + BorrowedReachForRecord(recordId), 0f, 1f);
+
+	public bool HasDistributionInRegionForRecord(string regionId, string recordId) =>
+		!string.IsNullOrEmpty(regionId) &&
+		((distributionRegions?.Contains(regionId) ?? false) ||
+		independentDistributionRegions.Contains(regionId) ||
+		(RecordCoveredByActiveDeal(recordId) && (activeDeal.grantedRegions?.Contains(regionId) ?? false)));
+
+	/// <summary>
+	/// Every market the label can physically ship to, ignoring the per-song deal scope.
+	/// Owned reach is anchored to this, so a label's national presence cannot exceed the
+	/// share of the map it actually serves.
+	/// </summary>
+	public IEnumerable<string> AllCoveredRegions() =>
+		(distributionRegions ?? Array.Empty<string>())
+			.Concat(independentDistributionRegions)
+			.Distinct(StringComparer.Ordinal);
+
 	public int CurrentRosterSize => roster?.Count ?? 0;
 	public bool HasRosterSpace => roster == null || roster.Count < maxRosterSize;
 	[Export] public int operatingRosterTarget;
@@ -116,6 +185,13 @@ public partial class AILabel : Resource {
 	public bool HasOperatingRosterSpace => roster == null || roster.Count < OperatingRosterTarget;
 	public string operatingRosterTargetSource = "Unset";
 	public LabelPopulationOrigin populationOrigin = LabelPopulationOrigin.Unspecified;
+	/// <summary>True while the label holds a tier it earned at runtime rather than at launch.
+	/// Set on promotion, cleared on demotion, so it tracks current standing rather than a
+	/// one-time event. Maintained but not yet read: it is the intended input to
+	/// LabelLifecycleManager.IsOrganicGrowthEligibleOrigin, so that a promoted launch label
+	/// can grow into the capacity its promotion granted. That was measured at 522 weeks and
+	/// breaches the album-project gate — see D7LabelPopulationChartCapacityHandoff.</summary>
+	public bool hasEarnedTierPromotion;
 	public int runtimeBirthWeek;
 	public int runtimeBirthYear;
 	public int runtimeBirthMonth;

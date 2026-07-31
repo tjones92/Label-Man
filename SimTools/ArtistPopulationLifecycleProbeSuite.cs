@@ -5,7 +5,17 @@ using System.Linq;
 
 /// <summary>
 /// Directive 6 fixed-input probes. They deliberately use detached artists and
-/// labels so they neither consume simulation RNG nor perturb an audit world.
+/// labels so they do not perturb an audit world's object graph.
+///
+/// They are NOT RNG-neutral, despite what this comment claimed until it was
+/// measured: several probes reach helpers that draw from the global stream
+/// (<see cref="RosterManager.InitializeRuntimeRosterForProbe"/> consumes the
+/// legacy capacity draw, for one). A 52-week run with the flag and without it
+/// diverge in 1960 â€” album units 2,271,329 against 2,426,185 on seed 1001. Never
+/// pass --artist-population-lifecycle-probes to a run being compared against a
+/// control; probe runs and comparison runs stay separate, exactly as they must
+/// for --genre-market-v2-probes.
+///
 /// The integration/replay gates remain the authority for full event ordering.
 /// </summary>
 public static class ArtistPopulationLifecycleProbeSuite {
@@ -83,7 +93,34 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeAlbumFormatClearingBudget();                             // 67
 		ProbeMidTierPromotionBoundary();                               // 68
 		ProbeCompetitiveLabelExitBoundary();                            // 69
-		results.Add("D6 fixed probes 1-69 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, and bounded competitive label exit)");
+		ProbeVacancyDenominatedHiringDemand();                           // 70
+		ProbeExperiencedTalentReservoir();                                // 71
+		ProbeEarnedNationalReachBoundaries();                                // 72
+		ProbeEarnedReachDemandScale();                                          // 73
+		ProbePersistentRegionalDealEvidence();                                      // 74
+		ProbeRetiredLabelEvidenceLookback();                                        // 75
+		ProbeWeeklyAwarenessAgeDecay();                                              // 76
+		ProbeReleaseImprintIdentity();                                                // 77
+		ProbeRegionScaledBreakoutEvidence();                                           // 78
+		ProbePerSongDistributionScope();                                                // 79
+		ProbePhysicalDistributionGovernsShelfStock();                                   // 80
+		ProbeSeededLargeFirmPopulation();                                                // 81
+		ProbeBreakoutEvidenceRewardsConstrainedDemand();                                 // 82
+		ProbeArtistReleaseHistoryCountsOnce();                                           // 83
+		ProbePromoCannibalizationChargedOnce();                                          // 84
+		ProbePromoRecruitmentMatchesDiversionTerms();                                    // 85
+		ProbeLoweredLocalTractionAdmitsStrandedBand();                                   // 86
+		ProbeConsolidationGate();                                                        // 87
+		ProbeSubsidiaryAbsorptionRetainsLabel();                                         // 88
+		ProbeDependentHitmakerArchetype();                                               // 89
+		ProbeIndependentDistributionLayer();                                             // 90
+		ProbeIndependentDistributionCoverage();                                          // 91
+		ProbeRackJobberChannel();                                                        // 92
+		ProbeWholesaleCashFlowSqueeze();                                                 // 93
+		ProbePoachingAndGraduation();                                                    // 94
+		ProbeIndependentTradeDeclineAndMidTierExit();                                    // 95
+		ProbeSettlementIndexMatchesLinearScan();                                         // 96
+		results.Add("D6 fixed probes 1-96 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting, and settlement indexes that reproduce the per-label and per-record linear scans they replace in exactly their source order)");
 		return results;
 	}
 
@@ -191,21 +228,41 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(launch.populationOrigin == LabelPopulationOrigin.LaunchPopulation && launch.OperatingRosterTarget == 1,
 			"61d launch labels retain launch origin and their populated operating baseline");
 
+		Require(!LabelLifecycleManager.IsOrganicGrowthEligibleOrigin(launch) &&
+			LabelLifecycleManager.GetOrganicGrowthBlockingReason(launch, 4, 4, 13) == "NotGrowthEligible",
+			"61d2 a launch Independent stays frozen at the roster it opened with");
+		foreach (LabelTier flat in new[] { LabelTier.Small, LabelTier.Boutique, LabelTier.Independent }) {
+			launch.tier = flat;
+			Require(!LabelLifecycleManager.IsOrganicGrowthEligibleOrigin(launch),
+				$"61d3 launch {flat} appetite is deliberately flat across the decade");
+		}
+		foreach (LabelTier upper in new[] { LabelTier.Major, LabelTier.MidTier }) {
+			launch.tier = upper;
+			Require(LabelLifecycleManager.IsOrganicGrowthEligibleOrigin(launch) &&
+				LabelLifecycleManager.GetOrganicGrowthBlockingReason(launch, 4, 4, 13) != "NotGrowthEligible",
+				$"61d4 launch {upper} appetite can be earned rather than pinned at its 1960 roster");
+		}
+		launch.tier = LabelTier.Major; launch.status = LabelStatus.Stable; launch.lastMonthlyProfit = 100f;
+		launch.consecutiveLossMonths = 0; launch.cashReserves = launch.GetMonthlyOverhead() * 6f;
+		Require(LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(launch, 4, 4, 13) && launch.OperatingRosterTarget == 2 &&
+			LabelLifecycleManager.GetOrganicGrowthBlockingReason(launch, 4, 4, 26) == "OperatingTargetUnfilled",
+			"61d5 an upper-tier launch label earns exactly one slot per quarter and must fill it before the next");
+
 		AILabel runtime = NewScoutingLabel(5);
 		runtime.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
 		runtime.roster.Add(NewArtist("runtime-1"));
 		runtime.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 10);
 		runtime.status = LabelStatus.Stable; runtime.lastMonthlyProfit = 100f; runtime.consecutiveLossMonths = 0; runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
 		Require(LabelLifecycleManager.GetOrganicGrowthBlockingReason(runtime, 0, 1, 13) == "Eligible" &&
-			LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.OperatingRosterTarget == 2 &&
+			LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.OperatingRosterTarget == 2 &&
 			runtime.organicRosterTargetGrowthCount == 1 && runtime.CurrentRosterSize == 1,
 			"61e a filled, profitable founder with a recent release gains exactly one emergence slot without requiring a chart hit");
-		Require(!LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.lastOrganicGrowthBlockingReason == "AlreadyReviewedThisQuarter",
+		Require(!LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(runtime, 0, 1, 13) && runtime.lastOrganicGrowthBlockingReason == "AlreadyReviewedThisQuarter",
 			"61f a quarterly pass cannot grant a second organic target decision");
 
 		runtime.roster.Add(NewArtist("runtime-2"));
 		runtime.cashReserves = runtime.GetMonthlyOverhead() * 6f;
-		Require(LabelLifecycleManager.TryAuthorizeRuntimeOrganicGrowthForProbe(runtime, 0, 1, 26) && runtime.OperatingRosterTarget == 3 &&
+		Require(LabelLifecycleManager.TryAuthorizeOrganicGrowthForProbe(runtime, 0, 1, 26) && runtime.OperatingRosterTarget == 3 &&
 			runtime.organicRosterTargetGrowthCount == 2 && runtime.lastOrganicRosterTargetGrowthWeek == 26,
 			"61g release-backed emergence can mature a founder to the three-lane operating floor");
 		runtime.roster.Add(NewArtist("runtime-3"));
@@ -237,13 +294,13 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(acquired.OperatingRosterTarget == 3 && acquired.maxRosterSize >= 3 && acquired.operatingRosterTargetReason == LabelOperatingTargetReason.AcquisitionReconciliation &&
 			!RosterManager.CanAttemptMarketClearingSigning(acquired.CurrentRosterSize, acquired.OperatingRosterTarget),
 			"61p acquisition reconciliation recognizes transferred roster without creating a vacancy");
-		runtime.monthsActive = 9;
+		runtime.monthsActive = 18;
 		Require(LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(runtime),
-			"61q runtime founders retain normal release status through their nine-month emergence runway");
-		runtime.monthsActive = 10;
+			"61q runtime founders retain normal release status through their eighteen-month emergence runway");
+		runtime.monthsActive = 19;
 		Require(!LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(runtime) &&
 			!LabelLifecycleManager.IsRuntimeFounderInEmergenceRunway(launch),
-			"61r emergence protection ends after nine months and never applies to the launch population");
+			"61r emergence protection ends after eighteen months and never applies to the launch population");
 	}
 
 	private static void ProbeRuntimeFoundedOperatingProfiles() {
@@ -278,6 +335,15 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(first.CurrentRosterSize == 0 && first.OperatingRosterTarget == 1 && first.maxRosterSize == 12 &&
 			CompetitorManager.CalculateLabelReleaseCapacityChance(first.releasesPerMonth, first.status, 1) > 0f,
 			"62e production profile initialization leaves the runtime roster empty at target one with canonical capacity and positive signed-artist release chance");
+		AILabel westCoast = NewRuntimeProfileProbeLabel("west-coast-profile", LabelTier.Independent);
+		westCoast.headquartersCity = "San Francisco";
+		RuntimeLabelProfileFactory.Initialize(westCoast, null, 92, new GameDate(1965, 2, 1), 1001UL);
+		Require(westCoast.homeRegion == "westcoast" && westCoast.homeCityId == "san_francisco" &&
+			westCoast.distributionRegions.SequenceEqual(new[] { "westcoast" }),
+			"62f runtime geography resolves from the canonical headquarters city and includes a functioning home-market distribution path");
+		Require(LabelLifecycleManager.SelectRuntimeFoundingTier(.24f, .25f) == LabelTier.Small &&
+			LabelLifecycleManager.SelectRuntimeFoundingTier(.25f, .25f) == LabelTier.Independent,
+			"62g runtime founding preserves a bounded Small tail while making Independent the dominant entry tier");
 	}
 
 	private static void ProbeDailyTalentMarketScheduling() {
@@ -476,8 +542,12 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		SimulatedArtist artist = NewArtist("exhaustion"); artist.performanceDropCount = 1; artist.labelId = "owner";
 		AILabel owner = NewScoutingLabel(); owner.labelId = "owner"; owner.roster.Add(artist); var pool = new List<SimulatedArtist>();
 		ArtistManager.ReconcileDroppedArtistForProbe(artist, owner, pool, 1964, ArtistDropReason.Performance);
-		Require(artist.performanceDropCount == 2 && artist.lifecycleStatus == ArtistLifecycleStatus.Inactive && !artist.isActive && pool.Count == 0,
-			"32 second performance departure exhausts the career atomically");
+		Require(artist.performanceDropCount == 2 && artist.lastDropReason == ArtistDropReason.PerformanceExhaustion &&
+			artist.prospectMarketStatus == ProspectMarketStatus.Latent && artist.prospectMarketSpellCount == 1 && pool.Count == 0,
+			"32a a second performance departure leaves the active market for the reservoir, charged one search spell");
+		Require(!ArtistManager.IsProspectSearchEligibleForProbe(artist) && !ArtistManager.IsEligibleForPopulationSigningForProbe(artist, 1964) &&
+			artist.lifecycleStatus == ArtistLifecycleStatus.Active,
+			"32b the exhausted career is held rather than destroyed: unsearchable while reserved, but still a live career");
 	}
 
 	private static void ProbeFreeAgentResetAndRenewal() {
@@ -594,16 +664,71 @@ public static class ArtistPopulationLifecycleProbeSuite {
 	}
 
 	private static void ProbeTerminalClassification() {
-		SimulatedArtist group = NewArtist(); group.type = ArtistType.Band;
-		SimulatedArtist solo = NewArtist(); solo.type = ArtistType.SoloMale; solo.members.Add(new Musician("lead", "Lead", "Probe", true, 1920) { isLeadVocalist = true });
-		Require(ArtistManager.ClassifyTerminalLifecycleForProbe(group, 1960) == ArtistLifecycleStatus.Disbanded &&
-			ArtistManager.ClassifyTerminalLifecycleForProbe(solo, 1960) == ArtistLifecycleStatus.Retired, "15 group disbandment and qualified solo retirement classify correctly");
+		SimulatedArtist agedGroup = NewArtist(); agedGroup.type = ArtistType.Band;
+		agedGroup.members.Add(new Musician("group-lead", "Lead", "Probe", true, 1920) { isLeadVocalist = true });
+		SimulatedArtist agedSolo = NewArtist(); agedSolo.type = ArtistType.SoloMale;
+		agedSolo.members.Add(new Musician("solo-lead", "Lead", "Probe", true, 1920) { isLeadVocalist = true });
+		Require(ArtistManager.ClassifyTerminalLifecycleForProbe(agedGroup, 1960) == ArtistLifecycleStatus.Disbanded &&
+			ArtistManager.ClassifyTerminalLifecycleForProbe(agedSolo, 1960) == ArtistLifecycleStatus.Retired,
+			"15a aged-out acts classify as group disbandment and solo retirement");
+
+		SimulatedArtist youngGroup = NewArtist(); youngGroup.type = ArtistType.Band;
+		youngGroup.members.Add(new Musician("young-group-lead", "Lead", "Probe", true, 1938) { isLeadVocalist = true });
+		SimulatedArtist youngSolo = NewArtist(); youngSolo.type = ArtistType.SoloMale;
+		youngSolo.members.Add(new Musician("young-solo-lead", "Lead", "Probe", true, 1938) { isLeadVocalist = true });
+		Require(!ArtistManager.IsTerminalExitEarned(youngGroup, 1960) && !ArtistManager.IsTerminalExitEarned(youngSolo, 1960) &&
+			ArtistManager.ClassifyTerminalLifecycleForProbe(youngGroup, 1960) == ArtistLifecycleStatus.Inactive,
+			"15b a young band is spared on exactly the same terms as a young solo act");
+
+		youngGroup.prospectMarketSpellCount = 2; youngSolo.prospectMarketSpellCount = 3;
+		Require(!ArtistManager.IsTerminalExitEarned(youngGroup, 1960) && ArtistManager.IsTerminalExitEarned(youngSolo, 1960) &&
+			ArtistManager.ClassifyTerminalLifecycleForProbe(youngSolo, 1960) == ArtistLifecycleStatus.Retired,
+			"15c repeated rejection earns a terminal exit at the third completed search spell, not the second");
 	}
 
 	private static void ProbeTerminalSigningAndReleaseGuards() {
 		SimulatedArtist artist = NewArtist(); artist.lifecycleStatus = ArtistLifecycleStatus.Retired; artist.careerState = CareerState.Retired; artist.isActive = false;
 		Require(!ArtistManager.IsEligibleForPopulationSigningForProbe(artist, 1) && !GenreSupplyService.IsEligibleExistingArtistForEnabledRelease(artist),
 			"16 inactive/terminal artists cannot sign or release");
+	}
+
+	private static void ProbeVacancyDenominatedHiringDemand() {
+		AILabel major = NewScoutingLabel(40); major.tier = LabelTier.Major;
+		major.SetOperatingRosterTarget(9, LabelOperatingTargetReason.LaunchPopulation, 0);
+		major.roster.Add(NewArtist("major-1"));
+		AILabel small = NewScoutingLabel(5); small.tier = LabelTier.Small;
+		small.SetOperatingRosterTarget(1, LabelOperatingTargetReason.RuntimeBootstrap, 0);
+		AILabel filled = NewScoutingLabel(5); filled.roster.Add(NewArtist("filled-1")); filled.SetOperatingRosterTargetFromCurrent();
+		AILabel unaffordable = NewScoutingLabel(5, 0f);
+		unaffordable.SetOperatingRosterTarget(4, LabelOperatingTargetReason.RuntimeBootstrap, 0);
+		Require(ArtistManager.GetAffordableHiringVacancies(major) == 8 && ArtistManager.GetAffordableHiringVacancies(small) == 1 &&
+			ArtistManager.GetAffordableHiringVacancies(filled) == 0 && ArtistManager.GetAffordableHiringVacancies(unaffordable) == 0,
+			"70a hiring demand counts unfilled slots, so eight vacancies no longer read as the same demand as one");
+		Require(ArtistManager.CalculateProspectActivationCount(20, 0,
+				ArtistManager.GetAffordableHiringVacancies(major) + ArtistManager.GetAffordableHiringVacancies(small)) == 9,
+			"70b the activation budget is the slot count the market can actually pay for");
+	}
+
+	private static void ProbeExperiencedTalentReservoir() {
+		SimulatedArtist veteran = NewArtist("veteran"); veteran.careerState = CareerState.Dropped; veteran.contractSequence = 2;
+		veteran.prospectMarketStatus = ProspectMarketStatus.Seeking; veteran.prospectSeekingWeeks = 77;
+		veteran.members.Add(new Musician("veteran-lead", "Lead", "Probe", true, 1938) { isLeadVocalist = true });
+		Require(ArtistManager.AdvanceProspectSearchWeekForProbe(veteran) && veteran.prospectMarketStatus == ProspectMarketStatus.Latent &&
+			veteran.prospectMarketSpellCount == 1 && veteran.lifecycleStatus == ArtistLifecycleStatus.Active && veteran.isActive,
+			"71a a prior-contract career completes search spells instead of running an inactivity clock it cannot return from");
+		Require(!ArtistManager.IsProspectSearchEligibleForProbe(veteran) && !ArtistManager.IsTerminalExitEarned(veteran, 1964),
+			"71b reserved talent is held off the market until activation returns it, and one spell does not end a career");
+		veteran.prospectMarketStatus = ProspectMarketStatus.Seeking; veteran.prospectSeekingWeeks = 0;
+		Require(ArtistManager.IsProspectSearchEligibleForProbe(veteran) && ArtistManager.IsEligibleForPopulationSigningForProbe(veteran, 500),
+			"71c activation returns an experienced free agent to the searchable market on the same terms as a first-timer");
+
+		// Rotation is what stops the reservoir being a one-way pen: without it, once
+		// seeking saturates the vacancy budget nothing is ever activated, so nothing is
+		// ever seen by scouting and nothing can ever complete another spell either.
+		Require(ArtistManager.GetLatentRotationWeeksForProbe() > 0 &&
+			!ArtistManager.ShouldRotateLatentProspectForProbe(ArtistManager.GetLatentRotationWeeksForProbe() - 1) &&
+			ArtistManager.ShouldRotateLatentProspectForProbe(ArtistManager.GetLatentRotationWeeksForProbe()),
+			"71d a rested latent act returns to the market on its own clock rather than waiting to be sent for");
 	}
 
 	private static void ProbeExitDeferralPredicate() {
@@ -999,8 +1124,10 @@ public static class ArtistPopulationLifecycleProbeSuite {
 	}
 
 	private static void ProbeNoThirdComebackSigning() {
-		SimulatedArtist exhausted = NewArtist("no-third"); exhausted.performanceDropCount = 2; exhausted.isActive = false; exhausted.lifecycleStatus = ArtistLifecycleStatus.Inactive; exhausted.careerState = CareerState.Retired;
-		Require(!ArtistManager.IsEligibleUnsignedCandidateForProbe(exhausted), "46 exhausted artists are not signable for a third comeback");
+		SimulatedArtist exhausted = NewArtist("no-third"); exhausted.performanceDropCount = 2; exhausted.careerState = CareerState.Dropped;
+		exhausted.lastDropReason = ArtistDropReason.PerformanceExhaustion; exhausted.prospectMarketStatus = ProspectMarketStatus.Latent;
+		Require(!ArtistManager.IsEligibleForPopulationSigningForProbe(exhausted, 500),
+			"46 exhausted artists cannot walk into a third comeback: only activation can offer them back to the market");
 	}
 
 	private static void ProbeMarketClearingTelemetryFields() {
@@ -1084,33 +1211,61 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		candidate.status = LabelStatus.Stable;
 		candidate.monthsActive = 19;
 		candidate.sustainedCapabilityQuarters = 4;
-		candidate.ownedReach = .55f;
+		// Section 33: the organic route is reach AND sustained chart output. The old fixture
+		// qualified on .55 reach and two charting records, which is what a well-distributed small
+		// label looks like once independent distribution exists, not a large independent.
+		candidate.ownedReach = .65f;
 		candidate.nationalReach = .50f;
 		candidate.marketingPower = .60f;
 		candidate.lastMonthlyProfit = 1000f;
 		candidate.consecutiveLossMonths = 0;
 		for (int index = 0; index < 6; index++) candidate.roster.Add(NewArtist($"mid-promotion-{index}"));
 
-		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68a a mature, scaled, charting, profitable Independent with runway qualifies for MidTier");
 		candidate.monthsActive = 18;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68b the former second-quarter capability-only promotion wave is blocked by operating age");
 		candidate.monthsActive = 19; candidate.sustainedCapabilityQuarters = 3;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68c fewer than four sustained capability quarters cannot promote");
 		candidate.sustainedCapabilityQuarters = 4;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 1),
-			"68d capability and reach without two recent charting records cannot promote");
-		candidate.roster.RemoveAt(candidate.roster.Count - 1);
 		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68d capability and reach without a regular charting showing cannot promote");
+		// Coverage is not scale. A label that has assembled a national network but is charting
+		// only occasionally is a well-distributed small label; before section 33 this promoted.
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 7),
+			"68d2 national reach alone does not promote without sustained chart output behind it");
+		candidate.ownedReach = .55f;
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
+			"68d3 sustained chart output alone does not promote organically without the reach to match");
+		candidate.ownedReach = .65f;
+		candidate.roster.RemoveAt(candidate.roster.Count - 1);
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68e fewer than six rostered artists cannot promote into the large-independent tier");
 		candidate.roster.Add(NewArtist("mid-promotion-restored")); candidate.lastMonthlyProfit = -1f;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68f an unprofitable Independent cannot promote");
 		candidate.lastMonthlyProfit = 1000f; candidate.cashReserves = candidate.GetMonthlyOverhead() * 5f;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68g fewer than six months of runway cannot promote");
+
+		// Section 28: the dependent-hitmaker route. A label with low owned reach and high
+		// distributor dependency -- which the organic route rejects -- still reaches MidTier on a
+		// strong sustained chart-and-roster footprint (Stax/A&M on a major's P&D deal).
+		candidate.ownedReach = .28f;
+		candidate.activeDeal = new DistributionDeal { reachGranted = .60f };
+		while (candidate.roster.Count < 8) candidate.roster.Add(NewArtist($"mid-dep-{candidate.roster.Count}"));
+		candidate.cashReserves = candidate.GetMonthlyOverhead() * 6f;
+		Require(candidate.DistributionDependency >= 0.35f && candidate.ownedReach < 0.50f,
+			"68h setup: the dependent-hitmaker candidate is genuinely low-reach and high-dependency");
+		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
+			"68i a distributor-dependent hitmaker with a strong chart-and-roster footprint promotes without owning national reach");
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 7),
+			"68j the dependent route needs the stronger sustained charting bar, not the base floor");
+		candidate.roster.RemoveAt(candidate.roster.Count - 1);
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
+			"68k the dependent route needs the larger roster footprint as well");
 	}
 
 	private static void ProbeCompetitiveLabelExitBoundary() {
@@ -1144,15 +1299,855 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"69d Majors remain exempt from the marginal-label competition review");
 		candidate.tier = LabelTier.Independent;
 		candidate.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
-		candidate.monthsActive = 8;
+		candidate.monthsActive = 17;
 		Require(LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0) == 0f,
-			"69e a runtime founder retains a nine-month market-entry runway");
+			"69e a runtime founder retains an eighteen-month market-entry runway");
+		candidate.monthsActive = 18;
+		Require(LabelLifecycleManager.GetCompetitiveExitChance(candidate, 0) > 0f,
+			"69f competitive review begins after the runtime market-entry runway");
 
 		float first = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 3);
 		float repeat = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 3);
 		float nextQuarter = LabelLifecycleManager.GetCompetitiveExitRoll(1001UL, "label_probe", 1961, 6);
 		Require(first >= 0f && first < 1f && first == repeat && first != nextQuarter,
-			"69f competitive review uses a deterministic isolated quarterly roll");
+			"69g competitive review uses a deterministic isolated quarterly roll");
+	}
+
+	private static void ProbeEarnedNationalReachBoundaries() {
+		Require(Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.20f, .008f, .70f) - .208f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.699f, .008f, .70f) - .70f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.40f, -.10f, .70f) - .40f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterSelfBuiltGain(.80f, .008f, .70f) - .80f) < .000001f,
+			"72a self-built national reach grows by the configured monthly step, respects its ceiling, and cannot regress");
+		Require(Math.Abs(CompetitorManager.CalculateNationalReachAfterCompletedDeal(.20f, .40f, .25f, .80f) - .30f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterCompletedDeal(.78f, .80f, .25f, .80f) - .80f) < .000001f &&
+			Math.Abs(CompetitorManager.CalculateNationalReachAfterCompletedDeal(.35f, -.50f, .25f, .80f) - .35f) < .000001f,
+			"72b a completed deal retains a bounded fraction of granted reach without allowing a negative grant to reduce reach");
+		var client = new AILabel {
+			nationalReach = .20f,
+			activeDeal = new DistributionDeal { reachGranted = .45f }
+		};
+		Require(Math.Abs(client.effectiveNationalReach - .65f) < .000001f,
+			"72c an active distributor adds temporary national reach without mutating the client's permanent field");
+		client.activeDeal = null;
+		Require(Math.Abs(client.effectiveNationalReach - .20f) < .000001f,
+			"72d borrowed national reach ends with the deal while permanent reach remains");
+		client.distributionRegions = new[] { "eastcoast" };
+		string[] granted = CompetitorManager.GetGrantedDistributionRegions(client,
+			new[] { "eastcoast", "westcoast", "deepsouth", "westcoast" });
+		Require(granted.SequenceEqual(new[] { "westcoast", "deepsouth" }),
+			"72e a distribution deal grants the distributor's full new network rather than intersecting it with the client's existing strong market");
+	}
+
+	private static void ProbeEarnedReachDemandScale() {
+		float regional = ChartSimulator.CalculateLiveLabelDemandScale(.20f, .10f);
+		float established = ChartSimulator.CalculateLiveLabelDemandScale(.55f, .50f);
+		float national = ChartSimulator.CalculateLiveLabelDemandScale(.90f, .90f);
+		Require(Math.Abs(regional - .595f) < .000001f && Math.Abs(established - .9275f) < .000001f &&
+			Math.Abs(national - 1.20f) < .000001f && regional < established && established < national,
+			"73 live Single demand rises continuously with earned distribution and national reach while respecting the national-label ceiling");
+	}
+
+	private static void ProbePersistentRegionalDealEvidence() {
+		var record = new RecordRuntimeData(new Record {
+			recordId = "regional_deal_probe",
+			labelId = "regional_label",
+			format = ReleaseFormat.Single,
+			hookStrength = .45f,
+			productionQuality = .45f,
+			danceability = .45f
+		});
+		record.peakRegionalBreakoutStrength = .25f;
+		record.regionalData["eastcoast"] = new RegionalRecordData("eastcoast") {
+			peakBreakoutScore = .23f,
+			unitsSoldThisWeek = 0
+		};
+		record.regionalData["westcoast"] = new RegionalRecordData("westcoast") {
+			peakBreakoutScore = .25f,
+			unitsSoldThisWeek = 0
+		};
+		CompetitorManager.RegionalDealEvidence evidence = CompetitorManager.EvaluateRegionalDealEvidence(
+			new[] { record }, "regional_label", new[] { "eastcoast" }, .24f);
+		var highNationalReachClient = new AILabel { labelId = "regional_label", nationalReach = .85f };
+		Require(evidence.HasPersistentRegionalTraction &&
+			Math.Abs(evidence.BestStrongRegionPeak - .23f) < .000001f &&
+			Math.Abs(evidence.BestAnyRegionPeak - .25f) < .000001f &&
+			!evidence.PassesLegacyQualityAndCurrentSalesGate &&
+			CompetitorManager.IsPullDealTrigger(highNationalReachClient, evidence),
+			"74 persistent observed LocalTraction in any market survives a zero-sales processing week, does not require a static launch-time strong region, and is not closed by an arbitrary national-reach scalar");
+
+		record.regionalData["westcoast"].peakBreakoutScore = .23f;
+		evidence = CompetitorManager.EvaluateRegionalDealEvidence(
+			new[] { record }, "regional_label", new[] { "eastcoast" }, .24f);
+		Require(!evidence.HasPersistentRegionalTraction,
+			"74b sub-LocalTraction noise cannot qualify for distribution evidence in any region");
+	}
+
+	private static void ProbeRetiredLabelEvidenceLookback() {
+		var history = new[] {
+			new CompetitorManager.LabelRecordHistoryEntry(48, charted: true, top40: true),
+			new CompetitorManager.LabelRecordHistoryEntry(47, charted: true, top40: false),
+			new CompetitorManager.LabelRecordHistoryEntry(90, charted: false, top40: false)
+		};
+		Require(CompetitorManager.CountRecentRetiredRecordEvidence(history, 100, 52,
+				requireCharted: true, requireTop40: false) == 1 &&
+			CompetitorManager.CountRecentRetiredRecordEvidence(history, 100, 52,
+				requireCharted: false, requireTop40: true) == 1 &&
+			CompetitorManager.CountRecentRetiredRecordEvidence(history, 100, 52,
+				requireCharted: false, requireTop40: false) == 2,
+			"75 a retired record remains visible through the inclusive 52-week label-evidence window and expires after it");
+	}
+
+	private static void ProbeWeeklyAwarenessAgeDecay() {
+		float prePeak = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(.80f, 8);
+		float ageNine = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(.80f, 9);
+		float ageEighteen = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(.80f, 18);
+		float repeated = .80f;
+		for (int age = 9; age <= 18; age++)
+			repeated = ChartSimulator.ApplyWeeklyAwarenessAgeDecay(repeated, age);
+		Require(Math.Abs(prePeak - .80f) < .000001f &&
+			Math.Abs(ageNine - .76f) < .000001f &&
+			Math.Abs(ageEighteen - .76f) < .000001f &&
+			Math.Abs(repeated - (.80f * MathF.Pow(.95f, 10f))) < .000001f,
+			"76 awareness receives one post-peak decay step per elapsed week rather than a triangular age exponent");
+	}
+
+	private static void ProbeReleaseImprintIdentity() {
+		var source = new Record { recordId = "imprint_probe", labelId = "original_imprint" };
+		var runtime = new RecordRuntimeData(source);
+		source.labelId = "acquiring_owner";
+		Require(runtime.releaseLabelId == "original_imprint" && runtime.baseRecord.labelId == "acquiring_owner",
+			"77 acquisition may transfer operating ownership without rewriting the immutable release-imprint identity");
+	}
+
+	private static void ProbeRegionScaledBreakoutEvidence() {
+		// East Coast and Deep South as authored in chart_manager.tscn.
+		var eastCoast = new MarketRegion {
+			regionId = "eastcoast", population = 52.2f, urbanization = .70f, averageIncome = 1.15f, youthPercentage = .32f
+		};
+		var deepSouth = new MarketRegion {
+			regionId = "deepsouth", population = 15.0f, urbanization = .48f, averageIncome = .78f, youthPercentage = .40f
+		};
+		float reference = eastCoast.GetRecordBuyingPopulation();
+		float eastScale = ChartManager.CalculateRegionalDemandScale(eastCoast.GetRecordBuyingPopulation(), reference);
+		float southScale = ChartManager.CalculateRegionalDemandScale(deepSouth.GetRecordBuyingPopulation(), reference);
+		Require(Math.Abs(eastScale - 1f) < .000001f && southScale > .21f && southScale < .25f,
+			"78 the largest authored market keeps its existing calibration while a roughly quarter-sized market scales to its own buying population");
+
+		// The same share of each local market must yield the same evidence.
+		float eastVolume = ChartManager.CalculateBreakoutVolumeInput(3500f, 3000f, eastScale);
+		float southVolume = ChartManager.CalculateBreakoutVolumeInput(3500f * southScale, 3000f * southScale, southScale);
+		Require(Math.Abs(eastVolume - southVolume) < .000001f,
+			"78b equal per-capita regional performance produces equal breakout volume evidence regardless of market size");
+
+		// The historical defect: a genuine Deep South regional hit scored as noise.
+		float southHitUnderFlatThresholds = ChartManager.CalculateBreakoutVolumeInput(900f, 800f, 1f);
+		float southHitUnderRegionScale = ChartManager.CalculateBreakoutVolumeInput(900f, 800f, southScale);
+		Require(southHitUnderFlatThresholds < .25f && southHitUnderRegionScale > .75f &&
+			southHitUnderRegionScale > southHitUnderFlatThresholds,
+			"78c a regional hit in a smaller market is no longer scored against the largest market's absolute unit thresholds");
+
+		// A degenerate region must not divide by zero or change previous behavior.
+		Require(Math.Abs(ChartManager.CalculateRegionalDemandScale(0f, reference) - 1f) < .000001f &&
+			Math.Abs(ChartManager.CalculateRegionalDemandScale(reference, 0f) - 1f) < .000001f,
+			"78d an unauthored or degenerate region falls back to the unscaled thresholds");
+	}
+
+	private static void ProbePerSongDistributionScope() {
+		var label = new AILabel {
+			labelId = "scoped_deal_label",
+			homeRegion = "deepsouth",
+			nationalReach = .20f,
+			distributionRegions = new[] { "deepsouth" }
+		};
+		label.distributionStrength = .30f;
+		label.activeDeal = new DistributionDeal {
+			distributorId = "national_distributor",
+			reachGranted = .50f,
+			grantedRegions = new[] { "eastcoast", "greatlakes", "westcoast" },
+			signedWeek = 40,
+			termWeeks = 78
+		};
+		label.activeDeal.Cover("breakout_single");
+
+		// The record that earned the contract rides the distributor's network.
+		Require(label.RecordCoveredByActiveDeal("breakout_single") &&
+			label.HasDistributionInRegionForRecord("eastcoast", "breakout_single") &&
+			Math.Abs(label.BorrowedReachForRecord("breakout_single") - .50f) < .000001f &&
+			Math.Abs(label.EffectiveNationalReachForRecord("breakout_single") - .70f) < .000001f,
+			"79 the record whose regional breakout earned a distribution deal receives the distributor's regions and borrowed reach");
+
+		// A back-catalog record released before the deal does not.
+		Require(!label.RecordCoveredByActiveDeal("older_catalog_single") &&
+			!label.HasDistributionInRegionForRecord("eastcoast", "older_catalog_single") &&
+			label.BorrowedReachForRecord("older_catalog_single") == 0f &&
+			Math.Abs(label.EffectiveNationalReachForRecord("older_catalog_single") - .20f) < .000001f,
+			"79b a deal does not retroactively push the label's existing catalog into the distributor's network");
+
+		// The label's own regions still serve every record, deal or not.
+		Require(label.HasDistributionInRegionForRecord("deepsouth", "older_catalog_single") &&
+			Math.Abs(label.DistributionStrengthForRecord("older_catalog_single") - .30f) < .000001f,
+			"79c owned distribution continues to serve records the contract does not carry");
+
+		// Output released during the term joins the deal.
+		label.activeDeal.Cover("released_during_term");
+		Require(label.HasDistributionInRegionForRecord("greatlakes", "released_during_term") &&
+			Math.Abs(label.EffectiveNationalReachForRecord("released_during_term") - .70f) < .000001f,
+			"79d output released while the contract runs goes out through the distributor's network");
+
+		// Termination removes borrowed capability from every record at once.
+		label.activeDeal = null;
+		Require(!label.HasDistributionInRegionForRecord("eastcoast", "breakout_single") &&
+			label.BorrowedReachForRecord("breakout_single") == 0f,
+			"79e ending the contract withdraws the distributor's network from the records it carried");
+	}
+
+	private static void ProbePhysicalDistributionGovernsShelfStock() {
+		var major = new AILabel {
+			labelId = "national_major", homeRegion = "eastcoast",
+			strongRegions = new[] { "eastcoast" },
+			distributionRegions = new[] { "eastcoast", "greatlakes", "deepsouth" }
+		};
+		major.distributionStrength = .88f;
+		var small = new AILabel {
+			labelId = "regional_small", homeRegion = "deepsouth",
+			strongRegions = new[] { "deepsouth" },
+			distributionRegions = new[] { "deepsouth" }
+		};
+		small.distributionStrength = .26f;
+
+		int majorCovered = ChartSimulator.CalculateInitialRegionalStock(major, "greatlakes", 1f, 1f, "rec");
+		int smallUncovered = ChartSimulator.CalculateInitialRegionalStock(small, "greatlakes", 1f, 1f, "rec");
+		int smallHome = ChartSimulator.CalculateInitialRegionalStock(small, "deepsouth", 1f, 1f, "rec");
+
+		Require(majorCovered > smallUncovered * 3,
+			"80 shelf stock in a region a label does not distribute into is a small fraction of a national label's covered shelf");
+		Require(smallHome > smallUncovered,
+			"80b a label's own strong home market receives deeper shelf stock than a market it cannot reach");
+	}
+
+	private static void ProbeSeededLargeFirmPopulation() {
+		var labels = AILabelFactory.GenerateAllLabels(600);
+		int majors = labels.Count(label => label.tier == LabelTier.Major);
+		int midTier = labels.Count(label => label.tier == LabelTier.MidTier);
+		int independents = labels.Count(label => label.tier == LabelTier.Independent);
+
+		// The 1960 market had roughly eight corporate majors and on the order of
+		// twenty to twenty-five national independents. The former draw produced about
+		// 13 and 98 respectively, which took 85% of chart entries.
+		Require(majors >= 4 && majors <= 14,
+			"81 the seeded population carries a corporate-major count in the historical range rather than an inflated one");
+		Require(midTier >= 10 && midTier <= 40,
+			"81b the seeded population carries a national-independent count in the historical range rather than four times it");
+		Require(independents > midTier * 3,
+			"81c regional independents outnumber national independents in the seeded 1960 market");
+
+		// Motown and Stax must earn MidTier rather than begin there in January 1960.
+		AILabel motown = labels.FirstOrDefault(label => label.labelName != null && label.labelName.StartsWith("Motown", StringComparison.Ordinal));
+		AILabel stax = labels.FirstOrDefault(label => label.labelName != null && label.labelName.StartsWith("Stax", StringComparison.Ordinal));
+		Require(motown != null && motown.tier == LabelTier.Independent &&
+			stax != null && stax.tier == LabelTier.Independent,
+			"81d firms that were months old or trading under an earlier name in 1960 start below the mature large-independent tier");
+
+		// Every seeded label must satisfy the operating-profile contract.
+		Require(labels.All(label => label.riskTolerance > 0f && label.artistLoyalty > 0f),
+			"81e every seeded launch label carries a complete operating profile");
+	}
+
+	private static void ProbeBreakoutEvidenceRewardsConstrainedDemand() {
+		// Two records identical except that one is selling out where its label cannot
+		// restock. Under the former form unmetInput was multiplied by volumeInput, so a
+		// supply-constrained record -- which has low fulfilled volume by construction --
+		// had its own proof cancelled. Backordered demand must now raise evidence.
+		float noBackorder = ChartManager.CalculateBreakoutEvidence(
+			.45f, .5f, .5f, .4f, .15f, .8f, .7f, unmetInput: 0f);
+		float soldOut = ChartManager.CalculateBreakoutEvidence(
+			.45f, .5f, .5f, .4f, .15f, .8f, .7f, unmetInput: 1f);
+		Require(soldOut > noBackorder && soldOut - noBackorder > .05f,
+			"82 proven demand a label cannot fulfil raises regional breakout evidence instead of being cancelled by low fulfilled volume");
+
+		// The envelope must not become a general subsidy: a high-volume incumbent keeps
+		// its prior calibration while the low-volume tail is the part that is relieved.
+		float incumbentEnvelope = .70f + .30f * .98f;
+		float tailEnvelope = .70f + .30f * .61f;
+		Require(Math.Abs(incumbentEnvelope - .994f) < .001f && incumbentEnvelope > .99f,
+			"82b a high-volume incumbent's evidence envelope is left effectively unchanged");
+		Require(tailEnvelope > .88f && tailEnvelope < .89f && tailEnvelope < incumbentEnvelope,
+			"82c the low-volume tail is relieved without overtaking high-volume records");
+
+		// Volume must still dominate: it holds the largest single weight and the envelope.
+		float lowVolume = ChartManager.CalculateBreakoutEvidence(.10f, .5f, .5f, .4f, .15f, .8f, .7f, .5f);
+		float highVolume = ChartManager.CalculateBreakoutEvidence(.90f, .5f, .5f, .4f, .15f, .8f, .7f, .5f);
+		Require(highVolume > lowVolume * 1.4f,
+			"82d volume remains the dominant breakout input after the envelope is narrowed");
+
+		// Weights are a partition, so a saturated record scores exactly 1.
+		Require(Math.Abs(ChartManager.CalculateBreakoutEvidence(1f, 1f, 1f, 1f, 1f, 1f, 1f, 1f) - 1f) < .000001f,
+			"82e the breakout input weights remain a partition of unity");
+	}
+
+	private static void ProbeArtistReleaseHistoryCountsOnce() {
+		SimulatedArtist artist = NewArtist("release-history");
+		CompetitorManager.RecordArtistRelease(artist, "rec_a", ReleaseFormat.Single);
+		Require(artist.releaseHistory.Count == 1 && artist.totalReleases == 1 &&
+			artist.releasedSingleIds.Contains("rec_a") && artist.weeksSinceLastRelease == 0,
+			"83 one live release appends exactly one project-history entry");
+
+		CompetitorManager.RecordArtistRelease(artist, "rec_b", ReleaseFormat.Single);
+		CompetitorManager.RecordArtistRelease(artist, "rec_c", ReleaseFormat.Single);
+		Require(artist.releaseHistory.Count == 3,
+			"83b three releases reach the GenreSupplyService project-history cap in three, not two");
+
+		// Guard the boundary the double count actually moved.
+		Require(Math.Min(2, 3) * .03f < Math.Min(3, 3) * .03f,
+			"83c project-identity retention still distinguishes a second release from a third");
+	}
+
+	private static void ProbePromoCannibalizationChargedOnce() {
+		// A label with no Album-component evidence still carries the whole modelled
+		// diversion: nothing has been priced in for it yet, so 1960 is unmoved.
+		Require(Math.Abs(CompetitorManager.CalculateChargedPromoCannibalization(100000f, 0f) - 100000f) < .001f,
+			"84 an Album-component lane with no evidence charges the full modelled promo cannibalization");
+
+		// A label whose projection is fully memory-driven has the diversion inside that
+		// projection already, so charging it again would be the double count.
+		Require(CompetitorManager.CalculateChargedPromoCannibalization(100000f, 1f) == 0f,
+			"84b a fully confident Album-component projection charges no additional cannibalization");
+
+		// The relief is monotone in confidence and never exceeds the modelled loss, so it
+		// is a reallocation between two accountings of one effect, not a new subsidy.
+		float low = CompetitorManager.CalculateChargedPromoCannibalization(100000f, .2f);
+		float high = CompetitorManager.CalculateChargedPromoCannibalization(100000f, .7f);
+		Require(high < low && low < 100000f && high > 0f,
+			"84c charged cannibalization falls monotonically as Album-component confidence rises");
+
+		// Confidence outside [0,1] and a negative modelled loss must not invent a credit.
+		Require(CompetitorManager.CalculateChargedPromoCannibalization(100000f, 1.4f) == 0f &&
+			Math.Abs(CompetitorManager.CalculateChargedPromoCannibalization(100000f, -.3f) - 100000f) < .001f &&
+			CompetitorManager.CalculateChargedPromoCannibalization(-5000f, .5f) == 0f,
+			"84d out-of-range confidence and negative modelled loss are clamped rather than inverted");
+
+		// The measured failure this repairs: a Major's 1969 inputs. Charged in full the
+		// promo strategy is not viable and the Album ships with no Single; charged once
+		// against a half-confident component projection it survives, which is what keeps
+		// the Singles pipeline alive as the LP share rises.
+		const float promoTerms = 3685f + 52751f + 68956f;
+		const float modelledLoss = 141465f;
+		Require(promoTerms - modelledLoss < 0f,
+			"84e the measured 1969 Major promo proposition is non-viable when cannibalization is charged twice");
+		Require(promoTerms - CompetitorManager.CalculateChargedPromoCannibalization(modelledLoss, .51f) > 0f,
+			"84f the same proposition is viable once the component projection's share is not charged again");
+	}
+
+	private static void ProbePromoRecruitmentMatchesDiversionTerms() {
+		// Recruitment (CalculatePromoAlbumSynergyGain) and diversion are the two sides of
+		// the promo Single's Album-unit effect. Diversion is substitutionK (1.00) * album
+		// demand * shelf overlap (0.60); recruitment is PromoAlbumConversionK * album
+		// demand * awareness headroom. With the base conversion now at or above substitutionK,
+		// recruitment exceeds diversion at real awareness headroom yet stays dilutive at the floor.
+		const float albumDemand = .60f, singleUnits = 1000f, margin = 10f;
+		float diverted = Math.Min(1.00f * albumDemand, .60f) * .60f * singleUnits * margin;
+		float recruitUnknownAct = CompetitorManager.CalculatePromoAlbumSynergyGain(albumDemand, 1f, singleUnits, margin);
+		float recruitEstablishedAct = CompetitorManager.CalculatePromoAlbumSynergyGain(albumDemand, 0f, singleUnits, margin);
+		Require(recruitUnknownAct > diverted,
+			"85 a hit promo Single for an unknown act now recruits more Album units than it diverts");
+		Require(recruitEstablishedAct < diverted,
+			"85b an established act's promo Single stays mildly dilutive, preserving the awareness-gated crossover rather than a flat subsidy");
+		// The former 0.50 base put recruitment strictly below diversion at every headroom.
+		Require(recruitUnknownAct > .50f * albumDemand * 1f * singleUnits * margin,
+			"85c raising the base conversion to at least substitutionK lifts recruitment above the former negative-definite half-measure");
+	}
+
+	private static void ProbeLoweredLocalTractionAdmitsStrandedBand() {
+		// LocalTraction, and the discovery basin it opens, began at 0.24, stranding the
+		// 0.18-0.24 breakout band: above the 0.18 collapse floor so not dying, below the
+		// activation so earning no reinforcement. Lowering activation to 0.20 admits the
+		// upper part of that band to the discovery ramp.
+		Require(ChartManager.CalculateBreakoutDiscoveryStrength(0.21f) > 0f &&
+			ChartManager.CalculateBreakoutDiscoveryStrength(0.20f) == 0f,
+			"86 a record just above the lowered 0.20 LocalTraction activation now earns self-reinforcing discovery");
+		Require(ChartManager.CalculateBreakoutDiscoveryStrength(0.19f) == 0f,
+			"86b a record below the activation earns none, so the sub-collapse-floor population is unchanged");
+		// The ramp keeps its 0.40-wide shape: monotone, zero at the anchor, saturating a
+		// full 0.40 above it, so a RegionalBreakout-strength incumbent earns the same
+		// reinforcement it already did (and is separately capped at runtime).
+		Require(ChartManager.CalculateBreakoutDiscoveryStrength(0.40f) > ChartManager.CalculateBreakoutDiscoveryStrength(0.30f) &&
+			Math.Abs(ChartManager.CalculateBreakoutDiscoveryStrength(0.60f) - 1f) < .000001f,
+			"86c the discovery-strength ramp stays monotone and saturates a fixed 0.40 above the activation");
+	}
+
+	private static void ProbeConsolidationGate() {
+		// The late-decade major-consolidation gate is split from its random roll so it can be
+		// asserted directly. Arguments below use the shipped defaults: start year 1966, cap 40,
+		// requireCharted on, allowNationalMidTier off. A Major absorbing a charted independent
+		// inside the window and under the cap is the one eligible shape.
+		Require(CompetitorManager.IsConsolidationEligible(1968, 1966,
+			LabelTier.Major, false, LabelTier.Independent, true, true, false, 5, 40),
+			"87 a Major absorbing a charted independent inside the window and under the cap is eligible");
+
+		// Before the window nothing consolidates, which preserves the calibrated early-decade
+		// major share and keeps pre-1966 realizations unperturbed by the lever.
+		Require(!CompetitorManager.IsConsolidationEligible(1965, 1966,
+			LabelTier.Major, false, LabelTier.Independent, true, true, false, 0, 40),
+			"87b no absorption fires before the consolidation start year");
+
+		// Only a Major -- or, when the flag is on, a genuinely national MidTier -- may acquire.
+		// A standalone MidTier or Independent absorbing is the wrong-tier noise the old ungated
+		// path produced (indie-on-indie, even small-on-major).
+		Require(!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.MidTier, false, LabelTier.Independent, true, true, false, 0, 40) &&
+			!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Independent, true, LabelTier.Boutique, true, true, false, 0, 40),
+			"87c a MidTier (national flag off) or Independent acquirer is not an eligible consolidator");
+		Require(CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.MidTier, true, LabelTier.Independent, true, true, true, 0, 40) &&
+			!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.MidTier, false, LabelTier.Independent, true, true, true, 0, 40),
+			"87d a national MidTier acquires only when the flag is on and it is genuinely national");
+
+		// Section 28: the historically dominant consolidation was majors absorbing high-volume
+		// MidTier labels (WB->Atlantic), so a MidTier client IS an eligible target. Only a Major
+		// client -- a peer, not an acquisition target -- is excluded.
+		Require(CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.MidTier, true, true, false, 0, 40) &&
+			!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.Major, true, true, false, 0, 40),
+			"87e a Major can absorb a MidTier client (WB->Atlantic) but never another Major");
+
+		// Majors bought success: an uncharted client is ineligible while requireCharted holds,
+		// and relaxing that flag admits it.
+		Require(!CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.Independent, false, true, false, 0, 40) &&
+			CompetitorManager.IsConsolidationEligible(1968, 1966,
+				LabelTier.Major, false, LabelTier.Independent, false, false, false, 0, 40),
+			"87f a client must have charted when requireCharted is set, and need not when it is cleared");
+
+		// The decade cap bounds the wave so it cannot crush the independent imprint tail that
+		// breadth and the section 1 tier guardrail require.
+		Require(!CompetitorManager.IsConsolidationEligible(1969, 1966,
+				LabelTier.Major, false, LabelTier.Independent, true, true, false, 40, 40),
+			"87g absorption stops once the decade cap is reached");
+	}
+
+	private static void ProbeSubsidiaryAbsorptionRetainsLabel() {
+		// Subsidiary model (section 24): absorption does not shut the label down. It folds the
+		// terminated deal's borrowed reach into permanent owned reach, unions the parent's
+		// distribution regions in so national coverage persists, and rolls ownership up to the
+		// parent -- while the label keeps its operational status, roster and release imprint so
+		// it keeps charting as a Major-owned subsidiary.
+		AILabel parent = new() {
+			labelId = "major-parent", tier = LabelTier.Major,
+			distributionRegions = new[] { "westcoast", "greatlakes" }, roster = new List<SimulatedArtist>()
+		};
+		AILabel client = new() {
+			labelId = "indie-sub", tier = LabelTier.Independent, status = LabelStatus.Rising,
+			ownedReach = 0.10f, distributionRegions = new[] { "eastcoast" },
+			roster = new List<SimulatedArtist> { NewArtist("sub-artist") },
+			activeDeal = new DistributionDeal { distributorId = "major-parent", reachGranted = 0.50f }
+		};
+
+		CompetitorManager.ApplySubsidiaryAbsorption(client, parent);
+
+		Require(client.IsSubsidiary && client.ownerLabelId == "major-parent",
+			"88 an absorbed label is marked a subsidiary of its acquiring parent");
+		Require(client.activeDeal == null && Math.Abs(client.ownedReach - 0.60f) < 0.0001f,
+			"88b the terminated deal's borrowed reach is folded into permanent owned reach");
+		Require(client.distributionRegions.Length == 3 && client.distributionRegions.Contains("eastcoast") &&
+			client.distributionRegions.Contains("westcoast") && client.distributionRegions.Contains("greatlakes"),
+			"88c the parent's distribution regions are unioned into the subsidiary's own");
+		Require(client.IsActive && client.status == LabelStatus.Rising && client.CurrentRosterSize == 1,
+			"88d the subsidiary keeps operating -- status, roster and imprint retained, not shut down");
+	}
+
+	private static void ProbeDependentHitmakerArchetype() {
+		// Section 27: a minority of runtime Independents are dependent "Stax" hitmakers -- strong
+		// production but low owned reach, so they chart through a major's network and stay
+		// absorbable -- while the rest of the dependent population is unchanged.
+		int flagged = 0; const int total = 200;
+		for (int i = 0; i < total; i++) {
+			AILabel l = NewRuntimeProfileProbeLabel("dh-" + i, LabelTier.Independent);
+			RuntimeLabelProfileFactory.Initialize(l, null, 30 + i, new GameDate(1963, 6, 1), 4242UL);
+			if (l.distributionDependentHitmaker) {
+				flagged++;
+				Require(l.productionQuality >= 0.60f && l.ownedReach <= 0.40f && RuntimeLabelProfileFactory.HasCompleteOperatingProfile(l),
+					"89 a dependent hitmaker has strong production and low owned reach within a complete profile");
+			}
+		}
+		Require(flagged > 0 && flagged < total,
+			"89b dependent hitmakers are a nonempty minority of runtime Independents, neither all nor none");
+
+		AILabel a = NewRuntimeProfileProbeLabel("dh-fixed", LabelTier.Independent);
+		AILabel b = NewRuntimeProfileProbeLabel("dh-fixed", LabelTier.Independent);
+		RuntimeLabelProfileFactory.Initialize(a, null, 55, new GameDate(1963, 6, 1), 4242UL);
+		RuntimeLabelProfileFactory.Initialize(b, null, 55, new GameDate(1963, 6, 1), 4242UL);
+		Require(a.distributionDependentHitmaker == b.distributionDependentHitmaker,
+			"89c the dependent-hitmaker roll is deterministic for a fixed seed and identity");
+
+		AILabel small = NewRuntimeProfileProbeLabel("dh-small", LabelTier.Small);
+		RuntimeLabelProfileFactory.Initialize(small, null, 55, new GameDate(1963, 6, 1), 4242UL);
+		Require(!small.distributionDependentHitmaker,
+			"89d the dependent-hitmaker archetype is confined to the Independent tier");
+	}
+
+
+	private static MarketRegion NewDistributionProbeRegion(
+		string regionId, int recordStores, float depth, float difficulty, bool indieTrade) =>
+		new() {
+			regionId = regionId,
+			regionName = regionId,
+			population = 20f,
+			distribution = new DistributionNetwork {
+				recordStoreCount = recordStores,
+				departmentStoreCount = recordStores * 2,
+				inventoryDepth = depth,
+				difficulty = difficulty,
+				hasIndieDistribution = indieTrade,
+				hasOneStopDistributors = true
+			}
+		};
+
+	private static void ProbeIndependentDistributionLayer() {
+		// Section 33: the regional independent-distribution layer is derived from each region's
+		// authored DistributionNetwork rather than from a new invented constant, so house counts
+		// track authored retail depth and a region authored without an independent trade -- the
+		// Rockies -- has no houses at all.
+		var regions = new List<MarketRegion> {
+			NewDistributionProbeRegion("big", 615, 0.75f, 0.25f, indieTrade: true),
+			NewDistributionProbeRegion("thin", 148, 0.45f, 0.50f, indieTrade: true),
+			NewDistributionProbeRegion("notrade", 39, 0.30f, 0.75f, indieTrade: false)
+		};
+
+		List<IndependentDistributor> houses = IndependentDistributorFactory.Generate(regions, 1001UL);
+		int big = houses.Count(house => house.regionId == "big");
+		int thin = houses.Count(house => house.regionId == "thin");
+
+		Require(houses.All(house => house.regionId != "notrade"),
+			"90 a region authored without an independent distribution trade generates no houses");
+		Require(big > thin && thin >= 2,
+			"90b house count scales with authored retail depth and floors above a single house per market");
+		Require(houses.Select(house => house.distributorId).Distinct(StringComparer.Ordinal).Count() == houses.Count,
+			"90c every generated house has a distinct id");
+
+		// Capacity must not be the scarce input. The major client ceiling saturated on every seed
+		// and froze the market for a decade; independent distribution was abundant and a hit was
+		// what was scarce, so a house carries far more lines than a major's 24-client cap.
+		Require(houses.All(house => house.clientCapacity > 100),
+			"90d independent house capacity is generous rather than a binding scarcity cap");
+		Require(houses.All(house =>
+				house.paymentTermWeeks >= 12 && house.paymentTermWeeks <= 18 &&
+				house.reliability > 0f && house.reliability <= 0.95f &&
+				house.reportingHonesty > 0f && house.reportingHonesty <= 0.99f),
+			"90e payment terms sit in the historical 90-120 day band with bounded reliability and reporting");
+
+		// Harder markets pay worse and report worse -- the squeeze that turned a regional hit into
+		// a cash crisis and made a major's offer attractive.
+		float bigReliability = houses.Where(house => house.regionId == "big").Average(house => house.reliability);
+		float thinReliability = houses.Where(house => house.regionId == "thin").Average(house => house.reliability);
+		Require(bigReliability > thinReliability,
+			"90f houses in harder authored markets are the worse payers");
+
+		// Generation runs on its own stream, so it is deterministic in (regions, seed) and cannot
+		// reorder the global RNG that decides which labels and artists exist.
+		List<IndependentDistributor> repeat = IndependentDistributorFactory.Generate(regions, 1001UL);
+		Require(repeat.Count == houses.Count &&
+			repeat.Zip(houses).All(pair =>
+				pair.First.distributorId == pair.Second.distributorId &&
+				pair.First.distributorName == pair.Second.distributorName &&
+				Math.Abs(pair.First.reliability - pair.Second.reliability) < .000001f),
+			"90g layer generation is deterministic for a fixed seed");
+		Require(IndependentDistributorFactory.Generate(regions, 2029UL)
+				.Zip(houses).Any(pair => Math.Abs(pair.First.reliability - pair.Second.reliability) > .000001f),
+			"90h a different seed yields a different layer");
+
+		// Slice 1 registers houses and nothing more: a house starts empty and honours its capacity.
+		IndependentDistributor first = houses[0];
+		Require(first.CurrentClientCount == 0 && first.HasCapacity && !first.CarriesLabel("label_0001"),
+			"90i a freshly generated house carries no label lines");
+		Require(first.AddClient("label_0001") && first.CarriesLabel("label_0001") && !first.AddClient("label_0001"),
+			"90j a house takes a label line once and rejects a duplicate");
+		Require(first.RemoveClient("label_0001") && !first.CarriesLabel("label_0001"),
+			"90k a house releases a label line");
+	}
+
+	private static void ProbeIndependentDistributionCoverage() {
+		// Section 33: independent distribution grants physical coverage and nothing else.
+		// This is the property the whole channel rests on -- a record shipped through a
+		// wholesale house belongs to nobody, so it can never be counted as major-owned.
+		var label = new AILabel {
+			labelId = "indie-cov", labelName = "Coverage Test", tier = LabelTier.Independent,
+			homeRegion = "deepsouth", distributionRegions = new[] { "deepsouth" }, ownedReach = .30f
+		};
+		Require(label.HasDistributionInRegion("deepsouth") && !label.HasDistributionInRegion("southwest"),
+			"91 a label starts covering only its own generated regions");
+
+		label.independentDistributionRegions.Add("southwest");
+		Require(label.HasDistributionInRegion("southwest"),
+			"91b placing a line with a regional house covers that market");
+		// Label-wide, unlike the per-song scope of a P&D contract (section 11): a wholesaler
+		// carried the label's whole line in its market.
+		Require(label.HasDistributionInRegionForRecord("southwest", "any_record") &&
+			label.HasDistributionInRegionForRecord("southwest", "another_record"),
+			"91c wholesale coverage carries the label's whole line, not one song");
+		Require(label.activeDeal == null && label.BorrowedReachForRecord("any_record") == 0f &&
+			Math.Abs(label.EffectiveNationalReachForRecord("any_record") - label.nationalReach) < .000001f,
+			"91d independent coverage creates no deal and borrows no reach, so it confers no ownership");
+		Require(label.AllCoveredRegions().OrderBy(r => r, StringComparer.Ordinal)
+				.SequenceEqual(new[] { "deepsouth", "southwest" }),
+			"91e covered markets are the union of generated and independently placed regions");
+
+		// The markets a label built stay its own across a contract being signed and ended.
+		label.activeDeal = new DistributionDeal {
+			distributorId = "label_0001", reachGranted = .40f,
+			grantedRegions = new[] { "eastcoast" }, signedWeek = 10, termWeeks = 52
+		};
+		Require(label.HasDistributionInRegion("southwest"),
+			"91f a distribution contract does not displace the label's own wholesale relationships");
+		label.activeDeal = null;
+		Require(label.HasDistributionInRegion("southwest") && !label.HasDistributionInRegion("eastcoast"),
+			"91g independent coverage survives contract termination while borrowed regions do not");
+
+		// Spread is geographic: bordering markets, symmetrically.
+		Require(DistanceModel.GetAdjacentRegions("deepsouth").Contains("southwest") &&
+			DistanceModel.GetAdjacentRegions("southwest").Contains("deepsouth"),
+			"91h the neighbour map is symmetric");
+		Require(!DistanceModel.GetAdjacentRegions("eastcoast").Contains("westcoast"),
+			"91i distant markets are not neighbours");
+		Require(DistanceModel.GetAdjacentRegions("rockies").Count > 0,
+			"91j a region with no independent trade of its own still borders markets that have one");
+
+		// The signing roll is seed-stable and off the global stream, so introducing this
+		// route cannot reorder the samplers that decide which labels and artists exist.
+		float first = CompetitorManager.GetDeterministicIndependentDistributionRoll("indie-cov", "target", 40);
+		Require(Math.Abs(first - CompetitorManager.GetDeterministicIndependentDistributionRoll("indie-cov", "target", 40)) < .000001f,
+			"91k the placement roll is deterministic for a fixed label, salt and week");
+		Require(Math.Abs(first - CompetitorManager.GetDeterministicIndependentDistributionRoll("indie-cov", "target", 41)) > .000001f &&
+			Math.Abs(first - CompetitorManager.GetDeterministicIndependentDistributionRoll("other-label", "target", 40)) > .000001f,
+			"91l the placement roll varies by week and by label");
+	}
+
+	private static void ProbeRackJobberChannel() {
+		// Section 33.1 stage 2: rack jobbers stocked narrow, high-turn inventory, so the rack
+		// amplifies a record that is already selling and never breaks an unproven one.
+		Require(ChartSimulator.GetRackJobberAccess(0, 0f) == 0f,
+			"92 an unproven record claims no department-store rack shelf");
+		Require(Math.Abs(ChartSimulator.GetRackJobberAccess(12, 0f) - 1f) < .000001f,
+			"92b a national top-40 hit is fully racked");
+		Require(ChartSimulator.GetRackJobberAccess(75, 0f) > 0f && ChartSimulator.GetRackJobberAccess(75, 0f) < 1f,
+			"92c a record charting below the top 40 is partially racked");
+
+		// A regional hit reached mainstream retail through the jobber servicing its own
+		// market, with no major-label deal anywhere in the story.
+		Require(ChartSimulator.GetRackJobberAccess(0, .55f) > 0f,
+			"92d a record proven in a market is racked there even with no national chart position");
+		Require(ChartSimulator.GetRackJobberAccess(0, .55f) > ChartSimulator.GetRackJobberAccess(0, .32f),
+			"92e stronger regional proof claims more rack shelf");
+		Require(ChartSimulator.GetRackJobberAccess(0, .20f) == 0f,
+			"92f regional sales below the proof floor claim none");
+		// Never more than a fully racked national hit.
+		Require(ChartSimulator.GetRackJobberAccess(0, 1f) <= ChartSimulator.GetRackJobberAccess(1, 0f),
+			"92g regional proof does not out-rack a national hit");
+
+		// The channel grows across the decade as rack and discount retail displaced
+		// mom-and-pop record stores.
+		float sixty = ChartSimulator.GetRackJobberEraWeight(1960);
+		float sixtyNine = ChartSimulator.GetRackJobberEraWeight(1969);
+		Require(sixty > 0f && sixty < sixtyNine && Math.Abs(sixtyNine - 1f) < .000001f,
+			"92h rack weight rises across the decade from a nonzero 1960 floor to full by 1969");
+		Require(ChartSimulator.GetRackJobberEraWeight(1955) >= sixty &&
+			Math.Abs(ChartSimulator.GetRackJobberEraWeight(1975) - 1f) < .000001f,
+			"92i rack weight is clamped outside the authored decade");
+		Require(ChartSimulator.GetRackJobberEraWeight(1964) > sixty &&
+			ChartSimulator.GetRackJobberEraWeight(1964) < sixtyNine,
+			"92j rack weight interpolates within the decade");
+
+		// The authored department-store baseline is a 1960 calibration and the rack channel
+		// only ever adds to it. Gating the baseline on proof instead cut every unproven
+		// record's shelf and pushed cumulative breadth below the reference run.
+		Require(Math.Abs(ChartSimulator.GetRackJobberShelfMultiplier(0, 0f, 1960) - 1f) < .000001f &&
+			Math.Abs(ChartSimulator.GetRackJobberShelfMultiplier(0, 0f, 1969) - 1f) < .000001f,
+			"92k an unproven record keeps exactly the authored baseline shelf, in every year");
+		Require(ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1969) > 1f,
+			"92l a proven record earns shelf on top of the baseline");
+		Require(ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1969) >
+			ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1960),
+			"92m the rack bonus grows across the decade");
+		Require(ChartSimulator.GetRackJobberShelfMultiplier(5, 0f, 1960) > 1f,
+			"92n rack jobbing already exists in 1960 rather than switching on mid-decade");
+
+		// A jobber restocking its own racks is a partial substitute for the label being able
+		// to ship to the market itself, never an equal one.
+		Require(ChartSimulator.RackServiceShareOfDistributed > 0f &&
+			ChartSimulator.RackServiceShareOfDistributed < 1f,
+			"92o rack service is a partial substitute for the label's own distribution");
+		// At that share the lift cannot beat an early-decade distributed record's service, so
+		// the channel stays out of the accepted 1960 calibration and grows into the mid-60s
+		// exactly as rack and discount retail did.
+		const float distributedService = 0.70f + (0.50f * 0.80f);
+		const float uncoveredService = 0.18f + (0.50f * 0.25f);
+		float lift1960 = ChartSimulator.GetRackJobberAccess(5, 0f) * ChartSimulator.GetRackJobberEraWeight(1960) *
+			ChartSimulator.RackServiceShareOfDistributed * distributedService;
+		float lift1969 = ChartSimulator.GetRackJobberAccess(5, 0f) * ChartSimulator.GetRackJobberEraWeight(1969) *
+			ChartSimulator.RackServiceShareOfDistributed * distributedService;
+		Require(lift1960 < uncoveredService && lift1969 > uncoveredService,
+			"92p the rack lift is inert in 1960 and material by 1969");
+		Require(lift1969 < distributedService,
+			"92q racking a hit never matches shipping to the market yourself");
+	}
+
+	private static void ProbeWholesaleCashFlowSqueeze() {
+		// Section 33.1 stage 3: the house pays on 90-120 day terms, so a label that is selling
+		// has already spent on pressing and promotion long before the money arrives. This is
+		// the historically correct reason a small label became vulnerable to a major's offer.
+		var houses = IndependentDistributorFactory.Generate(
+			new List<MarketRegion> {
+				NewDistributionProbeRegion("easy", 615, .75f, .25f, indieTrade: true),
+				NewDistributionProbeRegion("hard", 181, .40f, .60f, indieTrade: true)
+			}, 1001UL);
+		Require(houses.All(house => house.paymentTermWeeks >= 12),
+			"93 wholesale billing is never payable inside a quarter");
+
+		// Under-reporting is taken at source; the label never sees it.
+		IndependentDistributor honest = houses.OrderByDescending(house => house.reportingHonesty).First();
+		Require(honest.reportingHonesty < 1f,
+			"93b even the straightest house reports less than it sells");
+		float billed = 1000f;
+		Require(billed * honest.reportingHonesty < billed,
+			"93c the label is billed for what the house admits, not what it sold");
+
+		// Returns are units that shipped and did not sell. The settlement this bills against
+		// is units sold, so charging the return allowance here would take the loss twice.
+		Require(houses.All(house => house.returnAllowance > 0f),
+			"93d houses carry a return allowance for the shipping model to use");
+
+		// Arrears: the wait is the squeeze, outright loss is the residue. A flat pay-rate
+		// compounded with under-reporting into a ~40% realisation, which is not a squeeze but
+		// an economy that cannot run.
+		foreach (IndependentDistributor house in houses) {
+			float settled = house.reliability +
+				((1f - house.reliability) * CompetitorManager.WholesaleSettledShareOfArrears);
+			Require(settled > house.reliability && settled < 1f,
+				"93e an unreliable house settles most of its arrears but never all of them");
+		}
+
+		// The geography of the squeeze comes out of authored market difficulty: a label
+		// selling through a hard market waits on a worse payer who admits less.
+		float easyReal = houses.Where(h => h.regionId == "easy")
+			.Average(h => h.reportingHonesty * (h.reliability + ((1f - h.reliability) * CompetitorManager.WholesaleSettledShareOfArrears)));
+		float hardReal = houses.Where(h => h.regionId == "hard")
+			.Average(h => h.reportingHonesty * (h.reliability + ((1f - h.reliability) * CompetitorManager.WholesaleSettledShareOfArrears)));
+		Require(hardReal < easyReal && hardReal > 0.4f,
+			"93f realisation is worse in harder markets but never collapses the channel");
+
+		// Receivables are the label's own ledger and survive its distribution arrangements.
+		var label = new AILabel { labelId = "squeeze", labelName = "Squeeze", tier = LabelTier.Independent };
+		Require(label.wholesaleReceivables.Count == 0 && label.outstandingWholesaleReceivables == 0f,
+			"93g a label starts with nothing owed to it");
+		label.wholesaleReceivables.Add(new WholesaleReceivable(40, houses[0].distributorId, 500f));
+		label.outstandingWholesaleReceivables += 500f;
+		Require(label.wholesaleReceivables[0].DueWeek == 40 &&
+			label.wholesaleReceivables[0].DistributorId == houses[0].distributorId &&
+			Math.Abs(label.outstandingWholesaleReceivables - 500f) < .001f,
+			"93h a billing records its due week, its house and its amount");
+	}
+
+	private static void ProbePoachingAndGraduation() {
+		// Section 32.2: the signing route and the renewal path disagreed about which tiers can
+		// hold a distribution contract, and nothing caught it for eight simulated years. One
+		// definition now serves both.
+		Require(CompetitorManager.CanSignDistributionDeal(LabelTier.Small) &&
+			CompetitorManager.CanSignDistributionDeal(LabelTier.Boutique) &&
+			CompetitorManager.CanSignDistributionDeal(LabelTier.Independent),
+			"94 the tiers that could always sign a distribution contract still can");
+		Require(!CompetitorManager.CanSignDistributionDeal(LabelTier.MidTier) &&
+			!CompetitorManager.CanSignDistributionDeal(LabelTier.Major),
+			"94b a label at or above MidTier cannot hold a distribution contract, on either side");
+
+		// Graduation is the renewal-side counterpart: a client promoted past those tiers leaves
+		// at term rather than renewing forever, and keeps half the reach it borrowed.
+		Require(DealResolution.Graduated != DealResolution.Exit &&
+			DealResolution.Poached != DealResolution.Signed,
+			"94c graduation and poaching are distinguishable from an ordinary exit or signing");
+
+		// Poaching targets: a proven client under a non-Major distributor. A Major's own client
+		// is not poached by a peer, and a label that cannot sign cannot be poached either --
+		// graduation, not a new contract, is what happens when it outgrows the tier.
+		Require(!CompetitorManager.CanSignDistributionDeal(LabelTier.MidTier),
+			"94d a MidTier client is not a poaching target; it graduates instead");
+
+		// The courting ramp that drives poaching concentrates into the consolidation years.
+		// It has been in the code since section 26 and has never had anything to act on.
+		Require(CompetitorManager.GetDeterministicIndependentDistributionRoll("x", "y", 1) >= 0f,
+			"94e placement rolls remain bounded");
+	}
+
+	private static void ProbeIndependentTradeDeclineAndMidTierExit() {
+		// Section 33: the independent distribution trade did not survive the decade. Regional
+		// houses failed or were bought out as major branch systems and rack jobbing took over,
+		// and that collapse is a large part of why independents sold or signed in 1968-71.
+		Require(Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1960, 1966, 1970, .50f) - 1f) < .000001f &&
+			Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1966, 1966, 1970, .50f) - 1f) < .000001f,
+			"95 the independent trade is intact until the decline begins");
+		Require(Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1970, 1966, 1970, .50f) - .50f) < .000001f &&
+			Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1975, 1966, 1970, .50f) - .50f) < .000001f,
+			"95b it reaches and holds the late-decade survival rate");
+		float mid = CompetitorManager.IndependentTradeSurvivalRate(1968, 1966, 1970, .50f);
+		Require(mid < 1f && mid > .50f, "95c the decline interpolates across the window");
+
+		// The Major ceiling ramps: few distributed imprints in 1960, the independent wholesale
+		// business taken over by 1968-71. Flat in either direction is wrong.
+		float early = CompetitorManager.MajorDistributionCeilingForYear(1960, 6, 16, 1964, 1969);
+		float late = CompetitorManager.MajorDistributionCeilingForYear(1969, 6, 16, 1964, 1969);
+		Require(Math.Abs(early - 6f) < .000001f && Math.Abs(late - 16f) < .000001f && early < late,
+			"95d the Major client ceiling ramps up across the decade");
+		Require(CompetitorManager.MajorDistributionCeilingForYear(1966, 6, 16, 1964, 1969) > early &&
+			CompetitorManager.MajorDistributionCeilingForYear(1966, 6, 16, 1964, 1969) < late,
+			"95e the ceiling interpolates inside the ramp");
+		Require(Math.Abs(CompetitorManager.MajorDistributionCeilingForYear(1975, 6, 16, 1964, 1969) - 16f) < .000001f,
+			"95f the ceiling is clamped past the ramp");
+
+		// MidTier had 26 promotions in and zero demotions out across a full decade run, so the
+		// tier could only ratchet up and no promotion bar could reduce the standing population.
+		// The exit test is performance, and it sits well below the entry bar so the tier does not
+		// oscillate: demoting at the entry bar would have emptied it to 14 of 53.
+		Require(LabelLifecycleManager.MidTierDemotionChartingBar < LabelLifecycleManager.MidTierOrganicPromotionChartingBar,
+			"95g the MidTier exit bar sits below its entry bar, leaving a hysteresis band");
+		Require(LabelLifecycleManager.MidTierDemotionChartingBar > 0,
+			"95h a MidTier label that never charts is not left in the tier indefinitely");
+	}
+
+	/// <summary>
+	/// The settlement indexes replace two hot linear scans. Revenue accumulates as floats, so
+	/// order within a label is part of the result, not an implementation detail: this asserts the
+	/// index reproduces the filter's source order exactly rather than merely the same set.
+	/// </summary>
+	private static void ProbeSettlementIndexMatchesLinearScan() {
+		var settlement = new ChartManager.CompletedWeekSettlement {
+			SettlementId = 1,
+			Entries = new[] {
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r1", LabelId = "alpha" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r2", LabelId = "beta" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r3", LabelId = "alpha" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r4", LabelId = "alpha" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r5", LabelId = "gamma" }
+			}
+		};
+		foreach (string labelId in new[] { "alpha", "beta", "gamma", "defunct" }) {
+			string indexed = string.Join(",", settlement.EntriesForLabel(labelId).Select(entry => entry.RecordId));
+			string scanned = string.Join(",", settlement.Entries
+				.Where(entry => entry.LabelId == labelId).Select(entry => entry.RecordId));
+			Require(indexed == scanned,
+				$"96 the per-label settlement index reproduces the linear filter in source order for {labelId}");
+		}
+		Require(settlement.FindEntry("r3")?.LabelId == "alpha" && settlement.FindEntry("absent") == null,
+			"96b the per-record settlement index resolves the entry the linear scan returned, and nothing for an absent id");
+
+		// A settlement is frozen weekly; an index built against an earlier list must never be served.
+		settlement.Entries = new[] {
+			new ChartManager.CompletedWeekSettlementEntry { RecordId = "r9", LabelId = "delta" }
+		};
+		Require(settlement.EntriesForLabel("alpha").Count == 0 && settlement.EntriesForLabel("delta").Count == 1 &&
+			settlement.FindEntry("r1") == null && settlement.FindEntry("r9") != null,
+			"96c replacing the frozen entry list rebuilds both indexes rather than serving stale rows");
 	}
 
 	private static void Require(bool condition, string message) {

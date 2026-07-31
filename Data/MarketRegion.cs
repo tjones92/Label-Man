@@ -214,7 +214,16 @@ public partial class MarketRegion : Resource {
 		float urbanFactor = 0.6f + (urbanization * 0.4f);
 		return Mathf.Clamp(youthFactor * incomeFactor * urbanFactor * 0.032f, 0f, 1f);
 	}
-	
+
+	/// <summary>
+	/// Weekly record-buying population of this region. Every absolute weekly unit
+	/// threshold in the demand and breakout models is implicitly denominated in
+	/// this quantity, so it is the correct basis for expressing such a threshold
+	/// as a region-relative one.
+	/// </summary>
+	public float GetRecordBuyingPopulation() =>
+		population * 1000000f * GetBuyingPopulationPercentage();
+
 	public float GetGenreAcceptance(Genre genre, int year) => GetGenreAcceptance(genre, (float)year);
 
 	public float GetGenreAcceptance(Genre genre, float year) {

@@ -26,7 +26,6 @@ public partial class RosterManager : Node {
 	private readonly List<DailyTalentMarketSummary> dailyTalentMarketSummaries = new();
 	public event Action<DailyTalentMarketSummary> OnDailyTalentMarketCleared;
 	public event Action<DailyTalentMarketAppointment> OnDailyTalentMarketAppointment;
-	public int MarketClearingAttemptsAtOrAboveOperatingTarget { get; private set; }
 	private const int ShortWindowRedropWeeks = 26;
 	public const int ScoutingUrgencyThresholdWeeks = 12;
 	public const float ScoutingUrgencyProbabilityFloor = 0.25f;
@@ -37,6 +36,10 @@ public partial class RosterManager : Node {
 	public sealed class LabelScoutingVacancyObservation {
 		public string LabelId { get; init; }
 		public LabelTier LabelTier { get; init; }
+		/// <summary>False once LabelLifecycleManager has closed the label. Aggregations
+		/// over appetite or vacancies must filter on this; the row is retained only so
+		/// the closure stays visible in audit history.</summary>
+		public bool IsActiveLabel { get; set; }
 		public int MaxRosterSize { get; init; }
 		public int OperatingRosterTarget { get; init; }
 		public int ScoutingRosterSize { get; init; }
@@ -91,7 +94,6 @@ public partial class RosterManager : Node {
 		public string SelectedLane { get; set; }
 		public bool RecoveryThresholdFallbackUsed { get; set; }
 		public string RecoveryFailureReason { get; set; }
-		public int MarketClearingAttemptsAtOrAboveOperatingTarget { get; set; }
 	}
 
 	public sealed class DailyTalentMarketSummary {
@@ -375,6 +377,12 @@ public partial class RosterManager : Node {
 	}
 	
 	private void OnWeekEnded(GameDate date) {
+		long profileStart = SimulationPerformanceProfiler.Begin();
+		OnWeekEndedCore(date);
+		SimulationPerformanceProfiler.EndRosterWeek(profileStart);
+	}
+
+	private void OnWeekEndedCore(GameDate date) {
 		ReconcileEnabledLifecycleForCurrentWeek();
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
@@ -393,7 +401,9 @@ public partial class RosterManager : Node {
 
 	private void OnDayStarted(GameDate date) {
 		if (!IsLiveGenreMarket()) return;
+		long profileStart = SimulationPerformanceProfiler.Begin();
 		ProcessDailyTalentMarket(date);
+		SimulationPerformanceProfiler.EndDailyTalentMarket(profileStart);
 	}
 
 	private sealed class DailyNomination {
@@ -666,43 +676,6 @@ public partial class RosterManager : Node {
 		else serviceDeficitAgeByLabelId[label.labelId] = state.Age;
 	}
 
-	private void ProcessEnabledVacancyResponsiveScouting(int year) {
-		var labels = GetAllLabels();
-		if (labels == null) return;
-		foreach (AILabel label in labels) {
-			if (!IsEligibleForEnabledScouting(label)) {
-				// ChartManager retains historical/closed labels for lookup and audit history.
-				// They must remain observable, but must never consume scouting RNG or
-				// re-acquire artists after LabelLifecycleManager has closed them.
-				AILabel.ScoutingGateEvaluation inactivePreview = label.PreviewScoutingGate(useOperatingRosterTarget: true);
-				LabelScoutingVacancyObservation inactiveObservation = CreateScoutingVacancyObservation(label, inactivePreview);
-				inactiveObservation.FailureReason = "InactiveLabel";
-				weeklyScoutingVacancyByLabelId[label.labelId] = inactiveObservation;
-				serviceDeficitAgeByLabelId.Remove(label.labelId);
-				continue;
-			}
-			TalentServiceState service = GetTalentServiceState(label, year);
-			bool recovery = service.Mode == TalentServiceMode.Recovery;
-			bool mayEvaluate = CanAttemptMarketClearingSigning(label.CurrentRosterSize, label.OperatingRosterTarget);
-			AILabel.ScoutingGateEvaluation gate;
-			if (recovery) {
-				AILabel.ScoutingGateEvaluation preview = label.PreviewScoutingGate(useOperatingRosterTarget: true);
-				bool affordable = label.CanAffordToSign(preview.EstimatedAdvance);
-				gate = new AILabel.ScoutingGateEvaluation(label.CurrentRosterSize, label.OperatingRosterTarget, preview.EstimatedAdvance,
-					preview.RosterFullness, preview.HasRecentHit, preview.RecentHitFactor, preview.DecliningArtistCount, preview.DecliningFactor,
-					preview.ComputedScoutProbability, null, mayEvaluate && affordable, mayEvaluate ? (affordable ? null : "EstimatedAdvanceUnaffordable") : "RosterFull");
-			} else gate = label.EvaluateScoutingGate(useOperatingRosterTarget: true);
-			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
-			PopulateServiceObservation(observation, service, recovery);
-			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
-			if (gate.ScoutingGatePassed) {
-				RecordScoutingGatePass(label.tier);
-				TrySignFromMarket(label, year, service, observation);
-			}
-			FinalizeTalentServiceState(label, service);
-		}
-	}
-
 	private static void PopulateServiceObservation(LabelScoutingVacancyObservation observation, TalentServiceState state, bool bypassed) {
 		observation.ReleaseEligibleArtistCount = state.ReleaseEligible; observation.RequiredReleaseLanes = state.RequiredLanes;
 		observation.HeadcountDeficit = state.HeadcountDeficit; observation.ReleaseLaneDeficit = state.ReleaseLaneDeficit;
@@ -732,75 +705,6 @@ public partial class RosterManager : Node {
 		ScoutingGatePassed = gate.ScoutingGatePassed,
 		FailureReason = gate.FailureReason
 	};
-
-	private bool TrySignFromMarket(AILabel label, int year, TalentServiceState service, LabelScoutingVacancyObservation observation) {
-		if (!CanAttemptMarketClearingSigning(label.CurrentRosterSize, label.OperatingRosterTarget)) {
-			MarketClearingAttemptsAtOrAboveOperatingTarget++;
-			observation.MarketClearingAttemptsAtOrAboveOperatingTarget = MarketClearingAttemptsAtOrAboveOperatingTarget;
-			observation.FailureReason = "OperatingRosterTargetFull";
-			return false;
-		}
-		int discoveryPoolCount;
-		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, out discoveryPoolCount);
-		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, out _);
-		AILabel.SigningEvaluation freshEvaluation = label.EvaluateFreshPotential(fresh);
-		AILabel.SigningEvaluation experiencedEvaluation = label.EvaluateSigning(experienced);
-		observation.EligibleCandidateCount = fresh.Count + experienced.Count;
-		observation.DiscoveryPoolCount = discoveryPoolCount;
-		observation.FreshLaneCount = fresh.Count; observation.ExperiencedLaneCount = experienced.Count;
-		observation.FreshDiscoveryScope = "Regional";
-		observation.BestFreshPotentialScore = freshEvaluation.BestCandidateScore;
-		observation.BestExperiencedProductionScore = experiencedEvaluation.BestCandidateScore;
-
-		SimulatedArtist selected = null;
-		string selectedLane = null;
-		bool recovery = service.Mode == TalentServiceMode.Recovery;
-		if (recovery) {
-			selected = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalFreshRecovery");
-			if (selected != null) { selectedLane = "FreshPotential"; observation.RecoveryFailureReason = "FreshThresholdQualified"; }
-			else {
-				List<SimulatedArtist> nationalFresh = GetEnabledSupplyCandidates(label, year, true, true, out _);
-				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(nationalFresh);
-				observation.FreshLaneCount = nationalFresh.Count; observation.FreshDiscoveryScope = "National";
-				observation.BestFreshPotentialScore = nationalEvaluation.BestCandidateScore;
-				selected = SelectAffordableCandidate(label, nationalEvaluation.CandidateScores, 0f, positiveOnly: true, "NationalFreshRecovery");
-				if (selected != null) {
-					selectedLane = "FreshPotential"; observation.RecoveryThresholdFallbackUsed = true;
-					observation.RecoveryFailureReason = "FreshRecoveryQualified";
-				} else {
-					selected = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalExperiencedRecovery");
-					if (selected != null) { selectedLane = "ExperiencedProduction"; observation.RecoveryFailureReason = "ExperiencedFallback"; }
-					else observation.RecoveryFailureReason = nationalFresh.Count == 0 ? "NoFreshNationalCandidate" : "NoPositiveFreshPotential";
-				}
-			}
-		} else {
-			SimulatedArtist bestFresh = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalFreshNormal");
-			SimulatedArtist bestExperienced = SelectAffordableCandidate(label, experiencedEvaluation.CandidateScores, .3f, positiveOnly: false, "RegionalExperiencedNormal");
-			float freshScore = ScoreOf(freshEvaluation.CandidateScores, bestFresh);
-			float experiencedScore = ScoreOf(experiencedEvaluation.CandidateScores, bestExperienced);
-			if (bestFresh != null && (bestExperienced == null || freshScore >= experiencedScore)) { selected = bestFresh; selectedLane = "FreshPotential"; }
-			else if (bestExperienced != null) { selected = bestExperienced; selectedLane = "ExperiencedProduction"; }
-		}
-		if (selected == null) {
-			observation.FailureReason = "CandidateScore";
-			if (!recovery) RecordScoreRejection(label.tier);
-			if (string.IsNullOrEmpty(observation.RecoveryFailureReason)) observation.RecoveryFailureReason = fresh.Count == 0 ? "NoFreshRegionalCandidate" : "NoPositiveFreshPotential";
-			return false;
-		}
-		observation.SelectedLane = selectedLane; observation.SigningAttempted = true;
-		RecordSigningAttempt(label.tier);
-		if (!label.CanAffordToSign(label.CalculateAdvanceOffer(selected))) {
-			observation.FailureReason = "ActualAdvanceUnaffordable"; observation.RecoveryFailureReason = "ActualAdvanceUnaffordable";
-			RecordAffordabilityRejection(label.tier); return false;
-		}
-		float advance = label.SignArtist(selected, year);
-		CompetitorManager.Instance?.RecordExpense(label, advance);
-		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(selected, label.labelId, year);
-		string signingKind = transition.IsReSigning ? "ReSigning" : "FirstSigning";
-		WeeklySignings++; RecordSigning(label.tier, selected, transition.IsReSigning);
-		observation.SigningSucceeded = true; observation.SigningKind = signingKind; observation.FailureReason = signingKind;
-		return true;
-	}
 
 	private static float ScoreOf(IReadOnlyList<AILabel.SigningCandidateScore> scores, SimulatedArtist artist) =>
 		artist == null ? float.NegativeInfinity : scores.First(score => score.Artist == artist).Score;
@@ -916,10 +820,19 @@ public partial class RosterManager : Node {
 		foreach (AILabel label in labels.Where(label => label != null)) {
 			observedLabelIds.Add(label.labelId);
 			if (!weeklyScoutingVacancyByLabelId.TryGetValue(label.labelId, out LabelScoutingVacancyObservation observation)) continue;
+			// ChartManager retains closed labels for lookup and audit history, and their
+			// operating target is retained with them. A closed label has no appetite, so
+			// reporting its target as an unfilled slot invents demand that no longer
+			// exists: at week 520 of the gated decade, 872 of 883 apparent vacancies were
+			// held by defunct labels, and aggregating them is what made a market filling
+			// 99% of its live targets read as roughly half staffed. The daily market has
+			// always excluded them; only this telemetry did not.
+			observation.IsActiveLabel = IsEligibleForEnabledScouting(label);
 			observation.RosterSize = label.CurrentRosterSize;
-			observation.UnusedRosterSlots = Mathf.Max(0, label.maxRosterSize - observation.RosterSize);
-			observation.UnusedOperatingRosterSlots = Mathf.Max(0, label.OperatingRosterTarget - observation.RosterSize);
+			observation.UnusedRosterSlots = observation.IsActiveLabel ? Mathf.Max(0, label.maxRosterSize - observation.RosterSize) : 0;
+			observation.UnusedOperatingRosterSlots = observation.IsActiveLabel ? Mathf.Max(0, label.OperatingRosterTarget - observation.RosterSize) : 0;
 			observation.IsEmptyRoster = observation.RosterSize == 0;
+			if (!observation.IsActiveLabel) observation.FailureReason = "InactiveLabel";
 			observation.ConsecutiveVacancyWeeks = AdvanceConsecutiveAge(observation.UnusedOperatingRosterSlots > 0,
 				consecutiveVacancyWeeksByLabelId.GetValueOrDefault(label.labelId));
 			observation.ConsecutiveEmptyWeeks = AdvanceConsecutiveAge(observation.IsEmptyRoster,
@@ -1199,10 +1112,6 @@ public partial class RosterManager : Node {
 			current.NoEligibleCandidatePasses, current.ScoreRejections);
 	}
 
-	private void RecordScoutingGatePass(LabelTier tier) => UpdateFlow(tier, flow => new RosterLifecycleFlow(flow.DropsToPool,
-		flow.FirstTimeSignings, flow.ReSignings, flow.UniqueReSignings, flow.ShortWindowRedrops, flow.ScoutingGatePasses + 1,
-		flow.SigningAttempts, flow.CandidateRejections, flow.AffordabilityRejections, flow.PerformanceDrops, flow.OtherDepartures,
-		flow.RecentPerformanceReSignings, flow.PrematureProbationDrops, flow.NoEligibleCandidatePasses, flow.ScoreRejections));
 	private void RecordSigningAttempt(LabelTier tier) => UpdateFlow(tier, flow => new RosterLifecycleFlow(flow.DropsToPool,
 		flow.FirstTimeSignings, flow.ReSignings, flow.UniqueReSignings, flow.ShortWindowRedrops, flow.ScoutingGatePasses,
 		flow.SigningAttempts + 1, flow.CandidateRejections, flow.AffordabilityRejections, flow.PerformanceDrops, flow.OtherDepartures,
