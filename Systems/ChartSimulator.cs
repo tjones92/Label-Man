@@ -1,4 +1,4 @@
-// Scripts/Systems/ChartSimulator.cs
+﻿// Scripts/Systems/ChartSimulator.cs
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -16,10 +16,71 @@ public static class ChartSimulator {
 	private const float ARTIST_HEAT_AWARENESS_BONUS = 0.18f;
 	private const float AWARENESS_DECAY_RATE = 0.95f;
 	
-	private const float RADIO_QUALITY_WEIGHT = 0.7f;    
+	private const float RADIO_QUALITY_WEIGHT = 0.7f;
 	private const float RADIO_MOMENTUM_WEIGHT = 0.25f;
 	private const float RADIO_LABEL_WEIGHT = 0.4f;
 	private const float RADIO_FATIGUE_DECAY = 0.88f;
+	// Being top 10 grants radio heat, and once airplay carries chart points that is positive
+	// feedback: heat grants points, points hold the position, the position grants heat. The bonus
+	// therefore has to be paid for in sales, so that when the sales which justified the rotation die
+	// the rotation dies with them and the record falls. The floor sits between the top-10 tenth
+	// percentile (20,918 units) and the 11-40 median (13,419): a record keeps its full bonus while it
+	// is still selling like a genuine Top 40 record and tapers out over the three or four weeks after
+	// its sales peak.
+	private const float RADIO_POSITION_BONUS_SALES_FLOOR = 15000f;
+	// Radio was half the story of a 60s hit -- sales spiked and decayed while stations kept a record
+	// in rotation, and that rotation is what held a single at number one for weeks instead of one.
+	// The airplay term existed but was inert: region.population is authored in millions and every
+	// other absolute consumer multiplies it out (MarketRegion 104/124/131/169/225,
+	// SingleOpportunityLedger 25, ChartManager 992), so summing it raw against unitsThisWeek left
+	// airplay at 0.18% of a number-one record's points and made this a pure weekly-sales chart.
+	// Measured consequence: 380 number ones a decade against a historical 203, 77% of them holding a
+	// single week against 27%, and six 3+ week number ones against 84.
+	//
+	// Correcting the units alone overshoots by ~1000x, so the coefficient is re-derived instead:
+	// this scales one million radio-reached listeners into the units-equivalent chart contribution
+	// they are worth. Measured at 1960 (era weight 0.60), airplay is ~36% of a number one's points
+	// against 0.18% before.
+	private const float AIRPLAY_POINTS_PER_MILLION_REACHED = 2720f;
+	// radioPlay is a saturating 0-1 rotation level, so it barely orders the chart: measured across a
+	// 52-week run, radioHeat separates a number one from the bottom of the chart by only 1.48x where
+	// sales separate them by 8.12x. Added linearly at a weight that makes airplay 31% of a number
+	// one's points, it becomes 74% of a 41-100 record's -- a near-constant, and a near-constant
+	// compresses every lead it is added to, since (S1+C)/(S2+C) is always nearer 1 than S1/S2. Adding
+	// it linearly did exactly that: Top-40 life improved 9 -> 12 weeks but distinct number ones went
+	// 38 -> 47 in the same 52 weeks, the opposite of the goal.
+	//
+	// So rotation is raised to a power before it is paid out, which is closer to the truth anyway --
+	// a record in heavy rotation on the major stations gets six to ten times the spins of a
+	// light-rotation record, not 1.5x. The reference play keeps the coefficient interpretable: a
+	// record at reference earns what it would have earned linearly, weaker records earn
+	// disproportionately less, a genuine smash disproportionately more.
+	//
+	// The exponent is 5 rather than 3 because it applies to the record's own rotation only, with
+	// genre access divided out and paid back linearly (see CalculateChartPoints). Cubing the whole
+	// product instead bought a much better chart -- 29 number ones a year against 39, 45% of them
+	// one-week against 74% -- but it did so by cubing genre acceptance as well, and that is not a
+	// plateau mechanism, it is a genre amplifier: over a decade run it drove Soul to a +26.4 chart
+	// divergence and RnB to -4.7 as the era ramp compounded each genre's acceptance trend.
+	//
+	// Honest limit of this calibration: the record-level signal is still too flat to carry a plateau
+	// on its own, because radioHeat is ~0.6 of generic quality-and-push shared by every charting
+	// record plus a position bonus worth only 0.25. Raising the exponent spreads that thin signal but
+	// amplifies its noise with it -- k=5 yields more 3+ week number ones than baseline (11% vs 8%)
+	// AND more one-week ones (79% vs 74%), leaving total turnover flat at 38 against 39. What this
+	// setting does bank is longevity: Top-40 median life 9 -> 11 weeks (in band), longest number-one
+	// run 3 -> 5, entries 17.4/wk (in band), with the least genre distortion of any airplay variant
+	// (top-three concentration 58.2% against a 52.7% baseline and 66.6% for the cubed product).
+	// Reducing number-one turnover needs UpdateRadioHeat recomposed so heat is mostly earned rather
+	// than mostly generic; that touches awareness and therefore demand, so it is its own change.
+	private const float AIRPLAY_CONVEXITY = 5.0f;
+	private const float AIRPLAY_REFERENCE_PLAY = 0.30f;
+	// Top 40 radio consolidated across the decade and its chart influence grew with it, so a flat
+	// weight is the wrong shape: 1960 is closer to a sales chart than 1968 is.
+	private const int AIRPLAY_ERA_START_YEAR = 1960;
+	private const int AIRPLAY_ERA_FULL_YEAR = 1968;
+	private const float AIRPLAY_ERA_WEIGHT_EARLY = 0.60f;
+	private const float AIRPLAY_ERA_WEIGHT_LATE = 1.00f;
 	
 	private const float BASE_PURCHASE_RATE = 0.07f;
 	private const float QUALITY_EXPONENT = 4.0f;
@@ -406,10 +467,12 @@ public static class ChartSimulator {
 		float targetHeat = (qualityFactor + pushFactor + momentumFactor) * genreAcceptance;
 		targetHeat += record.artistHeat * 0.12f;
 		
+		// Earned by sales, not by the position itself -- see RADIO_POSITION_BONUS_SALES_FLOOR.
+		float positionBonusGate = Mathf.Clamp(record.unitsThisWeek / RADIO_POSITION_BONUS_SALES_FLOOR, 0f, 1f);
 		if (record.currentPosition > 0 && record.currentPosition <= 10) {
-			targetHeat += 0.25f;
+			targetHeat += 0.25f * positionBonusGate;
 		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {
-			targetHeat += 0.1f;
+			targetHeat += 0.1f * positionBonusGate;
 		}
 		
 		if (record.weeksSinceRelease > 8) {
@@ -723,20 +786,45 @@ public static class ChartSimulator {
 	// =======================================================================
 	
 	// Changed List<MarketRegion> to MarketRegion[] to match ChartManager
-	public static float CalculateChartPoints(RecordRuntimeData record, MarketRegion[] regions) {
+	// The year is resolved here rather than threaded through the five call sites so the audit
+	// telemetry that recomputes chart points can never disagree with the ranking that used them.
+	public static float CalculateChartPoints(RecordRuntimeData record, MarketRegion[] regions) =>
+		CalculateChartPoints(record, regions, TimeManager.Instance?.CurrentDate.year ?? AIRPLAY_ERA_START_YEAR);
+
+	public static float CalculateChartPoints(RecordRuntimeData record, MarketRegion[] regions, int year) {
 		float salesPoints = record.unitsThisWeek;
-		
+
 		float airplayPoints = 0f;
 		foreach (var region in regions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
 			var data = record.regionalData[region.regionId];
-			
+
 			if (region.media != null) {
-				airplayPoints += data.radioPlay * region.media.radioReach * region.population * 25f;
+				// Convexity is there to separate a heavily rotated record from a lightly rotated one.
+				// It must not also cube the genre's radio access. Acceptance already enters rotation
+				// twice -- once through radioHeat, once through the regional radio opportunity -- so
+				// raising the product to a power compounded a genre disadvantage to roughly the sixth
+				// power. Measured at 1960 that moved the top three genres from 52.6% to 66.6% of the
+				// chart and left Soul holding 0.9% of chart weeks against 5.8% of units. Access is
+				// divided back out, the record's own rotation carries the exponent, and access is then
+				// paid back linearly.
+				float access = data.genreRadioOpportunityThisWeek > 0f ? data.genreRadioOpportunityThisWeek : 1f;
+				float ownRotation = data.radioPlay / access;
+				float rotation = AIRPLAY_REFERENCE_PLAY *
+					Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, AIRPLAY_CONVEXITY) * access;
+				airplayPoints += rotation * region.media.radioReach * region.population *
+					AIRPLAY_POINTS_PER_MILLION_REACHED;
 			}
 		}
-		
-		return salesPoints + (airplayPoints * 0.15f);
+
+		return salesPoints + (airplayPoints * GetAirplayEraWeight(year));
+	}
+
+	internal static float GetAirplayEraWeight(int year) {
+		if (year <= AIRPLAY_ERA_START_YEAR) return AIRPLAY_ERA_WEIGHT_EARLY;
+		if (year >= AIRPLAY_ERA_FULL_YEAR) return AIRPLAY_ERA_WEIGHT_LATE;
+		float progress = (float)(year - AIRPLAY_ERA_START_YEAR) / (AIRPLAY_ERA_FULL_YEAR - AIRPLAY_ERA_START_YEAR);
+		return Mathf.Lerp(AIRPLAY_ERA_WEIGHT_EARLY, AIRPLAY_ERA_WEIGHT_LATE, progress);
 	}
 	
 	// =======================================================================

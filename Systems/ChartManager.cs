@@ -45,6 +45,11 @@ public partial class ChartManager : Node {
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentAlbumChart = new List<RecordRuntimeData>();
 	private const int BubblingUnderSize = 15;
+	// Weekly persistence of regional airplay. Hold is what survives from last week before the pull
+	// toward the current national target; together they set how fast a record leaves rotation once
+	// its heat collapses. Load-bearing only since airplay reached the chart ranking.
+	private const float RegionalRadioHold = 0.92f;
+	private const float RegionalRadioLerp = 0.15f;
 	private const int NeverChartedHorizonWeeks = 5;
 	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
@@ -1479,7 +1484,12 @@ public partial class ChartManager : Node {
 					: GenreAcceptanceService.GetRegionalRadioOpportunity(record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum);
 			}
 			float targetRegionalRadio = seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio;
-			data.radioPlay = Mathf.Lerp(data.radioPlay * 0.85f, targetRegionalRadio, 0.2f);
+			// Stations phase a record out of rotation rather than dropping it, and this is the whole
+			// plateau: sales fall to 65% of peak in a single week, so airplay only holds a record up
+			// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to
+			// 0.68 a week with the target at zero -- faster than sales, so no plateau. 0.92/0.15
+			// settles to 0.78. These were never load-bearing before airplay reached the ranking.
+			data.radioPlay = Mathf.Lerp(data.radioPlay * RegionalRadioHold, targetRegionalRadio, RegionalRadioLerp);
 
 			// Radio builds regional awareness
 			data.awareness += data.radioPlay * 0.12f;
