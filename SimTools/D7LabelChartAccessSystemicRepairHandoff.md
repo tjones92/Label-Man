@@ -3680,10 +3680,137 @@ were closer to 25-35% of Hot 100 entries, having sat out rock and roll while the
 it. If a deeper fragmented start is wanted, that is a seeded-population question, not a distribution
 one, and it is the next thing to examine rather than another distribution lever.
 
-### 33.15 Validation ladder
+### 33.15 Validation ladder (as used, and to reuse)
 
-Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
-graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is
-now genuinely informative: independent self-distribution, MidTier graduation and the 1964 courting ramp
-all show by 1965. Set the Major client ceiling and the masters ramp from those measurements before any
-decade run.
+Build -> `dotnet build "Label Man.sln" --no-restore` -> D5 + D6 suite via a 52-week probe run ->
+312-week checkpoint -> decade run -> holdout seed. Two cautions learned the hard way this session:
+
+- **Never pipe a long Godot run through a PowerShell pipeline in a background task.** Piping stdout
+  through `Select-String`/`ForEach-Object` with nobody draining it blocked the engine on its first
+  large flush: 47 minutes at ~1% CPU, zero output files, never reached writer setup. Use
+  `Start-Process ... -NoNewWindow -Wait -RedirectStandardOutput <file> -RedirectStandardError <file>`.
+  The foreground probe pattern does not transfer to background runs.
+- **Do not rebuild while a run holds the DLL.** Read-only analysis only until it finishes.
+
+## 34. HOLDOUT CONFIRMED — the result is seed-robust
+
+`d7-decline-decade-522-2029`, seed 2029, same configuration and flags as the accepted seed-1001 run.
+
+| target | seed 1001 | seed 2029 | |
+|---|---:|---:|---|
+| cumulative breadth 400-600 | 450 | **463** | PASS both |
+| below-MidTier dominant | 93% | **94%** | PASS both |
+| Independent share of that | 78% | **78%** | PASS both |
+| Small tail | 8.7% | **9.5%** | PASS both |
+| MidTier firms charting 25-40 | 27 | **31** | PASS both |
+| owner-Major 1968 (45-52) | 46.5% | **49.1%** | PASS both |
+| owner-Major 1969 (45-52) | 53.2% | **54.7%** | over by 1.2 / 2.7 |
+
+**The arc reproduces.** Seed 2029 runs 41.4 / 39.7 / 36.7 / 35.4 / 36.6 / 38.2 / 39.8 / **47.1** /
+49.1 / 54.7 — a deeper fragmented trough than seed 1001 (35.4% at 1963 against 38.8%), the same turn
+at 1966-67 as the independent trade begins failing, and **+13.3 points** across the decade against
+seed 1001's +12.3. Two independent seeds producing the same shape, from the same mechanism, at the
+same inflection year is the strongest evidence in this whole arc that the consolidation is structural
+rather than tuned.
+
+MidTier stays inside the band every year on the holdout: 14 / 24 / 28 / 32 / 35 / 33 / 37 / 40 / 29 /
+31, never exceeding 40. The performance-based exit (§33) is doing its job on an unseen seed.
+
+**The one consistent miss is 1969, 1.2-2.7 over the ceiling, with 1968 in band on both seeds.** Note
+how much better this is than the §31.1 pattern it replaces: that was 54-55% on hard seeds attached to
+a *flat* line, i.e. the right level for the wrong reason. This is 53-55% at the top of a genuine
+12-13 point climb. If it is to be pulled down, the levers are `independentTradeSurvivalLate` (a
+shallower decline leaves more non-Major entries in the 1969 denominator) or
+`majorDistributionClientCeilingLate`. **Not** the masters rate — §31.2 measured that lever at ~4x
+weaker than expected and the reason still holds.
+
+User has previously accepted ~53% for Majors, and 1970 on the holdout reads 52.0%, so the overshoot
+is a single-year tip at the very end of the horizon rather than a sustained breach.
+
+### 34.1 Still outstanding before formal acceptance
+
+- Forced exit / renew / absorb integration harness runs (`--force-*` flags, §7 step 10).
+- Full D5 + D6 1-95 suite on a clean tree (last run green, but before the §34 optimization work).
+- `git diff --check` (clean as of the last commit).
+
+## 35. NEXT SESSION — runtime optimization (measured, not yet implemented)
+
+Read-only profiling of `d7-decline-decade-522-1001` (seed 1001, 522 weeks, `--lean-probe
+--profile-performance`). Nothing here is built yet. Every item below is required to be **RNG-neutral
+and byte-identical**; the verification procedure is the one used for the telemetry gating in §31.4 —
+diff `concentration.csv` and the lifecycle files against this run.
+
+### 35.1 Where the 1,727 seconds go
+
+| span | seconds | share |
+|---|---:|---:|
+| `SimulateWeek` | 596 | 35% |
+| `captureWeek` (audit instrumentation) | 322 | 19% |
+| `CalculateLabelRevenue` | 129 | 7% |
+| album + due-project processing | 7 | 0% |
+| **unprofiled** | **674** | **39%** |
+
+Active records grow 3,521 (1960) -> 17,030 (1969) and every span scales with that set.
+
+**§31.4's `recordLookups` hypothesis is refuted — cross it off.** `recordLookupSeconds` is 0.0-0.1s
+across the whole decade against 865k lookups in 1969, so those are already dictionary-backed and are
+not a linear-scan problem.
+
+### 35.2 The quadratic, and the clearest win
+
+`CompetitorManager.cs:886` filters the frozen settlement once per label:
+
+```csharp
+foreach (var entry in settlement.Entries.Where(entry => entry.LabelId == label.labelId))
+```
+
+At week 520 that is **1,496 labels x 17,030 entries = 25.5M string comparisons per week**, roughly 6
+billion across the decade — which accounts for essentially the whole 129s of `CalculateLabelRevenue`.
+Compounding it, about 930 of those 1,496 labels are defunct and hold zero entries, yet each still
+walks all 17,030.
+
+Fix: build a `Lookup`/`Dictionary<string, List<Entry>>` keyed by `LabelId` once per settlement and
+index into it. `settlement.Entries` is already sorted by `RecordId` and grouping preserves source
+order within a group, so per-label iteration order is unchanged and the result is byte-identical by
+construction. This term also grows quadratically with horizon, so it costs proportionally more at 522
+weeks than at 312 — worth doing before any longer run.
+
+Same pattern, smaller: `ChartManager.RetireRecord` does a `FirstOrDefault` linear scan over all
+settlement entries per retired record. Index it the same way.
+
+### 35.3 The unprofiled 39%
+
+`FreezeCompletedWeekSettlement` is called from `OnWeekEnded` **after** `SimulateWeek` returns, so it
+sits outside every existing profiled span and is the leading suspect for the 674s. Each week it
+rebuilds an entry for every live record, allocates a `CompletedWeekSettlementRegion[]` per record
+(~7 regions x 17,030 records = ~119k allocations/week, ~62M across the decade), and does a full
+`OrderBy(RecordId, Ordinal)` sort. **Add profiler spans around it and the `OnWeekEnded` record loops
+before optimizing** — the 674s is currently unattributed and should not be guessed at.
+
+### 35.4 The album accumulation — diagnose before culling
+
+**13,586 of the 17,030 live records at week 522 are Albums**; only 300 records (1.8%) are charting.
+
+Cause is in `ChartManager.IsRecordRetirable`. An album retires only when
+`GetWeeksSinceLastCharted >= 52` **and** `GetWeeksSinceSalesAboveRetirementFloor >= 52`, against
+`albumCatalogSalesFloor = 10`. Either clock resets on a single week above ten units, so a title with
+an intermittent trickle never leaves the hot loop.
+
+**Do not cull these blind.** An album selling >= 10 units/week is economically active and removing it
+changes revenue — not neutral, and it would silently alter the accepted decade result. What lean
+telemetry cannot show is whether these records still hold stock and awareness at all.
+
+Recommended first step is a **diagnostic**, not a change: count live records with zero stock AND zero
+awareness AND off-chart AND past any revival age. If that is most of the 13,586 they are zombies the
+retirement rule structurally cannot see, and §31.4's inert-record archive is a provable no-op worth
+building. If it is few, the cost is honest and ~26 minutes is the floor without a mechanism change.
+
+### 35.5 Suggested order
+
+1. Add profiler spans to `FreezeCompletedWeekSettlement` and the `OnWeekEnded` loops; re-run 312
+   weeks to attribute the 674s. Cheap and it prevents guessing.
+2. Ship the settlement-by-label index and the `RetireRecord` index together; verify byte-identical
+   against `d7-decline-decade-522-1001`. Expected saving ~129s plus the defunct-label waste.
+3. Ship the album inertness diagnostic; decide on the archive from what it reports.
+4. Only then consider the settlement rebuild/allocation path, which is mutable-state-touching and the
+   riskiest of the set.
