@@ -1,6 +1,6 @@
 # D7 genre decade calibration — live handoff
 
-Last maintained: July 31, 2026. Branch `d7-genre-decade-calibration`, off merged `main`.
+Last maintained: July 31, 2026 (chart-health pass). Branch `d7-genre-decade-calibration`, off merged `main`.
 
 This is the working handoff for genre calibration. It supersedes
 `D7LabelChartAccessSystemicRepairHandoff.md` as the *active* document — that file remains the
@@ -22,8 +22,11 @@ Non-goals this pass: the acclaim/legitimacy loop (§9), and any further work on 
 | run | what it is |
 |---|---|
 | `d7-genre-decade-522-1001` | baseline decade, telemetry added, economics unchanged. Reproduces the accepted 450 breadth exactly. |
-| `d7-comp-decade-522-1001` | + compilation era curve and the 1965 statement opening. **Current reference.** |
+| `d7-comp-decade-522-1001` | + compilation era curve and the 1965 statement opening. Superseded; carried the §7 MidTier regression. |
+| `d7-majorgate-decade-522-1001` | + the MidTier→Major chart gate (§7). **Current reference.** All acceptance rows pass. |
 | `d7-comp-probes-52-1001` | 52-week probe run, D5 + D6 1-97 green. |
+| `d7-sortfix-probes-52-1001` | 52-week probe; 67/68 artifacts byte-identical to `d7-comp-probes`, sole diff the repaired median column. |
+| `d7-majorgate-probes-52-1001` | 52-week probe; **68/68 byte-identical** to `d7-sortfix-probes`, proving the gate inert in 1960. |
 
 Validation ladder unchanged from the D7 handoff §33.15: build → D5/D6 probes via a 52-week run →
 312-week checkpoint → decade → holdout seed. Never pipe a long Godot run through a PowerShell
@@ -145,52 +148,117 @@ single era weight applied to all genres cannot express that, and it is the most 
 of both the Comedy inversion and the Classical hump. **Investigate before touching either genre's
 keyframes**, or the fix will be applied at the wrong layer.
 
-## 7. OPEN REGRESSION: MidTier firms 27 → 21
+## 7. CLOSED: MidTier firms 27 → 21 → 27
 
-The compilation curve moved every D7 acceptance metric in the right direction except one.
+Resolved by gating MidTier→Major on chart evidence. Reference `d7-majorgate-decade-522-1001`.
 
-| target | baseline | after | |
-|---|---:|---:|---|
-| breadth 400-600 | 450 | **491** | PASS |
-| below-MidTier dominant | 93% | 93% | PASS |
-| Independent share of that | 78% | 75% | PASS |
-| Small tail | 9% | 11% | PASS |
-| **MidTier firms 25-40** | 27 | **21** | **FAIL** |
-| owner-Major 1968 (45-52) | 46.5 | 49.2 | PASS |
-| owner-Major 1969 (45-52) | 53.2 | **51.4** | **PASS — first time in band** |
+| target | baseline | comp | **majorgate** | |
+|---|---:|---:|---:|---|
+| breadth 400-600 | 450 | 491 | **493** | PASS |
+| below-MidTier dominant | 92.7% | 92.9% | **92.9%** | PASS |
+| Independent share of that | 77.9% | 74.6% | **74.9%** | PASS |
+| Small tail | 8.7% | 10.6% | **10.8%** | PASS |
+| **MidTier firms 25-40** | 27 | **21 FAIL** | **27** | **PASS** |
+| owner-Major 1968 (45-52) | 46.5 | 49.2 | **47.2** | PASS |
+| owner-Major 1969 (45-52) | 53.2 | 51.4 | **48.8** | PASS |
+| Major firms 1969 | 13 | 16 | **10** | — |
 
-Two things worth keeping: the 1969 owner-Major overshoot that survived the entire D7 arc (1.2-2.7
-over on both seeds) fell into band as a side effect, and the prediction that 2.3x album costs would
-squeeze marginal Independents and cost breadth was **wrong** — breadth rose. Better albums sell more,
-and that outweighed the cost increase.
+The prediction that 2.3x album costs would squeeze marginal Independents and cost breadth was
+**wrong** — breadth rose. Better albums sell more, and that outweighed the cost increase.
 
-**Hypothesis for MidTier, not yet confirmed:** the cause is mechanical rather than economic. Breadth
-up means a fixed chart is shared among more labels, so per-label charting counts fall, while MidTier
-promotion needs 8 recent charting records and demotion bites below 4 — thinning the tier from both
-ends. If that holds, the MidTier bars are calibrated against the old concentration and want a small
-adjustment.
+### 7.1 The §7 hypothesis was wrong
 
-**Confirm from `release-strategy.csv` and the promotion/demotion events before tuning.** Prior D7 work
-established that reasoning about tier flow from annual aggregates produced three wrong mechanism
-claims in a row; decision telemetry settled it in one query.
+The hypothesis was that breadth thinned the tier from both ends as per-label charting counts fell
+against a promotion bar of 8 and a demotion bar of 4. **The decision telemetry refutes both ends.**
+Measured at the moment of each transition, in both runs:
 
-## 8. Chart influence: country over-charts via longevity
+| | comp | majorgate |
+|---|---|---|
+| Indep→MidTier, charting at promotion | min 8, med 8, max 15 | unchanged |
+| MidTier→Indep, charting at demotion | med 2, max 3 | unchanged |
+| MidTier live charting (wk 313+) | mean 7.17, med 7 | — |
+| MidTier share ≥ 8 (the promotion bar) | **49.3%**, up from 43.5% | — |
+| Independent live charting | **mean 1.32**, up from 1.21 | — |
 
-The one genuine chart/market divergence, and it survives the §3.1 retraction because it is measured
-directly.
+Independents charted *more*, not less; MidTier labels sat *further above* the promotion bar, not
+closer to the demotion bar. The MidTier bars were never the mechanism and were left untouched.
 
-| divergence (chart% − market%) | 1960 | 1963 | 1966 | 1968 | 1969 |
-|---|---:|---:|---:|---:|---:|
-| Country | +0.6 | +2.1 | +7.3 | **+8.3** | +6.9 |
-| Soul | −2.4 | −1.1 | +1.6 | +4.9 | +4.5 |
-| PsychedelicRock | — | — | −0.2 | −1.4 | −1.8 |
+### 7.2 The actual mechanism: the top rung had no chart gate
 
-It is **longevity, not volume**. In 1967 country had 186 unique charting records against soul's 179 —
-nearly identical — but averaged **6.6 chart weeks per record against soul's 5.2**, with a better mean
-position (49.1 vs 54.5). That gap is essentially the whole +7.9.
+`TryPromoteLabel` gated MidTier→Major on `sustainedCapabilityQuarters >= 4 && CurrentRosterSize >= 25
+&& CanSupportMajorBranches` — capability, headcount and twelve months of runway, with **no
+`chartingLastYear` term**. It was the only rung of the ladder without one. So the compilation curve
+raised label profitability and labels walked into Major on their books alone.
 
-So the question is why country singles persist ~27% longer, which is a chart-points/decay question,
-not a genre-acceptance one.
+The flow ledger closes the arithmetic exactly:
+
+| | baseline | comp | majorgate |
+|---|---:|---:|---:|
+| Independent → MidTier | 36 | 35 | 38 |
+| MidTier → Independent | 38 | 39 | 42 |
+| **MidTier → Major** | 5 | **8** | **2** |
+
+comp: in −1, demote-out +1, graduate-to-Major +3 = −5, against a standing move of 27 → 22. Major
+standing rose 13 → 16, +3, closing the other side. The graduating cohort's median charting evidence
+*fell* 13 → 8 (one promoted on 2), so the extra Majors were weaker, not stronger.
+
+`MajorPromotionChartingRecords = 16` now gates it. MidTier labels run a median of 8 recent charting
+records (p90 16, p95 20) while live Majors carry 23-51 entries a year, so 16 is a label knocking on
+the door — reachable, rarely reached. Cash was left alone: it never bound anything, every graduate
+held 0.75-3.6M against a ~96k requirement. Probes 95i/95j pin the ladder monotonic in chart evidence.
+
+Result: 2 graduations, both 1963, at 16 and 17 charting records — and both the same labels that
+graduated in 1961-62 under comp, held back until they earned it. The route works, it just sequences
+correctly now.
+
+**owner-Major note.** The comp run's "first time in band" at 51.4 was partly riding on its 3 extra
+Major firms; removing them costs ~2.6 points. The band holds anyway (48.8), which is the stronger
+result, and the trajectory keeps the §29 shape — 42.2 at 1960 rising into band by 1968-69 rather than
+a flat high line. Any future owner-Major movement should be checked against the Major firm count
+before being banked.
+
+### 7.3 Telemetry defect fixed alongside
+
+`closedTop40Median` in `decade-annual-rollup.csv` reported the chart life of one arbitrary record.
+`Statistic()` requires a sorted list; `albumAges` and `albumUnits` are sorted before the call but
+`ClosedTop40Weeks` accumulates in closure order and was passed raw. The column read
+`3,3,4,6,4,6,17.5,1,13,11` against a true median of `9,9,8,8,8,8,6,7,8,8`. Confirmed by replaying the
+unsorted middle-index calculation, which reproduced all eleven published values byte-for-byte.
+**Any conclusion drawn from that column before 2026-07-31 is void.**
+
+## 8. RETRACTED: country over-charts via longevity. It is soul, and it is volume.
+
+**The §8 table was measured on `d7-genre-decade-522-1001`, the pre-compilation baseline, and was
+never re-derived against the reference run.** The compilation curve eliminated the country divergence
+and created a much larger soul one. Measured on `d7-comp-decade-522-1001`:
+
+| Country divergence (chart% − market%) | 1960 | 1963 | 1966 | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline (what §8 reported) | +0.6 | +2.1 | +7.3 | +7.9 | +8.3 | +6.9 |
+| **current** | −0.3 | +0.6 | +1.1 | **−0.2** | +2.0 | **−0.5** |
+
+| Soul divergence | 1960 | 1963 | 1966 | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | −2.4 | −1.1 | +1.6 | +2.8 | +4.9 | +4.5 |
+| **current** | −2.5 | −0.4 | +3.7 | **+10.4** | **+10.8** | **+13.5** |
+
+Country's unique charting records fell 186 → 90 at 1967 and its longevity index against the chart
+average is now **1.04** — dead at par. The cause is §4.1: the Country family carries a low .45
+album-revolution susceptibility, so the compilation curve moved country the *wrong* way (10% → 30%
+compilation) and cost it appeal, while soul went 87% → 32%.
+
+**Soul now over-charts mainly on volume, not longevity** — the opposite decomposition to the one §8
+described:
+
+| | 1960 | 1965 | 1967 | 1969 |
+|---|---:|---:|---:|---:|
+| soul share of all charting records | 5.9% | 12.8% | 23.3% | **24.8%** |
+| soul longevity index (vs chart mean) | 0.65 | 1.17 | 1.22 | **1.30** |
+
+A quarter of every record on the chart, held 30% longer than average. This stacks on top of §6's
+separate finding that soul's *market* share is already too high — two distinct problems, and the §6
+authoring fix addresses only one. **Do not act on either until §11 lands**, since making airplay
+load-bearing will redistribute genre chart share.
 
 Psychedelic rock under-charts (3.0% market, 1.2% chart weeks in 1969, weeks/record *falling* 5.2 →
 3.5). Arguably correct for an album genre whose singles do not linger.
@@ -213,13 +281,109 @@ achievable ceiling for later albums, so the escalation is earned rather than sch
 
 ## 10. Resume sequence
 
-1. **MidTier 27 → 21.** Confirm the mechanism from decision telemetry, then remedy. Blocking, since it
-   is a live acceptance regression.
-2. **The one-year lag (§5).** Decide keyframe shift vs supply response, then apply once across the
+1. ~~MidTier 27 → 21.~~ **Done** — §7, `d7-majorgate-decade-522-1001`, all acceptance rows pass.
+2. **Airplay (§11).** Blocking on everything genre-side, by user decision: making airplay
+   load-bearing will move genre chart share, so calibrating authoring first would be tuning against a
+   chart that is about to change.
+3. **The one-year lag (§5).** Decide keyframe shift vs supply response, then apply once across the
    catalog.
-3. **Album era weight (§6.1)** — investigate before touching Comedy or Classical keyframes.
-4. **Per-genre authoring:** Gospel down hard, Soul down at 1967, Bubblegum up, Jazz flattened, Folk /
-   Surf / Garage pulled earlier.
-5. Re-run decade, re-check the §7 acceptance table, then a holdout seed.
+4. **Album era weight (§6.1)** — investigate before touching Comedy or Classical keyframes.
+5. **Per-genre authoring:** Gospel down hard, Soul down (§8 — now a chart problem as well as a market
+   one), Bubblegum up, Jazz flattened, Folk / Surf / Garage pulled earlier.
+6. Re-run decade, re-check the §7 acceptance table, then a holdout seed.
 
-Deferred: the acclaim loop (§9); country chart longevity (§8) once the market-side work settles.
+Deferred: the acclaim loop (§9).
+
+## 11. Chart health and the inert airplay term
+
+Chart health was decomposed on 2026-07-31 for the first time in the arc. Turnover, breadth and volume
+are stable; **record persistence is not**, and one defect explains all of it.
+
+### 11.1 The misses
+
+| metric | history 1960-69 | current | band |
+|---|---:|---:|---|
+| distinct #1 records | 203 | **380** | — |
+| #1s holding exactly one week | 55 (27%) | **293 (77%)** | — |
+| #1s holding 3+ weeks | 84 (41%) | **6 (1.6%)** | — |
+| Top-40 median chart life | — | **8** | 10-13 |
+| new Top-100 entries/wk | — | 20.6 | 16-21 PASS |
+| quality→position Pearson | — | 0.355 | 0.45-0.62, see 11.4 |
+
+Longest #1 run in the entire decade is 4 weeks.
+
+### 11.2 Root cause: airplay contributes 0.18% of chart points
+
+`ChartSimulator.CalculateChartPoints` returns `salesPoints + airplayPoints * 0.15f`. Measured across
+156 weeks of `records.csv`, airplay is **0.18% of the #1 record's points** (max 0.28%). The chart is a
+pure weekly-sales chart.
+
+`ChartSimulator.cs:735` uses `region.population` raw. Population is authored in **millions** (east
+coast 52.2, deep south 15.0) and every other absolute consumer multiplies by 1,000,000 —
+`MarketRegion.cs` 104/124/131/169/225, `SingleOpportunityLedger.cs:25`, `ChartManager.cs:992`. Line
+735 is the only place a millions-scaled value is summed against `unitsThisWeek`, an absolute record
+count. The other raw uses (`population / 50f`, `population * 700f`, `collegeCount / population`) are
+deliberate density ratios.
+
+**A straight ×1,000,000 overshoots by ~1000x** and would make airplay swamp sales entirely. Reaching
+a ~40% airplay share needs roughly **600-900x** the current contribution, so the `25f` and `0.15f`
+constants must be re-derived together, not merely unit-corrected.
+
+### 11.3 Why that produces one-week #1s
+
+Position tracks weekly sales, and hits here are spikes rather than plateaus. Over the 135 records that
+reached #1 in the diagnostic run:
+
+| | |
+|---|---:|
+| week before peak, as share of peak | 65.8% |
+| week after peak, as share of peak | 65.1% |
+| single best week, as share of the record's whole chart run | 22.4% |
+| held #1 one week / two / three | 115 / 19 / 1 |
+
+To hold #1 twice a record's *second*-best week (~65% of peak) must beat every rival's peak week. It
+almost never does, so leadership passes down a conveyor belt of records each cresting once. **Airplay
+is the term that would flatten the top of that trajectory, and it is inert.**
+
+### 11.4 The plateau engine is already built
+
+Do not rebuild it. `ChartSimulator.UpdateRadioHeat` already carries quality/push/momentum/artistHeat
+inputs, a **+0.25 top-10 / +0.10 top-40 chart-position bonus**, `RADIO_FATIGUE_DECAY 0.88^(weeks-8)`
+burnout, and an asymmetric lerp (up 0.28, down 0.10 → 0.22 after week 12). Regional `radioPlay` is
+seeded at `ChartManager.cs:736`, aged at `:1482`, and spread to neighbours at `:1736`/`:1759`, with
+`GetRadioDifficulty` and `GetRegionalRadioOpportunity` shaping it. Its only current consumer is
+awareness (`ChartManager.cs:1484`). It never reaches rank.
+
+Four things to settle, in order of risk:
+
+1. **Weight** — what share of chart points airplay carries, and whether it ramps across the decade
+   (Top 40 radio's influence grew through the 60s).
+2. **Persistence** — sales fall to 65% of peak in one week; airplay must decay slower than that or
+   there is no plateau. `Lerp(radioPlay * 0.85f, target, 0.2f)` at `ChartManager.cs:1482` is the knob
+   and was never tuned under load.
+3. **The top-10 feedback loop** — harmless today, **positive feedback** once airplay is load-bearing:
+   top 10 → more airplay → more points → stays top 10. This is what manufactures 3+ week #1s and also
+   the most likely way to overshoot into records locking at #1. Gate it behind sales.
+4. **Genre redistribution** — `genreRadio`, `radioDifficulty` and the segregation factor all shape
+   airplay and none currently affect rank. Expect genre chart shares to move, plausibly a lot. This is
+   why §8 and §6 wait.
+
+On the Pearson band: quality→position correlation fell 0.51 → 0.345 at the §13.4 tier-population
+repair and has held ~0.35 since. That is the expected signature of position depending on tier and
+regional reach rather than mostly on intrinsic quality. **The 0.45-0.62 band was measured on the
+pre-repair concentrated chart and should be restated, not chased.**
+
+### 11.5 Diagnostics
+
+These four pin the problem and are the acceptance test. All need a run **without `--lean-probe`** so
+`records.csv` is populated (`d7-tier-population-diag-156-1001` was used here):
+
+| what | source | now | want |
+|---|---|---:|---:|
+| airplay share of #1's chart points | `records.csv`, `chartPoints` − `unitsThisWeek` | 0.18% | a real share |
+| peak sharpness (week after ÷ peak) | `records.csv` units series | 0.651 | flatter |
+| #1 tenure distribution | `lifecycles.csv` `weeksAtNumberOne` | 77% one-week, 6 at 3+ | 27%, ~84 |
+| Top-40 median life | `lifecycles.csv`, `peakPosition<=40` | 8 | 10-13 |
+
+Plus `genre-decade-shape.csv` for the per-genre longevity index
+(`chartRecordWeeks / uniqueChartingRecords` against the chart mean) to catch item 4 above.
