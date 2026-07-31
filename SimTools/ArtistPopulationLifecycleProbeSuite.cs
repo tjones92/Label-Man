@@ -1209,32 +1209,43 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		candidate.status = LabelStatus.Stable;
 		candidate.monthsActive = 19;
 		candidate.sustainedCapabilityQuarters = 4;
-		candidate.ownedReach = .55f;
+		// Section 33: the organic route is reach AND sustained chart output. The old fixture
+		// qualified on .55 reach and two charting records, which is what a well-distributed small
+		// label looks like once independent distribution exists, not a large independent.
+		candidate.ownedReach = .65f;
 		candidate.nationalReach = .50f;
 		candidate.marketingPower = .60f;
 		candidate.lastMonthlyProfit = 1000f;
 		candidate.consecutiveLossMonths = 0;
 		for (int index = 0; index < 6; index++) candidate.roster.Add(NewArtist($"mid-promotion-{index}"));
 
-		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
 			"68a a mature, scaled, charting, profitable Independent with runway qualifies for MidTier");
 		candidate.monthsActive = 18;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
 			"68b the former second-quarter capability-only promotion wave is blocked by operating age");
 		candidate.monthsActive = 19; candidate.sustainedCapabilityQuarters = 3;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
 			"68c fewer than four sustained capability quarters cannot promote");
 		candidate.sustainedCapabilityQuarters = 4;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 1),
-			"68d capability and reach without two recent charting records cannot promote");
-		candidate.roster.RemoveAt(candidate.roster.Count - 1);
 		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+			"68d capability and reach without a regular charting showing cannot promote");
+		// Coverage is not scale. A label that has assembled a national network but is charting
+		// only occasionally is a well-distributed small label; before section 33 this promoted.
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 3),
+			"68d2 national reach alone does not promote without sustained chart output behind it");
+		candidate.ownedReach = .55f;
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
+			"68d3 sustained chart output alone does not promote organically without the reach to match");
+		candidate.ownedReach = .65f;
+		candidate.roster.RemoveAt(candidate.roster.Count - 1);
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
 			"68e fewer than six rostered artists cannot promote into the large-independent tier");
 		candidate.roster.Add(NewArtist("mid-promotion-restored")); candidate.lastMonthlyProfit = -1f;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
 			"68f an unprofitable Independent cannot promote");
 		candidate.lastMonthlyProfit = 1000f; candidate.cashReserves = candidate.GetMonthlyOverhead() * 5f;
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 2),
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 4),
 			"68g fewer than six months of runway cannot promote");
 
 		// Section 28: the dependent-hitmaker route. A label with low owned reach and high

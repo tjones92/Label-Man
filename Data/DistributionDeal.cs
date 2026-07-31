@@ -13,6 +13,8 @@ public enum DealResolution {
 	Absorb,
 	DistributorCollapsed,
 	ClientClosed,
+	/// <summary>A Major dropped this imprint to make room for a client it wanted more.</summary>
+	Dropped,
 	/// <summary>A Major courted this client away from the distributor it was under.</summary>
 	Poached,
 	/// <summary>

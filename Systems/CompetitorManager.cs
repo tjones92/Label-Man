@@ -531,6 +531,36 @@ public partial class CompetitorManager : Node {
 		label.independentDistributionRegions.Clear();
 	}
 
+	/// <summary>
+	/// Finds a Major that is full but would rather carry this proven client than its own weakest
+	/// imprint, and names the imprint it drops. The candidate must still add a region the client
+	/// does not have and must be able to fund the advance -- only the client ceiling is waived.
+	/// The imprint dropped is the one charting least; a Major will not drop a client that is
+	/// selling at least as well as the one being courted.
+	/// </summary>
+	private (AILabel Major, AILabel Dropped) SelectMajorWillingToDropWeakestClient(AILabel client) {
+		int courtedCharting = GetRecentChartingRecordCount(client.labelId);
+		AILabel bestMajor = null, bestDrop = null;
+		int bestDropCharting = int.MaxValue;
+		foreach (AILabel major in aiLabels) {
+			if (major.tier != LabelTier.Major || !major.IsActive || major == client) continue;
+			if (WouldCreateCircularDeal(client, major)) continue;
+			if (major.cashReserves <= major.GetMonthlyOverhead() * 3f) continue;
+			if (!(major.distributionRegions ?? System.Array.Empty<string>())
+				.Any(region => !client.HasDistributionInRegion(region))) continue;
+			foreach (AILabel held in aiLabels) {
+				if (held.activeDeal?.distributorId != major.labelId || held == client) continue;
+				if (held.IsSubsidiary) continue;
+				int charting = GetRecentChartingRecordCount(held.labelId);
+				if (charting >= courtedCharting || charting >= bestDropCharting) continue;
+				bestMajor = major;
+				bestDrop = held;
+				bestDropCharting = charting;
+			}
+		}
+		return (bestMajor, bestDrop);
+	}
+
 	private bool CanPlaceLineIn(AILabel label, string regionId) =>
 		!label.HasDistributionInRegion(regionId) &&
 		GetIndependentDistributorsInRegion(regionId).Any(house => house.HasCapacity && !house.CarriesLabel(label.labelId));
@@ -3317,7 +3347,14 @@ public partial class CompetitorManager : Node {
 		if (GetDeterministicIndependentDistributionRoll(client.labelId, "poach", currentWeek) >= pushChance) return;
 
 		AILabel major = SelectDistributor(client, DealOrigin.DistributorCourted, requireMajorDistributor: true);
-		if (major == null) return;
+		// Every Major sat at the client ceiling by the 312-week checkpoint, so poaching starved
+		// on capacity and fired three times in two years. A major taking on a proven independent
+		// did not wait for a vacancy -- it made room by dropping an imprint that was not selling.
+		AILabel dropped = null;
+		if (major == null) {
+			(major, dropped) = SelectMajorWillingToDropWeakestClient(client);
+			if (major == null) return;
+		}
 
 		DistributionDeal offer = GenerateDealTerms(client, major, DealOrigin.DistributorCourted, year, currentWeek);
 		DistributionOffersGenerated++;
@@ -3327,6 +3364,14 @@ public partial class CompetitorManager : Node {
 		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
 			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
 		offer.Cover(evidence.EarningRecordId);
+		if (dropped != null) {
+			// The dropped imprint keeps what a completed term leaves behind, exactly as an
+			// ordinary exit does, and is free to place its line with wholesale houses instead.
+			DistributionDeal endedDeal = dropped.activeDeal;
+			dropped.ownedReach = Mathf.Min(1f, dropped.ownedReach + (endedDeal.reachGranted * 0.50f));
+			EmitDealEvent(dropped, major, endedDeal, DealResolution.Dropped, dropped.DistributionDependency);
+			dropped.activeDeal = null;
+		}
 		EmitDealEvent(client, incumbent, current, DealResolution.Poached, client.DistributionDependency);
 		client.activeDeal = offer;
 		client.cashReserves += offer.advance;

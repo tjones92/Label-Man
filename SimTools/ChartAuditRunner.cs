@@ -1378,7 +1378,7 @@ public partial class ChartAuditRunner : Node {
 			if (!string.IsNullOrEmpty(dealEvent.clientId))
 				signedDealCountByLabel[dealEvent.clientId] = signedDealCountByLabel.GetValueOrDefault(dealEvent.clientId) + 1;
 		} else if (dealEvent.resolution is DealResolution.Exit or DealResolution.Renew or DealResolution.Absorb
-			or DealResolution.Poached or DealResolution.Graduated) {
+			or DealResolution.Poached or DealResolution.Graduated or DealResolution.Dropped) {
 			if (!string.IsNullOrEmpty(dealEvent.clientId))
 				completedDealCountByLabel[dealEvent.clientId] = completedDealCountByLabel.GetValueOrDefault(dealEvent.clientId) + 1;
 		}

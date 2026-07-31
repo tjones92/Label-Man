@@ -29,13 +29,18 @@ public partial class LabelLifecycleManager : Node {
 	private const int MidTierPromotionMinimumOperatingMonths = 18;
 	private const int MidTierPromotionMinimumSustainedQuarters = 4;
 	private const int MidTierPromotionMinimumRoster = 6;
-	private const int MidTierPromotionMinimumRecentChartingRecords = 2;
+	private const int MidTierPromotionMinimumRecentChartingRecords = 3;
 	private const int IndependentPromotionMinimumRecentChartingRecords = 1;
 	// Section 28: a heavily distributor-dependent hitmaker (Stax, A&M) reached MidTier footprint on
 	// a major's P&D deal without ever building its own national network. The dependent-footprint
 	// promotion route requires a stronger sustained chart-and-roster showing than the organic route.
 	private const int MidTierPromotionDependentChartingRecords = 4;
 	private const int MidTierPromotionDependentRoster = 8;
+	// Coverage is not scale: a label that has assembled a national network still has to be
+	// putting records on the chart to be a large independent rather than a well-distributed
+	// small one. Same chart bar as the dependent route, which proves footprint by roster instead.
+	private const float MidTierPromotionOrganicReach = 0.60f;
+	private const int MidTierPromotionOrganicChartingRecords = 4;
 	// Section 28: months of overhead runway a label needs before it can fund studio upgrades and
 	// keep pace with the post-1963 production-quality climb; below it, production stagnates.
 	private const float StudioUpgradeRunwayMonths = 6f;
@@ -502,7 +507,22 @@ public partial class LabelLifecycleManager : Node {
 		// route reaches MidTier scale on a major's P&D deal -- high owned reach was never required
 		// of a Stax or an A&M -- and instead proves footprint through a stronger sustained chart
 		// and roster showing. Requiring one of the two keeps promotion earned, not automatic.
-		bool organicReachRoute = label.ownedReach >= 0.50f && GetDependency(label) < DependencyLowThreshold;
+		// Section 33: the organic route used to be reach alone, at a 0.50 bar set when reach was
+		// effectively unobtainable -- mean unsigned-Independent ownedReach was 0.458 and grew
+		// +0.005 across a decade (section 32.5). Independent distribution grants reach per market
+		// placed and leaves borrowed reach at zero, so both halves of that test became routine:
+		// at the d7-indiedist-312-1001 checkpoint 65% of live Independents cleared it and MidTier
+		// firms charting went 28 -> 103 by 1965, taking 46% of chart entries. Reach is now
+		// saturated against its own ceiling (p75 = 0.750) and cannot discriminate at all, so
+		// raising the bar alone does nothing: 0.70 still passes 40%.
+		//
+		// MidTier is defined here as a large, PROVEN independent, and coverage is not scale.
+		// Both routes now require sustained chart output; they differ only in how the footprint
+		// behind it is evidenced -- the organic route by a national network it built itself, the
+		// dependent route (a Stax, an A&M) by roster depth on somebody else's network.
+		bool organicReachRoute = label.ownedReach >= MidTierPromotionOrganicReach &&
+			GetDependency(label) < DependencyLowThreshold &&
+			chartingLastYear >= MidTierPromotionOrganicChartingRecords;
 		bool dependentFootprintRoute = chartingLastYear >= MidTierPromotionDependentChartingRecords &&
 			label.CurrentRosterSize >= MidTierPromotionDependentRoster;
 		if (!organicReachRoute && !dependentFootprintRoute) return false;
