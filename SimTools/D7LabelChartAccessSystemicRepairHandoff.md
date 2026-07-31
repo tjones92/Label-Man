@@ -3626,7 +3626,61 @@ three times in two years. A Major may now drop its weakest-charting imprint to t
 and the dropped imprint keeps what a completed term leaves behind and can place its line with wholesale
 houses instead.
 
-### 33.13 Validation ladder (decade runs deferred)
+### 33.13 DECADE RESULT — every acceptance target met (`d7-decline-decade-522-1001`, seed 1001)
+
+| target | result | |
+|---|---|---|
+| cumulative breadth 400-600 | **450** | PASS |
+| below-MidTier dominant | 93% of identities | PASS |
+| Independent-dominated below MidTier | 78% | PASS |
+| small Small tail | 8.7% | PASS |
+| MidTier firms charting 25-40 | **27** | PASS |
+| owner-Major 45-52 at 1968 | **46.5%** | PASS |
+| owner-Major 45-52 at 1969 | **53.2%** | 1.2 over |
+
+**The arc is real and comes from mechanism.** Owner-Major runs 40.9 / 40.8 / 41.2 / 40.1 / 38.8 /
+44.1 / 45.0 / 48.8 / 46.5 / **53.2** — a fragmented early decade, the turn arriving exactly when the
+independent trade starts failing (1966-67), and +12.3 points across the decade. This is the shape §29
+asked for, produced by two curves crossing rather than by a coefficient: independents lose their own
+distribution just as the majors open capacity to absorb it.
+
+Supporting movements 1960 -> 1969: MidTier chart entries **298 -> 184** and MidTier firms 20 -> 27 as
+the new exit bites; Independent entries **266 -> 454**; indie unit share 0.170 -> 0.413. Trade
+failures run three houses a year from 1967, taking the trade 23 -> 14 houses and dropping 475 client
+lines. Poaching now fires 4-8 per year in the ramp window against 22 for the whole previous decade,
+and absorption finally has targets (1/1/4/2 in 1966-69).
+
+**Predictions versus outcome — I got the direction right and the magnitude wrong twice.** Stated
+before the run: MidTier ~32 (actual **27**, good), 1960 owner-Major ~43.8% (actual **40.9%**,
+overshot), 1969 owner-Major ~44-47% (actual **53.2%**, badly undershot). The miss is instructive: I
+modelled the trade decline's effect on Independent entries but not the MidTier collapse compounding
+it. Removing 114 MidTier entries from the denominator moved the ratio far more than the Major-side
+numerator did. **The arc is mostly a denominator effect, not a consolidation-of-ownership effect** —
+worth remembering before reading it as vindication of the master-control metric.
+
+Also corrected during this pass, from the previous decade run's flow math:
+
+- MidTier had **26 promotions in and zero demotions out** across 522 weeks. The tier could only
+  ratchet, which is why raising the promotion bar 6 -> 8 barely moved the count. Capability-based
+  demotion could never reach it either: floor 0.42 against a weakest-observed 0.680, because
+  capability weights owned reach and wholesale placement made reach cheap.
+- The two promoted Majors charted 13.5 records each against the seeded majors' 41.1 yet held **20 of
+  95 client slots**, because crossing the tier line granted RCA's roster instantly. Major capacity is
+  now scaled by the network the firm owns.
+
+### 33.14 Remaining gap and the next thing to look at
+
+1969 sits 1.2 over the ceiling while 1968 is in band. The user has previously accepted ~53%; if it is
+to come down, the lever is the late survival rate or the ceiling ramp endpoint, not the masters rate.
+
+The deeper limit found while sizing this: **imprint-Major alone was 41.6% of 1960 entries** in the
+pre-decline configuration — the eight seeded majors' own records, which never pass through the
+distribution system at all. No distribution lever can push 1960 below that floor. Real 1960 majors
+were closer to 25-35% of Hot 100 entries, having sat out rock and roll while the independents carried
+it. If a deeper fragmented start is wanted, that is a seeded-population question, not a distribution
+one, and it is the next thing to examine rather than another distribution lever.
+
+### 33.15 Validation ladder
 
 Build -> `dotnet build "Label Man.sln" --no-restore` -> new fixed probes for the channel, poaching and
 graduation -> D5 + D6 suite -> 52-week probe run -> only then a 312-week checkpoint. The checkpoint is
