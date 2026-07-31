@@ -34,13 +34,13 @@ public partial class LabelLifecycleManager : Node {
 	// Section 28: a heavily distributor-dependent hitmaker (Stax, A&M) reached MidTier footprint on
 	// a major's P&D deal without ever building its own national network. The dependent-footprint
 	// promotion route requires a stronger sustained chart-and-roster showing than the organic route.
-	private const int MidTierPromotionDependentChartingRecords = 6;
+	private const int MidTierPromotionDependentChartingRecords = 8;
 	private const int MidTierPromotionDependentRoster = 8;
 	// Coverage is not scale: a label that has assembled a national network still has to be
 	// putting records on the chart to be a large independent rather than a well-distributed
 	// small one. Same chart bar as the dependent route, which proves footprint by roster instead.
 	private const float MidTierPromotionOrganicReach = 0.60f;
-	private const int MidTierPromotionOrganicChartingRecords = 6;
+	private const int MidTierPromotionOrganicChartingRecords = 8;
 	// Section 28: months of overhead runway a label needs before it can fund studio upgrades and
 	// keep pace with the post-1963 production-quality climb; below it, production stagnates.
 	private const float StudioUpgradeRunwayMonths = 6f;
