@@ -3727,11 +3727,7 @@ weaker than expected and the reason still holds.
 User has previously accepted ~53% for Majors, and 1970 on the holdout reads 52.0%, so the overshoot
 is a single-year tip at the very end of the horizon rather than a sustained breach.
 
-### 34.1 Still outstanding before formal acceptance
-
-- Forced exit / renew / absorb integration harness runs (`--force-*` flags, §7 step 10).
-- Full D5 + D6 1-95 suite on a clean tree (last run green, but before the §34 optimization work).
-- `git diff --check` (clean as of the last commit).
+### 34.1 Still outstanding before formal acceptance — ALL CLEARED, see §37
 
 ## 35. NEXT SESSION — runtime optimization (measured, not yet implemented)
 
@@ -3924,3 +3920,41 @@ at 1965 against 17,030 at 1969), so the proportional saving at 522 weeks should 
 9.7%; §35.2's ~129s `CalculateLabelRevenue` estimate maps to roughly -120 to -160s once the rest of
 `bookSettlement` is included. Confirming it needs a decade run, which doubles as the byte-identity
 check against `d7-decline-decade-522-1001`.
+
+**Decision taken: the decade re-run was not spent.** The index is a lookup substitution over a
+frozen list whose only inputs are `entry.LabelId`, `entry.RecordId` and iteration order, none of
+which acquire new meaning after 1965, and 67/67 outputs are byte-identical at two horizons. Stated
+plainly so it is not mistaken for proof: byte-identity through 1965 demonstrates inertness for every
+path exercised through 1965, and the late-decade mechanisms (independent trade decline from 1966-67,
+absorption, the poaching ramp) run only after that. They change *which* labels take the wholesale
+and deal paths, not the semantics of a per-label lookup, so the inference is sound but it is an
+inference. `d7-decline-decade-522-1001` therefore remains a valid reference artifact for current
+code — only its `performance-profile.csv` is stale, having gained columns.
+
+## 37. §34.1 cleared — the branch is validated
+
+- **Full D5 + D6 1-96 on a clean tree: green** (`d7-opt-final-probes-52-1001`), and that same run is
+  67/67 byte-identical to `d7-decline-probes-52-1001`.
+- **`git diff --check`: clean.**
+- **Forced deal harnesses: all four pass** — `--force-distribution-deal` and
+  `--force-deal-resolution=` exit / renew / absorb.
+
+### 37.1 One pre-existing harness failure found and fixed
+
+The plain `--force-distribution-deal` run failed on `Forced deal skim was not credited to its
+distributor`. **It was not a regression** — proved by checking out `c3f3b7d` (the accepted holdout
+commit), rebuilding, and reproducing the identical failure with none of the §36 work present.
+
+Cause: `CaptureWeek` asserts `forcedDealClient.weeklyDistributionSkim ==
+forcedDealDistributor.weeklyDistributionIncome`, which only holds while that distributor carries
+exactly one client. The three resolution cases disable offer processing and so held it. The plain
+case did not, and `forcedDealDistributor` is simply the first active Major — Columbia. Once the §33
+market began signing freely, Columbia signed **three other clients in week 5** (Cox, Reactor,
+Liberty), whose skim lands in the same `weeklyDistributionIncome`, making the equality
+unsatisfiable. The gate had been silently invalidated by the distribution work, not by anything
+wrong in the model.
+
+Fix: `InstallForcedDistributionDeal` now disables offer processing for every forced-deal run rather
+than only the resolution cases, restoring the single-client world the assertion was written for and
+keeping the check strict. It is reachable only under `--force-*`; the post-fix probe run is still
+67/67 byte-identical, so normal runs are untouched.

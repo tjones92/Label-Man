@@ -833,7 +833,14 @@ public partial class ChartAuditRunner : Node {
 		if (forcedDealResolution != null && forcedDealResolution is not ("exit" or "renew" or "absorb")) {
 			throw new ArgumentException($"Unknown forced deal resolution '{forcedDealResolution}'.");
 		}
-		if (forcedDealResolution != null) CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);
+		// CaptureWeek asserts the client's weekly skim equals its distributor's weekly
+		// distribution income, which only holds while that distributor carries exactly one
+		// client. The resolution cases have always disabled offer processing and so held it;
+		// the plain case did not, and once the section 33 market began signing freely the
+		// forced distributor (the first active Major) picked up three more clients in week 5
+		// and the equality became unsatisfiable. Disable it for every forced-deal run so the
+		// harness tests the routing it means to test rather than the ambient deal market.
+		CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);
 		IReadOnlyList<AILabel> labels = CompetitorManager.Instance.GetAllLabels();
 		forcedDealClient = labels.FirstOrDefault(label => label.tier != LabelTier.Major &&
 			label.IsActive && CompetitorManager.Instance.GetLabelActiveRecordCount(label.labelId) > 0);
