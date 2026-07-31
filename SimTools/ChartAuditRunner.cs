@@ -3051,6 +3051,8 @@ public partial class ChartAuditRunner : Node {
 		double albumNet = decadeAnnual.Album.LabelNet;
 		List<int> albumAges = decadeAnnual.AlbumAges;
 		List<int> albumUnits = decadeAnnual.AlbumUnits;
+		// ClosedTop40Weeks accumulates in closure order; Statistic requires a sorted list.
+		List<int> closedTop40Weeks = decadeAnnual.ClosedTop40Weeks.OrderBy(value => value).ToList();
 		int albumsBelowFloor = albumUnits.Count(value => value < 10);
 		int albumsAtOrAboveFloor = albumUnits.Count - albumsBelowFloor;
 		double? pearson = Correlation(decadeAnnual.ChartingSingles.Values.Select(value => (value.Quality, 101d - value.BestPosition)));
@@ -3087,7 +3089,7 @@ public partial class ChartAuditRunner : Node {
 			Ratio(decadeAnnual.PromoExpected - decadeAnnual.PromoRealized, decadeAnnual.PromoCompleted),
 			pearson.HasValue ? F(pearson.Value) : string.Empty,
 			decadeAnnual.ChartingSingles.Count.ToString(CultureInfo.InvariantCulture),
-			Statistic(decadeAnnual.ClosedTop40Weeks, 0.5), decadeAnnual.ClosedTop40Weeks.Count.ToString(CultureInfo.InvariantCulture),
+			Statistic(closedTop40Weeks, 0.5), closedTop40Weeks.Count.ToString(CultureInfo.InvariantCulture),
 			decadeAnnual.ActiveSingles.ToString(CultureInfo.InvariantCulture), decadeAnnual.ActiveAlbums.ToString(CultureInfo.InvariantCulture),
 			Statistic(albumAges, 0.5), Statistic(albumAges, 0.9),
 			Statistic(albumUnits, 0), Statistic(albumUnits, 0.25), Statistic(albumUnits, 0.5),

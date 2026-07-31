@@ -2114,6 +2114,16 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"95g the MidTier exit bar sits below its entry bar, leaving a hysteresis band");
 		Require(LabelLifecycleManager.MidTierDemotionChartingBar > 0,
 			"95h a MidTier label that never charts is not left in the tier indefinitely");
+
+		// MidTier -> Major was the one rung with no chart evidence at all, so it graduated labels on
+		// their balance sheet: the compilation-curve pass promoted eight, one of them on 2 recent
+		// charting records, taking Majors 13 -> 16 while MidTier fell 27 -> 22. The ladder has to be
+		// monotonic in evidence -- each rung asks for more chart output than the one below it -- or
+		// the top of it stops meaning anything.
+		Require(LabelLifecycleManager.MajorPromotionChartingBar > LabelLifecycleManager.MidTierOrganicPromotionChartingBar,
+			"95i the Major entry bar sits above the MidTier entry bar, so the ladder is monotonic in chart evidence");
+		Require(LabelLifecycleManager.MajorPromotionChartingBar > LabelLifecycleManager.MidTierDemotionChartingBar,
+			"95j becoming a Major requires more chart evidence than merely staying MidTier");
 	}
 
 	/// <summary>

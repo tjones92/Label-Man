@@ -62,6 +62,22 @@ public partial class LabelLifecycleManager : Node {
 	private const float CompetitiveExitLowRunwayMultiplier = 1.75f;
 	private const float CompetitiveExitMaximumChance = 0.50f;
 	private const int MajorRosterThreshold = 25;
+	// MidTier -> Major was the only rung of the ladder with no chart evidence behind it: capability,
+	// a 25-slot roster and twelve months of runway. That made the top of the ladder a balance-sheet
+	// test, so any change that raised label profitability graduated MidTier labels into Major on
+	// their books alone -- the compilation-curve pass took MidTier 27 -> 22 and Majors 13 -> 16
+	// purely through three extra graduations, and the graduating cohort's median charting evidence
+	// FELL from 13 to 8 (one promoted on 2). Decade-end Major counts rising is also backwards:
+	// the 60s consolidated into fewer, bigger majors, and the independents that got big were bought
+	// (Atlantic, Stax) rather than promoted. Organic MidTier -> Major essentially did not happen.
+	//
+	// The bar has to stay reachable so the route exists, but bind hard enough that it almost never
+	// fires. MidTier labels run a median of 8 recent charting records (p90 16, p95 20, max 37) while
+	// live Majors carry 23-51 entries a year, so 16 sits at the MidTier p90 -- a label knocking on
+	// the door -- and well under what an incumbent Major sustains. Cash is deliberately left as-is:
+	// it never bound anything (every graduate held 0.75-3.6M against a ~96k requirement).
+	private const int MajorPromotionChartingRecords = 16;
+	internal static int MajorPromotionChartingBar => MajorPromotionChartingRecords;
 	private const float DependencyLowThreshold = 0.35f;
 	public static LabelLifecycleManager Instance { get; private set; }
 	
@@ -515,7 +531,8 @@ public partial class LabelLifecycleManager : Node {
 			case LabelTier.Independent when IsIndependentReadyForMidTier(label, chartingLastYear):
 				PromoteLabel(label, LabelTier.MidTier);
 				return true;
-			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold && CanSupportMajorBranches(label):
+			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold &&
+				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label):
 				PromoteLabel(label, LabelTier.Major);
 				return true;
 			default:
