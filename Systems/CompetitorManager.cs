@@ -2470,13 +2470,14 @@ public partial class CompetitorManager : Node {
 		return baseCost * multiplier + albumPackagingFixedCost * (record.album?.packaging ?? 0f);
 	}
 
-	private static float CalculateCompilationCostWeight(Genre genre, int year) {
-		if (!IsGeneratorAdultGenre(genre)) return 1f;
-		return year <= 1963 ? 0.48f : 0f;
-	}
-
-	private static bool IsGeneratorAdultGenre(Genre genre) => genre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
-		Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
+	/// <summary>
+	/// The prior a label budgets against before the format is drawn, so it has to be the
+	/// same probability <see cref="GenerateAlbum"/> actually rolls. When the two drift, the
+	/// projected album economics stop matching the realised ones -- which is what
+	/// prior-cost-assumptions.csv exists to catch.
+	/// </summary>
+	private static float CalculateCompilationCostWeight(Genre genre, int year) =>
+		AlbumModel.GetCompilationChance(genre, year);
 
 	private HitInventory ResolveHitInventory(SimulatedArtist artist) {
 		var result = new HitInventory();
@@ -2832,8 +2833,6 @@ public partial class CompetitorManager : Node {
 
 	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year) {
 		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
-		bool adultGenre = artist.primaryGenre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
-			Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
 		float artistTalent = artist.CalculateBaseQuality();
 		float luckyRoll = GD.Randf();
 		float cohesionCeiling = AlbumModel.GetMaximumAchievableCohesion(year, artistTalent, label.productionQuality, luckyRoll);
@@ -2841,10 +2840,10 @@ public partial class CompetitorManager : Node {
 
 		AlbumFormat albumFormat;
 		bool statementViable = cohesionCeiling >= 0.72f && thematicCohesion >= 0.62f;
-		if (statementViable && ((year >= 1965 && GD.Randf() < 0.24f) || (year < 1965 && luckyRoll > 0.985f))) {
+		if (statementViable && year >= AlbumModel.EarlyStatementYear && GD.Randf() < 0.24f) {
 			albumFormat = AlbumFormat.Concept;
 			thematicCohesion = Mathf.Max(thematicCohesion, 0.68f);
-		} else if (!adultGenre || (year <= 1963 && GD.Randf() < 0.48f)) {
+		} else if (GD.Randf() < AlbumModel.GetCompilationChance(artist.primaryGenre, year)) {
 			albumFormat = AlbumFormat.Compilation;
 		} else {
 			float typeRoll = GD.Randf();

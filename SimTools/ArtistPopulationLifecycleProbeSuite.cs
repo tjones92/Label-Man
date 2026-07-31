@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,7 +11,7 @@ using System.Linq;
 /// measured: several probes reach helpers that draw from the global stream
 /// (<see cref="RosterManager.InitializeRuntimeRosterForProbe"/> consumes the
 /// legacy capacity draw, for one). A 52-week run with the flag and without it
-/// diverge in 1960 â€” album units 2,271,329 against 2,426,185 on seed 1001. Never
+/// diverge in 1960 Ã¢â‚¬â€ album units 2,271,329 against 2,426,185 on seed 1001. Never
 /// pass --artist-population-lifecycle-probes to a run being compared against a
 /// control; probe runs and comparison runs stay separate, exactly as they must
 /// for --genre-market-v2-probes.
@@ -120,7 +120,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbePoachingAndGraduation();                                                    // 94
 		ProbeIndependentTradeDeclineAndMidTierExit();                                    // 95
 		ProbeSettlementIndexMatchesLinearScan();                                         // 96
-		results.Add("D6 fixed probes 1-96 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting, and settlement indexes that reproduce the per-label and per-record linear scans they replace in exactly their source order)");
+		ProbeCompilationEraCurveAndEarlyStatement();                                     // 97
+		results.Add("D6 fixed probes 1-97 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting, and settlement indexes that reproduce the per-label and per-record linear scans they replace in exactly their source order, and a compilation era curve driven by authored single-orientation and per-family album-revolution susceptibility, with a vanishingly rare pre-ramp statement album from 1965)");
 		return results;
 	}
 
@@ -2148,6 +2149,40 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		Require(settlement.EntriesForLabel("alpha").Count == 0 && settlement.EntriesForLabel("delta").Count == 1 &&
 			settlement.FindEntry("r1") == null && settlement.FindEntry("r9") != null,
 			"96c replacing the frozen entry list rebuilds both indexes rather than serving stale rows");
+	}
+
+	/// <summary>
+	/// The compilation era curve, and the 1965 opening for a pre-ramp statement album.
+	/// The defect this replaces: every genre outside a hardcoded six-genre adult list was an
+	/// unconditional compilation in every year, which put psychedelic rock and classical on
+	/// the same 84-89% rate in 1969.
+	/// </summary>
+	private static void ProbeCompilationEraCurveAndEarlyStatement() {
+		float BubblegumAt(int year) => AlbumModel.GetCompilationChance(Genre.Bubblegum, year);
+		float ClassicalAt(int year) => AlbumModel.GetCompilationChance(Genre.Classical, year);
+		float PsychAt(int year) => AlbumModel.GetCompilationChance(Genre.PsychedelicRock, year);
+
+		Require(BubblegumAt(1960) > .85f && BubblegumAt(1969) > .70f,
+			"97 a manufactured singles genre stays compilation-led -- bubblegum was made for the singles market and never joined the album turn");
+		Require(ClassicalAt(1960) < .20f && ClassicalAt(1969) < .20f,
+			"97b classical is never a hits-plus-filler genre in any year, rather than 84% of albums as the adult-list gate produced");
+		Require(PsychAt(1969) < PsychAt(1966) * .60f && PsychAt(1969) < .20f,
+			"97c an album-oriented rock genre sheds the compilation format across the decade");
+		Require(BubblegumAt(1969) > PsychAt(1969) * 3f,
+			"97d the era decline is weighted by family, so bubblegum and psychedelic rock do not converge on one rate");
+		for (int year = 1961; year <= 1969; year++) Require(PsychAt(year) <= PsychAt(year - 1) + .000001f,
+			$"97e the compilation rate never rises year over year ({year})");
+
+		// A statement album is unreachable before 1965 even for the best pairing on the best
+		// roll, reachable from 1965 only for that pairing, and never on an ordinary roll.
+		Require(AlbumModel.GetMaximumAchievableCohesion(1964, 1f, 1f, 1f) < .72f,
+			"97f no concept album is reachable before the early-statement year");
+		Require(AlbumModel.GetMaximumAchievableCohesion(1965, 1f, 1f, 1f) >= .72f,
+			"97g an exceptional artist in an exceptional room can reach the statement bar from 1965");
+		Require(AlbumModel.GetMaximumAchievableCohesion(1965, 1f, 1f, .5f) < .72f,
+			"97h an ordinary roll cannot, so the 1965 opening stays vanishingly rare");
+		Require(AlbumModel.GetMaximumAchievableCohesion(1965, .72f, .72f, 1f) < .72f,
+			"97i and neither can an unexceptional pairing on the best roll");
 	}
 
 	private static void Require(bool condition, string message) {
