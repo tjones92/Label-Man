@@ -39,6 +39,12 @@ public partial class LabelLifecycleManager : Node {
 	// Coverage is not scale: a label that has assembled a national network still has to be
 	// putting records on the chart to be a large independent rather than a well-distributed
 	// small one. Same chart bar as the dependent route, which proves footprint by roster instead.
+	// A large independent that stops charting falls back. Set well below the promotion bar of 8
+	// so the tier does not oscillate across the line.
+	private const int MidTierDemotionChartingRecords = 4;
+	internal static int MidTierDemotionChartingBar => MidTierDemotionChartingRecords;
+	internal static int MidTierOrganicPromotionChartingBar => MidTierPromotionOrganicChartingRecords;
+	private const int MidTierDemotionSustainedQuarters = 2;
 	private const float MidTierPromotionOrganicReach = 0.60f;
 	private const int MidTierPromotionOrganicChartingRecords = 8;
 	// Section 28: months of overhead runway a label needs before it can fund studio upgrades and
@@ -429,6 +435,7 @@ public partial class LabelLifecycleManager : Node {
 	}
 	
 	private void CheckForTierChange(AILabel label) {
+		int chartingLastYear = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId) ?? 0;
 		float capability = label.CalculateCapabilityScore();
 		float promotionFloor = GetPromotionFloor(label.tier);
 		if (promotionFloor >= 0f && capability >= promotionFloor) label.sustainedCapabilityQuarters++;
@@ -441,9 +448,28 @@ public partial class LabelLifecycleManager : Node {
 			label.sustainedLowCapabilityQuarters = 0;
 		}
 
+		// Section 33: MidTier had no outflow at all. Across a full 522-week run there were 26
+		// promotions in and ZERO demotions out, so the tier could only ratchet up and raising the
+		// promotion bar could never reduce the standing population -- which is exactly what the
+		// 6 -> 8 pass showed. Capability-based demotion cannot reach it either: the floor is 0.42
+		// and the weakest MidTier label measured 0.680, because capability weights owned reach and
+		// wholesale placement made reach cheap and abundant.
+		//
+		// So the exit test is performance, symmetric with the entry test. A large independent that
+		// stops putting records on the chart is not a large independent any more. The bar sits well
+		// below the promotion bar (8) on purpose: demoting at the promotion bar would have demoted
+		// 39 of 53 and left the tier at 14, far under the target, and would make labels oscillate
+		// across the line. Under 4 sustained demotes 21 of 53.
+		if (label.tier == LabelTier.MidTier && chartingLastYear < MidTierDemotionChartingRecords) {
+			label.sustainedLowChartingQuarters++;
+		} else {
+			label.sustainedLowChartingQuarters = 0;
+		}
+
 		if (TryPromoteLabel(label)) return;
 		if (label.tier == LabelTier.Boutique) return;
-		if (label.sustainedLowCapabilityQuarters >= 2 || label.consecutiveLossMonths > 12) {
+		if (label.sustainedLowCapabilityQuarters >= 2 || label.consecutiveLossMonths > 12 ||
+			label.sustainedLowChartingQuarters >= MidTierDemotionSustainedQuarters) {
 			LabelTier? lowerTier = GetLowerTier(label.tier);
 			if (lowerTier.HasValue) DemoteLabel(label, lowerTier.Value);
 		}

@@ -77,6 +77,7 @@ public partial class AILabel : Resource {
 	[Export] public float momentumScore;
 	[Export] public int sustainedCapabilityQuarters;
 	[Export] public int sustainedLowCapabilityQuarters;
+	[Export] public int sustainedLowChartingQuarters;
 	
 	// Runtime Roster (Not exported, generated at runtime)
 	public List<SimulatedArtist> roster = new List<SimulatedArtist>();

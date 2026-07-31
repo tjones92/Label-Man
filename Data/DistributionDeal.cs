@@ -89,6 +89,17 @@ public sealed class IndependentDistributionTelemetry {
 	public int houseClientCapacity;
 }
 
+public sealed class IndependentTradeFailureTelemetry {
+	public int year;
+	public string distributorId;
+	public string distributorName;
+	public string regionId;
+	public int clientsDropped;
+	public float reachLostPerClient;
+	public int housesRemaining;
+	public float survivalRate;
+}
+
 public sealed class DistributionOfferAttemptTelemetry {
 	public int week;
 	public int year;

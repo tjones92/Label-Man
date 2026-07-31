@@ -134,6 +134,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter labelDirectoryWriter;
 	private StreamWriter independentDistributorWriter;
 	private StreamWriter independentDistributionEventWriter;
+	private StreamWriter independentTradeFailureWriter;
 	private StreamWriter concentrationWriter;
 	private StreamWriter firstChartEventWriter;
 	private StreamWriter distributionOfferAttemptWriter;
@@ -350,6 +351,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnDistributionDealEvent += OnDistributionDealEvent;
 			CompetitorManager.Instance.OnDistributionOfferAttempt += OnDistributionOfferAttempt;
 			CompetitorManager.Instance.OnIndependentDistributionSigned += OnIndependentDistributionSigned;
+			CompetitorManager.Instance.OnIndependentTradeFailure += OnIndependentTradeFailure;
 			CompetitorManager.Instance.OnReleaseStrategy += OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision += OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome += OnReleaseOutcome;
@@ -917,6 +919,7 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-directory.csv"));
 		independentDistributorWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-independent-distributors.csv"));
 		independentDistributionEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-independent-distribution-events.csv"));
+		independentTradeFailureWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-independent-trade-failures.csv"));
 		concentrationWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-concentration.csv"));
 		marketRevenueWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-market-revenue.csv"));
 		releaseCapacityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-capacity.csv"));
@@ -1007,6 +1010,7 @@ public partial class ChartAuditRunner : Node {
 			"departmentStoreCount,inventoryDepth,difficulty,clientCapacity,reliability,paymentTermWeeks,returnAllowance,reportingHonesty");
 		independentDistributionEventWriter.WriteLine("week,year,labelId,labelName,labelTier,distributorId,distributorName," +
 			"regionId,provenInRegion,coveredRegionCount,coveredMarketShare,ownedReachBefore,ownedReachAfter,houseClientCount,houseClientCapacity");
+		independentTradeFailureWriter.WriteLine("year,distributorId,distributorName,regionId,clientsDropped,reachLostPerClient,housesRemaining,survivalRate");
 		concentrationWriter.WriteLine("year,c4ChartShare,c8ChartShare,firmsCharting,indieFamilyChartShare,majorFamilyChartShare,totalChartUnits,smallFirmsCharting,boutiqueFirmsCharting,independentFirmsCharting,midTierFirmsCharting,majorFirmsCharting,cumulativeFirmsCharting,cumulativeSmallFirmsCharting,cumulativeBoutiqueFirmsCharting,cumulativeIndependentFirmsCharting,cumulativeMidTierFirmsCharting,cumulativeMajorFirmsCharting,cumulativeExactLabelNamesCharting,chartEntries,chartEntriesSmall,chartEntriesBoutique,chartEntriesIndependent,chartEntriesMidTier,chartEntriesMajor,top40Entries,top40Small,top40Boutique,top40Independent,top40MidTier,top40Major,ownerMajorEntries,ownerMajorFamilyEntries,ownerMajorTop40Entries,ownerMajorFamilyTop40Entries");
 		firstChartEventWriter?.WriteLine("week,year,date,observationKind,leftCensoredAtRunStart,recordId,title,releaseLabelId,currentOwnerLabelId,labelName,labelOrigin,runtimeBirthWeek,birthTier,firstChartTier,labelStatus,isHistorical,recordAge,currentPosition,unitsThisWeek,chartPoints,publishedCutoffPoints,quality,peakRegionalBreakoutStrength,bestStrongRegionPeak,regionalBreakoutCount,coveredRegionCount,signedDealCount,completedDealCount,activeDeal,dealOrigin,dealSignedWeek,permanentNationalReach,borrowedReach,effectiveNationalReach,ownedReach,distributionStrength,permanentRegionCount,grantedRegionCount,initialLaunchAwareness,initialLaunchStock");
 		distributionOfferAttemptWriter?.WriteLine("week,year,clientId,clientName,clientTier,clientOrigin,monthsActive,ownedReach,nationalReach,bestAnyRegionPeak,bestStrongRegionPeak,bestPersistentEvidenceQuality,persistentRegionalEvidence,legacyQualityAndCurrentSalesEvidence,legacyNationalReachGate,pushEvidence,pushChancePassed,pullChancePassed,outcome,distributorId");
@@ -1391,6 +1395,15 @@ public partial class ChartAuditRunner : Node {
 		if (dealEvent.resolution == DealResolution.Absorb && !string.IsNullOrEmpty(dealEvent.clientId) && !string.IsNullOrEmpty(dealEvent.distributorId)) {
 			acquiredBy[dealEvent.clientId] = dealEvent.distributorId;
 		}
+	}
+
+	private void OnIndependentTradeFailure(IndependentTradeFailureTelemetry failure) {
+		if (independentTradeFailureWriter == null || failure == null) return;
+		independentTradeFailureWriter.WriteLine(string.Join(",", new[] {
+			failure.year.ToString(CultureInfo.InvariantCulture), Csv(failure.distributorId), Csv(failure.distributorName),
+			Csv(failure.regionId), failure.clientsDropped.ToString(CultureInfo.InvariantCulture),
+			F(failure.reachLostPerClient), failure.housesRemaining.ToString(CultureInfo.InvariantCulture), F(failure.survivalRate)
+		}));
 	}
 
 	private void OnIndependentDistributionSigned(IndependentDistributionTelemetry signing) {
@@ -3211,6 +3224,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnDistributionDealEvent -= OnDistributionDealEvent;
 			CompetitorManager.Instance.OnDistributionOfferAttempt -= OnDistributionOfferAttempt;
 			CompetitorManager.Instance.OnIndependentDistributionSigned -= OnIndependentDistributionSigned;
+			CompetitorManager.Instance.OnIndependentTradeFailure -= OnIndependentTradeFailure;
 			CompetitorManager.Instance.OnReleaseStrategy -= OnReleaseStrategy;
 			CompetitorManager.Instance.OnCalibrationDecision -= OnCalibrationDecision;
 			CompetitorManager.Instance.OnReleaseOutcome -= OnReleaseOutcome;
@@ -3235,6 +3249,7 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter?.Dispose();
 		independentDistributorWriter?.Dispose();
 		independentDistributionEventWriter?.Dispose();
+		independentTradeFailureWriter?.Dispose();
 		concentrationWriter?.Dispose();
 		firstChartEventWriter?.Dispose();
 		distributionOfferAttemptWriter?.Dispose();
@@ -3307,6 +3322,7 @@ public partial class ChartAuditRunner : Node {
 		labelDirectoryWriter = null;
 		independentDistributorWriter = null;
 		independentDistributionEventWriter = null;
+		independentTradeFailureWriter = null;
 		concentrationWriter = null;
 		firstChartEventWriter = null;
 		distributionOfferAttemptWriter = null;

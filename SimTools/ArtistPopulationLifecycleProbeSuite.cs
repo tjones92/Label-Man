@@ -118,7 +118,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeRackJobberChannel();                                                        // 92
 		ProbeWholesaleCashFlowSqueeze();                                                 // 93
 		ProbePoachingAndGraduation();                                                    // 94
-		results.Add("D6 fixed probes 1-94 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike)");
+		ProbeIndependentTradeDeclineAndMidTierExit();                                    // 95
+		results.Add("D6 fixed probes 1-95 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting)");
 		return results;
 	}
 
@@ -2076,6 +2077,41 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		// It has been in the code since section 26 and has never had anything to act on.
 		Require(CompetitorManager.GetDeterministicIndependentDistributionRoll("x", "y", 1) >= 0f,
 			"94e placement rolls remain bounded");
+	}
+
+	private static void ProbeIndependentTradeDeclineAndMidTierExit() {
+		// Section 33: the independent distribution trade did not survive the decade. Regional
+		// houses failed or were bought out as major branch systems and rack jobbing took over,
+		// and that collapse is a large part of why independents sold or signed in 1968-71.
+		Require(Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1960, 1966, 1970, .50f) - 1f) < .000001f &&
+			Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1966, 1966, 1970, .50f) - 1f) < .000001f,
+			"95 the independent trade is intact until the decline begins");
+		Require(Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1970, 1966, 1970, .50f) - .50f) < .000001f &&
+			Math.Abs(CompetitorManager.IndependentTradeSurvivalRate(1975, 1966, 1970, .50f) - .50f) < .000001f,
+			"95b it reaches and holds the late-decade survival rate");
+		float mid = CompetitorManager.IndependentTradeSurvivalRate(1968, 1966, 1970, .50f);
+		Require(mid < 1f && mid > .50f, "95c the decline interpolates across the window");
+
+		// The Major ceiling ramps: few distributed imprints in 1960, the independent wholesale
+		// business taken over by 1968-71. Flat in either direction is wrong.
+		float early = CompetitorManager.MajorDistributionCeilingForYear(1960, 6, 16, 1964, 1969);
+		float late = CompetitorManager.MajorDistributionCeilingForYear(1969, 6, 16, 1964, 1969);
+		Require(Math.Abs(early - 6f) < .000001f && Math.Abs(late - 16f) < .000001f && early < late,
+			"95d the Major client ceiling ramps up across the decade");
+		Require(CompetitorManager.MajorDistributionCeilingForYear(1966, 6, 16, 1964, 1969) > early &&
+			CompetitorManager.MajorDistributionCeilingForYear(1966, 6, 16, 1964, 1969) < late,
+			"95e the ceiling interpolates inside the ramp");
+		Require(Math.Abs(CompetitorManager.MajorDistributionCeilingForYear(1975, 6, 16, 1964, 1969) - 16f) < .000001f,
+			"95f the ceiling is clamped past the ramp");
+
+		// MidTier had 26 promotions in and zero demotions out across a full decade run, so the
+		// tier could only ratchet up and no promotion bar could reduce the standing population.
+		// The exit test is performance, and it sits well below the entry bar so the tier does not
+		// oscillate: demoting at the entry bar would have emptied it to 14 of 53.
+		Require(LabelLifecycleManager.MidTierDemotionChartingBar < LabelLifecycleManager.MidTierOrganicPromotionChartingBar,
+			"95g the MidTier exit bar sits below its entry bar, leaving a hysteresis band");
+		Require(LabelLifecycleManager.MidTierDemotionChartingBar > 0,
+			"95h a MidTier label that never charts is not left in the tier indefinitely");
 	}
 
 	private static void Require(bool condition, string message) {

@@ -154,8 +154,20 @@ public partial class CompetitorManager : Node {
 	// Share of an unreliable house's arrears that is settled anyway. The wait is the squeeze;
 	// outright loss is the residue.
 	internal const float WholesaleSettledShareOfArrears = 0.70f;
-	// Concurrent independent imprints one Major distributes. See IsEligibleDistributor.
-	[Export(PropertyHint.Range, "4,32,1")] private int majorDistributionClientCeiling = 10;
+	// Concurrent independent imprints one Major distributes, ramped across the decade and then
+	// scaled by the network the firm actually owns. See IsEligibleDistributor.
+	[Export(PropertyHint.Range, "2,32,1")] private int majorDistributionClientCeilingEarly = 6;
+	[Export(PropertyHint.Range, "4,40,1")] private int majorDistributionClientCeilingLate = 16;
+	[Export] private int majorDistributionCeilingRampStartYear = 1964;
+	[Export] private int majorDistributionCeilingRampFullYear = 1969;
+	// The independent distribution trade did not survive the decade. Regional houses failed or
+	// were bought out as major branch systems and rack jobbing took over the wholesale business,
+	// and that collapse is a large part of why independents sold or signed in 1968-71. Without
+	// it the channel is exactly as strong in 1969 as in 1960, which is what left owner-Major
+	// flat near 40% across the decade run.
+	[Export] private int independentTradeDeclineStartYear = 1966;
+	[Export] private int independentTradeDeclineFullYear = 1970;
+	[Export(PropertyHint.Range, "0.1,1,0.01")] private float independentTradeSurvivalLate = 0.50f;
 	// Section 28: a Major distributor takes masters on this share of its deals at minimum (P&D
 	// era), so its distributed records fold into the major corporate/control chart share.
 	// Section 29: this rate ramps across the decade rather than being flat. Early-60s indie deals
@@ -256,6 +268,7 @@ public partial class CompetitorManager : Node {
 	private readonly List<IndependentDistributor> independentDistributors = new();
 	private readonly Dictionary<string, List<IndependentDistributor>> independentDistributorsByRegion =
 		new(System.StringComparer.Ordinal);
+	private int independentDistributorsAtStart;
 	private readonly HashSet<string> creditedLabelTop40RecordIds = new(System.StringComparer.Ordinal);
 	private readonly HashSet<string> creditedLabelNumberOneRecordIds = new(System.StringComparer.Ordinal);
 	// Proven-winner signal for the consolidation lever: a label id enters this set
@@ -334,6 +347,7 @@ public partial class CompetitorManager : Node {
 	public event System.Action<DistributionDealTelemetry> OnDistributionDealEvent;
 	public event System.Action<DistributionOfferAttemptTelemetry> OnDistributionOfferAttempt;
 	public event System.Action<IndependentDistributionTelemetry> OnIndependentDistributionSigned;
+	public event System.Action<IndependentTradeFailureTelemetry> OnIndependentTradeFailure;
 	public event System.Action<ReleaseStrategyTelemetry> OnReleaseStrategy;
 	public event System.Action<CalibrationDecisionTelemetry> OnCalibrationDecision;
 	public event System.Action<ReleaseOutcomeTelemetry> OnReleaseOutcome;
@@ -410,6 +424,7 @@ public partial class CompetitorManager : Node {
 				independentDistributorsByRegion[house.regionId] = inRegion = new List<IndependentDistributor>();
 			inRegion.Add(house);
 		}
+		independentDistributorsAtStart = independentDistributors.Count;
 		GD.Print($"CompetitorManager: independent distribution layer -- {independentDistributors.Count} houses " +
 			$"across {independentDistributorsByRegion.Count} regions");
 	}
@@ -3183,6 +3198,7 @@ public partial class CompetitorManager : Node {
 	
 	private void OnMonthChanged(GameDate date) {
 		foreach (var label in aiLabels) ProcessLabelMonth(label, date);
+		if (date.month == 1) ProcessIndependentTradeDecline(date.year);
 		ProcessDistributionDeals(date);
 		if (debugMode) PrintMonthlyReport(date);
 	}
@@ -3273,6 +3289,90 @@ public partial class CompetitorManager : Node {
 		float boundedCurrent = Mathf.Clamp(currentReach, 0f, 1f);
 		return Mathf.Max(boundedCurrent, Mathf.Min(Mathf.Clamp(ceiling, 0f, 1f),
 			boundedCurrent + Mathf.Max(0f, dealReachGranted) * Mathf.Max(0f, retention)));
+	}
+
+	/// <summary>
+	/// Concurrent imprints a Major distributes. Two corrections to the flat ceiling.
+	///
+	/// It ramps: a 1960 major carried a handful of distributed imprints, and by 1968-71 the
+	/// majors had taken over the independent distribution business wholesale. Holding it flat
+	/// made 1960 too consolidated and left the late decade with nowhere to put the labels the
+	/// independent trade's collapse displaces.
+	///
+	/// It scales with the network the firm owns. A label promoted into Major tier used to get
+	/// the same roster as RCA the moment it crossed the line: at the decade run's 1968, the two
+	/// promoted Majors charted 13.5 records each against the seeded majors' 41.1, and still held
+	/// 20 of the 95 client slots. You can only distribute where you have a network, so the
+	/// ceiling is worth the share of the country that network actually reaches.
+	/// </summary>
+	private int MajorDistributionCapacityFor(AILabel distributor) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? majorDistributionCeilingRampStartYear;
+		float ceiling = MajorDistributionCeilingForYear(year, majorDistributionClientCeilingEarly,
+			majorDistributionClientCeilingLate, majorDistributionCeilingRampStartYear, majorDistributionCeilingRampFullYear);
+		float networkShare = ChartManager.Instance?.GetNationalMarketShareForRegions(distributor.distributionRegions) ?? 1f;
+		return Mathf.Max(1, Mathf.RoundToInt(ceiling * Mathf.Clamp(networkShare, 0f, 1f)));
+	}
+
+	internal static float MajorDistributionCeilingForYear(int year, int early, int late, int rampStart, int rampFull) {
+		if (year <= rampStart) return early;
+		if (rampFull <= rampStart || year >= rampFull) return late;
+		return Mathf.Lerp(early, late, (year - rampStart) / (float)(rampFull - rampStart));
+	}
+
+	/// <summary>
+	/// Share of the independent distribution trade still operating in a given year. Flat until
+	/// the decline starts, then falling to the late-decade survival rate.
+	/// </summary>
+	internal static float IndependentTradeSurvivalRate(int year, int startYear, int fullYear, float lateRate) {
+		if (year <= startYear) return 1f;
+		if (fullYear <= startYear) return Mathf.Clamp(lateRate, 0f, 1f);
+		float progress = Mathf.Clamp((year - startYear) / (float)(fullYear - startYear), 0f, 1f);
+		return Mathf.Lerp(1f, Mathf.Clamp(lateRate, 0f, 1f), progress);
+	}
+
+	/// <summary>
+	/// Retires part of the independent distribution trade each year of the decline. The houses
+	/// carrying the fewest lines go first -- the thinnest business failed first -- and every
+	/// label they carried loses that market and the reach the placement granted. Reach earned
+	/// through wholesale placement has to be reversible or the decline is toothless: the label
+	/// would keep the national footprint of a network that no longer exists.
+	/// </summary>
+	private void ProcessIndependentTradeDecline(int year) {
+		if (independentDistributorsAtStart <= 0) return;
+		float survival = IndependentTradeSurvivalRate(year, independentTradeDeclineStartYear,
+			independentTradeDeclineFullYear, independentTradeSurvivalLate);
+		int target = Mathf.Max(0, Mathf.RoundToInt(independentDistributorsAtStart * survival));
+		if (independentDistributors.Count <= target) return;
+
+		var failing = independentDistributors
+			.OrderBy(house => house.CurrentClientCount)
+			.ThenBy(house => house.distributorId, System.StringComparer.Ordinal)
+			.Take(independentDistributors.Count - target)
+			.ToList();
+		foreach (IndependentDistributor house in failing) {
+			float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { house.regionId }) ?? 0f;
+			float reachLost = marginalShare * independentCoverageReachFactor;
+			int carried = house.CurrentClientCount;
+			foreach (string clientId in house.clientLabelIds.ToList()) {
+				AILabel client = GetLabel(clientId);
+				if (client == null) continue;
+				if (!client.independentDistributionRegions.Remove(house.regionId)) continue;
+				client.ownedReach = Mathf.Max(0f, client.ownedReach - reachLost);
+			}
+			house.clientLabelIds.Clear();
+			independentDistributors.Remove(house);
+			if (independentDistributorsByRegion.TryGetValue(house.regionId, out var inRegion)) inRegion.Remove(house);
+			OnIndependentTradeFailure?.Invoke(new IndependentTradeFailureTelemetry {
+				year = year,
+				distributorId = house.distributorId,
+				distributorName = house.distributorName,
+				regionId = house.regionId,
+				clientsDropped = carried,
+				reachLostPerClient = reachLost,
+				housesRemaining = independentDistributors.Count,
+				survivalRate = survival
+			});
+		}
 	}
 
 	private void ProcessDistributionDeals(GameDate date) {
@@ -3571,9 +3671,9 @@ public partial class CompetitorManager : Node {
 		// 2.5% undistributed, section 32.4), so cutting it before the independent channel existed
 		// would have stranded the displaced labels and cost breadth with nothing to catch them.
 		// Slices 1-5 built what catches them.
-		int capacity = distributor.tier switch {
-			LabelTier.Major => majorDistributionClientCeiling, LabelTier.MidTier => 6, _ => 3
-		};
+		int capacity = distributor.tier == LabelTier.Major
+			? MajorDistributionCapacityFor(distributor)
+			: distributor.tier == LabelTier.MidTier ? 6 : 3;
 		if (aiLabels.Count(label => label.activeDeal?.distributorId == distributor.labelId) >= capacity) return false;
 		float minimumAdvance = origin == DealOrigin.DistributorCourted ? client.GetMonthlyOverhead() * 6f : 0f;
 		if (distributor.cashReserves - minimumAdvance <= distributor.GetMonthlyOverhead() * 3f) return false;
