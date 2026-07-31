@@ -156,7 +156,11 @@ public partial class LabelLifecycleManager : Node {
 		GD.Print($"[LabelManager] Attached lifecycle to {activeLabels.Count} live labels for {startYear}");
 	}
 
-	private void OnMonthChanged(GameDate date) => ProcessMonth(date.year, date.month);
+	private void OnMonthChanged(GameDate date) {
+		long profileStart = SimulationPerformanceProfiler.Begin();
+		ProcessMonth(date.year, date.month);
+		SimulationPerformanceProfiler.EndLabelLifecycleMonth(profileStart);
+	}
 	public void SetProcessingEnabled(bool enabled) => processingEnabled = enabled;
 	
 	public void ProcessMonth(int year, int month) {

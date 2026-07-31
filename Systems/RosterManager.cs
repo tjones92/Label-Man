@@ -377,6 +377,12 @@ public partial class RosterManager : Node {
 	}
 	
 	private void OnWeekEnded(GameDate date) {
+		long profileStart = SimulationPerformanceProfiler.Begin();
+		OnWeekEndedCore(date);
+		SimulationPerformanceProfiler.EndRosterWeek(profileStart);
+	}
+
+	private void OnWeekEndedCore(GameDate date) {
 		ReconcileEnabledLifecycleForCurrentWeek();
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
@@ -395,7 +401,9 @@ public partial class RosterManager : Node {
 
 	private void OnDayStarted(GameDate date) {
 		if (!IsLiveGenreMarket()) return;
+		long profileStart = SimulationPerformanceProfiler.Begin();
 		ProcessDailyTalentMarket(date);
+		SimulationPerformanceProfiler.EndDailyTalentMarket(profileStart);
 	}
 
 	private sealed class DailyNomination {

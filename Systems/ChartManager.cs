@@ -113,6 +113,58 @@ public partial class ChartManager : Node {
 		public bool IsBooked;
 		public bool IsAuditAcknowledged;
 		public int TotalUnits => Entries?.Sum(entry => entry.Units) ?? 0;
+
+		// Booking filtered the whole frozen entry list once per label and retirement scanned
+		// it once per retired record: 1,496 labels x 17,030 entries a week by 1969, roughly six
+		// billion string comparisons across the decade. Both indexes are built once per frozen
+		// entry list on first use. Each label's list keeps source order, so per-label iteration
+		// -- and therefore the order revenue floats accumulate in -- is unchanged.
+		private static readonly CompletedWeekSettlementEntry[] NoEntries = Array.Empty<CompletedWeekSettlementEntry>();
+		private IReadOnlyList<CompletedWeekSettlementEntry> indexedEntries;
+		private Dictionary<string, List<CompletedWeekSettlementEntry>> entriesByLabelId;
+		private Dictionary<string, CompletedWeekSettlementEntry> entryByRecordId;
+
+		public IReadOnlyList<CompletedWeekSettlementEntry> EntriesForLabel(string labelId) {
+			EnsureIndexes();
+			return entriesByLabelId != null &&
+				entriesByLabelId.TryGetValue(labelId ?? string.Empty, out List<CompletedWeekSettlementEntry> forLabel)
+					? forLabel : NoEntries;
+		}
+
+		/// <summary>The first entry for a record id, matching the linear scan this replaces.</summary>
+		public CompletedWeekSettlementEntry FindEntry(string recordId) {
+			EnsureIndexes();
+			return entryByRecordId != null &&
+				entryByRecordId.TryGetValue(recordId ?? string.Empty, out CompletedWeekSettlementEntry entry)
+					? entry : null;
+		}
+
+		private void EnsureIndexes() {
+			if (Entries == null) {
+				indexedEntries = null;
+				entriesByLabelId = null;
+				entryByRecordId = null;
+				return;
+			}
+			if (ReferenceEquals(indexedEntries, Entries)) return;
+			var byLabel = new Dictionary<string, List<CompletedWeekSettlementEntry>>(StringComparer.Ordinal);
+			var byRecord = new Dictionary<string, CompletedWeekSettlementEntry>(StringComparer.Ordinal);
+			foreach (CompletedWeekSettlementEntry entry in Entries) {
+				// Both ids are non-null for every entry a settlement is built from; the coalesce
+				// only keeps the dictionary key legal and does not change which entries match.
+				string labelKey = entry.LabelId ?? string.Empty;
+				if (!byLabel.TryGetValue(labelKey, out List<CompletedWeekSettlementEntry> forLabel)) {
+					forLabel = new List<CompletedWeekSettlementEntry>();
+					byLabel[labelKey] = forLabel;
+				}
+				forLabel.Add(entry);
+				string recordKey = entry.RecordId ?? string.Empty;
+				if (!byRecord.ContainsKey(recordKey)) byRecord[recordKey] = entry;
+			}
+			entriesByLabelId = byLabel;
+			entryByRecordId = byRecord;
+			indexedEntries = Entries;
+		}
 	}
 	public sealed class CompletedWeekSettlementEntry {
 		public RecordRuntimeData Record;
@@ -475,13 +527,19 @@ public partial class ChartManager : Node {
 
 		SimulateWeek(triggerEvents: true);
 		if (GenreMarketV2.Enabled) {
+			long freezeProfileStart = SimulationPerformanceProfiler.Begin();
 			FreezeCompletedWeekSettlement(date);
+			SimulationPerformanceProfiler.EndFreezeSettlement(freezeProfileStart);
 			// Booking is an explicit state transition, not an unordered event subscriber.
 			// It must complete before the immutable settlement becomes visible to audit.
+			long bookProfileStart = SimulationPerformanceProfiler.Begin();
 			CompetitorManager.Instance?.BookCompletedWeekSettlement(lastCompletedWeekSettlement);
+			SimulationPerformanceProfiler.EndBookSettlement(bookProfileStart);
 			if (lastCompletedWeekSettlement?.IsBooked != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement?.SettlementId} was not booked.");
+			long auditEventProfileStart = SimulationPerformanceProfiler.Begin();
 			OnWeekSettlement?.Invoke(lastCompletedWeekSettlement);
+			SimulationPerformanceProfiler.EndSettlementAuditEvent(auditEventProfileStart);
 			if (OnWeekSettlement != null && lastCompletedWeekSettlement?.IsAuditAcknowledged != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement.SettlementId} was not acknowledged by its audit consumer.");
 		}
@@ -492,12 +550,18 @@ public partial class ChartManager : Node {
 			}
 		}
 
+		long momentumProfileStart = SimulationPerformanceProfiler.Begin();
 		UpdateGenreMomentum();
+		SimulationPerformanceProfiler.EndGenreMomentum(momentumProfileStart);
 
+		long cullProfileStart = SimulationPerformanceProfiler.Begin();
 		CullDeadRecords(includeChartedRecords: currentChartWeek % 4 == 0);
+		SimulationPerformanceProfiler.EndCullDeadRecords(cullProfileStart);
 		// Directive 6 owns one explicit post-chart sequence.  Formation is never
 		// reached by prewarm because this method only runs on a live weekly tick.
+		long lifecycleProfileStart = SimulationPerformanceProfiler.Begin();
 		ArtistManager.Instance?.AdvancePopulationLifecycle(date);
+		SimulationPerformanceProfiler.EndPopulationLifecycle(lifecycleProfileStart);
 	}
 
 	private void FreezeCompletedWeekSettlement(GameDate date) {
@@ -1942,8 +2006,7 @@ public partial class ChartManager : Node {
 	private void RetireRecord(RecordRuntimeData record) {
 		if (record?.baseRecord == null) return;
 		if (lastCompletedWeekSettlement?.Entries != null) {
-			CompletedWeekSettlementEntry entry = lastCompletedWeekSettlement.Entries
-				.FirstOrDefault(candidate => candidate.RecordId == record.baseRecord.recordId);
+			CompletedWeekSettlementEntry entry = lastCompletedWeekSettlement.FindEntry(record.baseRecord.recordId);
 			if (entry != null) entry.RetiredAfterSettlement = true;
 		}
 		if (record.baseRecord.format == ReleaseFormat.Single) {

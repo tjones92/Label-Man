@@ -723,6 +723,12 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private void OnWeekEnded(GameDate date) {
+		long profileStart = SimulationPerformanceProfiler.Begin();
+		OnWeekEndedCore(date);
+		SimulationPerformanceProfiler.EndCompetitorWeek(profileStart);
+	}
+
+	private void OnWeekEndedCore(GameDate date) {
 		if (historicalRecords != null) {
 			foreach (var record in historicalRecords) {
 				if (record.releaseDate == date) {
@@ -815,8 +821,8 @@ public partial class CompetitorManager : Node {
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		long wholesaleUnits = 0, totalUnits = 0;
 		var unitsByRegion = new Dictionary<string, long>(System.StringComparer.Ordinal);
-		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries) {
-			if (entry.LabelId != label.labelId || entry.Regions == null) continue;
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.EntriesForLabel(label.labelId)) {
+			if (entry.Regions == null) continue;
 			foreach (ChartManager.CompletedWeekSettlementRegion region in entry.Regions) {
 				if (region.FinalCleared <= 0) continue;
 				totalUnits += region.FinalCleared;
@@ -883,7 +889,7 @@ public partial class CompetitorManager : Node {
 		long profileStart = SimulationPerformanceProfiler.Begin();
 		float totalRevenue = 0f;
 		
-		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.Entries.Where(entry => entry.LabelId == label.labelId)) {
+		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.EntriesForLabel(label.labelId)) {
 			long lookupProfileStart = SimulationPerformanceProfiler.Begin();
 			var runtimeData = entry.Record;
 			SimulationPerformanceProfiler.EndRecordLookup(lookupProfileStart);

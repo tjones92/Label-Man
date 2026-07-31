@@ -3814,3 +3814,113 @@ building. If it is few, the cost is honest and ~26 minutes is the floor without 
 3. Ship the album inertness diagnostic; decide on the archive from what it reports.
 4. Only then consider the settlement rebuild/allocation path, which is mutable-state-touching and the
    riskiest of the set.
+
+## 36. Runtime optimization SHIPPED — 35.5 steps 1-3 done, step 4 should be dropped
+
+All of §35 is now measured rather than hypothesised. Nothing in this section touches RNG or
+simulation behaviour, and that is verified rather than asserted: **67/67 simulation output files are
+byte-identical** to their references at both 52 and 312 weeks (see 36.4).
+
+### 36.1 Result
+
+| run | weeks | wall |
+|---|---:|---:|
+| `d7-opt-base-312-1001` (spans only, the baseline) | 312 | 578.9s |
+| `d7-opt-index-312-1001` (spans + settlement indexes) | 312 | **522.6s** |
+
+**-56.3s, -9.7%.** Of that, -36.8s is directly attributable in the spans (`bookSettlement` -33.8,
+`cullDeadRecords` -3.0); the remaining ~-19s shows up in `simulateWeek` and is second-order — the
+index removes billions of string comparisons and a large volume of short-lived garbage, so GC
+pressure falls across the whole tick. Treat -36.8s as the mechanism and -56.3s as the wall clock.
+
+### 36.2 Where the time actually goes (312 weeks, 518.8s of profiled year totals)
+
+| span | seconds | share | notes |
+|---|---:|---:|---|
+| `simulateWeek` | 230.5 | 44% | core sim; RNG-sensitive |
+| `captureWeek` | 120.8 | 23% | **audit instrumentation only** |
+| `dailyTalentMarket` | 46.8 | 9% | `RosterManager.OnDayStarted` |
+| `bookSettlement` | 28.1 | 5% | incl. `calculateLabelRevenue` 19.7 |
+| `competitorWeek` | 27.4 | 5% | `CompetitorManager.OnWeekEnded`, incl. due-album projects |
+| `populationLifecycle` | 14.5 | 2.8% | |
+| `labelLifecycleMonth` | 11.1 | 2.1% | `OnMonthChanged` |
+| `freezeSettlement` | 4.8 | 0.9% | |
+| `rosterWeek` | 3.8 | 0.7% | |
+| `cullDeadRecords` | 2.7 | 0.5% | |
+| unattributed | 28.2 | 5.4% | TimeManager day loop, event dispatch, GC |
+
+The §35.1 39% hole was never one thing. `ChartManager` is only one of three `OnWeekEnded`
+subscribers and the label lifecycle runs off `OnMonthChanged`, so the mass was spread across the
+daily talent market, CompetitorManager's weekly label decisions, the population lifecycle and the
+monthly label lifecycle. Spans now cover all four.
+
+### 36.3 Two §35 hypotheses refuted — do not spend a run on either
+
+**§35.3 was wrong about `FreezeCompletedWeekSettlement`.** It was named the leading suspect for the
+674s. Measured: **4.8s of 518.8s, 0.9%**. §35.5 step 4 — the mutable-state-touching settlement
+rebuild, explicitly the riskiest change on the list — would buy under a percent. **Drop it.**
+
+**§35.4's zombie albums do not exist.** The new inertness diagnostic counts live records that are
+off-chart AND hold zero stock in every region AND have no awareness left AND sold nothing this week:
+
+| year | active | albums | zero stock | zero awareness | zero units | **inert** |
+|---|---:|---:|---:|---:|---:|---:|
+| 1960 | 3,521 | 852 | 0 | 0 | 15 | **0** |
+| 1963 | 5,594 | 2,446 | 0 | 0 | 31 | **0** |
+| 1965 | 9,549 | 6,284 | 0 | 0 | 11 | **0** |
+
+Not one live album has run out of stock or awareness, and only 5-31 of thousands sell nothing in a
+given week. The album pile-up is **live economic catalog**, exactly as §35.4 warned it might be, and
+the retirement rule is not structurally blind to it. §31.4's inert-record archive is a no-op because
+the set it would archive is empty — cross it off. The ~26 minute decade floor is honest cost.
+
+A third hypothesis raised and killed inside this session, recorded so it is not raised again:
+`LabelLifecycleManager` calls `GetRecentChartingRecordCount` per label per month, and each call
+copies the whole 17k live-record list before scanning it. That looked like a major quadratic. It is
+**2.1%**. The same pattern in `TryGenerateDistributionOffer` sits inside the 5% `competitorWeek`.
+Neither is worth a byte-identity risk yet.
+
+### 36.4 What changed, and why it is byte-identical by construction
+
+`ChartManager.CompletedWeekSettlement` now carries two lazily built indexes over its frozen entry
+list — `EntriesForLabel(labelId)` and `FindEntry(recordId)` — rebuilt whenever the `Entries`
+reference changes. Three call sites use them:
+
+- `CompetitorManager.CalculateLabelRevenue` (was `Entries.Where(e => e.LabelId == label.labelId)`),
+- `CompetitorManager.DeferWholesaleBillings` (was a full scan with an inline label test),
+- `ChartManager.RetireRecord` (was `Entries.FirstOrDefault(c => c.RecordId == ...)`).
+
+Revenue accumulates into floats, so **order within a label is part of the result**. Each label's list
+preserves source order, `FindEntry` returns the first entry for an id exactly as `FirstOrDefault`
+did, and no code mutates `entry.LabelId` after freeze. Probe 96 asserts all three properties plus
+index invalidation on a replaced entry list. The ~930 defunct labels that each walked all 17,030
+entries now return an empty list immediately.
+
+Verification performed:
+
+- 52-week probe run `d7-opt-index-probes-52-1001` vs `d7-decline-probes-52-1001`: **67/67 files
+  byte-identical**, D5 and D6 fixed probes 1-96 pass.
+- 312-week `d7-opt-index-312-1001` vs `d7-opt-base-312-1001`: **67/67 byte-identical**; only
+  `performance-profile.csv` differs, which holds timings and gained columns.
+
+Also added, all inert unless `--profile-performance` is passed: spans for freeze/book/audit-event/
+genre-momentum/cull/population-lifecycle in `ChartManager.OnWeekEnded`, plus
+`CompetitorManager.OnWeekEnded`, `RosterManager.OnWeekEnded`, `RosterManager.OnDayStarted` and
+`LabelLifecycleManager.OnMonthChanged`. `bookSettlementSeconds` is inclusive of
+`calculateLabelRevenueSeconds`; `competitorWeekSeconds` is inclusive of
+`processDueAlbumProjectsSeconds`.
+
+### 36.5 What is left, in order of value
+
+1. **`captureWeek`, 23%, and it is audit instrumentation with zero simulation risk.** It writes a
+   per-Single row every week (`single-release-lanes.csv` is 10.9MB on the decade run) and rebuilds
+   several hashsets and a full `lifecycle.ToArray()` copy per week. Anything that produces the same
+   bytes faster is free of the RNG constraint entirely. This is the best remaining target.
+2. `simulateWeek`, 44%, but it is the core sim and every change is RNG-sensitive.
+3. `dailyTalentMarket`, 9% — real simulation behaviour, same constraint.
+
+The decade saving has not been measured. The settlement term grows with the live record set (9,549
+at 1965 against 17,030 at 1969), so the proportional saving at 522 weeks should exceed the 312-week
+9.7%; §35.2's ~129s `CalculateLabelRevenue` estimate maps to roughly -120 to -160s once the rest of
+`bookSettlement` is included. Confirming it needs a decade run, which doubles as the byte-identity
+check against `d7-decline-decade-522-1001`.

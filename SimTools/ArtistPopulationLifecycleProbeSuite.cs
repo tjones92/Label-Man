@@ -119,7 +119,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeWholesaleCashFlowSqueeze();                                                 // 93
 		ProbePoachingAndGraduation();                                                    // 94
 		ProbeIndependentTradeDeclineAndMidTierExit();                                    // 95
-		results.Add("D6 fixed probes 1-95 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting)");
+		ProbeSettlementIndexMatchesLinearScan();                                         // 96
+		results.Add("D6 fixed probes 1-96 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting, and settlement indexes that reproduce the per-label and per-record linear scans they replace in exactly their source order)");
 		return results;
 	}
 
@@ -2112,6 +2113,41 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"95g the MidTier exit bar sits below its entry bar, leaving a hysteresis band");
 		Require(LabelLifecycleManager.MidTierDemotionChartingBar > 0,
 			"95h a MidTier label that never charts is not left in the tier indefinitely");
+	}
+
+	/// <summary>
+	/// The settlement indexes replace two hot linear scans. Revenue accumulates as floats, so
+	/// order within a label is part of the result, not an implementation detail: this asserts the
+	/// index reproduces the filter's source order exactly rather than merely the same set.
+	/// </summary>
+	private static void ProbeSettlementIndexMatchesLinearScan() {
+		var settlement = new ChartManager.CompletedWeekSettlement {
+			SettlementId = 1,
+			Entries = new[] {
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r1", LabelId = "alpha" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r2", LabelId = "beta" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r3", LabelId = "alpha" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r4", LabelId = "alpha" },
+				new ChartManager.CompletedWeekSettlementEntry { RecordId = "r5", LabelId = "gamma" }
+			}
+		};
+		foreach (string labelId in new[] { "alpha", "beta", "gamma", "defunct" }) {
+			string indexed = string.Join(",", settlement.EntriesForLabel(labelId).Select(entry => entry.RecordId));
+			string scanned = string.Join(",", settlement.Entries
+				.Where(entry => entry.LabelId == labelId).Select(entry => entry.RecordId));
+			Require(indexed == scanned,
+				$"96 the per-label settlement index reproduces the linear filter in source order for {labelId}");
+		}
+		Require(settlement.FindEntry("r3")?.LabelId == "alpha" && settlement.FindEntry("absent") == null,
+			"96b the per-record settlement index resolves the entry the linear scan returned, and nothing for an absent id");
+
+		// A settlement is frozen weekly; an index built against an earlier list must never be served.
+		settlement.Entries = new[] {
+			new ChartManager.CompletedWeekSettlementEntry { RecordId = "r9", LabelId = "delta" }
+		};
+		Require(settlement.EntriesForLabel("alpha").Count == 0 && settlement.EntriesForLabel("delta").Count == 1 &&
+			settlement.FindEntry("r1") == null && settlement.FindEntry("r9") != null,
+			"96c replacing the frozen entry list rebuilds both indexes rather than serving stale rows");
 	}
 
 	private static void Require(bool condition, string message) {

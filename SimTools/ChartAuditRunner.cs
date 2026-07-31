@@ -1072,7 +1072,10 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter?.WriteLine("year,cohort,formationPrimaryGenre,lifecycleStatus,currentRosterTier,count,firstTimeSignings,repeatSignings,releases,activeUnsigned,seekingProspects,latentProspects,medianActAge,medianMemberAge,inactivityCount,retirementCount,disbandmentCount,activePopulationShare,signedRosterShare");
 		artistProjectIdentityWriter?.WriteLine("week,year,recordId,projectId,artistId,formedYear,cohort,formationPrimaryGenre,currentArtistGenre,projectGenre,nativeIdentityProject,transitionedProject,labelId,labelTier,format,careerStateAtProject,careerStateBeforeDropAtProject,contractEntryCareerStateAtProject,contractSequenceAtProject,contractStartWeekAtProject,weeksSinceContractStart,experiencedFreeAgentContract");
 		WriteGenreCatalogRows();
-		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups");
+		// bookSettlementSeconds is inclusive of calculateLabelRevenueSeconds. The live-record
+		// inertness columns answer handoff 35.4: whether the album pile-up in the hot loop is
+		// economically live catalog or stock-less, awareness-less residue.
+		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups,freezeSettlementSeconds,bookSettlementSeconds,settlementAuditEventSeconds,genreMomentumSeconds,cullDeadRecordsSeconds,populationLifecycleSeconds,competitorWeekSeconds,rosterWeekSeconds,dailyTalentMarketSeconds,labelLifecycleMonthSeconds,activeAlbums,activeSingles,albumsOffChart,albumsZeroStock,albumsZeroAwareness,albumsZeroUnitsThisWeek,inertAlbums,inertSingles");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			birthTierByLabel[label.labelId] = label.tier;
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
@@ -3034,14 +3037,62 @@ public partial class ChartAuditRunner : Node {
 	private void WritePerformanceYear(int year, double wallSeconds) {
 		if (performanceProfileWriter == null) return;
 		SimulationPerformanceProfiler.Snapshot profile = SimulationPerformanceProfiler.TakeSnapshotAndReset();
+		List<RecordRuntimeData> liveRecords = ChartManager.Instance.GetAllRecords();
+		LiveRecordInertness inertness = MeasureLiveRecordInertness(liveRecords);
+		string N(int value) => value.ToString(CultureInfo.InvariantCulture);
 		performanceProfileWriter.WriteLine(string.Join(",", new[] {
 			requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty, year.ToString(CultureInfo.InvariantCulture), F(wallSeconds),
-			ChartManager.Instance.GetAllRecords().Count.ToString(CultureInfo.InvariantCulture), F(profile.SimulateWeekSeconds),
+			N(liveRecords.Count), F(profile.SimulateWeekSeconds),
 			F(profile.CalculateLabelRevenueSeconds), F(profile.RecordLookupSeconds), F(profile.RevenueArithmeticSeconds),
 			F(profile.AlbumUpdateSeconds), F(profile.DueAlbumProjectsSeconds), F(profile.CaptureWeekSeconds),
-			profile.RecordLookups.ToString(CultureInfo.InvariantCulture)
+			profile.RecordLookups.ToString(CultureInfo.InvariantCulture),
+			F(profile.FreezeSettlementSeconds), F(profile.BookSettlementSeconds), F(profile.SettlementAuditEventSeconds),
+			F(profile.GenreMomentumSeconds), F(profile.CullDeadRecordsSeconds), F(profile.PopulationLifecycleSeconds),
+			F(profile.CompetitorWeekSeconds), F(profile.RosterWeekSeconds), F(profile.DailyTalentMarketSeconds),
+			F(profile.LabelLifecycleMonthSeconds),
+			N(inertness.Albums), N(inertness.Singles), N(inertness.AlbumsOffChart), N(inertness.AlbumsZeroStock),
+			N(inertness.AlbumsZeroAwareness), N(inertness.AlbumsZeroUnits), N(inertness.InertAlbums), N(inertness.InertSingles)
 		}));
 	}
+
+	private readonly record struct LiveRecordInertness(int Albums, int Singles, int AlbumsOffChart,
+		int AlbumsZeroStock, int AlbumsZeroAwareness, int AlbumsZeroUnits, int InertAlbums, int InertSingles);
+
+	/// <summary>
+	/// Handoff 35.4 diagnostic. An inert record is off-chart, sold nothing this week, holds no
+	/// stock in any region and has no awareness left to convert -- it cannot influence any future
+	/// week yet is still walked by every per-record pass. Read-only; nothing here mutates state.
+	/// </summary>
+	private static LiveRecordInertness MeasureLiveRecordInertness(List<RecordRuntimeData> records) {
+		int albums = 0, singles = 0, albumsOffChart = 0, albumsZeroStock = 0;
+		int albumsZeroAwareness = 0, albumsZeroUnits = 0, inertAlbums = 0, inertSingles = 0;
+		foreach (RecordRuntimeData record in records ?? new List<RecordRuntimeData>()) {
+			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
+			if (isAlbum) albums++; else singles++;
+			int stock = 0;
+			float regionalAwareness = 0f;
+			foreach (KeyValuePair<string, RegionalRecordData> pair in record.regionalData) {
+				stock += Math.Max(0, pair.Value?.unitsInStores ?? 0);
+				regionalAwareness = Math.Max(regionalAwareness, pair.Value?.awareness ?? 0f);
+			}
+			bool offChart = record.currentPosition == 0;
+			bool noStock = stock == 0;
+			bool noAwareness = Math.Max(record.awareness, regionalAwareness) < InertAwarenessFloor;
+			bool noUnits = record.unitsThisWeek == 0;
+			if (isAlbum) {
+				if (offChart) albumsOffChart++;
+				if (noStock) albumsZeroStock++;
+				if (noAwareness) albumsZeroAwareness++;
+				if (noUnits) albumsZeroUnits++;
+			}
+			if (!(offChart && noStock && noAwareness && noUnits)) continue;
+			if (isAlbum) inertAlbums++; else inertSingles++;
+		}
+		return new LiveRecordInertness(albums, singles, albumsOffChart, albumsZeroStock,
+			albumsZeroAwareness, albumsZeroUnits, inertAlbums, inertSingles);
+	}
+
+	private const float InertAwarenessFloor = 0.001f;
 
 	private void FlushAnnualStreams() {
 		decadeAnnualRollupWriter?.Flush();
