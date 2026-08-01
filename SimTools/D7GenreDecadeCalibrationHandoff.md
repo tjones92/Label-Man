@@ -349,12 +349,13 @@ achievable ceiling for later albums, so the escalation is earned rather than sch
    failures remain open and are one mechanism, not two — read §11.6.2.
 3. ~~Measure the sales curve (§12).~~ **Done.** The fall is the launch boost; saturation and age decay
    are exonerated; 87.6% of records debut at their peak position. Read §12 before touching demand.
-   - **Flatten the launch window (§12.4 item 1).** The next piece of work. A demand-model change, so
-     it carries a units check and the full label table (§12.5).
-   - **Then reconsider `AIRPLAY_CONVEXITY`** (§11.6.3 / §12.4 item 2) — it is the same knob as the
-     two open band failures.
-   - **Radio → sales last** (§12.4 item 3). Genuinely inert (1.07x observed span) but not what is
-     producing the one-week #1s.
+   - ~~Flatten the launch window.~~ **Shipped** — the release ramp, §12.4a.
+   - ~~Steepen the chart's dynamic range.~~ **Shipped** — the Hesbacher curve, §12.4d.
+   - ~~Restore chart turnover.~~ **Shipped** — the survey layer, §12.4h.
+   - ~~Reopen MidTier promotion.~~ **Shipped at `9757a3b`**, §12.4j / §12.4n.
+   - ~~Phase airplay onto the release ramp.~~ **Build half shipped at `9757a3b`**, §12.4p / §12.4r.
+   - **NEXT: the discrete station drop — read §12.4r.** Includes the hysteresis-on-re-add warning,
+     since returns are already the largest #1 defect.
 4. **Album era weight (§6.1)** — investigate before touching Comedy or Classical keyframes. Two
    separate pieces of evidence now point at it: the Comedy market inversion, and Classical charting on
    a *singles* chart at all. `GetAlbumEraWeight` ramps from 0 at 1960, and Classical and Comedy are the
@@ -1335,6 +1336,105 @@ Two further facts worth keeping:
 **The §12.4p burnout term is a direct attack on this and is already in the run.** Keying airplay to
 decline from a record's own running peak means a record past its peak sheds rotation and cannot bounce
 back. Read the return rate on `d7-phase-decade-522-1001` before adding anything further.
+
+### 12.4r NEXT SESSION STARTS HERE: the discrete station drop
+
+Committed at `9757a3b`. **The airplay build shipped; the decline-keyed burnout was built, measured and
+rejected.** This section is the brief for the work that replaces it.
+
+#### What shipped, and what it bought
+
+| | midtier | **phase (build only)** | target |
+|---|---:|---:|---:|
+| mean debut | 74.1 | **78.8** | 86.8 |
+| debuts above #60 | 23.6% | **14.9%** | 2.6% |
+| **top-10 debuts / decade** | 15 | **1** | ~1 |
+| week-1 airplay share of points | 77.5% | **60.8%** | — |
+| Single units | 99.8 | **99.8** | hold |
+
+`GetRadioBuildWeight` ramps rotation over six weeks and is applied to the **regional** pass
+(`ChartManager` launch seed and `targetRegionalRadio`), never to `radioHeat`, because `radioHeat`
+multiplies conversion directly and moving it moves the demand model (§11.7).
+
+**Caveat on the committed state:** the only decade run of build-only is at 52 weeks
+(`d7-buildonly-52-1001`: units 99.0, debut 80.9, above-#60 9.5%, life 7.11, top-10 debuts 0). The
+decade figures above come from `d7-phase-decade-522-1001`, which carried build **and** the rejected
+burnout. **A build-only decade run is the first thing the next session should launch** — though note
+the drop mechanic will change the tail again, so it may be worth building the drop first and running
+once.
+
+#### Why the smooth burnout failed, so it is not rebuilt
+
+`Lerp(0.15, 1, unitsThisWeek / peakWeeklyUnits)` was neutral through the climb and bit only past the
+peak, which is the right *shape*. It failed on **magnitude**: at week twenty it returns 0.366 where the
+`0.88^(weeks-8)` clock it replaced gives 0.216. It was gentler than what it replaced.
+
+| week | midtier airplay % of points | phase (with burnout) |
+|---:|---:|---:|
+| 15 | 50.1 | 51.5 |
+| 17 | 51.6 | 56.3 |
+| 20 | **52.9** | **64.0** |
+
+Sales at week twenty went 8.4% → 25.4% of peak, peak-to-40% 7.0 → 8.0 weeks, chart life 7.49 → 8.31,
+charting records 6,350 → 5,719, and returns 24.0% → 27.2%. It is also **self-reinforcing**: more
+airplay → higher rank → more exposure → more sales → higher support ratio → less burnout.
+
+**A linear lerp from a floor cannot do this job.** Being neutral at the climb *and* reaching 0.216 at
+0.254 support requires a negative floor. Do not retry it with a different floor or a power term as a
+first move — the successor is a discrete event, which is both more severe and the only version that
+supplies tail variance (CV stayed flat at 0.242 against 0.254 without it).
+
+#### The station drop: what to build
+
+Stations dropped records from rotation as a **decision**, not as an exponential. That is the mechanic:
+per record per region, once it has faded far enough, rotation ends — abruptly, and at different times
+for different records.
+
+`RecordRuntimeData.peakWeeklyUnits` is already maintained (running max, set in `FinalizeWeeklySales`)
+and currently has **no consumer** — it is kept precisely for this. `unitsThisWeek / peakWeeklyUnits` is
+the fade signal and is neutral during the climb by construction.
+
+**FLAG — hysteresis or a floor on re-add.** A drop keyed to a noisy weekly ratio will drop and re-add
+the same record as its sales wobble, and re-adds are exactly the wrong direction: **returns are already
+the single largest #1 defect at 24-28% against a historical 4-5% (§12.4q)**, and a flapping drop would
+make them worse. Build in one of:
+
+- a one-way latch — once dropped, a record does not return to rotation at all, which is closest to how
+  a 1960s playlist actually worked;
+- or a hysteresis band — drop below one support level, re-add only above a distinctly higher one;
+- or a minimum weeks-since-drop before any re-add is considered.
+
+The latch is the strongest default. Whatever is chosen, **measure the re-add rate explicitly** and
+report it alongside the return rate.
+
+It must also **supersede `RADIO_FATIGUE_DECAY`, not stack with it** — otherwise rotation decays twice.
+
+#### How to know it worked
+
+Read in this order, all on a decade run:
+
+1. **Airplay tail share** (`chart.py tail`): week-20 share should fall well below the 52.9% baseline,
+   not rise. This is the direct test.
+2. **Chart life and charting records** (`chart.py score`): 8.31 → toward 7.48, and 5,719 → toward
+   6,964. These move together — §12.4g, `records x life = 52,100` always.
+3. **Returns** (`chart.py spells`): 24-28% → toward 4-5%, and the re-add rate.
+4. **Tail variance** (`chart.py tail`): the CV of peak-to-40% should rise above 0.25; a discrete drop
+   at varying times is what supplies it.
+5. **The label acceptance table**: breadth 454, MidTier 51, owner-Major 45.6 / 49.5.
+
+#### Still open, in priority order
+
+- **MidTier 1969 at 51** against a 25-40 band — the only year out of band. Do not lower the bar to 6;
+  that scales the whole line down ~20% and pushes most years *below*.
+- **Debut mean 78.8 against 86.8.** §12.4k showed this is downstream of how steep the bottom of the
+  published curve is (#75 at 10.4% of #1 against Hesbacher's 1.66 ratio), and the lever is
+  `CHART_EXPOSURE_EXPONENT`, entangled with Soul. Sequence the Soul authoring fix first.
+- **Soul divergence +18.3 at 1968** — to be fixed from the genre-authoring side by author decision, not
+  by lowering chart exposure.
+- **The convex release ramp is closed.** Tried twice, null both times (74.9→74.0 flat chart, 77.2→76.7
+  steep chart). Do not try a third time.
+- **`BASE_INERTIA` is a chart-life lever, not a tenure lever** (§12.4o): it does not bind at the top at
+  all, and only slows mid-chart descent 9 → 6.
 
 ### 12.5 This is still a demand-model change
 
