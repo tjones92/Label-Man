@@ -121,7 +121,8 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		ProbeIndependentTradeDeclineAndMidTierExit();                                    // 95
 		ProbeSettlementIndexMatchesLinearScan();                                         // 96
 		ProbeCompilationEraCurveAndEarlyStatement();                                     // 97
-		results.Add("D6 fixed probes 1-97 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting, and settlement indexes that reproduce the per-label and per-record linear scans they replace in exactly their source order, and a compilation era curve driven by authored single-orientation and per-family album-revolution susceptibility, with a vanishingly rare pre-ramp statement album from 1965)");
+		ProbeStationDropDecision();                                                      // 98
+		results.Add("D6 fixed probes 1-98 passed (contract/cooldown/calendar formation/identity/lifecycle/roster normalization/discovery lanes/performance exhaustion/label release capacity/economic-yield diagnostics/prospect participation/runtime-label bootstrap, organic growth, deterministic runtime operating profiles, daily talent-market scheduling, catastrophic fail-fast semantics, schema-bound control parsing, Album monotonic penetration, market-wide Album format clearing, evidence-gated MidTier promotion, bounded competitive label exit, vacancy-denominated hiring demand, the experienced talent reservoir, earned national-reach boundaries, the earned-reach Single-demand scale, persistent home-region distribution evidence, retired-record lookback, weekly awareness aging, immutable release-imprint identity, region-scaled regional breakout evidence, per-song distribution-deal scope, physically distributed shelf stock, a historically scaled seeded large-firm population, breakout evidence that credits demand a label cannot fulfil, single-counted artist project history, promo cannibalization charged once against the Album-component projection, promo recruitment on the same base terms as diversion, a lowered LocalTraction activation that admits the stranded breakout band, a late-decade major-consolidation gate scoped to Major acquirers absorbing charted independents inside the window and cap, and a subsidiary absorption that folds borrowed reach into permanent owned reach, unions the parent's regions and rolls ownership up while the label keeps operating and charting, and a minority dependent-hitmaker archetype among runtime Independents that charts strongly but keeps low owned reach so it stays an absorption target, and a regional independent-distribution layer derived from each region's authored retail infrastructure with abundant rather than scarce capacity, and independent wholesale coverage that carries a label's whole line into a market, spreads to bordering markets, survives contract termination and confers no ownership on anybody, and a rack-jobber channel that amplifies a proven record into department-store retail without a major deal and grows across the decade, and a wholesale cash-flow squeeze in which the house pays on 90-120 day terms, admits less than it sells and settles its arrears short, worst in the hardest markets, and a single definition of which tiers can hold a distribution contract that governs signing, poaching and renewal alike, an independent distribution trade that declines late-decade while the Major client ceiling ramps to meet it, and a MidTier tier a label can fall out of when it stops charting, and settlement indexes that reproduce the per-label and per-record linear scans they replace in exactly their source order, and a compilation era curve driven by authored single-orientation and per-family album-revolution susceptibility, with a vanishingly rare pre-ramp statement album from 1965, and a discrete station drop that cannot fire on a record still climbing, rises as the record fades against its own peak, terminates every record through burn, and never re-adds a market it has cut)");
 		return results;
 	}
 
@@ -2203,6 +2204,85 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"97h an ordinary roll cannot, so the 1965 opening stays vanishingly rare");
 		Require(AlbumModel.GetMaximumAchievableCohesion(1965, .72f, .72f, 1f) < .72f,
 			"97i and neither can an unexceptional pairing on the best roll");
+	}
+
+	/// <summary>
+	/// The discrete station drop. Every fixture here is expressed against behaviour rather than
+	/// against a literal, because the last pass lost two probes to exactly that mistake: 68d2 and 68j
+	/// hard-coded "one under the bar of 8" and silently inverted into their own opposite when the bar
+	/// moved to 5. The grace window is DISCOVERED from the function rather than asserted at a number,
+	/// so re-deriving any of the drop constants cannot rot these.
+	/// </summary>
+	private static void ProbeStationDropDecision() {
+		// A record still setting weekly highs is fully supported by construction, which is what makes
+		// the hazard safe to key on: it cannot fire on the climb no matter how the curve is tuned.
+		var climbing = new RecordRuntimeData(new Record { recordId = "drop_probe" }) {
+			unitsThisWeek = 40000, peakWeeklyUnits = 40000
+		};
+		Require(Math.Abs(ChartSimulator.GetSalesSupportRatio(climbing) - 1f) < .000001f,
+			"98 a record at its own running peak reads as fully supported");
+		climbing.unitsThisWeek = 10000;
+		Require(Math.Abs(ChartSimulator.GetSalesSupportRatio(climbing) - .25f) < .000001f,
+			"98b support is this week's sales against the record's own best week, not an absolute level");
+		var unsold = new RecordRuntimeData(new Record { recordId = "drop_probe_unsold" });
+		Require(Math.Abs(ChartSimulator.GetSalesSupportRatio(unsold) - 1f) < .000001f,
+			"98c a record with no sales history yet is not treated as a faded one");
+
+		// Discover the grace window instead of asserting it: the first age at which a fully collapsed
+		// record can be dropped at all.
+		int firstDroppableAge = -1;
+		for (int age = 0; age <= 60 && firstDroppableAge < 0; age++)
+			if (ChartSimulator.GetStationDropChance(0f, age) > 0f) firstDroppableAge = age;
+		Require(firstDroppableAge >= 1,
+			"98d no market cuts a record in the same week it turns over -- there is a grace week");
+		for (int age = 0; age < firstDroppableAge; age++)
+			Require(Math.Abs(ChartSimulator.GetStationDropChance(0f, age)) < .000001f,
+				$"98e nothing is droppable inside the grace window (age {age})");
+		Require(Math.Abs(ChartSimulator.GetStationDropChance(1f, firstDroppableAge)) < .000001f,
+			"98f a record past the grace window that is still selling at its peak is not cut for fading");
+
+		// Fading harder is never safer, and waiting is never safer.
+		for (int step = 1; step <= 20; step++) {
+			float atHigherSupport = ChartSimulator.GetStationDropChance(step / 20f, firstDroppableAge);
+			float atLowerSupport = ChartSimulator.GetStationDropChance((step - 1) / 20f, firstDroppableAge);
+			Require(atLowerSupport >= atHigherSupport - .000001f,
+				$"98g the drop chance never falls as a record fades further (support {step / 20f:F2})");
+		}
+		for (int age = firstDroppableAge; age < 40; age++)
+			Require(ChartSimulator.GetStationDropChance(.5f, age + 1) >= ChartSimulator.GetStationDropChance(.5f, age) - .000001f,
+				$"98h the drop chance never falls as a record ages past its peak (age {age})");
+		Require(ChartSimulator.GetStationDropChance(0f, firstDroppableAge) >
+			ChartSimulator.GetStationDropChance(.9f, firstDroppableAge),
+			"98i a collapsed record is cut sooner than one that has barely slipped");
+
+		// Burn is the termination guarantee: a record that never fades still leaves rotation, or the
+		// playlist would carry it forever and the tail could not close.
+		Require(ChartSimulator.GetStationDropChance(1f, 40) > 0f,
+			"98j a record that never fades is eventually cut anyway, so rotation always terminates");
+		for (int age = 0; age <= 60; age++)
+			for (int step = 0; step <= 20; step++) {
+				float chance = ChartSimulator.GetStationDropChance(step / 20f, age);
+				Require(chance >= 0f && chance <= 1f, $"98k the drop chance stays a probability (age {age}, support {step / 20f:F2})");
+			}
+
+		// The latch. This is the fixture that matters most: returns to number one are already the
+		// largest chart defect, so a market that has cut a record must never become a candidate again.
+		var live = new RegionalRecordData("probe_region") { radioPlay = .40f };
+		Require(ChartSimulator.IsStationDropCandidate(live),
+			"98l a record in rotation is a candidate for the playlist decision");
+		live.stationsDropped = true;
+		Require(!ChartSimulator.IsStationDropCandidate(live),
+			"98m a market that has cut a record never reconsiders it -- the drop is one-way");
+		live.radioPlay = .40f;
+		Require(!ChartSimulator.IsStationDropCandidate(live),
+			"98n and restoring rotation to a latched market does not make it a candidate again");
+		var silent = new RegionalRecordData("probe_region_silent") { radioPlay = 0f };
+		Require(!ChartSimulator.IsStationDropCandidate(silent),
+			"98o a record that is not on the air here cannot be taken off it");
+		Require(ChartSimulator.GetDroppedRotation(.40f) < .40f && ChartSimulator.GetDroppedRotation(.40f) >= 0f,
+			"98p the drop week cuts rotation rather than lerping it, and leaves nothing negative");
+		Require(ChartSimulator.GetDroppedRotation(0f) <= .000001f,
+			"98q dropping a market with no rotation invents none");
 	}
 
 	private static void Require(bool condition, string message) {

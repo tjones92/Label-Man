@@ -1,7 +1,7 @@
 # D7 genre decade calibration — live handoff
 
-Last maintained: July 31, 2026 (sales-curve decomposition). Branch `d7-genre-decade-calibration`, off
-merged `main`.
+Last maintained: August 1, 2026 (the discrete station drop, §12.4t, and the build-only decade control
+that reset every acceptance target, §12.4s). Branch `d7-genre-decade-calibration`, off merged `main`.
 
 This is the working handoff for genre calibration. It supersedes
 `D7LabelChartAccessSystemicRepairHandoff.md` as the *active* document — that file remains the
@@ -30,6 +30,10 @@ Non-goals this pass: the acclaim/legitimacy loop (§9), and any further work on 
 | `d7-comp-probes-52-1001` | 52-week probe run, D5 + D6 1-97 green. |
 | `d7-sortfix-probes-52-1001` | 52-week probe; 67/68 artifacts byte-identical to `d7-comp-probes`, sole diff the repaired median column. |
 | `d7-majorgate-probes-52-1001` | 52-week probe; **68/68 byte-identical** to `d7-sortfix-probes`, proving the gate inert in 1960. |
+| `d7-buildonly-decade-522-1001` | **The control for the current committed state** (`01b742a`) — airplay build, no burnout. §12.4s. Every earlier "decade" figure for the shipped state came from `d7-phase-decade`, which carried the rejected burnout, and was wrong. |
+| `d7-drop1-52-1001` | 52-week probe of the station drop. Comparable to `d7-buildonly-52-1001` (neither carries a probe suite). |
+| `d7-drop-probes-52-1001` | 52-week probe-suite run for the drop. D5 green, D6 **1-98** green. Never compare it against a run without the suites — §12.4b. |
+| `d7-drop-decade-522-1001` | **Current reference.** The discrete station drop, §12.4t. Returns 20.7% → 12.8%; two label bands and Soul pay for it. |
 
 Rejected airplay variants, all decade-run, all kept for the §11.5 comparison:
 `d7-airplay-decade-522-1001` (convexity on the whole product), `d7-heat-decade-522-1001` (earned heat
@@ -354,8 +358,13 @@ achievable ceiling for later albums, so the escalation is earned rather than sch
    - ~~Restore chart turnover.~~ **Shipped** — the survey layer, §12.4h.
    - ~~Reopen MidTier promotion.~~ **Shipped at `9757a3b`**, §12.4j / §12.4n.
    - ~~Phase airplay onto the release ramp.~~ **Build half shipped at `9757a3b`**, §12.4p / §12.4r.
-   - **NEXT: the discrete station drop — read §12.4r.** Includes the hysteresis-on-re-add warning,
-     since returns are already the largest #1 defect.
+   - ~~The discrete station drop.~~ **Built and run, uncommitted** — §12.4t. Returns 20.7% → 12.8%,
+     one-week #1s exactly on 27%, week-20 airplay share 45.3% → 12.1%, units held at 99.8, re-add rate
+     0. Costs: MidTier 1969 40 → 51 and owner-Major 1969 44.4 → 40.2 (1968 came *into* band), Soul
+     ~1.5 points worse. Read §12.4s first — it is the control, and it moved every target §12.4r set.
+   - **NEXT: `CHART_EXPOSURE_EXPONENT`.** It is now the named lever for both standing failures —
+     owner-Major (§12.4t) and debut position (§12.4k/§12.4r) — and it is entangled with Soul, so
+     sequence the Soul authoring fix (item 7 below) first, exactly as §12.4r said.
 4. **Album era weight (§6.1)** — investigate before touching Comedy or Classical keyframes. Two
    separate pieces of evidence now point at it: the Comedy market inversion, and Classical charting on
    a *singles* chart at all. `GetAlbumEraWeight` ramps from 0 at 1960, and Classical and Comedy are the
@@ -1183,8 +1192,17 @@ a lever that acts specifically on the fat 3+ tail. Measure the inertia cap's bit
 `Import-Csv` is unusable above ~50MB and hung outright on the 384MB decade `records.csv`, which had
 forced a hand-written streaming CSV parser with a quote state machine. Python 3.14 + pandas is now
 installed (`%LOCALAPPDATA%\Programs\Python\Python314\python.exe`; `Scripts` is not on PATH, invoke by
-full path). The analysis lives in `chart.py` with subcommands `score`, `debut`, `debut2`, `traj`,
-`inertia`, `bite`, `tail`, `lockstep`.
+full path).
+
+**The tooling now lives in `SimTools/` and is versioned.** It previously existed only in a session
+scratchpad and had to be recovered from a temp directory to be used again:
+
+| script | what it reads |
+|---|---|
+| `chart.py` | `score`, `debut`, `debut2`, `traj`, `inertia`, `bite`, `tail`, `spells`, `lockstep`, and `drops` (station-drop timing and the re-add rate, §12.4t) |
+| `labels.py` | the label acceptance table from `concentration.csv`, whole-decade and year by year |
+| `genre.py` | per-genre divergence and longevity index from `genre-decade-shape.csv` — **never** from `genre-market-weekly.csv`, see §3.1 |
+| `hazard.py` | offline replay of the station-drop survival curve against a run's real support trajectories, for re-deriving the drop constants without spending a run (§12.4t) |
 
 **One measurement trap it exposed, worth not repeating:** `lifecycles.csv` only contains records that
 have **closed**, which on a 52-week run is a short-lived, low-peaking minority that debuts near the
@@ -1411,6 +1429,12 @@ It must also **supersede `RADIO_FATIGUE_DECAY`, not stack with it** — otherwis
 
 #### How to know it worked
 
+> **SUPERSEDED — the targets below were read off the wrong run.** Every figure in this list comes from
+> `d7-phase-decade-522-1001`, which carried the rejected burnout, or from `midtier` before the airplay
+> build. The build-only decade control now exists (`d7-buildonly-decade-522-1001`) and is materially
+> closer to history on every one of them. Use §12.4s for the real baseline; the list is kept only
+> because the *order* of reads is still right.
+
 Read in this order, all on a decade run:
 
 1. **Airplay tail share** (`chart.py tail`): week-20 share should fall well below the 52.9% baseline,
@@ -1424,6 +1448,11 @@ Read in this order, all on a decade run:
 
 #### Still open, in priority order
 
+> **Item 1 is superseded — same defect as the list above.** "MidTier 1969 at 51" is a
+> `d7-midtier-decade-522-1001` figure that was never re-derived after the phase build. On the actual
+> committed state it reads 40, and 1967-68 are the years out of band, not 1969. See §12.4s. The
+> standing label failure is now owner-Major, from below.
+
 - **MidTier 1969 at 51** against a 25-40 band — the only year out of band. Do not lower the bar to 6;
   that scales the whole line down ~20% and pushes most years *below*.
 - **Debut mean 78.8 against 86.8.** §12.4k showed this is downstream of how steep the bottom of the
@@ -1435,6 +1464,302 @@ Read in this order, all on a decade run:
   steep chart). Do not try a third time.
 - **`BASE_INERTIA` is a chart-life lever, not a tenure lever** (§12.4o): it does not bind at the top at
   all, and only slows mid-chart descent 9 → 6.
+
+### 12.4s FIRST: the build-only decade control, and it moves every acceptance target
+
+`d7-buildonly-decade-522-1001`. §12.4r flagged that the committed state had no decade run behind it and
+that the decade figures quoted throughout came from `d7-phase-decade-522-1001`, which carried the
+rejected burnout. It was launched before anything else was built. **The committed state is better than
+the run it was being judged against on every reliable metric, and the §12.4r acceptance targets were
+therefore all set against the wrong reference.**
+
+| | phase (build + rejected burnout) | **buildonly (committed)** | history |
+|---|---:|---:|---:|
+| Single units | 99.8 | **99.7** | hold — PASS |
+| mean chart life | 8.31 | **7.72** | 7.48 |
+| charting records | 5,719 | **6,168** | 6,964 |
+| mean debut | 78.8 | **77.5** | 86.8 |
+| debuts above #60 | 14.9% | 17.1% | 2.6% |
+| top-10 debuts / decade | 1 | **1** | ~1 — PASS |
+| distinct #1s | 147 | **164** | 203 |
+| **#1 spells** | 197 | **202** | **~213** |
+| **mean spell length** | 2.64 | **2.58** | **~2.45** |
+| mean per-record tenure | 3.54 | **3.18** | 2.57 |
+| **records with 2+ spells** | 27.2% | **20.7%** | **4-5%** |
+| week-20 airplay share of points | — | **45.3%** | — |
+| CV of peak-to-40% | — | **0.254** | — |
+
+Two things follow, and both change what the drop is for:
+
+- **Spell count and spell length are already on target.** 202 spells against ~213, and 2.58 weeks
+  against ~2.45. `164 x 1.232 x 2.58 = 521` closes exactly. **Returns are now the only remaining #1
+  defect**: eliminating them alone takes distinct #1s from 164 to 202, which is the 203 target. This
+  is the sharpest the metric has ever been — §12.4q said "both, and in that order", and the first of
+  the two is done.
+- **Two of the five §12.4r acceptance reads were already met before the drop existed.** The week-20
+  airplay share is 45.3%, not the 52.9% quoted (that figure was `midtier`, i.e. pre-build), and the CV
+  of peak-to-40% is **already 0.254**, above the ">0.25" the drop was supposed to supply. The build
+  delivered the tail variance; the drop's job on that metric is to not lose it.
+
+Chart life at 7.72 against 7.48 leaves the drop a **3% budget**, not the 11% §12.4r implied. Read the
+life and records rows before anything else.
+
+#### The label acceptance table was also quoting the wrong run, and the open failure has swapped ends
+
+§12.4r's item 5 — "breadth 454, MidTier 51, owner-Major 45.6 / 49.5" — and its "**Still open:** MidTier
+1969 at 51 against a 25-40 band" are **`d7-midtier-decade-522-1001`** figures, i.e. the run *before*
+the airplay phase build. They were never re-derived after it.
+
+| 1969 unless noted | midtier | phase | **buildonly (committed)** | band |
+|---|---:|---:|---:|---|
+| breadth | 454 | 455 | **449** | 400-600 — PASS |
+| **MidTier firms** | **51 FAIL** | 34 | **40** | **25-40 — PASS** |
+| **owner-Major 1968** | 45.6 | 37.7 | **42.8** | **45-52 — FAIL, below** |
+| **owner-Major 1969** | 49.5 | 39.8 | **44.4** | **45-52 — FAIL, below** |
+| Major firms | — | 8 | 10 | — |
+
+**The phase build fixed MidTier and cost owner-Major.** MidTier 51 → 40 is the §12.4r "only year out of
+band" closing on its own, and it needs no further work — the recommendation there not to lower the
+promotion bar to 6 stands, and is now moot. What replaced it is owner-Major failing from *below* for
+the first time in the arc, on both years, having been in band at the majorgate and v5verify runs. Per
+the §7.2 note this is checked against the Major firm count: 10 firms in 1969, up from 8, so it is not
+a headcount artifact.
+
+MidTier at 40 sits on the top edge of the band, so anything that adds MidTier headcount is now a
+regression risk rather than a repair. Note the shape too: MidTier peaks at 47 in 1968 and falls to 40
+by 1969, so the band is only just held at the end of a rising line.
+
+### 12.4t SHIPPED (uncommitted): the discrete station drop. Returns 20.7% → 12.8%.
+
+Reference `d7-drop-decade-522-1001`, against the `d7-buildonly-decade-522-1001` control of §12.4s.
+52-week probe `d7-drop1-52-1001`; probe-suite run `d7-drop-probes-52-1001`, D5 green and D6 **1-98**
+green.
+
+#### Decade result
+
+| | buildonly (control) | **drop** | history / band |
+|---|---:|---:|---:|
+| Single units | 99.7 | **99.8** | hold — PASS |
+| **records with 2+ #1 spells** | 20.7% | **12.8%** | **4-5%** |
+| distinct #1s | 164 | **179** | 203 |
+| #1 spells | 202 | 204 | ~213 |
+| mean spell length | 2.58 | **2.55** | ~2.45 |
+| mean per-record #1 tenure | 3.18 | **2.91** | 2.57 |
+| **#1s holding one week** | 25% | **27%** | **27% — exact** |
+| #1s holding 3+ weeks | 53% | **49%** | 41% |
+| **mean chart life** | 7.72 | **7.39** | 7.48 |
+| charting records | 6,168 | **6,453** | 6,964 |
+| mean debut | 77.5 | **78.2** | 86.8 |
+| debuts above #60 | 17.1% | **16.1%** | 2.6% |
+| top-10 debuts / decade | 1 | 1 | ~1 — PASS |
+| **week-20 airplay share of points** | 45.3% | **12.1%** | — |
+| **re-add rate** | — | **0 of 1,577,566 record-weeks** | 0 |
+| CV of peak-to-40% | 0.254 | **0.217** | >0.25 — **REGRESSION** |
+| breadth | 449 | 492 | 400-600 — PASS |
+| **MidTier firms 1969** | 40 | **51** | **25-40 — FAIL** |
+| **owner-Major 1968** | 42.8 | **46.2** | **45-52 — PASS** |
+| **owner-Major 1969** | 44.4 | **40.2** | **45-52 — FAIL** |
+
+**Returns are the headline and they are the point.** 20.7% → 12.8% is the first movement any lever in
+this arc has produced on that metric, and §12.4s established it was the *only* remaining #1 defect.
+It moved without disturbing what was already right: spell length held at 2.55 against ~2.45, spell
+count 204 against ~213, and one-week #1s landed exactly on 27%. Distinct #1s 164 → 179 against 203.
+
+**The airplay phase test passes decisively.** The U-shape's right arm is not merely flattened, it is
+inverted — airplay's share of a top-ten record's points now peaks at 43.5% in week fourteen and
+*falls* to 12.1% by week twenty, against 13.3% of peak sales. It rose to 45.3% in the control.
+
+| top-10 record | wk 12 | wk 14 | wk 17 | wk 19 | wk 20 |
+|---|---:|---:|---:|---:|---:|
+| sales, % of own peak | 80.0 | 66.7 | 37.6 | 19.7 | 13.3 |
+| airplay % of points, control | 38.8 | 42.8 | 43.6 | 43.2 | **45.3** |
+| **airplay % of points, drop** | 41.6 | 43.5 | **32.8** | **19.1** | **12.1** |
+| **panel still carrying (drop)** | — | — | — | — | ~6% |
+
+Drop timing carries real spread: a top-ten record loses its first market at a median age of 14
+(p10 12, p90 17) and is off the air entirely at a median of 20 (p10 17, p90 25, sd 3.10). The 41-100
+band, which peaks earlier and lower, is cut earlier on the same curve with no band-specific term —
+first market at 12, off entirely at 19. 96.9% of all records lose at least one market, 90.9% lose all
+of them.
+
+#### Three costs, stated plainly
+
+**1. MidTier 1969 goes back out of band, 40 → 51 — but the drop is not the mechanism.** Read the whole
+line rather than the reported year:
+
+| MidTier firms | 1965 | 1966 | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|---:|---:|
+| buildonly control | 32 | 36 | **44** | **47** | 40 |
+| drop | 36 | 41 | **46** | **46** | **51** |
+
+**The control already breaches the 25-40 band at 1967 and 1968** and only dips back under at exactly
+1969; the two runs are within two firms of each other at 1967 and identical at 1968. Reporting the
+1969 value alone hid a line that has been running hot since 1967 in both. This is the *fifth* distinct
+route to a MidTier miss and the fourth time the answer has been "the bars are not the mechanism" —
+shorter chart lives mean more records chart, more Independents clear the bar of 5, and the tier fills.
+Do not tune the drop against it.
+
+**2. owner-Major 1969 falls 44.4 → 40.2**, while 1968 rises into band (42.8 → **46.2**). Major firms
+9 against the control's 10, so per the §7.2 discipline part of the 1969 fall is a headcount effect and
+it is not a clean read. The year-to-year path is 40.2 → 46.2 → 40.2, a swing large enough that single
+years should not be banked. **This is now the standing label failure**, having replaced MidTier at
+§12.4s, and both ends of it are entangled with `CHART_EXPOSURE_EXPONENT`, which §11.6.3 and §12.4r
+both queue as the next lever.
+
+**3. Soul gets worse by about 1.5 points**, which is the §11.7 law recurring: every airplay shape
+concentrates on high-acceptance genres.
+
+| divergence | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|
+| Soul, control | +15.2 | +16.2 | +16.6 |
+| **Soul, drop** | **+16.6** | **+18.0** | **+17.7** |
+| PsychedelicRock, control | +3.3 | +5.5 | +2.0 |
+| **PsychedelicRock, drop** | **+1.4** | **+3.3** | **+0.4** |
+
+Soul is already the worst genre miss and is queued for an authoring fix by author decision, so this
+adds to a bill already being paid. **PsychedelicRock, the other genre §8.3 named, largely closes** —
+its longevity index falls 1.31 → 1.12 at 1968 and 1.10 → 0.82 at 1969, which is what an album genre
+whose singles do not linger should look like. Gospel is unmoved (+5.2 → +4.9).
+
+#### The tail-variance criterion is structurally unreachable by this mechanic
+
+§12.4r item 4 wanted the CV of peak-to-40%-of-peak to rise above 0.25. It **fell**, 0.254 → 0.217, and
+the same thing happened at 52 weeks (0.228 → 0.201), so it is not noise.
+
+**The hazard keys on the record's own support ratio, and peak-to-40% is also a support-ratio measure.**
+A slow-fading record is dropped later by construction, so the drop shortens each record's tail roughly
+in proportion to how long that tail already was — it is self-normalising, and self-normalising
+mechanisms compress a distribution rather than spread it. Variance in the *airplay* tail is real and
+large (sd 3.10 weeks on the age at full drop); it simply does not land on this metric.
+
+Two further facts: the control already sat at 0.254, i.e. **the criterion was met by the phase build
+before the drop existed** (§12.4s), and the peak-week spread *rose*, sd 1.65 → 2.06. If tail-length
+dispersion is wanted later it needs a term keyed to something **independent of the record's own
+trajectory** — a per-record leash drawn at release, say — not a differently-shaped support curve.
+
+#### Two measurement bases for chart life, and they disagree in sign
+
+Recorded because this document has now been misdirected by a basis error four times:
+
+| | control | drop | history |
+|---|---:|---:|---:|
+| `lifecycles.csv`, per closed record | 7.72 | **7.39** | 7.48 |
+| Σ`chartRecordWeeks` ÷ Σ`uniqueChartingRecords`, per year | 6.77 | **6.53** | 7.48 |
+
+The per-year sum is what makes `records x life = 52,100` exact, but it counts a record that charts
+either side of New Year **twice**, so its record count (7,698 → 7,978) is not comparable to a
+historical 6,964 counted per record. Every decade figure in §12.4f, §12.4h and §12.4r uses the
+`lifecycles` basis; **stay on it**, and read the identity as a constraint on direction rather than as a
+target either column can be scored against.
+
+On that basis chart life lands at 7.39 against 7.48 — a 1.2% undershoot, from 7.72. If it is wanted
+exactly on target, `STATION_DROP_MAX_WEEKLY_CHANCE` is the knob and roughly 0.32 rather than 0.40
+would give back the 0.09. That was **not** run: it trades the headline returns result for a 1.2%
+correction, and the label table it would also relieve is queued behind `CHART_EXPOSURE_EXPONENT`
+anyway.
+
+#### What it is
+
+`RegionalRecordData.stationsDropped` is a **one-way latch per record per region**. Each week, once a
+record is genuinely past its own peak, every market that still carries it rolls once against
+`ChartSimulator.GetStationDropChance(support, weeksSincePeakUnits)`. A market that cuts the record
+sets the latch, its rotation is cut to `STATION_DROP_RESIDUAL` of its previous level *instead of*
+being lerped, and nothing anywhere puts it back.
+
+- `support = unitsThisWeek / peakWeeklyUnits`, the signal §12.4r reserved. `peakWeeklyUnits` is a
+  running maximum, so support is exactly 1 all the way up the climb and **the hazard is structurally
+  incapable of firing on a rising record.**
+- Two competing reasons to cut, combined as `1 − (1−fade)(1−burn)`: the local sales reports have gone
+  soft (`fade`, opening at 80% of peak and maxed at 25%), or the record has simply been on too long
+  (`burn`, a weak backstop from eight weeks past peak). Burn exists to guarantee termination — a
+  support-only hazard leaves a record that never fades on the playlist forever.
+- **The latch is the chosen answer to the §12.4r hysteresis flag**, and it is enforced at every writer
+  of `radioPlay`, not just the regional pass: `ApplyBreakoutDiscovery` (both the source-region and the
+  neighbour-propagation gains) and the public `AddRadioPlay` hook now honour it. Awareness and jukebox
+  gains still land in a dropped market — people still hear about a record — but rotation does not.
+  Re-add rate is therefore 0 by construction, and `radioPanelShare` in `records.csv` is the instrument
+  that proves it: it may only ever fall, so any row where it rises is a leak.
+
+New telemetry: `records.csv` carries `weeksSincePeakUnits` and `radioPanelShare` (the reach × population
+weighted share of the panel still carrying the record). `chart.py drops` reads drop timing by peak
+band, the re-add rate, and the panel curve against the sales trajectory.
+
+D6 probe 98 (98–98q) covers it. Every fixture is relational per the §12.4n lesson — the grace window is
+*discovered* from the function rather than asserted at a number, so re-deriving the constants cannot
+rot them. It asserts the hazard is zero on the climb, monotone in both inputs, bounded, terminating
+via burn, and — the one that matters most — that a latched market is never a candidate again even if
+its rotation is externally restored.
+
+#### The fatigue clock is re-keyed, not deleted, and that decision is measured
+
+§12.4r says the drop must **supersede** `RADIO_FATIGUE_DECAY`, not stack on it. Deleting it outright
+was costed first and is wrong, for a reason that only shows up in the trajectory data:
+
+| top-10 record, `d7-buildonly-52-1001` | wk 9 (peak) | wk 12 | wk 20 |
+|---|---:|---:|---:|
+| median `radioHeat` | 0.738 | 0.706 | 0.282 |
+| `targetHeat` with the fatigue term removed | ~0.95 | ~0.92 | ~0.90 |
+
+`UpdateRadioHeat`'s `qualityFactor` is an **ageless constant** — `quality^1.8 * 0.7` is 0.51 of the
+target for a quality-0.837 record — so with the clock gone, rotation *rises* from 0.73 to ~0.90 across
+weeks ten to fourteen instead of falling. `AIRPLAY_CONVEXITY = 5` turns that 1.28x into **≈3.4x the
+airplay points**, precisely where the U-shaped share is already too high. The station drop is linear in
+surviving panel reach and cannot counter a multiplicative rise of that size.
+
+So what was wrong with the clock was its **phase, not its existence** — exactly the §12.4p diagnosis —
+and it is now keyed to `weeksSincePeakUnits` rather than `weeksSinceRelease > 8`. That fixes both ends
+at once: a hit is no longer fatigued the week *before* it peaks, and a marginal record that peaked at
+week four no longer keeps undamped rotation for five weeks after it was commercially finished. During
+the climb the term is exactly 1. **One decay, re-phased, plus one terminating event — not two decays,
+and not none.**
+
+#### Why the drop is deliberately kept off `radioHeat`
+
+`radioPanelShare` is computed and logged but **nothing reads it back**. Airplay points are then
+*linear* in surviving panel reach, which is the well-conditioned lever. Applying the same share
+multiplicatively to `radioHeat` as well would compound through the convexity to `p^6`: at a surviving
+share of 0.40 that is 0.4% of the airplay points rather than 40%, and the mechanic's severity would be
+an artifact of an exponent §11.6.3 already calls provisional. It also keeps the change off the demand
+model entirely, the same discipline the §12.4p build followed — `radioHeat` multiplies conversion
+directly (§11.7), and holding units still is what makes the chart result attributable.
+
+#### Sizing, replayed offline before the run
+
+The hazard was sized against real trajectories rather than guessed: `hazard.py` reconstructs
+`support` and `weeksSincePeakUnits` from `d7-buildonly-52-1001-records.csv` exactly as
+`FinalizeWeeklySales` maintains them and replays the survival curve. At ceiling 0.80 / floor 0.25 /
+max 0.40:
+
+| top-10 peakers | wk 9 | wk 12 | wk 15 | wk 17 | wk 20 |
+|---|---:|---:|---:|---:|---:|
+| median support | 1.000 | 0.734 | 0.461 | 0.273 | 0.085 |
+| weekly hazard | 0.004 | 0.076 | 0.239 | 0.360 | 0.400 |
+| **panel still carrying** | **99.6%** | **87.1%** | **47.2%** | **21.1%** | **4.7%** |
+
+Half the panel is gone about six weeks after the sales peak — around the point a hit is falling
+through the twenties — and 95% by week twenty. The 41-100 band, which peaks earlier and lower, is cut
+earlier on the same curve without any band-specific term.
+
+Two effects this static replay cannot show: losing rotation costs rank, rank costs
+`GetChartExposureWeight`, and lost exposure costs sales — which lowers support and accelerates the
+next drop; and dropped markets stop counting toward `GetTotalRadioPlay`, so `chartedExpired`
+retirement arrives sooner and the live population thins. Both were expected to make the realised curve
+*steeper* than the replay.
+
+**They did not.** Measured on `d7-drop1-52-1001` the panel runs 82.7% at week twelve against a
+predicted 87.1%, 51.1% against 47.2% at fifteen, and 26.8% against 21.1% at seventeen — within a few
+points and slightly *gentler*, not steeper. **The offline replay is a good predictor and is worth
+running before any re-derivation of these constants**; the feedback loop is real but second-order at
+this severity.
+
+#### What was deliberately left out
+
+- **No size or rank leniency.** A #1 and a #80 record face the same curve at the same relative fade.
+  A "protect the smash" term would be a fifth mechanism feeding the §11.4 item-3 positive-feedback
+  loop, and §12.4q already found the tenure size gradient is correct and not the defect.
+- **No per-region support signal.** The roll is per market; the signal is national. With only seven
+  regions a per-region ratio is a noisy read of a small number, and under a one-way latch one bad
+  week would cut a market permanently.
 
 ### 12.5 This is still a demand-model change
 

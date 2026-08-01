@@ -43,11 +43,22 @@ public class RecordRuntimeData {
 	// only starts to exceed it once the record turns over, so unitsThisWeek/peakWeeklyUnits is a
 	// clean "how far past its peak is this record" signal that stays neutral during the rise.
 	//
-	// CURRENTLY HAS NO CONSUMER. It is kept deliberately: the decline-keyed radio burnout that used
-	// it was rejected on decade evidence (handoff 12.4r), and the discrete station-drop mechanic that
-	// replaces it needs exactly this signal to decide when a record has faded enough to be dropped.
-	// Maintained here rather than re-derived so the next pass starts from measured state.
+	// Consumed by the station drop (ChartSimulator.GetStationDropChance): a programme director read
+	// the local sales reports and cut a record once it was visibly slipping, so the record's own peak
+	// is the reference the decision was actually made against.
 	public int peakWeeklyUnits;
+	// Weeks since peakWeeklyUnits was last raised: zero while the record is still setting new highs,
+	// counting up once it turns over. This is the record's own clock, which is why the radio fatigue
+	// term is keyed to it rather than to weeksSinceRelease -- a fixed week-8 clock started fatiguing
+	// a hit before it peaked (the sales peak is now week 9) and let a marginal record that peaked at
+	// week 4 keep full rotation for five weeks after it was finished.
+	public int weeksSincePeakUnits;
+	// Share of the national radio panel -- regions weighted by radio reach x population, the same
+	// weighting CalculateChartPoints pays airplay on -- whose stations still carry the record.
+	// Starts at 1 and only ever falls, because a station drop is latched. Derived state, recomputed
+	// each week by the regional radio pass; kept here so telemetry can read the drop without
+	// re-walking seven regions, and NOT read back by any mechanic.
+	public float radioPanelShare = 1f;
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public bool revenueMemoryEligible;
@@ -154,6 +165,9 @@ public class RecordRuntimeData {
 		unitsThisWeek = 0;
 		unitsPreviousWeek = 0;
 		totalUnitsSold = 0;
+		peakWeeklyUnits = 0;
+		weeksSincePeakUnits = 0;
+		radioPanelShare = 1f;
 		lifetimeLabelNet = 0f;
 		sunkProductionCost = 0f;
 		revenueMemoryEligible = false;

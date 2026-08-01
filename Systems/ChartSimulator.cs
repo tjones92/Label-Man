@@ -53,19 +53,74 @@ public static class ChartSimulator {
 	// takes about six weeks to catch up from any early suppression.
 	private const int RADIO_BUILD_FULL_WEEK = 6;
 	private const float RADIO_BUILD_FLOOR = 0.28f;
-	// A decline-keyed replacement for this clock was built and REJECTED on decade evidence -- see
+	// Rotation decays from the record's OWN sales peak, not from a fixed week-eight clock.
+	//
+	// A decline-keyed replacement for this term was built and REJECTED on decade evidence -- see
 	// handoff section 12.4r before rebuilding it. `Lerp(0.15, 1, unitsThisWeek / peakWeeklyUnits)`
 	// looked right (neutral through the climb, biting only past the peak) but was far GENTLER than
 	// what it replaced: at week twenty it returned 0.366 where 0.88^12 gives 0.216. Airplay's share
 	// of a top-ten record's points at week twenty went 52.9% -> 64.0%, sales at week twenty went 8.4%
 	// -> 25.4% of peak, chart life 7.49 -> 8.31 and charting records 6,350 -> 5,719. It is also
 	// self-reinforcing: more airplay -> higher rank -> more exposure -> more sales -> a higher support
-	// ratio -> less burnout.
+	// ratio -> less burnout. A linear lerp from a floor CANNOT be both neutral during the climb and
+	// severe in the tail: reaching 0.216 at 0.254 support requires a negative floor.
 	//
-	// A linear lerp from a floor CANNOT be both neutral during the climb and severe in the tail --
-	// reaching 0.216 at 0.254 support requires a negative floor. The successor is a discrete station
-	// drop, not a differently-shaped curve.
+	// What was wrong with the clock was its PHASE, not its existence. The release ramp moved the
+	// sales peak to week nine, so `weeksSinceRelease > 8` began fatiguing a hit the week before it
+	// peaked, while a marginal record that peaked at week four kept undamped rotation for five weeks
+	// after it was commercially finished. Keying it to weeksSincePeakUnits fixes both ends at once
+	// and costs nothing during the climb, where the term is now exactly 1.
+	//
+	// It is deliberately NOT deleted in favour of the station drop alone. Measured on
+	// d7-buildonly-52-1001, a top-ten record's median radioHeat runs 0.738 at its week-nine peak and
+	// 0.282 by week twenty; targetHeat with the fatigue term removed floors near 0.9 for those weeks,
+	// because qualityFactor is an ageless constant (quality^1.8 * 0.7 is 0.51 of the target for a
+	// quality-0.837 record). Rotation therefore rises 0.73 -> ~0.90 across weeks ten to fourteen,
+	// which AIRPLAY_CONVEXITY turns into roughly 3.4x the airplay points exactly where the U-shaped
+	// share is already too high. The station drop is linear in surviving panel reach and cannot
+	// counter a 3.4x multiplicative rise; superseding the clock means re-keying it and letting the
+	// drop end rotation outright, not running two decays or none.
 	private const float RADIO_FATIGUE_DECAY = 0.88f;
+	// THE STATION DROP. Stations dropped a record as a decision, not as an exponential: the playlist
+	// held thirty or forty current slots, new records needed them, and a record that stopped moving
+	// in the local sales reports was cut. That is why this is a weekly hazard evaluated per record
+	// per region rather than another curve -- it ends rotation abruptly, at a different week in every
+	// market, and the spread between those weeks is the tail variance the model is missing (the
+	// coefficient of variation of peak-to-40%-of-peak sat flat at 0.24 through the whole ramp arc).
+	//
+	// The decision is read off the record's own peak, which is what a programme director had: a
+	// one-stop's weekly reorder against last week's. unitsThisWeek/peakWeeklyUnits is 1 all the way
+	// up the climb by construction, so the hazard cannot fire on a record that is still growing.
+	private const int STATION_DROP_GRACE_WEEKS = 2;
+	// Cut pressure opens once a record has slipped a fifth off its peak and is at its maximum once it
+	// is down to a quarter. Read against the record's OWN peak, so a regional record on a small label
+	// faces the same decision curve as a national smash and the mechanic is scale-free.
+	//
+	// The signal is national and the roll is per market, which is the deliberate split: a programme
+	// director read his own market's one-stop reorders, but he also read the trades, and the model has
+	// only seven regions, so a per-region support ratio would be a noisy read of a small number and
+	// could latch a market out on one bad week. Replayed against the real trajectories of
+	// d7-buildonly-52-1001, these values cut half the panel about six weeks after a top-ten record's
+	// sales peak -- around the point it is falling through the twenties -- and 95% of it by week
+	// twenty. A record still setting weekly highs faces a hazard of exactly zero at every setting.
+	private const float STATION_DROP_SUPPORT_CEILING = 0.80f;
+	private const float STATION_DROP_SUPPORT_FLOOR = 0.25f;
+	private const float STATION_DROP_MAX_WEEKLY_CHANCE = 0.40f;
+	// Burn: a record that has been in heavy rotation for months gets cut even while it sells, because
+	// the audience is tired of it and the slot is worth more to something new. Deliberately a weak
+	// backstop rather than a driver -- early-60s playlists turned over on sales, and callout-measured
+	// burn is a later idea -- but it guarantees every record eventually leaves rotation, which a
+	// support-only hazard does not.
+	private const int STATION_DROP_BURN_ONSET_WEEKS = 8;
+	private const int STATION_DROP_BURN_FULL_WEEKS = 8;
+	// A record has to be on the air to be taken off it. Below this the region never latches, so a
+	// record that breaks regionally months after release is still droppable when it eventually fades.
+	private const float STATION_DROP_MIN_ROTATION = 0.01f;
+	// What is left the week the drop lands. A playlist cut is abrupt, so this replaces the regional
+	// lerp rather than feeding it; AIRPLAY_CONVEXITY of 5 makes 0.30 worth 0.24% of the region's
+	// former airplay points, which is off the air in every sense the chart can see, while leaving a
+	// residue that decays rather than a discontinuity at exactly zero.
+	private const float STATION_DROP_RESIDUAL = 0.30f;
 	// Being top 10 grants radio heat, and once airplay carries chart points that is positive
 	// feedback: heat grants points, points hold the position, the position grants heat. The bonus
 	// therefore has to be paid for in sales, so that when the sales which justified the rotation die
@@ -328,7 +383,10 @@ public static class ChartSimulator {
 		record.unitsPreviousWeek = record.unitsThisWeek;
 		record.unitsThisWeek = totalSales;
 		record.totalUnitsSold += totalSales;
-		if (totalSales > record.peakWeeklyUnits) record.peakWeeklyUnits = totalSales;
+		if (totalSales > record.peakWeeklyUnits) {
+			record.peakWeeklyUnits = totalSales;
+			record.weeksSincePeakUnits = 0;
+		} else record.weeksSincePeakUnits++;
 		UpdateMomentum(record);
 	}
 	
@@ -724,13 +782,11 @@ public static class ChartSimulator {
 			targetHeat += 0.1f * positionBonusGate;
 		}
 		
-		if (record.weeksSinceRelease > 8) {
-			int weeksOverThreshold = record.weeksSinceRelease - 8;
-			float fatigue = Mathf.Pow(RADIO_FATIGUE_DECAY, weeksOverThreshold);
-			targetHeat *= fatigue;
+		if (record.weeksSincePeakUnits > 0) {
+			targetHeat *= Mathf.Pow(RADIO_FATIGUE_DECAY, record.weeksSincePeakUnits);
 		}
 
-		float lerpRate = (targetHeat > record.radioHeat) ? 0.28f : 
+		float lerpRate = (targetHeat > record.radioHeat) ? 0.28f :
 						(record.weeksSinceRelease > 12) ? 0.22f : 0.10f;
 		
 		record.radioHeat = Mathf.Lerp(record.radioHeat, targetHeat, lerpRate);
@@ -748,6 +804,47 @@ public static class ChartSimulator {
 		float progress = Mathf.Clamp((weeksSinceRelease - 1f) / (RADIO_BUILD_FULL_WEEK - 1f), 0f, 1f);
 		return Mathf.Lerp(RADIO_BUILD_FLOOR, 1f, progress);
 	}
+
+	/// <summary>
+	/// How far a record is still selling against its own best week. 1 all the way up the climb,
+	/// because peakWeeklyUnits is a running maximum, so anything keyed to this is neutral until the
+	/// record turns over. A record with no sales history yet reads as fully supported.
+	/// </summary>
+	internal static float GetSalesSupportRatio(RecordRuntimeData record) =>
+		record == null || record.peakWeeklyUnits <= 0
+			? 1f
+			: Mathf.Clamp(record.unitsThisWeek / (float)record.peakWeeklyUnits, 0f, 1f);
+
+	/// <summary>
+	/// This week's chance that one region's stations cut a record from current rotation. Two
+	/// independent reasons to drop it, combined as competing hazards: the local sales reports have
+	/// gone soft, or the record has simply been on too long. Returns 0 during the grace period so a
+	/// record cannot be dropped on the one-week wobble that follows its peak.
+	/// </summary>
+	internal static float GetStationDropChance(float salesSupportRatio, int weeksSincePeakUnits) {
+		if (weeksSincePeakUnits < STATION_DROP_GRACE_WEEKS) return 0f;
+		float fade = Mathf.Clamp(
+			(STATION_DROP_SUPPORT_CEILING - salesSupportRatio) /
+			(STATION_DROP_SUPPORT_CEILING - STATION_DROP_SUPPORT_FLOOR), 0f, 1f);
+		float burn = Mathf.Clamp(
+			(weeksSincePeakUnits - STATION_DROP_BURN_ONSET_WEEKS) / (float)STATION_DROP_BURN_FULL_WEEKS,
+			0f, 1f);
+		return STATION_DROP_MAX_WEEKLY_CHANCE * (1f - (1f - fade) * (1f - burn));
+	}
+
+	/// <summary>
+	/// Whether a region's rotation is even a candidate for the drop. A record has to be on the air to
+	/// be taken off it, which also keeps the RNG stream off the thousands of live records carrying no
+	/// rotation at all.
+	/// </summary>
+	internal static bool IsStationDropCandidate(RegionalRecordData data) =>
+		data != null && !data.stationsDropped && data.radioPlay > STATION_DROP_MIN_ROTATION;
+
+	/// <summary>
+	/// Rotation left in a region the week its stations cut the record. Not a lerp: the point of the
+	/// mechanic is that a playlist drop is a decision taken between two weekly meetings.
+	/// </summary>
+	internal static float GetDroppedRotation(float radioPlay) => radioPlay * STATION_DROP_RESIDUAL;
 
 	public static float GetRadioDifficulty(MarketRegion region) {
 		// Godot Mathf lacks Log10, so we use natural Log divided by Log(10)
