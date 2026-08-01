@@ -1,6 +1,7 @@
 # D7 genre decade calibration — live handoff
 
-Last maintained: July 31, 2026 (airplay pass). Branch `d7-genre-decade-calibration`, off merged `main`.
+Last maintained: July 31, 2026 (sales-curve decomposition). Branch `d7-genre-decade-calibration`, off
+merged `main`.
 
 This is the working handoff for genre calibration. It supersedes
 `D7LabelChartAccessSystemicRepairHandoff.md` as the *active* document — that file remains the
@@ -25,6 +26,7 @@ Non-goals this pass: the acclaim/legitimacy loop (§9), and any further work on 
 | `d7-comp-decade-522-1001` | + compilation era curve and the 1965 statement opening. Superseded; carried the §7 MidTier regression. |
 | `d7-majorgate-decade-522-1001` | + the MidTier→Major chart gate (§7). **Last run passing every acceptance row.** |
 | `d7-v5verify-decade-522-1001` | + load-bearing airplay (§11), the state committed at `e411a65`. **Current reference.** Big chart gains, two marginal band failures — see §11.6. |
+| `d7-airplay5-52-1001` | 52-week probe of the **shipped** airplay config, **`records.csv` populated**. The only artifact that can carry the §12.1 peak decomposition; the decade runs are `--lean-probe` and write an empty `records.csv`. |
 | `d7-comp-probes-52-1001` | 52-week probe run, D5 + D6 1-97 green. |
 | `d7-sortfix-probes-52-1001` | 52-week probe; 67/68 artifacts byte-identical to `d7-comp-probes`, sole diff the repaired median column. |
 | `d7-majorgate-probes-52-1001` | 52-week probe; **68/68 byte-identical** to `d7-sortfix-probes`, proving the gate inert in 1960. |
@@ -270,6 +272,60 @@ load-bearing will redistribute genre chart share.
 Psychedelic rock under-charts (3.0% market, 1.2% chart weeks in 1969, weeks/record *falling* 5.2 →
 3.5). Arguably correct for an album genre whose singles do not linger.
 
+### 8.1 CLOSED: country. The problem was chart longevity in general, and airplay repaired it.
+
+Re-derived on `d7-v5verify-decade-522-1001` against `d7-majorgate-decade-522-1001`. The original §8
+country finding was a *relative* measurement — country's weeks-per-record against a chart mean that
+was itself far too short. Raising the chart-wide level dissolved it.
+
+| chart-wide | 1960 | 1963 | 1966 | 1967 | 1969 |
+|---|---:|---:|---:|---:|---:|
+| mean weeks per charting record, no airplay | 5.08 | 4.78 | 4.44 | 4.56 | 4.88 |
+| **with airplay** | **5.74** | **5.20** | **5.16** | **5.43** | **5.80** |
+| unique records charting per year, no airplay | 1023 | 1088 | 1170 | 1140 | 1065 |
+| **with airplay** | **906** | **1000** | **1007** | **957** | **896** |
+
+Top-40 median chart life went 8 → 10 (band 10-13) and Top-10 median 10 → 15 over the same change.
+
+**Country is now at par and needs no genre-side work.**
+
+| Country | 1960 | 1963 | 1966 | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|---:|---:|---:|
+| longevity index, no airplay | 1.08 | 1.10 | 1.19 | 1.27 | 1.07 | 1.08 |
+| **with airplay** | 1.10 | 1.13 | **1.02** | **1.08** | **0.98** | 1.17 |
+| divergence, no airplay | −0.3 | +0.4 | +2.0 | +2.2 | +0.2 | +1.3 |
+| **with airplay** | +0.6 | +1.5 | **+0.1** | **+0.3** | **−0.4** | +1.4 |
+
+### 8.2 CORRECTION: airplay did **not** improve Soul overall. It moved the problem earlier.
+
+§11.6 reported Soul's divergence improving +12.8 → +9.5 and credited airplay. That is true of 1969 and
+of no other year:
+
+| Soul divergence | 1965 | 1966 | 1967 | 1968 | 1969 | mean 66-69 |
+|---|---:|---:|---:|---:|---:|---:|
+| no airplay | +0.7 | +4.4 | +7.4 | +9.4 | +12.8 | +8.5 |
+| **with airplay** | +0.9 | +5.6 | **+11.4** | **+11.8** | +9.5 | **+9.6** |
+
+Averaged across 1966-69 it is slightly **worse**, and Soul's longevity index rose 1.23 → 1.40 at 1967.
+Soul is now both the volume problem §8 describes *and* the chart-longevity problem §8 said country
+was. Reading a single year off a genre table is what produced the wrong conclusion; read the span.
+
+### 8.3 NEW: airplay is a genre stratifier, and two genres moved badly
+
+Airplay widened the spread of the longevity index across genres (1967: 0.36-1.27 → 0.37-1.61). Some of
+that is correct — radio access *should* separate genres — but two movements are wrong:
+
+- **Gospel 1969**: longevity index 1.08 → **1.31**, divergence +1.9 → **+5.8**, now holding **13.3% of
+  1969 chart weeks**. This stacks on the §6 authoring error (`baseline1969 = 0.75`, market share
+  1.5% → 7.0%). Gospel is now the worst single genre miss in the run.
+- **PsychedelicRock 1967**: longevity index 0.99 → **1.61**, divergence −0.7 → **+1.6**. The §8 note
+  above — that psych *under*-charting is defensible for an album genre whose singles do not linger —
+  no longer describes the run. Its singles now linger 1.6x the chart average.
+
+Both are consequences of §11.4 item 4 (genre redistribution), which was anticipated but not measured
+until now. **Re-check both after the §12 sales-curve change**, since it moves every record's chart
+life and may absorb some of this on its own.
+
 ## 9. Deferred: the acclaim loop
 
 `AlbumModel.GetMaximumAchievableCohesion` is a purely exogenous year ramp. The Rubber Soul → Pet
@@ -289,10 +345,16 @@ achievable ceiling for later albums, so the escalation is earned rather than sch
 ## 10. Resume sequence
 
 1. ~~MidTier 27 → 21.~~ **Done** — §7, `d7-majorgate-decade-522-1001`, all acceptance rows pass.
-2. ~~Airplay (§11).~~ **Shipped at `e411a65`**, with two open band failures and one open
-   keep-or-revert decision — read §11.6 first.
-3. **The sales curve (§12).** The remaining constraint on chart health, and the next piece of work.
-   A demand-model change, so it carries a units check and the full label table.
+2. ~~Airplay (§11).~~ **Shipped at `e411a65`.** Keep-or-revert **resolved: keep** (§11.6.3). Two band
+   failures remain open and are one mechanism, not two — read §11.6.2.
+3. ~~Measure the sales curve (§12).~~ **Done.** The fall is the launch boost; saturation and age decay
+   are exonerated; 87.6% of records debut at their peak position. Read §12 before touching demand.
+   - **Flatten the launch window (§12.4 item 1).** The next piece of work. A demand-model change, so
+     it carries a units check and the full label table (§12.5).
+   - **Then reconsider `AIRPLAY_CONVEXITY`** (§11.6.3 / §12.4 item 2) — it is the same knob as the
+     two open band failures.
+   - **Radio → sales last** (§12.4 item 3). Genuinely inert (1.07x observed span) but not what is
+     producing the one-week #1s.
 4. **Album era weight (§6.1)** — investigate before touching Comedy or Classical keyframes. Two
    separate pieces of evidence now point at it: the Comedy market inversion, and Classical charting on
    a *singles* chart at all. `GetAlbumEraWeight` ramps from 0 at 1960, and Classical and Comedy are the
@@ -306,8 +368,9 @@ achievable ceiling for later albums, so the escalation is earned rather than sch
    authoring, or the keyframes get calibrated against a segregation level that is about to move.
 6. **The one-year lag (§5).** Decide keyframe shift vs supply response, then apply once across the
    catalog.
-7. **Per-genre authoring:** Gospel down hard, Soul down (§8 — now +9.5 rather than +12.8 after airplay,
-   but still a market problem too), Bubblegum up, Jazz flattened, Folk / Surf / Garage pulled earlier.
+7. **Per-genre authoring:** Gospel down hard (now the worst miss — §8.3, 13.3% of 1969 chart weeks),
+   Soul down (§8.2 — a longevity problem *and* a market problem, and airplay made 1967-68 worse, not
+   better), Bubblegum up, Jazz flattened, Folk / Surf / Garage pulled earlier.
    EasyListening is too low for a hi-fi era staple. Classical should be near zero on a singles chart.
 8. Re-run decade, re-check the §7 acceptance table **and** §11.7, then a holdout seed.
 
@@ -330,6 +393,10 @@ are stable; **record persistence is not**, and one defect explains all of it.
 | quality→position Pearson | — | 0.355 | 0.45-0.62, see 11.4 |
 
 Longest #1 run in the entire decade is 4 weeks.
+
+**Basis note:** the "distinct #1 records" row above is per record and comparable to history; the two
+percentage rows beneath it were computed per *run* and are not. See §11.6.1 — measure #1 tenure per
+record, from `weeks.csv` grouped by `numberOneRecordId`, never by run length.
 
 ### 11.2 Root cause: airplay contributes 0.18% of chart points
 
@@ -407,38 +474,112 @@ These four pin the problem and are the acceptance test. All need a run **without
 Plus `genre-decade-shape.csv` for the per-genre longevity index
 (`chartRecordWeeks / uniqueChartingRecords` against the chart mean) to catch item 4 above.
 
-### 11.6 SHIPPED, with two open band failures. Read this before touching airplay again.
+Four more instruments were built on 2026-07-31 and are the fastest reads available. The first three
+run on a **lean decade run** — no `records.csv` needed:
+
+| what | source | now |
+|---|---|---:|
+| **#1 tenure, per record** | `weeks.csv`, group by `numberOneRecordId`, count rows | 226 records, 54.0% one week |
+| **debut-at-peak share** | `lifecycles.csv`, `debutPosition == peakPosition` | **87.6%** |
+| **chart-wide longevity** | `genre-decade-shape.csv`, Σ`chartRecordWeeks` ÷ Σ`uniqueChartingRecords` per year | 5.05-5.80 wk |
+| **peak decomposition** | `records.csv` (needs a non-lean run) — see §12.1 | launch boost = 0.6995 of a 0.6970 fall |
+
+Do **not** compute #1 tenure by run-length over `weeks.csv`; that is the §11.6.1 error.
+
+### 11.6 SHIPPED. Read this before touching airplay again.
 
 Committed at `e411a65`. Decade reference `d7-v5verify-decade-522-1001`.
 
-| metric | no airplay | **shipped** | history / band |
+#### 11.6.1 MEASUREMENT CORRECTION: #1 *runs* were compared against a #1 *records* history
+
+The table originally published here counted **consecutive spells at #1** from `weeks.csv`
+(`numberOneRecordId` run-length) and compared them against a historical figure — 203 #1s, 27% at one
+week, 41% at 3+ — that counts **records**, summing a record's weeks at #1 across all its spells. The
+two are not the same statistic and the gap between them is not small: 43 of 226 chart-toppers return
+to #1 after being displaced, so the run-based count is 279 against a record-based 226, and every
+returning record contributes two one-week runs instead of one two-week record.
+
+Restated per record over 1960-69 (521 weeks), which is the basis history uses:
+
+| metric (per record) | no airplay | **shipped** | history 1960-69 |
 |---|---:|---:|---:|
-| #1 runs / decade | 406 | **279** | 203 |
-| holding one week | 75% | **62%** | 27% |
-| holding 3+ weeks | 3% | **18%** | 41% |
-| longest #1 run | 4 | **11** | 9 |
+| distinct #1 records | 406 | **226** | 203 |
+| holding one week | 75.1% | **54.0%** | 27% |
+| holding two weeks | 21.7% | 22.1% | ~32% |
+| holding 3+ weeks | 3.2% | **23.9%** | 41% |
+| longest run | 4 | **12** | 9 |
+| **mean weeks at #1** | 1.28 | **2.31** | **2.57** |
 | Top-40 median life | 8 | **10** | 10-13 PASS |
+| Top-10 median life | 10 | **15** | — |
 | entries/wk | 20.71 | 17.98 | 16-21 PASS |
-| Soul divergence 1969 | +12.8 | **+9.5** | see §8 |
 | breadth | 493 | 406 | 400-600 PASS |
 | **MidTier firms** | 27 | **23** | **25-40 FAIL** |
 | owner-Major 1968 | 47.2 | 48.2 | 45-52 PASS |
 | **owner-Major 1969** | 48.8 | **52.7** | **45-52 FAIL** |
 
-Large, real chart gains — one-week #1s down a fifth, 3+ week runs from 3% to 18%, the longest run from
-4 weeks to 11, Top-40 life into band, and Soul's §8 divergence improved as a side effect because radio
-access is a genuine mechanism that was missing rather than a distortion.
+On the corrected basis the airplay change is a **larger** win than first reported: distinct #1s
+406 → 226 against a 203 target, and mean tenure 1.28 → 2.31 weeks against 2.57. Note the identity —
+521 weeks ÷ 203 records = 2.57 — so *the count target and the mean-tenure target are the same
+requirement*, and it is now nearly met.
 
-**Both failures are marginal (MidTier 2 firms short, owner-Major 0.7 points over) and both are the
-exact two metrics §7 had just repaired** — the gate took MidTier 21 → 27 and owner-Major 51.4 → 48.8,
-and airplay pushed them back to 23 and 52.7. The mechanism is coherent: MidTier promotion needs 8
-recent charting records and demotion bites below 4, so any change to *which* labels chart moves the
-tier. **Do not conclude the MidTier bars want tuning** — that hypothesis was already wrong once (§7.1).
+**What remains is purely distributional, and it is a variance problem, not a level problem.** At the
+right mean we hold 54% of #1s for one week against a historical 27%, and 24% for 3+ weeks against 41%.
+The middle of the distribution (3-6 weeks) is what is missing: the tail already exists (five records at
+10 weeks, one at 12). Any fix must move roughly 55 records out of the one-week bucket **without**
+raising the mean, which already sits close to target.
 
-**The open decision is whether to keep this or revert `e411a65`.** It was committed on 52-week
-evidence before the decade run existed, which was a process error: the ladder exists because a
-52-week window cannot see cumulative breadth. The chart case for keeping it is strong; the band case
-for reverting is real but marginal.
+#### 11.6.2 The two band failures are one mechanism, and it is not marginal
+
+The failures were called marginal (MidTier 2 firms short, owner-Major 0.7 points over). The *outcome*
+is marginal; the *mechanism underneath it* is large, and it is visible in the tier composition of
+chart entries (`concentration.csv`, majorgate → v5verify):
+
+| 1969 | no airplay | shipped | |
+|---|---:|---:|---|
+| total chart entries | 1065 | 896 | −16% |
+| Independent entries | 485 | **316** | **−35%** |
+| MidTier entries | 231 | 200 | −13% |
+| Major entries | 340 | **368** | **+8%** |
+| Major share of entries | 31.9% | **41.1%** | |
+| Independent firms charting | 181 | 137 | |
+
+Airplay is a **major-label advantage amplifier**. Measured over the charting record-weeks of
+`d7-airplay5-52-1001`, airplay is **45.3% of a Major's chart points and 20.9% of an Independent's**,
+while median weekly units are near-identical across tiers (Major 8,441, Independent 7,320, MidTier
+7,173) — which is exactly what "the chart's label composition was a fixed point of a sales-only
+ranking" meant in §11.7. Median `radioHeat` is 0.525 for Majors against 0.427 for Independents, a
+1.23x gradient; `AIRPLAY_CONVEXITY = 5` turns 1.23x into ≈2.8x before the coefficient is applied.
+
+`RADIO_LABEL_WEIGHT = 0.4` makes label push roughly 40% of the pre-acceptance heat target, so **the
+exponent is applied to a variable that is substantially a label-tier signal, not a record-quality
+signal.** The `ChartSimulator.cs:68` comment already concedes the signal is "mostly generic"; what it
+does not say is which way the generic part leans.
+
+**owner-Major did not fail in 1969.** It rose in all ten years (1960 42.2 → 46.1, 1962 37.0 → 48.1,
+1966 41.0 → 47.8). The §29 shape is preserved — the slope is +6.6 points across the decade in both
+runs — but the whole line moved up ~5 points, and 1969 is simply the year already nearest the ceiling.
+Diagnosing this as a 1969 problem would be diagnosing the wrong thing.
+
+**MidTier lost firms from the top of the funnel, not the bottom.** MidTier chart entries *per firm*
+are essentially unchanged at 1969 (8.56 → 8.70), so incumbent MidTier labels are not sliding toward
+the demotion bar. What moved is the feeder: Independent entries per firm 2.68 → 2.31 on a firm count
+that itself fell 181 → 137, so far fewer Independents can reach the 8-record promotion bar. This is
+consistent with §7.1 and **again confirms the MidTier bars are not the mechanism** — the third time
+that hypothesis has failed.
+
+#### 11.6.3 Keep it — but `AIRPLAY_CONVEXITY` is provisional
+
+The open keep-or-revert decision resolves toward **keep**: the corrected table shows the chart result
+is close to history on count and mean tenure, general chart longevity rose across the board (§8.1),
+and the country divergence that opened this arc closed. Reverting returns a pure weekly-sales chart,
+which is unphysical.
+
+But `AIRPLAY_CONVEXITY = 5` was chosen to manufacture a plateau the sales curve refused to provide
+(the `ChartSimulator.cs:59-75` comment says so). §12 now shows the sales curve can be made to provide
+one directly. **Once it does, the exponent no longer has to carry the plateau, and it should come
+down — which is also what gives Independent entries, MidTier headcount and owner-Major back.** Do not
+tune the exponent against the label table before the sales curve is fixed; they are the same knob
+seen from two sides.
 
 ### 11.7 Every airplay shape moves the label table
 
@@ -485,36 +626,484 @@ Two mechanics are worth keeping from the rejected variants even though the varia
   chased. It has sat near 0.35 since that repair, which is the expected signature of position
   depending on tier and regional reach rather than mostly on intrinsic quality.
 
-## 12. NEXT: the sales curve is the remaining constraint
+## 12. THE SALES CURVE: measured. It is the launch boost, and nothing else.
 
-Every airplay lever is now pushing against the same wall. **A hit's sales fall to 65% of peak in a
-single week** — measured over the 135 records that reached #1 in `d7-tier-population-diag-156-1001`:
+The decomposition §12 previously asked for has been done, on the 99 top-10 records of
+`d7-airplay5-52-1001` (the shipped airplay configuration at 52 weeks; `records.csv` is populated
+there, and this is a within-record weekly mechanism, so the "no chart change on 52-week evidence"
+rule — which exists because a 52-week window cannot see cumulative breadth — does not bind).
+
+### 12.1 The decomposition
+
+Geometric-mean week-over-week ratio of every term in `CalculateRegionalSales`, taken across each
+record's own sales peak:
+
+| term | ratio | reading |
+|---|---:|---|
+| **observed units** | **0.6970** | the 30% fall |
+| **launch boost** | **0.6995** | **the entire fall** |
+| chart visibility | 0.8351 | enters only through the awareness odds, see below |
+| momentum | 0.9639 | |
+| **saturation / exhaustion** | **0.9821** | **1.8%** |
+| **age decay** (`DEMAND_AGE_DECAY_RATE`) | **0.9924** | **0.8%** |
+| awareness (post-odds-transform) | 0.9937 | |
+| radio heat | **1.0294** | radio is *rising* across the peak |
+| modelled product | 0.6723 | |
+| residual (stock / capacity / regional mix / jitter) | 1.0368 | |
+
+**Both suspects named in the old §12 are exonerated.** `SATURATION_POWER` contributes 1.8% of the
+fall and `DEMAND_AGE_DECAY_RATE` 0.8%. There is no audience exhaustion to speak of: **median
+saturation at the sales peak is 0.0030** — a hit has reached three-tenths of one percent of its
+potential audience. The reachable audience is not too small and is not refilling too slowly. It is
+barely touched.
+
+The whole fall is `CalculateRegionalSales` step 6:
+
+```
+weeksSinceRelease <= 1 : 2.0 + push * 2.5      (3.25 at push 0.5)
+weeksSinceRelease <= 2 : 1.5 + push * 1.0      (2.00)
+weeksSinceRelease <= 3 : 1.2 + push * 0.4      (1.40)
+otherwise              : 1.0
+```
+
+Measured `rLaunch` at the wk1→2 transition is 0.615 and at wk2→3 is 0.700, which reproduces that table
+at push ≈ 0.5 exactly.
+
+### 12.2 The real defect: there is no climb, and the plateau already exists underneath
+
+Mean weekly sales as a share of each record's own peak, top-10 records, with mean chart position:
+
+| week since release | 1 | 2 | 3 | 4 | 5 | 6 | 8 | 10 | 12 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| sales, % of own peak | 79.9 | **95.3** | 61.1 | 36.4 | 31.4 | 28.9 | 27.3 | 28.0 | 20.4 |
+| mean chart position | 6.2 | **4.5** | 7.5 | 12.9 | 17.3 | 19.9 | 20.4 | 24.8 | 34.1 |
+
+A top-10 record does **80% of its peak in week one** and enters the chart already at mean position
+6.2. Sales peak and chart peak both land at **week 2 (median)**. Decade-wide confirmation from
+`lifecycles.csv`: **87.6% of all charting records debut at their peak position** (81.5% among top-40
+peakers), and **a #1 record's median debut position is #1**. Nothing climbs.
+
+Historically a Hot 100 single entered around #70-80 and took five to eight weeks to reach its peak; no
+record debuted at #1 on the Hot 100 until 1995. The model's records are born at their peak and can
+only fall.
+
+**And the flat curve the arc has been trying to build is already there, hidden under the launch
+spike.** Two independent readings:
+
+- From week 5 to week 10 sales sit on a shelf at 27-31% of peak — barely decaying at all.
+- The eight records whose sales peak falls at week 9, outside the launch window entirely, show a
+  peak→next-week ratio of **0.966**. Their `rLaunch` is 1.000 by construction.
+
+So the demand model does not produce a spike. It produces a flat, persistent curve with a 3.25x
+launch multiplier bolted on the front. **The spike is the launch boost; remove it and a plateau is
+what is left.**
+
+### 12.3 Radio's channel into sales is inert, exactly as it was into rank
+
+The working hypothesis going into this pass was that radio's effect on *sales* is the next lever.
+Measured, it is real but nowhere near load-bearing:
 
 | | |
 |---|---:|
-| week before peak, as share of peak | 65.8% |
-| week after peak, as share of peak | 65.1% |
-| single best week, as share of the record's whole chart run | 22.4% |
+| `radioHeat` among charting records, p5 → p95 | 0.362 → 0.768 |
+| raw sales multiplier `0.75 + heat * 0.5` | 0.931 → 1.134 = **1.218x** |
+| after the geometric-mean discovery damping (`^1/3`) | **1.068x** |
+| theoretical maximum, heat 0 → 1, damped | 1.186x |
+| for scale: weekly sales spread among charting records, p5 → p95 | **6.29x** |
 
-That is a spike, not a plateau. Real 1960s hits sold at or near peak for three to five consecutive
-weeks, which is why "Hey Jude" held #1 for nine. Airplay can prop a record up for an extra week or two
-against a 35%-a-week collapse, and it now does — the longest run went 4 → 11. It cannot manufacture
-the historical distribution (27% one-week, 41% at 3+) while the underlying curve peaks once and falls.
+Radio can move a record's weekly sales by about **±3.4%** around the middle of its range and by at
+most 18.6% between the two extremes, against a 6.29x sales spread and a 3.25x launch multiplier. This
+is the same shape of defect as §11.2 — a term that exists, is wired, and cannot reach the outcome.
 
-**The suspects are `SATURATION_POWER` (0.45) and `DEMAND_AGE_DECAY_RATE` (0.91) in `ChartSimulator`**,
-plus the saturation term in `CalculateRegionalSales`. A 0.91 weekly age decay alone does not produce a
-35% drop, so most of the fall is saturation exhausting the reachable audience — which means the
-audience a record can reach is refilling too slowly, or is too small to begin with.
+The damping is deliberate and should be understood before it is touched.
+`CalculateSingleDemandStages` takes chart signal, momentum and radio as *correlated views of one
+discovery event* and uses their geometric mean rather than compounding them, then pushes the result
+through an odds transform. That was the right call for double-counting, but its consequence is that
+**no single discovery signal can move demand much** — which is why radio cannot build a record toward
+a peak even in principle. Note also the two-variable split: `radioHeat` (national) is what reaches
+sales; `radioPlay` (regional) is what reaches rank. They are different variables and only the second
+is load-bearing today.
 
-**This is a demand-model change, not a chart change.** It moves units, revenue, label economics and
-every acceptance band downstream, so it needs:
+### 12.4 What to do, in order
+
+1. **Reshape the launch window into a ramp.** The week-1/2 multiplier represents shipping, pre-order
+   and initial curiosity; that is a *floor* on early sales, not a 3.25x multiple of everything a
+   record will ever do. Flattening it is the single change that converts a spike into a plateau, and
+   it is the only change §12.1 justifies. Expect the peak to move from week 2 toward weeks 4-6 and
+   debut-at-peak to fall from 87.6%.
+2. **Then re-examine `AIRPLAY_CONVEXITY = 5`** (§11.6.3). It exists to manufacture a plateau; once the
+   demand curve supplies one, the exponent should come down, and with it the Independent-entry
+   collapse, the MidTier shortfall and the owner-Major level shift.
+3. **Only then consider making radio load-bearing on demand.** It is genuinely inert (§12.3), but it
+   is not what is producing the one-week #1s, and §11.7 warns that recomposing `radioHeat` moves the
+   demand model rather than the chart. Sequence it last so it is calibrated against a curve that has
+   already stopped spiking.
+
+Do **not** touch `SATURATION_POWER` or `DEMAND_AGE_DECAY_RATE`. They are measured at 0.982 and 0.992
+across the peak and are not carrying the fall.
+
+### 12.4a SHIPPED (uncommitted): the release ramp. Results, and four falsified hypotheses.
+
+`ChartSimulator` step 6 now multiplies conversion by `GetReleaseRampWeight` — a linear build from a
+push-widened floor (0.28 at push 0.5) to 1.0 at week 6 — times a `RELEASE_RAMP_UNIT_RENORMALIZATION`
+of 1.41. Reference probe `d7-ramp8-52-1001` (= `d7-ramp6`, 72/72 byte-identical).
+
+| target | before | **after** | history |
+|---|---:|---:|---:|
+| Single units | 100 | **99.9-100.2** | hold |
+| week-1 sales as share of peak | 83.9% | **22-28%** | 20-35% |
+| sales peak week | 2 | **8** | 3-8 |
+| debut == peak position | 87.6% | **26%** | ~0 |
+| top-10 debuts / 52wk | 89 | **2-5** | ~0.1 |
+| mean debut position | 49.4 | **73-76** | 86.8 |
+| debuts above #60 | 60.1% | **21-27%** | 2.6% |
+| mean chart life | 4.08 | **6.4-7.6** | 7.6 |
+| **mean weeks at #1** | 1.73 | **3.3-4.3** | **2.57** |
+
+The trajectory is the headline: a top-10 record now runs 23% → 39% → 48% → 58% → 72% → 87% → 93% →
+94% of peak across weeks 1-8, climbing from mean chart position 36 to 4.5, then descending off the
+chart by week 19-20. The 1.41 renormalisation was measured, not guessed, and landed within 0.2%.
+
+**Four hypotheses were tested against the residual #1-tenure overshoot and all four failed.** Recorded
+so they are not retried:
+
+1. *Challengers are scarce.* Refuted. Records within 10% of the leader's points went 1 → 2, within
+   25% went 3 → 5. The contender pool **grew**.
+2. *The ramp is too long.* Refuted. Week 5 vs week 6 moved nothing; the peak stayed at week 8 either
+   way, because the **top-ten feedback loop, not the ramp, sets the peak**.
+3. *`AIRPLAY_CONVEXITY` is holding leaders up.* Refuted. 5 → 3 left tenure at 3.47.
+4. *Per-record ramp dispersion by campaign.* Refuted. Tenure 3.71 → 3.25 while top-10 debuts went
+   2 → 6.
+
+**The actual mechanism is the volatility of the lead, not its size.** Median week-over-week change in
+the #1/#2 points gap fell **0.2497 → 0.0408-0.0496** while the gap itself only moved 1.149 → 1.07.
+Under the old spiky curves the lead was smaller than its own weekly noise, so ordering flipped almost
+every week — 77% one-week #1s, far too *much* churn. Smooth plateaus cut that noise five- to sixfold
+and ordering became persistent. The historical distribution is bimodal (27% at one week **and** 41% at
+3+), which needs a real appeal separation at the top plus enough weekly noise to displace marginal
+leaders. That noise belongs in the airplay pass, where station adds and drops were genuinely lumpy,
+not in demand.
+
+### 12.4b METHOD DEFECT: 52-week probes cannot discriminate #1 tenure
+
+`d7-ramp1` and `d7-ramp6` are the **same configuration** on different RNG streams (ramp1 was run with
+the D5/D6 probe suites, which consume draws). They score:
+
+| | ramp1 | ramp6 |
+|---|---:|---:|
+| #1s holding one week | **36%** | **7%** |
+| #1s holding 3+ weeks | **50%** | **71%** |
+| top-10 debuts | 2 | 5 |
+| mean weeks at #1 | 3.71 | 3.71 |
+
+**Every variant difference I attributed to ramp length, convexity and dispersion sat inside that
+band.** A 52-week window yields ~14 distinct #1 records; the tenure *distribution* is unresolvable
+there. Two rules follow:
+
+- Never compare a probe run carrying `--genre-market-v2-probes` / `--artist-population-lifecycle-probes`
+  against one without. Different RNG stream, not comparable.
+- What **is** stable at 52 weeks across six runs: units (99.9-100.2), mean debut (73.1-75.6), debuts
+  above #60 (20.7-26.7%), peak week (8 in every run), week-1 share (22.2-27.9%), mean tenure
+  (3.25-4.33). Those are signal. The one-week/3+ split and the top-10 debut count are not.
+
+### 12.4c OPEN: the chart's dynamic range, and the ramp made it worse
+
+Debut position is **not** set by the ramp. Making the ramp convex (progress²), which lowers weeks 2-4
+without touching the week-1 floor or the week-6 ceiling, moved mean debut only 74.9 → 74.0. That null
+result located the real cause.
+
+Median weekly units by chart position, `d7-airplay5` → `d7-ramp8`:
+
+| position | before | share of #1 | **after** | **share of #1** |
+|---|---:|---:|---:|---:|
+| #1 | 46,804 | 100% | **28,838** | 100% |
+| 6-10 | 20,652 | 44.1% | 15,018 | **52.1%** |
+| 21-40 | 10,458 | 22.3% | 8,779 | **30.4%** |
+| 61-80 | 6,318 | 13.5% | 6,137 | **21.3%** |
+| **91-100** | 5,491 | **11.7%** | 5,377 | **18.6%** |
+
+**The ramp flattened the top**: the #1's median week fell 38% (peaks are lower and broader at constant
+total units) while #91-100 barely moved, so #100 went from 11.7% to 18.6% of #1. On chart points the
+ratio is 12.9% → 16.1%. A 1960s #100 sold on the order of 1-3% of a #1 — *estimated, not sourced*, and
+a sales ratio rather than a points ratio, so it is not directly comparable to the points column.
+
+Two things this measurement rules out and one it points at:
+
+- **The live population is not the constraint.** 2,826-2,990 records are live each week and the chart
+  is the top 3-4% of them. At week 27 the population runs #1 29,829 → #100 4,718 → #200 3,262 → last
+  place 18 units. The deep tail exists.
+- **The top ten is not the problem.** #1 → #10 is 1.9x, against a plausible historical 2-3x.
+- **The #10 → #100 span is.** It is 2.8x where history looks more like 15-30x. Records ranked 10-100
+  sell far too much relative to the top ten, and #100 (4,718) sits only 1.45x above #200 (3,262) — a
+  dense near-tied band at the cutoff. That density is also why debuts jump: a record clearing the
+  cutoff with a 30-50% weekly gain vaults past dozens of near-tied records, landing at ~#75 rather
+  than ~#95, no matter how it got there.
+
+The likely levers are the chart-position floors that lift the middle of the chart —
+`effectiveAwareness` is floored at 0.4 for any top-40 record and 0.7 for any top-10 record regardless
+of merit, and `GetChartVisibilityMultiplier` gives a flat 1.0 to everything from 41-100 against
+0.40-0.95 for an uncharted record, which is a cliff at the cutoff.
+
+**Note the tension before acting:** steepening the top widens the #1/#2 gap and would make the §12.4a
+tenure persistence *worse*. History had both a steep curve and 2.57-week mean tenure, which means the
+curve must steepen from #10 downward while the top ten stays crowded and volatile.
+
+### 12.4d SHIPPED (uncommitted): the Hesbacher rank curve
+
+The authored target for the chart's dynamic range is **Hesbacher's Billboard weighting**, adapted to
+the 1960s Hot 100:
+
+    y(x) = 4139 - 4357 * x / (x + 10)
+
+It reproduces the authored tier table exactly (3,743 at #1; 1,960 at #10; 1,027 at #25; 508 at #50;
+295 at #75; 178 at #100) — a J-curve of inequality, with **#100 at 4.8% of #1**, not the 1-3% guessed
+in §12.4c. Pre-1973 Billboard polled ~110 outlets by hand (63 stations, 25 one-stops, 22 retailers),
+with a theoretical sales maximum of 1,645 points and an airplay maximum of 2,040, so rank was always a
+survey-weighted composite rather than a units count.
+
+`GetChartExposureWeight` now carries it, normalised to average 1 across the hundred slots so it
+reshapes the chart without moving total units, with `CHART_EXPOSURE_EXPONENT = 0.44` because rank
+already earns exposure through four other channels. Reference probe `d7-hesb1-52-1001`.
+
+| rank | Hesbacher target | model points | **model sales** |
+|---|---:|---:|---:|
+| 1 | 100.0% | 100.0% | 100.0% |
+| 10 | 52.3% | 40.8% | 34.8% |
+| 25 | 27.4% | 22.1% | 17.2% |
+| 50 | 13.6% | 12.4% | 9.6% |
+| 75 | 7.9% | 8.4% | 6.5% |
+| **100** | **4.8%** | 6.3% | **4.8%** |
+
+**The sales curve lands exactly on target at #100.** The points curve sits slightly above it (6.3% vs
+4.8%) because airplay compresses; that is expected and arguably correct for a composite chart. The
+model now dips *below* Hesbacher between #10 and #25, i.e. the top ten is more spread out than the
+curve wants.
+
+Side effects, against `d7-ramp8`:
+
+| | ramp only | **+ Hesbacher** | target |
+|---|---:|---:|---:|
+| Single units | 100.0 | 98.8 | hold |
+| #1 median weekly units | 28,838 | **89,962** | ~150,000 |
+| mean debut position | 74.9 | **79.9** | 86.8 |
+| debuts above #60 | 23.5% | **14.7%** | 2.6% |
+| **top-10 debuts / 52wk** | 5 | **0** | ~0.1 |
+| mean chart life | 6.50 | 8.89 | 7.6 |
+| week-1 share of peak | 27.1% | 8.1% | *retired, see §12.4e* |
+| mean weeks at #1 | 3.71 | **4.33** | 2.57 |
+
+Position feedback amplified the term well past its first-order fit — #1 weekly units went to 89,962
+against a predicted 60-80k — so `CHART_EXPOSURE_EXPONENT` should be re-derived from a run, not trusted
+at 0.44.
+
+**The tenure regression was predicted and is the §12.4c tension realised**: steepening the curve widens
+the #1/#2 gap and makes ordering more persistent still. Tenure is now the single worst-fitting metric
+in the model and it has resisted five separate levers. It needs the volatility mechanism of §12.4a,
+not another shape change.
+
+### 12.4e RESOLVED: the debut buckets win over the week-one shares
+
+The authored calibration gives both a debut-position distribution (mean #86.8; 44.2% into 91-100;
+essentially no top-ten debuts before "Hey Jude") and a week-one-share-of-peak table (#1 records at
+20-35%). **On the Hesbacher curve those cannot both hold.**
+
+A #1 peaking at 150,000 that sells 20-35% of that in week one is selling 30,000-52,500 — and Hesbacher
+puts 41,000 at rank #25 and 78,500 at rank #10. So a #1 doing 20-35% in week one *debuts around #15-30*,
+which contradicts both the stated "#1s debut frequently in the 40s-80s" and the 91-100 bucket carrying
+44.2% of all debuts.
+
+The model currently satisfies the debut table and violates the week-one table: week-one share is 8.1%,
+which on Hesbacher corresponds to about rank #73, against a measured mean debut of 79.9. **It is
+internally consistent — with the debut distribution.** The debut table is also the more precisely
+specified of the two (ten buckets with percentages, versus figures the author flagged as rough
+estimates), which is why it was favoured.
+
+**AUTHOR DECISION (2026-07-31): follow the debut buckets. They are the higher-confidence source.**
+
+So the model's behaviour here is correct as it stands, and **week-one share of peak is retired as a
+calibration target**. Do not tune against the 20-35% figures; a week-one share near 8% is the value
+consistent with a mean debut of ~87 on the Hesbacher curve, and chasing both at once is chasing a
+contradiction.
+
+The three reconciliations that would have saved the week-one table, recorded in case better data
+turns up: the shares may be measured from **chart debut** rather than from release; they may refer to
+**points rather than units** on a chart whose airplay half compresses the spread; or they may simply
+be high.
+
+### 12.4f DECADE RESULT for ramp + Hesbacher: `d7-hesb-decade-522-1001`
+
+| | v5verify | **hesb** | band / target |
+|---|---:|---:|---:|
+| Single units, decade | 1.5078B | **1.5056B (99.9%)** | hold — PASS |
+| **top-10 debuts** | 89 / 52wk | **4 / decade (0.1%)** | ~1 — PASS |
+| debut == peak | 87.6% | **27.0%** | ~0 |
+| #100 sales as % of #1 | 18.6% | **5.8%** | 4.8% |
+| #1 median weekly units | 28,838 | **70,367** | ~150,000 (level, see §12.4d) |
+| mean debut position | 49.4 | 76.6 | 86.8 |
+| breadth | 367 | 392 | 400-600 |
+| **MidTier firms 1969** | 23 | **16** | **25-40 FAIL** |
+| **owner-Major 1968** | 48.2 | **53.0** | **45-52 now FAIL** |
+| owner-Major 1969 | 52.7 | 52.9 | 45-52 FAIL |
+| chart entries 1969 | 896 | 695 | |
+| charting records | 8,048 | **5,150** | ~6,964 |
+| mean chart life | 5.92 | **9.23** | 7.48 |
+| Top-40 median life | 10 | **15** | 10-13, was in band |
+| **mean weeks at #1** | 2.31 | **3.80** | 2.57 |
+| distinct #1s | 226 | 137 | 203 |
+
+**The identity that governs all of this: `charting records x mean chart life = 52,100 slot-weeks`,**
+pinned by a hundred slots over 521 weeks. History is 6,964 x 7.48. Record count and chart life are the
+same variable and cannot be fixed independently.
+
+A prediction recorded here was wrong: tenure was expected to read *worse* than the 4.33 measured at
+1960, and it read 3.80. Per-year tenure is now **flat** (4.33 → 3.47) rather than climbing with the
+airplay era ramp, because the rank-exposure feedback now dominates that ramp.
+
+### 12.4g Two more falsified hypotheses, and the mechanism that was actually missing
+
+The first diagnosis of the tenure and chart-life overshoot was that **rank exposure sustains leaders at
+the top**, with a proposed fix of gating exposure on sales the way `RADIO_POSITION_BONUS_SALES_FLOOR`
+gates radio heat. Both halves were wrong:
+
+- **The fix is circular.** Sales are what set rank, so "still selling like a record of that rank" is
+  true of every record by construction and the gate never bites. The radio precedent only works
+  because its floor is an *absolute* 15,000 units, which cannot survive a decade of changing level.
+- **The premise is refuted by chart life per peak band.** The number-one band overshot *least*:
+
+| peak band | v5verify | hesb | ratio |
+|---|---:|---:|---:|
+| #1 | 17.67 | 20.46 | **1.16x** |
+| 2-10 | 14.29 | 19.00 | 1.33x |
+| 11-40 | 8.41 | 14.22 | 1.69x |
+| 41-70 | 4.21 | 8.55 | **2.03x** |
+| 71-100 | 1.68 | 3.20 | **1.90x** |
+
+  The excess sits at the **bottom** of the chart, and it is the release ramp rather than Hesbacher that
+  put it there: a marginal record used to spike on the 3.25x launch boost, clip the chart for a week
+  and die; it now creeps up over six weeks, loiters near #80-100 and creeps down. That is inherent to
+  having a climb at all.
+
+**What was actually missing is that the chart is a survey, not a census.** Before 1973 Billboard polled
+about 110 outlets by hand — 63 stations, 25 one-stops, 22 retailers — grading each return "very good"
+(20), "good" (15) or "fair" (5), for a theoretical maximum of 1,645 sales and 2,040 airplay points.
+Every chart this model has produced ranked on an exact continuous read of the entire live population.
+
+Sampling error is **not** demand noise: it reorders the chart without moving a unit, which is precisely
+what three simultaneous misses required. Implemented as `ChartSimulator.DrawSurveySample` — a
+mean-1 lognormal whose sigma is `1/sqrt(reporting outlets)`, with outlet count scaling from 6% to 100%
+of the panel by weekly units, capped at `SURVEY_MAX_SIGMA`. The draw is taken **once per record per
+week in `ChartManager` step 4 and cached on `RecordRuntimeData.surveySampleThisWeek`**, never inside
+`CalculateChartPoints`, because that method is re-invoked by the audit telemetry and a redraw would let
+the telemetry disagree with the ranking it reports.
+
+52-week probes, `d7-hesb1` → `d7-survey1` (cap 0.45) → `d7-survey2` (cap 0.30):
+
+| | hesb1 | survey1 | **survey2** | target |
+|---|---:|---:|---:|---:|
+| Single units | 98.8% | 98.8% | **98.8%** | unchanged — the point |
+| median lead-gap volatility | 0.0787 | 0.1538 | 0.0967 | — |
+| volatility ÷ gap | 48% | 79% | **88%** | 167% was too much churn |
+| lead changed hands | 11 | 20 | **25** | — |
+| mean chart life | 8.89 | 6.50 | **6.94** | 7.6 |
+| debuts above #60 | 14.7% | 20.4% | **17.3%** | 2.6% |
+| top-10 debuts | 0 | 0 | **0** | ~0 |
+
+**Units did not move at all across the change**, confirming the term reorders without inflating demand.
+The 0.45 cap let a record carried by a handful of outlets publish at twice its true score and vault
+onto the chart high, so it is capped at 0.30.
+
+**Do not read `no1mean`, one-week % or 3+ % off these probes** — §12.4b: ~14 #1 records per 52-week
+run, and an identical configuration scored 36% vs 7% one-week. Decade run `d7-survey-decade-522-1001`
+is the instrument for those.
+
+Known remaining cost: survey noise lowers the quality→position correlation, already at ~0.35 and
+already flagged in §11.8 as a band to restate rather than chase.
+
+### 12.4h DECADE RESULT for the survey layer: `d7-survey-decade-522-1001`
+
+| | v5verify | hesb | **survey** | target / band |
+|---|---:|---:|---:|---:|
+| Single units, decade | 1.5078B | 99.9% | **99.8%** | hold — PASS |
+| **mean chart life** | 5.92 | 9.23 | **7.53** | **7.48 — essentially exact** |
+| **charting records** | 8,048 | 5,150 | **6,337** | ~6,964 |
+| chart entries 1969 | 896 | 695 | 851 | |
+| Top-40 median life | 10 | 15 | 14 | 10-13 |
+| **#1s holding one week** | 54% | 16% | **27%** | **27% — exact** |
+| #1s holding two weeks | 22% | 18% | 20% | 32% |
+| #1s holding 3+ weeks | 24% | 66% | 53% | 41% |
+| mean weeks at #1 | 2.31 | 3.80 | 3.36 | 2.57 |
+| distinct #1s | 226 | 137 | 155 | 203 |
+| longest #1 run | 12 | 10 | 10 | 9 |
+| **breadth** | 367 | 392 | **436** | **400-600 — PASS** |
+| **MidTier firms 1969** | 23 | 16 | **10** | **25-40 FAIL, worst yet** |
+| **owner-Major 1968** | 48.2 | 53.0 | **42.7** | **45-52 FAIL, now below** |
+| **owner-Major 1969** | 52.7 | 52.9 | **49.7** | **45-52 PASS** |
+| top-10 debuts | 89/52wk | 4/decade | 9/decade | ~1 — PASS |
+| debut == peak | 87.6% | 27.0% | 36.4% | ~0 |
+| mean debut position | 49.4 | 76.6 | 74.3 | 86.8 |
+
+**The survey layer did exactly what it was built to do.** Mean chart life landed on 7.53 against a
+historical 7.48, distinct charting records recovered 5,150 → 6,337, and one-week #1s hit 27% on the
+nose — all while Single units moved 0.1%. The §12.4g slot-weeks identity is visible working in both
+directions at once.
+
+**Remaining chart misses.** The #1 distribution is now bimodal like history but mis-proportioned: too
+few two-week #1s (20% vs 32%) and too many at 3+ (53% vs 41%), so mean tenure is still 3.36 against
+2.57. Debut position moved the wrong way (76.6 → 74.3) and `debut == peak` rose 27.0% → 36.4%, both
+because noise lets a record enter above where its demand justifies. The 41-70 debut buckets carry ~26%
+against a historical 8.3%.
+
+**Curve, and a note on comparing it.** #100 reads 6.3% of #1 on sales and 8.2% on points, against 4.8%
+— flatter than the `hesb` run's 5.8%/7.7%, because survey noise blurs the ranking and regresses the
+per-rank medians toward the mean. That is not necessarily a defect: **Hesbacher's formula was fitted to
+published Billboard positions, which were themselves survey output**, so a noisy measured curve is the
+like-for-like comparison and the underlying curve is steeper than it reads.
+
+### 12.4i The two open regressions, and why they are one mechanism again
+
+**MidTier collapsed to 10 firms while breadth rose to 436.** These are the same fact. The chart is now
+spread very thin: 202 Independent firms share 498 entries at 1969, or 2.46 each, against a MidTier
+promotion bar of 8 recent charting records. Survey noise democratises chart *access* — more labels get
+a week — while making *sustained* charting rarer, so breadth enters band and the promotion feeder
+starves. This is the third distinct route to the same MidTier failure (§7.1 bars, §11.6.2 entry
+collapse, now access dilution) and it is further evidence that **the MidTier bars are not the
+mechanism**.
+
+| 1969 | v5verify | hesb | survey |
+|---|---:|---:|---:|
+| Independent entries | 485 | 359 | **498** |
+| Independent firms | 181 | 155 | **202** |
+| entries per Independent firm | 2.68 | 2.32 | **2.46** |
+| MidTier entries | 231 | 200 | 106 |
+| MidTier firms | 23 | 16 | **10** |
+| Major entries | 340 | 225 | **232** |
+
+**Soul's divergence blew out badly** — worse than any prior run:
+
+| Soul divergence | 1966 | 1967 | 1968 | 1969 |
+|---|---:|---:|---:|---:|
+| v5verify | +5.6 | +11.4 | +11.8 | +9.5 |
+| **survey** | **+11.5** | **+16.8** | **+18.3** | **+15.3** |
+
+The likely cause is that `GetChartExposureWeight` is a **genre amplifier as well as a rank amplifier**,
+because position correlates with genre acceptance: high acceptance → high radio → high rank → more
+exposure → more sales → higher rank. That is the §11.7 lesson recurring — "concentrating airplay on
+high-acceptance genres collapses MidTier" — arriving this time through chart exposure rather than
+airplay convexity. Note RnB moved the opposite way (−3.3 at 1969), which is the same signature the
+rejected cubed-product airplay variant produced.
+
+**Both regressions point at the same knob**, `CHART_EXPOSURE_EXPONENT`. Lowering it should relieve Soul
+and the MidTier dilution, at the cost of flattening a curve that already reads flatter than Hesbacher.
+That trade has not been measured and is the next thing to test.
+
+### 12.5 This is still a demand-model change
+
+Item 1 moves units, revenue, label economics and every acceptance band downstream, so it needs:
 
 1. A units and revenue check against `d7-v5verify-decade-522-1001` before anything else is read.
-2. The full label acceptance table at decade scale (§11.7 — this is now a standing requirement).
-3. The §11.5 diagnostics, which are already the right instrument: peak sharpness is the direct
-   measurement of the thing being changed.
-
-Do not start it by tuning the two constants. Measure the decomposition first — for a record at its
-sales peak, how much of the following week's fall is age decay, how much is saturation, and how much
-is stock or clearing — because a 35% drop from a 0.91 decay rate means the other terms are carrying it
-and the constants are not where the problem lives.
+   Flattening the launch window will cut gross units unless the curve is re-normalised; decide
+   deliberately whether total decade units should be held constant.
+2. The full label acceptance table at decade scale (§11.7 — standing requirement).
+3. The §11.5 diagnostics, plus the two new instruments this pass built: the peak decomposition of
+   §12.1 and the debut-vs-peak-position measure of §12.2. Debut-at-peak share is the single cheapest
+   read on whether the change worked.

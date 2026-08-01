@@ -73,6 +73,12 @@ public class RecordRuntimeData {
 	public float momentum;            // -1 to +1: Is it trending up or down?
 	public float saturation;          // 0-1: What % of potential buyers already own it?
 	public float radioHeat;           // 0-1: How much are stations playing it?
+	// This week's survey draw. Billboard did not count units before 1973 -- it polled about 110
+	// outlets by hand, so the published chart was a small, coarsely graded SAMPLE of popularity and
+	// not a census of it. Drawn once per record per week in ChartManager and stored here rather than
+	// computed inside CalculateChartPoints, because that method is called from five sites including
+	// the audit telemetry and a redraw would let the telemetry disagree with the ranking it reports.
+	public float surveySampleThisWeek = 1f;
 	public float wordOfMouth;         // 0-1: Are people talking about it?
 	
 	// === ARTIST FACTORS ===

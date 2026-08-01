@@ -891,7 +891,14 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 4: Calculate chart points ===
+		// The week's survey is drawn first and cached on each record. Billboard polled about 110
+		// outlets by hand rather than counting units, so the published score is a sample. Drawing here
+		// -- once per record, before anything reads a point total -- is what keeps the ranking, the
+		// mid-chart exit log and the audit telemetry all looking at the same numbers.
 		var chartPoints = new Dictionary<RecordRuntimeData, float>();
+		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
+			record.surveySampleThisWeek = ChartSimulator.DrawSurveySample(record.unitsThisWeek);
+		}
 		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
 			float points = ChartSimulator.CalculateChartPoints(record, allRegions);
 			if (record.unitsThisWeek == 0 && points > 0) points *= 0.1f;

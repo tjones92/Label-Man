@@ -82,10 +82,135 @@ public static class ChartSimulator {
 	private const float AIRPLAY_ERA_WEIGHT_EARLY = 0.60f;
 	private const float AIRPLAY_ERA_WEIGHT_LATE = 1.00f;
 	
+	// THE CHART IS A SURVEY, NOT A CENSUS. Before 1973 Billboard polled roughly 110 outlets by hand --
+	// 63 radio stations, 25 one-stops and 22 retailers -- and graded each return "very good" (20),
+	// "good" (15) or "fair" (5), for a theoretical maximum of 1,645 sales points and 2,040 airplay
+	// points. Every chart this model has ever produced ranked on an exact continuous read of the whole
+	// live population instead, and that is a mechanism missing rather than a constant mistuned.
+	//
+	// It matters because sampling error is NOT demand noise: it reorders the chart without moving a
+	// single unit, which is exactly what three separate misses need. Measured on
+	// d7-hesb-decade-522-1001: mean weeks at number one 3.80 against a historical 2.57, only 5,150
+	// distinct records charting against ~6,964, and a mean chart life of 9.23 weeks against 7.48. The
+	// three are not independent -- records x mean life is pinned at 52,100 slot-weeks by the hundred
+	// slots themselves -- and survey noise moves all of them together, because records near the cutoff
+	// begin to flicker in and out instead of sitting stably.
+	//
+	// The diagnosis it replaces: the first guess was that rank exposure was sustaining leaders at the
+	// top, and the fix proposed was a sales gate. Both were wrong. Chart life by peak band shows the
+	// number-one band overshooting LEAST (17.67 -> 20.46, 1.16x) and the 41-70 band overshooting most
+	// (4.21 -> 8.55, 2.03x), so the excess sits at the bottom of the chart, not the top. A sales gate
+	// keyed on "selling like a record of that rank" is also circular: sales are what set the rank, so
+	// by construction every record clears it.
+	//
+	// A record's sampling error scales with how many of the panel's outlets carry it at all, so the
+	// error is small for a smash and large for a record scraping the hundred -- the same J-curve
+	// Hesbacher describes, arriving from the measurement side.
+	private const int SURVEY_PANEL_SIZE = 110;
+	private const float SURVEY_FULL_REPORT_UNITS = 30000f;
+	private const float SURVEY_MIN_PANEL_SHARE = 0.06f;
+	private const float SURVEY_NOISE_SCALE = 1.0f;
+	// Capped well below what 1/sqrt(n) alone would give the smallest reporting records. At 0.45 a
+	// record carried by a handful of outlets could be published at twice its true score, which vaulted
+	// marginal records onto the chart far too high: debuts above #60 went 14.7% -> 20.4% against a
+	// historical 2.6%. The panel was rough about small records, not delusional about them.
+	private const float SURVEY_MAX_SIGMA = 0.30f;
+
 	private const float BASE_PURCHASE_RATE = 0.07f;
 	private const float QUALITY_EXPONENT = 4.0f;
+	// Neither of these is the sales curve's problem, and both have been measured saying so.
+	// Across the sales peak of the 99 top-10 records of d7-airplay5-52-1001, the geometric-mean
+	// week-over-week ratio was 0.9821 for saturation and 0.9924 for age decay, against an observed
+	// 0.6970. Median saturation AT the sales peak is 0.0030 -- a hit has reached three tenths of one
+	// percent of its potential audience, so there is no exhaustion to model. Do not tune these to
+	// flatten the curve; the launch term below was carrying the entire fall.
 	private const float SATURATION_POWER = 0.45f;
 	private const float DEMAND_AGE_DECAY_RATE = 0.91f;
+	// A 1960s single was not born at its peak. It shipped to a fraction of the market, earned
+	// rotation week by week, and reached full availability over roughly six weeks. That is why the
+	// average Hot 100 debut position was #86.8, why 75.7% of debuts landed in the bottom twenty, and
+	// why no record debuted inside the top ten until "Hey Jude" in 1968 -- which entered at #10,
+	// reached #3, then held #1 for nine weeks from its third week on the chart.
+	//
+	// What stood here was the exact inverse: a launch multiplier of 2.0 + push*2.5 (3.25x at a
+	// typical push) in week one, decaying to 1.0 by week four. Measured, that one term supplied a
+	// 0.6995 week-over-week ratio across the sales peak against an observed 0.6970 -- the whole 30%
+	// fall. Its consequences were a sales peak and a chart peak both at week 2, 87.6% of charting
+	// records debuting at their peak position, a #1 record whose median debut position was #1, and a
+	// debut distribution that was uniform across all ten deciles against a history concentrated
+	// 44.2% in 91-100.
+	//
+	// The plateau this arc has been trying to build was already underneath it. With the launch term
+	// divided out, latent demand for a number one runs 47/100/89/77/72/66/63/62 over its first eight
+	// weeks. Multiplying that by a ramp rather than a spike turns it into a five-week shelf at
+	// 88-100% of peak, which is what holds a record at number one for more than a single week.
+	//
+	// The floor is where a record starts, not where a weak record stays: push widens the opening
+	// shipment but cannot skip the ramp, because national distribution and radio rotation took weeks
+	// to build for anyone. At a typical push of 0.5 the floor is 0.28, which puts week-one sales at
+	// 20% of an eventual number one's peak and 29% of a top-ten record's -- inside the historical
+	// 20-35% and 25-40% bands.
+	// A single ramp length applied to every record was the first version of this, and it failed in a
+	// way worth recording: it moved every record onto the SAME schedule, so the whole chart climbed
+	// in lockstep, nobody crossed anybody, and the leader simply outlasted its challengers. Top-ten
+	// entrants halved (103 -> 59 across 52 weeks) while top-ten dwell doubled, and mean weeks at
+	// number one went to 3.5 against a historical 2.57 -- and that was measured at 1960, the year
+	// with the weakest airplay era weight, so the decade would have been worse. The number-one
+	// margin over the runner-up was 1.074, i.e. the leader was not winning by much; it was winning
+	// unopposed.
+	//
+	// Ramp length therefore varies by campaign. A national push shipped to every market at once and
+	// bought rotation immediately; a small label's record crept outward region by region on local
+	// airplay and jukebox play, which is the slow regional-to-national breakout this model already
+	// simulates elsewhere. Records now peak at different weeks, cross each other, and displace each
+	// other.
+	// KNOWN OPEN ISSUE, with three hypotheses already falsified against it. This ramp overshoots
+	// number-one tenure: 3.71 mean weeks at 1960 against a historical 2.57, and 50% of number ones
+	// holding 3+ weeks against 41%. That is measured at 1960, the weakest airplay-era-weight year,
+	// so the decade will read worse.
+	//
+	// It is NOT that challengers are scarce -- that was the first guess and the telemetry refutes it.
+	// Records within 10% of the leader's points went 1 -> 2 and within 25% went 3 -> 5, so the
+	// contender pool GREW. It is not the ramp length: 5 weeks against 6 moved nothing and the peak
+	// stayed at week 8 either way, because the top-ten feedback loop rather than the ramp is what
+	// sets the peak. It is not AIRPLAY_CONVEXITY: 5 -> 3 left tenure at 3.47.
+	//
+	// The cause is volatility, not level. The median week-over-week change in the number-one to
+	// number-two points gap fell from 0.2497 to 0.0496 while the gap itself only moved 1.149 ->
+	// 1.074. Under the old spiky curves the lead was smaller than its own weekly noise, so the
+	// ordering flipped almost every week -- 77% one-week number ones, far too MUCH churn. Smooth
+	// plateaus cut that noise five- to sixfold and ordering became persistent. The historical
+	// distribution is bimodal (27% at one week AND 41% at three or more), which needs a genuine
+	// appeal separation at the top plus enough weekly noise to displace marginal number ones.
+	// Whatever supplies that noise belongs in the airplay pass, where station adds and drops were
+	// genuinely lumpy, and not in demand.
+	//
+	// Per-record ramp dispersion by campaign was tried as a fix and rejected: it de-synchronised the
+	// pack but barely moved tenure (3.71 -> 3.25) while taking top-ten debuts from 2 to 6 across 52
+	// weeks, roughly sixty a decade against the one the Hot 100 saw before 1970.
+	private const float RELEASE_RAMP_FLOOR_BASE = 0.20f;
+	private const float RELEASE_RAMP_FLOOR_PUSH = 0.16f;
+	private const int RELEASE_RAMP_FULL_WEEK = 6;
+	// The ramp is LINEAR, and a convex one was tried and rejected. Mean debut position sits at ~75
+	// against a historical 86.8 with 22-27% of records entering above #60 against 2.6%, and raising
+	// the progress term to the power 2 -- which lowers weeks two to four without touching the
+	// week-one floor or the week-six ceiling -- moved it only 74.9 -> 74.0.
+	//
+	// That null result located the real cause. Debut position is not set by this ramp. It is set by
+	// how shallow the chart's points curve is at the bottom: #100 carries 12.9% of the number one's
+	// points where the historical Hot 100 ran nearer 1-3%, and #75 is only 21% above #100. A record
+	// climbing 30-50% a week therefore leaps twenty-five to forty positions the week it clears the
+	// cutoff, no matter how it got there. Fixing the debut distribution means steepening the chart's
+	// dynamic range, which lives in the demand spread across the population (QUALITY_EXPONENT, the
+	// label demand scales, regional reach), not here. Do not tune this ramp for it.
+	// Reshaping the curve without rescaling it costs 28.9% of Single units at first order, measured
+	// by reweighting every record-week of d7-airplay5-52-1001 by the new ramp over the old launch
+	// term. Decade Single units are an accepted result, so the ramp is renormalised to hold them.
+	// This is deliberately its own constant rather than a change to BASE_PURCHASE_RATE: it is a
+	// consequence of the shape change, and the first-order estimate ignores the awareness, momentum
+	// and chart-position feedbacks that will amplify the cut. RE-DERIVE IT from the realised units
+	// of the run that follows this change rather than trusting 1.41.
+	private const float RELEASE_RAMP_UNIT_RENORMALIZATION = 1.41f;
 	private const float LegacyMajorDemandScale = 0.60f;
 	private const float LegacyMidTierDemandScale = 0.85f;
 	
@@ -226,17 +351,16 @@ public static class ChartSimulator {
 		regionalData.breakoutVisibilityMultiplier = chartVisibility;
 		float chartSignal = Mathf.Max(.01f, chartVisibility);
 		if (!stagedLiveDemand) conversionRate *= chartVisibility;
+		// The J-curve. chartVisibility above is a five-step ladder that enters the staged model only
+		// through the geometric-mean discovery term, where a 4.5x spread is cube-rooted to 1.65x and
+		// cannot express Hesbacher at all. This carries the rank curve directly instead: it is
+		// purchase exposure -- rack space, jukebox slots, the listening booth -- rather than
+		// discovery, so it belongs on conversion and not inside the awareness odds.
+		conversionRate *= GetChartExposureWeight(internalChartPosition);
 		
-		// === 6. LAUNCH BOOST ===
-		float launchBoost = 1.0f;
-		if (record.weeksSinceRelease <= 1) {
-			launchBoost = 2.0f + (record.currentLabelPush * 2.5f);
-		} else if (record.weeksSinceRelease <= 2) {
-			launchBoost = 1.5f + (record.currentLabelPush * 1.0f);
-		} else if (record.weeksSinceRelease <= 3) {
-			launchBoost = 1.2f + (record.currentLabelPush * 0.4f);
-		}
-		conversionRate *= launchBoost;
+		// === 6. RELEASE RAMP ===
+		conversionRate *= GetReleaseRampWeight(record.weeksSinceRelease, record.currentLabelPush) *
+			RELEASE_RAMP_UNIT_RENORMALIZATION;
 		
 		// === 7. MOMENTUM BONUS ===
 		float momentumBonus = 1f + Mathf.Clamp(record.momentum, -0.2f, 0.5f);
@@ -424,6 +548,80 @@ public static class ChartSimulator {
 			_ => 0.60f
 		};
 	}
+
+	/// <summary>
+	/// The share of its eventual market a record can reach this week. Distribution breadth and radio
+	/// rotation both start near zero and build, so this rises from a push-widened floor to 1.0 and
+	/// stays there. Everything after the ramp completes is owned by age decay, saturation and the
+	/// awareness stock -- this term never causes a decline. A heavier campaign opens wider but runs
+	/// the same six weeks, because national distribution and radio rotation took weeks to build for
+	/// anyone; see the constants above for why varying the length by campaign was tried and rejected.
+	/// </summary>
+	internal static float GetReleaseRampWeight(int weeksSinceRelease, float labelPush) {
+		if (weeksSinceRelease >= RELEASE_RAMP_FULL_WEEK) return 1f;
+		float floor = RELEASE_RAMP_FLOOR_BASE + Mathf.Clamp(labelPush, 0f, 1f) * RELEASE_RAMP_FLOOR_PUSH;
+		float progress = Mathf.Clamp((weeksSinceRelease - 1f) / (RELEASE_RAMP_FULL_WEEK - 1f), 0f, 1f);
+		return Mathf.Lerp(floor, 1f, progress);
+	}
+
+	// Hesbacher's Billboard weighting, adapted to the 1960s Hot 100:
+	//
+	//     y(x) = 4139 - 4357 * x / (x + 10)
+	//
+	// the "appropriate proportion of designated popularity" a rank commands. It reproduces the
+	// authored tier table exactly -- 3,743 at #1, 1,960 at #10, 1,027 at #25, 508 at #50, 295 at #75,
+	// 178 at #100 -- and its J-curve of inequality is the shape this chart was missing. Pre-1973
+	// Billboard polled ~110 outlets by hand (63 stations, 25 one-stops, 22 retailers), so rank was
+	// always a survey-weighted composite rather than a units count, and this curve is what that
+	// composite produced.
+	//
+	// Measured against it, the model's curve was far too flat below #20: 17.4% of the number one's
+	// points at #90 against Hesbacher's 5.8%, and #100 at 16.2% against 4.8%. The cause was not a
+	// bloated tail -- #100 sells 5,377 a week against a historical ~7,200, so the bottom of the chart
+	// is about right -- but a missing top: #1 sold 28,838 against a historical ~150,000. The chart was
+	// flat because the hits were absent.
+	//
+	// NOTE ON LEVEL vs SHAPE. Summing the authored per-rank sales across all 100 ranks at #1 = 150,000
+	// needs 3.23M units a week on the chart against a total Single market of 2.85M/week, i.e. the top
+	// hundred would be 113% of everything sold. The shape is therefore implemented and the level is
+	// left to fall out of the calibrated total, which puts #1 nearer 60-80k. Raising the level is a
+	// separate decision about total market size -- 148M Singles a year is itself roughly 22% under
+	// real 1960 US volume.
+	private const float HESBACHER_INTERCEPT = 4139f;
+	private const float HESBACHER_SCALE = 4357f;
+	private const float HESBACHER_HALF_RANK = 10f;
+	// Rank already earns exposure elsewhere -- through GetChartVisibilityMultiplier, the top-10 and
+	// top-40 awareness floors, the top-20 shelf-capacity bonus and the rack-jobber channel -- so
+	// paying the raw 21x Hesbacher spread again would compound to roughly 113x between #1 and #100
+	// against the 20.8x the tier table wants. The exponent is the fitted share of the curve this term
+	// carries: 21^0.44 = 3.86, which is the extra spread needed on top of the 5.4x the demand model
+	// already produces. Position feeds back on itself, so the realised spread will exceed this
+	// first-order figure -- re-derive it from the probe rather than trusting 0.44.
+	private const float CHART_EXPOSURE_EXPONENT = 0.44f;
+
+	private static readonly float ChartExposureMean = ComputeChartExposureMean();
+
+	private static float ComputeChartExposureMean() {
+		float total = 0f;
+		for (int rank = 1; rank <= 100; rank++) total += RawChartExposure(rank);
+		return total / 100f;
+	}
+
+	private static float RawChartExposure(int position) {
+		float x = Mathf.Clamp(position, 1, 100);
+		float weight = HESBACHER_INTERCEPT - HESBACHER_SCALE * x / (x + HESBACHER_HALF_RANK);
+		float floorWeight = HESBACHER_INTERCEPT - HESBACHER_SCALE * 100f / (100f + HESBACHER_HALF_RANK);
+		return Mathf.Pow(weight / floorWeight, CHART_EXPOSURE_EXPONENT);
+	}
+
+	/// <summary>
+	/// Exposure a chart rank buys, normalised to average 1 across the hundred slots so this reshapes
+	/// the chart without moving total units. An uncharted record is treated as the bottom of the
+	/// chart rather than worse than it, because the charted/uncharted gap is already owned by
+	/// GetChartVisibilityMultiplier and must not be charged twice.
+	/// </summary>
+	internal static float GetChartExposureWeight(int position) =>
+		RawChartExposure(position <= 0 ? 100 : position) / ChartExposureMean;
 
 	private static float GetChartVisibilityMultiplier(int position) {
 		if (position <= 0) return 0.4f;
@@ -817,7 +1015,45 @@ public static class ChartSimulator {
 			}
 		}
 
-		return salesPoints + (airplayPoints * GetAirplayEraWeight(year));
+		// The published score, not the true one: surveySampleThisWeek is the week's panel draw, cached
+		// on the record so this method stays a pure function of stored state and the audit telemetry
+		// reproduces the ranking byte for byte.
+		return (salesPoints + (airplayPoints * GetAirplayEraWeight(year))) * record.surveySampleThisWeek;
+	}
+
+	/// <summary>
+	/// How many of the panel's outlets report a record at all. A national smash is stocked and played
+	/// nearly everywhere the survey reaches; a record scraping the hundred turns up in a handful of
+	/// returns, which is why its published position was so much rougher than a hit's.
+	/// </summary>
+	internal static float GetSurveyReportingOutlets(float unitsThisWeek) =>
+		SURVEY_PANEL_SIZE * Mathf.Clamp(unitsThisWeek / SURVEY_FULL_REPORT_UNITS,
+			SURVEY_MIN_PANEL_SHARE, 1f);
+
+	/// <summary>
+	/// Relative sampling error on this week's published score. Standard error of a mean falls as
+	/// 1/sqrt(n), so the panel's coarse three-grade returns are far noisier for a record only a few
+	/// outlets carry.
+	/// </summary>
+	internal static float GetSurveySigma(float unitsThisWeek) =>
+		Mathf.Min(SURVEY_MAX_SIGMA,
+			SURVEY_NOISE_SCALE / Mathf.Sqrt(Mathf.Max(1f, GetSurveyReportingOutlets(unitsThisWeek))));
+
+	/// <summary>
+	/// One week's survey draw for one record: a lognormal multiplier with a mean of exactly 1, so the
+	/// panel is unbiased and only its precision varies. Drawn once per record per week by
+	/// ChartManager and cached on the record -- never call this from CalculateChartPoints, which the
+	/// audit telemetry re-invokes and which must reproduce the ranking exactly.
+	/// </summary>
+	public static float DrawSurveySample(float unitsThisWeek) {
+		float sigma = GetSurveySigma(unitsThisWeek);
+		if (sigma <= 0f) return 1f;
+		// Box-Muller off the seeded global RNG, so the draw stays reproducible under --seed.
+		float u1 = Mathf.Max(1e-7f, (float)GD.RandRange(0.0, 1.0));
+		float u2 = (float)GD.RandRange(0.0, 1.0);
+		float standardNormal = Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(Mathf.Tau * u2);
+		// -sigma^2/2 keeps E[exp(X)] at 1, so noise reorders the chart without inflating it.
+		return Mathf.Exp(standardNormal * sigma - sigma * sigma * 0.5f);
 	}
 
 	internal static float GetAirplayEraWeight(int year) {
