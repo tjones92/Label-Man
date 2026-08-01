@@ -1235,7 +1235,11 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"68d capability and reach without a regular charting showing cannot promote");
 		// Coverage is not scale. A label that has assembled a national network but is charting
 		// only occasionally is a well-distributed small label; before section 33 this promoted.
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 7),
+		// Anchored to the bar rather than to a literal: this fixture used to hard-code 7, which was
+		// one under the old bar of 8, and silently became an assertion that a QUALIFYING label does
+		// not promote when the bar was re-derived to 5. Expressed relatively it tracks the constant.
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate,
+				LabelLifecycleManager.MidTierOrganicPromotionChartingBar - 1),
 			"68d2 national reach alone does not promote without sustained chart output behind it");
 		candidate.ownedReach = .55f;
 		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
@@ -1262,8 +1266,14 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"68h setup: the dependent-hitmaker candidate is genuinely low-reach and high-dependency");
 		Require(LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68i a distributor-dependent hitmaker with a strong chart-and-roster footprint promotes without owning national reach");
-		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 7),
+		// Anchored to the bar, not to a literal, for the same reason as 68d2: this hard-coded 7 when
+		// the dependent bar was 8. The point of the assertion is that clearing the BASE floor is not
+		// enough to take the dependent route, so it must probe one under the dependent bar.
+		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate,
+				LabelLifecycleManager.MidTierDependentPromotionChartingBar - 1),
 			"68j the dependent route needs the stronger sustained charting bar, not the base floor");
+		Require(LabelLifecycleManager.MidTierDependentPromotionChartingBar > LabelLifecycleManager.MidTierBaseChartingFloor,
+			"68j2 the dependent route's charting bar stays above the base floor it is meant to exceed");
 		candidate.roster.RemoveAt(candidate.roster.Count - 1);
 		Require(!LabelLifecycleManager.IsIndependentReadyForMidTier(candidate, 8),
 			"68k the dependent route needs the larger roster footprint as well");

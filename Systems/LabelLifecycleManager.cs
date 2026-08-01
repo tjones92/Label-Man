@@ -31,22 +31,52 @@ public partial class LabelLifecycleManager : Node {
 	private const int MidTierPromotionMinimumRoster = 6;
 	private const int MidTierPromotionMinimumRecentChartingRecords = 4;
 	private const int IndependentPromotionMinimumRecentChartingRecords = 1;
+	// THE CHART BAR MUST BE RE-DERIVED WHENEVER THE CHART'S RECORD POPULATION MOVES. At 8 this was
+	// not a hard gate, it was a closed one. Reconstructing GetRecentChartingRecordCount across
+	// d7-survey-decade-522-1001 -- distinct records released inside 52 weeks that charted at least
+	// once -- the best Independent label in the whole of 1963 and again in 1969 reached SEVEN, so no
+	// label anywhere could promote in those years:
+	//
+	//   year  Independents charting  median  p90  max  clear 5  clear 7  clear 8
+	//   1963                    108       1    4    7       10        2        0
+	//   1966                    174       1    4   11        8        1        1
+	//   1969                    200       2    4    7        7        1        0
+	//
+	// MidTier's flat 10-12 firms across the decade was therefore the launch population decaying with
+	// no replenishment, not labels failing to hold the tier: incumbents ran a median of 7-9 recent
+	// charting records against a demotion bar of 4, with 0-2 below it in any sampled year.
+	//
+	// The 8 was correct for the chart it was written against. Independent distribution had made
+	// ownedReach a free pass and MidTier flooded 28 -> 103 firms, and this bar is what stopped it.
+	// The release ramp, the Hesbacher rank curve and the survey layer then changed how many records a
+	// single label can put on a hundred-slot chart in a year, and the bar was never re-derived.
+	//
+	// At 5 the route admits 7-10 candidates a year BEFORE the reach, roster, runway, operating-months
+	// and sustained-capability gates cut it further. Those gates are deliberately untouched: they were
+	// the original flood mechanism, so leaving them in place is what proves the charting bar alone is
+	// what had closed the route.
+	//
 	// Section 28: a heavily distributor-dependent hitmaker (Stax, A&M) reached MidTier footprint on
 	// a major's P&D deal without ever building its own national network. The dependent-footprint
-	// promotion route requires a stronger sustained chart-and-roster showing than the organic route.
-	private const int MidTierPromotionDependentChartingRecords = 8;
+	// promotion route proves that footprint by roster depth instead of by owned network.
+	private const int MidTierPromotionDependentChartingRecords = 5;
 	private const int MidTierPromotionDependentRoster = 8;
 	// Coverage is not scale: a label that has assembled a national network still has to be
 	// putting records on the chart to be a large independent rather than a well-distributed
 	// small one. Same chart bar as the dependent route, which proves footprint by roster instead.
-	// A large independent that stops charting falls back. Set well below the promotion bar of 8
-	// so the tier does not oscillate across the line.
-	private const int MidTierDemotionChartingRecords = 4;
+	// A large independent that stops charting falls back. Kept below the promotion bar so the tier
+	// does not oscillate across the line -- probe 95g asserts that hysteresis band exists.
+	private const int MidTierDemotionChartingRecords = 3;
 	internal static int MidTierDemotionChartingBar => MidTierDemotionChartingRecords;
 	internal static int MidTierOrganicPromotionChartingBar => MidTierPromotionOrganicChartingRecords;
+	internal static int MidTierDependentPromotionChartingBar => MidTierPromotionDependentChartingRecords;
+	internal static int MidTierBaseChartingFloor => MidTierPromotionMinimumRecentChartingRecords;
 	private const int MidTierDemotionSustainedQuarters = 2;
 	private const float MidTierPromotionOrganicReach = 0.60f;
-	private const int MidTierPromotionOrganicChartingRecords = 8;
+	// See the note on MidTierPromotionDependentChartingRecords: both routes carried 8, which made
+	// MidTierPromotionMinimumRecentChartingRecords = 4 dead code behind them and put the gate above
+	// the population maximum of 7.
+	private const int MidTierPromotionOrganicChartingRecords = 5;
 	// Section 28: months of overhead runway a label needs before it can fund studio upgrades and
 	// keep pace with the post-1963 production-quality climb; below it, production stagnates.
 	private const float StudioUpgradeRunwayMonths = 6f;

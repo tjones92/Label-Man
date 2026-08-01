@@ -39,6 +39,15 @@ public class RecordRuntimeData {
 	public int unitsThisWeek;
 	public int unitsPreviousWeek;
 	public int totalUnitsSold;
+	// Running maximum, not the eventual peak: it equals unitsThisWeek all the way up the climb and
+	// only starts to exceed it once the record turns over, so unitsThisWeek/peakWeeklyUnits is a
+	// clean "how far past its peak is this record" signal that stays neutral during the rise.
+	//
+	// CURRENTLY HAS NO CONSUMER. It is kept deliberately: the decline-keyed radio burnout that used
+	// it was rejected on decade evidence (handoff 12.4r), and the discrete station-drop mechanic that
+	// replaces it needs exactly this signal to decide when a record has faded enough to be dropped.
+	// Maintained here rather than re-derived so the next pass starts from measured state.
+	public int peakWeeklyUnits;
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public bool revenueMemoryEligible;

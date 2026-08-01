@@ -721,6 +721,10 @@ public partial class ChartManager : Node {
 		record.radioHeat += isAlbum ? 0f : campaignImpact * 0.12f;
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 
+		// The seed is the record's first week of rotation, not its eventual rotation, so it carries
+		// the same build weight the weekly regional pass applies from here on.
+		float launchRadioBuild = ChartSimulator.GetRadioBuildWeight(record.weeksSinceRelease);
+
 		var initialStock = new Dictionary<string, int>(StringComparer.Ordinal);
 		foreach (var region in allRegions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
@@ -738,8 +742,8 @@ public partial class ChartManager : Node {
 			if (MarketSeasonality.Enabled && currentChartWeek > 0) {
 				float radioOpportunity = MarketSeasonality.GetRadioOpportunity(TimeManager.Instance?.CurrentDate.year ?? 1960,
 					TimeManager.Instance?.CurrentDate.month ?? 1, liveTick: true);
-				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio;
-			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio;
+				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio * launchRadioBuild;
+			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio * launchRadioBuild;
 			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
@@ -1490,7 +1494,11 @@ public partial class ChartManager : Node {
 					? data.genreRadioOpportunityThisWeek
 					: GenreAcceptanceService.GetRegionalRadioOpportunity(record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum);
 			}
-			float targetRegionalRadio = seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio;
+			// Stations add a record over several weeks. Without this the release ramp throttled sales
+			// to 8.7% of peak in week one while rotation arrived at full campaign strength, leaving
+			// airplay at 77.3% of a new record's chart points and debuts near #73 instead of #90.
+			float radioBuild = ChartSimulator.GetRadioBuildWeight(record.weeksSinceRelease);
+			float targetRegionalRadio = (seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio) * radioBuild;
 			// Stations phase a record out of rotation rather than dropping it, and this is the whole
 			// plateau: sales fall to 65% of peak in a single week, so airplay only holds a record up
 			// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to

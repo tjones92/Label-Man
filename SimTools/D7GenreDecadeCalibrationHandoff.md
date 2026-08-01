@@ -1096,6 +1096,246 @@ rejected cubed-product airplay variant produced.
 and the MidTier dilution, at the cost of flattening a curve that already reads flatter than Hesbacher.
 That trade has not been measured and is the next thing to test.
 
+### 12.4j MidTier: the promotion bar is above the population maximum
+
+**The Independent→MidTier route is not hard, it is arithmetically closed.** Both routes in
+`IsIndependentReadyForMidTier` require `chartingLastYear >= 8` — the organic route
+(`ownedReach >= 0.60`, low dependency, **charting >= 8**) and the dependent-footprint route
+(**charting >= 8**, roster >= 8). The base `MidTierPromotionMinimumRecentChartingRecords = 4` is dead
+code, unreachable behind either route.
+
+Reconstructing `GetRecentChartingRecordCount` (distinct records released within 52 weeks that charted
+at least once) from `d7-survey-decade-522-1001-records.csv`:
+
+| year | Independent labels charting | median | p90 | **max** | clearing 5 | clearing 6 | clearing 7 | **clearing 8** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1963 | 108 | 1 | 4 | **7** | 10 | 4 | 2 | **0** |
+| 1966 | 174 | 1 | 4 | **11** | 8 | 5 | 1 | **1** |
+| 1969 | 200 | 2 | 4 | **7** | 7 | 2 | 1 | **0** |
+
+**In 1963 and 1969 the best Independent label in the entire year reaches 7 against a bar of 8.** Zero
+labels can promote. MidTier's flat 10-12 firms across the decade is the launch population decaying with
+essentially no replenishment.
+
+The demotion side is healthy and is not the problem: MidTier incumbents run a median of 7-9 recent
+charting records against a demotion bar of 4, with 0-2 firms below it in any sampled year.
+
+**This is the fourth distinct route to the same MidTier failure and the first one that is simply a
+number set out of reach.** The bar of 8 was added when independent distribution made `ownedReach` a
+free pass and MidTier flooded 28 → 103 firms; it was correct for that chart. It was never re-derived
+after the chart's record population changed.
+
+**Recommendation:** lower `MidTierPromotionOrganicChartingRecords` and
+`MidTierPromotionDependentChartingRecords` from 8 to **5**, which admits 7-10 candidates a year before
+the reach and roster gates cut it further, and lower `MidTierDemotionChartingRecords` from 4 to **3**
+to keep the hysteresis the comment at its declaration asks for. Do not touch the reach or roster gates
+in the same change — they were the original flood mechanism and must stay in place to prove the
+charting bar alone is what reopened the route.
+
+### 12.4k Debut position: the miss is in the 11-70 bands, not the bottom
+
+Debut position by peak band, `d7-survey-decade-522-1001`:
+
+| peak band | n | median debut | mean debut | debut == peak | median life |
+|---|---:|---:|---:|---:|---:|
+| #1 | 142 | **30** | 38.2 | 0.7% | 20 |
+| 2-10 | 425 | 48 | 51.4 | 0.7% | 19 |
+| 11-40 | 1,610 | 68 | 65.2 | 8.3% | 13 |
+| **41-70** | **1,990** | **73** | **73.8** | **29.5%** | 6 |
+| 71-100 | 2,170 | **90** | 88.5 | 72.9% | 1 |
+
+**The bottom band is already correct** (median debut 90). The overall mean of 74.3 is dragged up by
+the 41-70 band — 1,990 records entering at #73 and peaking around #60, nearly a third of them at their
+peak on debut — and by the 11-40 band at #68. For the overall mean to reach 86.8 those bands have to
+enter near #85-88 and climb 20-40 places.
+
+Note the #1 band debuts at a median of #30 against the authored "frequently 40s-80s", so it is too
+high as well, just less numerous.
+
+**Recommendation: retest the convex release ramp.** `RELEASE_RAMP_CURVE` was tried and rejected in
+§12.4c because it moved mean debut only 74.9 → 74.0 — but that was measured on a **flat** chart, before
+Hesbacher. Entry happens at a median of four weeks since release, where a linear ramp already sits at
+0.71 of full availability; lowering weeks 2-5 now costs a much larger number of positions because the
+curve beneath them is steep. The null result should not be trusted across that change.
+
+### 12.4l Mean tenure: it is position stickiness, not plateau width
+
+The sales plateau is only about three weeks wide (weeks 8-10 at 90.8 / 89.0 / 84.8% of peak), so plateau
+width is **not** the explanation for 53% of #1s holding 3+ weeks against 41%. But chart position sits at
+roughly #5 across weeks 8-11 while sales fall 90.8% → 75.1%. **Position is stickier than sales.**
+
+Two candidate causes, not yet isolated:
+
+1. **`BASE_INERTIA = 0.80`** in `GetInertiaPositionCap` caps how far a record may fall in one week, so a
+   declining record occupies a high slot it no longer earns and delays challengers reaching the top. It
+   is already gated (needs `unitsThisWeek > 0`, `weeksNegative < 3`, `momentum > -0.20`), so how much it
+   actually bites is unmeasured.
+2. **Every record is on the same trajectory**, so relative order is preserved even as absolute sales
+   fall — the §12.4a lockstep problem, which survey noise reduced but did not remove.
+
+The distributional shape says the same thing: one-week #1s are already exactly on target at 27%, so
+this cannot be fixed with more survey noise, which moves the one-week and 3+ buckets together. It needs
+a lever that acts specifically on the fat 3+ tail. Measure the inertia cap's bite first.
+
+### 12.4m Analysis tooling moved to Python
+
+`Import-Csv` is unusable above ~50MB and hung outright on the 384MB decade `records.csv`, which had
+forced a hand-written streaming CSV parser with a quote state machine. Python 3.14 + pandas is now
+installed (`%LOCALAPPDATA%\Programs\Python\Python314\python.exe`; `Scripts` is not on PATH, invoke by
+full path). The analysis lives in `chart.py` with subcommands `score`, `debut`, `debut2`, `traj`,
+`inertia`, `bite`, `tail`, `lockstep`.
+
+**One measurement trap it exposed, worth not repeating:** `lifecycles.csv` only contains records that
+have **closed**, which on a 52-week run is a short-lived, low-peaking minority that debuts near the
+cutoff. It reported mean debut 85.4 where the decade run reported 74.3 for the *same configuration*.
+Debut must be measured from `records.csv` (each record's first charting week, dropping those already
+charting in run week 1) whenever runs of different lengths are compared — that is what `debut2` does.
+
+### 12.4n MidTier bar lowered 8 -> 5; two probe fixtures had rotted
+
+`MidTierPromotionOrganicChartingRecords` and `MidTierPromotionDependentChartingRecords` 8 -> 5,
+`MidTierDemotionChartingRecords` 4 -> 3, per the §12.4j measurement. The reach, roster, runway,
+operating-month and sustained-capability gates are deliberately untouched.
+
+**Two D6 fixtures failed and both were rotted, not wrong:** probes 68d2 and 68j hard-coded
+`chartingLastYear = 7`, chosen as "one under the old bar of 8". At a bar of 5 those silently inverted
+into assertions that a *qualifying* label must not promote. Both are now expressed against
+`MidTierOrganicPromotionChartingBar - 1` and `MidTierDependentPromotionChartingBar - 1` so they track
+future re-derivations, and new probe 68j2 asserts the dependent bar stays above the base floor.
+`MidTierDependentPromotionChartingBar` and `MidTierBaseChartingFloor` were exposed for this.
+
+**Lesson: a probe fixture that hard-codes a value relative to a constant is a latent failure.** The
+ladder probes 95g/95i/95j were already relational and survived the change untouched.
+
+### 12.4o Inertia does NOT hold the top of the chart. Measured.
+
+Observed falls are post-cap and cannot show the cap's bite, so the raw ranking was re-derived each week
+from published `chartPoints` and compared with the position actually assigned (`chart.py bite`):
+
+| falling from | points implied a drop of | chart delivered |
+|---|---:|---:|
+| #1 | 1 | **1** |
+| 2-10 | 2 | **2** |
+| 11-40 | 9 | **6** |
+
+Mean lift across all 52,200 charted record-weeks is **+0.00 positions**. `BASE_INERTIA = 0.80` does not
+bind at the top at all; it only slows mid-chart descent, where it inflates chart life. **It is a
+chart-life lever, not a tenure lever** — the hypothesis that it was holding #1s is refuted.
+
+Lockstep, measured on the same run (`chart.py lockstep`):
+
+| | |
+|---|---:|
+| week-to-week Spearman of top-40 order | **0.8823** (1.0 = frozen) |
+| age spread inside the top 10 | sd 3.17 weeks around a mean age of 10.5 |
+| mean weekly position change, top 40 | 6.14 places |
+| common-mode share of that movement | 0.205 |
+
+### 12.4p THE NEXT FIX: airplay is mis-phased against sales at both ends
+
+Airplay's share of a top-10 record's chart points is **U-shaped across its life** (`chart.py tail`):
+
+| week | sales as % of own peak | **airplay as % of points** |
+|---:|---:|---:|
+| 1 | 8.7% | **77.3%** |
+| 4 | 33.5% | 47.8% |
+| 8-9 (peak) | 87.7% | **37.1%** |
+| 12 | 70.9% | 45.2% |
+| 17 | 25.5% | 52.4% |
+| 20 | 8.2% | **54.3%** |
+
+**This is a regression introduced by the release ramp and it drives both remaining misses.** The ramp
+put a six-week build on *sales* and left *airplay* on its old onset — `ChartManager.cs:741` seeds
+`radioPlay` from `campaignImpact * regionStrength` with **no age term at all**. So a week-one record
+sells at 8.7% of its eventual peak while already carrying full campaign rotation, and 77% of its
+published points are airplay. That is a large part of why debuts land at #73 rather than #90, and it
+partially supersedes §12.4c/§12.4k, which attributed the debut miss entirely to curve flatness.
+
+At the other end, week 17 sales are 25% of peak while airplay is 52% of points, so published points are
+roughly double what sales justify — which is what holds records near the top after they have
+commercially died, i.e. the fat 3+ week #1 tail (53% against 41%).
+
+**Four separate mechanisms prop the tail up, and `RADIO_FATIGUE_DECAY = 0.88` fights all four on a
+fixed week-8 clock that no longer matches anything** — the sales peak is now week 9, so fatigue begins
+*before* the record peaks:
+
+- the fall lerp rate in `UpdateRadioHeat` is **0.10** (0.22 after week 12) while sales shed ~19% a week;
+- `UpdateLabelPush` pins `weekFactor` at **0.85** for any top-20 record where normal decay would be 0.1;
+- the top-10 position bonus of **+0.25**;
+- `RegionalRadioHold = 0.92` on the regional lerp.
+
+Tail-length variation is real but thin: weeks from sales peak to 40% of peak run median 7.0, sd 1.62,
+**CV 0.240**, p10 4 / p90 9; peak week median 9, sd 1.57.
+
+**Plan, in order.** (1) Give airplay a build matching the release ramp and let it decay with the
+record's commercial trajectory rather than on a fixed clock. (2) Only then add a discrete station-drop
+mechanic for tail variance — and it must **supersede** `RADIO_FATIGUE_DECAY`, not stack on it. Variance
+around a biased mean only spreads the bias, so the phase fix has to land first.
+
+**Consequence to plan for:** airplay is ~45% of chart points, so re-phasing moves every record's points.
+`CHART_EXPOSURE_EXPONENT`, the Hesbacher curve fit and the survey sigma were all calibrated against the
+current airplay shape and must be re-read afterwards. Budget two decade runs: one to land the phase fix,
+one to re-settle the curve.
+
+### 12.4q THE #1 TENURE MISS IS RETURNS, NOT RUN LENGTH
+
+Decomposing per-record tenure into **spell length** and **number of spells** settles what five levers
+failed to move:
+
+| | v5verify | survey | midtier | history |
+|---|---:|---:|---:|---:|
+| distinct #1 records | 226 | 155 | 146 | **203** |
+| #1 spells | 278 | 207 | 183 | ~213 |
+| mean **spell** length | 1.87 | 2.52 | **2.85** | **~2.45** |
+| mean **per-record** tenure | 2.31 | 3.36 | 3.57 | 2.57 |
+| **records with 2+ separate #1 spells** | **19.0%** | **28.4%** | **24.0%** | **4-5%** |
+| spells per record | 1.230 | 1.335 | 1.253 | ~1.05 |
+| spell-count distribution | — | 111x1, 37x2, 6x3, **1x4** | 111x1, 33x2, 2x3 | — |
+
+**The returns defect predates this whole arc** — `d7-v5verify` already ran 19.0%. The reshape fixed
+spell length (1.87 -> 2.85, against ~2.45) and worsened returns (19.0% -> 24-28%). So this is a
+long-standing hole that the earlier configuration masked by having runs that were far too short.
+
+The arithmetic closes exactly and gives the target: history is 203 records x 1.05 spells x 2.45 weeks
+= 521; the model is 146 x 1.253 x 2.85 = 521. **Eliminating returns alone would take distinct #1s from
+146 to about 174; reaching 203 also needs spell length to come down from 2.85 to ~2.45.** Both, and in
+that order.
+
+**An individual #1 run is already the right length.** The entire per-record overshoot is records
+*reclaiming* the top spot: a quarter of chart-toppers do, against a historical 4-5%, and one record
+took #1 in four separate spells. Historically The Twist was the only record in the decade with two
+genuinely separate runs, with a handful of others (Come See About Me, I Can't Help Myself, Day Tripper,
+The Sound of Silence) briefly displaced and returning.
+
+**"Shorten #1 runs" was therefore the wrong target and chasing it would have made the model worse.**
+This is the third time a measurement-basis error has misdirected this metric — §11.6.1 compared runs
+against records, §12.4b chased noise at 52 weeks, and now per-record tenure was read as run length.
+**Always decompose #1 tenure into spells and returns before acting on it.**
+
+Why records ping-pong: survey sigma at the top is 0.095, so the difference of two weekly draws carries
+sigma 0.134, against a median #1/#2 **log**-gap of 0.144. The measurement noise is the same size as the
+gap, so the top two trade places repeatedly. Historically a displacement was a *monotone crossing* — a
+rising record passing a falling one — and returns were rare because the trajectories genuinely diverged.
+
+**More survey noise is NOT the lever, and the arithmetic rules it out.** Reproducing history's flip rate
+of 0.389 needs a per-record sigma near 0.362 against the 0.095 applied. The survey physics do not
+support that: 110 outlets graded 20/15/5 give roughly 1.3% quantisation error once averaged, and the
+panel was **fixed** week to week, which correlates the error and reduces effective noise further. Note
+also that only ~13% of the observed week-to-week variance at the top is survey noise — the rest is
+genuine demand movement, so the chart is not noise-dominated.
+
+Two further facts worth keeping:
+
+- Observed P(lead changes) is 0.350 against the 0.389 history needs — a much smaller gap than the
+  per-record tenure figures suggested.
+- Tenure does track record size (Spearman 0.379; median peak weekly units 62,982 at one week against
+  85,711 at five-plus), which is correct — real smashes did hold for weeks. The size gradient is not
+  the defect.
+
+**The §12.4p burnout term is a direct attack on this and is already in the run.** Keying airplay to
+decline from a record's own running peak means a record past its peak sheds rotation and cannot bounce
+back. Read the return rate on `d7-phase-decade-522-1001` before adding anything further.
+
 ### 12.5 This is still a demand-model change
 
 Item 1 moves units, revenue, label economics and every acceptance band downstream, so it needs:

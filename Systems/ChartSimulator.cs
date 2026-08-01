@@ -19,6 +19,52 @@ public static class ChartSimulator {
 	private const float RADIO_QUALITY_WEIGHT = 0.7f;
 	private const float RADIO_MOMENTUM_WEIGHT = 0.25f;
 	private const float RADIO_LABEL_WEIGHT = 0.4f;
+	// AIRPLAY WAS MIS-PHASED AGAINST SALES AT BOTH ENDS OF A RECORD'S LIFE, and it was the release
+	// ramp that did it: the ramp put a six-week build on sales and left airplay on its old, faster
+	// onset. Measured on d7-survey-decade-522-1001, airplay's share of a top-ten record's chart points
+	// is U-shaped -- 77.3% in week one, bottoming at 37.1% at the week-nine sales peak, then climbing
+	// back to 54.3% by week twenty:
+	//
+	//   week            1     4     8     12    17    20
+	//   sales % peak  8.7%  33.5% 87.7% 70.9% 25.5%  8.2%
+	//   airplay % pts 77.3% 47.8% 37.1% 45.2% 52.4% 54.3%
+	//
+	// Both ends are defects. In week one a record sells 8.7% of what it eventually will while already
+	// carrying full campaign rotation, which is a large part of why debuts land near #73 instead of
+	// #90. By week seventeen sales are a quarter of peak while airplay is over half the points, so
+	// published points are roughly double what sales justify -- which is what holds records near the
+	// top after they have commercially died, and the fat 3+ week number-one tail.
+	//
+	// The build is applied to the REGIONAL rotation rather than to radioHeat, deliberately. radioHeat
+	// multiplies conversion directly in CalculateRegionalSales, so recomposing it moves the demand
+	// model rather than the chart (section 11.7). Keeping the fix on the regional pass leaves units
+	// alone -- radio's measured sales channel is only 1.07x across its observed range anyway.
+	// Measured like-for-like at 52 weeks, the build moves airplay's TIMING and not its weight: its
+	// share of a top-ten record's points falls 71.6% -> 56.2% in week one and 25.8% -> 15.2% at week
+	// six, then converges back to baseline by week ten (26.2% -> 25.3%). radioHeat is untouched
+	// (week eight 0.733 -> 0.759), which is the point -- the demand side must not move.
+	//
+	// The floor was tried at 0.50 as well. It barely reaches week one (56.2% either way, because the
+	// launch seed is swamped by the lerp toward target before the chart is computed) and it costs the
+	// named target: mean debut 81.3 -> 80.2 and debuts above #60 11.1% -> 13.3%. It does restore a
+	// little mid-life level (week six 12.5% -> 15.2%), so if that level matters later the structural
+	// fix is a faster regional lerp rather than a higher floor -- data.radioPlay = Lerp(radioPlay *
+	// 0.92, target, 0.15) settles at only 0.688 of target and closes a gap by 0.782 a week, so it
+	// takes about six weeks to catch up from any early suppression.
+	private const int RADIO_BUILD_FULL_WEEK = 6;
+	private const float RADIO_BUILD_FLOOR = 0.28f;
+	// A decline-keyed replacement for this clock was built and REJECTED on decade evidence -- see
+	// handoff section 12.4r before rebuilding it. `Lerp(0.15, 1, unitsThisWeek / peakWeeklyUnits)`
+	// looked right (neutral through the climb, biting only past the peak) but was far GENTLER than
+	// what it replaced: at week twenty it returned 0.366 where 0.88^12 gives 0.216. Airplay's share
+	// of a top-ten record's points at week twenty went 52.9% -> 64.0%, sales at week twenty went 8.4%
+	// -> 25.4% of peak, chart life 7.49 -> 8.31 and charting records 6,350 -> 5,719. It is also
+	// self-reinforcing: more airplay -> higher rank -> more exposure -> more sales -> a higher support
+	// ratio -> less burnout.
+	//
+	// A linear lerp from a floor CANNOT be both neutral during the climb and severe in the tail --
+	// reaching 0.216 at 0.254 support requires a negative floor. The successor is a discrete station
+	// drop, not a differently-shaped curve.
 	private const float RADIO_FATIGUE_DECAY = 0.88f;
 	// Being top 10 grants radio heat, and once airplay carries chart points that is positive
 	// feedback: heat grants points, points hold the position, the position grants heat. The bonus
@@ -191,18 +237,22 @@ public static class ChartSimulator {
 	private const float RELEASE_RAMP_FLOOR_BASE = 0.20f;
 	private const float RELEASE_RAMP_FLOOR_PUSH = 0.16f;
 	private const int RELEASE_RAMP_FULL_WEEK = 6;
-	// The ramp is LINEAR, and a convex one was tried and rejected. Mean debut position sits at ~75
-	// against a historical 86.8 with 22-27% of records entering above #60 against 2.6%, and raising
-	// the progress term to the power 2 -- which lowers weeks two to four without touching the
-	// week-one floor or the week-six ceiling -- moved it only 74.9 -> 74.0.
+	// The ramp is LINEAR. A convex ramp has now been tried and rejected TWICE, on opposite sides of
+	// the Hesbacher change, and the second test is the informative one. The first rejection (flat
+	// chart) moved mean debut 74.9 -> 74.0; the retest on the steep chart, where the same points
+	// shortfall should have cost far more positions, moved it 77.2 -> 76.7 and cost chart life
+	// (6.94 -> 6.01). Debut position is not a function of this ramp. Do not try it a third time.
 	//
-	// That null result located the real cause. Debut position is not set by this ramp. It is set by
-	// how shallow the chart's points curve is at the bottom: #100 carries 12.9% of the number one's
-	// points where the historical Hot 100 ran nearer 1-3%, and #75 is only 21% above #100. A record
-	// climbing 30-50% a week therefore leaps twenty-five to forty positions the week it clears the
-	// cutoff, no matter how it got there. Fixing the debut distribution means steepening the chart's
-	// dynamic range, which lives in the demand spread across the population (QUALITY_EXPONENT, the
-	// label demand scales, regional reach), not here. Do not tune this ramp for it.
+	// What debut IS a function of: the week-over-week growth rate at the moment of entry, against the
+	// density of published points around the cutoff. A record clears #100 and then passes every rank
+	// whose points its next week exceeds. Measured on d7-survey-decade-522-1001 the published curve
+	// runs #75 at 10.4% of a number one and #100 at 8.2%, a ratio of 1.27, where Hesbacher wants
+	// 295/178 = 1.66. A record growing 30-40% in its entry week therefore vaults from #100 to about
+	// #73 -- which is exactly the 41-70 band's observed median debut of #73.
+	//
+	// So the debut distribution is downstream of how steep the BOTTOM of the published curve is, and
+	// the lever for that is CHART_EXPOSURE_EXPONENT, which is currently entangled with Soul's chart
+	// divergence (section 12.4i). Sequence the Soul authoring fix first.
 	// Reshaping the curve without rescaling it costs 28.9% of Single units at first order, measured
 	// by reweighting every record-week of d7-airplay5-52-1001 by the new ramp over the old launch
 	// term. Decade Single units are an accepted result, so the ramp is renormalised to hold them.
@@ -278,6 +328,7 @@ public static class ChartSimulator {
 		record.unitsPreviousWeek = record.unitsThisWeek;
 		record.unitsThisWeek = totalSales;
 		record.totalUnitsSold += totalSales;
+		if (totalSales > record.peakWeeklyUnits) record.peakWeeklyUnits = totalSales;
 		UpdateMomentum(record);
 	}
 	
@@ -686,6 +737,18 @@ public static class ChartSimulator {
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 	}
 	
+	/// <summary>
+	/// How much of its eventual rotation a record has earned this week. Stations added a record over
+	/// several weeks rather than all at once, so this mirrors the release ramp: sales and airplay now
+	/// build on the same clock instead of airplay arriving at full strength while sales are still
+	/// throttled to a quarter of peak.
+	/// </summary>
+	internal static float GetRadioBuildWeight(int weeksSinceRelease) {
+		if (weeksSinceRelease >= RADIO_BUILD_FULL_WEEK) return 1f;
+		float progress = Mathf.Clamp((weeksSinceRelease - 1f) / (RADIO_BUILD_FULL_WEEK - 1f), 0f, 1f);
+		return Mathf.Lerp(RADIO_BUILD_FLOOR, 1f, progress);
+	}
+
 	public static float GetRadioDifficulty(MarketRegion region) {
 		// Godot Mathf lacks Log10, so we use natural Log divided by Log(10)
 		float log10 = Mathf.Log(region.media.totalRadioStations + 1) / Mathf.Log(10);
