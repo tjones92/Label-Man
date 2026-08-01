@@ -62,8 +62,28 @@ public static class GenreCatalog {
 		Add("proto-punk", Genre.ProtoPunk, GenreFamily.Rock, 1967, null, .85f, .40f, .01f,.01f,.02f,.05f,.15f,.25f,.30f);
 		Add("british-beat", Genre.BritishBeat, GenreFamily.Rock, 1963, 1967, .90f, .75f, .01f,.02f,.95f,.70f,.50f,.40f,.35f);
 		Add("british-blues", Genre.BritishBlues, GenreFamily.Rock, 1964, null, .85f, .40f, .01f,.02f,.15f,.65f,.80f,.95f,1.00f);
-		Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .40f,.50f,.55f,.50f,.48f,.45f,.42f);
-		Add("soul", Genre.Soul, GenreFamily.RhythmAndSoul, 1960, null, .75f, .80f, .20f,.55f,.75f,.85f,.90f,.90f,.90f);
+		// R&B and soul are ONE handover, not two independent curves, so they are authored together.
+		// R&B is the older trade name: in 1960 it covers everything Black radio played, and across the
+		// decade the music it named was largely renamed soul rather than replaced. Its authored curve
+		// used to RISE to 1964 and then decline only gently to .42, which left the two overlapping at
+		// full strength late-decade -- soul at 25.5% of the market in 1969 while R&B still held 6.8%,
+		// a Rhythm & Soul family over 35% once Funk is added. R&B now tapers hard from 1964 as soul
+		// takes the audience over. The handover is the point, and the FAMILY total is the constraint:
+		// section 6 puts the singles market's capacity for it at roughly 20-25%.
+		Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .40f,.50f,.52f,.42f,.36f,.28f,.20f);
+		// Soul was roughly DOUBLE what it should be. Measured across d7-drop-decade-522-1001 the old
+		// curve realised 4.9 / 8.0 / 12.5 / 19.7 / 23.7 / 26.8 / 25.5 percent of the market at
+		// 1960/62/64/66/67/68/69 against an author aim near 13% at 1967, and it took 40-45% of all
+		// chart weeks from 1967 on.
+		//
+		// This is a SHAPE change, not a flat cut. The late-decade level is defensible on its own --
+		// Aretha, Otis, Sly -- so what is wrong is that the old curve reached its plateau at 1967 and
+		// sat there, where the target keeps climbing off a much lower 1967. Note section 5: a realised
+		// peak lands about a year after the authored one, so this is deliberately still rising at 1969.
+		//
+		// First-order prediction from the measured share per unit of baseline, denominator effects
+		// included: 2.5 / 3.8 / 6.4 / 11.0 / 13.9 / 18.3 / 19.1.
+		Add("soul", Genre.Soul, GenreFamily.RhythmAndSoul, 1960, null, .75f, .80f, .10f,.25f,.36f,.43f,.47f,.55f,.62f);
 		Add("funk", Genre.Funk, GenreFamily.RhythmAndSoul, 1967, null, .80f, .70f, .02f,.05f,.10f,.25f,.40f,.55f,.70f);
 		Add("doo-wop", Genre.DooWop, GenreFamily.RhythmAndSoul, 1954, 1965, .80f, .85f, .75f,.50f,.20f,.10f,.05f,.03f,.02f);
 		Add("gospel", Genre.Gospel, GenreFamily.Gospel, 1950, null, .50f, .70f, .35f,.35f,.38f,.48f,.55f,.65f,.75f);

@@ -703,10 +703,39 @@ public static class ChartSimulator {
 	// top-40 awareness floors, the top-20 shelf-capacity bonus and the rack-jobber channel -- so
 	// paying the raw 21x Hesbacher spread again would compound to roughly 113x between #1 and #100
 	// against the 20.8x the tier table wants. The exponent is the fitted share of the curve this term
-	// carries: 21^0.44 = 3.86, which is the extra spread needed on top of the 5.4x the demand model
-	// already produces. Position feeds back on itself, so the realised spread will exceed this
-	// first-order figure -- re-derive it from the probe rather than trusting 0.44.
-	private const float CHART_EXPOSURE_EXPONENT = 0.44f;
+	// carries.
+	//
+	// A SINGLE EXPONENT COULD NOT FIT THE CURVE, because the error was two-sided. Measured on
+	// d7-drop-decade-522-1001, the published curve ran #10 at 40.9% of #1 where Hesbacher wants 52.3%
+	// -- the top ten too spread out -- and #100 at 6.9% where it wants 4.8% -- the bottom too flat.
+	// #1 -> #10 was 2.44x against 1.91x while #10 -> #100 was 5.9x against 10.9x. Raising a single
+	// exponent fixes the bottom and makes the top worse; lowering it does the reverse. This is the
+	// tension section 12.4c named and could not resolve: "the curve must steepen from #10 downward
+	// while the top ten stays crowded".
+	//
+	// Dividing the published curve by this term leaves what the rest of the model contributes, and
+	// that residual is what settles it: to reach Hesbacher, exposure has to supply 5.49x at #1 and
+	// 5.28x at #10 -- the same number. **Exposure across the top ten must be flat**, and it is a
+	// physical claim rather than a fitting trick: retail and jukebox exposure SATURATES there. A store
+	// stocked "the top ten" as a category and built one display for it, a jukebox carried the top ten,
+	// and the marginal rack facing between #1 and #9 is nothing next to the cliff between #10 and #40.
+	// Flattening it also removes a positive-feedback loop at exactly the rank where section 11.4 item 3
+	// warns about one.
+	//
+	// So the plateau sets the top and the exponent sets the bottom, and they are now independent: the
+	// published #10/#1 ratio is fixed by the residual alone at ~54%, whatever the exponent does below.
+	// First-order fit at the plateau, against a Hesbacher target of 52.3 / 27.4 / 13.6 / 7.9 / 4.8:
+	//
+	//   k=0.44  54.4 / 27.4 / 16.5 / 11.8 / 9.2      (the bottom is untouched and still far too flat)
+	//   k=0.55  54.4 / 25.5 / 14.2 /  9.6 / 7.0
+	//   k=0.62  54.4 / 24.4 / 12.9 /  8.4 / 6.0      <- shipped
+	//   k=0.69  54.4 / 23.3 / 11.8 /  7.4 / 5.0      (lands #100 but pulls #25 well under)
+	//
+	// Position feeds back on itself, so the realised spread will exceed the first-order figure --
+	// section 12.4d predicted 60-80k for the #1 and measured 89,962. Re-derive from a probe rather
+	// than trusting 0.62, which is why `SimTools/curve.py` exists.
+	private const int CHART_EXPOSURE_PLATEAU_RANK = 10;
+	private const float CHART_EXPOSURE_EXPONENT = 0.62f;
 
 	private static readonly float ChartExposureMean = ComputeChartExposureMean();
 
@@ -717,7 +746,11 @@ public static class ChartSimulator {
 	}
 
 	private static float RawChartExposure(int position) {
-		float x = Mathf.Clamp(position, 1, 100);
+		// The top ten is a category rather than a ranking, so exposure saturates across it. See the
+		// CHART_EXPOSURE_PLATEAU_RANK note: the residual arithmetic asks for 5.49x at #1 and 5.28x at
+		// #10, which is one number, and a store that builds a Top 10 display does not rebuild it when
+		// two records swap places inside it.
+		float x = Mathf.Max(Mathf.Clamp(position, 1, 100), CHART_EXPOSURE_PLATEAU_RANK);
 		float weight = HESBACHER_INTERCEPT - HESBACHER_SCALE * x / (x + HESBACHER_HALF_RANK);
 		float floorWeight = HESBACHER_INTERCEPT - HESBACHER_SCALE * 100f / (100f + HESBACHER_HALF_RANK);
 		return Mathf.Pow(weight / floorWeight, CHART_EXPOSURE_EXPONENT);

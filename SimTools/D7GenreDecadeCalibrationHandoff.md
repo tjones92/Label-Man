@@ -1,7 +1,8 @@
 # D7 genre decade calibration — live handoff
 
-Last maintained: August 1, 2026 (the discrete station drop, §12.4t, and the build-only decade control
-that reset every acceptance target, §12.4s). Branch `d7-genre-decade-calibration`, off merged `main`.
+Last maintained: August 1, 2026 (the chart-exposure top-ten plateau, the Soul/R&B handover, the MidTier
+demotion repair and the tier-transition ledger — §12.4u, all awaiting one decade run). Branch
+`d7-genre-decade-calibration`, off merged `main`.
 
 This is the working handoff for genre calibration. It supersedes
 `D7LabelChartAccessSystemicRepairHandoff.md` as the *active* document — that file remains the
@@ -33,7 +34,10 @@ Non-goals this pass: the acclaim/legitimacy loop (§9), and any further work on 
 | `d7-buildonly-decade-522-1001` | **The control for the current committed state** (`01b742a`) — airplay build, no burnout. §12.4s. Every earlier "decade" figure for the shipped state came from `d7-phase-decade`, which carried the rejected burnout, and was wrong. |
 | `d7-drop1-52-1001` | 52-week probe of the station drop. Comparable to `d7-buildonly-52-1001` (neither carries a probe suite). |
 | `d7-drop-probes-52-1001` | 52-week probe-suite run for the drop. D5 green, D6 **1-98** green. Never compare it against a run without the suites — §12.4b. |
-| `d7-drop-decade-522-1001` | **Current reference.** The discrete station drop, §12.4t. Returns 20.7% → 12.8%; two label bands and Soul pay for it. |
+| `d7-drop-decade-522-1001` | **Current decade reference.** The discrete station drop, §12.4t. Returns 20.7% → 12.8%; two label bands and Soul pay for it. |
+| `d7-shape3-52-1001` | 52-week probe of the §12.4u bundle — exposure plateau, Soul/R&B handover, MidTier demotion repair, tier ledger. **No decade run behind it yet.** |
+| `d7-shapeonly-52-1001` | The same bundle with the genre keyframes reverted. Isolates the exposure term's −0.8 units cost from the authoring's −0.2. |
+| `d7-shape3-probes-52-1001` | 52-week probe-suite run for the bundle. D5 green, D6 1-98 green. |
 
 Rejected airplay variants, all decade-run, all kept for the §11.5 comparison:
 `d7-airplay-decade-522-1001` (convexity on the whole product), `d7-heat-decade-522-1001` (earned heat
@@ -362,9 +366,12 @@ achievable ceiling for later albums, so the escalation is earned rather than sch
      one-week #1s exactly on 27%, week-20 airplay share 45.3% → 12.1%, units held at 99.8, re-add rate
      0. Costs: MidTier 1969 40 → 51 and owner-Major 1969 44.4 → 40.2 (1968 came *into* band), Soul
      ~1.5 points worse. Read §12.4s first — it is the control, and it moved every target §12.4r set.
-   - **NEXT: `CHART_EXPOSURE_EXPONENT`.** It is now the named lever for both standing failures —
-     owner-Major (§12.4t) and debut position (§12.4k/§12.4r) — and it is entangled with Soul, so
-     sequence the Soul authoring fix (item 7 below) first, exactly as §12.4r said.
+   - ~~`CHART_EXPOSURE_EXPONENT`.~~ **Superseded and built** — a single exponent could not fit the
+     curve, because the error is two-sided. The fix is a **shape** change: a plateau across the top ten
+     plus a steeper exponent below it. §12.4u.
+   - **NEXT: run `d7-shape-decade-522-1001`.** Four changes are built and validated at 52 weeks only —
+     the exposure shape, the Soul/R&B handover, the MidTier demotion repair and the tier-transition
+     ledger. **Read §12.4u before running anything**, then §12.4s and §12.4t for the controls.
 4. **Album era weight (§6.1)** — investigate before touching Comedy or Classical keyframes. Two
    separate pieces of evidence now point at it: the Comedy market inversion, and Classical charting on
    a *singles* chart at all. `GetAlbumEraWeight` ramps from 0 at 1960, and Classical and Comedy are the
@@ -1760,6 +1767,183 @@ this severity.
 - **No per-region support signal.** The roll is per market; the signal is national. With only seven
   regions a per-region ratio is a noisy read of a small number, and under a one-way latch one bad
   week would cut a market permanently.
+
+### 12.4u NEXT SESSION STARTS HERE: four changes built, validated at 52 weeks, awaiting one decade run
+
+Committed but **not decade-run**. Everything below is 52-week evidence only, which per §12.4b means the
+curve, units, debut and the transition ledger are readable and **#1 tenure, the one-week/3+ split and
+the label standing counts are not**. Reference probes `d7-shape3-52-1001` and `d7-shape3-probes-52-1001`
+(D5 green, D6 1-98 green). Control for all of it is `d7-drop1-52-1001`.
+
+**Run `d7-shape-decade-522-1001` first. Read §12.4s and §12.4t for the controls.**
+
+#### What is in the build
+
+| # | change | where | first read |
+|---|---|---|---|
+| 1 | chart exposure **plateau across the top ten** + exponent 0.44 → 0.62 | `ChartSimulator.RawChartExposure` | `SimTools/curve.py` |
+| 2 | Soul roughly halved and re-shaped; R&B tapered hard from 1964 | `Data/GenreCatalog.cs` | `SimTools/genre.py` |
+| 3 | MidTier demotion bar 3 → 4, **plus a cold-start guard** | `LabelLifecycleManager` | the ledger below |
+| 4 | **tier-transition ledger** — the ladder had no per-run telemetry at all | `ChartAuditRunner` | `<run>-label-tier-transitions.csv` |
+
+**They are entangled by design and the entanglement is bounded.** 1 and 2 both move genre share, which
+is why §12.4r asked for Soul first; the counter-argument is that 1 is measured on the rank curve and 2
+on market share, and those are separable reads. If Soul lands wrong, **the authoring is the lever, not
+the exposure shape** — do not re-derive the curve against it. 3 and 4 are separable from both.
+
+#### 1. The exposure shape. A single exponent could not fit a two-sided error.
+
+Measured on `d7-drop-decade-522-1001`, the published curve ran the top ten too *spread out* and the
+bottom too *flat*: #1→#10 was 2.44x against Hesbacher's 1.91x while #10→#100 was 5.9x against 10.9x.
+Raising one exponent fixes the bottom and worsens the top. This is the §12.4c tension, unresolved
+since.
+
+Dividing the published curve by the exposure term leaves what the rest of the model contributes, and
+that residual settles it: to reach Hesbacher, exposure must supply **5.49x at #1 and 5.28x at #10 —
+the same number**. Exposure across the top ten has to be flat. That is a physical claim, not a fitting
+trick: a store stocked "the top ten" as a category and built one display for it, a jukebox carried the
+top ten, and the marginal rack facing between #1 and #9 is nothing beside the cliff between #10 and
+#40. It also removes a positive-feedback loop at exactly the rank §11.4 item 3 warns about.
+
+**The plateau and the exponent are now independent knobs**: the published #10/#1 ratio is set by the
+residual alone, whatever the exponent does below it. Measured at 52 weeks:
+
+| | #1 | #10 | #25 | #50 | #75 | #100 |
+|---|---:|---:|---:|---:|---:|---:|
+| `d7-drop1` (k=0.44, no plateau) | 100 | 37.3 | 19.2 | 10.1 | 7.0 | 5.5 |
+| **`d7-shape3` (k=0.62 + plateau)** | 100 | **46.6** | 20.4 | 10.3 | 5.8 | **4.3** |
+| Hesbacher | 100 | 52.3 | 27.4 | 13.6 | 7.9 | 4.8 |
+
+Both ends moved the intended way; #1→#10 went 2.68x → 2.15x. Read by band rather than by single rank
+(which is what §12.4c did), the 6-10 band went 43.8% → 48.6% of #1 and 71-100 went 6.2% → 4.9%.
+
+**Do not re-fit the exponent on a 52-week run.** 1960 carries an airplay era weight of 0.60, so the
+52-week curve reads steeper than the decade: the same configuration gives #100 = 5.5 at 52 weeks and
+6.9 over the decade. Fitting the absolute here over-steepens the decade. Apply the *delta* instead —
+on that basis k=0.62 predicts roughly #10 = 46 and #100 = 5.3 at decade scale, so the bottom lands and
+the top is still short. **The remaining top-ten spread is no longer an exposure problem** (exposure is
+provably flat there now) and needs its own investigation.
+
+**Units cost −0.8, and it is the exposure, not the genre change.** Isolated with
+`d7-shapeonly-52-1001`, which carries everything except the keyframes: 99.1 → **98.3** → 98.2. The
+cause is structural rather than a mistuning — an uncharted record is deliberately paid `weight(100)`,
+and a steeper curve lowers `weight(100)/mean` from 0.561 to 0.444, so the whole uncharted population
+loses ~20% of this term. **Decision deferred to the decade run:** if decade units land below 99.0
+against `d7-v5verify`, apply a measured scalar to `GetChartExposureWeight` in the style of
+`RELEASE_RAMP_UNIT_RENORMALIZATION` (≈1.008 on the 52-week read). Not applied now, because fitting a
+level constant to a single 1960 probe is how §12.4d's 0.44 went wrong.
+
+#### 2. Soul and R&B are one handover, authored together
+
+Author aim: **~13% of the market at 1967**, against 23.7% measured. The late-decade *level* (~19%) is
+defensible on its own — Aretha, Otis, Sly — so this is a shape change: the old curve hit its plateau at
+1967 and sat there, where the target keeps climbing off a much lower 1967.
+
+| baseline keyframes | 1960 | 62 | 64 | 66 | 67 | 68 | 69 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Soul, was | .20 | .55 | .75 | .85 | .90 | .90 | .90 |
+| **Soul, now** | **.10** | **.25** | **.36** | **.43** | **.47** | **.55** | **.62** |
+| R&B, was | .40 | .50 | .55 | .50 | .48 | .45 | .42 |
+| **R&B, now** | .40 | .50 | **.52** | **.42** | **.36** | **.28** | **.20** |
+
+R&B is the older trade name for the same music, and across the decade it was renamed soul rather than
+replaced, so its curve used to *rise* to 1964 and decline only gently — leaving both at full strength
+late-decade, Soul at 25.5% of the market in 1969 with R&B still at 6.8%. The family is the constraint:
+§6 puts the singles market's capacity for Rhythm & Soul at roughly 20-25%.
+
+First-order prediction for Soul's realised market share, denominator effects included:
+**2.5 / 3.8 / 6.4 / 11.0 / 13.9 / 18.3 / 19.1**.
+
+**Measured at 1960 it lands at 1.96% against a predicted 2.5%, so the lever runs slightly hot** and the
+late-decade values may come in under target. More importantly, **the family moves together**: at 1960
+Soul 4.91 → 1.96 dragged R&B 12.61 → 10.27 and DooWop 6.30 → 4.89 *with no change to their own
+keyframes*, taking the family 23.82 → 17.11. GenreMarketV2's adjacency and donor-pressure terms couple
+them. Budget for that when reading the decade — the redistribution is family-wide, not Soul-only.
+
+**Gospel will get worse and is untouched by design.** It is already the single worst genre miss (7.9%
+of the 1969 market, 12.8% of chart weeks, `baseline1969 = 0.75` called an authoring error in §6), and
+cutting Soul frees market share that redistributes into it. It is the author's call and the next
+authoring item — see §10 item 7.
+
+#### 3 and 4. MidTier: the ledger paid for itself on the first probe
+
+The ladder had **no per-run telemetry**. The §7.2 flow table was built by hand and never re-derived, so
+every MidTier diagnosis since has been inference from standing headcounts — which is how five in a row
+were wrong. `<run>-label-tier-transitions.csv` now records each rung actually taken with the evidence
+the gate was reading: direction, from/to tier, `recentChartingRecords`, roster, owned reach,
+distribution dependency, capability, months active and both sustained-quarter counters.
+
+It caught a defect immediately. The first probe of the 3 → 4 bar fired **nineteen demotions in week 22,
+every one at exactly 3 recent charting records and 5 months of operation**:
+
+```
+22,1960,"label_0008","Atlantic Music",...,"demotion","MidTier","Independent",3,12,0.75,0,...,5,2,...
+```
+
+**`GetRecentChartingRecordCount` is a 52-week lookback, so before week 52 nobody can score against a
+full-year bar.** At week 22 the window is 42% open and a label on course for 7 charting records reads
+3. That is the launch population being guillotined by a measurement artifact, not by performance, and
+it was happening at the old bar of 3 as well — just to fewer labels. A performance exit must not fire
+before there is a performance record to read.
+
+`MidTierDemotionMinimumOperatingMonths = 12` now gates the charting exit. Result at 52 weeks:
+**19 transitions → 0, and MidTier firms charting at 1960 goes 14 → 24** against a band floor of 25.
+
+**This is a repair, not a revert.** Early-decade MidTier has been *below* band for the whole arc (16-18
+at 1960 in both §12.4s controls) and part of that was always this artifact. The bar of 4 is untouched
+and still expected to bite late-decade, where labels are mature and the guard does not apply. Probe 95g
+still holds — the hysteresis band is 5-vs-4.
+
+##### Why MidTier rises: it is a ratchet, and consolidation is not feeding it
+
+The user's question was whether the late-decade climb comes from the consolidation work. **It does
+not.** Absorptions per decade run, from `deal-ledger.csv`:
+
+| run | majorgate | v5verify | hesb | survey | midtier | phase | buildonly | **drop** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| absorptions (incl. 1970) | 13 | 8 | 10 | 13 | 12 | 14 | 19 | **15** |
+| in-decade (≤1969) | 13 | 8 | 9 | 12 | 11 | 13 | 17 | **11** |
+
+Consolidation is firing at its usual rate throughout. **A first reading of 3 was wrong — it came from
+truncated `uniq -c | head` output, not from the data.** Worth noting separately that the drop run does
+carry fewer in-decade absorptions than its control (11 against 17), which is plausible on the mechanism
+— absorption needs sustained charting dependents and the drop shortens chart runs — and is a real
+thing to watch, but it is nowhere near a lost lever.
+
+Absorption could not drive MidTier headcount in any case: probe 88 pins that an absorbed subsidiary
+**keeps operating and charting under its own name** with ownership rolled up, so it moves entries into
+owner-Major without removing a firm from the MidTier count.
+
+What actually drives it, on the evidence available before the ledger existed: the promotion inflow is
+**flat**. Reconstructing `GetRecentChartingRecordCount`, Independent labels clearing the bar of 5 run
+8/7/13/6/11/11 in the control and 10/7/10/14/13/12 in the drop run at 1960/62/64/66/68/69 — against
+standing counts of 40 and 51. The tier is monotone, 18 → 51, and nothing spikes; it is a steady ratchet
+that simply crosses the band's ceiling around 1967 while the exit barely fires. Incumbent medians fall
+6 → 4 across the decade against a bar that was 3. **The ledger is now the instrument that settles
+this** — read `direction` by year before proposing any further MidTier mechanism.
+
+#### How to read the decade run, in order
+
+1. **Units** against `d7-v5verify-decade-522-1001` (§12.5). Below 99.0 means apply the exposure
+   renormalisation; the isolation says the exposure owns it.
+2. **Curve** (`curve.py`): #10 toward 52.3% of #1 and #100 toward 4.8%. Expect ~46 / ~5.3.
+3. **Soul** (`genre.py`): market share ~13% at 1967, family total inside 20-25%. Check R&B and DooWop
+   too — the family moves as one.
+4. **Tier ledger** (`<run>-label-tier-transitions.csv`): promotions and demotions per year, and
+   whether the 3 → 4 bar bites late-decade without the cold start.
+5. **Label table** (`labels.py`): MidTier back inside 25-40 *across the decade*, not just at 1969, and
+   owner-Major — the standing failure from §12.4t, below band at 46.2 / 40.2.
+6. **Chart health** (`chart.py score`, `spells`, `drops`): returns should hold near 12.8% and the
+   re-add rate must stay 0.
+
+#### Known open risks
+
+- **Debut position will not close from this.** The shape change moved mean debut +1.0 at 52 weeks, not
+  the +8.6 the 86.8 target needs. §12.4k's finding stands: the 41-70 band enters at #77 and must enter
+  near #85-90, and that is a bigger structural matter than curve steepness.
+- **Soul's lever runs slightly hot** (1.96% at 1960 against a predicted 2.5%).
+- **Gospel is untouched and will worsen** by redistribution.
+- **Units −0.8 at 52 weeks**, decision deferred to the decade run.
 
 ### 12.5 This is still a demand-model change
 

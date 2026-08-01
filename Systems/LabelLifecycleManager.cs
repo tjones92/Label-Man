@@ -66,12 +66,30 @@ public partial class LabelLifecycleManager : Node {
 	// small one. Same chart bar as the dependent route, which proves footprint by roster instead.
 	// A large independent that stops charting falls back. Kept below the promotion bar so the tier
 	// does not oscillate across the line -- probe 95g asserts that hysteresis band exists.
-	private const int MidTierDemotionChartingRecords = 3;
+	//
+	// 3 -> 4, because MIDTIER IS A STOCK PROBLEM AND THE PROMOTION BAR IS NOT THE MECHANISM. The tier
+	// runs 18 -> 51 firms across the decade in both d7-buildonly-decade-522-1001 and
+	// d7-drop-decade-522-1001, breaching the 25-40 band from 1967 in both. Reconstructing
+	// GetRecentChartingRecordCount over each run, the number of Independent labels clearing the
+	// promotion bar of 5 is FLAT across the decade and near-identical between them -- 8/7/13/6/11/11
+	// against 10/7/10/14/13/12 at 1960/62/64/66/68/69 -- against standing counts of 40 and 51. So the
+	// inflow did not move and is not what makes the line rise; the stock ratchets because the exit
+	// barely fires, exactly as the note below this one describes.
+	//
+	// Incumbent MidTier labels' recent charting counts fall from a median of 6 in 1960 to 4 in 1969,
+	// so at a bar of 3 the median label sits one clear of the exit and almost nothing demotes. A bar
+	// of 4 puts the exit where the late-decade median actually is, which is what a performance test
+	// has to do to bind at all. The hysteresis band survives at 5-vs-4 and probe 95g still holds.
+	private const int MidTierDemotionChartingRecords = 4;
 	internal static int MidTierDemotionChartingBar => MidTierDemotionChartingRecords;
 	internal static int MidTierOrganicPromotionChartingBar => MidTierPromotionOrganicChartingRecords;
 	internal static int MidTierDependentPromotionChartingBar => MidTierPromotionDependentChartingRecords;
 	internal static int MidTierBaseChartingFloor => MidTierPromotionMinimumRecentChartingRecords;
 	private const int MidTierDemotionSustainedQuarters = 2;
+	// The charting exit is a 52-week lookback, so it is only meaningful once the label has been
+	// observable for 52 weeks. See the cold-start note in CheckForTierChange.
+	private const int MidTierDemotionMinimumOperatingMonths = 12;
+	internal static int MidTierDemotionMinimumMonths => MidTierDemotionMinimumOperatingMonths;
 	private const float MidTierPromotionOrganicReach = 0.60f;
 	// See the note on MidTierPromotionDependentChartingRecords: both routes carried 8, which made
 	// MidTierPromotionMinimumRecentChartingRecords = 4 dead code behind them and put the gate above
@@ -510,7 +528,17 @@ public partial class LabelLifecycleManager : Node {
 		// below the promotion bar (8) on purpose: demoting at the promotion bar would have demoted
 		// 39 of 53 and left the tier at 14, far under the target, and would make labels oscillate
 		// across the line. Under 4 sustained demotes 21 of 53.
-		if (label.tier == LabelTier.MidTier && chartingLastYear < MidTierDemotionChartingRecords) {
+		// COLD START. GetRecentChartingRecordCount is a 52-week lookback, so a label that has existed
+		// for less than 52 weeks cannot score against a full-year bar no matter how well it is doing:
+		// at week 22 the window is 42% open and a label on course for 7 charting records reads 3. The
+		// new tier-transition ledger caught this on the first 52-week probe of the 3 -> 4 change --
+		// nineteen MidTier labels demoted in week 22, every one of them at exactly 3 recent charting
+		// records and 5 months old, which is the launch population being guillotined by an artifact of
+		// the measurement window rather than by performance. A performance exit must not fire before
+		// there is a performance record to read.
+		bool chartingWindowOpen = label.monthsActive >= MidTierDemotionMinimumOperatingMonths;
+		if (label.tier == LabelTier.MidTier && chartingWindowOpen &&
+			chartingLastYear < MidTierDemotionChartingRecords) {
 			label.sustainedLowChartingQuarters++;
 		} else {
 			label.sustainedLowChartingQuarters = 0;

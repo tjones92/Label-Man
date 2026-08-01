@@ -190,6 +190,11 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter artistCohortAnnualWriter;
 	private StreamWriter artistProjectIdentityWriter;
 	private StreamWriter labelOperatingTargetEventWriter;
+	// The tier ladder had NO per-run ledger. The section 7.2 flow table was built by hand and never
+	// re-derived, so every MidTier hypothesis since has been inference from standing headcounts --
+	// which is how five of them in a row were wrong. This records the transition itself, with the
+	// evidence the gate was reading at the moment it fired.
+	private StreamWriter labelTierTransitionWriter;
 	private StreamWriter runtimeLabelProfileWriter;
 	private StreamWriter dailyTalentMarketWriter;
 	private StreamWriter dailyTalentAppointmentWriter;
@@ -347,6 +352,8 @@ public partial class ChartAuditRunner : Node {
 			if (ArtistPopulationLifecycle.Enabled && LabelLifecycleManager.Instance != null) {
 				LabelLifecycleManager.Instance.OnOperatingRosterTargetChanged += WriteOperatingRosterTargetEvent;
 				LabelLifecycleManager.Instance.OnRuntimeLabelProfileInitialized += WriteRuntimeLabelProfile;
+				LabelLifecycleManager.Instance.OnLabelPromoted += WriteLabelPromotion;
+				LabelLifecycleManager.Instance.OnLabelDemoted += WriteLabelDemotion;
 			}
 			if (ArtistPopulationLifecycle.Enabled && RosterManager.Instance != null) {
 				RosterManager.Instance.OnDailyTalentMarketCleared += WriteDailyTalentMarket;
@@ -1001,6 +1008,7 @@ public partial class ChartAuditRunner : Node {
 			artistCohortAnnualWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-cohort-annual.csv"));
 			artistProjectIdentityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-project-identity.csv"));
 			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
+			labelTierTransitionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-tier-transitions.csv"));
 			runtimeLabelProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-runtime-label-profiles.csv"));
 			firstChartEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-first-chart-events.csv"));
 			distributionOfferAttemptWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-distribution-offer-attempts.csv"));
@@ -1078,6 +1086,7 @@ public partial class ChartAuditRunner : Node {
 		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
 		labelScoutingVacancyWriter?.WriteLine("week,year,labelId,labelTier,isActiveLabel,maxRosterSize,operatingRosterTarget,operatingRosterTargetSource,labelOrigin,runtimeBirthWeek,runtimeBirthDate,operatingTargetReason,organicGrowthCount,lastOrganicGrowthWeek,lastOrganicGrowthBlockingReason,rosterSize,unusedRosterSlots,unusedOperatingRosterSlots,isEmptyRoster,consecutiveVacancyWeeks,consecutiveEmptyWeeks,scoutingAbility,rosterFullness,hasRecentHit,recentHitFactor,decliningArtistCount,decliningFactor,estimatedAdvance,canAffordEstimatedAdvance,computedScoutProbability,scoutRandomRoll,scoutingGatePassed,eligibleCandidateCount,discoveryPoolCount,bestCandidateScore,neverSignedSlateCount,qualifyingNeverSignedCount,bestNeverSignedScore,thirdPlusPerformanceComebackCount,overallBestContractSequence,freshPreferenceApplied,repeatComebackDeferred,freshPreferenceFallbackReason,signingAttempted,signingSucceeded,signingKind,failureReason,scoutingRosterSize,scoutingUnusedRosterSlots,scoutingUnusedOperatingRosterSlots,scoutingIsEmptyRoster,releaseEligibleArtistCount,requiredReleaseLanes,headcountDeficit,releaseLaneDeficit,serviceDeficit,serviceDeficitAge,serviceMode,scoutingGateBypassed,freshLaneCount,experiencedLaneCount,freshDiscoveryScope,bestFreshPotentialScore,bestExperiencedProductionScore,selectedLane,recoveryThresholdFallbackUsed,recoveryFailureReason");
 		labelOperatingTargetEventWriter?.WriteLine("week,date,labelId,labelOrigin,birthWeek,birthDate,reason,priorTarget,newTarget,hardCapacity,organicGrowthCount,weeksSincePriorOrganicIncrease,eligibilityResult,blockingReason,status,tier,rosterSize,releaseEligibleCount,recentChartingCount,recentReleaseCount,lastMonthlyProfit,consecutiveLossMonths,cashReserves,monthlyOverhead,runwayMonths");
+		labelTierTransitionWriter?.WriteLine("week,year,labelId,labelName,archetype,direction,fromTier,toTier,recentChartingRecords,rosterSize,ownedReach,distributionDependency,capability,monthsActive,sustainedLowChartingQuarters,sustainedLowCapabilityQuarters,consecutiveLossMonths,cashReserves");
 		runtimeLabelProfileWriter?.WriteLine("seed,birthWeek,birthDate,labelId,labelName,birthTier,archetype,headquartersCity,homeRegion,homeCityId,homeCityAssignmentSource,preferredGenres,secondaryGenres,budgetLevel,scoutingAbility,productionQuality,marketingPower,ownedReach,nationalReach,riskTolerance,artistLoyalty,payolaWillingness,releasesPerMonth,cashReserves,reputation,marketShare,debtLevel,foundedYear,monthsActive,totalReleases,top40Hits,numberOneHits,maxRosterSize,operatingRosterTarget,profileVersion");
 		dailyTalentMarketWriter?.WriteLine("date,chartWeek,eligibleVacancies,dueLabels,supplySnapshotCount,freshSupplySnapshotCount,experiencedSupplySnapshotCount,nominations,uniqueNominatedArtists,collisionArtists,collisionOffers,acceptedOffers,collisionLosers,invalidatedBeforeCommit");
 		dailyTalentAppointmentWriter?.WriteLine("date,chartWeek,labelId,labelOrigin,labelTier,vacancyGeneration,vacancyOpenedDate,scheduledScoutingDate,actualScoutingDate,appointmentOrdinal,serviceMode,freshLaneCount,experiencedLaneCount,selectedArtistId,selectedLane,offerOutcome,collisionOfferCount,winnerLabelId,artistChoiceUtility,genreUtility,localityUtility,royaltyUtility,advanceUtility,reputationUtility,reachUtility,rosterOpportunityUtility,affinityUtility,nextScoutingDate");
@@ -2185,6 +2194,41 @@ public partial class ChartAuditRunner : Node {
 			Csv(label.status.ToString()), Csv(label.tier.ToString()), label.CurrentRosterSize.ToString(CultureInfo.InvariantCulture), label.CountArtistsEligibleForRelease(targetEvent.Date.year).ToString(CultureInfo.InvariantCulture),
 			targetEvent.RecentChartingCount.ToString(CultureInfo.InvariantCulture), targetEvent.RecentReleaseCount.ToString(CultureInfo.InvariantCulture),
 			F(label.lastMonthlyProfit), label.consecutiveLossMonths.ToString(CultureInfo.InvariantCulture), F(label.cashReserves), F(overhead), F(overhead > 0f ? label.cashReserves / overhead : 0f)
+		}));
+	}
+
+	private void WriteLabelPromotion(AILabel label, LabelTier fromTier, LabelTier toTier) =>
+		WriteLabelTierTransition("promotion", label, fromTier, toTier);
+
+	private void WriteLabelDemotion(AILabel label, LabelTier fromTier, LabelTier toTier) =>
+		WriteLabelTierTransition("demotion", label, fromTier, toTier);
+
+	/// <summary>
+	/// One row per rung of the ladder actually taken, carrying the evidence the gate was reading.
+	/// Standing headcounts cannot separate a tier that fills from one that stops emptying, and that
+	/// ambiguity is what made five successive MidTier diagnoses wrong -- section 12.4j, 12.4i, 11.6.2,
+	/// 7.1 and 12.4t all reasoned about a stock without ever seeing the flow.
+	///
+	/// Note the tier field is ALREADY the new one when this fires, so the transition is recorded from
+	/// the arguments rather than from the label. recentChartingRecords is re-read here rather than
+	/// threaded through the event: it is the same call the gate made, in the same week, and it does
+	/// not depend on tier.
+	/// </summary>
+	private void WriteLabelTierTransition(string direction, AILabel label, LabelTier fromTier, LabelTier toTier) {
+		if (labelTierTransitionWriter == null || label == null) return;
+		labelTierTransitionWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture),
+			(TimeManager.Instance?.CurrentDate.year ?? 1960).ToString(CultureInfo.InvariantCulture),
+			Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
+			Csv(direction), Csv(fromTier.ToString()), Csv(toTier.ToString()),
+			(CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId) ?? 0).ToString(CultureInfo.InvariantCulture),
+			label.CurrentRosterSize.ToString(CultureInfo.InvariantCulture),
+			F(label.ownedReach), F(label.DistributionDependency), F(label.CalculateCapabilityScore()),
+			label.monthsActive.ToString(CultureInfo.InvariantCulture),
+			label.sustainedLowChartingQuarters.ToString(CultureInfo.InvariantCulture),
+			label.sustainedLowCapabilityQuarters.ToString(CultureInfo.InvariantCulture),
+			label.consecutiveLossMonths.ToString(CultureInfo.InvariantCulture),
+			F(label.cashReserves)
 		}));
 	}
 
@@ -3480,6 +3524,7 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter?.Dispose();
 		artistProjectIdentityWriter?.Dispose();
 		labelOperatingTargetEventWriter?.Dispose();
+		labelTierTransitionWriter?.Dispose();
 		runtimeLabelProfileWriter?.Dispose();
 		dailyTalentMarketWriter?.Dispose();
 		dailyTalentAppointmentWriter?.Dispose();
@@ -3553,6 +3598,7 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter = null;
 		artistProjectIdentityWriter = null;
 		labelOperatingTargetEventWriter = null;
+		labelTierTransitionWriter = null;
 		runtimeLabelProfileWriter = null;
 		dailyTalentMarketWriter = null;
 		dailyTalentAppointmentWriter = null;
