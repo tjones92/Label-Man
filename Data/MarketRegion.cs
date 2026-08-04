@@ -95,9 +95,67 @@ public partial class MarketRegion : Resource {
 			}
 		}
 		
-		currentIntegration = integrationLevel;
+		currentIntegration = GetEraIntegration(startYear);
 		currentProgressivism = culturalProgressivism;
 		segmentCapacities = SegmentCapacityModel.Create(this, startYear);
+	}
+
+	// --- Integration era curve -------------------------------------------------
+	// The record market integrated across the 1960s: R&B and soul crossed steadily
+	// from segregated race-record channels into white AM radio and retail.
+	// currentIntegration was assigned once from the authored 1960 integrationLevel
+	// and re-frozen to it every year by ChartManager.OnYearChanged, holding the
+	// white-audience access term in GetSegregationFactor, the Soul/RnB growth term
+	// in GetYearEvolution, the V2 MainstreamAM regional factor and the UrbanRnB
+	// segment share flat for the whole decade. It now ramps from the authored 1960
+	// anchor toward fuller integration, closing IntegrationEraGapClose of the
+	// remaining gap to full white access by 1969.
+	//
+	// The ramp is deliberately NOT linear: it steps up at the civil-rights
+	// inflection points that actually opened white radio and retail to black music,
+	// rather than tracking any genre's authored acceptance curve. The two largest
+	// jumps are 1964 (the Civil Rights Act's public-accommodation desegregation) and
+	// 1967 (the soul explosion / Loving v. Virginia / the Stax-Atlantic peak); 1965
+	// (Voting Rights Act) and 1968 (Fair Housing Act) carry smaller steps. 1960 is
+	// exactly 0, so every integration-gated quantity is unchanged at the decade's
+	// start and a 1960-only run is byte-identical to the frozen behaviour; 1969 is
+	// the full ramp, so the endpoints match a straight line and only the shape
+	// differs. GapClose is the magnitude knob: raising it lifts late-decade Soul/
+	// RnB/Gospel reach in white markets, which the genre keyframes are authored
+	// against.
+	public const float IntegrationEraGapClose = 0.45f;
+
+	// Fraction of the decade's total crossover realised by each year. Sampled at
+	// integer years by OnYearChanged; the lerp only smooths off-keyframe queries.
+	private static readonly (float Year, float Progress)[] IntegrationProgressCurve = {
+		(1960f, 0.00f), (1961f, 0.04f), (1962f, 0.08f), (1963f, 0.16f),
+		(1964f, 0.38f), (1965f, 0.52f), (1966f, 0.62f), (1967f, 0.80f),
+		(1968f, 0.90f), (1969f, 1.00f),
+	};
+
+	private static float IntegrationProgress(float year) {
+		var curve = IntegrationProgressCurve;
+		if (year <= curve[0].Year) return curve[0].Progress;
+		if (year >= curve[^1].Year) return curve[^1].Progress;
+		for (int i = 1; i < curve.Length; i++) {
+			if (year <= curve[i].Year) {
+				float t = (year - curve[i - 1].Year) / (curve[i].Year - curve[i - 1].Year);
+				return Mathf.Lerp(curve[i - 1].Progress, curve[i].Progress, t);
+			}
+		}
+		return curve[^1].Progress;
+	}
+
+	/// <summary>
+	/// White-audience integration for the given year, ramped from the authored 1960
+	/// <see cref="integrationLevel"/> anchor toward fuller access along the
+	/// civil-rights progress curve. Low-integration regions converge fastest in
+	/// absolute terms (the gap to full access is larger there), matching the
+	/// federally-forced Southern catch-up.
+	/// </summary>
+	public float GetEraIntegration(float year) {
+		return Mathf.Clamp(
+			integrationLevel + (1f - integrationLevel) * IntegrationProgress(year) * IntegrationEraGapClose, 0f, 1f);
 	}
 	
 	public float GetGenreMarketSize(Genre genre, int year) {

@@ -179,6 +179,9 @@ public partial class ChartAuditRunner : Node {
 	private int genreShapeYear;
 	private readonly Dictionary<Genre, GenreShapeYearState> genreShapeByYear = new();
 	private readonly HashSet<string> genreShapeSeenRecordIds = new(StringComparer.Ordinal);
+	private StreamWriter yearEndHot100Writer;
+	private int yearEndHot100Year;
+	private readonly Dictionary<string, YearEndHot100RecordState> yearEndHot100ByRecord = new(StringComparer.Ordinal);
 	private StreamWriter genreEventsWriter;
 	private StreamWriter specialProductsWriter;
 	// Enabled-only: absent from disabled runs so the frozen 45-stream boundary is unchanged.
@@ -394,6 +397,7 @@ public partial class ChartAuditRunner : Node {
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
 			WriteGenreShapeYear();
+			WriteYearEndHot100Year();
 			WriteMarketRevenueYear();
 			WriteAnnualFormatMixRows();
 			WriteDecadeAnnualYear();
@@ -950,6 +954,7 @@ public partial class ChartAuditRunner : Node {
 		releaseStrategyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-strategy.csv"));
 		traditionalPopFallbackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-traditional-pop-fallbacks.csv"));
 		genreShapeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-genre-decade-shape.csv"));
+		yearEndHot100Writer = CreateWriter(Path.Combine(outputDirectory, $"{runName}-year-end-hot100.csv"));
 		releaseOutcomeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-outcomes.csv"));
 		if (GenreMarketV2.Enabled) {
 			singleReleaseLaneWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-release-lanes.csv"));
@@ -1081,6 +1086,7 @@ public partial class ChartAuditRunner : Node {
 		// marketUnitsShare is whole-market commercial weight; chartWeekShare is chart presence;
 		// chartWeekShareMinusMarketShare is the divergence between them.
 		genreShapeWriter.WriteLine("seed,year,genre,family,emergenceYear,deathYear,baseline,lifecycleState,newReleases,activeRecordsYearEnd,marketUnits,marketUnitsShare,chartRecordWeeks,chartWeekShare,uniqueChartingRecords,chartUnits,chartUnitsShare,top40RecordWeeks,top10RecordWeeks,numberOneWeeks,meanChartPosition,chartWeekShareMinusMarketShare");
+		yearEndHot100Writer.WriteLine("seed,year,genre,family,yearEndSlots,yearEndPointsShare");
 		genreEventsWriter.WriteLine("seed,enabled,year,month,week,eventType,sourceRecordId,recipientGenreId,donorGenreId,field,amount,detail");
 		specialProductsWriter.WriteLine("seed,enabled,year,recordId,subtype,externalProfile,correlatedProfileBucket,costs,promotion,tieIn,units,chartResult,catalogTail,financialReconciliation");
 		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
@@ -1884,6 +1890,7 @@ public partial class ChartAuditRunner : Node {
 		List<RecordRuntimeData> albumChart = ChartManager.Instance.GetCurrentAlbumChart();
 		AccumulateConcentration(date.year, chart);
 		AccumulateGenreShape(date.year, records, chart);
+		AccumulateYearEndHot100(date.year, chart);
 		// Skim routing to the distributor is only defined while the deal is active. Once the
 		// deal resolves -- an exit that nulls it, or a subsidiary absorption that converts it
 		// to ownership -- the label self-distributes and its residual skim fraction
@@ -2546,6 +2553,69 @@ public partial class ChartAuditRunner : Node {
 				state.ChartRecordWeeks > 0 ? F((float)state.PositionSum / state.ChartRecordWeeks) : string.Empty,
 				// The diagnostic column: chart presence a genre's sales do not support.
 				F(chartWeekShare - marketShare)
+			}));
+		}
+	}
+
+	private sealed class YearEndHot100RecordState {
+		public double CumulativePoints;
+		public Genre PrimaryGenre;
+	}
+
+	/// <summary>
+	/// Year-end Hot 100 by genre, replicating Billboard's annual recap methodology: each record's
+	/// weekly chart points are accumulated over the chart year, the top 100 by cumulative points are
+	/// taken, and the primary genre of each is counted. This is a different object from
+	/// genre-decade-shape's chartWeekShare -- that is week-weighted presence across the whole
+	/// population; this is a ranked 100-slot list, which is what the hand-counted historical
+	/// benchmark is. yearEndSlots is the slot count (the benchmark's "Count" column);
+	/// yearEndPointsShare is the points-weighted share, closer to Billboard's own point-ranked recap.
+	///
+	/// Read-only: CalculateChartPoints reads the cached surveySampleThisWeek rather than redrawing
+	/// (handoff 12.4g), so the accumulated points match the ranking they came from, and the pass
+	/// draws no RNG and mutates nothing. Safe on any run and deliberately not gated behind
+	/// --lean-probe. The chart year is the calendar year, matching genre-decade-shape; the historical
+	/// benchmark's ~late-October cutoff is not reproduced.
+	/// </summary>
+	private void AccumulateYearEndHot100(int year, List<RecordRuntimeData> chart) {
+		if (yearEndHot100Writer == null) return;
+		if (yearEndHot100Year == 0) yearEndHot100Year = year;
+		if (year != yearEndHot100Year) {
+			WriteYearEndHot100Year();
+			yearEndHot100ByRecord.Clear();
+			yearEndHot100Year = year;
+		}
+		foreach (RecordRuntimeData record in chart) {
+			if (record.currentPosition is <= 0 or > 100) continue;
+			string id = record.baseRecord.recordId;
+			if (!yearEndHot100ByRecord.TryGetValue(id, out YearEndHot100RecordState state)) {
+				state = new YearEndHot100RecordState { PrimaryGenre = record.baseRecord.primaryGenre };
+				yearEndHot100ByRecord[id] = state;
+			}
+			state.CumulativePoints += ChartSimulator.CalculateChartPoints(record, regions);
+		}
+	}
+
+	private void WriteYearEndHot100Year() {
+		if (yearEndHot100Writer == null || yearEndHot100Year == 0 || yearEndHot100ByRecord.Count == 0) return;
+		List<YearEndHot100RecordState> top100 = yearEndHot100ByRecord.Values
+			.OrderByDescending(state => state.CumulativePoints).Take(100).ToList();
+		double totalPoints = top100.Sum(state => state.CumulativePoints);
+		var byGenre = new Dictionary<Genre, (int Slots, double Points)>();
+		foreach (YearEndHot100RecordState state in top100) {
+			Genre genre = GenreCatalog.MapLegacy(state.PrimaryGenre, yearEndHot100Year);
+			(int Slots, double Points) cur = byGenre.TryGetValue(genre, out var value) ? value : default;
+			byGenre[genre] = (cur.Slots + 1, cur.Points + state.CumulativePoints);
+		}
+		string seed = requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+		foreach (var pair in byGenre.OrderByDescending(pair => pair.Value.Slots)
+			.ThenBy(pair => pair.Key.ToString(), StringComparer.Ordinal)) {
+			GenreProfile profile = GenreCatalog.All.FirstOrDefault(candidate => candidate.Genre == pair.Key);
+			yearEndHot100Writer.WriteLine(string.Join(",", new[] {
+				seed, yearEndHot100Year.ToString(CultureInfo.InvariantCulture), Csv(pair.Key.ToString()),
+				Csv(profile?.Family.ToString() ?? "Unknown"),
+				pair.Value.Slots.ToString(CultureInfo.InvariantCulture),
+				F(totalPoints > 0 ? (float)(pair.Value.Points / totalPoints) : 0f)
 			}));
 		}
 	}
@@ -3284,6 +3354,7 @@ public partial class ChartAuditRunner : Node {
 		supplySelectionWriter?.Flush();
 		traditionalPopFallbackWriter?.Flush();
 		genreShapeWriter?.Flush();
+		yearEndHot100Writer?.Flush();
 	}
 
 	private void WriteAnnualFormatMixRows() {
@@ -3514,6 +3585,7 @@ public partial class ChartAuditRunner : Node {
 		supplySelectionWriter?.Dispose();
 		traditionalPopFallbackWriter?.Dispose();
 		genreShapeWriter?.Dispose();
+		yearEndHot100Writer?.Dispose();
 		genreEventsWriter?.Dispose();
 		specialProductsWriter?.Dispose();
 		rosterLifecycleWriter?.Dispose();
@@ -3589,6 +3661,7 @@ public partial class ChartAuditRunner : Node {
 		supplySelectionWriter = null;
 		traditionalPopFallbackWriter = null;
 		genreShapeWriter = null;
+		yearEndHot100Writer = null;
 		genreEventsWriter = null;
 		specialProductsWriter = null;
 		rosterLifecycleWriter = null;

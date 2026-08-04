@@ -435,44 +435,6 @@ public partial class ChartManager : Node {
 	}
 
 	// ========================================================================
-	// GENRE AVAILABILITY BY YEAR
-	// ========================================================================
-
-	private bool IsGenreAvailableInYear(Genre genre, int year) {
-		return genre switch {
-			Genre.TraditionalPop => true,
-			Genre.Jazz => true,
-			Genre.Country => true,
-			Genre.Gospel => true,
-			Genre.RnB => true,
-			Genre.DooWop => year <= 1965,
-			Genre.RockAndRoll => true,
-			Genre.TeenPop => true,
-			Genre.Soul => year >= 1960,
-			Genre.GirlGroup => year >= 1961 && year <= 1966,
-			Genre.Motown => year >= 1961,
-			Genre.SurfRock => year >= 1962 && year <= 1966,
-			Genre.Folk => year >= 1963,
-			Genre.BritishInvasion => year >= 1964,
-			Genre.GarageRock => year >= 1964,
-			Genre.FolkRock => year >= 1965,
-			Genre.Funk => year >= 1965,
-			Genre.BluesRock => year >= 1965,
-			Genre.Psychedelic => year >= 1966,
-			Genre.BaroquePop => year >= 1966,
-			Genre.SunshinePop => year >= 1966,
-			Genre.AcidRock => year >= 1967,
-			Genre.ProgressiveRock => year >= 1967,
-			Genre.Bubblegum => year >= 1967,
-			Genre.CountryRock => year >= 1968,
-			Genre.HardRock => year >= 1968,
-			Genre.ProtoMetal => year >= 1969,
-			Genre.ProtoPunk => year >= 1968,
-			_ => true
-		};
-	}
-
-	// ========================================================================
 	// PRE-WARMING
 	// ========================================================================
 

@@ -1,5 +1,12 @@
 # D7 genre decade calibration — live handoff
 
+> **ACTIVE WORK HAS MOVED (2026-08-04).** Genre *market-share* calibration is done: the keyframe pass
+> landed at `d7-genretune2-decade-522-1001` and halved the error against both benchmarks. The open
+> problem is now **chart divergence** — genres holding the right share of units and the wrong share of
+> the chart — and it has its own document: **`D7GenreChartDivergenceHandoff.md`**. Start there. This
+> file remains the authority for the chart mechanism (airplay, release ramp, Hesbacher curve, survey
+> layer, station drop) and for how the genre state was reached; keep reading it for that background.
+
 Last maintained: August 1, 2026 (the chart-exposure top-ten plateau, the Soul/R&B handover, the MidTier
 demotion repair and the tier-transition ledger — §12.4u, all awaiting one decade run). Branch
 `d7-genre-decade-calibration`, off merged `main`.
