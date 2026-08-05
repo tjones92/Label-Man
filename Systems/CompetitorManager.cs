@@ -2546,9 +2546,25 @@ public partial class CompetitorManager : Node {
 		MarketRegion[] regions = ChartManager.Instance?.GetAllRegions()?.Where(region => region != null).ToArray()
 			?? System.Array.Empty<MarketRegion>();
 		if (regions.Length == 0) return .5f;
+		// The live branch centers on the genre-blind market split, because that is what realized
+		// demand centers on and this seam exists to share it. The accepted branch keeps its frozen
+		// genre-scoped pool ratio.
 		return live
-			? CalculateEnabledAlbumOpportunityFactor(genre, regions, year)
+			? CalculateMarketAlbumOpportunityFactor(regions, year)
 			: CalculateAcceptedAlbumOpportunityFactor(genre, regions, year);
+	}
+
+	/// <summary>
+	/// Genre-blind national Album share of the market, weighted by buying population. This is the
+	/// format-centering counterpart to CalculateEnabledAlbumOpportunityFactor, which remains
+	/// genre-scoped because it sizes Album demand rather than centering the tilt.
+	/// </summary>
+	public static float CalculateMarketAlbumOpportunityFactor(IEnumerable<MarketRegion> regions, float year) {
+		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
+		float buyingPopulation = regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage());
+		if (buyingPopulation <= 0f) return .5f;
+		return Mathf.Clamp(regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage() *
+			region.GetMarketAlbumOpportunityWeight(year)) / buyingPopulation, 0f, 1f);
 	}
 
 	/// <summary>
@@ -2610,7 +2626,10 @@ public partial class CompetitorManager : Node {
 		float marketReconciliation = live
 			? CalculateAlbumPriorMarketReconciliation(genre, regionArray, year)
 			: 1f;
-		float formatTilt = GetFormatPriorMultiplier(genre, ReleaseFormat.Album, year, live, untilted);
+		// UntiltedAlbumDemandFactor sizes Album demand and stays genre-scoped; the tilt it is
+		// multiplied by centers on the genre-blind market split, matching realized demand.
+		float centeringOpportunity = live ? CalculateMarketAlbumOpportunityFactor(regionArray, year) : untilted;
+		float formatTilt = GetFormatPriorMultiplier(genre, ReleaseFormat.Album, year, live, centeringOpportunity);
 		return new AlbumPriorExplanation(acceptedAlbumPool, acceptedGenrePool, untilted, albumAffinity,
 			marketReconciliation, formatTilt, untilted * marketReconciliation * formatTilt);
 	}

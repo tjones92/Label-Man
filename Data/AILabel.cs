@@ -323,14 +323,56 @@ public partial class AILabel : Resource {
 		return Mathf.Clamp(baseRate + artistLeverage, 0.02f, 0.15f);
 	}
 	
+	/// <summary>
+	/// Term in years. The authored ordering — the bigger the act, the shorter the deal —
+	/// is leverage and is preserved; what changed is the new-signing end, which was
+	/// 4-7 years. That is not what a new act signed: the norm was one to two years with
+	/// the label holding the options, which this model already expresses as the label's
+	/// renewal decision at expiry. Five to seven years remains reachable, but only as an
+	/// established act at a label that locks its roster down.
+	/// <para>
+	/// The 4-7 default was also the reason contract expiry was 1.5% of all roster exits,
+	/// leaving the performance drop as the only working turnover channel — and turnover
+	/// is the only door onto a roster for a genre with no incumbents.
+	/// </para>
+	/// </summary>
 	public int CalculateContractLength(SimulatedArtist artist) {
-		return artist.careerState switch {
+		int baseTerm = artist.careerState switch {
 			CareerState.Superstar => (int)GD.RandRange(1, 3),
 			CareerState.Star => (int)GD.RandRange(2, 4),
 			CareerState.Established => (int)GD.RandRange(3, 5),
-			_ => (int)GD.RandRange(4, 7)
+			CareerState.Rising => (int)GD.RandRange(2, 3),
+			_ => (int)GD.RandRange(1, 2)
+		};
+		return Mathf.Clamp(baseTerm + GetContractTermBias(), 1, 7);
+	}
+
+	/// <summary>
+	/// Terms varied by house, not just by act. A major with a loyal roster wrote long
+	/// exclusive deals; a small independent cut a short one-off and let the act walk.
+	/// </summary>
+	private int GetContractTermBias() {
+		int bias = 0;
+		if (tier is LabelTier.Major or LabelTier.MidTier) bias++;
+		if (artistLoyalty > 0.65f) bias++;
+		if (tier is LabelTier.Small or LabelTier.Boutique) bias--;
+		return bias;
+	}
+
+	/// <summary>
+	/// Early-to-mid decade deals were written as a delivery commitment in sides. The
+	/// obligation retires as the album deal takes over, after which a term is a term.
+	/// Zero means no sides obligation and the year term governs alone.
+	/// </summary>
+	public int CalculateContractSinglesObligation(SimulatedArtist artist, int year) {
+		if (year > SinglesObligationFinalYear) return 0;
+		return artist.careerState switch {
+			CareerState.Superstar or CareerState.Star or CareerState.Established => 0,
+			CareerState.Rising => (int)GD.RandRange(4, 8),
+			_ => (int)GD.RandRange(3, 6)
 		};
 	}
+	public const int SinglesObligationFinalYear = 1966;
 	
 	public float SignArtist(SimulatedArtist artist, int currentYear) {
 		if (roster == null) roster = new List<SimulatedArtist>();
@@ -346,9 +388,13 @@ public partial class AILabel : Resource {
 		artist.unrecoupedAdvance = advance;
 		artist.contractLength = CalculateContractLength(artist);
 		artist.contractExpiresYear = currentYear + artist.contractLength;
-		
+		artist.contractExpiresWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + artist.contractLength * 52;
+		artist.contractSinglesObligation = CalculateContractSinglesObligation(artist, currentYear);
+		artist.contractReleases = 0;
+
 		roster.Add(artist);
-		artist.careerEvents.Add($"{currentYear}: Signed to {labelName} (${advance:N0} advance, {artist.contractLength}yr)");
+		artist.careerEvents.Add($"{currentYear}: Signed to {labelName} (${advance:N0} advance, {artist.contractLength}yr" +
+			(artist.contractSinglesObligation > 0 ? $", {artist.contractSinglesObligation} sides)" : ")"));
 		return advance;
 	}
 	

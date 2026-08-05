@@ -276,6 +276,16 @@ public partial class ChartAuditRunner : Node {
 	private bool catastrophicFailFast;
 	private bool catastrophicControlPreflight;
 	private bool strict1965AcceptanceGate;
+	// Standalone early abort for the formation-supply arc. Unlike the strict 1965
+	// acceptance gate this needs no control run: it is an absolute floor on how many
+	// emergent-genre acts are under contract once the genres exist, so a decade run
+	// that has already failed its whole purpose stops at 1965 instead of at 1969.
+	private const int EmergentSigningGateYear = 1965;
+	// A genre that emerges after the simulation's first year has no seeded population by
+	// construction and is therefore 100% dependent on runtime formation.
+	private const float SimulationFirstYear = 1960f;
+	private int emergentSigningFloor;
+	private bool emergentSigningGateChecked;
 	private string gateControlRun;
 	private readonly Dictionary<int, FailFastControlYear> failFastControlYears = new();
 	private readonly Dictionary<int, FailFastYearAccumulator> failFastActualYears = new();
@@ -388,6 +398,7 @@ public partial class ChartAuditRunner : Node {
 			long captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
+				ValidateEmergentSigningFloor();
 				if (week % 52 == 0) {
 					WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds);
 					FlushAnnualStreams();
@@ -471,6 +482,8 @@ public partial class ChartAuditRunner : Node {
 				catastrophicControlPreflight = true;
 			} else if (argument == "--strict-1965-acceptance-gate") {
 				strict1965AcceptanceGate = true;
+			} else if (argument.StartsWith("--emergent-signing-floor=", StringComparison.Ordinal)) {
+				emergentSigningFloor = int.Parse(argument[25..], CultureInfo.InvariantCulture);
 			} else if (argument.StartsWith("--gate-control-run=", StringComparison.Ordinal)) {
 				gateControlRun = SanitizeFileName(argument[19..]);
 			}
@@ -719,6 +732,32 @@ public partial class ChartAuditRunner : Node {
 		CheckCatastrophicRatio(year, "labelNet", actual.LabelNet, control.LabelNet);
 		CheckCatastrophicRatio(year, "marketNet", actual.MarketNet, control.MarketNet);
 		if (strict1965AcceptanceGate && year == 1965) ValidateStrict1965Acceptance(control, actual);
+	}
+
+	/// <summary>
+	/// Fires once, at the first week of the year after <see cref="EmergentSigningGateYear"/>.
+	/// "Emergent" is derived from the catalog rather than listed, so a genre added or
+	/// retimed later is covered without touching this gate. Counting artists under
+	/// contract rather than formations is deliberate: formation is what the change under
+	/// test moves, and signings are the thing that has to actually follow from it.
+	/// </summary>
+	private void ValidateEmergentSigningFloor() {
+		if (emergentSigningFloor <= 0 || emergentSigningGateChecked) return;
+		if ((TimeManager.Instance?.CurrentDate.year ?? 0) <= EmergentSigningGateYear) return;
+		emergentSigningGateChecked = true;
+		ArtistManager manager = ArtistManager.Instance;
+		if (manager == null) return;
+		var emergent = new HashSet<Genre>(GenreCatalog.All.Where(profile => profile.EmergenceYear > SimulationFirstYear)
+			.Select(profile => profile.Genre));
+		SimulatedArtist[] formed = manager.GetAllArtists().Where(artist => artist.cohort == ArtistCohort.RuntimeFormation &&
+			emergent.Contains(artist.formationPrimaryGenre)).ToArray();
+		int signed = formed.Count(artist => artist.contractSequence > 0);
+		GD.Print($"CHART_AUDIT_EMERGENT_SIGNING_GATE year={EmergentSigningGateYear} signed={signed} " +
+			$"formed={formed.Length} floor={emergentSigningFloor}");
+		if (signed < emergentSigningFloor)
+			throw new CatastrophicAbortException("EmergentSigningFloor", "emergentFirstContractSignings", signed,
+				emergentSigningFloor, $"emergent-genre runtime acts under contract at the end of {EmergentSigningGateYear}; " +
+				$"formed={formed.Length}", EmergentSigningGateYear);
 	}
 
 	private void ValidateStrict1965Acceptance(FailFastControlYear control, FailFastYearAccumulator actual) {
@@ -1097,7 +1136,7 @@ public partial class ChartAuditRunner : Node {
 		dailyTalentMarketWriter?.WriteLine("date,chartWeek,eligibleVacancies,dueLabels,supplySnapshotCount,freshSupplySnapshotCount,experiencedSupplySnapshotCount,nominations,uniqueNominatedArtists,collisionArtists,collisionOffers,acceptedOffers,collisionLosers,invalidatedBeforeCommit");
 		dailyTalentAppointmentWriter?.WriteLine("date,chartWeek,labelId,labelOrigin,labelTier,vacancyGeneration,vacancyOpenedDate,scheduledScoutingDate,actualScoutingDate,appointmentOrdinal,serviceMode,freshLaneCount,experiencedLaneCount,selectedArtistId,selectedLane,offerOutcome,collisionOfferCount,winnerLabelId,artistChoiceUtility,genreUtility,localityUtility,royaltyUtility,advanceUtility,reputationUtility,reachUtility,rosterOpportunityUtility,affinityUtility,nextScoutingDate");
 		catastrophicFailFastWriter?.WriteLine("gate,metric,enabledValue,controlValue,completedYear,week,date,state");
-		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,prospectMarketStatus,prospectMarketStatusBeforeContract,careerStateBeforeDrop,contractEntryCareerState,labelId,labelTier,dropReason,performanceDropCount,requiredPerformanceCooldownWeeks,contractSequence,priorContractCount,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,performanceEvaluationMode,requiredPerformanceCompletedRuns,requiredPerformanceConsecutiveFlops,contractProbationPending,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
+		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,prospectMarketStatus,prospectMarketStatusBeforeContract,careerStateBeforeDrop,contractEntryCareerState,labelId,labelTier,dropReason,performanceDropCount,requiredPerformanceCooldownWeeks,contractSequence,priorContractCount,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,contractChartedRecords,contractRegionalBreakouts,regionalBreakouts,top40Hits,contractLength,contractReleases,contractSinglesObligation,performanceEvaluationMode,requiredPerformanceCompletedRuns,requiredPerformanceConsecutiveFlops,contractProbationPending,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
 		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
 		artistLaborMarketWeeklyWriter?.WriteLine("seed,week,date,registryPopulation,initialLegacyPopulation,enabledInitialReservePopulation,runtimeFormationPopulation,activeRostered,experiencedFreeAgents,seekingProspects,latentProspects,freshSeeking,freshLatent,affordableHiringVacancies,requestedProspectActivations,actualProspectActivations,prospectSearchSpellExpirations,firstTimeSignings,repeatSignings,meanSeekingQuality,meanLatentQuality,activationMeanQuality,activationQ1,activationQ2,activationQ3,activationQ4,maxProspectMarketSpellCount,duplicateSeekingEntries,latentUnsignedPoolEntries,seekingMissingFromUnsignedPool,prospectStatusContractConflicts,latentRotations");
 		artistCohortAnnualWriter?.WriteLine("year,cohort,formationPrimaryGenre,lifecycleStatus,currentRosterTier,count,firstTimeSignings,repeatSignings,releases,activeUnsigned,seekingProspects,latentProspects,medianActAge,medianMemberAge,inactivityCount,retirementCount,disbandmentCount,activePopulationShare,signedRosterShare");
@@ -2101,6 +2140,10 @@ public partial class ChartAuditRunner : Node {
 			Mathf.Max(0, artist.contractSequence - 1).ToString(CultureInfo.InvariantCulture),
 			artist.contractStartWeek.ToString(CultureInfo.InvariantCulture), artist.contractTop40Hits.ToString(CultureInfo.InvariantCulture),
 			artist.contractConsecutiveFlops.ToString(CultureInfo.InvariantCulture), artist.contractCompletedChartRuns.ToString(CultureInfo.InvariantCulture),
+			artist.contractChartedRecords.ToString(CultureInfo.InvariantCulture), artist.contractRegionalBreakouts.ToString(CultureInfo.InvariantCulture),
+			artist.regionalBreakouts.ToString(CultureInfo.InvariantCulture), artist.top40Hits.ToString(CultureInfo.InvariantCulture),
+			artist.contractLength.ToString(CultureInfo.InvariantCulture), artist.contractReleases.ToString(CultureInfo.InvariantCulture),
+			artist.contractSinglesObligation.ToString(CultureInfo.InvariantCulture),
 			Csv((eventType is "performance-departure" or "performance-exhaustion" ? artist.lastPerformanceEvaluationMode : artist.GetPerformanceEvaluationMode()).ToString()),
 			(eventType is "performance-departure" or "performance-exhaustion" ? artist.lastRequiredPerformanceCompletedRuns : artist.RequiredPerformanceCompletedRuns).ToString(CultureInfo.InvariantCulture),
 			(eventType is "performance-departure" or "performance-exhaustion" ? artist.lastRequiredPerformanceConsecutiveFlops : artist.RequiredPerformanceConsecutiveFlops).ToString(CultureInfo.InvariantCulture),

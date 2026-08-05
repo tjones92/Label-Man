@@ -213,14 +213,35 @@ public partial class MarketRegion : Resource {
 	/// <summary>
 	/// Live pre-tilt Album opportunity conditional on an enabled genre buyer.
 	/// Unlike the legacy-pool ratio, this remains defined for every canonical
-	/// genre and is the opportunity actually used by enabled Album demand.
+	/// genre and is the opportunity actually used by enabled Album demand *sizing*.
+	/// It is not the format-centering term; see <see cref="GetMarketAlbumOpportunityWeight"/>.
 	/// </summary>
 	public float GetEnabledAlbumOpportunityWeight(Genre genre, float year) =>
 		Mathf.Clamp(GetAlbumAffinity(genre, (int)year) * GetAlbumPurchaseWillingness((int)year), 0f, 1f);
 
-	/// <summary>Format-centering opportunity for the active demand route.</summary>
+	/// <summary>
+	/// The market's Album share of this era and region, carrying NO genre term.
+	///
+	/// This is what centers the Single/Album format tilt. GetFormatMultiplier's contract is
+	/// "centered relative format suitability, normalized against the accepted era opportunity":
+	/// the genre's own tilt is SingleOrientation, and this weight is the market split that tilt
+	/// is conserved against. Passing a genre-scoped album affinity here instead put the genre on
+	/// BOTH sides of that normalization -- a genre was tilted by its orientation and then had the
+	/// size of that tilt set by a second, independently authored statement of the same fact. The
+	/// two disagreed: across the sixteen genres with explicit affinities, affinity correlates with
+	/// (1 - SingleOrientation) at r = 0.88 while differing by up to .28 (Folk, Gospel, Country).
+	/// GenreCatalog.SingleOrientation is the calibrated source and is now the only genre input to
+	/// format tilt.
+	/// </summary>
+	public float GetMarketAlbumOpportunityWeight(float year) =>
+		Mathf.Clamp(GetMarketAlbumAffinity((int)year) * GetAlbumPurchaseWillingness((int)year), 0f, 1f);
+
+	/// <summary>
+	/// Format-centering opportunity for the active demand route. The live route carries no genre;
+	/// the accepted route retains its frozen genre-scoped pool ratio unchanged.
+	/// </summary>
 	public float GetAlbumOpportunityWeight(Genre genre, float year, bool live) =>
-		live ? GetEnabledAlbumOpportunityWeight(genre, year) : GetAcceptedAlbumOpportunityWeight(genre, year);
+		live ? GetMarketAlbumOpportunityWeight(year) : GetAcceptedAlbumOpportunityWeight(genre, year);
 
 	/// <summary>Accepted legacy genre buyer pool used as the common Album-prior denominator.</summary>
 	public float GetAcceptedLegacyGenreMarketSize(Genre genre, float year) {
@@ -232,20 +253,45 @@ public partial class MarketRegion : Resource {
 	public float GetAcceptedPreTiltAlbumMarketSize(Genre genre, float year) =>
 		GetAlbumDemandExplanation(genre, year).AcceptedPreTiltBuyerPool;
 
-	public float GetAlbumAffinity(Genre genre, int year) {
-		float baseline = genre switch {
-			Genre.Classical => 0.82f,
-			Genre.Psychedelic or Genre.PsychedelicRock => 0.78f,
-			Genre.Jazz => 0.72f,
-			Genre.EasyListening => 0.88f,
-			Genre.Folk => 0.78f,
-			Genre.TraditionalPop => 0.50f,
-			Genre.BossaNova => 0.72f,
-			Genre.Soul or Genre.Funk => 0.30f,
-			Genre.Country or Genre.Gospel or Genre.Blues => 0.58f,
-			Genre.RockAndRoll or Genre.TeenPop or Genre.RnB or Genre.DooWop or Genre.GirlGroup => 0.22f,
-			_ => 0.40f
-		};
+	/// <summary>
+	/// Album-buying propensity for one genre. This is a *sizing* term: it scales how much
+	/// of a genre's buyer pool is in the market for an LP, and genre belongs in it.
+	/// It is deliberately NOT the term that centers the Single/Album format tilt -- see
+	/// <see cref="GetMarketAlbumOpportunityWeight"/> for why that one carries no genre.
+	/// </summary>
+	public float GetAlbumAffinity(Genre genre, int year) =>
+		ShapeAlbumAffinity(GetAlbumAffinityBaseline(GenreCatalog.MapLegacy(genre, year)), year);
+
+	/// <summary>
+	/// The genre-blind era baseline, i.e. what an average genre's album propensity is.
+	/// This is the value every genre without an explicit entry already resolved to, so
+	/// using it as the market level leaves the majority of the catalog where it was.
+	/// </summary>
+	public float GetMarketAlbumAffinity(int year) => ShapeAlbumAffinity(NeutralAlbumAffinityBaseline, year);
+
+	private const float NeutralAlbumAffinityBaseline = 0.40f;
+
+	private static float GetAlbumAffinityBaseline(Genre canonical) => canonical switch {
+		Genre.EasyListening => 0.88f,
+		Genre.Classical => 0.82f,
+		Genre.PsychedelicRock => 0.78f,
+		Genre.Folk => 0.78f,
+		Genre.Jazz => 0.72f,
+		Genre.BossaNova => 0.72f,
+		Genre.Country or Genre.Gospel or Genre.Blues => 0.58f,
+		Genre.TraditionalPop => 0.50f,
+		Genre.Soul or Genre.Funk => 0.30f,
+		Genre.RockAndRoll or Genre.TeenPop or Genre.RnB or Genre.DooWop => 0.22f,
+		_ => NeutralAlbumAffinityBaseline
+	};
+
+	// NOTE ON RANGE. decadeLift reaches .714 by 1967 and 1.0 by 1969, which drives every genre
+	// to the upper clamp late in the decade -- affinity spans .906-1.000 at 1967 and is uniformly
+	// 1.000 at 1969. The genre baselines above are therefore only distinguishable before ~1966.
+	// Measured consequence: forcing Soul off its explicit .30 onto the neutral default moves the
+	// Soul/SunshinePop Single format multiplier by 0.989x at 1967 and 1.000x at 1969. Do not
+	// expect this table to be load-bearing on late-decade outcomes; it is not.
+	private float ShapeAlbumAffinity(float baseline, int year) {
 		float eraProgress = GetAlbumDemandEraProgress(year);
 		float decadeLift = Mathf.SmoothStep(0f, 0.58f, eraProgress);
 		float youthPenalty = youthPercentage * Mathf.Lerp(0.75f, 0.12f, eraProgress);

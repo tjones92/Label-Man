@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -57,8 +57,23 @@ public partial class ArtistManager : Node {
 	// candidates per label-week to 1.9, and 200k nominations resolve to ~500 signings.
 	// Formation now answers unmet hiring demand and is inert while supply is ample, so
 	// the early decade — where latent supply dwarfs openings — is unchanged.
-	private const int BaseAnnualRuntimeFormationCount = 300;
-	private const int MaximumAnnualRuntimeFormationCount = 1200;
+	// Sized against measured demand, not guessed. From 1965 the seeded first-contract
+	// reserve is gone (freshSeeking+freshLatent 4,052 -> ~15) and firstTimeSignings
+	// equals formations exactly, week for week: the industry signs every act that
+	// forms, rejects nobody (scoreRejections is 0 for the whole decade), and still
+	// leaves ~100 roster seats permanently unfilled. Total slot-fills run ~2,020/yr
+	// (~1,030 first-time + ~990 re-signings), so 2,200 is one full absorption cycle
+	// and is the first value that leaves an actual unsigned surplus behind. That
+	// surplus is the point: with no reservoir there is no selection, so the mean
+	// quality of a signed emergent act is just the mean quality of a formed one.
+	//
+	// The base is the knob because the servo below is a negative-feedback loop whose
+	// setpoint is label vacancies -- raising the gain only reaches that same setpoint
+	// faster. Note the old ceiling was exactly base*(1+gain) = 300*4 = 1200 and so was
+	// unreachable by construction; it clipped 0 of 522 weeks. Keep the new ceiling
+	// clear of base*(1+gain) so it stays a real safety valve rather than a no-op.
+	private const int BaseAnnualRuntimeFormationCount = 2200;
+	private const int MaximumAnnualRuntimeFormationCount = 3000;
 	private const float FormationDemandGain = 3f;
 	private const int NominalRuntimeFormationWeeks = 52;
 	internal const int ExperiencedComebackStartYear = 1961;
@@ -86,7 +101,12 @@ public partial class ArtistManager : Node {
 	private const int LatentRotationWeeks = 52;
 	private readonly Dictionary<Genre, int> recentRuntimeFormationCounts = new();
 	private RandomNumberGenerator populationRng;
-	private float formationAccumulator;
+	private double formationAccumulator;
+	private int formationYearPeakTarget;
+	// Reused across weeks so the sweeps below do not allocate a set per tick.
+	private readonly HashSet<SimulatedArtist> departedThisSweep = new();
+	private readonly HashSet<SimulatedArtist> pendingUnsignedRemovals = new();
+	private static readonly List<AILabel> EmptyLabelList = new();
 	private int lastHiringOpportunities;
 	private int lastSeekingProspects;
 	private int lastLatentProspects;
@@ -100,6 +120,12 @@ public partial class ArtistManager : Node {
 
 	public int FormedThisWeek => formedThisWeek;
 	public int FormedYtd => formedYtd;
+	// Exposed so probe fixtures anchor to the constants rather than restating their
+	// values. A fixture that hard-codes the quota silently inverts when it is retuned.
+	internal static int BaseAnnualRuntimeFormationCountForProbe => BaseAnnualRuntimeFormationCount;
+	internal static int MaximumAnnualRuntimeFormationCountForProbe => MaximumAnnualRuntimeFormationCount;
+	internal static float FormationDemandGainForProbe => FormationDemandGain;
+	internal static int NominalRuntimeFormationWeeksForProbe => NominalRuntimeFormationWeeks;
 	public LaborMarketWeeklySnapshot GetLaborMarketWeeklySnapshot() => laborMarketWeekly;
 
 	/// <summary>Pre-contract facts and the resulting classification from the sole signing reconciliation seam.</summary>
@@ -213,7 +239,7 @@ public sealed class LaborMarketWeeklySnapshot {
 
 		if (record.artistChartRunCompleted) return;
 		artist.CompleteChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
-			CreditsCurrentContract(record, artist));
+			CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
 		record.artistChartRunCompleted = true;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
 			RosterManager.Instance?.RecordChartRunComplete(artist, record);
@@ -260,7 +286,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			artist.cohort == ArtistCohort.InitialLegacy).ToArray()) artist.prospectMarketStatus = ProspectMarketStatus.Seeking;
 		foreach (SimulatedArtist artist in artistRegistry.Values.Where(artist => artist.cohort == ArtistCohort.EnabledInitialReserve)) {
 			artist.prospectMarketStatus = ProspectMarketStatus.Latent;
-			unsignedArtists.RemoveAll(candidate => candidate == artist);
+			MarkUnsignedPoolRemoval(artist);
 		}
 		ReconcileEnabledUnsignedPool();
 		GD.Print($"ArtistManager: Added {reserveCount} isolated-RNG unsigned reserve artists; " +
@@ -635,7 +661,8 @@ public sealed class LaborMarketWeeklySnapshot {
 		formedThisWeek = 0;
 		if (formationYear != date.year) {
 			formationYear = date.year;
-			formationAccumulator = 0f;
+			formationAccumulator = 0d;
+			formationYearPeakTarget = 0;
 			formedYtd = 0;
 			recentRuntimeFormationCounts.Clear();
 		}
@@ -650,8 +677,11 @@ public sealed class LaborMarketWeeklySnapshot {
 
 	private void MaterializeRuntimeFormation(GameDate date) {
 		EnsurePopulationRng();
-		int count = CalculateCalendarFormationCount(ref formationAccumulator, formedYtd,
-			CalculateResponsiveAnnualFormationTarget(lastHiringOpportunities, lastSeekingProspects, lastLatentProspects));
+		int annualTarget = CalculateResponsiveAnnualFormationTarget(lastHiringOpportunities, lastSeekingProspects,
+			lastLatentProspects);
+		formationYearPeakTarget = Mathf.Max(formationYearPeakTarget, annualTarget);
+		int count = CalculateCalendarFormationCount(ref formationAccumulator, formedYtd, annualTarget,
+			formationYearPeakTarget);
 		for (int i = 0; i < count; i++) {
 			generatingRuntimePopulation = true;
 			try {
@@ -682,13 +712,14 @@ public sealed class LaborMarketWeeklySnapshot {
 		int expirations = 0;
 		foreach (SimulatedArtist artist in artistRegistry.Values.Where(IsSeekingProspect).ToArray()) {
 			if (!AdvanceProspectSearchWeekForProbe(artist)) continue;
-			unsignedArtists.RemoveAll(candidate => candidate == artist);
+			MarkUnsignedPoolRemoval(artist);
 			expirations++;
 			// The completed spell is the only place a career can end. Everyone else
 			// stays held in the reservoir at the cost of one spell's seniority.
 			if (ShouldApplyTerminalExit(artist, year)) ApplyTerminalExit(artist, year);
 			else EmitPopulationEvent("prospect-search-expired", artist);
 		}
+		FlushUnsignedPoolRemovals();
 		laborMarketWeekly.prospectSearchSpellExpirations = expirations;
 	}
 
@@ -774,7 +805,9 @@ public sealed class LaborMarketWeeklySnapshot {
 			activationQ3 = Quartile(activationQuality, .75f), activationQ4 = Quartile(activationQuality, 1f),
 			maxProspectMarketSpellCount = all.Select(artist => artist.prospectMarketSpellCount).DefaultIfEmpty(0).Max(),
 			duplicateSeekingEntries = GetDuplicateSeekingEntries(), latentUnsignedPoolEntries = unsignedArtists.Count(IsLatentProspect),
-			seekingMissingFromUnsignedPool = seeking.Count(artist => !unsignedArtists.Contains(artist)),
+			// List.Contains per seeking artist is O(seeking x pool); both scale with the
+			// formation rate, so this integrity counter alone was quadratic.
+			seekingMissingFromUnsignedPool = CountSeekingMissingFromUnsignedPool(seeking),
 			// Revisited invariant. The reservoir now holds experienced free agents as
 			// well as first-timers, so a prospect status on a prior-contract artist is
 			// the expected state rather than a conflict. What must never coexist with a
@@ -827,13 +860,32 @@ public sealed class LaborMarketWeeklySnapshot {
 		return unsignedArtists.Count(artist => IsSeekingProspect(artist) && !seen.Add(artist));
 	}
 
-	internal static int CalculateCalendarFormationCount(ref float accumulator, int formedYtd,
-		int annualTarget = BaseAnnualRuntimeFormationCount) {
+	/// <summary>
+	/// The annual ceiling is measured against the highest target the year has asked for,
+	/// not against this week's. Both counts are needed: the accumulator paces formation
+	/// and the ceiling stops a 53-Friday year from over-filling its quota. Reading the
+	/// ceiling off the current week made a dip in hiring vacancies retroactively declare
+	/// the year already over-supplied -- formation halted outright and the fractional
+	/// carry was discarded, so the weeks were never repaid. Measured cost of that at the
+	/// contract-term head: 1968 asked for a mean 569 and delivered 473 across 35 live
+	/// weeks of 52. A dip should slow formation, which the accumulator already does on
+	/// its own, and must not cancel weeks the year had already earned.
+	/// </summary>
+	// The accumulator is double, not float. Its weekly increment is target/52 and the
+	// year is meant to land on the quota exactly; in float32 the rounding error over 52
+	// additions scales with the increment and at the raised quota it overran the 1e-5
+	// epsilon, losing the final act of the year. The old 300/1200 quotas were small
+	// enough to stay inside it by luck, so this read as a probe failure rather than as
+	// the precision limit it is.
+	internal static int CalculateCalendarFormationCount(ref double accumulator, int formedYtd,
+		int annualTarget = BaseAnnualRuntimeFormationCount, int yearPeakTarget = 0) {
 		int target = Mathf.Clamp(annualTarget, BaseAnnualRuntimeFormationCount, MaximumAnnualRuntimeFormationCount);
-		int remaining = Mathf.Max(0, target - formedYtd);
-		if (remaining == 0) { accumulator = 0f; return 0; }
-		accumulator += target / (float)NominalRuntimeFormationWeeks;
-		int count = Mathf.Min(remaining, Mathf.FloorToInt(accumulator + .00001f));
+		int ceiling = Mathf.Max(target, Mathf.Clamp(yearPeakTarget, BaseAnnualRuntimeFormationCount,
+			MaximumAnnualRuntimeFormationCount));
+		int remaining = Mathf.Max(0, ceiling - formedYtd);
+		accumulator += target / (double)NominalRuntimeFormationWeeks;
+		if (remaining == 0) return 0;
+		int count = Math.Min(remaining, (int)Math.Floor(accumulator + 1e-9d));
 		accumulator -= count;
 		return count;
 	}
@@ -896,13 +948,23 @@ public sealed class LaborMarketWeeklySnapshot {
 		return related.Length == 0 ? primary : related[RandInt(0, related.Length - 1)];
 	}
 
+	/// <summary>
+	/// The two sweeps here used to run per inactive artist: one
+	/// <see cref="List{T}.RemoveAll"/> over the unsigned pool and one over every label's
+	/// roster, inside the loop over the whole registry. That is quadratic in the pool and
+	/// in (labels x roster), and the pool is exactly what a raised formation rate grows --
+	/// it stayed cheap only while formation was 300/yr and the registry never passed
+	/// ~10,000. Collecting the departures first and sweeping once is the same removal in
+	/// the same survivor order, because RemoveAll is stable and the batch is a set of
+	/// identities rather than a predicate over state.
+	/// </summary>
 	private void ReconcileLifecycleAndOwnership(int year, int week, bool advanceUnownedWeeks) {
+		departedThisSweep.Clear();
 		foreach (SimulatedArtist artist in artistRegistry.Values) {
 			if (artist.lifecycleStatus != ArtistLifecycleStatus.Active) {
 				artist.isActive = false;
 				artist.labelId = null;
-				unsignedArtists.RemoveAll(candidate => candidate == artist);
-				foreach (AILabel label in ChartManager.Instance?.GetAllLabels() ?? new List<AILabel>()) label.roster?.RemoveAll(candidate => candidate == artist);
+				departedThisSweep.Add(artist);
 				continue;
 			}
 			artist.isActive = true;
@@ -911,6 +973,11 @@ public sealed class LaborMarketWeeklySnapshot {
 			} else {
 				artist.weeksContinuouslyUnowned = 0;
 			}
+		}
+		if (departedThisSweep.Count > 0) {
+			MarkUnsignedPoolRemovals(departedThisSweep);
+			foreach (AILabel label in ChartManager.Instance?.GetAllLabels() ?? EmptyLabelList)
+				label.roster?.RemoveAll(departedThisSweep.Contains);
 		}
 		ReconcileEnabledUnsignedPool();
 	}
@@ -938,6 +1005,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			artist.careerEvents.Add($"{year}: Entered the talent reservoir after {artist.weeksContinuouslyUnowned} unowned weeks");
 			EnterProspectReservoir(artist, year, "reservoir-entry");
 		}
+		FlushUnsignedPoolRemovals();
 	}
 	internal static bool HasPriorContractForInactivityExit(SimulatedArtist artist) => artist?.contractSequence > 0;
 
@@ -952,7 +1020,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		artist.prospectSeekingWeeks = 0;
 		artist.prospectLatentWeeks = 0;
 		artist.prospectMarketSpellCount++;
-		unsignedArtists.RemoveAll(candidate => candidate == artist);
+		MarkUnsignedPoolRemoval(artist);
 		if (ShouldApplyTerminalExit(artist, year)) ApplyTerminalExit(artist, year);
 		else EmitPopulationEvent(eventType, artist);
 	}
@@ -971,7 +1039,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		artist.disbandReason = "Lifecycle inactivity";
 		foreach (Musician member in artist.members.Where(member => member.isActive)) { member.isActive = false; member.reasonLeft = artist.lifecycleStatus.ToString(); }
 		artist.careerEvents.Add($"{year}: {artist.lifecycleStatus} after prolonged inactivity");
-		unsignedArtists.RemoveAll(candidate => candidate == artist);
+		MarkUnsignedPoolRemoval(artist);
 		EmitPopulationEvent(group ? "disbandment" : "retirement", artist);
 	}
 
@@ -1105,8 +1173,35 @@ public sealed class LaborMarketWeeklySnapshot {
 		return unsignedArtists.Count(artist => artist != null && !seen.Add(artist));
 	}
 
+	/// <summary>
+	/// Defers a pool removal to the next flush. Every caller marks an artist that has just
+	/// become ineligible -- inactive, retired, disbanded, or moved to Latent -- so the
+	/// integrity sweep in <see cref="ReconcileEnabledUnsignedPool"/> would drop it anyway.
+	/// The flush is therefore an optimization on top of an existing guarantee, not a new
+	/// correctness obligation: a missed flush costs a pool entry that the next sweep
+	/// removes, never a stale entry that survives.
+	/// </summary>
+	private int CountSeekingMissingFromUnsignedPool(IReadOnlyCollection<SimulatedArtist> seeking) {
+		if (seeking.Count == 0) return 0;
+		var pool = new HashSet<SimulatedArtist>(unsignedArtists);
+		return seeking.Count(artist => !pool.Contains(artist));
+	}
+
+	private void MarkUnsignedPoolRemoval(SimulatedArtist artist) {
+		if (artist != null) pendingUnsignedRemovals.Add(artist);
+	}
+	private void MarkUnsignedPoolRemovals(IEnumerable<SimulatedArtist> artists) {
+		foreach (SimulatedArtist artist in artists) MarkUnsignedPoolRemoval(artist);
+	}
+	private void FlushUnsignedPoolRemovals() {
+		if (pendingUnsignedRemovals.Count == 0) return;
+		unsignedArtists.RemoveAll(pendingUnsignedRemovals.Contains);
+		pendingUnsignedRemovals.Clear();
+	}
+
 	/// <summary>Live-path integrity sweep: a pool entry is unique and unowned.</summary>
 	public void ReconcileEnabledUnsignedPool() {
+		FlushUnsignedPoolRemovals();
 		var seen = new HashSet<SimulatedArtist>();
 		unsignedArtists.RemoveAll(artist => !IsEligibleUnsignedCandidate(artist) || !IsProspectSearchEligible(artist) || !seen.Add(artist));
 	}
@@ -1159,6 +1254,9 @@ public sealed class LaborMarketWeeklySnapshot {
 			artist.contractTop40Hits = 0;
 			artist.contractConsecutiveFlops = 0;
 			artist.contractCompletedChartRuns = 0;
+			artist.contractChartedRecords = 0;
+			artist.contractRegionalBreakouts = 0;
+			artist.contractReleases = 0;
 		}
 		// A dropped artist with no completed prior contract is a legacy/repair
 		// boundary case: it remains a repeat signing for telemetry, but only an

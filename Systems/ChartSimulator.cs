@@ -176,6 +176,30 @@ public static class ChartSimulator {
 	// than mostly generic; that touches awareness and therefore demand, so it is its own change.
 	private const float AIRPLAY_CONVEXITY = 5.0f;
 	private const float AIRPLAY_REFERENCE_PLAY = 0.30f;
+	// TRIED AND REJECTED -- do not repeat. The comment above says the exponent applies to the
+	// record's own rotation "with genre access divided out and paid back linearly", and it is
+	// tempting to read UpdateRadioHeat's `* genreAcceptance` as a second, undivided access term
+	// riding inside the fifth power: national acceptance spans .16 (Rock and Roll) to 1.00
+	// (Psychedelic Rock) at 1967, so Soul at .87 against Sunshine Pop at .50 becomes 16.7x of
+	// airplay points. Dividing that level out of ownRotation and paying it back linearly, exactly as
+	// access is treated, INVERTS THE CHART. Measured over a decade (d7-airpayback-decade-522-1001):
+	// year-end slot error 649 -> 1344, market-share error 197.9 -> 286.5, and the 1968 chart became
+	// Rock and Roll 43 / Rocksteady 13 / Doo-Wop 11 / Ska 10 with Soul scoring zero against a
+	// hand-counted 28.
+	//
+	// The algebra says why: the net level term becomes level^(1-CONVEXITY) = level^-4, which is
+	// 1452x for Rock and Roll against 1.75x for Soul. But the real error is conceptual. Rotation and
+	// AIRPLAY_REFERENCE_PLAY are ABSOLUTE spin levels, so "own rotation" is only meaningful measured
+	// against an absolute reference. A record in a genre nobody programmes is genuinely in light
+	// rotation -- that is a physical fact about spins, not a distortion to be normalized away, and
+	// the chart counts spins. Access survives the same division only because it spans 1.83x rather
+	// than 6.2x, so its distortion stays small.
+	//
+	// The genre amplifier this file warns about is therefore load-bearing, not a bug: it is what
+	// keeps high-acceptance genres on top. The section 6.1 top-40 ceiling is real -- Sunshine Pop
+	// holds its target market share and reaches the top 40 zero times in 1967, and half its 5.7x
+	// mean-units gap against Soul accumulates after release (week-1 radioHeat .360 vs .385, week-12
+	// .181 vs .398) -- but the cause is not here.
 	// Top 40 radio consolidated across the decade and its chart influence grew with it, so a flat
 	// weight is the wrong shape: 1960 is closer to a sales chart than 1968 is.
 	private const int AIRPLAY_ERA_START_YEAR = 1960;
@@ -430,8 +454,8 @@ public static class ChartSimulator {
 		float baselineAwareness = Mathf.Clamp(effectiveAwareness, 0f, 1f);
 		
 		// === 3. MARKET EXHAUSTION ===
-		float potentialAudience = GetRegionalPotentialAudience(record, region, quality);
-		
+		float potentialAudience = GetRegionalPotentialAudience(record, region, quality, year);
+
 		float regionalSold = regionalData.unitsSoldTotal;
 		float penetration = regionalSold / Mathf.Max(1f, potentialAudience);
 		
@@ -508,7 +532,7 @@ public static class ChartSimulator {
 				Mathf.Max(.01f, momentumBonus), Mathf.Max(.01f, .75f + record.radioHeat * .5f), demandCurve,
 				genreAcceptance, GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 					record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
-					region.GetEnabledAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), true),
+					region.GetMarketAlbumOpportunityWeight(year), true),
 				conversionRate / Mathf.Max(.000001f, BASE_PURCHASE_RATE * demandCurve));
 			awareBuyers = stages.AwareBuyers;
 			conversionRate = stages.IntrinsicConversionRate;
@@ -639,23 +663,32 @@ public static class ChartSimulator {
 		Mathf.Clamp(0.45f + Mathf.Clamp(distributionStrength, 0f, 1f) * 0.55f +
 			Mathf.Clamp(nationalReach, 0f, 1f) * 0.35f, 0.55f, 1.20f);
 
-	private static float GetGenreMarketReach(Genre genre) {
-		return genre switch {
-			Genre.TraditionalPop => 0.95f,
-			Genre.RockAndRoll => 0.85f,
-			Genre.Soul => 0.70f,
-			Genre.RnB => 0.65f,
-			Genre.TeenPop => 0.75f,
-			Genre.DooWop => 0.60f,
-			Genre.Country => 0.50f,
-			Genre.Gospel => 0.35f,
-			Genre.Jazz => 0.40f,
-			Genre.Folk => 0.45f,
-			Genre.BritishInvasion => 0.80f,
-			Genre.Psychedelic => 0.50f,
-			Genre.SurfRock => 0.55f,
-			_ => 0.60f
-		};
+	// The share of the buying public a genre could reach at all, i.e. the denominator a record
+	// exhausts as it sells. This was a hand-written pre-V2 switch on the raw enum: it enumerated
+	// only legacy genre names, defaulted 31 of the 42 canonical genres to a silent .60, and two of
+	// its entries (BritishInvasion, Psychedelic) were legacy values MapLegacy converts away before
+	// this is ever reached, so they never fired. It also froze 1960 assumptions for all ten years --
+	// British Beat, second-highest in the authored table at .80, was collecting the .60 default.
+	//
+	// A genre's reach IS its demand baseline, which GenreCatalog already owns, per year, calibrated
+	// against the historical market-share targets. Deriving from it removes the duplicate statement
+	// and makes reach move with the decade instead of standing still. The floor and span reproduce
+	// the authored table's original .35-.95 range.
+	//
+	// EXPECT NO CHART EFFECT. This is a correctness repair, not a calibration one. Reach's only
+	// consumer is exhaustionFactor, and penetration is ~.0005 at a hit's peak -- see the
+	// SATURATION_POWER block above. Measured on d7-psychedge, the largest repair this term admits
+	// is worth 1.4% of units and is very slightly regressive against the Soul/SunshinePop gap it
+	// was once suspected of causing. Do not A/B it; the effect is two orders of magnitude under the
+	// single-seed noise floor.
+	private const float GENRE_REACH_FLOOR = 0.35f;
+	private const float GENRE_REACH_SPAN = 0.60f;
+
+	private static float GetGenreMarketReach(Genre genre, int year) {
+		Genre canonical = GenreCatalog.MapLegacy(genre, year);
+		if (!GenreCatalog.TryGet(canonical, out GenreProfile profile)) return GENRE_REACH_FLOOR + GENRE_REACH_SPAN * 0.5f;
+		return Mathf.Clamp(GENRE_REACH_FLOOR + profile.GetBaseline(year) * GENRE_REACH_SPAN,
+			GENRE_REACH_FLOOR, GENRE_REACH_FLOOR + GENRE_REACH_SPAN);
 	}
 
 	/// <summary>
@@ -1116,11 +1149,13 @@ public static class ChartSimulator {
 		float weightedPenetration = 0f;
 		float totalPotentialAudience = 0f;
 		float quality = record.GetQuality();
+		// Telemetry-only path, so it resolves its own year; GetBaseline clamps outside 1960-69.
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 
 		foreach (var region in regions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out var regionalData)) continue;
 
-			float potentialAudience = GetRegionalPotentialAudience(record, region, quality);
+			float potentialAudience = GetRegionalPotentialAudience(record, region, quality, year);
 			float penetration = regionalData.unitsSoldTotal / Mathf.Max(1f, potentialAudience);
 			weightedPenetration += penetration * potentialAudience;
 			totalPotentialAudience += potentialAudience;
@@ -1131,9 +1166,9 @@ public static class ChartSimulator {
 			: 0f;
 	}
 
-	private static float GetRegionalPotentialAudience(RecordRuntimeData record, MarketRegion region, float quality) {
+	private static float GetRegionalPotentialAudience(RecordRuntimeData record, MarketRegion region, float quality, int year) {
 		float qualityAppeal = 0.3f + (quality * 0.7f);
-		float genreReach = GetGenreMarketReach(record.baseRecord.primaryGenre);
+		float genreReach = GetGenreMarketReach(record.baseRecord.primaryGenre, year);
 		return BASE_POTENTIAL_AUDIENCE * qualityAppeal * genreReach * (region.population / 50f);
 	}
 	

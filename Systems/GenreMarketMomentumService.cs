@@ -187,6 +187,18 @@ public static class GenreMarketMomentumService {
 		Add(Genre.Country, Genre.CountryRock,.72f); Add(Genre.Country, Genre.Folk,.45f); Add(Genre.RockAndRoll, Genre.SurfRock,.65f); Add(Genre.SurfRock, Genre.GarageRock,.62f); Add(Genre.GarageRock, Genre.BritishBeat,.58f); Add(Genre.GarageRock, Genre.ProtoPunk,.68f);
 		Add(Genre.PsychedelicRock, Genre.AcidRock,.80f); Add(Genre.AcidRock, Genre.ProgressiveRock,.70f); Add(Genre.SunshinePop, Genre.BaroquePop,.62f); Add(Genre.BaroquePop, Genre.FolkRock,.48f);
 		Add(Genre.Ska, Genre.Rocksteady,.78f); Add(Genre.Rocksteady, Genre.Reggae,.78f); Add(Genre.Boogaloo, Genre.Soul,.60f); Add(Genre.Boogaloo, Genre.Funk,.55f); Add(Genre.Boogaloo, Genre.LatinPop,.55f);
+		// The lineages that actually took the psychedelic turn. Before these edges the only
+		// explicit route into PsychedelicRock was AcidRock, so IsPsychedelicTransitionCompatible's
+		// >= .12 bar was cleared only by the same-family term -- and PsychedelicRock's family is
+		// Rock. That admitted 21.1% of 1966-69 supply selections and locked out every artist whose
+		// identity was FolkRock, BritishPop or Pop-family, which is most of who made the turn. It is
+		// why the genre converts baseline into supply ~4.7x worse than Soul while pinned at the 1.00
+		// baseline cap. Supply moves LINEARLY in the candidate pool here -- the quadratic transfer
+		// law governs keyframes, not eligibility.
+		Add(Genre.FolkRock, Genre.PsychedelicRock,.55f); Add(Genre.GarageRock, Genre.PsychedelicRock,.58f);
+		Add(Genre.BritishBeat, Genre.PsychedelicRock,.52f); Add(Genre.BritishBlues, Genre.PsychedelicRock,.45f);
+		Add(Genre.BritishPop, Genre.PsychedelicRock,.45f); Add(Genre.SunshinePop, Genre.PsychedelicRock,.40f);
+		Add(Genre.BaroquePop, Genre.PsychedelicRock,.38f); Add(Genre.SurfRock, Genre.PsychedelicRock,.30f);
 		return edges;
 	}
 }

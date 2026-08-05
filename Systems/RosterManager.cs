@@ -351,7 +351,11 @@ public partial class RosterManager : Node {
 		artist.royaltyRate = label.CalculateRoyaltyRate(artist);
 		artist.unrecoupedAdvance = advanceRange;
 		artist.contractLength = (int)GD.RandRange(3, 6);
-		artist.contractExpiresYear = year + artist.contractLength;
+		// Dated from when the act was actually signed, not from the launch year, so the
+		// seeded roster does not reach its expiry cliff all at once. signedYear is already
+		// backdated up to five years above.
+		artist.contractExpiresYear = Mathf.Max(year + 1, artist.signedYear + artist.contractLength);
+		artist.contractExpiresWeek = (artist.contractExpiresYear - year) * 52;
 		artist.weeksSinceLastRelease = (int)GD.RandRange(0, 52);
 		
 		if (GD.Randf() < 0.3f) {
@@ -1009,8 +1013,24 @@ public partial class RosterManager : Node {
 		}
 	}
 	
+	/// <summary>
+	/// A term matures on the clock or on delivery, whichever comes first. The week is
+	/// authoritative wherever it was recorded, because a monthly review against a year
+	/// boundary turned a one-year deal signed in November into a two-month one.
+	/// </summary>
+	internal static bool IsContractMatured(SimulatedArtist artist, int year, int currentWeek) {
+		if (artist == null) return false;
+		bool termMatured = artist.contractExpiresWeek > 0
+			? currentWeek >= artist.contractExpiresWeek
+			: artist.contractExpiresYear <= year;
+		bool deliveryMatured = artist.contractSinglesObligation > 0 &&
+			artist.contractReleases >= artist.contractSinglesObligation;
+		return termMatured || deliveryMatured;
+	}
+
 	private void ProcessContractExpirations(AILabel label, int year) {
-		var expiring = label.roster.Where(a => a.contractExpiresYear <= year).ToList();
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		var expiring = label.roster.Where(a => IsContractMatured(a, year, currentWeek)).ToList();
 		foreach (var artist in expiring) {
 			bool wantToResign = ShouldResignArtist(label, artist);
 			if (wantToResign && label.CanAffordToSign(label.CalculateAdvanceOffer(artist))) {
@@ -1018,6 +1038,9 @@ public partial class RosterManager : Node {
 				artist.unrecoupedAdvance = newAdvance;
 				artist.contractLength = label.CalculateContractLength(artist);
 				artist.contractExpiresYear = year + artist.contractLength;
+				artist.contractExpiresWeek = currentWeek + artist.contractLength * 52;
+				artist.contractSinglesObligation = label.CalculateContractSinglesObligation(artist, year);
+				artist.contractReleases = 0;
 				artist.royaltyRate = label.CalculateRoyaltyRate(artist);
 				CompetitorManager.Instance?.RecordExpense(label, newAdvance);
 				artist.careerEvents.Add($"{year}: Re-signed with {label.labelName}");
@@ -1034,7 +1057,20 @@ public partial class RosterManager : Node {
 		if (artist.careerState == CareerState.Rising && artist.momentum > 0.2f) return true;
 		if (artist.careerState == CareerState.Established && artist.consecutiveFlops < 2) return true;
 		if (artist.careerState == CareerState.Declining) return false;
-		if (artist.careerState == CareerState.NewSigning && artist.totalReleases >= 2 && artist.top40Hits == 0) return false;
+		// Expiry review reads the same evidence as the probation window. Keyed on Top 40
+		// alone it re-closed the route the window had just opened: an act promoted on
+		// regional breakouts, or one still charting outside the Top 40, was refused
+		// renewal at expiry regardless.
+		//
+		// The bar here is lower than the probation window on purpose. Declining to pick
+		// up an option is not a firing: it ends as ContractExpired, carries no cooldown
+		// and no exhaustion charge, and returns the act to the market intact. That is how
+		// most 1960s acts actually left a label, and it is the non-punitive turnover this
+		// model otherwise lacks. It is measured against sides delivered under THIS deal,
+		// not lifetime releases.
+		if (artist.careerState == CareerState.NewSigning && artist.contractReleases >= 2 &&
+			artist.top40Hits == 0 && artist.contractChartedRecords == 0 && artist.contractRegionalBreakouts == 0 &&
+			!artist.HasRecoupedCurrentContract()) return false;
 		return GD.Randf() < label.artistLoyalty;
 	}
 	
@@ -1052,6 +1088,7 @@ public partial class RosterManager : Node {
 	public void RecordReleased(SimulatedArtist artist, string recordId) {
 		artist.weeksSinceLastRelease = 0;
 		artist.totalReleases++;
+		artist.contractReleases++;
 		artist.releaseHistory.Add(recordId);
 	}
 	
@@ -1065,7 +1102,7 @@ public partial class RosterManager : Node {
 			return;
 		}
 		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
-			ArtistManager.CreditsCurrentContract(record, artist));
+			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;

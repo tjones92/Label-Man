@@ -26,6 +26,11 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		var results = new List<string>();
 		ProbeContractHistoricalSeparation();                 // 1
 		ProbeContractHitAndFlopThreshold();                  // 2
+		ProbeRegionalBreakoutLadderRung();                  // 2d-2e
+		ProbeProbationWindowRestartsOnEvidence();           // 2f-2h
+		ProbeRecoupmentExemptsFromProbation();              // 2i-2j
+		ProbeContractTermModel();                           // 2k-2n
+		ProbeContractMaturesOnTermOrDelivery();             // 2o-2r
 		ProbeFreeAgentResetAndRenewal();                     // 3
 		ProbeStructuredCooldownReasons();                    // 4
 		ProbeCooldownBoundary();                             // 5
@@ -131,6 +136,15 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		formationPrimaryGenre = Genre.RnB, formationSecondaryGenre = Genre.Soul, formedYear = 1960,
 		careerState = CareerState.NewSigning, lifecycleStatus = ArtistLifecycleStatus.Active, isActive = true
 	};
+
+	/// <summary>
+	/// Drives a run of releases that produce no commercial evidence of any kind: no
+	/// chart entry, no regional breakout. Anchored to the probation constants so the
+	/// fixtures below move with the window instead of asserting a stale literal.
+	/// </summary>
+	private static void CompleteBlankChartRuns(SimulatedArtist artist, int count, bool creditCurrentContract = true) {
+		for (int index = 0; index < count; index++) artist.CompleteChartRun(0, 1, 0, creditCurrentContract, 0);
+	}
 
 	private static void ProbeEconomicYieldDiagnosticBoundaries() {
 		Require(ArtistPopulationLifecycle.ShouldMaterializeInitialReserveFor(true, false) &&
@@ -517,10 +531,94 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		hit.RegisterTop40Hit();
 		Require(hit.careerState == CareerState.Rising && hit.contractTop40Hits == 1, "2a current-contract Top 40 advances probation");
 		SimulatedArtist flop = NewArtist("flop");
+		CompleteBlankChartRuns(flop, SimulatedArtist.FirstContractFlopThreshold - 1);
+		Require(flop.careerState == CareerState.NewSigning &&
+			flop.contractConsecutiveFlops == SimulatedArtist.FirstContractFlopThreshold - 1,
+			"2b a first contract survives one blank release short of its probation window");
 		flop.CompleteChartRun(0, 1, 0);
-		Require(flop.careerState == CareerState.NewSigning && flop.contractConsecutiveFlops == 1, "2b one current-contract flop retains first-contract probation");
-		flop.CompleteChartRun(0, 1, 0);
-		Require(flop.careerState == CareerState.Dropped && flop.contractCompletedChartRuns == 2, "2c two current-contract flops depart a first contract");
+		Require(flop.careerState == CareerState.Dropped &&
+			flop.contractCompletedChartRuns == SimulatedArtist.FirstContractFlopThreshold,
+			"2c a full probation window of blank releases departs a first contract");
+	}
+
+	private static void ProbeRegionalBreakoutLadderRung() {
+		SimulatedArtist artist = NewArtist("regional-rung");
+		artist.CompleteChartRun(0, 1, 0, true, 1);
+		Require(artist.careerState == CareerState.NewSigning && artist.contractRegionalBreakouts == 1 &&
+			artist.regionalBreakouts == 1 && artist.contractConsecutiveFlops == 0,
+			"2d one regional breakout is evidence short of promotion, and it restarts the probation window");
+		artist.CompleteChartRun(0, 1, 0, true, 2);
+		Require(artist.careerState == CareerState.Rising && artist.HasBreakthroughEvidence() &&
+			artist.contractRegionalBreakouts == SimulatedArtist.RegionalBreakoutPromotionThreshold,
+			"2e two regional breakouts promote a first contract without a national Top 40");
+	}
+
+	private static void ProbeProbationWindowRestartsOnEvidence() {
+		// The window is renewable, not a one-shot exemption: a charting record buys
+		// another full window and no more, so a single early result cannot underwrite
+		// an unlimited run of blanks.
+		SimulatedArtist artist = NewArtist("window-restart");
+		CompleteBlankChartRuns(artist, SimulatedArtist.FirstContractFlopThreshold - 1);
+		artist.UpdateAfterChartRun(78, 4, 500);
+		Require(artist.careerState == CareerState.NewSigning && artist.contractConsecutiveFlops == 0 &&
+			artist.contractChartedRecords == 1 && artist.contractTop40Hits == 0,
+			"2f charting outside the Top 40 is evidence and resets the contract flop streak");
+		CompleteBlankChartRuns(artist, SimulatedArtist.FirstContractFlopThreshold - 1);
+		Require(artist.careerState == CareerState.NewSigning, "2g the restarted window is a full window");
+		artist.CompleteChartRun(0, 1, 0);
+		Require(artist.careerState == CareerState.Dropped, "2h a restarted window still closes on blank releases");
+	}
+
+	private static void ProbeContractTermModel() {
+		SimulatedArtist newAct = NewArtist("term-new");
+		AILabel small = NewScoutingLabel(); small.tier = LabelTier.Small; small.artistLoyalty = 0f;
+		AILabel major = NewScoutingLabel(); major.tier = LabelTier.Major; major.artistLoyalty = 0.9f;
+		// Relational, not literal: the invariant is that a house that locks its roster
+		// down writes a longer deal than one that does not, at every career state.
+		Require(major.CalculateContractLength(newAct) > small.CalculateContractLength(newAct),
+			"2k contract term varies by house: a loyal major outbids a small independent on term");
+		for (int trial = 0; trial < 40; trial++) {
+			int term = small.CalculateContractLength(newAct);
+			Require(term >= 1 && term <= 7, "2l every term stays inside the authored one-to-seven-year range");
+		}
+		SimulatedArtist star = NewArtist("term-star"); star.careerState = CareerState.Superstar;
+		Require(small.CalculateContractLength(star) <= small.CalculateContractLength(newAct) + 1,
+			"2m leverage ordering survives: a superstar does not sign a longer deal than a new act");
+		Require(small.CalculateContractSinglesObligation(newAct, AILabel.SinglesObligationFinalYear) > 0 &&
+			small.CalculateContractSinglesObligation(newAct, AILabel.SinglesObligationFinalYear + 1) == 0 &&
+			small.CalculateContractSinglesObligation(star, 1962) == 0,
+			"2n a sides obligation is a new-act deal of the singles era and retires with it");
+	}
+
+	private static void ProbeContractMaturesOnTermOrDelivery() {
+		SimulatedArtist onClock = NewArtist("mature-clock");
+		onClock.contractExpiresWeek = 100; onClock.contractExpiresYear = 9999; onClock.contractSinglesObligation = 4;
+		Require(!RosterManager.IsContractMatured(onClock, 1962, 99) && RosterManager.IsContractMatured(onClock, 1962, 100),
+			"2o the recorded week is authoritative over the year boundary");
+		SimulatedArtist onDelivery = NewArtist("mature-delivery");
+		onDelivery.contractExpiresWeek = 500; onDelivery.contractSinglesObligation = 3; onDelivery.contractReleases = 2;
+		Require(!RosterManager.IsContractMatured(onDelivery, 1962, 10), "2p an undelivered obligation holds the act");
+		onDelivery.contractReleases = 3;
+		Require(RosterManager.IsContractMatured(onDelivery, 1962, 10),
+			"2q delivering the sides matures the term ahead of the clock");
+		SimulatedArtist legacy = NewArtist("mature-legacy");
+		legacy.contractExpiresWeek = -1; legacy.contractExpiresYear = 1963; legacy.contractSinglesObligation = 0;
+		Require(!RosterManager.IsContractMatured(legacy, 1962, 5000) && RosterManager.IsContractMatured(legacy, 1963, 0),
+			"2r a contract with no recorded week still matures on its authored year");
+	}
+
+	private static void ProbeRecoupmentExemptsFromProbation() {
+		SimulatedArtist artist = NewArtist("recouped");
+		artist.unrecoupedAdvance = 0f; artist.totalRoyaltyEarnings = 250f;
+		CompleteBlankChartRuns(artist, SimulatedArtist.FirstContractFlopThreshold + 2);
+		Require(artist.careerState == CareerState.NewSigning && artist.HasRecoupedCurrentContract() &&
+			!artist.ShouldDepartForCurrentContractPerformance(),
+			"2i a fully recouped act is not dropped for chart position");
+		SimulatedArtist owing = NewArtist("owing");
+		owing.unrecoupedAdvance = 1200f; owing.totalRoyaltyEarnings = 0f;
+		CompleteBlankChartRuns(owing, SimulatedArtist.FirstContractFlopThreshold);
+		Require(owing.careerState == CareerState.Dropped && !owing.HasRecoupedCurrentContract(),
+			"2j an unrecouped act still departs on a closed probation window");
 	}
 
 	private static void ProbeMarketClearingServiceModes() {
@@ -556,9 +654,11 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		SimulatedArtist artist = NewArtist();
 		artist.careerState = CareerState.Dropped; artist.labelId = null; artist.top40Hits = 4; artist.consecutiveFlops = 7;
 		artist.contractTop40Hits = 3; artist.contractConsecutiveFlops = 2; artist.contractCompletedChartRuns = 9;
+		artist.contractChartedRecords = 5; artist.contractRegionalBreakouts = 4; artist.regionalBreakouts = 6;
 		var pool = new List<SimulatedArtist> { artist };
 		ArtistManager.ReconcileSignedArtistForProbe(artist, pool, "label", 1961);
 		Require(artist.contractSequence == 1 && artist.contractTop40Hits == 0 && artist.contractConsecutiveFlops == 0 &&
+			artist.contractChartedRecords == 0 && artist.contractRegionalBreakouts == 0 && artist.regionalBreakouts == 6 &&
 			artist.top40Hits == 4 && artist.consecutiveFlops == 7 && pool.Count == 0, "3 free-agent reset preserves lifetime history");
 		int sequence = artist.contractSequence;
 		artist.contractTop40Hits = 1; // same-label renewal is deliberately not a new free-agent cycle
@@ -605,36 +705,72 @@ public static class ArtistPopulationLifecycleProbeSuite {
 	}
 
 	private static void ProbeCalendarFormationQuota() {
+		int baseCount = ArtistManager.BaseAnnualRuntimeFormationCountForProbe;
+		int maxCount = ArtistManager.MaximumAnnualRuntimeFormationCountForProbe;
+		float gain = ArtistManager.FormationDemandGainForProbe;
+		int nominalWeeks = ArtistManager.NominalRuntimeFormationWeeksForProbe;
 		foreach (int year in new[] { 1960, 1961, 1965 }) {
-			float carry = 0f; int formed = 0;
+			double carry = 0d; int formed = 0;
 			for (GameDate date = new(year, 1, 1); date.year == year; date = date.NextDay()) {
 				if (!date.IsFriday) continue;
 				formed += ArtistManager.CalculateCalendarFormationCount(ref carry, formed);
 			}
-			Require(formed == 300, $"9 calendar formation quota is exact in {year}");
+			Require(formed == baseCount, $"9 calendar formation quota is exact in {year}");
 		}
-		float partialCarry = 0f; int partialFormed = 0;
+		double partialCarry = 0d; int partialFormed = 0, partialFridays = 0;
 		for (GameDate date = new(1969, 1, 1); date <= new GameDate(1969, 12, 12); date = date.NextDay()) {
-			if (date.IsFriday) partialFormed += ArtistManager.CalculateCalendarFormationCount(ref partialCarry, partialFormed);
+			if (!date.IsFriday) continue;
+			partialFridays++;
+			partialFormed += ArtistManager.CalculateCalendarFormationCount(ref partialCarry, partialFormed);
 		}
-		Require(partialFormed == 288 && partialCarry >= 0f && partialCarry < 1f,
-			"9 partial 1969 checkpoint reports only formations earned by its 50 processed Fridays");
-		// Formation answers unmet hiring demand. It must stay at the base rate while the
-		// prospect market can still cover openings, or the early decade moves.
-		Require(ArtistManager.CalculateResponsiveAnnualFormationTarget(24, 35, 3628) == 300 &&
-			ArtistManager.CalculateResponsiveAnnualFormationTarget(0, 0, 0) == 300 &&
-			ArtistManager.CalculateResponsiveAnnualFormationTarget(197, 6, 0) > 1000 &&
-			ArtistManager.CalculateResponsiveAnnualFormationTarget(197, 6, 0) <= 1200 &&
-			ArtistManager.CalculateResponsiveAnnualFormationTarget(100000, 0, 0) == 1200 &&
-			ArtistManager.CalculateResponsiveAnnualFormationTarget(200, 50, 0) <
-				ArtistManager.CalculateResponsiveAnnualFormationTarget(200, 10, 0),
+		Require(partialFormed == (int)(baseCount / (float)nominalWeeks * partialFridays + .00001f) &&
+			partialCarry >= 0d && partialCarry < 1d,
+			$"9 partial 1969 checkpoint reports only formations earned by its {partialFridays} processed Fridays");
+		// The base rate is a floor the servo can only raise, and it is what the whole
+		// pre-1965 decade runs at, so it must hold while prospect supply covers openings.
+		// The monotonicity pair must sit in the band where the servo is still unsaturated,
+		// or both sides clamp to the ceiling and the comparison silently becomes 'equal'.
+		// Deriving that band from the constants keeps the fixture honest under retuning:
+		// a fixed pair like (200,50) vs (200,10) both pinned to the ceiling the moment the
+		// base rose, which is how this probe first reported a false failure.
+		const int pairHiring = 1000;
+		float unsaturatedBand = (maxCount / (float)baseCount - 1f) / gain;
+		int lowSupply = (int)(pairHiring * (1f - unsaturatedBand * .50f));
+		int highSupply = (int)(pairHiring * (1f - unsaturatedBand * .25f));
+		Require(ArtistManager.CalculateResponsiveAnnualFormationTarget(24, 35, 3628) == baseCount &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(0, 0, 0) == baseCount &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(197, 6, 0) > baseCount &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(197, 6, 0) <= maxCount &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(100000, 0, 0) ==
+				Math.Min(maxCount, (int)Math.Round(baseCount * (1f + gain), MidpointRounding.AwayFromZero)) &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(pairHiring, highSupply, 0) <
+				ArtistManager.CalculateResponsiveAnnualFormationTarget(pairHiring, lowSupply, 0) &&
+			ArtistManager.CalculateResponsiveAnnualFormationTarget(pairHiring, lowSupply, 0) < maxCount,
 			"9 responsive formation is inert while prospect supply covers openings, rises monotonically as it does not, and is bounded");
-		float responsiveCarry = 0f; int responsiveFormed = 0;
+		// The ceiling must stay a reachable safety valve. It was previously set to exactly
+		// base*(1+gain), which made the clamp unreachable by construction and clipped 0 of
+		// 522 measured run-weeks -- an inert knob that reads like a live one.
+		Require(maxCount < (int)Math.Round(baseCount * (1f + gain), MidpointRounding.AwayFromZero),
+			"9 formation ceiling is reachable rather than a no-op restatement of base*(1+gain)");
+		double responsiveCarry = 0d; int responsiveFormed = 0;
 		for (GameDate date = new(1968, 1, 1); date.year == 1968; date = date.NextDay()) {
 			if (!date.IsFriday) continue;
-			responsiveFormed += ArtistManager.CalculateCalendarFormationCount(ref responsiveCarry, responsiveFormed, 1200);
+			responsiveFormed += ArtistManager.CalculateCalendarFormationCount(ref responsiveCarry, responsiveFormed,
+				maxCount, maxCount);
 		}
-		Require(responsiveFormed == 1200, "9 calendar formation quota is exact at the responsive ceiling");
+		Require(responsiveFormed == maxCount, "9 calendar formation quota is exact at the responsive ceiling");
+		// A mid-year collapse in hiring vacancies must slow formation, not retroactively
+		// declare the year over-supplied and cancel weeks it had already earned.
+		double cliffCarry = 0d; int cliffFormed = 0, cliffPeak = 0, cliffFridays = 0;
+		for (GameDate date = new(1968, 1, 1); date.year == 1968; date = date.NextDay()) {
+			if (!date.IsFriday) continue;
+			cliffFridays++;
+			int weekTarget = cliffFridays <= 26 ? maxCount : baseCount;
+			cliffPeak = Math.Max(cliffPeak, weekTarget);
+			cliffFormed += ArtistManager.CalculateCalendarFormationCount(ref cliffCarry, cliffFormed, weekTarget, cliffPeak);
+		}
+		Require(cliffFormed > maxCount / 2 && cliffFormed <= maxCount,
+			"9 a mid-year target collapse slows formation to the accumulated entitlement without halting it");
 	}
 
 	private static void ProbeAvailabilityBoundary() {
@@ -905,8 +1041,7 @@ public static class ArtistPopulationLifecycleProbeSuite {
 		SimulatedArtist artist = NewArtist("experienced-comeback");
 		var pool = new List<SimulatedArtist> { artist };
 		ArtistManager.ReconcileSignedArtistForProbe(artist, pool, "first", 1960);
-		artist.CompleteChartRun(0, 1, 0);
-		artist.CompleteChartRun(0, 1, 0);
+		CompleteBlankChartRuns(artist, SimulatedArtist.FirstContractFlopThreshold);
 		Require(artist.careerState == CareerState.Dropped && artist.careerStateBeforeDrop == CareerState.NewSigning,
 			"34b first-contract probation retains the state that preceded its performance drop");
 
@@ -916,13 +1051,15 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			"34c a first-contract flop keeps its pre-drop presentation tier under the experienced-comeback policy");
 		AILabel label = NewScoutingLabel();
 		Require(!label.ShouldDropArtist(artist), "34d monthly review cannot bypass the experienced-comeback evidence window");
-		artist.CompleteChartRun(0, 1, 0);
-		artist.CompleteChartRun(0, 1, 0);
-		Require(artist.careerState == CareerState.NewSigning && artist.contractConsecutiveFlops == 2,
-			"34e an experienced comeback survives two current-contract flops");
+		CompleteBlankChartRuns(artist, SimulatedArtist.ExperiencedComebackFlopThreshold - 1);
+		Require(artist.careerState == CareerState.NewSigning &&
+			artist.contractConsecutiveFlops == SimulatedArtist.ExperiencedComebackFlopThreshold - 1,
+			"34e a comeback window stays open one release longer than a first contract");
+		Require(SimulatedArtist.ExperiencedComebackFlopThreshold > SimulatedArtist.FirstContractFlopThreshold,
+			"34e2 an experienced comeback is never given less rope than a first contract");
 		artist.CompleteChartRun(0, 1, 0);
 		Require(artist.careerState == CareerState.Dropped && artist.careerStateBeforeDrop == CareerState.NewSigning,
-			"34f the third current-contract flop drops an unresolved comeback");
+			"34f a full comeback window of blank releases drops an unresolved comeback");
 
 		ArtistManager.ReconcileSignedArtistForProbe(artist, pool, "comeback-hit", 1962);
 		artist.RegisterTop40Hit();
@@ -1171,15 +1308,17 @@ public static class ArtistPopulationLifecycleProbeSuite {
 
 	private static void ProbeFirstContractProbationThreshold() {
 		SimulatedArtist first = NewArtist("first-contract");
-		first.CompleteChartRun(0, 1, 0);
+		CompleteBlankChartRuns(first, SimulatedArtist.FirstContractFlopThreshold - 1);
 		Require(first.careerState == CareerState.NewSigning && first.GetPerformanceEvaluationMode() == ArtistPerformanceEvaluationMode.FirstContractProbation,
-			"51a a first-contract artist survives one current-contract flop");
+			"51a a first-contract artist survives a window short of its probation threshold");
 		first.CompleteChartRun(0, 1, 0);
-		Require(first.careerState == CareerState.Dropped && first.contractCompletedChartRuns == 2 && first.contractConsecutiveFlops == 2,
-			"51b a first-contract artist drops on two completed current-contract flops");
+		Require(first.careerState == CareerState.Dropped &&
+			first.contractCompletedChartRuns == SimulatedArtist.FirstContractFlopThreshold &&
+			first.contractConsecutiveFlops == SimulatedArtist.FirstContractFlopThreshold,
+			"51b a first-contract artist drops on a full window of blank current-contract releases");
 
 		SimulatedArtist stale = NewArtist("stale-contract"); stale.contractSequence = 2;
-		stale.CompleteChartRun(0, 1, 0, false); stale.CompleteChartRun(0, 1, 0, false);
+		CompleteBlankChartRuns(stale, SimulatedArtist.FirstContractFlopThreshold, false);
 		Require(stale.careerState == CareerState.NewSigning && stale.contractCompletedChartRuns == 0,
 			"51c stale prior-contract evidence cannot satisfy first-contract probation");
 	}
