@@ -11,6 +11,11 @@ Sibling of `D7GenreChartDivergenceHandoff.md` (the chart-divergence arc) and
 it was blocking has resolved: the remaining Mode A deficit is **not** supply, **not** signing, and
 **not** release conversion. It is a missing chart-efficiency dimension. §8 is the handoff for that.
 
+**August 5 session: §8 is now measured rather than inferred, and the framing changed. Sunshine Pop
+is not under-charting — it sits ON the model's own slots-vs-share line, in every live year. Read
+§11 before §8.2; two of §8.2's three steps are now differently posed and one proposed lever has a
+hard floor that makes it unable to fix Jazz or Folk.**
+
 ## 1. State
 
 | run | what it is |
@@ -225,6 +230,13 @@ market share is a chart-side defect. Sunshine Pop is precisely that case.
 - **Do not resolve Sunshine Pop by moving its market-share target.** §8.1.
 - **Do not read single-seed genre deltas under ~50 points as signal** (sibling §10). Sunshine Pop
   2 -> 3 is noise; PsychedelicRock 32 -> 53 and FolkRock 25 -> 45 are not.
+- **Do not look for a Sunshine Pop-specific chart defect.** §11. Its residual against the model's
+  own slots-vs-share line is **+0.33 slots/year** — it charts slightly *better* than its share
+  buys. Nothing in its chart path is broken.
+- **Do not treat release dilution / units-per-record as the lever.** §11.2. Adding units-per-release
+  to the slots regression moves R² from 0.864 to 0.865.
+- **Do not try to fix Jazz or Folk by cutting airplay.** §11.4. Airplay is bounded above by 100% of
+  itself, so zeroing it only reaches ~0.42x chart points per unit. Jazz needs 0.16x.
 
 ## 10. Still open, unchanged and out of scope
 
@@ -233,3 +245,113 @@ market share is a chart-side defect. Sunshine Pop is precisely that case.
   signings); `momentumScore` is a dud measure that would make it inert.
 - **Wire the momentum engine** — sibling §14.
 - **`SingleOrientation` and the unlocated 1.182x residual** — sibling §18.4.
+
+## 11. WHY SUNSHINE POP DOES NOT CHART — measured, August 5
+
+All figures from `d7-formationbase-decade-522-1001` (HEAD). No new run was spent.
+
+### 11.1 The whole model is one line, and Sunshine Pop is on it
+
+Across every genre-year with >=30 releases and nonzero share:
+
+```
+yearEndSlots = 1.409 x marketUnitsShare%  -  1.528        R2 = 0.864
+```
+
+That is the entire genre-to-chart relationship. Sunshine Pop's residual against it:
+
+| year | baseline | share% | releases | slots | line predicts |
+|---|---:|---:|---:|---:|---:|
+| 1965 | .29 | 0.68 | 93 | 1 | −0.6 |
+| 1966 | .49 | 1.21 | 202 | 0 | 0.2 |
+| 1967 | .46 | 2.49 | 281 | 2 | **2.0** |
+| 1968 | .35 | 1.31 | 229 | 0 | 0.3 |
+| 1969 | .22 | 0.70 | 175 | 0 | −0.5 |
+
+**Mean residual +0.33 slots/year.** Sunshine Pop charts *slightly better* than its market share
+buys. It is not refusing to chart; it is being paid exactly what it earns.
+
+The line's **intercept is the answer.** −1.528 means a genre needs **1.79% market share to score
+its first year-end slot.** Sunshine Pop's authored targets are 1.47 / 1.87 / 1.42 / 0.73 for
+1966-69 — it straddles that threshold for two years and is under it for two. Zero slots is the
+correct output of the model it is currently in.
+
+**Country is the same fact read at the other end**, and is *also* not a defect. Its residual is
+−0.49 slots/year — Country charts slightly *worse* than its line. Its +47 decade slot error is
+entirely that its authored baseline gives it 6-11% of units and the line converts that at 1.409.
+The two largest year-end misses in the sim are one line and two authored baselines, not two bugs.
+**Soul is the control and it is exact: model 179 decade slots against a hand-counted 179.**
+
+### 11.2 Three explanations killed on the way
+
+- **"Its records are diluted across too many releases."** Sunshine Pop does carry ~1,405 releases
+  per point of unit share against ~580 for genres that chart, and units-per-release does track
+  the baseline at r=0.90. But adding units-per-release to the regression moves R² **0.864 ->
+  0.865**. Concentration is a *consequence* of the baseline, not an independent channel. Sized
+  the channel before the suspect; the channel is inert.
+- **"Mode A — no record of the genre can become a hit"** (sibling §6.1). **Dead at HEAD.** Sunshine
+  Pop scores 35 top-40 weeks and **17 top-10 weeks** in 1967, and 18/9 in 1965. It makes hits.
+- **"It's the singles/album split."** At 100% single orientation Sunshine Pop reaches ~0.90% of the
+  singles market. Still one slot. Worth fixing for other reasons (§11.4) but it is not this.
+
+### 11.3 The arithmetic ceiling — check this before designing anything
+
+1969: total market 195.5M units, of which 62.8M flow through charting records. A year-end slot
+costs **~550k chart units** at the median and ~300k at the margin. Sunshine Pop's **entire 1969
+market is 1.37M units.** Its hard ceiling, if every unit it sells went through a charting record,
+is **~2-4 slots.** The hand count wants **12**.
+
+On the model's own line, 12 slots requires **9.6% market share**. The authored target is 0.73%.
+**No amount of concentration, format tilt, or supply routing closes a 13x gap** — the missing
+factor has to be a genuine per-genre multiplier on chart points *per unit*, or it does not exist.
+
+### 11.4 Where the 63x actually has to come from, and where it runs out
+
+Decade required multiplier on slots-per-unit-share, model against hand count:
+
+| | Jazz | Folk | Country | PsychRock | **Soul** | DooWop | HardRock | GarageRock | **SunshinePop** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| model slots | 44 | 57 | 89 | 44 | **179** | 17 | 3 | 3 | **3** |
+| hand count | 7 | 22 | 42 | 26 | **179** | 27 | 9 | 26 | **30** |
+| needs | **0.16x** | 0.39x | 0.47x | 0.59x | **1.00x** | 1.59x | 3.0x | 8.7x | **10.0x** |
+
+0.16x to 10x is the 63x §8 named, now derived per genre. Soul at exactly 1.00x is the control.
+
+**The channel exists and the up-lever has the range.** Chart points are
+`(units + airplay x eraWeight) x survey`, and airplay is **58% of points at the chart bar in 1969**
+(14% in 1960 — `GetAirplayEraWeight` ramps 0.60 -> 1.00 across 1960-68). `AIRPLAY_CONVEXITY = 5`
+applies to the record's own rotation, and `genreAcceptance` sits **inside** that fifth power via
+`UpdateRadioHeat` (`ChartSimulator.cs:840`, `targetHeat = (...) * genreAcceptance`) — genre radio
+*access* is divided out and paid back linearly, but this term is not. So a radio-side genre ratio
+of `r` yields `r^5` on airplay points. Sunshine Pop's 10x needs `r ≈ 1.75-2.0x`. Measured rotation
+per eligible record is 0.005-0.019 against a `AIRPLAY_REFERENCE_PLAY` of 0.30 and a [0,1] clamp on
+`radioHeat`, so there is no saturation in the way.
+
+**The down-lever has a hard floor and this is the trap.** Airplay can only be removed down to zero,
+so a genre stripped of all airplay still keeps its sales points: the floor is **~0.42x** chart
+points per unit at the 1969 chart bar, and *higher* (~0.70x) for the big sellers that actually hold
+year-end slots. Country at 0.47x is just barely reachable. **Jazz at 0.16x and Folk at 0.39x are
+not reachable through airplay at all.** They need the second lever below, and a session that tries
+to fix all four over-charters with one radio term will burn a decade run finding this out.
+
+### 11.5 The two-sided design this implies
+
+1. **Split `genreAcceptance` into a sales acceptance and a radio acceptance.** Today one authored
+   scalar drives both — sales roughly as `baseline²` (the transfer law) and airplay as
+   `baseline⁵`. That single number is *why* there is no chart-efficiency dimension: a genre
+   physically cannot be small-selling and heavily-programmed. Feed the new radio value to
+   `UpdateRadioHeat:840` only. This is the up-lever (SunshinePop, GarageRock, Comedy, HardRock,
+   DooWop) and it is historically the right object — Sunshine Pop was an AM Top-40 format genre.
+2. **Make the chart's denominator the pop-singles universe.** `genre-decade-shape`'s `marketUnits`
+   is accumulated over **all formats** (`ChartAuditRunner.cs:2544`, fed the full `records` list —
+   1969: 195.5M, of which 44.9M album) while the Hot 100 it is scored against is singles-only.
+   The market-share benchmark's denominator and the slot benchmark's numerator are measured over
+   different universes. This is the down-lever for Jazz/Folk/Country/EasyListening, and
+   `SingleOrientation` is the existing authored home for it.
+
+**Author call needed before (1) is sized:** Sunshine Pop's own benchmark pair moves in opposite
+directions across 1968-69 — hand-counted slots go **4 -> 12** while the authored share target goes
+**1.42% -> 0.73%**. Its 1966-68 pairs imply 2.7-5.3 slots per point; only 1969 implies 16.4. §8.1
+rules the share target untouchable and that ruling is respected here — but a term sized to hit the
+1969 pair is being sized against the single most extreme year in the benchmark, and will overshoot
+1966-68. Sizing against Sunshine Pop's 1967 pair (1.87% share, 10 slots) is the conservative read.
