@@ -389,12 +389,31 @@ of `r` yields `r^5` on airplay points. Sunshine Pop's 10x needs `r ≈ 1.75-2.0x
 per eligible record is 0.005-0.019 against a `AIRPLAY_REFERENCE_PLAY` of 0.30 and a [0,1] clamp on
 `radioHeat`, so there is no saturation in the way.
 
-**The down-lever has a hard floor and this is the trap.** Airplay can only be removed down to zero,
-so a genre stripped of all airplay still keeps its sales points: the floor is **~0.42x** chart
-points per unit at the 1969 chart bar, and *higher* (~0.70x) for the big sellers that actually hold
-year-end slots. Country at 0.47x is just barely reachable. **Jazz at 0.16x and Folk at 0.39x are
-not reachable through airplay at all.** They need the second lever below, and a session that tries
-to fix all four over-charters with one radio term will burn a decade run finding this out.
+**The down-lever has a hard floor and it is era-dependent.** Airplay can only be removed down to
+zero, so a genre stripped of all airplay keeps its sales points. The floor is `1 − A` where `A` is
+airplay's share of chart points, and `A` is **not constant across the decade**: measured at the
+chart bar it runs **14% (1960), 37% (1962), 47% (1965), 45% (1967), 58% (1969)**. So a full airplay
+strip is worth a 0.42x cut in 1969 and only a **0.86x** cut in 1960.
+
+**That splits the three over-charters into two unrelated problems.** Slot surplus by era:
+
+| | 1960-64 | 1965-69 | total | airplay lever there |
+|---|---:|---:|---:|---|
+| **Country** | 0 | **+47** | +47 | strong (A = 45-58%) |
+| **Jazz** | **+32** | +5 | +37 | **near-useless** (A = 14-37%) |
+| **Folk** | +23 | +12 | +35 | weak, mostly early |
+| PsychedelicRock | 0 | +18 | +18 | strong |
+| **SunshinePop** | 0 | **−27** | −27 | **strong** |
+
+- **Country's entire surplus is 1965-69** (+14 and +17 in 1968-69 alone); it is *under* in 1960-63.
+  That is exactly where airplay is worth most, so the radio down-lever does the bulk of Country.
+- **Jazz's surplus is 32 of 37 in 1960-64**, where cutting *all* of its airplay removes only 14-37%
+  of its points. Airplay cannot fix Jazz. Same for Folk's early two-thirds.
+- **Sunshine Pop's deficit is entirely 1966-69**, the airplay-rich end. The up-lever is strongest
+  exactly where it is needed — this is a real alignment, not a coincidence.
+
+So: **Country and PsychedelicRock are airplay work; Jazz and Folk are format/denominator work.** A
+session that tries to fix all four with one radio term will burn a decade run finding this out.
 
 ### 11.5 The two-sided design this implies
 
