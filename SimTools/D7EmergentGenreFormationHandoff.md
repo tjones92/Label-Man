@@ -271,16 +271,78 @@ That is the entire genre-to-chart relationship. Sunshine Pop's residual against 
 **Mean residual +0.33 slots/year.** Sunshine Pop charts *slightly better* than its market share
 buys. It is not refusing to chart; it is being paid exactly what it earns.
 
-The line's **intercept is the answer.** −1.528 means a genre needs **1.79% market share to score
-its first year-end slot.** Sunshine Pop's authored targets are 1.47 / 1.87 / 1.42 / 0.73 for
-1966-69 — it straddles that threshold for two years and is under it for two. Zero slots is the
-correct output of the model it is currently in.
+The intercept explains the **zero specifically**: −1.528 means a genre needs 1.79% market share to
+score its first slot, and Sunshine Pop's authored targets are 1.47 / 1.87 / 1.42 / 0.73 for
+1966-69. **But the intercept is not the deficit** — see §11.2a. Removing it entirely moves Sunshine
+Pop 1969 from 0 slots to 0.70 against a benchmark of 12.
 
 **Country is the same fact read at the other end**, and is *also* not a defect. Its residual is
 −0.49 slots/year — Country charts slightly *worse* than its line. Its +47 decade slot error is
 entirely that its authored baseline gives it 6-11% of units and the line converts that at 1.409.
 The two largest year-end misses in the sim are one line and two authored baselines, not two bugs.
 **Soul is the control and it is exact: model 179 decade slots against a hand-counted 179.**
+
+### 11.2a No share-only rule can fix this — proved, not argued
+
+History is **also** close to a line on share: `benchSlots = 1.146 x targetShare% − 0.319`, R² 0.619
+(model: `1.409x − 1.528`, R² 0.864). Reallocating the 100 slots each year under three different
+share-only rules, against the model's own actual shares:
+
+| rule | abs slot error (per genre-year) |
+|---|---:|
+| model, as it runs | 683.0 |
+| model line, refit | 638.5 |
+| **history's line applied to model shares** | 674.0 |
+| **pure proportional, no threshold at all** | 691.2 |
+
+All four are the same number. **The dimension is orthogonal to market share by construction**, so
+no reshaping of the share→slot curve — slope, intercept, or threshold — can recover it. Sunshine
+Pop 1969 goes 0.00 → 0.47 (history's line) → 0.70 (pure proportional) against a benchmark of 12.
+
+The reason is visible in *which* small genres chart. History's 16 sub-1%-share slots in 1969 go to
+five named genres (SunshinePop 12, Comedy 1, GarageRock 1, BaroquePop 1, SurfRock 1) out of the 15
+genres in that band — not spread across them. Size does not predict which; identity does.
+
+### 11.2b The one table that states the whole problem
+
+Where the 100 slots sit, bucketed by the genre's own market share:
+
+| 1969 | under 1% | 1-2% | 2-5% | over 5% |
+|---|---:|---:|---:|---:|
+| model | **0** slots / 0 genres | 2 / 1 | 17 / 5 | **81** / 7 |
+| hand count | **16** slots / 5 genres | 17 / 5 | 38 / 8 | **38** / 3 |
+
+History puts **33 of 100 slots on genres holding under 2% of the market. The model puts 2.** And
+this is not a share-distribution artefact — the two agree almost exactly on how many genres exist
+at each size (1969: 31 vs 30 genres above 0.5% share, 23 vs 23 above 1%, 15 vs 15 above 2%).
+
+### 11.2c Market share is already calibrated; slots are not
+
+Decade, mean annual share against `AdjustedHistoricalGenreShareTargets`, all 42 genres:
+
+| | total absolute error |
+|---|---:|
+| market share | **17.8 points** |
+| year-end slots | **399 slots** |
+
+Only three genres miss share by more than 1.3 points (Country −2.19, RockAndRoll −1.75,
+ContemporaryFolk +1.77). **Sunshine Pop's share is +0.11.** There is no volume problem and no
+volume-allocation problem left to solve.
+
+**Country is not eating Sunshine Pop's units.** It is the single largest share *deficit* in the
+sim — 7.75% against a 9.94% target — while holding +47 surplus slots. It needs *more* units and
+*fewer* slots, so its share cannot be the donor.
+
+The slot books:
+
+- **surplus, 148 slots:** Country +47, Jazz +37, Folk +35, PsychedelicRock +18, ContemporaryFolk +11
+- **deficit, −205 slots:** RockAndRoll −31 (the misclassification caveat, expected), BritishBeat −30,
+  SunshinePop −27, GarageRock −23, TeenPop −21, BritishPop −15, SurfRock −13, Comedy −13,
+  DooWop −10, Bubblegum −8, EasyListening −8, HardRock −6
+- **exact or near-exact:** Soul 179/179, TraditionalPop 132/134, RnB 92/94, FolkRock 43/40
+
+Every surplus genre except PsychedelicRock is album/adult/specialist. Every deficit genre except
+RockAndRoll is a singles / AM-Top-40 genre. That is the split, and it is the same one §11.5 names.
 
 ### 11.2 Three explanations killed on the way
 
@@ -349,9 +411,14 @@ to fix all four over-charters with one radio term will burn a decade run finding
    different universes. This is the down-lever for Jazz/Folk/Country/EasyListening, and
    `SingleOrientation` is the existing authored home for it.
 
-**Author call needed before (1) is sized:** Sunshine Pop's own benchmark pair moves in opposite
-directions across 1968-69 — hand-counted slots go **4 -> 12** while the authored share target goes
-**1.42% -> 0.73%**. Its 1966-68 pairs imply 2.7-5.3 slots per point; only 1969 implies 16.4. §8.1
-rules the share target untouchable and that ruling is respected here — but a term sized to hit the
-1969 pair is being sized against the single most extreme year in the benchmark, and will overshoot
-1966-68. Sizing against Sunshine Pop's 1967 pair (1.87% share, 10 slots) is the conservative read.
+**Sunshine Pop's 1969 keyframe: settled, and it is worth ~1 slot of the 12.** Its hand-counted
+slots go 4 -> 12 across 1968-69 while the authored share target goes 1.42% -> 0.73%. Author's
+ruling (carried from the prior session): **the 1969 keyframe decline is erroneous** and should be
+raised — the year-end count shows the genre peaking in 1969, so the demand curve should not be
+falling into it. This is a real fix and is wanted.
+
+It is not, however, the lever. On the model's line a corrected 1969 share of 1.87% (its 1967 level)
+buys **1.1 slots**; even 3.0% buys 2.7. The benchmark wants 12. **Raise the keyframe because it is
+wrong, then size the efficiency term against the remaining ~10 slots** — and size it on the
+1966-68 pairs (2.7-5.3 slots per point), not on 1969 alone, which is the single most extreme year
+in the whole benchmark and will overshoot the rest of the genre's decade if aimed at directly.
