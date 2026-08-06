@@ -657,6 +657,12 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// <summary>Called only by ChartManager's explicit post-chart live sequence.</summary>
 	public void AdvancePopulationLifecycle(GameDate date) {
 		if (!ArtistPopulationLifecycle.IsLive) return;
+		// The lifecycle exit paths test "does this artist still have a live record?" per candidate.
+		// That was a GetAllRecords().Any() scan (O(records)) inside a per-artist loop -- O(candidates *
+		// records), the accidental ~N^2.9 growth of this phase. allRecords does not change during the
+		// lifecycle advance (records are culled in a separate earlier phase), so snapshot the set of
+		// artist ids holding an uncompleted record once here and reduce each test to an O(1) lookup.
+		RebuildLiveRecordArtistIndex();
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		formedThisWeek = 0;
 		if (formationYear != date.year) {
@@ -1064,9 +1070,20 @@ public sealed class LaborMarketWeeklySnapshot {
 	internal static bool IsGroupAct(SimulatedArtist artist) =>
 		artist?.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup;
 
-	private static bool HasLiveRecordOrPendingProject(SimulatedArtist artist) =>
+	// Snapshot of artist ids holding at least one record whose chart run is not yet complete. Rebuilt
+	// once per lifecycle tick in AdvancePopulationLifecycle; consulted O(1) instead of scanning records.
+	private readonly HashSet<string> liveRecordArtistIds = new();
+	private void RebuildLiveRecordArtistIndex() {
+		liveRecordArtistIds.Clear();
+		var records = ChartManager.Instance?.GetAllRecords();
+		if (records == null) return;
+		foreach (RecordRuntimeData record in records)
+			if (record?.baseRecord != null && !record.artistChartRunCompleted)
+				liveRecordArtistIds.Add(record.baseRecord.artistId);
+	}
+	private bool HasLiveRecordOrPendingProject(SimulatedArtist artist) =>
 		IsExitDeferred(
-			ChartManager.Instance?.GetAllRecords().Any(record => record?.baseRecord?.artistId == artist.artistId && !record.artistChartRunCompleted) == true,
+			liveRecordArtistIds.Contains(artist.artistId),
 			CompetitorManager.Instance?.HasPendingProjectForArtist(artist.artistId) == true);
 	internal static bool IsExitDeferredForProbe(bool hasLiveChartCallback, bool hasPendingAlbumProject) => IsExitDeferred(hasLiveChartCallback, hasPendingAlbumProject);
 	private static bool IsExitDeferred(bool hasLiveChartCallback, bool hasPendingAlbumProject) => hasLiveChartCallback || hasPendingAlbumProject;

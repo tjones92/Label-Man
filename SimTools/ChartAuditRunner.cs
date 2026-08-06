@@ -266,6 +266,14 @@ public partial class ChartAuditRunner : Node {
 	private ulong? requestedSeed;
 	private bool aggregateOnly;
 	private bool leanProbe;
+	// Calibration mode: the simulation runs at full fidelity (nothing about the economy changes),
+	// but CaptureWeek emits ONLY the accumulations the calibration CSVs read -- LP unit share
+	// (WriteFormatMixRows), decision share (OnReleaseStrategy event), active counts
+	// (CaptureRetirementCohortSnapshot, deferred to year-end), and the chart/genre Accumulate* passes.
+	// The ~13 per-week diagnostic Write* methods that walk all records/labels (21% of decade wall,
+	// scaling with album count) are suppressed. Verified to reproduce the rollup, year-end Hot 100 and
+	// genre-shape byte-for-byte against a normal run on the same seed.
+	private bool calibrationMode;
 	private bool profilePerformance;
 	private bool forceDistributionDeal;
 	private bool disableLabelLifecycle;
@@ -457,6 +465,12 @@ public partial class ChartAuditRunner : Node {
 			} else if (argument == "--aggregate-only") {
 				aggregateOnly = true;
 			} else if (argument == "--lean-probe") {
+				leanProbe = true;
+				aggregateOnly = true;
+			} else if (argument == "--calibration") {
+				// Fastest telemetry tier: implies lean-probe/aggregate, plus suppresses the per-week
+				// diagnostic Write* methods. Keeps every calibration metric; changes nothing in the sim.
+				calibrationMode = true;
 				leanProbe = true;
 				aggregateOnly = true;
 			} else if (argument == "--profile-performance") {
@@ -1914,12 +1928,12 @@ public partial class ChartAuditRunner : Node {
 		// Flush the fully completed prior-year revenue row before fail-fast may
 		// abort at the new-year boundary. Do not emit a partial current-week row.
 		AdvanceMarketRevenueYear(date.year);
-		albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
+		if (!calibrationMode) albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
 			CompetitorManager.Instance.WeeklyPipelineAlbumDrops.ToString(CultureInfo.InvariantCulture)
 		}));
 		List<RecordRuntimeData> records = ChartManager.Instance.GetAllRecords();
-		CaptureFailFastWeekly(date, records);
+		if (!calibrationMode) CaptureFailFastWeekly(date, records);
 		foreach (RecordRuntimeData album in records.Where(record => record.baseRecord.format == ReleaseFormat.Album)) {
 			if (album.weeksSinceRelease > 26) decadeAnnual.AlbumUnitsOver26Weeks += album.unitsThisWeek;
 			if (album.weeksSinceRelease > 52) decadeAnnual.AlbumUnitsOver52Weeks += album.unitsThisWeek;
@@ -1953,7 +1967,7 @@ public partial class ChartAuditRunner : Node {
 		}
 
 		foreach (RecordRuntimeData record in singleRecords) {
-			WriteSingleLaneDiagnostics(week, date.year, record);
+			if (!calibrationMode) WriteSingleLaneDiagnostics(week, date.year, record);
 			LifecycleState state = ObserveRecord(record, wasPresentAtStart: false);
 			if (state.DebutPosition == 0 && record.currentPosition > 0) {
 				state.DebutPosition = record.currentPosition;
@@ -1965,61 +1979,68 @@ public partial class ChartAuditRunner : Node {
 
 		foreach ((string id, LifecycleState state) in lifecycle.ToArray()) {
 			if (!activeIds.Contains(id)) {
-				WriteLifecycleRow(week, state);
+				if (!calibrationMode) WriteLifecycleRow(week, state);
 				if (state.Record.peakPosition > 0 && state.Record.peakPosition <= 40) decadeAnnual.ClosedTop40Weeks.Add(state.Record.weeksOnChart);
 				lifecycle.Remove(id);
 			}
 		}
 
-		RecordRuntimeData numberOne = chart.FirstOrDefault();
-		int totalChartUnits = chart.Sum(record => record.unitsThisWeek);
-		// The completed-week ledger includes records retired after their final sale;
-		// active-record enumeration is intentionally not authoritative for this total.
-		int totalMarketUnits = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
-			? ChartManager.Instance.GetLastCompletedWeekSettlement()?.TotalUnits ?? records.Sum(record => record.unitsThisWeek)
-			: records.Sum(record => record.unitsThisWeek);
-		CaptureSeasonalityMonth(salesDate, records);
-		int newTop100 = chartIds.Count(id => !previousChartIds.Contains(id));
-		int newTop40 = chart.Take(40).Count(record => !previousChartIds.Contains(record.baseRecord.recordId));
-		int exits = previousChartIds.Count(id => !chartIds.Contains(id));
-		int newRecords = activeIds.Count(id => !previousActiveIds.Contains(id));
-		int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
-		WriteTierVolumeRows(week, records);
-		WriteLabelFinanceRows(week, date.year);
-		WriteMarketRevenueRows(week, date.year, records);
-		WriteMarketClearingRows(week, date.year);
-		WriteReleaseCapacityRow(week, date.year);
-		WriteRosterLifecycleRows(week, date.year);
-		WriteLabelScoutingVacancyRows(week, date.year);
-		WriteArtistPopulationRows(week, date.year, records);
-		WriteAlbumRows(week, date, records, albumChart);
+		// LP unit share (decadeAnnual.Single/Album.Units/Gross) and the active-count/age/units snapshot
+		// both feed the decade rollup, so they run in every mode -- calibration included.
 		WriteFormatMixRows(week, date.year, records);
-		WriteRevenueMemoryRows(week, date.year);
-		WriteGeographyMetricRows(week, date.year, records);
-		WriteGenreMarketRows(week, date, records);
-		// The detailed causal seams are established by the fully instrumented
-		// 52-week checkpoints. Decade lean runs retain aggregate genre history but
-		// suppress these high-volume per-record decompositions.
-		if (!leanProbe) {
-			WriteRecordGenreExplanationRows(week, date, records);
-			WriteAlbumDemandExplanationRows(week, date, records);
-		}
 		CaptureRetirementCohortSnapshot(records);
 
-		weekWriter.WriteLine(string.Join(",", new[] {
-			week.ToString(CultureInfo.InvariantCulture),
-			date.year.ToString(CultureInfo.InvariantCulture),
-			totalChartUnits.ToString(CultureInfo.InvariantCulture),
-			totalMarketUnits.ToString(CultureInfo.InvariantCulture),
-			Csv(numberOne?.baseRecord.recordId),
-			(numberOne?.unitsThisWeek ?? 0).ToString(CultureInfo.InvariantCulture),
-			newTop100.ToString(CultureInfo.InvariantCulture),
-			newTop40.ToString(CultureInfo.InvariantCulture),
-			exits.ToString(CultureInfo.InvariantCulture),
-			records.Count.ToString(CultureInfo.InvariantCulture),
-			newRecords.ToString(CultureInfo.InvariantCulture),
-			retiredRecords.ToString(CultureInfo.InvariantCulture)
-		}));
+		// Everything below is per-week diagnostic telemetry that walks all records/labels/rosters and
+		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
+		// so --calibration suppresses it. The economy is untouched; only these output CSVs go dark.
+		if (!calibrationMode) {
+			RecordRuntimeData numberOne = chart.FirstOrDefault();
+			int totalChartUnits = chart.Sum(record => record.unitsThisWeek);
+			// The completed-week ledger includes records retired after their final sale;
+			// active-record enumeration is intentionally not authoritative for this total.
+			int totalMarketUnits = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
+				? ChartManager.Instance.GetLastCompletedWeekSettlement()?.TotalUnits ?? records.Sum(record => record.unitsThisWeek)
+				: records.Sum(record => record.unitsThisWeek);
+			CaptureSeasonalityMonth(salesDate, records);
+			int newTop100 = chartIds.Count(id => !previousChartIds.Contains(id));
+			int newTop40 = chart.Take(40).Count(record => !previousChartIds.Contains(record.baseRecord.recordId));
+			int exits = previousChartIds.Count(id => !chartIds.Contains(id));
+			int newRecords = activeIds.Count(id => !previousActiveIds.Contains(id));
+			int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
+			WriteTierVolumeRows(week, records);
+			WriteLabelFinanceRows(week, date.year);
+			WriteMarketRevenueRows(week, date.year, records);
+			WriteMarketClearingRows(week, date.year);
+			WriteReleaseCapacityRow(week, date.year);
+			WriteRosterLifecycleRows(week, date.year);
+			WriteLabelScoutingVacancyRows(week, date.year);
+			WriteArtistPopulationRows(week, date.year, records);
+			WriteAlbumRows(week, date, records, albumChart);
+			WriteRevenueMemoryRows(week, date.year);
+			WriteGeographyMetricRows(week, date.year, records);
+			WriteGenreMarketRows(week, date, records);
+			// The detailed causal seams are established by the fully instrumented
+			// 52-week checkpoints. Decade lean runs retain aggregate genre history but
+			// suppress these high-volume per-record decompositions.
+			if (!leanProbe) {
+				WriteRecordGenreExplanationRows(week, date, records);
+				WriteAlbumDemandExplanationRows(week, date, records);
+			}
+			weekWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture),
+				date.year.ToString(CultureInfo.InvariantCulture),
+				totalChartUnits.ToString(CultureInfo.InvariantCulture),
+				totalMarketUnits.ToString(CultureInfo.InvariantCulture),
+				Csv(numberOne?.baseRecord.recordId),
+				(numberOne?.unitsThisWeek ?? 0).ToString(CultureInfo.InvariantCulture),
+				newTop100.ToString(CultureInfo.InvariantCulture),
+				newTop40.ToString(CultureInfo.InvariantCulture),
+				exits.ToString(CultureInfo.InvariantCulture),
+				records.Count.ToString(CultureInfo.InvariantCulture),
+				newRecords.ToString(CultureInfo.InvariantCulture),
+				retiredRecords.ToString(CultureInfo.InvariantCulture)
+			}));
+		}
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;

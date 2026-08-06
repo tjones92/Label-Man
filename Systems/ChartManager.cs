@@ -2011,6 +2011,13 @@ public partial class ChartManager : Node {
 		var recordsToRetire = allRecords.Where(record => IsRecordRetirable(record, includeChartedRecords)).ToList();
 
 		foreach (var record in recordsToRetire) RetireRecord(record);
+		// RetireRecord no longer removes from allRecords one-by-one (List.Remove is O(N), so retiring R
+		// records was O(R*N) -- the accidental quadratic that made this phase grow ~N^2.8 with album
+		// count). Batch the removal into a single O(N) pass with the same net result and record order.
+		if (recordsToRetire.Count > 0) {
+			var retired = new HashSet<RecordRuntimeData>(recordsToRetire);
+			allRecords.RemoveAll(retired.Contains);
+		}
 
 		if (debugMode && recordsToRetire.Count > 0) {
 			GD.Print($"ChartManager: Retired {recordsToRetire.Count} dead records. Active: {allRecords.Count}");
@@ -2061,7 +2068,7 @@ public partial class ChartManager : Node {
 		}
 
 		CompetitorManager.Instance?.RecordRetired(record);
-		allRecords.Remove(record);
+		// allRecords removal is batched by the caller (CullDeadRecords) to avoid O(R*N) list scans.
 		recordById.Remove(record.baseRecord.recordId);
 	}
 
