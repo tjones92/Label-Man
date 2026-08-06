@@ -28,7 +28,7 @@ public static class AlbumModel {
 	/// ~79% of serviceable album demand in 1960 and pinning LP unit share near zero. The LP retail
 	/// channel existed in 1960; it was simply smaller. So retail fulfillment is now mature throughout
 	/// the period (=1) and the channel's SIZE is carried entirely by its era-scaled capacity share
-	/// (MatureAlbumChannelBaselineShare + expansion x era), which is the calibrated LP:45 lever.
+	/// (the AlbumChannelShareEra convex quadratic in ChartManager), which is the calibrated LP:45 lever.
 	/// </summary>
 	public static float GetRetailFulfillmentMaturity(int year) => 1f;
 

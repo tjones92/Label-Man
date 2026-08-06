@@ -76,10 +76,16 @@ public partial class ChartManager : Node {
 	// era) now SETS album unit share, because album intent saturates it. Sized to the author's LP:45
 	// unit targets: album/single ratio ~0.43 at 1960 (LP 30%) rising to ~1.22 at 1969 (LP 55%), read
 	// against GetAlbumDemandEraProgress (rise 1957->1972, so era ~0.20 at 1960, ~0.80 at 1969).
-	// baseline + expansion x era: 0.17 + 1.30 x 0.20 = 0.43 (1960); 0.17 + 1.30 x 0.80 = 1.21 (1969).
-	// First cut -- iterate against realized share; single-side clearing dynamics shift these.
-	private const float MatureAlbumChannelBaselineShare = 0.17f;
-	private const float MatureAlbumChannelEraExpansionShare = 1.30f;
+	// Album unit share ~= share/(1+share) once demand saturates the channel.
+	// CONVEX RESHAPE (2026-08): the former linear form (0.17 + 1.30 x era) nailed the 1960/1967/1969 LP
+	// anchors but ran the mid-decade ~6 pts hot (1963 40.8 vs 35, 1965 46.3 vs 40) -- the LP:45 target
+	// curve dips below the endpoint chord in the middle, which a straight line cannot follow. Refit as a
+	// convex quadratic in era: least-squares through the author LP anchors 30/35/40/50/55 at 60/63/65/
+	// 67/69, each mapped to share = LP/(1-LP). Vertex at era ~0.15 (below the 0.20 floor), so monotone
+	// increasing across the in-sim range [0.20,0.80]. Realized LP now ~29.7/35.1/41.4/48.5/55.5.
+	private const float AlbumChannelShareEraC0 = 0.46136f;   // era^0
+	private const float AlbumChannelShareEraC1 = -0.58405f;  // era^1
+	private const float AlbumChannelShareEraC2 = 1.95531f;   // era^2
 	// A donor contributes only portable purchase opportunity left idle by its own
 	// local market.  These bounds deliberately prevent the region graph from
 	// becoming a disguised national pool.
@@ -982,8 +988,9 @@ public partial class ChartManager : Node {
 			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
 				* WeeklyRegionalPurchaseCapacityMultiplier));
 			float albumChannelMaturity = AlbumModel.GetRetailFulfillmentMaturity(year);
-			float albumChannelShare = albumChannelMaturity * (MatureAlbumChannelBaselineShare +
-				MatureAlbumChannelEraExpansionShare * region.GetAlbumDemandEraProgress(year));
+			float albumEra = region.GetAlbumDemandEraProgress(year);
+			float albumChannelShare = albumChannelMaturity *
+				(AlbumChannelShareEraC0 + AlbumChannelShareEraC1 * albumEra + AlbumChannelShareEraC2 * albumEra * albumEra);
 			int albumChannelCapacity = Mathf.RoundToInt(baseCapacity * albumChannelShare);
 			int capacity = baseCapacity + albumChannelCapacity;
 			var summary = new MarketClearingRegionalSummary {
