@@ -69,7 +69,12 @@ public static class GenreCatalog {
 		// category and is what the market target's 1.70/1.17 at 1968/69 describes.
 		Add("teen-pop", Genre.TeenPop, GenreFamily.Pop, 1957, 1971, .90f, .90f, .70f,.74f,.63f,.43f,.31f,.26f,.21f);
 		Add("baroque-pop", Genre.BaroquePop, GenreFamily.Pop, 1966, 1970, .60f, .50f, .02f,.02f,.06f,.38f,.34f,.21f,.13f);
-		Add("sunshine-pop", Genre.SunshinePop, GenreFamily.Pop, 1965, 1971, .65f, .55f, .02f,.03f,.10f,.49f,.46f,.35f,.22f);
+		// Late keyframe gently corrected (handoff 11.5, finding 2): the year-end count shows Sunshine
+		// Pop holding late rather than collapsing, but keyframe and radio multiplier COMPOUND in the
+		// airplay channel, so only the erroneous 1969 collapse is softened (.22 -> .28), the 1968
+		// value is left at its authored .35, and the radio up-lever is dropped to 1.40. Together these
+		// target ~28-32 year-end slots without stealing calibrated slots from Soul.
+		Add("sunshine-pop", Genre.SunshinePop, GenreFamily.Pop, 1965, 1971, .65f, .55f, .02f,.03f,.10f,.49f,.46f,.35f,.28f);
 		Add("bubblegum", Genre.Bubblegum, GenreFamily.Pop, 1967, 1971, .95f, .90f, .01f,.02f,.03f,.05f,.16f,.46f,.71f);
 		Add("easy-listening", Genre.EasyListening, GenreFamily.Pop, 1950, null, .15f, .35f, .68f,.59f,.45f,.46f,.53f,.50f,.49f);
 		Add("british-pop", Genre.BritishPop, GenreFamily.Pop, 1964, 1968, .90f, .80f, .01f,.02f,.95f,.50f,.43f,.35f,.30f);
@@ -174,6 +179,49 @@ public static class GenreCatalog {
 		Add("childrens", Genre.Childrens, GenreFamily.NonMusic, 1950, null, .50f, .30f, .35f,.35f,.35f,.35f,.35f,.35f,.35f);
 		AllProfiles = new ReadOnlyCollection<GenreProfile>(new List<GenreProfile>(Profiles.Values));
 	}
+
+	// RADIO ACCEPTANCE -- the airplay-side companion to the baseline, and the missing
+	// chart-efficiency dimension (handoff section 11.5 step 1). One authored scalar (the
+	// baseline) formerly drove BOTH channels: sales as ~baseline^2 (the transfer law) and
+	// airplay as ~baseline^5 (AIRPLAY_CONVEXITY inside UpdateRadioHeat's * genreAcceptance).
+	// That coupling made it physically impossible for a genre to be small-selling yet
+	// heavily programmed, which is exactly what a singles-driven AM-Top-40 genre was.
+	//
+	// This multiplies the national acceptance that feeds radio heat ONLY
+	// (ChartSimulator.UpdateRadioHeat via ChartManager, the single caller of
+	// GetNationalDemandAcceptance) and never touches the sales acceptance
+	// (GetRegionalDemandAcceptance) or the divided-out radio access. Default 1.0 = neutral.
+	//
+	// Amplified by AIRPLAY_CONVEXITY = 5, so a ratio r here lands as roughly r^5 on airplay
+	// points (less, because genreAcceptance scales only the quality/push/momentum block of
+	// radioHeat, not the additive artistHeat and position bonuses). Its effect is
+	// concentrated LATE by construction: the airplay era weight ramps 0.60->1.00 across
+	// 1960-68, so airplay is ~14% of chart points in 1960 and ~58% in 1969. That is why this
+	// is the right lever for late-decade errors and cannot reach early-decade ones -- the
+	// split is by WHEN the error happens, not which genre it is.
+	//
+	// - SunshinePop UP: its whole deficit is 1966-69, the airplay-rich end; a small-selling
+	//   AM-Top-40 genre that charted heavily. Because the keyframe and this multiplier COMPOUND
+	//   in the airplay channel (both land inside the 5th power), the slot fix is split between a
+	//   gentle 1969-keyframe correction (.22 -> .28) and a modest r here (1.40x), NOT a large r.
+	// - Country / PsychedelicRock DOWN: their whole surplus is 1965-69 (Country is UNDER
+	//   early, so the late-biased lever leaves the early years alone). A near-full pop-radio
+	//   strip is intended for Country -- it charted on its own country radio, not the Hot 100
+	//   panel. PsychedelicRock needs only a moderate cut.
+	// Jazz and Folk are NOT here: their surplus is early-decade, where a full airplay strip
+	// removes only 14-37% of points. They are format/denominator work (step 2), not airplay.
+	private static readonly IReadOnlyDictionary<Genre, float> RadioAcceptanceOverrides =
+		new Dictionary<Genre, float> {
+			[Genre.SunshinePop] = 1.40f,
+			[Genre.GarageRock] = 1.55f,
+			[Genre.Country] = 0.45f,
+			[Genre.PsychedelicRock] = 0.90f,
+		};
+
+	/// <summary>Per-genre radio-acceptance multiplier applied to the national acceptance that feeds
+	/// radio heat only. Expects a canonical genre; default 1.0 leaves a genre's airplay untouched.</summary>
+	public static float GetRadioAcceptance(Genre canonical) =>
+		RadioAcceptanceOverrides.TryGetValue(canonical, out float r) ? r : 1f;
 
 	public static IReadOnlyList<GenreProfile> All => AllProfiles;
 	public static bool TryGet(Genre genre, out GenreProfile profile) => Profiles.TryGetValue(genre, out profile);

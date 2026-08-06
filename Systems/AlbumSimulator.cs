@@ -1,7 +1,11 @@
 using Godot;
 
 public static class AlbumSimulator {
-	private const float BasePurchaseRate = 0.022f;
+	// LP-RATIO RECALIBRATION (2026-08): 0.022 -> 0.045. Albums converted at ~0.17x the single rate
+	// early, compounding the pool suppression to ~1.4% album units. Raised toward the single's
+	// BASE_PURCHASE_RATE (0.07) but deliberately kept below it -- an LP is a considered, ~4.5x-priced
+	// purchase, so a lower per-exposure rate than a single is correct.
+	private const float BasePurchaseRate = 0.045f;
 	private const float CatalogDecayStartWeeks = 26f;
 	private const float CatalogWeeklyDecay = 0.985f;
 

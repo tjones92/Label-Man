@@ -41,7 +41,10 @@ public partial class MarketRegion : Resource {
 	[Export] public RegionalModifier[] specialModifiers;
 
 	[ExportGroup("Album Demand Timing")]
-	[Export(PropertyHint.Range, "1958,1970,0.1")] public float albumDemandRiseStartYear = 1964f;
+	// LP-RATIO RECALIBRATION (2026-08): rise start 1964 -> 1957. The LP was mature by 1960 (it had
+	// overtaken the single by revenue ~1957), so pinning era progress at 0 until 1964 erased the
+	// early adult album market and is the core reason 1960 read ~1.4% album units against a ~30% goal.
+	[Export(PropertyHint.Range, "1955,1970,0.1")] public float albumDemandRiseStartYear = 1957f;
 	[Export(PropertyHint.Range, "1960,1975,0.1")] public float albumDemandRiseEndYear = 1972f;
 	
 		public MarketRegion() {
@@ -285,24 +288,30 @@ public partial class MarketRegion : Resource {
 		_ => NeutralAlbumAffinityBaseline
 	};
 
-	// NOTE ON RANGE. decadeLift reaches .714 by 1967 and 1.0 by 1969, which drives every genre
-	// to the upper clamp late in the decade -- affinity spans .906-1.000 at 1967 and is uniformly
-	// 1.000 at 1969. The genre baselines above are therefore only distinguishable before ~1966.
-	// Measured consequence: forcing Soul off its explicit .30 onto the neutral default moves the
-	// Soul/SunshinePop Single format multiplier by 0.989x at 1967 and 1.000x at 1969. Do not
-	// expect this table to be load-bearing on late-decade outcomes; it is not.
+	// LP-RATIO RECALIBRATION (2026-08, album-format work). The old additive decadeLift drove every
+	// genre to the clamp late (affinity uniformly 1.0 by 1969) and, worse, COMPRESSED the genre
+	// spread early -- adding the same lift to jazz and to rock left a singles genre nearly as
+	// album-oriented as an LP genre. The author wants affinity load-bearing early: jazz/classical
+	// route to albums in 1960, pop/rock mostly stay singles but a handful still chart. So the lift is
+	// now MULTIPLICATIVE (baseline x era boost), which scales the LP revolution up while preserving
+	// the genre ordering at every era, and the early youth penalty is softened (the adult LP market
+	// existed in 1960). The 0.05 floor keeps low-affinity pop/rock non-zero so a handful chart.
 	private float ShapeAlbumAffinity(float baseline, int year) {
 		float eraProgress = GetAlbumDemandEraProgress(year);
-		float decadeLift = Mathf.SmoothStep(0f, 0.58f, eraProgress);
-		float youthPenalty = youthPercentage * Mathf.Lerp(0.75f, 0.12f, eraProgress);
-		return Mathf.Clamp(baseline * (1f - youthPenalty) + decadeLift, 0.05f, 1f);
+		float eraBoost = 1f + 1.5f * eraProgress;
+		float youthPenalty = youthPercentage * Mathf.Lerp(0.40f, 0.12f, eraProgress);
+		return Mathf.Clamp(baseline * (1f - youthPenalty) * eraBoost, 0.05f, 1f);
 	}
 
+	// LP-RATIO RECALIBRATION (2026-08). Willingness at ~0.15 in 1960 was the dominant suppressor of
+	// early album units (the mature adult LP market did not exist in the model). Base raised
+	// 0.30 -> 0.45 and the early youth price penalty softened 1.25 -> 0.55, lifting 1960 willingness
+	// toward ~0.5. This is the genre-BLIND market level; genre enters the split through affinity above.
 	public float GetAlbumPurchaseWillingness(int year) {
 		float normalizedIncome = Mathf.Clamp((averageIncome - 0.70f) / 0.55f, 0f, 1f);
 		float audienceAging = GetAlbumDemandEraProgress(year);
-		float youthPricePenalty = youthPercentage * Mathf.Lerp(1.25f, 0.35f, audienceAging);
-		return Mathf.Clamp(0.30f + normalizedIncome * 0.48f + audienceAging * 0.25f - youthPricePenalty, 0.08f, 1f);
+		float youthPricePenalty = youthPercentage * Mathf.Lerp(0.55f, 0.30f, audienceAging);
+		return Mathf.Clamp(0.45f + normalizedIncome * 0.48f + audienceAging * 0.25f - youthPricePenalty, 0.08f, 1f);
 	}
 
 	public float GetAlbumDemandEraProgress(float year) {

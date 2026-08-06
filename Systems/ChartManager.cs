@@ -72,8 +72,14 @@ public partial class ChartManager : Node {
 	// against the same format buyer pool. Convert their summed serviceable intent
 	// into one market-wide format opportunity before common regional clearing.
 	private const float AlbumIntentOverlapPressure = 2f;
-	private const float MatureAlbumChannelBaselineShare = 0.08f;
-	private const float MatureAlbumChannelEraExpansionShare = 0.35f;
+	// LP-RATIO RECALIBRATION (2026-08). The album channel capacity (= baseCapacity x these shares x
+	// era) now SETS album unit share, because album intent saturates it. Sized to the author's LP:45
+	// unit targets: album/single ratio ~0.43 at 1960 (LP 30%) rising to ~1.22 at 1969 (LP 55%), read
+	// against GetAlbumDemandEraProgress (rise 1957->1972, so era ~0.20 at 1960, ~0.80 at 1969).
+	// baseline + expansion x era: 0.17 + 1.30 x 0.20 = 0.43 (1960); 0.17 + 1.30 x 0.80 = 1.21 (1969).
+	// First cut -- iterate against realized share; single-side clearing dynamics shift these.
+	private const float MatureAlbumChannelBaselineShare = 0.17f;
+	private const float MatureAlbumChannelEraExpansionShare = 1.30f;
 	// A donor contributes only portable purchase opportunity left idle by its own
 	// local market.  These bounds deliberately prevent the region graph from
 	// becoming a disguised national pool.
@@ -755,10 +761,16 @@ public partial class ChartManager : Node {
 			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
 			float genreAcceptance = 1f;
 			if (!isAlbum) {
-				genreAcceptance = genreMarketLive
-					? GenreAcceptanceService.GetNationalDemandAcceptance(record.baseRecord.primaryGenre,
-						record.baseRecord.secondaryGenre, allRegions, acceptanceYear, GetGenreMomentum(record.baseRecord.primaryGenre))
-					: GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
+				if (genreMarketLive) {
+					// The radio-only acceptance, then the per-genre radio-acceptance multiplier
+					// (GenreCatalog.GetRadioAcceptance) -- the chart-efficiency dimension that lets a
+					// genre be small-selling yet heavily programmed. It rides ONLY into radio heat here,
+					// never sales, and is amplified by AIRPLAY_CONVEXITY downstream.
+					float radioAcceptance = GenreAcceptanceService.GetNationalDemandAcceptance(record.baseRecord.primaryGenre,
+						record.baseRecord.secondaryGenre, allRegions, acceptanceYear, GetGenreMomentum(record.baseRecord.primaryGenre));
+					Genre canonicalPrimary = GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, (int)Mathf.Floor(acceptanceYear));
+					genreAcceptance = Mathf.Clamp(radioAcceptance * GenreCatalog.GetRadioAcceptance(canonicalPrimary), 0f, 1f);
+				} else genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 			}
 			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId);
 

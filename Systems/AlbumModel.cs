@@ -22,12 +22,15 @@ public static class AlbumModel {
 		Mathf.Clamp((year - EraWeightStartYear) / (EraWeightEndYear - EraWeightStartYear), 0f, 1f));
 
 	/// <summary>
-	/// The retail channel becomes established when the existing Album-adoption
-	/// curve reaches its midpoint. This reuses the exogenous era transition
-	/// without changing its demand keyframes and leaves the early market untouched.
+	/// LP-RATIO RECALIBRATION (2026-08). Was a step that returned 0 until the album-adoption curve
+	/// reached its midpoint (~1964), which zeroed the dedicated album retail channel early and forced
+	/// pre-1964 albums to clear inside the single channel under a 2x overlap penalty -- displacing
+	/// ~79% of serviceable album demand in 1960 and pinning LP unit share near zero. The LP retail
+	/// channel existed in 1960; it was simply smaller. So retail fulfillment is now mature throughout
+	/// the period (=1) and the channel's SIZE is carried entirely by its era-scaled capacity share
+	/// (MatureAlbumChannelBaselineShare + expansion x era), which is the calibrated LP:45 lever.
 	/// </summary>
-	public static float GetRetailFulfillmentMaturity(int year) =>
-		GetAlbumEraWeight(year) >= .5f ? 1f : 0f;
+	public static float GetRetailFulfillmentMaturity(int year) => 1f;
 
 	public static float CalculatePooledAppeal(IEnumerable<float> trackQualities, float thematicCohesion, int year) {
 		float[] qualities = trackQualities?.Select(quality => Mathf.Clamp(quality, 0f, 1f)).ToArray()

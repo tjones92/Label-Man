@@ -463,9 +463,9 @@ public static class GenreMarketV2ProbeSuite {
 				serviceLevel: .5f, fulfillAlbumBacklog: true, albumRetailMaturity: 1f) == 150 &&
 			ChartManager.CalculateRestockAmount(rawDemand: 100f, backorders: 50, demandSignal: 150f,
 				serviceLevel: .5f, fulfillAlbumBacklog: false, albumRetailMaturity: 1f) == 75 &&
-			AlbumModel.GetRetailFulfillmentMaturity(1963) == 0f &&
-			AlbumModel.GetRetailFulfillmentMaturity(1964) == 1f,
-			"Album backlog avoids duplicate attrition and full retail fulfillment begins at the established-era midpoint");
+			AlbumModel.GetRetailFulfillmentMaturity(1960) == 1f &&
+			AlbumModel.GetRetailFulfillmentMaturity(1969) == 1f,
+			"Album backlog avoids duplicate attrition and album retail fulfillment is mature throughout the period (LP-ratio recalibration: the channel's early size is carried by its era-scaled capacity share, not by a maturity step)");
 		var ownedNetwork = new AILabel {
 			homeCityId = "new_york",
 			distributionRegions = new[] { "greatlakes" }
