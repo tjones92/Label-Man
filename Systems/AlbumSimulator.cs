@@ -5,7 +5,15 @@ public static class AlbumSimulator {
 	// early, compounding the pool suppression to ~1.4% album units. Raised toward the single's
 	// BASE_PURCHASE_RATE (0.07) but deliberately kept below it -- an LP is a considered, ~4.5x-priced
 	// purchase, so a lower per-exposure rate than a single is correct.
-	private const float BasePurchaseRate = 0.045f;
+	// EARLY-ERA UNITS LEVER (2026-08): 0.045 -> 0.080 -> 0.095. Early years are album-demand-bound below
+	// the channel. BasePurchaseRate lives ONLY in realized sales, not the creation prior, so it lifts
+	// early units without re-inflating album creation; late years stay channel-capped (inert there).
+	// Key finding: BPR SATURATES on its own (~27% at 1960) because the top sellers exhaust their
+	// per-record penetration against the buyer pool. It only regains traction once the pool is relieved
+	// by GetAlbumPurchaseWillingness (MarketRegion.cs) -- the two levers bind in sequence. Final config:
+	// willingness base 0.70 + BPR 0.095 lands 1960 at 29.8% (decade-validated); 1963/1969 unchanged at
+	// 40.8/54.7 (channel-bound, match the author target curve). See D7SimRuntimeOptimizationHandoff §4.
+	private const float BasePurchaseRate = 0.095f;
 	private const float CatalogDecayStartWeeks = 26f;
 	private const float CatalogWeeklyDecay = 0.985f;
 

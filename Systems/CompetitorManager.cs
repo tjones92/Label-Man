@@ -91,7 +91,19 @@ public partial class CompetitorManager : Node {
 	private const float AlbumPriorEarlyEraDiscount = .78f;
 	private const int AlbumPriorCalibrationBootstrapYear = 1960;
 	private const int AlbumPriorCalibrationRetiredYear = 1964;
-	[Export] private float priorUnitScalarAlbum = 175000f;
+	// PREWARM SEEDING (2026-08, WIP task B): established-catalog awareness floor for seeded 1960 albums,
+	// so the pre-existing LP catalog converts at steady-state from week 1. Note: 1960 is channel/supply-
+	// bound, so this proved nearly inert on its own (see D7 handoff); kept for continuation.
+	[Export] private float albumPrewarmAwarenessFloor = 0.85f;
+	[Export] private float albumPrewarmStockMultiplier = 1.0f;
+	// TITLE-COUNT / RUNTIME LEVER (2026-08, WIP). 175000 -> 55000. Album creation is margin-driven, not
+	// demand-driven: projectedAlbumNet ran ~2.2x projectedSingleNet, so 62% of releases were albums,
+	// and albums accumulate (they outlive singles many-fold). This scales the album prior's expected
+	// units -- and only the PRIOR, not realized sales -- so fewer albums are chosen (share 62%->33%,
+	// active albums at 1960 2750->1552) while survivors still saturate the channel in channel-bound
+	// years. WARNING: this reduces the album population, which shrinks the very quadratics just fixed;
+	// for measuring runtime against the committed economy, restore 175000.
+	[Export] private float priorUnitScalarAlbum = 55000f;
 	[Export] private float priorCompHitUnitScalar = 20000f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float hitRecencyDecay = 0.75f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float priorAssumedAlbumPackaging = 0.50f;
@@ -640,7 +652,14 @@ public partial class CompetitorManager : Node {
 			for (int i = 0; i < quota; i++) {
 				if (label.roster.Count == 0) continue;
 				var artist = label.roster[(int)GD.RandRange(0, label.roster.Count - 1)];
-				var record = GenerateRecordFromArtist(label, artist, year);
+				// PREWARM SEEDING (2026-08, WIP task B): the opening catalog was 100% singles, so the album
+				// channel was empty at week 1 and 1960 read low LP unit share. Seed a genre-realistic share
+				// as the pre-existing 1960 LP catalog (jazz, classical, mood/MOR, Broadway); the album
+				// affinity skew makes adult genres seed albums often and teen/rock rarely, matching the era.
+				Genre seedGenre = GenreCatalog.MapLegacy(artist.primaryGenre, year);
+				var format = GD.Randf() < MarketRegion.GetAlbumSeedAffinity(seedGenre)
+					? ReleaseFormat.Album : ReleaseFormat.Single;
+				var record = GenerateRecordFromArtist(label, artist, year, format);
 				int weeksAgo = (int)GD.RandRange(1, 20);
 				record.releaseDate = TimeManager.Instance.CurrentDate.SubtractWeeks(weeksAgo);
 				ChartManager.Instance.ReleaseRecord(record);
@@ -649,7 +668,9 @@ public partial class CompetitorManager : Node {
 				artist.totalReleases++;
 				artist.weeksSinceLastRelease = weeksAgo;
 				artist.releaseHistory.Add(record.recordId);
-				artist.releasedSingleIds.Add(record.recordId);
+				// Seeded albums must not enter releasedSingleIds -- it feeds compilation track resolution
+				// and the single-oriented catalog, neither of which should see an LP.
+				if (format != ReleaseFormat.Album) artist.releasedSingleIds.Add(record.recordId);
 			}
 		}
 		if (debugMode) GD.Print($"CompetitorManager: Populated {needed} initial records from rosters");
@@ -687,6 +708,12 @@ public partial class CompetitorManager : Node {
 		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
 		runtimeData.awareness = Mathf.Clamp(0.15f + (artist.reputation * 0.3f) + (artist.momentum * 0.2f) + (campaignImpact * 0.2f * ageFactor), 0f, 1f);
 		runtimeData.radioHeat = Mathf.Clamp((quality * 0.4f + campaignImpact * 0.3f) * ageFactor, 0f, 1f);
+		// PREWARM SEEDING (2026-08, WIP task B): seeded albums represent the established pre-1960 LP
+		// catalog (jazz, classical, mood/MOR, Broadway) that was ALREADY selling, not fresh drops. Give
+		// them a catalog-staple awareness floor. NOTE: 1960 is channel/supply-bound, so this barely moved
+		// LP unit share -- kept for continuation, not a proven lever.
+		if (record.format == ReleaseFormat.Album)
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, albumPrewarmAwarenessFloor);
 		
 		if (quality > 0.7f && GD.Randf() < 0.4f) {
 			runtimeData.weeksOnChart = (int)GD.RandRange(2, weeksOld);
@@ -716,7 +743,10 @@ public partial class CompetitorManager : Node {
 			// began with national distribution no live entrant could ever obtain.
 			// Route prewarm through the same function live releases use.
 			int shelf = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, 1f, 1f, record.recordId);
-			regionalData.unitsInStores = Mathf.RoundToInt(shelf * (float)GD.RandRange(0.7, 1.1));
+			// Established-catalog albums carry deeper shelf stock than a fresh small-label single (multiplier
+			// currently 1.0 = neutral; the ~530-unit small-label shelf otherwise stock-caps a catalog staple).
+			float prewarmStock = record.format == ReleaseFormat.Album ? shelf * albumPrewarmStockMultiplier : shelf;
+			regionalData.unitsInStores = Mathf.RoundToInt(prewarmStock * (float)GD.RandRange(0.7, 1.1));
 			// A record already this old has sold part of its shelf through.
 			regionalData.unitsSoldTotal = Mathf.RoundToInt(shelf * (1f - ageFactor) * (float)GD.RandRange(0.6, 1.2));
 		}

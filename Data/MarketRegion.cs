@@ -274,8 +274,15 @@ public partial class MarketRegion : Resource {
 
 	private const float NeutralAlbumAffinityBaseline = 0.40f;
 
+	// Public so the 1960 cold-start prewarm can seed a genre-realistic opening LP catalog: this baseline
+	// is the era's album skew (adult/jazz/classical high, teen/rock low), so it doubles as the
+	// probability a seeded catalog title is an album.
+	public static float GetAlbumSeedAffinity(Genre canonical) => GetAlbumAffinityBaseline(canonical);
+
 	private static float GetAlbumAffinityBaseline(Genre canonical) => canonical switch {
-		Genre.EasyListening => 0.88f,
+		// DEMAND PULLBACK (2026-08, WIP §4): 0.88 -> 0.65. At 0.88 EL over-routed to albums and fell to
+		// 28 singles slots vs a hand count of 52 -- unlike Jazz (~0), EL kept a real singles presence.
+		Genre.EasyListening => 0.65f,
 		Genre.Classical => 0.82f,
 		Genre.PsychedelicRock => 0.78f,
 		Genre.Folk => 0.78f,
@@ -307,11 +314,17 @@ public partial class MarketRegion : Resource {
 	// early album units (the mature adult LP market did not exist in the model). Base raised
 	// 0.30 -> 0.45 and the early youth price penalty softened 1.25 -> 0.55, lifting 1960 willingness
 	// toward ~0.5. This is the genre-BLIND market level; genre enters the split through affinity above.
+	// 1960 COLD-START LIFT (2026-08): base 0.45 -> 0.70. Willingness SIZES the album buyer pool, which
+	// is the true 1960 constraint -- titles (priorUnitScalarAlbum) and BasePurchaseRate both saturate
+	// ~27% because the pool caps them; only enlarging the pool lifts 1960 units. This is inert above the
+	// channel (1961+ saturate the channel regardless), so it moves ONLY 1960: 19.6% -> 29.8% with 1963/
+	// 1969 unchanged at 40.8/54.7. Pairs with BasePurchaseRate 0.095 (AlbumSimulator.cs), which converts
+	// the relieved pool. Decade-validated seed 1001. See D7SimRuntimeOptimizationHandoff §4.
 	public float GetAlbumPurchaseWillingness(int year) {
 		float normalizedIncome = Mathf.Clamp((averageIncome - 0.70f) / 0.55f, 0f, 1f);
 		float audienceAging = GetAlbumDemandEraProgress(year);
 		float youthPricePenalty = youthPercentage * Mathf.Lerp(0.55f, 0.30f, audienceAging);
-		return Mathf.Clamp(0.45f + normalizedIncome * 0.48f + audienceAging * 0.25f - youthPricePenalty, 0.08f, 1f);
+		return Mathf.Clamp(0.70f + normalizedIncome * 0.48f + audienceAging * 0.25f - youthPricePenalty, 0.08f, 1f);
 	}
 
 	public float GetAlbumDemandEraProgress(float year) {
