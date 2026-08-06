@@ -17,7 +17,12 @@ public static class GenreSegmentRouting {
 			Genre.Jazz => (0,.50f,.15f,0,.25f,.10f), Genre.BossaNova => (.20f,.55f,0,0,.20f,0), Genre.Blues => (0,.15f,.40f,0,.25f,.20f), Genre.Classical => (0,.70f,0,0,.25f,0),
 			Genre.Boogaloo => (.30f,0,.40f,0,0,0), Genre.TexMex => (.40f,0,.20f,0,0,0), Genre.LatinPop => (.40f,.30f,0,0,0,0),
 			Genre.Ska => (0,0,.40f,0,.20f,0), Genre.Rocksteady => (0,0,.40f,0,.20f,0), Genre.Reggae => (.20f,0,.35f,0,.20f,0),
-			Genre.Comedy => (.20f,.40f,0,0,.30f,0), Genre.Childrens => (0,.60f,0,0,0,0), _ => (.35f,.20f,0,0,.10f,.05f)
+			Genre.Comedy => (.20f,.40f,0,0,.30f,0), Genre.Childrens => (0,.60f,0,0,0,0),
+			// Late-decade additions: pop-rock is broad AM/MOR mainstream; roots-rock leans FM/college
+			// album-rock; psych-pop sits between AM pop and the FM/college psych audience.
+			Genre.PopRock => (.55f,.25f,0,0,.10f,.10f), Genre.RootsRock => (.30f,.10f,.05f,0,.25f,.30f),
+			Genre.PsychedelicPop => (.45f,.15f,0,0,.20f,.20f),
+			_ => (.35f,.20f,0,0,.10f,.05f)
 		};
 		var (am, mor, rb, country, college, fm) = source;
 		var w = new Dictionary<string, float> {

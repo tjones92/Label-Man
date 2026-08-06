@@ -188,6 +188,26 @@ public partial class MarketRegion : Resource {
 			GetAlbumAffinity(genre, year) * GetAlbumPurchaseWillingness(year);
 	}
 
+	// Demographic bypass for soundtracks/cast albums (D7 soundtrack subsystem, phase 5). A soundtrack
+	// sells to an ADULT/FAMILY audience largely independent of whether its mapped genre has a big
+	// radio/album market -- that is how a Sound-of-Music (TraditionalPop) or a beach-film LP (SurfRock)
+	// charts despite the genre's thin normal album demand. So its buyer pool is drawn from the
+	// AdultMOR + FamilyChildrens segments (+ JazzHiFiClassical for orchestral scores, + a Youth slice
+	// for youth-appeal film songs) rather than from GetGenreAcceptance/GetAlbumAffinity. This does NOT
+	// touch the genre's own acceptance (handoff §3.4); the record still reports under its real genre.
+	public float GetSoundtrackAlbumMarketSize(ExternalMediaProfile profile, int year) {
+		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
+		var shares = segmentCapacities?.Shares;
+		float Share(AudienceSegment s, float fallback) => shares != null && shares.TryGetValue(s, out float v) ? v : fallback;
+		float segReach = Share(AudienceSegment.AdultMOR, 0.14f) + Share(AudienceSegment.FamilyChildrens, 0.04f);
+		if (profile.sourceType == ExternalMediaSourceType.FilmScore)
+			segReach += Share(AudienceSegment.JazzHiFiClassical, 0.04f);
+		// Youth crossover for song-driven films and any high-youth-appeal title (beach/rock pictures).
+		if (profile.sourceType == ExternalMediaSourceType.FilmSong || profile.youthAppeal > 0.5f)
+			segReach += Share(AudienceSegment.Youth, 0.18f) * profile.youthAppeal * 0.5f;
+		return buyingPopulation * segReach * GetAlbumPurchaseWillingness(year);
+	}
+
 	public AlbumDemandExplanation GetAlbumDemandExplanation(Genre genre, float year) {
 		float buyingPopulation = population * 1000000f * GetBuyingPopulationPercentage();
 		float momentum = ChartManager.Instance?.GetGenreMomentum(genre) ?? (genreMomentum != null && genreMomentum.TryGetValue(genre, out float value) ? value : 0f);
@@ -286,11 +306,31 @@ public partial class MarketRegion : Resource {
 		Genre.Classical => 0.82f,
 		Genre.PsychedelicRock => 0.78f,
 		Genre.Folk => 0.78f,
-		Genre.Jazz => 0.72f,
+		// GENRE-ARC ALBUM PASS (2026-08, D7). Two-seed decade album chart-week shares against the
+		// author's estimates: Jazz ran 35% at 1960 vs ~2 (biggest error), Country 8->17% vs ~2->8,
+		// Comedy 2% vs ~8 early, Soul 0->3% vs 0->22 late. Album chart presence tracks album units
+		// directly (no airplay channel), so per-genre album affinity is the direct lever here.
+		// Jazz 0.72 -> 0.35: cut the massive album over-presence (jazz stays album-skewed, just far
+		// less dominant); the residual is expected to still read a few points over on a first pass.
+		Genre.Jazz => 0.35f,
 		Genre.BossaNova => 0.72f,
-		Genre.Country or Genre.Gospel or Genre.Blues => 0.58f,
+		// Country 0.58 -> 0.42: trim the all-decade album over-presence toward the ~8% late target.
+		Genre.Country => 0.42f,
+		Genre.Gospel or Genre.Blues => 0.58f,
+		// Comedy 0.40 (was the neutral default) -> 0.68: the early-60s comedy LP boom (Newhart/Cosby/
+		// Button-Down Mind) was a major album phenomenon; its declining GenreCatalog baseline gives the
+		// falling 8->1 shape while the high affinity supplies the early lift.
+		Genre.Comedy => 0.68f,
 		Genre.TraditionalPop => 0.50f,
-		Genre.Soul or Genre.Funk => 0.30f,
+		// Late-decade additions: album-present rock/pop (CCR/Band/Beatles/Neil Diamond LPs were major),
+		// above the pop/rock floor but below the jazz/classical album-centric tier.
+		Genre.RootsRock or Genre.PopRock => 0.48f,
+		Genre.PsychedelicPop => 0.52f,
+		// Soul 0.30 -> 0.55: the late-60s soul LP era (Motown/Stax/Atlantic albums) was a major album
+		// presence the flat 0.30 could not produce; the rising Soul baseline (.41->.70) supplies the
+		// 0->22 time-shape, the higher affinity supplies the level. Funk stays single-oriented at 0.30.
+		Genre.Soul => 0.55f,
+		Genre.Funk => 0.30f,
 		Genre.RockAndRoll or Genre.TeenPop or Genre.RnB or Genre.DooWop => 0.22f,
 		_ => NeutralAlbumAffinityBaseline
 	};

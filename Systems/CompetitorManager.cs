@@ -775,6 +775,7 @@ public partial class CompetitorManager : Node {
 		ResetWeeklyReleaseCounters();
 		ProcessDueAlbumProjects(date);
 		ProcessWeeklyReleases(date);
+		ProcessWeeklySoundtrackOrigination(date);
 	}
 
 	/// <summary>Explicit, ordered booking transition for a frozen live settlement.</summary>
@@ -1118,6 +1119,100 @@ public partial class CompetitorManager : Node {
 		}
 		if (debugMode && releasesThisWeek > 0) GD.Print($"Week {date}: {releasesThisWeek} new releases");
 	}
+
+	// Blockbuster soundtracks minted so far this run; the anti-monoculture cap (0-3/decade) is enforced
+	// against this. A fresh CompetitorManager per audit run starts this at 0.
+	private int soundtrackBlockbustersThisRun;
+	public int SoundtrackOriginationsThisRun { get; private set; }
+
+	// Externally-originated soundtrack/cast-album pipeline (D7 soundtrack subsystem, phase 3). Runs once
+	// per week: with a small probability derived from the annual origination rate, generate one
+	// opportunity, pick a capable licensee, and mint + release the Soundtrack album. Gated to the live
+	// enabled market path -- the disabled route is a byte-frozen compatibility boundary and must never
+	// see soundtracks. See SimTools/D7SoundtrackCastAlbumHandoff.md §3.2, §5 and ExternalMediaService.
+	private void ProcessWeeklySoundtrackOrigination(GameDate date) {
+		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) return;
+		if (GD.Randf() >= ExternalMediaService.OriginationsPerYear / 52f) return;
+		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
+		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
+		AILabel label = ExternalMediaService.SelectLabel(aiLabels, profile);
+		if (label == null) return; // nobody could front the license advance this week
+		MintSoundtrackRecord(label, profile, date);
+	}
+
+	private void MintSoundtrackRecord(AILabel label, ExternalMediaProfile profile, GameDate date) {
+		Genre genre = ExternalMediaService.MapGenre(profile.sourceType);
+		// Resolve the stored production-cost MULTIPLE into an actual currency advance against this
+		// label's cost basis, charge it, and overwrite the field with the realized fee for telemetry.
+		float licenseFee = label.GetProductionCost() * profile.upfrontLicenseFee;
+		profile.upfrontLicenseFee = licenseFee;
+
+		generatedRecordCounter++;
+		float pooledAppeal = ExternalMediaService.PooledAppeal(profile);
+		var album = new Album {
+			albumId = $"album_{generatedRecordCounter}",
+			albumFormat = AlbumFormat.Soundtrack,
+			externalMedia = profile,
+			trackRefs = System.Array.Empty<AlbumTrack>(),
+			nonSingleTracks = System.Array.Empty<AlbumTrack>(),
+			runtimeMinutes = (float)GD.RandRange(28.0, 46.0),
+			thematicCohesion = Mathf.Clamp(0.6f + profile.criticalPrestige * 0.3f, 0f, 1f),
+			pooledAppeal = pooledAppeal,
+			packaging = Mathf.Clamp(0.45f + profile.boxOfficeTrajectory * 0.35f + (float)GD.RandRange(-0.08, 0.10), 0.2f, 1f),
+			isStereo = date.year >= 1968 || GD.Randf() < Mathf.Lerp(0.2f, 0.8f, Mathf.Clamp((date.year - 1960f) / 8f, 0f, 1f))
+		};
+
+		var record = new Record {
+			recordId = $"gen_{generatedRecordCounter}",
+			labelId = label.labelId,
+			format = ReleaseFormat.Album,
+			isPlayerOwned = false,
+			album = album,
+			artistId = string.Empty, // externally originated -- not a roster artist
+			artistName = SoundtrackCreditName(profile.sourceType),
+			primaryGenre = genre,
+			secondaryGenre = genre,
+			// Album quality reads straight off pooledAppeal; mirror it onto the scalar fields so any
+			// non-album code path still sees a coherent quality.
+			hookStrength = pooledAppeal,
+			productionQuality = pooledAppeal,
+			danceability = pooledAppeal,
+			projectRole = ProjectRecordRole.None,
+			albumProjectId = string.Empty
+		};
+		record.title = NameGenerator.Instance?.GenerateSongTitle(genre, date.year, record.artistName) ?? $"Soundtrack {generatedRecordCounter}";
+
+		// Licensing economics: a high upfront advance, booked like any production spend.
+		label.cashReserves -= licenseFee;
+		label.monthlyExpenses += licenseFee;
+		WeeklyProductionSpend += licenseFee;
+		WeeklyProductionEvents++;
+		if (labelFinancials.TryGetValue(label.labelId, out var financials)) financials.lastMonthExpenses += licenseFee;
+
+		record.releaseDate = date;
+		ChartManager.Instance.ReleaseRecord(record, label);
+		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData != null) {
+			// Anchor launch awareness to the film/show's own premiere buzz -- soundtracks are not
+			// artist-heat driven, so without this seed they would never build awareness or chart.
+			// (Phase 4 replaces this static seed with the box-office demand trajectory.)
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity);
+			runtimeData.sunkProductionCost = licenseFee;
+			runtimeData.revenueMemoryEligible = false; // no artist/project memory to fold
+			runtimeData.projectRole = ProjectRecordRole.None;
+		}
+		TrackRelease(label.labelId, record.recordId);
+
+		soundtrackBlockbustersThisRun += profile.isBlockbuster ? 1 : 0;
+		SoundtrackOriginationsThisRun++;
+		if (debugMode) GD.Print($"Soundtrack minted: {record.title} ({genre}, {profile.sourceType}, bo={profile.boxOfficeTrajectory:F2}) by {label.labelName}, fee={licenseFee:F0}");
+	}
+
+	private static string SoundtrackCreditName(ExternalMediaSourceType sourceType) => sourceType switch {
+		ExternalMediaSourceType.StageCast => "Original Broadway Cast",
+		ExternalMediaSourceType.FilmScore => "Original Film Score",
+		_ => "Original Soundtrack"
+	};
 
 	private void ResetWeeklyReleaseCounters() {
 		weeklyReleaseLifecycleByTier.Clear();
@@ -2895,8 +2990,14 @@ public partial class CompetitorManager : Node {
 		} else if (GD.Randf() < AlbumModel.GetCompilationChance(artist.primaryGenre, year)) {
 			albumFormat = AlbumFormat.Compilation;
 		} else {
+			// SOUNDTRACK ORIGINATION (2026-08, D7 soundtrack subsystem): the old cosmetic
+			// `typeRoll < 0.12f ? Soundtrack` branch was removed. A soundtrack/cast album is an
+			// externally-originated object (film score, stage cast, tie-in) with its own demand
+			// curve and economics -- it must NOT be a dice roll on an ordinary artist album. The
+			// former 12% Soundtrack band folds into Standard; Live keeps its ~12% band. Real
+			// soundtracks are minted by ExternalMediaService (see D7SoundtrackCastAlbumHandoff.md).
 			float typeRoll = GD.Randf();
-			albumFormat = typeRoll < 0.12f ? AlbumFormat.Soundtrack : typeRoll < 0.24f ? AlbumFormat.Live : AlbumFormat.Standard;
+			albumFormat = typeRoll < 0.12f ? AlbumFormat.Live : AlbumFormat.Standard;
 		}
 
 		var referencedSingles = new List<AlbumTrack>();

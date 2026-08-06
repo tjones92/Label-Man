@@ -175,8 +175,24 @@ public static class GenreCatalog {
 		// 1960 was on target (0.8%) and every later year ran 3-4x over against a flat ~0.6-0.8%
 		// historical line. The authored mid-decade bulge is not a real commercial pattern: the
 		// comedy LP boom was an ALBUM phenomenon and should not inflate the singles market.
-		Add("comedy", Genre.Comedy, GenreFamily.NonMusic, 1955, null, .50f, .15f, .53f,.37f,.28f,.30f,.27f,.28f,.23f);
+		// SingleOrientation .15 -> .22: comedy singles died entirely after 1961 (0 vs a steady ~0.7%
+		// hand count) -- the novelty single (Chipmunks, "Hello Muddah") was a small but persistent AM
+		// category. A modest single lean restores a thread of comedy singles without inflating the
+		// album LP boom (which the raised album affinity drives). Baseline shape unchanged.
+		Add("comedy", Genre.Comedy, GenreFamily.NonMusic, 1955, null, .50f, .22f, .53f,.37f,.28f,.30f,.27f,.28f,.23f);
 		Add("childrens", Genre.Childrens, GenreFamily.NonMusic, 1950, null, .50f, .30f, .35f,.35f,.35f,.35f,.35f,.35f,.35f);
+		// THREE LATE-DECADE ADDITIONS (2026-08, D7 soundtrack/genre-arc pass). Author-requested genres
+		// present in the album handcount but absent from the earlier singles list, so shapes are by
+		// discretion (baseline sized ~sqrt against comparable rising late-60s genres like FolkRock/
+		// HardRock/Bubblegum, which sit .55-.71 at 1969). Both formats: baseline sizes overall units,
+		// SingleOrientation splits single vs album. Keyframes at 1960/62/64/66/67/68/69.
+		// Psychedelic Pop -- Pet Sounds, Donovan; pop-leaning psych, emerges 1966, peaks 66-67, fades.
+		Add("psychedelic-pop", Genre.PsychedelicPop, GenreFamily.Pop, 1966, 1971, .70f, .55f, .02f,.02f,.02f,.28f,.34f,.24f,.15f);
+		// Pop Rock -- Neil Diamond, Three Dog Night, Abbey Road-era Beatles; broad mainstream, rises late,
+		// strong on BOTH charts (big singles acts with major albums).
+		Add("pop-rock", Genre.PopRock, GenreFamily.Pop, 1967, null, .70f, .60f, .01f,.01f,.02f,.05f,.25f,.42f,.55f);
+		// Roots Rock -- CCR, The Band, roots-era Dylan; emerges 1968, big by 1969, singles-and-albums.
+		Add("roots-rock", Genre.RootsRock, GenreFamily.Rock, 1968, null, .65f, .55f, .01f,.01f,.02f,.02f,.06f,.32f,.50f);
 		AllProfiles = new ReadOnlyCollection<GenreProfile>(new List<GenreProfile>(Profiles.Values));
 	}
 
@@ -234,7 +250,7 @@ public static class GenreCatalog {
 		_ => genre
 	};
 	public static void Validate() {
-		if (Profiles.Count != 42) throw new InvalidOperationException($"Expected 42 canonical genre profiles, found {Profiles.Count}.");
+		if (Profiles.Count != 45) throw new InvalidOperationException($"Expected 45 canonical genre profiles, found {Profiles.Count}.");
 		foreach (GenreProfile p in Profiles.Values) {
 			if (string.IsNullOrWhiteSpace(p.Id) || p.BaselineKeyframes.Length != 7 || !float.IsFinite(p.AudienceLean) || p.AudienceLean < 0f || p.AudienceLean > 1f || !float.IsFinite(p.SingleOrientation) || p.SingleOrientation < 0f || p.SingleOrientation > 1f) throw new InvalidOperationException($"Invalid profile '{p.Id}'.");
 			foreach (float value in p.BaselineKeyframes) if (!float.IsFinite(value) || value < 0f || value > 1f) throw new InvalidOperationException($"Invalid baseline value for '{p.Id}'.");

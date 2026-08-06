@@ -75,7 +75,10 @@ public enum Genre {
 	Comedy = 44,
 	Childrens = 45,
 	ContemporaryFolk = 46,
-	SingerSongwriter = 47
+	SingerSongwriter = 47,
+	PopRock = 48,           // Neil Diamond, Three Dog Night, Abbey Road-era Beatles (~1967/68)
+	RootsRock = 49,         // CCR, The Band, roots-era Dylan (~1968)
+	PsychedelicPop = 50     // Pet Sounds, Donovan (~1966)
 }
 
 public enum GenreFamily { Pop, Rock, RhythmAndSoul, Gospel, Country, Folk, Jazz, Blues, Classical, Latin, Caribbean, NonMusic }
