@@ -15,6 +15,7 @@ public partial class NameGenerator : Node {
 	private const string LexiconPath = "res://Data/Naming/lexicon.json";
 	private const string UserLexiconPath = "res://Data/Naming/lexicon.user.json";
 	private const string OntologyLexiconPath = "res://Data/Naming/lexicon.ontology.json";
+	private const string OntologyBaseLexiconPath = "res://Data/Naming/lexicon.ontology.base.json";
 	private const string GrammarPath = "res://Data/Naming/grammar.json";
 	// Optional data-driven overrides for the six-layer models (embedded defaults apply if absent).
 	private const string OntologyPath = "res://Data/Naming/ontology.json";
@@ -40,7 +41,9 @@ public partial class NameGenerator : Node {
 		}
 		var lexicon = Lexicon.LoadFromJson(lexJson);
 		string ontJson = ReadFile(OntologyLexiconPath);
-		if (!string.IsNullOrEmpty(ontJson)) lexicon.AppendJson(ontJson);   // Layer-3 tagged pools
+		if (!string.IsNullOrEmpty(ontJson)) lexicon.AppendJson(ontJson);   // Layer-3 curated tagged pools
+		string ontBaseJson = ReadFile(OntologyBaseLexiconPath);
+		if (!string.IsNullOrEmpty(ontBaseJson)) lexicon.AppendJson(ontBaseJson); // Layer-3 base-word re-tagging
 		string userJson = ReadFile(UserLexiconPath);
 		if (!string.IsNullOrEmpty(userJson)) lexicon.AppendJson(userJson);
 
