@@ -354,6 +354,7 @@ namespace LabelMan.Naming {
 			if (pick == null)
 			foreach (var e in pool) {
 				if (!spec.Filter.IsEmpty && !spec.Filter.Matches(e, _ont)) continue;
+				if (!TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue; // keep non-English out of non-matching genres
 				double aff = genre.AffinityFor(e);
 				if (aff <= 0) continue;                               // suppressed
 				double bias = _mood.BiasMultiplier(e.Moods, locked, genre.Voice.MoodStrictness);
@@ -393,6 +394,7 @@ namespace LabelMan.Naming {
 			var scored = new List<(WordEntry, double)>();
 			foreach (var e in pool) {
 				if (!spec.Filter.IsEmpty && !spec.Filter.Matches(e, _ont)) continue;
+				if (!TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue;
 				double aff = genre.AffinityFor(e);
 				if (aff <= 0) continue;
 				double era = (e.EraClass != null && !TagOntology.EraEligible(e.EraClass, year)) ? 0.12 : 1.0;

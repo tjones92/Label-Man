@@ -115,6 +115,11 @@ namespace LabelMan.Naming {
 			};
 		}
 
+		/// <summary>LOCALE gate (doc 3 §7): a locale-tagged word only surfaces when the genre's
+		/// orthography matches; neutral (untagged) words are locale-agnostic and always eligible.</summary>
+		public static bool LocaleEligible(string localeClass, Locale genreOrthography) =>
+			string.IsNullOrEmpty(localeClass) || localeClass.Equals(genreOrthography.ToString(), StringComparison.OrdinalIgnoreCase);
+
 		public void LoadJson(string json) {
 			if (string.IsNullOrWhiteSpace(json)) return;
 			using var doc = System.Text.Json.JsonDocument.Parse(json, new System.Text.Json.JsonDocumentOptions {

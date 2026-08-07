@@ -31,7 +31,7 @@
       "voice": { "punctuationIntensity": 0.7, "moodStrictness": 0.4, "theProbability": 0.7 },
       "domainAffinity": { "candy": 3, "fauna": 3, "celestial": 1.5 },
       "moodAffinity": { "playful": 3, "joyful": 3 }, "moodThreshold": 0.2 },
-    { "id": "Boogaloo",
+    { "id": "Boogaloo", "orthography": "Spanish",
       "voice": { "punctuationIntensity": 0.7, "apostropheDropRate": 0.4 },
       "domainAffinity": { "party": 4, "dance": 3, "romance": 2 },
       "moodAffinity": { "joyful": 3, "playful": 2, "romantic": 2 }, "moodThreshold": 0.25 },
