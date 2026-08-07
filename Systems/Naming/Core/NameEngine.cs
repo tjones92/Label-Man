@@ -46,6 +46,41 @@ namespace LabelMan.Naming {
 		public bool HasConstraintSet(string symbol) => _constraintSets.ContainsKey(symbol);
 		public IEnumerable<string> ConstraintSymbols => _constraintSets.Keys;
 
+		/// <summary>The distinct (pos, filter) slot pools a constraint set draws from, with the words
+		/// each filter selects — backs the tuner's dictionary panel for constraint categories.</summary>
+		public sealed class SlotGroup { public string Pos; public string Label; public List<string> Tags; public List<WordEntry> Words; }
+		public IReadOnlyList<SlotGroup> ConstraintSlotGroups(string symbol) {
+			if (!_constraintSets.TryGetValue(symbol, out var templates)) return System.Array.Empty<SlotGroup>();
+			var seen = new Dictionary<string, SlotGroup>(StringComparer.Ordinal);
+			foreach (var t in templates) {
+				if (!t.Compiled) t.Compile();
+				foreach (var kv in t.Slots) {
+					var spec = kv.Value;
+					if (string.IsNullOrEmpty(spec.Pos) || spec.Markov) continue;
+					string key = spec.Pos + "|" + spec.Filter.Signature;
+					if (seen.ContainsKey(key)) continue;
+					var words = Lexicon.Pool(spec.Pos)
+						.Where(e => spec.Filter.IsEmpty || spec.Filter.Matches(e, Models.Ontology)).ToList();
+					seen[key] = new SlotGroup {
+						Pos = spec.Pos,
+						Tags = spec.Filter.ReferencedTags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+						Label = spec.Filter.IsEmpty ? spec.Pos : $"{spec.Pos} [{spec.Filter.Label}]",
+						Words = words
+					};
+				}
+			}
+			return seen.Values.ToList();
+		}
+
+		/// <summary>Distinct ontology/style tags stored on a word's entries of a given pos (tuner tag view).</summary>
+		public IReadOnlyList<string> TagsForWord(string pos, string word) {
+			var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var e in Lexicon.Pool(pos))
+				if (string.Equals(e.Word, word, StringComparison.OrdinalIgnoreCase) && e.Tags != null)
+					foreach (var tg in e.Tags) tags.Add(tg);
+			return tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+		}
+
 		/// <summary>Fill from a constraint-template set: gate + satisfiability prune, weighted pick,
 		/// escalating fallback to a simpler template, then the grammar as last resort. Returns null
 		/// only if the symbol is unknown.</summary>
@@ -83,6 +118,17 @@ namespace LabelMan.Naming {
 
 		/// <summary>Expand a symbol once, no uniqueness enforcement (used by the tuner spin).</summary>
 		public string ExpandOnce(string symbol, NamingContext ctx) => Grammar.Expand(symbol, ctx);
+
+		/// <summary>Constraint-aware single expansion (no uniqueness): a registered constraint set for
+		/// the symbol wins, else the grammar. This is what the tuner spins so it matches the game,
+		/// which routes through <see cref="Generate"/> (also constraint-aware).</summary>
+		public string ExpandRouted(string symbol, NamingContext ctx) {
+			if (_constraintSets.ContainsKey(symbol)) {
+				string s = FillConstraint(symbol, ctx);
+				if (!string.IsNullOrEmpty(s)) return s;
+			}
+			return Grammar.HasSymbol(symbol) ? Grammar.Expand(symbol, ctx) : symbol;
+		}
 
 		/// <summary>Expand with uniqueness. <paramref name="bucket"/> scopes uniqueness (e.g.
 		/// "artist", "label", or "song|Artist Name"). Near-duplicate guard applies when

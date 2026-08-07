@@ -20,6 +20,10 @@ namespace LabelMan.Naming {
 		private string _sig;
 		/// <summary>Stable cache signature for the filtered-pool cache key.</summary>
 		public string Signature => _sig ??= string.Join("&", _andOfOr.Select(g => string.Join("|", g))) + "!" + string.Join(",", _exclude);
+		/// <summary>Human-readable tag label for the tuner dictionary, e.g. "celestial|gem, !aggressive".</summary>
+		public string Label => string.Join(", ", _andOfOr.Select(g => string.Join("|", g)).Concat(_exclude.Select(x => "!" + x)));
+		/// <summary>Every tag this filter references (for the tuner), across all AND/OR groups + excludes.</summary>
+		public IEnumerable<string> ReferencedTags => _andOfOr.SelectMany(g => g).Concat(_exclude);
 
 		public static DomainFilter Parse(string expr) {
 			var f = new DomainFilter();

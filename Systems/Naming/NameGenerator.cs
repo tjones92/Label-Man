@@ -16,6 +16,7 @@ public partial class NameGenerator : Node {
 	private const string UserLexiconPath = "res://Data/Naming/lexicon.user.json";
 	private const string OntologyLexiconPath = "res://Data/Naming/lexicon.ontology.json";
 	private const string OntologyBaseLexiconPath = "res://Data/Naming/lexicon.ontology.base.json";
+	private const string PeopleLexiconPath = "res://Data/Naming/lexicon.people.json";
 	private const string GrammarPath = "res://Data/Naming/grammar.json";
 	// Optional data-driven overrides for the six-layer models (embedded defaults apply if absent).
 	private const string OntologyPath = "res://Data/Naming/ontology.json";
@@ -44,6 +45,8 @@ public partial class NameGenerator : Node {
 		if (!string.IsNullOrEmpty(ontJson)) lexicon.AppendJson(ontJson);   // Layer-3 curated tagged pools
 		string ontBaseJson = ReadFile(OntologyBaseLexiconPath);
 		if (!string.IsNullOrEmpty(ontBaseJson)) lexicon.AppendJson(ontBaseJson); // Layer-3 base-word re-tagging
+		string peopleJson = ReadFile(PeopleLexiconPath);
+		if (!string.IsNullOrEmpty(peopleJson)) lexicon.AppendJson(peopleJson);   // central people pool (hispanic/jewish)
 		string userJson = ReadFile(UserLexiconPath);
 		if (!string.IsNullOrEmpty(userJson)) lexicon.AppendJson(userJson);
 
@@ -115,17 +118,24 @@ public partial class NameGenerator : Node {
 
 	private string RollSoloDemographics(Genre genre, NamingContext ctx) {
 		var rng = ctx.Rng;
-		bool isFemale = rng.Chance(GetFemaleChance(genre));
+		// An explicit SoloMale/SoloFemale selection FORCES the gender; only Unknown rolls by genre.
+		bool isFemale = ctx.ArtistType == ArtistType.SoloFemale.ToString() ? true
+					  : ctx.ArtistType == ArtistType.SoloMale.ToString() ? false
+					  : rng.Chance(GetFemaleChance(genre));
 		bool isBlack = IsAfricanAmericanGenre(genre) && rng.Chance(0.75);
-		bool isItalian = IsEastCoastGenre(genre) && !isBlack && rng.Chance(0.35);
+		bool isHispanic = IsLatinGenre(genre) && !isBlack && rng.Chance(0.6);
+		bool isItalian = IsEastCoastGenre(genre) && !isBlack && !isHispanic && rng.Chance(0.35);
 		bool isCountry = genre == Genre.Country || genre == Genre.CountryRock;
-		bool isJewish = IsBrillBuildingGenre(genre) && !isBlack && rng.Chance(0.25);
+		bool isJewish = IsBrillBuildingGenre(genre) && !isBlack && !isHispanic && rng.Chance(0.25);
 
-		string ethnicity = isBlack ? "black" : isCountry ? "country" : "white";
+		// firstName ethnicity draws from the central people pool (white/black/hispanic/jewish/country).
+		string ethnicity = isBlack ? "black" : isHispanic ? "hispanic" : isJewish ? "jewish"
+						 : isCountry ? "country" : "white";
 		ctx.TagSets["name"] = new List<string> { isFemale ? "female" : "male", ethnicity };
 
 		string surname;
-		if (isCountry) surname = rng.Chance(0.55) ? "country" : "generic";
+		if (isHispanic) surname = "hispanic";
+		else if (isCountry) surname = rng.Chance(0.55) ? "country" : "generic";
 		else if (isItalian) surname = rng.Chance(0.60) ? "italian" : "generic";
 		else if (isJewish) surname = rng.Chance(0.50) ? "jewish" : "generic";
 		else surname = "generic";
@@ -396,24 +406,30 @@ public partial class NameGenerator : Node {
 		}
 		switch (category) {
 			case CatArtist:
-				return _engine.ExpandOnce(ChooseArtistSymbol(genre, year, type, ctx), ctx);
+				return _engine.ExpandRouted(ChooseArtistSymbol(genre, year, type, ctx), ctx);
 			case CatSong:
-				return _engine.ExpandOnce(ChooseSongSymbol(genre, year, ctx.Rng), ctx);
+				return _engine.ExpandRouted(ChooseSongSymbol(genre, year, ctx.Rng), ctx);
 			case CatAlbum: {
 				ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
 				double r = ctx.Rng.NextDouble();
 				if (r < 0.10) return ctx.Slots["artist"];               // self-titled
-				if (r < 0.30) return _engine.ExpandOnce("albumFormat", ctx);
-				return _engine.ExpandOnce("albumTitle", ctx);
+				if (r < 0.30) return _engine.ExpandRouted("albumFormat", ctx);
+				return _engine.ExpandRouted("albumTitle", ctx);
 			}
 			case CatPerson: {
-				ctx.TagSets["name"] = new List<string> { type == ArtistType.SoloFemale ? "female" : "male", "white" };
-				ctx.TagSets["surname"] = new List<string> { "generic" };
+				// Central people pool: show variety across the four ethnicity categories. An explicit
+				// SoloMale/SoloFemale still forces gender; ethnicity rotates so the pool is visible.
+				string g = type == ArtistType.SoloFemale ? "female" : type == ArtistType.SoloMale ? "male"
+						 : (ctx.Rng.Chance(0.5) ? "female" : "male");
+				string eth = new[] { "white", "black", "hispanic", "jewish" }[ctx.Rng.Next(4)];
+				ctx.TagSets["name"] = new List<string> { g, eth };
+				ctx.TagSets["surname"] = new List<string> {
+					eth == "hispanic" ? "hispanic" : eth == "jewish" ? "jewish" : "generic" };
 				return _engine.ExpandOnce(coinSurname ? "personName.coined" : "personName", ctx);
 			}
 			default:
 				ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
-				return _engine.ExpandOnce(category, ctx);
+				return _engine.ExpandRouted(category, ctx);
 		}
 	}
 
@@ -423,7 +439,7 @@ public partial class NameGenerator : Node {
 		if (!string.IsNullOrWhiteSpace(artistName)) return artistName.Trim();
 		var bctx = ctx.Clone();
 		bctx.TagSets = new Dictionary<string, List<string>>(ctx.TagSets); // isolate demographic rolls
-		return _engine.ExpandOnce(ChooseArtistSymbol(genre, year, ArtistType.Band, bctx), bctx);
+		return _engine.ExpandRouted(ChooseArtistSymbol(genre, year, ArtistType.Band, bctx), bctx);
 	}
 
 	// ------------------------------------------------------- ENGINE INSPECTOR (tuner)
@@ -479,7 +495,7 @@ public partial class NameGenerator : Node {
 		public string Label;          // e.g. "noun [psych]"
 		public WordView[] Words;
 	}
-	public sealed class WordView { public string Word; public int? EraStart; public int? EraEnd; }
+	public sealed class WordView { public string Word; public int? EraStart; public int? EraEnd; public string[] Tags; }
 
 	/// <summary>The distinct lexicon groups (pos + resolved tags) the given category queries,
 	/// each with its current word list — the backing data for the tuner's dictionary panel.</summary>
@@ -490,13 +506,27 @@ public partial class NameGenerator : Node {
 		ctx.TagSets["surname"] = new List<string> { "generic" };
 
 		var seen = new Dictionary<string, LexGroupView>();
-		foreach (var sym in SymbolsForCategory(category, genre, year, type, ctx))
+		foreach (var sym in SymbolsForCategory(category, genre, year, type, ctx)) {
+			// Constraint-routed symbol: show the ontology-filtered slot pools the templates actually
+			// draw from (with each word's stored axis tags), not the underlying grammar symbol's pools.
+			if (_engine.HasConstraintSet(sym)) {
+				foreach (var sg in _engine.ConstraintSlotGroups(sym)) {
+					string key = sg.Label;
+					if (seen.ContainsKey(key)) continue;
+					var words = sg.Words
+						.Select(e => new WordView { Word = e.Word, EraStart = e.EraStart, EraEnd = e.EraEnd,
+													Tags = _engine.TagsForWord(sg.Pos, e.Word).ToArray() })
+						.OrderBy(w => w.Word, System.StringComparer.OrdinalIgnoreCase).ToArray();
+					seen[key] = new LexGroupView { Pos = sg.Pos, Tags = sg.Tags.ToArray(), Label = sg.Label, Words = words };
+				}
+				continue;
+			}
 			foreach (var tmpl in _engine.Grammar.Templates(sym))
 				foreach (var (pos, tags) in ExtractGroups(tmpl, ctx)) {
 					string key = pos + "|" + string.Join(",", tags.OrderBy(t => t, System.StringComparer.OrdinalIgnoreCase));
 					if (seen.ContainsKey(key)) continue;
 					var words = _engine.Lexicon.Entries(pos, tags)
-						.Select(e => new WordView { Word = e.Word, EraStart = e.EraStart, EraEnd = e.EraEnd })
+						.Select(e => new WordView { Word = e.Word, EraStart = e.EraStart, EraEnd = e.EraEnd, Tags = tags.ToArray() })
 						.OrderBy(w => w.Word, System.StringComparer.OrdinalIgnoreCase).ToArray();
 					seen[key] = new LexGroupView {
 						Pos = pos, Tags = tags.ToArray(),
@@ -504,6 +534,7 @@ public partial class NameGenerator : Node {
 						Words = words
 					};
 				}
+		}
 		return seen.Values.OrderBy(g => g.Label, System.StringComparer.OrdinalIgnoreCase).ToArray();
 	}
 
@@ -684,6 +715,8 @@ public partial class NameGenerator : Node {
 	};
 	private static bool IsEastCoastGenre(Genre g) =>
 		g == Genre.DooWop || g == Genre.GirlGroup || g == Genre.TeenPop;
+	private static bool IsLatinGenre(Genre g) =>
+		g == Genre.LatinPop || g == Genre.Boogaloo || g == Genre.TexMex;
 	private static bool IsBrillBuildingGenre(Genre g) => g switch {
 		Genre.GirlGroup or Genre.TeenPop or Genre.DooWop or Genre.TraditionalPop => true, _ => false
 	};

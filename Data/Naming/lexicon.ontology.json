@@ -212,6 +212,27 @@
     { "pos": "verb", "tags": ["spiritual"], "words": [
       "pray", "believe", "rise", "shine", "praise", "testify", "kneel", "redeem"
     ]},
+    { "pos": "verb", "tags": ["restless"], "words": [
+      "walk", "wait", "search", "follow", "leave", "return", "escape", "climb", "fall", "fly",
+      "sail", "hurry", "hustle", "move", "shake", "rock", "roll", "spin", "swing", "slide" ]},
+    { "pos": "verb", "tags": ["romantic"], "words": [
+      "dream", "believe", "trust", "remember", "forget", "miss", "need", "want", "please", "give",
+      "keep", "stay", "wait", "call", "whisper", "swoon", "melt", "belong" ]},
+    { "pos": "verb", "tags": ["melancholy"], "words": [
+      "hurt", "lose", "bleed", "break", "leave", "wonder", "remember", "regret", "drown", "fade",
+      "cry", "beg", "plead", "wither", "linger" ]},
+    { "pos": "verb", "tags": ["defiant"], "words": [
+      "run", "ride", "drive", "roll", "burn", "tear", "smash", "shout", "scream", "howl", "roar",
+      "strike", "storm", "charge", "conquer", "defy", "resist", "rebel" ]},
+    { "pos": "verb", "tags": ["joyful"], "words": [
+      "smile", "laugh", "play", "jump", "shout", "clap", "wiggle", "boogie", "bop", "hop", "twist",
+      "shimmy", "groove", "celebrate", "holler", "wander", "ramble" ]},
+    { "pos": "verb", "tags": ["spiritual"], "words": [
+      "sing", "praise", "worship", "gather", "march", "carry", "lift", "raise", "deliver",
+      "forgive", "bless", "heal", "wash", "shout" ]},
+    { "pos": "verb", "tags": ["gritty"], "words": [
+      "work", "dig", "haul", "grind", "sweat", "chase", "hunt", "steal", "gamble", "drink",
+      "smoke", "wrestle", "holler", "moan" ]},
 
     { "//": "=== band-suffix group nouns (already plural) for constraint band templates ===",
       "pos": "groupNoun", "tags": ["gospel", "spiritual"], "words": [

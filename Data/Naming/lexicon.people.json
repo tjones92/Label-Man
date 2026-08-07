@@ -1,0 +1,24 @@
+{
+  "//": "Central people pool — fills the gaps so all four ethnicity categories (white, black, hispanic, jewish) exist for both first and last names. white/black firstnames + generic/jewish/italian/british/country lastnames live in lexicon.json; this file adds hispanic first+last and jewish first names. Period-appropriate (early-to-mid 1960s). Loaded via AppendJson.",
+
+  "groups": [
+    { "pos": "firstName", "tags": ["male", "hispanic"], "words": [
+      "Ritchie", "Carlos", "Jose", "Manuel", "Ramon", "Pedro", "Ernesto", "Javier", "Miguel",
+      "Rafael", "Roberto", "Eduardo", "Angel", "Tito", "Hector", "Freddie", "Chico", "Little Joe",
+      "Ray", "Sunny", "Willie", "Frankie", "Rudy", "Danny", "Chris", "Joey" ]},
+    { "pos": "firstName", "tags": ["female", "hispanic"], "words": [
+      "Maria", "Rosa", "Carmen", "Gloria", "Linda", "Elena", "Isabel", "Teresa", "Yolanda", "Rita",
+      "Connie", "Anita", "Lucia", "Dolores", "Celia", "Graciela", "Estela", "Ramona", "Sylvia" ]},
+    { "pos": "lastName", "tags": ["hispanic"], "words": [
+      "Valens", "Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Perez",
+      "Ramirez", "Torres", "Rivera", "Cruz", "Reyes", "Morales", "Ortiz", "Santana", "Vega",
+      "Guerrero", "Castillo", "Delgado", "Herrera", "Mendez", "Ruiz", "Flores", "Colon" ]},
+
+    { "pos": "firstName", "tags": ["male", "jewish"], "words": [
+      "Neil", "Barry", "Jerry", "Burt", "Phil", "Mort", "Marty", "Herb", "Lou", "Artie", "Manny",
+      "Saul", "Sid", "Murray", "Seymour", "Irving", "Sol", "Cy", "Hal", "Doc", "Jeff" ]},
+    { "pos": "firstName", "tags": ["female", "jewish"], "words": [
+      "Carole", "Cynthia", "Ellie", "Estelle", "Sylvia", "Beryl", "Marcy", "Toby", "Shelley",
+      "Roberta", "Bette", "Barbra", "Ronnie", "Sandy" ]}
+  ]
+}

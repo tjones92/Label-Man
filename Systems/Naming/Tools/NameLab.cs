@@ -177,14 +177,17 @@ public partial class NameLab : Control {
 		var addBtn = new Button { Text = "Add" };
 		addBtn.Pressed += AddWord;
 		br.AddChild(addBtn);
-		var editBtn = new Button { Text = "Rename selected" };
+		var editBtn = new Button { Text = "Rename" };
 		editBtn.Pressed += EditWord;
 		br.AddChild(editBtn);
-		var delBtn = new Button { Text = "Delete selected" };
+		var retagBtn = new Button { Text = "Retag selected" };
+		retagBtn.Pressed += RetagWord;
+		br.AddChild(retagBtn);
+		var delBtn = new Button { Text = "Delete" };
 		delBtn.Pressed += DeleteWord;
 		br.AddChild(delBtn);
 
-		var note = new Label { Text = "era = years favored (e.g. 1962–1964); blank = always.  + axis tags: DOMAIN/mood/register to\nclassify a word onto the ontology (celestial→NATURE, dreamy→mood, ornate→register). Added to the group's tags." };
+		var note = new Label { Text = "Select a word to see its axis tags in the tags box. Retag = apply edited DOMAIN/mood/register\ntags to that word (celestial→NATURE, dreamy→mood, ornate→register). Add = new word with those tags." };
 		note.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.66f));
 		note.AddThemeFontSizeOverride("font_size", 11);
 		col.AddChild(note);
@@ -319,8 +322,9 @@ public partial class NameLab : Control {
 		var g = SelectedGroup();
 		if (g == null) return;
 		foreach (var w in g.Words) {
-			string era = (w.EraStart.HasValue || w.EraEnd.HasValue) ? $"   [{w.EraStart?.ToString() ?? "…"}–{w.EraEnd?.ToString() ?? "…"}]" : "";
-			_words.AddItem(w.Word + era);
+			string era = (w.EraStart.HasValue || w.EraEnd.HasValue) ? $"  ({w.EraStart?.ToString() ?? "…"}–{w.EraEnd?.ToString() ?? "…"})" : "";
+			string tags = (w.Tags != null && w.Tags.Length > 0) ? $"   [{string.Join(", ", w.Tags)}]" : "";
+			_words.AddItem(w.Word + tags + era);
 		}
 	}
 
@@ -329,8 +333,25 @@ public partial class NameLab : Control {
 		if (g == null || idx < 0 || idx >= g.Words.Length) return;
 		var w = g.Words[idx];
 		_word.Text = w.Word;
+		// surface the word's axis tags for viewing/editing; Retag applies edits back
+		_tags.Text = (w.Tags != null) ? string.Join(", ", w.Tags) : "";
 		_eraStart.Text = w.EraStart?.ToString() ?? "";
 		_eraEnd.Text = w.EraEnd?.ToString() ?? "";
+	}
+
+	private void RetagWord() {
+		var g = SelectedGroup();
+		if (g == null) { SetStatus("Select a word group first.", true); return; }
+		int idx = _words.IsAnythingSelected() ? _words.GetSelectedItems()[0] : -1;
+		if (idx < 0 || idx >= g.Words.Length) { SetStatus("Select a word to retag.", true); return; }
+		var w = g.Words[idx];
+		var newTags = (_tags.Text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+		if (newTags.Count == 0) { SetStatus("Enter axis tags (comma-separated) to apply.", true); return; }
+		var oldTags = w.Tags ?? Array.Empty<string>();
+		// move the word's classification: tombstone the old-tagged entry, add the new-tagged one
+		NameGenerator.Instance.DeleteWord(w.Word, g.Pos, oldTags);
+		bool ok = NameGenerator.Instance.AddWord(w.Word, g.Pos, newTags, ParseEra(_eraStart.Text), ParseEra(_eraEnd.Text));
+		AfterEdit(ok, ok ? $"Retagged \"{w.Word}\" → [{string.Join(", ", newTags)}]." : "Retag failed (see output log).");
 	}
 
 	private static int? ParseEra(string s) => int.TryParse(s?.Trim(), out var v) ? v : (int?)null;
