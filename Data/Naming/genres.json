@@ -1,0 +1,31 @@
+{
+  "//": "Genre profile overrides/additions (Layer 1) atop the embedded defaults in GenreProfile.cs. Only the fields named here change; everything else inherits. Voice dims are 0..1. Edit + Reload (or restart) to apply.",
+
+  "genres": [
+    { "id": "SunshinePop", "extends": "AdultPop",
+      "voice": { "punctuationIntensity": 0.4, "titleLengthBias": 0.35, "archaismLevel": 0.1, "moodStrictness": 0.8 },
+      "domainAffinity": { "celestial": 3, "flora": 3, "seasonal": 2, "romance": 2 },
+      "moodAffinity": { "joyful": 3, "dreamy": 2, "romantic": 2 },
+      "moodThreshold": 0.3 },
+
+    { "id": "TeenPop", "extends": "AdultPop",
+      "voice": { "nicknameDensity": 0.1, "punctuationIntensity": 0.5, "archaismLevel": 0.05 },
+      "domainAffinity": { "romance": 3, "celestial": 2, "candy": 1.5, "body": 1.5 },
+      "moodAffinity": { "romantic": 3, "joyful": 2, "wistful": 1.5 },
+      "moodThreshold": 0.3 },
+
+    { "id": "GirlGroup", "extends": "TeenPop",
+      "domainAffinity": { "romance": 3, "body": 2 },
+      "moodAffinity": { "romantic": 3, "wistful": 2, "defiant": 1.5 } },
+
+    { "id": "Motown", "extends": "Soul",
+      "voice": { "punctuationIntensity": 0.55 },
+      "domainAffinity": { "romance": 3, "dance": 2, "body": 2 },
+      "moodAffinity": { "romantic": 3, "joyful": 2, "earnest": 2 } },
+
+    { "id": "ContemporaryFolk", "extends": "Folk" },
+    { "id": "FolkRock", "extends": "Folk",
+      "voice": { "theProbability": 0.5, "punctuationIntensity": 0.5 },
+      "moodAffinity": { "earnest": 3, "defiant": 2, "restless": 2, "wistful": 1.5 } }
+  ]
+}

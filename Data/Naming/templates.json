@@ -1,0 +1,127 @@
+{
+  "//": "Layer-2 constraint templates, keyed by the song/band symbol the adapter routes to (a set here OVERRIDES the same-named grammar symbol; the grammar stays a per-attempt fallback). Slot filters query the ontology-tagged pools in lexicon.ontology.json; mood constraints keep multi-slot titles coherent per the genre's mood threshold. Each set ends with a simple always-satisfiable template so generation never fails.",
+
+  "songTitle.blues": [
+    { "id": "blues_ramble", "type": "song", "pattern": "%verb#1:ger% %connector#1% %noun#1%", "weight": 3, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "grit|travel|fate|vice|emotion" }, "verb#1": { "pos": "verb", "filter": "restless|melancholy" } },
+      "constraints": [ { "type": "moodInternal" } ] },
+    { "id": "blues_trouble", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "gritty|melancholy" }, "noun#1": { "pos": "noun", "filter": "grit|vice|emotion|travel" } },
+      "constraints": [ { "type": "moodInternal" } ] },
+    { "id": "blues_and", "type": "song", "pattern": "%noun#1% and %noun#2%", "weight": 1, "words": [3,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "grit|vice" }, "noun#2": { "pos": "noun", "filter": "emotion|fate" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "blues_simple", "type": "song", "pattern": "%noun#1% Blues", "weight": 2, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "grit|travel|emotion|romance" } } }
+  ],
+
+  "songTitle.soul": [
+    { "id": "soul_devotion", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "romantic|dreamy" }, "noun#1": { "pos": "noun", "filter": "romance|body|emotion" } },
+      "constraints": [ { "type": "moodDirected", "target": ["romantic","earnest"], "threshold": 0.4 } ] },
+    { "id": "soul_hold", "type": "song", "pattern": "%verb#1:ger% %connector#1% %noun#1%", "weight": 2, "words": [3,5],
+      "slots": { "verb#1": { "pos": "verb", "filter": "romantic|joyful" }, "noun#1": { "pos": "noun", "filter": "romance|body|emotion" } },
+      "constraints": [ { "type": "moodInternal" } ] },
+    { "id": "soul_pair", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 1, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "romance|emotion" }, "noun#2": { "pos": "noun", "filter": "romance|body|temporal" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "soul_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "romance|emotion|body" } } }
+  ],
+
+  "songTitle.country": [
+    { "id": "country_heartbreak", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "gritty|wistful|melancholy" }, "noun#1": { "pos": "noun", "filter": "rural|vice|emotion|travel|domestic" } },
+      "constraints": [ { "type": "moodInternal" } ] },
+    { "id": "country_road", "type": "song", "pattern": "%verb#1:ger% %connector#1% %noun#1%", "weight": 2, "words": [3,5],
+      "slots": { "verb#1": { "pos": "verb", "filter": "restless|melancholy" }, "noun#1": { "pos": "noun", "filter": "travel|rural|domestic" } },
+      "constraints": [ { "type": "moodInternal" } ], "transform": ["apostropheDrop"] },
+    { "id": "country_simple", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 1, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "rural|domestic|emotion" }, "noun#2": { "pos": "noun", "filter": "travel|temporal|rural" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] }
+  ],
+
+  "songTitle.folk": [
+    { "id": "folk_triadic", "type": "song", "pattern": "%verb#1:base%, %verb#2:base%, %verb#3:base%", "weight": 1, "words": [3,3], "gate": { "minYear": 1963 },
+      "slots": { "verb#1": { "pos": "verb", "filter": "defiant|spiritual|restless" } },
+      "constraints": [ { "type": "same", "slots": ["verb#1","verb#2","verb#3"] } ] },
+    { "id": "folk_ballad", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 3, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "protest|virtue|travel|terrain" }, "noun#2": { "pos": "noun", "filter": "emotion|temporal|virtue|rural" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] }, { "type": "moodInternal" } ] },
+    { "id": "folk_simple", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "wistful|earnest|defiant" }, "noun#1": { "pos": "noun", "filter": "protest|travel|virtue|terrain" } } }
+  ],
+
+  "songTitle.psych": [
+    { "id": "psych_kaleidoscope", "type": "song", "pattern": "%adjective#1% %noun#1% %connector#1% %noun#2%", "weight": 3, "words": [4,7], "gate": { "minYear": 1966 },
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "dreamy|ominous|grand" }, "noun#1": { "pos": "noun", "filter": "mystical|flora|celestial" }, "noun#2": { "pos": "noun", "filter": "mystical|cosmic|celestial|flora" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] }, { "type": "moodInternal", "threshold": 0.25 } ] },
+    { "id": "psych_vision", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "dreamy|grand" }, "noun#1": { "pos": "noun", "filter": "mystical|cosmic|celestial|flora" } } },
+    { "id": "psych_the", "type": "song", "pattern": "The %noun#1:pl%", "weight": 1, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "mystical|celestial|flora" } } }
+  ],
+
+  "songTitle.surf": [
+    { "id": "surf_wave", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "joyful|playful|defiant" }, "noun#1": { "pos": "noun", "filter": "nautical|vehicle|dance" } } },
+    { "id": "surf_the", "type": "song", "pattern": "%noun#1% %noun#2%", "weight": 1, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nautical" }, "noun#2": { "pos": "noun", "filter": "dance|nautical|vehicle" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "surf_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nautical|vehicle|dance" } } }
+  ],
+
+  "songTitle.bubblegum": [
+    { "id": "bubblegum_redup", "type": "song", "pattern": "%noun#1% %noun#2% %noun#3%", "weight": 3, "words": [3,3], "gate": { "minYear": 1967 },
+      "slots": { "noun#1": { "pos": "noun", "filter": "candy" } },
+      "constraints": [ { "type": "same", "slots": ["noun#1","noun#2","noun#3"] } ], "transform": ["punctuation"] },
+    { "id": "bubblegum_sweet", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "playful|joyful|romantic" }, "noun#1": { "pos": "noun", "filter": "candy|romance" } } },
+    { "id": "bubblegum_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "candy|romance" } } }
+  ],
+
+  "songTitle.early60s": [
+    { "id": "early_devotion", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "romantic|dreamy|joyful" }, "noun#1": { "pos": "noun", "filter": "romance|celestial|body|candy" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "early_the", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 2, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "romance|celestial" }, "noun#2": { "pos": "noun", "filter": "romance|temporal|celestial" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "early_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "romance|celestial|candy" } } }
+  ],
+
+  "songTitle.reggae": [
+    { "id": "reggae_zion", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 2, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "faith|mythic|protest|identity" }, "noun#2": { "pos": "noun", "filter": "faith|mythic|virtue|identity" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "reggae_simple", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "spiritual|defiant" }, "noun#1": { "pos": "noun", "filter": "faith|mythic|protest|identity" } } }
+  ],
+
+  "songTitle.hardRock": [
+    { "id": "hard_epic", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "aggressive|ominous|grand" }, "noun#1": { "pos": "noun", "filter": "conflict|grit|fate|weather|fauna" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "hard_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "conflict|grit|weather|fate" } } }
+  ],
+
+  "songTitle.sunshine": [
+    { "id": "sunshine_bright", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "joyful|dreamy|romantic" }, "noun#1": { "pos": "noun", "filter": "celestial|flora|seasonal|romance" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "sunshine_simple", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 1, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "celestial|flora|seasonal" }, "noun#2": { "pos": "noun", "filter": "romance|temporal|flora" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] }
+  ],
+
+  "bandName.doowop": [
+    { "id": "doowop_celestial", "type": "band", "pattern": "The %noun#1:pl%", "weight": 4, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "celestial|gem" } } },
+    { "id": "doowop_gem", "type": "band", "pattern": "The %adjective#1% %noun#1:pl%", "weight": 2, "words": [3,4],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "romantic|dreamy|elegant" }, "noun#1": { "pos": "noun", "filter": "celestial|gem|romance" } } }
+  ]
+}

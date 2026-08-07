@@ -203,7 +203,15 @@ namespace LabelMan.Naming {
 		private static bool EndsConsonantY(string l) =>
 			l.Length >= 2 && l[l.Length - 1] == 'y' && !Vowels.Contains(l[l.Length - 2]);
 
-		// CVC with a stressed (approximated: single-syllable or short) final -> double.
+		// Disyllables that double only because their FINAL syllable is stressed (be-GIN, for-GET).
+		// Unstressed-final disyllables (WAN-der, TRAV-el) must NOT double — hence the explicit set.
+		private static readonly HashSet<string> StressFinalDouble = new(StringComparer.OrdinalIgnoreCase) {
+			"begin","forget","prefer","refer","occur","admit","permit","control","patrol","rebel",
+			"submit","commit","regret","upset","propel","expel","compel","deter","forbid","allot","omit"
+		};
+
+		// CVC with a stressed final syllable -> double. Monosyllables always; disyllables only when
+		// their final syllable carries stress (table above); longer words never (US convention).
 		private static bool NeedsDoubling(string l) {
 			if (l.Length < 2) return false;
 			char c1 = l[l.Length - 1];
@@ -212,8 +220,10 @@ namespace LabelMan.Naming {
 			char v = l[l.Length - 2];
 			if (!Vowels.Contains(v)) return false;                    // penult must be a vowel
 			if (l.Length >= 3 && Vowels.Contains(l[l.Length - 3])) return false; // VV before C: no double (rain->raining)
-			// Approximate stress: only double for mono/di-syllables ending stressed (run, begin).
-			return SyllableEstimate(l) <= 2;
+			int syl = SyllableEstimate(l);
+			if (syl == 1) return true;                                // run, sit, stop
+			if (syl == 2) return StressFinalDouble.Contains(l);       // begin -> yes; wander/travel -> no
+			return false;
 		}
 
 		private static int SyllableEstimate(string l) {

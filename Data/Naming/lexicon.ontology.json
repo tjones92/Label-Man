@@ -1,0 +1,227 @@
+{
+  "//": "Ontology-tagged supplemental lexicon (Layer 3). Each group carries DOMAIN + MOOD + REGISTER tags so the Layer-2 constraint templates can filter and stay mood-coherent. Loaded via AppendJson after lexicon.json and classified onto the axes at load. Words may overlap the style-tagged base pools; the weighted draw handles duplicates. 1960s-idiomatic vocabulary.",
+
+  "groups": [
+
+    { "//": "--- connectors / joiners (needed by most multi-slot templates) ---",
+      "pos": "connector", "tags": [], "words": [
+      "of the", "in the", "on the", "down the", "over the", "under the", "through the",
+      "beside the", "across the", "before the", "after the", "beyond the", "of", "in", "on"
+    ]},
+
+    { "//": "=== NATURE ===",
+      "pos": "noun", "tags": ["celestial", "dreamy"], "words": [
+      "star", "moon", "sun", "sky", "comet", "sunrise", "sunset", "starlight", "moonlight",
+      "twilight", "dawn", "aurora", "eclipse", "galaxy", "heaven"
+    ]},
+    { "pos": "noun", "tags": ["nautical", "serene"], "words": [
+      "ocean", "tide", "wave", "shore", "sea", "harbor", "lagoon", "surf", "current", "coast",
+      "reef", "bay", "breaker", "undertow", "shoreline"
+    ]},
+    { "pos": "noun", "tags": ["weather", "ominous"], "words": [
+      "rain", "thunder", "storm", "wind", "lightning", "hurricane", "cloud", "fog", "hail", "tempest"
+    ]},
+    { "pos": "noun", "tags": ["terrain", "restless"], "words": [
+      "mountain", "canyon", "river", "road", "valley", "desert", "highway", "prairie", "hill",
+      "creek", "trail", "ridge", "delta", "badlands"
+    ]},
+    { "pos": "noun", "tags": ["flora", "dreamy", "poetic"], "words": [
+      "rose", "garden", "tangerine", "marmalade", "orchid", "willow", "marigold", "lotus",
+      "jasmine", "clover", "daffodil", "petal", "meadow", "blossom"
+    ]},
+    { "pos": "noun", "tags": ["fauna", "restless"], "words": [
+      "snake", "dove", "raven", "falcon", "panther", "wolf", "sparrow", "nightingale",
+      "serpent", "hawk", "swan", "tiger"
+    ]},
+
+    { "//": "=== HUMAN ===",
+      "pos": "noun", "tags": ["body", "romantic"], "words": [
+      "heart", "eyes", "hands", "lips", "arms", "smile", "shoulder", "soul", "kiss", "touch"
+    ]},
+    { "pos": "noun", "tags": ["romance", "romantic"], "words": [
+      "love", "sweetheart", "angel", "darling", "baby", "lover", "honey", "valentine",
+      "flame", "kisses", "romance", "affection"
+    ]},
+    { "pos": "noun", "tags": ["kin", "earnest"], "words": [
+      "mama", "brother", "sister", "papa", "daddy", "child", "son", "family", "kin"
+    ]},
+    { "pos": "noun", "tags": ["emotion", "melancholy", "poetic"], "words": [
+      "sorrow", "joy", "ache", "longing", "heartache", "tears", "loneliness", "misery",
+      "yearning", "grief", "blues", "sadness"
+    ]},
+    { "pos": "noun", "tags": ["identity", "defiant"], "words": [
+      "rebel", "stranger", "fool", "king", "queen", "outlaw", "drifter", "wanderer",
+      "gambler", "rider", "renegade", "vagabond"
+    ]},
+
+    { "//": "=== PLACE ===",
+      "pos": "noun", "tags": ["urban", "restless"], "words": [
+      "city", "street", "uptown", "subway", "downtown", "avenue", "alley", "boulevard",
+      "sidewalk", "corner", "midnight city"
+    ]},
+    { "pos": "noun", "tags": ["rural", "earnest"], "words": [
+      "hometown", "farm", "holler", "prairie", "backroad", "countryside", "hollow", "homestead"
+    ]},
+    { "pos": "noun", "tags": ["domestic", "wistful"], "words": [
+      "home", "kitchen", "door", "window", "doorway", "porch", "hallway", "rooftop"
+    ]},
+    { "pos": "noun", "tags": ["mythic", "grand"], "words": [
+      "Zion", "Babylon", "Avalon", "Eden", "crossroads", "promised land", "kingdom", "throne"
+    ]},
+
+    { "//": "=== MOTION ===",
+      "pos": "noun", "tags": ["travel", "restless"], "words": [
+      "train", "highway", "wagon", "road", "railroad", "midnight train", "freight", "boxcar",
+      "ticket", "journey", "passage"
+    ]},
+    { "pos": "noun", "tags": ["dance", "joyful"], "words": [
+      "twist", "watusi", "hop", "stomp", "shimmy", "boogaloo", "jerk", "monkey", "swim", "shake"
+    ]},
+    { "pos": "noun", "tags": ["vehicle", "restless"], "words": [
+      "Cadillac", "woodie", "pickup", "hotrod", "convertible", "roadster", "coupe", "wagon"
+    ]},
+
+    { "//": "=== TIME ===",
+      "pos": "noun", "tags": ["diurnal", "wistful"], "words": [
+      "midnight", "dawn", "tonight", "Sunday", "morning", "evening", "nightfall", "daybreak", "sundown"
+    ]},
+    { "pos": "noun", "tags": ["seasonal", "nostalgic"], "words": [
+      "summer", "autumn", "September", "winter", "springtime", "harvest", "indian summer"
+    ]},
+    { "pos": "noun", "tags": ["temporal", "nostalgic", "poetic"], "words": [
+      "forever", "tomorrow", "yesterday", "memory", "moment", "someday", "eternity", "hereafter"
+    ]},
+
+    { "//": "=== SPIRIT ===",
+      "pos": "noun", "tags": ["faith", "spiritual", "earnest"], "words": [
+      "glory", "mercy", "hallelujah", "Jordan", "gospel", "salvation", "grace", "prayer",
+      "amen", "hymn", "sanctuary", "redemption"
+    ]},
+    { "pos": "noun", "tags": ["cosmic", "grand", "ornate"], "words": [
+      "infinity", "void", "oracle", "universe", "cosmos", "nebula", "abyss", "firmament", "aether"
+    ]},
+    { "pos": "noun", "tags": ["mystical", "dreamy", "poetic"], "words": [
+      "kaleidoscope", "phantom", "twilight", "labyrinth", "mirage", "reverie", "illusion",
+      "dream", "vision", "trance", "prism", "haze", "mandala"
+    ]},
+
+    { "//": "=== MATERIAL ===",
+      "pos": "noun", "tags": ["gem", "elegant", "ornate"], "words": [
+      "diamond", "pearl", "ruby", "gold", "emerald", "sapphire", "crystal", "jewel", "opal", "silver"
+    ]},
+    { "pos": "noun", "tags": ["luxury", "elegant", "ornate"], "words": [
+      "champagne", "velvet", "tuxedo", "chandelier", "satin", "silk", "mink", "limousine"
+    ]},
+    { "pos": "noun", "tags": ["grit", "gritty", "slang"], "words": [
+      "whiskey", "dust", "smoke", "rust", "gravel", "moonshine", "leather", "gutter",
+      "concrete", "diesel", "hard luck", "bottle"
+    ]},
+    { "pos": "noun", "tags": ["candy", "playful"], "words": [
+      "sugar", "honey", "lollipop", "bubblegum", "candy", "sweetie", "cupcake", "sugarplum",
+      "peppermint", "taffy", "cherry", "marshmallow"
+    ]},
+    { "pos": "noun", "tags": ["mechanical", "restless"], "words": [
+      "machine", "engine", "wheel", "gear", "motor", "piston", "dynamo", "hammer"
+    ]},
+
+    { "//": "=== SOCIAL ===",
+      "pos": "noun", "tags": ["party", "joyful", "slang"], "words": [
+      "jukebox", "fiesta", "shindig", "boogaloo", "hootenanny", "jamboree", "ballroom", "block party"
+    ]},
+    { "pos": "noun", "tags": ["conflict", "aggressive"], "words": [
+      "war", "riot", "fight", "showdown", "battle", "rumble", "storm", "revolution"
+    ]},
+    { "pos": "noun", "tags": ["vice", "gritty", "slang"], "words": [
+      "jailhouse", "backdoor", "mojo", "trouble", "temptation", "sin", "gamble", "poison"
+    ]},
+    { "pos": "noun", "tags": ["protest", "defiant", "earnest"], "words": [
+      "freedom", "hammer", "chains", "marching", "liberty", "justice", "uprising", "banner"
+    ]},
+
+    { "//": "=== ABSTRACT ===",
+      "pos": "noun", "tags": ["virtue", "earnest"], "words": [
+      "faith", "truth", "honor", "freedom", "hope", "courage", "wisdom", "dignity"
+    ]},
+    { "pos": "noun", "tags": ["fate", "ominous", "poetic"], "words": [
+      "fortune", "destiny", "luck", "crossroads", "fate", "omen", "shadow", "reckoning"
+    ]},
+    { "pos": "noun", "tags": ["nonsense", "absurd", "slang"], "words": [
+      "sh-boom", "ram-a-lama", "doo-wop", "yummy", "ooh-poo-pah-doo", "shama-lama", "boola-boola"
+    ]},
+
+    { "//": "=== ADJECTIVES (mood + register) ===",
+      "pos": "adjective", "tags": ["romantic", "plain"], "words": [
+      "sweet", "tender", "true", "precious", "darling", "lovely", "dear", "gentle"
+    ]},
+    { "pos": "adjective", "tags": ["wistful", "poetic"], "words": [
+      "lonely", "faded", "distant", "forgotten", "wandering", "fading", "quiet", "far-off", "lost"
+    ]},
+    { "pos": "adjective", "tags": ["melancholy", "poetic"], "words": [
+      "blue", "broken", "weeping", "mournful", "aching", "sorrowful", "empty", "cold"
+    ]},
+    { "pos": "adjective", "tags": ["dreamy", "poetic"], "words": [
+      "hazy", "velvet", "silver", "crystal", "shimmering", "misty", "floating", "endless", "golden"
+    ]},
+    { "pos": "adjective", "tags": ["joyful", "plain"], "words": [
+      "happy", "sunny", "bright", "dancing", "laughing", "merry", "shining", "wonderful"
+    ]},
+    { "pos": "adjective", "tags": ["playful", "slang"], "words": [
+      "funky", "groovy", "wild", "crazy", "silly", "jumpin'", "peppy", "zippy"
+    ]},
+    { "pos": "adjective", "tags": ["defiant", "plain"], "words": [
+      "wild", "restless", "reckless", "rebel", "runaway", "renegade", "untamed", "free"
+    ]},
+    { "pos": "adjective", "tags": ["aggressive", "plain"], "words": [
+      "savage", "brutal", "raging", "burning", "screaming", "electric", "howling", "vicious"
+    ]},
+    { "pos": "adjective", "tags": ["gritty", "slang"], "words": [
+      "dusty", "hard", "rusty", "smoky", "raw", "ragged", "worn", "backwater"
+    ]},
+    { "pos": "adjective", "tags": ["grand", "ornate"], "words": [
+      "eternal", "mighty", "boundless", "ancient", "celestial", "immortal", "sovereign", "vast"
+    ]},
+    { "pos": "adjective", "tags": ["ominous", "poetic"], "words": [
+      "dark", "shadowed", "haunted", "midnight", "crimson", "fading", "hollow", "cold"
+    ]},
+    { "pos": "adjective", "tags": ["elegant", "ornate"], "words": [
+      "velvet", "golden", "silken", "crimson", "regal", "gilded", "graceful", "moonlit"
+    ]},
+    { "pos": "adjective", "tags": ["spiritual", "earnest"], "words": [
+      "holy", "blessed", "sacred", "heavenly", "divine", "eternal", "risen", "faithful"
+    ]},
+    { "pos": "adjective", "tags": ["cheeky", "slang"], "words": [
+      "cheeky", "sassy", "snappy", "fresh", "flip", "smart", "wicked", "naughty"
+    ]},
+
+    { "//": "=== VERBS (lemmas; inflected by Layer 6, mood-tagged for coherence) ===",
+      "pos": "verb", "tags": ["restless"], "words": [
+      "run", "ride", "roll", "ramble", "wander", "drift", "travel", "chase", "roam", "race"
+    ]},
+    { "pos": "verb", "tags": ["romantic"], "words": [
+      "love", "hold", "kiss", "cherish", "adore", "embrace", "long", "yearn"
+    ]},
+    { "pos": "verb", "tags": ["melancholy"], "words": [
+      "cry", "weep", "ache", "mourn", "grieve", "sigh", "fade", "wander"
+    ]},
+    { "pos": "verb", "tags": ["defiant"], "words": [
+      "fight", "break", "rise", "burn", "shout", "stand", "rebel", "march"
+    ]},
+    { "pos": "verb", "tags": ["joyful"], "words": [
+      "dance", "sing", "shine", "laugh", "shout", "swing", "sway", "twist"
+    ]},
+    { "pos": "verb", "tags": ["spiritual"], "words": [
+      "pray", "believe", "rise", "shine", "praise", "testify", "kneel", "redeem"
+    ]},
+
+    { "//": "=== album / work forms + partitives ===",
+      "pos": "partMarker", "tags": [], "words": [
+      "(Pt. 1)", "(Pt. 2)", "(Part One)", "(Reprise)", "(Instrumental)", "(Theme)"
+    ]},
+    { "pos": "form", "tags": ["formal"], "words": [
+      "Symphony", "Concerto", "Sonata", "Rhapsody", "Overture", "Nocturne", "Suite", "Prelude"
+    ]},
+    { "pos": "musicalKey", "tags": ["formal"], "words": [
+      "C Major", "D Minor", "E-flat", "G Major", "A Minor", "B-flat", "F Major", "C-sharp Minor"
+    ]}
+  ]
+}

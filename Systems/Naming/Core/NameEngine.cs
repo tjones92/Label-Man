@@ -88,13 +88,28 @@ namespace LabelMan.Naming {
 		/// "artist", "label", or "song|Artist Name"). Near-duplicate guard applies when
 		/// <paramref name="nearDup"/> is set. Re-rolls a different pattern before giving up.</summary>
 		public string Generate(string symbol, NamingContext ctx, string bucket, bool nearDup, int attempts = 40) {
+			// A registered Layer-2 constraint set takes precedence over a grammar symbol of the same
+			// name; the grammar (if it also defines the symbol) remains a per-attempt safety net.
+			if (_constraintSets.ContainsKey(symbol)) {
+				bool hasGrammar = Grammar.HasSymbol(symbol);
+				return GenerateUnique(() => {
+					string s = FillConstraint(symbol, ctx);
+					return !string.IsNullOrEmpty(s) ? s : (hasGrammar ? Grammar.Expand(symbol, ctx) : s);
+				}, symbol, bucket, nearDup, attempts, ctx);
+			}
 			if (!Grammar.HasSymbol(symbol)) return symbol; // authoring error surfaces visibly
+			return GenerateUnique(() => Grammar.Expand(symbol, ctx), symbol, bucket, nearDup, attempts, ctx);
+		}
+
+		/// <summary>Shared uniqueness loop: draw candidates from <paramref name="produce"/>, reject
+		/// exact (and optionally near-) duplicates within a bucket, disambiguate as a last resort.</summary>
+		private string GenerateUnique(Func<string> produce, string symbol, string bucket, bool nearDup, int attempts, NamingContext ctx) {
 			var exact = Bucket(_used, bucket);
 			var fuzzy = nearDup ? Bucket(_usedFuzzy, bucket) : null;
 
 			string last = null;
 			for (int i = 0; i < attempts; i++) {
-				string candidate = Grammar.Expand(symbol, ctx);
+				string candidate = produce();
 				if (string.IsNullOrWhiteSpace(candidate)) continue;
 				last = candidate;
 				string key = Normalize(candidate);
@@ -111,7 +126,7 @@ namespace LabelMan.Naming {
 			// Exhausted the pattern space: disambiguate so we NEVER return an exact duplicate.
 			// (Re-rolling a different pattern already failed above; this is the last resort,
 			// replacing the old " (City)" mutation with tribute-style suffixes.)
-			string basename = last ?? Grammar.Expand(symbol, ctx);
+			string basename = last ?? produce();
 			if (string.IsNullOrWhiteSpace(basename)) return symbol;
 			for (int n = 2; n < 1000; n++) {
 				string cand = n <= 9 ? $"{basename} {Roman(n)}" : $"{basename} ({n})";
