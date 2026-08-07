@@ -166,15 +166,19 @@ public partial class NameGenerator : Node {
 			return "bandName.folk";
 		}
 		if (genre == Genre.Gospel) return "bandName.gospel";
-		if (genre == Genre.Country || genre == Genre.CountryRock || genre == Genre.TexMex || genre == Genre.RootsRock)
+		if (genre == Genre.Classical) return "bandName.classical";
+		if (genre == Genre.Comedy) return "bandName.comedy";
+		if (genre == Genre.Childrens) return "bandName.childrens";
+		if (IsLatinGenre(genre) || genre == Genre.BossaNova) return "bandName.latin";
+		if (genre == Genre.Country || genre == Genre.CountryRock || genre == Genre.RootsRock)
 			return "bandName.country";
-		if (genre == Genre.Jazz || genre == Genre.EasyListening || genre == Genre.BossaNova || genre == Genre.Classical)
+		if (genre == Genre.Jazz || genre == Genre.EasyListening)
 			return "bandName.jazz";
 		if (genre == Genre.Blues || genre == Genre.BluesRock || genre == Genre.BritishBlues)
 			return "bandName.blues";
 		if (genre == Genre.HardRock || genre == Genre.ProtoMetal || genre == Genre.AcidRock || genre == Genre.ProtoPunk)
 			return "bandName.hardRock";
-		if (genre == Genre.Bubblegum || genre == Genre.Childrens)
+		if (genre == Genre.Bubblegum)
 			return "bandName.bubblegum";
 		if (genre == Genre.Reggae || genre == Genre.Ska || genre == Genre.Rocksteady || genre == Genre.SkaRocksteady)
 			return "bandName.reggae";
@@ -215,11 +219,16 @@ public partial class NameGenerator : Node {
 		if (genre == Genre.Country || genre == Genre.CountryRock) return "songTitle.country";
 		if (genre == Genre.DooWop || genre == Genre.GirlGroup || genre == Genre.TeenPop) return "songTitle.early60s";
 		if (genre == Genre.Folk || genre == Genre.FolkRock || genre == Genre.ContemporaryFolk) return "songTitle.folk";
-		if (genre == Genre.Jazz || genre == Genre.EasyListening || genre == Genre.BossaNova) return "songTitle.jazz";
+		if (genre == Genre.Jazz || genre == Genre.EasyListening) return "songTitle.jazz";
+		if (genre == Genre.Gospel) return "songTitle.gospel";
+		if (genre == Genre.Classical) return "songTitle.classical";
+		if (genre == Genre.Comedy) return "songTitle.comedy";
+		if (genre == Genre.Childrens) return "songTitle.childrens";
+		if (IsLatinGenre(genre) || genre == Genre.BossaNova) return "songTitle.latin";
 		if (genre == Genre.Blues || genre == Genre.BluesRock || genre == Genre.BritishBlues) return "songTitle.blues";
 		if (genre == Genre.HardRock || genre == Genre.ProtoMetal || genre == Genre.AcidRock ||
 			genre == Genre.ProtoPunk) return "songTitle.hardRock";
-		if (genre == Genre.Bubblegum || genre == Genre.Childrens) return "songTitle.bubblegum";
+		if (genre == Genre.Bubblegum) return "songTitle.bubblegum";
 		if (genre == Genre.Reggae || genre == Genre.Ska || genre == Genre.Rocksteady ||
 			genre == Genre.SkaRocksteady) return "songTitle.reggae";
 		if (genre == Genre.SunshinePop || genre == Genre.BaroquePop || genre == Genre.PsychedelicPop ||

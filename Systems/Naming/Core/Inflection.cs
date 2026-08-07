@@ -332,7 +332,8 @@ namespace LabelMan.Naming {
 			void P(string s, string p) => _plurals[s] = p;
 			P("knife","knives"); P("leaf","leaves"); P("wolf","wolves"); P("life","lives");
 			P("thief","thieves"); P("half","halves"); P("wife","wives"); P("shelf","shelves");
-			P("wharf","wharves"); P("man","men"); P("woman","women"); P("child","children");
+			P("wharf","wharves"); P("werewolf","werewolves"); P("elf","elves"); P("dwarf","dwarves");
+			P("man","men"); P("woman","women"); P("child","children");
 			P("foot","feet"); P("tooth","teeth"); P("goose","geese"); P("mouse","mice");
 			P("louse","lice"); P("person","people"); P("sheep","sheep"); P("deer","deer");
 			P("fish","fish"); P("series","series"); P("species","species"); P("aircraft","aircraft");

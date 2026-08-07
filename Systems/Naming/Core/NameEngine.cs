@@ -30,6 +30,7 @@ namespace LabelMan.Naming {
 		public NameEngine(Lexicon lexicon, Dictionary<string, List<GrammarEngine.Rule>> grammar, NameModels models = null) {
 			Lexicon = lexicon;
 			Models = models ?? new NameModels();
+			Lexicon.Dedupe();                                           // drop case/tag-set duplicate entries
 			Lexicon.ClassifyAll(Models.Ontology);                       // Layer 3: sort tags onto axes
 			Grammar = new GrammarEngine(grammar, lexicon, this, Models.Inflection);
 			Templates = new TemplateEngine(lexicon, Models.Ontology, Models.Moods, Models.Inflection, this);

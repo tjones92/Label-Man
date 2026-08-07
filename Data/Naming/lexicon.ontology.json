@@ -258,6 +258,24 @@
       "Trio", "Minstrels", "Balladeers", "Wayfarers", "Ramblers", "Travelers", "Singers", "Journeymen"
     ]},
 
+    { "//": "=== Latin flavor (Boogaloo / LatinPop / TexMex) ===",
+      "pos": "noun", "tags": ["party", "joyful"], "words": [
+      "Fiesta", "Mambo", "Cha-Cha", "Salsa", "Ritmo", "Sabor", "Guaguancó", "Descarga", "Pachanga",
+      "Bugalú", "Guajira", "Bamba", "Montuno", "Guaracha" ]},
+    { "pos": "noun", "tags": ["romance", "romantic"], "words": [
+      "Corazón", "Amor", "Querida", "Bonita", "Mi Vida", "Alma", "Besos", "Linda" ]},
+
+    { "//": "=== Comedy / novelty ===",
+      "pos": "noun", "tags": ["nonsense", "absurd"], "words": [
+      "Monster", "Gorilla", "Martian", "Robot", "Dracula", "Werewolf", "Witch Doctor", "Chipmunk",
+      "Alley Oop", "Purple People Eater", "Flying Saucer", "Mummy", "Frankenstein", "Goblin" ]},
+    { "pos": "adjective", "tags": ["absurd", "playful"], "words": [
+      "Wacky", "Goofy", "Loony", "Zany", "Nutty", "Kooky", "Screwy", "Batty", "Itsy-Bitsy", "Silly" ]},
+
+    { "//": "=== Children's ===",
+      "pos": "noun", "tags": ["fauna", "playful"], "words": [
+      "Puppy", "Kitten", "Bunny", "Teddy Bear", "Choo-Choo", "Duckling", "Pony", "Ladybug", "Bumblebee" ]},
+
     { "//": "=== album / work forms + partitives ===",
       "pos": "partMarker", "tags": [], "words": [
       "(Pt. 1)", "(Pt. 2)", "(Part One)", "(Reprise)", "(Instrumental)", "(Theme)"

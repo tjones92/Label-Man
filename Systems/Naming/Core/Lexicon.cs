@@ -91,6 +91,23 @@ namespace LabelMan.Naming {
 		public IReadOnlyList<WordEntry> Pool(string pos) =>
 			_byPos.TryGetValue(pos, out var list) ? list : (IReadOnlyList<WordEntry>)Array.Empty<WordEntry>();
 
+		/// <summary>Collapse redundant entries — same pos, same tag-set, same word ignoring case
+		/// (e.g. "Storm" and "storm" both tagged [weather,ominous] from two overlapping files). Keeps
+		/// the first-seen casing. Call after all AppendJson, before ClassifyAll. Returns count removed.</summary>
+		public int Dedupe() {
+			var seen = new HashSet<string>(StringComparer.Ordinal);
+			int removed = _all.RemoveAll(e => {
+				string tags = e.Tags == null ? "" : string.Join(",", e.Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase));
+				string key = (e.Pos ?? "").ToLowerInvariant() + "|" + (e.Word ?? "").ToLowerInvariant() + "|" + tags.ToLowerInvariant();
+				return !seen.Add(key);
+			});
+			if (removed > 0) foreach (var list in _byPos.Values) {
+				var keep = new HashSet<WordEntry>(_all);
+				list.RemoveAll(e => !keep.Contains(e));
+			}
+			return removed;
+		}
+
 		/// <summary>Sort every word's freeform tags onto the ontology's five axes and precompute its
 		/// DOMAIN closure bitset. Call once after loading (and after any AppendJson).</summary>
 		public void ClassifyAll(TagOntology ontology) {

@@ -222,13 +222,22 @@
       "slots": { "adjective#1": { "pos": "adjective", "filter": "aggressive|ominous" }, "noun#1": { "pos": "noun", "filter": "conflict|weather|fauna" } } }
   ],
 
+  "//album": "Album slots use broad, evocative DOMAIN/MOOD filters (not the whole pool) so style-only words (Blessing/Creaking/Copper) don't leak in; the per-genre AFFINITY then flavors the choice within.",
   "albumTitle": [
     { "id": "album_adj", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": {
+        "adjective#1": { "pos": "adjective", "filter": "dreamy|romantic|melancholy|wistful|nostalgic|grand|ominous|elegant|serene|earnest|joyful|defiant|gritty|playful" },
+        "noun#1": { "pos": "noun", "filter": "nature|spirit|human|time|fate|mythic|travel|gem" } },
       "constraints": [ { "type": "moodInternal", "threshold": 0.25 } ] },
     { "id": "album_pair", "type": "album", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 2, "words": [3,5],
+      "slots": {
+        "noun#1": { "pos": "noun", "filter": "nature|spirit|human|time|fate|mythic" },
+        "noun#2": { "pos": "noun", "filter": "nature|spirit|human|time|fate|mythic|travel" } },
       "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] }, { "type": "moodInternal", "threshold": 0.2 } ] },
-    { "id": "album_sound", "type": "album", "pattern": "The Sound of %noun#1%", "weight": 1, "words": [4,4] },
-    { "id": "album_single", "type": "album", "pattern": "%noun#1%", "weight": 2, "words": [1,2] },
+    { "id": "album_sound", "type": "album", "pattern": "The Sound of %noun#1%", "weight": 1, "words": [4,4],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nature|spirit|human|mythic|dance" } } },
+    { "id": "album_single", "type": "album", "pattern": "%noun#1%", "weight": 2, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nature|spirit|mystical|cosmic|fate|mythic|identity" } } },
     { "id": "album_time", "type": "album", "pattern": "%noun#1% Time", "weight": 1, "words": [2,2],
       "slots": { "noun#1": { "pos": "noun", "filter": "dance|party|romance|seasonal" } } }
   ],
@@ -274,5 +283,93 @@
       "slots": { "firstName#1": { "pos": "firstName", "filter": "male,black" }, "lastName#1": { "pos": "lastName", "filter": "generic" } } },
     { "id": "blues_band", "type": "band", "pattern": "%firstName#1% %lastName#1% Blues Band", "weight": 2, "words": [4,4],
       "slots": { "firstName#1": { "pos": "firstName", "filter": "male,black" }, "lastName#1": { "pos": "lastName", "filter": "generic" } } }
+  ],
+
+  "songTitle.jazz": [
+    { "id": "jazz_abstract", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "dreamy|melancholy|serene|elegant" }, "noun#1": { "pos": "noun", "filter": "emotion|celestial|mystical|temporal|diurnal" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "jazz_round", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 2, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "diurnal|celestial|emotion" }, "noun#2": { "pos": "noun", "filter": "mystical|emotion|temporal|celestial" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "jazz_single", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "mystical|emotion|diurnal" } } }
+  ],
+
+  "songTitle.gospel": [
+    { "id": "gospel_valley", "type": "song", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 3, "words": [3,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "faith|virtue" }, "noun#2": { "pos": "noun", "filter": "faith|mythic|terrain|virtue" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "gospel_march", "type": "song", "pattern": "%verb#1:ger% %connector#1% %noun#1%", "weight": 2, "words": [3,5],
+      "slots": { "verb#1": { "pos": "verb", "filter": "spiritual" }, "noun#1": { "pos": "noun", "filter": "faith|mythic" } } },
+    { "id": "gospel_praise", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "spiritual|grand" }, "noun#1": { "pos": "noun", "filter": "faith|virtue|emotion" } } }
+  ],
+
+  "songTitle.latin": [
+    { "id": "latin_single", "type": "song", "pattern": "%noun#1%", "weight": 3, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "party|romance|dance" } } },
+    { "id": "latin_adj", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "joyful|romantic|playful" }, "noun#1": { "pos": "noun", "filter": "party|romance|dance" } } },
+    { "id": "latin_pair", "type": "song", "pattern": "%noun#1% %noun#2%", "weight": 1, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "party|dance" }, "noun#2": { "pos": "noun", "filter": "party|romance|dance" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] }
+  ],
+
+  "songTitle.classical": [
+    { "id": "classical_key", "type": "song", "pattern": "%form#1% in %musicalKey#1%", "weight": 3, "words": [3,4] },
+    { "id": "classical_adj", "type": "song", "pattern": "%adjective#1% %form#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "grand|dreamy|elegant|ominous" } } },
+    { "id": "classical_of", "type": "song", "pattern": "%form#1% %connector#1% %noun#1%", "weight": 1, "words": [3,4],
+      "slots": { "noun#1": { "pos": "noun", "filter": "emotion|mystical|celestial|temporal" } } }
+  ],
+
+  "songTitle.comedy": [
+    { "id": "comedy_the", "type": "song", "pattern": "The %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nonsense" } } },
+    { "id": "comedy_adj", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "absurd|playful|cheeky" }, "noun#1": { "pos": "noun", "filter": "nonsense|candy|fauna" } } },
+    { "id": "comedy_mash", "type": "song", "pattern": "%noun#1% %noun#2%", "weight": 1, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nonsense" }, "noun#2": { "pos": "noun", "filter": "dance|party|nonsense" } } }
+  ],
+
+  "songTitle.childrens": [
+    { "id": "kids_the", "type": "song", "pattern": "The %adjective#1% %noun#1%", "weight": 3, "words": [3,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "playful|joyful" }, "noun#1": { "pos": "noun", "filter": "candy|fauna & playful" } } },
+    { "id": "kids_redup", "type": "song", "pattern": "%noun#1% %noun#2%", "weight": 2, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "candy|fauna & playful" } },
+      "constraints": [ { "type": "same", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "kids_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "candy|fauna & playful" } } }
+  ],
+
+  "bandName.classical": [
+    { "id": "class_orch", "type": "band", "pattern": "The %lastName#1% %groupNoun#1%", "weight": 3, "words": [3,3],
+      "slots": { "lastName#1": { "pos": "lastName", "filter": "generic" }, "groupNoun#1": { "pos": "groupNoun", "filter": "ensemble" } } },
+    { "id": "class_grand", "type": "band", "pattern": "The %adjective#1% %groupNoun#1%", "weight": 1, "words": [3,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "grand|elegant" }, "groupNoun#1": { "pos": "groupNoun", "filter": "ensemble" } } }
+  ],
+
+  "bandName.comedy": [
+    { "id": "com_leader", "type": "band", "pattern": "%firstName#1% and the %noun#1:pl%", "weight": 3, "words": [4,5],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "male,white" }, "noun#1": { "pos": "noun", "filter": "nonsense|fauna" } } },
+    { "id": "com_the", "type": "band", "pattern": "The %adjective#1% %groupNoun#1%", "weight": 2, "words": [3,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "absurd|playful" }, "groupNoun#1": { "pos": "groupNoun", "filter": "animals" } } }
+  ],
+
+  "bandName.childrens": [
+    { "id": "kids_band", "type": "band", "pattern": "The %noun#1:pl%", "weight": 3, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "candy|fauna & playful" } } },
+    { "id": "kids_band_adj", "type": "band", "pattern": "The %adjective#1% %groupNoun#1%", "weight": 1, "words": [3,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "playful|joyful" }, "groupNoun#1": { "pos": "groupNoun", "filter": "animals|birds" } } }
+  ],
+
+  "bandName.latin": [
+    { "id": "latin_named", "type": "band", "pattern": "%firstName#1% %lastName#1%", "weight": 3, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "male,hispanic" }, "lastName#1": { "pos": "lastName", "filter": "hispanic" } } },
+    { "id": "latin_orch", "type": "band", "pattern": "%firstName#1% %lastName#1% %groupNoun#1%", "weight": 2, "words": [3,3],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "male,hispanic" }, "lastName#1": { "pos": "lastName", "filter": "hispanic" }, "groupNoun#1": { "pos": "groupNoun", "filter": "ensemble" } } },
+    { "id": "latin_leader", "type": "band", "pattern": "%firstName#1% and the %noun#1:pl%", "weight": 1, "words": [4,5],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "male,hispanic" }, "noun#1": { "pos": "noun", "filter": "party|dance" } } }
   ]
 }
