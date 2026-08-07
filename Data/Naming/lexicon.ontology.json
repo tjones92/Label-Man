@@ -213,6 +213,18 @@
       "pray", "believe", "rise", "shine", "praise", "testify", "kneel", "redeem"
     ]},
 
+    { "//": "=== band-suffix group nouns (already plural) for constraint band templates ===",
+      "pos": "groupNoun", "tags": ["gospel", "spiritual"], "words": [
+      "Singers", "Voices", "Gospelaires", "Harmonizers", "Believers", "Disciples", "Crusaders",
+      "Sons of Glory", "Angelic Choir", "Spiritualaires", "Travelers"
+    ]},
+    { "pos": "groupNoun", "tags": ["ensemble", "jazzCombo"], "words": [
+      "Quartet", "Quintet", "Trio", "Combo", "Orchestra", "Ensemble", "Sextet", "All Stars", "Septet"
+    ]},
+    { "pos": "groupNoun", "tags": ["folk"], "words": [
+      "Trio", "Minstrels", "Balladeers", "Wayfarers", "Ramblers", "Travelers", "Singers", "Journeymen"
+    ]},
+
     { "//": "=== album / work forms + partitives ===",
       "pos": "partMarker", "tags": [], "words": [
       "(Pt. 1)", "(Pt. 2)", "(Part One)", "(Reprise)", "(Instrumental)", "(Theme)"

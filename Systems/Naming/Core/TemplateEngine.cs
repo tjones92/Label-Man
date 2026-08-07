@@ -315,7 +315,7 @@ namespace LabelMan.Naming {
 				if (!ok) continue;
 				if (!EnforceConstraints(t, ctx, genre, st)) continue;
 				string assembled = Assemble(t, st);
-				assembled = PostProcessor.Run(assembled, genre, ctx, st);
+				assembled = PostProcessor.Run(assembled, genre, ctx, st, t.Type);
 				int wc = assembled.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
 				if (wc < t.MinWords || wc > t.MaxWords) continue;
 				return assembled;
@@ -464,13 +464,15 @@ namespace LabelMan.Naming {
 
 	// ---- Layer 1 §5: the ordered post-processor pipeline --------------------------
 	public static class PostProcessor {
-		public static string Run(string s, GenreProfile genre, NamingContext ctx, FillState st) {
+		public static string Run(string s, GenreProfile genre, NamingContext ctx, FillState st, string outputType = null) {
 			if (string.IsNullOrEmpty(s)) return s;
 			var v = genre.Voice; var rng = ctx.Rng;
 			s = ApostropheDrop(s, v.ApostropheDropRate, rng);
 			s = Numerals(s, v.NumeralPreference, rng);
 			s = TitleCase(s);
-			s = Punctuation(s, v.PunctuationIntensity, rng);
+			// Act names (band/solo) don't take !/? punctuation — only titles do.
+			bool isActName = outputType == "band" || outputType == "solo";
+			if (!isActName) s = Punctuation(s, v.PunctuationIntensity, rng);
 			return CollapseSpaces(s);
 		}
 
