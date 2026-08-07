@@ -61,13 +61,20 @@ public static class GenreCatalog {
 		// normalized 100%, so cutting a genre that held 12 points of the market raises everyone
 		// else's efficiency. Read the two together -- the exponent sets the size of a move, the
 		// field sets which way the rest of the catalog drifts underneath it.
-		Add("traditional-pop", Genre.TraditionalPop, GenreFamily.Pop, 1950, 1971, .15f, .45f, .42f,.48f,.49f,.44f,.44f,.41f,.39f);
+		// Mid trim + late lift (2026-08): over mid on BOTH charts (single 24/14 vs 15/8 at '62/'66; album
+	// 41% vs ~30 at '62). Album affinity trimmed 0.50->0.44. V3: the late keyframes over-lifted -- album
+	// ran 15-16% at 1969 (both seeds) vs a 7 target, so 1968 .46->.40 and 1969 .50->.38 pull the late
+	// decline back down toward target.
+	Add("traditional-pop", Genre.TraditionalPop, GenreFamily.Pop, 1950, 1971, .15f, .45f, .42f,.40f,.44f,.36f,.42f,.40f,.38f);
 		// Death 1965 -> 1971. IsAvailableForNewSupply returns false once year > DeathYear, so new
 		// supply was exactly zero from 1966 and the genre realised 0.0% against a 1.17% target at
 		// 1969 -- the implied baseline was 9.69 against a 1.0 cap, i.e. unreachable by keyframe.
 		// The late-decade survivor is manufactured teen-aimed pop (the Monkees), which is a real
 		// category and is what the market target's 1.70/1.17 at 1968/69 describes.
-		Add("teen-pop", Genre.TeenPop, GenreFamily.Pop, 1957, 1971, .90f, .90f, .70f,.74f,.63f,.43f,.31f,.26f,.21f);
+		// Early-mid over-supply trim (over at 17/27 slots '60/'62 vs 13/13). Two seeds confirmed a real early
+	// over; V3 cuts the early keyframes again (still 17/22 vs 13/13 at .50/.48): 1960 .50->.44, 1962
+	// .48->.42, 1964 .50->.46. Late keyframes hold the authored decline.
+	Add("teen-pop", Genre.TeenPop, GenreFamily.Pop, 1957, 1971, .90f, .90f, .44f,.42f,.46f,.43f,.31f,.26f,.21f);
 		Add("baroque-pop", Genre.BaroquePop, GenreFamily.Pop, 1966, 1970, .60f, .50f, .02f,.02f,.06f,.38f,.34f,.21f,.13f);
 		// Late keyframe gently corrected (handoff 11.5, finding 2): the year-end count shows Sunshine
 		// Pop holding late rather than collapsing, but keyframe and radio multiplier COMPOUND in the
@@ -75,9 +82,20 @@ public static class GenreCatalog {
 		// value is left at its authored .35, and the radio up-lever is dropped to 1.40. Together these
 		// target ~28-32 year-end slots without stealing calibrated slots from Soul.
 		Add("sunshine-pop", Genre.SunshinePop, GenreFamily.Pop, 1965, 1971, .65f, .55f, .02f,.03f,.10f,.49f,.46f,.35f,.28f);
-		Add("bubblegum", Genre.Bubblegum, GenreFamily.Pop, 1967, 1971, .95f, .90f, .01f,.02f,.03f,.05f,.16f,.46f,.71f);
-		Add("easy-listening", Genre.EasyListening, GenreFamily.Pop, 1950, null, .15f, .35f, .68f,.59f,.45f,.46f,.53f,.50f,.49f);
-		Add("british-pop", Genre.BritishPop, GenreFamily.Pop, 1964, 1968, .90f, .80f, .01f,.02f,.95f,.50f,.43f,.35f,.30f);
+		// Late trim (2026-08): over 1969 (11 vs 4). First cut to .38/.45 overcorrected 1969 to under (1 vs 4);
+	// 1969 restored .45 -> .55.
+	Add("bubblegum", Genre.Bubblegum, GenreFamily.Pop, 1967, 1971, .95f, .90f, .01f,.02f,.03f,.05f,.16f,.38f,.55f);
+		// ALBUM INVERSION FIX (2026-08): EL album ran OVER early (20% vs 8) and UNDER late (9% vs 14-24) --
+	// the Alpert/Tijuana-Brass MOR album wave rose across the decade, the model fell. Flat affinity
+	// cannot invert, so the early TRIM is done off the album-only affinity (0.65->0.34) and the LATE
+	// lift off the baseline. V3: the affinity cut (which also touches MID album) plus a mid-baseline dip
+	// left EL album under mid (2.7% at 1964 vs 11); but EL/TJB actually PEAKED 1966 ("4 TJB albums in the
+	// top 10 simultaneously, 1966" -- bench note). So the mid/late keyframes are raised into a mid-late
+	// peak: .45/.46/.53/.60/.66 -> .52/.58/.62/.68/.74, lifting mid-late album AND EL's under mid-late
+	// singles. See MarketRegion EasyListening affinity note.
+	Add("easy-listening", Genre.EasyListening, GenreFamily.Pop, 1950, null, .15f, .35f, .60f,.54f,.52f,.58f,.62f,.68f,.74f);
+		// Invasion-peak trim (2026-08): British Beat/Pop over at '64-65 (13-18 vs 5-8). 1964 .95 -> .65.
+	Add("british-pop", Genre.BritishPop, GenreFamily.Pop, 1964, 1968, .90f, .80f, .01f,.02f,.65f,.50f,.43f,.35f,.30f);
 		// Early Rock and Roll ran 19.2% against a 13.5% target. The authored late-decade decline is
 		// deliberately preserved: the year-end benchmark's late RnR counts are misclassification of
 		// genre-ambiguous records and are not evidence of a surviving commercial category.
@@ -85,7 +103,8 @@ public static class GenreCatalog {
 		// Emergence 1961 -> 1960: "Walk Don't Run" charted in 1960, so the genre exists at the
 		// game's start date rather than opening a year in.
 		Add("surf-rock", Genre.SurfRock, GenreFamily.Rock, 1960, 1966, .90f, .70f, .12f,.48f,.78f,.26f,.20f,.16f,.06f);
-		Add("garage-rock", Genre.GarageRock, GenreFamily.Rock, 1963, 1968, .90f, .85f, .08f,.16f,.39f,.56f,.38f,.30f,.24f);
+		// Mid trim (2026-08): over mid-60s (9-11 vs 1-3); paired with the RadioAcceptance 1.55->1.05 cut.
+	Add("garage-rock", Genre.GarageRock, GenreFamily.Rock, 1963, 1968, .90f, .85f, .08f,.14f,.30f,.34f,.30f,.26f,.22f);
 		// Capped at 1.00 through 1966-67 and STILL short of a 6.43% target at 1967 (3.9% realised).
 		// This one cannot be closed from the baseline alone and is the clearest case in the catalog
 		// of a genre whose supply is limited by something other than authored demand.
@@ -96,7 +115,8 @@ public static class GenreCatalog {
 		Add("progressive-rock", Genre.ProgressiveRock, GenreFamily.Rock, 1968, null, .80f, .25f, .01f,.01f,.02f,.05f,.10f,.25f,.40f);
 		Add("blues-rock", Genre.BluesRock, GenreFamily.Rock, 1966, null, .80f, .45f, .02f,.05f,.10f,.18f,.24f,.32f,.36f);
 		Add("proto-punk", Genre.ProtoPunk, GenreFamily.Rock, 1967, null, .85f, .40f, .01f,.01f,.02f,.05f,.15f,.25f,.30f);
-		Add("british-beat", Genre.BritishBeat, GenreFamily.Rock, 1963, 1967, .90f, .75f, .01f,.02f,1.00f,.53f,.37f,.30f,.19f);
+		// Invasion-peak trim (2026-08): 1964 1.00 -> .68 (see british-pop note).
+	Add("british-beat", Genre.BritishBeat, GenreFamily.Rock, 1963, 1967, .90f, .75f, .01f,.02f,.68f,.53f,.37f,.30f,.19f);
 		// THE LARGEST SINGLE MISS IN THE MODEL. The old curve ramped to 1.00 -- the highest value in
 		// the catalog -- and realised 12.8% of the 1969 market and 27 of the 100 year-end slots,
 		// against a 4.09% market target and a hand-counted 0. British blues was a real but modest
@@ -116,7 +136,10 @@ public static class GenreCatalog {
 		// historical target table is explicit and internally normalized, and it puts Soul + R&B +
 		// Gospel + Funk at roughly 32% by 1969. The family constraint is real but it sits higher
 		// than the old note assumed.
-		Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .36f,.48f,.49f,.50f,.48f,.46f,.42f);
+		// V3 trim: R&B ran slightly over (10-15 slots vs 8-12) and the IntegrationEraGapClose 0.45->0.70
+	// lift (for soul album) raises R&B units too, so the baseline is trimmed. First pass over-cut 1969
+	// (3 vs 8) and left a 1962 spike (21 vs 11), so 1962 .45->.42 and the late keyframes eased back up.
+	Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .34f,.44f,.42f,.44f,.43f,.42f,.42f);
 		// Soul was cut too far by the previous pass and is now the single largest under-supply in the
 		// catalog. It realised 1.9 / 3.5 / 4.7 / 6.7 / 9.1 / 11.4 / 14.0 percent of the market at
 		// 1960/62/64/66/67/68/69 against targets of 7.9 / 10.2 / 12.2 / 16.0 / 18.1 / 18.5 / 17.5,
@@ -131,7 +154,15 @@ public static class GenreCatalog {
 		// it was sized linearly against a quadratic transfer. Re-sized by sqrt(target/current); note
 		// the curve is now much FLATTER late than intuition suggests, because soul's efficiency rises
 		// steeply once British Blues and Gospel stop taking a quarter of the late-decade market.
-		Add("soul", Genre.Soul, GenreFamily.RhythmAndSoul, 1960, null, .75f, .80f, .41f,.63f,.73f,.75f,.76f,.72f,.70f);
+		// SOUL RE-SPLIT (2026-08, D7 genre-arc pass 2). Two opposite-direction misses on ONE genre: singles
+	// are UNDER early (2 vs 8 at 1960) and WERE WAY OVER late (32 vs 18), while the album is UNDER late
+	// (7 vs 22). The airplay-down RadioAcceptance 0.72 fixed the late-singles over (now ~14, near the 17
+	// target); the flat SingleOrientation .66 leans soul slightly toward album vs the original .80; the
+	// 1960 baseline .41 -> .52 nudges the early-singles under. NOTE the late album (7% vs 22) is NOT
+	// fixed here and is NOT a routing problem -- a pass-3 orientation ramp was tested on two seeds and
+	// left it at ~7% (see LateFormatOrientationOverrides): soul album is bounded by the RhythmAndSoul
+	// segment album buyer pool, which is the open lever for it.
+	Add("soul", Genre.Soul, GenreFamily.RhythmAndSoul, 1960, null, .75f, .66f, .52f,.63f,.73f,.75f,.76f,.72f,.70f);
 		Add("funk", Genre.Funk, GenreFamily.RhythmAndSoul, 1967, null, .80f, .70f, .02f,.05f,.10f,.25f,.40f,.55f,.70f);
 		Add("doo-wop", Genre.DooWop, GenreFamily.RhythmAndSoul, 1954, 1965, .80f, .85f, .84f,.37f,.11f,.04f,.04f,.02f,.01f);
 		// Gospel's EARLY years were already correct (1.1% realised against a 1.1% target at 1960);
@@ -149,7 +180,9 @@ public static class GenreCatalog {
 		Add("country", Genre.Country, GenreFamily.Country, 1950, null, .40f, .65f, .52f,.58f,.55f,.60f,.58f,.64f,.68f);
 		Add("country-rock", Genre.CountryRock, GenreFamily.Country, 1968, null, .70f, .40f, .01f,.02f,.05f,.10f,.20f,.40f,.55f);
 		Add("folk", Genre.Folk, GenreFamily.Folk, 1958, 1966, .60f, .50f, .42f,.44f,.37f,.27f,.27f,.25f,.28f);
-		Add("folk-rock", Genre.FolkRock, GenreFamily.Folk, 1965, null, .80f, .55f, .02f,.02f,.12f,1.00f,.80f,.71f,.68f);
+		// Peak trim (2026-08): over from '66 (15/14/14/8). The first sqrt-trim to .60/.52/.45/.48
+	// OVERCORRECTED to under (2/2/1/4 vs 5/6/5/4), so restored partway: .78/.62/.52/.55.
+	Add("folk-rock", Genre.FolkRock, GenreFamily.Folk, 1965, null, .80f, .55f, .02f,.02f,.12f,.78f,.62f,.52f,.55f);
 		Add("contemporary-folk", Genre.ContemporaryFolk, GenreFamily.Folk, 1961, 1969, .60f, .50f, .10f,.40f,.55f,.45f,.40f,.40f,.40f);
 		Add("singer-songwriter", Genre.SingerSongwriter, GenreFamily.Folk, 1967, null, .65f, .35f, .02f,.05f,.10f,.20f,.30f,.40f,.50f);
 		// NOTE, and it cuts against the surface reading: jazz is UNDER its market target late (1.4%
@@ -165,7 +198,10 @@ public static class GenreCatalog {
 		// -> .04 is the demand-side half of that: it is an album category almost by definition. If
 		// slots persist after this, the remainder is chart-side and belongs with the Jazz/Country
 		// divergence work rather than with another baseline cut.
-		Add("classical", Genre.Classical, GenreFamily.Classical, 1945, null, .20f, .04f, .40f,.25f,.23f,.25f,.29f,.35f,.36f);
+		// Album 1960 over-seed trim (2026-08): classical album ran 23% at 1960 vs ~0-4. The 1960 baseline
+	// .40 -> .26 pulls the early album down (singles are already ~0 via orientation .04); album affinity
+	// also cut 0.82 -> 0.45. Later keyframes hold (late classical album is already small).
+	Add("classical", Genre.Classical, GenreFamily.Classical, 1945, null, .20f, .04f, .26f,.25f,.23f,.25f,.29f,.35f,.36f);
 		Add("boogaloo", Genre.Boogaloo, GenreFamily.Latin, 1966, 1969, .70f, .70f, .02f,.05f,.10f,.35f,.40f,.35f,.25f);
 		Add("tex-mex", Genre.TexMex, GenreFamily.Latin, 1959, null, .65f, .75f, .15f,.20f,.25f,.30f,.30f,.30f,.30f);
 		Add("latin-pop", Genre.LatinPop, GenreFamily.Latin, 1958, null, .55f, .60f, .20f,.25f,.30f,.35f,.35f,.35f,.35f);
@@ -229,15 +265,80 @@ public static class GenreCatalog {
 	private static readonly IReadOnlyDictionary<Genre, float> RadioAcceptanceOverrides =
 		new Dictionary<Genre, float> {
 			[Genre.SunshinePop] = 1.40f,
-			[Genre.GarageRock] = 1.55f,
+			// Garage 1.55 -> 1.05: the up-lever was amplifying a genre that is already OVER at its
+			// mid-60s peak (9-11 year-end slots vs a 1-3 hand count). Paired with a mid-baseline trim.
+			[Genre.GarageRock] = 1.05f,
 			[Genre.Country] = 0.45f,
 			[Genre.PsychedelicRock] = 0.90f,
+			// Soul 0.72 (NEW): the airplay lever is the right one for Soul's headline miss because the
+			// miss is LATE (32 year-end slots vs 18) where airplay is ~58% of chart points, and Soul is
+			// UNDER early where airplay barely counts -- so a late-biased strip trims the over without
+			// touching the early under. Works WITH the SingleOrientation .80->.66 re-split (single->album).
+			// 0.72 -> 0.55 (V3): raising IntegrationEraGapClose (soul album fix) added ~+10 SALES to soul
+			// late singles (24 vs 18), so more airplay must be stripped to rebalance. Album-safe -- RA
+			// never touches album units, so this pulls late singles back without disturbing the soul-album
+			// win (15-19% at 1966-68).
+			[Genre.Soul] = 0.55f,
+			// Comedy 1.70 (NEW): comedy singles were absent (0 vs a persistent ~0.7% AM-novelty count) and
+			// SingleOrientation could not surface them. Comedy has no Zeitgeist acceptance entry so it sits
+			// at UnestablishedAcceptance 0.30; the airplay channel is the lever that had never been applied
+			// to comedy. A 1960-62 probe at 2.20 surfaced 1/3/4 year-end slots (over the ~0.7 target and a
+			// late-blowup risk since airplay is 58% of points by 1969). At 1.70 a decade run gave 3/3 slots
+			// in 1960-61 then 0 from 1962 -- comedy UNITS collapse late (baseline .53->.23) so airplay
+			// alone cannot chart it late. Nudged to 1.90 to sustain the thread a little longer; a true flat
+			// line would need a late baseline floor (kept off to preserve the good comedy-album shape).
+			[Genre.Comedy] = 1.90f,
+			// Jazz airplay lever REVERTED (was 1.30): a decade run showed it BACKFIRED -- jazz units
+			// collapse late (baseline .38) so airplay could not chart it late (still 0-3 vs 4), while the
+			// r^5 amplification + field shift inflated the EARLY years it was never meant to touch (12 vs 6
+			// slots at 1960). This confirms the documented rule: jazz's chart surplus is EARLY-decade and
+			// is format/denominator work, NOT airplay. Jazz stays at the neutral 1.0.
+			// Blues 1.15 (NEW): blues singles were absent (0 vs a steady ~2-3). A modest airplay channel
+			// (no Zeitgeist entry, so 0.30 base) surfaces a thread; eased 1.30->1.15 after a mid-decade
+			// spike (6 vs 2 at 1967).
+			[Genre.Blues] = 1.15f,
+			// EL 0.62 (NEW): fixing EL's late album under (via the raised baseline) SPILLED onto its
+			// singles -- late EL singles ran 9-10 vs a 3-4 target because baseline drives both charts. The
+			// airplay-down lever is the clean separator: it strips the late (airplay-rich) EL singles the
+			// baseline over-produced WITHOUT touching the album (albums have no airplay channel). 0.62 then
+			// slightly over-stripped (late EL singles 1-2 vs 3-4), so eased to 0.72.
+			[Genre.EasyListening] = 0.72f,
 		};
 
 	/// <summary>Per-genre radio-acceptance multiplier applied to the national acceptance that feeds
 	/// radio heat only. Expects a canonical genre; default 1.0 leaves a genre's airplay untouched.</summary>
 	public static float GetRadioAcceptance(Genre canonical) =>
 		RadioAcceptanceOverrides.TryGetValue(canonical, out float r) ? r : 1f;
+
+	// ERA-RAMPED FORMAT ORIENTATION -- the new lever for a genre that must move single->album ACROSS
+	// the decade, which a flat SingleOrientation cannot express. The flat value drives the whole
+	// catalog; this optional override supplies a genre's 1969 routing orientation, and
+	// GetFormatOrientation lerps flat(1960) -> override(1969). It feeds the format-routing tilt ONLY
+	// (GenreAcceptanceService.GetFormatMultiplier); the flat SingleOrientation property still drives
+	// AlbumModel compilation-chance and telemetry, so this does not disturb those seams.
+	//
+	// SOUL RAMP TESTED AND REMOVED (2026-08, two-seed decade run). The hypothesis: ramp soul .78->.50
+	// to keep it single-heavy early and album-heavy late, lifting the late album (9.6% vs 22). RESULT
+	// on seeds 1001 AND 2002: soul album late stayed at ~7% (UNCHANGED -- the ramp is inert on it),
+	// while soul's late SINGLES fell to 8 (vs a 17 target). Diagnosis: the binding constraint on soul
+	// album is NOT the single/album routing but the soul-audience ALBUM BUYER POOL -- soul's baseline
+	// .70 (high) yields only ~7% album while TradPop's .39 yields ~15%, i.e. RhythmAndSoul segments
+	// have low album propensity in the demand model, so rerouting just makes soul albums that don't
+	// chart and strips soul's late singles. The real soul-album lever is the SEGMENT album affinity
+	// for soul's demographics (a MarketRegion segment-demand change), not orientation. Override cleared;
+	// the GetFormatOrientation infrastructure is kept for a genre whose album side CAN absorb rerouting.
+	private static readonly IReadOnlyDictionary<Genre, float> LateFormatOrientationOverrides =
+		new Dictionary<Genre, float>();
+
+	/// <summary>Format-routing orientation for the single/album tilt, era-aware. Returns the flat
+	/// SingleOrientation for genres without an override; for those with one, lerps flat (1960) to the
+	/// override (1969). Canonical genre expected.</summary>
+	public static float GetFormatOrientation(Genre canonical, float year) {
+		float flat = Get(canonical).SingleOrientation;
+		if (!LateFormatOrientationOverrides.TryGetValue(canonical, out float late)) return flat;
+		float t = Mathf.Clamp((year - 1960f) / 9f, 0f, 1f);
+		return Mathf.Lerp(flat, late, t);
+	}
 
 	public static IReadOnlyList<GenreProfile> All => AllProfiles;
 	public static bool TryGet(Genre genre, out GenreProfile profile) => Profiles.TryGetValue(genre, out profile);

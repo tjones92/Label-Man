@@ -21,6 +21,16 @@ public static class ExternalMediaService {
 	// (under-scaled ~3x). Raising origination ~1.6x, together with the longer class life (box-office
 	// floor lift + blockbuster ultra-tail), pushes standing soundtrack presence toward the target band.
 	public const float OriginationsPerYear = 22f;
+	// ERA RAMP (2026-08): the flat 22 left share UNDER early (6% vs ~13) AND fading late (2.6% vs ~6),
+	// because the album chart grows to ~200 slots by 1969 and a flat origination dilutes against the
+	// growing denominator. A first ramp 28->46 fixed the early/mid band (12-15% through 1966) but late
+	// still faded (7/4.7/2.8% at 1967-69) -- the late chart grows faster than a 46/yr feed. End raised
+	// 46 -> 60 to hold late share; the blockbuster cap still guards against monoculture. Flat const kept
+	// for reference/probes; the weekly loop uses this.
+	public static float OriginationsForYear(int year) {
+		float t = Mathf.Clamp((year - 1960f) / 9f, 0f, 1f);
+		return Mathf.Lerp(28f, 60f, t);
+	}
 	// Hard anti-monoculture cap: at most this many genuine blockbusters across a decade (handoff §3.2).
 	public const int BlockbusterDecadeCap = 3;
 

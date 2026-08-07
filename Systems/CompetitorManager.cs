@@ -1132,7 +1132,7 @@ public partial class CompetitorManager : Node {
 	// see soundtracks. See SimTools/D7SoundtrackCastAlbumHandoff.md §3.2, §5 and ExternalMediaService.
 	private void ProcessWeeklySoundtrackOrigination(GameDate date) {
 		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) return;
-		if (GD.Randf() >= ExternalMediaService.OriginationsPerYear / 52f) return;
+		if (GD.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
 		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
 		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
 		AILabel label = ExternalMediaService.SelectLabel(aiLabels, profile);

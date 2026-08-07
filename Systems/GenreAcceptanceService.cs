@@ -338,8 +338,8 @@ public static class GenreAcceptanceService {
 		float albumOpportunity = .5f) {
 		if (!GenreMarketV2.Enabled || format is not (ReleaseFormat.Single or ReleaseFormat.Album)) return 1f;
 		float secondaryWeight = primary == secondary ? 0f : .20f;
-		float orientation = GenreCatalog.Get(GenreCatalog.MapLegacy(primary, (int)MathF.Floor(year))).SingleOrientation * (1f - secondaryWeight);
-		if (secondaryWeight > 0f) orientation += GenreCatalog.Get(GenreCatalog.MapLegacy(secondary, (int)MathF.Floor(year))).SingleOrientation * secondaryWeight;
+		float orientation = GenreCatalog.GetFormatOrientation(GenreCatalog.MapLegacy(primary, (int)MathF.Floor(year)), year) * (1f - secondaryWeight);
+		if (secondaryWeight > 0f) orientation += GenreCatalog.GetFormatOrientation(GenreCatalog.MapLegacy(secondary, (int)MathF.Floor(year)), year) * secondaryWeight;
 		float centered = (orientation - .5f) * 2f;
 		float rawSingle = 1f + centered * FormatOrientationStrength;
 		float rawAlbum = 1f - centered * FormatOrientationStrength;
