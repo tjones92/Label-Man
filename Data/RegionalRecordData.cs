@@ -21,6 +21,18 @@ public class RegionalRecordData {
 	// Media Presence
 	public float radioPlay;      // 0-1: Current radio airplay level
 	public float jukeboxPlay;    // 0-1: Jukebox presence
+	// A 1960s Top 40 playlist was a list of thirty or forty slots, re-cut weekly by a programme
+	// director reading local sales reports. A record did not fade off it; it was dropped, and once
+	// dropped it moved to gold rotation rather than back onto the survey. This is that latch, held
+	// per region because WABC and KHJ cut a record in different weeks.
+	//
+	// The latch is one-way BY DESIGN, not for convenience: a drop keyed to a noisy weekly sales
+	// ratio would otherwise drop and re-add the same record as its sales wobbled, and returns to
+	// number one are already the single largest chart defect at 24-28% against a historical 4-5%
+	// (handoff 12.4q). A re-add is exactly the wrong direction, so there is no re-add at all.
+	public bool stationsDropped;
+	// Record age in weeks when this region's stations cut it, or -1. Telemetry only.
+	public int stationDropAge = -1;
 	
 	// Distribution
 	public int unitsInStores;    // Physical copies available
@@ -118,6 +130,8 @@ public class RegionalRecordData {
 		sentiment = 0f;
 		radioPlay = 0f;
 		jukeboxPlay = 0f;
+		stationsDropped = false;
+		stationDropAge = -1;
 		unitsInStores = 0;
 		unitsBackordered = 0;
 		unitsSoldThisWeek = 0;

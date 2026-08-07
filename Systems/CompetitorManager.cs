@@ -91,7 +91,19 @@ public partial class CompetitorManager : Node {
 	private const float AlbumPriorEarlyEraDiscount = .78f;
 	private const int AlbumPriorCalibrationBootstrapYear = 1960;
 	private const int AlbumPriorCalibrationRetiredYear = 1964;
-	[Export] private float priorUnitScalarAlbum = 175000f;
+	// PREWARM SEEDING (2026-08, WIP task B): established-catalog awareness floor for seeded 1960 albums,
+	// so the pre-existing LP catalog converts at steady-state from week 1. Note: 1960 is channel/supply-
+	// bound, so this proved nearly inert on its own (see D7 handoff); kept for continuation.
+	[Export] private float albumPrewarmAwarenessFloor = 0.85f;
+	[Export] private float albumPrewarmStockMultiplier = 1.0f;
+	// TITLE-COUNT / RUNTIME LEVER (2026-08, WIP). 175000 -> 55000. Album creation is margin-driven, not
+	// demand-driven: projectedAlbumNet ran ~2.2x projectedSingleNet, so 62% of releases were albums,
+	// and albums accumulate (they outlive singles many-fold). This scales the album prior's expected
+	// units -- and only the PRIOR, not realized sales -- so fewer albums are chosen (share 62%->33%,
+	// active albums at 1960 2750->1552) while survivors still saturate the channel in channel-bound
+	// years. WARNING: this reduces the album population, which shrinks the very quadratics just fixed;
+	// for measuring runtime against the committed economy, restore 175000.
+	[Export] private float priorUnitScalarAlbum = 55000f;
 	[Export] private float priorCompHitUnitScalar = 20000f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float hitRecencyDecay = 0.75f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float priorAssumedAlbumPackaging = 0.50f;
@@ -640,7 +652,14 @@ public partial class CompetitorManager : Node {
 			for (int i = 0; i < quota; i++) {
 				if (label.roster.Count == 0) continue;
 				var artist = label.roster[(int)GD.RandRange(0, label.roster.Count - 1)];
-				var record = GenerateRecordFromArtist(label, artist, year);
+				// PREWARM SEEDING (2026-08, WIP task B): the opening catalog was 100% singles, so the album
+				// channel was empty at week 1 and 1960 read low LP unit share. Seed a genre-realistic share
+				// as the pre-existing 1960 LP catalog (jazz, classical, mood/MOR, Broadway); the album
+				// affinity skew makes adult genres seed albums often and teen/rock rarely, matching the era.
+				Genre seedGenre = GenreCatalog.MapLegacy(artist.primaryGenre, year);
+				var format = GD.Randf() < MarketRegion.GetAlbumSeedAffinity(seedGenre)
+					? ReleaseFormat.Album : ReleaseFormat.Single;
+				var record = GenerateRecordFromArtist(label, artist, year, format);
 				int weeksAgo = (int)GD.RandRange(1, 20);
 				record.releaseDate = TimeManager.Instance.CurrentDate.SubtractWeeks(weeksAgo);
 				ChartManager.Instance.ReleaseRecord(record);
@@ -649,7 +668,9 @@ public partial class CompetitorManager : Node {
 				artist.totalReleases++;
 				artist.weeksSinceLastRelease = weeksAgo;
 				artist.releaseHistory.Add(record.recordId);
-				artist.releasedSingleIds.Add(record.recordId);
+				// Seeded albums must not enter releasedSingleIds -- it feeds compilation track resolution
+				// and the single-oriented catalog, neither of which should see an LP.
+				if (format != ReleaseFormat.Album) artist.releasedSingleIds.Add(record.recordId);
 			}
 		}
 		if (debugMode) GD.Print($"CompetitorManager: Populated {needed} initial records from rosters");
@@ -687,6 +708,12 @@ public partial class CompetitorManager : Node {
 		float campaignImpact = ChartSimulator.GetCampaignImpact(label);
 		runtimeData.awareness = Mathf.Clamp(0.15f + (artist.reputation * 0.3f) + (artist.momentum * 0.2f) + (campaignImpact * 0.2f * ageFactor), 0f, 1f);
 		runtimeData.radioHeat = Mathf.Clamp((quality * 0.4f + campaignImpact * 0.3f) * ageFactor, 0f, 1f);
+		// PREWARM SEEDING (2026-08, WIP task B): seeded albums represent the established pre-1960 LP
+		// catalog (jazz, classical, mood/MOR, Broadway) that was ALREADY selling, not fresh drops. Give
+		// them a catalog-staple awareness floor. NOTE: 1960 is channel/supply-bound, so this barely moved
+		// LP unit share -- kept for continuation, not a proven lever.
+		if (record.format == ReleaseFormat.Album)
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, albumPrewarmAwarenessFloor);
 		
 		if (quality > 0.7f && GD.Randf() < 0.4f) {
 			runtimeData.weeksOnChart = (int)GD.RandRange(2, weeksOld);
@@ -716,7 +743,10 @@ public partial class CompetitorManager : Node {
 			// began with national distribution no live entrant could ever obtain.
 			// Route prewarm through the same function live releases use.
 			int shelf = ChartSimulator.CalculateInitialRegionalStock(label, region.regionId, 1f, 1f, record.recordId);
-			regionalData.unitsInStores = Mathf.RoundToInt(shelf * (float)GD.RandRange(0.7, 1.1));
+			// Established-catalog albums carry deeper shelf stock than a fresh small-label single (multiplier
+			// currently 1.0 = neutral; the ~530-unit small-label shelf otherwise stock-caps a catalog staple).
+			float prewarmStock = record.format == ReleaseFormat.Album ? shelf * albumPrewarmStockMultiplier : shelf;
+			regionalData.unitsInStores = Mathf.RoundToInt(prewarmStock * (float)GD.RandRange(0.7, 1.1));
 			// A record already this old has sold part of its shelf through.
 			regionalData.unitsSoldTotal = Mathf.RoundToInt(shelf * (1f - ageFactor) * (float)GD.RandRange(0.6, 1.2));
 		}
@@ -745,6 +775,7 @@ public partial class CompetitorManager : Node {
 		ResetWeeklyReleaseCounters();
 		ProcessDueAlbumProjects(date);
 		ProcessWeeklyReleases(date);
+		ProcessWeeklySoundtrackOrigination(date);
 	}
 
 	/// <summary>Explicit, ordered booking transition for a frozen live settlement.</summary>
@@ -1088,6 +1119,100 @@ public partial class CompetitorManager : Node {
 		}
 		if (debugMode && releasesThisWeek > 0) GD.Print($"Week {date}: {releasesThisWeek} new releases");
 	}
+
+	// Blockbuster soundtracks minted so far this run; the anti-monoculture cap (0-3/decade) is enforced
+	// against this. A fresh CompetitorManager per audit run starts this at 0.
+	private int soundtrackBlockbustersThisRun;
+	public int SoundtrackOriginationsThisRun { get; private set; }
+
+	// Externally-originated soundtrack/cast-album pipeline (D7 soundtrack subsystem, phase 3). Runs once
+	// per week: with a small probability derived from the annual origination rate, generate one
+	// opportunity, pick a capable licensee, and mint + release the Soundtrack album. Gated to the live
+	// enabled market path -- the disabled route is a byte-frozen compatibility boundary and must never
+	// see soundtracks. See SimTools/D7SoundtrackCastAlbumHandoff.md §3.2, §5 and ExternalMediaService.
+	private void ProcessWeeklySoundtrackOrigination(GameDate date) {
+		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) return;
+		if (GD.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
+		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
+		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
+		AILabel label = ExternalMediaService.SelectLabel(aiLabels, profile);
+		if (label == null) return; // nobody could front the license advance this week
+		MintSoundtrackRecord(label, profile, date);
+	}
+
+	private void MintSoundtrackRecord(AILabel label, ExternalMediaProfile profile, GameDate date) {
+		Genre genre = ExternalMediaService.MapGenre(profile.sourceType);
+		// Resolve the stored production-cost MULTIPLE into an actual currency advance against this
+		// label's cost basis, charge it, and overwrite the field with the realized fee for telemetry.
+		float licenseFee = label.GetProductionCost() * profile.upfrontLicenseFee;
+		profile.upfrontLicenseFee = licenseFee;
+
+		generatedRecordCounter++;
+		float pooledAppeal = ExternalMediaService.PooledAppeal(profile);
+		var album = new Album {
+			albumId = $"album_{generatedRecordCounter}",
+			albumFormat = AlbumFormat.Soundtrack,
+			externalMedia = profile,
+			trackRefs = System.Array.Empty<AlbumTrack>(),
+			nonSingleTracks = System.Array.Empty<AlbumTrack>(),
+			runtimeMinutes = (float)GD.RandRange(28.0, 46.0),
+			thematicCohesion = Mathf.Clamp(0.6f + profile.criticalPrestige * 0.3f, 0f, 1f),
+			pooledAppeal = pooledAppeal,
+			packaging = Mathf.Clamp(0.45f + profile.boxOfficeTrajectory * 0.35f + (float)GD.RandRange(-0.08, 0.10), 0.2f, 1f),
+			isStereo = date.year >= 1968 || GD.Randf() < Mathf.Lerp(0.2f, 0.8f, Mathf.Clamp((date.year - 1960f) / 8f, 0f, 1f))
+		};
+
+		var record = new Record {
+			recordId = $"gen_{generatedRecordCounter}",
+			labelId = label.labelId,
+			format = ReleaseFormat.Album,
+			isPlayerOwned = false,
+			album = album,
+			artistId = string.Empty, // externally originated -- not a roster artist
+			artistName = SoundtrackCreditName(profile.sourceType),
+			primaryGenre = genre,
+			secondaryGenre = genre,
+			// Album quality reads straight off pooledAppeal; mirror it onto the scalar fields so any
+			// non-album code path still sees a coherent quality.
+			hookStrength = pooledAppeal,
+			productionQuality = pooledAppeal,
+			danceability = pooledAppeal,
+			projectRole = ProjectRecordRole.None,
+			albumProjectId = string.Empty
+		};
+		record.title = NameGenerator.Instance?.GenerateSongTitle(genre, date.year, record.artistName) ?? $"Soundtrack {generatedRecordCounter}";
+
+		// Licensing economics: a high upfront advance, booked like any production spend.
+		label.cashReserves -= licenseFee;
+		label.monthlyExpenses += licenseFee;
+		WeeklyProductionSpend += licenseFee;
+		WeeklyProductionEvents++;
+		if (labelFinancials.TryGetValue(label.labelId, out var financials)) financials.lastMonthExpenses += licenseFee;
+
+		record.releaseDate = date;
+		ChartManager.Instance.ReleaseRecord(record, label);
+		var runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData != null) {
+			// Anchor launch awareness to the film/show's own premiere buzz -- soundtracks are not
+			// artist-heat driven, so without this seed they would never build awareness or chart.
+			// (Phase 4 replaces this static seed with the box-office demand trajectory.)
+			runtimeData.awareness = Mathf.Max(runtimeData.awareness, profile.sourcePopularity);
+			runtimeData.sunkProductionCost = licenseFee;
+			runtimeData.revenueMemoryEligible = false; // no artist/project memory to fold
+			runtimeData.projectRole = ProjectRecordRole.None;
+		}
+		TrackRelease(label.labelId, record.recordId);
+
+		soundtrackBlockbustersThisRun += profile.isBlockbuster ? 1 : 0;
+		SoundtrackOriginationsThisRun++;
+		if (debugMode) GD.Print($"Soundtrack minted: {record.title} ({genre}, {profile.sourceType}, bo={profile.boxOfficeTrajectory:F2}) by {label.labelName}, fee={licenseFee:F0}");
+	}
+
+	private static string SoundtrackCreditName(ExternalMediaSourceType sourceType) => sourceType switch {
+		ExternalMediaSourceType.StageCast => "Original Broadway Cast",
+		ExternalMediaSourceType.FilmScore => "Original Film Score",
+		_ => "Original Soundtrack"
+	};
 
 	private void ResetWeeklyReleaseCounters() {
 		weeklyReleaseLifecycleByTier.Clear();
@@ -2470,13 +2595,14 @@ public partial class CompetitorManager : Node {
 		return baseCost * multiplier + albumPackagingFixedCost * (record.album?.packaging ?? 0f);
 	}
 
-	private static float CalculateCompilationCostWeight(Genre genre, int year) {
-		if (!IsGeneratorAdultGenre(genre)) return 1f;
-		return year <= 1963 ? 0.48f : 0f;
-	}
-
-	private static bool IsGeneratorAdultGenre(Genre genre) => genre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
-		Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
+	/// <summary>
+	/// The prior a label budgets against before the format is drawn, so it has to be the
+	/// same probability <see cref="GenerateAlbum"/> actually rolls. When the two drift, the
+	/// projected album economics stop matching the realised ones -- which is what
+	/// prior-cost-assumptions.csv exists to catch.
+	/// </summary>
+	private static float CalculateCompilationCostWeight(Genre genre, int year) =>
+		AlbumModel.GetCompilationChance(genre, year);
 
 	private HitInventory ResolveHitInventory(SimulatedArtist artist) {
 		var result = new HitInventory();
@@ -2545,9 +2671,25 @@ public partial class CompetitorManager : Node {
 		MarketRegion[] regions = ChartManager.Instance?.GetAllRegions()?.Where(region => region != null).ToArray()
 			?? System.Array.Empty<MarketRegion>();
 		if (regions.Length == 0) return .5f;
+		// The live branch centers on the genre-blind market split, because that is what realized
+		// demand centers on and this seam exists to share it. The accepted branch keeps its frozen
+		// genre-scoped pool ratio.
 		return live
-			? CalculateEnabledAlbumOpportunityFactor(genre, regions, year)
+			? CalculateMarketAlbumOpportunityFactor(regions, year)
 			: CalculateAcceptedAlbumOpportunityFactor(genre, regions, year);
+	}
+
+	/// <summary>
+	/// Genre-blind national Album share of the market, weighted by buying population. This is the
+	/// format-centering counterpart to CalculateEnabledAlbumOpportunityFactor, which remains
+	/// genre-scoped because it sizes Album demand rather than centering the tilt.
+	/// </summary>
+	public static float CalculateMarketAlbumOpportunityFactor(IEnumerable<MarketRegion> regions, float year) {
+		MarketRegion[] regionArray = regions?.Where(region => region != null).ToArray() ?? System.Array.Empty<MarketRegion>();
+		float buyingPopulation = regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage());
+		if (buyingPopulation <= 0f) return .5f;
+		return Mathf.Clamp(regionArray.Sum(region => region.population * 1000000f * region.GetBuyingPopulationPercentage() *
+			region.GetMarketAlbumOpportunityWeight(year)) / buyingPopulation, 0f, 1f);
 	}
 
 	/// <summary>
@@ -2609,7 +2751,10 @@ public partial class CompetitorManager : Node {
 		float marketReconciliation = live
 			? CalculateAlbumPriorMarketReconciliation(genre, regionArray, year)
 			: 1f;
-		float formatTilt = GetFormatPriorMultiplier(genre, ReleaseFormat.Album, year, live, untilted);
+		// UntiltedAlbumDemandFactor sizes Album demand and stays genre-scoped; the tilt it is
+		// multiplied by centers on the genre-blind market split, matching realized demand.
+		float centeringOpportunity = live ? CalculateMarketAlbumOpportunityFactor(regionArray, year) : untilted;
+		float formatTilt = GetFormatPriorMultiplier(genre, ReleaseFormat.Album, year, live, centeringOpportunity);
 		return new AlbumPriorExplanation(acceptedAlbumPool, acceptedGenrePool, untilted, albumAffinity,
 			marketReconciliation, formatTilt, untilted * marketReconciliation * formatTilt);
 	}
@@ -2832,8 +2977,6 @@ public partial class CompetitorManager : Node {
 
 	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year) {
 		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
-		bool adultGenre = artist.primaryGenre is Genre.Jazz or Genre.EasyListening or Genre.Folk or
-			Genre.TraditionalPop or Genre.BossaNova or Genre.Country;
 		float artistTalent = artist.CalculateBaseQuality();
 		float luckyRoll = GD.Randf();
 		float cohesionCeiling = AlbumModel.GetMaximumAchievableCohesion(year, artistTalent, label.productionQuality, luckyRoll);
@@ -2841,14 +2984,20 @@ public partial class CompetitorManager : Node {
 
 		AlbumFormat albumFormat;
 		bool statementViable = cohesionCeiling >= 0.72f && thematicCohesion >= 0.62f;
-		if (statementViable && ((year >= 1965 && GD.Randf() < 0.24f) || (year < 1965 && luckyRoll > 0.985f))) {
+		if (statementViable && year >= AlbumModel.EarlyStatementYear && GD.Randf() < 0.24f) {
 			albumFormat = AlbumFormat.Concept;
 			thematicCohesion = Mathf.Max(thematicCohesion, 0.68f);
-		} else if (!adultGenre || (year <= 1963 && GD.Randf() < 0.48f)) {
+		} else if (GD.Randf() < AlbumModel.GetCompilationChance(artist.primaryGenre, year)) {
 			albumFormat = AlbumFormat.Compilation;
 		} else {
+			// SOUNDTRACK ORIGINATION (2026-08, D7 soundtrack subsystem): the old cosmetic
+			// `typeRoll < 0.12f ? Soundtrack` branch was removed. A soundtrack/cast album is an
+			// externally-originated object (film score, stage cast, tie-in) with its own demand
+			// curve and economics -- it must NOT be a dice roll on an ordinary artist album. The
+			// former 12% Soundtrack band folds into Standard; Live keeps its ~12% band. Real
+			// soundtracks are minted by ExternalMediaService (see D7SoundtrackCastAlbumHandoff.md).
 			float typeRoll = GD.Randf();
-			albumFormat = typeRoll < 0.12f ? AlbumFormat.Soundtrack : typeRoll < 0.24f ? AlbumFormat.Live : AlbumFormat.Standard;
+			albumFormat = typeRoll < 0.12f ? AlbumFormat.Live : AlbumFormat.Standard;
 		}
 
 		var referencedSingles = new List<AlbumTrack>();

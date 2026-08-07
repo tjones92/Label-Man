@@ -101,7 +101,14 @@ public static class GenreMarketV2ProbeSuite {
 			float enabledPool = neutral.GetAlbumMarketSize(genre, 1960);
 			Require(Math.Abs(enabledPool - album.EnabledPreTiltBuyerPool) < .001f,
 				"Album live buyer pool retains routed V2 acceptance " + genre);
-			float enabledAlbumOpportunity = neutral.GetEnabledAlbumOpportunityWeight(genre, 1960f);
+			// Two distinct quantities that were previously one. The SIZING weight stays genre-scoped
+			// because it scales how much Album demand a genre has; the CENTERING weight carries no
+			// genre, because SingleOrientation is already the genre's format tilt and centering on a
+			// second genre statement put the genre on both sides of the normalization.
+			float sizingAlbumOpportunity = neutral.GetEnabledAlbumOpportunityWeight(genre, 1960f);
+			float enabledAlbumOpportunity = neutral.GetMarketAlbumOpportunityWeight(1960f);
+			Require(Math.Abs(enabledAlbumOpportunity - neutral.GetAlbumOpportunityWeight(genre, 1960f, live: true)) < .000001f,
+				"live format centering weight carries no genre term " + genre);
 			float singleTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Single, 1960f, enabledAlbumOpportunity);
 			float albumTilt = GenreAcceptanceService.GetFormatMultiplier(genre, genre, ReleaseFormat.Album, 1960f, enabledAlbumOpportunity);
 			Require(enabledAlbumOpportunity > 0f &&
@@ -112,7 +119,7 @@ public static class GenreMarketV2ProbeSuite {
 			Require(Math.Abs(prior.AcceptedAlbumPool - album.AcceptedPreTiltBuyerPool) < .001f &&
 				Math.Abs(prior.AcceptedLegacyGenrePool - neutral.GetAcceptedLegacyGenreMarketSize(genre, 1960f)) < .001f,
 				"Album AI-prior accepted pool decomposition " + genre);
-			Require(Math.Abs(prior.UntiltedAlbumDemandFactor - enabledAlbumOpportunity) < .000001f &&
+			Require(Math.Abs(prior.UntiltedAlbumDemandFactor - sizingAlbumOpportunity) < .000001f &&
 				Math.Abs(prior.FormatTilt - albumTilt) < .000001f &&
 				Math.Abs(prior.AlbumPrior - prior.UntiltedAlbumDemandFactor * prior.MarketReconciliation * prior.FormatTilt) < .000001f,
 				"Album AI-prior enabled denominator/centering/tilt parity " + genre);
@@ -205,13 +212,33 @@ public static class GenreMarketV2ProbeSuite {
 		float jazzProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.Jazz, null, null, supplyEastCoast, 1964f);
 		float countryProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.Country, null, null, supplySouthwest, 1964f);
 		float texMexProtectedWeight = GenreSupplyService.GetSupplyWeight(Genre.TexMex, null, null, supplySouthwest, 1964f);
-		Require(Math.Abs(jazzProtectedWeight - .316f) < .000001f && Math.Abs(countryProtectedWeight - .525f) < .000001f &&
-			Math.Abs(texMexProtectedWeight - .2875f) < .000001f,
+		// Anchored to the protected acceptance route, not to literals. The former fixture hardcoded
+		// .316/.525/.2875, which were Jazz's and Country's 1964 baselines at the time it was written;
+		// the keyframe pass moved them and the probe failed on a deliberate catalog edit rather than
+		// on a regression. What is actually under test is that supply weight applies the demand floor
+		// to the PRE-TEXTURE acceptance and nothing else, so assert exactly that and let the catalog
+		// be the catalog. The live-texture bypass itself is pinned by the ratio Require above.
+		float ProtectedDemandFloor(Genre genre, MarketRegion region) =>
+			.05f + .95f * Math.Clamp(GenreSupplyService.GetProspectiveSupplyAcceptanceForProbe(genre, region, 1964f), 0f, 1f);
+		Require(GenreCatalog.Get(Genre.Jazz).GetLifecycle(1964f) == GenreLifecycleState.Established &&
+			GenreCatalog.Get(Genre.Country).GetLifecycle(1964f) == GenreLifecycleState.Established &&
+			GenreCatalog.Get(Genre.TexMex).GetLifecycle(1964f) == GenreLifecycleState.Established,
+			"protected prospective supply fixtures remain on the unit-lifecycle plateau");
+		Require(Math.Abs(jazzProtectedWeight - ProtectedDemandFloor(Genre.Jazz, supplyEastCoast)) < .000001f &&
+			Math.Abs(countryProtectedWeight - ProtectedDemandFloor(Genre.Country, supplySouthwest)) < .000001f &&
+			Math.Abs(texMexProtectedWeight - ProtectedDemandFloor(Genre.TexMex, supplySouthwest)) < .000001f,
 			$"protected prospective supply weights match explicit pre-texture V2 values actual={jazzProtectedWeight:F6}/{countryProtectedWeight:F6}/{texMexProtectedWeight:F6}");
 		Genre[] specialistCandidates = { Genre.Country, Genre.TexMex };
-		Require(GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .64f, specialistCandidates) == Genre.Country &&
-			GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, .65f, specialistCandidates) == Genre.TexMex,
-			"protected prospective specialist selections match explicit pre-texture V2 boundaries");
+		// Straddle the boundary the weights actually imply, rather than the .64/.65 pair that
+		// straddled it when this was written. Those literals now both land on Country, so the
+		// fixture inverted on a catalog edit instead of on a broken selector -- the same staleness
+		// as the weight fixture above. What is under test is that the cumulative-weight selector
+		// splits exactly at countryWeight/total, so derive that split and probe either side of it.
+		float specialistSplit = countryProtectedWeight / (countryProtectedWeight + texMexProtectedWeight);
+		Require(specialistSplit > .01f && specialistSplit < .99f, "specialist selection boundary is interior");
+		Require(GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, specialistSplit - .01f, specialistCandidates) == Genre.Country &&
+			GenreSupplyService.ChooseGenre(null, null, supplySouthwest, 1964f, null, specialistSplit + .01f, specialistCandidates) == Genre.TexMex,
+			$"protected prospective specialist selections match explicit pre-texture V2 boundaries split={specialistSplit:F6}");
 		var britishBeatCandidates = new[] { Genre.BritishBeat, Genre.Country };
 		var britishPopCandidates = new[] { Genre.BritishPop, Genre.Country };
 		Require(GenreSupplyService.ChooseGenre(null, null, null, 1962f, null, 0f, britishBeatCandidates) == Genre.Country &&
@@ -321,6 +348,11 @@ public static class GenreMarketV2ProbeSuite {
 		Require(GenreSupplyService.IsPsychedelicTransitionCompatible(Genre.RockAndRoll, year) &&
 			GenreSupplyService.IsPsychedelicTransitionCompatible(Genre.AcidRock, year),
 			"authored family and adjacency Psychedelic transitions retained");
+		// The gate is an authored-lineage question, not a family question. Pin the non-Rock
+		// lineages that took the turn, so a later family-table edit cannot silently re-close it.
+		Require(new[] { Genre.FolkRock, Genre.BritishPop, Genre.SunshinePop, Genre.BaroquePop }
+			.All(identity => GenreSupplyService.IsPsychedelicTransitionCompatible(identity, year)),
+			"cross-family Psychedelic lineages admitted");
 		Require(GenreSupplyService.GetProspectivePsychedelicCandidatesForProbe(candidates, Genre.TeenPop, year, true)
 			.SequenceEqual(new[] { Genre.Country }) &&
 			GenreSupplyService.GetProspectivePsychedelicCandidatesForProbe(candidates, Genre.TeenPop, year, false)
@@ -366,8 +398,15 @@ public static class GenreMarketV2ProbeSuite {
 			.All(region => Texture(Genre.Boogaloo, "eastcoast") > Texture(Genre.Boogaloo, region)), "Boogaloo centered specialist order");
 		// Centered texture is population-conserved before clamping.  The fixed
 		// Country route may lose a bounded amount at the acceptance cap, so enforce
-		// a 1% post-routing tolerance against the explicit texture-free V2 baseline.
-		const float nationalOpportunityTolerance = .01f;
+		// a post-routing tolerance against the explicit texture-free V2 baseline.
+		// Raised 1% -> 2%: the keyframe pass in 42f7a1b took Country's 1968 baseline
+		// from .54 to .64 to serve the market benchmark, and a higher baseline pushes
+		// the southwest regional route further into the 1.0 acceptance cap, so the
+		// acknowledged clamp loss grew with it (measured .010765 against the old .01
+		// bound). This bounds an expected loss, not a conservation guarantee -- if it
+		// ever needs raising again, check whether the cap is now binding in more than
+		// one region before widening it a second time.
+		const float nationalOpportunityTolerance = .02f;
 		var routing = new List<string>();
 		foreach (Genre specialist in new[] { Genre.Country, Genre.TexMex, Genre.Boogaloo }) {
 			SpecialistRoutingProbe postRouting = GenreAcceptanceService.GetFixedInputSpecialistRoutingProbe(specialist, year);
@@ -424,9 +463,9 @@ public static class GenreMarketV2ProbeSuite {
 				serviceLevel: .5f, fulfillAlbumBacklog: true, albumRetailMaturity: 1f) == 150 &&
 			ChartManager.CalculateRestockAmount(rawDemand: 100f, backorders: 50, demandSignal: 150f,
 				serviceLevel: .5f, fulfillAlbumBacklog: false, albumRetailMaturity: 1f) == 75 &&
-			AlbumModel.GetRetailFulfillmentMaturity(1963) == 0f &&
-			AlbumModel.GetRetailFulfillmentMaturity(1964) == 1f,
-			"Album backlog avoids duplicate attrition and full retail fulfillment begins at the established-era midpoint");
+			AlbumModel.GetRetailFulfillmentMaturity(1960) == 1f &&
+			AlbumModel.GetRetailFulfillmentMaturity(1969) == 1f,
+			"Album backlog avoids duplicate attrition and album retail fulfillment is mature throughout the period (LP-ratio recalibration: the channel's early size is carried by its era-scaled capacity share, not by a maturity step)");
 		var ownedNetwork = new AILabel {
 			homeCityId = "new_york",
 			distributionRegions = new[] { "greatlakes" }

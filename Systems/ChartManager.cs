@@ -45,6 +45,11 @@ public partial class ChartManager : Node {
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentAlbumChart = new List<RecordRuntimeData>();
 	private const int BubblingUnderSize = 15;
+	// Weekly persistence of regional airplay. Hold is what survives from last week before the pull
+	// toward the current national target; together they set how fast a record leaves rotation once
+	// its heat collapses. Load-bearing only since airplay reached the chart ranking.
+	private const float RegionalRadioHold = 0.92f;
+	private const float RegionalRadioLerp = 0.15f;
 	private const int NeverChartedHorizonWeeks = 5;
 	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
@@ -67,8 +72,20 @@ public partial class ChartManager : Node {
 	// against the same format buyer pool. Convert their summed serviceable intent
 	// into one market-wide format opportunity before common regional clearing.
 	private const float AlbumIntentOverlapPressure = 2f;
-	private const float MatureAlbumChannelBaselineShare = 0.08f;
-	private const float MatureAlbumChannelEraExpansionShare = 0.35f;
+	// LP-RATIO RECALIBRATION (2026-08). The album channel capacity (= baseCapacity x these shares x
+	// era) now SETS album unit share, because album intent saturates it. Sized to the author's LP:45
+	// unit targets: album/single ratio ~0.43 at 1960 (LP 30%) rising to ~1.22 at 1969 (LP 55%), read
+	// against GetAlbumDemandEraProgress (rise 1957->1972, so era ~0.20 at 1960, ~0.80 at 1969).
+	// Album unit share ~= share/(1+share) once demand saturates the channel.
+	// CONVEX RESHAPE (2026-08): the former linear form (0.17 + 1.30 x era) nailed the 1960/1967/1969 LP
+	// anchors but ran the mid-decade ~6 pts hot (1963 40.8 vs 35, 1965 46.3 vs 40) -- the LP:45 target
+	// curve dips below the endpoint chord in the middle, which a straight line cannot follow. Refit as a
+	// convex quadratic in era: least-squares through the author LP anchors 30/35/40/50/55 at 60/63/65/
+	// 67/69, each mapped to share = LP/(1-LP). Vertex at era ~0.15 (below the 0.20 floor), so monotone
+	// increasing across the in-sim range [0.20,0.80]. Realized LP now ~29.7/35.1/41.4/48.5/55.5.
+	private const float AlbumChannelShareEraC0 = 0.46136f;   // era^0
+	private const float AlbumChannelShareEraC1 = -0.58405f;  // era^1
+	private const float AlbumChannelShareEraC2 = 1.95531f;   // era^2
 	// A donor contributes only portable purchase opportunity left idle by its own
 	// local market.  These bounds deliberately prevent the region graph from
 	// becoming a disguised national pool.
@@ -430,44 +447,6 @@ public partial class ChartManager : Node {
 	}
 
 	// ========================================================================
-	// GENRE AVAILABILITY BY YEAR
-	// ========================================================================
-
-	private bool IsGenreAvailableInYear(Genre genre, int year) {
-		return genre switch {
-			Genre.TraditionalPop => true,
-			Genre.Jazz => true,
-			Genre.Country => true,
-			Genre.Gospel => true,
-			Genre.RnB => true,
-			Genre.DooWop => year <= 1965,
-			Genre.RockAndRoll => true,
-			Genre.TeenPop => true,
-			Genre.Soul => year >= 1960,
-			Genre.GirlGroup => year >= 1961 && year <= 1966,
-			Genre.Motown => year >= 1961,
-			Genre.SurfRock => year >= 1962 && year <= 1966,
-			Genre.Folk => year >= 1963,
-			Genre.BritishInvasion => year >= 1964,
-			Genre.GarageRock => year >= 1964,
-			Genre.FolkRock => year >= 1965,
-			Genre.Funk => year >= 1965,
-			Genre.BluesRock => year >= 1965,
-			Genre.Psychedelic => year >= 1966,
-			Genre.BaroquePop => year >= 1966,
-			Genre.SunshinePop => year >= 1966,
-			Genre.AcidRock => year >= 1967,
-			Genre.ProgressiveRock => year >= 1967,
-			Genre.Bubblegum => year >= 1967,
-			Genre.CountryRock => year >= 1968,
-			Genre.HardRock => year >= 1968,
-			Genre.ProtoMetal => year >= 1969,
-			Genre.ProtoPunk => year >= 1968,
-			_ => true
-		};
-	}
-
-	// ========================================================================
 	// PRE-WARMING
 	// ========================================================================
 
@@ -716,6 +695,10 @@ public partial class ChartManager : Node {
 		record.radioHeat += isAlbum ? 0f : campaignImpact * 0.12f;
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 
+		// The seed is the record's first week of rotation, not its eventual rotation, so it carries
+		// the same build weight the weekly regional pass applies from here on.
+		float launchRadioBuild = ChartSimulator.GetRadioBuildWeight(record.weeksSinceRelease);
+
 		var initialStock = new Dictionary<string, int>(StringComparer.Ordinal);
 		foreach (var region in allRegions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
@@ -733,8 +716,8 @@ public partial class ChartManager : Node {
 			if (MarketSeasonality.Enabled && currentChartWeek > 0) {
 				float radioOpportunity = MarketSeasonality.GetRadioOpportunity(TimeManager.Instance?.CurrentDate.year ?? 1960,
 					TimeManager.Instance?.CurrentDate.month ?? 1, liveTick: true);
-				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio;
-			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio;
+				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio * launchRadioBuild;
+			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio * launchRadioBuild;
 			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
@@ -784,10 +767,16 @@ public partial class ChartManager : Node {
 			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
 			float genreAcceptance = 1f;
 			if (!isAlbum) {
-				genreAcceptance = genreMarketLive
-					? GenreAcceptanceService.GetNationalDemandAcceptance(record.baseRecord.primaryGenre,
-						record.baseRecord.secondaryGenre, allRegions, acceptanceYear, GetGenreMomentum(record.baseRecord.primaryGenre))
-					: GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
+				if (genreMarketLive) {
+					// The radio-only acceptance, then the per-genre radio-acceptance multiplier
+					// (GenreCatalog.GetRadioAcceptance) -- the chart-efficiency dimension that lets a
+					// genre be small-selling yet heavily programmed. It rides ONLY into radio heat here,
+					// never sales, and is amplified by AIRPLAY_CONVEXITY downstream.
+					float radioAcceptance = GenreAcceptanceService.GetNationalDemandAcceptance(record.baseRecord.primaryGenre,
+						record.baseRecord.secondaryGenre, allRegions, acceptanceYear, GetGenreMomentum(record.baseRecord.primaryGenre));
+					Genre canonicalPrimary = GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, (int)Mathf.Floor(acceptanceYear));
+					genreAcceptance = Mathf.Clamp(radioAcceptance * GenreCatalog.GetRadioAcceptance(canonicalPrimary), 0f, 1f);
+				} else genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 			}
 			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId);
 
@@ -886,7 +875,14 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 4: Calculate chart points ===
+		// The week's survey is drawn first and cached on each record. Billboard polled about 110
+		// outlets by hand rather than counting units, so the published score is a sample. Drawing here
+		// -- once per record, before anything reads a point total -- is what keeps the ranking, the
+		// mid-chart exit log and the audit telemetry all looking at the same numbers.
 		var chartPoints = new Dictionary<RecordRuntimeData, float>();
+		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
+			record.surveySampleThisWeek = ChartSimulator.DrawSurveySample(record.unitsThisWeek);
+		}
 		foreach (var record in allRecords.Where(record => record.baseRecord.format != ReleaseFormat.Album)) {
 			float points = ChartSimulator.CalculateChartPoints(record, allRegions);
 			if (record.unitsThisWeek == 0 && points > 0) points *= 0.1f;
@@ -992,8 +988,9 @@ public partial class ChartManager : Node {
 			int baseCapacity = Mathf.Max(0, Mathf.RoundToInt(region.population * 1_000_000f * region.GetBuyingPopulationPercentage()
 				* WeeklyRegionalPurchaseCapacityMultiplier));
 			float albumChannelMaturity = AlbumModel.GetRetailFulfillmentMaturity(year);
-			float albumChannelShare = albumChannelMaturity * (MatureAlbumChannelBaselineShare +
-				MatureAlbumChannelEraExpansionShare * region.GetAlbumDemandEraProgress(year));
+			float albumEra = region.GetAlbumDemandEraProgress(year);
+			float albumChannelShare = albumChannelMaturity *
+				(AlbumChannelShareEraC0 + AlbumChannelShareEraC1 * albumEra + AlbumChannelShareEraC2 * albumEra * albumEra);
 			int albumChannelCapacity = Mathf.RoundToInt(baseCapacity * albumChannelShare);
 			int capacity = baseCapacity + albumChannelCapacity;
 			var summary = new MarketClearingRegionalSummary {
@@ -1461,6 +1458,12 @@ public partial class ChartManager : Node {
 		float radioOpportunity = seasonalRadio ? MarketSeasonality.GetRadioOpportunity(year, month, liveTick: true) : 1f;
 		float acceptanceYear = genreMarketLive ? GetContinuousSimulationYear() : 0f;
 		float legacyMomentum = genreMarketLive ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
+		// One decision per region per week, taken against this week's settled sales -- step 2 has
+		// already run FinalizeWeeklySales, so the support ratio and the weeks-since-peak clock are
+		// current, and a drop landing here reaches the same week's chart points in step 4.
+		float stationDropChance = ChartSimulator.GetStationDropChance(
+			ChartSimulator.GetSalesSupportRatio(record), record.weeksSincePeakUnits);
+		float carriedPanelWeight = 0f, totalPanelWeight = 0f;
 		foreach (var region in allRegions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
 				data = new RegionalRecordData(region.regionId);
@@ -1470,16 +1473,46 @@ public partial class ChartManager : Node {
 			// Awareness decay
 			data.awareness *= 0.92f;
 
-			// Radio play: decay + pull toward national heat
-			float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
-			float genreRadio = 1f;
-			if (genreMarketLive) {
-				genreRadio = data.genreMarketAcceptanceWeek == currentChartWeek
-					? data.genreRadioOpportunityThisWeek
-					: GenreAcceptanceService.GetRegionalRadioOpportunity(record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum);
+			// The playlist meeting. A record only becomes a candidate once it is actually in rotation
+			// here, so the draw is not spent on the thousands of live records carrying none, and the
+			// latch means this region is never asked again.
+			if (stationDropChance > 0f && ChartSimulator.IsStationDropCandidate(data) &&
+				(float)GD.RandRange(0.0, 1.0) < stationDropChance) {
+				data.stationsDropped = true;
+				data.stationDropAge = record.weeksSinceRelease;
 			}
-			float targetRegionalRadio = seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio;
-			data.radioPlay = Mathf.Lerp(data.radioPlay * 0.85f, targetRegionalRadio, 0.2f);
+			// Reach x population is the weighting CalculateChartPoints pays airplay on, so this is the
+			// share of the panel that still carries the record rather than a count of regions.
+			float panelWeight = region.media != null ? region.media.radioReach * region.population : 0f;
+			totalPanelWeight += panelWeight;
+			if (!data.stationsDropped) carriedPanelWeight += panelWeight;
+
+			if (data.stationsDropped) {
+				// Off the playlist. Skipping the lerp entirely is the whole point of the mechanic --
+				// what it replaces was an exponential, and an exponential is what a drop is not -- and
+				// nothing anywhere re-adds rotation to a latched region.
+				data.radioPlay = ChartSimulator.GetDroppedRotation(data.radioPlay);
+			} else {
+				// Radio play: decay + pull toward national heat
+				float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
+				float genreRadio = 1f;
+				if (genreMarketLive) {
+					genreRadio = data.genreMarketAcceptanceWeek == currentChartWeek
+						? data.genreRadioOpportunityThisWeek
+						: GenreAcceptanceService.GetRegionalRadioOpportunity(record.baseRecord.primaryGenre, record.baseRecord.secondaryGenre, region, acceptanceYear, legacyMomentum);
+				}
+				// Stations add a record over several weeks. Without this the release ramp throttled sales
+				// to 8.7% of peak in week one while rotation arrived at full campaign strength, leaving
+				// airplay at 77.3% of a new record's chart points and debuts near #73 instead of #90.
+				float radioBuild = ChartSimulator.GetRadioBuildWeight(record.weeksSinceRelease);
+				float targetRegionalRadio = (seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio) * radioBuild;
+				// Stations phase a record out of rotation rather than dropping it, and this is the whole
+				// plateau: sales fall to 65% of peak in a single week, so airplay only holds a record up
+				// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to
+				// 0.68 a week with the target at zero -- faster than sales, so no plateau. 0.92/0.15
+				// settles to 0.78. These were never load-bearing before airplay reached the ranking.
+				data.radioPlay = Mathf.Lerp(data.radioPlay * RegionalRadioHold, targetRegionalRadio, RegionalRadioLerp);
+			}
 
 			// Radio builds regional awareness
 			data.awareness += data.radioPlay * 0.12f;
@@ -1494,6 +1527,13 @@ public partial class ChartManager : Node {
 				data.awareness = Mathf.Clamp(data.awareness + wordOfMouth, 0f, 1f);
 			}
 		}
+		// Derived telemetry, not an input: nothing reads this back, so the drop reaches the chart
+		// only through the regional rotation it zeroes. Keeping the national radioHeat term out of it
+		// is deliberate -- AIRPLAY_CONVEXITY raises rotation to the fifth power, so a multiplicative
+		// cut applied to heat AND to carriage would compound to the sixth and make the mechanic's
+		// severity an artifact of an exponent that section 11.6.3 already calls provisional. Airplay
+		// points are linear in this number, which is the well-conditioned lever.
+		record.radioPanelShare = totalPanelWeight > 0f ? carriedPanelWeight / totalPanelWeight : 1f;
 	}
 
 	/// <summary>
@@ -1733,10 +1773,16 @@ public partial class ChartManager : Node {
 			localAwarenessGain *= discoveryScale;
 			localRadioGain *= discoveryScale;
 			source.awareness = Mathf.Min(0.58f, source.awareness + localAwarenessGain);
-			source.radioPlay = Mathf.Min(0.45f, source.radioPlay + localRadioGain);
+			// Regional discovery still builds awareness and jukebox presence in a market whose
+			// stations have cut the record -- people hear about it, and the box in the diner does not
+			// take orders from a programme director -- but it cannot put it back on the playlist. The
+			// drop is a one-way latch and every writer of radioPlay has to honour it or it leaks.
+			if (!source.stationsDropped) {
+				source.radioPlay = Mathf.Min(0.45f, source.radioPlay + localRadioGain);
+				source.breakoutRadioGain += localRadioGain;
+			}
 			source.jukeboxPlay = Mathf.Min(0.55f, source.jukeboxPlay + strength * 0.006f * discoveryScale);
 			source.breakoutAwarenessGain += localAwarenessGain;
-			source.breakoutRadioGain += localRadioGain;
 
 			float womGain = strength * (source.breakoutStage >= RegionalBreakoutStage.RegionalBreakout ? 0.005f : 0.001f) * discoveryScale;
 			record.wordOfMouth = Mathf.Min(0.72f, record.wordOfMouth + womGain);
@@ -1756,9 +1802,11 @@ public partial class ChartManager : Node {
 				float neighborAwarenessGain = 0.002f + testGain * 0.040f;
 				float neighborRadioGain = testGain * 0.012f;
 				neighbor.awareness = Mathf.Min(0.34f, neighbor.awareness + neighborAwarenessGain);
-				neighbor.radioPlay = Mathf.Min(0.24f, neighbor.radioPlay + neighborRadioGain);
+				if (!neighbor.stationsDropped) {
+					neighbor.radioPlay = Mathf.Min(0.24f, neighbor.radioPlay + neighborRadioGain);
+					neighbor.breakoutRadioGain += neighborRadioGain;
+				}
 				neighbor.breakoutAwarenessGain += neighborAwarenessGain;
-				neighbor.breakoutRadioGain += neighborRadioGain;
 			}
 		}
 		float crossoverBreadth = Mathf.Clamp((record.crossoverCandidateStrength - 0.15f) / 0.35f, 0f, 1f);
@@ -1970,6 +2018,13 @@ public partial class ChartManager : Node {
 		var recordsToRetire = allRecords.Where(record => IsRecordRetirable(record, includeChartedRecords)).ToList();
 
 		foreach (var record in recordsToRetire) RetireRecord(record);
+		// RetireRecord no longer removes from allRecords one-by-one (List.Remove is O(N), so retiring R
+		// records was O(R*N) -- the accidental quadratic that made this phase grow ~N^2.8 with album
+		// count). Batch the removal into a single O(N) pass with the same net result and record order.
+		if (recordsToRetire.Count > 0) {
+			var retired = new HashSet<RecordRuntimeData>(recordsToRetire);
+			allRecords.RemoveAll(retired.Contains);
+		}
 
 		if (debugMode && recordsToRetire.Count > 0) {
 			GD.Print($"ChartManager: Retired {recordsToRetire.Count} dead records. Active: {allRecords.Count}");
@@ -2020,7 +2075,7 @@ public partial class ChartManager : Node {
 		}
 
 		CompetitorManager.Instance?.RecordRetired(record);
-		allRecords.Remove(record);
+		// allRecords removal is batched by the caller (CullDeadRecords) to avoid O(R*N) list scans.
 		recordById.Remove(record.baseRecord.recordId);
 	}
 
@@ -2135,10 +2190,16 @@ public partial class ChartManager : Node {
 
 	public Zeitgeist GetCurrentZeitgeist() => baseZeitgeist;
 
+	/// <summary>
+	/// External hook for events that put a record on the air in one market. It honours the station
+	/// drop latch: once a market's stations have cut a record, nothing puts it back into current
+	/// rotation, because a re-add is the one thing that would make the returns defect worse. The
+	/// awareness half still lands -- the event happened, people heard about it.
+	/// </summary>
 	public void AddRadioPlay(string recordId, string regionId, float amount) {
 		var record = GetRecordRuntimeData(recordId);
 		if (record != null && record.regionalData.ContainsKey(regionId)) {
-			record.regionalData[regionId].radioPlay += amount;
+			if (!record.regionalData[regionId].stationsDropped) record.regionalData[regionId].radioPlay += amount;
 			record.regionalData[regionId].awareness += amount * 0.1f;
 			record.regionalData[regionId].awareness = Mathf.Clamp(record.regionalData[regionId].awareness, 0f, 1f);
 		}

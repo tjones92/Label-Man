@@ -1,4 +1,4 @@
-// Scripts/Systems/ChartSimulator.cs
+﻿// Scripts/Systems/ChartSimulator.cs
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -16,15 +16,330 @@ public static class ChartSimulator {
 	private const float ARTIST_HEAT_AWARENESS_BONUS = 0.18f;
 	private const float AWARENESS_DECAY_RATE = 0.95f;
 	
-	private const float RADIO_QUALITY_WEIGHT = 0.7f;    
+	private const float RADIO_QUALITY_WEIGHT = 0.7f;
 	private const float RADIO_MOMENTUM_WEIGHT = 0.25f;
 	private const float RADIO_LABEL_WEIGHT = 0.4f;
+	// AIRPLAY WAS MIS-PHASED AGAINST SALES AT BOTH ENDS OF A RECORD'S LIFE, and it was the release
+	// ramp that did it: the ramp put a six-week build on sales and left airplay on its old, faster
+	// onset. Measured on d7-survey-decade-522-1001, airplay's share of a top-ten record's chart points
+	// is U-shaped -- 77.3% in week one, bottoming at 37.1% at the week-nine sales peak, then climbing
+	// back to 54.3% by week twenty:
+	//
+	//   week            1     4     8     12    17    20
+	//   sales % peak  8.7%  33.5% 87.7% 70.9% 25.5%  8.2%
+	//   airplay % pts 77.3% 47.8% 37.1% 45.2% 52.4% 54.3%
+	//
+	// Both ends are defects. In week one a record sells 8.7% of what it eventually will while already
+	// carrying full campaign rotation, which is a large part of why debuts land near #73 instead of
+	// #90. By week seventeen sales are a quarter of peak while airplay is over half the points, so
+	// published points are roughly double what sales justify -- which is what holds records near the
+	// top after they have commercially died, and the fat 3+ week number-one tail.
+	//
+	// The build is applied to the REGIONAL rotation rather than to radioHeat, deliberately. radioHeat
+	// multiplies conversion directly in CalculateRegionalSales, so recomposing it moves the demand
+	// model rather than the chart (section 11.7). Keeping the fix on the regional pass leaves units
+	// alone -- radio's measured sales channel is only 1.07x across its observed range anyway.
+	// Measured like-for-like at 52 weeks, the build moves airplay's TIMING and not its weight: its
+	// share of a top-ten record's points falls 71.6% -> 56.2% in week one and 25.8% -> 15.2% at week
+	// six, then converges back to baseline by week ten (26.2% -> 25.3%). radioHeat is untouched
+	// (week eight 0.733 -> 0.759), which is the point -- the demand side must not move.
+	//
+	// The floor was tried at 0.50 as well. It barely reaches week one (56.2% either way, because the
+	// launch seed is swamped by the lerp toward target before the chart is computed) and it costs the
+	// named target: mean debut 81.3 -> 80.2 and debuts above #60 11.1% -> 13.3%. It does restore a
+	// little mid-life level (week six 12.5% -> 15.2%), so if that level matters later the structural
+	// fix is a faster regional lerp rather than a higher floor -- data.radioPlay = Lerp(radioPlay *
+	// 0.92, target, 0.15) settles at only 0.688 of target and closes a gap by 0.782 a week, so it
+	// takes about six weeks to catch up from any early suppression.
+	private const int RADIO_BUILD_FULL_WEEK = 6;
+	private const float RADIO_BUILD_FLOOR = 0.28f;
+	// Rotation decays from the record's OWN sales peak, not from a fixed week-eight clock.
+	//
+	// A decline-keyed replacement for this term was built and REJECTED on decade evidence -- see
+	// handoff section 12.4r before rebuilding it. `Lerp(0.15, 1, unitsThisWeek / peakWeeklyUnits)`
+	// looked right (neutral through the climb, biting only past the peak) but was far GENTLER than
+	// what it replaced: at week twenty it returned 0.366 where 0.88^12 gives 0.216. Airplay's share
+	// of a top-ten record's points at week twenty went 52.9% -> 64.0%, sales at week twenty went 8.4%
+	// -> 25.4% of peak, chart life 7.49 -> 8.31 and charting records 6,350 -> 5,719. It is also
+	// self-reinforcing: more airplay -> higher rank -> more exposure -> more sales -> a higher support
+	// ratio -> less burnout. A linear lerp from a floor CANNOT be both neutral during the climb and
+	// severe in the tail: reaching 0.216 at 0.254 support requires a negative floor.
+	//
+	// What was wrong with the clock was its PHASE, not its existence. The release ramp moved the
+	// sales peak to week nine, so `weeksSinceRelease > 8` began fatiguing a hit the week before it
+	// peaked, while a marginal record that peaked at week four kept undamped rotation for five weeks
+	// after it was commercially finished. Keying it to weeksSincePeakUnits fixes both ends at once
+	// and costs nothing during the climb, where the term is now exactly 1.
+	//
+	// It is deliberately NOT deleted in favour of the station drop alone. Measured on
+	// d7-buildonly-52-1001, a top-ten record's median radioHeat runs 0.738 at its week-nine peak and
+	// 0.282 by week twenty; targetHeat with the fatigue term removed floors near 0.9 for those weeks,
+	// because qualityFactor is an ageless constant (quality^1.8 * 0.7 is 0.51 of the target for a
+	// quality-0.837 record). Rotation therefore rises 0.73 -> ~0.90 across weeks ten to fourteen,
+	// which AIRPLAY_CONVEXITY turns into roughly 3.4x the airplay points exactly where the U-shaped
+	// share is already too high. The station drop is linear in surviving panel reach and cannot
+	// counter a 3.4x multiplicative rise; superseding the clock means re-keying it and letting the
+	// drop end rotation outright, not running two decays or none.
 	private const float RADIO_FATIGUE_DECAY = 0.88f;
+	// THE STATION DROP. Stations dropped a record as a decision, not as an exponential: the playlist
+	// held thirty or forty current slots, new records needed them, and a record that stopped moving
+	// in the local sales reports was cut. That is why this is a weekly hazard evaluated per record
+	// per region rather than another curve -- it ends rotation abruptly, at a different week in every
+	// market, and the spread between those weeks is the tail variance the model is missing (the
+	// coefficient of variation of peak-to-40%-of-peak sat flat at 0.24 through the whole ramp arc).
+	//
+	// The decision is read off the record's own peak, which is what a programme director had: a
+	// one-stop's weekly reorder against last week's. unitsThisWeek/peakWeeklyUnits is 1 all the way
+	// up the climb by construction, so the hazard cannot fire on a record that is still growing.
+	private const int STATION_DROP_GRACE_WEEKS = 2;
+	// Cut pressure opens once a record has slipped a fifth off its peak and is at its maximum once it
+	// is down to a quarter. Read against the record's OWN peak, so a regional record on a small label
+	// faces the same decision curve as a national smash and the mechanic is scale-free.
+	//
+	// The signal is national and the roll is per market, which is the deliberate split: a programme
+	// director read his own market's one-stop reorders, but he also read the trades, and the model has
+	// only seven regions, so a per-region support ratio would be a noisy read of a small number and
+	// could latch a market out on one bad week. Replayed against the real trajectories of
+	// d7-buildonly-52-1001, these values cut half the panel about six weeks after a top-ten record's
+	// sales peak -- around the point it is falling through the twenties -- and 95% of it by week
+	// twenty. A record still setting weekly highs faces a hazard of exactly zero at every setting.
+	private const float STATION_DROP_SUPPORT_CEILING = 0.80f;
+	private const float STATION_DROP_SUPPORT_FLOOR = 0.25f;
+	private const float STATION_DROP_MAX_WEEKLY_CHANCE = 0.40f;
+	// Burn: a record that has been in heavy rotation for months gets cut even while it sells, because
+	// the audience is tired of it and the slot is worth more to something new. Deliberately a weak
+	// backstop rather than a driver -- early-60s playlists turned over on sales, and callout-measured
+	// burn is a later idea -- but it guarantees every record eventually leaves rotation, which a
+	// support-only hazard does not.
+	private const int STATION_DROP_BURN_ONSET_WEEKS = 8;
+	private const int STATION_DROP_BURN_FULL_WEEKS = 8;
+	// A record has to be on the air to be taken off it. Below this the region never latches, so a
+	// record that breaks regionally months after release is still droppable when it eventually fades.
+	private const float STATION_DROP_MIN_ROTATION = 0.01f;
+	// What is left the week the drop lands. A playlist cut is abrupt, so this replaces the regional
+	// lerp rather than feeding it; AIRPLAY_CONVEXITY of 5 makes 0.30 worth 0.24% of the region's
+	// former airplay points, which is off the air in every sense the chart can see, while leaving a
+	// residue that decays rather than a discontinuity at exactly zero.
+	private const float STATION_DROP_RESIDUAL = 0.30f;
+	// Being top 10 grants radio heat, and once airplay carries chart points that is positive
+	// feedback: heat grants points, points hold the position, the position grants heat. The bonus
+	// therefore has to be paid for in sales, so that when the sales which justified the rotation die
+	// the rotation dies with them and the record falls. The floor sits between the top-10 tenth
+	// percentile (20,918 units) and the 11-40 median (13,419): a record keeps its full bonus while it
+	// is still selling like a genuine Top 40 record and tapers out over the three or four weeks after
+	// its sales peak.
+	private const float RADIO_POSITION_BONUS_SALES_FLOOR = 15000f;
+	// Radio was half the story of a 60s hit -- sales spiked and decayed while stations kept a record
+	// in rotation, and that rotation is what held a single at number one for weeks instead of one.
+	// The airplay term existed but was inert: region.population is authored in millions and every
+	// other absolute consumer multiplies it out (MarketRegion 104/124/131/169/225,
+	// SingleOpportunityLedger 25, ChartManager 992), so summing it raw against unitsThisWeek left
+	// airplay at 0.18% of a number-one record's points and made this a pure weekly-sales chart.
+	// Measured consequence: 380 number ones a decade against a historical 203, 77% of them holding a
+	// single week against 27%, and six 3+ week number ones against 84.
+	//
+	// Correcting the units alone overshoots by ~1000x, so the coefficient is re-derived instead:
+	// this scales one million radio-reached listeners into the units-equivalent chart contribution
+	// they are worth. Measured at 1960 (era weight 0.60), airplay is ~36% of a number one's points
+	// against 0.18% before.
+	private const float AIRPLAY_POINTS_PER_MILLION_REACHED = 2720f;
+	// radioPlay is a saturating 0-1 rotation level, so it barely orders the chart: measured across a
+	// 52-week run, radioHeat separates a number one from the bottom of the chart by only 1.48x where
+	// sales separate them by 8.12x. Added linearly at a weight that makes airplay 31% of a number
+	// one's points, it becomes 74% of a 41-100 record's -- a near-constant, and a near-constant
+	// compresses every lead it is added to, since (S1+C)/(S2+C) is always nearer 1 than S1/S2. Adding
+	// it linearly did exactly that: Top-40 life improved 9 -> 12 weeks but distinct number ones went
+	// 38 -> 47 in the same 52 weeks, the opposite of the goal.
+	//
+	// So rotation is raised to a power before it is paid out, which is closer to the truth anyway --
+	// a record in heavy rotation on the major stations gets six to ten times the spins of a
+	// light-rotation record, not 1.5x. The reference play keeps the coefficient interpretable: a
+	// record at reference earns what it would have earned linearly, weaker records earn
+	// disproportionately less, a genuine smash disproportionately more.
+	//
+	// The exponent is 5 rather than 3 because it applies to the record's own rotation only, with
+	// genre access divided out and paid back linearly (see CalculateChartPoints). Cubing the whole
+	// product instead bought a much better chart -- 29 number ones a year against 39, 45% of them
+	// one-week against 74% -- but it did so by cubing genre acceptance as well, and that is not a
+	// plateau mechanism, it is a genre amplifier: over a decade run it drove Soul to a +26.4 chart
+	// divergence and RnB to -4.7 as the era ramp compounded each genre's acceptance trend.
+	//
+	// Honest limit of this calibration: the record-level signal is still too flat to carry a plateau
+	// on its own, because radioHeat is ~0.6 of generic quality-and-push shared by every charting
+	// record plus a position bonus worth only 0.25. Raising the exponent spreads that thin signal but
+	// amplifies its noise with it -- k=5 yields more 3+ week number ones than baseline (11% vs 8%)
+	// AND more one-week ones (79% vs 74%), leaving total turnover flat at 38 against 39. What this
+	// setting does bank is longevity: Top-40 median life 9 -> 11 weeks (in band), longest number-one
+	// run 3 -> 5, entries 17.4/wk (in band), with the least genre distortion of any airplay variant
+	// (top-three concentration 58.2% against a 52.7% baseline and 66.6% for the cubed product).
+	// Reducing number-one turnover needs UpdateRadioHeat recomposed so heat is mostly earned rather
+	// than mostly generic; that touches awareness and therefore demand, so it is its own change.
+	private const float AIRPLAY_CONVEXITY = 5.0f;
+	private const float AIRPLAY_REFERENCE_PLAY = 0.30f;
+	// TRIED AND REJECTED -- do not repeat. The comment above says the exponent applies to the
+	// record's own rotation "with genre access divided out and paid back linearly", and it is
+	// tempting to read UpdateRadioHeat's `* genreAcceptance` as a second, undivided access term
+	// riding inside the fifth power: national acceptance spans .16 (Rock and Roll) to 1.00
+	// (Psychedelic Rock) at 1967, so Soul at .87 against Sunshine Pop at .50 becomes 16.7x of
+	// airplay points. Dividing that level out of ownRotation and paying it back linearly, exactly as
+	// access is treated, INVERTS THE CHART. Measured over a decade (d7-airpayback-decade-522-1001):
+	// year-end slot error 649 -> 1344, market-share error 197.9 -> 286.5, and the 1968 chart became
+	// Rock and Roll 43 / Rocksteady 13 / Doo-Wop 11 / Ska 10 with Soul scoring zero against a
+	// hand-counted 28.
+	//
+	// The algebra says why: the net level term becomes level^(1-CONVEXITY) = level^-4, which is
+	// 1452x for Rock and Roll against 1.75x for Soul. But the real error is conceptual. Rotation and
+	// AIRPLAY_REFERENCE_PLAY are ABSOLUTE spin levels, so "own rotation" is only meaningful measured
+	// against an absolute reference. A record in a genre nobody programmes is genuinely in light
+	// rotation -- that is a physical fact about spins, not a distortion to be normalized away, and
+	// the chart counts spins. Access survives the same division only because it spans 1.83x rather
+	// than 6.2x, so its distortion stays small.
+	//
+	// The genre amplifier this file warns about is therefore load-bearing, not a bug: it is what
+	// keeps high-acceptance genres on top. The section 6.1 top-40 ceiling is real -- Sunshine Pop
+	// holds its target market share and reaches the top 40 zero times in 1967, and half its 5.7x
+	// mean-units gap against Soul accumulates after release (week-1 radioHeat .360 vs .385, week-12
+	// .181 vs .398) -- but the cause is not here.
+	// Top 40 radio consolidated across the decade and its chart influence grew with it, so a flat
+	// weight is the wrong shape: 1960 is closer to a sales chart than 1968 is.
+	private const int AIRPLAY_ERA_START_YEAR = 1960;
+	private const int AIRPLAY_ERA_FULL_YEAR = 1968;
+	private const float AIRPLAY_ERA_WEIGHT_EARLY = 0.60f;
+	private const float AIRPLAY_ERA_WEIGHT_LATE = 1.00f;
 	
+	// THE CHART IS A SURVEY, NOT A CENSUS. Before 1973 Billboard polled roughly 110 outlets by hand --
+	// 63 radio stations, 25 one-stops and 22 retailers -- and graded each return "very good" (20),
+	// "good" (15) or "fair" (5), for a theoretical maximum of 1,645 sales points and 2,040 airplay
+	// points. Every chart this model has ever produced ranked on an exact continuous read of the whole
+	// live population instead, and that is a mechanism missing rather than a constant mistuned.
+	//
+	// It matters because sampling error is NOT demand noise: it reorders the chart without moving a
+	// single unit, which is exactly what three separate misses need. Measured on
+	// d7-hesb-decade-522-1001: mean weeks at number one 3.80 against a historical 2.57, only 5,150
+	// distinct records charting against ~6,964, and a mean chart life of 9.23 weeks against 7.48. The
+	// three are not independent -- records x mean life is pinned at 52,100 slot-weeks by the hundred
+	// slots themselves -- and survey noise moves all of them together, because records near the cutoff
+	// begin to flicker in and out instead of sitting stably.
+	//
+	// The diagnosis it replaces: the first guess was that rank exposure was sustaining leaders at the
+	// top, and the fix proposed was a sales gate. Both were wrong. Chart life by peak band shows the
+	// number-one band overshooting LEAST (17.67 -> 20.46, 1.16x) and the 41-70 band overshooting most
+	// (4.21 -> 8.55, 2.03x), so the excess sits at the bottom of the chart, not the top. A sales gate
+	// keyed on "selling like a record of that rank" is also circular: sales are what set the rank, so
+	// by construction every record clears it.
+	//
+	// A record's sampling error scales with how many of the panel's outlets carry it at all, so the
+	// error is small for a smash and large for a record scraping the hundred -- the same J-curve
+	// Hesbacher describes, arriving from the measurement side.
+	private const int SURVEY_PANEL_SIZE = 110;
+	private const float SURVEY_FULL_REPORT_UNITS = 30000f;
+	private const float SURVEY_MIN_PANEL_SHARE = 0.06f;
+	private const float SURVEY_NOISE_SCALE = 1.0f;
+	// Capped well below what 1/sqrt(n) alone would give the smallest reporting records. At 0.45 a
+	// record carried by a handful of outlets could be published at twice its true score, which vaulted
+	// marginal records onto the chart far too high: debuts above #60 went 14.7% -> 20.4% against a
+	// historical 2.6%. The panel was rough about small records, not delusional about them.
+	private const float SURVEY_MAX_SIGMA = 0.30f;
+
 	private const float BASE_PURCHASE_RATE = 0.07f;
 	private const float QUALITY_EXPONENT = 4.0f;
+	// Neither of these is the sales curve's problem, and both have been measured saying so.
+	// Across the sales peak of the 99 top-10 records of d7-airplay5-52-1001, the geometric-mean
+	// week-over-week ratio was 0.9821 for saturation and 0.9924 for age decay, against an observed
+	// 0.6970. Median saturation AT the sales peak is 0.0030 -- a hit has reached three tenths of one
+	// percent of its potential audience, so there is no exhaustion to model. Do not tune these to
+	// flatten the curve; the launch term below was carrying the entire fall.
 	private const float SATURATION_POWER = 0.45f;
 	private const float DEMAND_AGE_DECAY_RATE = 0.91f;
+	// A 1960s single was not born at its peak. It shipped to a fraction of the market, earned
+	// rotation week by week, and reached full availability over roughly six weeks. That is why the
+	// average Hot 100 debut position was #86.8, why 75.7% of debuts landed in the bottom twenty, and
+	// why no record debuted inside the top ten until "Hey Jude" in 1968 -- which entered at #10,
+	// reached #3, then held #1 for nine weeks from its third week on the chart.
+	//
+	// What stood here was the exact inverse: a launch multiplier of 2.0 + push*2.5 (3.25x at a
+	// typical push) in week one, decaying to 1.0 by week four. Measured, that one term supplied a
+	// 0.6995 week-over-week ratio across the sales peak against an observed 0.6970 -- the whole 30%
+	// fall. Its consequences were a sales peak and a chart peak both at week 2, 87.6% of charting
+	// records debuting at their peak position, a #1 record whose median debut position was #1, and a
+	// debut distribution that was uniform across all ten deciles against a history concentrated
+	// 44.2% in 91-100.
+	//
+	// The plateau this arc has been trying to build was already underneath it. With the launch term
+	// divided out, latent demand for a number one runs 47/100/89/77/72/66/63/62 over its first eight
+	// weeks. Multiplying that by a ramp rather than a spike turns it into a five-week shelf at
+	// 88-100% of peak, which is what holds a record at number one for more than a single week.
+	//
+	// The floor is where a record starts, not where a weak record stays: push widens the opening
+	// shipment but cannot skip the ramp, because national distribution and radio rotation took weeks
+	// to build for anyone. At a typical push of 0.5 the floor is 0.28, which puts week-one sales at
+	// 20% of an eventual number one's peak and 29% of a top-ten record's -- inside the historical
+	// 20-35% and 25-40% bands.
+	// A single ramp length applied to every record was the first version of this, and it failed in a
+	// way worth recording: it moved every record onto the SAME schedule, so the whole chart climbed
+	// in lockstep, nobody crossed anybody, and the leader simply outlasted its challengers. Top-ten
+	// entrants halved (103 -> 59 across 52 weeks) while top-ten dwell doubled, and mean weeks at
+	// number one went to 3.5 against a historical 2.57 -- and that was measured at 1960, the year
+	// with the weakest airplay era weight, so the decade would have been worse. The number-one
+	// margin over the runner-up was 1.074, i.e. the leader was not winning by much; it was winning
+	// unopposed.
+	//
+	// Ramp length therefore varies by campaign. A national push shipped to every market at once and
+	// bought rotation immediately; a small label's record crept outward region by region on local
+	// airplay and jukebox play, which is the slow regional-to-national breakout this model already
+	// simulates elsewhere. Records now peak at different weeks, cross each other, and displace each
+	// other.
+	// KNOWN OPEN ISSUE, with three hypotheses already falsified against it. This ramp overshoots
+	// number-one tenure: 3.71 mean weeks at 1960 against a historical 2.57, and 50% of number ones
+	// holding 3+ weeks against 41%. That is measured at 1960, the weakest airplay-era-weight year,
+	// so the decade will read worse.
+	//
+	// It is NOT that challengers are scarce -- that was the first guess and the telemetry refutes it.
+	// Records within 10% of the leader's points went 1 -> 2 and within 25% went 3 -> 5, so the
+	// contender pool GREW. It is not the ramp length: 5 weeks against 6 moved nothing and the peak
+	// stayed at week 8 either way, because the top-ten feedback loop rather than the ramp is what
+	// sets the peak. It is not AIRPLAY_CONVEXITY: 5 -> 3 left tenure at 3.47.
+	//
+	// The cause is volatility, not level. The median week-over-week change in the number-one to
+	// number-two points gap fell from 0.2497 to 0.0496 while the gap itself only moved 1.149 ->
+	// 1.074. Under the old spiky curves the lead was smaller than its own weekly noise, so the
+	// ordering flipped almost every week -- 77% one-week number ones, far too MUCH churn. Smooth
+	// plateaus cut that noise five- to sixfold and ordering became persistent. The historical
+	// distribution is bimodal (27% at one week AND 41% at three or more), which needs a genuine
+	// appeal separation at the top plus enough weekly noise to displace marginal number ones.
+	// Whatever supplies that noise belongs in the airplay pass, where station adds and drops were
+	// genuinely lumpy, and not in demand.
+	//
+	// Per-record ramp dispersion by campaign was tried as a fix and rejected: it de-synchronised the
+	// pack but barely moved tenure (3.71 -> 3.25) while taking top-ten debuts from 2 to 6 across 52
+	// weeks, roughly sixty a decade against the one the Hot 100 saw before 1970.
+	private const float RELEASE_RAMP_FLOOR_BASE = 0.20f;
+	private const float RELEASE_RAMP_FLOOR_PUSH = 0.16f;
+	private const int RELEASE_RAMP_FULL_WEEK = 6;
+	// The ramp is LINEAR. A convex ramp has now been tried and rejected TWICE, on opposite sides of
+	// the Hesbacher change, and the second test is the informative one. The first rejection (flat
+	// chart) moved mean debut 74.9 -> 74.0; the retest on the steep chart, where the same points
+	// shortfall should have cost far more positions, moved it 77.2 -> 76.7 and cost chart life
+	// (6.94 -> 6.01). Debut position is not a function of this ramp. Do not try it a third time.
+	//
+	// What debut IS a function of: the week-over-week growth rate at the moment of entry, against the
+	// density of published points around the cutoff. A record clears #100 and then passes every rank
+	// whose points its next week exceeds. Measured on d7-survey-decade-522-1001 the published curve
+	// runs #75 at 10.4% of a number one and #100 at 8.2%, a ratio of 1.27, where Hesbacher wants
+	// 295/178 = 1.66. A record growing 30-40% in its entry week therefore vaults from #100 to about
+	// #73 -- which is exactly the 41-70 band's observed median debut of #73.
+	//
+	// So the debut distribution is downstream of how steep the BOTTOM of the published curve is, and
+	// the lever for that is CHART_EXPOSURE_EXPONENT, which is currently entangled with Soul's chart
+	// divergence (section 12.4i). Sequence the Soul authoring fix first.
+	// Reshaping the curve without rescaling it costs 28.9% of Single units at first order, measured
+	// by reweighting every record-week of d7-airplay5-52-1001 by the new ramp over the old launch
+	// term. Decade Single units are an accepted result, so the ramp is renormalised to hold them.
+	// This is deliberately its own constant rather than a change to BASE_PURCHASE_RATE: it is a
+	// consequence of the shape change, and the first-order estimate ignores the awareness, momentum
+	// and chart-position feedbacks that will amplify the cut. RE-DERIVE IT from the realised units
+	// of the run that follows this change rather than trusting 1.41.
+	private const float RELEASE_RAMP_UNIT_RENORMALIZATION = 1.41f;
 	private const float LegacyMajorDemandScale = 0.60f;
 	private const float LegacyMidTierDemandScale = 0.85f;
 	
@@ -92,6 +407,10 @@ public static class ChartSimulator {
 		record.unitsPreviousWeek = record.unitsThisWeek;
 		record.unitsThisWeek = totalSales;
 		record.totalUnitsSold += totalSales;
+		if (totalSales > record.peakWeeklyUnits) {
+			record.peakWeeklyUnits = totalSales;
+			record.weeksSincePeakUnits = 0;
+		} else record.weeksSincePeakUnits++;
 		UpdateMomentum(record);
 	}
 	
@@ -135,8 +454,8 @@ public static class ChartSimulator {
 		float baselineAwareness = Mathf.Clamp(effectiveAwareness, 0f, 1f);
 		
 		// === 3. MARKET EXHAUSTION ===
-		float potentialAudience = GetRegionalPotentialAudience(record, region, quality);
-		
+		float potentialAudience = GetRegionalPotentialAudience(record, region, quality, year);
+
 		float regionalSold = regionalData.unitsSoldTotal;
 		float penetration = regionalSold / Mathf.Max(1f, potentialAudience);
 		
@@ -165,17 +484,16 @@ public static class ChartSimulator {
 		regionalData.breakoutVisibilityMultiplier = chartVisibility;
 		float chartSignal = Mathf.Max(.01f, chartVisibility);
 		if (!stagedLiveDemand) conversionRate *= chartVisibility;
+		// The J-curve. chartVisibility above is a five-step ladder that enters the staged model only
+		// through the geometric-mean discovery term, where a 4.5x spread is cube-rooted to 1.65x and
+		// cannot express Hesbacher at all. This carries the rank curve directly instead: it is
+		// purchase exposure -- rack space, jukebox slots, the listening booth -- rather than
+		// discovery, so it belongs on conversion and not inside the awareness odds.
+		conversionRate *= GetChartExposureWeight(internalChartPosition);
 		
-		// === 6. LAUNCH BOOST ===
-		float launchBoost = 1.0f;
-		if (record.weeksSinceRelease <= 1) {
-			launchBoost = 2.0f + (record.currentLabelPush * 2.5f);
-		} else if (record.weeksSinceRelease <= 2) {
-			launchBoost = 1.5f + (record.currentLabelPush * 1.0f);
-		} else if (record.weeksSinceRelease <= 3) {
-			launchBoost = 1.2f + (record.currentLabelPush * 0.4f);
-		}
-		conversionRate *= launchBoost;
+		// === 6. RELEASE RAMP ===
+		conversionRate *= GetReleaseRampWeight(record.weeksSinceRelease, record.currentLabelPush) *
+			RELEASE_RAMP_UNIT_RENORMALIZATION;
 		
 		// === 7. MOMENTUM BONUS ===
 		float momentumBonus = 1f + Mathf.Clamp(record.momentum, -0.2f, 0.5f);
@@ -214,7 +532,7 @@ public static class ChartSimulator {
 				Mathf.Max(.01f, momentumBonus), Mathf.Max(.01f, .75f + record.radioHeat * .5f), demandCurve,
 				genreAcceptance, GenreAcceptanceService.GetLiveFormatMultiplier(record.baseRecord.primaryGenre,
 					record.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
-					region.GetEnabledAlbumOpportunityWeight(record.baseRecord.primaryGenre, year), true),
+					region.GetMarketAlbumOpportunityWeight(year), true),
 				conversionRate / Mathf.Max(.000001f, BASE_PURCHASE_RATE * demandCurve));
 			awareBuyers = stages.AwareBuyers;
 			conversionRate = stages.IntrinsicConversionRate;
@@ -345,24 +663,140 @@ public static class ChartSimulator {
 		Mathf.Clamp(0.45f + Mathf.Clamp(distributionStrength, 0f, 1f) * 0.55f +
 			Mathf.Clamp(nationalReach, 0f, 1f) * 0.35f, 0.55f, 1.20f);
 
-	private static float GetGenreMarketReach(Genre genre) {
-		return genre switch {
-			Genre.TraditionalPop => 0.95f,
-			Genre.RockAndRoll => 0.85f,
-			Genre.Soul => 0.70f,
-			Genre.RnB => 0.65f,
-			Genre.TeenPop => 0.75f,
-			Genre.DooWop => 0.60f,
-			Genre.Country => 0.50f,
-			Genre.Gospel => 0.35f,
-			Genre.Jazz => 0.40f,
-			Genre.Folk => 0.45f,
-			Genre.BritishInvasion => 0.80f,
-			Genre.Psychedelic => 0.50f,
-			Genre.SurfRock => 0.55f,
-			_ => 0.60f
-		};
+	// The share of the buying public a genre could reach at all, i.e. the denominator a record
+	// exhausts as it sells. This was a hand-written pre-V2 switch on the raw enum: it enumerated
+	// only legacy genre names, defaulted 31 of the 42 canonical genres to a silent .60, and two of
+	// its entries (BritishInvasion, Psychedelic) were legacy values MapLegacy converts away before
+	// this is ever reached, so they never fired. It also froze 1960 assumptions for all ten years --
+	// British Beat, second-highest in the authored table at .80, was collecting the .60 default.
+	//
+	// A genre's reach IS its demand baseline, which GenreCatalog already owns, per year, calibrated
+	// against the historical market-share targets. Deriving from it removes the duplicate statement
+	// and makes reach move with the decade instead of standing still. The floor and span reproduce
+	// the authored table's original .35-.95 range.
+	//
+	// EXPECT NO CHART EFFECT. This is a correctness repair, not a calibration one. Reach's only
+	// consumer is exhaustionFactor, and penetration is ~.0005 at a hit's peak -- see the
+	// SATURATION_POWER block above. Measured on d7-psychedge, the largest repair this term admits
+	// is worth 1.4% of units and is very slightly regressive against the Soul/SunshinePop gap it
+	// was once suspected of causing. Do not A/B it; the effect is two orders of magnitude under the
+	// single-seed noise floor.
+	private const float GENRE_REACH_FLOOR = 0.35f;
+	private const float GENRE_REACH_SPAN = 0.60f;
+
+	private static float GetGenreMarketReach(Genre genre, int year) {
+		Genre canonical = GenreCatalog.MapLegacy(genre, year);
+		if (!GenreCatalog.TryGet(canonical, out GenreProfile profile)) return GENRE_REACH_FLOOR + GENRE_REACH_SPAN * 0.5f;
+		return Mathf.Clamp(GENRE_REACH_FLOOR + profile.GetBaseline(year) * GENRE_REACH_SPAN,
+			GENRE_REACH_FLOOR, GENRE_REACH_FLOOR + GENRE_REACH_SPAN);
 	}
+
+	/// <summary>
+	/// The share of its eventual market a record can reach this week. Distribution breadth and radio
+	/// rotation both start near zero and build, so this rises from a push-widened floor to 1.0 and
+	/// stays there. Everything after the ramp completes is owned by age decay, saturation and the
+	/// awareness stock -- this term never causes a decline. A heavier campaign opens wider but runs
+	/// the same six weeks, because national distribution and radio rotation took weeks to build for
+	/// anyone; see the constants above for why varying the length by campaign was tried and rejected.
+	/// </summary>
+	internal static float GetReleaseRampWeight(int weeksSinceRelease, float labelPush) {
+		if (weeksSinceRelease >= RELEASE_RAMP_FULL_WEEK) return 1f;
+		float floor = RELEASE_RAMP_FLOOR_BASE + Mathf.Clamp(labelPush, 0f, 1f) * RELEASE_RAMP_FLOOR_PUSH;
+		float progress = Mathf.Clamp((weeksSinceRelease - 1f) / (RELEASE_RAMP_FULL_WEEK - 1f), 0f, 1f);
+		return Mathf.Lerp(floor, 1f, progress);
+	}
+
+	// Hesbacher's Billboard weighting, adapted to the 1960s Hot 100:
+	//
+	//     y(x) = 4139 - 4357 * x / (x + 10)
+	//
+	// the "appropriate proportion of designated popularity" a rank commands. It reproduces the
+	// authored tier table exactly -- 3,743 at #1, 1,960 at #10, 1,027 at #25, 508 at #50, 295 at #75,
+	// 178 at #100 -- and its J-curve of inequality is the shape this chart was missing. Pre-1973
+	// Billboard polled ~110 outlets by hand (63 stations, 25 one-stops, 22 retailers), so rank was
+	// always a survey-weighted composite rather than a units count, and this curve is what that
+	// composite produced.
+	//
+	// Measured against it, the model's curve was far too flat below #20: 17.4% of the number one's
+	// points at #90 against Hesbacher's 5.8%, and #100 at 16.2% against 4.8%. The cause was not a
+	// bloated tail -- #100 sells 5,377 a week against a historical ~7,200, so the bottom of the chart
+	// is about right -- but a missing top: #1 sold 28,838 against a historical ~150,000. The chart was
+	// flat because the hits were absent.
+	//
+	// NOTE ON LEVEL vs SHAPE. Summing the authored per-rank sales across all 100 ranks at #1 = 150,000
+	// needs 3.23M units a week on the chart against a total Single market of 2.85M/week, i.e. the top
+	// hundred would be 113% of everything sold. The shape is therefore implemented and the level is
+	// left to fall out of the calibrated total, which puts #1 nearer 60-80k. Raising the level is a
+	// separate decision about total market size -- 148M Singles a year is itself roughly 22% under
+	// real 1960 US volume.
+	private const float HESBACHER_INTERCEPT = 4139f;
+	private const float HESBACHER_SCALE = 4357f;
+	private const float HESBACHER_HALF_RANK = 10f;
+	// Rank already earns exposure elsewhere -- through GetChartVisibilityMultiplier, the top-10 and
+	// top-40 awareness floors, the top-20 shelf-capacity bonus and the rack-jobber channel -- so
+	// paying the raw 21x Hesbacher spread again would compound to roughly 113x between #1 and #100
+	// against the 20.8x the tier table wants. The exponent is the fitted share of the curve this term
+	// carries.
+	//
+	// A SINGLE EXPONENT COULD NOT FIT THE CURVE, because the error was two-sided. Measured on
+	// d7-drop-decade-522-1001, the published curve ran #10 at 40.9% of #1 where Hesbacher wants 52.3%
+	// -- the top ten too spread out -- and #100 at 6.9% where it wants 4.8% -- the bottom too flat.
+	// #1 -> #10 was 2.44x against 1.91x while #10 -> #100 was 5.9x against 10.9x. Raising a single
+	// exponent fixes the bottom and makes the top worse; lowering it does the reverse. This is the
+	// tension section 12.4c named and could not resolve: "the curve must steepen from #10 downward
+	// while the top ten stays crowded".
+	//
+	// Dividing the published curve by this term leaves what the rest of the model contributes, and
+	// that residual is what settles it: to reach Hesbacher, exposure has to supply 5.49x at #1 and
+	// 5.28x at #10 -- the same number. **Exposure across the top ten must be flat**, and it is a
+	// physical claim rather than a fitting trick: retail and jukebox exposure SATURATES there. A store
+	// stocked "the top ten" as a category and built one display for it, a jukebox carried the top ten,
+	// and the marginal rack facing between #1 and #9 is nothing next to the cliff between #10 and #40.
+	// Flattening it also removes a positive-feedback loop at exactly the rank where section 11.4 item 3
+	// warns about one.
+	//
+	// So the plateau sets the top and the exponent sets the bottom, and they are now independent: the
+	// published #10/#1 ratio is fixed by the residual alone at ~54%, whatever the exponent does below.
+	// First-order fit at the plateau, against a Hesbacher target of 52.3 / 27.4 / 13.6 / 7.9 / 4.8:
+	//
+	//   k=0.44  54.4 / 27.4 / 16.5 / 11.8 / 9.2      (the bottom is untouched and still far too flat)
+	//   k=0.55  54.4 / 25.5 / 14.2 /  9.6 / 7.0
+	//   k=0.62  54.4 / 24.4 / 12.9 /  8.4 / 6.0      <- shipped
+	//   k=0.69  54.4 / 23.3 / 11.8 /  7.4 / 5.0      (lands #100 but pulls #25 well under)
+	//
+	// Position feeds back on itself, so the realised spread will exceed the first-order figure --
+	// section 12.4d predicted 60-80k for the #1 and measured 89,962. Re-derive from a probe rather
+	// than trusting 0.62, which is why `SimTools/curve.py` exists.
+	private const int CHART_EXPOSURE_PLATEAU_RANK = 10;
+	private const float CHART_EXPOSURE_EXPONENT = 0.62f;
+
+	private static readonly float ChartExposureMean = ComputeChartExposureMean();
+
+	private static float ComputeChartExposureMean() {
+		float total = 0f;
+		for (int rank = 1; rank <= 100; rank++) total += RawChartExposure(rank);
+		return total / 100f;
+	}
+
+	private static float RawChartExposure(int position) {
+		// The top ten is a category rather than a ranking, so exposure saturates across it. See the
+		// CHART_EXPOSURE_PLATEAU_RANK note: the residual arithmetic asks for 5.49x at #1 and 5.28x at
+		// #10, which is one number, and a store that builds a Top 10 display does not rebuild it when
+		// two records swap places inside it.
+		float x = Mathf.Max(Mathf.Clamp(position, 1, 100), CHART_EXPOSURE_PLATEAU_RANK);
+		float weight = HESBACHER_INTERCEPT - HESBACHER_SCALE * x / (x + HESBACHER_HALF_RANK);
+		float floorWeight = HESBACHER_INTERCEPT - HESBACHER_SCALE * 100f / (100f + HESBACHER_HALF_RANK);
+		return Mathf.Pow(weight / floorWeight, CHART_EXPOSURE_EXPONENT);
+	}
+
+	/// <summary>
+	/// Exposure a chart rank buys, normalised to average 1 across the hundred slots so this reshapes
+	/// the chart without moving total units. An uncharted record is treated as the bottom of the
+	/// chart rather than worse than it, because the charted/uncharted gap is already owned by
+	/// GetChartVisibilityMultiplier and must not be charged twice.
+	/// </summary>
+	internal static float GetChartExposureWeight(int position) =>
+		RawChartExposure(position <= 0 ? 100 : position) / ChartExposureMean;
 
 	private static float GetChartVisibilityMultiplier(int position) {
 		if (position <= 0) return 0.4f;
@@ -406,25 +840,78 @@ public static class ChartSimulator {
 		float targetHeat = (qualityFactor + pushFactor + momentumFactor) * genreAcceptance;
 		targetHeat += record.artistHeat * 0.12f;
 		
+		// Earned by sales, not by the position itself -- see RADIO_POSITION_BONUS_SALES_FLOOR.
+		float positionBonusGate = Mathf.Clamp(record.unitsThisWeek / RADIO_POSITION_BONUS_SALES_FLOOR, 0f, 1f);
 		if (record.currentPosition > 0 && record.currentPosition <= 10) {
-			targetHeat += 0.25f;
+			targetHeat += 0.25f * positionBonusGate;
 		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {
-			targetHeat += 0.1f;
+			targetHeat += 0.1f * positionBonusGate;
 		}
 		
-		if (record.weeksSinceRelease > 8) {
-			int weeksOverThreshold = record.weeksSinceRelease - 8;
-			float fatigue = Mathf.Pow(RADIO_FATIGUE_DECAY, weeksOverThreshold);
-			targetHeat *= fatigue;
+		if (record.weeksSincePeakUnits > 0) {
+			targetHeat *= Mathf.Pow(RADIO_FATIGUE_DECAY, record.weeksSincePeakUnits);
 		}
 
-		float lerpRate = (targetHeat > record.radioHeat) ? 0.28f : 
+		float lerpRate = (targetHeat > record.radioHeat) ? 0.28f :
 						(record.weeksSinceRelease > 12) ? 0.22f : 0.10f;
 		
 		record.radioHeat = Mathf.Lerp(record.radioHeat, targetHeat, lerpRate);
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 	}
 	
+	/// <summary>
+	/// How much of its eventual rotation a record has earned this week. Stations added a record over
+	/// several weeks rather than all at once, so this mirrors the release ramp: sales and airplay now
+	/// build on the same clock instead of airplay arriving at full strength while sales are still
+	/// throttled to a quarter of peak.
+	/// </summary>
+	internal static float GetRadioBuildWeight(int weeksSinceRelease) {
+		if (weeksSinceRelease >= RADIO_BUILD_FULL_WEEK) return 1f;
+		float progress = Mathf.Clamp((weeksSinceRelease - 1f) / (RADIO_BUILD_FULL_WEEK - 1f), 0f, 1f);
+		return Mathf.Lerp(RADIO_BUILD_FLOOR, 1f, progress);
+	}
+
+	/// <summary>
+	/// How far a record is still selling against its own best week. 1 all the way up the climb,
+	/// because peakWeeklyUnits is a running maximum, so anything keyed to this is neutral until the
+	/// record turns over. A record with no sales history yet reads as fully supported.
+	/// </summary>
+	internal static float GetSalesSupportRatio(RecordRuntimeData record) =>
+		record == null || record.peakWeeklyUnits <= 0
+			? 1f
+			: Mathf.Clamp(record.unitsThisWeek / (float)record.peakWeeklyUnits, 0f, 1f);
+
+	/// <summary>
+	/// This week's chance that one region's stations cut a record from current rotation. Two
+	/// independent reasons to drop it, combined as competing hazards: the local sales reports have
+	/// gone soft, or the record has simply been on too long. Returns 0 during the grace period so a
+	/// record cannot be dropped on the one-week wobble that follows its peak.
+	/// </summary>
+	internal static float GetStationDropChance(float salesSupportRatio, int weeksSincePeakUnits) {
+		if (weeksSincePeakUnits < STATION_DROP_GRACE_WEEKS) return 0f;
+		float fade = Mathf.Clamp(
+			(STATION_DROP_SUPPORT_CEILING - salesSupportRatio) /
+			(STATION_DROP_SUPPORT_CEILING - STATION_DROP_SUPPORT_FLOOR), 0f, 1f);
+		float burn = Mathf.Clamp(
+			(weeksSincePeakUnits - STATION_DROP_BURN_ONSET_WEEKS) / (float)STATION_DROP_BURN_FULL_WEEKS,
+			0f, 1f);
+		return STATION_DROP_MAX_WEEKLY_CHANCE * (1f - (1f - fade) * (1f - burn));
+	}
+
+	/// <summary>
+	/// Whether a region's rotation is even a candidate for the drop. A record has to be on the air to
+	/// be taken off it, which also keeps the RNG stream off the thousands of live records carrying no
+	/// rotation at all.
+	/// </summary>
+	internal static bool IsStationDropCandidate(RegionalRecordData data) =>
+		data != null && !data.stationsDropped && data.radioPlay > STATION_DROP_MIN_ROTATION;
+
+	/// <summary>
+	/// Rotation left in a region the week its stations cut the record. Not a lerp: the point of the
+	/// mechanic is that a playlist drop is a decision taken between two weekly meetings.
+	/// </summary>
+	internal static float GetDroppedRotation(float radioPlay) => radioPlay * STATION_DROP_RESIDUAL;
+
 	public static float GetRadioDifficulty(MarketRegion region) {
 		// Godot Mathf lacks Log10, so we use natural Log divided by Log(10)
 		float log10 = Mathf.Log(region.media.totalRadioStations + 1) / Mathf.Log(10);
@@ -662,11 +1149,13 @@ public static class ChartSimulator {
 		float weightedPenetration = 0f;
 		float totalPotentialAudience = 0f;
 		float quality = record.GetQuality();
+		// Telemetry-only path, so it resolves its own year; GetBaseline clamps outside 1960-69.
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 
 		foreach (var region in regions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out var regionalData)) continue;
 
-			float potentialAudience = GetRegionalPotentialAudience(record, region, quality);
+			float potentialAudience = GetRegionalPotentialAudience(record, region, quality, year);
 			float penetration = regionalData.unitsSoldTotal / Mathf.Max(1f, potentialAudience);
 			weightedPenetration += penetration * potentialAudience;
 			totalPotentialAudience += potentialAudience;
@@ -677,9 +1166,9 @@ public static class ChartSimulator {
 			: 0f;
 	}
 
-	private static float GetRegionalPotentialAudience(RecordRuntimeData record, MarketRegion region, float quality) {
+	private static float GetRegionalPotentialAudience(RecordRuntimeData record, MarketRegion region, float quality, int year) {
 		float qualityAppeal = 0.3f + (quality * 0.7f);
-		float genreReach = GetGenreMarketReach(record.baseRecord.primaryGenre);
+		float genreReach = GetGenreMarketReach(record.baseRecord.primaryGenre, year);
 		return BASE_POTENTIAL_AUDIENCE * qualityAppeal * genreReach * (region.population / 50f);
 	}
 	
@@ -723,20 +1212,83 @@ public static class ChartSimulator {
 	// =======================================================================
 	
 	// Changed List<MarketRegion> to MarketRegion[] to match ChartManager
-	public static float CalculateChartPoints(RecordRuntimeData record, MarketRegion[] regions) {
+	// The year is resolved here rather than threaded through the five call sites so the audit
+	// telemetry that recomputes chart points can never disagree with the ranking that used them.
+	public static float CalculateChartPoints(RecordRuntimeData record, MarketRegion[] regions) =>
+		CalculateChartPoints(record, regions, TimeManager.Instance?.CurrentDate.year ?? AIRPLAY_ERA_START_YEAR);
+
+	public static float CalculateChartPoints(RecordRuntimeData record, MarketRegion[] regions, int year) {
 		float salesPoints = record.unitsThisWeek;
-		
+
 		float airplayPoints = 0f;
 		foreach (var region in regions) {
 			if (!record.regionalData.ContainsKey(region.regionId)) continue;
 			var data = record.regionalData[region.regionId];
-			
+
 			if (region.media != null) {
-				airplayPoints += data.radioPlay * region.media.radioReach * region.population * 25f;
+				// Convexity is there to separate a heavily rotated record from a lightly rotated one.
+				// It must not also cube the genre's radio access. Acceptance already enters rotation
+				// twice -- once through radioHeat, once through the regional radio opportunity -- so
+				// raising the product to a power compounded a genre disadvantage to roughly the sixth
+				// power. Measured at 1960 that moved the top three genres from 52.6% to 66.6% of the
+				// chart and left Soul holding 0.9% of chart weeks against 5.8% of units. Access is
+				// divided back out, the record's own rotation carries the exponent, and access is then
+				// paid back linearly.
+				float access = data.genreRadioOpportunityThisWeek > 0f ? data.genreRadioOpportunityThisWeek : 1f;
+				float ownRotation = data.radioPlay / access;
+				float rotation = AIRPLAY_REFERENCE_PLAY *
+					Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, AIRPLAY_CONVEXITY) * access;
+				airplayPoints += rotation * region.media.radioReach * region.population *
+					AIRPLAY_POINTS_PER_MILLION_REACHED;
 			}
 		}
-		
-		return salesPoints + (airplayPoints * 0.15f);
+
+		// The published score, not the true one: surveySampleThisWeek is the week's panel draw, cached
+		// on the record so this method stays a pure function of stored state and the audit telemetry
+		// reproduces the ranking byte for byte.
+		return (salesPoints + (airplayPoints * GetAirplayEraWeight(year))) * record.surveySampleThisWeek;
+	}
+
+	/// <summary>
+	/// How many of the panel's outlets report a record at all. A national smash is stocked and played
+	/// nearly everywhere the survey reaches; a record scraping the hundred turns up in a handful of
+	/// returns, which is why its published position was so much rougher than a hit's.
+	/// </summary>
+	internal static float GetSurveyReportingOutlets(float unitsThisWeek) =>
+		SURVEY_PANEL_SIZE * Mathf.Clamp(unitsThisWeek / SURVEY_FULL_REPORT_UNITS,
+			SURVEY_MIN_PANEL_SHARE, 1f);
+
+	/// <summary>
+	/// Relative sampling error on this week's published score. Standard error of a mean falls as
+	/// 1/sqrt(n), so the panel's coarse three-grade returns are far noisier for a record only a few
+	/// outlets carry.
+	/// </summary>
+	internal static float GetSurveySigma(float unitsThisWeek) =>
+		Mathf.Min(SURVEY_MAX_SIGMA,
+			SURVEY_NOISE_SCALE / Mathf.Sqrt(Mathf.Max(1f, GetSurveyReportingOutlets(unitsThisWeek))));
+
+	/// <summary>
+	/// One week's survey draw for one record: a lognormal multiplier with a mean of exactly 1, so the
+	/// panel is unbiased and only its precision varies. Drawn once per record per week by
+	/// ChartManager and cached on the record -- never call this from CalculateChartPoints, which the
+	/// audit telemetry re-invokes and which must reproduce the ranking exactly.
+	/// </summary>
+	public static float DrawSurveySample(float unitsThisWeek) {
+		float sigma = GetSurveySigma(unitsThisWeek);
+		if (sigma <= 0f) return 1f;
+		// Box-Muller off the seeded global RNG, so the draw stays reproducible under --seed.
+		float u1 = Mathf.Max(1e-7f, (float)GD.RandRange(0.0, 1.0));
+		float u2 = (float)GD.RandRange(0.0, 1.0);
+		float standardNormal = Mathf.Sqrt(-2f * Mathf.Log(u1)) * Mathf.Cos(Mathf.Tau * u2);
+		// -sigma^2/2 keeps E[exp(X)] at 1, so noise reorders the chart without inflating it.
+		return Mathf.Exp(standardNormal * sigma - sigma * sigma * 0.5f);
+	}
+
+	internal static float GetAirplayEraWeight(int year) {
+		if (year <= AIRPLAY_ERA_START_YEAR) return AIRPLAY_ERA_WEIGHT_EARLY;
+		if (year >= AIRPLAY_ERA_FULL_YEAR) return AIRPLAY_ERA_WEIGHT_LATE;
+		float progress = (float)(year - AIRPLAY_ERA_START_YEAR) / (AIRPLAY_ERA_FULL_YEAR - AIRPLAY_ERA_START_YEAR);
+		return Mathf.Lerp(AIRPLAY_ERA_WEIGHT_EARLY, AIRPLAY_ERA_WEIGHT_LATE, progress);
 	}
 	
 	// =======================================================================

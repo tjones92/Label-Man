@@ -267,7 +267,7 @@ public static class GenreAcceptanceService {
 				float supplyWeight = GenreSupplyService.GetSupplyWeight(genre, null, null, null, year);
 				if (supplyWeight <= 0f) continue;
 				float routedAcceptance = GetRegionalDemandAcceptance(genre, genre, region, year, 0f);
-				float albumOpportunity = region.GetEnabledAlbumOpportunityWeight(genre, year);
+				float albumOpportunity = region.GetMarketAlbumOpportunityWeight(year);
 				float formatTilt = GetFormatMultiplier(genre, genre, ReleaseFormat.Single, year, albumOpportunity);
 				float acceptedAcceptance = region.GetLegacyGenreAcceptance(genre, year, includeMomentum: false);
 				newEnabled += supplyWeight * GetEnabledSingleDemandMultiplier(routedAcceptance) * formatTilt;
@@ -281,7 +281,7 @@ public static class GenreAcceptanceService {
 				float retention = GenreSupplyService.GetProjectIdentityRetentionForPortfolio(genre, year);
 				float weight = initialShare * retention;
 				float routedAcceptance = GetRegionalDemandAcceptance(genre, genre, region, year, 0f);
-				float albumOpportunity = region.GetEnabledAlbumOpportunityWeight(genre, year);
+				float albumOpportunity = region.GetMarketAlbumOpportunityWeight(year);
 				float formatTilt = GetFormatMultiplier(genre, genre, ReleaseFormat.Single, year, albumOpportunity);
 				float acceptedAcceptance = region.GetLegacyGenreAcceptance(genre, year, includeMomentum: false);
 				retainedEnabled += weight * GetEnabledSingleDemandMultiplier(routedAcceptance) * formatTilt;
@@ -338,8 +338,8 @@ public static class GenreAcceptanceService {
 		float albumOpportunity = .5f) {
 		if (!GenreMarketV2.Enabled || format is not (ReleaseFormat.Single or ReleaseFormat.Album)) return 1f;
 		float secondaryWeight = primary == secondary ? 0f : .20f;
-		float orientation = GenreCatalog.Get(GenreCatalog.MapLegacy(primary, (int)MathF.Floor(year))).SingleOrientation * (1f - secondaryWeight);
-		if (secondaryWeight > 0f) orientation += GenreCatalog.Get(GenreCatalog.MapLegacy(secondary, (int)MathF.Floor(year))).SingleOrientation * secondaryWeight;
+		float orientation = GenreCatalog.GetFormatOrientation(GenreCatalog.MapLegacy(primary, (int)MathF.Floor(year)), year) * (1f - secondaryWeight);
+		if (secondaryWeight > 0f) orientation += GenreCatalog.GetFormatOrientation(GenreCatalog.MapLegacy(secondary, (int)MathF.Floor(year)), year) * secondaryWeight;
 		float centered = (orientation - .5f) * 2f;
 		float rawSingle = 1f + centered * FormatOrientationStrength;
 		float rawAlbum = 1f - centered * FormatOrientationStrength;
@@ -409,7 +409,7 @@ public static class GenreAcceptanceService {
 			RegionalDemandAcceptanceComponents protectedRoute = GetRegionalDemandAcceptanceComponents(primary, secondary, region, year, 0f,
 				includeCenteredSpecialistTexture: false);
 			float runtimeFormat = GetLiveFormatMultiplier(primary, secondary, ReleaseFormat.Single, year,
-				region.GetEnabledAlbumOpportunityWeight(primary, year), live: true);
+				region.GetMarketAlbumOpportunityWeight(year), live: true);
 			float singleOpportunity = GetEnabledSingleDemandMultiplier(route.Effective) * globalSingleNormalization * runtimeFormat;
 			float protectedSingleOpportunity = GetEnabledSingleDemandMultiplier(protectedRoute.Effective) * globalSingleNormalization * runtimeFormat;
 			effective += buyingPopulation * route.Effective;

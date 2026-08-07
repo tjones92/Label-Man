@@ -23,6 +23,12 @@ public partial class Album : Resource {
 	[Export(PropertyHint.Range, "0,1")] public float packaging;
 	[Export] public bool isStereo;
 
+	// Set only on externally-originated soundtrack/cast albums (albumFormat == Soundtrack).
+	// Null for every artist-originated album. Carries the box-office demand shape and licensing
+	// economics minted by ExternalMediaService; read by AlbumSimulator's soundtrack demand branch.
+	// Runtime-only reference (not [Export]) -- soundtracks are never serialized to disk.
+	public ExternalMediaProfile externalMedia;
+
 	public AlbumTrack[] GetAllTracks() => trackRefs.Concat(nonSingleTracks).ToArray();
 }
 

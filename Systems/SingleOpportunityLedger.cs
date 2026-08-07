@@ -28,7 +28,7 @@ public static class SingleOpportunityLedger {
 			float legacy = region.GetLegacyGenreAcceptance(runtime.baseRecord.primaryGenre, year, includeMomentum: false);
 			float format = GenreAcceptanceService.GetFormatMultiplier(runtime.baseRecord.primaryGenre,
 				runtime.baseRecord.secondaryGenre, ReleaseFormat.Single, year,
-				region.GetEnabledAlbumOpportunityWeight(runtime.baseRecord.primaryGenre, year));
+				region.GetMarketAlbumOpportunityWeight(year));
 			float distribution = 1f - region.distribution.difficulty * .30f;
 			enabled += population * launch * intrinsic * GenreAcceptanceService.GetEnabledSingleDemandMultiplier(routed) * format * distribution;
 			accepted += population * launch * intrinsic * (.60f + legacy * .50f) * distribution;

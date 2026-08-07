@@ -39,6 +39,26 @@ public class RecordRuntimeData {
 	public int unitsThisWeek;
 	public int unitsPreviousWeek;
 	public int totalUnitsSold;
+	// Running maximum, not the eventual peak: it equals unitsThisWeek all the way up the climb and
+	// only starts to exceed it once the record turns over, so unitsThisWeek/peakWeeklyUnits is a
+	// clean "how far past its peak is this record" signal that stays neutral during the rise.
+	//
+	// Consumed by the station drop (ChartSimulator.GetStationDropChance): a programme director read
+	// the local sales reports and cut a record once it was visibly slipping, so the record's own peak
+	// is the reference the decision was actually made against.
+	public int peakWeeklyUnits;
+	// Weeks since peakWeeklyUnits was last raised: zero while the record is still setting new highs,
+	// counting up once it turns over. This is the record's own clock, which is why the radio fatigue
+	// term is keyed to it rather than to weeksSinceRelease -- a fixed week-8 clock started fatiguing
+	// a hit before it peaked (the sales peak is now week 9) and let a marginal record that peaked at
+	// week 4 keep full rotation for five weeks after it was finished.
+	public int weeksSincePeakUnits;
+	// Share of the national radio panel -- regions weighted by radio reach x population, the same
+	// weighting CalculateChartPoints pays airplay on -- whose stations still carry the record.
+	// Starts at 1 and only ever falls, because a station drop is latched. Derived state, recomputed
+	// each week by the regional radio pass; kept here so telemetry can read the drop without
+	// re-walking seven regions, and NOT read back by any mechanic.
+	public float radioPanelShare = 1f;
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public bool revenueMemoryEligible;
@@ -73,6 +93,12 @@ public class RecordRuntimeData {
 	public float momentum;            // -1 to +1: Is it trending up or down?
 	public float saturation;          // 0-1: What % of potential buyers already own it?
 	public float radioHeat;           // 0-1: How much are stations playing it?
+	// This week's survey draw. Billboard did not count units before 1973 -- it polled about 110
+	// outlets by hand, so the published chart was a small, coarsely graded SAMPLE of popularity and
+	// not a census of it. Drawn once per record per week in ChartManager and stored here rather than
+	// computed inside CalculateChartPoints, because that method is called from five sites including
+	// the audit telemetry and a redraw would let the telemetry disagree with the ranking it reports.
+	public float surveySampleThisWeek = 1f;
 	public float wordOfMouth;         // 0-1: Are people talking about it?
 	
 	// === ARTIST FACTORS ===
@@ -139,6 +165,9 @@ public class RecordRuntimeData {
 		unitsThisWeek = 0;
 		unitsPreviousWeek = 0;
 		totalUnitsSold = 0;
+		peakWeeklyUnits = 0;
+		weeksSincePeakUnits = 0;
+		radioPanelShare = 1f;
 		lifetimeLabelNet = 0f;
 		sunkProductionCost = 0f;
 		revenueMemoryEligible = false;

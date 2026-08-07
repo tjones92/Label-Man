@@ -161,8 +161,14 @@ public static class GenreSupplyService {
 		float demand = .05f + .95f * Mathf.Clamp(acceptance, 0f, 1f);
 		float artistFit = GetIdentityFit(canonical, profile.Family, artist);
 		float labelFit = GetLabelFit(canonical, profile.Family, label);
+		// Emerging carried a .65f penalty, which taxed a genre by 35% during exactly the
+		// window a new scene should be forming the acts that build its catalog. It is a
+		// one-year window (GetLifecycle: year < EmergenceYear + 1), so it reads as small,
+		// but it lands on the launch year and measured formation share against authored
+		// baseline share at 0.44-0.45 for genres in that window against ~1.0 for
+		// established ones. Declining is unchanged: a genre losing its audience really
+		// does stop attracting new acts.
 		float lifecycle = profile.GetLifecycle(year) switch {
-			GenreLifecycleState.Emerging => .65f,
 			GenreLifecycleState.Declining => .35f,
 			_ => 1f
 		};

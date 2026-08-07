@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -175,6 +175,13 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter formatDecisionCohortDetailWriter;
 	private StreamWriter supplySelectionWriter;
 	private StreamWriter traditionalPopFallbackWriter;
+	private StreamWriter genreShapeWriter;
+	private int genreShapeYear;
+	private readonly Dictionary<Genre, GenreShapeYearState> genreShapeByYear = new();
+	private readonly HashSet<string> genreShapeSeenRecordIds = new(StringComparer.Ordinal);
+	private StreamWriter yearEndHot100Writer;
+	private int yearEndHot100Year;
+	private readonly Dictionary<string, YearEndHot100RecordState> yearEndHot100ByRecord = new(StringComparer.Ordinal);
 	private StreamWriter genreEventsWriter;
 	private StreamWriter specialProductsWriter;
 	// Enabled-only: absent from disabled runs so the frozen 45-stream boundary is unchanged.
@@ -186,6 +193,11 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter artistCohortAnnualWriter;
 	private StreamWriter artistProjectIdentityWriter;
 	private StreamWriter labelOperatingTargetEventWriter;
+	// The tier ladder had NO per-run ledger. The section 7.2 flow table was built by hand and never
+	// re-derived, so every MidTier hypothesis since has been inference from standing headcounts --
+	// which is how five of them in a row were wrong. This records the transition itself, with the
+	// evidence the gate was reading at the moment it fired.
+	private StreamWriter labelTierTransitionWriter;
 	private StreamWriter runtimeLabelProfileWriter;
 	private StreamWriter dailyTalentMarketWriter;
 	private StreamWriter dailyTalentAppointmentWriter;
@@ -254,6 +266,14 @@ public partial class ChartAuditRunner : Node {
 	private ulong? requestedSeed;
 	private bool aggregateOnly;
 	private bool leanProbe;
+	// Calibration mode: the simulation runs at full fidelity (nothing about the economy changes),
+	// but CaptureWeek emits ONLY the accumulations the calibration CSVs read -- LP unit share
+	// (WriteFormatMixRows), decision share (OnReleaseStrategy event), active counts
+	// (CaptureRetirementCohortSnapshot, deferred to year-end), and the chart/genre Accumulate* passes.
+	// The ~13 per-week diagnostic Write* methods that walk all records/labels (21% of decade wall,
+	// scaling with album count) are suppressed. Verified to reproduce the rollup, year-end Hot 100 and
+	// genre-shape byte-for-byte against a normal run on the same seed.
+	private bool calibrationMode;
 	private bool profilePerformance;
 	private bool forceDistributionDeal;
 	private bool disableLabelLifecycle;
@@ -264,6 +284,16 @@ public partial class ChartAuditRunner : Node {
 	private bool catastrophicFailFast;
 	private bool catastrophicControlPreflight;
 	private bool strict1965AcceptanceGate;
+	// Standalone early abort for the formation-supply arc. Unlike the strict 1965
+	// acceptance gate this needs no control run: it is an absolute floor on how many
+	// emergent-genre acts are under contract once the genres exist, so a decade run
+	// that has already failed its whole purpose stops at 1965 instead of at 1969.
+	private const int EmergentSigningGateYear = 1965;
+	// A genre that emerges after the simulation's first year has no seeded population by
+	// construction and is therefore 100% dependent on runtime formation.
+	private const float SimulationFirstYear = 1960f;
+	private int emergentSigningFloor;
+	private bool emergentSigningGateChecked;
 	private string gateControlRun;
 	private readonly Dictionary<int, FailFastControlYear> failFastControlYears = new();
 	private readonly Dictionary<int, FailFastYearAccumulator> failFastActualYears = new();
@@ -343,6 +373,8 @@ public partial class ChartAuditRunner : Node {
 			if (ArtistPopulationLifecycle.Enabled && LabelLifecycleManager.Instance != null) {
 				LabelLifecycleManager.Instance.OnOperatingRosterTargetChanged += WriteOperatingRosterTargetEvent;
 				LabelLifecycleManager.Instance.OnRuntimeLabelProfileInitialized += WriteRuntimeLabelProfile;
+				LabelLifecycleManager.Instance.OnLabelPromoted += WriteLabelPromotion;
+				LabelLifecycleManager.Instance.OnLabelDemoted += WriteLabelDemotion;
 			}
 			if (ArtistPopulationLifecycle.Enabled && RosterManager.Instance != null) {
 				RosterManager.Instance.OnDailyTalentMarketCleared += WriteDailyTalentMarket;
@@ -374,6 +406,7 @@ public partial class ChartAuditRunner : Node {
 			long captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
+				ValidateEmergentSigningFloor();
 				if (week % 52 == 0) {
 					WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds);
 					FlushAnnualStreams();
@@ -382,6 +415,8 @@ public partial class ChartAuditRunner : Node {
 			}
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
+			WriteGenreShapeYear();
+			WriteYearEndHot100Year();
 			WriteMarketRevenueYear();
 			WriteAnnualFormatMixRows();
 			WriteDecadeAnnualYear();
@@ -432,6 +467,12 @@ public partial class ChartAuditRunner : Node {
 			} else if (argument == "--lean-probe") {
 				leanProbe = true;
 				aggregateOnly = true;
+			} else if (argument == "--calibration") {
+				// Fastest telemetry tier: implies lean-probe/aggregate, plus suppresses the per-week
+				// diagnostic Write* methods. Keeps every calibration metric; changes nothing in the sim.
+				calibrationMode = true;
+				leanProbe = true;
+				aggregateOnly = true;
 			} else if (argument == "--profile-performance") {
 				profilePerformance = true;
 			} else if (argument == "--force-distribution-deal") {
@@ -455,6 +496,8 @@ public partial class ChartAuditRunner : Node {
 				catastrophicControlPreflight = true;
 			} else if (argument == "--strict-1965-acceptance-gate") {
 				strict1965AcceptanceGate = true;
+			} else if (argument.StartsWith("--emergent-signing-floor=", StringComparison.Ordinal)) {
+				emergentSigningFloor = int.Parse(argument[25..], CultureInfo.InvariantCulture);
 			} else if (argument.StartsWith("--gate-control-run=", StringComparison.Ordinal)) {
 				gateControlRun = SanitizeFileName(argument[19..]);
 			}
@@ -705,6 +748,32 @@ public partial class ChartAuditRunner : Node {
 		if (strict1965AcceptanceGate && year == 1965) ValidateStrict1965Acceptance(control, actual);
 	}
 
+	/// <summary>
+	/// Fires once, at the first week of the year after <see cref="EmergentSigningGateYear"/>.
+	/// "Emergent" is derived from the catalog rather than listed, so a genre added or
+	/// retimed later is covered without touching this gate. Counting artists under
+	/// contract rather than formations is deliberate: formation is what the change under
+	/// test moves, and signings are the thing that has to actually follow from it.
+	/// </summary>
+	private void ValidateEmergentSigningFloor() {
+		if (emergentSigningFloor <= 0 || emergentSigningGateChecked) return;
+		if ((TimeManager.Instance?.CurrentDate.year ?? 0) <= EmergentSigningGateYear) return;
+		emergentSigningGateChecked = true;
+		ArtistManager manager = ArtistManager.Instance;
+		if (manager == null) return;
+		var emergent = new HashSet<Genre>(GenreCatalog.All.Where(profile => profile.EmergenceYear > SimulationFirstYear)
+			.Select(profile => profile.Genre));
+		SimulatedArtist[] formed = manager.GetAllArtists().Where(artist => artist.cohort == ArtistCohort.RuntimeFormation &&
+			emergent.Contains(artist.formationPrimaryGenre)).ToArray();
+		int signed = formed.Count(artist => artist.contractSequence > 0);
+		GD.Print($"CHART_AUDIT_EMERGENT_SIGNING_GATE year={EmergentSigningGateYear} signed={signed} " +
+			$"formed={formed.Length} floor={emergentSigningFloor}");
+		if (signed < emergentSigningFloor)
+			throw new CatastrophicAbortException("EmergentSigningFloor", "emergentFirstContractSignings", signed,
+				emergentSigningFloor, $"emergent-genre runtime acts under contract at the end of {EmergentSigningGateYear}; " +
+				$"formed={formed.Length}", EmergentSigningGateYear);
+	}
+
 	private void ValidateStrict1965Acceptance(FailFastControlYear control, FailFastYearAccumulator actual) {
 		if (!control.HasStrictFormatUnits)
 			throw new CatastrophicAbortException("MissingControlRow", "strict1965FormatUnits", 0d, 0d,
@@ -937,6 +1006,8 @@ public partial class ChartAuditRunner : Node {
 		retiredTrackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-retired-track-availability.csv"));
 		releaseStrategyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-strategy.csv"));
 		traditionalPopFallbackWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-traditional-pop-fallbacks.csv"));
+		genreShapeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-genre-decade-shape.csv"));
+		yearEndHot100Writer = CreateWriter(Path.Combine(outputDirectory, $"{runName}-year-end-hot100.csv"));
 		releaseOutcomeWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-release-outcomes.csv"));
 		if (GenreMarketV2.Enabled) {
 			singleReleaseLaneWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-single-release-lanes.csv"));
@@ -995,6 +1066,7 @@ public partial class ChartAuditRunner : Node {
 			artistCohortAnnualWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-cohort-annual.csv"));
 			artistProjectIdentityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-project-identity.csv"));
 			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
+			labelTierTransitionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-tier-transitions.csv"));
 			runtimeLabelProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-runtime-label-profiles.csv"));
 			firstChartEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-first-chart-events.csv"));
 			distributionOfferAttemptWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-distribution-offer-attempts.csv"));
@@ -1004,7 +1076,7 @@ public partial class ChartAuditRunner : Node {
 		}
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
-		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier");
+		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier,weeksSincePeakUnits,radioPanelShare");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
@@ -1064,16 +1136,21 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter.WriteLine("year,recordId,rawPrimaryGenre,rawSecondaryGenre,format,realizedUnits");
 			supplySelectionWriter.WriteLine("week,year,labelId,artistId,artistIdentity,chosenProjectGenre,artistIdentityAvailableForNewSupply,annualFloorRequested,annualFloorReroutedToNormalCandidates,selectionMode");
 			traditionalPopFallbackWriter.WriteLine("week,year,source,requestedGenre");
+		// marketUnitsShare is whole-market commercial weight; chartWeekShare is chart presence;
+		// chartWeekShareMinusMarketShare is the divergence between them.
+		genreShapeWriter.WriteLine("seed,year,genre,family,emergenceYear,deathYear,baseline,lifecycleState,newReleases,activeRecordsYearEnd,marketUnits,marketUnitsShare,chartRecordWeeks,chartWeekShare,uniqueChartingRecords,chartUnits,chartUnitsShare,top40RecordWeeks,top10RecordWeeks,numberOneWeeks,meanChartPosition,chartWeekShareMinusMarketShare");
+		yearEndHot100Writer.WriteLine("seed,year,genre,family,yearEndSlots,yearEndPointsShare");
 		genreEventsWriter.WriteLine("seed,enabled,year,month,week,eventType,sourceRecordId,recipientGenreId,donorGenreId,field,amount,detail");
 		specialProductsWriter.WriteLine("seed,enabled,year,recordId,subtype,externalProfile,correlatedProfileBucket,costs,promotion,tieIn,units,chartResult,catalogTail,financialReconciliation");
 		rosterLifecycleWriter?.WriteLine("week,year,labelTier,rosterSize,emptyRosterLabels,releaseEligibleArtists,dropsToFreeAgentPool,firstTimeSignings,reSignings,uniqueReSignings,shortWindowRedrops26Weeks,scoutingGatePasses,signingAttempts,candidateRejections,affordabilityRejections,freeAgentPoolSize,terminalArtistsStillRostered,ownershipConflicts,duplicatePoolEntries,releaseAttempts,successfulReleases,artistSelectionFailures");
 		labelScoutingVacancyWriter?.WriteLine("week,year,labelId,labelTier,isActiveLabel,maxRosterSize,operatingRosterTarget,operatingRosterTargetSource,labelOrigin,runtimeBirthWeek,runtimeBirthDate,operatingTargetReason,organicGrowthCount,lastOrganicGrowthWeek,lastOrganicGrowthBlockingReason,rosterSize,unusedRosterSlots,unusedOperatingRosterSlots,isEmptyRoster,consecutiveVacancyWeeks,consecutiveEmptyWeeks,scoutingAbility,rosterFullness,hasRecentHit,recentHitFactor,decliningArtistCount,decliningFactor,estimatedAdvance,canAffordEstimatedAdvance,computedScoutProbability,scoutRandomRoll,scoutingGatePassed,eligibleCandidateCount,discoveryPoolCount,bestCandidateScore,neverSignedSlateCount,qualifyingNeverSignedCount,bestNeverSignedScore,thirdPlusPerformanceComebackCount,overallBestContractSequence,freshPreferenceApplied,repeatComebackDeferred,freshPreferenceFallbackReason,signingAttempted,signingSucceeded,signingKind,failureReason,scoutingRosterSize,scoutingUnusedRosterSlots,scoutingUnusedOperatingRosterSlots,scoutingIsEmptyRoster,releaseEligibleArtistCount,requiredReleaseLanes,headcountDeficit,releaseLaneDeficit,serviceDeficit,serviceDeficitAge,serviceMode,scoutingGateBypassed,freshLaneCount,experiencedLaneCount,freshDiscoveryScope,bestFreshPotentialScore,bestExperiencedProductionScore,selectedLane,recoveryThresholdFallbackUsed,recoveryFailureReason");
 		labelOperatingTargetEventWriter?.WriteLine("week,date,labelId,labelOrigin,birthWeek,birthDate,reason,priorTarget,newTarget,hardCapacity,organicGrowthCount,weeksSincePriorOrganicIncrease,eligibilityResult,blockingReason,status,tier,rosterSize,releaseEligibleCount,recentChartingCount,recentReleaseCount,lastMonthlyProfit,consecutiveLossMonths,cashReserves,monthlyOverhead,runwayMonths");
+		labelTierTransitionWriter?.WriteLine("week,year,labelId,labelName,archetype,direction,fromTier,toTier,recentChartingRecords,rosterSize,ownedReach,distributionDependency,capability,monthsActive,sustainedLowChartingQuarters,sustainedLowCapabilityQuarters,consecutiveLossMonths,cashReserves");
 		runtimeLabelProfileWriter?.WriteLine("seed,birthWeek,birthDate,labelId,labelName,birthTier,archetype,headquartersCity,homeRegion,homeCityId,homeCityAssignmentSource,preferredGenres,secondaryGenres,budgetLevel,scoutingAbility,productionQuality,marketingPower,ownedReach,nationalReach,riskTolerance,artistLoyalty,payolaWillingness,releasesPerMonth,cashReserves,reputation,marketShare,debtLevel,foundedYear,monthsActive,totalReleases,top40Hits,numberOneHits,maxRosterSize,operatingRosterTarget,profileVersion");
 		dailyTalentMarketWriter?.WriteLine("date,chartWeek,eligibleVacancies,dueLabels,supplySnapshotCount,freshSupplySnapshotCount,experiencedSupplySnapshotCount,nominations,uniqueNominatedArtists,collisionArtists,collisionOffers,acceptedOffers,collisionLosers,invalidatedBeforeCommit");
 		dailyTalentAppointmentWriter?.WriteLine("date,chartWeek,labelId,labelOrigin,labelTier,vacancyGeneration,vacancyOpenedDate,scheduledScoutingDate,actualScoutingDate,appointmentOrdinal,serviceMode,freshLaneCount,experiencedLaneCount,selectedArtistId,selectedLane,offerOutcome,collisionOfferCount,winnerLabelId,artistChoiceUtility,genreUtility,localityUtility,royaltyUtility,advanceUtility,reputationUtility,reachUtility,rosterOpportunityUtility,affinityUtility,nextScoutingDate");
 		catastrophicFailFastWriter?.WriteLine("gate,metric,enabledValue,controlValue,completedYear,week,date,state");
-		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,prospectMarketStatus,prospectMarketStatusBeforeContract,careerStateBeforeDrop,contractEntryCareerState,labelId,labelTier,dropReason,performanceDropCount,requiredPerformanceCooldownWeeks,contractSequence,priorContractCount,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,performanceEvaluationMode,requiredPerformanceCompletedRuns,requiredPerformanceConsecutiveFlops,contractProbationPending,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
+		artistPopulationEventsWriter?.WriteLine("seed,week,date,eventType,artistId,artistType,cohort,formedYear,formationPrimaryGenre,formationSecondaryGenre,currentPrimaryGenre,homeRegion,lifecycleStatus,careerState,prospectMarketStatus,prospectMarketStatusBeforeContract,careerStateBeforeDrop,contractEntryCareerState,labelId,labelTier,dropReason,performanceDropCount,requiredPerformanceCooldownWeeks,contractSequence,priorContractCount,contractStartWeek,contractTop40Hits,contractConsecutiveFlops,contractCompletedChartRuns,contractChartedRecords,contractRegionalBreakouts,regionalBreakouts,top40Hits,contractLength,contractReleases,contractSinglesObligation,performanceEvaluationMode,requiredPerformanceCompletedRuns,requiredPerformanceConsecutiveFlops,contractProbationPending,weeksSincePerformanceDrop,weeksContinuouslyUnowned,artistAge,leadMemberAge");
 		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
 		artistLaborMarketWeeklyWriter?.WriteLine("seed,week,date,registryPopulation,initialLegacyPopulation,enabledInitialReservePopulation,runtimeFormationPopulation,activeRostered,experiencedFreeAgents,seekingProspects,latentProspects,freshSeeking,freshLatent,affordableHiringVacancies,requestedProspectActivations,actualProspectActivations,prospectSearchSpellExpirations,firstTimeSignings,repeatSignings,meanSeekingQuality,meanLatentQuality,activationMeanQuality,activationQ1,activationQ2,activationQ3,activationQ4,maxProspectMarketSpellCount,duplicateSeekingEntries,latentUnsignedPoolEntries,seekingMissingFromUnsignedPool,prospectStatusContractConflicts,latentRotations");
 		artistCohortAnnualWriter?.WriteLine("year,cohort,formationPrimaryGenre,lifecycleStatus,currentRosterTier,count,firstTimeSignings,repeatSignings,releases,activeUnsigned,seekingProspects,latentProspects,medianActAge,medianMemberAge,inactivityCount,retirementCount,disbandmentCount,activePopulationShare,signedRosterShare");
@@ -1851,12 +1928,12 @@ public partial class ChartAuditRunner : Node {
 		// Flush the fully completed prior-year revenue row before fail-fast may
 		// abort at the new-year boundary. Do not emit a partial current-week row.
 		AdvanceMarketRevenueYear(date.year);
-		albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
+		if (!calibrationMode) albumProjectWeeklyWriter.WriteLine(string.Join(",", new[] {
 			week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture),
 			CompetitorManager.Instance.WeeklyPipelineAlbumDrops.ToString(CultureInfo.InvariantCulture)
 		}));
 		List<RecordRuntimeData> records = ChartManager.Instance.GetAllRecords();
-		CaptureFailFastWeekly(date, records);
+		if (!calibrationMode) CaptureFailFastWeekly(date, records);
 		foreach (RecordRuntimeData album in records.Where(record => record.baseRecord.format == ReleaseFormat.Album)) {
 			if (album.weeksSinceRelease > 26) decadeAnnual.AlbumUnitsOver26Weeks += album.unitsThisWeek;
 			if (album.weeksSinceRelease > 52) decadeAnnual.AlbumUnitsOver52Weeks += album.unitsThisWeek;
@@ -1865,6 +1942,8 @@ public partial class ChartAuditRunner : Node {
 		List<RecordRuntimeData> chart = ChartManager.Instance.GetCurrentChart();
 		List<RecordRuntimeData> albumChart = ChartManager.Instance.GetCurrentAlbumChart();
 		AccumulateConcentration(date.year, chart);
+		AccumulateGenreShape(date.year, records, chart);
+		AccumulateYearEndHot100(date.year, chart);
 		// Skim routing to the distributor is only defined while the deal is active. Once the
 		// deal resolves -- an exit that nulls it, or a subsidiary absorption that converts it
 		// to ownership -- the label self-distributes and its residual skim fraction
@@ -1888,7 +1967,7 @@ public partial class ChartAuditRunner : Node {
 		}
 
 		foreach (RecordRuntimeData record in singleRecords) {
-			WriteSingleLaneDiagnostics(week, date.year, record);
+			if (!calibrationMode) WriteSingleLaneDiagnostics(week, date.year, record);
 			LifecycleState state = ObserveRecord(record, wasPresentAtStart: false);
 			if (state.DebutPosition == 0 && record.currentPosition > 0) {
 				state.DebutPosition = record.currentPosition;
@@ -1900,61 +1979,68 @@ public partial class ChartAuditRunner : Node {
 
 		foreach ((string id, LifecycleState state) in lifecycle.ToArray()) {
 			if (!activeIds.Contains(id)) {
-				WriteLifecycleRow(week, state);
+				if (!calibrationMode) WriteLifecycleRow(week, state);
 				if (state.Record.peakPosition > 0 && state.Record.peakPosition <= 40) decadeAnnual.ClosedTop40Weeks.Add(state.Record.weeksOnChart);
 				lifecycle.Remove(id);
 			}
 		}
 
-		RecordRuntimeData numberOne = chart.FirstOrDefault();
-		int totalChartUnits = chart.Sum(record => record.unitsThisWeek);
-		// The completed-week ledger includes records retired after their final sale;
-		// active-record enumeration is intentionally not authoritative for this total.
-		int totalMarketUnits = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
-			? ChartManager.Instance.GetLastCompletedWeekSettlement()?.TotalUnits ?? records.Sum(record => record.unitsThisWeek)
-			: records.Sum(record => record.unitsThisWeek);
-		CaptureSeasonalityMonth(salesDate, records);
-		int newTop100 = chartIds.Count(id => !previousChartIds.Contains(id));
-		int newTop40 = chart.Take(40).Count(record => !previousChartIds.Contains(record.baseRecord.recordId));
-		int exits = previousChartIds.Count(id => !chartIds.Contains(id));
-		int newRecords = activeIds.Count(id => !previousActiveIds.Contains(id));
-		int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
-		WriteTierVolumeRows(week, records);
-		WriteLabelFinanceRows(week, date.year);
-		WriteMarketRevenueRows(week, date.year, records);
-		WriteMarketClearingRows(week, date.year);
-		WriteReleaseCapacityRow(week, date.year);
-		WriteRosterLifecycleRows(week, date.year);
-		WriteLabelScoutingVacancyRows(week, date.year);
-		WriteArtistPopulationRows(week, date.year, records);
-		WriteAlbumRows(week, date, records, albumChart);
+		// LP unit share (decadeAnnual.Single/Album.Units/Gross) and the active-count/age/units snapshot
+		// both feed the decade rollup, so they run in every mode -- calibration included.
 		WriteFormatMixRows(week, date.year, records);
-		WriteRevenueMemoryRows(week, date.year);
-		WriteGeographyMetricRows(week, date.year, records);
-		WriteGenreMarketRows(week, date, records);
-		// The detailed causal seams are established by the fully instrumented
-		// 52-week checkpoints. Decade lean runs retain aggregate genre history but
-		// suppress these high-volume per-record decompositions.
-		if (!leanProbe) {
-			WriteRecordGenreExplanationRows(week, date, records);
-			WriteAlbumDemandExplanationRows(week, date, records);
-		}
 		CaptureRetirementCohortSnapshot(records);
 
-		weekWriter.WriteLine(string.Join(",", new[] {
-			week.ToString(CultureInfo.InvariantCulture),
-			date.year.ToString(CultureInfo.InvariantCulture),
-			totalChartUnits.ToString(CultureInfo.InvariantCulture),
-			totalMarketUnits.ToString(CultureInfo.InvariantCulture),
-			Csv(numberOne?.baseRecord.recordId),
-			(numberOne?.unitsThisWeek ?? 0).ToString(CultureInfo.InvariantCulture),
-			newTop100.ToString(CultureInfo.InvariantCulture),
-			newTop40.ToString(CultureInfo.InvariantCulture),
-			exits.ToString(CultureInfo.InvariantCulture),
-			records.Count.ToString(CultureInfo.InvariantCulture),
-			newRecords.ToString(CultureInfo.InvariantCulture),
-			retiredRecords.ToString(CultureInfo.InvariantCulture)
-		}));
+		// Everything below is per-week diagnostic telemetry that walks all records/labels/rosters and
+		// feeds no calibration metric. It is the bulk of CaptureWeek's cost and scales with album count,
+		// so --calibration suppresses it. The economy is untouched; only these output CSVs go dark.
+		if (!calibrationMode) {
+			RecordRuntimeData numberOne = chart.FirstOrDefault();
+			int totalChartUnits = chart.Sum(record => record.unitsThisWeek);
+			// The completed-week ledger includes records retired after their final sale;
+			// active-record enumeration is intentionally not authoritative for this total.
+			int totalMarketUnits = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true
+				? ChartManager.Instance.GetLastCompletedWeekSettlement()?.TotalUnits ?? records.Sum(record => record.unitsThisWeek)
+				: records.Sum(record => record.unitsThisWeek);
+			CaptureSeasonalityMonth(salesDate, records);
+			int newTop100 = chartIds.Count(id => !previousChartIds.Contains(id));
+			int newTop40 = chart.Take(40).Count(record => !previousChartIds.Contains(record.baseRecord.recordId));
+			int exits = previousChartIds.Count(id => !chartIds.Contains(id));
+			int newRecords = activeIds.Count(id => !previousActiveIds.Contains(id));
+			int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
+			WriteTierVolumeRows(week, records);
+			WriteLabelFinanceRows(week, date.year);
+			WriteMarketRevenueRows(week, date.year, records);
+			WriteMarketClearingRows(week, date.year);
+			WriteReleaseCapacityRow(week, date.year);
+			WriteRosterLifecycleRows(week, date.year);
+			WriteLabelScoutingVacancyRows(week, date.year);
+			WriteArtistPopulationRows(week, date.year, records);
+			WriteAlbumRows(week, date, records, albumChart);
+			WriteRevenueMemoryRows(week, date.year);
+			WriteGeographyMetricRows(week, date.year, records);
+			WriteGenreMarketRows(week, date, records);
+			// The detailed causal seams are established by the fully instrumented
+			// 52-week checkpoints. Decade lean runs retain aggregate genre history but
+			// suppress these high-volume per-record decompositions.
+			if (!leanProbe) {
+				WriteRecordGenreExplanationRows(week, date, records);
+				WriteAlbumDemandExplanationRows(week, date, records);
+			}
+			weekWriter.WriteLine(string.Join(",", new[] {
+				week.ToString(CultureInfo.InvariantCulture),
+				date.year.ToString(CultureInfo.InvariantCulture),
+				totalChartUnits.ToString(CultureInfo.InvariantCulture),
+				totalMarketUnits.ToString(CultureInfo.InvariantCulture),
+				Csv(numberOne?.baseRecord.recordId),
+				(numberOne?.unitsThisWeek ?? 0).ToString(CultureInfo.InvariantCulture),
+				newTop100.ToString(CultureInfo.InvariantCulture),
+				newTop40.ToString(CultureInfo.InvariantCulture),
+				exits.ToString(CultureInfo.InvariantCulture),
+				records.Count.ToString(CultureInfo.InvariantCulture),
+				newRecords.ToString(CultureInfo.InvariantCulture),
+				retiredRecords.ToString(CultureInfo.InvariantCulture)
+			}));
+		}
 
 		previousChartIds = chartIds;
 		previousActiveIds = activeIds;
@@ -2075,6 +2161,10 @@ public partial class ChartAuditRunner : Node {
 			Mathf.Max(0, artist.contractSequence - 1).ToString(CultureInfo.InvariantCulture),
 			artist.contractStartWeek.ToString(CultureInfo.InvariantCulture), artist.contractTop40Hits.ToString(CultureInfo.InvariantCulture),
 			artist.contractConsecutiveFlops.ToString(CultureInfo.InvariantCulture), artist.contractCompletedChartRuns.ToString(CultureInfo.InvariantCulture),
+			artist.contractChartedRecords.ToString(CultureInfo.InvariantCulture), artist.contractRegionalBreakouts.ToString(CultureInfo.InvariantCulture),
+			artist.regionalBreakouts.ToString(CultureInfo.InvariantCulture), artist.top40Hits.ToString(CultureInfo.InvariantCulture),
+			artist.contractLength.ToString(CultureInfo.InvariantCulture), artist.contractReleases.ToString(CultureInfo.InvariantCulture),
+			artist.contractSinglesObligation.ToString(CultureInfo.InvariantCulture),
 			Csv((eventType is "performance-departure" or "performance-exhaustion" ? artist.lastPerformanceEvaluationMode : artist.GetPerformanceEvaluationMode()).ToString()),
 			(eventType is "performance-departure" or "performance-exhaustion" ? artist.lastRequiredPerformanceCompletedRuns : artist.RequiredPerformanceCompletedRuns).ToString(CultureInfo.InvariantCulture),
 			(eventType is "performance-departure" or "performance-exhaustion" ? artist.lastRequiredPerformanceConsecutiveFlops : artist.RequiredPerformanceConsecutiveFlops).ToString(CultureInfo.InvariantCulture),
@@ -2175,6 +2265,41 @@ public partial class ChartAuditRunner : Node {
 			Csv(label.status.ToString()), Csv(label.tier.ToString()), label.CurrentRosterSize.ToString(CultureInfo.InvariantCulture), label.CountArtistsEligibleForRelease(targetEvent.Date.year).ToString(CultureInfo.InvariantCulture),
 			targetEvent.RecentChartingCount.ToString(CultureInfo.InvariantCulture), targetEvent.RecentReleaseCount.ToString(CultureInfo.InvariantCulture),
 			F(label.lastMonthlyProfit), label.consecutiveLossMonths.ToString(CultureInfo.InvariantCulture), F(label.cashReserves), F(overhead), F(overhead > 0f ? label.cashReserves / overhead : 0f)
+		}));
+	}
+
+	private void WriteLabelPromotion(AILabel label, LabelTier fromTier, LabelTier toTier) =>
+		WriteLabelTierTransition("promotion", label, fromTier, toTier);
+
+	private void WriteLabelDemotion(AILabel label, LabelTier fromTier, LabelTier toTier) =>
+		WriteLabelTierTransition("demotion", label, fromTier, toTier);
+
+	/// <summary>
+	/// One row per rung of the ladder actually taken, carrying the evidence the gate was reading.
+	/// Standing headcounts cannot separate a tier that fills from one that stops emptying, and that
+	/// ambiguity is what made five successive MidTier diagnoses wrong -- section 12.4j, 12.4i, 11.6.2,
+	/// 7.1 and 12.4t all reasoned about a stock without ever seeing the flow.
+	///
+	/// Note the tier field is ALREADY the new one when this fires, so the transition is recorded from
+	/// the arguments rather than from the label. recentChartingRecords is re-read here rather than
+	/// threaded through the event: it is the same call the gate made, in the same week, and it does
+	/// not depend on tier.
+	/// </summary>
+	private void WriteLabelTierTransition(string direction, AILabel label, LabelTier fromTier, LabelTier toTier) {
+		if (labelTierTransitionWriter == null || label == null) return;
+		labelTierTransitionWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture),
+			(TimeManager.Instance?.CurrentDate.year ?? 1960).ToString(CultureInfo.InvariantCulture),
+			Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
+			Csv(direction), Csv(fromTier.ToString()), Csv(toTier.ToString()),
+			(CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId) ?? 0).ToString(CultureInfo.InvariantCulture),
+			label.CurrentRosterSize.ToString(CultureInfo.InvariantCulture),
+			F(label.ownedReach), F(label.DistributionDependency), F(label.CalculateCapabilityScore()),
+			label.monthsActive.ToString(CultureInfo.InvariantCulture),
+			label.sustainedLowChartingQuarters.ToString(CultureInfo.InvariantCulture),
+			label.sustainedLowCapabilityQuarters.ToString(CultureInfo.InvariantCulture),
+			label.consecutiveLossMonths.ToString(CultureInfo.InvariantCulture),
+			F(label.cashReserves)
 		}));
 	}
 
@@ -2397,6 +2522,165 @@ public partial class ChartAuditRunner : Node {
 					F(ema), observations.ToString(CultureInfo.InvariantCulture)
 				}));
 			}
+		}
+	}
+
+	private sealed class GenreShapeYearState {
+		public long MarketUnits, ChartUnits, ChartRecordWeeks, Top40RecordWeeks, Top10RecordWeeks, NumberOneWeeks, PositionSum;
+		public int NewReleases, ActiveRecordsYearEnd;
+		public readonly HashSet<string> ChartingRecordIds = new(StringComparer.Ordinal);
+	}
+
+	/// <summary>
+	/// Decade genre shape. Read-only: it observes the resolved weekly state after sales and
+	/// never draws RNG or mutates anything, so it is safe on any run and is deliberately not
+	/// gated behind --lean-probe -- the decade runs that matter all pass that flag.
+	///
+	/// The point of the file is that market influence and chart influence are separate
+	/// questions. A genre can hold a quarter of the chart on records that barely sell, which
+	/// is exactly what easy-listening and country do here, and no single share number shows
+	/// it. So units are accumulated over the whole live population, chart presence over the
+	/// chart, and the two shares are reported side by side with their difference.
+	/// </summary>
+	private void AccumulateGenreShape(int year, List<RecordRuntimeData> records, List<RecordRuntimeData> chart) {
+		if (genreShapeWriter == null) return;
+		if (genreShapeYear == 0) genreShapeYear = year;
+		if (year != genreShapeYear) {
+			WriteGenreShapeYear();
+			genreShapeByYear.Clear();
+			genreShapeYear = year;
+		}
+
+		GenreShapeYearState State(Genre genre) {
+			if (!genreShapeByYear.TryGetValue(genre, out GenreShapeYearState state)) {
+				state = new GenreShapeYearState();
+				genreShapeByYear[genre] = state;
+			}
+			return state;
+		}
+
+		foreach (RecordRuntimeData record in records) {
+			Genre genre = GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year);
+			GenreShapeYearState state = State(genre);
+			state.MarketUnits += record.unitsThisWeek;
+			// First sight of a record with no meaningful age is a release this year. Prewarm
+			// titles enter already aged, so they are excluded rather than banked onto 1960.
+			if (genreShapeSeenRecordIds.Add(record.baseRecord.recordId) && record.weeksSinceRelease <= 1) state.NewReleases++;
+		}
+
+		foreach (RecordRuntimeData record in chart) {
+			int position = record.currentPosition;
+			if (position <= 0) continue;
+			GenreShapeYearState state = State(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year));
+			state.ChartRecordWeeks++;
+			state.ChartUnits += record.unitsThisWeek;
+			state.PositionSum += position;
+			if (position <= 40) state.Top40RecordWeeks++;
+			if (position <= 10) state.Top10RecordWeeks++;
+			if (position == 1) state.NumberOneWeeks++;
+			state.ChartingRecordIds.Add(record.baseRecord.recordId);
+		}
+
+		foreach (GenreShapeYearState state in genreShapeByYear.Values) state.ActiveRecordsYearEnd = 0;
+		foreach (RecordRuntimeData record in records)
+			State(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year)).ActiveRecordsYearEnd++;
+	}
+
+	private void WriteGenreShapeYear() {
+		if (genreShapeWriter == null || genreShapeYear == 0 || genreShapeByYear.Count == 0) return;
+		long totalMarketUnits = genreShapeByYear.Values.Sum(state => state.MarketUnits);
+		long totalChartUnits = genreShapeByYear.Values.Sum(state => state.ChartUnits);
+		long totalChartWeeks = genreShapeByYear.Values.Sum(state => state.ChartRecordWeeks);
+		string seed = requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+		foreach (var pair in genreShapeByYear.OrderBy(pair => pair.Key.ToString(), StringComparer.Ordinal)) {
+			GenreShapeYearState state = pair.Value;
+			GenreProfile profile = GenreCatalog.All.FirstOrDefault(candidate => candidate.Genre == pair.Key);
+			float marketShare = totalMarketUnits > 0 ? (float)state.MarketUnits / totalMarketUnits : 0f;
+			float chartWeekShare = totalChartWeeks > 0 ? (float)state.ChartRecordWeeks / totalChartWeeks : 0f;
+			float chartUnitShare = totalChartUnits > 0 ? (float)state.ChartUnits / totalChartUnits : 0f;
+			genreShapeWriter.WriteLine(string.Join(",", new[] {
+				seed, genreShapeYear.ToString(CultureInfo.InvariantCulture), Csv(pair.Key.ToString()),
+				Csv(profile?.Family.ToString() ?? "Unknown"),
+				profile != null ? F(profile.EmergenceYear) : string.Empty,
+				profile?.DeathYear != null ? F(profile.DeathYear.Value) : string.Empty,
+				profile != null ? F(profile.GetBaseline(genreShapeYear)) : string.Empty,
+				Csv(profile?.GetLifecycle(genreShapeYear).ToString() ?? "Unknown"),
+				state.NewReleases.ToString(CultureInfo.InvariantCulture),
+				state.ActiveRecordsYearEnd.ToString(CultureInfo.InvariantCulture),
+				state.MarketUnits.ToString(CultureInfo.InvariantCulture), F(marketShare),
+				state.ChartRecordWeeks.ToString(CultureInfo.InvariantCulture), F(chartWeekShare),
+				state.ChartingRecordIds.Count.ToString(CultureInfo.InvariantCulture),
+				state.ChartUnits.ToString(CultureInfo.InvariantCulture), F(chartUnitShare),
+				state.Top40RecordWeeks.ToString(CultureInfo.InvariantCulture),
+				state.Top10RecordWeeks.ToString(CultureInfo.InvariantCulture),
+				state.NumberOneWeeks.ToString(CultureInfo.InvariantCulture),
+				state.ChartRecordWeeks > 0 ? F((float)state.PositionSum / state.ChartRecordWeeks) : string.Empty,
+				// The diagnostic column: chart presence a genre's sales do not support.
+				F(chartWeekShare - marketShare)
+			}));
+		}
+	}
+
+	private sealed class YearEndHot100RecordState {
+		public double CumulativePoints;
+		public Genre PrimaryGenre;
+	}
+
+	/// <summary>
+	/// Year-end Hot 100 by genre, replicating Billboard's annual recap methodology: each record's
+	/// weekly chart points are accumulated over the chart year, the top 100 by cumulative points are
+	/// taken, and the primary genre of each is counted. This is a different object from
+	/// genre-decade-shape's chartWeekShare -- that is week-weighted presence across the whole
+	/// population; this is a ranked 100-slot list, which is what the hand-counted historical
+	/// benchmark is. yearEndSlots is the slot count (the benchmark's "Count" column);
+	/// yearEndPointsShare is the points-weighted share, closer to Billboard's own point-ranked recap.
+	///
+	/// Read-only: CalculateChartPoints reads the cached surveySampleThisWeek rather than redrawing
+	/// (handoff 12.4g), so the accumulated points match the ranking they came from, and the pass
+	/// draws no RNG and mutates nothing. Safe on any run and deliberately not gated behind
+	/// --lean-probe. The chart year is the calendar year, matching genre-decade-shape; the historical
+	/// benchmark's ~late-October cutoff is not reproduced.
+	/// </summary>
+	private void AccumulateYearEndHot100(int year, List<RecordRuntimeData> chart) {
+		if (yearEndHot100Writer == null) return;
+		if (yearEndHot100Year == 0) yearEndHot100Year = year;
+		if (year != yearEndHot100Year) {
+			WriteYearEndHot100Year();
+			yearEndHot100ByRecord.Clear();
+			yearEndHot100Year = year;
+		}
+		foreach (RecordRuntimeData record in chart) {
+			if (record.currentPosition is <= 0 or > 100) continue;
+			string id = record.baseRecord.recordId;
+			if (!yearEndHot100ByRecord.TryGetValue(id, out YearEndHot100RecordState state)) {
+				state = new YearEndHot100RecordState { PrimaryGenre = record.baseRecord.primaryGenre };
+				yearEndHot100ByRecord[id] = state;
+			}
+			state.CumulativePoints += ChartSimulator.CalculateChartPoints(record, regions);
+		}
+	}
+
+	private void WriteYearEndHot100Year() {
+		if (yearEndHot100Writer == null || yearEndHot100Year == 0 || yearEndHot100ByRecord.Count == 0) return;
+		List<YearEndHot100RecordState> top100 = yearEndHot100ByRecord.Values
+			.OrderByDescending(state => state.CumulativePoints).Take(100).ToList();
+		double totalPoints = top100.Sum(state => state.CumulativePoints);
+		var byGenre = new Dictionary<Genre, (int Slots, double Points)>();
+		foreach (YearEndHot100RecordState state in top100) {
+			Genre genre = GenreCatalog.MapLegacy(state.PrimaryGenre, yearEndHot100Year);
+			(int Slots, double Points) cur = byGenre.TryGetValue(genre, out var value) ? value : default;
+			byGenre[genre] = (cur.Slots + 1, cur.Points + state.CumulativePoints);
+		}
+		string seed = requestedSeed?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+		foreach (var pair in byGenre.OrderByDescending(pair => pair.Value.Slots)
+			.ThenBy(pair => pair.Key.ToString(), StringComparer.Ordinal)) {
+			GenreProfile profile = GenreCatalog.All.FirstOrDefault(candidate => candidate.Genre == pair.Key);
+			yearEndHot100Writer.WriteLine(string.Join(",", new[] {
+				seed, yearEndHot100Year.ToString(CultureInfo.InvariantCulture), Csv(pair.Key.ToString()),
+				Csv(profile?.Family.ToString() ?? "Unknown"),
+				pair.Value.Slots.ToString(CultureInfo.InvariantCulture),
+				F(totalPoints > 0 ? (float)(pair.Value.Points / totalPoints) : 0f)
+			}));
 		}
 	}
 
@@ -2945,6 +3229,8 @@ public partial class ChartAuditRunner : Node {
 		double albumNet = decadeAnnual.Album.LabelNet;
 		List<int> albumAges = decadeAnnual.AlbumAges;
 		List<int> albumUnits = decadeAnnual.AlbumUnits;
+		// ClosedTop40Weeks accumulates in closure order; Statistic requires a sorted list.
+		List<int> closedTop40Weeks = decadeAnnual.ClosedTop40Weeks.OrderBy(value => value).ToList();
 		int albumsBelowFloor = albumUnits.Count(value => value < 10);
 		int albumsAtOrAboveFloor = albumUnits.Count - albumsBelowFloor;
 		double? pearson = Correlation(decadeAnnual.ChartingSingles.Values.Select(value => (value.Quality, 101d - value.BestPosition)));
@@ -2981,7 +3267,7 @@ public partial class ChartAuditRunner : Node {
 			Ratio(decadeAnnual.PromoExpected - decadeAnnual.PromoRealized, decadeAnnual.PromoCompleted),
 			pearson.HasValue ? F(pearson.Value) : string.Empty,
 			decadeAnnual.ChartingSingles.Count.ToString(CultureInfo.InvariantCulture),
-			Statistic(decadeAnnual.ClosedTop40Weeks, 0.5), decadeAnnual.ClosedTop40Weeks.Count.ToString(CultureInfo.InvariantCulture),
+			Statistic(closedTop40Weeks, 0.5), closedTop40Weeks.Count.ToString(CultureInfo.InvariantCulture),
 			decadeAnnual.ActiveSingles.ToString(CultureInfo.InvariantCulture), decadeAnnual.ActiveAlbums.ToString(CultureInfo.InvariantCulture),
 			Statistic(albumAges, 0.5), Statistic(albumAges, 0.9),
 			Statistic(albumUnits, 0), Statistic(albumUnits, 0.25), Statistic(albumUnits, 0.5),
@@ -3131,6 +3417,8 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter?.Flush();
 		supplySelectionWriter?.Flush();
 		traditionalPopFallbackWriter?.Flush();
+		genreShapeWriter?.Flush();
+		yearEndHot100Writer?.Flush();
 	}
 
 	private void WriteAnnualFormatMixRows() {
@@ -3204,7 +3492,12 @@ public partial class ChartAuditRunner : Node {
 			F(record.initialLaunchAwareness),
 			record.initialLaunchStock.ToString(CultureInfo.InvariantCulture),
 			Csv(record.launchCareerState.ToString()),
-			F(record.perceivedQualityMultiplier)
+			F(record.perceivedQualityMultiplier),
+			// The station drop's direct instrument. radioPanelShare only ever falls, so a row where it
+			// rises against the same record's previous week is a re-add and a latch leak; the drop week
+			// is the first row below 1. Reported alongside the return rate, per handoff 12.4r.
+			record.weeksSincePeakUnits.ToString(CultureInfo.InvariantCulture),
+			F(record.radioPanelShare)
 		}));
 	}
 
@@ -3355,6 +3648,8 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter?.Dispose();
 		supplySelectionWriter?.Dispose();
 		traditionalPopFallbackWriter?.Dispose();
+		genreShapeWriter?.Dispose();
+		yearEndHot100Writer?.Dispose();
 		genreEventsWriter?.Dispose();
 		specialProductsWriter?.Dispose();
 		rosterLifecycleWriter?.Dispose();
@@ -3365,6 +3660,7 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter?.Dispose();
 		artistProjectIdentityWriter?.Dispose();
 		labelOperatingTargetEventWriter?.Dispose();
+		labelTierTransitionWriter?.Dispose();
 		runtimeLabelProfileWriter?.Dispose();
 		dailyTalentMarketWriter?.Dispose();
 		dailyTalentAppointmentWriter?.Dispose();
@@ -3428,6 +3724,8 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter = null;
 		supplySelectionWriter = null;
 		traditionalPopFallbackWriter = null;
+		genreShapeWriter = null;
+		yearEndHot100Writer = null;
 		genreEventsWriter = null;
 		specialProductsWriter = null;
 		rosterLifecycleWriter = null;
@@ -3437,6 +3735,7 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter = null;
 		artistProjectIdentityWriter = null;
 		labelOperatingTargetEventWriter = null;
+		labelTierTransitionWriter = null;
 		runtimeLabelProfileWriter = null;
 		dailyTalentMarketWriter = null;
 		dailyTalentAppointmentWriter = null;
