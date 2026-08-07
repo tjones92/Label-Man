@@ -38,7 +38,9 @@ namespace LabelMan.Naming {
 			=> list[rng.Next(list.Count)];
 	}
 
-	/// <summary>One lexicon word plus metadata. Words inherit tags from their group at load.</summary>
+	/// <summary>One lexicon word plus metadata. Words inherit tags from their group at load.
+	/// The ontology (Layer 3) classifies the freeform <see cref="Tags"/> into the five axes below
+	/// at load time — no separate tagging pass in the data files.</summary>
 	public sealed class WordEntry {
 		public string Word;
 		public string Pos;
@@ -48,7 +50,32 @@ namespace LabelMan.Naming {
 		public int? EraEnd;
 		public double Weight = 1.0;
 
+		// ---- ontology axes (populated by TagOntology.Classify at load; null/default if unclassified) ----
+		public Bitset DomainBits;          // DOMAIN closure (self + ancestors) for O(1) tree-filter
+		public HashSet<string> Moods;      // MOOD axis (intersection of Tags with the 19 moods)
+		public int Register = -1;          // REGISTER 0..5, -1 = unset
+		public string EraClass;            // ERA idiom bucket (early60s/mid60s/late60s/emerging:YYYY)
+		public string LocaleClass;         // LOCALE (US/UK/Portuguese/Spanish/Jamaican), null = Neutral
+
 		public bool HasTag(string t) => Tags != null && Tags.Contains(t);
+	}
+
+	/// <summary>Fixed-width bitset over ulong words. Used for DOMAIN-tag closures so a tree filter
+	/// becomes a single bitwise-AND (doc 7 §3.1) instead of a runtime tree walk.</summary>
+	public sealed class Bitset {
+		private readonly ulong[] _w;
+		public Bitset(int bits) { _w = new ulong[(Math.Max(1, bits) + 63) >> 6]; }
+		private Bitset(ulong[] w) { _w = w; }
+		public void Set(int i) { _w[i >> 6] |= 1UL << (i & 63); }
+		public bool Get(int i) => (_w[i >> 6] & (1UL << (i & 63))) != 0;
+		public void OrWith(Bitset o) { for (int i = 0; i < _w.Length; i++) _w[i] |= o._w[i]; }
+		public bool Intersects(Bitset o) {
+			int n = Math.Min(_w.Length, o._w.Length);
+			for (int i = 0; i < n; i++) if ((_w[i] & o._w[i]) != 0) return true;
+			return false;
+		}
+		public bool IsEmpty() { foreach (var x in _w) if (x != 0) return false; return true; }
+		public Bitset Clone() => new Bitset((ulong[])_w.Clone());
 	}
 
 	/// <summary>The single parameter object threaded through every generation call.

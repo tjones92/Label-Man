@@ -1,0 +1,84 @@
+{
+  "//": "SAMPLE authoring reference for the Layer-2 constraint-template DSL. Rename to templates.json to activate (the adapter loads templates.json if present and registers each key as a constraint-set symbol via NameEngine.AddConstraintSet). These are inert until the lexicon is tagged onto the ontology axes (domain/mood/register) — until then slot filters relax to any affinity-positive word. Worked examples mirror design doc 2 §8.",
+
+  "song.blues": [
+    {
+      "id": "blues_trouble_song",
+      "type": "song",
+      "pattern": "%verb#1:ger% %connector#1% %noun#1%",
+      "weight": 3.0,
+      "words": [3, 4],
+      "requires": ["noun", "verb", "connector"],
+      "slots": {
+        "noun#1": { "pos": "noun", "filter": "grit|travel|romance" },
+        "verb#1": { "pos": "verb", "inflect": "ger" }
+      },
+      "constraints": [
+        { "type": "moodInternal", "onFail": "reroll", "budget": 3 }
+      ]
+    }
+  ],
+
+  "band.doowop": [
+    {
+      "id": "doowop_celestial_band",
+      "type": "band",
+      "pattern": "The %noun#1:pl%",
+      "weight": 5.0,
+      "words": [2, 3],
+      "gate": { "voiceDim": "theProbability", "voiceMin": 0.9 },
+      "slots": { "noun#1": { "pos": "noun", "filter": "celestial|gem" } }
+    }
+  ],
+
+  "song.bubblegum": [
+    {
+      "id": "bubblegum_redup",
+      "type": "song",
+      "pattern": "%candy#1% %candy#2% %candy#3%",
+      "gate": { "minYear": 1968 },
+      "words": [3, 3],
+      "requires": ["candy"],
+      "constraints": [
+        { "type": "same", "slots": ["candy#1", "candy#2", "candy#3"] }
+      ]
+    }
+  ],
+
+  "song.prog": [
+    {
+      "id": "prog_epic_title",
+      "type": "song",
+      "pattern": "The %adjective#1% %noun#1% %connector#1% %noun#2%",
+      "gate": { "minYear": 1968, "voiceDim": "archaismLevel", "voiceMin": 0.6 },
+      "words": [5, 8],
+      "weight": 2.0,
+      "slots": {
+        "adjective#1": { "pos": "adjective", "filter": "grand|archaic" },
+        "noun#1": { "pos": "noun", "filter": "cosmic|mythic" },
+        "noun#2": { "pos": "noun", "filter": "mystical|cosmic" }
+      },
+      "constraints": [
+        { "type": "distinct", "slots": ["noun#1", "noun#2"] },
+        { "type": "registerMin", "value": 2 }
+      ]
+    }
+  ],
+
+  "song.latin": [
+    {
+      "id": "bossa_soft_title",
+      "type": "song",
+      "pattern": "%adjective#1% %noun#1%",
+      "gate": { "orthography": "Portuguese" },
+      "words": [2, 3],
+      "slots": {
+        "adjective#1": { "pos": "adjective", "filter": "serene|dreamy", "transforms": ["diacritics"] },
+        "noun#1": { "pos": "noun", "filter": "nautical|flora", "transforms": ["diacritics"] }
+      },
+      "constraints": [
+        { "type": "moodDirected", "target": ["serene", "wistful"], "threshold": 0.4 }
+      ]
+    }
+  ]
+}

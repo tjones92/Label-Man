@@ -29,20 +29,31 @@ namespace LabelMan.Naming {
 		private readonly Dictionary<string, List<Rule>> _symbols;
 		private readonly Lexicon _lexicon;
 		private readonly IWordCoiner _coiner;
+		private readonly Inflection _inflection;   // Layer 6: real morphology for .pl/.ger/.past/... modifiers
 		private const int MaxDepth = 25;
 
 		private static readonly HashSet<string> Functions = new(StringComparer.OrdinalIgnoreCase) {
 			"number", "writtenNumber", "ordinal", "callsign", "letters", "initial", "year2", "yearFull", "decade"
 		};
 
-		public GrammarEngine(Dictionary<string, List<Rule>> symbols, Lexicon lexicon, IWordCoiner coiner) {
+		/// <summary>True if the token name is a built-in function (not a lexicon pos). Lets the
+		/// tuner skip functions when listing the word groups a category queries.</summary>
+		public static bool IsFunction(string name) => Functions.Contains(name);
+
+		public GrammarEngine(Dictionary<string, List<Rule>> symbols, Lexicon lexicon, IWordCoiner coiner, Inflection inflection = null) {
 			_symbols = symbols ?? new();
 			_lexicon = lexicon;
 			_coiner = coiner;
+			_inflection = inflection;
 		}
 
 		public IEnumerable<string> Symbols => _symbols.Keys;
 		public bool HasSymbol(string s) => _symbols.ContainsKey(s);
+
+		/// <summary>The raw template strings of a symbol's rules (used by the tuner to discover
+		/// which lexicon groups a category queries). Empty if the symbol is unknown.</summary>
+		public IReadOnlyList<string> Templates(string symbol) =>
+			_symbols.TryGetValue(symbol, out var rules) ? rules.Select(r => r.t).ToList() : System.Array.Empty<string>();
 
 		public static Dictionary<string, List<Rule>> ParseGrammar(string json) {
 			using var doc = JsonDocument.Parse(json, new JsonDocumentOptions {
@@ -208,19 +219,36 @@ namespace LabelMan.Naming {
 			return (parts[0], mods);
 		}
 
-		private static string ApplyMods(string s, List<string> mods) {
+		private string ApplyMods(string s, List<string> mods) {
 			if (mods == null) return s;
 			foreach (var m in mods) {
-				switch (m.ToLowerInvariant()) {
+				string mod = m.ToLowerInvariant();
+				switch (mod) {
 					case "cap": s = Capitalize(s); break;
 					case "lower": s = s.ToLowerInvariant(); break;
 					case "upper": s = s.ToUpperInvariant(); break;
-					case "s": s = Pluralize(s); break;
 					case "trims": s = s.EndsWith("s") ? s.Substring(0, s.Length - 1) : s; break;
-					case "poss": s = s.EndsWith("s") ? s + "'" : s + "'s"; break;
+					// morphology: prefer the Layer-6 inflection engine (echoes not echos), else fall back
+					case "s": case "pl": s = Morph(s, InflForm.Plural, () => Pluralize(s)); break;
+					case "poss": s = Morph(s, InflForm.Possessive, () => s.EndsWith("s") ? s + "'" : s + "'s"); break;
+					case "ger": case "ing": s = Morph(s, InflForm.Ger, () => s); break;
+					case "past": s = Morph(s, InflForm.Past, () => s); break;
+					case "pastpart": case "pp": s = Morph(s, InflForm.PastPart, () => s); break;
+					case "3s": s = Morph(s, InflForm.ThirdSing, () => s); break;
+					case "comp": s = Morph(s, InflForm.Comparative, () => s); break;
+					case "sup": s = Morph(s, InflForm.Superlative, () => s); break;
 				}
 			}
 			return s;
+		}
+
+		// Multi-word phrases inflect only their last word (e.g. "blue moon".pl -> "blue moons").
+		private string Morph(string s, InflForm form, Func<string> fallback) {
+			if (_inflection == null || string.IsNullOrWhiteSpace(s)) return fallback();
+			int sp = s.LastIndexOf(' ');
+			string head = sp < 0 ? "" : s.Substring(0, sp + 1);
+			string tail = sp < 0 ? s : s.Substring(sp + 1);
+			return head + _inflection.Inflect(tail, form);
 		}
 
 		private static string Capitalize(string s) =>

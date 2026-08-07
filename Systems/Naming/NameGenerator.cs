@@ -15,6 +15,12 @@ public partial class NameGenerator : Node {
 	private const string LexiconPath = "res://Data/Naming/lexicon.json";
 	private const string UserLexiconPath = "res://Data/Naming/lexicon.user.json";
 	private const string GrammarPath = "res://Data/Naming/grammar.json";
+	// Optional data-driven overrides for the six-layer models (embedded defaults apply if absent).
+	private const string OntologyPath = "res://Data/Naming/ontology.json";
+	private const string MoodsPath = "res://Data/Naming/moods.json";
+	private const string InflectionPath = "res://Data/Naming/inflection.json";
+	private const string GenresPath = "res://Data/Naming/genres.json";
+	private const string TemplatesPath = "res://Data/Naming/templates.json";
 
 	private NameEngine _engine;
 	private IRandom _rng;             // dedicated naming stream, isolated from GD.Rand
@@ -35,10 +41,25 @@ public partial class NameGenerator : Node {
 		string userJson = ReadFile(UserLexiconPath);
 		if (!string.IsNullOrEmpty(userJson)) lexicon.AppendJson(userJson);
 
+		// Build the six-layer model bundle, applying optional JSON overrides atop embedded defaults.
+		var ontology = new TagOntology();       ontology.LoadJson(ReadFile(OntologyPath));
+		var moods = new MoodGraph();            moods.LoadJson(ReadFile(MoodsPath));
+		var inflection = new Inflection();      inflection.LoadJson(ReadFile(InflectionPath));
+		var genres = new GenreLibrary();        genres.LoadJson(ReadFile(GenresPath));
+		var models = new NameModels(ontology, moods, inflection, genres);
+
 		var grammar = GrammarEngine.ParseGrammar(grammarJson);
-		_engine = new NameEngine(lexicon, grammar);
+		_engine = new NameEngine(lexicon, grammar, models);
+
+		// Optional Layer-2 constraint-template sets (richer, mood-coherent generators).
+		string templatesJson = ReadFile(TemplatesPath);
+		if (!string.IsNullOrEmpty(templatesJson))
+			foreach (var kv in ConstraintTemplateLoader.Parse(templatesJson)) _engine.AddConstraintSet(kv.Key, kv.Value);
+
 		_rng = new DeterministicRandom(DeriveSeed());
-		GD.Print($"NameGenerator ready: {lexicon.Count} words, {grammar.Count} symbols.");
+		var moodIssues = moods.Validate();
+		if (moodIssues.Count > 0) GD.PushWarning($"NameGenerator mood matrix: {string.Join("; ", moodIssues)}");
+		GD.Print($"NameGenerator ready: {lexicon.Count} words, {grammar.Count} symbols, {models.Genres.Ids.Count()} genre profiles.");
 	}
 
 	/// <summary>Seed the naming stream deterministically from the sim seed but on a SEPARATE
@@ -64,9 +85,7 @@ public partial class NameGenerator : Node {
 		ctx.RegionId = regionId;
 		if (labelStyle.HasValue) ctx.LabelArchetype = labelStyle.Value.ToString();
 
-		bool isBand = DetermineIfBand(genre, artistType);
-		string symbol = isBand ? ChooseBandSymbol(genre, year, artistType, ctx)
-							   : RollSoloDemographics(genre, ctx);
+		string symbol = ChooseArtistSymbol(genre, year, artistType, ctx);
 		return _engine.Generate(symbol, ctx, "artist", nearDup: true);
 	}
 
@@ -79,34 +98,45 @@ public partial class NameGenerator : Node {
 		return (first, last);
 	}
 
+	/// <summary>Route (genre, year, type) to the artist grammar symbol AND populate the
+	/// demographic tag-sets on <paramref name="ctx"/>. Shared by the game and the tuner; all
+	/// rolls draw from <c>ctx.Rng</c> so a seeded tuner batch is reproducible.</summary>
+	private string ChooseArtistSymbol(Genre genre, int year, ArtistType artistType, NamingContext ctx) {
+		return DetermineIfBand(genre, artistType, ctx.Rng)
+			? ChooseBandSymbol(genre, year, artistType, ctx)
+			: RollSoloDemographics(genre, ctx);
+	}
+
 	private string RollSoloDemographics(Genre genre, NamingContext ctx) {
-		bool isFemale = _rng.Chance(GetFemaleChance(genre));
-		bool isBlack = IsAfricanAmericanGenre(genre) && _rng.Chance(0.75);
-		bool isItalian = IsEastCoastGenre(genre) && !isBlack && _rng.Chance(0.35);
+		var rng = ctx.Rng;
+		bool isFemale = rng.Chance(GetFemaleChance(genre));
+		bool isBlack = IsAfricanAmericanGenre(genre) && rng.Chance(0.75);
+		bool isItalian = IsEastCoastGenre(genre) && !isBlack && rng.Chance(0.35);
 		bool isCountry = genre == Genre.Country || genre == Genre.CountryRock;
-		bool isJewish = IsBrillBuildingGenre(genre) && !isBlack && _rng.Chance(0.25);
+		bool isJewish = IsBrillBuildingGenre(genre) && !isBlack && rng.Chance(0.25);
 
 		string ethnicity = isBlack ? "black" : isCountry ? "country" : "white";
 		ctx.TagSets["name"] = new List<string> { isFemale ? "female" : "male", ethnicity };
 
 		string surname;
-		if (isCountry) surname = _rng.Chance(0.55) ? "country" : "generic";
-		else if (isItalian) surname = _rng.Chance(0.60) ? "italian" : "generic";
-		else if (isJewish) surname = _rng.Chance(0.50) ? "jewish" : "generic";
+		if (isCountry) surname = rng.Chance(0.55) ? "country" : "generic";
+		else if (isItalian) surname = rng.Chance(0.60) ? "italian" : "generic";
+		else if (isJewish) surname = rng.Chance(0.50) ? "jewish" : "generic";
 		else surname = "generic";
 		ctx.TagSets["surname"] = new List<string> { surname };
 		return "soloName";
 	}
 
 	private string ChooseBandSymbol(Genre genre, int year, ArtistType artistType, NamingContext ctx) {
+		var rng = ctx.Rng;
 		// band-leader demographic for $name patterns
-		bool leaderBlack = IsAfricanAmericanGenre(genre) && _rng.Chance(0.8);
+		bool leaderBlack = IsAfricanAmericanGenre(genre) && rng.Chance(0.8);
 		ctx.TagSets["name"] = new List<string> { "male", leaderBlack ? "black" : "white" };
 		ctx.TagSets["surname"] = new List<string> { "generic" };
 
 		if (year >= 1967 && IsPsychedelicGenre(genre)) return "bandName.psych";
 		if (genre == Genre.BritishInvasion || genre == Genre.BritishBeat || genre == Genre.BritishPop ||
-			(year >= 1964 && year <= 1966 && genre == Genre.RockAndRoll && _rng.Chance(0.35)))
+			(year >= 1964 && year <= 1966 && genre == Genre.RockAndRoll && rng.Chance(0.35)))
 			return "bandName.british";
 		if (genre == Genre.SurfRock) return "bandName.surf";
 		if (genre == Genre.Soul || genre == Genre.RnB || genre == Genre.Motown || genre == Genre.Funk)
@@ -120,10 +150,25 @@ public partial class NameGenerator : Node {
 			return "bandName.folk";
 		}
 		if (genre == Genre.Gospel) return "bandName.gospel";
+		if (genre == Genre.Country || genre == Genre.CountryRock || genre == Genre.TexMex || genre == Genre.RootsRock)
+			return "bandName.country";
+		if (genre == Genre.Jazz || genre == Genre.EasyListening || genre == Genre.BossaNova || genre == Genre.Classical)
+			return "bandName.jazz";
+		if (genre == Genre.Blues || genre == Genre.BluesRock || genre == Genre.BritishBlues)
+			return "bandName.blues";
+		if (genre == Genre.HardRock || genre == Genre.ProtoMetal || genre == Genre.AcidRock || genre == Genre.ProtoPunk)
+			return "bandName.hardRock";
+		if (genre == Genre.Bubblegum || genre == Genre.Childrens)
+			return "bandName.bubblegum";
+		if (genre == Genre.Reggae || genre == Genre.Ska || genre == Genre.Rocksteady || genre == Genre.SkaRocksteady)
+			return "bandName.reggae";
+		if (genre == Genre.SunshinePop || genre == Genre.BaroquePop || genre == Genre.PsychedelicPop ||
+			genre == Genre.PopRock || genre == Genre.ProgressiveRock)
+			return "bandName.sunshine";
 		return "bandName.default";
 	}
 
-	private bool DetermineIfBand(Genre genre, ArtistType artistType) {
+	private bool DetermineIfBand(Genre genre, ArtistType artistType, IRandom rng) {
 		if (artistType == ArtistType.SoloMale || artistType == ArtistType.SoloFemale) return false;
 		if (artistType == ArtistType.Band || artistType == ArtistType.Duo ||
 			artistType == ArtistType.Trio || artistType == ArtistType.VocalGroup) return true;
@@ -135,29 +180,38 @@ public partial class NameGenerator : Node {
 			Genre.Country => 0.12f, Genre.Jazz => 0.35f, Genre.TraditionalPop => 0.08f,
 			Genre.TeenPop => 0.25f, Genre.Gospel => 0.7f, _ => 0.5f
 		};
-		return _rng.Chance(bandChance);
+		return rng.Chance(bandChance);
 	}
 
 	// =============================================================== SONG TITLES
 	public string GenerateSongTitle(Genre genre, int year, string artistName = null) {
 		if (_engine == null) return $"Untitled {GD.Randi()}";
 		var ctx = MakeContext(genre, year, ArtistType.Unknown);
-		string symbol = ChooseSongSymbol(genre, year);
+		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
 		string bucket = "song|" + (artistName ?? "");
 		return _engine.Generate(symbol, ctx, bucket, nearDup: false, attempts: 30);
 	}
 
-	private string ChooseSongSymbol(Genre genre, int year) {
+	private string ChooseSongSymbol(Genre genre, int year, IRandom rng) {
 		if (year >= 1967 && IsPsychedelicGenre(genre)) return "songTitle.psych";
 		if (genre == Genre.SurfRock) return "songTitle.surf";
 		if (genre == Genre.Soul || genre == Genre.RnB || genre == Genre.Motown || genre == Genre.Funk) return "songTitle.soul";
 		if (genre == Genre.Country || genre == Genre.CountryRock) return "songTitle.country";
 		if (genre == Genre.DooWop || genre == Genre.GirlGroup || genre == Genre.TeenPop) return "songTitle.early60s";
 		if (genre == Genre.Folk || genre == Genre.FolkRock || genre == Genre.ContemporaryFolk) return "songTitle.folk";
+		if (genre == Genre.Jazz || genre == Genre.EasyListening || genre == Genre.BossaNova) return "songTitle.jazz";
+		if (genre == Genre.Blues || genre == Genre.BluesRock || genre == Genre.BritishBlues) return "songTitle.blues";
+		if (genre == Genre.HardRock || genre == Genre.ProtoMetal || genre == Genre.AcidRock ||
+			genre == Genre.ProtoPunk) return "songTitle.hardRock";
+		if (genre == Genre.Bubblegum || genre == Genre.Childrens) return "songTitle.bubblegum";
+		if (genre == Genre.Reggae || genre == Genre.Ska || genre == Genre.Rocksteady ||
+			genre == Genre.SkaRocksteady) return "songTitle.reggae";
+		if (genre == Genre.SunshinePop || genre == Genre.BaroquePop || genre == Genre.PsychedelicPop ||
+			genre == Genre.PopRock) return "songTitle.sunshine";
 		// default routing mirrors the old year-based blend
 		if (year < 1964) return "songTitle.early60s";
-		if (year < 1967) return _rng.Chance(0.5) ? "songTitle.early60s" : "songTitle.soul";
-		return _rng.Next(3) switch { 0 => "songTitle.psych", 1 => "songTitle.soul", _ => "songTitle.early60s" };
+		if (year < 1967) return rng.Chance(0.5) ? "songTitle.early60s" : "songTitle.soul";
+		return rng.Next(3) switch { 0 => "songTitle.psych", 1 => "songTitle.soul", _ => "songTitle.early60s" };
 	}
 
 	public string GenerateBSideTitle(Genre genre, int year, string aSideTitle) {
@@ -285,63 +339,306 @@ public partial class NameGenerator : Node {
 	}
 
 	// ============================================================ TUNER SUPPORT
-	/// <summary>Grammar symbols the NameLab tuner can spin.</summary>
+
+	// Synthetic "routed" categories the tuner prepends to the raw grammar symbols. Selecting one
+	// runs the game's genre->symbol routing, so the Genre/Type menus actually drive the output.
+	public const string CatArtist = "» Artist name (by genre)";
+	public const string CatSong   = "» Song title (by genre)";
+	public const string CatAlbum  = "» Album title (by genre)";
+	public const string CatPerson = "» Person (people pool)";
+
+	/// <summary>Routed meta-categories, listed first in the tuner ahead of the raw grammar symbols.</summary>
+	public string[] RoutedCategories() => new[] { CatArtist, CatSong, CatAlbum, CatPerson };
+
+	/// <summary>Raw grammar symbols the NameLab tuner can spin directly.</summary>
 	public string[] AvailableSymbols() => _engine == null ? System.Array.Empty<string>()
 		: _engine.AvailableSymbols.ToArray();
 
-	/// <summary>Spin N names for a symbol. If <paramref name="seed"/> is given the batch is
-	/// reproducible; otherwise the shared naming stream is used.</summary>
-	public string[] Spin(string symbol, Genre genre, int year, ArtistType artistType,
-						 LabelArchetype archetype, int count, ulong? seed = null) {
+	/// <summary>Layer-2 constraint-template sets (from templates.json) the tuner can spin.</summary>
+	public string[] ConstraintCategories() => _engine == null ? System.Array.Empty<string>()
+		: _engine.ConstraintSymbols.OrderBy(s => s).ToArray();
+
+	/// <summary>Spin N names for a category (a routed meta-category or a raw grammar symbol).
+	/// A given <paramref name="seed"/> makes the batch reproducible; blank uses the shared stream.
+	/// <paramref name="artistName"/> fills {artist} for artist-based symbols (blank auto-generates a
+	/// fresh band name per spin). <paramref name="coinSurname"/> uses a Markov-coined surname for the
+	/// Person pool.</summary>
+	public string[] Spin(string category, Genre genre, int year, ArtistType artistType,
+						 LabelArchetype archetype, string artistName, bool coinSurname, int count, ulong? seed = null) {
 		if (_engine == null) return new[] { "(engine not ready)" };
 		IRandom rng = seed.HasValue ? new DeterministicRandom(seed.Value) : _rng;
 		var results = new string[count];
 		for (int i = 0; i < count; i++) {
 			var ctx = MakeContext(genre, year, artistType, rng);
 			ctx.LabelArchetype = archetype.ToString();
-			ctx.Slots["artist"] = "The Spinners";        // placeholder for artist-based symbols
 			ctx.Slots["city"] = _engine.Lexicon.Query("city", new[] { "general" }, ctx);
-			// give demographic-driven symbols something to work with
-			bool female = artistType == ArtistType.SoloFemale;
-			ctx.TagSets["name"] = new List<string> { female ? "female" : "male", "white" };
+			// default demographics for symbols reading $name/$surname (routing overrides below).
+			ctx.TagSets["name"] = new List<string> { artistType == ArtistType.SoloFemale ? "female" : "male", "white" };
 			ctx.TagSets["surname"] = new List<string> { "generic" };
-			results[i] = _engine.ExpandOnce(symbol, ctx);
+			results[i] = SpinOne(category, genre, year, artistType, artistName, coinSurname, ctx);
 		}
 		return results;
 	}
 
-	/// <summary>Append a word to the user overrides file and hot-reload so it takes effect.</summary>
-	public bool AddWordAndSave(string word, string pos, IEnumerable<string> tags) {
+	private string SpinOne(string category, Genre genre, int year, ArtistType type,
+						   string artistName, bool coinSurname, NamingContext ctx) {
+		// Layer-2 constraint-template set (from templates.json)
+		if (_engine.HasConstraintSet(category)) {
+			ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
+			string s = _engine.FillConstraint(category, ctx);
+			return string.IsNullOrEmpty(s) ? "(no satisfiable template for this genre/year)" : s;
+		}
+		switch (category) {
+			case CatArtist:
+				return _engine.ExpandOnce(ChooseArtistSymbol(genre, year, type, ctx), ctx);
+			case CatSong:
+				return _engine.ExpandOnce(ChooseSongSymbol(genre, year, ctx.Rng), ctx);
+			case CatAlbum: {
+				ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
+				double r = ctx.Rng.NextDouble();
+				if (r < 0.10) return ctx.Slots["artist"];               // self-titled
+				if (r < 0.30) return _engine.ExpandOnce("albumFormat", ctx);
+				return _engine.ExpandOnce("albumTitle", ctx);
+			}
+			case CatPerson: {
+				ctx.TagSets["name"] = new List<string> { type == ArtistType.SoloFemale ? "female" : "male", "white" };
+				ctx.TagSets["surname"] = new List<string> { "generic" };
+				return _engine.ExpandOnce(coinSurname ? "personName.coined" : "personName", ctx);
+			}
+			default:
+				ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
+				return _engine.ExpandOnce(category, ctx);
+		}
+	}
+
+	/// <summary>The band/artist name to drop into {artist}: the user-supplied name if any, else a
+	/// fresh routed band name so album/tour/fan-club spins vary instead of repeating one constant.</summary>
+	private string ResolveArtist(string artistName, Genre genre, int year, NamingContext ctx) {
+		if (!string.IsNullOrWhiteSpace(artistName)) return artistName.Trim();
+		var bctx = ctx.Clone();
+		bctx.TagSets = new Dictionary<string, List<string>>(ctx.TagSets); // isolate demographic rolls
+		return _engine.ExpandOnce(ChooseArtistSymbol(genre, year, ArtistType.Band, bctx), bctx);
+	}
+
+	// ------------------------------------------------------- ENGINE INSPECTOR (tuner)
+	/// <summary>Read-only view of a genre's resolved profile (Layer 1) for the tuner's inspector.</summary>
+	public sealed class GenreProfileView {
+		public string Id, Extends, Orthography;
+		public double MoodThreshold;
+		public (string dim, double val)[] Voice;
+		public (string tag, double w)[] DomainAffinity;
+		public (string mood, double w)[] MoodAffinity;
+		public string[] Suppress;
+		public double[] EraCurve;
+	}
+
+	/// <summary>Resolve and expose the genre profile powering a genre (voice vector, affinities,
+	/// mood threshold, orthography, era curve). Edit these in genres.json + Reload to change them.</summary>
+	public GenreProfileView InspectGenre(Genre genre) {
+		if (_engine == null) return null;
+		var p = _engine.Models.Genres.Get(genre.ToString());
+		var voice = new (string, double)[VoiceVector.Dims.Length];
+		for (int i = 0; i < VoiceVector.Dims.Length; i++) voice[i] = (VoiceVector.Dims[i], p.Voice[i]);
+		return new GenreProfileView {
+			Id = p.Id, Extends = p.Extends, Orthography = p.Orthography.ToString(), MoodThreshold = p.MoodThreshold,
+			Voice = voice,
+			DomainAffinity = p.DomainAffinity.OrderByDescending(kv => kv.Value).Select(kv => (kv.Key, kv.Value)).ToArray(),
+			MoodAffinity = p.MoodAffinity.OrderByDescending(kv => kv.Value).Select(kv => (kv.Key, kv.Value)).ToArray(),
+			Suppress = p.Suppress.OrderBy(s => s).ToArray(),
+			EraCurve = p.EraCurve
+		};
+	}
+
+	/// <summary>Inflection-engine (Layer 6) tester: all forms of a lemma for the tuner.</summary>
+	public string[] InflectForms(string word) {
+		word = word?.Trim();
+		if (_engine == null || string.IsNullOrEmpty(word)) return System.Array.Empty<string>();
+		var inf = _engine.Models.Inflection;
+		return new[] {
+			$"plural:  {inf.Inflect(word, InflForm.Plural)}",
+			$"gerund:  {inf.Inflect(word, InflForm.Ger)}",
+			$"past:    {inf.Inflect(word, InflForm.Past)}",
+			$"3rd sg:  {inf.Inflect(word, InflForm.ThirdSing)}",
+			$"poss:    {inf.Inflect(word, InflForm.Possessive)}",
+			$"comp:    {inf.Inflect(word, InflForm.Comparative)}",
+			$"super:   {inf.Inflect(word, InflForm.Superlative)}",
+		};
+	}
+
+	// ----------------------------------------------------------- DICTIONARY VIEW
+	/// <summary>One editable lexicon group a category queries.</summary>
+	public sealed class LexGroupView {
+		public string Pos;
+		public string[] Tags;
+		public string Label;          // e.g. "noun [psych]"
+		public WordView[] Words;
+	}
+	public sealed class WordView { public string Word; public int? EraStart; public int? EraEnd; }
+
+	/// <summary>The distinct lexicon groups (pos + resolved tags) the given category queries,
+	/// each with its current word list — the backing data for the tuner's dictionary panel.</summary>
+	public LexGroupView[] GroupsForCategory(string category, Genre genre, int year, ArtistType type) {
+		if (_engine == null) return System.Array.Empty<LexGroupView>();
+		var ctx = MakeContext(genre, year, type, new DeterministicRandom(1UL));
+		ctx.TagSets["name"] = new List<string> { type == ArtistType.SoloFemale ? "female" : "male", "white" };
+		ctx.TagSets["surname"] = new List<string> { "generic" };
+
+		var seen = new Dictionary<string, LexGroupView>();
+		foreach (var sym in SymbolsForCategory(category, genre, year, type, ctx))
+			foreach (var tmpl in _engine.Grammar.Templates(sym))
+				foreach (var (pos, tags) in ExtractGroups(tmpl, ctx)) {
+					string key = pos + "|" + string.Join(",", tags.OrderBy(t => t, System.StringComparer.OrdinalIgnoreCase));
+					if (seen.ContainsKey(key)) continue;
+					var words = _engine.Lexicon.Entries(pos, tags)
+						.Select(e => new WordView { Word = e.Word, EraStart = e.EraStart, EraEnd = e.EraEnd })
+						.OrderBy(w => w.Word, System.StringComparer.OrdinalIgnoreCase).ToArray();
+					seen[key] = new LexGroupView {
+						Pos = pos, Tags = tags.ToArray(),
+						Label = tags.Count == 0 ? pos : $"{pos} [{string.Join(",", tags)}]",
+						Words = words
+					};
+				}
+		return seen.Values.OrderBy(g => g.Label, System.StringComparer.OrdinalIgnoreCase).ToArray();
+	}
+
+	private string[] SymbolsForCategory(string category, Genre genre, int year, ArtistType type, NamingContext probe) {
+		switch (category) {
+			case CatArtist: return new[] { ChooseArtistSymbol(genre, year, type, probe) };
+			case CatSong:   return new[] { ChooseSongSymbol(genre, year, probe.Rng) };
+			case CatAlbum:  return new[] { "albumTitle", "albumFormat" };
+			case CatPerson: return new[] { "personName" };
+			default:        return new[] { category };
+		}
+	}
+
+	/// <summary>Pull the lexicon queries out of a grammar template: {[~]pos:tags[.mods]}. Skips
+	/// built-in functions and untagged slots ({artist}, {city}). Mirrors GrammarEngine tag rules.</summary>
+	private IEnumerable<(string pos, List<string> tags)> ExtractGroups(string tmpl, NamingContext ctx) {
+		var outp = new List<(string, List<string>)>();
+		if (string.IsNullOrEmpty(tmpl)) return outp;
+		for (int i = 0; i < tmpl.Length; ) {
+			if (tmpl[i] != '{') { i++; continue; }
+			int end = tmpl.IndexOf('}', i + 1);
+			if (end < 0) break;
+			string spec = tmpl.Substring(i + 1, end - i - 1).Split('.')[0]; // drop modifiers
+			i = end + 1;
+			if (spec.StartsWith("~")) spec = spec.Substring(1);
+			int colon = spec.IndexOf(':');
+			if (colon < 0) continue;                                        // slot or function, not a group
+			string pos = spec.Substring(0, colon);
+			if (pos.Length == 0 || GrammarEngine.IsFunction(pos)) continue;
+			outp.Add((pos, ResolveTags(spec.Substring(colon + 1), ctx)));
+		}
+		return outp;
+	}
+
+	private static List<string> ResolveTags(string tagStr, NamingContext ctx) {
+		var outTags = new List<string>();
+		if (string.IsNullOrWhiteSpace(tagStr)) return outTags;
+		foreach (var raw in tagStr.Split(',')) {
+			string t = raw.Trim();
+			if (t.Length == 0) continue;
+			if (t.Equals("$style", System.StringComparison.OrdinalIgnoreCase)) {
+				if (ctx.StyleTags?.Count > 0) outTags.Add(ctx.StyleTags[0]);
+			} else if (t.Equals("$genre", System.StringComparison.OrdinalIgnoreCase)) {
+				if (!string.IsNullOrEmpty(ctx.Genre)) outTags.Add(ctx.Genre.ToLowerInvariant());
+			} else if (t.StartsWith("$")) {
+				if (ctx.TagSets != null && ctx.TagSets.TryGetValue(t.Substring(1), out var set)) outTags.AddRange(set);
+			} else outTags.Add(t);
+		}
+		return outTags;
+	}
+
+	// ------------------------------------------------------- DICTIONARY PERSIST
+	// All tuner edits live in lexicon.user.json (an overlay) so the curated base lexicon.json
+	// stays pristine. Adds/edits append groups; deletes leave tombstones the loader applies last.
+	private sealed class UserFileDto {
+		public List<UserGroupDto> groups { get; set; } = new();
+		public List<UserRemovalDto> remove { get; set; } = new();
+	}
+	private sealed class UserGroupDto {
+		public string pos { get; set; }
+		public List<string> tags { get; set; } = new();
+		public List<string> words { get; set; } = new();
+		public int? eraStart { get; set; }
+		public int? eraEnd { get; set; }
+	}
+	private sealed class UserRemovalDto {
+		public string pos { get; set; }
+		public List<string> tags { get; set; } = new();
+		public string word { get; set; }
+	}
+
+	private static readonly System.Text.Json.JsonSerializerOptions UserJsonOpts = new() {
+		PropertyNameCaseInsensitive = true,
+		WriteIndented = true,
+		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+	};
+
+	/// <summary>Add a word to the overlay (era optional) and hot-reload. Un-tombstones it if it
+	/// was previously deleted. Words with an era window form their own group.</summary>
+	public bool AddWord(string word, string pos, IEnumerable<string> tags, int? eraStart = null, int? eraEnd = null) {
 		word = word?.Trim();
 		if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(pos)) return false;
+		var tagList = NormalizeTags(tags);
+		var f = LoadUserFile();
+		f.remove.RemoveAll(r => Eq(r.word, word) && Eq(r.pos, pos) && SameTags(r.tags, tagList));
+		var g = f.groups.FirstOrDefault(x => Eq(x.pos, pos) && SameTags(x.tags, tagList)
+											 && x.eraStart == eraStart && x.eraEnd == eraEnd);
+		if (g == null) { g = new UserGroupDto { pos = pos, tags = tagList, eraStart = eraStart, eraEnd = eraEnd }; f.groups.Add(g); }
+		if (!g.words.Any(w => Eq(w, word))) g.words.Add(word);
+		return SaveAndReload(f);
+	}
 
-		var groups = new List<Godot.Collections.Dictionary>();
-		if (FileAccess.FileExists(UserLexiconPath)) {
-			string existing = ReadFile(UserLexiconPath);
-			var parsed = Json.ParseString(existing);
-			if (parsed.VariantType == Variant.Type.Dictionary) {
-				var dict = parsed.AsGodotDictionary();
-				if (dict.ContainsKey("groups"))
-					foreach (var g in dict["groups"].AsGodotArray())
-						groups.Add(g.AsGodotDictionary());
-			}
-		}
-		var tagArr = new Godot.Collections.Array();
-		foreach (var t in tags ?? Enumerable.Empty<string>()) tagArr.Add(t);
-		var wordArr = new Godot.Collections.Array { word };
-		groups.Add(new Godot.Collections.Dictionary {
-			{ "pos", pos }, { "tags", tagArr }, { "words", wordArr }
-		});
+	/// <summary>Delete a word (from any scope-matching overlay group, plus a tombstone that also
+	/// hides a base-lexicon word) and hot-reload.</summary>
+	public bool DeleteWord(string word, string pos, IEnumerable<string> tags) {
+		word = word?.Trim();
+		if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(pos)) return false;
+		var tagList = NormalizeTags(tags);
+		var f = LoadUserFile();
+		foreach (var g in f.groups.Where(x => Eq(x.pos, pos) && SameTags(x.tags, tagList)))
+			g.words.RemoveAll(w => Eq(w, word));
+		f.groups.RemoveAll(g => g.words.Count == 0);
+		if (!f.remove.Any(r => Eq(r.word, word) && Eq(r.pos, pos) && SameTags(r.tags, tagList)))
+			f.remove.Add(new UserRemovalDto { pos = pos, tags = tagList, word = word });
+		return SaveAndReload(f);
+	}
 
-		var outGroups = new Godot.Collections.Array();
-		foreach (var g in groups) outGroups.Add(g);
-		var root = new Godot.Collections.Dictionary { { "groups", outGroups } };
-		using (var f = FileAccess.Open(UserLexiconPath, FileAccess.ModeFlags.Write)) {
-			if (f == null) return false;
-			f.StoreString(Json.Stringify(root, "\t"));
+	/// <summary>Rename a word within a group (delete old + add new). Era editing of base words is
+	/// not supported via the overlay; pass era to re-attach it to the renamed word.</summary>
+	public bool EditWord(string pos, IEnumerable<string> tags, string oldWord, string newWord,
+						 int? eraStart = null, int? eraEnd = null) {
+		newWord = newWord?.Trim();
+		if (string.IsNullOrEmpty(newWord)) return false;
+		var tagList = NormalizeTags(tags);
+		DeleteWord(oldWord, pos, tagList);
+		return AddWord(newWord, pos, tagList, eraStart, eraEnd);
+	}
+
+	private UserFileDto LoadUserFile() {
+		string json = ReadFile(UserLexiconPath);
+		if (string.IsNullOrWhiteSpace(json)) return new UserFileDto();
+		try { return System.Text.Json.JsonSerializer.Deserialize<UserFileDto>(json, UserJsonOpts) ?? new UserFileDto(); }
+		catch { return new UserFileDto(); }
+	}
+
+	private bool SaveAndReload(UserFileDto f) {
+		string json = System.Text.Json.JsonSerializer.Serialize(f, UserJsonOpts);
+		using (var fa = FileAccess.Open(UserLexiconPath, FileAccess.ModeFlags.Write)) {
+			if (fa == null) return false;
+			fa.StoreString(json);
 		}
 		Reload();
 		return true;
+	}
+
+	private static List<string> NormalizeTags(IEnumerable<string> tags) =>
+		(tags ?? Enumerable.Empty<string>()).Select(t => t?.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+	private static bool Eq(string a, string b) => string.Equals(a, b, System.StringComparison.OrdinalIgnoreCase);
+	private static bool SameTags(List<string> a, IEnumerable<string> b) {
+		var sa = new HashSet<string>(a ?? new List<string>(), System.StringComparer.OrdinalIgnoreCase);
+		return sa.SetEquals(new HashSet<string>(b ?? Enumerable.Empty<string>(), System.StringComparer.OrdinalIgnoreCase));
 	}
 
 	public void Reload() => Load();

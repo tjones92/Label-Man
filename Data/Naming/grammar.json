@@ -165,6 +165,77 @@
     "The {lastName:generic} Brothers"
   ],
 
+  "bandName.country": [
+    "{firstName:male,country} {lastName:country}",
+    "{firstName:male,country} {lastName:country} and the {adjective:country} (Boys|Playboys|Wranglers|Drifters|Ramblers)",
+    "The {adjective:country} (Boys|Playboys|Wranglers|Ranch Hands|Drifters)",
+    "{firstName:male,country} {lastName:country} and His {adjective:country} (Band|Boys|Playboys)",
+    "The {lastName:country} (Brothers|Family|Sisters)",
+    "The {city:country} (Boys|Ramblers|Playboys|Drifters)",
+    "{firstName:female,country} {lastName:country}",
+    "The {adjective:country} (Mountain|Valley|Prairie|Range) Boys"
+  ],
+
+  "bandName.jazz": [
+    "The {firstName:male,black} {lastName:generic} (Trio|Quartet|Quintet|Sextet|Combo|Ensemble)",
+    "The {lastName:generic} (Trio|Quartet|Quintet|Combo)",
+    "{firstName:male,white} {lastName:generic} and His Orchestra",
+    "The {adjective:universal} (Jazz Messengers|Giants|All-Stars|Modernists)",
+    "The {city:general} (Jazz Quartet|All-Stars|Ensemble|Modernists)",
+    "{firstName:male,black} {lastName:generic}",
+    "The Modern Jazz {groupNoun:musical}",
+    "The {adjective:soul} (Notes|Tones|Chords|Keys|Horns)"
+  ],
+
+  "bandName.blues": [
+    "(Muddy|Howlin'|Blind|Big|Little|Sonny Boy|Lightnin'|Slim) {lastName:generic}",
+    "{firstName:male,black} {lastName:generic} and the {adjective:soul} (Blues Band|Kings|Wolves|Aces)",
+    "The {city:general} Blues Band",
+    "{firstName:male,black} \"{nickQuoted}\" {lastName:generic}",
+    "The {adjective:soul} (Blues Breakers|Bluesmen|Wolves|Hounds|Kings)",
+    "The {lastName:generic} Blues Band",
+    "(Blind|Big|Little|Barrelhouse) {firstName:male,black}"
+  ],
+
+  "bandName.hardRock": [
+    "(Iron|Steel|Black|Deep|Heavy|Blue) {noun:psych}",
+    "The (Who|Move|Nice|Cream|Faces|Herd)",
+    "{adjective:psych} (Thunder|Machine|Purple|Butterfly|Steamroller)",
+    "(Blue|Iron|Chrome|Steel|Vanilla) {groupNoun:animals.trimS}",
+    "The {adjective:psych} {groupNoun:british}",
+    "{lastName:generic} and the {adjective:psych} {groupNoun:musical}",
+    "The {adjective:psych} {groupNoun:animals}"
+  ],
+
+  "bandName.bubblegum": [
+    "The {city:general} Express",
+    "(1910|1900|1st|New|Ohio) (Fruitgum Company|Express|Edition|Class)",
+    "The {adjective:early60s} {groupNoun:animals}",
+    "{firstName:male,white} and the {groupNoun:animals}",
+    "The {adjective:universal} (Bunch|Gang|Kids|Crew|Company)",
+    "The {adjective:early60s} (Union|Company|Machine|Factory)"
+  ],
+
+  "bandName.reggae": [
+    "(King|Prince|Sir|Lord) {lastName:generic} and the {adjective:soul} (All-Stars|Sound System)",
+    "The {adjective:soul} (Rulers|Rudies|Kings|Maytals|Vibrations)",
+    "{firstName:male,black} and the {adjective:soul} (Wailers|Upsetters|Vibrations)",
+    "The {city:general} (Ska|Rocksteady|Reggae) (Kings|All-Stars)",
+    "(Toots|Prince|King|Sir|Lord) {firstName:male,black}",
+    "The Wailing {groupNoun:musical}"
+  ],
+
+  "bandName.sunshine": [
+    "The {adjective:psych} {groupNoun:gems}",
+    "The (Association|Turtles|Grass Roots|Cowsills|Sandpipers)",
+    "The {adjective:early60s} {groupNoun:birds}",
+    "{firstName:male,white} and the {adjective:psych} {groupNoun:musical}",
+    "The {adjective:psych} (Fountain|Garden|Meadow|Rainbow|Sunshine) {groupNoun:musical}",
+    "The {noun:psych} {groupNoun:royalty}",
+    "The Left {groupNoun:british}",
+    "The {city:general} {groupNoun:gems}"
+  ],
+
   "songTitle.early60s": [
     "{phraseOpener:early60s} {verb:universal} (Me|You|Her|Him|Us)",
     "({firstName:male,white}|{firstName:female,white})",
@@ -297,6 +368,64 @@
     "My {adjective:universal} {noun:universal}",
     "{phraseOpener:early60s} {verb:universal} (Me|You)",
     "{noun:universal} Of {noun:universal}"
+  ],
+
+  "songTitle.jazz": [
+    "(Blue|Green|Autumn|Midnight|April) (In Paris|Bossa|Serenade|Nocturne|Rain)",
+    "{adjective:universal} (Bossa|Blues|Bop|Swing|Groove)",
+    "Take (Five|The A Train|It Easy|Ten|Your Time)",
+    "{noun:instrumental}",
+    "Round (Midnight|Moonlight|The Corner|About Now)",
+    "{adjective:instrumental} {noun:instrumental}",
+    "(A Night In|Afternoon In|Sunday In|Autumn In) {city:general}"
+  ],
+
+  "songTitle.blues": [
+    "(Cross Road|Sweet Home|Stormy Monday|Dust My) (Blues|Chicago|Blues Again|Broom)",
+    "{adjective:soul} (Blues|Woman|Man|Mama|Papa)",
+    "(My|That|The) {adjective:soul} (Baby|Woman|Man) (Done Left Me|Blues|Is Gone)",
+    "{city:general} Blues",
+    "(Woke Up This|Early This|Late Last) (Mornin'|Evenin'|Night)",
+    "(Baby|Mama|Woman) (Please Don't Go|Don't You Weep|What's Wrong)",
+    "(Boom Boom|Spoonful|Back Door Man|Little Red Rooster|Hoochie Coochie)"
+  ],
+
+  "songTitle.hardRock": [
+    "{adjective:psych} (Machine|Thunder|Lightning|Fire|Storm)",
+    "(Born|Break|Burn|Ride|Run) (To Be Wild|On Through|It Down|The Sky|Free)",
+    "{noun:psych} And {noun:psych}",
+    "(Fire|Purple|Voodoo|Foxy) (Haze|Child|Lady|Fire)",
+    "I'm A {adjective:psych} {noun:psych}",
+    "{adjective:psych} {noun:soul}",
+    "(Whole Lotta|Good Times, Bad|All Right Now, Baby) (Love|Times|Blue)"
+  ],
+
+  "songTitle.bubblegum": [
+    "(Sugar, Sugar|Yummy Yummy Yummy|Chewy Chewy|Simon Says|Gimme Gimme Good Lovin')",
+    "{adjective:early60s} (Sugar|Candy|Honey|Sunshine|Lollipop)",
+    "(Green|Yellow|Purple) (Tambourine|Balloon|Submarine|Sunshine)",
+    "(Bubblegum|Candy|Sugar|Honey) (World|Girl|Love|Days)",
+    "My (Baby|Girl|Sugar|Honey) (Loves Me|Is Sweet|Says Yes)",
+    "{exclamation:early60s} (Sugar|Honey|Baby)!"
+  ],
+
+  "songTitle.reggae": [
+    "(007|Rudy|Israelites|Pressure Drop|Sound System) (Shanty Town|Got Soul|A Go Come)",
+    "{adjective:soul} (Reggae|Rocksteady|Ska|Rudie)",
+    "(Rivers Of|Many Rivers|54-46) (Babylon|To Cross|That's My Number)",
+    "(Get Up|Stand Up|Simmer Down|Do The Reggay)",
+    "{city:general} (Rock|Skank|Shuffle|Beat)",
+    "(Sweet|Concrete|Sensi) (Jamaica|Jungle|Reggae)"
+  ],
+
+  "songTitle.sunshine": [
+    "(Windy|Cherish|Sunshine|Happy Together|Along Comes) (Mary|Day|Girl|Now|Susan)",
+    "{adjective:psych} (Sunshine|Morning|Feeling|Day|Girl)",
+    "(Good|Warm|Soft|Bright) (Vibrations|Sunshine|Morning|Feeling)",
+    "{adjective:early60s} {noun:early60s}",
+    "(Never My|Groovin'|Up, Up And) (Love|On A Sunday|Away)",
+    "{noun:psych} In The {noun:psych}",
+    "(She'd Rather|Walk Away|Turn Down) (Be With Me|Renée|Day)"
   ],
 
   "instrumentalTitle": [
@@ -531,6 +660,10 @@
 
   "personName": [
     "{firstName:$name} {lastName:$surname}"
+  ],
+
+  "personName.coined": [
+    "{firstName:$name} {~lastName:$surname}"
   ],
 
   "bSide": [

@@ -1,0 +1,31 @@
+{
+  "groups": [
+    {
+      "pos": "verb",
+      "tags": [
+        "universal"
+      ],
+      "words": [
+        "Teach"
+      ],
+      "eraStart": 1960,
+      "eraEnd": 1969
+    }
+  ],
+  "remove": [
+    {
+      "pos": "phraseOpener",
+      "tags": [
+        "soul"
+      ],
+      "word": "Where Did Our Love Go"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "early60s"
+      ],
+      "word": "Real Gone"
+    }
+  ]
+}

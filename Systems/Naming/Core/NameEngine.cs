@@ -12,18 +12,71 @@ namespace LabelMan.Naming {
 	public sealed class NameEngine : IWordCoiner {
 		public Lexicon Lexicon { get; }
 		public GrammarEngine Grammar { get; }
+		// Layers 1–7 bundle. The lexicon is classified onto the ontology axes at construction so
+		// ontology/mood/genre/inflection are all live for the grammar and the constraint templates.
+		public NameModels Models { get; }
+		public TemplateEngine Templates { get; }
 
 		private readonly Dictionary<string, MarkovModel> _markovCache = new();
 		// uniquenessBucket -> set of normalized keys / soundex keys
 		private readonly Dictionary<string, HashSet<string>> _used = new();
 		private readonly Dictionary<string, HashSet<string>> _usedFuzzy = new();
+		// constraint-template sets (Layer 2), keyed by grammar-style symbol; loaded from templates.json
+		private readonly Dictionary<string, List<ConstraintTemplate>> _constraintSets = new(StringComparer.Ordinal);
 
 		public double HybridCoinRate = 0.20; // ~20% of markov slots become invented words
 		public int MarkovMinLen = 4, MarkovMaxLen = 11;
 
-		public NameEngine(Lexicon lexicon, Dictionary<string, List<GrammarEngine.Rule>> grammar) {
+		public NameEngine(Lexicon lexicon, Dictionary<string, List<GrammarEngine.Rule>> grammar, NameModels models = null) {
 			Lexicon = lexicon;
-			Grammar = new GrammarEngine(grammar, lexicon, this);
+			Models = models ?? new NameModels();
+			Lexicon.ClassifyAll(Models.Ontology);                       // Layer 3: sort tags onto axes
+			Grammar = new GrammarEngine(grammar, lexicon, this, Models.Inflection);
+			Templates = new TemplateEngine(lexicon, Models.Ontology, Models.Moods, Models.Inflection, this);
+		}
+
+		public GenreProfile Profile(NamingContext ctx) => Models.Genres.Get(ctx?.Genre);
+
+		/// <summary>Register a constraint-template set (Layer 2) under a symbol the adapter can request.</summary>
+		public void AddConstraintSet(string symbol, IEnumerable<ConstraintTemplate> templates) {
+			var list = new List<ConstraintTemplate>();
+			foreach (var t in templates) { t.Compile(); list.Add(t); }
+			_constraintSets[symbol] = list;
+		}
+		public bool HasConstraintSet(string symbol) => _constraintSets.ContainsKey(symbol);
+		public IEnumerable<string> ConstraintSymbols => _constraintSets.Keys;
+
+		/// <summary>Fill from a constraint-template set: gate + satisfiability prune, weighted pick,
+		/// escalating fallback to a simpler template, then the grammar as last resort. Returns null
+		/// only if the symbol is unknown.</summary>
+		public string FillConstraint(string symbol, NamingContext ctx) {
+			if (!_constraintSets.TryGetValue(symbol, out var all)) return null;
+			var genre = Models.Genres.Get(ctx.Genre);
+			// candidate list: gate + satisfiable, sorted simplest-last for graceful fallback
+			var cands = new List<ConstraintTemplate>();
+			foreach (var t in all)
+				if (Templates.GatePasses(t, ctx, genre) && Templates.SatisfiableFor(t, genre)) cands.Add(t);
+			if (cands.Count == 0) return "";
+			// weighted pick, then fall through to progressively simpler candidates
+			var ordered = SortByWeight(cands, ctx.Rng);
+			foreach (var t in ordered) {
+				string s = Templates.Fill(t, ctx, genre);
+				if (!string.IsNullOrEmpty(s)) return s;
+			}
+			return "";
+		}
+
+		private static List<ConstraintTemplate> SortByWeight(List<ConstraintTemplate> cands, IRandom rng) {
+			// weighted shuffle: draw without replacement by weight, so the first pick honors weights
+			var pool = new List<ConstraintTemplate>(cands);
+			var outp = new List<ConstraintTemplate>(cands.Count);
+			while (pool.Count > 0) {
+				double total = 0; foreach (var t in pool) total += t.Weight <= 0 ? 1 : t.Weight;
+				double roll = rng.NextDouble() * total; int idx = pool.Count - 1;
+				for (int i = 0; i < pool.Count; i++) { roll -= pool[i].Weight <= 0 ? 1 : pool[i].Weight; if (roll <= 0) { idx = i; break; } }
+				outp.Add(pool[idx]); pool.RemoveAt(idx);
+			}
+			return outp;
 		}
 
 		public IEnumerable<string> AvailableSymbols => Grammar.Symbols.OrderBy(s => s);
