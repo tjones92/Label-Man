@@ -72,6 +72,20 @@ namespace LabelMan.Naming {
 			return seen.Values.ToList();
 		}
 
+		/// <summary>Each entry's exact tag-set for a (pos, word) — so the tuner can tombstone every
+		/// variant precisely (the union from TagsForWord matches no single entry).</summary>
+		public IReadOnlyList<List<string>> EntryTagSetsForWord(string pos, string word) {
+			var seen = new HashSet<string>(StringComparer.Ordinal);
+			var outp = new List<List<string>>();
+			foreach (var e in Lexicon.Pool(pos))
+				if (string.Equals(e.Word, word, StringComparison.OrdinalIgnoreCase)) {
+					var tags = (e.Tags ?? Enumerable.Empty<string>()).OrderBy(t => t, StringComparer.OrdinalIgnoreCase).ToList();
+					string key = string.Join(",", tags).ToLowerInvariant();
+					if (seen.Add(key)) outp.Add(tags);
+				}
+			return outp;
+		}
+
 		/// <summary>Distinct ontology/style tags stored on a word's entries of a given pos (tuner tag view).</summary>
 		public IReadOnlyList<string> TagsForWord(string pos, string word) {
 			var tags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

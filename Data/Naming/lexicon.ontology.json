@@ -234,6 +234,18 @@
       "work", "dig", "haul", "grind", "sweat", "chase", "hunt", "steal", "gamble", "drink",
       "smoke", "wrestle", "holler", "moan" ]},
 
+    { "//": "=== heavy vocabulary for hard rock / proto-metal band names ===",
+      "pos": "noun", "tags": ["conflict", "ominous"], "words": [
+      "Iron", "Steel", "Lead", "Granite", "Hammer", "Anvil", "Sledge", "Sabbath", "Doom",
+      "Cannon", "Warhead", "Steamroller", "Juggernaut", "Avalanche" ]},
+    { "pos": "noun", "tags": ["mystical", "ominous"], "words": [
+      "Wizard", "Warlock", "Dragon", "Sorcerer", "Cauldron", "Specter", "Purgatory", "Inferno",
+      "Leviathan", "Behemoth", "Nightshade", "Gargoyle" ]},
+    { "pos": "noun", "tags": ["fauna", "aggressive"], "words": [
+      "Wolf", "Viper", "Cobra", "Scorpion", "Buzzard", "Vulture", "Mastodon", "Stallion", "Jackal" ]},
+    { "pos": "adjective", "tags": ["ominous", "ornate"], "words": [
+      "Black", "Deep", "Molten", "Leaden", "Iron", "Blind", "Savage", "Grand", "Wild", "Heavy", "Red" ]},
+
     { "//": "=== band-suffix group nouns (already plural) for constraint band templates ===",
       "pos": "groupNoun", "tags": ["gospel", "spiritual"], "words": [
       "Singers", "Voices", "Gospelaires", "Harmonizers", "Believers", "Disciples", "Crusaders",

@@ -206,13 +206,31 @@
   ],
 
   "bandName.hardRock": [
-    { "id": "hard_the", "type": "band", "pattern": "The %adjective#1% %noun#1:pl%", "weight": 3, "words": [3,4],
-      "slots": { "adjective#1": { "pos": "adjective", "filter": "aggressive|ominous|grand" }, "noun#1": { "pos": "noun", "filter": "conflict|weather|fauna|fate" } },
-      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "hard_compound", "type": "band", "pattern": "%adjective#1% %noun#1%", "weight": 4, "words": [2,2],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "ominous|aggressive|grand" }, "noun#1": { "pos": "noun", "filter": "mystical|conflict|fauna|weather|cosmic" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.25 } ] },
+    { "id": "hard_twonoun", "type": "band", "pattern": "%noun#1% %noun#2%", "weight": 3, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "conflict|material|mechanical" }, "noun#2": { "pos": "noun", "filter": "fauna|mystical|weather|mechanical" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "hard_single", "type": "band", "pattern": "%noun#1%", "weight": 3, "words": [1,1],
+      "slots": { "noun#1": { "pos": "noun", "filter": "mystical|cosmic|conflict|weather|fauna" } } },
+    { "id": "hard_coined", "type": "band", "pattern": "%noun#1%", "weight": 1, "words": [1,1],
+      "slots": { "noun#1": { "pos": "noun", "markov": true } } },
     { "id": "hard_machine", "type": "band", "pattern": "%noun#1% Machine", "weight": 1, "words": [2,2],
       "slots": { "noun#1": { "pos": "noun", "filter": "conflict|grit|mechanical" } } },
-    { "id": "hard_simple", "type": "band", "pattern": "The %noun#1:pl%", "weight": 1, "words": [2,3],
-      "slots": { "noun#1": { "pos": "noun", "filter": "conflict|weather|fate" } } }
+    { "id": "hard_the", "type": "band", "pattern": "The %adjective#1% %noun#1:pl%", "weight": 1, "words": [3,4],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "aggressive|ominous" }, "noun#1": { "pos": "noun", "filter": "conflict|weather|fauna" } } }
+  ],
+
+  "albumTitle": [
+    { "id": "album_adj", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "constraints": [ { "type": "moodInternal", "threshold": 0.25 } ] },
+    { "id": "album_pair", "type": "album", "pattern": "%noun#1% %connector#1% %noun#2%", "weight": 2, "words": [3,5],
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] }, { "type": "moodInternal", "threshold": 0.2 } ] },
+    { "id": "album_sound", "type": "album", "pattern": "The Sound of %noun#1%", "weight": 1, "words": [4,4] },
+    { "id": "album_single", "type": "album", "pattern": "%noun#1%", "weight": 2, "words": [1,2] },
+    { "id": "album_time", "type": "album", "pattern": "%noun#1% Time", "weight": 1, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "dance|party|romance|seasonal" } } }
   ],
 
   "bandName.reggae": [

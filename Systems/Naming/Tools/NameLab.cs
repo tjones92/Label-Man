@@ -347,10 +347,8 @@ public partial class NameLab : Control {
 		var w = g.Words[idx];
 		var newTags = (_tags.Text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 		if (newTags.Count == 0) { SetStatus("Enter axis tags (comma-separated) to apply.", true); return; }
-		var oldTags = w.Tags ?? Array.Empty<string>();
-		// move the word's classification: tombstone the old-tagged entry, add the new-tagged one
-		NameGenerator.Instance.DeleteWord(w.Word, g.Pos, oldTags);
-		bool ok = NameGenerator.Instance.AddWord(w.Word, g.Pos, newTags, ParseEra(_eraStart.Text), ParseEra(_eraEnd.Text));
+		// replace ALL of the word's entries with one new-tagged entry (duplicate-free)
+		bool ok = NameGenerator.Instance.RetagWord(g.Pos, w.Word, newTags, ParseEra(_eraStart.Text), ParseEra(_eraEnd.Text));
 		AfterEdit(ok, ok ? $"Retagged \"{w.Word}\" → [{string.Join(", ", newTags)}]." : "Retag failed (see output log).");
 	}
 
@@ -388,8 +386,8 @@ public partial class NameLab : Control {
 		int idx = _words.IsAnythingSelected() ? _words.GetSelectedItems()[0] : -1;
 		if (idx < 0 || idx >= g.Words.Length) { SetStatus("Select a word in the list to delete.", true); return; }
 		string word = g.Words[idx].Word;
-		bool ok = NameGenerator.Instance.DeleteWord(word, g.Pos, g.Tags);
-		AfterEdit(ok, ok ? $"Deleted \"{word}\" from {g.Label}." : "Delete failed (see output log).");
+		bool ok = NameGenerator.Instance.DeleteWordEverywhere(g.Pos, word);
+		AfterEdit(ok, ok ? $"Deleted \"{word}\" ({g.Pos}) — all tag variants." : "Delete failed (see output log).");
 	}
 
 	private void AfterEdit(bool ok, string msg) {

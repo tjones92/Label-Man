@@ -250,8 +250,8 @@ public partial class NameGenerator : Node {
 		if (isCompilation) return _engine.ExpandOnce("compilationTitle", ctx);
 		double r = _rng.NextDouble();
 		if (r < 0.10) return artistName;                          // self-titled
-		if (r < 0.30) return _engine.ExpandOnce("albumFormat", ctx);
-		return _engine.ExpandOnce("albumTitle", ctx);
+		if (r < 0.30) return _engine.ExpandRouted("albumFormat", ctx);
+		return _engine.ExpandRouted("albumTitle", ctx);           // Layer-2 album set (genre-flavored)
 	}
 
 	public string GenerateInstrumentalTitle(Genre genre, int year) {
@@ -651,6 +651,47 @@ public partial class NameGenerator : Node {
 		var tagList = NormalizeTags(tags);
 		DeleteWord(oldWord, pos, tagList);
 		return AddWord(newWord, pos, tagList, eraStart, eraEnd);
+	}
+
+	/// <summary>Remove EVERY entry of a (pos, word) — base + overlay, all tag-sets — in one save.
+	/// Used by the tuner's Delete so a word shown under a constraint filter is fully removed (the
+	/// old per-exact-tag delete missed base entries whose tag-set differed from the filter).</summary>
+	public bool DeleteWordEverywhere(string pos, string word) {
+		word = word?.Trim();
+		if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(pos) || _engine == null) return false;
+		var existing = _engine.EntryTagSetsForWord(pos, word);
+		var f = LoadUserFile();
+		foreach (var g in f.groups.Where(x => Eq(x.pos, pos))) g.words.RemoveAll(w => Eq(w, word));
+		f.groups.RemoveAll(g => g.words.Count == 0);
+		foreach (var ts in existing)
+			if (!f.remove.Any(r => Eq(r.word, word) && Eq(r.pos, pos) && SameTags(r.tags, ts)))
+				f.remove.Add(new UserRemovalDto { pos = pos, tags = ts, word = word });
+		if (existing.Count == 0 && !f.remove.Any(r => Eq(r.word, word) && Eq(r.pos, pos)))
+			f.remove.Add(new UserRemovalDto { pos = pos, tags = new List<string>(), word = word });
+		return SaveAndReload(f);
+	}
+
+	/// <summary>Re-classify a word: remove all its existing entries for this pos and add ONE entry
+	/// with the new axis tags. Idempotent and duplicate-free (fixes the retag-duplicates bug).</summary>
+	public bool RetagWord(string pos, string word, IEnumerable<string> newTags, int? eraStart = null, int? eraEnd = null) {
+		word = word?.Trim();
+		if (string.IsNullOrEmpty(word) || string.IsNullOrEmpty(pos) || _engine == null) return false;
+		var newList = NormalizeTags(newTags);
+		var existing = _engine.EntryTagSetsForWord(pos, word);
+		var f = LoadUserFile();
+		foreach (var g in f.groups.Where(x => Eq(x.pos, pos))) g.words.RemoveAll(w => Eq(w, word));
+		f.groups.RemoveAll(g => g.words.Count == 0);
+		foreach (var ts in existing) {
+			if (SameTags(ts, newList)) continue;                       // keep (will re-add) the target set
+			if (!f.remove.Any(r => Eq(r.word, word) && Eq(r.pos, pos) && SameTags(r.tags, ts)))
+				f.remove.Add(new UserRemovalDto { pos = pos, tags = ts, word = word });
+		}
+		f.remove.RemoveAll(r => Eq(r.word, word) && Eq(r.pos, pos) && SameTags(r.tags, newList));
+		var ng = f.groups.FirstOrDefault(x => Eq(x.pos, pos) && SameTags(x.tags, newList)
+											&& x.eraStart == eraStart && x.eraEnd == eraEnd);
+		if (ng == null) { ng = new UserGroupDto { pos = pos, tags = newList, eraStart = eraStart, eraEnd = eraEnd }; f.groups.Add(ng); }
+		if (!ng.words.Any(w => Eq(w, word))) ng.words.Add(word);
+		return SaveAndReload(f);
 	}
 
 	private UserFileDto LoadUserFile() {
