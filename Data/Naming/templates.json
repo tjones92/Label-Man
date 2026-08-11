@@ -2,6 +2,10 @@
   "//": "Layer-2 constraint templates, keyed by the song/band symbol the adapter routes to (a set here OVERRIDES the same-named grammar symbol; the grammar stays a per-attempt fallback). Slot filters query the ontology-tagged pools in lexicon.ontology.json; mood constraints keep multi-slot titles coherent per the genre's mood threshold. Each set ends with a simple always-satisfiable template so generation never fails.",
 
   "songTitle.blues": [
+    { "id": "blues_baby", "type": "song", "pattern": "%opener#1% %love#1%", "weight": 2, "words": [2,4],
+      "slots": { "opener#1": { "pos": "opener", "filter": "plea|command" }, "love#1": { "pos": "love" } }, "transform": ["apostropheDrop"] },
+    { "id": "blues_named", "type": "song", "pattern": "%noun#1% Blues", "weight": 3, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "grit|travel|emotion|romance|domestic|diurnal" } } },
     { "id": "blues_ramble", "type": "song", "pattern": "%verb#1:ger% %connector#1% %noun#1%", "weight": 3, "words": [3,5],
       "slots": { "noun#1": { "pos": "noun", "filter": "grit|travel|fate|vice|emotion" }, "verb#1": { "pos": "verb", "filter": "restless|melancholy" } },
       "constraints": [ { "type": "moodInternal" } ] },
@@ -16,6 +20,10 @@
   ],
 
   "songTitle.soul": [
+    { "id": "soul_parenthetical", "type": "song", "pattern": "%verb#1:base% %love#1% (%phraseFrag#1%)", "weight": 3, "words": [4,7],
+      "slots": { "verb#1": { "pos": "verb", "filter": "romantic|joyful" }, "love#1": { "pos": "love" }, "phraseFrag#1": { "pos": "phraseFrag", "filter": "soul|romance" } } },
+    { "id": "soul_directaddress", "type": "song", "pattern": "%opener#1%, %love#1%", "weight": 3, "words": [2,5],
+      "slots": { "opener#1": { "pos": "opener", "filter": "plea|tender" }, "love#1": { "pos": "love" } } },
     { "id": "soul_devotion", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
       "slots": { "adjective#1": { "pos": "adjective", "filter": "romantic|dreamy" }, "noun#1": { "pos": "noun", "filter": "romance|body|emotion" } },
       "constraints": [ { "type": "moodDirected", "target": ["romantic","earnest"], "threshold": 0.4 } ] },
@@ -30,6 +38,10 @@
   ],
 
   "songTitle.country": [
+    { "id": "country_fullsentence", "type": "song", "pattern": "%love#1%, I'll %verb#1:base%", "weight": 2, "words": [3,4],
+      "slots": { "love#1": { "pos": "love" }, "verb#1": { "pos": "verb", "filter": "romantic|melancholy|restless" } } },
+    { "id": "country_possessive", "type": "song", "pattern": "%love#1%'s %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "love#1": { "pos": "love" }, "noun#1": { "pos": "noun", "filter": "emotion|domestic|vice" } } },
     { "id": "country_heartbreak", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
       "slots": { "adjective#1": { "pos": "adjective", "filter": "gritty|wistful|melancholy" }, "noun#1": { "pos": "noun", "filter": "rural|vice|emotion|travel|domestic" } },
       "constraints": [ { "type": "moodInternal" } ] },
@@ -224,6 +236,10 @@
 
   "//album": "Album slots use broad, evocative DOMAIN/MOOD filters (not the whole pool) so style-only words (Blessing/Creaking/Copper) don't leak in; the per-genre AFFINITY then flavors the choice within.",
   "albumTitle": [
+    { "id": "album_selftitle", "type": "album", "pattern": "%selfTitle#1%", "weight": 3, "words": [1,4],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "album_leadsingle", "type": "album", "pattern": "%leadSingle#1%", "weight": 3, "words": [1,5],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
     { "id": "album_adj", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
       "slots": {
         "adjective#1": { "pos": "adjective", "filter": "dreamy|romantic|melancholy|wistful|nostalgic|grand|ominous|elegant|serene|earnest|joyful|defiant|gritty|playful" },
@@ -371,5 +387,389 @@
       "slots": { "firstName#1": { "pos": "firstName", "filter": "male,hispanic" }, "lastName#1": { "pos": "lastName", "filter": "hispanic" }, "groupNoun#1": { "pos": "groupNoun", "filter": "ensemble" } } },
     { "id": "latin_leader", "type": "band", "pattern": "%firstName#1% and the %noun#1:pl%", "weight": 1, "words": [4,5],
       "slots": { "firstName#1": { "pos": "firstName", "filter": "male,hispanic" }, "noun#1": { "pos": "noun", "filter": "party|dance" } } }
+  ],
+
+  "//": "=== NAMING v2 song-title sets (docs A/F): split the overloaded early60s/jazz/hardRock buckets + add the sets that were hitting grammar fallback (british/garage/protoPunk/funk). Routed via the TemplateRouter ancestry walk. ===",
+
+  "songTitle.doowop": [
+    { "id": "dw_stillof", "type": "song", "pattern": "%adjective#1% %noun#1% in the %time#1%", "weight": 2, "words": [5,6],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "dreamy|romantic" }, "noun#1": { "pos": "noun", "filter": "romance|celestial" }, "time#1": { "pos": "noun", "filter": "diurnal" } } },
+    { "id": "dw_celestial", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "dreamy|romantic|elegant" }, "noun#1": { "pos": "noun", "filter": "celestial|gem|romance" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.35 } ] },
+    { "id": "dw_devotion", "type": "song", "pattern": "%love#1% %connector#1% %noun#1%", "weight": 2, "words": [3,5],
+      "slots": { "love#1": { "pos": "love" }, "noun#1": { "pos": "noun", "filter": "emotion|virtue|romance" } } },
+    { "id": "dw_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "celestial|romance|gem" } } }
+  ],
+
+  "songTitle.teenPop": [
+    { "id": "teen_name", "type": "song", "pattern": "%firstName#1% %noun#1%", "weight": 2, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "white" }, "noun#1": { "pos": "noun", "filter": "celestial|romance" } } },
+    { "id": "teen_itsmy", "type": "song", "pattern": "%opener#1%, %love#1%", "weight": 3, "words": [2,4],
+      "slots": { "opener#1": { "pos": "opener", "filter": "teen|plea" }, "love#1": { "pos": "love" } }, "transform": ["punctuation"] },
+    { "id": "teen_myguy", "type": "song", "pattern": "My %noun#1%", "weight": 2, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "romance|body|kin" } } },
+    { "id": "teen_devotion", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "romantic|dreamy|joyful" }, "noun#1": { "pos": "noun", "filter": "romance|celestial|body" } } }
+  ],
+
+  "songTitle.easyListening": [
+    { "id": "easy_place", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "serene|dreamy|elegant" }, "noun#1": { "pos": "noun", "filter": "regional|nautical|celestial|seasonal" } } },
+    { "id": "easy_journey", "type": "song", "pattern": "%noun#1% (%phraseFrag#1%)", "weight": 1, "words": [2,5],
+      "slots": { "noun#1": { "pos": "noun", "filter": "regional|nautical|flora" }, "phraseFrag#1": { "pos": "phraseFrag", "filter": "instrumental" } } },
+    { "id": "easy_taxi", "type": "song", "pattern": "%noun#1% %noun#2%", "weight": 2, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "regional" }, "noun#2": { "pos": "noun", "filter": "vehicle|dance|nautical" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "easy_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "regional|nautical|flora|seasonal" } } }
+  ],
+
+  "songTitle.british": [
+    { "id": "brit_directaddr", "type": "song", "pattern": "%opener#1%, %love#1%", "weight": 3, "words": [2,4],
+      "slots": { "opener#1": { "pos": "opener", "filter": "plea|command|tender" }, "love#1": { "pos": "love" } }, "transform": ["punctuation"] },
+    { "id": "brit_doubled", "type": "song", "pattern": "%opener#1% and %opener#2%", "weight": 1, "words": [2,4],
+      "slots": { "opener#1": { "pos": "opener", "filter": "command" }, "opener#2": { "pos": "opener", "filter": "command" } },
+      "constraints": [ { "type": "distinct", "slots": ["opener#1","opener#2"] } ], "transform": ["punctuation"] },
+    { "id": "brit_charm", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "cheeky|romantic|wistful|playful" }, "noun#1": { "pos": "noun", "filter": "romance|urban|domestic|emotion" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "brit_place", "type": "song", "pattern": "%noun#1% %noun#2%", "weight": 1, "words": [2,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "urban|regional" }, "noun#2": { "pos": "noun", "filter": "diurnal|seasonal" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "brit_loveme", "type": "song", "pattern": "%verb#1:base% Me, %love#1%", "weight": 2, "words": [3,4],
+      "slots": { "verb#1": { "pos": "verb", "filter": "romantic|joyful" }, "love#1": { "pos": "love" } } }
+  ],
+
+  "songTitle.garage": [
+    { "id": "garage_numeric", "type": "song", "pattern": "%number#1% %noun#1:pl%", "weight": 2, "words": [2,2],
+      "slots": { "number#1": { "pos": "number", "filter": "any" }, "noun#1": { "pos": "noun", "filter": "emotion|body|conflict" } }, "transform": ["punctuation"] },
+    { "id": "garage_confront", "type": "song", "pattern": "%opener#1%, %noun#1%", "weight": 3, "words": [2,4],
+      "slots": { "opener#1": { "pos": "opener", "filter": "command|taunt" }, "noun#1": { "pos": "noun", "filter": "romance|identity|conflict" } }, "transform": ["punctuation"] },
+    { "id": "garage_gimme", "type": "song", "pattern": "%opener#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "opener#1": { "pos": "opener", "filter": "command|taunt" }, "noun#1": { "pos": "noun", "filter": "emotion|body|vice|conflict" } }, "transform": ["punctuation"] },
+    { "id": "garage_youbetter", "type": "song", "pattern": "You Better %verb#1:base%", "weight": 1, "words": [3,3],
+      "slots": { "verb#1": { "pos": "verb", "filter": "aggressive|restless|defiant" } }, "transform": ["punctuation"] },
+    { "id": "garage_dirty", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "aggressive|gritty|defiant" }, "noun#1": { "pos": "noun", "filter": "conflict|grit|romance|vice" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.2 } ] },
+    { "id": "garage_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "conflict|grit|vice" } } }
+  ],
+
+  "songTitle.protoPunk": [
+    { "id": "pp_iwanna", "type": "song", "pattern": "I Wanna %verb#1:base% %connector#1% %noun#1%", "weight": 2, "words": [4,6], "gate": { "minYear": 1967 },
+      "slots": { "verb#1": { "pos": "verb", "filter": "restless|aggressive|defiant" }, "noun#1": { "pos": "noun", "filter": "identity|urban|body|vice" } } },
+    { "id": "pp_single", "type": "song", "pattern": "%noun#1%", "weight": 3, "words": [1,2], "gate": { "minYear": 1967 },
+      "slots": { "noun#1": { "pos": "noun", "filter": "identity|urban|vice|conflict|emotion" } } },
+    { "id": "pp_twonoun", "type": "song", "pattern": "%noun#1% %noun#2%", "weight": 2, "words": [2,3], "gate": { "minYear": 1967 },
+      "slots": { "noun#1": { "pos": "noun", "filter": "identity|urban|body" }, "noun#2": { "pos": "noun", "filter": "vice|conflict|urban|emotion" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "pp_fallback", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "aggressive|defiant|gritty" }, "noun#1": { "pos": "noun", "filter": "identity|urban|conflict|vice" } } }
+  ],
+
+  "songTitle.funk": [
+    { "id": "funk_partpt", "type": "song", "pattern": "%verb#1:base% It (Part %number#1%)", "weight": 2, "words": [4,5],
+      "slots": { "verb#1": { "pos": "verb", "filter": "joyful|aggressive|restless" }, "number#1": { "pos": "number", "filter": "small" } } },
+    { "id": "funk_getdown", "type": "song", "pattern": "%opener#1% %verb#1:base%", "weight": 3, "words": [2,4],
+      "slots": { "opener#1": { "pos": "opener", "filter": "command|party" }, "verb#1": { "pos": "verb", "filter": "joyful|restless|defiant" } }, "transform": ["punctuation"] },
+    { "id": "funk_cold", "type": "song", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "gritty|aggressive|defiant" }, "noun#1": { "pos": "noun", "filter": "body|grit|party|emotion" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.25 } ] },
+    { "id": "funk_thang", "type": "song", "pattern": "%verb#1:ger% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "verb#1": { "pos": "verb", "filter": "joyful|restless" }, "noun#1": { "pos": "noun", "filter": "body|party|dance" } }, "transform": ["apostropheDrop"] },
+    { "id": "funk_simple", "type": "song", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "party|body|dance" } } }
+  ],
+
+  "//": "=== NAMING v2 solo-act sets (doc B): keyed soloAct.<genre>.<strategy>. The adapter picks a strategy (weighted per genre) then routes here via the ancestry walk. firstName filter \"$name\" and lastName \"$surname\" bind to the person the adapter rolled (gender+ethnicity); honorific \"<tag> & $gender\" auto-agrees with that gender (replaces doc B's genderAgree constraint). \"groom\" reshapes the first name (Robert->Bobby / Bob->Robert). ===",
+
+  "soloAct.blues.nickname": [
+    { "id": "blues_nick_full", "type": "solo", "pattern": "%nickname#1% %lastName#1%", "weight": 4, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "blues" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } }, "transform": ["apostropheDrop"] },
+    { "id": "blues_nick_first", "type": "solo", "pattern": "%nickname#1% %firstName#1%", "weight": 1, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "blues" }, "firstName#1": { "pos": "firstName", "filter": "$name" } }, "transform": ["apostropheDrop"] }
+  ],
+  "soloAct.blues.mononym": [
+    { "id": "blues_mono", "type": "solo", "pattern": "%nickname#1%", "weight": 2, "words": [1,1],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "blues,standalone" } } }
+  ],
+  "soloAct.blues.realName": [
+    { "id": "blues_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.funk.nickname": [
+    { "id": "funk_persona", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } },
+    { "id": "funk_thefunky", "type": "solo", "pattern": "%nickname#1% %lastName#1%", "weight": 3, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "funk" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.soul.realName": [
+    { "id": "soul_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 3, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.soul.honorific": [
+    { "id": "soul_lady", "type": "solo", "pattern": "%honorific#1% %firstName#1%", "weight": 2, "words": [2,3],
+      "slots": { "honorific#1": { "pos": "honorific", "filter": "soul & $gender" }, "firstName#1": { "pos": "firstName", "filter": "$name" } } },
+    { "id": "soul_mr", "type": "solo", "pattern": "%honorific#1% %firstName#1% %lastName#1%", "weight": 1, "words": [3,4],
+      "slots": { "honorific#1": { "pos": "honorific", "filter": "soul & $gender" }, "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } },
+    { "id": "soul_hon_fb", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.gospel.honorific": [
+    { "id": "gospel_sister", "type": "solo", "pattern": "%honorific#1% %firstName#1% %lastName#1%", "weight": 3, "words": [3,4],
+      "slots": { "honorific#1": { "pos": "honorific", "filter": "gospel & $gender" }, "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } },
+    { "id": "gospel_sister_first", "type": "solo", "pattern": "%honorific#1% %firstName#1%", "weight": 1, "words": [2,3],
+      "slots": { "honorific#1": { "pos": "honorific", "filter": "gospel & $gender" }, "firstName#1": { "pos": "firstName", "filter": "$name" } } },
+    { "id": "gospel_hon_fb", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.gospel.realName": [
+    { "id": "gospel_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.country.realName": [
+    { "id": "country_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 4, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "country" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.country.nickname": [
+    { "id": "country_nick", "type": "solo", "pattern": "%nickname#1% %lastName#1%", "weight": 1, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "country" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.teenPop.realName": [
+    { "id": "teen_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 3, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "diminutive" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.teenPop.nickname": [
+    { "id": "teen_bobby", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 2, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "forceDiminutive" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.rockAndRoll.nickname": [
+    { "id": "rnr_little", "type": "solo", "pattern": "%nickname#1% %firstName#1%", "weight": 2, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "rocknroll" }, "firstName#1": { "pos": "firstName", "filter": "$name" } } },
+    { "id": "rnr_nicklast", "type": "solo", "pattern": "%nickname#1% %lastName#1%", "weight": 2, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "rocknroll" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.traditionalPop.credited": [
+    { "id": "trad_orch", "type": "solo", "pattern": "%firstName#1% %lastName#1% and His Orchestra", "weight": 2, "words": [5,5],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "formal" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.traditionalPop.realName": [
+    { "id": "trad_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 2, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "formal" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.easyListening.credited": [
+    { "id": "easy_orch", "type": "solo", "pattern": "%firstName#1% %lastName#1% and His Orchestra", "weight": 3, "words": [5,5],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "formal" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } },
+    { "id": "easy_instrument", "type": "solo", "pattern": "%firstName#1% %lastName#1% and His %instrument#1%", "weight": 2, "words": [5,5],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "formal" }, "lastName#1": { "pos": "lastName", "filter": "$surname" }, "instrument#1": { "pos": "instrument", "filter": "melodic" } } },
+    { "id": "easy_singers", "type": "solo", "pattern": "The %lastName#1% Singers", "weight": 1, "words": [3,3],
+      "slots": { "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.classical.credited": [
+    { "id": "class_conductor", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 2, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "formal" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.jazz.realName": [
+    { "id": "jazz_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 3, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name", "groom": "formal" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.jazz.nickname": [
+    { "id": "jazz_nick", "type": "solo", "pattern": "%nickname#1% %lastName#1%", "weight": 1, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "jazz" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.reggae.honorific": [
+    { "id": "reggae_hon", "type": "solo", "pattern": "%honorific#1% %firstName#1%", "weight": 2, "words": [2,3],
+      "slots": { "honorific#1": { "pos": "honorific", "filter": "reggae & $gender" }, "firstName#1": { "pos": "firstName", "filter": "$name" } } },
+    { "id": "reggae_hon_fb", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+  "soloAct.reggae.nickname": [
+    { "id": "reggae_nick", "type": "solo", "pattern": "%nickname#1% %firstName#1%", "weight": 2, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "reggae" }, "firstName#1": { "pos": "firstName", "filter": "$name" } } }
+  ],
+  "soloAct.latin.honorific": [
+    { "id": "latin_el", "type": "solo", "pattern": "%honorific#1% %firstName#1%", "weight": 2, "words": [2,3],
+      "slots": { "honorific#1": { "pos": "honorific", "filter": "latin & $gender" }, "firstName#1": { "pos": "firstName", "filter": "$name" } } },
+    { "id": "latin_hon_fb", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.comedy.nickname": [
+    { "id": "com_nick", "type": "solo", "pattern": "%nickname#1% %lastName#1%", "weight": 3, "words": [2,3],
+      "slots": { "nickname#1": { "pos": "nickname", "filter": "comedy" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "soloAct.default.realName": [
+    { "id": "default_real", "type": "solo", "pattern": "%firstName#1% %lastName#1%", "weight": 1, "words": [2,2],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } }
+  ],
+
+  "//": "=== NAMING v2 album-title sets (doc C): per-genre LP architectures. %selfTitle% binds the act's own name and %leadSingle% the album's designated hit (adapter-injected via ctx.Slots); templates needing an absent lead single are dropped so each set still ends satisfiable. The frame carries genre identity more than the vocabulary does. ===",
+
+  "albumTitle.blues": [
+    { "id": "alb_blues_sings", "type": "album", "pattern": "%selfTitle#1% Sings the Blues", "weight": 2, "words": [4,6],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_blues_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 3, "words": [1,6],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_blues_downin", "type": "album", "pattern": "Down in %noun#1%", "weight": 1, "words": [3,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "regional|urban|rural" } } },
+    { "id": "alb_blues_pair", "type": "album", "pattern": "%noun#1% and %noun#2%", "weight": 1, "words": [3,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "grit|vice" }, "noun#2": { "pos": "noun", "filter": "emotion|fate" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] }
+  ],
+
+  "albumTitle.jazz": [
+    { "id": "alb_jazz_abstract", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "cool|dreamy|serene|elegant" }, "noun#1": { "pos": "noun", "filter": "mystical|emotion|diurnal|celestial|cosmic" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "alb_jazz_single", "type": "album", "pattern": "%noun#1%", "weight": 2, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "mystical|emotion|diurnal|cosmic" } } },
+    { "id": "alb_jazz_at", "type": "album", "pattern": "%selfTitle#1% at %noun#1%", "weight": 2, "words": [3,5],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" }, "noun#1": { "pos": "noun", "filter": "regional|urban" } } },
+    { "id": "alb_jazz_impressions", "type": "album", "pattern": "%noun#1% Impressions", "weight": 1, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "regional|diurnal|celestial" } } }
+  ],
+
+  "albumTitle.traditionalPop": [
+    { "id": "alb_trad_inthe", "type": "album", "pattern": "In the %adjective#1% %noun#1%", "weight": 2, "words": [4,4],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "wistful|romantic|serene" }, "noun#1": { "pos": "noun", "filter": "diurnal|seasonal" } } },
+    { "id": "alb_trad_songsfor", "type": "album", "pattern": "Songs for %noun#1%", "weight": 2, "words": [3,4],
+      "slots": { "noun#1": { "pos": "noun", "filter": "romance|emotion|diurnal" } } },
+    { "id": "alb_trad_evening", "type": "album", "pattern": "A %adjective#1% Evening with %selfTitle#1%", "weight": 1, "words": [4,6],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "elegant|romantic|serene" }, "selfTitle#1": { "pos": "selfTitle" } } }
+  ],
+
+  "albumTitle.easyListening": [
+    { "id": "alb_easy_musicfor", "type": "album", "pattern": "Music for %noun#1%", "weight": 3, "words": [3,4],
+      "slots": { "noun#1": { "pos": "noun", "filter": "romance|diurnal|domestic|seasonal" } } },
+    { "id": "alb_easy_strings", "type": "album", "pattern": "%noun#1% in %noun#2%", "weight": 2, "words": [3,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "flora|seasonal|romance" }, "noun#2": { "pos": "noun", "filter": "regional|celestial" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "alb_easy_sound", "type": "album", "pattern": "The %adjective#1% Sound of %selfTitle#1%", "weight": 1, "words": [5,6],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "serene|elegant|grand" }, "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_easy_journey", "type": "album", "pattern": "%adjective#1% %noun#1% (%phraseFrag#1%)", "weight": 1, "words": [4,6],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "serene|dreamy|elegant" }, "noun#1": { "pos": "noun", "filter": "regional|nautical|celestial" }, "phraseFrag#1": { "pos": "phraseFrag", "filter": "instrumental" } } }
+  ],
+
+  "albumTitle.country": [
+    { "id": "alb_country_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 3, "words": [1,6],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_country_sings", "type": "album", "pattern": "%selfTitle#1% Sings", "weight": 1, "words": [2,4],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_country_heartaches", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "gritty|wistful|melancholy" }, "noun#1": { "pos": "noun", "filter": "emotion|domestic|vice" } } }
+  ],
+
+  "albumTitle.folk": [
+    { "id": "alb_folk_songsof", "type": "album", "pattern": "Songs of %noun#1%", "weight": 3, "words": [3,4],
+      "slots": { "noun#1": { "pos": "noun", "filter": "protest|virtue|travel|rural" } } },
+    { "id": "alb_folk_liveat", "type": "album", "pattern": "Live at %noun#1%", "weight": 1, "words": [3,4],
+      "slots": { "noun#1": { "pos": "noun", "filter": "urban|regional" } } },
+    { "id": "alb_folk_selftitle", "type": "album", "pattern": "%selfTitle#1%", "weight": 2, "words": [1,4],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_folk_ballads", "type": "album", "pattern": "%noun#1% and Ballads", "weight": 1, "words": [3,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "protest|travel|virtue" } } }
+  ],
+
+  "albumTitle.psych": [
+    { "id": "alb_psych_epic", "type": "album", "pattern": "The %adjective#1% %noun#1% of %noun#2%", "weight": 2, "words": [5,6], "gate": { "minYear": 1966 },
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "dreamy|grand|ominous" }, "noun#1": { "pos": "noun", "filter": "mystical|cosmic|celestial" }, "noun#2": { "pos": "noun", "filter": "mystical|mythic|cosmic" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] }, { "type": "moodInternal", "threshold": 0.25 } ] },
+    { "id": "alb_psych_surreal", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "dreamy|grand" }, "noun#1": { "pos": "noun", "filter": "mystical|cosmic|celestial|flora" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.25 } ] },
+    { "id": "alb_psych_single", "type": "album", "pattern": "%noun#1%", "weight": 1, "words": [1,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "mystical|cosmic|mythic" } } }
+  ],
+
+  "albumTitle.garage": [
+    { "id": "alb_garage_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 4, "words": [1,4],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_garage_introducing", "type": "album", "pattern": "Introducing %selfTitle#1%", "weight": 2, "words": [2,4],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_garage_adj", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "aggressive|gritty|defiant" }, "noun#1": { "pos": "noun", "filter": "conflict|grit|vice" } } }
+  ],
+
+  "albumTitle.british": [
+    { "id": "alb_british_meet", "type": "album", "pattern": "Meet %selfTitle#1%", "weight": 2, "words": [2,4],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_british_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 2, "words": [1,4],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_british_world", "type": "album", "pattern": "The World of %selfTitle#1%", "weight": 1, "words": [4,5],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_british_charm", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "cheeky|romantic|playful" }, "noun#1": { "pos": "noun", "filter": "romance|urban|emotion" } } }
+  ],
+
+  "albumTitle.soul": [
+    { "id": "alb_soul_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 3, "words": [1,6],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_soul_greatest", "type": "album", "pattern": "%selfTitle#1%'s Greatest Hits", "weight": 1, "words": [3,5],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_soul_sound", "type": "album", "pattern": "The %adjective#1% Sound", "weight": 1, "words": [3,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "romantic|dreamy|grand" } } }
+  ],
+
+  "albumTitle.gospel": [
+    { "id": "alb_gospel_praise", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 2, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "spiritual|grand|joyful" }, "noun#1": { "pos": "noun", "filter": "faith|virtue|temporal" } } },
+    { "id": "alb_gospel_songsof", "type": "album", "pattern": "Songs of %noun#1%", "weight": 2, "words": [3,3],
+      "slots": { "noun#1": { "pos": "noun", "filter": "faith|virtue" } } },
+    { "id": "alb_gospel_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 2, "words": [1,5],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } }
+  ],
+
+  "albumTitle.surf": [
+    { "id": "alb_surf_safari", "type": "album", "pattern": "%noun#1% %noun#2%", "weight": 2, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nautical|vehicle" }, "noun#2": { "pos": "noun", "filter": "party|dance|nautical" } },
+      "constraints": [ { "type": "distinct", "slots": ["noun#1","noun#2"] } ] },
+    { "id": "alb_surf_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 2, "words": [1,3],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_surf_usa", "type": "album", "pattern": "%noun#1% U.S.A.", "weight": 1, "words": [2,2],
+      "slots": { "noun#1": { "pos": "noun", "filter": "nautical|vehicle|dance" } } }
+  ],
+
+  "albumTitle.sunshine": [
+    { "id": "alb_sun_bright", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 3, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "joyful|dreamy|romantic" }, "noun#1": { "pos": "noun", "filter": "celestial|flora|seasonal" } },
+      "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
+    { "id": "alb_sun_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 1, "words": [1,4],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } }
+  ],
+
+  "albumTitle.bubblegum": [
+    { "id": "alb_bg_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 3, "words": [1,4],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_bg_candy", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "playful|joyful" }, "noun#1": { "pos": "noun", "filter": "candy|romance" } } }
+  ],
+
+  "albumTitle.classical": [
+    { "id": "alb_class_conducts", "type": "album", "pattern": "%selfTitle#1% Conducts %form#1:pl%", "weight": 2, "words": [3,4],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" }, "form#1": { "pos": "form", "filter": "formal" } } },
+    { "id": "alb_class_favorites", "type": "album", "pattern": "%adjective#1% %form#1:pl%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "grand|elegant" }, "form#1": { "pos": "form", "filter": "formal" } } }
+  ],
+
+  "albumTitle.comedy": [
+    { "id": "alb_com_lead", "type": "album", "pattern": "%leadSingle#1%", "weight": 2, "words": [1,4],
+      "slots": { "leadSingle#1": { "pos": "leadSingle" } } },
+    { "id": "alb_com_presents", "type": "album", "pattern": "%selfTitle#1% Presents", "weight": 1, "words": [2,3],
+      "slots": { "selfTitle#1": { "pos": "selfTitle" } } },
+    { "id": "alb_com_absurd", "type": "album", "pattern": "%adjective#1% %noun#1%", "weight": 1, "words": [2,3],
+      "slots": { "adjective#1": { "pos": "adjective", "filter": "absurd|playful|cheeky" }, "noun#1": { "pos": "noun", "filter": "nonsense|fauna" } } }
   ]
 }

@@ -21,8 +21,10 @@ namespace LabelMan.Naming {
 		// uniquenessBucket -> set of normalized keys / soundex keys
 		private readonly Dictionary<string, HashSet<string>> _used = new();
 		private readonly Dictionary<string, HashSet<string>> _usedFuzzy = new();
-		// constraint-template sets (Layer 2), keyed by grammar-style symbol; loaded from templates.json
-		private readonly Dictionary<string, List<ConstraintTemplate>> _constraintSets = new(StringComparer.Ordinal);
+		// constraint-template sets (Layer 2), keyed by grammar-style symbol; loaded from templates.json.
+		// Case-insensitive so the TemplateRouter can build keys from PascalCase genre ids (songTitle.Jazz)
+		// and still hit the lower-cased set names (songTitle.jazz).
+		private readonly Dictionary<string, List<ConstraintTemplate>> _constraintSets = new(StringComparer.OrdinalIgnoreCase);
 
 		public double HybridCoinRate = 0.20; // ~20% of markov slots become invented words
 		public int MarkovMinLen = 4, MarkovMaxLen = 11;
@@ -33,7 +35,7 @@ namespace LabelMan.Naming {
 			Lexicon.Dedupe();                                           // drop case/tag-set duplicate entries
 			Lexicon.ClassifyAll(Models.Ontology);                       // Layer 3: sort tags onto axes
 			Grammar = new GrammarEngine(grammar, lexicon, this, Models.Inflection);
-			Templates = new TemplateEngine(lexicon, Models.Ontology, Models.Moods, Models.Inflection, this);
+			Templates = new TemplateEngine(lexicon, Models.Ontology, Models.Moods, Models.Inflection, this, Models.Diminutives);
 		}
 
 		public GenreProfile Profile(NamingContext ctx) => Models.Genres.Get(ctx?.Genre);
@@ -46,6 +48,11 @@ namespace LabelMan.Naming {
 		}
 		public bool HasConstraintSet(string symbol) => _constraintSets.ContainsKey(symbol);
 		public IEnumerable<string> ConstraintSymbols => _constraintSets.Keys;
+
+		/// <summary>Does a name-set exist for this key in EITHER layer — a Layer-2 constraint set or a
+		/// grammar symbol? The TemplateRouter uses this as its existence predicate so it can route to
+		/// grammar-only buckets as well as constraint sets.</summary>
+		public bool HasNameSet(string key) => _constraintSets.ContainsKey(key) || Grammar.HasSymbol(key);
 
 		/// <summary>The distinct (pos, filter) slot pools a constraint set draws from, with the words
 		/// each filter selects — backs the tuner's dictionary panel for constraint categories.</summary>

@@ -10,6 +10,40 @@
       ],
       "eraStart": 1960,
       "eraEnd": 1969
+    },
+    {
+      "pos": "verb",
+      "tags": [
+        "universal",
+        "romantic"
+      ],
+      "words": [
+        "Love"
+      ]
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "dreamy",
+        "poetic",
+        "psych"
+      ],
+      "words": [
+        "Cosmic"
+      ],
+      "eraStart": 1966,
+      "eraEnd": 1969
+    },
+    {
+      "pos": "firstName",
+      "tags": [
+        "black",
+        "white",
+        "female"
+      ],
+      "words": [
+        "Janet"
+      ]
     }
   ],
   "remove": [
@@ -26,6 +60,185 @@
         "early60s"
       ],
       "word": "Real Gone"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "romantic",
+        "dreamy",
+        "joyful"
+      ],
+      "word": "Cosmic"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "country"
+      ],
+      "word": "cold"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "melancholy",
+        "poetic"
+      ],
+      "word": "cold"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "ominous",
+        "poetic"
+      ],
+      "word": "cold"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "ominous",
+        "plain"
+      ],
+      "word": "cold"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "aggressive",
+        "plain"
+      ],
+      "word": "savage"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "ominous",
+        "ornate"
+      ],
+      "word": "savage"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "universal"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "early60s"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "surf"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "instrumental"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "playful",
+        "slang"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "defiant",
+        "plain"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "ominous",
+        "ornate"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "aggressive",
+        "plain"
+      ],
+      "word": "Wild"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "universal"
+      ],
+      "word": "dark"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "ominous",
+        "poetic"
+      ],
+      "word": "dark"
+    },
+    {
+      "pos": "adjective",
+      "tags": [
+        "ominous",
+        "plain"
+      ],
+      "word": "dark"
+    },
+    {
+      "pos": "firstName",
+      "tags": [
+        "black",
+        "male"
+      ],
+      "word": "Blue"
+    },
+    {
+      "pos": "firstName",
+      "tags": [
+        "black",
+        "male"
+      ],
+      "word": "Butter"
+    },
+    {
+      "pos": "firstName",
+      "tags": [
+        "black",
+        "male"
+      ],
+      "word": "Champion Jack"
+    },
+    {
+      "pos": "firstName",
+      "tags": [
+        "female",
+        "white"
+      ],
+      "word": "Janet"
+    },
+    {
+      "pos": "firstName",
+      "tags": [
+        "black",
+        "male"
+      ],
+      "word": "Janet"
     }
   ]
 }
