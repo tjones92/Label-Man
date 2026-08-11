@@ -887,6 +887,12 @@ public partial class ChartManager : Node {
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
 		RestockHotRecords();
 
+		// === STEP 2.75: REPORTER PLAYLIST MEETING ===
+		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio
+		// aggregation reads them (design doc a 3.1). Uses the network's own RNG, so while
+		// REPORTER_PANEL_WEIGHT is 0 this is computed-but-unconsumed and simulation output is unchanged.
+		stationNetwork?.UpdatePlaylists(allRecords, allRegions, currentChartWeek, year);
+
 		// === STEP 3: Update regional awareness/radio ===
 		foreach (var record in allRecords) {
 			if (record.baseRecord.format == ReleaseFormat.Album) {
