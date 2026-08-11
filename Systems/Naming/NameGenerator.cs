@@ -24,13 +24,23 @@ public partial class NameGenerator : Node {
 	private const string InflectionPath = "res://Data/Naming/inflection.json";
 	private const string GenresPath = "res://Data/Naming/genres.json";
 	private const string TemplatesPath = "res://Data/Naming/templates.json";
+	private const string DiminutivesPath = "res://Data/Naming/diminutives.json";
 
 	private NameEngine _engine;
+	private TemplateRouter _router;   // ancestry-driven (kind,genre)->set resolution (replaces the switch)
 	private IRandom _rng;             // dedicated naming stream, isolated from GD.Rand
 
-	public override void _EnterTree() { Instance = this; }
+	// Load in _EnterTree (not _Ready): later autoloads (e.g. ChartManager) generate labels during
+	// THEIR _EnterTree, which runs before this node's _Ready. Setting Instance without a loaded
+	// engine let those callers see Instance != null but _engine == null, so GenerateLabelName fell
+	// back to the literal "Records". Autoloads _EnterTree in listed order, and SimulationSeedBootstrap
+	// (which sets the naming seed) precedes us, so loading here is both safe and seed-stable.
+	public override void _EnterTree() { Instance = this; EnsureLoaded(); }
 
-	public override void _Ready() { Load(); }
+	public override void _Ready() { EnsureLoaded(); }
+
+	/// <summary>Idempotent load — safe to call from both _EnterTree and _Ready.</summary>
+	private void EnsureLoaded() { if (_engine == null) Load(); }
 
 	// ------------------------------------------------------------------ loading
 	private void Load() {
@@ -55,7 +65,8 @@ public partial class NameGenerator : Node {
 		var moods = new MoodGraph();            moods.LoadJson(ReadFile(MoodsPath));
 		var inflection = new Inflection();      inflection.LoadJson(ReadFile(InflectionPath));
 		var genres = new GenreLibrary();        genres.LoadJson(ReadFile(GenresPath));
-		var models = new NameModels(ontology, moods, inflection, genres);
+		var diminutives = new Diminutives();    diminutives.LoadJson(ReadFile(DiminutivesPath));   // Layer: solo-act grooming
+		var models = new NameModels(ontology, moods, inflection, genres, diminutives);
 
 		var grammar = GrammarEngine.ParseGrammar(grammarJson);
 		_engine = new NameEngine(lexicon, grammar, models);
@@ -65,9 +76,22 @@ public partial class NameGenerator : Node {
 		if (!string.IsNullOrEmpty(templatesJson))
 			foreach (var kv in ConstraintTemplateLoader.Parse(templatesJson)) _engine.AddConstraintSet(kv.Key, kv.Value);
 
+		// Ancestry-driven template routing (docs D/E). Existence spans both layers so it can route to
+		// constraint sets and grammar-only buckets alike.
+		_router = new TemplateRouter(models.Genres, key => _engine.HasNameSet(key));
+
 		_rng = new DeterministicRandom(DeriveSeed());
 		var moodIssues = moods.Validate();
 		if (moodIssues.Count > 0) GD.PushWarning($"NameGenerator mood matrix: {string.Join("; ", moodIssues)}");
+		// Per-genre coherence (doc H #4): flag any resolved profile whose affinity moods are
+		// disconnected/isolated at its threshold — those silently deadlock into grammar fallback.
+		var genreIssues = new List<string>();
+		foreach (var gid in models.Genres.Ids) {
+			var gp = models.Genres.Get(gid);
+			genreIssues.AddRange(moods.ValidateGenre(gid, gp.MoodAffinity.Keys, gp.MoodThreshold));
+		}
+		if (genreIssues.Count > 0) GD.PushWarning($"NameGenerator genre mood-coherence:\n  {string.Join("\n  ", genreIssues)}");
+		AuditRouting();
 		GD.Print($"NameGenerator ready: {lexicon.Count} words, {grammar.Count} symbols, {models.Genres.Ids.Count()} genre profiles.");
 	}
 
@@ -140,7 +164,43 @@ public partial class NameGenerator : Node {
 		else if (isJewish) surname = rng.Chance(0.50) ? "jewish" : "generic";
 		else surname = "generic";
 		ctx.TagSets["surname"] = new List<string> { surname };
-		return "soloName";
+
+		// Solo strategy layer (doc B): pick a name strategy weighted by genre (nickname-dominant for
+		// blues/funk, honorific for gospel, credited for easy/classical…), then route to the
+		// soloAct.<genre>.<strategy> set. The set's $name/$surname/$gender slots bind to the demographic
+		// rolled just above. Falls back to the legacy soloName grammar only if nothing resolves.
+		string strategy = PickSoloStrategy(genre, rng);
+		return _router?.ResolveSolo(genre.ToString(), strategy) ?? "soloName";
+	}
+
+	/// <summary>Weighted solo-act name strategy per genre (doc B §2): realName / nickname / mononym /
+	/// honorific / credited. Encodes "nickname density scales with grit" as sampling weights.</summary>
+	private static string PickSoloStrategy(Genre g, IRandom rng) {
+		(double rn, double nk, double mo, double ho, double cr) w = g switch {
+			Genre.Blues or Genre.BluesRock or Genre.BritishBlues => (0.1, 0.7, 0.15, 0.05, 0.0),
+			Genre.Jazz => (0.55, 0.3, 0.1, 0.0, 0.05),
+			Genre.Soul or Genre.RnB or Genre.Motown => (0.55, 0.2, 0.05, 0.2, 0.0),
+			Genre.Gospel => (0.4, 0.05, 0.0, 0.55, 0.0),
+			Genre.Country or Genre.CountryRock or Genre.RootsRock => (0.85, 0.13, 0.0, 0.0, 0.02),
+			Genre.Folk or Genre.ContemporaryFolk => (0.9, 0.05, 0.05, 0.0, 0.0),
+			Genre.SingerSongwriter => (0.95, 0.0, 0.05, 0.0, 0.0),
+			Genre.TeenPop => (0.7, 0.28, 0.02, 0.0, 0.0),
+			Genre.TraditionalPop => (0.75, 0.05, 0.05, 0.0, 0.15),
+			Genre.EasyListening => (0.35, 0.05, 0.1, 0.0, 0.5),
+			Genre.Funk => (0.3, 0.55, 0.1, 0.05, 0.0),
+			Genre.RockAndRoll => (0.45, 0.4, 0.1, 0.0, 0.05),
+			Genre.Classical => (0.5, 0.0, 0.0, 0.0, 0.5),
+			Genre.Comedy => (0.3, 0.6, 0.1, 0.0, 0.0),
+			Genre.LatinPop or Genre.Boogaloo or Genre.TexMex or Genre.BossaNova => (0.6, 0.15, 0.1, 0.15, 0.0),
+			Genre.Reggae or Genre.Ska or Genre.Rocksteady or Genre.SkaRocksteady => (0.5, 0.35, 0.1, 0.05, 0.0),
+			_ => (0.7, 0.15, 0.05, 0.05, 0.05)
+		};
+		double roll = rng.NextDouble() * (w.rn + w.nk + w.mo + w.ho + w.cr);
+		if ((roll -= w.rn) < 0) return "realName";
+		if ((roll -= w.nk) < 0) return "nickname";
+		if ((roll -= w.mo) < 0) return "mononym";
+		if ((roll -= w.ho) < 0) return "honorific";
+		return "credited";
 	}
 
 	private string ChooseBandSymbol(Genre genre, int year, ArtistType artistType, NamingContext ctx) {
@@ -150,42 +210,34 @@ public partial class NameGenerator : Node {
 		ctx.TagSets["name"] = new List<string> { "male", leaderBlack ? "black" : "white" };
 		ctx.TagSets["surname"] = new List<string> { "generic" };
 
-		if (year >= 1967 && IsPsychedelicGenre(genre)) return "bandName.psych";
-		if (genre == Genre.BritishInvasion || genre == Genre.BritishBeat || genre == Genre.BritishPop ||
-			(year >= 1964 && year <= 1966 && genre == Genre.RockAndRoll && rng.Chance(0.35)))
-			return "bandName.british";
-		if (genre == Genre.SurfRock) return "bandName.surf";
-		if (genre == Genre.Soul || genre == Genre.RnB || genre == Genre.Motown || genre == Genre.Funk)
-			return "bandName.soul";
-		if (genre == Genre.DooWop) return "bandName.doowop";
-		if (genre == Genre.GirlGroup) return "bandName.girlGroup";
-		if (genre == Genre.GarageRock) return year < 1966 ? "bandName.garageEarly" : "bandName.garage";
+		// --- genuinely contextual routing (year / artist-type) the genre router can't express ---
+		if (year >= 1967 && IsPsychedelicGenre(genre)) return "bandName.psych";      // late-60s psych era pull
+		if (year >= 1964 && year <= 1966 && genre == Genre.RockAndRoll && rng.Chance(0.35))
+			return "bandName.british";                                              // Merseybeat wave
+		if (genre == Genre.GarageRock && year < 1966) return "bandName.garageEarly"; // pre-fuzz garage
 		if (genre == Genre.Folk || genre == Genre.FolkRock || genre == Genre.ContemporaryFolk) {
 			if (artistType == ArtistType.Duo) return "bandName.folkDuo";
 			if (artistType == ArtistType.Trio) return "bandName.folkTrio";
-			return "bandName.folk";
 		}
-		if (genre == Genre.Gospel) return "bandName.gospel";
-		if (genre == Genre.Classical) return "bandName.classical";
-		if (genre == Genre.Comedy) return "bandName.comedy";
-		if (genre == Genre.Childrens) return "bandName.childrens";
-		if (IsLatinGenre(genre) || genre == Genre.BossaNova) return "bandName.latin";
-		if (genre == Genre.Country || genre == Genre.CountryRock || genre == Genre.RootsRock)
-			return "bandName.country";
-		if (genre == Genre.Jazz || genre == Genre.EasyListening)
-			return "bandName.jazz";
-		if (genre == Genre.Blues || genre == Genre.BluesRock || genre == Genre.BritishBlues)
-			return "bandName.blues";
-		if (genre == Genre.HardRock || genre == Genre.ProtoMetal || genre == Genre.AcidRock || genre == Genre.ProtoPunk)
-			return "bandName.hardRock";
-		if (genre == Genre.Bubblegum)
-			return "bandName.bubblegum";
-		if (genre == Genre.Reggae || genre == Genre.Ska || genre == Genre.Rocksteady || genre == Genre.SkaRocksteady)
-			return "bandName.reggae";
-		if (genre == Genre.SunshinePop || genre == Genre.BaroquePop || genre == Genre.PsychedelicPop ||
-			genre == Genre.PopRock || genre == Genre.ProgressiveRock)
-			return "bandName.sunshine";
-		return "bandName.default";
+
+		// --- genre -> set via the ancestry-walking router (replaces the old bucket switch) ---
+		return _router.Resolve("bandName", genre.ToString()) ?? "bandName.default";
+	}
+
+	/// <summary>Load-time audit (doc E §2.4): report every genre×kind that degrades to the generic set
+	/// or grammar, turning "silently bland genre" into a visible, shrinking authoring checklist.</summary>
+	private void AuditRouting() {
+		if (_router == null) return;
+		string[] kinds = { "songTitle", "bandName" };
+		var lines = new List<string>();
+		foreach (Genre g in System.Enum.GetValues(typeof(Genre)))
+			foreach (var kind in kinds) {
+				var info = _router.Explain(kind, g.ToString());
+				if (info.Kind == RouteKind.Grammar) lines.Add($"{g}.{kind} -> GRAMMAR (no set, no family)");
+				else if (info.Kind == RouteKind.Generic) lines.Add($"{g}.{kind} -> generic '{info.Key}'");
+			}
+		if (lines.Count > 0) GD.Print($"[naming routing audit] {lines.Count} genre/kind(s) below family:\n  " + string.Join("\n  ", lines));
+		else GD.Print("[naming routing audit] every genre reaches a bespoke or family set for song + band.");
 	}
 
 	private bool DetermineIfBand(Genre genre, ArtistType artistType, IRandom rng) {
@@ -213,27 +265,11 @@ public partial class NameGenerator : Node {
 	}
 
 	private string ChooseSongSymbol(Genre genre, int year, IRandom rng) {
-		if (year >= 1967 && IsPsychedelicGenre(genre)) return "songTitle.psych";
-		if (genre == Genre.SurfRock) return "songTitle.surf";
-		if (genre == Genre.Soul || genre == Genre.RnB || genre == Genre.Motown || genre == Genre.Funk) return "songTitle.soul";
-		if (genre == Genre.Country || genre == Genre.CountryRock) return "songTitle.country";
-		if (genre == Genre.DooWop || genre == Genre.GirlGroup || genre == Genre.TeenPop) return "songTitle.early60s";
-		if (genre == Genre.Folk || genre == Genre.FolkRock || genre == Genre.ContemporaryFolk) return "songTitle.folk";
-		if (genre == Genre.Jazz || genre == Genre.EasyListening) return "songTitle.jazz";
-		if (genre == Genre.Gospel) return "songTitle.gospel";
-		if (genre == Genre.Classical) return "songTitle.classical";
-		if (genre == Genre.Comedy) return "songTitle.comedy";
-		if (genre == Genre.Childrens) return "songTitle.childrens";
-		if (IsLatinGenre(genre) || genre == Genre.BossaNova) return "songTitle.latin";
-		if (genre == Genre.Blues || genre == Genre.BluesRock || genre == Genre.BritishBlues) return "songTitle.blues";
-		if (genre == Genre.HardRock || genre == Genre.ProtoMetal || genre == Genre.AcidRock ||
-			genre == Genre.ProtoPunk) return "songTitle.hardRock";
-		if (genre == Genre.Bubblegum) return "songTitle.bubblegum";
-		if (genre == Genre.Reggae || genre == Genre.Ska || genre == Genre.Rocksteady ||
-			genre == Genre.SkaRocksteady) return "songTitle.reggae";
-		if (genre == Genre.SunshinePop || genre == Genre.BaroquePop || genre == Genre.PsychedelicPop ||
-			genre == Genre.PopRock) return "songTitle.sunshine";
-		// default routing mirrors the old year-based blend
+		// Ancestry-driven routing (docs D/E) replaces the old genre->bucket switch. Each genre reaches
+		// its most specific set, then its family, then a set-less genre falls to the era blend below.
+		string key = _router.Resolve("songTitle", genre.ToString());
+		if (key != null) return key;
+		// Ultimate fallback for a genre with no set and no family rung: the legacy era-appropriate blend.
 		if (year < 1964) return "songTitle.early60s";
 		if (year < 1967) return rng.Chance(0.5) ? "songTitle.early60s" : "songTitle.soul";
 		return rng.Next(3) switch { 0 => "songTitle.psych", 1 => "songTitle.soul", _ => "songTitle.early60s" };
@@ -252,15 +288,22 @@ public partial class NameGenerator : Node {
 	}
 
 	// ================================================================== ALBUMS
-	public string GenerateAlbumTitle(Genre genre, int year, string artistName, bool isCompilation = false) {
+	/// <summary>Genre-flavored album title. <paramref name="leadSingle"/> (the album's designated hit
+	/// track, generated before the title) binds the %leadSingle% slot so soul/country/garage LPs can be
+	/// named after their single; omit it and those templates drop gracefully. %selfTitle% binds the
+	/// act's own name. Routes to albumTitle.&lt;genre&gt; via the ancestry walk, else the generic set.</summary>
+	public string GenerateAlbumTitle(Genre genre, int year, string artistName, bool isCompilation = false, string leadSingle = null) {
 		if (_engine == null) return artistName;
 		var ctx = MakeContext(genre, year, ArtistType.Unknown);
 		ctx.Slots["artist"] = artistName;
+		ctx.Slots["selfTitle"] = artistName;
+		if (!string.IsNullOrWhiteSpace(leadSingle)) ctx.Slots["leadSingle"] = leadSingle;
 		if (isCompilation) return _engine.ExpandOnce("compilationTitle", ctx);
 		double r = _rng.NextDouble();
-		if (r < 0.10) return artistName;                          // self-titled
-		if (r < 0.30) return _engine.ExpandRouted("albumFormat", ctx);
-		return _engine.ExpandRouted("albumTitle", ctx);           // Layer-2 album set (genre-flavored)
+		if (r < 0.08) return artistName;                          // self-titled (rare; the sets also self-title)
+		if (r < 0.20) return _engine.ExpandRouted("albumFormat", ctx);
+		string key = _router?.Resolve("albumTitle", genre.ToString()) ?? "albumTitle";
+		return _engine.Generate(key, ctx, "album|" + artistName, nearDup: false, attempts: 30);
 	}
 
 	public string GenerateInstrumentalTitle(Genre genre, int year) {
@@ -420,10 +463,11 @@ public partial class NameGenerator : Node {
 				return _engine.ExpandRouted(ChooseSongSymbol(genre, year, ctx.Rng), ctx);
 			case CatAlbum: {
 				ctx.Slots["artist"] = ResolveArtist(artistName, genre, year, ctx);
+				ctx.Slots["selfTitle"] = ctx.Slots["artist"];           // %leadSingle% unavailable here -> those templates drop
 				double r = ctx.Rng.NextDouble();
 				if (r < 0.10) return ctx.Slots["artist"];               // self-titled
 				if (r < 0.30) return _engine.ExpandRouted("albumFormat", ctx);
-				return _engine.ExpandRouted("albumTitle", ctx);
+				return _engine.ExpandRouted(_router?.Resolve("albumTitle", genre.ToString()) ?? "albumTitle", ctx);
 			}
 			case CatPerson: {
 				// Central people pool: show variety across the four ethnicity categories. An explicit

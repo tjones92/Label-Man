@@ -266,7 +266,9 @@ public static class AILabelFactory {
 	}
 	
 	private static string GenerateLabelName(LabelArchetype archetype) {
-		if (NameGenerator.Instance != null) return NameGenerator.Instance.GenerateLabelName(archetype);
+		// Require a loaded engine, not just a live singleton: an unready engine returns the literal
+		// "Records" fallback, so drop to the local prefix/suffix pool instead when it isn't ready yet.
+		if (NameGenerator.Instance != null && NameGenerator.Instance.IsReady()) return NameGenerator.Instance.GenerateLabelName(archetype);
 		string[] prefixes = { "Royal", "Golden", "Silver", "Crown", "Diamond", "Star", "Sun", "Moon", "Atlantic", "Pacific", "National", "American", "Imperial", "Liberty", "Freedom", "Victory", "Triumph", "Glory", "Ace", "Duke", "King", "Queen" };
 		string[] suffixes = { "Records", "Recording Co.", "Music", "Sound", "Productions", "Disc" };
 		return $"{prefixes[(int)GD.RandRange(0, prefixes.Length - 1)]} {suffixes[(int)GD.RandRange(0, suffixes.Length - 1)]}";
