@@ -1,0 +1,676 @@
+{
+  "//": "Name-generation grammar. Ported from the old switch generators. Genre flavor comes from $style (the adapter maps 51 genres to a style tag); $name/$surname carry rolled demographic tags. Tune freely in NameLab.",
+
+  "soloName": [
+    { "w": 40, "t": "{firstName:$name} {lastName:$surname}" },
+    { "w": 5,  "t": "{nickPrefix} {firstName:$name}" },
+    { "w": 4,  "t": "{nickPrefix} {firstName:$name} {lastName:$surname}" },
+    { "w": 4,  "t": "{nickTitle} {firstName:$name}" },
+    { "w": 3,  "t": "{firstName:$name}" },
+    { "w": 5,  "t": "{firstName:$name} \"{nickQuoted}\" {lastName:$surname}" },
+    { "w": 3,  "t": "{initial}.{initial}. {lastName:$surname}" },
+    { "w": 3,  "t": "{firstName:$name} {lastName:$surname} (Jr.|III)" },
+    { "w": 2,  "t": "{firstName:$name} {firstName:$name} {lastName:$surname}" }
+  ],
+
+  "bandName.psych": [
+    "The {adjective:psych} {noun:psych}",
+    "{adjective:psych} {groupNoun:psych}",
+    "{lastName:generic} {groupNoun:psych}",
+    "{noun:psych}",
+    "The {adjective:psych} {noun:psych} {groupNoun:psych}",
+    "{adjective:psych} {groupNoun:animals.trimS}",
+    "{firstName:male,black} and the {adjective:soul} {noun:soul}",
+    "The {noun:psych.s}",
+    "{adjective:psych} {noun:early60s}",
+    "The {ordinal:3-14} {noun:psych}",
+    "{adjective:psych} {city:general} {groupNoun:psych}",
+    "{groupNoun:psych}",
+    "The {firstName:male,white} {lastName:generic} {groupNoun:psych}",
+    "The {~noun:psych}"
+  ],
+
+  "bandName.british": [
+    "The {groupNoun:british}",
+    "The {groupNoun:animals}",
+    "{firstName:male,white} and the {groupNoun:british}",
+    "{firstName:male,white} {lastName:british} and the {groupNoun:british}",
+    "{adjective:universal} {groupNoun:british}",
+    "{groupNoun:british}",
+    "The {city:british} {groupNoun:british}",
+    "The {adjective:universal} {groupNoun:animals}",
+    "{lastName:british.poss} {groupNoun:british}",
+    "The {writtenNumber:3-8} {groupNoun:british}"
+  ],
+
+  "bandName.surf": [
+    "The {groupNoun:surf}",
+    "The {adjective:surf} {noun:surf.s}",
+    "{firstName:male,white} {lastName:generic} and the {groupNoun:musical}",
+    "The {city:surf} {groupNoun:surf}",
+    "{firstName:male,white} and {firstName:male,white}",
+    "The {noun:surf.s}",
+    "The {adjective:surf} {groupNoun:surf}"
+  ],
+
+  "bandName.soul": [
+    "{firstName:$name} {lastName:generic} and the {groupNoun:musical}",
+    "{firstName:male,black} and the {adjective:soul} {groupNoun:musical}",
+    "The {groupNoun:gems}",
+    "The {groupNoun:musical}",
+    "The {adjective:soul} {groupNoun:musical}",
+    "The {writtenNumber:3-6} {groupNoun:musical}",
+    "The {city:general} {groupNoun:musical}",
+    "The {adjective:universal}ettes",
+    "The {groupNoun:royalty}"
+  ],
+
+  "bandName.doowop": [
+    "The {groupNoun:birds}",
+    "The {groupNoun:musical}",
+    "The {groupNoun:gems}",
+    "The {adjective:universal} {groupNoun:birds}",
+    "The {writtenNumber:3-6} {groupNoun:royalty}",
+    "The (Blue|Golden|Silver|Scarlet|Midnight) {groupNoun:birds}",
+    "The {groupNoun:royalty}",
+    "The {lastName:generic} Brothers"
+  ],
+
+  "bandName.girlGroup": [
+    "The {firstName:female,white.s}",
+    "The {firstName:female,black.s}",
+    "The {groupNoun:gems}",
+    "{firstName:female,black} and the {groupNoun:musical}",
+    "The {adjective:universal}ettes",
+    "The {noun:universal}ettes",
+    "The {adjective:early60s} {groupNoun:gems}",
+    "The {writtenNumber:2-5} {groupNoun:gems}",
+    "The (Golden|Silver|Blue|Scarlet|Velvet) Girls",
+    "The {city:general} Girls"
+  ],
+
+  "bandName.garage": [
+    "The (Dark|Black|Shadow|Night|Grim|Wild|Mad|Savage) {groupNoun:british}",
+    "The (Spiders|Rats|Snakes|Scorpions|Vampires|Zombies|Ghouls)",
+    "The (Outcasts|Rejects|Loners|Strangers|Misfits|Freaks|Losers)",
+    "The (Count|Lords|Knights|Sons|Children|Slaves) of {noun:psych}",
+    "(Electric|Chocolate|Velvet|Iron|Plastic|Chrome) {groupNoun:animals.trimS}",
+    "The {city:general} {groupNoun:british}",
+    "{firstName:male,white} and the {groupNoun:british}",
+    "The {adjective:psych} {groupNoun:british}",
+    "The {lastName:generic} {groupNoun:british}",
+    "The (Leather|Velvet|Vinyl|Nylon|Suede|Denim) {groupNoun:british}",
+    "(Question Mark|Zero|Nobody|X|Johnny Blade|Roky) and the {groupNoun:british}"
+  ],
+
+  "bandName.garageEarly": [
+    "The {groupNoun:animals}",
+    "The {adjective:universal} {groupNoun:animals}",
+    "{firstName:male,white} and the {groupNoun:british}",
+    "The {groupNoun:british}",
+    "The {city:general} {groupNoun:british}",
+    "The {writtenNumber:4-7} {groupNoun:british}"
+  ],
+
+  "bandName.folk": [
+    "The {city:general} (Singers|Ramblers|Travelers|Wanderers|Minstrels)",
+    "The {adjective:universal} (Balladeers|Troubadours|Folksingers|Minstrels|Wayfinders)",
+    "The {writtenNumber:3-6} (Singers|Voices|Harmonizers|Crooners)",
+    "The {lastName:generic} Singers",
+    "The (Mountain|Valley|River|Forest|Prairie|Highland) (Boys|Girls|Folk|Singers|Voices)",
+    "The {lastName:generic} (Brothers|Sisters|Family)",
+    "The New (Christy|Lost City|Cumberland|Limelight|Greenbriar) (Minstrels|Ramblers|Singers|Boys)",
+    "The {region} (Ramblers|Travelers|Boys|Singers)",
+    "The (Weavers|Seekers|Pilgrims|Wayfarers|Journeymen|Highwaymen)",
+    "The {adjective:universal} (Brothers|Sisters|Family|Clan)"
+  ],
+
+  "bandName.folkDuo": [
+    "{firstName:male,white} and {firstName:male,white}",
+    "{firstName:female,white} and {firstName:male,white}",
+    "{lastName:generic} and {lastName:generic}",
+    "The {lastName:generic} (Brothers|Sisters|Twins|Duo)"
+  ],
+
+  "bandName.folkTrio": [
+    "{firstName:male,white}, {firstName:male,white} and {firstName:female,white}",
+    "The {lastName:generic} Trio",
+    "The {adjective:universal} Trio",
+    "The {noun:universal} Three"
+  ],
+
+  "bandName.gospel": [
+    "The (Mighty|Glorious|Heavenly|Divine|Sacred|Blessed) Gospel (Singers|Choir|Voices|Harmonizers)",
+    "The {writtenNumber:3-6} (Angels|Saints|Disciples|Apostles|Prophets|Witnesses)",
+    "{firstName:male,black} {lastName:generic} and the (Gospel Stars|Spirituals|Voices of Praise|Heavenly Choir)",
+    "The {city:general} Gospel (Singers|Choir|Jubilee Singers)",
+    "The (Soul|Spirit|Faith|Grace|Glory|Praise|Jubilee) (Stirrers|Travelers|Harmonizers|Singers)",
+    "The {lastName:generic} (Family|Brothers|Sisters|Singers)",
+    "The (Golden|Silver|Heavenly|Angelic|Divine) (Gate|Star|Light|Voice|Crown) (Quartet|Singers|Jubileers)",
+    "(Reverend|Brother|Sister|Elder|Deacon) {lastName:generic.poss} (Gospel Train|Spiritual Caravan|Heavenly Choir)",
+    "The {city:general} Community Choir",
+    "The (Singing|Praising|Rejoicing|Testifying) (Disciples|Saints|Witnesses|Pilgrims)"
+  ],
+
+  "bandName.default": [
+    "The {groupNoun:musical}",
+    "The {groupNoun:birds}",
+    "{firstName:male,white} and the {groupNoun:musical}",
+    "The {adjective:universal} {groupNoun:musical}",
+    "The {groupNoun:animals}",
+    "The {writtenNumber:3-6} {groupNoun:royalty}",
+    "The {city:general} {groupNoun:musical}",
+    "{firstName:male,white.poss} {groupNoun:musical}",
+    "The {groupNoun:gems}",
+    "The {lastName:generic} Brothers"
+  ],
+
+  "bandName.country": [
+    "{firstName:male,country} {lastName:country}",
+    "{firstName:male,country} {lastName:country} and the {adjective:country} (Boys|Playboys|Wranglers|Drifters|Ramblers)",
+    "The {adjective:country} (Boys|Playboys|Wranglers|Ranch Hands|Drifters)",
+    "{firstName:male,country} {lastName:country} and His {adjective:country} (Band|Boys|Playboys)",
+    "The {lastName:country} (Brothers|Family|Sisters)",
+    "The {city:country} (Boys|Ramblers|Playboys|Drifters)",
+    "{firstName:female,country} {lastName:country}",
+    "The {adjective:country} (Mountain|Valley|Prairie|Range) Boys"
+  ],
+
+  "bandName.jazz": [
+    "The {firstName:male,black} {lastName:generic} (Trio|Quartet|Quintet|Sextet|Combo|Ensemble)",
+    "The {lastName:generic} (Trio|Quartet|Quintet|Combo)",
+    "{firstName:male,white} {lastName:generic} and His Orchestra",
+    "The {adjective:universal} (Jazz Messengers|Giants|All-Stars|Modernists)",
+    "The {city:general} (Jazz Quartet|All-Stars|Ensemble|Modernists)",
+    "{firstName:male,black} {lastName:generic}",
+    "The Modern Jazz {groupNoun:musical}",
+    "The {adjective:soul} (Notes|Tones|Chords|Keys|Horns)"
+  ],
+
+  "bandName.blues": [
+    "(Muddy|Howlin'|Blind|Big|Little|Sonny Boy|Lightnin'|Slim) {lastName:generic}",
+    "{firstName:male,black} {lastName:generic} and the {adjective:soul} (Blues Band|Kings|Wolves|Aces)",
+    "The {city:general} Blues Band",
+    "{firstName:male,black} \"{nickQuoted}\" {lastName:generic}",
+    "The {adjective:soul} (Blues Breakers|Bluesmen|Wolves|Hounds|Kings)",
+    "The {lastName:generic} Blues Band",
+    "(Blind|Big|Little|Barrelhouse) {firstName:male,black}"
+  ],
+
+  "bandName.hardRock": [
+    "(Iron|Steel|Black|Deep|Heavy|Blue) {noun:psych}",
+    "The (Who|Move|Nice|Cream|Faces|Herd)",
+    "{adjective:psych} (Thunder|Machine|Purple|Butterfly|Steamroller)",
+    "(Blue|Iron|Chrome|Steel|Vanilla) {groupNoun:animals.trimS}",
+    "The {adjective:psych} {groupNoun:british}",
+    "{lastName:generic} and the {adjective:psych} {groupNoun:musical}",
+    "The {adjective:psych} {groupNoun:animals}"
+  ],
+
+  "bandName.bubblegum": [
+    "The {city:general} Express",
+    "(1910|1900|1st|New|Ohio) (Fruitgum Company|Express|Edition|Class)",
+    "The {adjective:early60s} {groupNoun:animals}",
+    "{firstName:male,white} and the {groupNoun:animals}",
+    "The {adjective:universal} (Bunch|Gang|Kids|Crew|Company)",
+    "The {adjective:early60s} (Union|Company|Machine|Factory)"
+  ],
+
+  "bandName.reggae": [
+    "(King|Prince|Sir|Lord) {lastName:generic} and the {adjective:soul} (All-Stars|Sound System)",
+    "The {adjective:soul} (Rulers|Rudies|Kings|Maytals|Vibrations)",
+    "{firstName:male,black} and the {adjective:soul} (Wailers|Upsetters|Vibrations)",
+    "The {city:general} (Ska|Rocksteady|Reggae) (Kings|All-Stars)",
+    "(Toots|Prince|King|Sir|Lord) {firstName:male,black}",
+    "The Wailing {groupNoun:musical}"
+  ],
+
+  "bandName.sunshine": [
+    "The {adjective:psych} {groupNoun:gems}",
+    "The (Association|Turtles|Grass Roots|Cowsills|Sandpipers)",
+    "The {adjective:early60s} {groupNoun:birds}",
+    "{firstName:male,white} and the {adjective:psych} {groupNoun:musical}",
+    "The {adjective:psych} (Fountain|Garden|Meadow|Rainbow|Sunshine) {groupNoun:musical}",
+    "The {noun:psych} {groupNoun:royalty}",
+    "The Left {groupNoun:british}",
+    "The {city:general} {groupNoun:gems}"
+  ],
+
+  "songTitle.early60s": [
+    "{phraseOpener:early60s} {verb:universal} (Me|You|Her|Him|Us)",
+    "({firstName:male,white}|{firstName:female,white})",
+    "{adjective:universal} {noun:universal}",
+    "The {noun:early60s}",
+    "{verb:action}in'",
+    "My {adjective:early60s} {noun:early60s}",
+    "{exclamation:early60s} {firstName:female,white}!",
+    "{phraseOpener:early60s} {noun:early60s}",
+    "(Last|This|One|That|Every|Lonely) (Night|Day|Time|Summer|Christmas|Kiss)",
+    "(Sha La La|Da Doo Ron Ron|Doo Wah Diddy|Shoop Shoop|Rama Lama Ding Dong|Be Bop A Lula|Tutti Frutti)",
+    "{noun:early60s} Of {noun:universal}",
+    "{verb:action}in' In The (Street|Rain|Moonlight|Dark|Sun)",
+    "The {noun:universal} {verb:universal.s}",
+    "(A Thousand|A Hundred|A Million|Ten Thousand) {noun:universal.s}",
+    "Will You {verb:universal} Me (Tomorrow|Tonight|Forever|Again|Always)",
+    "(His|Her|Your|My) {noun:early60s}",
+    "At The (Hop|Dance|Party|Prom|Beach|Corner)",
+    "{adjective:early60s} To (You|Love|Her|Him)",
+    "(Please|Oh Please|Baby Please|I Beg You) (Stay|Don't Go|Come Back|Love Me|Hold Me)",
+    "(Letter|Message|Note|Memo|Word) To My (Baby|Darling|Love|Heart|Angel)"
+  ],
+
+  "songTitle.surf": [
+    "(Surfin'|Ridin'|Cruisin'|Drivin'|Racin') {city:surf}",
+    "{noun:surf}",
+    "The {adjective:surf} {noun:surf}",
+    "(409|Shut Down|Little Deuce Coupe|Drag City|Hot Rod|T-Bird|GTO|Stingray)",
+    "(Wipe|Walk|Ride|Catch|Hit|Shoot) (Out|Away|On|The Curl|The Pier|The Wave)",
+    "{city:surf} (Girls|Boys|Sun|Dreams|Summer)",
+    "(Summer|Beach|Sun|Surf|Wave) (Time|Party|Fun|Love|Days)",
+    "{adjective:surf} {noun:surf}",
+    "{city:surf}",
+    "Surfin' (USA|Safari|Bird|Sunset|Summer)",
+    "(Beach|Surf|Summer|Pool|Luau) (Party|Stomp|Blast|Bash|Jam)",
+    "Let's (Go Trippin'|Surf|Dance|Party|Cruise|Race)",
+    "{noun:instrumental}",
+    "{adjective:instrumental} {noun:instrumental}"
+  ],
+
+  "songTitle.soul": [
+    "{phraseOpener:soul} {verb:universal} (Your Love|Your Lovin'|You|Me|It)",
+    "{noun:soul} (Man|Woman|Lady|Brother|Sister|Child)",
+    "{verb:universal}in' In The (Shadows|Midnight|Street|Rain) Of {noun:soul}",
+    "{noun:soul}",
+    "What (Becomes Of|Happened To|About|Good Is) (The Broken Hearted|Our Love|My Heart|True Love)",
+    "{exclamation:late60s}",
+    "(Hold|Keep|Walk|Move|Get) On(, I'm Comin'|!| To Love| Brother| Tight)",
+    "{adjective:soul} {noun:soul} (Music|Love|Life|Man|Woman)",
+    "I {verb:universal} (It Through The Grapevine|You|Your Love|The Music|A Change)",
+    "Ain't (No|Too|Nothin'|Nobody) {noun:soul} (High Enough|Good Enough|Strong Enough|Gonna Stop Me)",
+    "(Think|Respect|Try|Wait|Stop|Dance|Move|Groove)",
+    "My (Girl|Guy|Man|Woman|Baby|Love|Everything)",
+    "{verb:action}in' (In The Street|On The Ceiling|To The Music|All Night Long)",
+    "{number:100-999}-{number:1000-9999}",
+    "When A (Man|Woman|Heart|Soul) {verb:universal.s} (A Woman|A Man|True Love|Too Much)",
+    "Chain Of (Fools|Love|Hearts|Dreams|Pain)",
+    "(Please|Baby|Darling), (Please|Baby|Darling), (Please|Baby)",
+    "I'm Gonna (Make You Love Me|Get You|Find A Way|Be There|Hold On)",
+    "({verb:action}in' On) The {noun:soul} Of (The Bay|Love|Life|My Heart)",
+    "Just My (Imagination|Luck|Heart|Soul|Dream) (Running Away|Slipping Away|Fading Fast)"
+  ],
+
+  "songTitle.country": [
+    "{phraseOpener:country} {noun:country}",
+    "{adjective:country} {noun:country}",
+    "{city:country} (Blues|Moon|Woman|Man|Train|Memories)",
+    "{verb:universal}in' (After Midnight|The Floor|The Line|Away|Alone)",
+    "Your {adjective:country} (Heart|Arms|Eyes|Love|Ways)",
+    "{city:country} (Prison Blues|Bound|Highway|Nights|Moon)",
+    "(There Stands The|Pour Me Another|Set 'Em Up|One More) {noun:country}",
+    "(Mama|Daddy|Papa|Grandma|Brother) (Tried|Said|Told Me|Knows Best|Don't Know)",
+    "(He|She|I|You) (Stopped Loving|Started Crying|Quit|Never Stopped) (Her|Him|Me|You) (Today|Yesterday|Last Night|Again)",
+    "{noun:country} On The (Wall|Floor|Table|Road|Hill)",
+    "(Act|Love|Sing|Cry|Stand) (Naturally|Alone|Forever|Again|True)",
+    "Don't (Come Home|Come Back|Leave Me|Walk Away) (A-Drinkin'|A-Cryin'|Again|Alone)",
+    "(Sixteen|Forty|Twenty|Hundred) (Tons|Miles|Years|Tears|Days)",
+    "(King|Queen|Prince|Lord) Of The {noun:country}",
+    "(Hurtin'|Cryin'|Leavin'|Lovin'|Prayin'|Wishin')",
+    "Behind (Closed Doors|The Wheel|Bars|Those Eyes|Every Cloud)",
+    "Long (Black|Lonesome|Cold|Dusty|Empty) {noun:country}",
+    "{region} (Waltz|Woman|Man|Rain|Blue)",
+    "If You've Got The (Money|Time|Heart|Love|Nerve)",
+    "(Hello|Goodbye|Farewell|So Long) {noun:country}"
+  ],
+
+  "songTitle.psych": [
+    "{adjective:psych} {noun:psych}",
+    "(Eight|Five|Seven|Ten|Thousand) (Miles High|Miles Low|Days|Nights|Years)",
+    "{adjective:psych} (Fields|Skies|Dreams|Meadows) Forever",
+    "{phraseOpener:psych} {noun:psych}",
+    "{adjective:psych} {noun:psych} {groupNoun:psych}",
+    "{phraseStructure:psych} {noun:psych}",
+    "{firstName:female,white} In The {noun:psych} With {groupNoun:gems}",
+    "The {noun:psych}",
+    "{phraseOpener:psych} (Never Knows|Always Comes|Waits For No One|Is Today)",
+    "I Am The {noun:psych}",
+    "{noun:psych} And {noun:psych}",
+    "(Season|Time|Age|Day|Night) Of The {noun:psych}",
+    "{adjective:psych} (Mystery|Magical|Cosmic|Astral) (Tour|Trip|Journey|Voyage)",
+    "{noun:psych} Is A {adjective:psych} {noun:psych}",
+    "{number:100-2001} (Light Years|Miles|Days|Nights) From (Home|Here|Love|You)",
+    "She {verb:universal.s} She {verb:universal.s}",
+    "(Good|Beautiful|Lovely|Strange) (Morning|Day|Night|World|People)",
+    "{adjective:psych} (Mind|Consciousness|Awareness|Vision|Dream)",
+    "Are You (Experienced|Ready|Aware|Alive|Dreaming)"
+  ],
+
+  "songTitle.folk": [
+    "The {noun:universal} (They Are A-Changin'|Keep On|Will Come|Have Gone)",
+    "{verb:universal}in' In The {noun:universal}",
+    "Where Have All The {noun:universal.s} Gone",
+    "This {noun:universal} Is (Your|My|Our) {noun:universal}",
+    "If I Had A {noun:universal}",
+    "The (Sound|Voice|Echo|Song) Of {noun:universal}",
+    "(Both|All|Every|Either) (Sides|Ways|Roads|Paths) (Now|Then|Before|After)",
+    "{firstName:male,white} {lastName:generic.poss} (Blues|Ballad|Song|Dream|Story)",
+    "(Turn|Walk|Run|Come|Go)! (Turn|Walk|Run|Come|Go)! (Turn|Walk|Run|Come|Go)!",
+    "Mr. (Tambourine|Spaceman|Sandman|Moonlight|Sunshine) Man",
+    "(Early|Late|Cold|Warm) (Morning|Evening|Night|Autumn) {noun:universal}",
+    "(500|1000|100) (Miles|Days|Years|Nights) (Away|From Home|To Go|Behind)",
+    "{firstName:male,white} {verb:universal} The {noun:universal}",
+    "We Shall (Overcome|Not Be Moved|Rise|Prevail|Endure)",
+    "{adjective:universal} On My (Mind|Heart|Soul|Eyes)"
+  ],
+
+  "songTitle.default": [
+    "{adjective:universal} {noun:universal}",
+    "{adjective:$style} {noun:$style}",
+    "My {adjective:universal} {noun:universal}",
+    "{phraseOpener:early60s} {verb:universal} (Me|You)",
+    "{noun:universal} Of {noun:universal}"
+  ],
+
+  "songTitle.jazz": [
+    "(Blue|Green|Autumn|Midnight|April) (In Paris|Bossa|Serenade|Nocturne|Rain)",
+    "{adjective:universal} (Bossa|Blues|Bop|Swing|Groove)",
+    "Take (Five|The A Train|It Easy|Ten|Your Time)",
+    "{noun:instrumental}",
+    "Round (Midnight|Moonlight|The Corner|About Now)",
+    "{adjective:instrumental} {noun:instrumental}",
+    "(A Night In|Afternoon In|Sunday In|Autumn In) {city:general}"
+  ],
+
+  "songTitle.blues": [
+    "(Cross Road|Sweet Home|Stormy Monday|Dust My) (Blues|Chicago|Blues Again|Broom)",
+    "{adjective:soul} (Blues|Woman|Man|Mama|Papa)",
+    "(My|That|The) {adjective:soul} (Baby|Woman|Man) (Done Left Me|Blues|Is Gone)",
+    "{city:general} Blues",
+    "(Woke Up This|Early This|Late Last) (Mornin'|Evenin'|Night)",
+    "(Baby|Mama|Woman) (Please Don't Go|Don't You Weep|What's Wrong)",
+    "(Boom Boom|Spoonful|Back Door Man|Little Red Rooster|Hoochie Coochie)"
+  ],
+
+  "songTitle.hardRock": [
+    "{adjective:psych} (Machine|Thunder|Lightning|Fire|Storm)",
+    "(Born|Break|Burn|Ride|Run) (To Be Wild|On Through|It Down|The Sky|Free)",
+    "{noun:psych} And {noun:psych}",
+    "(Fire|Purple|Voodoo|Foxy) (Haze|Child|Lady|Fire)",
+    "I'm A {adjective:psych} {noun:psych}",
+    "{adjective:psych} {noun:soul}",
+    "(Whole Lotta|Good Times, Bad|All Right Now, Baby) (Love|Times|Blue)"
+  ],
+
+  "songTitle.bubblegum": [
+    "(Sugar, Sugar|Yummy Yummy Yummy|Chewy Chewy|Simon Says|Gimme Gimme Good Lovin')",
+    "{adjective:early60s} (Sugar|Candy|Honey|Sunshine|Lollipop)",
+    "(Green|Yellow|Purple) (Tambourine|Balloon|Submarine|Sunshine)",
+    "(Bubblegum|Candy|Sugar|Honey) (World|Girl|Love|Days)",
+    "My (Baby|Girl|Sugar|Honey) (Loves Me|Is Sweet|Says Yes)",
+    "{exclamation:early60s} (Sugar|Honey|Baby)!"
+  ],
+
+  "songTitle.reggae": [
+    "(007|Rudy|Israelites|Pressure Drop|Sound System) (Shanty Town|Got Soul|A Go Come)",
+    "{adjective:soul} (Reggae|Rocksteady|Ska|Rudie)",
+    "(Rivers Of|Many Rivers|54-46) (Babylon|To Cross|That's My Number)",
+    "(Get Up|Stand Up|Simmer Down|Do The Reggay)",
+    "{city:general} (Rock|Skank|Shuffle|Beat)",
+    "(Sweet|Concrete|Sensi) (Jamaica|Jungle|Reggae)"
+  ],
+
+  "songTitle.sunshine": [
+    "(Windy|Cherish|Sunshine|Happy Together|Along Comes) (Mary|Day|Girl|Now|Susan)",
+    "{adjective:psych} (Sunshine|Morning|Feeling|Day|Girl)",
+    "(Good|Warm|Soft|Bright) (Vibrations|Sunshine|Morning|Feeling)",
+    "{adjective:early60s} {noun:early60s}",
+    "(Never My|Groovin'|Up, Up And) (Love|On A Sunday|Away)",
+    "{noun:psych} In The {noun:psych}",
+    "(She'd Rather|Walk Away|Turn Down) (Be With Me|Renée|Day)"
+  ],
+
+  "instrumentalTitle": [
+    "{noun:instrumental}",
+    "{adjective:instrumental} {noun:instrumental}",
+    "{place:instrumental} {noun:instrumental}",
+    "The {noun:instrumental}",
+    "{verb:action} (Don't Run|Away|On|Down|Right)",
+    "(Apache|Tequila|Bongo|Safari|Caravan|Exodus|Telstar|Wipeout)",
+    "Theme From (A Summer Place|The Apartment|Exodus|The Untouchables|Rebel Without A Cause)",
+    "{number:100-999}",
+    "{adjective:instrumental} {place:instrumental}"
+  ],
+
+  "albumTitle": [
+    "{adjective:$style} {noun:$style}",
+    "{noun:$style} Of {noun:$style}",
+    "{verb:universal}ing {noun:$style}",
+    "(Midnight|Morning|Summer|Winter|Autumn|Evening) {noun:$style}",
+    "{albumTheme}",
+    "(In|At|Live From|Direct From) {city:general}",
+    "(Blue|Golden|Silver|Black|White|Red) {noun:$style}",
+    "(One|Two|Three|Seven|Twelve) {noun:$style.s}"
+  ],
+
+  "albumFormat": [
+    "{artist}!",
+    "Meet {artist}",
+    "Introducing {artist}",
+    "Here's {artist}",
+    "Presenting {artist}",
+    "{artist} (Live|In Concert|On Stage)",
+    "An Evening With {artist}",
+    "{artist} (Sings|Plays|Swings|Rocks)",
+    "{artist} (Goes|Meets|Salutes|Celebrates)"
+  ],
+
+  "compilationTitle": [
+    "The Best Of {artist}",
+    "{artist.poss} Greatest Hits",
+    "Golden Hits Of {artist}",
+    "The Very Best Of {artist}",
+    "Anthology: {artist}",
+    "{artist}: The Collection",
+    "More Hits From {artist}",
+    "The {artist} Story"
+  ],
+
+  "label.soulFactory": [
+    "{city:general} Sound",
+    "{noun:soul} Records",
+    "{adjective:soul} Records",
+    "{groupNoun:gems} Records",
+    "{noun:soul}",
+    "{city:general} Records"
+  ],
+
+  "label.bluesRoots": [
+    "(Atlantic|Pacific|Continental|National|Imperial) Records",
+    "{groupNoun:royalty} Records",
+    "(Stax|Volt|Chess|Duke|Ace) Records",
+    "{adjective:soul} Sound",
+    "{city:general} Sound"
+  ],
+
+  "label.rockRebel": [
+    "(Sun|Moon|Star|Mercury|Saturn) Records",
+    "{city:country} Records",
+    "(Starday|Monument|Plantation|Hickory) Records",
+    "{region} Records",
+    "{adjective:country} Records"
+  ],
+
+  "label.indie": [
+    "{groupNoun:british} Records",
+    "{adjective:psych} Sound",
+    "{noun:psych} Records",
+    "{city:general} Underground",
+    "{lastName:generic} Records",
+    "{groupNoun:psych}"
+  ],
+
+  "label.major": [
+    "(Columbia|Capitol|RCA|Decca|Mercury) Records",
+    "(American|National|United|Republic|Liberty) Records",
+    "{lastName:generic} Brothers",
+    "(Victor|Brunswick|Parlophone|HMV)",
+    "{groupNoun:royalty} Records"
+  ],
+
+  "label.generic": [
+    "{lastName:generic} Records",
+    "{city:general} Records",
+    "{noun:universal} Records",
+    "{adjective:universal} Records",
+    "{groupNoun:musical} Records",
+    "{lastName:generic} & {lastName:generic}"
+  ],
+
+  "venue.smallClub": [
+    "The {groupNoun:animals.trimS} Club",
+    "{lastName:generic.poss}",
+    "The {adjective:universal} (Door|Room|Spot|Corner|Place)",
+    "Club {noun:universal}",
+    "The (Cavern|Cellar|Basement|Underground|Hideaway)",
+    "{city} (A-Go-Go|Discotheque|Club|Lounge)",
+    "The {groupNoun:british.trimS} Den",
+    "{adjective:universal} {lastName:generic.poss}"
+  ],
+
+  "venue.theater": [
+    "The {city} (Apollo|Paramount|Orpheum|Rialto|Majestic)",
+    "The {adjective:universal} Theater",
+    "{lastName:generic} Auditorium",
+    "The {groupNoun:royalty.trimS} Theater",
+    "{city} Ballroom",
+    "The (Grand|Royal|Imperial|Palace) {city}"
+  ],
+
+  "venue.arena": [
+    "{city} (Arena|Coliseum|Civic Center|Sports Arena)",
+    "The {city} (Garden|Forum|Dome|Pavilion)",
+    "{lastName:generic} Arena",
+    "{city} Convention Center",
+    "The {adjective:universal} (Arena|Center|Hall)"
+  ],
+
+  "venue.stadium": [
+    "{city} Stadium",
+    "{lastName:generic} Field",
+    "The {city} Bowl",
+    "{city} Municipal Stadium"
+  ],
+
+  "venue.coffeeHouse": [
+    "The (Gaslight|Bitter End|Troubadour|Exit|Gate)",
+    "Café {noun:universal}",
+    "The {adjective:psych} (Bean|Cup|Brew|Grind)",
+    "{lastName:generic.poss} Coffee House",
+    "The (Folklore|Hootenanny|Sing-Along|Open Mic) Café",
+    "The {groupNoun:british.trimS} Coffee House"
+  ],
+
+  "venue.honkyTonk": [
+    "{lastName:country.poss} (Honky Tonk|Roadhouse|Saloon|Bar & Grill)",
+    "The {adjective:country} (Cowboy|Rodeo|Ranch|Trail)",
+    "The (Broken Spoke|Rusty Spur|Silver Saddle|Golden Horseshoe)",
+    "{region} (Dancehall|Opry|Jamboree)",
+    "The {noun:country} (Lounge|Tavern|Inn)",
+    "{firstName:male,country.poss} Place"
+  ],
+
+  "venue.jukeJoint": [
+    "{firstName:male,black.poss} (Juke Joint|Blues Club|Lounge|Place)",
+    "The {adjective:soul} (Room|Spot|Corner|Joint)",
+    "(Club|Café|Lounge) {noun:soul}",
+    "The {groupNoun:royalty.trimS.poss} Den",
+    "{city:general} Blues Club",
+    "The (Chitlin'|Soul|Rhythm|Blues) Circuit"
+  ],
+
+  "venue.generic": [
+    "The {city} (Club|Hall|Room|Lounge|Theater)"
+  ],
+
+  "radioStation": [
+    "{callsign} Radio",
+    "{callsign} {city}",
+    "{callsign} - The (Sound|Beat|Voice|Pulse|Heart) of {city}",
+    "{callsign} (Boss|Big|Super|Mighty|Fabulous) Radio",
+    "{callsign}-FM",
+    "{callsign}"
+  ],
+
+  "publication": [
+    "(Hit|Pop|Rock|Teen|Music|Beat|Sound) (Parade|Weekly|Monthly|Magazine|World)",
+    "The {noun:universal} (Times|Post|Herald|Tribune)",
+    "(Billboard|Cashbox|Record|Disc|Melody) (World|Mirror|Maker|Weekly)",
+    "{adjective:universal} (Sounds|Beats|Notes|Tunes)",
+    "The (Top|Hot|Cool|Hip) (40|50|100)",
+    "(Teen|Young|Mod|Groovy) (Scene|Life|Beat|Wave)",
+    "{city:general} (Sound|Scene|Music) Magazine",
+    "The (Rolling|Crawling|Running|Flying) {groupNoun:animals.trimS}"
+  ],
+
+  "tour": [
+    "The {artist} {yearFull} Tour",
+    "{artist} Live '{year2}",
+    "The {adjective:$style} {noun:$style} Tour",
+    "{artist}: (On The Road|Live In Concert|In Person|The Tour)",
+    "The {adjective:universal} {artist} Tour",
+    "(Summer|Fall|Winter|Spring) '{year2} with {artist}",
+    "{artist} - (Coast to Coast|Across America|World Tour|USA Tour)",
+    "The {adjective:universal} {noun:universal} Revue",
+    "(Caravan|Cavalcade|Revue|Spectacular) of Stars '{year2}"
+  ],
+
+  "award": [
+    "The {lastName:generic} Award",
+    "The {adjective:universal} {noun:universal} Award",
+    "The {city:general} Music Award",
+    "The (Gold|Silver|Platinum|Diamond) (Record|Disc|Note|Star)",
+    "Best (New Artist|Single|Album|Group|Male Vocalist|Female Vocalist)",
+    "The {groupNoun:royalty.trimS.poss} Award of Excellence"
+  ],
+
+  "fanClub": [
+    "The Official {artist} Fan Club",
+    "{artist.poss} {groupNoun:royalty}",
+    "The {artist} Appreciation Society",
+    "{artist} (Army|Nation|World|Kingdom|Legion)",
+    "We Love {artist} Club",
+    "The {artist} {groupNoun:animals}"
+  ],
+
+  "songwriter": [
+    "{firstName:$name} {lastName:$surname}"
+  ],
+
+  "songwriterTeam": [
+    "{lastName:generic} & {lastName:generic}"
+  ],
+
+  "producer": [
+    { "w": 6, "t": "{firstName:$name} {lastName:$surname}" },
+    { "w": 1, "t": "(Phil|Joe|Jerry|Bob|Sam) \"{nickQuoted}\" {lastName:generic}" }
+  ],
+
+  "bandMember": [
+    "{firstName:$name} {lastName:$surname}"
+  ],
+
+  "personName": [
+    "{firstName:$name} {lastName:$surname}"
+  ],
+
+  "personName.coined": [
+    "{firstName:$name} {~lastName:$surname}"
+  ],
+
+  "bSide": [
+    "The Other Side Of {noun:universal}",
+    "{verb:universal}ing (Alone|Again|Away|Forever)",
+    "What (Happened|Became|About) (To Us|To Love|To Me|To You)",
+    "Just (A Dream|A Memory|A Fool|A Man|A Woman)",
+    "Don't {verb:universal} (Me|Away|Now|Yet)"
+  ]
+}

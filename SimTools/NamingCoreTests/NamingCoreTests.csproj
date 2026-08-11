@@ -1,0 +1,18 @@
+<!-- Standalone regression harness for the naming Core (Systems/Naming/Core).
+     Run:  dotnet run project SimTools/NamingCoreTests
+     Not part of "Label Man.sln"; the game build excludes this folder via a Compile Remove. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>NamingCoreTests</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Systems/Naming/Core/**/*.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

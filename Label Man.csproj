@@ -5,4 +5,8 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>LabelMan</RootNamespace>
   </PropertyGroup>
+  <!-- Standalone naming-Core regression harness: its own project + Main, excluded from the game build. -->
+  <ItemGroup>
+    <Compile Remove="SimTools\NamingCoreTests\**\*.cs" />
+  </ItemGroup>
 </Project>
