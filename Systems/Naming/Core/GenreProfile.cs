@@ -65,6 +65,10 @@ namespace LabelMan.Naming {
 	public sealed class GenreProfile {
 		public string Id;
 		public string Extends;                 // base profile id, resolved by GenreLibrary
+		/// <summary>Self-first ancestry chain [Id, Extends, Extends-of-Extends, …], set during
+		/// resolution. Drives the TemplateRouter fallback so Layer-2 shares Layer-1's taxonomy
+		/// instead of a second hand-written bucket switch (docs D/E).</summary>
+		public string[] Ancestry = Array.Empty<string>();
 		public VoiceVector Voice = VoiceVector.Neutral();
 		// Which fields this raw (pre-resolution) profile explicitly set — drives partial inheritance.
 		internal bool _voiceSet, _moodThresholdSet, _eraSet;
@@ -83,7 +87,7 @@ namespace LabelMan.Naming {
 		}
 
 		public GenreProfile Clone() => new GenreProfile {
-			Id = Id, Extends = Extends, Voice = Voice,
+			Id = Id, Extends = Extends, Voice = Voice, Ancestry = (string[])Ancestry.Clone(),
 			DomainAffinity = new(DomainAffinity, StringComparer.OrdinalIgnoreCase),
 			MoodAffinity = new(MoodAffinity, StringComparer.OrdinalIgnoreCase),
 			Suppress = new(Suppress, StringComparer.OrdinalIgnoreCase),
@@ -165,7 +169,8 @@ namespace LabelMan.Naming {
 			if (!_raw.TryGetValue(id, out var raw)) return _neutral;
 			if (!stack.Add(id)) return raw; // cycle guard
 
-			GenreProfile baseP = string.IsNullOrEmpty(raw.Extends) ? null : Resolve(raw.Extends, stack).Clone();
+			GenreProfile baseResolved = string.IsNullOrEmpty(raw.Extends) ? null : Resolve(raw.Extends, stack);
+			GenreProfile baseP = baseResolved?.Clone();
 			GenreProfile r = baseP ?? new GenreProfile();
 			r.Id = raw.Id; r.Extends = raw.Extends;
 			// deltas override base
@@ -178,6 +183,14 @@ namespace LabelMan.Naming {
 			if (raw.Diacritics) r.Diacritics = true;
 			if (raw._eraSet) r.EraCurve = (double[])raw.EraCurve.Clone();
 			r.Voice = r.Voice.Clamped();
+			// ancestry = self + base's ancestry (self-first), so the router walks Layer-1's taxonomy.
+			if (baseResolved != null && baseResolved.Ancestry.Length > 0) {
+				var chain = new List<string>(baseResolved.Ancestry.Length + 1) { r.Id };
+				chain.AddRange(baseResolved.Ancestry);
+				r.Ancestry = chain.ToArray();
+			} else {
+				r.Ancestry = new[] { r.Id };
+			}
 			_resolved[id] = r;
 			stack.Remove(id);
 			return r;
@@ -241,8 +254,42 @@ namespace LabelMan.Naming {
 				.SetAff(d => { d["cosmic"] = 3; d["mythic"] = 3; d["conflict"] = 1.5; }, m => { m["grand"] = 4; m["ominous"] = 2; })
 				.SetThreshold(0.4);
 
+			// --- NEW v2 family bases (docs F/E) — ancestry rungs so the TemplateRouter's family
+			//     fallback catches; they also carry traits genuinely shared across each family. ---
+			G("EarlyRock").SetVoice(v => { v.NicknameDensity = 0.15; v.PunctuationIntensity = 0.6; v.TitleLengthBias = 0.3;
+										   v.ArchaismLevel = 0.1; v.TheProbability = 0.85; v.FirstPersonBias = 0.35; v.MoodStrictness = 0.9; return v; })
+				.SetAff(d => { d["romance"] = 3; d["celestial"] = 2.5; d["body"] = 1.5; d["candy"] = 1.2; },
+						m => { m["romantic"] = 3; m["dreamy"] = 2; m["joyful"] = 1.5; })
+				.SetSuppress("grit", "vice", "conflict", "protest").SetThreshold(0.35);
+
+			G("CountryRoot").SetVoice(v => { v.NicknameDensity = 0.3; v.PunctuationIntensity = 0.5; v.TitleLengthBias = 0.5;
+											 v.ApostropheDropRate = 0.6; v.TheProbability = 0.15; v.MononymProbability = 0.0; v.FirstPersonBias = 0.3; return v; })
+				.SetAff(d => { d["rural"] = 3; d["domestic"] = 2; d["travel"] = 2; d["vice"] = 1.5; d["emotion"] = 1.5; },
+						m => { m["earnest"] = 2.5; m["gritty"] = 2; m["wistful"] = 2; m["melancholy"] = 1.5; })
+				.SetSuppress("luxury", "candy", "cosmic").SetThreshold(0.35);
+
+			G("FolkRoot").SetVoice(v => { v.NicknameDensity = 0.1; v.PunctuationIntensity = 0.3; v.TitleLengthBias = 0.5;
+										  v.ArchaismLevel = 0.2; v.TheProbability = 0.1; v.ApostropheDropRate = 0.2; v.FirstPersonBias = 0.25; return v; })
+				.SetAff(d => { d["protest"] = 2.5; d["rural"] = 2; d["travel"] = 1.5; d["virtue"] = 2; d["terrain"] = 1.5; },
+						m => { m["earnest"] = 3; m["wistful"] = 2; m["defiant"] = 1.5; })
+				.SetSuppress("luxury", "candy").SetThreshold(0.45);
+
+			G("LatinRoot").SetVoice(v => { v.PunctuationIntensity = 0.6; v.TitleLengthBias = 0.35; v.TheProbability = 0.3; v.NicknameDensity = 0.2; return v; })
+				.SetAff(d => { d["party"] = 3; d["dance"] = 3; d["romance"] = 2; }, m => { m["joyful"] = 2; m["romantic"] = 2; m["playful"] = 1.5; })
+				.SetOrtho(Locale.Spanish).SetThreshold(0.3);
+
+			// CaribbeanRoot threshold 0.30 (not doc F's 0.35): at 0.35 {defiant,joyful} is disconnected
+			// (defiant~joyful=.3); the ValidateGenre guard flags it and it propagates to Rocksteady.
+			G("CaribbeanRoot").SetVoice(v => { v.NicknameDensity = 0.5; v.MononymProbability = 0.5; v.TheProbability = 0.6; v.PunctuationIntensity = 0.4; return v; })
+				.SetAff(d => { d["identity"] = 2; d["dance"] = 2; d["conflict"] = 1.3; }, m => { m["defiant"] = 2; m["joyful"] = 1.5; })
+				.SetSuppress("luxury", "candy").SetThreshold(0.3);
+
+			G("NoveltyRoot").SetVoice(v => { v.PunctuationIntensity = 0.8; v.NicknameDensity = 0.5; v.TitleLengthBias = 0.35; v.MoodStrictness = 0.4; return v; })
+				.SetAff(d => { d["nonsense"] = 4; d["fauna"] = 2; d["candy"] = 1.5; }, m => { m["absurd"] = 3; m["playful"] = 2.5; m["cheeky"] = 2; })
+				.SetThreshold(0.2);
+
 			// --- other anchored leaves (doc 1 §9) ---
-			G("Country").SetVoice(v => { v.NicknameDensity = 0.4; v.PunctuationIntensity = 0.5; v.TitleLengthBias = 0.45;
+			G("Country", "CountryRoot").SetVoice(v => { v.NicknameDensity = 0.4; v.PunctuationIntensity = 0.5; v.TitleLengthBias = 0.45;
 										  v.ApostropheDropRate = 0.6; return v; })
 				.SetAff(d => { d["rural"] = 3; d["travel"] = 2; d["vice"] = 1.5; }, m => { m["earnest"] = 2; m["gritty"] = 2; })
 				.SetThreshold(0.35);
@@ -262,20 +309,39 @@ namespace LabelMan.Naming {
 				.SetSuppress("faith","mythic","luxury","protest");
 			G("Gospel").SetAff(d => { d["faith"] = 4; d["mythic"] = 2; d["emotion"] = 2; }, m => { m["spiritual"] = 4; m["earnest"] = 3; })
 				.SetSuppress("vice","grit","party","candy").SetThreshold(0.45);
-			G("Reggae").SetVoice(v => { v.NicknameDensity = 0.6; v.MononymProbability = 0.6; v.TheProbability = 0.6; return v; })
+			G("Reggae", "CaribbeanRoot").SetVoice(v => { v.NicknameDensity = 0.6; v.MononymProbability = 0.6; v.TheProbability = 0.6; return v; })
 				.SetAff(d => { d["faith"] = 3; d["mythic"] = 3; d["protest"] = 2; d["identity"] = 2; }, m => { m["spiritual"] = 3; m["defiant"] = 2; })
 				.SetSuppress("luxury","candy").SetOrtho(Locale.Jamaican).SetThreshold(0.35);
-			G("Folk").SetVoice(v => { v.TheProbability = 0.0; v.NicknameDensity = 0.1; v.ApostropheDropRate = 0.2; v.TitleLengthBias = 0.5; return v; })
+			G("Folk", "FolkRoot").SetVoice(v => { v.TheProbability = 0.0; v.NicknameDensity = 0.1; v.ApostropheDropRate = 0.2; v.TitleLengthBias = 0.5; return v; })
 				.SetAff(d => { d["protest"] = 2; d["rural"] = 2; d["travel"] = 1.5; }, m => { m["earnest"] = 3; m["wistful"] = 2; })
 				.SetSuppress("luxury","candy").SetThreshold(0.45);
-			G("DooWop").SetVoice(v => { v.TheProbability = 0.95; return v; })
+			G("DooWop", "EarlyRock").SetVoice(v => { v.TheProbability = 0.95; return v; })
 				.SetAff(d => { d["celestial"] = 3; d["gem"] = 2.5; d["romance"] = 3; d["nonsense"] = 2; }, m => { m["romantic"] = 3; m["dreamy"] = 2; })
 				.SetSuppress("grit","vice","conflict").SetThreshold(0.4);
 			G("HardRock").SetVoice(v => { v.PunctuationIntensity = 0.85; v.TitleLengthBias = 0.25; v.ArchaismLevel = 0.3; return v; })
 				.SetAff(d => { d["conflict"] = 2; d["grit"] = 2; }, m => { m["aggressive"] = 3; m["defiant"] = 2; m["ominous"] = 2; }).SetThreshold(0.3);
 			G("ProtoMetal", "HardRock").SetAff(null, m => { m["ominous"] = 3; m["grand"] = 2; });
 			G("SingerSongwriter", "Folk").SetVoice(v => { v.PunctuationIntensity = 0.3; v.FirstPersonBias = 0.4; return v; });
-			G("BossaNova", "AdultPop").SetOrtho(Locale.Portuguese).SetAff(d => { d["nautical"] = 2; d["flora"] = 2; }, m => { m["serene"] = 2; m["wistful"] = 2; });
+			// BossaNova now under LatinRoot (routes song/band through the Latin family) but overrides
+			// back to Portuguese + serene. It inherits LatinRoot's `romantic`, which is the bridge that
+			// keeps `joyful` connected — so unlike doc H's worry, joyful here does NOT deadlock (validator confirms).
+			G("BossaNova", "LatinRoot").SetOrtho(Locale.Portuguese)
+				.SetVoice(v => { v.PunctuationIntensity = 0.15; v.TitleLengthBias = 0.3; return v; })
+				.SetAff(d => { d["nautical"] = 2.5; d["flora"] = 2; d["party"] = 0.5; d["dance"] = 0.5; },
+						m => { m["serene"] = 3; m["wistful"] = 2.5; m["joyful"] = 0.5; })
+				.SetThreshold(0.5);
+
+			// --- NEW v2 leaves reparented onto the family bases (docs F) ---
+			G("RockAndRoll", "EarlyRock").SetVoice(v => { v.NicknameDensity = 0.4; v.TheProbability = 0.6; return v; })
+				.SetAff(d => { d["dance"] = 2; d["vehicle"] = 2; d["party"] = 2; }, m => { m["joyful"] = 2; m["restless"] = 2; });
+			G("CountryRock", "CountryRoot").SetVoice(v => { v.ApostropheDropRate = 0.5; v.TitleLengthBias = 0.5; return v; })
+				.SetAff(d => { d["travel"] = 2.5; d["terrain"] = 2; });
+			G("RootsRock", "CountryRoot").SetVoice(v => { v.TitleLengthBias = 0.3; v.ApostropheDropRate = 0.3; return v; })
+				.SetAff(d => { d["nautical"] = 1.5; d["terrain"] = 2; d["rural"] = 2.5; }, m => { m["gritty"] = 2; m["restless"] = 1.5; });
+			G("Ska", "CaribbeanRoot").SetVoice(v => { v.PunctuationIntensity = 0.7; v.TitleLengthBias = 0.25; return v; })
+				.SetAff(d => { d["dance"] = 3; d["conflict"] = 1.5; }, m => { m["joyful"] = 2; m["cheeky"] = 2; });
+			G("Rocksteady", "CaribbeanRoot").SetVoice(v => { v.PunctuationIntensity = 0.3; return v; })
+				.SetAff(d => { d["romance"] = 2.5; }, m => { m["romantic"] = 2; m["serene"] = 1.5; });
 		}
 	}
 

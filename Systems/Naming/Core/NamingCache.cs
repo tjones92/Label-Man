@@ -17,12 +17,15 @@ namespace LabelMan.Naming {
 		public Inflection Inflection { get; }
 		public GenreLibrary Genres { get; }
 		public BlendResolver Blend { get; }
+		public Diminutives Diminutives { get; }
 
-		public NameModels(TagOntology ont = null, MoodGraph mood = null, Inflection infl = null, GenreLibrary genres = null) {
+		public NameModels(TagOntology ont = null, MoodGraph mood = null, Inflection infl = null,
+						  GenreLibrary genres = null, Diminutives diminutives = null) {
 			Ontology = ont ?? new TagOntology();
 			Moods = mood ?? new MoodGraph();
 			Inflection = infl ?? new Inflection();
 			Genres = genres ?? new GenreLibrary();
+			Diminutives = diminutives ?? new Diminutives();
 			Blend = new BlendResolver(Moods);
 		}
 

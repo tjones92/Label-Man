@@ -60,10 +60,13 @@ namespace LabelMan.Naming {
 	public sealed class SlotSpec {
 		public string Pos;
 		public DomainFilter Filter = DomainFilter.Parse(null);
+		public string RawFilter;             // original filter text, kept for $-token resolution
+		public bool Dynamic;                 // filter references ctx tags ($name/$surname/$gender)
 		public InflForm? Inflect;
 		public bool Optional;
 		public List<string> Transforms;      // slot-local post-ops (e.g. "diacritics")
 		public bool Markov;                  // coin an invented word at this slot
+		public string Groom;                 // first-name grooming mode: diminutive/forceDiminutive/formal/country
 	}
 
 	public abstract class Constraint {
@@ -248,9 +251,14 @@ namespace LabelMan.Naming {
 			if (t.TryGetProperty("slots", out var slots))
 				foreach (var s in slots.EnumerateObject()) {
 					var spec = new SlotSpec { Pos = Str(s.Value, "pos") };
-					if (s.Value.TryGetProperty("filter", out var f)) spec.Filter = DomainFilter.Parse(f.GetString());
+					if (s.Value.TryGetProperty("filter", out var f)) {
+						spec.RawFilter = f.GetString();
+						spec.Dynamic = spec.RawFilter != null && spec.RawFilter.IndexOf('$') >= 0;
+						spec.Filter = DomainFilter.Parse(spec.RawFilter);   // static form; dynamic re-resolves per draw
+					}
 					if (s.Value.TryGetProperty("inflect", out var infl)) { var tmp = new Inflection(); if (tmp.TryParseForm(infl.GetString(), out var form)) spec.Inflect = form; }
 					spec.Optional = Bool(s.Value, "optional"); spec.Markov = Bool(s.Value, "markov");
+					spec.Groom = Str(s.Value, "groom");
 					if (s.Value.TryGetProperty("transforms", out var tr)) spec.Transforms = tr.EnumerateArray().Select(x => x.GetString()).ToList();
 					ct.Slots[s.Name] = spec;
 				}
@@ -292,10 +300,29 @@ namespace LabelMan.Naming {
 		private readonly MoodGraph _mood;
 		private readonly Inflection _infl;
 		private readonly IWordCoiner _coiner;
+		private readonly Diminutives _dim;
 		private readonly PoolCache _pools = new();   // Layer 7 L1: memoized prefix-sum pools
 
-		public TemplateEngine(Lexicon lex, TagOntology ont, MoodGraph mood, Inflection infl, IWordCoiner coiner = null) {
-			_lex = lex; _ont = ont; _mood = mood; _infl = infl; _coiner = coiner;
+		public TemplateEngine(Lexicon lex, TagOntology ont, MoodGraph mood, Inflection infl, IWordCoiner coiner = null, Diminutives dim = null) {
+			_lex = lex; _ont = ont; _mood = mood; _infl = infl; _coiner = coiner; _dim = dim;
+		}
+
+		/// <summary>Adapter-bound pseudo-pos: the value is injected by the caller via ctx.Slots rather
+		/// than drawn from the lexicon (doc C — album self-title and lead-single framing).</summary>
+		private static bool IsBoundPos(string pos) =>
+			string.Equals(pos, "selfTitle", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(pos, "leadSingle", StringComparison.OrdinalIgnoreCase);
+
+		/// <summary>Resolve $-tokens in a dynamic slot filter against the context's demographic tag-sets:
+		/// $name -> ctx.TagSets["name"] (gender+ethnicity, AND-joined), $surname -> ["surname"],
+		/// $gender -> the first "name" tag (male/female). Unknown token -> empty (no constraint).</summary>
+		private static string ResolveDynamicFilter(string raw, NamingContext ctx) {
+			string Join(string key, bool firstOnly) =>
+				ctx?.TagSets != null && ctx.TagSets.TryGetValue(key, out var l) && l.Count > 0
+					? (firstOnly ? l[0] : string.Join(",", l)) : "";
+			return raw.Replace("$name", Join("name", false))
+					  .Replace("$surname", Join("surname", false))
+					  .Replace("$gender", Join("name", true));
 		}
 
 		/// <summary>Evict derived pools — call at a sim year-tick after the lexicon changes (doc 7 §12).</summary>
@@ -337,15 +364,30 @@ namespace LabelMan.Naming {
 				if (coined != null) { st.Lemma[slotRef] = coined; st.Surface[slotRef] = coined; st.Moods[slotRef] = null; st.Register[slotRef] = -1; return true; }
 			}
 
+			// Adapter-bound slots (doc C): %selfTitle% (the act's own name) and %leadSingle% (the album's
+			// designated hit track) aren't drawn from a word pool — the adapter injects them via ctx.Slots.
+			// If the value is absent (e.g. an instrumental LP with no single), the draw fails so the
+			// template is dropped and a non-bound template takes over — graceful, like a satisfiability miss.
+			if (IsBoundPos(spec.Pos)) {
+				string bound = ctx.Slots != null && ctx.Slots.TryGetValue(spec.Pos, out var bv) ? bv : null;
+				if (string.IsNullOrWhiteSpace(bound)) { if (spec.Optional) { st.Surface[slotRef] = ""; return true; } return false; }
+				st.Lemma[slotRef] = bound; st.Surface[slotRef] = bound; st.Moods[slotRef] = null; st.Register[slotRef] = -1;
+				return true;
+			}
+
 			var pool = _lex.Pool(spec.Pos);
 			if (pool.Count == 0) { if (spec.Optional) { st.Surface[slotRef] = ""; return true; } return false; }
 
-			// FAST PATH (Layer 7): with no locked moods, mood bias is uniform (1.0), so the pool is a
-			// pure function of (pos, filter, epoch, orthography, genre) — memoize its prefix sums.
+			// Dynamic filters ($name/$surname/$gender) resolve against the rolled person's demographics
+			// per draw — so they can't share the static pool cache and must take the scanning path.
+			DomainFilter filt = spec.Dynamic ? DomainFilter.Parse(ResolveDynamicFilter(spec.RawFilter, ctx)) : spec.Filter;
+
+			// FAST PATH (Layer 7): with no locked moods and a static filter, mood bias is uniform (1.0),
+			// so the pool is a pure function of (pos, filter, epoch, orthography, genre) — memoize it.
 			WordEntry pick = null;
-			if (locked.Count == 0) {
-				string key = spec.Pos + "|" + spec.Filter.Signature + "|" + NameModels.Epoch(ctx.Year) + "|" + (int)genre.Orthography + "|" + genre.Id;
-				var fp = _pools.GetOrBuild(key, () => BuildPool(pool, spec, genre, ctx.Year));
+			if (locked.Count == 0 && !spec.Dynamic) {
+				string key = spec.Pos + "|" + filt.Signature + "|" + NameModels.Epoch(ctx.Year) + "|" + (int)genre.Orthography + "|" + genre.Id;
+				var fp = _pools.GetOrBuild(key, () => BuildPool(pool, filt, genre, ctx.Year));
 				if (fp.Count > 0) pick = fp.Pick(ctx.Rng.NextDouble());
 			}
 
@@ -353,7 +395,7 @@ namespace LabelMan.Naming {
 			double total = 0; var cands = new List<(WordEntry e, double w)>();
 			if (pick == null)
 			foreach (var e in pool) {
-				if (!spec.Filter.IsEmpty && !spec.Filter.Matches(e, _ont)) continue;
+				if (!filt.IsEmpty && !filt.Matches(e, _ont)) continue;
 				if (!TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue; // keep non-English out of non-matching genres
 				double aff = genre.AffinityFor(e);
 				if (aff <= 0) continue;                               // suppressed
@@ -365,8 +407,15 @@ namespace LabelMan.Naming {
 				cands.Add((e, w)); total += w;
 			}
 			if (pick == null && cands.Count == 0) {
-				// relax mood/filter rather than fail hard: fall back to any affinity-positive word
-				foreach (var e in pool) { double aff = genre.AffinityFor(e); if (aff > 0) { cands.Add((e, aff)); total += aff; } }
+				// Relax the MOOD bias (the soft constraint) but KEEP the domain/gender filter — a $gender
+				// or demographic filter is a hard requirement, and dropping it would defeat gender
+				// agreement (e.g. a female act getting a male-only honorific). If even the filtered pool
+				// is empty, fail the draw so the template is rejected and a fallback template takes over.
+				foreach (var e in pool) {
+					if (!filt.IsEmpty && !filt.Matches(e, _ont)) continue;
+					if (!TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue;
+					double aff = genre.AffinityFor(e); if (aff > 0) { cands.Add((e, aff)); total += aff; }
+				}
 				if (cands.Count == 0) { if (spec.Optional) { st.Surface[slotRef] = ""; return true; } return false; }
 			}
 			if (pick == null) {
@@ -374,15 +423,20 @@ namespace LabelMan.Naming {
 				foreach (var (e, w) in cands) { roll -= w; if (roll <= 0) { pick = e; break; } }
 			}
 
-			st.Lemma[slotRef] = pick.Word;
+			// First-name grooming (doc B §4): Robert -> Bobby (teen), Bob -> Robert (formal). Replaces the
+			// drawn word before inflection; the moods/register of the source name carry over.
+			string word = pick.Word;
+			if (spec.Groom != null && _dim != null) word = _dim.Groom(word, spec.Groom, ctx.Rng);
+
+			st.Lemma[slotRef] = word;
 			st.Moods[slotRef] = pick.Moods;
 			st.Register[slotRef] = pick.Register;
 			// inflection (contextual for dual-form pasts by genre+mood tags)
-			string surface = pick.Word;
+			string surface = word;
 			if (spec.Inflect.HasValue) {
 				var moodCtx = new List<string>(); if (pick.Moods != null) moodCtx.AddRange(pick.Moods);
 				if (genre.Orthography == Locale.US) moodCtx.Add("us"); else if (genre.Orthography == Locale.UK) moodCtx.Add("uk");
-				surface = _infl.InflectContextual(pick.Word, spec.Inflect.Value, genre.Orthography, moodCtx);
+				surface = _infl.InflectContextual(word, spec.Inflect.Value, genre.Orthography, moodCtx);
 			}
 			st.Surface[slotRef] = surface;
 			return true;
@@ -390,10 +444,10 @@ namespace LabelMan.Naming {
 
 		// Score a pool with filter + genre affinity + era (no mood bias — valid only when nothing is
 		// locked). Feeds the prefix-sum FilteredPool cache.
-		private FilteredPool BuildPool(IReadOnlyList<WordEntry> pool, SlotSpec spec, GenreProfile genre, int year) {
+		private FilteredPool BuildPool(IReadOnlyList<WordEntry> pool, DomainFilter filter, GenreProfile genre, int year) {
 			var scored = new List<(WordEntry, double)>();
 			foreach (var e in pool) {
-				if (!spec.Filter.IsEmpty && !spec.Filter.Matches(e, _ont)) continue;
+				if (!filter.IsEmpty && !filter.Matches(e, _ont)) continue;
 				if (!TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue;
 				double aff = genre.AffinityFor(e);
 				if (aff <= 0) continue;
@@ -438,10 +492,12 @@ namespace LabelMan.Naming {
 			// every slot must have a non-trivial pool after filter + genre suppression
 			foreach (var kv in t.Slots) {
 				var spec = kv.Value;
-				if (spec.Markov || spec.Optional) continue;
+				if (spec.Markov || spec.Optional || IsBoundPos(spec.Pos)) continue;   // bound slots resolve from ctx at fill time
+				// Dynamic ($name/$gender) filters resolve at draw time; here just require a non-empty pos pool.
+				bool useFilter = !spec.Dynamic;
 				int depth = 0;
 				foreach (var e in _lex.Pool(spec.Pos)) {
-					if (!spec.Filter.IsEmpty && !spec.Filter.Matches(e, _ont)) continue;
+					if (useFilter && !spec.Filter.IsEmpty && !spec.Filter.Matches(e, _ont)) continue;
 					if (genre.AffinityFor(e) <= 0) continue;
 					depth++; if (depth >= minPoolDepth) break;
 				}

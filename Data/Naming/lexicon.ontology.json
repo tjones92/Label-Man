@@ -10,7 +10,7 @@
     ]},
 
     { "//": "=== NATURE ===",
-      "pos": "noun", "tags": ["celestial", "dreamy"], "words": [
+      "pos": "noun", "tags": ["celestial", "dreamy", "nostalgic"], "words": [
       "star", "moon", "sun", "sky", "comet", "sunrise", "sunset", "starlight", "moonlight",
       "twilight", "dawn", "aurora", "eclipse", "galaxy", "heaven"
     ]},
@@ -38,14 +38,14 @@
       "pos": "noun", "tags": ["body", "romantic"], "words": [
       "heart", "eyes", "hands", "lips", "arms", "smile", "shoulder", "soul", "kiss", "touch"
     ]},
-    { "pos": "noun", "tags": ["romance", "romantic"], "words": [
+    { "pos": "noun", "tags": ["romance", "romantic", "earnest", "wistful"], "words": [
       "love", "sweetheart", "angel", "darling", "baby", "lover", "honey", "valentine",
       "flame", "kisses", "romance", "affection"
     ]},
     { "pos": "noun", "tags": ["kin", "earnest"], "words": [
       "mama", "brother", "sister", "papa", "daddy", "child", "son", "family", "kin"
     ]},
-    { "pos": "noun", "tags": ["emotion", "melancholy", "poetic"], "words": [
+    { "pos": "noun", "tags": ["emotion", "melancholy", "earnest", "poetic"], "words": [
       "sorrow", "joy", "ache", "longing", "heartache", "tears", "loneliness", "misery",
       "yearning", "grief", "blues", "sadness"
     ]},
@@ -55,22 +55,24 @@
     ]},
 
     { "//": "=== PLACE ===",
-      "pos": "noun", "tags": ["urban", "restless"], "words": [
+      "pos": "noun", "tags": ["urban", "restless", "wistful"], "words": [
       "city", "street", "uptown", "subway", "downtown", "avenue", "alley", "boulevard",
-      "sidewalk", "corner", "midnight city"
+      "sidewalk", "corner", "midnight city", "station", "waterfront", "market", "tenement", "penny lane"
     ]},
     { "pos": "noun", "tags": ["rural", "earnest"], "words": [
-      "hometown", "farm", "holler", "prairie", "backroad", "countryside", "hollow", "homestead"
+      "hometown", "farm", "holler", "prairie", "backroad", "countryside", "hollow", "homestead",
+      "barn", "cornfield", "pasture", "meadow", "county line", "dirt road", "front porch", "wheat field"
     ]},
     { "pos": "noun", "tags": ["domestic", "wistful"], "words": [
       "home", "kitchen", "door", "window", "doorway", "porch", "hallway", "rooftop"
     ]},
     { "pos": "noun", "tags": ["mythic", "grand"], "words": [
-      "Zion", "Babylon", "Avalon", "Eden", "crossroads", "promised land", "kingdom", "throne"
+      "Zion", "Babylon", "Avalon", "Eden", "crossroads", "promised land", "kingdom", "throne",
+      "empire", "temple", "citadel", "oracle", "prophecy", "dynasty", "covenant", "exodus", "genesis"
     ]},
 
     { "//": "=== MOTION ===",
-      "pos": "noun", "tags": ["travel", "restless"], "words": [
+      "pos": "noun", "tags": ["travel", "restless", "wistful"], "words": [
       "train", "highway", "wagon", "road", "railroad", "midnight train", "freight", "boxcar",
       "ticket", "journey", "passage"
     ]},
@@ -100,13 +102,13 @@
     { "pos": "noun", "tags": ["cosmic", "grand", "ornate"], "words": [
       "infinity", "void", "oracle", "universe", "cosmos", "nebula", "abyss", "firmament", "aether"
     ]},
-    { "pos": "noun", "tags": ["mystical", "dreamy", "poetic"], "words": [
+    { "pos": "noun", "tags": ["mystical", "dreamy", "serene", "poetic"], "words": [
       "kaleidoscope", "phantom", "twilight", "labyrinth", "mirage", "reverie", "illusion",
       "dream", "vision", "trance", "prism", "haze", "mandala"
     ]},
 
     { "//": "=== MATERIAL ===",
-      "pos": "noun", "tags": ["gem", "elegant", "ornate"], "words": [
+      "pos": "noun", "tags": ["gem", "elegant", "romantic", "ornate"], "words": [
       "diamond", "pearl", "ruby", "gold", "emerald", "sapphire", "crystal", "jewel", "opal", "silver"
     ]},
     { "pos": "noun", "tags": ["luxury", "elegant", "ornate"], "words": [
@@ -285,6 +287,170 @@
     ]},
     { "pos": "musicalKey", "tags": ["formal"], "words": [
       "C Major", "D Minor", "E-flat", "G Major", "A Minor", "B-flat", "F Major", "C-sharp Minor"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "NAMING v2 ADDITIONS (docs namesystemv2g) — pools + filters the v2 template sets require. Direct-address, solo-act nickname/honorific, band groupNoun filters, jazz/easy adjectives, regional/abstract domains." },
+
+    { "//": "=== REGIONAL — place names (easy/blues/jazz reference 'regional'; was undefined = hard fail). ===",
+      "pos": "noun", "tags": ["regional", "nostalgic"], "words": [
+      "California", "Nashville", "Memphis", "New Orleans", "Tijuana", "Havana", "Rio", "Harlem",
+      "the Border", "Kansas City", "Chicago", "Main Street", "the Bayou", "Georgia", "Tennessee",
+      "Carolina", "the Delta", "Broadway", "Route 66"
+    ]},
+
+    { "//": "=== OPENERS — sentence-initial hooks. Sub-tagged by intent so genre + punctuation post-proc can select register. Gender-neutral. ===",
+      "pos": "opener", "tags": ["plea", "romantic"], "words": [
+      "Please", "Don't Go", "Come Back", "Stay", "Hold Me", "Don't", "Baby Please", "Say You Will"
+    ]},
+    { "pos": "opener", "tags": ["command", "defiant"], "words": [
+      "Stop", "Go", "Get Out", "Come On", "Let's Go", "Move", "Wait", "Listen", "Hold On", "Hands Off"
+    ]},
+    { "pos": "opener", "tags": ["tender", "romantic"], "words": [
+      "Oh", "Baby", "Hey", "Come Here", "Darling", "My Dear", "Sweet Thing", "Kiss Me"
+    ]},
+    { "pos": "opener", "tags": ["taunt", "cheeky"], "words": [
+      "Get Lost", "Beat It", "Take a Walk", "So Long", "Big Deal", "Who Cares", "Talk Talk", "Nowhere"
+    ]},
+    { "pos": "opener", "tags": ["teen", "joyful"], "words": [
+      "It's My Party", "Hey Now", "Come On Over", "See You", "Party Time", "Be My Baby", "Puppy Love"
+    ]},
+    { "pos": "opener", "tags": ["regret", "melancholy"], "words": [
+      "I'm Sorry", "If Only", "I Wish", "I Can't", "Too Late", "I Should've", "Forgive Me", "I Never"
+    ]},
+    { "pos": "opener", "tags": ["praise", "spiritual"], "words": [
+      "Oh Happy", "Praise Him", "Glory", "Lift Up", "Rejoice", "Hallelujah", "Thank You", "Blessed Be"
+    ]},
+    { "pos": "opener", "tags": ["party", "joyful", "slang"], "words": [
+      "Get Down", "Get Up", "Shake It", "Do the", "Everybody", "Come On Now", "Let It", "Work It"
+    ]},
+    { "pos": "opener", "tags": ["uplift", "joyful"], "words": [
+      "Up, Up", "Rise Up", "Higher", "Reach Out", "Fly Away", "Onward", "Take Flight"
+    ]},
+
+    { "//": "=== LOVE / ADDRESS TERMS — the 'you' being sung to. Gender-soft; adapter may gender-agree. ===",
+      "pos": "love", "tags": ["romantic"], "words": [
+      "baby", "darling", "honey", "sweetheart", "angel", "love", "dear", "sugar", "babe",
+      "my love", "little girl", "little one", "sweet thing", "pretty baby"
+    ]},
+    { "pos": "love", "tags": ["romantic", "plain"], "words": [
+      "girl", "boy", "mama", "daddy", "my darlin'", "sweet baby", "my angel", "lover"
+    ]},
+
+    { "//": "=== PHRASE FRAGMENTS — parenthetical subtitles (Motown/soul/easy signature). Full clauses used inside (...). ===",
+      "pos": "phraseFrag", "tags": ["soul", "romantic"], "words": [
+      "I'll Be There", "I Can't Help Myself", "You Send Me", "Just a Little Bit", "Baby I Need You",
+      "Don't Leave Me", "Come Back to Me", "I Want You Back", "Hold On", "I Second That Emotion",
+      "Sweeter Than the Day Before", "Ain't That Peculiar"
+    ]},
+    { "pos": "phraseFrag", "tags": ["romance", "romantic"], "words": [
+      "And I Love You", "Forever and Ever", "The Way You Do", "All Night Long", "'Til I Die",
+      "Right Now", "Every Day", "Once More"
+    ]},
+    { "pos": "phraseFrag", "tags": ["instrumental", "serene"], "words": [
+      "A Musical Journey", "Theme", "Instrumental", "A Portrait", "A Reverie", "Mood Music",
+      "In Stereo", "For Lovers Only"
+    ]},
+
+    { "//": "=== NICKNAMES — prefix stage-name particles. 'standalone' works alone as a mononym. apostropheDrop applies to -in' entries. ===",
+      "pos": "nickname", "tags": ["blues"], "words": [
+      "Howlin'", "Lightnin'", "Blind", "Sonny", "Big", "Little", "Slim", "Muddy", "Peg Leg",
+      "Barrelhouse", "Cripple", "Champion", "Washboard", "Memphis"
+    ]},
+    { "pos": "nickname", "tags": ["blues", "standalone"], "words": [
+      "Muddy", "Lightnin'", "Leadbelly", "Sonny Boy", "T-Bone", "Bo"
+    ]},
+    { "pos": "nickname", "tags": ["funk"], "words": [
+      "Funky", "The Godfather", "Soul Brother", "Mr. Dynamite", "The Wizard", "Sweet", "Boss"
+    ]},
+    { "pos": "nickname", "tags": ["jazz"], "words": [
+      "Dizzy", "Cannonball", "Count", "Duke", "Fats", "Bird", "Trane", "Satchmo", "Prez", "Lady"
+    ]},
+    { "pos": "nickname", "tags": ["rocknroll"], "words": [
+      "Little", "Fats", "Chuck", "Big", "Wild", "Screamin'", "Rockin'", "Fireball", "Jumpin'"
+    ]},
+    { "pos": "nickname", "tags": ["country"], "words": [
+      "Hank", "Tex", "Slim", "Cowboy", "Whisperin'", "Cousin", "Grandpa", "Little Jimmy"
+    ]},
+    { "pos": "nickname", "tags": ["reggae"], "words": [
+      "Prince", "King", "Sir", "Lord", "Duke", "Jackie", "Toots", "Scratch"
+    ]},
+    { "pos": "nickname", "tags": ["comedy"], "words": [
+      "Weird", "Spike", "Professor", "Doctor", "Crazy", "Wacky", "Nutty", "Screwball"
+    ]},
+
+    { "//": "=== HONORIFICS — carry male/female gender tags for the genderAgree constraint (Phase B). ===",
+      "pos": "honorific", "tags": ["soul", "female"], "words": [ "Lady", "Miss", "Queen of", "Madame" ]},
+    { "pos": "honorific", "tags": ["soul", "male"], "words": [ "Mr.", "King of", "Sir", "Brother" ]},
+    { "pos": "honorific", "tags": ["gospel", "female"], "words": [ "Sister", "Mother", "Madame" ]},
+    { "pos": "honorific", "tags": ["gospel", "male"], "words": [ "Reverend", "Brother", "Elder", "Deacon", "Pastor" ]},
+    { "pos": "honorific", "tags": ["latin", "male"], "words": [ "El", "Don", "Rey" ]},
+    { "pos": "honorific", "tags": ["latin", "female"], "words": [ "La", "Doña", "Reina" ]},
+    { "pos": "honorific", "tags": ["reggae", "male"], "words": [ "King", "Prince", "Sir", "Lord", "Ras" ]},
+
+    { "//": "=== INSTRUMENTS — for '& His Trumpet/Organ' easy-listening credits. ===",
+      "pos": "instrument", "tags": ["melodic"], "words": [
+      "Trumpet", "Trombone", "Organ", "Piano", "Guitar", "Saxophone", "Clarinet", "Accordion",
+      "Harmonica", "Vibraphone", "Marimba", "Strings"
+    ]},
+
+    { "//": "=== NUMBERS — garage/funk numeric titles. 'small' for (Part N). ===",
+      "pos": "number", "tags": ["any"], "words": [
+      "96", "16", "1-2-3", "One", "Two", "Seven", "Nineteen", "A Thousand", "634-5789", "409"
+    ]},
+    { "pos": "number", "tags": ["small"], "words": [ "One", "Two", "Three", "1", "2" ]},
+
+    { "//": "=== FILM TITLES — soundtrack pseudo-titles. Evocative fake movie names. ===",
+      "pos": "filmTitle", "tags": ["any"], "words": [
+      "A Summer Place", "The Long Goodbye", "Midnight Alley", "The Golden Coast", "Shadow of Doubt",
+      "The Wild Frontier", "Danger Bay", "A Stranger in Town", "The Last Sunset", "Rebel Highway",
+      "Moment of Truth", "The Restless Years", "City of Angels", "The Careless Heart"
+    ]},
+
+    { "//": "=== nounAbs — abstract/uncountable concepts for '...of Freedom' frames (doowop/soul). ===",
+      "pos": "nounAbs", "tags": ["virtue", "earnest"], "words": [
+      "love", "freedom", "soul", "time", "truth", "fortune", "sorrow", "faith", "glory",
+      "mercy", "hope", "peace", "wonder", "silence", "forever", "eternity"
+    ]},
+
+    { "//": "=== ADJECTIVES — moods the v2 templates filter on that had almost no coverage. ===",
+      "pos": "adjective", "tags": ["cool", "serene", "poetic"], "words": [
+      "blue", "green", "cool", "quiet", "smoky", "mellow", "low", "soft", "muted", "still"
+    ]},
+    { "pos": "adjective", "tags": ["serene", "poetic"], "words": [
+      "gentle", "calm", "tranquil", "still", "soft", "easy", "peaceful", "dreaming", "quiet", "tender"
+    ]},
+    { "pos": "adjective", "tags": ["nostalgic", "wistful", "poetic"], "words": [
+      "old", "faded", "yesterday's", "long-ago", "bygone", "olden", "remembered", "vintage"
+    ]},
+    { "pos": "adjective", "tags": ["earnest", "plain"], "words": [
+      "honest", "simple", "plain", "true", "faithful", "steady", "humble", "real"
+    ]},
+
+    { "//": "=== GROUPNOUN FILTERS — band-suffix pools the v2 band templates need (were failing silently). ===",
+      "pos": "groupNoun", "tags": ["gems", "elegant"], "words": [
+      "Diamonds", "Pearls", "Rubies", "Crystals", "Jewels", "Emeralds", "Gems", "Sapphires", "Chandeliers"
+    ]},
+    { "pos": "groupNoun", "tags": ["birds"], "words": [
+      "Robins", "Larks", "Ravens", "Orioles", "Swallows", "Bluebirds", "Nightingales", "Cardinals", "Wrens", "Falcons"
+    ]},
+    { "pos": "groupNoun", "tags": ["animals"], "words": [
+      "Wolves", "Foxes", "Cats", "Tigers", "Panthers", "Coyotes", "Crickets", "Beetles", "Turtles", "Monkeys", "Chipmunks"
+    ]},
+    { "pos": "groupNoun", "tags": ["royalty"], "words": [
+      "Kings", "Queens", "Dukes", "Earls", "Barons", "Royals", "Majestics", "Imperials", "Monarchs", "Regents"
+    ]},
+    { "pos": "groupNoun", "tags": ["musical"], "words": [
+      "Tones", "Notes", "Chords", "Rhythms", "Melodies", "Harmonics", "Vibrations", "Echoes", "Tempos", "Blenders"
+    ]},
+    { "pos": "groupNoun", "tags": ["british"], "words": [
+      "Lads", "Mods", "Chaps", "Gents", "Blokes", "Swingers", "Dukes", "Merseybeats", "Undertakers"
+    ]},
+    { "pos": "groupNoun", "tags": ["surf"], "words": [
+      "Surfaris", "Breakers", "Tornadoes", "Ventures", "Chantays", "Woodies", "Rip Chords", "Fireballs", "Marketts"
+    ]},
+    { "pos": "groupNoun", "tags": ["psych"], "words": [
+      "Experience", "Airplane", "Machine", "Union", "Explosion", "Trip", "Elevator", "Movement", "Kaleidoscope", "Incorporated"
     ]}
   ]
 }
