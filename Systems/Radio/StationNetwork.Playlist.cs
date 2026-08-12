@@ -42,7 +42,9 @@ public sealed partial class StationNetwork {
 
 	// Format -> the audience segments its playlist admits (basis of formatMatch).
 	private static readonly Dictionary<StationFormat, AudienceSegment[]> FormatSegments = new() {
-		[StationFormat.Top40] = new[] { AudienceSegment.MainstreamAM, AudienceSegment.Youth, AudienceSegment.RegionalLatin },
+		// RegionalLatin is NOT admitted by Top40 in general -- only latin-leaning stations carry it
+		// (handled in FormatMatch). Admitting it here on every Top40 reporter over-charted LatinPop.
+		[StationFormat.Top40] = new[] { AudienceSegment.MainstreamAM, AudienceSegment.Youth },
 		[StationFormat.RnB] = new[] { AudienceSegment.UrbanRnB },
 		[StationFormat.Country] = new[] { AudienceSegment.CountryWestern },
 		[StationFormat.MOR] = new[] { AudienceSegment.AdultMOR, AudienceSegment.FamilyChildrens },
@@ -121,7 +123,7 @@ public sealed partial class StationNetwork {
 			SpinTier prior = rt.TierOf(f.id);
 			bool incumbent = prior != SpinTier.None;
 
-			float formatMatch = FormatMatch(f.profile, station.format, f.family, integration);
+			float formatMatch = FormatMatch(f.profile, station.format, f.family, integration, station.latinLeaning);
 			if (formatMatch <= 0f) continue;                        // format never admits this genre
 			if (!incumbent && !f.inCirculation) continue;           // not on the air and not circulating
 
@@ -204,13 +206,16 @@ public sealed partial class StationNetwork {
 
 	/// <summary>0 excludes the record entirely; else the genre's routed reach into the format's segments,
 	/// plus an integration-scaled RnB/Soul crossover onto Top40.</summary>
-	private static float FormatMatch(GenreProfile profile, StationFormat format, GenreFamily family, float integration) {
+	private static float FormatMatch(GenreProfile profile, StationFormat format, GenreFamily family, float integration, bool latinLeaning) {
 		if (profile == null || !FormatSegments.TryGetValue(format, out AudienceSegment[] segments)) return 0f;
 		float m = 0f;
 		foreach (AudienceSegment seg in segments)
 			m += profile.SegmentWeights.TryGetValue(seg.ToString(), out float v) ? v : 0f;
 		if (format == StationFormat.Top40 && family == GenreFamily.RhythmAndSoul)
 			m += (profile.SegmentWeights.TryGetValue("UrbanRnB", out float rb) ? rb : 0f) * integration * INTEGRATION_CROSSOVER;
+		// Latin-leaning Top40 stations (Southwest flavor) additionally admit the RegionalLatin routing.
+		if (format == StationFormat.Top40 && latinLeaning)
+			m += profile.SegmentWeights.TryGetValue("RegionalLatin", out float lat) ? lat : 0f;
 		return Mathf.Clamp(m, 0f, 1f);
 	}
 

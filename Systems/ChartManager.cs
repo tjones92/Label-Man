@@ -61,7 +61,7 @@ public partial class ChartManager : Node {
 	// Lerp(tail, reporter, REPORTER_PANEL_WEIGHT). Held at 0 through the Phase-2a plumbing swap so
 	// radioPlay == tail == the former formula (byte-identical); raised in Phase 2b once the reporter
 	// playlists are proven and the economic effect can be measured against the V3.1 baseline.
-	private const float REPORTER_PANEL_WEIGHT = 0.25f;
+	private const float REPORTER_PANEL_WEIGHT = 0.13f;
 	private const int NeverChartedHorizonWeeks = 5;
 	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
