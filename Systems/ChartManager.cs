@@ -1929,7 +1929,16 @@ public partial class ChartManager : Node {
 
 			// Hit #1 for first time
 			if (newPosition == 1 && record.lastWeekPosition != 1) {
-				if (triggerEvents) OnRecordHitNumberOne?.Invoke(record);
+				if (triggerEvents) {
+					OnRecordHitNumberOne?.Invoke(record);
+					// Settle break-claims (radio doc c): reward stations that broke this record early,
+					// from the regions, before it was validated. Candidacy/reputation only -- no chart effect.
+					stationNetwork?.CreditStationsOnChartEntry(record, currentChartWeek, isNumberOne: true);
+				}
+			}
+			// First time reaching the top 10 (the other settlement milestone -- not chart entry, too noisy).
+			if (triggerEvents && newPosition <= 10 && (record.lastWeekPosition == 0 || record.lastWeekPosition > 10)) {
+				stationNetwork?.CreditStationsOnChartEntry(record, currentChartWeek, isNumberOne: false);
 			}
 
 			// Update peak
@@ -2115,6 +2124,8 @@ public partial class ChartManager : Node {
 			retiredTrackArchive[record.baseRecord.recordId] = CreateTrackSnapshot(record);
 		}
 		OnRecordRetired?.Invoke(record);
+		// Prune the retired record from the reporter stations' per-record dictionaries (radio doc c).
+		stationNetwork?.OnRecordRetired(record.baseRecord.recordId);
 
 		var artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
 		if (artist != null) {

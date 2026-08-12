@@ -23,6 +23,18 @@ public sealed class StationRuntime {
 	public readonly Dictionary<string, float> labelRapport = new(System.StringComparer.Ordinal);
 	public readonly Dictionary<string, float> artistLoyalty = new(System.StringComparer.Ordinal);
 
+	// Break-claims (design doc c): records this station committed to (High tier) while they were
+	// still nationally un-validated, with the evidence to judge prescience retroactively. Settled at
+	// the payoff (a genuine, regionally-sourced national hit) into reputation.
+	public readonly Dictionary<string, BreakClaim> breakClaims = new(System.StringComparer.Ordinal);
+
+	public struct BreakClaim {
+		public int firstHighWeek;             // sim week this station first put it in High rotation
+		public int chartPosAtFirstHigh;       // national chart position at commit (0 = uncharted)
+		public float regionalStrengthAtClaim; // the record's regional breakout strength when committed
+		public bool settled;                  // credit already paid for this record
+	}
+
 	// Lifecycle reputation.
 	public float reputation = 0.5f;
 	public float reachModifier = 1f;   // derived from reputation; multiplies effective reach

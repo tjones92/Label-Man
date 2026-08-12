@@ -31,6 +31,9 @@ public sealed partial class StationNetwork {
 		_ => 0f
 	};
 
+	// ---- break-claim staking (doc c) ----
+	private const int CLAIM_MAX_CHART_POS = 60;    // must be uncharted or below #60 to earn a claim
+
 	// ---- anti-oscillation (doc a 3.4, NON-NEGOTIABLE) ----
 	private const int MIN_READD_WEEKS = 4;         // a dropped record is locked out this long
 	private const float READD_HYSTERESIS = 1.2f;   // and must beat the light cutoff by this margin
@@ -72,6 +75,7 @@ public sealed partial class StationNetwork {
 	}
 
 	private readonly List<RecordFactors> factorScratch = new();
+	private readonly Dictionary<string, RecordFactors> factorById = new(StringComparer.Ordinal);
 
 	/// <summary>The reporter playlist meeting. Populates each station's rt.playlist for the week.</summary>
 	public void UpdatePlaylists(IReadOnlyList<RecordRuntimeData> records, MarketRegion[] regions, int week, int year) {
@@ -79,6 +83,7 @@ public sealed partial class StationNetwork {
 
 		// 1. Cache per-record station-invariant factors once.
 		factorScratch.Clear();
+		factorById.Clear();
 		foreach (RecordRuntimeData r in records) {
 			if (r?.baseRecord == null || r.baseRecord.format == ReleaseFormat.Album) continue;
 			float support = ChartSimulator.GetSalesSupportRatio(r);
@@ -95,6 +100,7 @@ public sealed partial class StationNetwork {
 				heatPull = 1f + r.radioHeat * HEAT_FOLLOW + (tradePick ? TRADE_WEIGHT : 0f),
 				inCirculation = circulating,
 			});
+			factorById[r.baseRecord.recordId] = factorScratch[^1];
 		}
 
 		// 2. Per region, per reporter: score and fill.
@@ -177,6 +183,26 @@ public sealed partial class StationNetwork {
 		}
 
 		CommitPlaylist(rt, next, week);
+		StakeBreakClaims(station, rt, next, week);
+	}
+
+	/// <summary>Stake a break-claim (doc c) for any record this station just committed to High rotation
+	/// while it is still nationally un-validated -- capturing when and how strongly it was breaking in
+	/// this station's region, to judge prescience when the record later (maybe) becomes a hit.</summary>
+	private void StakeBreakClaims(RadioStation station, StationRuntime rt, Dictionary<string, SpinTier> next, int week) {
+		foreach (var kv in next) {
+			if (kv.Value != SpinTier.High) continue;
+			string id = kv.Key;
+			if (rt.breakClaims.ContainsKey(id)) continue;             // keep the EARLIEST commit
+			if (!factorById.TryGetValue(id, out RecordFactors f)) continue;
+			int pos = f.rec.currentPosition;
+			if (!(pos == 0 || pos > CLAIM_MAX_CHART_POS)) continue;   // only while un-validated
+			float regionalStrength = f.rec.regionalData != null
+				&& f.rec.regionalData.TryGetValue(station.regionId, out RegionalRecordData d) ? d.peakBreakoutScore : 0f;
+			rt.breakClaims[id] = new StationRuntime.BreakClaim {
+				firstHighWeek = week, chartPosAtFirstHigh = pos, regionalStrengthAtClaim = regionalStrength, settled = false
+			};
+		}
 	}
 
 	/// <summary>candidacy = formatMatch x qualityTaste x salesSupport x relationship x payola x freshness x heatPull.</summary>
