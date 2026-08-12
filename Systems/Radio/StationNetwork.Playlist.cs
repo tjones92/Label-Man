@@ -220,8 +220,10 @@ public sealed partial class StationNetwork {
 		// relationship: cultivation edge (Phase 4 cultivation writes these; 0 until then).
 		float relationship = 1f + rt.Rapport(f.labelId) * REL_WEIGHT + rt.Loyalty(f.artistId) * LOYALTY_WEIGHT;
 
-		// payola: Phase 4 ledger; neutral for now.
-		float payola = 1f;
+		// payola (doc d): the player's active bribes on this (record, station), read via the ledger
+		// lookup. Player-only, so this is 0 (neutral) in headless audits -- payola never perturbs the
+		// base simulation. Capped so a bribe buys candidacy, never a runaway.
+		float payola = 1f + Mathf.Clamp(ActivePayolaLookup?.Invoke(f.id, station.stationId) ?? 0f, 0f, 1.5f);
 
 		// freshness: per-station burn, replacing the aggregate STATION_DROP_BURN.
 		int weeks = rt.weeksInPlaylist.TryGetValue(f.id, out int w) ? w : 0;

@@ -49,8 +49,12 @@ public partial class ChartManager : Node {
 	// reach radioPlay until the Phase-2 aggregation. Uses its own RNG (never the global GD stream)
 	// so standing it up cannot perturb the seeded simulation.
 	private StationNetwork stationNetwork;
+	// The payola ledger (radio doc d). Player-facing; AI labels don't use it, so it is inert in
+	// headless audits (no arrangements -> ActivePayola returns 0 -> candidacy unchanged).
+	private PayolaLedger payolaLedger;
 	// Salt so the station RNG is a distinct-but-reproducible stream off the audit seed.
 	private const ulong StationSeedSalt = 0x5241_4449_4F2AUL; // "RADIO*"
+	private const ulong PayolaSeedSalt = 0x5041_594F_4C41UL;  // "PAYOLA"
 	private const int BubblingUnderSize = 15;
 	// Weekly persistence of regional airplay. Hold is what survives from last week before the pull
 	// toward the current national target; together they set how fast a record leaves rotation once
@@ -340,6 +344,8 @@ public partial class ChartManager : Node {
 		ulong stationSeed = (SimulationSeedBootstrap.RequestedSeed ?? 1UL) ^ StationSeedSalt;
 		stationNetwork = new StationNetwork(stationSeed);
 		stationNetwork.BuildRosters(allRegions, year);
+		payolaLedger = new PayolaLedger(stationNetwork, stationSeed ^ PayolaSeedSalt);
+		stationNetwork.ActivePayolaLookup = payolaLedger.ActivePayola;   // candidacy reads player bribes here
 		GD.Print($"ChartManager: Station panel built -- {stationNetwork.StationCount} reporter stations across {allRegions?.Length ?? 0} regions");
 
 		// 7. Pre-warm
@@ -886,6 +892,10 @@ public partial class ChartManager : Node {
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
 		RestockHotRecords();
+
+		// Payola ledger tick (radio doc d): decay/expire arrangements and adjudicate scandal before the
+		// playlist meeting reads the boost cache. Inert while there are no player arrangements.
+		payolaLedger?.Tick(currentChartWeek, year, month);
 
 		// === STEP 2.75: REPORTER PLAYLIST MEETING ===
 		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio

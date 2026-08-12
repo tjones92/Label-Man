@@ -36,6 +36,10 @@ public sealed partial class StationNetwork {
 	private readonly RandomNumberGenerator rng = new();
 	private int currentYear;
 
+	// Payola candidacy lookup (recordId, stationId) -> active bribe boost. Set by ChartManager to the
+	// PayolaLedger (doc d); null in headless audits (payola is player-only), so candidacy reads 0.
+	public System.Func<string, string, float> ActivePayolaLookup;
+
 	public StationNetwork(ulong seed) {
 		rng.Seed = seed;   // seeded off the sim master seed for reproducibility
 	}
@@ -355,5 +359,40 @@ public sealed partial class StationNetwork {
 			}
 			NormalizeReporterReachShares(roster);
 		}
+
+		// Rare autonomous DJ churn: greed drifts, and a very-greedy jock can be caught and sacked in a
+		// payola scandal (Alan Freed, 1962) -- scaled by the era's regulatory heat. Kept rare so it
+		// barely touches the simulation; uses the network RNG, never the global stream.
+		RollDjGreedAndScandals(roster, region, year);
 	}
+
+	private void RollDjGreedAndScandals(List<RadioStation> roster, MarketRegion region, int year) {
+		float heat = RadioEra.RegulatoryHeat(year);
+		foreach (RadioStation s in roster) {
+			Deejay dj = GetDeejay(s.leadDjId);
+			if (dj == null) continue;
+			// Greed drifts a little year to year.
+			dj.greed = Mathf.Clamp(dj.greed + (rng.Randf() - 0.5f) * 0.1f, 0f, 1f);
+			// A very greedy jock draws scrutiny; the sack chance is small and peaks with the crackdown.
+			if (dj.greed > 0.8f) {
+				float sackChance = heat * 0.04f * (dj.greed - 0.8f) / 0.2f;   // <=~0.036/yr at the 1960 peak
+				if (rng.Randf() < sackChance) SackDeejay(s, region);
+			}
+		}
+	}
+
+	/// <summary>Remove a DJ (payola bust / era churn) and install a replacement, resetting the station's
+	/// relationships built with the departed jock. Cheaper, lower-greed successor by default.</summary>
+	public void SackDeejay(RadioStation station, MarketRegion region) {
+		if (station == null) return;
+		if (station.leadDjId != null) djsById.Remove(station.leadDjId);
+		Deejay replacement = CreateDeejay(station, region);
+		replacement.greed = Mathf.Min(replacement.greed, 0.4f);   // a burned station hires cautious
+		station.leadDjId = replacement.djId;
+		djsById[replacement.djId] = replacement;
+		station.rt?.labelRapport.Clear();   // rapport was with the departed jock
+	}
+
+	/// <summary>Sack overload for callers without a MarketRegion handle (CreateDeejay does not need it).</summary>
+	public void SackDeejay(RadioStation station) => SackDeejay(station, null);
 }
