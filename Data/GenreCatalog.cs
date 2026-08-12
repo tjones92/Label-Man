@@ -269,7 +269,10 @@ public static class GenreCatalog {
 			// mid-60s peak (9-11 year-end slots vs a 1-3 hand count). Paired with a mid-baseline trim.
 			[Genre.GarageRock] = 1.05f,
 			[Genre.Country] = 0.45f,
-			[Genre.PsychedelicRock] = 0.90f,
+			// PsychedelicRock 0.90 -> 1.20 (reporter-panel compensation): the AM-Top40 reporter panel
+			// correctly under-plays psych rock (it lived on album/FM), which pulled it 8%->3% chart
+			// share vs V3.1. Raise its national airplay propensity to restore the V3.1 singles bound.
+			[Genre.PsychedelicRock] = 1.20f,
 			// Soul 0.72 (NEW): the airplay lever is the right one for Soul's headline miss because the
 			// miss is LATE (32 year-end slots vs 18) where airplay is ~58% of chart points, and Soul is
 			// UNDER early where airplay barely counts -- so a late-biased strip trims the over without
@@ -303,6 +306,20 @@ public static class GenreCatalog {
 			// baseline over-produced WITHOUT touching the album (albums have no airplay channel). 0.62 then
 			// slightly over-stripped (late EL singles 1-2 vs 3-4), so eased to 0.72.
 			[Genre.EasyListening] = 0.72f,
+			// ---- Reporter-panel compensation pass (radio branch, w=0.13). The AM-Top40 reporter panel
+			// adds genre-appropriate airplay differentiation that the old coarse tail lacked, so these
+			// values offset the panel's chart-side drift to hold each genre near its V3.1 singles bound.
+			// Conservative first pass (RadioAcceptance is ^5-amplified in airplay); residuals are a
+			// tracked follow-up. Over-charters trimmed, under-charters (rock/psych routed off Top40) lifted.
+			[Genre.Bubblegum] = 0.88f,        // was over +4.8pp
+			[Genre.BritishPop] = 0.88f,       // was over +3.4pp
+			[Genre.TeenPop] = 0.90f,          // was over +3.1pp
+			[Genre.PopRock] = 1.20f,          // was under -2.1pp
+			[Genre.RockAndRoll] = 1.10f,      // was under -1.7pp (early genre; gentle to avoid ^5 early inflation)
+			[Genre.HardRock] = 1.15f,         // was under -1.5pp
+			[Genre.Funk] = 1.12f,             // was under -1.4pp
+			[Genre.BritishBlues] = 1.15f,     // was under -1.35pp
+			[Genre.RootsRock] = 1.12f,        // was under -1.1pp
 		};
 
 	/// <summary>Per-genre radio-acceptance multiplier applied to the national acceptance that feeds
