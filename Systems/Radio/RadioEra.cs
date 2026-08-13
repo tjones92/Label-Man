@@ -116,6 +116,65 @@ public static class RadioEra {
 	public const int AirplayWeightFullYear = 1968;
 	// (Weight values live in ChartSimulator.AIRPLAY_ERA_WEIGHT_EARLY/LATE - do not duplicate.)
 
+	// =====================================================================
+	// FORMAT MIX - the national dial composition, keyframed 1960/63/65/67/69.
+	//
+	// The roster is a stratified SAMPLE OF THE DIAL; StationNetwork.Hot100ReportingWeight is what
+	// converts it into a Hot 100 survey. So this curve answers "what did American radio look like",
+	// not "who reported to Billboard" -- the two jobs were previously conflated in one static
+	// allocation and that is what produced a 77-station panel with 13 country reporters and 1 R&B.
+	//
+	// SOURCES / REASONING per row:
+	//  Country      - CMA full-time country station counts (81 in 1961, 208 in 1965, 606 in 1969)
+	//                 against AmStationCount above (3400/4000/4300) => 2.4% / 5.2% / 14.1% of the
+	//                 dial. Country radio was TINY in 1960 and exploded; the old flat 17% allocation
+	//                 had it backwards, over-stating it ~7x in exactly the years Country over-charts.
+	//  RnB          - ~65 full-time black-appeal stations in 1960 (~1.9%) plus ~187 airing block
+	//                 programming; ~400 stations carried some black-appeal content by the late 50s.
+	//                 A panel that samples where the music actually played sits between the full-time
+	//                 and block figures, so this runs 4% -> 9% rather than 2% -> 5%.
+	//  FullService  - the block-programmed personality station: dominant in 1960, gutted by the Boss
+	//                 Radio conversion across 1965-69. This is the same phenomenon BossRadioAdoption
+	//                 describes; the curve sets the QUANTITY, Boss supplies the character change.
+	//  Top40        - absorbs most of what FullService sheds.
+	//  MOR          - "good music"/beautiful music grew steadily (Billboard split out an Easy
+	//                 Listening chart in 1961) and accelerated on FM late.
+	//  Jazz         - shrinking as a full-time commercial AM format across the decade.
+	//  Gospel       - small, real, and heavily Southern; the region affinity term concentrates it.
+	//  UndergroundFM- zero until the 1967 underground-FM movement, matching FmViability.
+	//
+	// Rows need not sum to 1: StationNetwork normalizes. Keep them as READABLE dial shares.
+	private static readonly int[] FormatMixYears = { 1960, 1963, 1965, 1967, 1969 };
+	private static readonly System.Collections.Generic.Dictionary<StationFormat, float[]> FormatMix = new() {
+		//                                  1960   1963   1965   1967   1969
+		[StationFormat.FullService]   = new[]{ .42f,  .30f,  .20f,  .10f,  .04f },
+		[StationFormat.Top40]         = new[]{ .16f,  .24f,  .32f,  .38f,  .42f },
+		[StationFormat.MOR]           = new[]{ .18f,  .19f,  .20f,  .21f,  .22f },
+		[StationFormat.Country]       = new[]{ .02f,  .035f, .05f,  .09f,  .14f },
+		[StationFormat.RnB]           = new[]{ .04f,  .05f,  .06f,  .075f, .09f },
+		[StationFormat.Jazz]          = new[]{ .06f,  .05f,  .04f,  .03f,  .02f },
+		[StationFormat.Gospel]        = new[]{ .02f,  .02f,  .02f,  .025f, .03f },
+		[StationFormat.UndergroundFM] = new[]{ 0f,    0f,    0f,    .04f,  .08f },
+	};
+
+	/// <summary>National share of the dial carried by a format in a year (piecewise-linear between the
+	/// 1960/63/65/67/69 keyframes, clamped outside). Shares are relative, not normalized.</summary>
+	public static float FormatEraShare(StationFormat format, int year) {
+		if (!FormatMix.TryGetValue(format, out float[] kf)) return 0f;
+		if (year <= FormatMixYears[0]) return kf[0];
+		if (year >= FormatMixYears[^1]) return kf[^1];
+		for (int i = 0; i < FormatMixYears.Length - 1; i++) {
+			if (year <= FormatMixYears[i + 1]) {
+				float t = (year - FormatMixYears[i]) / (float)(FormatMixYears[i + 1] - FormatMixYears[i]);
+				return Mathf.Lerp(kf[i], kf[i + 1], t);
+			}
+		}
+		return kf[^1];
+	}
+
+	/// <summary>Every format carrying a non-zero share in any year -- the migration's working set.</summary>
+	public static System.Collections.Generic.IEnumerable<StationFormat> MixFormats() => FormatMix.Keys;
+
 	// ---- helpers ----
 	private static float ContinuousYear(int year, int month) =>
 		year + Mathf.Clamp(month - 1, 0, 11) / 12f;

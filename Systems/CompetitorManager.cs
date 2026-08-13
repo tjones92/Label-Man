@@ -3249,9 +3249,9 @@ public partial class CompetitorManager : Node {
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float labelAwareness = label.reputation * 0.1f;
-		
+
 		runtimeData.awareness = Mathf.Clamp((isAlbum ? 0.04f : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
-		
+
 		float baseRadio = quality * 0.3f;
 		float pushRadio = ChartSimulator.GetCampaignImpact(label) * 0.3f;
 		float payolaRadio = label.payolaWillingness * 0.15f;

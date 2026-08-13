@@ -12,7 +12,18 @@ public static class GenreSegmentRouting {
 			Genre.ProtoMetal => (.15f,0,0,0,.30f,.50f), Genre.ProgressiveRock => (.10f,0,0,0,.30f,.55f), Genre.BluesRock => (.25f,0,.10f,0,.25f,.40f),
 			Genre.ProtoPunk => (.05f,0,0,0,.40f,.50f), Genre.BritishBeat => (.80f,0,0,0,.10f,0), Genre.BritishBlues => (.50f,0,.10f,0,.15f,.25f),
 			Genre.RnB => (.30f,0,.60f,0,0,0), Genre.Soul => (.40f,0,.50f,0,.10f,0), Genre.Funk => (.30f,0,.55f,0,.10f,.05f), Genre.DooWop => (.50f,0,.40f,0,0,0),
-			Genre.Gospel => (.20f,.30f,.50f,0,0,0), Genre.Country => (.40f,.40f,0,0,.05f,0), Genre.CountryRock => (.25f,0,0,0,.30f,.35f),
+			Genre.Gospel => (.20f,.30f,.50f,0,0,0),
+			// Country am .40 -> .20 (radio branch, 2026-08). The .40 AM weight bought Country a .471
+			// formatMatch on Top40 and (with FullService admitting CountryWestern too) a 1.000 match on
+			// FullService, so 90.9% of the reporter panel's reach admitted a country record -- the widest
+			// access of ANY genre, against a 4.2%-of-decade year-end slot benchmark. Historically most
+			// country product got no pop airplay at all; the crossover (Ray Price, Jim Reeves, Roger
+			// Miller) was the exception that the Hot 100 hand-count is made of. Halving the AM leg drops
+			// Country's Top40 match to .308 and pushes its weight onto CountryWestern (.412 -> .538),
+			// where the Hot100ReportingWeight then discounts it. Paired with the FullService partial
+			// admittance below; neither alone is enough, because FullService admits every one of
+			// Country's segments and so stays at 1.000 under a routing change by itself.
+			Genre.Country => (.20f,.40f,0,0,.05f,0), Genre.CountryRock => (.25f,0,0,0,.30f,.35f),
 			Genre.Folk => (.20f,.25f,0,0,.50f,0), Genre.FolkRock => (.40f,0,0,0,.30f,.20f), Genre.ContemporaryFolk => (.20f,.20f,0,0,.55f,0), Genre.SingerSongwriter => (0,.15f,0,0,.35f,.40f),
 			Genre.Jazz => (0,.50f,.15f,0,.25f,.10f), Genre.BossaNova => (.20f,.55f,0,0,.20f,0), Genre.Blues => (0,.15f,.40f,0,.25f,.20f), Genre.Classical => (0,.70f,0,0,.25f,0),
 			Genre.Boogaloo => (.30f,0,.40f,0,0,0), Genre.TexMex => (.40f,0,.20f,0,0,0), Genre.LatinPop => (.40f,.30f,0,0,0,0),

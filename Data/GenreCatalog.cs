@@ -28,6 +28,21 @@ public sealed class GenreProfile {
 		return BaselineKeyframes[^1];
 	}
 
+	/// <summary>The highest baseline this genre has reached at or before `year` -- its peak so far. A
+	/// decline signal built as GetBaseline(year)/GetBaselinePeakThrough(year) stays 1.0 while a genre is
+	/// still rising toward its peak (so emergent genres are never penalised) and falls only once the
+	/// genre is past its own peak.</summary>
+	public float GetBaselinePeakThrough(float year) {
+		float clamped = Mathf.Clamp(year, 1960f, 1969f);
+		int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+		float peak = GetBaseline(clamped);
+		for (int i = 0; i < years.Length; i++) {
+			if (years[i] > clamped) break;
+			if (BaselineKeyframes[i] > peak) peak = BaselineKeyframes[i];
+		}
+		return peak;
+	}
+
 	public GenreLifecycleState GetLifecycle(float year) {
 		if (year < EmergenceYear) return GenreLifecycleState.PreEmergent;
 		if (DeathYear.HasValue && year > DeathYear.Value) return GenreLifecycleState.Legacy;
@@ -76,12 +91,26 @@ public static class GenreCatalog {
 	// .48->.42, 1964 .50->.46. Late keyframes hold the authored decline.
 	Add("teen-pop", Genre.TeenPop, GenreFamily.Pop, 1957, 1971, .90f, .90f, .44f,.42f,.46f,.43f,.31f,.26f,.21f);
 		Add("baroque-pop", Genre.BaroquePop, GenreFamily.Pop, 1966, 1970, .60f, .50f, .02f,.02f,.06f,.38f,.34f,.21f,.13f);
-		// Late keyframe gently corrected (handoff 11.5, finding 2): the year-end count shows Sunshine
-		// Pop holding late rather than collapsing, but keyframe and radio multiplier COMPOUND in the
-		// airplay channel, so only the erroneous 1969 collapse is softened (.22 -> .28), the 1968
-		// value is left at its authored .35, and the radio up-lever is dropped to 1.40. Together these
-		// target ~28-32 year-end slots without stealing calibrated slots from Soul.
-		Add("sunshine-pop", Genre.SunshinePop, GenreFamily.Pop, 1965, 1971, .65f, .55f, .02f,.03f,.10f,.49f,.46f,.35f,.28f);
+		// CURVE RESHAPED, not levelled (radio branch, 2026-08): .49/.46/.35/.28 -> .35/.42/.45/.50.
+		// The old curve peaked 1966 and decayed; the hand-counted year-end slots do the OPPOSITE
+		// (4/10/4/12), peaking 1969 -- the model's authored lifecycle and the chart benchmark pointed
+		// in opposite directions. Three things follow from rising into 1969 instead of levelling the
+		// endpoint alone:
+		//   1. 1969 market share ~1.1% -> ~3.5% (transfer is quadratic: (.50/.28)^2), worth ~6 year-end
+		//      slots at the model's p95 realised chart efficiency of 1.84 slots per 1% unit share.
+		//   2. It REMOVES the PANEL_LIFECYCLE_PULL damping for free. Vitality reads
+		//      GetBaseline(y)/GetBaselinePeakThrough(y), so on the old declining curve Sunshine Pop was
+		//      multiplied by .963/.829/.743 at 1967/68/69 -- damped hardest exactly where the benchmark
+		//      wants 10/4/12 slots. A monotone riser has peak == current, so vitality is 1.000 always.
+		//   3. 1966-67 stay near their market targets (1.47/1.87) instead of being inflated to 2.4/3.2,
+		//      which is how radio-guard-1001 "charted" the genre and why that result did not hold.
+		// DELIBERATELY SHORT of the benchmark. The 1969 hand count of 12 slots against a 0.73% market
+		// target demands 16.4x chart efficiency -- the highest of any genre-year in the benchmark pair,
+		// and 1.7x beyond anything the model has ever produced. The market row's own note says why:
+		// "Retrospective label ... Real but never a trade category" -- the 1969 records it counts are
+		// booked as pop/EL in the market table, so the two benchmarks are counting different records.
+		// ~13 of the 30 benchmark slots is the honest ceiling; the rest is a classification artifact.
+		Add("sunshine-pop", Genre.SunshinePop, GenreFamily.Pop, 1965, 1971, .65f, .55f, .02f,.03f,.10f,.35f,.42f,.45f,.50f);
 		// Late trim (2026-08): over 1969 (11 vs 4). First cut to .38/.45 overcorrected 1969 to under (1 vs 4);
 	// 1969 restored .45 -> .55.
 	Add("bubblegum", Genre.Bubblegum, GenreFamily.Pop, 1967, 1971, .95f, .90f, .01f,.02f,.03f,.05f,.16f,.38f,.55f);
@@ -96,10 +125,26 @@ public static class GenreCatalog {
 	Add("easy-listening", Genre.EasyListening, GenreFamily.Pop, 1950, null, .15f, .35f, .60f,.54f,.52f,.58f,.62f,.68f,.74f);
 		// Invasion-peak trim (2026-08): British Beat/Pop over at '64-65 (13-18 vs 5-8). 1964 .95 -> .65.
 	Add("british-pop", Genre.BritishPop, GenreFamily.Pop, 1964, 1968, .90f, .80f, .01f,.02f,.65f,.50f,.43f,.35f,.30f);
-		// Early Rock and Roll ran 19.2% against a 13.5% target. The authored late-decade decline is
-		// deliberately preserved: the year-end benchmark's late RnR counts are misclassification of
-		// genre-ambiguous records and are not evidence of a surviving commercial category.
-		Add("rock-and-roll", Genre.RockAndRoll, GenreFamily.Rock, 1955, null, .85f, .85f, .48f,.46f,.42f,.22f,.15f,.10f,.07f);
+		// Early Rock and Roll ran 20.5% against a 13.5% target at 1960 -- the single largest year-over in
+		// the catalog, and pure baseline (the radio panel does not touch RnR in 1960, since it is pre-peak
+		// so the lifecycle vitality is neutral). The 1960 keyframe is cut .48 -> .40 to bring 1960 market
+		// share down to ~target at the SOURCE, rather than damping RnR's airplay at runtime (a vacuum-guard
+		// approach that shed RnR's airplay into TradPop/Soul and halved its 1960 #1 weeks). The freed 1960
+		// share redistributes benignly to the many under-target 1960 genres (RnB gains most), unlike the
+		// airplay guard which flooded already-over genres. RnR 1960 share responds ~LINEARLY to this
+		// keyframe (measured exponent ~1.15 over .48->.40, not the catalog-typical ~2), so the cut is sized
+		// off a two-point fit: .48->.35 lands 1960 near its 13.5 target.
+		//   1962 .46 -> .42: with 1960 at .35, leaving 1962 at .46 made 1962 a relative SUPPLY SURGE
+		// (1960-61 thinned, 1962 jumps back up), which dominated the year-end recap -- RnR charted 27 slots
+		// at 1962 vs a 12 benchmark (at the flat V3.1 .48/.46 keyframe it was 21; the jump added the rest).
+		// RnR's 1962 market also ran +1.0 OVER target, so lowering this keyframe pulls the 1962 chart bulge
+		// AND the 1962 market both toward target. RadioAcceptance is deliberately NOT used to trim RnR's
+		// chart: a short-run test (RA 1.10->0.80) confirmed it bleeds RnR's market -- incl. the 1960 win --
+		// because RnR airplay feeds its units and RA is flat across years. The small residual over-charge
+		// (17 vs 14 at 1960) is a hit-making singles genre charting hard, near the noise floor; accepted.
+		// The authored late-decade decline is deliberately preserved: the year-end benchmark's late RnR
+		// counts are misclassification of genre-ambiguous records, not a surviving commercial category.
+		Add("rock-and-roll", Genre.RockAndRoll, GenreFamily.Rock, 1955, null, .85f, .85f, .35f,.42f,.42f,.22f,.15f,.10f,.07f);
 		// Emergence 1961 -> 1960: "Walk Don't Run" charted in 1960, so the genre exists at the
 		// game's start date rather than opening a year in.
 		Add("surf-rock", Genre.SurfRock, GenreFamily.Rock, 1960, 1966, .90f, .70f, .12f,.48f,.78f,.26f,.20f,.16f,.06f);
@@ -139,7 +184,23 @@ public static class GenreCatalog {
 		// V3 trim: R&B ran slightly over (10-15 slots vs 8-12) and the IntegrationEraGapClose 0.45->0.70
 	// lift (for soul album) raises R&B units too, so the baseline is trimmed. First pass over-cut 1969
 	// (3 vs 8) and left a 1962 spike (21 vs 11), so 1962 .45->.42 and the late keyframes eased back up.
-	Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .34f,.44f,.42f,.44f,.43f,.42f,.42f);
+	// LATE TAPER (radio branch, 2026-08). The baseline was FLAT at ~.42 to 1969, but "R&B" as a Hot 100
+	// chart category did not survive the decade -- it was progressively re-labelled Soul, which is why the
+	// slot benchmark reads 12/18/28/21/10/2/3/0/0/0 and why there is no market-share target row for R&B at
+	// all. A flat baseline keeps producing R&B singles forever: on mix5-decade 1965-69 ran 9/8/5/6/7 slots
+	// against a 2/3/0/0/0 benchmark, a 30-slot surplus, on 6.78% of 1969 SINGLES units. The first four
+	// keyframes are held EXACTLY -- 1960-64 scores 15/20/25/17/10 against 12/18/28/21/10 and must not move
+	// -- and only 1966/1967.5/1969 are cut. Share goes as baseline^2, so .43->.36, .42->.26, .42->.18 is
+	// ~0.70x/0.38x/0.18x of realised share in those years. The freed units land on Soul (172 vs a 179
+	// benchmark) and Funk (6 vs 12), both under, which is where the historical re-labelling sent them.
+	// PARTIAL BACK-OUT (mix6 result): 1967.5/1969 held -- 1967-69 landed 4/1/0 against a 0/0/0
+	// benchmark, exactly the intent -- but 1966 is restored .36 -> .41. Stated correction: the original
+	// note assumed the .36 cut was what worsened 1966, and that does not survive the run. RnB 1966 rose
+	// 8 -> 11 slots WHILE its baseline fell, because cutting supply lowers a genre's realised top-20
+	// share, which makes the chart guard damp it LESS and lets its remaining records chart higher. Same
+	// self-healing shape as the absorption-trim result. So 1966 is restored to keep the guard engaged
+	// there, not because the cut "did damage" in the direction first claimed.
+	Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .34f,.44f,.42f,.44f,.41f,.26f,.18f);
 		// Soul was cut too far by the previous pass and is now the single largest under-supply in the
 		// catalog. It realised 1.9 / 3.5 / 4.7 / 6.7 / 9.1 / 11.4 / 14.0 percent of the market at
 		// 1960/62/64/66/67/68/69 against targets of 7.9 / 10.2 / 12.2 / 16.0 / 18.1 / 18.5 / 17.5,
@@ -315,7 +376,14 @@ public static class GenreCatalog {
 			[Genre.BritishPop] = 0.88f,       // was over +3.4pp
 			[Genre.TeenPop] = 0.90f,          // was over +3.1pp
 			[Genre.PopRock] = 1.20f,          // was under -2.1pp
-			[Genre.RockAndRoll] = 1.10f,      // was under -1.7pp (early genre; gentle to avoid ^5 early inflation)
+			[Genre.RockAndRoll] = 1.10f,      // RnR over-charts early (17/19/27/21 slots 1960-63 vs a 14/12/12/11
+			                                  // benchmark) while its market sits on target -- a market-vs-chart
+			                                  // conflict. A short-run test of RA=0.80 confirmed RA is the WRONG
+			                                  // lever here: it bled RnR's market (incl. the 1960 win) for only a
+			                                  // partial chart trim, because RnR airplay feeds its units too and
+			                                  // RA is flat across years. Left at the market-validated 1.10; the
+			                                  // early chart-over is accepted as a documented divergence (RnR is
+			                                  // exempt from the chart guard, which is gated to 1965+ anyway).
 			[Genre.HardRock] = 1.15f,         // was under -1.5pp
 			[Genre.Funk] = 1.12f,             // was under -1.4pp
 			[Genre.BritishBlues] = 1.15f,     // was under -1.35pp
@@ -355,6 +423,75 @@ public static class GenreCatalog {
 		if (!LateFormatOrientationOverrides.TryGetValue(canonical, out float late)) return flat;
 		float t = Mathf.Clamp((year - 1960f) / 9f, 0f, 1f);
 		return Mathf.Lerp(flat, late, t);
+	}
+
+	// ---- Hand-counted year-end Hot 100 CHART-SLOT benchmark (SimTools/D7GenreChartDivergenceHandoff.md
+	// section 3), slots out of ~100 per year, 1960-1969. This is the CHART-side target (a ranked
+	// 100-slot recap), a DIFFERENT object from the market-units-share target: a genre is meant to
+	// over-chart relative to its unit share when it was radio-driven (Soul holds ~28 slots on ~17.5%
+	// of units; Bubblegum holds 7-9 on ~4% -- 'Sugar Sugar' was 1969's best-selling single). Used by
+	// the radio panel's chart-referenced vacuum guard as the expected chart presence, so the guard trims
+	// only genres OVER-charting their historical slot share and reroutes the freed airplay to genres
+	// under theirs. Genres absent here have no slot target -> the guard leaves them alone.
+	//
+	// EXPLICIT ZERO ROWS (radio branch, 2026-08). "Omitted as guard-inert" was wrong, and the stronger
+	// top-20 guard proved it: a genre with no row is not un-guarded, it is guard-IMMUNE, so it becomes
+	// the destination for every slot the guard frees elsewhere. Between mix4-decade and mix5-decade the
+	// un-benchmarked bloc went 27 -> 47 decade slots, almost all of it LatinPop 14 -> 38 against a zero
+	// benchmark, while LatinPop's market unit share barely moved (1968 2.85% -> 3.69%, 1969 3.01% ->
+	// 3.04%) -- pure chart-access absorption. This is RockAndRoll's old ChartGuardExempt failure
+	// relocated: with the biggest un-damped genre immune, the vacuum has exactly one place to go.
+	// A zero row is a REAL target ("this genre held no year-end Hot 100 slots"), which for these is
+	// simply true of the 1960s recaps, and it is a different statement from an absent row.
+	private static readonly Genre[] ZeroSlotBenchmarkGenres = {
+		Genre.LatinPop, Genre.PopRock, Genre.Boogaloo, Genre.TexMex, Genre.RootsRock,
+		Genre.ContemporaryFolk, Genre.SingerSongwriter, Genre.Blues, Genre.BluesRock,
+		Genre.BossaNova, Genre.BaroquePop, Genre.ProgressiveRock, Genre.ProtoMetal,
+		Genre.AcidRock, Genre.ProtoPunk, Genre.PsychedelicPop, Genre.Childrens,
+		Genre.Ska, Genre.Rocksteady, Genre.Reggae, Genre.Classical,
+	};
+
+	// Values below are the section-3 table verbatim.
+	private static readonly Dictionary<Genre, int[]> ChartSlotBenchmark = new() {
+		//                          1960 61  62  63  64  65  66  67  68  69
+		[Genre.Soul]            = new[]{ 6,  9,  7, 15, 14, 22, 22, 28, 28, 28 },
+		[Genre.TraditionalPop]  = new[]{22, 16, 15, 20, 14, 11,  8,  9, 12,  7 },
+		[Genre.TeenPop]         = new[]{28, 18, 20,  8,  5,  7,  6,  9,  2,  2 },
+		[Genre.RnB]             = new[]{12, 18, 28, 21, 10,  2,  3,  0,  0,  0 },
+		[Genre.RockAndRoll]     = new[]{14, 12, 12, 11,  8,  3,  6,  6,  5,  2 },
+		[Genre.Country]         = new[]{ 9,  7,  7,  8,  2,  1,  2,  2,  1,  3 },
+		[Genre.DooWop]          = new[]{ 7, 10,  6,  3,  0,  0,  0,  1,  0,  0 },
+		[Genre.EasyListening]   = new[]{ 5,  8,  8,  5,  3,  4,  5,  0,  6,  8 },
+		[Genre.SurfRock]        = new[]{ 3,  2,  1,  6,  9,  2,  3,  0,  0,  1 },
+		[Genre.Comedy]          = new[]{ 3,  3,  2,  3,  1,  0,  0,  2,  0,  1 },
+		[Genre.Folk]            = new[]{ 1,  1,  3,  7,  3,  2,  1,  2,  2,  0 },
+		[Genre.BritishBeat]     = new[]{ 0,  0,  0,  0, 24, 15,  8,  3,  3,  0 },
+		[Genre.BritishPop]      = new[]{ 0,  0,  0,  0,  2, 12,  6,  7,  3,  4 },
+		[Genre.FolkRock]        = new[]{ 0,  0,  0,  0,  0, 12, 14,  6,  5,  3 },
+		[Genre.GarageRock]      = new[]{ 0,  0,  0,  0,  3,  5, 12,  4,  1,  1 },
+		[Genre.BritishBlues]    = new[]{ 0,  0,  0,  0,  0,  5,  3,  2,  0,  0 },
+		[Genre.SunshinePop]     = new[]{ 0,  0,  0,  0,  0,  0,  4, 10,  4, 12 },
+		[Genre.PsychedelicRock] = new[]{ 0,  0,  0,  0,  0,  0,  1,  9, 10,  6 },
+		[Genre.Bubblegum]       = new[]{ 0,  0,  0,  0,  0,  0,  0,  0,  7,  9 },
+		[Genre.Funk]            = new[]{ 0,  0,  0,  0,  0,  1,  0,  1,  4,  6 },
+		[Genre.HardRock]        = new[]{ 0,  0,  0,  0,  0,  0,  0,  1,  5,  3 },
+		[Genre.Jazz]            = new[]{ 0,  1,  1,  0,  1,  1,  0,  0,  1,  2 },
+		[Genre.CountryRock]     = new[]{ 0,  0,  0,  0,  0,  0,  0,  0,  0,  6 },
+	};
+
+	private static readonly HashSet<Genre> ZeroSlotBenchmarkSet = new(ZeroSlotBenchmarkGenres);
+
+	/// <summary>Historical year-end CHART-SLOT target for a genre in a year, as a fraction of the ~100
+	/// slot chart (0..1). Returns false when the genre has no benchmark row, so the caller does not treat
+	/// "no benchmark" as "target is zero" (an unbenchmarked genre is left un-guarded). A benchmark of 0
+	/// slots is a real target (the genre should not chart that year) and returns true with share 0.</summary>
+	public static bool TryGetChartSlotShare(Genre genre, int year, out float share) {
+		share = 0f;
+		if (ZeroSlotBenchmarkSet.Contains(genre)) return true;   // real zero target, not "no target"
+		if (!ChartSlotBenchmark.TryGetValue(genre, out int[] slots)) return false;
+		int clamped = Math.Clamp(year, 1960, 1969);
+		share = slots[clamped - 1960] / 100f;
+		return true;
 	}
 
 	public static IReadOnlyList<GenreProfile> All => AllProfiles;

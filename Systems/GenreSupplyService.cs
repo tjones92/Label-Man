@@ -176,8 +176,40 @@ public static class GenreSupplyService {
 		float concentrationBrake = 1f / (1f + Mathf.Min(recent, 8) * .06f);
 		float globalConcentrationBrake = GetGlobalConcentrationBrake(canonical, globalRecentSupply);
 		float britishBridge = GetBritishBridgeWeight(canonical, year);
-		return Mathf.Max(.000001f, demand * artistFit * labelFit * lifecycle * concentrationBrake * globalConcentrationBrake * britishBridge);
+		return Mathf.Max(.000001f, demand * artistFit * labelFit * lifecycle * concentrationBrake
+			* globalConcentrationBrake * britishBridge * FormationAffinity(canonical));
 	}
+
+	// ---- FORMATION AFFINITY --------------------------------------------------------------------
+	// How many ACTS a genre attracts, as distinct from how many LISTENERS it has. Everything else in
+	// this weight descends from `demand`, i.e. the audience baseline -- which silently asserts that a
+	// genre's share of working musicians equals its share of the record-buying public. For most genres
+	// that is a fair default. For Country it is simply false, and the model shows the damage:
+	//
+	//   Country artist-population share  6.48% (1960) -> 5.50% (1969)     [falling]
+	//   Country market unit-share target 8.38% (1960) -> 11.69% (1969)    [rising]
+	//
+	// Two things make baseline the wrong lever here. First, market share tracks eligibleRecords
+	// (r=0.938 at 1969) far more than baseline (0.756), and Country's realised acceptance is already
+	// 0.854-1.00 by region -- it SATURATES at 1.000 in the Southwest -- so extra baseline stops
+	// transmitting to the market entirely. Second, this weight is a SHARE over every available genre,
+	// and the roster roughly doubles across the decade as new genres emerge, so a flat-baseline genre
+	// is diluted by proliferation even when nothing about it changed. Country is exactly that: its
+	// baseline is near-flat (.535 -> .68) while its historical target rises.
+	//
+	// Historically Country's working-act population was enormous relative to its Hot 100 presence --
+	// the Nashville session/songwriter economy, the honky-tonk and package-tour circuit, and a
+	// regional radio ecology that supported full-time acts who never charted pop. That is precisely a
+	// formation-side fact that no audience baseline encodes.
+	//
+	// Deliberately narrow: one genre, default 1.0 for everything else, so this cannot quietly re-weight
+	// the calibrated genre balance. NOTE it applies to project selection as well as artist formation
+	// (both route through GetSupplyWeight), so the two compound -- 1.6 was chosen over the ~1.9 the
+	// population gap alone implies for that reason.
+	private static float FormationAffinity(Genre canonical) => canonical switch {
+		Genre.Country => 1.6f,
+		_ => 1f
+	};
 
 	internal static float GetProspectiveSupplyAcceptanceForProbe(Genre genre, MarketRegion region, float year) {
 		Genre canonical = GenreCatalog.MapLegacy(genre, (int)MathF.Floor(year));

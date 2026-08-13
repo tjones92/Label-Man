@@ -347,6 +347,7 @@ public partial class ChartManager : Node {
 		payolaLedger = new PayolaLedger(stationNetwork, stationSeed ^ PayolaSeedSalt);
 		stationNetwork.ActivePayolaLookup = payolaLedger.ActivePayola;   // candidacy reads player bribes here
 		GD.Print($"ChartManager: Station panel built -- {stationNetwork.StationCount} reporter stations across {allRegions?.Length ?? 0} regions");
+		stationNetwork.LogProjectedMix(allRegions);
 
 		// 7. Pre-warm
 		GD.Print("=== INITIALIZATION STEP 5: Pre-warm ===");
