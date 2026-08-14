@@ -739,7 +739,7 @@ Cultural ledger live: 246 events from 150 distinct source acts in three years.
 one. Split via `HitInfluenceWeight = .55` vs `LandmarkInfluenceWeight = 1.0`: a hit makes
 other acts want to do that; a landmark changes what they think a record can be.
 
-### 7b.7 BLOCKED — `CohesiveAlbumMovement` has no artist-made records to propagate
+### 7b.7 RESOLVED — a landmark album is a body of work, not a concept album
 
 Two further defects surfaced chasing it, both of which had to be fixed before the real one
 was visible.
@@ -778,20 +778,66 @@ only 0.53. It fires **zero times in seven years**.
 **Consequence: `CohesiveAlbumMovement` cannot fire before 1967 by construction.** No run
 ending before 1967 can test it, which is why the 3-year and 7-year runs both returned zero.
 
-**Two decisions owed before the decade A/B** (both touch calibrated surfaces, so neither was
-taken unilaterally):
+### 7b.8 The resolution — and the definition that was wrong
 
-1. **Is the SmoothStep call a bug or the calibration?** Fixing it moves `thematicCohesion` →
-   `CalculatePooledAppeal` → `hookStrength` → the album chart and album unit share, all of
-   which are calibrated. Note the surrounding comment ("no concept album was reachable
-   anywhere in the decade before 1967, which the artifacts confirm") *matches* current
-   behaviour, so 1967+ is as intended — only the 1965–66 pioneer window is measurably dead.
-2. **Should a blockbuster soundtrack be a cultural landmark?** West Side Story plausibly was.
-   They are currently excluded solely because they carry no `artistId`, which is an accident
-   of representation rather than a decision.
+**A landmark album is not a concept album.** Neither Rubber Soul nor Pet Sounds was one. The
+rule was stated against `thematicCohesion`, which is wrong twice: it is the concept-album axis
+*and* it is the field the era ceiling clamps to 0.08. Restated against
+`AlbumModel.GetAlbumIntegrity` — **mean track quality against the best track** — which is a
+fact about the tracks and therefore reachable in any year.
 
-**Still owed:** the decade A/B against the 303.8 bundle. Salience constants are sized off a
-single 3-year window and are the most likely thing to want moving.
+**Singles are not disqualifying.** Rubber Soul and Pet Sounds both carried hits. A hit raises
+the peak; what decides the record is whether the other ten sides stand up beside it. Integrity
+reads UNDECAYED quality, since freshness is about commercial life remaining, not about how
+good a song is.
+
+**Soundtracks stay out**, now explicitly via `IsEligibleFormat` rather than incidentally via an
+empty `artistId`. They sit with comedy, children's and classical as an odd entity — culturally
+weighty sometimes, but not the album-as-art movement.
+
+**`LegitimacyStartYear` 1964 → 1960.** Jazz established the album as a serious form before pop
+reached for it, and that chain is now emergent rather than authored: early jazz landmarks
+accumulate legitimacy → legitimacy lifts the cohesion ceiling → the lifted ceiling is what
+lets mid-decade rock records become statements. Rarity keeps the early ones scarce.
+
+**Target: 25–40 landmarks across the WHOLE DECADE** — a handful of jazz records before 1965,
+then three or four a year. Plenty of albums are cohesive, ambitious and well reviewed; almost
+none are landmarks, and that gap is what the bar exists to create.
+
+**Calibration trap, recorded because it will recur.** A bar carried across from another
+quantity is meaningless until checked against the new distribution. Track qualities within one
+album cluster tightly (sd .045), so mean-vs-peak sits at **.823 for an ordinary record** — the
+inherited 0.72 bar admitted **98%** of eligible albums, minted 347 landmarks in two years and
+saturated legitimacy by 1965. Now .92 (~99.3rd pct) plus a separate **merit** gate at .78,
+because integrity alone says a record is consistent, not that it is worth consistently
+listening to; a uniformly mediocre album scores well on a ratio.
+
+Estimation method validated: a static join over composition × chart predicted ~17 landmarks
+for 1964–65 at the interim bars; the run produced **19**.
+
+### 7b.9 The album shift is a rock phenomenon
+
+Album integrity measured **flat across genres** (0.823–0.831), so landmarks came out as genre
+noise. That is wrong about the period in a specific way: jazz cut LPs as bodies of work from
+the start and had no revolution to undergo, while pop and rock began as a hit with filler
+around it. `AlbumModel.GetTrackConsistency` gives each family an innate starting point
+(jazz/classical .80, blues .55, folk .50, gospel .45, rest .20) and lets it learn at
+`GetAlbumRevolutionSusceptibility × GetAlbumEraWeight` — so rock (.80) travels most of the
+distance by 1969 and pop (.12) largely does not.
+
+Spent as **variance, not level**: raising jazz track quality would worsen a known miss (the
+model already over-weights jazz on the early album chart), whereas narrowing the spread raises
+the body-of-work reading while slightly *lowering* peak-driven chart appeal. Draw count
+unchanged, so the RNG stream is untouched.
+
+**Known gap:** the historical jazz concentration of pre-1965 landmarks now has a mechanism,
+but whether it actually produces one is unverified until a run with this change lands.
+
+**Still owed:** the decade A/B against the 303.8 bundle — now with album unit share and
+album-chart genre mix in scope, since album generation is touched. Salience constants are
+sized off a single 3-year window and remain the most likely thing to want moving. The
+SmoothStep defect is deferred to its own commit and A/B (see 7b.7); it no longer blocks
+anything here.
 
 ## 8. Validation protocol
 
