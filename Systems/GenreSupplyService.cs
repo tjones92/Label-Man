@@ -177,7 +177,7 @@ public static class GenreSupplyService {
 		float globalConcentrationBrake = GetGlobalConcentrationBrake(canonical, globalRecentSupply);
 		float britishBridge = GetBritishBridgeWeight(canonical, year);
 		return Mathf.Max(.000001f, demand * artistFit * labelFit * lifecycle * concentrationBrake
-			* globalConcentrationBrake * britishBridge * FormationAffinity(canonical));
+			* globalConcentrationBrake * britishBridge * FormationAffinity(canonical, year));
 	}
 
 	// ---- FORMATION AFFINITY --------------------------------------------------------------------
@@ -202,12 +202,36 @@ public static class GenreSupplyService {
 	// regional radio ecology that supported full-time acts who never charted pop. That is precisely a
 	// formation-side fact that no audience baseline encodes.
 	//
-	// Deliberately narrow: one genre, default 1.0 for everything else, so this cannot quietly re-weight
-	// the calibrated genre balance. NOTE it applies to project selection as well as artist formation
-	// (both route through GetSupplyWeight), so the two compound -- 1.6 was chosen over the ~1.9 the
-	// population gap alone implies for that reason.
-	private static float FormationAffinity(Genre canonical) => canonical switch {
-		Genre.Country => 1.6f,
+	// Deliberately narrow: default 1.0 for everything else, so this cannot quietly re-weight the
+	// calibrated genre balance. NOTE it applies to project selection as well as artist formation (both
+	// route through GetSupplyWeight), though 71% of project selections are Retained and never reach
+	// this weight, so formation carries most of the effect.
+	//
+	// MEASURED ELASTICITY (mix6 -> mix7, the 1.0 -> 1.6 Country step over a full decade): 1969 Country
+	// market share moved 5.98% -> 8.25%, so realised share goes as roughly affinity^0.68. Both values
+	// below are sized off that exponent, and both deliberately UNDERSHOOT their target: the exponent
+	// comes from a single step, the two genres now compete for the same formation pool, and this weight
+	// is zero-sum across every available genre.
+	//
+	// COUNTRY, flat 2.2. Uniformly under target all decade (realised/target 0.62-0.85, no year above
+	// 0.85), so the deficit has no shape and a flat multiplier is the honest fit. Predicts ~10.2% at
+	// 1969 against an 11.69% target.
+	//
+	// SOUL, ramped 1.0 (<=1962) -> 1.8 (1968+). NOT flat, and this is the point: Soul is OVER its target
+	// early -- realised/target 1.36/1.63/1.35 for 1960-62 -- and under from 1964 on, reaching 0.69 by
+	// 1969. A flat raise would buy the late years by making a real early over-shoot worse. The ramp
+	// leaves 1960-62 untouched and lifts only the years actually short. It is also the historically
+	// literal shape: the number of working soul acts exploded across the decade as the Motown, Stax and
+	// Atlantic rosters grew, which is a formation fact and not an audience-baseline one. Predicts ~18%
+	// at 1969 against a 17.53% target, sized slightly high because Country's simultaneous rise to 2.2
+	// pulls from the same pool.
+	private const float SoulAffinityEarly = 1f, SoulAffinityLate = 1.8f;
+	private const int SoulAffinityRampStart = 1962, SoulAffinityRampEnd = 1968;
+
+	private static float FormationAffinity(Genre canonical, float year) => canonical switch {
+		Genre.Country => 2.2f,
+		Genre.Soul => Mathf.Lerp(SoulAffinityEarly, SoulAffinityLate,
+			Mathf.Clamp((year - SoulAffinityRampStart) / (SoulAffinityRampEnd - SoulAffinityRampStart), 0f, 1f)),
 		_ => 1f
 	};
 
