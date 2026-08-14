@@ -57,6 +57,11 @@ public static class ArtistEvolutionProbeSuite {
 			ProbeRecognitionIsSeparableFromCommerce();     // 32
 			ProbeMeritIgnoresReception();                  // 33
 			ProbeCulturalMemoryPropagatesAndCounts();      // 34
+			ProbeLandmarkIsNotAConceptAlbum();             // 35
+			results.Add("Artist-evolution fixed probe 35 passed (a landmark album is a body of work rather " +
+				"than a concept album, may carry hit singles, is reachable in 1965 because it is not gated " +
+				"on the concept-album era ceiling, excludes compilations/live/soundtracks, and lets the " +
+				"critics hear coherence in a year the cohesion ceiling is clamped shut)");
 			results.Add("Artist-evolution fixed probes 27-34 passed (commercial pressure with no floor, " +
 				"peer influence able to win a motive on normalised salience, CohesiveAlbumMovement and " +
 				"CriticalBreakthrough with real writers, label pressure driven by its own motive rather " +
@@ -628,16 +633,20 @@ public static class ArtistEvolutionProbeSuite {
 
 	private static void ProbeLandmarkBarAndEarliness() {
 		const float over = 1f;
-		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear - 1, over, over),
+		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear - 1, over, over, over),
 			"22a legitimacy is hard-zero before its start year, however good the record");
 		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1,
-			AlbumLegitimacyService.LandmarkCohesionBar * .5f, over),
+			AlbumLegitimacyService.LandmarkIntegrityBar * .5f, over, over),
 			"22b a record that did not hang together is not a landmark however well it sold");
 		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1, over,
+			AlbumLegitimacyService.LandmarkMeritBar * .5f, over),
+			"22b2 nor is a consistent record that is consistently mediocre -- a ratio rewards " +
+			"uniformity, so merit has to be gated separately from integrity");
+		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1, over, over,
 			AlbumLegitimacyService.LandmarkRecognitionBar * .5f),
-			"22c cohesion alone in private is not a movement; it has to have been heard");
-		Require(AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1, over, over),
-			"22d a cohesive record that succeeded in public is a landmark");
+			"22c a body of work made in private is not a movement; it has to have been heard");
+		Require(AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1, over, over, over),
+			"22d a strong body of work that reached people is a landmark");
 
 		// Earliness is measured against the MOVEMENT, not the calendar. The regression this
 		// pins: the old year ramp hit exactly zero in 1969, the year the model produced the
@@ -885,7 +894,7 @@ public static class ArtistEvolutionProbeSuite {
 		// A record nobody bought, by an act nobody has heard of.
 		(float unheard, _) = CulturalRecognitionService.Consume("rec_a", peakPosition: 0, artistStanding: 0f);
 		Require(unheard == 0f, "32a a record that did not chart, by an act with no standing, reached nobody");
-		Require(!AlbumLegitimacyService.IsLandmark(year, 1f, unheard),
+		Require(!AlbumLegitimacyService.IsLandmark(year, 1f, 1f, unheard),
 			"32b however well made, it is not yet a landmark");
 
 		// The trade press notices it. Nothing else about the record has changed.
@@ -896,7 +905,7 @@ public static class ArtistEvolutionProbeSuite {
 			"32c a record the press carried has public standing without having charted at all");
 		Require(channel == RecognitionChannel.Press,
 			"32d and the ledger can say which channel is responsible for it");
-		Require(AlbumLegitimacyService.IsLandmark(year, 1f, reviewed),
+		Require(AlbumLegitimacyService.IsLandmark(year, 1f, 1f, reviewed),
 			"32e so it clears the landmark bar through the same door, with no rule changed");
 
 		// Recognition is conferred once, not re-counted on every read.
@@ -911,6 +920,59 @@ public static class ArtistEvolutionProbeSuite {
 	/// Merit is intrinsic. The journalism layer must be able to change how widely a record is
 	/// known WITHOUT changing what the record is, or the two layers are one layer.
 	/// </summary>
+	/// <summary>
+	/// A landmark album is not a concept album, and having hit singles on it is not
+	/// disqualifying. Both readings were wrong in the first cut: the rule was stated against
+	/// thematicCohesion, which is the concept axis AND is pinned to its clamp floor by the era
+	/// ceiling until 1966, so no artist-made record could qualify before 1967 however good.
+	/// </summary>
+	private static void ProbeLandmarkIsNotAConceptAlbum() {
+		// Both fixtures are DERIVED from the bar rather than hard-coded near it: a fixture that
+		// sits at a literal "just above" inverts silently the moment the bar is re-derived,
+		// which has already cost this project once.
+		const int trackCount = 11;
+		float bar = AlbumLegitimacyService.LandmarkIntegrityBar;
+		// With a peak of 1.0, integrity is just the mean, so solve for the album-track quality
+		// that lands a comfortable margin clear of the bar.
+		float clearsBar = (trackCount * (bar + .03f) - 1f) / (trackCount - 1);
+		// One strong side carrying ten weak ones: a hit with filler around it.
+		var filler = new List<float> { 1f };
+		for (int index = 0; index < trackCount - 1; index++) filler.Add(bar * .40f);
+		// The same hit, on a record where the rest of it stands up. Pet Sounds had three
+		// singles on it; what made it a body of work is that the album tracks were as strong.
+		var bodyOfWork = new List<float> { 1f };
+		for (int index = 0; index < trackCount - 1; index++) bodyOfWork.Add(clearsBar);
+
+		float fillerIntegrity = AlbumModel.GetAlbumIntegrity(filler);
+		float realIntegrity = AlbumModel.GetAlbumIntegrity(bodyOfWork);
+		Require(realIntegrity > fillerIntegrity,
+			"35a a record whose album tracks stand up reads as more of a record than a hit plus filler");
+		Require(realIntegrity >= AlbumLegitimacyService.LandmarkIntegrityBar,
+			"35b ...and clears the landmark bar WITH a hit single on it -- singles are not disqualifying");
+		Require(fillerIntegrity < AlbumLegitimacyService.LandmarkIntegrityBar,
+			"35c ...while the hit-plus-filler record does not, however big the hit");
+
+		// The bar is reachable in 1965. This is the regression: stated against cohesion it was
+		// unreachable until 1967 because the era ceiling clamps that field to 0.08 before then.
+		Require(AlbumLegitimacyService.IsLandmark(1965, realIntegrity, 1f, 1f),
+			"35d a body of work released in 1965 can be a landmark; the rule is not gated on " +
+			"the concept-album era ceiling");
+		Require(AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Standard) &&
+			AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Concept),
+			"35e a landmark need not be a concept album -- a purpose-made standard LP qualifies");
+		Require(!AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Compilation) &&
+			!AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Live) &&
+			!AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Soundtrack),
+			"35f but a compilation, a live document and a soundtrack are not new bodies of work");
+
+		// Merit must not collapse for a pre-1966 album just because cohesion is clamped.
+		float clampedCohesion = .08f;
+		float withBody = ArtisticMeritService.GetCraft(.80f, .70f, clampedCohesion, isAlbum: true, .80f, realIntegrity);
+		float withoutBody = ArtisticMeritService.GetCraft(.80f, .70f, clampedCohesion, isAlbum: true, .80f, 0f);
+		Require(withBody > withoutBody,
+			"35g and the critics hear the body of work even in a year the cohesion ceiling is clamped shut");
+	}
+
 	private static void ProbeMeritIgnoresReception() {
 		float ambitious = ArtisticMeritService.GetFormatAmbition(ReleaseFormat.Album, AlbumFormat.Concept);
 		float assembled = ArtisticMeritService.GetFormatAmbition(ReleaseFormat.Album, AlbumFormat.Compilation);

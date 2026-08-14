@@ -3059,6 +3059,13 @@ public partial class CompetitorManager : Node {
 		IEnumerable<float> qualities = referencedSingles.Select((track, index) => track.quality * referencedFreshness[index])
 			.Concat(nonSingleTracks.Select(track => track.quality));
 		album.pooledAppeal = AlbumModel.CalculatePooledAppeal(qualities, album.thematicCohesion, year);
+		// Integrity reads UNDECAYED quality. Freshness is a statement about how much commercial
+		// life a side has left, not about how good it is, and a record does not stop being a
+		// body of work because two of its songs were hits first -- Rubber Soul and Pet Sounds
+		// both carried singles. What distinguishes them is that the rest of the record is as
+		// strong, which is exactly what the mean-against-peak ratio measures.
+		album.bodyOfWork = AlbumModel.GetAlbumIntegrity(
+			referencedSingles.Select(track => track.quality).Concat(nonSingleTracks.Select(track => track.quality)));
 		return album;
 	}
 
@@ -3116,6 +3123,11 @@ public partial class CompetitorManager : Node {
 			(index < album.trackRefFreshnessApplied.Length ? album.trackRefFreshnessApplied[index] : 1f))
 			.Concat(album.nonSingleTracks.Select(track => track.quality));
 		album.pooledAppeal = AlbumModel.CalculatePooledAppeal(qualities, album.thematicCohesion, albumRecord.releaseDate.year > 0 ? albumRecord.releaseDate.year : (TimeManager.Instance?.CurrentDate.year ?? 1960));
+		// Lifting a promo single off the record changes its track list, so the body-of-work
+		// reading is retaken. Pulling a hit single off an album must not, by itself, stop it
+		// being an album.
+		album.bodyOfWork = AlbumModel.GetAlbumIntegrity(
+			album.trackRefs.Select(track => track.quality).Concat(album.nonSingleTracks.Select(track => track.quality)));
 		return promo;
 	}
 

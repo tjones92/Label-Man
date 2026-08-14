@@ -16,21 +16,81 @@ using Godot;
 /// </para>
 /// </summary>
 public static class AlbumLegitimacyService {
-	/// <summary>Hard zero before this year. Nothing had happened yet that could be leaned on.</summary>
-	public const int LegitimacyStartYear = 1964;
+	/// <summary>
+	/// Landmarks are possible from the start of the simulation. This was 1964, which was
+	/// wrong: the album as a serious form was established by jazz well before pop reached for
+	/// it — Giant Steps is 1960 — and those records are exactly what made the LP a thing a
+	/// rock act could take seriously five years later.
+	/// <para>
+	/// That chain is now emergent rather than authored: early landmarks accumulate
+	/// <see cref="Legitimacy"/>, legitimacy lifts the cohesion ceiling, and the lifted ceiling
+	/// is what lets mid-decade pop records become statements. Nothing needs to know the order
+	/// in advance. Rarity, not a year gate, is what keeps the early ones scarce.
+	/// </para>
+	/// </summary>
+	public const int LegitimacyStartYear = 1960;
 	/// <summary>
 	/// How far legitimacy may pull the cohesion ceiling forward. The existing curve remains
 	/// the floor AND the shape; legitimacy can bring it forward in time, not rewrite it.
 	/// </summary>
 	public const float MaxCeilingLift = .25f;
-	/// <summary>A record has to have actually hung together to count.</summary>
-	public const float LandmarkCohesionBar = .72f;
+	/// <summary>
+	/// A record has to have been an ALBUM to count -- a body of work rather than a smattering
+	/// of singles with other songs around it.
+	/// <para>
+	/// Stated against <see cref="AlbumModel.GetAlbumIntegrity"/> and NOT against
+	/// <see cref="Album.thematicCohesion"/>, because thematic cohesion is the concept-album
+	/// axis and a landmark album is not the same thing as a concept album -- neither Rubber
+	/// Soul nor Pet Sounds was one. Cohesion is also gated by the era ceiling, which pins it
+	/// to its 0.08 clamp floor for every artist-made album before 1966; a rule stated against
+	/// it therefore could not fire until 1967 no matter how good the record was.
+	/// </para>
+	/// </summary>
+	/// <para>
+	/// Sized against the measured distribution, not by intuition. Track qualities on one album
+	/// cluster tightly (sd .045), so the mean-against-peak ratio sits at .823 for an ordinary
+	/// record: a .72 bar admitted 98% of eligible albums and minted 347 landmarks in two
+	/// years. .92 is roughly the 99.3rd percentile.
+	/// </para>
+	public const float LandmarkIntegrityBar = .92f;
+	/// <summary>
+	/// A body of work also has to be GOOD. Integrity alone says the record is consistent, not
+	/// that it is worth consistently listening to — a uniformly mediocre album scores well on
+	/// a ratio.
+	/// <para>
+	/// TARGET, and these two bars exist to hit it: 25-40 landmarks across the WHOLE DECADE.
+	/// Roughly a handful of jazz records before 1965, then three or four a year — 1965 Rubber
+	/// Soul and Highway 61; 1966 Revolver, Pet Sounds, Blonde on Blonde; 1967 Sgt. Pepper,
+	/// Are You Experienced, The Doors, the Velvet Underground; and so on. Plenty of other
+	/// albums are cohesive, ambitious and well reviewed. Almost none of them are landmarks,
+	/// and the gap between those two populations is the whole point of the bar.
+	/// </para>
+	/// </summary>
+	public const float LandmarkMeritBar = .78f;
+	/// <summary>
+	/// Formats that can be one. A compilation is assembled from sides that already existed and
+	/// a live record documents them; neither is a new body of work. Soundtracks are excluded
+	/// as a class -- they sit with comedy, children's and classical as an odd entity whose
+	/// cultural weight, real as it sometimes was, is not the album-as-art movement.
+	/// </summary>
+	public static bool IsEligibleFormat(AlbumFormat format) =>
+		format is AlbumFormat.Standard or AlbumFormat.Concept;
 	/// <summary>
 	/// ...and its merit has to have reached somebody. Recognition, not chart position:
 	/// the bar is deliberately stated against <see cref="CulturalRecognitionService"/> so
 	/// that a press channel can clear it for a record that never charted at all.
 	/// </summary>
 	public const float LandmarkRecognitionBar = .45f;
+	/// <summary>
+	/// Sized so ~30 landmarks across a decade carry legitimacy to roughly 0.6-0.8 by 1969 —
+	/// a movement that builds and is nearly complete, never one that arrives complete.
+	/// <para>
+	/// This value briefly went to .02 while the integrity bar was admitting 347 landmarks in
+	/// two years and saturating legitimacy at 1.0 by 1965. That was the bar being wrong, not
+	/// this rate; with the bar fixed the original value is right. The loop is self-limiting
+	/// anyway — earliness is `1 − Legitimacy`, so each landmark is worth less than the last.
+	/// </para>
+	/// </summary>
 	public const float ContributionPerLandmark = .06f;
 	/// <summary>
 	/// A landmark still counts for something once the movement is everywhere -- less, but
@@ -64,8 +124,9 @@ public static class AlbumLegitimacyService {
 	public static float GetEarliness(int year) => year < LegitimacyStartYear ? 0f :
 		Mathf.Max(MinimumEarliness, 1f - Mathf.Clamp(Legitimacy, 0f, 1f));
 
-	public static bool IsLandmark(int year, float thematicCohesion, float recognition) =>
-		year >= LegitimacyStartYear && thematicCohesion >= LandmarkCohesionBar && recognition >= LandmarkRecognitionBar;
+	public static bool IsLandmark(int year, float bodyOfWork, float merit, float recognition) =>
+		year >= LegitimacyStartYear && bodyOfWork >= LandmarkIntegrityBar &&
+		merit >= LandmarkMeritBar && recognition >= LandmarkRecognitionBar;
 
 	/// <summary>
 	/// The era term with legitimacy applied. Clamped to at most <see cref="MaxCeilingLift"/>
@@ -113,9 +174,12 @@ public static class AlbumLegitimacyService {
 		if (record.landmarkPublished) return;
 		Album album = record.baseRecord?.album;
 		if (album == null || record.baseRecord.format != ReleaseFormat.Album) return;
-		// Cheapest gate first: cohesion is fixed at pressing and most albums fail it outright,
-		// so the weekly offer costs one float compare for the great majority of the chart.
-		if (year < LegitimacyStartYear || album.thematicCohesion < LandmarkCohesionBar) return;
+		// Cheapest gates first: both are fixed at pressing and most albums fail them outright,
+		// so the weekly offer costs a compare and a float test for the great majority of the
+		// chart. Note that having singles on it is NOT disqualifying -- Rubber Soul and Pet
+		// Sounds both carried them. Integrity asks whether the REST of the record stands up.
+		if (year < LegitimacyStartYear || !IsEligibleFormat(album.albumFormat)) return;
+		if (album.bodyOfWork < LandmarkIntegrityBar || album.artisticMerit < LandmarkMeritBar) return;
 
 		(float recognition, _) = CulturalRecognitionService.Consume(record.baseRecord.recordId,
 			record.peakPosition, Mathf.Max(artist.reputation, artist.criticalAcclaim));

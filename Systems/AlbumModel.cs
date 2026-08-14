@@ -32,6 +32,28 @@ public static class AlbumModel {
 	/// </summary>
 	public static float GetRetailFulfillmentMaturity(int year) => 1f;
 
+	/// <summary>
+	/// How much of the record is the record: the mean track measured against the best one.
+	/// 1.0 when every side is as strong as the strongest — a body of work — and low when one
+	/// hit is carrying ten pieces of filler.
+	/// <para>
+	/// This is deliberately NOT <see cref="Album.thematicCohesion"/>, and the distinction is
+	/// the whole point. Cohesion is the concept-album axis and is gated by the era ceiling,
+	/// which pins it to the 0.08 clamp floor for every artist album before 1966. Rubber Soul
+	/// and Pet Sounds were not concept albums; what made them landmarks is that they were
+	/// albums rather than a smattering of singles with other songs around them. That property
+	/// is a fact about the tracks and is available in any year, which is why the landmark rule
+	/// is stated against this and not against cohesion.
+	/// </para>
+	/// </summary>
+	public static float GetAlbumIntegrity(IEnumerable<float> trackQualities) {
+		float[] qualities = trackQualities?.Select(quality => Mathf.Clamp(quality, 0f, 1f)).ToArray()
+			?? System.Array.Empty<float>();
+		if (qualities.Length == 0) return 0f;
+		float peakTrack = qualities.Max();
+		return peakTrack <= 0f ? 0f : Mathf.Clamp(qualities.Average() / peakTrack, 0f, 1f);
+	}
+
 	public static float CalculatePooledAppeal(IEnumerable<float> trackQualities, float thematicCohesion, int year) {
 		float[] qualities = trackQualities?.Select(quality => Mathf.Clamp(quality, 0f, 1f)).ToArray()
 			?? System.Array.Empty<float>();

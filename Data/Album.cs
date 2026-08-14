@@ -26,6 +26,10 @@ public partial class Album : Resource {
 	// weekly album chart without a label lookup, and so that "a record nobody bought has
 	// exactly the merit it had the day it was pressed" is true by construction.
 	[Export(PropertyHint.Range, "0,1")] public float artisticMerit;
+	// Album-as-a-body-of-work, distinct from thematicCohesion's concept-album axis. See
+	// AlbumModel.GetAlbumIntegrity: this is what makes a Rubber Soul, and unlike cohesion it
+	// is reachable in any year because it is a fact about the tracks, not an era ceiling.
+	[Export(PropertyHint.Range, "0,1")] public float bodyOfWork;
 	[Export] public bool isStereo;
 
 	// Set only on externally-originated soundtrack/cast albums (albumFormat == Soundtrack).
