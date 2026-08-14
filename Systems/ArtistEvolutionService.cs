@@ -19,10 +19,16 @@ public static class ArtistEvolutionService {
 		public ArtistArcPhase phase;
 		public float commercialPressure;
 		public float artisticPressure;
+		public float criticalPressure;
 		public float peerPressure;
 		public float labelPressure;
 		public float internalPressure;
 		public float resistance;
+		/// <summary>The winning motive's normalised score, so a mistuned salience is visible in the ledger.</summary>
+		public float dominantSalience;
+		/// <summary>Who the act took it from, when a peer record is what moved them. Empty otherwise.</summary>
+		public string influenceSourceArtistId;
+		public ArtistInfluenceType influenceType;
 		public bool ratified;
 		// Diagnosis columns. Section 8's rule on this project is that mechanism claims
 		// reasoned from annual rollups have been flatly wrong and decision telemetry
@@ -153,7 +159,7 @@ public static class ArtistEvolutionService {
 		// Recomputed once per project, then read as two floats by the supply weight on the
 		// NEXT selection. With the phase off every pressure term stays 0 and restlessness
 		// stays 0, which is the neutral case that reproduces Phase 1 exactly.
-		AlbumLegitimacyService.AbsorbLandmarks(artist, year);
+		CulturalMemoryService.AbsorbForArtist(artist, year);
 		if (ArtistEvolution.PressureEnabled) ArtistEvolutionPressureService.Evaluate(artist, label, year);
 		EvaluateAndMaybeRatify(artist, year);
 	}
@@ -172,6 +178,20 @@ public static class ArtistEvolutionService {
 		if (peakPosition > 0 && peakPosition <= 40) era.top40Releases++;
 		if (charted && (era.bestPeakPosition == 0 || peakPosition < era.bestPeakPosition)) era.bestPeakPosition = peakPosition;
 		if (cohesiveAlbum) era.cohesiveAlbums++;
+	}
+
+	/// <summary>
+	/// Which act's record is currently sitting hardest on this one. Written to the ledger so
+	/// a conversion can be traced to the specific record that caused it -- "who influenced
+	/// whom" is the question the whole peer channel exists to answer, and an aggregate
+	/// pressure float cannot answer it.
+	/// </summary>
+	private static string StrongestInfluenceSource(ArtistEvolutionProfile profile) {
+		if (profile.influences == null || profile.influences.Count == 0) return string.Empty;
+		int best = 0;
+		for (int index = 1; index < profile.influences.Count; index++)
+			if (profile.influences[index].strength > profile.influences[best].strength) best = index;
+		return profile.influences[best].sourceArtistId ?? string.Empty;
 	}
 
 	private static void EvaluateAndMaybeRatify(SimulatedArtist artist, int year) {
@@ -198,10 +218,14 @@ public static class ArtistEvolutionService {
 			phase = profile.phase,
 			commercialPressure = profile.commercialPressure,
 			artisticPressure = profile.artisticPressure,
+			criticalPressure = profile.criticalPressure,
 			peerPressure = profile.peerPressure,
 			labelPressure = profile.labelPressure,
 			internalPressure = profile.internalPressure,
 			resistance = profile.resistance,
+			dominantSalience = profile.dominantSalience,
+			influenceSourceArtistId = StrongestInfluenceSource(profile),
+			influenceType = profile.dominantInfluence,
 			ratified = ratify,
 			candidateCount = verdict.CandidateCount,
 			adjacency = verdict.Adjacency,
@@ -326,7 +350,11 @@ public static class ArtistEvolutionService {
 			primaryGenre = to,
 			secondaryGenre = from,
 			phase = profile.phase,
-			trigger = trigger
+			trigger = trigger,
+			// Only when a peer record is what actually moved them. Attributing an era to
+			// another act on any other motive would be inventing a relationship.
+			influencedByArtistId = trigger is ArtistEvolutionTrigger.PeerInfluence
+				or ArtistEvolutionTrigger.CohesiveAlbumMovement ? StrongestInfluenceSource(profile) : null
 		};
 		// The opening line is written from the motive, which is known now; the outcome
 		// clause is added when the era closes and there is something to report.
@@ -338,21 +366,53 @@ public static class ArtistEvolutionService {
 		ChargeConversion(from, year);
 	}
 
+	/// <summary>
+	/// How loudly the world itself is arguing for this destination, on the same normalised
+	/// scale the internal pressures are judged on. A genre climate shift is the one motive
+	/// that is a fact about the DESTINATION rather than about the act, so it cannot be
+	/// computed with the others -- it is only meaningful once a candidate exists.
+	/// </summary>
+	private static float ClimateScore(Genre candidate, int year) => GenreCatalog.Get(candidate).GetLifecycle(year) switch {
+		// Everyone is plugging in at once and it would be strange not to.
+		GenreLifecycleState.Emerging => 1.15f,
+		GenreLifecycleState.Established => .35f,
+		_ => 0f
+	};
+
 	private static ArtistEvolutionTrigger DeriveTrigger(SimulatedArtist artist, Genre candidate, int year) {
 		if (candidate == GenreCatalog.MapLegacy(artist.formationPrimaryGenre, year)) return ArtistEvolutionTrigger.BackToRoots;
-		// With motive available, the dominant pressure IS the motive; the outcome-history
-		// reading below is the Phase-1 fallback for when nothing is pressing.
+		float climate = ClimateScore(candidate, year);
+		// With motive available, the dominant pressure IS the motive -- unless the world is
+		// making a louder argument than anything inside the band. This comparison is why the
+		// climate trigger exists at all: it previously sat in the fallback BELOW the pressure
+		// map, and since the old commercial term never read as zero the fallback was
+		// unreachable whenever Phase 2 was on. Turning motive on had switched a Phase-1
+		// trigger off, which is not a trade anyone chose.
 		if (ArtistEvolution.PressureEnabled && artist.evolution.dominantTrigger != ArtistEvolutionTrigger.None &&
-			artist.evolution.restlessness > 0f) return artist.evolution.dominantTrigger;
+			artist.evolution.restlessness > 0f)
+			return climate > artist.evolution.dominantSalience
+				? ArtistEvolutionTrigger.GenreClimateShift
+				: artist.evolution.dominantTrigger;
 		if (artist.consecutiveFlops >= 2) return ArtistEvolutionTrigger.CommercialFailure;
 		if (artist.consecutiveHits >= 2) return ArtistEvolutionTrigger.CommercialBreakthrough;
-		if (GenreCatalog.Get(candidate).GetLifecycle(year) == GenreLifecycleState.Emerging) return ArtistEvolutionTrigger.GenreClimateShift;
+		// The Phase-1 fallback keeps its stricter reading: only an emerging genre, never a
+		// merely established one.
+		if (GenreCatalog.Get(candidate).GetLifecycle(year) == GenreLifecycleState.Emerging)
+			return ArtistEvolutionTrigger.GenreClimateShift;
 		return ArtistEvolutionTrigger.PersonalAmbition;
 	}
 
 	private static ArtistArcPhase DerivePhase(SimulatedArtist artist, ArtistEvolutionTrigger trigger) => trigger switch {
 		ArtistEvolutionTrigger.BackToRoots => ArtistArcPhase.RootsReturn,
 		ArtistEvolutionTrigger.CommercialFailure => ArtistArcPhase.CommercialPivot,
+		// An act that moved because a record moved THEM is reaching for a statement, whatever
+		// its career state says. These two are the only routes to the Conceptual phase, which
+		// is in turn what earns the Innovator reputation -- so the biography, the arc label
+		// and the public reputation all come from the same event.
+		ArtistEvolutionTrigger.CohesiveAlbumMovement or ArtistEvolutionTrigger.CriticalBreakthrough
+			=> ArtistArcPhase.Conceptual,
+		ArtistEvolutionTrigger.PeerInfluence or ArtistEvolutionTrigger.InternalTension
+			=> ArtistArcPhase.Experimental,
 		_ => artist.careerState switch {
 			CareerState.Superstar or CareerState.Star or CareerState.Established => ArtistArcPhase.Consolidation,
 			CareerState.Rising => ArtistArcPhase.Breakthrough,

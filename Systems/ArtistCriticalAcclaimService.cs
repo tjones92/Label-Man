@@ -19,8 +19,12 @@ public static class ArtistCriticalAcclaimService {
 	/// act releasing constantly is judged constantly.
 	/// </summary>
 	public const float RetentionPerRelease = .94f;
-	/// <summary>The bar a record clears before it reads as a critical event at all.</summary>
-	public const float CraftBar = .58f;
+	/// <summary>
+	/// The bar a record clears before it reads as a critical event at all. Owned by
+	/// <see cref="ArtisticMeritService"/> now that merit has its own home; kept as an alias
+	/// so there is exactly one number and callers need not know which file it lives in.
+	/// </summary>
+	public const float CraftBar = ArtisticMeritService.MeritBar;
 	/// <summary>
 	/// The acclaimed-but-didn't-sell case is the interesting one and the one the model had
 	/// no way to express. A high-craft record that missed commercially earns MORE critical
@@ -37,20 +41,16 @@ public static class ArtistCriticalAcclaimService {
 	public const float MaxTotalGainPerRelease = MaxGainPerRelease * (1f + UnderratedBonus);
 
 	/// <summary>
-	/// Craft as the trade press would have heard it: what was new about the record, how
-	/// well it hangs together, and the room it was cut in. For a single the album terms
-	/// are absent, so production stands in for cohesion.
+	/// Craft as the trade press would have heard it. Delegates to the merit layer so the
+	/// critics and the landmark rule are demonstrably reading the same record.
 	/// </summary>
 	public static float GetCraftScore(float originality, float productionQuality, float thematicCohesion,
-		bool isAlbum, float labelProductionQuality) {
-		float coherence = isAlbum ? thematicCohesion : productionQuality;
-		return Mathf.Clamp(.40f * Mathf.Clamp(originality, 0f, 1f) + .35f * Mathf.Clamp(coherence, 0f, 1f) +
-			.25f * Mathf.Clamp(labelProductionQuality, 0f, 1f), 0f, 1f);
-	}
+		bool isAlbum, float labelProductionQuality) =>
+		ArtisticMeritService.GetCraft(originality, productionQuality, thematicCohesion, isAlbum, labelProductionQuality);
 
 	/// <summary>How loudly the public answered. 0 for a record that never charted.</summary>
 	public static float GetCommercialScore(int peakPosition) =>
-		peakPosition <= 0 || peakPosition > 100 ? 0f : Mathf.Clamp((101f - peakPosition) / 100f, 0f, 1f);
+		CulturalRecognitionService.GetCommercialRecognition(peakPosition);
 
 	/// <summary>
 	/// The per-release delta. Bounded on both sides: a run of anonymous product erodes

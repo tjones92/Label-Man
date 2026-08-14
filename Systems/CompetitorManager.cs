@@ -1181,6 +1181,9 @@ public partial class CompetitorManager : Node {
 			albumProjectId = string.Empty
 		};
 		record.title = NameGenerator.Instance?.GenerateSongTitle(genre, date.year, record.artistName) ?? $"Soundtrack {generatedRecordCounter}";
+		// Set for consistency; a soundtrack carries no roster artistId, so it can never publish
+		// a cultural event -- an externally originated tie-in has no act to be influenced BY.
+		album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 
 		// Licensing economics: a high upfront advance, booked like any production spend.
 		label.cashReserves -= licenseFee;
@@ -2977,6 +2980,9 @@ public partial class CompetitorManager : Node {
 			record.hookStrength = record.album.pooledAppeal;
 			record.productionQuality = Mathf.Clamp(record.album.pooledAppeal * 0.75f + label.productionQuality * 0.25f, 0f, 1f);
 			record.danceability = record.album.pooledAppeal;
+			// Fixed the day it is pressed and never revisited. Nothing downstream may change it:
+			// the press layer changes how widely a record's merit is KNOWN, never the merit.
+			record.album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 		}
 		
 		return record;

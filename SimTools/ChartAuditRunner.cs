@@ -193,6 +193,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter artistCohortAnnualWriter;
 	private StreamWriter artistProjectIdentityWriter;
 	private StreamWriter artistEvolutionWriter;
+	private StreamWriter culturalEventWriter;
 	private StreamWriter labelOperatingTargetEventWriter;
 	// The tier ladder had NO per-run ledger. The section 7.2 flow table was built by hand and never
 	// re-derived, so every MidTier hypothesis since has been inference from standing headcounts --
@@ -397,6 +398,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnSupplySelection += OnSupplySelection;
 			GenreSupplyService.OnTraditionalPopFallback += OnTraditionalPopFallback;
 			if (ArtistEvolution.Observing) ArtistEvolutionService.OnEvolutionObservation += OnEvolutionObservation;
+			if (ArtistEvolution.CulturalMemoryEnabled) CulturalMemoryService.OnEventPublished += OnCulturalEventPublished;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			WriteDistanceSubstrateRows();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
@@ -1079,6 +1081,11 @@ public partial class ChartAuditRunner : Node {
 			// and to what" is what sizes the channel before it is allowed to carry anything.
 			if (ArtistEvolution.Observing)
 				artistEvolutionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-evolution.csv"));
+			// The industry's shared memory, one row per record other people noticed. Separate
+			// from the evolution ledger on purpose: an event is a fact about a RECORD, and
+			// most events never move anybody, so counting them from conversions undercounts.
+			if (ArtistEvolution.CulturalMemoryEnabled)
+				culturalEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-cultural-events.csv"));
 			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
 			labelTierTransitionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-tier-transitions.csv"));
 			runtimeLabelProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-runtime-label-profiles.csv"));
@@ -1168,7 +1175,8 @@ public partial class ChartAuditRunner : Node {
 		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
 		artistLaborMarketWeeklyWriter?.WriteLine("seed,week,date,registryPopulation,initialLegacyPopulation,enabledInitialReservePopulation,runtimeFormationPopulation,activeRostered,experiencedFreeAgents,seekingProspects,latentProspects,freshSeeking,freshLatent,affordableHiringVacancies,requestedProspectActivations,actualProspectActivations,prospectSearchSpellExpirations,firstTimeSignings,repeatSignings,meanSeekingQuality,meanLatentQuality,activationMeanQuality,activationQ1,activationQ2,activationQ3,activationQ4,maxProspectMarketSpellCount,duplicateSeekingEntries,latentUnsignedPoolEntries,seekingMissingFromUnsignedPool,prospectStatusContractConflicts,latentRotations");
 		artistCohortAnnualWriter?.WriteLine("year,cohort,formationPrimaryGenre,lifecycleStatus,currentRosterTier,count,firstTimeSignings,repeatSignings,releases,activeUnsigned,seekingProspects,latentProspects,medianActAge,medianMemberAge,inactivityCount,retirementCount,disbandmentCount,activePopulationShare,signedRosterShare");
-		artistEvolutionWriter?.WriteLine("week,year,artistId,eraIndex,fromGenre,toGenre,trigger,phase,commercialPressure,artisticPressure,peerPressure,labelPressure,internalPressure,resistance,ratified,candidateCount,adjacency,block");
+		artistEvolutionWriter?.WriteLine("week,year,artistId,eraIndex,fromGenre,toGenre,trigger,phase,commercialPressure,artisticPressure,criticalPressure,peerPressure,labelPressure,internalPressure,resistance,dominantSalience,influenceSourceArtistId,influenceType,ratified,candidateCount,adjacency,block");
+		culturalEventWriter?.WriteLine("week,year,sequence,artistId,labelId,genre,eventType,merit,recognition,earliness,strength,legitimacy");
 		artistProjectIdentityWriter?.WriteLine("week,year,recordId,projectId,artistId,formedYear,cohort,formationPrimaryGenre,currentArtistGenre,projectGenre,nativeIdentityProject,transitionedProject,labelId,labelTier,format,careerStateAtProject,careerStateBeforeDropAtProject,contractEntryCareerStateAtProject,contractSequenceAtProject,contractStartWeekAtProject,weeksSinceContractStart,experiencedFreeAgentContract");
 		WriteGenreCatalogRows();
 		// bookSettlementSeconds is inclusive of calculateLabelRevenueSeconds. The live-record
@@ -1559,6 +1567,20 @@ public partial class ChartAuditRunner : Node {
 		}));
 	}
 
+	private void OnCulturalEventPublished(CulturalEvent culturalEvent) {
+		if (culturalEventWriter == null) return;
+		culturalEventWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture),
+			culturalEvent.Year.ToString(CultureInfo.InvariantCulture),
+			culturalEvent.Sequence.ToString(CultureInfo.InvariantCulture),
+			Csv(culturalEvent.ArtistId), Csv(culturalEvent.LabelId ?? string.Empty),
+			Csv(culturalEvent.Genre.ToString()), Csv(culturalEvent.Type.ToString()),
+			F(culturalEvent.Merit), F(culturalEvent.Recognition),
+			F(AlbumLegitimacyService.GetEarliness(culturalEvent.Year)), F(culturalEvent.Strength),
+			F(AlbumLegitimacyService.Legitimacy)
+		}));
+	}
+
 	private void OnEvolutionObservation(ArtistEvolutionService.ArtistEvolutionTelemetry observation) {
 		if (artistEvolutionWriter == null) return;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
@@ -1569,10 +1591,14 @@ public partial class ChartAuditRunner : Node {
 			Csv(observation.trigger.ToString()), Csv(observation.phase.ToString()),
 			observation.commercialPressure.ToString("F4", CultureInfo.InvariantCulture),
 			observation.artisticPressure.ToString("F4", CultureInfo.InvariantCulture),
+			observation.criticalPressure.ToString("F4", CultureInfo.InvariantCulture),
 			observation.peerPressure.ToString("F4", CultureInfo.InvariantCulture),
 			observation.labelPressure.ToString("F4", CultureInfo.InvariantCulture),
 			observation.internalPressure.ToString("F4", CultureInfo.InvariantCulture),
 			observation.resistance.ToString("F4", CultureInfo.InvariantCulture),
+			observation.dominantSalience.ToString("F4", CultureInfo.InvariantCulture),
+			Csv(observation.influenceSourceArtistId ?? string.Empty),
+			Csv(observation.influenceType.ToString()),
 			observation.ratified ? "true" : "false",
 			observation.candidateCount.ToString(CultureInfo.InvariantCulture),
 			observation.adjacency.ToString("F4", CultureInfo.InvariantCulture),
@@ -3453,6 +3479,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortDetailWriter?.Flush();
 		supplySelectionWriter?.Flush();
 		artistEvolutionWriter?.Flush();
+		culturalEventWriter?.Flush();
 		traditionalPopFallbackWriter?.Flush();
 		genreShapeWriter?.Flush();
 		yearEndHot100Writer?.Flush();
@@ -3620,6 +3647,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnSupplySelection -= OnSupplySelection;
 		}
 		ArtistEvolutionService.OnEvolutionObservation -= OnEvolutionObservation;
+		CulturalMemoryService.OnEventPublished -= OnCulturalEventPublished;
 		WriteSeasonalityMonthlyRows();
 		if (artistLaborMarketWeeklyWriter != null) {
 			foreach ((int week, string prefix, string suffix) in deferredLaborMarketRows.OrderBy(row => row.Week)) {
@@ -3698,6 +3726,7 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter?.Dispose();
 		artistProjectIdentityWriter?.Dispose();
 		artistEvolutionWriter?.Dispose();
+		culturalEventWriter?.Dispose();
 		labelOperatingTargetEventWriter?.Dispose();
 		labelTierTransitionWriter?.Dispose();
 		runtimeLabelProfileWriter?.Dispose();
@@ -3774,6 +3803,7 @@ public partial class ChartAuditRunner : Node {
 		artistCohortAnnualWriter = null;
 		artistProjectIdentityWriter = null;
 		artistEvolutionWriter = null;
+		culturalEventWriter = null;
 		labelOperatingTargetEventWriter = null;
 		labelTierTransitionWriter = null;
 		runtimeLabelProfileWriter = null;

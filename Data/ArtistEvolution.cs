@@ -28,6 +28,8 @@ public sealed class ArtistEvolutionProfile {
 	// 60k selections; this runs it once per release.
 	public float commercialPressure;
 	public float artisticPressure;
+	/// <summary>Being taken seriously and wanting more of it. The Pet Sounds motive.</summary>
+	public float criticalPressure;
 	public float peerPressure;
 	public float labelPressure;
 	public float internalPressure;
@@ -37,6 +39,20 @@ public sealed class ArtistEvolutionProfile {
 	/// <summary>The band that strips back to the blues: the lift goes backward, to the formation genre.</summary>
 	public bool rootsMode;
 	public ArtistEvolutionTrigger dominantTrigger;
+	/// <summary>
+	/// The winning pressure's score against its own salience scale. Kept so a
+	/// candidate-dependent motive can be weighed against the act's internal ones.
+	/// </summary>
+	public float dominantSalience;
+	/// <summary>
+	/// What kind of record the strongest live influence memory was. Decides whether the peer
+	/// channel reads as chasing a hit or as joining the album-as-art movement.
+	/// </summary>
+	public ArtistInfluenceType dominantInfluence;
+	/// <summary>Acclaim as of the previous project, so the critical motive can read a trend.</summary>
+	public float acclaimAtLastProject;
+	/// <summary>What the act's label has noticed working elsewhere. Null when it has noticed nothing.</summary>
+	public Genre? labelWantsGenre;
 	/// <summary>What the label is pushing for. The player's only lever on an act's direction.</summary>
 	public float labelPressureDirective;
 	public ReleaseCreativeIntent lastReleaseIntent;
@@ -97,6 +113,12 @@ public sealed class ArtistEraRecord {
 	public Genre secondaryGenre;
 	public ArtistArcPhase phase;
 	public ArtistEvolutionTrigger trigger;
+	/// <summary>
+	/// The act whose record caused this one, when a peer record is what moved them. Stored
+	/// as an id and resolved to a name only when a panel is open -- a biography that names
+	/// the other band is the difference between "somebody else's record" and a scene.
+	/// </summary>
+	public string influencedByArtistId;
 	public string summary;              // one composed line, written at close/open
 
 	// What actually happened during the era. Counted as it happens so the biography is

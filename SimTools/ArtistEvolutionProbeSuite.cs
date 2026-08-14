@@ -15,8 +15,12 @@ using System.Linq;
 /// </summary>
 public static class ArtistEvolutionProbeSuite {
 	public static IReadOnlyList<string> Run() {
-		bool priorEnabled = ArtistEvolution.Enabled;
-		bool priorObserving = ArtistEvolution.Observing;
+		// EVERY switch, not just the two that used to be captured here. The old teardown put
+		// back `enabled` and `observeOnly` and left pressure, legitimacy and cultural memory
+		// switched off for the rest of the process -- so a run that also passed
+		// --artist-evolution-probes quietly measured a different feature set than the one on
+		// its command line, and reported it as every pressure reading exactly 0.0000.
+		ArtistEvolution.Switches priorSwitches = ArtistEvolution.CaptureSwitches();
 		try {
 			var results = new List<string>();
 			ProbeDisabledFlagIsInert();                    // 1
@@ -45,6 +49,20 @@ public static class ArtistEvolutionProbeSuite {
 			ProbeDiscographyIsAssembledNotStored();        // 24
 			ProbeEveryGenreHasAMusicalNeighbour();         // 25
 			ProbeCountryCompensatesForTheSplit();          // 26
+			ProbeCommercialPressureIsNotAConstant();       // 27
+			ProbePeerInfluenceCanWinAMotive();             // 28
+			ProbeCohesiveAlbumMovementHasAWriter();        // 29
+			ProbeCriticalBreakthroughHasAWriter();         // 30
+			ProbeLabelPressureHasItsOwnMotive();           // 31
+			ProbeRecognitionIsSeparableFromCommerce();     // 32
+			ProbeMeritIgnoresReception();                  // 33
+			ProbeCulturalMemoryPropagatesAndCounts();      // 34
+			results.Add("Artist-evolution fixed probes 27-34 passed (commercial pressure with no floor, " +
+				"peer influence able to win a motive on normalised salience, CohesiveAlbumMovement and " +
+				"CriticalBreakthrough with real writers, label pressure driven by its own motive rather " +
+				"than by the flop streak, recognition separable from commerce so the press channel can " +
+				"mint a landmark that never charted, merit that ignores reception, and a cursored " +
+				"cultural ledger that accumulates influence against the source act)");
 			results.Add("Artist-evolution fixed probes 1-26 passed (disabled inertness, pure bounded disposition, " +
 				"full-window requirement, strict-majority ratification, plurality refusal, adjacency floor, " +
 				"climate gate on a genre closed to new supply, cooldown open and close, terminal-career refusal, " +
@@ -59,7 +77,13 @@ public static class ArtistEvolutionProbeSuite {
 			return results;
 		} finally {
 			ArtistEvolutionService.ResetAnnualBudgetForProbe();
-			ArtistEvolution.ConfigureForProbe(priorEnabled, priorObserving && !priorEnabled);
+			// The cultural ledger, the legitimacy scalar and the pending-recognition table are
+			// all process-global. A probe run that left any of them dirty would silently
+			// contaminate the simulation that follows it in the same process.
+			CulturalMemoryService.ResetForProbe();
+			CulturalRecognitionService.ResetForProbe();
+			AlbumLegitimacyService.ResetForProbe();
+			ArtistEvolution.RestoreSwitches(priorSwitches);
 		}
 	}
 
@@ -610,15 +634,29 @@ public static class ArtistEvolutionProbeSuite {
 			AlbumLegitimacyService.LandmarkCohesionBar * .5f, over),
 			"22b a record that did not hang together is not a landmark however well it sold");
 		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1, over,
-			AlbumLegitimacyService.LandmarkReceptionBar * .5f),
+			AlbumLegitimacyService.LandmarkRecognitionBar * .5f),
 			"22c cohesion alone in private is not a movement; it has to have been heard");
 		Require(AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1, over, over),
 			"22d a cohesive record that succeeded in public is a landmark");
-		// A 1965 statement moves the needle more than a 1968 one, because by 1968 everyone is
-		// already doing it.
-		Require(AlbumLegitimacyService.GetEarliness(1965) > AlbumLegitimacyService.GetEarliness(1968) &&
-			AlbumLegitimacyService.GetEarliness(AlbumLegitimacyService.EarlinessExhaustedYear) == 0f,
-			"22e the earliness premium decays to nothing by the year the movement is common");
+
+		// Earliness is measured against the MOVEMENT, not the calendar. The regression this
+		// pins: the old year ramp hit exactly zero in 1969, the year the model produced the
+		// most landmark albums of the decade, so 136 of them were worth nothing at all.
+		AlbumLegitimacyService.ResetForProbe();
+		float virgin = AlbumLegitimacyService.GetEarliness(1965);
+		float lateVirgin = AlbumLegitimacyService.GetEarliness(1969);
+		Require(Math.Abs(virgin - lateVirgin) < 1e-6f,
+			"22e with no movement yet under way, a 1969 statement is as early as a 1965 one -- " +
+			"earliness is not a property of the calendar");
+		AlbumLegitimacyService.SetLegitimacyForProbe(1f);
+		float saturated = AlbumLegitimacyService.GetEarliness(1965);
+		Require(saturated < virgin,
+			"22f once the movement has happened, making one of these is less remarkable");
+		Require(saturated >= AlbumLegitimacyService.MinimumEarliness - 1e-6f && saturated > 0f,
+			"22g a landmark in a saturated movement still counts for something; the floor is not zero");
+		Require(AlbumLegitimacyService.GetEarliness(AlbumLegitimacyService.LegitimacyStartYear - 1) == 0f,
+			"22h nothing before the start year can be leaned on, whatever the movement has done since");
+		AlbumLegitimacyService.ResetForProbe();
 	}
 
 	private static void ProbeInfluenceMemoryIsBounded() {
@@ -626,7 +664,7 @@ public static class ArtistEvolutionProbeSuite {
 		SimulatedArtist artist = NewArtist();
 		ArtistEvolutionService.Initialize(artist, artist.formedYear);
 		var profile = artist.evolution;
-		int cap = AlbumLegitimacyService.MaxInfluencesPerArtist;
+		int cap = CulturalMemoryService.MaxInfluencesPerArtist;
 		for (int index = 0; index < cap * 4; index++) {
 			profile.influences.Add(new ArtistInfluenceMemory {
 				sourceArtistId = $"src{index}", sourceGenre = Plugged,
@@ -676,6 +714,248 @@ public static class ArtistEvolutionProbeSuite {
 		Require(earned.Contains(ReputationTag.GenreBending) && earned.Contains(ReputationTag.Authentic),
 			"24f a third era and a return to the original sound earn GenreBending and Authentic " +
 			"from the enum ReputationTag already defines");
+	}
+
+	// ---- PHASE 6: motive that is not a foregone conclusion --------------------------------------
+
+	/// <summary>An act with a controllable disposition, so one pressure can be isolated from the rest.</summary>
+	private static SimulatedArtist QuietArtist(int year) {
+		ArtistEvolution.ConfigureForProbe(enable: true, observe: false, pressure: true,
+			legitimacy: true, culturalMemory: true);
+		SimulatedArtist artist = NewArtist();
+		ArtistEvolutionService.Initialize(artist, artist.formedYear);
+		artist.consecutiveFlops = 0;
+		artist.contractConsecutiveFlops = 0;
+		artist.momentum = .5f;
+		artist.groupCohesion = 1f;
+		artist.criticalAcclaim = 0f;
+		artist.careerState = CareerState.Rising;
+		ArtistEvolutionProfile profile = artist.evolution;
+		// Silence the dispositional motives so the probe measures the one it is about.
+		profile.volatility = 0f;
+		profile.artisticAmbition = .10f;
+		profile.conceptualThinking = .10f;
+		profile.peerSensitivity = 1f;
+		profile.acclaimAtLastProject = 0f;
+		return artist;
+	}
+
+	/// <summary>
+	/// The regression that made 92% of a decade's conversions say the same thing. Commercial
+	/// pressure was <c>.50*streak + .30*cold + state</c>, so an act that had never had a
+	/// record miss still read ~0.40 -- a constant, which beat every other motive on a raw
+	/// max() essentially always.
+	/// </summary>
+	private static void ProbeCommercialPressureIsNotAConstant() {
+		SimulatedArtist artist = QuietArtist(PivotYear);
+		artist.momentum = 0f;                       // cold and anonymous...
+		artist.careerState = CareerState.Declining; // ...and precarious...
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		Require(artist.evolution.commercialPressure == 0f,
+			"27a an act whose records have not missed is under no commercial pressure, however " +
+			"cold and precarious it is; the floor that made this a constant is gone");
+
+		artist.consecutiveFlops = ArtistEvolutionPressureService.FlopStreakForPressure;
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		float atStreak = artist.evolution.commercialPressure;
+		Require(atStreak > 0f, "27b a real flop streak does produce commercial pressure");
+
+		artist.consecutiveFlops = ArtistEvolutionPressureService.FlopStreakForPressure * 2;
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		Require(artist.evolution.commercialPressure > atStreak,
+			"27c and it goes on rising with the streak, which is the thing it is supposed to measure");
+	}
+
+	/// <summary>
+	/// Motive is decided on normalised loudness, not raw magnitude. The five pressures are
+	/// not on one scale -- a sum of three near-saturated terms against a product of five
+	/// sub-unit factors -- so a raw max() compared formula shapes rather than motives.
+	/// </summary>
+	private static void ProbePeerInfluenceCanWinAMotive() {
+		SimulatedArtist artist = QuietArtist(PivotYear);
+		artist.consecutiveFlops = ArtistEvolutionPressureService.FlopStreakForPressure;
+		artist.evolution.influences.Add(new ArtistInfluenceMemory {
+			sourceArtistId = "someone_else", sourceGenre = Plugged,
+			type = ArtistInfluenceType.HitSingle, year = PivotYear, strength = .30f
+		});
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		Require(artist.evolution.peerPressure > 0f, "28a a live influence memory produces peer pressure");
+		Require(artist.evolution.peerPressure < artist.evolution.commercialPressure,
+			"28b and it is still numerically smaller than the commercial term, which is the " +
+			"whole reason a raw max() could never surface it");
+		Require(artist.evolution.dominantTrigger == ArtistEvolutionTrigger.PeerInfluence,
+			"28c yet it wins the motive, because loudness is judged against each pressure's own scale");
+	}
+
+	/// <summary>
+	/// The Rubber Soul -> Pet Sounds route. The ledger has always recorded WHICH KIND of
+	/// record reached an act; until now nothing read it, so every peer motive collapsed into
+	/// PeerInfluence and CohesiveAlbumMovement had no writer anywhere in the codebase.
+	/// </summary>
+	private static void ProbeCohesiveAlbumMovementHasAWriter() {
+		SimulatedArtist artist = QuietArtist(PivotYear);
+		artist.evolution.influences.Add(new ArtistInfluenceMemory {
+			sourceArtistId = "the_other_band", sourceGenre = Plugged,
+			type = ArtistInfluenceType.CohesiveAlbum, year = PivotYear, strength = .30f
+		});
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		Require(artist.evolution.dominantTrigger == ArtistEvolutionTrigger.CohesiveAlbumMovement,
+			"29a an album that hung together, heard by somebody paying attention, reads as the " +
+			"album-as-art movement rather than as chasing a hit");
+		Require(artist.evolution.lastReleaseIntent == ReleaseCreativeIntent.Statement,
+			"29b and what they reach for next is a statement");
+
+		// The same strength arriving as a hit single is a different motive entirely.
+		artist.evolution.influences.Clear();
+		artist.evolution.influences.Add(new ArtistInfluenceMemory {
+			sourceArtistId = "the_other_band", sourceGenre = Plugged,
+			type = ArtistInfluenceType.HitSingle, year = PivotYear, strength = .30f
+		});
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		Require(artist.evolution.dominantTrigger == ArtistEvolutionTrigger.PeerInfluence,
+			"29c the identical pressure arriving as a hit single is a different motive");
+	}
+
+	/// <summary>
+	/// CriticalBreakthrough was declared in the trigger enum and returned by no code path at
+	/// all. The shape it is for: standing with the critics that is rising while the records
+	/// are not selling.
+	/// </summary>
+	private static void ProbeCriticalBreakthroughHasAWriter() {
+		SimulatedArtist artist = QuietArtist(PivotYear);
+		artist.evolution.artisticAmbition = .70f;
+		artist.momentum = 0f;                       // the public has not caught up
+		artist.criticalAcclaim = .70f;
+		artist.evolution.acclaimAtLastProject = .40f;   // and it is climbing
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		Require(artist.evolution.criticalPressure > 0f, "30a rising acclaim is a pressure at all");
+		Require(artist.evolution.dominantTrigger == ArtistEvolutionTrigger.CriticalBreakthrough,
+			"30b an act the critics rate and the public has not caught up with is chasing the " +
+			"critical breakthrough, not fleeing a commercial failure");
+
+		// An act with no critical standing has no critical motive. The term must not become a
+		// second constant in place of the one it replaced.
+		artist.criticalAcclaim = 0f;
+		artist.evolution.acclaimAtLastProject = 0f;
+		ArtistEvolutionPressureService.Evaluate(artist, null, PivotYear);
+		Require(artist.evolution.criticalPressure == 0f,
+			"30c and an act nobody rates has no critical pressure at all");
+	}
+
+	/// <summary>
+	/// Label pressure used to multiply BOTH its terms by the flop streak, making it a
+	/// scaled-down copy of commercial pressure driven by the identical variable. It could
+	/// not win against its own parent under any parameter values, and across a decade it
+	/// never once did.
+	/// </summary>
+	private static void ProbeLabelPressureHasItsOwnMotive() {
+		SimulatedArtist artist = QuietArtist(PivotYear);
+		var label = new AILabel {
+			labelId = "probe_label", artistLoyalty = 1f, riskTolerance = 1f, productionQuality = .5f,
+			preferredGenres = new[] { Plugged }, secondaryGenres = System.Array.Empty<Genre>()
+		};
+		CulturalMemoryService.ResetForProbe();
+		// Nothing has happened yet, and the act is not failing: a patient label wants nothing.
+		ArtistEvolutionPressureService.Evaluate(artist, label, PivotYear);
+		Require(artist.evolution.labelPressure == 0f,
+			"31a a loyal label with a functioning act and nothing to chase applies no pressure");
+
+		// Somebody else's record lands in a genre this label believes in.
+		CulturalMemoryService.Publish("another_act", "another_label", Plugged, PivotYear,
+			CulturalEventType.LandmarkAlbum, merit: .80f, recognition: .80f, strength: .60f);
+		ArtistEvolutionPressureService.Evaluate(artist, label, PivotYear);
+		Require(artist.evolution.labelPressure > 0f,
+			"31b a label that has noticed something working wants some of it, with the act's " +
+			"flop streak still at zero -- the motive is its own, not a restatement of failure");
+		Require(artist.evolution.labelWantsGenre == Plugged,
+			"31c and the ledger records what the label is actually pushing for");
+		Require(artist.evolution.dominantTrigger == ArtistEvolutionTrigger.LabelPressure,
+			"31d which is loud enough to be the motive");
+		CulturalMemoryService.ResetForProbe();
+	}
+
+	/// <summary>
+	/// The modular seam the journalism layer will arrive through. Merit is a property of the
+	/// record; recognition is how widely it is known. A record that never charted can clear
+	/// the landmark bar on press alone, and no rule in the landmark path changes to allow it.
+	/// </summary>
+	private static void ProbeRecognitionIsSeparableFromCommerce() {
+		CulturalRecognitionService.ResetForProbe();
+		const int year = PivotYear;
+		// A record nobody bought, by an act nobody has heard of.
+		(float unheard, _) = CulturalRecognitionService.Consume("rec_a", peakPosition: 0, artistStanding: 0f);
+		Require(unheard == 0f, "32a a record that did not chart, by an act with no standing, reached nobody");
+		Require(!AlbumLegitimacyService.IsLandmark(year, 1f, unheard),
+			"32b however well made, it is not yet a landmark");
+
+		// The trade press notices it. Nothing else about the record has changed.
+		CulturalRecognitionService.Deposit("rec_b", .90f, RecognitionChannel.Press, year);
+		(float reviewed, RecognitionChannel channel) =
+			CulturalRecognitionService.Consume("rec_b", peakPosition: 0, artistStanding: 0f);
+		Require(reviewed >= AlbumLegitimacyService.LandmarkRecognitionBar,
+			"32c a record the press carried has public standing without having charted at all");
+		Require(channel == RecognitionChannel.Press,
+			"32d and the ledger can say which channel is responsible for it");
+		Require(AlbumLegitimacyService.IsLandmark(year, 1f, reviewed),
+			"32e so it clears the landmark bar through the same door, with no rule changed");
+
+		// Recognition is conferred once, not re-counted on every read.
+		(float second, _) = CulturalRecognitionService.Consume("rec_b", peakPosition: 0, artistStanding: 0f);
+		Require(second < reviewed, "32f a deposit is consumed, not left sitting to be counted again");
+		Require(CulturalRecognitionService.PendingCountForProbe == 0,
+			"32g and the pending table does not retain it; an unbounded per-record table is a leak");
+		CulturalRecognitionService.ResetForProbe();
+	}
+
+	/// <summary>
+	/// Merit is intrinsic. The journalism layer must be able to change how widely a record is
+	/// known WITHOUT changing what the record is, or the two layers are one layer.
+	/// </summary>
+	private static void ProbeMeritIgnoresReception() {
+		float ambitious = ArtisticMeritService.GetFormatAmbition(ReleaseFormat.Album, AlbumFormat.Concept);
+		float assembled = ArtisticMeritService.GetFormatAmbition(ReleaseFormat.Album, AlbumFormat.Compilation);
+		Require(ambitious > assembled,
+			"33a a record reaching for something is worth more as a work of art than a hit plus filler");
+		float craft = ArtisticMeritService.GetCraft(.80f, .80f, .80f, isAlbum: true, .80f);
+		Require(ArtisticMeritService.GetMerit(craft, ambitious) > ArtisticMeritService.GetMerit(craft, assembled),
+			"33b and ambition is worth more on top of identical craft");
+		Require(ArtisticMeritService.GetMerit(0f, 1f) == 0f,
+			"33c but ambition without craft earns nothing; it multiplies rather than adds");
+	}
+
+	/// <summary>
+	/// The ledger is the industry's shared memory, and the thing that makes an act an entity
+	/// rather than a tag is that OTHER acts carry something of theirs.
+	/// </summary>
+	private static void ProbeCulturalMemoryPropagatesAndCounts() {
+		ArtistEvolution.ConfigureForProbe(enable: true, observe: false, pressure: true,
+			legitimacy: true, culturalMemory: true);
+		CulturalMemoryService.ResetForProbe();
+		CulturalMemoryService.Publish("the_source", "src_label", Plugged, PivotYear,
+			CulturalEventType.LandmarkAlbum, merit: .80f, recognition: .80f, strength: .60f);
+
+		SimulatedArtist listener = NewArtist();
+		ArtistEvolutionService.Initialize(listener, listener.formedYear);
+		listener.evolution.peerSensitivity = 1f;
+		CulturalMemoryService.AbsorbForArtist(listener, PivotYear);
+		Require(listener.evolution.influences.Count == 1,
+			"34a an act hears what was published since they last looked");
+		Require(listener.evolution.influences[0].type == ArtistInfluenceType.CohesiveAlbum,
+			"34b and remembers what kind of record it was");
+		Require(CulturalMemoryService.InfluenceCountFor("the_source") == 1,
+			"34c the source act's standing is what accumulates: somebody else carries their record now");
+
+		// Reading again absorbs nothing: propagation is cursored, not re-scanned.
+		CulturalMemoryService.AbsorbForArtist(listener, PivotYear);
+		Require(listener.evolution.influences.Count == 1 &&
+			CulturalMemoryService.InfluenceCountFor("the_source") == 1,
+			"34d and a second look absorbs nothing, because the cursor has already passed it");
+
+		// An act cannot be influenced by itself, and stale events are not heard at all.
+		CulturalMemoryService.AbsorbForArtist(listener, PivotYear + CulturalMemoryService.InfluenceMemoryYears + 1);
+		Require(CulturalMemoryService.InfluenceCountFor("the_source") == 1,
+			"34e nothing new is taken from an event older than the memory window");
+		CulturalMemoryService.ResetForProbe();
 	}
 
 	private static void Require(bool condition, string message) {

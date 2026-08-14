@@ -1094,24 +1094,24 @@ public partial class RosterManager : Node {
 	
 	public void RecordChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
 		if (artist == null || record == null) return;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		if (record.artistChartRunCompleted) {
-			if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped) {
-				int completedYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
-				TransitionDroppedArtist(GetLabelById(artist.labelId), artist, completedYear, ArtistDropReason.Performance);
-			}
+			AILabel creditedLabel = GetLabelById(artist.labelId);
+			// A record that charted arrives here with its commercial outcome already credited
+			// by ArtistManager.OnRecordLeftChart. The critical and cultural reads still have to
+			// happen -- they used to sit below this guard, which meant every charting record in
+			// the simulation was invisible to the acclaim writer, the landmark rule and the
+			// cultural ledger, and only records that NEVER CHARTED were ever read.
+			RunCulturalReads(artist, record, creditedLabel, year);
+			if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped)
+				TransitionDroppedArtist(creditedLabel, artist, year, ArtistDropReason.Performance);
 			return;
 		}
 		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
 			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
-		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		// The critical read lands with the commercial one, on the same completed run, and
-		// touches nothing but the artist's own acclaim field.
-		ArtistCriticalAcclaimService.OnChartRunComplete(artist, record, label);
-		ArtistEvolutionService.OnChartRunComplete(artist, record.peakPosition,
-			record.baseRecord?.album?.albumFormat == AlbumFormat.Concept);
-		AlbumLegitimacyService.OnAlbumChartRunComplete(artist, record, year);
+		RunCulturalReads(artist, record, label, year);
 		if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped) {
 			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
 			return;
@@ -1119,6 +1119,23 @@ public partial class RosterManager : Node {
 		if (label != null && label.ShouldDropArtist(artist)) {
 			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
 		}
+	}
+
+	/// <summary>
+	/// The critical and cultural read of a finished chart run, taken exactly once per record
+	/// whichever completion path got here first. Touches the artist's acclaim field and the
+	/// industry ledger; it moves no units, no advance and no chart point.
+	/// </summary>
+	private static void RunCulturalReads(SimulatedArtist artist, RecordRuntimeData record, AILabel label, int year) {
+		if (record.culturalRunCompleted) return;
+		record.culturalRunCompleted = true;
+		ArtistCriticalAcclaimService.OnChartRunComplete(artist, record, label);
+		ArtistEvolutionService.OnChartRunComplete(artist, record.peakPosition,
+			record.baseRecord?.album?.albumFormat == AlbumFormat.Concept);
+		// Albums route through the landmark rule; singles route through the breakthrough-hit
+		// rule. Both end up in the same ledger, because an act can be moved by either.
+		AlbumLegitimacyService.OnAlbumChartRunComplete(artist, record, label, year);
+		CulturalMemoryService.OnChartRunComplete(artist, record, label, year);
 	}
 
 	private static bool IsLiveGenreMarket() => GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;

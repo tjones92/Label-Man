@@ -53,9 +53,22 @@ public static class ArtistDiscographyService {
 	/// Reputation the arc earned, spending the tags <see cref="ReputationTag"/> already
 	/// defines rather than extending the enum.
 	/// </summary>
+	/// <summary>
+	/// Other acts have taken something from this many of this act's records. The threshold
+	/// is deliberately low in absolute terms: across a decade the great majority of acts are
+	/// never once remembered by anybody, so being remembered at all by this many is the
+	/// distinguishing fact.
+	/// </summary>
+	public const int TrendsetterInfluenceCount = 12;
+
 	public static IEnumerable<ReputationTag> DeriveTags(SimulatedArtist artist) {
 		ArtistEvolutionProfile evolution = artist?.evolution;
 		if (evolution == null) yield break;
+		// The one tag that is earned from OTHER acts' behaviour rather than from this act's
+		// own record. It is the difference between a band with a genre and a band with a
+		// standing: somebody else changed direction because of what they cut.
+		if (CulturalMemoryService.InfluenceCountFor(artist.artistId) >= TrendsetterInfluenceCount)
+			yield return ReputationTag.Trendsetter;
 		int changes = evolution.eras.Count - 1;
 		if (changes >= 2) yield return ReputationTag.GenreBending;
 		if (changes == 0 && artist.totalReleases >= 6) yield return ReputationTag.Traditional;

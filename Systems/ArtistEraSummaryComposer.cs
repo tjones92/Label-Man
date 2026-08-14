@@ -84,12 +84,20 @@ public static class ArtistEraSummaryComposer {
 				$"They were {from.ToLowerInvariant()} musicians when {to.ToLowerInvariant()} arrived, and they plugged in with everyone else.",
 				$"The scene turned toward {to.ToLowerInvariant()} and they turned with it."
 			},
-			ArtistEvolutionTrigger.PeerInfluence => new[] {
+			// Named when we know whose record it was, anonymous when we don't. Both readings
+			// are true sentences; only one of them is a scene.
+			ArtistEvolutionTrigger.PeerInfluence => Influencer(era) is { } peer ? new[] {
+				$"They heard what {peer} were cutting, and the sessions turned {to.ToLowerInvariant()}.",
+				$"{peer} got there first; the answer was a {to.ToLowerInvariant()} record."
+			} : new[] {
 				$"After hearing what acts they had shared bills with were cutting, the sessions turned {to.ToLowerInvariant()}.",
 				$"Somebody else's {to.ToLowerInvariant()} record changed what they thought a record could be."
 			},
-			ArtistEvolutionTrigger.CohesiveAlbumMovement => new[] {
-				$"Following two albums that hung together as records rather than collections, they reached for the same thing in {to.ToLowerInvariant()}.",
+			ArtistEvolutionTrigger.CohesiveAlbumMovement => Influencer(era) is { } source ? new[] {
+				$"{source} had made an album that hung together as a record rather than a collection, and they wanted the same thing in {to.ToLowerInvariant()}.",
+				$"After {source}, the album was the unit -- and their album was {to.ToLowerInvariant()}."
+			} : new[] {
+				$"Following albums that hung together as records rather than collections, they reached for the same thing in {to.ToLowerInvariant()}.",
 				$"The album, not the single, became the unit -- and the album was {to.ToLowerInvariant()}."
 			},
 			ArtistEvolutionTrigger.LabelPressure => new[] {
@@ -119,6 +127,17 @@ public static class ArtistEraSummaryComposer {
 		if (era.chartedReleases > 0)
 			return $"{era.chartedReleases} of {era.releases} charted, none of them high.";
 		return era.releases == 1 ? "The one record went nowhere." : $"All {era.releases} sides missed.";
+	}
+
+	/// <summary>
+	/// The name of the act whose record moved this one, or null if we do not know it or it
+	/// has left the registry. Resolved at compose time rather than stored, so 22.5k artists
+	/// do not each carry a second act's display name.
+	/// </summary>
+	private static string Influencer(ArtistEraRecord era) {
+		if (string.IsNullOrEmpty(era.influencedByArtistId)) return null;
+		SimulatedArtist source = ArtistManager.Instance?.GetArtist(era.influencedByArtistId);
+		return string.IsNullOrWhiteSpace(source?.stageName) ? null : source.stageName;
 	}
 
 	/// <summary>Deterministic variant choice. Same FNV shape as the supply roll; no draw.</summary>

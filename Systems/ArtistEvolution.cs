@@ -17,6 +17,7 @@ public static class ArtistEvolution {
 	private static bool observeOnly;
 	private static bool pressureEnabled;
 	private static bool albumLegitimacyEnabled;
+	private static bool culturalMemoryEnabled;
 	private static bool adjacencyIdentityFit;
 
 	/// <summary>Ratification may write identity.</summary>
@@ -39,6 +40,13 @@ public static class ArtistEvolution {
 	public static bool PressureEnabled => enabled && pressureEnabled;
 	/// <summary>Phase 4. The phase that can break the economy, so it carries its own switch.</summary>
 	public static bool AlbumLegitimacyEnabled => enabled && albumLegitimacyEnabled;
+	/// <summary>
+	/// Phase 5. The shared industry memory that lets acts and labels hear each other's
+	/// records. Rides on the legitimacy switch because the landmark path is what fills the
+	/// ledger, but carries its own flag so the propagation half can be reverted without
+	/// taking the cohesion ceiling with it.
+	/// </summary>
+	public static bool CulturalMemoryEnabled => AlbumLegitimacyEnabled && culturalMemoryEnabled;
 	/// <summary>
 	/// Deliberately NOT gated on <see cref="Enabled"/>. This is a change to the calibrated
 	/// supply weight, not a part of the evolution feature, and it has to be A/B-able on its
@@ -138,6 +146,7 @@ public static class ArtistEvolution {
 			if (argument == "--observe-artist-evolution") observe = true;
 			if (argument == "--enable-evolution-pressure") pressureEnabled = true;
 			if (argument == "--enable-album-legitimacy") albumLegitimacyEnabled = true;
+			if (argument == "--enable-cultural-memory") culturalMemoryEnabled = true;
 			if (argument == "--enable-adjacency-identity-fit") adjacencyIdentityFit = true;
 		}
 		if (enable && disable)
@@ -153,18 +162,48 @@ public static class ArtistEvolution {
 		configured = true;
 	}
 
+	/// <summary>
+	/// The raw switch positions, so a probe suite can put every one of them back. Restoring
+	/// only <c>enabled</c> and <c>observeOnly</c> silently switched the phase flags OFF for
+	/// the remainder of any run that also passed --artist-evolution-probes, which reads in
+	/// the telemetry as every pressure being exactly zero rather than as an error.
+	/// </summary>
+	internal readonly struct Switches {
+		public readonly bool Enabled, ObserveOnly, Pressure, AlbumLegitimacy, CulturalMemory, AdjacencyFit;
+		public Switches(bool enabled, bool observeOnly, bool pressure, bool albumLegitimacy,
+			bool culturalMemory, bool adjacencyFit) {
+			Enabled = enabled; ObserveOnly = observeOnly; Pressure = pressure;
+			AlbumLegitimacy = albumLegitimacy; CulturalMemory = culturalMemory; AdjacencyFit = adjacencyFit;
+		}
+	}
+
+	internal static Switches CaptureSwitches() =>
+		new(enabled, observeOnly, pressureEnabled, albumLegitimacyEnabled, culturalMemoryEnabled, adjacencyIdentityFit);
+
+	internal static void RestoreSwitches(Switches switches) {
+		configured = true;
+		enabled = switches.Enabled;
+		observeOnly = switches.ObserveOnly;
+		pressureEnabled = switches.Pressure;
+		albumLegitimacyEnabled = switches.AlbumLegitimacy;
+		culturalMemoryEnabled = switches.CulturalMemory;
+		adjacencyIdentityFit = switches.AdjacencyFit;
+	}
+
 	internal static void ConfigureForProbe(bool enable, bool observe, bool pressure = false, bool legitimacy = false,
-		bool adjacencyFit = false) {
+		bool adjacencyFit = false, bool culturalMemory = false) {
 		configured = true;
 		enabled = enable;
 		observeOnly = !enable && observe;
 		pressureEnabled = pressure;
 		albumLegitimacyEnabled = legitimacy;
+		culturalMemoryEnabled = culturalMemory;
 		adjacencyIdentityFit = adjacencyFit;
 	}
 
 	internal static void ResetForProbe() {
 		configured = false; enabled = false; observeOnly = false;
-		pressureEnabled = false; albumLegitimacyEnabled = false; adjacencyIdentityFit = false;
+		pressureEnabled = false; albumLegitimacyEnabled = false; culturalMemoryEnabled = false;
+		adjacencyIdentityFit = false;
 	}
 }

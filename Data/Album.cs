@@ -21,6 +21,11 @@ public partial class Album : Resource {
 	[Export(PropertyHint.Range, "0,1")] public float pooledAppeal;
 	[Export(PropertyHint.Range, "0,1")] public float thematicCohesion;
 	[Export(PropertyHint.Range, "0,1")] public float packaging;
+	// Layer 1 of the cultural stack: what the record IS, fixed the day it was pressed and
+	// never touched again. Stored rather than recomputed so the landmark rule can run on the
+	// weekly album chart without a label lookup, and so that "a record nobody bought has
+	// exactly the merit it had the day it was pressed" is true by construction.
+	[Export(PropertyHint.Range, "0,1")] public float artisticMerit;
 	[Export] public bool isStereo;
 
 	// Set only on externally-originated soundtrack/cast albums (albumFormat == Soundtrack).

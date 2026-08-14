@@ -980,6 +980,7 @@ public partial class ChartManager : Node {
 		AssignChartPositions(albumRanking, triggerEvents, ReleaseFormat.Album, albumChartSize, albumBubblingUnderPositions);
 		currentAlbumChart = albumRanking.Take(albumChartSize).ToList();
 		OnAlbumChartCalculated?.Invoke(new List<RecordRuntimeData>(currentAlbumChart));
+		OfferAlbumChartToLandmarkRule(year);
 		UpdateRecordRelevanceClocks();
 		previousChartPoints = chartPoints;
 		SimulationPerformanceProfiler.EndSimulateWeek(profileStart);
@@ -2243,6 +2244,25 @@ public partial class ChartManager : Node {
 	public List<MarketRegion> GetAllRegions() => new List<MarketRegion>(allRegions);
 
 	public List<RecordRuntimeData> GetCurrentChart() => new List<RecordRuntimeData>(currentChart);
+	/// <summary>
+	/// Offers this week's published album chart to the landmark rule. A record is recognised
+	/// while it is climbing, not when it retires, so the offer has to happen here.
+	/// <para>
+	/// Bounded by the PUBLISHED chart size (tens of entries), never by the album population,
+	/// and each record self-guards after it publishes -- so this is a handful of float
+	/// compares a week and cannot become one of this project's accidental quadratics.
+	/// </para>
+	/// </summary>
+	private void OfferAlbumChartToLandmarkRule(int year) {
+		if (!ArtistEvolution.AlbumLegitimacyEnabled) return;
+		foreach (RecordRuntimeData record in currentAlbumChart) {
+			if (record.landmarkPublished || record.baseRecord == null) continue;
+			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
+			if (artist == null) continue;
+			AlbumLegitimacyService.OnAlbumChartWeek(artist, record, year);
+		}
+	}
+
 	public List<RecordRuntimeData> GetCurrentAlbumChart() => new List<RecordRuntimeData>(currentAlbumChart);
 
 	public RecordRuntimeData GetRecordAtPosition(int position) {

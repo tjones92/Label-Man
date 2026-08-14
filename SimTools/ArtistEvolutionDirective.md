@@ -629,6 +629,120 @@ regressions above belongs to the fill rather than to the lever each run was test
 edge-fill-only control is required before anything else is layered on top, and it doubles
 as the correct paired baseline for the evolution bundle.
 
+## 7b. PHASE 6 — the monotone-biography repair
+
+Phases 1–4 bundled at **303.8** (beating mix8's 309.2) with every kill criterion clear, and
+produced a mechanism that worked and a biography that didn't: **92% of 1,616 conversions said
+`CommercialFailure`**, and five of eleven triggers never fired at all. Diagnosed against
+`bundle-1001-artist-evolution.csv` (8,371 observations). Three separate faults, not one.
+
+### 7b.1 Two triggers had no writer anywhere in the codebase
+
+`CriticalBreakthrough` and `CohesiveAlbumMovement` were declared in the enum and returned by
+no code path. Zero rows even in the *pre-block* observation set, which is the tell — a bar
+set too high still produces blocked candidates. `AbsorbLandmarks` wrote
+`ArtistInfluenceType.CohesiveAlbum` into the memory record and **nothing ever read `.type`**;
+every peer motive collapsed to `PeerInfluence` regardless of what kind of record caused it.
+So the Rubber Soul → Pet Sounds chain the directive is built around had no route to its own
+trigger even with perfect numbers.
+
+### 7b.2 `Dominant()` compared six floats that were not on one scale
+
+Measured means: commercial **.748**, internal .436, artistic .410, label .170, peer **.0021**
+(max .0845). A raw `max()` over a three-term additive sum and a five-factor sub-unit product
+is not a comparison of motives — it is a comparison of formula shapes.
+
+- **Commercial pressure was a constant.** `.50*streak + .30*cold + state` gave a **~0.40
+  floor before a single flop**, because momentum sits near zero for nearly everyone (careers
+  are two records long; most never chart). Rebuilt so the streak is the spine: no streak, no
+  commercial pressure, however cold and precarious the act.
+- **Label pressure was a scaled copy of its own competitor.** Both its terms multiplied
+  `failing = flops/4` — the identical variable commercial's streak term used, with a smaller
+  coefficient and no additive floor. Winning required momentum > 0.33 in an act on a
+  four-flop streak, which is self-contradictory. It now has its own motive: a label that has
+  noticed somebody else's record working in a genre it believes in, whether or not the act in
+  front of it is failing. (`SetLabelPressure` also had **zero callers** — the player lever is
+  wired but nothing in the UI writes it. Still open.)
+- **`GenreClimateShift` was collateral damage from Phase 2.** It lived in the fallback
+  *below* `if (PressureEnabled && dominant != None && restlessness > 0)`, and since commercial
+  never read zero the fallback was unreachable whenever motive was on. Turning Phase 2 on had
+  switched a Phase-1 trigger off. It is now scored candidate-side and weighed against the
+  winning pressure's normalised score.
+
+Motive is now decided on **normalised salience** (which pressure is unusually high *for that
+pressure*); **restlessness stays on raw magnitude**, so conversion volume is not quietly
+inflated by a change that claims to only relabel.
+
+### 7b.3 The earliness premium was anti-phased with the thing it scored
+
+`GetEarliness` paid `(1969 − year)/5`. Albums clearing the 0.72 cohesion bar ran
+**32, 33, 564, 1441, 1610** across 1965–69 — so the premium paid 0.8 in a year that produced
+33 of them and **exactly 0.0** in the year that produced 1,610. Mean landmark strength by
+year: .534, .496, .348, .256, .133, **.000**. The premium was spent entirely in the years the
+model structurally could not produce the record it was meant to reward.
+
+Re-phased onto **legitimacy** rather than the calendar: the first act to make one is early
+whenever they do it, and the premium decays as the movement actually happens. Same quantity
+that lifts the cohesion ceiling, so getting easier to make and less remarkable to have made
+are one process. Floored at `MinimumEarliness` so a late landmark still counts for something.
+
+### 7b.4 The defect that hid all of the above
+
+**The entire Phase 3/4 chain only ever ran on records that never charted.**
+`ArtistManager.OnRecordLeftChart` sets `record.artistChartRunCompleted = true` *before*
+calling `RosterManager.RecordChartRunComplete`, whose first statement is a guard on that flag
+— and the acclaim writer, the landmark rule and the cultural ledger all sat **below** the
+guard. A record that charted took the early return; only records that never charted reached
+the narrative reads. Fixed with a separate `culturalRunCompleted` flag and a
+`RunCulturalReads` call on both completion paths.
+
+This is why the pre-repair run showed 408 landmarks in offline analysis but peer pressure
+peaking at .0845: almost none of those albums were ever seen by the service.
+
+### 7b.5 The modular seam for journalism
+
+Split into three layers so the magazine system can arrive as a *caller*, not an edit:
+
+| Layer | File | Mutable? | Journalism touches it? |
+|---|---|---|---|
+| 1 — **merit** | `ArtisticMeritService` | no, intrinsic | **never** — a magazine discovers a work of art, it does not create one |
+| 2 — **recognition** | `CulturalRecognitionService` | yes, channel-fed | **yes** — `Deposit(recordId, amount, RecognitionChannel.Press, year)` |
+| 3 — **ledger** | `CulturalMemoryService` | append-only ring | reads merit × recognition; **no rule changes** |
+
+The landmark bar is stated against *recognition*, not chart position. A record the press
+carried and the public ignored clears it through the same door with nothing in
+`AlbumLegitimacyService` edited — pinned by probe 32. Ledger capacity 16 → **256** (the old
+ring was lapped every ~6 weeks at the 1968-69 landmark rate while the median act releases
+twice a *decade*, so an act witnessed ~16 of the decade's 408 landmarks).
+
+`peerSensitivity` is now applied **once**, at memory formation. It was applied at both ends,
+squaring a sub-unit term.
+
+### 7b.6 Measured result — 1960-62, seed 1001
+
+| trigger | before (decade) | after (3yr) |
+|---|---|---|
+| CommercialFailure | **92.0%** | **40.6%** |
+| PersonalAmbition | 4.3% | 35.5% |
+| InternalTension | 2.9% | 13.5% |
+| CriticalBreakthrough | **0** | 4.2% |
+| GenreClimateShift | **0** | 2.7% |
+| PeerInfluence | **0** | 1.9% |
+| LabelPressure | **0** | 0.5% → retuned |
+| CohesiveAlbumMovement | **0** | *untestable before 1964* |
+
+Cultural ledger live: 246 events from 150 distinct source acts in three years.
+
+**Calibration note, recorded because it will recur.** At equal event weight the hit channel
+(~78 top-ten singles a year) drowned the landmark channel (a few dozen a *decade*) and
+`PeerInfluence` took **68%** of conversions — a second monopoly in place of the commercial
+one. Split via `HitInfluenceWeight = .55` vs `LandmarkInfluenceWeight = 1.0`: a hit makes
+other acts want to do that; a landmark changes what they think a record can be.
+
+**Still owed:** `CohesiveAlbumMovement` firing in a run that reaches 1965+, and the decade
+A/B against the 303.8 bundle. Salience constants are sized off a single 3-year window and are
+the most likely thing to want moving.
+
 ## 8. Validation protocol
 
 Non-negotiable mechanics, learned the hard way:
