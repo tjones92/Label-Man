@@ -965,6 +965,26 @@ public static class ArtistEvolutionProbeSuite {
 			!AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Soundtrack),
 			"35f but a compilation, a live document and a soundtrack are not new bodies of work");
 
+		// The album shift is a ROCK phenomenon. Jazz does not undergo it because jazz was
+		// already making records this way, which is a large part of why the form was available
+		// to be taken seriously by rock acts later.
+		float jazz1960 = AlbumModel.GetTrackConsistency(GenreFamily.Jazz, 1960);
+		float rock1960 = AlbumModel.GetTrackConsistency(GenreFamily.Rock, 1960);
+		float rock1969 = AlbumModel.GetTrackConsistency(GenreFamily.Rock, 1969);
+		float pop1969 = AlbumModel.GetTrackConsistency(GenreFamily.Pop, 1969);
+		Require(jazz1960 > rock1960,
+			"35h a jazz LP in 1960 is already a body of work where a rock LP is a hit plus filler");
+		Require(rock1969 > rock1960,
+			"35i rock travels from one to the other across the decade -- that IS the album shift");
+		Require(AlbumModel.GetTrackConsistency(GenreFamily.Jazz, 1969) - jazz1960 < rock1969 - rock1960,
+			"35j and jazz moves less than rock does, because it had less distance to travel");
+		Require(pop1969 < rock1969,
+			"35k while manufactured pop largely does not make the journey at all");
+		Require(AlbumModel.GetTrackSpreadMultiplier(GenreFamily.Jazz, 1960) <
+			AlbumModel.GetTrackSpreadMultiplier(GenreFamily.Rock, 1960),
+			"35l consistency is spent as a tighter track spread, not as higher track quality, so " +
+			"it cannot inflate the album chart it is trying to describe");
+
 		// Merit must not collapse for a pre-1966 album just because cohesion is clamped.
 		float clampedCohesion = .08f;
 		float withBody = ArtisticMeritService.GetCraft(.80f, .70f, clampedCohesion, isAlbum: true, .80f, realIntegrity);

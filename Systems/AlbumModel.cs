@@ -102,6 +102,45 @@ public static class AlbumModel {
 	};
 
 	/// <summary>
+	/// How evenly the material is spread across an album: 0 is a hit with filler around it,
+	/// 1 is a record where every side was a considered performance.
+	/// <para>
+	/// Jazz cut LPs as bodies of work from the start — Giant Steps is 1960 — so it has no
+	/// revolution to undergo; it was already there, and is a large part of why the form was
+	/// available to be taken seriously later. Pop and rock began as a hit with filler around
+	/// it and became albums across the decade. That asymmetry is the point: the mid-sixties
+	/// album shift is a ROCK phenomenon, and a genre-flat rule cannot express it.
+	/// </para>
+	/// <para>
+	/// Deliberately expressed as VARIANCE rather than level. Raising jazz track quality
+	/// outright would worsen a known calibration miss (the model already over-weights jazz on
+	/// the early album chart); narrowing the spread instead raises the body-of-work reading
+	/// while slightly LOWERING peak-driven chart appeal, which pushes both numbers the way
+	/// they need to go.
+	/// </para>
+	/// </summary>
+	public static float GetTrackConsistency(GenreFamily family, int year) {
+		float innate = family switch {
+			GenreFamily.Jazz or GenreFamily.Classical => .80f,
+			GenreFamily.Blues => .55f,
+			GenreFamily.Folk => .50f,
+			GenreFamily.Gospel => .45f,
+			_ => .20f
+		};
+		// What the family learned from the revolution, scaled by how far it was carried by it.
+		// Pop's susceptibility is .12, so bubblegum stays manufactured product all decade.
+		float learned = GetAlbumRevolutionSusceptibility(family) * GetAlbumEraWeight(year);
+		return Mathf.Clamp(innate + (1f - innate) * learned, 0f, 1f);
+	}
+
+	/// <summary>
+	/// Multiplier on album-track quality spread. A tighter spread is more of a record, because
+	/// the album cuts sit closer to the best thing on it.
+	/// </summary>
+	public static float GetTrackSpreadMultiplier(GenreFamily family, int year) =>
+		Mathf.Lerp(1f, .25f, GetTrackConsistency(family, year));
+
+	/// <summary>
 	/// Probability that an album is assembled from already-released singles plus filler.
 	/// Propensity is the catalog's authored SingleOrientation -- a singles-led genre builds
 	/// its LPs out of singles -- decayed by the era term above. The model was right about

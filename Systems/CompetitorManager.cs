@@ -3024,8 +3024,14 @@ public partial class CompetitorManager : Node {
 		int targetTracks = (int)GD.RandRange(9, 13);
 		var nonSingleTracks = new List<AlbumTrack>();
 		float originalMaterialScale = albumFormat == AlbumFormat.Compilation ? 0.68f : albumFormat == AlbumFormat.Live ? 0.80f : 0.88f;
+		// How unevenly this family's albums are put together in this year. A jazz LP in 1960 is
+		// already a body of work; a pop LP in 1960 is a hit with filler around it, and rock
+		// travels from the second to the first across the decade. Scales the spread only -- the
+		// draw count is unchanged, so the RNG stream is untouched.
+		float trackSpread = AlbumModel.GetTrackSpreadMultiplier(GenreCatalog.Get(artist.primaryGenre).Family, year);
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
-			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f + (float)GD.RandRange(-0.16, 0.12), 0.12f, 0.95f);
+			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f
+				+ (float)GD.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
 			string trackTitle = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.stageName) ?? $"Album Track {nonSingleTracks.Count + 1}";
 			(float hook, float production, float dance) = useStructuredPromoTracks
 				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
