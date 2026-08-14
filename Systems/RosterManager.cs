@@ -1106,6 +1106,12 @@ public partial class RosterManager : Node {
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		// The critical read lands with the commercial one, on the same completed run, and
+		// touches nothing but the artist's own acclaim field.
+		ArtistCriticalAcclaimService.OnChartRunComplete(artist, record, label);
+		ArtistEvolutionService.OnChartRunComplete(artist, record.peakPosition,
+			record.baseRecord?.album?.albumFormat == AlbumFormat.Concept);
+		AlbumLegitimacyService.OnAlbumChartRunComplete(artist, record, year);
 		if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped) {
 			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
 			return;

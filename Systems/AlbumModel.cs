@@ -44,8 +44,12 @@ public static class AlbumModel {
 	}
 
 	public static float GetMaximumAchievableCohesion(int year, float artistTalent, float labelProduction, float luckyRoll) {
+		// The exogenous curve is the floor and the shape. Album legitimacy -- records that
+		// actually happened and were actually heard -- can pull it forward in time by a
+		// bounded amount, never rewrite it, and is exactly 1.0x when that phase is off.
 		float era = Mathf.SmoothStep(0.12f, 0.96f,
-			Mathf.Clamp((year - CohesionRiseStartYear) / (CohesionRiseEndYear - CohesionRiseStartYear), 0f, 1f));
+			Mathf.Clamp((year - CohesionRiseStartYear) / (CohesionRiseEndYear - CohesionRiseStartYear), 0f, 1f))
+			* AlbumLegitimacyService.CurrentCeilingMultiplier;
 		float excellence = Mathf.Clamp((artistTalent - 0.70f) / 0.30f, 0f, 1f) *
 			Mathf.Clamp((labelProduction - 0.70f) / 0.30f, 0f, 1f);
 		float baseline = Mathf.Clamp(era * (0.45f + 0.50f * artistTalent + 0.25f * labelProduction), 0.08f, 1f);

@@ -179,10 +179,21 @@ This buys everything at once:
 1. **Zero new supply authority.** `GenreSupplyService` remains the only thing that
    decides what genre a record is. Evolution never picks a genre; it reads the ones
    already picked.
-2. **First-order neutrality.** Ratifying an existing selection creates and destroys no
-   releases. Aggregate release count, unit volume, and label economics are untouched by
-   construction. The effect on genre makeup is **second-order**, arriving only through
-   the identity terms (`identityFit`, `retention`) on *subsequent* projects.
+2. **First-order neutrality *at the point of ratification*.** Ratifying an existing
+   selection creates and destroys no releases: the act of writing identity adds nothing to
+   and removes nothing from the release pipeline. The effect on genre makeup is
+   **second-order**, arriving only through the identity terms (`identityFit`, `retention`)
+   on *subsequent* projects.
+
+   **Measured correction (do not restore the stronger claim).** This is *not* the same as
+   "aggregate release count and label economics are untouched by construction", which is
+   what this clause used to say and which is false. `AILabel.CalculateReleasePriority`
+   reads `artist.primaryGenre` for genre heat, so a converted act's odds of being *picked*
+   to release move with its new genre — and the pick itself draws from the global stream.
+   Measured on a 255-conversion decade: total releases 202,258 → 200,824, **−0.7%**. That
+   is a downstream cascade rather than a penalty on converting acts (ratification writes no
+   cooldown, no career state, no contract field), but it is real, and Gate 1's economy
+   clause is stated as a **tolerance** below rather than as an identity.
 3. **Motive is a bias, not an override.** Pressure and personality adjust the artist-side
    term of the existing weight — softening the 4.0 primary anchor, lifting adjacent
    candidates — inside hard bounds, with a neutral setting that reproduces today's
@@ -374,10 +385,15 @@ being a dead-end pool.
 - Total genre-share `sumAbsErr` ≤ **320** (mix8 = 309.1; ≤ +11 absorbs single-seed noise
   for reachable genres — but see §8 on the ~50-pt floor for unreachable ones).
 - No individual **benchmarked** genre's `sumAbsErr` degrades by more than **4.0**.
-- FolkRock: identity-holding releasing artists in 1966 ≥ **150** (from 86), and FolkRock
-  share error does not *worsen*.
-- Economy untouched: total market units, LP unit share per year, and label-tier counts
-  all inside seed-noise band vs mix8.
+- ~~FolkRock: identity-holding releasing artists in 1966 ≥ **150** (from 86)~~ —
+  **DROPPED AS A GATE (author's call, 2026-08-14).** Retained below as a watched metric and
+  an open investigation. It was never reachable by the mechanism this phase owns, and
+  holding Phase 1 to it meant Phase 1 could never pass for reasons that have nothing to do
+  with Phase 1. Still required: **FolkRock share error does not *worsen*.**
+- Economy inside tolerance vs mix8: total market units, LP unit share per year, and
+  label-tier counts inside the seed-noise band, and **total release count within ±1.5%**
+  (measured cascade at 255 conversions is −0.7%; see §2.2). "Untouched by construction" was
+  the wrong bar — genre feeds release priority, so it was never going to hold exactly.
 - Conversions/decade land inside the §7 budget with the budget **not** binding in most
   years (if the cap is the binding constraint everywhere, the rule is mistuned, not safe).
 
@@ -560,6 +576,59 @@ The safety story is §2's inversion. These are the belts and braces.
 
 ---
 
+## 7a. OPEN INVESTIGATION — the Folk Rock shortfall is not an evolution problem
+
+Recorded because the proximate motivation for this whole directive turned out to sit
+outside it. **This wants its own investigation and probably its own directive.**
+
+**What is established.** FolkRock runs 0.9–2.5 points under its market-share target every
+year from 1965. Its own share target implies roughly **111** identity-holding releasing
+artists at 1966, not the 150 the gate asked for; the model has 86–90.
+
+**Why ratification cannot fix it.** Evolution ratifies genres that `GenreSupplyService`
+already selected. Across 1965–69 there are **61** folk-family → FolkRock projects, from
+**56 distinct artists, ever**. The convertible pool is smaller than the shortfall.
+
+**Two supply levers were tried and both failed, in the same direction:**
+
+| lever | total sumAbsErr | FolkRock | what happened |
+|---|---|---|---|
+| adjacency-aware `GetIdentityFit` (one continuous scale) | 309.1 → 310.6 | 6.1 → **10.1** | Inverted. Cross-family destinations with an authored edge start from the .55 floor and gain far more than a same-family lineage starting at 1.45 — Country gained 2.5x against FolkRock's 1.3x, and folk acts went to Country **71 → 98**. Fixed by tiering (§ `GenreSupplyService`), but the fix is a *correction*, not a FolkRock solution. |
+| adjacency-aware fit, **two-tier** (family as base, adjacency modulating inside it) | 309.1 → **315.1** | 6.1 → **11.0** | Worse than the version it fixed. It restored FolkRock's advantage over Country (1.40x → 2.24x) but *weakened* its advantage over **ContemporaryFolk** (1.23x → 1.13x) — and CF, not Country, is the genre actually absorbing the folk-family surplus. Fix one competitor, lose to the other. |
+| `--split-formation-affinity` | 309.1 → 324.5 | 6.1 → **8.5** | Mechanically correct — Country vanishes from folk destinations entirely, confirming §7.5's leak was real — but Country's own share fell 5.5 and FolkRock still got worse. |
+
+**Both runs REDUCED total FolkRock project supply** (893 → 752 and 801). Every lever pulled
+at the identity-fit weight has moved other genres more than it moved FolkRock.
+
+**The unexamined suspects**, in the order worth trying:
+1. **Retention, not fit.** `GetProjectIdentityRetention` reads the identity genre's own
+   baseline curve. FolkRock's baseline peaks at .78 in 1966, so a FolkRock act retains at
+   ~.82 — meaning acts who arrive *stay*, but acts elsewhere are never offered the move.
+   The 71% Retained share is the real ceiling on all transition, and no fit change touches it.
+2. **`Folk` carries `DeathYear = 1966`.** From 1967 folk acts take no new supply in their
+   own identity and simply thin out (191 → 109 → 32) rather than converting. That is a hard
+   supply zero sitting exactly where the historical conversion should happen.
+3. **ContemporaryFolk absorbs the family surplus** — over target 1.2–2.1 points *every year*
+   while FolkRock is under. Trimming its baseline toward its own (correct, mid-decade-peaking)
+   target is the most direct redistribution available, and has not been tried.
+4. Whether the 1965 emergence year is simply too late for a genre whose target share is
+   already 2.2% in its first year.
+
+**Do not** re-attack this from `GetIdentityFit`. That has now been measured **three times**,
+in two different formulations, and FolkRock got worse in all three. The weight has one
+FolkRock lever and several competitors sharing it; every setting trades one competitor for
+another. `--enable-adjacency-identity-fit` stays **OFF** — the code is kept, flagged and
+probed, as the record of what was tried.
+
+**CONFOUND, disclosed.** The adjacency EDGE FILL (31 → 74 edges) shipped before all four
+of the runs above and has never been measured on its own. It is not inert: it changes
+`ArtistManager.ChooseRuntimeSecondaryGenre`, which picks uniformly among adjacency-positive
+candidates, so more edges change that array's length and therefore **every runtime artist's
+secondary genre** — and secondary feeds `GetIdentityFit` at 2.25. Some unknown part of the
+regressions above belongs to the fill rather than to the lever each run was testing. An
+edge-fill-only control is required before anything else is layered on top, and it doubles
+as the correct paired baseline for the evolution bundle.
+
 ## 8. Validation protocol
 
 Non-negotiable mechanics, learned the hard way:
@@ -628,7 +697,7 @@ Non-negotiable mechanics, learned the hard way:
 | Phase | Ships | Risk | Gate |
 |---|---|---|---|
 | 0 | Data layer, flag, telemetry, inert | none | byte-identical to mix8 |
-| 1 | Eras + identity ratification | **genre makeup** | sumAbsErr ≤ 320; FolkRock ≥150 acts @1966 |
+| 1 | Eras + identity ratification | **genre makeup** | sumAbsErr ≤ 320; FolkRock does not worsen (headcount gate dropped — see §7a) |
 | 2 | Pressure, motive, bounded drift | genre makeup | ±8% project supply vs P1 |
 | 3 | criticalAcclaim gets a writer | none (inert on money) | economy byte-comparable |
 | 4 | Cohesive-album knock-on | **economy** | LP share band; concept-album shape |
@@ -637,3 +706,11 @@ Non-negotiable mechanics, learned the hard way:
 Phase 1 is the whole thesis. If ratification alone puts folk acts into folk rock without
 moving the calibrated balance, everything after it is flavor on a sound mechanism. If it
 doesn't, stop and re-diagnose before building motive on top of a channel that doesn't carry.
+
+**RESOLVED, and not the way this paragraph expected.** The re-diagnosis happened (§7a): the
+folk-rock channel is 56 artists wide and ratification cannot reach it, but the *mechanism*
+is sound — 255 conversions a decade, rising 3/yr to 52/yr, with historically right
+migrations (DooWop→Soul, RnB→Soul, RockAndRoll→PsychedelicRock) and **no guardrail ever
+binding**. So the thesis holds in the general case and fails only on the specific genre it
+was motivated by, which is a supply problem filed as §7a. Phase 1 proceeds on the general
+result; Folk Rock is tracked, not gated.

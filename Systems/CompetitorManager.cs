@@ -1711,6 +1711,10 @@ public partial class CompetitorManager : Node {
 		if (debugMode) {
 			GD.Print($"🎵 {label.labelName}: '{record.title}' by {artist.stageName} (Quality: {(record.hookStrength + record.productionQuality) / 2f:F2}, Budget: ${totalCost:N0})");
 		}
+		// Last, after every economic and telemetry effect of THIS record has landed. Any
+		// identity ratification here reaches the artist only on the next project selection,
+		// which is exactly what "lagging ratification" means.
+		ArtistEvolutionService.OnProjectReleased(artist, record.primaryGenre, date.year, label);
 		return true;
 	}
 
@@ -1866,6 +1870,9 @@ public partial class CompetitorManager : Node {
 		}
 		artist.weeksSinceLastRelease = 0;
 		EmitAlbumDecisionTelemetry(label, artist, decision, plan, album, project);
+		// One push per project. An album with a promo single is two records and one
+		// creative decision; the linked album's later drop must not vote a second time.
+		ArtistEvolutionService.OnProjectReleased(artist, projectGenre, date.year, label);
 		return true;
 	}
 

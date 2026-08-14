@@ -192,6 +192,7 @@ public partial class ChartAuditRunner : Node {
 	private StreamWriter artistLaborMarketWeeklyWriter;
 	private StreamWriter artistCohortAnnualWriter;
 	private StreamWriter artistProjectIdentityWriter;
+	private StreamWriter artistEvolutionWriter;
 	private StreamWriter labelOperatingTargetEventWriter;
 	// The tier ladder had NO per-run ledger. The section 7.2 flow table was built by hand and never
 	// re-derived, so every MidTier hypothesis since has been inference from standing headcounts --
@@ -281,6 +282,7 @@ public partial class ChartAuditRunner : Node {
 	private bool disableAlbums;
 	private bool runGenreMarketV2Probes;
 	private bool runArtistPopulationLifecycleProbes;
+	private bool runArtistEvolutionProbes;
 	private bool catastrophicFailFast;
 	private bool catastrophicControlPreflight;
 	private bool strict1965AcceptanceGate;
@@ -366,6 +368,10 @@ public partial class ChartAuditRunner : Node {
 				if (!ArtistPopulationLifecycle.Enabled) throw new InvalidOperationException("Artist population lifecycle probes require --enable-artist-population-lifecycle.");
 				foreach (string result in ArtistPopulationLifecycleProbeSuite.Run()) GD.Print("D6_PROBE_PASS: " + result);
 			}
+			if (runArtistEvolutionProbes) {
+				if (!ArtistPopulationLifecycle.Enabled) throw new InvalidOperationException("Artist evolution probes require --enable-artist-population-lifecycle.");
+				foreach (string result in ArtistEvolutionProbeSuite.Run()) GD.Print("EVO_PROBE_PASS: " + result);
+			}
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
@@ -390,6 +396,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnFormatMemoryRevision += OnFormatMemoryRevision;
 			CompetitorManager.Instance.OnSupplySelection += OnSupplySelection;
 			GenreSupplyService.OnTraditionalPopFallback += OnTraditionalPopFallback;
+			if (ArtistEvolution.Observing) ArtistEvolutionService.OnEvolutionObservation += OnEvolutionObservation;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			WriteDistanceSubstrateRows();
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
@@ -488,6 +495,8 @@ public partial class ChartAuditRunner : Node {
 				disableAlbums = true;
 			} else if (argument == "--genre-market-v2-probes") {
 				runGenreMarketV2Probes = true;
+			} else if (argument == "--artist-evolution-probes") {
+				runArtistEvolutionProbes = true;
 			} else if (argument == "--artist-population-lifecycle-probes") {
 				runArtistPopulationLifecycleProbes = true;
 			} else if (argument == "--catastrophic-fail-fast") {
@@ -1065,6 +1074,11 @@ public partial class ChartAuditRunner : Node {
 			artistLaborMarketWeeklyWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-labor-market-weekly.csv"));
 			artistCohortAnnualWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-cohort-annual.csv"));
 			artistProjectIdentityWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-project-identity.csv"));
+			// Written whenever evolution is observing, including the counterfactual run where
+			// ratification is disabled: the question "how often WOULD this act have converted,
+			// and to what" is what sizes the channel before it is allowed to carry anything.
+			if (ArtistEvolution.Observing)
+				artistEvolutionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-artist-evolution.csv"));
 			labelOperatingTargetEventWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-operating-target-events.csv"));
 			labelTierTransitionWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-label-tier-transitions.csv"));
 			runtimeLabelProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-runtime-label-profiles.csv"));
@@ -1154,6 +1168,7 @@ public partial class ChartAuditRunner : Node {
 		artistPopulationWeeklyWriter?.WriteLine("week,year,labelTier,registryTotal,activeTotal,rostered,neverSignedUnsigned,eligibleDropped,cooldownBlockedDropped,inactive,retired,disbanded,formedThisWeek,formedYtd,firstTimeSignings,reSignings,performanceDrops,otherDepartures,recentPerformanceReSignings,prematureProbationDrops,noEligibleCandidatePasses,scoreRejections,affordabilityRejections,ownershipConflicts,duplicateRosterEntries,duplicatePoolEntries,terminalRostered,terminalReleaseEligible");
 		artistLaborMarketWeeklyWriter?.WriteLine("seed,week,date,registryPopulation,initialLegacyPopulation,enabledInitialReservePopulation,runtimeFormationPopulation,activeRostered,experiencedFreeAgents,seekingProspects,latentProspects,freshSeeking,freshLatent,affordableHiringVacancies,requestedProspectActivations,actualProspectActivations,prospectSearchSpellExpirations,firstTimeSignings,repeatSignings,meanSeekingQuality,meanLatentQuality,activationMeanQuality,activationQ1,activationQ2,activationQ3,activationQ4,maxProspectMarketSpellCount,duplicateSeekingEntries,latentUnsignedPoolEntries,seekingMissingFromUnsignedPool,prospectStatusContractConflicts,latentRotations");
 		artistCohortAnnualWriter?.WriteLine("year,cohort,formationPrimaryGenre,lifecycleStatus,currentRosterTier,count,firstTimeSignings,repeatSignings,releases,activeUnsigned,seekingProspects,latentProspects,medianActAge,medianMemberAge,inactivityCount,retirementCount,disbandmentCount,activePopulationShare,signedRosterShare");
+		artistEvolutionWriter?.WriteLine("week,year,artistId,eraIndex,fromGenre,toGenre,trigger,phase,commercialPressure,artisticPressure,peerPressure,labelPressure,internalPressure,resistance,ratified,candidateCount,adjacency,block");
 		artistProjectIdentityWriter?.WriteLine("week,year,recordId,projectId,artistId,formedYear,cohort,formationPrimaryGenre,currentArtistGenre,projectGenre,nativeIdentityProject,transitionedProject,labelId,labelTier,format,careerStateAtProject,careerStateBeforeDropAtProject,contractEntryCareerStateAtProject,contractSequenceAtProject,contractStartWeekAtProject,weeksSinceContractStart,experiencedFreeAgentContract");
 		WriteGenreCatalogRows();
 		// bookSettlementSeconds is inclusive of calculateLabelRevenueSeconds. The live-record
@@ -1541,6 +1556,27 @@ public partial class ChartAuditRunner : Node {
 			Csv(selection.artistId), Csv(selection.artistIdentity.ToString()), Csv(selection.chosenProjectGenre.ToString()),
 			selection.artistIdentityAvailableForNewSupply ? "true" : "false", selection.annualFloorRequested ? "true" : "false",
 			selection.annualFloorReroutedToNormalCandidates ? "true" : "false", Csv(selection.selectionMode.ToString())
+		}));
+	}
+
+	private void OnEvolutionObservation(ArtistEvolutionService.ArtistEvolutionTelemetry observation) {
+		if (artistEvolutionWriter == null) return;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		artistEvolutionWriter.WriteLine(string.Join(",", new[] {
+			currentAuditWeek.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture),
+			Csv(observation.artistId), observation.eraIndex.ToString(CultureInfo.InvariantCulture),
+			Csv(observation.fromGenre.ToString()), Csv(observation.toGenre.ToString()),
+			Csv(observation.trigger.ToString()), Csv(observation.phase.ToString()),
+			observation.commercialPressure.ToString("F4", CultureInfo.InvariantCulture),
+			observation.artisticPressure.ToString("F4", CultureInfo.InvariantCulture),
+			observation.peerPressure.ToString("F4", CultureInfo.InvariantCulture),
+			observation.labelPressure.ToString("F4", CultureInfo.InvariantCulture),
+			observation.internalPressure.ToString("F4", CultureInfo.InvariantCulture),
+			observation.resistance.ToString("F4", CultureInfo.InvariantCulture),
+			observation.ratified ? "true" : "false",
+			observation.candidateCount.ToString(CultureInfo.InvariantCulture),
+			observation.adjacency.ToString("F4", CultureInfo.InvariantCulture),
+			Csv(observation.block.ToString())
 		}));
 	}
 
@@ -3416,6 +3452,7 @@ public partial class ChartAuditRunner : Node {
 		formatDecisionCohortWriter?.Flush();
 		formatDecisionCohortDetailWriter?.Flush();
 		supplySelectionWriter?.Flush();
+		artistEvolutionWriter?.Flush();
 		traditionalPopFallbackWriter?.Flush();
 		genreShapeWriter?.Flush();
 		yearEndHot100Writer?.Flush();
@@ -3582,6 +3619,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnFormatMemoryRevision -= OnFormatMemoryRevision;
 			CompetitorManager.Instance.OnSupplySelection -= OnSupplySelection;
 		}
+		ArtistEvolutionService.OnEvolutionObservation -= OnEvolutionObservation;
 		WriteSeasonalityMonthlyRows();
 		if (artistLaborMarketWeeklyWriter != null) {
 			foreach ((int week, string prefix, string suffix) in deferredLaborMarketRows.OrderBy(row => row.Week)) {
@@ -3659,6 +3697,7 @@ public partial class ChartAuditRunner : Node {
 		artistLaborMarketWeeklyWriter?.Dispose();
 		artistCohortAnnualWriter?.Dispose();
 		artistProjectIdentityWriter?.Dispose();
+		artistEvolutionWriter?.Dispose();
 		labelOperatingTargetEventWriter?.Dispose();
 		labelTierTransitionWriter?.Dispose();
 		runtimeLabelProfileWriter?.Dispose();
@@ -3734,6 +3773,7 @@ public partial class ChartAuditRunner : Node {
 		artistPopulationWeeklyWriter = null;
 		artistCohortAnnualWriter = null;
 		artistProjectIdentityWriter = null;
+		artistEvolutionWriter = null;
 		labelOperatingTargetEventWriter = null;
 		labelTierTransitionWriter = null;
 		runtimeLabelProfileWriter = null;

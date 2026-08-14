@@ -332,7 +332,11 @@ public sealed class LaborMarketWeeklySnapshot {
 		
 		artist.momentum = 0f;
 		artist.reputation = RandRange(0f, 0.1f);
-		
+
+		// Both creation paths (initial population and runtime formation) route through
+		// here. Disposition is a pure read of the lineup generated just above, so this
+		// takes nothing from the stream the reputation draw left it on.
+		ArtistEvolutionService.Initialize(artist, year);
 		artistRegistry[id] = artist;
 		return artist;
 	}

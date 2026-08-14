@@ -16,6 +16,7 @@ public partial class ChartManager : Node {
 	[Export] private bool marketSeasonalityEnabled = true;
 	[Export] private bool genreMarketV2Enabled = false;
 	[Export] private bool artistPopulationLifecycleEnabled = false;
+	[Export] private bool artistEvolutionEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -278,6 +279,8 @@ public partial class ChartManager : Node {
 		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
 		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
+		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
+		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
