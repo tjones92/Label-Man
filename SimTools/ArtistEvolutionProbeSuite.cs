@@ -964,6 +964,16 @@ public static class ArtistEvolutionProbeSuite {
 			!AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Live) &&
 			!AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Soundtrack),
 			"35f but a compilation, a live document and a soundtrack are not new bodies of work");
+		// Comedy, children's and classical are the same odd entity as the soundtrack. Without
+		// this, SIX of the first twelve landmarks a run produced were children's records:
+		// novelty material is uniformly pitched by construction, and a body-of-work reading is
+		// a consistency ratio, so it rates them highly for exactly the wrong reason.
+		Require(!AlbumLegitimacyService.IsEligibleFamily(GenreFamily.NonMusic) &&
+			!AlbumLegitimacyService.IsEligibleFamily(GenreFamily.Classical),
+			"35m comedy, children's and classical records are not participants in the movement");
+		Require(AlbumLegitimacyService.IsEligibleFamily(GenreFamily.Rock) &&
+			AlbumLegitimacyService.IsEligibleFamily(GenreFamily.Jazz),
+			"35n while rock and jazz plainly are");
 
 		// The album shift is a ROCK phenomenon. Jazz does not undergo it because jazz was
 		// already making records this way, which is a large part of why the form was available

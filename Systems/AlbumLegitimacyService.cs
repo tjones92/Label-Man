@@ -68,6 +68,17 @@ public static class AlbumLegitimacyService {
 	/// </summary>
 	public const float LandmarkMeritBar = .78f;
 	/// <summary>
+	/// And it has to have been doing something. This exists because the merit gate is NOT
+	/// independent of the integrity gate the way it was supposed to be: body-of-work feeds
+	/// `GetCraft`'s coherence term at 35%, so a consistent record scores well on merit partly
+	/// for being consistent — the two gates were reading the same fact twice.
+	/// <para>
+	/// Originality is the one axis nothing else here derives from, which makes it the gate
+	/// that actually distinguishes a landmark from a competently uniform record.
+	/// </para>
+	/// </summary>
+	public const float LandmarkOriginalityBar = .70f;
+	/// <summary>
 	/// Formats that can be one. A compilation is assembled from sides that already existed and
 	/// a live record documents them; neither is a new body of work. Soundtracks are excluded
 	/// as a class -- they sit with comedy, children's and classical as an odd entity whose
@@ -75,6 +86,20 @@ public static class AlbumLegitimacyService {
 	/// </summary>
 	public static bool IsEligibleFormat(AlbumFormat format) =>
 		format is AlbumFormat.Standard or AlbumFormat.Concept;
+
+	/// <summary>
+	/// Families that can produce one. Comedy, children's records and classical are the same
+	/// odd entity as the soundtrack: they sell as albums, they are sometimes culturally large,
+	/// and they are not participants in the album-as-art movement this loop models.
+	/// <para>
+	/// Measured consequence of not having this: SIX of the first twelve landmarks a run
+	/// produced were children's records. Novelty and children's material is uniformly pitched
+	/// by construction, and a body-of-work reading is a consistency ratio, so it rates them
+	/// highly for exactly the wrong reason.
+	/// </para>
+	/// </summary>
+	public static bool IsEligibleFamily(GenreFamily family) =>
+		family is not (GenreFamily.NonMusic or GenreFamily.Classical);
 	/// <summary>
 	/// ...and its merit has to have reached somebody. Recognition, not chart position:
 	/// the bar is deliberately stated against <see cref="CulturalRecognitionService"/> so
@@ -179,7 +204,9 @@ public static class AlbumLegitimacyService {
 		// chart. Note that having singles on it is NOT disqualifying -- Rubber Soul and Pet
 		// Sounds both carried them. Integrity asks whether the REST of the record stands up.
 		if (year < LegitimacyStartYear || !IsEligibleFormat(album.albumFormat)) return;
+		if (!IsEligibleFamily(GenreCatalog.Get(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year)).Family)) return;
 		if (album.bodyOfWork < LandmarkIntegrityBar || album.artisticMerit < LandmarkMeritBar) return;
+		if (record.baseRecord.originality < LandmarkOriginalityBar) return;
 
 		(float recognition, _) = CulturalRecognitionService.Consume(record.baseRecord.recordId,
 			record.peakPosition, Mathf.Max(artist.reputation, artist.criticalAcclaim));
