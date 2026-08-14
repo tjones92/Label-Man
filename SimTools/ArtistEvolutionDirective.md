@@ -739,9 +739,59 @@ Cultural ledger live: 246 events from 150 distinct source acts in three years.
 one. Split via `HitInfluenceWeight = .55` vs `LandmarkInfluenceWeight = 1.0`: a hit makes
 other acts want to do that; a landmark changes what they think a record can be.
 
-**Still owed:** `CohesiveAlbumMovement` firing in a run that reaches 1965+, and the decade
-A/B against the 303.8 bundle. Salience constants are sized off a single 3-year window and are
-the most likely thing to want moving.
+### 7b.7 BLOCKED — `CohesiveAlbumMovement` has no artist-made records to propagate
+
+Two further defects surfaced chasing it, both of which had to be fixed before the real one
+was visible.
+
+**Landmarks fired on the retirement hook.** `OnAlbumChartRunComplete` is reached when a
+record retires — for an album, ~94 weeks after release (a ~42-week chart life plus a 52-week
+tolerance). Sgt. Pepper was a landmark within weeks, and the acts who answered it did so that
+summer. Worse, it made the channel unobservable: across the full `bundle-1001` decade run,
+**41,674 albums minted and not one completion hook ever fired**. The album-as-art loop had
+never once executed in any run. Now offered the weekly *published* album chart (tens of
+entries, self-guarding after publish), publishing once at recognition. Merit moved onto
+`Album.artisticMerit` at pressing time, which is Layer 1's contract made literal.
+
+**And then the real blocker.** Of every album clearing the 0.72 cohesion bar in 1960–66:
+
+| year | over the bar | artist-made | soundtracks |
+|---|---|---|---|
+| 1960–63 | 84 | **0** | 84 |
+| 1964 | 20 | **0** | 20 |
+| 1965 | 29 | **0** | 29 |
+| 1966 | 31 | **0** | 31 |
+
+Max cohesion on an *artist-made* album: **pinned at exactly 0.080** — the clamp floor in
+`GetMaximumAchievableCohesion` — for 1960 through 1965, reaching 0.484 in 1966. Soundtracks
+take a separate path (`0.6 + criticalPrestige * 0.3`) that routinely lands 0.72–0.90, and
+carry `artistId = string.Empty` by design, so they can never publish a cultural event.
+
+Root cause: `Mathf.SmoothStep(0.12f, 0.96f, t)` is being read as a lerp from 0.12 to 0.96.
+Godot's SmoothStep treats those as **edges**, not as an output range, so the era term is
+`0, 0, 0.065, 0.428, 0.84, 1.0` across 1964–69 — zero until 1965, roughly two years later
+than the surrounding comments assume. The `pioneer` escape hatch that was supposed to open a
+"deliberately vanishing path from 1965" requires `excellence > 0.55`, where excellence is a
+product of two `(x−0.70)/0.30` terms — both talent and label production at 0.92 still yields
+only 0.53. It fires **zero times in seven years**.
+
+**Consequence: `CohesiveAlbumMovement` cannot fire before 1967 by construction.** No run
+ending before 1967 can test it, which is why the 3-year and 7-year runs both returned zero.
+
+**Two decisions owed before the decade A/B** (both touch calibrated surfaces, so neither was
+taken unilaterally):
+
+1. **Is the SmoothStep call a bug or the calibration?** Fixing it moves `thematicCohesion` →
+   `CalculatePooledAppeal` → `hookStrength` → the album chart and album unit share, all of
+   which are calibrated. Note the surrounding comment ("no concept album was reachable
+   anywhere in the decade before 1967, which the artifacts confirm") *matches* current
+   behaviour, so 1967+ is as intended — only the 1965–66 pioneer window is measurably dead.
+2. **Should a blockbuster soundtrack be a cultural landmark?** West Side Story plausibly was.
+   They are currently excluded solely because they carry no `artistId`, which is an accident
+   of representation rather than a decision.
+
+**Still owed:** the decade A/B against the 303.8 bundle. Salience constants are sized off a
+single 3-year window and are the most likely thing to want moving.
 
 ## 8. Validation protocol
 
