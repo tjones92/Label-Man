@@ -36,29 +36,33 @@ namespace LabelMan.Naming {
 		private void Set(int a, int b, float w) { _m[a * N + b] = w; _m[b * N + a] = w; }
 
 		// ---- mood.match: internal coherence of a set of slots ---------------------
-		// Each slot carries 0..n moods. Empty slot = wildcard. Returns score, or -1 on fail.
+		// Each slot carries 0..n moods. Empty slot = wildcard.
 		// pairScore = MAX over cross moods; combined = MIN over pairs; a 0.0 edge fails hard.
-		public double MatchInternal(IReadOnlyList<IReadOnlyCollection<string>> slots, double threshold) {
+		// MatchInternalEx discriminates Forbidden (a 0-edge pairing) from BelowThreshold so the
+		// engine's retry logic can reroll-slot vs. fall-back-template correctly (doc H #3).
+		public MatchOutcome MatchInternalEx(IReadOnlyList<IReadOnlyCollection<string>> slots, double threshold) {
 			double combined = 1.0;
 			for (int i = 0; i < slots.Count; i++) {
 				var a = slots[i];
 				if (a == null || a.Count == 0) continue;           // wildcard
 				for (int j = i + 1; j < slots.Count; j++) {
 					var b = slots[j];
-					if (b == null || b.Count == 0) continue;
+					if (b == null || b.Count == 0) continue;       // wildcard
 					double best = 0.0;
-					bool anyPair = false;
-					foreach (var ma in a) foreach (var mb in b) {
-						anyPair = true;
-						double e = Edge(ma, mb);
-						if (e > best) best = e;
-					}
-					if (!anyPair) continue;
-					if (best <= 0.0) return -1;                    // forbidden edge present
+					foreach (var ma in a) foreach (var mb in b) { double e = Edge(ma, mb); if (e > best) best = e; }
+					if (best <= 0.0) return new MatchOutcome(MatchResult.Forbidden, -1); // forbidden edge present
 					if (best < combined) combined = best;
 				}
 			}
-			return combined >= threshold ? combined : -1;
+			return combined >= threshold
+				? new MatchOutcome(MatchResult.Pass, combined)
+				: new MatchOutcome(MatchResult.BelowThreshold, combined);
+		}
+
+		/// <summary>Back-compat wrapper: the Pass score, or -1 for Forbidden/BelowThreshold.</summary>
+		public double MatchInternal(IReadOnlyList<IReadOnlyCollection<string>> slots, double threshold) {
+			var o = MatchInternalEx(slots, threshold);
+			return o.Result == MatchResult.Pass ? o.Score : -1;
 		}
 
 		// ---- directed match: every slot must agree with a target mood set ---------
@@ -117,14 +121,36 @@ namespace LabelMan.Naming {
 			return seen.Count == idx.Count;
 		}
 
-		/// <summary>A mood adjacent to both a and b above a floor — used by blend connectivity repair.</summary>
+		/// <summary>A mood adjacent to both a and b above a floor — used by blend connectivity repair.
+		/// Excludes the endpoints themselves so a~a=1.0 can't masquerade as a "bridge" (doc H #5).</summary>
 		public string FindBridge(string a, string b, double floor = 0.4) {
 			string best = null; double bestSum = -1;
 			for (int c = 0; c < N; c++) {
+				if (Moods[c].Equals(a, StringComparison.OrdinalIgnoreCase) ||
+					Moods[c].Equals(b, StringComparison.OrdinalIgnoreCase)) continue;   // don't bridge to an endpoint
 				double ea = Edge(Moods[c], a), eb = Edge(Moods[c], b);
 				if (ea > floor && eb > floor && ea + eb > bestSum) { bestSum = ea + eb; best = Moods[c]; }
 			}
 			return best;
+		}
+
+		/// <summary>Is a genre's own affinity-mood set internally coherent at its threshold? A genre
+		/// whose moods are disconnected (or one is isolated) can never fill a multi-slot title and
+		/// degrades to bland grammar fallback. Run per resolved profile at load (doc H #4). Returns
+		/// human-readable issues; empty = healthy.</summary>
+		public List<string> ValidateGenre(string genreId, IEnumerable<string> affinityMoods, double threshold) {
+			var issues = new List<string>();
+			var moods = (affinityMoods ?? Enumerable.Empty<string>()).Where(IsMood)
+						.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+			if (moods.Count <= 1) return issues;
+			if (!IsConnectedAbove(moods, threshold))
+				issues.Add($"{genreId}: affinity moods {{{string.Join(",", moods)}}} NOT connected at threshold {threshold:0.##} — multi-slot titles may deadlock");
+			foreach (var m in moods) {
+				bool hasNeighbor = moods.Any(o => !o.Equals(m, StringComparison.OrdinalIgnoreCase) && Edge(m, o) >= threshold);
+				if (!hasNeighbor)
+					issues.Add($"{genreId}: mood '{m}' is isolated within its affinity set at threshold {threshold:0.##}");
+			}
+			return issues;
 		}
 
 		public void LoadJson(string json) {
@@ -152,11 +178,11 @@ namespace LabelMan.Naming {
 				".5 .3 .1 .4 .4 .4 1.0 .9 .8 .5 .3 .2 .3 .5 .0 .5 .5 .6 .5", // joyful
 				".4 .2 .1 .3 .3 .4 .9 1.0 .9 .8 .3 .3 .4 .5 .1 .3 .3 .3 .3", // playful
 				".3 .2 .1 .2 .3 .3 .8 .9 1.0 .8 .5 .4 .5 .6 .2 .2 .2 .1 .2", // cheeky
-				".1 .2 .1 .1 .2 .3 .5 .8 .8 1.0 .3 .3 .4 .4 .3 .1 .2 .1 .1", // absurd
+				".1 .2 .1 .1 .2 .3 .5 .8 .8 1.0 .3 .3 .4 .5 .3 .1 .2 .1 .1", // absurd  (absurd~restless bumped .4->.5: gives absurd a foothold in HARD so Comedy/novelty doesn't deadlock — doc H #1)
 				".2 .2 .3 .0 .1 .2 .3 .3 .5 .3 1.0 .8 .8 .8 .6 .3 .6 .5 .6", // defiant
 				".0 .0 .1 .0 .0 .1 .2 .3 .4 .3 .8 1.0 .8 .7 .7 .1 .5 .2 .3", // aggressive
 				".2 .4 .5 .1 .4 .2 .3 .4 .5 .4 .8 .8 1.0 .7 .6 .2 .4 .5 .8", // gritty
-				".3 .5 .4 .1 .3 .6 .5 .5 .6 .4 .8 .7 .7 1.0 .6 .3 .5 .4 .6", // restless
+				".3 .5 .4 .1 .3 .6 .5 .5 .6 .5 .8 .7 .7 1.0 .6 .3 .5 .4 .6", // restless (idx9 absurd .4->.5, mirrors the row above)
 				".2 .4 .6 .1 .3 .4 .0 .1 .2 .3 .6 .7 .6 .6 1.0 .4 .8 .6 .5", // ominous
 				".7 .6 .5 .6 .5 .6 .5 .3 .2 .1 .3 .1 .2 .3 .4 1.0 .8 .7 .6", // elegant
 				".5 .5 .5 .5 .5 .6 .5 .3 .2 .2 .6 .5 .4 .5 .8 .8 1.0 .8 .7", // grand
@@ -168,5 +194,15 @@ namespace LabelMan.Naming {
 				for (int j = 0; j < N; j++) _m[i * N + j] = float.Parse(cells[j], System.Globalization.CultureInfo.InvariantCulture);
 			}
 		}
+	}
+
+	/// <summary>Outcome discriminator for mood.match: a forbidden (0-edge) pairing is distinct from a
+	/// merely below-threshold combined score. Lets a caller reroll a slot vs. abandon the template.</summary>
+	public enum MatchResult { Forbidden, BelowThreshold, Pass }
+
+	public readonly struct MatchOutcome {
+		public readonly MatchResult Result;
+		public readonly double Score;
+		public MatchOutcome(MatchResult r, double s) { Result = r; Score = s; }
 	}
 }
