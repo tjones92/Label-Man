@@ -830,14 +830,80 @@ model already over-weights jazz on the early album chart), whereas narrowing the
 the body-of-work reading while slightly *lowering* peak-driven chart appeal. Draw count
 unchanged, so the RNG stream is untouched.
 
-**Known gap:** the historical jazz concentration of pre-1965 landmarks now has a mechanism,
-but whether it actually produces one is unverified until a run with this change lands.
+### 7b.10 Eligibility — the two gates were reading one fact twice
 
-**Still owed:** the decade A/B against the 303.8 bundle — now with album unit share and
-album-chart genre mix in scope, since album generation is touched. Salience constants are
-sized off a single 3-year window and remain the most likely thing to want moving. The
-SmoothStep defect is deferred to its own commit and A/B (see 7b.7); it no longer blocks
-anything here.
+`evo9` produced **exactly the predicted 12** landmarks for 1960–65, confirming the count
+calibration. Six of the twelve were **children's records**, which exposed two defects.
+
+**Odd-entity families.** Comedy, children's and classical are the same kind of object as the
+soundtrack — they sell as albums, are occasionally culturally large, and are not participants
+in the album-as-art movement. Novelty material is uniformly pitched *by construction*, and a
+body-of-work reading is a consistency ratio, so it rated them highly for exactly the wrong
+reason. `IsEligibleFamily` now excludes `NonMusic` and `Classical`.
+
+**The merit gate was not independent of the integrity gate.** It was supposed to separate
+"consistent" from "worth consistently listening to", but `bodyOfWork` feeds `GetCraft`'s
+coherence term at 35%, so a consistent record scored well on merit *partly for being
+consistent*. Added `LandmarkOriginalityBar = .70` against `record.originality` — the one axis
+nothing else in the rule derives from, and therefore the only gate that actually separates a
+landmark from a competently uniform record.
+
+---
+
+## 7c. REMAINING WORK
+
+Ordered by what blocks what. Everything below is measured-from or explicitly unverified;
+nothing here is speculative scope.
+
+### Blocking the decade A/B
+
+1. **Verify the genre distribution of landmarks.** `GetTrackConsistency` gives the jazz-led
+   pre-1965 shape a mechanism, but no run has yet included it — `evo9` predates the change and
+   came back genre-flat. Owed: a 1960–65 run confirming (a) landmark count still ≈12, (b) the
+   early ones skew jazz/blues/folk, (c) no odd-entity genre survives the family gate.
+2. **`CohesiveAlbumMovement` has still never fired.** It has a writer, the ledger carries
+   `LandmarkAlbum` events, and the trigger resolves off the strongest live influence memory —
+   but landmarks are outnumbered by `BreakthroughHit` events roughly **25:1** (12 vs 503 over
+   six years). If it stays at zero the honest reading is that the landmark channel cannot
+   compete on volume, and the lever is `HitInfluenceWeight` / `InfluenceMemoryYears` /
+   `LedgerCapacity` — **not** quietly lowering the landmark bar, which is calibrated to a
+   historical target and should not be moved to make a trigger fire.
+
+### The decade A/B itself
+
+3. **Run against the 303.8 Phase 1–4 bundle**, seed 1001, canonical flags plus
+   `--enable-evolution-pressure --enable-album-legitimacy --enable-cultural-memory`.
+   The blast radius is now wider than the evolution metrics: album generation is touched, so
+   **album unit share and album-chart genre mix are in scope** alongside `sumAbsErr` and the
+   chart-health gates.
+4. **Salience constants are sized off a single 3-year window** (`CommercialSalience .45`,
+   `Artistic .52`, `Critical .30`, `Peer .30`, `Label .36`, `Internal .58`). They are the most
+   likely thing to want moving after a decade run, and the trigger mix is the metric to read
+   them against — not `sumAbsErr`.
+5. **Commercial pressure no longer has a floor**, which lowers `restlessness` broadly and
+   therefore reduces conversion *volume*, not just its labelling. Expect fewer conversions than
+   the bundle's 1,616 and check that against the guardrail budget before reading it as a
+   regression.
+
+### Deferred, with reasons
+
+6. **The `Mathf.SmoothStep` defect** in `GetMaximumAchievableCohesion` (7b.7). Real, ~80%
+   confidence, no longer blocks anything since the landmark rule left `thematicCohesion`. Wants
+   its own commit and A/B because the fix is **not monotonic** — it raises 1960–66 cohesion and
+   *lowers* 1967–69 by ~10%, and cohesion feeds `pooledAppeal → hookStrength →` album chart.
+   Pair with `EarlyStatementExcellence = .55`, which is the unambiguous half: max label
+   `productionQuality` measured .91, so the bar needs artist talent above **.936** and fires
+   zero times in seven years against a comment stating the target is "a handful across 1965-66".
+7. **`SetLabelPressure` has no callers.** The player's lever on artist direction exists in the
+   pressure model and nothing in the UI writes it. AI label pressure now works (2.5% of
+   conversions); the player half is still unwired.
+8. **`CulturalRecognitionService.Deposit` has no callers** — by design. It is the journalism
+   seam, and probe 32 pins that a press-carried record which never charted can mint a landmark
+   through it with no rule in `AlbumLegitimacyService` changed.
+9. **Soundtracks are excluded from the cultural ledger entirely.** Deliberate (author's call:
+   an odd entity alongside comedy/children's/classical), but it means a blockbuster
+   soundtrack currently influences nobody despite `blockbuster-soundtrack-longevity` giving it
+   200–350 chart weeks.
 
 ## 8. Validation protocol
 
