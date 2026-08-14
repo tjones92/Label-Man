@@ -19,7 +19,13 @@ public class RegionalRecordData {
 	public float sentiment;      // -1 to 1: How much they like it
 	
 	// Media Presence
-	public float radioPlay;      // 0-1: Current radio airplay level
+	public float radioPlay;      // 0-1: Current radio airplay level (the final combined value the
+	                             // pipeline consumes; produced by StationNetwork aggregation)
+	// The aggregate-station ("tail") contribution to radioPlay (radio design doc a). radioPlay is
+	// Lerp(tailRadioPlay, reporterRadioPlay, REPORTER_PANEL_WEIGHT). In the Phase-2a plumbing swap
+	// tailAccess=1 and the panel weight is 0, so radioPlay == tailRadioPlay == the former formula
+	// (proved byte-identical before any reporter contribution is dialled in).
+	public float tailRadioPlay;
 	public float jukeboxPlay;    // 0-1: Jukebox presence
 	// A 1960s Top 40 playlist was a list of thirty or forty slots, re-cut weekly by a programme
 	// director reading local sales reports. A record did not fade off it; it was dropped, and once

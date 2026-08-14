@@ -44,12 +44,28 @@ public partial class ChartManager : Node {
 	private readonly Dictionary<string, RecordRuntimeData> recordById = new(StringComparer.Ordinal);
 	private List<RecordRuntimeData> currentChart = new List<RecordRuntimeData>();
 	private List<RecordRuntimeData> currentAlbumChart = new List<RecordRuntimeData>();
+	// The reporter-station panel (radio design docs a/b/f). Owned here, run inline in SimulateWeek
+	// like ChartSimulator. Phase 1: built and aged by era events but INERT -- its output does not
+	// reach radioPlay until the Phase-2 aggregation. Uses its own RNG (never the global GD stream)
+	// so standing it up cannot perturb the seeded simulation.
+	private StationNetwork stationNetwork;
+	// The payola ledger (radio doc d). Player-facing; AI labels don't use it, so it is inert in
+	// headless audits (no arrangements -> ActivePayola returns 0 -> candidacy unchanged).
+	private PayolaLedger payolaLedger;
+	// Salt so the station RNG is a distinct-but-reproducible stream off the audit seed.
+	private const ulong StationSeedSalt = 0x5241_4449_4F2AUL; // "RADIO*"
+	private const ulong PayolaSeedSalt = 0x5041_594F_4C41UL;  // "PAYOLA"
 	private const int BubblingUnderSize = 15;
 	// Weekly persistence of regional airplay. Hold is what survives from last week before the pull
 	// toward the current national target; together they set how fast a record leaves rotation once
 	// its heat collapses. Load-bearing only since airplay reached the chart ranking.
 	private const float RegionalRadioHold = 0.92f;
 	private const float RegionalRadioLerp = 0.15f;
+	// Reporters ARE the survey panel; the tail carries reach (radio design doc a 3.5). radioPlay is
+	// Lerp(tail, reporter, REPORTER_PANEL_WEIGHT). Held at 0 through the Phase-2a plumbing swap so
+	// radioPlay == tail == the former formula (byte-identical); raised in Phase 2b once the reporter
+	// playlists are proven and the economic effect can be measured against the V3.1 baseline.
+	private const float REPORTER_PANEL_WEIGHT = 0.13f;
 	private const int NeverChartedHorizonWeeks = 5;
 	private const int NeverChartedMaximumAgeWeeks = 18;
 	private const int ChartedRelevanceHorizonWeeks = 8;
@@ -322,6 +338,16 @@ public partial class ChartManager : Node {
 
 		// 6. Set zeitgeist
 		UpdateBaseZeitgeist(year);
+
+		// 6b. Build the reporter-station panel. Regions already have segmentCapacities (step 5), and
+		// the audit seed is applied pre-autoload, so the roster is reproducible. Inert in Phase 1.
+		ulong stationSeed = (SimulationSeedBootstrap.RequestedSeed ?? 1UL) ^ StationSeedSalt;
+		stationNetwork = new StationNetwork(stationSeed);
+		stationNetwork.BuildRosters(allRegions, year);
+		payolaLedger = new PayolaLedger(stationNetwork, stationSeed ^ PayolaSeedSalt);
+		stationNetwork.ActivePayolaLookup = payolaLedger.ActivePayola;   // candidacy reads player bribes here
+		GD.Print($"ChartManager: Station panel built -- {stationNetwork.StationCount} reporter stations across {allRegions?.Length ?? 0} regions");
+		stationNetwork.LogProjectedMix(allRegions);
 
 		// 7. Pre-warm
 		GD.Print("=== INITIALIZATION STEP 5: Pre-warm ===");
@@ -624,6 +650,10 @@ public partial class ChartManager : Node {
 		foreach (var region in allRegions) {
 			region.InitializeRuntimeState(date.year);
 		}
+
+		// Age the station panel into the new year (Boss conversion, FM emergence) without rebuilding
+		// rosters, so cultivated relationships persist. Inert in Phase 1.
+		stationNetwork?.OnYearChanged(allRegions, date.year);
 	}
 
 	private void UpdateBaseZeitgeist(int year) {
@@ -863,6 +893,16 @@ public partial class ChartManager : Node {
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
 		RestockHotRecords();
+
+		// Payola ledger tick (radio doc d): decay/expire arrangements and adjudicate scandal before the
+		// playlist meeting reads the boost cache. Inert while there are no player arrangements.
+		payolaLedger?.Tick(currentChartWeek, year, month);
+
+		// === STEP 2.75: REPORTER PLAYLIST MEETING ===
+		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio
+		// aggregation reads them (design doc a 3.1). Uses the network's own RNG, so while
+		// REPORTER_PANEL_WEIGHT is 0 this is computed-but-unconsumed and simulation output is unchanged.
+		stationNetwork?.UpdatePlaylists(allRecords, allRegions, currentChartWeek, year);
 
 		// === STEP 3: Update regional awareness/radio ===
 		foreach (var record in allRecords) {
@@ -1487,11 +1527,15 @@ public partial class ChartManager : Node {
 			totalPanelWeight += panelWeight;
 			if (!data.stationsDropped) carriedPanelWeight += panelWeight;
 
+			// TAIL contribution -- the former single-value formula, now the aggregate-station term.
+			// Computed exactly as before into `tail`; data.radioPlay remains the weekly accumulator
+			// (it is read above and re-derived below) and the value the rest of the pipeline reads.
+			float tail;
 			if (data.stationsDropped) {
 				// Off the playlist. Skipping the lerp entirely is the whole point of the mechanic --
 				// what it replaces was an exponential, and an exponential is what a drop is not -- and
 				// nothing anywhere re-adds rotation to a latched region.
-				data.radioPlay = ChartSimulator.GetDroppedRotation(data.radioPlay);
+				tail = ChartSimulator.GetDroppedRotation(data.radioPlay);
 			} else {
 				// Radio play: decay + pull toward national heat
 				float radioDifficulty = ChartSimulator.GetRadioDifficulty(region);
@@ -1505,13 +1549,27 @@ public partial class ChartManager : Node {
 				// to 8.7% of peak in week one while rotation arrived at full campaign strength, leaving
 				// airplay at 77.3% of a new record's chart points and debuts near #73 instead of #90.
 				float radioBuild = ChartSimulator.GetRadioBuildWeight(record.weeksSinceRelease);
+				// tailAccess is 1 in Phase 2a (folded in when the reporter/tail format split is dialled
+				// in at Phase 2b), so this expression is arithmetically identical to the former target.
 				float targetRegionalRadio = (seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio) * radioBuild;
 				// Stations phase a record out of rotation rather than dropping it, and this is the whole
 				// plateau: sales fall to 65% of peak in a single week, so airplay only holds a record up
 				// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to
 				// 0.68 a week with the target at zero -- faster than sales, so no plateau. 0.92/0.15
 				// settles to 0.78. These were never load-bearing before airplay reached the ranking.
-				data.radioPlay = Mathf.Lerp(data.radioPlay * RegionalRadioHold, targetRegionalRadio, RegionalRadioLerp);
+				tail = Mathf.Lerp(data.radioPlay * RegionalRadioHold, targetRegionalRadio, RegionalRadioLerp);
+			}
+			data.tailRadioPlay = tail;
+
+			// REPORTER contribution + combine (radio design doc a 3.5). The reporters ARE the survey
+			// panel; the tail carries reach. Phase 2a holds REPORTER_PANEL_WEIGHT at 0, so radioPlay is
+			// exactly `tail` -- byte-identical to the former behaviour. Phase 2b raises the weight and
+			// feeds the per-station playlists computed by StationNetwork.UpdatePlaylists().
+			if (REPORTER_PANEL_WEIGHT > 0f && stationNetwork != null) {
+				float reporterRadioPlay = stationNetwork.ReporterRadioPlay(record.baseRecord.recordId, region.regionId);
+				data.radioPlay = Mathf.Lerp(tail, reporterRadioPlay, REPORTER_PANEL_WEIGHT);
+			} else {
+				data.radioPlay = tail;
 			}
 
 			// Radio builds regional awareness
@@ -1882,7 +1940,16 @@ public partial class ChartManager : Node {
 
 			// Hit #1 for first time
 			if (newPosition == 1 && record.lastWeekPosition != 1) {
-				if (triggerEvents) OnRecordHitNumberOne?.Invoke(record);
+				if (triggerEvents) {
+					OnRecordHitNumberOne?.Invoke(record);
+					// Settle break-claims (radio doc c): reward stations that broke this record early,
+					// from the regions, before it was validated. Candidacy/reputation only -- no chart effect.
+					stationNetwork?.CreditStationsOnChartEntry(record, currentChartWeek, isNumberOne: true);
+				}
+			}
+			// First time reaching the top 10 (the other settlement milestone -- not chart entry, too noisy).
+			if (triggerEvents && newPosition <= 10 && (record.lastWeekPosition == 0 || record.lastWeekPosition > 10)) {
+				stationNetwork?.CreditStationsOnChartEntry(record, currentChartWeek, isNumberOne: false);
 			}
 
 			// Update peak
@@ -2068,6 +2135,8 @@ public partial class ChartManager : Node {
 			retiredTrackArchive[record.baseRecord.recordId] = CreateTrackSnapshot(record);
 		}
 		OnRecordRetired?.Invoke(record);
+		// Prune the retired record from the reporter stations' per-record dictionaries (radio doc c).
+		stationNetwork?.OnRecordRetired(record.baseRecord.recordId);
 
 		var artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
 		if (artist != null) {
