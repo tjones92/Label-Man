@@ -636,7 +636,8 @@ public static class ArtistEvolutionProbeSuite {
 		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear - 1, over, over, over),
 			"22a legitimacy is hard-zero before its start year, however good the record");
 		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1,
-			AlbumLegitimacyService.LandmarkIntegrityBar * .5f, over, over),
+			AlbumLegitimacyService.GetLandmarkIntegrityBar(AlbumLegitimacyService.LegitimacyStartYear + 1) * .5f,
+			over, over),
 			"22b a record that did not hang together is not a landmark however well it sold");
 		Require(!AlbumLegitimacyService.IsLandmark(AlbumLegitimacyService.LegitimacyStartYear + 1, over,
 			AlbumLegitimacyService.LandmarkMeritBar * .5f, over),
@@ -931,7 +932,8 @@ public static class ArtistEvolutionProbeSuite {
 		// sits at a literal "just above" inverts silently the moment the bar is re-derived,
 		// which has already cost this project once.
 		const int trackCount = 11;
-		float bar = AlbumLegitimacyService.LandmarkIntegrityBar;
+		const int fixtureYear = 1965;
+		float bar = AlbumLegitimacyService.GetLandmarkIntegrityBar(fixtureYear);
 		// With a peak of 1.0, integrity is just the mean, so solve for the album-track quality
 		// that lands a comfortable margin clear of the bar.
 		float clearsBar = (trackCount * (bar + .03f) - 1f) / (trackCount - 1);
@@ -947,14 +949,14 @@ public static class ArtistEvolutionProbeSuite {
 		float realIntegrity = AlbumModel.GetAlbumIntegrity(bodyOfWork);
 		Require(realIntegrity > fillerIntegrity,
 			"35a a record whose album tracks stand up reads as more of a record than a hit plus filler");
-		Require(realIntegrity >= AlbumLegitimacyService.LandmarkIntegrityBar,
+		Require(realIntegrity >= bar,
 			"35b ...and clears the landmark bar WITH a hit single on it -- singles are not disqualifying");
-		Require(fillerIntegrity < AlbumLegitimacyService.LandmarkIntegrityBar,
+		Require(fillerIntegrity < bar,
 			"35c ...while the hit-plus-filler record does not, however big the hit");
 
 		// The bar is reachable in 1965. This is the regression: stated against cohesion it was
 		// unreachable until 1967 because the era ceiling clamps that field to 0.08 before then.
-		Require(AlbumLegitimacyService.IsLandmark(1965, realIntegrity, 1f, 1f),
+		Require(AlbumLegitimacyService.IsLandmark(fixtureYear, realIntegrity, 1f, 1f),
 			"35d a body of work released in 1965 can be a landmark; the rule is not gated on " +
 			"the concept-album era ceiling");
 		Require(AlbumLegitimacyService.IsEligibleFormat(AlbumFormat.Standard) &&
@@ -974,6 +976,16 @@ public static class ArtistEvolutionProbeSuite {
 		Require(AlbumLegitimacyService.IsEligibleFamily(GenreFamily.Rock) &&
 			AlbumLegitimacyService.IsEligibleFamily(GenreFamily.Jazz),
 			"35n while rock and jazz plainly are");
+
+		// Standing out is relative to your contemporaries. Once album consistency became
+		// era-shaped, the integrity of an ORDINARY record climbed .863 -> .902 across 1960-66,
+		// so a fixed bar caught a growing share and the per-year count ran 3, 2, 7, 17, 13, 34.
+		Require(AlbumLegitimacyService.GetLandmarkIntegrityBar(1969) >
+			AlbumLegitimacyService.GetLandmarkIntegrityBar(1960),
+			"35o the bar rises with the era, because the population it judges does");
+		Require(AlbumLegitimacyService.GetLandmarkIntegrityBar(1960) ==
+			AlbumLegitimacyService.LandmarkIntegrityBase,
+			"35p and starts at the authored base before the revolution has moved anything");
 
 		// The album shift is a ROCK phenomenon. Jazz does not undergo it because jazz was
 		// already making records this way, which is a large part of why the form was available

@@ -52,7 +52,19 @@ public static class AlbumLegitimacyService {
 	/// record: a .72 bar admitted 98% of eligible albums and minted 347 landmarks in two
 	/// years. .92 is roughly the 99.3rd percentile.
 	/// </para>
-	public const float LandmarkIntegrityBar = .92f;
+	/// <para>
+	/// RISES WITH THE ERA, because the population it judges does. Once album consistency became
+	/// genre- and era-shaped, the integrity of an ordinary record climbed .863 → .902 across
+	/// 1960-66, so a fixed bar caught a steadily growing share: at .92 the per-year landmark
+	/// count ran 3, 2, 7, 17, 13, 34. Being a landmark means standing out from your
+	/// CONTEMPORARIES, so the bar tracks them.
+	/// </para>
+	public const float LandmarkIntegrityBase = .928f;
+	/// <summary>How far the bar climbs by the time the album revolution is complete.</summary>
+	public const float LandmarkIntegrityDrift = .044f;
+
+	public static float GetLandmarkIntegrityBar(int year) =>
+		LandmarkIntegrityBase + LandmarkIntegrityDrift * AlbumModel.GetAlbumEraWeight(year);
 	/// <summary>
 	/// A body of work also has to be GOOD. Integrity alone says the record is consistent, not
 	/// that it is worth consistently listening to — a uniformly mediocre album scores well on
@@ -78,6 +90,18 @@ public static class AlbumLegitimacyService {
 	/// </para>
 	/// </summary>
 	public const float LandmarkOriginalityBar = .70f;
+	/// <summary>
+	/// Canonisation is a scarce resource. The trade press, the shops and the listening public
+	/// can only make so many records matter in one year, however many good ones are pressed —
+	/// and the number of albums pressed triples across this decade while the number of records
+	/// anyone still argues about does not.
+	/// <para>
+	/// Unlike the conversion budget in ArtistEvolutionService, this binding is not a sign of
+	/// mistuning: scarcity IS the mechanism. The quality bars above still do the choosing; this
+	/// only says how many of the chosen a year has room for.
+	/// </para>
+	/// </summary>
+	public const int MaxLandmarksPerYear = 6;
 	/// <summary>
 	/// Formats that can be one. A compilation is assembled from sides that already existed and
 	/// a live record documents them; neither is a new body of work. Soundtracks are excluded
@@ -150,8 +174,19 @@ public static class AlbumLegitimacyService {
 		Mathf.Max(MinimumEarliness, 1f - Mathf.Clamp(Legitimacy, 0f, 1f));
 
 	public static bool IsLandmark(int year, float bodyOfWork, float merit, float recognition) =>
-		year >= LegitimacyStartYear && bodyOfWork >= LandmarkIntegrityBar &&
+		year >= LegitimacyStartYear && bodyOfWork >= GetLandmarkIntegrityBar(year) &&
 		merit >= LandmarkMeritBar && recognition >= LandmarkRecognitionBar;
+
+	// ---- ANNUAL CANONISATION BUDGET -------------------------------------------------------------
+	private static int landmarkYear = int.MinValue;
+	private static int landmarksThisYear;
+
+	private static bool HasCanonisationRoom(int year) {
+		if (landmarkYear != year) { landmarkYear = year; landmarksThisYear = 0; }
+		return landmarksThisYear < MaxLandmarksPerYear;
+	}
+
+	internal static int LandmarksThisYearForProbe => landmarksThisYear;
 
 	/// <summary>
 	/// The era term with legitimacy applied. Clamped to at most <see cref="MaxCeilingLift"/>
@@ -205,14 +240,16 @@ public static class AlbumLegitimacyService {
 		// Sounds both carried them. Integrity asks whether the REST of the record stands up.
 		if (year < LegitimacyStartYear || !IsEligibleFormat(album.albumFormat)) return;
 		if (!IsEligibleFamily(GenreCatalog.Get(GenreCatalog.MapLegacy(record.baseRecord.primaryGenre, year)).Family)) return;
-		if (album.bodyOfWork < LandmarkIntegrityBar || album.artisticMerit < LandmarkMeritBar) return;
+		if (album.bodyOfWork < GetLandmarkIntegrityBar(year) || album.artisticMerit < LandmarkMeritBar) return;
 		if (record.baseRecord.originality < LandmarkOriginalityBar) return;
+		if (!HasCanonisationRoom(year)) return;
 
 		(float recognition, _) = CulturalRecognitionService.Consume(record.baseRecord.recordId,
 			record.peakPosition, Mathf.Max(artist.reputation, artist.criticalAcclaim));
 		if (recognition < LandmarkRecognitionBar) return;
 
 		record.landmarkPublished = true;
+		landmarksThisYear++;
 		float merit = album.artisticMerit;
 		float strength = Mathf.Clamp(merit * recognition * GetEarliness(year) *
 			CulturalMemoryService.LandmarkInfluenceWeight, 0f, 1f);
@@ -226,6 +263,8 @@ public static class AlbumLegitimacyService {
 	internal static void ResetForProbe() {
 		Legitimacy = 0f;
 		LandmarkCount = 0;
+		landmarkYear = int.MinValue;
+		landmarksThisYear = 0;
 	}
 
 	internal static void SetLegitimacyForProbe(float value) => Legitimacy = Mathf.Clamp(value, 0f, 1f);
