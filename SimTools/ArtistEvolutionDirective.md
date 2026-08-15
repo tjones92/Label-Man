@@ -848,6 +848,47 @@ consistent*. Added `LandmarkOriginalityBar = .70` against `record.originality` �
 nothing else in the rule derives from, and therefore the only gate that actually separates a
 landmark from a competently uniform record.
 
+### 7b.11 MEASURED RESULT — `evo11`, seed 1001, 1960-65
+
+The state the branch is paused at.
+
+**Landmarks: 17 across 1960-65** (2, 0, 0, 6, 5, 4). Projecting 1966-69 at the cap gives a
+decade total of **~33-41**, inside the 25-40 target. *Projection, not measurement — no run has
+gone past 1965.*
+
+**71% of landmarks are jazz-family** (BossaNova 8 + Jazz 4 of 17). `GetTrackConsistency`
+reproduces the historical shape without being told to: jazz starts at .80 innate consistency
+and has no revolution to undergo, so it dominates the early landmark set exactly as the period
+did. Legitimacy reaches .4395 by end-1965 — building, not saturating.
+
+**Trigger mix** (793 ratified conversions):
+
+| trigger | share | was (bundle) |
+|---|---|---|
+| PersonalAmbition | 38.2% | 4.3% |
+| CommercialFailure | **37.5%** | **92.0%** |
+| InternalTension | 14.1% | 2.9% |
+| CriticalBreakthrough | 3.2% | **0** |
+| LabelPressure | 2.5% | **0** |
+| GenreClimateShift | 2.5% | **0** |
+| PeerInfluence | 1.5% | **0** |
+| BackToRoots | 0.4% | 0.5% |
+| **CohesiveAlbumMovement** | **0.1%** | **0** |
+
+**The Rubber Soul → Pet Sounds chain executed for the first time.** One conversion, motivated
+by another act's landmark album, with the source act named in the era line. 792 of 793
+conversions name the specific act whose record moved them; 36 distinct source acts.
+
+**Honest reading of that 0.1%.** 76 ratified conversions had a `CohesiveAlbum` as their
+strongest live influence, so the channel carries — it loses the *motive contest*, because peer
+pressure peaks at .421 against a commercial pressure that reaches 1.0. The chain is proven
+end-to-end but is currently too rare to write a storyline. As recorded in 7c, the lever for
+that is `HitInfluenceWeight` / `InfluenceMemoryYears` / `LedgerCapacity` — **not** the landmark
+bar, which is calibrated to a historical target.
+
+`CommercialBreakthrough` did not fire in this run (it reached 1-2 conversions in earlier ones);
+it lives in the Phase-1 fallback, which is reached only when nothing is pressing.
+
 ---
 
 ## 7c. REMAINING WORK
@@ -857,17 +898,18 @@ nothing here is speculative scope.
 
 ### Blocking the decade A/B
 
-1. **Verify the genre distribution of landmarks.** `GetTrackConsistency` gives the jazz-led
-   pre-1965 shape a mechanism, but no run has yet included it — `evo9` predates the change and
-   came back genre-flat. Owed: a 1960–65 run confirming (a) landmark count still ≈12, (b) the
-   early ones skew jazz/blues/folk, (c) no odd-entity genre survives the family gate.
-2. **`CohesiveAlbumMovement` has still never fired.** It has a writer, the ledger carries
-   `LandmarkAlbum` events, and the trigger resolves off the strongest live influence memory —
-   but landmarks are outnumbered by `BreakthroughHit` events roughly **25:1** (12 vs 503 over
-   six years). If it stays at zero the honest reading is that the landmark channel cannot
-   compete on volume, and the lever is `HitInfluenceWeight` / `InfluenceMemoryYears` /
-   `LedgerCapacity` — **not** quietly lowering the landmark bar, which is calibrated to a
-   historical target and should not be moved to make a trigger fire.
+1. ~~Verify the genre distribution of landmarks.~~ **DONE** (7b.11): 71% jazz-family, no
+   odd-entity genre survives the family gate.
+2. ~~`CohesiveAlbumMovement` has never fired.~~ **FIRES, at 0.1%.** The chain is proven
+   end-to-end; the open question is now whether 0.1% is *enough to be a storyline*. 76
+   conversions carried a `CohesiveAlbum` as their strongest influence but lost the motive
+   contest — peer pressure peaks at .421 against commercial at 1.0. The lever is
+   `HitInfluenceWeight` (currently .55), `InfluenceMemoryYears` (3) or `PeerSalience` (.30) —
+   **not** the landmark bar, which is calibrated to a historical target and must not be moved
+   to make a trigger fire more often.
+3. **Verify the decade tail.** No run has passed 1965. The 33-41 decade landmark projection,
+   the legitimacy curve approaching (not reaching) saturation, and the behaviour of the
+   canonisation cap in the high-volume late years are all unmeasured.
 
 ### The decade A/B itself
 
