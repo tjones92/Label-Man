@@ -14,6 +14,17 @@ public partial class ChartManager : Node {
 	[Export] private int targetActiveRecords = 500;
 	[Export] private int prewarmWeeks = 8;
 	[Export] private bool marketSeasonalityEnabled = true;
+	// NOTE (player slice): chart_manager.tscn OVERRIDES both of these to true so the
+	// game is playable when launched with no command-line flags -- the player-facing
+	// desk scouts the unsigned talent market, which only exists on the enabled
+	// lifecycle path. These field defaults stay false; the scene is the override.
+	//
+	// Before the next headless run: either pass the flags explicitly (every documented
+	// run command already does, and an explicit flag still wins over the scene default),
+	// or set genreMarketV2Enabled/artistPopulationLifecycleEnabled back to false on the
+	// ChartManager node in chart_manager.tscn. The one case the override silently
+	// changes is a headless run that passes NEITHER --enable-* nor --disable-*: that
+	// run used to be the disabled path and is now the enabled one.
 	[Export] private bool genreMarketV2Enabled = false;
 	[Export] private bool artistPopulationLifecycleEnabled = false;
 	[Export] private bool artistEvolutionEnabled = false;

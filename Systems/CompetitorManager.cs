@@ -455,6 +455,8 @@ public partial class CompetitorManager : Node {
 	/// </summary>
 	private void PursueIndependentDistribution(AILabel label) {
 		if (label == null || !label.IsActive || independentDistributors.Count == 0) return;
+		// The player places their own lines, one market at a time, from the desk.
+		if (label.isPlayerOwned) return;
 		// A Major runs its own branch distribution and does not place its line with a
 		// regional wholesaler.
 		if (label.tier == LabelTier.Major) return;
@@ -821,6 +823,8 @@ public partial class CompetitorManager : Node {
 			label.weeklyArtistRoyalty = 0f;
 			label.weeklyNetRevenue = 0f;
 			label.weeklyDistributionIncome = 0f;
+			label.weeklyWholesaleDeferred = 0f;
+			label.weeklyWholesaleCollected = 0f;
 		}
 		foreach (var label in aiLabels) {
 			// A frozen enabled settlement may still contain a record from a label whose
@@ -831,8 +835,12 @@ public partial class CompetitorManager : Node {
 			float weeklyRevenue = CalculateLabelRevenue(label, settlement);
 			// Billings against a wholesale house are booked but not banked: the house pays on
 			// its own terms, and only for what it admits it sold.
-			weeklyRevenue -= DeferWholesaleBillings(label, settlement, weeklyRevenue);
-			weeklyRevenue += CollectMaturedWholesaleReceivables(label);
+			float deferred = DeferWholesaleBillings(label, settlement, weeklyRevenue);
+			weeklyRevenue -= deferred;
+			float collected = CollectMaturedWholesaleReceivables(label);
+			weeklyRevenue += collected;
+			label.weeklyWholesaleDeferred = deferred;
+			label.weeklyWholesaleCollected = collected;
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
@@ -1099,8 +1107,10 @@ public partial class CompetitorManager : Node {
 		int releasesThisWeek = 0;
 		foreach (var label in aiLabels) {
 			if (!label.IsActive) continue;
+			// The player's label releases when the player says so, not on the AI's weekly roll.
+			if (label.isPlayerOwned) continue;
 			if (label.roster.Count == 0) continue;
-			
+
 			float releaseChance = CalculateWeeklyReleaseChance(label, date.year, date.month);
 			if (GD.Randf() < releaseChance) {
 				WeeklyReleaseRollsFired++;
@@ -4134,6 +4144,86 @@ public partial class CompetitorManager : Node {
 			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 		if (!labelFinancials.ContainsKey(label.labelId)) labelFinancials[label.labelId] = new LabelFinancialHistory();
 	}
+
+	// ========================================================================
+	// PLAYER-DRIVEN ACTIONS
+	// The player's label is a registered AILabel that the AI decision loops skip,
+	// so everything it does has to be pushed in from the desk. These two entry
+	// points reuse the same release and distribution plumbing the AI runs on --
+	// the player is not on a parallel economy, only on a manual one.
+	// ========================================================================
+
+	/// <summary>
+	/// Puts a master the player has already paid to record into the market on
+	/// <paramref name="date"/>. Production cost is passed in because the player was
+	/// charged for it at the session, not here.
+	/// </summary>
+	public bool ReleasePlayerRecord(AILabel label, SimulatedArtist artist, Record record,
+		float marketingBudget, float sunkProductionCost, GameDate date) {
+		if (label == null || artist == null || record == null || ChartManager.Instance == null) return false;
+
+		record.labelId = label.labelId;
+		record.isPlayerOwned = true;
+		record.releaseDate = date;
+		record.projectRole = ProjectRecordRole.OrphanSingle;
+		record.albumProjectId = string.Empty;
+
+		ChartManager.Instance.ReleaseRecord(record);
+		RecordRuntimeData runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData == null) return false;
+
+		runtimeData.sunkProductionCost = sunkProductionCost;
+		runtimeData.revenueMemoryEligible = true;
+		runtimeData.releaseTimeExpectedNet = 0f;
+		runtimeData.releaseTimeOpportunityScale = Mathf.Max(1f, sunkProductionCost);
+		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
+		runtimeData.projectRole = record.projectRole;
+
+		// The player knows exactly what they cut, so there is no perceived-quality
+		// misread to apply -- the AI's noise term is its scouting ear, not a market effect.
+		ApplyReleasePromotion(record, artist, label, marketingBudget, 1f);
+		CaptureSingleOpportunity(runtimeData, label, date.year);
+		TrackRelease(label.labelId, record.recordId);
+		WeeklySingleReleases++;
+		RecordArtistRelease(artist, record.recordId, record.format);
+		return true;
+	}
+
+	/// <summary>
+	/// Places the player's line with a wholesale house in one market. Same grant as
+	/// <see cref="PursueIndependentDistribution"/>: coverage and the marginal reach it
+	/// opens, no deal, no borrowed reach, no master ownership.
+	/// </summary>
+	public IndependentDistributor PlacePlayerLine(AILabel label, string regionId) {
+		if (label == null || string.IsNullOrEmpty(regionId)) return null;
+		if (label.HasDistributionInRegion(regionId)) return null;
+
+		IndependentDistributor house = GetIndependentDistributorsInRegion(regionId)
+			.FirstOrDefault(candidate => candidate.HasCapacity && !candidate.CarriesLabel(label.labelId));
+		if (house == null || !house.AddClient(label.labelId)) return null;
+
+		label.independentDistributionRegions.Add(regionId);
+		float before = label.ownedReach;
+		float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { regionId }) ?? 0f;
+		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling,
+			label.ownedReach + (marginalShare * independentCoverageReachFactor));
+
+		OnIndependentDistributionSigned?.Invoke(new IndependentDistributionTelemetry {
+			week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
+			labelId = label.labelId, labelName = label.labelName, labelTier = label.tier,
+			distributorId = house.distributorId, distributorName = house.distributorName,
+			regionId = regionId, provenInRegion = false,
+			coveredRegionCount = label.independentDistributionRegions.Count,
+			coveredMarketShare = ChartManager.Instance?.GetNationalMarketShareForRegions(label.AllCoveredRegions()) ?? 0f,
+			ownedReachBefore = before, ownedReachAfter = label.ownedReach,
+			houseClientCount = house.CurrentClientCount, houseClientCapacity = house.clientCapacity
+		});
+		return house;
+	}
+
+	/// <summary>Production cost for one player session, on the same cost basis the AI pays.</summary>
+	public float GetPlayerProductionCost(AILabel label, Record record, GameDate date) =>
+		CalculateProductionCost(label, record, date);
 
 	public void RecordExpense(AILabel label, float amount) {
 		if (label == null || amount <= 0f) return;

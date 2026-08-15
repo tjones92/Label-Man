@@ -617,7 +617,7 @@ public partial class RosterManager : Node {
 			return;
 		}
 		
-		var scoutingLabels = labels.Where(l => l.ShouldScoutNewArtist()).OrderBy(_ => GD.Randf()).Take(3);
+		var scoutingLabels = labels.Where(l => !l.isPlayerOwned && l.ShouldScoutNewArtist()).OrderBy(_ => GD.Randf()).Take(3);
 		foreach (var label in scoutingLabels) TrySignNewArtist(label, year);
 	}
 
@@ -629,6 +629,7 @@ public partial class RosterManager : Node {
 	private void ProcessLegacyScoutingWithTelemetry(List<AILabel> labels, int year) {
 		var scoutingLabels = new List<(AILabel Label, LabelScoutingVacancyObservation Observation)>();
 		foreach (AILabel label in labels) {
+			if (label.isPlayerOwned) continue;
 			AILabel.ScoutingGateEvaluation gate = label.EvaluateScoutingGate(useOperatingRosterTarget: true);
 			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
 			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
@@ -877,7 +878,10 @@ public partial class RosterManager : Node {
 	}
 
 	public static int AdvanceConsecutiveAge(bool condition, int priorAge) => condition ? priorAge + 1 : 0;
-	public static bool IsEligibleForEnabledScouting(AILabel label) => label?.IsActive == true;
+	// A player-owned label never appears in the daily talent market: the player books
+	// their own scouting trips and makes their own offers. No audit or calibration run
+	// contains a player label, so this leaves those runs unchanged.
+	public static bool IsEligibleForEnabledScouting(AILabel label) => label?.IsActive == true && !label.isPlayerOwned;
 	public static int GetScoutingUrgencyAgeForWeek(bool hasRosterSpace, int priorAge) => hasRosterSpace ? priorAge + 1 : 0;
 	public static float GetScoutingProbabilityFloorForPath(bool enabledLifecyclePath, int urgencyAge) {
 		if (!enabledLifecyclePath || urgencyAge < ScoutingUrgencyThresholdWeeks) return 0f;
@@ -1008,6 +1012,8 @@ public partial class RosterManager : Node {
 		if (labels == null) return;
 		if (IsLiveGenreMarket()) ReconcileEnabledRosterLifecycle(labels, date.year);
 		foreach (var label in labels) {
+			// Renewals and drops on the player's roster are the player's calls.
+			if (label.isPlayerOwned) continue;
 			ProcessContractExpirations(label, date.year);
 			if (GD.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
 		}
