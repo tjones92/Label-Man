@@ -900,24 +900,26 @@ nothing here is speculative scope.
 
 1. ~~Verify the genre distribution of landmarks.~~ **DONE** (7b.11): 71% jazz-family, no
    odd-entity genre survives the family gate.
-2. ~~`CohesiveAlbumMovement` has never fired.~~ **FIRES, at 0.1%.** The chain is proven
-   end-to-end; the open question is now whether 0.1% is *enough to be a storyline*. 76
-   conversions carried a `CohesiveAlbum` as their strongest influence but lost the motive
-   contest — peer pressure peaks at .421 against commercial at 1.0. The lever is
+2. ~~`CohesiveAlbumMovement` has never fired.~~ **FIRES, and the 0.1% was the wrong reading.**
+   That is the *trigger* share; the decade run shows **6.8% (s1001) and 9.7% (s2002) of
+   conversions name an album as the influence that moved them** (§7d). The channel carries and
+   the biography already says so — what loses the contest is the trigger *label*, because peer
+   pressure peaks at .421 against commercial at 1.0. If that is worth closing, the lever is
    `HitInfluenceWeight` (currently .55), `InfluenceMemoryYears` (3) or `PeerSalience` (.30) —
    **not** the landmark bar, which is calibrated to a historical target and must not be moved
    to make a trigger fire more often.
-3. **Verify the decade tail.** No run has passed 1965. The 33-41 decade landmark projection,
-   the legitimacy curve approaching (not reaching) saturation, and the behaviour of the
-   canonisation cap in the high-volume late years are all unmeasured.
+3. ~~**Verify the decade tail.**~~ **DONE** (7d). 33 and 26 landmarks on two seeds, both inside
+   25–40; legitimacy reaches .68/.66 without saturating; the canonisation cap **never binds
+   late** — the era-rising bar governs instead, and its interaction with early landmark timing
+   is the one open instability (s2002 puts 3 landmarks in 1966–69 against s1001's 16).
 
 ### The decade A/B itself
 
-3. **Run against the 303.8 Phase 1–4 bundle**, seed 1001, canonical flags plus
-   `--enable-evolution-pressure --enable-album-legitimacy --enable-cultural-memory`.
-   The blast radius is now wider than the evolution metrics: album generation is touched, so
-   **album unit share and album-chart genre mix are in scope** alongside `sumAbsErr` and the
-   chart-health gates.
+3. ~~**Run against the 303.8 Phase 1–4 bundle.**~~ **DONE** (7d), and superseded in method: the
+   recorded scalar was unusable because the control had drifted +7.4 since the bundle, so the
+   A/B is against a **contemporaneous paired control, one per seed**. Result: +12.7 on seed
+   1001, −5.2 on seed 2002, mean **+3.7**. No regression. Album unit share and album-chart
+   genre mix were in the blast radius and came back neutral.
 4. **Salience constants are sized off a single 3-year window** (`CommercialSalience .45`,
    `Artistic .52`, `Critical .30`, `Peer .30`, `Label .36`, `Internal .58`). They are the most
    likely thing to want moving after a decade run, and the trigger mix is the metric to read
@@ -946,6 +948,175 @@ nothing here is speculative scope.
    an odd entity alongside comedy/children's/classical), but it means a blockbuster
    soundtrack currently influences nobody despite `blockbuster-soundtrack-longevity` giving it
    200–350 chart weeks.
+
+## 7d. MEASURED RESULT — the decade A/B, two seeds
+
+Four runs, `--lean-probe`, 522 weeks, canonical flags. Treatment adds
+`--enable-artist-evolution --enable-evolution-pressure --enable-album-legitimacy
+--enable-cultural-memory`; control is `--disable-artist-evolution` and **nothing else** —
+`AlbumLegitimacyEnabled` and `CulturalMemoryEnabled` gate independently of `enabled`
+(`AlbumLegitimacyService.cs:201`, `ChartManager.cs:2268`), so passing the phase flags to a
+control contaminates it.
+
+| | treatment | control | delta |
+|---|---|---|---|
+| seed 1001 | `evo12` **322.1** | `ctl12` **309.5** | **+12.7** |
+| seed 2002 | `evo12b` **302.3** | `ctl12b` **307.6** | **−5.2** |
+| mean | 312.2 | 308.6 | **+3.7** |
+
+**The single-seed result was read as a regression and it was not one.** Seed 1001's +12.7 —
+against the bundle's +1.7 — looked like Phase 6 had made evolution expensive. Seed 2002
+inverts the sign: evolution *improves* the calibration by 5.2. The two-seed mean cost is
++3.7, next door to the bundle. There is no regression here to diagnose.
+
+**Every marginal per-genre degradation flipped sign.**
+
+| genre | s1001 | s2002 |
+|---|---|---|
+| Country | +4.76 | −2.50 |
+| BritishBeat | +4.66 | −1.30 |
+| TeenPop | +4.49 | −2.20 |
+| Comedy | +4.20 | +0.02 |
+
+The Country reading built on seed 1001 — deficit deepening on a *net-positive* identity flow,
+therefore "the loss moved to the units side" — described one world and is withdrawn. §7's
+guardrail 5 is not currently binding in either direction.
+
+**What does replicate** (same sign both seeds): EasyListening improves −4.88/−2.99 (the
+largest consistent effect either way), Folk −1.53/−1.68, Childrens −1.36/−1.80, RnB
+−0.54/−3.71. **BritishPop is the only genre consistently worse**, +1.84/+3.42, and is already
+filed as panel over-play in [[britishpop-panel-overplay-vitality]]. SurfRock, Blues and
+FolkRock degrade mildly on both.
+
+**The story metrics replicate, which is the half that matters.**
+
+| | seed 1001 | seed 2002 |
+|---|---|---|
+| ratified conversions | 1,549 | 1,551 |
+| landmarks (target 25–40) | 33 | 26 |
+| distinct tastemakers | 69 | 82 |
+| conversions naming an album | 6.8% | 9.7% |
+| end-1969 legitimacy | 0.6813 | 0.6555 |
+
+Trigger mix agrees within ~1.5 points on every trigger. Conversion volume came in at 1,549
+against the bundle's 1,616 — the small drop §7c item 5 predicted from commercial pressure
+losing its floor.
+
+**`CohesiveAlbumMovement` at 0.1% understates the album channel by ~100×.** That figure is the
+*trigger*. The `influenceType` column says **106 conversions (6.8%), and 150 (9.7%) on seed
+2002, name an album as the record that moved them** — the biography already reads "moved by
+X's album" while the motive is filed as PersonalAmbition. §7c item 2's lever is therefore
+about making the *label* match a story the ledger is already telling, not about making the
+channel carry. It carries.
+
+**The one real instability is landmark timing, and it runs the historically wrong way:**
+
+```
+          60 61 62 63 64 65 | 66 67 68 69   late
+s1001      2  0  0  6  5  4 |  5  3  6  2    16
+s2002      5  3  3  4  5  3 |  1  0  1  1     3
+```
+
+Both decade totals are inside 25–40, so the canonisation budget is right. What is unstable is
+the era-rising bar's interaction with *when* the early landmarks land: seed 2002 front-loads,
+raises the bar, and then produces almost nothing across 1966–69 — precisely the years that
+define the landmark album historically. **This is the open item worth working, ahead of any
+genre number in this section.**
+
+**Economy is neutral** (seed 1001 vs its control): total units +0.06% against a ±1.5%
+tolerance, LP share within 0.8 at every year and identical from 1966 on, album-chart genre mix
+shifting ≤1.2 points (Soul +1.0, EasyListening +0.9, TraditionalPop −1.2, Folk −1.0). Album
+chart slot-weeks identical at 65,890. Phase 4 remains free.
+
+**Guardrails:** budget and outflow caps never appear in the refusal ledger; cooldown refused
+14; `NoMusicalPath` is still the bulk at 54%. 1,493 of 1,520 converting artists converted
+exactly once, max 3 — the >3 median-eras kill is far away.
+
+**Gate status:** mean 312.2 passes ≤320; seed 1001 alone breaches it by 2.1; the 340 kill is
+untouched. No genre approaches the 6.0 per-genre kill on either seed.
+
+### Method notes this run bought
+
+- **The paired control is not optional, and it needs one per seed.** A delta is
+  treatment-minus-control *in the same world*; comparing across seeds measures world variance.
+- **The >4.0 per-genre gate is below the noise for several genres.** Two *controls* on
+  identical code differ by BossaNova 6.09, Comedy 4.81, EasyListening 4.51, TraditionalPop
+  4.48. Absolute per-genre numbers at that scale say nothing; only a paired delta that
+  **replicates across seeds** does.
+- **The control has drifted +7.4 since the bundle** — 309.5/307.6 against the recorded
+  `ctl-supply-1001` 302.1 — from work outside this branch that had never been decade-run. Read
+  a treatment against a *contemporaneous* control, never against a recorded scalar.
+- **SimLogs was empty at the start of this session.** `mix8-decade`, `bundle-1001`,
+  `ctl-supply-1001` and `evo11` are all gone, which is why the baselines had to be regenerated.
+  Archive the CSVs of any run whose number gets quoted in a directive.
+- **Wall clock is unmeasured.** All four runs shared the machine; the >10% timing kill needs a
+  solo run.
+
+## 7e. ADJACENT FINDING — the chart has stars and no celebrities
+
+Not part of this directive's scope; recorded here because the evolution telemetry is what
+exposed it and the cultural ledger is half the fix.
+
+**The star careers already exist.** Joining `lifecycles.csv` to `artist-project-identity.csv`
+on seed 1001:
+
+```
+artist_04047   19 top-40   10 #1s   32 weeks at #1   charted 1961-1968
+artist_00675   15 top-40    9 #1s   24 weeks at #1   charted 1960-1968
+artist_00721   15 top-40    5 #1s   15 weeks at #1   charted 1960-1968
+artist_00282   14 top-40    1 #1    19 entries       charted 1960-1969, all ten years
+```
+
+3,120 artists chart; 92 reach Star or Superstar. `artist_04047` is also the **8th-ranked
+tastemaker** in the influence ledger (69 conversions cite it), so chart stardom and cultural
+influence already land on the same act — the hard half works. **The recorded claim that no
+runtime artist ever reaches Star is stale and retracted.**
+
+**What is missing is that fame is an output, not an input.** `ChartManager.cs:780` sets
+`record.launchCareerState` from the artist. Every reader: `RecordRuntimeData` declares it and
+`ChartAuditRunner` writes it to three CSVs. **Nothing in the sim consumes it** — the same
+defect shape as `criticalAcclaim` before Phase 3.
+
+The line above it is the actual launch:
+
+```
+data.awareness = (0.15f + rand(0.05,0.15)) * campaignImpact * regionStrength;
+```
+
+Label campaign, region strength, dice. The artist contributes nothing. A superstar's twelfth
+single arrives at radio exactly as anonymous as an unknown's debut, and every star in that
+table got there on repeated quality draws plus label promo — not on accumulated public
+recognition. That's why the top is thinner than history: the Beatles had ~20 #1s in the decade,
+our best act has 10, and nothing compounds.
+
+What that means for "seeing the Beatles on the chart":
+
+1. **Fame has to become an input.** A recognition stock on the artist — decaying, fed by chart
+   results, landmarks, and the cultural ledger you already built — feeding launch awareness,
+   initial stock, and radio interest. The plumbing is half-built: `stageName` exists, naming v2
+   fills it, `CulturalMemoryService` and the era summaries already give an act a biography, and
+   `launchCareerState` is a wire that runs to the chart and terminates.
+2. **The middle of the ladder is thin.** 93.95% of acts never leave NewSigning; 942 reach
+   Rising, 292 Established, 92 Star+. The Temptations tier — a working act with three or four
+   hits that you recognize without it being iconic — is the band that barely exists.
+3. **Presentation is genuinely last.** The chart is record-facing; the act behind it has a
+   discography service, an era history, and a name, none of which the chart surfaces.
+
+**Storytelling is bounded by career length**, and that bound is structural — ratification reads
+a window of projects, so a two-record act cannot have an arc:
+
+| projects released | artists | with a pivot |
+|---|---|---|
+| 1–2 | 4,833 | 0% |
+| 3 | 2,174 | 1.3% |
+| 4–5 | 8,752 | 4.9% |
+| 6–9 | 5,434 | 15.9% |
+| 10+ | 713 | 27.5% |
+
+**One caution on (1):** fame-as-input is rich-get-richer, and chart slot-weeks are a fixed
+52,100 ([[chart-slot-weeks-identity]]). A recognition term will concentrate the chart and it
+will come out of breadth, so it wants its own A/B against the genre-slot metrics — not a
+bundled ride-along on someone else's phase.
 
 ## 8. Validation protocol
 
