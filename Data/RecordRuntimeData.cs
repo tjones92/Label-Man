@@ -26,6 +26,16 @@ public class RecordRuntimeData {
 	public bool artistTop10Credited;
 	public bool artistNumberOneCredited;
 	public bool artistChartRunCompleted;
+	// Separate from artistChartRunCompleted on purpose. A record that CHARTED has the flag
+	// above set by ArtistManager.OnRecordLeftChart before RosterManager ever sees it, and is
+	// then handed to RosterManager a second time when the record retires -- so the flag above
+	// answers "has the commercial outcome been credited", which is a different question from
+	// "has the critical and cultural read been taken". Sharing one flag between the two meant
+	// the narrative reads only ever ran on records that never charted.
+	public bool culturalRunCompleted;
+	// A record becomes a landmark ONCE, at the moment it is recognised -- which is while it is
+	// climbing, not when it finally falls off the chart a year and a half later.
+	public bool landmarkPublished;
 	// Captures the artist's owning contract when this record was released. A
 	// later contract must not inherit probation evidence from this chart run.
 	public int artistContractSequenceAtRelease = -1;

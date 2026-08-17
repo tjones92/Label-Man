@@ -2334,15 +2334,36 @@ public static class ArtistPopulationLifecycleProbeSuite {
 			$"97e the compilation rate never rises year over year ({year})");
 
 		// A statement album is unreachable before 1965 even for the best pairing on the best
-		// roll, reachable from 1965 only for that pairing, and never on an ordinary roll.
-		Require(AlbumModel.GetMaximumAchievableCohesion(1964, 1f, 1f, 1f) < .72f,
+		// roll, reachable from 1965 only over the excellence bar, and never on an ordinary roll.
+		//
+		// Every pairing below is DERIVED from EarlyStatementExcellence rather than written as a
+		// literal, because a literal "one under the bar" silently inverts when the bar moves --
+		// and this bar is about to move. With labelProduction at 1 the production factor is 1,
+		// so excellence reduces to the talent factor and the talent that scores exactly the bar
+		// is 0.70 + 0.30 * bar.
+		float TalentScoring(float excellence) => .70f + .30f * Godot.Mathf.Clamp(excellence, 0f, 1f);
+		float over = TalentScoring(Godot.Mathf.Min(AlbumModel.EarlyStatementExcellence + .02f, 1f));
+		float under = TalentScoring(AlbumModel.EarlyStatementExcellence - .02f);
+		float bestRoll = 1f;
+		float ordinaryRoll = AlbumModel.EarlyStatementRollThreshold * .5f;
+
+		Require(AlbumModel.GetMaximumAchievableCohesion(1964, 1f, 1f, bestRoll) < .72f,
 			"97f no concept album is reachable before the early-statement year");
-		Require(AlbumModel.GetMaximumAchievableCohesion(1965, 1f, 1f, 1f) >= .72f,
-			"97g an exceptional artist in an exceptional room can reach the statement bar from 1965");
-		Require(AlbumModel.GetMaximumAchievableCohesion(1965, 1f, 1f, .5f) < .72f,
-			"97h an ordinary roll cannot, so the 1965 opening stays vanishingly rare");
-		Require(AlbumModel.GetMaximumAchievableCohesion(1965, .72f, .72f, 1f) < .72f,
-			"97i and neither can an unexceptional pairing on the best roll");
+		Require(AlbumModel.GetMaximumAchievableCohesion(1965, over, 1f, bestRoll) >= .72f,
+			"97g an artist over the excellence bar in an exceptional room reaches it from 1965");
+		Require(AlbumModel.GetMaximumAchievableCohesion(1965, over, 1f, ordinaryRoll) < .72f,
+			"97h an ordinary roll cannot, so the 1965 opening stays rare however good the pairing");
+		Require(AlbumModel.GetMaximumAchievableCohesion(1965, under, 1f, bestRoll) < .72f,
+			"97i and neither can a pairing under the bar on the best roll");
+		// The era ramp is the floor and the shape, and it must actually ramp. The authored
+		// endpoints are 0.12 and 0.96; reading them as SmoothStep EDGES instead of as a range
+		// zeroed the term until 1965 and pinned every artist album to the 0.08 clamp floor.
+		Require(Math.Abs(AlbumModel.GetCohesionEraTerm(1960) - .12f) < 1e-4f &&
+			Math.Abs(AlbumModel.GetCohesionEraTerm((int)AlbumModel.CohesionRiseEndYear) - .96f) < 1e-4f,
+			"97j the cohesion era term spans its authored endpoints rather than treating them as edges");
+		for (int year = 1961; year <= 1969; year++)
+			Require(AlbumModel.GetCohesionEraTerm(year) >= AlbumModel.GetCohesionEraTerm(year - 1) - 1e-6f,
+				$"97k the cohesion era term never falls year over year ({year})");
 	}
 
 	/// <summary>

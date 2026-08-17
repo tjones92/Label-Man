@@ -118,6 +118,10 @@ public class SimulatedArtist {
 
 	public List<string> careerEvents = new List<string>();
 
+	// Career-arc state. Null unless artist evolution is observing or enabled, so the
+	// default path allocates nothing extra across a 22.5k-artist registry.
+	public ArtistEvolutionProfile evolution;
+
 	public void RecalculateStats() {
 		if (members.Count == 0) return;
 		var activeMembers = members.Where(m => m.isActive).ToList();

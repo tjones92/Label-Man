@@ -109,6 +109,11 @@ public partial class AILabel : Resource {
 	public float weeklyArtistRoyalty;
 	public float weeklyNetRevenue;
 	public float weeklyDistributionIncome;
+	// The two halves of the wholesale lag, split out so a week's earnings can be told
+	// apart from a week's takings: what was billed to houses and is now waiting on their
+	// terms, and what finally arrived from invoices billed months ago.
+	public float weeklyWholesaleDeferred;
+	public float weeklyWholesaleCollected;
 	public Dictionary<ReleaseFormat, FormatRevenueMemory> revenueMemory = new();
 	public Dictionary<RevenueEstimatorLane, FormatRevenueMemory> laneRevenueMemory = new();
 

@@ -199,6 +199,63 @@ public static class GenreMarketMomentumService {
 		Add(Genre.BritishBeat, Genre.PsychedelicRock,.52f); Add(Genre.BritishBlues, Genre.PsychedelicRock,.45f);
 		Add(Genre.BritishPop, Genre.PsychedelicRock,.45f); Add(Genre.SunshinePop, Genre.PsychedelicRock,.40f);
 		Add(Genre.BaroquePop, Genre.PsychedelicRock,.38f); Add(Genre.SurfRock, Genre.PsychedelicRock,.30f);
+
+		// ---- EDGE FILL --------------------------------------------------------------------------
+		// 16 of the 45 catalog genres carried no explicit edge at all and sat on the .12
+		// same-family floor -- including ContemporaryFolk, Jazz, EasyListening, TraditionalPop
+		// and TeenPop, four of which are large calibrated genres. That was survivable while
+		// adjacency only gated one Psychedelic seam, but it is NOT survivable once supply
+		// weight reads adjacency (GenreSupplyService.GetIdentityFit): an unauthored edge would
+		// become a permanent supply penalty, converting a gap in the data into a calibration
+		// shift. This block closes the gap so the weight reads a lineage map rather than a
+		// record of what happened to get written down first.
+		//
+		// NOTE this table has three other live readers besides the new one:
+		// IsPsychedelicTransitionCompatible (>= .12 gate), ArtistManager's runtime secondary
+		// choice (which picks uniformly among adjacency-positive candidates, so new edges
+		// change ITS array length and therefore every runtime secondary), and the Phase-4
+		// influence propagation. This is not an inert commit and wants its own A/B.
+
+		// Folk family. Folk -> FolkRock deliberately stays the strongest folk edge (.75, above):
+		// traditional and contemporary folk are musically closer than that pairing, but the
+		// folk-rock turn is the move the decade actually made, and ContemporaryFolk is already
+		// over its target every year. Weighting CF level with FolkRock here would hand the
+		// folk-family surplus straight back to the genre that is already carrying it.
+		Add(Genre.Folk, Genre.ContemporaryFolk,.55f); Add(Genre.ContemporaryFolk, Genre.FolkRock,.60f);
+		Add(Genre.ContemporaryFolk, Genre.SingerSongwriter,.70f); Add(Genre.Folk, Genre.SingerSongwriter,.45f);
+
+		// Jazz and the adult-listening block. Jazz runs 3.1-3.8 points UNDER target every year
+		// with no edge to anything; these are the routes its players actually took.
+		Add(Genre.Jazz, Genre.BossaNova,.62f); Add(Genre.Jazz, Genre.Blues,.45f);
+		Add(Genre.Jazz, Genre.Soul,.35f); Add(Genre.Jazz, Genre.EasyListening,.38f);
+		Add(Genre.BossaNova, Genre.LatinPop,.55f); Add(Genre.BossaNova, Genre.EasyListening,.45f);
+		Add(Genre.EasyListening, Genre.TraditionalPop,.68f); Add(Genre.TraditionalPop, Genre.Jazz,.35f);
+		Add(Genre.EasyListening, Genre.BaroquePop,.40f); Add(Genre.Classical, Genre.BaroquePop,.35f);
+
+		// Teen/pop manufacture. Bubblegum is where teen pop went once it was made for children.
+		Add(Genre.TeenPop, Genre.Bubblegum,.68f); Add(Genre.TeenPop, Genre.TraditionalPop,.40f);
+		Add(Genre.TeenPop, Genre.DooWop,.45f); Add(Genre.TeenPop, Genre.SunshinePop,.50f);
+		Add(Genre.Bubblegum, Genre.SunshinePop,.52f); Add(Genre.Childrens, Genre.Bubblegum,.30f);
+		Add(Genre.PopRock, Genre.RockAndRoll,.65f); Add(Genre.PopRock, Genre.TeenPop,.55f);
+		Add(Genre.PopRock, Genre.BritishBeat,.55f); Add(Genre.PopRock, Genre.SunshinePop,.48f);
+		Add(Genre.PsychedelicPop, Genre.SunshinePop,.60f); Add(Genre.PsychedelicPop, Genre.PsychedelicRock,.65f);
+		Add(Genre.PsychedelicPop, Genre.BaroquePop,.58f); Add(Genre.PsychedelicPop, Genre.BritishPop,.50f);
+
+		// The heavy lineage. ProtoMetal and HardRock both emerge in 1968 and had no route in
+		// from the blues-rock and acid-rock acts who actually built them.
+		Add(Genre.HardRock, Genre.ProtoMetal,.78f); Add(Genre.HardRock, Genre.BluesRock,.70f);
+		Add(Genre.HardRock, Genre.AcidRock,.60f); Add(Genre.HardRock, Genre.PsychedelicRock,.52f);
+		Add(Genre.ProtoMetal, Genre.BluesRock,.55f); Add(Genre.ProtoMetal, Genre.PsychedelicRock,.48f);
+
+		// Roots rock and Tex-Mex, the country-facing routes.
+		Add(Genre.RootsRock, Genre.CountryRock,.70f); Add(Genre.RootsRock, Genre.BluesRock,.60f);
+		Add(Genre.RootsRock, Genre.Country,.55f); Add(Genre.RootsRock, Genre.FolkRock,.55f);
+		Add(Genre.RootsRock, Genre.RockAndRoll,.50f); Add(Genre.TexMex, Genre.LatinPop,.65f);
+		Add(Genre.TexMex, Genre.Country,.45f); Add(Genre.TexMex, Genre.RockAndRoll,.35f);
+
+		// Comedy and Childrens stay deliberately near-isolated. They are novelty product rather
+		// than a scene, and nobody crossed out of them into a musical genre.
+		Add(Genre.Comedy, Genre.Childrens,.22f);
 		return edges;
 	}
 }

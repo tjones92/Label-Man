@@ -6,3 +6,12 @@
 # Keep Godot's ignore marker tracked so the editor never imports this archive.
 /SimLogs/*
 !/SimLogs/.gdignore
+
+# Godot import artifacts generated for the SimTools analysis CSVs.
+# The CSVs themselves are tracked; the per-column .translation shards are not.
+/SimTools/*.csv.import
+/SimTools/*.translation
+__pycache__/
+
+# Exported build output; the game data pack is a build artifact, not source.
+/data_Label Man_windows_x86_64/

@@ -76,12 +76,32 @@ public partial class ArtistDetailPanel : Control
 		AddHeading("PUBLIC FILE"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
 		AddHeading("CHART RECORD"); AddBody($"{profile.totalCharted} chart entries   •   {profile.top40Hits} Top 40   •   {profile.top10Hits} Top 10   •   {profile.numberOneHits} #1 hits");
 		AddHeading("LINEUP AT A GLANCE"); AddBody(string.Join("\n", profile.personnel.Where(p => p.isActive).Select(p => $"{p.name} — {Format(p.role)}")));
-		if (profile.reputationTags.Count > 0) AddBody("REPUTATION: " + string.Join("  •  ", profile.reputationTags.Select(t => t.ToDisplayString())));
+		// The public file's tags, plus whatever the career arc itself earned.
+		var tags = profile.reputationTags.Concat(ArtistDiscographyService.DeriveTags(artist)).Distinct().ToList();
+		if (tags.Count > 0) AddBody("REPUTATION: " + string.Join("  •  ", tags.Select(t => t.ToDisplayString())));
 	}
 	private void ShowDiscography()
 	{
-		AddHeading("RELEASES"); var records = GetRecords();
-		if (records.Count == 0) { AddBody("No releases on file."); return; }
+		var records = GetRecords();
+		if (records.Count == 0) { AddHeading("RELEASES"); AddBody("No releases on file."); return; }
+		// Grouped by era when the act has an arc on file, so the discography reads as a
+		// biography rather than a list. The view model is assembled here and discarded with
+		// the panel; it is never stored on the artist.
+		var discography = ArtistDiscographyService.Build(artist, records);
+		if (!discography.HasEras) { AddHeading("RELEASES"); AddReleases(records); return; }
+		foreach (var era in discography.Eras)
+		{
+			AddHeading(era.Title.ToUpperInvariant());
+			if (!string.IsNullOrEmpty(era.Summary)) AddBody(era.Summary);
+			if (era.Records.Count == 0) AddBody("No records survive from this period.");
+			else AddReleases(era.Records);
+		}
+		if (discography.Unassigned.Count == 0) return;
+		AddHeading("UNDATED"); AddReleases(discography.Unassigned);
+	}
+
+	private void AddReleases(List<RecordRuntimeData> records)
+	{
 		foreach (var r in records.OrderByDescending(r => r.baseRecord.releaseDate))
 			AddBody($"“{r.baseRecord.title}”  —  {r.baseRecord.releaseDate.ToHeadlineString()}\nPeak {(r.peakPosition > 0 ? "#" + r.peakPosition : "—")}  •  {r.weeksOnChart} weeks  •  {ChartDetailPanel.GetSalesTierDescription(r.totalUnitsSold)}");
 	}

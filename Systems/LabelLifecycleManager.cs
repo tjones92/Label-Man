@@ -269,6 +269,8 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void KillLabel(AILabel label, string reason) {
 		if (label.status == LabelStatus.Defunct || label.status == LabelStatus.Acquired) return;
+		// Losing the player's label is a game-over decision, not a monthly lifecycle roll.
+		if (label.isPlayerOwned) return;
 		foreach (SimulatedArtist artist in label.roster.ToList()) {
 			if (ArtistPopulationLifecycle.Enabled && RosterManager.Instance != null)
 				RosterManager.Instance.HandleLabelClosure(label, artist, currentYear);

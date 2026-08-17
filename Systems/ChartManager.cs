@@ -14,8 +14,20 @@ public partial class ChartManager : Node {
 	[Export] private int targetActiveRecords = 500;
 	[Export] private int prewarmWeeks = 8;
 	[Export] private bool marketSeasonalityEnabled = true;
+	// NOTE (player slice): chart_manager.tscn OVERRIDES both of these to true so the
+	// game is playable when launched with no command-line flags -- the player-facing
+	// desk scouts the unsigned talent market, which only exists on the enabled
+	// lifecycle path. These field defaults stay false; the scene is the override.
+	//
+	// Before the next headless run: either pass the flags explicitly (every documented
+	// run command already does, and an explicit flag still wins over the scene default),
+	// or set genreMarketV2Enabled/artistPopulationLifecycleEnabled back to false on the
+	// ChartManager node in chart_manager.tscn. The one case the override silently
+	// changes is a headless run that passes NEITHER --enable-* nor --disable-*: that
+	// run used to be the disabled path and is now the enabled one.
 	[Export] private bool genreMarketV2Enabled = false;
 	[Export] private bool artistPopulationLifecycleEnabled = false;
+	[Export] private bool artistEvolutionEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -278,6 +290,8 @@ public partial class ChartManager : Node {
 		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
 		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
+		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
+		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();
@@ -977,6 +991,7 @@ public partial class ChartManager : Node {
 		AssignChartPositions(albumRanking, triggerEvents, ReleaseFormat.Album, albumChartSize, albumBubblingUnderPositions);
 		currentAlbumChart = albumRanking.Take(albumChartSize).ToList();
 		OnAlbumChartCalculated?.Invoke(new List<RecordRuntimeData>(currentAlbumChart));
+		OfferAlbumChartToLandmarkRule(year);
 		UpdateRecordRelevanceClocks();
 		previousChartPoints = chartPoints;
 		SimulationPerformanceProfiler.EndSimulateWeek(profileStart);
@@ -2240,6 +2255,25 @@ public partial class ChartManager : Node {
 	public List<MarketRegion> GetAllRegions() => new List<MarketRegion>(allRegions);
 
 	public List<RecordRuntimeData> GetCurrentChart() => new List<RecordRuntimeData>(currentChart);
+	/// <summary>
+	/// Offers this week's published album chart to the landmark rule. A record is recognised
+	/// while it is climbing, not when it retires, so the offer has to happen here.
+	/// <para>
+	/// Bounded by the PUBLISHED chart size (tens of entries), never by the album population,
+	/// and each record self-guards after it publishes -- so this is a handful of float
+	/// compares a week and cannot become one of this project's accidental quadratics.
+	/// </para>
+	/// </summary>
+	private void OfferAlbumChartToLandmarkRule(int year) {
+		if (!ArtistEvolution.AlbumLegitimacyEnabled) return;
+		foreach (RecordRuntimeData record in currentAlbumChart) {
+			if (record.landmarkPublished || record.baseRecord == null) continue;
+			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
+			if (artist == null) continue;
+			AlbumLegitimacyService.OnAlbumChartWeek(artist, record, year);
+		}
+	}
+
 	public List<RecordRuntimeData> GetCurrentAlbumChart() => new List<RecordRuntimeData>(currentAlbumChart);
 
 	public RecordRuntimeData GetRecordAtPosition(int position) {

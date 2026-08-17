@@ -13,6 +13,8 @@ public partial class UIManager : Control
 	private Button calendarButton;
 	private PopupPanel calendarPopup;
 	private SpinBox skipDaysInput;
+	private PlayerDeskPanel deskPanel;
+	private Button deskButton;
 
 	[ExportGroup("State")]
 	public bool isUIOpen = false;
@@ -32,6 +34,18 @@ public partial class UIManager : Control
 			UpdateCalendarButton(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
 		}
 		if (TimeManager.Instance != null) TimeManager.Instance.OnDayStarted += UpdateCalendarButton;
+
+		deskPanel = GetNodeOrNull<PlayerDeskPanel>("PlayerDeskPanel");
+		deskButton = GetNodeOrNull<Button>("DeskBtn");
+		if (deskButton != null) deskButton.Pressed += OnClick_Desk;
+	}
+
+	public void OnClick_Desk()
+	{
+		if (deskPanel == null) { GD.PushWarning("PlayerDeskPanel is missing from the scene!"); return; }
+		if (isUIOpen && !deskPanel.Visible) return;
+		deskPanel.Open();
+		isUIOpen = true;
 	}
 
 	public override void _ExitTree()
@@ -181,7 +195,8 @@ public partial class UIManager : Control
 		if (chartPanel != null) chartPanel.Visible = false;
 		if (artistDetailPanel != null) artistDetailPanel.Visible = false;
 		if (labelDetailPanel != null) labelDetailPanel.Visible = false;
-		
+		if (deskPanel != null) deskPanel.Visible = false;
+
 		isUIOpen = false;
 	}
 

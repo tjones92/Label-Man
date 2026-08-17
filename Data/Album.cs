@@ -21,7 +21,25 @@ public partial class Album : Resource {
 	[Export(PropertyHint.Range, "0,1")] public float pooledAppeal;
 	[Export(PropertyHint.Range, "0,1")] public float thematicCohesion;
 	[Export(PropertyHint.Range, "0,1")] public float packaging;
+	// Layer 1 of the cultural stack: what the record IS, fixed the day it was pressed and
+	// never touched again. Stored rather than recomputed so the landmark rule can run on the
+	// weekly album chart without a label lookup, and so that "a record nobody bought has
+	// exactly the merit it had the day it was pressed" is true by construction.
+	[Export(PropertyHint.Range, "0,1")] public float artisticMerit;
+	// Album-as-a-body-of-work, distinct from thematicCohesion's concept-album axis. See
+	// AlbumModel.GetAlbumIntegrity: this is what makes a Rubber Soul, and unlike cohesion it
+	// is reachable in any year because it is a fact about the tracks, not an era ceiling.
+	[Export(PropertyHint.Range, "0,1")] public float bodyOfWork;
 	[Export] public bool isStereo;
+
+	// DIAGNOSTIC, written once at pressing and never read by the simulation. thematicCohesion
+	// is a draw from [0.10, ceiling], so the ceiling -- the thing the era ramp and the pioneer
+	// path actually move -- is not recoverable from the drawn value. Sizing either of those
+	// against a measured distribution needs the ceiling and the excellence score themselves,
+	// and guessing at them from the drawn cohesion is what left EarlyStatementExcellence at a
+	// bar that fires zero times in seven years.
+	[Export(PropertyHint.Range, "0,1")] public float cohesionCeiling;
+	[Export(PropertyHint.Range, "0,1")] public float statementExcellence;
 
 	// Set only on externally-originated soundtrack/cast albums (albumFormat == Soundtrack).
 	// Null for every artist-originated album. Carries the box-office demand shape and licensing

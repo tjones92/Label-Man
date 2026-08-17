@@ -617,7 +617,7 @@ public partial class RosterManager : Node {
 			return;
 		}
 		
-		var scoutingLabels = labels.Where(l => l.ShouldScoutNewArtist()).OrderBy(_ => GD.Randf()).Take(3);
+		var scoutingLabels = labels.Where(l => !l.isPlayerOwned && l.ShouldScoutNewArtist()).OrderBy(_ => GD.Randf()).Take(3);
 		foreach (var label in scoutingLabels) TrySignNewArtist(label, year);
 	}
 
@@ -629,6 +629,7 @@ public partial class RosterManager : Node {
 	private void ProcessLegacyScoutingWithTelemetry(List<AILabel> labels, int year) {
 		var scoutingLabels = new List<(AILabel Label, LabelScoutingVacancyObservation Observation)>();
 		foreach (AILabel label in labels) {
+			if (label.isPlayerOwned) continue;
 			AILabel.ScoutingGateEvaluation gate = label.EvaluateScoutingGate(useOperatingRosterTarget: true);
 			LabelScoutingVacancyObservation observation = CreateScoutingVacancyObservation(label, gate);
 			weeklyScoutingVacancyByLabelId[label.labelId] = observation;
@@ -877,7 +878,10 @@ public partial class RosterManager : Node {
 	}
 
 	public static int AdvanceConsecutiveAge(bool condition, int priorAge) => condition ? priorAge + 1 : 0;
-	public static bool IsEligibleForEnabledScouting(AILabel label) => label?.IsActive == true;
+	// A player-owned label never appears in the daily talent market: the player books
+	// their own scouting trips and makes their own offers. No audit or calibration run
+	// contains a player label, so this leaves those runs unchanged.
+	public static bool IsEligibleForEnabledScouting(AILabel label) => label?.IsActive == true && !label.isPlayerOwned;
 	public static int GetScoutingUrgencyAgeForWeek(bool hasRosterSpace, int priorAge) => hasRosterSpace ? priorAge + 1 : 0;
 	public static float GetScoutingProbabilityFloorForPath(bool enabledLifecyclePath, int urgencyAge) {
 		if (!enabledLifecyclePath || urgencyAge < ScoutingUrgencyThresholdWeeks) return 0f;
@@ -1008,6 +1012,8 @@ public partial class RosterManager : Node {
 		if (labels == null) return;
 		if (IsLiveGenreMarket()) ReconcileEnabledRosterLifecycle(labels, date.year);
 		foreach (var label in labels) {
+			// Renewals and drops on the player's roster are the player's calls.
+			if (label.isPlayerOwned) continue;
 			ProcessContractExpirations(label, date.year);
 			if (GD.Randf() < monthlyRosterReviewChance) ProcessRosterReview(label, date.year);
 		}
@@ -1094,18 +1100,24 @@ public partial class RosterManager : Node {
 	
 	public void RecordChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
 		if (artist == null || record == null) return;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		if (record.artistChartRunCompleted) {
-			if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped) {
-				int completedYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
-				TransitionDroppedArtist(GetLabelById(artist.labelId), artist, completedYear, ArtistDropReason.Performance);
-			}
+			AILabel creditedLabel = GetLabelById(artist.labelId);
+			// A record that charted arrives here with its commercial outcome already credited
+			// by ArtistManager.OnRecordLeftChart. The critical and cultural reads still have to
+			// happen -- they used to sit below this guard, which meant every charting record in
+			// the simulation was invisible to the acclaim writer, the landmark rule and the
+			// cultural ledger, and only records that NEVER CHARTED were ever read.
+			RunCulturalReads(artist, record, creditedLabel, year);
+			if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped)
+				TransitionDroppedArtist(creditedLabel, artist, year, ArtistDropReason.Performance);
 			return;
 		}
 		artist.UpdateAfterChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
 			ArtistManager.CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
 		record.artistChartRunCompleted = true;
 		var label = GetLabelById(artist.labelId);
-		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		RunCulturalReads(artist, record, label, year);
 		if (IsLiveGenreMarket() && artist.careerState == CareerState.Dropped) {
 			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
 			return;
@@ -1113,6 +1125,23 @@ public partial class RosterManager : Node {
 		if (label != null && label.ShouldDropArtist(artist)) {
 			TransitionDroppedArtist(label, artist, year, ArtistDropReason.Performance);
 		}
+	}
+
+	/// <summary>
+	/// The critical and cultural read of a finished chart run, taken exactly once per record
+	/// whichever completion path got here first. Touches the artist's acclaim field and the
+	/// industry ledger; it moves no units, no advance and no chart point.
+	/// </summary>
+	private static void RunCulturalReads(SimulatedArtist artist, RecordRuntimeData record, AILabel label, int year) {
+		if (record.culturalRunCompleted) return;
+		record.culturalRunCompleted = true;
+		ArtistCriticalAcclaimService.OnChartRunComplete(artist, record, label);
+		ArtistEvolutionService.OnChartRunComplete(artist, record.peakPosition,
+			record.baseRecord?.album?.albumFormat == AlbumFormat.Concept);
+		// Albums route through the landmark rule; singles route through the breakthrough-hit
+		// rule. Both end up in the same ledger, because an act can be moved by either.
+		AlbumLegitimacyService.OnAlbumChartRunComplete(artist, record, label, year);
+		CulturalMemoryService.OnChartRunComplete(artist, record, label, year);
 	}
 
 	private static bool IsLiveGenreMarket() => GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;

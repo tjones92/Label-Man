@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://ijrv605mspwk" path="res://UI/ChartUI.cs" id="3_qoqlk"]
 [ext_resource type="Texture2D" uid="uid://1pd6mcmr0a6j" path="res://a40a2761-2ec0-4953-90f6-66858329e3b9.png" id="4_iwfq2"]
 [ext_resource type="PackedScene" uid="uid://4v07s5f1navm" path="res://ChartEntry.tscn" id="5_iwfq2"]
+[ext_resource type="PackedScene" path="res://UI/PlayerDeskPanel.tscn" id="9_desk"]
 [ext_resource type="PackedScene" path="res://UI/ChartDetailPanel.tscn" id="6_detail"]
 [ext_resource type="PackedScene" path="res://UI/ArtistDetailPanel.tscn" id="7_artist"]
 [ext_resource type="PackedScene" path="res://UI/LabelDetailPanel.tscn" id="8_label"]
@@ -226,6 +227,18 @@ layout_mode = 1
 layout_mode = 1
 
 [node name="LabelDetailPanel" parent="." unique_id=9676878 instance=ExtResource("8_label")]
+layout_mode = 1
+
+[node name="DeskBtn" type="Button" parent="."]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 40.0
+offset_right = 260.0
+offset_bottom = 96.0
+theme_override_font_sizes/font_size = 24
+text = "THE DESK"
+
+[node name="PlayerDeskPanel" parent="." instance=ExtResource("9_desk")]
 layout_mode = 1
 
 [connection signal="pressed" from="BillboardButton" to="." method="OnClick_Charts"]

@@ -43,6 +43,7 @@ public partial class ArtistManager : Node {
 	private Dictionary<string, Musician> musicianRegistry = new Dictionary<string, Musician>();
 	
 	private int artistIdCounter = 0;
+	private int fallbackNameCounter = 0;
 	private int musicianIdCounter = 0;
 	
 	private List<SimulatedArtist> unsignedArtists = new List<SimulatedArtist>();
@@ -332,42 +333,59 @@ public sealed class LaborMarketWeeklySnapshot {
 		
 		artist.momentum = 0f;
 		artist.reputation = RandRange(0f, 0.1f);
-		
+
+		// Both creation paths (initial population and runtime formation) route through
+		// here. Disposition is a pure read of the lineup generated just above, so this
+		// takes nothing from the stream the reputation draw left it on.
+		ArtistEvolutionService.Initialize(artist, year);
 		artistRegistry[id] = artist;
 		return artist;
 	}
 	
+	/// <summary>
+	/// GATED ON THE NAMER BEING READY, not on which RNG the population is using.
+	/// <para>
+	/// This read <c>if (UsesPopulationRng) return $"The {genre} Group {artistIdCounter}"</c>, and
+	/// <see cref="UsesPopulationRng"/> is true whenever the population lifecycle is live — which
+	/// is every canonical run AND the actual game. So every act in a real playthrough was called
+	/// "The DooWop Voices 4821". The guard was protecting the deterministic population stream
+	/// from a namer that, since naming v2, has had its own stream and takes nothing from either
+	/// the global or the population sequence. It was obsolete rather than load-bearing.
+	/// </para>
+	/// <para>
+	/// <see cref="NameGenerator.IsReady"/> is the correct gate because it is exactly the
+	/// condition under which <c>GenerateArtistName</c> falls back to <c>GD.Randi()</c> — the one
+	/// path in the naming API that WOULD touch the global stream.
+	/// </para>
+	/// </summary>
 	private string GenerateStageName(ArtistType type, Genre genre, int year) {
-		if (UsesPopulationRng)
-			return type switch {
-				ArtistType.Duo => $"The {genre} Pair {artistIdCounter}",
-				ArtistType.VocalGroup => $"The {genre} Voices {artistIdCounter}",
-				_ => $"The {genre} Group {artistIdCounter}"
-			};
-		if (NameGenerator.Instance != null) {
+		if (NameGenerator.Instance?.IsReady() == true)
 			return NameGenerator.Instance.GenerateArtistName(genre, year, type, null, LabelArchetype.RegionalHustler);
-		}
-		artistIdCounter++;
+		// A SEPARATE counter. artistIdCounter is the artist ID source (see GenerateArtist), so
+		// borrowing it to number a placeholder name advanced the ID sequence by an extra step per
+		// act -- and artistId keys the song-title near-duplicate bucket, so the fallback path was
+		// quietly renaming every record in the run as well as the band.
+		fallbackNameCounter++;
 		return type switch {
-			ArtistType.SoloMale or ArtistType.SoloFemale => $"Artist {artistIdCounter}",
-			ArtistType.Duo => $"The Duo {artistIdCounter}",
-			ArtistType.VocalGroup => $"The Vocals {artistIdCounter}",
-			_ => $"The Band {artistIdCounter}"
+			ArtistType.SoloMale or ArtistType.SoloFemale => $"Artist {fallbackNameCounter}",
+			ArtistType.Duo => $"The Duo {fallbackNameCounter}",
+			ArtistType.VocalGroup => $"The Vocals {fallbackNameCounter}",
+			_ => $"The Band {fallbackNameCounter}"
 		};
 	}
 	
 	private void GenerateMembers(SimulatedArtist artist, ArtistType type, Genre genre, int year) {
 		switch (type) {
-			case ArtistType.SoloMale: GenerateSoloArtist(artist, true, year); break;
-			case ArtistType.SoloFemale: GenerateSoloArtist(artist, false, year); break;
+			case ArtistType.SoloMale: GenerateSoloArtist(artist, true, genre, year); break;
+			case ArtistType.SoloFemale: GenerateSoloArtist(artist, false, genre, year); break;
 			case ArtistType.Duo: GenerateDuo(artist, genre, year); break;
 			case ArtistType.Band: GenerateBand(artist, genre, year); break;
 			case ArtistType.VocalGroup: GenerateVocalGroup(artist, genre, year); break;
 		}
 	}
 	
-	private void GenerateSoloArtist(SimulatedArtist artist, bool isMale, int year) {
-		var musician = GenerateMusician(isMale, year);
+	private void GenerateSoloArtist(SimulatedArtist artist, bool isMale, Genre genre, int year) {
+		var musician = GenerateMusician(isMale, genre, year);
 		musician.primaryRole = MusicianRole.LeadVocals;
 		musician.isLeadVocalist = true;
 		musician.isPrimaryWriter = Randf() > 0.4f;
@@ -383,12 +401,14 @@ public sealed class LaborMarketWeeklySnapshot {
 		bool member1Male = Randf() > 0.35f;
 		bool member2Male = sameSex ? member1Male : !member1Male;
 		
-		var member1 = GenerateMusician(member1Male, year);
+		// One ethnicity roll for the act, shared by both halves of the duo.
+		string ethnicity = NameGenerator.Instance?.RollBandEthnicity(genre);
+		var member1 = GenerateMusician(member1Male, genre, year, ethnicity);
 		member1.primaryRole = MusicianRole.LeadVocals;
 		member1.isLeadVocalist = true;
 		member1.isPrimaryWriter = Randf() > 0.5f;
 		
-		var member2 = GenerateMusician(member2Male, year);
+		var member2 = GenerateMusician(member2Male, genre, year, ethnicity);
 		member2.primaryRole = genre switch {
 			Genre.Folk or Genre.Country => MusicianRole.RhythmGuitar,
 			Genre.Jazz => MusicianRole.Piano,
@@ -406,10 +426,12 @@ public sealed class LaborMarketWeeklySnapshot {
 	private void GenerateBand(SimulatedArtist artist, Genre genre, int year) {
 		var lineup = GetBandLineup(genre);
 		bool firstMember = true;
+		// Rolled once for the whole lineup so a band reads as a band.
+		string ethnicity = NameGenerator.Instance?.RollBandEthnicity(genre);
 		
 		foreach (var role in lineup) {
 			bool isMale = role.isMale ?? (Randf() < maleArtistRatio);
-			var musician = GenerateMusician(isMale, year);
+			var musician = GenerateMusician(isMale, genre, year, ethnicity);
 			musician.primaryRole = role.role;
 			musician.isLeadVocalist = role.isLead;
 			musician.isBandLeader = firstMember && role.isLead;
@@ -427,10 +449,11 @@ public sealed class LaborMarketWeeklySnapshot {
 		bool isGirlGroup = genre == Genre.GirlGroup || (genre == Genre.Motown && Randf() > 0.6f);
 		int memberCount = RandInt(3, 6);
 		bool hasLeadDesignated = false;
+		string ethnicity = NameGenerator.Instance?.RollBandEthnicity(genre);
 		
 		for (int i = 0; i < memberCount; i++) {
 			bool isMale = !isGirlGroup && (Randf() < 0.85f);
-			var musician = GenerateMusician(isMale, year);
+			var musician = GenerateMusician(isMale, genre, year, ethnicity);
 			
 			if (!hasLeadDesignated && Randf() > 0.3f) {
 				musician.primaryRole = MusicianRole.LeadVocals;
@@ -457,13 +480,24 @@ public sealed class LaborMarketWeeklySnapshot {
 		}
 	}
 	
-	private Musician GenerateMusician(bool isMale, int currentYear) {
+	/// <param name="genre">
+	/// What the act plays. Passed so a lineup does not come out as five people called Smith:
+	/// the namer shades first and last names by the music, and without it every musician in the
+	/// game queried the lexicon with the identical <c>{gender, "white"} / {"generic"}</c> tags.
+	/// </param>
+	/// <param name="bandEthnicity">
+	/// Rolled once per act by the caller and shared across the lineup, so a group reads as a
+	/// group rather than as N independent draws.
+	/// </param>
+	private Musician GenerateMusician(bool isMale, Genre genre, int currentYear, string bandEthnicity = null) {
 		musicianIdCounter++;
 		string id = $"mus_{musicianIdCounter:D6}";
 		string firstName, lastName;
-		
-		if (NameGenerator.Instance != null && !UsesPopulationRng) {
-			(firstName, lastName) = NameGenerator.Instance.GeneratePersonName(isMale);
+
+		// See GenerateStageName: the gate is whether the namer can serve a name without falling
+		// back to GD.Randi(), not which RNG the population happens to be on.
+		if (NameGenerator.Instance?.IsReady() == true) {
+			(firstName, lastName) = NameGenerator.Instance.GeneratePersonName(isMale, genre, bandEthnicity);
 		} else {
 			firstName = isMale ? $"John{musicianIdCounter}" : $"Jane{musicianIdCounter}";
 			lastName = $"Doe{musicianIdCounter}";
@@ -1117,6 +1151,33 @@ public sealed class LaborMarketWeeklySnapshot {
 	}
 	public Musician GetMusician(string musicianId) => musicianRegistry.TryGetValue(musicianId, out var musician) ? musician : null;
 	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(artist => IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist)).ToList();
+
+	/// <summary>
+	/// The genre and quality shape of what a scout in <paramref name="regionName"/> is actually
+	/// offered, so the player desk's slate composition can be diagnosed from data rather than
+	/// reasoned about. Read-only.
+	/// <para>
+	/// Exists because three plausible explanations for a slate that comes back as easy listening
+	/// and classical every week were each measured and each turned out to be false: a drained
+	/// prospect pool (the seeking pool is 7,734 in 1967 and led by Country and Soul), a
+	/// vocal-group quality advantage (vocal groups roll the same genre table as everyone else
+	/// under Genre Market V2), and a band-size effect on the max-based talent terms (the genres
+	/// reported are all on the default four-piece lineup). What is left is regional, and this is
+	/// how to look.
+	/// </para>
+	/// </summary>
+	public IEnumerable<(Genre Genre, int Local, float MeanQuality, float TopQuality)> DescribeScoutingPool(
+		string regionName) => GetUnsignedArtists()
+			.Where(artist => ScoutingRegionKey(artist.homeRegion) == ScoutingRegionKey(regionName))
+			.GroupBy(artist => artist.primaryGenre)
+			.Select(group => (group.Key, group.Count(),
+				group.Average(artist => artist.CalculateBaseQuality()),
+				group.Max(artist => artist.CalculateBaseQuality())))
+			.OrderByDescending(row => row.Item2);
+
+	internal static string ScoutingRegionKey(string value) =>
+		new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+
 	public bool IsEligibleForPopulationSigning(SimulatedArtist artist, int currentWeek) =>
 		IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active &&
 		!IsPopulationCooldownBlocked(artist, currentWeek);

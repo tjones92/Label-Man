@@ -26,6 +26,7 @@ CompetitorManager="*uid://coo5w5tnocen4"
 LabelLifecycleManager="*uid://chiavnwbvks4i"
 MissingSingletonsTemp="*uid://ds3myqklfr2lt"
 ChartManager="*uid://t4ywl6fyxi6d"
+PlayerDesk="*res://Systems/PlayerDesk.cs"
 
 [display]
 

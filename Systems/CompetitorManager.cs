@@ -455,6 +455,8 @@ public partial class CompetitorManager : Node {
 	/// </summary>
 	private void PursueIndependentDistribution(AILabel label) {
 		if (label == null || !label.IsActive || independentDistributors.Count == 0) return;
+		// The player places their own lines, one market at a time, from the desk.
+		if (label.isPlayerOwned) return;
 		// A Major runs its own branch distribution and does not place its line with a
 		// regional wholesaler.
 		if (label.tier == LabelTier.Major) return;
@@ -821,6 +823,8 @@ public partial class CompetitorManager : Node {
 			label.weeklyArtistRoyalty = 0f;
 			label.weeklyNetRevenue = 0f;
 			label.weeklyDistributionIncome = 0f;
+			label.weeklyWholesaleDeferred = 0f;
+			label.weeklyWholesaleCollected = 0f;
 		}
 		foreach (var label in aiLabels) {
 			// A frozen enabled settlement may still contain a record from a label whose
@@ -831,8 +835,12 @@ public partial class CompetitorManager : Node {
 			float weeklyRevenue = CalculateLabelRevenue(label, settlement);
 			// Billings against a wholesale house are booked but not banked: the house pays on
 			// its own terms, and only for what it admits it sold.
-			weeklyRevenue -= DeferWholesaleBillings(label, settlement, weeklyRevenue);
-			weeklyRevenue += CollectMaturedWholesaleReceivables(label);
+			float deferred = DeferWholesaleBillings(label, settlement, weeklyRevenue);
+			weeklyRevenue -= deferred;
+			float collected = CollectMaturedWholesaleReceivables(label);
+			weeklyRevenue += collected;
+			label.weeklyWholesaleDeferred = deferred;
+			label.weeklyWholesaleCollected = collected;
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
@@ -1099,8 +1107,10 @@ public partial class CompetitorManager : Node {
 		int releasesThisWeek = 0;
 		foreach (var label in aiLabels) {
 			if (!label.IsActive) continue;
+			// The player's label releases when the player says so, not on the AI's weekly roll.
+			if (label.isPlayerOwned) continue;
 			if (label.roster.Count == 0) continue;
-			
+
 			float releaseChance = CalculateWeeklyReleaseChance(label, date.year, date.month);
 			if (GD.Randf() < releaseChance) {
 				WeeklyReleaseRollsFired++;
@@ -1180,7 +1190,10 @@ public partial class CompetitorManager : Node {
 			projectRole = ProjectRecordRole.None,
 			albumProjectId = string.Empty
 		};
-		record.title = NameGenerator.Instance?.GenerateSongTitle(genre, date.year, record.artistName) ?? $"Soundtrack {generatedRecordCounter}";
+		record.title = NameGenerator.Instance?.GenerateSongTitle(genre, date.year, record.artistId) ?? $"Soundtrack {generatedRecordCounter}";
+		// Set for consistency; a soundtrack carries no roster artistId, so it can never publish
+		// a cultural event -- an externally originated tie-in has no act to be influenced BY.
+		album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 
 		// Licensing economics: a high upfront advance, booked like any production spend.
 		label.cashReserves -= licenseFee;
@@ -1711,6 +1724,10 @@ public partial class CompetitorManager : Node {
 		if (debugMode) {
 			GD.Print($"🎵 {label.labelName}: '{record.title}' by {artist.stageName} (Quality: {(record.hookStrength + record.productionQuality) / 2f:F2}, Budget: ${totalCost:N0})");
 		}
+		// Last, after every economic and telemetry effect of THIS record has landed. Any
+		// identity ratification here reaches the artist only on the next project selection,
+		// which is exactly what "lagging ratification" means.
+		ArtistEvolutionService.OnProjectReleased(artist, record.primaryGenre, date.year, label);
 		return true;
 	}
 
@@ -1866,6 +1883,9 @@ public partial class CompetitorManager : Node {
 		}
 		artist.weeksSinceLastRelease = 0;
 		EmitAlbumDecisionTelemetry(label, artist, decision, plan, album, project);
+		// One push per project. An album with a promo single is two records and one
+		// creative decision; the linked album's later drop must not vote a second time.
+		ArtistEvolutionService.OnProjectReleased(artist, projectGenre, date.year, label);
 		return true;
 	}
 
@@ -2940,7 +2960,7 @@ public partial class CompetitorManager : Node {
 		record.secondaryGenre = artist.secondaryGenre;
 		
 		if (NameGenerator.Instance != null) {
-			record.title = NameGenerator.Instance.GenerateSongTitle(record.primaryGenre, year, record.artistName);
+			record.title = NameGenerator.Instance.GenerateSongTitle(record.primaryGenre, year, record.artistId);
 		} else {
 			record.title = $"Song {generatedRecordCounter}";
 		}
@@ -2970,6 +2990,9 @@ public partial class CompetitorManager : Node {
 			record.hookStrength = record.album.pooledAppeal;
 			record.productionQuality = Mathf.Clamp(record.album.pooledAppeal * 0.75f + label.productionQuality * 0.25f, 0f, 1f);
 			record.danceability = record.album.pooledAppeal;
+			// Fixed the day it is pressed and never revisited. Nothing downstream may change it:
+			// the press layer changes how widely a record's merit is KNOWN, never the merit.
+			record.album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 		}
 		
 		return record;
@@ -3011,9 +3034,15 @@ public partial class CompetitorManager : Node {
 		int targetTracks = (int)GD.RandRange(9, 13);
 		var nonSingleTracks = new List<AlbumTrack>();
 		float originalMaterialScale = albumFormat == AlbumFormat.Compilation ? 0.68f : albumFormat == AlbumFormat.Live ? 0.80f : 0.88f;
+		// How unevenly this family's albums are put together in this year. A jazz LP in 1960 is
+		// already a body of work; a pop LP in 1960 is a hit with filler around it, and rock
+		// travels from the second to the first across the decade. Scales the spread only -- the
+		// draw count is unchanged, so the RNG stream is untouched.
+		float trackSpread = AlbumModel.GetTrackSpreadMultiplier(GenreCatalog.Get(artist.primaryGenre).Family, year);
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
-			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f + (float)GD.RandRange(-0.16, 0.12), 0.12f, 0.95f);
-			string trackTitle = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.stageName) ?? $"Album Track {nonSingleTracks.Count + 1}";
+			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f
+				+ (float)GD.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
+			string trackTitle = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Album Track {nonSingleTracks.Count + 1}";
 			(float hook, float production, float dance) = useStructuredPromoTracks
 				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
 				: (0f, 0f, 0f);
@@ -3040,12 +3069,23 @@ public partial class CompetitorManager : Node {
 			nonSingleTracks = nonSingleTracks.ToArray(),
 			runtimeMinutes = targetTracks * avgTrackMinutes,
 			thematicCohesion = thematicCohesion,
+			// Diagnostics. thematicCohesion is a draw from [0.10, ceiling], so neither the era
+			// ramp's reach nor the pioneer bar's hit rate is recoverable from it after the fact.
+			cohesionCeiling = cohesionCeiling,
+			statementExcellence = AlbumModel.GetStatementExcellence(artistTalent, label.productionQuality),
 			packaging = Mathf.Clamp(label.productionQuality * Mathf.Lerp(0.35f, 0.85f, AlbumModel.GetAlbumEraWeight(year)) + (float)GD.RandRange(-0.10, 0.12), 0.05f, 1f),
 			isStereo = year >= 1968 || GD.Randf() < Mathf.Lerp(0.12f, 0.75f, Mathf.Clamp((year - 1960f) / 8f, 0f, 1f))
 		};
 		IEnumerable<float> qualities = referencedSingles.Select((track, index) => track.quality * referencedFreshness[index])
 			.Concat(nonSingleTracks.Select(track => track.quality));
 		album.pooledAppeal = AlbumModel.CalculatePooledAppeal(qualities, album.thematicCohesion, year);
+		// Integrity reads UNDECAYED quality. Freshness is a statement about how much commercial
+		// life a side has left, not about how good it is, and a record does not stop being a
+		// body of work because two of its songs were hits first -- Rubber Soul and Pet Sounds
+		// both carried singles. What distinguishes them is that the rest of the record is as
+		// strong, which is exactly what the mean-against-peak ratio measures.
+		album.bodyOfWork = AlbumModel.GetAlbumIntegrity(
+			referencedSingles.Select(track => track.quality).Concat(nonSingleTracks.Select(track => track.quality)));
 		return album;
 	}
 
@@ -3053,8 +3093,14 @@ public partial class CompetitorManager : Node {
 		// The tracklist is already built (GenerateAlbum ran before this), so we can designate a lead
 		// single and route through the genre album sets — "Music for Lovers", "Meet The Ravens",
 		// lead-single-titled — instead of borrowing the song-title generator (doc C).
+		//
+		// The name and the key are passed SEPARATELY here. artistName fills the title slots and is
+		// what a self-titled album is called; artistId is the near-duplicate bucket key, matching
+		// the re-key applied to GenerateSongTitle. Collapsing the two -- passing the id for both,
+		// as the song-title call does -- would ship albums called artist_04047.
 		string leadSingle = DesignateLeadSingleTitle(record.album);
-		string generated = NameGenerator.Instance?.GenerateAlbumTitle(record.primaryGenre, year, record.artistName, false, leadSingle);
+		string generated = NameGenerator.Instance?.GenerateAlbumTitle(record.primaryGenre, year, record.artistName,
+			false, leadSingle, record.artistId);
 		return string.IsNullOrWhiteSpace(generated) ? $"{record.artistName} Album" : generated;
 	}
 
@@ -3120,6 +3166,11 @@ public partial class CompetitorManager : Node {
 			(index < album.trackRefFreshnessApplied.Length ? album.trackRefFreshnessApplied[index] : 1f))
 			.Concat(album.nonSingleTracks.Select(track => track.quality));
 		album.pooledAppeal = AlbumModel.CalculatePooledAppeal(qualities, album.thematicCohesion, albumRecord.releaseDate.year > 0 ? albumRecord.releaseDate.year : (TimeManager.Instance?.CurrentDate.year ?? 1960));
+		// Lifting a promo single off the record changes its track list, so the body-of-work
+		// reading is retaken. Pulling a hit single off an album must not, by itself, stop it
+		// being an album.
+		album.bodyOfWork = AlbumModel.GetAlbumIntegrity(
+			album.trackRefs.Select(track => track.quality).Concat(album.nonSingleTracks.Select(track => track.quality)));
 		return promo;
 	}
 
@@ -4120,6 +4171,86 @@ public partial class CompetitorManager : Node {
 			retiredLabelRecordHistory[label.labelId] = new List<LabelRecordHistoryEntry>();
 		if (!labelFinancials.ContainsKey(label.labelId)) labelFinancials[label.labelId] = new LabelFinancialHistory();
 	}
+
+	// ========================================================================
+	// PLAYER-DRIVEN ACTIONS
+	// The player's label is a registered AILabel that the AI decision loops skip,
+	// so everything it does has to be pushed in from the desk. These two entry
+	// points reuse the same release and distribution plumbing the AI runs on --
+	// the player is not on a parallel economy, only on a manual one.
+	// ========================================================================
+
+	/// <summary>
+	/// Puts a master the player has already paid to record into the market on
+	/// <paramref name="date"/>. Production cost is passed in because the player was
+	/// charged for it at the session, not here.
+	/// </summary>
+	public bool ReleasePlayerRecord(AILabel label, SimulatedArtist artist, Record record,
+		float marketingBudget, float sunkProductionCost, GameDate date) {
+		if (label == null || artist == null || record == null || ChartManager.Instance == null) return false;
+
+		record.labelId = label.labelId;
+		record.isPlayerOwned = true;
+		record.releaseDate = date;
+		record.projectRole = ProjectRecordRole.OrphanSingle;
+		record.albumProjectId = string.Empty;
+
+		ChartManager.Instance.ReleaseRecord(record);
+		RecordRuntimeData runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData == null) return false;
+
+		runtimeData.sunkProductionCost = sunkProductionCost;
+		runtimeData.revenueMemoryEligible = true;
+		runtimeData.releaseTimeExpectedNet = 0f;
+		runtimeData.releaseTimeOpportunityScale = Mathf.Max(1f, sunkProductionCost);
+		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
+		runtimeData.projectRole = record.projectRole;
+
+		// The player knows exactly what they cut, so there is no perceived-quality
+		// misread to apply -- the AI's noise term is its scouting ear, not a market effect.
+		ApplyReleasePromotion(record, artist, label, marketingBudget, 1f);
+		CaptureSingleOpportunity(runtimeData, label, date.year);
+		TrackRelease(label.labelId, record.recordId);
+		WeeklySingleReleases++;
+		RecordArtistRelease(artist, record.recordId, record.format);
+		return true;
+	}
+
+	/// <summary>
+	/// Places the player's line with a wholesale house in one market. Same grant as
+	/// <see cref="PursueIndependentDistribution"/>: coverage and the marginal reach it
+	/// opens, no deal, no borrowed reach, no master ownership.
+	/// </summary>
+	public IndependentDistributor PlacePlayerLine(AILabel label, string regionId) {
+		if (label == null || string.IsNullOrEmpty(regionId)) return null;
+		if (label.HasDistributionInRegion(regionId)) return null;
+
+		IndependentDistributor house = GetIndependentDistributorsInRegion(regionId)
+			.FirstOrDefault(candidate => candidate.HasCapacity && !candidate.CarriesLabel(label.labelId));
+		if (house == null || !house.AddClient(label.labelId)) return null;
+
+		label.independentDistributionRegions.Add(regionId);
+		float before = label.ownedReach;
+		float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { regionId }) ?? 0f;
+		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling,
+			label.ownedReach + (marginalShare * independentCoverageReachFactor));
+
+		OnIndependentDistributionSigned?.Invoke(new IndependentDistributionTelemetry {
+			week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
+			labelId = label.labelId, labelName = label.labelName, labelTier = label.tier,
+			distributorId = house.distributorId, distributorName = house.distributorName,
+			regionId = regionId, provenInRegion = false,
+			coveredRegionCount = label.independentDistributionRegions.Count,
+			coveredMarketShare = ChartManager.Instance?.GetNationalMarketShareForRegions(label.AllCoveredRegions()) ?? 0f,
+			ownedReachBefore = before, ownedReachAfter = label.ownedReach,
+			houseClientCount = house.CurrentClientCount, houseClientCapacity = house.clientCapacity
+		});
+		return house;
+	}
+
+	/// <summary>Production cost for one player session, on the same cost basis the AI pays.</summary>
+	public float GetPlayerProductionCost(AILabel label, Record record, GameDate date) =>
+		CalculateProductionCost(label, record, date);
 
 	public void RecordExpense(AILabel label, float amount) {
 		if (label == null || amount <= 0f) return;
