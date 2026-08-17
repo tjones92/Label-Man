@@ -139,6 +139,18 @@ public static class Program {
 		// bridge finding (Gospel spiritual + GarageRock aggressive -> defiant or gritty)
 		string bridge = g.FindBridge("spiritual","aggressive");
 		True("bridge found", bridge == "defiant" || bridge == "gritty");
+		// Phase H #1: absurd~restless bumped to .5 (comedy/novelty foothold into HARD)
+		True("absurd~restless=.5", Math.Abs(g.Edge("absurd","restless") - 0.5) < 0.001);
+		// Phase H #5: FindBridge must not return an endpoint even when a~endpoint edge is high
+		string bridge2 = g.FindBridge("gritty","earnest");   // gritty~earnest=.8 would tempt returning "gritty"
+		True("bridge excludes endpoints", bridge2 != "gritty" && bridge2 != "earnest");
+		// Phase H #3: MatchInternalEx discriminates forbidden vs below-threshold
+		True("Ex forbidden", g.MatchInternalEx(Slots(new[]{"serene"}, new[]{"aggressive"}), 0.35).Result == MatchResult.Forbidden);
+		True("Ex below-threshold", g.MatchInternalEx(Slots(new[]{"joyful"}, new[]{"playful"}), 0.95).Result == MatchResult.BelowThreshold); // joyful~playful=.9 < .95
+		True("Ex pass", g.MatchInternalEx(Slots(new[]{"earnest"}, new[]{"gritty"}), 0.5).Result == MatchResult.Pass);
+		// Phase H #4: ValidateGenre flags a disconnected affinity set, passes a connected one
+		True("ValidateGenre flags disconnected", g.ValidateGenre("X", new[]{"serene","aggressive"}, 0.5).Count > 0);
+		True("ValidateGenre passes connected", g.ValidateGenre("Y", new[]{"romantic","wistful"}, 0.5).Count == 0);
 	}
 
 	static WordEntry W(string word, params string[] tags) =>
@@ -273,6 +285,34 @@ public static class Program {
 			if (parts.Length >= 3 && string.Equals(parts[0], parts[^1], StringComparison.OrdinalIgnoreCase)) everRepeated = true;
 		}
 		True("distinct constraint holds (no 'Heart of the Heart')", !everRepeated);
+
+		// Phase B: dynamic $gender filter drives honorific gender-agreement, and mood-relaxation must
+		// NOT drop the hard demographic filter (a female act never gets a male-only honorific).
+		AddWords(lex, "honorific", new[]{"Sir","Mister"}, "role", "male");
+		AddWords(lex, "honorific", new[]{"Lady","Miss"}, "role", "female");
+		lex.ClassifyAll(ont);
+		var honT = new ConstraintTemplate { Id = "hon", Type = "solo", Pattern = "%hon#1%", MinWords = 1, MaxWords = 2,
+			Slots = { ["hon#1"] = new SlotSpec { Pos = "honorific", RawFilter = "role & $gender", Dynamic = true, Filter = DomainFilter.Parse("role & $gender") } } };
+		honT.Compile();
+		var gos = lib.Get("Gospel");
+		var femCtx = new NamingContext { Genre = "Gospel", Year = 1965, Rng = new DeterministicRandom(7UL), TagSets = new() { ["name"] = new List<string> { "female" } } };
+		bool sawMale = false; int femDrew = 0;
+		for (int i = 0; i < 40; i++) { var s = eng.Fill(honT, femCtx, gos); if (!string.IsNullOrEmpty(s)) { femDrew++; if (s.Contains("Sir") || s.Contains("Mister")) sawMale = true; } }
+		True($"female $gender draws only female honorifics (n={femDrew})", femDrew > 0 && !sawMale);
+		// a gender with no matching honorific fails the draw (template rejected) rather than leaking one
+		var noCtx = new NamingContext { Genre = "Gospel", Year = 1965, Rng = new DeterministicRandom(7UL), TagSets = new() { ["name"] = new List<string> { "neutral" } } };
+		True("unmatched $gender yields no leak (null)", eng.Fill(honT, noCtx, gos) == null);
+
+		// Phase C: adapter-bound slots — %leadSingle% binds from ctx.Slots, and the template drops
+		// (fails satisfiably) when the value is absent so a non-bound template can take over.
+		var leadT = new ConstraintTemplate { Id = "lead", Type = "album", Pattern = "%leadSingle#1%", MinWords = 1, MaxWords = 6,
+			Slots = { ["leadSingle#1"] = new SlotSpec { Pos = "leadSingle" } } };
+		leadT.Compile();
+		var jz = lib.Get("Jazz");   // low punctuation intensity -> bound value passes through verbatim
+		var boundCtx = new NamingContext { Genre = "Jazz", Year = 1965, Rng = new DeterministicRandom(3UL), Slots = new() { ["leadSingle"] = "Baby I Need You" } };
+		True("leadSingle binds from ctx", eng.Fill(leadT, boundCtx, jz) == "Baby I Need You");
+		var emptyCtx = new NamingContext { Genre = "Jazz", Year = 1965, Rng = new DeterministicRandom(3UL), Slots = new() };
+		True("leadSingle absent -> template drops (null)", eng.Fill(leadT, emptyCtx, jz) == null);
 
 		// same/reduplication (Bubblegum): %candy#1% %candy#2% %candy#3% all identical
 		var bg = lib.Get("Bubblegum");

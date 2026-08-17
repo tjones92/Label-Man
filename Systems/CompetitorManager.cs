@@ -3090,8 +3090,31 @@ public partial class CompetitorManager : Node {
 	}
 
 	private static string GenerateAlbumTitle(Record record, int year) {
-		string generated = NameGenerator.Instance?.GenerateSongTitle(record.primaryGenre, year, record.artistId);
+		// The tracklist is already built (GenerateAlbum ran before this), so we can designate a lead
+		// single and route through the genre album sets — "Music for Lovers", "Meet The Ravens",
+		// lead-single-titled — instead of borrowing the song-title generator (doc C).
+		//
+		// The name and the key are passed SEPARATELY here. artistName fills the title slots and is
+		// what a self-titled album is called; artistId is the near-duplicate bucket key, matching
+		// the re-key applied to GenerateSongTitle. Collapsing the two -- passing the id for both,
+		// as the song-title call does -- would ship albums called artist_04047.
+		string leadSingle = DesignateLeadSingleTitle(record.album);
+		string generated = NameGenerator.Instance?.GenerateAlbumTitle(record.primaryGenre, year, record.artistName,
+			false, leadSingle, record.artistId);
 		return string.IsNullOrWhiteSpace(generated) ? $"{record.artistName} Album" : generated;
+	}
+
+	/// <summary>Pick the track whose title frames the album: a referenced hit for a compilation, else
+	/// the strongest original. Titling only — does not release a single (that is the promo pipeline).</summary>
+	private static string DesignateLeadSingleTitle(Album album) {
+		if (album == null) return null;
+		if (album.trackRefs != null && album.trackRefs.Length > 0) return album.trackRefs[0].title;
+		if (album.nonSingleTracks != null && album.nonSingleTracks.Length > 0) {
+			var best = album.nonSingleTracks[0];
+			foreach (var t in album.nonSingleTracks) if (t.quality > best.quality) best = t;
+			return best.title;
+		}
+		return null;
 	}
 
 	private Record CreatePromoSingleFromAlbum(Record albumRecord) {

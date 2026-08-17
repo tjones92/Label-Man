@@ -348,7 +348,16 @@ public partial class NameGenerator : Node {
 	/// track, generated before the title) binds the %leadSingle% slot so soul/country/garage LPs can be
 	/// named after their single; omit it and those templates drop gracefully. %selfTitle% binds the
 	/// act's own name. Routes to albumTitle.&lt;genre&gt; via the ancestry walk, else the generic set.</summary>
-	public string GenerateAlbumTitle(Genre genre, int year, string artistName, bool isCompilation = false, string leadSingle = null) {
+	/// <param name="artistKey">
+	/// The near-duplicate bucket key, separated from <paramref name="artistName"/> because this
+	/// method uses that one value for two jobs: it fills ctx.Slots and is returned verbatim on the
+	/// self-titled branch (DISPLAY), and it keys the near-dup bucket (IDENTITY). A display name is
+	/// the wrong thing to key on -- two acts can carry the same name, and the whole population
+	/// shared one placeholder name until the GenerateStageName gate was fixed -- so callers pass
+	/// artistId here, matching GenerateSongTitle, while artistName keeps filling the slots.
+	/// Defaults to artistName so existing callers are unchanged.
+	/// </param>
+	public string GenerateAlbumTitle(Genre genre, int year, string artistName, bool isCompilation = false, string leadSingle = null, string artistKey = null) {
 		if (_engine == null) return artistName;
 		var ctx = MakeContext(genre, year, ArtistType.Unknown);
 		ctx.Slots["artist"] = artistName;
@@ -359,7 +368,7 @@ public partial class NameGenerator : Node {
 		if (r < 0.08) return artistName;                          // self-titled (rare; the sets also self-title)
 		if (r < 0.20) return _engine.ExpandRouted("albumFormat", ctx);
 		string key = _router?.Resolve("albumTitle", genre.ToString()) ?? "albumTitle";
-		return _engine.Generate(key, ctx, "album|" + artistName, nearDup: false, attempts: 30);
+		return _engine.Generate(key, ctx, "album|" + (artistKey ?? artistName), nearDup: false, attempts: 30);
 	}
 
 	public string GenerateInstrumentalTitle(Genre genre, int year) {
