@@ -12,3 +12,6 @@
 /SimTools/*.csv.import
 /SimTools/*.translation
 __pycache__/
+
+# Exported build output; the game data pack is a build artifact, not source.
+/data_Label Man_windows_x86_64/
