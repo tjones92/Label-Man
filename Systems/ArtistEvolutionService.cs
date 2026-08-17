@@ -372,10 +372,18 @@ public static class ArtistEvolutionService {
 	/// that is a fact about the DESTINATION rather than about the act, so it cannot be
 	/// computed with the others -- it is only meaningful once a candidate exists.
 	/// </summary>
+	/// <remarks>
+	/// Sized WITH the salience scales, not independently of them, because it is judged against
+	/// the winner's normalised score. Lowering the six scales raises every internal motive at
+	/// once, so the world's argument loses ground unless it moves with them -- at the previous
+	/// 1.15 / .35 the re-sized scales dropped GenreClimateShift from 3.1%/2.5% to 2.1%/1.7%.
+	/// Doubled to hold it at 4.4% on both seeds, which is where the fit wanted it. Inert in the
+	/// same way salience is: it decides a label and nothing else.
+	/// </remarks>
 	private static float ClimateScore(Genre candidate, int year) => GenreCatalog.Get(candidate).GetLifecycle(year) switch {
 		// Everyone is plugging in at once and it would be strange not to.
-		GenreLifecycleState.Emerging => 1.15f,
-		GenreLifecycleState.Established => .35f,
+		GenreLifecycleState.Emerging => 2.30f,
+		GenreLifecycleState.Established => .70f,
 		_ => 0f
 	};
 

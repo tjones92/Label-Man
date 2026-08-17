@@ -59,9 +59,45 @@ public static class AlbumLegitimacyService {
 	/// count ran 3, 2, 7, 17, 13, 34. Being a landmark means standing out from your
 	/// CONTEMPORARIES, so the bar tracks them.
 	/// </para>
-	public const float LandmarkIntegrityBase = .928f;
-	/// <summary>How far the bar climbs by the time the album revolution is complete.</summary>
-	public const float LandmarkIntegrityDrift = .044f;
+	/// <para>
+	/// RE-SIZED (2026-08) against the tail rather than against the middle, which is what the
+	/// previous pass got wrong and is the whole of the landmark-timing instability recorded in
+	/// the directive's §7d. The drift was set to +.044 to match the MEDIAN's measured climb
+	/// (.863 → .913, +.049) -- but a landmark bar does not live at the median, it lives in the
+	/// upper tail, and the upper tail barely moves: p99 goes .954 → .965 across the decade,
+	/// +.011, because GetTrackConsistency narrows the spread as fast as it lifts the centre. So
+	/// a bar rising with the median climbs THROUGH its own candidate pool: measured on evo12 it
+	/// crosses above p99 by 1967 and ends up at the 99.87th percentile, and albums clearing it
+	/// fall 53 → 5 while the number of albums pressed triples. That is why seed 2002 produced
+	/// three landmarks across 1966-69 -- the years that define the landmark album historically.
+	/// </para>
+	/// <para>
+	/// The recorded diagnosis -- that an early landmark run "raises the bar" and starves the
+	/// late decade -- is WITHDRAWN. This bar is a pure function of the calendar and is identical
+	/// on both seeds; both seeds run out of candidates late, and the wide seed spread was small
+	/// numbers on a pool of five. Projected on both seeds at .948/.011 (candidates over
+	/// integrity and merit, at the 0.41 pass-through the originality and recognition gates
+	/// measured): 1, 0, 2, 3, 3 | 6, 6, 6, 6, 6 on s1001 and 2, 1, 1, 2, 3 | 4, 4, 6, 6, 6 on
+	/// s2002 -- 39 and 35 against the current 33 and 26, and the shape the target asks for
+	/// rather than its reverse. The base rises with the drift falling so that the early years
+	/// stay scarce; a flat bar at the old base admits ~50 a decade.
+	/// </para>
+	public const float LandmarkIntegrityBase = .948f;
+	/// <summary>
+	/// How far the bar climbs by the time the album revolution is complete. Sized against the
+	/// measured drift of the DISTRIBUTION'S TAIL (p99, +.011), not of its median (+.049).
+	/// </summary>
+	public const float LandmarkIntegrityDrift = .011f;
+
+	/// <summary>
+	/// Where album integrity's upper tail actually sits at the end of the decade, measured on
+	/// two seeds (p99 .9649 / .9645, p99.9 .9741 / .9736). Named so that the bar has something
+	/// to be checked AGAINST: a landmark bar is only meaningful while it sits inside the
+	/// population it judges, and the previous 1969 bar of .972 sat above p99 and a hair under
+	/// p99.9, which is precisely how the candidate pool fell to five records in a year that
+	/// pressed 3,843 albums.
+	/// </summary>
+	public const float MeasuredLateIntegrityP99 = .965f;
 
 	public static float GetLandmarkIntegrityBar(int year) =>
 		LandmarkIntegrityBase + LandmarkIntegrityDrift * AlbumModel.GetAlbumEraWeight(year);

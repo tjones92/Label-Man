@@ -1190,7 +1190,7 @@ public partial class CompetitorManager : Node {
 			projectRole = ProjectRecordRole.None,
 			albumProjectId = string.Empty
 		};
-		record.title = NameGenerator.Instance?.GenerateSongTitle(genre, date.year, record.artistName) ?? $"Soundtrack {generatedRecordCounter}";
+		record.title = NameGenerator.Instance?.GenerateSongTitle(genre, date.year, record.artistId) ?? $"Soundtrack {generatedRecordCounter}";
 		// Set for consistency; a soundtrack carries no roster artistId, so it can never publish
 		// a cultural event -- an externally originated tie-in has no act to be influenced BY.
 		album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
@@ -2960,7 +2960,7 @@ public partial class CompetitorManager : Node {
 		record.secondaryGenre = artist.secondaryGenre;
 		
 		if (NameGenerator.Instance != null) {
-			record.title = NameGenerator.Instance.GenerateSongTitle(record.primaryGenre, year, record.artistName);
+			record.title = NameGenerator.Instance.GenerateSongTitle(record.primaryGenre, year, record.artistId);
 		} else {
 			record.title = $"Song {generatedRecordCounter}";
 		}
@@ -3042,7 +3042,7 @@ public partial class CompetitorManager : Node {
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
 			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f
 				+ (float)GD.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
-			string trackTitle = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.stageName) ?? $"Album Track {nonSingleTracks.Count + 1}";
+			string trackTitle = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Album Track {nonSingleTracks.Count + 1}";
 			(float hook, float production, float dance) = useStructuredPromoTracks
 				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
 				: (0f, 0f, 0f);
@@ -3069,6 +3069,10 @@ public partial class CompetitorManager : Node {
 			nonSingleTracks = nonSingleTracks.ToArray(),
 			runtimeMinutes = targetTracks * avgTrackMinutes,
 			thematicCohesion = thematicCohesion,
+			// Diagnostics. thematicCohesion is a draw from [0.10, ceiling], so neither the era
+			// ramp's reach nor the pioneer bar's hit rate is recoverable from it after the fact.
+			cohesionCeiling = cohesionCeiling,
+			statementExcellence = AlbumModel.GetStatementExcellence(artistTalent, label.productionQuality),
 			packaging = Mathf.Clamp(label.productionQuality * Mathf.Lerp(0.35f, 0.85f, AlbumModel.GetAlbumEraWeight(year)) + (float)GD.RandRange(-0.10, 0.12), 0.05f, 1f),
 			isStereo = year >= 1968 || GD.Randf() < Mathf.Lerp(0.12f, 0.75f, Mathf.Clamp((year - 1960f) / 8f, 0f, 1f))
 		};
@@ -3086,7 +3090,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private static string GenerateAlbumTitle(Record record, int year) {
-		string generated = NameGenerator.Instance?.GenerateSongTitle(record.primaryGenre, year, record.artistName);
+		string generated = NameGenerator.Instance?.GenerateSongTitle(record.primaryGenre, year, record.artistId);
 		return string.IsNullOrWhiteSpace(generated) ? $"{record.artistName} Album" : generated;
 	}
 

@@ -30,24 +30,56 @@ public static class ArtistEvolutionPressureService {
 	// Dividing by salience asks the honest question instead: which pressure is unusually
 	// high FOR THAT PRESSURE.
 	//
-	// Sized against the rebuilt formulas as measured over a 1960-62 run: commercial .429,
-	// artistic .449, internal .434, peer .308 (before the hit/landmark weight split), label
-	// .291, critical .080. Each scale sits near its own mean, so a pressure at its typical
-	// value scores near 1.0 and it is the DEVIATION that decides the motive. Commercial sits
-	// slightly below its mean on purpose: most acts really are chasing a hit, and the point
-	// of this file is to stop that being the ONLY thing anyone is ever doing -- not to
-	// pretend it is rare.
-	public const float CommercialSalience = .45f;
-	public const float ArtisticSalience = .52f;
-	// Below its mean, because acclaim is near zero for almost everyone and the acts that have
-	// any are exactly the ones this motive is for.
-	public const float CriticalSalience = .30f;
-	public const float PeerSalience = .30f;
-	// Below its mean for the same reason as the critical scale: the acts a label is actually
-	// leaning on are the tail, not the middle. At .42 it produced 2 conversions in three
-	// years, which is not meaningfully different from the dead lever it replaced.
-	public const float LabelSalience = .36f;
-	public const float InternalSalience = .58f;
+	// SIZED OFF THE DECADE LEDGER, NOT OFF A RULE OF THUMB.
+	//
+	// The first cut was sized against a 1960-62 window and against a stated principle -- "each
+	// scale sits near its own mean, so a pressure at its typical value scores near 1.0". Both
+	// halves turned out to be wrong, and in the same direction.
+	//
+	// The window was wrong because two of the six distributions moved after it was measured.
+	// Over the full decade (evo12 / evo12b, 16,301 observations) the non-zero means are
+	// commercial .506, artistic .469, internal .438, critical .157, peer .159, label .148.
+	// Peer had been sized at .30 against a .308 mean taken BEFORE the hit/landmark weight
+	// split halved it, and label at .36 against .291; both therefore ended up judged against a
+	// scale roughly twice their own typical value, which is why neither could ever win.
+	//
+	// The principle was wrong because these six are not the same SHAPE. Commercial saturates
+	// -- its p90 and p95 are both .955 -- while critical, peer and label are heavily
+	// right-skewed off a small mean. Normalising all six by their means hands the skewed ones
+	// the contest outright: measured, it puts LabelPressure at 24% and CommercialFailure at
+	// 16%, swapping one monopoly for another. Normalising by a common QUANTILE fails the other
+	// way, because a saturating distribution has no tail to reward. There is no scale-free
+	// answer, so the mix is a stated design target and these constants are fitted to it.
+	//
+	// Fitting is exact and needs no run. Salience is causally inert: restlessness reads the RAW
+	// pressures, rootsMode compares raw pressures, and the only outputs downstream of this
+	// block are the trigger label, the arc phase (read by the discography UI and the summary
+	// composer) and dominantSalience. So the trigger mix is a pure function of columns already
+	// in <run>-artist-evolution.csv. SimTools/radio-compare/salience_sizer.py reproduces the
+	// recorded trigger column exactly -- 100% agreement on 15,931 governed rows -- and solves
+	// for the vector below. Re-fit there before touching anything here.
+	//
+	// Target mix and the measured result on both seeds (share of ratified conversions):
+	//   CommercialFailure 30 -> 30.3 / 30.5   PersonalAmbition 24 -> 25.2 / 25.5
+	//   InternalTension   14 -> 13.4 / 14.3   PeerInfluence     11 -> 10.9 /  9.1
+	//   CriticalBreakthrough 7 -> 9.1 / 8.1   LabelPressure      6 ->  5.6 /  5.9
+	//   GenreClimateShift  4 ->  4.4 /  4.4   CohesiveAlbumMovement 1.5 -> 0.5 / 1.0
+	// Commercial failure stays the largest single motive on purpose: most acts really are
+	// chasing a hit, and the point of this file is to stop that being the ONLY thing anyone is
+	// ever doing -- not to pretend it is rare.
+	//
+	// CohesiveAlbumMovement is the one target salience cannot reach, and it is not a mistuning:
+	// only 6.8% / 9.7% of conversions have a landmark album as their strongest live influence
+	// at all, and on those rows peer pressure is no higher than it is on hit-driven ones. That
+	// share is a fact about the ledger, so the levers are LandmarkInfluenceWeight /
+	// InfluenceMemoryYears / LedgerCapacity -- all of which are causal and want their own A/B.
+	// It is NOT the landmark bar, which is calibrated to a historical target.
+	public const float CommercialSalience = .45f;   // the anchor; only ratios matter
+	public const float ArtisticSalience = .48f;
+	public const float CriticalSalience = .23f;
+	public const float PeerSalience = .21f;
+	public const float LabelSalience = .26f;
+	public const float InternalSalience = .49f;
 
 	public static void Evaluate(SimulatedArtist artist, AILabel label, int year) {
 		ArtistEvolutionProfile profile = artist.evolution;

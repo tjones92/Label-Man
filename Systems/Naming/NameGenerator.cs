@@ -29,6 +29,14 @@ public partial class NameGenerator : Node {
 	private NameEngine _engine;
 	private TemplateRouter _router;   // ancestry-driven (kind,genre)->set resolution (replaces the switch)
 	private IRandom _rng;             // dedicated naming stream, isolated from GD.Rand
+	// A SECOND naming stream, for the names of acts and people only.
+	//
+	// Song and album titles are not merely cosmetic: CompetitorManager hashes a track's title in
+	// GetDeterministicTrackTraits to derive its hook, production and danceability, so anything
+	// that advances the title stream changes album track traits and therefore the chart. Naming
+	// acts and band members off _rng would have made "give the bands real names" a calibration
+	// change. On its own stream it is provably inert -- nothing else draws from it.
+	private IRandom _actRng;
 
 	// Load in _EnterTree (not _Ready): later autoloads (e.g. ChartManager) generate labels during
 	// THEIR _EnterTree, which runs before this node's _Ready. Setting Instance without a loaded
@@ -81,6 +89,7 @@ public partial class NameGenerator : Node {
 		_router = new TemplateRouter(models.Genres, key => _engine.HasNameSet(key));
 
 		_rng = new DeterministicRandom(DeriveSeed());
+		_actRng = new DeterministicRandom(DeriveSeed() ^ 0x6163746E616D6573UL); // "actnames"
 		var moodIssues = moods.Validate();
 		if (moodIssues.Count > 0) GD.PushWarning($"NameGenerator mood matrix: {string.Join("; ", moodIssues)}");
 		// Per-genre coherence (doc H #4): flag any resolved profile whose affinity moods are
@@ -113,8 +122,11 @@ public partial class NameGenerator : Node {
 	// ============================================================ ARTIST / BAND
 	public string GenerateArtistName(Genre genre, int year, ArtistType artistType,
 									 string regionId = null, LabelArchetype? labelStyle = null) {
+		// Callers must gate on IsReady() rather than relying on this fallback: it is the one
+		// path in the act-naming family that touches the global stream, and ArtistManager's
+		// population path cannot afford a draw from it.
 		if (_engine == null) return $"Artist {GD.Randi()}";
-		var ctx = MakeContext(genre, year, artistType);
+		var ctx = MakeContext(genre, year, artistType, _actRng);
 		ctx.RegionId = regionId;
 		if (labelStyle.HasValue) ctx.LabelArchetype = labelStyle.Value.ToString();
 
@@ -122,14 +134,45 @@ public partial class NameGenerator : Node {
 		return _engine.Generate(symbol, ctx, "artist", nearDup: true);
 	}
 
-	public (string firstName, string lastName) GeneratePersonName(bool isMale) {
+	/// <summary>
+	/// A person's name, shaded by the music they play.
+	/// <para>
+	/// The genre argument is what stops a doo-wop group being five men called Smith. It was
+	/// hard-coded to <c>{gender, "white"}</c> and <c>{"generic"}</c>, which is the same query for
+	/// every act in the game, so the only variation the lexicon could offer was the draw itself.
+	/// The ethnicity reads mirror <see cref="GenerateBandMemberName"/>, which had this right
+	/// already and has never had a caller.
+	/// </para>
+	/// </summary>
+	public (string firstName, string lastName) GeneratePersonName(bool isMale,
+		Genre genre = Genre.TraditionalPop, string bandEthnicity = null) {
 		if (_engine == null) return (isMale ? "John" : "Jane", "Doe");
-		var ctx = MakeContext(Genre.TraditionalPop, 1963, isMale ? ArtistType.SoloMale : ArtistType.SoloFemale);
-		string gender = isMale ? "male" : "female";
-		string first = _engine.Lexicon.Query("firstName", new[] { gender, "white" }, ctx);
-		string last = _engine.Lexicon.Query("lastName", new[] { "generic" }, ctx);
+		var ctx = MakeContext(genre, 1963, isMale ? ArtistType.SoloMale : ArtistType.SoloFemale, _actRng);
+		bool isBlack = bandEthnicity == "black" || (IsAfricanAmericanGenre(genre) && _actRng.Chance(0.8));
+		bool isItalian = bandEthnicity == "italian" || (IsEastCoastGenre(genre) && !isBlack && _actRng.Chance(0.3));
+		bool isBritish = bandEthnicity == "british" || IsBritishGenre(genre);
+		string surnameTag = isItalian ? (_actRng.Chance(0.5) ? "italian" : "generic")
+			: isBritish ? (_actRng.Chance(0.6) ? "british" : "generic") : "generic";
+		string first = _engine.Lexicon.Query("firstName",
+			new[] { isMale ? "male" : "female", isBlack ? "black" : "white" }, ctx);
+		string last = _engine.Lexicon.Query("lastName", new[] { surnameTag }, ctx);
 		return (first, last);
 	}
+
+	/// <summary>
+	/// The ethnicity a whole lineup shares, drawn once per act so its members read as a group
+	/// rather than as five independent draws. Consumes the act stream, never the title stream.
+	/// </summary>
+	public string RollBandEthnicity(Genre genre) {
+		if (_engine == null) return null;
+		if (IsAfricanAmericanGenre(genre) && _actRng.Chance(0.8)) return "black";
+		if (IsBritishGenre(genre)) return "british";
+		if (IsEastCoastGenre(genre) && _actRng.Chance(0.3)) return "italian";
+		return null;
+	}
+
+	private static bool IsBritishGenre(Genre genre) => genre is Genre.BritishInvasion
+		or Genre.BritishBeat or Genre.BritishPop or Genre.BritishBlues or Genre.Skiffle;
 
 	/// <summary>Route (genre, year, type) to the artist grammar symbol AND populate the
 	/// demographic tag-sets on <paramref name="ctx"/>. Shared by the game and the tuner; all
@@ -256,11 +299,24 @@ public partial class NameGenerator : Node {
 	}
 
 	// =============================================================== SONG TITLES
-	public string GenerateSongTitle(Genre genre, int year, string artistName = null) {
+	/// <param name="artistKey">
+	/// Identifies the ACT for near-duplicate bookkeeping, so one band does not keep writing the
+	/// same song. Pass a stable id, never a display name.
+	/// <para>
+	/// It used to be handed <c>stageName</c>, which quietly made the act's NAME an input to its
+	/// song titles — and titles are hashed by
+	/// <c>CompetitorManager.GetDeterministicTrackTraits</c> into hook, production and
+	/// danceability. So renaming the bands moved the chart: measured, giving acts real names
+	/// changed `genre-decade-shape`, `format-mix` and `year-end-hot100` while leaving
+	/// `album-composition` byte-identical, which is exactly the signature of a title-derived
+	/// trait shift. Keyed on the id, cosmetic naming work is free again.
+	/// </para>
+	/// </param>
+	public string GenerateSongTitle(Genre genre, int year, string artistKey = null) {
 		if (_engine == null) return $"Untitled {GD.Randi()}";
 		var ctx = MakeContext(genre, year, ArtistType.Unknown);
 		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
-		string bucket = "song|" + (artistName ?? "");
+		string bucket = "song|" + (artistKey ?? "");
 		return _engine.Generate(symbol, ctx, bucket, nearDup: false, attempts: 30);
 	}
 
@@ -394,14 +450,14 @@ public partial class NameGenerator : Node {
 
 	public string GenerateBandMemberName(Genre genre, bool isFemale, string bandEthnicity = null) {
 		if (_engine == null) return "Member";
-		var ctx = MakeContext(genre, 1963, ArtistType.Unknown);
-		bool isBlack = bandEthnicity == "black" || (IsAfricanAmericanGenre(genre) && _rng.Chance(0.8));
-		bool isItalian = bandEthnicity == "italian" || (IsEastCoastGenre(genre) && !isBlack && _rng.Chance(0.3));
+		var ctx = MakeContext(genre, 1963, ArtistType.Unknown, _actRng);
+		bool isBlack = bandEthnicity == "black" || (IsAfricanAmericanGenre(genre) && _actRng.Chance(0.8));
+		bool isItalian = bandEthnicity == "italian" || (IsEastCoastGenre(genre) && !isBlack && _actRng.Chance(0.3));
 		bool isBritish = genre == Genre.BritishInvasion || bandEthnicity == "british";
 		string ethnicity = isBlack ? "black" : "white";
 		ctx.TagSets["name"] = new List<string> { isFemale ? "female" : "male", ethnicity };
-		string surname = isItalian ? (_rng.Chance(0.5) ? "italian" : "generic")
-					   : isBritish ? (_rng.Chance(0.6) ? "british" : "generic") : "generic";
+		string surname = isItalian ? (_actRng.Chance(0.5) ? "italian" : "generic")
+					   : isBritish ? (_actRng.Chance(0.6) ? "british" : "generic") : "generic";
 		ctx.TagSets["surname"] = new List<string> { surname };
 		return _engine.ExpandOnce("bandMember", ctx);
 	}

@@ -13,7 +13,33 @@ public static class AlbumModel {
 	// Deliberately vanishing. Tuned against the measured concept count, not by intuition:
 	// the target is a handful across 1965-66, not a wave.
 	public static float EarlyStatementYear = 1965f;
-	public static float EarlyStatementExcellence = 0.55f;
+	/// <summary>
+	/// The pioneer bar, RE-SIZED (2026-08) against the distribution it is actually applied to.
+	/// <para>
+	/// It was 0.55, and it fired zero times in seven years. `statementExcellence` is now written
+	/// to album telemetry, and measured over 22,595 artist albums it is **92.6% exact zeros** --
+	/// it is a product of two terms each clamped to zero below 0.70, and most acts or most rooms
+	/// fail one of them. Its p99 is .217 and its observed maximum is .789. A bar of 0.55 sits at
+	/// the 99.96th percentile of that, so 0.55 was not a high bar, it was a closed door: with
+	/// the 0.94 roll gate on top it projects to 0.5 pioneer albums across 1965-66 and 0.1
+	/// records actually clearing the 0.62 statement condition.
+	/// </para>
+	/// <para>
+	/// 0.10 sits at roughly the 97.6th percentile and still describes what it was authored to
+	/// describe -- both the act and the room clearly above the competence threshold -- because
+	/// the zeros are 92.6% of the field. Projected on the measured 1965-66 population it yields
+	/// ~20 pioneer albums across the two years, **~5 records clearing the 0.62 statement
+	/// condition** and **~1 formally minted as AlbumFormat.Concept**. That is Rubber Soul,
+	/// Revolver, Pet Sounds and a Dylan record, and it leaves the "wave by 1968" shape alone --
+	/// the concept count is 0 / 405 / 554 / 577 across 1966-69 and this adds about one to 1966.
+	/// </para>
+	/// <para>
+	/// The bar only has teeth in 1965-66 by construction: from 1967 the era ramp puts the
+	/// ordinary baseline above the pioneer floor of 0.80, so `Max(baseline, floor)` stops
+	/// lifting anything. That is the window this path exists for.
+	/// </para>
+	/// </summary>
+	public static float EarlyStatementExcellence = 0.10f;
 	public static float EarlyStatementRollThreshold = 0.94f;
 	public static float EarlyStatementCohesionFloor = 0.80f;
 
@@ -65,15 +91,52 @@ public static class AlbumModel {
 		return Mathf.Lerp(peakWeighted, wholeWeighted, GetAlbumEraWeight(year));
 	}
 
+	/// <summary>
+	/// The exogenous cohesion ramp: how far the form itself had travelled in a given year,
+	/// before anything about the act or the room is considered.
+	/// <para>
+	/// SEPARATED OUT AND FIXED (2026-08). This was
+	/// <c>Mathf.SmoothStep(0.12f, 0.96f, t)</c>, written as though those were an output range.
+	/// Godot's SmoothStep treats them as EDGES, so the term evaluated to
+	/// <c>0, 0, .065, .429, .844, 1, 1</c> across 1963-69 -- zero until 1965 and pinned to the
+	/// 0.08 clamp floor for every artist album before 1966, roughly two years later than every
+	/// surrounding comment assumes. The intended reading is a smoothstep across the window
+	/// mapped INTO [0.12, 0.96], which gives <c>.12, .12, .251, .540, .829, .96, .96</c>.
+	/// </para>
+	/// <para>
+	/// The repair is close to monotonic, which is why it was safe to make. It raises 1964-66
+	/// and trims 1967-69 by only 1.8% / 4% / 4% on the era term -- not the ~10% the directive
+	/// estimated -- and less than that after the 1.0 clamp, which nearly every 1968-69 album is
+	/// already sitting on. It does not open a concept-album wave in 1966 either: statementViable
+	/// needs a 0.72 ceiling and 0.540 x the largest reachable talent/production multiplier
+	/// (1.1775) is 0.636, so 1965-66 statements still come only through the pioneer path below,
+	/// which is the pairing this fix was always supposed to ship with.
+	/// </para>
+	/// </summary>
+	public static float GetCohesionEraTerm(int year) => Mathf.Lerp(0.12f, 0.96f,
+		Mathf.SmoothStep(0f, 1f,
+			Mathf.Clamp((year - CohesionRiseStartYear) / (CohesionRiseEndYear - CohesionRiseStartYear), 0f, 1f)));
+
+	/// <summary>
+	/// Near-top talent in a near-top room, as a single [0,1] score. Exposed because the pioneer
+	/// bar is stated against it and a bar is meaningless until it is checked against the
+	/// distribution it will be applied to -- which is why it is also written to album telemetry.
+	/// <para>
+	/// Note the reachable ceiling is well under 1: the highest measured label
+	/// <c>productionQuality</c> is 0.91, so the production factor tops out at 0.70 and no album
+	/// can score above 0.70 however good the act is.
+	/// </para>
+	/// </summary>
+	public static float GetStatementExcellence(float artistTalent, float labelProduction) =>
+		Mathf.Clamp((artistTalent - 0.70f) / 0.30f, 0f, 1f) *
+		Mathf.Clamp((labelProduction - 0.70f) / 0.30f, 0f, 1f);
+
 	public static float GetMaximumAchievableCohesion(int year, float artistTalent, float labelProduction, float luckyRoll) {
 		// The exogenous curve is the floor and the shape. Album legitimacy -- records that
 		// actually happened and were actually heard -- can pull it forward in time by a
 		// bounded amount, never rewrite it, and is exactly 1.0x when that phase is off.
-		float era = Mathf.SmoothStep(0.12f, 0.96f,
-			Mathf.Clamp((year - CohesionRiseStartYear) / (CohesionRiseEndYear - CohesionRiseStartYear), 0f, 1f))
-			* AlbumLegitimacyService.CurrentCeilingMultiplier;
-		float excellence = Mathf.Clamp((artistTalent - 0.70f) / 0.30f, 0f, 1f) *
-			Mathf.Clamp((labelProduction - 0.70f) / 0.30f, 0f, 1f);
+		float era = GetCohesionEraTerm(year) * AlbumLegitimacyService.CurrentCeilingMultiplier;
+		float excellence = GetStatementExcellence(artistTalent, labelProduction);
 		float baseline = Mathf.Clamp(era * (0.45f + 0.50f * artistTalent + 0.25f * labelProduction), 0.08f, 1f);
 		// Rubber Soul (1965) and Pet Sounds (1966) preceded the era ramp. That ramp alone
 		// cannot reach the 0.72 statement bar until 1967, and the pre-1965 fluke term it

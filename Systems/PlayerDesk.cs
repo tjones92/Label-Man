@@ -212,7 +212,7 @@ public partial class PlayerDesk : Node {
 		if (region == null) { message = "No home market resolved."; return false; }
 
 		List<SimulatedArtist> local = (ArtistManager.Instance?.GetUnsignedArtists() ?? new List<SimulatedArtist>())
-			.Where(artist => IsLocal(artist, region))
+			.Where(artist => IsLocal(artist, region) && IsWorthAPopLabelsEvening(artist))
 			.ToList();
 		if (local.Count == 0) {
 			Spend(ScoutHours);
@@ -224,12 +224,7 @@ public partial class PlayerDesk : Node {
 		}
 
 		Spend(ScoutHours);
-		// The player hears a handful of acts, weighted toward the better ones but never
-		// handed the region's best act on a plate.
-		var heard = local
-			.OrderByDescending(artist => artist.CalculateBaseQuality() * (float)GD.RandRange(0.55, 1.45))
-			.Take(SlateSize)
-			.ToList();
+		List<SimulatedArtist> heard = SampleTheRoom(local, SlateSize);
 
 		slate.Clear();
 		foreach (SimulatedArtist artist in heard) {
@@ -248,6 +243,68 @@ public partial class PlayerDesk : Node {
 		Changed?.Invoke();
 		return true;
 	}
+
+	/// <summary>
+	/// A few acts out of everyone playing the market this week, weighted toward the better ones.
+	/// <para>
+	/// This was <c>OrderByDescending(quality * rand(0.55, 1.45)).Take(4)</c>, which is a top-of-tail
+	/// draw over a pool that does not change between trips — so the player met the same four acts
+	/// every week, and which four was decided by whoever happened to sit at the region's quality
+	/// maximum. Measured in Great Lakes: the pool is 804 acts led by Country 92, RockAndRoll 73 and
+	/// RnB 69, but the highest top quality in the region belongs to Classical at n=34, and small
+	/// genres win that slot on sampling noise (Classical mean .58 and LatinPop mean .59 against
+	/// Country's .51). That is the whole of the reported "every act is easy listening or classical":
+	/// not a supply problem, a selection problem.
+	/// </para>
+	/// <para>
+	/// Weighted sampling without replacement fixes both halves. Quality still dominates — the
+	/// exponent makes a 0.8 act roughly four times as likely to be heard as a 0.5 one — but the
+	/// draw is over the whole room, so the slate changes week to week and reads like a scene
+	/// rather than a leaderboard.
+	/// </para>
+	/// </summary>
+	private static List<SimulatedArtist> SampleTheRoom(List<SimulatedArtist> pool, int count) {
+		var remaining = new List<SimulatedArtist>(pool);
+		var weights = remaining.Select(WeightOf).ToList();
+		var heard = new List<SimulatedArtist>(count);
+		while (heard.Count < count && remaining.Count > 0) {
+			float total = weights.Sum();
+			// Every act in the room is a floor away from zero, so a degenerate pool still draws.
+			float target = total > 0f ? (float)GD.RandRange(0f, total) : 0f;
+			int index = remaining.Count - 1;
+			for (int i = 0; i < remaining.Count; i++) {
+				target -= weights[i];
+				if (target > 0f) continue;
+				index = i;
+				break;
+			}
+			heard.Add(remaining[index]);
+			remaining.RemoveAt(index);
+			weights.RemoveAt(index);
+		}
+		return heard;
+	}
+
+	/// <summary>Talent tells, but the room is not sorted by it.</summary>
+	private static float WeightOf(SimulatedArtist artist) {
+		float quality = Mathf.Clamp(artist.CalculateBaseQuality(), 0f, 1f);
+		return 0.02f + quality * quality * quality;
+	}
+
+	/// <summary>
+	/// A pop label in 1960 does not sign a string quartet, a comedian or a children's record.
+	/// <para>
+	/// Same odd-entity families <see cref="AlbumLegitimacyService.IsEligibleFamily"/> already
+	/// excludes from the album-as-art movement, and for the same reason: they sell records and
+	/// are occasionally culturally large, but they are not the business this desk is in. Without
+	/// this the classical acts are simply never signed by anybody, so they accumulate in the
+	/// unsigned pool and turn up on the player's slate week after week.
+	/// </para>
+	/// </summary>
+	private static bool IsWorthAPopLabelsEvening(SimulatedArtist artist) =>
+		AlbumLegitimacyService.IsEligibleFamily(
+			GenreCatalog.Get(GenreCatalog.MapLegacy(artist.primaryGenre,
+				TimeManager.Instance?.CurrentDate.year ?? 1960)).Family);
 
 	private static bool IsLocal(SimulatedArtist artist, MarketRegion region) =>
 		artist != null && Normalize(artist.homeRegion) == Normalize(region.regionName);
@@ -325,7 +382,7 @@ public partial class PlayerDesk : Node {
 				Originality = Mathf.Clamp(creativity * 0.7f + (float)GD.RandRange(0f, 0.3f), 0f, 1f),
 				Danceability = (float)GD.RandRange(0.3, 0.95)
 			};
-			song.Title = NameGenerator.Instance?.GenerateSongTitle(song.Genre, year, artist.stageName)
+			song.Title = NameGenerator.Instance?.GenerateSongTitle(song.Genre, year, artist.artistId)
 				?? $"Untitled {counter}";
 			songs.Add(song);
 			titles.Add(song.Title);

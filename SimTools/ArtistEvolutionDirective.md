@@ -920,24 +920,25 @@ nothing here is speculative scope.
    A/B is against a **contemporaneous paired control, one per seed**. Result: +12.7 on seed
    1001, −5.2 on seed 2002, mean **+3.7**. No regression. Album unit share and album-chart
    genre mix were in the blast radius and came back neutral.
-4. **Salience constants are sized off a single 3-year window** (`CommercialSalience .45`,
-   `Artistic .52`, `Critical .30`, `Peer .30`, `Label .36`, `Internal .58`). They are the most
-   likely thing to want moving after a decade run, and the trigger mix is the metric to read
-   them against — not `sumAbsErr`.
-5. **Commercial pressure no longer has a floor**, which lowers `restlessness` broadly and
-   therefore reduces conversion *volume*, not just its labelling. Expect fewer conversions than
-   the bundle's 1,616 and check that against the guardrail budget before reading it as a
-   regression.
+4. ~~**Salience constants are sized off a single 3-year window.**~~ **DONE — and it needed no
+   run at all.** See §7f.1. Salience is causally inert, so the trigger mix is a pure function of
+   columns already in the ledger and is fitted offline by
+   `SimTools/radio-compare/salience_sizer.py`.
+5. ~~**Commercial pressure no longer has a floor.**~~ **RESOLVED — it does not want one.**
+   See §7f.2. Restoring the old .40 floor moves mean restlessness by **+0.1%** and the
+   restless rate 97.9% → 98.2%, because artistic and internal pressure are non-zero for 100%
+   of acts and already clear resistance for 98% of them. The floor was never doing volume
+   work; it was winning a raw `max()`. The bundle→7d drop of 1,616 → 1,549 conversions is
+   therefore **not** attributable to it.
 
 ### Deferred, with reasons
 
-6. **The `Mathf.SmoothStep` defect** in `GetMaximumAchievableCohesion` (7b.7). Real, ~80%
-   confidence, no longer blocks anything since the landmark rule left `thematicCohesion`. Wants
-   its own commit and A/B because the fix is **not monotonic** — it raises 1960–66 cohesion and
-   *lowers* 1967–69 by ~10%, and cohesion feeds `pooledAppeal → hookStrength →` album chart.
-   Pair with `EarlyStatementExcellence = .55`, which is the unambiguous half: max label
-   `productionQuality` measured .91, so the bar needs artist talent above **.936** and fires
-   zero times in seven years against a comment stating the target is "a handful across 1965-66".
+6. ~~**The `Mathf.SmoothStep` defect** in `GetMaximumAchievableCohesion` (7b.7).~~ **FIXED, and
+   the ~10% estimate was wrong** — see §7f.3. The late-decade cost is −1.8% at 1967 and −4% at
+   1968-69 on the era term, and less than that after the 1.0 clamp that nearly every 1968-69
+   album already sits on. Paired with `EarlyStatementExcellence` as this item always said it
+   should be; the bar is being sized against a newly-instrumented distribution rather than
+   guessed at.
 7. **`SetLabelPressure` has no callers.** The player's lever on artist direction exists in the
    pressure model and nothing in the UI writes it. AI label pressure now works (2.5% of
    conversions); the player half is still unwired.
@@ -1117,6 +1118,290 @@ a window of projects, so a two-record act cannot have an arc:
 52,100 ([[chart-slot-weeks-identity]]). A recognition term will concentrate the chart and it
 will come out of breadth, so it wants its own A/B against the genre-slot metrics — not a
 bundled ride-along on someone else's phase.
+
+## 7f. THE §7c PASS — three of the remaining items, and one withdrawn diagnosis
+
+### 7f.1 Salience is causally inert, so it is fitted offline and never run
+
+`restlessness` — the only pressure output the supply weight reads
+(`GenreSupplyService.GetRestlessness`) — is built from the **raw** pressures, and `rootsMode`
+compares raw pressures to each other. Salience appears only in `Dominant()`, whose outputs are
+the trigger label, `dominantSalience`, and (through `DerivePhase`) `ArtistArcPhase`, read by the
+discography UI and the summary composer. **A salience constant cannot move a genre, a unit or a
+conversion count.** It relabels conversions that already happened.
+
+So the trigger mix is a pure function of columns already in `<run>-artist-evolution.csv`.
+`SimTools/radio-compare/salience_sizer.py` reproduces the recorded `trigger` column with **100%
+agreement on 15,931 governed rows** (max `dominantSalience` error 2e-4) and then solves for a
+vector against a stated target mix. Two classes of row are invariant and pass through: the
+`BackToRoots` rows, settled before `Dominant()` is consulted, and the Phase-1 fallback, whose
+flop/hit inputs never reach the ledger.
+
+**Two things were wrong, in the same direction.**
+
+*The window was stale.* Decade non-zero means are commercial .506, artistic .469, internal .438,
+critical .157, **peer .159, label .148**. Peer had been sized at .30 against a .308 mean measured
+*before* the hit/landmark weight split halved it, and label at .36 against .291 — so both ended
+up judged against roughly twice their own typical value, which is the whole of why `PeerInfluence`
+sat at 1.3% / 0.7%.
+
+*The stated principle was also wrong.* "Each scale near its own mean" is only meaningful if the
+six distributions have the same shape, and they do not: commercial saturates (p90 = p95 = .955)
+while critical, peer and label are heavily right-skewed off a small mean. Measured, mean-
+normalising puts `LabelPressure` at 24% and `CommercialFailure` at 16% — one monopoly for
+another. Common-quantile normalising fails the other way, floor'ing commercial at 3-7%, because
+a saturating distribution has no tail to reward. **There is no scale-free answer. The mix is a
+design target and these constants are fitted to it.**
+
+`ClimateScore` (1.15 / .35 → **2.30 / .70**) had to move with them: it is judged against the
+winner's normalised score, so lowering the six scales silently squeezed it out.
+
+| trigger | before (s1001 / s2002) | after | target |
+|---|---|---|---|
+| CommercialFailure | 41.3 / 42.7 | **30.3 / 30.5** | 30 |
+| PersonalAmbition | 34.5 / 32.2 | 25.2 / 25.5 | 24 |
+| InternalTension | 12.4 / 12.8 | 13.4 / 14.3 | 14 |
+| PeerInfluence | 1.3 / 0.7 | **10.9 / 9.1** | 11 |
+| CriticalBreakthrough | 4.8 / 4.4 | 9.1 / 8.1 | 7 |
+| LabelPressure | 1.9 / 2.7 | 5.6 / 5.9 | 6 |
+| GenreClimateShift | 3.1 / 2.5 | 4.4 / 4.4 | 4 |
+| CohesiveAlbumMovement | 0.1 / 0.7 | 0.5 / 1.0 | 1.5 |
+
+`CohesiveAlbumMovement` is the one target salience cannot reach, and that is a fact about the
+ledger rather than a mistuning: only 6.8% / 9.7% of conversions have a landmark as their
+strongest live influence at all, and peer pressure on those rows is **no higher** than on
+hit-driven ones (.130 against .167 on s1001). Its levers stay §7c item 2's.
+
+Constants: `Artistic .52 → .48`, `Critical .30 → .23`, `Peer .30 → .21`, `Label .36 → .26`,
+`Internal .58 → .49`, `Commercial .45` unchanged as the anchor (only ratios matter, so one scale
+must be pinned or the search wanders a flat direction).
+
+**The inertness claim is MEASURED, not argued.** `inertA` / `inertB`, 104 weeks, seed 1001,
+identical in every respect but these constants:
+
+- `genre-decade-shape.csv`, `format-mix.csv`, `year-end-hot100.csv`, `decade-annual-rollup.csv`,
+  `concentration.csv` and `album-composition.csv` are **byte-identical**;
+- the evolution ledger has the **same 897 rows**, identical on every non-label column —
+  artist, from/to genre, all six pressures, resistance, `ratified`, and the refusal `block`;
+- only `trigger` moves, on 284 of 897 rows.
+
+And the sizer predicted `inertA`'s ratified mix **exactly, to 0.1 points on every trigger**, from
+`inertB`'s ledger — a run it had never seen, in a world it was not fitted on. Salience is
+settled: it is fitted offline and it never needs an A/B, now or later.
+
+### 7f.2 Commercial pressure does not want its floor back
+
+Restoring the old .40 floor moves **mean restlessness by +0.1%** and the restless rate from
+97.9% to 98.2%. It is inert on volume because artistic and internal pressure are non-zero for
+100% of acts with means .47 / .44 against a mean resistance of .357, so restlessness is already
+positive for 98% of ledger rows without commercial contributing anything; only **4.2%** of rows
+are ones where commercial alone clears resistance. The floor was never doing volume work — it
+was doing labelling work, winning a raw `max()` — and restoring it buys the 92% monopoly back
+for nothing.
+
+The genuine gap is narrower than a floor and is **not** worth closing: commercial pressure is
+exactly zero for an act with no flops, so an act whose records merely underperform registers no
+commercial fear. 90% of ledger rows already carry at least one flop, so that too would be a
+labelling change wearing a mechanism's clothes.
+
+### 7f.3 The SmoothStep fix is close to monotonic, and −10% was an overestimate
+
+| year | old era term | fixed | Δ era | Δ pooledAppeal |
+|---|---|---|---|---|
+| 1960-64 | 0.000 | 0.120 | — | +0.000 … +0.005 |
+| 1965 | 0.064 | 0.251 | +290% | **+0.023** |
+| 1966 | 0.429 | 0.540 | +26% | +0.016 |
+| 1967 | 0.844 | 0.829 | **−1.8%** | −0.003 |
+| 1968-69 | 1.000 | 0.960 | **−4.0%** | −0.007 |
+
+Less than that in practice, because the 1.0 clamp absorbs it for the top of the distribution —
+observed 1969 `thematicCohesion` is a clean U(0.1, 1.0), i.e. nearly every album is already
+sitting on the ceiling. Late-decade album appeal moves about −1%.
+
+It does **not** open a concept-album wave in 1966: `statementViable` needs a 0.72 ceiling and
+0.540 × the largest reachable talent/production multiplier (1.1775) is 0.636. 1965-66 statements
+still come only through the pioneer path, which is why the two ship together.
+
+Shipped as `AlbumModel.GetCohesionEraTerm` with probes 97j (spans its authored endpoints) and
+97k (never falls). Probe 21b had been pinning the curve against **a copy of the buggy formula**
+and so passed throughout; it now reads the shipped function.
+
+**`hookStrength` is not generated from appeal.** Checked because the chain reads that way in
+§1.5. A single's hook is drawn first from songwriting and base quality
+(`CompetitorManager.cs:2978`); an album's tracks get their own quality and their own
+hook/production/danceability (`:3043`), and `pooledAppeal` is computed **from** those track
+qualities (`:3077`). `:2990` then overwrites the *album record's* summary scalars with
+`pooledAppeal` — the album adopting its aggregate as the scalar the chart engine reads
+(`realizedQuality = (hookStrength + productionQuality) / 2`), discarding a single-track hook draw
+made before the format was known. Quality does decide how many people hear it. The one wart is
+`danceability = pooledAppeal` on the same line, which is a category error but enters no units
+formula; left alone rather than perturb a stream for a display field.
+
+### 7f.4 WITHDRAWN — landmark timing is not an early/late interaction
+
+§7d recorded the instability as seed 2002 front-loading, *raising the bar*, and starving
+1966-69. **That mechanism does not exist.** `GetLandmarkIntegrityBar` is a pure function of the
+calendar and is identical on both seeds; nothing a landmark does feeds back into it.
+
+What actually happens is that **the bar climbs out of the population it judges.** The drift was
+sized at +.044 to match the measured climb of the MEDIAN integrity (.863 → .913, +.049) — but a
+landmark bar lives in the upper tail, and the tail barely moves, because `GetTrackConsistency`
+narrows the spread as fast as it lifts the centre:
+
+| | 1960 | 1963 | 1966 | 1969 |
+|---|---|---|---|---|
+| median integrity | .863 | .879 | .906 | .913 |
+| p99 | .954 | .958 | .964 | **.965** |
+| bar | .928 | .942 | .965 | **.972** |
+| bar's percentile | 92.2 | 94.4 | 99.3 | **99.87** |
+| albums clearing it | 53 | 71 | 18 | **5** |
+
+The bar crosses above p99 by 1967 and ends a hair under p99.9, while the number of albums
+pressed triples (681 → 3,843). Both seeds run out of candidates; the 16-against-3 spread across
+1966-69 was small numbers on a pool of five, not a seed-dependent mechanism.
+
+**Fix: `LandmarkIntegrityBase .928 → .948`, `LandmarkIntegrityDrift .044 → .011`** — the drift
+re-sized against the tail's measured movement rather than the median's, with the base raised so
+the early years stay scarce (a flat bar at the old base admits ~50 a decade). Projected on both
+seeds at the 0.41 pass-through the originality and recognition gates measure:
+
+```
+          60 61 62 63 64 | 65 66 67 68 69   total   (was)
+s1001      1  0  2  3  3 |  6  6  6  6  6     39      33
+s2002      2  1  1  2  3 |  4  4  6  6  6     35      26
+```
+
+Inside 25-40 on both, with the shape the target asks for instead of its reverse, and a seed
+spread of 4 against the previous 7. New probe 35q pins the invariant the old constants broke:
+the 1969 bar must stay at or below `MeasuredLateIntegrityP99`, because a bar above the
+population's own 99th percentile is not a high standard, it is an empty year.
+
+**Soft in one place, disclosed:** the 0.41 pass-through is measured on the *current* candidate
+pool. Moving the bar changes that pool's composition, so the late counts are estimates — but the
+canonisation cap binds in exactly those years, which bounds the error.
+
+## 7g. MEASURED RESULT — `evo14` / `evo14b`, and the state the directive closes in
+
+Two decade runs, 522 weeks, `--lean-probe`, canonical flags plus the four phase flags, seeds
+1001 and 2002, sharing the machine. This is the shipping tree, measured; every number below is
+from those two runs.
+
+### What these runs were actually for, and why they had to be decade-length
+
+`evo13` / `evo13b` had already measured §7f.3's SmoothStep fix, §7f.4's re-sized landmark bar and
+the pioneer bar together (28 and 27 landmarks, correctly back-loaded). What `evo14` adds is the
+player-facing bundle: the `GenerateStageName` gate fix, song titles re-keyed from `artistName` to
+`artistId`, `RollBandEthnicity`, and the scouting diagnostics.
+
+**That bundle is not inert, and the reason is worth recording.** It looks cosmetic and it is not.
+`CompetitorManager.GetDeterministicTrackTraits` is an FNV hash of `$"{title}|{genre}"` and returns
+a track's hook, production and danceability as ±.09 / ±.07 offsets around its quality. So changing
+the title-bucket key re-rolls the traits of every album track in the run — and
+`CreatePromoSingleFromAlbum` chooses *which* track is released through `GetLeadSingleSuitability`,
+built from those same hashed traits, then hands the winner's hook and production straight to a
+released single, which the chart engine reads as `realizedQuality`. A promo single lifted off an
+album can now be a different song with different chart inputs. Album `pooledAppeal` is untouched
+(§7f.3: it is computed from track *qualities*, not traits), so the exposure is the promo-single
+lane specifically.
+
+This is why the short byte-comparison of [[probe-run-byte-comparison-proves-inertness]] and
+§7f.1's `inertA`/`inertB` does **not** apply here: that method proves inertness by coming back
+byte-identical, and this cannot. Once a change is known non-inert, only a decade run speaks to
+gates that are stated against decade-long share targets. **The general rule: check the consumers
+of a "cosmetic" field before choosing the cheap test.** Naming v2 having its own RNG stream is
+true and is why the global stream is safe; it says nothing about a hash that reads the output.
+
+Names verified fixed by `--scouting-report` on a 12-week run: acts now come back as `Andy Hill`,
+`Jay Coleman`, `Vinnie Allen` rather than `The DooWop Voices 4821`.
+
+### Gate numbers
+
+| | evo14 (s1001) | evo14b (s2002) |
+|---|---|---|
+| total share `sumAbsErr` | **304.9** | **303.7** |
+| delta vs same-seed evo13/evo13b | +1.7 | +0.5 |
+| ratified conversions | 1,552 | 1,544 |
+| landmarks (target 25–40) | **38** | **23** |
+| end-1969 legitimacy | 0.7703 | 0.5790 |
+| distinct tastemakers | 27 | 19 |
+| conversions naming an album | 6.8% | 11.3% |
+| total market units vs baseline | +0.08% | −0.08% |
+| album-chart slot-weeks | 65,890 | 65,890 |
+
+Gate 1's ≤320 passes on both, on the total *and* comfortably: the 340 kill is 35 points away.
+Both runs are also below `mix8`'s 309.1 outright.
+
+**Per-genre movement does not replicate and is therefore noise.** Worse-than-baseline on s1001:
+RnB +4.39, EasyListening +4.19. On s2002: RockAndRoll +4.76, TraditionalPop +4.48. Only
+**EasyListening** degrades on both (+4.19 / +2.67), and it rises on the album chart on both
+(+1.5 / +2.2 points) — a small replicating signal, filed as a watch item rather than a defect,
+since the >4.0 per-genre gate sits below the 6.09 control-vs-control spread §7d measured.
+
+**Guardrails, unchanged in character:** the annual budget and the per-genre outflow cap never
+appear in either refusal ledger. Cooldown refuses 12 / 18; `GenreClosedToNewSupply` 2 / 7;
+`NoMusicalPath` is still the bulk at 4,565 / 4,494. Of 1,522 / 1,508 converting artists, 1,497 /
+1,475 convert exactly once and the maximum is 3 — the median-eras kill is nowhere near.
+
+**Trigger mix is stable** within ~2 points of `evo13`/`evo13b` on every trigger, so §7f.1's
+offline-fitted salience survives the re-roll: CommercialFailure 29.8 / 33.3, PersonalAmbition
+22.6 / 22.9, InternalTension 13.7 / 12.6, PeerInfluence 11.1 / 8.5, CriticalBreakthrough 9.6 /
+8.1, LabelPressure 7.2 / 5.8, GenreClimateShift 3.9 / 5.1, CohesiveAlbumMovement 1.2 / 2.4.
+
+**The landmark set is no longer a jazz monopoly.** §7b.11's 71% jazz-family reading is superseded
+by the re-sized bar: s1001's top genres are Soul 8, BossaNova 5, Folk 4, GarageRock 3, Country 3.
+Concept albums keep the authored shape — 406 / 570 / 643 across 1967-69 on s1001, with the
+"handful in 1965-66" landing at 0 and 2 rather than the projected ~1 each.
+
+### Two findings that do not block the close, and one of them is not ours
+
+**1. Landmark count is tail-sensitive across seeds: 38 against 23.** s1001 hits the canonisation
+cap of 6 in every year 1965-69, so 38 is a capped number; s2002 lands 23, **two under the 25
+floor**, and `cohesion_gate` reports it as a FAIL. The two-seed mean is 30.5, mid-band. §7f.4
+projected 39 / 35 from a static join and the runs returned 38 / 23 — the projection was right at
+the top of the range and wrong at the bottom, which is what a pass-through estimated on the
+pre-change candidate pool is entitled to be. A landmark is a p99-and-up object; a title re-roll
+alone moved the count +10 / −4. **What this says is that the count is not tightly controllable at
+single-seed resolution, not that the bar is mistuned** — but a third seed is the honest way to
+settle whether the band's floor is genuinely cleared, and that is left open.
+
+**2. The Gate 4 LP band fails at head, and it is not this branch's doing.** Measured LP unit
+share against the calibrated 29.5 / 35.0 / 41.3 / 48.4 / 55.4:
+
+| run | 1960 | 1962 | 1964 | 1966 | 1968 |
+|---|---|---|---|---|---|
+| `ctl12` (no evolution) | 17.4 | 29.8 | 36.7 | 42.6 | 52.0 |
+| `evo12` | 17.0 | 30.6 | 37.1 | 42.6 | 52.0 |
+| `evo14` | 17.4 | 30.1 | 37.2 | 43.7 | 52.0 |
+| `evo14b` | 16.3 | 27.6 | 35.6 | 43.1 | 51.9 |
+
+−12 points at 1960 on **every** run including the no-evolution controls, so it is inherited from
+work outside this directive — the same uninstrumented drift §7d caught as the control moving +7.4
+since the bundle. Two independent sources agree (the `format-mix` annual rows and
+`decade-annual-rollup`), so it is not the double-count `cohesion_gate` warns about. It is
+recorded in [[album-unit-share-pinned-by-velocity]] as RESOLVED at those values, and it no longer
+holds. **Gate 4's LP clause is therefore NOT declared passed by this directive** — evolution is
+neutral on it (±0.8 against a paired control, §7d) but the absolute band is missed at head, and
+finding out what moved it wants its own investigation.
+
+### What the close does and does not claim
+
+Claimed, on two seeds: the mechanism holds its calibration (≤320 with room), the guardrails never
+bind, conversion volume and trigger mix are stable, the story metrics replicate, the album channel
+carries at 6.8% / 11.3% of conversions, and the economy is neutral to ±0.08% with album chart
+slot-weeks identical.
+
+Not claimed, and carried forward as its own work:
+
+1. **No contemporaneous control for these two runs** (author's call). The A/B delta of record
+   stays §7d's mean +3.7 on `ctl12`/`ctl12b`; `evo14`/`evo14b` are stated as absolutes plus a
+   paired delta against `evo13`/`evo13b` on the same seeds.
+2. **Wall clock remains unmeasured** against the >10% kill — a third session of parallel runs.
+   It wants one solo decade run.
+3. **The LP band miss** above.
+4. **The landmark floor on a single seed**, pending a third seed.
+5. §7c items 7–9 (`SetLabelPressure` unwired, `Deposit` unwired by design, soundtracks out of the
+   ledger), §7a Folk Rock, and §7e fame-as-input — all already filed, the last explicitly wanting
+   its own A/B rather than a ride-along.
 
 ## 8. Validation protocol
 

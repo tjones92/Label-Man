@@ -615,8 +615,9 @@ public static class ArtistEvolutionProbeSuite {
 		Require(AlbumLegitimacyService.Legitimacy == 0f && Math.Abs(AlbumLegitimacyService.CurrentCeilingMultiplier - 1f) < 1e-6f,
 			"21a legitimacy starts at zero and multiplies the exogenous ceiling by exactly one");
 		for (int year = 1960; year <= 1969; year++) {
-			float era = Godot.Mathf.SmoothStep(0.12f, 0.96f, Godot.Mathf.Clamp(
-				(year - AlbumModel.CohesionRiseStartYear) / (AlbumModel.CohesionRiseEndYear - AlbumModel.CohesionRiseStartYear), 0f, 1f));
+			// Anchored to the shipped curve, not to a copy of its formula. The copy is how this
+			// probe kept passing while the curve it was meant to pin evaluated to zero until 1965.
+			float era = AlbumModel.GetCohesionEraTerm(year);
 			Require(Math.Abs(AlbumLegitimacyService.ApplyToEraTerm(era, 0f) - era) < 1e-6f,
 				$"21b legitimacy of zero reproduces the exogenous cohesion ceiling exactly at {year}");
 		}
@@ -986,6 +987,14 @@ public static class ArtistEvolutionProbeSuite {
 		Require(AlbumLegitimacyService.GetLandmarkIntegrityBar(1960) ==
 			AlbumLegitimacyService.LandmarkIntegrityBase,
 			"35p and starts at the authored base before the revolution has moved anything");
+		// ...but it has to keep standing INSIDE that population. The bar rose with the median's
+		// measured climb (+.049) while the tail it has to live in moved +.011, so by 1967 it was
+		// above p99 and the candidate pool collapsed 53 -> 5 while albums pressed tripled. This
+		// is the fixture that would have caught it.
+		Require(AlbumLegitimacyService.GetLandmarkIntegrityBar(1969) <=
+			AlbumLegitimacyService.MeasuredLateIntegrityP99,
+			"35q and never climbs out of the distribution it judges -- a bar above the population's " +
+			"own 99th percentile is not a high standard, it is an empty year");
 
 		// The album shift is a ROCK phenomenon. Jazz does not undergo it because jazz was
 		// already making records this way, which is a large part of why the form was available

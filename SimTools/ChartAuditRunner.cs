@@ -276,6 +276,9 @@ public partial class ChartAuditRunner : Node {
 	// scaling with album count) are suppressed. Verified to reproduce the rollup, year-end Hot 100 and
 	// genre-shape byte-for-byte against a normal run on the same seed.
 	private bool calibrationMode;
+	// Player-desk diagnostic: what a scout in each market is actually offered, and what the
+	// acts are called. Prints at end of run; touches nothing in the simulation.
+	private bool scoutingReport;
 	private bool profilePerformance;
 	private bool forceDistributionDeal;
 	private bool disableLabelLifecycle;
@@ -436,6 +439,7 @@ public partial class ChartAuditRunner : Node {
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
 			FlushAndClose();
+			if (scoutingReport) WriteScoutingReport();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
 			GetTree().Quit(0);
 		} catch (CatastrophicAbortException exception) {
@@ -476,6 +480,8 @@ public partial class ChartAuditRunner : Node {
 			} else if (argument == "--lean-probe") {
 				leanProbe = true;
 				aggregateOnly = true;
+			} else if (argument == "--scouting-report") {
+				scoutingReport = true;
 			} else if (argument == "--calibration") {
 				// Fastest telemetry tier: implies lean-probe/aggregate, plus suppresses the per-week
 				// diagnostic Write* methods. Keeps every calibration metric; changes nothing in the sim.
@@ -1125,7 +1131,7 @@ public partial class ChartAuditRunner : Node {
 		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
 		seasonalityMonthlyWriter.WriteLine("seed,enabled,year,month,liveWeeks,singleSalesMultiplier,albumSalesMultiplier,radioOpportunity,venueAttendanceMultiplier,recordingCostMultiplier,marketingEfficiencyMultiplier,artistAvailabilityMultiplier,singleUnits,albumUnits,singleGross,albumGross,releaseRolls,successfulReleases,singleReleases,albumProjectsScheduled,albumDrops,productionSpend,productionEvents,marketingSpend,marketingEvents,scoutingRolls,signings,meanRadioPlay");
 		albumChartWriter.WriteLine("week,year,month,chartSize,position,previousPosition,recordId,title,artistId,labelId,genre,albumFormat,unitsThisWeek,totalUnitsSold,weeksOnChart,pooledAppeal,thematicCohesion,packaging");
-		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,bodyOfWork,artisticMerit,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
+		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,cohesionCeiling,statementExcellence,bodyOfWork,artisticMerit,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
 		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,cannibalizationCharged,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumChoiceProbability,formatChoiceRoll,albumCapacityReroute");
@@ -1842,6 +1848,33 @@ public partial class ChartAuditRunner : Node {
 			Csv(decision.careerState.ToString()), F(decision.qualityEstimate), F(decision.reachFactor),
 			F(decision.genreSinglesMarketFactor), F(decision.singleProductionCost), Csv(decision.chosenFormat.ToString())
 		}));
+	}
+
+	/// <summary>
+	/// What the player desk's scouting slate is actually drawing from, per market, and what the
+	/// acts are called. Exists because the reported "every act is easy listening or classical"
+	/// skew survived three measured explanations, and because act naming was silently disabled
+	/// in exactly the mode the game runs in.
+	/// </summary>
+	private void WriteScoutingReport() {
+		ArtistManager manager = ArtistManager.Instance;
+		if (manager == null) return;
+		foreach (MarketRegion region in ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()) {
+			var pool = manager.DescribeScoutingPool(region.regionName).ToList();
+			int total = pool.Sum(row => row.Local);
+			if (total == 0) { GD.Print($"SCOUT_REPORT region={region.regionName} EMPTY"); continue; }
+			// Ordered by top quality, because the slate is a top-N draw on quality x noise --
+			// what the player sees is the head of this list, not its bulk.
+			string byQuality = string.Join(", ", pool.OrderByDescending(row => row.TopQuality).Take(6)
+				.Select(row => $"{row.Genre} n={row.Local} top={row.TopQuality:F2} mean={row.MeanQuality:F2}"));
+			string byCount = string.Join(", ", pool.Take(6).Select(row => $"{row.Genre}={row.Local}"));
+			GD.Print($"SCOUT_REPORT region={region.regionName} pool={total}");
+			GD.Print($"  by count:   {byCount}");
+			GD.Print($"  by topQual: {byQuality}");
+		}
+		foreach (SimulatedArtist artist in manager.GetUnsignedArtists().Take(8))
+			GD.Print($"SCOUT_NAME {artist.stageName} ({artist.type}, {artist.primaryGenre}) :: " +
+				string.Join(", ", artist.members.Where(member => member.isActive).Select(member => member.FullName)));
 	}
 
 	private void WriteLiveRecordsSnapshot() {
@@ -3175,6 +3208,7 @@ public partial class ChartAuditRunner : Node {
 			albumCompositionWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture), Csv(record.baseRecord.recordId), Csv(record.baseRecord.artistId),
 				Csv(record.baseRecord.primaryGenre.ToString()), Csv(album.albumFormat.ToString()), F(album.thematicCohesion),
+				F(album.cohesionCeiling), F(album.statementExcellence),
 				F(album.bodyOfWork), F(album.artisticMerit), F(album.pooledAppeal),
 				total.ToString(CultureInfo.InvariantCulture), reused.ToString(CultureInfo.InvariantCulture), originals.ToString(CultureInfo.InvariantCulture),
 				F(total > 0 ? (float)reused / total : 0f), F(album.runtimeMinutes), F(album.packaging), album.isStereo ? "true" : "false"

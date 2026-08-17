@@ -32,6 +32,15 @@ public partial class Album : Resource {
 	[Export(PropertyHint.Range, "0,1")] public float bodyOfWork;
 	[Export] public bool isStereo;
 
+	// DIAGNOSTIC, written once at pressing and never read by the simulation. thematicCohesion
+	// is a draw from [0.10, ceiling], so the ceiling -- the thing the era ramp and the pioneer
+	// path actually move -- is not recoverable from the drawn value. Sizing either of those
+	// against a measured distribution needs the ceiling and the excellence score themselves,
+	// and guessing at them from the drawn cohesion is what left EarlyStatementExcellence at a
+	// bar that fires zero times in seven years.
+	[Export(PropertyHint.Range, "0,1")] public float cohesionCeiling;
+	[Export(PropertyHint.Range, "0,1")] public float statementExcellence;
+
 	// Set only on externally-originated soundtrack/cast albums (albumFormat == Soundtrack).
 	// Null for every artist-originated album. Carries the box-office demand shape and licensing
 	// economics minted by ExternalMediaService; read by AlbumSimulator's soundtrack demand branch.
