@@ -527,8 +527,11 @@ public partial class RosterManager : Node {
 		DailyTalentMarketAppointment appointment, LabelScoutingVacancyObservation observation) {
 		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, snapshot, out int discoveryPoolCount);
 		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out _);
-		AILabel.SigningEvaluation freshEvaluation = label.EvaluateFreshPotential(fresh);
-		AILabel.SigningEvaluation experiencedEvaluation = label.EvaluateSigning(experienced);
+		// Fog the live read: same window GetEnabledSupplyCandidates uses, so a scout's perception is
+		// stable within the 4-week window and re-evaluation cannot launder it.
+		int discoveryWindow = Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) - 1) / DiscoveryRefreshWindowWeeks;
+		AILabel.SigningEvaluation freshEvaluation = label.EvaluateFreshPotential(fresh, discoveryWindow);
+		AILabel.SigningEvaluation experiencedEvaluation = label.EvaluateSigning(experienced, discoveryWindow);
 		appointment.FreshLaneCount = fresh.Count; appointment.ExperiencedLaneCount = experienced.Count;
 		observation.EligibleCandidateCount = fresh.Count + experienced.Count; observation.DiscoveryPoolCount = discoveryPoolCount;
 		observation.FreshLaneCount = fresh.Count; observation.ExperiencedLaneCount = experienced.Count; observation.FreshDiscoveryScope = "Regional";
@@ -539,7 +542,7 @@ public partial class RosterManager : Node {
 			lane = selected == null ? null : "FreshPotential";
 			if (selected == null) {
 				List<SimulatedArtist> national = GetEnabledSupplyCandidates(label, year, true, true, snapshot, out _);
-				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(national);
+				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(national, discoveryWindow);
 				selected = SelectAffordableCandidate(label, nationalEvaluation.CandidateScores, 0f, true, "NationalFreshRecovery");
 				lane = selected == null ? null : "FreshPotential";
 				if (selected == null) {
@@ -591,7 +594,45 @@ public partial class RosterManager : Node {
 	private bool CanCommitDailyOffer(DailyNomination nomination, int chartWeek) => nomination?.Label != null && nomination.Artist != null &&
 		IsEligibleForEnabledScouting(nomination.Label) && HasDailyVacancy(nomination.Label) && !IsRuntimeBirthWeekBlocked(nomination.Label, chartWeek) &&
 		ArtistManager.Instance != null && ArtistManager.Instance.IsEligibleForPopulationSigning(nomination.Artist, chartWeek) &&
-		nomination.Label.CanAffordToSign(nomination.Label.CalculateAdvanceOffer(nomination.Artist));
+		nomination.Label.CanAffordToSign(nomination.Label.CalculateManagerAdjustedAdvance(nomination.Artist));
+
+	private static readonly Dictionary<string, float> labelBuzzCache = new(StringComparer.Ordinal);
+	private static int labelBuzzCacheWeek = -1;
+
+	/// <summary>
+	/// How HOT a label is RIGHT NOW: live chart presence, recent #1s, its own momentum. NOT tier,
+	/// NOT money, NOT distribution - this is what an act actually sees and wants to be near, the
+	/// Motown-over-a-major pull. Cached per chart week (the underlying scan is O(allRecords));
+	/// collision resolution only queries the handful of labels contesting an artist, so it stays cheap.
+	/// </summary>
+	private static float GetLabelBuzz(AILabel label) {
+		if (label == null || string.IsNullOrEmpty(label.labelId)) return 0f;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (labelBuzzCacheWeek != week) { labelBuzzCache.Clear(); labelBuzzCacheWeek = week; }
+		if (labelBuzzCache.TryGetValue(label.labelId, out float cached)) return cached;
+
+		float buzz = 0f;
+		var chartingRecords = ChartManager.Instance?.GetLabelChartingRecords(label.labelId);
+		if (chartingRecords != null) {
+			foreach (var rec in chartingRecords) {
+				if (rec.currentPosition <= 10) buzz += 0.20f;        // a top-10 record IS the pitch
+				else if (rec.currentPosition <= 40) buzz += 0.08f;
+				else buzz += 0.02f;
+			}
+		}
+		buzz += Mathf.Min(label.numberOneHits * 0.03f, 0.30f);       // track record of #1s
+		buzz += Mathf.Clamp(label.momentumScore, 0f, 1f) * 0.25f;    // the label's own momentum
+		buzz = Mathf.Clamp(buzz, 0f, 1f);
+		labelBuzzCache[label.labelId] = buzz;
+		return buzz;
+	}
+
+	private static float AverageActiveAmbition(SimulatedArtist artist) {
+		if (artist?.members == null) return 0.5f;
+		float sum = 0f; int count = 0;
+		foreach (Musician member in artist.members) if (member is { isActive: true }) { sum += member.ambition; count++; }
+		return count == 0 ? 0.5f : sum / count;
+	}
 
 	private static ArtistChoiceUtility CalculateArtistChoiceUtility(SimulatedArtist artist, AILabel label) {
 		float genreFit = (label.preferredGenres?.Contains(artist.primaryGenre) ?? false) ? 1f : (label.secondaryGenres?.Contains(artist.primaryGenre) ?? false) ? .55f : 0f;
@@ -600,8 +641,14 @@ public partial class RosterManager : Node {
 		float advance = Mathf.Clamp(label.CalculateAdvanceOffer(artist) / 12000f, 0f, 1f);
 		float opportunity = Mathf.Clamp(1f - ((float)label.CurrentRosterSize / Mathf.Max(1, label.OperatingRosterTarget)), 0f, 1f);
 		float affinity = (StableDailyMarketHash($"ArtistLabelAffinity|{artist.artistId}|{label.labelId}") % 10001UL) / 10000f;
+		// Live buzz replaces static tier reputation in the reputation slot (field name kept for
+		// telemetry/save-compat) and outweighs money/distribution ~3-4x: heat, not trucks. Hungrier
+		// (higher-ambition) acts weight buzz up to .28. Distribution reach demoted .10 -> .07.
+		float buzz = GetLabelBuzz(label);
+		float reach = Mathf.Clamp(label.distributionStrength + label.nationalReach * .5f, 0f, 1f);
+		float buzzWeight = .20f + AverageActiveAmbition(artist) * .08f;
 		return new ArtistChoiceUtility(.22f * genreFit, .18f * locality, .15f * royalty, .07f * advance,
-			.10f * Mathf.Clamp(label.reputation, 0f, 1f), .10f * Mathf.Clamp(label.distributionStrength + label.nationalReach * .5f, 0f, 1f), .18f * opportunity, .08f * affinity);
+			buzzWeight * buzz, .07f * reach, .18f * opportunity, .08f * affinity);
 	}
 	
 	private void UpdateArtistCooldowns() {
@@ -780,7 +827,8 @@ public partial class RosterManager : Node {
 			return false;
 		}
 		
-		AILabel.SigningEvaluation signingEvaluation = label.EvaluateSigning(candidates);
+		int discoveryWindow = Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) - 1) / DiscoveryRefreshWindowWeeks;
+		AILabel.SigningEvaluation signingEvaluation = label.EvaluateSigning(candidates, discoveryWindow);
 		FreshProspectPreferenceDecision preference = SelectFreshProspectCandidate(label, signingEvaluation,
 			ArtistPopulationLifecycle.Enabled && enabledSupply);
 		var bestCandidate = preference.SelectedCandidate;
@@ -802,7 +850,7 @@ public partial class RosterManager : Node {
 		}
 		if (observation != null) observation.SigningAttempted = true;
 		if (IsLiveGenreMarket()) RecordSigningAttempt(label.tier);
-		if (label.CanAffordToSign(label.CalculateAdvanceOffer(bestCandidate))) {
+		if (label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(bestCandidate))) {
 			float advance = label.SignArtist(bestCandidate, year);
 			CompetitorManager.Instance?.RecordExpense(label, advance);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(bestCandidate, label.labelId, year);
@@ -1004,7 +1052,8 @@ public partial class RosterManager : Node {
 		return discoveryPool
 			.OrderBy(artist => GetStableDiscoveryKey(label.labelId, artist.artistId, discoveryWindow))
 			.Take(nationalFreshRecovery ? slateSize * 4 : slateSize)
-			.OrderByDescending(artist => artist.CalculateBaseQuality() *
+			// Fog the slate ranking too, else even fogged scoring only ever sees the truly-best acts.
+			.OrderByDescending(artist => ScoutingPerception.PerceivedQuality(artist, label, discoveryWindow) *
 				GenreSupplyService.GetSupplyWeight(artist.primaryGenre, label, artist, region, year))
 			.ThenBy(artist => artist.artistId, System.StringComparer.Ordinal)
 			.ToList();
