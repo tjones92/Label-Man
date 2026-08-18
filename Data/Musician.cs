@@ -34,6 +34,16 @@ public class Musician {
 	public bool isActive = true;
 	public string reasonLeft;
 
+	// Person-level recognition (SimTools/CelebrityRecognitionDirective.md §8.2, "E-lite"). A fraction
+	// of each act-recognition gain reads down to the active members, weighted by visibility, so the
+	// front person accrues a name and a sideman does not. These are write-only accumulators: honest
+	// biography that stays inert until presentation (§9). Untouched unless recognition is observing.
+	// Deliberately NOT adding actAssociation/irreplaceability -- those are dead until lineup churn
+	// exists ([[lineup-churn-never-fires]]) and would be pure declared-and-never-read fields.
+	public float personalRecognition;   // mass familiarity with THIS person
+	public float liveReputation;        // the performer's name: leads / high stagePresence
+	public float creativeReputation;    // the maker's name: writers / high creativity
+
 	public Musician(string id, string first, string last, bool male, int birthYear) {
 		this.personId = id;
 		this.firstName = first;

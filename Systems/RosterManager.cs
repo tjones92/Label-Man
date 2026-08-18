@@ -388,6 +388,9 @@ public partial class RosterManager : Node {
 
 	private void OnWeekEndedCore(GameDate date) {
 		ReconcileEnabledLifecycleForCurrentWeek();
+		// Recognition fades from the mass market on the calendar, whether or not the act
+		// releases again. Idempotent per artist per week; inert unless recognition is observing.
+		ArtistRecognitionService.DecayRegistryForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;

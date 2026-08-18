@@ -28,6 +28,7 @@ public partial class ChartManager : Node {
 	[Export] private bool genreMarketV2Enabled = false;
 	[Export] private bool artistPopulationLifecycleEnabled = false;
 	[Export] private bool artistEvolutionEnabled = false;
+	[Export] private bool artistRecognitionEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -291,6 +292,7 @@ public partial class ChartManager : Node {
 		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
+		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
@@ -777,8 +779,10 @@ public partial class ChartManager : Node {
 
 		record.initialLaunchAwareness = record.awareness;
 		record.initialLaunchStock = record.regionalData.Values.Sum(data => data.unitsInStores);
-		record.launchCareerState = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId)?.careerState ?? CareerState.Unsigned;
+		SimulatedArtist promotedArtist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
+		record.launchCareerState = promotedArtist?.careerState ?? CareerState.Unsigned;
 		record.perceivedQualityMultiplier = perceivedQualityMult;
+		ArtistRecognitionService.RecordLaunchAudit(promotedArtist, record);
 
 		if (debugMode) {
 			int totalStock = record.regionalData.Values.Sum(d => d.unitsInStores);

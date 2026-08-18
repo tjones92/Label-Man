@@ -124,6 +124,15 @@ public class RecordRuntimeData {
 	public int initialLaunchStock;
 	public CareerState launchCareerState;
 	public float perceivedQualityMultiplier = 1f;
+	// Recognition launch audit (SimTools/CelebrityRecognitionDirective.md §3.1). launchCareerState
+	// above stays as the CONTROL column the A/B reads recognition against. Written by
+	// ArtistRecognitionService.RecordLaunchAudit; in Phase A these are logged, not consumed.
+	public float launchArtistRecognition;
+	public float launchCulturalStanding;
+	public float launchEffectiveRecognition;
+	public float launchRecognitionAwarenessLift;
+	public float launchRecognitionStockMultiplier = 1f;
+	public float launchRecognitionRadioLift;
 
 	// Aggregate breakout/distributor-facing seam. A future deal system can read
 	// these outputs without participating in demand creation.

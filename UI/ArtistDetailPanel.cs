@@ -76,9 +76,43 @@ public partial class ArtistDetailPanel : Control
 		AddHeading("PUBLIC FILE"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
 		AddHeading("CHART RECORD"); AddBody($"{profile.totalCharted} chart entries   •   {profile.top40Hits} Top 40   •   {profile.top10Hits} Top 10   •   {profile.numberOneHits} #1 hits");
 		AddHeading("LINEUP AT A GLANCE"); AddBody(string.Join("\n", profile.personnel.Where(p => p.isActive).Select(p => $"{p.name} — {Format(p.role)}")));
+		ShowStanding();
 		// The public file's tags, plus whatever the career arc itself earned.
 		var tags = profile.reputationTags.Concat(ArtistDiscographyService.DeriveTags(artist)).Distinct().ToList();
 		if (tags.Count > 0) AddBody("REPUTATION: " + string.Join("  •  ", tags.Select(t => t.ToDisplayString())));
+	}
+
+	// Presentation (directive §9): surface the recognition the simulation now carries but nothing
+	// showed. Reads only; reads nothing unless recognition ran. Household names sit at the top of the
+	// act view, and the members who personally carry a name are called out by what they are known for.
+	private void ShowStanding()
+	{
+		if (artist.publicRecognition <= 0.01f && artist.culturalStanding <= 0.01f) return;
+		AddHeading("STANDING");
+		string line = $"The name {profile.name} is {DescribeRecognition(artist.publicRecognition)}";
+		string standing = DescribeStanding(artist.culturalStanding);
+		if (standing != null) line += $", and carries {standing}";
+		AddBody(line + ".");
+		var known = (artist.members ?? new List<Musician>())
+			.Where(m => m != null && m.isActive && m.personalRecognition > 0.02f)
+			.OrderByDescending(m => m.personalRecognition).ToList();
+		if (known.Count > 0)
+			AddBody(string.Join("\n", known.Select(m => $"{m.FullName} — {DescribeMemberFame(m)}")));
+	}
+
+	private static string DescribeRecognition(float r) =>
+		r > 0.60f ? "a household name" : r > 0.40f ? "widely known" : r > 0.20f ? "familiar to anyone who follows the charts"
+		: r > 0.08f ? "building a following" : "still making its name";
+	private static string DescribeStanding(float s) =>
+		s > 0.15f ? "a landmark reputation" : s > 0.05f ? "real standing with the critics" : null;
+	private static string DescribeMemberFame(Musician m)
+	{
+		bool live = m.liveReputation > 0.10f, write = m.creativeReputation > 0.10f;
+		string known = m.personalRecognition > 0.30f ? "a star in their own right" : m.personalRecognition > 0.12f ? "a recognised name" : "starting to be known";
+		if (live && write) return $"{known}, on stage and on the page";
+		if (live) return $"{known}, known for the stage";
+		if (write) return $"{known}, known as a writer";
+		return known;
 	}
 	private void ShowDiscography()
 	{

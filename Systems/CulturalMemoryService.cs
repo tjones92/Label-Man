@@ -187,6 +187,11 @@ public static class CulturalMemoryService {
 				strength = strength
 			}, year);
 			InfluenceCounts[culturalEvent.ArtistId] = InfluenceCounts.GetValueOrDefault(culturalEvent.ArtistId) + 1;
+			// Being taken from is the durable standing signal: the SOURCE act earns cultural
+			// standing whenever another act converts on its record. Recognition-gated internally,
+			// so it is inert unless recognition is observing.
+			ArtistRecognitionService.AddCulturalStanding(
+				ArtistManager.Instance?.GetArtist(culturalEvent.ArtistId), ArtistRecognitionService.InfluenceStandingGain * strength);
 		}
 		profile.lastLandmarkSequenceSeen = sequence;
 	}

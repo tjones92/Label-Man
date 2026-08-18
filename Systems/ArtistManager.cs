@@ -183,18 +183,22 @@ private void OnRecordChartUpdated(RecordRuntimeData record) {
 
 	if (record.peakPosition > 0 && !record.artistChartEntryCredited) {
 		artist.RegisterChartEntry();
+		ArtistRecognitionService.OnChartEntry(artist);
 		record.artistChartEntryCredited = true;
 	}
 	if (record.peakPosition > 0 && record.peakPosition <= 40 && !record.artistTop40Credited) {
 		artist.RegisterTop40Hit(CreditsCurrentContract(record, artist));
+		ArtistRecognitionService.OnTop40(artist);
 		record.artistTop40Credited = true;
 	}
 	if (record.peakPosition > 0 && record.peakPosition <= 10 && !record.artistTop10Credited) {
 		artist.RegisterTop10Hit();
+		ArtistRecognitionService.OnTop10(artist);
 		record.artistTop10Credited = true;
 	}
 	if (record.peakPosition == 1 && !record.artistNumberOneCredited) {
 		artist.RegisterNumberOne();
+		ArtistRecognitionService.OnNumberOne(artist);
 		record.artistNumberOneCredited = true;
 	}
 }
@@ -241,6 +245,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		if (record.artistChartRunCompleted) return;
 		artist.CompleteChartRun(record.peakPosition, record.weeksOnChart, record.totalUnitsSold,
 			CreditsCurrentContract(record, artist), record.regionalBreakoutCount);
+		ArtistRecognitionService.OnChartRunComplete(artist, record);
 		record.artistChartRunCompleted = true;
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)
 			RosterManager.Instance?.RecordChartRunComplete(artist, record);

@@ -86,6 +86,20 @@ public class SimulatedArtist {
 	public float reputation;
 	public float criticalAcclaim;
 
+	// Celebrity-recognition stock (SimTools/CelebrityRecognitionDirective.md). Both [0,1],
+	// both start at ~0 -- a high-stagePresence newcomer has star POTENTIAL, not public
+	// awareness. publicRecognition is the mass-familiarity launch input; culturalStanding is
+	// the slow legacy that landmarks and influence conversions feed. momentum stays as the
+	// third, short-lived "hot right now" term; there is deliberately no currentVisibility.
+	// Untouched unless ArtistRecognition is observing or enabled.
+	public float publicRecognition;
+	public float culturalStanding;
+	// Telemetry snapshot taken at each release, so the A/B can read recognition against the
+	// outcome it preceded (causation, not correlation) rather than its post-outcome value.
+	public float recognitionAtLastRelease;
+	// Idempotent weekly-decay guard: the calendar decay pass runs at most once per artist per week.
+	public int recognitionLastUpdatedWeek = -1;
+
 	public int totalReleases;
 	public int charted;
 	public int top40Hits;
@@ -321,7 +335,13 @@ public class SimulatedArtist {
 		contractConsecutiveFlops >= RequiredPerformanceConsecutiveFlops;
 
 	public float GetNewReleaseAwarenessBonus() {
-		return (momentum * 0.5f) + (reputation * 0.3f) + (careerState switch {
+		// momentum ("hot now") and reputation ("quality track record") are orthogonal to durable
+		// recognition and stay in both regimes. Phase B swaps the discrete careerState awareness
+		// arm for the continuous recognition stock -- a REPLACEMENT, not a stack (directive §0/§3).
+		float baseTerm = (momentum * 0.5f) + (reputation * 0.3f);
+		if (ArtistRecognition.Enabled)
+			return baseTerm + ArtistRecognitionService.EffectiveRecognition(this) * ArtistRecognitionService.MaxAwarenessLift;
+		return baseTerm + (careerState switch {
 			CareerState.Superstar => 0.25f, CareerState.Star => 0.15f, CareerState.Established => 0.08f,
 			CareerState.Rising => 0.04f, _ => 0f
 		});
