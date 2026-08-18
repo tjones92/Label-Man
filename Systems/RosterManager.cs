@@ -215,8 +215,76 @@ public partial class RosterManager : Node {
 				label.operatingRosterTargetSource = LabelOperatingTargetReason.LaunchPopulation.ToString();
 			}
 		}
+		if (StarCanopy.Enabled) SeedInitialStarCanopy(labels, year);
 		if (debugMode) PrintRosterStats(labels);
 		GD.Print("RosterManager: Initialization complete");
+	}
+
+	/// <summary>
+	/// Seeds a realistic 1960 star canopy the base roster never produces: the best acts on the big
+	/// (Major/MidTier) labels are promoted to a handful of Superstars over a band of Stars, each with a
+	/// coherent hit history so the runtime ladder holds them there and their releases launch big
+	/// through the existing fame-gated stock. Deterministic (quality rank, stable id tiebreak, no RNG);
+	/// runs only behind <see cref="StarCanopy"/>, so the roster is byte-identical when the flag is off.
+	/// A per-label cap spreads the canopy instead of stacking every star on one label.
+	/// </summary>
+	private void SeedInitialStarCanopy(List<AILabel> labels, int year) {
+		if (labels == null) return;
+		var candidates = new List<(SimulatedArtist Artist, AILabel Label)>();
+		foreach (AILabel label in labels) {
+			if (label?.roster == null) continue;
+			if (label.tier != LabelTier.Major && label.tier != LabelTier.MidTier) continue;
+			foreach (SimulatedArtist artist in label.roster)
+				if (artist != null) candidates.Add((artist, label));
+		}
+		candidates.Sort((a, b) => {
+			int byQuality = b.Artist.CalculateBaseQuality().CompareTo(a.Artist.CalculateBaseQuality());
+			return byQuality != 0 ? byQuality : string.CompareOrdinal(a.Artist.artistId, b.Artist.artistId);
+		});
+
+		var superstarPerLabel = new Dictionary<string, int>(StringComparer.Ordinal);
+		var starPerLabel = new Dictionary<string, int>(StringComparer.Ordinal);
+		var promoted = new HashSet<string>(StringComparer.Ordinal);
+
+		int superstars = 0;
+		for (int i = 0; i < candidates.Count && superstars < StarCanopy.SuperstarCount; i++) {
+			(SimulatedArtist artist, AILabel label) = candidates[i];
+			superstarPerLabel.TryGetValue(label.labelId, out int onLabel);
+			if (onLabel >= 2) continue;   // spread: at most two superstars per label
+			StampStar(artist, label, year, CareerState.Superstar, superstars);
+			superstarPerLabel[label.labelId] = onLabel + 1;
+			promoted.Add(artist.artistId);
+			superstars++;
+		}
+
+		int stars = 0;
+		for (int i = 0; i < candidates.Count && stars < StarCanopy.StarCount; i++) {
+			(SimulatedArtist artist, AILabel label) = candidates[i];
+			if (promoted.Contains(artist.artistId)) continue;
+			starPerLabel.TryGetValue(label.labelId, out int onLabel);
+			if (onLabel >= 3) continue;   // spread: at most three seeded stars per label
+			StampStar(artist, label, year, CareerState.Star, stars);
+			starPerLabel[label.labelId] = onLabel + 1;
+			stars++;
+		}
+		GD.Print($"RosterManager: Seeded star canopy - {superstars} Superstars, {stars} Stars across the Major/MidTier rosters.");
+	}
+
+	/// <summary>Stamps one seeded incumbent with a coherent, tier-appropriate hit history and standing.</summary>
+	private static void StampStar(SimulatedArtist artist, AILabel label, int year, CareerState tier, int rank) {
+		bool superstar = tier == CareerState.Superstar;
+		artist.careerState = tier;
+		artist.numberOnes = superstar ? Mathf.Max(4, 8 - rank) : (rank < 12 ? 2 : 1);
+		artist.top10Hits = superstar ? 18 - rank : Mathf.Max(4, 7 - rank / 6);
+		artist.top40Hits = superstar ? 30 - rank : Mathf.Max(6, 14 - rank / 4);
+		artist.charted = artist.top40Hits + (superstar ? 12 : 6);
+		artist.weeksAtNumberOne = artist.numberOnes * (superstar ? 3 : 2);
+		artist.consecutiveHits = superstar ? 6 : 3;
+		artist.consecutiveFlops = 0;
+		artist.momentum = superstar ? Mathf.Clamp(0.85f - rank * 0.02f, 0.7f, 0.9f) : Mathf.Clamp(0.65f - rank * 0.005f, 0.5f, 0.7f);
+		artist.reputation = superstar ? Mathf.Clamp(0.95f - rank * 0.02f, 0.8f, 0.98f) : Mathf.Clamp(0.72f - rank * 0.005f, 0.55f, 0.75f);
+		artist.totalReleases = Mathf.Max(artist.totalReleases, superstar ? 28 - rank : Mathf.Max(8, 14 - rank / 6));
+		artist.careerEvents.Add($"{year}: Established {tier} at launch (seeded canopy, {label.labelName}).");
 	}
 
 	/// <summary>

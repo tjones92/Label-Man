@@ -94,6 +94,17 @@ adds a standing push at `CalculateArtistHeat`'s return (reaches even a not-yet-c
 `PrestigeBonus` NOT wired — it would feed `criticalAcclaim`, a confirmed dead field
 ([[criticalacclaim-is-a-dead-field]]); deferred until critical reception exists.
 
+### Star canopy — IMPLEMENTED (behind `--seed-star-canopy`, default OFF)
+The base roster seeding (`InitialSignArtist`) caps careerState at Established, so the 1960 world had
+no Star/Superstar incumbents even though the runtime ladder grows them — a star-less ecosystem at day
+one. `Systems/StarCanopy.cs` flag + a deterministic post-pass in `RosterManager.SeedInitialStarCanopy`
+promotes the best acts on Major/MidTier labels to **6 Superstars + 24 Stars** (per-label cap to spread
+them), each stamped with a coherent hit history (numberOnes/top10/consecutiveHits, high
+momentum/reputation) so the ladder holds them and their releases launch big through the fame-gated
+stock. No RNG (quality rank + stable id tiebreak); flag-off is byte-identical. Verified on a 3yr run
+(seed 1001, managers+canopy on): exit 0, 0 exceptions, 600 labels, economy matches baseline, and the
+star tier is live — 1,637 Superstar- and 5,356 Star-launched records (vs an Established ceiling before).
+
 ### Validation status
 3-year runs (seed 1001, `--enable-managers`) clean: exit 0, zero exceptions, healthy label churn and
 economics, publishing reallocation firing (~2.8% of settlement rows artist-owned). STILL OWED: a

@@ -30,6 +30,7 @@ public partial class ChartManager : Node {
 	[Export] private bool artistEvolutionEnabled = false;
 	[Export] private bool artistRecognitionEnabled = false;
 	[Export] private bool managersEnabled = false;
+	[Export] private bool seedStarCanopyEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -300,6 +301,7 @@ public partial class ChartManager : Node {
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
 		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
+		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
