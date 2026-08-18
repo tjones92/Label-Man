@@ -6,6 +6,11 @@ public partial class CompetitorManager : Node {
 	public static CompetitorManager Instance { get; private set; }
 	public const float DealReinvestRate = 0.02f;
 	public const float DealReinvestCost = 5000000f;
+	// Publishing (Scouting Mechanic Phase 4): the composition-royalty slice of a record's gross -
+	// historically the "goldmine", mechanical + performance royalties on the song. Only reallocated
+	// when the artist kept publishing (a Visionary deal), so it is inert when managers are off. A
+	// calibration guess flagged for re-derivation against measured label profitability.
+	public const float PublishingShareOfGross = 0.11f;
 	// A self-built network tops out below the seeded Majors' 0.88-0.90 national reach.
 	public const float SelfBuiltReachCeiling = 0.75f;
 	public const float SelfBuiltNationalReachCeiling = 0.70f;
@@ -953,12 +958,29 @@ public partial class CompetitorManager : Node {
 			// distribution skim is based on revenue after manufacturing cost.
 			float artistPayment = retailGross * artistRoyalty;
 			float recordRevenue = grossAfterCogs - skimAmount - artistPayment;
+			// Publishing (Scouting Mechanic Phase 4). A composition-royalty slice of gross. When the
+			// label owns publishing (default, and always when managers are off) it is already inside
+			// recordRevenue - nothing moves, so the economy is unchanged. When the artist kept
+			// publishing (a Visionary deal) the label forgoes this slice: it comes off the label's net
+			// and accrues to the artist (publishing is the artist's own composition income, not
+			// advance-recoupable). PublishingShareOfGross is a calibration guess - start conservative.
+			float publishingPool = retailGross * PublishingShareOfGross;
+			bool artistOwnsPublishing = artist != null && !artist.labelOwnsPublishing;
+			float labelPublishingIncome = 0f;
+			if (artistOwnsPublishing) {
+				recordRevenue -= publishingPool;
+				artist.totalRoyaltyEarnings += publishingPool;
+			} else {
+				labelPublishingIncome = publishingPool;   // informational: already within recordRevenue
+			}
 			entry.Gross = retailGross;
 			entry.ManufacturingCost = cogs;
-			entry.ArtistRoyalty = artistPayment;
+			entry.ArtistRoyalty = artistPayment + (artistOwnsPublishing ? publishingPool : 0f);
 			entry.DistributionSkim = skimAmount;
 			entry.LabelNet = recordRevenue;
 			entry.MarketNet = recordRevenue;
+			entry.PublishingIncome = labelPublishingIncome;
+			entry.ArtistOwnsPublishing = artistOwnsPublishing;
 			entry.DistributionIncome = 0f;
 			entry.DistributionRecipientLabelId = string.Empty;
 			entry.BookedCount = 1;

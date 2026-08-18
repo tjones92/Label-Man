@@ -29,6 +29,8 @@ public partial class ChartManager : Node {
 	[Export] private bool artistPopulationLifecycleEnabled = false;
 	[Export] private bool artistEvolutionEnabled = false;
 	[Export] private bool artistRecognitionEnabled = false;
+	[Export] private bool managersEnabled = false;
+	[Export] private bool seedStarCanopyEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -219,6 +221,11 @@ public partial class ChartManager : Node {
 		public int Units;
 		public IReadOnlyList<CompletedWeekSettlementRegion> Regions;
 		public float Gross, ManufacturingCost, ArtistRoyalty, DistributionSkim, LabelNet, DistributionIncome, MarketNet;
+		// Publishing (Scouting Mechanic Phase 4). PublishingIncome is the composition-royalty slice the
+		// LABEL retained (already inside LabelNet - informational). When the artist kept publishing it
+		// is 0 here and that slice has instead been moved off LabelNet into ArtistRoyalty.
+		public float PublishingIncome;
+		public bool ArtistOwnsPublishing;
 		public string DistributionRecipientLabelId;
 		public int BookedCount, AuditedCount;
 		public bool RetiredAfterSettlement;
@@ -293,6 +300,8 @@ public partial class ChartManager : Node {
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
 		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
+		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
+		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
@@ -485,7 +494,13 @@ public partial class ChartManager : Node {
 			}
 		}
 
-		return artistHeatCache.TryGetValue(artistId, out float cachedHeat) ? cachedHeat : 0f;
+		float baseHeat = artistHeatCache.TryGetValue(artistId, out float cachedHeat) ? cachedHeat : 0f;
+		// The Shark's promotion machine adds a standing push (Scouting Mechanic Phase 5), reaching even
+		// a not-yet-charting act the cache above omits. Inert (None -> +0) when managers are off.
+		SimulatedArtist heatArtist = ArtistManager.Instance?.GetArtist(artistId);
+		if (heatArtist != null)
+			baseHeat = Mathf.Clamp(baseHeat + ManagerProfile.Of(heatArtist.manager).ChartVisibilityAura, 0f, 1f);
+		return baseHeat;
 	}
 
 	// ========================================================================
@@ -693,6 +708,11 @@ public partial class ChartManager : Node {
 		float perceivedQualityMult = 1f;
 		if (releasingLabel != null && !record.isPlayerOwned) {
 			float realizedQuality = (record.hookStrength + record.productionQuality) / 2f;
+			// The Svengali's production hand lifts the record (Scouting Mechanic Phase 5). A pure
+			// modifier lookup; inert (None -> +0) when managers are off, so this stays byte-identical.
+			SimulatedArtist releaseArtist = ArtistManager.Instance?.GetArtist(record.artistId);
+			if (releaseArtist != null)
+				realizedQuality = Mathf.Clamp(realizedQuality + ManagerProfile.Of(releaseArtist.manager).ProductionBonus, 0f, 1f);
 			float noiseRange = Mathf.Lerp(0.30f, 0.10f, releasingLabel.scoutingAbility);
 			float perceivedQuality = Mathf.Clamp(realizedQuality + (float)GD.RandRange(-noiseRange, noiseRange), 0f, 1f);
 			perceivedQualityMult = 0.6f + (perceivedQuality * 0.8f);

@@ -379,30 +379,95 @@ public partial class AILabel : Resource {
 	}
 	public const int SinglesObligationFinalYear = 1966;
 	
-	public float SignArtist(SimulatedArtist artist, int currentYear) {
+	public float SignArtist(SimulatedArtist artist, int currentYear) =>
+		SignArtist(artist, currentYear, GenerateTermSheet(artist, currentYear));
+
+	/// <summary>
+	/// Applies a pre-generated term sheet so the manager's demands actually land on the contract.
+	/// For a None act the sheet reproduces the legacy baseline exactly (see GenerateTermSheet), so
+	/// this path is byte-identical when managers are off.
+	/// </summary>
+	public float SignArtist(SimulatedArtist artist, int currentYear, ContractTermSheet sheet) {
 		if (roster == null) roster = new List<SimulatedArtist>();
-		float advance = CalculateAdvanceOffer(artist);
-		
 		artist.labelId = labelId;
 		artist.isPlayerOwned = isPlayerOwned;
 		artist.signedYear = currentYear;
 		// ArtistManager owns the atomic career-state transition after it captures
 		// the pre-contract history needed to distinguish first contracts from
 		// experienced free-agent returns.
-		artist.royaltyRate = CalculateRoyaltyRate(artist);
-		artist.unrecoupedAdvance = advance;
-		artist.contractLength = CalculateContractLength(artist);
+		artist.royaltyRate = sheet.RoyaltyRate;
+		artist.unrecoupedAdvance = sheet.Advance;
+		artist.contractLength = sheet.TermYears;
 		artist.contractExpiresYear = currentYear + artist.contractLength;
 		artist.contractExpiresWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + artist.contractLength * 52;
-		artist.contractSinglesObligation = CalculateContractSinglesObligation(artist, currentYear);
+		artist.contractSinglesObligation = sheet.SinglesObligation;
 		artist.contractReleases = 0;
+		artist.labelOwnsPublishing = sheet.LabelOwnsPublishing;   // the economic axis (Phase 4 gives it teeth)
+		artist.artistCreativeControl = sheet.ArtistCreativeControl;
 
 		roster.Add(artist);
-		artist.careerEvents.Add($"{currentYear}: Signed to {labelName} (${advance:N0} advance, {artist.contractLength}yr" +
+		artist.careerEvents.Add($"{currentYear}: Signed to {labelName} (${sheet.Advance:N0} advance, {artist.contractLength}yr" +
 			(artist.contractSinglesObligation > 0 ? $", {artist.contractSinglesObligation} sides)" : ")"));
-		return advance;
+		return sheet.Advance;
 	}
 	
+	/// <summary>
+	/// The manager-adjusted advance, WITHOUT drawing the term/singles RNG a full term sheet would.
+	/// Pure (advance calc + a modifier lookup), so the affordability gate can test the Shark's
+	/// inflated demand without perturbing the RNG schedule. For an unmanaged (None) act this equals
+	/// <see cref="CalculateAdvanceOffer"/> exactly, keeping the gate byte-identical when managers are off.
+	/// </summary>
+	public float CalculateManagerAdjustedAdvance(SimulatedArtist artist) =>
+		CalculateAdvanceOffer(artist) * ManagerProfile.Of(artist.manager).AdvanceDemandMult;
+
+	/// <summary>
+	/// The manager transforms this label's baseline offer into concrete demands. For an unmanaged
+	/// (None) act this reproduces the baseline exactly, drawing the same term/singles RNG in the same
+	/// order as the legacy SignArtist. NOT idempotent (CalculateContractLength/SinglesObligation draw)
+	/// - generate it once per signing. <paramref name="year"/> feeds the singles obligation; pass the
+	/// signing year so the draw matches the legacy path byte-for-byte.
+	/// </summary>
+	public ContractTermSheet GenerateTermSheet(SimulatedArtist artist) =>
+		GenerateTermSheet(artist, TimeManager.Instance?.CurrentDate.year ?? 1960);
+
+	public ContractTermSheet GenerateTermSheet(SimulatedArtist artist, int year) {
+		ManagerProfile.Modifiers mods = ManagerProfile.Of(artist.manager);
+		float baseAdvance = CalculateAdvanceOffer(artist);
+		float baseRoyalty = CalculateRoyaltyRate(artist);
+		int baseTerm = CalculateContractLength(artist);
+		int baseSingles = CalculateContractSinglesObligation(artist, year);
+
+		float advance = baseAdvance * mods.AdvanceDemandMult;
+		// None keeps the baseline untouched; only a demanding manager's mult pulls royalty into the clamp.
+		float royalty = artist.manager == ManagerArchetype.None
+			? baseRoyalty
+			: Mathf.Clamp(baseRoyalty * mods.RoyaltyDemandMult, 0.02f, 0.15f);
+		bool labelPub = !mods.DemandsArtistPublishing;
+		bool artistControl = mods.DemandsArtistControl;
+		// Sharks want short (renegotiate from strength); Svengalis want long (lock the project).
+		int term = artist.manager switch {
+			ManagerArchetype.Shark => Mathf.Max(1, baseTerm - 1),
+			ManagerArchetype.Svengali => Mathf.Min(7, baseTerm + 1),
+			_ => baseTerm
+		};
+		string summary = BuildDemandSummary(artist.manager, advance, royalty, labelPub, artistControl);
+		return new ContractTermSheet(advance, royalty, term, baseSingles, labelPub, artistControl,
+			mods.NegotiationDifficulty, artist.manager, artist.managerName, summary);
+	}
+
+	private static string BuildDemandSummary(ManagerArchetype m, float advance, float royalty, bool labelPub, bool artistControl) {
+		string pub = labelPub ? "label keeps publishing" : "artist keeps publishing";
+		string ctrl = artistControl ? "artist creative control" : "label creative control";
+		return m switch {
+			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P0}, {pub}.",
+			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P0}, {pub}. Wants strong local push.",
+			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P0}, {pub}. Short term, renegotiates fast.",
+			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P0}. Long exclusive term.",
+			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P0}. Publishing is non-negotiable.",
+			_ => $"${advance:N0}, {royalty:P0}, {pub}."
+		};
+	}
+
 	public void DropArtist(SimulatedArtist artist, int currentYear, string reason = "dropped") {
 		roster?.Remove(artist);
 		artist.labelId = null;
@@ -591,14 +656,25 @@ public partial class AILabel : Resource {
 	
 	public SimulatedArtist EvaluateForSigning(List<SimulatedArtist> candidates) => EvaluateSigning(candidates).BestCandidate;
 
-	public SigningEvaluation EvaluateSigning(List<SimulatedArtist> candidates) {
+	public SigningEvaluation EvaluateSigning(List<SimulatedArtist> candidates) => EvaluateSigning(candidates, -1);
+
+	/// <summary>
+	/// Live daily/monthly-market scoring. <paramref name="discoveryWindow"/> &gt;= 0 reads the
+	/// artist's quality through <see cref="ScoutingPerception"/> (the fog); -1 keeps the legacy
+	/// omniscient read byte-identical for probe/frozen callers. Only the latent quality is fogged -
+	/// momentum and reputation are the artist's public chart record and stay clear.
+	/// </summary>
+	public SigningEvaluation EvaluateSigning(List<SimulatedArtist> candidates, int discoveryWindow) {
 		if (candidates == null || candidates.Count == 0) return new SigningEvaluation(null, null);
 		var scored = new List<SigningCandidateScore>();
-		
+
 		foreach (var artist in candidates) {
 			float score = 0f;
-			score += artist.CalculateBaseQuality() * scoutingAbility * 2f;
-			
+			float quality = discoveryWindow >= 0
+				? ScoutingPerception.PerceivedQuality(artist, this, discoveryWindow)
+				: artist.CalculateBaseQuality();
+			score += quality * scoutingAbility * 2f;
+
 			if (preferredGenres != null && preferredGenres.Contains(artist.primaryGenre)) score += 0.3f;
 			else if (secondaryGenres != null && secondaryGenres.Contains(artist.primaryGenre)) score += 0.15f;
 			else score -= 0.2f;
@@ -618,11 +694,21 @@ public partial class AILabel : Resource {
 	}
 
 	/// <summary>Evaluates an unsigned prospect from potential, not career evidence.</summary>
-	public SigningEvaluation EvaluateFreshPotential(List<SimulatedArtist> candidates) {
+	public SigningEvaluation EvaluateFreshPotential(List<SimulatedArtist> candidates) => EvaluateFreshPotential(candidates, -1);
+
+	/// <summary>
+	/// Live fresh-prospect scoring. This is the more fog-sensitive path: a never-signed act has no
+	/// career record, so perceived quality is the ONLY signal - a bad scout gambles, a good scout
+	/// genuinely finds gems. <paramref name="discoveryWindow"/> &gt;= 0 fogs; -1 stays omniscient.
+	/// </summary>
+	public SigningEvaluation EvaluateFreshPotential(List<SimulatedArtist> candidates, int discoveryWindow) {
 		if (candidates == null || candidates.Count == 0) return new SigningEvaluation(null, null);
 		var scored = new List<SigningCandidateScore>();
 		foreach (var artist in candidates) {
-			float score = artist.CalculateBaseQuality() * scoutingAbility * 2f;
+			float quality = discoveryWindow >= 0
+				? ScoutingPerception.PerceivedQuality(artist, this, discoveryWindow)
+				: artist.CalculateBaseQuality();
+			float score = quality * scoutingAbility * 2f;
 			if (preferredGenres != null && preferredGenres.Contains(artist.primaryGenre)) score += 0.3f;
 			else if (secondaryGenres != null && secondaryGenres.Contains(artist.primaryGenre)) score += 0.15f;
 			else score -= 0.2f;

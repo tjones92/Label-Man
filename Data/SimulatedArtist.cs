@@ -130,6 +130,14 @@ public class SimulatedArtist {
 	public int contractReleases;
 	public int contractSinglesObligation;
 
+	// The gatekeeper (Scouting Mechanic Phase 3). Stamped at generation; defaults keep every
+	// pre-stamp artist a neutral None with a label-favorable contract, so the scaffolding is inert
+	// until the generation-time roll lands.
+	public ManagerArchetype manager = ManagerArchetype.None;
+	public string managerName;                 // flavor: "managed by Sol Kramer" - null if unmanaged
+	public bool labelOwnsPublishing = true;    // the goldmine axis; default label-favorable
+	public bool artistCreativeControl;         // stored now; auto genre-drift / artist-dictated LPs later
+
 	public List<string> careerEvents = new List<string>();
 
 	// Career-arc state. Null unless artist evolution is observing or enabled, so the

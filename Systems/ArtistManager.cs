@@ -339,6 +339,14 @@ public sealed class LaborMarketWeeklySnapshot {
 		artist.momentum = 0f;
 		artist.reputation = RandRange(0f, 0.1f);
 
+		// The gatekeeper (Scouting Mechanic Phase 3). Gated: with managers off no draw is made and
+		// every artist stays a neutral None, so the population RNG schedule is byte-identical. With
+		// managers on this Randf() (stream-aware) shifts the schedule - the accepted reseed.
+		if (ManagerSystem.Enabled) {
+			artist.manager = RollManagerArchetype(artist);
+			artist.managerName = artist.manager == ManagerArchetype.None ? null : GenerateManagerName();
+		}
+
 		// Both creation paths (initial population and runtime formation) route through
 		// here. Disposition is a pure read of the lineup generated just above, so this
 		// takes nothing from the stream the reputation draw left it on.
@@ -687,6 +695,38 @@ public sealed class LaborMarketWeeklySnapshot {
 	private string GetRandomRegion() {
 		string[] regions = { "East Coast", "Great Lakes", "Great Plains", "Deep South", "Southwest", "Rockies", "West Coast" };
 		return regions[RandInt(0, regions.Length - 1)];
+	}
+
+	/// <summary>
+	/// Manager rarity is correlated to the ACT, not uniform: a higher-quality act attracts a better
+	/// (and more demanding) manager - Sharks/Svengalis/Visionaries don't manage nobodies. This is
+	/// what gives the scouting Level-3 reveal its teeth: "managed by a Shark" is partial confirmation
+	/// the raw talent is real, even through the perception fog. One stream-aware draw.
+	/// </summary>
+	private ManagerArchetype RollManagerArchetype(SimulatedArtist artist) {
+		float quality = artist.CalculateBaseQuality();
+		float roll = Randf();
+		if (quality < 0.45f)   // low: mostly unmanaged or a local hustler scraping by
+			return roll < 0.55f ? ManagerArchetype.None
+				 : roll < 0.90f ? ManagerArchetype.LocalHustler
+				 : ManagerArchetype.Svengali;   // a rare svengali "project" on raw clay
+		if (quality < 0.65f)   // mid: hustler-heavy, the occasional shark sniffing potential
+			return roll < 0.35f ? ManagerArchetype.None
+				 : roll < 0.70f ? ManagerArchetype.LocalHustler
+				 : roll < 0.85f ? ManagerArchetype.Shark
+				 : roll < 0.93f ? ManagerArchetype.Svengali
+				 : ManagerArchetype.Visionary;
+		return roll < 0.20f ? ManagerArchetype.None   // high: the pros circle
+			 : roll < 0.40f ? ManagerArchetype.LocalHustler
+			 : roll < 0.68f ? ManagerArchetype.Shark
+			 : roll < 0.85f ? ManagerArchetype.Svengali
+			 : ManagerArchetype.Visionary;
+	}
+
+	private string GenerateManagerName() {
+		if (NameGenerator.Instance == null) return null;
+		var (first, last) = NameGenerator.Instance.GeneratePersonName(Randf() < 0.9f);
+		return $"{first} {last}";
 	}
 
 	private float Randf() => UsesPopulationRng ? populationRng.Randf() : GD.Randf();
