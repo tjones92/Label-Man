@@ -2202,7 +2202,21 @@ public partial class ChartManager : Node {
 		danceability = record.baseRecord.danceability,
 		isReleasedSingle = true,
 		releaseDate = record.baseRecord.releaseDate,
-		peakPosition = record.peakPosition
+		peakPosition = record.peakPosition,
+		// Publishing & Cover-Song layer (Phase 0): carry the song biography onto the snapshot.
+		songId = record.baseRecord.songId,
+		songSource = record.baseRecord.songSource,
+		isCover = record.baseRecord.isCover,
+		originalRecordId = record.baseRecord.originalRecordId,
+		originalArtistId = record.baseRecord.originalArtistId,
+		publisherId = record.baseRecord.publisherId,
+		songwriterNames = record.baseRecord.songwriterNames,
+		compositionQuality = record.baseRecord.compositionQuality,
+		compositionHook = record.baseRecord.compositionHook,
+		lyricQuality = record.baseRecord.lyricQuality,
+		songFamiliarityAtRelease = record.baseRecord.songFamiliarityAtRelease,
+		standardDurability = record.baseRecord.standardDurability,
+		arrangementOriginality = record.baseRecord.arrangementOriginality
 	};
 
 	public bool TryResolveTrackSnapshot(string recordId, out AlbumTrack track, out bool resolvedFromRetiredArchive) {

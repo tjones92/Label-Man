@@ -34,7 +34,33 @@ public partial class Record : Resource {
 	
 	[ExportGroup("Release Info")]
 	// GameDate is a struct, cannot be exported to Godot inspector natively
-	public GameDate releaseDate; 
+	public GameDate releaseDate;
+
+	// Publishing & Cover-Song layer (Phase 0). Song identity + credit snapshot beneath the master.
+	// A Record is a performance; songId points at the underlying SongComposition in
+	// CompositionCatalogService. See SimTools/PublishingCoverSongDirective.md.
+	[ExportGroup("Composition / Publishing")]
+	[Export] public string songId;
+	[Export] public SongMaterialSource songSource = SongMaterialSource.Unknown;
+	[Export] public bool isCover;
+	[Export] public string originalRecordId;
+	[Export] public string originalArtistId;
+	[Export] public string publisherId;
+	[Export] public string publishingControllerLabelId;
+	[Export] public PublishingControlType publishingControl = PublishingControlType.Unknown;
+	[Export] public string[] songwriterIds = System.Array.Empty<string>();
+	[Export] public string[] songwriterNames = System.Array.Empty<string>();
+	// Godot cannot export a custom enum array (GD0102); kept as a plain field.
+	public WriterEntityType[] songwriterTypes = System.Array.Empty<WriterEntityType>();
+	[Export] public float[] songwriterShares = System.Array.Empty<float>();
+	// Composition facts snapshotted at release time.
+	[Export(PropertyHint.Range, "0,1")] public float compositionQuality;
+	[Export(PropertyHint.Range, "0,1")] public float compositionHook;
+	[Export(PropertyHint.Range, "0,1")] public float lyricQuality;
+	[Export(PropertyHint.Range, "0,1")] public float songFamiliarityAtRelease;
+	[Export(PropertyHint.Range, "0,1")] public float standardDurability;
+	[Export(PropertyHint.Range, "0,1")] public float arrangementOriginality;
+	[Export(PropertyHint.Range, "0,1")] public float professionalPolish;
 }
 
 public enum ReleaseFormat { Single, Album, EP }

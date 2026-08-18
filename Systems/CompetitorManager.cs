@@ -418,6 +418,10 @@ public partial class CompetitorManager : Node {
 			labelFinancials[label.labelId] = new LabelFinancialHistory();
 		}
 		BuildIndependentDistributionLayer();
+		// Publishing & Cover-Song layer (Phase 0): stand up the composition catalog BEFORE any
+		// records are populated so every release can attach a song. Uses its own seed-salted RNG
+		// stream (never GD), so this is inert to the simulated economy.
+		CompositionCatalogService.Initialize(1960, aiLabels, SimulationSeedBootstrap.RequestedSeed ?? 0UL);
 		PopulateInitialRecords();
 		GD.Print($"CompetitorManager: Initialized with {aiLabels.Count} labels");
 	}
@@ -3016,7 +3020,12 @@ public partial class CompetitorManager : Node {
 			// the press layer changes how widely a record's merit is KNOWN, never the merit.
 			record.album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 		}
-		
+
+		// Publishing & Cover-Song layer (Phase 0): attach an artist-original song to every release.
+		// Reads already-computed fields only (no RNG), so this is inert to the economy. Later phases
+		// replace this unconditional stub with real material selection (covers/standards/professional).
+		CompositionCatalogService.AttachArtistOriginal(record, artist, label, year);
+
 		return record;
 	}
 
