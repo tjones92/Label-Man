@@ -3223,10 +3223,16 @@ public partial class CompetitorManager : Node {
 		float baseAwareness = 0.04f + snapshot.artistAwareness + marketingAwareness + label.reputation * 0.1f;
 		runtime.awareness = Mathf.Clamp(baseAwareness + awarenessBonus, 0f, 1f);
 		runtime.radioHeat = 0f;
-		float careerStockScale = snapshot.careerState switch {
-			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
-			CareerState.Rising => 1.2f, _ => 1.0f
-		};
+		// Phase C: same stock-cliff replacement as the single path. The snapshot carries only
+		// careerState, so recognition reads from the live artist; the promo-synergy stockMultiplier
+		// applied downstream is untouched.
+		SimulatedArtist albumArtist = ArtistManager.Instance?.GetArtist(record.artistId);
+		float careerStockScale = ArtistRecognition.Enabled && albumArtist != null
+			? 1f + ArtistRecognitionService.EffectiveRecognition(albumArtist) * ArtistRecognitionService.MaxStockBonus
+			: snapshot.careerState switch {
+				CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
+				CareerState.Rising => 1.2f, _ => 1.0f
+			};
 		var regions = snapshot.regions.Select(regional => ChartManager.Instance.GetRegionById(regional.regionId))
 			.Where(region => region != null).ToArray();
 		var initialStock = new Dictionary<string, int>(System.StringComparer.Ordinal);
@@ -3255,6 +3261,7 @@ public partial class CompetitorManager : Node {
 		runtime.initialLaunchStock = runtime.regionalData.Values.Sum(data => data.unitsInStores);
 		runtime.launchCareerState = snapshot.careerState;
 		runtime.perceivedQualityMultiplier = snapshot.perceivedQualityMultiplier;
+		ArtistRecognitionService.RecordLaunchAudit(ArtistManager.Instance?.GetArtist(record.artistId), runtime);
 	}
 
 	private void ProcessDueAlbumProjects(GameDate date) {
@@ -3323,13 +3330,24 @@ public partial class CompetitorManager : Node {
 		float baseRadio = quality * 0.3f;
 		float pushRadio = ChartSimulator.GetCampaignImpact(label) * 0.3f;
 		float payolaRadio = label.payolaWillingness * 0.15f;
-		runtimeData.radioHeat = isAlbum ? 0f : Mathf.Clamp(baseRadio + pushRadio + payolaRadio, 0f, 1f);
+		// Phase D: a small programmer-confidence lift for recognized acts. Singles only, weaker than
+		// the awareness lift, and it rides the same /radioDifficulty regional divide downstream.
+		// Airplay sits inside a high exponent ([[airplay-convexity-amplifies-label-push]]), so this
+		// is the smallest of the three ceilings on purpose. Off: byte-identical.
+		float recognitionRadio = ArtistRecognition.Enabled
+			? ArtistRecognitionService.EffectiveRecognition(artist) * ArtistRecognitionService.MaxRadioLift : 0f;
+		runtimeData.radioHeat = isAlbum ? 0f : Mathf.Clamp(baseRadio + pushRadio + payolaRadio + recognitionRadio, 0f, 1f);
 		
 		var regions = ChartManager.Instance.GetAllRegions();
-		float stockScale = artist.careerState switch {
-			CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
-			CareerState.Rising => 1.2f, _ => 1.0f
-		};
+		// Phase C: the discrete careerState stock cliff (2.5x for the ~92 Star+ acts) is replaced
+		// by a continuous recognition multiplier capped at ~1.3x that any act climbs to over time,
+		// not a cliff five acts stand on (directive §0/§3). Off: byte-identical careerState switch.
+		float stockScale = ArtistRecognition.Enabled
+			? 1f + ArtistRecognitionService.EffectiveRecognition(artist) * ArtistRecognitionService.MaxStockBonus
+			: artist.careerState switch {
+				CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
+				CareerState.Rising => 1.2f, _ => 1.0f
+			};
 		var initialStock = new Dictionary<string, int>(System.StringComparer.Ordinal);
 		foreach (var region in regions) {
 			if (!runtimeData.regionalData.ContainsKey(region.regionId)) {
@@ -3367,7 +3385,8 @@ public partial class CompetitorManager : Node {
 		runtimeData.initialLaunchStock = runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
 		runtimeData.launchCareerState = artist.careerState;
 		runtimeData.perceivedQualityMultiplier = perceivedQualityMult;
-		
+		ArtistRecognitionService.RecordLaunchAudit(artist, runtimeData);
+
 		if (debugMode) GD.Print($"  Promotion: Awareness={runtimeData.awareness:F2}, Radio={runtimeData.radioHeat:F2}");
 	}
 	

@@ -1103,7 +1103,7 @@ public partial class ChartAuditRunner : Node {
 		}
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
-		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier,weeksSincePeakUnits,radioPanelShare");
+		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier,weeksSincePeakUnits,radioPanelShare,launchArtistRecognition,launchCulturalStanding,launchEffectiveRecognition,launchRecognitionAwarenessLift,launchRecognitionStockMultiplier,launchRecognitionRadioLift");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
@@ -3596,7 +3596,13 @@ public partial class ChartAuditRunner : Node {
 			// rises against the same record's previous week is a re-add and a latch leak; the drop week
 			// is the first row below 1. Reported alongside the return rate, per handoff 12.4r.
 			record.weeksSincePeakUnits.ToString(CultureInfo.InvariantCulture),
-			F(record.radioPanelShare)
+			F(record.radioPanelShare),
+			F(record.launchArtistRecognition),
+			F(record.launchCulturalStanding),
+			F(record.launchEffectiveRecognition),
+			F(record.launchRecognitionAwarenessLift),
+			F(record.launchRecognitionStockMultiplier),
+			F(record.launchRecognitionRadioLift)
 		}));
 	}
 
@@ -3656,6 +3662,27 @@ public partial class ChartAuditRunner : Node {
 		return string.IsNullOrWhiteSpace(value) ? "audit" : value;
 	}
 
+	// Phase E-lite verification + presentation seed: an end-of-run snapshot of who inside each act
+	// carries a name. Written only when recognition ran; the front person should out-accrue sidemen.
+	private void WriteMusicianRecognitionRows() {
+		if (!ArtistRecognition.Observing || ArtistManager.Instance == null) return;
+		string outputDirectory = ProjectSettings.GlobalizePath("res://SimLogs");
+		using StreamWriter writer = CreateWriter(Path.Combine(outputDirectory, $"{runName}-musician-recognition.csv"));
+		writer.WriteLine("artistId,stageName,actPublicRecognition,actCulturalStanding,personId,firstName,lastName," +
+			"isLead,isWriter,isBandLeader,stagePresence,creativity,personalRecognition,liveReputation,creativeReputation");
+		foreach (SimulatedArtist artist in ArtistManager.Instance.GetAllArtists()) {
+			if (artist?.members == null) continue;
+			foreach (Musician m in artist.members) {
+				if (m == null || m.personalRecognition <= 0.001f) continue;
+				writer.WriteLine(string.Join(",", new[] {
+					Csv(artist.artistId), Csv(artist.stageName), F(artist.publicRecognition), F(artist.culturalStanding),
+					Csv(m.personId), Csv(m.firstName), Csv(m.lastName), m.isLeadVocalist ? "true" : "false",
+					m.isPrimaryWriter ? "true" : "false", m.isBandLeader ? "true" : "false", F(m.stagePresence), F(m.creativity),
+					F(m.personalRecognition), F(m.liveReputation), F(m.creativeReputation) }));
+			}
+		}
+	}
+
 	private void FlushAndClose() {
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
@@ -3690,6 +3717,7 @@ public partial class ChartAuditRunner : Node {
 				artistLaborMarketWeeklyWriter.WriteLine($"{prefix},{firstTime.ToString(CultureInfo.InvariantCulture)},{repeat.ToString(CultureInfo.InvariantCulture)},{suffix}");
 			}
 		}
+		WriteMusicianRecognitionRows();
 		recordWriter?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();

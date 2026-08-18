@@ -289,6 +289,9 @@ public static class AlbumLegitimacyService {
 		float merit = album.artisticMerit;
 		float strength = Mathf.Clamp(merit * recognition * GetEarliness(year) *
 			CulturalMemoryService.LandmarkInfluenceWeight, 0f, 1f);
+		// A landmark is durable cultural standing, plus a smaller deposit of mass recognition.
+		ArtistRecognitionService.AddCulturalStanding(artist, ArtistRecognitionService.LandmarkStandingGain * strength);
+		ArtistRecognitionService.AddPublicRecognition(artist, ArtistRecognitionService.LandmarkRecognitionGain * strength);
 		Legitimacy = Mathf.Clamp(Legitimacy + ContributionPerLandmark * strength, 0f, 1f);
 		LandmarkCount++;
 		CulturalMemoryService.Publish(artist.artistId, artist.labelId,
