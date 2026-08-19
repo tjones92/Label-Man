@@ -35,6 +35,10 @@ public static class CompositionCatalogService {
 	private static readonly List<MusicPublisher> publishers = new();
 	// Phase 5: per-person songwriting chart-credit ledger (telemetry-only, keyed by personId).
 	private static readonly Dictionary<string, WriterCreditLedgerEntry> writerLedger = new(StringComparer.Ordinal);
+	// Phase 3b catalog succession: label-controlled compositions indexed by controller label, so a dying
+	// label's publishing catalog can pass to a successor instead of silently leaking (covers of its hits
+	// then pay the successor). Only artist-originals carry a song-level controller label.
+	private static readonly Dictionary<string, List<SongComposition>> songsByControllerLabel = new(StringComparer.Ordinal);
 	private static RandomNumberGenerator rng;
 	private static int songCounter;
 	private static bool initialized;
@@ -56,6 +60,7 @@ public static class CompositionCatalogService {
 		professionalWriters.Clear();
 		publishers.Clear();
 		writerLedger.Clear();
+		songsByControllerLabel.Clear();
 		songCounter = 0;
 		rng = new RandomNumberGenerator {
 			Seed = seed ^ 0x736f6e6763617461UL // "songcata" -- private stream, isolated from GD
@@ -344,6 +349,7 @@ public static class CompositionCatalogService {
 		}
 
 		Register(song);
+		IndexControllerLabel(song);
 		ApplyToRecord(record, song, SongMaterialSource.ArtistWritten, isCover: false,
 			originalRecordId: null, originalArtistId: null,
 			familiarityAtRelease: 0f, arrangementOriginality: record.originality, professionalPolish: 0f);
@@ -363,6 +369,7 @@ public static class CompositionCatalogService {
 		record.originalArtistId = originalArtistId;
 		record.publisherId = song.rights.publisherId;
 		record.publishingControllerLabelId = song.rights.controllerLabelId;
+		record.publishingControllerArtistId = song.rights.controllerArtistId;
 		record.publishingControl = song.rights.controlType;
 
 		int n = song.credits.Count;
@@ -478,6 +485,7 @@ public static class CompositionCatalogService {
 		// Song-only registration: an artist-original is reachable by id but is NOT a selectable cover
 		// candidate. It enters coverableHitsByGenre only if it charts (Phase 4).
 		songs[song.songId] = song;
+		IndexControllerLabel(song);
 		return song;
 	}
 
@@ -577,6 +585,40 @@ public static class CompositionCatalogService {
 	}
 
 	public static IReadOnlyCollection<WriterCreditLedgerEntry> WriterCreditLedger => writerLedger.Values;
+
+	// Index an artist-original whose publishing a label controls, so catalog succession can find it.
+	private static void IndexControllerLabel(SongComposition song) {
+		string labelId = song?.rights?.controllerLabelId;
+		if (string.IsNullOrEmpty(labelId)) return;
+		if (!songsByControllerLabel.TryGetValue(labelId, out var list)) {
+			list = new List<SongComposition>(); songsByControllerLabel[labelId] = list;
+		}
+		list.Add(song);
+	}
+
+	/// <summary>
+	/// Phase 3b catalog succession: reassign every composition a dying/absorbed label controlled to a
+	/// successor (an acquirer, or a surviving major that buys the catalog). Covers of those songs then
+	/// pay the successor's publishing receipts instead of leaking to a defunct firm. If there is no
+	/// successor the catalog is orphaned (left as-is; it will leak). Deterministic, no RNG.
+	/// </summary>
+	public static void TransferCatalogControl(string fromLabelId, string toLabelId) {
+		if (string.IsNullOrEmpty(fromLabelId) || string.IsNullOrEmpty(toLabelId) || fromLabelId == toLabelId) return;
+		if (!songsByControllerLabel.TryGetValue(fromLabelId, out var moving) || moving.Count == 0) return;
+		foreach (SongComposition song in moving) {
+			if (song.rights != null) {
+				song.rights.controllerLabelId = toLabelId;
+				// LabelAffiliate becomes a buyout under the successor: it acquired the catalog outright.
+				if (song.rights.controlType == PublishingControlType.LabelAffiliate)
+					song.rights.controlType = PublishingControlType.LabelBuyout;
+			}
+		}
+		if (!songsByControllerLabel.TryGetValue(toLabelId, out var dest)) {
+			dest = new List<SongComposition>(); songsByControllerLabel[toLabelId] = dest;
+		}
+		dest.AddRange(moving);
+		songsByControllerLabel.Remove(fromLabelId);
+	}
 
 	/// <summary>Marks a charted song as a live cover candidate for its genre (Phase 4 entry point).</summary>
 	public static void RegisterCoverableHit(SongComposition song) {

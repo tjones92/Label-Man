@@ -47,6 +47,9 @@ public partial class Record : Resource {
 	[Export] public string originalArtistId;
 	[Export] public string publisherId;
 	[Export] public string publishingControllerLabelId;
+	// The artist who controls the composition's publishing (an artist-owned song). Carried onto covers
+	// so a cover of an artist-owned hit pays the WRITER, not the covering performer (Phase 3b goldmine).
+	[Export] public string publishingControllerArtistId;
 	[Export] public PublishingControlType publishingControl = PublishingControlType.Unknown;
 	[Export] public string[] songwriterIds = System.Array.Empty<string>();
 	[Export] public string[] songwriterNames = System.Array.Empty<string>();

@@ -282,7 +282,21 @@ public partial class LabelLifecycleManager : Node {
 		defunctLabels.Add(label);
 		DefunctThisYear++;
 		GD.Print($"[LabelManager] {label.labelName} has closed. Reason: {reason}. Operated for {label.monthsActive} months.");
+		// Phase 3b catalog succession: a bankrupt label's publishing catalog is bought by a surviving
+		// major rather than leaking. Covers of its old hits then pay the successor.
+		AILabel successor = FindCatalogSuccessor(label);
+		if (successor != null) CompositionCatalogService.TransferCatalogControl(label.labelId, successor.labelId);
 		OnLabelDefunct?.Invoke(label, reason);
+	}
+
+	// A surviving major with the most cash is the likeliest buyer of a defunct label's publishing.
+	private AILabel FindCatalogSuccessor(AILabel dying) {
+		AILabel best = null;
+		foreach (AILabel l in activeLabels) {
+			if (!l.IsActive || ReferenceEquals(l, dying) || l.tier != LabelTier.Major) continue;
+			if (best == null || l.cashReserves > best.cashReserves) best = l;
+		}
+		return best;
 	}
 
 	public void MarkLabelAcquired(AILabel label, AILabel distributor) {
@@ -292,6 +306,8 @@ public partial class LabelLifecycleManager : Node {
 		DefunctThisYear++;
 		string reason = $"Absorbed by {distributor.labelName}";
 		GD.Print($"[LabelManager] {label.labelName} acquired by {distributor.labelName}.");
+		// Catalog succession: the acquirer takes over the absorbed label's publishing catalog (Phase 3b).
+		CompositionCatalogService.TransferCatalogControl(label.labelId, distributor.labelId);
 		OnLabelDefunct?.Invoke(label, reason);
 	}
 

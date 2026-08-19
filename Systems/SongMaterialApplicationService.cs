@@ -20,6 +20,10 @@ public static class SongMaterialApplicationService {
 			material.OriginalRecordId, material.OriginalArtistId,
 			material.FamiliarityAtRelease, material.ArrangementOriginality, material.ProfessionalPolish);
 
+		// Phase 3b support: a label may capture publishing on commissioned professional material through
+		// its own arm (majors most). Deterministic, gated; only rewrites the record's publishing control.
+		PublishingCaptureService.MaybeCapture(record, material, label);
+
 		// The existing generated hook is the performance/recording variance; blend it toward the
 		// composition's expected hook by how much authority the source's song carries.
 		float performanceHook = record.hookStrength;

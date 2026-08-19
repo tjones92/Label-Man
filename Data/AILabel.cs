@@ -114,6 +114,16 @@ public partial class AILabel : Resource {
 	// terms, and what finally arrived from invoices billed months ago.
 	public float weeklyWholesaleDeferred;
 	public float weeklyWholesaleCollected;
+	// Publishing goldmine (Phase 3b). Composition income this label collects when OTHER labels record a
+	// song it controls; accrued during any label's settlement and banked in a pass after the main loop.
+	public float weeklyPublishingReceipts;
+	// Lifetime publishing position (telemetry): the composition slice this label kept on its own masters,
+	// collected from covers of songs it owns, transferred out to other owners, and lost to external
+	// (out-of-game) publishers. A net collector is a catalog goldmine.
+	public float lifetimePublishingKept;
+	public float lifetimePublishingReceived;
+	public float lifetimePublishingTransferredOut;
+	public float lifetimePublishingLeaked;
 	public Dictionary<ReleaseFormat, FormatRevenueMemory> revenueMemory = new();
 	public Dictionary<RevenueEstimatorLane, FormatRevenueMemory> laneRevenueMemory = new();
 

@@ -21,8 +21,15 @@ public static class SongMaterialSelectionService {
 	private const int CatalogSampleSize = 6;
 
 	public static SelectedSongMaterial ChooseMaterial(
-		AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek
+		AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek,
+		SongMaterialSource? forcedSource = null
 	) {
+		// AlbumMaterialPlan (§15): an album slot may dictate the source (pick the song WITHIN it, don't
+		// re-roll the source). Empty pool -> fall through to the normal mix so a slot is never starved.
+		if (forcedSource.HasValue) {
+			MaterialCandidate forced = BuildForSource(forcedSource.Value, label, artist, record, genre, year, chartWeek);
+			if (forced?.Material?.Song != null) return forced.Material;
+		}
 		var candidates = new List<MaterialCandidate>();
 
 		var artistWritten = BuildArtistWritten(label, artist, record, genre, year);
@@ -38,6 +45,32 @@ public static class SongMaterialSelectionService {
 
 	private static void AddIfPositive(List<MaterialCandidate> list, MaterialCandidate c) {
 		if (c != null && c.Material?.Song != null && c.Score > 0f) list.Add(c);
+	}
+
+	// Build only the candidate for one dictated source (AlbumMaterialPlan forced-source path).
+	private static MaterialCandidate BuildForSource(
+		SongMaterialSource src, AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek
+	) => src switch {
+		SongMaterialSource.ArtistWritten => BuildArtistWritten(label, artist, record, genre, year),
+		SongMaterialSource.ExternalProfessional or SongMaterialSource.LabelStaffWriter
+			or SongMaterialSource.ArtistCowrittenWithProfessional => BuildProfessional(label, artist, record, genre, year),
+		SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => BuildStandardCover(label, artist, record, genre, year),
+		SongMaterialSource.CoverRecentHit => BuildRecentHitCover(label, artist, record, genre, year, chartWeek),
+		SongMaterialSource.TraditionalPublicDomain or SongMaterialSource.AdaptedTraditional => BuildTraditional(label, artist, record, genre, year),
+		_ => null
+	};
+
+	/// <summary>The calibrated source-mix shares for a genre/year (Anchor prior, normalized), exposed so
+	/// AlbumMaterialPlan builds an album's whole-LP plan from the same decade curve the singles follow.</summary>
+	public static SourceShares GetSourceMixShares(Genre genre, int year) {
+		float aw = SourceMix(SongMaterialSource.ArtistWritten, genre, year);
+		float pro = SourceMix(SongMaterialSource.ExternalProfessional, genre, year);
+		float std = SourceMix(SongMaterialSource.CoverStandard, genre, year);
+		float hit = SourceMix(SongMaterialSource.CoverRecentHit, genre, year);
+		float trad = SourceMix(SongMaterialSource.TraditionalPublicDomain, genre, year);
+		float sum = aw + pro + std + hit + trad;
+		if (sum <= 0f) return new SourceShares { Aw = 1f };
+		return new SourceShares { Aw = aw / sum, Pro = pro / sum, Std = std / sum, Hit = hit / sum, Trad = trad / sum };
 	}
 
 	// ---- Candidate builders ------------------------------------------------------------------
@@ -133,17 +166,18 @@ public static class SongMaterialSelectionService {
 	) {
 		// Coverable hits: pre-game recent hits (1955-59) plus in-game hits (Phase 4), across adjacent
 		// families so a rock act can cover a recent R&B hit.
-		SongComposition song = SampleBestAcross(artist, record, year, "hit", HitPoolsFor(genre));
+		SongComposition song = SampleBestAcross(artist, record, year, "hit", HitPoolsFor(genre), applyFatigue: true);
 		if (song == null) return null;
 
 		float familiarity = song.GetFamiliarityForYear(year);
 		float artistFit = InterpretationFit(artist, song, genre);
 		float q = Mathf.Clamp(song.commercialHook * 0.45f + familiarity * 0.35f + artistFit * 0.2f, 0f, 1f);
-		// Cover fatigue + definitive-version shadow (Phase 4): each remembered recording wears the song
-		// down, and a strongly definitive prior version (a #1) casts a shadow that suppresses the next
-		// cover. Pre-game hits (no memory) are unaffected; the 3rd/4th cover of an in-game hit is damped.
+		// Cover fatigue + definitive-version shadow are applied INSIDE the sampler (which hit gets covered),
+		// NOT here -- the source-mix prior must still govern the recent-hit-cover SHARE, or the whole bucket
+		// collapses as pre-game hits accumulate recordings. Fatigue only spreads covers off worn / definitive
+		// songs and damps the 3rd/4th cover of a given one.
 		float score = SourceMix(SongMaterialSource.CoverRecentHit, genre, year)
-			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist)) * CoverFatigueShadow(song);
+			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist));
 
 		var material = new SelectedSongMaterial {
 			Song = song, Source = SongMaterialSource.CoverRecentHit, IsCover = true,
@@ -396,7 +430,8 @@ public static class SongMaterialSelectionService {
 	// Deterministically sample across several pools (a genre's adjacent-family cover sources) and
 	// return the best-scoring song -- bounded cost, never a full-catalog scan.
 	private static SongComposition SampleBestAcross(
-		SimulatedArtist artist, Record record, int year, string salt, IReadOnlyList<SongComposition>[] pools
+		SimulatedArtist artist, Record record, int year, string salt, IReadOnlyList<SongComposition>[] pools,
+		bool applyFatigue = false
 	) {
 		int total = 0;
 		foreach (var p in pools) total += p?.Count ?? 0;
@@ -410,6 +445,9 @@ public static class SongMaterialSelectionService {
 			SongComposition s = ResolveGlobal(pools, gidx);
 			if (s == null) continue;
 			float score = s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f;
+			// Recent-hit covers: prefer the less-worn song so covers spread across many hits and the
+			// 3rd/4th cover of one hit (or a definitive #1) is avoided -- without cutting the bucket share.
+			if (applyFatigue) score *= CoverFatigueShadow(s);
 			if (score > bestScore) { bestScore = score; best = s; }
 		}
 		return best;
@@ -471,6 +509,12 @@ public static class SongMaterialSelectionService {
 		foreach (char value in $"{artistId}|{recordId}|{year}|{salt}|SongMaterialV1") { hash ^= value; hash *= prime; }
 		return (hash >> 40) * (1f / 16777216f);
 	}
+}
+
+/// <summary>Normalized source-mix shares {artist-written, professional, standard, recent-hit, traditional}
+/// for a genre/year -- the calibrated decade prior, shared by singles selection and AlbumMaterialPlan.</summary>
+public struct SourceShares {
+	public float Aw, Pro, Std, Hit, Trad;
 }
 
 /// <summary>The outcome of a material decision: which song, from what source, with expected traits.</summary>

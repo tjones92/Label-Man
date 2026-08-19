@@ -374,14 +374,35 @@ first** — its fame payoff is capped until [[lineup-churn-never-fires]] is solv
 out of a star writer yet).
 - **Gate:** writer credits accumulate correctly per person; no dependence on dead fields.
 
-## Album behavior (draft §15)
+## Album behavior (draft §15) — per-track origin DONE; AlbumMaterialPlan IMPLEMENTED
 
-Albums must not pick one source for the whole LP unless concept/self-contained. Add an
-`AlbumMaterialPlan` (counts of originals / professional / covers / standards / traditional +
-cohesion target + lead-single source). Early-decade LPs skew single + standards + covers + filler;
-late-decade rock/folk/psych skew artist-written + cohesive. Preserve each track's `songId`/`songSource`
-through the snapshot path. Fits alongside Phase 1 but can trail it — singles carry the decade signal;
-albums are the polish pass.
+Per-track song identity is implemented (see the Phase 1/§15 note above): every album cut runs the same
+pure-hash selection and its `songId`/`songSource` survive the snapshot path.
+
+**AlbumMaterialPlan (cohesion) — now wired.** `Data/AlbumMaterialPlan.cs`: `AlbumMaterialPlanner.Plan(genre,
+year, thematicCohesion, trackCount)` builds the LP's plan from the same calibrated `Anchor1960`/`Anchor1969`
+mix (via `SongMaterialSelectionService.GetSourceMixShares`), pulls the slot counts toward the dominant
+source in proportion to `Album.thematicCohesion` (`MaxConcentration = 0.70`, so even a full statement keeps a
+little variety), and largest-remainder-allocates the slots. `ExpandSlots` lays them out and deterministically
+shuffles (stable hash, no GD). `GenerateAlbum` builds the plan once per album and passes each track's
+assigned source as the new **forced-source** argument to `ChooseMaterial` (picks the song WITHIN the dictated
+source; an empty pool falls back to the free mix). So a cohesive late-60s rock LP concentrates on artist-
+written, an early pop LP stays hit + standards + covers + filler — instead of every track rolling blind.
+Kill-switch `AlbumMaterialPlanner.Enabled` (CLI `--disable-album-material-plan`).
+
+**Economically inert:** non-single album tracks never settle (only the album RECORD and its promo single
+route publishing), and the plan consumes no GD — album `pooledAppeal`/promo selection and the whole RNG
+schedule are unchanged. It reshapes album-track *biographies* (album-composition source shares + cohesion),
+nothing in the economy. Remaining calibration: the cohesion→concentration curve and per-era/genre dominant
+source are first-pass; tune against the decade `album-composition.csv`.
+
+### Catalog succession on label death (Phase 3b) — IMPLEMENTED
+So the goldmine does not silently leak when an owning label dies: `CompositionCatalogService` indexes
+label-controlled compositions (`songsByControllerLabel`) and `TransferCatalogControl(from,to)` reassigns
+them to a successor. `LabelLifecycleManager.KillLabel` routes a bankrupt label's catalog to the surviving
+Major with the most cash (a buyer); `MarkLabelAcquired` routes it to the acquirer. `LabelAffiliate` becomes
+`LabelBuyout` under the successor. Deterministic, no RNG; inert under routing-off (song-controller telemetry
+only). Covers of a dead label's old hits then pay the successor instead of leaking out of the game.
 
 ## Determinism & calibration flags (the ones that will bite)
 

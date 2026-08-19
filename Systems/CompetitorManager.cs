@@ -307,6 +307,8 @@ public partial class CompetitorManager : Node {
 	private int genreSupplyYear = int.MinValue;
 	
 	private List<AILabel> aiLabels;
+	// Phase 3b publishing goldmine: id->label map rebuilt each settlement week (routing-live only).
+	private Dictionary<string, AILabel> settlementLabelLookup;
 	private bool distributionOfferProcessingEnabled = true;
 	private readonly Dictionary<(string LabelId, ReleaseFormat Format), RevenueTelemetry> weeklyRevenueByLabelAndFormat = new();
 	private int lastBookedSettlementId;
@@ -825,6 +827,14 @@ public partial class CompetitorManager : Node {
 	
 	private void ProcessWeeklyRevenue(ChartManager.CompletedWeekSettlement settlement) {
 		weeklyRevenueByLabelAndFormat.Clear();
+		// Publishing goldmine (Phase 3b): a per-week id->label map so a cover's publishing slice can be
+		// transferred to whichever in-game label controls the composition (built each week to include
+		// newborn labels and exclude the dead). Only used when routing is live.
+		if (PublishingRoutingService.RoutingEnabled) {
+			settlementLabelLookup ??= new Dictionary<string, AILabel>(System.StringComparer.Ordinal);
+			settlementLabelLookup.Clear();
+			foreach (var l in aiLabels) settlementLabelLookup[l.labelId] = l;
+		}
 		foreach (var label in aiLabels) {
 			label.weeklyGrossRevenue = 0f;
 			label.weeklyCogs = 0f;
@@ -834,6 +844,7 @@ public partial class CompetitorManager : Node {
 			label.weeklyDistributionIncome = 0f;
 			label.weeklyWholesaleDeferred = 0f;
 			label.weeklyWholesaleCollected = 0f;
+			label.weeklyPublishingReceipts = 0f;
 		}
 		foreach (var label in aiLabels) {
 			// A frozen enabled settlement may still contain a record from a label whose
@@ -854,6 +865,21 @@ public partial class CompetitorManager : Node {
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
 				financials.lastMonthRevenue += weeklyRevenue;
+			}
+		}
+		// Publishing goldmine banking pass (Phase 3b): credit each label the composition income it
+		// collected this week from covers of songs it owns. Done AFTER the main loop so it is order-
+		// independent (a receipt accrued while settling a later label still lands). Reallocation only:
+		// these funds were already taken off the paying labels' net during their settlement.
+		if (PublishingRoutingService.RoutingEnabled) {
+			foreach (var label in aiLabels) {
+				float receipts = label.weeklyPublishingReceipts;
+				if (receipts == 0f) continue;
+				label.cashReserves += receipts;
+				label.monthlyRevenue += receipts;
+				label.weeklyNetRevenue += receipts;
+				label.lifetimePublishingReceived += receipts;
+				if (labelFinancials.TryGetValue(label.labelId, out var fin)) fin.lastMonthRevenue += receipts;
 			}
 		}
 	}
@@ -975,18 +1001,45 @@ public partial class CompetitorManager : Node {
 				PublishingRoutingService.Decide(runtimeData.baseRecord, artist, label.labelId);
 			float labelPublishingIncome;
 			float externalLeakage;
+			float publishingTransferOut = 0f;
 			bool artistOwnsPublishing;
 			if (PublishingRoutingService.RoutingEnabled) {
-				// Live routing (3b): the control type splits the existing pool. Label-kept stays inside
-				// recordRevenue; artist and external slices come OFF net (reallocation, never an addition).
-				float artistSlice = publishingPool * routing.ArtistFraction;
-				float externalSlice = publishingPool * routing.ExternalFraction;
-				recordRevenue -= artistSlice + externalSlice;
-				if (artist != null && artistSlice > 0f) artist.totalRoyaltyEarnings += artistSlice;
-				labelPublishingIncome = publishingPool * routing.LabelKeepFraction;
-				externalLeakage = externalSlice;
-				artistOwnsPublishing = routing.ArtistFraction > 0f;
-				entry.ArtistRoyalty = artistPayment + artistSlice;
+				// Live routing (3b, the goldmine): the control type splits the existing pool four ways.
+				// Kept stays inside recordRevenue; writer/transfer/leak come OFF net (reallocation, never
+				// an addition). A transfer moves to the in-game label that OWNS the composition -- the
+				// income stream from covers of a song you control.
+				float keepSlice = publishingPool * routing.LabelKeepFraction;
+				float writerSlice = publishingPool * routing.WriterArtistFraction;
+				float transferSlice = publishingPool * routing.TransferLabelFraction;
+				float leakSlice = publishingPool * routing.ExternalLeakFraction;
+				recordRevenue -= writerSlice + transferSlice + leakSlice;
+
+				// Writer royalty -> the controlling artist (on a cover, the ORIGINAL writer; falls back to
+				// the performer when no controller id, i.e. the legacy artist-owns case).
+				if (writerSlice > 0f) {
+					SimulatedArtist writer = (!string.IsNullOrEmpty(routing.ControllerArtistId)
+						? ArtistManager.Instance?.GetArtist(routing.ControllerArtistId) : null) ?? artist;
+					if (writer != null) writer.totalRoyaltyEarnings += writerSlice;
+				}
+				// Transfer -> the in-game label that controls the composition. If it has vanished, the
+				// slice leaks out of the game instead of being credited to a dead firm.
+				if (transferSlice > 0f) {
+					AILabel controller = routing.ControllerLabelId != null && settlementLabelLookup != null
+						&& settlementLabelLookup.TryGetValue(routing.ControllerLabelId, out AILabel cl) ? cl : null;
+					if (controller != null && !ReferenceEquals(controller, label)) {
+						controller.weeklyPublishingReceipts += transferSlice;
+						publishingTransferOut = transferSlice;
+					} else {
+						leakSlice += transferSlice;
+					}
+				}
+				labelPublishingIncome = keepSlice;
+				externalLeakage = leakSlice;
+				artistOwnsPublishing = writerSlice > 0f;
+				entry.ArtistRoyalty = artistPayment + writerSlice;
+				label.lifetimePublishingKept += keepSlice;
+				label.lifetimePublishingTransferredOut += publishingTransferOut;
+				label.lifetimePublishingLeaked += leakSlice;
 			} else {
 				// Legacy binary (3a: byte-identical). Artist keeps publishing only when the label does not
 				// own it; the composition-model counterparty is still recorded below for measurement.
@@ -1012,6 +1065,7 @@ public partial class CompetitorManager : Node {
 			entry.PublishingCounterparty = routing.Counterparty;
 			entry.PublishingControllerLabelId = routing.ControllerLabelId ?? string.Empty;
 			entry.ExternalPublishingLeakage = externalLeakage;
+			entry.PublishingTransferOut = publishingTransferOut;
 			entry.DistributionIncome = 0f;
 			entry.DistributionRecipientLabelId = string.Empty;
 			entry.BookedCount = 1;
@@ -3105,6 +3159,17 @@ public partial class CompetitorManager : Node {
 		// draw count is unchanged, so the RNG stream is untouched.
 		float trackSpread = AlbumModel.GetTrackSpreadMultiplier(GenreCatalog.Get(artist.primaryGenre).Family, year);
 		int albumChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		// AlbumMaterialPlan (§15): give the LP a coherent source strategy -- a cohesive record concentrates
+		// on one source, a hits-and-filler record stays spread -- instead of rolling each track blind. The
+		// plan comes from the same calibrated decade prior as the singles, so the aggregate is preserved;
+		// cohesion only reshapes WITHIN the album. Deterministic (no GD); album tracks never settle, so this
+		// is inert to the economy. Empty pools fall back to the free mix inside ChooseMaterial.
+		SongMaterialSource[] planSlots = null;
+		int nonSingleTarget = Mathf.Max(0, targetTracks - referencedSingles.Count);
+		if (AlbumMaterialPlanner.Enabled && SongMaterialSelectionService.Enabled && albumRecordId != null && nonSingleTarget > 0) {
+			AlbumMaterialPlan plan = AlbumMaterialPlanner.Plan(artist.primaryGenre, year, thematicCohesion, nonSingleTarget);
+			planSlots = AlbumMaterialPlanner.ExpandSlots(plan, artist.artistId, albumRecordId);
+		}
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
 			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f
 				+ (float)GD.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
@@ -3130,8 +3195,10 @@ public partial class CompetitorManager : Node {
 					hookStrength = hook, danceability = dance,
 					originality = Mathf.Clamp((artist.members.Count > 0 ? artist.members.Max(m => m.creativity) : 0.4f) * 0.7f + 0.15f, 0f, 1f)
 				};
+				SongMaterialSource? forcedSource = planSlots != null && nonSingleTracks.Count < planSlots.Length
+					? planSlots[nonSingleTracks.Count] : (SongMaterialSource?)null;
 				SelectedSongMaterial trackMaterial = SongMaterialSelectionService.ChooseMaterial(
-					label, artist, trackKey, artist.primaryGenre, year, albumChartWeek);
+					label, artist, trackKey, artist.primaryGenre, year, albumChartWeek, forcedSource);
 				SongMaterialApplicationService.ApplyIdentityToAlbumTrack(track, trackMaterial);
 			}
 			nonSingleTracks.Add(track);

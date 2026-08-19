@@ -234,6 +234,10 @@ public partial class ChartManager : Node {
 		public PublishingCounterparty PublishingCounterparty;
 		public string PublishingControllerLabelId;
 		public float ExternalPublishingLeakage;
+		// Phase 3b goldmine: slice transferred off this label's net to another IN-GAME label that owns the
+		// composition (a cover of a song another label controls). Distinct from ExternalPublishingLeakage,
+		// which leaves the game entirely.
+		public float PublishingTransferOut;
 		public string DistributionRecipientLabelId;
 		public int BookedCount, AuditedCount;
 		public bool RetiredAfterSettlement;
