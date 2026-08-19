@@ -139,8 +139,11 @@ public static class SongMaterialSelectionService {
 		float familiarity = song.GetFamiliarityForYear(year);
 		float artistFit = InterpretationFit(artist, song, genre);
 		float q = Mathf.Clamp(song.commercialHook * 0.45f + familiarity * 0.35f + artistFit * 0.2f, 0f, 1f);
+		// Cover fatigue + definitive-version shadow (Phase 4): each remembered recording wears the song
+		// down, and a strongly definitive prior version (a #1) casts a shadow that suppresses the next
+		// cover. Pre-game hits (no memory) are unaffected; the 3rd/4th cover of an in-game hit is damped.
 		float score = SourceMix(SongMaterialSource.CoverRecentHit, genre, year)
-			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist));
+			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist)) * CoverFatigueShadow(song);
 
 		var material = new SelectedSongMaterial {
 			Song = song, Source = SongMaterialSource.CoverRecentHit, IsCover = true,
@@ -314,6 +317,19 @@ public static class SongMaterialSelectionService {
 	private static float ExternalPenalty(SimulatedArtist artist) {
 		if (artist.evolution == null) return 0f;
 		return Mathf.Clamp(artist.evolution.artisticAmbition * 0.08f + artist.evolution.rootsAttachment * 0.04f, 0f, 0.4f);
+	}
+
+	// Damps a recent-hit cover candidate by how worn the song is: each remembered recording adds
+	// fatigue, and the most definitive prior version casts a shadow. Returns ~1.0 for a fresh song and
+	// falls toward ~0.3 for a much-covered / definitively-owned one. Pure read of the song's memory.
+	private static float CoverFatigueShadow(SongComposition song) {
+		int worn = song.recordings?.Count ?? 0;
+		float fatigue = 1f / (1f + 0.5f * worn);
+		float bestDefinitive = 0f;
+		if (song.recordings != null)
+			foreach (var rec in song.recordings) if (rec.definitiveVersionScore > bestDefinitive) bestDefinitive = rec.definitiveVersionScore;
+		float shadow = 1f - 0.4f * bestDefinitive;
+		return Mathf.Clamp(fatigue * shadow, 0.1f, 1f);
 	}
 
 	private static float GenreFit(SongComposition song, Genre genre) =>

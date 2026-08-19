@@ -969,22 +969,49 @@ public partial class CompetitorManager : Node {
 			// and accrues to the artist (publishing is the artist's own composition income, not
 			// advance-recoupable). PublishingShareOfGross is a calibration guess - start conservative.
 			float publishingPool = retailGross * PublishingShareOfGross;
-			bool artistOwnsPublishing = artist != null && !artist.labelOwnsPublishing;
-			float labelPublishingIncome = 0f;
-			if (artistOwnsPublishing) {
-				recordRevenue -= publishingPool;
-				artist.totalRoyaltyEarnings += publishingPool;
+			// Phase 3: resolve the counterparty from the composition's control type. Computed ALWAYS so
+			// the telemetry reflects the would-be routing; the money only follows it when routing is live.
+			PublishingRoutingService.Decision routing =
+				PublishingRoutingService.Decide(runtimeData.baseRecord, artist, label.labelId);
+			float labelPublishingIncome;
+			float externalLeakage;
+			bool artistOwnsPublishing;
+			if (PublishingRoutingService.RoutingEnabled) {
+				// Live routing (3b): the control type splits the existing pool. Label-kept stays inside
+				// recordRevenue; artist and external slices come OFF net (reallocation, never an addition).
+				float artistSlice = publishingPool * routing.ArtistFraction;
+				float externalSlice = publishingPool * routing.ExternalFraction;
+				recordRevenue -= artistSlice + externalSlice;
+				if (artist != null && artistSlice > 0f) artist.totalRoyaltyEarnings += artistSlice;
+				labelPublishingIncome = publishingPool * routing.LabelKeepFraction;
+				externalLeakage = externalSlice;
+				artistOwnsPublishing = routing.ArtistFraction > 0f;
+				entry.ArtistRoyalty = artistPayment + artistSlice;
 			} else {
-				labelPublishingIncome = publishingPool;   // informational: already within recordRevenue
+				// Legacy binary (3a: byte-identical). Artist keeps publishing only when the label does not
+				// own it; the composition-model counterparty is still recorded below for measurement.
+				artistOwnsPublishing = artist != null && !artist.labelOwnsPublishing;
+				labelPublishingIncome = 0f;
+				externalLeakage = 0f;
+				if (artistOwnsPublishing) {
+					recordRevenue -= publishingPool;
+					artist.totalRoyaltyEarnings += publishingPool;
+				} else {
+					labelPublishingIncome = publishingPool;   // informational: already within recordRevenue
+				}
+				entry.ArtistRoyalty = artistPayment + (artistOwnsPublishing ? publishingPool : 0f);
 			}
 			entry.Gross = retailGross;
 			entry.ManufacturingCost = cogs;
-			entry.ArtistRoyalty = artistPayment + (artistOwnsPublishing ? publishingPool : 0f);
 			entry.DistributionSkim = skimAmount;
 			entry.LabelNet = recordRevenue;
 			entry.MarketNet = recordRevenue;
 			entry.PublishingIncome = labelPublishingIncome;
 			entry.ArtistOwnsPublishing = artistOwnsPublishing;
+			entry.PublishingControl = runtimeData.baseRecord.publishingControl;
+			entry.PublishingCounterparty = routing.Counterparty;
+			entry.PublishingControllerLabelId = routing.ControllerLabelId ?? string.Empty;
+			entry.ExternalPublishingLeakage = externalLeakage;
 			entry.DistributionIncome = 0f;
 			entry.DistributionRecipientLabelId = string.Empty;
 			entry.BookedCount = 1;

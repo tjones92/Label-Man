@@ -438,6 +438,7 @@ public partial class ChartAuditRunner : Node {
 		WriteFormatDecisionCohorts();
 			WriteAlbumProjectSnapshots();
 			WriteDealMetrics();
+			WriteWriterCredits();
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
 			FlushAndClose();
@@ -519,6 +520,14 @@ public partial class ChartAuditRunner : Node {
 				emergentSigningFloor = int.Parse(argument[25..], CultureInfo.InvariantCulture);
 			} else if (argument.StartsWith("--gate-control-run=", StringComparison.Ordinal)) {
 				gateControlRun = SanitizeFileName(argument[19..]);
+			} else if (argument == "--enable-publishing-routing") {
+				// Publishing & Cover-Song Phase 3b: route the publishing slice live off the composition's
+				// control type (external/standard material leaks to its publisher). Off = 3a telemetry-only.
+				PublishingRoutingService.RoutingEnabled = true;
+			} else if (argument == "--disable-song-chart-memory") {
+				// Publishing & Cover-Song Phase 4 kill-switch: keep the recent-hit cover pool at the
+				// pre-game 1955-59 set (in-game hits never become coverable).
+				CompositionCatalogService.ChartMemoryEnabled = false;
 			}
 		}
 
@@ -1130,7 +1139,7 @@ public partial class ChartAuditRunner : Node {
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
 		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,effectiveAlbumIntent,albumOverlapPressure,singleFormatBudget,albumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,albumChannelCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
-		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,releaseLane,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount,publishingIncome,artistOwnsPublishing");
+		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,releaseLane,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount,publishingIncome,artistOwnsPublishing,publishingControl,publishingCounterparty,publishingControllerLabelId,externalPublishingLeakage");
 		completedWeekSettlementRegionalWriter?.WriteLine("week,year,settlementId,recordId,regionId,rawIntent,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,inventoryMovement");
 		albumRealizationBridgeWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,genre,regionId,releaseYear,ageWeeks,buyerPool,awareness,observedPenetration,effectivePenetration,peakEffectivePenetration,exhaustion,catalogDecayMultiplier,formatTilt,conversion,cannibalizationSuppression,rawDemandBeforeCannibalization,rawDemandAfterCannibalization,roundedRawIntent,unitsInStoresBeforeSale,storeCapacity,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,currentPosition,weeksSinceLastCharted,weeksSinceSalesAboveFloor,retirementFloor,retiredAfterSettlement");
 		formatMemoryRevisionWriter?.WriteLine("week,year,releaseId,labelId,projectId,releaseLane,estimatorLane,format,genre,releaseAge,revisionKind,revisionOrdinal,releaseTimeExpectedNet,ageMatchedExpectedNet,realizedNetToDate,estimatedOutcomeNet,opportunityScale,normalizedResidual,maturityWeight,recencyWeight,replacedPriorRevision,finalized,nonFiniteViolation");
@@ -1498,6 +1507,22 @@ public partial class ChartAuditRunner : Node {
 		}));
 	}
 
+	// Publishing & Cover-Song Phase 5: dump the per-person songwriting chart-credit ledger. One row per
+	// credited writer-member (telemetry-only; no fame feedback until lineup churn exists).
+	private void WriteWriterCredits() {
+		string outputDirectory = ProjectSettings.GlobalizePath("res://SimLogs");
+		using StreamWriter writer = CreateWriter(Path.Combine(outputDirectory, $"{runName}-writer-credits.csv"));
+		writer.WriteLine("personId,name,creditedRuns,originalCredits,top40Credits,number1Credits,totalUnits,bestSuccess");
+		foreach (CompositionCatalogService.WriterCreditLedgerEntry e in CompositionCatalogService.WriterCreditLedger) {
+			writer.WriteLine(string.Join(",", new[] {
+				Csv(e.personId), Csv(e.name), e.creditedRuns.ToString(CultureInfo.InvariantCulture),
+				e.originalCredits.ToString(CultureInfo.InvariantCulture), e.top40Credits.ToString(CultureInfo.InvariantCulture),
+				e.number1Credits.ToString(CultureInfo.InvariantCulture), e.totalUnits.ToString(CultureInfo.InvariantCulture),
+				F(e.bestSuccess)
+			}));
+		}
+	}
+
 	private void OnDistributionDealEvent(DistributionDealTelemetry dealEvent) {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		if (dealEvent.resolution == DealResolution.Signed) {
@@ -1639,7 +1664,8 @@ public partial class ChartAuditRunner : Node {
 				entry.Regions?.Sum(region => region.FinalCleared).ToString(CultureInfo.InvariantCulture) ?? "0", entry.Units.ToString(CultureInfo.InvariantCulture),
 				F(entry.Gross), F(entry.ManufacturingCost), F(entry.ArtistRoyalty), F(entry.DistributionSkim), F(entry.LabelNet), Csv(entry.DistributionRecipientLabelId), F(entry.DistributionIncome), F(entry.MarketNet),
 				entry.RetiredAfterSettlement ? "true" : "false", entry.BookedCount.ToString(CultureInfo.InvariantCulture), entry.AuditedCount.ToString(CultureInfo.InvariantCulture),
-					F(entry.PublishingIncome), entry.ArtistOwnsPublishing ? "true" : "false"
+					F(entry.PublishingIncome), entry.ArtistOwnsPublishing ? "true" : "false",
+					Csv(entry.PublishingControl.ToString()), Csv(entry.PublishingCounterparty.ToString()), Csv(entry.PublishingControllerLabelId), F(entry.ExternalPublishingLeakage)
 			}));
 			foreach (ChartManager.CompletedWeekSettlementRegion region in entry.Regions ?? Array.Empty<ChartManager.CompletedWeekSettlementRegion>()) {
 				completedWeekSettlementRegionalWriter?.WriteLine(string.Join(",", new[] {

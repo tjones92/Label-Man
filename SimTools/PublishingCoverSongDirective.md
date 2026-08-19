@@ -303,7 +303,28 @@ In `PromoteRecordAI`, add a **bounded** awareness + radio lift for familiar mate
   but still lose to fatigue, the definitive-version shadow, and identity mismatch — verify covers are
   not auto-powerful.
 
-### Phase 3 — Publishing routing on the EXISTING reallocation (draft §12, corrected)
+### Phase 3 — Publishing routing on the EXISTING reallocation (draft §12, corrected) — 3a DONE, 3b BLOCKED
+`Systems/PublishingRoutingService.cs` resolves a `PublishingCounterparty` (LabelKeeps / ArtistControlled
+/ ExternalPublisher / OtherLabelAffiliate / Shared) from the record's `publishingControl`. Settlement
+([CompetitorManager.cs](Systems/CompetitorManager.cs)) computes it ALWAYS (telemetry: new settlement CSV
+cols `publishingControl,publishingCounterparty,publishingControllerLabelId,externalPublishingLeakage`)
+but only moves money when `PublishingRoutingService.RoutingEnabled` (CLI `--enable-publishing-routing`).
+**3a validated inert** (104wk seed 1001, routing OFF): `externalPublishingLeakage` total = 0, economy
+unchanged, counterparty populated (ExternalPublisher 56.7% / LabelKeeps 43.3%; ArtistControlled ≈0 since
+`labelOwnsPublishing` defaults true).
+
+**3b (live flip) is BLOCKED on a modeling gap — do NOT ship yet.** 104wk routing-ON probe: leakage
+6.5% of gross, total labelNet −11.8%, **Majors hit HARDEST (−16.5%)**, bankruptcies 66→79 (ecosystem
+backfills to ~730 labels, no tier insolvent). The Major hit is *backwards* from the gate's intent
+("majors capture more via affiliates"): the professional/catalog publishers all have `affiliateLabelId=null`,
+so no label ever captures affiliate publishing on the external material it records — a major recording a
+Brill song leaks the whole slice instead of keeping it in-house. **Before flipping 3b: model
+label-affiliate publishing capture** (a major's in-house shop keeps publishing on material it controls;
+publishers gain real `affiliateLabelId`/buyout behavior) so majors are advantaged, THEN re-derive 0.11.
+Until then the decade runs carry P3 in telemetry mode to chart the leakage trajectory.
+
+Original plan text follows.
+
 Replace the binary `labelOwnsPublishing` decision inside the current settlement
 ([CompetitorManager.cs:966-983](Systems/CompetitorManager.cs:966)) with `PublishingControlType`-driven
 routing off the record's attached `SongComposition.rights`. Public-domain → no composition sink (label
@@ -316,7 +337,18 @@ fields, LabelNet unchanged), then (b) flip the routing live.
   label tier (majors capture more via affiliates) without any tier going insolvent. Re-derive `0.11`
   from measured profitability rather than trusting it — it directly touches bankruptcy.
 
-### Phase 4 — Song memory + covers-of-hits become real (draft §13)
+### Phase 4 — Song memory + covers-of-hits become real (draft §13) — IMPLEMENTED
+`CompositionCatalogService.OnRecordChartRunComplete(record, year)` wired into `RunCulturalReads`
+([RosterManager.cs](Systems/RosterManager.cs)): a finished run appends a `SongRecordingMemory`, raises
+`nationalFamiliarity` (saturating, by hit size), and a top-40 peak calls `RegisterCoverableHit` — so an
+in-game hit joins the Phase-1 recent-hit cover pool. Cover fatigue + definitive-version shadow added to
+`BuildRecentHitCover` (`CoverFatigueShadow`: each remembered recording + a definitive prior #1 damps the
+next cover, floor 0.1). No RNG, no economy; idempotent via `culturalRunCompleted`. Kill-switch
+`CompositionCatalogService.ChartMemoryEnabled` (CLI `--disable-song-chart-memory`). Decade validation of
+the late-covers-early loop owed (a short run has no in-game hits to cover yet).
+
+Original plan text follows.
+
 `CompositionCatalogService.OnRecordChartRunComplete`, called from `RunCulturalReads`
 ([RosterManager.cs:1231](Systems/RosterManager.cs:1231)): a completed run appends a
 `SongRecordingMemory`, a hit raises the song's `nationalFamiliarity` (saturating), and a **top-40 peak
@@ -326,7 +358,15 @@ decade's own hits.
 - **Gate:** covers-of-in-game-hits appear and cluster behind big hits; cover fatigue and the
   definitive-version shadow visibly suppress the 3rd/4th cover of the same song.
 
-### Phase 5 — Person-level songwriting credit (draft §14) — SCOPE DOWN
+### Phase 5 — Person-level songwriting credit (draft §14) — IMPLEMENTED (credit ledger only)
+Writer-member chart credits accrue per `personId` in `CompositionCatalogService.writerLedger` inside the
+same `OnRecordChartRunComplete` hook (creditedRuns / originalCredits / top40Credits / number1Credits /
+totalUnits / bestSuccess), dumped to `{run}-writer-credits.csv`. Telemetry ONLY — no fame feedback, no
+dependence on `criticalAcclaim` ([[criticalacclaim-is-a-dead-field]]); prestige routing via the
+recognition stock stays deferred, its payoff capped until [[lineup-churn-never-fires]] is solved.
+
+Original plan text follows.
+
 Credit actual writer-members for artist-written songs into the musician career ledger. Route any
 prestige through the **recognition stock** ([[recognition-phase-a-implemented]]), **not**
 `artist.criticalAcclaim` ([[criticalacclaim-is-a-dead-field]]). Land this as **credit telemetry

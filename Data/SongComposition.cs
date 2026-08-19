@@ -44,6 +44,18 @@ public enum PublishingControlType {
 	SharedControl
 }
 
+/// <summary>Where the existing publishing slice is routed at settlement (Phase 3). Resolved from the
+/// record's <see cref="PublishingControlType"/> and controller id. This is a REALLOCATION of the
+/// existing PublishingShareOfGross pool -- it enriches who the counterparty is, never adds to LabelNet.</summary>
+public enum PublishingCounterparty {
+	Unknown,
+	LabelKeeps,          // label-affiliate for THIS label, or public-domain (nothing leaves the label)
+	ArtistControlled,    // artist kept publishing -> slice accrues to the artist as non-recoupable royalty
+	ExternalPublisher,   // external publisher controls the song -> slice leaks off LabelNet
+	OtherLabelAffiliate, // affiliate/buyout controlled by a DIFFERENT label -> slice leaks off LabelNet
+	Shared               // split control -> half kept, half leaked
+}
+
 public enum SongOriginKind {
 	Unknown,
 	PreGameStandard,

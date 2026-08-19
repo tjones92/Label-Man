@@ -226,6 +226,14 @@ public partial class ChartManager : Node {
 		// is 0 here and that slice has instead been moved off LabelNet into ArtistRoyalty.
 		public float PublishingIncome;
 		public bool ArtistOwnsPublishing;
+		// Publishing & Cover-Song Phase 3. The richer counterparty the composition model resolves for
+		// this record's publishing slice. Populated ALWAYS (even before routing is flipped live) so the
+		// would-be leakage can be measured; ExternalPublishingLeakage is the slice actually moved off
+		// LabelNet to a non-artist publisher, and is 0 until PublishingRoutingService.RoutingEnabled.
+		public PublishingControlType PublishingControl;
+		public PublishingCounterparty PublishingCounterparty;
+		public string PublishingControllerLabelId;
+		public float ExternalPublishingLeakage;
 		public string DistributionRecipientLabelId;
 		public int BookedCount, AuditedCount;
 		public bool RetiredAfterSettlement;

@@ -33,6 +33,8 @@ public static class CompositionCatalogService {
 	private static readonly Dictionary<GenreFamily, List<SongComposition>> coverableHitsByFamily = new();
 	private static readonly List<ProfessionalSongwriter> professionalWriters = new();
 	private static readonly List<MusicPublisher> publishers = new();
+	// Phase 5: per-person songwriting chart-credit ledger (telemetry-only, keyed by personId).
+	private static readonly Dictionary<string, WriterCreditLedgerEntry> writerLedger = new(StringComparer.Ordinal);
 	private static RandomNumberGenerator rng;
 	private static int songCounter;
 	private static bool initialized;
@@ -53,6 +55,7 @@ public static class CompositionCatalogService {
 		coverableHitsByFamily.Clear();
 		professionalWriters.Clear();
 		publishers.Clear();
+		writerLedger.Clear();
 		songCounter = 0;
 		rng = new RandomNumberGenerator {
 			Seed = seed ^ 0x736f6e6763617461UL // "songcata" -- private stream, isolated from GD
@@ -495,6 +498,85 @@ public static class CompositionCatalogService {
 		if (!pool.TryGetValue(key, out var list)) { list = new List<SongComposition>(); pool[key] = list; }
 		list.Add(song);
 	}
+
+	// Phase 4 kill-switch. When off, chart runs append no song memory and in-game hits never become
+	// coverable, so the recent-hit cover pool stays the pre-game 1955-59 set (Phase 1 behavior).
+	public static bool ChartMemoryEnabled = true;
+
+	/// <summary>
+	/// Publishing &amp; Cover-Song Phase 4. A completed chart run feeds back into the song: it appends a
+	/// <see cref="SongRecordingMemory"/>, raises the song's national familiarity (saturating, by hit
+	/// size), and a top-40 peak makes the song <c>isCoverable</c> -- so an in-game hit becomes a future
+	/// cover candidate for the Phase-1 recent-hit builder. This closes the loop that lets the LATE decade
+	/// cover the EARLY decade's own hits. No RNG: a pure function of the record's realized chart outcome.
+	/// Idempotent per record via RunCulturalReads' culturalRunCompleted guard.
+	/// </summary>
+	public static void OnRecordChartRunComplete(RecordRuntimeData record, int year) {
+		if (!ChartMemoryEnabled || record?.baseRecord == null) return;
+		SongComposition song = GetSong(record.baseRecord.songId);
+		if (song == null) return;
+
+		int peak = record.peakPosition;
+		bool top40 = peak >= 1 && peak <= 40;
+		// #1 -> ~1.0, #40 -> ~0.025, unranked -> 0.
+		float peakStrength = top40 ? Mathf.Clamp((41 - peak) / 40f, 0f, 1f) : 0f;
+		float unitStrength = 1f - Mathf.Exp(-Mathf.Max(0, record.totalUnitsSold) / 200000f);
+		float successScore = Mathf.Clamp(peakStrength * 0.6f + unitStrength * 0.4f, 0f, 1f);
+
+		song.recordings.Add(new SongRecordingMemory {
+			recordId = record.baseRecord.recordId,
+			artistId = record.baseRecord.artistId,
+			artistName = record.baseRecord.artistName,
+			year = year,
+			peakPosition = peak,
+			weeksOnChart = record.weeksOnChart,
+			units = record.totalUnitsSold,
+			definitiveVersionScore = successScore
+		});
+
+		// Familiarity rises toward saturation with hit size (a #1 imprints far more than a #38).
+		float lift = Mathf.Max(peakStrength, unitStrength * 0.5f) * 0.25f;
+		song.nationalFamiliarity = Mathf.Clamp(song.nationalFamiliarity + (1f - song.nationalFamiliarity) * lift, 0f, 1f);
+
+		// A top-40 hit becomes a live cover candidate. Artist-originals were registered song-only; this
+		// is what promotes them into the recent-hit pool for future covers.
+		if (top40) {
+			song.isCoverable = true;
+			RegisterCoverableHit(song);
+		}
+
+		// Phase 5 (scoped to credit telemetry -- see [[lineup-churn-never-fires]]: no solo career spins
+		// out yet, so this is a ledger, not a fame engine). Credit each writer-member for the run. No
+		// dependence on the dead criticalAcclaim field; prestige routing is deferred to the recognition
+		// stock. Pure accumulation, no economy or chart feedback.
+		foreach (SongwriterCredit credit in song.credits) {
+			if (credit.writerType != WriterEntityType.Musician || string.IsNullOrEmpty(credit.writerId)) continue;
+			if (!writerLedger.TryGetValue(credit.writerId, out WriterCreditLedgerEntry led)) {
+				led = new WriterCreditLedgerEntry { personId = credit.writerId, name = credit.writerName };
+				writerLedger[credit.writerId] = led;
+			}
+			led.creditedRuns++;
+			if (song.originKind == SongOriginKind.ArtistOriginal) led.originalCredits++;
+			if (top40) led.top40Credits++;
+			if (peak == 1) led.number1Credits++;
+			led.totalUnits += Mathf.Max(0, record.totalUnitsSold);
+			led.bestSuccess = Mathf.Max(led.bestSuccess, successScore);
+		}
+	}
+
+	/// <summary>Per-person accumulation of songwriting chart credits (Phase 5, telemetry-only).</summary>
+	public sealed class WriterCreditLedgerEntry {
+		public string personId;
+		public string name;
+		public int creditedRuns;     // completed chart runs of songs this person is credited on
+		public int originalCredits;  // of those, artist-original compositions
+		public int top40Credits;
+		public int number1Credits;
+		public long totalUnits;
+		public float bestSuccess;
+	}
+
+	public static IReadOnlyCollection<WriterCreditLedgerEntry> WriterCreditLedger => writerLedger.Values;
 
 	/// <summary>Marks a charted song as a live cover candidate for its genre (Phase 4 entry point).</summary>
 	public static void RegisterCoverableHit(SongComposition song) {
