@@ -226,6 +226,18 @@ public partial class ChartManager : Node {
 		// is 0 here and that slice has instead been moved off LabelNet into ArtistRoyalty.
 		public float PublishingIncome;
 		public bool ArtistOwnsPublishing;
+		// Publishing & Cover-Song Phase 3. The richer counterparty the composition model resolves for
+		// this record's publishing slice. Populated ALWAYS (even before routing is flipped live) so the
+		// would-be leakage can be measured; ExternalPublishingLeakage is the slice actually moved off
+		// LabelNet to a non-artist publisher, and is 0 until PublishingRoutingService.RoutingEnabled.
+		public PublishingControlType PublishingControl;
+		public PublishingCounterparty PublishingCounterparty;
+		public string PublishingControllerLabelId;
+		public float ExternalPublishingLeakage;
+		// Phase 3b goldmine: slice transferred off this label's net to another IN-GAME label that owns the
+		// composition (a cover of a song another label controls). Distinct from ExternalPublishingLeakage,
+		// which leaves the game entirely.
+		public float PublishingTransferOut;
 		public string DistributionRecipientLabelId;
 		public int BookedCount, AuditedCount;
 		public bool RetiredAfterSettlement;
@@ -785,6 +797,17 @@ public partial class ChartManager : Node {
 				data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * radioOpportunity * genreRadio * launchRadioBuild;
 			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio * launchRadioBuild;
 			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
+
+			// Publishing & Cover-Song Phase 2: bounded launch lift for familiar material, added AFTER
+			// the RNG draws above so the stream is unchanged (kill-switch: SongLaunchService.LaunchInputEnabled).
+			if (!isAlbum) {
+				int launchYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
+				data.awareness += SongLaunchService.GetSongAwarenessLift(record.baseRecord, launchYear);
+				data.awareness = Mathf.Clamp(data.awareness, 0f, 1f);
+				data.radioPlay += SongLaunchService.GetRadioLift(record.baseRecord)
+					* campaignImpact / radioDifficulty * genreRadio * launchRadioBuild;
+				data.radioPlay = Mathf.Clamp(data.radioPlay, 0f, 1f);
+			}
 
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
 			float genreFit = GetGenreFit(record.baseRecord.primaryGenre, region);
@@ -2202,7 +2225,21 @@ public partial class ChartManager : Node {
 		danceability = record.baseRecord.danceability,
 		isReleasedSingle = true,
 		releaseDate = record.baseRecord.releaseDate,
-		peakPosition = record.peakPosition
+		peakPosition = record.peakPosition,
+		// Publishing & Cover-Song layer (Phase 0): carry the song biography onto the snapshot.
+		songId = record.baseRecord.songId,
+		songSource = record.baseRecord.songSource,
+		isCover = record.baseRecord.isCover,
+		originalRecordId = record.baseRecord.originalRecordId,
+		originalArtistId = record.baseRecord.originalArtistId,
+		publisherId = record.baseRecord.publisherId,
+		songwriterNames = record.baseRecord.songwriterNames,
+		compositionQuality = record.baseRecord.compositionQuality,
+		compositionHook = record.baseRecord.compositionHook,
+		lyricQuality = record.baseRecord.lyricQuality,
+		songFamiliarityAtRelease = record.baseRecord.songFamiliarityAtRelease,
+		standardDurability = record.baseRecord.standardDurability,
+		arrangementOriginality = record.baseRecord.arrangementOriginality
 	};
 
 	public bool TryResolveTrackSnapshot(string recordId, out AlbumTrack track, out bool resolvedFromRetiredArchive) {

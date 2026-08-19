@@ -1262,6 +1262,9 @@ public partial class RosterManager : Node {
 		// rule. Both end up in the same ledger, because an act can be moved by either.
 		AlbumLegitimacyService.OnAlbumChartRunComplete(artist, record, label, year);
 		CulturalMemoryService.OnChartRunComplete(artist, record, label, year);
+		// Publishing & Cover-Song Phase 4/5: feed the finished run back into the song (memory,
+		// familiarity, top-40 -> coverable) and accrue writer-member chart credits. No RNG, no economy.
+		CompositionCatalogService.OnRecordChartRunComplete(record, year);
 	}
 
 	private static bool IsLiveGenreMarket() => GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;

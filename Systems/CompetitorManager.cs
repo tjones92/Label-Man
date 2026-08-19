@@ -307,6 +307,8 @@ public partial class CompetitorManager : Node {
 	private int genreSupplyYear = int.MinValue;
 	
 	private List<AILabel> aiLabels;
+	// Phase 3b publishing goldmine: id->label map rebuilt each settlement week (routing-live only).
+	private Dictionary<string, AILabel> settlementLabelLookup;
 	private bool distributionOfferProcessingEnabled = true;
 	private readonly Dictionary<(string LabelId, ReleaseFormat Format), RevenueTelemetry> weeklyRevenueByLabelAndFormat = new();
 	private int lastBookedSettlementId;
@@ -418,6 +420,10 @@ public partial class CompetitorManager : Node {
 			labelFinancials[label.labelId] = new LabelFinancialHistory();
 		}
 		BuildIndependentDistributionLayer();
+		// Publishing & Cover-Song layer (Phase 0): stand up the composition catalog BEFORE any
+		// records are populated so every release can attach a song. Uses its own seed-salted RNG
+		// stream (never GD), so this is inert to the simulated economy.
+		CompositionCatalogService.Initialize(1960, aiLabels, SimulationSeedBootstrap.RequestedSeed ?? 0UL);
 		PopulateInitialRecords();
 		GD.Print($"CompetitorManager: Initialized with {aiLabels.Count} labels");
 	}
@@ -821,6 +827,14 @@ public partial class CompetitorManager : Node {
 	
 	private void ProcessWeeklyRevenue(ChartManager.CompletedWeekSettlement settlement) {
 		weeklyRevenueByLabelAndFormat.Clear();
+		// Publishing goldmine (Phase 3b): a per-week id->label map so a cover's publishing slice can be
+		// transferred to whichever in-game label controls the composition (built each week to include
+		// newborn labels and exclude the dead). Only used when routing is live.
+		if (PublishingRoutingService.RoutingEnabled) {
+			settlementLabelLookup ??= new Dictionary<string, AILabel>(System.StringComparer.Ordinal);
+			settlementLabelLookup.Clear();
+			foreach (var l in aiLabels) settlementLabelLookup[l.labelId] = l;
+		}
 		foreach (var label in aiLabels) {
 			label.weeklyGrossRevenue = 0f;
 			label.weeklyCogs = 0f;
@@ -830,6 +844,7 @@ public partial class CompetitorManager : Node {
 			label.weeklyDistributionIncome = 0f;
 			label.weeklyWholesaleDeferred = 0f;
 			label.weeklyWholesaleCollected = 0f;
+			label.weeklyPublishingReceipts = 0f;
 		}
 		foreach (var label in aiLabels) {
 			// A frozen enabled settlement may still contain a record from a label whose
@@ -850,6 +865,21 @@ public partial class CompetitorManager : Node {
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
 				financials.lastMonthRevenue += weeklyRevenue;
+			}
+		}
+		// Publishing goldmine banking pass (Phase 3b): credit each label the composition income it
+		// collected this week from covers of songs it owns. Done AFTER the main loop so it is order-
+		// independent (a receipt accrued while settling a later label still lands). Reallocation only:
+		// these funds were already taken off the paying labels' net during their settlement.
+		if (PublishingRoutingService.RoutingEnabled) {
+			foreach (var label in aiLabels) {
+				float receipts = label.weeklyPublishingReceipts;
+				if (receipts == 0f) continue;
+				label.cashReserves += receipts;
+				label.monthlyRevenue += receipts;
+				label.weeklyNetRevenue += receipts;
+				label.lifetimePublishingReceived += receipts;
+				if (labelFinancials.TryGetValue(label.labelId, out var fin)) fin.lastMonthRevenue += receipts;
 			}
 		}
 	}
@@ -965,22 +995,77 @@ public partial class CompetitorManager : Node {
 			// and accrues to the artist (publishing is the artist's own composition income, not
 			// advance-recoupable). PublishingShareOfGross is a calibration guess - start conservative.
 			float publishingPool = retailGross * PublishingShareOfGross;
-			bool artistOwnsPublishing = artist != null && !artist.labelOwnsPublishing;
-			float labelPublishingIncome = 0f;
-			if (artistOwnsPublishing) {
-				recordRevenue -= publishingPool;
-				artist.totalRoyaltyEarnings += publishingPool;
+			// Phase 3: resolve the counterparty from the composition's control type. Computed ALWAYS so
+			// the telemetry reflects the would-be routing; the money only follows it when routing is live.
+			PublishingRoutingService.Decision routing =
+				PublishingRoutingService.Decide(runtimeData.baseRecord, artist, label.labelId);
+			float labelPublishingIncome;
+			float externalLeakage;
+			float publishingTransferOut = 0f;
+			bool artistOwnsPublishing;
+			if (PublishingRoutingService.RoutingEnabled) {
+				// Live routing (3b, the goldmine): the control type splits the existing pool four ways.
+				// Kept stays inside recordRevenue; writer/transfer/leak come OFF net (reallocation, never
+				// an addition). A transfer moves to the in-game label that OWNS the composition -- the
+				// income stream from covers of a song you control.
+				float keepSlice = publishingPool * routing.LabelKeepFraction;
+				float writerSlice = publishingPool * routing.WriterArtistFraction;
+				float transferSlice = publishingPool * routing.TransferLabelFraction;
+				float leakSlice = publishingPool * routing.ExternalLeakFraction;
+				recordRevenue -= writerSlice + transferSlice + leakSlice;
+
+				// Writer royalty -> the controlling artist (on a cover, the ORIGINAL writer; falls back to
+				// the performer when no controller id, i.e. the legacy artist-owns case).
+				if (writerSlice > 0f) {
+					SimulatedArtist writer = (!string.IsNullOrEmpty(routing.ControllerArtistId)
+						? ArtistManager.Instance?.GetArtist(routing.ControllerArtistId) : null) ?? artist;
+					if (writer != null) writer.totalRoyaltyEarnings += writerSlice;
+				}
+				// Transfer -> the in-game label that controls the composition. If it has vanished, the
+				// slice leaks out of the game instead of being credited to a dead firm.
+				if (transferSlice > 0f) {
+					AILabel controller = routing.ControllerLabelId != null && settlementLabelLookup != null
+						&& settlementLabelLookup.TryGetValue(routing.ControllerLabelId, out AILabel cl) ? cl : null;
+					if (controller != null && !ReferenceEquals(controller, label)) {
+						controller.weeklyPublishingReceipts += transferSlice;
+						publishingTransferOut = transferSlice;
+					} else {
+						leakSlice += transferSlice;
+					}
+				}
+				labelPublishingIncome = keepSlice;
+				externalLeakage = leakSlice;
+				artistOwnsPublishing = writerSlice > 0f;
+				entry.ArtistRoyalty = artistPayment + writerSlice;
+				label.lifetimePublishingKept += keepSlice;
+				label.lifetimePublishingTransferredOut += publishingTransferOut;
+				label.lifetimePublishingLeaked += leakSlice;
 			} else {
-				labelPublishingIncome = publishingPool;   // informational: already within recordRevenue
+				// Legacy binary (3a: byte-identical). Artist keeps publishing only when the label does not
+				// own it; the composition-model counterparty is still recorded below for measurement.
+				artistOwnsPublishing = artist != null && !artist.labelOwnsPublishing;
+				labelPublishingIncome = 0f;
+				externalLeakage = 0f;
+				if (artistOwnsPublishing) {
+					recordRevenue -= publishingPool;
+					artist.totalRoyaltyEarnings += publishingPool;
+				} else {
+					labelPublishingIncome = publishingPool;   // informational: already within recordRevenue
+				}
+				entry.ArtistRoyalty = artistPayment + (artistOwnsPublishing ? publishingPool : 0f);
 			}
 			entry.Gross = retailGross;
 			entry.ManufacturingCost = cogs;
-			entry.ArtistRoyalty = artistPayment + (artistOwnsPublishing ? publishingPool : 0f);
 			entry.DistributionSkim = skimAmount;
 			entry.LabelNet = recordRevenue;
 			entry.MarketNet = recordRevenue;
 			entry.PublishingIncome = labelPublishingIncome;
 			entry.ArtistOwnsPublishing = artistOwnsPublishing;
+			entry.PublishingControl = runtimeData.baseRecord.publishingControl;
+			entry.PublishingCounterparty = routing.Counterparty;
+			entry.PublishingControllerLabelId = routing.ControllerLabelId ?? string.Empty;
+			entry.ExternalPublishingLeakage = externalLeakage;
+			entry.PublishingTransferOut = publishingTransferOut;
 			entry.DistributionIncome = 0f;
 			entry.DistributionRecipientLabelId = string.Empty;
 			entry.BookedCount = 1;
@@ -1839,7 +1924,7 @@ public partial class CompetitorManager : Node {
 		float promoPerceivedMult = 1f;
 
 		if (plan.strategy == ReleaseStrategy.AlbumWithPromo) {
-			promo = CreatePromoSingleFromAlbum(album);
+			promo = CreatePromoSingleFromAlbum(album, artist, label, date.year);
 			gapWeeks = (int)GD.RandRange(Mathf.Min(albumDropGapWeeksMin, albumDropGapWeeksMax), Mathf.Max(albumDropGapWeeksMin, albumDropGapWeeksMax));
 			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
 			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
@@ -3007,7 +3092,7 @@ public partial class CompetitorManager : Node {
 		else if (record.primaryGenre == Genre.RockAndRoll || record.primaryGenre == Genre.GarageRock) record.danceability = Mathf.Max(record.danceability, 0.5f);
 
 		if (format == ReleaseFormat.Album) {
-			record.album = GenerateAlbum(label, artist, year);
+			record.album = GenerateAlbum(label, artist, year, record.recordId, record.secondaryGenre);
 			record.title = GenerateAlbumTitle(record, year);
 			record.hookStrength = record.album.pooledAppeal;
 			record.productionQuality = Mathf.Clamp(record.album.pooledAppeal * 0.75f + label.productionQuality * 0.25f, 0f, 1f);
@@ -3016,11 +3101,23 @@ public partial class CompetitorManager : Node {
 			// the press layer changes how widely a record's merit is KNOWN, never the merit.
 			record.album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 		}
-		
+
+		// Publishing & Cover-Song layer: choose the release's material (artist-written / professional /
+		// cover / standard / traditional) and stamp it onto the record. Selection is a pure stable
+		// hash (never GD), so it does not perturb the RNG schedule; material now shapes hook/originality
+		// (chart-facing) but not money (settlement still keys off labelOwnsPublishing until Phase 3).
+		if (SongMaterialSelectionService.Enabled) {
+			int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			SelectedSongMaterial material = SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek);
+			SongMaterialApplicationService.Apply(record, material, label, artist);
+		} else {
+			CompositionCatalogService.AttachArtistOriginal(record, artist, label, year);
+		}
+
 		return record;
 	}
 
-	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year) {
+	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year, string albumRecordId = null, Genre secondaryGenre = Genre.TraditionalPop) {
 		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		float artistTalent = artist.CalculateBaseQuality();
 		float luckyRoll = GD.Randf();
@@ -3061,6 +3158,18 @@ public partial class CompetitorManager : Node {
 		// travels from the second to the first across the decade. Scales the spread only -- the
 		// draw count is unchanged, so the RNG stream is untouched.
 		float trackSpread = AlbumModel.GetTrackSpreadMultiplier(GenreCatalog.Get(artist.primaryGenre).Family, year);
+		int albumChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		// AlbumMaterialPlan (§15): give the LP a coherent source strategy -- a cohesive record concentrates
+		// on one source, a hits-and-filler record stays spread -- instead of rolling each track blind. The
+		// plan comes from the same calibrated decade prior as the singles, so the aggregate is preserved;
+		// cohesion only reshapes WITHIN the album. Deterministic (no GD); album tracks never settle, so this
+		// is inert to the economy. Empty pools fall back to the free mix inside ChooseMaterial.
+		SongMaterialSource[] planSlots = null;
+		int nonSingleTarget = Mathf.Max(0, targetTracks - referencedSingles.Count);
+		if (AlbumMaterialPlanner.Enabled && SongMaterialSelectionService.Enabled && albumRecordId != null && nonSingleTarget > 0) {
+			AlbumMaterialPlan plan = AlbumMaterialPlanner.Plan(artist.primaryGenre, year, thematicCohesion, nonSingleTarget);
+			planSlots = AlbumMaterialPlanner.ExpandSlots(plan, artist.artistId, albumRecordId);
+		}
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
 			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f
 				+ (float)GD.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
@@ -3068,13 +3177,31 @@ public partial class CompetitorManager : Node {
 			(float hook, float production, float dance) = useStructuredPromoTracks
 				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
 				: (0f, 0f, 0f);
-			nonSingleTracks.Add(new AlbumTrack {
+			var track = new AlbumTrack {
 				title = trackTitle,
 				genre = artist.primaryGenre,
 				quality = trackQuality,
 				hookStrength = hook, productionQuality = production, danceability = dance,
 				isReleasedSingle = false
-			});
+			};
+			// Publishing & Cover-Song §15: give every album cut a composition origin. Selection is the
+			// same pure stable hash as the singles path (never GD), keyed on a per-track synthetic id so
+			// tracks diverge; it stamps identity ONLY and leaves quality/hook/production/danceability
+			// untouched, so album pooledAppeal and promo-single selection are byte-identical.
+			if (SongMaterialSelectionService.Enabled && albumRecordId != null) {
+				var trackKey = new Record {
+					recordId = $"{albumRecordId}_t{nonSingleTracks.Count}",
+					primaryGenre = artist.primaryGenre, secondaryGenre = secondaryGenre, title = trackTitle,
+					hookStrength = hook, danceability = dance,
+					originality = Mathf.Clamp((artist.members.Count > 0 ? artist.members.Max(m => m.creativity) : 0.4f) * 0.7f + 0.15f, 0f, 1f)
+				};
+				SongMaterialSource? forcedSource = planSlots != null && nonSingleTracks.Count < planSlots.Length
+					? planSlots[nonSingleTracks.Count] : (SongMaterialSource?)null;
+				SelectedSongMaterial trackMaterial = SongMaterialSelectionService.ChooseMaterial(
+					label, artist, trackKey, artist.primaryGenre, year, albumChartWeek, forcedSource);
+				SongMaterialApplicationService.ApplyIdentityToAlbumTrack(track, trackMaterial);
+			}
+			nonSingleTracks.Add(track);
 		}
 
 		float avgTrackMinutes = (float)GD.RandRange(2.45, year >= 1967 ? 4.10 : 3.35);
@@ -3139,7 +3266,7 @@ public partial class CompetitorManager : Node {
 		return null;
 	}
 
-	private Record CreatePromoSingleFromAlbum(Record albumRecord) {
+	private Record CreatePromoSingleFromAlbum(Record albumRecord, SimulatedArtist artist, AILabel label, int year) {
 		Album album = albumRecord.album ?? throw new System.InvalidOperationException("Promo project requires a generated album.");
 		if (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0) throw new System.InvalidOperationException("Promo project album has no eligible original track.");
 		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
@@ -3168,6 +3295,14 @@ public partial class CompetitorManager : Node {
 			productionQuality = production, danceability = dance,
 			originality = albumRecord.originality, controversy = albumRecord.controversy
 		};
+		// A promo single is a chart single like any other -- give it composition origin so it obeys the
+		// material mix (without this, ~38% of runtime singles bypassed the song layer). Selection is a
+		// pure stable hash (no GD draw), so the album-project RNG stream is unchanged.
+		if (SongMaterialSelectionService.Enabled && artist != null) {
+			int promoChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			SelectedSongMaterial promoMaterial = SongMaterialSelectionService.ChooseMaterial(label, artist, promo, promo.primaryGenre, year, promoChartWeek);
+			SongMaterialApplicationService.Apply(promo, promoMaterial, label, artist);
+		}
 		var remaining = album.nonSingleTracks.ToList();
 		remaining.RemoveAt(bestIndex);
 		var refs = album.trackRefs?.ToList() ?? new List<AlbumTrack>();
@@ -3177,7 +3312,15 @@ public partial class CompetitorManager : Node {
 			hookStrength = useStructuredPromoTracks ? hook : 0f,
 			productionQuality = useStructuredPromoTracks ? production : 0f,
 			danceability = useStructuredPromoTracks ? dance : 0f,
-			isReleasedSingle = true, peakPosition = 0
+			isReleasedSingle = true, peakPosition = 0,
+			// The promo already ran material selection; mirror its song identity onto the album trackRef
+			// so the on-album representation carries the same composition origin (§15).
+			songId = promo.songId, songSource = promo.songSource, isCover = promo.isCover,
+			originalRecordId = promo.originalRecordId, originalArtistId = promo.originalArtistId,
+			publisherId = promo.publisherId, songwriterNames = promo.songwriterNames,
+			compositionQuality = promo.compositionQuality, compositionHook = promo.compositionHook,
+			lyricQuality = promo.lyricQuality, songFamiliarityAtRelease = promo.songFamiliarityAtRelease,
+			standardDurability = promo.standardDurability, arrangementOriginality = promo.arrangementOriginality
 		});
 		album.nonSingleTracks = remaining.ToArray();
 		album.trackRefs = refs.ToArray();
