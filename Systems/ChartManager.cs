@@ -786,6 +786,17 @@ public partial class ChartManager : Node {
 			} else data.radioPlay = isAlbum ? 0f : (0.15f + (float)GD.RandRange(0.1, 0.25)) * campaignImpact * regionStrength / radioDifficulty * genreRadio * launchRadioBuild;
 			data.awareness = (0.15f + (float)GD.RandRange(0.05, 0.15)) * campaignImpact * regionStrength;
 
+			// Publishing & Cover-Song Phase 2: bounded launch lift for familiar material, added AFTER
+			// the RNG draws above so the stream is unchanged (kill-switch: SongLaunchService.LaunchInputEnabled).
+			if (!isAlbum) {
+				int launchYear = TimeManager.Instance?.CurrentDate.year ?? 1960;
+				data.awareness += SongLaunchService.GetSongAwarenessLift(record.baseRecord, launchYear);
+				data.awareness = Mathf.Clamp(data.awareness, 0f, 1f);
+				data.radioPlay += SongLaunchService.GetRadioLift(record.baseRecord)
+					* campaignImpact / radioDifficulty * genreRadio * launchRadioBuild;
+				data.radioPlay = Mathf.Clamp(data.radioPlay, 0f, 1f);
+			}
+
 			float quality = (record.baseRecord.hookStrength + record.baseRecord.productionQuality) / 2f;
 			float genreFit = GetGenreFit(record.baseRecord.primaryGenre, region);
 			data.sentiment = (quality * 0.7f + genreFit * 0.3f) + (float)GD.RandRange(-0.05, 0.1);

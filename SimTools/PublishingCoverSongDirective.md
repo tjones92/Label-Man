@@ -177,7 +177,74 @@ outcome telemetry (draft §17). **Do not** alter hook, awareness, radio, origina
   discipline ([[probe-run-byte-comparison-proves-inertness]]). Catalog RNG on its own stream ⇒ launch
   roster + population schedule unchanged.
 
-### Phase 1 — Material selection (draft §6-9)
+### Phase 1 — Material selection (draft §6-9) — IN PROGRESS
+Built: `Systems/SongMaterialSelectionService.cs` (pure stable-hash, never GD — FNV-1a over
+artist|record|year|salt, mirroring ScoutingPerception), `Systems/SongMaterialApplicationService.cs`
+(blends composition hook into the record's performance hook by source-authority; lowers originality
+for covers), catalog query + `CreateArtistOriginal` helpers, and a `song-material.csv` telemetry
+writer in ChartAuditRunner (one row per single at first observation, joined to `records.csv` by
+recordId). Selection replaces the Phase-0 unconditional stub at `GenerateRecordFromArtist`, behind
+`SongMaterialSelectionService.Enabled`.
+
+**Two structural findings from the first 104-week run (seed 1001):**
+1. **Pool-pollution bug (FIXED).** `CreateArtistOriginal` registered every artist-written song into
+   `catalogByGenre`, so the selectable pool filled with originals over the run; `SampleBest`'s bounded
+   6-draw then almost never hit a professional/cover song → fell back to ArtistWritten, and it got
+   *worse over time* (would corrupt the decade curve). Fix: curated pools kept SEPARATE from
+   artist-originals (`professionalByGenre`/`traditionalByGenre`/`coverableHitsByGenre`; standards
+   already separate). Originals are song-only (reachable by id, not selectable) until they chart
+   (Phase 4 calls `RegisterCoverableHit`). This is a [[market-share-is-supply-bound]] instance: the
+   gate only bites where curated supply exists.
+2. **Cross-genre cover supply gap (FIXED).** Pools are keyed strictly on PRIMARY genre, and
+   the seed catalog has no RockAndRoll/DooWop/etc. standards or professional songs — so those genres
+   are forced to ArtistWritten by starvation (first run: RockAndRoll 96.8% self-written in 1960). But
+   early rock was substantially **covers of R&B/blues material** (Pat Boone over Little Richard) plus a
+   self-writing wing (Berry, Holly, Little Richard co-writes) and a manufactured wing (Elvis — who
+   didn't write; his co-credits were publishing cut-ins — Fabian, Avalon). So rock's artist-written
+   share should sit *above* teen-pop/trad-pop and *below* folk (the era-weight ×1.05 already does
+   this), but the covers it *doesn't* self-write must come from adjacent families. Fix: make
+   cover/standard/traditional selection **genre-adjacency-aware** using `GenreCatalog.Get(genre).Family`
+   ([Genre.cs:84](Data/Genre.cs:84) `GenreFamily` {Pop, Rock, RhythmAndSoul, Blues, …}) — e.g. a Rock
+   act draws covers from {Rock, Blues, RhythmAndSoul}. Author a small cover-source adjacency map.
+   DONE: family-keyed pools (`standardsByFamily`/`traditionalByFamily`/`coverableHitsByFamily`) +
+   `CoverSourceFamilies(genre)` adjacency map; cover/standard/traditional/recent-hit builders sample
+   across adjacent families. After the fix rock reads 13% self / 86% cover in 1960 (was 97% self).
+
+**Calibration (owner targets, 2026-08-18).** 1960 genre-averaged mix should be: self-written **~22%**
+(small bands, jazz players like Miles), staff/professional **~30%** (with **TeenPop skewing majority
+staff** — more manufactured than R&B), standards **~20%**, contemporary/recent-hit covers **~15–20%**,
+public-domain/traditional **~10%** (classical/folk/holiday/children's). To hit these directly the
+selection was re-architected around an explicit **source-mix prior**: `Anchor1960(genre)` /
+`Anchor1969(genre)` give the target share of each source, interpolated by `SmoothYear(1962,1968)`;
+a candidate's score is `mixWeight × (0.55 + 0.45·quality)`, so the realized mix tracks the prior
+(modulated by catalog availability — an empty pool redistributes its share). This separates *how much
+of each source* (calibratable) from *which specific song* (quality/fit pick). A **pre-game recent-hits
+pool** (1955–59, `SongOriginKind.RecentHit`, registered coverable) was added so `CoverRecentHit` is
+non-empty from week one (it was 0% — there were no hits to cover yet). Iterating the anchors on
+104-week runs until 1960 lands near target; the anchors ARE the decade curve.
+
+**Phase 2 bundled into the pre-decade work (owner decision).** Phase 1's real gate is the decade
+transition, so Phase 2 (the launch-familiarity lift) is folded in before the single decade run — one
+run validates both material mix and familiarity effect. Phase 2 stays behind
+`SongLaunchService.LaunchInputEnabled` so it can still be A/B'd cheaply on a short run without
+re-running the decade.
+
+**Promo-single coverage hole (FIXED).** The only runtime single path that bypassed the funnel was
+`CreatePromoSingleFromAlbum` (a promo single lifted from an album cut) — it built a `new Record` with
+no material selection, so **38% of chart singles carried no `songId`** (invisible in telemetry, which
+skips song-less rows). Threaded `artist`/`label`/`year` into it and ran the same selection (pure
+stable-hash, no GD draw → album-project RNG stream unchanged). Coverage 62% → **100%** (0 of 9655
+singles missing on a 104-week run), mix unchanged. Still open (draft §15, deferred): individual
+**AlbumTrack**s carry no per-track song, so a retired album cut has no composition origin.
+
+**Validated calibration (seed 1001, 104wk, p1l).** 1960 realized mix vs owner targets: self **20.6%**
+(t22), staff **26.3%** (t30), standard **22.7%** (t20), recent-hit **16.2%** (t18), trad **14.2%**
+(t10) — all within ~5pp. Runtime releases obey the prior: launch (wk≤4) vs runtime (wk≥5) buckets are
+near-identical. TeenPop is majority-staff. Decade transition still owed (the one decade run, bundled
+with Phase 2).
+
+Original plan text follows.
+
 Add `SongMaterialSelectionService.ChooseMaterial(...)` and its candidate builders (artist-written,
 professional, standard-cover, recent-hit-cover, traditional), scored by the era/genre weight functions
 (`GetArtistWrittenEraWeight`, `GetProfessionalMaterialAvailability`, `GetCoverStandardPreference`) —
@@ -195,7 +262,15 @@ manufactured material late). Call it inside `GenerateRecordFromArtist`; apply vi
   written / professional / cover-standard share by year, #1s by source) against the design targets.
   Confirm no emergent genre is starved of material (the Scouting Phase 3 caution).
 
-### Phase 2 — Small launch familiarity input (draft §11)
+### Phase 2 — Small launch familiarity input (draft §11) — IMPLEMENTED (bundled with Phase 1)
+`Systems/SongLaunchService.cs`: bounded awareness (≤ +0.08, recent-hit > catalog > standard, originals
+0) + radio lift, pure function of release-time fields (no RNG), added in `PromoteRecordAI`
+([ChartManager.cs:787](Systems/ChartManager.cs:787)) AFTER the existing `GD.RandRange` launch draws so
+the stream is unchanged. Kill-switch `SongLaunchService.LaunchInputEnabled`. Validated on the same
+decade run as Phase 1.
+
+Original plan text follows.
+
 In `PromoteRecordAI`, add a **bounded** awareness + radio lift for familiar material via a
 `SongLaunchService` — capped (≤ ~0.08 awareness), covers/standards only, *after* the existing
 `GD.RandRange` draws. Familiar songs help *launch* awareness; they are not a weekly chart steroid. Keep

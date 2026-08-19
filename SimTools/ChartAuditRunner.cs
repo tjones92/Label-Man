@@ -124,6 +124,8 @@ public partial class ChartAuditRunner : Node {
 	private HashSet<string> previousChartIds = new();
 	private HashSet<string> previousActiveIds = new();
 	private StreamWriter recordWriter;
+	private StreamWriter songMaterialWriter;
+	private readonly HashSet<string> songMaterialSeen = new(StringComparer.Ordinal);
 	private StreamWriter weekWriter;
 	private StreamWriter lifecycleWriter;
 	private StreamWriter breakoutWriter;
@@ -1002,6 +1004,7 @@ public partial class ChartAuditRunner : Node {
 		string outputDirectory = ProjectSettings.GlobalizePath("res://SimLogs");
 		Directory.CreateDirectory(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
+		songMaterialWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-song-material.csv"));
 		weekWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-weeks.csv"));
 		lifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-lifecycles.csv"));
 		breakoutWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-breakout-funnel.csv"));
@@ -1104,6 +1107,10 @@ public partial class ChartAuditRunner : Node {
 		if (profilePerformance) performanceProfileWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-performance-profile.csv"));
 
 		recordWriter.WriteLine("week,year,recordId,title,artistId,labelId,labelTier,isPlayerOwned,genre,quality,weeksSinceRelease,weeksOnChart,currentPosition,previousPosition,unitsThisWeek,totalUnitsSold,awareness,radioHeat,wordOfMouth,momentum,saturation,chartPoints,chartCutoffPoints,distanceFrom100Cutoff,regionalBreakoutCount,neighboringMarketTestCount,crossoverCandidateStrength,peakRegionalBreakoutStrength,sustainedSalesVelocity,unmetRegionalDemand,coveredRegionCount,initialLaunchAwareness,initialLaunchStock,launchCareerState,perceivedQualityMultiplier,weeksSincePeakUnits,radioPanelShare,launchArtistRecognition,launchCulturalStanding,launchEffectiveRecognition,launchRecognitionAwarenessLift,launchRecognitionStockMultiplier,launchRecognitionRadioLift");
+		// Publishing & Cover-Song Phase 1: one row per single at first observation, joined to
+		// records.csv by recordId for songSource x chart-outcome analysis (self-written / professional /
+		// cover-standard share by year, #1s by source).
+		songMaterialWriter.WriteLine("week,year,recordId,artistId,labelId,labelTier,genre,songId,songSource,isCover,publisherId,publishingControl,compositionQuality,compositionHook,lyricQuality,songFamiliarityAtRelease,arrangementOriginality,professionalPolish,originalityAtRelease,hookStrengthAtRelease");
 		weekWriter.WriteLine("week,year,totalChartUnits,totalMarketUnits,numberOneRecordId,numberOneUnitsThisWeek,newEntriesTop100,newEntriesTop40,exitsTop100,activeRecords,newRecords,retiredRecords");
 		lifecycleWriter.WriteLine("week,recordId,title,debutPosition,peakPosition,weeksOnChart,weeksAtNumberOne,lifetimeUnitsSold,leftCensoredAtRunStart");
 		breakoutWriter.WriteLine("week,recordId,labelTier,careerState,regionId,distributionRegionCoverage,weeksSinceRelease,weekStartStock,preRestockStock,rawSales,unitsSoldThisWeek,unitsBackordered,awareBuyers,conversionRate,restockTriggered,requestedRestockAmount,restockAmount,maxCapacity,capacityCapped,breakoutScore,breakoutStage,tractionWeeks,sustainedGrowthWeeks,salesVelocity,volumeInput,velocityInput,audienceInput,mediaInput,genreFitInput,qualityInput,unmetDemandInput,discoveryVisibilityMultiplier,breakoutAwarenessGain,breakoutRadioGain,breakoutWordOfMouthGain,neighboringMarketTestStrength,breakoutSourceRegionId");
@@ -2070,6 +2077,7 @@ public partial class ChartAuditRunner : Node {
 			}
 			if (record.currentPosition == 1) state.WeeksAtNumberOne++;
 			if (!aggregateOnly) WriteRecordRow(week, date.year, record, chartCutoff);
+			if (!aggregateOnly) MaybeWriteSongMaterialRow(week, date.year, record);
 			if (!leanProbe) WriteBreakoutRows(week, record);
 		}
 
@@ -3607,6 +3615,25 @@ public partial class ChartAuditRunner : Node {
 		}));
 	}
 
+	private void MaybeWriteSongMaterialRow(int week, int year, RecordRuntimeData record) {
+		string id = record.baseRecord.recordId;
+		if (!songMaterialSeen.Add(id)) return;   // once per record, at first observation
+		Record b = record.baseRecord;
+		if (string.IsNullOrEmpty(b.songId)) return;   // records minted before the song layer
+		AILabel label = ChartManager.Instance.GetLabelById(b.labelId);
+		songMaterialWriter.WriteLine(string.Join(",", new[] {
+			week.ToString(CultureInfo.InvariantCulture),
+			year.ToString(CultureInfo.InvariantCulture),
+			Csv(b.recordId), Csv(b.artistId), Csv(b.labelId), Csv(label?.tier.ToString()),
+			Csv(b.primaryGenre.ToString()),
+			Csv(b.songId), Csv(b.songSource.ToString()), b.isCover ? "true" : "false",
+			Csv(b.publisherId), Csv(b.publishingControl.ToString()),
+			F(b.compositionQuality), F(b.compositionHook), F(b.lyricQuality),
+			F(b.songFamiliarityAtRelease), F(b.arrangementOriginality), F(b.professionalPolish),
+			F(b.originality), F(b.hookStrength)
+		}));
+	}
+
 	private void WriteLifecycleRow(int week, LifecycleState state) {
 		RecordRuntimeData record = state.Record;
 		lifecycleWriter.WriteLine(string.Join(",", new[] {
@@ -3720,6 +3747,7 @@ public partial class ChartAuditRunner : Node {
 		}
 		WriteMusicianRecognitionRows();
 		recordWriter?.Dispose();
+		songMaterialWriter?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
 		breakoutWriter?.Dispose();

@@ -18,6 +18,19 @@ public static class CompositionCatalogService {
 	private static readonly Dictionary<string, SongComposition> songs = new(StringComparer.Ordinal);
 	private static readonly Dictionary<Genre, List<SongComposition>> standardsByGenre = new();
 	private static readonly Dictionary<Genre, List<SongComposition>> catalogByGenre = new();
+	// Curated selectable pools for material selection. Kept SEPARATE from artist-originals: an
+	// original is not a cover candidate until it charts (Phase 4). Polluting these with per-release
+	// originals would drown the pre-existing material and make selection fall back to ArtistWritten,
+	// worsening over the run and corrupting the decade transition curve.
+	private static readonly Dictionary<Genre, List<SongComposition>> professionalByGenre = new();
+	private static readonly Dictionary<Genre, List<SongComposition>> traditionalByGenre = new();
+	private static readonly Dictionary<Genre, List<SongComposition>> coverableHitsByGenre = new();
+	// Family-keyed cover pools: early rock covered R&B/blues, soul covered gospel/blues, etc. Selection
+	// draws covers/standards/traditional across ADJACENT families (there are no RockAndRoll-primary
+	// standards, so a rock act must reach the Blues / R&B songbook). Keyed by GenreFamily.
+	private static readonly Dictionary<GenreFamily, List<SongComposition>> standardsByFamily = new();
+	private static readonly Dictionary<GenreFamily, List<SongComposition>> traditionalByFamily = new();
+	private static readonly Dictionary<GenreFamily, List<SongComposition>> coverableHitsByFamily = new();
 	private static readonly List<ProfessionalSongwriter> professionalWriters = new();
 	private static readonly List<MusicPublisher> publishers = new();
 	private static RandomNumberGenerator rng;
@@ -32,6 +45,12 @@ public static class CompositionCatalogService {
 		songs.Clear();
 		standardsByGenre.Clear();
 		catalogByGenre.Clear();
+		professionalByGenre.Clear();
+		traditionalByGenre.Clear();
+		coverableHitsByGenre.Clear();
+		standardsByFamily.Clear();
+		traditionalByFamily.Clear();
+		coverableHitsByFamily.Clear();
 		professionalWriters.Clear();
 		publishers.Clear();
 		songCounter = 0;
@@ -39,6 +58,7 @@ public static class CompositionCatalogService {
 			Seed = seed ^ 0x736f6e6763617461UL // "songcata" -- private stream, isolated from GD
 		};
 		GeneratePreGameStandards(startYear);
+		GeneratePreGameRecentHits(startYear);
 		GenerateProfessionalPool(labels, startYear);
 		GenerateInitialProfessionalCatalog(startYear);
 		initialized = true;
@@ -59,6 +79,52 @@ public static class CompositionCatalogService {
 		// applies to any record cut from them (the tag ids ride onto covering records' genreTagIds).
 		GenerateStandardFamily("Christmas Standard", Genre.TraditionalPop, Genre.EasyListening, 120, 1900, 1959, .66f, .90f,
 			seasonalTags: new[] { "christmas", "seasonal" });
+	}
+
+	// Recent hits from the years just before play (1955-1959): what a 1960-61 act covers as a
+	// "contemporary cover" (Pat Boone over Little Richard, etc.). Coverable, moderately familiar,
+	// non-standard (they decay). Registered as live cover candidates so CoverRecentHit is non-empty
+	// from week one; in-game hits join them via RegisterCoverableHit (Phase 4).
+	private static void GenerateRecentHitFamily(string family, Genre primary, Genre secondary, int count, int minYear, int maxYear, float meanQuality) {
+		for (int i = 0; i < count; i++) {
+			var song = new SongComposition {
+				songId = NextSongId(),
+				title = GenerateSongTitle(family),
+				primaryGenre = primary,
+				secondaryGenre = secondary,
+				originYear = rng.RandiRange(minYear, maxYear),
+				originKind = SongOriginKind.RecentHit,
+				compositionQuality = ClampNormal(meanQuality, .13f),
+				melodicStrength = ClampNormal(meanQuality, .13f),
+				lyricQuality = ClampNormal(meanQuality - .02f, .14f),
+				commercialHook = ClampNormal(meanQuality + .04f, .13f),
+				rhythmicAppeal = ClampNormal(.58f, .17f),
+				adaptability = ClampNormal(.58f, .17f),
+				originality = ClampNormal(.50f, .16f),
+				standardDurability = ClampNormal(.30f, .14f),
+				nationalFamiliarity = ClampNormal(.52f, .16f),
+				adultFamiliarity = ClampNormal(.42f, .18f),
+				teenFamiliarity = ClampNormal(.55f, .18f),
+				isStandard = false,
+				isCoverable = true
+			};
+			song.rights.controlType = PublishingControlType.ExternalPublisher;
+			song.rights.publisherId = "pre_game_publisher";
+			song.rights.publisherName = "Legacy Publisher";
+			song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.HouseCredit, writerName = "Legacy Writer", share = 1f });
+			songs[song.songId] = song;
+			RegisterCoverableHit(song);
+		}
+	}
+
+	private static void GeneratePreGameRecentHits(int startYear) {
+		int a = startYear - 5, b = startYear - 1; // 1955-1959
+		GenerateRecentHitFamily("Recent RnR Hit", Genre.RockAndRoll, Genre.RnB, 220, a, b, .62f);
+		GenerateRecentHitFamily("Recent R&B Hit", Genre.RnB, Genre.RockAndRoll, 200, a, b, .60f);
+		GenerateRecentHitFamily("Recent Pop Hit", Genre.TraditionalPop, Genre.TeenPop, 180, a, b, .60f);
+		GenerateRecentHitFamily("Recent Teen Hit", Genre.TeenPop, Genre.TraditionalPop, 160, a, b, .60f);
+		GenerateRecentHitFamily("Recent DooWop Hit", Genre.DooWop, Genre.RnB, 120, a, b, .58f);
+		GenerateRecentHitFamily("Recent Country Hit", Genre.Country, Genre.Folk, 120, a, b, .58f);
 	}
 
 	private static void GenerateStandardFamily(
@@ -327,22 +393,117 @@ public static class CompositionCatalogService {
 	public static SongComposition GetSong(string songId) =>
 		!string.IsNullOrEmpty(songId) && songs.TryGetValue(songId, out var song) ? song : null;
 
+	private static readonly List<SongComposition> emptySongs = new();
+
+	/// <summary>All catalog songs whose PRIMARY genre matches (standards, professional, and hits).</summary>
+	public static IReadOnlyList<SongComposition> GetCatalogForGenre(Genre genre) =>
+		catalogByGenre.TryGetValue(genre, out var list) ? list : emptySongs;
+
+	/// <summary>Standards (pre-game or promoted) whose primary genre matches.</summary>
+	public static IReadOnlyList<SongComposition> GetStandardsForGenre(Genre genre) =>
+		standardsByGenre.TryGetValue(genre, out var list) ? list : emptySongs;
+
+	/// <summary>Professional (office/staff) catalog songs for a genre -- curated, no artist-originals.</summary>
+	public static IReadOnlyList<SongComposition> GetProfessionalForGenre(Genre genre) =>
+		professionalByGenre.TryGetValue(genre, out var list) ? list : emptySongs;
+
+	/// <summary>Traditional / public-domain songs for a genre.</summary>
+	public static IReadOnlyList<SongComposition> GetTraditionalForGenre(Genre genre) =>
+		traditionalByGenre.TryGetValue(genre, out var list) ? list : emptySongs;
+
+	/// <summary>In-game (or catalog) hits that have become coverable for a genre (Phase 4-fed).</summary>
+	public static IReadOnlyList<SongComposition> GetCoverableHitsForGenre(Genre genre) =>
+		coverableHitsByGenre.TryGetValue(genre, out var list) ? list : emptySongs;
+
+	/// <summary>Standards belonging to a whole family (cross-genre cover source).</summary>
+	public static IReadOnlyList<SongComposition> GetStandardsForFamily(GenreFamily family) =>
+		standardsByFamily.TryGetValue(family, out var list) ? list : emptySongs;
+
+	/// <summary>Traditional / public-domain songs belonging to a whole family.</summary>
+	public static IReadOnlyList<SongComposition> GetTraditionalForFamily(GenreFamily family) =>
+		traditionalByFamily.TryGetValue(family, out var list) ? list : emptySongs;
+
+	/// <summary>Coverable hits belonging to a whole family (contemporary cross-genre covers).</summary>
+	public static IReadOnlyList<SongComposition> GetCoverableHitsForFamily(GenreFamily family) =>
+		coverableHitsByFamily.TryGetValue(family, out var list) ? list : emptySongs;
+
+	/// <summary>
+	/// Mints and registers a fresh artist-original song. Callers pass composition attributes derived
+	/// deterministically (no GD RNG) from the artist/record; the song id is stable per record so a
+	/// replay reproduces it. Used by the material-selection service's artist-written branch.
+	/// </summary>
+	public static SongComposition CreateArtistOriginal(
+		Record record, SimulatedArtist artist, AILabel label, Genre genre, int year,
+		float compositionQuality, float commercialHook, float lyricQuality, float originality
+	) {
+		var song = new SongComposition {
+			songId = $"song_orig_{record.recordId}",
+			title = record.title,
+			primaryGenre = genre,
+			secondaryGenre = record.secondaryGenre,
+			originYear = year,
+			originKind = SongOriginKind.ArtistOriginal,
+			compositionQuality = compositionQuality,
+			melodicStrength = compositionQuality,
+			lyricQuality = lyricQuality,
+			commercialHook = commercialHook,
+			rhythmicAppeal = record.danceability,
+			adaptability = Mathf.Clamp(originality * 0.6f + 0.2f, 0f, 1f),
+			originality = originality,
+			standardDurability = 0f,
+			nationalFamiliarity = 0f,
+			isStandard = false
+		};
+		if (artist.labelOwnsPublishing) {
+			song.rights.controlType = PublishingControlType.LabelAffiliate;
+			song.rights.controllerLabelId = label?.labelId;
+		} else {
+			song.rights.controlType = PublishingControlType.ArtistControlled;
+			song.rights.controllerArtistId = artist.artistId;
+		}
+		Musician writer = artist.GetMainWriter();
+		if (writer != null) {
+			song.credits.Add(new SongwriterCredit {
+				writerType = WriterEntityType.Musician, writerId = writer.personId,
+				writerName = writer.FullName, share = 1f, isArtistMember = true
+			});
+		} else {
+			song.credits.Add(new SongwriterCredit {
+				writerType = WriterEntityType.HouseCredit, writerName = artist.stageName, share = 1f
+			});
+		}
+		// Song-only registration: an artist-original is reachable by id but is NOT a selectable cover
+		// candidate. It enters coverableHitsByGenre only if it charts (Phase 4).
+		songs[song.songId] = song;
+		return song;
+	}
+
 	private static string NextSongId() => $"song_{++songCounter:D7}";
 
 	private static void Register(SongComposition song) {
 		songs[song.songId] = song;
-		if (!catalogByGenre.TryGetValue(song.primaryGenre, out var list)) {
-			list = new List<SongComposition>();
-			catalogByGenre[song.primaryGenre] = list;
-		}
+		AddToPool(catalogByGenre, song.primaryGenre, song);
+		GenreFamily fam = FamilyOf(song.primaryGenre);
+		if (song.isStandard) { AddToPool(standardsByGenre, song.primaryGenre, song); AddToPool(standardsByFamily, fam, song); }
+		if (song.originKind == SongOriginKind.ProfessionalOffice) AddToPool(professionalByGenre, song.primaryGenre, song);
+		if (song.isPublicDomain || song.isTraditional) { AddToPool(traditionalByGenre, song.primaryGenre, song); AddToPool(traditionalByFamily, fam, song); }
+	}
+
+	private static GenreFamily FamilyOf(Genre g) => GenreCatalog.TryGet(g, out var p) ? p.Family : GenreFamily.Pop;
+
+	private static void AddToPool<TKey>(Dictionary<TKey, List<SongComposition>> pool, TKey key, SongComposition song) {
+		if (!pool.TryGetValue(key, out var list)) { list = new List<SongComposition>(); pool[key] = list; }
 		list.Add(song);
-		if (song.isStandard) {
-			if (!standardsByGenre.TryGetValue(song.primaryGenre, out var standards)) {
-				standards = new List<SongComposition>();
-				standardsByGenre[song.primaryGenre] = standards;
-			}
-			standards.Add(song);
+	}
+
+	/// <summary>Marks a charted song as a live cover candidate for its genre (Phase 4 entry point).</summary>
+	public static void RegisterCoverableHit(SongComposition song) {
+		if (song == null || !song.isCoverable) return;
+		if (!coverableHitsByGenre.TryGetValue(song.primaryGenre, out var pool)) {
+			pool = new List<SongComposition>(); coverableHitsByGenre[song.primaryGenre] = pool;
 		}
+		if (!pool.Contains(song)) pool.Add(song);
+		AddToPool(coverableHitsByFamily, FamilyOf(song.primaryGenre), song);
 	}
 
 	private static string[] MergeTags(string[] existing, string[] incoming) {

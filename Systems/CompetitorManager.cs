@@ -1843,7 +1843,7 @@ public partial class CompetitorManager : Node {
 		float promoPerceivedMult = 1f;
 
 		if (plan.strategy == ReleaseStrategy.AlbumWithPromo) {
-			promo = CreatePromoSingleFromAlbum(album);
+			promo = CreatePromoSingleFromAlbum(album, artist, label, date.year);
 			gapWeeks = (int)GD.RandRange(Mathf.Min(albumDropGapWeeksMin, albumDropGapWeeksMax), Mathf.Max(albumDropGapWeeksMin, albumDropGapWeeksMax));
 			albumPerceivedMult = DrawPerceivedQualityMultiplier(album, label);
 			albumMarketingPlanned = label.GetMarketingBudget(artist) * albumPerceivedMult;
@@ -3021,10 +3021,17 @@ public partial class CompetitorManager : Node {
 			record.album.artisticMerit = ArtisticMeritService.Evaluate(record, label.productionQuality);
 		}
 
-		// Publishing & Cover-Song layer (Phase 0): attach an artist-original song to every release.
-		// Reads already-computed fields only (no RNG), so this is inert to the economy. Later phases
-		// replace this unconditional stub with real material selection (covers/standards/professional).
-		CompositionCatalogService.AttachArtistOriginal(record, artist, label, year);
+		// Publishing & Cover-Song layer: choose the release's material (artist-written / professional /
+		// cover / standard / traditional) and stamp it onto the record. Selection is a pure stable
+		// hash (never GD), so it does not perturb the RNG schedule; material now shapes hook/originality
+		// (chart-facing) but not money (settlement still keys off labelOwnsPublishing until Phase 3).
+		if (SongMaterialSelectionService.Enabled) {
+			int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			SelectedSongMaterial material = SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek);
+			SongMaterialApplicationService.Apply(record, material, label, artist);
+		} else {
+			CompositionCatalogService.AttachArtistOriginal(record, artist, label, year);
+		}
 
 		return record;
 	}
@@ -3148,7 +3155,7 @@ public partial class CompetitorManager : Node {
 		return null;
 	}
 
-	private Record CreatePromoSingleFromAlbum(Record albumRecord) {
+	private Record CreatePromoSingleFromAlbum(Record albumRecord, SimulatedArtist artist, AILabel label, int year) {
 		Album album = albumRecord.album ?? throw new System.InvalidOperationException("Promo project requires a generated album.");
 		if (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0) throw new System.InvalidOperationException("Promo project album has no eligible original track.");
 		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
@@ -3177,6 +3184,14 @@ public partial class CompetitorManager : Node {
 			productionQuality = production, danceability = dance,
 			originality = albumRecord.originality, controversy = albumRecord.controversy
 		};
+		// A promo single is a chart single like any other -- give it composition origin so it obeys the
+		// material mix (without this, ~38% of runtime singles bypassed the song layer). Selection is a
+		// pure stable hash (no GD draw), so the album-project RNG stream is unchanged.
+		if (SongMaterialSelectionService.Enabled && artist != null) {
+			int promoChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			SelectedSongMaterial promoMaterial = SongMaterialSelectionService.ChooseMaterial(label, artist, promo, promo.primaryGenre, year, promoChartWeek);
+			SongMaterialApplicationService.Apply(promo, promoMaterial, label, artist);
+		}
 		var remaining = album.nonSingleTracks.ToList();
 		remaining.RemoveAt(bestIndex);
 		var refs = album.trackRefs?.ToList() ?? new List<AlbumTrack>();
