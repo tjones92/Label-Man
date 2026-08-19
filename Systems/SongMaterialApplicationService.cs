@@ -59,4 +59,34 @@ public static class SongMaterialApplicationService {
 		// A studio-ready professional song records a touch better.
 		record.productionQuality = Mathf.Clamp(record.productionQuality + material.ProfessionalPolish * 0.035f, 0f, 1f);
 	}
+
+	/// <summary>
+	/// Stamps a chosen material's song identity onto a non-single AlbumTrack (Publishing & Cover-Song
+	/// §15: give every album cut a composition origin, so a retired track keeps its song biography).
+	/// IDENTITY ONLY -- it deliberately does NOT blend the track's quality/hook/production/danceability.
+	/// Those already drive album pooledAppeal and lead-single (promo) selection; leaving them untouched
+	/// keeps the album economy byte-identical while adding the missing song origin. The performance
+	/// blend is the released single's job -- a promo lifted off this track re-selects its own material.
+	/// </summary>
+	public static void ApplyIdentityToAlbumTrack(AlbumTrack track, SelectedSongMaterial material) {
+		if (track == null || material?.Song == null) return;
+		SongComposition song = material.Song;
+		track.songId = song.songId;
+		track.songSource = material.Source;
+		track.isCover = material.IsCover;
+		track.originalRecordId = material.OriginalRecordId;
+		track.originalArtistId = material.OriginalArtistId;
+		track.publisherId = song.rights.publisherId;
+
+		int n = song.credits.Count;
+		track.songwriterNames = new string[n];
+		for (int i = 0; i < n; i++) track.songwriterNames[i] = song.credits[i].writerName;
+
+		track.compositionQuality = song.compositionQuality;
+		track.compositionHook = song.commercialHook;
+		track.lyricQuality = song.lyricQuality;
+		track.songFamiliarityAtRelease = material.FamiliarityAtRelease;
+		track.standardDurability = song.standardDurability;
+		track.arrangementOriginality = material.ArrangementOriginality;
+	}
 }

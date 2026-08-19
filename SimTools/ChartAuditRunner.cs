@@ -1138,7 +1138,7 @@ public partial class ChartAuditRunner : Node {
 		releaseCapacityWriter.WriteLine("week,year,releaseRollsFired,successfulReleases,failedReleaseRolls,cooldownMismatchRolls,otherFailedRolls,failedRollRate,cooldownMismatchRate");
 		seasonalityMonthlyWriter.WriteLine("seed,enabled,year,month,liveWeeks,singleSalesMultiplier,albumSalesMultiplier,radioOpportunity,venueAttendanceMultiplier,recordingCostMultiplier,marketingEfficiencyMultiplier,artistAvailabilityMultiplier,singleUnits,albumUnits,singleGross,albumGross,releaseRolls,successfulReleases,singleReleases,albumProjectsScheduled,albumDrops,productionSpend,productionEvents,marketingSpend,marketingEvents,scoutingRolls,signings,meanRadioPlay");
 		albumChartWriter.WriteLine("week,year,month,chartSize,position,previousPosition,recordId,title,artistId,labelId,genre,albumFormat,unitsThisWeek,totalUnitsSold,weeksOnChart,pooledAppeal,thematicCohesion,packaging");
-		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,cohesionCeiling,statementExcellence,bodyOfWork,artisticMerit,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo");
+		albumCompositionWriter.WriteLine("week,year,recordId,artistId,genre,albumFormat,thematicCohesion,cohesionCeiling,statementExcellence,bodyOfWork,artisticMerit,pooledAppeal,trackCount,reusedSingleTracks,nonSingleTracks,compTrackShare,runtimeMinutes,packaging,isStereo,originalTracksWithSong,originalSelfWrittenShare,originalStaffShare,originalCoverShare");
 		formatMixWriter.WriteLine("period,week,year,releaseFormat,releases,releaseShare,units,unitShare,gross,revenueShare,cogs,distributionSkim,artistRoyalty,labelNet");
 		retiredTrackWriter.WriteLine("week,year,resolutionAttempts,retiredArchiveHits,unarchivedMisses,cumulativeAttempts,cumulativeRetiredArchiveHits,cumulativeUnarchivedMisses");
 		releaseStrategyWriter.WriteLine("week,year,recordId,labelId,tier,artistId,genre,rawSecondaryGenre,careerState,projectedSingleNet,projectedAlbumNet,confidenceSingle,confidenceAlbum,chosenFormat,projectId,strategy,projectedOrphanSingleNet,projectedAlbumStandaloneNet,projectedAlbumWithPromoNet,promoSingleId,bucketMeanNet,singleProductionCost,singleNetMarginPerUnit,expectedSingleUnits,albumDemandFactor,substitutionK,substitutionCap,substitutionPropensity,expectedOverlapFraction,divertedUnits,albumMarginPerUnit,cannibalizationLoss,cannibalizationCharged,expectedPromoLift,expectedPromoSingleNet,promoAdvantage,albumChoiceProbability,formatChoiceRoll,albumCapacityReroute");
@@ -3214,13 +3214,33 @@ public partial class ChartAuditRunner : Node {
 			int reused = album.trackRefs?.Length ?? 0;
 			int originals = album.nonSingleTracks?.Length ?? 0;
 			int total = reused + originals;
+			// Publishing & Cover-Song §15: album cuts now carry a composition origin. Summarize the
+			// non-single tracks' material mix so the decade run evidences it (originalTracksWithSong
+			// should equal originals) and shows the LP texture (early cover-heavy, late self-written).
+			int withSong = 0, selfWritten = 0, staff = 0, cover = 0;
+			if (album.nonSingleTracks != null) {
+				foreach (AlbumTrack t in album.nonSingleTracks) {
+					if (!string.IsNullOrEmpty(t.songId)) withSong++;
+					switch (t.songSource) {
+						case SongMaterialSource.ArtistWritten: selfWritten++; break;
+						case SongMaterialSource.ExternalProfessional:
+						case SongMaterialSource.LabelStaffWriter:
+						case SongMaterialSource.ArtistCowrittenWithProfessional: staff++; break;
+					}
+					if (t.isCover) cover++;
+				}
+			}
 			albumCompositionWriter.WriteLine(string.Join(",", new[] {
 				week.ToString(CultureInfo.InvariantCulture), date.year.ToString(CultureInfo.InvariantCulture), Csv(record.baseRecord.recordId), Csv(record.baseRecord.artistId),
 				Csv(record.baseRecord.primaryGenre.ToString()), Csv(album.albumFormat.ToString()), F(album.thematicCohesion),
 				F(album.cohesionCeiling), F(album.statementExcellence),
 				F(album.bodyOfWork), F(album.artisticMerit), F(album.pooledAppeal),
 				total.ToString(CultureInfo.InvariantCulture), reused.ToString(CultureInfo.InvariantCulture), originals.ToString(CultureInfo.InvariantCulture),
-				F(total > 0 ? (float)reused / total : 0f), F(album.runtimeMinutes), F(album.packaging), album.isStereo ? "true" : "false"
+				F(total > 0 ? (float)reused / total : 0f), F(album.runtimeMinutes), F(album.packaging), album.isStereo ? "true" : "false",
+				withSong.ToString(CultureInfo.InvariantCulture),
+				F(originals > 0 ? (float)selfWritten / originals : 0f),
+				F(originals > 0 ? (float)staff / originals : 0f),
+				F(originals > 0 ? (float)cover / originals : 0f)
 			}));
 			AlbumTrack[] trackRefs = album.trackRefs ?? Array.Empty<AlbumTrack>();
 			if (album.albumFormat == AlbumFormat.Compilation) {

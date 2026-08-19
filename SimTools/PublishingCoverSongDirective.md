@@ -240,8 +240,32 @@ singles missing on a 104-week run), mix unchanged. Still open (draft §15, defer
 **Validated calibration (seed 1001, 104wk, p1l).** 1960 realized mix vs owner targets: self **20.6%**
 (t22), staff **26.3%** (t30), standard **22.7%** (t20), recent-hit **16.2%** (t18), trad **14.2%**
 (t10) — all within ~5pp. Runtime releases obey the prior: launch (wk≤4) vs runtime (wk≥5) buckets are
-near-identical. TeenPop is majority-staff. Decade transition still owed (the one decade run, bundled
-with Phase 2).
+near-identical. TeenPop is majority-staff.
+
+**DECADE GATE — PASSED (seed 1001, 522wk, full telemetry, run `p2-decade`, 2026-08-18).** The one long
+run that gates Phases 1+2. Singles source mix by year (self / staff / standard / recent-hit / trad, %):
+1960 `20.6/26.3/22.7/16.2/14.2` → 1969 `52.8/15.9/12.5/11.8/7.0`. Self-penned material rises
+monotonically to a healthy majority; Brill/staff, standards, and traditional all decline — the intended
+transition. **Genre non-uniformity holds**: rock/folk/psych/singer-songwriter reach self-written
+majorities by 1969 (RockAndRoll 32.6%→67.2%, Folk 34.7%→55.6%, FolkRock 68.2%, GarageRock 82.8%,
+PsychedelicRock 83.3%, SingerSongwriter 73.6%), while soul/teen/bubblegum/trad-pop stay manufactured
+late (TeenPop 7.6%→31.5%, Soul 19.1%→40.0%, TraditionalPop 12.5%→17.5%, Bubblegum 19.4%). Economy stays
+healthy (singleNet flat ~7.4–8.1e7/yr, album market grows into the LP era, no mass insolvency); **no
+Established genre is starved of releases** in 1969. Genre balance is historically plausible (1960
+TeenPop/TradPop/RnB/RockAndRoll → 1965 British-Invasion rise → 1969 Soul-dominant).
+
+**Per-track album song identity — IMPLEMENTED (draft §15, the second owed item).** Fresh non-single
+album cuts (`GenerateAlbum`'s `nonSingleTracks`) now run the same pure-stable-hash material selection
+as singles, keyed on a per-track synthetic id (`{albumRecordId}_t{i}`), stamping song identity onto each
+`AlbumTrack` via `SongMaterialApplicationService.ApplyIdentityToAlbumTrack`. **Identity only** — it does
+NOT blend the track's quality/hook/production/danceability, so album `pooledAppeal` and promo-single
+selection stay byte-identical (no GD draws; RNG schedule untouched). The promo trackRef mirrors its
+lifted single's identity. New `album-composition.csv` columns (`originalTracksWithSong`,
+`originalSelfWrittenShare`, `originalStaffShare`, `originalCoverShare`) make it observable. **Verified:
+0 songId mismatches across 40,604 album rows** on the decade run — every album cut carries a composition
+origin. Album filler follows the singles transition: selfShare 0.195 (1960) → 0.526 (1969), coverShare
+0.535 → 0.314. The full `AlbumMaterialPlan` (whole-LP cohesion/lead-single-source correlation) remains
+the genuinely deferred, larger piece.
 
 Original plan text follows.
 

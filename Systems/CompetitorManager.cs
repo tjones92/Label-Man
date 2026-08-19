@@ -3011,7 +3011,7 @@ public partial class CompetitorManager : Node {
 		else if (record.primaryGenre == Genre.RockAndRoll || record.primaryGenre == Genre.GarageRock) record.danceability = Mathf.Max(record.danceability, 0.5f);
 
 		if (format == ReleaseFormat.Album) {
-			record.album = GenerateAlbum(label, artist, year);
+			record.album = GenerateAlbum(label, artist, year, record.recordId, record.secondaryGenre);
 			record.title = GenerateAlbumTitle(record, year);
 			record.hookStrength = record.album.pooledAppeal;
 			record.productionQuality = Mathf.Clamp(record.album.pooledAppeal * 0.75f + label.productionQuality * 0.25f, 0f, 1f);
@@ -3036,7 +3036,7 @@ public partial class CompetitorManager : Node {
 		return record;
 	}
 
-	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year) {
+	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year, string albumRecordId = null, Genre secondaryGenre = Genre.TraditionalPop) {
 		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		float artistTalent = artist.CalculateBaseQuality();
 		float luckyRoll = GD.Randf();
@@ -3077,6 +3077,7 @@ public partial class CompetitorManager : Node {
 		// travels from the second to the first across the decade. Scales the spread only -- the
 		// draw count is unchanged, so the RNG stream is untouched.
 		float trackSpread = AlbumModel.GetTrackSpreadMultiplier(GenreCatalog.Get(artist.primaryGenre).Family, year);
+		int albumChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
 			float trackQuality = Mathf.Clamp(artistTalent * originalMaterialScale + label.productionQuality * 0.12f
 				+ (float)GD.RandRange(-0.16 * trackSpread, 0.12 * trackSpread), 0.12f, 0.95f);
@@ -3084,13 +3085,29 @@ public partial class CompetitorManager : Node {
 			(float hook, float production, float dance) = useStructuredPromoTracks
 				? GetDeterministicTrackTraits(trackQuality, trackTitle, artist.primaryGenre)
 				: (0f, 0f, 0f);
-			nonSingleTracks.Add(new AlbumTrack {
+			var track = new AlbumTrack {
 				title = trackTitle,
 				genre = artist.primaryGenre,
 				quality = trackQuality,
 				hookStrength = hook, productionQuality = production, danceability = dance,
 				isReleasedSingle = false
-			});
+			};
+			// Publishing & Cover-Song §15: give every album cut a composition origin. Selection is the
+			// same pure stable hash as the singles path (never GD), keyed on a per-track synthetic id so
+			// tracks diverge; it stamps identity ONLY and leaves quality/hook/production/danceability
+			// untouched, so album pooledAppeal and promo-single selection are byte-identical.
+			if (SongMaterialSelectionService.Enabled && albumRecordId != null) {
+				var trackKey = new Record {
+					recordId = $"{albumRecordId}_t{nonSingleTracks.Count}",
+					primaryGenre = artist.primaryGenre, secondaryGenre = secondaryGenre, title = trackTitle,
+					hookStrength = hook, danceability = dance,
+					originality = Mathf.Clamp((artist.members.Count > 0 ? artist.members.Max(m => m.creativity) : 0.4f) * 0.7f + 0.15f, 0f, 1f)
+				};
+				SelectedSongMaterial trackMaterial = SongMaterialSelectionService.ChooseMaterial(
+					label, artist, trackKey, artist.primaryGenre, year, albumChartWeek);
+				SongMaterialApplicationService.ApplyIdentityToAlbumTrack(track, trackMaterial);
+			}
+			nonSingleTracks.Add(track);
 		}
 
 		float avgTrackMinutes = (float)GD.RandRange(2.45, year >= 1967 ? 4.10 : 3.35);
@@ -3201,7 +3218,15 @@ public partial class CompetitorManager : Node {
 			hookStrength = useStructuredPromoTracks ? hook : 0f,
 			productionQuality = useStructuredPromoTracks ? production : 0f,
 			danceability = useStructuredPromoTracks ? dance : 0f,
-			isReleasedSingle = true, peakPosition = 0
+			isReleasedSingle = true, peakPosition = 0,
+			// The promo already ran material selection; mirror its song identity onto the album trackRef
+			// so the on-album representation carries the same composition origin (§15).
+			songId = promo.songId, songSource = promo.songSource, isCover = promo.isCover,
+			originalRecordId = promo.originalRecordId, originalArtistId = promo.originalArtistId,
+			publisherId = promo.publisherId, songwriterNames = promo.songwriterNames,
+			compositionQuality = promo.compositionQuality, compositionHook = promo.compositionHook,
+			lyricQuality = promo.lyricQuality, songFamiliarityAtRelease = promo.songFamiliarityAtRelease,
+			standardDurability = promo.standardDurability, arrangementOriginality = promo.arrangementOriginality
 		});
 		album.nonSingleTracks = remaining.ToArray();
 		album.trackRefs = refs.ToArray();
