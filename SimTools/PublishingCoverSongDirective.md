@@ -303,6 +303,24 @@ In `PromoteRecordAI`, add a **bounded** awareness + radio lift for familiar mate
   but still lose to fatigue, the definitive-version shadow, and identity mismatch — verify covers are
   not auto-powerful.
 
+### Phase 3 — Publishing routing on the EXISTING reallocation (draft §12, corrected) — 3a+3b DONE (goldmine)
+
+**GOLDMINE VALIDATED — full decade run `goldmine-decade` (seed 1001, 522wk, flags `--enable-publishing-routing
+--enable-affiliate-capture`, 2026-08-19).** The publishing slice routes four ways off the composition control:
+label KEEPS own/captured; the WRITER (not the covering performer) is paid on artist-owned; covering a song
+TRANSFERS income to the in-game label that OWNS it (the goldmine); only external publishers LEAK out of game.
+Cross-label transfers bank in an order-independent pass; still a reallocation, never added to LabelNet.
+Affiliate capture (`PublishingCaptureService`, tier-scaled) lets majors keep commissioned professional
+publishing; catalog succession (`TransferCatalogControl` on bankruptcy→richest Major / acquisition→acquirer)
+keeps a dead label's catalog paying. **Results — all pass:** bankruptcies **231 vs 230** routing-off baseline
+(cross-credit+capture fully offset the leak; **0.11 holds**); all Majors net publishing collectors (net +140M,
+inversion fixed); in-game transfer stream grows **0→0.50% of gross** (0→$4.4M/yr) as the catalog builds;
+transfers conserve exactly (received==transferredOut); leak declines 5.87→2.89% as material self-writes;
+singleNet flat ~68M/yr (no erosion). Left: publisher/staff-writer P&L, named affiliate houses, catalog in
+label valuation — all their own features (see memory [[publishing-cover-song-directive]]).
+
+Original 3a/3b plan text follows.
+
 ### Phase 3 — Publishing routing on the EXISTING reallocation (draft §12, corrected) — 3a DONE, 3b BLOCKED
 `Systems/PublishingRoutingService.cs` resolves a `PublishingCounterparty` (LabelKeeps / ArtistControlled
 / ExternalPublisher / OtherLabelAffiliate / Shared) from the record's `publishingControl`. Settlement
