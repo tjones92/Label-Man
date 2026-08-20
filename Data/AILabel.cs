@@ -47,12 +47,16 @@ public partial class AILabel : Resource {
 	// deal being signed and terminated, and unlike a deal it confers no ownership on
 	// anybody. Unlike the per-song scope of a P&D contract (section 11), a wholesaler
 	// carried the label's whole line in its market, so this coverage is label-wide.
-	public readonly HashSet<string> independentDistributionRegions = new(StringComparer.Ordinal);
+	// Not readonly: the full-world save deserializes this whole (see WorldJsonContracts.FieldsOnly);
+	// System.Text.Json can't assign a readonly field. Nothing reassigns it at runtime -- only mutates contents.
+	public HashSet<string> independentDistributionRegions = new(StringComparer.Ordinal);
 	// Money a wholesale house owes but has not paid yet (handoff section 33.1 stage 3).
 	// Distributors took 90-120 day terms with full return privileges while the label had
 	// already paid to press and ship, so a hit consumed a small label's cash long before it
 	// produced any -- which is what made a major's offer attractive.
-	public readonly List<WholesaleReceivable> wholesaleReceivables = new();
+	// Not readonly: deserialized whole by the full-world save (System.Text.Json can't set a readonly field).
+	// Nothing reassigns it at runtime -- only mutates contents.
+	public List<WholesaleReceivable> wholesaleReceivables = new();
 	public float outstandingWholesaleReceivables;
 	public float lifetimeWholesaleWriteOffs;
 	

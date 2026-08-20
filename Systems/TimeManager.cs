@@ -55,6 +55,14 @@ public partial class TimeManager : Node {
 		OnDayStarted?.Invoke(currentDate);
 	}
 
+	/// <summary>Restores the clock from a save, in place. Fields only -- the load flow refreshes the UI, and
+	/// firing day/week events here would re-run settlement mid-load. The scheduled chart/Grammy calendar built
+	/// in _Ready is date-keyed and stays valid across a load.</summary>
+	public void RestoreClock(GameDate date, int hour) {
+		currentDate = date;
+		currentHour = hour;
+	}
+
 	public bool CanAffordHours(int hours, bool allowOvertime = false) {
 		int available = allowOvertime ? HoursRemainingWithOvertime : HoursRemaining;
 		return hours <= available;

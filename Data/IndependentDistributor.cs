@@ -51,7 +51,8 @@ public sealed class IndependentDistributor {
 	/// <summary>Share of units actually reported back to the label. Under-reporting was endemic.</summary>
 	public float reportingHonesty;
 
-	public readonly HashSet<string> clientLabelIds = new(StringComparer.Ordinal);
+	// Not readonly: deserialized whole by the full-world save (System.Text.Json can't set a readonly field).
+	public HashSet<string> clientLabelIds = new(StringComparer.Ordinal);
 
 	public int CurrentClientCount => clientLabelIds.Count;
 	public bool HasCapacity => clientLabelIds.Count < clientCapacity;

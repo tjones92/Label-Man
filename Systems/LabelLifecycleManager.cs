@@ -220,6 +220,40 @@ public partial class LabelLifecycleManager : Node {
 		GD.Print($"[LabelManager] Attached lifecycle to {activeLabels.Count} live labels for {startYear}");
 	}
 
+	// ========================================================================
+	// FULL-WORLD SAVE -- lifecycle bookkeeping. The label objects themselves live in the ChartManager registry
+	// (activeLabels is the very same list); here we persist only the defunct-archive membership and the clock.
+	// ========================================================================
+
+	/// <summary>Snapshots the lifecycle state: which labels are archived defunct (by id), the lifecycle clock,
+	/// and the annual founded/defunct tallies.</summary>
+	public void CaptureLifecycle(WorldSaveData w) {
+		w.DefunctLabelIds = (defunctLabels ?? new List<AILabel>())
+			.Where(l => l != null && !string.IsNullOrEmpty(l.labelId)).Select(l => l.labelId).ToList();
+		w.LifecycleYear = currentYear;
+		w.LifecycleMonth = currentMonth;
+		w.LifecycleProcessingEnabled = processingEnabled;
+		w.DefunctThisYear = DefunctThisYear;
+		w.FoundedThisYear = FoundedThisYear;
+	}
+
+	/// <summary>Rehydrates the lifecycle in place. <paramref name="allLabels"/> is the rebuilt ChartManager
+	/// registry; activeLabels is re-pointed at that same list so births/deaths keep mutating the shared object.
+	/// Defunct labels (which remain in the registry, flagged by status) are relinked by id.</summary>
+	public void RehydrateLifecycle(WorldSaveData w, List<AILabel> allLabels) {
+		activeLabels = allLabels ?? new List<AILabel>();
+		var byId = activeLabels.Where(l => l != null && !string.IsNullOrEmpty(l.labelId))
+			.GroupBy(l => l.labelId).ToDictionary(g => g.Key, g => g.First());
+		defunctLabels.Clear();
+		foreach (string id in w.DefunctLabelIds ?? new List<string>())
+			if (id != null && byId.TryGetValue(id, out AILabel label)) defunctLabels.Add(label);
+		currentYear = w.LifecycleYear;
+		currentMonth = w.LifecycleMonth;
+		processingEnabled = w.LifecycleProcessingEnabled;
+		DefunctThisYear = w.DefunctThisYear;
+		FoundedThisYear = w.FoundedThisYear;
+	}
+
 	private void OnMonthChanged(GameDate date) {
 		long profileStart = SimulationPerformanceProfiler.Begin();
 		ProcessMonth(date.year, date.month);

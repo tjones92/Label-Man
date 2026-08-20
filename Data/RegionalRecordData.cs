@@ -130,6 +130,10 @@ public class RegionalRecordData {
 	public int breakoutMaxCapacity;
 	public bool breakoutCapacityCapped;
 	
+	/// <summary>Parameterless ctor for the full-world save's deserializer (System.Text.Json). Every field is
+	/// set from the snapshot; field initializers (e.g. breakoutVisibilityMultiplier) still run.</summary>
+	public RegionalRecordData() { }
+
 	public RegionalRecordData(string regionId) {
 		this.regionId = regionId;
 		awareness = 0f;

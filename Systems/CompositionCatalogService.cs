@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 /// <summary>
@@ -638,6 +639,87 @@ public static class CompositionCatalogService {
 		}
 		if (!pool.Contains(song)) pool.Add(song);
 		AddToPool(coverableHitsByFamily, FamilyOf(song.primaryGenre), song);
+	}
+
+	// ========================================================================
+	// FULL-WORLD SAVE -- the composition catalogue. Songs/writers/publishers/ledger serialize whole; the
+	// by-genre/by-family pools and the controller-label index travel as song-id lists (they share SongComposition
+	// objects with `songs` and are not a pure function of it, so they are relinked, not rebuilt). RNG preserved.
+	// ========================================================================
+
+	public static void CaptureWorld(WorldSaveData w) {
+		var c = new CompositionSaveData {
+			Songs = new Dictionary<string, SongComposition>(songs),
+			StandardsByGenre = GenrePoolToIds(standardsByGenre),
+			CatalogByGenre = GenrePoolToIds(catalogByGenre),
+			ProfessionalByGenre = GenrePoolToIds(professionalByGenre),
+			TraditionalByGenre = GenrePoolToIds(traditionalByGenre),
+			CoverableHitsByGenre = GenrePoolToIds(coverableHitsByGenre),
+			StandardsByFamily = FamilyPoolToIds(standardsByFamily),
+			TraditionalByFamily = FamilyPoolToIds(traditionalByFamily),
+			CoverableHitsByFamily = FamilyPoolToIds(coverableHitsByFamily),
+			SongsByControllerLabel = songsByControllerLabel.ToDictionary(kv => kv.Key, kv => kv.Value.Select(s => s.songId).ToList()),
+			ProfessionalWriters = professionalWriters.ToList(),
+			Publishers = publishers.ToList(),
+			WriterLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerLedger),
+			SongCounter = songCounter
+		};
+		if (rng != null && titleRng != null) {
+			c.HasRng = true;
+			c.RngSeed = rng.Seed; c.RngState = rng.State;
+			c.TitleRngSeed = titleRng.Seed; c.TitleRngState = titleRng.State;
+		}
+		w.Composition = c;
+	}
+
+	public static void RehydrateWorld(WorldSaveData w) {
+		CompositionSaveData c = w.Composition;
+		if (c == null) return;
+
+		songs.Clear();
+		foreach (var kv in c.Songs ?? new Dictionary<string, SongComposition>()) if (kv.Value != null) songs[kv.Key] = kv.Value;
+
+		RebuildGenrePool(standardsByGenre, c.StandardsByGenre);
+		RebuildGenrePool(catalogByGenre, c.CatalogByGenre);
+		RebuildGenrePool(professionalByGenre, c.ProfessionalByGenre);
+		RebuildGenrePool(traditionalByGenre, c.TraditionalByGenre);
+		RebuildGenrePool(coverableHitsByGenre, c.CoverableHitsByGenre);
+		RebuildFamilyPool(standardsByFamily, c.StandardsByFamily);
+		RebuildFamilyPool(traditionalByFamily, c.TraditionalByFamily);
+		RebuildFamilyPool(coverableHitsByFamily, c.CoverableHitsByFamily);
+
+		songsByControllerLabel.Clear();
+		foreach (var kv in c.SongsByControllerLabel ?? new Dictionary<string, List<string>>())
+			songsByControllerLabel[kv.Key] = ResolveSongs(kv.Value);
+
+		professionalWriters.Clear(); professionalWriters.AddRange(c.ProfessionalWriters ?? new List<ProfessionalSongwriter>());
+		publishers.Clear(); publishers.AddRange(c.Publishers ?? new List<MusicPublisher>());
+		writerLedger.Clear();
+		foreach (var kv in c.WriterLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerLedger[kv.Key] = kv.Value;
+
+		songCounter = c.SongCounter;
+		if (c.HasRng) {
+			rng = new RandomNumberGenerator { Seed = c.RngSeed }; rng.State = c.RngState;
+			titleRng = new RandomNumberGenerator { Seed = c.TitleRngSeed }; titleRng.State = c.TitleRngState;
+		}
+	}
+
+	private static Dictionary<int, List<string>> GenrePoolToIds(Dictionary<Genre, List<SongComposition>> pool) =>
+		pool.ToDictionary(kv => (int)kv.Key, kv => kv.Value.Select(s => s.songId).ToList());
+	private static Dictionary<int, List<string>> FamilyPoolToIds(Dictionary<GenreFamily, List<SongComposition>> pool) =>
+		pool.ToDictionary(kv => (int)kv.Key, kv => kv.Value.Select(s => s.songId).ToList());
+	private static void RebuildGenrePool(Dictionary<Genre, List<SongComposition>> pool, Dictionary<int, List<string>> saved) {
+		pool.Clear();
+		foreach (var kv in saved ?? new Dictionary<int, List<string>>()) pool[(Genre)kv.Key] = ResolveSongs(kv.Value);
+	}
+	private static void RebuildFamilyPool(Dictionary<GenreFamily, List<SongComposition>> pool, Dictionary<int, List<string>> saved) {
+		pool.Clear();
+		foreach (var kv in saved ?? new Dictionary<int, List<string>>()) pool[(GenreFamily)kv.Key] = ResolveSongs(kv.Value);
+	}
+	private static List<SongComposition> ResolveSongs(List<string> ids) {
+		var list = new List<SongComposition>();
+		foreach (string id in ids ?? new List<string>()) if (id != null && songs.TryGetValue(id, out SongComposition s)) list.Add(s);
+		return list;
 	}
 
 	private static string[] MergeTags(string[] existing, string[] incoming) {

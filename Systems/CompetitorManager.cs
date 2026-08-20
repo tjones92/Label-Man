@@ -266,10 +266,13 @@ public partial class CompetitorManager : Node {
 	// Pool it for shrinkage, then let each label refine that baseline locally.
 	private readonly FormatRevenueMemory pooledAlbumWithPromoMemory = new();
 	private Dictionary<string, List<string>> labelActiveRecords = new Dictionary<string, List<string>>();
-	internal readonly struct LabelRecordHistoryEntry {
+	public readonly struct LabelRecordHistoryEntry {
 		public readonly int ReleaseWeek;
 		public readonly bool Charted;
 		public readonly bool Top40;
+		// [JsonConstructor] so the full-world save deserializes via this ctor -- a readonly struct otherwise
+		// round-trips through the implicit parameterless ctor and leaves the readonly fields at default.
+		[System.Text.Json.Serialization.JsonConstructor]
 		public LabelRecordHistoryEntry(int releaseWeek, bool charted, bool top40) {
 			ReleaseWeek = releaseWeek;
 			Charted = charted;
@@ -4375,6 +4378,121 @@ public partial class CompetitorManager : Node {
 	
 	public AILabel GetLabel(string labelId) => aiLabels?.FirstOrDefault(l => l.labelId == labelId);
 	public IReadOnlyList<AILabel> GetAllLabels() => aiLabels ?? (IReadOnlyList<AILabel>)System.Array.Empty<AILabel>();
+
+	// ========================================================================
+	// FULL-WORLD SAVE -- the competitor economy. Album projects and independent distributors serialize whole;
+	// their id-keyed indices and the Record object refs inside a project are relinked on load. Transient weekly
+	// telemetry (weeklyRevenueByLabelAndFormat, weeklyReleaseLifecycleByTier) is not saved -- it re-accumulates.
+	// ========================================================================
+
+	/// <summary>Snapshots the competitor economy into the world save.</summary>
+	public void CaptureEconomy(WorldSaveData w) {
+		var c = new CompetitorSaveData {
+			AlbumProjects = albumProjects.ToList(),
+			PendingAlbumProjects = pendingAlbumProjects.ToList(),
+			ProjectById = projectById.Where(kv => kv.Value?.projectId != null).ToDictionary(kv => kv.Key, kv => kv.Value.projectId),
+			ProjectByRecordId = projectByRecordId.Where(kv => kv.Value?.projectId != null).ToDictionary(kv => kv.Key, kv => kv.Value.projectId),
+			AnnualAlbumProjectsByArtist = annualAlbumProjectsByArtist
+				.Select(kv => new AnnualArtistProjectCount { ArtistId = kv.Key.ArtistId, Year = kv.Key.Year, Count = kv.Value }).ToList(),
+			LabelActiveRecords = labelActiveRecords.ToDictionary(kv => kv.Key, kv => new List<string>(kv.Value)),
+			RetiredLabelRecordHistory = retiredLabelRecordHistory.ToDictionary(kv => kv.Key, kv => new List<LabelRecordHistoryEntry>(kv.Value)),
+			IndependentDistributors = independentDistributors.ToList(),
+			IndependentDistributorsByRegion = independentDistributorsByRegion
+				.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d?.distributorId != null).Select(d => d.distributorId).ToList()),
+			CreditedLabelTop40RecordIds = creditedLabelTop40RecordIds.ToList(),
+			CreditedLabelNumberOneRecordIds = creditedLabelNumberOneRecordIds.ToList(),
+			ChartedLabelIds = chartedLabelIds.ToList(),
+			ForcedConsolidationClients = forcedConsolidationClients.ToList(),
+			LabelFinancials = new Dictionary<string, LabelFinancialHistory>(labelFinancials),
+			AnnualGenreSupplyByLabel = annualGenreSupplyByLabel
+				.ToDictionary(kv => kv.Key, kv => kv.Value.ToDictionary(g => (int)g.Key, g => g.Value)),
+			AnnualGenreSupplyGlobal = annualGenreSupplyGlobal.ToDictionary(kv => (int)kv.Key, kv => kv.Value),
+			ConsolidationAbsorptionsThisDecade = consolidationAbsorptionsThisDecade
+		};
+		w.Competitor = c;
+	}
+
+	/// <summary>Rehydrates the competitor economy in place. Runs after records + labels are restored, so the
+	/// project record refs and the shared label list relink correctly.</summary>
+	public void RehydrateEconomy(WorldSaveData w) {
+		CompetitorSaveData c = w.Competitor;
+		if (c == null) return;
+
+		// The label list is the same object ChartManager rebuilt in place; re-point defensively.
+		aiLabels = ChartManager.Instance?.GetAllLabels();
+		settlementLabelLookup = null;   // rebuilt lazily against the restored labels
+
+		albumProjects.Clear(); albumProjects.AddRange(c.AlbumProjects ?? new List<AlbumProject>());
+		pendingAlbumProjects.Clear(); pendingAlbumProjects.AddRange(c.PendingAlbumProjects ?? new List<AlbumProject>());
+
+		// A project's Record refs: relink released records to the shared allRecords object (identity); a pending
+		// project's record isn't in allRecords, so its deserialized copy stays.
+		foreach (AlbumProject project in albumProjects.Concat(pendingAlbumProjects)) RelinkProjectRecords(project);
+
+		var projectByProjectId = albumProjects.Concat(pendingAlbumProjects)
+			.Where(p => !string.IsNullOrEmpty(p.projectId))
+			.GroupBy(p => p.projectId).ToDictionary(g => g.Key, g => g.First());
+		AlbumProject ResolveProject(string projectId) =>
+			projectId != null && projectByProjectId.TryGetValue(projectId, out AlbumProject p) ? p : null;
+
+		projectById.Clear();
+		foreach (var kv in c.ProjectById ?? new Dictionary<string, string>()) { AlbumProject p = ResolveProject(kv.Value); if (p != null) projectById[kv.Key] = p; }
+		projectByRecordId.Clear();
+		foreach (var kv in c.ProjectByRecordId ?? new Dictionary<string, string>()) { AlbumProject p = ResolveProject(kv.Value); if (p != null) projectByRecordId[kv.Key] = p; }
+
+		annualAlbumProjectsByArtist.Clear();
+		foreach (AnnualArtistProjectCount e in c.AnnualAlbumProjectsByArtist ?? new List<AnnualArtistProjectCount>())
+			annualAlbumProjectsByArtist[(e.ArtistId, e.Year)] = e.Count;
+
+		labelActiveRecords = (c.LabelActiveRecords ?? new Dictionary<string, List<string>>())
+			.ToDictionary(kv => kv.Key, kv => new List<string>(kv.Value ?? new List<string>()));
+
+		retiredLabelRecordHistory.Clear();
+		foreach (var kv in c.RetiredLabelRecordHistory ?? new Dictionary<string, List<LabelRecordHistoryEntry>>())
+			retiredLabelRecordHistory[kv.Key] = new List<LabelRecordHistoryEntry>(kv.Value ?? new List<LabelRecordHistoryEntry>());
+
+		independentDistributors.Clear(); independentDistributors.AddRange(c.IndependentDistributors ?? new List<IndependentDistributor>());
+		var distributorById = independentDistributors.Where(d => !string.IsNullOrEmpty(d.distributorId))
+			.GroupBy(d => d.distributorId).ToDictionary(g => g.Key, g => g.First());
+		independentDistributorsByRegion.Clear();
+		foreach (var kv in c.IndependentDistributorsByRegion ?? new Dictionary<string, List<string>>()) {
+			var list = new List<IndependentDistributor>();
+			foreach (string id in kv.Value ?? new List<string>()) if (distributorById.TryGetValue(id, out IndependentDistributor d)) list.Add(d);
+			independentDistributorsByRegion[kv.Key] = list;
+		}
+
+		RefillSet(creditedLabelTop40RecordIds, c.CreditedLabelTop40RecordIds);
+		RefillSet(creditedLabelNumberOneRecordIds, c.CreditedLabelNumberOneRecordIds);
+		RefillSet(chartedLabelIds, c.ChartedLabelIds);
+		RefillSet(forcedConsolidationClients, c.ForcedConsolidationClients);
+
+		labelFinancials = new Dictionary<string, LabelFinancialHistory>(c.LabelFinancials ?? new Dictionary<string, LabelFinancialHistory>());
+
+		annualGenreSupplyByLabel.Clear();
+		foreach (var kv in c.AnnualGenreSupplyByLabel ?? new Dictionary<string, Dictionary<int, int>>())
+			annualGenreSupplyByLabel[kv.Key] = (kv.Value ?? new Dictionary<int, int>()).ToDictionary(g => (Genre)g.Key, g => g.Value);
+		annualGenreSupplyGlobal.Clear();
+		foreach (var kv in c.AnnualGenreSupplyGlobal ?? new Dictionary<int, int>()) annualGenreSupplyGlobal[(Genre)kv.Key] = kv.Value;
+
+		consolidationAbsorptionsThisDecade = c.ConsolidationAbsorptionsThisDecade;
+	}
+
+	private static void RelinkProjectRecords(AlbumProject project) {
+		if (project == null) return;
+		if (project.albumRecord?.recordId != null) {
+			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.albumRecord.recordId);
+			if (live?.baseRecord != null) project.albumRecord = live.baseRecord;
+		}
+		if (project.promoSingleRecord?.recordId != null) {
+			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.promoSingleRecord.recordId);
+			if (live?.baseRecord != null) project.promoSingleRecord = live.baseRecord;
+		}
+	}
+
+	private static void RefillSet(HashSet<string> target, List<string> source) {
+		target.Clear();
+		foreach (string id in source ?? new List<string>()) if (id != null) target.Add(id);
+	}
 
 	public void RegisterLabel(AILabel label) {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return;

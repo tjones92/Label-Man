@@ -1792,7 +1792,7 @@ public partial class PlayerDesk : Node {
 	}
 
 	// ========================================================================
-	// SAVE / LOAD  (complete player layer + the player's own records; the wider AI world is the full-world save)
+	// SAVE / LOAD  (the player layer -- the AI world is restored separately by WorldStateService, world-first)
 	// ========================================================================
 
 	/// <summary>
@@ -1800,9 +1800,9 @@ public partial class PlayerDesk : Node {
 	/// cash and profile, the roster (by id), the songbook and repertoire, the books and the log, PLUS the
 	/// full working state -- shelf masters, the release pipeline, pressed inventory, runs still at the
 	/// plant, trunk consignment and what towns owe, where you are, and the loss clock -- and the player's
-	/// released catalogue with its chart/regional state. The surrounding AI world (every other artist,
-	/// label, and chart) is still regenerated on load rather than restored; that is the full-world save.
-	/// See <see cref="SaveGameService"/>.
+	/// released catalogue with its chart/regional state. The surrounding AI world is restored separately by
+	/// <see cref="WorldStateService"/> (which runs first on load), so the roster and catalogue re-link
+	/// against the saved world. See <see cref="SaveGameService"/>.
 	/// </summary>
 	public PlayerSaveData CaptureState() {
 		if (Label == null) return null;
@@ -1845,11 +1845,12 @@ public partial class PlayerDesk : Node {
 	}
 
 	/// <summary>
-	/// Rebuilds the player layer from a snapshot. If a player label is already live (a same-session
-	/// load), its fields are updated in place so the registrations with ChartManager/CompetitorManager
-	/// are not duplicated; otherwise a fresh label is built and registered. Roster acts are re-linked
-	/// by id against the world currently in memory; any that no longer exist are reported and skipped
-	/// (they persist for real only once Phase 4 serializes the world itself).
+	/// Rebuilds the player layer from a snapshot. Runs after the AI world is rehydrated
+	/// (<see cref="WorldStateService"/>), so roster acts re-link against the restored world. If a player
+	/// label is already live (a same-session load), its fields are updated in place so the registrations
+	/// with ChartManager/CompetitorManager are not duplicated; otherwise a fresh label is built and
+	/// registered. A roster act that the restored world does not contain (e.g. a runtime-signed prospect)
+	/// is re-injected from the save's own copy, so the roster always comes back whole.
 	/// </summary>
 	public bool RestoreState(PlayerSaveData data, out string message) {
 		if (data?.Label == null) { message = "Nothing to load."; return false; }
@@ -1886,11 +1887,12 @@ public partial class PlayerDesk : Node {
 			label.roster.Add(artist);
 		}
 
-		if (fresh) {
-			ChartManager.Instance?.RegisterLabel(label);
-			CompetitorManager.Instance?.RegisterLabel(label);
-			Label = label;
-		}
+		if (fresh) Label = label;
+		// Always (re)register: the full-world rehydrate rebuilds the AI label list without the player's own
+		// label (the player layer owns it), so it must be put back into ChartManager/CompetitorManager on every
+		// load, not only when a fresh label object was built. RegisterLabel is idempotent.
+		ChartManager.Instance?.RegisterLabel(label);
+		CompetitorManager.Instance?.RegisterLabel(label);
 
 		songs.Clear();
 		songs.AddRange((data.Songs ?? new List<SongSaveData>()).Select(s => s.ToSong()));
@@ -1959,7 +1961,7 @@ public partial class PlayerDesk : Node {
 
 		message = missing == 0
 			? $"Loaded {label.labelName}."
-			: $"Loaded {label.labelName} -- {missing} roster act(s) not in this world (they'll return with the full-world save).";
+			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
 		Note(message);
 		Changed?.Invoke();
 		return true;

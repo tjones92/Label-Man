@@ -158,6 +158,10 @@ public class RecordRuntimeData {
 	public int weeksOfGrammyBump;
 	
 	// === CONSTRUCTOR ===
+	/// <summary>Parameterless ctor for the full-world save's deserializer (System.Text.Json). Field
+	/// initializers still run (regionalData is created); every field is then set from the snapshot.</summary>
+	public RecordRuntimeData() { }
+
 	public RecordRuntimeData(Record record) {
 		baseRecord = record;
 		releaseLabelId = record?.labelId;

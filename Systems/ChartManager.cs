@@ -51,7 +51,9 @@ public partial class ChartManager : Node {
 	}
 
 	// Runtime state
-	private int currentChartWeek;
+	private int currentChartWeek;   // read via GetCurrentChartWeek(); the full-world load restores it below
+	/// <summary>Restores the chart-week counter from a save (in place). Part of the full-world rehydrate.</summary>
+	public void RestoreChartWeek(int week) => currentChartWeek = week;
 	private bool canonicalLiveIdentitiesApplied;
 	private Zeitgeist baseZeitgeist;
 	private Dictionary<Genre, float> genreMomentum;
@@ -378,11 +380,7 @@ public partial class ChartManager : Node {
 
 		// 6b. Build the reporter-station panel. Regions already have segmentCapacities (step 5), and
 		// the audit seed is applied pre-autoload, so the roster is reproducible. Inert in Phase 1.
-		ulong stationSeed = (SimulationSeedBootstrap.RequestedSeed ?? 1UL) ^ StationSeedSalt;
-		stationNetwork = new StationNetwork(stationSeed);
-		stationNetwork.BuildRosters(allRegions, year);
-		payolaLedger = new PayolaLedger(stationNetwork, stationSeed ^ PayolaSeedSalt);
-		stationNetwork.ActivePayolaLookup = payolaLedger.ActivePayola;   // candidacy reads player bribes here
+		BuildRadioPanel(year);
 		GD.Print($"ChartManager: Station panel built -- {stationNetwork.StationCount} reporter stations across {allRegions?.Length ?? 0} regions");
 		stationNetwork.LogProjectedMix(allRegions);
 
@@ -455,6 +453,37 @@ public partial class ChartManager : Node {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
 		if (aiLabels != null && !aiLabels.Contains(label)) aiLabels.Add(label);
 		labelLookup[label.labelId] = label;
+	}
+
+	// ========================================================================
+	// FULL-WORLD SAVE -- the AI label registry (the player's own label is excluded; the player layer owns it).
+	// ========================================================================
+
+	/// <summary>Snapshots every AI label into the world save. The player's label is excluded and rebuilt by
+	/// the player layer. AILabel serializes whole via the field-only contract; the roster travels as ids.</summary>
+	public void CaptureLabels(WorldSaveData w) {
+		w.Labels = (aiLabels ?? new List<AILabel>())
+			.Where(l => l != null && !l.isPlayerOwned && !string.IsNullOrEmpty(l.labelId))
+			.Select(WorldLabelSaveData.From).ToList();
+	}
+
+	/// <summary>Rebuilds the AI label registry from the world save, <b>mutating aiLabels in place</b> so the
+	/// shared list reference held by CompetitorManager and LabelLifecycleManager stays live. Each label's
+	/// roster is relinked to the restored artist objects. The player's label is re-added later by RegisterLabel
+	/// during the player layer's restore.</summary>
+	public void RehydrateLabels(WorldSaveData w) {
+		aiLabels ??= new List<AILabel>();
+		aiLabels.Clear();
+		labelLookup.Clear();
+		foreach (WorldLabelSaveData saved in w.Labels ?? new List<WorldLabelSaveData>()) {
+			AILabel label = saved?.Label;
+			if (label == null || string.IsNullOrEmpty(label.labelId)) continue;
+			label.roster = (saved.RosterArtistIds ?? new List<string>())
+				.Select(id => ArtistManager.Instance?.GetArtist(id))
+				.Where(a => a != null).ToList();
+			aiLabels.Add(label);
+			labelLookup[label.labelId] = label;
+		}
 	}
 
 	public string GetLabelName(string labelId) {
@@ -2227,6 +2256,91 @@ public partial class ChartManager : Node {
 		foreach (RecordRuntimeData record in restored ?? Enumerable.Empty<RecordRuntimeData>())
 			if (record?.baseRecord != null) allRecords.Add(record);
 		RebuildRecordIndex();
+	}
+
+	// ========================================================================
+	// FULL-WORLD SAVE -- the AI records and the chart runtime state. Player records are excluded (the player
+	// layer owns them and re-injects via RestorePlayerRecords, which runs after this).
+	// ========================================================================
+
+	private static bool IsAiRecord(RecordRuntimeData r) => r?.baseRecord != null && !r.baseRecord.isPlayerOwned;
+
+	/// <summary>Snapshots the AI record catalogue and the chart runtime state. Records serialize whole
+	/// (baseRecord and retired AlbumTracks via the field-only contract); chart membership travels as ids.</summary>
+	public void CaptureRecords(WorldSaveData w) {
+		w.Records = allRecords.Where(IsAiRecord).ToList();
+		// Only persist record-keyed chart state whose record is in the saved catalogue -- some maps (e.g.
+		// previousChartPoints) can retain a retired record that is no longer in allRecords, which would fail to
+		// relink on load. Anchoring to the saved set keeps capture and rehydrate symmetric (byte-identical).
+		var live = new HashSet<string>(w.Records.Select(r => r.baseRecord.recordId), StringComparer.Ordinal);
+		bool Live(RecordRuntimeData r) => IsAiRecord(r) && live.Contains(r.baseRecord.recordId);
+
+		w.CurrentChartIds = currentChart.Where(Live).Select(r => r.baseRecord.recordId).ToList();
+		w.CurrentAlbumChartIds = currentAlbumChart.Where(Live).Select(r => r.baseRecord.recordId).ToList();
+		w.BubblingUnderPositions = bubblingUnderPositions.Where(kv => Live(kv.Key))
+			.ToDictionary(kv => kv.Key.baseRecord.recordId, kv => kv.Value);
+		w.AlbumBubblingUnderPositions = albumBubblingUnderPositions.Where(kv => Live(kv.Key))
+			.ToDictionary(kv => kv.Key.baseRecord.recordId, kv => kv.Value);
+		w.PreviousChartPoints = previousChartPoints.Where(kv => Live(kv.Key))
+			.ToDictionary(kv => kv.Key.baseRecord.recordId, kv => kv.Value);
+		w.GenreMomentum = (genreMomentum ?? new Dictionary<Genre, float>()).ToDictionary(kv => (int)kv.Key, kv => kv.Value);
+		w.CompUseCountByRecordId = new Dictionary<string, int>(compUseCountByRecordId);
+		w.RetiredTrackArchive = new Dictionary<string, AlbumTrack>(retiredTrackArchive);
+		w.RegionalDemandScaleById = new Dictionary<string, float>(regionalDemandScaleById);
+		w.RecordIdCounter = recordIdCounter;
+		w.CanonicalLiveIdentitiesApplied = canonicalLiveIdentitiesApplied;
+	}
+
+	/// <summary>Rebuilds the AI record catalogue and chart runtime state in place. allRecords is mutated (not
+	/// replaced); chart lists/maps relink to the rebuilt record index. Player records re-join at the next
+	/// weekly recompute; their per-record state is restored separately by the player layer.</summary>
+	/// <summary>Builds the reporter-station panel + payola ledger from the reproducible station seed for the
+	/// given year. Shared by _Ready and the full-world load.</summary>
+	private void BuildRadioPanel(int year) {
+		ulong stationSeed = (SimulationSeedBootstrap.RequestedSeed ?? 1UL) ^ StationSeedSalt;
+		stationNetwork = new StationNetwork(stationSeed);
+		stationNetwork.BuildRosters(allRegions, year);
+		payolaLedger = new PayolaLedger(stationNetwork, stationSeed ^ PayolaSeedSalt);
+		stationNetwork.ActivePayolaLookup = payolaLedger.ActivePayola;   // candidacy reads player bribes here
+	}
+
+	/// <summary>Full-world load: rebuild the reporter panel for the restored year. The panel roster is a pure
+	/// function of the (independent) station seed + year, so it reproduces exactly; its week-to-week runtime
+	/// (playlists, rapport, payola actions) resets rather than being snapshotted -- the record-level airplay
+	/// state that actually feeds the chart is restored with the records. Rebuild after the clock is restored.</summary>
+	public void RebuildRadioForLoad() => BuildRadioPanel(TimeManager.Instance?.CurrentDate.year ?? 1960);
+
+	public void RehydrateRecords(WorldSaveData w) {
+		allRecords.Clear();
+		foreach (RecordRuntimeData record in w.Records ?? new List<RecordRuntimeData>())
+			if (record?.baseRecord != null) allRecords.Add(record);
+		RebuildRecordIndex();
+
+		RecordRuntimeData Resolve(string id) => id != null && recordById.TryGetValue(id, out RecordRuntimeData r) ? r : null;
+
+		currentChart.Clear();
+		foreach (string id in w.CurrentChartIds ?? new List<string>()) { RecordRuntimeData r = Resolve(id); if (r != null) currentChart.Add(r); }
+		currentAlbumChart.Clear();
+		foreach (string id in w.CurrentAlbumChartIds ?? new List<string>()) { RecordRuntimeData r = Resolve(id); if (r != null) currentAlbumChart.Add(r); }
+
+		bubblingUnderPositions.Clear();
+		foreach (var kv in w.BubblingUnderPositions ?? new Dictionary<string, int>()) { RecordRuntimeData r = Resolve(kv.Key); if (r != null) bubblingUnderPositions[r] = kv.Value; }
+		albumBubblingUnderPositions.Clear();
+		foreach (var kv in w.AlbumBubblingUnderPositions ?? new Dictionary<string, int>()) { RecordRuntimeData r = Resolve(kv.Key); if (r != null) albumBubblingUnderPositions[r] = kv.Value; }
+		previousChartPoints.Clear();
+		foreach (var kv in w.PreviousChartPoints ?? new Dictionary<string, float>()) { RecordRuntimeData r = Resolve(kv.Key); if (r != null) previousChartPoints[r] = kv.Value; }
+
+		genreMomentum = (w.GenreMomentum ?? new Dictionary<int, float>()).ToDictionary(kv => (Genre)kv.Key, kv => kv.Value);
+		compUseCountByRecordId.Clear();
+		foreach (var kv in w.CompUseCountByRecordId ?? new Dictionary<string, int>()) compUseCountByRecordId[kv.Key] = kv.Value;
+		retiredTrackArchive.Clear();
+		foreach (var kv in w.RetiredTrackArchive ?? new Dictionary<string, AlbumTrack>()) retiredTrackArchive[kv.Key] = kv.Value;
+		regionalDemandScaleById.Clear();
+		foreach (var kv in w.RegionalDemandScaleById ?? new Dictionary<string, float>()) regionalDemandScaleById[kv.Key] = kv.Value;
+
+		recordIdCounter = w.RecordIdCounter;
+		canonicalLiveIdentitiesApplied = w.CanonicalLiveIdentitiesApplied;
+		artistHeatCacheWeek = -1;   // force the per-week artist-heat cache to recompute against the restored records
 	}
 
 	private static AlbumTrack CreateTrackSnapshot(RecordRuntimeData record) => new() {

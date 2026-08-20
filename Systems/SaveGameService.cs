@@ -5,19 +5,23 @@ using System.Text.Json;
 using Godot;
 
 /// <summary>
-/// Reads and writes a save file. Phase 1 is a scaffold: the file format is a versioned envelope
-/// with a fully-serialized <b>player layer</b> (the label, its cash and profile, the roster by id,
-/// the songbook, each act's repertoire, the books, and the log). The surrounding AI world -- every
-/// artist, label, chart, radio and publishing state -- is <b>not</b> serialized yet; that is Phase 4,
-/// and it slots into the reserved <see cref="SaveEnvelope"/> world section behind a version bump.
+/// Reads and writes a save file. The format is a versioned envelope with a fully-serialized
+/// <b>player layer</b> (the label, its cash and profile, the roster by id, the songbook, each act's
+/// repertoire, the books, the log, the desk's working state, and the player's released records) plus a
+/// <b>world layer</b> (<see cref="WorldSaveData"/>) that snapshots the surrounding AI simulation. The
+/// world layer is filled in one subsystem at a time; whatever it does not yet cover is left to the
+/// freshly generated world, which the player layer restores over.
 ///
-/// What this means in practice: a save/load within one running session restores the player layer
-/// exactly. Across a relaunch the roster re-links only against acts that still exist in the freshly
-/// generated world, so it is faithful for the player's own books but not yet for the acts. The UI
-/// says as much.
+/// Load order is world-first, player-on-top: <see cref="WorldStateService.Apply"/> rehydrates the AI
+/// world in place (over the world generated at launch), then <see cref="PlayerDesk.RestoreState"/> puts
+/// the player's label, roster, and catalogue back, re-linking against the saved world. A v1 (player-only)
+/// save carries no world section and still loads -- the generated world stands and only the player layer
+/// is restored.
 /// </summary>
 public static class SaveGameService {
-	public const int CurrentVersion = 1;
+	// v1: player layer only. v2: adds the full-world section (WorldSaveData). A v1 file loads under v2 with a
+	// null World -- the freshly generated world is left standing and the player layer restores over it.
+	public const int CurrentVersion = 2;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -26,10 +30,54 @@ public static class SaveGameService {
 		// FIELDS (not properties), so field serialization must be on. The save DTOs use properties and are
 		// unaffected. IncludeFields also picks up SimulatedArtist's nested Musician / evolution graph.
 		IncludeFields = true,
-		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+		// The full-world save serializes AILabel (a Godot Resource) whole; this contract restricts it to its
+		// own declared fields, dropping computed properties and inherited GodotObject/Resource members. Only
+		// AILabel is affected -- every other type keeps the default contract.
+		TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver {
+			Modifiers = { WorldJsonContracts.FieldsOnly }
+		}
 	};
 
+	/// <summary>The exact serializer options the save uses (including the AILabel field-only contract). Exposed
+	/// for the save round-trip probe so it serializes a <see cref="WorldSaveData"/> the same way the save does.</summary>
+	public static JsonSerializerOptions TestJsonOptions => JsonOptions;
+
 	private static string PathFor(string slot) => $"{SaveDir}/{Sanitize(slot)}.json";
+	// A tiny uncompressed sidecar so the load menu doesn't have to decompress a multi-hundred-MB body just to
+	// read the label name and date. Written next to the (gzipped) body; the body stays the source of truth.
+	private static string MetaPathFor(string slot) => $"{SaveDir}/{Sanitize(slot)}.meta";
+
+	// The body is gzip-compressed JSON (a full-world save is ~350 MB at two in-game years, >1 GB a decade, and
+	// compresses ~15-20x). Reads are magic-byte aware, so a pre-compression plain-JSON save still loads.
+	private static bool LooksGzipped(byte[] data) => data != null && data.Length >= 2 && data[0] == 0x1f && data[1] == 0x8b;
+
+	private static byte[] ReadAllBytes(string path) {
+		using Godot.FileAccess file = Godot.FileAccess.Open(path, Godot.FileAccess.ModeFlags.Read);
+		return file?.GetBuffer((long)file.GetLength());
+	}
+
+	/// <summary>The lightweight sidecar record the load menu reads per save.</summary>
+	private sealed class SaveMeta {
+		public int Version { get; set; }
+		public string SavedAtUtc { get; set; }
+		public int Year { get; set; }
+		public int Month { get; set; }
+		public int Day { get; set; }
+		public string LabelName { get; set; }
+	}
+
+	private static void WriteMeta(string slot, SaveEnvelope envelope) {
+		try {
+			var meta = new SaveMeta {
+				Version = envelope.Version, SavedAtUtc = envelope.SavedAtUtc,
+				Year = envelope.Year, Month = envelope.Month, Day = envelope.Day,
+				LabelName = envelope.Player?.Label?.labelName ?? slot
+			};
+			using Godot.FileAccess file = Godot.FileAccess.Open(MetaPathFor(slot), Godot.FileAccess.ModeFlags.Write);
+			file?.StoreString(JsonSerializer.Serialize(meta));
+		} catch { /* the meta sidecar is an optimization; ListSaves falls back to the body header */ }
+	}
 
 	private static string Sanitize(string slot) =>
 		string.IsNullOrWhiteSpace(slot) ? "quicksave"
@@ -49,24 +97,56 @@ public static class SaveGameService {
 			if (!file.EndsWith(".json")) continue;
 			string slot = file.Substring(0, file.Length - ".json".Length);
 			try {
-				using Godot.FileAccess handle = Godot.FileAccess.Open($"{SaveDir}/{file}", Godot.FileAccess.ModeFlags.Read);
-				if (handle == null) continue;
-				SaveHeader header = JsonSerializer.Deserialize<SaveHeader>(handle.GetAsText(), JsonOptions);
-				if (header == null) continue;
-				DateTime.TryParse(header.SavedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime savedAt);
-				result.Add(new SaveInfo(slot, header.Player?.Label?.labelName ?? slot,
-					new GameDate(header.Year, header.Month, header.Day), savedAt));
+				SaveMeta meta = ReadMeta(slot) ?? ReadHeaderFromBody(slot);
+				if (meta == null) continue;
+				DateTime.TryParse(meta.SavedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime savedAt);
+				result.Add(new SaveInfo(slot, meta.LabelName ?? slot, new GameDate(meta.Year, meta.Month, meta.Day), savedAt));
 			} catch { /* skip a save we can't read */ }
 		}
 		result.Sort((a, b) => b.SavedAtUtc.CompareTo(a.SavedAtUtc));
 		return result;
 	}
 
-	/// <summary>Deletes a save file. Returns false if there was nothing there.</summary>
+	/// <summary>Deletes a save file (and its meta sidecar). Returns false if there was nothing there.</summary>
 	public static bool Delete(string slot) {
 		string path = PathFor(slot);
 		if (!Godot.FileAccess.FileExists(path)) return false;
-		return DirAccess.RemoveAbsolute(path) == Error.Ok;
+		bool ok = DirAccess.RemoveAbsolute(path) == Error.Ok;
+		if (Godot.FileAccess.FileExists(MetaPathFor(slot))) DirAccess.RemoveAbsolute(MetaPathFor(slot));
+		return ok;
+	}
+
+	/// <summary>Reads the sidecar meta for a slot, or null if it isn't there.</summary>
+	private static SaveMeta ReadMeta(string slot) {
+		if (!Godot.FileAccess.FileExists(MetaPathFor(slot))) return null;
+		try {
+			using Godot.FileAccess file = Godot.FileAccess.Open(MetaPathFor(slot), Godot.FileAccess.ModeFlags.Read);
+			return file == null ? null : JsonSerializer.Deserialize<SaveMeta>(file.GetAsText());
+		} catch { return null; }
+	}
+
+	/// <summary>Fallback for a save with no sidecar: decompress the body and parse just the header fields.</summary>
+	private static SaveMeta ReadHeaderFromBody(string slot) {
+		byte[] bytes = ReadAllBytes(PathFor(slot));
+		if (bytes == null) return null;
+		string json = LooksGzipped(bytes)
+			? DecompressToString(bytes)
+			: System.Text.Encoding.UTF8.GetString(bytes);
+		SaveHeader header = JsonSerializer.Deserialize<SaveHeader>(json, JsonOptions);
+		if (header == null) return null;
+		return new SaveMeta {
+			Version = header.Version, SavedAtUtc = header.SavedAtUtc,
+			Year = header.Year, Month = header.Month, Day = header.Day,
+			LabelName = header.Player?.Label?.labelName ?? slot
+		};
+	}
+
+	private static string DecompressToString(byte[] data) {
+		using var input = new System.IO.MemoryStream(data);
+		using var gzip = new System.IO.Compression.GZipStream(input, System.IO.Compression.CompressionMode.Decompress);
+		using var output = new System.IO.MemoryStream();
+		gzip.CopyTo(output);
+		return System.Text.Encoding.UTF8.GetString(output.ToArray());
 	}
 
 	/// <summary>Just the top-level fields needed to describe a save, so the load menu doesn't build the whole
@@ -90,17 +170,27 @@ public static class SaveGameService {
 			Version = CurrentVersion,
 			SavedAtUtc = DateTime.UtcNow.ToString("o"),
 			WorldSeed = SimulationSeedBootstrap.RequestedSeed,
-			Player = PlayerDesk.Instance.CaptureState()
+			Player = PlayerDesk.Instance.CaptureState(),
+			World = WorldStateService.Capture()
 		};
 		GameDate now = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		envelope.Year = now.year; envelope.Month = now.month; envelope.Day = now.day;
 
 		try {
 			DirAccess.MakeDirRecursiveAbsolute(SaveDir);
-			string json = JsonSerializer.Serialize(envelope, JsonOptions);
-			using Godot.FileAccess file = Godot.FileAccess.Open(PathFor(slot), Godot.FileAccess.ModeFlags.Write);
-			if (file == null) { message = $"Couldn't open the save file ({Godot.FileAccess.GetOpenError()})."; return false; }
-			file.StoreString(json);
+			// Stream the envelope straight through gzip into a buffer -- never materializing the whole (huge)
+			// JSON string in memory -- then store the compressed bytes.
+			byte[] payload;
+			using (var buffer = new System.IO.MemoryStream()) {
+				using (var gzip = new System.IO.Compression.GZipStream(buffer, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+					JsonSerializer.Serialize(gzip, envelope, JsonOptions);
+				payload = buffer.ToArray();
+			}
+			using (Godot.FileAccess file = Godot.FileAccess.Open(PathFor(slot), Godot.FileAccess.ModeFlags.Write)) {
+				if (file == null) { message = $"Couldn't open the save file ({Godot.FileAccess.GetOpenError()})."; return false; }
+				file.StoreBuffer(payload);
+			}
+			WriteMeta(slot, envelope);
 		} catch (Exception error) {
 			message = $"Save failed: {error.Message}";
 			GD.PushError($"[SaveGame] {error}");
@@ -117,9 +207,15 @@ public static class SaveGameService {
 
 		SaveEnvelope envelope;
 		try {
-			using Godot.FileAccess file = Godot.FileAccess.Open(PathFor(slot), Godot.FileAccess.ModeFlags.Read);
-			if (file == null) { message = $"Couldn't open the save file ({Godot.FileAccess.GetOpenError()})."; return false; }
-			envelope = JsonSerializer.Deserialize<SaveEnvelope>(file.GetAsText(), JsonOptions);
+			byte[] bytes = ReadAllBytes(PathFor(slot));
+			if (bytes == null) { message = $"Couldn't open the save file ({Godot.FileAccess.GetOpenError()})."; return false; }
+			if (LooksGzipped(bytes)) {
+				using var input = new System.IO.MemoryStream(bytes);
+				using var gzip = new System.IO.Compression.GZipStream(input, System.IO.Compression.CompressionMode.Decompress);
+				envelope = JsonSerializer.Deserialize<SaveEnvelope>(gzip, JsonOptions);
+			} else {
+				envelope = JsonSerializer.Deserialize<SaveEnvelope>(bytes, JsonOptions);   // pre-compression plain JSON
+			}
 		} catch (Exception error) {
 			message = $"Load failed: {error.Message}";
 			GD.PushError($"[SaveGame] {error}");
@@ -128,6 +224,12 @@ public static class SaveGameService {
 		if (envelope == null) { message = "That save is unreadable."; return false; }
 		if (envelope.Version > CurrentVersion) { message = "That save is from a newer version."; return false; }
 		if (PlayerDesk.Instance == null) { message = "The desk isn't ready."; return false; }
+
+		// The world rehydrates first (in place, over the generated world), then the player layer restores on
+		// top of it -- so roster acts and the player's released records re-link against the saved world, not a
+		// fresh one. A v1 save has a null World and this is a no-op.
+		GameDate savedDate = new GameDate(envelope.Year, envelope.Month, envelope.Day);
+		WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed);
 
 		return PlayerDesk.Instance.RestoreState(envelope.Player, out message);
 	}
@@ -146,7 +248,7 @@ public sealed class SaveEnvelope {
 	public int Month { get; set; }
 	public int Day { get; set; }
 	public PlayerSaveData Player { get; set; }
-	// public WorldSaveData World { get; set; }   // Phase 4: the full mutable simulation.
+	public WorldSaveData World { get; set; }   // The full mutable simulation (v2+). Null in a v1 save.
 }
 
 public sealed class PlayerSaveData {
