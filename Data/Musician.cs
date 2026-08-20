@@ -44,6 +44,10 @@ public class Musician {
 	public float liveReputation;        // the performer's name: leads / high stagePresence
 	public float creativeReputation;    // the maker's name: writers / high creativity
 
+	// Parameterless ctor for save/load deserialization (System.Text.Json). The population always builds
+	// members through the ctor below; this exists only so a saved member can be rehydrated field-by-field.
+	public Musician() { isActive = true; }
+
 	public Musician(string id, string first, string last, bool male, int birthYear) {
 		this.personId = id;
 		this.firstName = first;

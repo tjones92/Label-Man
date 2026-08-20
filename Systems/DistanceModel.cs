@@ -85,6 +85,28 @@ public partial class DistanceModel : Node {
 	public static MarketCity GetCityById(string cityId) =>
 		!string.IsNullOrEmpty(cityId) && citiesById.TryGetValue(cityId, out MarketCity city) ? city : null;
 
+	/// <summary>
+	/// Approximate real road miles between two cities, for "how far is it to physically drive there."
+	/// Unlike <see cref="GetDistributionCostFactor"/> (deliberately near-flat -- right for AI freight,
+	/// useless here) this is real geography: true degrees are recovered from the projected coords, a
+	/// great-circle mile count is taken with the pair's own mean-latitude longitude scale (the shared
+	/// projection bakes in a single reference latitude, which distorts the northern long hauls), and a
+	/// circuity factor turns straight-line into road. Player trunk travel and its gas run off this.
+	/// </summary>
+	public static float GetRoadMilesBetween(string cityIdA, string cityIdB) {
+		MarketCity a = GetCityById(cityIdA), b = GetCityById(cityIdB);
+		if (a == null || b == null) return 0f;
+		float latA = a.mapCoords.Y / ProjectionScale, lonA = a.mapCoords.X / (ProjectionCosine * ProjectionScale);
+		float latB = b.mapCoords.Y / ProjectionScale, lonB = b.mapCoords.X / (ProjectionCosine * ProjectionScale);
+		float meanLatRad = Mathf.DegToRad((latA + latB) * 0.5f);
+		float dLat = latA - latB;
+		float dLon = (lonA - lonB) * Mathf.Cos(meanLatRad);
+		float straightMiles = MilesPerDegree * Mathf.Sqrt(dLat * dLat + dLon * dLon);
+		return straightMiles * RoadCircuity;
+	}
+	private const float MilesPerDegree = 69f;
+	private const float RoadCircuity = 1.17f; // straight-line -> real winding road, tuned to known drive times
+
 	public static MarketCity GetCityByName(string cityName) {
 		if (string.IsNullOrWhiteSpace(cityName)) return null;
 		string canonical = cityAliases.TryGetValue(cityName.Trim(), out string alias) ? alias : cityName.Trim();

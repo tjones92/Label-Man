@@ -2215,6 +2215,20 @@ public partial class ChartManager : Node {
 		foreach (RecordRuntimeData record in allRecords) recordById[record.baseRecord.recordId] = record;
 	}
 
+	/// <summary>
+	/// Save/load: swaps the player's in-world records for a restored snapshot. Every player-owned record is
+	/// dropped from the active set, the restored runtime records are added with their chart/regional state
+	/// intact, and the id index is rebuilt. AI records are untouched. On a same-session load this replaces
+	/// the live player records; on a relaunch (fresh world with none) it simply seeds them back in so the
+	/// player's catalogue keeps charting and selling from where it left off.
+	/// </summary>
+	public void RestorePlayerRecords(IEnumerable<RecordRuntimeData> restored) {
+		allRecords.RemoveAll(record => record.baseRecord != null && record.baseRecord.isPlayerOwned);
+		foreach (RecordRuntimeData record in restored ?? Enumerable.Empty<RecordRuntimeData>())
+			if (record?.baseRecord != null) allRecords.Add(record);
+		RebuildRecordIndex();
+	}
+
 	private static AlbumTrack CreateTrackSnapshot(RecordRuntimeData record) => new() {
 		sourceRecordId = record.baseRecord.recordId,
 		title = record.baseRecord.title,

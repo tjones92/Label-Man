@@ -1169,6 +1169,31 @@ public sealed class LaborMarketWeeklySnapshot {
 	
 	public SimulatedArtist GetArtist(string artistId) => artistRegistry.TryGetValue(artistId, out var artist) ? artist : null;
 
+	/// <summary>
+	/// Save/load: puts a persisted artist back into the registry so <see cref="GetArtist"/> and the record
+	/// links resolve. Used for the player's roster on a relaunch (or for a runtime-signed act that this
+	/// freshly generated world never produced). The act is signed to the player, so it's dropped from the
+	/// unsigned pool and never re-enters the AI talent market.
+	/// </summary>
+	public void RestoreArtist(SimulatedArtist artist) {
+		if (artist == null || string.IsNullOrEmpty(artist.artistId)) return;
+		artistRegistry[artist.artistId] = artist;
+		unsignedArtists.RemoveAll(candidate => candidate.artistId == artist.artistId);
+	}
+
+	/// <summary>
+	/// Drops a still-unsigned artist from the registry. Used by player A&R to clean up the prospects it
+	/// generated for a scouting slate that the player did not sign, so surfacing fresh local talent each
+	/// trip does not silently grow the population. Refuses if the act was signed (has a label) so a
+	/// signed prospect can never be pulled out from under the roster.
+	/// </summary>
+	public bool RemoveUnsignedArtist(string artistId) {
+		if (string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
+		if (!string.IsNullOrEmpty(artist.labelId)) return false;
+		artistRegistry.Remove(artistId);
+		return true;
+	}
+
 	public ArtistPublicProfile GetPublicProfile(string artistId) {
 		var artist = GetArtist(artistId);
 		if (artist == null) return null;

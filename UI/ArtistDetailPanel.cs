@@ -44,9 +44,9 @@ public partial class ArtistDetailPanel : Control
 		folder.AddThemeStyleboxOverride("panel", style);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
 		var header = new HBoxContainer(); root.AddChild(header);
-		nameLabel = new Label(); nameLabel.AddThemeFontSizeOverride("font_size", 30); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
+		nameLabel = new Label(); nameLabel.AddThemeFontSizeOverride("font_size", 30); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
 		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
-		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); root.AddChild(chromeLabel);
+		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); chromeLabel.AddThemeColorOverride("font_color", new Color("3a2c18")); root.AddChild(chromeLabel);
 		labelButton = new Button { Alignment = HorizontalAlignment.Left }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; root.AddChild(labelButton);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
@@ -157,7 +157,7 @@ public partial class ArtistDetailPanel : Control
 	}
 	private List<RecordRuntimeData> GetRecords() => ChartManager.Instance?.GetAllRecords().Where(r => r?.baseRecord?.artistId == profile.artistId).ToList() ?? new();
 	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }
-	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); content.AddChild(l); }
+	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); l.AddThemeColorOverride("font_color", new Color("2b2115")); content.AddChild(l); }
 	private static string Format(object value) { var s = value?.ToString() ?? ""; return string.Concat(s.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString())); }
 	private static void Clear(Node node) { foreach (Node child in node.GetChildren()) { node.RemoveChild(child); child.QueueFree(); } }
 }

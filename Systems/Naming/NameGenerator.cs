@@ -38,6 +38,13 @@ public partial class NameGenerator : Node {
 	// change. On its own stream it is provably inert -- nothing else draws from it.
 	private IRandom _actRng;
 
+	// A THIRD naming stream, for the pre-game catalog of legacy standards and recent-hit covers
+	// (CompositionCatalogService). Same reasoning as _actRng: those ~1,900 titles are generated once
+	// at world build, and drawing them off _rng would advance the title stream and move every album
+	// track hashed after them. On its own stream, and written into its own near-dup bucket, it is
+	// provably inert to the economy -- nothing else draws from it.
+	private IRandom _titleRng;
+
 	// Load in _EnterTree (not _Ready): later autoloads (e.g. ChartManager) generate labels during
 	// THEIR _EnterTree, which runs before this node's _Ready. Setting Instance without a loaded
 	// engine let those callers see Instance != null but _engine == null, so GenerateLabelName fell
@@ -90,6 +97,7 @@ public partial class NameGenerator : Node {
 
 		_rng = new DeterministicRandom(DeriveSeed());
 		_actRng = new DeterministicRandom(DeriveSeed() ^ 0x6163746E616D6573UL); // "actnames"
+		_titleRng = new DeterministicRandom(DeriveSeed() ^ 0x636174616C74746CUL); // "cataltl" -- pre-game catalog titles
 		var moodIssues = moods.Validate();
 		if (moodIssues.Count > 0) GD.PushWarning($"NameGenerator mood matrix: {string.Join("; ", moodIssues)}");
 		// Per-genre coherence (doc H #4): flag any resolved profile whose affinity moods are
@@ -318,6 +326,21 @@ public partial class NameGenerator : Node {
 		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
 		string bucket = "song|" + (artistKey ?? "");
 		return _engine.Generate(symbol, ctx, bucket, nearDup: false, attempts: 30);
+	}
+
+	/// <summary>
+	/// A song title for a pre-game catalog composition (legacy standard / recent-hit cover). Same
+	/// engine and routing as <see cref="GenerateSongTitle"/>, but drawn from the dedicated catalog
+	/// stream (<c>_titleRng</c>) and written into a dedicated near-dup bucket that no runtime caller
+	/// touches -- so seeding ~1,900 catalog titles at world build never advances the runtime title
+	/// stream the album-track hash reads. Returns null if the engine isn't up (headless tools without
+	/// the naming autoload), so callers can fall back.
+	/// </summary>
+	public string GenerateCatalogTitle(Genre genre, int year) {
+		if (_engine == null) return null;
+		var ctx = MakeContext(genre, year, ArtistType.Unknown, _titleRng);
+		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
+		return _engine.Generate(symbol, ctx, "song|catalog", nearDup: false, attempts: 30);
 	}
 
 	private string ChooseSongSymbol(Genre genre, int year, IRandom rng) {

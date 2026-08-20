@@ -61,6 +61,14 @@ public partial class ChartDetailPanel : Control
 		if (viewArtistButton != null) viewArtistButton.Pressed += HandleViewArtist;
 		if (viewLabelButton != null) viewLabelButton.Pressed += HandleViewLabel;
 
+		// The card is beige (scene bg 0.91,0.81,0.58) but the scene labels carry no font-color override,
+		// so they inherited the near-white default and vanished. Force dark ink on every text label; the
+		// position/movement labels set their own per-tier colours during populate, so leave those.
+		var ink = new Color("2b2115");
+		foreach (Label l in new[] { titleText, artistText, labelGenreText, releaseDateText, chartStatsText,
+			recordDescriptionText, chartCommentaryText, regionalHintText, salesSummaryText })
+			l?.AddThemeColorOverride("font_color", ink);
+
 		if (panelRoot != null) panelRoot.Visible = false;
 	}
 
@@ -124,12 +132,14 @@ public partial class ChartDetailPanel : Control
 
 				if (record.currentPosition == 1)
 					positionText.AddThemeColorOverride("font_color", numberOneColor);
+				// The card background is always light (cream/white), so the position must read dark --
+				// the old white / light-grey tiers vanished on it.
 				else if (record.currentPosition <= 10)
-					positionText.AddThemeColorOverride("font_color", Colors.White);
+					positionText.AddThemeColorOverride("font_color", new Color("2b2115"));
 				else if (record.currentPosition <= 40)
-					positionText.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.9f));
+					positionText.AddThemeColorOverride("font_color", new Color("4a3f2f"));
 				else
-					positionText.AddThemeColorOverride("font_color", new Color(0.7f, 0.7f, 0.7f));
+					positionText.AddThemeColorOverride("font_color", new Color("6b5a3a"));
 			}
 			else
 			{
@@ -271,7 +281,8 @@ public partial class ChartDetailPanel : Control
 			// Create a simple Label as a tag
 			var tagLabel = new Label();
 			tagLabel.Text = tag.ToDisplayString();
-			tagLabel.AddThemeColorOverride("font_color", Colors.White);
+			// Tags sit directly on the light card, so ink not white.
+			tagLabel.AddThemeColorOverride("font_color", new Color("2b2115"));
 			tagsContainer.AddChild(tagLabel);
 			spawnedTags.Add(tagLabel);
 		}

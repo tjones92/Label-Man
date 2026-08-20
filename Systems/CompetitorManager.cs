@@ -969,11 +969,24 @@ public partial class CompetitorManager : Node {
 			SimulationPerformanceProfiler.EndRecordLookup(lookupProfileStart);
 			if (runtimeData == null) continue;
 			
-			float weeklyUnits = entry.Units;
+			// A player record's unitsThisWeek carries its trunk units folded in for the chart (see
+			// ChartSimulator.FinalizeWeeklySales); those were already paid to the player as spot cash in
+			// PlayerDesk and must NOT be billed again here. So a player record is billed only for what
+			// actually cleared through stores -- the settlement's frozen per-region snapshot, which the
+			// trunk never touches. AI records keep entry.Units verbatim: the branch leaves their path
+			// byte-for-byte unchanged.
+			float weeklyUnits = runtimeData.baseRecord.isPlayerOwned
+				? (entry.Regions?.Sum(region => Mathf.Max(0, region.FinalCleared)) ?? 0f)
+				: entry.Units;
 			ReleaseFormat format = runtimeData.baseRecord.format;
 			float pricePerUnit = GetPricePerUnit(format);
 			float pressingCost = GetPressingCostPerUnit(format);
 			if (format == ReleaseFormat.Album) pressingCost += albumPackagingCostPerUnit * (runtimeData.baseRecord.album?.packaging ?? 0f);
+			// Player-only: the player pressed and paid for the vinyl up front when ordering the run, so
+			// no per-unit manufacturing cost is taken again at the sale. The retail price stands; a
+			// wholesale house's cut is still the region-gated skim below (the trunk keeps its own margin).
+			// Inert for AI records (never player-owned).
+			if (runtimeData.baseRecord.isPlayerOwned) pressingCost = 0f;
 			var artist = ArtistManager.Instance?.GetArtist(runtimeData.baseRecord.artistId);
 			float artistRoyalty = artist?.royaltyRate ?? 0.05f;
 			float skimFraction = GetSettlementDistributionSkimFraction(label, runtimeData, weeklyUnits,
@@ -3546,6 +3559,19 @@ public partial class CompetitorManager : Node {
 				data.unitsInStores = allocatedStock.GetValueOrDefault(region.regionId);
 		}
 
+		// The player gets no free national distribution. A player record reaches a region's shops only where
+		// the label has actually placed a wholesale line (the house presses stock there); everywhere else --
+		// the home market included -- it sells out of the trunk, town by town, settled in PlayerDesk, not by
+		// the weekly store engine. So drop the auto-seeded inventory in every region with no line. Without
+		// this the player's record was distributed nationwide like an AI release and the engine sold (and
+		// skimmed) hundreds of units the player never pressed. Inert for AI records (never player-owned).
+		if (record.isPlayerOwned) {
+			foreach (MarketRegion region in regions)
+				if (runtimeData.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)
+					&& !label.HasDistributionInRegion(region.regionId))
+					data.unitsInStores = 0;
+		}
+
 		runtimeData.initialLaunchAwareness = runtimeData.awareness;
 		runtimeData.initialLaunchStock = runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
 		runtimeData.launchCareerState = artist.careerState;
@@ -4325,7 +4351,10 @@ public partial class CompetitorManager : Node {
 		label.consecutiveLossMonths = financials.consecutiveLossMonths;
 		
 		if (label.cashReserves < bankruptcyThreshold) {
-			if (enableBankruptcy && financials.consecutiveLossMonths >= 6) {
+			// The player's own solvency/loss is owned by PlayerDesk (an overdraft credit line + a grace
+			// period), so the AI's hard-bankruptcy never fires on the player label -- it would flip them to
+			// an inactive dead state behind the game-over card. They still take the Dying/Struggling flavor.
+			if (enableBankruptcy && financials.consecutiveLossMonths >= 6 && !label.isPlayerOwned) {
 				label.status = LabelStatus.Bankrupt;
 				GD.Print($"💀 {label.labelName} has gone bankrupt!");
 				return;
@@ -4418,6 +4447,21 @@ public partial class CompetitorManager : Node {
 		float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { regionId }) ?? 0f;
 		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling,
 			label.ownedReach + (marginalShare * independentCoverageReachFactor));
+
+		// The house presses a run for this market's shops. Player records are otherwise unseeded in the
+		// store engine (they sell out of the trunk elsewhere), so without this a line placed after release
+		// would put nothing on the shelves. Seed each of the label's in-market singles now that the region
+		// is covered; the weekly engine sells and restocks from here.
+		foreach (RecordRuntimeData playerRecord in ChartManager.Instance?.GetPlayerRecords() ?? new List<RecordRuntimeData>()) {
+			if (playerRecord.baseRecord.labelId != label.labelId) continue;
+			if (!playerRecord.regionalData.TryGetValue(regionId, out RegionalRecordData data)) {
+				data = new RegionalRecordData(regionId);
+				playerRecord.regionalData[regionId] = data;
+			}
+			data.unitsInStores = ChartSimulator.CalculateInitialRegionalStock(label, regionId, 1f,
+				playerRecord.perceivedQualityMultiplier > 0f ? playerRecord.perceivedQualityMultiplier : 1f,
+				playerRecord.baseRecord.recordId);
+		}
 
 		OnIndependentDistributionSigned?.Invoke(new IndependentDistributionTelemetry {
 			week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,

@@ -47,6 +47,37 @@ public static class SongMaterialSelectionService {
 		if (c != null && c.Material?.Song != null && c.Score > 0f) list.Add(c);
 	}
 
+	/// <summary>
+	/// Builds cover material for one <b>specific</b> song, rather than sampling the source's pool. This
+	/// is the player path: an act cuts a particular number out of the set the player heard it play. The
+	/// source is inferred from the song (standard / recent hit / traditional) and the same interpretation
+	/// and arrangement helpers the AI uses shape the read, so a player cover and an AI cover are the same
+	/// object to the chart and the settlement.
+	/// </summary>
+	public static SelectedSongMaterial BuildCoverForSong(
+		SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year
+	) {
+		if (song == null) return null;
+		float familiarity = song.GetFamiliarityForYear(year);
+		float artistFit = InterpretationFit(artist, song, genre);
+		SongMaterialSource source =
+			song.isPublicDomain ? SongMaterialSource.TraditionalPublicDomain
+			: song.isTraditional ? SongMaterialSource.AdaptedTraditional
+			: song.isStandard ? SongMaterialSource.CoverStandard
+			: SongMaterialSource.CoverRecentHit;
+		int last = song.recordings.Count - 1;
+		return new SelectedSongMaterial {
+			Song = song, Source = source, IsCover = true,
+			OriginalRecordId = last >= 0 ? song.recordings[last].recordId : null,
+			OriginalArtistId = last >= 0 ? song.recordings[last].artistId : null,
+			ExpectedHook = Mathf.Clamp(song.commercialHook * 0.8f + artistFit * 0.15f, 0f, 1f),
+			ExpectedCompositionQuality = song.compositionQuality, ExpectedLyricQuality = song.lyricQuality,
+			FamiliarityAtRelease = familiarity,
+			ArrangementOriginality = ArrangementOriginality(artist, record, year, "playercover"),
+			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.6f, 0f, 1f)
+		};
+	}
+
 	// Build only the candidate for one dictated source (AlbumMaterialPlan forced-source path).
 	private static MaterialCandidate BuildForSource(
 		SongMaterialSource src, AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek

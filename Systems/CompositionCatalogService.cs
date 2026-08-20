@@ -40,6 +40,13 @@ public static class CompositionCatalogService {
 	// then pay the successor). Only artist-originals carry a song-level controller label.
 	private static readonly Dictionary<string, List<SongComposition>> songsByControllerLabel = new(StringComparer.Ordinal);
 	private static RandomNumberGenerator rng;
+	// Titles are drawn from a stream of their OWN, isolated from every stream the economy reads:
+	// not GD.Rand, not NameGenerator's naming stream, and not the trait `rng` above. Because song
+	// titles never feed a catalog song's traits (only freshly-generated album-track titles are
+	// hashed, in CompetitorManager), pulling real titles here is inert to the simulated economy --
+	// nothing that charts or settles changes -- while the player stops seeing "Recent DooWop Hit
+	// Song 4446" on the stand and on their masters.
+	private static RandomNumberGenerator titleRng;
 	private static int songCounter;
 	private static bool initialized;
 
@@ -64,6 +71,9 @@ public static class CompositionCatalogService {
 		songCounter = 0;
 		rng = new RandomNumberGenerator {
 			Seed = seed ^ 0x736f6e6763617461UL // "songcata" -- private stream, isolated from GD
+		};
+		titleRng = new RandomNumberGenerator {
+			Seed = seed ^ 0x7469746c65727364UL // "titlrsd" -- titles only, isolated from the trait stream
 		};
 		GeneratePreGameStandards(startYear);
 		GeneratePreGameRecentHits(startYear);
@@ -97,7 +107,7 @@ public static class CompositionCatalogService {
 		for (int i = 0; i < count; i++) {
 			var song = new SongComposition {
 				songId = NextSongId(),
-				title = GenerateSongTitle(family),
+				title = GenerateRealTitle(primary),
 				primaryGenre = primary,
 				secondaryGenre = secondary,
 				originYear = rng.RandiRange(minYear, maxYear),
@@ -150,7 +160,7 @@ public static class CompositionCatalogService {
 		for (int i = 0; i < count; i++) {
 			var song = new SongComposition {
 				songId = NextSongId(),
-				title = GenerateSongTitle(family),
+				title = GenerateRealTitle(primary),
 				primaryGenre = primary,
 				secondaryGenre = secondary,
 				genreTagIds = seasonalTags ?? Array.Empty<string>(),
@@ -257,7 +267,7 @@ public static class CompositionCatalogService {
 				Genre primary = pub.focusGenres.Length > 0 ? pub.focusGenres[rng.RandiRange(0, pub.focusGenres.Length - 1)] : Genre.TraditionalPop;
 				var song = new SongComposition {
 					songId = NextSongId(),
-					title = GenerateSongTitle(pub.publisherName),
+					title = GenerateRealTitle(primary),
 					primaryGenre = primary,
 					secondaryGenre = pub.focusGenres.Length > 1 ? pub.focusGenres[1] : primary,
 					originYear = startYear - rng.RandiRange(0, 3),
@@ -646,5 +656,57 @@ public static class CompositionCatalogService {
 	}
 
 	// Placeholder titling; replaced by naming v2 in a later pass.
-	private static string GenerateSongTitle(string family) => $"{family} Song {songCounter}";
+	// A period, genre-tinted 45 title. In the running game this comes from the full naming engine on
+	// its own dedicated catalog stream + bucket (NameGenerator.GenerateCatalogTitle), which is provably
+	// inert to the economy -- so these legacy songs read exactly like every runtime title. The word-bank
+	// below is only a fallback for headless tools that run the catalog without the naming autoload.
+	private static string GenerateRealTitle(Genre genre) {
+		string engineTitle = NameGenerator.Instance?.GenerateCatalogTitle(genre, 1959);
+		if (!string.IsNullOrWhiteSpace(engineTitle)) return engineTitle;
+		string style = genre switch {
+			Genre.Country or Genre.Folk or Genre.TexMex => "country",
+			Genre.RnB or Genre.Soul or Genre.Motown or Genre.Blues or Genre.Gospel or Genre.DooWop => "soul",
+			Genre.Jazz or Genre.TraditionalPop or Genre.EasyListening => "pop",
+			_ => "rock"
+		};
+		return style switch {
+			"country" => Pick(CountryTitles),
+			"soul"    => Pick(SoulTitles),
+			"pop"     => Pick(PopTitles),
+			_         => Pick(RockTitles)
+		};
+	}
+
+	// Two-part titles ("{opener} {closer}") give a few hundred plausible combinations per style off a
+	// short bank -- enough that repeats read like the era's real title churn rather than a bug.
+	private static string Pick((string[] Openers, string[] Closers) bank) =>
+		$"{bank.Openers[titleRng.RandiRange(0, bank.Openers.Length - 1)]} " +
+		$"{bank.Closers[titleRng.RandiRange(0, bank.Closers.Length - 1)]}";
+
+	private static readonly (string[] Openers, string[] Closers) PopTitles = (
+		new[] { "Moonlight", "Autumn", "Stardust", "Blue", "Sweet", "My Foolish", "The Nearness of", "Dream",
+			"Someone to", "Till", "Because of", "A Kiss to", "Stella by", "September", "Lover's", "The Song Is" },
+		new[] { "Serenade", "Leaves", "Melody", "Moon", "Lorraine", "Heart", "You", "a Little Dream", "Watch Over Me",
+			"the End of Time", "Build a Dream", "Remember", "Starlight", "in the Rain", "Reverie", "Ended" });
+
+	private static readonly (string[] Openers, string[] Closers) SoulTitles = (
+		new[] { "Since I Met", "That's the Way", "Ain't That", "I'll Be", "Rockin'", "Good Lovin'", "Baby, Don't",
+			"Do You", "Come On", "Have Mercy", "Fever for", "Trouble in", "Shake, Rattle and", "Let the Good Times",
+			"Money", "Nobody but" },
+		new[] { "You", "Love Goes", "a Shame", "Around", "Tonight", "Baby", "Leave Me", "Love Me", "Over Here",
+			"Miss Clawdy", "My Baby", "Mind", "Roll", "Roll On", "Honey", "Me" });
+
+	private static readonly (string[] Openers, string[] Closers) CountryTitles = (
+		new[] { "Lonesome", "Honky Tonk", "Your Cheatin'", "I Walk", "Wild Side of", "Six Days on",
+			"Half as", "Cold, Cold", "There Stands", "Waltz Across", "The Wild Side of", "Faded", "Ramblin'",
+			"Big River", "Green, Green Grass of", "Blue Kentucky" },
+		new[] { "Whistle", "Angel", "Heart", "the Line", "Life", "the Road", "Much", "Heart Again", "the Glass",
+			"Texas", "Love", "Love", "Man", "Rising", "Home", "Girl" });
+
+	private static readonly (string[] Openers, string[] Closers) RockTitles = (
+		new[] { "Rock Around", "Long Tall", "Splish", "Runnin'", "Twistin' the", "Summertime", "Wake Up",
+			"Whole Lotta", "Great Balls of", "Peggy", "Get a", "Rave", "Party", "Teenage", "Sea of",
+			"Somethin' Else" },
+		new[] { "the Clock", "Sally", "Splash", "Bear", "Night Away", "Blues", "Little Susie", "Shakin'",
+			"Fire", "Sue", "Job", "On", "Doll", "Heaven", "Love", "Tonight" });
 }

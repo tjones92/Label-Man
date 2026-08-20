@@ -404,6 +404,12 @@ public static class ChartSimulator {
 	}
 	
 	public static void FinalizeWeeklySales(RecordRuntimeData record, int totalSales) {
+		// The weekly engine sells a player record where a wholesale house carries it (the house presses its
+		// own stock). The player's OWN markets are worked out of the trunk and settle daily in PlayerDesk;
+		// those units are chart sales too (records sold through shops and department stores), so they are
+		// folded into this week's total here -- the single choke point. Null for AI records and any headless
+		// run with no player, so this is inert for the AI economy.
+		totalSales += PlayerDesk.Instance?.TakeWeeklyTrunkUnits(record.baseRecord.recordId) ?? 0;
 		record.unitsPreviousWeek = record.unitsThisWeek;
 		record.unitsThisWeek = totalSales;
 		record.totalUnitsSold += totalSales;
