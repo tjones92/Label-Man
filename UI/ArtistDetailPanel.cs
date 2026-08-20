@@ -12,13 +12,16 @@ public partial class ArtistDetailPanel : Control
 	private HBoxContainer tabs;
 	private VBoxContainer content;
 	private readonly List<FolderTabButton> tabButtons = new();
+	private readonly List<Action> tabPages = new();
+	private int startTabIndex;
 	private ArtistPublicProfile profile;
 	private SimulatedArtist artist;
 
 	public override void _Ready() { BuildUi(); Visible = false; }
 
-	public void ShowArtist(string artistId, bool isOwnedByPlayer = false)
+	public void ShowArtist(string artistId, bool isOwnedByPlayer = false, int startTab = 0)
 	{
+		startTabIndex = startTab;
 		artist = ArtistManager.Instance?.GetArtist(artistId);
 		profile = ArtistManager.Instance?.GetPublicProfile(artistId);
 		if (artist == null || profile == null) { GD.PushWarning($"Artist not found: {artistId}"); return; }
@@ -57,17 +60,18 @@ public partial class ArtistDetailPanel : Control
 
 	private void BuildTabs()
 	{
-		Clear(tabs); tabButtons.Clear();
+		Clear(tabs); tabButtons.Clear(); tabPages.Clear();
 		AddTab("OVERVIEW", ShowOverview); AddTab("DISCOGRAPHY", ShowDiscography); AddTab("GIGOGRAPHY", ShowGigography);
 		AddTab("AWARDS", ShowAwards); AddTab("PERSONNEL", ShowPersonnel);
 		if (artist.isPlayerOwned) AddTab("CONTRACT", ShowContract);
-		ActivateTab(0, ShowOverview);
+		int start = Mathf.Clamp(startTabIndex, 0, tabPages.Count - 1);
+		ActivateTab(start, tabPages[start]);
 	}
 
 	private void AddTab(string title, Action page)
 	{
 		var button = new FolderTabButton { Text = title, CustomMinimumSize = new Vector2(145, 42) };
-		int index = tabButtons.Count; button.Pressed += () => ActivateTab(index, page); tabs.AddChild(button); tabButtons.Add(button);
+		int index = tabButtons.Count; button.Pressed += () => ActivateTab(index, page); tabs.AddChild(button); tabButtons.Add(button); tabPages.Add(page);
 	}
 
 	private void ActivateTab(int index, Action page) { for (int i = 0; i < tabButtons.Count; i++) tabButtons[i].SetActive(i == index); Clear(content); page(); }

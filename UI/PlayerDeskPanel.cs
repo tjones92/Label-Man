@@ -636,22 +636,40 @@ public partial class PlayerDeskPanel : Control {
 		actions.AddChild(teach);
 		content.AddChild(actions);
 
-		// The act's set: their own numbers and taught covers, then anything still unrecorded you wrote.
-		var have = desk.RepertoireFor(artist.artistId);
-		if (have.Count == 0 && !desk.UnrecordedSongs.Any(s => s.ArtistId == artist.artistId))
+		// The act's set: their own numbers and taught covers, plus anything you wrote, plus covers still in
+		// rehearsal. A number they've already cut shows as recorded (linked to its record once it's out) and
+		// drops out of the studio's material list.
+		var have = desk.RepertoireFor(artist.artistId).ToList();
+		var written = desk.SongsFor(artist.artistId).ToList();
+		var rehearsing = desk.RehearsalsFor(artist.artistId).ToList();
+		if (have.Count == 0 && written.Count == 0 && rehearsing.Count == 0)
 			Body("    Nothing in the set yet.");
-		foreach (PlayerDesk.RepertoireItem item in have)
-			SongLine($"\"{item.Title}\"", item.IsOriginal ? "their own" : item.SourceTag, item.ReadHook);
-		foreach (PlayerDesk.Song song in desk.UnrecordedSongs.Where(s => s.ArtistId == artist.artistId))
-			SongLine($"\"{song.Title}\"", "their own", song.Hook);
+		foreach (PlayerDesk.RepertoireItem item in have) {
+			string tag = item.IsOriginal ? "their own" : item.SourceTag;
+			if (item.Recorded) RecordedLine(desk, $"\"{item.Title}\"", tag, item.RecordedId, artist.artistId);
+			else SongLine($"\"{item.Title}\"", tag, item.ReadHook);
+		}
+		foreach (PlayerDesk.Song song in written) {
+			if (song.Recorded) RecordedLine(desk, $"\"{song.Title}\"", "their own", song.RecordedId, artist.artistId);
+			else SongLine($"\"{song.Title}\"", "their own", song.Hook);
+		}
+		foreach (PlayerDesk.CoverRehearsal r in rehearsing)
+			RehearsingLine(r);
 
 		if (browsingCovers) CoverBrowser(desk, artist);
 	}
 
 	private void CoverBrowser(PlayerDesk desk, SimulatedArtist artist) {
 		Heading("THE CATALOG — TEACH THEM A COVER");
-		Body($"Pick a song for {artist.stageName} to work up. A rehearsal costs {PlayerDesk.TeachHours} hours, then it's " +
-			"in their set by name.");
+		// An act works up only one cover at a time; while one's in rehearsal the catalog is closed to them.
+		if (desk.IsRehearsing(artist.artistId)) {
+			Body($"{artist.stageName} is already working a cover up — let them finish it before starting another.");
+			return;
+		}
+		int days = desk.EstimateCoverLearnDays(artist);
+		Body($"Pick a song for {artist.stageName} to work up. It takes a short setup ({PlayerDesk.TeachHours}h) to start " +
+			$"them on it, then about {days} day{(days == 1 ? "" : "s")} of rehearsal — they're a quicker study the more " +
+			"capable they are — before it's in their set by name.");
 		List<PlayerDesk.MaterialChoice> covers = desk.CoverCatalogFor(artist).ToList();
 		if (covers.Count == 0) { Body("    Nothing in the catalog they don't already play."); return; }
 		foreach (PlayerDesk.MaterialChoice cover in covers) {
@@ -664,7 +682,7 @@ public partial class PlayerDeskPanel : Control {
 			text.AddThemeColorOverride("font_color", Ink);
 			row.AddChild(text);
 			string songId = cover.SongId;
-			var take = Btn($"TEACH ({PlayerDesk.TeachHours}h)");
+			var take = Btn($"TEACH (~{days}d)");
 			take.CustomMinimumSize = new Vector2(150, 36);
 			take.Pressed += () => Act(() => { PlayerDesk.Instance.TeachCover(artist, songId, out string message); Say(message); return true; });
 			row.AddChild(take);
@@ -789,6 +807,37 @@ public partial class PlayerDeskPanel : Control {
 		var text = new Label { Text = $"    ♪ {title}  ({tag}) — hook {StarBar(hook)}" };
 		text.AddThemeFontSizeOverride("font_size", 15);
 		text.AddThemeColorOverride("font_color", Ink);
+		content.AddChild(text);
+	}
+
+	/// <summary>A number the act has cut: shown with its status, and (once it's out) a link to the discography.</summary>
+	private void RecordedLine(PlayerDesk desk, string title, string tag, string recordId, string artistId) {
+		bool released = desk.IsRecordReleased(recordId);
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 12);
+		var text = new Label {
+			SizeFlagsHorizontal = SizeFlags.ExpandFill,
+			Text = $"    ♪ {title}  ({tag}) — {(released ? "RELEASED" : "cut, not out yet")}"
+		};
+		text.AddThemeFontSizeOverride("font_size", 15);
+		text.AddThemeColorOverride("font_color", Ink);
+		row.AddChild(text);
+		if (released) {
+			var view = Btn("VIEW ▸");
+			view.CustomMinimumSize = new Vector2(120, 32);
+			view.Pressed += () => UIManager.Instance?.OpenDiscography(artistId, true);
+			row.AddChild(view);
+		}
+		content.AddChild(row);
+	}
+
+	/// <summary>A cover the act is still working up (not yet in the set).</summary>
+	private void RehearsingLine(PlayerDesk.CoverRehearsal r) {
+		var text = new Label {
+			Text = $"    ♪ \"{r.Title}\"  ({r.SourceTag}) — rehearsing, ready {r.ReadyDate.ToHeadlineString()}"
+		};
+		text.AddThemeFontSizeOverride("font_size", 15);
+		text.AddThemeColorOverride("font_color", Rust);
 		content.AddChild(text);
 	}
 
@@ -1123,19 +1172,25 @@ public partial class PlayerDeskPanel : Control {
 		if (latest == null) Body("No week has settled yet. The chart settles on Fridays.");
 		else {
 			Body($"{latest.Units:N0} units sold");
-			Table(null, new[] {
+			var settlementRows = new List<string[]> {
 				new[] { "retail gross", $"${latest.Gross:N0}" },
 				new[] { "− manufacturing", $"${latest.ManufacturingCost:N0}" },
 				new[] { "− distributor's skim", $"${latest.DistributionSkim:N0}" },
 				new[] { "− artist royalty", $"${latest.ArtistRoyalty:N0}" },
 				new[] { "= earned", $"${latest.Earned:N0}" },
-				new[] { "− billed on credit", $"${latest.Deferred:N0}" },
-				new[] { "+ old invoices paid", $"${latest.Collected:N0}" },
-				new[] { "= reached the bank", $"${latest.Banked:N0}" }
-			});
+				new[] { "− billed on credit", $"${latest.Deferred:N0}" }
+			};
+			if (latest.TrunkHeld > 0f)
+				settlementRows.Add(new[] { "− held by the towns", $"${latest.TrunkHeld:N0}" });
+			settlementRows.Add(new[] { "+ old invoices paid", $"${latest.Collected:N0}" });
+			settlementRows.Add(new[] { "= reached the bank", $"${latest.Banked:N0}" });
+			Table(null, settlementRows);
 			if (latest.Deferred > 0f)
 				Body($"${latest.Deferred:N0} of what you earned this week went out on credit — " +
 					"the houses pay on their own terms.");
+			if (latest.TrunkHeld > 0f)
+				Body($"${latest.TrunkHeld:N0} is out on consignment in towns you weren't standing in — " +
+					"you collect it when you drive back.");
 		}
 
 		Heading("WHY THE MONEY IS LATE");

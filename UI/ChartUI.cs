@@ -129,8 +129,10 @@ public partial class ChartUI : Control
 		if (chartData == null)
 			chartData = ChartManager.Instance.GetCurrentChart();
 
-		if (dateHeader != null && TimeManager.Instance != null)
-			dateHeader.Text = TimeManager.Instance.CurrentDate.ToLongString();
+		// The chart is dated to the week-ending Saturday it was computed for, frozen until the next weekly
+		// recompute -- not today's date, which would tick every day the panel is reopened.
+		if (dateHeader != null && ChartManager.Instance != null)
+			dateHeader.Text = ChartManager.Instance.ChartWeekEndingDate.ToLongString();
 
 		int startIndex = currentPage * ITEMS_PER_PAGE;
 

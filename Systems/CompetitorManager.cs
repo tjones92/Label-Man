@@ -4407,7 +4407,11 @@ public partial class CompetitorManager : Node {
 			AnnualGenreSupplyByLabel = annualGenreSupplyByLabel
 				.ToDictionary(kv => kv.Key, kv => kv.Value.ToDictionary(g => (int)g.Key, g => g.Value)),
 			AnnualGenreSupplyGlobal = annualGenreSupplyGlobal.ToDictionary(kv => (int)kv.Key, kv => kv.Value),
-			ConsolidationAbsorptionsThisDecade = consolidationAbsorptionsThisDecade
+			ConsolidationAbsorptionsThisDecade = consolidationAbsorptionsThisDecade,
+			LastBookedSettlementId = lastBookedSettlementId,
+			PipelineWeek = pipelineWeek,
+			GenreSupplyYear = genreSupplyYear,
+			GeneratedRecordCounter = generatedRecordCounter
 		};
 		w.Competitor = c;
 	}
@@ -4475,6 +4479,26 @@ public partial class CompetitorManager : Node {
 		foreach (var kv in c.AnnualGenreSupplyGlobal ?? new Dictionary<int, int>()) annualGenreSupplyGlobal[(Genre)kv.Key] = kv.Value;
 
 		consolidationAbsorptionsThisDecade = c.ConsolidationAbsorptionsThisDecade;
+		// These counters advance in lockstep with the chart week, so a pre-fix save (which never stored them)
+		// can recover from w.ChartWeek rather than crash on the next settlement / stall its in-flight drops.
+		lastBookedSettlementId = c.LastBookedSettlementId > 0 ? c.LastBookedSettlementId : w.ChartWeek;
+		pipelineWeek = c.PipelineWeek > 0 ? c.PipelineWeek : w.ChartWeek;
+		genreSupplyYear = c.GenreSupplyYear;
+		// A pre-fix save never stored this, so fall back to the highest restored "gen_N" id + 1 to guarantee the
+		// next mint can't collide with an existing record (which would crash the following Save).
+		generatedRecordCounter = c.GeneratedRecordCounter > 0 ? c.GeneratedRecordCounter : HighestGeneratedRecordId(w);
+	}
+
+	/// <summary>Highest N across restored "gen_N" record ids (0 if none), used as a pre-fix-save fallback for
+	/// <see cref="generatedRecordCounter"/>.</summary>
+	private static int HighestGeneratedRecordId(WorldSaveData w) {
+		int highest = 0;
+		foreach (RecordRuntimeData record in w.Records ?? new List<RecordRuntimeData>()) {
+			string id = record?.baseRecord?.recordId;
+			if (id != null && id.StartsWith("gen_", System.StringComparison.Ordinal) &&
+				int.TryParse(id.Substring(4), out int n) && n > highest) highest = n;
+		}
+		return highest;
 	}
 
 	private static void RelinkProjectRecords(AlbumProject project) {

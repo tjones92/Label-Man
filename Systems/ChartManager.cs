@@ -54,6 +54,14 @@ public partial class ChartManager : Node {
 	private int currentChartWeek;   // read via GetCurrentChartWeek(); the full-world load restores it below
 	/// <summary>Restores the chart-week counter from a save (in place). Part of the full-world rehydrate.</summary>
 	public void RestoreChartWeek(int week) => currentChartWeek = week;
+
+	// The Saturday that closes the currently-displayed chart week. Billboard-style: the chart is computed at the
+	// Friday day-end (OnWeekEnded), but it is dated to the week-ending Saturday and stays fixed until the next
+	// weekly recompute -- so the "for week ending" header never ticks day-to-day.
+	private GameDate chartWeekEndingDate;
+	public GameDate ChartWeekEndingDate => chartWeekEndingDate;
+	/// <summary>Restores the displayed week-ending date from a save (in place).</summary>
+	public void RestoreChartWeekEndingDate(GameDate date) => chartWeekEndingDate = date;
 	private bool canonicalLiveIdentitiesApplied;
 	private Zeitgeist baseZeitgeist;
 	private Dictionary<Genre, float> genreMomentum;
@@ -390,6 +398,11 @@ public partial class ChartManager : Node {
 		PrewarmSimulation();
 		GD.Print($"Records after prewarm: {allRecords.Count}");
 		GD.Print($"Chart size: {currentChart.Count}");
+
+		// The prewarmed launch chart is dated to the first week-ending Saturday so the header is valid before the
+		// first live Friday settlement. A load overwrites this via RestoreChartWeekEndingDate.
+		GameDate start = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		chartWeekEndingDate = start.AddDays(start.DaysUntil(System.DayOfWeek.Saturday));
 	}
 
 	public override void _ExitTree() {
@@ -599,6 +612,8 @@ public partial class ChartManager : Node {
 
 	private void OnWeekEnded(GameDate date) {
 		currentChartWeek++;
+		// Fired on the Friday day-end; the chart it produces is dated to the week-ending Saturday.
+		chartWeekEndingDate = date.AddDays(1);
 		ApplyCanonicalLiveIdentities(date.year);
 		foreach (var region in allRegions) region.SetGenreMarketV2Live(true);
 
@@ -1433,6 +1448,13 @@ public partial class ChartManager : Node {
 			foreach (var region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out var data)) continue;
 				bool isCovered = label.HasDistributionInRegionForRecord(region.regionId, record.baseRecord?.recordId);
+
+				// A player record reaches a region's shops only where the label placed a wholesale line (covered);
+				// everywhere else it sells out of the trunk, settled in PlayerDesk, not the store engine. The
+				// rack-jobber restock below would otherwise refill an uncovered region's shelves once the record
+				// proved out on the chart -- reintroducing the phantom national sales (and distributor skim) that
+				// the release-time seed guard removes. Inert for AI records (never player-owned).
+				if (record.baseRecord.isPlayerOwned && !isCovered) continue;
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,

@@ -29,6 +29,11 @@ public sealed class WorldSaveData {
 	// --- Clock (Phase 0) ---
 	public int ChartWeek { get; set; }
 	public int Hour { get; set; }
+	// The Saturday the currently-displayed chart is dated to (frozen "for week ending" header). Stored as ints
+	// because GameDate isn't a save DTO type; 0 = pre-fix save, recovered from the calendar on load.
+	public int ChartWeekEndingYear { get; set; }
+	public int ChartWeekEndingMonth { get; set; }
+	public int ChartWeekEndingDay { get; set; }
 
 	// --- Artists & musicians (Phase 1) ---
 	// Whole SimulatedArtist objects (each carries its Musician members inline); musicianRegistry is rebuilt
@@ -145,6 +150,16 @@ public sealed class CompetitorSaveData {
 	public Dictionary<string, Dictionary<int, int>> AnnualGenreSupplyByLabel { get; set; } = new(); // labelId -> (Genre int -> count)
 	public Dictionary<int, int> AnnualGenreSupplyGlobal { get; set; } = new();                      // Genre int -> count
 	public int ConsolidationAbsorptionsThisDecade { get; set; }
+	// Weekly/annual counters that gate the frozen settlement handshake, album-project drop scheduling, and the
+	// annual genre-supply reset. Not restoring these desyncs on load: lastBookedSettlementId=0 rejects the next
+	// settlement (crash), pipelineWeek=0 stalls in-flight drops, and genreSupplyYear=MinValue wipes the restored
+	// annual supply dictionaries on the first post-load supply decision.
+	public int LastBookedSettlementId { get; set; }
+	public int PipelineWeek { get; set; }
+	public int GenreSupplyYear { get; set; }
+	// Mints every AI "gen_N"/"album_N" id. Not restoring it resets the counter to 0 on load, so newly-generated
+	// AI records collide with restored ids and the next Save's record ToDictionary throws on the duplicate.
+	public int GeneratedRecordCounter { get; set; }
 }
 
 /// <summary>One entry of the (artistId, year) -> project-count map, flattened for JSON (tuple keys don't
@@ -203,9 +218,13 @@ public static class WorldJsonContracts {
 public static class WorldStateService {
 	/// <summary>Snapshots the live AI world into a serializable DTO. Null-safe if a subsystem isn't ready.</summary>
 	public static WorldSaveData Capture() {
+		GameDate ending = ChartManager.Instance?.ChartWeekEndingDate ?? default;
 		var world = new WorldSaveData {
 			ChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
-			Hour = TimeManager.Instance?.CurrentHour ?? 0
+			Hour = TimeManager.Instance?.CurrentHour ?? 0,
+			ChartWeekEndingYear = ending.year,
+			ChartWeekEndingMonth = ending.month,
+			ChartWeekEndingDay = ending.day
 		};
 		ArtistManager.Instance?.CaptureWorld(world);
 		ChartManager.Instance?.CaptureLabels(world);
@@ -233,6 +252,12 @@ public static class WorldStateService {
 		RosterManager.Instance?.RehydrateCaches(world);
 		CompositionCatalogService.RehydrateWorld(world);
 		ChartManager.Instance?.RestoreChartWeek(world.ChartWeek);
+		// Restore the frozen "for week ending" date. A pre-fix save (year 0) never stored it, so recover the most
+		// recent week-ending Saturday from the restored calendar date.
+		GameDate ending = world.ChartWeekEndingYear > 0
+			? new GameDate(world.ChartWeekEndingYear, world.ChartWeekEndingMonth, world.ChartWeekEndingDay)
+			: date.AddDays(-((7 + (int)date.DayOfWeek - (int)System.DayOfWeek.Saturday) % 7));
+		ChartManager.Instance?.RestoreChartWeekEndingDate(ending);
 		ChartManager.Instance?.RebuildRadioForLoad();   // reporter panel is seed-reproducible; rebuild for the restored year
 
 		// Reseed the global RNG deterministically so repeated loads of this save continue identically.

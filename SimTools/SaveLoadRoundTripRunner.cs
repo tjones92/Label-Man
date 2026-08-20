@@ -145,8 +145,20 @@ public partial class SaveLoadRoundTripRunner : Node {
 			string playerName1 = PlayerDesk.Instance.Label?.labelName;
 			float playerCash1 = PlayerDesk.Instance.Label?.cashReserves ?? float.NaN;
 
+			// Advance one week past the load. This is the exact path that regressed: the post-load settlement
+			// rejects as out-of-order if CompetitorManager's lastBookedSettlementId wasn't restored in step with
+			// the chart week. A throw here surfaces via the outer catch as SAVELOAD_INTEGRATION_ERROR.
+			AdvanceOneChartWeek();
+			int week2 = ChartManager.Instance.GetCurrentChartWeek();
+
+			// Re-save after the post-load week. New AI records minted this week collide with restored ids and the
+			// record-capture ToDictionary throws unless generatedRecordCounter was restored -- the exact overwrite
+			// path that regressed. A throw surfaces via the outer catch as SAVELOAD_INTEGRATION_ERROR.
+			if (!SaveGameService.Save(slot, out string resaveMsg)) { GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=resave:{resaveMsg}"); GetTree().Quit(1); return; }
+
 			var fails = new System.Collections.Generic.List<string>();
 			if (week1 != week0) fails.Add($"week {week0}->{week1} (perturbed {weekPerturbed})");
+			if (week2 != week1 + 1) fails.Add($"postLoadWeek {week1}->{week2} (expected +1)");
 			if (labels1 != labels0) fails.Add($"labels {labels0}->{labels1}");
 			if (artists1 != artists0) fails.Add($"artists {artists0}->{artists1}");
 			if (Math.Abs(sampleCash1 - sampleCash0) > 0.01f) fails.Add($"aiLabelCash {sampleCash0}->{sampleCash1}");

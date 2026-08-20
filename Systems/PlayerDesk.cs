@@ -25,7 +25,12 @@ public partial class PlayerDesk : Node {
 	public const int WriteHours = ActionCosts.Songwriting;          // 4 -- a writing session
 	public const int DistributionHours = ActionCosts.RegionalTravel;// 4 -- travel and pitch a house
 	public const int ScheduleHours = ActionCosts.Planning;          // 2 -- booking the release
-	public const int TeachHours = ActionCosts.QuickMeeting;         // 2 -- running a cover a few times
+	public const int TeachHours = ActionCosts.QuickMeeting;         // 2 -- sitting the act down to start a cover
+	// A cover is now worked up over several days, not learned on the spot: teaching costs a short setup at the
+	// desk (TeachHours) and then the act rehearses on its own for this many days -- fewer the more capable the
+	// act, scaled by musicianship/cohesion/studio craft in EstimateCoverLearnDays.
+	public const int MinCoverLearnDays = 3;
+	public const int MaxCoverLearnDays = 14;
 
 	// Working a town out of the trunk is, first, the drive to get there -- one-way hours off REAL road
 	// miles at a period highway average. A far adjacent town can outrun a single day; that's the seam the
@@ -55,6 +60,25 @@ public partial class PlayerDesk : Node {
 		public Genre Genre;
 		public float ReadHook;
 		public float ReadQuality;
+		/// <summary>Once the act has cut this number, it's spent -- dropped from the studio's material list and
+		/// shown in the set as recorded, linked to its record. <see cref="RecordedId"/> is the player record.</summary>
+		public bool Recorded;
+		public string RecordedId;
+	}
+
+	/// <summary>A cover the act is working up but doesn't have yet. Started by <see cref="TeachCover"/>; the act
+	/// rehearses it on its own over several days (faster the more capable they are) and it lands in their
+	/// repertoire on <see cref="ReadyDate"/> -- see <see cref="ProcessCoverRehearsals"/>. One per act at a time.</summary>
+	public sealed class CoverRehearsal {
+		public string ArtistId;
+		public string SongId;
+		public string Title;
+		public string SourceTag;
+		public Genre Genre;
+		public float ReadHook;
+		public float ReadQuality;
+		public GameDate Started;
+		public GameDate ReadyDate;
 	}
 
 	/// <summary>One act the player looked at on a scouting trip, as the player sees them.</summary>
@@ -85,6 +109,7 @@ public partial class PlayerDesk : Node {
 		public float Hook, Originality, Danceability;
 		public GameDate Written;
 		public bool Recorded;
+		public string RecordedId;   // the player record it was cut to, once recorded
 	}
 
 	/// <summary>What a session is cutting -- where the material comes from.</summary>
@@ -181,6 +206,7 @@ public partial class PlayerDesk : Node {
 		public long Units;
 		public float Gross, ManufacturingCost, DistributionSkim, ArtistRoyalty, Earned;
 		public float Deferred, Collected, Banked;
+		public float TrunkHeld;   // trunk cut out on consignment this week (earned, not yet banked)
 		public float Outstanding, Cash;
 	}
 
@@ -205,6 +231,8 @@ public partial class PlayerDesk : Node {
 	// A signed act keeps the live set it walked in with. Phase 2's recording step reads this
 	// so an act cuts the material it already plays rather than a fresh batch written on the spot.
 	private readonly Dictionary<string, List<RepertoireItem>> repertoire = new();
+	// Covers being worked up but not yet in a set (one in progress per act). Completed in ProcessCoverRehearsals.
+	private readonly List<CoverRehearsal> rehearsals = new();
 	private PendingSession pendingSession;
 	// Pressed vinyl on hand at the office, per single (by record id). The warehouse stock you draw from
 	// to stock towns. The player can only sell what has been pressed AND carried out to a town.
@@ -217,6 +245,12 @@ public partial class PlayerDesk : Node {
 	// Trunk units sold this chart-week per record, accumulated daily and swept into the weekly chart total
 	// so a record that only sells out of the trunk still charts on those units.
 	private readonly Dictionary<string, int> weeklyTrunkUnits = new(StringComparer.Ordinal);
+	// This chart-week's trunk business, accumulated daily in BookTrunkSale and folded into the week's settlement
+	// write-up at week-end (then reset) so the settlement reflects trunk sales, not only the wholesale channel.
+	// trunkHeld is the cut that went out on consignment (towns you weren't standing in) and hasn't reached the
+	// bank yet; the rest was spot cash. Persisted so a mid-week save doesn't drop the partial week.
+	private long weeklyTrunkUnitsSold;
+	private float weeklyTrunkGross, weeklyTrunkRoyalty, weeklyTrunkHeld;
 	// Your cut of trunk sales in towns you're not standing in: the shops hold it for you, you collect the
 	// lump when you drive back, and a small trickle wires through between visits. cityId -> dollars owed.
 	private readonly Dictionary<string, float> consignmentOwed = new(StringComparer.Ordinal);
@@ -963,7 +997,9 @@ public partial class PlayerDesk : Node {
 		var options = new List<MaterialChoice>();
 		if (artist == null) return options;
 
+		// A number the act has already cut is spent -- it drops out of the material list so it can't be re-recorded.
 		foreach (RepertoireItem item in RepertoireFor(artist.artistId)) {
+			if (item.Recorded) continue;
 			options.Add(item.IsOriginal
 				? new MaterialChoice { Kind = MaterialKind.Original, Title = item.Title, Detail = "their own" }
 				: new MaterialChoice { Kind = MaterialKind.LiveCover, Title = item.Title, SongId = item.SongId, Detail = item.SourceTag });
@@ -990,6 +1026,8 @@ public partial class PlayerDesk : Node {
 		if (artist == null) return result;
 		var already = new HashSet<string>(RepertoireFor(artist.artistId)
 			.Where(item => !item.IsOriginal && item.SongId != null).Select(item => item.SongId));
+		// Also hide covers already in rehearsal for this act, so the same song can't be queued twice.
+		foreach (CoverRehearsal r in RehearsalsFor(artist.artistId)) if (r.SongId != null) already.Add(r.SongId);
 
 		GenreFamily family = FamilyOf(artist);
 		var pool = new List<SongComposition>();
@@ -1009,10 +1047,29 @@ public partial class PlayerDesk : Node {
 		return result;
 	}
 
+	/// <summary>How many days this act would take to work a new cover into their set: fewer the more capable
+	/// they are (musicianship / group cohesion / studio craft), between <see cref="MinCoverLearnDays"/> and
+	/// <see cref="MaxCoverLearnDays"/>.</summary>
+	public int EstimateCoverLearnDays(SimulatedArtist artist) {
+		if (artist == null) return MaxCoverLearnDays;
+		float ability = Mathf.Clamp(
+			artist.musicianship * 0.45f + artist.groupCohesion * 0.30f + artist.studioPerformance * 0.25f, 0f, 1f);
+		return Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(MaxCoverLearnDays, MinCoverLearnDays, ability)),
+			MinCoverLearnDays, MaxCoverLearnDays);
+	}
+
+	/// <summary>Whether this act already has a cover in rehearsal (only one at a time).</summary>
+	public bool IsRehearsing(string artistId) => rehearsals.Any(r => r.ArtistId == artistId);
+
+	/// <summary>Covers this act is currently working up (not yet in the set).</summary>
+	public IEnumerable<CoverRehearsal> RehearsalsFor(string artistId) =>
+		rehearsals.Where(r => r.ArtistId == artistId);
+
 	/// <summary>
-	/// Works a specific catalog cover up with an act until it's in their set. Costs a short rehearsal;
-	/// the song then shows in the act's repertoire (and so among the studio's material) with its real
-	/// title. A fuller "pitch it, they might balk, drill it over weeks" model is a later pass.
+	/// Starts an act working a specific catalog cover into their set. A short setup at the desk kicks it off;
+	/// the act then rehearses it on their own for several days (faster the more capable they are) and it lands
+	/// in their repertoire on its own -- see <see cref="ProcessCoverRehearsals"/> -- even while you're on the road.
+	/// One cover in rehearsal per act at a time.
 	/// </summary>
 	public bool TeachCover(SimulatedArtist artist, string songId, out string message) {
 		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
@@ -1024,18 +1081,47 @@ public partial class PlayerDesk : Node {
 			repertoire[artist.artistId] = set;
 		}
 		if (set.Any(item => item.SongId == songId)) { message = $"{artist.stageName} already plays \"{song.title}\"."; return false; }
+		if (rehearsals.Any(r => r.ArtistId == artist.artistId && r.SongId == songId)) {
+			message = $"{artist.stageName} is already working \"{song.title}\" up."; return false;
+		}
+		if (IsRehearsing(artist.artistId)) {
+			message = $"{artist.stageName} is already rehearsing a cover -- let them finish it first."; return false;
+		}
 		if (!Require(TeachHours, out message)) return false;
 
 		Spend(TeachHours);
-		set.Add(new RepertoireItem {
-			Title = song.title, SourceTag = song.isStandard ? "standard" : "cover",
-			IsOriginal = false, SongId = song.songId, Genre = song.primaryGenre,
-			ReadHook = song.commercialHook, ReadQuality = song.GetCraftScore()
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int days = EstimateCoverLearnDays(artist);
+		rehearsals.Add(new CoverRehearsal {
+			ArtistId = artist.artistId, SongId = song.songId, Title = song.title,
+			SourceTag = song.isStandard ? "standard" : "cover", Genre = song.primaryGenre,
+			ReadHook = song.commercialHook, ReadQuality = song.GetCraftScore(),
+			Started = today, ReadyDate = today.AddDays(days)
 		});
-		Note($"{artist.stageName} worked up \"{song.title}\".");
-		message = $"{artist.stageName} has \"{song.title}\" in the set now.";
+		Note($"{artist.stageName} started working \"{song.title}\" up (~{days} days).");
+		message = $"{artist.stageName} will have \"{song.title}\" in about {days} day{(days == 1 ? "" : "s")}.";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>Lands any cover whose rehearsal has come due into the act's set. Runs daily, so a cover finishes
+	/// on its own even while the player is away.</summary>
+	private void ProcessCoverRehearsals(GameDate date) {
+		foreach (CoverRehearsal r in rehearsals.Where(entry => entry.ReadyDate <= date).ToList()) {
+			rehearsals.Remove(r);
+			// If the act already picked it up somehow, don't double-add.
+			if (!repertoire.TryGetValue(r.ArtistId, out List<RepertoireItem> set)) {
+				set = new List<RepertoireItem>();
+				repertoire[r.ArtistId] = set;
+			}
+			if (set.Any(item => item.SongId == r.SongId)) continue;
+			set.Add(new RepertoireItem {
+				Title = r.Title, SourceTag = r.SourceTag, IsOriginal = false, SongId = r.SongId,
+				Genre = r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality
+			});
+			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(r.ArtistId);
+			Note($"{artist?.stageName ?? "The act"} has \"{r.Title}\" in the set now.");
+		}
 	}
 
 	// Session length in hours: a short date to a full day. More hours over fewer songs = more takes.
@@ -1204,13 +1290,29 @@ public partial class PlayerDesk : Node {
 			record.title = material.Song.title;
 			SongMaterialApplicationService.Apply(record, material, Label, artist);
 		}
-		if (choice.WrittenSong != null) choice.WrittenSong.Recorded = true;
+		if (choice.WrittenSong != null) { choice.WrittenSong.Recorded = true; choice.WrittenSong.RecordedId = record.recordId; }
+		MarkRepertoireRecorded(artist.artistId, choice, record.recordId);
 
 		masters.Add(new Master {
 			Record = record, ArtistId = artist.artistId, SongTitle = record.title,
 			ProductionCost = cost, Cut = date
 		});
 		return true;
+	}
+
+	/// <summary>Marks the act's repertoire number this master came from as recorded, so it drops out of the
+	/// studio's material list and shows in the set as cut (linked to its record). A live cover matches by songId;
+	/// a live-set original by title. A commissioned/fresh song has no repertoire entry and is a no-op.</summary>
+	private void MarkRepertoireRecorded(string artistId, MaterialChoice choice, string recordId) {
+		if (!repertoire.TryGetValue(artistId, out List<RepertoireItem> set)) return;
+		RepertoireItem match = choice.Kind == MaterialKind.LiveCover
+			? set.FirstOrDefault(item => !item.Recorded && !item.IsOriginal && item.SongId == choice.SongId)
+			: choice.WrittenSong == null && choice.Kind == MaterialKind.Original
+				? set.FirstOrDefault(item => !item.Recorded && item.IsOriginal && item.Title == choice.Title)
+				: null;
+		if (match == null) return;
+		match.Recorded = true;
+		match.RecordedId = recordId;
 	}
 
 	/// <summary>Turns a player's material choice into a concrete <see cref="SelectedSongMaterial"/>.</summary>
@@ -1549,6 +1651,7 @@ public partial class PlayerDesk : Node {
 		if (Label == null) return;
 		ChargeHotelIfAway();
 		DeliverArrivedPressings(date);
+		ProcessCoverRehearsals(date);
 		foreach (PlannedRelease release in planned.Where(entry => entry.Dated && entry.Date <= date).ToList()) {
 			planned.Remove(release);
 			FireRelease(release, date);
@@ -1615,12 +1718,17 @@ public partial class PlayerDesk : Node {
 		// These units chart: swept into the weekly chart total at settlement (see TakeWeeklyTrunkUnits).
 		weeklyTrunkUnits.TryGetValue(rec.baseRecord.recordId, out int running);
 		weeklyTrunkUnits[rec.baseRecord.recordId] = running + units;
+		// Accumulate this week's trunk business for the settlement write-up (folded in + reset at week-end).
+		weeklyTrunkUnitsSold += units;
+		weeklyTrunkGross += gross;
+		weeklyTrunkRoyalty += royalty;
 		if (present) {
 			Label.cashReserves += net;
 			Label.monthlyRevenue += net;
 		} else {
 			consignmentOwed.TryGetValue(cityId, out float owed);
 			consignmentOwed[cityId] = owed + net;
+			weeklyTrunkHeld += net;   // out on consignment this week; not yet at the bank
 		}
 		if (artist != null) {
 			artist.totalRoyaltyEarnings += royalty;
@@ -1747,30 +1855,38 @@ public partial class PlayerDesk : Node {
 
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
-		// This is the wholesale-channel settlement, so count what actually cleared through stores (the
-		// regional sales the settlement bills). Trunk units also ride in unitsThisWeek to feed the chart,
-		// but they're spot cash booked in PlayerDesk, not a wholesale settlement -- counting them here would
-		// show units against $0 of settlement gross. Per-record trunk totals live in ReleasedRecords.
-		long units = ReleasedRecords.Sum(record => (long)record.regionalData.Values.Sum(data => Mathf.Max(0, data.unitsSoldThisWeek)));
+		// The wholesale channel (what cleared through stores this week), then the trunk folded on top so the
+		// write-up covers the whole week's business, not only wholesale. Trunk carries no manufacturing (pressed
+		// and paid up front) and no distributor skim; its full net counts as earned, and the consignment slice
+		// (weeklyTrunkHeld) is earned-but-not-yet-banked, so it sits alongside wholesale credit deferral.
+		long wholesaleUnits = ReleasedRecords.Sum(record => (long)record.regionalData.Values.Sum(data => Mathf.Max(0, data.unitsSoldThisWeek)));
+		float trunkNet = weeklyTrunkGross - weeklyTrunkRoyalty;
 		float cash = Label.cashReserves;
 		books.Insert(0, new WeekBooks {
 			Week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Date = date,
-			Units = units,
-			Gross = Label.weeklyGrossRevenue,
+			Units = wholesaleUnits + weeklyTrunkUnitsSold,
+			Gross = Label.weeklyGrossRevenue + weeklyTrunkGross,
 			ManufacturingCost = Label.weeklyCogs,
 			DistributionSkim = Label.weeklyDistributionSkim,
-			ArtistRoyalty = Label.weeklyArtistRoyalty,
-			Earned = Label.weeklyNetRevenue,
+			ArtistRoyalty = Label.weeklyArtistRoyalty + weeklyTrunkRoyalty,
+			Earned = Label.weeklyNetRevenue + trunkNet,
 			Deferred = Label.weeklyWholesaleDeferred,
 			Collected = Label.weeklyWholesaleCollected,
-			// What the records earned this week, less what went out on credit, plus what
-			// old invoices finally paid. This is the figure that moved the bank balance.
-			Banked = Label.weeklyNetRevenue - Label.weeklyWholesaleDeferred + Label.weeklyWholesaleCollected,
+			TrunkHeld = weeklyTrunkHeld,
+			// What the records earned this week, less what went out on credit and what the towns are still
+			// holding on consignment, plus what old invoices finally paid. This is the figure that moved the
+			// bank balance: wholesale net-of-deferral plus the trunk's spot-cash slice (net minus held).
+			Banked = (Label.weeklyNetRevenue - Label.weeklyWholesaleDeferred + Label.weeklyWholesaleCollected)
+				+ (trunkNet - weeklyTrunkHeld),
 			Outstanding = Label.outstandingWholesaleReceivables,
 			Cash = cash
 		});
 		if (books.Count > 120) books.RemoveAt(books.Count - 1);
+		weeklyTrunkUnitsSold = 0;
+		weeklyTrunkGross = 0f;
+		weeklyTrunkRoyalty = 0f;
+		weeklyTrunkHeld = 0f;
 		lastSnapshotCash = cash;
 		Changed?.Invoke();
 	}
@@ -1812,6 +1928,7 @@ public partial class PlayerDesk : Node {
 			Songs = songs.Select(SongSaveData.From).ToList(),
 			Repertoire = repertoire.ToDictionary(kv => kv.Key,
 				kv => kv.Value.Select(RepertoireSaveData.From).ToList()),
+			Rehearsals = rehearsals.Select(CoverRehearsalSaveData.From).ToList(),
 			Log = new List<string>(log),
 			Books = books.Select(WeekBookSaveData.From).ToList(),
 
@@ -1833,6 +1950,10 @@ public partial class PlayerDesk : Node {
 			})).ToList(),
 			ConsignmentOwed = new Dictionary<string, float>(consignmentOwed),
 			WeeklyTrunkUnits = new Dictionary<string, int>(weeklyTrunkUnits),
+			WeeklyTrunkUnitsSold = weeklyTrunkUnitsSold,
+			WeeklyTrunkGross = weeklyTrunkGross,
+			WeeklyTrunkRoyalty = weeklyTrunkRoyalty,
+			WeeklyTrunkHeld = weeklyTrunkHeld,
 			WorkedCities = workedCities.ToList(),
 			CurrentCityId = currentCityId,
 			Counter = counter,
@@ -1899,6 +2020,8 @@ public partial class PlayerDesk : Node {
 		repertoire.Clear();
 		foreach (var kv in data.Repertoire ?? new Dictionary<string, List<RepertoireSaveData>>())
 			repertoire[kv.Key] = (kv.Value ?? new List<RepertoireSaveData>()).Select(r => r.ToItem()).ToList();
+		rehearsals.Clear();
+		rehearsals.AddRange((data.Rehearsals ?? new List<CoverRehearsalSaveData>()).Select(r => r.ToRehearsal()));
 		log.Clear();
 		log.AddRange(data.Log ?? new List<string>());
 		books.Clear();
@@ -1949,6 +2072,10 @@ public partial class PlayerDesk : Node {
 		foreach (var kv in data.ConsignmentOwed ?? new Dictionary<string, float>()) consignmentOwed[kv.Key] = kv.Value;
 		weeklyTrunkUnits.Clear();
 		foreach (var kv in data.WeeklyTrunkUnits ?? new Dictionary<string, int>()) weeklyTrunkUnits[kv.Key] = kv.Value;
+		weeklyTrunkUnitsSold = data.WeeklyTrunkUnitsSold;
+		weeklyTrunkGross = data.WeeklyTrunkGross;
+		weeklyTrunkRoyalty = data.WeeklyTrunkRoyalty;
+		weeklyTrunkHeld = data.WeeklyTrunkHeld;
 		workedCities.Clear();
 		foreach (string city in data.WorkedCities ?? new List<string>()) workedCities.Add(city);
 		currentCityId = data.CurrentCityId;
@@ -1969,6 +2096,11 @@ public partial class PlayerDesk : Node {
 
 	public IEnumerable<SimulatedArtist> Roster => Label?.roster ?? new List<SimulatedArtist>();
 	public IEnumerable<Song> UnrecordedSongs => songs.Where(song => !song.Recorded);
+	/// <summary>All the act's written songs, recorded or not (the repertoire view shows recorded ones as cut).</summary>
+	public IEnumerable<Song> SongsFor(string artistId) => songs.Where(song => song.ArtistId == artistId);
+	/// <summary>True once the record has actually shipped (it's in the world), vs merely cut and sitting on the shelf.</summary>
+	public bool IsRecordReleased(string recordId) =>
+		recordId != null && ReleasedRecords.Any(r => r.baseRecord?.recordId == recordId);
 	public IEnumerable<RecordRuntimeData> ReleasedRecords =>
 		Label == null ? Enumerable.Empty<RecordRuntimeData>()
 			: (ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>())

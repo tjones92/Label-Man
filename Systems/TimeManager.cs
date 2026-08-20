@@ -28,6 +28,9 @@ public partial class TimeManager : Node {
 	public bool IsGameOver => currentDate > GameDate.EndDate;
 
 	public event Action<GameDate> OnDayStarted;
+	/// <summary>UI-only signal that the clock was restored from a save. Distinct from OnDayStarted so a load
+	/// refreshes date displays without re-running the daily simulation work OnDayStarted drives.</summary>
+	public event Action<GameDate> OnClockRestored;
 	public event Action<GameDate> OnDayEnded;
 	public event Action<GameDate> OnWeekEnded;
 	public event Action<GameDate> OnMonthChanged;
@@ -61,6 +64,7 @@ public partial class TimeManager : Node {
 	public void RestoreClock(GameDate date, int hour) {
 		currentDate = date;
 		currentHour = hour;
+		OnClockRestored?.Invoke(currentDate);
 	}
 
 	public bool CanAffordHours(int hours, bool allowOvertime = false) {

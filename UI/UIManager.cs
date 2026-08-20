@@ -33,7 +33,10 @@ public partial class UIManager : Control
 			calendarButton.GuiInput += OnCalendarGuiInput;
 			UpdateCalendarButton(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
 		}
-		if (TimeManager.Instance != null) TimeManager.Instance.OnDayStarted += UpdateCalendarButton;
+		if (TimeManager.Instance != null) {
+			TimeManager.Instance.OnDayStarted += UpdateCalendarButton;
+			TimeManager.Instance.OnClockRestored += UpdateCalendarButton;
+		}
 
 		deskPanel = GetNodeOrNull<PlayerDeskPanel>("PlayerDeskPanel");
 		deskButton = GetNodeOrNull<Button>("DeskBtn");
@@ -50,15 +53,21 @@ public partial class UIManager : Control
 
 	public override void _ExitTree()
 	{
-		if (TimeManager.Instance != null) TimeManager.Instance.OnDayStarted -= UpdateCalendarButton;
+		if (TimeManager.Instance != null) {
+			TimeManager.Instance.OnDayStarted -= UpdateCalendarButton;
+			TimeManager.Instance.OnClockRestored -= UpdateCalendarButton;
+		}
 	}
 
-	public void OpenArtist(string artistId, bool isOwnedByPlayer = false)
+	public void OpenArtist(string artistId, bool isOwnedByPlayer = false, int startTab = 0)
 	{
 		if (string.IsNullOrEmpty(artistId) || artistDetailPanel == null) return;
-		artistDetailPanel.ShowArtist(artistId, isOwnedByPlayer);
+		artistDetailPanel.ShowArtist(artistId, isOwnedByPlayer, startTab);
 		isUIOpen = true;
 	}
+
+	/// <summary>Opens an act's dossier straight to its DISCOGRAPHY page (tab index 1).</summary>
+	public void OpenDiscography(string artistId, bool isOwnedByPlayer = false) => OpenArtist(artistId, isOwnedByPlayer, 1);
 
 	public void OpenLabel(string labelId, bool isOwnedByPlayer = false)
 	{

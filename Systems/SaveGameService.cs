@@ -258,6 +258,7 @@ public sealed class PlayerSaveData {
 	public List<SimulatedArtist> RosterArtists { get; set; } = new();
 	public List<SongSaveData> Songs { get; set; } = new();
 	public Dictionary<string, List<RepertoireSaveData>> Repertoire { get; set; } = new();
+	public List<CoverRehearsalSaveData> Rehearsals { get; set; } = new();  // covers in progress, not yet in a set
 	public List<string> Log { get; set; } = new();
 	public List<WeekBookSaveData> Books { get; set; } = new();
 
@@ -269,6 +270,11 @@ public sealed class PlayerSaveData {
 	public List<ConsignmentLotSaveData> Consignment { get; set; } = new(); // stock left in towns' shops
 	public Dictionary<string, float> ConsignmentOwed { get; set; } = new(); // money towns are holding for you
 	public Dictionary<string, int> WeeklyTrunkUnits { get; set; } = new();  // trunk units to fold into the chart at week end
+	// This chart-week's trunk business so far, folded into the settlement write-up at week end (mid-week save safe).
+	public long WeeklyTrunkUnitsSold { get; set; }
+	public float WeeklyTrunkGross { get; set; }
+	public float WeeklyTrunkRoyalty { get; set; }
+	public float WeeklyTrunkHeld { get; set; }
 	public List<string> WorkedCities { get; set; } = new();
 	public string CurrentCityId { get; set; }
 	public int Counter { get; set; }
@@ -371,17 +377,19 @@ public sealed class SongSaveData {
 	public int Month { get; set; }
 	public int Day { get; set; }
 	public bool Recorded { get; set; }
+	public string RecordedId { get; set; }
 
 	public static SongSaveData From(PlayerDesk.Song s) => new() {
 		SongId = s.SongId, Title = s.Title, ArtistId = s.ArtistId, Genre = (int)s.Genre,
 		Hook = s.Hook, Originality = s.Originality, Danceability = s.Danceability,
-		Year = s.Written.year, Month = s.Written.month, Day = s.Written.day, Recorded = s.Recorded
+		Year = s.Written.year, Month = s.Written.month, Day = s.Written.day, Recorded = s.Recorded,
+		RecordedId = s.RecordedId
 	};
 
 	public PlayerDesk.Song ToSong() => new() {
 		SongId = SongId, Title = Title, ArtistId = ArtistId, Genre = (Genre)Genre,
 		Hook = Hook, Originality = Originality, Danceability = Danceability,
-		Written = new GameDate(Year, Month, Day), Recorded = Recorded
+		Written = new GameDate(Year, Month, Day), Recorded = Recorded, RecordedId = RecordedId
 	};
 }
 
@@ -393,15 +401,50 @@ public sealed class RepertoireSaveData {
 	public int Genre { get; set; }
 	public float ReadHook { get; set; }
 	public float ReadQuality { get; set; }
+	public bool Recorded { get; set; }
+	public string RecordedId { get; set; }
 
 	public static RepertoireSaveData From(PlayerDesk.RepertoireItem r) => new() {
 		Title = r.Title, SourceTag = r.SourceTag, IsOriginal = r.IsOriginal, SongId = r.SongId,
-		Genre = (int)r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality
+		Genre = (int)r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
+		Recorded = r.Recorded, RecordedId = r.RecordedId
 	};
 
 	public PlayerDesk.RepertoireItem ToItem() => new() {
 		Title = Title, SourceTag = SourceTag, IsOriginal = IsOriginal, SongId = SongId,
-		Genre = (Genre)Genre, ReadHook = ReadHook, ReadQuality = ReadQuality
+		Genre = (Genre)Genre, ReadHook = ReadHook, ReadQuality = ReadQuality,
+		Recorded = Recorded, RecordedId = RecordedId
+	};
+}
+
+/// <summary>A cover an act is working up but doesn't have yet (see <see cref="PlayerDesk.CoverRehearsal"/>).</summary>
+public sealed class CoverRehearsalSaveData {
+	public string ArtistId { get; set; }
+	public string SongId { get; set; }
+	public string Title { get; set; }
+	public string SourceTag { get; set; }
+	public int Genre { get; set; }
+	public float ReadHook { get; set; }
+	public float ReadQuality { get; set; }
+	public int StartedYear { get; set; }
+	public int StartedMonth { get; set; }
+	public int StartedDay { get; set; }
+	public int ReadyYear { get; set; }
+	public int ReadyMonth { get; set; }
+	public int ReadyDay { get; set; }
+
+	public static CoverRehearsalSaveData From(PlayerDesk.CoverRehearsal r) => new() {
+		ArtistId = r.ArtistId, SongId = r.SongId, Title = r.Title, SourceTag = r.SourceTag, Genre = (int)r.Genre,
+		ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
+		StartedYear = r.Started.year, StartedMonth = r.Started.month, StartedDay = r.Started.day,
+		ReadyYear = r.ReadyDate.year, ReadyMonth = r.ReadyDate.month, ReadyDay = r.ReadyDate.day
+	};
+
+	public PlayerDesk.CoverRehearsal ToRehearsal() => new() {
+		ArtistId = ArtistId, SongId = SongId, Title = Title, SourceTag = SourceTag, Genre = (Genre)Genre,
+		ReadHook = ReadHook, ReadQuality = ReadQuality,
+		Started = new GameDate(StartedYear, StartedMonth, StartedDay),
+		ReadyDate = new GameDate(ReadyYear, ReadyMonth, ReadyDay)
 	};
 }
 
@@ -419,6 +462,7 @@ public sealed class WeekBookSaveData {
 	public float Deferred { get; set; }
 	public float Collected { get; set; }
 	public float Banked { get; set; }
+	public float TrunkHeld { get; set; }
 	public float Outstanding { get; set; }
 	public float Cash { get; set; }
 
@@ -426,14 +470,14 @@ public sealed class WeekBookSaveData {
 		Week = w.Week, Year = w.Date.year, Month = w.Date.month, Day = w.Date.day, Units = w.Units,
 		Gross = w.Gross, ManufacturingCost = w.ManufacturingCost, DistributionSkim = w.DistributionSkim,
 		ArtistRoyalty = w.ArtistRoyalty, Earned = w.Earned, Deferred = w.Deferred, Collected = w.Collected,
-		Banked = w.Banked, Outstanding = w.Outstanding, Cash = w.Cash
+		Banked = w.Banked, TrunkHeld = w.TrunkHeld, Outstanding = w.Outstanding, Cash = w.Cash
 	};
 
 	public PlayerDesk.WeekBooks ToWeekBooks() => new() {
 		Week = Week, Date = new GameDate(Year, Month, Day), Units = Units,
 		Gross = Gross, ManufacturingCost = ManufacturingCost, DistributionSkim = DistributionSkim,
 		ArtistRoyalty = ArtistRoyalty, Earned = Earned, Deferred = Deferred, Collected = Collected,
-		Banked = Banked, Outstanding = Outstanding, Cash = Cash
+		Banked = Banked, TrunkHeld = TrunkHeld, Outstanding = Outstanding, Cash = Cash
 	};
 }
 
