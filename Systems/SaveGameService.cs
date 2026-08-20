@@ -282,6 +282,11 @@ public sealed class PlayerSaveData {
 
 	// Increment 2: the player's own released records, with their chart + regional state.
 	public List<RuntimeRecordSaveData> ReleasedRecords { get; set; } = new();
+
+	// Phase 1 Rolodex branch: player character. ArchetypeOrdinal is cast int so it survives JSON without
+	// an enum converter; ExecutiveInstincts being null flags a pre-feature save (see RestoreState).
+	public int ArchetypeOrdinal      { get; set; }
+	public ExecutiveInstinctProfile ExecutiveInstincts { get; set; }
 }
 
 public sealed class LabelSaveData {

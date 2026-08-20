@@ -283,6 +283,11 @@ public partial class PlayerDesk : Node {
 	/// <summary>Months of red left before the bank closes you (0 while solvent).</summary>
 	public int MonthsOfGraceLeft => Label != null && Label.cashReserves < 0f ? Mathf.Max(0, MaxMonthsInTheRed - monthsInTheRed) : MaxMonthsInTheRed;
 
+	/// <summary>Who the player was before opening the label. Set at founding; gates Rolodex reads and actions.</summary>
+	public FoundingArchetype Archetype { get; private set; } = FoundingArchetype.TradeInsider;
+	/// <summary>The four Executive Instinct scores derived from <see cref="Archetype"/>. Never null after founding.</summary>
+	public ExecutiveInstinctProfile InstinctProfile { get; private set; } = FoundingArchetypeData.Get(FoundingArchetype.TradeInsider).Instincts;
+
 	// A 45 pressing plant's period bill: cheap vinyl by the unit over a minimum run, a one-off lacquer
 	// setup per side, and a little for sleeves, labels and getting the boxes to your office.
 	public const int PressMinimumOrder = 500;
@@ -421,13 +426,21 @@ public partial class PlayerDesk : Node {
 	// FOUNDING
 	// ========================================================================
 
-	public bool FoundLabel(string labelName, string cityId, out string message) {
+	// Shim for the save-load probe (and any caller that doesn't need the archetype picker).
+	public bool FoundLabel(string labelName, string cityId, out string message) =>
+		FoundLabel(labelName, cityId, FoundingArchetype.TradeInsider, out message);
+
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, out string message) {
 		if (Label != null) { message = "You already run a label."; return false; }
 		// The player picks the town they work out of; the market it sits in is inferred from it.
 		MarketCity city = DistanceModel.GetCityById(cityId);
 		if (city == null) { message = "Pick a home town first."; return false; }
 		MarketRegion region = ChartManager.Instance?.GetRegionById(city.parentRegionId);
 		if (region == null) { message = "That town has no market resolved."; return false; }
+
+		FoundingArchetypeData.ArchetypeProfile profile = FoundingArchetypeData.Get(archetype);
+		Archetype = archetype;
+		InstinctProfile = profile.Instincts;
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		var label = new AILabel {
@@ -447,16 +460,16 @@ public partial class PlayerDesk : Node {
 			// carries you -- so distributionRegions starts empty. Everything past this is earned.
 			strongRegions = new[] { region.regionId },
 			distributionRegions = Array.Empty<string>(),
-			cashReserves = FoundingCapital,
+			cashReserves = profile.Capital,
 			maxRosterSize = PlayerRosterCapacity,
 			nationalReach = 0.02f,
 			budgetLevel = 0.15f,
-			scoutingAbility = 0.5f,
-			productionQuality = 0.4f,
-			marketingPower = 0.35f,
-			riskTolerance = 0.5f,
-			artistLoyalty = 0.6f,
-			payolaWillingness = 0.05f,
+			scoutingAbility = profile.ScoutingAbility,
+			productionQuality = profile.ProductionQuality,
+			marketingPower = profile.MarketingPower,
+			riskTolerance = profile.RiskTolerance,
+			artistLoyalty = profile.ArtistLoyalty,
+			payolaWillingness = profile.PayolaWillingness,
 			releasesPerMonth = 0.5f,
 			populationOrigin = LabelPopulationOrigin.RuntimeFounded,
 			runtimeBirthWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
@@ -474,7 +487,8 @@ public partial class PlayerDesk : Node {
 		Label = label;
 		currentCityId = city.cityId; // you start at your own office
 
-		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${FoundingCapital:N0}.");
+		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${profile.Capital:N0}.");
+		Note($"You are {profile.Name}. {profile.Tagline}");
 		message = $"{label.labelName} is open.";
 		Changed?.Invoke();
 		return true;
@@ -1960,7 +1974,11 @@ public partial class PlayerDesk : Node {
 			MonthsInTheRed = monthsInTheRed,
 
 			// The player's released catalogue, with its chart/regional state (increment 2).
-			ReleasedRecords = ReleasedRecords.Select(RuntimeRecordSaveData.From).ToList()
+			ReleasedRecords = ReleasedRecords.Select(RuntimeRecordSaveData.From).ToList(),
+
+			// Player character (Phase 1 Rolodex branch).
+			ArchetypeOrdinal   = (int)Archetype,
+			ExecutiveInstincts = InstinctProfile,
 		};
 		return data;
 	}
@@ -1980,6 +1998,18 @@ public partial class PlayerDesk : Node {
 		IsGameOver = false;
 		GameOverReason = null;
 		monthsInTheRed = 0;
+
+		// Restore player character. ExecutiveInstincts being null means a pre-feature save; in that case
+		// default to TradeInsider rather than trusting the ArchetypeOrdinal default of 0.
+		if (data.ExecutiveInstincts == null) {
+			Archetype = FoundingArchetype.TradeInsider;
+			InstinctProfile = FoundingArchetypeData.Get(FoundingArchetype.TradeInsider).Instincts;
+		} else {
+			Archetype = data.ArchetypeOrdinal >= 0 && data.ArchetypeOrdinal < System.Enum.GetValues(typeof(FoundingArchetype)).Length
+				? (FoundingArchetype)data.ArchetypeOrdinal
+				: FoundingArchetype.TradeInsider;
+			InstinctProfile = data.ExecutiveInstincts;
+		}
 
 		AILabel label = Label != null && Label.labelId == data.Label.labelId ? Label : new AILabel();
 		bool fresh = label != Label;

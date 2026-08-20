@@ -29,6 +29,8 @@ public partial class PlayerDeskPanel : Control {
 	private bool browsingCovers;
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
+	// The founding archetype selected on the founding page; persists across Refresh() rebuilds.
+	private FoundingArchetype selectedArchetype = FoundingArchetype.TradeInsider;
 
 	private static readonly Color Ink = new("2b2115");
 	private static readonly Color Paper = new("f1e5c8");
@@ -260,9 +262,35 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void PageFounding() {
-		Heading("OPEN FOR BUSINESS");
-		Body($"Name the label and pick the town you work out of. You start with ${PlayerDesk.FoundingCapital:N0}, " +
-			"one market, and no roster. Everything past that is earned.");
+		Heading("WHO WERE YOU BEFORE THIS?");
+
+		// Archetype selector: a row of buttons, the selected one at full opacity.
+		var archetypeRow = new HBoxContainer();
+		archetypeRow.AddThemeConstantOverride("separation", 6);
+		content.AddChild(archetypeRow);
+		foreach (FoundingArchetype arch in System.Enum.GetValues<FoundingArchetype>()) {
+			FoundingArchetype captured = arch;
+			var btn = Btn(FoundingArchetypeData.Get(arch).Name.ToUpperInvariant());
+			btn.CustomMinimumSize = new Vector2(230, 40);
+			btn.Modulate = arch == selectedArchetype ? Colors.White : new Color(1, 1, 1, .55f);
+			btn.Pressed += () => { selectedArchetype = captured; Refresh(); };
+			archetypeRow.AddChild(btn);
+		}
+
+		var selected = FoundingArchetypeData.Get(selectedArchetype);
+		Body($"{selected.Tagline}  ·  Starting capital: ${selected.Capital:N0}");
+		Body(selected.Description);
+
+		// Instinct spread.
+		var instincts = selected.Instincts;
+		Body($"THE EAR {StarBar(instincts.TheEar / 5f)}   THE STREET {StarBar(instincts.TheStreet / 5f)}   " +
+			$"THE SUIT {StarBar(instincts.TheSuit / 5f)}   THE FIXER {StarBar(instincts.TheFixer / 5f)}");
+
+		// Label stats summary line.
+		Body($"Scouting {StarBar(selected.ScoutingAbility)}   Production {StarBar(selected.ProductionQuality)}   " +
+			$"Marketing {StarBar(selected.MarketingPower)}");
+
+		Heading("NAME THE LABEL AND PICK YOUR TOWN");
 
 		var nameEdit = new LineEdit { PlaceholderText = "Label name", CustomMinimumSize = new Vector2(400, 38) };
 		content.AddChild(nameEdit);
@@ -288,7 +316,7 @@ public partial class PlayerDeskPanel : Control {
 		found.Pressed += () => {
 			if (cities.Count == 0) { Say("No towns loaded."); return; }
 			int index = Mathf.Clamp(cityPicker.Selected, 0, cities.Count - 1);
-			PlayerDesk.Instance.FoundLabel(nameEdit.Text, cities[index].cityId, out string message);
+			PlayerDesk.Instance.FoundLabel(nameEdit.Text, cities[index].cityId, selectedArchetype, out string message);
 			Say(message);
 			Refresh();
 		};
@@ -1243,8 +1271,20 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void PageOffice() {
+		PlayerDesk desk = PlayerDesk.Instance;
+
+		// Character card: who you are and what you can read.
+		FoundingArchetypeData.ArchetypeProfile archProfile = FoundingArchetypeData.Get(desk.Archetype);
+		ExecutiveInstinctProfile inst = desk.InstinctProfile;
+		Heading($"{archProfile.Name.ToUpperInvariant()}");
+		Body(archProfile.Tagline);
+		Body($"THE EAR {StarBar(inst.TheEar / 5f)} ({inst.TheEar})   " +
+			$"THE STREET {StarBar(inst.TheStreet / 5f)} ({inst.TheStreet})   " +
+			$"THE SUIT {StarBar(inst.TheSuit / 5f)} ({inst.TheSuit})   " +
+			$"THE FIXER {StarBar(inst.TheFixer / 5f)} ({inst.TheFixer})");
+
 		Heading("THE LEDGER");
-		IReadOnlyList<string> entries = PlayerDesk.Instance.Log;
+		IReadOnlyList<string> entries = desk.Log;
 		if (entries.Count == 0) { Body("Nothing has happened yet."); return; }
 		foreach (string entry in entries) Body(entry);
 	}
