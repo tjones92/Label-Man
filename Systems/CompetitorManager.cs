@@ -266,10 +266,13 @@ public partial class CompetitorManager : Node {
 	// Pool it for shrinkage, then let each label refine that baseline locally.
 	private readonly FormatRevenueMemory pooledAlbumWithPromoMemory = new();
 	private Dictionary<string, List<string>> labelActiveRecords = new Dictionary<string, List<string>>();
-	internal readonly struct LabelRecordHistoryEntry {
+	public readonly struct LabelRecordHistoryEntry {
 		public readonly int ReleaseWeek;
 		public readonly bool Charted;
 		public readonly bool Top40;
+		// [JsonConstructor] so the full-world save deserializes via this ctor -- a readonly struct otherwise
+		// round-trips through the implicit parameterless ctor and leaves the readonly fields at default.
+		[System.Text.Json.Serialization.JsonConstructor]
 		public LabelRecordHistoryEntry(int releaseWeek, bool charted, bool top40) {
 			ReleaseWeek = releaseWeek;
 			Charted = charted;
@@ -969,11 +972,24 @@ public partial class CompetitorManager : Node {
 			SimulationPerformanceProfiler.EndRecordLookup(lookupProfileStart);
 			if (runtimeData == null) continue;
 			
-			float weeklyUnits = entry.Units;
+			// A player record's unitsThisWeek carries its trunk units folded in for the chart (see
+			// ChartSimulator.FinalizeWeeklySales); those were already paid to the player as spot cash in
+			// PlayerDesk and must NOT be billed again here. So a player record is billed only for what
+			// actually cleared through stores -- the settlement's frozen per-region snapshot, which the
+			// trunk never touches. AI records keep entry.Units verbatim: the branch leaves their path
+			// byte-for-byte unchanged.
+			float weeklyUnits = runtimeData.baseRecord.isPlayerOwned
+				? (entry.Regions?.Sum(region => Mathf.Max(0, region.FinalCleared)) ?? 0f)
+				: entry.Units;
 			ReleaseFormat format = runtimeData.baseRecord.format;
 			float pricePerUnit = GetPricePerUnit(format);
 			float pressingCost = GetPressingCostPerUnit(format);
 			if (format == ReleaseFormat.Album) pressingCost += albumPackagingCostPerUnit * (runtimeData.baseRecord.album?.packaging ?? 0f);
+			// Player-only: the player pressed and paid for the vinyl up front when ordering the run, so
+			// no per-unit manufacturing cost is taken again at the sale. The retail price stands; a
+			// wholesale house's cut is still the region-gated skim below (the trunk keeps its own margin).
+			// Inert for AI records (never player-owned).
+			if (runtimeData.baseRecord.isPlayerOwned) pressingCost = 0f;
 			var artist = ArtistManager.Instance?.GetArtist(runtimeData.baseRecord.artistId);
 			float artistRoyalty = artist?.royaltyRate ?? 0.05f;
 			float skimFraction = GetSettlementDistributionSkimFraction(label, runtimeData, weeklyUnits,
@@ -3546,6 +3562,19 @@ public partial class CompetitorManager : Node {
 				data.unitsInStores = allocatedStock.GetValueOrDefault(region.regionId);
 		}
 
+		// The player gets no free national distribution. A player record reaches a region's shops only where
+		// the label has actually placed a wholesale line (the house presses stock there); everywhere else --
+		// the home market included -- it sells out of the trunk, town by town, settled in PlayerDesk, not by
+		// the weekly store engine. So drop the auto-seeded inventory in every region with no line. Without
+		// this the player's record was distributed nationwide like an AI release and the engine sold (and
+		// skimmed) hundreds of units the player never pressed. Inert for AI records (never player-owned).
+		if (record.isPlayerOwned) {
+			foreach (MarketRegion region in regions)
+				if (runtimeData.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)
+					&& !label.HasDistributionInRegion(region.regionId))
+					data.unitsInStores = 0;
+		}
+
 		runtimeData.initialLaunchAwareness = runtimeData.awareness;
 		runtimeData.initialLaunchStock = runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
 		runtimeData.launchCareerState = artist.careerState;
@@ -4325,7 +4354,10 @@ public partial class CompetitorManager : Node {
 		label.consecutiveLossMonths = financials.consecutiveLossMonths;
 		
 		if (label.cashReserves < bankruptcyThreshold) {
-			if (enableBankruptcy && financials.consecutiveLossMonths >= 6) {
+			// The player's own solvency/loss is owned by PlayerDesk (an overdraft credit line + a grace
+			// period), so the AI's hard-bankruptcy never fires on the player label -- it would flip them to
+			// an inactive dead state behind the game-over card. They still take the Dying/Struggling flavor.
+			if (enableBankruptcy && financials.consecutiveLossMonths >= 6 && !label.isPlayerOwned) {
 				label.status = LabelStatus.Bankrupt;
 				GD.Print($"💀 {label.labelName} has gone bankrupt!");
 				return;
@@ -4346,6 +4378,145 @@ public partial class CompetitorManager : Node {
 	
 	public AILabel GetLabel(string labelId) => aiLabels?.FirstOrDefault(l => l.labelId == labelId);
 	public IReadOnlyList<AILabel> GetAllLabels() => aiLabels ?? (IReadOnlyList<AILabel>)System.Array.Empty<AILabel>();
+
+	// ========================================================================
+	// FULL-WORLD SAVE -- the competitor economy. Album projects and independent distributors serialize whole;
+	// their id-keyed indices and the Record object refs inside a project are relinked on load. Transient weekly
+	// telemetry (weeklyRevenueByLabelAndFormat, weeklyReleaseLifecycleByTier) is not saved -- it re-accumulates.
+	// ========================================================================
+
+	/// <summary>Snapshots the competitor economy into the world save.</summary>
+	public void CaptureEconomy(WorldSaveData w) {
+		var c = new CompetitorSaveData {
+			AlbumProjects = albumProjects.ToList(),
+			PendingAlbumProjects = pendingAlbumProjects.ToList(),
+			ProjectById = projectById.Where(kv => kv.Value?.projectId != null).ToDictionary(kv => kv.Key, kv => kv.Value.projectId),
+			ProjectByRecordId = projectByRecordId.Where(kv => kv.Value?.projectId != null).ToDictionary(kv => kv.Key, kv => kv.Value.projectId),
+			AnnualAlbumProjectsByArtist = annualAlbumProjectsByArtist
+				.Select(kv => new AnnualArtistProjectCount { ArtistId = kv.Key.ArtistId, Year = kv.Key.Year, Count = kv.Value }).ToList(),
+			LabelActiveRecords = labelActiveRecords.ToDictionary(kv => kv.Key, kv => new List<string>(kv.Value)),
+			RetiredLabelRecordHistory = retiredLabelRecordHistory.ToDictionary(kv => kv.Key, kv => new List<LabelRecordHistoryEntry>(kv.Value)),
+			IndependentDistributors = independentDistributors.ToList(),
+			IndependentDistributorsByRegion = independentDistributorsByRegion
+				.ToDictionary(kv => kv.Key, kv => kv.Value.Where(d => d?.distributorId != null).Select(d => d.distributorId).ToList()),
+			CreditedLabelTop40RecordIds = creditedLabelTop40RecordIds.ToList(),
+			CreditedLabelNumberOneRecordIds = creditedLabelNumberOneRecordIds.ToList(),
+			ChartedLabelIds = chartedLabelIds.ToList(),
+			ForcedConsolidationClients = forcedConsolidationClients.ToList(),
+			LabelFinancials = new Dictionary<string, LabelFinancialHistory>(labelFinancials),
+			AnnualGenreSupplyByLabel = annualGenreSupplyByLabel
+				.ToDictionary(kv => kv.Key, kv => kv.Value.ToDictionary(g => (int)g.Key, g => g.Value)),
+			AnnualGenreSupplyGlobal = annualGenreSupplyGlobal.ToDictionary(kv => (int)kv.Key, kv => kv.Value),
+			ConsolidationAbsorptionsThisDecade = consolidationAbsorptionsThisDecade,
+			LastBookedSettlementId = lastBookedSettlementId,
+			PipelineWeek = pipelineWeek,
+			GenreSupplyYear = genreSupplyYear,
+			GeneratedRecordCounter = generatedRecordCounter
+		};
+		w.Competitor = c;
+	}
+
+	/// <summary>Rehydrates the competitor economy in place. Runs after records + labels are restored, so the
+	/// project record refs and the shared label list relink correctly.</summary>
+	public void RehydrateEconomy(WorldSaveData w) {
+		CompetitorSaveData c = w.Competitor;
+		if (c == null) return;
+
+		// The label list is the same object ChartManager rebuilt in place; re-point defensively.
+		aiLabels = ChartManager.Instance?.GetAllLabels();
+		settlementLabelLookup = null;   // rebuilt lazily against the restored labels
+
+		albumProjects.Clear(); albumProjects.AddRange(c.AlbumProjects ?? new List<AlbumProject>());
+		pendingAlbumProjects.Clear(); pendingAlbumProjects.AddRange(c.PendingAlbumProjects ?? new List<AlbumProject>());
+
+		// A project's Record refs: relink released records to the shared allRecords object (identity); a pending
+		// project's record isn't in allRecords, so its deserialized copy stays.
+		foreach (AlbumProject project in albumProjects.Concat(pendingAlbumProjects)) RelinkProjectRecords(project);
+
+		var projectByProjectId = albumProjects.Concat(pendingAlbumProjects)
+			.Where(p => !string.IsNullOrEmpty(p.projectId))
+			.GroupBy(p => p.projectId).ToDictionary(g => g.Key, g => g.First());
+		AlbumProject ResolveProject(string projectId) =>
+			projectId != null && projectByProjectId.TryGetValue(projectId, out AlbumProject p) ? p : null;
+
+		projectById.Clear();
+		foreach (var kv in c.ProjectById ?? new Dictionary<string, string>()) { AlbumProject p = ResolveProject(kv.Value); if (p != null) projectById[kv.Key] = p; }
+		projectByRecordId.Clear();
+		foreach (var kv in c.ProjectByRecordId ?? new Dictionary<string, string>()) { AlbumProject p = ResolveProject(kv.Value); if (p != null) projectByRecordId[kv.Key] = p; }
+
+		annualAlbumProjectsByArtist.Clear();
+		foreach (AnnualArtistProjectCount e in c.AnnualAlbumProjectsByArtist ?? new List<AnnualArtistProjectCount>())
+			annualAlbumProjectsByArtist[(e.ArtistId, e.Year)] = e.Count;
+
+		labelActiveRecords = (c.LabelActiveRecords ?? new Dictionary<string, List<string>>())
+			.ToDictionary(kv => kv.Key, kv => new List<string>(kv.Value ?? new List<string>()));
+
+		retiredLabelRecordHistory.Clear();
+		foreach (var kv in c.RetiredLabelRecordHistory ?? new Dictionary<string, List<LabelRecordHistoryEntry>>())
+			retiredLabelRecordHistory[kv.Key] = new List<LabelRecordHistoryEntry>(kv.Value ?? new List<LabelRecordHistoryEntry>());
+
+		independentDistributors.Clear(); independentDistributors.AddRange(c.IndependentDistributors ?? new List<IndependentDistributor>());
+		var distributorById = independentDistributors.Where(d => !string.IsNullOrEmpty(d.distributorId))
+			.GroupBy(d => d.distributorId).ToDictionary(g => g.Key, g => g.First());
+		independentDistributorsByRegion.Clear();
+		foreach (var kv in c.IndependentDistributorsByRegion ?? new Dictionary<string, List<string>>()) {
+			var list = new List<IndependentDistributor>();
+			foreach (string id in kv.Value ?? new List<string>()) if (distributorById.TryGetValue(id, out IndependentDistributor d)) list.Add(d);
+			independentDistributorsByRegion[kv.Key] = list;
+		}
+
+		RefillSet(creditedLabelTop40RecordIds, c.CreditedLabelTop40RecordIds);
+		RefillSet(creditedLabelNumberOneRecordIds, c.CreditedLabelNumberOneRecordIds);
+		RefillSet(chartedLabelIds, c.ChartedLabelIds);
+		RefillSet(forcedConsolidationClients, c.ForcedConsolidationClients);
+
+		labelFinancials = new Dictionary<string, LabelFinancialHistory>(c.LabelFinancials ?? new Dictionary<string, LabelFinancialHistory>());
+
+		annualGenreSupplyByLabel.Clear();
+		foreach (var kv in c.AnnualGenreSupplyByLabel ?? new Dictionary<string, Dictionary<int, int>>())
+			annualGenreSupplyByLabel[kv.Key] = (kv.Value ?? new Dictionary<int, int>()).ToDictionary(g => (Genre)g.Key, g => g.Value);
+		annualGenreSupplyGlobal.Clear();
+		foreach (var kv in c.AnnualGenreSupplyGlobal ?? new Dictionary<int, int>()) annualGenreSupplyGlobal[(Genre)kv.Key] = kv.Value;
+
+		consolidationAbsorptionsThisDecade = c.ConsolidationAbsorptionsThisDecade;
+		// These counters advance in lockstep with the chart week, so a pre-fix save (which never stored them)
+		// can recover from w.ChartWeek rather than crash on the next settlement / stall its in-flight drops.
+		lastBookedSettlementId = c.LastBookedSettlementId > 0 ? c.LastBookedSettlementId : w.ChartWeek;
+		pipelineWeek = c.PipelineWeek > 0 ? c.PipelineWeek : w.ChartWeek;
+		genreSupplyYear = c.GenreSupplyYear;
+		// A pre-fix save never stored this, so fall back to the highest restored "gen_N" id + 1 to guarantee the
+		// next mint can't collide with an existing record (which would crash the following Save).
+		generatedRecordCounter = c.GeneratedRecordCounter > 0 ? c.GeneratedRecordCounter : HighestGeneratedRecordId(w);
+	}
+
+	/// <summary>Highest N across restored "gen_N" record ids (0 if none), used as a pre-fix-save fallback for
+	/// <see cref="generatedRecordCounter"/>.</summary>
+	private static int HighestGeneratedRecordId(WorldSaveData w) {
+		int highest = 0;
+		foreach (RecordRuntimeData record in w.Records ?? new List<RecordRuntimeData>()) {
+			string id = record?.baseRecord?.recordId;
+			if (id != null && id.StartsWith("gen_", System.StringComparison.Ordinal) &&
+				int.TryParse(id.Substring(4), out int n) && n > highest) highest = n;
+		}
+		return highest;
+	}
+
+	private static void RelinkProjectRecords(AlbumProject project) {
+		if (project == null) return;
+		if (project.albumRecord?.recordId != null) {
+			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.albumRecord.recordId);
+			if (live?.baseRecord != null) project.albumRecord = live.baseRecord;
+		}
+		if (project.promoSingleRecord?.recordId != null) {
+			RecordRuntimeData live = ChartManager.Instance?.GetRecordRuntimeData(project.promoSingleRecord.recordId);
+			if (live?.baseRecord != null) project.promoSingleRecord = live.baseRecord;
+		}
+	}
+
+	private static void RefillSet(HashSet<string> target, List<string> source) {
+		target.Clear();
+		foreach (string id in source ?? new List<string>()) if (id != null) target.Add(id);
+	}
 
 	public void RegisterLabel(AILabel label) {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
@@ -4418,6 +4589,21 @@ public partial class CompetitorManager : Node {
 		float marginalShare = ChartManager.Instance?.GetNationalMarketShareForRegions(new[] { regionId }) ?? 0f;
 		label.ownedReach = Mathf.Min(SelfBuiltReachCeiling,
 			label.ownedReach + (marginalShare * independentCoverageReachFactor));
+
+		// The house presses a run for this market's shops. Player records are otherwise unseeded in the
+		// store engine (they sell out of the trunk elsewhere), so without this a line placed after release
+		// would put nothing on the shelves. Seed each of the label's in-market singles now that the region
+		// is covered; the weekly engine sells and restocks from here.
+		foreach (RecordRuntimeData playerRecord in ChartManager.Instance?.GetPlayerRecords() ?? new List<RecordRuntimeData>()) {
+			if (playerRecord.baseRecord.labelId != label.labelId) continue;
+			if (!playerRecord.regionalData.TryGetValue(regionId, out RegionalRecordData data)) {
+				data = new RegionalRecordData(regionId);
+				playerRecord.regionalData[regionId] = data;
+			}
+			data.unitsInStores = ChartSimulator.CalculateInitialRegionalStock(label, regionId, 1f,
+				playerRecord.perceivedQualityMultiplier > 0f ? playerRecord.perceivedQualityMultiplier : 1f,
+				playerRecord.baseRecord.recordId);
+		}
 
 		OnIndependentDistributionSigned?.Invoke(new IndependentDistributionTelemetry {
 			week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,

@@ -45,7 +45,9 @@ public class DistributionDeal {
 	/// distributor's network. Coverage is therefore the record whose regional breakout
 	/// earned the deal plus everything released while the deal is active.
 	/// </summary>
-	public readonly HashSet<string> coveredRecordIds = new(StringComparer.Ordinal);
+	// Not readonly: deserialized whole by the full-world save (System.Text.Json can't set a readonly field).
+	// Only its contents are mutated at runtime, never the reference.
+	public HashSet<string> coveredRecordIds = new(StringComparer.Ordinal);
 
 	public bool CoversRecord(string recordId) =>
 		!string.IsNullOrEmpty(recordId) && coveredRecordIds.Contains(recordId);

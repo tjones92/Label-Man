@@ -1819,6 +1819,10 @@ metadata/_custom_type_script = "uid://ck2ykr1kmstw"
 script = ExtResource("1_o3mq1")
 genreMarketV2Enabled = true
 artistPopulationLifecycleEnabled = true
+artistEvolutionEnabled = true
+artistRecognitionEnabled = true
+managersEnabled = true
+seedStarCanopyEnabled = true
 allRegions = Array[Object]([SubResource("Resource_77lym"), SubResource("Resource_gp"), SubResource("Resource_4xj30"), SubResource("Resource_w3svk"), SubResource("Resource_wkcml"), SubResource("Resource_om038"), SubResource("Resource_gx6p6")])
 
 [node name="DistanceModel" type="Node" parent="."]

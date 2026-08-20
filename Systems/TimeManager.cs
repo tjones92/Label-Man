@@ -28,6 +28,9 @@ public partial class TimeManager : Node {
 	public bool IsGameOver => currentDate > GameDate.EndDate;
 
 	public event Action<GameDate> OnDayStarted;
+	/// <summary>UI-only signal that the clock was restored from a save. Distinct from OnDayStarted so a load
+	/// refreshes date displays without re-running the daily simulation work OnDayStarted drives.</summary>
+	public event Action<GameDate> OnClockRestored;
 	public event Action<GameDate> OnDayEnded;
 	public event Action<GameDate> OnWeekEnded;
 	public event Action<GameDate> OnMonthChanged;
@@ -53,6 +56,15 @@ public partial class TimeManager : Node {
 		ScheduleGrammyAwards();
 
 		OnDayStarted?.Invoke(currentDate);
+	}
+
+	/// <summary>Restores the clock from a save, in place. Fields only -- the load flow refreshes the UI, and
+	/// firing day/week events here would re-run settlement mid-load. The scheduled chart/Grammy calendar built
+	/// in _Ready is date-keyed and stays valid across a load.</summary>
+	public void RestoreClock(GameDate date, int hour) {
+		currentDate = date;
+		currentHour = hour;
+		OnClockRestored?.Invoke(currentDate);
 	}
 
 	public bool CanAffordHours(int hours, bool allowOvertime = false) {

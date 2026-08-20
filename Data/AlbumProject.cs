@@ -67,7 +67,8 @@ public sealed class PromotionSnapshot {
 	public CareerState careerState;
 	public float artistAwareness;
 	public float perceivedQualityMultiplier;
-	public readonly List<RegionalPromotionSnapshot> regions = new();
+	// Not readonly: deserialized whole by the full-world save (System.Text.Json can't set a readonly field).
+	public List<RegionalPromotionSnapshot> regions = new();
 }
 
 public sealed class RegionalPromotionSnapshot {

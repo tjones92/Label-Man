@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 /// <summary>
@@ -40,6 +41,13 @@ public static class CompositionCatalogService {
 	// then pay the successor). Only artist-originals carry a song-level controller label.
 	private static readonly Dictionary<string, List<SongComposition>> songsByControllerLabel = new(StringComparer.Ordinal);
 	private static RandomNumberGenerator rng;
+	// Titles are drawn from a stream of their OWN, isolated from every stream the economy reads:
+	// not GD.Rand, not NameGenerator's naming stream, and not the trait `rng` above. Because song
+	// titles never feed a catalog song's traits (only freshly-generated album-track titles are
+	// hashed, in CompetitorManager), pulling real titles here is inert to the simulated economy --
+	// nothing that charts or settles changes -- while the player stops seeing "Recent DooWop Hit
+	// Song 4446" on the stand and on their masters.
+	private static RandomNumberGenerator titleRng;
 	private static int songCounter;
 	private static bool initialized;
 
@@ -64,6 +72,9 @@ public static class CompositionCatalogService {
 		songCounter = 0;
 		rng = new RandomNumberGenerator {
 			Seed = seed ^ 0x736f6e6763617461UL // "songcata" -- private stream, isolated from GD
+		};
+		titleRng = new RandomNumberGenerator {
+			Seed = seed ^ 0x7469746c65727364UL // "titlrsd" -- titles only, isolated from the trait stream
 		};
 		GeneratePreGameStandards(startYear);
 		GeneratePreGameRecentHits(startYear);
@@ -97,7 +108,7 @@ public static class CompositionCatalogService {
 		for (int i = 0; i < count; i++) {
 			var song = new SongComposition {
 				songId = NextSongId(),
-				title = GenerateSongTitle(family),
+				title = GenerateRealTitle(primary),
 				primaryGenre = primary,
 				secondaryGenre = secondary,
 				originYear = rng.RandiRange(minYear, maxYear),
@@ -150,7 +161,7 @@ public static class CompositionCatalogService {
 		for (int i = 0; i < count; i++) {
 			var song = new SongComposition {
 				songId = NextSongId(),
-				title = GenerateSongTitle(family),
+				title = GenerateRealTitle(primary),
 				primaryGenre = primary,
 				secondaryGenre = secondary,
 				genreTagIds = seasonalTags ?? Array.Empty<string>(),
@@ -257,7 +268,7 @@ public static class CompositionCatalogService {
 				Genre primary = pub.focusGenres.Length > 0 ? pub.focusGenres[rng.RandiRange(0, pub.focusGenres.Length - 1)] : Genre.TraditionalPop;
 				var song = new SongComposition {
 					songId = NextSongId(),
-					title = GenerateSongTitle(pub.publisherName),
+					title = GenerateRealTitle(primary),
 					primaryGenre = primary,
 					secondaryGenre = pub.focusGenres.Length > 1 ? pub.focusGenres[1] : primary,
 					originYear = startYear - rng.RandiRange(0, 3),
@@ -630,6 +641,87 @@ public static class CompositionCatalogService {
 		AddToPool(coverableHitsByFamily, FamilyOf(song.primaryGenre), song);
 	}
 
+	// ========================================================================
+	// FULL-WORLD SAVE -- the composition catalogue. Songs/writers/publishers/ledger serialize whole; the
+	// by-genre/by-family pools and the controller-label index travel as song-id lists (they share SongComposition
+	// objects with `songs` and are not a pure function of it, so they are relinked, not rebuilt). RNG preserved.
+	// ========================================================================
+
+	public static void CaptureWorld(WorldSaveData w) {
+		var c = new CompositionSaveData {
+			Songs = new Dictionary<string, SongComposition>(songs),
+			StandardsByGenre = GenrePoolToIds(standardsByGenre),
+			CatalogByGenre = GenrePoolToIds(catalogByGenre),
+			ProfessionalByGenre = GenrePoolToIds(professionalByGenre),
+			TraditionalByGenre = GenrePoolToIds(traditionalByGenre),
+			CoverableHitsByGenre = GenrePoolToIds(coverableHitsByGenre),
+			StandardsByFamily = FamilyPoolToIds(standardsByFamily),
+			TraditionalByFamily = FamilyPoolToIds(traditionalByFamily),
+			CoverableHitsByFamily = FamilyPoolToIds(coverableHitsByFamily),
+			SongsByControllerLabel = songsByControllerLabel.ToDictionary(kv => kv.Key, kv => kv.Value.Select(s => s.songId).ToList()),
+			ProfessionalWriters = professionalWriters.ToList(),
+			Publishers = publishers.ToList(),
+			WriterLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerLedger),
+			SongCounter = songCounter
+		};
+		if (rng != null && titleRng != null) {
+			c.HasRng = true;
+			c.RngSeed = rng.Seed; c.RngState = rng.State;
+			c.TitleRngSeed = titleRng.Seed; c.TitleRngState = titleRng.State;
+		}
+		w.Composition = c;
+	}
+
+	public static void RehydrateWorld(WorldSaveData w) {
+		CompositionSaveData c = w.Composition;
+		if (c == null) return;
+
+		songs.Clear();
+		foreach (var kv in c.Songs ?? new Dictionary<string, SongComposition>()) if (kv.Value != null) songs[kv.Key] = kv.Value;
+
+		RebuildGenrePool(standardsByGenre, c.StandardsByGenre);
+		RebuildGenrePool(catalogByGenre, c.CatalogByGenre);
+		RebuildGenrePool(professionalByGenre, c.ProfessionalByGenre);
+		RebuildGenrePool(traditionalByGenre, c.TraditionalByGenre);
+		RebuildGenrePool(coverableHitsByGenre, c.CoverableHitsByGenre);
+		RebuildFamilyPool(standardsByFamily, c.StandardsByFamily);
+		RebuildFamilyPool(traditionalByFamily, c.TraditionalByFamily);
+		RebuildFamilyPool(coverableHitsByFamily, c.CoverableHitsByFamily);
+
+		songsByControllerLabel.Clear();
+		foreach (var kv in c.SongsByControllerLabel ?? new Dictionary<string, List<string>>())
+			songsByControllerLabel[kv.Key] = ResolveSongs(kv.Value);
+
+		professionalWriters.Clear(); professionalWriters.AddRange(c.ProfessionalWriters ?? new List<ProfessionalSongwriter>());
+		publishers.Clear(); publishers.AddRange(c.Publishers ?? new List<MusicPublisher>());
+		writerLedger.Clear();
+		foreach (var kv in c.WriterLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerLedger[kv.Key] = kv.Value;
+
+		songCounter = c.SongCounter;
+		if (c.HasRng) {
+			rng = new RandomNumberGenerator { Seed = c.RngSeed }; rng.State = c.RngState;
+			titleRng = new RandomNumberGenerator { Seed = c.TitleRngSeed }; titleRng.State = c.TitleRngState;
+		}
+	}
+
+	private static Dictionary<int, List<string>> GenrePoolToIds(Dictionary<Genre, List<SongComposition>> pool) =>
+		pool.ToDictionary(kv => (int)kv.Key, kv => kv.Value.Select(s => s.songId).ToList());
+	private static Dictionary<int, List<string>> FamilyPoolToIds(Dictionary<GenreFamily, List<SongComposition>> pool) =>
+		pool.ToDictionary(kv => (int)kv.Key, kv => kv.Value.Select(s => s.songId).ToList());
+	private static void RebuildGenrePool(Dictionary<Genre, List<SongComposition>> pool, Dictionary<int, List<string>> saved) {
+		pool.Clear();
+		foreach (var kv in saved ?? new Dictionary<int, List<string>>()) pool[(Genre)kv.Key] = ResolveSongs(kv.Value);
+	}
+	private static void RebuildFamilyPool(Dictionary<GenreFamily, List<SongComposition>> pool, Dictionary<int, List<string>> saved) {
+		pool.Clear();
+		foreach (var kv in saved ?? new Dictionary<int, List<string>>()) pool[(GenreFamily)kv.Key] = ResolveSongs(kv.Value);
+	}
+	private static List<SongComposition> ResolveSongs(List<string> ids) {
+		var list = new List<SongComposition>();
+		foreach (string id in ids ?? new List<string>()) if (id != null && songs.TryGetValue(id, out SongComposition s)) list.Add(s);
+		return list;
+	}
+
 	private static string[] MergeTags(string[] existing, string[] incoming) {
 		var set = new List<string>(existing ?? Array.Empty<string>());
 		foreach (var tag in incoming) {
@@ -646,5 +738,57 @@ public static class CompositionCatalogService {
 	}
 
 	// Placeholder titling; replaced by naming v2 in a later pass.
-	private static string GenerateSongTitle(string family) => $"{family} Song {songCounter}";
+	// A period, genre-tinted 45 title. In the running game this comes from the full naming engine on
+	// its own dedicated catalog stream + bucket (NameGenerator.GenerateCatalogTitle), which is provably
+	// inert to the economy -- so these legacy songs read exactly like every runtime title. The word-bank
+	// below is only a fallback for headless tools that run the catalog without the naming autoload.
+	private static string GenerateRealTitle(Genre genre) {
+		string engineTitle = NameGenerator.Instance?.GenerateCatalogTitle(genre, 1959);
+		if (!string.IsNullOrWhiteSpace(engineTitle)) return engineTitle;
+		string style = genre switch {
+			Genre.Country or Genre.Folk or Genre.TexMex => "country",
+			Genre.RnB or Genre.Soul or Genre.Motown or Genre.Blues or Genre.Gospel or Genre.DooWop => "soul",
+			Genre.Jazz or Genre.TraditionalPop or Genre.EasyListening => "pop",
+			_ => "rock"
+		};
+		return style switch {
+			"country" => Pick(CountryTitles),
+			"soul"    => Pick(SoulTitles),
+			"pop"     => Pick(PopTitles),
+			_         => Pick(RockTitles)
+		};
+	}
+
+	// Two-part titles ("{opener} {closer}") give a few hundred plausible combinations per style off a
+	// short bank -- enough that repeats read like the era's real title churn rather than a bug.
+	private static string Pick((string[] Openers, string[] Closers) bank) =>
+		$"{bank.Openers[titleRng.RandiRange(0, bank.Openers.Length - 1)]} " +
+		$"{bank.Closers[titleRng.RandiRange(0, bank.Closers.Length - 1)]}";
+
+	private static readonly (string[] Openers, string[] Closers) PopTitles = (
+		new[] { "Moonlight", "Autumn", "Stardust", "Blue", "Sweet", "My Foolish", "The Nearness of", "Dream",
+			"Someone to", "Till", "Because of", "A Kiss to", "Stella by", "September", "Lover's", "The Song Is" },
+		new[] { "Serenade", "Leaves", "Melody", "Moon", "Lorraine", "Heart", "You", "a Little Dream", "Watch Over Me",
+			"the End of Time", "Build a Dream", "Remember", "Starlight", "in the Rain", "Reverie", "Ended" });
+
+	private static readonly (string[] Openers, string[] Closers) SoulTitles = (
+		new[] { "Since I Met", "That's the Way", "Ain't That", "I'll Be", "Rockin'", "Good Lovin'", "Baby, Don't",
+			"Do You", "Come On", "Have Mercy", "Fever for", "Trouble in", "Shake, Rattle and", "Let the Good Times",
+			"Money", "Nobody but" },
+		new[] { "You", "Love Goes", "a Shame", "Around", "Tonight", "Baby", "Leave Me", "Love Me", "Over Here",
+			"Miss Clawdy", "My Baby", "Mind", "Roll", "Roll On", "Honey", "Me" });
+
+	private static readonly (string[] Openers, string[] Closers) CountryTitles = (
+		new[] { "Lonesome", "Honky Tonk", "Your Cheatin'", "I Walk", "Wild Side of", "Six Days on",
+			"Half as", "Cold, Cold", "There Stands", "Waltz Across", "The Wild Side of", "Faded", "Ramblin'",
+			"Big River", "Green, Green Grass of", "Blue Kentucky" },
+		new[] { "Whistle", "Angel", "Heart", "the Line", "Life", "the Road", "Much", "Heart Again", "the Glass",
+			"Texas", "Love", "Love", "Man", "Rising", "Home", "Girl" });
+
+	private static readonly (string[] Openers, string[] Closers) RockTitles = (
+		new[] { "Rock Around", "Long Tall", "Splish", "Runnin'", "Twistin' the", "Summertime", "Wake Up",
+			"Whole Lotta", "Great Balls of", "Peggy", "Get a", "Rave", "Party", "Teenage", "Sea of",
+			"Somethin' Else" },
+		new[] { "the Clock", "Sally", "Splash", "Bear", "Night Away", "Blues", "Little Susie", "Shakin'",
+			"Fire", "Sue", "Job", "On", "Doll", "Heaven", "Love", "Tonight" });
 }

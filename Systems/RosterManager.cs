@@ -1391,6 +1391,39 @@ public partial class RosterManager : Node {
 	
 	private List<AILabel> GetAllLabels() => ChartManager.Instance?.GetAllLabels();
 	private AILabel GetLabelById(string labelId) => ChartManager.Instance?.GetLabelById(labelId);
+
+	// ========================================================================
+	// FULL-WORLD SAVE -- cross-week scouting/re-sign state (keyed by artist/label id; no relink needed). Weekly
+	// and daily telemetry, and the static label-buzz cache, are transient and recomputed, so they are not saved.
+	// ========================================================================
+
+	/// <summary>Snapshots the durable scouting/re-sign caches into the world save.</summary>
+	public void CaptureCaches(WorldSaveData w) {
+		w.Roster = new RosterSaveData {
+			UniquelyResignedArtistIds = uniquelyResignedArtistIds.ToList(),
+			LastReSignWeekByArtistId = new Dictionary<string, int>(lastReSignWeekByArtistId),
+			ConsecutiveVacancyWeeksByLabelId = new Dictionary<string, int>(consecutiveVacancyWeeksByLabelId),
+			ConsecutiveEmptyWeeksByLabelId = new Dictionary<string, int>(consecutiveEmptyWeeksByLabelId),
+			ServiceDeficitAgeByLabelId = new Dictionary<string, int>(serviceDeficitAgeByLabelId)
+		};
+	}
+
+	/// <summary>Rehydrates the scouting/re-sign caches in place.</summary>
+	public void RehydrateCaches(WorldSaveData w) {
+		RosterSaveData r = w.Roster;
+		if (r == null) return;
+		uniquelyResignedArtistIds.Clear();
+		foreach (string id in r.UniquelyResignedArtistIds ?? new List<string>()) if (id != null) uniquelyResignedArtistIds.Add(id);
+		CopyInto(lastReSignWeekByArtistId, r.LastReSignWeekByArtistId);
+		CopyInto(consecutiveVacancyWeeksByLabelId, r.ConsecutiveVacancyWeeksByLabelId);
+		CopyInto(consecutiveEmptyWeeksByLabelId, r.ConsecutiveEmptyWeeksByLabelId);
+		CopyInto(serviceDeficitAgeByLabelId, r.ServiceDeficitAgeByLabelId);
+	}
+
+	private static void CopyInto(Dictionary<string, int> target, Dictionary<string, int> source) {
+		target.Clear();
+		foreach (var kv in source ?? new Dictionary<string, int>()) target[kv.Key] = kv.Value;
+	}
 	
 	private void PrintRosterStats(List<AILabel> labels) {
 		GD.Print("=== ROSTER STATS ===");

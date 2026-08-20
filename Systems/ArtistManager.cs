@@ -1169,6 +1169,90 @@ public sealed class LaborMarketWeeklySnapshot {
 	
 	public SimulatedArtist GetArtist(string artistId) => artistRegistry.TryGetValue(artistId, out var artist) ? artist : null;
 
+	/// <summary>
+	/// Save/load: puts a persisted artist back into the registry so <see cref="GetArtist"/> and the record
+	/// links resolve. Used for the player's roster on a relaunch (or for a runtime-signed act that this
+	/// freshly generated world never produced). The act is signed to the player, so it's dropped from the
+	/// unsigned pool and never re-enters the AI talent market.
+	/// </summary>
+	public void RestoreArtist(SimulatedArtist artist) {
+		if (artist == null || string.IsNullOrEmpty(artist.artistId)) return;
+		artistRegistry[artist.artistId] = artist;
+		unsignedArtists.RemoveAll(candidate => candidate.artistId == artist.artistId);
+	}
+
+	// ========================================================================
+	// FULL-WORLD SAVE -- the AI artist/musician population (player acts excluded; the player layer owns them).
+	// ========================================================================
+
+	/// <summary>Snapshots the AI population into the world save. Whole SimulatedArtist objects (each carrying
+	/// its Musician members inline), plus the id counters, formation trackers, and the population RNG state.</summary>
+	public void CaptureWorld(WorldSaveData w) {
+		w.Artists = artistRegistry.Values.Where(a => a != null && !a.isPlayerOwned).ToList();
+		w.UnsignedArtistIds = unsignedArtists.Where(a => a != null && !a.isPlayerOwned && !string.IsNullOrEmpty(a.artistId))
+			.Select(a => a.artistId).ToList();
+		w.ArtistIdCounter = artistIdCounter;
+		w.MusicianIdCounter = musicianIdCounter;
+		w.FallbackNameCounter = fallbackNameCounter;
+		w.FormationYear = formationYear;
+		w.FormedThisWeek = formedThisWeek;
+		w.FormedYtd = formedYtd;
+		w.FormationYearPeakTarget = formationYearPeakTarget;
+		w.RecentRuntimeFormationCounts = recentRuntimeFormationCounts.ToDictionary(kv => (int)kv.Key, kv => kv.Value);
+		if (populationRng != null) {
+			w.HasPopulationRng = true;
+			w.PopulationRngSeed = populationRng.Seed;
+			w.PopulationRngState = populationRng.State;
+		}
+	}
+
+	/// <summary>Rebuilds the AI population in place from the world save: the artist registry (and the musician
+	/// index rebuilt from each artist's members), the unsigned pool by id, the counters/formation trackers,
+	/// and the population RNG. Player acts are re-added afterward by the player layer's own restore.</summary>
+	public void RehydrateWorld(WorldSaveData w) {
+		artistRegistry.Clear();
+		musicianRegistry.Clear();
+		unsignedArtists.Clear();
+
+		foreach (SimulatedArtist artist in w.Artists ?? new List<SimulatedArtist>()) {
+			if (artist == null || string.IsNullOrEmpty(artist.artistId)) continue;
+			artistRegistry[artist.artistId] = artist;
+			foreach (Musician member in artist.members ?? new List<Musician>())
+				if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
+		}
+		foreach (string id in w.UnsignedArtistIds ?? new List<string>())
+			if (id != null && artistRegistry.TryGetValue(id, out SimulatedArtist artist)) unsignedArtists.Add(artist);
+
+		artistIdCounter = w.ArtistIdCounter;
+		musicianIdCounter = w.MusicianIdCounter;
+		fallbackNameCounter = w.FallbackNameCounter;
+		formationYear = w.FormationYear;
+		formedThisWeek = w.FormedThisWeek;
+		formedYtd = w.FormedYtd;
+		formationYearPeakTarget = w.FormationYearPeakTarget;
+		recentRuntimeFormationCounts.Clear();
+		foreach (var kv in w.RecentRuntimeFormationCounts ?? new Dictionary<int, int>())
+			recentRuntimeFormationCounts[(Genre)kv.Key] = kv.Value;
+
+		if (w.HasPopulationRng) {
+			populationRng = new RandomNumberGenerator { Seed = w.PopulationRngSeed };
+			populationRng.State = w.PopulationRngState;
+		}
+	}
+
+	/// <summary>
+	/// Drops a still-unsigned artist from the registry. Used by player A&R to clean up the prospects it
+	/// generated for a scouting slate that the player did not sign, so surfacing fresh local talent each
+	/// trip does not silently grow the population. Refuses if the act was signed (has a label) so a
+	/// signed prospect can never be pulled out from under the roster.
+	/// </summary>
+	public bool RemoveUnsignedArtist(string artistId) {
+		if (string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
+		if (!string.IsNullOrEmpty(artist.labelId)) return false;
+		artistRegistry.Remove(artistId);
+		return true;
+	}
+
 	public ArtistPublicProfile GetPublicProfile(string artistId) {
 		var artist = GetArtist(artistId);
 		if (artist == null) return null;

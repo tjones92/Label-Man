@@ -12,13 +12,16 @@ public partial class ArtistDetailPanel : Control
 	private HBoxContainer tabs;
 	private VBoxContainer content;
 	private readonly List<FolderTabButton> tabButtons = new();
+	private readonly List<Action> tabPages = new();
+	private int startTabIndex;
 	private ArtistPublicProfile profile;
 	private SimulatedArtist artist;
 
 	public override void _Ready() { BuildUi(); Visible = false; }
 
-	public void ShowArtist(string artistId, bool isOwnedByPlayer = false)
+	public void ShowArtist(string artistId, bool isOwnedByPlayer = false, int startTab = 0)
 	{
+		startTabIndex = startTab;
 		artist = ArtistManager.Instance?.GetArtist(artistId);
 		profile = ArtistManager.Instance?.GetPublicProfile(artistId);
 		if (artist == null || profile == null) { GD.PushWarning($"Artist not found: {artistId}"); return; }
@@ -44,9 +47,9 @@ public partial class ArtistDetailPanel : Control
 		folder.AddThemeStyleboxOverride("panel", style);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
 		var header = new HBoxContainer(); root.AddChild(header);
-		nameLabel = new Label(); nameLabel.AddThemeFontSizeOverride("font_size", 30); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
+		nameLabel = new Label(); nameLabel.AddThemeFontSizeOverride("font_size", 30); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
 		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
-		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); root.AddChild(chromeLabel);
+		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); chromeLabel.AddThemeColorOverride("font_color", new Color("3a2c18")); root.AddChild(chromeLabel);
 		labelButton = new Button { Alignment = HorizontalAlignment.Left }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; root.AddChild(labelButton);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
@@ -57,17 +60,18 @@ public partial class ArtistDetailPanel : Control
 
 	private void BuildTabs()
 	{
-		Clear(tabs); tabButtons.Clear();
+		Clear(tabs); tabButtons.Clear(); tabPages.Clear();
 		AddTab("OVERVIEW", ShowOverview); AddTab("DISCOGRAPHY", ShowDiscography); AddTab("GIGOGRAPHY", ShowGigography);
 		AddTab("AWARDS", ShowAwards); AddTab("PERSONNEL", ShowPersonnel);
 		if (artist.isPlayerOwned) AddTab("CONTRACT", ShowContract);
-		ActivateTab(0, ShowOverview);
+		int start = Mathf.Clamp(startTabIndex, 0, tabPages.Count - 1);
+		ActivateTab(start, tabPages[start]);
 	}
 
 	private void AddTab(string title, Action page)
 	{
 		var button = new FolderTabButton { Text = title, CustomMinimumSize = new Vector2(145, 42) };
-		int index = tabButtons.Count; button.Pressed += () => ActivateTab(index, page); tabs.AddChild(button); tabButtons.Add(button);
+		int index = tabButtons.Count; button.Pressed += () => ActivateTab(index, page); tabs.AddChild(button); tabButtons.Add(button); tabPages.Add(page);
 	}
 
 	private void ActivateTab(int index, Action page) { for (int i = 0; i < tabButtons.Count; i++) tabButtons[i].SetActive(i == index); Clear(content); page(); }
@@ -157,7 +161,7 @@ public partial class ArtistDetailPanel : Control
 	}
 	private List<RecordRuntimeData> GetRecords() => ChartManager.Instance?.GetAllRecords().Where(r => r?.baseRecord?.artistId == profile.artistId).ToList() ?? new();
 	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }
-	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); content.AddChild(l); }
+	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); l.AddThemeColorOverride("font_color", new Color("2b2115")); content.AddChild(l); }
 	private static string Format(object value) { var s = value?.ToString() ?? ""; return string.Concat(s.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString())); }
 	private static void Clear(Node node) { foreach (Node child in node.GetChildren()) { node.RemoveChild(child); child.QueueFree(); } }
 }
