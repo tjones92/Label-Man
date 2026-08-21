@@ -98,6 +98,13 @@ public partial class PlayerDesk : Node {
 		/// <summary>The label's opening offer, generated once when the player approaches. See <see cref="ApproachToSign"/>.</summary>
 		public ContractTermSheet Baseline;
 		public bool HasBaseline;
+		/// <summary>How hard this act is to sign -- see SimTools/ContractNegotiationDirective.md Part 2.
+		/// Pushover stays the single-click ContractForm; Firm/Hardball opens <see cref="Talk"/>.</summary>
+		public NegotiationPosture Posture = NegotiationPosture.Pushover;
+		/// <summary>The live negotiation scene, non-null only while a Firm/Hardball negotiation is open.</summary>
+		public ContractTalk Talk;
+		/// <summary>Set only when patience ran out at the table -- the act won't take a fresh approach until then.</summary>
+		public GameDate? CooldownUntil;
 	}
 
 	/// <summary>An unrecorded song sitting in the writers' book.</summary>
@@ -423,6 +430,8 @@ public partial class PlayerDesk : Node {
 			monthsInTheRed = 0;
 			Note("Back in the black -- the bank's off your back for now.");
 		}
+		CheckForManagerInterest();
+		CheckForMaturedContracts(date.year);
 		Changed?.Invoke();
 	}
 
@@ -577,7 +586,88 @@ public partial class PlayerDesk : Node {
 	private static readonly HashSet<Genre> ManufacturedGenres = new() {
 		Genre.TeenPop, Genre.Bubblegum, Genre.GirlGroup, Genre.DooWop, Genre.SunshinePop, Genre.RockAndRoll
 	};
-	private const float IndustryActMarkup = 1.6f; // manufactured acts arrive polished and cost accordingly
+
+	/// <summary>
+	/// What an unknown act asks to sign, by the room you found them in. The room IS the price band in
+	/// 1960: a rock'n'roll quartet in a roadhouse takes dinner money and a promise, a professional act
+	/// working a supper club has a going rate, and the trade's manufactured product arrives with people
+	/// behind it and a number in mind. These are the BASE asks -- the act's own talent and standing
+	/// scale them in <see cref="VenueAdvanceAsk"/>, and a manager scales them again on top.
+	/// Player-only: the AI economy still prices signings off <see cref="AILabel.CalculateAdvanceOffer"/>.
+	/// </summary>
+	private static float VenueAdvanceBase(ScoutingVenue venue) => venue switch {
+		ScoutingVenue.HonkyTonks            => 20f,    // a fifth and a steak dinner
+		ScoutingVenue.ClubsAndRoadhouses    => 25f,    // "you're buying, right?"
+		ScoutingVenue.TheatresAndSupperClubs => 260f,  // working pros with a going rate
+		ScoutingVenue.IndustryMeets         => 600f,   // polished product, professionally represented
+		_                                   => 25f
+	};
+
+	/// <summary>
+	/// The advance this act asks the player for. Venue sets the band; the act's talent and any standing
+	/// it has scale inside it (same shape as the AI's offer curve, so the two read consistently); the
+	/// manager multiplies on top, which is why a Shark on a bar band is still a tell. Rounded to a
+	/// number a period contract would actually carry.
+	/// </summary>
+	private static float VenueAdvanceAsk(SimulatedArtist artist, ScoutingVenue venue) {
+		float talent = 0.5f + (artist.CalculateBaseQuality() * 1.5f);          // 0.5x .. 2.0x
+		float standing = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
+		float ask = VenueAdvanceBase(venue) * talent * standing
+			* ManagerProfile.Of(artist.manager).AdvanceDemandMult;
+		return RoundToContractFigure(ask);
+	}
+
+	/// <summary>
+	/// The royalty the act expects, by the room. Same logic as the advance band: what a 1960 act asked
+	/// for was set by who was standing next to them, and for a small act with no representation that was
+	/// one to three points -- Stevie Wonder's first Motown deal was ~2%, the Jackson 5's later ~2.7%.
+	/// The supper-club professional has a going rate; the trade's product is represented and knows it.
+	///
+	/// This is the rate with a REASONABLE CHANCE OF ACCEPTANCE, not a floor and not a promise. The player
+	/// can offer under it (see <see cref="PlayerRoyaltyFloor"/>); the further under, the likelier the
+	/// pushback -- see SimTools/ContractNegotiationDirective.md Part 2 for the acceptance curve.
+	/// Player-only: AI signings keep pricing off <see cref="AILabel.CalculateRoyaltyRate"/>.
+	/// </summary>
+	private static float VenueRoyaltyBaseline(SimulatedArtist artist, ScoutingVenue venue) {
+		float band = venue switch {
+			ScoutingVenue.HonkyTonks             => 0.015f,  // a point and a half and a handshake
+			ScoutingVenue.ClubsAndRoadhouses     => 0.020f,  // the standard small-act deal
+			ScoutingVenue.TheatresAndSupperClubs => 0.030f,  // working pros with a going rate
+			ScoutingVenue.IndustryMeets          => 0.045f,  // represented, and they know the number
+			_                                    => 0.020f
+		};
+		// An act with a career behind it has leverage regardless of the room it is playing tonight.
+		band += artist.careerState switch {
+			CareerState.Superstar => 0.05f, CareerState.Star => 0.03f,
+			CareerState.Established => 0.015f, CareerState.Rising => 0.005f, _ => 0f
+		};
+		band *= ManagerProfile.Of(artist.manager).RoyaltyDemandMult;
+		// Quarter-point steps: contracts were not written to four decimal places.
+		return Mathf.Clamp(Mathf.Round(band * 400f) / 400f, PlayerRoyaltyFloor, 0.15f);
+	}
+
+	/// <summary>How low the player is ALLOWED to write it. Half a point is the bottom of what the era
+	/// actually papered (the Beatles' 1962 EMI deal worked out under one point). Whether the act signs
+	/// it is a different question from whether the form accepts it.</summary>
+	public const float PlayerRoyaltyFloor = 0.005f;
+
+	/// <summary>
+	/// The deliverables the player's ask opens on: 2-3 singles a year is the period norm for a new
+	/// act, tapering to none once a career is established -- the same career-state gate
+	/// <see cref="AILabel.CalculateContractSinglesObligation"/> uses, so a Star isn't shown a quota a
+	/// real Star wouldn't carry. Player-only re-price, same spirit as <see cref="VenueAdvanceAsk"/>
+	/// and <see cref="VenueRoyaltyBaseline"/> -- the AI's own obligation formula is untouched.
+	/// </summary>
+	private static int PlayerDeliverablesAsk(SimulatedArtist artist, int termYears, int year) {
+		if (year > AILabel.SinglesObligationFinalYear) return 0;
+		if (artist.careerState is CareerState.Established or CareerState.Star or CareerState.Superstar) return 0;
+		float perYear = artist.careerState == CareerState.Rising ? 3f : 2f;
+		return Mathf.Clamp(Mathf.RoundToInt(perYear * Mathf.Max(1, termYears)), 1, 24);
+	}
+
+	/// <summary>Advances were written in round money: $5 steps under a hundred, $25 steps over it.</summary>
+	private static float RoundToContractFigure(float amount) =>
+		amount < 100f ? Mathf.Max(5f, Mathf.Round(amount / 5f) * 5f) : Mathf.Round(amount / 25f) * 25f;
 
 	/// <summary>
 	/// An evening working one kind of room in the player's own market. Returns the acts they got a look
@@ -641,7 +731,7 @@ public partial class PlayerDesk : Node {
 				Artist = artist,
 				Venue = venue,
 				ReadQuality = Mathf.Clamp(truth + (float)GD.RandRange(-noise, noise), 0f, 1f),
-				AskingAdvance = Label.CalculateAdvanceOffer(artist) * (trade ? IndustryActMarkup : 1f),
+				AskingAdvance = VenueAdvanceAsk(artist, venue),
 				Note = DescribeProspect(artist)
 			};
 			BuildLiveSet(prospect, artist, year, noise);
@@ -898,6 +988,11 @@ public partial class PlayerDesk : Node {
 		if (!prospect.FollowedUp) { message = "Follow up with them before you make an offer."; return false; }
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		if (prospect.CooldownUntil.HasValue && today < prospect.CooldownUntil.Value) {
+			message = $"{prospect.Artist.stageName}'s side isn't ready to talk again yet -- try after {prospect.CooldownUntil.Value.ToShortString()}.";
+			return false;
+		}
 
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, week) == false) {
@@ -906,18 +1001,31 @@ public partial class PlayerDesk : Node {
 		}
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		prospect.Baseline = Label.GenerateTermSheet(prospect.Artist, year);
-		// A manufactured act off the trade opens dearer -- it's polished product with people behind it.
-		if (prospect.Venue == ScoutingVenue.IndustryMeets) {
-			ContractTermSheet s = prospect.Baseline;
-			prospect.Baseline = new ContractTermSheet(s.Advance * IndustryActMarkup, s.RoyaltyRate, s.TermYears,
-				s.SinglesObligation, s.LabelOwnsPublishing, s.ArtistCreativeControl,
-				s.NegotiationDifficulty, s.Manager, s.ManagerName, s.DemandSummary);
-		}
+		ContractTermSheet t = Label.GenerateTermSheet(prospect.Artist, year);
+		// The term sheet's own advance is the AI's tier-priced offer; for the player the ROOM sets the
+		// band, so the ask the player already saw on the pad is the number that opens the table. Keeping
+		// them the same figure is what makes the ask an anchor you can negotiate against.
+		prospect.AskingAdvance = VenueAdvanceAsk(prospect.Artist, prospect.Venue);
+		float royalty = VenueRoyaltyBaseline(prospect.Artist, prospect.Venue);
+		int singles = PlayerDeliverablesAsk(prospect.Artist, t.TermYears, year);
+		prospect.Baseline = new ContractTermSheet(prospect.AskingAdvance, royalty, t.TermYears,
+			singles, t.LabelOwnsPublishing, t.ArtistCreativeControl,
+			t.NegotiationDifficulty, t.Manager, t.ManagerName,
+			AILabel.BuildDemandSummary(t.Manager, prospect.AskingAdvance, royalty,
+				t.LabelOwnsPublishing, t.ArtistCreativeControl));
 		prospect.HasBaseline = true;
-		message = string.IsNullOrEmpty(prospect.Baseline.DemandSummary)
-			? $"Table an offer for {prospect.Artist.stageName}."
-			: prospect.Baseline.DemandSummary;
+
+		// NegotiationDifficulty used to be stored and never read (see ContractTermSheet's own doc
+		// comment). This is where it finally gets consumed: most acts stay Pushover -- today's
+		// single-click form -- and a managed or high-drama act opens the negotiation scene instead.
+		prospect.Posture = PostureOf(prospect.Artist);
+		prospect.Talk = prospect.Posture == NegotiationPosture.Pushover ? null : OpenNegotiation(prospect);
+
+		message = prospect.Posture != NegotiationPosture.Pushover
+			? $"{prospect.Artist.stageName} wants to talk terms. {prospect.Baseline.DemandSummary}"
+			: string.IsNullOrEmpty(prospect.Baseline.DemandSummary)
+				? $"Table an offer for {prospect.Artist.stageName}."
+				: prospect.Baseline.DemandSummary;
 		Changed?.Invoke();
 		return true;
 	}
@@ -928,10 +1036,16 @@ public partial class PlayerDesk : Node {
 	/// negotiation difficulty, the manager) are carried from the opening offer so a hand-set advance
 	/// does not erase the rest of the deal.
 	/// </summary>
-	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears,
+	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears, int singlesObligation,
 		bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
 		if (!prospect.HasBaseline) { message = "Approach them first."; return false; }
+		// Firm/Hardball acts don't take an accept-or-walk offer -- they go through TableOffer's
+		// negotiation loop instead. See SimTools/ContractNegotiationDirective.md Part 2.
+		if (prospect.Posture != NegotiationPosture.Pushover) {
+			message = "They want to talk terms, not just sign -- work it through the negotiation.";
+			return false;
+		}
 		if (!Require(SignHours, out message)) return false;
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
@@ -944,27 +1058,12 @@ public partial class PlayerDesk : Node {
 
 		ContractTermSheet b = prospect.Baseline;
 		var sheet = new ContractTermSheet(
-			advance, Mathf.Clamp(royaltyRate, 0.02f, 0.15f), Mathf.Clamp(termYears, 1, 7),
-			b.SinglesObligation, labelOwnsPublishing, artistCreativeControl,
+			advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f), Mathf.Clamp(termYears, 1, 7),
+			Mathf.Clamp(singlesObligation, 0, 30), labelOwnsPublishing, artistCreativeControl,
 			b.NegotiationDifficulty, b.Manager, b.ManagerName, b.DemandSummary);
 
 		Spend(SignHours);
-		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		float paid = Label.SignArtist(prospect.Artist, year, sheet);
-		CompetitorManager.Instance?.RecordExpense(Label, paid);
-		ArtistManager.Instance?.SignArtist(prospect.Artist, Label.labelId, year);
-		// Capacity grows with the roster so the label is never sitting under its own target.
-		Label.SetOperatingRosterTarget(Label.CurrentRosterSize, LabelOperatingTargetReason.OrganicGrowth, week);
-		// The act keeps the live set it walked in with.
-		repertoire[prospect.Artist.artistId] = new List<RepertoireItem>(prospect.LiveSet);
-		// A signed discovery stays in the world -- don't let the next scout purge it.
-		generatedProspectIds.Remove(prospect.Artist.artistId);
-		slate.Remove(prospect);
-
-		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P0} royalty, {sheet.TermYears}yr" +
-			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
-		message = $"Signed {prospect.Artist.stageName}.";
+		FinalizeSigning(prospect, sheet, out message);
 		Changed?.Invoke();
 		return true;
 	}
@@ -1742,7 +1841,16 @@ public partial class PlayerDesk : Node {
 	private void BookTrunkSale(RecordRuntimeData rec, int units, string cityId, bool present) {
 		float gross = units * SinglePrice;
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.baseRecord.artistId);
-		float royalty = gross * (artist?.royaltyRate ?? 0.05f);
+		float accrued = gross * (artist?.royaltyRate ?? 0.05f);
+		// The advance comes back out of the royalty account before the act sees anything -- the trunk
+		// path never recouped at all, so every dollar of advance was paid twice out of the player's
+		// pocket. Mirrors the weekly settlement (CompetitorManager.CalculateLabelRevenue).
+		float recouped = artist != null ? Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), accrued) : 0f;
+		float royalty = accrued - recouped;
+		if (artist != null) {
+			artist.unrecoupedAdvance = Mathf.Max(0f, artist.unrecoupedAdvance - recouped);
+			artist.totalRoyaltyEarnings += royalty;
+		}
 		float net = gross - royalty;
 		// Units are NOT added to totalUnitsSold here -- the weekly settlement adds them exactly once through
 		// the chart injection (FinalizeWeeklySales += TakeWeeklyTrunkUnits). Counting them here as well double-
@@ -2056,6 +2164,12 @@ public partial class PlayerDesk : Node {
 			(data.Advocacy ?? new List<StationAdvocacySaveData>()).Select(a => a.ToAdvocacy()));
 		RestoreStationState(data.StationState);
 		ActiveCall = null;   // you are not on the phone in a loaded game
+		// Same reasoning as ActiveCall: a live negotiation (new signing or renewal) is scene state,
+		// not save state -- Prospect.Talk dies with the slate.Clear() below, but PendingRenewal is a
+		// bare field with no owning collection to clear it for us, so it needs the explicit reset or
+		// a same-session load could resume a stale renewal against the freshly-loaded world.
+		PendingRenewal = null;
+		maturedNotified.Clear();
 
 		AILabel label = Label != null && Label.labelId == data.Label.labelId ? Label : new AILabel();
 		bool fresh = label != Label;

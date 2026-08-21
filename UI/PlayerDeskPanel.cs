@@ -24,6 +24,9 @@ public partial class PlayerDeskPanel : Control {
 	// any) the player is currently drawing up a contract for.
 	private PlayerDesk.ScoutingVenue selectedVenue = PlayerDesk.ScoutingVenue.ClubsAndRoadhouses;
 	private PlayerDesk.Prospect negotiating;
+	// The act whose contract renewal is on screen on the ROSTER tab. Mirrors `negotiating`, but keys
+	// off PlayerDesk.PendingRenewal instead of a Prospect -- the renewal isn't a new signing.
+	private SimulatedArtist renewingArtist;
 	// The act whose MANAGE window is open on the ROSTER tab, and whether its cover-browse list is up.
 	private string managingArtistId;
 	private bool browsingCovers;
@@ -447,9 +450,11 @@ public partial class PlayerDeskPanel : Control {
 	private void PageAandR() {
 		PlayerDesk desk = PlayerDesk.Instance;
 
-		// If the player is mid-negotiation, the contract menu takes over the page.
+		// If the player is mid-negotiation, the contract menu takes over the page. A Pushover act
+		// gets the plain single-click form; a Firm/Hardball act gets the negotiation scene instead.
 		if (negotiating != null && desk.Slate.Contains(negotiating) && negotiating.HasBaseline) {
-			ContractForm(negotiating);
+			if (negotiating.Talk != null) NegotiationScene(negotiating.Talk);
+			else ContractForm(negotiating);
 			return;
 		}
 		negotiating = null;
@@ -528,7 +533,8 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(card);
 	}
 
-	/// <summary>The contract menu: the label's opening offer, editable, then put on the table.</summary>
+	/// <summary>The contract menu: the label's opening offer, editable, then put on the table.
+	/// Pushover only -- signing is a single accept-or-walk click.</summary>
 	private void ContractForm(PlayerDesk.Prospect prospect) {
 		ContractTermSheet b = prospect.Baseline;
 		Heading($"CONTRACT — {prospect.Artist.stageName.ToUpperInvariant()}");
@@ -537,51 +543,173 @@ public partial class PlayerDeskPanel : Control {
 		Body("Set the terms and put it to them. The negotiation costs " +
 			$"{PlayerDesk.SignHours} hours; the advance is charged when they sign.");
 
+		TermsForm(b, $"OFFER CONTRACT  ({PlayerDesk.SignHours}h)",
+			(advance, royalty, term, singles, labelPub, artistControl) => {
+				bool signed = PlayerDesk.Instance.OfferContract(prospect, advance, royalty, term, singles,
+					labelPub, artistControl, out string message);
+				if (signed) negotiating = null;
+				Say(message);
+				Refresh();
+			},
+			() => { negotiating = null; Refresh(); });
+	}
+
+	/// <summary>The editable grid shared by the plain contract form, every tabling round of a
+	/// Firm/Hardball negotiation, and a renewal. Just the fields and the two buttons -- caller
+	/// supplies the prefill, what the submit button says and does, and what "not now" does.</summary>
+	private void TermsForm(ContractTermSheet prefill, string submitLabel,
+			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel) {
 		var grid = new GridContainer { Columns = 2 };
 		grid.AddThemeConstantOverride("h_separation", 18);
 		grid.AddThemeConstantOverride("v_separation", 8);
 		content.AddChild(grid);
 
 		grid.AddChild(FormLabel("Advance ($)"));
-		var advance = Spin(0, 100000, 25, Mathf.Round(b.Advance));
+		var advance = Spin(0, 100000, 25, Mathf.Round(prefill.Advance));
 		grid.AddChild(advance);
 
 		grid.AddChild(FormLabel("Royalty (%)"));
-		var royalty = Spin(2, 15, 0.5, Mathf.Round(b.RoyaltyRate * 1000f) / 10f);
+		// Opens on what they expect. You may write it lower -- down to half a point -- but the further
+		// under their number you go, the likelier they push back on it.
+		var royalty = Spin(PlayerDesk.PlayerRoyaltyFloor * 100f, 15, 0.25,
+			Mathf.Round(prefill.RoyaltyRate * 4000f) / 40f);
 		grid.AddChild(royalty);
 
 		grid.AddChild(FormLabel("Term (years)"));
-		var term = Spin(1, 7, 1, b.TermYears);
+		var term = Spin(1, 7, 1, prefill.TermYears);
 		grid.AddChild(term);
 
+		grid.AddChild(FormLabel("Deliverables (singles)"));
+		// 2-3 singles a year is the period norm for a new act, tapering to none once a career is
+		// established -- the default already reflects that; this just lets the player move off it.
+		var singles = Spin(0, 30, 1, prefill.SinglesObligation);
+		grid.AddChild(singles);
+
 		grid.AddChild(FormLabel("Publishing"));
-		var labelPub = Check("Label keeps the publishing", b.LabelOwnsPublishing);
+		var labelPub = Check("Label keeps the publishing", prefill.LabelOwnsPublishing);
 		grid.AddChild(labelPub);
 
 		grid.AddChild(FormLabel("Creative control"));
-		var artistControl = Check("Artist has creative control", b.ArtistCreativeControl);
+		var artistControl = Check("Artist has creative control", prefill.ArtistCreativeControl);
 		grid.AddChild(artistControl);
 
 		var buttons = new HBoxContainer();
 		buttons.AddThemeConstantOverride("separation", 12);
-		var offer = Btn($"OFFER CONTRACT  ({PlayerDesk.SignHours}h)");
+		var offer = Btn(submitLabel);
 		offer.CustomMinimumSize = new Vector2(260, 44);
-		PlayerDesk.Prospect captured = prospect;
-		offer.Pressed += () => {
-			bool signed = PlayerDesk.Instance.OfferContract(captured, (float)advance.Value, (float)royalty.Value / 100f,
-				(int)term.Value, labelPub.ButtonPressed, artistControl.ButtonPressed, out string message);
-			if (signed) negotiating = null;
-			Say(message);
-			Refresh();
-		};
+		offer.Pressed += () => onSubmit((float)advance.Value, (float)royalty.Value / 100f,
+			(int)term.Value, (int)singles.Value, labelPub.ButtonPressed, artistControl.ButtonPressed);
 		buttons.AddChild(offer);
 
 		var cancel = Btn("NOT NOW");
 		cancel.CustomMinimumSize = new Vector2(150, 44);
-		cancel.Pressed += () => { negotiating = null; Refresh(); };
+		cancel.Pressed += () => onCancel();
 		buttons.AddChild(cancel);
 		content.AddChild(buttons);
 	}
+
+	// ========================================================================
+	// CONTRACT NEGOTIATION -- Firm/Hardball acts (see SimTools/ContractNegotiationDirective.md Part 2)
+	// ========================================================================
+
+	/// <summary>The negotiation scene: table an offer, or answer the objection it drew. Same
+	/// take-over-the-page shape as PageCall for the Rolodex -- this IS that loop, different nouns.</summary>
+	private void NegotiationScene(ContractTalk talk) {
+		string verb = talk.IsRenewal ? "RENEWING" : "NEGOTIATING";
+		Heading($"{verb} — {talk.Artist.stageName.ToUpperInvariant()}  ({talk.posture.ToString().ToUpperInvariant()})");
+		if (talk.roundsPlayed == 0) Body(talk.ask.DemandSummary);
+
+		if (talk.log.Count > 0) {
+			var frame = new PanelContainer();
+			frame.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+				BgColor = new Color("e7d8b4"), ContentMarginLeft = 12, ContentMarginRight = 12,
+				ContentMarginTop = 10, ContentMarginBottom = 10,
+			});
+			var box = new VBoxContainer();
+			box.AddThemeConstantOverride("separation", 6);
+			frame.AddChild(box);
+			content.AddChild(frame);
+			foreach (string line in talk.log.Take(4)) {
+				var lbl = new Label { Text = line, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+				lbl.AddThemeFontSizeOverride("font_size", 15);
+				lbl.AddThemeColorOverride("font_color", Ink);
+				box.AddChild(lbl);
+			}
+		}
+
+		// Done is never rendered: every path that reaches it (sign or walk) clears `negotiating` and
+		// refreshes in the same handler, same as the plain ContractForm's sign button does today.
+		switch (talk.stage) {
+			case ContractTalkStage.Tabling:   NegotiationTablingForm(talk);  break;
+			case ContractTalkStage.Objection: NegotiationObjection(talk);    break;
+		}
+	}
+
+	private void NegotiationTablingForm(ContractTalk talk) {
+		string label = talk.roundsPlayed == 0
+			? $"TABLE OFFER  ({PlayerDesk.NegotiationRoundHours}h)"
+			: $"TABLE AGAIN  ({PlayerDesk.NegotiationRoundHours}h)";
+		TermsForm(PlayerDesk.CurrentOffer(talk), label,
+			(advance, royalty, term, singles, labelPub, artistControl) => {
+				PlayerDesk.Instance.TableOffer(talk, advance, royalty, term, singles, labelPub, artistControl, out string message);
+				Say(message);
+				CloseTalkIfDone(talk);
+				Refresh();
+			},
+			() => {
+				PlayerDesk.Instance.WalkFromTalk(talk, out string message);
+				Say(message);
+				CloseTalkIfDone(talk);
+				Refresh();
+			});
+	}
+
+	/// <summary>A negotiation scene serves both a new signing (closes `negotiating`) and a renewal
+	/// (closes `renewingArtist`) -- clear whichever one this talk actually belongs to once it ends.</summary>
+	private void CloseTalkIfDone(ContractTalk talk) {
+		if (talk.stage != ContractTalkStage.Done) return;
+		if (talk.IsRenewal) renewingArtist = null; else negotiating = null;
+	}
+
+	private void NegotiationObjection(ContractTalk talk) {
+		Heading("HE COUNTERS");
+		var stand = new Label {
+			Text = $"Where it stands: roughly {talk.lastOfferValue * 100f:F0}% of what would close it " +
+				$"({talk.reservation * 100f:F0}% clears it)   •   {talk.patienceLeft} of {talk.patienceMax} round(s) of patience left",
+			AutowrapMode = TextServer.AutowrapMode.WordSmart,
+		};
+		stand.AddThemeColorOverride("font_color", Heard);
+		content.AddChild(stand);
+
+		NegotiationCounterButton(talk, ContractCounter.SweetenAxis,
+			"SWEETEN IT", "Go back and raise the number he's actually stuck on.");
+		if (PlayerDesk.CanTradeAxes(talk))
+			NegotiationCounterButton(talk, ContractCounter.TradeAxes,
+				"TRADE", "Give back the publishing and the final word; the advance comes down to match.");
+		NegotiationCounterButton(talk, ContractCounter.Promise,
+			$"PROMISE  ({PlayerDesk.NegotiationRoundHours}h)", "More sides, a real push -- costs nothing today.");
+		NegotiationCounterButton(talk, ContractCounter.HoldFirm,
+			$"HOLD FIRM  ({PlayerDesk.NegotiationRoundHours}h)", "Table it again unchanged and see who blinks.");
+		NegotiationCounterButton(talk, ContractCounter.Walk,
+			"WALK AWAY", "Step back from the table. Nothing's burned.");
+	}
+
+	private void NegotiationCounterButton(ContractTalk talk, ContractCounter counter, string label, string sub) {
+		var btn = Btn(label);
+		btn.CustomMinimumSize = new Vector2(0, 38);
+		btn.Pressed += () => {
+			PlayerDesk.Instance.PlayNegotiationCounter(talk, counter, out string message);
+			Say(message);
+			CloseTalkIfDone(talk);
+			Refresh();
+		};
+		content.AddChild(btn);
+		var note = new Label { Text = "     " + sub, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		note.AddThemeFontSizeOverride("font_size", 14);
+		note.AddThemeColorOverride("font_color", Heard);
+		content.AddChild(note);
+	}
+
 
 	// ========================================================================
 	// ROSTER  +  the MANAGE window (Songs + Studio folded in)
@@ -589,6 +717,13 @@ public partial class PlayerDeskPanel : Control {
 
 	private void PageRoster() {
 		PlayerDesk desk = PlayerDesk.Instance;
+
+		// A renewal in progress takes over the page, same as a signing does on A&R.
+		if (renewingArtist != null && desk.PendingRenewal?.Artist == renewingArtist) {
+			RenewalScene(desk.PendingRenewal);
+			return;
+		}
+		renewingArtist = null;
 
 		// Clicking an act opens its MANAGE window in place of the list.
 		SimulatedArtist managed = managingArtistId == null ? null
@@ -600,22 +735,40 @@ public partial class PlayerDeskPanel : Control {
 		if (!desk.Roster.Any()) { Body("Nobody signed yet. Go find an act on the A&R page."); return; }
 		Body("Click an act to manage them — their songbook, teaching covers, and cutting records all live in there.");
 
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		foreach (SimulatedArtist artist in desk.Roster.ToList()) {
+			bool matured = RosterManager.IsContractMatured(artist, year, week);
+			var card = new VBoxContainer();
+			card.AddThemeConstantOverride("separation", 2);
+
 			var row = new HBoxContainer();
 			row.AddThemeConstantOverride("separation", 12);
 
 			int songs = desk.RepertoireFor(artist.artistId).Count
 				+ desk.UnrecordedSongs.Count(s => s.ArtistId == artist.artistId);
+			string manager = artist.manager == ManagerArchetype.None ? "" : $"   •   managed by {artist.managerName ?? artist.manager.ToString()}";
 			var text = new Label {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
 				Text = $"{artist.stageName}  —  {GenreNameFormatter.Format(artist.primaryGenre)}  •  {artist.careerState}\n" +
 					$"    {artist.totalReleases} releases   •   {artist.top40Hits} Top 40   •   {songs} in the songbook   •   " +
-					$"{artist.royaltyRate:P0} royalty   •   expires {artist.contractExpiresYear}"
+					$"{artist.royaltyRate:P0} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}"
 			};
-			text.AddThemeColorOverride("font_color", Ink);
+			text.AddThemeColorOverride("font_color", matured ? Rust : Ink);
 			row.AddChild(text);
 
 			SimulatedArtist captured = artist;
+			if (matured) {
+				var renew = Btn("RENEW");
+				renew.CustomMinimumSize = new Vector2(120, 40);
+				renew.Pressed += () => {
+					if (PlayerDesk.Instance.ApproachRenewal(captured, out string message)) renewingArtist = captured;
+					Say(message);
+					Refresh();
+				};
+				row.AddChild(renew);
+			}
+
 			var manage = Btn("MANAGE");
 			manage.CustomMinimumSize = new Vector2(150, 40);
 			manage.Pressed += () => { managingArtistId = captured.artistId; browsingCovers = false; Refresh(); };
@@ -625,8 +778,30 @@ public partial class PlayerDeskPanel : Control {
 			dossier.CustomMinimumSize = new Vector2(110, 40);
 			dossier.Pressed += () => UIManager.Instance?.OpenArtist(captured.artistId, true);
 			row.AddChild(dossier);
-			content.AddChild(row);
+			card.AddChild(row);
+			content.AddChild(card);
 		}
+	}
+
+	/// <summary>The renewal menu for a matured contract: Pushover gets the same quick one-click form
+	/// as a first signing; Firm/Hardball opens the same negotiation scene, different nouns.</summary>
+	private void RenewalScene(RenewalOffer offer) {
+		if (offer.Posture != NegotiationPosture.Pushover) { NegotiationScene(offer.Talk); return; }
+
+		Heading($"RENEW — {offer.Artist.stageName.ToUpperInvariant()}");
+		if (!string.IsNullOrEmpty(offer.Ask.DemandSummary)) Body($"On the table: {offer.Ask.DemandSummary}");
+		Body("Set the terms and put new paper in front of them. The meeting costs " +
+			$"{PlayerDesk.NegotiationRoundHours} hours; the advance is charged when they sign.");
+
+		TermsForm(offer.Ask, $"RENEW  ({PlayerDesk.NegotiationRoundHours}h)",
+			(advance, royalty, term, singles, labelPub, artistControl) => {
+				bool renewed = PlayerDesk.Instance.RenewContract(offer.Artist, advance, royalty, term, singles,
+					labelPub, artistControl, out string message);
+				if (renewed) renewingArtist = null;
+				Say(message);
+				Refresh();
+			},
+			() => { renewingArtist = null; Refresh(); });
 	}
 
 	/// <summary>The MANAGE window for one act: repertoire (write / teach a cover) and the studio.</summary>

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -1003,7 +1003,25 @@ public partial class CompetitorManager : Node {
 			// Keep the existing artist contract convention (royalty on retail). The
 			// distribution skim is based on revenue after manufacturing cost.
 			float artistPayment = retailGross * artistRoyalty;
-			float recordRevenue = grossAfterCogs - skimAmount - artistPayment;
+			// RECOUPMENT. The advance is cash the label already paid out (RecordExpense at signing), and
+			// the period convention is that it comes back out of the artist's royalty account before the
+			// artist sees a cent. Both figures below are computed for everyone and the artist-side
+			// bookkeeping is identical for everyone; only who bears the cost differs.
+			float recouped = artist != null
+				? Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), artistPayment)
+				: 0f;
+			float royaltyToArtist = artistPayment - recouped;   // what the act actually banks
+			// PLAYER-ONLY, DELIBERATELY. Withholding the recouped slice is the correct behavior and the
+			// AI path is a real bug -- it charges the label the FULL royalty while the recouped slice
+			// reaches nobody, so the money is destroyed and every AI advance is paid twice. It is left
+			// alone because the AI economy is calibrated against that double-pay: label survival, roster
+			// growth and tier distribution were all tuned with it in place, and flipping it is a separate
+			// decision with a decade run behind it. See SimTools/ContractNegotiationDirective.md.
+			// AI keeps `artistPayment` here, so its economy is byte-identical.
+			float royaltyExpense = label.isPlayerOwned ? royaltyToArtist : artistPayment;
+			// The decomposition identity gross - cogs - skim - royalty = net has to hold, so the royalty
+			// leg books what the label actually bore.
+			float recordRevenue = grossAfterCogs - skimAmount - royaltyExpense;
 			// Publishing (Scouting Mechanic Phase 4). A composition-royalty slice of gross. When the
 			// label owns publishing (default, and always when managers are off) it is already inside
 			// recordRevenue - nothing moves, so the economy is unchanged. When the artist kept
@@ -1090,20 +1108,21 @@ public partial class CompetitorManager : Node {
 			label.weeklyGrossRevenue += retailGross;
 			label.weeklyCogs += cogs;
 			label.weeklyDistributionSkim += skimAmount;
-			label.weeklyArtistRoyalty += artistPayment;
+			label.weeklyArtistRoyalty += royaltyExpense;
 			label.weeklyNetRevenue += recordRevenue;
 			RevenueTelemetry formatRevenue = GetOrCreateRevenueTelemetry(label.labelId, format);
 			formatRevenue.gross += retailGross;
 			formatRevenue.cogs += cogs;
 			formatRevenue.distributionSkim += skimAmount;
-			formatRevenue.artistRoyalty += artistPayment;
+			formatRevenue.artistRoyalty += royaltyExpense;
 			formatRevenue.labelNet += recordRevenue;
 			RouteDistributionSkim(label, skimAmount, format, entry);
 			
+			// Artist-side bookkeeping is unchanged for everyone -- this is exactly what the pre-existing
+			// code did, so HasRecoupedCurrentContract and every lifecycle read of it are untouched.
 			if (artist != null) {
-				float recouped = Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), artistPayment);
 				artist.unrecoupedAdvance = Mathf.Max(0f, artist.unrecoupedAdvance - recouped);
-				artist.totalRoyaltyEarnings += artistPayment - recouped;
+				artist.totalRoyaltyEarnings += royaltyToArtist;
 			}
 			
 		}

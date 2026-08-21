@@ -1,9 +1,11 @@
 /// <summary>
 /// A concrete, player-legible set of demands the manager produces from a label's baseline offer.
 /// This is the visible depth: the Shark's "$18k up front, 8%, label keeps publishing, short term"
-/// is drama the moment you see it, before any counter-offer minigame exists. The AI accepts-or-
-/// declines it; the player sees <see cref="DemandSummary"/> and accepts-or-walks.
-/// <see cref="NegotiationDifficulty"/> is stored now, unused, ready for that later minigame.
+/// is drama the moment you see it. The AI accepts-or-declines it; the player sees
+/// <see cref="DemandSummary"/> and, for a Pushover act, accepts-or-walks. <see cref="NegotiationDifficulty"/>
+/// now drives the Part 2 negotiation scene (see PlayerDesk.ContractNegotiation.cs and
+/// SimTools/ContractNegotiationDirective.md): posture, patience, and the room between the ask and
+/// what the act will actually take.
 /// </summary>
 public readonly struct ContractTermSheet {
 	public readonly float Advance;

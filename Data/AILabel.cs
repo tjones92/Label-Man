@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -469,7 +469,9 @@ public partial class AILabel : Resource {
 			mods.NegotiationDifficulty, artist.manager, artist.managerName, summary);
 	}
 
-	private static string BuildDemandSummary(ManagerArchetype m, float advance, float royalty, bool labelPub, bool artistControl) {
+	/// <summary>Public so a caller that re-prices the advance (the player's venue-banded ask) can
+	/// regenerate the player-facing line to match the number actually on the table.</summary>
+	public static string BuildDemandSummary(ManagerArchetype m, float advance, float royalty, bool labelPub, bool artistControl) {
 		string pub = labelPub ? "label keeps publishing" : "artist keeps publishing";
 		string ctrl = artistControl ? "artist creative control" : "label creative control";
 		return m switch {
@@ -748,7 +750,15 @@ public partial class AILabel : Resource {
 		return false;
 	}
 	
+	/// <summary>Rent-free home operation: what the player's label costs to keep the lights on each month.</summary>
+	public const float PlayerHomeOfficeOverhead = 75f;
+
 	public float GetMonthlyOverhead() {
+		// The player starts out of a home or apartment, not an office: a phone line, a filing cabinet
+		// on the kitchen table, and postage. There is no per-artist line because the player's marginal
+		// cost of an act is already charged where it lands -- studio time, pressing, gas on the road.
+		// Player-only, so the AI economy's overhead schedule is untouched.
+		if (isPlayerOwned) return PlayerHomeOfficeOverhead;
 		float baseOverhead = tier switch {
 			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
 			LabelTier.Small => 150f, LabelTier.Boutique => 250f, _ => 300f

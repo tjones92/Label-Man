@@ -703,6 +703,12 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// what gives the scouting Level-3 reveal its teeth: "managed by a Shark" is partial confirmation
 	/// the raw talent is real, even through the perception fog. One stream-aware draw.
 	/// </summary>
+	/// <summary>Public door onto the same quality-correlated roll used at generation, for a signed
+	/// act picking up a manager mid-contract (player-only; see PlayerDesk.ContractNegotiation.cs).
+	/// Uses <c>Randf()</c>, which is <c>GD.Randf()</c> outside population generation -- never the
+	/// stream-aware population RNG in that context, so this cannot perturb the AI's schedule.</summary>
+	public ManagerArchetype RollManagerArchetypeFor(SimulatedArtist artist) => RollManagerArchetype(artist);
+
 	private ManagerArchetype RollManagerArchetype(SimulatedArtist artist) {
 		float quality = artist.CalculateBaseQuality();
 		float roll = Randf();
