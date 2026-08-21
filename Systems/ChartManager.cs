@@ -1003,6 +1003,10 @@ public partial class ChartManager : Node {
 		// playlist meeting reads the boost cache. Inert while there are no player arrangements.
 		payolaLedger?.Tick(currentChartWeek, year, month);
 
+		// Rolodex Phase 3: cultivated label rapport fades if it isn't renewed. Inert while no station's
+		// labelRapport dictionary has an entry (i.e. every AI-only headless run).
+		stationNetwork?.DecayLabelRapport();
+
 		// === STEP 2.75: REPORTER PLAYLIST MEETING ===
 		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio
 		// aggregation reads them (design doc a 3.1). Uses the network's own RNG, so while
@@ -2503,6 +2507,27 @@ public partial class ChartManager : Node {
 	public int GetCurrentChartWeek() => currentChartWeek;
 
 	public Zeitgeist GetCurrentZeitgeist() => baseZeitgeist;
+
+	// ── Rolodex accessors (player-facing; read-only views into the station network) ──────────────
+	public System.Collections.Generic.IReadOnlyList<RadioStation> ReporterStationsInRegion(string regionId) =>
+		stationNetwork?.ReportersInRegion(regionId) ?? (System.Collections.Generic.IReadOnlyList<RadioStation>)System.Array.Empty<RadioStation>();
+	public Deejay GetDeejay(string djId) => stationNetwork?.GetDeejay(djId);
+	public RadioStation GetRadioStation(string stationId) => stationNetwork?.GetStation(stationId);
+
+	/// <summary>Place a Cash payola arrangement (Rolodex Phase 4, FIXER verb). Player-facing: AI labels
+	/// never call this, so payolaLedger.actions stays empty and Tick() takes the inert fast path on
+	/// every headless-only run.</summary>
+	public PayolaAction PlacePayolaCash(string recordId, string labelId, string stationId, float budget) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
+		return payolaLedger?.PlaceCash(recordId, labelId, stationId, budget, currentChartWeek, year, month);
+	}
+	/// <summary>Scandals adjudicated on THIS week's payolaLedger.Tick (already run earlier in SimulateWeek).
+	/// Cleared and rebuilt every tick, so a consumer must read it the same week it fires -- PlayerDesk
+	/// does this from OnWeekEnded, which the autoload order (ChartManager before PlayerDesk) guarantees
+	/// runs after SimulateWeek for the week that just ended.</summary>
+	public System.Collections.Generic.IReadOnlyList<ScandalEvent> PendingPayolaScandals =>
+		payolaLedger?.pendingScandals ?? (System.Collections.Generic.IReadOnlyList<ScandalEvent>)System.Array.Empty<ScandalEvent>();
 
 	/// <summary>
 	/// External hook for events that put a record on the air in one market. It honours the station

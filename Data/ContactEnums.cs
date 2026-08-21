@@ -1,39 +1,6 @@
 // Scripts/Data/ContactEnums.cs
-
-public enum ContactType {
-	// Creative
-	Producer,
-	SessionMusician,
-	Songwriter,
-	
-	// Promotion
-	DJ_Local,
-	DJ_National,
-	Journalist_Trade,
-	Journalist_Consumer,
-	TVBooker,
-	Publicist,
-	
-	// Distribution
-	PressingPlant,
-	Distributor,
-	JukeboxOperator,
-	RetailBuyer,
-	
-	// Business
-	Lawyer,
-	Banker,
-	LabelExecutive,
-	
-	// Talent
-	TalentScout,
-	ArtistManager,
-	Artist,
-	
-	// Underground
-	MobContact,
-	Fixer
-}
+// Note: ContactType, ContactCategory, RelationshipTier, AvailabilityStatus were dead legacy enums
+// (confirmed by author -- they referenced Contact.cs which is now deleted). Removed in Rolodex Phase 2.
 
 public enum LabelTier {
 	Major,          // The big corporate players (RCA, Columbia, etc.)
@@ -72,35 +39,6 @@ public enum LabelPopulationOrigin { Unspecified, LaunchPopulation, RuntimeFounde
 /// <summary>Why the label's operating roster target was most recently reconciled.</summary>
 public enum LabelOperatingTargetReason { Unset, LaunchPopulation, RuntimeBootstrap, OrganicGrowth, PromotionReconciliation, DemotionReconciliation, AcquisitionReconciliation }
 
-public enum ContactCategory {
-	Creative,
-	Promotion,
-	Distribution,
-	Business,
-	Talent,
-	Underground
-}
-
-public enum RelationshipTier {
-	Burned,
-	Cold,
-	Acquaintance,
-	Friendly,
-	Loyal,
-	InYourPocket
-}
-
-public enum AvailabilityStatus {
-	Available,
-	Busy,
-	OnVacation,
-	InJail,
-	Deceased,
-	ScreeningYou,
-	Unknown
-}
-
-// Add to ContactEnums.cs or a new Enums file
 public enum ArtistType {
 	SoloMale,
 	SoloFemale,

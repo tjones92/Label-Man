@@ -287,6 +287,10 @@ public sealed class PlayerSaveData {
 	// an enum converter; ExecutiveInstincts being null flags a pre-feature save (see RestoreState).
 	public int ArchetypeOrdinal      { get; set; }
 	public ExecutiveInstinctProfile ExecutiveInstincts { get; set; }
+
+	// Phase 2 Rolodex branch: contacts discovered through play.
+	public int PhoneMinutesAccum     { get; set; }
+	public List<RolodexEntrySaveData> Rolodex { get; set; } = new();
 }
 
 public sealed class LabelSaveData {

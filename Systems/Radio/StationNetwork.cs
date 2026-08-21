@@ -55,6 +55,25 @@ public sealed partial class StationNetwork {
 			foreach (RadioStation s in kv.Value) yield return s;
 	}
 
+	/// <summary>
+	/// Weekly decay of cultivated label rapport (Rolodex Phase 3). A relationship that isn't renewed
+	/// fades back toward neutral instead of holding forever. <c>labelRapport</c> is only ever written by
+	/// a player action (Personal Pitch / Ad-Buy), so on every AI-only headless run every station's
+	/// dictionary is empty and this is a no-op -- deterministic and byte-identical either way.
+	/// </summary>
+	public void DecayLabelRapport(float retainFraction = 0.985f) {
+		foreach (RadioStation s in AllStations()) {
+			Dictionary<string, float> rapport = s.rt?.labelRapport;
+			if (rapport == null || rapport.Count == 0) continue;
+			var keys = new List<string>(rapport.Keys);
+			foreach (string key in keys) {
+				float decayed = rapport[key] * retainFraction;
+				if (decayed < 0.005f) rapport.Remove(key);
+				else rapport[key] = decayed;
+			}
+		}
+	}
+
 	// ====================================================================
 	// ROSTER GENERATION
 	// ====================================================================

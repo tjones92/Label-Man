@@ -283,6 +283,27 @@ public partial class PlayerDesk : Node {
 	/// <summary>Months of red left before the bank closes you (0 while solvent).</summary>
 	public int MonthsOfGraceLeft => Label != null && Label.cashReserves < 0f ? Mathf.Max(0, MaxMonthsInTheRed - monthsInTheRed) : MaxMonthsInTheRed;
 
+	// ── Rolodex ────────────────────────────────────────────────────────────────────────────────
+	// Cards the player has discovered. Unknown DJs have no entry; the list only holds contacted ones.
+	private readonly List<RolodexEntry> rolodex = new();
+	public IReadOnlyList<RolodexEntry> Rolodex => rolodex;
+	// Sub-hour call time accumulator: phone calls cost 15-30 min each; a whole clock-hour is only
+	// spent when the bucket crosses 60 min, so individual calls don't freeze the clock for a full hour.
+	private int phoneMinutesAccum;
+	public const int WorkThePhonesMinMinutes = 15;
+	public const int WorkThePhonesMaxMinutes = 30;
+	public const int PersonalPitchMinMinutes = 30;
+	public const int PersonalPitchMaxMinutes = 45;
+	// Per-action rapport gain is always bounded -- no single call or check manufactures a hit.
+	// The read is uncapped (rt.Rapport can climb past this), but the SOFT cap shrinks marginal gains
+	// as it climbs, and DecayLabelRapport (StationNetwork) pulls an uncultivated relationship back down.
+	private const float RapportSoftCap = 1.0f;
+	private const float PersonalPitchMaxRapportGain = 0.09f;
+
+	// FIXER minimum to even see the Payola verb -- same threshold as the FIXER passive reads, since
+	// pricing an envelope without reading greed/suspicion first is just throwing money at a stranger.
+	public const int PayolaMinFixer = 3;
+
 	/// <summary>Who the player was before opening the label. Set at founding; gates Rolodex reads and actions.</summary>
 	public FoundingArchetype Archetype { get; private set; } = FoundingArchetype.TradeInsider;
 	/// <summary>The four Executive Instinct scores derived from <see cref="Archetype"/>. Never null after founding.</summary>
@@ -1842,6 +1863,486 @@ public partial class PlayerDesk : Node {
 	public int HoursUntil(int targetHour) =>
 		Mathf.Max(0, targetHour - (TimeManager.Instance?.CurrentHour ?? targetHour));
 
+	// ========================================================================
+	// ROLODEX
+	// ========================================================================
+
+	/// <summary>
+	/// Make a round of calls to find a DJ contact in the player's home region. Costs
+	/// <see cref="WorkThePhonesMinMinutes"/>–<see cref="WorkThePhonesMaxMinutes"/> minutes; the desk
+	/// accumulates these into whole clock-hours so individual calls don't freeze the day. STREET
+	/// gates quality of discovery: low STREET = random draw; high STREET = weighted toward
+	/// high-influence DJs who are actually worth cultivating.
+	/// </summary>
+	public bool WorkThePhones(out string message) {
+		if (!Require(0, out message)) return false;
+		if (!RequireHome(out message)) return false;
+		if (TimeManager.Instance?.IsDayOver == true) { message = "It's too late to be making calls. Come back tomorrow."; return false; }
+
+		var chart = ChartManager.Instance;
+		if (chart == null) { message = "No market data."; return false; }
+
+		// Candidates: reporter stations in home region not yet on the rolodex.
+		var knownStationIds = new HashSet<string>(rolodex.Select(e => e.stationId), StringComparer.Ordinal);
+		var candidates = chart.ReporterStationsInRegion(Label.homeRegion)
+			.Where(s => !knownStationIds.Contains(s.stationId)
+				&& !string.IsNullOrEmpty(s.leadDjId)
+				&& chart.GetDeejay(s.leadDjId) != null)
+			.ToList();
+
+		if (candidates.Count == 0) {
+			message = "You've already got a lead on every reporter station in your region. Expand to other markets first.";
+			return false;
+		}
+
+		// Spend time: 15-30 min random; accumulate into whole clock-hours.
+		int minutes = WorkThePhonesMinMinutes + (int)GD.RandRange(0, WorkThePhonesMaxMinutes - WorkThePhonesMinMinutes);
+		SpendMinutes(minutes);
+
+		// Pick target DJ, weighted by influence if STREET is high enough.
+		RadioStation station = PickPhoneTarget(candidates, InstinctProfile.TheStreet);
+		Deejay dj = chart.GetDeejay(station.leadDjId);
+
+		// Synthesize a real name and radio persona.
+		string djName = SynthesizeDJName(dj, station);
+
+		// Discovery state: higher STREET → surface as Introduced (you found a name AND made first contact);
+		// lower → HeardOf only (you got a name, but haven't reached them yet).
+		DiscoveryState initial = InstinctProfile.TheStreet >= 3 ? DiscoveryState.Introduced : DiscoveryState.HeardOf;
+
+		var entry = new RolodexEntry {
+			djId = dj.djId, stationId = station.stationId,
+			state = initial, displayName = djName,
+			portraitKey = dj.archetype.ToString(),
+		};
+		entry.log.Add($"{TimeManager.Instance?.CurrentDate.ToShortString() ?? "?"} — " +
+			(initial == DiscoveryState.Introduced
+				? $"Made contact: {djName}, {station.callsign}."
+				: $"Got a name: {djName} at {station.callsign}. Haven't reached them yet."));
+		rolodex.Add(entry);
+
+		Note($"Worked the phones ({minutes} min): {(initial == DiscoveryState.Introduced ? "introduced to" : "heard of")} " +
+			$"{djName} — {station.callsign} ({station.format}, {station.cityName}).");
+		message = initial == DiscoveryState.Introduced
+			? $"You got through. {djName} at {station.callsign} picked up."
+			: $"You got a name: {djName} at {station.callsign}. Still need to reach them.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	/// Personal Pitch (EAR): argue the record's case DJ-to-DJ over a longer call. Whether it lands, and
+	/// how much rapport it buys, is read from the DJ's own taste, his affinity for the record's genre,
+	/// and the record's actual quality -- a good ear finds the honest angle; oversell it and he hangs up.
+	/// This is the only sim write in Phase 3: it raises <c>StationRuntime.labelRapport</c>, the
+	/// "cultivation surface" the candidacy meeting already reads (relationship term) but nothing wrote
+	/// until now. It does not touch formatMatch -- pitching a genre the station's format shuts out still
+	/// raises rapport, it just can't buy a spin the real meeting won't give it.
+	/// </summary>
+	public bool PersonalPitch(RolodexEntry entry, string recordId, out string message) {
+		if (!Require(0, out message)) return false;
+		if (!RequireHome(out message)) return false;
+		if (TimeManager.Instance?.IsDayOver == true) { message = "Too late in the day for a proper call."; return false; }
+		if (entry == null) { message = "No one to call."; return false; }
+		if (entry.professionallyBurned) { message = $"{entry.displayName} doesn't trust your word anymore."; return false; }
+		if (entry.state == DiscoveryState.HeardOf) { message = "You've only got a name so far -- work the phones to actually reach them."; return false; }
+
+		var chart = ChartManager.Instance;
+		RadioStation station = chart?.GetRadioStation(entry.stationId);
+		Deejay dj = chart?.GetDeejay(entry.djId);
+		if (station?.rt == null || dj == null) { message = "Can't reach them right now."; return false; }
+
+		RecordRuntimeData record = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		if (record?.baseRecord == null) { message = "Pick a record to pitch first."; return false; }
+		Record baseRecord = record.baseRecord;
+
+		int minutes = PersonalPitchMinMinutes + (int)GD.RandRange(0, PersonalPitchMaxMinutes - PersonalPitchMinMinutes);
+		SpendMinutes(minutes);
+
+		float quality = (baseRecord.hookStrength + baseRecord.productionQuality + baseRecord.originality) / 3f;
+		float affinity = dj.GenreAffinity(baseRecord.primaryGenre);
+		// EAR does the reading: a strong record and a taste-driven jock make the case easier; a
+		// low EAR pitch is mostly a coin flip regardless of what's actually in the grooves.
+		float chance = Mathf.Clamp(
+			0.30f + InstinctProfile.TheEar * 0.07f + (quality - 0.5f) * 0.35f
+				+ (affinity - 1f) * 0.15f + (dj.taste - 0.5f) * 0.20f,
+			0.08f, 0.85f);
+		bool success = GD.Randf() < chance;
+
+		string date = TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+		if (success) {
+			float rapportBefore = station.rt.Rapport(Label.labelId);
+			float headroom = Mathf.Clamp(1f - rapportBefore / RapportSoftCap, 0.15f, 1f);
+			float gain = PersonalPitchMaxRapportGain * Mathf.Lerp(0.4f, 1f, quality) * headroom;
+			float rapportAfter = rapportBefore + gain;
+			station.rt.labelRapport[Label.labelId] = rapportAfter;
+			entry.MaybePromoteState(rapportAfter);
+			// Stake your word on it: settled against the record's actual sales in ProcessRecordMemories.
+			entry.pendingMemories.Add(new RolodexEntry.PendingRecordMemory {
+				recordId = baseRecord.recordId, recordTitle = baseRecord.title,
+				evalWeek = (chart?.GetCurrentChartWeek() ?? 0) + RecordMemoryEvalWeeks,
+				unitsAtPitch = record.totalUnitsSold
+			});
+			entry.log.Insert(0, $"{date} — Personal pitch on \"{baseRecord.title}\" landed. Rapport +{gain:F2}.");
+			Note($"Pitched \"{baseRecord.title}\" to {entry.displayName} ({station.callsign}) -- he's warming up.");
+			message = $"{entry.displayName} bit. Rapport with {station.callsign} is up a notch.";
+		} else {
+			entry.log.Insert(0, $"{date} — Personal pitch on \"{baseRecord.title}\" fell flat.");
+			Note($"Pitched \"{baseRecord.title}\" to {entry.displayName} ({station.callsign}) -- no sale.");
+			message = $"{entry.displayName} wasn't buying it this time.";
+		}
+		if (entry.log.Count > 20) entry.log.RemoveRange(20, entry.log.Count - 20);
+		Changed?.Invoke();
+		return true;
+	}
+
+	public enum AdBuyTier { Small, Medium, Large }
+
+	public static float AdBuyCost(AdBuyTier tier) => tier switch {
+		AdBuyTier.Small  => 150f,
+		AdBuyTier.Medium => 400f,
+		AdBuyTier.Large  => 800f,
+		_ => 150f
+	};
+	private static float AdBuyRapportGain(AdBuyTier tier) => tier switch {
+		AdBuyTier.Small  => 0.02f,
+		AdBuyTier.Medium => 0.035f,
+		AdBuyTier.Large  => 0.05f,
+		_ => 0.02f
+	};
+	public static string AdBuyTierName(AdBuyTier tier) => tier switch {
+		AdBuyTier.Small  => "Spot Buy",
+		AdBuyTier.Medium => "Promo Package",
+		AdBuyTier.Large  => "Full Sponsorship",
+		_ => "Buy"
+	};
+
+	/// <summary>
+	/// Ad-Buy (SUIT): pay for promotional time around the record instead of talking your way into it.
+	/// No roll -- cash always lands the spot -- but the trust it buys is weaker per dollar than a
+	/// personal pitch that actually worked, and just like the pitch it only raises rapport; formatMatch
+	/// and the rest of the real candidacy meeting still decide whether the record gets spun.
+	/// </summary>
+	public bool AdBuy(RolodexEntry entry, string recordId, AdBuyTier tier, out string message) {
+		if (!Require(0, out message)) return false;
+		if (!RequireHome(out message)) return false;
+		if (entry == null) { message = "No one to buy time from."; return false; }
+		// No burn check: a paid spot is pure business, not personal trust or a cash favor -- the one
+		// channel neither payolaBurned nor professionallyBurned touches.
+		if (entry.state == DiscoveryState.HeardOf) { message = "You need to have actually reached them first."; return false; }
+
+		var chart = ChartManager.Instance;
+		RadioStation station = chart?.GetRadioStation(entry.stationId);
+		if (station?.rt == null) { message = "Can't reach that station right now."; return false; }
+
+		RecordRuntimeData record = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		if (record?.baseRecord == null) { message = "Pick a record to promote first."; return false; }
+		Record baseRecord = record.baseRecord;
+
+		float cost = AdBuyCost(tier);
+		if (Label.cashReserves < cost) { message = $"You're ${cost - Label.cashReserves:N0} short of a ${cost:N0} buy."; return false; }
+
+		Label.cashReserves -= cost;
+		Label.monthlyExpenses += cost;
+
+		float rapportBefore = station.rt.Rapport(Label.labelId);
+		float headroom = Mathf.Clamp(1f - rapportBefore / RapportSoftCap, 0.15f, 1f);
+		float gain = AdBuyRapportGain(tier) * headroom;
+		float rapportAfter = rapportBefore + gain;
+		station.rt.labelRapport[Label.labelId] = rapportAfter;
+		entry.MaybePromoteState(rapportAfter);
+
+		string date = TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+		entry.log.Insert(0, $"{date} — Bought a {AdBuyTierName(tier)} around \"{baseRecord.title}\" (${cost:N0}). Rapport +{gain:F2}.");
+		if (entry.log.Count > 20) entry.log.RemoveRange(20, entry.log.Count - 20);
+		Note($"Bought {AdBuyTierName(tier)} promo time at {station.callsign} for \"{baseRecord.title}\" -- ${cost:N0}.");
+		message = $"Spot's booked at {station.callsign}. {entry.displayName} knows your name a little better now.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	public enum PayolaTier { Small, Medium, Large }
+
+	public static float PayolaCost(PayolaTier tier) => tier switch {
+		PayolaTier.Small  => 200f,
+		PayolaTier.Medium => 500f,
+		PayolaTier.Large  => 1000f,
+		_ => 200f
+	};
+	public static string PayolaTierName(PayolaTier tier) => tier switch {
+		PayolaTier.Small  => "Envelope",
+		PayolaTier.Medium => "Package",
+		PayolaTier.Large  => "Heavy Package",
+		_ => "Envelope"
+	};
+
+	/// <summary>
+	/// Payola (FIXER): a straight cash bribe through the existing <see cref="PayolaLedger"/>, the same
+	/// ledger that already carries decay, detection, and the full scandal adjudication. This verb does
+	/// not touch the candidacy meeting directly -- placing the arrangement is the whole write; the
+	/// ledger's own boost cache feeds the payola term next tick. A bust is real: it deletes the
+	/// cultivated rapport, can get the DJ banned (a fresh, cautious replacement takes the chair), and
+	/// burns the cash channel on this card (<see cref="RolodexEntry.payolaBurned"/>) -- see
+	/// <see cref="ProcessPayolaScandals"/>, run from <see cref="OnWeekEnded"/>.
+	/// </summary>
+	public bool Payola(RolodexEntry entry, string recordId, PayolaTier tier, out string message) {
+		if (!Require(0, out message)) return false;
+		if (!RequireHome(out message)) return false;
+		if (entry == null) { message = "No one to pay."; return false; }
+		if (entry.payolaBurned) { message = $"{entry.displayName} won't touch your money -- not after last time."; return false; }
+		if (entry.state == DiscoveryState.HeardOf) { message = "You need to have actually reached them first."; return false; }
+		if (InstinctProfile.TheFixer < PayolaMinFixer) { message = "You don't have the stomach for this play."; return false; }
+
+		var chart = ChartManager.Instance;
+		RadioStation station = chart?.GetRadioStation(entry.stationId);
+		Deejay dj = chart?.GetDeejay(entry.djId);
+		if (station?.rt == null || dj == null) { message = "Can't reach that station right now."; return false; }
+
+		RecordRuntimeData record = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		if (record?.baseRecord == null) { message = "Pick a record to push first."; return false; }
+		Record baseRecord = record.baseRecord;
+
+		float budget = PayolaCost(tier);
+		if (Label.cashReserves < budget) { message = $"You're ${budget - Label.cashReserves:N0} short of a ${budget:N0} envelope."; return false; }
+
+		Label.cashReserves -= budget;
+		Label.monthlyExpenses += budget;
+		chart.PlacePayolaCash(baseRecord.recordId, Label.labelId, station.stationId, budget);
+
+		string date = TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+		entry.log.Insert(0, $"{date} — Slipped {entry.displayName} a {PayolaTierName(tier)} for \"{baseRecord.title}\" (${budget:N0}).");
+		if (entry.log.Count > 20) entry.log.RemoveRange(20, entry.log.Count - 20);
+		Note($"Payola: {PayolaTierName(tier)} (${budget:N0}) to {entry.displayName} ({station.callsign}) for \"{baseRecord.title}\".");
+		message = $"Envelope's in his pocket. {station.callsign} owes your record a spin -- for now.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Read this week's payola scandals off ChartManager (already settled by its OnWeekEnded
+	/// handler, which the autoload order guarantees runs first) and apply the teeth: cash penalty,
+	/// desk log, and a burned card so the relationship can't just be re-cultivated next week.</summary>
+	private void ProcessPayolaScandals() {
+		var scandals = ChartManager.Instance?.PendingPayolaScandals;
+		if (scandals == null || scandals.Count == 0) return;
+		string date = TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+		foreach (ScandalEvent scandal in scandals) {
+			if (scandal.labelId != Label.labelId) continue;   // AI labels never place arrangements; explicit anyway
+			Label.cashReserves -= scandal.financialPenalty;
+			RolodexEntry entry = rolodex.FirstOrDefault(e => e.stationId == scandal.stationId);
+			if (entry != null) {
+				entry.payolaBurned = true;
+				entry.log.Insert(0, $"{date} — BUSTED: {scandal.description} He won't touch cash from you again.");
+				if (entry.log.Count > 20) entry.log.RemoveRange(20, entry.log.Count - 20);
+			}
+			Note($"{scandal.description} -${scandal.financialPenalty:N0}.");
+		}
+	}
+
+	private const int RecordMemoryEvalWeeks = 4;
+	private const int RecordMemoryGoodUnitsThreshold = 300;
+	private const int RecordMemoryBadUnitsThreshold = 40;
+	private const float RecordMemoryGoodRapportBonus = 0.05f;
+	private const float RecordMemoryBadRapportPenalty = 0.06f;
+
+	/// <summary>
+	/// Settle pitches a Personal Pitch staked earlier (Rolodex Phase 5). Runs from <see cref="OnWeekEnded"/>
+	/// alongside the scandal pass. Grounded in the record's ACTUAL sales since the pitch
+	/// (<c>RecordRuntimeData.totalUnitsSold</c>) -- never an invented outcome. A real hit deepens trust and
+	/// leaves them owing you one; a real flop burns the professional-trust channel (Personal Pitch only --
+	/// see <see cref="RolodexEntry.professionallyBurned"/>), distinct from a payola burn.
+	/// </summary>
+	private void ProcessRecordMemories() {
+		var chart = ChartManager.Instance;
+		if (chart == null || rolodex.Count == 0) return;
+		int week = chart.GetCurrentChartWeek();
+		string date = TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+
+		foreach (RolodexEntry entry in rolodex) {
+			if (entry.pendingMemories.Count == 0) continue;
+			var due = entry.pendingMemories.Where(m => m.evalWeek <= week).ToList();
+			if (due.Count == 0) continue;
+			foreach (var mem in due) entry.pendingMemories.Remove(mem);
+
+			RadioStation station = chart.GetRadioStation(entry.stationId);
+			foreach (RolodexEntry.PendingRecordMemory mem in due) {
+				RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == mem.recordId);
+				long unitsNow = rec?.totalUnitsSold ?? 0;
+				long moved = Math.Max(0, unitsNow - mem.unitsAtPitch);
+
+				if (moved >= RecordMemoryGoodUnitsThreshold) {
+					entry.theyOweThem = true;
+					if (station?.rt != null) {
+						float before = station.rt.Rapport(Label.labelId);
+						float headroom = Mathf.Clamp(1f - before / RapportSoftCap, 0.15f, 1f);
+						float after = before + RecordMemoryGoodRapportBonus * headroom;
+						station.rt.labelRapport[Label.labelId] = after;
+						entry.MaybePromoteState(after);
+					}
+					entry.log.Insert(0, $"{date} — You told him \"{mem.recordTitle}\" would move. It sold {moved:N0} copies since. He remembers.");
+					Note($"{entry.displayName} remembers \"{mem.recordTitle}\" came through -- {moved:N0} copies.");
+				} else if (moved < RecordMemoryBadUnitsThreshold) {
+					entry.professionallyBurned = true;
+					if (station?.rt != null) {
+						float before = station.rt.Rapport(Label.labelId);
+						station.rt.labelRapport[Label.labelId] = Mathf.Max(0f, before - RecordMemoryBadRapportPenalty);
+					}
+					entry.log.Insert(0, $"{date} — You told him \"{mem.recordTitle}\" would move. It sold {moved:N0} copies. He's not taking your word again.");
+					Note($"{entry.displayName} isn't happy -- \"{mem.recordTitle}\" only moved {moved:N0}.");
+				} else {
+					entry.log.Insert(0, $"{date} — \"{mem.recordTitle}\" sold {moved:N0} copies since your pitch. Nothing special either way.");
+				}
+			}
+			if (entry.log.Count > 20) entry.log.RemoveRange(20, entry.log.Count - 20);
+		}
+		Changed?.Invoke();
+	}
+
+	public const int AskAFavorMinMinutes = 15;
+	public const int AskAFavorMaxMinutes = 30;
+	private const float AskAFavorRapportGain = 0.12f;   // "guaranteed moderate" -- no roll, bigger than a single pitch's cap
+
+	/// <summary>
+	/// Ask a Favor: cash in a debt a DJ owes you (see <see cref="RolodexEntry.theyOweThem"/>, set by a
+	/// record-memory that paid off). Guaranteed -- no roll -- and spends the favor.
+	/// </summary>
+	public bool AskAFavor(RolodexEntry entry, out string message) {
+		if (!Require(0, out message)) return false;
+		if (!RequireHome(out message)) return false;
+		if (entry == null) { message = "No one to ask."; return false; }
+		if (!entry.theyOweThem) { message = $"{entry.displayName} doesn't owe you anything."; return false; }
+
+		var chart = ChartManager.Instance;
+		RadioStation station = chart?.GetRadioStation(entry.stationId);
+		Deejay dj = chart?.GetDeejay(entry.djId);
+		if (station?.rt == null || dj == null) { message = "Can't reach them right now."; return false; }
+
+		int minutes = AskAFavorMinMinutes + (int)GD.RandRange(0, AskAFavorMaxMinutes - AskAFavorMinMinutes);
+		SpendMinutes(minutes);
+
+		entry.theyOweThem = false;
+		float before = station.rt.Rapport(Label.labelId);
+		float headroom = Mathf.Clamp(1f - before / RapportSoftCap, 0.15f, 1f);
+		float gain = AskAFavorRapportGain * headroom;
+		float after = before + gain;
+		station.rt.labelRapport[Label.labelId] = after;
+		entry.MaybePromoteState(after);
+
+		string date = TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+		entry.log.Insert(0, $"{date} — Called in the favor. Rapport +{gain:F2}.");
+		if (entry.log.Count > 20) entry.log.RemoveRange(20, entry.log.Count - 20);
+		Note($"Called in a favor with {entry.displayName} ({station.callsign}).");
+		message = $"{entry.displayName} came through. Consider it even.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	public const int IntroductionMinutes = 20;
+
+	/// <summary>
+	/// Ask for an Introduction: unlocked at Trusted (Rolodex Phase 5's networked discovery). A guaranteed,
+	/// vouched-for lead on another reporter station's DJ in your home region -- turns the Rolodex into a
+	/// graph instead of a flat list of cold calls.
+	/// </summary>
+	public bool AskForIntroduction(RolodexEntry entry, out string message) {
+		if (!Require(0, out message)) return false;
+		if (!RequireHome(out message)) return false;
+		if (entry == null) { message = "No one to ask."; return false; }
+		if (entry.state != DiscoveryState.Trusted) { message = "You're not that close yet."; return false; }
+
+		var chart = ChartManager.Instance;
+		Deejay dj = chart?.GetDeejay(entry.djId);
+		if (dj == null) { message = "Can't reach them right now."; return false; }
+
+		var knownStationIds = new HashSet<string>(rolodex.Select(e => e.stationId), StringComparer.Ordinal);
+		var candidates = chart.ReporterStationsInRegion(Label.homeRegion)
+			.Where(s => !knownStationIds.Contains(s.stationId)
+				&& !string.IsNullOrEmpty(s.leadDjId)
+				&& chart.GetDeejay(s.leadDjId) != null)
+			.ToList();
+		if (candidates.Count == 0) { message = $"{entry.displayName} can't think of anyone in this region you don't already know."; return false; }
+
+		SpendMinutes(IntroductionMinutes);
+
+		// A referral is a vouch, not a cold call: pick their best-placed contact, not a random one.
+		RadioStation target = candidates.OrderByDescending(s => chart.GetDeejay(s.leadDjId)?.influence ?? 0f).First();
+		Deejay targetDj = chart.GetDeejay(target.leadDjId);
+		string targetName = SynthesizeDJName(targetDj, target);
+		string date = TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+
+		var introduced = new RolodexEntry {
+			djId = targetDj.djId, stationId = target.stationId,
+			state = DiscoveryState.Introduced, displayName = targetName, portraitKey = targetDj.archetype.ToString(),
+		};
+		introduced.log.Add($"{date} — Introduced by {entry.displayName}: {targetName}, {target.callsign} ({target.format}, {target.cityName}).");
+		rolodex.Add(introduced);
+
+		entry.log.Insert(0, $"{date} — Put you on to {targetName} at {target.callsign}.");
+		if (entry.log.Count > 20) entry.log.RemoveRange(20, entry.log.Count - 20);
+		Note($"{entry.displayName} introduced you to {targetName} at {target.callsign}.");
+		message = $"{entry.displayName} made a call. You're in with {targetName} at {target.callsign}.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Pick a reporter station to cold-call, weighted by DJ influence when STREET is high.</summary>
+	private static RadioStation PickPhoneTarget(List<RadioStation> candidates, int street) {
+		if (candidates.Count == 1) return candidates[0];
+		if (street <= 2) return candidates[(int)GD.RandRange(0, candidates.Count - 1)];
+		// street 3-5: weight by dj.influence raised to a power so higher STREET finds better DJs.
+		float weightPow = (street - 2) * 0.5f;
+		float[] weights = candidates.Select(s => {
+			Deejay dj = ChartManager.Instance?.GetDeejay(s.leadDjId);
+			return Mathf.Pow(dj?.influence ?? 0.5f, weightPow);
+		}).ToArray();
+		float total = weights.Sum();
+		float roll = GD.Randf() * total;
+		for (int i = 0; i < candidates.Count; i++) { roll -= weights[i]; if (roll <= 0f) return candidates[i]; }
+		return candidates[^1];
+	}
+
+	/// <summary>Synthesize a DJ radio name at first discovery. Draws from the NameGenerator act stream
+	/// (player action only; never called from the weekly sim, so byte-identity is preserved).</summary>
+	private static string SynthesizeDJName(Deejay dj, RadioStation station) {
+		Genre genreHint = station.format switch {
+			StationFormat.RnB         => Genre.RnB,
+			StationFormat.Country     => Genre.Country,
+			StationFormat.Gospel      => Genre.Gospel,
+			StationFormat.Jazz        => Genre.Jazz,
+			StationFormat.UndergroundFM => Genre.Psychedelic,
+			_                         => Genre.TraditionalPop
+		};
+		(string first, string last) = NameGenerator.Instance?.GeneratePersonName(isMale: true, genre: genreHint)
+			?? ("James", "Williams");
+
+		// Radio persona by archetype.
+		return dj.archetype switch {
+			DJArchetype.Personality => $"{PickPersonalityNick()} {last}",
+			DJArchetype.Hustler     => $"{PickHustlerNick()} {last}",
+			DJArchetype.Regional    => GD.Randf() < 0.35f ? $"Country {last}" : $"{first} {last}",
+			_                       => $"{first} {last}"   // Tastemaker, CompanyMan
+		};
+	}
+
+	private static string PickPersonalityNick() {
+		string[] nicks = { "Wolfman", "Daddy", "Cool Papa", "Mad", "The Baron",
+			"Mellow", "Sweet Daddy", "Big", "Hot", "King", "Duke", "Fast" };
+		return nicks[(int)GD.RandRange(0, nicks.Length - 1)];
+	}
+
+	private static string PickHustlerNick() {
+		string[] nicks = { "Slick", "Fast Eddie", "Smooth", "Crazy", "Wild", "Lucky", "Easy" };
+		return nicks[(int)GD.RandRange(0, nicks.Length - 1)];
+	}
+
+	/// <summary>Accumulate sub-hour phone-call time. Spends whole clock-hours when the bucket crosses 60 min.</summary>
+	private void SpendMinutes(int minutes) {
+		phoneMinutesAccum += minutes;
+		while (phoneMinutesAccum >= 60) {
+			phoneMinutesAccum -= 60;
+			Spend(1);
+		}
+	}
+
 	private bool Require(int hours, out string message) {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (IsGameOver) { message = "The label has folded -- load a save to keep playing."; return false; }
@@ -1869,6 +2370,11 @@ public partial class PlayerDesk : Node {
 
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
+		// Payola busts land before the books are drawn up so the financial penalty (if any) shows in
+		// this week's Cash figure.
+		ProcessPayolaScandals();
+		// Personal-pitch record-memory settles the same week: did the record actually move?
+		ProcessRecordMemories();
 		// The wholesale channel (what cleared through stores this week), then the trunk folded on top so the
 		// write-up covers the whole week's business, not only wholesale. Trunk carries no manufacturing (pressed
 		// and paid up front) and no distributor skim; its full net counts as earned, and the consignment slice
@@ -1979,6 +2485,10 @@ public partial class PlayerDesk : Node {
 			// Player character (Phase 1 Rolodex branch).
 			ArchetypeOrdinal   = (int)Archetype,
 			ExecutiveInstincts = InstinctProfile,
+
+			// Rolodex contacts + accumulated sub-hour phone time (Phase 2).
+			PhoneMinutesAccum = phoneMinutesAccum,
+			Rolodex = rolodex.Select(RolodexEntrySaveData.From).ToList(),
 		};
 		return data;
 	}
@@ -2010,6 +2520,11 @@ public partial class PlayerDesk : Node {
 				: FoundingArchetype.TradeInsider;
 			InstinctProfile = data.ExecutiveInstincts;
 		}
+
+		// Restore rolodex and phone accumulator (Phase 2). Null/missing = pre-feature save → empty rolodex.
+		phoneMinutesAccum = data.PhoneMinutesAccum;
+		rolodex.Clear();
+		rolodex.AddRange((data.Rolodex ?? new List<RolodexEntrySaveData>()).Select(s => s.ToEntry()));
 
 		AILabel label = Label != null && Label.labelId == data.Label.labelId ? Label : new AILabel();
 		bool fresh = label != Label;

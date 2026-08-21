@@ -31,6 +31,11 @@ public partial class PlayerDeskPanel : Control {
 	private bool browsingSaves;
 	// The founding archetype selected on the founding page; persists across Refresh() rebuilds.
 	private FoundingArchetype selectedArchetype = FoundingArchetype.TradeInsider;
+	// ROLODEX page state: which card is focused (index into PlayerDesk.Rolodex) and whether
+	// the call view for that card is open.
+	private int rolodexFocus;
+	private bool rolodexCallOpen;
+	private string rolodexPitchRecordId;
 
 	private static readonly Color Ink = new("2b2115");
 	private static readonly Color Paper = new("f1e5c8");
@@ -160,6 +165,7 @@ public partial class PlayerDeskPanel : Control {
 		AddTab("DISTRIBUTION", PageDistribution);
 		AddTab("FINANCES", PageFinances);
 		AddTab("OFFICE", PageOffice);
+		AddTab("ROLODEX", PageRolodex);
 	}
 
 	private void AddTab(string title, Action page) {
@@ -171,8 +177,9 @@ public partial class PlayerDeskPanel : Control {
 		tabButtons.Add(button);
 	}
 
-	// Tab order in BuildTabs: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5).
+	// Tab order in BuildTabs: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5), ROLODEX(6).
 	private const int DistributionTab = 3;
+	private const int RolodexTab = 6;
 
 	/// <summary>Switches the desk to a macro tab, dropping any open MANAGE/cover-browse sub-state.</summary>
 	private void GoToTab(int index, Action page) {
@@ -180,6 +187,7 @@ public partial class PlayerDeskPanel : Control {
 		currentPage = page;
 		managingArtistId = null;
 		browsingCovers = false;
+		if (index != RolodexTab) { rolodexCallOpen = false; rolodexPitchRecordId = null; }
 		Refresh();
 	}
 
@@ -1265,6 +1273,356 @@ public partial class PlayerDeskPanel : Control {
 			Body($"{artist.stageName} — ${artist.unrecoupedAdvance:N0} unrecouped   •   " +
 				$"${artist.totalRoyaltyEarnings:N0} paid through   •   {artist.royaltyRate:P0} of retail");
 	}
+
+	// ========================================================================
+	// ROLODEX
+	// ========================================================================
+
+	// Mouse wheel spins through the Rolodex cards when that tab is open.
+	public override void _GuiInput(InputEvent ev) {
+		if (currentTab == RolodexTab && !rolodexCallOpen && ev is InputEventMouseButton mb && mb.Pressed) {
+			var cards = PlayerDesk.Instance?.Rolodex;
+			if (cards != null && cards.Count > 1) {
+				if (mb.ButtonIndex == MouseButton.WheelDown) {
+					rolodexFocus = (rolodexFocus + 1) % cards.Count;
+					GetViewport().SetInputAsHandled();
+					Refresh();
+				} else if (mb.ButtonIndex == MouseButton.WheelUp) {
+					rolodexFocus = ((rolodexFocus - 1) + cards.Count) % cards.Count;
+					GetViewport().SetInputAsHandled();
+					Refresh();
+				}
+			}
+		}
+	}
+
+	private void PageRolodex() {
+		PlayerDesk desk = PlayerDesk.Instance;
+		var cards = desk.Rolodex;
+
+		// Empty rolodex: only show the "work the phones" action.
+		if (cards.Count == 0) {
+			Heading("THE ROLODEX");
+			Body("Your book is empty. Work the phones to find your first contact.");
+			RenderWorkThePhones(desk);
+			return;
+		}
+
+		// Clamp focus in case the list shrank (shouldn't happen, but safe).
+		rolodexFocus = Mathf.Clamp(rolodexFocus, 0, cards.Count - 1);
+		RolodexEntry entry = cards[rolodexFocus];
+
+		if (rolodexCallOpen) {
+			PageRolodexCall(desk, entry);
+			return;
+		}
+
+		// Card browser: nav header + the focused card.
+		var navRow = new HBoxContainer();
+		navRow.AddThemeConstantOverride("separation", 10);
+
+		if (cards.Count > 1) {
+			var prev = Btn("‹");
+			prev.CustomMinimumSize = new Vector2(44, 38);
+			prev.Pressed += () => { rolodexFocus = ((rolodexFocus - 1) + cards.Count) % cards.Count; Refresh(); };
+			navRow.AddChild(prev);
+		}
+
+		var cardCount = new Label { Text = $"Card {rolodexFocus + 1} of {cards.Count}", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		cardCount.AddThemeColorOverride("font_color", Heard);
+		navRow.AddChild(cardCount);
+
+		if (cards.Count > 1) {
+			var next = Btn("›");
+			next.CustomMinimumSize = new Vector2(44, 38);
+			next.Pressed += () => { rolodexFocus = (rolodexFocus + 1) % cards.Count; Refresh(); };
+			navRow.AddChild(next);
+		}
+		content.AddChild(navRow);
+
+		RenderCard(desk, entry);
+	}
+
+	/// <summary>The focused card: portrait monogram, identity, derived tier, and an OPEN button.</summary>
+	private void RenderCard(PlayerDesk desk, RolodexEntry entry) {
+		Deejay dj = ChartManager.Instance?.GetDeejay(entry.djId);
+		RadioStation station = ChartManager.Instance?.GetRadioStation(entry.stationId);
+
+		// Monogram portrait placeholder.
+		var mono = new Label {
+			Text = Monogram(entry.displayName),
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			CustomMinimumSize = new Vector2(90, 90)
+		};
+		mono.AddThemeFontSizeOverride("font_size", 32);
+		mono.AddThemeColorOverride("font_color", Paper);
+		var monoBack = new PanelContainer { CustomMinimumSize = new Vector2(90, 90) };
+		monoBack.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = ArchetypeColor(dj?.archetype ?? DJArchetype.CompanyMan) });
+		monoBack.AddChild(mono);
+		content.AddChild(monoBack);
+
+		Heading(entry.displayName);
+
+		if (station != null)
+			Body($"{station.callsign}  ·  {station.format}  ·  {station.cityName}");
+
+		// Derived relationship tier.
+		float rapport = station?.rt?.Rapport(desk.Label?.labelId ?? "") ?? 0f;
+		RapportTier tier = RolodexEntry.EffectiveTier(entry, rapport);
+		var tierLabel = new Label { Text = $"{RolodexEntry.TierLabel(tier)}  ·  {entry.state}" };
+		tierLabel.AddThemeColorOverride("font_color", RolodexEntry.TierColor(tier));
+		content.AddChild(tierLabel);
+
+		if (dj != null) Body(RolodexEntry.ArchetypeBlurb(dj.archetype));
+		if (entry.theyOweThem) Body("He owes you one.");
+
+		var openBtn = Btn("CALL / REVIEW");
+		openBtn.CustomMinimumSize = new Vector2(200, 40);
+		openBtn.Pressed += () => { rolodexCallOpen = true; Refresh(); };
+		content.AddChild(openBtn);
+
+		// "Work the phones" to find more DJs, shown below the card when there might be more.
+		RenderWorkThePhones(desk);
+	}
+
+	/// <summary>The call view: instinct-gated passive reads, verb buttons, and the interaction log.</summary>
+	private void PageRolodexCall(PlayerDesk desk, RolodexEntry entry) {
+		var back = Btn("‹ BACK TO CARD");
+		back.Pressed += () => { rolodexCallOpen = false; rolodexPitchRecordId = null; Refresh(); };
+		content.AddChild(back);
+
+		Deejay dj = ChartManager.Instance?.GetDeejay(entry.djId);
+		RadioStation station = ChartManager.Instance?.GetRadioStation(entry.stationId);
+
+		Heading(entry.displayName);
+		if (station != null)
+			Body($"{station.callsign}  ·  {station.format}  ·  {station.cityName}");
+
+		Body($"You know them as: {entry.state}");
+
+		float rapportNow = station?.rt?.Rapport(desk.Label?.labelId ?? "") ?? 0f;
+		RapportTier tierNow = RolodexEntry.EffectiveTier(entry, rapportNow);
+		var tierRow = new Label { Text = $"Relationship: {RolodexEntry.TierLabel(tierNow)}" };
+		tierRow.AddThemeColorOverride("font_color", RolodexEntry.TierColor(tierNow));
+		content.AddChild(tierRow);
+
+		if (entry.payolaBurned && entry.professionallyBurned) {
+			Body("This bridge is burned, every way there was to burn it. He won't hear from you again.");
+			if (entry.log.Count > 0) {
+				Heading("HISTORY");
+				foreach (string line in entry.log) Body(line);
+			}
+			return;
+		}
+
+		if (dj == null) {
+			Body("(contact data unavailable)");
+			if (entry.log.Count > 0) {
+				Heading("HISTORY");
+				foreach (string line in entry.log) Body(line);
+			}
+			return;
+		}
+
+		// Single-channel burn warnings -- the relationship isn't fully dead, just one door is closed.
+		if (entry.payolaBurned) {
+			var warn = new Label { Text = "He won't touch cash from you again -- Payola is closed." };
+			warn.AddThemeColorOverride("font_color", Rust);
+			content.AddChild(warn);
+		}
+		if (entry.professionallyBurned) {
+			var warn = new Label { Text = "He doesn't trust your word anymore -- Personal Pitch is closed." };
+			warn.AddThemeColorOverride("font_color", Rust);
+			content.AddChild(warn);
+		}
+		if (entry.theyOweThem) Body("He owes you one.");
+		if (entry.youOweThem) Body("You owe him one.");
+
+		// Instinct-gated passive reads. The read tier scales with the relevant instinct score.
+		Heading("WHAT YOU READ");
+		ExecutiveInstinctProfile inst = desk.InstinctProfile;
+
+		// THE EAR → taste / genre affinity read.
+		if (inst.TheEar >= 3) {
+			string tasteRead = inst.TheEar switch {
+				3 => dj.taste > 0.6f ? "Has an ear. Seems to care whether the record is any good."
+					: dj.taste < 0.35f ? "Doesn't seem to listen that closely. Format and heat is what he tracks."
+					: "Average taste. Goes with the room.",
+				4 => $"Taste: {StarBar(dj.taste)}. {(dj.taste > 0.6f ? "He'll respond to a strong record." : dj.taste < 0.35f ? "Cash talks louder than quality here." : "Middle of the road.")}",
+				_ => $"Taste: {StarBar(dj.taste)} — and he knows it. {(dj.taste > 0.7f ? "A great record moves him; a mediocre one he won't touch." : "Manageable.")}",
+			};
+			Body($"EAR: {tasteRead}");
+
+			// Genre affinity, if any stands out.
+			var topAffinity = dj.genreAffinity.OrderByDescending(kv => kv.Value).FirstOrDefault();
+			if (topAffinity.Value > 1.2f && inst.TheEar >= 4)
+				Body($"  Leans hard toward {topAffinity.Key}. Play to it.");
+		} else {
+			Body("EAR: Can't read his taste from here.");
+		}
+
+		// THE SUIT → influence / reach read.
+		if (inst.TheSuit >= 3) {
+			string infRead = inst.TheSuit switch {
+				3 => dj.influence > 0.65f ? "Carries real weight in this market."
+					: dj.influence < 0.35f ? "Small fish. Useful for a start, not a driver."
+					: "Medium pull. A spin matters but won't move the needle far.",
+				_ => $"Influence: {StarBar(dj.influence)}. {(dj.influence > 0.65f ? "This station can make a record in this region." : dj.influence < 0.35f ? "Not a lot of reach, but a foot in the door." : "Solid regional presence.")}",
+			};
+			Body($"SUIT: {infRead}");
+		} else {
+			Body("SUIT: Can't size up his pull from here.");
+		}
+
+		// THE FIXER → greed / suspicion read.
+		if (inst.TheFixer >= 3) {
+			string greedRead = inst.TheFixer switch {
+				3 => dj.greed > 0.6f ? "There's cash in the sleeve and he knows it."
+					: dj.greed < 0.25f ? "Not the type. Push it and you'll burn the bridge."
+					: "Open to the arrangement but won't advertise it.",
+				4 => $"Greed: {StarBar(dj.greed)}. Suspicion: {StarBar(dj.suspicion)}. " +
+					(dj.greed > 0.6f && dj.suspicion < 0.4f ? "Receptive and not too hot right now."
+					: dj.suspicion > 0.6f ? "Interested but under too much heat. Wait it out."
+					: "Handle carefully."),
+				_ => $"Greed {StarBar(dj.greed)}, suspicion {StarBar(dj.suspicion)}. " +
+					(dj.greed > 0.7f ? "He'll take the money." : dj.greed < 0.2f ? "No amount of cash works here." : "Negotiate carefully.")
+			};
+			Body($"FIXER: {greedRead}");
+		} else {
+			Body("FIXER: Can't read what's in it for him.");
+		}
+
+		// Verbs: work the door open. formatMatch and the rest of the real candidacy meeting still
+		// decide whether a spin actually follows -- these only raise the relationship term.
+		Heading("WORK THE ANGLE");
+
+		// Favors and introductions don't need a record picked -- they're about the relationship itself.
+		if (entry.theyOweThem) {
+			var favorBtn = Btn($"ASK A FAVOR  ({PlayerDesk.AskAFavorMinMinutes}-{PlayerDesk.AskAFavorMaxMinutes} min)");
+			favorBtn.Pressed += () => { desk.AskAFavor(entry, out string msg); Say(msg); Refresh(); };
+			content.AddChild(favorBtn);
+		}
+		if (entry.state == DiscoveryState.Trusted) {
+			var introBtn = Btn($"ASK FOR AN INTRODUCTION  ({PlayerDesk.IntroductionMinutes} min)");
+			introBtn.Pressed += () => { desk.AskForIntroduction(entry, out string msg); Say(msg); Refresh(); };
+			content.AddChild(introBtn);
+		}
+
+		var records = desk.ReleasedRecords.Where(r => r.baseRecord != null).ToList();
+		if (records.Count == 0) {
+			Body("Nothing in the market to pitch yet -- release a record first.");
+		} else {
+			rolodexPitchRecordId ??= records[0].baseRecord.recordId;
+			if (records.All(r => r.baseRecord.recordId != rolodexPitchRecordId))
+				rolodexPitchRecordId = records[0].baseRecord.recordId;
+
+			var pickRow = new HBoxContainer();
+			pickRow.AddThemeConstantOverride("separation", 6);
+			pickRow.AddChild(new Label { Text = "Record:" });
+			foreach (RecordRuntimeData rec in records) {
+				bool picked = rec.baseRecord.recordId == rolodexPitchRecordId;
+				var recBtn = Btn($"{(picked ? "» " : "")}{rec.baseRecord.title}");
+				string rid = rec.baseRecord.recordId;
+				recBtn.Pressed += () => { rolodexPitchRecordId = rid; Refresh(); };
+				pickRow.AddChild(recBtn);
+			}
+			content.AddChild(pickRow);
+
+			if (!entry.professionallyBurned) {
+				var verbRow = new HBoxContainer();
+				verbRow.AddThemeConstantOverride("separation", 10);
+
+				var pitchBtn = Btn($"PERSONAL PITCH  ({PlayerDesk.PersonalPitchMinMinutes}-{PlayerDesk.PersonalPitchMaxMinutes} min)");
+				pitchBtn.Pressed += () => {
+					desk.PersonalPitch(entry, rolodexPitchRecordId, out string msg);
+					Say(msg);
+					Refresh();
+				};
+				verbRow.AddChild(pitchBtn);
+				content.AddChild(verbRow);
+			}
+
+			Body("Ad-Buy: pay for the spot instead of talking your way in. Always lands; buys less trust per dollar.");
+			var adRow = new HBoxContainer();
+			adRow.AddThemeConstantOverride("separation", 10);
+			foreach (PlayerDesk.AdBuyTier tier in new[] { PlayerDesk.AdBuyTier.Small, PlayerDesk.AdBuyTier.Medium, PlayerDesk.AdBuyTier.Large }) {
+				var adBtn = Btn($"{PlayerDesk.AdBuyTierName(tier)}  (${PlayerDesk.AdBuyCost(tier):N0})");
+				adBtn.Pressed += () => {
+					desk.AdBuy(entry, rolodexPitchRecordId, tier, out string msg);
+					Say(msg);
+					Refresh();
+				};
+				adRow.AddChild(adBtn);
+			}
+			content.AddChild(adRow);
+
+			// Payola: only visible with enough FIXER to size up the risk in the first place, and only
+			// while the cash channel with this DJ is still open.
+			if (inst.TheFixer >= PlayerDesk.PayolaMinFixer && !entry.payolaBurned) {
+				Body("Payola: straight cash, through the same arrangement the ledger already tracks. It works" +
+					" until it doesn't -- a bust burns the bridge for good.");
+				var payolaRow = new HBoxContainer();
+				payolaRow.AddThemeConstantOverride("separation", 10);
+				foreach (PlayerDesk.PayolaTier tier in new[] { PlayerDesk.PayolaTier.Small, PlayerDesk.PayolaTier.Medium, PlayerDesk.PayolaTier.Large }) {
+					var payBtn = Btn($"{PlayerDesk.PayolaTierName(tier)}  (${PlayerDesk.PayolaCost(tier):N0})");
+					payBtn.Pressed += () => {
+						desk.Payola(entry, rolodexPitchRecordId, tier, out string msg);
+						Say(msg);
+						Refresh();
+					};
+					payolaRow.AddChild(payBtn);
+				}
+				content.AddChild(payolaRow);
+			}
+		}
+
+		// History log.
+		if (entry.log.Count > 0) {
+			Heading("HISTORY");
+			foreach (string line in entry.log) Body(line);
+		}
+	}
+
+	private void RenderWorkThePhones(PlayerDesk desk) {
+		// Show the action only if there are still undiscovered reporter stations in the home region.
+		var allReporters = ChartManager.Instance?.ReporterStationsInRegion(desk.Label?.homeRegion ?? "");
+		if (allReporters == null) return;
+		int known = desk.Rolodex.Count;
+		int total = allReporters.Count;
+		if (known >= total) {
+			Body($"You have leads on all {total} reporter station(s) in your region. Branch out to other markets to grow the book.");
+			return;
+		}
+		Body($"Your region: {known} of {total} reporter station(s) in your book.");
+		var callBtn = Btn("WORK THE PHONES");
+		callBtn.CustomMinimumSize = new Vector2(240, 42);
+		callBtn.Pressed += () => {
+			PlayerDesk.Instance.WorkThePhones(out string msg);
+			Say(msg);
+			rolodexCallOpen = false;
+			Refresh();
+		};
+		content.AddChild(callBtn);
+		Body($"({PlayerDesk.WorkThePhonesMinMinutes}-{PlayerDesk.WorkThePhonesMaxMinutes} min)");
+	}
+
+	// Portrait monogram: two initials from the display name.
+	private static string Monogram(string name) {
+		if (string.IsNullOrWhiteSpace(name)) return "?";
+		string[] parts = name.Split(' ', System.StringSplitOptions.RemoveEmptyEntries);
+		if (parts.Length == 1) return parts[0][0].ToString().ToUpperInvariant();
+		return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+	}
+
+	private static Color ArchetypeColor(DJArchetype arch) => arch switch {
+		DJArchetype.Personality => new Color("5a3a6b"),
+		DJArchetype.Tastemaker  => new Color("3a4a6b"),
+		DJArchetype.Hustler     => new Color("6b3a3a"),
+		DJArchetype.CompanyMan  => new Color("3a4a3a"),
+		DJArchetype.Regional    => new Color("5a4a2a"),
+		_                        => new Color("3a3a3a")
+	};
 
 	// ========================================================================
 	// OFFICE (the ledger / log)
