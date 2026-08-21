@@ -359,3 +359,165 @@ authored historical contacts as `Contact` `.tres`.
    reporter DJs are findable early (all, or gated by STREET so the map fills slowly)?
 4. **Portrait scope for v1** — how many authored archetype portraits before the silhouette
    fallback carries the rest?
+
+---
+
+# Phase 6 — Scene architecture, station advocacy, earned access, sub-hour clock
+
+Playtest note that drove this: the call read as *"I pressed PERSONAL PITCH and he said yes."*
+Four fixes, all of them things the earlier phases deferred or got wrong.
+
+## 1. Calls are scenes, not buttons (GPT sketch §9-13)
+
+New files: [Systems/RolodexScene.cs](Systems/RolodexScene.cs) (beats, context, conditions,
+fragment library), [Systems/RolodexCall.cs](Systems/RolodexCall.cs) (live scene state, shifts),
+[Systems/PlayerDesk.Rolodex.cs](Systems/PlayerDesk.Rolodex.cs) (discovery, context build,
+connection), [Systems/PlayerDesk.RolodexVerbs.cs](Systems/PlayerDesk.RolodexVerbs.cs)
+(approaches, pushback, counters, resolution, weekly settlement).
+
+A call runs the sketch's beat sequence: **Opening → PassiveRead → SituationRead → PlayerPitch →
+Pushback → ActiveCheckPrompt → Success/Failure → RelationshipAftermath → Exit.** The scene lives
+on `PlayerDesk.ActiveCall` (not the panel) so a UI refresh cannot drop it mid-sentence.
+
+`RolodexCallContext` is built **once** per call from live sim values and is the only thing
+fragments and conditions may read — `RolodexConditions.Meets` is ~35 named predicates over it.
+A selected line is therefore auditable: the condition that chose it has a name.
+
+**The counter is the point.** He raises ONE objection, drawn from the most severe thing actually
+true about this record at this station (`PickObjection`). You then answer *that* objection with
+an option gated on **two** things: an instinct score high enough to think of the answer, and the
+underlying fact being true. Where the instinct is there but the fact is not, the option is still
+offered — **labelled a bluff** — and he rolls to catch it on taste, archetype (`Regional` knows
+his own market) and rapport. Getting caught costs rapport and auto-fails the approach.
+A grounded counter is worth roughly double `PressIt`; `SuitLateNight` (ask for a smaller yes) is
+worth the most, because it is a smaller ask.
+
+## 2. What a won pitch actually buys — `StationAdvocacy`
+
+The earlier phases wrote only `StationRuntime.labelRapport`, which is **label-wide**: pitching a
+specific record bought a general warmth that helped everything you released equally. The sketch's
+`StationAdvocacy` (§6) was rejected in the original directive; it was needed after all, because it
+is the only thing that answers *"did he put it in rotation?"*
+
+[Systems/Radio/StationAdvocacy.cs](Systems/Radio/StationAdvocacy.cs): a bounded, expiring,
+**record-specific** commitment, consumed by the candidacy meeting as a term in the product
+alongside payola:
+
+```
+candidacy = formatMatch × qualityTaste × salesSupport × relationship × advocacy × payola
+            × freshness × heatPull × vitality × chartGuard
+```
+
+Wired exactly like payola — `StationNetwork.ActiveAdvocacyLookup`, `ADVOCACY_CAP = 0.9` (sized
+below the payola cap: talk opens a door less wide than cash). A won call means **he carries the
+record into the next meeting**; format, sales support, freshness and the chart guard all still
+get their vote. Sizes: pitch `0.14 + influence×0.12` for 3 weeks; favour `0.34` for 4;
+ad-buy `0.08/0.15/0.24` for 2/3/4; rival pressure `0.11` for 2.
+
+Both channels now write: rapport (slow, label-wide, permanent-ish) **and** advocacy (this record,
+this station, expiring). The card shows the live advocacy under CARRYING FOR YOU with weeks left.
+
+## 3. Access is earned, not granted
+
+`WorkThePhones` no longer always yields a contact. Outcomes: **nothing at all** (a miss narration),
+**a name only** (`HeardOf`), or **you got the man** (`Introduced`). Odds come from STREET, the
+**hour of day**, diminishing returns within a day (`callAttemptsToday`), and the size of the book
+you already have. Getting *through* is a second, harder gate than getting a name, and an
+influential jock is screened.
+
+Placing a call can also fail — `ConnectFailure`: `OffShift`, `OnAir`, `Gatekeeper`, `NoAnswer`,
+`LineBusy`. Each costs `DialMinutes` whether or not anybody picks up.
+
+**Dayparts** (`RolodexShifts`) make the clock matter and are the main reason a call fails. A DJ's
+shift is a deterministic function of `(archetype, djId)` — no new persisted state — with a
+reachable window inside the 9am-9pm desk day. A graveyard jock can only be reached by working
+overtime. `RolodexEntry.shiftKnown` gates the card's advice, so the first cold call buys you
+something even when it fails.
+
+## 4. The clock carries a minute hand
+
+`TimeManager` gained `currentMinute`, `SpendMinutes`, `CanAffordMinutes`,
+`MinutesRemainingWithOvertime`; `GetTimeString()` prints real minutes. The old
+`PlayerDesk.phoneMinutesAccum` swallowed sub-hour actions into an invisible bucket, so four
+consecutive calls left the clock reading 9:00. It is retained as a dead save field only.
+Persisted via `WorldSaveData.Minute`.
+
+## Verification
+
+- **AI economy byte-identical.** 104wk / seed 1001 / `--calibration --enable-genre-market-v2
+  --enable-artist-population-lifecycle`, patched tree vs a clean `HEAD` worktree: **75 of 75
+  CSVs identical**. Advocacy is player-only, so the lookup returns 0 and the new term is exactly
+  `1.0f` — an exact-in-IEEE754 no-op that preserves multiplication order.
+- **Save/load round-trip PASS** at 26wk/seed 1001. `StationAdvocacySaveData` added to
+  `PlayerSaveData.Advocacy` (advocacy is not derivable from anything else, so a load without it
+  would silently cancel every outstanding promise); `RolodexEntrySaveData.ShiftKnown` added.
+
+---
+
+# Phase 6b — playtest fixes (Alice Records save)
+
+Playtest report: *"he said he'd give it one spin on the graveyard, then it said playlist meeting,
+then 4 weeks. Called back and it said I'd already sold him — but nothing happened and my song got
+no boost. He's a Tastemaker in 1960, before Boss Radio — shouldn't he just toss it up?"*
+
+Diagnosed against the actual save (`AliceRecords`, week 7, Stevie Watts / WSUV / FullService /
+autonomy 0.81 / Tastemaker). Every complaint was a real defect.
+
+### 1. Rapport did not survive save/load — **root cause of "nothing happened"**
+`RebuildRadioForLoad()` rebuilds the panel from the station seed, discarding every
+`StationRuntime`. That is fine for AI playlists (they re-derive in a week) but it silently
+destroyed **every relationship the player had cultivated by hand** — the save's card log read
+"Rapport +0.07" while the live station read `0.000`. The player's own records' rotation slots went
+the same way. Both are now snapshotted in `PlayerSaveData.StationState`
+(`StationPlayerStateSaveData`), captured for the player's `labelId` and the player's records only,
+and restored after `WorldStateService.Apply`. Verified: rapport `0.420` and a `Light` rotation slot
+both survive a round trip.
+
+### 2. A 26% candidacy bump could not lift an unknown record into a 36-slot sheet
+Probed directly: with the advocacy applied, `player_2` was **never picked up by any reporter
+station over 16 weeks**. The multiplier was competing against the whole national field, so a won
+pitch was mechanically inert for exactly the records the Rolodex exists to help.
+
+Fix is structural, not a bigger multiplier (see the "panel weight sets the ceiling" rule above):
+**`DiscretionaryPicks(autonomy)`** — a jock may seat 1 (autonomy ≥ 0.45) or 2 (≥ 0.75) records into
+his own Light slots, drawn only from records he **personally committed to** (`PersonalPitch` or
+`FavorCalledIn`; a paid ad-buy and a spite-driven rival play are deliberately excluded — money buys
+a hearing in the ranking, not the man's own picks). Boss Radio at autonomy 0.10 gets **zero**. The
+pick still must clear `formatMatch`, never displaces an incumbent, and lasts only as long as the
+advocacy. Verified: the record now holds `WSUV:Light` across the advocacy window and then ages out
+naturally.
+
+### 3. "Playlist meeting" was wrong for a 1960 personality jock
+`ResolvePitch` now splits on `djAutonomy` — the sim's own measure of how much this jock's opinion
+counts at his own station, and the exact quantity the Boss Radio conversion drives to 0.10:
+
+- **`>= DirectSpinAutonomy` (0.45)** — he puts it on **himself, tonight**
+  (`StationNetwork.PlayerSpinNow` → live playlist at Light, drop latch cleared, record becomes an
+  incumbent). Two weeks of advocacy behind it. No meeting, no memo.
+- **below** — it goes to the meeting, three weeks of advocacy, and the copy says so plainly.
+
+### 4. Off-by-one in advocacy weeks
+`expiresWeek = week + durationWeeks` with an inclusive `>=` test gave `durationWeeks + 1`: a
+"3 weeks" promise displayed as "4 week(s) left". Now `week + durationWeeks - 1`.
+
+### 5. Voice tags claimed instincts the player did not have
+"Offer to buy time around it" was tagged `[THE SUIT]` with **no gate**, so an Ex-Musician
+(SUIT 1) saw a SUIT option. Buying airtime is money and is on the table for everybody; what a SUIT
+adds is knowing what it is worth. Both the ad-buy and the pitch are now untagged below the
+instinct threshold and carry a plain sub-label; at ≥ 3 they gain the voice tag *and* a real read.
+
+### 6. No feedback loop — the reason it all read as inert
+`ProcessAdvocacyOutcomes()` (weekly) diffs each advocacy's `lastSeenTier` against the live
+playlist and reports **added / moved up / cut back / dropped**, plus a closing "he argued for it
+and lost" when an advocacy expires having never been played. Expired rows are kept as *watches*
+until the record leaves the air, so the outcome still gets reported after the argument stops
+counting. The card's `WHERE IT STANDS` block now leads with what the station is actually doing
+(`ON THE AIR — light rotation`), not with what the player bought; re-pitching a carried record
+reports its real status instead of a bare greyed-out button.
+
+### Verification
+- **AI economy still byte-identical**: 75/75 CSVs, 104wk, seed 1001, canonical flags, vs a clean
+  `HEAD` worktree. `AdvocacyReservationLookup` is null in headless, so the picks block allocates
+  nothing and the ranking is untouched.
+- **Save/load round-trip PASS** at 26wk, plus a direct check that rapport and rotation slots
+  survive.

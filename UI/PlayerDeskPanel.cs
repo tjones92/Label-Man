@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -34,8 +34,11 @@ public partial class PlayerDeskPanel : Control {
 	// ROLODEX page state: which card is focused (index into PlayerDesk.Rolodex) and whether
 	// the call view for that card is open.
 	private int rolodexFocus;
-	private bool rolodexCallOpen;
 	private string rolodexPitchRecordId;
+	// Money sizes chosen before the sentence is spoken -- the number is part of the offer, not a
+	// separate button press after he has already answered.
+	private PlayerDesk.AdBuyTier adBuyTier = PlayerDesk.AdBuyTier.Small;
+	private PlayerDesk.PayolaTier payolaTier = PlayerDesk.PayolaTier.Small;
 
 	private static readonly Color Ink = new("2b2115");
 	private static readonly Color Paper = new("f1e5c8");
@@ -187,7 +190,8 @@ public partial class PlayerDeskPanel : Control {
 		currentPage = page;
 		managingArtistId = null;
 		browsingCovers = false;
-		if (index != RolodexTab) { rolodexCallOpen = false; rolodexPitchRecordId = null; }
+		// Leaving the tab hangs up: you cannot hold a man on the line while you go and read the books.
+		if (index != RolodexTab) { PlayerDesk.Instance?.EndCall(PlayerDesk.Instance.ActiveCall); rolodexPitchRecordId = null; }
 		Refresh();
 	}
 
@@ -1280,7 +1284,7 @@ public partial class PlayerDeskPanel : Control {
 
 	// Mouse wheel spins through the Rolodex cards when that tab is open.
 	public override void _GuiInput(InputEvent ev) {
-		if (currentTab == RolodexTab && !rolodexCallOpen && ev is InputEventMouseButton mb && mb.Pressed) {
+		if (currentTab == RolodexTab && PlayerDesk.Instance?.ActiveCall == null && ev is InputEventMouseButton mb && mb.Pressed) {
 			var cards = PlayerDesk.Instance?.Rolodex;
 			if (cards != null && cards.Count > 1) {
 				if (mb.ButtonIndex == MouseButton.WheelDown) {
@@ -1298,40 +1302,36 @@ public partial class PlayerDeskPanel : Control {
 
 	private void PageRolodex() {
 		PlayerDesk desk = PlayerDesk.Instance;
-		var cards = desk.Rolodex;
 
-		// Empty rolodex: only show the "work the phones" action.
+		// A live call takes over the page entirely -- you are on the phone, not browsing a book.
+		if (desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended) {
+			PageCall(desk, desk.ActiveCall);
+			return;
+		}
+
+		var cards = desk.Rolodex;
 		if (cards.Count == 0) {
 			Heading("THE ROLODEX");
-			Body("Your book is empty. Work the phones to find your first contact.");
+			Body("Your book is empty. Nobody in this business knows your name yet, and nobody is going " +
+				"to call you first. Get on the phone.");
 			RenderWorkThePhones(desk);
 			return;
 		}
 
-		// Clamp focus in case the list shrank (shouldn't happen, but safe).
 		rolodexFocus = Mathf.Clamp(rolodexFocus, 0, cards.Count - 1);
 		RolodexEntry entry = cards[rolodexFocus];
 
-		if (rolodexCallOpen) {
-			PageRolodexCall(desk, entry);
-			return;
-		}
-
-		// Card browser: nav header + the focused card.
 		var navRow = new HBoxContainer();
 		navRow.AddThemeConstantOverride("separation", 10);
-
 		if (cards.Count > 1) {
 			var prev = Btn("‹");
 			prev.CustomMinimumSize = new Vector2(44, 38);
 			prev.Pressed += () => { rolodexFocus = ((rolodexFocus - 1) + cards.Count) % cards.Count; Refresh(); };
 			navRow.AddChild(prev);
 		}
-
 		var cardCount = new Label { Text = $"Card {rolodexFocus + 1} of {cards.Count}", SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		cardCount.AddThemeColorOverride("font_color", Heard);
 		navRow.AddChild(cardCount);
-
 		if (cards.Count > 1) {
 			var next = Btn("›");
 			next.CustomMinimumSize = new Vector2(44, 38);
@@ -1343,12 +1343,12 @@ public partial class PlayerDeskPanel : Control {
 		RenderCard(desk, entry);
 	}
 
-	/// <summary>The focused card: portrait monogram, identity, derived tier, and an OPEN button.</summary>
+	/// <summary>The focused card: portrait monogram, identity, tier, what you know about his hours, and
+	/// what he is currently carrying for you.</summary>
 	private void RenderCard(PlayerDesk desk, RolodexEntry entry) {
 		Deejay dj = ChartManager.Instance?.GetDeejay(entry.djId);
 		RadioStation station = ChartManager.Instance?.GetRadioStation(entry.stationId);
 
-		// Monogram portrait placeholder.
 		var mono = new Label {
 			Text = Monogram(entry.displayName),
 			HorizontalAlignment = HorizontalAlignment.Center,
@@ -1363,11 +1363,8 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(monoBack);
 
 		Heading(entry.displayName);
+		if (station != null) Body($"{station.callsign}  ·  {station.format}  ·  {station.cityName}");
 
-		if (station != null)
-			Body($"{station.callsign}  ·  {station.format}  ·  {station.cityName}");
-
-		// Derived relationship tier.
 		float rapport = station?.rt?.Rapport(desk.Label?.labelId ?? "") ?? 0f;
 		RapportTier tier = RolodexEntry.EffectiveTier(entry, rapport);
 		var tierLabel = new Label { Text = $"{RolodexEntry.TierLabel(tier)}  ·  {entry.state}" };
@@ -1375,217 +1372,302 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(tierLabel);
 
 		if (dj != null) Body(RolodexEntry.ArchetypeBlurb(dj.archetype));
-		if (entry.theyOweThem) Body("He owes you one.");
 
-		var openBtn = Btn("CALL / REVIEW");
-		openBtn.CustomMinimumSize = new Vector2(200, 40);
-		openBtn.Pressed += () => { rolodexCallOpen = true; Refresh(); };
-		content.AddChild(openBtn);
-
-		// "Work the phones" to find more DJs, shown below the card when there might be more.
-		RenderWorkThePhones(desk);
-	}
-
-	/// <summary>The call view: instinct-gated passive reads, verb buttons, and the interaction log.</summary>
-	private void PageRolodexCall(PlayerDesk desk, RolodexEntry entry) {
-		var back = Btn("‹ BACK TO CARD");
-		back.Pressed += () => { rolodexCallOpen = false; rolodexPitchRecordId = null; Refresh(); };
-		content.AddChild(back);
-
-		Deejay dj = ChartManager.Instance?.GetDeejay(entry.djId);
-		RadioStation station = ChartManager.Instance?.GetRadioStation(entry.stationId);
-
-		Heading(entry.displayName);
-		if (station != null)
-			Body($"{station.callsign}  ·  {station.format}  ·  {station.cityName}");
-
-		Body($"You know them as: {entry.state}");
-
-		float rapportNow = station?.rt?.Rapport(desk.Label?.labelId ?? "") ?? 0f;
-		RapportTier tierNow = RolodexEntry.EffectiveTier(entry, rapportNow);
-		var tierRow = new Label { Text = $"Relationship: {RolodexEntry.TierLabel(tierNow)}" };
-		tierRow.AddThemeColorOverride("font_color", RolodexEntry.TierColor(tierNow));
-		content.AddChild(tierRow);
-
-		if (entry.payolaBurned && entry.professionallyBurned) {
-			Body("This bridge is burned, every way there was to burn it. He won't hear from you again.");
-			if (entry.log.Count > 0) {
-				Heading("HISTORY");
-				foreach (string line in entry.log) Body(line);
+		// When to call him. Learned, not given -- an unreached name comes with no hours.
+		if (dj != null) {
+			Daypart shift = RolodexShifts.ShiftOf(dj);
+			if (entry.shiftKnown) {
+				int hour = TimeManager.Instance?.CurrentHour ?? 12;
+				bool nowGood = RolodexShifts.ReachableAt(shift, hour);
+				var hours = new Label { Text = RolodexShifts.WindowAdvice(shift) + (nowGood ? "  ·  He should be in right now." : "  ·  Wrong time of day.") };
+				hours.AddThemeColorOverride("font_color", nowGood ? new Color("4a7a4a") : Rust);
+				content.AddChild(hours);
+			} else {
+				Body("You don't know his hours yet. Call and find out the hard way.");
 			}
-			return;
 		}
 
-		if (dj == null) {
-			Body("(contact data unavailable)");
-			if (entry.log.Count > 0) {
-				Heading("HISTORY");
-				foreach (string line in entry.log) Body(line);
-			}
-			return;
-		}
-
-		// Single-channel burn warnings -- the relationship isn't fully dead, just one door is closed.
-		if (entry.payolaBurned) {
-			var warn = new Label { Text = "He won't touch cash from you again -- Payola is closed." };
-			warn.AddThemeColorOverride("font_color", Rust);
-			content.AddChild(warn);
-		}
-		if (entry.professionallyBurned) {
-			var warn = new Label { Text = "He doesn't trust your word anymore -- Personal Pitch is closed." };
-			warn.AddThemeColorOverride("font_color", Rust);
-			content.AddChild(warn);
-		}
 		if (entry.theyOweThem) Body("He owes you one.");
 		if (entry.youOweThem) Body("You owe him one.");
+		if (entry.payolaBurned) Body("The cash channel is closed with him.");
+		if (entry.professionallyBurned) Body("He doesn't take your word any more.");
 
-		// Instinct-gated passive reads. The read tier scales with the relevant instinct score.
-		Heading("WHAT YOU READ");
-		ExecutiveInstinctProfile inst = desk.InstinctProfile;
+		// What he is actually carrying for you right now -- the record-level commitment, not the mood.
+		RenderCarrying(desk, entry);
 
-		// THE EAR → taste / genre affinity read.
-		if (inst.TheEar >= 3) {
-			string tasteRead = inst.TheEar switch {
-				3 => dj.taste > 0.6f ? "Has an ear. Seems to care whether the record is any good."
-					: dj.taste < 0.35f ? "Doesn't seem to listen that closely. Format and heat is what he tracks."
-					: "Average taste. Goes with the room.",
-				4 => $"Taste: {StarBar(dj.taste)}. {(dj.taste > 0.6f ? "He'll respond to a strong record." : dj.taste < 0.35f ? "Cash talks louder than quality here." : "Middle of the road.")}",
-				_ => $"Taste: {StarBar(dj.taste)} — and he knows it. {(dj.taste > 0.7f ? "A great record moves him; a mediocre one he won't touch." : "Manageable.")}",
-			};
-			Body($"EAR: {tasteRead}");
+		var openBtn = Btn($"PLACE A CALL  ({PlayerDesk.DialMinutes} min)");
+		openBtn.CustomMinimumSize = new Vector2(230, 40);
+		openBtn.Pressed += () => {
+			string rid = rolodexPitchRecordId ?? desk.ReleasedRecords.FirstOrDefault(r => r.baseRecord != null)?.baseRecord.recordId;
+			rolodexPitchRecordId = rid;
+			desk.PlaceCall(entry, rid, out string msg);
+			if (!string.IsNullOrEmpty(msg)) Say(msg);
+			Refresh();
+		};
+		content.AddChild(openBtn);
 
-			// Genre affinity, if any stands out.
-			var topAffinity = dj.genreAffinity.OrderByDescending(kv => kv.Value).FirstOrDefault();
-			if (topAffinity.Value > 1.2f && inst.TheEar >= 4)
-				Body($"  Leans hard toward {topAffinity.Key}. Play to it.");
-		} else {
-			Body("EAR: Can't read his taste from here.");
-		}
-
-		// THE SUIT → influence / reach read.
-		if (inst.TheSuit >= 3) {
-			string infRead = inst.TheSuit switch {
-				3 => dj.influence > 0.65f ? "Carries real weight in this market."
-					: dj.influence < 0.35f ? "Small fish. Useful for a start, not a driver."
-					: "Medium pull. A spin matters but won't move the needle far.",
-				_ => $"Influence: {StarBar(dj.influence)}. {(dj.influence > 0.65f ? "This station can make a record in this region." : dj.influence < 0.35f ? "Not a lot of reach, but a foot in the door." : "Solid regional presence.")}",
-			};
-			Body($"SUIT: {infRead}");
-		} else {
-			Body("SUIT: Can't size up his pull from here.");
-		}
-
-		// THE FIXER → greed / suspicion read.
-		if (inst.TheFixer >= 3) {
-			string greedRead = inst.TheFixer switch {
-				3 => dj.greed > 0.6f ? "There's cash in the sleeve and he knows it."
-					: dj.greed < 0.25f ? "Not the type. Push it and you'll burn the bridge."
-					: "Open to the arrangement but won't advertise it.",
-				4 => $"Greed: {StarBar(dj.greed)}. Suspicion: {StarBar(dj.suspicion)}. " +
-					(dj.greed > 0.6f && dj.suspicion < 0.4f ? "Receptive and not too hot right now."
-					: dj.suspicion > 0.6f ? "Interested but under too much heat. Wait it out."
-					: "Handle carefully."),
-				_ => $"Greed {StarBar(dj.greed)}, suspicion {StarBar(dj.suspicion)}. " +
-					(dj.greed > 0.7f ? "He'll take the money." : dj.greed < 0.2f ? "No amount of cash works here." : "Negotiate carefully.")
-			};
-			Body($"FIXER: {greedRead}");
-		} else {
-			Body("FIXER: Can't read what's in it for him.");
-		}
-
-		// Verbs: work the door open. formatMatch and the rest of the real candidacy meeting still
-		// decide whether a spin actually follows -- these only raise the relationship term.
-		Heading("WORK THE ANGLE");
-
-		// Favors and introductions don't need a record picked -- they're about the relationship itself.
-		if (entry.theyOweThem) {
-			var favorBtn = Btn($"ASK A FAVOR  ({PlayerDesk.AskAFavorMinMinutes}-{PlayerDesk.AskAFavorMaxMinutes} min)");
-			favorBtn.Pressed += () => { desk.AskAFavor(entry, out string msg); Say(msg); Refresh(); };
-			content.AddChild(favorBtn);
-		}
-		if (entry.state == DiscoveryState.Trusted) {
-			var introBtn = Btn($"ASK FOR AN INTRODUCTION  ({PlayerDesk.IntroductionMinutes} min)");
-			introBtn.Pressed += () => { desk.AskForIntroduction(entry, out string msg); Say(msg); Refresh(); };
-			content.AddChild(introBtn);
-		}
-
-		var records = desk.ReleasedRecords.Where(r => r.baseRecord != null).ToList();
-		if (records.Count == 0) {
-			Body("Nothing in the market to pitch yet -- release a record first.");
-		} else {
-			rolodexPitchRecordId ??= records[0].baseRecord.recordId;
-			if (records.All(r => r.baseRecord.recordId != rolodexPitchRecordId))
-				rolodexPitchRecordId = records[0].baseRecord.recordId;
-
-			var pickRow = new HBoxContainer();
-			pickRow.AddThemeConstantOverride("separation", 6);
-			pickRow.AddChild(new Label { Text = "Record:" });
-			foreach (RecordRuntimeData rec in records) {
-				bool picked = rec.baseRecord.recordId == rolodexPitchRecordId;
-				var recBtn = Btn($"{(picked ? "» " : "")}{rec.baseRecord.title}");
-				string rid = rec.baseRecord.recordId;
-				recBtn.Pressed += () => { rolodexPitchRecordId = rid; Refresh(); };
-				pickRow.AddChild(recBtn);
-			}
-			content.AddChild(pickRow);
-
-			if (!entry.professionallyBurned) {
-				var verbRow = new HBoxContainer();
-				verbRow.AddThemeConstantOverride("separation", 10);
-
-				var pitchBtn = Btn($"PERSONAL PITCH  ({PlayerDesk.PersonalPitchMinMinutes}-{PlayerDesk.PersonalPitchMaxMinutes} min)");
-				pitchBtn.Pressed += () => {
-					desk.PersonalPitch(entry, rolodexPitchRecordId, out string msg);
-					Say(msg);
-					Refresh();
-				};
-				verbRow.AddChild(pitchBtn);
-				content.AddChild(verbRow);
-			}
-
-			Body("Ad-Buy: pay for the spot instead of talking your way in. Always lands; buys less trust per dollar.");
-			var adRow = new HBoxContainer();
-			adRow.AddThemeConstantOverride("separation", 10);
-			foreach (PlayerDesk.AdBuyTier tier in new[] { PlayerDesk.AdBuyTier.Small, PlayerDesk.AdBuyTier.Medium, PlayerDesk.AdBuyTier.Large }) {
-				var adBtn = Btn($"{PlayerDesk.AdBuyTierName(tier)}  (${PlayerDesk.AdBuyCost(tier):N0})");
-				adBtn.Pressed += () => {
-					desk.AdBuy(entry, rolodexPitchRecordId, tier, out string msg);
-					Say(msg);
-					Refresh();
-				};
-				adRow.AddChild(adBtn);
-			}
-			content.AddChild(adRow);
-
-			// Payola: only visible with enough FIXER to size up the risk in the first place, and only
-			// while the cash channel with this DJ is still open.
-			if (inst.TheFixer >= PlayerDesk.PayolaMinFixer && !entry.payolaBurned) {
-				Body("Payola: straight cash, through the same arrangement the ledger already tracks. It works" +
-					" until it doesn't -- a bust burns the bridge for good.");
-				var payolaRow = new HBoxContainer();
-				payolaRow.AddThemeConstantOverride("separation", 10);
-				foreach (PlayerDesk.PayolaTier tier in new[] { PlayerDesk.PayolaTier.Small, PlayerDesk.PayolaTier.Medium, PlayerDesk.PayolaTier.Large }) {
-					var payBtn = Btn($"{PlayerDesk.PayolaTierName(tier)}  (${PlayerDesk.PayolaCost(tier):N0})");
-					payBtn.Pressed += () => {
-						desk.Payola(entry, rolodexPitchRecordId, tier, out string msg);
-						Say(msg);
-						Refresh();
-					};
-					payolaRow.AddChild(payBtn);
-				}
-				content.AddChild(payolaRow);
-			}
-		}
-
-		// History log.
 		if (entry.log.Count > 0) {
 			Heading("HISTORY");
 			foreach (string line in entry.log) Body(line);
 		}
+
+		RenderWorkThePhones(desk);
 	}
 
+	/// <summary>The live advocacy this station is holding for you: the record-specific promise a won
+	/// call actually buys, with the weeks left on it.</summary>
+	private void RenderCarrying(PlayerDesk desk, RolodexEntry entry) {
+		var chart = ChartManager.Instance;
+		if (chart == null) return;
+		int week = chart.GetCurrentChartWeek();
+		var live = chart.Advocacy.ForStation(entry.stationId);
+		if (live.Count == 0) return;
+
+		Heading("WHERE IT STANDS");
+		foreach (StationAdvocacy a in live) {
+			RecordRuntimeData rec = desk.ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == a.recordId);
+			string title = rec?.baseRecord?.title ?? "(unknown record)";
+			int weeksLeft = Mathf.Max(0, a.expiresWeek - week + 1);
+			SpinTier tier = chart.SpinTierOf(entry.stationId, a.recordId);
+			string how = a.method switch {
+				AdvocacyMethod.PersonalPitch  => "on your word",
+				AdvocacyMethod.FavorCalledIn  => "as a favour",
+				AdvocacyMethod.AdvertisingBuy => "as an advertiser",
+				AdvocacyMethod.RivalPressure  => "to beat the competition",
+				_ => "",
+			};
+
+			// The headline is what the station is ACTUALLY doing, not what you bought.
+			string status = tier != SpinTier.None
+				? $"ON THE AIR — {PlayerDesk.TierWord(tier)} rotation"
+				: a.expired ? "Not picked up. His argument has run out."
+				: $"Not on yet — he's still arguing for it ({weeksLeft} more meeting(s))";
+			var head = new Label { Text = $"  \"{title}\" — {status}", AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			head.AddThemeColorOverride("font_color",
+				tier != SpinTier.None ? new Color("4a7a4a") : a.expired ? Rust : Heard);
+			content.AddChild(head);
+
+			var detail = new Label {
+				Text = $"      Taken {how}." + (a.expired ? "" : $" Worth +{a.candidacyBoost * 100f:F0}% to it in his meeting."),
+				AutowrapMode = TextServer.AutowrapMode.WordSmart,
+			};
+			detail.AddThemeFontSizeOverride("font_size", 14);
+			detail.AddThemeColorOverride("font_color", Heard);
+			content.AddChild(detail);
+		}
+		Body("A station playing your record is not the same as a station keeping it. Next week's meeting " +
+			"judges it on sales like anything else.");
+	}
+
+	// ========================================================================
+	// THE CALL
+	// ========================================================================
+
+	/// <summary>
+	/// One phone call, rendered as a transcript plus whatever the current beat offers. The scene lives
+	/// on PlayerDesk (so a Refresh does not drop the call mid-sentence); this only draws it.
+	/// </summary>
+	private void PageCall(PlayerDesk desk, RolodexCall call) {
+		RolodexCallContext c = call.ctx;
+
+		Heading($"CALLING {call.entry.displayName.ToUpperInvariant()}");
+		if (c.station != null)
+			Body($"{c.station.callsign}  ·  {c.station.format}  ·  {c.station.cityName}  ·  " +
+				$"{RolodexEntry.TierLabel(c.tier)}");
+
+		// The record on the table. Switching it rebuilds the situation read.
+		var records = desk.ReleasedRecords.Where(r => r.baseRecord != null).ToList();
+		if (records.Count > 0 && call.stage is CallStage.Open) {
+			var pickRow = new HBoxContainer();
+			pickRow.AddThemeConstantOverride("separation", 6);
+			pickRow.AddChild(new Label { Text = "On the table:" });
+			foreach (RecordRuntimeData rec in records) {
+				bool picked = rec.baseRecord.recordId == call.recordId;
+				var recBtn = Btn($"{(picked ? "» " : "")}{rec.baseRecord.title}");
+				string rid = rec.baseRecord.recordId;
+				recBtn.Pressed += () => { rolodexPitchRecordId = rid; desk.SetCallRecord(call, rid); Refresh(); };
+				pickRow.AddChild(recBtn);
+			}
+			content.AddChild(pickRow);
+		}
+
+		RenderTranscript(call);
+
+		switch (call.stage) {
+			case CallStage.NotConnected: RenderNotConnected(desk, call); break;
+			case CallStage.Open:         RenderApproaches(desk, call);   break;
+			case CallStage.Pushback:     RenderCounters(desk, call);     break;
+			case CallStage.Resolved:     RenderResolved(desk, call);     break;
+		}
+	}
+
+	private void RenderTranscript(RolodexCall call) {
+		var frame = new PanelContainer();
+		frame.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+			BgColor = new Color("e7d8b4"), ContentMarginLeft = 12, ContentMarginRight = 12,
+			ContentMarginTop = 10, ContentMarginBottom = 10,
+		});
+		var box = new VBoxContainer();
+		box.AddThemeConstantOverride("separation", 8);
+		frame.AddChild(box);
+		content.AddChild(frame);
+
+		foreach (CallLine line in call.transcript) {
+			if (line.voice != ExecutiveVoice.None) {
+				// An instinct read: a voice in your own head, not a line on the phone.
+				var read = new Label {
+					Text = $"{VoiceName(line.voice)} — {line.text}",
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				};
+				read.AddThemeFontSizeOverride("font_size", 15);
+				read.AddThemeColorOverride("font_color", VoiceColor(line.voice));
+				box.AddChild(read);
+				continue;
+			}
+			if (!string.IsNullOrEmpty(line.speaker)) {
+				var who = new Label { Text = line.speaker.ToUpperInvariant() };
+				who.AddThemeFontSizeOverride("font_size", 13);
+				who.AddThemeColorOverride("font_color", Heard);
+				box.AddChild(who);
+			}
+			var body = new Label {
+				Text = string.IsNullOrEmpty(line.speaker) ? line.text : $"“{line.text.Trim('“', '”', '"')}”",
+				AutowrapMode = TextServer.AutowrapMode.WordSmart,
+			};
+			body.AddThemeFontSizeOverride("font_size", 16);
+			body.AddThemeColorOverride("font_color", line.isPlayer ? new Color("4a3a6b") : Ink);
+			box.AddChild(body);
+		}
+	}
+
+	private void RenderNotConnected(PlayerDesk desk, RolodexCall call) {
+		var again = Btn($"TRY AGAIN  ({PlayerDesk.DialMinutes} min)");
+		again.Pressed += () => {
+			desk.EndCall(call);
+			desk.PlaceCall(call.entry, call.recordId, out string msg);
+			if (!string.IsNullOrEmpty(msg)) Say(msg);
+			Refresh();
+		};
+		content.AddChild(again);
+		var hang = Btn("PUT THE PHONE DOWN");
+		hang.Pressed += () => { desk.EndCall(call); Refresh(); };
+		content.AddChild(hang);
+		Body("Every attempt costs you the same five minutes, and the more you burn on one man " +
+			"the worse the rest of the day's calls go.");
+	}
+
+	private void RenderApproaches(PlayerDesk desk, RolodexCall call) {
+		Heading("WHAT DO YOU SAY");
+		foreach (CallOption opt in desk.ApproachOptions(call)) {
+			if (opt.approach == RolodexApproach.HangUp) continue;
+			RenderOption(opt, () => {
+				object payload = null;
+				if (opt.approach == RolodexApproach.CommercialPitch) payload = adBuyTier;
+				if (opt.approach == RolodexApproach.OfferPayola) payload = payolaTier;
+				desk.ChooseApproach(call, opt.approach, payload, out string msg);
+				if (!string.IsNullOrEmpty(msg)) Say(msg);
+				Refresh();
+			});
+			// Money verbs carry a size selector inline, so the number is chosen before the sentence.
+			if (opt.enabled && opt.approach == RolodexApproach.CommercialPitch)
+				RenderTierRow("Size of buy:", new[] { PlayerDesk.AdBuyTier.Small, PlayerDesk.AdBuyTier.Medium, PlayerDesk.AdBuyTier.Large },
+					t => $"{PlayerDesk.AdBuyTierName(t)} ${PlayerDesk.AdBuyCost(t):N0}", t => adBuyTier = t, adBuyTier);
+			if (opt.enabled && opt.approach == RolodexApproach.OfferPayola)
+				RenderTierRow("Size of envelope:", new[] { PlayerDesk.PayolaTier.Small, PlayerDesk.PayolaTier.Medium, PlayerDesk.PayolaTier.Large },
+					t => $"{PlayerDesk.PayolaTierName(t)} ${PlayerDesk.PayolaCost(t):N0}", t => payolaTier = t, payolaTier);
+		}
+
+		var hang = Btn("HANG UP");
+		hang.Pressed += () => { desk.EndCall(call); Refresh(); };
+		content.AddChild(hang);
+	}
+
+	private void RenderTierRow<T>(string label, T[] tiers, Func<T, string> name, Action<T> set, T current) where T : Enum {
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 6);
+		var lbl = new Label { Text = label };
+		lbl.AddThemeColorOverride("font_color", Heard);
+		row.AddChild(lbl);
+		foreach (T tier in tiers) {
+			bool picked = Equals(tier, current);
+			var b = Btn($"{(picked ? "» " : "")}{name(tier)}");
+			T captured = tier;
+			b.Pressed += () => { set(captured); Refresh(); };
+			row.AddChild(b);
+		}
+		content.AddChild(row);
+	}
+
+	private void RenderCounters(PlayerDesk desk, RolodexCall call) {
+		Heading("HOW DO YOU ANSWER THAT");
+		var odds = new Label { Text = $"As it stands: roughly {call.EffectiveChance * 100f:F0}% he says yes." };
+		odds.AddThemeColorOverride("font_color", Heard);
+		content.AddChild(odds);
+
+		foreach (CallOption opt in desk.CounterOptions(call)) {
+			RenderOption(opt, () => {
+				desk.PlayCounter(call, opt.counter, out string msg);
+				if (!string.IsNullOrEmpty(msg)) Say(msg);
+				Refresh();
+			});
+		}
+	}
+
+	private void RenderResolved(PlayerDesk desk, RolodexCall call) {
+		var more = Btn("KEEP HIM ON THE LINE");
+		more.Pressed += () => { desk.ContinueCall(call); Refresh(); };
+		content.AddChild(more);
+		var hang = Btn("HANG UP");
+		hang.Pressed += () => { desk.EndCall(call); Refresh(); };
+		content.AddChild(hang);
+	}
+
+	/// <summary>One option button, coloured by the voice that surfaced it, with its cost and its
+	/// truthfulness spelled out underneath. A bluff is always labelled as one.</summary>
+	private void RenderOption(CallOption opt, Action onPressed) {
+		string prefix = opt.voice == ExecutiveVoice.None ? "" : $"[{VoiceName(opt.voice)}] ";
+		var btn = Btn(prefix + opt.label);
+		btn.CustomMinimumSize = new Vector2(0, 38);
+		btn.Disabled = !opt.enabled;
+		if (opt.enabled) btn.Pressed += onPressed;
+		if (opt.voice != ExecutiveVoice.None) {
+			btn.AddThemeColorOverride("font_color", VoiceColor(opt.voice));
+			btn.AddThemeColorOverride("font_hover_color", VoiceColor(opt.voice));
+		}
+		content.AddChild(btn);
+
+		string sub = opt.enabled ? opt.subLabel : opt.disabledReason;
+		if (!string.IsNullOrEmpty(sub)) {
+			var note = new Label { Text = "     " + sub, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			note.AddThemeFontSizeOverride("font_size", 14);
+			note.AddThemeColorOverride("font_color", opt.isBluff ? Rust : Heard);
+			content.AddChild(note);
+		}
+		if (opt.isBluff) {
+			var warn = new Label { Text = "     (Not true. He may check.)" };
+			warn.AddThemeFontSizeOverride("font_size", 13);
+			warn.AddThemeColorOverride("font_color", Rust);
+			content.AddChild(warn);
+		}
+	}
+
+	private static string VoiceName(ExecutiveVoice voice) => voice switch {
+		ExecutiveVoice.Ear    => "THE EAR",
+		ExecutiveVoice.Street => "THE STREET",
+		ExecutiveVoice.Suit   => "THE SUIT",
+		ExecutiveVoice.Fixer  => "THE FIXER",
+		_ => "",
+	};
+
+	private static Color VoiceColor(ExecutiveVoice voice) => voice switch {
+		ExecutiveVoice.Ear    => new Color("6b3a5a"),
+		ExecutiveVoice.Street => new Color("3a6b4a"),
+		ExecutiveVoice.Suit   => new Color("3a4a6b"),
+		ExecutiveVoice.Fixer  => new Color("6b4a1c"),
+		_ => new Color("2b2115"),
+	};
+
 	private void RenderWorkThePhones(PlayerDesk desk) {
-		// Show the action only if there are still undiscovered reporter stations in the home region.
 		var allReporters = ChartManager.Instance?.ReporterStationsInRegion(desk.Label?.homeRegion ?? "");
 		if (allReporters == null) return;
 		int known = desk.Rolodex.Count;
@@ -1594,17 +1676,25 @@ public partial class PlayerDeskPanel : Control {
 			Body($"You have leads on all {total} reporter station(s) in your region. Branch out to other markets to grow the book.");
 			return;
 		}
-		Body($"Your region: {known} of {total} reporter station(s) in your book.");
-		var callBtn = Btn("WORK THE PHONES");
-		callBtn.CustomMinimumSize = new Vector2(240, 42);
+		Heading("WORK THE PHONES");
+		Body($"Your region: {known} of {total} reporter station(s) in your book. Cold-calling gets you a " +
+			"name more often than it gets you a man, and it gets you nothing at all more often than either.");
+		int attempts = desk.CallAttemptsToday;
+		if (attempts >= 2) {
+			var warn = new Label { Text = attempts >= 4
+				? "You've been on the phone all day. Nobody's taking your call now."
+				: $"{attempts} rounds of calls today already. The odds are getting worse." };
+			warn.AddThemeColorOverride("font_color", Rust);
+			content.AddChild(warn);
+		}
+		var callBtn = Btn($"WORK THE PHONES  ({PlayerDesk.WorkThePhonesMinMinutes}-{PlayerDesk.WorkThePhonesMaxMinutes} min)");
+		callBtn.CustomMinimumSize = new Vector2(280, 42);
 		callBtn.Pressed += () => {
 			PlayerDesk.Instance.WorkThePhones(out string msg);
 			Say(msg);
-			rolodexCallOpen = false;
 			Refresh();
 		};
 		content.AddChild(callBtn);
-		Body($"({PlayerDesk.WorkThePhonesMinMinutes}-{PlayerDesk.WorkThePhonesMaxMinutes} min)");
 	}
 
 	// Portrait monogram: two initials from the display name.

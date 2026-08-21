@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization.Metadata;
@@ -29,6 +29,7 @@ public sealed class WorldSaveData {
 	// --- Clock (Phase 0) ---
 	public int ChartWeek { get; set; }
 	public int Hour { get; set; }
+	public int Minute { get; set; }
 	// The Saturday the currently-displayed chart is dated to (frozen "for week ending" header). Stored as ints
 	// because GameDate isn't a save DTO type; 0 = pre-fix save, recovered from the calendar on load.
 	public int ChartWeekEndingYear { get; set; }
@@ -222,6 +223,7 @@ public static class WorldStateService {
 		var world = new WorldSaveData {
 			ChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Hour = TimeManager.Instance?.CurrentHour ?? 0,
+			Minute = TimeManager.Instance?.CurrentMinute ?? 0,
 			ChartWeekEndingYear = ending.year,
 			ChartWeekEndingMonth = ending.month,
 			ChartWeekEndingDay = ending.day
@@ -243,7 +245,7 @@ public static class WorldStateService {
 	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed) {
 		if (world == null) return;
 
-		TimeManager.Instance?.RestoreClock(date, world.Hour);
+		TimeManager.Instance?.RestoreClock(date, world.Hour, world.Minute);
 		ArtistManager.Instance?.RehydrateWorld(world);
 		ChartManager.Instance?.RehydrateLabels(world);
 		LabelLifecycleManager.Instance?.RehydrateLifecycle(world, ChartManager.Instance?.GetAllLabels());

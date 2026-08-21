@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 /// <summary>Discovery ladder for a DJ contact. Unknown DJs have no entry; the first entry starts at
@@ -30,6 +30,10 @@ public sealed class RolodexEntry {
     // Set by a payola bust (ProcessPayolaScandals) -- the cash channel specifically is too hot. Blocks
     // Payola only; Personal Pitch and the pure-business Ad-Buy still work if the DJ is still in the chair.
     public bool payolaBurned;
+    // Set the first time you learn when this jock is actually at the station -- by reaching him, or by
+    // being told he is not in. Until then the card cannot tell you what hours to try, which is the
+    // whole reason the first cold call is worth something.
+    public bool shiftKnown;
     // Set when a Personal Pitch's record-memory settles badly (ProcessRecordMemories) -- he trusted your
     // ear and got burned. Blocks Personal Pitch only; a straight cash Ad-Buy needs no trust, and Payola
     // is untouched by it.
@@ -134,6 +138,7 @@ public sealed class RolodexEntrySaveData {
     public bool   YouOweThem    { get; set; }
     public bool   TheyOweThem   { get; set; }
     public bool   PayolaBurned  { get; set; }
+    public bool   ShiftKnown    { get; set; }
     public bool   ProfessionallyBurned { get; set; }
     public List<PendingRecordMemorySaveData> PendingMemories { get; set; } = new();
     public List<string> Log     { get; set; } = new();
@@ -143,6 +148,7 @@ public sealed class RolodexEntrySaveData {
         DisplayName = e.displayName, PortraitKey = e.portraitKey,
         YouOweThem = e.youOweThem, TheyOweThem = e.theyOweThem,
         PayolaBurned = e.payolaBurned, ProfessionallyBurned = e.professionallyBurned,
+        ShiftKnown = e.shiftKnown,
         PendingMemories = e.pendingMemories.ConvertAll(PendingRecordMemorySaveData.From),
         Log = new List<string>(e.log)
     };
@@ -153,6 +159,7 @@ public sealed class RolodexEntrySaveData {
         displayName = DisplayName ?? "Unknown DJ", portraitKey = PortraitKey ?? "CompanyMan",
         youOweThem = YouOweThem, theyOweThem = TheyOweThem,
         payolaBurned = PayolaBurned, professionallyBurned = ProfessionallyBurned,
+        shiftKnown = ShiftKnown,
         pendingMemories = (PendingMemories ?? new List<PendingRecordMemorySaveData>()).ConvertAll(m => m.ToMemory()),
         log = Log ?? new List<string>()
     };

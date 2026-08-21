@@ -21,13 +21,18 @@ public partial class SaveLoadRoundTripRunner : Node {
 		try {
 			int weeks = 26;
 			bool integration = false;
+			string inspectSlot = null;
 			foreach (string arg in OS.GetCmdlineUserArgs()) {
 				if (arg.StartsWith("--weeks=", StringComparison.Ordinal)) weeks = int.Parse(arg["--weeks=".Length..]);
 				else if (arg == "--integration") integration = true;
+				else if (arg.StartsWith("--inspect-slot=", StringComparison.Ordinal)) inspectSlot = arg["--inspect-slot=".Length..];
 			}
 
 			if (TimeManager.Instance == null || ChartManager.Instance == null)
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
+
+			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
+			if (inspectSlot != null) { RunInspect(inspectSlot); return; }
 
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
 
@@ -179,6 +184,40 @@ public partial class SaveLoadRoundTripRunner : Node {
 			try { SaveGameService.Delete(slot); } catch { }
 			GetTree().Quit(3);
 		}
+	}
+
+	/// <summary>
+	/// Loads a real save from disk and prints what the desk actually holds afterwards: the discography, and
+	/// the town-stock readout the DISTRIBUTION screen draws from. A stock line whose title is still a bare
+	/// record id ("player_2") is the symptom this exists to catch -- a record the dead-stock cull deleted out
+	/// from under the references that point at it. Fails on any such line; otherwise diagnostic only.
+	/// </summary>
+	private void RunInspect(string slot) {
+		if (PlayerDesk.Instance == null) { GD.Print("SAVELOAD_INSPECT_ERROR reason=no-desk"); GetTree().Quit(3); return; }
+		if (!SaveGameService.Load(slot, out string loadMsg)) {
+			GD.Print($"SAVELOAD_INSPECT_FAIL slot={slot} reason=load:{loadMsg}");
+			GetTree().Quit(1);
+			return;
+		}
+		PlayerDesk desk = PlayerDesk.Instance;
+		GD.Print($"SAVELOAD_INSPECT slot={slot} message=\"{loadMsg}\"");
+		int titles = 0;
+		foreach (RecordRuntimeData record in desk.ReleasedRecords) {
+			titles++;
+			GD.Print($"  DISCOGRAPHY {record.baseRecord.recordId} \"{record.baseRecord.title}\" by {record.baseRecord.artistName}" +
+				$" released={record.baseRecord.releaseDate} weeks={record.weeksSinceRelease} units={record.totalUnitsSold}");
+		}
+
+		int unresolved = 0;
+		foreach ((string cityName, string title, int remaining) in desk.TownStock()) {
+			bool dangling = System.Text.RegularExpressions.Regex.IsMatch(title, @"^player_\d+$");
+			if (dangling) unresolved++;
+			GD.Print($"  STOCK {cityName} \"{title}\" remaining={remaining} dangling={dangling}");
+		}
+		GD.Print(unresolved == 0
+			? $"SAVELOAD_INSPECT_PASS slot={slot} discography={titles} danglingStockRefs=0"
+			: $"SAVELOAD_INSPECT_FAIL slot={slot} discography={titles} danglingStockRefs={unresolved}");
+		GetTree().Quit(unresolved == 0 ? 0 : 1);
 	}
 
 	private static void AdvanceOneChartWeek() {
