@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -24,11 +24,24 @@ public partial class PlayerDeskPanel : Control {
 	// any) the player is currently drawing up a contract for.
 	private PlayerDesk.ScoutingVenue selectedVenue = PlayerDesk.ScoutingVenue.ClubsAndRoadhouses;
 	private PlayerDesk.Prospect negotiating;
+	// The act whose contract renewal is on screen on the ROSTER tab. Mirrors `negotiating`, but keys
+	// off PlayerDesk.PendingRenewal instead of a Prospect -- the renewal isn't a new signing.
+	private SimulatedArtist renewingArtist;
 	// The act whose MANAGE window is open on the ROSTER tab, and whether its cover-browse list is up.
 	private string managingArtistId;
 	private bool browsingCovers;
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
+	// The founding archetype selected on the founding page; persists across Refresh() rebuilds.
+	private FoundingArchetype selectedArchetype = FoundingArchetype.TradeInsider;
+	// ROLODEX page state: which card is focused (index into PlayerDesk.Rolodex) and whether
+	// the call view for that card is open.
+	private int rolodexFocus;
+	private string rolodexPitchRecordId;
+	// Money sizes chosen before the sentence is spoken -- the number is part of the offer, not a
+	// separate button press after he has already answered.
+	private PlayerDesk.AdBuyTier adBuyTier = PlayerDesk.AdBuyTier.Small;
+	private PlayerDesk.PayolaTier payolaTier = PlayerDesk.PayolaTier.Small;
 
 	private static readonly Color Ink = new("2b2115");
 	private static readonly Color Paper = new("f1e5c8");
@@ -158,6 +171,7 @@ public partial class PlayerDeskPanel : Control {
 		AddTab("DISTRIBUTION", PageDistribution);
 		AddTab("FINANCES", PageFinances);
 		AddTab("OFFICE", PageOffice);
+		AddTab("ROLODEX", PageRolodex);
 	}
 
 	private void AddTab(string title, Action page) {
@@ -169,8 +183,9 @@ public partial class PlayerDeskPanel : Control {
 		tabButtons.Add(button);
 	}
 
-	// Tab order in BuildTabs: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5).
+	// Tab order in BuildTabs: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5), ROLODEX(6).
 	private const int DistributionTab = 3;
+	private const int RolodexTab = 6;
 
 	/// <summary>Switches the desk to a macro tab, dropping any open MANAGE/cover-browse sub-state.</summary>
 	private void GoToTab(int index, Action page) {
@@ -178,6 +193,8 @@ public partial class PlayerDeskPanel : Control {
 		currentPage = page;
 		managingArtistId = null;
 		browsingCovers = false;
+		// Leaving the tab hangs up: you cannot hold a man on the line while you go and read the books.
+		if (index != RolodexTab) { PlayerDesk.Instance?.EndCall(PlayerDesk.Instance.ActiveCall); rolodexPitchRecordId = null; }
 		Refresh();
 	}
 
@@ -260,9 +277,35 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void PageFounding() {
-		Heading("OPEN FOR BUSINESS");
-		Body($"Name the label and pick the town you work out of. You start with ${PlayerDesk.FoundingCapital:N0}, " +
-			"one market, and no roster. Everything past that is earned.");
+		Heading("WHO WERE YOU BEFORE THIS?");
+
+		// Archetype selector: a row of buttons, the selected one at full opacity.
+		var archetypeRow = new HBoxContainer();
+		archetypeRow.AddThemeConstantOverride("separation", 6);
+		content.AddChild(archetypeRow);
+		foreach (FoundingArchetype arch in System.Enum.GetValues<FoundingArchetype>()) {
+			FoundingArchetype captured = arch;
+			var btn = Btn(FoundingArchetypeData.Get(arch).Name.ToUpperInvariant());
+			btn.CustomMinimumSize = new Vector2(230, 40);
+			btn.Modulate = arch == selectedArchetype ? Colors.White : new Color(1, 1, 1, .55f);
+			btn.Pressed += () => { selectedArchetype = captured; Refresh(); };
+			archetypeRow.AddChild(btn);
+		}
+
+		var selected = FoundingArchetypeData.Get(selectedArchetype);
+		Body($"{selected.Tagline}  ·  Starting capital: ${selected.Capital:N0}");
+		Body(selected.Description);
+
+		// Instinct spread.
+		var instincts = selected.Instincts;
+		Body($"THE EAR {StarBar(instincts.TheEar / 5f)}   THE STREET {StarBar(instincts.TheStreet / 5f)}   " +
+			$"THE SUIT {StarBar(instincts.TheSuit / 5f)}   THE FIXER {StarBar(instincts.TheFixer / 5f)}");
+
+		// Label stats summary line.
+		Body($"Scouting {StarBar(selected.ScoutingAbility)}   Production {StarBar(selected.ProductionQuality)}   " +
+			$"Marketing {StarBar(selected.MarketingPower)}");
+
+		Heading("NAME THE LABEL AND PICK YOUR TOWN");
 
 		var nameEdit = new LineEdit { PlaceholderText = "Label name", CustomMinimumSize = new Vector2(400, 38) };
 		content.AddChild(nameEdit);
@@ -288,7 +331,7 @@ public partial class PlayerDeskPanel : Control {
 		found.Pressed += () => {
 			if (cities.Count == 0) { Say("No towns loaded."); return; }
 			int index = Mathf.Clamp(cityPicker.Selected, 0, cities.Count - 1);
-			PlayerDesk.Instance.FoundLabel(nameEdit.Text, cities[index].cityId, out string message);
+			PlayerDesk.Instance.FoundLabel(nameEdit.Text, cities[index].cityId, selectedArchetype, out string message);
 			Say(message);
 			Refresh();
 		};
@@ -407,9 +450,11 @@ public partial class PlayerDeskPanel : Control {
 	private void PageAandR() {
 		PlayerDesk desk = PlayerDesk.Instance;
 
-		// If the player is mid-negotiation, the contract menu takes over the page.
+		// If the player is mid-negotiation, the contract menu takes over the page. A Pushover act
+		// gets the plain single-click form; a Firm/Hardball act gets the negotiation scene instead.
 		if (negotiating != null && desk.Slate.Contains(negotiating) && negotiating.HasBaseline) {
-			ContractForm(negotiating);
+			if (negotiating.Talk != null) NegotiationScene(negotiating.Talk);
+			else ContractForm(negotiating);
 			return;
 		}
 		negotiating = null;
@@ -488,7 +533,8 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(card);
 	}
 
-	/// <summary>The contract menu: the label's opening offer, editable, then put on the table.</summary>
+	/// <summary>The contract menu: the label's opening offer, editable, then put on the table.
+	/// Pushover only -- signing is a single accept-or-walk click.</summary>
 	private void ContractForm(PlayerDesk.Prospect prospect) {
 		ContractTermSheet b = prospect.Baseline;
 		Heading($"CONTRACT — {prospect.Artist.stageName.ToUpperInvariant()}");
@@ -497,51 +543,173 @@ public partial class PlayerDeskPanel : Control {
 		Body("Set the terms and put it to them. The negotiation costs " +
 			$"{PlayerDesk.SignHours} hours; the advance is charged when they sign.");
 
+		TermsForm(b, $"OFFER CONTRACT  ({PlayerDesk.SignHours}h)",
+			(advance, royalty, term, singles, labelPub, artistControl) => {
+				bool signed = PlayerDesk.Instance.OfferContract(prospect, advance, royalty, term, singles,
+					labelPub, artistControl, out string message);
+				if (signed) negotiating = null;
+				Say(message);
+				Refresh();
+			},
+			() => { negotiating = null; Refresh(); });
+	}
+
+	/// <summary>The editable grid shared by the plain contract form, every tabling round of a
+	/// Firm/Hardball negotiation, and a renewal. Just the fields and the two buttons -- caller
+	/// supplies the prefill, what the submit button says and does, and what "not now" does.</summary>
+	private void TermsForm(ContractTermSheet prefill, string submitLabel,
+			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel) {
 		var grid = new GridContainer { Columns = 2 };
 		grid.AddThemeConstantOverride("h_separation", 18);
 		grid.AddThemeConstantOverride("v_separation", 8);
 		content.AddChild(grid);
 
 		grid.AddChild(FormLabel("Advance ($)"));
-		var advance = Spin(0, 100000, 25, Mathf.Round(b.Advance));
+		var advance = Spin(0, 100000, 25, Mathf.Round(prefill.Advance));
 		grid.AddChild(advance);
 
 		grid.AddChild(FormLabel("Royalty (%)"));
-		var royalty = Spin(2, 15, 0.5, Mathf.Round(b.RoyaltyRate * 1000f) / 10f);
+		// Opens on what they expect. You may write it lower -- down to half a point -- but the further
+		// under their number you go, the likelier they push back on it.
+		var royalty = Spin(PlayerDesk.PlayerRoyaltyFloor * 100f, 15, 0.25,
+			Mathf.Round(prefill.RoyaltyRate * 4000f) / 40f);
 		grid.AddChild(royalty);
 
 		grid.AddChild(FormLabel("Term (years)"));
-		var term = Spin(1, 7, 1, b.TermYears);
+		var term = Spin(1, 7, 1, prefill.TermYears);
 		grid.AddChild(term);
 
+		grid.AddChild(FormLabel("Deliverables (singles)"));
+		// 2-3 singles a year is the period norm for a new act, tapering to none once a career is
+		// established -- the default already reflects that; this just lets the player move off it.
+		var singles = Spin(0, 30, 1, prefill.SinglesObligation);
+		grid.AddChild(singles);
+
 		grid.AddChild(FormLabel("Publishing"));
-		var labelPub = Check("Label keeps the publishing", b.LabelOwnsPublishing);
+		var labelPub = Check("Label keeps the publishing", prefill.LabelOwnsPublishing);
 		grid.AddChild(labelPub);
 
 		grid.AddChild(FormLabel("Creative control"));
-		var artistControl = Check("Artist has creative control", b.ArtistCreativeControl);
+		var artistControl = Check("Artist has creative control", prefill.ArtistCreativeControl);
 		grid.AddChild(artistControl);
 
 		var buttons = new HBoxContainer();
 		buttons.AddThemeConstantOverride("separation", 12);
-		var offer = Btn($"OFFER CONTRACT  ({PlayerDesk.SignHours}h)");
+		var offer = Btn(submitLabel);
 		offer.CustomMinimumSize = new Vector2(260, 44);
-		PlayerDesk.Prospect captured = prospect;
-		offer.Pressed += () => {
-			bool signed = PlayerDesk.Instance.OfferContract(captured, (float)advance.Value, (float)royalty.Value / 100f,
-				(int)term.Value, labelPub.ButtonPressed, artistControl.ButtonPressed, out string message);
-			if (signed) negotiating = null;
-			Say(message);
-			Refresh();
-		};
+		offer.Pressed += () => onSubmit((float)advance.Value, (float)royalty.Value / 100f,
+			(int)term.Value, (int)singles.Value, labelPub.ButtonPressed, artistControl.ButtonPressed);
 		buttons.AddChild(offer);
 
 		var cancel = Btn("NOT NOW");
 		cancel.CustomMinimumSize = new Vector2(150, 44);
-		cancel.Pressed += () => { negotiating = null; Refresh(); };
+		cancel.Pressed += () => onCancel();
 		buttons.AddChild(cancel);
 		content.AddChild(buttons);
 	}
+
+	// ========================================================================
+	// CONTRACT NEGOTIATION -- Firm/Hardball acts (see SimTools/ContractNegotiationDirective.md Part 2)
+	// ========================================================================
+
+	/// <summary>The negotiation scene: table an offer, or answer the objection it drew. Same
+	/// take-over-the-page shape as PageCall for the Rolodex -- this IS that loop, different nouns.</summary>
+	private void NegotiationScene(ContractTalk talk) {
+		string verb = talk.IsRenewal ? "RENEWING" : "NEGOTIATING";
+		Heading($"{verb} — {talk.Artist.stageName.ToUpperInvariant()}  ({talk.posture.ToString().ToUpperInvariant()})");
+		if (talk.roundsPlayed == 0) Body(talk.ask.DemandSummary);
+
+		if (talk.log.Count > 0) {
+			var frame = new PanelContainer();
+			frame.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+				BgColor = new Color("e7d8b4"), ContentMarginLeft = 12, ContentMarginRight = 12,
+				ContentMarginTop = 10, ContentMarginBottom = 10,
+			});
+			var box = new VBoxContainer();
+			box.AddThemeConstantOverride("separation", 6);
+			frame.AddChild(box);
+			content.AddChild(frame);
+			foreach (string line in talk.log.Take(4)) {
+				var lbl = new Label { Text = line, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+				lbl.AddThemeFontSizeOverride("font_size", 15);
+				lbl.AddThemeColorOverride("font_color", Ink);
+				box.AddChild(lbl);
+			}
+		}
+
+		// Done is never rendered: every path that reaches it (sign or walk) clears `negotiating` and
+		// refreshes in the same handler, same as the plain ContractForm's sign button does today.
+		switch (talk.stage) {
+			case ContractTalkStage.Tabling:   NegotiationTablingForm(talk);  break;
+			case ContractTalkStage.Objection: NegotiationObjection(talk);    break;
+		}
+	}
+
+	private void NegotiationTablingForm(ContractTalk talk) {
+		string label = talk.roundsPlayed == 0
+			? $"TABLE OFFER  ({PlayerDesk.NegotiationRoundHours}h)"
+			: $"TABLE AGAIN  ({PlayerDesk.NegotiationRoundHours}h)";
+		TermsForm(PlayerDesk.CurrentOffer(talk), label,
+			(advance, royalty, term, singles, labelPub, artistControl) => {
+				PlayerDesk.Instance.TableOffer(talk, advance, royalty, term, singles, labelPub, artistControl, out string message);
+				Say(message);
+				CloseTalkIfDone(talk);
+				Refresh();
+			},
+			() => {
+				PlayerDesk.Instance.WalkFromTalk(talk, out string message);
+				Say(message);
+				CloseTalkIfDone(talk);
+				Refresh();
+			});
+	}
+
+	/// <summary>A negotiation scene serves both a new signing (closes `negotiating`) and a renewal
+	/// (closes `renewingArtist`) -- clear whichever one this talk actually belongs to once it ends.</summary>
+	private void CloseTalkIfDone(ContractTalk talk) {
+		if (talk.stage != ContractTalkStage.Done) return;
+		if (talk.IsRenewal) renewingArtist = null; else negotiating = null;
+	}
+
+	private void NegotiationObjection(ContractTalk talk) {
+		Heading("HE COUNTERS");
+		var stand = new Label {
+			Text = $"Where it stands: roughly {talk.lastOfferValue * 100f:F0}% of what would close it " +
+				$"({talk.reservation * 100f:F0}% clears it)   •   {talk.patienceLeft} of {talk.patienceMax} round(s) of patience left",
+			AutowrapMode = TextServer.AutowrapMode.WordSmart,
+		};
+		stand.AddThemeColorOverride("font_color", Heard);
+		content.AddChild(stand);
+
+		NegotiationCounterButton(talk, ContractCounter.SweetenAxis,
+			"SWEETEN IT", "Go back and raise the number he's actually stuck on.");
+		if (PlayerDesk.CanTradeAxes(talk))
+			NegotiationCounterButton(talk, ContractCounter.TradeAxes,
+				"TRADE", "Give back the publishing and the final word; the advance comes down to match.");
+		NegotiationCounterButton(talk, ContractCounter.Promise,
+			$"PROMISE  ({PlayerDesk.NegotiationRoundHours}h)", "More sides, a real push -- costs nothing today.");
+		NegotiationCounterButton(talk, ContractCounter.HoldFirm,
+			$"HOLD FIRM  ({PlayerDesk.NegotiationRoundHours}h)", "Table it again unchanged and see who blinks.");
+		NegotiationCounterButton(talk, ContractCounter.Walk,
+			"WALK AWAY", "Step back from the table. Nothing's burned.");
+	}
+
+	private void NegotiationCounterButton(ContractTalk talk, ContractCounter counter, string label, string sub) {
+		var btn = Btn(label);
+		btn.CustomMinimumSize = new Vector2(0, 38);
+		btn.Pressed += () => {
+			PlayerDesk.Instance.PlayNegotiationCounter(talk, counter, out string message);
+			Say(message);
+			CloseTalkIfDone(talk);
+			Refresh();
+		};
+		content.AddChild(btn);
+		var note = new Label { Text = "     " + sub, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		note.AddThemeFontSizeOverride("font_size", 14);
+		note.AddThemeColorOverride("font_color", Heard);
+		content.AddChild(note);
+	}
+
 
 	// ========================================================================
 	// ROSTER  +  the MANAGE window (Songs + Studio folded in)
@@ -549,6 +717,13 @@ public partial class PlayerDeskPanel : Control {
 
 	private void PageRoster() {
 		PlayerDesk desk = PlayerDesk.Instance;
+
+		// A renewal in progress takes over the page, same as a signing does on A&R.
+		if (renewingArtist != null && desk.PendingRenewal?.Artist == renewingArtist) {
+			RenewalScene(desk.PendingRenewal);
+			return;
+		}
+		renewingArtist = null;
 
 		// Clicking an act opens its MANAGE window in place of the list.
 		SimulatedArtist managed = managingArtistId == null ? null
@@ -560,22 +735,40 @@ public partial class PlayerDeskPanel : Control {
 		if (!desk.Roster.Any()) { Body("Nobody signed yet. Go find an act on the A&R page."); return; }
 		Body("Click an act to manage them — their songbook, teaching covers, and cutting records all live in there.");
 
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		foreach (SimulatedArtist artist in desk.Roster.ToList()) {
+			bool matured = RosterManager.IsContractMatured(artist, year, week);
+			var card = new VBoxContainer();
+			card.AddThemeConstantOverride("separation", 2);
+
 			var row = new HBoxContainer();
 			row.AddThemeConstantOverride("separation", 12);
 
 			int songs = desk.RepertoireFor(artist.artistId).Count
 				+ desk.UnrecordedSongs.Count(s => s.ArtistId == artist.artistId);
+			string manager = artist.manager == ManagerArchetype.None ? "" : $"   •   managed by {artist.managerName ?? artist.manager.ToString()}";
 			var text = new Label {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
 				Text = $"{artist.stageName}  —  {GenreNameFormatter.Format(artist.primaryGenre)}  •  {artist.careerState}\n" +
 					$"    {artist.totalReleases} releases   •   {artist.top40Hits} Top 40   •   {songs} in the songbook   •   " +
-					$"{artist.royaltyRate:P0} royalty   •   expires {artist.contractExpiresYear}"
+					$"{artist.royaltyRate:P0} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}"
 			};
-			text.AddThemeColorOverride("font_color", Ink);
+			text.AddThemeColorOverride("font_color", matured ? Rust : Ink);
 			row.AddChild(text);
 
 			SimulatedArtist captured = artist;
+			if (matured) {
+				var renew = Btn("RENEW");
+				renew.CustomMinimumSize = new Vector2(120, 40);
+				renew.Pressed += () => {
+					if (PlayerDesk.Instance.ApproachRenewal(captured, out string message)) renewingArtist = captured;
+					Say(message);
+					Refresh();
+				};
+				row.AddChild(renew);
+			}
+
 			var manage = Btn("MANAGE");
 			manage.CustomMinimumSize = new Vector2(150, 40);
 			manage.Pressed += () => { managingArtistId = captured.artistId; browsingCovers = false; Refresh(); };
@@ -585,8 +778,30 @@ public partial class PlayerDeskPanel : Control {
 			dossier.CustomMinimumSize = new Vector2(110, 40);
 			dossier.Pressed += () => UIManager.Instance?.OpenArtist(captured.artistId, true);
 			row.AddChild(dossier);
-			content.AddChild(row);
+			card.AddChild(row);
+			content.AddChild(card);
 		}
+	}
+
+	/// <summary>The renewal menu for a matured contract: Pushover gets the same quick one-click form
+	/// as a first signing; Firm/Hardball opens the same negotiation scene, different nouns.</summary>
+	private void RenewalScene(RenewalOffer offer) {
+		if (offer.Posture != NegotiationPosture.Pushover) { NegotiationScene(offer.Talk); return; }
+
+		Heading($"RENEW — {offer.Artist.stageName.ToUpperInvariant()}");
+		if (!string.IsNullOrEmpty(offer.Ask.DemandSummary)) Body($"On the table: {offer.Ask.DemandSummary}");
+		Body("Set the terms and put new paper in front of them. The meeting costs " +
+			$"{PlayerDesk.NegotiationRoundHours} hours; the advance is charged when they sign.");
+
+		TermsForm(offer.Ask, $"RENEW  ({PlayerDesk.NegotiationRoundHours}h)",
+			(advance, royalty, term, singles, labelPub, artistControl) => {
+				bool renewed = PlayerDesk.Instance.RenewContract(offer.Artist, advance, royalty, term, singles,
+					labelPub, artistControl, out string message);
+				if (renewed) renewingArtist = null;
+				Say(message);
+				Refresh();
+			},
+			() => { renewingArtist = null; Refresh(); });
 	}
 
 	/// <summary>The MANAGE window for one act: repertoire (write / teach a cover) and the studio.</summary>
@@ -1239,12 +1454,460 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	// ========================================================================
+	// ROLODEX
+	// ========================================================================
+
+	// Mouse wheel spins through the Rolodex cards when that tab is open.
+	public override void _GuiInput(InputEvent ev) {
+		if (currentTab == RolodexTab && PlayerDesk.Instance?.ActiveCall == null && ev is InputEventMouseButton mb && mb.Pressed) {
+			var cards = PlayerDesk.Instance?.Rolodex;
+			if (cards != null && cards.Count > 1) {
+				if (mb.ButtonIndex == MouseButton.WheelDown) {
+					rolodexFocus = (rolodexFocus + 1) % cards.Count;
+					GetViewport().SetInputAsHandled();
+					Refresh();
+				} else if (mb.ButtonIndex == MouseButton.WheelUp) {
+					rolodexFocus = ((rolodexFocus - 1) + cards.Count) % cards.Count;
+					GetViewport().SetInputAsHandled();
+					Refresh();
+				}
+			}
+		}
+	}
+
+	private void PageRolodex() {
+		PlayerDesk desk = PlayerDesk.Instance;
+
+		// A live call takes over the page entirely -- you are on the phone, not browsing a book.
+		if (desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended) {
+			PageCall(desk, desk.ActiveCall);
+			return;
+		}
+
+		var cards = desk.Rolodex;
+		if (cards.Count == 0) {
+			Heading("THE ROLODEX");
+			Body("Your book is empty. Nobody in this business knows your name yet, and nobody is going " +
+				"to call you first. Get on the phone.");
+			RenderWorkThePhones(desk);
+			return;
+		}
+
+		rolodexFocus = Mathf.Clamp(rolodexFocus, 0, cards.Count - 1);
+		RolodexEntry entry = cards[rolodexFocus];
+
+		var navRow = new HBoxContainer();
+		navRow.AddThemeConstantOverride("separation", 10);
+		if (cards.Count > 1) {
+			var prev = Btn("‹");
+			prev.CustomMinimumSize = new Vector2(44, 38);
+			prev.Pressed += () => { rolodexFocus = ((rolodexFocus - 1) + cards.Count) % cards.Count; Refresh(); };
+			navRow.AddChild(prev);
+		}
+		var cardCount = new Label { Text = $"Card {rolodexFocus + 1} of {cards.Count}", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		cardCount.AddThemeColorOverride("font_color", Heard);
+		navRow.AddChild(cardCount);
+		if (cards.Count > 1) {
+			var next = Btn("›");
+			next.CustomMinimumSize = new Vector2(44, 38);
+			next.Pressed += () => { rolodexFocus = (rolodexFocus + 1) % cards.Count; Refresh(); };
+			navRow.AddChild(next);
+		}
+		content.AddChild(navRow);
+
+		RenderCard(desk, entry);
+	}
+
+	/// <summary>The focused card: portrait monogram, identity, tier, what you know about his hours, and
+	/// what he is currently carrying for you.</summary>
+	private void RenderCard(PlayerDesk desk, RolodexEntry entry) {
+		Deejay dj = ChartManager.Instance?.GetDeejay(entry.djId);
+		RadioStation station = ChartManager.Instance?.GetRadioStation(entry.stationId);
+
+		var mono = new Label {
+			Text = Monogram(entry.displayName),
+			HorizontalAlignment = HorizontalAlignment.Center,
+			VerticalAlignment = VerticalAlignment.Center,
+			CustomMinimumSize = new Vector2(90, 90)
+		};
+		mono.AddThemeFontSizeOverride("font_size", 32);
+		mono.AddThemeColorOverride("font_color", Paper);
+		var monoBack = new PanelContainer { CustomMinimumSize = new Vector2(90, 90) };
+		monoBack.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = ArchetypeColor(dj?.archetype ?? DJArchetype.CompanyMan) });
+		monoBack.AddChild(mono);
+		content.AddChild(monoBack);
+
+		Heading(entry.displayName);
+		if (station != null) Body($"{station.callsign}  ·  {station.format}  ·  {station.cityName}");
+
+		float rapport = station?.rt?.Rapport(desk.Label?.labelId ?? "") ?? 0f;
+		RapportTier tier = RolodexEntry.EffectiveTier(entry, rapport);
+		var tierLabel = new Label { Text = $"{RolodexEntry.TierLabel(tier)}  ·  {entry.state}" };
+		tierLabel.AddThemeColorOverride("font_color", RolodexEntry.TierColor(tier));
+		content.AddChild(tierLabel);
+
+		if (dj != null) Body(RolodexEntry.ArchetypeBlurb(dj.archetype));
+
+		// When to call him. Learned, not given -- an unreached name comes with no hours.
+		if (dj != null) {
+			Daypart shift = RolodexShifts.ShiftOf(dj);
+			if (entry.shiftKnown) {
+				int hour = TimeManager.Instance?.CurrentHour ?? 12;
+				bool nowGood = RolodexShifts.ReachableAt(shift, hour);
+				var hours = new Label { Text = RolodexShifts.WindowAdvice(shift) + (nowGood ? "  ·  He should be in right now." : "  ·  Wrong time of day.") };
+				hours.AddThemeColorOverride("font_color", nowGood ? new Color("4a7a4a") : Rust);
+				content.AddChild(hours);
+			} else {
+				Body("You don't know his hours yet. Call and find out the hard way.");
+			}
+		}
+
+		if (entry.theyOweThem) Body("He owes you one.");
+		if (entry.youOweThem) Body("You owe him one.");
+		if (entry.payolaBurned) Body("The cash channel is closed with him.");
+		if (entry.professionallyBurned) Body("He doesn't take your word any more.");
+
+		// What he is actually carrying for you right now -- the record-level commitment, not the mood.
+		RenderCarrying(desk, entry);
+
+		var openBtn = Btn($"PLACE A CALL  ({PlayerDesk.DialMinutes} min)");
+		openBtn.CustomMinimumSize = new Vector2(230, 40);
+		openBtn.Pressed += () => {
+			string rid = rolodexPitchRecordId ?? desk.ReleasedRecords.FirstOrDefault(r => r.baseRecord != null)?.baseRecord.recordId;
+			rolodexPitchRecordId = rid;
+			desk.PlaceCall(entry, rid, out string msg);
+			if (!string.IsNullOrEmpty(msg)) Say(msg);
+			Refresh();
+		};
+		content.AddChild(openBtn);
+
+		if (entry.log.Count > 0) {
+			Heading("HISTORY");
+			foreach (string line in entry.log) Body(line);
+		}
+
+		RenderWorkThePhones(desk);
+	}
+
+	/// <summary>The live advocacy this station is holding for you: the record-specific promise a won
+	/// call actually buys, with the weeks left on it.</summary>
+	private void RenderCarrying(PlayerDesk desk, RolodexEntry entry) {
+		var chart = ChartManager.Instance;
+		if (chart == null) return;
+		int week = chart.GetCurrentChartWeek();
+		var live = chart.Advocacy.ForStation(entry.stationId);
+		if (live.Count == 0) return;
+
+		Heading("WHERE IT STANDS");
+		foreach (StationAdvocacy a in live) {
+			RecordRuntimeData rec = desk.ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == a.recordId);
+			string title = rec?.baseRecord?.title ?? "(unknown record)";
+			int weeksLeft = Mathf.Max(0, a.expiresWeek - week + 1);
+			SpinTier tier = chart.SpinTierOf(entry.stationId, a.recordId);
+			string how = a.method switch {
+				AdvocacyMethod.PersonalPitch  => "on your word",
+				AdvocacyMethod.FavorCalledIn  => "as a favour",
+				AdvocacyMethod.AdvertisingBuy => "as an advertiser",
+				AdvocacyMethod.RivalPressure  => "to beat the competition",
+				_ => "",
+			};
+
+			// The headline is what the station is ACTUALLY doing, not what you bought.
+			string status = tier != SpinTier.None
+				? $"ON THE AIR — {PlayerDesk.TierWord(tier)} rotation"
+				: a.expired ? "Not picked up. His argument has run out."
+				: $"Not on yet — he's still arguing for it ({weeksLeft} more meeting(s))";
+			var head = new Label { Text = $"  \"{title}\" — {status}", AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			head.AddThemeColorOverride("font_color",
+				tier != SpinTier.None ? new Color("4a7a4a") : a.expired ? Rust : Heard);
+			content.AddChild(head);
+
+			var detail = new Label {
+				Text = $"      Taken {how}." + (a.expired ? "" : $" Worth +{a.candidacyBoost * 100f:F0}% to it in his meeting."),
+				AutowrapMode = TextServer.AutowrapMode.WordSmart,
+			};
+			detail.AddThemeFontSizeOverride("font_size", 14);
+			detail.AddThemeColorOverride("font_color", Heard);
+			content.AddChild(detail);
+		}
+		Body("A station playing your record is not the same as a station keeping it. Next week's meeting " +
+			"judges it on sales like anything else.");
+	}
+
+	// ========================================================================
+	// THE CALL
+	// ========================================================================
+
+	/// <summary>
+	/// One phone call, rendered as a transcript plus whatever the current beat offers. The scene lives
+	/// on PlayerDesk (so a Refresh does not drop the call mid-sentence); this only draws it.
+	/// </summary>
+	private void PageCall(PlayerDesk desk, RolodexCall call) {
+		RolodexCallContext c = call.ctx;
+
+		Heading($"CALLING {call.entry.displayName.ToUpperInvariant()}");
+		if (c.station != null)
+			Body($"{c.station.callsign}  ·  {c.station.format}  ·  {c.station.cityName}  ·  " +
+				$"{RolodexEntry.TierLabel(c.tier)}");
+
+		// The record on the table. Switching it rebuilds the situation read.
+		var records = desk.ReleasedRecords.Where(r => r.baseRecord != null).ToList();
+		if (records.Count > 0 && call.stage is CallStage.Open) {
+			var pickRow = new HBoxContainer();
+			pickRow.AddThemeConstantOverride("separation", 6);
+			pickRow.AddChild(new Label { Text = "On the table:" });
+			foreach (RecordRuntimeData rec in records) {
+				bool picked = rec.baseRecord.recordId == call.recordId;
+				var recBtn = Btn($"{(picked ? "» " : "")}{rec.baseRecord.title}");
+				string rid = rec.baseRecord.recordId;
+				recBtn.Pressed += () => { rolodexPitchRecordId = rid; desk.SetCallRecord(call, rid); Refresh(); };
+				pickRow.AddChild(recBtn);
+			}
+			content.AddChild(pickRow);
+		}
+
+		RenderTranscript(call);
+
+		switch (call.stage) {
+			case CallStage.NotConnected: RenderNotConnected(desk, call); break;
+			case CallStage.Open:         RenderApproaches(desk, call);   break;
+			case CallStage.Pushback:     RenderCounters(desk, call);     break;
+			case CallStage.Resolved:     RenderResolved(desk, call);     break;
+		}
+	}
+
+	private void RenderTranscript(RolodexCall call) {
+		var frame = new PanelContainer();
+		frame.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+			BgColor = new Color("e7d8b4"), ContentMarginLeft = 12, ContentMarginRight = 12,
+			ContentMarginTop = 10, ContentMarginBottom = 10,
+		});
+		var box = new VBoxContainer();
+		box.AddThemeConstantOverride("separation", 8);
+		frame.AddChild(box);
+		content.AddChild(frame);
+
+		foreach (CallLine line in call.transcript) {
+			if (line.voice != ExecutiveVoice.None) {
+				// An instinct read: a voice in your own head, not a line on the phone.
+				var read = new Label {
+					Text = $"{VoiceName(line.voice)} — {line.text}",
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				};
+				read.AddThemeFontSizeOverride("font_size", 15);
+				read.AddThemeColorOverride("font_color", VoiceColor(line.voice));
+				box.AddChild(read);
+				continue;
+			}
+			if (!string.IsNullOrEmpty(line.speaker)) {
+				var who = new Label { Text = line.speaker.ToUpperInvariant() };
+				who.AddThemeFontSizeOverride("font_size", 13);
+				who.AddThemeColorOverride("font_color", Heard);
+				box.AddChild(who);
+			}
+			var body = new Label {
+				Text = string.IsNullOrEmpty(line.speaker) ? line.text : $"“{line.text.Trim('“', '”', '"')}”",
+				AutowrapMode = TextServer.AutowrapMode.WordSmart,
+			};
+			body.AddThemeFontSizeOverride("font_size", 16);
+			body.AddThemeColorOverride("font_color", line.isPlayer ? new Color("4a3a6b") : Ink);
+			box.AddChild(body);
+		}
+	}
+
+	private void RenderNotConnected(PlayerDesk desk, RolodexCall call) {
+		var again = Btn($"TRY AGAIN  ({PlayerDesk.DialMinutes} min)");
+		again.Pressed += () => {
+			desk.EndCall(call);
+			desk.PlaceCall(call.entry, call.recordId, out string msg);
+			if (!string.IsNullOrEmpty(msg)) Say(msg);
+			Refresh();
+		};
+		content.AddChild(again);
+		var hang = Btn("PUT THE PHONE DOWN");
+		hang.Pressed += () => { desk.EndCall(call); Refresh(); };
+		content.AddChild(hang);
+		Body("Every attempt costs you the same five minutes, and the more you burn on one man " +
+			"the worse the rest of the day's calls go.");
+	}
+
+	private void RenderApproaches(PlayerDesk desk, RolodexCall call) {
+		Heading("WHAT DO YOU SAY");
+		foreach (CallOption opt in desk.ApproachOptions(call)) {
+			if (opt.approach == RolodexApproach.HangUp) continue;
+			RenderOption(opt, () => {
+				object payload = null;
+				if (opt.approach == RolodexApproach.CommercialPitch) payload = adBuyTier;
+				if (opt.approach == RolodexApproach.OfferPayola) payload = payolaTier;
+				desk.ChooseApproach(call, opt.approach, payload, out string msg);
+				if (!string.IsNullOrEmpty(msg)) Say(msg);
+				Refresh();
+			});
+			// Money verbs carry a size selector inline, so the number is chosen before the sentence.
+			if (opt.enabled && opt.approach == RolodexApproach.CommercialPitch)
+				RenderTierRow("Size of buy:", new[] { PlayerDesk.AdBuyTier.Small, PlayerDesk.AdBuyTier.Medium, PlayerDesk.AdBuyTier.Large },
+					t => $"{PlayerDesk.AdBuyTierName(t)} ${PlayerDesk.AdBuyCost(t):N0}", t => adBuyTier = t, adBuyTier);
+			if (opt.enabled && opt.approach == RolodexApproach.OfferPayola)
+				RenderTierRow("Size of envelope:", new[] { PlayerDesk.PayolaTier.Small, PlayerDesk.PayolaTier.Medium, PlayerDesk.PayolaTier.Large },
+					t => $"{PlayerDesk.PayolaTierName(t)} ${PlayerDesk.PayolaCost(t):N0}", t => payolaTier = t, payolaTier);
+		}
+
+		var hang = Btn("HANG UP");
+		hang.Pressed += () => { desk.EndCall(call); Refresh(); };
+		content.AddChild(hang);
+	}
+
+	private void RenderTierRow<T>(string label, T[] tiers, Func<T, string> name, Action<T> set, T current) where T : Enum {
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 6);
+		var lbl = new Label { Text = label };
+		lbl.AddThemeColorOverride("font_color", Heard);
+		row.AddChild(lbl);
+		foreach (T tier in tiers) {
+			bool picked = Equals(tier, current);
+			var b = Btn($"{(picked ? "» " : "")}{name(tier)}");
+			T captured = tier;
+			b.Pressed += () => { set(captured); Refresh(); };
+			row.AddChild(b);
+		}
+		content.AddChild(row);
+	}
+
+	private void RenderCounters(PlayerDesk desk, RolodexCall call) {
+		Heading("HOW DO YOU ANSWER THAT");
+		var odds = new Label { Text = $"As it stands: roughly {call.EffectiveChance * 100f:F0}% he says yes." };
+		odds.AddThemeColorOverride("font_color", Heard);
+		content.AddChild(odds);
+
+		foreach (CallOption opt in desk.CounterOptions(call)) {
+			RenderOption(opt, () => {
+				desk.PlayCounter(call, opt.counter, out string msg);
+				if (!string.IsNullOrEmpty(msg)) Say(msg);
+				Refresh();
+			});
+		}
+	}
+
+	private void RenderResolved(PlayerDesk desk, RolodexCall call) {
+		var more = Btn("KEEP HIM ON THE LINE");
+		more.Pressed += () => { desk.ContinueCall(call); Refresh(); };
+		content.AddChild(more);
+		var hang = Btn("HANG UP");
+		hang.Pressed += () => { desk.EndCall(call); Refresh(); };
+		content.AddChild(hang);
+	}
+
+	/// <summary>One option button, coloured by the voice that surfaced it, with its cost and its
+	/// truthfulness spelled out underneath. A bluff is always labelled as one.</summary>
+	private void RenderOption(CallOption opt, Action onPressed) {
+		string prefix = opt.voice == ExecutiveVoice.None ? "" : $"[{VoiceName(opt.voice)}] ";
+		var btn = Btn(prefix + opt.label);
+		btn.CustomMinimumSize = new Vector2(0, 38);
+		btn.Disabled = !opt.enabled;
+		if (opt.enabled) btn.Pressed += onPressed;
+		if (opt.voice != ExecutiveVoice.None) {
+			btn.AddThemeColorOverride("font_color", VoiceColor(opt.voice));
+			btn.AddThemeColorOverride("font_hover_color", VoiceColor(opt.voice));
+		}
+		content.AddChild(btn);
+
+		string sub = opt.enabled ? opt.subLabel : opt.disabledReason;
+		if (!string.IsNullOrEmpty(sub)) {
+			var note = new Label { Text = "     " + sub, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			note.AddThemeFontSizeOverride("font_size", 14);
+			note.AddThemeColorOverride("font_color", opt.isBluff ? Rust : Heard);
+			content.AddChild(note);
+		}
+		if (opt.isBluff) {
+			var warn = new Label { Text = "     (Not true. He may check.)" };
+			warn.AddThemeFontSizeOverride("font_size", 13);
+			warn.AddThemeColorOverride("font_color", Rust);
+			content.AddChild(warn);
+		}
+	}
+
+	private static string VoiceName(ExecutiveVoice voice) => voice switch {
+		ExecutiveVoice.Ear    => "THE EAR",
+		ExecutiveVoice.Street => "THE STREET",
+		ExecutiveVoice.Suit   => "THE SUIT",
+		ExecutiveVoice.Fixer  => "THE FIXER",
+		_ => "",
+	};
+
+	private static Color VoiceColor(ExecutiveVoice voice) => voice switch {
+		ExecutiveVoice.Ear    => new Color("6b3a5a"),
+		ExecutiveVoice.Street => new Color("3a6b4a"),
+		ExecutiveVoice.Suit   => new Color("3a4a6b"),
+		ExecutiveVoice.Fixer  => new Color("6b4a1c"),
+		_ => new Color("2b2115"),
+	};
+
+	private void RenderWorkThePhones(PlayerDesk desk) {
+		var allReporters = ChartManager.Instance?.ReporterStationsInRegion(desk.Label?.homeRegion ?? "");
+		if (allReporters == null) return;
+		int known = desk.Rolodex.Count;
+		int total = allReporters.Count;
+		if (known >= total) {
+			Body($"You have leads on all {total} reporter station(s) in your region. Branch out to other markets to grow the book.");
+			return;
+		}
+		Heading("WORK THE PHONES");
+		Body($"Your region: {known} of {total} reporter station(s) in your book. Cold-calling gets you a " +
+			"name more often than it gets you a man, and it gets you nothing at all more often than either.");
+		int attempts = desk.CallAttemptsToday;
+		if (attempts >= 2) {
+			var warn = new Label { Text = attempts >= 4
+				? "You've been on the phone all day. Nobody's taking your call now."
+				: $"{attempts} rounds of calls today already. The odds are getting worse." };
+			warn.AddThemeColorOverride("font_color", Rust);
+			content.AddChild(warn);
+		}
+		var callBtn = Btn($"WORK THE PHONES  ({PlayerDesk.WorkThePhonesMinMinutes}-{PlayerDesk.WorkThePhonesMaxMinutes} min)");
+		callBtn.CustomMinimumSize = new Vector2(280, 42);
+		callBtn.Pressed += () => {
+			PlayerDesk.Instance.WorkThePhones(out string msg);
+			Say(msg);
+			Refresh();
+		};
+		content.AddChild(callBtn);
+	}
+
+	// Portrait monogram: two initials from the display name.
+	private static string Monogram(string name) {
+		if (string.IsNullOrWhiteSpace(name)) return "?";
+		string[] parts = name.Split(' ', System.StringSplitOptions.RemoveEmptyEntries);
+		if (parts.Length == 1) return parts[0][0].ToString().ToUpperInvariant();
+		return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+	}
+
+	private static Color ArchetypeColor(DJArchetype arch) => arch switch {
+		DJArchetype.Personality => new Color("5a3a6b"),
+		DJArchetype.Tastemaker  => new Color("3a4a6b"),
+		DJArchetype.Hustler     => new Color("6b3a3a"),
+		DJArchetype.CompanyMan  => new Color("3a4a3a"),
+		DJArchetype.Regional    => new Color("5a4a2a"),
+		_                        => new Color("3a3a3a")
+	};
+
+	// ========================================================================
 	// OFFICE (the ledger / log)
 	// ========================================================================
 
 	private void PageOffice() {
+		PlayerDesk desk = PlayerDesk.Instance;
+
+		// Character card: who you are and what you can read.
+		FoundingArchetypeData.ArchetypeProfile archProfile = FoundingArchetypeData.Get(desk.Archetype);
+		ExecutiveInstinctProfile inst = desk.InstinctProfile;
+		Heading($"{archProfile.Name.ToUpperInvariant()}");
+		Body(archProfile.Tagline);
+		Body($"THE EAR {StarBar(inst.TheEar / 5f)} ({inst.TheEar})   " +
+			$"THE STREET {StarBar(inst.TheStreet / 5f)} ({inst.TheStreet})   " +
+			$"THE SUIT {StarBar(inst.TheSuit / 5f)} ({inst.TheSuit})   " +
+			$"THE FIXER {StarBar(inst.TheFixer / 5f)} ({inst.TheFixer})");
+
 		Heading("THE LEDGER");
-		IReadOnlyList<string> entries = PlayerDesk.Instance.Log;
+		IReadOnlyList<string> entries = desk.Log;
 		if (entries.Count == 0) { Body("Nothing has happened yet."); return; }
 		foreach (string entry in entries) Body(entry);
 	}

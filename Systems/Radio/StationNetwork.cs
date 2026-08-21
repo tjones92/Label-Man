@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -40,9 +40,44 @@ public sealed partial class StationNetwork {
 	// PayolaLedger (doc d); null in headless audits (payola is player-only), so candidacy reads 0.
 	public System.Func<string, string, float> ActivePayolaLookup;
 
+	// Rolodex advocacy lookup (recordId, stationId) -> live candidacy boost won by talking to the DJ.
+	// Set by ChartManager to the player's StationAdvocacyService; null in headless audits (advocacy is
+	// player-only, exactly like payola), so candidacy reads 0 and the base simulation is unperturbed.
+	public System.Func<string, string, float> ActiveAdvocacyLookup;
+
+	// Rolodex reservation lookup: stationId -> the recordIds this station's DJ has PERSONALLY committed
+	// to (a won pitch or a called-in favour, not a paid spot). Those get his discretionary picks; see
+	// DISCRETIONARY_PICKS in the playlist meeting. Player-only, so null in headless audits.
+	public System.Func<string, IReadOnlyList<string>> AdvocacyReservationLookup;
+
 	public StationNetwork(ulong seed) {
 		rng.Seed = seed;   // seeded off the sim master seed for reproducibility
 	}
+
+	/// <summary>
+	/// A jock with real discretion putting a record on HIMSELF, right now -- the Rolodex's high-autonomy
+	/// pitch outcome. Before Boss Radio there is no weekly meeting to wait for at a station like this:
+	/// the man decides, and he decides on the phone. This adds the record to the live playlist at Light
+	/// and clears any drop latch, making it an INCUMBENT -- which is the whole point, because next
+	/// week's meeting then judges it with tier inertia and the ordinary rules. It does not pin the
+	/// record there: if it does not perform, the meeting drops it like anything else.
+	///
+	/// Player-only (nothing in the weekly sim calls this), so headless audits never see it.
+	/// </summary>
+	public bool PlayerSpinNow(string stationId, string recordId, int week) {
+		RadioStation station = GetStation(stationId);
+		StationRuntime rt = station?.rt;
+		if (rt == null || string.IsNullOrEmpty(recordId)) return false;
+		if (rt.playlist.ContainsKey(recordId)) return false;   // already on; nothing to add
+		rt.playlist[recordId] = SpinTier.Light;
+		rt.weeksInPlaylist[recordId] = 0;
+		rt.droppedOnWeek.Remove(recordId);                     // he is overriding his own earlier cut
+		return true;
+	}
+
+	/// <summary>What tier this station currently has a record at. Read-only view for the Rolodex card.</summary>
+	public SpinTier SpinTierOf(string stationId, string recordId) =>
+		GetStation(stationId)?.rt?.TierOf(recordId) ?? SpinTier.None;
 
 	public IReadOnlyList<RadioStation> ReportersInRegion(string regionId) =>
 		stationsByRegion.TryGetValue(regionId, out var list) ? list : (IReadOnlyList<RadioStation>)Array.Empty<RadioStation>();
@@ -53,6 +88,25 @@ public sealed partial class StationNetwork {
 	public IEnumerable<RadioStation> AllStations() {
 		foreach (var kv in stationsByRegion)
 			foreach (RadioStation s in kv.Value) yield return s;
+	}
+
+	/// <summary>
+	/// Weekly decay of cultivated label rapport (Rolodex Phase 3). A relationship that isn't renewed
+	/// fades back toward neutral instead of holding forever. <c>labelRapport</c> is only ever written by
+	/// a player action (Personal Pitch / Ad-Buy), so on every AI-only headless run every station's
+	/// dictionary is empty and this is a no-op -- deterministic and byte-identical either way.
+	/// </summary>
+	public void DecayLabelRapport(float retainFraction = 0.985f) {
+		foreach (RadioStation s in AllStations()) {
+			Dictionary<string, float> rapport = s.rt?.labelRapport;
+			if (rapport == null || rapport.Count == 0) continue;
+			var keys = new List<string>(rapport.Keys);
+			foreach (string key in keys) {
+				float decayed = rapport[key] * retainFraction;
+				if (decayed < 0.005f) rapport.Remove(key);
+				else rapport[key] = decayed;
+			}
+		}
 	}
 
 	// ====================================================================

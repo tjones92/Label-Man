@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -282,6 +282,21 @@ public sealed class PlayerSaveData {
 
 	// Increment 2: the player's own released records, with their chart + regional state.
 	public List<RuntimeRecordSaveData> ReleasedRecords { get; set; } = new();
+
+	// Phase 1 Rolodex branch: player character. ArchetypeOrdinal is cast int so it survives JSON without
+	// an enum converter; ExecutiveInstincts being null flags a pre-feature save (see RestoreState).
+	public int ArchetypeOrdinal      { get; set; }
+	public ExecutiveInstinctProfile ExecutiveInstincts { get; set; }
+
+	// Phase 2 Rolodex branch: contacts discovered through play.
+	public int PhoneMinutesAccum     { get; set; }
+	public List<RolodexEntrySaveData> Rolodex { get; set; } = new();
+	// Live station advocacy: the record-specific, expiring commitments won on calls. Not derivable from
+	// anything else on the save, so it has to be snapshotted or a load silently cancels every promise.
+	public List<StationAdvocacySaveData> Advocacy { get; set; } = new();
+	// Cultivated rapport and the player's own records' rotation slots. The panel is rebuilt from seed
+	// on load, so without this every relationship the Rolodex earned resets to zero.
+	public List<StationPlayerStateSaveData> StationState { get; set; } = new();
 }
 
 public sealed class LabelSaveData {

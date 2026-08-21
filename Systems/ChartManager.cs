@@ -1,4 +1,4 @@
-// Scripts/Systems/ChartManager.cs
+﻿// Scripts/Systems/ChartManager.cs
 
 using System;
 using System.Collections.Generic;
@@ -1002,6 +1002,10 @@ public partial class ChartManager : Node {
 		// Payola ledger tick (radio doc d): decay/expire arrangements and adjudicate scandal before the
 		// playlist meeting reads the boost cache. Inert while there are no player arrangements.
 		payolaLedger?.Tick(currentChartWeek, year, month);
+
+		// Rolodex Phase 3: cultivated label rapport fades if it isn't renewed. Inert while no station's
+		// labelRapport dictionary has an entry (i.e. every AI-only headless run).
+		stationNetwork?.DecayLabelRapport();
 
 		// === STEP 2.75: REPORTER PLAYLIST MEETING ===
 		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio
@@ -2195,7 +2199,23 @@ public partial class ChartManager : Node {
 	}
 
 	private void CullDeadRecords(bool includeChartedRecords) {
-		var recordsToRetire = allRecords.Where(record => IsRecordRetirable(record, includeChartedRecords)).ToList();
+		// The cull exists to stop the AI catalogue growing without bound -- tens of thousands of dead AI
+		// titles is the runtime cost it protects against. The PLAYER has a handful of records, and those
+		// records are their discography: PlayerDesk.ReleasedRecords is a live projection of allRecords, so
+		// culling one deleted it from the catalogue, from the save, and left every id reference elsewhere
+		// (consignment lots, press inventory, rolodex airplay watches) dangling on a raw "player_2". A
+		// player who wants to leave 300 copies of a two-year-old single sitting in a town's shops may.
+		//
+		// The run still has to be SETTLED, though. A never-charted record's only route to its career and
+		// cultural reads is the retirement path (a charting one gets there via OnRecordLeftChart), so a
+		// blanket exemption would quietly cost the player's flops their acclaim/evolution/song feedback.
+		// Settling and culling are therefore split: the player's dead stock is settled and kept.
+		var expired = allRecords.Where(record => IsRecordRetirable(record, includeChartedRecords)).ToList();
+		var recordsToRetire = new List<RecordRuntimeData>(expired.Count);
+		foreach (var record in expired) {
+			if (record.baseRecord.isPlayerOwned) { SettlePlayerRecordRun(record); continue; }
+			recordsToRetire.Add(record);
+		}
 
 		foreach (var record in recordsToRetire) RetireRecord(record);
 		// RetireRecord no longer removes from allRecords one-by-one (List.Remove is O(N), so retiring R
@@ -2261,6 +2281,35 @@ public partial class ChartManager : Node {
 		recordById.Remove(record.baseRecord.recordId);
 	}
 
+	/// <summary>
+	/// Closes out a player record's chart run WITHOUT removing it from the catalogue. Everything
+	/// <see cref="RetireRecord"/> does that is bookkeeping -- the track snapshot and the career/cultural
+	/// reads -- happens here; everything it does that is a deletion -- the station prune, the label's
+	/// active-record removal, the id-index drop -- does not. The record stays in allRecords, so it stays
+	/// in the player's discography, keeps its title on every id reference, and goes on selling out of the
+	/// trunk. Latched on the completion flags (both persist), so the weekly cull re-reaching a settled
+	/// record is a no-op rather than a repeated read.
+	/// </summary>
+	private void SettlePlayerRecordRun(RecordRuntimeData record) {
+		if (record?.baseRecord == null) return;
+		if (record.artistChartRunCompleted && record.culturalRunCompleted) return;
+		if (record.baseRecord.format == ReleaseFormat.Single) {
+			// Insurance only: recordById still resolves this record, so TryResolveTrackSnapshot never
+			// reaches the archive for it. It is what lets a save damaged by the old cull be repaired.
+			retiredTrackArchive[record.baseRecord.recordId] = CreateTrackSnapshot(record);
+		}
+		var artist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
+		if (artist != null) RosterManager.Instance?.RecordChartRunComplete(artist, record);
+	}
+
+	/// <summary>Reads the retired-track archive directly, without the live-record lookup or the telemetry
+	/// counters of <see cref="TryResolveTrackSnapshot"/>. Used by the player layer's load-time repair for
+	/// records a pre-fix save lost to the cull.</summary>
+	public bool TryGetRetiredTrackSnapshot(string recordId, out AlbumTrack track) {
+		track = null;
+		return recordId != null && retiredTrackArchive.TryGetValue(recordId, out track);
+	}
+
 	private void RebuildRecordIndex() {
 		recordById.Clear();
 		foreach (RecordRuntimeData record in allRecords) recordById[record.baseRecord.recordId] = record;
@@ -2324,6 +2373,11 @@ public partial class ChartManager : Node {
 		stationNetwork.BuildRosters(allRegions, year);
 		payolaLedger = new PayolaLedger(stationNetwork, stationSeed ^ PayolaSeedSalt);
 		stationNetwork.ActivePayolaLookup = payolaLedger.ActivePayola;   // candidacy reads player bribes here
+		stationNetwork.ActiveAdvocacyLookup = advocacyService.ActiveAdvocacy;   // ...and Rolodex advocacy here
+		stationNetwork.AdvocacyReservationLookup = advocacyService.PersonalPicksAt;   // ...and the DJ's own picks
+		// Advocacy is keyed to the panel that was just torn down, so it clears with it. A load restores
+		// the saved set afterwards (WorldStateService.Apply runs before PlayerDesk.RestoreState).
+		advocacyService.Clear();
 	}
 
 	/// <summary>Full-world load: rebuild the reporter panel for the restored year. The panel roster is a pure
@@ -2503,6 +2557,56 @@ public partial class ChartManager : Node {
 	public int GetCurrentChartWeek() => currentChartWeek;
 
 	public Zeitgeist GetCurrentZeitgeist() => baseZeitgeist;
+
+	// ── Rolodex accessors (player-facing; read-only views into the station network) ──────────────
+	public System.Collections.Generic.IReadOnlyList<RadioStation> ReporterStationsInRegion(string regionId) =>
+		stationNetwork?.ReportersInRegion(regionId) ?? (System.Collections.Generic.IReadOnlyList<RadioStation>)System.Array.Empty<RadioStation>();
+	public Deejay GetDeejay(string djId) => stationNetwork?.GetDeejay(djId);
+	public RadioStation GetRadioStation(string stationId) => stationNetwork?.GetStation(stationId);
+
+	// ── Rolodex station advocacy (player-only; see StationAdvocacyService) ───────────────────────
+	private readonly StationAdvocacyService advocacyService = new();
+	public StationAdvocacyService Advocacy => advocacyService;
+
+	/// <summary>Live advocacy boost on one (record, station), for UI readouts. The same number the
+	/// candidacy meeting multiplies in.</summary>
+	public float AdvocacyOn(string recordId, string stationId) => advocacyService.ActiveAdvocacy(recordId, stationId);
+
+	/// <summary>Every reporter station. Used by the player-state save/restore pass.</summary>
+	public System.Collections.Generic.IEnumerable<RadioStation> AllReporterStations =>
+		stationNetwork?.AllStations() ?? System.Linq.Enumerable.Empty<RadioStation>();
+
+	/// <summary>A high-autonomy DJ putting a player record on the air himself (Rolodex pitch outcome).</summary>
+	public bool PlayerSpinNow(string stationId, string recordId) =>
+		stationNetwork?.PlayerSpinNow(stationId, recordId, currentChartWeek) ?? false;
+
+	/// <summary>Live rotation tier for one (station, record). What the Rolodex card reports back.</summary>
+	public SpinTier SpinTierOf(string stationId, string recordId) =>
+		stationNetwork?.SpinTierOf(stationId, recordId) ?? SpinTier.None;
+
+	/// <summary>Would this station's format admit this genre, and how strongly? The same FormatMatch the
+	/// weekly playlist meeting scores with, exposed so a Rolodex call can state the real reason a record
+	/// will never be played here instead of inventing one.</summary>
+	public float FormatAdmittanceFor(Genre genre, RadioStation station, int year) {
+		if (station == null) return 0f;
+		MarketRegion region = GetRegionById(station.regionId);
+		return stationNetwork?.FormatAdmittance(genre, station, year, region?.currentIntegration ?? 0.5f) ?? 0f;
+	}
+
+	/// <summary>Place a Cash payola arrangement (Rolodex Phase 4, FIXER verb). Player-facing: AI labels
+	/// never call this, so payolaLedger.actions stays empty and Tick() takes the inert fast path on
+	/// every headless-only run.</summary>
+	public PayolaAction PlacePayolaCash(string recordId, string labelId, string stationId, float budget) {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
+		return payolaLedger?.PlaceCash(recordId, labelId, stationId, budget, currentChartWeek, year, month);
+	}
+	/// <summary>Scandals adjudicated on THIS week's payolaLedger.Tick (already run earlier in SimulateWeek).
+	/// Cleared and rebuilt every tick, so a consumer must read it the same week it fires -- PlayerDesk
+	/// does this from OnWeekEnded, which the autoload order (ChartManager before PlayerDesk) guarantees
+	/// runs after SimulateWeek for the week that just ended.</summary>
+	public System.Collections.Generic.IReadOnlyList<ScandalEvent> PendingPayolaScandals =>
+		payolaLedger?.pendingScandals ?? (System.Collections.Generic.IReadOnlyList<ScandalEvent>)System.Array.Empty<ScandalEvent>();
 
 	/// <summary>
 	/// External hook for events that put a record on the air in one market. It honours the station

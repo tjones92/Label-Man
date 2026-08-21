@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -9,6 +9,10 @@ public partial class TimeManager : Node {
 	[ExportGroup("Current State")]
 	private GameDate currentDate;
 	[Export] private int currentHour = 9;
+	// Sub-hour clock (0-59). Phone calls and other short desk actions cost minutes, not whole hours;
+	// without this the clock read 9:00 through four consecutive calls and the day felt frozen. Whole-hour
+	// actions still go through SpendHours and simply leave the minute hand where it was.
+	private int currentMinute;
 
 	[ExportGroup("Settings")]
 	[Export] private int workDayStartHour = 9;
@@ -19,6 +23,11 @@ public partial class TimeManager : Node {
 
 	public GameDate CurrentDate => currentDate;
 	public int CurrentHour => currentHour;
+	public int CurrentMinute => currentMinute;
+	/// <summary>Minutes from now to the end of the day including overtime. The real budget a sub-hour
+	/// action is checked against.</summary>
+	public int MinutesRemainingWithOvertime =>
+		Mathf.Max(0, (workDayEndHour + maxOvertimeHours) * 60 - (currentHour * 60 + currentMinute));
 	public int HoursRemaining => Mathf.Max(0, workDayEndHour - currentHour);
 	public int HoursRemainingWithOvertime => Mathf.Max(0, (workDayEndHour + maxOvertimeHours) - currentHour);
 	public bool IsWorkDay => !currentDate.IsWeekend;
@@ -51,6 +60,7 @@ public partial class TimeManager : Node {
 	public override void _Ready() {
 		currentDate = GameDate.StartDate;
 		currentHour = workDayStartHour;
+		currentMinute = 0;
 
 		ScheduleChartDays();
 		ScheduleGrammyAwards();
@@ -61,9 +71,10 @@ public partial class TimeManager : Node {
 	/// <summary>Restores the clock from a save, in place. Fields only -- the load flow refreshes the UI, and
 	/// firing day/week events here would re-run settlement mid-load. The scheduled chart/Grammy calendar built
 	/// in _Ready is date-keyed and stays valid across a load.</summary>
-	public void RestoreClock(GameDate date, int hour) {
+	public void RestoreClock(GameDate date, int hour, int minute = 0) {
 		currentDate = date;
 		currentHour = hour;
+		currentMinute = Mathf.Clamp(minute, 0, 59);
 		OnClockRestored?.Invoke(currentDate);
 	}
 
@@ -75,6 +86,26 @@ public partial class TimeManager : Node {
 	public bool SpendHours(int hours, bool allowOvertime = false) {
 		if (!CanAffordHours(hours, allowOvertime)) return false;
 		currentHour += hours;
+		OnHourChanged?.Invoke(currentHour);
+		return true;
+	}
+
+	/// <summary>Can a sub-hour action fit in what is left of the day (overtime included)?</summary>
+	public bool CanAffordMinutes(int minutes) => minutes <= MinutesRemainingWithOvertime;
+
+	/// <summary>
+	/// Advance the clock by minutes, rolling whole hours as they fill. Returns false without moving the
+	/// clock if the action does not fit in the remaining day. This is the path every Rolodex phone call
+	/// takes: a 25-minute call moves the visible clock 25 minutes, not zero and not a full hour.
+	/// </summary>
+	public bool SpendMinutes(int minutes, bool allowOvertime = true) {
+		if (minutes <= 0) return true;
+		int budget = allowOvertime ? MinutesRemainingWithOvertime
+			: Mathf.Max(0, workDayEndHour * 60 - (currentHour * 60 + currentMinute));
+		if (minutes > budget) return false;
+		int total = currentHour * 60 + currentMinute + minutes;
+		currentHour = total / 60;
+		currentMinute = total % 60;
 		OnHourChanged?.Invoke(currentHour);
 		return true;
 	}
@@ -118,6 +149,7 @@ public partial class TimeManager : Node {
 
 		currentDate = currentDate.NextDay();
 		currentHour = workDayStartHour;
+		currentMinute = 0;
 
 		if (currentDate.month != previousMonth) OnMonthChanged?.Invoke(currentDate);
 		if (currentDate.year != previousYear) OnYearChanged?.Invoke(currentDate);
@@ -239,7 +271,7 @@ public partial class TimeManager : Node {
 		int displayHour = currentHour > 12 ? currentHour - 12 : currentHour;
 		if (displayHour == 0) displayHour = 12;
 		string ampm = currentHour >= 12 ? "PM" : "AM";
-		return $"{displayHour}:00 {ampm}";
+		return $"{displayHour}:{currentMinute:D2} {ampm}";
 	}
 
 	public string GetDayStatus() {

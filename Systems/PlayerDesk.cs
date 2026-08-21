@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -98,6 +98,13 @@ public partial class PlayerDesk : Node {
 		/// <summary>The label's opening offer, generated once when the player approaches. See <see cref="ApproachToSign"/>.</summary>
 		public ContractTermSheet Baseline;
 		public bool HasBaseline;
+		/// <summary>How hard this act is to sign -- see SimTools/ContractNegotiationDirective.md Part 2.
+		/// Pushover stays the single-click ContractForm; Firm/Hardball opens <see cref="Talk"/>.</summary>
+		public NegotiationPosture Posture = NegotiationPosture.Pushover;
+		/// <summary>The live negotiation scene, non-null only while a Firm/Hardball negotiation is open.</summary>
+		public ContractTalk Talk;
+		/// <summary>Set only when patience ran out at the table -- the act won't take a fresh approach until then.</summary>
+		public GameDate? CooldownUntil;
 	}
 
 	/// <summary>An unrecorded song sitting in the writers' book.</summary>
@@ -283,6 +290,23 @@ public partial class PlayerDesk : Node {
 	/// <summary>Months of red left before the bank closes you (0 while solvent).</summary>
 	public int MonthsOfGraceLeft => Label != null && Label.cashReserves < 0f ? Mathf.Max(0, MaxMonthsInTheRed - monthsInTheRed) : MaxMonthsInTheRed;
 
+	// ── Rolodex ────────────────────────────────────────────────────────────────────────────────
+	// Cards the player has discovered. Unknown DJs have no entry; the list only holds contacted ones.
+	private readonly List<RolodexEntry> rolodex = new();
+	public IReadOnlyList<RolodexEntry> Rolodex => rolodex;
+	// Legacy sub-hour accumulator. The clock carries its own minute hand now (TimeManager.SpendMinutes),
+	// so nothing adds to this any more; it is kept only so an older save round-trips without a schema break.
+	private int phoneMinutesAccum;
+	// Per-action rapport gain is always bounded -- no single call or check manufactures a hit.
+	// The read is uncapped (rt.Rapport can climb past this), but the SOFT cap shrinks marginal gains
+	// as it climbs, and DecayLabelRapport (StationNetwork) pulls an uncultivated relationship back down.
+	private const float RapportSoftCap = 1.0f;
+
+	/// <summary>Who the player was before opening the label. Set at founding; gates Rolodex reads and actions.</summary>
+	public FoundingArchetype Archetype { get; private set; } = FoundingArchetype.TradeInsider;
+	/// <summary>The four Executive Instinct scores derived from <see cref="Archetype"/>. Never null after founding.</summary>
+	public ExecutiveInstinctProfile InstinctProfile { get; private set; } = FoundingArchetypeData.Get(FoundingArchetype.TradeInsider).Instincts;
+
 	// A 45 pressing plant's period bill: cheap vinyl by the unit over a minimum run, a one-off lacquer
 	// setup per side, and a little for sleeves, labels and getting the boxes to your office.
 	public const int PressMinimumOrder = 500;
@@ -406,6 +430,8 @@ public partial class PlayerDesk : Node {
 			monthsInTheRed = 0;
 			Note("Back in the black -- the bank's off your back for now.");
 		}
+		CheckForManagerInterest();
+		CheckForMaturedContracts(date.year);
 		Changed?.Invoke();
 	}
 
@@ -421,13 +447,21 @@ public partial class PlayerDesk : Node {
 	// FOUNDING
 	// ========================================================================
 
-	public bool FoundLabel(string labelName, string cityId, out string message) {
+	// Shim for the save-load probe (and any caller that doesn't need the archetype picker).
+	public bool FoundLabel(string labelName, string cityId, out string message) =>
+		FoundLabel(labelName, cityId, FoundingArchetype.TradeInsider, out message);
+
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, out string message) {
 		if (Label != null) { message = "You already run a label."; return false; }
 		// The player picks the town they work out of; the market it sits in is inferred from it.
 		MarketCity city = DistanceModel.GetCityById(cityId);
 		if (city == null) { message = "Pick a home town first."; return false; }
 		MarketRegion region = ChartManager.Instance?.GetRegionById(city.parentRegionId);
 		if (region == null) { message = "That town has no market resolved."; return false; }
+
+		FoundingArchetypeData.ArchetypeProfile profile = FoundingArchetypeData.Get(archetype);
+		Archetype = archetype;
+		InstinctProfile = profile.Instincts;
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		var label = new AILabel {
@@ -447,16 +481,16 @@ public partial class PlayerDesk : Node {
 			// carries you -- so distributionRegions starts empty. Everything past this is earned.
 			strongRegions = new[] { region.regionId },
 			distributionRegions = Array.Empty<string>(),
-			cashReserves = FoundingCapital,
+			cashReserves = profile.Capital,
 			maxRosterSize = PlayerRosterCapacity,
 			nationalReach = 0.02f,
 			budgetLevel = 0.15f,
-			scoutingAbility = 0.5f,
-			productionQuality = 0.4f,
-			marketingPower = 0.35f,
-			riskTolerance = 0.5f,
-			artistLoyalty = 0.6f,
-			payolaWillingness = 0.05f,
+			scoutingAbility = profile.ScoutingAbility,
+			productionQuality = profile.ProductionQuality,
+			marketingPower = profile.MarketingPower,
+			riskTolerance = profile.RiskTolerance,
+			artistLoyalty = profile.ArtistLoyalty,
+			payolaWillingness = profile.PayolaWillingness,
 			releasesPerMonth = 0.5f,
 			populationOrigin = LabelPopulationOrigin.RuntimeFounded,
 			runtimeBirthWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
@@ -474,7 +508,8 @@ public partial class PlayerDesk : Node {
 		Label = label;
 		currentCityId = city.cityId; // you start at your own office
 
-		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${FoundingCapital:N0}.");
+		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${profile.Capital:N0}.");
+		Note($"You are {profile.Name}. {profile.Tagline}");
 		message = $"{label.labelName} is open.";
 		Changed?.Invoke();
 		return true;
@@ -551,7 +586,88 @@ public partial class PlayerDesk : Node {
 	private static readonly HashSet<Genre> ManufacturedGenres = new() {
 		Genre.TeenPop, Genre.Bubblegum, Genre.GirlGroup, Genre.DooWop, Genre.SunshinePop, Genre.RockAndRoll
 	};
-	private const float IndustryActMarkup = 1.6f; // manufactured acts arrive polished and cost accordingly
+
+	/// <summary>
+	/// What an unknown act asks to sign, by the room you found them in. The room IS the price band in
+	/// 1960: a rock'n'roll quartet in a roadhouse takes dinner money and a promise, a professional act
+	/// working a supper club has a going rate, and the trade's manufactured product arrives with people
+	/// behind it and a number in mind. These are the BASE asks -- the act's own talent and standing
+	/// scale them in <see cref="VenueAdvanceAsk"/>, and a manager scales them again on top.
+	/// Player-only: the AI economy still prices signings off <see cref="AILabel.CalculateAdvanceOffer"/>.
+	/// </summary>
+	private static float VenueAdvanceBase(ScoutingVenue venue) => venue switch {
+		ScoutingVenue.HonkyTonks            => 20f,    // a fifth and a steak dinner
+		ScoutingVenue.ClubsAndRoadhouses    => 25f,    // "you're buying, right?"
+		ScoutingVenue.TheatresAndSupperClubs => 260f,  // working pros with a going rate
+		ScoutingVenue.IndustryMeets         => 600f,   // polished product, professionally represented
+		_                                   => 25f
+	};
+
+	/// <summary>
+	/// The advance this act asks the player for. Venue sets the band; the act's talent and any standing
+	/// it has scale inside it (same shape as the AI's offer curve, so the two read consistently); the
+	/// manager multiplies on top, which is why a Shark on a bar band is still a tell. Rounded to a
+	/// number a period contract would actually carry.
+	/// </summary>
+	private static float VenueAdvanceAsk(SimulatedArtist artist, ScoutingVenue venue) {
+		float talent = 0.5f + (artist.CalculateBaseQuality() * 1.5f);          // 0.5x .. 2.0x
+		float standing = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
+		float ask = VenueAdvanceBase(venue) * talent * standing
+			* ManagerProfile.Of(artist.manager).AdvanceDemandMult;
+		return RoundToContractFigure(ask);
+	}
+
+	/// <summary>
+	/// The royalty the act expects, by the room. Same logic as the advance band: what a 1960 act asked
+	/// for was set by who was standing next to them, and for a small act with no representation that was
+	/// one to three points -- Stevie Wonder's first Motown deal was ~2%, the Jackson 5's later ~2.7%.
+	/// The supper-club professional has a going rate; the trade's product is represented and knows it.
+	///
+	/// This is the rate with a REASONABLE CHANCE OF ACCEPTANCE, not a floor and not a promise. The player
+	/// can offer under it (see <see cref="PlayerRoyaltyFloor"/>); the further under, the likelier the
+	/// pushback -- see SimTools/ContractNegotiationDirective.md Part 2 for the acceptance curve.
+	/// Player-only: AI signings keep pricing off <see cref="AILabel.CalculateRoyaltyRate"/>.
+	/// </summary>
+	private static float VenueRoyaltyBaseline(SimulatedArtist artist, ScoutingVenue venue) {
+		float band = venue switch {
+			ScoutingVenue.HonkyTonks             => 0.015f,  // a point and a half and a handshake
+			ScoutingVenue.ClubsAndRoadhouses     => 0.020f,  // the standard small-act deal
+			ScoutingVenue.TheatresAndSupperClubs => 0.030f,  // working pros with a going rate
+			ScoutingVenue.IndustryMeets          => 0.045f,  // represented, and they know the number
+			_                                    => 0.020f
+		};
+		// An act with a career behind it has leverage regardless of the room it is playing tonight.
+		band += artist.careerState switch {
+			CareerState.Superstar => 0.05f, CareerState.Star => 0.03f,
+			CareerState.Established => 0.015f, CareerState.Rising => 0.005f, _ => 0f
+		};
+		band *= ManagerProfile.Of(artist.manager).RoyaltyDemandMult;
+		// Quarter-point steps: contracts were not written to four decimal places.
+		return Mathf.Clamp(Mathf.Round(band * 400f) / 400f, PlayerRoyaltyFloor, 0.15f);
+	}
+
+	/// <summary>How low the player is ALLOWED to write it. Half a point is the bottom of what the era
+	/// actually papered (the Beatles' 1962 EMI deal worked out under one point). Whether the act signs
+	/// it is a different question from whether the form accepts it.</summary>
+	public const float PlayerRoyaltyFloor = 0.005f;
+
+	/// <summary>
+	/// The deliverables the player's ask opens on: 2-3 singles a year is the period norm for a new
+	/// act, tapering to none once a career is established -- the same career-state gate
+	/// <see cref="AILabel.CalculateContractSinglesObligation"/> uses, so a Star isn't shown a quota a
+	/// real Star wouldn't carry. Player-only re-price, same spirit as <see cref="VenueAdvanceAsk"/>
+	/// and <see cref="VenueRoyaltyBaseline"/> -- the AI's own obligation formula is untouched.
+	/// </summary>
+	private static int PlayerDeliverablesAsk(SimulatedArtist artist, int termYears, int year) {
+		if (year > AILabel.SinglesObligationFinalYear) return 0;
+		if (artist.careerState is CareerState.Established or CareerState.Star or CareerState.Superstar) return 0;
+		float perYear = artist.careerState == CareerState.Rising ? 3f : 2f;
+		return Mathf.Clamp(Mathf.RoundToInt(perYear * Mathf.Max(1, termYears)), 1, 24);
+	}
+
+	/// <summary>Advances were written in round money: $5 steps under a hundred, $25 steps over it.</summary>
+	private static float RoundToContractFigure(float amount) =>
+		amount < 100f ? Mathf.Max(5f, Mathf.Round(amount / 5f) * 5f) : Mathf.Round(amount / 25f) * 25f;
 
 	/// <summary>
 	/// An evening working one kind of room in the player's own market. Returns the acts they got a look
@@ -615,7 +731,7 @@ public partial class PlayerDesk : Node {
 				Artist = artist,
 				Venue = venue,
 				ReadQuality = Mathf.Clamp(truth + (float)GD.RandRange(-noise, noise), 0f, 1f),
-				AskingAdvance = Label.CalculateAdvanceOffer(artist) * (trade ? IndustryActMarkup : 1f),
+				AskingAdvance = VenueAdvanceAsk(artist, venue),
 				Note = DescribeProspect(artist)
 			};
 			BuildLiveSet(prospect, artist, year, noise);
@@ -872,6 +988,11 @@ public partial class PlayerDesk : Node {
 		if (!prospect.FollowedUp) { message = "Follow up with them before you make an offer."; return false; }
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		if (prospect.CooldownUntil.HasValue && today < prospect.CooldownUntil.Value) {
+			message = $"{prospect.Artist.stageName}'s side isn't ready to talk again yet -- try after {prospect.CooldownUntil.Value.ToShortString()}.";
+			return false;
+		}
 
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, week) == false) {
@@ -880,18 +1001,31 @@ public partial class PlayerDesk : Node {
 		}
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		prospect.Baseline = Label.GenerateTermSheet(prospect.Artist, year);
-		// A manufactured act off the trade opens dearer -- it's polished product with people behind it.
-		if (prospect.Venue == ScoutingVenue.IndustryMeets) {
-			ContractTermSheet s = prospect.Baseline;
-			prospect.Baseline = new ContractTermSheet(s.Advance * IndustryActMarkup, s.RoyaltyRate, s.TermYears,
-				s.SinglesObligation, s.LabelOwnsPublishing, s.ArtistCreativeControl,
-				s.NegotiationDifficulty, s.Manager, s.ManagerName, s.DemandSummary);
-		}
+		ContractTermSheet t = Label.GenerateTermSheet(prospect.Artist, year);
+		// The term sheet's own advance is the AI's tier-priced offer; for the player the ROOM sets the
+		// band, so the ask the player already saw on the pad is the number that opens the table. Keeping
+		// them the same figure is what makes the ask an anchor you can negotiate against.
+		prospect.AskingAdvance = VenueAdvanceAsk(prospect.Artist, prospect.Venue);
+		float royalty = VenueRoyaltyBaseline(prospect.Artist, prospect.Venue);
+		int singles = PlayerDeliverablesAsk(prospect.Artist, t.TermYears, year);
+		prospect.Baseline = new ContractTermSheet(prospect.AskingAdvance, royalty, t.TermYears,
+			singles, t.LabelOwnsPublishing, t.ArtistCreativeControl,
+			t.NegotiationDifficulty, t.Manager, t.ManagerName,
+			AILabel.BuildDemandSummary(t.Manager, prospect.AskingAdvance, royalty,
+				t.LabelOwnsPublishing, t.ArtistCreativeControl));
 		prospect.HasBaseline = true;
-		message = string.IsNullOrEmpty(prospect.Baseline.DemandSummary)
-			? $"Table an offer for {prospect.Artist.stageName}."
-			: prospect.Baseline.DemandSummary;
+
+		// NegotiationDifficulty used to be stored and never read (see ContractTermSheet's own doc
+		// comment). This is where it finally gets consumed: most acts stay Pushover -- today's
+		// single-click form -- and a managed or high-drama act opens the negotiation scene instead.
+		prospect.Posture = PostureOf(prospect.Artist);
+		prospect.Talk = prospect.Posture == NegotiationPosture.Pushover ? null : OpenNegotiation(prospect);
+
+		message = prospect.Posture != NegotiationPosture.Pushover
+			? $"{prospect.Artist.stageName} wants to talk terms. {prospect.Baseline.DemandSummary}"
+			: string.IsNullOrEmpty(prospect.Baseline.DemandSummary)
+				? $"Table an offer for {prospect.Artist.stageName}."
+				: prospect.Baseline.DemandSummary;
 		Changed?.Invoke();
 		return true;
 	}
@@ -902,10 +1036,16 @@ public partial class PlayerDesk : Node {
 	/// negotiation difficulty, the manager) are carried from the opening offer so a hand-set advance
 	/// does not erase the rest of the deal.
 	/// </summary>
-	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears,
+	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears, int singlesObligation,
 		bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
 		if (!prospect.HasBaseline) { message = "Approach them first."; return false; }
+		// Firm/Hardball acts don't take an accept-or-walk offer -- they go through TableOffer's
+		// negotiation loop instead. See SimTools/ContractNegotiationDirective.md Part 2.
+		if (prospect.Posture != NegotiationPosture.Pushover) {
+			message = "They want to talk terms, not just sign -- work it through the negotiation.";
+			return false;
+		}
 		if (!Require(SignHours, out message)) return false;
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
@@ -918,27 +1058,12 @@ public partial class PlayerDesk : Node {
 
 		ContractTermSheet b = prospect.Baseline;
 		var sheet = new ContractTermSheet(
-			advance, Mathf.Clamp(royaltyRate, 0.02f, 0.15f), Mathf.Clamp(termYears, 1, 7),
-			b.SinglesObligation, labelOwnsPublishing, artistCreativeControl,
+			advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f), Mathf.Clamp(termYears, 1, 7),
+			Mathf.Clamp(singlesObligation, 0, 30), labelOwnsPublishing, artistCreativeControl,
 			b.NegotiationDifficulty, b.Manager, b.ManagerName, b.DemandSummary);
 
 		Spend(SignHours);
-		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		float paid = Label.SignArtist(prospect.Artist, year, sheet);
-		CompetitorManager.Instance?.RecordExpense(Label, paid);
-		ArtistManager.Instance?.SignArtist(prospect.Artist, Label.labelId, year);
-		// Capacity grows with the roster so the label is never sitting under its own target.
-		Label.SetOperatingRosterTarget(Label.CurrentRosterSize, LabelOperatingTargetReason.OrganicGrowth, week);
-		// The act keeps the live set it walked in with.
-		repertoire[prospect.Artist.artistId] = new List<RepertoireItem>(prospect.LiveSet);
-		// A signed discovery stays in the world -- don't let the next scout purge it.
-		generatedProspectIds.Remove(prospect.Artist.artistId);
-		slate.Remove(prospect);
-
-		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P0} royalty, {sheet.TermYears}yr" +
-			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
-		message = $"Signed {prospect.Artist.stageName}.";
+		FinalizeSigning(prospect, sheet, out message);
 		Changed?.Invoke();
 		return true;
 	}
@@ -1648,6 +1773,8 @@ public partial class PlayerDesk : Node {
 	public IEnumerable<PlannedRelease> UndatedSingles() => planned.Where(single => !single.Dated);
 
 	private void OnDayStarted(GameDate date) {
+		// You are not still holding a man on the line at nine the next morning.
+		ActiveCall = null;
 		if (Label == null) return;
 		ChargeHotelIfAway();
 		DeliverArrivedPressings(date);
@@ -1680,7 +1807,12 @@ public partial class PlayerDesk : Node {
 			foreach (var (recordId, lot) in lots.Select(kv => (kv.Key, kv.Value)).ToList()) {
 				if (lot.Remaining <= 0) { lot.DaysSinceRestock++; continue; }
 				RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord.recordId == recordId);
-				if (rec == null) continue;
+				// A lot whose record can't be resolved still AGES. It used to `continue` before the
+				// increment, which froze the lot forever: no sales and no decay clock, so stock stranded
+				// in a town could never sell through and never be written off either. Player records are
+				// no longer culled, so this should now only be reachable for a lot whose record a
+				// pre-fix save lost outright and the load-time repair could not rebuild.
+				if (rec == null) { lot.DaysSinceRestock++; continue; }
 				// A day's move is a slice of the fresh lot, decaying since the last restock, scaled by how much
 				// the record actually pulls -- its hook, its sound, and how many have heard of it (an unknown act
 				// with a $10 campaign has near-zero awareness and trickles out), then rolled with day-to-day,
@@ -1709,7 +1841,16 @@ public partial class PlayerDesk : Node {
 	private void BookTrunkSale(RecordRuntimeData rec, int units, string cityId, bool present) {
 		float gross = units * SinglePrice;
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.baseRecord.artistId);
-		float royalty = gross * (artist?.royaltyRate ?? 0.05f);
+		float accrued = gross * (artist?.royaltyRate ?? 0.05f);
+		// The advance comes back out of the royalty account before the act sees anything -- the trunk
+		// path never recouped at all, so every dollar of advance was paid twice out of the player's
+		// pocket. Mirrors the weekly settlement (CompetitorManager.CalculateLabelRevenue).
+		float recouped = artist != null ? Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), accrued) : 0f;
+		float royalty = accrued - recouped;
+		if (artist != null) {
+			artist.unrecoupedAdvance = Mathf.Max(0f, artist.unrecoupedAdvance - recouped);
+			artist.totalRoyaltyEarnings += royalty;
+		}
 		float net = gross - royalty;
 		// Units are NOT added to totalUnitsSold here -- the weekly settlement adds them exactly once through
 		// the chart injection (FinalizeWeeklySales += TakeWeeklyTrunkUnits). Counting them here as well double-
@@ -1828,6 +1969,11 @@ public partial class PlayerDesk : Node {
 	public int HoursUntil(int targetHour) =>
 		Mathf.Max(0, targetHour - (TimeManager.Instance?.CurrentHour ?? targetHour));
 
+	/// <summary>Spend sub-hour time. The clock now carries a minute hand, so a 25-minute call moves the
+	/// visible time by 25 minutes instead of vanishing into an accumulator the player could not see.
+	/// Returns false (without moving the clock) if the action does not fit in what is left of the day.</summary>
+	private bool SpendMinutes(int minutes) => TimeManager.Instance?.SpendMinutes(minutes) ?? false;
+
 	private bool Require(int hours, out string message) {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (IsGameOver) { message = "The label has folded -- load a save to keep playing."; return false; }
@@ -1855,6 +2001,10 @@ public partial class PlayerDesk : Node {
 
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
+		// Rolodex settlement lands before the books are drawn up so any payola penalty shows in this
+		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
+		// word on against what the records actually sold.
+		ProcessRolodexWeek();
 		// The wholesale channel (what cleared through stores this week), then the trunk folded on top so the
 		// write-up covers the whole week's business, not only wholesale. Trunk carries no manufacturing (pressed
 		// and paid up front) and no distributor skim; its full net counts as earned, and the consignment slice
@@ -1960,7 +2110,18 @@ public partial class PlayerDesk : Node {
 			MonthsInTheRed = monthsInTheRed,
 
 			// The player's released catalogue, with its chart/regional state (increment 2).
-			ReleasedRecords = ReleasedRecords.Select(RuntimeRecordSaveData.From).ToList()
+			ReleasedRecords = ReleasedRecords.Select(RuntimeRecordSaveData.From).ToList(),
+
+			// Player character (Phase 1 Rolodex branch).
+			ArchetypeOrdinal   = (int)Archetype,
+			ExecutiveInstincts = InstinctProfile,
+
+			// Rolodex contacts + accumulated sub-hour phone time (Phase 2).
+			PhoneMinutesAccum = phoneMinutesAccum,
+			Rolodex = rolodex.Select(RolodexEntrySaveData.From).ToList(),
+			Advocacy = (ChartManager.Instance?.Advocacy.Active ?? (IReadOnlyList<StationAdvocacy>)Array.Empty<StationAdvocacy>())
+				.Select(StationAdvocacySaveData.From).ToList(),
+			StationState = CaptureStationState(),
 		};
 		return data;
 	}
@@ -1980,6 +2141,35 @@ public partial class PlayerDesk : Node {
 		IsGameOver = false;
 		GameOverReason = null;
 		monthsInTheRed = 0;
+
+		// Restore player character. ExecutiveInstincts being null means a pre-feature save; in that case
+		// default to TradeInsider rather than trusting the ArchetypeOrdinal default of 0.
+		if (data.ExecutiveInstincts == null) {
+			Archetype = FoundingArchetype.TradeInsider;
+			InstinctProfile = FoundingArchetypeData.Get(FoundingArchetype.TradeInsider).Instincts;
+		} else {
+			Archetype = data.ArchetypeOrdinal >= 0 && data.ArchetypeOrdinal < System.Enum.GetValues(typeof(FoundingArchetype)).Length
+				? (FoundingArchetype)data.ArchetypeOrdinal
+				: FoundingArchetype.TradeInsider;
+			InstinctProfile = data.ExecutiveInstincts;
+		}
+
+		// Restore rolodex and phone accumulator (Phase 2). Null/missing = pre-feature save → empty rolodex.
+		phoneMinutesAccum = data.PhoneMinutesAccum;
+		rolodex.Clear();
+		rolodex.AddRange((data.Rolodex ?? new List<RolodexEntrySaveData>()).Select(s => s.ToEntry()));
+		// Advocacy is rebuilt onto the freshly-constructed service (the radio panel is rebuilt on load,
+		// so the service is empty at this point). Missing on a pre-feature save = nothing outstanding.
+		ChartManager.Instance?.Advocacy.Restore(
+			(data.Advocacy ?? new List<StationAdvocacySaveData>()).Select(a => a.ToAdvocacy()));
+		RestoreStationState(data.StationState);
+		ActiveCall = null;   // you are not on the phone in a loaded game
+		// Same reasoning as ActiveCall: a live negotiation (new signing or renewal) is scene state,
+		// not save state -- Prospect.Talk dies with the slate.Clear() below, but PendingRenewal is a
+		// bare field with no owning collection to clear it for us, so it needs the explicit reset or
+		// a same-session load could resume a stale renewal against the freshly-loaded world.
+		PendingRenewal = null;
+		maturedNotified.Clear();
 
 		AILabel label = Label != null && Label.labelId == data.Label.labelId ? Label : new AILabel();
 		bool fresh = label != Label;
@@ -2082,16 +2272,152 @@ public partial class PlayerDesk : Node {
 		monthsInTheRed = data.MonthsInTheRed;
 		counter = Mathf.Max(data.Counter, songs.Count);
 
-		// Increment 2: put the player's released catalogue back into the world with its chart run intact.
-		ChartManager.Instance?.RestorePlayerRecords(
-			(data.ReleasedRecords ?? new List<RuntimeRecordSaveData>()).Select(record => record.ToRuntime()));
+		// Increment 2: put the player's released catalogue back into the world with its chart run intact,
+		// after putting back anything an old save lost to the dead-stock cull (see RepairCulledRecords).
+		List<RecordRuntimeData> catalogue = (data.ReleasedRecords ?? new List<RuntimeRecordSaveData>())
+			.Select(record => record.ToRuntime()).ToList();
+		int recovered = RepairCulledRecords(catalogue);
+		ChartManager.Instance?.RestorePlayerRecords(catalogue);
 
 		message = missing == 0
 			? $"Loaded {label.labelName}."
 			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
+		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
 		Note(message);
 		Changed?.Invoke();
 		return true;
+	}
+
+	// ========================================================================
+	// LOAD-TIME REPAIR -- records an older save lost to the dead-stock cull
+	// ========================================================================
+
+	/// <summary>
+	/// Rebuilds player records a pre-fix save lost to the cull. Until <c>ChartManager.CullDeadRecords</c>
+	/// learned to exempt player-owned records, a single that went five weeks under the sales floor without
+	/// charting was deleted from the catalogue -- and because the discography is a live projection of that
+	/// catalogue, the record vanished from the desk, saved as nothing, and left the press inventory, the
+	/// town consignment lots and the rolodex airplay watches pointing at an id that resolved to nothing
+	/// (which is why a town would offer "player_2" for sale). The retired-track archive kept a snapshot of
+	/// every retired single, so the master can be reconstructed from it.
+	///
+	/// What comes back is the record's IDENTITY -- title, song, genre, the take's hook and production --
+	/// not the chart run that was thrown away with it. Units are recovered from what the town lots
+	/// actually moved; buzz starts cold, because a fabricated awareness figure is worth less than an
+	/// honest zero. Returns how many were rebuilt. A healthy save finds nothing to do here.
+	/// </summary>
+	private int RepairCulledRecords(List<RecordRuntimeData> catalogue) {
+		ChartManager charts = ChartManager.Instance;
+		if (charts == null || Label == null) return 0;
+
+		var known = new HashSet<string>(StringComparer.Ordinal);
+		foreach (RecordRuntimeData record in catalogue)
+			if (record?.baseRecord?.recordId != null) known.Add(record.baseRecord.recordId);
+		foreach (Master master in masters)
+			if (master.Record?.recordId != null) known.Add(master.Record.recordId);
+
+		// Every record id the desk still holds a reference to. One that no longer resolves is a record
+		// the player is holding stock, a plant order or a cut repertoire number against.
+		var referenced = new HashSet<string>(StringComparer.Ordinal);
+		foreach (string recordId in inventory.Keys) referenced.Add(recordId);
+		foreach (var lots in consignment.Values)
+			foreach (string recordId in lots.Keys) referenced.Add(recordId);
+		foreach (PressOrder order in pressOrders)
+			if (order.RecordId != null) referenced.Add(order.RecordId);
+		foreach (string recordId in weeklyTrunkUnits.Keys) referenced.Add(recordId);
+		foreach (var kv in repertoire)
+			foreach (RepertoireItem item in kv.Value)
+				if (item.Recorded && item.RecordedId != null) referenced.Add(item.RecordedId);
+		foreach (Song song in songs)
+			if (song.Recorded && song.RecordedId != null) referenced.Add(song.RecordedId);
+
+		int recovered = 0;
+		foreach (string recordId in referenced) {
+			if (known.Contains(recordId)) continue;
+			if (!charts.TryGetRetiredTrackSnapshot(recordId, out AlbumTrack track) || track == null) continue;
+			RecordRuntimeData rebuilt = RebuildRecordFromSnapshot(recordId, track);
+			if (rebuilt == null) continue;
+			catalogue.Add(rebuilt);
+			known.Add(recordId);
+			recovered++;
+			GD.Print($"[PlayerDesk] Repaired culled record {recordId} ({track.title}) from the retired-track archive.");
+		}
+		return recovered;
+	}
+
+	/// <summary>Reconstructs one culled record from its retired-track snapshot. The snapshot carries the
+	/// master's identity and the song's biography, but not who cut it or what it sold: the act comes from
+	/// whichever repertoire number or written song points at this record id (falling back to a one-act
+	/// roster), and the units from what the town lots actually moved. Returns null if no act can be
+	/// established -- a record with nobody's name on it is worse than a missing one.</summary>
+	private RecordRuntimeData RebuildRecordFromSnapshot(string recordId, AlbumTrack track) {
+		SimulatedArtist artist = ArtistForRecordId(recordId);
+		if (artist == null) return null;
+
+		var record = new Record {
+			recordId = recordId,
+			labelId = Label.labelId,
+			title = track.title,
+			artistId = artist.artistId,
+			artistName = artist.stageName,
+			format = ReleaseFormat.Single,
+			isPlayerOwned = true,
+			primaryGenre = track.genre,
+			secondaryGenre = artist.secondaryGenre,
+			hookStrength = track.hookStrength,
+			productionQuality = track.productionQuality,
+			danceability = track.danceability,
+			releaseDate = track.releaseDate,
+			songId = track.songId,
+			songSource = track.songSource,
+			isCover = track.isCover,
+			originalRecordId = track.originalRecordId,
+			originalArtistId = track.originalArtistId,
+			publisherId = track.publisherId,
+			songwriterNames = track.songwriterNames ?? Array.Empty<string>(),
+			compositionQuality = track.compositionQuality,
+			compositionHook = track.compositionHook,
+			lyricQuality = track.lyricQuality,
+			songFamiliarityAtRelease = track.songFamiliarityAtRelease,
+			standardDurability = track.standardDurability,
+			arrangementOriginality = track.arrangementOriginality
+		};
+
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		return new RecordRuntimeData(record) {
+			peakPosition = track.peakPosition,
+			weeksSinceRelease = today.WeeksDifference(track.releaseDate),
+			totalUnitsSold = UnitsMovedFromLots(recordId),
+			// The run is over and its reads already ran on the way out, when the cull retired it. Say so,
+			// or the restored record would take its career and cultural reads a second time.
+			artistChartRunCompleted = true,
+			culturalRunCompleted = true
+		};
+	}
+
+	/// <summary>The act a culled record belonged to, read back off whatever still points at its id.</summary>
+	private SimulatedArtist ArtistForRecordId(string recordId) {
+		foreach (var kv in repertoire)
+			if (kv.Value.Any(item => item.Recorded && item.RecordedId == recordId))
+				return Roster.FirstOrDefault(a => a.artistId == kv.Key);
+		string writerArtistId = songs.FirstOrDefault(song => song.Recorded && song.RecordedId == recordId)?.ArtistId;
+		if (writerArtistId != null) {
+			SimulatedArtist writer = Roster.FirstOrDefault(a => a.artistId == writerArtistId);
+			if (writer != null) return writer;
+		}
+		// A one-act label leaves no ambiguity about whose record it was.
+		List<SimulatedArtist> roster = Roster.ToList();
+		return roster.Count == 1 ? roster[0] : null;
+	}
+
+	/// <summary>Copies a record's town lots have actually sold -- the only honest lifetime-units figure
+	/// left once the runtime record is gone.</summary>
+	private int UnitsMovedFromLots(string recordId) {
+		int moved = 0;
+		foreach (var lots in consignment.Values)
+			if (lots.TryGetValue(recordId, out ConsignmentLot lot))
+				moved += Mathf.Max(0, lot.Placed - lot.Remaining);
+		return moved;
 	}
 
 	public IEnumerable<SimulatedArtist> Roster => Label?.roster ?? new List<SimulatedArtist>();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -209,6 +209,36 @@ public sealed partial class StationNetwork {
 	// not be touched, and the Latin/novelty genres may yet need it.
 	private static readonly HashSet<Genre> ChartGuardExempt = new();
 
+	/// <summary>Ceiling on the Rolodex advocacy term. Sized below the payola cap on purpose: a favour
+	/// talked out of a DJ opens the door wider than nothing and less wide than cash.</summary>
+	private const float ADVOCACY_CAP = 0.9f;
+
+	/// <summary>
+	/// How many Light slots a DJ may hand out on his own judgement, to records he has personally
+	/// committed to on a call. This is the structural half of the Rolodex, and it is the half that
+	/// actually matters: a 26% candidacy bump cannot lift an unknown record into a 36-slot sheet that
+	/// is ranking the whole national field, so a pitch that only bought a multiplier read as inert.
+	///
+	/// A real personality jock has a couple of picks that are his and nobody else's. That is what this
+	/// is. It is scaled by autonomy (a Boss Radio station at 0.10 has NONE -- the sheet is the sheet),
+	/// capped hard, and it never displaces an incumbent: the picks come out of the Light tier and the
+	/// record must still clear format. It buys a hearing for the advocacy's duration, not a permanent
+	/// slot -- once the argument expires, the record competes on merit like everything else.
+	/// </summary>
+	private static int DiscretionaryPicks(float autonomy) =>
+		autonomy >= 0.75f ? 2 : autonomy >= 0.45f ? 1 : 0;
+
+	/// <summary>Read-only probe: would this station's format admit this genre at all, and how strongly?
+	/// Same function the meeting scores with, exposed so the Rolodex can tell the player the truth
+	/// ("it is not on his sheet") instead of inventing an objection.</summary>
+	public float FormatAdmittance(Genre genre, RadioStation station, int year, float integration) {
+		if (station == null) return 0f;
+		Genre canon = GenreCatalog.MapLegacy(genre, year);
+		GenreCatalog.TryGet(canon, out GenreProfile profile);
+		return FormatMatch(profile, station.format, profile?.Family ?? GenreFamily.Pop,
+			integration, RockCrossover(year), station.latinLeaning);
+	}
+
 	private readonly List<RecordFactors> factorScratch = new();
 	private readonly Dictionary<string, RecordFactors> factorById = new(StringComparer.Ordinal);
 	private readonly Dictionary<Genre, float> genreVitalityCache = new();
@@ -317,9 +347,30 @@ public sealed partial class StationNetwork {
 		primaryScratch.Sort((a, b) => b.adjusted.CompareTo(a.adjusted));
 		var next = new Dictionary<string, SpinTier>(StringComparer.Ordinal);
 		int high = station.highSlots, mid = station.midSlots, light = station.lightSlots;
+
+		// The DJ's own picks come off the top of the Light tier, before the ranking runs. Only records
+		// he personally committed to, only if the format admits them, only while the commitment lasts.
+		// Nothing here is reachable without a player action, so an AI-only run takes the null path.
+		int picksLeft = DiscretionaryPicks(autonomy);
+		if (picksLeft > 0 && AdvocacyReservationLookup != null) {
+			IReadOnlyList<string> reserved = AdvocacyReservationLookup(station.stationId);
+			if (reserved != null) {
+				foreach (string id in reserved) {
+					if (picksLeft <= 0 || light <= 0) break;
+					if (next.ContainsKey(id)) continue;
+					if (!factorById.TryGetValue(id, out RecordFactors rf)) continue;
+					if (FormatMatch(rf.profile, station.format, rf.family, integration, rockCrossover,
+							station.latinLeaning) <= 0f) continue;      // format is still the wall
+					next[id] = SpinTier.Light;
+					light--; picksLeft--;
+				}
+			}
+		}
+
 		float lightCutoff = float.MaxValue;   // the weakest retained score at the Light boundary
 		int filled = 0;
 		foreach (var c in primaryScratch) {
+			if (next.ContainsKey(c.id)) continue;   // already seated by a discretionary pick
 			SpinTier tier;
 			if (filled < high) tier = SpinTier.High;
 			else if (filled < high + mid) tier = SpinTier.Mid;
@@ -409,7 +460,7 @@ public sealed partial class StationNetwork {
 		return g;
 	}
 
-	/// <summary>candidacy = formatMatch x qualityTaste x salesSupport x relationship x payola x freshness x heatPull x vitality x chartGuard.</summary>
+	/// <summary>candidacy = formatMatch x qualityTaste x salesSupport x relationship x advocacy x payola x freshness x heatPull x vitality x chartGuard.</summary>
 	private float Candidacy(RecordFactors f, float quality, float formatMatch, RadioStation station, Deejay dj, float autonomy, StationRuntime rt) {
 		// qualityTaste: the DJ's ear, weighted by autonomy. Boss station (autonomy~0) -> ~1 (neutral).
 		float affinity = dj?.GenreAffinity(f.canonical) ?? 1f;
@@ -429,11 +480,18 @@ public sealed partial class StationNetwork {
 		// base simulation. Capped so a bribe buys candidacy, never a runaway.
 		float payola = 1f + Mathf.Clamp(ActivePayolaLookup?.Invoke(f.id, station.stationId) ?? 0f, 0f, 1.5f);
 
+		// advocacy (Rolodex): a DJ agreed, on a call, to carry THIS record into THIS meeting. Unlike
+		// rapport -- which is label-wide and helps everything you release equally -- advocacy is the
+		// record-specific promise a Personal Pitch actually extracts, and it expires. It is a term in the
+		// product, never a bypass: format still excludes what the format excludes, and a record with no
+		// sales support still loses to one that has it. Player-only, so 0 in headless audits.
+		float advocacy = 1f + Mathf.Clamp(ActiveAdvocacyLookup?.Invoke(f.id, station.stationId) ?? 0f, 0f, ADVOCACY_CAP);
+
 		// freshness: per-station burn, replacing the aggregate STATION_DROP_BURN.
 		int weeks = rt.weeksInPlaylist.TryGetValue(f.id, out int w) ? w : 0;
 		float freshness = weeks > BURN_ONSET ? Mathf.Pow(BURN_DECAY, weeks - BURN_ONSET) : 1f;
 
-		return formatMatch * qualityTaste * salesSupport * relationship * payola * freshness * f.heatPull
+		return formatMatch * qualityTaste * salesSupport * relationship * advocacy * payola * freshness * f.heatPull
 			* f.vitality * GenreChartGuard(f.canonical);
 	}
 
