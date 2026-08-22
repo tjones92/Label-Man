@@ -308,10 +308,13 @@ namespace LabelMan.Naming {
 		}
 
 		/// <summary>Adapter-bound pseudo-pos: the value is injected by the caller via ctx.Slots rather
-		/// than drawn from the lexicon (doc C — album self-title and lead-single framing).</summary>
+		/// than drawn from the lexicon (doc C — album self-title and lead-single framing). titleTrack
+		/// (naming-genre-templates directive, jazz) is more historically apt than leadSingle for genres
+		/// where the LP wasn't built around a commercially designated hit.</summary>
 		private static bool IsBoundPos(string pos) =>
 			string.Equals(pos, "selfTitle", StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(pos, "leadSingle", StringComparison.OrdinalIgnoreCase);
+			string.Equals(pos, "leadSingle", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(pos, "titleTrack", StringComparison.OrdinalIgnoreCase);
 
 		/// <summary>Resolve $-tokens in a dynamic slot filter against the context's demographic tag-sets:
 		/// $name -> ctx.TagSets["name"] (gender+ethnicity, AND-joined), $surname -> ["surname"],

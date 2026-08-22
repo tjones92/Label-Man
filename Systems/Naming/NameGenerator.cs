@@ -228,18 +228,19 @@ public partial class NameGenerator : Node {
 	/// honorific / credited. Encodes "nickname density scales with grit" as sampling weights.</summary>
 	private static string PickSoloStrategy(Genre g, IRandom rng) {
 		(double rn, double nk, double mo, double ho, double cr) w = g switch {
-			Genre.Blues or Genre.BluesRock or Genre.BritishBlues => (0.1, 0.7, 0.15, 0.05, 0.0),
-			Genre.Jazz => (0.55, 0.3, 0.1, 0.0, 0.05),
-			Genre.Soul or Genre.RnB or Genre.Motown => (0.55, 0.2, 0.05, 0.2, 0.0),
+			Genre.DooWop => (0.87, 0.0, 0.0, 0.13, 0.0),
+			Genre.Blues or Genre.BluesRock or Genre.BritishBlues => (0.58, 0.28, 0.09, 0.0, 0.05),
+			Genre.Jazz => (0.80, 0.20, 0.0, 0.0, 0.0),
+			Genre.Soul or Genre.RnB or Genre.Motown => (0.92, 0.0, 0.0, 0.08, 0.0),
 			Genre.Gospel => (0.4, 0.05, 0.0, 0.55, 0.0),
 			Genre.Country or Genre.CountryRock or Genre.RootsRock => (0.85, 0.13, 0.0, 0.0, 0.02),
 			Genre.Folk or Genre.ContemporaryFolk => (0.9, 0.05, 0.05, 0.0, 0.0),
 			Genre.SingerSongwriter => (0.95, 0.0, 0.05, 0.0, 0.0),
-			Genre.TeenPop => (0.7, 0.28, 0.02, 0.0, 0.0),
-			Genre.TraditionalPop => (0.75, 0.05, 0.05, 0.0, 0.15),
+			Genre.TeenPop => (0.90, 0.10, 0.0, 0.0, 0.0),
+			Genre.TraditionalPop => (0.95, 0.0, 0.0, 0.0, 0.05),
 			Genre.EasyListening => (0.35, 0.05, 0.1, 0.0, 0.5),
 			Genre.Funk => (0.3, 0.55, 0.1, 0.05, 0.0),
-			Genre.RockAndRoll => (0.45, 0.4, 0.1, 0.0, 0.05),
+			Genre.RockAndRoll => (0.85, 0.10, 0.0, 0.0, 0.05),
 			Genre.Classical => (0.5, 0.0, 0.0, 0.0, 0.5),
 			Genre.Comedy => (0.3, 0.6, 0.1, 0.0, 0.0),
 			Genre.LatinPop or Genre.Boogaloo or Genre.TexMex or Genre.BossaNova => (0.6, 0.15, 0.1, 0.15, 0.0),
@@ -297,11 +298,11 @@ public partial class NameGenerator : Node {
 			artistType == ArtistType.Trio || artistType == ArtistType.VocalGroup) return true;
 
 		float bandChance = genre switch {
-			Genre.RockAndRoll => 0.6f, Genre.GarageRock => 0.92f, Genre.Psychedelic => 0.88f,
+			Genre.RockAndRoll => 0.4f, Genre.GarageRock => 0.92f, Genre.Psychedelic => 0.88f,
 			Genre.SurfRock => 0.85f, Genre.BritishInvasion => 0.85f, Genre.Soul => 0.4f,
-			Genre.RnB => 0.35f, Genre.DooWop => 0.75f, Genre.GirlGroup => 0.98f, Genre.Folk => 0.25f,
+			Genre.RnB => 0.35f, Genre.DooWop => 0.88f, Genre.GirlGroup => 0.98f, Genre.Folk => 0.25f,
 			Genre.Country => 0.12f, Genre.Jazz => 0.35f, Genre.TraditionalPop => 0.08f,
-			Genre.TeenPop => 0.25f, Genre.Gospel => 0.7f, _ => 0.5f
+			Genre.TeenPop => 0.12f, Genre.Gospel => 0.7f, _ => 0.5f
 		};
 		return rng.Chance(bandChance);
 	}
@@ -385,7 +386,7 @@ public partial class NameGenerator : Node {
 		var ctx = MakeContext(genre, year, ArtistType.Unknown);
 		ctx.Slots["artist"] = artistName;
 		ctx.Slots["selfTitle"] = artistName;
-		if (!string.IsNullOrWhiteSpace(leadSingle)) ctx.Slots["leadSingle"] = leadSingle;
+		if (!string.IsNullOrWhiteSpace(leadSingle)) { ctx.Slots["leadSingle"] = leadSingle; ctx.Slots["titleTrack"] = leadSingle; }
 		if (isCompilation) return _engine.ExpandOnce("compilationTitle", ctx);
 		double r = _rng.NextDouble();
 		if (r < 0.08) return artistName;                          // self-titled (rare; the sets also self-title)
@@ -892,7 +893,7 @@ public partial class NameGenerator : Node {
 	// ---- genre predicates (ported from the old generator) ----
 	private static bool IsAfricanAmericanGenre(Genre g) => g switch {
 		Genre.Soul or Genre.RnB or Genre.DooWop or Genre.GirlGroup or Genre.Gospel or Genre.Jazz
-			or Genre.Motown or Genre.Funk => true,
+			or Genre.Motown or Genre.Funk or Genre.Blues => true,
 		_ => false
 	};
 	private static bool IsEastCoastGenre(Genre g) =>

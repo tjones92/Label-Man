@@ -63,7 +63,6 @@ namespace LabelMan.Naming {
 				["bandName:AcidRock"]        = "hardRock",   // ancestry would give psych
 				["bandName:ProgressiveRock"] = "hardRock",   // ancestry would give psych
 				["bandName:RnB"]             = "soul",        // ancestry would give blues; RnB songs stay blues
-				["bandName:RockAndRoll"]     = "garageEarly", // ancestry gives no band set
 			};
 
 		public TemplateRouter(GenreLibrary genres, Func<string, bool> hasSet) {
