@@ -139,7 +139,12 @@ public partial class NameGenerator : Node {
 		if (labelStyle.HasValue) ctx.LabelArchetype = labelStyle.Value.ToString();
 
 		string symbol = ChooseArtistSymbol(genre, year, artistType, ctx);
-		return _engine.Generate(symbol, ctx, "artist", nearDup: true);
+		// Scoped per genre, not one global "artist" bucket: with a curated (not grammar)
+		// template set per genre family, the cross-genre name space is now small enough that
+		// a shared bucket saturates by a few thousand acts, forcing GenerateUnique to burn
+		// most of its 40 attempts (each a full constraint Fill) on every subsequent draw --
+		// the launch pool's 7,000 acts made this the load-time bottleneck.
+		return _engine.Generate(symbol, ctx, "artist|" + genre, nearDup: true);
 	}
 
 	/// <summary>
@@ -341,7 +346,12 @@ public partial class NameGenerator : Node {
 		if (_engine == null) return null;
 		var ctx = MakeContext(genre, year, ArtistType.Unknown, _titleRng);
 		string symbol = ChooseSongSymbol(genre, year, ctx.Rng);
-		return _engine.Generate(symbol, ctx, "song|catalog", nearDup: false, attempts: 30);
+		// Scoped per genre (same reasoning as the artist-name bucket): the launch catalog is
+		// ~3,570 standards drawn from a genre-weighted prior that concentrates hard on a few
+		// genres, each with a curated (not grammar) songTitle set. A shared exact-uniqueness
+		// bucket meant every genre's draws exhausted the SAME space instead of each genre
+		// exhausting only its own -- scoping cuts collision-driven retries for the crowded genres.
+		return _engine.Generate(symbol, ctx, "song|catalog|" + genre, nearDup: false, attempts: 30);
 	}
 
 	private string ChooseSongSymbol(Genre genre, int year, IRandom rng) {

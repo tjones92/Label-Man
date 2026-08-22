@@ -433,11 +433,13 @@
   "//": "=== bandName.teenPop (naming-genre-templates directive): kept deliberately small and conservative — teen pop was overwhelmingly solo singers; most vocal groups belong in doo-wop/girl-group, later ones in bubblegum. ===",
 
   "bandName.teenPop": [
-    { "id": "teen_collective", "type": "band", "pattern": "The %groupNoun#1%", "weight": 5, "words": [2,3],
+    { "id": "teen_collective", "type": "band", "pattern": "The %groupNoun#1%", "weight": 2, "words": [2,3],
       "slots": { "groupNoun#1": { "pos": "groupNoun", "filter": "teenPop|youth|dance|romantic|aspirational" } } },
     { "id": "teen_adjective_collective", "type": "band", "pattern": "The %adjective#1% %groupNoun#1%", "weight": 1, "words": [3,4],
       "slots": { "adjective#1": { "pos": "adjective", "filter": "color|youthful|joyful|romantic" }, "groupNoun#1": { "pos": "groupNoun", "filter": "teenPop|youth|dance|aspirational" } },
-      "constraints": [ { "type": "moodInternal", "threshold": 0.35 } ] }
+      "constraints": [ { "type": "moodInternal", "threshold": 0.35 } ] },
+    { "id": "teen_leader_and_group", "type": "band", "pattern": "%firstName#1% and the %groupNoun#1%", "weight": 3, "words": [3,4],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "groupNoun#1": { "pos": "groupNoun", "filter": "teenPop|youth|dance|romantic|aspirational" } } }
   ],
 
   "bandName.easyListening": [
@@ -628,7 +630,9 @@
       "slots": { "groupNoun#1": { "pos": "groupNoun", "filter": "blues & groupEligible" } } },
     { "id": "blues_noun_collective", "type": "band", "pattern": "The %noun#1% %groupNoun#1%", "weight": 1, "words": [3,5],
       "slots": { "noun#1": { "pos": "noun", "filter": "vice|supernatural & attributive" }, "groupNoun#1": { "pos": "groupNoun", "filter": "blues & groupEligible" } },
-      "constraints": [ { "type": "moodInternal" } ] }
+      "constraints": [ { "type": "moodInternal" } ] },
+    { "id": "blues_leader_trio", "type": "band", "pattern": "%firstName#1% %lastName#1% Trio", "weight": 2, "words": [3,4],
+      "slots": { "firstName#1": { "pos": "firstName", "filter": "male,black" }, "lastName#1": { "pos": "lastName", "filter": "generic" } } }
   ],
 
   "songTitle.jazz": [

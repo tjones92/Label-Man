@@ -263,7 +263,9 @@
     { "pos": "groupNoun", "tags": ["jazz", "namedEnsemble"], "weight": 1.5, "words": [ "Sextet" ]},
     { "pos": "groupNoun", "tags": ["jazz", "namedEnsemble"], "weight": 0.5, "words": [ "Ensemble", "Orchestra", "Big Band" ]},
     { "pos": "groupNoun", "tags": ["folk"], "words": [
-      "Trio", "Minstrels", "Balladeers", "Wayfarers", "Ramblers", "Travelers", "Singers", "Journeymen"
+      "Trio", "Minstrels", "Balladeers", "Wayfarers", "Ramblers", "Travelers", "Singers", "Journeymen",
+      "Troubadours", "Pilgrims", "Vagabonds", "Songsmiths", "Storytellers", "Chroniclers", "Voyagers",
+      "Pathfinders", "Wayfinders", "Songcatchers", "Balladiers", "Homesteaders"
     ]},
 
     { "//": "=== Latin flavor (Boogaloo / LatinPop / TexMex) — 'spanish' locale gates these to Spanish-orthography genres only, so they don't bleed into Soul/Sunshine/etc. ===",
@@ -505,7 +507,8 @@
 
     { "//": "=== ADJECTIVES — color/youthful, for the collective + celestial title constructions. ===",
       "pos": "adjective", "tags": ["color", "youthful"], "words": [
-      "golden", "silver", "blue", "crimson", "young", "fresh"
+      "golden", "silver", "blue", "crimson", "young", "fresh", "scarlet", "midnight-blue", "jet-black",
+      "electric", "wild", "reckless", "restless", "roaring", "runaway", "renegade"
     ]},
 
     { "//": "=== TITLE-CLAUSE / VOCABLE / RESPONSE phraseFrags — curated whole units, not Markov-generated (doo-wop's vocables and complete-clause titles need to read as real phrases, not noun-salad). ===",
@@ -605,13 +608,15 @@
 
     { "//": "=== GROUPNOUN — the aspirational/abstract/motion families behind Motown-style billing (Martha and the X, Smokey Robinson and the Y). ===",
       "pos": "groupNoun", "tags": ["aspirational"], "words": [
-      "Miracles", "Wonders", "Dreams", "Sensations", "Impressions"
+      "Miracles", "Wonders", "Dreams", "Sensations", "Impressions", "Wishes", "Promises", "Blessings",
+      "Daydreams", "Heartbeats", "Starlights", "Cherubs"
     ]},
     { "pos": "groupNoun", "tags": ["abstract"], "words": [
       "Temptations", "Emotions", "Ambassadors", "Elements"
     ]},
     { "pos": "groupNoun", "tags": ["motion"], "words": [
-      "Vibrations", "Rhythms", "Escorts", "Movements"
+      "Vibrations", "Rhythms", "Escorts", "Movements", "Ripples", "Currents", "Momentum", "Impulses",
+      "Velocities", "Reflexes", "Pulses", "Cadences"
     ]},
 
     { "//": "=== KINGROUP — 'The [Surname] Family/Brothers/Sisters' billing. ===",
@@ -709,7 +714,9 @@
     { "pos": "noun", "tags": ["musicObject", "consumerObject", "technology", "groupEligible"], "words": [
       "transistor radio", "record player", "guitar", "jukebox"
     ]},
-    { "pos": "adjective", "tags": ["fashion", "speed"], "words": [ "snazzy", "sharp", "flashy", "zippy" ]},
+    { "pos": "adjective", "tags": ["fashion", "speed"], "words": [
+      "snazzy", "sharp", "flashy", "zippy", "speedy", "revved-up", "souped-up", "hopped-up", "turbo", "supersonic"
+    ]},
 
     { "//": "=== FIRST NAMES — 'titleName' for given-name song titles (Peggy Sue/Johnny/Donna-style); 'historicalName' for the one-off 'Roll Over Beethoven' address-a-composer construction. Tagged 'early60s' so they fade on the real era clock, not a fictional one. ===",
       "pos": "firstName", "tags": ["titleName", "early60s"], "words": [
@@ -719,7 +726,8 @@
 
     { "//": "=== GROUPNOUN — invented + period-referenced plural collectives (Crickets/Comets/Blue Caps/Hurricanes are the real backing-group names the doc cites as construction references). ===",
       "pos": "groupNoun", "tags": ["rocknroll"], "words": [
-      "Crickets", "Comets", "Blue Caps", "Hurricanes", "Jordanaires", "Playboys", "Rockateers"
+      "Crickets", "Comets", "Blue Caps", "Hurricanes", "Jordanaires", "Playboys", "Rockateers",
+      "Rockers", "Rebels", "Renegades", "Aces", "Bandits", "Wildcats", "Rhythm Kings", "Sundowners", "Nightriders"
     ]},
 
     { "//": "=== STAGE-PREFIX HONORIFICS — rock and roll's own set, split from the personalEpithet nickname pool above (see the retag note there). ===",
@@ -805,10 +813,11 @@
 
     { "//": "=== ENSEMBLE CLASSES — 'Brass'/'Strings' need a modifier first (The Riviera Brass); 'Orchestra'/'Players'/'Chorale' stand alone (The Kingsley Orchestra). ===",
       "pos": "groupNoun", "tags": ["easyListening", "instrumentalEnsemble", "namedEnsemble"], "words": [
-      "Orchestra", "Players", "Chorale", "Singers", "Serenaders"
+      "Orchestra", "Players", "Chorale", "Singers", "Serenaders", "Musicaires", "Melodiers", "Rhapsodists",
+      "Symphonics", "Harmonaires"
     ]},
     { "pos": "groupNoun", "tags": ["easyListening", "instrumentalEnsemble", "ensembleHead", "brass", "strings"], "words": [
-      "Brass", "Strings", "Sound"
+      "Brass", "Strings", "Sound", "Horns", "Reeds", "Winds", "Chimes", "Keys"
     ]},
 
     { "//": "=== LANDSCAPE / DANCE-FORM / PLACE-SUFFIX vocabulary. ===",
@@ -900,9 +909,12 @@
     { "pos": "noun", "tags": ["westernTale", "frontier", "outlaw", "albumProgram"], "words": [ "tale", "frontier story", "outlaw legend" ]},
 
     { "//": "=== GROUPNOUN — family/backing-band vocabulary (doc's own suggested list). ===",
-      "pos": "groupNoun", "tags": ["country", "instrumentalEnsemble"], "words": [ "Pickers", "Players", "Ramblers" ]},
+      "pos": "groupNoun", "tags": ["country", "instrumentalEnsemble"], "words": [
+      "Pickers", "Players", "Ramblers", "Fiddlers", "Strummers", "Pluckers", "Twangers", "Hoedowners"
+    ]},
     { "pos": "groupNoun", "tags": ["country", "western", "travel", "rural", "groupEligible"], "words": [
-      "Drifters", "Wranglers", "Rangers", "Wanderers", "Travelers"
+      "Drifters", "Wranglers", "Rangers", "Wanderers", "Travelers", "Trailhands", "Cowpokes", "Ranchers",
+      "Herders", "Drovers", "Wagoners", "Trailblazers"
     ]},
     { "pos": "groupNoun", "tags": ["country", "backingGroup"], "words": [ "Melody Boys", "Country Boys", "Trail Riders", "Ramblers" ]},
 
@@ -952,11 +964,14 @@
     { "pos": "noun", "tags": ["money", "home", "romance", "work", "luck", "deprivationObject"], "words": [ "money", "home", "luck", "lovin'", "work" ]},
     { "pos": "noun", "tags": ["front", "back", "side", "attributive"], "words": [ "front", "back", "side" ]},
     { "pos": "personNoun", "tags": ["man", "woman", "lover", "stranger", "bluesCharacter"], "words": [ "man", "woman", "lover", "stranger" ]},
-    { "pos": "noun", "tags": ["vice", "supernatural", "attributive"], "words": [ "Voodoo", "Whiskey", "Devil" ]},
+    { "pos": "noun", "tags": ["vice", "supernatural", "attributive"], "words": [
+      "Voodoo", "Whiskey", "Devil", "Gin", "Moonshine", "Hoodoo", "Mojo", "Gambler", "Serpent"
+    ]},
 
     { "//": "=== PLACE / VENUE — curated so 'Live at the X' names a specific plausible club, not a generic 'Theater' (doc's own warning). ===",
       "pos": "place", "tags": ["bluesPlace", "city", "region", "district", "state", "rural"], "words": [
-      "Chicago", "Memphis", "the Delta", "the South Side", "Clarksdale", "Beale Street"
+      "Chicago", "Memphis", "the Delta", "the South Side", "Clarksdale", "Beale Street",
+      "the Mississippi", "St. Louis", "the West Side", "Helena", "Greenville", "the Crossroads"
     ]},
     { "pos": "noun", "tags": ["club", "theater", "festival", "venue", "properVenue"], "words": [
       "the Firehouse Club", "the Riverside Theater", "the Delta Festival", "the Blue Note Room", "the Kingston Lounge"
@@ -967,7 +982,9 @@
     { "pos": "instrument", "tags": ["melodic", "bluesLead"], "words": [ "Guitar", "Harmonica", "Piano" ]},
 
     { "//": "=== GROUPNOUN — sparing, per the doc's own caution against exaggerated pastiche. ===",
-      "pos": "groupNoun", "tags": ["blues", "groupEligible"], "words": [ "Bluesmen", "Ramblers", "Kings", "Hounds", "Shufflers" ]},
+      "pos": "groupNoun", "tags": ["blues", "groupEligible"], "words": [
+      "Bluesmen", "Ramblers", "Kings", "Hounds", "Shufflers", "Wailers", "Groaners", "Rollers", "Rovers", "Growlers", "Prowlers"
+    ]},
     { "pos": "groupNoun", "tags": ["blues", "backingGroup"], "words": [ "Harp Players", "Night Riders", "House Rockers" ]},
 
     { "//": "=== STAGE-PREFIX HONORIFICS — 'Blind' kept at a lower per-word weight: the doc notes it's historically tied to an earlier recording tradition and should be downweighted for performers starting in the 1960s. ===",
