@@ -422,8 +422,6 @@
       "constraints": [ { "type": "moodInternal", "threshold": 0.3 } ] },
     { "id": "rnr_numbered_collective", "type": "band", "pattern": "The %number#1% %groupNoun#1%", "weight": 1, "words": [3,4],
       "slots": { "number#1": { "pos": "number", "filter": "smallGroup" }, "groupNoun#1": { "pos": "groupNoun", "filter": "rocknroll|regional|music|motion" } } },
-    { "id": "rnr_named_trio", "type": "band", "pattern": "The %firstName#1% %lastName#1% Trio", "weight": 1, "words": [4,5],
-      "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "lastName#1": { "pos": "lastName", "filter": "$surname" } } },
     { "id": "rnr_first_and_group", "type": "band", "pattern": "%firstName#1% and the %groupNoun#1%", "weight": 2, "words": [4,5],
       "slots": { "firstName#1": { "pos": "firstName", "filter": "$name" }, "groupNoun#1": { "pos": "groupNoun", "filter": "rocknroll|motion|vehicle|animal|music" } } },
     { "id": "rnr_fullname_and_group", "type": "band", "pattern": "%firstName#1% %lastName#1% and the %groupNoun#1%", "weight": 2, "words": [5,7],
@@ -512,9 +510,7 @@
     { "id": "country_place_group", "type": "band", "pattern": "The %noun#1% %groupNoun#1%", "weight": 2, "words": [3,5],
       "slots": { "noun#1": { "pos": "noun", "filter": "terrain|state|ruralPlace & attributive" }, "groupNoun#1": { "pos": "groupNoun", "filter": "country & instrumentalEnsemble" } } },
     { "id": "country_collective", "type": "band", "pattern": "The %groupNoun#1%", "weight": 2, "words": [2,3],
-      "slots": { "groupNoun#1": { "pos": "groupNoun", "filter": "country|western|travel|rural & groupEligible" } } },
-    { "id": "country_named_trio", "type": "band", "pattern": "The %lastName#1% Trio", "weight": 1, "words": [3,4],
-      "slots": { "lastName#1": { "pos": "lastName", "filter": "country" } } }
+      "slots": { "groupNoun#1": { "pos": "groupNoun", "filter": "country|western|travel|rural & groupEligible" } } }
   ],
 
   "bandName.gospel": [
