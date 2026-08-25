@@ -565,7 +565,8 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(grid);
 
 		grid.AddChild(FormLabel("Advance ($)"));
-		var advance = Spin(0, 100000, 25, Mathf.Round(prefill.Advance));
+		// Step of 5, not 25 -- a coarse step silently snapped a typed $35 down to $25 on finalize.
+		var advance = Spin(0, 100000, 5, Mathf.Round(prefill.Advance));
 		grid.AddChild(advance);
 
 		grid.AddChild(FormLabel("Royalty (%)"));
@@ -752,7 +753,7 @@ public partial class PlayerDeskPanel : Control {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
 				Text = $"{artist.stageName}  —  {GenreNameFormatter.Format(artist.primaryGenre)}  •  {artist.careerState}\n" +
 					$"    {artist.totalReleases} releases   •   {artist.top40Hits} Top 40   •   {songs} in the songbook   •   " +
-					$"{artist.royaltyRate:P0} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}"
+					$"{artist.royaltyRate:P1} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}"
 			};
 			text.AddThemeColorOverride("font_color", matured ? Rust : Ink);
 			row.AddChild(text);
@@ -813,7 +814,7 @@ public partial class PlayerDeskPanel : Control {
 
 		Heading($"MANAGING — {artist.stageName.ToUpperInvariant()}");
 		Body($"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {artist.careerState}  •  " +
-			$"{artist.royaltyRate:P0} royalty  •  ${artist.unrecoupedAdvance:N0} unrecouped  •  contract to {artist.contractExpiresYear}");
+			$"{artist.royaltyRate:P1} royalty  •  ${artist.unrecoupedAdvance:N0} unrecouped  •  contract to {artist.contractExpiresYear}");
 		var openDossier = Btn("OPEN FULL DOSSIER");
 		openDossier.CustomMinimumSize = new Vector2(220, 36);
 		openDossier.Pressed += () => UIManager.Instance?.OpenArtist(artist.artistId, true);
@@ -849,6 +850,20 @@ public partial class PlayerDeskPanel : Control {
 		teach.CustomMinimumSize = new Vector2(200, 40);
 		teach.Pressed += () => { browsingCovers = !browsingCovers; Refresh(); };
 		actions.AddChild(teach);
+
+		// Commissioning is now its own step: a writer delivers a specific song into the set, by name and
+		// with a read, before the studio -- no more blind "cut a professional song" at the console.
+		if (desk.IsCommissioning(artist.artistId)) {
+			var pending = Btn("WRITER AT WORK…");
+			pending.CustomMinimumSize = new Vector2(240, 40);
+			pending.Disabled = true;
+			actions.AddChild(pending);
+		} else {
+			var commission = Btn($"COMMISSION A SONG (${PlayerDesk.CommissionFee:N0})");
+			commission.CustomMinimumSize = new Vector2(240, 40);
+			commission.Pressed += () => Act(() => { PlayerDesk.Instance.CommissionSong(artist, out string message); Say(message); return true; });
+			actions.AddChild(commission);
+		}
 		content.AddChild(actions);
 
 		// The act's set: their own numbers and taught covers, plus anything you wrote, plus covers still in
@@ -1028,11 +1043,12 @@ public partial class PlayerDeskPanel : Control {
 	/// <summary>A number the act has cut: shown with its status, and (once it's out) a link to the discography.</summary>
 	private void RecordedLine(PlayerDesk desk, string title, string tag, string recordId, string artistId) {
 		bool released = desk.IsRecordReleased(recordId);
+		bool bSide = desk.IsRecordReleasedAsBSide(recordId);
 		var row = new HBoxContainer();
 		row.AddThemeConstantOverride("separation", 12);
 		var text = new Label {
 			SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			Text = $"    ♪ {title}  ({tag}) — {(released ? "RELEASED" : "cut, not out yet")}"
+			Text = $"    ♪ {title}  ({tag}) — {(bSide ? "OUT — on a B-side" : released ? "RELEASED" : "cut, not out yet")}"
 		};
 		text.AddThemeFontSizeOverride("font_size", 15);
 		text.AddThemeColorOverride("font_color", Ink);
@@ -1046,10 +1062,12 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(row);
 	}
 
-	/// <summary>A cover the act is still working up (not yet in the set).</summary>
+	/// <summary>A cover being worked up, or a commission out with a writer -- either way, not yet in the set.</summary>
 	private void RehearsingLine(PlayerDesk.CoverRehearsal r) {
 		var text = new Label {
-			Text = $"    ♪ \"{r.Title}\"  ({r.SourceTag}) — rehearsing, ready {r.ReadyDate.ToHeadlineString()}"
+			Text = r.IsCommission
+				? $"    ♪ \"{r.Title}\"  (commissioned) — writer delivering {r.ReadyDate.ToHeadlineString()}"
+				: $"    ♪ \"{r.Title}\"  ({r.SourceTag}) — rehearsing, ready {r.ReadyDate.ToHeadlineString()}"
 		};
 		text.AddThemeFontSizeOverride("font_size", 15);
 		text.AddThemeColorOverride("font_color", Rust);
@@ -1438,8 +1456,11 @@ public partial class PlayerDeskPanel : Control {
 			foreach (RecordRuntimeData record in released) {
 				float net = record.lifetimeLabelNet;
 				float cost = record.sunkProductionCost;
+				// Fold in this week's trunk units whose money is already booked but whose count hasn't
+				// settled yet, so dollars-per-unit reads straight mid-week.
+				long unitsLifetime = record.totalUnitsSold + desk.PendingTrunkUnits(record.baseRecord.recordId);
 				Body($"\"{record.baseRecord.title}\" — {record.baseRecord.artistName}\n" +
-					$"    {record.totalUnitsSold:N0} units lifetime   •   {record.unitsThisWeek:N0} this week   •   " +
+					$"    {unitsLifetime:N0} units lifetime   •   {record.unitsThisWeek:N0} this week   •   " +
 					$"{(record.peakPosition > 0 ? $"peak #{record.peakPosition}" : "uncharted")}\n" +
 					$"    earned ${net:N0} against ${cost:N0} of tape   •   " +
 					$"{(net >= cost ? $"in the black by ${net - cost:N0}" : $"${cost - net:N0} still to make back")}");
@@ -1450,7 +1471,7 @@ public partial class PlayerDeskPanel : Control {
 		if (roster.Count == 0) { Body("Nobody signed."); return; }
 		foreach (SimulatedArtist artist in roster)
 			Body($"{artist.stageName} — ${artist.unrecoupedAdvance:N0} unrecouped   •   " +
-				$"${artist.totalRoyaltyEarnings:N0} paid through   •   {artist.royaltyRate:P0} of retail");
+				$"${artist.totalRoyaltyEarnings:N0} paid through   •   {artist.royaltyRate:P1} of retail");
 	}
 
 	// ========================================================================

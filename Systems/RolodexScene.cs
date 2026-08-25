@@ -346,9 +346,11 @@ public static class RolodexFragments {
 		Add(RolodexSceneBeat.Failure, "Come back with money or come back with a better record. Either works.",
 			archetypes: new[] { DJArchetype.Hustler });
 
-		Add(RolodexSceneBeat.RelationshipAftermath, "He hangs up before you do. Not rude, exactly. Efficient.");
-		Add(RolodexSceneBeat.RelationshipAftermath, "There is a click, then the dial tone, then the sound of your own office again.");
-		Add(RolodexSceneBeat.RelationshipAftermath, "He says something to somebody in the studio with his hand half over the mouthpiece. Then he is gone.");
+		// Beats between asks -- the player may still keep him on the line, so these must not assert the
+		// call has ended. The actual hang-up is the player's own button, not an authored line.
+		Add(RolodexSceneBeat.RelationshipAftermath, "He waits, half-listening, to see whether you're done.");
+		Add(RolodexSceneBeat.RelationshipAftermath, "A beat of studio noise down the line while he decides how much of his afternoon you get.");
+		Add(RolodexSceneBeat.RelationshipAftermath, "He says something to somebody in the studio, hand half over the mouthpiece, then comes back to you.");
 
 		Add(RolodexSceneBeat.Exit, "\"Call me Thursday,\" he says. \"Not Wednesday. Thursday.\"");
 		Add(RolodexSceneBeat.Exit, "\"And listen -- if it moves, I want to hear it from you first, not from the trades.\"");
