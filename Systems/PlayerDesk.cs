@@ -26,6 +26,9 @@ public partial class PlayerDesk : Node {
 	public const int DistributionHours = ActionCosts.RegionalTravel;// 4 -- travel and pitch a house
 	public const int ScheduleHours = ActionCosts.Planning;          // 2 -- booking the release
 	public const int TeachHours = ActionCosts.QuickMeeting;         // 2 -- sitting the act down to start a cover
+	public const int CommissionHours = ActionCosts.QuickMeeting;    // 2 -- putting the brief to a writer
+	public const int CommissionDeliveryDays = 7;                    // a writer turns a commission around in about a week
+	public const float CommissionFee = 150f;                        // the writer's / publisher's fee, paid on commission
 	// A cover is now worked up over several days, not learned on the spot: teaching costs a short setup at the
 	// desk (TeachHours) and then the act rehearses on its own for this many days -- fewer the more capable the
 	// act, scaled by musicianship/cohesion/studio craft in EstimateCoverLearnDays.
@@ -55,8 +58,13 @@ public partial class PlayerDesk : Node {
 		/// <summary>"their own" / "cover" / "standard" -- how the song came to the act.</summary>
 		public string SourceTag;
 		public bool IsOriginal;
-		/// <summary>Set for a cover/standard so the recording step (Phase 2) can find the song.</summary>
+		/// <summary>Set for a cover/standard so the recording step (Phase 2) can find the song. Also set for a
+		/// commissioned professional song, which is a real composition delivered by a writer to order.</summary>
 		public string SongId;
+		/// <summary>A professional song written to order and delivered into the set. Not the act's own writing
+		/// and not a cover of a known song -- it records as professional material, but only after the player
+		/// has seen it here. This is what makes commissioning "see it, then cut it" instead of blind.</summary>
+		public bool IsCommission;
 		public Genre Genre;
 		public float ReadHook;
 		public float ReadQuality;
@@ -79,6 +87,9 @@ public partial class PlayerDesk : Node {
 		public float ReadQuality;
 		public GameDate Started;
 		public GameDate ReadyDate;
+		// A commissioned professional song being written to order, not a cover being rehearsed. Same
+		// pending-delivery machinery; it just lands as a commissioned repertoire item instead of a cover.
+		public bool IsCommission;
 	}
 
 	/// <summary>One act the player looked at on a scouting trip, as the player sees them.</summary>
@@ -240,6 +251,11 @@ public partial class PlayerDesk : Node {
 	private readonly Dictionary<string, List<RepertoireItem>> repertoire = new();
 	// Covers being worked up but not yet in a set (one in progress per act). Completed in ProcessCoverRehearsals.
 	private readonly List<CoverRehearsal> rehearsals = new();
+	// B-side masters that shipped on the flip of a single. They never become a worked record of their own
+	// (only the A-side goes to market and charts), so they never enter ReleasedRecords -- which left their
+	// repertoire line reading "cut, not out yet" forever. Tracked here so the repertoire can say the truth:
+	// they came out, on the flip. Keyed by the B-side master's own record id.
+	private readonly HashSet<string> shippedBSideRecordIds = new(StringComparer.Ordinal);
 	private PendingSession pendingSession;
 	// Pressed vinyl on hand at the office, per single (by record id). The warehouse stock you draw from
 	// to stock towns. The player can only sell what has been pressed AND carried out to a town.
@@ -1125,18 +1141,19 @@ public partial class PlayerDesk : Node {
 		// A number the act has already cut is spent -- it drops out of the material list so it can't be re-recorded.
 		foreach (RepertoireItem item in RepertoireFor(artist.artistId)) {
 			if (item.Recorded) continue;
-			options.Add(item.IsOriginal
-				? new MaterialChoice { Kind = MaterialKind.Original, Title = item.Title, Detail = "their own" }
-				: new MaterialChoice { Kind = MaterialKind.LiveCover, Title = item.Title, SongId = item.SongId, Detail = item.SourceTag });
+			options.Add(
+				item.IsOriginal
+					? new MaterialChoice { Kind = MaterialKind.Original, Title = item.Title, Detail = "their own" }
+					: item.IsCommission
+						? new MaterialChoice { Kind = MaterialKind.Commission, Title = item.Title, SongId = item.SongId, Detail = "commissioned" }
+						: new MaterialChoice { Kind = MaterialKind.LiveCover, Title = item.Title, SongId = item.SongId, Detail = item.SourceTag });
 		}
 		foreach (Song song in songs.Where(s => !s.Recorded && s.ArtistId == artist.artistId))
 			options.Add(new MaterialChoice { Kind = MaterialKind.Original, Title = song.Title, WrittenSong = song, Detail = "their own" });
 
-		// A commissioned office song is the one piece of material that isn't a named, browsable title up
-		// front -- it's written to order. Covers are no longer a blind "cut a standard": the player picks
-		// the exact song from the catalog and teaches it to the act (CoverCatalogFor / TeachCover), so it
-		// arrives in the act's repertoire above with its real title before a note is cut.
-		options.Add(new MaterialChoice { Kind = MaterialKind.Commission, Title = "Commission a professional song", Detail = "staff / office writer" });
+		// Neither commissioning nor covering is a blind "cut something" any more: the player commissions a
+		// specific professional song (CommissionSong) or teaches a specific catalog cover (TeachCover), and
+		// both arrive in the act's repertoire above, by name and with a read, before a note is cut here.
 		return options;
 	}
 
@@ -1161,15 +1178,28 @@ public partial class PlayerDesk : Node {
 		pool.AddRange(CompositionCatalogService.GetCoverableHitsForFamily(family));
 		pool.AddRange(CompositionCatalogService.GetStandardsForFamily(family));
 
+		// Order by hook AND fit, not hook alone. A song squarely in the act's own genre outranks a
+		// family-adjacent one with a marginally catchier hook, so a soul act is offered soul sides first
+		// and only reaches into the wider Rhythm-and-Soul songbook when nothing closer is worth cutting.
 		foreach (SongComposition song in pool.Where(s => s != null && !already.Contains(s.songId))
 			.GroupBy(s => s.songId).Select(group => group.First())
-			.OrderByDescending(s => s.commercialHook).Take(max))
+			.OrderByDescending(s => s.commercialHook * CoverFit(artist, family, s)).Take(max))
 			result.Add(new MaterialChoice {
 				Kind = MaterialKind.LiveCover, Title = song.title, SongId = song.songId,
 				Detail = song.isStandard ? "standard" : "cover",
 				Genre = song.primaryGenre, Hook = song.commercialHook, HasSong = true
 			});
 		return result;
+	}
+
+	/// <summary>How well a catalog song fits the act cutting it: a full weight for a song in the act's own
+	/// genre, less for one merely in the same family, least for anything further out. This is what turns
+	/// "highest hook wins" into "highest hook that actually suits them".</summary>
+	private static float CoverFit(SimulatedArtist artist, GenreFamily family, SongComposition song) {
+		if (song.primaryGenre == artist.primaryGenre) return 1f;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		GenreFamily songFamily = GenreCatalog.Get(GenreCatalog.MapLegacy(song.primaryGenre, year)).Family;
+		return songFamily == family ? 0.72f : 0.45f;
 	}
 
 	/// <summary>How many days this act would take to work a new cover into their set: fewer the more capable
@@ -1183,12 +1213,61 @@ public partial class PlayerDesk : Node {
 			MinCoverLearnDays, MaxCoverLearnDays);
 	}
 
-	/// <summary>Whether this act already has a cover in rehearsal (only one at a time).</summary>
-	public bool IsRehearsing(string artistId) => rehearsals.Any(r => r.ArtistId == artistId);
+	/// <summary>Whether this act already has a cover in rehearsal (only one at a time). Commissions are a
+	/// separate track, so a commission in flight does not close the cover catalog and vice versa.</summary>
+	public bool IsRehearsing(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && !r.IsCommission);
 
-	/// <summary>Covers this act is currently working up (not yet in the set).</summary>
+	/// <summary>Whether this act already has a commission out with a writer (only one at a time).</summary>
+	public bool IsCommissioning(string artistId) => rehearsals.Any(r => r.ArtistId == artistId && r.IsCommission);
+
+	/// <summary>Covers and commissions this act is currently working up / awaiting (not yet in the set).</summary>
 	public IEnumerable<CoverRehearsal> RehearsalsFor(string artistId) =>
 		rehearsals.Where(r => r.ArtistId == artistId);
+
+	/// <summary>
+	/// Puts a brief to a professional writer for this act. A short setup at the desk plus a writer's fee kicks
+	/// it off; the song is written to order and delivered into the act's set after a week -- see
+	/// <see cref="ProcessCoverRehearsals"/> -- with its real title and a read on it, so the player sees exactly
+	/// what they are cutting before the studio. One commission out at a time per act.
+	/// </summary>
+	public bool CommissionSong(SimulatedArtist artist, out string message) {
+		message = "";
+		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
+		if (!RequireHome(out message)) return false;
+		if (IsCommissioning(artist.artistId)) { message = $"A writer is already working on something for {artist.stageName}."; return false; }
+
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		SongComposition song = PickCommissionSong(artist.primaryGenre, year);
+		if (song == null) { message = $"No writer would take a {GenreNameFormatter.Format(artist.primaryGenre)} commission right now."; return false; }
+		if (Label.cashReserves < CommissionFee) { message = $"You're ${CommissionFee - Label.cashReserves:N0} short of the ${CommissionFee:N0} writer's fee."; return false; }
+		if (!Require(CommissionHours, out message)) return false;
+
+		Spend(CommissionHours);
+		Label.cashReserves -= CommissionFee;
+		Label.monthlyExpenses += CommissionFee;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		rehearsals.Add(new CoverRehearsal {
+			ArtistId = artist.artistId, SongId = song.songId, Title = song.title,
+			SourceTag = "commissioned", Genre = song.primaryGenre,
+			ReadHook = song.commercialHook, ReadQuality = song.GetCraftScore(),
+			Started = today, ReadyDate = today.AddDays(CommissionDeliveryDays), IsCommission = true
+		});
+		Note($"Commissioned \"{song.title}\" for {artist.stageName} (${CommissionFee:N0}, ~{CommissionDeliveryDays} days).");
+		message = $"A writer will have \"{song.title}\" for {artist.stageName} in about {CommissionDeliveryDays} days.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>The professional song a commission would deliver for a genre: a weighted pick over the better
+	/// craft in the pool. Player-turn-local (GD.Rand), never called from the AI weekly tick, so it does not
+	/// touch the economy's deterministic RNG schedule -- same discipline as the rest of the desk.</summary>
+	private static SongComposition PickCommissionSong(Genre genre, int year) {
+		var pool = CompositionCatalogService.GetProfessionalForGenre(genre);
+		if (pool == null || pool.Count == 0) return null;
+		var top = pool.OrderByDescending(s => s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f)
+			.Take(Mathf.Min(8, pool.Count)).ToList();
+		return top[(int)(GD.Randf() * top.Count) % top.Count];
+	}
 
 	/// <summary>
 	/// Starts an act working a specific catalog cover into their set. A short setup at the desk kicks it off;
@@ -1242,10 +1321,13 @@ public partial class PlayerDesk : Node {
 			if (set.Any(item => item.SongId == r.SongId)) continue;
 			set.Add(new RepertoireItem {
 				Title = r.Title, SourceTag = r.SourceTag, IsOriginal = false, SongId = r.SongId,
+				IsCommission = r.IsCommission,
 				Genre = r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality
 			});
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(r.ArtistId);
-			Note($"{artist?.stageName ?? "The act"} has \"{r.Title}\" in the set now.");
+			Note(r.IsCommission
+				? $"The writer delivered \"{r.Title}\" for {artist?.stageName ?? "the act"} — ready to record."
+				: $"{artist?.stageName ?? "The act"} has \"{r.Title}\" in the set now.");
 		}
 	}
 
@@ -1430,7 +1512,7 @@ public partial class PlayerDesk : Node {
 	/// a live-set original by title. A commissioned/fresh song has no repertoire entry and is a no-op.</summary>
 	private void MarkRepertoireRecorded(string artistId, MaterialChoice choice, string recordId) {
 		if (!repertoire.TryGetValue(artistId, out List<RepertoireItem> set)) return;
-		RepertoireItem match = choice.Kind == MaterialKind.LiveCover
+		RepertoireItem match = choice.Kind is MaterialKind.LiveCover or MaterialKind.Commission && choice.SongId != null
 			? set.FirstOrDefault(item => !item.Recorded && !item.IsOriginal && item.SongId == choice.SongId)
 			: choice.WrittenSong == null && choice.Kind == MaterialKind.Original
 				? set.FirstOrDefault(item => !item.Recorded && item.IsOriginal && item.Title == choice.Title)
@@ -1449,8 +1531,13 @@ public partial class PlayerDesk : Node {
 					? SongMaterialSelectionService.BuildCoverForSong(artist, record, song, record.primaryGenre, year)
 					: null;
 			case MaterialKind.Commission:
-				return SongMaterialSelectionService.ChooseMaterial(Label, artist, record, record.primaryGenre, year, week,
-					SongMaterialSource.ExternalProfessional);
+				// A delivered commission is a specific song the player has already seen. Record that exact
+				// composition as professional material, rather than re-sampling a fresh one at the studio.
+				SongComposition commissioned = choice.SongId != null ? CompositionCatalogService.GetSong(choice.SongId) : null;
+				return commissioned != null
+					? SongMaterialSelectionService.BuildProfessionalForSong(Label.tier, artist, record, commissioned, record.primaryGenre, year)
+					: SongMaterialSelectionService.ChooseMaterial(Label, artist, record, record.primaryGenre, year, week,
+						SongMaterialSource.ExternalProfessional);
 			case MaterialKind.FreshStandard:
 				return SongMaterialSelectionService.ChooseMaterial(Label, artist, record, record.primaryGenre, year, week,
 					SongMaterialSource.CoverStandard);
@@ -1871,10 +1958,8 @@ public partial class PlayerDesk : Node {
 			consignmentOwed[cityId] = owed + net;
 			weeklyTrunkHeld += net;   // out on consignment this week; not yet at the bank
 		}
-		if (artist != null) {
-			artist.totalRoyaltyEarnings += royalty;
-			artist.unrecoupedAdvance = Mathf.Max(0f, artist.unrecoupedAdvance - royalty);
-		}
+		// (The royalty and recoupment were already booked above, against `accrued`. A second credit here
+		// double-paid the act on every trunk sale and recouped the advance twice -- removed.)
 	}
 
 	/// <summary>A thin daily wire from every town holding money for you (bar the one you're standing in,
@@ -1911,6 +1996,13 @@ public partial class PlayerDesk : Node {
 		return units;
 	}
 
+	/// <summary>This week's trunk units for a record that have sold but not yet folded into totalUnitsSold
+	/// (that fold happens once, at weekly settlement). The MONEY for them is already in lifetimeLabelNet,
+	/// so the readout adds these back in -- otherwise a record worked hard out of the trunk mid-week reads
+	/// as impossibly high dollars-per-unit until the week settles.</summary>
+	public int PendingTrunkUnits(string recordId) =>
+		recordId != null && weeklyTrunkUnits.TryGetValue(recordId, out int units) ? units : 0;
+
 	/// <summary>What each town's shops are currently holding for you, for the DISTRIBUTION readout.</summary>
 	public IEnumerable<(string CityName, float Amount)> ConsignmentOwedByTown() {
 		foreach (var kv in consignmentOwed)
@@ -1938,6 +2030,9 @@ public partial class PlayerDesk : Node {
 		if (release.BSide != null) {
 			release.BSide.Released = true;
 			masters.Remove(release.BSide);
+			// It shipped on the flip -- record that so its repertoire line reads "out (B-side)" and not
+			// "cut, not out yet". The B-side is never a market record of its own, so this is its only trace.
+			if (release.BSide.Record?.recordId != null) shippedBSideRecordIds.Add(release.BSide.Record.recordId);
 		}
 		string flip = release.BSide != null ? $" b/w \"{release.BSide.SongTitle}\"" : "";
 		Note($"RELEASED: \"{release.Master.SongTitle}\"{flip} by {artist.stageName} ({date.ToHeadlineString()}).");
@@ -2079,6 +2174,7 @@ public partial class PlayerDesk : Node {
 			Repertoire = repertoire.ToDictionary(kv => kv.Key,
 				kv => kv.Value.Select(RepertoireSaveData.From).ToList()),
 			Rehearsals = rehearsals.Select(CoverRehearsalSaveData.From).ToList(),
+			ShippedBSideRecordIds = shippedBSideRecordIds.ToList(),
 			Log = new List<string>(log),
 			Books = books.Select(WeekBookSaveData.From).ToList(),
 
@@ -2212,6 +2308,8 @@ public partial class PlayerDesk : Node {
 			repertoire[kv.Key] = (kv.Value ?? new List<RepertoireSaveData>()).Select(r => r.ToItem()).ToList();
 		rehearsals.Clear();
 		rehearsals.AddRange((data.Rehearsals ?? new List<CoverRehearsalSaveData>()).Select(r => r.ToRehearsal()));
+		shippedBSideRecordIds.Clear();
+		if (data.ShippedBSideRecordIds != null) shippedBSideRecordIds.UnionWith(data.ShippedBSideRecordIds);
 		log.Clear();
 		log.AddRange(data.Log ?? new List<string>());
 		books.Clear();
@@ -2424,9 +2522,17 @@ public partial class PlayerDesk : Node {
 	public IEnumerable<Song> UnrecordedSongs => songs.Where(song => !song.Recorded);
 	/// <summary>All the act's written songs, recorded or not (the repertoire view shows recorded ones as cut).</summary>
 	public IEnumerable<Song> SongsFor(string artistId) => songs.Where(song => song.ArtistId == artistId);
-	/// <summary>True once the record has actually shipped (it's in the world), vs merely cut and sitting on the shelf.</summary>
+	/// <summary>True once the record has actually shipped (it's in the world), vs merely cut and sitting on the shelf.
+	/// Counts a B-side that shipped on a single's flip, which is out even though it never became a market record.</summary>
 	public bool IsRecordReleased(string recordId) =>
-		recordId != null && ReleasedRecords.Any(r => r.baseRecord?.recordId == recordId);
+		recordId != null && (ReleasedRecords.Any(r => r.baseRecord?.recordId == recordId)
+			|| shippedBSideRecordIds.Contains(recordId));
+
+	/// <summary>True if this cut shipped only as the B-side of a single -- out, but on the flip, never worked
+	/// as its own record. Lets the repertoire distinguish an A-side chasing the chart from its flip.</summary>
+	public bool IsRecordReleasedAsBSide(string recordId) =>
+		recordId != null && shippedBSideRecordIds.Contains(recordId)
+			&& !ReleasedRecords.Any(r => r.baseRecord?.recordId == recordId);
 	public IEnumerable<RecordRuntimeData> ReleasedRecords =>
 		Label == null ? Enumerable.Empty<RecordRuntimeData>()
 			: (ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>())

@@ -12,6 +12,7 @@
       "voice": { "nicknameDensity": 0.1, "punctuationIntensity": 0.5, "archaismLevel": 0.05 },
       "domainAffinity": { "romance": 3, "celestial": 2, "candy": 1.5, "body": 1.5 },
       "moodAffinity": { "romantic": 3, "joyful": 2, "wistful": 1.5 },
+      "suppress": ["grit", "vice", "conflict", "protest"],
       "moodThreshold": 0.3 },
 
     { "id": "GirlGroup", "extends": "TeenPop",

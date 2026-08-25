@@ -21,7 +21,7 @@
     { "pos": "noun", "tags": ["weather", "ominous"], "words": [
       "rain", "thunder", "storm", "wind", "lightning", "hurricane", "cloud", "fog", "hail", "tempest"
     ]},
-    { "pos": "noun", "tags": ["terrain", "restless"], "words": [
+    { "pos": "noun", "tags": ["terrain", "restless", "attributive"], "words": [
       "mountain", "canyon", "river", "road", "valley", "desert", "highway", "prairie", "hill",
       "creek", "trail", "ridge", "delta", "badlands"
     ]},
@@ -29,7 +29,7 @@
       "rose", "garden", "tangerine", "marmalade", "orchid", "willow", "marigold", "lotus",
       "jasmine", "clover", "daffodil", "petal", "meadow", "blossom"
     ]},
-    { "pos": "noun", "tags": ["fauna", "restless"], "words": [
+    { "pos": "noun", "tags": ["fauna", "restless", "groupEligible"], "words": [
       "snake", "dove", "raven", "falcon", "panther", "wolf", "sparrow", "nightingale",
       "serpent", "hawk", "swan", "tiger"
     ]},
@@ -40,7 +40,7 @@
     ]},
     { "pos": "noun", "tags": ["romance", "romantic", "earnest", "wistful"], "words": [
       "love", "sweetheart", "angel", "darling", "baby", "lover", "honey", "valentine",
-      "flame", "kisses", "romance", "affection"
+      "flame", "kiss", "romance", "affection"
     ]},
     { "pos": "noun", "tags": ["kin", "earnest"], "words": [
       "mama", "brother", "sister", "papa", "daddy", "child", "son", "family", "kin"
@@ -79,7 +79,7 @@
     { "pos": "noun", "tags": ["dance", "joyful"], "words": [
       "twist", "watusi", "hop", "stomp", "shimmy", "boogaloo", "jerk", "monkey", "swim", "shake"
     ]},
-    { "pos": "noun", "tags": ["vehicle", "restless"], "words": [
+    { "pos": "noun", "tags": ["vehicle", "restless", "groupEligible"], "words": [
       "Cadillac", "woodie", "pickup", "hotrod", "convertible", "roadster", "coupe", "wagon"
     ]},
 
@@ -87,7 +87,7 @@
       "pos": "noun", "tags": ["diurnal", "wistful"], "words": [
       "midnight", "dawn", "tonight", "Sunday", "morning", "evening", "nightfall", "daybreak", "sundown"
     ]},
-    { "pos": "noun", "tags": ["seasonal", "nostalgic"], "words": [
+    { "pos": "noun", "tags": ["seasonal", "nostalgic", "attributive"], "words": [
       "summer", "autumn", "September", "winter", "springtime", "harvest", "indian summer"
     ]},
     { "pos": "noun", "tags": ["temporal", "nostalgic", "poetic"], "words": [
@@ -256,8 +256,16 @@
     { "pos": "groupNoun", "tags": ["ensemble", "jazzCombo"], "words": [
       "Quartet", "Quintet", "Trio", "Combo", "Orchestra", "Ensemble", "Sextet", "All Stars", "Septet"
     ]},
+    { "//": "=== jazz & namedEnsemble — per-word weight matching the doc's suggested distribution (Quartet 30-35%, Quintet 25-30%, Trio 20-25%, Sextet 8-12%, Ensemble/Orchestra/Big Band 5-10% combined), for the gender-neutral 'with the X' album billing. ===",
+      "pos": "groupNoun", "tags": ["jazz", "namedEnsemble"], "weight": 5, "words": [ "Quartet" ]},
+    { "pos": "groupNoun", "tags": ["jazz", "namedEnsemble"], "weight": 4.5, "words": [ "Quintet" ]},
+    { "pos": "groupNoun", "tags": ["jazz", "namedEnsemble"], "weight": 3.5, "words": [ "Trio" ]},
+    { "pos": "groupNoun", "tags": ["jazz", "namedEnsemble"], "weight": 1.5, "words": [ "Sextet" ]},
+    { "pos": "groupNoun", "tags": ["jazz", "namedEnsemble"], "weight": 0.5, "words": [ "Ensemble", "Orchestra", "Big Band" ]},
     { "pos": "groupNoun", "tags": ["folk"], "words": [
-      "Trio", "Minstrels", "Balladeers", "Wayfarers", "Ramblers", "Travelers", "Singers", "Journeymen"
+      "Trio", "Minstrels", "Balladeers", "Wayfarers", "Ramblers", "Travelers", "Singers", "Journeymen",
+      "Troubadours", "Pilgrims", "Vagabonds", "Songsmiths", "Storytellers", "Chroniclers", "Voyagers",
+      "Pathfinders", "Wayfinders", "Songcatchers", "Balladiers", "Homesteaders"
     ]},
 
     { "//": "=== Latin flavor (Boogaloo / LatinPop / TexMex) — 'spanish' locale gates these to Spanish-orthography genres only, so they don't bleed into Soul/Sunshine/etc. ===",
@@ -293,7 +301,7 @@
       "___": "NAMING v2 ADDITIONS (docs namesystemv2g) — pools + filters the v2 template sets require. Direct-address, solo-act nickname/honorific, band groupNoun filters, jazz/easy adjectives, regional/abstract domains." },
 
     { "//": "=== REGIONAL — place names (easy/blues/jazz reference 'regional'; was undefined = hard fail). ===",
-      "pos": "noun", "tags": ["regional", "nostalgic"], "words": [
+      "pos": "noun", "tags": ["regional", "nostalgic", "placeName"], "words": [
       "California", "Nashville", "Memphis", "New Orleans", "Tijuana", "Havana", "Rio", "Harlem",
       "the Border", "Kansas City", "Chicago", "Main Street", "the Bayou", "Georgia", "Tennessee",
       "Carolina", "the Delta", "Broadway", "Route 66"
@@ -329,7 +337,7 @@
     ]},
 
     { "//": "=== LOVE / ADDRESS TERMS — the 'you' being sung to. Gender-soft; adapter may gender-agree. ===",
-      "pos": "love", "tags": ["romantic"], "words": [
+      "pos": "love", "tags": ["romantic", "intimate"], "words": [
       "baby", "darling", "honey", "sweetheart", "angel", "love", "dear", "sugar", "babe",
       "my love", "little girl", "little one", "sweet thing", "pretty baby"
     ]},
@@ -347,31 +355,36 @@
       "And I Love You", "Forever and Ever", "The Way You Do", "All Night Long", "'Til I Die",
       "Right Now", "Every Day", "Once More"
     ]},
-    { "pos": "phraseFrag", "tags": ["instrumental", "serene"], "words": [
+    { "//": "=== formerly the pool behind 'easy_journey' ('%noun% (%phraseFrag%)') — that construction is retired per the doc (parentheses aren't automatically instrumental); folded into the instrumentalTitle system instead of going unused. ===",
+      "pos": "phraseFrag", "tags": ["instrumental", "instrumentalTitle", "easyListening", "serene"], "words": [
       "A Musical Journey", "Theme", "Instrumental", "A Portrait", "A Reverie", "Mood Music",
       "In Stereo", "For Lovers Only"
     ]},
 
-    { "//": "=== NICKNAMES — prefix stage-name particles. 'standalone' works alone as a mononym. apostropheDrop applies to -in' entries. ===",
-      "pos": "nickname", "tags": ["blues"], "words": [
-      "Howlin'", "Lightnin'", "Blind", "Sonny", "Big", "Little", "Slim", "Muddy", "Peg Leg",
-      "Barrelhouse", "Cripple", "Champion", "Washboard", "Memphis"
+    { "//": "=== NICKNAMES — split into blues' real grammatical classes (doc: 'Little Walter' is prefix+first name, 'Lightnin' Hopkins' is epithet+surname, 'Howlin' Wolf' is a complete stage name; a single unrestricted pool produces 'Howlin' Johnson'/'Guitar Hopkins'). stagePrefix moved to the honorific pool below. ===",
+      "pos": "nickname", "tags": ["blues", "surnameEpithet", "male"], "words": [ "Lightnin'", "Sunny", "Smokey", "Magic", "Lucky" ]},
+    { "pos": "nickname", "tags": ["blues", "instrumentEpithet", "male"], "words": [ "Guitar", "Harp", "Piano", "Washboard" ]},
+    { "pos": "nickname", "tags": ["blues", "personalEpithet", "male"], "words": [
+      "Slim", "Sonny", "Peg Leg", "Barrelhouse", "Cripple", "Champion", "Memphis", "Red", "Junior"
     ]},
     { "pos": "nickname", "tags": ["blues", "standalone"], "words": [
-      "Muddy", "Lightnin'", "Leadbelly", "Sonny Boy", "T-Bone", "Bo"
+      "Muddy", "Leadbelly", "Sonny Boy", "T-Bone", "Bo"
     ]},
     { "pos": "nickname", "tags": ["funk"], "words": [
       "Funky", "The Godfather", "Soul Brother", "Mr. Dynamite", "The Wizard", "Sweet", "Boss"
     ]},
-    { "pos": "nickname", "tags": ["jazz"], "words": [
-      "Dizzy", "Cannonball", "Count", "Duke", "Fats", "Bird", "Trane", "Satchmo", "Prez", "Lady"
+    { "//": "=== 'Some historical jazz nicknames were highly individual and should not be treated as generic reusable prefixes' (doc) — split into surnameEpithet (Dizzy Gillespie shape) and personalEpithet (rarer, more idiosyncratic); Duke/Count/Satchmo/Lady moved to the stageName pool below as complete units. ===",
+      "pos": "nickname", "tags": ["jazz", "surnameEpithet", "male"], "words": [ "Dizzy", "Cannonball", "Sonny", "Philly", "Red", "Blue", "Junior", "Booker" ]},
+    { "pos": "nickname", "tags": ["jazz", "personalEpithet", "male"], "words": [ "Sweets", "Pepper", "Shorty", "Tiny", "Lucky" ]},
+    { "//": "=== 'Little'/'Big' moved to the honorific pool as stagePrefix (they precede a first name); this pool is now personalEpithet-only (replaces the first name or precedes a surname) — the exact split the doc calls for, since mixing them produced 'Fats Richard'/'Little Domino'. ===",
+      "pos": "nickname", "tags": ["rocknroll", "personalEpithet", "male"], "words": [
+      "Fats", "Chuck", "Wild", "Screamin'", "Rockin'", "Fireball", "Jumpin'", "Slim", "Sonny", "Speedy", "Sleepy", "Lucky"
     ]},
-    { "pos": "nickname", "tags": ["rocknroll"], "words": [
-      "Little", "Fats", "Chuck", "Big", "Wild", "Screamin'", "Rockin'", "Fireball", "Jumpin'"
+    { "//": "=== 'Cowboy'/'Little Jimmy' moved to the honorific pool as stagePrefix (they precede a first name); this pool is personalEpithet-only (Tex Ritter shape: epithet replaces/precedes the surname), same split rationale as doo-wop/soul/rock-and-roll. ===",
+      "pos": "nickname", "tags": ["country", "personalEpithet", "male"], "words": [
+      "Hank", "Tex", "Slim", "Whisperin'", "Cousin", "Grandpa", "Red", "Skeeter", "Lefty", "Lucky"
     ]},
-    { "pos": "nickname", "tags": ["country"], "words": [
-      "Hank", "Tex", "Slim", "Cowboy", "Whisperin'", "Cousin", "Grandpa", "Little Jimmy"
-    ]},
+    { "pos": "nickname", "tags": ["country", "personalEpithet", "female"], "words": [ "Skeeter", "Lucky" ]},
     { "pos": "nickname", "tags": ["reggae"], "words": [
       "Prince", "King", "Sir", "Lord", "Duke", "Jackie", "Toots", "Scratch"
     ]},
@@ -388,17 +401,23 @@
     { "pos": "honorific", "tags": ["latin", "female"], "words": [ "La", "Doña", "Reina" ]},
     { "pos": "honorific", "tags": ["reggae", "male"], "words": [ "King", "Prince", "Sir", "Lord", "Ras" ]},
 
-    { "//": "=== INSTRUMENTS — for '& His Trumpet/Organ' easy-listening credits. ===",
-      "pos": "instrument", "tags": ["melodic"], "words": [
-      "Trumpet", "Trombone", "Organ", "Piano", "Guitar", "Saxophone", "Clarinet", "Accordion",
-      "Harmonica", "Vibraphone", "Marimba", "Strings"
+    { "//": "=== INSTRUMENTS — split by class (doc: 'and His %instrument%' was too literal on its own; '[Name] at the Organ'/'Plays the Trumpet' need keyboard vs. featuredSolo vs. orchestralSection distinctions). ===",
+      "pos": "instrument", "tags": ["melodic", "keyboard", "featuredSolo"], "words": [
+      "Organ", "Piano", "Accordion"
+    ]},
+    { "pos": "instrument", "tags": ["melodic", "featuredSolo"], "words": [
+      "Trumpet", "Guitar", "Saxophone", "Vibraphone", "Harmonica"
+    ]},
+    { "pos": "instrument", "tags": ["melodic", "orchestralSection"], "words": [
+      "Strings", "Trombone", "Clarinet", "Marimba"
     ]},
 
     { "//": "=== NUMBERS — garage/funk numeric titles. 'small' for (Part N). ===",
       "pos": "number", "tags": ["any"], "words": [
       "96", "16", "1-2-3", "One", "Two", "Seven", "Nineteen", "A Thousand", "634-5789", "409"
     ]},
-    { "pos": "number", "tags": ["small"], "words": [ "One", "Two", "Three", "1", "2" ]},
+    { "pos": "number", "tags": ["small", "smallNumber", "jazzMeter"], "words": [ "One", "Two", "Three", "1", "2" ]},
+    { "pos": "number", "tags": ["jazzMeter"], "words": [ "Four", "Five", "Seven" ]},
 
     { "//": "=== FILM TITLES — soundtrack pseudo-titles. Evocative fake movie names. ===",
       "pos": "filmTitle", "tags": ["any"], "words": [
@@ -451,6 +470,615 @@
     ]},
     { "pos": "groupNoun", "tags": ["psych"], "words": [
       "Experience", "Airplane", "Machine", "Union", "Explosion", "Trip", "Elevator", "Movement", "Kaleidoscope", "Incorporated"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "DOOWOP v2 additions (naming-genre-templates directive): vocal-group emblem nouns, a purpose-built/place-derived groupNoun pool, vocable/title-clause phraseFrags, transitivity-tagged verbs, and the small new pos categories (adverb/questionWord/personNoun) doo-wop's syntactic titles need." },
+
+    { "//": "=== VOCAL-GROUP EMBLEM NOUNS — the bird/gem/celestial/status pools period groups actually drew their names from (Orioles, Ravens, Flamingos, Diamonds...). Tagged 'vocalGroup' so The %noun:pl% stops being celestial/gem-only. ===",
+      "pos": "noun", "tags": ["bird", "animal", "vocalGroup"], "words": [
+      "raven", "oriole", "flamingo", "penguin", "lark", "swan"
+    ]},
+    { "pos": "noun", "tags": ["gem", "vocalGroup"], "words": [
+      "crest", "crown", "diamond", "pearl", "jewel"
+    ]},
+    { "pos": "noun", "tags": ["celestial", "vocalGroup"], "words": [
+      "star", "moon", "comet", "satellite"
+    ]},
+    { "pos": "noun", "tags": ["status", "royalty", "vocalGroup"], "words": [
+      "teenager", "cavalier", "cadet", "drifter", "dreamer"
+    ]},
+
+    { "//": "=== NUMBERED VOCAL GROUPS — group-level 'weight' skews the draw toward Five/Four over Six/Three (doc: period groups were overwhelmingly named Four/Five). ===",
+      "pos": "number", "tags": ["vocalGroup", "smallGroup"], "weight": 4, "words": [ "Five" ]},
+    { "pos": "number", "tags": ["vocalGroup", "smallGroup"], "weight": 3, "words": [ "Four" ]},
+    { "pos": "number", "tags": ["vocalGroup", "smallGroup"], "weight": 1, "words": [ "Six" ]},
+    { "pos": "number", "tags": ["vocalGroup", "smallGroup"], "weight": 0.5, "words": [ "Three" ]},
+
+    { "//": "=== PURPOSE-BUILT / PLACE-DERIVED groupNoun — invented plural collectives, distinct from the gems/birds/royalty/musical pools (which doo-wop bands also drew from via the OR filter). ===",
+      "pos": "groupNoun", "tags": ["doowop", "placeDerived"], "words": [
+      "Del-Tones", "Starlighters", "Harlemaires", "Empresstones", "Cascadaires", "Rendezvous",
+      "Velvetones", "Fascinations", "Chantelles", "Rio-Tones"
+    ]},
+
+    { "//": "=== STAGE-PREFIX HONORIFICS — 'Little'/'Baby'/'Junior' as a grammatical class distinct from a personal nickname (Fats, Muddy). Tagged with the real 'early60s' era class so they fade on schedule rather than a fake era tag. ===",
+      "pos": "honorific", "tags": ["stagePrefix", "early60s", "male"], "words": [ "Little", "Baby", "Junior", "Young" ]},
+    { "pos": "honorific", "tags": ["stagePrefix", "early60s", "female"], "words": [ "Little", "Baby", "Miss" ]},
+
+    { "//": "=== ADJECTIVES — color/youthful, for the collective + celestial title constructions. ===",
+      "pos": "adjective", "tags": ["color", "youthful"], "words": [
+      "golden", "silver", "blue", "crimson", "young", "fresh", "scarlet", "midnight-blue", "jet-black",
+      "electric", "wild", "reckless", "restless", "roaring", "runaway", "renegade"
+    ]},
+
+    { "//": "=== TITLE-CLAUSE / VOCABLE / RESPONSE phraseFrags — curated whole units, not Markov-generated (doo-wop's vocables and complete-clause titles need to read as real phrases, not noun-salad). ===",
+      "pos": "phraseFrag", "tags": ["doowop", "titleClause"], "words": [
+      "Only You Know Why", "Since You Went Away", "Just to Hold Your Hand", "Every Star Above",
+      "Wait for Me Tonight", "Under the Same Old Moon", "Someday You'll Understand", "Right Back Where We Started"
+    ]},
+    { "pos": "phraseFrag", "tags": ["doowop", "vocableTitle"], "words": [
+      "Doo-Wah", "Sha-Bam", "Ooh-La-Ray", "Ram-a-Lam", "Ding-a-Ling",
+      "Zoom-Boom-Zay", "Wop-Bop-a-Loo", "Sha-Na-Doo", "Bim-Bam-Boo", "Doo-Ron-Doo"
+    ]},
+    { "pos": "phraseFrag", "tags": ["doowop", "romanticResponse"], "words": [
+      "You're My Only One", "I Need You So", "Don't Ever Go", "Only for You", "That's All I Need"
+    ]},
+
+    { "//": "=== VERBS — transitivity/register tags (doowop's direct-address grammar needs 'takes a person object' vs 'stands alone' as an explicit distinction, not just mood). Layered atop existing mood tags via domain tags (romance/emotion). ===",
+      "pos": "verb", "tags": ["romance", "emotion", "transitivePerson", "plea", "presentTitle"], "words": [
+      "love", "need", "want", "miss", "adore", "remember", "forget", "hold", "keep"
+    ]},
+    { "pos": "verb", "tags": ["romance", "emotion", "intransitive"], "words": [
+      "cry", "fall", "dream", "care", "wonder"
+    ]},
+    { "pos": "verb", "tags": ["invitation", "intransitive"], "words": [
+      "come", "stay", "dance", "wait"
+    ]},
+
+    { "//": "=== NEW POS CATEGORIES — small curated pools for grammatical slots doo-wop's constructions need that no existing pos covers. ===",
+      "pos": "adverb", "tags": ["exclusive", "devotion"], "words": [ "Only", "Forever", "Always", "Truly" ]},
+    { "pos": "questionWord", "tags": ["reason", "time", "place"], "words": [ "Why", "When", "Where", "How Long" ]},
+    { "pos": "personNoun", "tags": ["youth", "romanceParticipant"], "words": [
+      "teenager", "fool", "dreamer", "sweetheart", "stranger"
+    ]},
+
+    { "//": "=== NOUNS — the remaining grammatical/domain tags the fixed song-title constructions need (stillness-of-night, noun-on-my-noun, book-of-love, my-love, single-word). Small curated pools, not the broad celestial/romance sweep the old templates over-relied on. ===",
+      "pos": "noun", "tags": ["stillness", "depth", "middle", "poetic"], "words": [
+      "stillness", "hush", "quiet", "depth", "heart", "middle"
+    ]},
+    { "pos": "noun", "tags": ["emotionPhysical", "water"], "words": [
+      "tear", "rain", "stardust", "kiss"
+    ]},
+    { "pos": "noun", "tags": ["domestic", "body", "intimateObject"], "words": [
+      "pillow", "sleeve", "doorstep", "windowsill"
+    ]},
+    { "pos": "noun", "tags": ["written", "symbolic", "romanceObject", "domestic"], "words": [
+      "book", "letter", "locket", "ring", "promise"
+    ]},
+    { "pos": "noun", "tags": ["devotion", "romance", "emotion"], "words": [
+      "love", "devotion", "faith", "adoration"
+    ]},
+    { "pos": "noun", "tags": ["petName", "intimate", "romance", "titleWord"], "words": [
+      "baby", "angel", "darling", "sweetheart", "precious"
+    ]},
+    { "pos": "noun", "tags": ["romance", "titleWord"], "words": [
+      "Maybe", "Donna", "Speedoo", "Diamonds", "Angel"
+    ]},
+    { "pos": "noun", "tags": ["song", "romance", "devotion"], "words": [
+      "song", "serenade", "ballad", "tune"
+    ]},
+    { "pos": "love", "tags": ["address", "audience", "romantic", "youthful"], "words": [
+      "you", "the one I love", "my baby", "everybody"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "SOUL v2 additions (naming-genre-templates directive): transitivity/valency verbs, intimate-address nouns, curated title-clause/parenthetical phraseFrags, the aspirational/abstract/motion groupNoun families Motown-style acts drew from, kinGroup, and stagePrefix honorifics distinct from doo-wop's (Little/Big/King/Major, not Lady/Mr./Miss/Sir)." },
+
+    { "//": "=== VERBS — soul's grammar needs a wider transitivePerson/imperativePerson/plea vocabulary than doo-wop's. ===",
+      "pos": "verb", "tags": ["romance", "transitivePerson"], "words": [
+      "hurt", "trust", "satisfy"
+    ]},
+    { "pos": "verb", "tags": ["romance", "imperativePerson"], "words": [
+      "hold", "love", "take", "help", "call", "hear", "forgive", "believe"
+    ]},
+    { "pos": "verb", "tags": ["plea", "transitivePerson"], "words": [
+      "leave", "deceive", "abandon"
+    ]},
+
+    { "//": "=== NOUNS — intimate address terms (My Girl / My Guy) and titleWord abstractions (Respect, Temptation). ===",
+      "pos": "noun", "tags": ["body", "intimate"], "words": [
+      "girl", "guy", "heart", "woman", "man"
+    ]},
+    { "pos": "noun", "tags": ["virtue", "titleWord"], "words": [
+      "respect", "devotion", "temptation", "mercy", "pride"
+    ]},
+
+    { "//": "=== PHRASE FRAGMENTS — soul's complete-clause titles and structurally-related parentheticals (a subtitle that answers or echoes the main title, not a decorative add-on). ===",
+      "pos": "phraseFrag", "tags": ["soul", "titleClause"], "words": [
+      "I've Been Missing You So Long", "You Keep Me Wondering", "Reach Out for My Love",
+      "Hold On to What We Have", "Ain't Too Proud to Ask", "I Second Every Word",
+      "Wait Until You Hear Me", "Since I Found Real Love"
+    ]},
+    { "pos": "phraseFrag", "tags": ["soul", "parentheticalMain"], "words": [
+      "I Can't Help Myself", "Ain't Nothing Like the Real Thing", "You've Really Got a Hold on Me", "I'm Losing You"
+    ]},
+    { "pos": "phraseFrag", "tags": ["soul", "parentheticalResponse"], "words": [
+      "Sugar Pie, Honey Bunch", "Since You've Been Gone", "Hold On Tight", "Come Back to Stay"
+    ]},
+
+    { "//": "=== GROUPNOUN — the aspirational/abstract/motion families behind Motown-style billing (Martha and the X, Smokey Robinson and the Y). ===",
+      "pos": "groupNoun", "tags": ["aspirational"], "words": [
+      "Miracles", "Wonders", "Dreams", "Sensations", "Impressions", "Wishes", "Promises", "Blessings",
+      "Daydreams", "Heartbeats", "Starlights", "Cherubs"
+    ]},
+    { "pos": "groupNoun", "tags": ["abstract"], "words": [
+      "Temptations", "Emotions", "Ambassadors", "Elements"
+    ]},
+    { "pos": "groupNoun", "tags": ["motion"], "words": [
+      "Vibrations", "Rhythms", "Escorts", "Movements", "Ripples", "Currents", "Momentum", "Impulses",
+      "Velocities", "Reflexes", "Pulses", "Cadences"
+    ]},
+
+    { "//": "=== KINGROUP — 'The [Surname] Family/Brothers/Sisters' billing. ===",
+      "pos": "kinGroup", "tags": ["musical"], "words": [ "Brothers", "Sisters", "Family", "Singers", "Children" ]},
+
+    { "//": "=== STAGE-PREFIX HONORIFICS — soul's own set (Little/Big/King/Major), distinct from doo-wop's; explicitly NOT Lady/Mr./Miss/Sir (doc: those aren't normal 1960s soul billing). ===",
+      "pos": "honorific", "tags": ["stagePrefix", "soul", "male"], "words": [ "Little", "Big", "King", "Major" ]},
+    { "pos": "honorific", "tags": ["stagePrefix", "soul", "female"], "words": [ "Little", "Big" ]},
+
+    { "//": "=================================================================",
+      "___": "TRADITIONAL POP v2 additions (naming-genre-templates directive): the genre had NO songTitle set at all (fell back to jazz's), plus the four vocabulary modes the doc calls out (romantic/world-weary/urbane-nightlife/swinging) so the genre reads as its own thing rather than a formal doo-wop or soul. New 'place' pos for the jet-set city references." },
+
+    { "//": "=== URBANE/NIGHTLIFE mode — cocktails, clubs, city lights. ===",
+      "pos": "noun", "tags": ["nightlife", "urban"], "words": [
+      "nightclub", "cocktail", "neon", "marquee", "wine", "lights"
+    ]},
+    { "pos": "noun", "tags": ["romanticDestination", "nightlife"], "words": [
+      "the moon", "paradise", "the stars", "a world of our own"
+    ]},
+    { "pos": "place", "tags": ["city", "country", "region", "romanticDestination", "nightlife"], "words": [
+      "Paris", "Rome", "Monte Carlo", "Vienna", "the Riviera", "Naples", "London", "Copacabana"
+    ]},
+
+    { "//": "=== SWINGING/PLAYFUL mode — luck, style, rhythm, the good life. ===",
+      "pos": "noun", "tags": ["lifestyle", "life", "swinging"], "words": [
+      "style", "rhythm", "luck", "the good life", "life"
+    ]},
+    { "pos": "adjective", "tags": ["swinging", "playful"], "words": [
+      "swinging", "carefree", "breezy", "lively"
+    ]},
+    { "pos": "verb", "tags": ["dance", "albumActivity"], "words": [ "swing", "dance", "dream", "sing" ]},
+    { "pos": "verb", "tags": ["invitation", "dance", "albumImperative"], "words": [ "dream", "swing", "dance", "stay" ]},
+
+    { "//": "=== WORLDLY/URBANE register — the adjectives that keep this from reading as merely tender. ===",
+      "pos": "adjective", "tags": ["worldly", "elegant"], "words": [
+      "worldly", "sophisticated", "urbane", "seasoned"
+    ]},
+    { "pos": "adjective", "tags": ["wonderful", "international", "elegant"], "words": [
+      "wonderful", "international", "cosmopolitan", "exotic"
+    ]},
+
+    { "//": "=== REPERTOIRE/PROGRAM album vocabulary. ===",
+      "pos": "noun", "tags": ["standardRepertoire"], "words": [
+      "standard", "favorite", "classic", "show tune"
+    ]},
+    { "pos": "noun", "tags": ["evening", "night", "occasion", "season", "holiday"], "words": [
+      "evening", "night", "occasion", "gathering", "season", "holiday"
+    ]},
+    { "pos": "noun", "tags": ["audience", "romanceParticipant", "dreamer", "lover", "dancer"], "words": [
+      "lover", "dreamer", "romantic", "admirer"
+    ]},
+
+    { "//": "=== 'In the Wee Small Hours'-family album title — kept tightly constrained per the doc (a loose adjective+noun version resembles one famous title too closely). ===",
+      "pos": "adjective", "tags": ["size", "degree"], "words": [ "wee", "small", "brief", "tiny" ]},
+    { "pos": "adjective", "tags": ["quiet", "lateNight", "temporal"], "words": [ "quiet", "late", "still" ]},
+    { "pos": "noun", "tags": ["timeUnit"], "words": [ "hour", "morning", "evening", "night" ]},
+
+    { "//": "=== VERBS — the remaining grammatical tags traditional pop's clause-heavy titles need. ===",
+      "pos": "verb", "tags": ["romance", "imperativePerson"], "words": [ "kiss", "remember" ]},
+    { "pos": "verb", "tags": ["invitation"], "words": [ "walk" ]},
+    { "pos": "verb", "tags": ["travel", "motionTransitive"], "words": [ "fly", "take", "carry", "bring" ]},
+    { "pos": "verb", "tags": ["judgment", "imperativePerson"], "words": [ "call", "consider", "forgive" ]},
+
+    { "//": "=== TITLE-CLAUSE phraseFrags — curated complete clauses in the standards/torch-song idiom, original phrasing rather than existing standards' exact titles. ===",
+      "pos": "phraseFrag", "tags": ["traditionalPop", "titleClause"], "words": [
+      "All I Need Is You Tonight", "As Long as You're Beside Me", "I Could Have Loved You Forever",
+      "I Wish I'd Known Sooner", "If You Were Only Mine", "Let's Call It an Evening",
+      "Someone Is Waiting for Me", "There Goes My Heart Again", "You Make the Nights Feel Young",
+      "Nobody Else but You"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "ROCK AND ROLL v2 additions (naming-genre-templates directive): stagePrefix/personalEpithet honorific-nickname split, the particle/valency verb classes ('Shake It Up' works, 'Drive It Up' doesn't), and the school/youth/music/fashion/technology domain vocabulary that pulls this genre off the doo-wop/teen-pop dreamy-romance base it inherited from EarlyRock." },
+
+    { "//": "=== VERBS — particle and valency classes. Multiple pools per word-family since a verb's grammatical class here is orthogonal to its domain tag. ===",
+      "pos": "verb", "tags": ["dance", "particleUp"], "words": [ "shake", "wind", "turn", "heat", "live", "tear" ]},
+    { "pos": "verb", "tags": ["dance", "imperativeObject"], "words": [ "shake", "move", "rock", "roll", "play", "start" ]},
+    { "pos": "verb", "tags": ["motion", "particleOver"], "words": [ "roll", "move", "slide" ]},
+    { "pos": "verb", "tags": ["dance", "aroundFrame"], "words": [ "rock", "spin", "travel" ]},
+    { "pos": "verb", "tags": ["dance", "rhythmicImperative"], "words": [ "shake", "rattle", "jump", "jive", "bop", "twist" ]},
+    { "pos": "verb", "tags": ["dance", "invitation"], "words": [ "swing", "rock", "ride", "go" ]},
+    { "pos": "verb", "tags": ["rouse", "particleUp"], "words": [ "wake", "get up", "rise" ]},
+
+    { "//": "=== NOUNS — school/youth/music/technology vocabulary this genre needs and previously had almost none of. ===",
+      "pos": "noun", "tags": ["school", "youth", "groupEligible"], "words": [
+      "school", "homeroom", "study hall", "the gym", "the hop"
+    ]},
+    { "pos": "noun", "tags": ["occupation", "trouble"], "words": [ "trucker", "hobo", "gambler" ]},
+    { "pos": "noun", "tags": ["music", "party", "groupEligible"], "words": [ "record hop", "jamboree", "jukebox", "rhythm" ]},
+    { "pos": "noun", "tags": ["partyObject", "music"], "words": [ "record", "guitar", "radio", "jukebox" ]},
+    { "pos": "noun", "tags": ["time", "town"], "words": [ "clock", "town", "world" ]},
+    { "pos": "noun", "tags": ["danceEvent", "school"], "words": [ "hop", "sock hop", "dance", "record hop" ]},
+    { "pos": "noun", "tags": ["massNoun", "trouble", "dance"], "words": [ "trouble", "shakin'", "lovin'", "rockin'" ]},
+    { "pos": "noun", "tags": ["clothing", "fashion", "teenEligible"], "words": [ "suede shoes", "blue jeans", "leather jacket", "ponytail", "letterman jacket" ]},
+    { "pos": "noun", "tags": ["musicObject", "consumerObject", "technology", "groupEligible"], "words": [
+      "transistor radio", "record player", "guitar", "jukebox"
+    ]},
+    { "pos": "adjective", "tags": ["fashion", "speed"], "words": [
+      "snazzy", "sharp", "flashy", "zippy", "speedy", "revved-up", "souped-up", "hopped-up", "turbo", "supersonic"
+    ]},
+
+    { "//": "=== FIRST NAMES — 'titleName' for given-name song titles (Peggy Sue/Johnny/Donna-style); 'historicalName' for the one-off 'Roll Over Beethoven' address-a-composer construction. Tagged 'early60s' so they fade on the real era clock, not a fictional one. ===",
+      "pos": "firstName", "tags": ["titleName", "early60s"], "words": [
+      "Peggy Sue", "Johnny", "Susie", "Donna", "Diana", "Sherry", "Bobby", "Runaround Sue"
+    ]},
+    { "pos": "firstName", "tags": ["historicalName"], "words": [ "Beethoven", "Mozart", "Chopin", "Bach" ]},
+
+    { "//": "=== GROUPNOUN — invented + period-referenced plural collectives (Crickets/Comets/Blue Caps/Hurricanes are the real backing-group names the doc cites as construction references). ===",
+      "pos": "groupNoun", "tags": ["rocknroll"], "words": [
+      "Crickets", "Comets", "Blue Caps", "Hurricanes", "Jordanaires", "Playboys", "Rockateers",
+      "Rockers", "Rebels", "Renegades", "Aces", "Bandits", "Wildcats", "Rhythm Kings", "Sundowners", "Nightriders"
+    ]},
+
+    { "//": "=== STAGE-PREFIX HONORIFICS — rock and roll's own set, split from the personalEpithet nickname pool above (see the retag note there). ===",
+      "pos": "honorific", "tags": ["stagePrefix", "rocknroll", "male"], "words": [ "Little", "Big", "Young" ]},
+    { "pos": "honorific", "tags": ["stagePrefix", "rocknroll", "female"], "words": [ "Little", "Young" ]},
+    { "pos": "nickname", "tags": ["rocknroll", "personalEpithet", "female"], "words": [ "Baby", "Peaches", "Kitten" ]},
+
+    { "//": "=== PHRASE FRAGMENTS — curated title-clause/exclamation/nonsense pools, original phrasing per the doc's own note to use its examples as construction references rather than reproducing them. ===",
+      "pos": "phraseFrag", "tags": ["rocknroll", "titleClause"], "words": [
+      "Ain't That the Way You Do", "Come On Back to Me", "I Can't Slow Down", "I Got That Feeling",
+      "Let's Have Ourselves a Time", "Meet Me by the Jukebox", "My Baby Loves to Rock", "Nobody Rocks Like You",
+      "She's Got That Beat", "That Girl Can Really Move", "There's a Party Down the Street",
+      "We're Gonna Rock All Night", "You Can't Slow Me Down", "You Got the Beat I Need"
+    ]},
+    { "pos": "phraseFrag", "tags": ["rocknroll", "exclamation"], "words": [
+      "Good Golly", "Hot Diggity Dog", "Wella Wella", "Oh Mercy Me", "Great Day"
+    ]},
+    { "pos": "phraseFrag", "tags": ["rocknroll", "nonsenseTitle"], "words": [
+      "Bim Bam Boom", "Tutti Frutti Bop", "Ooh My Soul", "Sha Na Na Boom", "Wooly Bully Bop"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "TEEN POP v2 additions (naming-genre-templates directive): name-led title constructions split into their real grammatical forms (name alone / name+epithet / possessive+identity / imperative address) instead of the arbitrary %firstName% %noun% pairing, the era-based (not race-based) titleName gate, and the school/dance/occasion vocabulary a clean-cut teen-idol catalog needs." },
+
+    { "//": "=== teenNameEpithet — deliberately narrowed to epithets that read naturally after ANY name (doc: 'Johnny Angel' works, 'Margaret Boy' doesn't). Dropped 'Boy'/'Girl' rather than build gender-name-compatibility modeling the engine doesn't have. ===",
+      "pos": "noun", "tags": ["teenNameEpithet"], "words": [ "Angel", "Darling", "Dream", "Baby", "Star" ]},
+
+    { "//": "=== SCHOOL / DANCE / TEEN-PLACE vocabulary. ===",
+      "pos": "noun", "tags": ["schoolEvent", "school"], "words": [ "the prom", "the sock hop", "the game", "graduation" ]},
+    { "pos": "noun", "tags": ["teenPlace"], "words": [ "the malt shop", "the drive-in", "the soda fountain", "the roller rink" ]},
+    { "pos": "noun", "tags": ["teenTime"], "words": [ "after school", "summer vacation", "Saturday night", "the weekend" ]},
+    { "pos": "noun", "tags": ["occasion", "lifeEvent", "teenEligible"], "words": [ "party", "turn", "choice", "birthday" ]},
+
+    { "//": "=== 'Calendar Girl'/'Dream Boy'/'Puppy Love' — attributive-modifier nouns, kept as small dedicated pools (school/seasonal already tagged 'attributive' above) so odd combinations from a broad shared pool (e.g. 'Homeroom Girl') don't surface. ===",
+      "pos": "noun", "tags": ["calendar", "dream", "party", "attributive"], "words": [ "calendar", "dream", "party" ]},
+    { "pos": "noun", "tags": ["school", "attributive"], "words": [ "school", "campus" ]},
+    { "pos": "noun", "tags": ["innocence", "attributive"], "words": [ "puppy", "first" ]},
+
+    { "//": "=== teenEligible — the curation gate on emotion/romance vocabulary for a 'clean-cut but emotionally exaggerated' register (heartache/longing, not grief/misery). ===",
+      "pos": "noun", "tags": ["emotion", "teenEligible"], "words": [ "heartache", "loneliness", "longing", "teardrop" ]},
+    { "pos": "noun", "tags": ["romance", "teenEligible"], "words": [ "sweetheart", "valentine", "romance", "crush" ]},
+
+    { "//": "=== 'Poetry in Motion' — motion-metaphor nouns. ===",
+      "pos": "noun", "tags": ["art", "motionMetaphor", "romance"], "words": [ "poetry", "rhythm", "romance", "music" ]},
+
+    { "//": "=== ALBUM THEME vocabulary. ===",
+      "pos": "noun", "tags": ["party", "dance", "romance", "albumTheme"], "words": [ "party", "dancing", "romance", "young love" ]},
+
+    { "//": "=== VERBS — 'You Don't Own Me' independence construction. ===",
+      "pos": "verb", "tags": ["independence", "transitivePerson"], "words": [ "own", "tell", "fence", "boss" ]},
+
+    { "//": "=== PERSONNOUN — the boy/girl/sweetheart classes 'firstName:poss %personNoun%' needs (Bobby's Girl) once the possessive inflection carries the apostrophe correctly, instead of blind string concatenation. ===",
+      "pos": "personNoun", "tags": ["boy"], "words": [ "boy", "fella" ]},
+    { "pos": "personNoun", "tags": ["girl"], "words": [ "girl", "gal" ]},
+    { "pos": "personNoun", "tags": ["sweetheart"], "words": [ "sweetheart", "steady" ]},
+
+    { "//": "=== GROUPNOUN — kept small and conservative per the doc: teen pop's dedicated-band route should stay rare. ===",
+      "pos": "groupNoun", "tags": ["teenPop"], "words": [ "Teens", "Angels", "Sweethearts" ]},
+
+    { "//": "=== STAGE MONONYMS — demographic-tagged so '$name & stageMononym' resolves; kept to the genre's historically dominant demographic (the doc's own reference roster is all white) rather than force coverage into a rare (weight 1) slot. ===",
+      "pos": "firstName", "tags": ["male", "white", "stageMononym"], "words": [ "Fabian", "Dion", "Duane" ]},
+    { "pos": "firstName", "tags": ["female", "white", "stageMononym"], "words": [ "Cher", "Lulu", "Sandie" ]},
+
+    { "//": "=== TITLE-CLAUSE phraseFrags — original phrasing per the doc's own note ('period-style invented examples, not a recommendation to duplicate specific historical titles'). ===",
+      "pos": "phraseFrag", "tags": ["teenPop", "titleClause"], "words": [
+      "All I Want Is You Tonight", "Are You Really True", "Breaking Up Is Never Easy", "Come to My Party Tonight",
+      "Don't Tell My Friends About Us", "He Never Even Called", "I Can't Stay Mad at You", "I Dream About You Every Night",
+      "I Wish I Were Older Now", "I'll Meet You After the Dance", "It's Just Not Fair", "Let's Go Down to the Dance",
+      "Meet Me by the Phone Booth", "Nobody Understands Me at All", "She Doesn't Even Know I'm Alive",
+      "That's Why I Fell for You", "Tonight Is Gonna Be Our Night", "Why Won't You Ever Call", "You Don't Know My Heart at All"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "EASY LISTENING v2 additions (naming-genre-templates directive): the regional-tag grammatical split (placeName/regionalModifier/demonym vs. the raw 'regional' pool), ensemble classes, dance-form and cinematic vocabulary, and instrumental-title phraseFrags split lush-vs-brass by MOOD tag so the genre's mood-bias machinery naturally favors the right substyle without a whole new routing layer." },
+
+    { "//": "=== REGIONAL MODIFIER / DEMONYM — 'Mexican Shuffle' works, 'Mexico Shuffle' doesn't; these are adjectival forms used attributively, distinct from the placeName pool above (Mexico itself). ===",
+      "pos": "noun", "tags": ["regionalModifier", "demonym", "attributive"], "words": [
+      "Mexican", "Spanish", "Viennese", "Parisian", "Latin", "Riviera", "Tijuana", "Continental"
+    ]},
+    { "pos": "adjective", "tags": ["continental"], "words": [ "continental", "cosmopolitan", "international" ]},
+    { "pos": "adjective", "tags": ["tropical"], "words": [ "tropical", "tropic", "balmy" ]},
+    { "pos": "adjective", "tags": ["bright", "joyful"], "words": [ "bright", "sunny", "zesty" ]},
+
+    { "//": "=== ENSEMBLE CLASSES — 'Brass'/'Strings' need a modifier first (The Riviera Brass); 'Orchestra'/'Players'/'Chorale' stand alone (The Kingsley Orchestra). ===",
+      "pos": "groupNoun", "tags": ["easyListening", "instrumentalEnsemble", "namedEnsemble"], "words": [
+      "Orchestra", "Players", "Chorale", "Singers", "Serenaders", "Musicaires", "Melodiers", "Rhapsodists",
+      "Symphonics", "Harmonaires"
+    ]},
+    { "pos": "groupNoun", "tags": ["easyListening", "instrumentalEnsemble", "ensembleHead", "brass", "strings"], "words": [
+      "Brass", "Strings", "Sound", "Horns", "Reeds", "Winds", "Chimes", "Keys"
+    ]},
+
+    { "//": "=== LANDSCAPE / DANCE-FORM / PLACE-SUFFIX vocabulary. ===",
+      "pos": "noun", "tags": ["landscape"], "words": [ "harbor", "hillside", "valley", "meadow", "shoreline" ]},
+    { "pos": "noun", "tags": ["taxi", "express", "sunset"], "words": [ "taxi", "express", "sunset" ]},
+    { "pos": "noun", "tags": ["shuffle", "waltz", "rhapsody", "serenade", "samba", "march"], "words": [
+      "shuffle", "waltz", "rhapsody", "serenade", "samba", "march"
+    ]},
+    { "pos": "noun", "tags": ["measure", "trace", "touch", "taste"], "words": [ "taste", "touch", "trace", "measure" ]},
+    { "pos": "noun", "tags": ["sweetness"], "words": [ "honey", "sugar", "candy" ]},
+    { "pos": "noun", "tags": ["moonlight"], "words": [ "moonlight" ]},
+    { "pos": "noun", "tags": ["stereo"], "words": [ "stereo", "hi-fi" ]},
+    { "pos": "noun", "tags": ["animal", "instrumentalEmblem"], "words": [ "bull", "tiger", "peacock", "stallion" ]},
+
+    { "//": "=== CINEMATIC / PROGRAM vocabulary. ===",
+      "pos": "noun", "tags": ["cinematic"], "words": [ "the screen", "the picture show", "the silver screen" ]},
+    { "//": "=== kept SINGULAR ('movie theme' not 'movie themes' etc.) — alb_easy_artist_presents/alb_easy_for_lovers apply %noun:pl%, and a pre-pluralized lemma double-pluralizes (see the standardRepertoire note above: kisses -> kisseses). ===",
+      "pos": "noun", "tags": ["filmTheme", "cinematic"], "words": [ "movie theme", "screen favorite", "picture show hit" ]},
+    { "pos": "noun", "tags": ["romanceProgram", "romance"], "words": [ "love song", "romantic favorite" ]},
+    { "pos": "noun", "tags": ["melody", "music"], "words": [ "melody", "tune" ]},
+    { "pos": "phraseFrag", "tags": ["fictionalProductionTitle"], "words": [
+      "The Riviera Affair", "Midnight Rendezvous", "The Continental Way", "A Foreign Affair"
+    ]},
+
+    { "//": "=== VERBS — 'Music to Dream/Dine/Relax By'. Deliberately narrower than the doc's full suggested list: dropped Dance/Romance/Remember since the doc's own caution flags 'Music to Remember By' as increasingly synthetic, and those three read as nouns or need different syntax more often than not. ===",
+      "pos": "verb", "tags": ["easyListening", "albumActivity"], "words": [ "dream", "dine", "relax", "read", "unwind" ]},
+
+    { "//": "=== FIRST NAMES — a separate elegant-register titleName pool (easy_first_name), distinct from rock-and-roll/teen-pop's youth-slang titleName pool: 'Moon River'-adjacent sophistication, not 'Peggy Sue'. ===",
+      "pos": "firstName", "tags": ["titleName", "elegant"], "words": [ "Diana", "Christine", "Michelle", "Elizabeth" ]},
+
+    { "//": "=== INSTRUMENTAL-TITLE phraseFrags — split by mood tag into lush-strings vs. brass-pop registers (doc: 'Mantovani-like acts should rarely generate The Laughing Trumpet'). Tagging each half with its own moods lets the existing mood-bias machinery favor the right register per genre/act without a dedicated substyle system. Original phrasing, not the doc's own literal examples. ===",
+      "pos": "phraseFrag", "tags": ["easyListening", "instrumental", "instrumentalTitle", "serene", "dreamy", "romantic"], "words": [
+      "Across the Silver Bay", "Afternoon on the Riviera Shore", "Beyond the Harbor Lantern", "City Lights After Midnight",
+      "Dancing Beneath the Stars", "Holiday in Old Lisbon", "Love Along the Promenade", "Midnight on the Coral Coast",
+      "Morning in a Spanish Courtyard", "One Evening in Venice", "Paradise Under Southern Skies", "Rain Across the Rooftops",
+      "Romance Along the River", "Sailing Toward the Summer", "Somewhere Beside the Sea", "The Boulevard at First Light",
+      "The Last Waltz of Summer", "The Lanterns of Monte Carlo", "The Road to a Distant Shore", "Under a Quiet Southern Moon"
+    ]},
+    { "pos": "phraseFrag", "tags": ["easyListening", "instrumental", "instrumentalTitle", "joyful", "playful", "cheeky"], "words": [
+      "Holiday Two-Step", "Bazaar Day", "The Morning Taxi Run", "The Dancing Toreador", "The Happy Wanderer's Return",
+      "The Laughing Horn", "The Little Blue Scooter", "The Coastal Express", "Weekend on Safari"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "COUNTRY v2 additions (naming-genre-templates directive): valency-tagged verbs replacing the 'connector' constructions, the domestic/relationship noun vocabulary Nashville Sound songs need, a separate western/story-song vocabulary (Marty Robbins register, not mainstream heartbreak country), and the stagePrefix/personalEpithet honorific split." },
+
+    { "//": "=== VERBS — country's transitivePerson/futureIntransitive/afterFrame/gerundModifier classes (doc: 'Darling, I'll Need' is a mood-compatible but ungrammatical verb without an object). ===",
+      "pos": "verb", "tags": ["romance", "memory", "separation", "transitivePerson"], "words": [ "miss", "remember", "need", "forget" ]},
+    { "pos": "verb", "tags": ["romance", "betrayal", "separation", "plea", "transitivePerson"], "words": [ "leave", "fool", "deceive", "cheat" ]},
+    { "pos": "verb", "tags": ["promise", "departure", "return", "futureIntransitive"], "words": [ "stay", "return", "come back", "carry on", "move on" ]},
+    { "pos": "verb", "tags": ["travel", "search", "afterFrame"], "words": [ "walk", "wander", "search" ]},
+    { "pos": "verb", "tags": ["departure", "return", "travel", "gerundModifier"], "words": [ "leave", "come", "go", "head" ]},
+
+    { "//": "=== NOUNS — domestic/relationship vocabulary (My Truck, Your Promise, Flowers on the Wall). ===",
+      "pos": "noun", "tags": ["possession", "intimate"], "words": [ "ring", "truck", "porch", "radio" ]},
+    { "pos": "noun", "tags": ["promise", "betrayal", "intimate"], "words": [ "promise", "vow", "lie", "goodbye" ]},
+    { "pos": "noun", "tags": ["domesticObject", "memoryToken", "decoration"], "words": [ "flower", "photograph", "calendar", "clock" ]},
+    { "pos": "noun", "tags": ["domesticSurface", "home"], "words": [ "wall", "mantel", "porch", "shelf" ]},
+    { "pos": "noun", "tags": ["road", "river", "rail", "landmark"], "words": [ "river", "tracks", "bridge", "crossing" ]},
+    { "pos": "noun", "tags": ["bar", "station", "church", "ruralPlace", "roadside"], "words": [ "honky-tonk", "depot", "church", "crossroads", "roadside diner" ]},
+    { "pos": "noun", "tags": ["range", "town"], "words": [ "range", "town" ]},
+    { "pos": "noun", "tags": ["countable"], "words": [ "day", "mile", "drink", "kiss", "heartache", "memory" ]},
+    { "pos": "noun", "tags": ["wanderer", "worker", "lonelyPerson"], "words": [ "wanderer", "worker", "lonesome soul" ]},
+    { "pos": "noun", "tags": ["heartbreak", "lonelyPerson", "albumTheme"], "words": [ "heartbreak", "loneliness", "lonesome night" ]},
+
+    { "//": "=== PERSONNOUN — country character classes (occupation/status for 'The Lonely Wanderer'/'King of the Road'). ===",
+      "pos": "personNoun", "tags": ["countryCharacter", "occupation"], "words": [ "trucker", "farmer", "waitress", "rambler", "drifter" ]},
+    { "pos": "personNoun", "tags": ["status", "wanderer", "worker", "outlaw"], "words": [ "king", "rambler", "hobo", "outlaw", "drifter" ]},
+
+    { "//": "=== PLACE — western/frontier proper nouns, distinct from the elegant/jet-set place pool (Easy Listening/Traditional Pop). El Paso is the doc's own reference title's setting, used as a place name, not the song. ===",
+      "pos": "place", "tags": ["countryPlace", "state", "region", "western", "border", "frontier", "fictionalWestern"], "words": [
+      "El Paso", "Amarillo", "Abilene", "Del Rio", "the Rio Grande", "the Panhandle"
+    ]},
+
+    { "//": "=== REGIONAL MODIFIER — country's own (Tennessee/Texas-flavored), distinct from Easy Listening's continental one. ===",
+      "pos": "noun", "tags": ["state", "ruralPlace", "attributive"], "words": [ "Tennessee", "Texas", "Carolina", "Georgia", "the Ozarks" ]},
+
+    { "//": "=== ADJECTIVES — western-character and album-program registers. ===",
+      "pos": "adjective", "tags": ["westernCharacter", "reputation", "moral"], "words": [ "notorious", "legendary", "fearless", "reckless" ]},
+    { "pos": "adjective", "tags": ["western", "frontier", "outlaw", "tragic"], "words": [ "tragic", "doomed", "fateful", "forsaken" ]},
+    { "pos": "adjective", "tags": ["countryProgram", "sacred"], "words": [ "country", "gospel", "sacred", "old-time" ]},
+    { "pos": "adjective", "tags": ["old", "open", "wild", "legendary"], "words": [ "old", "open", "wild", "legendary" ]},
+
+    { "//": "=== NOUNS — story/western song vocabulary and album-program nouns. ===",
+      "pos": "noun", "tags": ["gunfight", "meeting", "death", "trouble", "incident"], "words": [ "gunfight", "showdown", "standoff", "killing" ]},
+    { "pos": "noun", "tags": ["ballad", "storySong", "trailSong", "song", "heartache", "trail", "hymn", "albumProgram"], "words": [
+      "ballad", "story", "trail song", "legend", "song", "heartache", "trail", "hymn"
+    ]},
+    { "pos": "noun", "tags": ["westernTale", "frontier", "outlaw", "albumProgram"], "words": [ "tale", "frontier story", "outlaw legend" ]},
+
+    { "//": "=== GROUPNOUN — family/backing-band vocabulary (doc's own suggested list). ===",
+      "pos": "groupNoun", "tags": ["country", "instrumentalEnsemble"], "words": [
+      "Pickers", "Players", "Ramblers", "Fiddlers", "Strummers", "Pluckers", "Twangers", "Hoedowners"
+    ]},
+    { "pos": "groupNoun", "tags": ["country", "western", "travel", "rural", "groupEligible"], "words": [
+      "Drifters", "Wranglers", "Rangers", "Wanderers", "Travelers", "Trailhands", "Cowpokes", "Ranchers",
+      "Herders", "Drovers", "Wagoners", "Trailblazers"
+    ]},
+    { "pos": "groupNoun", "tags": ["country", "backingGroup"], "words": [ "Melody Boys", "Country Boys", "Trail Riders", "Ramblers" ]},
+
+    { "//": "=== HONORIFIC / FIRSTNAME — country's own stagePrefix set (Little/Big/Cowboy), and titleName pools for character-ballad titles (main-set 'country' register vs. story-set 'western' register). ===",
+      "pos": "honorific", "tags": ["stagePrefix", "country", "male"], "words": [ "Little", "Big", "Cowboy" ]},
+    { "pos": "honorific", "tags": ["stagePrefix", "country", "female"], "words": [ "Little" ]},
+    { "pos": "firstName", "tags": ["titleName", "country"], "words": [ "Billy Joe", "Jesse", "Jolene", "Fancy", "Delta Dawn" ]},
+    { "pos": "firstName", "tags": ["titleName", "western"], "words": [ "Wyatt", "Reno", "Dallas", "Laredo", "Rio" ]},
+
+    { "//": "=== TITLE-CLAUSE phraseFrags — original phrasing, not the doc's own literal examples (it explicitly frames them as construction references). ===",
+      "pos": "phraseFrag", "tags": ["country", "titleClause"], "words": [
+      "A House Full of Memories", "All I Kept Was Your Picture", "Come Back Before the Rain",
+      "Don't Bring Your Troubles to My Door", "He Left before Sunrise", "Her Memory Rides with Me",
+      "I Can't Outrun a Memory", "I Don't Belong Here Anymore", "I Gave You Every Mile I Had",
+      "I Left My Heart on That Highway", "I Never Learned How to Stay", "I Still Answer to Your Name",
+      "I'll Be Home before the Dark", "I'll Take the Long Road Back", "I'm Lonesome as a Sunday",
+      "It's Hard to Say So Long", "Love Packed Its Bags Today", "Meet Me Where the Train Comes In",
+      "My Heart Still Waits at the Station", "She Caught the Last Bus Out", "That's What Lonesome Sounds Like",
+      "The Bottle Remembers Your Name", "The Highway Keeps On Calling", "There's No Light Left in This House",
+      "Tonight the Bottle's My Company", "We Were Strangers Come Morning", "You Can't Build a Home on Goodbye",
+      "You Left Your Shadow Behind", "Your Picture's Turned to the Wall", "Don't Say You Love Me Anymore"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "BLUES v2 additions (naming-genre-templates directive): the bluesModifier eligibility gate ('not every gritty noun naturally precedes Blues'), valency-tagged verbs replacing 'connector', complete-stage-name POS, and curated venue/place vocabulary (an unrestricted club|theater pool otherwise generates 'Live at the Theater')." },
+
+    { "//": "=== VERBS — blues' transitivePerson/progressivePredicate/imperativeIntransitive/bareIntransitive/downFrame/sustainedActivity classes. ===",
+      "pos": "verb", "tags": ["pain", "motion", "failure", "departure", "progressivePredicate"], "words": [ "fail", "break", "slip", "fade", "give out" ]},
+    { "pos": "verb", "tags": ["departure", "betrayal", "warning", "imperativeIntransitive"], "words": [ "leave", "go", "lie", "cheat" ]},
+    { "pos": "verb", "tags": ["betrayal", "romance", "pain", "deception", "transitivePerson"], "words": [ "fool", "deceive", "hurt", "cheat" ]},
+    { "pos": "verb", "tags": ["bareIntransitive"], "words": [ "sleep", "rest", "forget", "work", "leave" ]},
+    { "pos": "verb", "tags": ["travel", "downFrame"], "words": [ "go", "roll", "ride", "drift" ]},
+    { "pos": "verb", "tags": ["dance", "music", "travel", "work", "romance", "sustainedActivity"], "words": [ "dance", "rock", "work", "love", "ramble" ]},
+
+    { "//": "=== NOUNS — the bluesModifier eligibility gate (curated 'X Blues' modifiers, not every gritty/travel/emotion noun). ===",
+      "pos": "noun", "tags": ["grit", "travel", "emotion", "bluesModifier"], "words": [ "dust", "highway", "heartbreak", "trouble", "midnight" ]},
+    { "pos": "noun", "tags": ["day", "night", "weekday", "season", "bluesModifier"], "words": [ "Monday", "Saturday night", "wintertime", "dry spell" ]},
+    { "pos": "adjective", "tags": ["lonely", "restless", "gritty", "melancholy", "bluesModifier"], "words": [ "lonesome", "low-down", "hard-luck", "stormy" ]},
+
+    { "//": "=== NOUNS — bluesCondition/bluesToken/bluesSubject/bluesEmblem/deprivationObject/bluesCharacter classes. ===",
+      "pos": "noun", "tags": ["emotion", "illness", "bluesCondition"], "words": [
+      "blues", "fever", "jitters", "shakes", "low-down", "heartache", "bad-luck spell", "walking blues"
+    ]},
+    { "pos": "noun", "tags": ["supernatural", "possession", "bluesToken", "titleWord"], "words": [ "mojo", "hoodoo", "luck charm", "black cat bone" ]},
+    { "pos": "noun", "tags": ["body", "vehicle", "bluesSubject"], "words": [ "car", "heart", "house", "mind" ]},
+    { "pos": "noun", "tags": ["luck", "sign", "news", "trouble", "habit", "woman", "man", "bluesEmblem"], "words": [ "luck", "news", "habit", "blood", "woman", "man" ]},
+    { "pos": "noun", "tags": ["money", "home", "romance", "work", "luck", "deprivationObject"], "words": [ "money", "home", "luck", "lovin'", "work" ]},
+    { "pos": "noun", "tags": ["front", "back", "side", "attributive"], "words": [ "front", "back", "side" ]},
+    { "pos": "personNoun", "tags": ["man", "woman", "lover", "stranger", "bluesCharacter"], "words": [ "man", "woman", "lover", "stranger" ]},
+    { "pos": "noun", "tags": ["vice", "supernatural", "attributive"], "words": [
+      "Voodoo", "Whiskey", "Devil", "Gin", "Moonshine", "Hoodoo", "Mojo", "Gambler", "Serpent"
+    ]},
+
+    { "//": "=== PLACE / VENUE — curated so 'Live at the X' names a specific plausible club, not a generic 'Theater' (doc's own warning). ===",
+      "pos": "place", "tags": ["bluesPlace", "city", "region", "district", "state", "rural"], "words": [
+      "Chicago", "Memphis", "the Delta", "the South Side", "Clarksdale", "Beale Street",
+      "the Mississippi", "St. Louis", "the West Side", "Helena", "Greenville", "the Crossroads"
+    ]},
+    { "pos": "noun", "tags": ["club", "theater", "festival", "venue", "properVenue"], "words": [
+      "the Firehouse Club", "the Riverside Theater", "the Delta Festival", "the Blue Note Room", "the Kingston Lounge"
+    ]},
+
+    { "//": "=== ADJECTIVE / INSTRUMENT — electric/bluesLead register. ===",
+      "pos": "adjective", "tags": ["electric"], "words": [ "electric", "amplified", "charged" ]},
+    { "pos": "instrument", "tags": ["melodic", "bluesLead"], "words": [ "Guitar", "Harmonica", "Piano" ]},
+
+    { "//": "=== GROUPNOUN — sparing, per the doc's own caution against exaggerated pastiche. ===",
+      "pos": "groupNoun", "tags": ["blues", "groupEligible"], "words": [
+      "Bluesmen", "Ramblers", "Kings", "Hounds", "Shufflers", "Wailers", "Groaners", "Rollers", "Rovers", "Growlers", "Prowlers"
+    ]},
+    { "pos": "groupNoun", "tags": ["blues", "backingGroup"], "words": [ "Harp Players", "Night Riders", "House Rockers" ]},
+
+    { "//": "=== STAGE-PREFIX HONORIFICS — 'Blind' kept at a lower per-word weight: the doc notes it's historically tied to an earlier recording tradition and should be downweighted for performers starting in the 1960s. ===",
+      "pos": "honorific", "tags": ["stagePrefix", "blues", "male"], "words": [ "Little", "Big", "Young" ]},
+    { "pos": "honorific", "tags": ["stagePrefix", "blues", "male"], "weight": 0.3, "words": [ "Blind" ]},
+
+    { "//": "=== STAGENAME — complete stage names as literal units (doc: 'a purpose-built POS is safer than recombining famous-style components'). Real period-style references, same convention as the existing groupNoun/firstName pools. ===",
+      "pos": "stageName", "tags": ["blues", "standalone"], "words": [
+      "Muddy Waters", "Howlin' Wolf", "Lightnin' Hopkins", "Blind Lemon", "Peg Leg Sam"
+    ]},
+
+    { "//": "=== TITLE-CLAUSE / subjectPredicate / bluesCondition phraseFrags — original phrasing per the doc's own note ('possible period-style original entries'). ===",
+      "pos": "phraseFrag", "tags": ["blues", "titleClause"], "words": [
+      "Ain't No Good in Leaving", "Bad Luck Rides with Me", "Baby, Let That Man Go", "Don't Come Knocking Tonight",
+      "Don't Let the Devil In", "Everybody Wants My Dollar", "Good Morning, Trouble", "Her Love Turned Cold",
+      "I Can't Hold On to a Dime", "I Don't Trust That Smile", "I Got Trouble on My Mind", "I Know Where You've Been",
+      "I Lost My Only Good Thing", "I Work Hard for Nothing", "I'm Headed Back to Memphis", "I'm Tired of All Your Lying",
+      "Leave My Woman Be", "My Baby Changed the Locks", "My Luck Done Turned Bad", "Nobody Loves Me but My Hound",
+      "Somebody Stole My Woman", "That Woman Took My Money", "The Devil Knows My Name", "The Rent Man's Knocking Again",
+      "Trouble Moved Back Home", "You Can't Fool Me Twice", "You Got Yourself Another Man", "You Put That Bad Luck on Me",
+      "Your Good Thing Done Gone", "There Ain't No Cure for Lonesome"
+    ]},
+    { "pos": "phraseFrag", "tags": ["blues", "subjectPredicate"], "words": [
+      "Done Left Town", "Don't Love Me", "Got Another Man", "Keeps Me Crying", "Left This Morning", "Won't Come Home"
+    ]},
+
+    { "//": "=================================================================",
+      "___": "JAZZ v2 additions (naming-genre-templates directive): the genre's biggest problem was that its old vocabulary was ONLY dreamy/celestial abstraction; this adds hard-bop street/food/gospel/body vocabulary, motion/geometry/voyage concepts for modal jazz, a real venue POS split by article behavior, and a composer POS for the standards-repertoire album forms. 'Cosmic' is deliberately NOT boosted (doc: it should stay a late-decade/avant-garde minority, not a 1960-63 mainstream default)." },
+
+    { "//": "=== VERBS — jazzGerund class. ===",
+      "pos": "verb", "tags": ["motion", "music", "street", "thought", "jazzGerund"], "words": [ "walk", "swing", "drift", "wander", "think" ]},
+
+    { "//": "=== NOUNS — jazzEligible (the broad eligibility gate: motion/geometry/urban/emotion/spiritual/music/voyage concepts a concise jazz title can use). ===",
+      "pos": "noun", "tags": ["motion", "geometry", "urban", "jazzEligible"], "words": [ "groove", "angle", "corner", "orbit", "spiral" ]},
+    { "pos": "noun", "tags": ["emotion", "spiritual", "music", "jazzEligible"], "words": [ "soul", "spirit", "note", "chord", "riff" ]},
+    { "pos": "noun", "tags": ["temporal", "voyage", "jazzEligible"], "words": [ "moment", "passage", "journey", "voyage" ]},
+    { "pos": "noun", "tags": ["musicTerm", "jazzEligible"], "words": [ "tempo", "the changes", "the chorus", "the bridge", "the turnaround" ]},
+
+    { "//": "=== NOUNS — jazzEmblem ('The Sidewinder'-style), jazzBluesModifier (hard-bop 'X Blues'), dedication/scene/location/conceptual frames. ===",
+      "pos": "noun", "tags": ["animal", "machine", "character", "jazzEmblem"], "words": [ "sidewinder", "night owl", "cool cat", "fox trot", "rambler" ]},
+    { "pos": "noun", "tags": ["food", "urban", "jazzBluesModifier", "attributive"], "words": [ "grits", "uptown", "cornbread", "back alley" ]},
+    { "pos": "noun", "tags": ["dance", "ballad", "dedicationHead"], "words": [ "waltz", "ballad", "lullaby", "serenade" ]},
+    { "pos": "noun", "tags": ["diurnal", "weather", "seasonal", "sceneHead"], "words": [ "morning", "sunset", "rain", "spring" ]},
+    { "pos": "noun", "tags": ["urban", "locationFrame"], "words": [ "avenue", "corner", "waterfront", "bandstand" ]},
+    { "pos": "noun", "tags": ["reflection", "conceptualPlural"], "words": [ "reflection", "shadow", "echo" ]},
+    { "pos": "noun", "tags": ["silence", "motion", "conceptualContainer"], "words": [ "glass", "silence", "stillness" ]},
+    { "pos": "noun", "tags": ["spiritual", "celestial", "abstractDestination"], "words": [ "heaven", "glory", "the light", "the truth" ]},
+    { "pos": "noun", "tags": ["countableMusic"], "words": [ "step", "beat", "bar", "note", "turn", "point" ]},
+    { "pos": "personNoun", "tags": ["man", "woman", "walker", "runner", "preacher", "dreamer", "jazzCharacter"], "words": [
+      "man", "woman", "walker", "runner", "preacher", "dreamer"
+    ]},
+    { "pos": "noun", "tags": ["night", "dawn", "midnight", "sunset", "temporalPoint"], "words": [ "night", "dawn", "midnight", "sunset" ]},
+    { "pos": "noun", "tags": ["spiritual", "spiritualConcept"], "words": [ "love", "prayer", "journey", "vision" ]},
+    { "pos": "adjective", "tags": ["grand", "spiritual", "earnest", "postpositiveTitle"], "words": [ "supreme", "eternal", "divine" ]},
+    { "pos": "adjective", "tags": ["modern", "temporal", "ensembleModifier"], "words": [ "modern", "new", "midnight", "uptown" ]},
+    { "pos": "adjective", "tags": ["live", "informal"], "words": [ "live", "informal", "after-hours", "impromptu" ]},
+
+    { "//": "=== PLACE — jazzPlace (Harlem/52nd Street-style, also doubling as international/festivalCity). ===",
+      "pos": "place", "tags": ["jazzPlace", "city", "district", "international", "festivalCity"], "words": [
+      "Harlem", "the Village", "52nd Street", "New Orleans", "Rio", "Tokyo"
+    ]},
+
+    { "//": "=== VENUE — a real venue POS (doc: 'Live at the Birdland' vs 'Live at Village Vanguard' are both wrong without this split). Real period club names, same convention as the existing groupNoun/firstName pools. ===",
+      "pos": "venue", "tags": ["jazz", "takesArticle"], "words": [ "Village Vanguard", "Black Hawk", "Five Spot", "Half Note", "Golden Circle", "Plugged Nickel" ]},
+    { "pos": "venue", "tags": ["jazz", "bareVenue"], "words": [ "Birdland", "Basin Street East", "Newport", "Monterey" ]},
+
+    { "//": "=== COMPOSER — a real composer POS for 'Plays the Songbook of X' album forms. Real Great American Songbook composers, same convention as elsewhere. ===",
+      "pos": "composer", "tags": ["standardRepertoire", "jazzComposer"], "words": [ "Gershwin", "Porter", "Ellington", "Rodgers", "Kern" ]},
+
+    { "//": "=== FIRSTNAME — initialed credits (J.J. Johnson-style). ===",
+      "pos": "firstName", "tags": ["jazz", "initialed"], "words": [ "J.J.", "T.J.", "C.P.", "B.B.", "D.J." ]},
+
+    { "//": "=== TITLE-CLAUSE / instrumentalTitle / albumConcept phraseFrags — original phrasing per the doc's own note ('original-style entries, not direct recycling of famous compositions'). Deliberately avoids cosmic/galactic/electric/machine/psychedelic vocabulary per the doc's late-decade-fusion warning. ===",
+      "pos": "phraseFrag", "tags": ["jazz", "instrumentalTitle"], "words": [
+      "After the Last Set", "Along the Avenue", "Another Kind of Blue", "Back at the Corner", "Beyond the Changes",
+      "Closing Time", "Down to the Wire", "East of Midnight", "Five After Four", "From Here to Sunday",
+      "Half Past Blue", "In a Quiet Frame", "Late Set", "No Room for Squares", "Off the Record",
+      "One More Chorus", "Out of the Shadows", "Second Line Morning", "Straight Ahead", "The Long Turn",
+      "The Night Shift", "The Other Side of Town", "Three by Four", "Tomorrow's Changes", "Up from the Street",
+      "Walkin' the Long Way", "Where the Rhythm Goes"
+    ]},
+    { "pos": "phraseFrag", "tags": ["jazz", "albumConcept"], "words": [
+      "After Hours", "Beyond the Changes", "Blue Geometry", "City in Motion", "East of Midnight",
+      "First Light", "From the Inside", "Further Out", "In Another Frame", "Inner Passage",
+      "Last Set", "New Directions", "Night Lines", "One Step Beyond", "Open Form",
+      "Out Front", "Passing Through", "Points of Departure", "Second Movement", "The Long View",
+      "The Turning Point", "Time Remembered", "Up from the Street", "Voices Within"
+    ]},
+
+    { "//": "=== VOCAL JAZZ — separated per the doc so an Ella Fitzgerald-style singer doesn't inherit a whole catalog of geometric hard-bop instrumental titles. Original phrasing, standards-idiom. ===",
+      "pos": "phraseFrag", "tags": ["jazzVocal", "standardTitle"], "words": [
+      "Every Time You're Near", "How Deep Is the Night", "I Never Knew Love Like This", "Just Say You're Mine",
+      "Let There Be You", "Nothing Ever Changes My Love for You", "Once I Loved", "The Nearness of Someone",
+      "There's No One but You", "Wherever You Are", "You Came Along at Just the Right Time", "You're the Song I Sing"
     ]}
   ]
 }

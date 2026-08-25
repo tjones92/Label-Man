@@ -33,7 +33,11 @@ namespace LabelMan.Naming {
 				// --- family bases (the shared ancestry rungs added in Phase F) ---
 				["BluesRoot"]     = "blues",
 				["EarlyRock"]     = "early60s",
-				["AdultPop"]      = "jazz",        // last resort; TradPop/EasyListening/Classical own sets
+				["AdultPop"]      = "jazz",        // last resort; EasyListening/Classical own bandName sets
+				// --- leaf alias: TraditionalPop has its own songTitle/albumTitle/soloAct sets but no
+				//     bandName set, so without this it fell through the AdultPop rung above to jazz's
+				//     combo vocabulary (Trio/Quartet/Quintet) — wrong genre voice for crooner-era bands.
+				["TraditionalPop"]  = "easyListening",
 				["BritishBeat"]   = "british",
 				["PsychFamily"]   = "psych",
 				["CountryRoot"]   = "country",
@@ -63,7 +67,6 @@ namespace LabelMan.Naming {
 				["bandName:AcidRock"]        = "hardRock",   // ancestry would give psych
 				["bandName:ProgressiveRock"] = "hardRock",   // ancestry would give psych
 				["bandName:RnB"]             = "soul",        // ancestry would give blues; RnB songs stay blues
-				["bandName:RockAndRoll"]     = "garageEarly", // ancestry gives no band set
 			};
 
 		public TemplateRouter(GenreLibrary genres, Func<string, bool> hasSet) {

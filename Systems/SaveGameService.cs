@@ -259,6 +259,7 @@ public sealed class PlayerSaveData {
 	public List<SongSaveData> Songs { get; set; } = new();
 	public Dictionary<string, List<RepertoireSaveData>> Repertoire { get; set; } = new();
 	public List<CoverRehearsalSaveData> Rehearsals { get; set; } = new();  // covers in progress, not yet in a set
+	public List<string> ShippedBSideRecordIds { get; set; } = new();       // B-side masters that shipped on a single's flip
 	public List<string> Log { get; set; } = new();
 	public List<WeekBookSaveData> Books { get; set; } = new();
 
@@ -413,6 +414,7 @@ public sealed class RepertoireSaveData {
 	public string SourceTag { get; set; }
 	public bool IsOriginal { get; set; }
 	public string SongId { get; set; }
+	public bool IsCommission { get; set; }
 	public int Genre { get; set; }
 	public float ReadHook { get; set; }
 	public float ReadQuality { get; set; }
@@ -421,12 +423,14 @@ public sealed class RepertoireSaveData {
 
 	public static RepertoireSaveData From(PlayerDesk.RepertoireItem r) => new() {
 		Title = r.Title, SourceTag = r.SourceTag, IsOriginal = r.IsOriginal, SongId = r.SongId,
+		IsCommission = r.IsCommission,
 		Genre = (int)r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
 		Recorded = r.Recorded, RecordedId = r.RecordedId
 	};
 
 	public PlayerDesk.RepertoireItem ToItem() => new() {
 		Title = Title, SourceTag = SourceTag, IsOriginal = IsOriginal, SongId = SongId,
+		IsCommission = IsCommission,
 		Genre = (Genre)Genre, ReadHook = ReadHook, ReadQuality = ReadQuality,
 		Recorded = Recorded, RecordedId = RecordedId
 	};
@@ -447,19 +451,22 @@ public sealed class CoverRehearsalSaveData {
 	public int ReadyYear { get; set; }
 	public int ReadyMonth { get; set; }
 	public int ReadyDay { get; set; }
+	public bool IsCommission { get; set; }
 
 	public static CoverRehearsalSaveData From(PlayerDesk.CoverRehearsal r) => new() {
 		ArtistId = r.ArtistId, SongId = r.SongId, Title = r.Title, SourceTag = r.SourceTag, Genre = (int)r.Genre,
 		ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
 		StartedYear = r.Started.year, StartedMonth = r.Started.month, StartedDay = r.Started.day,
-		ReadyYear = r.ReadyDate.year, ReadyMonth = r.ReadyDate.month, ReadyDay = r.ReadyDate.day
+		ReadyYear = r.ReadyDate.year, ReadyMonth = r.ReadyDate.month, ReadyDay = r.ReadyDate.day,
+		IsCommission = r.IsCommission
 	};
 
 	public PlayerDesk.CoverRehearsal ToRehearsal() => new() {
 		ArtistId = ArtistId, SongId = SongId, Title = Title, SourceTag = SourceTag, Genre = (Genre)Genre,
 		ReadHook = ReadHook, ReadQuality = ReadQuality,
 		Started = new GameDate(StartedYear, StartedMonth, StartedDay),
-		ReadyDate = new GameDate(ReadyYear, ReadyMonth, ReadyDay)
+		ReadyDate = new GameDate(ReadyYear, ReadyMonth, ReadyDay),
+		IsCommission = IsCommission
 	};
 }
 

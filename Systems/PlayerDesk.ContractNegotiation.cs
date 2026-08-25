@@ -442,7 +442,7 @@ public partial class PlayerDesk : Node {
 		generatedProspectIds.Remove(prospect.Artist.artistId);
 		slate.Remove(prospect);
 
-		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P0} royalty, {sheet.TermYears}yr" +
+		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
 		message = $"Signed {prospect.Artist.stageName}.";
 	}
@@ -538,7 +538,7 @@ public partial class PlayerDesk : Node {
 			(sheet.SinglesObligation > 0 ? $", {sheet.SinglesObligation} sides)" : ")"));
 		maturedNotified.Remove(artist.artistId);
 
-		Note($"Renewed {artist.stageName} -- ${sheet.Advance:N0} advance, {sheet.RoyaltyRate:P0} royalty, {sheet.TermYears}yr" +
+		Note($"Renewed {artist.stageName} -- ${sheet.Advance:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
 		message = $"Renewed {artist.stageName}.";
 	}

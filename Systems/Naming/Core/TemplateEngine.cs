@@ -302,16 +302,24 @@ namespace LabelMan.Naming {
 		private readonly IWordCoiner _coiner;
 		private readonly Diminutives _dim;
 		private readonly PoolCache _pools = new();   // Layer 7 L1: memoized prefix-sum pools
+		// SatisfiableFor(t, genre) is a pure function of the template + genre (no ctx/rng dependence),
+		// but FillConstraint re-runs it for every candidate template on every single Generate() call --
+		// with 14-24 templates per genre's songTitle set and ~4,800 launch-catalog title draws, that
+		// re-scan was the dominant cost of world generation (measured ~60s of a ~100s launch). Memoize it.
+		private readonly Dictionary<string, bool> _satisfiableCache = new(StringComparer.Ordinal);
 
 		public TemplateEngine(Lexicon lex, TagOntology ont, MoodGraph mood, Inflection infl, IWordCoiner coiner = null, Diminutives dim = null) {
 			_lex = lex; _ont = ont; _mood = mood; _infl = infl; _coiner = coiner; _dim = dim;
 		}
 
 		/// <summary>Adapter-bound pseudo-pos: the value is injected by the caller via ctx.Slots rather
-		/// than drawn from the lexicon (doc C — album self-title and lead-single framing).</summary>
+		/// than drawn from the lexicon (doc C — album self-title and lead-single framing). titleTrack
+		/// (naming-genre-templates directive, jazz) is more historically apt than leadSingle for genres
+		/// where the LP wasn't built around a commercially designated hit.</summary>
 		private static bool IsBoundPos(string pos) =>
 			string.Equals(pos, "selfTitle", StringComparison.OrdinalIgnoreCase) ||
-			string.Equals(pos, "leadSingle", StringComparison.OrdinalIgnoreCase);
+			string.Equals(pos, "leadSingle", StringComparison.OrdinalIgnoreCase) ||
+			string.Equals(pos, "titleTrack", StringComparison.OrdinalIgnoreCase);
 
 		/// <summary>Resolve $-tokens in a dynamic slot filter against the context's demographic tag-sets:
 		/// $name -> ctx.TagSets["name"] (gender+ethnicity, AND-joined), $surname -> ["surname"],
@@ -326,7 +334,7 @@ namespace LabelMan.Naming {
 		}
 
 		/// <summary>Evict derived pools — call at a sim year-tick after the lexicon changes (doc 7 §12).</summary>
-		public void ClearCaches() => _pools.Clear();
+		public void ClearCaches() { _pools.Clear(); _satisfiableCache.Clear(); }
 
 		/// <summary>Fill a template against a genre profile. Returns null if it cannot satisfy its
 		/// constraints within budget (caller falls back to a simpler template).</summary>
@@ -486,6 +494,14 @@ namespace LabelMan.Naming {
 
 		// ---- load-time validation (doc 2 §10, doc 3 §11) --------------------------
 		public bool SatisfiableFor(ConstraintTemplate t, GenreProfile genre, int minPoolDepth = 4) {
+			string cacheKey = t.Id + "|" + genre.Id + "|" + minPoolDepth;
+			if (_satisfiableCache.TryGetValue(cacheKey, out var cached)) return cached;
+			bool result = SatisfiableForUncached(t, genre, minPoolDepth);
+			_satisfiableCache[cacheKey] = result;
+			return result;
+		}
+
+		private bool SatisfiableForUncached(ConstraintTemplate t, GenreProfile genre, int minPoolDepth) {
 			if (!t.Compiled) t.Compile();
 			if (t.Requires != null) foreach (var pos in t.Requires) if (_lex.Pool(pos).Count == 0) return false;
 			if (t.Forbids != null) foreach (var pos in t.Forbids) if (_lex.Pool(pos).Count > 0) return false;

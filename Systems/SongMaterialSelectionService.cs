@@ -78,6 +78,28 @@ public static class SongMaterialSelectionService {
 		};
 	}
 
+	/// <summary>Build professional material for a SPECIFIC pre-commissioned song, so a song the player
+	/// commissioned and had delivered records as the professional song it is -- not re-sampled blind at the
+	/// studio. Mirrors <see cref="BuildProfessional"/>'s expectations for a fixed composition. Pure: no GD
+	/// draw, so it is safe to call from the player desk without perturbing the AI RNG schedule.</summary>
+	public static SelectedSongMaterial BuildProfessionalForSong(
+		LabelTier tier, SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year
+	) {
+		if (song == null) return null;
+		float labelAccess = tier switch {
+			LabelTier.Major => 0.90f, LabelTier.MidTier => 0.65f, LabelTier.Boutique => 0.50f,
+			LabelTier.Independent => 0.38f, LabelTier.Small => 0.25f, _ => 0.35f
+		};
+		float polish = Mathf.Clamp(song.compositionQuality * 0.7f + labelAccess * 0.3f, 0f, 1f);
+		float hook = Mathf.Clamp(song.commercialHook * 0.85f + polish * 0.10f, 0f, 1f);
+		return new SelectedSongMaterial {
+			Song = song, Source = SongMaterialSource.ExternalProfessional, IsCover = false,
+			ExpectedHook = hook, ExpectedCompositionQuality = song.compositionQuality, ExpectedLyricQuality = song.lyricQuality,
+			FamiliarityAtRelease = 0f, ArrangementOriginality = Mathf.Clamp(song.originality * 0.65f, 0f, 1f),
+			ProfessionalPolish = polish, ArtistIdentityFit = 0.30f
+		};
+	}
+
 	// Build only the candidate for one dictated source (AlbumMaterialPlan forced-source path).
 	private static MaterialCandidate BuildForSource(
 		SongMaterialSource src, AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek
@@ -350,6 +372,32 @@ public static class SongMaterialSelectionService {
 		} : new Mix(.50f, .25f, .10f, .10f, .05f)
 	};
 
+	// Standards (the pre-war songbook -- distinct from covers of recent hits) are a roots-genre habit.
+	// Jazz, classical, gospel, folk and the Tin Pan Alley pop that IS the songbook keep leaning on them;
+	// the contemporary genres -- r&b and soul most of all -- were original- and recent-hit-driven and
+	// should reach for standards far less. This scales the CoverStandard share down for everyone outside
+	// the songbook genres (recent-hit COVERS are untouched); the freed share flows to self-written and
+	// recent-hit material through the normalization in GetSourceMixShares.
+	private static float StandardShareFactor(Genre genre) {
+		switch (genre) {
+			case Genre.Jazz: case Genre.Classical: case Genre.Gospel: case Genre.Folk:
+			case Genre.TraditionalPop: case Genre.EasyListening:
+				return 1f;                       // the songbook genres -- standards belong here
+			case Genre.RnB: case Genre.Soul:
+				return 0.15f;                    // heavily reduced -- these were not a standards market
+		}
+		if (GenreCatalog.TryGet(genre, out var p)) {
+			switch (p.Family) {
+				case GenreFamily.Jazz: case GenreFamily.Classical:
+				case GenreFamily.Gospel: case GenreFamily.Folk:
+					return 1f;
+				case GenreFamily.RhythmAndSoul:
+					return 0.15f;
+			}
+		}
+		return 0.40f;                            // rock, pop, country, blues, teen pop -- far less standard-driven
+	}
+
 	// The transition mostly runs 1962-1968 (Brill decline, self-writing rise).
 	private static float SourceMix(SongMaterialSource source, Genre genre, int year) {
 		Mix a = Anchor1960(genre), b = Anchor1969(genre);
@@ -358,7 +406,7 @@ public static class SongMaterialSelectionService {
 		return source switch {
 			SongMaterialSource.ArtistWritten => Lerp(a.Aw, b.Aw),
 			SongMaterialSource.ExternalProfessional or SongMaterialSource.LabelStaffWriter or SongMaterialSource.ArtistCowrittenWithProfessional => Lerp(a.Pro, b.Pro),
-			SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => Lerp(a.Std, b.Std),
+			SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => Lerp(a.Std, b.Std) * StandardShareFactor(genre),
 			SongMaterialSource.CoverRecentHit => Lerp(a.Hit, b.Hit),
 			SongMaterialSource.TraditionalPublicDomain or SongMaterialSource.AdaptedTraditional => Lerp(a.Trad, b.Trad),
 			_ => 0f

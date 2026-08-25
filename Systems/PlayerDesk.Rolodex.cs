@@ -52,9 +52,19 @@ public partial class PlayerDesk : Node {
 	private GameDate callAttemptsDate = GameDate.StartDate;
 	public int CallAttemptsToday { get { RollAttemptDay(); return callAttemptsToday; } }
 
+	// Per-DJ pressure for the day, so a man who does not pick up cannot be spam-redialled until he does,
+	// and a man you have already had a real conversation with is done with you until tomorrow. Transient
+	// (not saved) -- the exploit it closes is a within-a-day click-loop, and a reload mid-day is a fair reset.
+	private const int MaxDialAttemptsPerDjPerDay = 3;   // he stops answering after you have burned three tries
+	private readonly Dictionary<string, int> djDialsToday = new(StringComparer.Ordinal);
+	private readonly HashSet<string> djReachedToday = new(StringComparer.Ordinal);
+
 	private void RollAttemptDay() {
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		if (!(today == callAttemptsDate)) { callAttemptsDate = today; callAttemptsToday = 0; }
+		if (!(today == callAttemptsDate)) {
+			callAttemptsDate = today; callAttemptsToday = 0;
+			djDialsToday.Clear(); djReachedToday.Clear();
+		}
 	}
 
 	/// <summary>The live call, if one is open. Held here (not in the UI) so it survives a panel refresh.</summary>
@@ -159,6 +169,9 @@ public partial class PlayerDesk : Node {
 			djId = dj.djId, stationId = station.stationId,
 			state = gotThrough ? DiscoveryState.Introduced : DiscoveryState.HeardOf,
 			displayName = djName, portraitKey = dj.archetype.ToString(),
+			// You only learn his hours by actually reaching him. A name off somebody comes with no
+			// hours -- and the card says so, so the discovery toast must not leak them either.
+			shiftKnown = gotThrough,
 		};
 		entry.log.Add($"{date} — " + (gotThrough
 			? $"Got him on the line: {djName}, {station.callsign}."
@@ -169,7 +182,7 @@ public partial class PlayerDesk : Node {
 			$"{djName} — {station.callsign} ({station.format}, {station.cityName}).");
 		message = gotThrough
 			? $"You got through. {djName} at {station.callsign} picked up his own phone. {RolodexShifts.WindowAdvice(shift)}"
-			: $"A name, nothing more: {djName} at {station.callsign}. {RolodexShifts.WindowAdvice(shift)}";
+			: $"A name, nothing more: {djName} at {station.callsign}. You don't know his hours yet.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -314,8 +327,21 @@ public partial class PlayerDesk : Node {
 		RolodexCallContext c = BuildCallContext(entry, recordId);
 		if (c.dj == null || c.station == null) { message = "That line is dead -- he's not at the station any more."; return null; }
 
-		SpendMinutes(DialMinutes);
+		// You get one real conversation with a man per day, and only so many attempts to reach him at all.
+		// Without this, a failed call could be redialled on a loop until he happened to pick up.
 		RollAttemptDay();
+		if (djReachedToday.Contains(entry.djId)) {
+			message = $"You've already had {entry.displayName} on the line today. Any more and you're pestering him -- try tomorrow.";
+			return null;
+		}
+		djDialsToday.TryGetValue(entry.djId, out int dialsSoFar);
+		if (dialsSoFar >= MaxDialAttemptsPerDjPerDay) {
+			message = $"{entry.displayName} isn't picking up for you today. Leave it and try him tomorrow.";
+			return null;
+		}
+		djDialsToday[entry.djId] = dialsSoFar + 1;
+
+		SpendMinutes(DialMinutes);
 		callAttemptsToday++;
 
 		var call = new RolodexCall { entry = entry, ctx = c, recordId = recordId, minutesSpent = DialMinutes };
@@ -344,7 +370,9 @@ public partial class PlayerDesk : Node {
 			return call;
 		}
 
-		// Connected. Ratchet HeardOf -> Introduced: you have now actually spoken to him.
+		// Connected. You have had your shot at him for the day -- no redialling him after this call ends.
+		djReachedToday.Add(entry.djId);
+		// Ratchet HeardOf -> Introduced: you have now actually spoken to him.
 		if (entry.state == DiscoveryState.HeardOf) {
 			entry.state = DiscoveryState.Introduced;
 			entry.log.Insert(0, $"{Today()} — First time you actually got him on the phone.");
