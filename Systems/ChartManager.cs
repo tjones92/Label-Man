@@ -2563,6 +2563,13 @@ public partial class ChartManager : Node {
 		stationNetwork?.ReportersInRegion(regionId) ?? (System.Collections.Generic.IReadOnlyList<RadioStation>)System.Array.Empty<RadioStation>();
 	public Deejay GetDeejay(string djId) => stationNetwork?.GetDeejay(djId);
 	public RadioStation GetRadioStation(string stationId) => stationNetwork?.GetStation(stationId);
+	// The reporter panel's real, undiluted per-region airplay for a record (0..1) -- reach-weighted
+	// spin commitment over the region's reporters, the one signal that reads what a station is
+	// ACTUALLY spinning (Rolodex rapport/advocacy/payola). A pure read: it writes nothing and does
+	// not touch radioPlay/tail/REPORTER_PANEL_WEIGHT, so it changes nothing the AI economy consumes.
+	// Player-side sellers read it directly rather than through the 13%-diluted regionalData.awareness.
+	public float ReporterAirplay(string recordId, string regionId) =>
+		stationNetwork?.ReporterRadioPlay(recordId, regionId) ?? 0f;
 
 	// ── Rolodex station advocacy (player-only; see StationAdvocacyService) ───────────────────────
 	private readonly StationAdvocacyService advocacyService = new();
@@ -2600,6 +2607,22 @@ public partial class ChartManager : Node {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
 		return payolaLedger?.PlaceCash(recordId, labelId, stationId, budget, currentChartWeek, year, month);
+	}
+
+	/// <summary>Distribution-expansion directive §7's project promo: a short, project-scoped IndiePromoter
+	/// arrangement across a handful of stations. Registers an ephemeral promoter (nothing else ever does --
+	/// PayolaLedger's IndiePromoter path was otherwise dormant) and places it through the same ledger the
+	/// Rolodex payola calls use, so the existing scandal/detection risk model applies untouched.</summary>
+	public System.Collections.Generic.List<PayolaAction> PlaceProjectPromo(string recordId, string labelId,
+			string[] stationIds, float effectiveness, float discretion, float mobConnection,
+			int week, int year, int month, int durationWeeks) {
+		if (payolaLedger == null || stationIds == null || stationIds.Length == 0) return null;
+		string promoterId = $"projectpromo-{labelId}-{recordId}-{week}";
+		payolaLedger.RegisterPromoter(new IndiePromoter {
+			promoterId = promoterId, name = "Project Promo", stationIds = stationIds,
+			effectiveness = effectiveness, discretion = discretion, mobConnection = mobConnection
+		});
+		return payolaLedger.PlaceIndiePromoter(recordId, labelId, promoterId, week, year, month, durationWeeks);
 	}
 	/// <summary>Scandals adjudicated on THIS week's payolaLedger.Tick (already run earlier in SimulateWeek).
 	/// Cleared and rebuilt every tick, so a consumer must read it the same week it fires -- PlayerDesk

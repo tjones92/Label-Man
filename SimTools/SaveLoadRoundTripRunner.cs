@@ -125,6 +125,129 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (cityId == null || PlayerDesk.Instance == null) { GD.Print("SAVELOAD_INTEGRATION_FAIL reason=no-city-or-desk"); GetTree().Quit(3); return; }
 			if (!PlayerDesk.Instance.FoundLabel("Probe Records", cityId, out string founded)) { GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=found:{founded}"); GetTree().Quit(3); return; }
 
+			// Distribution-expansion Stage 1 sanity check: the named-stop roster generates without
+			// crashing, with a legible (not hundreds-of-shops) count, and is stable across repeat calls
+			// in the same session (EnsureStops caches rather than regenerating).
+			var homeStops = PlayerDesk.Instance.StopsInCity(cityId).ToList();
+			int shopCount = homeStops.Count(s => s.Kind == PlayerDesk.StopKind.Shop);
+			int opCount = homeStops.Count(s => s.Kind == PlayerDesk.StopKind.Op);
+			var homeStops2 = PlayerDesk.Instance.StopsInCity(cityId).ToList();
+			bool stableIds = homeStops.Select(s => s.StopId).SequenceEqual(homeStops2.Select(s => s.StopId));
+			bool uniqueNames = homeStops.Select(s => s.DisplayName).Distinct(StringComparer.Ordinal).Count() == homeStops.Count;
+			GD.Print($"STOPS_CHECK city={cityId} shops={shopCount} ops={opCount} stableIds={stableIds} uniqueNames={uniqueNames} " +
+				$"sample=\"{string.Join("\", \"", homeStops.Take(3).Select(s => s.DisplayName))}\"");
+			if (shopCount < 6 || opCount < 1 || opCount > 3 || !stableIds || !uniqueNames) {
+				GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=stops-check shops={shopCount} ops={opCount} stableIds={stableIds} uniqueNames={uniqueNames}");
+				GetTree().Quit(1);
+				return;
+			}
+
+			// Hand-mutate one stop's state directly (bypassing the write/cut/press chain a real Pitch/
+			// Consign call would need) to stress-test PlayerDesk's StopState capture/restore -- otherwise
+			// this probe's stops are never touched and the new save path round-trips an empty list.
+			PlayerDesk.PlayerStop probeStop = homeStops[0];
+			probeStop.Relationship = 0.62f;
+			probeStop.LastVisitWeek = ChartManager.Instance.GetCurrentChartWeek();
+			probeStop.OpenBalance = 17.5f;
+			probeStop.OnHand["probe_record_1"] = new PlayerDesk.ConsignmentLot {
+				Remaining = 12, Placed = 20, DaysSinceRestock = 3, ConsignmentTerms = true
+			};
+			// Sticky-refusal / once-a-day-approach addendum: LastApproachDate and PassedRecordIds are
+			// PlayerStop-only mutable state just like the fields above -- exercise their round-trip too.
+			probeStop.LastApproachDate = TimeManager.Instance.CurrentDate;
+			probeStop.PassedRecordIds.Add("probe_record_2");
+
+			// §6 one-stop: not guaranteed to exist in the home city, so search the whole map for one and
+			// exercise its Unlocked/Trusted round-trip the same way as the fields above.
+			PlayerDesk.PlayerStop probeOneStop = cities
+				.SelectMany(c => PlayerDesk.Instance.StopsInCity(c.cityId))
+				.FirstOrDefault(s => s.Kind == PlayerDesk.StopKind.OneStop);
+			if (probeOneStop != null) { probeOneStop.OneStopUnlocked = true; probeOneStop.OneStopTrusted = true; }
+
+			// Distribution-expansion §7 (people): unlock + hire a commission runner, assign him a route
+			// stop, and hand-mutate his carton/familiarity directly (same pattern as the stop mutation
+			// above) to stress-test CaptureState/RestoreState for the whole PlayerRunner + the
+			// ConsignmentLot.RunnerSourced flag it sets on a lot.
+			PlayerDesk.Instance.DebugUnlockRunner(cityId);
+			if (!PlayerDesk.Instance.HireRunner(out string runnerHireMsg)) {
+				GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=runner-hire:{runnerHireMsg}");
+				GetTree().Quit(1);
+				return;
+			}
+			PlayerDesk.PlayerStop routeStop = homeStops.FirstOrDefault(s => s.Kind != PlayerDesk.StopKind.OneStop && s.StopId != probeStop.StopId) ?? homeStops[0];
+			if (!PlayerDesk.Instance.AssignRunnerStop(routeStop.StopId, true, out string assignMsg)) {
+				GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=runner-assign:{assignMsg}");
+				GetTree().Quit(1);
+				return;
+			}
+			PlayerDesk.Instance.Runner.CartonRecordId = "probe_record_3";
+			PlayerDesk.Instance.Runner.CartonRemaining = 42;
+			PlayerDesk.Instance.Runner.Familiarity[routeStop.StopId] = 0.37f;
+			routeStop.OnHand["probe_record_3"] = new PlayerDesk.ConsignmentLot { Remaining = 5, Placed = 5, RunnerSourced = true };
+
+			// Distribution-expansion §8 (factor the paper): a real WholesaleReceivable, hand-added the
+			// same way a house line would book one, to prove it (a) survives save/load at all -- Label
+			// isn't captured through PlayerSaveData's own DTOs, so this also stress-tests whatever path
+			// DOES carry AILabel state -- and (b) factors correctly when asked.
+			int receivableDueWeek = ChartManager.Instance.GetCurrentChartWeek() + 12;
+			PlayerDesk.Instance.Label.wholesaleReceivables.Add(new WholesaleReceivable(receivableDueWeek, "probe_house_1", 200f));
+			PlayerDesk.Instance.Label.outstandingWholesaleReceivables += 200f;
+
+			// Distribution-expansion §11 (plant credit): hand-construct an outstanding credit (bypassing
+			// the real backlog-eligibility gate, same spirit as DebugUnlockRunner) to prove PlantCredit
+			// round-trips through CaptureState/RestoreState.
+			int creditDueWeek = ChartManager.Instance.GetCurrentChartWeek() + PlayerDesk.PlantCreditTermWeeks;
+			PlayerDesk.Instance.DebugSetPlantCredit(new PlayerDesk.PlantCredit { RecordId = "probe_record_5", Amount = 313f, DueWeek = creditDueWeek });
+
+			// §7 project promo is ephemeral (not persisted -- same as the existing Rolodex payola calls),
+			// so it has no CaptureState/RestoreState surface to round-trip. Smoke-test the ChartManager/
+			// PayolaLedger wiring directly instead of building a full release just to exercise it.
+			var promoStations = ChartManager.Instance.ReporterStationsInRegion(DistanceModel.GetCityById(cityId)?.parentRegionId ?? "");
+			bool promoOk = true;
+			if (promoStations.Count > 0) {
+				var placed = ChartManager.Instance.PlaceProjectPromo("probe_record_4", PlayerDesk.Instance.Label.labelId,
+					new[] { promoStations[0].stationId }, 0.5f, 0.5f, 0.1f, ChartManager.Instance.GetCurrentChartWeek(),
+					TimeManager.Instance.CurrentDate.year, TimeManager.Instance.CurrentDate.month, 2);
+				promoOk = placed != null && placed.Count == 1;
+				GD.Print($"PROJECT_PROMO_SMOKE stations={promoStations.Count} placed={placed?.Count ?? 0} ok={promoOk}");
+			}
+
+			// Distribution-expansion §4 (inbound demand): the answering-service purchase is a real
+			// AILabel field folded into GetMonthlyOverhead (LabelSaveData.HasAnsweringService), not
+			// PlayerDesk-only state -- exercise its round-trip alongside the stop mutation above.
+			if (!PlayerDesk.Instance.PurchaseAnsweringService(out string answeringMsg)) {
+				GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=answering-service:{answeringMsg}");
+				GetTree().Quit(1);
+				return;
+			}
+
+			// Distribution-expansion §9 (late exits): mark one-stop exposure and stage a master
+			// sale/lease directly (same bypass spirit as DebugSetPlantCredit -- driving the real gate
+			// would mean releasing an actual record with real regional radioPlay) to prove
+			// soldMasterRecordIds/leasedMasterExpiryWeek/oneStopKnownRecordIds round-trip. Also stage an
+			// unsigned P&D offer on the desk (PendingDistributionOffer) and a genuinely SIGNED deal via
+			// CompetitorManager.SignDistributionDeal -- the signed deal travels on Label.ActiveDeal,
+			// excluded from the full-world save's generic AILabel capture, so it's the one most likely
+			// to silently vanish on load if LabelSaveData ever drifts.
+			PlayerDesk.Instance.DebugMarkOneStopKnown("probe_record_6");
+			int leaseExpiryWeek = ChartManager.Instance.GetCurrentChartWeek() + PlayerDesk.MasterLeaseTermWeeks;
+			PlayerDesk.Instance.DebugSetMasterSold("probe_record_7");
+			PlayerDesk.Instance.DebugSetMasterLeased("probe_record_8", leaseExpiryWeek);
+
+			var pendingOfferStage = new DistributionDeal {
+				distributorId = "probe_distributor_1", reachGranted = 0.4f, grantedRegions = new[] { "probe_region_1" },
+				marginSkim = 0.3f, ownsMasters = false, advance = 500f, unrecoupedAdvance = 500f,
+				signedWeek = ChartManager.Instance.GetCurrentChartWeek(), termWeeks = 78, origin = DealOrigin.LabelSought
+			};
+			PlayerDesk.Instance.DebugSetPendingDistributionOffer(pendingOfferStage);
+
+			var signedDealStage = new DistributionDeal {
+				distributorId = "probe_distributor_2", reachGranted = 0.6f, grantedRegions = new[] { "probe_region_2" },
+				marginSkim = 0.35f, ownsMasters = true, advance = 800f, unrecoupedAdvance = 800f,
+				signedWeek = ChartManager.Instance.GetCurrentChartWeek(), termWeeks = 104, origin = DealOrigin.DistributorCourted
+			};
+			CompetitorManager.Instance.SignDistributionDeal(PlayerDesk.Instance.Label, signedDealStage);
+
 			// Save-time snapshot of world + player.
 			int week0 = ChartManager.Instance.GetCurrentChartWeek();
 			int labels0 = ChartManager.Instance.GetAllLabels().Count;
@@ -150,6 +273,94 @@ public partial class SaveLoadRoundTripRunner : Node {
 			string playerName1 = PlayerDesk.Instance.Label?.labelName;
 			float playerCash1 = PlayerDesk.Instance.Label?.cashReserves ?? float.NaN;
 
+			// The hand-mutated stop above: identity regenerates fresh (same StopId, since it's a pure
+			// function of the unchanged world seed), so the mutable state should have round-tripped
+			// through StopState onto that same stop.
+			PlayerDesk.PlayerStop probeStop1 = PlayerDesk.Instance.StopsInCity(cityId).FirstOrDefault(s => s.StopId == probeStop.StopId);
+			bool stopOk = probeStop1 != null
+				&& Math.Abs(probeStop1.Relationship - 0.62f) < 0.001f
+				&& Math.Abs(probeStop1.OpenBalance - 17.5f) < 0.01f
+				&& probeStop1.OnHand.TryGetValue("probe_record_1", out PlayerDesk.ConsignmentLot probeLot)
+				&& probeLot.Remaining == 12 && probeLot.Placed == 20 && probeLot.DaysSinceRestock == 3 && probeLot.ConsignmentTerms
+				&& probeStop1.LastApproachDate == TimeManager.Instance.CurrentDate
+				&& probeStop1.PassedRecordIds.Contains("probe_record_2");
+			GD.Print($"STOPS_ROUNDTRIP stopId={probeStop.StopId} found={probeStop1 != null} " +
+				$"relationship={probeStop1?.Relationship} openBalance={probeStop1?.OpenBalance} " +
+				$"lastApproach={probeStop1?.LastApproachDate} passed={probeStop1?.PassedRecordIds.Count} ok={stopOk}");
+
+			bool oneStopOk = true;
+			if (probeOneStop != null) {
+				PlayerDesk.PlayerStop probeOneStop1 = PlayerDesk.Instance.StopsInCity(probeOneStop.CityId)
+					.FirstOrDefault(s => s.StopId == probeOneStop.StopId);
+				oneStopOk = probeOneStop1 != null && probeOneStop1.OneStopUnlocked && probeOneStop1.OneStopTrusted;
+				GD.Print($"ONESTOP_ROUNDTRIP stopId={probeOneStop.StopId} found={probeOneStop1 != null} " +
+					$"unlocked={probeOneStop1?.OneStopUnlocked} trusted={probeOneStop1?.OneStopTrusted} ok={oneStopOk}");
+			}
+
+			bool answeringServiceOk = PlayerDesk.Instance.HasAnsweringService;
+			GD.Print($"ANSWERING_SERVICE_ROUNDTRIP ok={answeringServiceOk}");
+
+			PlayerDesk.PlayerRunner runner1 = PlayerDesk.Instance.Runner;
+			PlayerDesk.PlayerStop routeStop1 = PlayerDesk.Instance.StopsInCity(cityId).FirstOrDefault(s => s.StopId == routeStop.StopId);
+			PlayerDesk.ConsignmentLot runnerLot = null;
+			bool runnerLotOk = routeStop1 != null && routeStop1.OnHand.TryGetValue("probe_record_3", out runnerLot)
+				&& runnerLot.RunnerSourced && runnerLot.Remaining == 5;
+			bool runnerOk = PlayerDesk.Instance.RunnerUnlocked && runner1 != null
+				&& runner1.CartonRecordId == "probe_record_3" && runner1.CartonRemaining == 42
+				&& runner1.RouteStopIds.Contains(routeStop.StopId)
+				&& runner1.Familiarity.TryGetValue(routeStop.StopId, out float fam) && Math.Abs(fam - 0.37f) < 0.001f
+				&& runnerLotOk;
+			GD.Print($"RUNNER_ROUNDTRIP unlocked={PlayerDesk.Instance.RunnerUnlocked} hasRunner={runner1 != null} " +
+				$"cartonRecord={runner1?.CartonRecordId} cartonQty={runner1?.CartonRemaining} " +
+				$"onRoute={runner1?.RouteStopIds.Contains(routeStop.StopId)} lotRunnerSourced={runnerLot?.RunnerSourced} ok={runnerOk}");
+
+			var creditOwed1 = PlayerDesk.Instance.PlantCreditOwed;
+			bool plantCreditOk = creditOwed1.HasValue && creditOwed1.Value.RecordId == "probe_record_5"
+				&& Math.Abs(creditOwed1.Value.Amount - 313f) < 0.01f && creditOwed1.Value.WeeksAway == PlayerDesk.PlantCreditTermWeeks;
+			GD.Print($"PLANT_CREDIT_ROUNDTRIP found={creditOwed1.HasValue} recordId={creditOwed1?.RecordId} " +
+				$"amount={creditOwed1?.Amount} weeksAway={creditOwed1?.WeeksAway} ok={plantCreditOk}");
+
+			var invoices1 = PlayerDesk.Instance.OutstandingInvoices().ToList();
+			bool receivableOk = invoices1.Any(inv => Math.Abs(inv.Amount - 200f) < 0.01f);
+			GD.Print($"RECEIVABLE_ROUNDTRIP count={invoices1.Count} found200={receivableOk}");
+			bool factorOk = false;
+			if (receivableOk) {
+				int idx = invoices1.FindIndex(inv => Math.Abs(inv.Amount - 200f) < 0.01f);
+				float rate = PlayerDesk.Instance.FactorRatePreview(idx);
+				float cashBefore = PlayerDesk.Instance.Label.cashReserves;
+				float owedBefore = PlayerDesk.Instance.Label.outstandingWholesaleReceivables;
+				if (!PlayerDesk.Instance.FactorReceivable(idx, out string factorMsg)) {
+					GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=factor:{factorMsg}");
+					GetTree().Quit(1);
+					return;
+				}
+				float cashAfter = PlayerDesk.Instance.Label.cashReserves;
+				float owedAfter = PlayerDesk.Instance.Label.outstandingWholesaleReceivables;
+				float expectedCash = 200f * rate;
+				factorOk = Math.Abs((cashAfter - cashBefore) - expectedCash) < 0.01f && Math.Abs((owedBefore - owedAfter) - 200f) < 0.01f
+					&& !PlayerDesk.Instance.OutstandingInvoices().Any(inv => Math.Abs(inv.Amount - 200f) < 0.01f);
+				GD.Print($"FACTOR_CHECK rate={rate:F2} cashDelta={cashAfter - cashBefore:F2} expectedCash={expectedCash:F2} owedDelta={owedBefore - owedAfter:F2} ok={factorOk}");
+			}
+
+			// Distribution-expansion §9: one-stop exposure, master sold/leased state, the unsigned offer
+			// on the desk, and the SIGNED deal on Label.ActiveDeal should all have round-tripped.
+			bool oneStopKnownOk = PlayerDesk.Instance.IsOneStopKnown("probe_record_6");
+			bool masterSoldOk = PlayerDesk.Instance.IsMasterOut("probe_record_7");
+			bool masterLeasedOk = PlayerDesk.Instance.IsMasterOut("probe_record_8");
+			GD.Print($"MASTER_DEAL_ROUNDTRIP oneStopKnown={oneStopKnownOk} sold={masterSoldOk} leased={masterLeasedOk}");
+
+			DistributionDeal pendingOffer1 = PlayerDesk.Instance.PendingDistributionOffer;
+			bool pendingOfferOk = pendingOffer1 != null && pendingOffer1.distributorId == "probe_distributor_1"
+				&& Math.Abs(pendingOffer1.advance - 500f) < 0.01f && pendingOffer1.termWeeks == 78
+				&& pendingOffer1.origin == DealOrigin.LabelSought && !pendingOffer1.ownsMasters;
+			GD.Print($"PENDING_OFFER_ROUNDTRIP found={pendingOffer1 != null} distributor={pendingOffer1?.distributorId} ok={pendingOfferOk}");
+
+			DistributionDeal activeDeal1 = PlayerDesk.Instance.Label?.activeDeal;
+			bool activeDealOk = activeDeal1 != null && activeDeal1.distributorId == "probe_distributor_2"
+				&& Math.Abs(activeDeal1.advance - 800f) < 0.01f && activeDeal1.termWeeks == 104
+				&& activeDeal1.origin == DealOrigin.DistributorCourted && activeDeal1.ownsMasters;
+			GD.Print($"ACTIVE_DEAL_ROUNDTRIP found={activeDeal1 != null} distributor={activeDeal1?.distributorId} ownsMasters={activeDeal1?.ownsMasters} ok={activeDealOk}");
+
 			// Advance one week past the load. This is the exact path that regressed: the post-load settlement
 			// rejects as out-of-order if CompetitorManager's lastBookedSettlementId wasn't restored in step with
 			// the chart week. A throw here surfaces via the outer catch as SAVELOAD_INTEGRATION_ERROR.
@@ -169,6 +380,19 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (Math.Abs(sampleCash1 - sampleCash0) > 0.01f) fails.Add($"aiLabelCash {sampleCash0}->{sampleCash1}");
 			if (playerName1 != playerName0) fails.Add($"playerName {playerName0}->{playerName1}");
 			if (Math.Abs(playerCash1 - playerCash0) > 0.01f) fails.Add($"playerCash {playerCash0}->{playerCash1}");
+			if (!stopOk) fails.Add($"stopState stopId={probeStop.StopId} found={probeStop1 != null}");
+			if (!oneStopOk) fails.Add($"oneStopState stopId={probeOneStop?.StopId}");
+			if (!answeringServiceOk) fails.Add("answeringService lost on round-trip");
+			if (!runnerOk) fails.Add($"runnerState stopId={routeStop.StopId}");
+			if (!promoOk) fails.Add("projectPromoSmoke");
+			if (!plantCreditOk) fails.Add("plantCreditState");
+			if (!receivableOk) fails.Add("wholesaleReceivable lost on round-trip");
+			else if (!factorOk) fails.Add("factorReceivable math");
+			if (!oneStopKnownOk) fails.Add("oneStopKnownRecordIds lost on round-trip");
+			if (!masterSoldOk) fails.Add("soldMasterRecordIds lost on round-trip");
+			if (!masterLeasedOk) fails.Add("leasedMasterExpiryWeek lost on round-trip");
+			if (!pendingOfferOk) fails.Add("pendingDistributionOffer lost on round-trip");
+			if (!activeDealOk) fails.Add("player Label.activeDeal lost on round-trip");
 
 			SaveGameService.Delete(slot);
 			if (fails.Count == 0) {
@@ -209,10 +433,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 		}
 
 		int unresolved = 0;
-		foreach ((string cityName, string title, int remaining) in desk.TownStock()) {
+		foreach ((string cityName, string stopName, string title, int remaining) in desk.StopStock()) {
 			bool dangling = System.Text.RegularExpressions.Regex.IsMatch(title, @"^player_\d+$");
 			if (dangling) unresolved++;
-			GD.Print($"  STOCK {cityName} \"{title}\" remaining={remaining} dangling={dangling}");
+			GD.Print($"  STOCK {cityName} — {stopName} \"{title}\" remaining={remaining} dangling={dangling}");
 		}
 		GD.Print(unresolved == 0
 			? $"SAVELOAD_INSPECT_PASS slot={slot} discography={titles} danglingStockRefs=0"

@@ -432,9 +432,14 @@ public partial class MarketRegion : Resource {
 		return GetLegacyGenreAcceptance(genre, year);
 	}
 	
+	/// <summary>The race-record-era genres whose white-market reach is gated by <see cref="currentIntegration"/>
+	/// rather than open outright -- pulled out of <see cref="GetSegregationFactor"/> so player-side systems
+	/// (distribution-expansion directive §10) can reuse the same classification instead of re-authoring it.</summary>
+	public static bool IsBlackAudienceGenre(Genre genre) =>
+		genre == Genre.RnB || genre == Genre.Soul || genre == Genre.Gospel || genre == Genre.DooWop;
+
 	public float GetSegregationFactor(Genre genre) {
-		bool isBlackGenre = genre == Genre.RnB || genre == Genre.Soul || genre == Genre.Gospel || genre == Genre.DooWop;
-		if (!isBlackGenre) return 1f;
+		if (!IsBlackAudienceGenre(genre)) return 1f;
 		float whiteAccess = currentIntegration;
 		float blackMarketShare = blackPopulation;
 		float whiteMarketShare = (1f - blackPopulation) * whiteAccess;

@@ -3883,6 +3883,12 @@ public partial class CompetitorManager : Node {
 		// 1960 cost thirteen unique labels their first chart entry. Gate it to the courting
 		// ramp so it acts where the history and the target arc both put it.
 		if (year < consolidationCourtingRampStartYear) return;
+		// Directive §9: this whole loop signs a deal on the client's behalf with no dialogue --
+		// ShouldAcceptDeal is a coin flip, not a choice. That's fine for the AI economy; for the
+		// player it silently attaches an advance-and-masters contract behind their back, the exact
+		// opposite of "player buttons, not an AI deal brain rewrite." The player's own front door is
+		// PursueDistributionDeal below.
+		if (client.isPlayerOwned) return;
 		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier)) return;
 		DistributionDeal current = client.activeDeal;
 		AILabel incumbent = GetLabel(current?.distributorId);
@@ -3938,6 +3944,11 @@ public partial class CompetitorManager : Node {
 		// A subsidiary already distributes through the parent's national network and does not
 		// sign its own deals.
 		if (client.IsSubsidiary) return;
+		// Directive §9: the player's label sits in aiLabels like any other (RegisterLabel), so
+		// without this guard the exact same push/pull rolls below could silently sign a P&D deal --
+		// advance banked, masters possibly gone -- with no dialogue at all. "MajorPD ... player front
+		// door only" means the player walks in (PursueDistributionDeal); nobody walks in on them.
+		if (client.isPlayerOwned) return;
 		if (!CanSignDistributionDeal(client.tier)) return;
 
 		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
@@ -4221,6 +4232,66 @@ public partial class CompetitorManager : Node {
 		if (courted) acceptance += 0.35f;
 		if (!courted && client.tier == LabelTier.Independent && client.ownedReach >= 0.45f && !cashPressured) acceptance -= 0.35f;
 		return GD.Randf() < Mathf.Clamp(acceptance, 0.05f, 0.95f);
+	}
+
+	/// <summary>
+	/// Directive §9: the player's front door into a P&amp;D distribution deal. TryGenerateDistributionOffer
+	/// and TryPoachDistributedClient now skip the player's label entirely (see the isPlayerOwned guards
+	/// on both) -- this is what replaces them: the same pull-route evidence bar
+	/// (EvaluateRegionalDealEvidence / IsPullDealTrigger), the same distributor selection
+	/// (SelectDistributor), and the same term generator (GenerateDealTerms) the AI itself uses.
+	/// ShouldAcceptDeal is deliberately NOT called -- that coin flip is the client deciding whether to
+	/// sign, and here the client is the player, so the decision goes to <see cref="SignDistributionDeal"/>
+	/// instead. <paramref name="consulted"/> distinguishes "you don't qualify to even ask" (no hours
+	/// should be spent finding that out) from "you made the rounds and nobody bit" (a real pitch that
+	/// costs the sit-down either way) -- mirrors the anyHouseAvailable split in PlacePlayerLine (§5.1).
+	/// </summary>
+	public DistributionDeal PursueDistributionDeal(AILabel client, out bool consulted, out string message) {
+		consulted = false;
+		message = null;
+		if (client == null) { message = "No label."; return null; }
+		if (client.activeDeal != null) { message = "You're already under a distribution deal -- ride it out or let it lapse first."; return null; }
+		if (client.IsSubsidiary || !CanSignDistributionDeal(client.tier)) {
+			message = "You've outgrown a P&D contract -- distributors negotiate around you now, not for you.";
+			return null;
+		}
+
+		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
+			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+		if (!IsPullDealTrigger(client, evidence)) {
+			message = "Nobody's biting -- you don't have the regional proof to bring to this table yet.";
+			return null;
+		}
+
+		consulted = true; // from here on you made the rounds -- it costs the sit-down whether or not anyone bites
+		AILabel distributor = SelectDistributor(client, DealOrigin.LabelSought);
+		if (distributor == null) {
+			message = "Made the rounds -- nobody's got the room or the cash for you right now.";
+			return null;
+		}
+
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		DistributionDeal offer = GenerateDealTerms(client, distributor, DealOrigin.LabelSought, year, currentWeek);
+		offer.Cover(evidence.EarningRecordId);
+		message = $"{distributor.labelName} will take you on -- {offer.marginSkim:P0} skim, {offer.termWeeks}-week term" +
+			(offer.advance > 0f ? $", ${offer.advance:N0} advance" : ", no advance") +
+			(offer.ownsMasters ? ", and they take the masters." : ", masters stay yours.");
+		return offer;
+	}
+
+	/// <summary>Commits an offer <see cref="PursueDistributionDeal"/> handed back -- the player's own
+	/// accept, standing in for the ShouldAcceptDeal roll the AI path uses on itself. Same side effects
+	/// as the AI's own signing (TryGenerateDistributionOffer): advance changes hands, the deal event
+	/// fires, and everything downstream (RouteDistributionSkim, ResolveDistributionDeal at term) picks
+	/// the player up exactly like any other client from here -- no separate settlement path needed.</summary>
+	public void SignDistributionDeal(AILabel client, DistributionDeal offer) {
+		if (client == null || offer == null || client.activeDeal != null) return;
+		AILabel distributor = GetLabel(offer.distributorId);
+		client.activeDeal = offer;
+		client.cashReserves += offer.advance;
+		if (distributor != null) distributor.cashReserves -= offer.advance;
+		EmitDealEvent(client, distributor, offer, DealResolution.Signed, client.DistributionDependency);
 	}
 
 	private void ResolveDistributionDeal(AILabel client, AILabel distributor, int currentWeek, int year) {
@@ -4590,18 +4661,45 @@ public partial class CompetitorManager : Node {
 		return true;
 	}
 
+	/// <summary>Whether label has proven a real regional breakout in regionId -- the exact evidence bar
+	/// <see cref="GetProvenBreakoutRegions"/> already applies to the AI's own independent-distribution
+	/// path. Exposed read-only for the player's house-line proof gate (directive §5.1); no new
+	/// calibration, just the same regionalData reused instead of a parallel bar.</summary>
+	public bool HasProvenBreakoutIn(AILabel label, string regionId) =>
+		label != null && !string.IsNullOrEmpty(regionId) && GetProvenBreakoutRegions(label).Contains(regionId);
+
+	// Directive §5.1: below regionalBreakoutDealThreshold, a house visit is a real pitch that can be
+	// turned down ("I don't hear it") rather than an automatic yes -- and if it lands anyway, it lands
+	// cold: back of the pile, not a courted line. A proven region always gets taken -- that's the payoff
+	// for the proof, and the whole point of the gate.
+	private const float UnprovenLineAcceptChance = 0.40f;
+	private const float UnprovenLineSeedScale = 0.35f;
+
 	/// <summary>
 	/// Places the player's line with a wholesale house in one market. Same grant as
 	/// <see cref="PursueIndependentDistribution"/>: coverage and the marginal reach it
-	/// opens, no deal, no borrowed reach, no master ownership.
+	/// opens, no deal, no borrowed reach, no master ownership -- gated on the same regional-breakout
+	/// evidence the AI path requires (directive §5.1). <paramref name="anyHouseAvailable"/> tells the
+	/// caller whether there was even a house to pitch, so a structural "no room anywhere" reads
+	/// differently from a real pitch that got turned down.
 	/// </summary>
-	public IndependentDistributor PlacePlayerLine(AILabel label, string regionId) {
+	public IndependentDistributor PlacePlayerLine(AILabel label, string regionId, out bool proven, out bool anyHouseAvailable) {
+		proven = false;
+		anyHouseAvailable = false;
 		if (label == null || string.IsNullOrEmpty(regionId)) return null;
 		if (label.HasDistributionInRegion(regionId)) return null;
 
+		proven = HasProvenBreakoutIn(label, regionId);
+
 		IndependentDistributor house = GetIndependentDistributorsInRegion(regionId)
 			.FirstOrDefault(candidate => candidate.HasCapacity && !candidate.CarriesLabel(label.labelId));
-		if (house == null || !house.AddClient(label.labelId)) return null;
+		if (house == null) return null;
+		anyHouseAvailable = true;
+
+		// Below the bar, "I don't hear it" is the honest outcome most of the time -- proof is what
+		// turns a warehouse visit into a sure thing.
+		if (!proven && GD.Randf() > UnprovenLineAcceptChance) return null;
+		if (!house.AddClient(label.labelId)) return null;
 
 		label.independentDistributionRegions.Add(regionId);
 		float before = label.ownedReach;
@@ -4612,14 +4710,16 @@ public partial class CompetitorManager : Node {
 		// The house presses a run for this market's shops. Player records are otherwise unseeded in the
 		// store engine (they sell out of the trunk elsewhere), so without this a line placed after release
 		// would put nothing on the shelves. Seed each of the label's in-market singles now that the region
-		// is covered; the weekly engine sells and restocks from here.
+		// is covered; the weekly engine sells and restocks from here. A cold, unproven take gets a thinner
+		// initial seed than a courted one -- "back-of-the-pile priority" (§5.1), not a hot-pile push.
+		float seedScale = proven ? 1f : UnprovenLineSeedScale;
 		foreach (RecordRuntimeData playerRecord in ChartManager.Instance?.GetPlayerRecords() ?? new List<RecordRuntimeData>()) {
 			if (playerRecord.baseRecord.labelId != label.labelId) continue;
 			if (!playerRecord.regionalData.TryGetValue(regionId, out RegionalRecordData data)) {
 				data = new RegionalRecordData(regionId);
 				playerRecord.regionalData[regionId] = data;
 			}
-			data.unitsInStores = ChartSimulator.CalculateInitialRegionalStock(label, regionId, 1f,
+			data.unitsInStores = ChartSimulator.CalculateInitialRegionalStock(label, regionId, seedScale,
 				playerRecord.perceivedQualityMultiplier > 0f ? playerRecord.perceivedQualityMultiplier : 1f,
 				playerRecord.baseRecord.recordId);
 		}
@@ -4628,7 +4728,7 @@ public partial class CompetitorManager : Node {
 			week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			labelId = label.labelId, labelName = label.labelName, labelTier = label.tier,
 			distributorId = house.distributorId, distributorName = house.distributorName,
-			regionId = regionId, provenInRegion = false,
+			regionId = regionId, provenInRegion = proven,
 			coveredRegionCount = label.independentDistributionRegions.Count,
 			coveredMarketShare = ChartManager.Instance?.GetNationalMarketShareForRegions(label.AllCoveredRegions()) ?? 0f,
 			ownedReachBefore = before, ownedReachAfter = label.ownedReach,
