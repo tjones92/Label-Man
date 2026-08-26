@@ -107,7 +107,7 @@ public sealed class PayolaLedger {
 		});
 	}
 
-	public List<PayolaAction> PlaceIndiePromoter(string recordId, string labelId, string promoterId, int week, int year, int month) {
+	public List<PayolaAction> PlaceIndiePromoter(string recordId, string labelId, string promoterId, int week, int year, int month, int durationWeeks = 6) {
 		if (!promoters.TryGetValue(promoterId, out IndiePromoter p)) return null;
 		var placed = new List<PayolaAction>();
 		foreach (string stationId in p.stationIds) {
@@ -116,7 +116,7 @@ public sealed class PayolaLedger {
 			placed.Add(Register(new PayolaAction {
 				actionId = NewId(), recordId = recordId, labelId = labelId, method = PayolaMethod.IndiePromoter,
 				targetStationId = stationId, promoterId = promoterId, intensity = intensity, weeklyDecay = 0.15f,
-				startedWeek = week, expiresWeek = week + 6
+				startedWeek = week, expiresWeek = week + durationWeeks
 			}));
 		}
 		return placed;

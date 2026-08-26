@@ -268,8 +268,19 @@ public sealed class PlayerSaveData {
 	public List<PlannedReleaseSaveData> Planned { get; set; } = new();   // assembled singles, dated or not
 	public List<PressStockSaveData> Inventory { get; set; } = new();     // pressed 45s on hand at the office
 	public List<PressOrderSaveData> PressOrders { get; set; } = new();   // runs still at the plant
+	// Pre-stop-layer fields. No longer written (see StopState below) -- kept only so a save from before
+	// the named-stop layer can still be read and migrated on load (PlayerDesk.RestoreState).
 	public List<ConsignmentLotSaveData> Consignment { get; set; } = new(); // stock left in towns' shops
 	public Dictionary<string, float> ConsignmentOwed { get; set; } = new(); // money towns are holding for you
+	// Named accounts (shops, jukebox operators): the mutable state each stop has earned. Identity
+	// (name/city/kind) regenerates deterministically from the world seed every session and is never
+	// saved -- only stops with any relationship, balance, or stock get a row (see PlayerDesk.EnsureStops).
+	public List<PlayerStopSaveData> StopState { get; set; } = new();
+	// Directive §4: open "they called me" demand signals, plus the week-boundary cursor that gates
+	// generating a fresh batch (PlayerDesk.CheckWeeklyInboundCalls) so a same-week reload can't spawn
+	// the week's calls twice.
+	public List<InboundCallSaveData> InboundCalls { get; set; } = new();
+	public int LastCallGenWeek { get; set; } = -1;
 	public Dictionary<string, int> WeeklyTrunkUnits { get; set; } = new();  // trunk units to fold into the chart at week end
 	// This chart-week's trunk business so far, folded into the settlement write-up at week end (mid-week save safe).
 	public long WeeklyTrunkUnitsSold { get; set; }
@@ -298,6 +309,77 @@ public sealed class PlayerSaveData {
 	// Cultivated rapport and the player's own records' rotation slots. The panel is rebuilt from seed
 	// on load, so without this every relationship the Rolodex earned resets to zero.
 	public List<StationPlayerStateSaveData> StationState { get; set; } = new();
+
+	// People (directive §7): the commission runner's own state, plus the unlock ledger so a reload can't
+	// re-earn (or lose) an unlock already granted. Project promo leaves no state of its own to persist --
+	// it's an ephemeral PayolaLedger arrangement, same as the existing Rolodex payola calls.
+	public bool RunnerUnlocked { get; set; }
+	public Dictionary<string, int> ServiceReorderCountByCity { get; set; } = new();
+	public int LastRunnerTickWeek { get; set; } = -1;
+	public float WeeklyRunnerCommission { get; set; }
+	public PlayerRunnerSaveData Runner { get; set; }
+	// Plant credit (directive §11): null when nothing is owed.
+	public PlantCreditSaveData PlantCredit { get; set; }
+
+	// Directive §9: master lease/sale, and the P&D pitch sitting on the desk (if any). The signed P&D
+	// deal itself lives on LabelSaveData.ActiveDeal -- the full-world save explicitly excludes the
+	// player's own AILabel (WorldSaveData.cs), so without this a signed deal would silently vanish on
+	// the next load.
+	public List<string> SoldMasterRecordIds { get; set; } = new();
+	public Dictionary<string, int> LeasedMasterExpiryWeek { get; set; } = new();
+	public List<string> OneStopKnownRecordIds { get; set; } = new();
+	public DistributionDealSaveData PendingDistributionOffer { get; set; }
+}
+
+/// <summary>Flat save record for <see cref="DistributionDeal"/> -- used both for the player's
+/// <see cref="AILabel.activeDeal"/> (via <see cref="LabelSaveData.ActiveDeal"/>) and the offer sitting
+/// unsigned on the desk (<see cref="PlayerSaveData.PendingDistributionOffer"/>).</summary>
+public sealed class DistributionDealSaveData {
+	public string DistributorId { get; set; }
+	public float ReachGranted { get; set; }
+	public string[] GrantedRegions { get; set; } = Array.Empty<string>();
+	public float MarginSkim { get; set; }
+	public bool OwnsMasters { get; set; }
+	public float Advance { get; set; }
+	public float UnrecoupedAdvance { get; set; }
+	public int SignedWeek { get; set; }
+	public int TermWeeks { get; set; }
+	public int Origin { get; set; }
+	public List<string> CoveredRecordIds { get; set; } = new();
+
+	public static DistributionDealSaveData From(DistributionDeal d) => d == null ? null : new DistributionDealSaveData {
+		DistributorId = d.distributorId, ReachGranted = d.reachGranted,
+		GrantedRegions = d.grantedRegions ?? Array.Empty<string>(),
+		MarginSkim = d.marginSkim, OwnsMasters = d.ownsMasters, Advance = d.advance,
+		UnrecoupedAdvance = d.unrecoupedAdvance, SignedWeek = d.signedWeek, TermWeeks = d.termWeeks,
+		Origin = (int)d.origin, CoveredRecordIds = d.coveredRecordIds?.ToList() ?? new List<string>()
+	};
+
+	public DistributionDeal ToDeal() => new() {
+		distributorId = DistributorId, reachGranted = ReachGranted,
+		grantedRegions = GrantedRegions ?? Array.Empty<string>(),
+		marginSkim = MarginSkim, ownsMasters = OwnsMasters, advance = Advance,
+		unrecoupedAdvance = UnrecoupedAdvance, signedWeek = SignedWeek, termWeeks = TermWeeks,
+		origin = (DealOrigin)Origin,
+		coveredRecordIds = new HashSet<string>(CoveredRecordIds ?? new List<string>(), StringComparer.Ordinal)
+	};
+}
+
+/// <summary>Flat save record for <see cref="PlayerDesk.PlantCredit"/>. Null on <see cref="PlayerSaveData.PlantCredit"/>
+/// when nothing is currently owed.</summary>
+public sealed class PlantCreditSaveData {
+	public string RecordId { get; set; }
+	public float Amount { get; set; }
+	public int DueWeek { get; set; }
+}
+
+/// <summary>Flat save record for <see cref="PlayerDesk.PlayerRunner"/>. Null on <see cref="PlayerSaveData.Runner"/>
+/// when no runner has been hired.</summary>
+public sealed class PlayerRunnerSaveData {
+	public List<string> RouteStopIds { get; set; } = new();
+	public string CartonRecordId { get; set; }
+	public int CartonRemaining { get; set; }
+	public Dictionary<string, float> Familiarity { get; set; } = new();
 }
 
 public sealed class LabelSaveData {
@@ -338,6 +420,10 @@ public sealed class LabelSaveData {
 	public int[] preferredGenres { get; set; } = Array.Empty<int>();
 	public int[] secondaryGenres { get; set; } = Array.Empty<int>();
 	public List<string> RosterArtistIds { get; set; } = new();
+	public bool HasAnsweringService { get; set; }
+	// Directive §9: the player's own P&D deal, if any. Excluded from the full-world save's generic
+	// AILabel capture (the player's label is excluded there by design), so it round-trips here instead.
+	public DistributionDealSaveData ActiveDeal { get; set; }
 
 	public static LabelSaveData From(AILabel l) => new() {
 		labelId = l.labelId, labelName = l.labelName, founderName = l.founderName,
@@ -357,7 +443,9 @@ public sealed class LabelSaveData {
 		distributionRegions = l.distributionRegions ?? Array.Empty<string>(),
 		preferredGenres = (l.preferredGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		secondaryGenres = (l.secondaryGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
-		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList()
+		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList(),
+		HasAnsweringService = l.hasAnsweringService,
+		ActiveDeal = DistributionDealSaveData.From(l.activeDeal)
 	};
 
 	public void ApplyTo(AILabel l) {
@@ -378,6 +466,8 @@ public sealed class LabelSaveData {
 		l.distributionRegions = distributionRegions ?? Array.Empty<string>();
 		l.preferredGenres = (preferredGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.secondaryGenres = (secondaryGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
+		l.hasAnsweringService = HasAnsweringService;
+		l.activeDeal = ActiveDeal?.ToDeal();
 	}
 }
 
@@ -485,6 +575,7 @@ public sealed class WeekBookSaveData {
 	public float Collected { get; set; }
 	public float Banked { get; set; }
 	public float TrunkHeld { get; set; }
+	public float RunnerCommission { get; set; }
 	public float Outstanding { get; set; }
 	public float Cash { get; set; }
 
@@ -492,14 +583,14 @@ public sealed class WeekBookSaveData {
 		Week = w.Week, Year = w.Date.year, Month = w.Date.month, Day = w.Date.day, Units = w.Units,
 		Gross = w.Gross, ManufacturingCost = w.ManufacturingCost, DistributionSkim = w.DistributionSkim,
 		ArtistRoyalty = w.ArtistRoyalty, Earned = w.Earned, Deferred = w.Deferred, Collected = w.Collected,
-		Banked = w.Banked, TrunkHeld = w.TrunkHeld, Outstanding = w.Outstanding, Cash = w.Cash
+		Banked = w.Banked, TrunkHeld = w.TrunkHeld, RunnerCommission = w.RunnerCommission, Outstanding = w.Outstanding, Cash = w.Cash
 	};
 
 	public PlayerDesk.WeekBooks ToWeekBooks() => new() {
 		Week = Week, Date = new GameDate(Year, Month, Day), Units = Units,
 		Gross = Gross, ManufacturingCost = ManufacturingCost, DistributionSkim = DistributionSkim,
 		ArtistRoyalty = ArtistRoyalty, Earned = Earned, Deferred = Deferred, Collected = Collected,
-		Banked = Banked, TrunkHeld = TrunkHeld, Outstanding = Outstanding, Cash = Cash
+		Banked = Banked, TrunkHeld = TrunkHeld, RunnerCommission = RunnerCommission, Outstanding = Outstanding, Cash = Cash
 	};
 }
 
@@ -813,9 +904,41 @@ public sealed class PressOrderSaveData {
 }
 
 public sealed class ConsignmentLotSaveData {
-	public string CityId { get; set; }
+	public string CityId { get; set; } // only meaningful on the legacy Consignment list -- unused nested under PlayerStopSaveData
 	public string RecordId { get; set; }
 	public int Remaining { get; set; }
 	public int Placed { get; set; }
 	public int DaysSinceRestock { get; set; }
+	public bool ConsignmentTerms { get; set; }
+	// Directive §7: true when this lot's stock came out of the runner's carton, not the office's own --
+	// ProcessTrunkDay reads it to route the day's sell-through through BookRunnerSale (commission taken).
+	public bool RunnerSourced { get; set; }
+}
+
+public sealed class PlayerStopSaveData {
+	public string StopId { get; set; }
+	public float Relationship { get; set; }
+	public int LastVisitWeek { get; set; }
+	public float OpenBalance { get; set; }
+	public int MissedCallStreak { get; set; }
+	public List<ConsignmentLotSaveData> OnHand { get; set; } = new();
+	// Once-a-day pitch/consign gate (0/0/0 = never approached).
+	public int LastApproachYear { get; set; }
+	public int LastApproachMonth { get; set; }
+	public int LastApproachDay { get; set; }
+	// Titles this stop has passed on COD; stays passed until GenerateInboundCalls clears it.
+	public List<string> PassedRecordIds { get; set; } = new();
+	// One-stop counterparties only (directive §6).
+	public bool OneStopUnlocked { get; set; }
+	public bool OneStopTrusted { get; set; }
+}
+
+public sealed class InboundCallSaveData {
+	public string StopId { get; set; }
+	public string RecordId { get; set; }
+	public int Week { get; set; }
+	public int RequestedQty { get; set; }
+	public int Reason { get; set; }
+	public int ExpiresWeek { get; set; }
+	public bool ConsignmentTerms { get; set; }
 }

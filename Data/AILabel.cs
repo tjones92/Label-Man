@@ -752,13 +752,19 @@ public partial class AILabel : Resource {
 	
 	/// <summary>Rent-free home operation: what the player's label costs to keep the lights on each month.</summary>
 	public const float PlayerHomeOfficeOverhead = 75f;
+	// Directive §4.3: "$5-10/mo -- trivial against the $75 overhead, so it's an early, affordable
+	// unlock" -- the real first "secretary," catching InboundCalls while the player's on the road.
+	// Explicitly exempted from invariant 5's "no new fixed cost the player can reach before the
+	// channel it serves has paid" -- this one's cheap enough to buy on day one.
+	public const float AnsweringServiceMonthlyCost = 6f;
+	public bool hasAnsweringService;
 
 	public float GetMonthlyOverhead() {
 		// The player starts out of a home or apartment, not an office: a phone line, a filing cabinet
 		// on the kitchen table, and postage. There is no per-artist line because the player's marginal
 		// cost of an act is already charged where it lands -- studio time, pressing, gas on the road.
 		// Player-only, so the AI economy's overhead schedule is untouched.
-		if (isPlayerOwned) return PlayerHomeOfficeOverhead;
+		if (isPlayerOwned) return PlayerHomeOfficeOverhead + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
 		float baseOverhead = tier switch {
 			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
 			LabelTier.Small => 150f, LabelTier.Boutique => 250f, _ => 300f

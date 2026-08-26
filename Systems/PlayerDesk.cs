@@ -29,6 +29,71 @@ public partial class PlayerDesk : Node {
 	public const int CommissionHours = ActionCosts.QuickMeeting;    // 2 -- putting the brief to a writer
 	public const int CommissionDeliveryDays = 7;                    // a writer turns a commission around in about a week
 	public const float CommissionFee = 150f;                        // the writer's / publisher's fee, paid on commission
+	public const int ArtistBuyInHours = ActionCosts.QuickMeeting;   // 2 -- sit the act down and hand off the cartons
+
+	// Inbound demand (directive §4): thresholds and pacing for "they called me." All read off real
+	// regional chart state (RecordRuntimeData.regionalData) and the player's own stop roster -- never a
+	// parallel buzz meter (§4.1).
+	private const int CallExpiryWeeks = 3;              // unanswered, they fill it from someone else or forget
+	private const int SoldOutOnHandThreshold = 3;        // a known account this thin, with real demand, calls
+	private const float StrangerAwarenessThreshold = 0.22f;  // regional awareness that makes a never-visited shop plausible
+	private const float StrangerRadioThreshold = 0.15f;      // regional radioPlay that does the same
+	private const float StrangerCallChancePerWeek = 0.35f;   // even with real signal, not every week rings
+	private const int StrangerCallsPerRecordPerWeek = 1;     // keep the office list legible, not a flood
+	// A shop or op calling and getting no answer is not that out of the ordinary -- one miss barely dents
+	// it. What actually costs you is a pattern: the penalty compounds with each consecutive unanswered
+	// call at the same stop, capped so a bad month is bruising, not fatal to the account.
+	private const float MissedCallBasePenalty = 0.015f;
+	private const float MissedCallMaxPenalty = 0.12f;
+
+	// One-stop (directive §6): the metro counterparty, "locked as a customer until inbound demand
+	// exists." Not an IndependentDistributor -- a lighter, player-only counterparty (§0/§12).
+	private const float OneStopServedRelationshipFloor = 0.35f;  // "an op or dealer they already serve" -- friendly or better
+	private const int OneStopCartonDefaultQty = 100;             // "the first 50-200 that move at once"
+	private const int OneStopCartonMaxQty = 200;
+	private const float OneStopUnitPrice = 0.58f;                // wholesale, below the 0.89 retail -- "still fast-ish cash"
+	private const int OneStopWarehouseVisitHours = ActionCosts.QuickMeeting; // 2 -- a real sit-down, not a counter pitch
+	private const int OneStopPaymentTermWeeks = 5;               // "net 30-45" (days) once trusted; COD on the first carton
+
+	// UI-facing mirrors of the private constants above (PlayerDeskPanel needs the numbers, not the logic).
+	public static int OneStopVisitHours => OneStopWarehouseVisitHours;
+	public static int OneStopCartonMax => OneStopCartonMaxQty;
+	public static int OneStopCartonDefault => OneStopCartonDefaultQty;
+
+	// People, first tier: contractors, never payroll (directive §7). No fixed weekly cost either one can
+	// reach before the channel it serves has paid (invariant 5) -- the runner eats only a cut of what he
+	// actually brings in, and the promo man is a one-off project fee, not a retainer.
+	private const int RunnerUnlockReorderCount = 3;    // "persistent reorders in one city" -- successful Service calls, same town
+	private const int RunnerUnlockCallCities = 2;      // "inbound calls in two cities the same week"
+	public const int RunnerHandoffHours = ActionCosts.QuickMeeting; // 2 -- sit him down with a carton at the office
+	// 8-15% of his collections (directive §7); mid-band, taken directly off the net he brings in, the
+	// instant it lands -- "paid when the shop pays," never a separate payroll line.
+	private const float RunnerCommissionRate = 0.12f;
+	private const float RunnerAcceptBase = 0.20f;   // worse than the player's own 0.35 (PitchAtStop)
+	private const float RunnerAcceptSlope = 0.5f;   // worse than the player's own 0.6 slope
+	private const float RunnerFamiliarityGain = 0.06f; // "rises on his accounts" -- his own curve, not stop.Relationship
+	private const float RunnerRelationshipGain = 0.02f; // still your label's stock -- a small tick for the player too
+
+	public static int RunnerUnlockReorders => RunnerUnlockReorderCount;
+	public static int RunnerUnlockCities => RunnerUnlockCallCities;
+	public static float RunnerCommission => RunnerCommissionRate;
+
+	/// <summary>$25-75, or a point on the record (directive §7) -- the point option isn't built this pass;
+	/// cash only. Escalating tiers buy more stations, not a bigger bribe per station.</summary>
+	public enum ProjectPromoTier { Small, Medium, Large }
+	public static float ProjectPromoCost(ProjectPromoTier tier) => tier switch {
+		ProjectPromoTier.Small => 25f, ProjectPromoTier.Medium => 50f, ProjectPromoTier.Large => 75f, _ => 25f };
+	private static int ProjectPromoStationCount(ProjectPromoTier tier) => tier switch {
+		ProjectPromoTier.Small => 1, ProjectPromoTier.Medium => 2, ProjectPromoTier.Large => 3, _ => 1 };
+	private static float ProjectPromoTierEffectiveness(ProjectPromoTier tier) => tier switch {
+		ProjectPromoTier.Small => 0.30f, ProjectPromoTier.Medium => 0.45f, ProjectPromoTier.Large => 0.60f, _ => 0.30f };
+	public const int ProjectPromoHours = ActionCosts.QuickMeeting; // briefing the promo man
+	public const int ProjectPromoWeeks = 2;                        // "1-2 weeks" -- the long end
+	// A local promo man, not connected muscle -- moderate cover, low severity-if-busted, unlike a mob-tied
+	// IndiePromoter. Only the duration differs from that class's own defaults otherwise.
+	private const float ProjectPromoDiscretion = 0.5f;
+	private const float ProjectPromoMobConnection = 0.1f;
+
 	// A cover is now worked up over several days, not learned on the spot: teaching costs a short setup at the
 	// desk (TeachHours) and then the act rehearses on its own for this many days -- fewer the more capable the
 	// act, scaled by musicianship/cohesion/studio craft in EstimateCoverLearnDays.
@@ -225,6 +290,7 @@ public partial class PlayerDesk : Node {
 		public float Gross, ManufacturingCost, DistributionSkim, ArtistRoyalty, Earned;
 		public float Deferred, Collected, Banked;
 		public float TrunkHeld;   // trunk cut out on consignment this week (earned, not yet banked)
+		public float RunnerCommission; // what the runner kept this week, already netted out of Earned/Banked
 		public float Outstanding, Cash;
 	}
 
@@ -262,9 +328,14 @@ public partial class PlayerDesk : Node {
 	private readonly Dictionary<string, PressStock> inventory = new();
 	// Pressing runs ordered but not yet delivered -- a plant takes weeks (see OrderPressing).
 	private readonly List<PressOrder> pressOrders = new();
-	// Consignment: records left with a town's shops, per town. This is what actually sells, day by day,
-	// decaying until you drive back to restock. cityId -> recordId -> lot.
-	private readonly Dictionary<string, Dictionary<string, ConsignmentLot>> consignment = new(StringComparer.Ordinal);
+	// Named accounts (shops and jukebox operators), keyed by StopId, generated once per session by
+	// PlayerStopFactory (see EnsureStops). This is what actually sells, day by day, decaying until you
+	// drive back to restock -- the per-city ConsignmentLot this used to be is now per-stop, on PlayerStop.OnHand.
+	private Dictionary<string, PlayerStop> stops;
+	// Open "they called me" demand (directive §4). Generated once per chart week (CheckWeeklyInboundCalls),
+	// answered by working the stop normally (TryFulfillCall), or left to expire.
+	private readonly List<InboundCall> inboundCalls = new();
+	private int lastCallGenWeek = -1;
 	// Trunk units sold this chart-week per record, accumulated daily and swept into the weekly chart total
 	// so a record that only sells out of the trunk still charts on those units.
 	private readonly Dictionary<string, int> weeklyTrunkUnits = new(StringComparer.Ordinal);
@@ -274,11 +345,19 @@ public partial class PlayerDesk : Node {
 	// bank yet; the rest was spot cash. Persisted so a mid-week save doesn't drop the partial week.
 	private long weeklyTrunkUnitsSold;
 	private float weeklyTrunkGross, weeklyTrunkRoyalty, weeklyTrunkHeld;
-	// Your cut of trunk sales in towns you're not standing in: the shops hold it for you, you collect the
-	// lump when you drive back, and a small trickle wires through between visits. cityId -> dollars owed.
-	private readonly Dictionary<string, float> consignmentOwed = new(StringComparer.Ordinal);
 	// Towns the player has physically worked -- opened a market to sell out of the trunk.
 	private readonly HashSet<string> workedCities = new(StringComparer.Ordinal);
+	// People (directive §7). The runner is null until hired; unlock ratchets on and never closes once earned.
+	private PlayerRunner runner;
+	private bool runnerUnlocked;
+	private int lastRunnerTickWeek = -1;
+	// "Persistent reorders in one city" -- successful ServiceStop calls, tallied per city toward the unlock.
+	private readonly Dictionary<string, int> serviceReorderCountByCity = new(StringComparer.Ordinal);
+	// This chart-week's runner commission, accumulated in BookSale and folded into the settlement write-up
+	// at week-end (then reset) -- without it, Earned would overstate the label's actual post-commission cut.
+	private float weeklyRunnerCommission;
+	// Plant credit (directive §11): null when nothing is owed. One outstanding at a time.
+	private PlantCredit plantCredit;
 	// Where the player physically is right now. Home office by default; driving changes it, and while
 	// away the office/studio work is out of reach. See the ON THE ROAD region.
 	private string currentCityId;
@@ -330,9 +409,26 @@ public partial class PlayerDesk : Node {
 	public const float PressSleeveLabelPerUnit = 0.03f;
 	public const float PressLacquerSetup = 38f;
 	public const float PressShipping = 20f;
+	// The stampers cut for a title's FIRST run stay at the plant -- a repress of the same title doesn't
+	// pay the lacquer setup again and can run far under the minimum, historically low hundreds at a time
+	// as a building hit needs them. PressMinimumOrder still gates the first run of any title.
+	public const int PressReorderMinimum = 100;
+	// Press-to-fill (directive §11): size a run off open InboundCall demand instead of a guessed
+	// quantity -- a cushion above the raw backlog so the run doesn't land already sold out.
+	private const float PressToFillCushion = 1.2f;
+	// Plant credit (directive §11, "a mid-game gun"): some plants fronted a promising client a real run
+	// on credit (Plastic Products for Stax/Sun) -- gated on the same kind of real, geographic evidence as
+	// the house-line proof gate (§5), not a tutorial freebie. One outstanding at a time; the plant WILL
+	// collect on schedule, win or lose -- that certainty is the point (invariant 2's cash-timing trap).
+	public const int PlantCreditQuantity = 1000;
+	public const int PlantCreditTermWeeks = 10;
+	public const int PlantCreditDemandThreshold = 250;
+	public const int PlantCreditHours = ActionCosts.LongCall; // a real ask, not a form to fill out
 
-	public static float PressingCost(int quantity) =>
-		PressLacquerSetup + PressShipping + Mathf.Max(0, quantity) * (PressVinylPerUnit + PressSleeveLabelPerUnit);
+	/// <summary>isRepress drops the lacquer setup -- the stampers cut for that title's first run are
+	/// already sitting at the plant, so a repress only pays for vinyl, sleeves/labels, and shipping.</summary>
+	public static float PressingCost(int quantity, bool isRepress = false) =>
+		(isRepress ? 0f : PressLacquerSetup) + PressShipping + Mathf.Max(0, quantity) * (PressVinylPerUnit + PressSleeveLabelPerUnit);
 
 	/// <summary>Pressed 45s of one single sitting on hand at the office, to be carried out to towns.</summary>
 	public sealed class PressStock {
@@ -351,12 +447,121 @@ public partial class PlayerDesk : Node {
 		public GameDate Arrives;
 	}
 
-	/// <summary>Records left with one town's shops. They sell on their own, day by day, at a rate that
-	/// decays the longer it's been since you restocked -- the town's appetite tapers until you come back.</summary>
+	/// <summary>Directive §11's plant credit: the plant fronts a run with nothing charged up front, and
+	/// WILL collect the pressing cost on schedule regardless of how the record's doing by then -- the
+	/// certainty is the point (invariant 2's cash-timing trap, a mid-game gun). One at a time.</summary>
+	public sealed class PlantCredit {
+		public string RecordId;
+		public float Amount;
+		public int DueWeek;
+	}
+
+	/// <summary>Records left with one stop. They sell on their own, day by day, at a rate that decays the
+	/// longer it's been since you restocked -- the stop's appetite tapers until you come back.
+	/// ConsignmentTerms marks stock placed on <see cref="ConsignAtStop"/> terms: unlike a COD pitch, it
+	/// never pays cash-in-hand even when you're standing in town -- it always waits in the stop's
+	/// OpenBalance, the worse-cash trade for the lower bar to get it on the shelf.</summary>
 	public sealed class ConsignmentLot {
 		public int Remaining;
 		public int Placed;
 		public int DaysSinceRestock;
+		public bool ConsignmentTerms;
+		/// <summary>True when the stock currently sitting in this lot came out of the runner's carton, not
+		/// the office's own inventory (directive §7) -- ProcessTrunkDay reads this to route the day's
+		/// sell-through through BookRunnerSale (commission taken off the top) instead of BookTrunkSale.</summary>
+		public bool RunnerSourced;
+	}
+
+	/// <summary>A named account in a town -- a shop, a jukebox operator, or a metro one-stop -- with its
+	/// own relationship, stock, and balance. Identity (name/city/kind) is regenerated deterministically
+	/// every session by <see cref="PlayerStopFactory"/> off the world seed, so it never has to round-trip
+	/// through the save file; only the mutable state below does (see StopState in PlayerSaveData).
+	/// OneStop is not a walk-in counter like Shop/Op -- see PlayerStop.OneStopUnlocked and
+	/// VisitOneStopWarehouse/SellCartonToOneStop below (directive §6). Venue (directive §3.1's "hop/club/
+	/// church table") is not a standing account either -- no OnHand, no OpenBalance, just a single verb,
+	/// WorkTheHopTable below.</summary>
+	public enum StopKind { Shop, Op, OneStop, Venue }
+
+	public sealed class PlayerStop {
+		public string StopId;
+		public string DisplayName;
+		public string CityId;
+		public StopKind Kind;
+		/// <summary>0-1, slow to earn and slower to repair -- ELIGIBILITY (how much they'll take, how
+		/// readily), not a damage stat.</summary>
+		public float Relationship;
+		public int LastVisitWeek;
+		/// <summary>recordId -> lot. Replaces the old per-city ConsignmentLot -- the same sell-through
+		/// math now runs per stop instead of per town, so a hot shop and a dead one two doors down no
+		/// longer move in lockstep.</summary>
+		public readonly Dictionary<string, ConsignmentLot> OnHand = new(StringComparer.Ordinal);
+		/// <summary>This stop's slice of what it's holding for you, wired thin and daily
+		/// (<see cref="WireOwedTrickle"/>) or collected in a lump when you show up in its city.</summary>
+		public float OpenBalance;
+		/// <summary>Consecutive unanswered calls at this stop. Drives the escalating relationship penalty
+		/// in <see cref="ExpireInboundCalls"/> -- one miss is nothing, a run of them is neglect. Resets on
+		/// any visit (<see cref="TouchStop"/>), not just an answered call.</summary>
+		public int MissedCallStreak;
+		/// <summary>Last calendar day a Pitch or Consign was attempted here -- one approach per stop per
+		/// day, shared across both verbs. Stops a player from spamming the same shop on the same trip
+		/// hoping for a better roll; go somewhere else, or come back tomorrow.</summary>
+		public GameDate LastApproachDate;
+		/// <summary>Titles this stop has said no to on COD terms. A pass sticks -- it is not cleared by
+		/// simply asking again -- until real evidence reopens the door: <see cref="GenerateInboundCalls"/>
+		/// clears an entry the moment that title generates a call at this stop, which only happens once
+		/// regional airplay/velocity make a stranger call plausible (never a re-roll on demand). Consign
+		/// is unaffected -- it is the low-risk fallback a stop that passed on COD will still take.</summary>
+		public readonly HashSet<string> PassedRecordIds = new(StringComparer.Ordinal);
+		/// <summary>OneStop-kind stops only. A metro one-stop is "locked as a customer until inbound
+		/// demand exists" (directive §3.1) -- it takes no Pitch/Consign/Service, only a warehouse visit
+		/// once it's called (see VisitOneStopWarehouse), after which SellCartonToOneStop is live.</summary>
+		public bool OneStopUnlocked;
+		/// <summary>OneStop-kind stops only. First carton is COD ("if you're nobody") -- flips true on the
+		/// first completed sale, after which SellCartonToOneStop extends net terms (directive §6).</summary>
+		public bool OneStopTrusted;
+	}
+
+	/// <summary>
+	/// Directive §7: "no weekly nut." A commission trunk runner covers a route of the player's own named
+	/// stops off a carton the player hands him -- the same sell/consign/service outcomes as the player's
+	/// own verbs (see CheckWeeklyRunner), just a worse starting conversion per account (Familiarity, not
+	/// stop.Relationship) that rises the more he services it. Paid only out of what he actually collects
+	/// (RunnerCommissionRate, taken in BookSale) -- fire him by simply not handing him more stock.
+	/// </summary>
+	public sealed class PlayerRunner {
+		public readonly HashSet<string> RouteStopIds = new(StringComparer.Ordinal);
+		public string CartonRecordId;
+		public int CartonRemaining;
+		/// <summary>stopId -> his own conversion curve at that account, 0-1. Separate from stop.Relationship
+		/// -- a stop already warm to the player still starts cold on HIM.</summary>
+		public readonly Dictionary<string, float> Familiarity = new(StringComparer.Ordinal);
+	}
+
+	/// <summary>Directive §4.2: "the world phones the office" instead of the player having to guess where
+	/// demand outran the shelf. Why the phone rang, not a synthetic score -- every reason here reads off
+	/// regional chart state or a stop's own on-hand, never a parallel buzz meter (§4.1).</summary>
+	public enum InboundCallReason {
+		SoldOut,       // an account you already stocked ran thin while real demand is still there
+		Requests,      // a shop you've never visited, but the counter's fielding requests for it
+		StationAdded,  // same "stranger" call, triggered off airplay rather than raw sales velocity
+		AdjacentCity,  // a stop in a town next to one you've already worked wants in too
+		OneStopTest    // the metro one-stop's first look -- directive §6, surfaced through a stop it already serves
+	}
+
+	/// <summary>One piece of "they called me" demand (directive §4.2): a stop asking for stock beyond
+	/// what the player has physically carried out. The player answers it with the same Pitch/Consign/
+	/// Service verbs as any other stop -- there is no separate "fulfill" action -- or lets it lapse,
+	/// which costs relationship at a known account and just evaporates at a stranger one (§4.3).</summary>
+	public sealed class InboundCall {
+		public string StopId;
+		public string RecordId;
+		public int Week;
+		public int RequestedQty;
+		public InboundCallReason Reason;
+		public int ExpiresWeek;
+		/// <summary>What terms they're expecting if you show up -- true reads as "leave it on consignment",
+		/// false as "COD's fine." A hint for the office readout, not an enforced contract.</summary>
+		public bool ConsignmentTerms;
 	}
 
 	// Pressing pipeline (real 1960 plant turnaround), each a day range rolled per order.
@@ -372,6 +577,14 @@ public partial class PlayerDesk : Node {
 	// restock (the novelty wears off) until you drive back with fresh stock.
 	private const float TrunkDailyBaseFraction = 0.07f; // of the lot, on a fresh restock (before appeal/buzz/luck scale it down)
 	private const float TrunkDecayPerDay = 0.90f;       // multiplied in each day since the restock
+	// How loudly a real, cultivated reporter spin speaks in a stop's local pull, ON TOP of the region's
+	// accumulated awareness. This is the player-only lever that fixes the "a Detroit spin and a private
+	// pressing sold the same" problem at full strength: reaching airplay through regionalData.awareness
+	// alone dilutes it to ~13% (the AI-shared REPORTER_PANEL_WEIGHT). Reading the reporter panel directly
+	// here bypasses that dilution for the player's trunk math without touching any AI-economy number.
+	// Bounded lift only (never a penalty), so an organically-broken record is never dragged down by a
+	// cooling airplay curve. Tunable knob -- raise for a punchier Rolodex payoff.
+	private const float TrunkReporterAirplayLift = 0.5f;
 	// While you're away, a town's shops wire you a thin slice of what they owe each day, so money isn't
 	// fully stranded -- but the bulk waits for you to drive back and collect it in person.
 	private const float TrunkWireFractionPerDay = 0.04f;
@@ -1566,13 +1779,28 @@ public partial class PlayerDesk : Node {
 	/// lacquers, wait in the plant's queue (longer in the holiday build-up), and ship the boxes back. The
 	/// run lands in the office inventory on its arrival day (see <see cref="DeliverArrivedPressings"/>).
 	/// </summary>
+	/// <summary>The stampers for a title exist once it's been pressed at all -- a repress doesn't need a
+	/// fresh lacquer cut, and can run far under the first-run minimum.</summary>
+	public bool HasBeenPressed(string recordId) =>
+		recordId != null && inventory.TryGetValue(recordId, out PressStock stock) && stock.TotalPressed > 0;
+
+	/// <summary>The floor the plant will run for this title right now: the full first-run minimum until
+	/// it's been pressed once, the much smaller repress floor after.</summary>
+	public int MinimumPressRun(string recordId) => HasBeenPressed(recordId) ? PressReorderMinimum : PressMinimumOrder;
+
 	public bool OrderPressing(string recordId, int quantity, out string message) {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (string.IsNullOrEmpty(recordId)) { message = "No single selected."; return false; }
-		if (quantity < PressMinimumOrder) { message = $"The plant won't run under {PressMinimumOrder}."; return false; }
+		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to press right now -- the master's out."; return false; }
+		bool repress = HasBeenPressed(recordId);
+		int minimum = MinimumPressRun(recordId);
+		if (quantity < minimum) {
+			message = repress ? $"Even a repress won't run under {minimum}." : $"The plant won't run under {minimum} on a first pressing.";
+			return false;
+		}
 
-		float cost = PressingCost(quantity);
+		float cost = PressingCost(quantity, repress);
 		if (Label.cashReserves < cost) {
 			message = $"You're ${cost - Label.cashReserves:N0} short of a ${cost:N0} run.";
 			return false;
@@ -1586,10 +1814,84 @@ public partial class PlayerDesk : Node {
 		pressOrders.Add(new PressOrder { RecordId = recordId, Quantity = quantity, Cost = cost, Ordered = today, Arrives = arrives });
 
 		string title = TitleForRecord(recordId);
-		Note($"Ordered {quantity:N0} of \"{title}\" for ${cost:N0} -- the plant quotes {lead} days, in by {arrives.ToHeadlineString()}.");
+		Note($"{(repress ? "Repressed" : "Ordered")} {quantity:N0} of \"{title}\" for ${cost:N0} -- the plant quotes {lead} days, in by {arrives.ToHeadlineString()}.");
 		message = $"Run ordered -- about {lead} days at the plant.";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>Directive §11's "press-to-fill": the total the office is on the hook for right now, read
+	/// off open InboundCalls for this title -- what shops and ops are actually asking for, not a guess.</summary>
+	public int OpenCallDemand(string recordId) =>
+		string.IsNullOrEmpty(recordId) ? 0 : inboundCalls.Where(c => c.RecordId == recordId).Sum(c => c.RequestedQty);
+
+	/// <summary>The suggested press-to-fill quantity: open demand plus a cushion so the run doesn't land
+	/// already sold out, floored at whatever minimum this title can run right now.</summary>
+	public int PressToFillQuantity(string recordId) =>
+		Mathf.Max(MinimumPressRun(recordId), Mathf.CeilToInt(OpenCallDemand(recordId) * PressToFillCushion));
+
+	/// <summary>One click: press a run sized to what's actually being asked for, instead of eyeballing a
+	/// quantity. Same plant, same cost, same turnaround as OrderPressing -- only the quantity is chosen
+	/// for the player, off real backlog rather than a guess.</summary>
+	public bool PressToFill(string recordId, out string message) {
+		if (OpenCallDemand(recordId) <= 0) { message = "No open calls on that one to fill."; return false; }
+		return OrderPressing(recordId, PressToFillQuantity(recordId), out message);
+	}
+
+	/// <summary>Whether the plant would front a credit run on this title right now: real, geographic
+	/// evidence it's moving (the same open-call backlog press-to-fill reads), and nothing already owed.</summary>
+	public bool PlantCreditEligible(string recordId) =>
+		plantCredit == null && OpenCallDemand(recordId) >= PlantCreditDemandThreshold;
+
+	/// <summary>What's currently owed on a plant credit run, or null if none is outstanding.</summary>
+	public (string RecordId, float Amount, int WeeksAway)? PlantCreditOwed {
+		get {
+			if (plantCredit == null) return null;
+			int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			return (plantCredit.RecordId, plantCredit.Amount, Mathf.Max(0, plantCredit.DueWeek - week));
+		}
+	}
+
+	/// <summary>
+	/// Directive §11: "some places... helped startups... by pressing ~1k on credit." Nothing is charged
+	/// now -- the plant fronts <see cref="PlantCreditQuantity"/> and WILL collect the full pressing cost
+	/// on <see cref="PlantCreditTermWeeks"/>, win or lose on the record by then (<see cref="SettlePlantCreditIfDue"/>).
+	/// Only on real backlog evidence (<see cref="PlantCreditEligible"/>), and only one at a time.
+	/// </summary>
+	public bool RequestPlantCredit(string recordId, out string message) {
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (!RequireHome(out message)) return false;
+		if (plantCredit != null) { message = "You still owe the plant for the last credit run."; return false; }
+		if (OpenCallDemand(recordId) < PlantCreditDemandThreshold) { message = "The plant isn't hearing enough on that one to front you a run."; return false; }
+		if (!Require(PlantCreditHours, out message)) return false;
+
+		Spend(PlantCreditHours);
+		bool repress = HasBeenPressed(recordId);
+		float cost = PressingCost(PlantCreditQuantity, repress);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int lead = RollPressLeadDays(today);
+		pressOrders.Add(new PressOrder { RecordId = recordId, Quantity = PlantCreditQuantity, Cost = cost, Ordered = today, Arrives = today.AddDays(lead) });
+		int dueWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + PlantCreditTermWeeks;
+		plantCredit = new PlantCredit { RecordId = recordId, Amount = cost, DueWeek = dueWeek };
+
+		string title = TitleForRecord(recordId);
+		Note($"The plant fronted {PlantCreditQuantity:N0} of \"{title}\" on credit -- ${cost:N0} due in {PlantCreditTermWeeks} weeks, no questions asked till then.");
+		message = $"Plant's fronting {PlantCreditQuantity:N0}, no cash down -- ${cost:N0} comes due in {PlantCreditTermWeeks} weeks.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Collects on a due plant credit -- certain, not a dice roll, whatever shape the record's in
+	/// by then (invariant 2's cash-timing trap). Runs every settled week.</summary>
+	private void SettlePlantCreditIfDue() {
+		if (plantCredit == null) return;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (week < plantCredit.DueWeek) return;
+		float amount = plantCredit.Amount;
+		Label.cashReserves -= amount;
+		Label.monthlyExpenses += amount;
+		Note($"The plant collected on its credit run -- ${amount:N0} due, paid whether \"{TitleForRecord(plantCredit.RecordId)}\" is still moving or not.");
+		plantCredit = null;
 	}
 
 	private int RollPressLeadDays(GameDate today) {
@@ -1621,45 +1923,407 @@ public partial class PlayerDesk : Node {
 	public IEnumerable<(string Title, int Quantity, GameDate Arrives)> PendingPressings() =>
 		pressOrders.OrderBy(o => o.Arrives).Select(o => (TitleForRecord(o.RecordId), o.Quantity, o.Arrives));
 
-	/// <summary>
-	/// A day working the town you're standing in: carrying the boxes round its shops and juke operators
-	/// and leaving your pressed singles on consignment. Draws from the office inventory you brought stock
-	/// from. The records then sell here on their own, day by day, decaying until you drive back to restock.
-	/// You have to be physically in the town to do it -- that's the point of the road.
-	/// </summary>
-	public bool WorkThisTown(string recordId, int quantity, out string message) {
+	// ========================================================================
+	// NAMED STOPS -- shops and jukebox operators. The grain WorkThisTown used to sell in one whole-city
+	// lot; a city is now a small, legible roster of named accounts, each with its own relationship,
+	// stock and balance. Identity is generated once per session (EnsureStops); only the mutable state
+	// below is ever saved (see StopState in PlayerSaveData).
+	// ========================================================================
+
+	/// <summary>Generates (or returns the cached) named-stop roster for every city, deterministic on the
+	/// world seed so identity never has to round-trip through the save file. A few hundred stops
+	/// nationally -- cheap enough to build once per session, not worth generating lazily per city.</summary>
+	private Dictionary<string, PlayerStop> EnsureStops() {
+		if (stops != null) return stops;
+		var regionsById = (ChartManager.Instance?.GetAllRegions() ?? Enumerable.Empty<MarketRegion>())
+			.Where(r => r != null).ToDictionary(r => r.regionId, r => r, StringComparer.Ordinal);
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		stops = PlayerStopFactory.Generate(DistanceModel.GetCities(), regionsById, seed)
+			.ToDictionary(s => s.StopId, StringComparer.Ordinal);
+		return stops;
+	}
+
+	private PlayerStop GetStop(string stopId) =>
+		!string.IsNullOrEmpty(stopId) && EnsureStops().TryGetValue(stopId, out PlayerStop stop) ? stop : null;
+
+	private string CityName(string cityId) => DistanceModel.GetCityById(cityId)?.name ?? cityId;
+
+	/// <summary>The region a named stop's city sits in -- the read directive §10 needs to gate retail
+	/// access off <see cref="MarketRegion.GetSegregationFactor"/> without inventing a parallel region
+	/// lookup (EnsureStops already resolves one at generation time, but only as a local scratch dict).</summary>
+	private MarketRegion RegionForStop(PlayerStop stop) {
+		string regionId = DistanceModel.GetCityById(stop?.CityId)?.parentRegionId;
+		return string.IsNullOrEmpty(regionId) ? null : ChartManager.Instance?.GetRegionById(regionId);
+	}
+
+	/// <summary>The genre of a record still in the player's hands, mirroring <see cref="TitleForRecord"/>'s
+	/// masters-then-released lookup order.</summary>
+	private Genre GenreForRecord(string recordId) {
+		Master master = masters.FirstOrDefault(m => m.Record?.recordId == recordId);
+		if (master?.Record != null) return master.Record.primaryGenre;
+		RecordRuntimeData released = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		return released?.baseRecord?.primaryGenre ?? Genre.RockAndRoll;
+	}
+
+	/// <summary>Directive §10: "gate which stops and stations see the player off GetEraIntegration(year) --
+	/// a visible access change, not a hidden buff." 1.0 outside the race-record-era genres; for
+	/// RnB/Soul/Gospel/DooWop it's exactly <see cref="MarketRegion.GetSegregationFactor"/> -- the same
+	/// white-market-reach term a record's own market size already reads (Data/MarketRegion.cs) -- so a
+	/// Deep South county's retail opens to the player on the identical civil-rights-era curve it opens to
+	/// everyone else's black-audience records on, never a separately hand-tuned number.</summary>
+	private float RetailAccessFactor(PlayerStop stop, string recordId) {
+		Genre genre = GenreForRecord(recordId);
+		if (!MarketRegion.IsBlackAudienceGenre(genre)) return 1f;
+		return RegionForStop(stop)?.GetSegregationFactor(genre) ?? 1f;
+	}
+
+	/// <summary>The named accounts in a town, kind then name so the day-sheet reads the same every visit.</summary>
+	public IEnumerable<PlayerStop> StopsInCity(string cityId) =>
+		string.IsNullOrEmpty(cityId) ? Enumerable.Empty<PlayerStop>()
+			: EnsureStops().Values.Where(s => s.CityId == cityId)
+				.OrderBy(s => s.Kind).ThenBy(s => s.DisplayName, StringComparer.Ordinal);
+
+	/// <summary>How many of a single a stop will comfortably hold: a cold call is a handful, a cultivated
+	/// account takes a real box, and an op's route always moves more than a shop's counter -- "one op
+	/// order should match a week of shop-by-shop nickels" (directive §3.3). Only the default the picker
+	/// starts on; the player sets the actual number. An op's route shrinks with the decade (directive
+	/// §10, PlayerStopFactory.JukeboxEraWeight) -- the same route that moved 20-40 in 1962 is a fraction
+	/// of that by 1968, no matter how good the relationship.</summary>
+	public int SuggestedPlacement(PlayerStop stop) {
+		if (stop == null) return 5;
+		if (stop.Kind == StopKind.Op) {
+			int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+			float route = Mathf.Lerp(20f, 40f, stop.Relationship) * PlayerStopFactory.JukeboxEraWeight(year);
+			return Mathf.Max(1, Mathf.RoundToInt(route));
+		}
+		// A hop, club or church table never scales past what fits on it -- "tiny volume" (directive §3.3),
+		// well under even a cold shop's handful.
+		if (stop.Kind == StopKind.Venue) return Mathf.Max(1, Mathf.RoundToInt(Mathf.Lerp(3f, 12f, stop.Relationship)));
+		return Mathf.RoundToInt(Mathf.Lerp(4f, 30f, stop.Relationship));
+	}
+
+	/// <summary>Rough hours a visit to this kind of account runs, for display before the roll -- see
+	/// StopVisitHours for the real (varying) cost charged when the action executes. A shop counter
+	/// pitch is not the same errand as driving between towns (DistributionHours, 4h) -- it's a quick
+	/// in-town stop, longer for an op working a whole route than a clerk at one counter.</summary>
+	public static int EstimatedStopHours(StopKind kind) => kind == StopKind.Op ? 2 : 1;
+
+	/// <summary>Real time cost of working one account, rolled fresh each visit: mostly the estimate,
+	/// sometimes a quick in-and-out, sometimes the owner wants to talk or the route's backed up. A flat
+	/// 4h for a five-minute counter pitch (the old DistributionHours reuse) wasn't a realistic price for
+	/// "dealing with one record shop in your hometown."</summary>
+	private static int StopVisitHours(StopKind kind) {
+		int baseHours = EstimatedStopHours(kind);
+		float roll = GD.Randf();
+		if (roll < 0.15f) return Mathf.Max(1, baseHours - 1);
+		if (roll > 0.80f) return baseHours + 1;
+		return baseHours;
+	}
+
+	private bool ValidateStopAction(string stopId, string recordId, out PlayerStop stop, out PressStock stockOnHand, out string message) {
+		stop = null; stockOnHand = null; message = null;
 		if (Label == null) { message = "You don't have a label yet."; return false; }
-		MarketCity city = CurrentCity;
-		if (city == null) { message = "Nowhere resolved."; return false; }
+		stop = GetStop(stopId);
+		if (stop == null) { message = "No such account."; return false; }
+		if (stop.Kind == StopKind.OneStop) { message = $"{stop.DisplayName} is a one-stop counter -- sell them a carton instead."; return false; }
+		if (stop.Kind == StopKind.Venue) { message = $"{stop.DisplayName} doesn't keep a shelf -- work the table instead."; return false; }
+		if (stop.CityId != CurrentCityId) { message = "You have to be in town to work that account."; return false; }
 		if (string.IsNullOrEmpty(recordId)) { message = "Pick a single to leave here."; return false; }
-		PressStock stock = StockFor(recordId);
-		if (stock == null || stock.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
-		int place = Mathf.Clamp(quantity, 1, stock.Remaining);
-		if (!Require(DistributionHours, out message)) return false;
+		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
+		stockOnHand = StockFor(recordId);
+		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
+		return true;
+	}
 
-		Spend(DistributionHours);
-		// You're here, so first settle up whatever the shops have been holding for you since your last pass.
-		CollectFromTown(city.cityId);
+	private ConsignmentLot LotFor(PlayerStop stop, string recordId) {
+		if (!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot)) { lot = new ConsignmentLot(); stop.OnHand[recordId] = lot; }
+		return lot;
+	}
 
-		stock.Remaining -= place;
-		if (!consignment.TryGetValue(city.cityId, out var lots)) { lots = new(StringComparer.Ordinal); consignment[city.cityId] = lots; }
-		if (!lots.TryGetValue(recordId, out var lot)) { lot = new ConsignmentLot(); lots[recordId] = lot; }
+	private void TouchStop(PlayerStop stop, float relationshipGain) {
+		stop.Relationship = Mathf.Clamp(stop.Relationship + relationshipGain, 0f, 1f);
+		stop.LastVisitWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? stop.LastVisitWeek;
+		stop.MissedCallStreak = 0; // you just showed up -- whatever streak of no-shows was building breaks here
+	}
+
+	/// <summary>One approach (Pitch or Consign) per stop per day -- a player standing at the counter does
+	/// not get to ask twice hoping for a better roll. Does not gate Service; topping off a standing
+	/// account twice in a day is a no-op, not an exploit.</summary>
+	private bool CheckDailyApproach(PlayerStop stop, out string message) {
+		message = null;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		if (stop.LastApproachDate == today) {
+			message = $"Already talked to {stop.DisplayName} today -- one approach a day per account.";
+			return false;
+		}
+		return true;
+	}
+
+	/// <summary>
+	/// COD: ask the stop to take copies outright. A cold account can say no, or take only a handful --
+	/// refusal is common and correct, the honest cost of a first visit (directive §3.3). Placed stock
+	/// sells on the normal daily trickle; present-in-town units pay cash on the spot the same as before,
+	/// the terms just live on the account now, not the whole city.
+	/// </summary>
+	public bool PitchAtStop(string stopId, string recordId, out string message) {
+		if (!ValidateStopAction(stopId, recordId, out PlayerStop stop, out PressStock stockOnHand, out message)) return false;
+		if (!CheckDailyApproach(stop, out message)) return false;
+		if (stop.PassedRecordIds.Contains(recordId)) {
+			message = $"{stop.DisplayName} already passed on \"{TitleForRecord(recordId)}\" -- nothing's changed there since. Try consignment, or wait for it to catch on somewhere.";
+			return false;
+		}
+		int hours = StopVisitHours(stop.Kind);
+		if (!Require(hours, out message)) return false;
+		Spend(hours);
+		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		// You're here, so first settle up whatever this town's stops have been holding since your last pass.
+		CollectAtCity(stop.CityId);
+
+		bool untried = !stop.OnHand.ContainsKey(recordId);
+		float access = RetailAccessFactor(stop, recordId);
+		float acceptChance = Mathf.Clamp((0.35f + stop.Relationship * 0.6f) * access, 0.05f, 0.97f);
+		if (untried && GD.Randf() > acceptChance) {
+			TouchStop(stop, 0.02f); // a passed call still counts as an introduction
+			stop.PassedRecordIds.Add(recordId); // sticks until GenerateInboundCalls clears it on real evidence
+			// A market that isn't open to the sound at all yet (directive §10) reads differently than an
+			// ordinary cold-shop no -- both clear the same way (a real call in reopens the pass), but the
+			// player shouldn't mistake one for the other.
+			string passReason = access < 0.6f ? "that trade hasn't found its way to this side of town yet" : "come back once it's played somewhere";
+			Note($"{stop.DisplayName} in {CityName(stop.CityId)} passed on \"{TitleForRecord(recordId)}\" -- \"{passReason}.\"");
+			message = $"{stop.DisplayName} passed on \"{TitleForRecord(recordId)}\" this time ({hours}h).";
+			Changed?.Invoke();
+			return true;
+		}
+
+		// The stop decides its own take (§3.3's cold-shop-vs-standing-account math), not a number the
+		// player dials in -- SuggestedPlacement already IS "how much they'll take." Scaled by the same
+		// access term (directive §10): a shop that's willing at all still starts thin in a market the
+		// sound hasn't fully reached.
+		int cap = Mathf.Max(1, Mathf.RoundToInt(SuggestedPlacement(stop) * access));
+		int place = Mathf.Min(cap, stockOnHand.Remaining);
+		stockOnHand.Remaining -= place;
+		ConsignmentLot lot = LotFor(stop, recordId);
 		lot.Remaining += place;
-		lot.Placed = lot.Remaining;   // the "fresh" size the daily slice is taken off
-		lot.DaysSinceRestock = 0;     // resets the town's appetite
-		workedCities.Add(city.cityId);
+		lot.Placed = lot.Remaining;
+		lot.DaysSinceRestock = 0;
+		lot.ConsignmentTerms = false;
+		lot.RunnerSourced = false; // the player's own hand, the player's own stock
+		TouchStop(stop, 0.05f);
+		workedCities.Add(stop.CityId);
 
-		Note($"Worked {city.name} -- left {place:N0} of \"{TitleForRecord(recordId)}\" on consignment.");
-		message = $"{place:N0} of \"{TitleForRecord(recordId)}\" out in {city.name}.";
+		string callNote = TryFulfillCall(stop, recordId);
+		Note($"{stop.DisplayName} took {place:N0} of \"{TitleForRecord(recordId)}\" COD.");
+		message = $"{stop.DisplayName} took {place:N0} of \"{TitleForRecord(recordId)}\" ({hours}h).{callNote}";
 		Changed?.Invoke();
 		return true;
 	}
 
-	/// <summary>How many of a single a town's shops will comfortably hold: scaled by how many record stores
-	/// it has, floored and capped. This is only the default the picker starts on -- the player sets the
-	/// actual number to leave.</summary>
-	public int SuggestedPlacement(MarketCity city) =>
-		Mathf.Clamp((city?.distribution?.recordStoreCount ?? 20) * 6, 150, 1500);
+	/// <summary>
+	/// Leave stock on consignment: worse cash -- every dollar waits in the stop's OpenBalance, even in a
+	/// town you're standing in, never handed over on the spot -- but the low-risk ask a cold account will
+	/// always take a few of. Available even on a title this stop has passed on COD -- that refusal is
+	/// specifically a "not paying up front for that" no, not a "not carrying it at all" no.
+	/// </summary>
+	public bool ConsignAtStop(string stopId, string recordId, out string message) {
+		if (!ValidateStopAction(stopId, recordId, out PlayerStop stop, out PressStock stockOnHand, out message)) return false;
+		if (!CheckDailyApproach(stop, out message)) return false;
+		int hours = StopVisitHours(stop.Kind);
+		if (!Require(hours, out message)) return false;
+		Spend(hours);
+		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		CollectAtCity(stop.CityId);
+
+		// Same as PitchAtStop -- the account's own capacity sets the amount, not a player-chosen quantity,
+		// scaled by the same directive-§10 access term (a market the sound hasn't reached takes less even
+		// on the free-to-them consignment ask).
+		float access = RetailAccessFactor(stop, recordId);
+		int cap = Mathf.Max(1, Mathf.RoundToInt((stop.Relationship > 0f ? SuggestedPlacement(stop) : 5f) * access));
+		int place = Mathf.Min(cap, stockOnHand.Remaining);
+		stockOnHand.Remaining -= place;
+		ConsignmentLot lot = LotFor(stop, recordId);
+		lot.Remaining += place;
+		lot.Placed = lot.Remaining;
+		lot.DaysSinceRestock = 0;
+		lot.ConsignmentTerms = true;
+		lot.RunnerSourced = false; // the player's own hand, the player's own stock
+		TouchStop(stop, 0.04f);
+		workedCities.Add(stop.CityId);
+
+		string callNote = TryFulfillCall(stop, recordId);
+		Note($"Left {place:N0} of \"{TitleForRecord(recordId)}\" with {stop.DisplayName} on consignment.");
+		message = $"{place:N0} of \"{TitleForRecord(recordId)}\" out on consignment with {stop.DisplayName} ({hours}h).{callNote}";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	/// Service a standing account: restock what's sold through, collect what it owes, and take the
+	/// biggest relationship tick in the game. Only makes sense once a stop already has history with the
+	/// single -- pitch or consign it there first.
+	/// </summary>
+	public bool ServiceStop(string stopId, string recordId, out string message) {
+		if (!ValidateStopAction(stopId, recordId, out PlayerStop stop, out PressStock stockOnHand, out message)) return false;
+		if (!stop.OnHand.ContainsKey(recordId)) { message = $"{stop.DisplayName} has no history with that single yet -- pitch or consign it first."; return false; }
+		int hours = StopVisitHours(stop.Kind);
+		if (!Require(hours, out message)) return false;
+		Spend(hours);
+
+		float owed = stop.OpenBalance;
+		CollectAtCity(stop.CityId); // this stop's balance, plus any other stop in town holding money for you
+
+		ConsignmentLot lot = LotFor(stop, recordId);
+		int target = Mathf.Max(1, Mathf.RoundToInt(SuggestedPlacement(stop) * RetailAccessFactor(stop, recordId)));
+		int topUp = Mathf.Clamp(target - lot.Remaining, 0, stockOnHand.Remaining);
+		stockOnHand.Remaining -= topUp;
+		lot.Remaining += topUp;
+		lot.Placed = Mathf.Max(lot.Placed, lot.Remaining);
+		lot.DaysSinceRestock = 0;
+		lot.RunnerSourced = false; // the player's own hand, the player's own stock
+		TouchStop(stop, 0.08f);
+		string callNote = TryFulfillCall(stop, recordId);
+		NoteReorder(stop.CityId); // directive §7: "persistent reorders in one city" toward the runner unlock
+
+		message = (topUp > 0
+			? $"Serviced {stop.DisplayName} -- topped up {topUp:N0}{(owed > 0.5f ? $", collected ${owed:N0}" : "")} ({hours}h)."
+			: owed > 0.5f ? $"Serviced {stop.DisplayName} -- collected ${owed:N0} ({hours}h)." : $"Serviced {stop.DisplayName} -- already stocked, nothing owed ({hours}h).") + callNote;
+		Note(message);
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	/// Directive §3.3: "Work the hop table -- Venue. Retail cash (~list), tiny volume, story." A walk-up
+	/// sale at a hop, club or church hall: cash in hand at list price the instant it happens, no
+	/// consignment ledger and no standing account to come back and service -- the table just doesn't hold
+	/// enough to scale past a handful. Reuses BookTrunkSale's own accounting (list price, royalty,
+	/// recoupment, chart units) rather than inventing a second pricing path for the same kind of sale.
+	/// Deliberately NOT scaled by RetailAccessFactor (directive §10): a church basement or a soul revue was
+	/// never waiting on white retail's integration curve to open its own door -- it's the always-open
+	/// community channel that gate exists in contrast to, not another market it gates.
+	/// </summary>
+	public bool WorkTheHopTable(string stopId, string recordId, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		PlayerStop stop = GetStop(stopId);
+		if (stop == null || stop.Kind != StopKind.Venue) { message = "No such table."; return false; }
+		if (stop.CityId != CurrentCityId) { message = "You have to be in town for that."; return false; }
+		if (!CheckDailyApproach(stop, out message)) return false;
+		if (string.IsNullOrEmpty(recordId)) { message = "Pick a single to sell."; return false; }
+		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
+		PressStock stockOnHand = StockFor(recordId);
+		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		if (rec == null) { message = "Can't sell that one here."; return false; }
+		int hours = StopVisitHours(stop.Kind);
+		if (!Require(hours, out message)) return false;
+		Spend(hours);
+		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+
+		int qty = Mathf.Min(SuggestedPlacement(stop), stockOnHand.Remaining);
+		stockOnHand.Remaining -= qty;
+		BookTrunkSale(rec, qty, stop, cashNow: true);
+		TouchStop(stop, 0.06f); // no shelf to keep here, but the table remembers a familiar face
+		workedCities.Add(stop.CityId);
+
+		Note($"Sold {qty:N0} of \"{TitleForRecord(recordId)}\" off the table at {stop.DisplayName}.");
+		message = $"Sold {qty:N0} of \"{TitleForRecord(recordId)}\" at the table, cash in hand ({hours}h).";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	/// Directive §6: a one-stop is "locked as a customer until inbound demand exists" -- this is that
+	/// unlock. Only makes sense once GenerateInboundCalls has actually rung this counter
+	/// (InboundCallReason.OneStopTest); the visit itself is a formality once called ("capacity is almost
+	/// never the no" -- §5.2's logic, reused here), not a second roll on top of the call's own.
+	/// </summary>
+	public bool VisitOneStopWarehouse(string stopId, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		PlayerStop stop = GetStop(stopId);
+		if (stop == null || stop.Kind != StopKind.OneStop) { message = "No such one-stop."; return false; }
+		if (stop.CityId != CurrentCityId) { message = "You have to be in town for that."; return false; }
+		if (stop.OneStopUnlocked) { message = $"Already doing business with {stop.DisplayName}."; return false; }
+		InboundCall call = inboundCalls.FirstOrDefault(c => c.StopId == stop.StopId && c.Reason == InboundCallReason.OneStopTest);
+		if (call == null) { message = $"{stop.DisplayName} doesn't know you yet -- wait for them to call."; return false; }
+		if (!Require(OneStopWarehouseVisitHours, out message)) return false;
+		Spend(OneStopWarehouseVisitHours);
+
+		stop.OneStopUnlocked = true;
+		string recordId = call.RecordId;
+		TryFulfillCall(stop, recordId);
+		Note($"{stop.DisplayName} will take a carton of \"{TitleForRecord(recordId)}\" -- your first metro wholesale account.");
+		message = $"{stop.DisplayName} is open for business ({OneStopWarehouseVisitHours}h).";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>
+	/// Directive §6: "you sell a carton; they scatter it to shops/ops you never meet." A flat wholesale
+	/// sale of physical inventory, not a standing line into the regional store engine (that machinery is
+	/// AI-side and out of scope -- §0). COD on the first carton ("if you're nobody"); once trusted, net
+	/// terms via the same WholesaleReceivable ledger the house line already uses, so settlement pays it
+	/// out automatically on schedule with no new plumbing.
+	/// </summary>
+	public bool SellCartonToOneStop(string stopId, string recordId, int quantity, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		PlayerStop stop = GetStop(stopId);
+		if (stop == null || stop.Kind != StopKind.OneStop) { message = "No such one-stop."; return false; }
+		if (!stop.OneStopUnlocked) { message = $"{stop.DisplayName} isn't taking calls yet."; return false; }
+		if (stop.CityId != CurrentCityId) { message = "You have to be in town for that."; return false; }
+		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
+		PressStock stockOnHand = StockFor(recordId);
+		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord.recordId == recordId);
+		if (rec == null) { message = "Can't place that one."; return false; }
+		int qty = Mathf.Clamp(quantity, 1, Mathf.Min(OneStopCartonMaxQty, stockOnHand.Remaining));
+		if (!Require(OneStopWarehouseVisitHours, out message)) return false;
+		Spend(OneStopWarehouseVisitHours);
+
+		// Same royalty/recoupment bookkeeping as a trunk sale (BookTrunkSale) -- only the unit price and
+		// the cash-timing rule differ (wholesale, and COD-vs-receivable rather than present-vs-away).
+		stockOnHand.Remaining -= qty;
+		float gross = qty * OneStopUnitPrice;
+		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.baseRecord.artistId);
+		float accrued = gross * (artist?.royaltyRate ?? 0.05f);
+		float recouped = artist != null ? Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), accrued) : 0f;
+		float royalty = accrued - recouped;
+		if (artist != null) {
+			artist.unrecoupedAdvance = Mathf.Max(0f, artist.unrecoupedAdvance - recouped);
+			artist.totalRoyaltyEarnings += royalty;
+		}
+		float net = gross - royalty;
+		rec.lifetimeLabelNet += net;
+		// Scattered to shops/ops the player never meets, but it charts the same -- reuse the trunk's own
+		// chart-injection accumulator (TakeWeeklyTrunkUnits) rather than the AI-side regional store engine
+		// (out of scope, §0). Gross/royalty/units book as earned this week either way; only the cash timing
+		// differs below, mirrored on weeklyTrunkHeld's existing "earned but not yet banked" role.
+		weeklyTrunkUnits.TryGetValue(recordId, out int runningUnits);
+		weeklyTrunkUnits[recordId] = runningUnits + qty;
+		weeklyTrunkUnitsSold += qty;
+		weeklyTrunkGross += gross;
+		weeklyTrunkRoyalty += royalty;
+
+		bool cod = !stop.OneStopTrusted;
+		if (cod) {
+			Label.cashReserves += net;
+			Label.monthlyRevenue += net;
+		} else {
+			int dueWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + OneStopPaymentTermWeeks;
+			Label.wholesaleReceivables.Add(new WholesaleReceivable(dueWeek, $"onestop_{stop.StopId}", net));
+			Label.outstandingWholesaleReceivables += net;
+			weeklyTrunkHeld += net; // not yet banked -- settlement collects it automatically at dueWeek
+		}
+		stop.OneStopTrusted = true;
+		oneStopKnownRecordIds.Add(recordId); // §9's master-deal gate: "a one-stop knows the title"
+
+		string termsNote = cod ? "COD" : $"net terms, due in {OneStopPaymentTermWeeks} weeks";
+		Note($"Sold {qty:N0} of \"{TitleForRecord(recordId)}\" to {stop.DisplayName} ({termsNote}).");
+		message = $"{stop.DisplayName} took {qty:N0} on {termsNote} ({OneStopWarehouseVisitHours}h).";
+		Changed?.Invoke();
+		return true;
+	}
 
 	/// <summary>Pressed singles sitting in the office, ready to carry out to a town. (recordId, title, on hand).</summary>
 	public IEnumerable<(string RecordId, string Title, int OnHand)> PressedSinglesOnHand() {
@@ -1667,13 +2331,497 @@ public partial class PlayerDesk : Node {
 			if (kv.Value.Remaining > 0) yield return (kv.Key, TitleForRecord(kv.Key), kv.Value.Remaining);
 	}
 
-	/// <summary>Consignment on hand in a town, for the DISTRIBUTION readout.</summary>
-	public IEnumerable<(string CityName, string Title, int Remaining)> TownStock() {
-		foreach (var (cityId, lots) in consignment) {
-			string cityName = DistanceModel.GetCityById(cityId)?.name ?? cityId;
-			foreach (var (recordId, lot) in lots)
-				if (lot.Remaining > 0) yield return (cityName, TitleForRecord(recordId), lot.Remaining);
+	/// <summary>This act's own pressed singles sitting in the office -- what they could buy in for
+	/// cash (see <see cref="ArtistBuyIn"/>). Only records enough on hand to actually make a buy-in
+	/// (§3.3's 50-100 floor) are worth showing.</summary>
+	public IEnumerable<(string RecordId, string Title, int OnHand)> BuyInEligibleFor(SimulatedArtist artist) {
+		if (artist == null) yield break;
+		foreach (var kv in inventory) {
+			if (kv.Value.Remaining < ArtistBuyInMin) continue;
+			RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == kv.Key);
+			if (rec == null || rec.baseRecord.artistId != artist.artistId) continue;
+			yield return (kv.Key, TitleForRecord(kv.Key), kv.Value.Remaining);
 		}
+	}
+
+	/// <summary>Every act on the roster with a buy-in-eligible single on hand -- the DISTRIBUTION-window
+	/// version of <see cref="BuyInEligibleFor"/>, spanning the whole roster instead of one act's dossier.</summary>
+	public IEnumerable<(SimulatedArtist Artist, string RecordId, string Title, int OnHand)> BuyInEligible() {
+		foreach (SimulatedArtist artist in Roster)
+			foreach ((string recordId, string title, int onHand) in BuyInEligibleFor(artist))
+				yield return (artist, recordId, title, onHand);
+	}
+
+	/// <summary>
+	/// An act buys a run of its own single outright at a wholesale-grade discount, cash to the label
+	/// right now (directive §3.3: "a one-stop with legs"). No stop, no consignment, no chart credit --
+	/// there's nowhere to attribute the sale to, since the act moves these on its own -- and no royalty
+	/// on units it bought itself; the discount is the trade the act gets instead.
+	/// </summary>
+	public bool ArtistBuyIn(SimulatedArtist artist, string recordId, int quantity, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (!RequireHome(out message)) return false;
+		if (artist == null || !Roster.Contains(artist)) { message = "Not one of your acts."; return false; }
+		RecordRuntimeData rec = string.IsNullOrEmpty(recordId) ? null
+			: ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		if (rec == null || rec.baseRecord.artistId != artist.artistId) { message = $"That single isn't {artist.stageName}'s."; return false; }
+		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
+		PressStock stock = StockFor(recordId);
+		if (stock == null || stock.Remaining < ArtistBuyInMin) {
+			message = $"Not enough of \"{TitleForRecord(recordId)}\" on hand -- {artist.stageName} won't bother for under {ArtistBuyInMin}.";
+			return false;
+		}
+		if (!Require(ArtistBuyInHours, out message)) return false;
+
+		int take = Mathf.Clamp(quantity, ArtistBuyInMin, Mathf.Min(ArtistBuyInMax, stock.Remaining));
+		Spend(ArtistBuyInHours);
+		stock.Remaining -= take;
+		float net = take * ArtistBuyInPrice;
+		Label.cashReserves += net;
+		Label.monthlyRevenue += net;
+
+		Note($"{artist.stageName} bought {take:N0} of \"{TitleForRecord(recordId)}\" outright, cash -- ${net:N0}.");
+		message = $"{artist.stageName} takes {take:N0} of \"{TitleForRecord(recordId)}\" for ${net:N0} cash.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Stock on hand at each named stop, for the DISTRIBUTION readout.</summary>
+	public IEnumerable<(string CityName, string StopName, string Title, int Remaining)> StopStock() {
+		foreach (PlayerStop stop in EnsureStops().Values)
+			foreach (var (recordId, lot) in stop.OnHand)
+				if (lot.Remaining > 0) yield return (CityName(stop.CityId), stop.DisplayName, TitleForRecord(recordId), lot.Remaining);
+	}
+
+	// ========================================================================
+	// INBOUND DEMAND -- "they called me" (directive §4). Today, trunk is 100% player-push; this is the
+	// seam that lets a title with real local demand pull the player back to a shelf instead of dying at
+	// "a little bit on the radio, then nothing." Every signal below reads RecordRuntimeData.regionalData
+	// (the same state the AI's regional-breakout math already uses) or the player's own stop roster --
+	// never a parallel buzz meter (§4.1).
+	// ========================================================================
+
+	/// <summary>$5-10/mo, buys the office an "on" switch for InboundCalls generated while the player is
+	/// on the road (§4.3) -- without it, only calls generated while at the home office get logged; the
+	/// world still moves, the office just never hears about it.</summary>
+	public bool HasAnsweringService => Label?.hasAnsweringService ?? false;
+
+	public bool PurchaseAnsweringService(out string message) {
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (Label.hasAnsweringService) { message = "Already got one."; return false; }
+		Label.hasAnsweringService = true;
+		Note($"Hired an answering service -- ${AILabel.AnsweringServiceMonthlyCost:N0}/mo -- to catch calls while you're out.");
+		message = $"Answering service hired (${AILabel.AnsweringServiceMonthlyCost:N0}/mo).";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Pending calls for the OFFICE readout, soonest-to-expire first.</summary>
+	public IEnumerable<(InboundCall Call, string StopName, string CityName, string Title, int ExpiresInWeeks)> PendingCalls() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		foreach (InboundCall call in inboundCalls.OrderBy(c => c.ExpiresWeek)) {
+			PlayerStop stop = GetStop(call.StopId);
+			if (stop == null) continue;
+			yield return (call, stop.DisplayName, CityName(stop.CityId), TitleForRecord(call.RecordId), Mathf.Max(0, call.ExpiresWeek - week));
+		}
+	}
+
+	/// <summary>Whether the given stop has an open call for that single -- lets the DISTRIBUTION stop
+	/// rows flag "they called" so the player doesn't have to cross-reference the office list by hand.</summary>
+	public bool HasOpenCall(string stopId, string recordId) =>
+		inboundCalls.Any(c => c.StopId == stopId && c.RecordId == recordId);
+
+	/// <summary>Runs at most once per chart week (from OnDayStarted): expires anything overdue, then
+	/// rolls for a fresh batch. A week boundary, not a daily one -- InboundCalls are lower-frequency,
+	/// office-readout events, not another daily-tick system layered on top of the trunk.</summary>
+	private void CheckWeeklyInboundCalls() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (week == lastCallGenWeek) return;
+		lastCallGenWeek = week;
+		ExpireInboundCalls(week);
+		GenerateInboundCalls(week);
+		MaybeUnlockRunnerFromCalls(week);
+	}
+
+	/// <summary>Directive §7's other unlock path: "inbound calls in two cities the same week." Reads what
+	/// GenerateInboundCalls just added rather than tracking a parallel counter.</summary>
+	private void MaybeUnlockRunnerFromCalls(int week) {
+		if (runnerUnlocked) return;
+		int distinctCities = inboundCalls.Where(c => c.Week == week)
+			.Select(c => GetStop(c.StopId)?.CityId).Where(id => id != null).Distinct(StringComparer.Ordinal).Count();
+		if (distinctCities >= RunnerUnlockCallCities) UnlockRunner("Calls came in from two towns the same week");
+	}
+
+	/// <summary>Directive §4.2: "they fill it from someone else, or forget." An account you already know
+	/// pays a relationship cost for going unanswered; a stranger shop just evaporates -- there was no
+	/// relationship there to spend. A single miss is ordinary -- shops and ops call around, they don't
+	/// expect you to jump every time -- so the first one barely registers. Missing the same account
+	/// again and again is neglect, and the penalty escalates with the streak (MissedCallBasePenalty ×
+	/// MissedCallStreak, capped at MissedCallMaxPenalty).</summary>
+	private void ExpireInboundCalls(int week) {
+		foreach (InboundCall call in inboundCalls.Where(c => c.ExpiresWeek <= week).ToList()) {
+			inboundCalls.Remove(call);
+			PlayerStop stop = GetStop(call.StopId);
+			if (stop == null) continue;
+			if (stop.LastVisitWeek > 0) {
+				stop.MissedCallStreak++;
+				float penalty = Mathf.Min(MissedCallBasePenalty * stop.MissedCallStreak, MissedCallMaxPenalty);
+				stop.Relationship = Mathf.Max(0f, stop.Relationship - penalty);
+				Note($"{stop.DisplayName} in {CityName(stop.CityId)} gave up waiting on \"{TitleForRecord(call.RecordId)}\" -- filled it elsewhere.");
+			}
+		}
+	}
+
+	/// <summary>Regions the office can plausibly hear from this week: home, next door to home, and next
+	/// door to anywhere the player has already worked a stop. Mirrors the reach a driving label actually
+	/// has (CanReach) -- a call from clear across the map with no road between here and there would read
+	/// as noise, not a hook back into the map.</summary>
+	private HashSet<string> CallEligibleRegions() {
+		var regions = new HashSet<string>(StringComparer.Ordinal);
+		if (Label == null) return regions;
+		void AddWithNeighbors(string regionId) {
+			if (string.IsNullOrEmpty(regionId) || !regions.Add(regionId)) return;
+			foreach (string adjacent in DistanceModel.GetAdjacentRegions(regionId)) regions.Add(adjacent);
+		}
+		AddWithNeighbors(Label.homeRegion);
+		foreach (PlayerStop stop in EnsureStops().Values)
+			if (stop.LastVisitWeek > 0) AddWithNeighbors(DistanceModel.GetCityById(stop.CityId)?.parentRegionId);
+		return regions;
+	}
+
+	/// <summary>
+	/// Rolls this week's batch of "they called me." Two sources, matching the first two rungs of
+	/// directive §4.2's priority order (the later rungs -- one-stop test carton, house courting -- hang
+	/// off §5/§6, not yet built):
+	///   1. SoldOut -- an account you already stocked ran thin while the region still shows real demand.
+	///   2. Requests/StationAdded -- a shop you've never visited, only where regional awareness or
+	///      airplay is real enough to make "a stranger called" plausible (the request loop).
+	/// Without an answering service, a call generated while the player is away from the office is never
+	/// logged at all -- §4.3's missed-call pressure, not solved with omniscient voicemail.
+	/// </summary>
+	private void GenerateInboundCalls(int week) {
+		if (Label == null) return;
+		if (!AtHome && !HasAnsweringService) return;
+
+		HashSet<string> eligibleRegions = CallEligibleRegions();
+		Dictionary<string, PlayerStop> allStops = EnsureStops();
+
+		foreach (RecordRuntimeData rec in ReleasedRecords) {
+			if (rec?.baseRecord == null) continue;
+			string recordId = rec.baseRecord.recordId;
+			int strangerCallsThisRecord = 0;
+
+			foreach (var pair in rec.regionalData) {
+				string regionId = pair.Key;
+				RegionalRecordData rd = pair.Value;
+				if (rd == null || !eligibleRegions.Contains(regionId)) continue;
+
+				List<PlayerStop> stopsHere = allStops.Values.Where(s =>
+					string.Equals(DistanceModel.GetCityById(s.CityId)?.parentRegionId, regionId, StringComparison.Ordinal)).ToList();
+				if (stopsHere.Count == 0) continue;
+
+				bool demandReal = rd.awareness > 0.15f || rd.radioPlay > 0.10f || rd.unitsBackordered > 0;
+
+				// 1. SoldOut -- known accounts, thin on hand, demand still there.
+				foreach (PlayerStop stop in stopsHere) {
+					if (stop.LastVisitWeek == 0) continue;
+					if (HasOpenCall(stop.StopId, recordId)) continue;
+					if (!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot) || lot.Placed <= 0) continue;
+					if (lot.Remaining > SoldOutOnHandThreshold || !demandReal) continue;
+					AddCall(stop, recordId, SuggestedPlacement(stop), InboundCallReason.SoldOut, week, lot.ConsignmentTerms);
+				}
+
+				// 2. The stranger shop -- never carried THIS title, real regional signal, the request loop.
+				// "Never carried" rather than "never visited" so a stop that passed on this one COD (§3.3
+				// addendum: a pass sticks) is exactly as reachable here as a true never-visited shop once
+				// the record earns real evidence -- this call is the "potential success" that reopens it.
+				if (strangerCallsThisRecord < StrangerCallsPerRecordPerWeek) {
+					bool strangerSignal = rd.awareness >= StrangerAwarenessThreshold || rd.radioPlay >= StrangerRadioThreshold;
+					if (strangerSignal) {
+						// Venue excluded alongside OneStop: it keeps no OnHand history to be "untried" against,
+						// so it would otherwise qualify on every pass and ring a call its own verb (WorkTheHopTable)
+						// has no ledger to fulfill against -- the table is a walk-up, not a standing account.
+						List<PlayerStop> strangers = stopsHere.Where(s =>
+							s.Kind != StopKind.OneStop && s.Kind != StopKind.Venue && IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId)).ToList();
+						if (strangers.Count > 0 && GD.Randf() < StrangerCallChancePerWeek) {
+							PlayerStop pick = strangers[GD.RandRange(0, strangers.Count - 1)];
+							InboundCallReason reason = rd.radioPlay >= StrangerRadioThreshold ? InboundCallReason.StationAdded : InboundCallReason.Requests;
+							AddCall(pick, recordId, SuggestedPlacement(pick), reason, week, consignment: true);
+							strangerCallsThisRecord++;
+						}
+					}
+				}
+
+				// 3. OneStopTest (directive §6): "the natural unlock is an op or dealer they already serve
+				// asking for the record." A one-stop grew up serving jukebox ops, so the trigger is a
+				// known account in the one-stop's OWN CITY already carrying the title with a real
+				// relationship, on top of the same regional demand signal the stranger call needs.
+				if (demandReal) {
+					foreach (PlayerStop oneStop in stopsHere.Where(s => s.Kind == StopKind.OneStop && !s.OneStopUnlocked)) {
+						if (HasOpenCall(oneStop.StopId, recordId)) continue;
+						bool servedByKnownAccount = allStops.Values.Any(s => s.CityId == oneStop.CityId && s.Kind != StopKind.OneStop
+							&& s.Relationship >= OneStopServedRelationshipFloor
+							&& s.OnHand.TryGetValue(recordId, out ConsignmentLot ownLot) && ownLot.Placed > 0);
+						if (!servedByKnownAccount || GD.Randf() >= StrangerCallChancePerWeek) continue;
+						AddCall(oneStop, recordId, OneStopCartonDefaultQty, InboundCallReason.OneStopTest, week, consignment: false);
+					}
+				}
+			}
+		}
+	}
+
+	/// <summary>Never carried this title -- covers both a true never-visited stop and one that passed on
+	/// it COD (a pass sticks on <see cref="PlayerStop.PassedRecordIds"/> until a call like this clears it,
+	/// per the §3.3 addendum), since neither has ever actually had it on the shelf.</summary>
+	private static bool IsUntriedAt(PlayerStop stop, string recordId) =>
+		!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot) || lot.Placed <= 0;
+
+	private void AddCall(PlayerStop stop, string recordId, int qty, InboundCallReason reason, int week, bool consignment) {
+		stop.PassedRecordIds.Remove(recordId); // a call in is the "potential success" that reopens a pass
+		inboundCalls.Add(new InboundCall {
+			StopId = stop.StopId, RecordId = recordId, Week = week, RequestedQty = Mathf.Max(1, qty),
+			Reason = reason, ExpiresWeek = week + CallExpiryWeeks, ConsignmentTerms = consignment
+		});
+		string reasonText = reason switch {
+			InboundCallReason.SoldOut => "sold out and wants more",
+			InboundCallReason.StationAdded => "it's on the air there and the counter's fielding requests",
+			InboundCallReason.Requests => "getting asked for it at the counter",
+			InboundCallReason.OneStopTest => "heard about it from an account they serve and want a look",
+			_ => "wants in on it"
+		};
+		Note($"{stop.DisplayName} in {CityName(stop.CityId)} called -- {reasonText} on \"{TitleForRecord(recordId)}\".");
+	}
+
+	/// <summary>Answering a call is the highest-trust relationship tick in the game (directive §4.2) --
+	/// called from PitchAtStop/ConsignAtStop/ServiceStop whenever the stop being worked has an open call
+	/// for that single, on top of that verb's own relationship gain.</summary>
+	private string TryFulfillCall(PlayerStop stop, string recordId) {
+		InboundCall call = inboundCalls.FirstOrDefault(c => c.StopId == stop.StopId && c.RecordId == recordId);
+		if (call == null) return null;
+		inboundCalls.Remove(call);
+		TouchStop(stop, 0.06f);
+		return " You got there before they gave up waiting.";
+	}
+
+	// ========================================================================
+	// PEOPLE -- contractors first, payroll later (directive §7). A commission trunk runner covers a
+	// route of the player's own named stops off his own carton, at a worse starting conversion that
+	// improves the more he services an account, paid only out of what he actually collects (no weekly
+	// nut). A project promo man is a short, city-scoped, record-specific radio push that sells no units
+	// -- it reuses the existing PayolaLedger/IndiePromoter machinery (already player-facing, and already
+	// carrying the scandal/detection risk model §7 asks for) rather than inventing a second one.
+	// ========================================================================
+
+	public bool RunnerUnlocked => runnerUnlocked;
+	public bool HasRunner => runner != null;
+	/// <summary>The hired runner's live state, or null -- exposed directly for the same reason PlayerStop
+	/// is (see StopsInCity): SaveLoadRoundTripRunner hand-mutates it to prove CaptureState/RestoreState
+	/// round-trip his carton/route/familiarity, the same way it already does for stop state.</summary>
+	public PlayerRunner Runner => runner;
+	public IReadOnlyCollection<string> RunnerRouteStopIds => runner?.RouteStopIds ?? (IReadOnlyCollection<string>)Array.Empty<string>();
+	public string RunnerCartonRecordId => runner?.CartonRecordId;
+	public int RunnerCartonRemaining => runner?.CartonRemaining ?? 0;
+	public bool IsOnRunnerRoute(string stopId) => runner != null && runner.RouteStopIds.Contains(stopId);
+
+	/// <summary>Test-only seam (mirrors TimeManager.DebugAdvanceWeek): satisfies the §7 unlock directly
+	/// rather than making a probe grind out real reorders or a two-city call week. Optionally marks a city
+	/// worked too, since AssignRunnerStop requires it and the probe never runs the trunk-selling verbs
+	/// that would set it organically.</summary>
+	public void DebugUnlockRunner(string alsoMarkCityWorked = null) {
+		runnerUnlocked = true;
+		if (!string.IsNullOrEmpty(alsoMarkCityWorked)) workedCities.Add(alsoMarkCityWorked);
+	}
+
+	/// <summary>Test-only seam: hand-constructs an outstanding plant credit, bypassing the real
+	/// open-call-backlog eligibility gate (RequestPlantCredit) -- lets a probe prove PlantCredit
+	/// round-trips through CaptureState/RestoreState without grinding out a real backlog first.</summary>
+	public void DebugSetPlantCredit(PlantCredit credit) => plantCredit = credit;
+
+	/// <summary>Test-only seams for directive §9: mark a title's one-stop exposure directly rather than
+	/// releasing a real record and running it through SellCartonToOneStop, and stage an unsigned offer
+	/// on the desk without grinding out real regional-breakout evidence first -- same spirit as
+	/// DebugSetPlantCredit above.</summary>
+	public void DebugMarkOneStopKnown(string recordId) => oneStopKnownRecordIds.Add(recordId);
+	public void DebugSetMasterSold(string recordId) => soldMasterRecordIds.Add(recordId);
+	public void DebugSetMasterLeased(string recordId, int expiryWeek) => leasedMasterExpiryWeek[recordId] = expiryWeek;
+	public void DebugSetPendingDistributionOffer(DistributionDeal offer) => pendingDistributionOffer = offer;
+
+	/// <summary>A reorder at a standing account, toward "persistent reorders in one city" (directive §7).
+	/// Called from ServiceStop -- the restock verb IS a reorder.</summary>
+	private void NoteReorder(string cityId) {
+		if (runnerUnlocked || string.IsNullOrEmpty(cityId)) return;
+		serviceReorderCountByCity.TryGetValue(cityId, out int count);
+		count++;
+		serviceReorderCountByCity[cityId] = count;
+		if (count >= RunnerUnlockReorderCount) UnlockRunner($"{CityName(cityId)} keeps calling you back to restock");
+	}
+
+	private void UnlockRunner(string reason) {
+		if (runnerUnlocked) return;
+		runnerUnlocked = true;
+		Note($"You could use a hand covering your accounts -- {reason}. A commission runner is worth a look.");
+		Changed?.Invoke();
+	}
+
+	public bool HireRunner(out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (!runnerUnlocked) { message = "Nobody's looking to run your route yet -- keep servicing accounts, or let demand ring in from two towns the same week."; return false; }
+		if (runner != null) { message = "You've already got a runner."; return false; }
+		runner = new PlayerRunner();
+		Note("Took on a commission runner -- no salary, just a cut of what he brings back.");
+		message = "Runner hired -- give him a route and a carton to work it.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Adds or drops one stop from the runner's route. Restricted to towns the player has
+	/// personally opened (workedCities) -- he covers ground you've already broken into, never a way to
+	/// open a fresh market without setting foot in it.</summary>
+	public bool AssignRunnerStop(string stopId, bool onRoute, out string message) {
+		message = null;
+		if (runner == null) { message = "No runner to send."; return false; }
+		PlayerStop stop = GetStop(stopId);
+		if (stop == null || stop.Kind == StopKind.OneStop || stop.Kind == StopKind.Venue) { message = "Not an account he can work."; return false; }
+		if (onRoute) {
+			if (!workedCities.Contains(stop.CityId)) { message = $"You haven't opened {CityName(stop.CityId)} yourself yet -- work it first."; return false; }
+			runner.RouteStopIds.Add(stopId);
+			message = $"{stop.DisplayName} added to his route.";
+		} else {
+			runner.RouteStopIds.Remove(stopId);
+			message = $"{stop.DisplayName} taken off his route.";
+		}
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Hands the runner a carton out of office inventory. He carries one single's worth at a
+	/// time -- let him sell through before switching titles.</summary>
+	public bool HandCartonToRunner(string recordId, int quantity, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (runner == null) { message = "No runner to hand stock to."; return false; }
+		if (runner.CartonRemaining > 0 && runner.CartonRecordId != recordId) {
+			message = $"He's still carrying \"{TitleForRecord(runner.CartonRecordId)}\" -- let him sell through first.";
+			return false;
+		}
+		if (!RequireHome(out message)) return false;
+		PressStock stock = StockFor(recordId);
+		if (stock == null || stock.Remaining <= 0) { message = "Nothing pressed on hand to give him."; return false; }
+		if (!Require(RunnerHandoffHours, out message)) return false;
+
+		int take = Mathf.Clamp(quantity, 1, stock.Remaining);
+		Spend(RunnerHandoffHours);
+		stock.Remaining -= take;
+		runner.CartonRecordId = recordId;
+		runner.CartonRemaining += take;
+		Note($"Handed the runner {take:N0} of \"{TitleForRecord(recordId)}\" to work his route.");
+		message = $"He's carrying {runner.CartonRemaining:N0} of \"{TitleForRecord(recordId)}\" now.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Runs at most once per chart week (from OnDayStarted): the runner works every stop on his
+	/// route off his own carton -- the same sell/consign/service shape the player's own verbs use
+	/// (SuggestedPlacement, TryFulfillCall), just his own worse-starting acceptance curve (Familiarity,
+	/// never stop.Relationship) that improves the more he services an account. Costs no player hours --
+	/// that is the whole point of him. If his carton runs dry, nothing happens until he's handed more --
+	/// "fire him by not handing him stock" (directive §7), no separate dismissal action needed.</summary>
+	private void CheckWeeklyRunner() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (week == lastRunnerTickWeek) return;
+		lastRunnerTickWeek = week;
+		if (runner == null || runner.CartonRemaining <= 0 || string.IsNullOrEmpty(runner.CartonRecordId)) return;
+
+		string recordId = runner.CartonRecordId;
+		Dictionary<string, PlayerStop> allStops = EnsureStops();
+		foreach (string stopId in runner.RouteStopIds.ToList()) {
+			if (runner.CartonRemaining <= 0) break;
+			if (!allStops.TryGetValue(stopId, out PlayerStop stop)) continue;
+
+			runner.Familiarity.TryGetValue(stopId, out float familiarity);
+			bool untried = IsUntriedAt(stop, recordId);
+			if (untried) {
+				float acceptChance = Mathf.Clamp(RunnerAcceptBase + familiarity * RunnerAcceptSlope, 0.08f, 0.9f);
+				if (GD.Randf() > acceptChance) {
+					stop.PassedRecordIds.Add(recordId);
+					Note($"Your runner struck out with {stop.DisplayName} in {CityName(stop.CityId)} on \"{TitleForRecord(recordId)}\".");
+					continue;
+				}
+			}
+
+			int target = Mathf.Max(1, SuggestedPlacement(stop));
+			ConsignmentLot lot = LotFor(stop, recordId);
+			// A cold account only takes what a worse-conversion cold call earns; a familiar one gets the
+			// same real target the player's own Service verb would top it up to.
+			int cap = untried ? Mathf.Max(1, Mathf.RoundToInt(target * Mathf.Lerp(0.3f, 1f, familiarity))) : target;
+			int place = Mathf.Clamp(cap - lot.Remaining, 0, runner.CartonRemaining);
+			if (place <= 0) { TryFulfillCall(stop, recordId); continue; }
+
+			runner.CartonRemaining -= place;
+			lot.Remaining += place;
+			lot.Placed = Mathf.Max(lot.Placed, lot.Remaining);
+			if (untried) lot.DaysSinceRestock = 0;
+			lot.RunnerSourced = true;
+			TouchStop(stop, RunnerRelationshipGain); // still your label's stock -- a small tick for you too
+			runner.Familiarity[stopId] = Mathf.Clamp(familiarity + RunnerFamiliarityGain, 0f, 1f);
+			string callNote = TryFulfillCall(stop, recordId);
+			Note($"Your runner left {place:N0} of \"{TitleForRecord(recordId)}\" with {stop.DisplayName} in {CityName(stop.CityId)}.{callNote}");
+		}
+		Changed?.Invoke();
+	}
+
+	/// <summary>
+	/// Directive §7: "$25-75 ... to work one city / a few stations for 1-2 weeks. Creates spins and
+	/// rumors ... sells no units." Reuses the PayolaLedger's IndiePromoter path (already player-facing,
+	/// already dormant -- nothing else ever registers a promoter) rather than a second risk model: an
+	/// ephemeral promoter scoped to this one project, a handful of this region's reporter stations, a
+	/// short duration, and the ledger's own scandal/detection math supplies the "risky" half for free.
+	/// Restricted to towns the player has already opened -- proof is geographic (directive §1.3) even for
+	/// a phone-arranged spend.
+	/// </summary>
+	public bool HireProjectPromo(string recordId, string cityId, ProjectPromoTier tier, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (string.IsNullOrEmpty(recordId)) { message = "Pick a record to work."; return false; }
+		if (!workedCities.Contains(cityId)) { message = "You haven't opened that town yourself yet -- work it first."; return false; }
+		MarketCity city = DistanceModel.GetCityById(cityId);
+		MarketRegion region = city != null ? ChartManager.Instance?.GetRegionById(city.parentRegionId) : null;
+		if (region == null) { message = "No market data for that town."; return false; }
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		if (rec == null) { message = "That single isn't out yet."; return false; }
+
+		float cost = ProjectPromoCost(tier);
+		if (Label.cashReserves < cost) { message = $"You're ${cost - Label.cashReserves:N0} short of the ${cost:N0} promo fee."; return false; }
+
+		var reporters = (ChartManager.Instance?.ReporterStationsInRegion(region.regionId) ?? Array.Empty<RadioStation>())
+			.Where(s => s != null).ToList();
+		if (reporters.Count == 0) { message = $"No reporter stations in {region.regionName} to work."; return false; }
+		if (!Require(ProjectPromoHours, out message)) return false;
+
+		int stationCount = Mathf.Min(ProjectPromoStationCount(tier), reporters.Count);
+		string[] picks = reporters.OrderBy(_ => GD.Randf()).Take(stationCount).Select(s => s.stationId).ToArray();
+
+		Spend(ProjectPromoHours);
+		Label.cashReserves -= cost;
+		Label.monthlyExpenses += cost;
+
+		// "Temperature from media.payolaSusceptibility" (directive §7) -- a more open market gets more
+		// lift for the same fee; the era/station scandal-detection math (PayolaLedger.AdjudicateDetection)
+		// already supplies the risk side untouched.
+		float susceptibility = Mathf.Clamp(region.media?.payolaSusceptibility ?? 0.3f, 0f, 1f);
+		float effectiveness = Mathf.Clamp(ProjectPromoTierEffectiveness(tier) * (0.6f + susceptibility * 0.8f), 0.1f, 0.9f);
+
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		GameDate date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		ChartManager.Instance?.PlaceProjectPromo(recordId, Label.labelId, picks, effectiveness,
+			ProjectPromoDiscretion, ProjectPromoMobConnection, week, date.year, date.month, ProjectPromoWeeks);
+
+		Note($"Put a promo man on \"{TitleForRecord(recordId)}\" in {region.regionName} for ${cost:N0} -- {stationCount} station(s), about {ProjectPromoWeeks} weeks.");
+		message = $"Promo man working {region.regionName} for about {ProjectPromoWeeks} weeks (${cost:N0}).";
+		Changed?.Invoke();
+		return true;
 	}
 
 	// ========================================================================
@@ -1735,7 +2883,7 @@ public partial class PlayerDesk : Node {
 		Spend(hours);
 		if (gas > 0f) { Label.cashReserves -= gas; Label.monthlyExpenses += gas; }
 		currentCityId = dest.cityId;
-		CollectFromTown(dest.cityId); // show up and the shops settle what they've been holding
+		CollectAtCity(dest.cityId); // show up and the shops settle what they've been holding
 		Note($"Drove to {dest.name} ({hours}h, ${gas:N0} gas).");
 		message = goingHome ? "Back at the office." : $"You're in {dest.name}.";
 		Changed?.Invoke();
@@ -1781,20 +2929,40 @@ public partial class PlayerDesk : Node {
 			.ToList();
 	}
 
+	/// <summary>Whether the player has proven a real regional breakout in this market yet (directive
+	/// §5.1) -- the same bar the AI's own independent-distribution path uses. A pitch below this comes
+	/// back cold and can be turned down outright; at or above it, the house is courting you.</summary>
+	public bool IsProvenInRegion(string regionId) =>
+		Label != null && (CompetitorManager.Instance?.HasProvenBreakoutIn(Label, regionId) ?? false);
+
 	/// <summary>
 	/// Places the label's line with a wholesale house in one market. This is what makes a
-	/// record physically available outside the player's home town.
+	/// record physically available outside the player's home town. Gated on regional proof
+	/// (directive §5.1): without it, this is a real pitch that can be turned down cold, or land on
+	/// worse terms -- not an automatic yes.
 	/// </summary>
 	public bool PlaceLine(string regionId, out string message) {
 		if (!Require(DistributionHours, out message)) return false;
-		IndependentDistributor house = CompetitorManager.Instance?.PlacePlayerLine(Label, regionId);
-		if (house == null) { message = "No house in that market would take the line."; return false; }
 
-		Spend(DistributionHours);
+		bool proven = false, anyHouse = false;
+		IndependentDistributor house = CompetitorManager.Instance?.PlacePlayerLine(Label, regionId, out proven, out anyHouse);
 		string regionName = ChartManager.Instance?.GetRegionById(regionId)?.regionName ?? regionId;
-		Note($"{house.distributorName} takes the line in {regionName} " +
+		if (!anyHouse) { message = $"No house in {regionName} has room for another line right now."; return false; }
+
+		Spend(DistributionHours); // the trip itself costs the hours once there's someone there to pitch
+
+		if (house == null) {
+			message = $"No deal in {regionName} this trip -- \"I don't hear it yet.\" Come back once you've broken out there.";
+			Note($"{regionName}: the warehouse passed -- no regional proof to show them.");
+			Changed?.Invoke();
+			return true;
+		}
+
+		Note($"{house.distributorName} {(proven ? "comes courting" : "takes a flyer on")} you in {regionName} " +
 			$"({house.paymentTermWeeks}-week terms, {house.reportingHonesty:P0} reporting).");
-		message = $"{house.distributorName} is carrying you in {regionName}.";
+		message = proven
+			? $"{house.distributorName} is carrying you in {regionName} -- they'd already heard about you."
+			: $"{house.distributorName} takes the line in {regionName}, cold -- back of the pile until you prove it there.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -1871,6 +3039,8 @@ public partial class PlayerDesk : Node {
 			FireRelease(release, date);
 		}
 		ProcessTrunkDay();
+		CheckWeeklyInboundCalls();
+		CheckWeeklyRunner();
 		Changed?.Invoke();
 	}
 
@@ -1882,6 +3052,31 @@ public partial class PlayerDesk : Node {
 		Note($"Motel in {CurrentCity?.name ?? "town"} -- ${HotelNightly:N0}.");
 	}
 
+	/// <summary>A stop's real local pull, not just the record's national number. rec.awareness is driven
+	/// by radioHeat -- a national "should be getting airplay" proxy off quality/label push/momentum/chart
+	/// position, with no read of what a specific station is actually spinning -- so on its own it cannot
+	/// tell a record that's genuinely on WJLB in Detroit from a private pressing nobody's played anywhere.
+	/// The real signal already exists in RecordRuntimeData.regionalData[regionId].awareness, which the
+	/// reporter panel's per-station playlists (Rolodex rapport/advocacy) and the tail both feed -- read it
+	/// here at the same 40/60 national/regional blend the AI-shared demand pass already trusts (see
+	/// ChartSimulator's effectiveAwareness), rather than inventing a separate buzz meter (directive §4.1).
+	/// On top of that, add a direct, undiluted read of the reporter panel's actual airplay for this region
+	/// (ChartManager.ReporterAirplay). regionalData.awareness only ever hears a cultivated spin at ~13%
+	/// (the AI-shared REPORTER_PANEL_WEIGHT dilutes it); reading the panel here lets the player's own trunk
+	/// pull respond to real, cultivated station placement at full strength -- a pure read that leaves every
+	/// AI-economy number (radioHeat/radioPlay/tail/REPORTER_PANEL_WEIGHT) untouched. Bounded lift, never a
+	/// penalty, so an organically-broken record with a cooling airplay curve is never dragged down.
+	/// Falls back to the national number alone if this record has no regional row for the stop's region.</summary>
+	private float RegionalBuzz(RecordRuntimeData rec, string cityId) {
+		float national = Mathf.Clamp(rec.awareness, 0f, 1f);
+		string regionId = DistanceModel.GetCityById(cityId)?.parentRegionId;
+		if (string.IsNullOrEmpty(regionId) || rec.regionalData == null
+			|| !rec.regionalData.TryGetValue(regionId, out RegionalRecordData rd)) return national;
+		float reporterLift = ChartManager.Instance?.ReporterAirplay(rec.baseRecord.recordId, regionId) * TrunkReporterAirplayLift ?? 0f;
+		float regional = Mathf.Min(1f, rd.awareness + reporterLift);
+		return Mathf.Clamp(national * 0.4f + regional * 0.6f, 0f, 1f);
+	}
+
 	/// <summary>
 	/// A day's trunk sell-through. Every town you've stocked sells a slice of what its shops are holding,
 	/// smaller the longer it's been since you restocked -- so a market runs down and needs another run. The
@@ -1889,22 +3084,23 @@ public partial class PlayerDesk : Node {
 	/// your next visit (a thin daily wire aside). The vinyl was paid for at the plant, so there's no skim.
 	/// </summary>
 	private void ProcessTrunkDay() {
-		foreach (var (cityId, lots) in consignment.Select(kv => (kv.Key, kv.Value)).ToList()) {
-			bool present = cityId == CurrentCityId; // standing in the town -> cash in hand; away -> the shops owe you
-			foreach (var (recordId, lot) in lots.Select(kv => (kv.Key, kv.Value)).ToList()) {
+		foreach (PlayerStop stop in EnsureStops().Values.ToList()) {
+			if (stop.OnHand.Count == 0) continue;
+			bool present = stop.CityId == CurrentCityId; // standing in the town -> COD stock pays cash; away -> it's owed
+			foreach (var (recordId, lot) in stop.OnHand.Select(kv => (kv.Key, kv.Value)).ToList()) {
 				if (lot.Remaining <= 0) { lot.DaysSinceRestock++; continue; }
 				RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord.recordId == recordId);
 				// A lot whose record can't be resolved still AGES. It used to `continue` before the
 				// increment, which froze the lot forever: no sales and no decay clock, so stock stranded
-				// in a town could never sell through and never be written off either. Player records are
+				// at a stop could never sell through and never be written off either. Player records are
 				// no longer culled, so this should now only be reachable for a lot whose record a
 				// pre-fix save lost outright and the load-time repair could not rebuild.
 				if (rec == null) { lot.DaysSinceRestock++; continue; }
 				// A day's move is a slice of the fresh lot, decaying since the last restock, scaled by how much
 				// the record actually pulls -- its hook, its sound, and how many have heard of it (an unknown act
 				// with a $10 campaign has near-zero awareness and trickles out), then rolled with day-to-day,
-				// town-to-town luck so two towns never sell in lockstep.
-				float buzz = Mathf.Clamp(rec.awareness, 0f, 1f);
+				// stop-to-stop luck so two accounts never sell in lockstep.
+				float buzz = RegionalBuzz(rec, stop.CityId);
 				float appeal = Mathf.Clamp(rec.baseRecord.hookStrength * 0.45f + rec.baseRecord.productionQuality * 0.25f + buzz * 0.30f, 0.04f, 1f);
 				float decay = Mathf.Pow(TrunkDecayPerDay, lot.DaysSinceRestock);
 				float luck = (float)GD.RandRange(0.55, 1.45);
@@ -1912,20 +3108,35 @@ public partial class PlayerDesk : Node {
 				lot.DaysSinceRestock++;
 				if (units <= 0) continue;
 				lot.Remaining -= units;
-				BookTrunkSale(rec, units, cityId, present);
+				// Runner-sourced stock is HIS collection, not the player standing in town -- cash timing
+				// turns on terms alone (he's out there collecting regardless of where the player is), and
+				// BookRunnerSale takes his commission off the top before the label ever sees it (directive §7).
+				if (lot.RunnerSourced) BookRunnerSale(rec, units, stop, !lot.ConsignmentTerms);
+				// Consignment terms never pay cash-in-hand, even standing in the stop's own town -- COD terms do.
+				else BookTrunkSale(rec, units, stop, present && !lot.ConsignmentTerms);
 			}
 		}
 		WireOwedTrickle();
 	}
 
 	/// <summary>
-	/// Books a day's trunk sell-through in one town. The records leave the shelves and count toward the
-	/// chart (accumulated into the weekly total) whichever town they sold in -- department-store and
-	/// record-shop sales are chart sales. The MONEY, though, only reaches the bank when you're there to
-	/// take it: standing in the town it's cash in hand, otherwise the shops hold your cut until you drive
-	/// back (with a thin daily wire in the meantime). The artist's royalty is credited on the sale either way.
+	/// Books a day's trunk sell-through at one stop. The records leave the shelves and count toward the
+	/// chart (accumulated into the weekly total) whichever stop they sold at -- department-store and
+	/// record-shop sales are chart sales. The MONEY, though, only reaches the bank when the terms and your
+	/// whereabouts say so: cashNow is COD stock in the town you're standing in; otherwise the stop holds
+	/// your cut until you drive back (with a thin daily wire in the meantime). The artist's royalty is
+	/// credited on the sale either way.
 	/// </summary>
-	private void BookTrunkSale(RecordRuntimeData rec, int units, string cityId, bool present) {
+	private void BookTrunkSale(RecordRuntimeData rec, int units, PlayerStop stop, bool cashNow) =>
+		BookSale(rec, units, stop, cashNow, labelShare: 1f);
+
+	/// <summary>Same sale, minus the runner's cut (directive §7: "8-15% of his collections ... paid when
+	/// the shop pays") -- his commission comes off the net the instant it lands, whichever channel it
+	/// lands through (cash-now or the stop's OpenBalance), so it's never a separate payroll step.</summary>
+	private void BookRunnerSale(RecordRuntimeData rec, int units, PlayerStop stop, bool cashNow) =>
+		BookSale(rec, units, stop, cashNow, labelShare: 1f - RunnerCommissionRate);
+
+	private void BookSale(RecordRuntimeData rec, int units, PlayerStop stop, bool cashNow, float labelShare) {
 		float gross = units * SinglePrice;
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.baseRecord.artistId);
 		float accrued = gross * (artist?.royaltyRate ?? 0.05f);
@@ -1938,7 +3149,11 @@ public partial class PlayerDesk : Node {
 			artist.unrecoupedAdvance = Mathf.Max(0f, artist.unrecoupedAdvance - recouped);
 			artist.totalRoyaltyEarnings += royalty;
 		}
-		float net = gross - royalty;
+		// The act's royalty is real either way; the RUNNER's cut (if any) comes out of what's left, before
+		// the label ever sees it -- labelShare is 1f for a straight trunk sale, 1-commission for a runner one.
+		float fullNet = gross - royalty;
+		float net = fullNet * labelShare;
+		float commission = fullNet - net;
 		// Units are NOT added to totalUnitsSold here -- the weekly settlement adds them exactly once through
 		// the chart injection (FinalizeWeeklySales += TakeWeeklyTrunkUnits). Counting them here as well double-
 		// counted every trunk sale. The MONEY is booked here (the settlement only monetizes wholesale units).
@@ -1950,42 +3165,46 @@ public partial class PlayerDesk : Node {
 		weeklyTrunkUnitsSold += units;
 		weeklyTrunkGross += gross;
 		weeklyTrunkRoyalty += royalty;
-		if (present) {
+		weeklyRunnerCommission += commission;
+		if (cashNow) {
 			Label.cashReserves += net;
 			Label.monthlyRevenue += net;
 		} else {
-			consignmentOwed.TryGetValue(cityId, out float owed);
-			consignmentOwed[cityId] = owed + net;
+			stop.OpenBalance += net;
 			weeklyTrunkHeld += net;   // out on consignment this week; not yet at the bank
 		}
 		// (The royalty and recoupment were already booked above, against `accrued`. A second credit here
 		// double-paid the act on every trunk sale and recouped the advance twice -- removed.)
 	}
 
-	/// <summary>A thin daily wire from every town holding money for you (bar the one you're standing in,
-	/// which pays cash). Keeps a market you never return to from stranding your cut entirely.</summary>
+	/// <summary>A thin daily wire from every stop holding money for you (bar the ones in the town you're
+	/// standing in). Keeps a market you never return to from stranding your cut entirely.</summary>
 	private void WireOwedTrickle() {
-		foreach (string cityId in consignmentOwed.Keys.ToList()) {
-			if (cityId == CurrentCityId) continue;
-			float owed = consignmentOwed[cityId];
-			if (owed <= 0f) { consignmentOwed.Remove(cityId); continue; }
-			float wire = Mathf.Min(owed, Mathf.Max(1f, owed * TrunkWireFractionPerDay));
-			consignmentOwed[cityId] = owed - wire;
+		foreach (PlayerStop stop in EnsureStops().Values) {
+			if (stop.CityId == CurrentCityId) continue;
+			if (stop.OpenBalance <= 0f) continue;
+			float wire = Mathf.Min(stop.OpenBalance, Mathf.Max(1f, stop.OpenBalance * TrunkWireFractionPerDay));
+			stop.OpenBalance -= wire;
 			Label.cashReserves += wire;
 			Label.monthlyRevenue += wire;
-			if (consignmentOwed[cityId] <= 0.5f) consignmentOwed.Remove(cityId);
+			if (stop.OpenBalance <= 0.5f) stop.OpenBalance = 0f;
 		}
 	}
 
-	/// <summary>Pockets whatever a town's shops have been holding for you. Called when you show up -- driving
-	/// in, or working the town. Nothing to do for a town that owes you nothing.</summary>
-	private void CollectFromTown(string cityId) {
+	/// <summary>Pockets whatever a town's stops have been holding for you. Called when you show up --
+	/// driving in, or working an account there. Nothing to do for a town that owes you nothing.</summary>
+	private void CollectAtCity(string cityId) {
 		if (string.IsNullOrEmpty(cityId)) return;
-		if (!consignmentOwed.TryGetValue(cityId, out float owed) || owed <= 0f) return;
-		consignmentOwed.Remove(cityId);
-		Label.cashReserves += owed;
-		Label.monthlyRevenue += owed;
-		Note($"Collected ${owed:N0} the shops in {DistanceModel.GetCityById(cityId)?.name ?? cityId} were holding.");
+		float total = 0f;
+		foreach (PlayerStop stop in EnsureStops().Values.Where(s => s.CityId == cityId)) {
+			if (stop.OpenBalance <= 0f) continue;
+			total += stop.OpenBalance;
+			stop.OpenBalance = 0f;
+		}
+		if (total <= 0f) return;
+		Label.cashReserves += total;
+		Label.monthlyRevenue += total;
+		Note($"Collected ${total:N0} the shops in {CityName(cityId)} were holding.");
 	}
 
 	/// <summary>Pulls this record's accumulated trunk units for the week and resets the tally. Read once at
@@ -2003,13 +3222,19 @@ public partial class PlayerDesk : Node {
 	public int PendingTrunkUnits(string recordId) =>
 		recordId != null && weeklyTrunkUnits.TryGetValue(recordId, out int units) ? units : 0;
 
-	/// <summary>What each town's shops are currently holding for you, for the DISTRIBUTION readout.</summary>
-	public IEnumerable<(string CityName, float Amount)> ConsignmentOwedByTown() {
-		foreach (var kv in consignmentOwed)
-			if (kv.Value > 0.5f) yield return (DistanceModel.GetCityById(kv.Key)?.name ?? kv.Key, kv.Value);
+	/// <summary>What each named stop is currently holding for you, for the DISTRIBUTION readout.</summary>
+	public IEnumerable<(string CityName, string StopName, float Amount)> OpenBalancesByStop() {
+		foreach (PlayerStop stop in EnsureStops().Values)
+			if (stop.OpenBalance > 0.5f) yield return (CityName(stop.CityId), stop.DisplayName, stop.OpenBalance);
 	}
 
 	private const float SinglePrice = 0.89f; // historical 45 retail
+	// Directive §3.3: "the act takes 50-100 at a discount, cash now -- a one-stop with legs." A
+	// wholesale-grade cut of the $0.89 trunk/retail price -- well above the ~$0.37-0.40/disc pressing
+	// cost, so the label still profits, but a real discount against paying full retail.
+	public const float ArtistBuyInPrice = 0.50f;
+	public const int ArtistBuyInMin = 50;
+	public const int ArtistBuyInMax = 100;
 
 	private void FireRelease(PlannedRelease release, GameDate date) {
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(release.Master.ArtistId);
@@ -2100,12 +3325,17 @@ public partial class PlayerDesk : Node {
 		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
 		// word on against what the records actually sold.
 		ProcessRolodexWeek();
+		// The plant collects on a due credit run before the settlement snapshot -- certain, not a dice
+		// roll, so it shows in this week's Cash the same as any other bill (directive §11).
+		SettlePlantCreditIfDue();
 		// The wholesale channel (what cleared through stores this week), then the trunk folded on top so the
 		// write-up covers the whole week's business, not only wholesale. Trunk carries no manufacturing (pressed
 		// and paid up front) and no distributor skim; its full net counts as earned, and the consignment slice
 		// (weeklyTrunkHeld) is earned-but-not-yet-banked, so it sits alongside wholesale credit deferral.
 		long wholesaleUnits = ReleasedRecords.Sum(record => (long)record.regionalData.Values.Sum(data => Mathf.Max(0, data.unitsSoldThisWeek)));
-		float trunkNet = weeklyTrunkGross - weeklyTrunkRoyalty;
+		// The runner's cut is already OUT of every dollar credited to cash or held at a stop (BookSale) --
+		// subtract it here too, or Earned/Banked would overstate what the label actually kept this week.
+		float trunkNet = weeklyTrunkGross - weeklyTrunkRoyalty - weeklyRunnerCommission;
 		float cash = Label.cashReserves;
 		books.Insert(0, new WeekBooks {
 			Week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
@@ -2119,6 +3349,7 @@ public partial class PlayerDesk : Node {
 			Deferred = Label.weeklyWholesaleDeferred,
 			Collected = Label.weeklyWholesaleCollected,
 			TrunkHeld = weeklyTrunkHeld,
+			RunnerCommission = weeklyRunnerCommission,
 			// What the records earned this week, less what went out on credit and what the towns are still
 			// holding on consignment, plus what old invoices finally paid. This is the figure that moved the
 			// bank balance: wholesale net-of-deferral plus the trunk's spot-cash slice (net minus held).
@@ -2132,6 +3363,7 @@ public partial class PlayerDesk : Node {
 		weeklyTrunkGross = 0f;
 		weeklyTrunkRoyalty = 0f;
 		weeklyTrunkHeld = 0f;
+		weeklyRunnerCommission = 0f;
 		lastSnapshotCash = cash;
 		Changed?.Invoke();
 	}
@@ -2150,6 +3382,238 @@ public partial class PlayerDesk : Node {
 				receivable.Amount,
 				Mathf.Max(0, receivable.DueWeek - currentWeek));
 		}
+	}
+
+	/// <summary>Directive §8's "factor the paper": a house's better reliability (it actually pays what it
+	/// owes) is worth more to whoever's buying the risk off you, so the discount reads off that same
+	/// field rather than a flat number -- 70-85¢ on the dollar, same range the directive names.</summary>
+	private static float FactorRate(IndependentDistributor house) =>
+		Mathf.Clamp(Mathf.Lerp(0.70f, 0.85f, house?.reliability ?? 0.5f), 0.70f, 0.85f);
+
+	/// <summary>The rate a given row of <see cref="OutstandingInvoices"/> would factor at, for the UI to
+	/// show before the player commits.</summary>
+	public float FactorRatePreview(int outstandingIndex) {
+		var ordered = OrderedReceivables();
+		if (outstandingIndex < 0 || outstandingIndex >= ordered.Count) return 0f;
+		return FactorRate(HouseFor(ordered[outstandingIndex].Receivable.DistributorId));
+	}
+
+	private List<(WholesaleReceivable Receivable, int Index)> OrderedReceivables() =>
+		(Label?.wholesaleReceivables ?? new List<WholesaleReceivable>())
+			.Select((r, i) => (Receivable: r, Index: i)).OrderBy(t => t.Receivable.DueWeek).ToList();
+
+	private IndependentDistributor HouseFor(string distributorId) =>
+		(CompetitorManager.Instance?.GetIndependentDistributors() ?? Array.Empty<IndependentDistributor>())
+			.FirstOrDefault(h => h.distributorId == distributorId);
+
+	/// <summary>
+	/// Directive §8: "sell the receivable at 70-85¢ now" -- one of the four buttons the first-hit squeeze
+	/// needs (starve the hit and die famous need no new mechanic; master-lease/P&amp;D is §9). Indexes into
+	/// the same order <see cref="OutstandingInvoices"/> shows, so the UI can factor the row it's looking
+	/// at. The discount books as a real write-off, same ledger a house's own short-pay uses -- the
+	/// certainty and the immediacy are what you're buying.
+	/// </summary>
+	public bool FactorReceivable(int outstandingIndex, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		var ordered = OrderedReceivables();
+		if (outstandingIndex < 0 || outstandingIndex >= ordered.Count) { message = "No such invoice to factor."; return false; }
+		(WholesaleReceivable receivable, int originalIndex) = ordered[outstandingIndex];
+
+		IndependentDistributor house = HouseFor(receivable.DistributorId);
+		float rate = FactorRate(house);
+		float cashNow = receivable.Amount * rate;
+		string houseName = house?.distributorName ?? "the house";
+
+		Label.wholesaleReceivables.RemoveAt(originalIndex);
+		Label.outstandingWholesaleReceivables = Mathf.Max(0f, Label.outstandingWholesaleReceivables - receivable.Amount);
+		Label.cashReserves += cashNow;
+		Label.monthlyRevenue += cashNow;
+		Label.lifetimeWholesaleWriteOffs += receivable.Amount - cashNow;
+
+		Note($"Factored ${receivable.Amount:N0} owed by {houseName} for ${cashNow:N0} cash now ({rate:P0} on the dollar) -- someone else collects it, not you.");
+		message = $"Sold that invoice for ${cashNow:N0} now, at {rate:P0} on the dollar.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	// ========================================================================
+	// LATE EXITS -- directive §9. Two front doors, both reusing machinery that already exists rather
+	// than inventing a parallel deal brain: master lease/sale is a one-off transaction on a single
+	// proven title (§9's "honorable success for an $800 company"); the P&D pitch below reuses the AI's
+	// own DistributionDeal type and CompetitorManager plumbing (GenerateDealTerms, SelectDistributor,
+	// the regional-evidence bar), with CompetitorManager's automatic courting/poaching loops now gated
+	// off the player's label entirely (see the isPlayerOwned guards there) so nothing gets signed
+	// without the player choosing to. "Own distribution arm" is out of scope for this pass -- it has no
+	// existing AI-side type to build on and is a separate, later piece of work.
+	// ========================================================================
+
+	// Master lease/sale: which titles are out, and for how long. Sold is forever; leased comes back at
+	// the recorded chart week. A record can only be in one of these at a time (MasterDealEligible
+	// already refuses a title that's out).
+	private readonly HashSet<string> soldMasterRecordIds = new(StringComparer.Ordinal);
+	private readonly Dictionary<string, int> leasedMasterExpiryWeek = new(StringComparer.Ordinal);
+	// "Once a one-stop knows the title" (§9) -- SellCartonToOneStop doesn't otherwise leave a mark on
+	// the specific record sold (only on office PressStock and the stop's trust), so this is the one new
+	// bit of bookkeeping the gate needs. Sticky once true -- a one-stop that has moved a title once
+	// doesn't un-know it.
+	private readonly HashSet<string> oneStopKnownRecordIds = new(StringComparer.Ordinal);
+
+	public const int MasterDealHours = SignHours; // a real sit-down, same weight as any other contract talk
+	private const float MasterSaleValueMultiple = 3.0f;   // permanent -- the bigger number buys the whole future
+	private const float MasterLeaseValueMultiple = 1.25f; // temporary -- a slice, not the whole future
+	public const int MasterLeaseTermWeeks = 26;
+	// An $800 company's real floor -- directive §9 frames this as "an honorable success," never a token
+	// payout once a title has actually earned the gate below.
+	private const float MasterDealValueFloor = 150f;
+
+	/// <summary>True while a title is out on lease or sold outright -- the player's own sale verbs
+	/// (PitchAtStop/ConsignAtStop/ServiceStop via ValidateStopAction, SellCartonToOneStop, ArtistBuyIn,
+	/// OrderPressing) all refuse it. A lease expires on its own; a sale never does.</summary>
+	public bool IsMasterOut(string recordId) {
+		if (string.IsNullOrEmpty(recordId)) return false;
+		if (soldMasterRecordIds.Contains(recordId)) return true;
+		return leasedMasterExpiryWeek.TryGetValue(recordId, out int expiry)
+			&& (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) < expiry;
+	}
+
+	/// <summary>
+	/// Directive §9: "on the table once a station and a one-stop both know the title." Station
+	/// knowledge reuses <see cref="StrangerRadioThreshold"/> -- the same regional radioPlay bar that
+	/// already makes a stranger's call plausible (§4), so this is not a second buzz meter. One-stop
+	/// knowledge is <see cref="oneStopKnownRecordIds"/>, set the moment a carton of the title actually
+	/// moves through a metro counter (§6). Below both, there is nobody shopping for this title yet.
+	/// </summary>
+	public bool MasterDealEligible(string recordId) {
+		if (string.IsNullOrEmpty(recordId) || IsMasterOut(recordId)) return false;
+		if (!IsOneStopKnown(recordId)) return false;
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		return rec != null && rec.regionalData.Values.Any(rd => rd != null && rd.radioPlay >= StrangerRadioThreshold);
+	}
+
+	/// <summary>Whether this title has ever moved through a metro one-stop counter -- half of the §9
+	/// master-deal gate, and worth showing on its own in the UI ("a one-stop already knows this one").</summary>
+	public bool IsOneStopKnown(string recordId) => !string.IsNullOrEmpty(recordId) && oneStopKnownRecordIds.Contains(recordId);
+
+	// The record's own lifetimeLabelNet is the one number on the books that already prices "how much
+	// this title has proven it can pull" -- a buyer pays a multiple of that for the right to keep
+	// collecting elsewhere, floored so a genuine hit is never sold for a token sum.
+	private float MasterDealValue(string recordId, float multiple) {
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		return Mathf.Max(MasterDealValueFloor, (rec?.lifetimeLabelNet ?? 0f) * multiple);
+	}
+
+	public float MasterSaleValue(string recordId) => MasterDealValue(recordId, MasterSaleValueMultiple);
+	public float MasterLeaseValue(string recordId) => MasterDealValue(recordId, MasterLeaseValueMultiple);
+
+	/// <summary>Sell a title's master outright -- cash now, forever, no more collecting on it through any
+	/// of the player's own channels. The bigger of the two payouts, because it's the whole future.</summary>
+	public bool SellMaster(string recordId, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (!MasterDealEligible(recordId)) { message = "Nobody's shopping for that one yet -- it needs real airplay and a one-stop that already knows it."; return false; }
+		if (!Require(MasterDealHours, out message)) return false;
+		Spend(MasterDealHours);
+
+		float cash = MasterSaleValue(recordId);
+		soldMasterRecordIds.Add(recordId);
+		Label.cashReserves += cash;
+		Label.monthlyRevenue += cash;
+
+		string title = TitleForRecord(recordId);
+		Note($"Sold the master to \"{title}\" outright for ${cash:N0} -- it's someone else's record to work now.");
+		message = $"Sold \"{title}\" for ${cash:N0} cash, for good.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Lease a title out for <see cref="MasterLeaseTermWeeks"/> -- smaller cash now, the title
+	/// comes back to the player's own channels once the term runs out.</summary>
+	public bool LeaseMaster(string recordId, out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (!MasterDealEligible(recordId)) { message = "Nobody's shopping for that one yet -- it needs real airplay and a one-stop that already knows it."; return false; }
+		if (!Require(MasterDealHours, out message)) return false;
+		Spend(MasterDealHours);
+
+		float cash = MasterLeaseValue(recordId);
+		leasedMasterExpiryWeek[recordId] = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + MasterLeaseTermWeeks;
+		Label.cashReserves += cash;
+		Label.monthlyRevenue += cash;
+
+		string title = TitleForRecord(recordId);
+		Note($"Leased out \"{title}\" for ${cash:N0} -- {MasterLeaseTermWeeks} weeks before it's yours to work again.");
+		message = $"Leased \"{title}\" for ${cash:N0} cash, {MasterLeaseTermWeeks} weeks.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	// P&D distribution deal: a pitch generates a real offer that sits on the desk until the player
+	// decides. Only one live at a time -- walk away or sign before pursuing another.
+	private DistributionDeal pendingDistributionOffer;
+	public DistributionDeal PendingDistributionOffer => pendingDistributionOffer;
+	public string PendingDistributionOfferDistributorName =>
+		pendingDistributionOffer == null ? null : CompetitorManager.Instance?.GetLabel(pendingDistributionOffer.distributorId)?.labelName;
+
+	/// <summary>
+	/// Directive §9: the player's front door into a P&amp;D distribution deal -- CompetitorManager does
+	/// all the real work (the same evidence bar, distributor pool, and term generator the AI's own
+	/// courting loop used before it was gated off the player). A real pitch costs the sit-down whether
+	/// or not anyone bites; failing the pre-checks (already under contract, outgrown the tier, no proof
+	/// yet) costs nothing, since those are things the player can already tell from their own desk.
+	/// </summary>
+	public bool PursueDistributionDeal(out string message) {
+		message = null;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (pendingDistributionOffer != null) { message = "You've already got an offer on the table -- decide on that one first."; return false; }
+		if (!Require(SignHours, out message)) return false;
+
+		bool consulted = false;
+		DistributionDeal offer = CompetitorManager.Instance != null
+			? CompetitorManager.Instance.PursueDistributionDeal(Label, out consulted, out message)
+			: null;
+		if (!consulted) { message ??= "No distribution office to pitch."; return false; } // pre-checks failed -- no hours spent
+
+		Spend(SignHours);
+		if (offer == null) {
+			Note($"Made the rounds for a distribution deal -- {message}");
+			Changed?.Invoke();
+			return true;
+		}
+
+		pendingDistributionOffer = offer;
+		string distributorName = CompetitorManager.Instance?.GetLabel(offer.distributorId)?.labelName ?? "A distributor";
+		Note($"{distributorName} made an offer -- {message}");
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Signs the offer sitting on the desk. Advance, deal event, and everything downstream
+	/// (distribution skim, term resolution/renewal/absorption) run through the exact same
+	/// CompetitorManager machinery an AI client's deal does from here on -- no separate settlement path.</summary>
+	public bool AcceptDistributionOffer(out string message) {
+		message = null;
+		if (pendingDistributionOffer == null) { message = "No offer on the table."; return false; }
+		DistributionDeal offer = pendingDistributionOffer;
+		CompetitorManager.Instance?.SignDistributionDeal(Label, offer);
+		string distributorName = CompetitorManager.Instance?.GetLabel(offer.distributorId)?.labelName ?? "the distributor";
+		pendingDistributionOffer = null;
+		Note($"Signed with {distributorName} -- {offer.termWeeks}-week P&D deal.");
+		message = $"Signed with {distributorName}.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Walks away from the offer on the desk. Costs nothing beyond the sit-down already spent
+	/// pursuing it -- staying independent is always on the table.</summary>
+	public bool DeclineDistributionOffer(out string message) {
+		message = null;
+		if (pendingDistributionOffer == null) { message = "No offer to walk away from."; return false; }
+		Note("Passed on the distribution deal -- staying independent for now.");
+		pendingDistributionOffer = null;
+		message = "Passed.";
+		Changed?.Invoke();
+		return true;
 	}
 
 	// ========================================================================
@@ -2190,11 +3654,33 @@ public partial class PlayerDesk : Node {
 				OrderedYear = o.Ordered.year, OrderedMonth = o.Ordered.month, OrderedDay = o.Ordered.day,
 				ArrivesYear = o.Arrives.year, ArrivesMonth = o.Arrives.month, ArrivesDay = o.Arrives.day
 			}).ToList(),
-			Consignment = consignment.SelectMany(city => city.Value.Select(lot => new ConsignmentLotSaveData {
-				CityId = city.Key, RecordId = lot.Key, Remaining = lot.Value.Remaining,
-				Placed = lot.Value.Placed, DaysSinceRestock = lot.Value.DaysSinceRestock
-			})).ToList(),
-			ConsignmentOwed = new Dictionary<string, float>(consignmentOwed),
+			// Stop identity (name/city/kind) regenerates deterministically from the world seed every
+			// session (EnsureStops) -- only the mutable state each account has earned gets saved, and
+			// only for stops that actually have any (untouched stops need no row at all).
+			StopState = EnsureStops().Values
+				.Where(stop => stop.Relationship > 0f || stop.OpenBalance > 0f || stop.LastVisitWeek > 0
+					|| stop.OnHand.Count > 0 || stop.PassedRecordIds.Count > 0 || stop.OneStopUnlocked)
+				.Select(stop => new PlayerStopSaveData {
+					StopId = stop.StopId, Relationship = stop.Relationship, LastVisitWeek = stop.LastVisitWeek,
+					OpenBalance = stop.OpenBalance, MissedCallStreak = stop.MissedCallStreak,
+					LastApproachYear = stop.LastApproachDate.year, LastApproachMonth = stop.LastApproachDate.month,
+					LastApproachDay = stop.LastApproachDate.day,
+					PassedRecordIds = stop.PassedRecordIds.ToList(),
+					OneStopUnlocked = stop.OneStopUnlocked, OneStopTrusted = stop.OneStopTrusted,
+					OnHand = stop.OnHand.Select(kv => new ConsignmentLotSaveData {
+						RecordId = kv.Key, Remaining = kv.Value.Remaining,
+						Placed = kv.Value.Placed, DaysSinceRestock = kv.Value.DaysSinceRestock,
+						ConsignmentTerms = kv.Value.ConsignmentTerms, RunnerSourced = kv.Value.RunnerSourced
+					}).ToList()
+				}).ToList(),
+			// Open "they called me" demand (directive §4), plus the week cursor that keeps a reload from
+			// re-rolling the same week's batch (CheckWeeklyInboundCalls).
+			InboundCalls = inboundCalls.Select(call => new InboundCallSaveData {
+				StopId = call.StopId, RecordId = call.RecordId, Week = call.Week,
+				RequestedQty = call.RequestedQty, Reason = (int)call.Reason,
+				ExpiresWeek = call.ExpiresWeek, ConsignmentTerms = call.ConsignmentTerms
+			}).ToList(),
+			LastCallGenWeek = lastCallGenWeek,
 			WeeklyTrunkUnits = new Dictionary<string, int>(weeklyTrunkUnits),
 			WeeklyTrunkUnitsSold = weeklyTrunkUnitsSold,
 			WeeklyTrunkGross = weeklyTrunkGross,
@@ -2204,6 +3690,31 @@ public partial class PlayerDesk : Node {
 			CurrentCityId = currentCityId,
 			Counter = counter,
 			MonthsInTheRed = monthsInTheRed,
+
+			// People (directive §7): the runner's own state, plus the unlock ledger so a reload can't
+			// re-earn (or lose) an unlock already granted.
+			RunnerUnlocked = runnerUnlocked,
+			ServiceReorderCountByCity = new Dictionary<string, int>(serviceReorderCountByCity),
+			LastRunnerTickWeek = lastRunnerTickWeek,
+			WeeklyRunnerCommission = weeklyRunnerCommission,
+			Runner = runner == null ? null : new PlayerRunnerSaveData {
+				RouteStopIds = runner.RouteStopIds.ToList(),
+				CartonRecordId = runner.CartonRecordId,
+				CartonRemaining = runner.CartonRemaining,
+				Familiarity = new Dictionary<string, float>(runner.Familiarity)
+			},
+
+			// Plant credit (directive §11): null when nothing is owed.
+			PlantCredit = plantCredit == null ? null : new PlantCreditSaveData {
+				RecordId = plantCredit.RecordId, Amount = plantCredit.Amount, DueWeek = plantCredit.DueWeek
+			},
+
+			// Late exits (directive §9): master lease/sale, and whatever P&D offer is sitting unsigned
+			// on the desk. The signed deal itself travels on Label.ActiveDeal, captured above.
+			SoldMasterRecordIds = soldMasterRecordIds.ToList(),
+			LeasedMasterExpiryWeek = new Dictionary<string, int>(leasedMasterExpiryWeek),
+			OneStopKnownRecordIds = oneStopKnownRecordIds.ToList(),
+			PendingDistributionOffer = DistributionDealSaveData.From(pendingDistributionOffer),
 
 			// The player's released catalogue, with its chart/regional state (increment 2).
 			ReleasedRecords = ReleasedRecords.Select(RuntimeRecordSaveData.From).ToList(),
@@ -2351,13 +3862,63 @@ public partial class PlayerDesk : Node {
 				Ordered = new GameDate(saved.OrderedYear, saved.OrderedMonth, saved.OrderedDay),
 				Arrives = new GameDate(saved.ArrivesYear, saved.ArrivesMonth, saved.ArrivesDay)
 			});
-		consignment.Clear();
-		foreach (ConsignmentLotSaveData saved in data.Consignment ?? new List<ConsignmentLotSaveData>()) {
-			if (!consignment.TryGetValue(saved.CityId, out var lots)) { lots = new(StringComparer.Ordinal); consignment[saved.CityId] = lots; }
-			lots[saved.RecordId] = new ConsignmentLot { Remaining = saved.Remaining, Placed = saved.Placed, DaysSinceRestock = saved.DaysSinceRestock };
+		// Stop identity regenerates fresh (deterministic on the world seed); only overlay the mutable
+		// state a save carries. `stops = null` forces EnsureStops to rebuild rather than reuse whatever
+		// roster (if any) belonged to a previously-loaded label in this same process.
+		stops = null;
+		Dictionary<string, PlayerStop> liveStops = EnsureStops();
+		bool hasStopState = data.StopState != null && data.StopState.Count > 0;
+		if (hasStopState) {
+			foreach (PlayerStopSaveData saved in data.StopState) {
+				// A stop the current roster no longer generates (a changed seed) has nowhere to land --
+				// drop it rather than resurrect a ghost account with no city, no name, nothing.
+				if (!liveStops.TryGetValue(saved.StopId, out PlayerStop stop)) continue;
+				stop.Relationship = saved.Relationship;
+				stop.LastVisitWeek = saved.LastVisitWeek;
+				stop.OpenBalance = saved.OpenBalance;
+				stop.MissedCallStreak = saved.MissedCallStreak;
+				stop.LastApproachDate = saved.LastApproachYear > 0
+					? new GameDate(saved.LastApproachYear, saved.LastApproachMonth, saved.LastApproachDay)
+					: default;
+				stop.PassedRecordIds.Clear();
+				foreach (string recordId in saved.PassedRecordIds ?? new List<string>()) stop.PassedRecordIds.Add(recordId);
+				stop.OneStopUnlocked = saved.OneStopUnlocked;
+				stop.OneStopTrusted = saved.OneStopTrusted;
+				stop.OnHand.Clear();
+				foreach (ConsignmentLotSaveData lot in saved.OnHand ?? new List<ConsignmentLotSaveData>())
+					stop.OnHand[lot.RecordId] = new ConsignmentLot {
+						Remaining = lot.Remaining, Placed = lot.Placed,
+						DaysSinceRestock = lot.DaysSinceRestock, ConsignmentTerms = lot.ConsignmentTerms,
+						RunnerSourced = lot.RunnerSourced
+					};
+			}
+		} else if (data.Consignment != null && data.Consignment.Count > 0) {
+			// A pre-stop-layer save: fold each city's old whole-city ConsignmentLot into that city's
+			// first generated Shop stop (deterministic, so this is reproducible) rather than dropping
+			// the stock on the floor -- same spirit as the dead-stock-cull repair below.
+			var owedByCity = data.ConsignmentOwed ?? new Dictionary<string, float>();
+			foreach (var cityGroup in data.Consignment.GroupBy(c => c.CityId, StringComparer.Ordinal)) {
+				PlayerStop landing = liveStops.Values.FirstOrDefault(s => s.CityId == cityGroup.Key && s.Kind == StopKind.Shop)
+					?? liveStops.Values.FirstOrDefault(s => s.CityId == cityGroup.Key);
+				if (landing == null) continue; // the current roster generates nothing for this city
+				foreach (ConsignmentLotSaveData lot in cityGroup)
+					landing.OnHand[lot.RecordId] = new ConsignmentLot {
+						Remaining = lot.Remaining, Placed = lot.Placed, DaysSinceRestock = lot.DaysSinceRestock
+					};
+				if (owedByCity.TryGetValue(cityGroup.Key, out float owed) && owed > 0f) landing.OpenBalance += owed;
+				landing.Relationship = Mathf.Max(landing.Relationship, 0.3f); // it already had stock out -- not a cold call
+			}
 		}
-		consignmentOwed.Clear();
-		foreach (var kv in data.ConsignmentOwed ?? new Dictionary<string, float>()) consignmentOwed[kv.Key] = kv.Value;
+		inboundCalls.Clear();
+		foreach (InboundCallSaveData saved in data.InboundCalls ?? new List<InboundCallSaveData>()) {
+			if (!liveStops.ContainsKey(saved.StopId)) continue; // same ghost-account guard as StopState above
+			inboundCalls.Add(new InboundCall {
+				StopId = saved.StopId, RecordId = saved.RecordId, Week = saved.Week,
+				RequestedQty = saved.RequestedQty, Reason = (InboundCallReason)saved.Reason,
+				ExpiresWeek = saved.ExpiresWeek, ConsignmentTerms = saved.ConsignmentTerms
+			});
+		}
+		lastCallGenWeek = data.LastCallGenWeek;
 		weeklyTrunkUnits.Clear();
 		foreach (var kv in data.WeeklyTrunkUnits ?? new Dictionary<string, int>()) weeklyTrunkUnits[kv.Key] = kv.Value;
 		weeklyTrunkUnitsSold = data.WeeklyTrunkUnitsSold;
@@ -2368,7 +3929,34 @@ public partial class PlayerDesk : Node {
 		foreach (string city in data.WorkedCities ?? new List<string>()) workedCities.Add(city);
 		currentCityId = data.CurrentCityId;
 		monthsInTheRed = data.MonthsInTheRed;
+
+		// People (directive §7).
+		runnerUnlocked = data.RunnerUnlocked;
+		lastRunnerTickWeek = data.LastRunnerTickWeek;
+		weeklyRunnerCommission = data.WeeklyRunnerCommission;
+		serviceReorderCountByCity.Clear();
+		foreach (var kv in data.ServiceReorderCountByCity ?? new Dictionary<string, int>()) serviceReorderCountByCity[kv.Key] = kv.Value;
+		if (data.Runner == null) runner = null;
+		else {
+			runner = new PlayerRunner { CartonRecordId = data.Runner.CartonRecordId, CartonRemaining = data.Runner.CartonRemaining };
+			foreach (string stopId in data.Runner.RouteStopIds ?? new List<string>())
+				if (liveStops.ContainsKey(stopId)) runner.RouteStopIds.Add(stopId); // same ghost-account guard as StopState above
+			foreach (var kv in data.Runner.Familiarity ?? new Dictionary<string, float>())
+				if (liveStops.ContainsKey(kv.Key)) runner.Familiarity[kv.Key] = kv.Value;
+		}
+		plantCredit = data.PlantCredit == null ? null : new PlantCredit {
+			RecordId = data.PlantCredit.RecordId, Amount = data.PlantCredit.Amount, DueWeek = data.PlantCredit.DueWeek
+		};
 		counter = Mathf.Max(data.Counter, songs.Count);
+
+		// Late exits (directive §9).
+		soldMasterRecordIds.Clear();
+		foreach (string recordId in data.SoldMasterRecordIds ?? new List<string>()) soldMasterRecordIds.Add(recordId);
+		leasedMasterExpiryWeek.Clear();
+		foreach (var kv in data.LeasedMasterExpiryWeek ?? new Dictionary<string, int>()) leasedMasterExpiryWeek[kv.Key] = kv.Value;
+		oneStopKnownRecordIds.Clear();
+		foreach (string recordId in data.OneStopKnownRecordIds ?? new List<string>()) oneStopKnownRecordIds.Add(recordId);
+		pendingDistributionOffer = data.PendingDistributionOffer?.ToDeal();
 
 		// Increment 2: put the player's released catalogue back into the world with its chart run intact,
 		// after putting back anything an old save lost to the dead-stock cull (see RepairCulledRecords).
@@ -2418,8 +4006,8 @@ public partial class PlayerDesk : Node {
 		// the player is holding stock, a plant order or a cut repertoire number against.
 		var referenced = new HashSet<string>(StringComparer.Ordinal);
 		foreach (string recordId in inventory.Keys) referenced.Add(recordId);
-		foreach (var lots in consignment.Values)
-			foreach (string recordId in lots.Keys) referenced.Add(recordId);
+		foreach (PlayerStop stop in EnsureStops().Values)
+			foreach (string recordId in stop.OnHand.Keys) referenced.Add(recordId);
 		foreach (PressOrder order in pressOrders)
 			if (order.RecordId != null) referenced.Add(order.RecordId);
 		foreach (string recordId in weeklyTrunkUnits.Keys) referenced.Add(recordId);
@@ -2508,12 +4096,12 @@ public partial class PlayerDesk : Node {
 		return roster.Count == 1 ? roster[0] : null;
 	}
 
-	/// <summary>Copies a record's town lots have actually sold -- the only honest lifetime-units figure
+	/// <summary>Copies a record's stops have actually sold -- the only honest lifetime-units figure
 	/// left once the runtime record is gone.</summary>
 	private int UnitsMovedFromLots(string recordId) {
 		int moved = 0;
-		foreach (var lots in consignment.Values)
-			if (lots.TryGetValue(recordId, out ConsignmentLot lot))
+		foreach (PlayerStop stop in EnsureStops().Values)
+			if (stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot))
 				moved += Mathf.Max(0, lot.Placed - lot.Remaining);
 		return moved;
 	}
