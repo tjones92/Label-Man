@@ -8,6 +8,13 @@ public enum AdvocacyMethod {
 	FavorCalledIn,
 	AdvertisingBuy,
 	RivalPressure,
+	// Promo mechanic directive §7.2: a reporting dealer's counter numbers, not the DJ's own
+	// discretionary taste -- excluded from PersonalPicksAt below exactly like AdvertisingBuy.
+	DealerReport,
+	// Promo mechanic directive §8: a jock who MC'd a hop and watched the room react in person --
+	// the biggest legal advocacy in the game, and the DJ's own discretionary pick every bit as
+	// much as a won phone pitch, so it belongs in PersonalPicksAt alongside PersonalPitch.
+	RecordHop,
 }
 
 /// <summary>
@@ -113,7 +120,7 @@ public sealed class StationAdvocacyService {
 		List<string> picks = null;
 		foreach (StationAdvocacy a in active) {
 			if (a.expired || a.stationId != stationId) continue;
-			if (a.method is not (AdvocacyMethod.PersonalPitch or AdvocacyMethod.FavorCalledIn)) continue;
+			if (a.method is not (AdvocacyMethod.PersonalPitch or AdvocacyMethod.FavorCalledIn or AdvocacyMethod.RecordHop)) continue;
 			(picks ??= new List<string>()).Add(a.recordId);
 		}
 		return picks;
@@ -175,7 +182,10 @@ public sealed class StationAdvocacySaveData {
 		stationId = StationId, recordId = RecordId, labelId = LabelId, sourceDjId = SourceDjId,
 		createdWeek = CreatedWeek, expiresWeek = ExpiresWeek,
 		candidacyBoost = CandidacyBoost,
-		method = (AdvocacyMethod)System.Math.Clamp(MethodOrdinal, 0, 3),
+		// Was clamped to (0, 3), silently corrupting a saved DealerReport (4) into RivalPressure (3) on
+		// every load -- fixed to check membership instead of hard-coding the enum's old top ordinal,
+		// so a later addition (RecordHop, directive §8) doesn't repeat the bug a third time.
+		method = System.Enum.IsDefined(typeof(AdvocacyMethod), MethodOrdinal) ? (AdvocacyMethod)MethodOrdinal : AdvocacyMethod.PersonalPitch,
 		expired = Expired, lastSeenTier = (SpinTier)System.Math.Clamp(LastSeenTier, 0, 3), everPlayed = EverPlayed,
 	};
 }

@@ -22,6 +22,8 @@ public partial class PlayerDesk : Node {
 	public const int AskAFavorMaxMinutes = 20;
 	public const int IntroductionMinutes = 15;
 	public const int CounterMinutes = 5;              // pressing the point costs a little more of the day
+	// Directive §3.3: how long a soft appointment (OfferToBringIt) holds before it lapses unfulfilled.
+	public const int AppointmentExpiryWeeks = 4;
 
 	// ── Advocacy sizing ──────────────────────────────────────────────────────────────────────
 	// What a won argument is actually worth at the next playlist meeting. These are candidacy
@@ -131,7 +133,8 @@ public partial class PlayerDesk : Node {
 		};
 		float fatigue = Mathf.Max(0f, (callAttemptsToday - 1) * 0.13f);
 		float networkTerm = Mathf.Min(0.12f, rolodex.Count * 0.03f);
-		float reach = Mathf.Clamp(0.22f + street * 0.09f + hourTerm + networkTerm - fatigue, 0.05f, 0.88f);
+		// Directive §6.2: "a bonus to cold Rolodex connect rolls (the switchboard has seen the name)."
+		float reach = Mathf.Clamp(0.22f + street * 0.09f + hourTerm + networkTerm - fatigue + TradeAdConnectBonus(), 0.05f, 0.88f);
 
 		float roll = GD.Randf();
 
@@ -284,11 +287,50 @@ public partial class PlayerDesk : Node {
 			c.unitsTotal = c.record.totalUnitsSold;
 			c.unitsThisWeek = c.record.unitsThisWeek;
 			c.djGenreAffinity = c.dj?.GenreAffinity(c.baseRecord.primaryGenre) ?? 1f;
+			c.isServiced = IsServiced(c.baseRecord.recordId, entry.stationId);
+			c.servicingConviction = ServicingConviction(c.baseRecord.recordId, entry.stationId);
+			TradeOutcome pick = ActiveTradeOutcome(c.baseRecord.recordId);
+			c.hasTradePick = pick != TradeOutcome.Nothing;
+			c.tradePickLabel = pick switch {
+				TradeOutcome.Spotlight => "Cash Box put it in the Spotlight column. Go on, look it up.",
+				TradeOutcome.FourStar => "The trades called it a Best Bet. That's not nothing.",
+				TradeOutcome.TwoLineMention => "It got a mention in the trades, for what that's worth.",
+				_ => "",
+			};
+			c.tradePickWeight = pick switch {
+				TradeOutcome.Spotlight => 0.32f,
+				TradeOutcome.FourStar => 0.20f,
+				TradeOutcome.TwoLineMention => 0.10f,
+				_ => 0f,
+			};
+			c.tradeAdCommercialBonus = TradeAdConnectBonus();
 			c.artist = ArtistManager.Instance?.GetArtist(c.baseRecord.artistId);
 			c.artistRecognition = c.artist != null
 				? Mathf.Max(c.artist.publicRecognition, c.artist.momentum * 0.5f)
 				: 0f;
 			c.advocacyAlready = chart?.AdvocacyOn(c.baseRecord.recordId, entry.stationId) ?? 0f;
+
+			// Directive §10: SuitSurvey's fact -- a real out-of-region spin (a DIFFERENT region's
+			// reporter station, so this genuinely converts a win elsewhere into leverage here, not just
+			// a bigger number from the same market) or a live breakout listing (§6.3).
+			RadioStation bestOutOfRegion = null; SpinTier bestOutOfRegionTier = SpinTier.None;
+			foreach (RadioStation other in chart?.AllReporterStations ?? Enumerable.Empty<RadioStation>()) {
+				if (other.stationId == entry.stationId || other.regionId == c.station?.regionId) continue;
+				SpinTier tier = chart.SpinTierOf(other.stationId, c.baseRecord.recordId);
+				if (tier > bestOutOfRegionTier) { bestOutOfRegionTier = tier; bestOutOfRegion = other; }
+			}
+			if (bestOutOfRegion != null && bestOutOfRegionTier >= SpinTier.Mid) {
+				c.hasOutOfRegionProof = true;
+				c.outOfRegionProofLabel = $"It's {TierWord(bestOutOfRegionTier)} rotation on {bestOutOfRegion.callsign} in {bestOutOfRegion.cityName}.";
+				c.outOfRegionProofWeight = bestOutOfRegionTier == SpinTier.High ? 0.30f : 0.18f;
+			} else {
+				string breakoutRegion = BreakoutRegionNames(c.baseRecord.recordId).FirstOrDefault();
+				if (!string.IsNullOrEmpty(breakoutRegion)) {
+					c.hasOutOfRegionProof = true;
+					c.outOfRegionProofLabel = $"It's breaking out in {breakoutRegion}.";
+					c.outOfRegionProofWeight = 0.24f;
+				}
+			}
 
 			if (c.region != null) {
 				Genre g = c.baseRecord.primaryGenre;
@@ -570,4 +612,39 @@ public partial class PlayerDesk : Node {
 	}
 
 	private string Today() => TimeManager.Instance?.CurrentDate.ToShortString() ?? "?";
+
+	/// <summary>Directive §3.3: a soft appointment (OfferToBringIt) nobody kept. Checked daily and
+	/// self-clearing, so it never needs its own week cursor -- once the flag is cleared it can't refire.</summary>
+	private void ExpireStaleAppointments() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		foreach (RolodexEntry entry in rolodex) {
+			if (string.IsNullOrEmpty(entry.appointmentRecordId) || week <= entry.appointmentExpiresWeek) continue;
+			ApplyRapport(entry, -0.04f, floorAtZero: true);
+			entry.log.Insert(0, $"{Today()} — Never brought him the copy you promised. He noticed.");
+			entry.appointmentRecordId = "";
+			entry.appointmentExpiresWeek = 0;
+		}
+	}
+
+	// Surfaced on the Rolodex card once the live weekly drop chance clears this -- "worth a look
+	// before it happens" without turning every low-rotation record into a false alarm.
+	private const float SlidingDropChanceWarningBar = 0.10f;
+
+	/// <summary>Directive §10: "a station whose spin tier is sliding should be visible on the Rolodex
+	/// card BEFORE it drops, so 'drive back to Cleveland this week or lose the market' is a decision the
+	/// player gets to make and can lose." Reads the exact same weekly roll ChartManager already applies
+	/// (ChartSimulator.GetStationDropChance/IsStationDropCandidate) rather than a second, hand-tuned
+	/// early-warning number -- if the read here says it's safe, the sim's own roll agrees.
+	/// RegionalRecordData.stationsDropped is a one-way latch (directive §10, RegionalRecordData.cs:30-39):
+	/// once true this always reads false, because there is nothing left to warn about.</summary>
+	public bool IsSlidingTowardDrop(string recordId, string stationId) {
+		RadioStation station = ChartManager.Instance?.GetRadioStation(stationId);
+		if (station == null || string.IsNullOrEmpty(station.regionId)) return false;
+		RecordRuntimeData rec = FindReleasedRecord(recordId);
+		if (rec?.baseRecord == null || rec.regionalData == null
+			|| !rec.regionalData.TryGetValue(station.regionId, out RegionalRecordData rd)) return false;
+		if (!ChartSimulator.IsStationDropCandidate(rd)) return false;
+		float chance = ChartSimulator.GetStationDropChance(ChartSimulator.GetSalesSupportRatio(rec), rec.weeksSincePeakUnits);
+		return chance >= SlidingDropChanceWarningBar;
+	}
 }

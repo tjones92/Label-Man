@@ -40,6 +40,16 @@ public enum CallCounter {
 	SuitUnderwrite,     // ManagerHeat / NoSalesSupport: put money behind it so he can defend it
 	FixerSweeten,       // WhatsInItForMe / ManagerHeat: there is cash in the sleeve
 	CallInFavor,        // any: you owe me one
+	OfferToBringIt,     // NotServiced: promise to hand-deliver a copy in person. Writes a soft
+	                    // appointment (directive §3.3) consumed by the station stop's Wait for Him
+	                    // visit; never wins the pitch on its own -- Resolve() still fails it.
+	CiteTradePress,     // any (not NotServiced): a live trade review pick (directive §6.1) is
+	                    // leverage a manager or format doubt can't wave off. Weight scales with the
+	                    // pick's tier -- see RolodexCallContext.tradePickWeight.
+	SuitSurvey,         // any (not NotServiced): "It's number four on the WAMO survey" -- a real
+	                    // out-of-region spin or breakout, or an explicit bluff when there isn't one
+	                    // (directive §10). The one counter that turns a win in one city into a win
+	                    // in another -- see RolodexCallContext.hasOutOfRegionProof.
 }
 
 /// <summary>One button the player can press at the current stage.</summary>
@@ -76,6 +86,9 @@ public sealed class RolodexCall {
 	public int minutesSpent;
 	public bool counterUsed;
 	public bool lastSucceeded;
+	// Directive §4: "Wait for him" opens this scene in person -- the connect roll is skipped (you are
+	// standing there) and this bonus is folded into baseChance the moment an approach is chosen.
+	public float inPersonBonus;
 
 	// The record under discussion. Changing it restarts the situation read.
 	public string recordId;

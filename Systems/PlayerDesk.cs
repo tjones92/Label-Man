@@ -328,6 +328,19 @@ public partial class PlayerDesk : Node {
 	private readonly Dictionary<string, PressStock> inventory = new();
 	// Pressing runs ordered but not yet delivered -- a plant takes weeks (see OrderPressing).
 	private readonly List<PressOrder> pressOrders = new();
+	// Promo mechanic directive §3.2: who has actually been sent a copy of what. One row per
+	// (recordId, stationId); see FindServicing/IsServiced/ServiceStation and Objection.NotServiced.
+	private readonly List<RecordServicing> servicing = new();
+	// Promo mechanic directive §6.1: one row per record ever sent to the trade review desk.
+	private readonly List<TradeSubmission> tradeSubmissions = new();
+	// Promo mechanic directive §6.2: live paid trade ads, one row per record currently running.
+	private readonly List<TradeAd> tradeAds = new();
+	// Promo mechanic directive §7.1: which reporting dealers the player has actually WORKED OUT report
+	// their counter numbers. Who reports is fixed, generated data (PlayerStop.ReportsToTrades); knowing
+	// it is not. "That is the information the early game is actually about" -- so it is learned, either
+	// by dealing with the man across his own counter (TouchStop) or by asking at the station whose
+	// survey he phones (AskWhatsOnSurvey), and never simply printed on a stop the player has never met.
+	private readonly HashSet<string> knownReportingStopIds = new(StringComparer.Ordinal);
 	// Named accounts (shops and jukebox operators), keyed by StopId, generated once per session by
 	// PlayerStopFactory (see EnsureStops). This is what actually sells, day by day, decaying until you
 	// drive back to restock -- the per-city ConsignmentLot this used to be is now per-stop, on PlayerStop.OnHand.
@@ -413,6 +426,17 @@ public partial class PlayerDesk : Node {
 	// pay the lacquer setup again and can run far under the minimum, historically low hundreds at a time
 	// as a building hit needs them. PressMinimumOrder still gates the first run of any title.
 	public const int PressReorderMinimum = 100;
+	// Promo mechanic directive §3.1: the promotion budget is a real slice of the run struck as free
+	// goods that can never be sold. Capped on a FIRST run so a label can't exploit it as a free-goods
+	// channel; a repress carries no cap -- "servicing a second market on a record that's already
+	// moving" is meant to be an obvious, cheap move.
+	public const float PressPromoCapFraction = 0.35f;
+	// Directive §3.1's suggested first-run default -- "120 of 500". Well under the 35% cap, because the
+	// default has to be a competent campaign the player can afford to give away, not the maximum dodge.
+	public const float PressPromoSuggestedFraction = 0.24f;
+	// Directive §7.1: "one or two per city." How many of his own town's reporter stations one identified
+	// dealer phones his counter numbers in to -- see EnsureStops.
+	private const int ReportingStationsPerDealer = 2;
 	// Press-to-fill (directive §11): size a run off open InboundCall demand instead of a guessed
 	// quantity -- a cushion above the raw backlog so the run doesn't land already sold out.
 	private const float PressToFillCushion = 1.2f;
@@ -430,9 +454,12 @@ public partial class PlayerDesk : Node {
 	public static float PressingCost(int quantity, bool isRepress = false) =>
 		(isRepress ? 0f : PressLacquerSetup) + PressShipping + Mathf.Max(0, quantity) * (PressVinylPerUnit + PressSleeveLabelPerUnit);
 
-	/// <summary>Pressed 45s of one single sitting on hand at the office, to be carried out to towns.</summary>
+	/// <summary>Pressed 45s of one single sitting on hand at the office, to be carried out to towns.
+	/// Promo mechanic directive §3.1: <see cref="PromoRemaining"/> is a second, disjoint pool struck off
+	/// the same run -- free goods that can never be sold. Neither pool ever converts into the other.</summary>
 	public sealed class PressStock {
 		public int Remaining;
+		public int PromoRemaining;
 		public int TotalPressed;
 		public float TotalSpent;
 	}
@@ -442,6 +469,8 @@ public partial class PlayerDesk : Node {
 	public sealed class PressOrder {
 		public string RecordId;
 		public int Quantity;
+		// How much of Quantity lands in PromoRemaining instead of Remaining on delivery (directive §3.1).
+		public int PromoQuantity;
 		public float Cost;
 		public GameDate Ordered;
 		public GameDate Arrives;
@@ -470,6 +499,10 @@ public partial class PlayerDesk : Node {
 		/// the office's own inventory (directive §7) -- ProcessTrunkDay reads this to route the day's
 		/// sell-through through BookRunnerSale (commission taken off the top) instead of BookTrunkSale.</summary>
 		public bool RunnerSourced;
+		/// <summary>Promo mechanic directive §9: a live window card / counter card at this stop for this
+		/// record. 0 = none running. ProcessTrunkDay's appeal term reads it while live; never a source of
+		/// units on its own, just a bounded lift on how well the record already sells here.</summary>
+		public int WindowCardExpiresWeek;
 	}
 
 	/// <summary>A named account in a town -- a shop, a jukebox operator, or a metro one-stop -- with its
@@ -480,7 +513,9 @@ public partial class PlayerDesk : Node {
 	/// VisitOneStopWarehouse/SellCartonToOneStop below (directive §6). Venue (directive §3.1's "hop/club/
 	/// church table") is not a standing account either -- no OnHand, no OpenBalance, just a single verb,
 	/// WorkTheHopTable below.</summary>
-	public enum StopKind { Shop, Op, OneStop, Venue }
+	// Station: directive §4. Unlike the others, not invented by PlayerStopFactory -- it's a
+	// read-only projection of a real reporter station onto the stop layer (see EnsureStops).
+	public enum StopKind { Shop, Op, OneStop, Venue, Station }
 
 	public sealed class PlayerStop {
 		public string StopId;
@@ -519,6 +554,23 @@ public partial class PlayerDesk : Node {
 		/// <summary>OneStop-kind stops only. First carton is COD ("if you're nobody") -- flips true on the
 		/// first completed sale, after which SellCartonToOneStop extends net terms (directive §6).</summary>
 		public bool OneStopTrusted;
+		/// <summary>Station-kind stops only: the real reporter station this stop projects (directive §4).
+		/// A Station stop holds no OnHand lot and no OpenBalance -- it never sells anything.</summary>
+		public string StationId;
+
+		/// <summary>Shop/OneStop only (directive §7.1): whether this account's counter feeds the national
+		/// trade charts. Set once at generation (PlayerStopFactory) -- the one-stop, always, plus the one
+		/// or two biggest dealers per city -- never rolled at runtime.</summary>
+		public bool ReportsToTrades;
+		/// <summary>Shop only (directive §7.1): the real reporter station(s) this dealer phones his own
+		/// counter numbers to for the local Top 40 survey. Populated at EnsureStops from the same
+		/// ReportsToTrades dealers -- a big dealer plausibly does both jobs -- never a separate roll.</summary>
+		public List<string> ReportsToStationIds = new();
+		/// <summary>Shop only (directive §7.3): tripped once he's caught noticing the same man buying his
+		/// own record off the counter. Permanent -- blocks HypeTheCount and AskForTheReport at this stop
+		/// from ever running again; it does not end ordinary business, only the trust a report or a
+		/// second hype needs.</summary>
+		public bool HypeBurned;
 	}
 
 	/// <summary>
@@ -592,6 +644,46 @@ public partial class PlayerDesk : Node {
 	public PressStock StockFor(string recordId) =>
 		recordId != null && inventory.TryGetValue(recordId, out PressStock stock) ? stock : null;
 	public IEnumerable<string> WorkedCities => workedCities;
+
+	// ── Promo servicing (directive §3.2) ────────────────────────────────────────────────────────
+	// A copy sent months ago is in a stack somewhere, not on the turntable -- servicing decays out
+	// after this many chart weeks, same order of magnitude as a pitch's record-memory settlement.
+	public const int ServicingDecayWeeks = 16;
+
+	private RecordServicing FindServicingRow(string recordId, string stationId) =>
+		string.IsNullOrEmpty(recordId) || string.IsNullOrEmpty(stationId) ? null
+			: servicing.FirstOrDefault(s => s.RecordId == recordId && s.StationId == stationId);
+
+	/// <summary>Whether this station has a live (not decayed) serviced copy of this record right now --
+	/// the fact Objection.NotServiced and Resolve() gate on. Directive invariant 2: nothing gets played
+	/// that nobody has been sent.</summary>
+	public bool IsServiced(string recordId, string stationId) {
+		RecordServicing row = FindServicingRow(recordId, stationId);
+		if (row == null) return false;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		return week - row.Week <= ServicingDecayWeeks;
+	}
+
+	/// <summary>The conviction of the live serviced copy, or 0 if none (decayed or never sent).</summary>
+	public float ServicingConviction(string recordId, string stationId) {
+		RecordServicing row = FindServicingRow(recordId, stationId);
+		if (row == null) return 0f;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		return week - row.Week <= ServicingDecayWeeks ? row.Conviction : 0f;
+	}
+
+	/// <summary>Records a copy as sent. A later, stronger servicing (a hand-delivery after a cold
+	/// mailing) overwrites the row rather than stacking -- one copy per station is what matters, and
+	/// the best one you've sent is the one on the turntable.</summary>
+	private void ServiceStation(string recordId, string stationId, float conviction, ServicingSource source) {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		RecordServicing row = FindServicingRow(recordId, stationId);
+		if (row == null) { row = new RecordServicing { RecordId = recordId, StationId = stationId }; servicing.Add(row); }
+		if (row.Week > 0 && conviction < row.Conviction && week - row.Week <= ServicingDecayWeeks) return; // don't downgrade a live, better copy
+		row.Week = week;
+		row.Conviction = conviction;
+		row.Source = source;
+	}
 
 	/// <summary>The session on the console waiting for takes to be kept, or null.</summary>
 	public PendingSession Session => pendingSession;
@@ -1788,7 +1880,23 @@ public partial class PlayerDesk : Node {
 	/// it's been pressed once, the much smaller repress floor after.</summary>
 	public int MinimumPressRun(string recordId) => HasBeenPressed(recordId) ? PressReorderMinimum : PressMinimumOrder;
 
-	public bool OrderPressing(string recordId, int quantity, out string message) {
+	/// <summary>Promo mechanic directive §3.1: the plant will strike part of the run as promo stock --
+	/// free goods, drawn only by servicing verbs, that can never be sold. Capped at
+	/// <see cref="PressPromoCapFraction"/> of the run on a FIRST pressing; a repress carries no cap, since
+	/// pressing an all-promo repress to service a second market is meant to be an obvious, cheap move.</summary>
+	public int MaxPromoCount(string recordId, int quantity) =>
+		HasBeenPressed(recordId) ? quantity : Mathf.FloorToInt(quantity * PressPromoCapFraction);
+
+	/// <summary>What the plant ticket should open on. Directive §3.1 names 120 of 500 for a first run --
+	/// the promo pool is the foundation every other verb on this branch draws from, so a first pressing
+	/// that defaults to zero silently locks the player out of station stops, the mailing, the review desk
+	/// and window cards. A REPRESS opens at zero instead: by then the player knows what promo stock is
+	/// for, and striking a repress all-promo is a deliberate second-market move, not a default.</summary>
+	public int SuggestedPromoCount(string recordId, int quantity) =>
+		HasBeenPressed(recordId) ? 0
+			: Mathf.Min(MaxPromoCount(recordId, quantity), Mathf.RoundToInt(quantity * PressPromoSuggestedFraction));
+
+	public bool OrderPressing(string recordId, int quantity, int promoCount, out string message) {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (string.IsNullOrEmpty(recordId)) { message = "No single selected."; return false; }
@@ -1797,6 +1905,14 @@ public partial class PlayerDesk : Node {
 		int minimum = MinimumPressRun(recordId);
 		if (quantity < minimum) {
 			message = repress ? $"Even a repress won't run under {minimum}." : $"The plant won't run under {minimum} on a first pressing.";
+			return false;
+		}
+		promoCount = Mathf.Clamp(promoCount, 0, quantity);
+		int promoCap = MaxPromoCount(recordId, quantity);
+		// A repress carries no cap (MaxPromoCount returns the full quantity), so only a first run can
+		// ever trip this -- promoCount is already clamped to <= quantity above.
+		if (promoCount > promoCap) {
+			message = $"A first run can't strike more than {promoCap:N0} of {quantity:N0} as promo ({PressPromoCapFraction:P0}) -- that's not promotion, that's a free-goods dodge.";
 			return false;
 		}
 
@@ -1811,10 +1927,13 @@ public partial class PlayerDesk : Node {
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		int lead = RollPressLeadDays(today);
 		GameDate arrives = today.AddDays(lead);
-		pressOrders.Add(new PressOrder { RecordId = recordId, Quantity = quantity, Cost = cost, Ordered = today, Arrives = arrives });
+		pressOrders.Add(new PressOrder {
+			RecordId = recordId, Quantity = quantity, PromoQuantity = promoCount, Cost = cost, Ordered = today, Arrives = arrives
+		});
 
 		string title = TitleForRecord(recordId);
-		Note($"{(repress ? "Repressed" : "Ordered")} {quantity:N0} of \"{title}\" for ${cost:N0} -- the plant quotes {lead} days, in by {arrives.ToHeadlineString()}.");
+		string promoNote = promoCount > 0 ? $" ({promoCount:N0} struck as promo)" : "";
+		Note($"{(repress ? "Repressed" : "Ordered")} {quantity:N0} of \"{title}\"{promoNote} for ${cost:N0} -- the plant quotes {lead} days, in by {arrives.ToHeadlineString()}.");
 		message = $"Run ordered -- about {lead} days at the plant.";
 		Changed?.Invoke();
 		return true;
@@ -1835,7 +1954,7 @@ public partial class PlayerDesk : Node {
 	/// for the player, off real backlog rather than a guess.</summary>
 	public bool PressToFill(string recordId, out string message) {
 		if (OpenCallDemand(recordId) <= 0) { message = "No open calls on that one to fill."; return false; }
-		return OrderPressing(recordId, PressToFillQuantity(recordId), out message);
+		return OrderPressing(recordId, PressToFillQuantity(recordId), 0, out message);
 	}
 
 	/// <summary>Whether the plant would front a credit run on this title right now: real, geographic
@@ -1912,10 +2031,13 @@ public partial class PlayerDesk : Node {
 		foreach (PressOrder order in pressOrders.Where(o => o.Arrives <= date).ToList()) {
 			pressOrders.Remove(order);
 			if (!inventory.TryGetValue(order.RecordId, out PressStock stock)) { stock = new PressStock(); inventory[order.RecordId] = stock; }
-			stock.Remaining += order.Quantity;
+			int promo = Mathf.Clamp(order.PromoQuantity, 0, order.Quantity);
+			stock.Remaining += order.Quantity - promo;
+			stock.PromoRemaining += promo;
 			stock.TotalPressed += order.Quantity;
 			stock.TotalSpent += order.Cost;
-			Note($"The pressing plant delivered {order.Quantity:N0} of \"{TitleForRecord(order.RecordId)}\".");
+			string promoNote = promo > 0 ? $" ({promo:N0} promo)" : "";
+			Note($"The pressing plant delivered {order.Quantity:N0} of \"{TitleForRecord(order.RecordId)}\"{promoNote}.");
 		}
 	}
 
@@ -1940,6 +2062,47 @@ public partial class PlayerDesk : Node {
 		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
 		stops = PlayerStopFactory.Generate(DistanceModel.GetCities(), regionsById, seed)
 			.ToDictionary(s => s.StopId, StringComparer.Ordinal);
+
+		// Directive §4: station stops are PROJECTED from the real reporter stations the sim already
+		// runs, never invented -- no random draw, nothing that could diverge from ChartManager's own
+		// panel. Identity (callsign/city) always regenerates fresh from there; only mutable state
+		// (relationship, visit history) is ever saved, same as every other stop kind.
+		foreach (RadioStation station in ChartManager.Instance?.AllReporterStations ?? Enumerable.Empty<RadioStation>()) {
+			MarketCity city = DistanceModel.GetCityByName(station.cityName);
+			if (city == null || string.IsNullOrEmpty(station.stationId)) continue;
+			string stopId = "station_" + station.stationId;
+			stops[stopId] = new PlayerStop {
+				StopId = stopId, DisplayName = station.callsign, CityId = city.cityId,
+				Kind = StopKind.Station, StationId = station.stationId,
+			};
+		}
+
+		// Directive §7.1: the same identified big dealer(s) who report to the trades also phone their
+		// counter numbers in to a real reporter station -- not a separate roll, just the read-only
+		// station roster ChartManager already runs, same as the Station stops above.
+		//
+		// "Keep it small and legible -- one or two per city; the whole point is that they are
+		// identifiable." A dealer reports to his OWN TOWN's stations: that is what a counter report was,
+		// a man phoning the local Top 40 survey with what moved this week. Handing him the whole region's
+		// panel (six to eight stations off a 77-station national panel) made one AskForTheReport a
+		// region-wide advocacy grant and one hype detection a region-wide burn -- far past the bounded,
+		// local nudge §7.2 asks for. A city with no reporter of its own falls back to the single nearest
+		// in the region by road, which is the one whose survey a dealer there would plausibly phone.
+		foreach (PlayerStop shop in stops.Values.Where(s => s.Kind == StopKind.Shop && s.ReportsToTrades)) {
+			string regionId = DistanceModel.GetCityById(shop.CityId)?.parentRegionId;
+			if (string.IsNullOrEmpty(regionId)) continue;
+			List<RadioStation> inRegion = (ChartManager.Instance?.ReporterStationsInRegion(regionId) ?? Array.Empty<RadioStation>())
+				.Where(s => s != null && !string.IsNullOrEmpty(s.stationId)).ToList();
+			List<string> inTown = inRegion
+				.Where(s => string.Equals(DistanceModel.GetCityByName(s.cityName)?.cityId, shop.CityId, StringComparison.Ordinal))
+				.Take(ReportingStationsPerDealer)
+				.Select(s => s.stationId).ToList();
+			shop.ReportsToStationIds = inTown.Count > 0 ? inTown : inRegion
+				.OrderBy(s => DistanceModel.GetRoadMilesBetween(shop.CityId, DistanceModel.GetCityByName(s.cityName)?.cityId))
+				.Take(1)
+				.Select(s => s.stationId)
+				.ToList();
+		}
 		return stops;
 	}
 
@@ -2027,6 +2190,7 @@ public partial class PlayerDesk : Node {
 		if (stop == null) { message = "No such account."; return false; }
 		if (stop.Kind == StopKind.OneStop) { message = $"{stop.DisplayName} is a one-stop counter -- sell them a carton instead."; return false; }
 		if (stop.Kind == StopKind.Venue) { message = $"{stop.DisplayName} doesn't keep a shelf -- work the table instead."; return false; }
+		if (stop.Kind == StopKind.Station) { message = $"{stop.DisplayName} doesn't buy records -- service it instead."; return false; }
 		if (stop.CityId != CurrentCityId) { message = "You have to be in town to work that account."; return false; }
 		if (string.IsNullOrEmpty(recordId)) { message = "Pick a single to leave here."; return false; }
 		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
@@ -2044,7 +2208,24 @@ public partial class PlayerDesk : Node {
 		stop.Relationship = Mathf.Clamp(stop.Relationship + relationshipGain, 0f, 1f);
 		stop.LastVisitWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? stop.LastVisitWeek;
 		stop.MissedCallStreak = 0; // you just showed up -- whatever streak of no-shows was building breaks here
+		// Directive §7.1: "a shop conversation reveals who reports." You worked this counter in person --
+		// the ledger by the register and the fact he takes a call from the station on Tuesdays are not
+		// things a man hides from the label rep standing in front of him.
+		LearnWhoReports(stop);
 	}
+
+	/// <summary>Marks a reporting stop as KNOWN to report. Silent and idempotent -- the discovery is only
+	/// ever a display change, never a gate on the verbs themselves (those already gate on stock,
+	/// sell-through and relationship, all of which take more visits than this does).</summary>
+	private void LearnWhoReports(PlayerStop stop) {
+		if (stop == null || !stop.ReportsToTrades && stop.ReportsToStationIds.Count == 0) return;
+		knownReportingStopIds.Add(stop.StopId);
+	}
+
+	/// <summary>Whether the player has worked out that this stop keeps a report -- see
+	/// <see cref="LearnWhoReports"/>. The UI hides the "reports" flag until this is true.</summary>
+	public bool KnowsWhoReports(string stopId) =>
+		!string.IsNullOrEmpty(stopId) && knownReportingStopIds.Contains(stopId);
 
 	/// <summary>One approach (Pitch or Consign) per stop per day -- a player standing at the counter does
 	/// not get to ask twice hoping for a better roll. Does not gate Service; topping off a standing
@@ -2543,8 +2724,11 @@ public partial class PlayerDesk : Node {
 						// so it would otherwise qualify on every pass and ring a call its own verb (WorkTheHopTable)
 						// has no ledger to fulfill against -- the table is a walk-up, not a standing account.
 						List<PlayerStop> strangers = stopsHere.Where(s =>
-							s.Kind != StopKind.OneStop && s.Kind != StopKind.Venue && IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId)).ToList();
-						if (strangers.Count > 0 && GD.Randf() < StrangerCallChancePerWeek) {
+							s.Kind != StopKind.OneStop && s.Kind != StopKind.Venue && s.Kind != StopKind.Station
+							&& IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId)).ToList();
+						// Promo mechanic directive §6.1/§6.3: a live trade pick or breakout listing is the
+						// loudest inbound generator in the game -- it multiplies this roll, never units directly.
+						if (strangers.Count > 0 && GD.Randf() < Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) {
 							PlayerStop pick = strangers[GD.RandRange(0, strangers.Count - 1)];
 							InboundCallReason reason = rd.radioPlay >= StrangerRadioThreshold ? InboundCallReason.StationAdded : InboundCallReason.Requests;
 							AddCall(pick, recordId, SuggestedPlacement(pick), reason, week, consignment: true);
@@ -2563,7 +2747,7 @@ public partial class PlayerDesk : Node {
 						bool servedByKnownAccount = allStops.Values.Any(s => s.CityId == oneStop.CityId && s.Kind != StopKind.OneStop
 							&& s.Relationship >= OneStopServedRelationshipFloor
 							&& s.OnHand.TryGetValue(recordId, out ConsignmentLot ownLot) && ownLot.Placed > 0);
-						if (!servedByKnownAccount || GD.Randf() >= StrangerCallChancePerWeek) continue;
+						if (!servedByKnownAccount || GD.Randf() >= Mathf.Min(1f, StrangerCallChancePerWeek * TradeInboundCallMultiplier(recordId))) continue;
 						AddCall(oneStop, recordId, OneStopCartonDefaultQty, InboundCallReason.OneStopTest, week, consignment: false);
 					}
 				}
@@ -2647,6 +2831,24 @@ public partial class PlayerDesk : Node {
 	public void DebugSetMasterLeased(string recordId, int expiryWeek) => leasedMasterExpiryWeek[recordId] = expiryWeek;
 	public void DebugSetPendingDistributionOffer(DistributionDeal offer) => pendingDistributionOffer = offer;
 
+	/// <summary>Test-only seams for the promo mechanic directive's persisted state (§3.1 promo stock,
+	/// §3.2 servicing, §6.1 submissions, §6.2 ads, §7.1 who-reports knowledge). Same spirit as
+	/// DebugSetPlantCredit: staging these directly beats pressing a real run, driving a real route and
+	/// waiting out a real review-desk resolution just to prove they survive save/load. §14's
+	/// verification 2 is specifically that RebuildRadioForLoad doesn't wipe them.</summary>
+	public void DebugSetPressStock(string recordId, int remaining, int promoRemaining, int totalPressed, float totalSpent) =>
+		inventory[recordId] = new PressStock {
+			Remaining = remaining, PromoRemaining = promoRemaining, TotalPressed = totalPressed, TotalSpent = totalSpent
+		};
+	public void DebugServiceStation(string recordId, string stationId, float conviction, ServicingSource source) =>
+		ServiceStation(recordId, stationId, conviction, source);
+	public void DebugAddTradeSubmission(TradeSubmission submission) => tradeSubmissions.Add(submission);
+	public void DebugAddTradeAd(TradeAd ad) => tradeAds.Add(ad);
+	public void DebugLearnWhoReports(string stopId) {
+		PlayerStop stop = GetStop(stopId);
+		if (stop != null) knownReportingStopIds.Add(stop.StopId);
+	}
+
 	/// <summary>A reorder at a standing account, toward "persistent reorders in one city" (directive §7).
 	/// Called from ServiceStop -- the restock verb IS a reorder.</summary>
 	private void NoteReorder(string cityId) {
@@ -2683,7 +2885,7 @@ public partial class PlayerDesk : Node {
 		message = null;
 		if (runner == null) { message = "No runner to send."; return false; }
 		PlayerStop stop = GetStop(stopId);
-		if (stop == null || stop.Kind == StopKind.OneStop || stop.Kind == StopKind.Venue) { message = "Not an account he can work."; return false; }
+		if (stop == null || stop.Kind == StopKind.OneStop || stop.Kind == StopKind.Venue || stop.Kind == StopKind.Station) { message = "Not an account he can work."; return false; }
 		if (onRoute) {
 			if (!workedCities.Contains(stop.CityId)) { message = $"You haven't opened {CityName(stop.CityId)} yourself yet -- work it first."; return false; }
 			runner.RouteStopIds.Add(stopId);
@@ -2945,7 +3147,8 @@ public partial class PlayerDesk : Node {
 		if (!Require(DistributionHours, out message)) return false;
 
 		bool proven = false, anyHouse = false;
-		IndependentDistributor house = CompetitorManager.Instance?.PlacePlayerLine(Label, regionId, out proven, out anyHouse);
+		// Promo mechanic directive §6.1: a live trade pick nudges an unproven house past "I don't hear it."
+		IndependentDistributor house = CompetitorManager.Instance?.PlacePlayerLine(Label, regionId, TradeHouseAcceptBonus(), out proven, out anyHouse);
 		string regionName = ChartManager.Instance?.GetRegionById(regionId)?.regionName ?? regionId;
 		if (!anyHouse) { message = $"No house in {regionName} has room for another line right now."; return false; }
 
@@ -3041,6 +3244,8 @@ public partial class PlayerDesk : Node {
 		ProcessTrunkDay();
 		CheckWeeklyInboundCalls();
 		CheckWeeklyRunner();
+		ExpireStaleAppointments();
+		ResolveTradeSubmissions();
 		Changed?.Invoke();
 	}
 
@@ -3101,7 +3306,13 @@ public partial class PlayerDesk : Node {
 				// with a $10 campaign has near-zero awareness and trickles out), then rolled with day-to-day,
 				// stop-to-stop luck so two accounts never sell in lockstep.
 				float buzz = RegionalBuzz(rec, stop.CityId);
-				float appeal = Mathf.Clamp(rec.baseRecord.hookStrength * 0.45f + rec.baseRecord.productionQuality * 0.25f + buzz * 0.30f, 0.04f, 1f);
+				// Promo mechanic directive §9: a live window/counter card is a bounded lift on this same
+				// appeal term -- never a source of units on its own, just a reason this stop in particular
+				// outsells an unserviced one this week.
+				float windowCard = lot.WindowCardExpiresWeek > 0
+					&& (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) <= lot.WindowCardExpiresWeek
+					? WindowCardSellThroughBoost : 0f;
+				float appeal = Mathf.Clamp(rec.baseRecord.hookStrength * 0.45f + rec.baseRecord.productionQuality * 0.25f + buzz * 0.30f + windowCard, 0.04f, 1f);
 				float decay = Mathf.Pow(TrunkDecayPerDay, lot.DaysSinceRestock);
 				float luck = (float)GD.RandRange(0.55, 1.45);
 				int units = Mathf.Min(lot.Remaining, Mathf.RoundToInt(lot.Placed * TrunkDailyBaseFraction * appeal * decay * luck));
@@ -3228,7 +3439,7 @@ public partial class PlayerDesk : Node {
 			if (stop.OpenBalance > 0.5f) yield return (CityName(stop.CityId), stop.DisplayName, stop.OpenBalance);
 	}
 
-	private const float SinglePrice = 0.89f; // historical 45 retail
+	public const float SinglePrice = 0.89f; // historical 45 retail
 	// Directive §3.3: "the act takes 50-100 at a discount, cash now -- a one-stop with legs." A
 	// wholesale-grade cut of the $0.89 trunk/retail price -- well above the ~$0.37-0.40/disc pressing
 	// cost, so the label still profits, but a real discount against paying full retail.
@@ -3646,20 +3857,29 @@ public partial class PlayerDesk : Node {
 			Masters = masters.Select(MasterSaveData.From).ToList(),
 			Planned = planned.Select(PlannedReleaseSaveData.From).ToList(),
 			Inventory = inventory.Select(kv => new PressStockSaveData {
-				RecordId = kv.Key, Remaining = kv.Value.Remaining,
+				RecordId = kv.Key, Remaining = kv.Value.Remaining, PromoRemaining = kv.Value.PromoRemaining,
 				TotalPressed = kv.Value.TotalPressed, TotalSpent = kv.Value.TotalSpent
 			}).ToList(),
 			PressOrders = pressOrders.Select(o => new PressOrderSaveData {
-				RecordId = o.RecordId, Quantity = o.Quantity, Cost = o.Cost,
+				RecordId = o.RecordId, Quantity = o.Quantity, PromoQuantity = o.PromoQuantity, Cost = o.Cost,
 				OrderedYear = o.Ordered.year, OrderedMonth = o.Ordered.month, OrderedDay = o.Ordered.day,
 				ArrivesYear = o.Arrives.year, ArrivesMonth = o.Arrives.month, ArrivesDay = o.Arrives.day
 			}).ToList(),
+			// Promo mechanic directive §3.2: who's been sent a copy of what. Player-only; no AI path
+			// reads or writes this.
+			Servicing = servicing.Select(RecordServicingSaveData.From).ToList(),
+			// Promo mechanic directive §6.1: who's been sent to the trade review desk and what came back.
+			TradeSubmissions = tradeSubmissions.Select(TradeSubmissionSaveData.From).ToList(),
+			// Promo mechanic directive §6.2: live paid trade ads.
+			TradeAds = tradeAds.Select(TradeAdSaveData.From).ToList(),
+			// Promo mechanic directive §7.1: which reporting dealers the player has worked out report.
+			KnownReportingStopIds = knownReportingStopIds.ToList(),
 			// Stop identity (name/city/kind) regenerates deterministically from the world seed every
 			// session (EnsureStops) -- only the mutable state each account has earned gets saved, and
 			// only for stops that actually have any (untouched stops need no row at all).
 			StopState = EnsureStops().Values
 				.Where(stop => stop.Relationship > 0f || stop.OpenBalance > 0f || stop.LastVisitWeek > 0
-					|| stop.OnHand.Count > 0 || stop.PassedRecordIds.Count > 0 || stop.OneStopUnlocked)
+					|| stop.OnHand.Count > 0 || stop.PassedRecordIds.Count > 0 || stop.OneStopUnlocked || stop.HypeBurned)
 				.Select(stop => new PlayerStopSaveData {
 					StopId = stop.StopId, Relationship = stop.Relationship, LastVisitWeek = stop.LastVisitWeek,
 					OpenBalance = stop.OpenBalance, MissedCallStreak = stop.MissedCallStreak,
@@ -3667,10 +3887,12 @@ public partial class PlayerDesk : Node {
 					LastApproachDay = stop.LastApproachDate.day,
 					PassedRecordIds = stop.PassedRecordIds.ToList(),
 					OneStopUnlocked = stop.OneStopUnlocked, OneStopTrusted = stop.OneStopTrusted,
+					HypeBurned = stop.HypeBurned,
 					OnHand = stop.OnHand.Select(kv => new ConsignmentLotSaveData {
 						RecordId = kv.Key, Remaining = kv.Value.Remaining,
 						Placed = kv.Value.Placed, DaysSinceRestock = kv.Value.DaysSinceRestock,
-						ConsignmentTerms = kv.Value.ConsignmentTerms, RunnerSourced = kv.Value.RunnerSourced
+						ConsignmentTerms = kv.Value.ConsignmentTerms, RunnerSourced = kv.Value.RunnerSourced,
+						WindowCardExpiresWeek = kv.Value.WindowCardExpiresWeek,
 					}).ToList()
 				}).ToList(),
 			// Open "they called me" demand (directive §4), plus the week cursor that keeps a reload from
@@ -3853,15 +4075,22 @@ public partial class PlayerDesk : Node {
 		inventory.Clear();
 		foreach (PressStockSaveData saved in data.Inventory ?? new List<PressStockSaveData>())
 			inventory[saved.RecordId] = new PressStock {
-				Remaining = saved.Remaining, TotalPressed = saved.TotalPressed, TotalSpent = saved.TotalSpent
+				Remaining = saved.Remaining, PromoRemaining = saved.PromoRemaining,
+				TotalPressed = saved.TotalPressed, TotalSpent = saved.TotalSpent
 			};
 		pressOrders.Clear();
 		foreach (PressOrderSaveData saved in data.PressOrders ?? new List<PressOrderSaveData>())
 			pressOrders.Add(new PressOrder {
-				RecordId = saved.RecordId, Quantity = saved.Quantity, Cost = saved.Cost,
+				RecordId = saved.RecordId, Quantity = saved.Quantity, PromoQuantity = saved.PromoQuantity, Cost = saved.Cost,
 				Ordered = new GameDate(saved.OrderedYear, saved.OrderedMonth, saved.OrderedDay),
 				Arrives = new GameDate(saved.ArrivesYear, saved.ArrivesMonth, saved.ArrivesDay)
 			});
+		servicing.Clear();
+		servicing.AddRange((data.Servicing ?? new List<RecordServicingSaveData>()).Select(s => s.ToServicing()));
+		tradeSubmissions.Clear();
+		tradeSubmissions.AddRange((data.TradeSubmissions ?? new List<TradeSubmissionSaveData>()).Select(s => s.ToSubmission()));
+		tradeAds.Clear();
+		tradeAds.AddRange((data.TradeAds ?? new List<TradeAdSaveData>()).Select(a => a.ToAd()));
 		// Stop identity regenerates fresh (deterministic on the world seed); only overlay the mutable
 		// state a save carries. `stops = null` forces EnsureStops to rebuild rather than reuse whatever
 		// roster (if any) belonged to a previously-loaded label in this same process.
@@ -3884,12 +4113,13 @@ public partial class PlayerDesk : Node {
 				foreach (string recordId in saved.PassedRecordIds ?? new List<string>()) stop.PassedRecordIds.Add(recordId);
 				stop.OneStopUnlocked = saved.OneStopUnlocked;
 				stop.OneStopTrusted = saved.OneStopTrusted;
+				stop.HypeBurned = saved.HypeBurned;
 				stop.OnHand.Clear();
 				foreach (ConsignmentLotSaveData lot in saved.OnHand ?? new List<ConsignmentLotSaveData>())
 					stop.OnHand[lot.RecordId] = new ConsignmentLot {
 						Remaining = lot.Remaining, Placed = lot.Placed,
 						DaysSinceRestock = lot.DaysSinceRestock, ConsignmentTerms = lot.ConsignmentTerms,
-						RunnerSourced = lot.RunnerSourced
+						RunnerSourced = lot.RunnerSourced, WindowCardExpiresWeek = lot.WindowCardExpiresWeek,
 					};
 			}
 		} else if (data.Consignment != null && data.Consignment.Count > 0) {
@@ -3909,6 +4139,19 @@ public partial class PlayerDesk : Node {
 				landing.Relationship = Mathf.Max(landing.Relationship, 0.3f); // it already had stock out -- not a cold call
 			}
 		}
+		// Promo mechanic directive §7.1: which reporting dealers the player has worked out report. A save
+		// written before this existed carries no list, so back-fill it from visit history rather than
+		// making a veteran player re-discover accounts he's been servicing for a year -- a stop he has
+		// stood in has, by definition, already had the shop conversation TouchStop grants this on.
+		knownReportingStopIds.Clear();
+		if (data.KnownReportingStopIds != null && data.KnownReportingStopIds.Count > 0) {
+			foreach (string stopId in data.KnownReportingStopIds)
+				if (liveStops.ContainsKey(stopId)) knownReportingStopIds.Add(stopId);
+		} else {
+			foreach (PlayerStop stop in liveStops.Values)
+				if (stop.LastVisitWeek > 0) LearnWhoReports(stop);
+		}
+
 		inboundCalls.Clear();
 		foreach (InboundCallSaveData saved in data.InboundCalls ?? new List<InboundCallSaveData>()) {
 			if (!liveStops.ContainsKey(saved.StopId)) continue; // same ghost-account guard as StopState above

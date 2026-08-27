@@ -47,6 +47,11 @@ public enum Daypart { Morning, Midday, Afternoon, Evening, Overnight }
 /// <summary>What the contact objects to. Always sourced from a real condition on the context.</summary>
 public enum Objection {
 	None,
+	// Directive §3.3: no RecordServicing row exists for (record, his station) -- ranked first in
+	// PickObjection's severity ordering, because it is the most basic thing that can be wrong with a
+	// pitch. Nothing gets played that nobody has been sent (invariant 2): Resolve() forces every
+	// approach to fail while this objection stands, whatever counter is played.
+	NotServiced,
 	FormatShutOut,      // the station's format does not admit this genre at all
 	ProductionRough,    // the record genuinely sounds cheap
 	NoLocalAudience,    // regional genre acceptance is low here
@@ -126,6 +131,28 @@ public sealed class RolodexCallContext {
 	public float stationAutonomy;
 	public bool managerPressureHigh;
 	public Daypart shift;
+
+	// Servicing facts (directive §3.2): has this station actually been sent a copy of the record
+	// under discussion? Objection.NotServiced and Resolve() both read this -- see PlayerDesk.IsServiced.
+	public bool isServiced;
+	public float servicingConviction;
+
+	// Trade press facts (directive §6.1): whether a live review pick exists for the record under
+	// discussion, its plain-English name for CiteTradePress's line, and the CounterWeight it's worth --
+	// see PlayerDesk.ActiveTradeOutcome.
+	public bool hasTradePick;
+	public string tradePickLabel;
+	public float tradePickWeight;
+	// Directive §6.2: a live trade ad's bonus to a Commercial Pitch's odds -- see
+	// PlayerDesk.TradeAdConnectBonus (label-wide, same value the cold connect roll reads).
+	public float tradeAdCommercialBonus;
+
+	// Second-market facts (directive §10): a real out-of-region spin (another reporter station, a
+	// different region than this call's own) or breakout listing to cite -- "it's number four on the
+	// WAMO survey." When false, SuitSurvey is still offered (an explicit bluff a reachy jock can call).
+	public bool hasOutOfRegionProof;
+	public string outOfRegionProofLabel;
+	public float outOfRegionProofWeight;
 
 	// Relationship facts.
 	public float rapport;
@@ -266,6 +293,13 @@ public static class RolodexFragments {
 	}
 
 	private static void BuildPushbacks() {
+		Add(RolodexSceneBeat.Pushback, "I can't put on a record I haven't got, friend. Send me one.",
+			objection: Objection.NotServiced);
+		Add(RolodexSceneBeat.Pushback, "You want me to play something I've never even heard? Get it to me first.",
+			objection: Objection.NotServiced);
+		Add(RolodexSceneBeat.Pushback, "There's no copy on this desk with your label's name on it. Fix that and call me back.",
+			objection: Objection.NotServiced, archetypes: new[] { DJArchetype.CompanyMan });
+
 		Add(RolodexSceneBeat.Pushback, "It is not on my sheet and it never will be. Wrong station, friend. Wrong everything.",
 			objection: Objection.FormatShutOut);
 		Add(RolodexSceneBeat.Pushback, "You have heard this station, right? Actually heard it? Because that record belongs somewhere else.",

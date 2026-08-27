@@ -309,6 +309,17 @@ public sealed class PlayerSaveData {
 	// Cultivated rapport and the player's own records' rotation slots. The panel is rebuilt from seed
 	// on load, so without this every relationship the Rolodex earned resets to zero.
 	public List<StationPlayerStateSaveData> StationState { get; set; } = new();
+	// Promo mechanic directive §3.2: who's actually been sent a copy of what. Player-only; not
+	// derivable from anything else on the save.
+	public List<RecordServicingSaveData> Servicing { get; set; } = new();
+	// Promo mechanic directive §6.1: who's been sent to the trade review desk and what came back.
+	public List<TradeSubmissionSaveData> TradeSubmissions { get; set; } = new();
+	// Promo mechanic directive §6.2: live paid trade ads.
+	public List<TradeAdSaveData> TradeAds { get; set; } = new();
+	// Promo mechanic directive §7.1: which reporting dealers the player has WORKED OUT report. Who
+	// reports regenerates with the stop roster; knowing it is earned, so it has to be saved. An older
+	// save carrying no list back-fills from visit history on load (see PlayerDesk.RestoreState).
+	public List<string> KnownReportingStopIds { get; set; } = new();
 
 	// People (directive §7): the commission runner's own state, plus the unlock ledger so a reload can't
 	// re-earn (or lose) an unlock already granted. Project promo leaves no state of its own to persist --
@@ -887,6 +898,9 @@ public sealed class PlannedReleaseSaveData {
 public sealed class PressStockSaveData {
 	public string RecordId { get; set; }
 	public int Remaining { get; set; }
+	// Promo mechanic directive §3.1: free-goods stock struck off the same run. Never sold, never
+	// converts to/from Remaining.
+	public int PromoRemaining { get; set; }
 	public int TotalPressed { get; set; }
 	public float TotalSpent { get; set; }
 }
@@ -894,6 +908,8 @@ public sealed class PressStockSaveData {
 public sealed class PressOrderSaveData {
 	public string RecordId { get; set; }
 	public int Quantity { get; set; }
+	// How much of Quantity lands in PromoRemaining instead of Remaining on delivery (directive §3.1).
+	public int PromoQuantity { get; set; }
 	public float Cost { get; set; }
 	public int OrderedYear { get; set; }
 	public int OrderedMonth { get; set; }
@@ -913,6 +929,8 @@ public sealed class ConsignmentLotSaveData {
 	// Directive §7: true when this lot's stock came out of the runner's carton, not the office's own --
 	// ProcessTrunkDay reads it to route the day's sell-through through BookRunnerSale (commission taken).
 	public bool RunnerSourced { get; set; }
+	// Directive §9: a live window/counter card at this stop for this record. 0 = none running.
+	public int WindowCardExpiresWeek { get; set; }
 }
 
 public sealed class PlayerStopSaveData {
@@ -931,6 +949,8 @@ public sealed class PlayerStopSaveData {
 	// One-stop counterparties only (directive §6).
 	public bool OneStopUnlocked { get; set; }
 	public bool OneStopTrusted { get; set; }
+	// Shop only (directive §7.3): permanently burned after a hype-the-count detection.
+	public bool HypeBurned { get; set; }
 }
 
 public sealed class InboundCallSaveData {

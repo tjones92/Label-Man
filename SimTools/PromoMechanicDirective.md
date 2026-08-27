@@ -297,8 +297,21 @@ genre fit against the year, plus a small term for label standing:
 | **Nothing** | Nothing. Most records got nothing. |
 
 ### 6.2 Buy a trade ad
-Three tiers -- **$50 / $150 / $400**. These are game prices scaled to $800 of founding capital, not
-rate-card figures; $50 must be reachable in month one and $400 must be a genuine gamble.
+Three tiers -- **$75 / $250 / $600** (quarter-page / half-page / full-page). Unlike the rest of §11,
+these are **not** scaled to $800 of founding capital -- they are what the space actually cost. A
+weekly trade paper at Billboard/Cash Box circulation (a few tens of thousands, all industry --
+distributors, one-stops, jocks, other labels, not consumers) ran roughly this range for display
+space in the early 1960s: a small quarter-page or "trade note" in the tens of dollars, a half-page
+in the low hundreds, a full page pushing toward a thousand. Exact contemporary rate cards were not
+independently verifiable during authoring (the primary archives are paywalled/OCR-garbled), so
+treat these three numbers as the era-grounded estimate, not a cited rate card -- revise if a real
+rate card surfaces, but do not re-derive them from `FoundingCapital` again.
+
+The consequence is deliberate and sharper than the old scaled figures: a full page is most of an
+$800 label's cash on hand in one move, not a bounded "genuine gamble" tier -- it is a bet-the-label
+move that should feel financially reckless even before the record's odds are considered, exactly as
+it would have been for a real 1960 one-man label. Reaching for it because there's a hot record
+should be a real decision, not month-one furniture.
 
 An ad is **not consumer advertising and must never be modelled as one.** For 3-5 weeks it:
 - multiplies `InboundCall` probability, weighted toward `OneStopTest`, `HouseInterest` and
@@ -452,7 +465,7 @@ All player-only. Every one is a one-off or per-copy; **no new recurring cost** (
 | Drop off a copy | -- | 1h + 1-2 promo copies + the drive |
 | Wait for him | -- | 3h + 1-2 promo copies + the drive |
 | Trade review submission | ~$0.15 postage | 1h + 1 promo copy |
-| Trade ad | $50 / $150 / $400 | 1h |
+| Trade ad | $75 / $250 / $600 (era rate, not budget-scaled -- see §6.2) | 1h |
 | Window cards, per city | $8-20 | 1h + 1-2 promo copies |
 | Record hop | $0-25 | the act's night + the player's day |
 | In-store appearance | $0 | the act's day + the player's day |
@@ -463,9 +476,10 @@ All player-only. Every one is a one-off or per-copy; **no new recurring cost** (
 
 Sanity check against `FoundingCapital = 800` and `CreditFloor = -225`: a complete, competent first
 campaign -- 500 pressed with 120 promo ($183), a 50-piece mailing ($7), a review submission ($0.15),
-a $50 trade ad, window cards in two towns ($30), and gas -- is about **$280**, leaving the player
-solvent with stock in the trunk. A player who instead buys a $400 ad and a $500 envelope on a debut
-by an unknown act is broke, and *should* be. That is the intended lesson and the credit model
+a $75 quarter-page trade ad, window cards in two towns ($30), and gas -- is about **$305**, leaving
+the player solvent with stock in the trunk. A player who instead buys the $600 full-page ad and a
+$500 envelope on a debut by an unknown act is broke, and *should* be -- the full-page tier alone is
+most of the founding capital in one line item. That is the intended lesson and the credit model
 already enforces it.
 
 **On the release-screen campaign budget.** `SetReleaseDate`'s `marketingBudget` currently buys

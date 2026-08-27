@@ -195,7 +195,7 @@ public partial class PlayerDesk : Node {
 		}
 
 		call.objection = PickObjection(c, approach);
-		call.baseChance = BaseChance(approach, c, payload);
+		call.baseChance = BaseChance(approach, c, payload) + call.inPersonBonus;
 
 		string line = RolodexFragments.Pick(RolodexSceneBeat.Pushback, c, call.objection);
 		call.Say(RolodexSceneBeat.Pushback, line ?? "\"I'll have to think about it.\"", speaker: call.entry.displayName);
@@ -206,6 +206,9 @@ public partial class PlayerDesk : Node {
 	/// <summary>The objection he raises. Ordered by how badly the fact actually hurts you, so the thing
 	/// he names is the thing most wrong with the pitch -- not a random flavour draw.</summary>
 	private static Objection PickObjection(RolodexCallContext c, RolodexApproach approach) {
+		// Directive §3.3: the most basic thing that can be wrong with a pitch -- he can't play a record
+		// he was never sent, whatever else is true about it. Checked before everything else.
+		if (c.HasRecord && !c.isServiced) return Objection.NotServiced;
 		if (c.professionallyBurned || (c.youOweThem && GD.Randf() < 0.5f)) return Objection.YouBurnedMeBefore;
 		if (c.HasRecord && c.formatAdmittance < 0.08f)                     return Objection.FormatShutOut;
 		if (c.managerPressureHigh)                                         return Objection.ManagerHeat;
@@ -232,6 +235,7 @@ public partial class PlayerDesk : Node {
 				+ c.rapport * 0.20f
 				+ c.instincts.TheSuit * 0.035f
 				+ (payload is AdBuyTier t ? (int)t * 0.09f : 0f)
+				+ c.tradeAdCommercialBonus // directive §6.2: a live trade ad backs up the buy
 				- (c.managerPressureHigh ? 0.08f : 0f),
 			RolodexApproach.OfferPayola =>
 				0.18f
@@ -293,6 +297,30 @@ public partial class PlayerDesk : Node {
 			});
 
 		switch (call.objection) {
+			case Objection.NotServiced: {
+				// Directive §3.3: OfferToBringIt only when you could actually drive there -- a soft
+				// appointment for a Wait for Him visit, not a promise you can't keep. FixerSweeten and
+				// SuitUnderwrite stay on the table (money always talks) but stay exactly as weak as they
+				// are everywhere else -- paying a man who has never heard the record is the 1960 mistake.
+				MarketCity here = CurrentCity;
+				MarketCity there = c.station != null ? DistanceModel.GetCityByName(c.station.cityName) : null;
+				bool reachable = here != null && there != null
+					&& (here.cityId == there.cityId || CanReach(here, there));
+				if (reachable)
+					Offer(CallCounter.OfferToBringIt, ExecutiveVoice.None,
+						"\"Let me bring you one myself.\"",
+						"He'll expect you at the station -- standing him up costs you.");
+				if (inst.TheFixer >= 3)
+					Offer(CallCounter.FixerSweeten, ExecutiveVoice.Fixer,
+						"\"There's something in it for you either way.\"",
+						"He still hasn't heard the record. This is exactly the mistake it sounds like.");
+				if (inst.TheSuit >= 3 && c.labelCash >= AdBuyCost(AdBuyTier.Small))
+					Offer(CallCounter.SuitUnderwrite, ExecutiveVoice.Suit,
+						$"\"Then we'll buy the time and worry about the record later.\" (${AdBuyCost(AdBuyTier.Small):N0})",
+						"Buying blind. It works exactly as often as that deserves to.");
+				break;
+			}
+
 			case Objection.ProductionRough:
 				if (inst.TheEar >= 3 && c.recordHook > 0.55f)
 					Offer(CallCounter.EarChorus, ExecutiveVoice.Ear,
@@ -406,6 +434,24 @@ public partial class PlayerDesk : Node {
 				break;
 		}
 
+		// Directive §6.1: a live trade pick is leverage on ANY call, not just one objection -- "Cash
+		// Box picked it" answers a manager's doubt as well as it answers a format question. Never
+		// offered against NotServiced: press coverage isn't a physical copy in his hands (invariant 2).
+		if (c.hasTradePick && call.objection != Objection.NotServiced && inst.TheSuit >= 2)
+			Offer(CallCounter.CiteTradePress, ExecutiveVoice.Suit, $"\"{c.tradePickLabel}\"",
+				"The trades already said so. Let him check.");
+
+		// Directive §10: "It's number four on the WAMO survey" -- the single most valuable counter in
+		// the game because it converts a win in one city into a win in another. Offered whenever the
+		// instinct is there, grounded when there's a real out-of-region spin or breakout to cite, an
+		// explicit bluff (he can check) when there isn't. Excluded from NotServiced for the same reason
+		// CiteTradePress is: a survey position elsewhere isn't a physical copy in HIS hands.
+		if (call.objection != Objection.NotServiced && inst.TheSuit >= 2)
+			Offer(CallCounter.SuitSurvey, ExecutiveVoice.Suit,
+				c.hasOutOfRegionProof ? $"\"{c.outOfRegionProofLabel}\"" : "\"It's already moving two towns over. You'll hear about it either way.\"",
+				c.hasOutOfRegionProof ? "True, and he can check it himself." : "There's nothing behind that yet. He has a phone too.",
+				bluff: !c.hasOutOfRegionProof);
+
 		opts.Add(new CallOption {
 			label = "Press the point", subLabel = "Say it again, louder. It sometimes works.",
 			counter = CallCounter.PressIt, minutes = CounterMinutes,
@@ -483,6 +529,19 @@ public partial class PlayerDesk : Node {
 			call.pendingPayload = AdBuyTier.Small;
 		}
 		if (counter == CallCounter.CallInFavor) call.entry.theyOweThem = false;
+		if (counter == CallCounter.CiteTradePress)
+			call.entry.log.Insert(0, $"{Today()} — Cited the trade pick on \"{c.baseRecord?.title}\" at him.");
+		if (counter == CallCounter.SuitSurvey)
+			call.entry.log.Insert(0, $"{Today()} — Told him \"{c.baseRecord?.title}\" was moving elsewhere on the survey.");
+
+		// Directive §3.3: a promise, not a sale -- writes a soft appointment for a Wait for Him visit
+		// at his station, but the record still hasn't been heard, so Resolve() below still fails this
+		// call. Standing him up (letting it expire unfulfilled) costs a little rapport.
+		if (counter == CallCounter.OfferToBringIt && c.baseRecord != null) {
+			call.entry.appointmentRecordId = c.baseRecord.recordId;
+			call.entry.appointmentExpiresWeek = c.week + AppointmentExpiryWeeks;
+			call.entry.log.Insert(0, $"{Today()} — Promised to bring \"{c.baseRecord.title}\" in yourself. He's expecting you.");
+		}
 
 		Resolve(call, out message);
 	}
@@ -500,6 +559,8 @@ public partial class PlayerDesk : Node {
 		CallCounter.SuitUnderwrite => 0.22f,
 		CallCounter.FixerSweeten   => 0.24f * (1f - c.djSuspicion),
 		CallCounter.CallInFavor    => 0.40f,
+		CallCounter.CiteTradePress => c.tradePickWeight,
+		CallCounter.SuitSurvey     => c.outOfRegionProofWeight,
 		_ => 0f,
 	};
 
@@ -521,8 +582,12 @@ public partial class PlayerDesk : Node {
 		};
 		if (TimeManager.Instance?.CanAffordMinutes(minutes) == true) { SpendMinutes(minutes); call.minutesSpent += minutes; }
 
-		bool success = call.pendingApproach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction
-			|| GD.Randf() < call.EffectiveChance;
+		// Invariant 2 (directive §2): nothing gets played that nobody has been sent. Whatever counter
+		// was played, a jock who has never been serviced with this record cannot add it -- the roll
+		// never even happens.
+		bool success = call.objection != Objection.NotServiced
+			&& (call.pendingApproach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction
+				|| GD.Randf() < call.EffectiveChance);
 		call.lastSucceeded = success;
 		call.stage = CallStage.Resolved;
 

@@ -15,3 +15,7 @@ __pycache__/
 
 # Exported build output; the game data pack is a build artifact, not source.
 /data_Label Man_windows_x86_64/
+
+# Godot export presets: machine-local (carries an absolute export path, and can carry
+# signing credentials). Build config, not source.
+/export_presets.cfg

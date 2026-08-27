@@ -112,9 +112,14 @@ public static class PlayerStopFactory {
 				MinShopsPerCity, MaxShopsPerCity + HubShopBonus + TierShopBonus * 4);
 			for (int i = 0; i < shopCount; i++) {
 				string name = NextUniqueName(shopPool, ShopSuffixes, possessive: true, ref shopCursor, usedNames, rng);
+				// Promo mechanic directive §7.1: "one or two per city" -- the biggest dealer(s), fixed by
+				// index rather than rolled, so the roster is legible and never shifts session to session.
+				// A hub gets a second; every other city gets exactly one.
+				bool reports = i == 0 || (i == 1 && city.isRegionalHub);
 				result.Add(new PlayerDesk.PlayerStop {
 					StopId = $"{city.cityId}_shop_{i}", DisplayName = name,
-					CityId = city.cityId, Kind = PlayerDesk.StopKind.Shop
+					CityId = city.cityId, Kind = PlayerDesk.StopKind.Shop,
+					ReportsToTrades = reports,
 				});
 			}
 
@@ -139,7 +144,10 @@ public static class PlayerStopFactory {
 				string oneStopName = NextUniqueName(opPool, OneStopSuffixes, possessive: false, ref opCursor, usedNames, rng);
 				result.Add(new PlayerDesk.PlayerStop {
 					StopId = $"{city.cityId}_onestop", DisplayName = oneStopName,
-					CityId = city.cityId, Kind = PlayerDesk.StopKind.OneStop
+					CityId = city.cityId, Kind = PlayerDesk.StopKind.OneStop,
+					// Directive §7.1: "the one-stop, and the one or two biggest dealers in a hub" -- a
+					// metro one-stop always reports to the trades, on top of whichever shops do.
+					ReportsToTrades = true,
 				});
 			}
 
@@ -202,6 +210,32 @@ public static class PlayerStopFactory {
 	/// the quantity an <see cref="PlayerDesk.StopKind.Op"/> account will take, never its identity or count.</summary>
 	public static float JukeboxEraWeight(float year) {
 		var curve = JukeboxEraCurve;
+		if (year <= curve[0].Year) return curve[0].Weight;
+		if (year >= curve[^1].Year) return curve[^1].Weight;
+		for (int i = 1; i < curve.Length; i++) {
+			if (year <= curve[i].Year) {
+				float t = (year - curve[i - 1].Year) / (curve[i].Year - curve[i - 1].Year);
+				return Mathf.Lerp(curve[i - 1].Weight, curve[i].Weight, t);
+			}
+		}
+		return curve[^1].Weight;
+	}
+
+	// Promo mechanic directive §8: "hops are strongest 1960-63, fade through the mid-decade, and are
+	// largely gone by 1967-68 -- the same shape as JukeboxEraCurve." Authored as a second keyframed
+	// curve right next to that one so the two read together -- the payola-hearings-legal DJ relationship
+	// and the jukebox trade both belong to the same early-60s road, and both get swept away by the same
+	// mid-decade shift to home stereo, FM and the tightening Boss-radio playlist.
+	private static readonly (float Year, float Weight)[] HopEraCurve = {
+		(1960f, 1.00f), (1963f, 1.00f), (1964f, 0.85f), (1965f, 0.65f),
+		(1966f, 0.40f), (1967f, 0.22f), (1968f, 0.12f), (1969f, 0.08f),
+	};
+
+	/// <summary>How much a hop is still worth in a given year -- scales BookRecordHop's advocacy and
+	/// awareness payoff, never its availability outright: a hop late in the decade is a lesser move, not
+	/// an impossible one.</summary>
+	public static float HopEraWeight(float year) {
+		var curve = HopEraCurve;
 		if (year <= curve[0].Year) return curve[0].Weight;
 		if (year >= curve[^1].Year) return curve[^1].Weight;
 		for (int i = 1; i < curve.Length; i++) {
