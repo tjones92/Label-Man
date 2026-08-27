@@ -316,6 +316,9 @@ public sealed class PlayerSaveData {
 	public List<TradeSubmissionSaveData> TradeSubmissions { get; set; } = new();
 	// Promo mechanic directive §6.2: live paid trade ads.
 	public List<TradeAdSaveData> TradeAds { get; set; } = new();
+	// Publishing & Cover-Song directive Part II §II.2: covers of the player's own songs, noticed.
+	public List<CoverNoticeSaveData> CoverNotices { get; set; } = new();
+	public int LastCoverScanWeek { get; set; } = -1;
 	// Promo mechanic directive §7.1: which reporting dealers the player has WORKED OUT report. Who
 	// reports regenerates with the stop roster; knowing it is earned, so it has to be saved. An older
 	// save carrying no list back-fills from visit history on load (see PlayerDesk.RestoreState).
@@ -328,6 +331,7 @@ public sealed class PlayerSaveData {
 	public Dictionary<string, int> ServiceReorderCountByCity { get; set; } = new();
 	public int LastRunnerTickWeek { get; set; } = -1;
 	public float WeeklyRunnerCommission { get; set; }
+	public float WeeklyMechanicalRoyalty { get; set; }
 	public PlayerRunnerSaveData Runner { get; set; }
 	// Plant credit (directive §11): null when nothing is owed.
 	public PlantCreditSaveData PlantCredit { get; set; }

@@ -21,10 +21,12 @@ public partial class SaveLoadRoundTripRunner : Node {
 		try {
 			int weeks = 26;
 			bool integration = false;
+			bool mechanicalCheck = false;
 			string inspectSlot = null;
 			foreach (string arg in OS.GetCmdlineUserArgs()) {
 				if (arg.StartsWith("--weeks=", StringComparison.Ordinal)) weeks = int.Parse(arg["--weeks=".Length..]);
 				else if (arg == "--integration") integration = true;
+				else if (arg == "--mechanical-royalty-check") mechanicalCheck = true;
 				else if (arg.StartsWith("--inspect-slot=", StringComparison.Ordinal)) inspectSlot = arg["--inspect-slot=".Length..];
 			}
 
@@ -33,6 +35,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 
 			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
 			if (inspectSlot != null) { RunInspect(inspectSlot); return; }
+			if (mechanicalCheck) { RunMechanicalRoyaltyCheck(); return; }
 
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
 
@@ -465,6 +468,141 @@ public partial class SaveLoadRoundTripRunner : Node {
 		} catch (Exception e) {
 			GD.PushError("SAVELOAD_INTEGRATION_ERROR: " + e);
 			try { SaveGameService.Delete(slot); } catch { }
+			GetTree().Quit(3);
+		}
+	}
+
+	/// <summary>
+	/// Publishing & Cover-Song Directive Part II, §II.0: proves MechanicalRoyaltyService's cent-for-cent
+	/// math against a real player release and real sales, through the public SellCartonToOneStop verb
+	/// (deterministic quantity, immediate COD cash -- the cleanest deterministic entry point into the
+	/// same ChargeSide call BookSale also uses). Five scenarios, one synthetic single each, each sold
+	/// once for a known quantity: public-domain (free), self-controlled (free -- paying yourself is a
+	/// wash), writer-controlled (a real cash royalty to the controlling artist, not the performer),
+	/// another in-game label's affiliate (the goldmine transfer), and an external publisher (a pure
+	/// leak). A sixth reuses the public-domain A-side with an externally-controlled B-side snapshot to
+	/// prove the two-composition, 4c-total-on-a-45 arithmetic. Every assertion is a real cash/royalty
+	/// delta, not a mocked number.
+	/// </summary>
+	private void RunMechanicalRoyaltyCheck() {
+		const int qty = 100;
+		const float rate = MechanicalRoyaltyService.RatePerCopy;
+		try {
+			var cities = DistanceModel.GetCities();
+			string cityId = cities.Count > 0 ? cities[0].cityId : null;
+			if (cityId == null || PlayerDesk.Instance == null) { GD.Print("MECHANICAL_ROYALTY_CHECK_FAIL reason=no-city-or-desk"); GetTree().Quit(3); return; }
+			if (!PlayerDesk.Instance.FoundLabel("Mechanical Test Records", cityId, out string founded)) {
+				GD.Print($"MECHANICAL_ROYALTY_CHECK_FAIL reason=found:{founded}"); GetTree().Quit(3); return;
+			}
+			PlayerDesk desk = PlayerDesk.Instance;
+			AILabel playerLabel = desk.Label;
+
+			PlayerDesk.PlayerStop oneStop = cities.SelectMany(c => desk.StopsInCity(c.cityId))
+				.FirstOrDefault(s => s.Kind == PlayerDesk.StopKind.OneStop);
+			if (oneStop == null) { GD.Print("MECHANICAL_ROYALTY_CHECK_FAIL reason=no-onestop-anywhere"); GetTree().Quit(3); return; }
+			if (oneStop.CityId != cityId && !desk.DriveTo(oneStop.CityId, out string driveMsg)) {
+				GD.Print($"MECHANICAL_ROYALTY_CHECK_FAIL reason=drive:{driveMsg}"); GetTree().Quit(3); return;
+			}
+			oneStop.OneStopUnlocked = true;
+
+			var allArtists = ArtistManager.Instance.GetAllArtists().ToList();
+			SimulatedArtist performer = allArtists.FirstOrDefault();
+			SimulatedArtist writer = allArtists.FirstOrDefault(a => a.artistId != performer?.artistId);
+			AILabel otherLabel = ChartManager.Instance.GetAllLabels().FirstOrDefault(l => !l.isPlayerOwned && l.labelId != playerLabel.labelId);
+			if (performer == null || writer == null || otherLabel == null) {
+				GD.Print("MECHANICAL_ROYALTY_CHECK_FAIL reason=no-fixtures"); GetTree().Quit(3); return;
+			}
+
+			var fails = new System.Collections.Generic.List<string>();
+
+			// One real sale, one control combo. Forces COD every time (a trusted one-stop pays net terms
+			// on later calls, which would defer the cash and break the direct cashReserves assertion).
+			(float labelDelta, float qtyGross, float qtyRoyalty) Sell(string recordId, PublishingControlType control,
+				string ctrlLabelId, string ctrlArtistId, string bSideSongId = null,
+				PublishingControlType bSideControl = PublishingControlType.Unknown, string bSideCtrlLabelId = null) {
+				var record = new Record {
+					recordId = recordId, title = recordId, artistId = performer.artistId, artistName = performer.stageName,
+					format = ReleaseFormat.Single, primaryGenre = performer.primaryGenre,
+					hookStrength = 0.5f, productionQuality = 0.5f, originality = 0.5f, danceability = 0.5f
+				};
+				CompetitorManager.Instance.ReleasePlayerRecord(playerLabel, performer, record, 0f, 0f, TimeManager.Instance.CurrentDate);
+				record.publishingControl = control;
+				record.publishingControllerLabelId = ctrlLabelId;
+				record.publishingControllerArtistId = ctrlArtistId;
+				record.bSideSongId = bSideSongId;
+				record.bSidePublishingControl = bSideControl;
+				record.bSidePublishingControllerLabelId = bSideCtrlLabelId;
+				desk.DebugSetPressStock(recordId, qty, 0, qty, 0f);
+				oneStop.OneStopTrusted = false; // force COD so the credit lands in cashReserves immediately
+
+				float cashBefore = playerLabel.cashReserves;
+				if (!desk.SellCartonToOneStop(oneStop.StopId, recordId, qty, out string sellMsg))
+					throw new InvalidOperationException($"SellCartonToOneStop failed for {recordId}: {sellMsg}");
+				float cashAfter = playerLabel.cashReserves;
+
+				float gross = qty * PlayerDesk.OneStopUnitPriceForTest;
+				float accrued = gross * performer.royaltyRate;
+				float recouped = Mathf.Min(Mathf.Max(0f, performer.unrecoupedAdvance), accrued);
+				float royalty = accrued - recouped;
+				TimeManager.Instance.DebugAdvanceDay(); // fresh hour budget for the next scenario
+				return (cashAfter - cashBefore, gross, royalty);
+			}
+
+			// 1. Public domain -- free.
+			var (delta1, gross1, royalty1) = Sell("mech_test_pd", PublishingControlType.PublicDomain, null, null);
+			float expected1 = gross1 - royalty1;
+			if (Mathf.Abs(delta1 - expected1) > 0.01f) fails.Add($"publicDomain expected={expected1:F2} actual={delta1:F2}");
+
+			// 2. Self-controlled (the label's own affiliate) -- free, paying yourself is a wash.
+			var (delta2, gross2, royalty2) = Sell("mech_test_self", PublishingControlType.LabelAffiliate, playerLabel.labelId, null);
+			float expected2 = gross2 - royalty2;
+			if (Mathf.Abs(delta2 - expected2) > 0.01f) fails.Add($"selfControlled expected={expected2:F2} actual={delta2:F2}");
+
+			// 3. Writer-controlled -- a real 2c/copy royalty to the WRITER, not the performer.
+			float writerBefore3 = writer.totalRoyaltyEarnings;
+			var (delta3, gross3, royalty3) = Sell("mech_test_writer", PublishingControlType.ArtistControlled, null, writer.artistId);
+			float expectedMechanical3 = qty * rate;
+			float expected3 = gross3 - royalty3 - expectedMechanical3;
+			float writerDelta3 = writer.totalRoyaltyEarnings - writerBefore3;
+			if (Mathf.Abs(delta3 - expected3) > 0.01f) fails.Add($"writerControlled label expected={expected3:F2} actual={delta3:F2}");
+			if (Mathf.Abs(writerDelta3 - expectedMechanical3) > 0.001f) fails.Add($"writerControlled writer expected={expectedMechanical3:F2} actual={writerDelta3:F2}");
+
+			// 4. Another in-game label's affiliate -- the goldmine transfer.
+			float otherLabelBefore4 = otherLabel.cashReserves;
+			var (delta4, gross4, royalty4) = Sell("mech_test_otherlabel", PublishingControlType.LabelAffiliate, otherLabel.labelId, null);
+			float expectedMechanical4 = qty * rate;
+			float expected4 = gross4 - royalty4 - expectedMechanical4;
+			float otherLabelDelta4 = otherLabel.cashReserves - otherLabelBefore4;
+			if (Mathf.Abs(delta4 - expected4) > 0.01f) fails.Add($"otherLabelAffiliate label expected={expected4:F2} actual={delta4:F2}");
+			if (Mathf.Abs(otherLabelDelta4 - expectedMechanical4) > 0.001f) fails.Add($"otherLabelAffiliate transfer expected={expectedMechanical4:F2} actual={otherLabelDelta4:F2}");
+
+			// 5. External publisher -- a pure leak. Nobody in-game is credited.
+			var (delta5, gross5, royalty5) = Sell("mech_test_external", PublishingControlType.ExternalPublisher, null, null);
+			float expectedMechanical5 = qty * rate;
+			float expected5 = gross5 - royalty5 - expectedMechanical5;
+			if (Mathf.Abs(delta5 - expected5) > 0.01f) fails.Add($"externalPublisher expected={expected5:F2} actual={delta5:F2}");
+
+			// 6. A 45 with a free A-side and an externally-controlled B-side: two compositions, one of
+			// them costs. Proves the B-side snapshot (bSideSongId etc.) actually gets charged.
+			var (delta6, gross6, royalty6) = Sell("mech_test_bside", PublishingControlType.PublicDomain, null, null,
+				bSideSongId: "mech_test_bside_song", bSideControl: PublishingControlType.ExternalPublisher);
+			float expectedMechanical6 = qty * rate; // A-side free, B-side leaks
+			float expected6 = gross6 - royalty6 - expectedMechanical6;
+			if (Mathf.Abs(delta6 - expected6) > 0.01f) fails.Add($"bSideCharged expected={expected6:F2} actual={delta6:F2}");
+
+			GD.Print($"MECHANICAL_ROYALTY_CHECK qty={qty} rate={rate} " +
+				$"pd={delta1:F2}/{expected1:F2} self={delta2:F2}/{expected2:F2} writer={delta3:F2}/{expected3:F2}(writer+{writerDelta3:F2}) " +
+				$"otherLabel={delta4:F2}/{expected4:F2}(xfer+{otherLabelDelta4:F2}) external={delta5:F2}/{expected5:F2} bSide={delta6:F2}/{expected6:F2}");
+
+			if (fails.Count == 0) {
+				GD.Print("MECHANICAL_ROYALTY_CHECK_PASS");
+				GetTree().Quit(0);
+			} else {
+				GD.Print("MECHANICAL_ROYALTY_CHECK_FAIL " + string.Join(" | ", fails));
+				GetTree().Quit(1);
+			}
+		} catch (Exception e) {
+			GD.PushError("MECHANICAL_ROYALTY_CHECK_ERROR: " + e);
 			GetTree().Quit(3);
 		}
 	}

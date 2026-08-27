@@ -265,4 +265,45 @@ public partial class PlayerDesk : Node {
 		return tradeAds.Where(a => week <= a.ExpiresWeek)
 			.Select(a => TradeAdCommercialBonus(a.Tier)).DefaultIfEmpty(0f).Max();
 	}
+
+	// ── §II.2: "watch the trades for your own song" ────────────────────────────────────────────
+
+	/// <summary>Every cover, ever noticed, of one of the player's own records -- oldest first, matching
+	/// how <see cref="Log"/> reads.</summary>
+	public IReadOnlyList<CoverNotice> CoverNotices => coverNotices;
+
+	/// <summary>
+	/// Weekly (self-gated like <see cref="CheckWeeklyInboundCalls"/>): looks for any record, anywhere in
+	/// the game, that is a cover of one of the player's own records and hasn't been surfaced yet. This
+	/// causes nothing -- the cover already happened, organically, through the same material-selection
+	/// pipeline every AI act's cover runs through (SongMaterialSelectionService.BuildRecentHitCover
+	/// treats a player-originated songId no differently than an AI one). It only reports it, per the
+	/// directive: "it should arrive as news, not as a silent number."
+	/// </summary>
+	private void ScanForCoversOfOwnSongs() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (Label == null || week == lastCoverScanWeek) return;
+		lastCoverScanWeek = week;
+
+		var myRecordIds = new HashSet<string>(
+			ReleasedRecords.Select(r => r.baseRecord?.recordId).Where(id => id != null), StringComparer.Ordinal);
+		if (myRecordIds.Count == 0) return;
+		var alreadyNoticed = new HashSet<string>(coverNotices.Select(n => n.CoveringRecordId), StringComparer.Ordinal);
+
+		foreach (RecordRuntimeData candidate in ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>()) {
+			Record rec = candidate?.baseRecord;
+			if (rec == null || !rec.isCover || string.IsNullOrEmpty(rec.originalRecordId)) continue;
+			if (rec.labelId == Label.labelId) continue; // your own act re-cutting your own hit isn't news
+			if (!myRecordIds.Contains(rec.originalRecordId)) continue;
+			if (string.IsNullOrEmpty(rec.recordId) || alreadyNoticed.Contains(rec.recordId)) continue;
+
+			string coveringArtistName = ArtistManager.Instance?.GetArtist(rec.artistId)?.stageName ?? rec.artistName ?? "an act";
+			string coveringLabelName = CompetitorManager.Instance?.GetLabel(rec.labelId)?.labelName ?? "Somebody";
+			coverNotices.Add(new CoverNotice {
+				OriginalRecordId = rec.originalRecordId, CoveringRecordId = rec.recordId,
+				CoveringArtistName = coveringArtistName, CoveringLabelName = coveringLabelName, NoticedWeek = week
+			});
+			Note($"{coveringLabelName} cut {coveringArtistName} on \"{TitleForRecord(rec.originalRecordId)}\" -- word is it's already moving.");
+		}
+	}
 }

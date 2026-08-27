@@ -524,7 +524,12 @@ public partial class ChartAuditRunner : Node {
 			} else if (argument == "--enable-publishing-routing") {
 				// Publishing & Cover-Song Phase 3b: route the publishing slice live off the composition's
 				// control type (external/standard material leaks to its publisher). Off = 3a telemetry-only.
+				// Redundant now that RoutingEnabled defaults true (Part II) -- kept for explicit intent.
 				PublishingRoutingService.RoutingEnabled = true;
+			} else if (argument == "--disable-publishing-routing") {
+				// Part II flipped RoutingEnabled on by default for real gameplay; this reproduces the old
+				// off-by-default baseline for a probe comparing against Part I's pre-3b measurements.
+				PublishingRoutingService.RoutingEnabled = false;
 			} else if (argument == "--disable-song-chart-memory") {
 				// Publishing & Cover-Song Phase 4 kill-switch: keep the recent-hit cover pool at the
 				// pre-game 1955-59 set (in-game hits never become coverable).
@@ -532,7 +537,11 @@ public partial class ChartAuditRunner : Node {
 			} else if (argument == "--enable-affiliate-capture") {
 				// Phase 3b support: labels capture publishing on commissioned professional material via
 				// their own arm (tier-scaled, majors most). Only bites economically under live routing.
+				// Redundant now that Enabled defaults true (Part II) -- kept for explicit intent.
 				PublishingCaptureService.Enabled = true;
+			} else if (argument == "--disable-affiliate-capture") {
+				// Reproduces the old off-by-default baseline alongside --disable-publishing-routing.
+				PublishingCaptureService.Enabled = false;
 			} else if (argument == "--disable-album-material-plan") {
 				// §15 kill-switch: revert to independent per-track album material (no LP cohesion).
 				AlbumMaterialPlanner.Enabled = false;
@@ -1147,7 +1156,7 @@ public partial class ChartAuditRunner : Node {
 		marketRevenueWriter.WriteLine("period,week,year,labelTier,releaseFormat,totalMarketUnits,gross,labelNet,distributionIncome,marketNet");
 		marketClearingWriter?.WriteLine("week,year,regionId,activeIntentCount,rawSingleDemand,rawAlbumDemand,rawTotalDemand,serviceableSingleIntent,serviceableAlbumIntent,effectiveAlbumIntent,albumOverlapPressure,singleFormatBudget,albumFormatBudget,serviceableTotalIntent,purchaseCapacity,baseCapacity,albumChannelCapacity,localCleared,unusedAfterLocal,exportBudget,exportedCapacity,importLimit,importedCapacity,spilloverCleared,clearedSingleUnits,clearedAlbumUnits,clearedTotalUnits,unusedCapacity,rationingFactor,physicalBackorders,marketDisplacedDemand,residualDisplacedDemand,inventoryViolationCount,allocationViolationCount,reconciliationDelta,settlementDelta");
 		marketSpilloverWriter?.WriteLine("week,year,donorRegionId,recipientRegionId,donorUnusedLocal,donorExportBudget,recipientResidualDemand,recipientImportLimit,transferredCapacity,clearedSingleUnits,clearedAlbumUnits,edgeViolationCount,reconciliationDelta");
-		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,releaseLane,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount,publishingIncome,artistOwnsPublishing,publishingControl,publishingCounterparty,publishingControllerLabelId,externalPublishingLeakage,publishingTransferOut");
+		completedWeekSettlementWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,format,releaseLane,genre,regionalUnits,totalUnits,gross,manufacturingCost,artistRoyalty,distributionSkim,labelNet,distributionRecipientLabelId,distributionIncome,marketNet,retiredAfterSettlement,bookedCount,auditedCount,publishingIncome,artistOwnsPublishing,publishingControl,publishingCounterparty,publishingControllerLabelId,externalPublishingLeakage,publishingTransferOut,mechanicalRoyalty");
 		completedWeekSettlementRegionalWriter?.WriteLine("week,year,settlementId,recordId,regionId,rawIntent,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,inventoryMovement");
 		albumRealizationBridgeWriter?.WriteLine("week,year,settlementId,recordId,labelId,labelTier,genre,regionId,releaseYear,ageWeeks,buyerPool,awareness,observedPenetration,effectivePenetration,peakEffectivePenetration,exhaustion,catalogDecayMultiplier,formatTilt,conversion,cannibalizationSuppression,rawDemandBeforeCannibalization,rawDemandAfterCannibalization,roundedRawIntent,unitsInStoresBeforeSale,storeCapacity,serviceableIntent,localCleared,spilloverCleared,finalCleared,physicalBackorders,marketDisplacedDemand,currentPosition,weeksSinceLastCharted,weeksSinceSalesAboveFloor,retirementFloor,retiredAfterSettlement");
 		formatMemoryRevisionWriter?.WriteLine("week,year,releaseId,labelId,projectId,releaseLane,estimatorLane,format,genre,releaseAge,revisionKind,revisionOrdinal,releaseTimeExpectedNet,ageMatchedExpectedNet,realizedNetToDate,estimatedOutcomeNet,opportunityScale,normalizedResidual,maturityWeight,recencyWeight,replacedPriorRevision,finalized,nonFiniteViolation");
@@ -1691,7 +1700,8 @@ public partial class ChartAuditRunner : Node {
 				F(entry.Gross), F(entry.ManufacturingCost), F(entry.ArtistRoyalty), F(entry.DistributionSkim), F(entry.LabelNet), Csv(entry.DistributionRecipientLabelId), F(entry.DistributionIncome), F(entry.MarketNet),
 				entry.RetiredAfterSettlement ? "true" : "false", entry.BookedCount.ToString(CultureInfo.InvariantCulture), entry.AuditedCount.ToString(CultureInfo.InvariantCulture),
 					F(entry.PublishingIncome), entry.ArtistOwnsPublishing ? "true" : "false",
-					Csv(entry.PublishingControl.ToString()), Csv(entry.PublishingCounterparty.ToString()), Csv(entry.PublishingControllerLabelId), F(entry.ExternalPublishingLeakage), F(entry.PublishingTransferOut)
+					Csv(entry.PublishingControl.ToString()), Csv(entry.PublishingCounterparty.ToString()), Csv(entry.PublishingControllerLabelId), F(entry.ExternalPublishingLeakage), F(entry.PublishingTransferOut),
+					F(entry.MechanicalRoyalty)
 			}));
 			foreach (ChartManager.CompletedWeekSettlementRegion region in entry.Regions ?? Array.Empty<ChartManager.CompletedWeekSettlementRegion>()) {
 				completedWeekSettlementRegionalWriter?.WriteLine(string.Join(",", new[] {

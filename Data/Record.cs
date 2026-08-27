@@ -64,6 +64,15 @@ public partial class Record : Resource {
 	[Export(PropertyHint.Range, "0,1")] public float standardDurability;
 	[Export(PropertyHint.Range, "0,1")] public float arrangementOriginality;
 	[Export(PropertyHint.Range, "0,1")] public float professionalPolish;
+
+	// Player-only (PublishingCoverSongDirective Part II, §II.0): a 45's B-side is never its own market
+	// record -- PlayerDesk drops the B-side's Record object once it ships -- so its song-control facts
+	// are snapshotted here, onto the A-side, at release time. Lets MechanicalRoyaltyService charge the
+	// flip's own 2c/copy for the life of the pressing without keeping a whole second Record alive.
+	[Export] public string bSideSongId;
+	[Export] public PublishingControlType bSidePublishingControl = PublishingControlType.Unknown;
+	[Export] public string bSidePublishingControllerLabelId;
+	[Export] public string bSidePublishingControllerArtistId;
 }
 
 public enum ReleaseFormat { Single, Album, EP }

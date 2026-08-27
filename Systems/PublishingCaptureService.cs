@@ -17,7 +17,11 @@
 /// Rates are provisional and re-tuned against the decade leakage trajectory before 3b ships.
 /// </summary>
 public static class PublishingCaptureService {
-	public static bool Enabled = false;
+	// Publishing & Cover-Song Directive Part II: live by default alongside PublishingRoutingService --
+	// without affiliate capture, live routing hits Majors hardest (the exact backwards result this
+	// service was built to fix; see the class doc above). --disable-affiliate-capture reproduces the
+	// old off-by-default baseline.
+	public static bool Enabled = true;
 
 	public static void MaybeCapture(Record record, SelectedSongMaterial material, AILabel label) {
 		if (!Enabled || record == null || label == null || material == null) return;

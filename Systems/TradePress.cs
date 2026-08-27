@@ -77,3 +77,37 @@ public sealed class TradeAdSaveData {
 		PurchasedWeek = PurchasedWeek, ExpiresWeek = ExpiresWeek
 	};
 }
+
+// ============================================================================================
+// PUBLISHING & COVER-SONG DIRECTIVE PART II, §II.2 -- "WATCH THE TRADES FOR YOUR OWN SONG."
+//
+// Purely observational: the existing material-selection pipeline already lets an AI act organically
+// cover a player's charted hit (SongMaterialSelectionService.BuildRecentHitCover reads the coverable
+// pool the same way for every songId, player-originated or not -- see PlayerDesk.TradePress.cs for
+// the weekly scan). This type just reports that it happened; it causes nothing and blocks nothing.
+// ============================================================================================
+public sealed class CoverNotice {
+	public string OriginalRecordId;
+	public string CoveringRecordId;
+	public string CoveringArtistName;
+	public string CoveringLabelName;
+	public int NoticedWeek;
+}
+
+public sealed class CoverNoticeSaveData {
+	public string OriginalRecordId { get; set; }
+	public string CoveringRecordId { get; set; }
+	public string CoveringArtistName { get; set; }
+	public string CoveringLabelName { get; set; }
+	public int NoticedWeek { get; set; }
+
+	public static CoverNoticeSaveData From(CoverNotice n) => new() {
+		OriginalRecordId = n.OriginalRecordId, CoveringRecordId = n.CoveringRecordId,
+		CoveringArtistName = n.CoveringArtistName, CoveringLabelName = n.CoveringLabelName, NoticedWeek = n.NoticedWeek
+	};
+
+	public CoverNotice ToNotice() => new() {
+		OriginalRecordId = OriginalRecordId, CoveringRecordId = CoveringRecordId,
+		CoveringArtistName = CoveringArtistName, CoveringLabelName = CoveringLabelName, NoticedWeek = NoticedWeek
+	};
+}
