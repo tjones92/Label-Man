@@ -4668,6 +4668,15 @@ public partial class CompetitorManager : Node {
 	public bool HasProvenBreakoutIn(AILabel label, string regionId) =>
 		label != null && !string.IsNullOrEmpty(regionId) && GetProvenBreakoutRegions(label).Contains(regionId);
 
+	/// <summary>The same regional-breakout bar <see cref="GetProvenBreakoutRegions"/> applies, exposed
+	/// read-only for the promo mechanic directive's §6.3 breakout listing -- a per-RECORD read of
+	/// RegionalRecordData.peakBreakoutScore, not the label-wide aggregate above.</summary>
+	public float RegionalBreakoutDealThreshold => regionalBreakoutDealThreshold;
+
+	/// <summary>Directive §6.3: another label's display name, for the trade page's breakout column
+	/// ("other labels' breakouts included"). Null if the id doesn't resolve to an AI label.</summary>
+	public string GetLabelDisplayName(string labelId) => GetLabel(labelId)?.labelName;
+
 	// Directive §5.1: below regionalBreakoutDealThreshold, a house visit is a real pitch that can be
 	// turned down ("I don't hear it") rather than an automatic yes -- and if it lands anyway, it lands
 	// cold: back of the pile, not a courted line. A proven region always gets taken -- that's the payoff
@@ -4683,7 +4692,12 @@ public partial class CompetitorManager : Node {
 	/// caller whether there was even a house to pitch, so a structural "no room anywhere" reads
 	/// differently from a real pitch that got turned down.
 	/// </summary>
-	public IndependentDistributor PlacePlayerLine(AILabel label, string regionId, out bool proven, out bool anyHouseAvailable) {
+	/// <summary><paramref name="acceptBonus"/> (promo mechanic directive §6.1): a live trade-press pick
+	/// on the label's catalogue nudges an unproven house past "I don't hear it" -- the trades talking to
+	/// the trade, exactly the distributor-facing event a review was historically for. Zero by the one
+	/// caller (PlayerDesk.PlaceLine) whenever nothing is currently in print, so behaviour is unchanged
+	/// until §6.1 has something to say.</summary>
+	public IndependentDistributor PlacePlayerLine(AILabel label, string regionId, float acceptBonus, out bool proven, out bool anyHouseAvailable) {
 		proven = false;
 		anyHouseAvailable = false;
 		if (label == null || string.IsNullOrEmpty(regionId)) return null;
@@ -4698,7 +4712,7 @@ public partial class CompetitorManager : Node {
 
 		// Below the bar, "I don't hear it" is the honest outcome most of the time -- proof is what
 		// turns a warehouse visit into a sure thing.
-		if (!proven && GD.Randf() > UnprovenLineAcceptChance) return null;
+		if (!proven && GD.Randf() > UnprovenLineAcceptChance + Mathf.Max(0f, acceptBonus)) return null;
 		if (!house.AddClient(label.labelId)) return null;
 
 		label.independentDistributionRegions.Add(regionId);

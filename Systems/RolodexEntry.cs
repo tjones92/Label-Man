@@ -39,6 +39,12 @@ public sealed class RolodexEntry {
     // is untouched by it.
     public bool professionallyBurned;
 
+    // Directive §3.3: OfferToBringIt sets a soft appointment -- "he'll expect you" -- consumed by a
+    // Wait for Him visit at this DJ's station stop for a bonus, and lost (a small rapport cost, applied
+    // when it expires unfulfilled) if you never show. Empty recordId = no appointment standing.
+    public string appointmentRecordId = "";
+    public int appointmentExpiresWeek;
+
     // Record-memory (Rolodex Phase 5): a Personal Pitch stakes your word on a record. Settled some weeks
     // later against the record's ACTUAL sales since the pitch -- never invented, always the real settlement.
     public sealed class PendingRecordMemory {
@@ -140,6 +146,8 @@ public sealed class RolodexEntrySaveData {
     public bool   PayolaBurned  { get; set; }
     public bool   ShiftKnown    { get; set; }
     public bool   ProfessionallyBurned { get; set; }
+    public string AppointmentRecordId  { get; set; } = "";
+    public int    AppointmentExpiresWeek { get; set; }
     public List<PendingRecordMemorySaveData> PendingMemories { get; set; } = new();
     public List<string> Log     { get; set; } = new();
 
@@ -149,6 +157,7 @@ public sealed class RolodexEntrySaveData {
         YouOweThem = e.youOweThem, TheyOweThem = e.theyOweThem,
         PayolaBurned = e.payolaBurned, ProfessionallyBurned = e.professionallyBurned,
         ShiftKnown = e.shiftKnown,
+        AppointmentRecordId = e.appointmentRecordId, AppointmentExpiresWeek = e.appointmentExpiresWeek,
         PendingMemories = e.pendingMemories.ConvertAll(PendingRecordMemorySaveData.From),
         Log = new List<string>(e.log)
     };
@@ -160,6 +169,7 @@ public sealed class RolodexEntrySaveData {
         youOweThem = YouOweThem, theyOweThem = TheyOweThem,
         payolaBurned = PayolaBurned, professionallyBurned = ProfessionallyBurned,
         shiftKnown = ShiftKnown,
+        appointmentRecordId = AppointmentRecordId ?? "", appointmentExpiresWeek = AppointmentExpiresWeek,
         pendingMemories = (PendingMemories ?? new List<PendingRecordMemorySaveData>()).ConvertAll(m => m.ToMemory()),
         log = Log ?? new List<string>()
     };

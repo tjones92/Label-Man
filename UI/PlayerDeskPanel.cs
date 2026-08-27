@@ -1180,13 +1180,14 @@ public partial class PlayerDeskPanel : Control {
 		// or service (restock + collect, once a stop already has history) ---
 		Heading($"STOPS IN {here.name.ToUpper()}");
 		List<(string RecordId, string Title, int OnHand)> onHand = desk.PressedSinglesOnHand().ToList();
+		List<(string RecordId, string Title, int PromoOnHand)> promoOnHand = desk.PromoSinglesOnHand().ToList();
 		List<PlayerDesk.PlayerStop> stopsHere = desk.StopsInCity(here.cityId).ToList();
 		// Flags which stops have a call waiting (directive §4) so the player doesn't have to cross-check
 		// the OFFICE phone list by hand while deciding who to work first.
 		var stopsWithCalls = new HashSet<string>(desk.PendingCalls().Select(c => c.Call.StopId), StringComparer.Ordinal);
-		if (onHand.Count == 0)
+		if (onHand.Count == 0 && promoOnHand.Count == 0)
 			Body(desk.AtHome
-				? "Nothing pressed on hand to sell yet — assemble a single and order a run below, then work a stop once it's in."
+				? "Nothing pressed on hand to sell or service yet — assemble a single and order a run below, then work a stop once it's in."
 				: "Nothing pressed on hand to leave here — you carry stock out from the office.");
 		else if (stopsHere.Count == 0)
 			Body("No named accounts in this town yet.");
@@ -1200,6 +1201,19 @@ public partial class PlayerDeskPanel : Control {
 				singlePick.AddItem($"\"{title}\" — {inHand:N0} on hand");
 			pickRow.AddChild(singlePick);
 			content.AddChild(pickRow);
+
+			// Directive §4: a separate picker for promo stock -- the two pools never convert into each
+			// other, so servicing a station draws from a different list than pitching a shop.
+			var promoPickRow = new HBoxContainer();
+			promoPickRow.AddThemeConstantOverride("separation", 10);
+			promoPickRow.AddChild(FormLabel("Promo copy"));
+			var promoPick = Option();
+			promoPick.CustomMinimumSize = new Vector2(320, 36);
+			foreach ((string _, string title, int inHand) in promoOnHand)
+				promoPick.AddItem($"\"{title}\" — {inHand:N0} promo on hand");
+			promoPickRow.AddChild(promoPick);
+			if (promoOnHand.Count == 0) promoPickRow.AddChild(FormLabel("(none pressed)"));
+			content.AddChild(promoPickRow);
 
 			// Grouped into an expandable list per account kind ("Record Stores", "Jukebox Operators", ...
 			// whatever kinds exist) rather than one flat roster -- a hub town runs a dozen-plus accounts
@@ -1228,6 +1242,10 @@ public partial class PlayerDeskPanel : Control {
 						content.AddChild(BuildVenueRow(stop, onHand, singlePick));
 						continue;
 					}
+					if (kind == PlayerDesk.StopKind.Station) {
+						content.AddChild(BuildStationRow(stop, promoOnHand, promoPick));
+						continue;
+					}
 					int stockHere = stop.OnHand.Values.Sum(lot => lot.Remaining);
 					string relWord = stop.LastVisitWeek == 0 && stop.Relationship <= 0f ? "cold"
 						: stop.Relationship < 0.35f ? "acquainted"
@@ -1240,7 +1258,13 @@ public partial class PlayerDeskPanel : Control {
 						Text = (stopsWithCalls.Contains(stop.StopId) ? "    ☎ " : "    ") + $"{stop.DisplayName} ({relWord})"
 							+ (stockHere > 0 ? $" — {stockHere:N0} on hand" : "")
 							+ (stop.OpenBalance > 0.5f ? $" — ${stop.OpenBalance:N0} owed" : "")
-							+ (stopsWithCalls.Contains(stop.StopId) ? " — they called" : ""),
+							+ (stopsWithCalls.Contains(stop.StopId) ? " — they called" : "")
+							// Directive §7.1: the one or two identified dealers a city's survey/trade
+							// numbers actually come from -- flagged so the player can tell them apart, but
+							// only once he's EARNED that (worked the counter, or asked at the station whose
+							// survey it feeds). "That is the information the early game is actually about,"
+							// so it is not printed free on a shop nobody has walked into.
+							+ (desk.KnowsWhoReports(stop.StopId) ? " — reports" : ""),
 						CustomMinimumSize = new Vector2(400, 32)
 					};
 					stopLabel.AddThemeColorOverride("font_color", Ink);
@@ -1276,6 +1300,66 @@ public partial class PlayerDeskPanel : Control {
 						return true;
 					});
 					row.AddChild(service);
+
+					// Directive §7.2: the honest report verb -- only offered at a dealer the player has
+					// worked out keeps a report (§7.1), and only ever succeeds if he's actually holding and
+					// moving the record. The verb itself stays ungated; this is what's on the SCREEN.
+					if (stop.ReportsToTrades && desk.KnowsWhoReports(stop.StopId)) {
+						var askReport = Btn($"ASK FOR THE REPORT (~{PlayerDesk.AskForReportMinutes}m)");
+						askReport.CustomMinimumSize = new Vector2(200, 32);
+						askReport.Pressed += () => Act(() => {
+							(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
+							PlayerDesk.Instance.AskForTheReport(stop.StopId, recordId, out string message);
+							Say(message);
+							return true;
+						});
+						row.AddChild(askReport);
+					}
+
+					if (kind == PlayerDesk.StopKind.Shop) {
+						// Directive §9: window card -- a bounded, stackable print buy. Needs the record
+						// already placed here (BuyWindowCard checks it) -- the second thing you do, not the first.
+						var windowCard = Btn($"WINDOW CARD (~{PlayerDesk.WindowCardMinutes / 60}h)");
+						windowCard.CustomMinimumSize = new Vector2(150, 32);
+						windowCard.Pressed += () => Act(() => {
+							(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
+							PlayerDesk.Instance.BuyWindowCard(stop.StopId, recordId, out string message);
+							Say(message);
+							return true;
+						});
+						row.AddChild(windowCard);
+
+						// Directive §9: in-store appearance -- needs an act with real local standing, so
+						// it's the second thing you do here too.
+						var inStore = Btn($"IN-STORE (~{PlayerDesk.InStoreAppearanceHours}h)");
+						inStore.CustomMinimumSize = new Vector2(140, 32);
+						inStore.Pressed += () => Act(() => {
+							(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
+							PlayerDesk.Instance.BookInStoreAppearance(stop.StopId, recordId, out string message);
+							Say(message);
+							return true;
+						});
+						row.AddChild(inStore);
+
+						// Directive §7.3: the dishonest verb -- Fixer-gated, only at a reporting dealer,
+						// never once he's burned. A small quantity spinner rather than a fixed count --
+						// "12 copies" was the historical tell, "1" barely moves a survey.
+						if ((stop.ReportsToTrades || stop.ReportsToStationIds.Count > 0) && desk.KnowsWhoReports(stop.StopId) && !stop.HypeBurned
+								&& desk.InstinctProfile.TheFixer >= PlayerDesk.HypeTheCountMinFixer) {
+							var hypeCount = Spin(1, 25, 1, 5);
+							hypeCount.CustomMinimumSize = new Vector2(60, 32);
+							row.AddChild(hypeCount);
+							var hype = Btn($"HYPE THE COUNT (~{PlayerDesk.HypeTheCountMinutes}m)");
+							hype.CustomMinimumSize = new Vector2(180, 32);
+							hype.Pressed += () => Act(() => {
+								(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
+								PlayerDesk.Instance.HypeTheCount(stop.StopId, recordId, (int)hypeCount.Value, out string message);
+								Say(message);
+								return true;
+							});
+							row.AddChild(hype);
+						}
+					}
 
 					// Directive §7: a hired runner's route is built one stop at a time, right where you'd
 					// otherwise work the account yourself -- toggle it on or off here.
@@ -1363,13 +1447,19 @@ public partial class PlayerDeskPanel : Control {
 				foreach ((string recordId, string title, bool inMarket) in singles) {
 					PlayerDesk.PressStock stock = desk.StockFor(recordId);
 					bool repressable = desk.HasBeenPressed(recordId);
-					singlePicker.AddItem($"\"{title}\"{(inMarket ? "" : " (upcoming)")}  —  {(stock?.Remaining ?? 0):N0} in the office{(repressable ? " (repress)" : "")}");
+					singlePicker.AddItem($"\"{title}\"{(inMarket ? "" : " (upcoming)")}  —  {(stock?.Remaining ?? 0):N0} sellable, {(stock?.PromoRemaining ?? 0):N0} promo in the office{(repressable ? " (repress)" : "")}");
 				}
 				pickRow.AddChild(singlePicker);
 				pickRow.AddChild(FormLabel("Qty"));
 				int firstMin = desk.MinimumPressRun(singles[0].RecordId);
 				var qtyInput = Spin(firstMin, 100000, 100, firstMin);
 				pickRow.AddChild(qtyInput);
+				pickRow.AddChild(FormLabel("Promo"));
+				// Directive §3.1: "Suggested UI default on a first run: 120 of 500" -- roughly a quarter
+				// of the minimum run, capped at PressPromoCapFraction. A repress carries no cap, and
+				// opens at zero (see PlayerDesk.SuggestedPromoCount).
+				var promoInput = Spin(0, firstMin, 10, desk.SuggestedPromoCount(singles[0].RecordId, firstMin));
+				pickRow.AddChild(promoInput);
 				content.AddChild(pickRow);
 
 				var runCost = new Label();
@@ -1378,14 +1468,27 @@ public partial class PlayerDeskPanel : Control {
 				void UpdateRunCost() {
 					string recordId = singles[Mathf.Clamp(singlePicker.Selected, 0, singles.Count - 1)].RecordId;
 					bool repress = desk.HasBeenPressed(recordId);
-					float cost = PlayerDesk.PressingCost((int)qtyInput.Value, repress);
-					runCost.Text = $"Run cost: ${cost:N0}  (${cost / Math.Max(1.0, qtyInput.Value):F2}/disc){(repress ? " — repress, no lacquer fee" : "")}";
+					int qty = (int)qtyInput.Value;
+					float cost = PlayerDesk.PressingCost(qty, repress);
+					int promoCap = desk.MaxPromoCount(recordId, qty);
+					promoInput.MaxValue = promoCap;
+					if (promoInput.Value > promoCap) promoInput.Value = promoCap;
+					int promo = (int)promoInput.Value;
+					float promoValue = promo * PlayerDesk.SinglePrice;
+					runCost.Text = $"Run cost: ${cost:N0}  (${cost / Math.Max(1.0, qty):F2}/disc){(repress ? " — repress, no lacquer fee" : "")}"
+						+ (promo > 0 ? $"   ·   {promo:N0} promo = ~${promoValue:N0} of sales given away" : "")
+						+ (repress ? "" : $"   ·   promo capped at {promoCap:N0} ({PlayerDesk.PressPromoCapFraction:P0})");
 				}
 				qtyInput.ValueChanged += _ => UpdateRunCost();
+				promoInput.ValueChanged += _ => UpdateRunCost();
 				singlePicker.ItemSelected += idx => {
-					int minRun = desk.MinimumPressRun(singles[Mathf.Clamp((int)idx, 0, singles.Count - 1)].RecordId);
+					string pickedId = singles[Mathf.Clamp((int)idx, 0, singles.Count - 1)].RecordId;
+					int minRun = desk.MinimumPressRun(pickedId);
 					qtyInput.MinValue = minRun;
 					if (qtyInput.Value < minRun) qtyInput.Value = minRun;
+					// A different title is a fresh ticket -- re-open on that title's suggested promo split
+					// rather than carrying the last one's number across.
+					promoInput.Value = desk.SuggestedPromoCount(pickedId, (int)qtyInput.Value);
 					UpdateRunCost();
 				};
 				UpdateRunCost();
@@ -1394,7 +1497,7 @@ public partial class PlayerDeskPanel : Control {
 				order.CustomMinimumSize = new Vector2(240, 42);
 				order.Pressed += () => Act(() => {
 					(string recordId, _, _) = singles[Mathf.Clamp(singlePicker.Selected, 0, singles.Count - 1)];
-					PlayerDesk.Instance.OrderPressing(recordId, (int)qtyInput.Value, out string message);
+					PlayerDesk.Instance.OrderPressing(recordId, (int)qtyInput.Value, (int)promoInput.Value, out string message);
 					Say(message);
 					return true;
 				});
@@ -1444,11 +1547,130 @@ public partial class PlayerDeskPanel : Control {
 				Body($"    {quantity:N0} of \"{title}\"  —  due {arrives.ToHeadlineString()}");
 		}
 
+		// --- THE MAILING (office only, directive §5): the only way to touch a market you can't drive to ---
+		Heading("THE MAILING");
+		Body($"Office only. {ActionCosts.Planning}h for up to {PlayerDesk.MailingFreePieces} pieces, plus an hour per further " +
+			$"{PlayerDesk.MailingPiecesPerExtraHour}. About ${PlayerDesk.MailerCostPerCopy:F2}/copy for the mailer and postage. " +
+			"Most of it lands in the bin — what lands only just gets him listening.");
+		if (!desk.AtHome) {
+			Body("You mail from the office — drive home to work the list.");
+		} else if (promoOnHand.Count == 0) {
+			Body("No promo copies on hand to mail — press some, or strike a repress all-promo.");
+		} else {
+			List<MarketRegion> regions = (ChartManager.Instance?.GetAllRegions() ?? Enumerable.Empty<MarketRegion>())
+				.OrderBy(r => r.regionName).ToList();
+			if (regions.Count == 0) Body("No market data.");
+			else {
+				var mailRow = new HBoxContainer();
+				mailRow.AddThemeConstantOverride("separation", 10);
+				var mailSinglePick = Option();
+				mailSinglePick.CustomMinimumSize = new Vector2(320, 36);
+				foreach ((string _, string title, int inHand) in promoOnHand)
+					mailSinglePick.AddItem($"\"{title}\" — {inHand:N0} promo on hand");
+				mailRow.AddChild(mailSinglePick);
+
+				var regionPick = Option();
+				regionPick.CustomMinimumSize = new Vector2(240, 36);
+				foreach (MarketRegion r in regions) regionPick.AddItem(r.regionName);
+				mailRow.AddChild(regionPick);
+
+				mailRow.AddChild(FormLabel("Copies"));
+				var mailCount = Spin(1, 500, 5, 25);
+				mailRow.AddChild(mailCount);
+				content.AddChild(mailRow);
+
+				var mailBtn = Btn("MAIL THE LIST");
+				mailBtn.CustomMinimumSize = new Vector2(200, 42);
+				mailBtn.Pressed += () => Act(() => {
+					if (promoOnHand.Count == 0) return false;
+					string recordId = promoOnHand[Mathf.Clamp(mailSinglePick.Selected, 0, promoOnHand.Count - 1)].RecordId;
+					string regionId = regions[Mathf.Clamp(regionPick.Selected, 0, regions.Count - 1)].regionId;
+					PlayerDesk.Instance.MailPromoCopies(recordId, regionId, (int)mailCount.Value, out string message);
+					Say(message);
+					return true;
+				});
+				content.AddChild(mailBtn);
+			}
+		}
+
+		// --- THE TRADES (office only, directive §6.1/§6.3): the review desk and the breakout column ---
+		Heading("THE TRADES");
+		Body($"One submission per record, {ActionCosts.Paperwork}h and one promo copy plus ${PlayerDesk.TradeReviewPostage:F2} postage. " +
+			"A week or two later you hear back — most records got nothing. A real pick talks to distributors " +
+			"and one-stops, not to the public.");
+		if (!desk.AtHome) {
+			Body("You work the trades from the office.");
+		} else {
+			List<RecordRuntimeData> tradeReleased = desk.ReleasedRecords.Where(r => r?.baseRecord != null).ToList();
+			if (tradeReleased.Count == 0) Body("Nothing released yet to submit.");
+			else {
+				foreach (RecordRuntimeData rec in tradeReleased) {
+					string recordId = rec.baseRecord.recordId;
+					string title = rec.baseRecord.title;
+					var row = new HBoxContainer();
+					row.AddThemeConstantOverride("separation", 10);
+					row.AddChild(new Label { Text = $"    \"{title}\"", CustomMinimumSize = new Vector2(260, 32) });
+
+					string status;
+					if (desk.HasPendingTradeSubmission(recordId)) status = "at the desk, waiting to hear back";
+					else {
+						TradeOutcome outcome = desk.ActiveTradeOutcome(recordId);
+						status = outcome != TradeOutcome.Nothing ? $"{PlayerDesk.TradeOutcomeLabel(outcome)} — live"
+							: desk.HasEverSubmittedToTrade(recordId) ? "came back with nothing" : "not submitted";
+					}
+					List<string> breakouts = desk.BreakoutRegionNames(recordId).ToList();
+					if (breakouts.Count > 0) status += $"  ·  BREAKOUT: {string.Join(", ", breakouts)}";
+					TradeAdTier? activeAd = desk.ActiveTradeAdTier(recordId);
+					if (activeAd.HasValue) status += $"  ·  {PlayerDesk.TradeAdTierName(activeAd.Value)} ad running";
+					row.AddChild(new Label { Text = status, CustomMinimumSize = new Vector2(360, 32) });
+
+					if (!desk.HasEverSubmittedToTrade(recordId)) {
+						var submitBtn = Btn("SUBMIT TO REVIEW DESK");
+						submitBtn.CustomMinimumSize = new Vector2(220, 32);
+						submitBtn.Pressed += () => Act(() => {
+							PlayerDesk.Instance.SubmitToReviewDesk(recordId, out string message);
+							Say(message);
+							return true;
+						});
+						row.AddChild(submitBtn);
+					}
+					content.AddChild(row);
+
+					// Directive §6.2: a guaranteed, paid version of the same signal -- $75/$250/$600, era
+					// rate, not a genuine gamble tier. A full page is most of an $800 label's cash in one line.
+					var adRow = new HBoxContainer();
+					adRow.AddThemeConstantOverride("separation", 10);
+					adRow.AddChild(new Label { Text = "        Trade ad:", CustomMinimumSize = new Vector2(120, 28) });
+					foreach (TradeAdTier tier in new[] { TradeAdTier.QuarterPage, TradeAdTier.HalfPage, TradeAdTier.FullPage }) {
+						var adBtn = Btn($"{PlayerDesk.TradeAdTierName(tier).ToUpper()} (${PlayerDesk.TradeAdCost(tier):N0})");
+						adBtn.CustomMinimumSize = new Vector2(160, 28);
+						adBtn.Pressed += () => Act(() => {
+							PlayerDesk.Instance.BuyTradeAd(recordId, tier, out string message);
+							Say(message);
+							return true;
+						});
+						adRow.AddChild(adBtn);
+					}
+					content.AddChild(adRow);
+				}
+			}
+
+			List<(string LabelName, string Title, string RegionName)> rivalBreakouts = desk.RivalBreakoutListings().Take(6).ToList();
+			if (rivalBreakouts.Count > 0) {
+				Body("This week's breakout column, elsewhere:");
+				foreach ((string labelName, string title, string regionName) in rivalBreakouts)
+					Body($"    {labelName} — \"{title}\" breaking out in {regionName}");
+			}
+		}
+
 		// --- SET THE RELEASE DATE (office only): date an assembled single now the plant's quoted a turnaround ---
 		if (desk.AtHome) {
 			Heading("SET THE RELEASE DATE");
 			Body($"Costs {PlayerDesk.ScheduleHours} hours. Date an assembled single for after its vinyl lands — check " +
-				"the plant's due dates above. The campaign is charged the day it ships; where it's sold is set below.");
+				"the plant's due dates above. Where it's sold is set below.");
+			Body("The campaign is shipping samples and a trade announcement, charged the day it ships — not a way to " +
+				"buy a hit. An $800 label leaves it at zero and earns its awareness on the road: promo copies in " +
+				"jocks' hands, the mailing, the review desk.");
 			List<PlayerDesk.PlannedRelease> undated = desk.UndatedSingles().ToList();
 			if (undated.Count == 0) Body("No single assembled and waiting on a date.");
 			else {
@@ -1467,7 +1689,11 @@ public partial class PlayerDeskPanel : Control {
 				var daysInput = Spin(1, 120, 1, 21);
 				daysRow.AddChild(daysInput);
 				daysRow.AddChild(FormLabel("Campaign ($)"));
-				var budgetInput = Spin(0, 50000, 5, 400);
+				// Promo mechanic directive §11: "default the field to $0." The awareness a player record
+				// earns is supposed to come off the verbs on this branch -- serviced jocks, the mailing,
+				// the trades, the road -- not off a slider. A pre-filled figure taught the exact opposite
+				// lesson on the one screen where it mattered most.
+				var budgetInput = Spin(0, 50000, 5, 0);
 				daysRow.AddChild(budgetInput);
 				content.AddChild(daysRow);
 
@@ -1904,6 +2130,8 @@ public partial class PlayerDeskPanel : Control {
 				AdvocacyMethod.FavorCalledIn  => "as a favour",
 				AdvocacyMethod.AdvertisingBuy => "as an advertiser",
 				AdvocacyMethod.RivalPressure  => "to beat the competition",
+				AdvocacyMethod.DealerReport   => "on a dealer's report",
+				AdvocacyMethod.RecordHop      => "after a hop he watched himself",
 				_ => "",
 			};
 
@@ -1924,6 +2152,18 @@ public partial class PlayerDeskPanel : Control {
 			detail.AddThemeFontSizeOverride("font_size", 14);
 			detail.AddThemeColorOverride("font_color", Heard);
 			content.AddChild(detail);
+
+			// Directive §10: "a station whose spin tier is sliding should be visible on the card BEFORE
+			// it drops" -- stationsDropped is a one-way latch, so this is the one warning the player gets.
+			if (tier != SpinTier.None && desk.IsSlidingTowardDrop(a.recordId, entry.stationId)) {
+				var warn = new Label {
+					Text = "      Slipping — drive back and work it, or lose the spot for good.",
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				};
+				warn.AddThemeFontSizeOverride("font_size", 14);
+				warn.AddThemeColorOverride("font_color", Rust);
+				content.AddChild(warn);
+			}
 		}
 		Body("A station playing your record is not the same as a station keeping it. Next week's meeting " +
 			"judges it on sales like anything else.");
@@ -2468,6 +2708,7 @@ public partial class PlayerDeskPanel : Control {
 		PlayerDesk.StopKind.Op => "Jukebox Operators",
 		PlayerDesk.StopKind.OneStop => "One-Stops",
 		PlayerDesk.StopKind.Venue => "Church & Hop Tables",
+		PlayerDesk.StopKind.Station => "Radio Stations",
 		_ => kind + "s"
 	};
 
@@ -2498,6 +2739,86 @@ public partial class PlayerDeskPanel : Control {
 			return true;
 		});
 		row.AddChild(work);
+
+		// Directive §8: the record hop -- the act appears, an MC'd table moves several times what a
+		// bare one does, and (win or lose the room) a jock trusted enough to book gets a real advocacy
+		// swing out of it. BookRecordHop itself checks for a trusted-enough jock in this town.
+		var hop = Btn($"BOOK A HOP (~{PlayerDesk.RecordHopHours}h)");
+		hop.CustomMinimumSize = new Vector2(170, 32);
+		hop.Pressed += () => Act(() => {
+			if (onHand.Count == 0) return false;
+			(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
+			PlayerDesk.Instance.BookRecordHop(stop.StopId, recordId, out string message);
+			Say(message);
+			return true;
+		});
+		row.AddChild(hop);
+		return row;
+	}
+
+	/// <summary>Promo mechanic directive §4: the station stop -- no shelf, no balance, just the jock
+	/// you can walk in on. Draws only from the promo picker's pool, never the sellable one.</summary>
+	private Control BuildStationRow(PlayerDesk.PlayerStop stop, List<(string RecordId, string Title, int PromoOnHand)> promoOnHand,
+			OptionButton promoPick) {
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 8);
+
+		var stopLabel = new Label {
+			Text = $"    {stop.DisplayName}",
+			CustomMinimumSize = new Vector2(260, 32)
+		};
+		stopLabel.AddThemeColorOverride("font_color", Ink);
+		row.AddChild(stopLabel);
+
+		string RecordId() => promoOnHand.Count == 0 ? null
+			: promoOnHand[Mathf.Clamp(promoPick.Selected, 0, promoOnHand.Count - 1)].RecordId;
+
+		var dropOff = Btn($"DROP OFF (~{PlayerDesk.DropOffMinutes / 60}h)");
+		dropOff.CustomMinimumSize = new Vector2(120, 32);
+		dropOff.Disabled = promoOnHand.Count == 0;
+		dropOff.Pressed += () => Act(() => {
+			string recordId = RecordId();
+			if (recordId == null) return false;
+			PlayerDesk.Instance.DropOffAtStation(stop.StopId, recordId, out string message);
+			Say(message);
+			return true;
+		});
+		row.AddChild(dropOff);
+
+		var waitFor = Btn($"WAIT FOR HIM (~{PlayerDesk.WaitForHimMinutes / 60}h)");
+		waitFor.CustomMinimumSize = new Vector2(150, 32);
+		waitFor.Disabled = promoOnHand.Count == 0;
+		waitFor.Pressed += () => Act(() => {
+			string recordId = RecordId();
+			if (recordId == null) return false;
+			RolodexCall call = PlayerDesk.Instance.WaitForHimAtStation(stop.StopId, recordId, out string message);
+			Say(message);
+			if (call != null) currentTab = RolodexTab; // the pitch opens in person -- jump to the call scene
+			return true;
+		});
+		row.AddChild(waitFor);
+
+		var leaveIt = Btn($"LEAVE W/ DESK (~{PlayerDesk.LeaveWithReceptionistMinutes}m)");
+		leaveIt.CustomMinimumSize = new Vector2(150, 32);
+		leaveIt.Disabled = promoOnHand.Count == 0;
+		leaveIt.Pressed += () => Act(() => {
+			string recordId = RecordId();
+			if (recordId == null) return false;
+			PlayerDesk.Instance.LeaveWithReceptionist(stop.StopId, recordId, out string message);
+			Say(message);
+			return true;
+		});
+		row.AddChild(leaveIt);
+
+		var survey = Btn($"SURVEY (~{PlayerDesk.AskSurveyMinutes}m, free)");
+		survey.CustomMinimumSize = new Vector2(150, 32);
+		survey.Pressed += () => Act(() => {
+			PlayerDesk.Instance.AskWhatsOnSurvey(stop.StopId, out string message);
+			Say(message);
+			return true;
+		});
+		row.AddChild(survey);
+
 		return row;
 	}
 

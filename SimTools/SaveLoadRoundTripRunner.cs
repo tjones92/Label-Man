@@ -248,6 +248,39 @@ public partial class SaveLoadRoundTripRunner : Node {
 			};
 			CompetitorManager.Instance.SignDistributionDeal(PlayerDesk.Instance.Label, signedDealStage);
 
+			// Promo mechanic directive §14 verification 2: stage every piece of persisted promo state --
+			// a split press run (§3.1), servicing rows at real reporter stations (§3.2), a resolved trade
+			// pick and a live ad (§6.1/§6.2), and the who-reports knowledge (§7.1) -- then prove none of it
+			// is lost in the From/To pattern or wiped by RebuildRadioForLoad, which zeroes runtime panel
+			// state on load. Servicing is keyed by stationId, so it is the row most exposed to that wipe.
+			int promoWeek = ChartManager.Instance.GetCurrentChartWeek();
+			PlayerDesk.Instance.DebugSetPressStock("probe_record_9", 380, 120, 500, 183f);
+			string servicedStationA = promoStations.Count > 0 ? promoStations[0].stationId : null;
+			string servicedStationB = promoStations.Count > 1 ? promoStations[1].stationId : null;
+			if (servicedStationA != null)
+				PlayerDesk.Instance.DebugServiceStation("probe_record_9", servicedStationA, 0.75f, ServicingSource.HandDelivered);
+			if (servicedStationB != null)
+				PlayerDesk.Instance.DebugServiceStation("probe_record_9", servicedStationB, 0.20f, ServicingSource.Mailed);
+			PlayerDesk.Instance.DebugAddTradeSubmission(new TradeSubmission {
+				RecordId = "probe_record_9", SubmittedWeek = promoWeek - 1, ResolveWeek = promoWeek,
+				Outcome = TradeOutcome.Spotlight, PickExpiresWeek = promoWeek + 4
+			});
+			PlayerDesk.Instance.DebugAddTradeAd(new TradeAd {
+				RecordId = "probe_record_9", Tier = TradeAdTier.HalfPage,
+				PurchasedWeek = promoWeek, ExpiresWeek = promoWeek + 3
+			});
+			// §7.1: a reporting dealer somewhere on the map, and the knowledge that he reports.
+			PlayerDesk.PlayerStop reportingStop = cities
+				.SelectMany(c => PlayerDesk.Instance.StopsInCity(c.cityId))
+				.FirstOrDefault(s => s.Kind == PlayerDesk.StopKind.Shop && s.ReportsToTrades);
+			if (reportingStop != null) PlayerDesk.Instance.DebugLearnWhoReports(reportingStop.StopId);
+			// The fan-out fix: a dealer phones his OWN TOWN's stations, not the whole region's panel.
+			int worstFanOut = cities
+				.SelectMany(c => PlayerDesk.Instance.StopsInCity(c.cityId))
+				.Where(s => s.Kind == PlayerDesk.StopKind.Shop && s.ReportsToTrades)
+				.Select(s => s.ReportsToStationIds.Count)
+				.DefaultIfEmpty(0).Max();
+
 			// Save-time snapshot of world + player.
 			int week0 = ChartManager.Instance.GetCurrentChartWeek();
 			int labels0 = ChartManager.Instance.GetAllLabels().Count;
@@ -361,6 +394,26 @@ public partial class SaveLoadRoundTripRunner : Node {
 				&& activeDeal1.origin == DealOrigin.DistributorCourted && activeDeal1.ownsMasters;
 			GD.Print($"ACTIVE_DEAL_ROUNDTRIP found={activeDeal1 != null} distributor={activeDeal1?.distributorId} ownsMasters={activeDeal1?.ownsMasters} ok={activeDealOk}");
 
+			// Promo mechanic directive §14 verification 2: everything staged above should have come back.
+			PlayerDesk.PressStock promoStock1 = PlayerDesk.Instance.StockFor("probe_record_9");
+			bool promoStockOk = promoStock1 != null && promoStock1.Remaining == 380 && promoStock1.PromoRemaining == 120
+				&& promoStock1.TotalPressed == 500 && Math.Abs(promoStock1.TotalSpent - 183f) < 0.01f;
+			bool servicingOk = servicedStationA == null
+				|| (PlayerDesk.Instance.IsServiced("probe_record_9", servicedStationA)
+					&& Math.Abs(PlayerDesk.Instance.ServicingConviction("probe_record_9", servicedStationA) - 0.75f) < 0.001f
+					&& (servicedStationB == null
+						|| (PlayerDesk.Instance.IsServiced("probe_record_9", servicedStationB)
+							&& Math.Abs(PlayerDesk.Instance.ServicingConviction("probe_record_9", servicedStationB) - 0.20f) < 0.001f)));
+			bool tradePickOk = PlayerDesk.Instance.ActiveTradeOutcome("probe_record_9") == TradeOutcome.Spotlight;
+			bool tradeAdOk = PlayerDesk.Instance.ActiveTradeAdTier("probe_record_9") == TradeAdTier.HalfPage;
+			bool knowsReportsOk = reportingStop == null || PlayerDesk.Instance.KnowsWhoReports(reportingStop.StopId);
+			// A dealer reports to at most his own town's one or two stations (directive §7.1), never the
+			// region's whole reporter panel -- the bug that made one favour a region-wide advocacy grant.
+			bool fanOutOk = worstFanOut <= 2;
+			GD.Print($"PROMO_ROUNDTRIP stock={promoStockOk} (rem={promoStock1?.Remaining} promo={promoStock1?.PromoRemaining}) " +
+				$"servicing={servicingOk} tradePick={tradePickOk} tradeAd={tradeAdOk} knowsReports={knowsReportsOk} " +
+				$"maxStationsPerDealer={worstFanOut} fanOut={fanOutOk}");
+
 			// Advance one week past the load. This is the exact path that regressed: the post-load settlement
 			// rejects as out-of-order if CompetitorManager's lastBookedSettlementId wasn't restored in step with
 			// the chart week. A throw here surfaces via the outer catch as SAVELOAD_INTEGRATION_ERROR.
@@ -393,6 +446,12 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (!masterLeasedOk) fails.Add("leasedMasterExpiryWeek lost on round-trip");
 			if (!pendingOfferOk) fails.Add("pendingDistributionOffer lost on round-trip");
 			if (!activeDealOk) fails.Add("player Label.activeDeal lost on round-trip");
+			if (!promoStockOk) fails.Add("PressStock.PromoRemaining lost on round-trip");
+			if (!servicingOk) fails.Add("RecordServicing lost on round-trip (RebuildRadioForLoad wipe?)");
+			if (!tradePickOk) fails.Add("TradeSubmission lost on round-trip");
+			if (!tradeAdOk) fails.Add("TradeAd lost on round-trip");
+			if (!knowsReportsOk) fails.Add("knownReportingStopIds lost on round-trip");
+			if (!fanOutOk) fails.Add($"reporting fan-out {worstFanOut} stations per dealer (expected <= 2)");
 
 			SaveGameService.Delete(slot);
 			if (fails.Count == 0) {
