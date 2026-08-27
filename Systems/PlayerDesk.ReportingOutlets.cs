@@ -122,6 +122,12 @@ public partial class PlayerDesk : Node {
 		Label.cashReserves -= cost;
 		Label.monthlyExpenses += cost;
 		lot.Remaining -= count; // genuinely sold, through kids and cousins -- his report is real
+		// The units chart same as any other trunk sale (§7.3: "the units do count, because they were
+		// bought") -- swept into the weekly chart total at settlement (TakeWeeklyTrunkUnits). No revenue
+		// follows them in: the label eats the full list price, so gross/royalty/net stay untouched.
+		weeklyTrunkUnits.TryGetValue(recordId, out int runningUnits);
+		weeklyTrunkUnits[recordId] = runningUnits + count;
+		weeklyTrunkUnitsSold += count;
 		string title = TitleForRecord(recordId);
 
 		GameDate date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
