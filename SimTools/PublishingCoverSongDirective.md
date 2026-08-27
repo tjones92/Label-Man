@@ -1,5 +1,10 @@
 # Publishing & Cover-Song Directive
 
+> **This file has two halves.** **Part I** (below) is the **AI economy** — Phases 0-5, all implemented
+> and decade-gated. Read it as a finished work log. **Part II** (at the end) is the **player half**,
+> which is *not built*: the mechanical-royalty rule, the cover threat, and the player's publishing
+> verbs. If you are here to build something, you want Part II.
+
 Branch: `publishing-mechanic` (a fresh branch; the scouting-mechanic work is closed). The publishing
 settlement plumbing this extends is already in this branch's baseline — it is **not** on `main`
 (HEAD is 31 commits ahead of `main`), so treat that Phase-4 code as inherited baseline, not something
@@ -451,4 +456,168 @@ only). Covers of a dead label's old hits then pay the successor instead of leaki
   writers/publishers are just the counterparty on the song's rights); flesh out their agency/P&L later.
 - **Re-derive `PublishingShareOfGross`** from measured label profitability once Phase 3 telemetry
   exists, rather than shipping the 0.11 guess into live routing.
-```
+
+---
+
+# Part II — The player half (NOT YET BUILT)
+
+Everything above is the **AI economy**, and it is done: Phases 0-5 are implemented, the decade gate
+passed, and the goldmine routes four ways. Read Part I as a finished work log.
+
+Part II is the gap. Nothing above gives the **player** a single publishing decision. The player never
+picks material, never pays a mechanical, never owns a copyright, and cannot be covered. `songId` is
+stamped on his records by the same `AttachArtistOriginal` funnel that stamps the AI's, and then
+nothing in the player loop ever reads it. This part is the design for that, and it is written to sit
+on top of the promo/distribution/material branches that already shipped — not beside them.
+
+## II.0 Correction — what a mechanical actually attaches to
+
+**A mechanical royalty is a manufacturing-and-sales liability, not a performance one.** This was
+mis-stated during design discussion and the error must not reach code, because it inverts the whole
+shape of the decision.
+
+Free, always, costing nothing but the time it takes:
+- **writing** a song, **teaching** it to an act, **learning** it, rehearsing it, arranging it;
+- **performing** it — on a stage, at a hop, in the studio, on the radio.
+
+A song costs nothing to play. The liability is created the moment you **manufacture copies and sell
+them**. The player's cover of somebody's song is free right up until the plant ships and the trunk
+opens, and then it costs on every copy that leaves.
+
+**The rate.** The Copyright Act of 1909 set a statutory mechanical of **2¢ per composition per
+copy**, and it did not move until the 1976 Act took effect on 1 January 1978 — so it is **2¢ flat
+across the entire game window**, no keyframe, no curve, no era term. That is a gift: it is the one
+period price that needs no calibration.
+
+**Consequences, and they are all good mechanics:**
+
+1. **A 45 has two sides, so it has two compositions.** Two mechanicals: **4¢ a copy**, not 2¢. The
+   B-side is a real economic decision for the first time — and this is exactly why the era's B-sides
+   were so often the act's own throwaway original or a public-domain traditional. The player who
+   fills his B-side with a standard is paying 2¢ a copy for a side nobody bought the record for.
+2. **Public domain is free.** `SongComposition.isPublicDomain` already exists
+   ([SongComposition.cs:151](Data/SongComposition.cs:151)) and the catalog already mints traditional
+   /PD songs ([CompositionCatalogService.cs:182](Systems/CompositionCatalogService.cs:182)). A PD
+   side costs **0¢**. The scrappy label's oldest trick — cut a traditional, own the arrangement, pay
+   nobody — falls straight out of data that is already in the tree.
+3. **If you control the song, you pay yourself.** The mechanical does not leave the company. This is
+   the goldmine stated in per-unit money the player can actually feel at 500 copies, and it is the
+   same `PublishingControlType` routing Phase 3 already validated.
+4. **Charge it on copies SOLD, never on copies pressed.** The 1909 Act read on parts manufactured,
+   but the standing industry practice excluded free goods, and promo copies stamped NOT FOR SALE were
+   not royalty-bearing. So it interlocks cleanly with the promo branch: `PressStock.PromoRemaining`
+   carries **no mechanical**. Giving 120 copies away costs the sale and the vinyl; it does not cost
+   the songwriter. Book the charge in `BookSale` ([PlayerDesk.cs:3350](Systems/PlayerDesk.cs:3350)),
+   next to the artist royalty, at `4¢ × units` less whatever the label controls.
+5. **Airplay is a different royalty and the label is not in it.** Public performance (BMI/ASCAP) pays
+   the **publisher and the writer** off broadcast. The label neither pays it nor collects it —
+   *unless it owns the publishing*, in which case the publisher's half is income the label earns from
+   a record it did not even manufacture. That is the difference between a label and a catalog, and it
+   is the reason to care about owning songs beyond the 2¢.
+
+**Sanity check against the player economy.** At `SinglePrice = 0.89`, a 500 run with 120 promo sells
+380 copies and owes about **$15** in mechanicals on two licensed sides — trivial, and correctly so.
+The number only becomes interesting at the scale where the player is finally making money, which is
+exactly when owning the publishing starts to matter. Do **not** inflate the rate to make it bite
+early; its shape over the decade *is* the lesson.
+
+## II.1 The cover threat — historically real, and correctly a fading one
+
+**Asked and verified: yes, this happened, and it happened the way it was described.** Not merely "two
+acts cut the same song" — the specific, documented practice was a major label **rush-releasing a
+cover of a small label's record, inside that record's own chart life, and beating it with superior
+distribution and promotion**. Cover records were often released within the expected chart life of
+the original and, owing to the majors' superior distribution and promotional power, often outsold
+them ([History of Rock](https://history-of-rock.com/cover_records.htm)). It was the majors'
+deliberate counterattack once the independents began taking the R&B and pop charts
+([Independent Record Companies](https://history-of-rock.com/independent.htm)), and it was racialised:
+white pop acts covering Black artists' singles for a white audience, making far more money than the
+people who made the record ([Rolling Stone](https://www.rollingstone.com/music/music-features/the-problem-with-pop-1013534/)).
+Pat Boone is the canonical case ([White Cover Records](https://20thcenturyhistorysongbook.com/song-book/the-fifties/white-cover-records/)).
+
+**And it was legal by design, which is the mechanic.** Under the 1909 Act's compulsory licence,
+once a song has been recorded and released, anybody may record it — serve notice, pay the statutory
+2¢, and no permission is needed
+([Cover version](https://en.wikipedia.org/wiki/Cover_version)). The tree already knows this:
+`SongComposition.compulsoryMechanicalAvailable` ([SongComposition.cs:102](Data/SongComposition.cs:102))
+and the note in [PublishingCaptureService.cs:8](Systems/PublishingCaptureService.cs:8) that recording
+a song never transfers its publisher. **The player must not be given any verb that blocks a cover.**
+There is no such verb in history and inventing one would be the single worst thing this branch could
+do.
+
+**The critical correction to the naive design: it was already dying at the 1960 start.** The practice
+peaked roughly 1954-56. By the mid-to-late fifties original versions began to dominate the charts
+([covers](https://www.history-of-rock.com/covers.htm)), because teenagers had acquired real buying
+power and began buying **the artist, not the song**
+([History of Rock](https://history-of-rock.com/cover_records.htm)). The game opens in 1960, on the
+tail of this. So model it as a **threat that is real in 1960-62 and largely gone by mid-decade** — a
+decade-weighted hazard, never a flat one. A flat implementation would get the shape of the decade
+exactly wrong and would also make the mid-60s feel punitive for no historical reason.
+
+Author it as a keyframed curve next to the existing era curves — the same shape discipline the promo
+directive's hop curve and `PlayerStopFactory.JukeboxEraCurve` already use. Strongest 1960, decaying
+to near-zero by 1965-66. What replaces it after that is not covering but **buying**: the majors
+increasingly bought the indie's master or distributed the indie outright, both of which the
+distribution branch already models (`IsMasterOut`, master sale/lease,
+[PlayerDesk.cs:3684](Systems/PlayerDesk.cs:3684)).
+
+### II.1.1 What the player can actually do about it
+
+Three defences, and the point of the design is that **all three already exist in the tree** — this
+section wires meaning onto built machinery rather than adding a system.
+
+1. **Be fast and be established.** A cover lands inside the original's chart life; a record that has
+   already broken its market survives one, and a record that has not, does not. This is the entire
+   promo branch — servicing, the road, the survey, the breakout listing — given a consequence with
+   teeth. It is the *only* defence available on a song the player does not control.
+2. **Own the publishing, and the disaster becomes the payday.** If the player controls the
+   composition, the major's cover **pays him** — the mechanical on every copy the major sells, plus
+   the publisher's half of the airplay on a record he had no hand in. Phase 3 already routes exactly
+   this (`OtherLabelAffiliate` transfer, validated at 0→0.50% of gross over the decade run). A player
+   whose act writes its own material, and who kept the publishing, wants to be covered by a major.
+   **That inversion is the best single loop this branch can offer** and it needs no new economics —
+   only a player surface on the routing that already works.
+3. **Sell the master instead of losing to it.** A major that has noticed the record has three moves:
+   cover it, buy it, or distribute it. Which one the player gets should turn on what he owns and how
+   far the record has already travelled — and the buy/distribute branches are built
+   (`IsMasterOut`, `MasterLeaseTermWeeks`, `PendingDistributionOffer`).
+
+The lesson the player should learn the hard way in 1960 and act on for the rest of the decade:
+**a hit you don't own is a loan to somebody bigger.**
+
+## II.2 Player verbs (to be specified before implementation)
+
+Sketch only — this is the part that needs a design pass, not code:
+
+- **Choose the material** at the point the player cuts a side. The AI's
+  `SongMaterialSelectionService` picks from the calibrated mix prior; the player should pick from a
+  *legible list* — his act's own songs, a standard, a PD traditional, a recent hit worth covering, or
+  a professional song he has to go and get. Each with its mechanical cost, its familiarity, and its
+  ownership consequence stated in plain money on the same screen.
+- **Get a song** — the publisher's office / the writer's demo, the material-sourcing counterpart to
+  the Rolodex call. The `SourceMix`/commissioning step from the player-loop branch is the precedent
+  and should be extended, never duplicated.
+- **Keep the publishing** — the negotiation. `labelOwnsPublishing` is currently a bit flipped by a
+  Visionary manager deal; player-side it should be a term the player argues for at signing, in the
+  contract mini-game that already exists.
+- **Register the copyright / set up the publishing arm** — the one-off that converts a label into a
+  catalog, and the precondition for defence 2 above.
+- **Watch the trades for your own song** — a cover of the player's record is a trade-page event
+  (promo directive §6.3 already renders a live trade page), and it should arrive as news, not as a
+  silent number.
+
+## II.3 Wall
+
+- **Never** add a verb that blocks or vetoes a cover. The compulsory licence is the historical fact
+  and the mechanic.
+- **Never** charge a mechanical on writing, teaching, learning, rehearsing, or performing. Copies
+  sold, only.
+- **Never** charge a mechanical on `PressStock.PromoRemaining`. Free goods are not royalty-bearing.
+- 2¢ per composition per copy is **flat 1960-69**. Do not curve it, do not scale it to founding
+  capital, do not "balance" it.
+- The cover threat is **decade-weighted and decaying**, strongest at the 1960 start. A flat threat is
+  historically wrong and makes the mid-decade punitive.
+- Publishing stays a **reallocation** (Part I, flag 4). Part II must not become the `+= pool` bug by
+  the back door just because the counterparty is now the player.
+- The AI half is calibrated and passed a decade gate. Every verb here is **player-only**; hold the
+  same byte-identity discipline the promo branch used ([[probe-run-byte-comparison-proves-inertness]]).
