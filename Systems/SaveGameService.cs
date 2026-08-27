@@ -260,6 +260,17 @@ public sealed class PlayerSaveData {
 	public Dictionary<string, List<RepertoireSaveData>> Repertoire { get; set; } = new();
 	public List<CoverRehearsalSaveData> Rehearsals { get; set; } = new();  // covers in progress, not yet in a set
 	public List<string> ShippedBSideRecordIds { get; set; } = new();       // B-side masters that shipped on a single's flip
+	// Dealer-margin-and-flip directive §3.2/§3.5.4: records that already resolved a flip event (split
+	// action or a reversal), plus the week-boundary cursor gating CheckWeeklyFlip the same way
+	// LastCallGenWeek gates CheckWeeklyInboundCalls.
+	public List<string> FlipResolvedRecordIds { get; set; } = new();
+	public int LastFlipCheckWeek { get; set; } = -1;
+	// Dealer-margin-and-flip directive §4, R1: the week-boundary cursor gating CheckWeeklyReturns, same
+	// pattern as LastFlipCheckWeek above. Individual lots' ReturnRequested flag rides on their own
+	// ConsignmentLotSaveData row (see PlayerStopSaveData.OnHand), not here.
+	public int LastReturnCheckWeek { get; set; } = -1;
+	// Dealer-margin-and-flip directive §4, R2: live returnable carton sales.
+	public List<OneStopCartonSaleSaveData> OneStopCartonSales { get; set; } = new();
 	public List<string> Log { get; set; } = new();
 	public List<WeekBookSaveData> Books { get; set; } = new();
 
@@ -659,6 +670,18 @@ public sealed class RecordSaveData {
 	public float standardDurability { get; set; }
 	public float arrangementOriginality { get; set; }
 	public float professionalPolish { get; set; }
+	// Dealer-margin-and-flip directive §3.1: the flip's own snapshotted identity.
+	public string bSideTitle { get; set; }
+	public int bSidePrimaryGenre { get; set; }
+	public float bSideHookStrength { get; set; }
+	public float bSideProductionQuality { get; set; }
+	public float bSideDanceability { get; set; }
+	public float bSideOriginality { get; set; }
+	public bool bSideIsPlugSide { get; set; }
+	public string bSideSongId { get; set; }
+	public int bSidePublishingControl { get; set; }
+	public string bSidePublishingControllerLabelId { get; set; }
+	public string bSidePublishingControllerArtistId { get; set; }
 
 	public static RecordSaveData From(Record r) => new() {
 		recordId = r.recordId, title = r.title, artistName = r.artistName, artistId = r.artistId,
@@ -679,7 +702,14 @@ public sealed class RecordSaveData {
 		songwriterShares = r.songwriterShares ?? Array.Empty<float>(),
 		compositionQuality = r.compositionQuality, compositionHook = r.compositionHook, lyricQuality = r.lyricQuality,
 		songFamiliarityAtRelease = r.songFamiliarityAtRelease, standardDurability = r.standardDurability,
-		arrangementOriginality = r.arrangementOriginality, professionalPolish = r.professionalPolish
+		arrangementOriginality = r.arrangementOriginality, professionalPolish = r.professionalPolish,
+		bSideTitle = r.bSideTitle, bSidePrimaryGenre = (int)r.bSidePrimaryGenre,
+		bSideHookStrength = r.bSideHookStrength, bSideProductionQuality = r.bSideProductionQuality,
+		bSideDanceability = r.bSideDanceability, bSideOriginality = r.bSideOriginality,
+		bSideIsPlugSide = r.bSideIsPlugSide, bSideSongId = r.bSideSongId,
+		bSidePublishingControl = (int)r.bSidePublishingControl,
+		bSidePublishingControllerLabelId = r.bSidePublishingControllerLabelId,
+		bSidePublishingControllerArtistId = r.bSidePublishingControllerArtistId
 	};
 
 	public Record ToRecord() => new() {
@@ -701,7 +731,14 @@ public sealed class RecordSaveData {
 		songwriterShares = songwriterShares ?? Array.Empty<float>(),
 		compositionQuality = compositionQuality, compositionHook = compositionHook, lyricQuality = lyricQuality,
 		songFamiliarityAtRelease = songFamiliarityAtRelease, standardDurability = standardDurability,
-		arrangementOriginality = arrangementOriginality, professionalPolish = professionalPolish
+		arrangementOriginality = arrangementOriginality, professionalPolish = professionalPolish,
+		bSideTitle = bSideTitle, bSidePrimaryGenre = (Genre)bSidePrimaryGenre,
+		bSideHookStrength = bSideHookStrength, bSideProductionQuality = bSideProductionQuality,
+		bSideDanceability = bSideDanceability, bSideOriginality = bSideOriginality,
+		bSideIsPlugSide = bSideIsPlugSide, bSideSongId = bSideSongId,
+		bSidePublishingControl = (PublishingControlType)bSidePublishingControl,
+		bSidePublishingControllerLabelId = bSidePublishingControllerLabelId,
+		bSidePublishingControllerArtistId = bSidePublishingControllerArtistId
 	};
 }
 
@@ -935,6 +972,42 @@ public sealed class ConsignmentLotSaveData {
 	public bool RunnerSourced { get; set; }
 	// Directive §9: a live window/counter card at this stop for this record. 0 = none running.
 	public int WindowCardExpiresWeek { get; set; }
+	// Dealer-margin-and-flip directive §4, R1: this lot has gone dead and the stop wants it back.
+	public bool ReturnRequested { get; set; }
+}
+
+/// <summary>Flat save record for one live <see cref="PlayerDesk.OneStopCartonSale"/> (directive §4, R2).</summary>
+public sealed class OneStopCartonSaleSaveData {
+	public string SaleId { get; set; }
+	public string StopId { get; set; }
+	public string RecordId { get; set; }
+	public string ArtistId { get; set; }
+	public int Quantity { get; set; }
+	public int Returned { get; set; }
+	public int ReturnableUnits { get; set; }
+	public int SoldWeek { get; set; }
+	public int ExpiresWeek { get; set; }
+	public bool WasCod { get; set; }
+	public float GrossTotal { get; set; }
+	public float RecoupedTotal { get; set; }
+	public float RoyaltyPaidTotal { get; set; }
+	public float MechanicalTotal { get; set; }
+
+	public static OneStopCartonSaleSaveData From(PlayerDesk.OneStopCartonSale s) => new() {
+		SaleId = s.SaleId, StopId = s.StopId, RecordId = s.RecordId, ArtistId = s.ArtistId,
+		Quantity = s.Quantity, Returned = s.Returned, ReturnableUnits = s.ReturnableUnits,
+		SoldWeek = s.SoldWeek, ExpiresWeek = s.ExpiresWeek, WasCod = s.WasCod,
+		GrossTotal = s.GrossTotal, RecoupedTotal = s.RecoupedTotal,
+		RoyaltyPaidTotal = s.RoyaltyPaidTotal, MechanicalTotal = s.MechanicalTotal,
+	};
+
+	public PlayerDesk.OneStopCartonSale ToSale() => new() {
+		SaleId = SaleId, StopId = StopId, RecordId = RecordId, ArtistId = ArtistId,
+		Quantity = Quantity, Returned = Returned, ReturnableUnits = ReturnableUnits,
+		SoldWeek = SoldWeek, ExpiresWeek = ExpiresWeek, WasCod = WasCod,
+		GrossTotal = GrossTotal, RecoupedTotal = RecoupedTotal,
+		RoyaltyPaidTotal = RoyaltyPaidTotal, MechanicalTotal = MechanicalTotal,
+	};
 }
 
 public sealed class PlayerStopSaveData {

@@ -83,3 +83,31 @@ public struct WholesaleReceivable {
 		Amount = amount;
 	}
 }
+
+/// <summary>
+/// Dealer-margin-and-flip directive §4, R3: the distributor's real returns mechanism -- a HOLD ON
+/// CASH the house books alongside a wholesale billing, never a second charge against units already
+/// billed (CompetitorManager.DeferWholesaleBillings's own long-standing comment is correct that
+/// charging returnAllowance against billed there would take the same loss twice). Rides next to the
+/// WholesaleReceivable it was booked with and matures on the same week, but settles on its own
+/// survive-or-die test (ReleaseOrForfeitWholesaleReturnsReserves) rather than the receivable's
+/// reliability roll. Billing here is a region-week aggregate, not a single record's, so "is the
+/// record still selling" (the directive's framing) becomes "is the label still shipping through
+/// this house in this region" -- the closest thing the settlement actually tracks at this
+/// granularity. Player-only in practice: DeferWholesaleBillings only ever adds one of these when
+/// label.isPlayerOwned, so an AI label's list stays permanently empty.
+/// </summary>
+[Serializable]
+public struct WholesaleReturnsReserve {
+	public int ReleaseWeek;
+	public string DistributorId;
+	public string RegionId;
+	public float Amount;
+
+	public WholesaleReturnsReserve(int releaseWeek, string distributorId, string regionId, float amount) {
+		ReleaseWeek = releaseWeek;
+		DistributorId = distributorId;
+		RegionId = regionId;
+		Amount = amount;
+	}
+}

@@ -516,6 +516,20 @@ public sealed partial class StationNetwork {
 		return Mathf.Clamp(m, 0f, 1f);
 	}
 
+	/// <summary>Dealer-margin-and-flip directive §3.2's genreFitDelta term: the raw segment-weight fit
+	/// only, reusing the real FormatSegments table so it can't drift from the actual candidacy score.
+	/// Deliberately omits the live era extras above (RnB/Soul integration crossover, the album-rock
+	/// crossover ramp, latin-leaning admittance) -- those need per-week station/era state that
+	/// PlayerDesk's flip check doesn't carry, and this is a lightweight weekly input, not a re-run of
+	/// the actual candidacy score.</summary>
+	public static float FormatFitForGenre(Genre genre, StationFormat format) {
+		if (!GenreCatalog.TryGet(genre, out GenreProfile profile) || !FormatSegments.TryGetValue(format, out (string Seg, float W)[] segments)) return 0f;
+		float m = 0f;
+		foreach ((string seg, float w) in segments)
+			m += profile.SegmentWeights.TryGetValue(seg, out float v) ? v * w : 0f;
+		return Mathf.Clamp(m, 0f, 1f);
+	}
+
 	private static void CommitPlaylist(StationRuntime rt, Dictionary<string, SpinTier> next, int week) {
 		// Drops: records that were on the playlist and no longer are -> record the drop week (hysteresis).
 		foreach (var kv in rt.playlist) {

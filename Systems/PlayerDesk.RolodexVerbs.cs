@@ -71,6 +71,21 @@ public partial class PlayerDesk : Node {
 			else if (c.advocacyAlready > 0.01f) { pitch.enabled = false; pitch.disabledReason = CarryingStatus(c); }
 			options.Add(pitch);
 
+			// Directive §3.4: "work the flip" -- he already has the disc, so the ask is narrower than
+			// PersonalPitch and stays on the table even while a PersonalPitch on the plug side is
+			// disabled above (advocacyAlready is about the A-side, not this).
+			if (c.flipWorkable) {
+				var flipPitch = new CallOption {
+					label = "Pitch him the other side",
+					subLabel = $"{PersonalPitchMinMinutes}-{PersonalPitchMaxMinutes} min · make the case for \"{c.baseRecord.bSideTitle}\" instead",
+					approach = RolodexApproach.WorkTheFlip,
+					minutes = PersonalPitchMinMinutes,
+				};
+				if (c.professionallyBurned) { flipPitch.enabled = false; flipPitch.disabledReason = "He doesn't take your word any more."; }
+				else if (c.flipAdvocacyAlready > 0.01f) { flipPitch.enabled = false; flipPitch.disabledReason = "He's already thinking about turning it over."; }
+				options.Add(flipPitch);
+			}
+
 			// Buying airtime is money, not insight -- it is on the table for everybody. What a SUIT adds
 			// is knowing what it is worth, which is why only a SUIT gets the read and the voice tag.
 			options.Add(new CallOption {
@@ -173,7 +188,7 @@ public partial class PlayerDesk : Node {
 		// Defensive: the record or the man can go away between the panel drawing a button and the
 		// player pressing it (a DJ can lose his chair to a payola bust on the week boundary).
 		bool needsRecord = approach is RolodexApproach.PersonalPitch or RolodexApproach.CommercialPitch
-			or RolodexApproach.OfferPayola or RolodexApproach.RivalPressure;
+			or RolodexApproach.OfferPayola or RolodexApproach.RivalPressure or RolodexApproach.WorkTheFlip;
 		if (c.station == null || (needsRecord && !c.HasRecord)) {
 			call.Say(RolodexSceneBeat.Failure, "The line goes dead in the middle of your sentence.");
 			call.stage = CallStage.Resolved;
@@ -208,12 +223,16 @@ public partial class PlayerDesk : Node {
 	private static Objection PickObjection(RolodexCallContext c, RolodexApproach approach) {
 		// Directive §3.3: the most basic thing that can be wrong with a pitch -- he can't play a record
 		// he was never sent, whatever else is true about it. Checked before everything else.
+		bool flip = approach == RolodexApproach.WorkTheFlip;
+		float formatAdmittance = flip ? c.bSideFormatAdmittance : c.formatAdmittance;
+		float production = flip ? c.bSideProduction : c.recordProduction;
+
 		if (c.HasRecord && !c.isServiced) return Objection.NotServiced;
 		if (c.professionallyBurned || (c.youOweThem && GD.Randf() < 0.5f)) return Objection.YouBurnedMeBefore;
-		if (c.HasRecord && c.formatAdmittance < 0.08f)                     return Objection.FormatShutOut;
+		if (c.HasRecord && formatAdmittance < 0.08f)                       return Objection.FormatShutOut;
 		if (c.managerPressureHigh)                                         return Objection.ManagerHeat;
 		if (c.djGreed > 0.55f && c.rapport < 0.15f)                        return Objection.WhatsInItForMe;
-		if (c.HasRecord && c.recordProduction < 0.38f)                     return Objection.ProductionRough;
+		if (c.HasRecord && production < 0.38f)                             return Objection.ProductionRough;
 		if (c.regionalGenreAcceptance < 0.38f)                             return Objection.NoLocalAudience;
 		if (c.artistRecognition < 0.12f && c.unitsTotal < 200)             return Objection.UnknownArtist;
 		if (c.HasRecord && (c.salesSupport < 0.35f || c.unitsTotal < 50))  return Objection.NoSalesSupport;
@@ -251,17 +270,33 @@ public partial class PlayerDesk : Node {
 				+ c.regionalAwareness * 0.40f
 				+ c.instincts.TheStreet * 0.04f
 				- (c.dj != null && c.dj.archetype == DJArchetype.Regional ? 0.12f : 0f),
+			// Directive §3.4: mirrors PersonalPitch, but off the B-side's OWN quality -- the whole point
+			// of working the flip is that it's the other side that's actually working. A lower base than
+			// PersonalPitch: it's a stranger ask (turn over a disc he's already decided about) even when
+			// the music argues for it. No SuitUnderwrite/OfferPayola equivalents -- money buys a look at
+			// the record he was sent, not a second guess about which side of it to play.
+			RolodexApproach.WorkTheFlip =>
+				0.20f
+				+ (c.bSideQuality - 0.5f) * 0.40f
+				+ (c.djGenreAffinity - 1f) * 0.30f
+				+ (c.djTaste - 0.5f) * 0.20f
+				+ c.rapport * 0.30f
+				+ c.instincts.TheEar * 0.045f,
 			_ => 0.5f,
 		};
-		// Format is not an argument you can win. It is the wall.
-		if (c.HasRecord && c.formatAdmittance < 0.08f) chance *= 0.10f;
-		else if (c.HasRecord && c.formatAdmittance < 0.30f) chance *= 0.65f;
+		// Format is not an argument you can win. It is the wall. WorkTheFlip argues the B-side's own
+		// format fit, since that's the side actually being pitched.
+		float formatAdmittance = approach == RolodexApproach.WorkTheFlip ? c.bSideFormatAdmittance : c.formatAdmittance;
+		if (c.HasRecord && formatAdmittance < 0.08f) chance *= 0.10f;
+		else if (c.HasRecord && formatAdmittance < 0.30f) chance *= 0.65f;
 		return Mathf.Clamp(chance, 0.02f, 0.92f);
 	}
 
 	private static string PlayerOpeningLine(RolodexApproach approach, RolodexCallContext c, object payload) => approach switch {
 		RolodexApproach.PersonalPitch =>
 			$"You tell him about \"{c.baseRecord?.title}\" — what it is, who made it, and why you picked up the phone.",
+		RolodexApproach.WorkTheFlip =>
+			$"\"Turn it over,\" you tell him. \"{c.baseRecord?.bSideTitle}\" is the side that's actually working.",
 		RolodexApproach.CommercialPitch =>
 			$"\"We're buying time in this market anyway. We'd rather buy it around a record we believe in.\"",
 		RolodexApproach.OfferPayola =>
@@ -575,7 +610,8 @@ public partial class PlayerDesk : Node {
 		message = "";
 
 		int minutes = call.pendingApproach switch {
-			RolodexApproach.PersonalPitch => PersonalPitchMinMinutes + (int)GD.RandRange(0, PersonalPitchMaxMinutes - PersonalPitchMinMinutes),
+			RolodexApproach.PersonalPitch or RolodexApproach.WorkTheFlip =>
+				PersonalPitchMinMinutes + (int)GD.RandRange(0, PersonalPitchMaxMinutes - PersonalPitchMinMinutes),
 			RolodexApproach.AskForFavor   => AskAFavorMinMinutes + (int)GD.RandRange(0, AskAFavorMaxMinutes - AskAFavorMinMinutes),
 			RolodexApproach.AskForIntroduction => IntroductionMinutes,
 			_ => 10,
@@ -593,6 +629,7 @@ public partial class PlayerDesk : Node {
 
 		switch (call.pendingApproach) {
 			case RolodexApproach.PersonalPitch:      ResolvePitch(call, success, out message); break;
+			case RolodexApproach.WorkTheFlip:        ResolveWorkTheFlip(call, success, out message); break;
 			case RolodexApproach.CommercialPitch:    ResolveAdBuy(call, success, out message); break;
 			case RolodexApproach.OfferPayola:        ResolvePayola(call, success, out message); break;
 			case RolodexApproach.RivalPressure:      ResolveRivalPressure(call, success, out message); break;
@@ -674,6 +711,51 @@ public partial class PlayerDesk : Node {
 		entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". Arguing it for {PitchAdvocacyWeeks} weeks. Rapport +{gain:F2}.");
 		Note($"{entry.displayName} ({c.station.callsign}) will argue \"{c.baseRecord.title}\" at the playlist meeting.");
 		message = $"He'll push it at the meeting -- {c.station.callsign} isn't his to decide.";
+	}
+
+	/// <summary>
+	/// Directive §3.4: "work the flip" -- pitch the B-side to a jock already serviced with the disc.
+	/// A win here never touches the record's real chart candidacy (invariant 3.5.1: the flip never
+	/// adds demand) -- it writes a flip-specific advocacy row, keyed off <see cref="FlipAdvocacyKey"/>
+	/// rather than the record's own id, that only CheckWeeklyFlip ever reads (as an additive boost to
+	/// flipPressure, the same way any advocacy is an add-on rather than a re-weighted term). Reuses
+	/// StationAdvocacyService wholesale; ProcessAdvocacyOutcomes below filters these synthetic rows
+	/// out of the normal spin-tier report, since they were never a claim about the plug side's own
+	/// rotation.
+	/// </summary>
+	private void ResolveWorkTheFlip(RolodexCall call, bool success, out string message) {
+		RolodexCallContext c = call.ctx;
+		RolodexEntry entry = call.entry;
+		var chart = ChartManager.Instance;
+		string flipTitle = c.baseRecord.bSideTitle;
+
+		if (!success) {
+			call.Say(RolodexSceneBeat.Failure, RolodexFragments.Pick(RolodexSceneBeat.Failure, c) ?? "\"No.\"",
+				speaker: entry.displayName);
+			entry.log.Insert(0, $"{Today()} — Pitched the flip, \"{flipTitle}\". He passed.");
+			Note($"Pitched \"{flipTitle}\" (the flip of \"{c.baseRecord.title}\") to {entry.displayName} ({c.station.callsign}) -- no sale.");
+			message = "He passed on the flip.";
+			return;
+		}
+
+		call.Say(RolodexSceneBeat.Success, RolodexFragments.Pick(RolodexSceneBeat.Success, c) ?? "\"All right.\"",
+			speaker: entry.displayName);
+
+		float gain = 0.06f * Mathf.Lerp(0.4f, 1f, c.bSideQuality);
+		float rapportAfter = ApplyRapport(entry, gain);
+		entry.MaybePromoteState(rapportAfter);
+
+		float boost = PitchAdvocacyBase + c.djInfluence * PitchAdvocacyInfluenceBonus
+			+ (call.counterUsed ? 0.04f : 0f);
+		int week = chart?.GetCurrentChartWeek() ?? 0;
+		chart?.Advocacy.Grant(FlipAdvocacyKey(c.baseRecord.recordId), entry.stationId, Label.labelId, entry.djId,
+			boost, week, PitchAdvocacyWeeks, AdvocacyMethod.PersonalPitch);
+
+		call.Say(RolodexSceneBeat.RelationshipAftermath,
+			$"He'll give \"{flipTitle}\" a real listen next time it's on the desk -- that is the whole ask, and it is not nothing.");
+		entry.log.Insert(0, $"{Today()} — Talked him into listening for the flip, \"{flipTitle}\". Rapport +{gain:F2}.");
+		Note($"{entry.displayName} ({c.station.callsign}) is listening for the flip on \"{c.baseRecord.title}\" -- \"{flipTitle}\".");
+		message = "He's open to turning it over, if it comes up.";
 	}
 
 	private void ResolveAdBuy(RolodexCall call, bool success, out string message) {
@@ -981,6 +1063,11 @@ public partial class PlayerDesk : Node {
 
 		foreach (StationAdvocacy a in chart.Advocacy.Active) {
 			if (a.labelId != Label.labelId) continue;
+			// Directive §3.4: flip-pitch advocacy is keyed synthetically (FlipAdvocacyKey) and was never
+			// a claim about the plug side's own rotation -- SpinTierOf would look up a record that does
+			// not exist and silently stay None forever, which reads as "he never played it" rather than
+			// the truth (CheckWeeklyFlip is the only intended consumer). Skip the report for these.
+			if (a.recordId != null && a.recordId.EndsWith("|flip", StringComparison.Ordinal)) continue;
 			RolodexEntry entry = rolodex.FirstOrDefault(e => e.stationId == a.stationId);
 			RadioStation station = chart.GetRadioStation(a.stationId);
 			string call = station?.callsign ?? "the station";

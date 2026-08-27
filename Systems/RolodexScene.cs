@@ -71,6 +71,11 @@ public enum RolodexApproach {
 	OfferPayola,
 	RivalPressure,
 	AskForIntroduction,
+	// Dealer-margin-and-flip directive §3.4: pitch the FLIP side, not the plug side, to a jock who
+	// already has the disc. A distinct approach (not a PersonalPitch payload) because it needs its
+	// own base chance (off the B-side's own quality) and its own effect (a flip-specific advocacy
+	// row -- see PlayerDesk.ResolveWorkTheFlip -- never the record's real chart candidacy).
+	WorkTheFlip,
 	HangUp,
 }
 
@@ -136,6 +141,15 @@ public sealed class RolodexCallContext {
 	// under discussion? Objection.NotServiced and Resolve() both read this -- see PlayerDesk.IsServiced.
 	public bool isServiced;
 	public float servicingConviction;
+
+	// Flip facts (dealer-margin-and-flip directive §3.4): whether "work the flip" is even a live
+	// option at this station right now (single, has an unresolved B-side, hasn't already broken, and
+	// -- since he'd need the actual disc in hand to turn it over -- isServiced above), the B-side's
+	// own quality terms (WorkTheFlip argues a DIFFERENT side than recordHook/recordProduction), and
+	// any flip-specific advocacy this station is already carrying.
+	public bool flipWorkable;
+	public float bSideHook, bSideProduction, bSideOriginality, bSideQuality, bSideFormatAdmittance;
+	public float flipAdvocacyAlready;
 
 	// Trade press facts (directive §6.1): whether a live review pick exists for the record under
 	// discussion, its plain-English name for CiteTradePress's line, and the CounterWeight it's worth --

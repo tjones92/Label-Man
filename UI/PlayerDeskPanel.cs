@@ -1474,7 +1474,7 @@ public partial class PlayerDeskPanel : Control {
 					promoInput.MaxValue = promoCap;
 					if (promoInput.Value > promoCap) promoInput.Value = promoCap;
 					int promo = (int)promoInput.Value;
-					float promoValue = promo * PlayerDesk.SinglePrice;
+					float promoValue = promo * PlayerDesk.ListPrice;
 					runCost.Text = $"Run cost: ${cost:N0}  (${cost / Math.Max(1.0, qty):F2}/disc){(repress ? " — repress, no lacquer fee" : "")}"
 						+ (promo > 0 ? $"   ·   {promo:N0} promo = ~${promoValue:N0} of sales given away" : "")
 						+ (repress ? "" : $"   ·   promo capped at {promoCap:N0} ({PlayerDesk.PressPromoCapFraction:P0})");
@@ -1536,6 +1536,25 @@ public partial class PlayerDeskPanel : Control {
 						return true;
 					});
 					content.AddChild(creditBtn);
+				}
+
+				// Directive §3.4: the label's own decision to reverse the sides, instead of waiting on
+				// the weekly roll -- costs a re-press (all-promo, no lacquer fee) and re-services every
+				// station that already has the disc.
+				if (desk.CanReverseTheSides(picked.RecordId)) {
+					int reverseQty = desk.MinimumPressRun(picked.RecordId);
+					float reverseCost = PlayerDesk.PressingCost(reverseQty, true);
+					Body($"\"{picked.Title}\" has a flip that hasn't broken yet. Reverse the sides yourself: a " +
+						$"{reverseQty:N0}-unit repress, all struck as promo (${reverseCost:N0}), and every station " +
+						"already holding it gets re-serviced.");
+					var reverseBtn = Btn("REVERSE THE SIDES");
+					reverseBtn.CustomMinimumSize = new Vector2(240, 42);
+					reverseBtn.Pressed += () => Act(() => {
+						PlayerDesk.Instance.ReverseTheSidesManually(picked.RecordId, out string message);
+						Say(message);
+						return true;
+					});
+					content.AddChild(reverseBtn);
 				}
 			}
 		}
@@ -1850,9 +1869,11 @@ public partial class PlayerDeskPanel : Control {
 
 		Heading("THE BOOKS");
 		float owed = label.outstandingWholesaleReceivables;
+		float reserved = label.outstandingWholesaleReturnsReserve;
 		Body($"Cash on hand: ${label.cashReserves:N0}\n" +
 			$"Owed to you by wholesalers: ${owed:N0}\n" +
-			$"Written off to short payment and under-reporting: ${label.lifetimeWholesaleWriteOffs:N0}\n" +
+			(reserved > 0.5f ? $"Held back against returns: ${reserved:N0} -- released or written off when the window closes\n" : "") +
+			$"Written off to short payment, under-reporting, and dead returns: ${label.lifetimeWholesaleWriteOffs:N0}\n" +
 			$"Monthly overhead: ${label.GetMonthlyOverhead():N0}   •   last month's profit: ${label.lastMonthlyProfit:N0}");
 
 		Heading("LAST WEEK'S SETTLEMENT");
@@ -2121,10 +2142,17 @@ public partial class PlayerDeskPanel : Control {
 
 		Heading("WHERE IT STANDS");
 		foreach (StationAdvocacy a in live) {
-			RecordRuntimeData rec = desk.ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == a.recordId);
-			string title = rec?.baseRecord?.title ?? "(unknown record)";
+			// Dealer-margin-and-flip directive §3.4: a "work the flip" pitch writes advocacy under a
+			// synthetic recordId (FlipAdvocacyKey) rather than the record's own -- strip the suffix to
+			// find the real record, and render it as its own status line rather than the normal
+			// on-air/meeting one, since there's no spin tier to report for a side that isn't out yet.
+			bool isFlip = a.recordId != null && a.recordId.EndsWith("|flip", StringComparison.Ordinal);
+			string realRecordId = isFlip ? a.recordId[..^"|flip".Length] : a.recordId;
+			RecordRuntimeData rec = desk.ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == realRecordId);
+			string baseTitle = rec?.baseRecord?.title ?? "(unknown record)";
+			string title = isFlip ? $"the flip of \"{baseTitle}\"" : $"\"{baseTitle}\"";
 			int weeksLeft = Mathf.Max(0, a.expiresWeek - week + 1);
-			SpinTier tier = chart.SpinTierOf(entry.stationId, a.recordId);
+			SpinTier tier = isFlip ? SpinTier.None : chart.SpinTierOf(entry.stationId, a.recordId);
 			string how = a.method switch {
 				AdvocacyMethod.PersonalPitch  => "on your word",
 				AdvocacyMethod.FavorCalledIn  => "as a favour",
@@ -2136,11 +2164,13 @@ public partial class PlayerDeskPanel : Control {
 			};
 
 			// The headline is what the station is ACTUALLY doing, not what you bought.
-			string status = tier != SpinTier.None
-				? $"ON THE AIR — {PlayerDesk.TierWord(tier)} rotation"
-				: a.expired ? "Not picked up. His argument has run out."
-				: $"Not on yet — he's still arguing for it ({weeksLeft} more meeting(s))";
-			var head = new Label { Text = $"  \"{title}\" — {status}", AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			string status = isFlip
+				? (a.expired ? "That window's closed -- he never turned it over." : $"He's listening for it ({weeksLeft} more week(s))")
+				: tier != SpinTier.None
+					? $"ON THE AIR — {PlayerDesk.TierWord(tier)} rotation"
+					: a.expired ? "Not picked up. His argument has run out."
+					: $"Not on yet — he's still arguing for it ({weeksLeft} more meeting(s))";
+			var head = new Label { Text = $"  {title} — {status}", AutowrapMode = TextServer.AutowrapMode.WordSmart };
 			head.AddThemeColorOverride("font_color",
 				tier != SpinTier.None ? new Color("4a7a4a") : a.expired ? Rust : Heard);
 			content.AddChild(head);
@@ -2442,6 +2472,7 @@ public partial class PlayerDeskPanel : Control {
 			$"THE FIXER {StarBar(inst.TheFixer / 5f)} ({inst.TheFixer})");
 
 		PhoneSection(desk);
+		ReturnsSection(desk);
 		StaffSection(desk);
 
 		Heading("THE LEDGER");
@@ -2476,6 +2507,63 @@ public partial class PlayerDeskPanel : Control {
 			};
 			line.AddThemeColorOverride("font_color", Ink);
 			content.AddChild(line);
+		}
+	}
+
+	/// <summary>Dealer-margin-and-flip directive §4: R1, dead consignment come back -- a stop this old
+	/// won't take a fresh lot until you clear the one that's dead. R2, a one-stop's return privilege on
+	/// a carton that died. Two different claims (inventory sitting on a shelf vs. a wholesale firm sale),
+	/// so two lists, but the same office readout.</summary>
+	private void ReturnsSection(PlayerDesk desk) {
+		List<(string StopId, string StopName, string CityName, string RecordId, string Title, int Remaining)> pending =
+			desk.PendingReturns().ToList();
+		if (pending.Count > 0) {
+			Heading("WHAT'S COMING BACK");
+			Body("These accounts want dead stock off the shelf -- they won't take a fresh lot of the title until you take it back. No money changes hands; it's yours, less a scuff loss.");
+			foreach (var (stopId, stopName, cityName, recordId, title, remaining) in pending) {
+				var row = new HBoxContainer();
+				row.AddThemeConstantOverride("separation", 10);
+				var lbl = new Label {
+					Text = $"    {stopName} ({cityName}) -- {remaining:N0} of \"{title}\" gone dead",
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				};
+				lbl.AddThemeColorOverride("font_color", Rust);
+				row.AddChild(lbl);
+				var accept = Btn("TAKE IT BACK");
+				accept.Pressed += () => Act(() => {
+					PlayerDesk.Instance.AcceptReturn(stopId, recordId, out string message);
+					Say(message);
+					return true;
+				});
+				row.AddChild(accept);
+				content.AddChild(row);
+			}
+		}
+
+		List<(string SaleId, string StopName, string CityName, string Title, int Returnable, int ExpiresInWeeks)> cartons =
+			desk.PendingOneStopReturns().ToList();
+		if (cartons.Count > 0) {
+			Heading("CARTON RETURN PRIVILEGE");
+			Body("A one-stop's firm sale still carries a return privilege on whatever doesn't move. Exercising it credits what they owe you first, cash only for the rest.");
+			foreach (var (saleId, stopName, cityName, title, returnable, expiresIn) in cartons) {
+				var row = new HBoxContainer();
+				row.AddThemeConstantOverride("separation", 10);
+				var lbl = new Label {
+					Text = $"    {stopName} ({cityName}) -- up to {returnable:N0} of \"{title}\" returnable  •  " +
+						(expiresIn <= 0 ? "window closing" : $"{expiresIn} week{(expiresIn == 1 ? "" : "s")} left"),
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				};
+				lbl.AddThemeColorOverride("font_color", Heard);
+				row.AddChild(lbl);
+				var exercise = Btn("RETURN IT");
+				exercise.Pressed += () => Act(() => {
+					PlayerDesk.Instance.ExerciseOneStopReturn(saleId, returnable, out string message);
+					Say(message);
+					return true;
+				});
+				row.AddChild(exercise);
+				content.AddChild(row);
+			}
 		}
 	}
 

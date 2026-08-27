@@ -73,6 +73,20 @@ public partial class Record : Resource {
 	[Export] public PublishingControlType bSidePublishingControl = PublishingControlType.Unknown;
 	[Export] public string bSidePublishingControllerLabelId;
 	[Export] public string bSidePublishingControllerArtistId;
+
+	// Dealer-margin-and-flip directive §3.1: the flip is a complete second identity riding on one
+	// disc. Everything a record's performance is computed from lives on THIS Record (hookStrength etc.
+	// above), so "the sides reverse" is a field swap between these and their plug-side counterparts --
+	// nothing downstream needs to know, because every consumer already reads the live fields.
+	[Export] public string bSideTitle;
+	[Export] public Genre bSidePrimaryGenre;
+	[Export(PropertyHint.Range, "0,1")] public float bSideHookStrength;
+	[Export(PropertyHint.Range, "0,1")] public float bSideProductionQuality;
+	[Export(PropertyHint.Range, "0,1")] public float bSideDanceability;
+	[Export(PropertyHint.Range, "0,1")] public float bSideOriginality;
+	/// <summary>True once the sides have been reversed at least once (directive invariant 4: a disc
+	/// reverses at most once). False means the disc still ships as pressed -- the A-side plugged.</summary>
+	[Export] public bool bSideIsPlugSide;
 }
 
 public enum ReleaseFormat { Single, Album, EP }

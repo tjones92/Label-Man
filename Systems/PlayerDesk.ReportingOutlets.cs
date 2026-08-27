@@ -114,7 +114,7 @@ public partial class PlayerDesk : Node {
 			message = $"{stop.DisplayName} isn't holding {count:N0} of \"{TitleForRecord(recordId)}\" to buy back.";
 			return false;
 		}
-		float cost = count * SinglePrice;
+		float cost = count * ListPrice;
 		if (Label.cashReserves < cost) { message = $"You're ${cost - Label.cashReserves:N0} short of the ${cost:N0} it'd take."; return false; }
 		if (TimeManager.Instance?.CanAffordMinutes(HypeTheCountMinutes) != true) { message = "Not enough of the day left."; return false; }
 

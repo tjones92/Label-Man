@@ -51,9 +51,31 @@ public partial class PlayerDesk : Node {
 	private const float OneStopServedRelationshipFloor = 0.35f;  // "an op or dealer they already serve" -- friendly or better
 	private const int OneStopCartonDefaultQty = 100;             // "the first 50-200 that move at once"
 	private const int OneStopCartonMaxQty = 200;
-	private const float OneStopUnitPrice = 0.58f;                // wholesale, below the 0.89 retail -- "still fast-ish cash"
+	// Directive §2.6 (A2): a one-stop buys BELOW dealer price (0.63), then marks up to resell to
+	// dealers and ops -- 0.58 was a dealer price wearing a one-stop's name (directive §5.6).
+	private const float OneStopUnitPrice = 0.52f;
 	private const int OneStopWarehouseVisitHours = ActionCosts.QuickMeeting; // 2 -- a real sit-down, not a counter pitch
 	private const int OneStopPaymentTermWeeks = 5;               // "net 30-45" (days) once trusted; COD on the first carton
+	// Directive §4, R2: "exercisable within a window (~8-12 weeks)."
+	private const int OneStopReturnWindowWeeks = 10;
+
+	/// <summary>Directive §4, R2: "grant the one-stop a return privilege of returnAllowance (reuse the
+	/// house band, 0.10-0.35)." A one-stop isn't a real IndependentDistributor -- no DistributionNetwork
+	/// difficulty to price it off -- so this reuses the same NUMERIC band via a stable hash of the stop's
+	/// own id, the same trick RolodexShifts.ShiftOf uses for a jock's day part: the same value every time
+	/// you ask, across a save and load, with nothing new to persist.</summary>
+	private static float OneStopReturnAllowance(string stopId) {
+		int h = StableHash(stopId ?? "");
+		return Mathf.Lerp(0.10f, 0.35f, (h % 1000) / 1000f);
+	}
+
+	private static int StableHash(string s) {
+		unchecked {
+			int h = 17;
+			foreach (char c in s) h = h * 31 + c;
+			return Math.Abs(h);
+		}
+	}
 
 	// UI-facing mirrors of the private constants above (PlayerDeskPanel needs the numbers, not the logic).
 	public static int OneStopVisitHours => OneStopWarehouseVisitHours;
@@ -341,6 +363,12 @@ public partial class PlayerDesk : Node {
 	// the weekly scan in ScanForCoversOfOwnSongs -- one row per covering record, ever.
 	private readonly List<CoverNotice> coverNotices = new();
 	private int lastCoverScanWeek = -1;
+	// Dealer-margin-and-flip directive §3.2/3.5.4: which records have already rolled a real flip
+	// outcome (split action or a reversal) -- "one flip per record," so a resolved record never rolls
+	// again even though it stays otherwise eligible (still a single, still on the shelf).
+	private readonly HashSet<string> flipResolvedRecordIds = new(StringComparer.Ordinal);
+	private int lastFlipCheckWeek = -1;
+	private int lastReturnCheckWeek = -1;
 	// Promo mechanic directive §7.1: which reporting dealers the player has actually WORKED OUT report
 	// their counter numbers. Who reports is fixed, generated data (PlayerStop.ReportsToTrades); knowing
 	// it is not. "That is the information the early game is actually about" -- so it is learned, either
@@ -355,6 +383,9 @@ public partial class PlayerDesk : Node {
 	// answered by working the stop normally (TryFulfillCall), or left to expire.
 	private readonly List<InboundCall> inboundCalls = new();
 	private int lastCallGenWeek = -1;
+	// Dealer-margin-and-flip directive §4, R2: live returnable carton sales -- pruned of anything past
+	// its window or fully exercised by CheckWeeklyReturns.
+	private readonly List<OneStopCartonSale> oneStopCartonSales = new();
 	// Trunk units sold this chart-week per record, accumulated daily and swept into the weekly chart total
 	// so a record that only sells out of the trunk still charts on those units.
 	private readonly Dictionary<string, int> weeklyTrunkUnits = new(StringComparer.Ordinal);
@@ -428,8 +459,10 @@ public partial class PlayerDesk : Node {
 	// A 45 pressing plant's period bill: cheap vinyl by the unit over a minimum run, a one-off lacquer
 	// setup per side, and a little for sleeves, labels and getting the boxes to your office.
 	public const int PressMinimumOrder = 500;
-	public const float PressVinylPerUnit = 0.22f;
-	public const float PressSleeveLabelPerUnit = 0.03f;
+	// Directive §2.3 (A4): was 0.22/0.03, ~40% over the period quote. Ships in the same commit as the
+	// dealer margin (A1-A3, A5) -- correcting one without the other is a different game (directive §2.3).
+	public const float PressVinylPerUnit = 0.12f;
+	public const float PressSleeveLabelPerUnit = 0.02f;
 	public const float PressLacquerSetup = 38f;
 	public const float PressShipping = 20f;
 	// The stampers cut for a title's FIRST run stay at the plant -- a repress of the same title doesn't
@@ -513,6 +546,11 @@ public partial class PlayerDesk : Node {
 		/// record. 0 = none running. ProcessTrunkDay's appeal term reads it while live; never a source of
 		/// units on its own, just a bounded lift on how well the record already sells here.</summary>
 		public int WindowCardExpiresWeek;
+		/// <summary>Dealer-margin-and-flip directive §4, R1: this lot has gone dead (DaysSinceRestock past
+		/// CheckWeeklyReturns' relationship-gated threshold) and the stop wants it off the shelf. Blocks
+		/// ValidateStopAction from placing a fresh lot here until AcceptReturn clears it -- "the shop will
+		/// not take a fresh lot until it is cleared."</summary>
+		public bool ReturnRequested;
 	}
 
 	/// <summary>A named account in a town -- a shop, a jukebox operator, or a metro one-stop -- with its
@@ -624,6 +662,34 @@ public partial class PlayerDesk : Node {
 		/// <summary>What terms they're expecting if you show up -- true reads as "leave it on consignment",
 		/// false as "COD's fine." A hint for the office readout, not an enforced contract.</summary>
 		public bool ConsignmentTerms;
+	}
+
+	/// <summary>Dealer-margin-and-flip directive §4, R2: one carton sold to a one-stop, kept only long
+	/// enough to be returnable. "SellCartonToOneStop is a firm sale... [they] still expected a return
+	/// privilege on a record that died." ReturnableUnits is the ceiling -- returnAllowance × Quantity,
+	/// locked in at sale time -- Returned tracks how much of it has already come back. Removed once the
+	/// window closes or the whole allowance is exhausted, whichever first (see CheckWeeklyReturns and
+	/// ExerciseOneStopReturn).</summary>
+	public sealed class OneStopCartonSale {
+		public string SaleId;
+		public string StopId;
+		public string RecordId;
+		public string ArtistId;
+		public int Quantity;
+		public int Returned;
+		public int ReturnableUnits;
+		public int SoldWeek;
+		public int ExpiresWeek;
+		/// <summary>Whether this carton was paid COD or booked as a WholesaleReceivable -- decides whether
+		/// a return's credit has a receivable to net against first, or comes straight out of cash.</summary>
+		public bool WasCod;
+		// The sale's own totals, at the price/royalty/mechanical terms that applied when it was booked --
+		// a return reverses its PROPORTIONAL share of each (Returned-units / Quantity), never a live
+		// recomputation, so a later royalty-rate change can't retroactively change what a return is worth.
+		public float GrossTotal;
+		public float RecoupedTotal;     // the slice of accrued royalty that offset the artist's advance
+		public float RoyaltyPaidTotal;  // accrued royalty minus RecoupedTotal -- what totalRoyaltyEarnings actually booked
+		public float MechanicalTotal;
 	}
 
 	// Pressing pipeline (real 1960 plant turnaround), each a day range rolled per order.
@@ -2206,6 +2272,12 @@ public partial class PlayerDesk : Node {
 		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
 		stockOnHand = StockFor(recordId);
 		if (stockOnHand == null || stockOnHand.Remaining <= 0) { message = "None of that pressed on hand -- order a run and let it come in first."; return false; }
+		// Directive §4, R1: "the shop will not take a fresh lot until it is cleared." Blocks PitchAtStop,
+		// ConsignAtStop and ServiceStop alike -- all three restock through this same gate.
+		if (stop.OnHand.TryGetValue(recordId, out ConsignmentLot deadLot) && deadLot.ReturnRequested) {
+			message = $"{stop.DisplayName} won't take a fresh lot of \"{TitleForRecord(recordId)}\" until you clear the {deadLot.Remaining:N0} sitting dead on the shelf.";
+			return false;
+		}
 		return true;
 	}
 
@@ -2477,7 +2549,7 @@ public partial class PlayerDesk : Node {
 		stockOnHand.Remaining -= qty;
 		float gross = qty * OneStopUnitPrice;
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.baseRecord.artistId);
-		float accrued = gross * (artist?.royaltyRate ?? 0.05f);
+		float accrued = qty * RoyaltyPerUnit(artist);
 		float recouped = artist != null ? Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), accrued) : 0f;
 		float royalty = accrued - recouped;
 		if (artist != null) {
@@ -2525,6 +2597,20 @@ public partial class PlayerDesk : Node {
 		}
 		stop.OneStopTrusted = true;
 		oneStopKnownRecordIds.Add(recordId); // §9's master-deal gate: "a one-stop knows the title"
+
+		// Directive §4, R2: "still expected a return privilege on a record that died." The allowance is
+		// locked in at sale time (same period behaviour the WholesaleReceivable line above already keeps
+		// -- terms agreed at sale, not renegotiated later).
+		int returnableUnits = Mathf.FloorToInt(qty * OneStopReturnAllowance(stop.StopId));
+		if (returnableUnits > 0) {
+			int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+			oneStopCartonSales.Add(new OneStopCartonSale {
+				SaleId = Guid.NewGuid().ToString("N"), StopId = stop.StopId, RecordId = recordId,
+				ArtistId = artist?.artistId, Quantity = qty, ReturnableUnits = returnableUnits,
+				SoldWeek = week, ExpiresWeek = week + OneStopReturnWindowWeeks, WasCod = cod,
+				GrossTotal = gross, RecoupedTotal = recouped, RoyaltyPaidTotal = royalty, MechanicalTotal = mechanical,
+			});
+		}
 
 		string termsNote = cod ? "COD" : $"net terms, due in {OneStopPaymentTermWeeks} weeks";
 		Note($"Sold {qty:N0} of \"{TitleForRecord(recordId)}\" to {stop.DisplayName} ({termsNote}).");
@@ -2586,6 +2672,22 @@ public partial class PlayerDesk : Node {
 		Spend(ArtistBuyInHours);
 		stock.Remaining -= take;
 		float net = take * ArtistBuyInPrice;
+		// Directive §5.1: these are copies sold, same as any other channel -- the publisher is owed its
+		// 2c-per-side mechanical on them exactly as it is on a trunk or carton sale (see BookSale).
+		if (rec.baseRecord.format == ReleaseFormat.Single) {
+			float mechanical = MechanicalRoyaltyService.ChargeSide(
+				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
+				rec.baseRecord.publishingControllerArtistId, artist, Label, take,
+				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
+				mechanical += MechanicalRoyaltyService.ChargeSide(
+					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
+					rec.baseRecord.bSidePublishingControllerArtistId, artist, Label, take,
+					id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+			}
+			net -= mechanical;
+			weeklyMechanicalRoyalty += mechanical;
+		}
 		Label.cashReserves += net;
 		Label.monthlyRevenue += net;
 
@@ -3271,6 +3373,8 @@ public partial class PlayerDesk : Node {
 		ProcessTrunkDay();
 		CheckWeeklyInboundCalls();
 		CheckWeeklyRunner();
+		CheckWeeklyFlip();
+		CheckWeeklyReturns();
 		ExpireStaleAppointments();
 		ResolveTradeSubmissions();
 		ScanForCoversOfOwnSongs();
@@ -3376,9 +3480,9 @@ public partial class PlayerDesk : Node {
 		BookSale(rec, units, stop, cashNow, labelShare: 1f - RunnerCommissionRate);
 
 	private void BookSale(RecordRuntimeData rec, int units, PlayerStop stop, bool cashNow, float labelShare) {
-		float gross = units * SinglePrice;
+		float gross = units * ChannelPrice(stop.Kind);
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(rec.baseRecord.artistId);
-		float accrued = gross * (artist?.royaltyRate ?? 0.05f);
+		float accrued = units * RoyaltyPerUnit(artist);
 		// The advance comes back out of the royalty account before the act sees anything -- the trunk
 		// path never recouped at all, so every dollar of advance was paid twice out of the player's
 		// pocket. Mirrors the weekly settlement (CompetitorManager.CalculateLabelRevenue).
@@ -3486,13 +3590,36 @@ public partial class PlayerDesk : Node {
 			if (stop.OpenBalance > 0.5f) yield return (CityName(stop.CityId), stop.DisplayName, stop.OpenBalance);
 	}
 
-	public const float SinglePrice = 0.89f; // historical 45 retail
-	// Directive §3.3: "the act takes 50-100 at a discount, cash now -- a one-stop with legs." A
-	// wholesale-grade cut of the $0.89 trunk/retail price -- well above the ~$0.37-0.40/disc pressing
-	// cost, so the label still profits, but a real discount against paying full retail.
+	// Dealer-margin-and-flip directive §2.1: the period's 45 ladder. ListPrice is what the kid pays;
+	// every other line is what somebody in the trade pays the label. Only a table sale with no dealer
+	// in the room (StopKind.Venue) ever books at ListPrice -- every other channel keeps its own cut.
+	public const float ListPrice = 0.98f;     // suggested list on a 45 (directive §1.1)
+	public const float DealerPrice = 0.63f;   // a shop buying direct from the label
+	public const float OperatorPrice = 0.58f; // a jukebox op, through the one-stop trade
+	// Directive §7: the act pays a hair above what a distributor nets from a dealer-price unit
+	// (~0.41-0.50 after the margin skim) and well under what a dealer itself pays (0.63).
 	public const float ArtistBuyInPrice = 0.50f;
 	public const int ArtistBuyInMin = 50;
 	public const int ArtistBuyInMax = 100;
+	// Directive §2.4: period contracts paid a percentage of suggested list, conventionally on 90% of
+	// records sold (the "breakage" clause) -- independent of which channel actually moved the unit.
+	public const float RoyaltyBaseFraction = 0.90f;
+
+	/// <summary>Directive §2.1's channel table: what the label books per unit, keyed on the StopKind
+	/// the sale went through. Only WorkTheHopTable / the record hop (Venue) ever see ListPrice --
+	/// BookSale's other callers (PitchAtStop/ConsignAtStop/ServiceStop via ProcessTrunkDay) run through
+	/// a Shop or an Op, never a Venue (see ValidateStopAction).</summary>
+	public static float ChannelPrice(StopKind kind) => kind switch {
+		StopKind.Shop => DealerPrice,
+		StopKind.Op => OperatorPrice,
+		StopKind.OneStop => OneStopUnitPrice,
+		_ => ListPrice,
+	};
+
+	/// <summary>Directive §2.4: a flat per-unit royalty off suggested list, independent of channel --
+	/// the act is paid the same whether the disc moved through the trunk, a carton, or a distributor.</summary>
+	public static float RoyaltyPerUnit(SimulatedArtist artist) =>
+		(artist?.royaltyRate ?? 0.05f) * ListPrice * RoyaltyBaseFraction;
 
 	private void FireRelease(PlannedRelease release, GameDate date) {
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(release.Master.ArtistId);
@@ -3525,10 +3652,381 @@ public partial class PlayerDesk : Node {
 				release.Master.Record.bSidePublishingControl = release.BSide.Record.publishingControl;
 				release.Master.Record.bSidePublishingControllerLabelId = release.BSide.Record.publishingControllerLabelId;
 				release.Master.Record.bSidePublishingControllerArtistId = release.BSide.Record.publishingControllerArtistId;
+				// Dealer-margin-and-flip directive §3.1: the rest of what the flip needs to be a complete
+				// second identity, not just a mechanical-royalty source. bSideIsPlugSide starts false --
+				// the disc ships as pressed, A-side plugged.
+				release.Master.Record.bSideTitle = release.BSide.Record.title;
+				release.Master.Record.bSidePrimaryGenre = release.BSide.Record.primaryGenre;
+				release.Master.Record.bSideHookStrength = release.BSide.Record.hookStrength;
+				release.Master.Record.bSideProductionQuality = release.BSide.Record.productionQuality;
+				release.Master.Record.bSideDanceability = release.BSide.Record.danceability;
+				release.Master.Record.bSideOriginality = release.BSide.Record.originality;
+				release.Master.Record.bSideIsPlugSide = false;
 			}
 		}
 		string flip = release.BSide != null ? $" b/w \"{release.BSide.SongTitle}\"" : "";
 		Note($"RELEASED: \"{release.Master.SongTitle}\"{flip} by {artist.stageName} ({date.ToHeadlineString()}).");
+	}
+
+	// ========================================================================
+	// THE FLIP (dealer-margin-and-flip directive §3)
+	// ========================================================================
+
+	// Weighted terms of flipPressure (directive §3.2). Sum to 1.0 so flipPressure reads as a 0-1
+	// pressure before FlipWeeklyChanceCap turns it into an actual weekly probability. First-pass
+	// constants -- the directive explicitly leaves the curve to be tuned against a real run's flip
+	// rate (target "5-12% of released singles over a full run," directive §3.2).
+	private const float FlipHookWeight = 0.35f;        // w1: the flip is simply the better side
+	private const float FlipStallWeight = 0.45f;       // w2: the load-bearing term -- has it stalled?
+	private const float FlipReachWeight = 0.10f;       // w3: somebody has to physically have the disc
+	private const float FlipGenreFitWeight = 0.10f;    // w4: does the flip suit the panel better?
+	private const int FlipStallRampStartWeeks = 2;      // stallTerm is 0 before this
+	private const int FlipStallRampEndWeeks = 5;        // and maxed by this (directive §1.2/§3.2)
+	private const float FlipWeeklyChanceCap = 0.05f;    // flipPressure=1.0 is still only a 1-in-20 week
+	private const float FlipSplitActionShare = 0.35f;   // of a real flip EVENT, how often it's split action vs. a full reversal
+	private const float FlipSplitActionPremium = 0.06f; // split action's bounded lift atop max(plug, flip) (directive §3.3.2)
+
+	/// <summary>Directive §3.4: the synthetic key a won "work the flip" Rolodex pitch writes advocacy
+	/// under (see PlayerDesk.RolodexVerbs.ResolveWorkTheFlip). Never the record's own recordId, so a
+	/// won flip pitch can never inflate the plug side's real chart candidacy (invariant 3.5.1) --
+	/// CheckWeeklyFlip below is the only reader, via StationAdvocacyService.ActiveAdvocacy exactly as
+	/// any other advocacy is read.</summary>
+	private static string FlipAdvocacyKey(string recordId) => recordId + "|flip";
+
+	/// <summary>Once a record's one flip (invariant 4) has actually happened, any outstanding
+	/// "work the flip" advocacy for it is moot -- forget it rather than let it sit in
+	/// StationAdvocacyService until it ages out on its own.</summary>
+	private static void ForgetFlipAdvocacy(string recordId, IEnumerable<RadioStation> stations) {
+		StationAdvocacyService advocacy = ChartManager.Instance?.Advocacy;
+		if (advocacy == null) return;
+		string key = FlipAdvocacyKey(recordId);
+		foreach (RadioStation s in stations) {
+			StationAdvocacy a = advocacy.Find(key, s.stationId);
+			if (a != null) advocacy.Forget(a);
+		}
+	}
+
+	/// <summary>
+	/// Directive §3.2: one roll per player single per week, while it's alive (retirement already drops
+	/// a record out of ReleasedRecords), hasn't already resolved a flip (invariant 4), and hasn't
+	/// already broken (peakPosition inside the main chart body) -- the flip decides which side works,
+	/// it doesn't reverse an established hit. Gated hard on servicing: "nothing gets played that nobody
+	/// has been sent" is the same invariant the promo directive already enforces via IsServiced.
+	/// </summary>
+	private void CheckWeeklyFlip() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (week == lastFlipCheckWeek) return;
+		lastFlipCheckWeek = week;
+
+		List<RadioStation> reporterStations = (ChartManager.Instance?.AllReporterStations ?? Enumerable.Empty<RadioStation>()).ToList();
+		if (reporterStations.Count == 0) return;
+
+		foreach (RecordRuntimeData rec in ReleasedRecords.ToList()) {
+			Record r = rec.baseRecord;
+			string recordId = r?.recordId;
+			if (recordId == null) continue;
+			if (r.format != ReleaseFormat.Single || string.IsNullOrEmpty(r.bSideSongId)) continue;
+			if (flipResolvedRecordIds.Contains(recordId)) continue;
+			if (rec.peakPosition > 0 && rec.peakPosition <= 40) continue; // already broke -- not flip material
+
+			List<RadioStation> serviced = reporterStations.Where(s => IsServiced(recordId, s.stationId)).ToList();
+			if (serviced.Count == 0) continue; // no servicing, no flip
+
+			int firstServicedWeek = servicing.Where(s => s.RecordId == recordId).Select(s => s.Week).DefaultIfEmpty(week).Min();
+			// Climbing = debuted this week or moved up since last week. "A record already climbing was
+			// left alone" (directive §1.2) -- stallTerm stays at zero for it regardless of how long it's
+			// been serviced.
+			bool climbing = rec.currentPosition > 0 && (rec.lastWeekPosition == 0 || rec.currentPosition < rec.lastWeekPosition);
+			float stallTerm = climbing ? 0f
+				: Mathf.Clamp(Mathf.InverseLerp(FlipStallRampStartWeeks, FlipStallRampEndWeeks, week - firstServicedWeek), 0f, 1f);
+			float hookDelta = Mathf.Max(0f, r.bSideHookStrength - r.hookStrength);
+			float reachTerm = Mathf.Clamp(serviced.Count / (float)reporterStations.Count, 0f, 1f);
+			float genreFitDelta = serviced.Average(s =>
+				StationNetwork.FormatFitForGenre(r.bSidePrimaryGenre, s.format) - StationNetwork.FormatFitForGenre(r.primaryGenre, s.format));
+			// Directive §3.4: "work the flip" is player agency ON TOP of the weather above, not another
+			// slice of the weighted mix -- additive, the same way a won Rolodex pitch is always an ADD-ON
+			// to a station's candidacy rather than a re-weighted term in it (StationNetwork.Candidacy).
+			// Bounded by Grant's own inputs (PitchAdvocacyBase + influence + a counter bonus, well under
+			// 0.3), so it moves the odds, it doesn't guarantee them.
+			float workedFlipBoost = 0f;
+			foreach (RadioStation s in serviced) {
+				float boost = ChartManager.Instance?.Advocacy.ActiveAdvocacy(FlipAdvocacyKey(recordId), s.stationId) ?? 0f;
+				if (boost > workedFlipBoost) workedFlipBoost = boost;
+			}
+
+			float flipPressure = FlipHookWeight * hookDelta + FlipStallWeight * stallTerm
+				+ FlipReachWeight * reachTerm + FlipGenreFitWeight * genreFitDelta + workedFlipBoost;
+			if (GD.Randf() >= Mathf.Clamp(flipPressure, 0f, 1f) * FlipWeeklyChanceCap) continue; // nothing -- the overwhelming default
+
+			if (GD.Randf() < FlipSplitActionShare) ApplySplitAction(r); else ReverseSides(r);
+			flipResolvedRecordIds.Add(recordId);
+			ForgetFlipAdvocacy(recordId, reporterStations);
+			Changed?.Invoke();
+		}
+	}
+
+	/// <summary>Directive §3.3.2: "both sides get play in different markets." A bounded, one-time lift
+	/// on the record's own appeal terms -- max(plug, flip) plus a small capped premium -- rather than a
+	/// second source of units; every consumer already reads these fields off the live Record (directive
+	/// §3.1), so raising them here is the whole implementation.</summary>
+	private void ApplySplitAction(Record r) {
+		r.hookStrength = Mathf.Clamp(Mathf.Max(r.hookStrength, r.bSideHookStrength) + FlipSplitActionPremium, 0f, 1f);
+		r.productionQuality = Mathf.Clamp(Mathf.Max(r.productionQuality, r.bSideProductionQuality) + FlipSplitActionPremium, 0f, 1f);
+		Note($"Split action: \"{r.title}\" is getting played both ways -- \"{r.bSideTitle}\" is picking up spins of its own.");
+	}
+
+	/// <summary>Directive §3.3.3: "the sides reverse." A field swap between the plug side and its
+	/// bSide* snapshot -- title, genre, and every musical-performance field a chart, a shop shelf or a
+	/// Rolodex log line reads. bSideIsPlugSide flips so the record's own history remembers it happened.
+	/// Consciously does NOT touch songId/publishing control: both compositions are charged their
+	/// mechanical on every sale regardless of which one is nominally "the flip" (see BookSale).</summary>
+	private void ReverseSides(Record r) {
+		string oldTitle = r.title;
+		(r.title, r.bSideTitle) = (r.bSideTitle, r.title);
+		(r.primaryGenre, r.bSidePrimaryGenre) = (r.bSidePrimaryGenre, r.primaryGenre);
+		(r.hookStrength, r.bSideHookStrength) = (r.bSideHookStrength, r.hookStrength);
+		(r.productionQuality, r.bSideProductionQuality) = (r.bSideProductionQuality, r.productionQuality);
+		(r.danceability, r.bSideDanceability) = (r.bSideDanceability, r.danceability);
+		(r.originality, r.bSideOriginality) = (r.bSideOriginality, r.originality);
+		r.bSideIsPlugSide = !r.bSideIsPlugSide;
+		Note($"THE FLIP: \"{oldTitle}\" gets turned over -- the trade sheets are calling it \"{r.title}\" now.");
+	}
+
+	/// <summary>Directive §3.4 (desk verb availability): true when "reverse the sides" is a real
+	/// option on this single right now -- the same floor CheckWeeklyFlip enforces for the weather
+	/// version, minus the roll. Exposed so the UI can gate the button instead of duplicating the
+	/// checks ReverseTheSidesManually re-validates (and gives real messages for) anyway.</summary>
+	public bool CanReverseTheSides(string recordId) {
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		Record r = rec?.baseRecord;
+		if (r == null || r.format != ReleaseFormat.Single || string.IsNullOrEmpty(r.bSideSongId)) return false;
+		if (flipResolvedRecordIds.Contains(recordId)) return false;
+		if (rec.peakPosition > 0 && rec.peakPosition <= 40) return false;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		return servicing.Any(s => s.RecordId == recordId && week - s.Week <= ServicingDecayWeeks);
+	}
+
+	/// <summary>
+	/// Directive §3.4: the label's own decision to reverse the sides, instead of waiting on
+	/// CheckWeeklyFlip's weekly roll -- "the correct move once the trade sheets have already told you."
+	/// Costs a re-press at repress rate (directive §3.3.3: "PressingCost(qty, isRepress: true) already
+	/// does this") struck entirely as promo -- reused wholesale via OrderPressing, since HasBeenPressed
+	/// is already true for anything in ReleasedRecords, so the cap-free all-promo repress path is just
+	/// sitting there -- and a re-service: every station already holding the disc gets its servicing
+	/// clock reset, the same signal a fresh mailing sends, so the switch actually registers with them
+	/// instead of sitting unannounced on a desk. One flip per record (invariant 4): this consumes it
+	/// exactly like the weather-driven version does.
+	/// </summary>
+	public bool ReverseTheSidesManually(string recordId, out string message) {
+		message = "";
+		if (Label == null) { message = "You don't have a label yet."; return false; }
+		if (!RequireHome(out message)) return false;
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		Record r = rec?.baseRecord;
+		if (r == null) { message = "No such single in the market."; return false; }
+		if (r.format != ReleaseFormat.Single || string.IsNullOrEmpty(r.bSideSongId)) {
+			message = "There's no flip side to reverse."; return false;
+		}
+		if (flipResolvedRecordIds.Contains(recordId)) { message = "It's already had its flip -- one to a customer."; return false; }
+		if (rec.peakPosition > 0 && rec.peakPosition <= 40) { message = "It already broke. Reversing a hit is how you throw one away."; return false; }
+
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		List<string> servicedStationIds = servicing
+			.Where(s => s.RecordId == recordId && week - s.Week <= ServicingDecayWeeks)
+			.Select(s => s.StationId).ToList();
+		if (servicedStationIds.Count == 0) { message = "Nobody's even got a copy of it yet -- service it before you reverse it."; return false; }
+
+		int qty = MinimumPressRun(recordId);
+		if (!OrderPressing(recordId, qty, qty, out string orderMessage)) { message = orderMessage; return false; }
+
+		string oldTitle = r.title;
+		ReverseSides(r);
+		flipResolvedRecordIds.Add(recordId);
+		ForgetFlipAdvocacy(recordId, ChartManager.Instance?.AllReporterStations ?? Enumerable.Empty<RadioStation>());
+
+		foreach (string stationId in servicedStationIds) {
+			RecordServicing row = FindServicingRow(recordId, stationId);
+			ServiceStation(recordId, stationId, row?.Conviction ?? MailingServicedConviction, ServicingSource.Mailed);
+		}
+
+		message = $"{orderMessage} \"{oldTitle}\" is off the plug side -- \"{r.title}\" is what ships from here.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	// ========================================================================
+	// RETURNS -- Part C (dealer-margin-and-flip directive §4): R1, dead consignment comes back;
+	// R2, one-stop carton returns.
+	// ========================================================================
+
+	private const int ReturnDeadDaysMin = 42;  // 6 weeks -- a cold account's patience runs out
+	private const int ReturnDeadDaysMax = 56;  // 8 weeks -- a warm account's patience runs longer
+	// A one-time dip the moment the shop actually has to ask -- "refusing costs relationship." The
+	// ongoing cost is mechanical, not a repeating stat drain: ValidateStopAction below won't let a
+	// dead lot's stop take a fresh one until AcceptReturn clears it.
+	private const float ReturnRequestRelationshipPenalty = 0.05f;
+	// "Less a small scuff/sleeve loss (~5%) written off as damaged goods" (directive §4, R1).
+	public const float ReturnScuffLossFraction = 0.05f;
+
+	/// <summary>
+	/// Directive §4, R1: "a ConsignmentLot that has not sold in weeks sits in stop.OnHand forever and
+	/// nothing ever asks for it back." Weekly. The same TrunkDecayPerDay curve ProcessTrunkDay already
+	/// applies means a lot this old is selling next to nothing anyway, so DaysSinceRestock (already
+	/// tracked, already reset on every restock) IS "hasn't sold in weeks" -- no separate clock needed.
+	/// Gated on relationship: a good account is patient (the long end of the 6-8 week band), a cold
+	/// one is not.
+	/// </summary>
+	private void CheckWeeklyReturns() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (week == lastReturnCheckWeek) return;
+		lastReturnCheckWeek = week;
+
+		foreach (PlayerStop stop in EnsureStops().Values) {
+			if (stop.OnHand.Count == 0) continue;
+			int deadDays = Mathf.RoundToInt(Mathf.Lerp(ReturnDeadDaysMin, ReturnDeadDaysMax, Mathf.Clamp(stop.Relationship, 0f, 1f)));
+			foreach (ConsignmentLot lot in stop.OnHand.Values) {
+				if (lot.Remaining <= 0 || lot.ReturnRequested || lot.DaysSinceRestock < deadDays) continue;
+				lot.ReturnRequested = true;
+				stop.Relationship = Mathf.Max(0f, stop.Relationship - ReturnRequestRelationshipPenalty);
+			}
+		}
+
+		// R2: a carton whose window has closed is no longer returnable -- drop it rather than let the
+		// list grow without bound. Whatever fraction of the allowance was never exercised is simply gone,
+		// exactly as an unexercised real-world return privilege would be.
+		oneStopCartonSales.RemoveAll(sale => week > sale.ExpiresWeek || sale.Returned >= sale.ReturnableUnits);
+	}
+
+	/// <summary>Everything currently sitting dead across the player's accounts, for the office readout.</summary>
+	public IEnumerable<(string StopId, string StopName, string CityName, string RecordId, string Title, int Remaining)> PendingReturns() {
+		foreach (PlayerStop stop in EnsureStops().Values)
+			foreach (var (recordId, lot) in stop.OnHand)
+				if (lot.ReturnRequested && lot.Remaining > 0)
+					yield return (stop.StopId, stop.DisplayName, CityName(stop.CityId), recordId, TitleForRecord(recordId), lot.Remaining);
+	}
+
+	/// <summary>
+	/// Directive §4, R1: take the dead stock back. No money moves -- ProcessTrunkDay only ever books a
+	/// SALE (whichever terms the lot was placed on), never the placement itself, so there is nothing to
+	/// reverse. Purely inventory: the units return to PressStock.Remaining, less the scuff/sleeve loss
+	/// written off as damaged goods. Clears the lot and lifts the restock block ValidateStopAction
+	/// enforces while ReturnRequested is set.
+	/// </summary>
+	public bool AcceptReturn(string stopId, string recordId, out string message) {
+		message = "";
+		PlayerStop stop = GetStop(stopId);
+		if (stop == null) { message = "No such account."; return false; }
+		if (!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot) || !lot.ReturnRequested || lot.Remaining <= 0) {
+			message = "Nothing's waiting to come back from there.";
+			return false;
+		}
+
+		int deadUnits = lot.Remaining;
+		int returned = Mathf.FloorToInt(deadUnits * (1f - ReturnScuffLossFraction));
+		int scuffed = deadUnits - returned;
+		PressStock stock = StockFor(recordId);
+		if (stock != null) stock.Remaining += returned;
+
+		string title = TitleForRecord(recordId);
+		lot.Remaining = 0;
+		lot.Placed = 0;
+		lot.DaysSinceRestock = 0;
+		lot.ReturnRequested = false;
+
+		Note($"Picked up {deadUnits:N0} of \"{title}\" from {stop.DisplayName} -- {returned:N0} back on the shelf at the office, {scuffed:N0} scuffed past selling.");
+		message = $"{returned:N0} of \"{title}\" back in the office, {scuffed:N0} written off.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Every carton still inside its return window, for the office readout.</summary>
+	public IEnumerable<(string SaleId, string StopName, string CityName, string Title, int Returnable, int ExpiresInWeeks)> PendingOneStopReturns() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		foreach (OneStopCartonSale sale in oneStopCartonSales) {
+			int left = sale.ReturnableUnits - sale.Returned;
+			if (left <= 0) continue;
+			PlayerStop stop = GetStop(sale.StopId);
+			if (stop == null) continue;
+			yield return (sale.SaleId, stop.DisplayName, CityName(stop.CityId), TitleForRecord(sale.RecordId), left, Mathf.Max(0, sale.ExpiresWeek - week));
+		}
+	}
+
+	/// <summary>
+	/// Directive §4, R2: exercise some or all of a carton's return privilege. Units come back into
+	/// inventory less the scuff loss; every money and royalty effect reverses its PROPORTIONAL share of
+	/// what the original sale booked (Returned-units / Quantity), never a live recomputation, so a later
+	/// royalty-rate change can't retroactively change what a return is worth. The credit lands against
+	/// the outstanding WholesaleReceivable this carton was billed on first -- period behaviour, "it sent
+	/// the records back and cleared the debt" -- and only the remainder (or all of it, for a COD carton
+	/// that never had a receivable) comes out of cash directly.
+	///
+	/// Chart credit does not rewrite history (directive §4, R2 asymmetry): the units already swept into
+	/// a settled week's survey stand, so this dings the CURRENT week's weeklyTrunkUnits tally instead,
+	/// floored at zero, rather than reaching back into a week that's already closed. Without this, a
+	/// carton sale plus an immediate return would be a free chart hype.
+	/// </summary>
+	public bool ExerciseOneStopReturn(string saleId, int unitsToReturn, out string message) {
+		message = "";
+		OneStopCartonSale sale = oneStopCartonSales.FirstOrDefault(s => s.SaleId == saleId);
+		if (sale == null) { message = "No such carton on the books."; return false; }
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		int remainingAllowance = sale.ReturnableUnits - sale.Returned;
+		if (week > sale.ExpiresWeek || remainingAllowance <= 0) {
+			oneStopCartonSales.Remove(sale);
+			message = "That return window's closed.";
+			return false;
+		}
+		int units = Mathf.Clamp(unitsToReturn, 1, remainingAllowance);
+		float fraction = units / (float)sale.Quantity;
+
+		int scuffed = Mathf.CeilToInt(units * ReturnScuffLossFraction);
+		int backToStock = units - scuffed;
+		PressStock stock = StockFor(sale.RecordId);
+		if (stock != null) stock.Remaining += backToStock;
+
+		float grossRev = sale.GrossTotal * fraction;
+		float royaltyPaidRev = sale.RoyaltyPaidTotal * fraction;
+		float recoupedRev = sale.RecoupedTotal * fraction;
+		float mechanicalRev = sale.MechanicalTotal * fraction;
+		float netRev = grossRev - royaltyPaidRev - mechanicalRev;
+
+		SimulatedArtist artist = sale.ArtistId != null ? ArtistManager.Instance?.GetArtist(sale.ArtistId) : null;
+		if (artist != null) {
+			artist.unrecoupedAdvance += recoupedRev;
+			artist.totalRoyaltyEarnings = Mathf.Max(0f, artist.totalRoyaltyEarnings - royaltyPaidRev);
+		}
+
+		float remainingCredit = netRev;
+		if (!sale.WasCod) {
+			string distributorId = $"onestop_{sale.StopId}";
+			int matchIndex = Label.wholesaleReceivables.FindIndex(r => r.DistributorId == distributorId);
+			if (matchIndex >= 0) {
+				WholesaleReceivable receivable = Label.wholesaleReceivables[matchIndex];
+				float against = Mathf.Min(remainingCredit, receivable.Amount);
+				receivable.Amount -= against;
+				Label.outstandingWholesaleReceivables = Mathf.Max(0f, Label.outstandingWholesaleReceivables - against);
+				remainingCredit -= against;
+				if (receivable.Amount <= 0.01f) Label.wholesaleReceivables.RemoveAt(matchIndex);
+				else Label.wholesaleReceivables[matchIndex] = receivable;
+			}
+		}
+		Label.cashReserves -= remainingCredit;
+
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == sale.RecordId);
+		if (rec != null) rec.lifetimeLabelNet -= netRev;
+
+		weeklyTrunkUnits.TryGetValue(sale.RecordId, out int runningUnits);
+		weeklyTrunkUnits[sale.RecordId] = Mathf.Max(0, runningUnits - units);
+
+		sale.Returned += units;
+		string title = TitleForRecord(sale.RecordId);
+		PlayerStop stop = GetStop(sale.StopId);
+		string cashNote = remainingCredit > 0.5f ? $", ${remainingCredit:N0} out of cash" : " -- absorbed against what they still owed";
+		Note($"{stop?.DisplayName ?? "The one-stop"} returned {units:N0} of \"{title}\" -- {backToStock:N0} back on the shelf, {scuffed:N0} scuffed{cashNote}.");
+		message = $"{units:N0} of \"{title}\" returned -- {backToStock:N0} back in stock.";
+		if (sale.Returned >= sale.ReturnableUnits) oneStopCartonSales.Remove(sale);
+		Changed?.Invoke();
+		return true;
 	}
 
 	// ========================================================================
@@ -3910,6 +4408,10 @@ public partial class PlayerDesk : Node {
 				kv => kv.Value.Select(RepertoireSaveData.From).ToList()),
 			Rehearsals = rehearsals.Select(CoverRehearsalSaveData.From).ToList(),
 			ShippedBSideRecordIds = shippedBSideRecordIds.ToList(),
+			FlipResolvedRecordIds = flipResolvedRecordIds.ToList(),
+			LastFlipCheckWeek = lastFlipCheckWeek,
+			LastReturnCheckWeek = lastReturnCheckWeek,
+			OneStopCartonSales = oneStopCartonSales.Select(OneStopCartonSaleSaveData.From).ToList(),
 			Log = new List<string>(log),
 			Books = books.Select(WeekBookSaveData.From).ToList(),
 
@@ -3956,6 +4458,7 @@ public partial class PlayerDesk : Node {
 						Placed = kv.Value.Placed, DaysSinceRestock = kv.Value.DaysSinceRestock,
 						ConsignmentTerms = kv.Value.ConsignmentTerms, RunnerSourced = kv.Value.RunnerSourced,
 						WindowCardExpiresWeek = kv.Value.WindowCardExpiresWeek,
+						ReturnRequested = kv.Value.ReturnRequested,
 					}).ToList()
 				}).ToList(),
 			// Open "they called me" demand (directive §4), plus the week cursor that keeps a reload from
@@ -4107,6 +4610,12 @@ public partial class PlayerDesk : Node {
 		rehearsals.AddRange((data.Rehearsals ?? new List<CoverRehearsalSaveData>()).Select(r => r.ToRehearsal()));
 		shippedBSideRecordIds.Clear();
 		if (data.ShippedBSideRecordIds != null) shippedBSideRecordIds.UnionWith(data.ShippedBSideRecordIds);
+		flipResolvedRecordIds.Clear();
+		if (data.FlipResolvedRecordIds != null) flipResolvedRecordIds.UnionWith(data.FlipResolvedRecordIds);
+		lastFlipCheckWeek = data.LastFlipCheckWeek;
+		lastReturnCheckWeek = data.LastReturnCheckWeek;
+		oneStopCartonSales.Clear();
+		oneStopCartonSales.AddRange((data.OneStopCartonSales ?? new List<OneStopCartonSaleSaveData>()).Select(s => s.ToSale()));
 		log.Clear();
 		log.AddRange(data.Log ?? new List<string>());
 		books.Clear();
@@ -4187,6 +4696,7 @@ public partial class PlayerDesk : Node {
 						Remaining = lot.Remaining, Placed = lot.Placed,
 						DaysSinceRestock = lot.DaysSinceRestock, ConsignmentTerms = lot.ConsignmentTerms,
 						RunnerSourced = lot.RunnerSourced, WindowCardExpiresWeek = lot.WindowCardExpiresWeek,
+						ReturnRequested = lot.ReturnRequested,
 					};
 			}
 		} else if (data.Consignment != null && data.Consignment.Count > 0) {
