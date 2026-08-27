@@ -19,7 +19,12 @@
 /// the economy is byte-identical. No RNG here; a pure function of record fields.
 /// </summary>
 public static class PublishingRoutingService {
-	public static bool RoutingEnabled = false;
+	// Publishing & Cover-Song Directive Part II: live for real gameplay by default. Part I's own decade
+	// run already validated this ("GOLDMINE VALIDATED... all pass") -- it was flag-gated for probe A/B
+	// comparison against the pre-3b baseline, never held back for safety. Without it, a player who
+	// controls their own publishing gets paid nothing when an AI act covers their hit (§II.1.1 defense
+	// #2 would be cosmetic). --disable-publishing-routing reproduces the old off-by-default baseline.
+	public static bool RoutingEnabled = true;
 
 	public readonly struct Decision {
 		public readonly PublishingCounterparty Counterparty;
@@ -41,11 +46,15 @@ public static class PublishingRoutingService {
 		}
 	}
 
-	public static Decision Decide(Record record, SimulatedArtist artist, string settlingLabelId) {
-		PublishingControlType control = record?.publishingControl ?? PublishingControlType.Unknown;
-		string ctrlLabel = record?.publishingControllerLabelId;
-		string ctrlArtist = record?.publishingControllerArtistId;
+	public static Decision Decide(Record record, SimulatedArtist artist, string settlingLabelId) =>
+		Decide(record?.publishingControl ?? PublishingControlType.Unknown,
+			record?.publishingControllerLabelId, record?.publishingControllerArtistId, artist, settlingLabelId);
 
+	/// <summary>Same resolution, off raw fields rather than a live <see cref="Record"/> -- for a B-side,
+	/// whose Record is discarded after release (see MechanicalRoyaltyService) and only its song-control
+	/// fields survive, snapshotted onto the A-side.</summary>
+	public static Decision Decide(PublishingControlType control, string ctrlLabel, string ctrlArtist,
+		SimulatedArtist artist, string settlingLabelId) {
 		switch (control) {
 			case PublishingControlType.ArtistControlled:
 				// Pays the WRITER (the controlling artist), which on a cover is the original artist, not

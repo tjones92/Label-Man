@@ -58,6 +58,7 @@ public partial class PlayerDesk : Node {
 	// UI-facing mirrors of the private constants above (PlayerDeskPanel needs the numbers, not the logic).
 	public static int OneStopVisitHours => OneStopWarehouseVisitHours;
 	public static int OneStopCartonMax => OneStopCartonMaxQty;
+	public static float OneStopUnitPriceForTest => OneStopUnitPrice;
 	public static int OneStopCartonDefault => OneStopCartonDefaultQty;
 
 	// People, first tier: contractors, never payroll (directive §7). No fixed weekly cost either one can
@@ -291,6 +292,7 @@ public partial class PlayerDesk : Node {
 		public float Deferred, Collected, Banked;
 		public float TrunkHeld;   // trunk cut out on consignment this week (earned, not yet banked)
 		public float RunnerCommission; // what the runner kept this week, already netted out of Earned/Banked
+		public float MechanicalRoyalty; // the compulsory 2c/copy paid out this week, already netted out of Earned/Banked
 		public float Outstanding, Cash;
 	}
 
@@ -335,6 +337,10 @@ public partial class PlayerDesk : Node {
 	private readonly List<TradeSubmission> tradeSubmissions = new();
 	// Promo mechanic directive §6.2: live paid trade ads, one row per record currently running.
 	private readonly List<TradeAd> tradeAds = new();
+	// Publishing & Cover-Song directive Part II §II.2: covers of the player's own songs, discovered by
+	// the weekly scan in ScanForCoversOfOwnSongs -- one row per covering record, ever.
+	private readonly List<CoverNotice> coverNotices = new();
+	private int lastCoverScanWeek = -1;
 	// Promo mechanic directive §7.1: which reporting dealers the player has actually WORKED OUT report
 	// their counter numbers. Who reports is fixed, generated data (PlayerStop.ReportsToTrades); knowing
 	// it is not. "That is the information the early game is actually about" -- so it is learned, either
@@ -358,6 +364,10 @@ public partial class PlayerDesk : Node {
 	// bank yet; the rest was spot cash. Persisted so a mid-week save doesn't drop the partial week.
 	private long weeklyTrunkUnitsSold;
 	private float weeklyTrunkGross, weeklyTrunkRoyalty, weeklyTrunkHeld;
+	// Publishing directive Part II §II.0: this chart-week's mechanical royalty, charged in BookSale and
+	// SellCartonToOneStop, folded into the settlement write-up at week-end (then reset) like every other
+	// weekly accumulator here.
+	private float weeklyMechanicalRoyalty;
 	// Towns the player has physically worked -- opened a market to sell out of the trunk.
 	private readonly HashSet<string> workedCities = new(StringComparer.Ordinal);
 	// People (directive §7). The runner is null until hired; unlock ratchets on and never closes once earned.
@@ -2475,6 +2485,23 @@ public partial class PlayerDesk : Node {
 			artist.totalRoyaltyEarnings += royalty;
 		}
 		float net = gross - royalty;
+		// Publishing directive Part II §II.0: the same two-sided disc a carton of trunk stock is, so both
+		// compositions owe the mechanical here too (see BookSale for the full reasoning).
+		float mechanical = 0f;
+		if (rec.baseRecord.format == ReleaseFormat.Single) {
+			mechanical += MechanicalRoyaltyService.ChargeSide(
+				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
+				rec.baseRecord.publishingControllerArtistId, artist, Label, qty,
+				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
+				mechanical += MechanicalRoyaltyService.ChargeSide(
+					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
+					rec.baseRecord.bSidePublishingControllerArtistId, artist, Label, qty,
+					id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+			}
+			net -= mechanical;
+			weeklyMechanicalRoyalty += mechanical;
+		}
 		rec.lifetimeLabelNet += net;
 		// Scattered to shops/ops the player never meets, but it charts the same -- reuse the trunk's own
 		// chart-injection accumulator (TakeWeeklyTrunkUnits) rather than the AI-side regional store engine
@@ -3246,6 +3273,7 @@ public partial class PlayerDesk : Node {
 		CheckWeeklyRunner();
 		ExpireStaleAppointments();
 		ResolveTradeSubmissions();
+		ScanForCoversOfOwnSongs();
 		Changed?.Invoke();
 	}
 
@@ -3365,6 +3393,25 @@ public partial class PlayerDesk : Node {
 		float fullNet = gross - royalty;
 		float net = fullNet * labelShare;
 		float commission = fullNet - net;
+		// Publishing directive Part II §II.0: the mechanical is the LABEL's liability, not the runner's --
+		// it comes off net after his cut is already carved out, never off fullNet. Singles only in this
+		// pass (a two-sided 45 is the directive's whole worked example; album per-track mechanicals are a
+		// separate, deferred piece). Free when the label controls the song itself (ChargeSide returns 0).
+		float mechanical = 0f;
+		if (rec.baseRecord.format == ReleaseFormat.Single) {
+			mechanical += MechanicalRoyaltyService.ChargeSide(
+				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
+				rec.baseRecord.publishingControllerArtistId, artist, Label, units,
+				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
+				mechanical += MechanicalRoyaltyService.ChargeSide(
+					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
+					rec.baseRecord.bSidePublishingControllerArtistId, artist, Label, units,
+					id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+			}
+			net -= mechanical;
+			weeklyMechanicalRoyalty += mechanical;
+		}
 		// Units are NOT added to totalUnitsSold here -- the weekly settlement adds them exactly once through
 		// the chart injection (FinalizeWeeklySales += TakeWeeklyTrunkUnits). Counting them here as well double-
 		// counted every trunk sale. The MONEY is booked here (the settlement only monetizes wholesale units).
@@ -3469,6 +3516,16 @@ public partial class PlayerDesk : Node {
 			// It shipped on the flip -- record that so its repertoire line reads "out (B-side)" and not
 			// "cut, not out yet". The B-side is never a market record of its own, so this is its only trace.
 			if (release.BSide.Record?.recordId != null) shippedBSideRecordIds.Add(release.BSide.Record.recordId);
+			// Publishing directive Part II §II.0: "a 45 has two sides, so it has two compositions." The
+			// B-side's Record is about to be dropped for good, so its song-control facts are snapshotted
+			// onto the A-side (the one Record that survives) before that happens -- MechanicalRoyaltyService
+			// reads these for the life of the pressing instead of needing a second live Record.
+			if (release.BSide.Record != null) {
+				release.Master.Record.bSideSongId = release.BSide.Record.songId;
+				release.Master.Record.bSidePublishingControl = release.BSide.Record.publishingControl;
+				release.Master.Record.bSidePublishingControllerLabelId = release.BSide.Record.publishingControllerLabelId;
+				release.Master.Record.bSidePublishingControllerArtistId = release.BSide.Record.publishingControllerArtistId;
+			}
 		}
 		string flip = release.BSide != null ? $" b/w \"{release.BSide.SongTitle}\"" : "";
 		Note($"RELEASED: \"{release.Master.SongTitle}\"{flip} by {artist.stageName} ({date.ToHeadlineString()}).");
@@ -3544,9 +3601,10 @@ public partial class PlayerDesk : Node {
 		// and paid up front) and no distributor skim; its full net counts as earned, and the consignment slice
 		// (weeklyTrunkHeld) is earned-but-not-yet-banked, so it sits alongside wholesale credit deferral.
 		long wholesaleUnits = ReleasedRecords.Sum(record => (long)record.regionalData.Values.Sum(data => Mathf.Max(0, data.unitsSoldThisWeek)));
-		// The runner's cut is already OUT of every dollar credited to cash or held at a stop (BookSale) --
-		// subtract it here too, or Earned/Banked would overstate what the label actually kept this week.
-		float trunkNet = weeklyTrunkGross - weeklyTrunkRoyalty - weeklyRunnerCommission;
+		// The runner's cut and the mechanical royalty are already OUT of every dollar credited to cash or
+		// held at a stop (BookSale) -- subtract both here too, or Earned/Banked would overstate what the
+		// label actually kept this week.
+		float trunkNet = weeklyTrunkGross - weeklyTrunkRoyalty - weeklyRunnerCommission - weeklyMechanicalRoyalty;
 		float cash = Label.cashReserves;
 		books.Insert(0, new WeekBooks {
 			Week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
@@ -3561,6 +3619,7 @@ public partial class PlayerDesk : Node {
 			Collected = Label.weeklyWholesaleCollected,
 			TrunkHeld = weeklyTrunkHeld,
 			RunnerCommission = weeklyRunnerCommission,
+			MechanicalRoyalty = weeklyMechanicalRoyalty,
 			// What the records earned this week, less what went out on credit and what the towns are still
 			// holding on consignment, plus what old invoices finally paid. This is the figure that moved the
 			// bank balance: wholesale net-of-deferral plus the trunk's spot-cash slice (net minus held).
@@ -3575,6 +3634,7 @@ public partial class PlayerDesk : Node {
 		weeklyTrunkRoyalty = 0f;
 		weeklyTrunkHeld = 0f;
 		weeklyRunnerCommission = 0f;
+		weeklyMechanicalRoyalty = 0f;
 		lastSnapshotCash = cash;
 		Changed?.Invoke();
 	}
@@ -3872,6 +3932,9 @@ public partial class PlayerDesk : Node {
 			TradeSubmissions = tradeSubmissions.Select(TradeSubmissionSaveData.From).ToList(),
 			// Promo mechanic directive §6.2: live paid trade ads.
 			TradeAds = tradeAds.Select(TradeAdSaveData.From).ToList(),
+			// Publishing & Cover-Song directive Part II §II.2: covers of the player's own songs, noticed.
+			CoverNotices = coverNotices.Select(CoverNoticeSaveData.From).ToList(),
+			LastCoverScanWeek = lastCoverScanWeek,
 			// Promo mechanic directive §7.1: which reporting dealers the player has worked out report.
 			KnownReportingStopIds = knownReportingStopIds.ToList(),
 			// Stop identity (name/city/kind) regenerates deterministically from the world seed every
@@ -3919,6 +3982,7 @@ public partial class PlayerDesk : Node {
 			ServiceReorderCountByCity = new Dictionary<string, int>(serviceReorderCountByCity),
 			LastRunnerTickWeek = lastRunnerTickWeek,
 			WeeklyRunnerCommission = weeklyRunnerCommission,
+			WeeklyMechanicalRoyalty = weeklyMechanicalRoyalty,
 			Runner = runner == null ? null : new PlayerRunnerSaveData {
 				RouteStopIds = runner.RouteStopIds.ToList(),
 				CartonRecordId = runner.CartonRecordId,
@@ -4091,6 +4155,9 @@ public partial class PlayerDesk : Node {
 		tradeSubmissions.AddRange((data.TradeSubmissions ?? new List<TradeSubmissionSaveData>()).Select(s => s.ToSubmission()));
 		tradeAds.Clear();
 		tradeAds.AddRange((data.TradeAds ?? new List<TradeAdSaveData>()).Select(a => a.ToAd()));
+		coverNotices.Clear();
+		coverNotices.AddRange((data.CoverNotices ?? new List<CoverNoticeSaveData>()).Select(n => n.ToNotice()));
+		lastCoverScanWeek = data.LastCoverScanWeek;
 		// Stop identity regenerates fresh (deterministic on the world seed); only overlay the mutable
 		// state a save carries. `stops = null` forces EnsureStops to rebuild rather than reuse whatever
 		// roster (if any) belonged to a previously-loaded label in this same process.
@@ -4177,6 +4244,7 @@ public partial class PlayerDesk : Node {
 		runnerUnlocked = data.RunnerUnlocked;
 		lastRunnerTickWeek = data.LastRunnerTickWeek;
 		weeklyRunnerCommission = data.WeeklyRunnerCommission;
+		weeklyMechanicalRoyalty = data.WeeklyMechanicalRoyalty;
 		serviceReorderCountByCity.Clear();
 		foreach (var kv in data.ServiceReorderCountByCity ?? new Dictionary<string, int>()) serviceReorderCountByCity[kv.Key] = kv.Value;
 		if (data.Runner == null) runner = null;

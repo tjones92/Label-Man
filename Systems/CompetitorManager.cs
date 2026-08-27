@@ -1022,6 +1022,29 @@ public partial class CompetitorManager : Node {
 			// The decomposition identity gross - cogs - skim - royalty = net has to hold, so the royalty
 			// leg books what the label actually bore.
 			float recordRevenue = grossAfterCogs - skimAmount - royaltyExpense;
+			// Publishing & Cover-Song Directive Part II, §II.0: the compulsory mechanical, 2c per
+			// composition per copy, on wholesale-settled units. PLAYER-ONLY, DELIBERATELY -- an AI record's
+			// composition cost is already folded into its calibrated pressing/COGS numbers, so this stays
+			// structurally unreachable (and therefore inert) for every AI label. Singles only (a two-sided
+			// 45 is the directive's whole worked example); the B-side's song-control facts were snapshotted
+			// onto the A-side Record at release (PlayerDesk.FireRelease) since the B-side is never a market
+			// record of its own. Unlike the 0.11-of-gross pool below, this is a brand-new liability, not a
+			// reallocation, so it is charged regardless of PublishingRoutingService.RoutingEnabled.
+			float mechanicalRoyalty = 0f;
+			if (label.isPlayerOwned && runtimeData.baseRecord.format == ReleaseFormat.Single) {
+				int mechanicalUnits = Mathf.RoundToInt(weeklyUnits);
+				mechanicalRoyalty += MechanicalRoyaltyService.ChargeSide(
+					runtimeData.baseRecord.publishingControl, runtimeData.baseRecord.publishingControllerLabelId,
+					runtimeData.baseRecord.publishingControllerArtistId, artist, label, mechanicalUnits,
+					id => GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+				if (!string.IsNullOrEmpty(runtimeData.baseRecord.bSideSongId)) {
+					mechanicalRoyalty += MechanicalRoyaltyService.ChargeSide(
+						runtimeData.baseRecord.bSidePublishingControl, runtimeData.baseRecord.bSidePublishingControllerLabelId,
+						runtimeData.baseRecord.bSidePublishingControllerArtistId, artist, label, mechanicalUnits,
+						id => GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+				}
+				recordRevenue -= mechanicalRoyalty;
+			}
 			// Publishing (Scouting Mechanic Phase 4). A composition-royalty slice of gross. When the
 			// label owns publishing (default, and always when managers are off) it is already inside
 			// recordRevenue - nothing moves, so the economy is unchanged. When the artist kept
@@ -1100,6 +1123,7 @@ public partial class CompetitorManager : Node {
 			entry.PublishingControllerLabelId = routing.ControllerLabelId ?? string.Empty;
 			entry.ExternalPublishingLeakage = externalLeakage;
 			entry.PublishingTransferOut = publishingTransferOut;
+			entry.MechanicalRoyalty = mechanicalRoyalty;
 			entry.DistributionIncome = 0f;
 			entry.DistributionRecipientLabelId = string.Empty;
 			entry.BookedCount = 1;

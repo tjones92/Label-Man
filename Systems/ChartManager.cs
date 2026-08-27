@@ -248,6 +248,10 @@ public partial class ChartManager : Node {
 		// composition (a cover of a song another label controls). Distinct from ExternalPublishingLeakage,
 		// which leaves the game entirely.
 		public float PublishingTransferOut;
+		// Publishing & Cover-Song Directive Part II, §II.0. Player-only (0 for every AI record): the
+		// compulsory 2c/composition/copy mechanical charged this week on wholesale-settled units, already
+		// netted out of LabelNet above.
+		public float MechanicalRoyalty;
 		public string DistributionRecipientLabelId;
 		public int BookedCount, AuditedCount;
 		public bool RetiredAfterSettlement;

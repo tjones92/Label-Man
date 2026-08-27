@@ -459,16 +459,65 @@ only). Covers of a dead label's old hits then pay the successor instead of leaki
 
 ---
 
-# Part II — The player half (NOT YET BUILT)
+# Part II — The player half — IMPLEMENTED (branch `publishing-player-mechanic`)
 
 Everything above is the **AI economy**, and it is done: Phases 0-5 are implemented, the decade gate
 passed, and the goldmine routes four ways. Read Part I as a finished work log.
 
-Part II is the gap. Nothing above gives the **player** a single publishing decision. The player never
-picks material, never pays a mechanical, never owns a copyright, and cannot be covered. `songId` is
-stamped on his records by the same `AttachArtistOriginal` funnel that stamps the AI's, and then
-nothing in the player loop ever reads it. This part is the design for that, and it is written to sit
-on top of the promo/distribution/material branches that already shipped — not beside them.
+Part II was written as a gap analysis and turned out to be smaller than it reads below, because
+later branches (the material-mix/commissioning work, `promo-mechanic`, `distribution-expansion`)
+had already built most of §II.2 by the time this branch started. **Already built, confirmed working,
+and NOT rebuilt:**
+
+- **Choose the material / get a song**: `PlayerDesk.MaterialKind` (Original/LiveCover/Commission/
+  FreshStandard/FreshHit), `CommissionSong`, `TeachCover`. Every player master gets a real
+  `songId`/`publishingControl` stamped via `SongMaterialApplicationService.Apply`.
+- **Keep the publishing**: `labelOwnsPublishing` is a negotiated contract term at signing
+  (`PlayerDesk.ContractNegotiation.cs`), read by `CompositionCatalogService` when stamping a new
+  original's `PublishingControlType`. No separate "register the copyright" verb was needed.
+- **Defense #1 (be fast/established) and #3 (sell the master / take a distribution deal)**: already
+  fully built (`IsMasterOut`, `LeaseMasterOut`, `PursueDistributionDeal`, breakout evidence).
+- **The emergent cover loop itself**: confirmed end-to-end already wired and ownership-blind. A
+  player record's chart run already reaches `CompositionCatalogService.OnRecordChartRunComplete` via
+  `ChartManager.SettlePlayerRecordRun`, exactly like an AI record — no `isPlayerOwned` gate anywhere
+  in that path. A top-40 player hit becomes `isCoverable` and joins the `CoverRecentHit` pool, and any
+  AI act's normal material selection can organically cover it, with the same cover-fatigue/definitive-
+  version damping every AI cover gets. **By design, this branch adds no scripted "player has a hit →
+  spawn a cover" trigger** — the emergence was already real; it only lacked payoff and visibility.
+
+**What this branch actually built** (the three real gaps):
+
+1. **The mechanical royalty** (§II.0 below) — `Systems/MechanicalRoyaltyService.cs`, charged in
+   `PlayerDesk.BookSale`, `PlayerDesk.SellCartonToOneStop`, and the `isPlayerOwned` branch of
+   `CompetitorManager.CalculateLabelRevenue`. Reuses `PublishingRoutingService.Decide` for the
+   counterparty split (a new overload takes raw fields, for the B-side's snapshot — see below) but is
+   charged unconditionally, since it's a brand-new liability, not a reallocation. Singles only; album
+   per-track mechanicals are a real, deliberately deferred gap. A 45's B-side is never its own market
+   record (its `Record` is dropped at release), so its song-control facts are snapshotted onto the
+   A-side's own `Record` (`bSideSongId`/`bSidePublishingControl`/…) at `FireRelease`.
+2. **The goldmine flipped on for real play.** `PublishingRoutingService.RoutingEnabled` and
+   `PublishingCaptureService.Enabled` now default `true` (were `false`, live only under the headless
+   probe's `--enable-*` flags). Without this, defense #2 ("own the publishing, and the disaster
+   becomes the payday") paid the player nothing when covered. `--disable-publishing-routing` /
+   `--disable-affiliate-capture` reproduce the old baseline for a probe.
+3. **"Watch the trades for your own song"** (§II.2) — `PlayerDesk.ScanForCoversOfOwnSongs`, a weekly,
+   purely observational scan (`Systems/PlayerDesk.TradePress.cs`) that reports any new cover of one of
+   the player's own records as a `Note()` + a persisted `CoverNotice`. It causes nothing; it only
+   surfaces what the existing pipeline already did.
+
+**Verification.** Build green. A 104-week probe on the canonical flags
+(`--enable-genre-market-v2 --enable-artist-population-lifecycle`) checked the routing/capture
+default flip against a `--disable-publishing-routing --disable-affiliate-capture` control on the same
+seed — this is the one piece of Part II that executes in a headless AI-only run at all, since every
+mechanical-royalty code path is `isPlayerOwned`-gated and therefore structurally unreachable (and
+inert) headless. The mechanical royalty's own correctness rests on reusing
+`PublishingRoutingService.Decide`'s already decade-gate-validated counterparty split rather than a
+fresh implementation; it was not exercised end-to-end in a scripted headless sale (no player exists
+headless, and building that scaffolding was out of scope for this pass) — a played session or a
+purpose-built integration probe would be the way to close that out.
+
+Original Part II design text follows, kept for the reasoning behind §II.0/§II.1/§II.3 (still
+current) and as a record of what turned out to already exist.
 
 ## II.0 Correction — what a mechanical actually attaches to
 
