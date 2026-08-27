@@ -862,8 +862,10 @@ public partial class CompetitorManager : Node {
 			weeklyRevenue -= deferred;
 			float collected = CollectMaturedWholesaleReceivables(label);
 			weeklyRevenue += collected;
+			float reservesReleased = ReleaseOrForfeitWholesaleReturnsReserves(label);
+			weeklyRevenue += reservesReleased;
 			label.weeklyWholesaleDeferred = deferred;
-			label.weeklyWholesaleCollected = collected;
+			label.weeklyWholesaleCollected = collected + reservesReleased;
 			label.cashReserves += weeklyRevenue;
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
@@ -928,8 +930,51 @@ public partial class CompetitorManager : Node {
 			label.outstandingWholesaleReceivables += collectable;
 			label.lifetimeWholesaleWriteOffs += billed - collectable;
 			deferred += billed;
+
+			// Dealer-margin-and-flip directive §4, R3: the real returns mechanism the comment above is
+			// correctly refusing to model as a second charge here -- a HOLD ON CASH, booked alongside the
+			// receivable, never a haircut on billed. Player-only: an AI label never gets a row here, which
+			// is the whole inertness proof (SimTools/DealerMarginFlipReturnsDirective.md §6) -- no branch,
+			// no flag read, just an empty list nothing ever appends to.
+			if (label.isPlayerOwned) {
+				float reserve = billed * house.returnAllowance;
+				if (reserve > 0f) {
+					label.wholesaleReturnsReserves.Add(new WholesaleReturnsReserve(
+						currentWeek + house.paymentTermWeeks, house.distributorId, pair.Key, reserve));
+					label.outstandingWholesaleReturnsReserve += reserve;
+				}
+			}
 		}
 		return deferred;
+	}
+
+	/// <summary>
+	/// Directive §4, R3: settle each reserve on its own survival test once its window closes -- released
+	/// in full to cash if the label is still shipping through that house in that region, forfeited
+	/// (write-off, same ledger a short-paid receivable uses) if that distribution relationship has gone
+	/// cold since. No unit is charged twice by this: the underlying billing was already on units sold:
+	/// this is purely a timing-and-survival claim on money the label earned but was not yet given.
+	/// Iterates every label the same way CollectMaturedWholesaleReceivables does; trivially a no-op for
+	/// an AI label, whose wholesaleReturnsReserves list is never populated.
+	/// </summary>
+	private float ReleaseOrForfeitWholesaleReturnsReserves(AILabel label) {
+		if (label.wholesaleReturnsReserves.Count == 0) return 0f;
+		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		float released = 0f;
+		for (int index = label.wholesaleReturnsReserves.Count - 1; index >= 0; index--) {
+			WholesaleReturnsReserve reserve = label.wholesaleReturnsReserves[index];
+			if (reserve.ReleaseWeek > currentWeek) continue;
+			label.wholesaleReturnsReserves.RemoveAt(index);
+			label.outstandingWholesaleReturnsReserve -= reserve.Amount;
+			IndependentDistributor house = independentDistributors
+				.FirstOrDefault(candidate => candidate.distributorId == reserve.DistributorId);
+			bool stillSelling = label.independentDistributionRegions.Contains(reserve.RegionId)
+				&& house != null && house.CarriesLabel(label.labelId);
+			if (stillSelling) released += reserve.Amount;
+			else label.lifetimeWholesaleWriteOffs += reserve.Amount;
+		}
+		label.outstandingWholesaleReturnsReserve = Mathf.Max(0f, label.outstandingWholesaleReturnsReserve);
+		return released;
 	}
 
 	/// <summary>
@@ -982,7 +1027,14 @@ public partial class CompetitorManager : Node {
 				? (entry.Regions?.Sum(region => Mathf.Max(0, region.FinalCleared)) ?? 0f)
 				: entry.Units;
 			ReleaseFormat format = runtimeData.baseRecord.format;
-			float pricePerUnit = GetPricePerUnit(format);
+			// Dealer-margin directive §2.2: the settlement's job is to book what the LABEL receives on a
+			// unit a dealer sold, not what the kid at the counter paid. Player-only, singles only (the
+			// directive's ladder is the 45's); the existing marginSkim below is then the distributor's cut
+			// of that dealer price, exactly as it already was -- no new number, no double count. AI records
+			// (and player albums, out of the directive's scope) keep GetPricePerUnit(format) untouched.
+			float pricePerUnit = runtimeData.baseRecord.isPlayerOwned && format == ReleaseFormat.Single
+				? PlayerDesk.DealerPrice
+				: GetPricePerUnit(format);
 			float pressingCost = GetPressingCostPerUnit(format);
 			if (format == ReleaseFormat.Album) pressingCost += albumPackagingCostPerUnit * (runtimeData.baseRecord.album?.packaging ?? 0f);
 			// Player-only: the player pressed and paid for the vinyl up front when ordering the run, so
@@ -1002,7 +1054,13 @@ public partial class CompetitorManager : Node {
 			float skimAmount = grossAfterCogs * skimFraction;
 			// Keep the existing artist contract convention (royalty on retail). The
 			// distribution skim is based on revenue after manufacturing cost.
-			float artistPayment = retailGross * artistRoyalty;
+			// Dealer-margin directive §2.4/A5: a player single's royalty is flat off suggested list
+			// (the period convention -- see PlayerDesk.RoyaltyPerUnit), independent of which channel's
+			// price just got booked into retailGross above. AI records, and player albums (out of this
+			// directive's scope), keep the existing retail-based convention untouched.
+			float artistPayment = runtimeData.baseRecord.isPlayerOwned && format == ReleaseFormat.Single
+				? weeklyUnits * PlayerDesk.RoyaltyPerUnit(artist)
+				: retailGross * artistRoyalty;
 			// RECOUPMENT. The advance is cash the label already paid out (RecordExpense at signing), and
 			// the period convention is that it comes back out of the artist's royalty account before the
 			// artist sees a cent. Both figures below are computed for everyone and the artist-side

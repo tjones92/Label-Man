@@ -59,6 +59,14 @@ public partial class AILabel : Resource {
 	public List<WholesaleReceivable> wholesaleReceivables = new();
 	public float outstandingWholesaleReceivables;
 	public float lifetimeWholesaleWriteOffs;
+	// Dealer-margin-and-flip directive §4, R3: a returns reserve rides alongside the receivable above,
+	// booked the same week, but settles on its own survive-or-die test rather than the receivable's
+	// reliability roll (CompetitorManager.ReleaseOrForfeitWholesaleReturnsReserves). Player-only in
+	// practice -- DeferWholesaleBillings gates the write to label.isPlayerOwned, so an AI label's list
+	// stays permanently empty and this pair of fields is a structural no-op for the rest of the sim.
+	// Not readonly: deserialized whole by the full-world save (System.Text.Json can't set a readonly field).
+	public List<WholesaleReturnsReserve> wholesaleReturnsReserves = new();
+	public float outstandingWholesaleReturnsReserve;
 	
 	[ExportGroup("Financials")]
 	[Export] public float cashReserves;

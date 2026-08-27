@@ -310,6 +310,22 @@ public partial class PlayerDesk : Node {
 				: 0f;
 			c.advocacyAlready = chart?.AdvocacyOn(c.baseRecord.recordId, entry.stationId) ?? 0f;
 
+			// Dealer-margin-and-flip directive §3.4: the flip pitch's own eligibility and quality
+			// terms. flipWorkable requires isServiced (set above) -- he can't be talked into turning
+			// over a disc he was never sent.
+			if (!string.IsNullOrEmpty(c.baseRecord.bSideSongId)) {
+				c.bSideHook = c.baseRecord.bSideHookStrength;
+				c.bSideProduction = c.baseRecord.bSideProductionQuality;
+				c.bSideOriginality = c.baseRecord.bSideOriginality;
+				c.bSideQuality = (c.bSideHook + c.bSideProduction + c.bSideOriginality) / 3f;
+				c.bSideFormatAdmittance = chart?.FormatAdmittanceFor(c.baseRecord.bSidePrimaryGenre, c.station, c.year) ?? 0f;
+				c.flipWorkable = c.baseRecord.format == ReleaseFormat.Single
+					&& !flipResolvedRecordIds.Contains(c.baseRecord.recordId)
+					&& !(c.record.peakPosition > 0 && c.record.peakPosition <= 40)
+					&& c.isServiced;
+				c.flipAdvocacyAlready = chart?.Advocacy.ActiveAdvocacy(FlipAdvocacyKey(c.baseRecord.recordId), entry.stationId) ?? 0f;
+			}
+
 			// Directive §10: SuitSurvey's fact -- a real out-of-region spin (a DIFFERENT region's
 			// reporter station, so this genuinely converts a win elsewhere into leverage here, not just
 			// a bigger number from the same market) or a live breakout listing (§6.3).
