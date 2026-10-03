@@ -151,6 +151,7 @@ public partial class PlayerDesk : Node {
 	/// single biggest tell on the pad. Read values are the player's ear, not the truth.
 	/// </summary>
 	public sealed class RepertoireItem {
+		public string ReferenceMasterId;
 		public string Title;
 		/// <summary>"their own" / "cover" / "standard" -- how the song came to the act.</summary>
 		public string SourceTag;
@@ -175,6 +176,7 @@ public partial class PlayerDesk : Node {
 	/// rehearses it on its own over several days (faster the more capable they are) and it lands in their
 	/// repertoire on <see cref="ReadyDate"/> -- see <see cref="ProcessCoverRehearsals"/>. One per act at a time.</summary>
 	public sealed class CoverRehearsal {
+		public string ReferenceMasterId;
 		public string ArtistId;
 		public string SongId;
 		public string Title;
@@ -260,6 +262,7 @@ public partial class PlayerDesk : Node {
 	/// choice that used to be "pick a song you wrote" and is now "pick what this act should record".
 	/// </summary>
 	public sealed class MaterialChoice {
+		public string ReferenceMasterId;
 		public MaterialKind Kind;
 		public string Title;         // display + the record's title for Original / LiveCover
 		public string SongId;        // LiveCover: the specific composition
@@ -1048,6 +1051,7 @@ public partial class PlayerDesk : Node {
 		ChartManager.Instance?.RegisterLabel(label);
 		CompetitorManager.Instance?.RegisterLabel(label);
 		Label = label;
+		PolarPlayerPerception.Reset();
 		currentCityId = city.cityId; // you start at your own office
 
 		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${profile.Capital:N0}.");
@@ -1415,7 +1419,7 @@ public partial class PlayerDesk : Node {
 	/// song is actually cut; the covers point at real catalog songs so the recording step can pull
 	/// the composition. Only <see cref="Prospect.HeardCount"/> of this is visible before a follow-up.
 	/// </summary>
-	private void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise) {
+	internal void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise) {
 		float Read(float truth) => Mathf.Clamp(truth + (float)GD.RandRange(-readNoise, readNoise), 0f, 1f);
 
 		// How many of their own the act carries scales with their writing.
@@ -1441,6 +1445,19 @@ public partial class PlayerDesk : Node {
 			pool.AddRange(CompositionCatalogService.GetCoverableHitsForFamily(family));
 		}
 		int want = (int)GD.RandRange(3, 5) - prospect.LiveSet.Count;
+		if (PolarSongBehavior.UsePolarFitSelection) {
+			if (SongMaterialSelectionService.IsRockSongbookContext(artist.primaryGenre)) pool.AddRange(SongMaterialSelectionService.RockLiveCoverPool(artist.primaryGenre));
+			foreach (var song in SongMaterialSelectionService.SelectLiveCovers(pool, artist, year, want)) {
+				prospect.LiveSet.Add(new RepertoireItem {
+					Title = song.title, SourceTag = song.isStandard ? "standard" : "cover", IsOriginal = false,
+					SongId = song.songId, Genre = song.primaryGenre,
+					ReferenceMasterId = PolarSongBehavior.Reference(song, year)?.masterId ?? "demo:" + song.songId,
+					ReadHook = Read(song.commercialHook), ReadQuality = Read(song.GetCraftScore())
+				});
+			}
+			prospect.HeardCount = Mathf.Min(prospect.LiveSet.Count, (int)GD.RandRange(1, 2));
+			return;
+		}
 		var seen = new HashSet<string>();
 		for (int i = 0; i < want && pool.Count > 0; i++) {
 			SongComposition song = pool[(int)GD.RandRange(0, pool.Count - 1)];
@@ -1758,7 +1775,7 @@ public partial class PlayerDesk : Node {
 					? new MaterialChoice { Kind = MaterialKind.Original, Title = item.Title, Detail = "their own" }
 					: item.IsCommission
 						? new MaterialChoice { Kind = MaterialKind.Commission, Title = item.Title, SongId = item.SongId, Detail = "commissioned" }
-						: new MaterialChoice { Kind = MaterialKind.LiveCover, Title = item.Title, SongId = item.SongId, Detail = item.SourceTag });
+						: new MaterialChoice { Kind = MaterialKind.LiveCover, Title = item.Title, SongId = item.SongId, ReferenceMasterId = item.ReferenceMasterId, Detail = item.SourceTag });
 		}
 		foreach (Song song in songs.Where(s => !s.Recorded && s.ArtistId == artist.artistId))
 			options.Add(new MaterialChoice { Kind = MaterialKind.Original, Title = song.Title, WrittenSong = song, Detail = "their own" });
@@ -1793,11 +1810,15 @@ public partial class PlayerDesk : Node {
 		// Order by hook AND fit, not hook alone. A song squarely in the act's own genre outranks a
 		// family-adjacent one with a marginally catchier hook, so a soul act is offered soul sides first
 		// and only reaches into the wider Rhythm-and-Soul songbook when nothing closer is worth cutting.
-		foreach (SongComposition song in pool.Where(s => s != null && !already.Contains(s.songId))
-			.GroupBy(s => s.songId).Select(group => group.First())
-			.OrderByDescending(s => s.commercialHook * CoverFit(artist, family, s)).Take(max))
+		var available = pool.Where(s => s != null && !already.Contains(s.songId)).GroupBy(s => s.songId).Select(group => group.First());
+		// Player browsing has no aggregate fit ordering. Group known genres, then stable title/ID.
+		var ordered = PolarSongBehavior.UsePolarFitSelection
+			? available.OrderBy(s => s.primaryGenre == artist.primaryGenre ? 0 : 1).ThenBy(s => s.primaryGenre).ThenBy(s => s.title, StringComparer.Ordinal).ThenBy(s => s.songId, StringComparer.Ordinal)
+			: available.OrderByDescending(s => s.commercialHook * CoverFit(artist, family, s));
+		foreach (SongComposition song in ordered.Take(max))
 			result.Add(new MaterialChoice {
 				Kind = MaterialKind.LiveCover, Title = song.title, SongId = song.songId,
+				ReferenceMasterId = PolarSongBehavior.UsePolarFitSelection ? (PolarSongBehavior.Reference(song, TimeManager.Instance?.CurrentDate.year ?? 1960)?.masterId ?? "demo:" + song.songId) : null,
 				Detail = song.isStandard ? "standard" : "cover",
 				Genre = song.primaryGenre, Hook = song.commercialHook, HasSong = true
 			});
@@ -1849,7 +1870,7 @@ public partial class PlayerDesk : Node {
 		if (IsCommissioning(artist.artistId)) { message = $"A writer is already working on something for {artist.stageName}."; return false; }
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
-		SongComposition song = PickCommissionSong(artist.primaryGenre, year);
+		SongComposition song = PickCommissionSong(artist, year);
 		if (song == null) { message = $"No writer would take a {GenreNameFormatter.Format(artist.primaryGenre)} commission right now."; return false; }
 		if (Label.cashReserves < CommissionFee) { message = $"You're ${CommissionFee - Label.cashReserves:N0} short of the ${CommissionFee:N0} writer's fee."; return false; }
 		if (!Require(CommissionHours, out message)) return false;
@@ -1873,9 +1894,11 @@ public partial class PlayerDesk : Node {
 	/// <summary>The professional song a commission would deliver for a genre: a weighted pick over the better
 	/// craft in the pool. Player-turn-local (GD.Rand), never called from the AI weekly tick, so it does not
 	/// touch the economy's deterministic RNG schedule -- same discipline as the rest of the desk.</summary>
-	private static SongComposition PickCommissionSong(Genre genre, int year) {
+	private static SongComposition PickCommissionSong(SimulatedArtist artist, int year) {
+		Genre genre = artist.primaryGenre;
 		var pool = CompositionCatalogService.GetProfessionalForGenre(genre);
 		if (pool == null || pool.Count == 0) return null;
+		if (PolarSongBehavior.UsePolarFitSelection) return PolarSongBehavior.SuitableSongs(pool, artist, year).FirstOrDefault();
 		var top = pool.OrderByDescending(s => s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f)
 			.Take(Mathf.Min(8, pool.Count)).ToList();
 		return top[(int)(GD.Randf() * top.Count) % top.Count];
@@ -1911,6 +1934,7 @@ public partial class PlayerDesk : Node {
 		rehearsals.Add(new CoverRehearsal {
 			ArtistId = artist.artistId, SongId = song.songId, Title = song.title,
 			SourceTag = song.isStandard ? "standard" : "cover", Genre = song.primaryGenre,
+			ReferenceMasterId = PolarSongBehavior.UsePolarFitSelection ? (PolarSongBehavior.Reference(song, today.year)?.masterId ?? "demo:" + song.songId) : null,
 			ReadHook = song.commercialHook, ReadQuality = song.GetCraftScore(),
 			Started = today, ReadyDate = today.AddDays(days)
 		});
@@ -1933,6 +1957,7 @@ public partial class PlayerDesk : Node {
 			if (set.Any(item => item.SongId == r.SongId)) continue;
 			set.Add(new RepertoireItem {
 				Title = r.Title, SourceTag = r.SourceTag, IsOriginal = false, SongId = r.SongId,
+				ReferenceMasterId = r.ReferenceMasterId,
 				IsCommission = r.IsCommission,
 				Genre = r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality
 			});
@@ -1981,12 +2006,38 @@ public partial class PlayerDesk : Node {
 	/// of each song, more when you give it more time over fewer songs. The money is spent now; you then
 	/// keep the best take of each and print them with <see cref="PrintSession"/>.
 	/// </summary>
-	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message) {
+	public string PreviewMasterId(int offset = 0) => $"player_{counter + offset + 1}";
+	public PolarSessionContext PreviewSessionContext(StudioTier tier, SimulatedArtist artist) => new() {
+		producerCraft = Label.productionQuality,
+		studioCraft = Mathf.Clamp((tier == StudioTier.Budget ? .30f : tier == StudioTier.Top ? .62f : .46f) +
+			.22f * artist.studioPerformance + .12f * StudioQualityT(), 0, 1)
+	};
+
+	/// <summary>Direct act feedback. Only the refusal decision crosses the truth boundary; its wording
+	/// is the act's communicated response, rather than a hidden deficit or numerical fit display.</summary>
+	public IReadOnlyList<string> MaterialRefusals(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier? tier = null) {
+		var responses = new List<string>();
+		if (!PolarSongBehavior.UsePolarFitSelection || artist == null) return responses;
+		bool empty = RepertoireFor(artist.artistId).Count == 0 && !SongsFor(artist.artistId).Any();
+		for (int i = 0; i < choices.Count; i++) {
+			var choice = choices[i];
+			if (choice == null || CompositionCatalogService.GetSong(choice.SongId) == null) continue;
+			var proposal = PolarPlayerPerception.Proposal(choice, artist, PreviewMasterId(i), tier.HasValue ? PreviewSessionContext(tier.Value, artist) : null);
+			if (PolarMaterialFit.WouldRefuse(proposal.fit, artist.evolution?.artisticAmbition ?? .5f,
+				PolarPlayerPerception.Standing(artist), empty, PolarSongTable.Current))
+				responses.Add($"{artist.stageName} on “{choice.Title}”: “This doesn't feel like us. We'd rather work on our own material.”");
+		}
+		return responses;
+	}
+
+	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message, bool overrideRefusal = false) {
 		if (pendingSession != null) { message = "There's already a session on the console -- print or scrap it first."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		List<MaterialChoice> cutting = (choices ?? Array.Empty<MaterialChoice>()).Where(c => c != null).ToList();
 		if (cutting.Count == 0) { message = "Pick at least one song to cut."; return false; }
+		var refusals = MaterialRefusals(artist, cutting, tier);
+		if (!overrideRefusal && refusals.Count > 0) { message = string.Join("\n", refusals); return false; }
 		hours = Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
 		if (!Require(hours, out message)) return false;
 
@@ -2121,6 +2172,8 @@ public partial class PlayerDesk : Node {
 		// Stamp the song identity and blend the take toward the material (same path as the AI).
 		SelectedSongMaterial material = ResolveMaterial(choice, artist, record, year, week);
 		if (material?.Song != null) {
+			PolarSongBehavior.Prepare(material, artist, record, record.primaryGenre, year, Label,
+				new PolarSessionContext { producerCraft = Label.productionQuality, studioCraft = take.Production });
 			record.title = material.Song.title;
 			SongMaterialApplicationService.Apply(record, material, Label, artist);
 		}
@@ -2155,7 +2208,7 @@ public partial class PlayerDesk : Node {
 			case MaterialKind.LiveCover:
 				SongComposition song = CompositionCatalogService.GetSong(choice.SongId);
 				return song != null
-					? SongMaterialSelectionService.BuildCoverForSong(artist, record, song, record.primaryGenre, year)
+					? SongMaterialSelectionService.BuildCoverForSong(artist, record, song, record.primaryGenre, year, choice.ReferenceMasterId)
 					: null;
 			case MaterialKind.Commission:
 				// A delivered commission is a specific song the player has already seen. Record that exact
@@ -4092,6 +4145,7 @@ public partial class PlayerDesk : Node {
 			// onto the A-side (the one Record that survives) before that happens -- MechanicalRoyaltyService
 			// reads these for the life of the pressing instead of needing a second live Record.
 			if (release.BSide.Record != null) {
+				release.Master.Record.bSideMasterId = release.BSide.Record.masterId;
 				release.Master.Record.bSideSongId = release.BSide.Record.songId;
 				release.Master.Record.bSidePublishingControl = release.BSide.Record.publishingControl;
 				release.Master.Record.bSidePublishingControllerLabelId = release.BSide.Record.publishingControllerLabelId;
@@ -4847,6 +4901,8 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public PlayerSaveData CaptureState() {
 		if (Label == null) return null;
+		PolarSongMetadataService.MigrateRecords(masters.Select(m => m.Record).Concat(
+			(ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>()).Where(r => r.baseRecord.isPlayerOwned).Select(r => r.baseRecord)));
 		var data = new PlayerSaveData {
 			Label = LabelSaveData.From(Label),
 			RosterArtists = (Label.roster ?? new List<SimulatedArtist>()).ToList(),
@@ -4854,6 +4910,8 @@ public partial class PlayerDesk : Node {
 			Repertoire = repertoire.ToDictionary(kv => kv.Key,
 				kv => kv.Value.Select(RepertoireSaveData.From).ToList()),
 			Rehearsals = rehearsals.Select(CoverRehearsalSaveData.From).ToList(),
+			Session = PendingSessionSaveData.From(pendingSession),
+			PolarObservations = PolarSongBehavior.UsePolarFitSelection ? PolarPlayerPerception.Capture() : null,
 			ShippedBSideRecordIds = shippedBSideRecordIds.ToList(),
 			FlipResolvedRecordIds = flipResolvedRecordIds.ToList(),
 			BreakoutNoticesShown = breakoutNoticesShown.ToList(),
@@ -5093,8 +5151,8 @@ public partial class PlayerDesk : Node {
 		books.Clear();
 		books.AddRange((data.Books ?? new List<WeekBookSaveData>()).Select(b => b.ToWeekBooks()));
 
-		// A load replaces the desk's working state wholesale -- any live session/slate is dropped.
-		pendingSession = null;
+		// Paid-for takes are durable working state. Older saves have no session and clear the console.
+		pendingSession = data.Session?.ToSession(songs);
 		slate.Clear();
 		notebook.Clear();
 		generatedProspectIds.Clear();
@@ -5272,6 +5330,7 @@ public partial class PlayerDesk : Node {
 			RecordId = data.PlantCredit.RecordId, Amount = data.PlantCredit.Amount, DueWeek = data.PlantCredit.DueWeek
 		};
 		counter = Mathf.Max(data.Counter, songs.Count);
+		PolarPlayerPerception.Restore(data.PolarObservations);
 
 		// Late exits (directive §9).
 		soldMasterRecordIds.Clear();
@@ -5288,6 +5347,7 @@ public partial class PlayerDesk : Node {
 			.Select(record => record.ToRuntime()).ToList();
 		int recovered = RepairCulledRecords(catalogue);
 		ChartManager.Instance?.RestorePlayerRecords(catalogue);
+		PolarSongMetadataService.MigrateRecords(masters.Select(m => m.Record).Concat(catalogue.Select(r => r.baseRecord)));
 
 		message = missing == 0
 			? $"Loaded {label.labelName}."
@@ -5366,6 +5426,7 @@ public partial class PlayerDesk : Node {
 
 		var record = new Record {
 			recordId = recordId,
+			masterId = track.masterId,
 			labelId = Label.labelId,
 			title = track.title,
 			artistId = artist.artistId,

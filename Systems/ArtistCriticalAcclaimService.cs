@@ -79,6 +79,6 @@ public static class ArtistCriticalAcclaimService {
 		float craft = GetCraftScore(baseRecord.originality, baseRecord.productionQuality,
 			baseRecord.album?.thematicCohesion ?? 0f, isAlbum && baseRecord.album != null,
 			label?.productionQuality ?? .5f);
-		artist.criticalAcclaim = Apply(artist.criticalAcclaim, craft, GetCommercialScore(record.peakPosition));
+		artist.criticalAcclaim = Apply(artist.criticalAcclaim, PolarSongBehavior.CriticCraft(craft, baseRecord), GetCommercialScore(record.peakPosition));
 	}
 }

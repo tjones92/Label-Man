@@ -125,6 +125,7 @@ public partial class ChartAuditRunner : Node {
 	private HashSet<string> previousActiveIds = new();
 	private StreamWriter recordWriter;
 	private StreamWriter songMaterialWriter;
+	private PolarSongShadowTelemetry polarSongShadow;
 	private readonly HashSet<string> songMaterialSeen = new(StringComparer.Ordinal);
 	private StreamWriter weekWriter;
 	private StreamWriter lifecycleWriter;
@@ -419,6 +420,7 @@ public partial class ChartAuditRunner : Node {
 			RosterManager.Instance?.ReconcileEnabledLifecycleForCurrentWeek();
 			long captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
+				polarSongShadow?.ObserveCompletedWeek(ChartManager.Instance.GetCurrentChart(), ChartManager.Instance.GetCurrentChartWeek());
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
 				ValidateEmergentSigningFloor();
 				if (week % 52 == 0) {
@@ -1031,6 +1033,7 @@ public partial class ChartAuditRunner : Node {
 		Directory.CreateDirectory(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
 		songMaterialWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-song-material.csv"));
+		if (OS.GetCmdlineUserArgs().Contains("--polar-song-shadow")) polarSongShadow = new PolarSongShadowTelemetry(outputDirectory, runName);
 		weekWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-weeks.csv"));
 		lifecycleWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-lifecycles.csv"));
 		breakoutWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-breakout-funnel.csv"));
@@ -3830,6 +3833,7 @@ public partial class ChartAuditRunner : Node {
 		WriteMusicianRecognitionRows();
 		recordWriter?.Dispose();
 		songMaterialWriter?.Dispose();
+		polarSongShadow?.Dispose();
 		weekWriter?.Dispose();
 		lifecycleWriter?.Dispose();
 		breakoutWriter?.Dispose();

@@ -19,9 +19,10 @@ using Godot;
 /// is restored.
 /// </summary>
 public static class SaveGameService {
-	// v1: player layer only. v2: adds the full-world section (WorldSaveData). A v1 file loads under v2 with a
+	// v1: player layer only. v2: adds the full-world section (WorldSaveData). A v1 file loads under v3 with a
 	// null World -- the freshly generated world is left standing and the player layer restores over it.
-	public const int CurrentVersion = 2;
+	// v3: adds composition-owned demo/plasticity state and durable master metadata/linkage.
+	public const int CurrentVersion = 3;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -259,6 +260,8 @@ public sealed class PlayerSaveData {
 	public List<SongSaveData> Songs { get; set; } = new();
 	public Dictionary<string, List<RepertoireSaveData>> Repertoire { get; set; } = new();
 	public List<CoverRehearsalSaveData> Rehearsals { get; set; } = new();  // covers in progress, not yet in a set
+	public PendingSessionSaveData Session { get; set; }  // booked/paid takes awaiting print; absent in old saves
+	public List<PolarObservation> PolarObservations { get; set; } // absent in older saves
 	public List<string> ShippedBSideRecordIds { get; set; } = new();       // B-side masters that shipped on a single's flip
 	// Dealer-margin-and-flip directive §3.2/§3.5.4: records that already resolved a flip event (split
 	// action or a reversal), plus the week-boundary cursor gating CheckWeeklyFlip the same way
@@ -564,7 +567,51 @@ public sealed class SongSaveData {
 	};
 }
 
+/// <summary>Plain lists allow the console's readonly runtime collections to be reconstructed on load.
+/// The selected takes are restored directly, without spending cash or drawing new randomness.</summary>
+public sealed class PendingSessionSaveData {
+	public string ArtistId { get; set; }
+	public PlayerDesk.StudioTier Tier { get; set; }
+	public int Hours { get; set; }
+	public float Cost { get; set; }
+	public GameDate Date { get; set; }
+	public List<SessionCutSaveData> Cuts { get; set; } = new();
+
+	public static PendingSessionSaveData From(PlayerDesk.PendingSession session) => session == null ? null : new() {
+		ArtistId = session.ArtistId, Tier = session.Tier, Hours = session.Hours, Cost = session.Cost, Date = session.Date,
+		Cuts = session.Cuts.Select(cut => new SessionCutSaveData {
+			Choice = cut.Choice, KeptTake = cut.KeptTake,
+			Takes = cut.Takes.Select(t => new PlayerDesk.SessionTake { Number = t.Number, Hook = t.Hook, Production = t.Production }).ToList()
+		}).ToList()
+	};
+
+	public PlayerDesk.PendingSession ToSession(IReadOnlyList<PlayerDesk.Song> songbook) {
+		var session = new PlayerDesk.PendingSession { ArtistId = ArtistId, Tier = Tier, Hours = Hours, Cost = Cost, Date = Date };
+		foreach (var saved in Cuts ?? new()) {
+			if (saved?.Choice == null || saved.Takes == null || saved.Takes.Count == 0) continue;
+			var choice = saved.Choice;
+			// Printing marks the actual songbook object recorded, rather than a deserialized duplicate.
+			if (choice.WrittenSong != null) {
+				var linked = songbook.FirstOrDefault(s => s.SongId == choice.WrittenSong.SongId);
+				if (linked == null) continue;
+				choice.WrittenSong = linked;
+			}
+			var cut = new PlayerDesk.SessionCut { Choice = choice, KeptTake = Mathf.Clamp(saved.KeptTake, 0, saved.Takes.Count - 1) };
+			cut.Takes.AddRange(saved.Takes);
+			session.Cuts.Add(cut);
+		}
+		return session.Cuts.Count == 0 ? null : session;
+	}
+}
+
+public sealed class SessionCutSaveData {
+	public PlayerDesk.MaterialChoice Choice { get; set; }
+	public List<PlayerDesk.SessionTake> Takes { get; set; } = new();
+	public int KeptTake { get; set; }
+}
+
 public sealed class RepertoireSaveData {
+	public string ReferenceMasterId { get; set; }
 	public string Title { get; set; }
 	public string SourceTag { get; set; }
 	public bool IsOriginal { get; set; }
@@ -577,6 +624,7 @@ public sealed class RepertoireSaveData {
 	public string RecordedId { get; set; }
 
 	public static RepertoireSaveData From(PlayerDesk.RepertoireItem r) => new() {
+		ReferenceMasterId = r.ReferenceMasterId,
 		Title = r.Title, SourceTag = r.SourceTag, IsOriginal = r.IsOriginal, SongId = r.SongId,
 		IsCommission = r.IsCommission,
 		Genre = (int)r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
@@ -584,6 +632,7 @@ public sealed class RepertoireSaveData {
 	};
 
 	public PlayerDesk.RepertoireItem ToItem() => new() {
+		ReferenceMasterId = ReferenceMasterId,
 		Title = Title, SourceTag = SourceTag, IsOriginal = IsOriginal, SongId = SongId,
 		IsCommission = IsCommission,
 		Genre = (Genre)Genre, ReadHook = ReadHook, ReadQuality = ReadQuality,
@@ -593,6 +642,7 @@ public sealed class RepertoireSaveData {
 
 /// <summary>A cover an act is working up but doesn't have yet (see <see cref="PlayerDesk.CoverRehearsal"/>).</summary>
 public sealed class CoverRehearsalSaveData {
+	public string ReferenceMasterId { get; set; }
 	public string ArtistId { get; set; }
 	public string SongId { get; set; }
 	public string Title { get; set; }
@@ -609,6 +659,7 @@ public sealed class CoverRehearsalSaveData {
 	public bool IsCommission { get; set; }
 
 	public static CoverRehearsalSaveData From(PlayerDesk.CoverRehearsal r) => new() {
+		ReferenceMasterId = r.ReferenceMasterId,
 		ArtistId = r.ArtistId, SongId = r.SongId, Title = r.Title, SourceTag = r.SourceTag, Genre = (int)r.Genre,
 		ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
 		StartedYear = r.Started.year, StartedMonth = r.Started.month, StartedDay = r.Started.day,
@@ -617,6 +668,7 @@ public sealed class CoverRehearsalSaveData {
 	};
 
 	public PlayerDesk.CoverRehearsal ToRehearsal() => new() {
+		ReferenceMasterId = ReferenceMasterId,
 		ArtistId = ArtistId, SongId = SongId, Title = Title, SourceTag = SourceTag, Genre = (Genre)Genre,
 		ReadHook = ReadHook, ReadQuality = ReadQuality,
 		Started = new GameDate(StartedYear, StartedMonth, StartedDay),
@@ -691,6 +743,8 @@ public sealed class RecordSaveData {
 	public int Day { get; set; }
 	// Composition / publishing identity.
 	public string songId { get; set; }
+	public string masterId { get; set; }
+	public string bSideMasterId { get; set; }
 	public int songSource { get; set; }
 	public bool isCover { get; set; }
 	public string originalRecordId { get; set; }
@@ -732,7 +786,7 @@ public sealed class RecordSaveData {
 		hookStrength = r.hookStrength, productionQuality = r.productionQuality, originality = r.originality,
 		danceability = r.danceability, controversy = r.controversy,
 		Year = r.releaseDate.year, Month = r.releaseDate.month, Day = r.releaseDate.day,
-		songId = r.songId, songSource = (int)r.songSource, isCover = r.isCover,
+		songId = r.songId, masterId = r.masterId, bSideMasterId = r.bSideMasterId, songSource = (int)r.songSource, isCover = r.isCover,
 		originalRecordId = r.originalRecordId, originalArtistId = r.originalArtistId, publisherId = r.publisherId,
 		publishingControllerLabelId = r.publishingControllerLabelId, publishingControllerArtistId = r.publishingControllerArtistId,
 		publishingControl = (int)r.publishingControl,
@@ -761,7 +815,7 @@ public sealed class RecordSaveData {
 		hookStrength = hookStrength, productionQuality = productionQuality, originality = originality,
 		danceability = danceability, controversy = controversy,
 		releaseDate = new GameDate(Year, Month, Day),
-		songId = songId, songSource = (SongMaterialSource)songSource, isCover = isCover,
+		songId = songId, masterId = masterId, bSideMasterId = bSideMasterId, songSource = (SongMaterialSource)songSource, isCover = isCover,
 		originalRecordId = originalRecordId, originalArtistId = originalArtistId, publisherId = publisherId,
 		publishingControllerLabelId = publishingControllerLabelId, publishingControllerArtistId = publishingControllerArtistId,
 		publishingControl = (PublishingControlType)publishingControl,

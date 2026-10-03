@@ -126,6 +126,17 @@ public sealed class SongRecordingMemory {
 public sealed class SongComposition {
 	public string songId;
 	public string title;
+	// Directive N ownership split. Null is absent evidence, including valid zero-valued data.
+	public SongTaxonomy demoTaxonomy;
+	public SongMeter defaultMeter;
+	public SongForm defaultForm;
+	public float? wordDensity;
+	public string[] contentTagIds = Array.Empty<string>();
+	public float? plasticity;
+	public bool plasticityFrozen;
+	public string firstCommittedMasterId;
+	public string plasticitySourceMasterId;
+	public string plasticityProvenance;
 	public Genre primaryGenre;
 	public Genre secondaryGenre;
 	// Seasonal / holiday and other secondary tags, mirrored onto covering records' genreTagIds so

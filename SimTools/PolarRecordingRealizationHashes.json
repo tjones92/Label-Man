@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-02",
+  "version": "polar-recording-calibration-v3",
+  "flagDefault": false,
+  "developmentSeeds": [
+    1001,
+    1002
+  ],
+  "freshSeeds": [
+    1011,
+    1012
+  ],
+  "files": [
+    {
+      "path": "Data/PolarSongTable.json",
+      "sha256": "880B00DA30EFCAD28FB48486CAD42D72E30022CAD751C2073D4E2F38874D42A2"
+    },
+    {
+      "path": "Systems/PolarSongBehavior.cs",
+      "sha256": "0F9C3AC3CBC7BC182C4851FD06245AFBBDBC3DC1DB963FCF1D4264AD096AE5EC"
+    },
+    {
+      "path": "Systems/PolarSongTable.cs",
+      "sha256": "A4C9DC0BA10D935A53352A4849AB945588095BDE519D7E890459D71261C5254B"
+    },
+    {
+      "path": "Systems/SimulationSeedBootstrap.cs",
+      "sha256": "E3D18CBC8D2BD4FBD2348DC6D2F4079B59B959F5E4FF6212CBB16D9AEB141452"
+    },
+    {
+      "path": "Systems/SongMaterialApplicationService.cs",
+      "sha256": "F1F11943606634375CB9817DEB8A8EBBE134F754FED298C75579366D049B4679"
+    },
+    {
+      "path": "Systems/SongMaterialSelectionService.cs",
+      "sha256": "6F8CE6B3E376694D23421DA4C9BE9E8CB7B256472E2A5CA57A39B4E88BF6FA7B"
+    },
+    {
+      "path": "SimTools/SaveLoadRoundTripRunner.cs",
+      "sha256": "8FAD8EFD7ACAD2764B4CA3AA3F49A656CA6C9EAA0882A5377B2FD37EE9614046"
+    },
+    {
+      "path": "SimTools/PolarRecordingRealizationChecks.cs",
+      "sha256": "C8CC928901FAE100838D2A63FF6EFAAF97254909ACC6F036B6686E94503E943C"
+    },
+    {
+      "path": "SimTools/run-polar-realization.ps1",
+      "sha256": "F52F6CA6925B6997CD6659267A0586387052CE1C09C16B0F36E886CFB691E370"
+    },
+    {
+      "path": "SimTools/analyze-polar-realization.mjs",
+      "sha256": "702139B6810A0A4841F1AF73B8AC2833405795A7CFE2BC91667A125F801BF009"
+    },
+    {
+      "path": "SimTools/PolarRecordingRealizationReport.md",
+      "sha256": "26848DE79CA439173B5C1BA350AABBF5FCF55E4627AD46FDD71C5706BA1B4C68"
+    }
+  ]
+}

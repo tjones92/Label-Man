@@ -622,6 +622,7 @@ public partial class ChartManager : Node {
 		foreach (var region in allRegions) region.SetGenreMarketV2Live(true);
 
 		SimulateWeek(triggerEvents: true);
+		PolarSongBehavior.ObserveCompletedWeek(currentChart, currentChartWeek);
 		if (GenreMarketV2.Enabled) {
 			long freezeProfileStart = SimulationPerformanceProfiler.Begin();
 			FreezeCompletedWeekSettlement(date);
@@ -2425,6 +2426,7 @@ public partial class ChartManager : Node {
 
 	private static AlbumTrack CreateTrackSnapshot(RecordRuntimeData record) => new() {
 		sourceRecordId = record.baseRecord.recordId,
+		masterId = record.baseRecord.masterId,
 		title = record.baseRecord.title,
 		genre = record.baseRecord.primaryGenre,
 		quality = record.GetQuality(),

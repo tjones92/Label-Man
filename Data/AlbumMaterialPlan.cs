@@ -34,7 +34,7 @@ public static class AlbumMaterialPlanner {
 	/// <summary>Build an album's material plan: the genre/year source prior, pulled toward the dominant
 	/// source in proportion to the album's thematic cohesion, allocated across <paramref name="trackCount"/>
 	/// slots by largest-remainder (deterministic).</summary>
-	public static AlbumMaterialPlan Plan(Genre genre, int year, float thematicCohesion, int trackCount) {
+	public static AlbumMaterialPlan Plan(Genre genre, int year, float thematicCohesion, int trackCount, string artistId = null, string albumKey = null) {
 		SourceShares s = SongMaterialSelectionService.GetSourceMixShares(genre, year);
 		// Order: 0 originals, 1 professional, 2 standards, 3 covers(recent-hit), 4 traditional.
 		float[] share = { s.Aw, s.Pro, s.Std, s.Hit, s.Trad };
@@ -48,7 +48,12 @@ public static class AlbumMaterialPlanner {
 		if (sum <= 0f) { conc[dom] = 1f; sum = 1f; }
 		for (int i = 0; i < share.Length; i++) conc[i] /= sum;
 
-		int[] counts = LargestRemainder(conc, Mathf.Max(0, trackCount));
+		// Fractional rare rock shares must occasionally become an album cut. Fixed largest-remainder
+		// rounding would eliminate them on every 9–13-track LP. Systematic hash apportionment preserves
+		// expected shares and exact slot count without a new RNG draw or hardcoded historical exception.
+		int total = Mathf.Max(0, trackCount);
+		int[] counts = PolarSongBehavior.UsePolarFitSelection && SongMaterialSelectionService.IsRockSongbookContext(genre) &&
+			!string.IsNullOrEmpty(artistId) && !string.IsNullOrEmpty(albumKey) ? SystematicCounts(conc, total, artistId, albumKey) : LargestRemainder(conc, total);
 		return new AlbumMaterialPlan {
 			Originals = counts[0], Professional = counts[1], Standards = counts[2],
 			Covers = counts[3], Traditional = counts[4],
@@ -109,5 +114,18 @@ public static class AlbumMaterialPlanner {
 		uint hash = 2166136261u;
 		foreach (char c in $"{artistId}|{albumKey}|{slot}|AlbumPlanV1") { hash ^= c; hash *= 16777619u; }
 		return hash;
+	}
+	private static int[] SystematicCounts(float[] shares, int total, string artistId, string albumKey) {
+		var counts = new int[shares.Length];
+		if (total == 0) return counts;
+		// 24-bit hash-to-unit conversion is an algorithm constant, not gameplay tuning.
+		float start = (StableKey(artistId, albumKey, -1) & 0x00ffffffu) / (16777216f * total);
+		int source = 0; float cumulative = shares[0];
+		for (int i = 0; i < total; i++) {
+			float point = start + (float)i / total;
+			while (source < shares.Length - 1 && point >= cumulative) cumulative += shares[++source];
+			counts[source]++;
+		}
+		return counts;
 	}
 }

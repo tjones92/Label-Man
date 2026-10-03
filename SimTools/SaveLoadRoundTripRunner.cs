@@ -22,11 +22,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 			int weeks = 26;
 			bool integration = false;
 			bool mechanicalCheck = false;
+			bool polarDataCheck = false;
+			bool polarFitCheck = false;
 			string inspectSlot = null;
 			foreach (string arg in OS.GetCmdlineUserArgs()) {
 				if (arg.StartsWith("--weeks=", StringComparison.Ordinal)) weeks = int.Parse(arg["--weeks=".Length..]);
 				else if (arg == "--integration") integration = true;
 				else if (arg == "--mechanical-royalty-check") mechanicalCheck = true;
+				else if (arg == "--polar-song-data-check") polarDataCheck = true;
+				else if (arg == "--polar-song-fit-check") polarFitCheck = true;
 				else if (arg.StartsWith("--inspect-slot=", StringComparison.Ordinal)) inspectSlot = arg["--inspect-slot=".Length..];
 			}
 
@@ -36,6 +40,16 @@ public partial class SaveLoadRoundTripRunner : Node {
 			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
 			if (inspectSlot != null) { RunInspect(inspectSlot, weeks); return; }
 			if (mechanicalCheck) { RunMechanicalRoyaltyCheck(); return; }
+			if (polarDataCheck) { PolarSongDataChecks.Run(); GetTree().Quit(0); return; }
+			if (polarFitCheck) { PolarSongFitChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-song-behavior-check")) { PolarSongBehaviorChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-recording-realization-check")) { PolarRecordingRealizationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-rock-songbook-check")) { PolarRockSongbookChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-player-perception-check")) { PolarPlayerPerceptionChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-song-shadow")) {
+				PolarSongMetadataService.ShadowProfilesEnabled = true;
+				PolarSongMetadataService.WarmCommittedProfiles(PolarSongTable.Current);
+			}
 
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
 

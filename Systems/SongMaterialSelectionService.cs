@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 /// <summary>
@@ -15,6 +16,12 @@ using Godot;
 /// but the change is attributable and replay-stable. See SimTools/PublishingCoverSongDirective.md.
 /// </summary>
 public static class SongMaterialSelectionService {
+	// Read-only observation hook. No subscriber in ordinary gameplay; legacy decisions remain unchanged.
+	public static event System.Action<PolarMaterialCandidateObservation> OnPolarCandidate;
+	private static void Observe(SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year, string phase, string source, string referenceId = null) {
+		if (PolarSongBehavior.UsePolarFitSelection && song != null && referenceId == null) referenceId = PolarSongBehavior.Reference(song, year)?.masterId;
+		OnPolarCandidate?.Invoke(new PolarMaterialCandidateObservation(artist, record, song, genre, year, phase, source, referenceId));
+	}
 	public static bool Enabled = true;
 
 	// How many catalog songs to sample per source (bounded cost -- never scan the whole catalog).
@@ -28,7 +35,10 @@ public static class SongMaterialSelectionService {
 		// re-roll the source). Empty pool -> fall through to the normal mix so a slot is never starved.
 		if (forcedSource.HasValue) {
 			MaterialCandidate forced = BuildForSource(forcedSource.Value, label, artist, record, genre, year, chartWeek);
-			if (forced?.Material?.Song != null) return forced.Material;
+			if (forced?.Material?.Song != null) {
+				Observe(artist, record, forced.Material.Song, genre, year, "forced", forced.Material.Source.ToString(), forced.Material.OriginalRecordId);
+				return PolarSongBehavior.Prepare(forced.Material, artist, record, genre, year, label);
+			}
 		}
 		var candidates = new List<MaterialCandidate>();
 
@@ -40,7 +50,16 @@ public static class SongMaterialSelectionService {
 		AddIfPositive(candidates, BuildTraditional(label, artist, record, genre, year));
 
 		if (candidates.Count == 0) return artistWritten.Material;
-		return WeightedPick(candidates, artist, record, year);
+		foreach (var candidate in candidates) {
+			if (PolarSongBehavior.UsePolarFitSelection) {
+				PolarSongBehavior.Prepare(candidate.Material, artist, record, genre, year, label);
+				candidate.Score = SourceMix(candidate.Material.Source, genre, year, artist.primaryGenre) * PolarSongBehavior.SelectionScore(candidate.Material.PolarProposal.fit);
+			}
+			Observe(artist, record, candidate.Material.Song, genre, year, "source", candidate.Material.Source.ToString(), candidate.Material.OriginalRecordId);
+		}
+		var selected = WeightedPick(candidates, artist, record, year);
+		Observe(artist, record, selected.Song, genre, year, "selected", selected.Source.ToString(), selected.OriginalRecordId);
+		return selected;
 	}
 
 	private static void AddIfPositive(List<MaterialCandidate> list, MaterialCandidate c) {
@@ -55,7 +74,7 @@ public static class SongMaterialSelectionService {
 	/// object to the chart and the settlement.
 	/// </summary>
 	public static SelectedSongMaterial BuildCoverForSong(
-		SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year
+		SimulatedArtist artist, Record record, SongComposition song, Genre genre, int year, string referenceId = null
 	) {
 		if (song == null) return null;
 		float familiarity = song.GetFamiliarityForYear(year);
@@ -66,7 +85,8 @@ public static class SongMaterialSelectionService {
 			: song.isStandard ? SongMaterialSource.CoverStandard
 			: SongMaterialSource.CoverRecentHit;
 		int last = song.recordings.Count - 1;
-		return new SelectedSongMaterial {
+		Observe(artist, record, song, genre, year, "player-cover", source.ToString(), last >= 0 ? song.recordings[last].recordId : null);
+		var material = new SelectedSongMaterial {
 			Song = song, Source = source, IsCover = true,
 			OriginalRecordId = last >= 0 ? song.recordings[last].recordId : null,
 			OriginalArtistId = last >= 0 ? song.recordings[last].artistId : null,
@@ -76,6 +96,8 @@ public static class SongMaterialSelectionService {
 			ArrangementOriginality = ArrangementOriginality(artist, record, year, "playercover"),
 			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.6f, 0f, 1f)
 		};
+		if (PolarSongBehavior.UsePolarFitSelection) material.OriginalRecordId = referenceId;
+		return PolarSongBehavior.Prepare(material, artist, record, genre, year);
 	}
 
 	/// <summary>Build professional material for a SPECIFIC pre-commissioned song, so a song the player
@@ -92,12 +114,13 @@ public static class SongMaterialSelectionService {
 		};
 		float polish = Mathf.Clamp(song.compositionQuality * 0.7f + labelAccess * 0.3f, 0f, 1f);
 		float hook = Mathf.Clamp(song.commercialHook * 0.85f + polish * 0.10f, 0f, 1f);
-		return new SelectedSongMaterial {
+		var material = new SelectedSongMaterial {
 			Song = song, Source = SongMaterialSource.ExternalProfessional, IsCover = false,
 			ExpectedHook = hook, ExpectedCompositionQuality = song.compositionQuality, ExpectedLyricQuality = song.lyricQuality,
 			FamiliarityAtRelease = 0f, ArrangementOriginality = Mathf.Clamp(song.originality * 0.65f, 0f, 1f),
 			ProfessionalPolish = polish, ArtistIdentityFit = 0.30f
 		};
+		return PolarSongBehavior.Prepare(material, artist, record, genre, year);
 	}
 
 	// Build only the candidate for one dictated source (AlbumMaterialPlan forced-source path).
@@ -115,12 +138,12 @@ public static class SongMaterialSelectionService {
 
 	/// <summary>The calibrated source-mix shares for a genre/year (Anchor prior, normalized), exposed so
 	/// AlbumMaterialPlan builds an album's whole-LP plan from the same decade curve the singles follow.</summary>
-	public static SourceShares GetSourceMixShares(Genre genre, int year) {
-		float aw = SourceMix(SongMaterialSource.ArtistWritten, genre, year);
-		float pro = SourceMix(SongMaterialSource.ExternalProfessional, genre, year);
-		float std = SourceMix(SongMaterialSource.CoverStandard, genre, year);
-		float hit = SourceMix(SongMaterialSource.CoverRecentHit, genre, year);
-		float trad = SourceMix(SongMaterialSource.TraditionalPublicDomain, genre, year);
+	public static SourceShares GetSourceMixShares(Genre genre, int year, Genre? actGenre = null) {
+		float aw = SourceMix(SongMaterialSource.ArtistWritten, genre, year, actGenre);
+		float pro = SourceMix(SongMaterialSource.ExternalProfessional, genre, year, actGenre);
+		float std = SourceMix(SongMaterialSource.CoverStandard, genre, year, actGenre);
+		float hit = SourceMix(SongMaterialSource.CoverRecentHit, genre, year, actGenre);
+		float trad = SourceMix(SongMaterialSource.TraditionalPublicDomain, genre, year, actGenre);
 		float sum = aw + pro + std + hit + trad;
 		if (sum <= 0f) return new SourceShares { Aw = 1f };
 		return new SourceShares { Aw = aw / sum, Pro = pro / sum, Std = std / sum, Hit = hit / sum, Trad = trad / sum };
@@ -399,16 +422,35 @@ public static class SongMaterialSelectionService {
 	}
 
 	// The transition mostly runs 1962-1968 (Brill decline, self-writing rise).
-	private static float SourceMix(SongMaterialSource source, Genre genre, int year) {
+	internal static bool IsRockSongbookContext(Genre genre) => GenreCatalog.TryGet(genre, out var profile) && profile.Family == GenreFamily.Rock;
+	private static bool RareRockSongbooks(Genre projectGenre, Genre? actGenre = null) => PolarSongBehavior.UsePolarFitSelection &&
+		(IsRockSongbookContext(projectGenre) || (actGenre.HasValue && IsRockSongbookContext(actGenre.Value)));
+	internal static float SongbookExceptionFactor(SongMaterialSource source, Genre projectGenre, Genre actGenre) {
+		if (!RareRockSongbooks(projectGenre, actGenre)) return 1;
+		return source switch {
+			SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => PolarSongTable.Current.N("rockStandardFactor"),
+			SongMaterialSource.TraditionalPublicDomain or SongMaterialSource.AdaptedTraditional => PolarSongTable.Current.N("rockTraditionalFactor"),
+			_ => 1
+		};
+	}
+	internal static float PromoSuitability(AlbumTrack track, SimulatedArtist artist, Genre projectGenre, int year) {
+		var song = CompositionCatalogService.GetSong(track.songId);
+		return song == null ? -1 : PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(song, artist, projectGenre, year, track.masterId)) *
+			PolarSongBehavior.PromotionRealizationFactor(track) * SongbookExceptionFactor(track.songSource, projectGenre, artist.primaryGenre);
+	}
+	private static float SourceMix(SongMaterialSource source, Genre genre, int year, Genre? actGenre = null) {
 		Mix a = Anchor1960(genre), b = Anchor1969(genre);
 		float t = SmoothYear(1962f, 1968f, year);
 		float Lerp(float x, float y) => Mathf.Lerp(x, y, t);
+		bool rareRock = RareRockSongbooks(genre, actGenre);
 		return source switch {
 			SongMaterialSource.ArtistWritten => Lerp(a.Aw, b.Aw),
 			SongMaterialSource.ExternalProfessional or SongMaterialSource.LabelStaffWriter or SongMaterialSource.ArtistCowrittenWithProfessional => Lerp(a.Pro, b.Pro),
-			SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => Lerp(a.Std, b.Std) * StandardShareFactor(genre),
+			SongMaterialSource.CoverStandard or SongMaterialSource.CoverCatalogSong => Lerp(a.Std, b.Std) *
+				(rareRock ? PolarSongTable.Current.N("rockStandardFactor") : StandardShareFactor(genre)),
 			SongMaterialSource.CoverRecentHit => Lerp(a.Hit, b.Hit),
-			SongMaterialSource.TraditionalPublicDomain or SongMaterialSource.AdaptedTraditional => Lerp(a.Trad, b.Trad),
+			SongMaterialSource.TraditionalPublicDomain or SongMaterialSource.AdaptedTraditional => Lerp(a.Trad, b.Trad) *
+				(rareRock ? PolarSongTable.Current.N("rockTraditionalFactor") : 1),
 			_ => 0f
 		};
 	}
@@ -449,6 +491,9 @@ public static class SongMaterialSelectionService {
 		song.primaryGenre == genre ? 1f : song.secondaryGenre == genre ? 0.6f : 0.3f;
 
 	private static float InterpretationFit(SimulatedArtist artist, SongComposition song, Genre genre) =>
+		PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyRealization ? 0f : LegacyInterpretationFit(artist, song, genre);
+	[System.Obsolete("Compatibility-only. Polar selection and consumers use separate MaterialFit components.")]
+	private static float LegacyInterpretationFit(SimulatedArtist artist, SongComposition song, Genre genre) =>
 		Mathf.Clamp(artist.CalculateBaseQuality() * 0.55f + GenreFit(song, genre) * 0.30f + song.adaptability * 0.15f, 0f, 1f);
 
 	private static float ArrangementOriginality(SimulatedArtist artist, Record record, int year, string salt) {
@@ -506,6 +551,31 @@ public static class SongMaterialSelectionService {
 		return pools;
 	}
 
+	internal static IEnumerable<SongComposition> RockLiveCoverPool(Genre genre) =>
+		StandardPoolsFor(genre).Concat(TraditionalPoolsFor(genre)).Concat(HitPoolsFor(genre)).SelectMany(p => p);
+	internal static IReadOnlyList<SongComposition> SelectLiveCovers(IEnumerable<SongComposition> pool, SimulatedArtist artist, int year, int count) {
+		if (!RareRockSongbooks(artist.primaryGenre)) return PolarSongBehavior.SuitableSongs(pool, artist, year).Take(count).ToArray();
+		SongMaterialSource Source(SongComposition s) => s.isPublicDomain ? SongMaterialSource.TraditionalPublicDomain :
+			s.isTraditional ? SongMaterialSource.AdaptedTraditional : s.isStandard ? SongMaterialSource.CoverStandard : SongMaterialSource.CoverRecentHit;
+		var eligible = pool.Where(s => s != null && s.originYear <= year).GroupBy(s => s.songId).Select(g => g.First())
+			.OrderBy(s => s.songId, System.StringComparer.Ordinal).ToList();
+		var result = new List<SongComposition>();
+		for (int i = 0; i < count && eligible.Count > 0; i++) {
+			var record = new Record { recordId = $"live:{artist.artistId}:{year}:{i}", primaryGenre = artist.primaryGenre };
+			var candidates = new List<MaterialCandidate>();
+			foreach (var group in eligible.GroupBy(Source)) {
+				var song = SampleBest(group.ToArray(), artist, record, year, "live:" + group.Key, null);
+				float weight = SourceMix(group.Key, artist.primaryGenre, year) *
+					PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(song, artist, artist.primaryGenre, year));
+				if (weight > 0) candidates.Add(new MaterialCandidate { Material = new SelectedSongMaterial { Song = song, Source = group.Key }, Score = weight });
+			}
+			if (candidates.Count == 0) break;
+			var selected = WeightedPick(candidates, artist, record, year).Song;
+			result.Add(selected); eligible.RemoveAll(s => s.songId == selected.songId);
+		}
+		return result;
+	}
+
 	// Deterministically sample across several pools (a genre's adjacent-family cover sources) and
 	// return the best-scoring song -- bounded cost, never a full-catalog scan.
 	private static SongComposition SampleBestAcross(
@@ -523,11 +593,12 @@ public static class SongMaterialSelectionService {
 			int gidx = (int)(u * total) % total;
 			SongComposition s = ResolveGlobal(pools, gidx);
 			if (s == null) continue;
-			float score = s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f;
+			Observe(artist, record, s, record.primaryGenre, year, "pool", salt);
+			float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
 			// Recent-hit covers: prefer the less-worn song so covers spread across many hits and the
 			// 3rd/4th cover of one hit (or a definitive #1) is avoided -- without cutting the bucket share.
 			if (applyFatigue) score *= CoverFatigueShadow(s);
-			if (score > bestScore) { bestScore = score; best = s; }
+			if (score > bestScore || (PolarSongBehavior.UsePolarFitSelection && score == bestScore && (best == null || GenreFit(s, record.primaryGenre) > GenreFit(best, record.primaryGenre)))) { bestScore = score; best = s; }
 		}
 		return best;
 	}
@@ -556,11 +627,15 @@ public static class SongMaterialSelectionService {
 			int idx = (int)(u * pool.Count) % pool.Count;
 			SongComposition s = pool[idx];
 			if (filter != null && !filter(s)) continue;
-			float score = s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f;
-			if (score > bestScore) { bestScore = score; best = s; }
+			Observe(artist, record, s, record.primaryGenre, year, "pool", salt);
+			float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
+			if (score > bestScore || (PolarSongBehavior.UsePolarFitSelection && score == bestScore && (best == null || GenreFit(s, record.primaryGenre) > GenreFit(best, record.primaryGenre)))) { bestScore = score; best = s; }
 		}
 		return best;
 	}
+
+	[System.Obsolete("Compatibility-only catalogue ranking; never use for polar decisions.")]
+	private static float LegacySelectionScore(SongComposition song, int year) => song.GetCraftScore() + song.GetFamiliarityForYear(year) * 0.2f;
 
 	// ---- Deterministic weighted pick ---------------------------------------------------------
 
@@ -598,6 +673,8 @@ public struct SourceShares {
 
 /// <summary>The outcome of a material decision: which song, from what source, with expected traits.</summary>
 public sealed class SelectedSongMaterial {
+	public PolarArrangementProposal PolarProposal;
+	internal string ReferenceSubjectId;
 	public SongComposition Song;
 	public SongMaterialSource Source;
 	public bool IsCover;

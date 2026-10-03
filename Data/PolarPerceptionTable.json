@@ -1,0 +1,15 @@
+{
+  "version": "polar-perception-v1",
+  "provenance": "Spec A perception proposal, expanded to persist observer/event/version reads. Visual uncertainty proposals under the authorized UI slice; no recording/economy tuning.",
+  "demandErrorWeak": 0.42,
+  "demandErrorStrong": 0.07,
+  "identityErrorWeak": 0.30,
+  "identityErrorStrong": 0.04,
+  "marketErrorWeak": 0.36,
+  "marketErrorStrong": 0.14,
+  "bandWidth": 0.8,
+  "arrangementDescriptionThreshold": 0.04,
+  "gateScale": { "FirstListen": 1.0, "FollowUp": 0.7, "Demo": 0.8, "Rehearsal": 0.5, "Playback": 0.16 },
+  "standing": { "Unsigned": 0.15, "NewSigning": 0.15, "Rising": 0.30, "Established": 0.55, "Star": 0.80, "Superstar": 1.0, "Declining": 0.55, "Dropped": 0.15, "Disbanded": 0.15, "Retired": 0.55 },
+  "maximumObservations": 4096
+}

@@ -1,0 +1,15 @@
+{
+  "Systems/PolarSongBehavior.cs": "f0aa6ad90aadc454f9c8b6e4599f6b95ee71bf9de69cbd0d80e5f0524deb15df",
+  "Systems/SimulationSeedBootstrap.cs": "b4655de1e6dbd877ccd174ed99919757957cb5e86c041b480e85ccd71cc15852",
+  "Systems/SongMaterialApplicationService.cs": "a6e7b5904ffb4d1bbf3ce5a63fbc21708eb86bcc5c5da5d6e9b412952fb1e5d7",
+  "Systems/SongMaterialSelectionService.cs": "28490fe86f553f4938ee8ea03a496bd8e3a582ef941f5629724d8608828fdbd5",
+  "Systems/CompetitorManager.cs": "794241985d05bd84093ea43b40ea4df65b5c515f9c64f1564f0f44dce1171db1",
+  "Systems/PlayerDesk.cs": "90e5edc5b522909c40be8533f3203bc3d51b0acfddc0c3012e7ae365c19e9c56",
+  "Data/AlbumMaterialPlan.cs": "32696c71ddabb00b2cd6133d182483c89ef324a4f1147fcdb15e82f2705c4c49",
+  "Data/PolarSongTable.json": "597f7799cca12829b8d972186a4e4ff61c5c587c80e29ae77c56b7d3e69c61c5",
+  "Systems/PolarSongTable.cs": "e76155b2d4e4eb1612e18b8e50c68281d980beadbf19d43bc49871f3939a5ce5",
+  "SimTools/PolarRockSongbookChecks.cs": "a1f5521ab5a3ccac7a831c4d4a005466193fe4cd8ebe0a2540bbd14e16341ec7",
+  "SimTools/SaveLoadRoundTripRunner.cs": "bb1a06cbc0f2cc34bc408d8a148afb84d8b47fae7f4681507bbee00f7e55b999",
+  "SimTools/analyze-polar-calibration.mjs": "4215d11a8e06309f8f49f7e572ec338edcfa1917d5d639a98a6b2f31e8cf4c1b",
+  "SimTools/PolarRockCalibrationReport.md": "1a649c55f20e119443bffcc9f74c1ba68c1449335f573b12d3e087285caeaced"
+}

@@ -98,6 +98,9 @@ public sealed class WorldSaveData {
 /// (the pools share SongComposition objects with <see cref="Songs"/> and are not a pure function of it, so they
 /// are relinked rather than rebuilt). The catalogue's own RNG state is preserved.</summary>
 public sealed class CompositionSaveData {
+	public bool UsePolarFitSelection { get; set; }
+	public Dictionary<Genre, MarketTasteSnapshot> PolarTaste { get; set; } = new();
+	public Dictionary<string, SongMasterMetadata> PolarMasters { get; set; } = new();
 	public Dictionary<string, SongComposition> Songs { get; set; } = new();
 	public Dictionary<int, List<string>> StandardsByGenre { get; set; } = new();       // Genre int -> songIds
 	public Dictionary<int, List<string>> CatalogByGenre { get; set; } = new();

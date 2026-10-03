@@ -56,6 +56,9 @@ public static class CompositionCatalogService {
 	public static int StandardCount { get { int n = 0; foreach (var kv in standardsByGenre) n += kv.Value.Count; return n; } }
 
 	public static void Initialize(int startYear, IEnumerable<AILabel> labels, ulong seed) {
+		PolarSongMetadataService.Reset();
+		PolarSongBehavior.ResetTaste();
+		PolarSongBehavior.ResetTaste();
 		songs.Clear();
 		standardsByGenre.Clear();
 		catalogByGenre.Clear();
@@ -370,7 +373,7 @@ public static class CompositionCatalogService {
 	public static void ApplyToRecord(
 		Record record, SongComposition song, SongMaterialSource source, bool isCover,
 		string originalRecordId, string originalArtistId,
-		float familiarityAtRelease, float arrangementOriginality, float professionalPolish
+		float familiarityAtRelease, float arrangementOriginality, float professionalPolish, PolarArrangementProposal proposal = null
 	) {
 		if (record == null || song == null) return;
 		record.songId = song.songId;
@@ -407,6 +410,7 @@ public static class CompositionCatalogService {
 		if (song.genreTagIds != null && song.genreTagIds.Length > 0) {
 			record.genreTagIds = MergeTags(record.genreTagIds, song.genreTagIds);
 		}
+		PolarSongMetadataService.RegisterRecord(record, song, TimeManager.Instance?.CurrentDate ?? default, proposal: proposal);
 	}
 
 	// ---- Lookups & helpers -------------------------------------------------------------------
@@ -648,7 +652,12 @@ public static class CompositionCatalogService {
 	// ========================================================================
 
 	public static void CaptureWorld(WorldSaveData w) {
+		foreach (var song in songs.Values) PolarSongMetadataService.EnsureComposition(song);
+		PolarSongMetadataService.MigrateRecords((w.Records ?? new()).Where(r => r != null).Select(r => r.baseRecord), w.RetiredTrackArchive);
 		var c = new CompositionSaveData {
+			UsePolarFitSelection = PolarSongBehavior.UsePolarFitSelection,
+			PolarTaste = PolarSongBehavior.CaptureTaste(),
+			PolarMasters = PolarSongMetadataService.Capture(),
 			Songs = new Dictionary<string, SongComposition>(songs),
 			StandardsByGenre = GenrePoolToIds(standardsByGenre),
 			CatalogByGenre = GenrePoolToIds(catalogByGenre),
@@ -675,9 +684,14 @@ public static class CompositionCatalogService {
 	public static void RehydrateWorld(WorldSaveData w) {
 		CompositionSaveData c = w.Composition;
 		if (c == null) return;
+		PolarSongBehavior.UsePolarFitSelection = c.UsePolarFitSelection;
+		PolarSongBehavior.RestoreTaste(c.PolarTaste);
 
 		songs.Clear();
 		foreach (var kv in c.Songs ?? new Dictionary<string, SongComposition>()) if (kv.Value != null) songs[kv.Key] = kv.Value;
+		PolarSongMetadataService.Restore(c.PolarMasters);
+		foreach (var song in songs.Values) PolarSongMetadataService.EnsureComposition(song);
+		PolarSongMetadataService.MigrateRecords((w.Records ?? new()).Where(r => r != null).Select(r => r.baseRecord), w.RetiredTrackArchive);
 
 		RebuildGenrePool(standardsByGenre, c.StandardsByGenre);
 		RebuildGenrePool(catalogByGenre, c.CatalogByGenre);

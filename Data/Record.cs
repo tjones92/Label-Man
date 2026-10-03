@@ -41,6 +41,10 @@ public partial class Record : Resource {
 	// CompositionCatalogService. See SimTools/PublishingCoverSongDirective.md.
 	[ExportGroup("Composition / Publishing")]
 	[Export] public string songId;
+	// Release IDs and master IDs are distinct: albums have no single master profile.
+	[Export] public string masterId;
+	[Export] public string bSideMasterId;
+	public string PlugMasterId => bSideIsPlugSide ? bSideMasterId : masterId;
 	[Export] public SongMaterialSource songSource = SongMaterialSource.Unknown;
 	[Export] public bool isCover;
 	[Export] public string originalRecordId;

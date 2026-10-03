@@ -3235,7 +3235,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private Album GenerateAlbum(AILabel label, SimulatedArtist artist, int year, string albumRecordId = null, Genre secondaryGenre = Genre.TraditionalPop) {
-		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		bool useStructuredPromoTracks = PolarSongBehavior.UsePolarFitSelection || (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
 		float artistTalent = artist.CalculateBaseQuality();
 		float luckyRoll = GD.Randf();
 		float cohesionCeiling = AlbumModel.GetMaximumAchievableCohesion(year, artistTalent, label.productionQuality, luckyRoll);
@@ -3284,7 +3284,7 @@ public partial class CompetitorManager : Node {
 		SongMaterialSource[] planSlots = null;
 		int nonSingleTarget = Mathf.Max(0, targetTracks - referencedSingles.Count);
 		if (AlbumMaterialPlanner.Enabled && SongMaterialSelectionService.Enabled && albumRecordId != null && nonSingleTarget > 0) {
-			AlbumMaterialPlan plan = AlbumMaterialPlanner.Plan(artist.primaryGenre, year, thematicCohesion, nonSingleTarget);
+			AlbumMaterialPlan plan = AlbumMaterialPlanner.Plan(artist.primaryGenre, year, thematicCohesion, nonSingleTarget, artist.artistId, albumRecordId);
 			planSlots = AlbumMaterialPlanner.ExpandSlots(plan, artist.artistId, albumRecordId);
 		}
 		while (referencedSingles.Count + nonSingleTracks.Count < targetTracks) {
@@ -3317,6 +3317,8 @@ public partial class CompetitorManager : Node {
 				SelectedSongMaterial trackMaterial = SongMaterialSelectionService.ChooseMaterial(
 					label, artist, trackKey, artist.primaryGenre, year, albumChartWeek, forcedSource);
 				SongMaterialApplicationService.ApplyIdentityToAlbumTrack(track, trackMaterial);
+				PolarSongMetadataService.RegisterTrack(track, trackMaterial?.Song, trackKey.recordId, artist.artistId,
+					TimeManager.Instance?.CurrentDate ?? default, proposal: PolarSongBehavior.UsePolarFitSelection ? trackMaterial?.PolarProposal : null);
 			}
 			nonSingleTracks.Add(track);
 		}
@@ -3386,10 +3388,14 @@ public partial class CompetitorManager : Node {
 	private Record CreatePromoSingleFromAlbum(Record albumRecord, SimulatedArtist artist, AILabel label, int year) {
 		Album album = albumRecord.album ?? throw new System.InvalidOperationException("Promo project requires a generated album.");
 		if (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0) throw new System.InvalidOperationException("Promo project album has no eligible original track.");
-		bool useStructuredPromoTracks = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		bool useStructuredPromoTracks = PolarSongBehavior.UsePolarFitSelection || (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
 		int bestIndex = 0;
 		for (int i = 1; i < album.nonSingleTracks.Length; i++) {
-			if (useStructuredPromoTracks) {
+			if (PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyPromotion) {
+				float candidate = SongMaterialSelectionService.PromoSuitability(album.nonSingleTracks[i], artist, albumRecord.primaryGenre, year);
+				float current = SongMaterialSelectionService.PromoSuitability(album.nonSingleTracks[bestIndex], artist, albumRecord.primaryGenre, year);
+				if (candidate > current) bestIndex = i;
+			} else if (useStructuredPromoTracks) {
 				int selectionYear = albumRecord.releaseDate.year > 0 ? albumRecord.releaseDate.year : (TimeManager.Instance?.CurrentDate.year ?? 1960);
 				float candidate = GetLeadSingleSuitability(album.nonSingleTracks[i], albumRecord.primaryGenre, selectionYear);
 				float current = GetLeadSingleSuitability(album.nonSingleTracks[bestIndex], albumRecord.primaryGenre, selectionYear);
@@ -3415,7 +3421,12 @@ public partial class CompetitorManager : Node {
 		// A promo single is a chart single like any other -- give it composition origin so it obeys the
 		// material mix (without this, ~38% of runtime singles bypassed the song layer). Selection is a
 		// pure stable hash (no GD draw), so the album-project RNG stream is unchanged.
-		if (SongMaterialSelectionService.Enabled && artist != null) {
+		if (SongMaterialSelectionService.Enabled && artist != null && PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyPromotion && CompositionCatalogService.GetSong(source.songId) is SongComposition sourceSong) {
+			// Promotion reuses the album performance; no second material selection or execution penalty.
+			promo.masterId = source.masterId;
+			CompositionCatalogService.ApplyToRecord(promo, sourceSong, source.songSource, source.isCover,
+				source.originalRecordId, source.originalArtistId, source.songFamiliarityAtRelease, source.arrangementOriginality, 0);
+		} else if (SongMaterialSelectionService.Enabled && artist != null) {
 			int promoChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 			SelectedSongMaterial promoMaterial = SongMaterialSelectionService.ChooseMaterial(label, artist, promo, promo.primaryGenre, year, promoChartWeek);
 			SongMaterialApplicationService.Apply(promo, promoMaterial, label, artist);
@@ -3424,7 +3435,7 @@ public partial class CompetitorManager : Node {
 		remaining.RemoveAt(bestIndex);
 		var refs = album.trackRefs?.ToList() ?? new List<AlbumTrack>();
 		refs.Add(new AlbumTrack {
-			sourceRecordId = promo.recordId, title = source.title, genre = source.genre,
+			sourceRecordId = promo.recordId, masterId = promo.masterId, title = source.title, genre = source.genre,
 			quality = source.quality,
 			hookStrength = useStructuredPromoTracks ? hook : 0f,
 			productionQuality = useStructuredPromoTracks ? production : 0f,

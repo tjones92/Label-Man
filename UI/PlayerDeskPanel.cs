@@ -31,6 +31,7 @@ public partial class PlayerDeskPanel : Control {
 	// The act whose MANAGE window is open on the ROSTER tab, and whether its cover-browse list is up.
 	private string managingArtistId;
 	private bool browsingCovers;
+	private string polarCatalogSong, polarStudioSong;
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
 	private PopupPanel foundingCityPopup;
@@ -674,11 +675,33 @@ public partial class PlayerDeskPanel : Control {
 		setText.AddThemeColorOverride("font_color", Heard);
 		int shown = Mathf.Min(prospect.HeardCount, prospect.LiveSet.Count);
 		var lines = prospect.LiveSet.Take(shown).Select(item =>
+			PolarSongBehavior.UsePolarFitSelection ? $"    ♪ \"{item.Title}\" ({item.SourceTag})" :
 			$"    ♪ \"{item.Title}\" ({item.SourceTag}) — {DescribeRead(item.ReadHook, prospect.ReadConfidence)}");
 		int hidden = prospect.LiveSet.Count - shown;
 		string tail = hidden > 0 ? $"\n    …and {hidden} more you didn't catch — follow up to hear the full set." : "";
 		setText.Text = (shown == 0 ? "    (didn't catch their set)" : string.Join("\n", lines)) + tail;
 		card.AddChild(setText);
+		if (PolarSongBehavior.UsePolarFitSelection && shown > 0) {
+			var compare = Btn("COMPARE HEARD MATERIAL");
+			compare.Pressed += () => {
+				var preview = new AcceptDialog { Title = "A&R · heard material", Size = new Vector2I(970, 680) };
+				var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+				var scroll = ComparisonScroll(); preview.AddChild(scroll); scroll.AddChild(column);
+				var songs = Option(); foreach (var item in prospect.LiveSet.Take(shown)) songs.AddItem(item.Title);
+				column.AddChild(songs); var host = new VBoxContainer(); column.AddChild(host);
+				void Update() {
+					Clear(host); var heard = prospect.LiveSet[songs.Selected];
+					var material = new PlayerDesk.MaterialChoice { Title = heard.Title, SongId = heard.SongId, ReferenceMasterId = heard.ReferenceMasterId,
+						Kind = heard.IsOriginal ? PlayerDesk.MaterialKind.Original : PlayerDesk.MaterialKind.LiveCover, Detail = heard.SourceTag };
+					host.AddChild(ComparisonCard(prospect.Artist, material, prospect.FollowedUp ? PolarEvidenceGate.FollowUp : PolarEvidenceGate.FirstListen,
+						"venue:" + PlayerDesk.Instance.SlateDate + ":" + prospect.Artist.artistId, null, 0));
+				}
+				songs.ItemSelected += _ => Update(); Update();
+				preview.Confirmed += () => preview.QueueFree(); preview.Canceled += () => preview.QueueFree();
+				AddChild(preview); preview.PopupCentered();
+			};
+			card.AddChild(compare);
+		}
 		content.AddChild(card);
 	}
 
@@ -1026,10 +1049,12 @@ public partial class PlayerDeskPanel : Control {
 		foreach (PlayerDesk.RepertoireItem item in have) {
 			string tag = item.IsOriginal ? "their own" : item.SourceTag;
 			if (item.Recorded) RecordedLine(desk, $"\"{item.Title}\"", tag, item.RecordedId, artist.artistId);
+			else if (PolarSongBehavior.UsePolarFitSelection) Body($"    ♪ \"{item.Title}\" ({tag}) — compare in the studio below");
 			else SongLine($"\"{item.Title}\"", tag, item.ReadHook);
 		}
 		foreach (PlayerDesk.Song song in written) {
 			if (song.Recorded) RecordedLine(desk, $"\"{song.Title}\"", "their own", song.RecordedId, artist.artistId);
+			else if (PolarSongBehavior.UsePolarFitSelection) Body($"    ♪ \"{song.Title}\" (their own) — provisional demo");
 			else SongLine($"\"{song.Title}\"", "their own", song.Hook);
 		}
 		foreach (PlayerDesk.CoverRehearsal r in rehearsing)
@@ -1056,7 +1081,9 @@ public partial class PlayerDeskPanel : Control {
 			row.AddThemeConstantOverride("separation", 12);
 			var text = new Label {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
-				Text = $"    ♪ \"{cover.Title}\"  ({cover.Detail})  —  {GenreNameFormatter.Format(cover.Genre)}   •   hook {StarBar(cover.Hook)}"
+				AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				Text = PolarSongBehavior.UsePolarFitSelection ? $"    ♪ \"{cover.Title}\" ({cover.Detail}) — {GenreNameFormatter.Format(cover.Genre)}" :
+					$"    ♪ \"{cover.Title}\"  ({cover.Detail})  —  {GenreNameFormatter.Format(cover.Genre)}   •   hook {StarBar(cover.Hook)}"
 			};
 			text.AddThemeColorOverride("font_color", Ink);
 			row.AddChild(text);
@@ -1065,7 +1092,14 @@ public partial class PlayerDeskPanel : Control {
 			take.CustomMinimumSize = new Vector2(150, 36);
 			take.Pressed += () => Act(() => { PlayerDesk.Instance.TeachCover(artist, songId, out string message); Say(message); return true; });
 			row.AddChild(take);
+			if (PolarSongBehavior.UsePolarFitSelection) {
+				var compare = Btn("COMPARE / PREVIEW");
+				compare.Pressed += () => { polarCatalogSong = cover.SongId; Refresh(); };
+				row.AddChild(compare);
+			}
 			content.AddChild(row);
+			if (PolarSongBehavior.UsePolarFitSelection && polarCatalogSong == cover.SongId)
+				content.AddChild(ComparisonCard(artist, cover, PolarEvidenceGate.Demo, "catalogue:" + cover.SongId, null, 0));
 		}
 	}
 
@@ -1122,17 +1156,101 @@ public partial class PlayerDeskPanel : Control {
 		tierPicker.ItemSelected += _ => UpdateCost();
 		hoursInput.ValueChanged += _ => UpdateCost();
 		UpdateCost();
+		if (PolarSongBehavior.UsePolarFitSelection && options.Count > 0) {
+			var songPick = Option();
+			foreach (var option in options) songPick.AddItem(option.Describe());
+			int index = options.FindIndex(o => (o.SongId ?? o.Title) == polarStudioSong);
+			songPick.Selected = Math.Max(0, index);
+			content.AddChild(FormLabel("COMPARE / ARRANGEMENT PREVIEW"));
+			content.AddChild(songPick);
+			var previewHost = new VBoxContainer(); content.AddChild(previewHost);
+			void UpdatePreview() {
+				foreach (Node child in previewHost.GetChildren()) { previewHost.RemoveChild(child); child.QueueFree(); }
+				var option = options[songPick.Selected]; polarStudioSong = option.SongId ?? option.Title;
+				int slot = checks.Take(songPick.Selected).Count(c => c.Box.ButtonPressed);
+				var gate = option.Kind == PlayerDesk.MaterialKind.LiveCover ? PolarEvidenceGate.Rehearsal : PolarEvidenceGate.Demo;
+				previewHost.AddChild(ComparisonCard(artist, option, gate, "repertoire:" + artist.artistId + ":" + polarStudioSong,
+					desk.PreviewSessionContext(Tiers[tierPicker.Selected], artist), slot,
+					selected => desk.PreviewSessionContext(Tiers[tierPicker.Selected], selected)));
+			}
+			songPick.ItemSelected += _ => UpdatePreview(); tierPicker.ItemSelected += _ => UpdatePreview();
+			foreach (var item in checks) item.Box.Toggled += pressed => {
+				if (pressed) songPick.Select(options.IndexOf(item.Choice));
+				UpdatePreview();
+			};
+			UpdatePreview();
+		}
 
 		var book = Btn("BOOK THE ROOM");
 		book.CustomMinimumSize = new Vector2(300, 44);
-		book.Pressed += () => Act(() => {
+		book.Pressed += () => {
 			var chosen = checks.Where(c => c.Box.ButtonPressed).Select(c => c.Choice).ToList();
 			PlayerDesk.StudioTier tier = Tiers[Mathf.Clamp(tierPicker.Selected, 0, Tiers.Length - 1)];
+			var responses = PlayerDesk.Instance.MaterialRefusals(artist, chosen, tier);
+			if (responses.Count > 0) { RefusalDialog(artist, chosen, tier, (int)hoursInput.Value, responses, checks); return; }
 			PlayerDesk.Instance.StartSession(artist, chosen, tier, (int)hoursInput.Value, out string message);
 			Say(message);
-			return true;
-		});
+			Refresh();
+		};
 		content.AddChild(book);
+	}
+
+	private Control ComparisonCard(SimulatedArtist artist, PlayerDesk.MaterialChoice choice, PolarEvidenceGate gate,
+		string eventId, PolarSessionContext session, int slot, Func<SimulatedArtist, PolarSessionContext> sessionForAct = null, string printedMasterId = null) {
+		var card = new PanelContainer();
+		card.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = Paper, ContentMarginLeft = 12,
+			ContentMarginRight = 12, ContentMarginTop = 12, ContentMarginBottom = 12 });
+		var column = new VBoxContainer(); column.AddThemeConstantOverride("separation", 7); card.AddChild(column);
+		Label Copy(string text, Color color) {
+			var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			label.AddThemeColorOverride("font_color", color); label.AddThemeFontSizeOverride("font_size", 16);
+			column.AddChild(label); return label;
+		}
+		Copy($"“{choice.Title}”", Ink);
+		var names = PlayerDesk.Instance.Roster.Prepend(artist).DistinctBy(a => a.artistId).ToList();
+		var picker = Option(); foreach (var act in names) picker.AddItem(act.stageName);
+		// A kept take belongs to the recorded act; previews can compare the same material across the roster.
+		picker.Disabled = gate == PolarEvidenceGate.Playback; column.AddChild(picker);
+		var evidence = Copy("", Heard);
+		var explanation = Copy("", Ink); var resistance = Copy("", Rust);
+		var graph = new PolarComparisonWidget(); column.AddChild(graph);
+		void Update() {
+			var selected = names[picker.Selected];
+			var read = PolarPlayerPerception.Compare(choice, selected, selected.artistId == artist.artistId ? gate : PolarEvidenceGate.Demo, eventId,
+				PlayerDesk.Instance.PreviewMasterId(slot), sessionForAct?.Invoke(selected) ?? session, printedMasterId);
+			evidence.Text = read.subjectLabel + " · " + read.evidenceLabel;
+			graph.SetRead(read); explanation.Text = read.arrangement + " " + read.explanation;
+			resistance.Text = read.resistance;
+		}
+		picker.ItemSelected += _ => Update(); Update(); return card;
+	}
+	private static ScrollContainer ComparisonScroll() => new() {
+		CustomMinimumSize = new Vector2(920, 600), HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled
+	};
+
+	private void RefusalDialog(SimulatedArtist artist, List<PlayerDesk.MaterialChoice> chosen, PlayerDesk.StudioTier tier,
+		int hours, IReadOnlyList<string> responses, List<(CheckBox Box, PlayerDesk.MaterialChoice Choice)> checks) {
+		var dialog = new AcceptDialog { Title = "THE ACT PUSHES BACK", MinSize = new Vector2I(820, 240), Exclusive = true };
+		var material = chosen.First(c => responses.Any(r => r.Contains("“" + c.Title + "”", StringComparison.Ordinal)));
+		var read = PolarPlayerPerception.Compare(material, artist, PolarEvidenceGate.Rehearsal, "booking:" + artist.artistId + ":" + material.Title,
+			PlayerDesk.Instance.PreviewMasterId(chosen.IndexOf(material)), PlayerDesk.Instance.PreviewSessionContext(tier, artist));
+		dialog.DialogText = string.Join("\n\n", responses) + "\n\nYour staff's read: " +
+			(read.mayResist ? read.resistance + " " : "") + read.explanation + "\n\nThe room has not been booked. How do you answer?";
+		dialog.GetLabel().AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		dialog.GetOkButton().Text = "INSIST — BOOK THE ROOM";
+		var own = dialog.AddButton("USE THEIR OWN MATERIAL", false, "own");
+		own.Disabled = !checks.Any(c => c.Choice.Kind == PlayerDesk.MaterialKind.Original);
+		dialog.AddButton("SET THIS ASIDE", true, "shelve");
+		dialog.Confirmed += () => {
+			PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true);
+			Say(message); dialog.QueueFree(); Refresh();
+		};
+		dialog.CustomAction += action => {
+			foreach (var item in checks) item.Box.ButtonPressed = action == "own" && item.Choice.Kind == PlayerDesk.MaterialKind.Original;
+			Say(action == "own" ? "Their own material is selected. Review it before booking." : "The material is set aside. Choose another song when you're ready.");
+			dialog.QueueFree();
+		};
+		dialog.Canceled += () => dialog.QueueFree(); AddChild(dialog); dialog.PopupCentered();
 	}
 
 	/// <summary>The console: keep a take per song, then print. Selecting a take is free.</summary>
@@ -1151,7 +1269,8 @@ public partial class PlayerDeskPanel : Control {
 			for (int t = 0; t < cut.Takes.Count; t++) {
 				PlayerDesk.SessionTake take = cut.Takes[t];
 				bool kept = t == cut.KeptTake;
-				var btn = Btn($"Take {take.Number}{(kept ? "  ✓" : "")}\nhook {StarBar(take.Hook)}\nprod {StarBar(take.Production)}");
+				var btn = Btn(PolarSongBehavior.UsePolarFitSelection ? $"Take {take.Number}{(kept ? "  ✓" : "")}\nPLAYBACK READ" :
+					$"Take {take.Number}{(kept ? "  ✓" : "")}\nhook {StarBar(take.Hook)}\nprod {StarBar(take.Production)}");
 				btn.CustomMinimumSize = new Vector2(190, 62);
 				btn.ToggleMode = true;
 				btn.ButtonPressed = kept;
@@ -1160,6 +1279,12 @@ public partial class PlayerDeskPanel : Control {
 				takesRow.AddChild(btn);
 			}
 			content.AddChild(takesRow);
+			if (PolarSongBehavior.UsePolarFitSelection) {
+				var take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
+				content.AddChild(ComparisonCard(artist, cut.Choice, PolarEvidenceGate.Playback,
+					$"session:{session.Date}:{artist.artistId}:{c}:take:{take.Number}", new PolarSessionContext {
+						producerCraft = PlayerDesk.Instance.Label.productionQuality, studioCraft = take.Production }, c));
+			}
 		}
 
 		var buttons = new HBoxContainer();
@@ -1316,10 +1441,23 @@ public partial class PlayerDeskPanel : Control {
 		Heading("MASTERS ON THE SHELF");
 		List<PlayerDesk.Master> shelf = desk.Masters.Where(master => !master.Scheduled).ToList();
 		if (shelf.Count == 0) { Body("Nothing cut and waiting. Cut a record from an act's MANAGE window."); return; }
-		foreach (PlayerDesk.Master master in shelf)
+		foreach (PlayerDesk.Master master in shelf) {
 			Body($"\"{master.SongTitle}\"  —  {master.Record.artistName}\n" +
-				$"    hook {StarBar(master.Record.hookStrength)}   •   production {StarBar(master.Record.productionQuality)}   " +
-				$"•   cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}");
+				(PolarSongBehavior.UsePolarFitSelection ? "    " : $"    hook {StarBar(master.Record.hookStrength)}   •   production {StarBar(master.Record.productionQuality)}   •   ") +
+				$"cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}");
+			var artist = ArtistManager.Instance.GetArtist(master.Record.artistId);
+			if (PolarSongBehavior.UsePolarFitSelection && artist != null && PolarSongMetadataService.Get(master.Record.masterId) != null) {
+				var compare = Btn("COMPARE PLAYBACK"); content.AddChild(compare);
+				compare.Pressed += () => {
+					var dialog = new AcceptDialog { Title = "Printed master · playback", Size = new Vector2I(970, 680) };
+					var choice = new PlayerDesk.MaterialChoice { Title = master.SongTitle, SongId = master.Record.songId };
+					var scroll = ComparisonScroll(); dialog.AddChild(scroll);
+					scroll.AddChild(ComparisonCard(artist, choice, PolarEvidenceGate.Playback, "master:" + master.Record.masterId,
+						new PolarSessionContext { producerCraft = desk.Label.productionQuality, studioCraft = master.Record.productionQuality }, 0, printedMasterId: master.Record.masterId));
+					dialog.Confirmed += () => dialog.QueueFree(); dialog.Canceled += () => dialog.QueueFree(); AddChild(dialog); dialog.PopupCentered();
+				};
+			}
+		}
 	}
 
 	private static string PipelinePressStage(PlayerDesk.PressOrder order, GameDate today) {
