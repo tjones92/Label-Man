@@ -264,6 +264,10 @@ public sealed class PlayerSaveData {
 	// action or a reversal), plus the week-boundary cursor gating CheckWeeklyFlip the same way
 	// LastCallGenWeek gates CheckWeeklyInboundCalls.
 	public List<string> FlipResolvedRecordIds { get; set; } = new();
+	// "recordId|regionId" (and "recordId|NATIONAL") for every breakout the office has already been told
+	// about -- see PlayerDesk.CheckWeeklyBreakoutNotices. Persisted so a reload doesn't re-announce news
+	// the player has already read.
+	public List<string> BreakoutNoticesShown { get; set; } = new();
 	public int LastFlipCheckWeek { get; set; } = -1;
 	// Dealer-margin-and-flip directive §4, R1: the week-boundary cursor gating CheckWeeklyReturns, same
 	// pattern as LastFlipCheckWeek above. Individual lots' ReturnRequested flag rides on their own
@@ -272,6 +276,10 @@ public sealed class PlayerSaveData {
 	// Dealer-margin-and-flip directive §4, R2: live returnable carton sales.
 	public List<OneStopCartonSaleSaveData> OneStopCartonSales { get; set; } = new();
 	public List<string> Log { get; set; } = new();
+	public string MorningDigest { get; set; }
+	public int UnreadLogCount { get; set; }
+	public List<ProspectNotebookSaveData> Notebook { get; set; } = new();
+	public Dictionary<string, int> AcetateCopies { get; set; } = new();
 	public List<WeekBookSaveData> Books { get; set; } = new();
 
 	// Player-layer completion: the whole working state of the desk.
@@ -325,6 +333,8 @@ public sealed class PlayerSaveData {
 	public List<RecordServicingSaveData> Servicing { get; set; } = new();
 	// Promo mechanic directive §6.1: who's been sent to the trade review desk and what came back.
 	public List<TradeSubmissionSaveData> TradeSubmissions { get; set; } = new();
+	// Promo mechanic directive §5: mailings spent but not yet resolved (see PendingMailing.cs).
+	public List<PendingMailingSaveData> PendingMailings { get; set; } = new();
 	// Promo mechanic directive §6.2: live paid trade ads.
 	public List<TradeAdSaveData> TradeAds { get; set; } = new();
 	// Publishing & Cover-Song directive Part II §II.2: covers of the player's own songs, noticed.
@@ -355,6 +365,25 @@ public sealed class PlayerSaveData {
 	public Dictionary<string, int> LeasedMasterExpiryWeek { get; set; } = new();
 	public List<string> OneStopKnownRecordIds { get; set; } = new();
 	public DistributionDealSaveData PendingDistributionOffer { get; set; }
+}
+
+/// <summary>Player's saved A&R notebook entry. Stores the unsigned act itself so generated local prospects survive reloads.</summary>
+public sealed class ProspectNotebookSaveData {
+	public SimulatedArtist Artist { get; set; }
+	public int Venue { get; set; }
+	public int Year { get; set; }
+	public int Month { get; set; }
+	public int Day { get; set; }
+	public float ReadQuality { get; set; }
+	public float ReadConfidence { get; set; }
+	public float AskingAdvance { get; set; }
+	public string Note { get; set; }
+	public int HeardCount { get; set; }
+	public bool FollowedUp { get; set; }
+	public List<RepertoireSaveData> LiveSet { get; set; } = new();
+	public int LastRivalYear { get; set; }
+	public int LastRivalMonth { get; set; }
+	public int LastRivalDay { get; set; }
 }
 
 /// <summary>Flat save record for <see cref="DistributionDeal"/> -- used both for the player's
@@ -443,6 +472,11 @@ public sealed class LabelSaveData {
 	public float lifetimeWholesaleWriteOffs { get; set; }
 	public string[] strongRegions { get; set; } = Array.Empty<string>();
 	public string[] distributionRegions { get; set; } = Array.Empty<string>();
+	// Wholesale lines the label placed itself (AILabel.independentDistributionRegions) -- the ONLY thing
+	// PlaceLine writes, and until now the one coverage field the player save dropped. Without it a player
+	// who placed a line and reloaded silently lost the region: HasDistributionInRegionForRecord went back
+	// to false, and ChartManager.RestockHotRecords resumed skipping his records' shops there.
+	public string[] independentDistributionRegions { get; set; } = Array.Empty<string>();
 	public int[] preferredGenres { get; set; } = Array.Empty<int>();
 	public int[] secondaryGenres { get; set; } = Array.Empty<int>();
 	public List<string> RosterArtistIds { get; set; } = new();
@@ -467,6 +501,7 @@ public sealed class LabelSaveData {
 		lifetimeWholesaleWriteOffs = l.lifetimeWholesaleWriteOffs,
 		strongRegions = l.strongRegions ?? Array.Empty<string>(),
 		distributionRegions = l.distributionRegions ?? Array.Empty<string>(),
+		independentDistributionRegions = (l.independentDistributionRegions ?? new HashSet<string>()).ToArray(),
 		preferredGenres = (l.preferredGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		secondaryGenres = (l.secondaryGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList(),
@@ -490,6 +525,10 @@ public sealed class LabelSaveData {
 		l.lifetimeWholesaleWriteOffs = lifetimeWholesaleWriteOffs;
 		l.strongRegions = strongRegions ?? Array.Empty<string>();
 		l.distributionRegions = distributionRegions ?? Array.Empty<string>();
+		l.independentDistributionRegions ??= new HashSet<string>(StringComparer.Ordinal);
+		l.independentDistributionRegions.Clear();
+		foreach (string regionId in independentDistributionRegions ?? Array.Empty<string>())
+			l.independentDistributionRegions.Add(regionId);
 		l.preferredGenres = (preferredGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.secondaryGenres = (secondaryGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.hasAnsweringService = HasAnsweringService;
@@ -955,6 +994,15 @@ public sealed class PressOrderSaveData {
 	public int OrderedYear { get; set; }
 	public int OrderedMonth { get; set; }
 	public int OrderedDay { get; set; }
+	public int MailedYear { get; set; }
+	public int MailedMonth { get; set; }
+	public int MailedDay { get; set; }
+	public int PlatingYear { get; set; }
+	public int PlatingMonth { get; set; }
+	public int PlatingDay { get; set; }
+	public int QueueYear { get; set; }
+	public int QueueMonth { get; set; }
+	public int QueueDay { get; set; }
 	public int ArrivesYear { get; set; }
 	public int ArrivesMonth { get; set; }
 	public int ArrivesDay { get; set; }
@@ -974,6 +1022,10 @@ public sealed class ConsignmentLotSaveData {
 	public int WindowCardExpiresWeek { get; set; }
 	// Dealer-margin-and-flip directive §4, R1: this lot has gone dead and the stop wants it back.
 	public bool ReturnRequested { get; set; }
+	// The sub-copy remainder of the lot's daily sell-through (PlayerDesk.ConsignmentLot.SellThroughCarry).
+	// Under a copy by definition, but dropping it on every save/load would hand a reloading player a small
+	// permanent refund of demand on every lot he holds.
+	public float SellThroughCarry { get; set; }
 }
 
 /// <summary>Flat save record for one live <see cref="PlayerDesk.OneStopCartonSale"/> (directive §4, R2).</summary>

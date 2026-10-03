@@ -487,10 +487,19 @@ public partial class PlayerDesk : Node {
 				c.hasOutOfRegionProof ? "True, and he can check it himself." : "There's nothing behind that yet. He has a phone too.",
 				bluff: !c.hasOutOfRegionProof);
 
-		opts.Add(new CallOption {
-			label = "Press the point", subLabel = "Say it again, louder. It sometimes works.",
-			counter = CallCounter.PressIt, minutes = CounterMinutes,
-		});
+		// NotServiced gets its own copy for PressIt: "say it louder" reads as a persuasion tactic, but
+		// what it actually means here is a bare promise to send a copy -- Resolve() still fails the call
+		// either way (directive §3.3), which is the honest thing to tell the player up front.
+		opts.Add(call.objection == Objection.NotServiced
+			? new CallOption {
+				label = "\"I'll get you a copy.\"",
+				subLabel = "A promise and nothing else. He won't spin it until it's actually in his hands.",
+				counter = CallCounter.PressIt, minutes = CounterMinutes,
+			}
+			: new CallOption {
+				label = "Press the point", subLabel = "Say it again, louder. It sometimes works.",
+				counter = CallCounter.PressIt, minutes = CounterMinutes,
+			});
 		opts.Add(new CallOption {
 			label = "Let it go", subLabel = "Drop the ask. Nothing gained, nothing burned.",
 			counter = CallCounter.BackOff,

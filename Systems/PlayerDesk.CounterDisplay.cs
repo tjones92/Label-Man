@@ -89,7 +89,7 @@ public partial class PlayerDesk : Node {
 		if (!Require(InStoreAppearanceHours, out message)) return false;
 
 		Spend(InStoreAppearanceHours);
-		int qty = Mathf.Min(Mathf.RoundToInt(SuggestedPlacement(stop) * InStorePlacementMultiplier), stockOnHand.Remaining);
+		int qty = Mathf.Min(Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * InStorePlacementMultiplier), stockOnHand.Remaining);
 		stockOnHand.Remaining -= qty;
 		lot.Remaining += qty;
 		lot.Placed += qty;

@@ -1,0 +1,724 @@
+{
+  "date": "2026-10-02",
+  "head": "d66e6bad02252db16929847db4d4e81ccaf54034",
+  "status": [
+    " M SimTools/SaveLoadRoundTripRunner.cs",
+    " M Systems/PlayerDesk.CounterDisplay.cs",
+    " M Systems/PlayerDesk.Mailing.cs",
+    " M Systems/PlayerDesk.RecordHop.cs",
+    " M Systems/PlayerDesk.RolodexVerbs.cs",
+    " M Systems/PlayerDesk.StationStops.cs",
+    " M Systems/PlayerDesk.cs",
+    " M Systems/PlayerStopFactory.cs",
+    " M Systems/Radio/StationNetwork.cs",
+    " M Systems/SaveGameService.cs",
+    " M UI/ArtistDetailPanel.cs",
+    " M UI/ChartEntryUI.cs",
+    " M UI/PlayerDeskPanel.cs",
+    " M UI/UIManager.cs",
+    "?? .claude/",
+    "?? SimTools/PolarSongDirectiveReview.md",
+    "?? SimTools/PolarSongRecon.md",
+    "?? SimTools/PolarSong_SpecA_FitAndPerception.md",
+    "?? SimTools/PolarSong_SpecB_Taxonomy.md",
+    "?? SimTools/PolarSong_SpecC_Tags.md",
+    "?? Systems/MechanicalRoyaltyService.cs.uid",
+    "?? Systems/PendingMailing.cs",
+    "?? Systems/PendingMailing.cs.uid",
+    "?? Systems/PlayerDesk.CounterDisplay.cs.uid",
+    "?? Systems/PlayerDesk.Mailing.cs.uid",
+    "?? Systems/PlayerDesk.RecordHop.cs.uid",
+    "?? Systems/PlayerDesk.ReportingOutlets.cs.uid",
+    "?? Systems/PlayerDesk.StationStops.cs.uid",
+    "?? Systems/PlayerDesk.TradePress.cs.uid",
+    "?? Systems/RecordServicing.cs.uid",
+    "?? Systems/TradePress.cs.uid"
+  ],
+  "files": [
+    {
+      "path": "C:/Users/grohl/Downloads/DirectiveN-PolarSongSystem-Codex.md",
+      "sha256": "4CF3E5095794A40C95CBB2843C35F6DC5C78A08A15D0C3CA8E0F4D41CA932F1E"
+    },
+    {
+      "path": "chart_manager.tscn",
+      "sha256": "B8D03EA006B276846912087F9510536CFAC78818048D69BDE024E697B9E75208"
+    },
+    {
+      "path": "ChartEntry.tscn",
+      "sha256": "A0D9B8D4161FE0B0BA2AE336654462A5DD29F5E2E062F3902C0CC72764D7100B"
+    },
+    {
+      "path": "Data\\ActionCosts.cs",
+      "sha256": "E34561B424C043D6C6CA1AE88271345C350291B4970FD7CCDF2EC206AD7850EF"
+    },
+    {
+      "path": "Data\\AILabel.cs",
+      "sha256": "46D069E79F8D7DE9E1432E8C1C9E3AAAD4BF1EAA18AA1C2A2E8144E1A0044A6F"
+    },
+    {
+      "path": "Data\\Album.cs",
+      "sha256": "CB509BDCD6D2079E7BB1ABE575D23A51DCB66B7DF38FB9252D07BB15A9DBD192"
+    },
+    {
+      "path": "Data\\AlbumMaterialPlan.cs",
+      "sha256": "C77799792F1BA76368FC18F9103A413179A8F7749BBD74CBA5273360A9F08ECB"
+    },
+    {
+      "path": "Data\\AlbumProject.cs",
+      "sha256": "9DEE67E8661F03C3A170DE06154005D0F2AB0B436AD82E9784C24C6687BFC6A7"
+    },
+    {
+      "path": "Data\\AlbumRuntimeData.cs",
+      "sha256": "E3E432894B70A024AECBB96ED5C6C46C0C55214A3D6E7613AA2F59B6EBB3B353"
+    },
+    {
+      "path": "Data\\AlbumTrack.cs",
+      "sha256": "5FE23FEBE7B1E3F2DDD8906F312A01589811AD48A3F25F5936F36CDE97A69B5A"
+    },
+    {
+      "path": "Data\\ArtistEvolution.cs",
+      "sha256": "963A13095AF4C70698A69476155067E0106D12DD74FC8AAE22FFAF5A1AEBF41B"
+    },
+    {
+      "path": "Data\\ArtistPublicProfile.cs",
+      "sha256": "96922CDEC9C9B1D81B95CF91FE3B312AF6E6D69154428DC4A89F1BA893CD2D27"
+    },
+    {
+      "path": "Data\\AudienceSegment.cs",
+      "sha256": "E465AD10B184B226EA92AAF8302FF7EFEEE93C571AD2F90B1881A82CC59434D7"
+    },
+    {
+      "path": "Data\\ContactEnums.cs",
+      "sha256": "A4DF5339345C9C5DF458ECA5876A502D6E66A2C26C850B1896461BA91A413890"
+    },
+    {
+      "path": "Data\\ContractTermSheet.cs",
+      "sha256": "02522B9948A42B35ABB3DE7D88D02DAC16A9813C8447D3B98F4DB4979FC04925"
+    },
+    {
+      "path": "Data\\DistributionDeal.cs",
+      "sha256": "B249115F2EC0C4723A3B23FF8272F6654F5EE028A1B16972614A3441C7BDD801"
+    },
+    {
+      "path": "Data\\DistributionNetwork.cs",
+      "sha256": "0B142F63E9C2DE694B6BC659A5CD0057F1E5AA5C2E65F96BCB7A9B7563465406"
+    },
+    {
+      "path": "Data\\ExternalMediaProfile.cs",
+      "sha256": "206766C4B5F26280C74C1F721B944C30D731CB1C17A36E7CC9B48FFFF0746C7E"
+    },
+    {
+      "path": "Data\\GameDate.cs",
+      "sha256": "7EE5BAFF7514666689C740897B88061028ED00BE3079A14582D94EB05D8C9E5B"
+    },
+    {
+      "path": "Data\\Genre.cs",
+      "sha256": "344EC64547C3B0C8A74A5F91BF2006CFCA06120E213EE96C971E061A1D5AB891"
+    },
+    {
+      "path": "Data\\GenreCatalog.cs",
+      "sha256": "DCB3BD8ADED0109EA0AA85DB2DD1513F296B4FC0065F145131C13FAE4CBE7EEE"
+    },
+    {
+      "path": "Data\\GenreDomains.cs",
+      "sha256": "7F87748B61FE0209E38B34FDDA919C4A1F3F913B310CCA920E11418E46C2E2D0"
+    },
+    {
+      "path": "Data\\GenreMigration.cs",
+      "sha256": "AC16585423CD0306D49EA84369C373B71FEA5E54C2CD7F8A6E3248A25A4A3129"
+    },
+    {
+      "path": "Data\\GenrePreference.cs",
+      "sha256": "80DF0277533634B4480AC4CBB9D9BB1B38B2C0CBA4996E7EB97475A158191A66"
+    },
+    {
+      "path": "Data\\GenreSegmentRouting.cs",
+      "sha256": "46786829EEFDB255DE50B6F8A5E2FED5962EEE8DD49B40510F17E757CF17D896"
+    },
+    {
+      "path": "Data\\IndependentDistributor.cs",
+      "sha256": "6EAF04F8B2FC21907E85709868D8AAE051D035AEA959FED5DD985A5EF2A9D2C5"
+    },
+    {
+      "path": "Data\\JournalisticDescriptor.cs",
+      "sha256": "2A9A9E17155D58D64379333661730E3ED61911FADED78B17B6B2DCCA7D9C1DA8"
+    },
+    {
+      "path": "Data\\LabelPublicProfile.cs",
+      "sha256": "C66221C885FFA37F67C06B36CCAF32B378EFE980408B1F3C2B17B2812EA78EB7"
+    },
+    {
+      "path": "Data\\ManagerProfile.cs",
+      "sha256": "92CEA56B5541CB4B6AEC8A21C2434D434D2F10D4397722C1F9A0C01531738810"
+    },
+    {
+      "path": "Data\\MarketCity.cs",
+      "sha256": "3C809FB6288934835C4DF0C59F1E50B203053A82BB47732A99BF02675E823DBF"
+    },
+    {
+      "path": "Data\\MarketRegion.cs",
+      "sha256": "A5B0E6B2E567BCBDB5F7A07BC685759E17A9D271952AFEE27D165BD85BBD30BF"
+    },
+    {
+      "path": "Data\\MediaInfrastructure.cs",
+      "sha256": "E057A0876027CAFFDE0C38F3B6FB492B27F520589E35D0BD222285D682C929FC"
+    },
+    {
+      "path": "Data\\Musician.cs",
+      "sha256": "2695A86C8D0BEB80EBD4B6D3B6BB8F0B377DCE2412001010009DB2BF01DCE0D6"
+    },
+    {
+      "path": "Data\\MusicInfrastructure.cs",
+      "sha256": "7CDF7579B8B04DFB6A9078FFEC058F9FC422DEB7D7A4B5C8AEB1E6A3CED40936"
+    },
+    {
+      "path": "Data\\Record.cs",
+      "sha256": "17C1048C15E5C623E1F0A509483924B02ECED75488C5ECA8637CF2C767FEF2B3"
+    },
+    {
+      "path": "Data\\RecordRuntimeData.cs",
+      "sha256": "F6CFDBE4157257F1593D8E34D9448D7A30200BFC9D5B42FF242BD2794EB1D2E2"
+    },
+    {
+      "path": "Data\\RegionalModifier.cs",
+      "sha256": "A5AC2395BFB07C337736427ABCB68A9B42EDE032B57690C4AD8C3988FBFDB00B"
+    },
+    {
+      "path": "Data\\RegionalRecordData.cs",
+      "sha256": "8B7E255F51ED9190EA614BD0544AC28762D66B37E193427E7AD677E3E4291779"
+    },
+    {
+      "path": "Data\\ReputationTag.cs",
+      "sha256": "0DB1A17DF73E54F5FD0213258B09F3A951FE3458BBABD059DACF48817856810A"
+    },
+    {
+      "path": "Data\\ScheduledEvent.cs",
+      "sha256": "D0AAF3A1CF6F3147B023614347991F77A61F2F74A057BB9E7DBFAEE6578763B5"
+    },
+    {
+      "path": "Data\\SimulatedArtist.cs",
+      "sha256": "D576C5CA9FAE6B38390E4052EA917F415ABB08F75B4548ED94E4D8C91ACC92B4"
+    },
+    {
+      "path": "Data\\SongComposition.cs",
+      "sha256": "E88929F1062081EE7BFB6AE1B9B5CBEC71F5FFA96F1A2C4D71D26C6E1D18BB62"
+    },
+    {
+      "path": "Data\\Zeitgeist.cs",
+      "sha256": "A45858F2C2572CC4A9186FDAE3DC60C898B63EA597DC4B6C35BEEDF3D07E51A0"
+    },
+    {
+      "path": "Desk.tscn",
+      "sha256": "77AA838E0EB101C1EB653B543B0A82B06848072AE917A5938CD1134607E8713E"
+    },
+    {
+      "path": "Label Man.csproj",
+      "sha256": "5B3032AD4A273A4ED97FC32164D56158F695C8D7D90F36DA990120277471C59B"
+    },
+    {
+      "path": "MainMenu.tscn",
+      "sha256": "B12D57F8082E5427921AC4BDD87650B39F6C029331E30961AE524E74F24F2A17"
+    },
+    {
+      "path": "SimTools/PolarSong_SpecA_FitAndPerception.md",
+      "sha256": "BA24A5C4779C29CA4672B0D1A47F61C8F2C1979766CAE0D53BEC8E08BF1BBC19"
+    },
+    {
+      "path": "SimTools/PolarSong_SpecB_Taxonomy.md",
+      "sha256": "F21113A56DE3A77927D8C4B77EE64DCF30858E7BB56D1798305EF07824926AF3"
+    },
+    {
+      "path": "SimTools/PolarSong_SpecC_Tags.md",
+      "sha256": "F6358A9EB860C83E1888E3147C4F3A608D08EA1EB460BCB99F7ECC52913D686D"
+    },
+    {
+      "path": "SimTools/PolarSongDirectiveReview.md",
+      "sha256": "E1033BA275591CD2EB8E83CD9C31351EFBD1C9E50FE2FED8CAE263855415C1C1"
+    },
+    {
+      "path": "SimTools\\ArtistEvolutionProbeSuite.cs",
+      "sha256": "EC84FC8C49BD563710B71B328FAD1CD6F0DF9A20CCF0B053DC99081C468A8FC0"
+    },
+    {
+      "path": "SimTools\\ArtistPopulationLifecycleProbeSuite.cs",
+      "sha256": "A844E885E085381157A28C6D4DE6CFC666CAEE5FE60A120739122E13CDA9695B"
+    },
+    {
+      "path": "SimTools\\ChartAuditRunner.cs",
+      "sha256": "3E6D3E752BFAC269EAA97FBB8B32ADE2D5E6FC9DEED499E2370D1EC7D98514AB"
+    },
+    {
+      "path": "SimTools\\ChartAuditRunner.tscn",
+      "sha256": "BEAD20B3E901B36869735FAC1956352DFF1EF2FFA747A7F3B0C6F9A10BA50802"
+    },
+    {
+      "path": "SimTools\\GenreMarketV2ProbeSuite.cs",
+      "sha256": "5496A8A4B55B862679CD9F02B3A58BD8AD4234B6F8698BEAB256E4FF2416D92B"
+    },
+    {
+      "path": "SimTools\\NamingCoreTests\\NamingCoreTests.csproj",
+      "sha256": "FE8DC072227E05C696F9654F1CDAC98B2FC786F030F0AE6F8ECC619EAA31D98E"
+    },
+    {
+      "path": "SimTools\\NamingCoreTests\\Program.cs",
+      "sha256": "9B4C9E2201248CCC2827A905E4D271EF922271F790E9E5D054A79AB6113032D6"
+    },
+    {
+      "path": "SimTools\\SaveLoadRoundTripRunner.cs",
+      "sha256": "B42C81CD877AD2D646E7947BB9C1642AB5547C5C01F98B19D7497AED5E497D82"
+    },
+    {
+      "path": "SimTools\\SaveLoadRoundTripRunner.tscn",
+      "sha256": "DED07EE0FF7BF69D199636B5560E9934E237DAF93AB9DBBCC19E9531FF9DE977"
+    },
+    {
+      "path": "Systems\\AILabelFactory.cs",
+      "sha256": "8D96BA7FCD794313ABE20EEBDC5166D7C13E5C09E3284D17B1949CBE6DE47AD4"
+    },
+    {
+      "path": "Systems\\AlbumLegitimacyService.cs",
+      "sha256": "7F364C993DE9489CC14B4ED000F017B02180F30D5D2C29E99F03034ABC09541C"
+    },
+    {
+      "path": "Systems\\AlbumModel.cs",
+      "sha256": "B8C53CA6C17797EB2629B0F8AE60BF83E298CE263B9FBD655688F75612068ABF"
+    },
+    {
+      "path": "Systems\\AlbumSimulator.cs",
+      "sha256": "2C13B05192552D6EA3A703C9B941833BCC41C664E7ADB08F1C0CBD82512A1BD4"
+    },
+    {
+      "path": "Systems\\ArtistCriticalAcclaimService.cs",
+      "sha256": "17BE759E2C36F4FC2B98185C495499CCBA97B4F7125575DFEC84D584D14502FF"
+    },
+    {
+      "path": "Systems\\ArtistDiscographyService.cs",
+      "sha256": "B9E4832A177577AA8A4103EF71D9B17F21E037D47EC0C0C953DC9E7C27411543"
+    },
+    {
+      "path": "Systems\\ArtistEraSummaryComposer.cs",
+      "sha256": "10F37D67D382BBC7AADC452F426FC4591A8D72826309C169A70ECDE2A96BFFCB"
+    },
+    {
+      "path": "Systems\\ArtistEvolution.cs",
+      "sha256": "AAF0716B19B4F9FD915ECC84E12B6202F32658D3952E59EC77C270A324DE74B9"
+    },
+    {
+      "path": "Systems\\ArtistEvolutionPressureService.cs",
+      "sha256": "B632BB67725E5CCFB61EFDE72C65AE13517594A50BA3CCDFFC01C563F3BCF254"
+    },
+    {
+      "path": "Systems\\ArtistEvolutionService.cs",
+      "sha256": "6B8D56D1A1DC63D04183A3539066E874BE94F49AE37DCD8F3BA9822501FF1C7C"
+    },
+    {
+      "path": "Systems\\ArtisticMeritService.cs",
+      "sha256": "91E68DB0CF3B41B9171D43F4D8334DEFF8A7E4074581621D9BFB58E8D410A066"
+    },
+    {
+      "path": "Systems\\ArtistManager.cs",
+      "sha256": "2761BD423A216E39CD75ADA9A703726B14E15B036ECEE06155454EBFFCB475A4"
+    },
+    {
+      "path": "Systems\\ArtistPopulationLifecycle.cs",
+      "sha256": "5FF3B7F9625D5DB994B25AD37E883317331C1060E38292945AE53135D7FBFD84"
+    },
+    {
+      "path": "Systems\\ArtistRecognition.cs",
+      "sha256": "E0BFCEC0C54A4F0EB0DBC7079271630503930118899DB95203DC29C0F81FBCB0"
+    },
+    {
+      "path": "Systems\\ArtistRecognitionService.cs",
+      "sha256": "A80CD90FDDF97F2B7E25A273602E0F37A13EB70E28E4078075C1270C93DEA803"
+    },
+    {
+      "path": "Systems\\ChartManager.cs",
+      "sha256": "57FCEF3DF3FEF6BC0964DB203CA841D08E0732D4AE15A2D5873456E89EB19B18"
+    },
+    {
+      "path": "Systems\\ChartSimulator.cs",
+      "sha256": "9CE7235DA8F6A89DF99F70076F90C4DE345EFF9C4F512A81E7A3C90481DA6741"
+    },
+    {
+      "path": "Systems\\CompetitorManager.cs",
+      "sha256": "582BAF2B5484BB00DC694692697C55149897BE9983B6DD7F4A8C1051085C0538"
+    },
+    {
+      "path": "Systems\\CompositionCatalogService.cs",
+      "sha256": "9293808A19B7C350226D387392C9B8DF5E59126573450C8776E05D283E430358"
+    },
+    {
+      "path": "Systems\\ContractTalk.cs",
+      "sha256": "4A16D8554CDF87704DEA4AFED522E2D9964282F3217208B71A23500F04312854"
+    },
+    {
+      "path": "Systems\\CulturalMemoryService.cs",
+      "sha256": "146CB82FB14AF9A8DBAD1CBDADB2BF7AEC6718E5B4BB7D9B0F44E73E0EAA85F0"
+    },
+    {
+      "path": "Systems\\CulturalRecognitionService.cs",
+      "sha256": "73255A51A569F46A1B47067F771F04B1FBA9715F9F8DB08F39A57D921D7C6127"
+    },
+    {
+      "path": "Systems\\DistanceModel.cs",
+      "sha256": "A9137EFF39B3534C1633CEA3F592ACD93AAAF4730970A0E76555E75F4A05686D"
+    },
+    {
+      "path": "Systems\\ExecutiveInstinctProfile.cs",
+      "sha256": "7E82320141379669AA651AA368BC063745116749C4FBAAEF5B6DA69DD5880589"
+    },
+    {
+      "path": "Systems\\ExternalMediaService.cs",
+      "sha256": "0FEF57AFD2DAFCA5F5F50904CDCA4AC764094CFC3CA3A546B5993E20D104F599"
+    },
+    {
+      "path": "Systems\\GenreAcceptanceService.cs",
+      "sha256": "98AD58C8A9DC9EE474C2178EF8220ECD5A2909AA192920655A4C8DC315E4E2EA"
+    },
+    {
+      "path": "Systems\\GenreMarketMomentumService.cs",
+      "sha256": "5AA194CF37C4905D0D97C626A7C51FA05F7867D6AA3604DF95AA5F7B01EA8B56"
+    },
+    {
+      "path": "Systems\\GenreMarketV2.cs",
+      "sha256": "9D0482EA3471AB96A6A1B45AD5D63612E0BCD34BAA399C3A0149A3C633E15270"
+    },
+    {
+      "path": "Systems\\GenreSupplyService.cs",
+      "sha256": "BD93C5983B05C90F91075CBBFA3D80D0A5F611C75E7D7A391A251D718F7E6AC9"
+    },
+    {
+      "path": "Systems\\IndependentDistributorFactory.cs",
+      "sha256": "E1E9E5E312521D21C7EDA361EB2AC0B49455AE0A4F6624ACECDE6FFB1E3037BC"
+    },
+    {
+      "path": "Systems\\LabelGenerator.cs",
+      "sha256": "E723B33A669994EFDB89E30DF335A15F1A9964F8DE77F275FFC70F3502889FCB"
+    },
+    {
+      "path": "Systems\\LabelLifecycleManager.cs",
+      "sha256": "1617C661B08CA7D88C296A2735C14C221B44D7EDB6544939E2D82F5AE6A72769"
+    },
+    {
+      "path": "Systems\\ManagerSystem.cs",
+      "sha256": "7561A8E1211C0FE82DCA94AD6C894C5E338A8E73BBB66896AF02EF63B47AEB53"
+    },
+    {
+      "path": "Systems\\MarketSeasonality.cs",
+      "sha256": "A3D7159AD5BF57519714701C39B8499F6C3046372FA9A1CD6F807F64949EB045"
+    },
+    {
+      "path": "Systems\\MathExtension.cs",
+      "sha256": "1A476834E88D66A90AC62BDAA54F60C678E7381E67D4B6B1297F1B623CBB808B"
+    },
+    {
+      "path": "Systems\\MechanicalRoyaltyService.cs",
+      "sha256": "C8AFBF9EFD49A06FCA3291D6871E070616AA859C4AEACEC8E403B62FB62EF4C9"
+    },
+    {
+      "path": "Systems\\MissingSingletonsTemp.cs",
+      "sha256": "C5DB2A7A56651BB8C2592E463493B57649DC1AB288341D631C62B4B8A24C1508"
+    },
+    {
+      "path": "Systems\\MusicianRecognitionService.cs",
+      "sha256": "84865856394369D07422D4E937846A871D61B014DEF28D60D4AF8ABD69B92776"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\BlendResolver.cs",
+      "sha256": "0BE74C556D4B381FD88C65251903629C919747054E4226A49AAD50EB02A2DC3D"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\Diminutives.cs",
+      "sha256": "6C8338BC6563FB4DB5FAD24BD3AD4FF229851A3C1B866E77AF9C782724A08A83"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\GenreProfile.cs",
+      "sha256": "A91E64DE235287CF2E283FEBF63A1782339A958FE82102CDA8E1FE23C4382D46"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\GrammarEngine.cs",
+      "sha256": "1381490DF69F58CB1D63C7A06882F283EF95BF7429CD26B58160BD006239953D"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\Inflection.cs",
+      "sha256": "C652497EDD923242FFDB5E8276BD9BF7D5495752FBBD2AC74BFB38D3D9536BEE"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\Lexicon.cs",
+      "sha256": "B044A5E0FF41A784B42994A80C82D9CAC77D4EFC513E275BE630C7F97E6EF5ED"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\MarkovModel.cs",
+      "sha256": "B4634421E726C91B5A62BAFC101B2B9C8511ADDE2883732CE62520339B66361F"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\MoodGraph.cs",
+      "sha256": "5CC851DDBB0DC1307E1A8C7E8CDA2AAA819B9FABEF5B9B9F5C26E000965FF938"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\NameEngine.cs",
+      "sha256": "3F57232A29444A5AECDC92917E73D2422353A8DA9AACD731DA11A7C931552B83"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\NamingCache.cs",
+      "sha256": "38ADD526AB9D193428AB889ACD749088D36B9E6EC3F4CDC2EF9DC48E06B2F7D9"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\NamingPrimitives.cs",
+      "sha256": "7BC0082ABC1E192D7018E1E31D6398C626DDD87FD82C3547A5AD2D658A53EA6D"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\TagOntology.cs",
+      "sha256": "BCFA26BB4847D35790BACA62EF46AB2D16C0E19F3D3E31B7A3C29767F833BD03"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\TemplateEngine.cs",
+      "sha256": "E4979BFD28A0D7216ADC8B73C86512831A672476D8E62EF2D38044906FE36C9A"
+    },
+    {
+      "path": "Systems\\Naming\\Core\\TemplateRouter.cs",
+      "sha256": "53981BEADCA61282C9C2230A2876E88DE0984734D8A4D3CD7D2C6D7D8985D1E0"
+    },
+    {
+      "path": "Systems\\Naming\\NameDatabase.cs",
+      "sha256": "ED3735CECC9F03D5DC5A78F1FBF9918765D9E0DC55351929FAC266F5830F5E85"
+    },
+    {
+      "path": "Systems\\Naming\\NameGenerator.cs",
+      "sha256": "3068D05C161E0CE8CA608BAC55F466CF8F2AD2AF94E4FA867178569D2DABD21B"
+    },
+    {
+      "path": "Systems\\Naming\\Tools\\NameLab.cs",
+      "sha256": "E974A09A711C66A80852217645E84E477AC4253956FDBB81D8E4FB34CB49D0F8"
+    },
+    {
+      "path": "Systems\\Naming\\Tools\\NameLab.tscn",
+      "sha256": "FC0FF435DBE58E98538D3A853280CE7AF0A33324B6C7A91097530E45B772244E"
+    },
+    {
+      "path": "Systems\\PendingMailing.cs",
+      "sha256": "9F649FDAC40C4E199D7144E75AEBF7B110801A96924DCD8D6C2019ECCBA93E24"
+    },
+    {
+      "path": "Systems\\PlayerDesk.ContractNegotiation.cs",
+      "sha256": "A3731D302ED6BF671C7BBB3D402FB93F751CBB5FB89E58DAAC1882AE447BF1F3"
+    },
+    {
+      "path": "Systems\\PlayerDesk.CounterDisplay.cs",
+      "sha256": "7CF5AB26D5BAB8BBCC788EE225AD7F06562700D5E633E614DBAF15F3A8CBE025"
+    },
+    {
+      "path": "Systems\\PlayerDesk.cs",
+      "sha256": "EDB59B322DC2FC5360576532364D1750C66DC71F5B3EE4301E32CD27F163C4BF"
+    },
+    {
+      "path": "Systems\\PlayerDesk.Mailing.cs",
+      "sha256": "9708AA507C8FB319D82940FA9A396487FCA9B7B868863506CB90F3A5B90CFB71"
+    },
+    {
+      "path": "Systems\\PlayerDesk.RecordHop.cs",
+      "sha256": "499691E1D9FF88BB2E3B9A11678865FAD9EC11E86298B8226E26D79662A83302"
+    },
+    {
+      "path": "Systems\\PlayerDesk.ReportingOutlets.cs",
+      "sha256": "D49534FA7EBD21E1C87F86436856E52EECF29D417A6F5BAE794F5E1E9E04B7CF"
+    },
+    {
+      "path": "Systems\\PlayerDesk.Rolodex.cs",
+      "sha256": "CEBE52C3757912973FBA1F74540429115FDF62B2CAC62C6E7313766342F89387"
+    },
+    {
+      "path": "Systems\\PlayerDesk.RolodexVerbs.cs",
+      "sha256": "09195DA2FD377B84BA351CC98DFBF56CF15E4B8C2BC510D15D9F2FA2791EB0CC"
+    },
+    {
+      "path": "Systems\\PlayerDesk.StationStops.cs",
+      "sha256": "5E0EF1F70E0F604338D53C86BDD214CD1EABD637604DC3E828F47B577FE4B719"
+    },
+    {
+      "path": "Systems\\PlayerDesk.TradePress.cs",
+      "sha256": "AB4320F02C8EDB03223615F6E767BD8F0A5F67A26187BD557E2E714AD0E5156D"
+    },
+    {
+      "path": "Systems\\PlayerStopFactory.cs",
+      "sha256": "772C12EE822BEE0B2AEE0FB61B217A9394CBD0A2392EB89798AA2AC023D4DD48"
+    },
+    {
+      "path": "Systems\\PublishingCaptureService.cs",
+      "sha256": "78B0E26F4C9D480BEB6A702A18F4B3501B96EBC9EA3FF008A8D58F3AE7164473"
+    },
+    {
+      "path": "Systems\\PublishingRoutingService.cs",
+      "sha256": "2731E442C631EBCA2522F2E27C49FEEAF0BF32DC5B95863DC32C37622FAEB8C0"
+    },
+    {
+      "path": "Systems\\Radio\\Deejay.cs",
+      "sha256": "F7303E055AD854B2A49E6CFBF3AB0691BCCC734EAC6143808C85370ADE1332DD"
+    },
+    {
+      "path": "Systems\\Radio\\PayolaLedger.cs",
+      "sha256": "15B66A242BAECDE70500814B88B285F8AD338D53A6883A502FF1DF87F600A0F6"
+    },
+    {
+      "path": "Systems\\Radio\\RadioEra.cs",
+      "sha256": "D692E4565C594822D462FA33CB732D8CD500FE651C52583753C0B3CE9D2A8B6E"
+    },
+    {
+      "path": "Systems\\Radio\\RadioStation.cs",
+      "sha256": "0CFBCD1B6F86105395E8DB476BACA2282E5B51B16966CE219ED04CA9224E1D01"
+    },
+    {
+      "path": "Systems\\Radio\\StationAdvocacy.cs",
+      "sha256": "DBBC6533A3E2DB305C67F478EEFCE97D585D819DD1BAD4D12E7D62A6A4CCB82D"
+    },
+    {
+      "path": "Systems\\Radio\\StationNetwork.Aggregation.cs",
+      "sha256": "CF34D5EEC9ABF1A10E7E0AC5EB7757F03EFD27A001E4DF4AC4424A8BE10AD75D"
+    },
+    {
+      "path": "Systems\\Radio\\StationNetwork.cs",
+      "sha256": "269AA06C3440AD6A0A7F7106C2127BA0CF39E5D924E2522C40BC5FAEB89D2CE5"
+    },
+    {
+      "path": "Systems\\Radio\\StationNetwork.Playlist.cs",
+      "sha256": "EB3F75E2919A8C9CF70542181BBB1EFDCEFC62FCD930AB64C8993F3E2E46E665"
+    },
+    {
+      "path": "Systems\\Radio\\StationNetwork.Reputation.cs",
+      "sha256": "F1472F243620849A59021F45848F6C787D6CE0582D8625BDC3CC3E048CF49A1F"
+    },
+    {
+      "path": "Systems\\Radio\\StationRuntime.cs",
+      "sha256": "1FE13B006C50FF241647A7A158B84DDAC0EBF8D566CADE8D93BADDAFF7521BFC"
+    },
+    {
+      "path": "Systems\\RecordServicing.cs",
+      "sha256": "866945B678A5C08AE13E77DF9E5D0A8D4CB1AA85D3472DCDBD9D615C1D068995"
+    },
+    {
+      "path": "Systems\\RolodexCall.cs",
+      "sha256": "EA9DCC3B64F1BA2C920313CFC922E8163C4DD0844197A70683C0723EF7F70C86"
+    },
+    {
+      "path": "Systems\\RolodexEntry.cs",
+      "sha256": "7B711B2516831D4553ABA65E76553017A8CB77A7FC036F12EB810AC5AC08EF3C"
+    },
+    {
+      "path": "Systems\\RolodexScene.cs",
+      "sha256": "8BFD7D011E2EB523DA23C8AD1AC3DEE1E1DDE792044467A552F1A318AEDF0AD3"
+    },
+    {
+      "path": "Systems\\RosterManager.cs",
+      "sha256": "D41E3176E61F8BDC9284246BDD585425D00DC10EEA0A404392B1655BB28E37A8"
+    },
+    {
+      "path": "Systems\\RuntimeLabelProfileFactory.cs",
+      "sha256": "EDBE980C9D14CA0C61197A933CB0874C15E55BCE0738F135C425E94F6102A11E"
+    },
+    {
+      "path": "Systems\\SaveGameService.cs",
+      "sha256": "8C2FBDCDE8441E114DD2060FFBFB657BDF04551DF1A1876E16AC66F35FCA5725"
+    },
+    {
+      "path": "Systems\\ScoutingPerception.cs",
+      "sha256": "BF9F74FF8B969F8C88AB0802D90B0FE2D99C27804CE5E23F887D8CEAAD2E4672"
+    },
+    {
+      "path": "Systems\\SimulationPerformanceProfiler.cs",
+      "sha256": "F39D5960C56A9CA4D6EFDF4D9855BCDBCEAC12813BC9D0E16BAA9F4B89147C30"
+    },
+    {
+      "path": "Systems\\SimulationSeedBootstrap.cs",
+      "sha256": "9C9E9410B26C280D33A6CF99E7D06891501571B727698BB33537A5B811DC2617"
+    },
+    {
+      "path": "Systems\\SingleOpportunityLedger.cs",
+      "sha256": "49FC31DF09E816D3377062E2ED883B8CAA3408A7327A20B7AAF58E854D418369"
+    },
+    {
+      "path": "Systems\\SongLaunchService.cs",
+      "sha256": "B02AC5B96A82E2FF6D09A4F95C4A924F2474D33AF95AEB063158974B1706CB64"
+    },
+    {
+      "path": "Systems\\SongMaterialApplicationService.cs",
+      "sha256": "91C1D1882213CF70CDF7C33E172FE1DC1C08378DF55ABE86938B532F34058E17"
+    },
+    {
+      "path": "Systems\\SongMaterialSelectionService.cs",
+      "sha256": "5827CB21A71F14A7EADDFCC4E5585F88390D4AF4C8C07CB6B3524C99E5E5FA7B"
+    },
+    {
+      "path": "Systems\\StarCanopy.cs",
+      "sha256": "DCD16AF5960291F988C8156FF6125A40F694A5DA145F25AE397AFE8C9B4B8689"
+    },
+    {
+      "path": "Systems\\TimeManager.cs",
+      "sha256": "5CD6FB94319B95F3C5BEDB86500BA234F09D7D346670779672A0EDAE55997DAE"
+    },
+    {
+      "path": "Systems\\TradePress.cs",
+      "sha256": "4900400E88CE8BE804B0ECF4A15A0F766A2B1F67AAEC5E805FBD36EA1BAF2B23"
+    },
+    {
+      "path": "Systems\\WorldSaveData.cs",
+      "sha256": "E8A3BBC364B98ADA4D38EE16E6B3C4D1734544EA7AD37D2B141F7B1835F7BB18"
+    },
+    {
+      "path": "UI\\ArtistDetailPanel.cs",
+      "sha256": "32A0E195B097C099E9B2A0E2BC76C3AEE2AD9EBA978B4889C03937BE4805F8E2"
+    },
+    {
+      "path": "UI\\ArtistDetailPanel.tscn",
+      "sha256": "B8B41583ADDA3B693CB1331A1ADC586EBB3B612B73D911E50F8F9E46FFBA839F"
+    },
+    {
+      "path": "UI\\ChartDetailPanel.cs",
+      "sha256": "D73FEBE7AD813F23CA6CA7E87A8FDBDFB2C7134F365BC27B8CC0A85F0DBF6A1F"
+    },
+    {
+      "path": "UI\\ChartDetailPanel.tscn",
+      "sha256": "6D73B6AAEA2AAEF55269ED30D0115A206939E39327F7D58CEF39B5A117267D02"
+    },
+    {
+      "path": "UI\\ChartEntryUI.cs",
+      "sha256": "59D81AE190FEDB58559C91EEE54F24BB41E3290252F65644A4811CF4AF7BA38C"
+    },
+    {
+      "path": "UI\\ChartUI.cs",
+      "sha256": "2E3DCC372163AC23F1D73D980C28BA70975605B32D6BC1CB0EF1F4B72B17922C"
+    },
+    {
+      "path": "UI\\FolderTabButton.cs",
+      "sha256": "EAACA3B4BCD79D4B5AF6C1DD3C061C82784B11BBC7B88B3976801D84D4252257"
+    },
+    {
+      "path": "UI\\GenreNameFormatter.cs",
+      "sha256": "F162F5C07B3D1FA21A27D23AE4167B6AB6C92ACF0092C75EC4968BD44D0F024E"
+    },
+    {
+      "path": "UI\\LabelDetailPanel.cs",
+      "sha256": "E2B0FD0C1E465CDC9CA8386FADF8FAA4E09E20AADD587359B82E0832C171D197"
+    },
+    {
+      "path": "UI\\LabelDetailPanel.tscn",
+      "sha256": "A1FA0A90CFD719278A349027AC6C0BFB8BFC1B2262485378852699E76B42C18D"
+    },
+    {
+      "path": "UI\\PlayerDeskPanel.cs",
+      "sha256": "2EAF7365F86DFBF54FCCB184FE9B42778703B142CF7418EB5E714692923084F7"
+    },
+    {
+      "path": "UI\\PlayerDeskPanel.tscn",
+      "sha256": "55811ACA9178A3CA66B7FEC4C7C18762675215FE0DE688AE7F83F949996F3F7A"
+    },
+    {
+      "path": "UI\\RecordDetailPanel.cs",
+      "sha256": "62B8AE622A2496B3C9FBDF18086B893BDF6324D0528F3A5459B465FF22A398E9"
+    },
+    {
+      "path": "UI\\UIManager.cs",
+      "sha256": "2AB6D25726CCDF4F56B14DA973E726BFE71AD7D09036402BCEE6C9BAD4CD7E6C"
+    }
+  ],
+  "simulationsMeasured": false
+}

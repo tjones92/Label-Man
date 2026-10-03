@@ -43,10 +43,19 @@ public partial class PlayerDesk : Node {
 		return Mathf.Clamp(chance, 0f, 1f);
 	}
 
+	// Bug report: "when mailing, it should NOT tell me how much 'mailed', how much 'landed', the
+	// second I click to mail. I should not know for weeks, if ever." How long before a mailing's
+	// fate is even findable -- see ResolvePendingMailings and PendingMailing.cs.
+	private const int MailingResolveMinWeeks = 1;
+	private const int MailingResolveMaxWeeks = 3;
+
 	/// <summary>Directive §5: MailPromoCopies(recordId, regionId, count) -- home only. Up to `count`
 	/// promo copies go out to up to `count` not-already-serviced reporter stations in the region.
 	/// Deliberately a bad deal per copy (most of it lands in the bin) and an unbeatable deal per mile
-	/// (it's the only way to touch a city you haven't driven to).</summary>
+	/// (it's the only way to touch a city you haven't driven to). The hours/cash/copies are spent now;
+	/// the landing roll and any callback are deferred to <see cref="ResolvePendingMailings"/> so the
+	/// player doesn't get told the outcome the instant they click the button -- a mailing was a letter
+	/// dropped in a box, not a phone call.</summary>
 	public bool MailPromoCopies(string recordId, string regionId, int count, out string message) {
 		message = null;
 		if (Label == null) { message = "You don't have a label yet."; return false; }
@@ -79,23 +88,51 @@ public partial class PlayerDesk : Node {
 		Label.monthlyExpenses += cost;
 		stock.PromoRemaining -= targets.Count;
 
-		int landed = 0;
-		bool callback = false;
 		string title = TitleForRecord(recordId);
-		foreach (RadioStation station in targets) {
-			if (GD.Randf() >= MailingLandingChance(recordId, station.stationId)) continue; // in the bin
-			landed++;
-			ServiceStation(recordId, station.stationId, MailingServicedConviction, ServicingSource.Mailed);
-			if (!rolodex.Any(e => e.stationId == station.stationId) && GD.Randf() < MailingUnpromptedCallbackChance
-					&& EnsureStationEntry(station, discover: true, $"He phoned about \"{title}\" -- didn't expect that.") != null)
-				callback = true;
-		}
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		pendingMailings.Add(new PendingMailing {
+			RecordId = recordId, RegionId = regionId,
+			StationIds = targets.Select(s => s.stationId).ToList(),
+			MailedWeek = week, ResolveWeek = week + GD.RandRange(MailingResolveMinWeeks, MailingResolveMaxWeeks),
+		});
 
-		Note($"Mailed {targets.Count:N0} promo cop{(targets.Count == 1 ? "y" : "ies")} of \"{title}\" around {region.regionName} for ${cost:N0} -- {landed} landed.");
-		message = callback
-			? $"{targets.Count:N0} mailed, {landed} landed -- and one of them actually called."
-			: $"{targets.Count:N0} mailed, {landed} landed. Most of it's in the bin.";
+		Note($"Mailed {targets.Count:N0} promo cop{(targets.Count == 1 ? "y" : "ies")} of \"{title}\" around {region.regionName} for ${cost:N0}. Now you wait.");
+		message = $"{targets.Count:N0} mailed, ${cost:N0} gone. Could be weeks before you hear anything back -- if you ever do.";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>Rolls the landing chance for every mailing whose wait is up, weeks after the copies
+	/// actually went in the mail -- see MailPromoCopies. Reports one aggregate line per mailing
+	/// (how many of what you sent actually landed), same "it arrives as news" shape as
+	/// ResolveTradeSubmissions and ScanForCoversOfOwnSongs, not a per-station breakdown up front.</summary>
+	private void ResolvePendingMailings() {
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		foreach (PendingMailing mailing in pendingMailings.Where(m => week >= m.ResolveWeek).ToList()) {
+			pendingMailings.Remove(mailing);
+			string title = TitleForRecord(mailing.RecordId);
+			MarketRegion region = ChartManager.Instance?.GetRegionById(mailing.RegionId);
+			var stationsById = (ChartManager.Instance?.ReporterStationsInRegion(mailing.RegionId) ?? Array.Empty<RadioStation>())
+				.Where(s => s != null).ToDictionary(s => s.stationId, StringComparer.Ordinal);
+
+			int landed = 0;
+			bool callback = false;
+			foreach (string stationId in mailing.StationIds) {
+				if (!stationsById.TryGetValue(stationId, out RadioStation station)) continue; // station gone (era turnover) -- silently in the bin
+				if (GD.Randf() >= MailingLandingChance(mailing.RecordId, stationId)) continue; // in the bin
+				landed++;
+				ServiceStation(mailing.RecordId, stationId, MailingServicedConviction, ServicingSource.Mailed);
+				if (!rolodex.Any(e => e.stationId == stationId) && GD.Randf() < MailingUnpromptedCallbackChance
+						&& EnsureStationEntry(station, discover: true, $"He phoned about \"{title}\" -- didn't expect that.") != null)
+					callback = true;
+			}
+
+			string regionName = region?.regionName ?? mailing.RegionId;
+			Note(callback
+				? $"That mailing you sent around {regionName} for \"{title}\" -- {landed} of {mailing.StationIds.Count} landed, and one of them actually called."
+				: landed > 0
+					? $"Word's back on the \"{title}\" mailing to {regionName}: {landed} of {mailing.StationIds.Count} landed."
+					: $"Nothing came back on the \"{title}\" mailing to {regionName}. Most of it never does.");
+		}
 	}
 }

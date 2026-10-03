@@ -17,6 +17,13 @@ public partial class ChartEntryUI : Control
 		MouseFilter = MouseFilterEnum.Stop;
 	}
 
+	public override void _Draw() {
+		if (myRecord?.baseRecord?.isPlayerOwned != true) return;
+		var bounds = new Rect2(Vector2.Zero, Size);
+		DrawRect(bounds, new Color("e2efd9"));
+		DrawRect(bounds, new Color("608050"), false, 1.5f);
+	}
+
 	public override void _GuiInput(InputEvent @event)
 	{
 		if (@event is InputEventMouseButton mouseEvent &&
@@ -37,16 +44,20 @@ public partial class ChartEntryUI : Control
 	public void Populate(RecordRuntimeData record)
 	{
 		myRecord = record;
+		bool playerOwned = record?.baseRecord?.isPlayerOwned ?? false;
+		Modulate = Colors.White;
 
 		if (rankText != null) rankText.Text = record.currentPosition.ToString();
 		if (songText != null) songText.Text = record.baseRecord.title;
 		if (artistText != null) artistText.Text = record.baseRecord.artistName;
-		if (labelText != null) labelText.Text = GetLabelAbbrev(record.baseRecord.labelId);
+		if (labelText != null) labelText.Text = playerOwned ? $"YOU · {GetLabelAbbrev(record.baseRecord.labelId)}" : GetLabelAbbrev(record.baseRecord.labelId);
+		QueueRedraw();
 
 		// Color code rank text
 		if (rankText != null)
 		{
-			if (record.isBullet) rankText.AddThemeColorOverride("font_color", Colors.Green);
+			if (playerOwned) rankText.AddThemeColorOverride("font_color", new Color("184f2a"));
+			else if (record.isBullet) rankText.AddThemeColorOverride("font_color", Colors.Green);
 			else if (record.isAnchor) rankText.AddThemeColorOverride("font_color", Colors.Red);
 			else rankText.AddThemeColorOverride("font_color", Colors.Black);
 		}
@@ -55,10 +66,12 @@ public partial class ChartEntryUI : Control
 	public void Clear()
 	{
 		myRecord = null;
+		Modulate = Colors.White;
 		if (rankText != null) rankText.Text = "";
 		if (songText != null) songText.Text = "";
 		if (artistText != null) artistText.Text = "";
 		if (labelText != null) labelText.Text = "";
+		QueueRedraw();
 	}
 
 	private string GetLabelAbbrev(string labelId)
