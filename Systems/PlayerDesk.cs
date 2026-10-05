@@ -151,6 +151,7 @@ public partial class PlayerDesk : Node {
 	/// single biggest tell on the pad. Read values are the player's ear, not the truth.
 	/// </summary>
 	public sealed class RepertoireItem {
+		public SongContentContext ContentContext;
 		public string ReferenceMasterId;
 		public string Title;
 		/// <summary>"their own" / "cover" / "standard" -- how the song came to the act.</summary>
@@ -1074,7 +1075,7 @@ public partial class PlayerDesk : Node {
 	// ========================================================================
 
 	/// <summary>The room a venue draws. Empty means "anyone worth a pop label's evening".</summary>
-	private static IReadOnlyCollection<GenreFamily> FamiliesFor(ScoutingVenue venue) => venue switch {
+	internal static IReadOnlyCollection<GenreFamily> FamiliesFor(ScoutingVenue venue) => venue switch {
 		// The clubs, dance halls and roadhouses -- where the loud, young, danceable acts play.
 		ScoutingVenue.ClubsAndRoadhouses => new[] {
 			GenreFamily.Rock, GenreFamily.RhythmAndSoul, GenreFamily.Blues, GenreFamily.Latin, GenreFamily.Caribbean },
@@ -1301,7 +1302,7 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>Whether a genre belongs in this room: the trade deals in manufactured youth-pop; every
 	/// other room is filtered by the families it draws.</summary>
-	private static bool AdmitsGenre(ScoutingVenue venue, bool trade, IReadOnlyCollection<GenreFamily> families, Genre genre, int year) =>
+	internal static bool AdmitsGenre(ScoutingVenue venue, bool trade, IReadOnlyCollection<GenreFamily> families, Genre genre, int year) =>
 		trade ? ManufacturedGenres.Contains(genre) : families.Count == 0 || families.Contains(FamilyOfGenre(genre, year));
 
 	/// <summary>The genres a room could plausibly turn up here: in the room's remit and with a real local
@@ -1419,18 +1420,32 @@ public partial class PlayerDesk : Node {
 	/// song is actually cut; the covers point at real catalog songs so the recording step can pull
 	/// the composition. Only <see cref="Prospect.HeardCount"/> of this is visible before a follow-up.
 	/// </summary>
-	internal void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise) {
-		float Read(float truth) => Mathf.Clamp(truth + (float)GD.RandRange(-readNoise, readNoise), 0f, 1f);
+	internal void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise, RandomNumberGenerator auditRandom = null, Action<int, List<SongComposition>> auditPool = null) {
+		// Census-only local draws leave the population simulation's global RNG untouched.
+		double Draw(double low, double high) => auditRandom == null ? GD.RandRange(low, high) : low + (high - low) * auditRandom.Randf();
+		int DrawInt(int low, int high) => auditRandom == null ? (int)GD.RandRange(low, high) : auditRandom.RandiRange(low, high);
+		float Read(float truth) => Mathf.Clamp(truth + (float)Draw(-readNoise, readNoise), 0f, 1f);
 
 		// How many of their own the act carries scales with their writing.
-		int originals = artist.songwritingAbility > 0.6f ? 2 : artist.songwritingAbility > 0.3f ? 1 : 0;
+		bool flexibleOriginals=PolarSongBehavior.UsePolarFitSelection&&LiveRepertoire.AuditPhase>=4;
+		int targetSize = flexibleOriginals ? DrawInt(3,5) : 0;
+		int originals = flexibleOriginals ? LiveRepertoire.OriginalCount(artist,year,targetSize) : artist.songwritingAbility > 0.6f ? 2 : artist.songwritingAbility > 0.3f ? 1 : 0;
 		for (int i = 0; i < originals; i++) {
-			float hook = Mathf.Clamp(artist.songwritingAbility * 0.7f + (float)GD.RandRange(-0.15, 0.25), 0f, 1f);
+			float hook = Mathf.Clamp(artist.songwritingAbility * 0.7f + (float)Draw(-0.15, 0.25), 0f, 1f);
 			prospect.LiveSet.Add(new RepertoireItem {
-				Title = NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Untitled",
+				Title = auditRandom != null ? "Census original" : NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Untitled",
 				SourceTag = "their own", IsOriginal = true, Genre = artist.primaryGenre,
+				ContentContext = artist.primaryGenre==Genre.Gospel?SongContentContext.Sacred:SongContentContext.Secular,
 				ReadHook = Read(hook), ReadQuality = Read(hook)
 			});
+		}
+		// An unpublished professional composition is new material, with its real song identity.
+		if(flexibleOriginals && LiveRepertoire.SetMix(artist,year)==null && prospect.LiveSet.Count<targetSize &&
+			RepertoireTaxonomy.Unit(artist.artistId+"|supplied-new")<(1-artist.songwritingAbility)*.20f) {
+			var supplied=CompositionCatalogService.GetProfessionalForGenre(artist.primaryGenre)
+				.Where(s=>s.originYear<=year&&s.repertoireFirstReleaseYear==0)
+				.OrderByDescending(s=>LiveRepertoire.Preference(s,artist,year,TimeManager.Instance?.CurrentDate.month??1)).FirstOrDefault();
+			if(supplied!=null&&LiveRepertoire.EligibleLive(supplied,artist))prospect.LiveSet.Add(new RepertoireItem {Title=supplied.title,SongId=supplied.songId,SourceTag="new supplied song",IsOriginal=true,Genre=supplied.primaryGenre,ContentContext=supplied.contentContext,ReadHook=Read(supplied.commercialHook),ReadQuality=Read(supplied.GetCraftScore())});
 		}
 
 		// Fill the rest of the set (aim for 3-5 songs total) with the covers and standards on offer.
@@ -1444,33 +1459,40 @@ public partial class PlayerDesk : Node {
 			pool.AddRange(CompositionCatalogService.GetStandardsForFamily(family));
 			pool.AddRange(CompositionCatalogService.GetCoverableHitsForFamily(family));
 		}
-		int want = (int)GD.RandRange(3, 5) - prospect.LiveSet.Count;
+		if(PolarSongBehavior.UsePolarFitSelection&&LiveRepertoire.AuditPhase>=2) pool=LiveRepertoire.Pool(artist,year,TimeManager.Instance?.CurrentDate.month??1);
+		int want = (flexibleOriginals ? targetSize : DrawInt(3, 5)) - prospect.LiveSet.Count;
 		if (PolarSongBehavior.UsePolarFitSelection) {
-			if (SongMaterialSelectionService.IsRockSongbookContext(artist.primaryGenre)) pool.AddRange(SongMaterialSelectionService.RockLiveCoverPool(artist.primaryGenre));
+			if(LiveRepertoire.AuditPhase<2&&SongMaterialSelectionService.IsRockSongbookContext(artist.primaryGenre))pool.AddRange(SongMaterialSelectionService.RockLiveCoverPool(artist.primaryGenre));
+			auditPool?.Invoke(want, pool);
 			foreach (var song in SongMaterialSelectionService.SelectLiveCovers(pool, artist, year, want)) {
 				prospect.LiveSet.Add(new RepertoireItem {
-					Title = song.title, SourceTag = song.isStandard ? "standard" : "cover", IsOriginal = false,
-					SongId = song.songId, Genre = song.primaryGenre,
+					Title = song.title, SourceTag = song.EstablishedAsOf(year) ? "standard" : "cover", IsOriginal = false,
+					SongId = song.songId, Genre = song.primaryGenre, ContentContext = song.contentContext,
 					ReferenceMasterId = PolarSongBehavior.Reference(song, year)?.masterId ?? "demo:" + song.songId,
 					ReadHook = Read(song.commercialHook), ReadQuality = Read(song.GetCraftScore())
 				});
 			}
-			prospect.HeardCount = Mathf.Min(prospect.LiveSet.Count, (int)GD.RandRange(1, 2));
+			prospect.HeardCount = Mathf.Min(prospect.LiveSet.Count, DrawInt(1, 2));
 			return;
 		}
+		auditPool?.Invoke(want, pool);
 		var seen = new HashSet<string>();
+		// The legacy pool may repeat the same composition across genre/family lists.
+		// Census fallback must terminate once its distinct candidates are exhausted.
+		int exhaustionCount = auditRandom == null ? pool.Count : pool.Where(s => s != null).Select(s => s.songId).Distinct().Count();
 		for (int i = 0; i < want && pool.Count > 0; i++) {
-			SongComposition song = pool[(int)GD.RandRange(0, pool.Count - 1)];
-			if (song == null || !seen.Add(song.songId)) { i--; if (seen.Count >= pool.Count) break; continue; }
+			SongComposition song = pool[DrawInt(0, pool.Count - 1)];
+			if (song == null || !seen.Add(song.songId)) { i--; if (seen.Count >= exhaustionCount) break; continue; }
 			prospect.LiveSet.Add(new RepertoireItem {
 				Title = song.title, SourceTag = song.isStandard ? "standard" : "cover",
 				IsOriginal = false, SongId = song.songId, Genre = song.primaryGenre,
+				ContentContext = song.contentContext,
 				ReadHook = Read(song.commercialHook), ReadQuality = Read(song.GetCraftScore())
 			});
 		}
 
 		// You caught one or two on the night; the rest is what they say they play.
-		prospect.HeardCount = Mathf.Min(prospect.LiveSet.Count, (int)GD.RandRange(1, 2));
+		prospect.HeardCount = Mathf.Min(prospect.LiveSet.Count, DrawInt(1, 2));
 	}
 
 	/// <summary>
@@ -1771,7 +1793,9 @@ public partial class PlayerDesk : Node {
 		foreach (RepertoireItem item in RepertoireFor(artist.artistId)) {
 			if (item.Recorded) continue;
 			options.Add(
-				item.IsOriginal
+				item.IsOriginal && item.SongId != null && CompositionCatalogService.GetSong(item.SongId)?.originKind == SongOriginKind.ProfessionalOffice
+					? new MaterialChoice { Kind = MaterialKind.Commission, Title = item.Title, SongId = item.SongId, Detail = "supplied new song" }
+				: item.IsOriginal
 					? new MaterialChoice { Kind = MaterialKind.Original, Title = item.Title, Detail = "their own" }
 					: item.IsCommission
 						? new MaterialChoice { Kind = MaterialKind.Commission, Title = item.Title, SongId = item.SongId, Detail = "commissioned" }
@@ -1819,7 +1843,7 @@ public partial class PlayerDesk : Node {
 			result.Add(new MaterialChoice {
 				Kind = MaterialKind.LiveCover, Title = song.title, SongId = song.songId,
 				ReferenceMasterId = PolarSongBehavior.UsePolarFitSelection ? (PolarSongBehavior.Reference(song, TimeManager.Instance?.CurrentDate.year ?? 1960)?.masterId ?? "demo:" + song.songId) : null,
-				Detail = song.isStandard ? "standard" : "cover",
+				Detail = song.EstablishedAsOf(TimeManager.Instance?.CurrentDate.year??1960) ? "standard" : "cover",
 				Genre = song.primaryGenre, Hook = song.commercialHook, HasSong = true
 			});
 		return result;
@@ -1933,7 +1957,7 @@ public partial class PlayerDesk : Node {
 		int days = EstimateCoverLearnDays(artist);
 		rehearsals.Add(new CoverRehearsal {
 			ArtistId = artist.artistId, SongId = song.songId, Title = song.title,
-			SourceTag = song.isStandard ? "standard" : "cover", Genre = song.primaryGenre,
+			SourceTag = song.EstablishedAsOf(today.year) ? "standard" : "cover", Genre = song.primaryGenre,
 			ReferenceMasterId = PolarSongBehavior.UsePolarFitSelection ? (PolarSongBehavior.Reference(song, today.year)?.masterId ?? "demo:" + song.songId) : null,
 			ReadHook = song.commercialHook, ReadQuality = song.GetCraftScore(),
 			Started = today, ReadyDate = today.AddDays(days)
@@ -1957,6 +1981,7 @@ public partial class PlayerDesk : Node {
 			if (set.Any(item => item.SongId == r.SongId)) continue;
 			set.Add(new RepertoireItem {
 				Title = r.Title, SourceTag = r.SourceTag, IsOriginal = false, SongId = r.SongId,
+				ContentContext = CompositionCatalogService.GetSong(r.SongId)?.contentContext ?? SongContentContext.Unknown,
 				ReferenceMasterId = r.ReferenceMasterId,
 				IsCommission = r.IsCommission,
 				Genre = r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality
@@ -2023,8 +2048,7 @@ public partial class PlayerDesk : Node {
 			var choice = choices[i];
 			if (choice == null || CompositionCatalogService.GetSong(choice.SongId) == null) continue;
 			var proposal = PolarPlayerPerception.Proposal(choice, artist, PreviewMasterId(i), tier.HasValue ? PreviewSessionContext(tier.Value, artist) : null);
-			if (PolarMaterialFit.WouldRefuse(proposal.fit, artist.evolution?.artisticAmbition ?? .5f,
-				PolarPlayerPerception.Standing(artist), empty, PolarSongTable.Current))
+			if (PolarSongBehavior.Refuses(proposal.fit, artist, empty))
 				responses.Add($"{artist.stageName} on “{choice.Title}”: “This doesn't feel like us. We'd rather work on our own material.”");
 		}
 		return responses;
@@ -2193,7 +2217,7 @@ public partial class PlayerDesk : Node {
 	private void MarkRepertoireRecorded(string artistId, MaterialChoice choice, string recordId) {
 		if (!repertoire.TryGetValue(artistId, out List<RepertoireItem> set)) return;
 		RepertoireItem match = choice.Kind is MaterialKind.LiveCover or MaterialKind.Commission && choice.SongId != null
-			? set.FirstOrDefault(item => !item.Recorded && !item.IsOriginal && item.SongId == choice.SongId)
+			? set.FirstOrDefault(item => !item.Recorded && (!item.IsOriginal || choice.Kind == MaterialKind.Commission) && item.SongId == choice.SongId)
 			: choice.WrittenSong == null && choice.Kind == MaterialKind.Original
 				? set.FirstOrDefault(item => !item.Recorded && item.IsOriginal && item.Title == choice.Title)
 				: null;

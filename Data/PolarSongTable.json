@@ -1,6 +1,6 @@
 {
-  "version": "polar-recording-calibration-v3",
-  "provenance": "Spec A §§3–7 and Spec B consolidated taxonomy. Six base rows reproduce A §4; other rows, genre priors, modifiers and resolver choices are provisional author proposals, not approved calibration.",
+  "version": "polar-repair-v2",
+  "provenance": "Spec A §§3–7 and Spec B consolidated taxonomy. Six base rows reproduce A §4; other rows, genre priors, modifiers and resolver choices are provisional author proposals, not approved calibration. Repair v2: genre identity centers are computed from weighted authored forms; new form mixtures are provisional equal-share authoring choices.",
   "axisOrder": [
     "VocalPower",
     "VocalNuance",
@@ -65,18 +65,19 @@
     "maxShadowRowsPerWeek": 2048,
     "selectionCapability": 0.35,
     "selectionIdentity": 0.45,
-    "selectionMoment": 0.20,
+    "selectionMoment": 0.2,
     "executionPenalty": 0.35,
-    "executionFullCapability": 0.90,
-    "recordingHookBlend": 0.90,
+    "executionFullCapability": 0.9,
+    "recordingHookBlend": 0.9,
     "hookCeilingStrength": 0.15,
-    "recordingQualityHookWeight": 0.50,
-    "recordingQualityProductionWeight": 0.30,
+    "recordingQualityHookWeight": 0.5,
+    "recordingQualityProductionWeight": 0.3,
     "promotionRealizationWeight": 0.65,
-    "criticIdentityPenalty": 0.20,
-    "momentConversionStrength": 0.10,
+    "criticIdentityPenalty": 0.2,
+    "momentConversionStrength": 0.1,
     "rockStandardFactor": 0.02,
-    "rockTraditionalFactor": 0.02
+    "rockTraditionalFactor": 0.02,
+    "tastePseudoCount": 4
   },
   "identityWeights": [
     1.25,
@@ -86,158 +87,56 @@
   ],
   "families": {
     "Pop": {
-      "identity": [
-        0.25,
-        0.6,
-        0.65,
-        0.55
-      ],
       "fallback": "MidTempoPopSong"
     },
     "Rock": {
-      "identity": [
-        0.75,
-        0.3,
-        0.7,
-        0.45
-      ],
       "fallback": "MidTempoRocker"
     },
     "RhythmAndSoul": {
-      "identity": [
-        0.7,
-        0.35,
-        0.9,
-        0.65
-      ],
       "fallback": "HornDrivenSoulNumber"
     },
     "Gospel": {
-      "identity": [
-        0.5,
-        0.35,
-        0.95,
-        0.7
-      ],
       "fallback": "SpiritualShout"
     },
     "Country": {
-      "identity": [
-        0.45,
-        0.4,
-        0.9,
-        0.7
-      ],
       "fallback": "CountryTwoBeat"
     },
     "Folk": {
-      "identity": [
-        0.4,
-        0.65,
-        0.9,
-        0.7
-      ],
       "fallback": "VerseDrivenSong"
     },
     "Jazz": {
-      "identity": [
-        0.35,
-        0.85,
-        0.7,
-        0.85
-      ],
       "fallback": "Swinger"
     },
     "Blues": {
-      "identity": [
-        0.65,
-        0.3,
-        0.9,
-        0.75
-      ],
       "fallback": "SlowBlues"
     },
     "Classical": {
-      "identity": [
-        0.2,
-        0.95,
-        0.8,
-        0.85
-      ],
       "fallback": "ReverieMoodPiece"
     },
     "Latin": {
-      "identity": [
-        0.45,
-        0.5,
-        0.7,
-        0.6
-      ],
       "fallback": "DanceNumber"
     },
     "Caribbean": {
-      "identity": [
-        0.5,
-        0.35,
-        0.75,
-        0.55
-      ],
       "fallback": "DanceNumber"
     },
     "NonMusic": {
-      "identity": [
-        0.3,
-        0.45,
-        0.35,
-        0.55
-      ],
       "fallback": "SpokenWord"
     }
   },
   "genreOverrides": {
     "TraditionalPop": {
-      "identity": [
-        0.2,
-        0.85,
-        0.75,
-        0.85
-      ],
       "fallback": "LushStandard"
     },
     "EasyListening": {
-      "identity": [
-        0.15,
-        0.8,
-        0.7,
-        0.8
-      ],
       "fallback": "ReverieMoodPiece"
     },
     "GarageRock": {
-      "identity": [
-        0.85,
-        0.15,
-        0.7,
-        0.35
-      ],
       "fallback": "StomperRocker"
     },
     "TeenPop": {
-      "identity": [
-        0.2,
-        0.4,
-        0.55,
-        0.25
-      ],
       "fallback": "BrightPopNumber"
     },
     "BaroquePop": {
-      "identity": [
-        0.2,
-        0.85,
-        0.75,
-        0.6
-      ],
       "fallback": "ChamberBaroquePiece"
     }
   },
@@ -1275,6 +1174,634 @@
       "pace": "fast",
       "mood": "communal",
       "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "CountryShuffle",
+      "axes": [
+        0.45,
+        0.4,
+        0.5,
+        0.55,
+        0.4,
+        0.2,
+        0.45,
+        0.3,
+        0.75,
+        0.65
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Country"
+      ],
+      "pace": "shuffle",
+      "mood": "jaunty",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "CountryWaltz",
+      "axes": [
+        0.35,
+        0.55,
+        0.45,
+        0.45,
+        0.45,
+        0.25,
+        0.25,
+        0.45,
+        0.8,
+        0.65
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Country"
+      ],
+      "pace": "waltz",
+      "mood": "yearning",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "WesternSwing",
+      "axes": [
+        0.4,
+        0.45,
+        0.7,
+        0.75,
+        0.35,
+        0.3,
+        0.4,
+        0.55,
+        0.65,
+        0.6
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1930,
+      "families": [
+        "Country"
+      ],
+      "pace": "swing",
+      "mood": "celebratory",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "NashvilleBallad",
+      "axes": [
+        0.35,
+        0.65,
+        0.55,
+        0.7,
+        0.4,
+        0.6,
+        0.2,
+        0.65,
+        0.75,
+        0.7
+      ],
+      "plasticity": 0.6,
+      "fromYear": 1955,
+      "families": [
+        "Country"
+      ],
+      "pace": "slow",
+      "mood": "yearning",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "BossaSong",
+      "axes": [
+        0.25,
+        0.6,
+        0.65,
+        0.6,
+        0.45,
+        0.35,
+        0.2,
+        0.75,
+        0.65,
+        0.6
+      ],
+      "plasticity": 0.5,
+      "fromYear": 1958,
+      "families": [
+        "Jazz",
+        "Latin"
+      ],
+      "pace": "syncopated",
+      "mood": "intimate",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ModernJazzInstrumental",
+      "axes": [
+        0,
+        0,
+        0.85,
+        0.75,
+        0,
+        0.35,
+        0.4,
+        0.85,
+        0.6,
+        0.6
+      ],
+      "plasticity": 0.4,
+      "fromYear": 1945,
+      "families": [
+        "Jazz"
+      ],
+      "pace": "swing",
+      "mood": "exploratory",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "SurfInstrumental",
+      "axes": [
+        0,
+        0,
+        0.65,
+        0.7,
+        0,
+        0.35,
+        0.6,
+        0.35,
+        0.55,
+        0.35
+      ],
+      "plasticity": 0.45,
+      "fromYear": 1958,
+      "families": [
+        "Rock"
+      ],
+      "pace": "fast",
+      "mood": "driving",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "QuietHymn",
+      "axes": [
+        0.3,
+        0.45,
+        0.35,
+        0.35,
+        0.4,
+        0.15,
+        0.15,
+        0.35,
+        0.95,
+        0.75
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Gospel"
+      ],
+      "pace": "slow",
+      "mood": "reverent",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "GospelQuartet",
+      "axes": [
+        0.55,
+        0.6,
+        0.45,
+        0.75,
+        0.45,
+        0.2,
+        0.3,
+        0.45,
+        0.9,
+        0.7
+      ],
+      "plasticity": 0.5,
+      "fromYear": 1900,
+      "families": [
+        "Gospel"
+      ],
+      "pace": "measured",
+      "mood": "communal",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "GospelChoir",
+      "axes": [
+        0.65,
+        0.5,
+        0.55,
+        0.85,
+        0.4,
+        0.3,
+        0.3,
+        0.5,
+        0.9,
+        0.7
+      ],
+      "plasticity": 0.45,
+      "fromYear": 1900,
+      "families": [
+        "Gospel"
+      ],
+      "pace": "dramatic-build",
+      "mood": "exultant",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "LatinBolero",
+      "axes": [
+        0.35,
+        0.65,
+        0.6,
+        0.6,
+        0.45,
+        0.3,
+        0.25,
+        0.65,
+        0.75,
+        0.65
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Latin"
+      ],
+      "pace": "slow",
+      "mood": "yearning",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "LatinDance",
+      "axes": [
+        0.45,
+        0.45,
+        0.65,
+        0.75,
+        0.35,
+        0.3,
+        0.4,
+        0.55,
+        0.65,
+        0.45
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Latin",
+        "Caribbean"
+      ],
+      "pace": "fast",
+      "mood": "celebratory",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "TexMexSong",
+      "axes": [
+        0.4,
+        0.5,
+        0.55,
+        0.65,
+        0.5,
+        0.25,
+        0.4,
+        0.4,
+        0.8,
+        0.6
+      ],
+      "plasticity": 0.6,
+      "fromYear": 1900,
+      "families": [
+        "Latin"
+      ],
+      "pace": "two-beat",
+      "mood": "narrative",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ClassicalOrchestral",
+      "axes": [
+        0,
+        0,
+        0.9,
+        0.95,
+        0,
+        0.5,
+        0.3,
+        0.95,
+        0.65,
+        0.8
+      ],
+      "plasticity": 0.2,
+      "fromYear": 1700,
+      "families": [
+        "Classical"
+      ],
+      "pace": "measured",
+      "mood": "dramatic",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ClassicalChamber",
+      "axes": [
+        0,
+        0,
+        0.85,
+        0.85,
+        0,
+        0.35,
+        0.2,
+        0.9,
+        0.75,
+        0.8
+      ],
+      "plasticity": 0.25,
+      "fromYear": 1700,
+      "families": [
+        "Classical"
+      ],
+      "pace": "measured",
+      "mood": "reflective",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ClassicalSolo",
+      "axes": [
+        0,
+        0,
+        0.9,
+        0.25,
+        0,
+        0.25,
+        0.2,
+        0.9,
+        0.75,
+        0.8
+      ],
+      "plasticity": 0.25,
+      "fromYear": 1700,
+      "families": [
+        "Classical"
+      ],
+      "pace": "measured",
+      "mood": "reflective",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
     }
-  ]
+  ],
+  "genreForms": {
+    "TraditionalPop": {
+      "songbook": "Tin Pan Alley"
+    },
+    "EasyListening": {
+      "forms": {
+        "ReverieMoodPiece": 1,
+        "LushStandard": 1,
+        "SaloonBallad": 1,
+        "CharmSong": 1
+      }
+    },
+    "Jazz": {
+      "songbook": "Jazz Standard"
+    },
+    "Blues": {
+      "songbook": "Blues Standard"
+    },
+    "RockAndRoll": {
+      "songbook": "Recent RnR Hit"
+    },
+    "DooWop": {
+      "songbook": "Recent DooWop Hit"
+    },
+    "TeenPop": {
+      "songbook": "Recent Teen Hit"
+    },
+    "RnB": {
+      "songbook": "R&B Catalog"
+    },
+    "Soul": {
+      "forms": {
+        "HornDrivenSoulNumber": 1,
+        "DeepSoulPleader": 1,
+        "SlowBallad": 1
+      }
+    },
+    "Motown": {
+      "forms": {
+        "HornDrivenSoulNumber": 1,
+        "DeepSoulPleader": 1,
+        "SlowBallad": 1
+      }
+    },
+    "Funk": {
+      "forms": {
+        "FunkWorkout": 1,
+        "GrooveRiffVamp": 1
+      }
+    },
+    "GirlGroup": {
+      "songbook": "Recent Teen Hit"
+    },
+    "Country": {
+      "songbook": "Country Standard"
+    },
+    "Folk": {
+      "songbook": "Folk Traditional"
+    },
+    "FolkRock": {
+      "forms": {
+        "VerseDrivenSong": 1,
+        "ProtestMessageSong": 1,
+        "MidTempoRocker": 1
+      }
+    },
+    "CountryRock": {
+      "forms": {
+        "CountryTwoBeat": 1,
+        "CountryShuffle": 1,
+        "MidTempoRocker": 1
+      }
+    },
+    "BritishInvasion": {
+      "forms": {
+        "MidTempoRocker": 1,
+        "BrightPopNumber": 1,
+        "ShuffleTwelveBar": 1
+      }
+    },
+    "Skiffle": {
+      "songbook": "Folk Traditional"
+    },
+    "SurfRock": {
+      "songbook": "Surf adaptations"
+    },
+    "GarageRock": {
+      "forms": {
+        "StomperRocker": 1,
+        "MidTempoRocker": 1
+      }
+    },
+    "ProtoPunk": {
+      "forms": {
+        "StomperRocker": 1,
+        "GrooveRiffVamp": 1
+      }
+    },
+    "Psychedelic": {
+      "forms": {
+        "RagaModalDrone": 1,
+        "Collage": 1,
+        "JamExtendedWorkout": 1
+      }
+    },
+    "AcidRock": {
+      "forms": {
+        "JamExtendedWorkout": 1,
+        "LightAndShadeEpic": 1,
+        "GrooveRiffVamp": 1
+      }
+    },
+    "BaroquePop": {
+      "forms": {
+        "ChamberBaroquePiece": 1,
+        "DramaticBalladBigBuild": 1
+      }
+    },
+    "SunshinePop": {
+      "songbook": "Recent Pop Hit"
+    },
+    "ProgressiveRock": {
+      "forms": {
+        "SuiteMultiPart": 1,
+        "LightAndShadeEpic": 1
+      }
+    },
+    "BluesRock": {
+      "forms": {
+        "ShuffleTwelveBar": 1,
+        "SlowBlues": 1,
+        "JamExtendedWorkout": 1
+      }
+    },
+    "HardRock": {
+      "forms": {
+        "StomperRocker": 1,
+        "LightAndShadeEpic": 1,
+        "GrooveRiffVamp": 1
+      }
+    },
+    "ProtoMetal": {
+      "forms": {
+        "LightAndShadeEpic": 1,
+        "GrooveRiffVamp": 1
+      }
+    },
+    "Bubblegum": {
+      "songbook": "Recent Teen Hit"
+    },
+    "BossaNova": {
+      "songbook": "Brazilian songbook"
+    },
+    "SkaRocksteady": {
+      "forms": {
+        "LatinDance": 1,
+        "DanceNumber": 1
+      }
+    },
+    "Gospel": {
+      "songbook": "Gospel Standard"
+    },
+    "BritishPop": {
+      "songbook": "Recent Pop Hit"
+    },
+    "PsychedelicRock": {
+      "forms": {
+        "RagaModalDrone": 1,
+        "Collage": 1,
+        "JamExtendedWorkout": 1
+      }
+    },
+    "BritishBeat": {
+      "forms": {
+        "MidTempoRocker": 1,
+        "BrightPopNumber": 1,
+        "ShuffleTwelveBar": 1
+      }
+    },
+    "BritishBlues": {
+      "forms": {
+        "ShuffleTwelveBar": 1,
+        "SlowBlues": 1,
+        "JamExtendedWorkout": 1
+      }
+    },
+    "Classical": {
+      "songbook": "Classical works"
+    },
+    "Boogaloo": {
+      "forms": {
+        "LatinDance": 1,
+        "DanceNumber": 1,
+        "HornDrivenSoulNumber": 1
+      }
+    },
+    "TexMex": {
+      "songbook": "TexMex songbook"
+    },
+    "LatinPop": {
+      "songbook": "Latin songbook"
+    },
+    "Ska": {
+      "forms": {
+        "LatinDance": 1,
+        "DanceNumber": 1
+      }
+    },
+    "Rocksteady": {
+      "forms": {
+        "DanceNumber": 1,
+        "SlowBallad": 1
+      }
+    },
+    "Reggae": {
+      "forms": {
+        "GrooveRiffVamp": 1,
+        "DanceNumber": 1
+      }
+    },
+    "Comedy": {
+      "songbook": "Comedy routines"
+    },
+    "Childrens": {
+      "songbook": "Children songs"
+    },
+    "ContemporaryFolk": {
+      "songbook": "Contemporary folk"
+    },
+    "SingerSongwriter": {
+      "forms": {
+        "VerseDrivenSong": 1,
+        "SlowBallad": 1,
+        "ProtestMessageSong": 1
+      }
+    },
+    "PopRock": {
+      "forms": {
+        "MidTempoRocker": 1,
+        "MidTempoPopSong": 1,
+        "SlowBallad": 1
+      }
+    },
+    "RootsRock": {
+      "forms": {
+        "CountryTwoBeat": 1,
+        "ShuffleTwelveBar": 1,
+        "VerseDrivenSong": 1
+      }
+    },
+    "PsychedelicPop": {
+      "forms": {
+        "ChamberBaroquePiece": 1,
+        "RagaModalDrone": 1,
+        "MidTempoPopSong": 1
+      }
+    }
+  }
 }

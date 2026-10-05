@@ -21,6 +21,7 @@ public sealed class ActProfile {
 	public bool inferredCapability = true;
 	public bool inferredSession;
 	public bool hasVocalist;
+	public bool hasKnownPerformers;
 	public string mappingVersion;
 	public SongVocalApproach vocalApproach;
 	public float this[SongAxis axis] { get => axes[(int)axis]; set => axes[(int)axis] = value; }
@@ -30,6 +31,13 @@ public sealed class MarketTasteSnapshot {
 	public float[] identity = new float[SongProfile.IdentityCount];
 	public int asOfWeek;
 	public int observations;
+	// Distinct charting singles; repeat chart weeks do not manufacture independent evidence.
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public int observationSchemaVersion;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public string[] observedRecordIds;
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public int legacyObservationCount;
 }
 public readonly struct MaterialFit {
 	public readonly float Capability, Identity, Moment, Deficit, Stretch, ReferenceIdentityDistance;

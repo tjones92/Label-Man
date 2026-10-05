@@ -1,0 +1,15 @@
+{
+  "name": "B",
+  "paths": [
+    "Data/PolarSongProfiles.cs",
+    "Systems/PolarSongBehavior.cs",
+    "SimTools/PolarGospelRepairChecks.cs"
+  ],
+  "sourceHashes": {
+    "Data/PolarSongProfiles.cs": "15867C66C525697E38F623132254FA5610D351023E4F24D39E8601371B9A451E",
+    "Systems/PolarSongBehavior.cs": "B7E07893F72D0A1823389C1034A53B6EC6DFA551B78F01E5D0FD09F3F121D67A",
+    "SimTools/PolarGospelRepairChecks.cs": "B23B39A767DF7FA64497A391C57BFD4A81BAD17E32C81576BB9C6B63D2267B9D"
+  },
+  "status": "implemented",
+  "scope": "Final package source checkpoint; no commits or prior user work reset."
+}

@@ -26,9 +26,11 @@ public static class PolarPlayerPerception {
 		var song = CompositionCatalogService.GetSong(choice.SongId);
 		if (song != null) return song;
 		// Explicit provisional demo for player originals without a committed composition; never registered.
-		return new SongComposition { songId = "player-demo:" + artist.artistId + ":" + (choice.WrittenSong?.SongId ?? choice.Title),
+		var demo = new SongComposition { songId = "player-demo:" + artist.artistId + ":" + (choice.WrittenSong?.SongId ?? choice.Title),
 			title = choice.Title, primaryGenre = artist.primaryGenre, secondaryGenre = artist.secondaryGenre,
 			demoTaxonomy = new SongTaxonomy { primaryGenre = artist.primaryGenre, secondaryGenre = artist.secondaryGenre } };
+		CompositionShapeVariation.Ensure(demo); // Local provisional composition, no registry or RNG writes.
+		return demo;
 	}
 	public static PolarArrangementProposal Proposal(PlayerDesk.MaterialChoice choice, SimulatedArtist artist, string plannedId, PolarSessionContext session = null) {
 		var song = Subject(choice, artist);
@@ -49,7 +51,7 @@ public static class PolarPlayerPerception {
 			var parent = PolarSongMetadataService.Get(master.parentRecordingId);
 			proposal = new PolarArrangementProposal { songId = master.songId, parentRecordingId = master.parentRecordingId,
 				referenceProfile = SongProfileDeriver.Derive(song, parent?.taxonomy ?? song.demoTaxonomy, PolarSongTable.Current),
-				realizedProfile = SongProfileDeriver.Derive(song, master.taxonomy, PolarSongTable.Current) };
+				realizedProfile = master.cachedProfile?.Copy() ?? SongProfileDeriver.Derive(song, master.taxonomy, PolarSongTable.Current) };
 		}
 		var actor = PolarActProfileDeriver.Derive(artist, label, session, PolarSongTable.Current);
 		var act = Observe(actor.axes, actor.interpretiveReach, actor.identityRigidity, artist.evolution?.artisticAmbition ?? .5f,

@@ -797,6 +797,7 @@ public partial class ChartManager : Node {
 
 		allRecords.Add(runtimeData);
 		recordById[runtimeData.baseRecord.recordId] = runtimeData;
+		CompositionCatalogService.OnRecordReleased(record);
 
 		if (releasingLabel != null && !record.isPlayerOwned) {
 			PromoteRecordAI(runtimeData, releasingLabel, perceivedQualityMult);

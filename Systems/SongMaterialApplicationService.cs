@@ -79,6 +79,7 @@ public static class SongMaterialApplicationService {
 	public static void ApplyIdentityToAlbumTrack(AlbumTrack track, SelectedSongMaterial material) {
 		if (track == null || material?.Song == null) return;
 		SongComposition song = material.Song;
+		CompositionCatalogService.AdmitUnpublished(song,song.originYear,material.PolarProposal?.plannedMasterId??track.masterId);
 		track.songId = song.songId;
 		track.songSource = material.Source;
 		track.isCover = material.IsCover;

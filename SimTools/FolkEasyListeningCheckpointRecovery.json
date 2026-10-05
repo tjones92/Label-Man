@@ -1,0 +1,53 @@
+{
+  "tag": "bandleaders-v2",
+  "reason": "Late checkpoint string serialization exceeded memory; SHA-256 comparison now streams the same JSON bytes.",
+  "previousAssemblySha256": "1CF7D07A8A0157A1FF4E6E2924E5CB7D3650F7B914CD1C033D54B917CFB87463",
+  "currentAssemblySha256": "0022992448BEF93F0A5CBD033173201E64195EEC557B69EE38581B1E223EE247",
+  "diagnosticChanges": [
+    "SimTools/ChartAuditRunner.PolarResearch.cs",
+    "SimTools/FolkEasyListeningChecks.cs",
+    "SimTools/run-folk-easy-trajectories.ps1"
+  ],
+  "unchangedGameplayFingerprints": [
+    {
+      "path": "Data/PolarRepertoireTable.json",
+      "sha256": "be484e78ede3140a1e7ab720e3371e37047086fc789dec00cde501211a0c37b4"
+    },
+    {
+      "path": "Data/SimulatedArtist.cs",
+      "sha256": "6c7eb1d14d8050c9d06c7113ff4b8ebea7f290d941ef6543fa909ac2c1679044"
+    },
+    {
+      "path": "Data/SongComposition.cs",
+      "sha256": "5fd3f797bb33e0b58bd66f44a87fd775b358746e059065ec4ae5d567a9977888"
+    },
+    {
+      "path": "Systems/PolarRepertoireTable.cs",
+      "sha256": "8abd13121a809b187833122dc3b7e5d16caa8e7680a7830e5a23c674188b5ab7"
+    },
+    {
+      "path": "Systems/LiveRepertoire.cs",
+      "sha256": "8f55294d3c6fec517cbe4c049553840ef60c768e8c71c5c6505b80dff168c5d6"
+    },
+    {
+      "path": "Systems/SongMaterialSelectionService.cs",
+      "sha256": "dbc52c417b47fb43edcd49babdd446167f6af1588eab445232a7d5653c54df52"
+    },
+    {
+      "path": "Systems/CompositionCatalogService.cs",
+      "sha256": "63dab22275dd93f04d61fa9433cb1ee05438addaaab2145f655bebc642e42dc9"
+    },
+    {
+      "path": "Systems/ArtistManager.cs",
+      "sha256": "eb2ba2471a14aeb98e9a3756772daa0e022d901d87c943e0eec8be9d9ad55a55"
+    },
+    {
+      "path": "Systems/PolarActProfileDeriver.cs",
+      "sha256": "6b3cdbe6cca21ecdac63397dec896e52b71ab5eedd03d3d54ed7f9f2c503f385"
+    },
+    {
+      "path": "Systems/PlayerDesk.cs",
+      "sha256": "85c779fc383d821ba35e6cb57bc22626daf428ab6406d68414ec5c5d6e26b9fd"
+    }
+  ]
+}

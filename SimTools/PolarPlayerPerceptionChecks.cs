@@ -79,9 +79,12 @@ public static class PolarPlayerPerceptionChecks {
 		// Find an actual resolver refusal; do not mock the gate or change recording thresholds.
 		foreach (Genre genre in Enum.GetValues<Genre>()) {
 			artist.primaryGenre = genre;
-			foreach (var row in PolarSongTable.Current.Archetypes) {
-				var candidate = new SongComposition { songId = "resistance-song", title = "Someone Else's Tune", primaryGenre = Genre.TraditionalPop,
+			foreach (var fixture in PolarSongTable.Current.Archetypes.SelectMany(row => Enumerable.Range(0,16).Select(sample => (row,sample)))) {
+				var row = fixture.row;
+				var candidate = new SongComposition { songId = "resistance-song-" + row.Name + "-" + fixture.sample, title = "Someone Else's Tune", primaryGenre = Genre.TraditionalPop,
 					plasticity = 1, plasticityFrozen = true, demoTaxonomy = new SongTaxonomy { primaryGenre = Genre.TraditionalPop, archetype = Enum.Parse<SongArchetype>(row.Name) } };
+				// A real authored composition already carries its persistent offset before preview.
+				PolarSongMetadataService.EnsureComposition(candidate);
 				var act = PolarActProfileDeriver.Derive(artist, desk.Label, desk.PreviewSessionContext(PlayerDesk.StudioTier.Budget, artist), PolarSongTable.Current);
 				var proposal = PolarCoverResolver.Propose(candidate, null, act, genre, 1960, 1, desk.PreviewMasterId(), null, PolarSongTable.Current);
 				if (PolarMaterialFit.WouldRefuse(proposal.fit, 1, 1, false, PolarSongTable.Current)) { refused = candidate; break; }

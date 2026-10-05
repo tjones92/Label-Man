@@ -1,0 +1,21 @@
+{
+  "name": "infrastructure",
+  "paths": [
+    "SimTools/ChartAuditRunner.PolarResearch.cs",
+    "SimTools/run-polar-research.ps1",
+    "SimTools/run-polar-final-audit.ps1",
+    "SimTools/run-polar-followup-audit.ps1",
+    "SimTools/ChartAuditRunner.PolarRepertoire.cs",
+    "Systems/RepertoireProvenance.cs"
+  ],
+  "sourceHashes": {
+    "SimTools/ChartAuditRunner.PolarResearch.cs": "8249E41B5E3F1796D1E3FB858D36B1E38DECB766E92E2467B4F737FA5FCBA0D3",
+    "SimTools/run-polar-research.ps1": "8C8D51375C9C5F62ED5CAB12595589462A4059AF94B184B9C8D28A0FA6EDDA1E",
+    "SimTools/run-polar-final-audit.ps1": "BBFD7CE5F225D5344ED6AE553EF801FA2FD9688D517B76EE3276E5012E82333C",
+    "SimTools/run-polar-followup-audit.ps1": "0C99C39F232ACB9D644DF84482401C7FDEA2B45DF60C82B4DC76CC987616ABB1",
+    "SimTools/ChartAuditRunner.PolarRepertoire.cs": "BD9D317EE4FB7F038F05DAA2D3A036ADBD9B2A5F5198679B4A394CAB5945DD2C",
+    "Systems/RepertoireProvenance.cs": "18A4E1792FEA53DD4143A4408E11D27C644599EEACC168433AC747E92E15D6D6"
+  },
+  "status": "implemented",
+  "scope": "Final package source checkpoint; no commits or prior user work reset."
+}

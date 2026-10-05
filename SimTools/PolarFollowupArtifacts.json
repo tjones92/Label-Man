@@ -1,0 +1,4046 @@
+{
+  "date": "2026-10-03",
+  "scope": "Pre-decade follow-up artifacts including aborted attempts",
+  "files": [
+    {
+      "path": "SimLogs/polar-followup-annual-existing.csv",
+      "bytes": 3377
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-a3-economic-decisions.csv",
+      "bytes": 52362
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-album-project-demand.csv",
+      "bytes": 7352
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-album-projects.csv",
+      "bytes": 17877
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-artist-population-events.csv",
+      "bytes": 65767
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-calibration-decisions.csv",
+      "bytes": 23461
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-concentration.csv",
+      "bytes": 838
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-daily-talent-appointments.csv",
+      "bytes": 33245
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-daily-talent-market.csv",
+      "bytes": 863
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-decade-annual-rollup.csv",
+      "bytes": 1340
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-first-chart-events.csv",
+      "bytes": 16427
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-fork-ratios.csv",
+      "bytes": 41034
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-format-decision-cohort-details.csv",
+      "bytes": 10172
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-format-decision-cohorts.csv",
+      "bytes": 1128
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-format-decision-explanation.csv",
+      "bytes": 53461
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-format-memory-adjustment.csv",
+      "bytes": 7378
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-format-mix.csv",
+      "bytes": 916
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-genre-decade-shape.csv",
+      "bytes": 2399
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-independent-distributors.csv",
+      "bytes": 2690
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-invocation.json",
+      "bytes": 824
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-label-directory.csv",
+      "bytes": 38317
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-label-geography.csv",
+      "bytes": 60673
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-live-records-snapshot.csv",
+      "bytes": 58590
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-musician-recognition.csv",
+      "bytes": 74306
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-polar-final-weekly.csv",
+      "bytes": 332
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-polar-live-census.csv",
+      "bytes": 467
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-polar-master-assignments.csv",
+      "bytes": 149961
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-polar-refusal-avoidance.csv",
+      "bytes": 55
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-prior-cost-assumptions.csv",
+      "bytes": 6792
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-publishing-ledger.csv",
+      "bytes": 24611
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-release-strategy.csv",
+      "bytes": 55960
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-retirement.csv",
+      "bytes": 31076
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-supply-selections.csv",
+      "bytes": 9888
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-writer-credits.csv",
+      "bytes": 405
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001-year-end-hot100.csv",
+      "bytes": 480
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1001.log",
+      "bytes": 3664
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-a3-economic-decisions.csv",
+      "bytes": 52231
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-album-project-demand.csv",
+      "bytes": 7556
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-album-projects.csv",
+      "bytes": 18400
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-artist-population-events.csv",
+      "bytes": 56375
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-calibration-decisions.csv",
+      "bytes": 23430
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-concentration.csv",
+      "bytes": 838
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-daily-talent-appointments.csv",
+      "bytes": 28861
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-daily-talent-market.csv",
+      "bytes": 878
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-decade-annual-rollup.csv",
+      "bytes": 1363
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-first-chart-events.csv",
+      "bytes": 18496
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-fork-ratios.csv",
+      "bytes": 40950
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-format-decision-cohort-details.csv",
+      "bytes": 10152
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-format-decision-cohorts.csv",
+      "bytes": 1224
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-format-decision-explanation.csv",
+      "bytes": 53120
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-format-memory-adjustment.csv",
+      "bytes": 6468
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-format-mix.csv",
+      "bytes": 914
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-genre-decade-shape.csv",
+      "bytes": 2409
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-independent-distributors.csv",
+      "bytes": 2673
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-invocation.json",
+      "bytes": 824
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-label-directory.csv",
+      "bytes": 38188
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-label-geography.csv",
+      "bytes": 60647
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-live-records-snapshot.csv",
+      "bytes": 59767
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-musician-recognition.csv",
+      "bytes": 76872
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-polar-final-weekly.csv",
+      "bytes": 331
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-polar-live-census.csv",
+      "bytes": 471
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-polar-master-assignments.csv",
+      "bytes": 150687
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-polar-refusal-avoidance.csv",
+      "bytes": 55
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-prior-cost-assumptions.csv",
+      "bytes": 6768
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-publishing-ledger.csv",
+      "bytes": 24828
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-release-strategy.csv",
+      "bytes": 56042
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-retirement.csv",
+      "bytes": 32235
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-supply-selections.csv",
+      "bytes": 8718
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-writer-credits.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002-year-end-hot100.csv",
+      "bytes": 479
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-off-1002.log",
+      "bytes": 3664
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-a3-economic-decisions.csv",
+      "bytes": 53269
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-album-project-demand.csv",
+      "bytes": 6877
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-album-projects.csv",
+      "bytes": 16666
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-artist-population-events.csv",
+      "bytes": 65767
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-calibration-decisions.csv",
+      "bytes": 23982
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-concentration.csv",
+      "bytes": 840
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-daily-talent-appointments.csv",
+      "bytes": 33245
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-daily-talent-market.csv",
+      "bytes": 863
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-decade-annual-rollup.csv",
+      "bytes": 1363
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-first-chart-events.csv",
+      "bytes": 16654
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-fork-ratios.csv",
+      "bytes": 41936
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-format-decision-cohort-details.csv",
+      "bytes": 10387
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-format-decision-cohorts.csv",
+      "bytes": 1139
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-format-decision-explanation.csv",
+      "bytes": 54342
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-format-memory-adjustment.csv",
+      "bytes": 6728
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-format-mix.csv",
+      "bytes": 921
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-genre-decade-shape.csv",
+      "bytes": 2396
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-independent-distributors.csv",
+      "bytes": 2690
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-invocation.json",
+      "bytes": 783
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-label-directory.csv",
+      "bytes": 38317
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-label-geography.csv",
+      "bytes": 60673
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-live-records-snapshot.csv",
+      "bytes": 59121
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-musician-recognition.csv",
+      "bytes": 77923
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-polar-final-weekly.csv",
+      "bytes": 338
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-polar-live-census.csv",
+      "bytes": 467
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-polar-master-assignments.csv",
+      "bytes": 169120
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-polar-refusal-avoidance.csv",
+      "bytes": 22082
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-prior-cost-assumptions.csv",
+      "bytes": 6806
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-publishing-ledger.csv",
+      "bytes": 24748
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-release-strategy.csv",
+      "bytes": 55895
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-retirement.csv",
+      "bytes": 32077
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-supply-selections.csv",
+      "bytes": 8982
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-writer-credits.csv",
+      "bytes": 147
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001-year-end-hot100.csv",
+      "bytes": 482
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1001.log",
+      "bytes": 3662
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-a3-economic-decisions.csv",
+      "bytes": 56379
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-album-project-demand.csv",
+      "bytes": 8032
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-album-projects.csv",
+      "bytes": 19530
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-artist-population-events.csv",
+      "bytes": 56375
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-calibration-decisions.csv",
+      "bytes": 25203
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-concentration.csv",
+      "bytes": 840
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-daily-talent-appointments.csv",
+      "bytes": 28861
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-daily-talent-market.csv",
+      "bytes": 878
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-decade-annual-rollup.csv",
+      "bytes": 1364
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-first-chart-events.csv",
+      "bytes": 19791
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-fork-ratios.csv",
+      "bytes": 44016
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-format-decision-cohort-details.csv",
+      "bytes": 10920
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-format-decision-cohorts.csv",
+      "bytes": 1163
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-format-decision-explanation.csv",
+      "bytes": 57219
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-format-memory-adjustment.csv",
+      "bytes": 7313
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-format-mix.csv",
+      "bytes": 918
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-genre-decade-shape.csv",
+      "bytes": 2405
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-independent-distributors.csv",
+      "bytes": 2673
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-invocation.json",
+      "bytes": 783
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-label-directory.csv",
+      "bytes": 38188
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-label-geography.csv",
+      "bytes": 60647
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-live-records-snapshot.csv",
+      "bytes": 60821
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-musician-recognition.csv",
+      "bytes": 77976
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-polar-final-weekly.csv",
+      "bytes": 336
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-polar-live-census.csv",
+      "bytes": 471
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-polar-master-assignments.csv",
+      "bytes": 192447
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-polar-refusal-avoidance.csv",
+      "bytes": 32540
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-prior-cost-assumptions.csv",
+      "bytes": 7279
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-publishing-ledger.csv",
+      "bytes": 24666
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-release-strategy.csv",
+      "bytes": 60204
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-retirement.csv",
+      "bytes": 32632
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-supply-selections.csv",
+      "bytes": 9694
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-writer-credits.csv",
+      "bytes": 247
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002-year-end-hot100.csv",
+      "bytes": 443
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-on-1002.log",
+      "bytes": 3662
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-polar-player-perception-check.log",
+      "bytes": 3898
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-polar-recording-realization-check.log",
+      "bytes": 3629
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-polar-refusal-avoidance-check.log",
+      "bytes": 3765
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-polar-rock-songbook-check.log",
+      "bytes": 3602
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-polar-song-behavior-check.log",
+      "bytes": 3594
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-polar-song-data-check.log",
+      "bytes": 3535
+    },
+    {
+      "path": "SimLogs/polar-followup-checkpoint-polar-song-fit-check.log",
+      "bytes": 4417
+    },
+    {
+      "path": "SimLogs/polar-followup-existing-analysis.json",
+      "bytes": 14831
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-a3-economic-decisions.csv",
+      "bytes": 52362
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-album-project-demand.csv",
+      "bytes": 7352
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-album-projects.csv",
+      "bytes": 17877
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-artist-population-events.csv",
+      "bytes": 65767
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-calibration-decisions.csv",
+      "bytes": 23461
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-concentration.csv",
+      "bytes": 838
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-daily-talent-appointments.csv",
+      "bytes": 33245
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-daily-talent-market.csv",
+      "bytes": 863
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-decade-annual-rollup.csv",
+      "bytes": 1340
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-first-chart-events.csv",
+      "bytes": 16427
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-fork-ratios.csv",
+      "bytes": 41034
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-format-decision-cohort-details.csv",
+      "bytes": 10172
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-format-decision-cohorts.csv",
+      "bytes": 1128
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-format-decision-explanation.csv",
+      "bytes": 53461
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-format-memory-adjustment.csv",
+      "bytes": 7378
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-format-mix.csv",
+      "bytes": 916
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-genre-decade-shape.csv",
+      "bytes": 2399
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-independent-distributors.csv",
+      "bytes": 2690
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-invocation.json",
+      "bytes": 814
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-label-directory.csv",
+      "bytes": 38317
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-label-geography.csv",
+      "bytes": 60673
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-live-records-snapshot.csv",
+      "bytes": 58590
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-musician-recognition.csv",
+      "bytes": 74306
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-polar-final-weekly.csv",
+      "bytes": 332
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-polar-live-census.csv",
+      "bytes": 467
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-polar-master-assignments.csv",
+      "bytes": 149961
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-polar-refusal-avoidance.csv",
+      "bytes": 55
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-prior-cost-assumptions.csv",
+      "bytes": 6792
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-publishing-ledger.csv",
+      "bytes": 24611
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-release-strategy.csv",
+      "bytes": 55960
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-retirement.csv",
+      "bytes": 31076
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-supply-selections.csv",
+      "bytes": 9888
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-writer-credits.csv",
+      "bytes": 405
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001-year-end-hot100.csv",
+      "bytes": 480
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1001.log",
+      "bytes": 3659
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-a3-economic-decisions.csv",
+      "bytes": 52231
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-album-project-demand.csv",
+      "bytes": 7556
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-album-projects.csv",
+      "bytes": 18400
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-artist-population-events.csv",
+      "bytes": 56375
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-calibration-decisions.csv",
+      "bytes": 23430
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-concentration.csv",
+      "bytes": 838
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-daily-talent-appointments.csv",
+      "bytes": 28861
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-daily-talent-market.csv",
+      "bytes": 878
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-decade-annual-rollup.csv",
+      "bytes": 1363
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-first-chart-events.csv",
+      "bytes": 18496
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-fork-ratios.csv",
+      "bytes": 40950
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-format-decision-cohort-details.csv",
+      "bytes": 10152
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-format-decision-cohorts.csv",
+      "bytes": 1224
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-format-decision-explanation.csv",
+      "bytes": 53120
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-format-memory-adjustment.csv",
+      "bytes": 6468
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-format-mix.csv",
+      "bytes": 914
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-genre-decade-shape.csv",
+      "bytes": 2409
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-independent-distributors.csv",
+      "bytes": 2673
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-invocation.json",
+      "bytes": 814
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-label-directory.csv",
+      "bytes": 38188
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-label-geography.csv",
+      "bytes": 60647
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-live-records-snapshot.csv",
+      "bytes": 59767
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-musician-recognition.csv",
+      "bytes": 76872
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-polar-final-weekly.csv",
+      "bytes": 331
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-polar-live-census.csv",
+      "bytes": 471
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-polar-master-assignments.csv",
+      "bytes": 150687
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-polar-refusal-avoidance.csv",
+      "bytes": 55
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-prior-cost-assumptions.csv",
+      "bytes": 6768
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-publishing-ledger.csv",
+      "bytes": 24828
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-release-strategy.csv",
+      "bytes": 56042
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-retirement.csv",
+      "bytes": 32235
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-supply-selections.csv",
+      "bytes": 8718
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-writer-credits.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002-year-end-hot100.csv",
+      "bytes": 479
+    },
+    {
+      "path": "SimLogs/polar-followup-final-off-1002.log",
+      "bytes": 3659
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-a3-economic-decisions.csv",
+      "bytes": 53269
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-album-project-demand.csv",
+      "bytes": 6877
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-album-projects.csv",
+      "bytes": 16666
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-artist-population-events.csv",
+      "bytes": 65767
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-calibration-decisions.csv",
+      "bytes": 23982
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-concentration.csv",
+      "bytes": 840
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-daily-talent-appointments.csv",
+      "bytes": 33245
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-daily-talent-market.csv",
+      "bytes": 863
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-decade-annual-rollup.csv",
+      "bytes": 1363
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-first-chart-events.csv",
+      "bytes": 16654
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-fork-ratios.csv",
+      "bytes": 41936
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-format-decision-cohort-details.csv",
+      "bytes": 10387
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-format-decision-cohorts.csv",
+      "bytes": 1139
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-format-decision-explanation.csv",
+      "bytes": 54342
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-format-memory-adjustment.csv",
+      "bytes": 6728
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-format-mix.csv",
+      "bytes": 921
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-genre-decade-shape.csv",
+      "bytes": 2396
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-independent-distributors.csv",
+      "bytes": 2690
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-invocation.json",
+      "bytes": 773
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-label-directory.csv",
+      "bytes": 38317
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-label-geography.csv",
+      "bytes": 60673
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-live-records-snapshot.csv",
+      "bytes": 59121
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-musician-recognition.csv",
+      "bytes": 77923
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-polar-final-weekly.csv",
+      "bytes": 338
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-polar-live-census.csv",
+      "bytes": 467
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-polar-master-assignments.csv",
+      "bytes": 169120
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-polar-refusal-avoidance.csv",
+      "bytes": 22082
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-prior-cost-assumptions.csv",
+      "bytes": 6806
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-publishing-ledger.csv",
+      "bytes": 24748
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-release-strategy.csv",
+      "bytes": 55895
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-retirement.csv",
+      "bytes": 32077
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-supply-selections.csv",
+      "bytes": 8982
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-writer-credits.csv",
+      "bytes": 147
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001-year-end-hot100.csv",
+      "bytes": 482
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1001.log",
+      "bytes": 3657
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-a3-economic-decisions.csv",
+      "bytes": 56379
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-album-project-demand.csv",
+      "bytes": 8032
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-album-projects.csv",
+      "bytes": 19530
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-artist-population-events.csv",
+      "bytes": 56375
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-calibration-decisions.csv",
+      "bytes": 25203
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-concentration.csv",
+      "bytes": 840
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-daily-talent-appointments.csv",
+      "bytes": 28861
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-daily-talent-market.csv",
+      "bytes": 878
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-decade-annual-rollup.csv",
+      "bytes": 1364
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-first-chart-events.csv",
+      "bytes": 19791
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-fork-ratios.csv",
+      "bytes": 44016
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-format-decision-cohort-details.csv",
+      "bytes": 10920
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-format-decision-cohorts.csv",
+      "bytes": 1163
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-format-decision-explanation.csv",
+      "bytes": 57219
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-format-memory-adjustment.csv",
+      "bytes": 7313
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-format-mix.csv",
+      "bytes": 918
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-genre-decade-shape.csv",
+      "bytes": 2405
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-independent-distributors.csv",
+      "bytes": 2673
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-invocation.json",
+      "bytes": 773
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-label-directory.csv",
+      "bytes": 38188
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-label-geography.csv",
+      "bytes": 60647
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-live-records-snapshot.csv",
+      "bytes": 60821
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-musician-recognition.csv",
+      "bytes": 77976
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-polar-final-weekly.csv",
+      "bytes": 336
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-polar-live-census.csv",
+      "bytes": 471
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-polar-master-assignments.csv",
+      "bytes": 192447
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-polar-refusal-avoidance.csv",
+      "bytes": 32540
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-prior-cost-assumptions.csv",
+      "bytes": 7279
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-publishing-ledger.csv",
+      "bytes": 24666
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-release-strategy.csv",
+      "bytes": 60204
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-retirement.csv",
+      "bytes": 32632
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-supply-selections.csv",
+      "bytes": 9694
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-writer-credits.csv",
+      "bytes": 247
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002-year-end-hot100.csv",
+      "bytes": 443
+    },
+    {
+      "path": "SimLogs/polar-followup-final-on-1002.log",
+      "bytes": 3657
+    },
+    {
+      "path": "SimLogs/polar-followup-final-polar-player-perception-check.log",
+      "bytes": 3898
+    },
+    {
+      "path": "SimLogs/polar-followup-final-polar-recording-realization-check.log",
+      "bytes": 3629
+    },
+    {
+      "path": "SimLogs/polar-followup-final-polar-refusal-avoidance-check.log",
+      "bytes": 3765
+    },
+    {
+      "path": "SimLogs/polar-followup-final-polar-rock-songbook-check.log",
+      "bytes": 3602
+    },
+    {
+      "path": "SimLogs/polar-followup-final-polar-song-behavior-check.log",
+      "bytes": 3594
+    },
+    {
+      "path": "SimLogs/polar-followup-final-polar-song-data-check.log",
+      "bytes": 3535
+    },
+    {
+      "path": "SimLogs/polar-followup-final-polar-song-fit-check.log",
+      "bytes": 4417
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-a3-economic-decisions.csv",
+      "bytes": 1163737
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-chart.csv",
+      "bytes": 298103
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-composition.csv",
+      "bytes": 312282
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-demand-explanation.csv",
+      "bytes": 2346721
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-project-demand.csv",
+      "bytes": 256948
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-project-weekly.csv",
+      "bytes": 642
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-projects.csv",
+      "bytes": 313194
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-realization-bridge.csv",
+      "bytes": 80890298
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-album-track-links.csv",
+      "bytes": 125895
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-artist-cohort-annual.csv",
+      "bytes": 18623
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-artist-evolution.csv",
+      "bytes": 6016
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-artist-labor-market-weekly.csv",
+      "bytes": 6774
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-artist-population-events.csv",
+      "bytes": 1947335
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-artist-population-weekly.csv",
+      "bytes": 24394
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-artist-project-identity.csv",
+      "bytes": 1293697
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-breakout-funnel.csv",
+      "bytes": 96301414
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-calibration-decisions.csv",
+      "bytes": 534413
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-completed-week-settlement-regional.csv",
+      "bytes": 64609275
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-completed-week-settlement.csv",
+      "bytes": 35707296
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-concentration.csv",
+      "bytes": 860
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-daily-talent-appointments.csv",
+      "bytes": 77744
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-daily-talent-market.csv",
+      "bytes": 16959
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-deal-ledger.csv",
+      "bytes": 47474
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-deal-metrics.csv",
+      "bytes": 80
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-decade-annual-rollup.csv",
+      "bytes": 1560
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-distribution-offer-attempts.csv",
+      "bytes": 630717
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-first-chart-events.csv",
+      "bytes": 48308
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-fork-ratios.csv",
+      "bytes": 921193
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-format-decision-cohort-details.csv",
+      "bytes": 239612
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-format-decision-cohorts.csv",
+      "bytes": 1647
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-format-decision-explanation.csv",
+      "bytes": 1307385
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-format-memory-adjustment.csv",
+      "bytes": 372971
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-format-memory-revisions.csv",
+      "bytes": 2544272
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-format-mix.csv",
+      "bytes": 14190
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-genre-decade-shape.csv",
+      "bytes": 2779
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-genre-market-weekly.csv",
+      "bytes": 2032870
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-geography-metrics.csv",
+      "bytes": 2078545
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-independent-distribution-events.csv",
+      "bytes": 75030
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-independent-distributors.csv",
+      "bytes": 2690
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-label-directory.csv",
+      "bytes": 38317
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-label-finance.csv",
+      "bytes": 5881570
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-label-geography.csv",
+      "bytes": 60673
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-label-operating-target-events.csv",
+      "bytes": 24438
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-label-scouting-vacancy-weekly.csv",
+      "bytes": 2682427
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-lifecycles.csv",
+      "bytes": 127750
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-live-records-snapshot.csv",
+      "bytes": 418984
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-market-clearing-weekly.csv",
+      "bytes": 78646
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-market-revenue.csv",
+      "bytes": 86274
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-market-spillover-weekly.csv",
+      "bytes": 31595
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-musician-recognition.csv",
+      "bytes": 226161
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-prior-cost-assumptions.csv",
+      "bytes": 152301
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-publishing-ledger.csv",
+      "bytes": 31924
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-record-genre-explanation.csv",
+      "bytes": 18975427
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-records.csv",
+      "bytes": 29747408
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-release-capacity.csv",
+      "bytes": 1630
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-release-outcomes.csv",
+      "bytes": 198980
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-release-strategy.csv",
+      "bytes": 1245764
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-retired-track-availability.csv",
+      "bytes": 1396
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-retirement.csv",
+      "bytes": 325402
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-revenue-memory.csv",
+      "bytes": 2167668
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-roster-lifecycle.csv",
+      "bytes": 20784
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-runtime-label-profiles.csv",
+      "bytes": 7928
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-seasonality-monthly.csv",
+      "bytes": 2665
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-single-demand-stages.csv",
+      "bytes": 122169345
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-single-release-lanes.csv",
+      "bytes": 922518
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-song-material.csv",
+      "bytes": 1009911
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-supply-selections.csv",
+      "bytes": 403382
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-tier-volume.csv",
+      "bytes": 14506
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-weeks.csv",
+      "bytes": 3324
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-writer-credits.csv",
+      "bytes": 20602
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001-year-end-hot100.csv",
+      "bytes": 442
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1001.log",
+      "bytes": 18432
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-a3-economic-decisions.csv",
+      "bytes": 1174243
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-chart.csv",
+      "bytes": 299957
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-composition.csv",
+      "bytes": 298154
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-demand-explanation.csv",
+      "bytes": 2384266
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-project-demand.csv",
+      "bytes": 245876
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-project-weekly.csv",
+      "bytes": 642
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-projects.csv",
+      "bytes": 298696
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-realization-bridge.csv",
+      "bytes": 78305343
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-album-track-links.csv",
+      "bytes": 119937
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-artist-cohort-annual.csv",
+      "bytes": 18731
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-artist-evolution.csv",
+      "bytes": 6130
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-artist-labor-market-weekly.csv",
+      "bytes": 6828
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-artist-population-events.csv",
+      "bytes": 1918572
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-artist-population-weekly.csv",
+      "bytes": 24376
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-artist-project-identity.csv",
+      "bytes": 1288541
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-breakout-funnel.csv",
+      "bytes": 97784727
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-calibration-decisions.csv",
+      "bytes": 539132
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-completed-week-settlement-regional.csv",
+      "bytes": 64510084
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-completed-week-settlement.csv",
+      "bytes": 35677029
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-concentration.csv",
+      "bytes": 860
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-daily-talent-appointments.csv",
+      "bytes": 79450
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-daily-talent-market.csv",
+      "bytes": 16964
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-deal-ledger.csv",
+      "bytes": 46429
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-deal-metrics.csv",
+      "bytes": 81
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-decade-annual-rollup.csv",
+      "bytes": 1569
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-distribution-offer-attempts.csv",
+      "bytes": 635781
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-first-chart-events.csv",
+      "bytes": 45357
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-fork-ratios.csv",
+      "bytes": 929742
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-format-decision-cohort-details.csv",
+      "bytes": 241760
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-format-decision-cohorts.csv",
+      "bytes": 1649
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-format-decision-explanation.csv",
+      "bytes": 1320840
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-format-memory-adjustment.csv",
+      "bytes": 376425
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-format-memory-revisions.csv",
+      "bytes": 2544300
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-format-mix.csv",
+      "bytes": 14203
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-genre-decade-shape.csv",
+      "bytes": 2814
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-genre-market-weekly.csv",
+      "bytes": 2031729
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-geography-metrics.csv",
+      "bytes": 2003926
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-independent-distribution-events.csv",
+      "bytes": 75854
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-independent-distributors.csv",
+      "bytes": 2673
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-label-directory.csv",
+      "bytes": 38188
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-label-finance.csv",
+      "bytes": 5894685
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-label-geography.csv",
+      "bytes": 60647
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-label-operating-target-events.csv",
+      "bytes": 23316
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-label-scouting-vacancy-weekly.csv",
+      "bytes": 2341693
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-lifecycles.csv",
+      "bytes": 130935
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-live-records-snapshot.csv",
+      "bytes": 408700
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-market-clearing-weekly.csv",
+      "bytes": 78678
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-market-revenue.csv",
+      "bytes": 86587
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-market-spillover-weekly.csv",
+      "bytes": 31736
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-musician-recognition.csv",
+      "bytes": 241725
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-prior-cost-assumptions.csv",
+      "bytes": 152526
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-publishing-ledger.csv",
+      "bytes": 31986
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-record-genre-explanation.csv",
+      "bytes": 18968808
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-records.csv",
+      "bytes": 30112681
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-release-capacity.csv",
+      "bytes": 1605
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-release-outcomes.csv",
+      "bytes": 205540
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-release-strategy.csv",
+      "bytes": 1244522
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-retired-track-availability.csv",
+      "bytes": 1391
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-retirement.csv",
+      "bytes": 328133
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-revenue-memory.csv",
+      "bytes": 2164711
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-roster-lifecycle.csv",
+      "bytes": 20771
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-runtime-label-profiles.csv",
+      "bytes": 6978
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-seasonality-monthly.csv",
+      "bytes": 2646
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-single-demand-stages.csv",
+      "bytes": 123750612
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-single-release-lanes.csv",
+      "bytes": 931241
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-song-material.csv",
+      "bytes": 1020537
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-supply-selections.csv",
+      "bytes": 405153
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-tier-volume.csv",
+      "bytes": 14561
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-weeks.csv",
+      "bytes": 3326
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-writer-credits.csv",
+      "bytes": 22471
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002-year-end-hot100.csv",
+      "bytes": 444
+    },
+    {
+      "path": "SimLogs/polar-followup-neutral-1002.log",
+      "bytes": 16273
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-a3-economic-decisions.csv",
+      "bytes": 52362
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-album-project-demand.csv",
+      "bytes": 7352
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-album-projects.csv",
+      "bytes": 17877
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-artist-population-events.csv",
+      "bytes": 65767
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-calibration-decisions.csv",
+      "bytes": 23461
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-concentration.csv",
+      "bytes": 838
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-daily-talent-appointments.csv",
+      "bytes": 33245
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-daily-talent-market.csv",
+      "bytes": 863
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-decade-annual-rollup.csv",
+      "bytes": 1340
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-first-chart-events.csv",
+      "bytes": 16427
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-fork-ratios.csv",
+      "bytes": 41034
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-format-decision-cohort-details.csv",
+      "bytes": 10172
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-format-decision-cohorts.csv",
+      "bytes": 1128
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-format-decision-explanation.csv",
+      "bytes": 53461
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-format-memory-adjustment.csv",
+      "bytes": 7378
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-format-mix.csv",
+      "bytes": 916
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-genre-decade-shape.csv",
+      "bytes": 2399
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-independent-distributors.csv",
+      "bytes": 2690
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-label-directory.csv",
+      "bytes": 38317
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-label-geography.csv",
+      "bytes": 60673
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-live-records-snapshot.csv",
+      "bytes": 58590
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-musician-recognition.csv",
+      "bytes": 74306
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-polar-final-weekly.csv",
+      "bytes": 332
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-polar-live-census.csv",
+      "bytes": 467
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-polar-master-assignments.csv",
+      "bytes": 149961
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-polar-refusal-avoidance.csv",
+      "bytes": 55
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-prior-cost-assumptions.csv",
+      "bytes": 6792
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-publishing-ledger.csv",
+      "bytes": 24611
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-release-strategy.csv",
+      "bytes": 55960
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-retirement.csv",
+      "bytes": 31076
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-supply-selections.csv",
+      "bytes": 9888
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-writer-credits.csv",
+      "bytes": 405
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke-year-end-hot100.csv",
+      "bytes": 480
+    },
+    {
+      "path": "SimLogs/polar-followup-off-1001-smoke.log",
+      "bytes": 3659
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-a3-economic-decisions.csv",
+      "bytes": 53269
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-album-chart.csv",
+      "bytes": 185
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-album-composition.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-album-demand-explanation.csv",
+      "bytes": 268
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-album-project-demand.csv",
+      "bytes": 6877
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-album-project-weekly.csv",
+      "bytes": 30
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-album-projects.csv",
+      "bytes": 16666
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-album-track-links.csv",
+      "bytes": 110
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-artist-cohort-annual.csv",
+      "bytes": 283
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-artist-evolution.csv",
+      "bytes": 264
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-artist-labor-market-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-artist-population-events.csv",
+      "bytes": 65767
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-artist-population-weekly.csv",
+      "bytes": 451
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-artist-project-identity.csv",
+      "bytes": 370
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-breakout-funnel.csv",
+      "bytes": 593
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-calibration-decisions.csv",
+      "bytes": 23982
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-city-roster.csv",
+      "bytes": 4500
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-concentration.csv",
+      "bytes": 840
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-daily-talent-appointments.csv",
+      "bytes": 33245
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-daily-talent-market.csv",
+      "bytes": 863
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-deal-ledger.csv",
+      "bytes": 160
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-deal-metrics.csv",
+      "bytes": 67
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-decade-annual-rollup.csv",
+      "bytes": 1363
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-distance-matrix.csv",
+      "bytes": 54555
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-distribution-offer-attempts.csv",
+      "bytes": 319
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-first-chart-events.csv",
+      "bytes": 16654
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-fork-ratios.csv",
+      "bytes": 41936
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-format-decision-cohort-details.csv",
+      "bytes": 10387
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-format-decision-cohorts.csv",
+      "bytes": 1139
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-format-decision-explanation.csv",
+      "bytes": 54342
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-format-memory-adjustment.csv",
+      "bytes": 6728
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-format-memory-revisions.csv",
+      "bytes": 317
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-format-mix.csv",
+      "bytes": 921
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-genre-catalog.csv",
+      "bytes": 13232
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-genre-decade-shape.csv",
+      "bytes": 2396
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-genre-events.csv",
+      "bytes": 105
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-genre-market-weekly.csv",
+      "bytes": 279
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-geography-metrics.csv",
+      "bytes": 154
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-independent-distribution-events.csv",
+      "bytes": 201
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-independent-distributors.csv",
+      "bytes": 2690
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-independent-trade-failures.csv",
+      "bytes": 108
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-label-directory.csv",
+      "bytes": 38317
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-label-finance.csv",
+      "bytes": 364
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-label-geography.csv",
+      "bytes": 60673
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-label-operating-target-events.csv",
+      "bytes": 341
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-label-scouting-vacancy-weekly.csv",
+      "bytes": 1321
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-label-tier-transitions.csv",
+      "bytes": 251
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-lifecycles.csv",
+      "bytes": 119
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-live-records-snapshot.csv",
+      "bytes": 59121
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-market-clearing-weekly.csv",
+      "bytes": 626
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-market-revenue.csv",
+      "bytes": 103
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-market-spillover-weekly.csv",
+      "bytes": 219
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-musician-recognition.csv",
+      "bytes": 77923
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-polar-final-weekly.csv",
+      "bytes": 338
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-polar-live-census.csv",
+      "bytes": 467
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-polar-master-assignments.csv",
+      "bytes": 169120
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-polar-refusal-avoidance.csv",
+      "bytes": 22082
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-prior-cost-assumptions.csv",
+      "bytes": 6806
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-publishing-ledger.csv",
+      "bytes": 24748
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-record-genre-explanation.csv",
+      "bytes": 796
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-records.csv",
+      "bytes": 733
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-release-capacity.csv",
+      "bytes": 142
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-release-outcomes.csv",
+      "bytes": 104
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-release-strategy.csv",
+      "bytes": 55895
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-retired-track-availability.csv",
+      "bytes": 141
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-retirement.csv",
+      "bytes": 32077
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-revenue-memory.csv",
+      "bytes": 60
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-roster-lifecycle.csv",
+      "bytes": 391
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-runtime-label-profiles.csv",
+      "bytes": 469
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-seasonality-monthly.csv",
+      "bytes": 432
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-single-release-lanes.csv",
+      "bytes": 233
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-song-material.csv",
+      "bytes": 267
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-special-products.csv",
+      "bytes": 152
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-supply-selections.csv",
+      "bytes": 8982
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-tier-volume.csv",
+      "bytes": 128
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-traditional-pop-fallbacks.csv",
+      "bytes": 33
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-weeks.csv",
+      "bytes": 170
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-writer-credits.csv",
+      "bytes": 147
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke-year-end-hot100.csv",
+      "bytes": 482
+    },
+    {
+      "path": "SimLogs/polar-followup-on-1001-smoke.log",
+      "bytes": 3657
+    },
+    {
+      "path": "SimLogs/polar-followup-polar-player-perception-check.log",
+      "bytes": 3898
+    },
+    {
+      "path": "SimLogs/polar-followup-polar-recording-realization-check.log",
+      "bytes": 3629
+    },
+    {
+      "path": "SimLogs/polar-followup-polar-refusal-avoidance-check.log",
+      "bytes": 3765
+    },
+    {
+      "path": "SimLogs/polar-followup-polar-rock-songbook-check.log",
+      "bytes": 3602
+    },
+    {
+      "path": "SimLogs/polar-followup-polar-song-behavior-check.log",
+      "bytes": 3594
+    },
+    {
+      "path": "SimLogs/polar-followup-polar-song-data-check.log",
+      "bytes": 3535
+    },
+    {
+      "path": "SimLogs/polar-followup-polar-song-fit-check.log",
+      "bytes": 4417
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-all-fit.csv",
+      "bytes": 5120
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-all-pool.csv",
+      "bytes": 5557
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-all-sets.csv",
+      "bytes": 2026
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-all.log",
+      "bytes": 3569
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-fit.csv",
+      "bytes": 1299
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-pool.csv",
+      "bytes": 860
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-retry.log",
+      "bytes": 3555
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001-sets.csv",
+      "bytes": 797
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1001.log",
+      "bytes": 1540
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-all-fit.csv",
+      "bytes": 5058
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-all-pool.csv",
+      "bytes": 5577
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-all-sets.csv",
+      "bytes": 2027
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-all.log",
+      "bytes": 3569
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-fit.csv",
+      "bytes": 1300
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-pool.csv",
+      "bytes": 866
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-retry.log",
+      "bytes": 3555
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002-sets.csv",
+      "bytes": 809
+    },
+    {
+      "path": "SimLogs/polar-followup-probe-1002.log",
+      "bytes": 1540
+    },
+    {
+      "path": "SimLogs/polar-followup-short-sets-existing.csv",
+      "bytes": 17195
+    }
+  ]
+}

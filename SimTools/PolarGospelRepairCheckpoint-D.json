@@ -1,0 +1,14 @@
+{
+  "package": "D",
+  "status": "implemented-verified",
+  "sourceHashes": {
+    "Data/SongComposition.cs": "8A3B29BFC0020829594D70C25CCD2E2875A30D2799332C6C132AAB155B09B966",
+    "Systems/CompositionCatalogService.cs": "984E76D89186A1A7AA60BEB6CAFDCAC2561EBA1E189AE4B2AB872B4E81DD9224",
+    "SimTools/PolarGospelFollowupChecks.cs": "4BC5EA193A2BCB63AAA53D484E3E549E6CA0BE4EB556EC7A40CE4E99939CFBFB"
+  },
+  "developmentSeeds": [
+    1001,
+    1002
+  ],
+  "holdOutReady": false
+}

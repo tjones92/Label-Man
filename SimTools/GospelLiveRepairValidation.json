@@ -1,0 +1,2967 @@
+{
+  "trajectories": [
+    {
+      "seed": 1001,
+      "weeks": 91,
+      "lastDate": [
+        1961,
+        9,
+        29
+      ],
+      "monthlyObservations": 21,
+      "slots": 14070,
+      "inherited": 9667,
+      "inheritedShare": 68.70646766169155,
+      "secular": 0,
+      "secularShare": 0,
+      "unknown": 0,
+      "concentration": {
+        "slots": 9667,
+        "uniqueSongs": 249,
+        "top10Share": 14.627081824764664
+      },
+      "retainedV2": {
+        "slots": 14078,
+        "inheritedShare": 32.01449069470095,
+        "concentration": {
+          "slots": 4507,
+          "uniqueSongs": 219,
+          "top10Share": 19.28111826048369
+        }
+      },
+      "actConcentration": {
+        "medianTop10Share": 100,
+        "medianDistinctSongs": 5,
+        "p90DistinctSongs": 7
+      },
+      "quarters": [
+        {
+          "period": "1960-Q1",
+          "scope": "all",
+          "slots": 751,
+          "inherited": 503,
+          "inheritedShare": 66.97736351531292,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 503,
+            "uniqueSongs": 165,
+            "top10Share": 16.302186878727635
+          }
+        },
+        {
+          "period": "1960-Q2",
+          "scope": "all",
+          "slots": 998,
+          "inherited": 708,
+          "inheritedShare": 70.94188376753507,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 708,
+            "uniqueSongs": 158,
+            "top10Share": 15.819209039548022
+          }
+        },
+        {
+          "period": "1960-Q3",
+          "scope": "all",
+          "slots": 1342,
+          "inherited": 961,
+          "inheritedShare": 71.60953800298063,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 961,
+            "uniqueSongs": 176,
+            "top10Share": 15.088449531737773
+          }
+        },
+        {
+          "period": "1960-Q4",
+          "scope": "all",
+          "slots": 1734,
+          "inherited": 1199,
+          "inheritedShare": 69.14648212226066,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1199,
+            "uniqueSongs": 185,
+            "top10Share": 15.929941618015013
+          }
+        },
+        {
+          "period": "1961-Q1",
+          "scope": "all",
+          "slots": 2789,
+          "inherited": 1906,
+          "inheritedShare": 68.33990677662244,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1906,
+            "uniqueSongs": 222,
+            "top10Share": 15.5299055613851
+          }
+        },
+        {
+          "period": "1961-Q2",
+          "scope": "all",
+          "slots": 3163,
+          "inherited": 2148,
+          "inheritedShare": 67.91021182421751,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 2148,
+            "uniqueSongs": 225,
+            "top10Share": 15.828677839851025
+          }
+        },
+        {
+          "period": "1961-Q3",
+          "scope": "all",
+          "slots": 3293,
+          "inherited": 2242,
+          "inheritedShare": 68.08381415122989,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 2242,
+            "uniqueSongs": 230,
+            "top10Share": 16.23550401427297
+          }
+        },
+        {
+          "period": "1960-Q1",
+          "scope": "signed",
+          "slots": 647,
+          "inherited": 423,
+          "inheritedShare": 65.37867078825347,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 423,
+            "uniqueSongs": 145,
+            "top10Share": 17.494089834515368
+          }
+        },
+        {
+          "period": "1960-Q2",
+          "scope": "signed",
+          "slots": 644,
+          "inherited": 460,
+          "inheritedShare": 71.42857142857143,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 460,
+            "uniqueSongs": 122,
+            "top10Share": 18.695652173913043
+          }
+        },
+        {
+          "period": "1960-Q3",
+          "scope": "signed",
+          "slots": 613,
+          "inherited": 431,
+          "inheritedShare": 70.30995106035888,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 431,
+            "uniqueSongs": 117,
+            "top10Share": 18.79350348027842
+          }
+        },
+        {
+          "period": "1960-Q4",
+          "scope": "signed",
+          "slots": 590,
+          "inherited": 422,
+          "inheritedShare": 71.52542372881356,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 422,
+            "uniqueSongs": 118,
+            "top10Share": 18.246445497630333
+          }
+        },
+        {
+          "period": "1961-Q1",
+          "scope": "signed",
+          "slots": 502,
+          "inherited": 346,
+          "inheritedShare": 68.92430278884463,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 346,
+            "uniqueSongs": 103,
+            "top10Share": 20.520231213872833
+          }
+        },
+        {
+          "period": "1961-Q2",
+          "scope": "signed",
+          "slots": 559,
+          "inherited": 388,
+          "inheritedShare": 69.40966010733453,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 388,
+            "uniqueSongs": 99,
+            "top10Share": 22.422680412371133
+          }
+        },
+        {
+          "period": "1961-Q3",
+          "scope": "signed",
+          "slots": 594,
+          "inherited": 391,
+          "inheritedShare": 65.82491582491582,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 391,
+            "uniqueSongs": 111,
+            "top10Share": 21.483375959079282
+          }
+        },
+        {
+          "period": "1960-Q1",
+          "scope": "unsigned",
+          "slots": 104,
+          "inherited": 80,
+          "inheritedShare": 76.92307692307692,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 80,
+            "uniqueSongs": 51,
+            "top10Share": 37.5
+          }
+        },
+        {
+          "period": "1960-Q2",
+          "scope": "unsigned",
+          "slots": 354,
+          "inherited": 248,
+          "inheritedShare": 70.05649717514125,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 248,
+            "uniqueSongs": 88,
+            "top10Share": 22.580645161290324
+          }
+        },
+        {
+          "period": "1960-Q3",
+          "scope": "unsigned",
+          "slots": 729,
+          "inherited": 530,
+          "inheritedShare": 72.70233196159123,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 530,
+            "uniqueSongs": 146,
+            "top10Share": 17.547169811320753
+          }
+        },
+        {
+          "period": "1960-Q4",
+          "scope": "unsigned",
+          "slots": 1144,
+          "inherited": 777,
+          "inheritedShare": 67.91958041958041,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 777,
+            "uniqueSongs": 165,
+            "top10Share": 19.176319176319176
+          }
+        },
+        {
+          "period": "1961-Q1",
+          "scope": "unsigned",
+          "slots": 2287,
+          "inherited": 1560,
+          "inheritedShare": 68.21163095758635,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1560,
+            "uniqueSongs": 217,
+            "top10Share": 16.53846153846154
+          }
+        },
+        {
+          "period": "1961-Q2",
+          "scope": "unsigned",
+          "slots": 2604,
+          "inherited": 1760,
+          "inheritedShare": 67.58832565284179,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1760,
+            "uniqueSongs": 218,
+            "top10Share": 16.931818181818183
+          }
+        },
+        {
+          "period": "1961-Q3",
+          "scope": "unsigned",
+          "slots": 2699,
+          "inherited": 1851,
+          "inheritedShare": 68.58095590959614,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1851,
+            "uniqueSongs": 220,
+            "top10Share": 17.01782820097245
+          }
+        }
+      ],
+      "nonGospel": [
+        {
+          "genre": "Classical",
+          "slots": 674,
+          "inheritedShare": 49.554896142433236
+        },
+        {
+          "genre": "EasyListening",
+          "slots": 652,
+          "inheritedShare": 32.20858895705521
+        },
+        {
+          "genre": "TraditionalPop",
+          "slots": 646,
+          "inheritedShare": 40.40247678018576
+        },
+        {
+          "genre": "Folk",
+          "slots": 662,
+          "inheritedShare": 42.59818731117825
+        },
+        {
+          "genre": "Jazz",
+          "slots": 1283,
+          "inheritedShare": 30.24162120031177
+        },
+        {
+          "genre": "Country",
+          "slots": 644,
+          "inheritedShare": 15.993788819875776
+        },
+        {
+          "genre": "Blues",
+          "slots": 633,
+          "inheritedShare": 23.696682464454977
+        }
+      ],
+      "invocations": [
+        {
+          "seed": 1001,
+          "mode": "on",
+          "weeks": 91,
+          "run": "polar-directive3-fresh-gospel-live-1001-1001-s1",
+          "census": "none",
+          "samplePerStratum": 4,
+          "diagnosticActs": 0,
+          "maxSeconds": 180,
+          "arguments": [
+            "--headless",
+            "--path",
+            ".",
+            "SimTools/ChartAuditRunner.tscn",
+            "--",
+            "--seed=1001",
+            "--run=polar-directive3-fresh-gospel-live-1001-1001-s1",
+            "--weeks=91",
+            "--enable-genre-market-v2",
+            "--enable-artist-population-lifecycle",
+            "--calibration",
+            "--polar-final-audit",
+            "--polar-followup-audit",
+            "--polar-census=none",
+            "--polar-sample-per-stratum=4",
+            "--polar-diagnostic-acts=0",
+            "--polar-max-seconds=180",
+            "--composition-shape-v1=on",
+            "--composition-shape-v2=on",
+            "--polar-directive2-trajectory",
+            "--polar-directive3-trajectory"
+          ],
+          "startedUtc": "2026-10-05T17:58:52.5657302Z",
+          "assemblySha256": "4821CD8CE17CCA6CFEA6956091DFD397E69AE905F6F6D8A9D47CDD8B6A6A8113",
+          "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+          "repertoireTableSha256": "3FE0944DCB15C5F77279E089A133BEFAEEC4DE85479F9DBE729A73BF57A94D14",
+          "elapsedSeconds": 185.8396994,
+          "exitCode": 0
+        },
+        {
+          "seed": 1001,
+          "mode": "on",
+          "weeks": 45,
+          "run": "polar-directive3-fresh-gospel-live-1001-1001-s2",
+          "census": "none",
+          "samplePerStratum": 4,
+          "diagnosticActs": 0,
+          "maxSeconds": 180,
+          "arguments": [
+            "--headless",
+            "--path",
+            ".",
+            "SimTools/ChartAuditRunner.tscn",
+            "--",
+            "--seed=1001",
+            "--run=polar-directive3-fresh-gospel-live-1001-1001-s2",
+            "--weeks=45",
+            "--enable-genre-market-v2",
+            "--enable-artist-population-lifecycle",
+            "--calibration",
+            "--polar-final-audit",
+            "--polar-followup-audit",
+            "--polar-census=none",
+            "--polar-sample-per-stratum=4",
+            "--polar-diagnostic-acts=0",
+            "--polar-max-seconds=180",
+            "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-gospel-live-1001-1001-s1-polar-checkpoint.json.gz",
+            "--polar-verify-snapshot",
+            "--composition-shape-v1=on",
+            "--composition-shape-v2=on",
+            "--polar-directive2-trajectory",
+            "--polar-directive3-trajectory"
+          ],
+          "startedUtc": "2026-10-05T18:02:02.0718101Z",
+          "assemblySha256": "4821CD8CE17CCA6CFEA6956091DFD397E69AE905F6F6D8A9D47CDD8B6A6A8113",
+          "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+          "repertoireTableSha256": "3FE0944DCB15C5F77279E089A133BEFAEEC4DE85479F9DBE729A73BF57A94D14",
+          "elapsedSeconds": 188.6343389,
+          "exitCode": 0
+        },
+        {
+          "seed": 1001,
+          "mode": "on",
+          "weeks": 21,
+          "run": "polar-directive3-fresh-gospel-live-1001-1001-s3",
+          "census": "none",
+          "samplePerStratum": 4,
+          "diagnosticActs": 0,
+          "maxSeconds": 180,
+          "arguments": [
+            "--headless",
+            "--path",
+            ".",
+            "SimTools/ChartAuditRunner.tscn",
+            "--",
+            "--seed=1001",
+            "--run=polar-directive3-fresh-gospel-live-1001-1001-s3",
+            "--weeks=21",
+            "--enable-genre-market-v2",
+            "--enable-artist-population-lifecycle",
+            "--calibration",
+            "--polar-final-audit",
+            "--polar-followup-audit",
+            "--polar-census=none",
+            "--polar-sample-per-stratum=4",
+            "--polar-diagnostic-acts=0",
+            "--polar-max-seconds=180",
+            "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-gospel-live-1001-1001-s2-polar-checkpoint.json.gz",
+            "--polar-verify-snapshot",
+            "--composition-shape-v1=on",
+            "--composition-shape-v2=on",
+            "--polar-directive2-trajectory",
+            "--polar-directive3-trajectory"
+          ],
+          "startedUtc": "2026-10-05T18:05:13.4811315Z",
+          "assemblySha256": "4821CD8CE17CCA6CFEA6956091DFD397E69AE905F6F6D8A9D47CDD8B6A6A8113",
+          "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+          "repertoireTableSha256": "3FE0944DCB15C5F77279E089A133BEFAEEC4DE85479F9DBE729A73BF57A94D14",
+          "elapsedSeconds": 191.4026246,
+          "exitCode": 0
+        },
+        {
+          "seed": 1001,
+          "mode": "on",
+          "weeks": 4,
+          "run": "polar-directive3-fresh-gospel-live-1001-1001-s4",
+          "census": "none",
+          "samplePerStratum": 4,
+          "diagnosticActs": 0,
+          "maxSeconds": 180,
+          "arguments": [
+            "--headless",
+            "--path",
+            ".",
+            "SimTools/ChartAuditRunner.tscn",
+            "--",
+            "--seed=1001",
+            "--run=polar-directive3-fresh-gospel-live-1001-1001-s4",
+            "--weeks=4",
+            "--enable-genre-market-v2",
+            "--enable-artist-population-lifecycle",
+            "--calibration",
+            "--polar-final-audit",
+            "--polar-followup-audit",
+            "--polar-census=none",
+            "--polar-sample-per-stratum=4",
+            "--polar-diagnostic-acts=0",
+            "--polar-max-seconds=180",
+            "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-gospel-live-1001-1001-s3-polar-checkpoint.json.gz",
+            "--polar-verify-snapshot",
+            "--composition-shape-v1=on",
+            "--composition-shape-v2=on",
+            "--polar-directive2-trajectory",
+            "--polar-directive3-trajectory"
+          ],
+          "startedUtc": "2026-10-05T18:08:27.5287095Z",
+          "assemblySha256": "9C22E0A7D708A495610C6C2C26331CFB993271526442613CF63FC684E8EA91DC",
+          "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+          "repertoireTableSha256": "3FE0944DCB15C5F77279E089A133BEFAEEC4DE85479F9DBE729A73BF57A94D14",
+          "elapsedSeconds": 69.372349,
+          "exitCode": 0
+        }
+      ]
+    },
+    {
+      "seed": 1002,
+      "weeks": 91,
+      "lastDate": [
+        1961,
+        9,
+        29
+      ],
+      "monthlyObservations": 21,
+      "slots": 11949,
+      "inherited": 8010,
+      "inheritedShare": 67.03489831785086,
+      "secular": 0,
+      "secularShare": 0,
+      "unknown": 0,
+      "concentration": {
+        "slots": 8010,
+        "uniqueSongs": 229,
+        "top10Share": 26.903870162297128
+      },
+      "retainedV2": {
+        "slots": 11908,
+        "inheritedShare": 34.74135035270407,
+        "concentration": {
+          "slots": 4137,
+          "uniqueSongs": 194,
+          "top10Share": 35.363790186125215
+        }
+      },
+      "actConcentration": {
+        "medianTop10Share": 100,
+        "medianDistinctSongs": 5,
+        "p90DistinctSongs": 7
+      },
+      "quarters": [
+        {
+          "period": "1960-Q1",
+          "scope": "all",
+          "slots": 606,
+          "inherited": 394,
+          "inheritedShare": 65.01650165016501,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 394,
+            "uniqueSongs": 115,
+            "top10Share": 25.126903553299492
+          }
+        },
+        {
+          "period": "1960-Q2",
+          "scope": "all",
+          "slots": 885,
+          "inherited": 601,
+          "inheritedShare": 67.909604519774,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 601,
+            "uniqueSongs": 137,
+            "top10Share": 28.452579034941763
+          }
+        },
+        {
+          "period": "1960-Q3",
+          "scope": "all",
+          "slots": 1129,
+          "inherited": 757,
+          "inheritedShare": 67.0504871567759,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 757,
+            "uniqueSongs": 151,
+            "top10Share": 28.401585204755616
+          }
+        },
+        {
+          "period": "1960-Q4",
+          "scope": "all",
+          "slots": 1412,
+          "inherited": 959,
+          "inheritedShare": 67.91784702549575,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 959,
+            "uniqueSongs": 167,
+            "top10Share": 28.362877997914495
+          }
+        },
+        {
+          "period": "1961-Q1",
+          "scope": "all",
+          "slots": 2373,
+          "inherited": 1607,
+          "inheritedShare": 67.72018541930046,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1607,
+            "uniqueSongs": 197,
+            "top10Share": 28.06471686372122
+          }
+        },
+        {
+          "period": "1961-Q2",
+          "scope": "all",
+          "slots": 2636,
+          "inherited": 1747,
+          "inheritedShare": 66.27465857359635,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1747,
+            "uniqueSongs": 201,
+            "top10Share": 27.3039496279336
+          }
+        },
+        {
+          "period": "1961-Q3",
+          "scope": "all",
+          "slots": 2908,
+          "inherited": 1945,
+          "inheritedShare": 66.88445667125173,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1945,
+            "uniqueSongs": 206,
+            "top10Share": 27.506426735218508
+          }
+        },
+        {
+          "period": "1960-Q1",
+          "scope": "signed",
+          "slots": 500,
+          "inherited": 327,
+          "inheritedShare": 65.4,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 327,
+            "uniqueSongs": 94,
+            "top10Share": 27.828746177370032
+          }
+        },
+        {
+          "period": "1960-Q2",
+          "scope": "signed",
+          "slots": 521,
+          "inherited": 349,
+          "inheritedShare": 66.98656429942419,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 349,
+            "uniqueSongs": 100,
+            "top10Share": 32.664756446991404
+          }
+        },
+        {
+          "period": "1960-Q3",
+          "scope": "signed",
+          "slots": 535,
+          "inherited": 354,
+          "inheritedShare": 66.16822429906541,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 354,
+            "uniqueSongs": 98,
+            "top10Share": 33.333333333333336
+          }
+        },
+        {
+          "period": "1960-Q4",
+          "scope": "signed",
+          "slots": 499,
+          "inherited": 330,
+          "inheritedShare": 66.13226452905812,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 330,
+            "uniqueSongs": 87,
+            "top10Share": 34.24242424242424
+          }
+        },
+        {
+          "period": "1961-Q1",
+          "scope": "signed",
+          "slots": 458,
+          "inherited": 317,
+          "inheritedShare": 69.21397379912663,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 317,
+            "uniqueSongs": 94,
+            "top10Share": 31.230283911671926
+          }
+        },
+        {
+          "period": "1961-Q2",
+          "scope": "signed",
+          "slots": 504,
+          "inherited": 332,
+          "inheritedShare": 65.87301587301587,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 332,
+            "uniqueSongs": 98,
+            "top10Share": 33.734939759036145
+          }
+        },
+        {
+          "period": "1961-Q3",
+          "scope": "signed",
+          "slots": 560,
+          "inherited": 338,
+          "inheritedShare": 60.357142857142854,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 338,
+            "uniqueSongs": 102,
+            "top10Share": 34.9112426035503
+          }
+        },
+        {
+          "period": "1960-Q1",
+          "scope": "unsigned",
+          "slots": 106,
+          "inherited": 67,
+          "inheritedShare": 63.20754716981132,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 67,
+            "uniqueSongs": 43,
+            "top10Share": 34.32835820895522
+          }
+        },
+        {
+          "period": "1960-Q2",
+          "scope": "unsigned",
+          "slots": 364,
+          "inherited": 252,
+          "inheritedShare": 69.23076923076923,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 252,
+            "uniqueSongs": 89,
+            "top10Share": 29.761904761904763
+          }
+        },
+        {
+          "period": "1960-Q3",
+          "scope": "unsigned",
+          "slots": 594,
+          "inherited": 403,
+          "inheritedShare": 67.84511784511784,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 403,
+            "uniqueSongs": 119,
+            "top10Share": 29.528535980148884
+          }
+        },
+        {
+          "period": "1960-Q4",
+          "scope": "unsigned",
+          "slots": 913,
+          "inherited": 629,
+          "inheritedShare": 68.89375684556407,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 629,
+            "uniqueSongs": 144,
+            "top10Share": 27.82193958664547
+          }
+        },
+        {
+          "period": "1961-Q1",
+          "scope": "unsigned",
+          "slots": 1915,
+          "inherited": 1290,
+          "inheritedShare": 67.36292428198433,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1290,
+            "uniqueSongs": 186,
+            "top10Share": 28.294573643410853
+          }
+        },
+        {
+          "period": "1961-Q2",
+          "scope": "unsigned",
+          "slots": 2132,
+          "inherited": 1415,
+          "inheritedShare": 66.36960600375235,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1415,
+            "uniqueSongs": 188,
+            "top10Share": 27.208480565371026
+          }
+        },
+        {
+          "period": "1961-Q3",
+          "scope": "unsigned",
+          "slots": 2348,
+          "inherited": 1607,
+          "inheritedShare": 68.4412265758092,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0,
+          "concentration": {
+            "slots": 1607,
+            "uniqueSongs": 195,
+            "top10Share": 27.131300560049784
+          }
+        }
+      ],
+      "nonGospel": [
+        {
+          "genre": "EasyListening",
+          "slots": 681,
+          "inheritedShare": 39.06020558002937
+        },
+        {
+          "genre": "Classical",
+          "slots": 673,
+          "inheritedShare": 37.147102526002975
+        },
+        {
+          "genre": "Folk",
+          "slots": 672,
+          "inheritedShare": 46.42857142857143
+        },
+        {
+          "genre": "Jazz",
+          "slots": 1296,
+          "inheritedShare": 42.592592592592595
+        },
+        {
+          "genre": "TraditionalPop",
+          "slots": 640,
+          "inheritedShare": 33.28125
+        },
+        {
+          "genre": "Country",
+          "slots": 673,
+          "inheritedShare": 34.17533432392273
+        },
+        {
+          "genre": "Blues",
+          "slots": 664,
+          "inheritedShare": 29.66867469879518
+        }
+      ],
+      "invocations": [
+        {
+          "seed": 1002,
+          "mode": "on",
+          "weeks": 91,
+          "run": "polar-directive3-fresh-gospel-live-1002-1002-s1",
+          "census": "none",
+          "samplePerStratum": 4,
+          "diagnosticActs": 0,
+          "maxSeconds": 180,
+          "arguments": [
+            "--headless",
+            "--path",
+            ".",
+            "SimTools/ChartAuditRunner.tscn",
+            "--",
+            "--seed=1002",
+            "--run=polar-directive3-fresh-gospel-live-1002-1002-s1",
+            "--weeks=91",
+            "--enable-genre-market-v2",
+            "--enable-artist-population-lifecycle",
+            "--calibration",
+            "--polar-final-audit",
+            "--polar-followup-audit",
+            "--polar-census=none",
+            "--polar-sample-per-stratum=4",
+            "--polar-diagnostic-acts=0",
+            "--polar-max-seconds=180",
+            "--composition-shape-v1=on",
+            "--composition-shape-v2=on",
+            "--polar-directive2-trajectory",
+            "--polar-directive3-trajectory"
+          ],
+          "startedUtc": "2026-10-05T17:58:51.4206220Z",
+          "assemblySha256": "4821CD8CE17CCA6CFEA6956091DFD397E69AE905F6F6D8A9D47CDD8B6A6A8113",
+          "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+          "repertoireTableSha256": "3FE0944DCB15C5F77279E089A133BEFAEEC4DE85479F9DBE729A73BF57A94D14",
+          "elapsedSeconds": 186.7267806,
+          "exitCode": 0
+        },
+        {
+          "seed": 1002,
+          "mode": "on",
+          "weeks": 43,
+          "run": "polar-directive3-fresh-gospel-live-1002-1002-s2",
+          "census": "none",
+          "samplePerStratum": 4,
+          "diagnosticActs": 0,
+          "maxSeconds": 180,
+          "arguments": [
+            "--headless",
+            "--path",
+            ".",
+            "SimTools/ChartAuditRunner.tscn",
+            "--",
+            "--seed=1002",
+            "--run=polar-directive3-fresh-gospel-live-1002-1002-s2",
+            "--weeks=43",
+            "--enable-genre-market-v2",
+            "--enable-artist-population-lifecycle",
+            "--calibration",
+            "--polar-final-audit",
+            "--polar-followup-audit",
+            "--polar-census=none",
+            "--polar-sample-per-stratum=4",
+            "--polar-diagnostic-acts=0",
+            "--polar-max-seconds=180",
+            "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-gospel-live-1002-1002-s1-polar-checkpoint.json.gz",
+            "--polar-verify-snapshot",
+            "--composition-shape-v1=on",
+            "--composition-shape-v2=on",
+            "--polar-directive2-trajectory",
+            "--polar-directive3-trajectory"
+          ],
+          "startedUtc": "2026-10-05T18:02:02.0736884Z",
+          "assemblySha256": "4821CD8CE17CCA6CFEA6956091DFD397E69AE905F6F6D8A9D47CDD8B6A6A8113",
+          "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+          "repertoireTableSha256": "3FE0944DCB15C5F77279E089A133BEFAEEC4DE85479F9DBE729A73BF57A94D14",
+          "elapsedSeconds": 186.9613077,
+          "exitCode": 0
+        },
+        {
+          "seed": 1002,
+          "mode": "on",
+          "weeks": 17,
+          "run": "polar-directive3-fresh-gospel-live-1002-1002-s3",
+          "census": "none",
+          "samplePerStratum": 4,
+          "diagnosticActs": 0,
+          "maxSeconds": 180,
+          "arguments": [
+            "--headless",
+            "--path",
+            ".",
+            "SimTools/ChartAuditRunner.tscn",
+            "--",
+            "--seed=1002",
+            "--run=polar-directive3-fresh-gospel-live-1002-1002-s3",
+            "--weeks=17",
+            "--enable-genre-market-v2",
+            "--enable-artist-population-lifecycle",
+            "--calibration",
+            "--polar-final-audit",
+            "--polar-followup-audit",
+            "--polar-census=none",
+            "--polar-sample-per-stratum=4",
+            "--polar-diagnostic-acts=0",
+            "--polar-max-seconds=180",
+            "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-gospel-live-1002-1002-s2-polar-checkpoint.json.gz",
+            "--polar-verify-snapshot",
+            "--composition-shape-v1=on",
+            "--composition-shape-v2=on",
+            "--polar-directive2-trajectory",
+            "--polar-directive3-trajectory"
+          ],
+          "startedUtc": "2026-10-05T18:05:11.6631395Z",
+          "assemblySha256": "4821CD8CE17CCA6CFEA6956091DFD397E69AE905F6F6D8A9D47CDD8B6A6A8113",
+          "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+          "repertoireTableSha256": "3FE0944DCB15C5F77279E089A133BEFAEEC4DE85479F9DBE729A73BF57A94D14",
+          "elapsedSeconds": 172.4526929,
+          "exitCode": 0
+        }
+      ]
+    }
+  ],
+  "fixed": [
+    {
+      "seed": 1001,
+      "date": "3/10/1961",
+      "variant": "v1Legacy",
+      "actors": 245,
+      "slots": 968,
+      "inheritedShare": 63.53305785123967,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 615,
+        "uniqueSongs": 234,
+        "top10Share": 10.08130081300813
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 21664
+    },
+    {
+      "seed": 1001,
+      "date": "3/10/1961",
+      "variant": "v2Legacy",
+      "actors": 245,
+      "slots": 968,
+      "inheritedShare": 57.85123966942149,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 560,
+        "uniqueSongs": 187,
+        "top10Share": 18.392857142857142
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 21664
+    },
+    {
+      "seed": 1001,
+      "date": "3/10/1961",
+      "variant": "v2SmoothOnly",
+      "actors": 245,
+      "slots": 968,
+      "inheritedShare": 54.95867768595041,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 532,
+        "uniqueSongs": 127,
+        "top10Share": 31.015037593984964
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 21664
+    },
+    {
+      "seed": 1001,
+      "date": "3/10/1961",
+      "variant": "v2AffinityOnly",
+      "actors": 245,
+      "slots": 968,
+      "inheritedShare": 69.31818181818181,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 671,
+        "uniqueSongs": 205,
+        "top10Share": 15.648286140089418
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 21664
+    },
+    {
+      "seed": 1001,
+      "date": "3/10/1961",
+      "variant": "v2Fixed",
+      "actors": 245,
+      "slots": 968,
+      "inheritedShare": 69.31818181818181,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 671,
+        "uniqueSongs": 148,
+        "top10Share": 27.272727272727273
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 21664
+    },
+    {
+      "seed": 1002,
+      "date": "2/10/1961",
+      "variant": "v1Legacy",
+      "actors": 200,
+      "slots": 793,
+      "inheritedShare": 56.62042875157629,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 449,
+        "uniqueSongs": 207,
+        "top10Share": 12.917594654788418
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 20162
+    },
+    {
+      "seed": 1002,
+      "date": "2/10/1961",
+      "variant": "v2Legacy",
+      "actors": 200,
+      "slots": 793,
+      "inheritedShare": 47.41488020176545,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 376,
+        "uniqueSongs": 135,
+        "top10Share": 35.37234042553192
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 20162
+    },
+    {
+      "seed": 1002,
+      "date": "2/10/1961",
+      "variant": "v2SmoothOnly",
+      "actors": 200,
+      "slots": 793,
+      "inheritedShare": 41.6141235813367,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 330,
+        "uniqueSongs": 85,
+        "top10Share": 44.24242424242424
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 20162
+    },
+    {
+      "seed": 1002,
+      "date": "2/10/1961",
+      "variant": "v2AffinityOnly",
+      "actors": 200,
+      "slots": 793,
+      "inheritedShare": 68.09583858764186,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 540,
+        "uniqueSongs": 182,
+        "top10Share": 24.814814814814813
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 20162
+    },
+    {
+      "seed": 1002,
+      "date": "2/10/1961",
+      "variant": "v2Fixed",
+      "actors": 200,
+      "slots": 793,
+      "inheritedShare": 68.09583858764186,
+      "secularShare": 0,
+      "concentration": {
+        "slots": 540,
+        "uniqueSongs": 124,
+        "top10Share": 34.629629629629626
+      },
+      "medianAccessibleBook": 77,
+      "diagnosticContextFixtures": 20162
+    }
+  ],
+  "sourceFit": [
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v1Frozen",
+      "n": 4101,
+      "capability": 0.9205197811788014,
+      "moment": 0.5,
+      "identity": 0.901365471421088,
+      "capabilityTop": 0.8997805413313826,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v1Resolved",
+      "n": 4101,
+      "capability": 0.9237862585143792,
+      "moment": 0.5,
+      "identity": 0.8998471023948621,
+      "capabilityTop": 0.8997805413313826,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v2Frozen",
+      "n": 4101,
+      "capability": 0.9172934688604102,
+      "moment": 0.5,
+      "identity": 0.896228233784241,
+      "capabilityTop": 0.8924652523774689,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v2Resolved",
+      "n": 4101,
+      "capability": 0.9244632968137219,
+      "moment": 0.5,
+      "identity": 0.8931169724266752,
+      "capabilityTop": 0.894659839063643,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v1Frozen",
+      "n": 547,
+      "capability": 0.9002902687031783,
+      "moment": 0.5,
+      "identity": 0.8515139982730858,
+      "capabilityTop": 0.8281535648994516,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v1Resolved",
+      "n": 547,
+      "capability": 0.8990056398690728,
+      "moment": 0.5,
+      "identity": 0.8645617444292937,
+      "capabilityTop": 0.8281535648994516,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v2Frozen",
+      "n": 547,
+      "capability": 0.8940710891480855,
+      "moment": 0.5,
+      "identity": 0.8492069223681141,
+      "capabilityTop": 0.8281535648994516,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v2Resolved",
+      "n": 547,
+      "capability": 0.8970882895060388,
+      "moment": 0.5,
+      "identity": 0.8637262352859734,
+      "capabilityTop": 0.8318098720292505,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v1Frozen",
+      "n": 516,
+      "capability": 0.9050816708756971,
+      "moment": 0.5,
+      "identity": 0.873256449898084,
+      "capabilityTop": 0.8585271317829457,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v1Resolved",
+      "n": 516,
+      "capability": 0.9097673538350319,
+      "moment": 0.5,
+      "identity": 0.8778754241706789,
+      "capabilityTop": 0.8585271317829457,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v2Frozen",
+      "n": 516,
+      "capability": 0.892844211021366,
+      "moment": 0.5,
+      "identity": 0.8689966437428497,
+      "capabilityTop": 0.8294573643410853,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v2Resolved",
+      "n": 516,
+      "capability": 0.9046328827854275,
+      "moment": 0.5,
+      "identity": 0.8730322627365127,
+      "capabilityTop": 0.8410852713178295,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v1Frozen",
+      "n": 435,
+      "capability": 0.8340931537507594,
+      "moment": 0.5,
+      "identity": 0.8715623423970978,
+      "capabilityTop": 0.7402298850574712,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v1Resolved",
+      "n": 435,
+      "capability": 0.8327170936540625,
+      "moment": 0.5,
+      "identity": 0.8786883417217211,
+      "capabilityTop": 0.7149425287356321,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v2Frozen",
+      "n": 435,
+      "capability": 0.8240216764567913,
+      "moment": 0.5,
+      "identity": 0.8677536297118527,
+      "capabilityTop": 0.7011494252873564,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v2Resolved",
+      "n": 435,
+      "capability": 0.8270433686930557,
+      "moment": 0.5,
+      "identity": 0.8712209219220041,
+      "capabilityTop": 0.6919540229885057,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v1Frozen",
+      "n": 3052,
+      "capability": 0.8941741193135709,
+      "moment": 0.5,
+      "identity": 0.8934629386483763,
+      "capabilityTop": 0.8348623853211009,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v1Resolved",
+      "n": 3052,
+      "capability": 0.8960536396567896,
+      "moment": 0.5,
+      "identity": 0.8924024313649219,
+      "capabilityTop": 0.8348623853211009,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v2Frozen",
+      "n": 3052,
+      "capability": 0.888187684914583,
+      "moment": 0.5,
+      "identity": 0.8896791553551998,
+      "capabilityTop": 0.8204456094364351,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v2Resolved",
+      "n": 3052,
+      "capability": 0.8923196909976037,
+      "moment": 0.5,
+      "identity": 0.8876740247362719,
+      "capabilityTop": 0.8230668414154653,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v1Frozen",
+      "n": 442,
+      "capability": 0.8574690761137332,
+      "moment": 0.5,
+      "identity": 0.8534484579822057,
+      "capabilityTop": 0.7669683257918553,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v1Resolved",
+      "n": 442,
+      "capability": 0.8589565748205552,
+      "moment": 0.5,
+      "identity": 0.8639729029722343,
+      "capabilityTop": 0.7760180995475113,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v2Frozen",
+      "n": 442,
+      "capability": 0.8462785550844076,
+      "moment": 0.5,
+      "identity": 0.8523090133839603,
+      "capabilityTop": 0.748868778280543,
+      "momentTop": 0
+    },
+    {
+      "stage": "start",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v2Resolved",
+      "n": 442,
+      "capability": 0.85188028705201,
+      "moment": 0.5,
+      "identity": 0.8659277756559364,
+      "capabilityTop": 0.7579185520361991,
+      "momentTop": 0
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v1Frozen",
+      "n": 36621,
+      "capability": 0.876134175482428,
+      "moment": 0.829365389366803,
+      "identity": 0.8716788390336352,
+      "capabilityTop": 0.7916495999563092,
+      "momentTop": 0.7604106933180416
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v1Resolved",
+      "n": 36621,
+      "capability": 0.8769251883395336,
+      "moment": 0.8307800194514722,
+      "identity": 0.8792391094458701,
+      "capabilityTop": 0.7866524671636492,
+      "momentTop": 0.8072417465388712
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v2Frozen",
+      "n": 36621,
+      "capability": 0.8674424846845398,
+      "moment": 0.826062539627328,
+      "identity": 0.8679090174151184,
+      "capabilityTop": 0.7738729144479943,
+      "momentTop": 0.6622429753420169
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "ArtistOriginal",
+      "variant": "v2Resolved",
+      "n": 36621,
+      "capability": 0.8731779340086068,
+      "moment": 0.8266777341660932,
+      "identity": 0.8742515117492347,
+      "capabilityTop": 0.7775047104120587,
+      "momentTop": 0.6803473416891948
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v1Frozen",
+      "n": 18811,
+      "capability": 0.9144557750853719,
+      "moment": 0.835545561931634,
+      "identity": 0.895072895921238,
+      "capabilityTop": 0.8722024347456275,
+      "momentTop": 0.9623624475041199
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v1Resolved",
+      "n": 18811,
+      "capability": 0.9168239409723551,
+      "moment": 0.8331727484539868,
+      "identity": 0.8941317271003756,
+      "capabilityTop": 0.8716708308968157,
+      "momentTop": 0.9736856094838127
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v2Frozen",
+      "n": 18811,
+      "capability": 0.9116036491595788,
+      "moment": 0.8302327834699885,
+      "identity": 0.8902208825521736,
+      "capabilityTop": 0.8677369624156079,
+      "momentTop": 0.7735899207910265
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "Gospel Standard",
+      "variant": "v2Resolved",
+      "n": 18811,
+      "capability": 0.9171563571048761,
+      "moment": 0.82640656919344,
+      "identity": 0.8881274214943505,
+      "capabilityTop": 0.8693849343469247,
+      "momentTop": 0.7584392110998883
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v1Frozen",
+      "n": 2498,
+      "capability": 0.8925772969177764,
+      "moment": 0.8302397516558321,
+      "identity": 0.8520123821148594,
+      "capabilityTop": 0.8182546036829463,
+      "momentTop": 0.6717373899119295
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v1Resolved",
+      "n": 2498,
+      "capability": 0.8941976049120088,
+      "moment": 0.8322018333632436,
+      "identity": 0.8651953854495951,
+      "capabilityTop": 0.8234587670136109,
+      "momentTop": 0.6693354683746997
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v2Frozen",
+      "n": 2498,
+      "capability": 0.8879523249067145,
+      "moment": 0.8273425688258736,
+      "identity": 0.8502715442589133,
+      "capabilityTop": 0.811449159327462,
+      "momentTop": 0.6789431545236189
+    },
+    {
+      "stage": "later",
+      "seed": 1001,
+      "source": "other",
+      "variant": "v2Resolved",
+      "n": 2498,
+      "capability": 0.8937563390923654,
+      "moment": 0.8286949402337269,
+      "identity": 0.8629793510186949,
+      "capabilityTop": 0.821857485988791,
+      "momentTop": 0.6573258606885508
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v1Frozen",
+      "n": 28535,
+      "capability": 0.8760510476929139,
+      "moment": 0.8524415250979227,
+      "identity": 0.8752542774836445,
+      "capabilityTop": 0.8208515857718591,
+      "momentTop": 0.7455405642193798
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v1Resolved",
+      "n": 28535,
+      "capability": 0.8793573436969756,
+      "moment": 0.862923283691433,
+      "identity": 0.8818388631595754,
+      "capabilityTop": 0.8130716663746277,
+      "momentTop": 0.8258980199754687
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v2Frozen",
+      "n": 28535,
+      "capability": 0.8687338801658632,
+      "moment": 0.8452603248324143,
+      "identity": 0.8714940439303285,
+      "capabilityTop": 0.7937620466094271,
+      "momentTop": 0.7057648501839846
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "ArtistOriginal",
+      "variant": "v2Resolved",
+      "n": 28535,
+      "capability": 0.8756861314610944,
+      "moment": 0.8552982145064304,
+      "identity": 0.8780473638587686,
+      "capabilityTop": 0.7978272297178903,
+      "momentTop": 0.7782022078149641
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v1Frozen",
+      "n": 15282,
+      "capability": 0.9129740438907812,
+      "moment": 0.8811393691449402,
+      "identity": 0.8941842663773316,
+      "capabilityTop": 0.8731841382018061,
+      "momentTop": 0.9562884439209528
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v1Resolved",
+      "n": 15282,
+      "capability": 0.916233070966984,
+      "moment": 0.8790782824882177,
+      "identity": 0.8928870665451383,
+      "capabilityTop": 0.8729223923570213,
+      "momentTop": 0.9661039131003796
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v2Frozen",
+      "n": 15282,
+      "capability": 0.9077252992235652,
+      "moment": 0.8743122877593815,
+      "identity": 0.8905936571615963,
+      "capabilityTop": 0.8623871221044366,
+      "momentTop": 0.9095668106268813
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "Gospel Standard",
+      "variant": "v2Resolved",
+      "n": 15282,
+      "capability": 0.9142099520750514,
+      "moment": 0.8706671081511641,
+      "identity": 0.8880307836466131,
+      "capabilityTop": 0.8657243816254417,
+      "momentTop": 0.9089778824761157
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v1Frozen",
+      "n": 2138,
+      "capability": 0.8887242054456969,
+      "moment": 0.8027636097958425,
+      "identity": 0.8515148046866435,
+      "capabilityTop": 0.8306828811973808,
+      "momentTop": 0.4246959775491113
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v1Resolved",
+      "n": 2138,
+      "capability": 0.8902005740869146,
+      "moment": 0.8292917300597655,
+      "identity": 0.867180715915307,
+      "capabilityTop": 0.8344246959775491,
+      "momentTop": 0.6043030869971936
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v2Frozen",
+      "n": 2138,
+      "capability": 0.8808191751240568,
+      "moment": 0.799111541907736,
+      "identity": 0.8496098569947164,
+      "capabilityTop": 0.8157156220767072,
+      "momentTop": 0.4246959775491113
+    },
+    {
+      "stage": "later",
+      "seed": 1002,
+      "source": "other",
+      "variant": "v2Resolved",
+      "n": 2138,
+      "capability": 0.8859564149429912,
+      "moment": 0.8244645145030864,
+      "identity": 0.8648762055598652,
+      "capabilityTop": 0.8246024321796072,
+      "momentTop": 0.5949485500467727
+    }
+  ],
+  "populationTrace": [
+    {
+      "seed": 1001,
+      "byGenre": {
+        "RockAndRoll": {
+          "prior": 586,
+          "next": 1260,
+          "arrivals": 674,
+          "unsignedArrivals": 648,
+          "unsignedRotations": 638,
+          "sources": {
+            "latentRotation": 664,
+            "runtimeFormation": 10
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 664,
+            "RuntimeFormation": 10
+          },
+          "rotationDates": {
+            "12/23/1960": 664
+          }
+        },
+        "LatinPop": {
+          "prior": 81,
+          "next": 136,
+          "arrivals": 55,
+          "unsignedArrivals": 52,
+          "unsignedRotations": 50,
+          "sources": {
+            "latentRotation": 53,
+            "runtimeFormation": 2
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 53,
+            "RuntimeFormation": 2
+          },
+          "rotationDates": {
+            "12/23/1960": 53
+          }
+        },
+        "Classical": {
+          "prior": 151,
+          "next": 278,
+          "arrivals": 127,
+          "unsignedArrivals": 124,
+          "unsignedRotations": 117,
+          "sources": {
+            "latentRotation": 120,
+            "runtimeFormation": 7
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 120,
+            "RuntimeFormation": 7
+          },
+          "rotationDates": {
+            "12/23/1960": 120
+          }
+        },
+        "RnB": {
+          "prior": 523,
+          "next": 1103,
+          "arrivals": 580,
+          "unsignedArrivals": 551,
+          "unsignedRotations": 541,
+          "sources": {
+            "latentRotation": 568,
+            "runtimeFormation": 12
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 568,
+            "RuntimeFormation": 12
+          },
+          "rotationDates": {
+            "12/23/1960": 568
+          }
+        },
+        "Folk": {
+          "prior": 289,
+          "next": 523,
+          "arrivals": 234,
+          "unsignedArrivals": 223,
+          "unsignedRotations": 222,
+          "sources": {
+            "latentRotation": 233,
+            "runtimeFormation": 1
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 233,
+            "RuntimeFormation": 1
+          },
+          "rotationDates": {
+            "12/23/1960": 233
+          }
+        },
+        "Country": {
+          "prior": 481,
+          "next": 742,
+          "arrivals": 261,
+          "unsignedArrivals": 249,
+          "unsignedRotations": 224,
+          "sources": {
+            "latentRotation": 236,
+            "runtimeFormation": 25
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 236,
+            "RuntimeFormation": 25
+          },
+          "rotationDates": {
+            "12/23/1960": 236
+          }
+        },
+        "TraditionalPop": {
+          "prior": 392,
+          "next": 778,
+          "arrivals": 386,
+          "unsignedArrivals": 373,
+          "unsignedRotations": 361,
+          "sources": {
+            "latentRotation": 373,
+            "runtimeFormation": 13
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 373,
+            "RuntimeFormation": 13
+          },
+          "rotationDates": {
+            "12/23/1960": 373
+          }
+        },
+        "TeenPop": {
+          "prior": 433,
+          "next": 865,
+          "arrivals": 432,
+          "unsignedArrivals": 409,
+          "unsignedRotations": 400,
+          "sources": {
+            "latentRotation": 422,
+            "runtimeFormation": 10
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 422,
+            "RuntimeFormation": 10
+          },
+          "rotationDates": {
+            "12/23/1960": 422
+          }
+        },
+        "EasyListening": {
+          "prior": 304,
+          "next": 500,
+          "arrivals": 196,
+          "unsignedArrivals": 190,
+          "unsignedRotations": 177,
+          "sources": {
+            "latentRotation": 183,
+            "runtimeFormation": 13
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 183,
+            "RuntimeFormation": 13
+          },
+          "rotationDates": {
+            "12/23/1960": 183
+          }
+        },
+        "Soul": {
+          "prior": 566,
+          "next": 1149,
+          "arrivals": 583,
+          "unsignedArrivals": 557,
+          "unsignedRotations": 543,
+          "sources": {
+            "latentRotation": 569,
+            "runtimeFormation": 14
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 569,
+            "RuntimeFormation": 14
+          },
+          "rotationDates": {
+            "12/23/1960": 569
+          }
+        },
+        "Gospel": {
+          "prior": 151,
+          "next": 223,
+          "arrivals": 72,
+          "unsignedArrivals": 71,
+          "unsignedRotations": 66,
+          "sources": {
+            "latentRotation": 66,
+            "runtimeFormation": 6
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 66,
+            "RuntimeFormation": 6
+          },
+          "rotationDates": {
+            "12/23/1960": 66
+          }
+        },
+        "DooWop": {
+          "prior": 312,
+          "next": 466,
+          "arrivals": 154,
+          "unsignedArrivals": 149,
+          "unsignedRotations": 138,
+          "sources": {
+            "latentRotation": 143,
+            "runtimeFormation": 11
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 143,
+            "RuntimeFormation": 11
+          },
+          "rotationDates": {
+            "12/23/1960": 143
+          }
+        },
+        "Jazz": {
+          "prior": 218,
+          "next": 401,
+          "arrivals": 183,
+          "unsignedArrivals": 177,
+          "unsignedRotations": 165,
+          "sources": {
+            "latentRotation": 170,
+            "runtimeFormation": 13
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 170,
+            "RuntimeFormation": 13
+          },
+          "rotationDates": {
+            "12/23/1960": 170
+          }
+        },
+        "Blues": {
+          "prior": 201,
+          "next": 357,
+          "arrivals": 156,
+          "unsignedArrivals": 152,
+          "unsignedRotations": 143,
+          "sources": {
+            "latentRotation": 147,
+            "runtimeFormation": 9
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 147,
+            "RuntimeFormation": 9
+          },
+          "rotationDates": {
+            "12/23/1960": 147
+          }
+        },
+        "Comedy": {
+          "prior": 156,
+          "next": 191,
+          "arrivals": 35,
+          "unsignedArrivals": 32,
+          "unsignedRotations": 26,
+          "sources": {
+            "latentRotation": 26,
+            "runtimeFormation": 9
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 26,
+            "RuntimeFormation": 9
+          },
+          "rotationDates": {
+            "12/23/1960": 26
+          }
+        },
+        "Childrens": {
+          "prior": 101,
+          "next": 126,
+          "arrivals": 25,
+          "unsignedArrivals": 25,
+          "unsignedRotations": 18,
+          "sources": {
+            "latentRotation": 18,
+            "runtimeFormation": 7
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 18,
+            "RuntimeFormation": 7
+          },
+          "rotationDates": {
+            "12/23/1960": 18
+          }
+        },
+        "TexMex": {
+          "prior": 45,
+          "next": 56,
+          "arrivals": 11,
+          "unsignedArrivals": 11,
+          "unsignedRotations": 9,
+          "sources": {
+            "latentRotation": 9,
+            "runtimeFormation": 2
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 9,
+            "RuntimeFormation": 2
+          },
+          "rotationDates": {
+            "12/23/1960": 9
+          }
+        },
+        "SurfRock": {
+          "prior": 40,
+          "next": 46,
+          "arrivals": 6,
+          "unsignedArrivals": 6,
+          "unsignedRotations": 0,
+          "sources": {
+            "runtimeFormation": 6
+          },
+          "cohorts": {
+            "RuntimeFormation": 6
+          },
+          "rotationDates": {}
+        }
+      },
+      "firstSearchExpiration": {
+        "seed": "1001",
+        "week": "78",
+        "date": "6/23/1961",
+        "eventType": "prospect-search-expired",
+        "artistId": "artist_00062",
+        "artistType": "SoloMale",
+        "cohort": "InitialLegacy",
+        "formedYear": "1957",
+        "formationPrimaryGenre": "Comedy",
+        "formationSecondaryGenre": "TraditionalPop",
+        "currentPrimaryGenre": "Comedy",
+        "homeRegion": "Southwest",
+        "lifecycleStatus": "Active",
+        "careerState": "Unsigned",
+        "prospectMarketStatus": "Latent",
+        "prospectMarketStatusBeforeContract": "NotProspect",
+        "careerStateBeforeDrop": "Unsigned",
+        "contractEntryCareerState": "Unsigned",
+        "labelId": "",
+        "labelTier": "",
+        "dropReason": "Voluntary",
+        "performanceDropCount": "0",
+        "requiredPerformanceCooldownWeeks": "13",
+        "contractSequence": "0",
+        "priorContractCount": "0",
+        "contractStartWeek": "-1",
+        "contractTop40Hits": "0",
+        "contractConsecutiveFlops": "0",
+        "contractCompletedChartRuns": "0",
+        "contractChartedRecords": "0",
+        "contractRegionalBreakouts": "0",
+        "regionalBreakouts": "0",
+        "top40Hits": "0",
+        "contractLength": "0",
+        "contractReleases": "0",
+        "contractSinglesObligation": "0",
+        "performanceEvaluationMode": "NormalCareer",
+        "requiredPerformanceCompletedRuns": "0",
+        "requiredPerformanceConsecutiveFlops": "0",
+        "contractProbationPending": "false",
+        "weeksSincePerformanceDrop": "-1",
+        "weeksContinuouslyUnowned": "78",
+        "artistAge": "4",
+        "leadMemberAge": "19"
+      },
+      "firstGospelSearchExpiration": {
+        "seed": "1001",
+        "week": "79",
+        "date": "6/30/1961",
+        "eventType": "prospect-search-expired",
+        "artistId": "artist_07046",
+        "artistType": "SoloMale",
+        "cohort": "RuntimeFormation",
+        "formedYear": "1960",
+        "formationPrimaryGenre": "Gospel",
+        "formationSecondaryGenre": "Soul",
+        "currentPrimaryGenre": "Gospel",
+        "homeRegion": "Great Plains",
+        "lifecycleStatus": "Active",
+        "careerState": "Unsigned",
+        "prospectMarketStatus": "Latent",
+        "prospectMarketStatusBeforeContract": "NotProspect",
+        "careerStateBeforeDrop": "Unsigned",
+        "contractEntryCareerState": "Unsigned",
+        "labelId": "",
+        "labelTier": "",
+        "dropReason": "Voluntary",
+        "performanceDropCount": "0",
+        "requiredPerformanceCooldownWeeks": "13",
+        "contractSequence": "0",
+        "priorContractCount": "0",
+        "contractStartWeek": "-1",
+        "contractTop40Hits": "0",
+        "contractConsecutiveFlops": "0",
+        "contractCompletedChartRuns": "0",
+        "contractChartedRecords": "0",
+        "contractRegionalBreakouts": "0",
+        "regionalBreakouts": "0",
+        "top40Hits": "0",
+        "contractLength": "0",
+        "contractReleases": "0",
+        "contractSinglesObligation": "0",
+        "performanceEvaluationMode": "NormalCareer",
+        "requiredPerformanceCompletedRuns": "0",
+        "requiredPerformanceConsecutiveFlops": "0",
+        "contractProbationPending": "false",
+        "weeksSincePerformanceDrop": "-1",
+        "weeksContinuouslyUnowned": "77",
+        "artistAge": "1",
+        "leadMemberAge": "31"
+      },
+      "disappearing": [
+        {
+          "month": "7/7/1961",
+          "artistId": "artist_07046",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "6/30/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "7/7/1961",
+          "artistId": "artist_07063",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "6/30/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07111",
+          "events": []
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07121",
+          "events": []
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07150",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/14/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07182",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/21/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07185",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/21/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07244",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/28/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07247",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/28/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07251",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/28/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07332",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "8/11/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07370",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "8/18/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07372",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "8/18/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07377",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "8/18/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed": 1002,
+      "byGenre": {
+        "TraditionalPop": {
+          "prior": 384,
+          "next": 786,
+          "arrivals": 402,
+          "unsignedArrivals": 378,
+          "unsignedRotations": 367,
+          "sources": {
+            "latentRotation": 391,
+            "runtimeFormation": 11
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 391,
+            "RuntimeFormation": 11
+          },
+          "rotationDates": {
+            "12/23/1960": 391
+          }
+        },
+        "Blues": {
+          "prior": 185,
+          "next": 349,
+          "arrivals": 164,
+          "unsignedArrivals": 159,
+          "unsignedRotations": 150,
+          "sources": {
+            "latentRotation": 155,
+            "runtimeFormation": 9
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 155,
+            "RuntimeFormation": 9
+          },
+          "rotationDates": {
+            "12/23/1960": 155
+          }
+        },
+        "TeenPop": {
+          "prior": 441,
+          "next": 884,
+          "arrivals": 443,
+          "unsignedArrivals": 428,
+          "unsignedRotations": 417,
+          "sources": {
+            "latentRotation": 431,
+            "runtimeFormation": 12
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 431,
+            "RuntimeFormation": 12
+          },
+          "rotationDates": {
+            "12/23/1960": 431
+          }
+        },
+        "RnB": {
+          "prior": 505,
+          "next": 1104,
+          "arrivals": 599,
+          "unsignedArrivals": 578,
+          "unsignedRotations": 568,
+          "sources": {
+            "latentRotation": 589,
+            "runtimeFormation": 10
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 589,
+            "RuntimeFormation": 10
+          },
+          "rotationDates": {
+            "12/23/1960": 589
+          }
+        },
+        "RockAndRoll": {
+          "prior": 609,
+          "next": 1246,
+          "arrivals": 637,
+          "unsignedArrivals": 611,
+          "unsignedRotations": 601,
+          "sources": {
+            "latentRotation": 626,
+            "runtimeFormation": 11
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 626,
+            "RuntimeFormation": 11
+          },
+          "rotationDates": {
+            "12/23/1960": 626
+          }
+        },
+        "Classical": {
+          "prior": 175,
+          "next": 298,
+          "arrivals": 123,
+          "unsignedArrivals": 119,
+          "unsignedRotations": 113,
+          "sources": {
+            "latentRotation": 117,
+            "runtimeFormation": 6
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 117,
+            "RuntimeFormation": 6
+          },
+          "rotationDates": {
+            "12/23/1960": 117
+          }
+        },
+        "Folk": {
+          "prior": 265,
+          "next": 494,
+          "arrivals": 229,
+          "unsignedArrivals": 218,
+          "unsignedRotations": 212,
+          "sources": {
+            "latentRotation": 221,
+            "runtimeFormation": 8
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 221,
+            "RuntimeFormation": 8
+          },
+          "rotationDates": {
+            "12/23/1960": 221
+          }
+        },
+        "Soul": {
+          "prior": 546,
+          "next": 1115,
+          "arrivals": 569,
+          "unsignedArrivals": 550,
+          "unsignedRotations": 544,
+          "sources": {
+            "latentRotation": 563,
+            "runtimeFormation": 6
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 563,
+            "RuntimeFormation": 6
+          },
+          "rotationDates": {
+            "12/23/1960": 563
+          }
+        },
+        "Jazz": {
+          "prior": 278,
+          "next": 455,
+          "arrivals": 177,
+          "unsignedArrivals": 172,
+          "unsignedRotations": 157,
+          "sources": {
+            "latentRotation": 161,
+            "runtimeFormation": 16
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 161,
+            "RuntimeFormation": 16
+          },
+          "rotationDates": {
+            "12/23/1960": 161
+          }
+        },
+        "Gospel": {
+          "prior": 126,
+          "next": 192,
+          "arrivals": 66,
+          "unsignedArrivals": 65,
+          "unsignedRotations": 60,
+          "sources": {
+            "latentRotation": 61,
+            "runtimeFormation": 5
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 61,
+            "RuntimeFormation": 5
+          },
+          "rotationDates": {
+            "12/23/1960": 61
+          }
+        },
+        "TexMex": {
+          "prior": 54,
+          "next": 68,
+          "arrivals": 14,
+          "unsignedArrivals": 14,
+          "unsignedRotations": 10,
+          "sources": {
+            "latentRotation": 10,
+            "runtimeFormation": 4
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 10,
+            "RuntimeFormation": 4
+          },
+          "rotationDates": {
+            "12/23/1960": 10
+          }
+        },
+        "Country": {
+          "prior": 475,
+          "next": 758,
+          "arrivals": 283,
+          "unsignedArrivals": 271,
+          "unsignedRotations": 247,
+          "sources": {
+            "latentRotation": 258,
+            "runtimeFormation": 25
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 258,
+            "RuntimeFormation": 25
+          },
+          "rotationDates": {
+            "12/23/1960": 258
+          }
+        },
+        "EasyListening": {
+          "prior": 287,
+          "next": 481,
+          "arrivals": 194,
+          "unsignedArrivals": 189,
+          "unsignedRotations": 180,
+          "sources": {
+            "latentRotation": 185,
+            "runtimeFormation": 9
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 185,
+            "RuntimeFormation": 9
+          },
+          "rotationDates": {
+            "12/23/1960": 185
+          }
+        },
+        "DooWop": {
+          "prior": 325,
+          "next": 488,
+          "arrivals": 163,
+          "unsignedArrivals": 157,
+          "unsignedRotations": 145,
+          "sources": {
+            "latentRotation": 150,
+            "runtimeFormation": 13
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 150,
+            "RuntimeFormation": 13
+          },
+          "rotationDates": {
+            "12/23/1960": 150
+          }
+        },
+        "Childrens": {
+          "prior": 102,
+          "next": 127,
+          "arrivals": 25,
+          "unsignedArrivals": 23,
+          "unsignedRotations": 17,
+          "sources": {
+            "latentRotation": 18,
+            "runtimeFormation": 7
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 18,
+            "RuntimeFormation": 7
+          },
+          "rotationDates": {
+            "12/23/1960": 18
+          }
+        },
+        "Comedy": {
+          "prior": 155,
+          "next": 198,
+          "arrivals": 43,
+          "unsignedArrivals": 42,
+          "unsignedRotations": 32,
+          "sources": {
+            "latentRotation": 32,
+            "runtimeFormation": 11
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 32,
+            "RuntimeFormation": 11
+          },
+          "rotationDates": {
+            "12/23/1960": 32
+          }
+        },
+        "LatinPop": {
+          "prior": 78,
+          "next": 116,
+          "arrivals": 38,
+          "unsignedArrivals": 37,
+          "unsignedRotations": 31,
+          "sources": {
+            "latentRotation": 32,
+            "runtimeFormation": 6
+          },
+          "cohorts": {
+            "EnabledInitialReserve": 32,
+            "RuntimeFormation": 6
+          },
+          "rotationDates": {
+            "12/23/1960": 32
+          }
+        },
+        "SurfRock": {
+          "prior": 40,
+          "next": 41,
+          "arrivals": 1,
+          "unsignedArrivals": 1,
+          "unsignedRotations": 0,
+          "sources": {
+            "runtimeFormation": 1
+          },
+          "cohorts": {
+            "RuntimeFormation": 1
+          },
+          "rotationDates": {}
+        }
+      },
+      "firstSearchExpiration": {
+        "seed": "1002",
+        "week": "78",
+        "date": "6/23/1961",
+        "eventType": "prospect-search-expired",
+        "artistId": "artist_00001",
+        "artistType": "SoloMale",
+        "cohort": "InitialLegacy",
+        "formedYear": "1955",
+        "formationPrimaryGenre": "EasyListening",
+        "formationSecondaryGenre": "TraditionalPop",
+        "currentPrimaryGenre": "EasyListening",
+        "homeRegion": "Southwest",
+        "lifecycleStatus": "Active",
+        "careerState": "Unsigned",
+        "prospectMarketStatus": "Latent",
+        "prospectMarketStatusBeforeContract": "NotProspect",
+        "careerStateBeforeDrop": "Unsigned",
+        "contractEntryCareerState": "Unsigned",
+        "labelId": "",
+        "labelTier": "",
+        "dropReason": "Voluntary",
+        "performanceDropCount": "0",
+        "requiredPerformanceCooldownWeeks": "13",
+        "contractSequence": "0",
+        "priorContractCount": "0",
+        "contractStartWeek": "-1",
+        "contractTop40Hits": "0",
+        "contractConsecutiveFlops": "0",
+        "contractCompletedChartRuns": "0",
+        "contractChartedRecords": "0",
+        "contractRegionalBreakouts": "0",
+        "regionalBreakouts": "0",
+        "top40Hits": "0",
+        "contractLength": "0",
+        "contractReleases": "0",
+        "contractSinglesObligation": "0",
+        "performanceEvaluationMode": "NormalCareer",
+        "requiredPerformanceCompletedRuns": "0",
+        "requiredPerformanceConsecutiveFlops": "0",
+        "contractProbationPending": "false",
+        "weeksSincePerformanceDrop": "-1",
+        "weeksContinuouslyUnowned": "78",
+        "artistAge": "6",
+        "leadMemberAge": "27"
+      },
+      "firstGospelSearchExpiration": {
+        "seed": "1002",
+        "week": "79",
+        "date": "6/30/1961",
+        "eventType": "prospect-search-expired",
+        "artistId": "artist_07048",
+        "artistType": "Band",
+        "cohort": "RuntimeFormation",
+        "formedYear": "1960",
+        "formationPrimaryGenre": "Gospel",
+        "formationSecondaryGenre": "Soul",
+        "currentPrimaryGenre": "Gospel",
+        "homeRegion": "Rockies",
+        "lifecycleStatus": "Active",
+        "careerState": "Unsigned",
+        "prospectMarketStatus": "Latent",
+        "prospectMarketStatusBeforeContract": "NotProspect",
+        "careerStateBeforeDrop": "Unsigned",
+        "contractEntryCareerState": "Unsigned",
+        "labelId": "",
+        "labelTier": "",
+        "dropReason": "Voluntary",
+        "performanceDropCount": "0",
+        "requiredPerformanceCooldownWeeks": "13",
+        "contractSequence": "0",
+        "priorContractCount": "0",
+        "contractStartWeek": "-1",
+        "contractTop40Hits": "0",
+        "contractConsecutiveFlops": "0",
+        "contractCompletedChartRuns": "0",
+        "contractChartedRecords": "0",
+        "contractRegionalBreakouts": "0",
+        "regionalBreakouts": "0",
+        "top40Hits": "0",
+        "contractLength": "0",
+        "contractReleases": "0",
+        "contractSinglesObligation": "0",
+        "performanceEvaluationMode": "NormalCareer",
+        "requiredPerformanceCompletedRuns": "0",
+        "requiredPerformanceConsecutiveFlops": "0",
+        "contractProbationPending": "false",
+        "weeksSincePerformanceDrop": "-1",
+        "weeksContinuouslyUnowned": "77",
+        "artistAge": "1",
+        "leadMemberAge": "19"
+      },
+      "disappearing": [
+        {
+          "month": "7/7/1961",
+          "artistId": "artist_07048",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "6/30/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "7/7/1961",
+          "artistId": "artist_07049",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "6/30/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07092",
+          "events": []
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07099",
+          "events": []
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07119",
+          "events": []
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07120",
+          "events": []
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07127",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/14/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07163",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/14/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "8/4/1961",
+          "artistId": "artist_07248",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "7/28/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07278",
+          "events": []
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07282",
+          "events": []
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07308",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "8/11/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07404",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "8/25/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        },
+        {
+          "month": "9/1/1961",
+          "artistId": "artist_07414",
+          "events": [
+            {
+              "type": "prospect-search-expired",
+              "date": "8/25/1961",
+              "unownedWeeks": "77",
+              "cohort": "RuntimeFormation"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fingerprints": [
+    {
+      "path": "Data/PolarRepertoireTable.json",
+      "sha256": "3fe0944dcb15c5f77279e089a133befaeec4de85479f9dbe729a73bf57a94d14"
+    },
+    {
+      "path": "Systems/PolarRepertoireTable.cs",
+      "sha256": "efb6bb80cf75c22b30572e9d8e8267f89dc22c002c92c97f0b59522a23a2a136"
+    },
+    {
+      "path": "Systems/LiveRepertoire.cs",
+      "sha256": "a46cbaa52085395189edb7291a6c5f6bb1722a18e17981bde7c580f7911e06ae"
+    },
+    {
+      "path": "Systems/SongMaterialSelectionService.cs",
+      "sha256": "a832cd0699a665f8f44e1e794d1bb5c744d457102dd14c99678befae7bb0a67b"
+    },
+    {
+      "path": "Systems/CompositionCatalogService.cs",
+      "sha256": "25ba45bb28756888b6dbf57f1d1636941e5aff4e4fafaaee68c86ee229272b87"
+    },
+    {
+      "path": "Systems/PlayerDesk.cs",
+      "sha256": "8c55a703efb03cebd6c50f7e7ae9bfa428b64abf842707c26a48b73e479d8764"
+    },
+    {
+      "path": "Systems/SaveGameService.cs",
+      "sha256": "82877768defed5919337f9341de3616301dadaf1eb11ac554ea1eb34366dcdf8"
+    },
+    {
+      "path": "Systems/PolarSongBehavior.cs",
+      "sha256": "f5d7e08e992d860bcdbe182b15f2487aaeec1575e431b4325e96dbdf0b705040"
+    },
+    {
+      "path": "SimTools/GospelPreferenceChecks.cs",
+      "sha256": "6f530c5d4f7e13f1bf974b1c509b7e9806e782fe437453c20c10aa8d43e35d4c"
+    }
+  ]
+}

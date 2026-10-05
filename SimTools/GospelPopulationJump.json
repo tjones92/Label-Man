@@ -1,0 +1,1120 @@
+[
+  {
+    "seed": 1001,
+    "byGenre": {
+      "RockAndRoll": {
+        "prior": 586,
+        "next": 1260,
+        "arrivals": 674,
+        "unsignedArrivals": 648,
+        "unsignedRotations": 638,
+        "sources": {
+          "latentRotation": 664,
+          "runtimeFormation": 10
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 664,
+          "RuntimeFormation": 10
+        },
+        "rotationDates": {
+          "12/23/1960": 664
+        }
+      },
+      "LatinPop": {
+        "prior": 81,
+        "next": 136,
+        "arrivals": 55,
+        "unsignedArrivals": 52,
+        "unsignedRotations": 50,
+        "sources": {
+          "latentRotation": 53,
+          "runtimeFormation": 2
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 53,
+          "RuntimeFormation": 2
+        },
+        "rotationDates": {
+          "12/23/1960": 53
+        }
+      },
+      "Classical": {
+        "prior": 151,
+        "next": 278,
+        "arrivals": 127,
+        "unsignedArrivals": 124,
+        "unsignedRotations": 117,
+        "sources": {
+          "latentRotation": 120,
+          "runtimeFormation": 7
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 120,
+          "RuntimeFormation": 7
+        },
+        "rotationDates": {
+          "12/23/1960": 120
+        }
+      },
+      "RnB": {
+        "prior": 523,
+        "next": 1103,
+        "arrivals": 580,
+        "unsignedArrivals": 551,
+        "unsignedRotations": 541,
+        "sources": {
+          "latentRotation": 568,
+          "runtimeFormation": 12
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 568,
+          "RuntimeFormation": 12
+        },
+        "rotationDates": {
+          "12/23/1960": 568
+        }
+      },
+      "Folk": {
+        "prior": 289,
+        "next": 523,
+        "arrivals": 234,
+        "unsignedArrivals": 223,
+        "unsignedRotations": 222,
+        "sources": {
+          "latentRotation": 233,
+          "runtimeFormation": 1
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 233,
+          "RuntimeFormation": 1
+        },
+        "rotationDates": {
+          "12/23/1960": 233
+        }
+      },
+      "Country": {
+        "prior": 481,
+        "next": 742,
+        "arrivals": 261,
+        "unsignedArrivals": 249,
+        "unsignedRotations": 224,
+        "sources": {
+          "latentRotation": 236,
+          "runtimeFormation": 25
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 236,
+          "RuntimeFormation": 25
+        },
+        "rotationDates": {
+          "12/23/1960": 236
+        }
+      },
+      "TraditionalPop": {
+        "prior": 392,
+        "next": 778,
+        "arrivals": 386,
+        "unsignedArrivals": 373,
+        "unsignedRotations": 361,
+        "sources": {
+          "latentRotation": 373,
+          "runtimeFormation": 13
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 373,
+          "RuntimeFormation": 13
+        },
+        "rotationDates": {
+          "12/23/1960": 373
+        }
+      },
+      "TeenPop": {
+        "prior": 433,
+        "next": 865,
+        "arrivals": 432,
+        "unsignedArrivals": 409,
+        "unsignedRotations": 400,
+        "sources": {
+          "latentRotation": 422,
+          "runtimeFormation": 10
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 422,
+          "RuntimeFormation": 10
+        },
+        "rotationDates": {
+          "12/23/1960": 422
+        }
+      },
+      "EasyListening": {
+        "prior": 304,
+        "next": 500,
+        "arrivals": 196,
+        "unsignedArrivals": 190,
+        "unsignedRotations": 177,
+        "sources": {
+          "latentRotation": 183,
+          "runtimeFormation": 13
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 183,
+          "RuntimeFormation": 13
+        },
+        "rotationDates": {
+          "12/23/1960": 183
+        }
+      },
+      "Soul": {
+        "prior": 566,
+        "next": 1149,
+        "arrivals": 583,
+        "unsignedArrivals": 557,
+        "unsignedRotations": 543,
+        "sources": {
+          "latentRotation": 569,
+          "runtimeFormation": 14
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 569,
+          "RuntimeFormation": 14
+        },
+        "rotationDates": {
+          "12/23/1960": 569
+        }
+      },
+      "Gospel": {
+        "prior": 151,
+        "next": 223,
+        "arrivals": 72,
+        "unsignedArrivals": 71,
+        "unsignedRotations": 66,
+        "sources": {
+          "latentRotation": 66,
+          "runtimeFormation": 6
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 66,
+          "RuntimeFormation": 6
+        },
+        "rotationDates": {
+          "12/23/1960": 66
+        }
+      },
+      "DooWop": {
+        "prior": 312,
+        "next": 466,
+        "arrivals": 154,
+        "unsignedArrivals": 149,
+        "unsignedRotations": 138,
+        "sources": {
+          "latentRotation": 143,
+          "runtimeFormation": 11
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 143,
+          "RuntimeFormation": 11
+        },
+        "rotationDates": {
+          "12/23/1960": 143
+        }
+      },
+      "Jazz": {
+        "prior": 218,
+        "next": 401,
+        "arrivals": 183,
+        "unsignedArrivals": 177,
+        "unsignedRotations": 165,
+        "sources": {
+          "latentRotation": 170,
+          "runtimeFormation": 13
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 170,
+          "RuntimeFormation": 13
+        },
+        "rotationDates": {
+          "12/23/1960": 170
+        }
+      },
+      "Blues": {
+        "prior": 201,
+        "next": 357,
+        "arrivals": 156,
+        "unsignedArrivals": 152,
+        "unsignedRotations": 143,
+        "sources": {
+          "latentRotation": 147,
+          "runtimeFormation": 9
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 147,
+          "RuntimeFormation": 9
+        },
+        "rotationDates": {
+          "12/23/1960": 147
+        }
+      },
+      "Comedy": {
+        "prior": 156,
+        "next": 191,
+        "arrivals": 35,
+        "unsignedArrivals": 32,
+        "unsignedRotations": 26,
+        "sources": {
+          "latentRotation": 26,
+          "runtimeFormation": 9
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 26,
+          "RuntimeFormation": 9
+        },
+        "rotationDates": {
+          "12/23/1960": 26
+        }
+      },
+      "Childrens": {
+        "prior": 101,
+        "next": 126,
+        "arrivals": 25,
+        "unsignedArrivals": 25,
+        "unsignedRotations": 18,
+        "sources": {
+          "latentRotation": 18,
+          "runtimeFormation": 7
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 18,
+          "RuntimeFormation": 7
+        },
+        "rotationDates": {
+          "12/23/1960": 18
+        }
+      },
+      "TexMex": {
+        "prior": 45,
+        "next": 56,
+        "arrivals": 11,
+        "unsignedArrivals": 11,
+        "unsignedRotations": 9,
+        "sources": {
+          "latentRotation": 9,
+          "runtimeFormation": 2
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 9,
+          "RuntimeFormation": 2
+        },
+        "rotationDates": {
+          "12/23/1960": 9
+        }
+      },
+      "SurfRock": {
+        "prior": 40,
+        "next": 46,
+        "arrivals": 6,
+        "unsignedArrivals": 6,
+        "unsignedRotations": 0,
+        "sources": {
+          "runtimeFormation": 6
+        },
+        "cohorts": {
+          "RuntimeFormation": 6
+        },
+        "rotationDates": {}
+      }
+    },
+    "firstSearchExpiration": {
+      "seed": "1001",
+      "week": "78",
+      "date": "6/23/1961",
+      "eventType": "prospect-search-expired",
+      "artistId": "artist_00062",
+      "artistType": "SoloMale",
+      "cohort": "InitialLegacy",
+      "formedYear": "1957",
+      "formationPrimaryGenre": "Comedy",
+      "formationSecondaryGenre": "TraditionalPop",
+      "currentPrimaryGenre": "Comedy",
+      "homeRegion": "Southwest",
+      "lifecycleStatus": "Active",
+      "careerState": "Unsigned",
+      "prospectMarketStatus": "Latent",
+      "prospectMarketStatusBeforeContract": "NotProspect",
+      "careerStateBeforeDrop": "Unsigned",
+      "contractEntryCareerState": "Unsigned",
+      "labelId": "",
+      "labelTier": "",
+      "dropReason": "Voluntary",
+      "performanceDropCount": "0",
+      "requiredPerformanceCooldownWeeks": "13",
+      "contractSequence": "0",
+      "priorContractCount": "0",
+      "contractStartWeek": "-1",
+      "contractTop40Hits": "0",
+      "contractConsecutiveFlops": "0",
+      "contractCompletedChartRuns": "0",
+      "contractChartedRecords": "0",
+      "contractRegionalBreakouts": "0",
+      "regionalBreakouts": "0",
+      "top40Hits": "0",
+      "contractLength": "0",
+      "contractReleases": "0",
+      "contractSinglesObligation": "0",
+      "performanceEvaluationMode": "NormalCareer",
+      "requiredPerformanceCompletedRuns": "0",
+      "requiredPerformanceConsecutiveFlops": "0",
+      "contractProbationPending": "false",
+      "weeksSincePerformanceDrop": "-1",
+      "weeksContinuouslyUnowned": "78",
+      "artistAge": "4",
+      "leadMemberAge": "19"
+    },
+    "firstGospelSearchExpiration": {
+      "seed": "1001",
+      "week": "79",
+      "date": "6/30/1961",
+      "eventType": "prospect-search-expired",
+      "artistId": "artist_07046",
+      "artistType": "SoloMale",
+      "cohort": "RuntimeFormation",
+      "formedYear": "1960",
+      "formationPrimaryGenre": "Gospel",
+      "formationSecondaryGenre": "Soul",
+      "currentPrimaryGenre": "Gospel",
+      "homeRegion": "Great Plains",
+      "lifecycleStatus": "Active",
+      "careerState": "Unsigned",
+      "prospectMarketStatus": "Latent",
+      "prospectMarketStatusBeforeContract": "NotProspect",
+      "careerStateBeforeDrop": "Unsigned",
+      "contractEntryCareerState": "Unsigned",
+      "labelId": "",
+      "labelTier": "",
+      "dropReason": "Voluntary",
+      "performanceDropCount": "0",
+      "requiredPerformanceCooldownWeeks": "13",
+      "contractSequence": "0",
+      "priorContractCount": "0",
+      "contractStartWeek": "-1",
+      "contractTop40Hits": "0",
+      "contractConsecutiveFlops": "0",
+      "contractCompletedChartRuns": "0",
+      "contractChartedRecords": "0",
+      "contractRegionalBreakouts": "0",
+      "regionalBreakouts": "0",
+      "top40Hits": "0",
+      "contractLength": "0",
+      "contractReleases": "0",
+      "contractSinglesObligation": "0",
+      "performanceEvaluationMode": "NormalCareer",
+      "requiredPerformanceCompletedRuns": "0",
+      "requiredPerformanceConsecutiveFlops": "0",
+      "contractProbationPending": "false",
+      "weeksSincePerformanceDrop": "-1",
+      "weeksContinuouslyUnowned": "77",
+      "artistAge": "1",
+      "leadMemberAge": "31"
+    },
+    "disappearing": [
+      {
+        "month": "7/7/1961",
+        "artistId": "artist_07046",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "6/30/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "7/7/1961",
+        "artistId": "artist_07063",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "6/30/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07111",
+        "events": []
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07121",
+        "events": []
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07150",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/14/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07182",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/21/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07185",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/21/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07244",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/28/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07247",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/28/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07251",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/28/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07332",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "8/11/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07370",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "8/18/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07372",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "8/18/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07377",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "8/18/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "seed": 1002,
+    "byGenre": {
+      "TraditionalPop": {
+        "prior": 384,
+        "next": 786,
+        "arrivals": 402,
+        "unsignedArrivals": 378,
+        "unsignedRotations": 367,
+        "sources": {
+          "latentRotation": 391,
+          "runtimeFormation": 11
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 391,
+          "RuntimeFormation": 11
+        },
+        "rotationDates": {
+          "12/23/1960": 391
+        }
+      },
+      "Blues": {
+        "prior": 185,
+        "next": 349,
+        "arrivals": 164,
+        "unsignedArrivals": 159,
+        "unsignedRotations": 150,
+        "sources": {
+          "latentRotation": 155,
+          "runtimeFormation": 9
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 155,
+          "RuntimeFormation": 9
+        },
+        "rotationDates": {
+          "12/23/1960": 155
+        }
+      },
+      "TeenPop": {
+        "prior": 441,
+        "next": 884,
+        "arrivals": 443,
+        "unsignedArrivals": 428,
+        "unsignedRotations": 417,
+        "sources": {
+          "latentRotation": 431,
+          "runtimeFormation": 12
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 431,
+          "RuntimeFormation": 12
+        },
+        "rotationDates": {
+          "12/23/1960": 431
+        }
+      },
+      "RnB": {
+        "prior": 505,
+        "next": 1104,
+        "arrivals": 599,
+        "unsignedArrivals": 578,
+        "unsignedRotations": 568,
+        "sources": {
+          "latentRotation": 589,
+          "runtimeFormation": 10
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 589,
+          "RuntimeFormation": 10
+        },
+        "rotationDates": {
+          "12/23/1960": 589
+        }
+      },
+      "RockAndRoll": {
+        "prior": 609,
+        "next": 1246,
+        "arrivals": 637,
+        "unsignedArrivals": 611,
+        "unsignedRotations": 601,
+        "sources": {
+          "latentRotation": 626,
+          "runtimeFormation": 11
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 626,
+          "RuntimeFormation": 11
+        },
+        "rotationDates": {
+          "12/23/1960": 626
+        }
+      },
+      "Classical": {
+        "prior": 175,
+        "next": 298,
+        "arrivals": 123,
+        "unsignedArrivals": 119,
+        "unsignedRotations": 113,
+        "sources": {
+          "latentRotation": 117,
+          "runtimeFormation": 6
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 117,
+          "RuntimeFormation": 6
+        },
+        "rotationDates": {
+          "12/23/1960": 117
+        }
+      },
+      "Folk": {
+        "prior": 265,
+        "next": 494,
+        "arrivals": 229,
+        "unsignedArrivals": 218,
+        "unsignedRotations": 212,
+        "sources": {
+          "latentRotation": 221,
+          "runtimeFormation": 8
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 221,
+          "RuntimeFormation": 8
+        },
+        "rotationDates": {
+          "12/23/1960": 221
+        }
+      },
+      "Soul": {
+        "prior": 546,
+        "next": 1115,
+        "arrivals": 569,
+        "unsignedArrivals": 550,
+        "unsignedRotations": 544,
+        "sources": {
+          "latentRotation": 563,
+          "runtimeFormation": 6
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 563,
+          "RuntimeFormation": 6
+        },
+        "rotationDates": {
+          "12/23/1960": 563
+        }
+      },
+      "Jazz": {
+        "prior": 278,
+        "next": 455,
+        "arrivals": 177,
+        "unsignedArrivals": 172,
+        "unsignedRotations": 157,
+        "sources": {
+          "latentRotation": 161,
+          "runtimeFormation": 16
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 161,
+          "RuntimeFormation": 16
+        },
+        "rotationDates": {
+          "12/23/1960": 161
+        }
+      },
+      "Gospel": {
+        "prior": 126,
+        "next": 192,
+        "arrivals": 66,
+        "unsignedArrivals": 65,
+        "unsignedRotations": 60,
+        "sources": {
+          "latentRotation": 61,
+          "runtimeFormation": 5
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 61,
+          "RuntimeFormation": 5
+        },
+        "rotationDates": {
+          "12/23/1960": 61
+        }
+      },
+      "TexMex": {
+        "prior": 54,
+        "next": 68,
+        "arrivals": 14,
+        "unsignedArrivals": 14,
+        "unsignedRotations": 10,
+        "sources": {
+          "latentRotation": 10,
+          "runtimeFormation": 4
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 10,
+          "RuntimeFormation": 4
+        },
+        "rotationDates": {
+          "12/23/1960": 10
+        }
+      },
+      "Country": {
+        "prior": 475,
+        "next": 758,
+        "arrivals": 283,
+        "unsignedArrivals": 271,
+        "unsignedRotations": 247,
+        "sources": {
+          "latentRotation": 258,
+          "runtimeFormation": 25
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 258,
+          "RuntimeFormation": 25
+        },
+        "rotationDates": {
+          "12/23/1960": 258
+        }
+      },
+      "EasyListening": {
+        "prior": 287,
+        "next": 481,
+        "arrivals": 194,
+        "unsignedArrivals": 189,
+        "unsignedRotations": 180,
+        "sources": {
+          "latentRotation": 185,
+          "runtimeFormation": 9
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 185,
+          "RuntimeFormation": 9
+        },
+        "rotationDates": {
+          "12/23/1960": 185
+        }
+      },
+      "DooWop": {
+        "prior": 325,
+        "next": 488,
+        "arrivals": 163,
+        "unsignedArrivals": 157,
+        "unsignedRotations": 145,
+        "sources": {
+          "latentRotation": 150,
+          "runtimeFormation": 13
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 150,
+          "RuntimeFormation": 13
+        },
+        "rotationDates": {
+          "12/23/1960": 150
+        }
+      },
+      "Childrens": {
+        "prior": 102,
+        "next": 127,
+        "arrivals": 25,
+        "unsignedArrivals": 23,
+        "unsignedRotations": 17,
+        "sources": {
+          "latentRotation": 18,
+          "runtimeFormation": 7
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 18,
+          "RuntimeFormation": 7
+        },
+        "rotationDates": {
+          "12/23/1960": 18
+        }
+      },
+      "Comedy": {
+        "prior": 155,
+        "next": 198,
+        "arrivals": 43,
+        "unsignedArrivals": 42,
+        "unsignedRotations": 32,
+        "sources": {
+          "latentRotation": 32,
+          "runtimeFormation": 11
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 32,
+          "RuntimeFormation": 11
+        },
+        "rotationDates": {
+          "12/23/1960": 32
+        }
+      },
+      "LatinPop": {
+        "prior": 78,
+        "next": 116,
+        "arrivals": 38,
+        "unsignedArrivals": 37,
+        "unsignedRotations": 31,
+        "sources": {
+          "latentRotation": 32,
+          "runtimeFormation": 6
+        },
+        "cohorts": {
+          "EnabledInitialReserve": 32,
+          "RuntimeFormation": 6
+        },
+        "rotationDates": {
+          "12/23/1960": 32
+        }
+      },
+      "SurfRock": {
+        "prior": 40,
+        "next": 41,
+        "arrivals": 1,
+        "unsignedArrivals": 1,
+        "unsignedRotations": 0,
+        "sources": {
+          "runtimeFormation": 1
+        },
+        "cohorts": {
+          "RuntimeFormation": 1
+        },
+        "rotationDates": {}
+      }
+    },
+    "firstSearchExpiration": {
+      "seed": "1002",
+      "week": "78",
+      "date": "6/23/1961",
+      "eventType": "prospect-search-expired",
+      "artistId": "artist_00001",
+      "artistType": "SoloMale",
+      "cohort": "InitialLegacy",
+      "formedYear": "1955",
+      "formationPrimaryGenre": "EasyListening",
+      "formationSecondaryGenre": "TraditionalPop",
+      "currentPrimaryGenre": "EasyListening",
+      "homeRegion": "Southwest",
+      "lifecycleStatus": "Active",
+      "careerState": "Unsigned",
+      "prospectMarketStatus": "Latent",
+      "prospectMarketStatusBeforeContract": "NotProspect",
+      "careerStateBeforeDrop": "Unsigned",
+      "contractEntryCareerState": "Unsigned",
+      "labelId": "",
+      "labelTier": "",
+      "dropReason": "Voluntary",
+      "performanceDropCount": "0",
+      "requiredPerformanceCooldownWeeks": "13",
+      "contractSequence": "0",
+      "priorContractCount": "0",
+      "contractStartWeek": "-1",
+      "contractTop40Hits": "0",
+      "contractConsecutiveFlops": "0",
+      "contractCompletedChartRuns": "0",
+      "contractChartedRecords": "0",
+      "contractRegionalBreakouts": "0",
+      "regionalBreakouts": "0",
+      "top40Hits": "0",
+      "contractLength": "0",
+      "contractReleases": "0",
+      "contractSinglesObligation": "0",
+      "performanceEvaluationMode": "NormalCareer",
+      "requiredPerformanceCompletedRuns": "0",
+      "requiredPerformanceConsecutiveFlops": "0",
+      "contractProbationPending": "false",
+      "weeksSincePerformanceDrop": "-1",
+      "weeksContinuouslyUnowned": "78",
+      "artistAge": "6",
+      "leadMemberAge": "27"
+    },
+    "firstGospelSearchExpiration": {
+      "seed": "1002",
+      "week": "79",
+      "date": "6/30/1961",
+      "eventType": "prospect-search-expired",
+      "artistId": "artist_07048",
+      "artistType": "Band",
+      "cohort": "RuntimeFormation",
+      "formedYear": "1960",
+      "formationPrimaryGenre": "Gospel",
+      "formationSecondaryGenre": "Soul",
+      "currentPrimaryGenre": "Gospel",
+      "homeRegion": "Rockies",
+      "lifecycleStatus": "Active",
+      "careerState": "Unsigned",
+      "prospectMarketStatus": "Latent",
+      "prospectMarketStatusBeforeContract": "NotProspect",
+      "careerStateBeforeDrop": "Unsigned",
+      "contractEntryCareerState": "Unsigned",
+      "labelId": "",
+      "labelTier": "",
+      "dropReason": "Voluntary",
+      "performanceDropCount": "0",
+      "requiredPerformanceCooldownWeeks": "13",
+      "contractSequence": "0",
+      "priorContractCount": "0",
+      "contractStartWeek": "-1",
+      "contractTop40Hits": "0",
+      "contractConsecutiveFlops": "0",
+      "contractCompletedChartRuns": "0",
+      "contractChartedRecords": "0",
+      "contractRegionalBreakouts": "0",
+      "regionalBreakouts": "0",
+      "top40Hits": "0",
+      "contractLength": "0",
+      "contractReleases": "0",
+      "contractSinglesObligation": "0",
+      "performanceEvaluationMode": "NormalCareer",
+      "requiredPerformanceCompletedRuns": "0",
+      "requiredPerformanceConsecutiveFlops": "0",
+      "contractProbationPending": "false",
+      "weeksSincePerformanceDrop": "-1",
+      "weeksContinuouslyUnowned": "77",
+      "artistAge": "1",
+      "leadMemberAge": "19"
+    },
+    "disappearing": [
+      {
+        "month": "7/7/1961",
+        "artistId": "artist_07048",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "6/30/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "7/7/1961",
+        "artistId": "artist_07049",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "6/30/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07092",
+        "events": []
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07099",
+        "events": []
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07119",
+        "events": []
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07120",
+        "events": []
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07127",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/14/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07163",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/14/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "8/4/1961",
+        "artistId": "artist_07248",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "7/28/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07278",
+        "events": []
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07282",
+        "events": []
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07308",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "8/11/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07404",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "8/25/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      },
+      {
+        "month": "9/1/1961",
+        "artistId": "artist_07414",
+        "events": [
+          {
+            "type": "prospect-search-expired",
+            "date": "8/25/1961",
+            "unownedWeeks": "77",
+            "cohort": "RuntimeFormation"
+          }
+        ]
+      }
+    ]
+  }
+]

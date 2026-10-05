@@ -1,0 +1,17 @@
+{
+  "name": "C",
+  "paths": [
+    "SimTools/PolarGospelRepairProbe.cs",
+    "SimTools/PolarGospelRepairProbe.tscn",
+    "SimTools/run-polar-gospel-repair.ps1",
+    "SimTools/analyze-polar-gospel-repair.mjs"
+  ],
+  "sourceHashes": {
+    "SimTools/PolarGospelRepairProbe.cs": "EDE8AB5083BF898980159D882E2684239050B7440D93017F3F76BC1FCF47B644",
+    "SimTools/PolarGospelRepairProbe.tscn": "CFE7759B07BA95A8B36FFE9F02C7C5FC5D783FDBE2BAE7F0964EFEB770DF0A38",
+    "SimTools/run-polar-gospel-repair.ps1": "1FEDA3546020E9CF2235237F0FBCC6BFD725FDF03E3C9FF73878CD5F6704268B",
+    "SimTools/analyze-polar-gospel-repair.mjs": "10C9F100F54DB2208C511E1AA00BD1D9D466EFCDF8230B174CBD76D77ACBE844"
+  },
+  "status": "measured-gate-failed",
+  "scope": "Final package source checkpoint; no commits or prior user work reset."
+}

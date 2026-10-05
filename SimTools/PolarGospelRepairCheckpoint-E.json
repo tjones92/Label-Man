@@ -1,0 +1,14 @@
+{
+  "package": "E",
+  "status": "measured-review-required",
+  "sourceHashes": {
+    "SimTools/PolarGospelRepairProbe.cs": "5D5185A120032ABA78650C03FD91EDBBE0E47BD60386447CE9567BF1AFE09E9E",
+    "SimTools/PolarWithinBucket-later-1001.json": "0D041945713FF83A780A27AD67511F645F5C47E24202BD2E682E83DCCD05BC3B",
+    "SimTools/PolarWithinBucket-later-1002.json": "1F46B496C88E44A945A0683108C14C0C3CAE193E0BA1FDCB3AAD58F37F63AF0D"
+  },
+  "developmentSeeds": [
+    1001,
+    1002
+  ],
+  "holdOutReady": false
+}

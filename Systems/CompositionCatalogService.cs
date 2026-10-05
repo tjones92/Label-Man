@@ -56,6 +56,9 @@ public static class CompositionCatalogService {
 	public static int StandardCount { get { int n = 0; foreach (var kv in standardsByGenre) n += kv.Value.Count; return n; } }
 
 	public static void Initialize(int startYear, IEnumerable<AILabel> labels, ulong seed) {
+		CompositionShapeVariation.WorldSeed = seed;
+		RepertoireProvenance.Reset();
+		LiveRepertoire.Reset();
 		PolarSongMetadataService.Reset();
 		PolarSongBehavior.ResetTaste();
 		PolarSongBehavior.ResetTaste();
@@ -83,6 +86,10 @@ public static class CompositionCatalogService {
 		GeneratePreGameRecentHits(startYear);
 		GenerateProfessionalPool(labels, startYear);
 		GenerateInitialProfessionalCatalog(startYear);
+		if(LiveRepertoire.AuditPhase>=5) {
+			GenerateNativeRepertoire(startYear);
+			foreach(var song in professionalByGenre.Values.SelectMany(p=>p)) AdmitRepertoire(song,"unpublished",startYear);
+		}
 		initialized = true;
 		GD.Print($"CompositionCatalogService: {songs.Count} songs ({StandardCount} standards), {professionalWriters.Count} pro writers, {publishers.Count} publishers");
 	}
@@ -134,8 +141,11 @@ public static class CompositionCatalogService {
 			song.rights.publisherId = "pre_game_publisher";
 			song.rights.publisherName = "Legacy Publisher";
 			song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.HouseCredit, writerName = "Legacy Writer", share = 1f });
+			if(LiveRepertoire.AuditPhase>=1)RepertoireTaxonomy.Assign(song, family, maxYear + 1);
+			PolarSongMetadataService.EnsureComposition(song);
 			songs[song.songId] = song;
 			RegisterCoverableHit(song);
+			RepertoireProvenance.Admit(song, "seededRecentHit", family);
 		}
 	}
 
@@ -185,6 +195,7 @@ public static class CompositionCatalogService {
 				isPublicDomain = traditional || rng.Randf() < .18f,
 				isStandard = true
 			};
+			if(LiveRepertoire.AuditPhase>=5)song.establishedYear = traditional ? null : Math.Max(song.originYear + RepertoireProvenance.EstablishmentAge, minYear);
 			if (song.isPublicDomain) {
 				song.rights.controlType = PublishingControlType.PublicDomain;
 				song.rights.writerShare = 0f;
@@ -204,7 +215,13 @@ public static class CompositionCatalogService {
 					share = 1f
 				});
 			}
+			if(LiveRepertoire.AuditPhase>=1)RepertoireTaxonomy.Assign(song, family, maxYear + 1);
+			// Retain the original Gospel fixture evidence alongside creation-time table authoring.
+			if(family == "Gospel Standard" && song.repertoireSeedFamily == family && (!PolarSongTable.AuditLegacyRepair ||
+				(SimulationSeedBootstrap.RequestedSeed is 1001 or 1002 && OS.GetCmdlineUserArgs().Contains("--polar-context-fixture"))))
+				CompositionShapeVariation.AuthorContext(song, SongContentContext.Sacred, "seeded-authored-fixture:Gospel Standard");
 			Register(song);
+			RepertoireProvenance.Admit(song, "seedFamily", family);
 		}
 	}
 
@@ -296,6 +313,8 @@ public static class CompositionCatalogService {
 					writerName = "Staff Writer",
 					share = 1f
 				});
+				CompositionShapeVariation.AuthorContext(song,pub.scene==PublishingScene.ChurchGospel?SongContentContext.Sacred:SongContentContext.Secular,
+					"procedural-publishing-office:"+pub.publisherId+":"+pub.scene);
 				Register(song);
 				pub.catalogSongIds.Add(song.songId);
 			}
@@ -320,6 +339,7 @@ public static class CompositionCatalogService {
 			secondaryGenre = record.secondaryGenre,
 			originYear = year,
 			originKind = SongOriginKind.ArtistOriginal,
+			originArtistId = artist.artistId,
 			// Composition axis derived from the record's realized attributes (no new randomness).
 			compositionQuality = record.hookStrength,
 			melodicStrength = record.hookStrength,
@@ -336,6 +356,7 @@ public static class CompositionCatalogService {
 		};
 
 		// Credits: the act's writer-members if we can identify them, else a house credit.
+		AuthorOriginalContext(song,artist);
 		bool labelOwns = artist.labelOwnsPublishing;
 		if (labelOwns) {
 			song.rights.controlType = PublishingControlType.LabelAffiliate;
@@ -411,12 +432,14 @@ public static class CompositionCatalogService {
 			record.genreTagIds = MergeTags(record.genreTagIds, song.genreTagIds);
 		}
 		PolarSongMetadataService.RegisterRecord(record, song, TimeManager.Instance?.CurrentDate ?? default, proposal: proposal);
+		AdmitUnpublished(song,TimeManager.Instance?.CurrentDate.year??song.originYear,record.masterId);
 	}
 
 	// ---- Lookups & helpers -------------------------------------------------------------------
 
 	public static SongComposition GetSong(string songId) =>
 		!string.IsNullOrEmpty(songId) && songs.TryGetValue(songId, out var song) ? song : null;
+	internal static IReadOnlyCollection<SongComposition> AllSongs => songs.Values;
 
 	private static readonly List<SongComposition> emptySongs = new();
 
@@ -479,6 +502,7 @@ public static class CompositionCatalogService {
 			nationalFamiliarity = 0f,
 			isStandard = false
 		};
+		AuthorOriginalContext(song,artist);
 		if (artist.labelOwnsPublishing) {
 			song.rights.controlType = PublishingControlType.LabelAffiliate;
 			song.rights.controllerLabelId = label?.labelId;
@@ -499,20 +523,29 @@ public static class CompositionCatalogService {
 		}
 		// Song-only registration: an artist-original is reachable by id but is NOT a selectable cover
 		// candidate. It enters coverableHitsByGenre only if it charts (Phase 4).
+		PolarSongMetadataService.EnsureComposition(song);
 		songs[song.songId] = song;
 		IndexControllerLabel(song);
 		return song;
 	}
 
 	private static string NextSongId() => $"song_{++songCounter:D7}";
+	private static void AuthorOriginalContext(SongComposition song,SimulatedArtist artist) {
+		song.originArtistId=artist.artistId;
+		CompositionShapeVariation.AuthorContext(song,artist.primaryGenre==Genre.Gospel||song.primaryGenre==Genre.Gospel?SongContentContext.Sacred:SongContentContext.Secular,
+			"procedural-artist-original:"+artist.artistId+":"+artist.primaryGenre);
+	}
 
 	private static void Register(SongComposition song) {
+		PolarSongMetadataService.EnsureComposition(song);
 		songs[song.songId] = song;
 		AddToPool(catalogByGenre, song.primaryGenre, song);
 		GenreFamily fam = FamilyOf(song.primaryGenre);
+		if(song.isStandard || song.isTraditional) LiveRepertoire.Index(song);
 		if (song.isStandard) { AddToPool(standardsByGenre, song.primaryGenre, song); AddToPool(standardsByFamily, fam, song); }
 		if (song.originKind == SongOriginKind.ProfessionalOffice) AddToPool(professionalByGenre, song.primaryGenre, song);
-		if (song.isPublicDomain || song.isTraditional) { AddToPool(traditionalByGenre, song.primaryGenre, song); AddToPool(traditionalByFamily, fam, song); }
+		if (song.originKind == SongOriginKind.ProfessionalOffice) RepertoireProvenance.Admit(song, "professionalCatalogue");
+		if (song.isTraditional || LiveRepertoire.AuditPhase<5&&song.isPublicDomain) { AddToPool(traditionalByGenre, song.primaryGenre, song); AddToPool(traditionalByFamily, fam, song); }
 	}
 
 	private static GenreFamily FamilyOf(Genre g) => GenreCatalog.TryGet(g, out var p) ? p.Family : GenreFamily.Pop;
@@ -566,6 +599,7 @@ public static class CompositionCatalogService {
 		if (top40) {
 			song.isCoverable = true;
 			RegisterCoverableHit(song);
+			RepertoireProvenance.Admit(song, "chartPromoted", year: year, recordId: record.baseRecord.recordId);
 		}
 
 		// Phase 5 (scoped to credit telemetry -- see [[lineup-churn-never-fires]]: no solo career spins
@@ -638,11 +672,101 @@ public static class CompositionCatalogService {
 	/// <summary>Marks a charted song as a live cover candidate for its genre (Phase 4 entry point).</summary>
 	public static void RegisterCoverableHit(SongComposition song) {
 		if (song == null || !song.isCoverable) return;
+		LiveRepertoire.Index(song);
 		if (!coverableHitsByGenre.TryGetValue(song.primaryGenre, out var pool)) {
 			pool = new List<SongComposition>(); coverableHitsByGenre[song.primaryGenre] = pool;
 		}
 		if (!pool.Contains(song)) pool.Add(song);
-		AddToPool(coverableHitsByFamily, FamilyOf(song.primaryGenre), song);
+		if(LiveRepertoire.AuditPhase<5){AddToPool(coverableHitsByFamily,FamilyOf(song.primaryGenre),song);return;}
+		var family=FamilyOf(song.primaryGenre);
+		if(!coverableHitsByFamily.TryGetValue(family,out var familyPool)) coverableHitsByFamily[family]=familyPool=new();
+		if(!familyPool.Contains(song))familyPool.Add(song);
+	}
+
+	// Phase 5 admissions are independent of chart outcome. Routes persist on compositions and indexes already serialize.
+	public static void AdmitRepertoire(SongComposition song,string route,int year,string recordId=null) {
+		if(song==null||!song.isCoverable)return;
+		if(!song.repertoireAdmissionRoutes.Contains(route)) {
+			song.repertoireAdmissionRoutes.Add(route);RegisterCoverableHit(song);
+			RepertoireProvenance.Admit(song,route,song.repertoireSeedFamily,year,recordId);
+		}
+	}
+	public static void RecordRepertoireRelease(SongComposition song,int year,string recordId,bool album) {
+		if(song==null||LiveRepertoire.AuditPhase<5)return;
+		if(song.repertoireFirstReleaseYear==0)song.repertoireFirstReleaseYear=year;
+		if(album)AdmitRepertoire(song,"albumRepertoire",year,recordId);
+		else if(song.commercialHook>=.55f)AdmitRepertoire(song,"locallyFamiliar",year,recordId);
+		if(song.originKind is SongOriginKind.ProfessionalOffice or SongOriginKind.LabelStaff)AdmitRepertoire(song,"suppliedProfessional",year,recordId);
+	}
+	public static void AdmitUnpublished(SongComposition song,int year,string masterId) {
+		if(LiveRepertoire.AuditPhase>=5 && song?.originKind is SongOriginKind.ArtistOriginal or SongOriginKind.ProfessionalOffice or SongOriginKind.LabelStaff)
+			AdmitRepertoire(song,"unpublished",year,masterId);
+	}
+	public static void OnRecordReleased(Record record) {
+		if(LiveRepertoire.AuditPhase<5||record==null)return;
+		int year=record.releaseDate.year>0?record.releaseDate.year:TimeManager.Instance?.CurrentDate.year??0;
+		if(record.format==ReleaseFormat.Album && record.album!=null) {
+			if(record.album.albumFormat==AlbumFormat.Soundtrack&&record.album.externalMedia!=null)AdmitExternalMediaTheme(record,year);
+			foreach(var track in record.album.GetAllTracks())if(track!=null)RecordRepertoireRelease(GetSong(track.songId),year,track.masterId,true);
+		}else RecordRepertoireRelease(GetSong(record.songId),year,record.recordId,false);
+	}
+	// The external-media engine has no track list. Author one representative theme,
+	// separately from the album/master and its licensing contract. No global RNG is consumed.
+	internal static SongComposition AdmitExternalMediaTheme(Record record,int year) {
+		if(record?.album?.externalMedia==null||record.album.albumFormat!=AlbumFormat.Soundtrack||string.IsNullOrEmpty(record.recordId))return null;
+		string id="song_media_theme_"+record.recordId;
+		if(songs.TryGetValue(id,out var existing))return existing;
+		float U(string salt)=>RepertoireTaxonomy.Unit(id+"|"+salt);
+		var media=record.album.externalMedia;
+		bool instrumental=media.sourceType==ExternalMediaSourceType.FilmScore;
+		var song=new SongComposition {songId=id,title=record.title+" (theme)",primaryGenre=Genre.EasyListening,secondaryGenre=Genre.TraditionalPop,
+			originYear=year,originKind=SongOriginKind.ExternalMediaTheme,repertoireFirstReleaseYear=year,
+			externalMediaSourceRecordId=record.recordId,externalMediaSourceType=media.sourceType,
+			compositionQuality=.5f+media.criticalPrestige*.3f,melodicStrength=.55f+U("melody")*.25f,lyricQuality=instrumental?0:.5f+U("lyric")*.25f,
+			commercialHook=.45f+media.sourcePopularity*.3f,rhythmicAppeal=.4f+U("rhythm")*.2f,adaptability=.7f,
+			originality=.45f+U("originality")*.2f,standardDurability=.5f+media.criticalPrestige*.25f,
+			nationalFamiliarity=media.sourcePopularity,adultFamiliarity=media.sourcePopularity,teenFamiliarity=media.youthAppeal*.5f,isCoverable=true};
+		RepertoireTaxonomy.Assign(song,instrumental?"Screen instrumental":"Stage and film songs",year);
+		song.rights.controlType=PublishingControlType.ExternalPublisher;
+		song.rights.publisherId="external_media_publisher";song.rights.publisherName="Screen & Stage Publisher";
+		song.credits.Add(new SongwriterCredit {writerType=WriterEntityType.HouseCredit,writerName="Screen & Stage Composer",share=1});
+		Register(song);AdmitRepertoire(song,"externalMediaTheme",year,record.recordId);
+		return song;
+	}
+	private static void GenerateNativeRepertoire(int startYear) {
+		// A separate keyed stream: extending supply never consumes the established catalogue or global RNG.
+		foreach(var scene in PolarRepertoireTable.Current.Supply)for(int i=0;i<scene.Count;i++) {
+			string id=$"song_native_{scene.Genre}_{i:D4}";
+			float U(string salt)=>RepertoireTaxonomy.Unit(id+"|"+salt);
+			int year=scene.FromYear+(int)(U("year")*(scene.ToYear-scene.FromYear+1));
+			var song=new SongComposition {songId=id,title=$"{scene.Family} {i+1}",primaryGenre=Enum.Parse<Genre>(scene.Genre),secondaryGenre=Enum.Parse<Genre>(scene.Secondary),
+				originYear=year,originKind=scene.Traditional?SongOriginKind.Traditional:SongOriginKind.PreGameCatalog,
+				compositionQuality=.50f+U("craft")*.30f,melodicStrength=.50f+U("melody")*.30f,lyricQuality=.45f+U("lyric")*.30f,
+				commercialHook=.40f+U("hook")*.35f,rhythmicAppeal=.40f+U("rhythm")*.35f,adaptability=.50f+U("adaptability")*.20f,
+				originality=.40f+U("originality")*.30f,standardDurability=.50f+U("durability")*.30f,nationalFamiliarity=.25f+U("familiarity")*.35f,
+				isTraditional=scene.Traditional,isPublicDomain=scene.Traditional||year<1923,isStandard=!scene.Traditional&&(scene.EstablishedYear??year+RepertoireProvenance.EstablishmentAge)<=startYear,isCoverable=true,
+				repertoireFirstReleaseYear=year,establishedYear=scene.Traditional?null:scene.EstablishedYear??year+RepertoireProvenance.EstablishmentAge};
+			RepertoireTaxonomy.Assign(song,scene.Family,Math.Max(startYear,year));
+			if(song.isPublicDomain){song.rights.controlType=PublishingControlType.PublicDomain;song.rights.writerShare=song.rights.publisherShare=0;}
+			else {song.rights.controlType=PublishingControlType.ExternalPublisher;song.rights.publisherId="native_songbook";song.rights.publisherName="Independent Repertoire";}
+			song.credits.Add(new SongwriterCredit {writerType=scene.Traditional?WriterEntityType.Traditional:WriterEntityType.HouseCredit,writerName=scene.Traditional?"Traditional":"Catalogue Writer",share=1});
+			Register(song);RegisterCoverableHit(song);RepertoireProvenance.Admit(song,"seedFamily",scene.Family,startYear);
+		}
+	}
+	internal static void ApplyRepertoireAuditPhase(int phase,int startYear) {
+		if(phase!=LiveRepertoire.AuditPhase+1)throw new InvalidOperationException("Causal probe phases must advance sequentially");
+		LiveRepertoire.AuditPhase=phase;
+		if(phase==1)foreach(var a in RepertoireProvenance.Admissions.Where(a=>a.Route is "seedFamily" or "seededRecentHit").ToArray())
+			RepertoireTaxonomy.Assign(GetSong(a.SongId),a.Family,startYear);
+		if(phase==5) {
+			traditionalByGenre.Clear();traditionalByFamily.Clear();
+			foreach(var s in songs.Values) {
+				if(s.isTraditional){AddToPool(traditionalByGenre,s.primaryGenre,s);AddToPool(traditionalByFamily,FamilyOf(s.primaryGenre),s);}
+				else if(s.isStandard)s.establishedYear=s.originYear+RepertoireProvenance.EstablishmentAge;
+			}
+			GenerateNativeRepertoire(startYear);
+			foreach(var song in professionalByGenre.Values.SelectMany(p=>p))AdmitRepertoire(song,"unpublished",startYear);
+		}
 	}
 
 	// ========================================================================
@@ -655,6 +779,9 @@ public static class CompositionCatalogService {
 		foreach (var song in songs.Values) PolarSongMetadataService.EnsureComposition(song);
 		PolarSongMetadataService.MigrateRecords((w.Records ?? new()).Where(r => r != null).Select(r => r.baseRecord), w.RetiredTrackArchive);
 		var c = new CompositionSaveData {
+			ShapeVariationVersion = CompositionShapeVariation.ActiveVersion,
+			ShapeVariationWorldSeed = CompositionShapeVariation.WorldSeed,
+			RepertoireSchemaVersion = 1,
 			UsePolarFitSelection = PolarSongBehavior.UsePolarFitSelection,
 			PolarTaste = PolarSongBehavior.CaptureTaste(),
 			PolarMasters = PolarSongMetadataService.Capture(),
@@ -684,6 +811,8 @@ public static class CompositionCatalogService {
 	public static void RehydrateWorld(WorldSaveData w) {
 		CompositionSaveData c = w.Composition;
 		if (c == null) return;
+		CompositionShapeVariation.ActiveVersion = CompositionShapeVariation.ResolveVersion(OS.GetCmdlineUserArgs(), c.ShapeVariationVersion);
+		CompositionShapeVariation.WorldSeed = c.ShapeVariationWorldSeed ?? (c.HasRng ? c.RngSeed ^ 0x736f6e6763617461UL : CompositionShapeVariation.WorldSeed);
 		PolarSongBehavior.UsePolarFitSelection = c.UsePolarFitSelection;
 		PolarSongBehavior.RestoreTaste(c.PolarTaste);
 
@@ -701,6 +830,8 @@ public static class CompositionCatalogService {
 		RebuildFamilyPool(standardsByFamily, c.StandardsByFamily);
 		RebuildFamilyPool(traditionalByFamily, c.TraditionalByFamily);
 		RebuildFamilyPool(coverableHitsByFamily, c.CoverableHitsByFamily);
+		LiveRepertoire.Reset();
+		foreach(var song in standardsByGenre.Values.Concat(coverableHitsByGenre.Values).SelectMany(p=>p).DistinctBy(s=>s.songId)) LiveRepertoire.Index(song);
 
 		songsByControllerLabel.Clear();
 		foreach (var kv in c.SongsByControllerLabel ?? new Dictionary<string, List<string>>())

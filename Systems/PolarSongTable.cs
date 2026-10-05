@@ -19,17 +19,28 @@ public sealed class PolarSongTable {
 	public Dictionary<string, float[]> LyricModifiers { get; set; }
 	public Dictionary<string, float[]> VocalModifiers { get; set; }
 	public PolarArchetypeRow[] Archetypes { get; set; }
+	public Dictionary<string, PolarGenreForms> GenreForms { get; set; }
+	private readonly Dictionary<Genre, PolarStylePrior> derivedPriors = new();
+	// Only the bounded development probes may select the frozen pre-repair fixture.
+	internal static bool AuditLegacyRepair;
 	public float N(string key) => Numbers[key];
 	public PolarArchetypeRow Row(SongArchetype archetype) => Archetypes.First(r => r.Name == archetype.ToString());
-	public PolarStylePrior Prior(Genre genre) => GenreOverrides.TryGetValue(genre.ToString(), out var p) ? p :
+	public PolarStylePrior Prior(Genre genre) => derivedPriors.TryGetValue(genre, out var center) ? center : LegacyPrior(genre);
+	private PolarStylePrior LegacyPrior(Genre genre) => GenreOverrides.TryGetValue(genre.ToString(), out var p) ? p :
 		Families[GenreCatalog.TryGet(genre, out var g) ? g.Family.ToString() : GenreFamily.Pop.ToString()];
 	private static readonly Lazy<PolarSongTable> loaded = new(() => {
 		using var file = Godot.FileAccess.Open("res://Data/PolarSongTable.json", Godot.FileAccess.ModeFlags.Read);
 		if (file == null) throw new InvalidOperationException("Missing polar song table.");
 		return Parse(file.GetAsText());
 	});
-	public static PolarSongTable Current => loaded.Value;
-	public static PolarSongTable Parse(string json) {
+	private static readonly Lazy<PolarSongTable> legacy = new(() => {
+		using var file = Godot.FileAccess.Open("res://SimTools/PolarSongTable.LegacyAttribution.json", Godot.FileAccess.ModeFlags.Read);
+		return Parse(file.GetAsText(), true);
+	});
+	public static PolarSongTable Current => AuditLegacyRepair ? legacy.Value : loaded.Value;
+	internal static PolarSongTable RepairTable => loaded.Value;
+	public static PolarSongTable Parse(string json) => Parse(json, false);
+	private static PolarSongTable Parse(string json, bool legacyFixture) {
 		var table = JsonSerializer.Deserialize<PolarSongTable>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 		if (table == null || string.IsNullOrWhiteSpace(table.Version)) throw new InvalidOperationException("Unversioned polar table.");
 		var required = Enum.GetValues<SongArchetype>().Where(a => a != SongArchetype.Unknown).Select(a => a.ToString()).OrderBy(s => s);
@@ -42,7 +53,7 @@ public sealed class PolarSongTable {
 				throw new InvalidOperationException($"Invalid archetype {r.Name}.");
 		}
 		foreach (var p in table.Families.Values.Concat(table.GenreOverrides.Values)) {
-			if (p.Identity.Length != SongProfile.IdentityCount || p.Identity.Any(v => !float.IsFinite(v) || v < 0 || v > 1)) throw new InvalidOperationException("Invalid style prior.");
+			if (legacyFixture && (p.Identity.Length != SongProfile.IdentityCount || p.Identity.Any(v => !float.IsFinite(v) || v < 0 || v > 1))) throw new InvalidOperationException("Invalid style prior.");
 			table.Row(Enum.Parse<SongArchetype>(p.Fallback));
 		}
 		foreach (var delta in table.LyricModifiers.Values.Concat(table.VocalModifiers.Values))
@@ -57,9 +68,30 @@ public sealed class PolarSongTable {
 		if (table.N("executionFullCapability") <= 0 || table.N("executionFullCapability") > 1)
 			throw new InvalidOperationException("Invalid full-execution Capability threshold.");
 		table.ContentFingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
+		if (!legacyFixture) {
+			if (table.GenreForms == null || table.GenreForms.Count != Enum.GetValues<Genre>().Length || table.N("tastePseudoCount") <= 0)
+				throw new InvalidOperationException("Incomplete authored genre forms or invalid taste pseudo-count.");
+			foreach (var genre in Enum.GetValues<Genre>()) table.derivedPriors[genre] = new PolarStylePrior {
+				Identity = table.DeriveCenter(genre), Fallback = table.LegacyPrior(genre).Fallback
+			};
+			table.ValidatePriorCenters();
+		}
 		return table;
 	}
+	public float[] DeriveCenter(Genre genre) {
+		var spec = GenreForms[genre.ToString()];
+		if ((spec.Songbook != null) == (spec.Forms != null)) throw new InvalidOperationException("Exactly one authored form source required: " + genre);
+		var rows = spec.Songbook != null ? PolarRepertoireTable.Current.Assignments[spec.Songbook].Select(r => (r.Archetype, r.Weight)).ToArray() :
+			spec.Forms.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => (Archetype: kv.Key, Weight: kv.Value)).ToArray();
+		if (rows.Length == 0 || rows.Any(r => !float.IsFinite(r.Weight) || r.Weight <= 0)) throw new InvalidOperationException("Invalid genre shares: " + genre);
+		return Enumerable.Range(0, SongProfile.IdentityCount).Select(i => rows.Sum(r => r.Weight * Row(Enum.Parse<SongArchetype>(r.Archetype)).Axes[SongProfile.DemandCount + i]) / rows.Sum(r => r.Weight)).ToArray();
+	}
+	public void ValidatePriorCenters() {
+		foreach (var genre in Enum.GetValues<Genre>()) if (!Prior(genre).Identity.SequenceEqual(DeriveCenter(genre)))
+			throw new InvalidOperationException("Stored prior diverges from authored center: " + genre);
+	}
 }
+public sealed class PolarGenreForms { public string Songbook { get; set; } public Dictionary<string, float> Forms { get; set; } }
 public sealed class PolarStylePrior { public float[] Identity { get; set; } public string Fallback { get; set; } }
 public sealed class PolarArchetypeRow {
 	public string Name { get; set; }

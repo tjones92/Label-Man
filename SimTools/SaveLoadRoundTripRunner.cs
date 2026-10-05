@@ -40,6 +40,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
 			if (inspectSlot != null) { RunInspect(inspectSlot, weeks); return; }
 			if (mechanicalCheck) { RunMechanicalRoyaltyCheck(); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--folk-easy-check")) { FolkEasyListeningChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--gospel-preference-check")) { GospelPreferenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--gospel-preference-probe")) { GospelPreferenceChecks.Probe(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-repertoire-fit-probe")) { PolarRepertoireChecks.FitProbe(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-gospel-repair-check")) { PolarGospelRepairChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-directive3-check")) { PolarGospelDirective3Checks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-gospel-followup-check")) { PolarGospelFollowupChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-repertoire-check")) { PolarRepertoireChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-refusal-avoidance-check")) { PolarRefusalAvoidanceChecks.Run(); GetTree().Quit(0); return; }
 			if (polarDataCheck) { PolarSongDataChecks.Run(); GetTree().Quit(0); return; }
 			if (polarFitCheck) { PolarSongFitChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--polar-song-behavior-check")) { PolarSongBehaviorChecks.Run(); GetTree().Quit(0); return; }

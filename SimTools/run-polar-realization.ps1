@@ -28,6 +28,7 @@ foreach ($case in $Cases) {
         $auditArgs = @('--headless', '--path', '.', 'SimTools/ChartAuditRunner.tscn', '--',
             '--weeks=52', "--run=$run", "--seed=$seed", '--enable-genre-market-v2', '--enable-artist-population-lifecycle')
         if ($case -notin @('off', 'final-off', 'verified-off')) { $auditArgs += @('--use-polar-fit-selection', '--polar-song-shadow') }
+        else { $auditArgs += '--disable-polar-fit-selection' }
         if ($case -in @('base', 'no-hook', 'no-capability', 'no-critic', 'no-moment', 'legacy-group')) {
             $auditArgs += '--polar-fit-audit-original-realization'
         }

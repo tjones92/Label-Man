@@ -15,13 +15,17 @@ public static class PolarCoverResolver {
 		pulled.dominantDemand = pulled.axes.Take(SongProfile.DemandCount).Max();
 		var projected = PolarMaterialFit.Evaluate(heard, pulled, act, taste, week, table);
 		string family = GenreCatalog.TryGet(projectGenre, out var genre) ? genre.Family.ToString() : GenreFamily.Pop.ToString();
-		var candidates = table.Archetypes.Where(r => r.FromYear <= year && (r.Families.Contains(family) || r.Name == heard.archetype.ToString()))
+		bool instrumentalReading = LiveRepertoire.AuditPhase>=1 && act.hasKnownPerformers && !act.hasVocalist && source.vocalPresence == SongVocalPresence.Present;
+		bool explicitInstrumental = instrumentalReading || source.vocalPresence == SongVocalPresence.Instrumental || (source.lyricModes??Array.Empty<SongLyricMode>()).Contains(SongLyricMode.Instrumental);
+		var candidates = table.Archetypes.Where(r => (explicitInstrumental || r.Axes[0]!=0 || r.Axes[1]!=0 || r.Axes[4]!=0) &&
+			(LiveRepertoire.AuditPhase>=1 || (int)Enum.Parse<SongArchetype>(r.Name)<=(int)SongArchetype.LivePartyRecord) && r.FromYear <= year && (r.Families.Contains(family) || r.Name == heard.archetype.ToString()))
 			.OrderBy(r => r.Name, StringComparer.Ordinal).ToArray();
 		SongTaxonomy best = null; SongProfile bestProfile = null;
 		float bestDistance = float.PositiveInfinity; ulong bestTie = ulong.MaxValue;
 		foreach (var row in candidates) {
 			if (heard.plasticity * act.interpretiveReach <= 0) continue;
 			var taxonomy = source.Copy(); taxonomy.archetype = Enum.Parse<SongArchetype>(row.Name);
+			if(instrumentalReading)taxonomy.vocalPresence=SongVocalPresence.Instrumental;
 			taxonomy.primaryGenre = projectGenre;
 			taxonomy.secondaryGenre = source.primaryGenre == projectGenre ? source.secondaryGenre : source.primaryGenre;
 			taxonomy.pace = row.Pace; taxonomy.mood = row.Mood; taxonomy.mappingId = table.Version;

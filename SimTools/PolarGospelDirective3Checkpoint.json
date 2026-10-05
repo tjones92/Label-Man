@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-05",
+  "commit": "8cd5879c33d0e2e60d6f179d8eb4b7cb00b341f4",
+  "files": [
+    {
+      "sha256": "796BEC75D3BBA8054C204DEC609FB35E1DFD32415B822E2513978F1225827DDD",
+      "path": "C:\\Project\\Label-Man\\SimTools\\PolarGospelResearchNotes.md"
+    },
+    {
+      "sha256": "F0C99BA3FB265AB89AD35E219791C0D6BC302E618D49DBAC6A72CEABFDA2383B",
+      "path": "C:\\Project\\Label-Man\\SimTools\\PolarGospelDirective3PreRegistration.md"
+    }
+  ],
+  "status": "registered before source edits and variant runs",
+  "phase3": "gated: reachable common canon not established"
+}

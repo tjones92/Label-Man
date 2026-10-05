@@ -331,6 +331,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		};
 		
 		GenerateMembers(artist, type, primaryGenre, year);
+		ConfigureEasyListeningBandleader(artist,year);
 		artist.stageName = type is ArtistType.SoloMale or ArtistType.SoloFemale
 			? artist.members[0].FullName
 			: GenerateStageName(type, primaryGenre, year);
@@ -353,6 +354,18 @@ public sealed class LaborMarketWeeklySnapshot {
 		ArtistEvolutionService.Initialize(artist, year);
 		artistRegistry[id] = artist;
 		return artist;
+	}
+	internal static void ConfigureEasyListeningBandleader(SimulatedArtist artist,int year) {
+		if(artist.primaryGenre!=Genre.EasyListening)return;
+		var mix=PolarRepertoireTable.Current.LiveSetMixes.GetValueOrDefault(nameof(Genre.EasyListening))?.FirstOrDefault(m=>year>=m.FromYear&&year<=m.ToYear);
+		if(mix==null||RepertoireTaxonomy.Unit($"{SimulationSeedBootstrap.RequestedSeed}|easy-instrumental-role|{artist.artistId}")>=mix.InstrumentalActShare)return;
+		// Reuse generated performers and traits. This keyed role choice consumes no population RNG.
+		artist.instrumentalPerformance=true;
+		var roles=new[]{MusicianRole.Piano,MusicianRole.Bass,MusicianRole.Drums,MusicianRole.Saxophone,MusicianRole.Trumpet,MusicianRole.Violin};
+		for(int i=0;i<artist.members.Count;i++) {
+			var member=artist.members[i];member.primaryRole=roles[i%roles.Length];member.isLeadVocalist=false;member.isBandLeader=i==0;
+			if(i==0)member.isPrimaryWriter=true;
+		}
 	}
 	
 	/// <summary>

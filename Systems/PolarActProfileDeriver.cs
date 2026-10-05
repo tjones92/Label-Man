@@ -10,8 +10,8 @@ public static class PolarActProfileDeriver {
 		bool backup = lead == null;
 		lead ??= members.FirstOrDefault(m => m.primaryRole == MusicianRole.BackingVocals);
 		// Solo acts without an explicit lead flag still have a known solo performer.
-		if (lead == null && artist.type is ArtistType.SoloMale or ArtistType.SoloFemale) lead = members.FirstOrDefault();
-		var p = new ActProfile { mappingVersion = table.Version, hasVocalist = lead != null, inferredSession = session == null };
+		if (lead == null && !artist.instrumentalPerformance && (artist.type is ArtistType.SoloMale or ArtistType.SoloFemale)) lead = members.FirstOrDefault();
+		var p = new ActProfile { mappingVersion = table.Version, hasVocalist = lead != null, hasKnownPerformers = members.Length > 0, inferredSession = session == null };
 		float averageSkill = members.Length == 0 ? 0 : members.Average(m => m.technicalSkill);
 		p[SongAxis.Musicianship] = members.Length == 0 ? 0 : Math.Max(artist.musicianship, members.Max(m => m.technicalSkill));
 		p[SongAxis.Ensemble] = members.Length == 0 ? 0 : artist.groupCohesion * table.N("ensembleCohesion") + averageSkill * table.N("ensembleSkill");

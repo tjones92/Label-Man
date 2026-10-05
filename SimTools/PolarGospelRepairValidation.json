@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "build": {
+    "errors": 0,
+    "existingWarnings": 4,
+    "newWarnings": 0
+  },
+  "checks": {
+    "csvShape": true,
+    "actorPoolHashes": true,
+    "selectedSlotUniqueness": true,
+    "provenance": true,
+    "decompositionSums": true,
+    "baselineProductionOrder": true,
+    "worldCaptureHashesUnchanged": true,
+    "retainedVariantsByteIdentical": true,
+    "archetypeAxesAndExistingTuningUnchanged": true,
+    "startupPackageBIdentical": true
+  },
+  "gate": {
+    "gospelBothSeedsAllFrames": false,
+    "crossGenreRegressionFlags": 13,
+    "packageDAllowed": false,
+    "holdOutReady": false
+  },
+  "infrastructure": [
+    {
+      "prefix": "polar-repair-infrastructure-1001",
+      "censusMode": "none",
+      "completedWeeks": 0,
+      "date": "1/1/1960",
+      "admissionEvents": 8200,
+      "monthsKnown": 1826,
+      "elapsedSeconds": 17.685481
+    },
+    {
+      "prefix": "polar-repair-resume-1001",
+      "censusMode": "none",
+      "completedWeeks": 1,
+      "date": "1/8/1960",
+      "admissionEvents": 185,
+      "monthsKnown": 185,
+      "elapsedSeconds": 21.5849865
+    }
+  ],
+  "checkpointPackages": [
+    {
+      "name": "infrastructure",
+      "paths": [
+        "SimTools/ChartAuditRunner.PolarResearch.cs",
+        "SimTools/run-polar-research.ps1",
+        "SimTools/run-polar-final-audit.ps1",
+        "SimTools/run-polar-followup-audit.ps1",
+        "SimTools/ChartAuditRunner.PolarRepertoire.cs",
+        "Systems/RepertoireProvenance.cs"
+      ],
+      "sourceHashes": {
+        "SimTools/ChartAuditRunner.PolarResearch.cs": "8249E41B5E3F1796D1E3FB858D36B1E38DECB766E92E2467B4F737FA5FCBA0D3",
+        "SimTools/run-polar-research.ps1": "8C8D51375C9C5F62ED5CAB12595589462A4059AF94B184B9C8D28A0FA6EDDA1E",
+        "SimTools/run-polar-final-audit.ps1": "BBFD7CE5F225D5344ED6AE553EF801FA2FD9688D517B76EE3276E5012E82333C",
+        "SimTools/run-polar-followup-audit.ps1": "0C99C39F232ACB9D644DF84482401C7FDEA2B45DF60C82B4DC76CC987616ABB1",
+        "SimTools/ChartAuditRunner.PolarRepertoire.cs": "BD9D317EE4FB7F038F05DAA2D3A036ADBD9B2A5F5198679B4A394CAB5945DD2C",
+        "Systems/RepertoireProvenance.cs": "18A4E1792FEA53DD4143A4408E11D27C644599EEACC168433AC747E92E15D6D6"
+      },
+      "status": "implemented",
+      "scope": "Final package source checkpoint; no commits or prior user work reset."
+    },
+    {
+      "name": "A",
+      "paths": [
+        "Data/PolarSongTable.json",
+        "Systems/PolarSongTable.cs",
+        "Systems/SimulationSeedBootstrap.cs",
+        "SimTools/PolarGenrePriorAudit.json"
+      ],
+      "sourceHashes": {
+        "Data/PolarSongTable.json": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+        "Systems/PolarSongTable.cs": "9ABBDC449D43ADC50CEA675D88FC1676DEBA759A0A3267C1F4DE27AF8C674FF8",
+        "Systems/SimulationSeedBootstrap.cs": "A2E6D5DEB50D5041E5A561C1349145D5A2687BD9F3F5362F565FB86112939016",
+        "SimTools/PolarGenrePriorAudit.json": "423AB5FB65EBF1BC6A851949AA37D814BE80929EC4FCE79CCE31266CCF16E498"
+      },
+      "status": "implemented",
+      "scope": "Final package source checkpoint; no commits or prior user work reset."
+    },
+    {
+      "name": "B",
+      "paths": [
+        "Data/PolarSongProfiles.cs",
+        "Systems/PolarSongBehavior.cs",
+        "SimTools/PolarGospelRepairChecks.cs"
+      ],
+      "sourceHashes": {
+        "Data/PolarSongProfiles.cs": "15867C66C525697E38F623132254FA5610D351023E4F24D39E8601371B9A451E",
+        "Systems/PolarSongBehavior.cs": "B7E07893F72D0A1823389C1034A53B6EC6DFA551B78F01E5D0FD09F3F121D67A",
+        "SimTools/PolarGospelRepairChecks.cs": "B23B39A767DF7FA64497A391C57BFD4A81BAD17E32C81576BB9C6B63D2267B9D"
+      },
+      "status": "implemented",
+      "scope": "Final package source checkpoint; no commits or prior user work reset."
+    },
+    {
+      "name": "C",
+      "paths": [
+        "SimTools/PolarGospelRepairProbe.cs",
+        "SimTools/PolarGospelRepairProbe.tscn",
+        "SimTools/run-polar-gospel-repair.ps1",
+        "SimTools/analyze-polar-gospel-repair.mjs"
+      ],
+      "sourceHashes": {
+        "SimTools/PolarGospelRepairProbe.cs": "EDE8AB5083BF898980159D882E2684239050B7440D93017F3F76BC1FCF47B644",
+        "SimTools/PolarGospelRepairProbe.tscn": "CFE7759B07BA95A8B36FFE9F02C7C5FC5D783FDBE2BAE7F0964EFEB770DF0A38",
+        "SimTools/run-polar-gospel-repair.ps1": "1FEDA3546020E9CF2235237F0FBCC6BFD725FDF03E3C9FF73878CD5F6704268B",
+        "SimTools/analyze-polar-gospel-repair.mjs": "10C9F100F54DB2208C511E1AA00BD1D9D466EFCDF8230B174CBD76D77ACBE844"
+      },
+      "status": "measured-gate-failed",
+      "scope": "Final package source checkpoint; no commits or prior user work reset."
+    }
+  ],
+  "hashes": {
+    "Data/PolarSongTable.json": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+    "Data/PolarRepertoireTable.json": "56A202FE311705EEA5ACAF0FE22520543668822DD89DD70E8FD3EE5A6BD13A94",
+    "SimTools/PolarGenrePriorAudit.json": "423AB5FB65EBF1BC6A851949AA37D814BE80929EC4FCE79CCE31266CCF16E498",
+    "SimTools/PolarSongTable.LegacyAttribution.json": "2179DC205FFB490CE9795AB1E730DE2D80E123858A11129762F0D858D4B4B117",
+    "SimLogs/polar-repair-start-1001-v3-gospel-summary.json": "59EB8E40F8B9F8BB807ADF6CB7995B4B613B230FB653DB0927A1A7D0330CF241",
+    "SimLogs/polar-repair-start-1001-v3-gospel-actors.csv": "73AB293CA5C7A2242C00B1BF318B44AA515EB6F97A36B7150352A655347FA29C",
+    "SimLogs/polar-repair-start-1001-v3-gospel-candidates.csv": "F7F6E1B6990E3EE57EE084119B5EAA6D0CE5D8E0F925D43D03634217B6961F0A",
+    "SimLogs/polar-repair-start-1001-v3-gospel-selections.csv": "61DF4B5E7B571D78A1A72FB06D2286B4EDC68908BBD5C11768497D8967A53B4A",
+    "SimLogs/polar-repair-start-1001-v3-invocation.json": "F98EBE723807C7FFBC144038AD23E377416C2F52BFBE91C9B34B26EC46F075C6",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-gospel-summary.json": "2595E1C96DE6F0F2ED949423CEA2D46FEB7773697D06734F11D0FCA39A3AA922",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-invocation.json": "6DB048258B8041C82CB6C40DCEBFC3F91A621D94C48A7D4BA270B5C62EE9D2BD",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-gospel-candidates.csv": "CD81BAFA471A21DB55A42250FEE4E7886B434E2CCA5F8BD0018B6A3929258903",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-gospel-selections.csv": "2DF6242394F28396C6AB836E575578A27E47A89697CE9C69B9AF892377FF6AE9",
+    "SimLogs/polar-repair-start-1001-v3-repair-fits.csv": "2115DAC08692602C75B061DFD4385E777E7DC550261D2B835C5F49D4B9DBECCF",
+    "SimLogs/polar-repair-start-1002-v3-gospel-summary.json": "EFF6722F11CBC3BE15B68B90A538726E25470BDA40CB92DF700D369BCE85CF0E",
+    "SimLogs/polar-repair-start-1002-v3-gospel-actors.csv": "243B1BC0F7E8175ED81F46BD6EDAF69525532AAD181758D96522E98E84485622",
+    "SimLogs/polar-repair-start-1002-v3-gospel-candidates.csv": "E583DB73872B4E16CF629FAB6CA18CB47E8E7AC0CEC6F04AB9B38F462590648E",
+    "SimLogs/polar-repair-start-1002-v3-gospel-selections.csv": "C44C2AC2942929674FBB0B801DB06585EDECD9BD46D94E5FAA1562EEC57B8C37",
+    "SimLogs/polar-repair-start-1002-v3-invocation.json": "485635EC24882D2A09312DCA08B3E5470B20004CF9C4506C5E0688B293E651AF",
+    "SimLogs/polar-gospel-attribution-start-1002-gospel-summary.json": "FA48B67DAEFF62E862EAC634A95A7B799EE78A8452971C3AF86EF025C1A7EC37",
+    "SimLogs/polar-gospel-attribution-start-1002-invocation.json": "F8B204F0B2FFB2879E6DCB3A1339BC76EE04A893BD3D85F4A395144D18C14DC4",
+    "SimLogs/polar-gospel-attribution-start-1002-gospel-candidates.csv": "56F1D98F89780D48A2A124F89A4C76821DF7FB0350BAFD49565A70F4EADE3233",
+    "SimLogs/polar-gospel-attribution-start-1002-gospel-selections.csv": "7242BFF0DA346761524E28F36DAAD87C364A1EEF044191FDE49E55DD78A9996D",
+    "SimLogs/polar-repair-start-1002-v3-repair-fits.csv": "C6EC33870D6DD954654EA32E134F99968F344272EBC2CFA9B185E261B7680061",
+    "SimLogs/polar-repair-later-1001-gospel-summary.json": "51C7D7C36C84FD5F18D7D40B26C8D66C6381D2DC1FFDB733C662DF935046EDAD",
+    "SimLogs/polar-repair-later-1001-gospel-actors.csv": "DE634674CA0937AB013E0F96AE9854F0EFE55186EA3F367D45AB717F20BA9D8E",
+    "SimLogs/polar-repair-later-1001-gospel-candidates.csv": "11972D86D5992807AB9796D26144755EDF69F3EE99E4A582E586AA8682DF4CA2",
+    "SimLogs/polar-repair-later-1001-gospel-selections.csv": "4A7A13918390469807D307EC286EEEB2F5A7153DCBAAF3C2218BFBD19AFD7DCE",
+    "SimLogs/polar-repair-later-1001-invocation.json": "E6AB067BF15A720497E4A013D7913F048E4907A51DE253A9B099AC057E58FFFA",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-gospel-summary.json": "068DAB654126A62FF67656E4B195CD39DD9C418DE6CE7F1DCDC6896A46FB7BDD",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-invocation.json": "EE499EAA43340CAF9DD9236DD3F1390A28F6DCBA78C92EE6A11DBFADA7206C4A",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-gospel-candidates.csv": "DB14F4703364516FEAD9C8E84BD2A7E40F05A8ED04907AE12003A68D10D95F55",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-gospel-selections.csv": "5746A4F48B566889C537079D689469CAD77F283212B61C65C6F0DBEF3453CCBD",
+    "SimLogs/polar-repair-later-1001-repair-fits.csv": "3AA526ABCAD45D2937915A2CD543FF3F80BB0F9A55BE31D7CACF9E929FE8D853",
+    "SimLogs/polar-repair-later-1002-gospel-summary.json": "AFB4BBF0341F8ACA355C8043FC5296CE81ADBF330B9B9F4773E9344B9F26BFD2",
+    "SimLogs/polar-repair-later-1002-gospel-actors.csv": "1D9D311C04F8D31B85BDB2B7F103A853B2714434FA04159E584C873C74335984",
+    "SimLogs/polar-repair-later-1002-gospel-candidates.csv": "7C9CF6F0FA39785FB2B472D1119A029063A1DB8618C0CE416112CA671076B5CA",
+    "SimLogs/polar-repair-later-1002-gospel-selections.csv": "0FF587E8EED7F811714212C65D8CE414C86157FD9DE698E10587FE5310A850F3",
+    "SimLogs/polar-repair-later-1002-invocation.json": "7F49611D02187F1A6910C9E2B2097056DDB7B0101E750C2EC3D59D0A12975B86",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-gospel-summary.json": "76834C12B0CB83CF8B4EF28C46451EEBA4E15D344FACA163FD720146BDDFA829",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-invocation.json": "508A7409665E7FE21F69F4A71F5B8E078283EBF1A1CD7AC80E98112851F934B3",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-gospel-candidates.csv": "6AC5CF0D6F14CCC496E5BF0C113A7D7F71E8396CA50CFA0782AC9B648152ED90",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-gospel-selections.csv": "F657C848D66830D20D07FC37B66757BB9D5D82C3C0DAA156032C8B4D46097435",
+    "SimLogs/polar-repair-later-1002-repair-fits.csv": "BE4AF445D4FF18249DF7AF0371728D95AB7E2FA7AA74FE8880A243CA0362F5E4",
+    "SimLogs/polar-repertoire-final-1001-repertoire-slots.csv": "E46491F19CAB3707E78830152552DE6B29E5F902C0BD94F1A65393C8E071D583",
+    "SimLogs/polar-repertoire-final-1002-repertoire-slots.csv": "7156E7DC7A6B0443ACF0A7F34E63786AF6EF5BE1C0490BA4A5F962C5260D849C",
+    "SimLogs/polar-gospel-routes-1001-polar-checkpoint.json.gz": "4412D530DFE964125FD06661A1BEE77EE3085512C1367A49958F04C94F5998B1",
+    "SimLogs/polar-gospel-routes-1002-polar-checkpoint.json.gz": "D0E84E7893598053FECE2D8ABA30C1CF2E839642AF2B7191F04E635C393B2191",
+    "SimTools/ChartAuditRunner.PolarResearch.cs": "8249E41B5E3F1796D1E3FB858D36B1E38DECB766E92E2467B4F737FA5FCBA0D3",
+    "SimTools/run-polar-research.ps1": "8C8D51375C9C5F62ED5CAB12595589462A4059AF94B184B9C8D28A0FA6EDDA1E",
+    "SimTools/run-polar-final-audit.ps1": "BBFD7CE5F225D5344ED6AE553EF801FA2FD9688D517B76EE3276E5012E82333C",
+    "SimTools/run-polar-followup-audit.ps1": "0C99C39F232ACB9D644DF84482401C7FDEA2B45DF60C82B4DC76CC987616ABB1",
+    "SimTools/ChartAuditRunner.PolarRepertoire.cs": "BD9D317EE4FB7F038F05DAA2D3A036ADBD9B2A5F5198679B4A394CAB5945DD2C",
+    "Systems/RepertoireProvenance.cs": "18A4E1792FEA53DD4143A4408E11D27C644599EEACC168433AC747E92E15D6D6",
+    "Systems/PolarSongTable.cs": "9ABBDC449D43ADC50CEA675D88FC1676DEBA759A0A3267C1F4DE27AF8C674FF8",
+    "Systems/SimulationSeedBootstrap.cs": "A2E6D5DEB50D5041E5A561C1349145D5A2687BD9F3F5362F565FB86112939016",
+    "Data/PolarSongProfiles.cs": "15867C66C525697E38F623132254FA5610D351023E4F24D39E8601371B9A451E",
+    "Systems/PolarSongBehavior.cs": "B7E07893F72D0A1823389C1034A53B6EC6DFA551B78F01E5D0FD09F3F121D67A",
+    "SimTools/PolarGospelRepairChecks.cs": "B23B39A767DF7FA64497A391C57BFD4A81BAD17E32C81576BB9C6B63D2267B9D",
+    "SimTools/PolarGospelRepairProbe.cs": "EDE8AB5083BF898980159D882E2684239050B7440D93017F3F76BC1FCF47B644",
+    "SimTools/PolarGospelRepairProbe.tscn": "CFE7759B07BA95A8B36FFE9F02C7C5FC5D783FDBE2BAE7F0964EFEB770DF0A38",
+    "SimTools/run-polar-gospel-repair.ps1": "1FEDA3546020E9CF2235237F0FBCC6BFD725FDF03E3C9FF73878CD5F6704268B",
+    "SimTools/analyze-polar-gospel-repair.mjs": "10C9F100F54DB2208C511E1AA00BD1D9D466EFCDF8230B174CBD76D77ACBE844",
+    "SimLogs/polar-repair-build.log": "AA191E4645A46864DCD87C6EF68F8842D0157B33C7675E5943C85208C94885F7",
+    "SimLogs/polar-repair-check-final.log": "83440F7818AD5EA7EAEBECEF162883D8832B0004EDA347A1130EF93C40C1DF59",
+    "SimLogs/polar-repair-fit-check.log": "26C1DB94C1359C1AF62C089FAC868E917FB2BCC0216C451E33A57EF84045926C",
+    "SimLogs/polar-repair-behavior-check.log": "8C66ABC78EDC7B9733B31472C16B0B95BEC5C5808A815720C26BF6DFA1C9724A",
+    "SimLogs/polar-repair-infrastructure-1001-polar-research.json": "6843E5D7F6A1B2A7A07E4084B2BE9481C73FA3721583A498DFD6E9A81638DB33",
+    "SimLogs/polar-repair-infrastructure-1001-invocation.json": "E8BC266B70015A2D9EC59B41B7FB0466FC9B45A0F0108F2280B39EC88B6B9BE1",
+    "SimLogs/polar-repair-infrastructure-1001.log": "BFB8FBAD590D35F715266442648469CC529E18F68AFA31BA297B0EA6E7E2E813",
+    "SimLogs/polar-repair-infrastructure-1001-polar-checkpoint.json.gz": "8212B38D2472094F63D5C4BFB02D17DC37E6DFC7C1A2E490B2A2C1016E6EC4F6",
+    "SimLogs/polar-repair-infrastructure-1001-repertoire-admissions.csv": "E43B8223E9DA05931EA4F4178D7A0223E2DA4693390355FD14A1A37B3335126D",
+    "SimLogs/polar-repair-resume-1001-polar-research.json": "936E0E0FEC6A60CD6AEE37013D585FE41FF98C5EFDEC65E0FC415AB791336382",
+    "SimLogs/polar-repair-resume-1001-invocation.json": "89F4A7D4FA92CF2E57F00190DB67D26080C68FB1C8495552BF3EB4532E695839",
+    "SimLogs/polar-repair-resume-1001.log": "47852D6EB08A51A9E455EE43344334E60CEEA9B10CA06EBE2386C1A7AAA45B36",
+    "SimLogs/polar-repair-resume-1001-polar-checkpoint.json.gz": "E4BDE629235DE6A6105D4B981E4E3A798A9388B030A39BDCD8CCB1FC565CD875",
+    "SimLogs/polar-repair-resume-1001-repertoire-admissions.csv": "BD2C99375AE1C1D01EB91A7E3B41E82AA51DA2DD3C78E962234033F2746F1804",
+    "SimTools/write-polar-gospel-repair-report.mjs": "4AA1C2FDF776F274AC07F2F42940C30ABDF03964B4DF388C8E088E4C03226687"
+  }
+}

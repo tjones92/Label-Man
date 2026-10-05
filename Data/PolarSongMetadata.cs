@@ -14,7 +14,10 @@ public enum SongArchetype {
 	LushStandard, SaloonBallad, CharmSong, Swinger,
 	HornDrivenSoulNumber, DeepSoulPleader, FunkWorkout, SpiritualShout,
 	VerseDrivenSong, ProtestMessageSong, RagaModalDrone, SuiteMultiPart, Collage,
-	Novelty, SpokenWord, Medley, LivePartyRecord
+	Novelty, SpokenWord, Medley, LivePartyRecord,
+	CountryShuffle, CountryWaltz, WesternSwing, NashvilleBallad, BossaSong, ModernJazzInstrumental,
+	SurfInstrumental, QuietHymn, GospelQuartet, GospelChoir, LatinBolero, LatinDance, TexMexSong,
+	ClassicalOrchestral, ClassicalChamber, ClassicalSolo
 }
 public enum SongLyricMode {
 	Unknown, RomanticAddress, AdviceExhortation, InvectiveAccusation, DemandBoast,

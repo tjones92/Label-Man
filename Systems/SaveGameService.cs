@@ -611,6 +611,7 @@ public sealed class SessionCutSaveData {
 }
 
 public sealed class RepertoireSaveData {
+	public SongContentContext ContentContext { get; set; }
 	public string ReferenceMasterId { get; set; }
 	public string Title { get; set; }
 	public string SourceTag { get; set; }
@@ -624,6 +625,7 @@ public sealed class RepertoireSaveData {
 	public string RecordedId { get; set; }
 
 	public static RepertoireSaveData From(PlayerDesk.RepertoireItem r) => new() {
+		ContentContext = r.ContentContext,
 		ReferenceMasterId = r.ReferenceMasterId,
 		Title = r.Title, SourceTag = r.SourceTag, IsOriginal = r.IsOriginal, SongId = r.SongId,
 		IsCommission = r.IsCommission,
@@ -632,6 +634,7 @@ public sealed class RepertoireSaveData {
 	};
 
 	public PlayerDesk.RepertoireItem ToItem() => new() {
+		ContentContext = ContentContext,
 		ReferenceMasterId = ReferenceMasterId,
 		Title = Title, SourceTag = SourceTag, IsOriginal = IsOriginal, SongId = SongId,
 		IsCommission = IsCommission,

@@ -42,6 +42,7 @@ public static class PolarSongMetadataService {
 	}
 
 	public static void EnsureComposition(SongComposition song) {
+		CompositionShapeVariation.Ensure(song);
 		if (song == null || song.demoTaxonomy != null) return;
 		song.demoTaxonomy = new SongTaxonomy { primaryGenre = song.primaryGenre, secondaryGenre = song.secondaryGenre,
 			tags = ClassifyLegacyTags(song.genreTagIds) };
@@ -112,7 +113,9 @@ public static class PolarSongMetadataService {
 		if (!song.plasticityFrozen && first != null) FreezePlasticity(song, first.masterId,
 			SongProfileDeriver.Derive(song, first.taxonomy, table).plasticity, "first-master:" + table.Version);
 		foreach (var master in mastersBySong.GetValueOrDefault(song.songId) ?? new()) {
-			string inputs = JsonSerializer.Serialize(new { master.taxonomy, song.wordDensity, song.defaultMeter, song.defaultForm,
+			// Existing recording shapes are historical facts. H affects future resolutions only.
+			if (CompositionShapeVariation.ActiveVersion > 0 && master.cachedProfile != null) continue;
+			string inputs = JsonSerializer.Serialize(new { master.taxonomy, song.wordDensity, song.defaultMeter, song.defaultForm, song.repertoireVariation,
 				song.plasticity, song.plasticityFrozen, table.ContentFingerprint }, new JsonSerializerOptions { IncludeFields = true });
 			string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inputs)));
 			if (master.cachedProfile != null && master.profileFingerprint == fingerprint) continue;

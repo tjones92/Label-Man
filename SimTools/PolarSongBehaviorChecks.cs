@@ -31,6 +31,16 @@ public static class PolarSongBehaviorChecks {
 			PolarSongBehavior.UsePolarFitSelection = true;
 			var liveSet = new PlayerDesk.Prospect { Artist = artist };
 			PlayerDesk.Instance.BuildLiveSet(liveSet, artist, 1960, 0);
+			foreach (bool censusEnabled in new[] { false, true }) {
+				PolarSongBehavior.UsePolarFitSelection = censusEnabled;
+				GD.Seed(991);
+				uint expectedNext = GD.Randi();
+				GD.Seed(991);
+				using var censusRandom = new RandomNumberGenerator { Seed = 123 };
+				PlayerDesk.Instance.BuildLiveSet(new PlayerDesk.Prospect { Artist = artist }, artist, 1960, 0, censusRandom);
+				Check(GD.Randi() == expectedNext, "census leaves global RNG intact enabled=" + censusEnabled);
+			}
+			PolarSongBehavior.UsePolarFitSelection = true;
 			Check(liveSet.LiveSet.Count >= 3 && liveSet.LiveSet.Count <= 5 && liveSet.LiveSet.Select(s => s.SongId).Distinct().Count() == liveSet.LiveSet.Count,
 				"actual player live set retains length and distinct covers");
 			var material = SongMaterialSelectionService.BuildCoverForSong(artist, record, lush, Genre.RockAndRoll, 1960, reference.masterId);

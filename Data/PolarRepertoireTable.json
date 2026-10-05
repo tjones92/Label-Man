@@ -1,0 +1,1231 @@
+{
+  "version": 1,
+  "provenance": "Provisional, unsigned authoring under the polar repertoire directive. Historical bands are judgment-based reporting targets, not measured rates. October 2026 Gospel live inherited target 65-70% is user-authorized game calibration, not an empirically established historical rate. October 2026 Folk era set targets and Easy Listening midpoint weights are user-supplied game calibration. Easy Listening midpoints are normalized with user approval; targets are source probabilities across observations, not per-set quotas. An authored 50% instrumental Easy Listening formation cohort makes the rare original share available; this is a game design choice, not a historical measurement.",
+  "numbers": {
+    "demandVariation": 0.025,
+    "identityVariation": 0.02,
+    "exactAccess": 0.22,
+    "secondaryAccess": 0.08,
+    "familyAccess": 0.035,
+    "crossSceneAccess": 0.015,
+    "preferenceDrift": 0.005,
+    "genrePreferenceWeight": 0.08,
+    "hookPreference": 0.06,
+    "familiarityPreference": 0.08,
+    "suitabilityWindow": 0.025,
+    "balladBalance": 0.05,
+    "writingFloor": 0.15,
+    "exceptionalWriter": 0.85,
+    "composerLedCutoff": 0.65,
+    "establishmentAge": 15,
+    "establishmentDurability": 0.5
+  },
+  "assignments": {
+    "Tin Pan Alley": [
+      {
+        "archetype": "LushStandard",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SaloonBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CharmSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "Swinger",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Christmas Standard": [
+      {
+        "archetype": "QuietHymn",
+        "weight": 1,
+        "lyric": "AdviceExhortation",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Sacred"
+      },
+      {
+        "archetype": "CharmSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SingAlongChant",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Jazz Standard": [
+      {
+        "archetype": "Swinger",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SaloonBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CharmSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ModernJazzInstrumental",
+        "weight": 1,
+        "lyric": "Instrumental",
+        "vocalPresence": "Instrumental",
+        "density": 0,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "LushStandard",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Country Standard": [
+      {
+        "archetype": "CountryTwoBeat",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CountryShuffle",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "Shuffle",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CountryWaltz",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "ThreeFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "WesternSwing",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "VerseDrivenSong",
+        "weight": 1,
+        "lyric": "Narrative",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "NashvilleBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Blues Standard": [
+      {
+        "archetype": "ShuffleTwelveBar",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "TwelveBar",
+        "meter": "Shuffle",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBlues",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "TwelveBar",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "GrooveRiffVamp",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Gospel Standard": [
+      {
+        "archetype": "QuietHymn",
+        "weight": 1,
+        "lyric": "AdviceExhortation",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Sacred"
+      },
+      {
+        "archetype": "GospelQuartet",
+        "weight": 1,
+        "lyric": "AdviceExhortation",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Sacred"
+      },
+      {
+        "archetype": "GospelChoir",
+        "weight": 1,
+        "lyric": "AdviceExhortation",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Sacred"
+      },
+      {
+        "archetype": "SpiritualShout",
+        "weight": 1,
+        "lyric": "AdviceExhortation",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Sacred"
+      }
+    ],
+    "Folk Traditional": [
+      {
+        "archetype": "VerseDrivenSong",
+        "weight": 1,
+        "lyric": "Narrative",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ProtestMessageSong",
+        "weight": 1,
+        "lyric": "TopicalTestimony",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "R&B Catalog": [
+      {
+        "archetype": "ShuffleTwelveBar",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "TwelveBar",
+        "meter": "Shuffle",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBlues",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "TwelveBar",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "GrooveRiffVamp",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "HornDrivenSoulNumber",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "DeepSoulPleader",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Recent RnR Hit": [
+      {
+        "archetype": "StomperRocker",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "MidTempoRocker",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ShuffleTwelveBar",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "TwelveBar",
+        "meter": "Shuffle",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Recent R&B Hit": [
+      {
+        "archetype": "HornDrivenSoulNumber",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "DeepSoulPleader",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "GrooveRiffVamp",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ShuffleTwelveBar",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "TwelveBar",
+        "meter": "Shuffle",
+        "context": "Secular"
+      }
+    ],
+    "Recent Pop Hit": [
+      {
+        "archetype": "BrightPopNumber",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "MidTempoPopSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CharmSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Recent Teen Hit": [
+      {
+        "archetype": "BrightPopNumber",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "MidTempoPopSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "DanceNumber",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Recent DooWop Hit": [
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SingAlongChant",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "MidTempoPopSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Recent Country Hit": [
+      {
+        "archetype": "CountryTwoBeat",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CountryShuffle",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "Shuffle",
+        "context": "Secular"
+      },
+      {
+        "archetype": "NashvilleBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CountryWaltz",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "ThreeFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "VerseDrivenSong",
+        "weight": 1,
+        "lyric": "Narrative",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Latin songbook": [
+      {
+        "archetype": "LatinBolero",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "LatinDance",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "TexMex songbook": [
+      {
+        "archetype": "TexMexSong",
+        "weight": 1,
+        "lyric": "Narrative",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "LatinBolero",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Classical works": [
+      {
+        "archetype": "ClassicalOrchestral",
+        "weight": 1,
+        "lyric": "Instrumental",
+        "vocalPresence": "Instrumental",
+        "density": 0,
+        "form": "ThroughComposed",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ClassicalChamber",
+        "weight": 1,
+        "lyric": "Instrumental",
+        "vocalPresence": "Instrumental",
+        "density": 0,
+        "form": "ThroughComposed",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ClassicalSolo",
+        "weight": 1,
+        "lyric": "Instrumental",
+        "vocalPresence": "Instrumental",
+        "density": 0,
+        "form": "ThroughComposed",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Comedy routines": [
+      {
+        "archetype": "Novelty",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SpokenWord",
+        "weight": 1,
+        "lyric": "McPatterFrame",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "JauntyMusicHallRomp",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Children songs": [
+      {
+        "archetype": "SingAlongChant",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "Novelty",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CharmSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Brazilian songbook": [
+      {
+        "archetype": "LatinBolero",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CharmSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "BossaSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Contemporary folk": [
+      {
+        "archetype": "VerseDrivenSong",
+        "weight": 1,
+        "lyric": "Narrative",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ProtestMessageSong",
+        "weight": 1,
+        "lyric": "TopicalTestimony",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Surf adaptations": [
+      {
+        "archetype": "SurfInstrumental",
+        "weight": 1,
+        "lyric": "Instrumental",
+        "vocalPresence": "Instrumental",
+        "density": 0,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "GrooveRiffVamp",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Folk Standards": [
+      {
+        "archetype": "VerseDrivenSong",
+        "weight": 1,
+        "lyric": "Narrative",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ProtestMessageSong",
+        "weight": 1,
+        "lyric": "TopicalTestimony",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Easy traditional": [
+      {
+        "archetype": "VerseDrivenSong",
+        "weight": 1,
+        "lyric": "Narrative",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Strophic",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "ProtestMessageSong",
+        "weight": 1,
+        "lyric": "TopicalTestimony",
+        "vocalPresence": "Present",
+        "density": 0.65,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Stage and film songs": [
+      {
+        "archetype": "LushStandard",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SaloonBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "CharmSong",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "Swinger",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      },
+      {
+        "archetype": "SlowBallad",
+        "weight": 1,
+        "lyric": "RomanticAddress",
+        "vocalPresence": "Present",
+        "density": 0.4,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ],
+    "Screen instrumental": [
+      {
+        "archetype": "ReverieMoodPiece",
+        "weight": 1,
+        "lyric": "Instrumental",
+        "vocalPresence": "Instrumental",
+        "density": 0,
+        "form": "Aaba",
+        "meter": "FourFour",
+        "context": "Secular"
+      }
+    ]
+  },
+  "bands": [
+    {
+      "genre": "BossaNova",
+      "cohort": "olderSongbook",
+      "min": 15,
+      "max": 40
+    },
+    {
+      "genre": "ContemporaryFolk",
+      "cohort": "contemporaryInterpreter",
+      "min": 10,
+      "max": 35
+    },
+    {
+      "genre": "Country",
+      "cohort": "mixedContemporary",
+      "min": 20,
+      "max": 50
+    },
+    {
+      "genre": "Folk",
+      "cohort": "traditionalRevival",
+      "min": 50,
+      "max": 90
+    },
+    {
+      "genre": "Gospel",
+      "cohort": "inheritedRepertoire",
+      "min": 65,
+      "max": 70
+    },
+    {
+      "genre": "Jazz",
+      "cohort": "standardsInterpreter",
+      "min": 60,
+      "max": 90
+    },
+    {
+      "genre": "Jazz",
+      "cohort": "composerLed",
+      "min": 10,
+      "max": 50
+    },
+    {
+      "genre": "RnB",
+      "cohort": "mixedContemporary",
+      "min": 5,
+      "max": 25
+    },
+    {
+      "genre": "SurfRock",
+      "cohort": "vocal",
+      "min": 0,
+      "max": 10
+    },
+    {
+      "genre": "SurfRock",
+      "cohort": "instrumentalAdaptation",
+      "min": 5,
+      "max": 25
+    },
+    {
+      "genre": "EasyListening",
+      "cohort": "standardsLed",
+      "min": 50,
+      "max": 85
+    }
+  ],
+  "supply": [
+    {
+      "family": "Latin songbook",
+      "genre": "LatinPop",
+      "secondary": "TexMex",
+      "count": 100,
+      "fromYear": 1920,
+      "toYear": 1963,
+      "traditional": false
+    },
+    {
+      "family": "TexMex songbook",
+      "genre": "TexMex",
+      "secondary": "LatinPop",
+      "count": 100,
+      "fromYear": 1900,
+      "toYear": 1963,
+      "traditional": false
+    },
+    {
+      "family": "Classical works",
+      "genre": "Classical",
+      "secondary": "Classical",
+      "count": 120,
+      "fromYear": 1750,
+      "toYear": 1959,
+      "traditional": false
+    },
+    {
+      "family": "Comedy routines",
+      "genre": "Comedy",
+      "secondary": "Comedy",
+      "count": 60,
+      "fromYear": 1940,
+      "toYear": 1963,
+      "traditional": false
+    },
+    {
+      "family": "Children songs",
+      "genre": "Childrens",
+      "secondary": "Childrens",
+      "count": 80,
+      "fromYear": 1900,
+      "toYear": 1963,
+      "traditional": true
+    },
+    {
+      "family": "Brazilian songbook",
+      "genre": "BossaNova",
+      "secondary": "LatinPop",
+      "count": 140,
+      "fromYear": 1930,
+      "toYear": 1963,
+      "traditional": false
+    },
+    {
+      "family": "Contemporary folk",
+      "genre": "ContemporaryFolk",
+      "secondary": "Folk",
+      "count": 140,
+      "fromYear": 1958,
+      "toYear": 1963,
+      "traditional": false
+    },
+    {
+      "family": "Surf adaptations",
+      "genre": "SurfRock",
+      "secondary": "RockAndRoll",
+      "count": 60,
+      "fromYear": 1958,
+      "toYear": 1963,
+      "traditional": false
+    },
+    {
+      "family": "Folk Standards",
+      "genre": "Folk",
+      "secondary": "ContemporaryFolk",
+      "count": 240,
+      "fromYear": 1920,
+      "toYear": 1959,
+      "traditional": false,
+      "establishedYear": 1960
+    },
+    {
+      "family": "Easy traditional",
+      "genre": "EasyListening",
+      "secondary": "TraditionalPop",
+      "count": 100,
+      "fromYear": 1850,
+      "toYear": 1919,
+      "traditional": true
+    }
+  ],
+  "genreAffinities": {
+    "Gospel": {
+      "sacredLiveOnly": true,
+      "actSpread": 0.1,
+      "inheritedLiveShare": 0.77
+    }
+  },
+  "liveSetMixes": {
+    "Folk": [
+      {
+        "fromYear": 1960,
+        "toYear": 1961,
+        "traditional": 60,
+        "standards": 25,
+        "contemporary": 10,
+        "originals": 5,
+        "standardFromYear": 1920,
+        "standardToYear": 1959
+      },
+      {
+        "fromYear": 1962,
+        "traditional": 40,
+        "standards": 15,
+        "contemporary": 25,
+        "originals": 20,
+        "standardFromYear": 1920,
+        "standardToYear": 1959
+      }
+    ],
+    "ContemporaryFolk": [
+      {
+        "fromYear": 1960,
+        "toYear": 1961,
+        "traditional": 60,
+        "standards": 25,
+        "contemporary": 10,
+        "originals": 5,
+        "standardFromYear": 1920,
+        "standardToYear": 1959
+      },
+      {
+        "fromYear": 1962,
+        "traditional": 40,
+        "standards": 15,
+        "contemporary": 25,
+        "originals": 20,
+        "standardFromYear": 1920,
+        "standardToYear": 1959
+      }
+    ],
+    "EasyListening": [
+      {
+        "fromYear": 1960,
+        "traditional": 3.5,
+        "standards": 57.5,
+        "contemporary": 27.5,
+        "originals": 2,
+        "standardToYear": 1954,
+        "instrumentalOriginalsOnly": true,
+        "instrumentalActShare": 0.5
+      }
+    ]
+  }
+}

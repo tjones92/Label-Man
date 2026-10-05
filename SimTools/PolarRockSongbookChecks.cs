@@ -26,9 +26,10 @@ public static class PolarRockSongbookChecks {
 			int liveRare = 0, liveTotal = 0, albumRare = 0, albumTotal = 0, albumsWithExceptions = 0;
 			for (int i = 0; i < 512; i++) {
 				actor.artistId = "rock-songbook-fixture-" + i;
+				actor.repertoireState = null; // Each fixture ID represents a different act.
 				var set = SongMaterialSelectionService.SelectLiveCovers(pool, actor, 1960, 3);
 				Check(set.Count == 3 && set.Select(s => s.songId).Distinct().Count() == 3, "live cover count preserved without duplicate songs");
-				liveTotal += set.Count; liveRare += set.Count(s => s.isStandard || s.isTraditional || s.isPublicDomain);
+				liveTotal += set.Count; liveRare += set.Count(s => s.EstablishedAsOf(1960) || s.isTraditional);
 				var plan = AlbumMaterialPlanner.Plan(Genre.RockAndRoll, 1960, .3f, 12, actor.artistId, "probe-lp-" + i);
 				Check(plan.TotalPlanned == 12, "exact album slot count preserved");
 				albumTotal += plan.TotalPlanned; albumRare += plan.Standards + plan.Traditional;

@@ -355,6 +355,7 @@ public partial class ChartAuditRunner : Node {
 	public override void _Ready() {
 		try {
 			ParseArguments();
+			ConfigurePolarResearch();
 			if (catastrophicFailFast || catastrophicControlPreflight) LoadCatastrophicFailFastControl();
 			if (catastrophicControlPreflight) {
 				WriteCatastrophicControlPreflight();
@@ -367,6 +368,7 @@ public partial class ChartAuditRunner : Node {
 			}
 
 			if (requestedSeed.HasValue) GD.Seed(requestedSeed.Value);
+			LoadPolarCheckpoint();
 			if (disableLabelLifecycle) LabelLifecycleManager.Instance?.SetProcessingEnabled(false);
 			if (disableDistributionDeals) CompetitorManager.Instance.SetDistributionOfferProcessingEnabled(false);
 			if (disableAlbums) CompetitorManager.Instance.SetAlbumsEnabled(false);
@@ -382,6 +384,7 @@ public partial class ChartAuditRunner : Node {
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
+			OpenPolarFinalAudit();
 			if (ArtistPopulationLifecycle.Enabled && ArtistManager.Instance != null) ArtistManager.Instance.OnPopulationEvent += WriteArtistPopulationEvent;
 			if (ArtistPopulationLifecycle.Enabled && LabelLifecycleManager.Instance != null) {
 				LabelLifecycleManager.Instance.OnOperatingRosterTargetChanged += WriteOperatingRosterTargetEvent;
@@ -410,9 +413,12 @@ public partial class ChartAuditRunner : Node {
 			ChartManager.Instance.OnRecordRetired += OnRecordRetired;
 			ChartManager.Instance.OnWeekSettlement += OnWeekSettlement;
 			InitializeObservedState();
+			CaptureDirective2Week();
+			CapturePolarCensus();
 
 			var annualWallTime = Stopwatch.StartNew();
 		for (int week = 1; week <= requestedWeeks; week++) {
+			CheckPolarResearchStop();
 			currentAuditWeek = week;
 			AdvanceOneChartWeek();
 			// The live tick has completed; run the idempotent roster ownership sweep
@@ -420,6 +426,8 @@ public partial class ChartAuditRunner : Node {
 			RosterManager.Instance?.ReconcileEnabledLifecycleForCurrentWeek();
 			long captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
+				CapturePolarFinalWeek(week);
+				CapturePolarCensus();
 				polarSongShadow?.ObserveCompletedWeek(ChartManager.Instance.GetCurrentChart(), ChartManager.Instance.GetCurrentChartWeek());
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
 				ValidateEmergentSigningFloor();
@@ -428,6 +436,10 @@ public partial class ChartAuditRunner : Node {
 					FlushAnnualStreams();
 					annualWallTime.Restart();
 				}
+			}
+			if (OS.GetCmdlineUserArgs().Contains("--polar-final-audit") && requestedWeeks == 521) {
+				while (TimeManager.Instance.CurrentDate < GameDate.EndDate) TimeManager.Instance.DebugAdvanceDay();
+				GD.Print($"POLAR_FINAL_DATE date={TimeManager.Instance.CurrentDate.ToShortString()} enabled={PolarSongBehavior.UsePolarFitSelection}");
 			}
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
@@ -444,9 +456,18 @@ public partial class ChartAuditRunner : Node {
 			WritePublishingLedger();
 			if (forceDistributionDeal) ValidateForcedDistributionDeal();
 
+			FlushPolarResearch();
+			SavePolarCheckpoint("complete");
 			FlushAndClose();
 			if (scoutingReport) WriteScoutingReport();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
+			GetTree().Quit(0);
+		} catch (PolarResearchStop exception) {
+			FlushPolarResearch();
+			WritePolarResearchManifest();
+			SavePolarCheckpoint("stopped-" + exception.Message);
+			FlushAndClose();
+			GD.Print($"CHART_AUDIT_STOPPED run={runName} completedWeeks={currentAuditWeek} reason={exception.Message}");
 			GetTree().Quit(0);
 		} catch (CatastrophicAbortException exception) {
 			catastrophicAbortIssued = true;
@@ -3797,6 +3818,7 @@ public partial class ChartAuditRunner : Node {
 	}
 
 	private void FlushAndClose() {
+		ClosePolarFinalAudit();
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
 			ChartManager.Instance.OnWeekSettlement -= OnWeekSettlement;
