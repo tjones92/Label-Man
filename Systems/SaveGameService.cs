@@ -389,6 +389,7 @@ public sealed class PlayerSaveData {
 public sealed class ProspectNotebookSaveData {
 	public SimulatedArtist Artist { get; set; }
 	public int Venue { get; set; }
+	public string CityId { get; set; }
 	public int Year { get; set; }
 	public int Month { get; set; }
 	public int Day { get; set; }

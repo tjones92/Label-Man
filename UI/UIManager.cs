@@ -18,6 +18,7 @@ public partial class UIManager : Control
 	private PlayerDeskPanel deskPanel;
 	private Button deskButton;
 	private PanelContainer mainHud;
+	private RecordJacketWidget recordJacket;
 	private Label hudDateCash, hudTicker;
 	private Control morningPaper;
 	private Label paperDate, paperHeading;
@@ -107,11 +108,25 @@ public partial class UIManager : Control
 		stack.AddChild(hudTicker);
 		mainHud.AddChild(stack);
 		AddChild(mainHud);
+
+		// The record jacket mirrors the OPEN THE OFFICE button from the opposite corner.
+		recordJacket = new RecordJacketWidget { ZIndex = 10 };
+		recordJacket.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+		recordJacket.OffsetLeft = -(40 + RecordJacketWidget.JacketWidth);
+		recordJacket.OffsetRight = -40;
+		recordJacket.OffsetTop = 40;
+		recordJacket.GrowHorizontal = Control.GrowDirection.Begin;
+		recordJacket.Clicked += () => OpenOfficeAt("CATALOG");
+		AddChild(recordJacket);
 	}
 
 	private void UpdateMainHud() {
 		if (hudDateCash == null) return;
 		mainHud.Visible = !isUIOpen;
+		if (recordJacket != null) {
+			recordJacket.Refresh(PlayerDesk.Instance);
+			if (isUIOpen) recordJacket.Visible = false;
+		}
 		foreach (Button prop in deskProps) prop.Visible = !isUIOpen;
 		if (billboardButton != null) billboardButton.Visible = !isUIOpen;
 		TimeManager time = TimeManager.Instance;

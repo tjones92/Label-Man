@@ -202,6 +202,9 @@ public partial class PlayerDesk : Node {
 		public float AskingAdvance;
 		public string Note;
 		public ScoutingVenue Venue;
+		/// <summary>The town the act was found in -- it sets what they ask (see <see cref="CityProfile.AskScale"/>) and how
+		/// hard rivals in that town circle them. Empty means the home office's town.</summary>
+		public string CityId;
 		/// <summary>The act's full live set. Only <see cref="HeardCount"/> of it is visible until follow-up.</summary>
 		public readonly List<RepertoireItem> LiveSet = new();
 		/// <summary>How many songs the player actually caught on the night, before a second look.</summary>
@@ -231,6 +234,7 @@ public partial class PlayerDesk : Node {
 		public float ReadConfidence;
 		public float AskingAdvance;
 		public string Note;
+		public string CityId;
 		public int HeardCount;
 		public bool FollowedUp;
 		public GameDate? LastRivalInterestDate;
@@ -1161,10 +1165,14 @@ public partial class PlayerDesk : Node {
 	/// manager multiplies on top, which is why a Shark on a bar band is still a tell. Rounded to a
 	/// number a period contract would actually carry.
 	/// </summary>
-	private static float VenueAdvanceAsk(SimulatedArtist artist, ScoutingVenue venue) {
+	/// <summary>What the town's acts ask relative to the national going rate. An unrecorded town is the home office's.</summary>
+	private float AskScaleFor(string cityId) =>
+		CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label?.homeCityId : cityId).AskScale;
+
+	private static float VenueAdvanceAsk(SimulatedArtist artist, ScoutingVenue venue, float marketScale = 1f) {
 		float talent = 0.5f + (artist.CalculateBaseQuality() * 1.5f);          // 0.5x .. 2.0x
 		float standing = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
-		float ask = VenueAdvanceBase(venue) * talent * standing
+		float ask = VenueAdvanceBase(venue) * talent * standing * marketScale
 			* ManagerProfile.Of(artist.manager).AdvanceDemandMult;
 		return RoundToContractFigure(ask);
 	}
@@ -1283,7 +1291,8 @@ public partial class PlayerDesk : Node {
 				Venue = venue,
 				ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0),
 				ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0f, 1f),
-				AskingAdvance = VenueAdvanceAsk(artist, venue),
+				CityId = CurrentCityId,
+				AskingAdvance = VenueAdvanceAsk(artist, venue, AskScaleFor(CurrentCityId)),
 				Note = DescribeProspect(artist, Label, noise)
 			};
 			BuildLiveSet(prospect, artist, year, noise);
@@ -1363,7 +1372,7 @@ public partial class PlayerDesk : Node {
 		if (notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) { message = "Already in your notebook."; return false; }
 		if (notebook.Count >= 6) { message = "The notebook is full. Remove an act before adding another."; return false; }
 		var entry = new WatchNote {
-			Artist = prospect.Artist, Venue = prospect.Venue,
+			Artist = prospect.Artist, Venue = prospect.Venue, CityId = prospect.CityId,
 			LastSeen = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate,
 			ReadQuality = prospect.ReadQuality, ReadConfidence = prospect.ReadConfidence,
 			AskingAdvance = prospect.AskingAdvance, Note = prospect.Note,
@@ -1398,7 +1407,7 @@ public partial class PlayerDesk : Node {
 			Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) / 4));
 		float readQuality = Mathf.Lerp(entry.ReadQuality, freshRead, Mathf.Clamp(staleDays / 120f, 0f, 0.55f));
 		var prospect = new Prospect {
-			Artist = entry.Artist, Venue = entry.Venue, ReadQuality = readQuality,
+			Artist = entry.Artist, Venue = entry.Venue, CityId = entry.CityId, ReadQuality = readQuality,
 			ReadConfidence = confidence, AskingAdvance = entry.AskingAdvance,
 			Note = DescribeProspect(entry.Artist, Label, Mathf.Lerp(0.30f, 0.10f, confidence)),
 			HeardCount = Mathf.Min(entry.HeardCount, entry.LiveSet.Count), FollowedUp = false
@@ -1689,7 +1698,7 @@ public partial class PlayerDesk : Node {
 		// The term sheet's own advance is the AI's tier-priced offer; for the player the ROOM sets the
 		// band, so the ask the player already saw on the pad is the number that opens the table. Keeping
 		// them the same figure is what makes the ask an anchor you can negotiate against.
-		prospect.AskingAdvance = VenueAdvanceAsk(prospect.Artist, prospect.Venue);
+		prospect.AskingAdvance = VenueAdvanceAsk(prospect.Artist, prospect.Venue, AskScaleFor(prospect.CityId));
 		float royalty = VenueRoyaltyBaseline(prospect.Artist, prospect.Venue);
 		int singles = PlayerDeliverablesAsk(prospect.Artist, t.TermYears, year);
 		prospect.Baseline = new ContractTermSheet(prospect.AskingAdvance, royalty, t.TermYears,
@@ -2043,16 +2052,22 @@ public partial class PlayerDesk : Node {
 	};
 
 	/// <summary>0 (weak local studios) .. 1 (a signature-sound town), from the region's music industry.</summary>
-	private float StudioQualityT() {
-		MarketRegion region = ChartManager.Instance?.GetRegionById(Label?.homeRegion);
+	private float StudioQualityT() => StudioQualityIn(Label?.homeCityId, Label?.homeRegion);
+
+	/// <summary>A town's studio quality (<see cref="CityProfile.Studio"/>; the region's rooms for an unauthored town).
+	/// Static so the founding screen can quote a town before it is chosen.</summary>
+	public static float StudioQualityIn(string cityId, string regionId) {
+		MarketRegion region = ChartManager.Instance?.GetRegionById(regionId);
 		float mod = region != null ? ChartSimulator.GetStudioQualityModifier(region) : 0.7f;
-		return Mathf.Clamp((mod - 0.5f) / 0.65f, 0f, 1f);
+		return CityProfiles.StudioQuality(cityId, Mathf.Clamp((mod - 0.5f) / 0.65f, 0f, 1f));
 	}
 
-	public float StudioHourlyRate(StudioTier tier) {
+	public static float StudioHourlyRateIn(string cityId, string regionId, StudioTier tier) {
 		(float low, float high) = StudioRateRange(tier);
-		return Mathf.Round(Mathf.Lerp(low, high, StudioQualityT()));
+		return Mathf.Round(Mathf.Lerp(low, high, StudioQualityIn(cityId, regionId)));
 	}
+
+	public float StudioHourlyRate(StudioTier tier) => StudioHourlyRateIn(Label?.homeCityId, Label?.homeRegion, tier);
 
 	public float SessionCost(StudioTier tier, int hours) =>
 		StudioHourlyRate(tier) * Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
@@ -3960,6 +3975,46 @@ public partial class PlayerDesk : Node {
 	/// <summary>Singles that have been assembled but not yet given a release date -- ready to press and date.</summary>
 	public IEnumerable<PlannedRelease> UndatedSingles() => planned.Where(single => !single.Dated);
 
+	/// <summary>Daily chance, in a town with Crowding 1.0, that a rival record man gets to an act you have
+	/// been looking at before you do. A trade town (<see cref="CityProfile.Crowding"/> ~2.4) loses roughly
+	/// one in five acts a week; a quiet one (~0.3) hardly ever.</summary>
+	private const float RivalCrowdingDailyBase = 0.012f;
+
+	/// <summary>
+	/// The crowded-rooms cost of a big market: every unsigned act on the pad or in the notebook runs the
+	/// risk that somebody else in the same scene signs them first, in proportion to how many record men
+	/// work that town. The roll is a stable hash, not a random draw, so it never touches the global RNG
+	/// stream; the signing itself goes through <see cref="RosterManager.TrySignAsRivalToPlayer"/>.
+	/// </summary>
+	private void ProcessRivalCrowding(GameDate date) {
+		if (RosterManager.Instance == null) return;
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen)>();
+		foreach (Prospect prospect in slate) {
+			if (prospect?.Artist != null) watched.Add((prospect.Artist, prospect.CityId, SlateDate));
+		}
+		foreach (WatchNote entry in notebook) {
+			if (entry?.Artist != null) watched.Add((entry.Artist, entry.CityId, entry.LastSeen));
+		}
+		foreach ((SimulatedArtist artist, string cityId, GameDate seenOn) in watched) {
+			if (!string.IsNullOrEmpty(artist.labelId) || !seen.Add(artist.artistId)) continue;
+			if (seenOn >= date) continue; // you only just heard them; give the room a night first
+			float crowding = CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label.homeCityId : cityId).Crowding;
+			float roll = StableUnit($"{seed}|{artist.artistId}|{date.year}-{date.month}-{date.day}|CityCrowding");
+			if (roll >= RivalCrowdingDailyBase * crowding) continue;
+			AILabel rival = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date);
+			if (rival != null) Note($"{rival.labelName} signed {artist.stageName} before you could get to them.");
+		}
+	}
+
+	/// <summary>A stable value in [0, 1) from a key -- FNV-1a, so the same (seed, act, day) always rolls the same.</summary>
+	private static float StableUnit(string key) {
+		ulong hash = 14695981039346656037UL;
+		foreach (char value in key) { hash ^= value; hash *= 1099511628211UL; }
+		return (hash >> 40) * (1f / 16777216f);
+	}
+
 	private void OnDayStarted(GameDate date) {
 		// You are not still holding a man on the line at nine the next morning.
 		ActiveCall = null;
@@ -3968,6 +4023,7 @@ public partial class PlayerDesk : Node {
 			return;
 		}
 		ChargeHotelIfAway();
+		ProcessRivalCrowding(date);
 		DeliverArrivedPressings(date);
 		ProcessCoverRehearsals(date);
 		foreach (PlannedRelease release in planned.Where(entry => entry.Dated && entry.Date <= date).ToList()) {
@@ -5155,7 +5211,7 @@ public partial class PlayerDesk : Node {
 			MorningDigest = MorningDigest,
 			UnreadLogCount = UnreadLogCount,
 			Notebook = notebook.Select(entry => new ProspectNotebookSaveData {
-				Artist = entry.Artist, Venue = (int)entry.Venue,
+				Artist = entry.Artist, Venue = (int)entry.Venue, CityId = entry.CityId,
 				Year = entry.LastSeen.year, Month = entry.LastSeen.month, Day = entry.LastSeen.day,
 				ReadQuality = entry.ReadQuality, ReadConfidence = entry.ReadConfidence,
 				AskingAdvance = entry.AskingAdvance, Note = entry.Note,
@@ -5398,6 +5454,7 @@ public partial class PlayerDesk : Node {
 			var entry = new WatchNote {
 				Artist = artist,
 				Venue = Enum.IsDefined(typeof(ScoutingVenue), saved.Venue) ? (ScoutingVenue)saved.Venue : ScoutingVenue.ClubsAndRoadhouses,
+				CityId = saved.CityId,
 				LastSeen = new GameDate(saved.Year, saved.Month, saved.Day),
 				ReadQuality = saved.ReadQuality, ReadConfidence = saved.ReadConfidence,
 				AskingAdvance = saved.AskingAdvance, Note = saved.Note,

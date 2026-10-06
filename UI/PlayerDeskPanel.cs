@@ -169,6 +169,9 @@ public partial class PlayerDeskPanel : Control {
 		nextUpLabel.CustomMinimumSize = new Vector2(0, 30);
 		nextUpLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 		nextUpLabel.Alignment = HorizontalAlignment.Left;
+		// A long hint trims with an ellipsis (full text in the tooltip) instead of stretching the folder.
+		nextUpLabel.ClipText = true;
+		nextUpLabel.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
 		nextUpLabel.TooltipText = "Open the department for the next suggested step.";
 		nextUpLabel.AddThemeStyleboxOverride("normal", new StyleBoxFlat {
 			BgColor = new Color("ead8ad"), BorderColor = new Color("8a7048"),
@@ -463,48 +466,80 @@ public partial class PlayerDeskPanel : Control {
 		}
 	}
 
-	private static string NextUpHint(PlayerDesk desk) {
-		if (desk.Session != null) return "Choose takes and print the masters.";
-		if (desk.Masters.Any(master => !master.Scheduled && !master.Released)) return "Assemble a single from the masters on your shelf.";
+	/// <summary>
+	/// The next suggested step and the tab that does it. The strip only speaks up about money when the step it
+	/// names is out of reach -- an affordable step stays a plain instruction -- and then it names what the desk can
+	/// still do for free, so a short purse points at work instead of repeating the same bill for weeks.
+	/// </summary>
+	private static (string Text, int Tab) NextUpStep(PlayerDesk desk) {
+		AILabel label = desk.Label;
+		if (desk.Session != null) return ("Choose takes and print the masters.", 1);
+		if (desk.Masters.Any(master => !master.Scheduled && !master.Released))
+			return ("Assemble a single from the masters on your shelf.", DistributionTab);
 		if (desk.Planned.Any(single => !single.Dated)) {
 			PlayerDesk.PlannedRelease waiting = desk.Planned.First(single => !single.Dated);
 			PlayerDesk.PressOrder order = desk.PressingOrderFor(waiting.Master.Record.recordId);
-			if (order != null) return $"Set the release date; the plant run lands {order.Arrives.ToHeadlineString()}.";
+			if (order != null) return ($"Set the release date; the plant run lands {order.Arrives.ToHeadlineString()}.", DistributionTab);
 			if ((desk.StockFor(waiting.Master.Record.recordId)?.Remaining ?? 0) > 0)
-				return "Set the release date; pressed stock is already in the office.";
+				return ("Set the release date; pressed stock is already in the office.", DistributionTab);
 			int minimum = desk.MinimumPressRun(waiting.Master.Record.recordId);
 			float cost = PlayerDesk.PressingCost(minimum, desk.HasBeenPressed(waiting.Master.Record.recordId));
-			return desk.Label.cashReserves < cost
-				? $"The first run costs ${cost:N0}; you're ${cost - desk.Label.cashReserves:N0} short. Collect money or sell stock while you build cash."
-				: "Order a pressing for the assembled single.";
+			if (label.cashReserves >= cost)
+				return ($"Order a pressing for the assembled single (${cost:N0}, leaves {Money(label.cashReserves - cost)}).", DistributionTab);
+			return ($"A pressing is ${cost:N0}; you have {Money(label.cashReserves)}. " +
+				$"{NextBillNote(desk)} {WhileYouWait(desk)}", WaitingTab(desk));
 		}
 		if (desk.ReleasedRecords.Any(record => (desk.StockFor(record.baseRecord.recordId)?.Remaining ?? 0) > 0))
-			return desk.AtHome ? "Take sellable stock to a town and work an account." : "Work an account in this town or drive back to the office.";
+			return (desk.AtHome ? "Take sellable stock to a town and work an account." : "Work an account in this town or drive back to the office.", DistributionTab);
 		if (desk.PendingPressings().Any()) {
 			var incoming = desk.PendingPressings().OrderBy(item => item.Arrives).First();
-			return $"Pressing on the way: {incoming.Quantity:N0} of \"{incoming.Title}\" due {incoming.Arrives.ToHeadlineString()}. Scout or work accounts while you wait.";
+			return ($"Pressing on the way: {incoming.Quantity:N0} of \"{incoming.Title}\" due {incoming.Arrives.ToHeadlineString()}. {WhileYouWait(desk)}", WaitingTab(desk));
 		}
-		if (desk.Label.cashReserves < 0f) return "Cash is tight. Collect receivables, sell from the trunk, or check the red-ink recovery options.";
-		if (desk.Label.CurrentRosterSize == 0) return "Hear an act and add one to the A&R notebook.";
-		if (desk.Label.roster.Any(artist => desk.RepertoireFor(artist.artistId).Any(item => !item.Recorded))) return "Manage an act to choose material and cut a record.";
-		if (desk.Label.CurrentRosterSize < desk.Label.maxRosterSize) return "Scout an act or review the latest office news.";
-		return "Check the ledger and stock outlook, or plan the next record.";
+		if (label.cashReserves < 0f) return ("Cash is tight. Collect receivables, sell from the trunk, or check the red-ink recovery options.", 4);
+		if (label.CurrentRosterSize == 0) return ("Hear an act and add one to the A&R notebook.", 0);
+		if (label.roster.Any(artist => desk.RepertoireFor(artist.artistId).Any(item => !item.Recorded)))
+			return ("Manage an act to choose material and cut a record.", 1);
+		if (label.CurrentRosterSize < label.maxRosterSize) return ("Scout an act or review the latest office news.", 0);
+		return ("Check the ledger and stock outlook, or plan the next record.", 1);
+	}
+
+	private static string NextUpHint(PlayerDesk desk) => NextUpStep(desk).Text;
+
+	/// <summary>Where "waiting on money or the plant" work happens: the phones if they can still land a name,
+	/// otherwise the roster, where songs get written and covers taught.</summary>
+	private static int WaitingTab(PlayerDesk desk) =>
+		desk.AtHome && desk.CanStillWorkThePhones() ? RolodexTab : desk.Label.CurrentRosterSize > 0 ? 1 : 0;
+
+	/// <summary>The one bill the player is running toward, named only when cash is already short.</summary>
+	private static string NextBillNote(PlayerDesk desk) {
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		GameDate due = new GameDate(today.year, today.month, 1).AddDays(DateTime.DaysInMonth(today.year, today.month));
+		return $"${desk.Label.GetMonthlyOverhead():N0} overhead due {due.ShortMonthName} {due.day}.";
+	}
+
+	/// <summary>What the desk can still do while cash or the plant is the holdup. Only verbs that exist and are
+	/// available right now are listed, so the line never promises a call that cannot land.</summary>
+	private static string WhileYouWait(PlayerDesk desk) {
+		var options = new List<string>();
+		if (desk.AtHome && desk.CanStillWorkThePhones()) options.Add("work the phones (free)");
+		if (desk.Label.cashReserves >= 20f && desk.Masters.Any(master => !master.Released && desk.AcetatesFor(master.Record?.recordId) == 0))
+			options.Add("cut a $20 acetate");
+		if (desk.Label.CurrentRosterSize > 0) options.Add("work up songs");
+		else options.Add("scout a room (hours only)");
+		return "Meanwhile: " + (options.Count == 1 ? options[0]
+			: string.Join(", ", options.Take(options.Count - 1)) + ", or " + options[^1]) + ".";
 	}
 
 	private void OpenNextUp() {
 		PlayerDesk desk = PlayerDesk.Instance;
 		if (desk == null) return;
-		if (desk.Session != null) { GoToTab(1, PageRoster); return; }
-		if (desk.Masters.Any(master => !master.Scheduled && !master.Released) || desk.Planned.Any(single => !single.Dated)) {
-			GoToTab(DistributionTab, PageDistribution); return;
+		switch (NextUpStep(desk).Tab) {
+			case 0: GoToTab(0, PageAandR); break;
+			case 1: GoToTab(1, PageRoster); break;
+			case 4: GoToTab(4, PageFinances); break;
+			case RolodexTab: GoToTab(RolodexTab, PageRolodex); break;
+			default: GoToTab(DistributionTab, PageDistribution); break;
 		}
-		if (desk.ReleasedRecords.Any(record => (desk.StockFor(record.baseRecord.recordId)?.Remaining ?? 0) > 0)) {
-			GoToTab(DistributionTab, PageDistribution); return;
-		}
-		if (desk.Label.cashReserves < 0f) { GoToTab(4, PageFinances); return; }
-		if (desk.PendingPressings().Any()) { GoToTab(DistributionTab, PageDistribution); return; }
-		if (desk.Label.CurrentRosterSize == 0 || desk.Label.CurrentRosterSize < desk.Label.maxRosterSize) { GoToTab(0, PageAandR); return; }
-		GoToTab(1, PageRoster);
 	}
 
 	/// <summary>How an action's result reads: a neutral note, a completed action, or a refusal.</summary>
@@ -605,7 +640,7 @@ public partial class PlayerDeskPanel : Control {
 			$"Marketing {StarBar(selected.MarketingPower)}");
 		float firstRunCost = PlayerDesk.PressingCost(PlayerDesk.PressMinimumOrder);
 		Body($"MONEY AND RUNWAY  ·  ${selected.Capital:N0} starting cash; a first {PlayerDesk.PressMinimumOrder:N0}-copy pressing costs about ${firstRunCost:N0}. " +
-			$"Monthly overhead is ${AILabel.PlayerHomeOfficeOverhead:N0}. The overdraft ceiling is three months of overhead below zero (not borrowed cash); the bank closes the label after three red month-ends in a row. Climb back above $0 at month-end to reset the count.");
+			$"Monthly overhead is the office rent of the town you pick plus ${CityProfiles.OfficeBaseOverhead:N0} for the phone and postage: ${CityProfiles.OverheadRange().Low:N0} to ${CityProfiles.OverheadRange().High:N0} a month. The overdraft ceiling is three months of overhead below zero (not borrowed cash); the bank closes the label after three red month-ends in a row. Climb back above $0 at month-end to reset the count.");
 		Body("Instincts (1–5) affect what you can read and which contact options appear. Label stats (0–1) affect scouting, recording quality, and promotion.");
 		Body($"Your roster can hold up to {PlayerDesk.PlayerRosterCapacity} acts.");
 
@@ -649,6 +684,22 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(found);
 	}
 
+	/// <summary>What it is like to run a label out of this town, in plain words: the rent, the rivals, the
+	/// studios, the shipping and the shops at home. Every figure is the one the game will actually use.</summary>
+	private static string TownFacts(MarketCity city) {
+		CityProfile profile = CityProfiles.Get(city.cityId);
+		float quality = PlayerDesk.StudioQualityIn(city.cityId, city.parentRegionId);
+		float mid = PlayerDesk.StudioHourlyRateIn(city.cityId, city.parentRegionId, PlayerDesk.StudioTier.Mid);
+		float budget = PlayerDesk.StudioHourlyRateIn(city.cityId, city.parentRegionId, PlayerDesk.StudioTier.Budget);
+		float top = PlayerDesk.StudioHourlyRateIn(city.cityId, city.parentRegionId, PlayerDesk.StudioTier.Top);
+		return $"{profile.Character}\n\n" +
+			$"THE OFFICE  ·  Rent is ${profile.Rent:N0} a month, ${CityProfiles.MonthlyOverhead(city.cityId):N0} all in with the phone and postage.\n" +
+			$"THE SCENE  ·  {CityProfiles.CrowdingText(profile)} {CityProfiles.AskText(profile)}\n" +
+			$"THE STUDIOS  ·  Rooms run ${budget:N0} to ${top:N0} an hour (about ${mid:N0} for a middling one), with {CityProfiles.StudioSoundText(quality)}.\n" +
+			$"SHIPPING  ·  {CityProfiles.ShippingText(city)}\n" +
+			$"AT HOME  ·  About {PlayerStopFactory.ShopCountFor(city)} record shops you can call on without leaving town.";
+	}
+
 	private static string ArchetypeMechanics(FoundingArchetype archetype) => archetype switch {
 		FoundingArchetype.PawnShopOwner => "The Suit and Fixer help with business reads, negotiation, and risky contact options. Lower Ear means fuzzier reads on records and station taste. Starts with the most cash.",
 		FoundingArchetype.ExMusician => "The Ear and Street improve reads on record quality, DJ taste, and local momentum. Thin starting cash makes the first pressing a major share of the budget.",
@@ -658,7 +709,7 @@ public partial class PlayerDeskPanel : Control {
 
 	private void ShowFoundingCities(List<MarketCity> cities, List<MarketRegion> regions) {
 		if (foundingCityPopup != null) foundingCityPopup.QueueFree();
-		foundingCityPopup = new PopupPanel { Size = new Vector2I(900, 500) };
+		foundingCityPopup = new PopupPanel { Size = new Vector2I(1000, 680) };
 		var popup = foundingCityPopup;
 		var regionName = regions.ToDictionary(region => region.regionId, region => region.regionName);
 		popup.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
@@ -680,6 +731,12 @@ public partial class PlayerDeskPanel : Control {
 		selection.AddThemeConstantOverride("separation", 18);
 		card.AddChild(selection);
 		var cityList = new ItemList { CustomMinimumSize = new Vector2(260, 0), SizeFlagsVertical = SizeFlags.ExpandFill };
+		cityList.AddThemeColorOverride("font_color", Ink);
+		cityList.AddThemeColorOverride("font_selected_color", Paper);
+		cityList.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("ead8ad"), BorderColor = new Color("8a7048"),
+			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1 });
+		cityList.AddThemeStyleboxOverride("selected", new StyleBoxFlat { BgColor = Rust });
+		cityList.AddThemeStyleboxOverride("selected_focus", new StyleBoxFlat { BgColor = Rust });
 		selection.AddChild(cityList);
 		var detail = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		detail.AddThemeConstantOverride("separation", 12);
@@ -694,7 +751,7 @@ public partial class PlayerDeskPanel : Control {
 		var cityName = CardText(28);
 		var location = CardText(16);
 		detail.AddChild(new HSeparator());
-		var details = CardText(18);
+		var details = CardText(16);
 		var neighbors = CardText(16);
 		var select = Btn("MAKE THIS MY HOME");
 		select.CustomMinimumSize = new Vector2(0, 42);
@@ -711,11 +768,10 @@ public partial class PlayerDeskPanel : Control {
 			location.Text = $"{region?.regionName ?? city.parentRegionId}{(city.isRegionalHub ? "  •  REGIONAL HUB" : "")}";
 			string tastes = string.Join(", ", (region?.genrePreferences ?? Array.Empty<GenrePreference>())
 				.OrderByDescending(pref => pref.affinity).Take(3).Select(pref => GenreNameFormatter.Format(pref.genre)));
-			details.Text = $"Local genre tastes: {tastes}\nStudio quality: {((region?.musicIndustry?.studioQuality ?? 0f) * 100f):N0}%\n" +
-				$"Distribution: Tier {city.distributionTier} ({(city.distributionTier <= 1 ? "strongest" : "higher tiers are weaker")})\n" +
-				$"A regional hub has more shops, stations, and nearby routes.";
-			neighbors.Text = "Nearby: " + string.Join(", ", cities.Where(other => other.cityId != city.cityId)
-				.OrderBy(other => DistanceModel.GetRoadMilesBetween(city.cityId, other.cityId)).Take(2).Select(other => other.name));
+			details.Text = TownFacts(city) + $"\n\nThe region leans toward {tastes}.";
+			neighbors.Text = "THE ROAD  ·  Nearest towns: " + string.Join(", ", cities.Where(other => other.cityId != city.cityId)
+				.OrderBy(other => DistanceModel.GetRoadMilesBetween(city.cityId, other.cityId)).Take(3)
+				.Select(other => $"{other.name} ({PlayerDesk.Instance.DriveQuote(city.cityId, other.cityId).Hours}h)"));
 		}
 		void FilterCities(string query) {
 			string keepCityId = popupCityId;
@@ -736,7 +792,7 @@ public partial class PlayerDeskPanel : Control {
 		search.TextChanged += FilterCities;
 		select.Pressed += () => { if (index < 0 || index >= filteredCities.Count) return; selectedFoundingCityId = popupCityId; popup.Hide(); Refresh(); };
 		FilterCities(search.Text);
-		popup.PopupCentered(new Vector2I(900, 500));
+		popup.PopupCentered(new Vector2I(1000, 680));
 	}
 
 	// ========================================================================
@@ -1846,7 +1902,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 	}
 
-	private static string PipelinePressStage(PlayerDesk.PressOrder order, GameDate today) {
+	internal static string PipelinePressStage(PlayerDesk.PressOrder order, GameDate today) {
 		int stage = today < order.Mailed ? 1 : today < order.PlatingComplete ? 2 : today < order.QueueComplete ? 3 : today < order.Arrives ? 4 : 5;
 		string[] labels = { "MASTER", "MAILED", "PLATING", "PLANT QUEUE", "SHIPPED", "IN OFFICE" };
 		string strip = string.Join(" → ", labels.Select((label, index) => index < stage ? $"{label} ✓" : index == stage ? $"[{label}]" : label));

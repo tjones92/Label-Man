@@ -664,6 +664,35 @@ public partial class RosterManager : Node {
 		ArtistManager.Instance != null && ArtistManager.Instance.IsEligibleForPopulationSigning(nomination.Artist, chartWeek) &&
 		nomination.Label.CanAffordToSign(nomination.Label.CalculateManagerAdjustedAdvance(nomination.Artist));
 
+	/// <summary>
+	/// A rival record man in the act's own market signs an unsigned act the PLAYER has been looking at.
+	/// Reached only from the player's crowding roll (<see cref="PlayerDesk"/>), never from the AI's own
+	/// daily market, so the AI economy's talent loop and its RNG stream are untouched. It commits through
+	/// the same calls a daily nomination does, so rosters, cash and the weekly signing flow stay honest.
+	/// Which rival gets there first is a stable function of (label, artist, day): no random draws.
+	/// Returns the label that signed the act, or null when nobody in that market could take them today.
+	/// </summary>
+	public AILabel TrySignAsRivalToPlayer(SimulatedArtist artist, GameDate date) {
+		if (artist == null || !string.IsNullOrEmpty(artist.labelId)) return null;
+		List<AILabel> labels = GetAllLabels();
+		if (labels == null) return null;
+		int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? CalendarChartWeek(date);
+		if (ArtistManager.Instance == null || !ArtistManager.Instance.IsEligibleForPopulationSigning(artist, chartWeek)) return null;
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		AILabel rival = labels
+			.Where(label => IsEligibleForEnabledScouting(label) && HasDailyVacancy(label) && !IsRuntimeBirthWeekBlocked(label, chartWeek)
+				&& IsInScoutingRegion(artist, ChartManager.Instance?.GetRegionById(label.homeRegion))
+				&& label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(artist)))
+			.OrderBy(label => StableDailyMarketHash($"{seed}|{label.labelId}|{artist.artistId}|{date.year}-{date.month}-{date.day}|PlayerCrowding"))
+			.FirstOrDefault();
+		if (rival == null) return null;
+		float advance = rival.SignArtist(artist, date.year);
+		CompetitorManager.Instance?.RecordExpense(rival, advance);
+		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
+		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
+		return rival;
+	}
+
 	private static readonly Dictionary<string, float> labelBuzzCache = new(StringComparer.Ordinal);
 	private static int labelBuzzCacheWeek = -1;
 

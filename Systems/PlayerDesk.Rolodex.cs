@@ -83,6 +83,16 @@ public partial class PlayerDesk : Node {
 	/// man, or -- if you are good, or lucky, or calling at the right hour -- you actually get through.
 	/// STREET raises both the odds and the quality of who you land on.
 	/// </summary>
+	/// <summary>Whether a round of calls could still land a new name: some reporter station in the home region
+	/// is not yet in the book. The desk's NEXT UP uses this to offer the phones only when they can pay.</summary>
+	public bool CanStillWorkThePhones() {
+		var chart = ChartManager.Instance;
+		if (Label == null || chart == null) return false;
+		var known = new HashSet<string>(rolodex.Select(e => e.stationId), StringComparer.Ordinal);
+		return chart.ReporterStationsInRegion(Label.homeRegion)
+			.Any(s => !known.Contains(s.stationId) && !string.IsNullOrEmpty(s.leadDjId) && chart.GetDeejay(s.leadDjId) != null);
+	}
+
 	public bool WorkThePhones(out string message) {
 		if (!RequireHome(out message)) return false;
 		if (Label == null) { message = "You don't have a label yet."; return false; }
