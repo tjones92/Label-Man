@@ -50,7 +50,7 @@ for(const genre of [...new Set(after.map(r=>r.genre))].sort())for(const unsigned
 const otherGenreMovements=measures.filter(m=>m.genre!=='EasyListening').map(m=>({genre:m.genre,unsigned:m.unsigned,seed:m.seed,
  mediaDelta:m.before.media==null?null:m.after.media-m.before.media,inheritedDelta:m.before.inherited==null?null:m.after.inherited-m.before.inherited}));
 const otherGenresAccepted=otherGenreMovements.every(m=>[m.mediaDelta,m.inheritedDelta].every(v=>v==null||Math.abs(v)<=.5));
-const oldTable=json('tmp/genre-repair-before/Data__PolarRepertoireTable.json'),table=json('Data/PolarRepertoireTable.json');
+const oldTable=json('SimLogs/genre-repair-before/Data__PolarRepertoireTable.json'),table=json('Data/PolarRepertoireTable.json');
 for(const key of ['numbers','liveSetMixes'])assert.deepEqual(table[key],oldTable[key]);
 assert.equal(sha('Data/PolarRepertoireTable.json'),json('SimLogs/genre-repair-v3-matched-1001-invocation.json').repertoireTableSha256.toLowerCase(),'Entire repertoire calibration unchanged from v3');
 const sources=['Systems/LiveRepertoire.cs','Systems/SongMaterialSelectionService.cs','SimTools/ChartAuditRunner.GenreFollowUp.cs','SimTools/ChartAuditRunner.PolarResearch.cs','SimTools/GenreRepertoireRepairChecks.cs','SimTools/run-polar-research.ps1','SimTools/run-easy-soundtrack-repair.ps1','SimTools/analyze-genre-repair-gospel.mjs','SimTools/analyze-easy-soundtrack-repair.mjs'].map(path=>({path,sha256:sha(path)}));

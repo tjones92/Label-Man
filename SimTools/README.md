@@ -4,6 +4,12 @@ This removable harness runs the real Godot autoload chain. It waits for normal
 autoload initialization and prewarming, then advances `TimeManager` one week at
 a time. CSV files under `SimLogs/` are scratch output and are gitignored.
 
+**Where output goes.** `SimTools/` holds source: runners, checks, analysis scripts,
+directives and hand-written handoffs. Everything a run or an analysis script
+*produces* (validation JSON, hash manifests, checkpoints, census CSVs, generated
+reports, logs, before-edit snapshots) is written under `SimLogs/` and is not
+committed. New JSON under `SimTools/` is gitignored to enforce this.
+
 Example (PowerShell):
 
 ```powershell
