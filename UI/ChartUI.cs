@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -131,16 +132,16 @@ public partial class ChartUI : Control
 
 		// The chart is dated to the week-ending Saturday it was computed for, frozen until the next weekly
 		// recompute -- not today's date, which would tick every day the panel is reopened.
-		if (dateHeader != null && ChartManager.Instance != null)
-			dateHeader.Text = ChartManager.Instance.ChartWeekEndingDate.ToLongString();
-
 		int startIndex = currentPage * ITEMS_PER_PAGE;
+		int endRank = Math.Min(startIndex + ITEMS_PER_PAGE, Math.Min(100, chartData.Count));
+		if (dateHeader != null && ChartManager.Instance != null)
+			dateHeader.Text = $"WEEK ENDING {ChartManager.Instance.ChartWeekEndingDate.ToLongString().ToUpperInvariant()}   •   SINGLES #{startIndex + 1}–#{endRank}";
 
 		for (int i = 0; i < slots.Length; i++)
 		{
 			int recordIndex = startIndex + i;
 
-			if (recordIndex < chartData.Count)
+			if (recordIndex < chartData.Count && recordIndex < 100)
 			{
 				slots[i].Visible = true;
 				slots[i].Populate(chartData[recordIndex]);
@@ -152,6 +153,6 @@ public partial class ChartUI : Control
 		}
 
 		if (prevPageButton != null) prevPageButton.Disabled = currentPage <= 0;
-		if (nextPageButton != null) nextPageButton.Disabled = (currentPage + 1) * ITEMS_PER_PAGE >= chartData.Count;
+		if (nextPageButton != null) nextPageButton.Disabled = (currentPage + 1) * ITEMS_PER_PAGE >= Math.Min(100, chartData.Count);
 	}
 }

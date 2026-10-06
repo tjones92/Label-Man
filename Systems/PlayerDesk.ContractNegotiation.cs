@@ -160,7 +160,18 @@ public partial class PlayerDesk : Node {
 	}
 
 	/// <summary>Prefill for the tabling form: the last thing you tabled, or the ask itself for round one.</summary>
-	public static ContractTermSheet CurrentOffer(ContractTalk talk) => talk.lastOffer ?? talk.ask;
+	public static ContractTermSheet CurrentOffer(ContractTalk talk) => talk.draftOffer ?? talk.lastOffer ?? talk.ask;
+
+	/// <summary>The package must clear the act's weighted reservation and meet a minimum cash floor.
+	/// Otherwise control and quota concessions could make a 20%-of-ask advance pass on paper even when
+	/// the act's stated money demand is the main reason they came to the table.</summary>
+	private static bool ClearsReservation(ContractTalk talk, ContractTermSheet offer, float extraValue = 0f) {
+		if (PackageValue(offer, talk.ask, talk.weights) + extraValue < talk.reservation) return false;
+		return talk.ask.Advance <= 0f || offer.Advance >= MinimumAdvanceForAcceptance(talk);
+	}
+
+	public static float MinimumAdvanceForAcceptance(ContractTalk talk) => talk?.ask == null ? 0f
+		: talk.ask.Advance * (talk.posture == NegotiationPosture.Hardball ? 0.65f : 0.50f);
 
 	/// <summary>Whether a give-back-for-cash trade is even on the table -- there has to be a control
 	/// axis the label is currently holding for the artist to want it back.</summary>
@@ -181,28 +192,32 @@ public partial class PlayerDesk : Node {
 		message = "";
 		if (talk?.Artist == null) { message = "No negotiation open."; return false; }
 		if (talk.stage != ContractTalkStage.Tabling) { message = "Not at that point in the talks."; return false; }
-		if (!Require(NegotiationRoundHours, out message)) return false;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!talk.IsRenewal && !Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		bool ownershipOk = talk.IsRenewal ? talk.Artist.labelId == Label.labelId : string.IsNullOrEmpty(talk.Artist.labelId);
 		if (!ownershipOk) { message = talk.IsRenewal ? "They're not on your roster any more." : "Somebody signed them first."; return false; }
 
 		advance = Mathf.Max(0f, advance);
-		if (!Label.CanAffordToSign(advance)) {
-			message = $"You can't cover a ${advance:N0} advance and hold next month's overhead.";
-			return false;
-		}
-
 		var offer = new ContractTermSheet(advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f),
 			Mathf.Clamp(termYears, 1, 7), Mathf.Clamp(singlesObligation, 0, 30),
 			labelOwnsPublishing, artistCreativeControl,
 			talk.ask.NegotiationDifficulty, talk.ask.Manager, talk.ask.ManagerName, talk.ask.DemandSummary);
+		talk.draftOffer = offer;
+		if (!Require(NegotiationRoundHours, out message)) return false;
+		if (!Label.CanAffordToSign(advance)) {
+			float reserve = Label.GetMonthlyOverhead() * 2f;
+			float after = Label.cashReserves - advance;
+			message = $"A ${advance:N0} advance would leave ${after:N0}; signing requires more than ${reserve:N0} after the advance (two months of overhead). Lower the advance or wait for more cash.";
+			return false;
+		}
 
 		Spend(NegotiationRoundHours);
 		talk.roundsPlayed++;
 		talk.lastOffer = offer;
+		talk.draftOffer = null;
 		talk.lastOfferValue = PackageValue(offer, talk.ask, talk.weights);
 
-		if (talk.lastOfferValue >= talk.reservation) { FinalizeSign(talk, offer, out message); return true; }
+		if (ClearsReservation(talk, offer)) { FinalizeSign(talk, offer, out message); return true; }
 
 		talk.patienceLeft--;
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
@@ -276,7 +291,7 @@ public partial class PlayerDesk : Node {
 		talk.lastOffer = promised;
 		talk.lastOfferValue = PackageValue(promised, talk.ask, talk.weights) + credit;
 
-		if (talk.lastOfferValue >= talk.reservation) { FinalizeSign(talk, promised, out message); return true; }
+		if (ClearsReservation(talk, promised, credit)) { FinalizeSign(talk, promised, out message); return true; }
 
 		talk.patienceLeft--;
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
@@ -301,7 +316,7 @@ public partial class PlayerDesk : Node {
 		if (!patient) { WalkAway(talk, forced: true, out message); return true; }
 
 		talk.reservation = Mathf.Max(0.55f, talk.reservation - 0.03f);
-		if (talk.lastOfferValue >= talk.reservation) { FinalizeSign(talk, CurrentOffer(talk), out message); return true; }
+		if (ClearsReservation(talk, CurrentOffer(talk))) { FinalizeSign(talk, CurrentOffer(talk), out message); return true; }
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
 
 		talk.objectionAxis = WorstAxis(CurrentOffer(talk), talk.ask, talk.weights);
@@ -393,6 +408,7 @@ public partial class PlayerDesk : Node {
 		ContractAxis axis = talk.objectionAxis ?? ContractAxis.Advance;
 		string manager = talk.ask.ManagerName;
 		string who = string.IsNullOrEmpty(manager) ? "They" : manager;
+		string wants = who == "They" ? "want" : "wants";
 
 		float trueGap = Mathf.Max(0f, 1f - AxisTerm(axis, offer, talk.ask));
 		float unit = StableNegotiationUnit(Label?.labelId ?? "", talk.Artist.artistId, talk.roundsPlayed);
@@ -408,8 +424,8 @@ public partial class PlayerDesk : Node {
 
 		return axis switch {
 			ContractAxis.Advance => sharp
-				? $"\"{who} wants real money up front. You're {perceivedGap * 100f:F0}% short of where they'd sign.\""
-				: $"\"{who} wants more money up front -- {sizeWord} more than you're offering.\"",
+				? $"\"{who} {wants} real money up front. You're {perceivedGap * 100f:F0}% short of where they'd sign.\""
+				: $"\"{who} {wants} more money up front -- {sizeWord} more than you're offering.\"",
 			ContractAxis.Royalty => sharp
 				? $"\"The points are the problem. {offer.RoyaltyRate:P1} isn't going to cut it -- you're {sizeWord} off.\""
 				: "\"It's the percentage that's sticking.\"",
@@ -441,6 +457,7 @@ public partial class PlayerDesk : Node {
 		repertoire[prospect.Artist.artistId] = new List<RepertoireItem>(prospect.LiveSet);
 		generatedProspectIds.Remove(prospect.Artist.artistId);
 		slate.Remove(prospect);
+		prospect.Draft = null;
 
 		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
@@ -498,18 +515,19 @@ public partial class PlayerDesk : Node {
 			message = "They want to talk terms, not just sign -- work it through the negotiation.";
 			return false;
 		}
-		if (!Require(NegotiationRoundHours, out message)) return false;
-
 		advance = Mathf.Max(0f, advance);
-		if (!Label.CanAffordToSign(advance)) {
-			message = $"You can't cover a ${advance:N0} advance and hold next month's overhead.";
-			return false;
-		}
-
 		ContractTermSheet ask = PendingRenewal.Ask;
 		var sheet = new ContractTermSheet(advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f),
 			Mathf.Clamp(termYears, 1, 7), Mathf.Clamp(singlesObligation, 0, 30), labelOwnsPublishing, artistCreativeControl,
 			ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
+		PendingRenewal.Draft = sheet;
+		if (!Require(NegotiationRoundHours, out message)) return false;
+		if (!Label.CanAffordToSign(advance)) {
+			float reserve = Label.GetMonthlyOverhead() * 2f;
+			float after = Label.cashReserves - advance;
+			message = $"A ${advance:N0} advance would leave ${after:N0}; signing requires more than ${reserve:N0} after the advance (two months of overhead). Lower the advance or wait for more cash.";
+			return false;
+		}
 
 		Spend(NegotiationRoundHours);
 		FinalizeRenewal(artist, sheet, out message);

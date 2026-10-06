@@ -80,9 +80,22 @@ public static class SaveGameService {
 		} catch { /* the meta sidecar is an optimization; ListSaves falls back to the body header */ }
 	}
 
+	public static bool IsValidSlotName(string slot, out string reason) {
+		string name = slot?.Trim() ?? string.Empty;
+		if (name.Length == 0) { reason = "Enter a name for this save."; return false; }
+		if (name.Length > 48) { reason = "Save names can be up to 48 characters."; return false; }
+		if (name.EndsWith('.') || name.EndsWith(' ')) { reason = "A save name cannot end with a period or space."; return false; }
+		if (name.Any(c => !(char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.' or '\'' or '(' or ')'))) {
+			reason = "Use letters, numbers, spaces, periods, apostrophes, parentheses, hyphens, or underscores.";
+			return false;
+		}
+		reason = string.Empty;
+		return true;
+	}
+
 	private static string Sanitize(string slot) =>
 		string.IsNullOrWhiteSpace(slot) ? "quicksave"
-			: new string(slot.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray());
+			: new string(slot.Trim().Where(c => char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.' or '\'' or '(' or ')').ToArray());
 
 	public static bool HasSave(string slot = "quicksave") => Godot.FileAccess.FileExists(PathFor(slot));
 
@@ -166,6 +179,8 @@ public static class SaveGameService {
 	/// <summary>Snapshots the player layer and the clock into a save file. Returns false with a reason.</summary>
 	public static bool Save(string slot, out string message) {
 		if (PlayerDesk.Instance?.HasLabel != true) { message = "No label to save yet."; return false; }
+		if (!IsValidSlotName(slot, out message)) return false;
+		slot = slot.Trim();
 
 		var envelope = new SaveEnvelope {
 			Version = CurrentVersion,

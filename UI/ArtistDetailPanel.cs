@@ -141,7 +141,7 @@ public partial class ArtistDetailPanel : Control
 	private void AddReleases(List<RecordRuntimeData> records)
 	{
 		foreach (var r in records.OrderByDescending(r => r.baseRecord.releaseDate))
-			AddBody($"“{r.baseRecord.title}”  —  {r.baseRecord.releaseDate.ToHeadlineString()}\nPeak {(r.peakPosition > 0 ? "#" + r.peakPosition : "—")}  •  {r.weeksOnChart} weeks  •  {ChartDetailPanel.GetSalesTierDescription(r.totalUnitsSold)}");
+			AddBody($"“{r.baseRecord.title}”  —  {r.baseRecord.releaseDate.ToHeadlineString()}\nPeak {(r.peakPosition > 0 ? "#" + r.peakPosition : "—")}  •  {r.weeksOnChart} {(r.weeksOnChart == 1 ? "week" : "weeks")}  •  {ChartDetailPanel.GetSalesTierDescription(r.totalUnitsSold)}");
 	}
 	private void ShowGigography() { AddHeading("ON THE ROAD"); AddBody("Gigography is coming soon. Touring records are not yet kept by the simulation."); }
 	private void ShowAwards()
@@ -157,7 +157,30 @@ public partial class ArtistDetailPanel : Control
 	private void ShowContract()
 	{
 		AddHeading("INTERNAL — CONTRACT"); AddBody($"Royalty rate: {artist.royaltyRate:P1}\nUnrecouped advance: ${artist.unrecoupedAdvance:N0}\nTerm: {artist.contractLength} years\nExpires: {artist.contractExpiresYear}");
+		AddHeading("DELIVERABLES"); AddBody(DeliverablesText());
+		AddHeading("RIGHTS AND MANAGEMENT"); AddBody(RightsText());
 		AddHeading("A&R IMPRESSION"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
+	}
+	/// <summary>What the act still owes under this deal. Sides count records they have put out on this label
+	/// since the term began; whichever of the sides or the clock runs out first ends the deal.</summary>
+	private string DeliverablesText()
+	{
+		int owed = artist.contractSinglesObligation;
+		if (owed <= 0) return "No sides owed. This deal runs by the clock: it ends when the term does.";
+		int startYear = artist.contractExpiresYear - artist.contractLength;
+		int delivered = GetRecords().Count(r => r.baseRecord.labelId == artist.labelId && r.baseRecord.releaseDate.year >= startYear);
+		int togo = Mathf.Max(0, owed - delivered);
+		return togo == 0
+			? $"All {owed} sides delivered ({delivered} released). The deal ends when the sides are delivered or the term runs out, whichever is first."
+			: $"{delivered} of {owed} sides released, {togo} to go. The deal ends when the sides are delivered or the term runs out, whichever is first.";
+	}
+	private string RightsText()
+	{
+		string manager = artist.manager == ManagerArchetype.None || string.IsNullOrEmpty(artist.managerName)
+			? "Unmanaged: no one speaks for them at the table."
+			: $"Managed by {artist.managerName} ({Format(artist.manager)}).";
+		return $"{(artist.labelOwnsPublishing ? "The label keeps the publishing." : "The act keeps their publishing.")}\n" +
+			$"{(artist.artistCreativeControl ? "The act has creative control." : "The label has the final say on material.")}\n{manager}";
 	}
 	private List<RecordRuntimeData> GetRecords() => ChartManager.Instance?.GetAllRecords().Where(r => r?.baseRecord?.artistId == profile.artistId).ToList() ?? new();
 	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }

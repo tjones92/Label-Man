@@ -62,6 +62,7 @@ public sealed class ContractTalk {
 	public ContractAxis? objectionAxis;
 	public float lastOfferValue;
 	public ContractTermSheet? lastOffer;                        // null until the first table
+	public ContractTermSheet? draftOffer;                        // kept in the form after a time or cash refusal
 	public readonly List<string> log = new();
 }
 
@@ -74,6 +75,7 @@ public sealed class ContractTalk {
 public sealed class RenewalOffer {
 	public SimulatedArtist Artist;
 	public ContractTermSheet Ask;
+	public ContractTermSheet? Draft;
 	public NegotiationPosture Posture;
 	/// <summary>Non-null only once a Firm/Hardball renewal has actually opened the scene.</summary>
 	public ContractTalk Talk;

@@ -4,6 +4,7 @@ public partial class ChartEntryUI : Control
 {
 	[ExportGroup("Text Fields")]
 	[Export] private Label rankText;
+	[Export] private Label movementText;
 	[Export] private Label songText;
 	[Export] private Label artistText;
 	[Export] private Label labelText;
@@ -47,9 +48,14 @@ public partial class ChartEntryUI : Control
 		bool playerOwned = record?.baseRecord?.isPlayerOwned ?? false;
 		Modulate = Colors.White;
 
-		if (rankText != null) rankText.Text = record.currentPosition.ToString();
-		if (songText != null) songText.Text = record.baseRecord.title;
-		if (artistText != null) artistText.Text = record.baseRecord.artistName;
+		if (rankText != null) rankText.Text = $"#{record.currentPosition}";
+		if (movementText != null) {
+			int change = record.lastWeekPosition - record.currentPosition;
+			movementText.Text = record.lastWeekPosition <= 0 ? "NEW" : change > 0 ? $"▲ {change}" : change < 0 ? $"▼ {-change}" : "—";
+			movementText.AddThemeColorOverride("font_color", change > 0 ? new Color("28643a") : change < 0 ? new Color("9a382d") : new Color("5b503d"));
+		}
+		if (songText != null) { songText.Text = record.baseRecord.title; songText.TooltipText = record.baseRecord.title; }
+		if (artistText != null) { artistText.Text = record.baseRecord.artistName; artistText.TooltipText = record.baseRecord.artistName; }
 		if (labelText != null) labelText.Text = playerOwned ? $"YOU · {GetLabelAbbrev(record.baseRecord.labelId)}" : GetLabelAbbrev(record.baseRecord.labelId);
 		QueueRedraw();
 
@@ -68,6 +74,7 @@ public partial class ChartEntryUI : Control
 		myRecord = null;
 		Modulate = Colors.White;
 		if (rankText != null) rankText.Text = "";
+		if (movementText != null) movementText.Text = "";
 		if (songText != null) songText.Text = "";
 		if (artistText != null) artistText.Text = "";
 		if (labelText != null) labelText.Text = "";

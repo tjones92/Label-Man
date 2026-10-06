@@ -24,12 +24,20 @@ public partial class TimeManager : Node {
 	public GameDate CurrentDate => currentDate;
 	public int CurrentHour => currentHour;
 	public int CurrentMinute => currentMinute;
+	public int RegularWorkdayEndHour => workDayEndHour;
+	public int HardStopHour => workDayEndHour + maxOvertimeHours;
+	public string RegularWorkdayEndTime => FormatHour(workDayEndHour);
+	public string HardStopTime => FormatHour(HardStopHour);
 	/// <summary>Minutes from now to the end of the day including overtime. The real budget a sub-hour
 	/// action is checked against.</summary>
 	public int MinutesRemainingWithOvertime =>
-		Mathf.Max(0, (workDayEndHour + maxOvertimeHours) * 60 - (currentHour * 60 + currentMinute));
-	public int HoursRemaining => Mathf.Max(0, workDayEndHour - currentHour);
-	public int HoursRemainingWithOvertime => Mathf.Max(0, (workDayEndHour + maxOvertimeHours) - currentHour);
+		Mathf.Max(0, HardStopHour * 60 - (currentHour * 60 + currentMinute));
+	public int RegularMinutesRemaining =>
+		Mathf.Max(0, workDayEndHour * 60 - (currentHour * 60 + currentMinute));
+	public int HoursRemaining => RegularMinutesRemaining / 60;
+	public int HoursRemainingWithOvertime => MinutesRemainingWithOvertime / 60;
+	public string RegularTimeRemainingText => FormatDuration(RegularMinutesRemaining);
+	public string OvertimeRemainingText => FormatDuration(Mathf.Max(0, MinutesRemainingWithOvertime - RegularMinutesRemaining));
 	public bool IsWorkDay => !currentDate.IsWeekend;
 	public bool IsOvertime => currentHour >= workDayEndHour;
 	public bool IsDayOver => currentHour >= workDayEndHour + maxOvertimeHours;
@@ -79,8 +87,8 @@ public partial class TimeManager : Node {
 	}
 
 	public bool CanAffordHours(int hours, bool allowOvertime = false) {
-		int available = allowOvertime ? HoursRemainingWithOvertime : HoursRemaining;
-		return hours <= available;
+		int availableMinutes = allowOvertime ? MinutesRemainingWithOvertime : RegularMinutesRemaining;
+		return hours >= 0 && hours * 60 <= availableMinutes;
 	}
 
 	public bool SpendHours(int hours, bool allowOvertime = false) {
@@ -272,6 +280,20 @@ public partial class TimeManager : Node {
 		if (displayHour == 0) displayHour = 12;
 		string ampm = currentHour >= 12 ? "PM" : "AM";
 		return $"{displayHour}:{currentMinute:D2} {ampm}";
+	}
+
+	private static string FormatHour(int hour) {
+		int displayHour = hour > 12 ? hour - 12 : hour;
+		string ampm = hour >= 12 ? "PM" : "AM";
+		return $"{displayHour}:00 {ampm}";
+	}
+
+	private static string FormatDuration(int minutes) {
+		if (minutes <= 0) return "0m";
+		int hours = minutes / 60;
+		int remainder = minutes % 60;
+		if (hours == 0) return $"{remainder}m";
+		return remainder == 0 ? $"{hours}h" : $"{hours}h {remainder}m";
 	}
 
 	public string GetDayStatus() {

@@ -483,12 +483,12 @@ public partial class AILabel : Resource {
 		string pub = labelPub ? "label keeps publishing" : "artist keeps publishing";
 		string ctrl = artistControl ? "artist creative control" : "label creative control";
 		return m switch {
-			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P0}, {pub}.",
-			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P0}, {pub}. Wants strong local push.",
-			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P0}, {pub}. Short term, renegotiates fast.",
-			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P0}. Long exclusive term.",
-			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P0}. Publishing is non-negotiable.",
-			_ => $"${advance:N0}, {royalty:P0}, {pub}."
+			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P1}, {pub}.",
+			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P1}, {pub}. Wants strong local push.",
+			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P1}, {pub}. Short term, renegotiates fast.",
+			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P1}. Long exclusive term.",
+			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P1}. Publishing is non-negotiable.",
+			_ => $"${advance:N0}, {royalty:P1}, {pub}."
 		};
 	}
 

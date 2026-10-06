@@ -139,7 +139,7 @@ public partial class PlayerDesk : Node {
 	private const float GasPerMile = 0.02f;       // ~2c/mile: cheap gas, cheap car
 
 	public const float FoundingCapital = 800f;
-	private const int PlayerRosterCapacity = 6;
+	public const int PlayerRosterCapacity = 6;
 
 	/// <summary>Where the player went to hear acts. Each room draws a different crowd.</summary>
 	public enum ScoutingVenue { ClubsAndRoadhouses, TheatresAndSupperClubs, HonkyTonks, IndustryMeets }
@@ -210,6 +210,8 @@ public partial class PlayerDesk : Node {
 		public bool FollowedUp;
 		/// <summary>The label's opening offer, generated once when the player approaches. See <see cref="ApproachToSign"/>.</summary>
 		public ContractTermSheet Baseline;
+		/// <summary>Terms the player last entered when a signing was refused for time or cash.</summary>
+		public ContractTermSheet? Draft;
 		public bool HasBaseline;
 		/// <summary>How hard this act is to sign -- see SimTools/ContractNegotiationDirective.md Part 2.
 		/// Pushover stays the single-click ContractForm; Firm/Hardball opens <see cref="Talk"/>.</summary>
@@ -1287,8 +1289,8 @@ public partial class PlayerDesk : Node {
 			BuildLiveSet(prospect, artist, year, noise);
 			slate.Add(prospect);
 		}
-		Note($"Worked {VenueName(venue)} in {region.regionName}: {slate.Count} act(s) on the pad.");
-		message = $"Caught {slate.Count} act(s).";
+		Note($"Worked {VenueName(venue)} in {region.regionName}: {slate.Count} {(slate.Count == 1 ? "act" : "acts")} on the pad.");
+		message = $"Caught {slate.Count} {(slate.Count == 1 ? "act" : "acts")}.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -1721,6 +1723,7 @@ public partial class PlayerDesk : Node {
 	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears, int singlesObligation,
 		bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
+		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!prospect.HasBaseline) { message = "Approach them first."; return false; }
 		// Firm/Hardball acts don't take an accept-or-walk offer -- they go through TableOffer's
 		// negotiation loop instead. See SimTools/ContractNegotiationDirective.md Part 2.
@@ -1728,24 +1731,38 @@ public partial class PlayerDesk : Node {
 			message = "They want to talk terms, not just sign -- work it through the negotiation.";
 			return false;
 		}
-		if (!Require(SignHours, out message)) return false;
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
 
 		advance = Mathf.Max(0f, advance);
-		if (!Label.CanAffordToSign(advance)) {
-			message = $"You can't cover a ${advance:N0} advance and hold next month's overhead.";
-			return false;
-		}
-
 		ContractTermSheet b = prospect.Baseline;
 		var sheet = new ContractTermSheet(
 			advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f), Mathf.Clamp(termYears, 1, 7),
 			Mathf.Clamp(singlesObligation, 0, 30), labelOwnsPublishing, artistCreativeControl,
 			b.NegotiationDifficulty, b.Manager, b.ManagerName, b.DemandSummary);
+		prospect.Draft = sheet;
+		// An eager act may take the quick form near its ask. A substantial lowball turns the same form
+		// into a two-hour table round, where the act can counter or walk instead of silently signing.
+		bool lowAdvance = b.Advance > 0f && advance < b.Advance * 0.50f;
+		bool lowRoyalty = b.RoyaltyRate > 0f && sheet.RoyaltyRate < b.RoyaltyRate * 0.75f;
+		if (lowAdvance || lowRoyalty) {
+			prospect.Posture = NegotiationPosture.Firm;
+			ContractTalk talk = OpenNegotiation(prospect);
+			TableOffer(talk, advance, sheet.RoyaltyRate, sheet.TermYears, sheet.SinglesObligation,
+				sheet.LabelOwnsPublishing, sheet.ArtistCreativeControl, out message);
+			return talk.stage == ContractTalkStage.Done;
+		}
+		if (!Require(SignHours, out message)) return false;
+		if (!Label.CanAffordToSign(advance)) {
+			float reserve = Label.GetMonthlyOverhead() * 2f;
+			float after = Label.cashReserves - advance;
+			message = $"A ${advance:N0} advance would leave ${after:N0}; signing requires more than ${reserve:N0} after the advance (two months of overhead). Lower the advance or wait for more cash.";
+			return false;
+		}
 
 		Spend(SignHours);
 		FinalizeSigning(prospect, sheet, out message);
+		prospect.Draft = null;
 		Changed?.Invoke();
 		return true;
 	}
@@ -2310,11 +2327,16 @@ public partial class PlayerDesk : Node {
 		HasBeenPressed(recordId) ? 0
 			: Mathf.Min(MaxPromoCount(recordId, quantity), Mathf.RoundToInt(quantity * PressPromoSuggestedFraction));
 
-	public bool OrderPressing(string recordId, int quantity, int promoCount, out string message) {
+	public bool OrderPressing(string recordId, int quantity, int promoCount, out string message, bool confirmAdditionalRun = false) {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (string.IsNullOrEmpty(recordId)) { message = "No single selected."; return false; }
 		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to press right now -- the master's out."; return false; }
+		PressOrder alreadyInPlant = PressingOrderFor(recordId);
+		if (alreadyInPlant != null && !confirmAdditionalRun) {
+			message = $"A run of \"{TitleForRecord(recordId)}\" is already due {alreadyInPlant.Arrives.ToHeadlineString()}. Confirm another run before ordering it.";
+			return false;
+		}
 		bool repress = HasBeenPressed(recordId);
 		int minimum = MinimumPressRun(recordId);
 		if (quantity < minimum) {
@@ -2394,6 +2416,7 @@ public partial class PlayerDesk : Node {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (plantCredit != null) { message = "You still owe the plant for the last credit run."; return false; }
+		if (PressingOrderFor(recordId) != null) { message = "A run is already on the way for that single."; return false; }
 		if (OpenCallDemand(recordId) < PlantCreditDemandThreshold) { message = "The plant isn't hearing enough on that one to front you a run."; return false; }
 		if (!Require(PlantCreditHours, out message)) return false;
 
@@ -2682,6 +2705,7 @@ public partial class PlayerDesk : Node {
 	/// pitch is not the same errand as driving between towns (DistributionHours, 4h) -- it's a quick
 	/// in-town stop, longer for an op working a whole route than a clerk at one counter.</summary>
 	public static int EstimatedStopHours(StopKind kind) => kind == StopKind.Op ? 2 : 1;
+	public static string StopVisitEstimate(StopKind kind) => kind == StopKind.Op ? "1–3h" : "1–2h";
 
 	/// <summary>Real time cost of working one account, rolled fresh each visit: mostly the estimate,
 	/// sometimes a quick in-and-out, sometimes the owner wants to talk or the route's backed up. A flat
@@ -2759,6 +2783,13 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 		return true;
+	}
+
+	/// <summary>Whether this account's once-per-day counter visit has already been used.</summary>
+	public bool HasWorkedStopToday(string stopId) {
+		PlayerStop stop = GetStop(stopId);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		return stop != null && stop.LastApproachDate == today;
 	}
 
 	/// <summary>
@@ -3538,6 +3569,50 @@ public partial class PlayerDesk : Node {
 		return true;
 	}
 
+	/// <summary>The account kinds a runner can carry stock to: record shops and jukebox operators. One-stops,
+	/// venues and radio stations are the player's own conversations.</summary>
+	public static bool RunnerCanWork(StopKind kind) => kind == StopKind.Shop || kind == StopKind.Op;
+
+	/// <summary>Every account the runner is allowed to cover: shops and operators in towns the player has
+	/// personally opened, in the same kind-then-name order the day-sheet uses.</summary>
+	public IEnumerable<PlayerStop> RunnerEligibleStops() =>
+		workedCities.OrderBy(cityId => CityName(cityId), StringComparer.Ordinal)
+			.SelectMany(StopsInCity).Where(stop => RunnerCanWork(stop.Kind));
+
+	/// <summary>How well he knows one account, 0-1 (his own curve, not the player's relationship).</summary>
+	public float RunnerFamiliarityAt(string stopId) =>
+		runner != null && runner.Familiarity.TryGetValue(stopId, out float familiarity) ? familiarity : 0f;
+
+	/// <summary>Adds or drops a whole list of accounts in one action -- a town's worth, or every account he
+	/// may cover. Same rules as <see cref="AssignRunnerStop"/> per stop (shops and operators only, in towns
+	/// the player has opened), but it books one summary note and one refresh instead of one per account.</summary>
+	public bool SetRunnerRoute(IEnumerable<string> stopIds, bool onRoute, out string message) {
+		message = null;
+		if (runner == null) { message = "No runner to send."; return false; }
+		int changed = 0, already = 0, blocked = 0;
+		var towns = new HashSet<string>(StringComparer.Ordinal);
+		foreach (string stopId in stopIds.ToList()) {
+			PlayerStop stop = GetStop(stopId);
+			if (stop == null || !RunnerCanWork(stop.Kind) || (onRoute && !workedCities.Contains(stop.CityId))) { blocked++; continue; }
+			if (runner.RouteStopIds.Contains(stopId) == onRoute) { already++; continue; }
+			if (onRoute) runner.RouteStopIds.Add(stopId); else runner.RouteStopIds.Remove(stopId);
+			towns.Add(stop.CityId);
+			changed++;
+		}
+		if (changed == 0) {
+			message = blocked > 0 ? "He can only cover shops and jukebox operators in towns you've opened yourself."
+				: onRoute ? "Every one of those accounts is already on his route." : "None of those accounts were on his route.";
+			return blocked == 0;
+		}
+		string where = towns.Count == 1 ? CityName(towns.First()) : $"{towns.Count} towns";
+		message = onRoute
+			? $"{changed:N0} {(changed == 1 ? "account" : "accounts")} in {where} added to his route."
+			: $"{changed:N0} {(changed == 1 ? "account" : "accounts")} in {where} taken off his route.";
+		Note(message);
+		Changed?.Invoke();
+		return true;
+	}
+
 	/// <summary>Hands the runner a carton out of office inventory. He carries one single's worth at a
 	/// time -- let him sell through before switching titles.</summary>
 	public bool HandCartonToRunner(string recordId, int quantity, out string message) {
@@ -3848,14 +3923,18 @@ public partial class PlayerDesk : Node {
 		if (single.Dated) { message = "That single already has a release date."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (!Require(ScheduleHours, out message)) return false;
+		int earliestDays = EarliestReleaseDays(single);
+		if (earliestDays < 1) { message = "Order a pressing first so the single can ship after the vinyl arrives."; return false; }
 		marketingBudget = Mathf.Max(0f, marketingBudget);
-		if (marketingBudget > Label.cashReserves) {
-			message = $"You can't cover a ${marketingBudget:N0} campaign on ${Label.cashReserves:N0} cash.";
+		if (marketingBudget > 0f && marketingBudget > Label.cashReserves) {
+			message = $"You're ${marketingBudget - Label.cashReserves:N0} short of the ${marketingBudget:N0} campaign. Set it to $0 to date the single now.";
 			return false;
 		}
 
 		Spend(ScheduleHours);
-		GameDate date = (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate).AddDays(Mathf.Max(1, daysOut));
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int safeDaysOut = Mathf.Max(earliestDays, daysOut);
+		GameDate date = today.AddDays(safeDaysOut);
 		single.Dated = true;
 		single.Date = date;
 		single.MarketingBudget = marketingBudget;
@@ -3867,14 +3946,27 @@ public partial class PlayerDesk : Node {
 		return true;
 	}
 
+	/// <summary>Minimum days from today before a dated release can ship: after its pressing arrives.</summary>
+	public int EarliestReleaseDays(PlannedRelease single) {
+		if (single?.Master?.Record == null) return -1;
+		PressOrder pressing = PressingOrderFor(single.Master.Record.recordId);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		if (pressing != null)
+			return Mathf.Max(1, TimeManager.Instance?.DaysBetween(today, pressing.Arrives) ?? 1);
+		PressStock stock = StockFor(single.Master.Record.recordId);
+		return stock?.TotalPressed > 0 && stock.Remaining + stock.PromoRemaining > 0 ? 1 : -1;
+	}
+
 	/// <summary>Singles that have been assembled but not yet given a release date -- ready to press and date.</summary>
 	public IEnumerable<PlannedRelease> UndatedSingles() => planned.Where(single => !single.Dated);
 
 	private void OnDayStarted(GameDate date) {
 		// You are not still holding a man on the line at nine the next morning.
 		ActiveCall = null;
-		if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1));
-		if (Label == null) return;
+		if (Label == null) {
+			if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
+			return;
+		}
 		ChargeHotelIfAway();
 		DeliverArrivedPressings(date);
 		ProcessCoverRehearsals(date);
@@ -3891,14 +3983,91 @@ public partial class PlayerDesk : Node {
 		ResolveTradeSubmissions();
 		ResolvePendingMailings();
 		ScanForCoversOfOwnSongs();
+		CheckBreakoutHeadlines();
+		// Last, so the paper also carries what the morning itself turned up (a pressing arriving, a record
+		// going out, a market breaking) instead of holding it back a day.
+		if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
 		Changed?.Invoke();
 	}
 
-	private void RefreshMorningDigest(GameDate date) {
+	/// <summary>The paper for the morning of <paramref name="today"/>: everything the office logged yesterday
+	/// plus what the start of today turned up, ranked so the story that matters most leads.</summary>
+	private void RefreshMorningDigest(GameDate date, GameDate today) {
 		string prefix = date.ToShortString() + "  ";
-		string[] events = log.Where(entry => entry.StartsWith(prefix, StringComparison.Ordinal)).Take(6).ToArray();
+		string todayPrefix = today.ToShortString() + "  ";
+		// The log is newest-first; within a rank the paper keeps that order.
+		IEnumerable<string> yesterday = log.Where(entry => entry.StartsWith(prefix, StringComparison.Ordinal))
+			.Select(entry => entry.Substring(prefix.Length));
+		IEnumerable<string> thisMorning = log.Where(entry => entry.StartsWith(todayPrefix, StringComparison.Ordinal))
+			.Select(entry => entry.Substring(todayPrefix.Length));
+		string[] dayEvents = CompactDuplicateEvents(yesterday.Concat(thisMorning));
+		string[] consequential = dayEvents.Where(IsConsequentialMorningEvent).ToArray();
+		string[] events = (consequential.Length > 0
+				? consequential.Concat(dayEvents.Where(entry => !IsConsequentialMorningEvent(entry)).Take(6))
+				: dayEvents.Take(6))
+			.Select((entry, index) => (entry, index))
+			.OrderBy(item => MorningStoryRank(item.entry)).ThenBy(item => item.index)
+			.Select(item => item.entry).ToArray();
 		MorningDigest = events.Length == 0 ? $"{date.ToHeadlineString()}: a quiet day at the office." :
-			$"{date.ToHeadlineString()}: " + string.Join("  •  ", events.Select(entry => entry.Substring(prefix.Length)));
+			$"{date.ToHeadlineString()}: " + string.Join("  •  ", events);
+	}
+
+	/// <summary>0 = front-page news (a record out, a market breaking, a pressing in, the bank), 1 = other
+	/// consequential business, 2 = everything else. The Morning Paper leads with the best rank-0 story.</summary>
+	public static int MorningStoryRank(string entry) {
+		string[] lead = {
+			"THE DOORS CLOSE", "BREAKOUT", "RELEASED:", "CHART DEBUT", "pressing plant delivered", "plant collected",
+			"in the red", "back in the black"
+		};
+		if (lead.Any(signal => entry.Contains(signal, StringComparison.OrdinalIgnoreCase))) return 0;
+		return IsConsequentialMorningEvent(entry) ? 1 : 2;
+	}
+
+	/// <summary>Front-page news on the paper's lead line: the first story if it is rank 0.</summary>
+	public static bool IsFrontPageStory(string entry) => MorningStoryRank(entry) == 0;
+
+	/// <summary>A player record clearing the regional-breakout bar in a market the label already sells into.
+	/// (The uncovered-market case is CheckWeeklyBreakoutNotices, which says what door to try.) This is the
+	/// headline: the record is working somewhere, and what to do about it is a thing to protect, not to chase.</summary>
+	private void CheckBreakoutHeadlines() {
+		if (Label == null) return;
+		foreach (RecordRuntimeData rec in ReleasedRecords) {
+			if (rec?.baseRecord == null || rec.regionalData == null) continue;
+			string recordId = rec.baseRecord.recordId;
+			foreach (var pair in rec.regionalData) {
+				if (pair.Value == null || pair.Value.breakoutStage < RegionalBreakoutStage.RegionalBreakout) continue;
+				if (!breakoutNoticesShown.Add($"{recordId}|{pair.Key}|BREAKOUT")) continue;
+				string regionName = ChartManager.Instance?.GetRegionById(pair.Key)?.regionName ?? pair.Key;
+				string title = TitleForRecord(recordId);
+				bool covered = Label.HasDistributionInRegion(pair.Key);
+				int onHand = StockFor(recordId)?.Remaining ?? 0;
+				Note(covered
+					? $"BREAKOUT: \"{title}\" is breaking out in {regionName}, and your line there is carrying it. Keep stock moving -- a dry shelf now wastes it."
+					: $"BREAKOUT: \"{title}\" is breaking out in {regionName}, where you have no line. Check THE TRADES in DISTRIBUTION -- that demand is waiting on a shelf."
+						+ (onHand > 0 ? string.Empty : " You're also out of sellable stock."));
+			}
+		}
+	}
+
+	private static string[] CompactDuplicateEvents(IEnumerable<string> entries) {
+		List<string> ordered = entries.ToList();
+		Dictionary<string, int> counts = ordered.GroupBy(entry => entry, StringComparer.Ordinal)
+			.ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+		var emitted = new HashSet<string>(StringComparer.Ordinal);
+		return ordered.Where(emitted.Add)
+			.Select(entry => counts[entry] > 1 ? $"{entry} (×{counts[entry]})" : entry)
+			.ToArray();
+	}
+
+	private static bool IsConsequentialMorningEvent(string entry) {
+		string[] signals = {
+			"THE DOORS CLOSE", "THE FLIP", "RELEASED:", "CHART DEBUT", "CHART RESULT", "CHART MOVE", "RADIO DROP",
+			"pressing plant delivered", "plant collected",
+			"gave up waiting", "passed on", "took ", "bought ", "broke", "breaking", "comes courting",
+			"warehouse", "credit", "returned", "THE TRADE SHEETS", "THE ONE-STOP", "collections",
+			"in the red", "back in the black", "will take a carton", "signed with", "offer"
+		};
+		return signals.Any(signal => entry.Contains(signal, StringComparison.OrdinalIgnoreCase));
 	}
 
 	/// <summary>A night away from your own bed is a motel bill.</summary>
@@ -4602,7 +4771,7 @@ public partial class PlayerDesk : Node {
 		if (IsGameOver) { message = "The label has folded -- load a save to keep playing."; return false; }
 		if (TimeManager.Instance == null) { message = "No clock."; return false; }
 		if (!TimeManager.Instance.CanAffordHours(hours, allowOvertime: true)) {
-			message = $"Not enough hours left today (needs {hours}h).";
+			message = $"This takes {hours}h and won't fit before the {TimeManager.Instance.HardStopTime} hard stop. It will be available tomorrow.";
 			return false;
 		}
 		message = string.Empty;
@@ -4627,6 +4796,7 @@ public partial class PlayerDesk : Node {
 
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
+		LogWeeklyPlayerOutcomes();
 		// Rolodex settlement lands before the books are drawn up so any payola penalty shows in this
 		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
 		// word on against what the records actually sold.
@@ -4675,6 +4845,30 @@ public partial class PlayerDesk : Node {
 		weeklyMechanicalRoyalty = 0f;
 		lastSnapshotCash = cash;
 		Changed?.Invoke();
+	}
+
+	/// <summary>Write major player-record changes into the office log after the chart settles, so the
+	/// Morning Paper can carry them even when the player skips over Friday.</summary>
+	private void LogWeeklyPlayerOutcomes() {
+		foreach (RecordRuntimeData record in ReleasedRecords) {
+			if (record?.baseRecord == null) continue;
+			string title = TitleForRecord(record.baseRecord.recordId);
+			if (record.currentPosition > 0 && record.lastWeekPosition <= 0)
+				Note($"CHART DEBUT: \"{title}\" enters the Hot 100 at #{record.currentPosition}.");
+			else if (record.currentPosition == 1 && record.lastWeekPosition != 1)
+				Note($"CHART RESULT: \"{title}\" reaches #1 on the Hot 100.");
+			else if (record.currentPosition > 0 && record.lastWeekPosition > 0
+				&& Math.Abs(record.currentPosition - record.lastWeekPosition) >= 10)
+				Note($"CHART MOVE: \"{title}\" moved from #{record.lastWeekPosition} to #{record.currentPosition}.");
+
+			if (record.regionalData == null) continue;
+			foreach (var pair in record.regionalData) {
+				RegionalRecordData region = pair.Value;
+				if (region?.stationsDropped != true || region.stationDropAge != record.weeksSinceRelease) continue;
+				string regionName = ChartManager.Instance?.GetRegionById(pair.Key)?.regionName ?? pair.Key;
+				Note($"RADIO DROP: stations in {regionName} moved \"{title}\" out of current rotation.");
+			}
+		}
 	}
 
 	/// <summary>The receivables book: what each house owes and when its terms run out.</summary>

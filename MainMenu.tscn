@@ -10,6 +10,22 @@
 [ext_resource type="PackedScene" path="res://UI/ArtistDetailPanel.tscn" id="7_artist"]
 [ext_resource type="PackedScene" path="res://UI/LabelDetailPanel.tscn" id="8_label"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chart"]
+bg_color = Color(0.941176, 0.894118, 0.764706, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.411765, 0.298039, 0.160784, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 24.0
+content_margin_top = 20.0
+content_margin_right = 24.0
+content_margin_bottom = 20.0
+
 [node name="MainMenu" type="Control" unique_id=1275337543 node_paths=PackedStringArray("chartPanel", "artistDetailPanel", "labelDetailPanel")]
 layout_mode = 3
 anchors_preset = 15
@@ -71,6 +87,7 @@ closeButton = NodePath("CloseBtn")
 detailPanel = NodePath("ChartDetailPanel")
 
 [node name="TextureRect" type="TextureRect" parent="ChartPanel" unique_id=234448066]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -79,19 +96,161 @@ grow_horizontal = 2
 grow_vertical = 2
 texture = ExtResource("4_iwfq2")
 
+[node name="ChartShade" type="ColorRect" parent="ChartPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.52)
+
+[node name="ChartPaper" type="PanelContainer" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 110.0
+offset_top = 18.0
+offset_right = 1490.0
+offset_bottom = 882.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_chart")
+
+[node name="ChartTitle" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 270.0
+offset_top = 28.0
+offset_right = 1330.0
+offset_bottom = 76.0
+theme_override_colors/font_color = Color(0.168627, 0.129412, 0.082353, 1)
+theme_override_font_sizes/font_size = 36
+horizontal_alignment = 1
+text = "BILLBOARD HOT 100 — SINGLES"
+
+[node name="HeadLeftRank" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 139.0
+offset_top = 139.0
+offset_right = 187.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "RANK"
+
+[node name="HeadLeftMove" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 189.0
+offset_top = 139.0
+offset_right = 247.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "MOVE"
+
+[node name="HeadLeftTitle" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 253.0
+offset_top = 139.0
+offset_right = 457.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "TITLE"
+
+[node name="HeadLeftArtist" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 463.0
+offset_top = 139.0
+offset_right = 663.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "ARTIST"
+
+[node name="HeadLeftLabel" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 669.0
+offset_top = 139.0
+offset_right = 779.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "LABEL"
+
+[node name="HeadRightRank" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 804.0
+offset_top = 139.0
+offset_right = 852.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "RANK"
+
+[node name="HeadRightMove" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 854.0
+offset_top = 139.0
+offset_right = 912.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "MOVE"
+
+[node name="HeadRightTitle" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 918.0
+offset_top = 139.0
+offset_right = 1122.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "TITLE"
+
+[node name="HeadRightArtist" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 1128.0
+offset_top = 139.0
+offset_right = 1328.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "ARTIST"
+
+[node name="HeadRightLabel" type="Label" parent="ChartPanel"]
+layout_mode = 0
+offset_left = 1334.0
+offset_top = 139.0
+offset_right = 1444.0
+offset_bottom = 160.0
+theme_override_colors/font_color = Color(0.419608, 0.227451, 0.109804, 1)
+theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+text = "LABEL"
 [node name="Date" type="Label" parent="ChartPanel" unique_id=1524411108]
 layout_mode = 0
-offset_left = 547.0
-offset_top = 48.0
-offset_right = 798.0
-offset_bottom = 80.0
+offset_left = 300.0
+offset_top = 82.0
+offset_right = 1300.0
+offset_bottom = 109.0
+theme_override_colors/font_color = Color(0.168627, 0.129412, 0.082353, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ChartPanel" unique_id=390945156]
 layout_mode = 0
-offset_left = 425.0
-offset_top = 309.0
-offset_right = 923.0
-offset_bottom = 1048.0
+offset_left = 135.0
+offset_top = 164.0
+offset_right = 785.0
+offset_bottom = 704.0
+theme_override_constants/separation = 0
 
 [node name="ChartEntry" parent="ChartPanel/VBoxContainer" unique_id=1413358445 instance=ExtResource("5_iwfq2")]
 layout_mode = 2
@@ -140,10 +299,11 @@ layout_mode = 2
 
 [node name="VBoxContainer2" type="VBoxContainer" parent="ChartPanel" unique_id=1718840512]
 layout_mode = 0
-offset_left = 935.0
-offset_top = 308.0
-offset_right = 1433.0
-offset_bottom = 1047.0
+offset_left = 800.0
+offset_top = 164.0
+offset_right = 1450.0
+offset_bottom = 704.0
+theme_override_constants/separation = 0
 
 [node name="ChartEntry" parent="ChartPanel/VBoxContainer2" unique_id=835024141 instance=ExtResource("5_iwfq2")]
 layout_mode = 2
@@ -192,29 +352,29 @@ layout_mode = 2
 
 [node name="NextPgBtn" type="Button" parent="ChartPanel" unique_id=1350701173]
 layout_mode = 0
-offset_left = 494.0
-offset_top = 211.0
-offset_right = 539.0
-offset_bottom = 261.0
+offset_left = 803.0
+offset_top = 776.0
+offset_right = 858.0
+offset_bottom = 824.0
 scale = Vector2(1.08, 0.88)
 theme_override_font_sizes/font_size = 30
 text = "->"
 
 [node name="BackPgBtn" type="Button" parent="ChartPanel" unique_id=586519710]
 layout_mode = 0
-offset_left = 431.00003
-offset_top = 211.0
-offset_right = 476.00003
-offset_bottom = 261.0
+offset_left = 738.0
+offset_top = 776.0
+offset_right = 793.0
+offset_bottom = 824.0
 scale = Vector2(1.08, 0.88)
 theme_override_font_sizes/font_size = 30
 text = "<-"
 
 [node name="CloseBtn" type="Button" parent="ChartPanel" unique_id=854154238]
 layout_mode = 0
-offset_left = 405.0
-offset_top = 32.0
-offset_right = 450.0
+offset_left = 1395.0
+offset_top = 34.0
+offset_right = 1455.0
 offset_bottom = 82.0
 scale = Vector2(1.08, 0.72)
 theme_override_font_sizes/font_size = 30

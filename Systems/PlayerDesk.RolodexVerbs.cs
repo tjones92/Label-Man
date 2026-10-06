@@ -706,7 +706,7 @@ public partial class PlayerDesk : Node {
 				? $"No meeting, no memo. {c.station.callsign} is spinning \"{c.baseRecord.title}\" from " +
 				  "tonight, in light rotation. Whether it stays there is between the record and the phones."
 				: $"{c.station.callsign} already had it on. He agrees to keep it there a while longer.");
-			entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". He put it straight on the air. Rapport +{gain:F2}.");
+			entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". He put it straight on the air.");
 			Note($"{c.station.callsign} is spinning \"{c.baseRecord.title}\" -- {entry.displayName} put it on himself.");
 			message = $"{c.station.callsign} is playing it, starting tonight.";
 			return;
@@ -717,7 +717,7 @@ public partial class PlayerDesk : Node {
 		call.Say(RolodexSceneBeat.RelationshipAftermath,
 			$"He cannot just play it -- {c.station.callsign} runs off a sheet he does not write. He will argue " +
 			$"for \"{c.baseRecord.title}\" at the next {PitchAdvocacyWeeks} playlist meetings. The meeting decides.");
-		entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". Arguing it for {PitchAdvocacyWeeks} weeks. Rapport +{gain:F2}.");
+		entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". He's arguing for it at the next {PitchAdvocacyWeeks} weekly meetings.");
 		Note($"{entry.displayName} ({c.station.callsign}) will argue \"{c.baseRecord.title}\" at the playlist meeting.");
 		message = $"He'll push it at the meeting -- {c.station.callsign} isn't his to decide.";
 	}
@@ -762,7 +762,7 @@ public partial class PlayerDesk : Node {
 
 		call.Say(RolodexSceneBeat.RelationshipAftermath,
 			$"He'll give \"{flipTitle}\" a real listen next time it's on the desk -- that is the whole ask, and it is not nothing.");
-		entry.log.Insert(0, $"{Today()} — Talked him into listening for the flip, \"{flipTitle}\". Rapport +{gain:F2}.");
+		entry.log.Insert(0, $"{Today()} — Talked him into listening for the flip, \"{flipTitle}\".");
 		Note($"{entry.displayName} ({c.station.callsign}) is listening for the flip on \"{c.baseRecord.title}\" -- \"{flipTitle}\".");
 		message = "He's open to turning it over, if it comes up.";
 	}
