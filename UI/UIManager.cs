@@ -206,7 +206,7 @@ public partial class UIManager : Control
 				? digests.Where(digest => !digest.EndsWith("a quiet day at the office.", System.StringComparison.Ordinal)).ToArray()
 				: digests;
 			if (dayDigests.Length == 0) dayDigests = digests.TakeLast(1).ToArray();
-			RenderPaper(dayDigests, digests.Length > 1);
+			RenderPaper(dayDigests, digests.Length > 1, currentDesk.TakeTradeNews());
 			paperScroll.ScrollVertical = 0;
 			if (!morningPaper.Visible) uiOpenBeforePaper = isUIOpen;
 			morningPaper.Show();
@@ -226,7 +226,7 @@ public partial class UIManager : Control
 
 	/// <summary>Lays the paper out like a paper: the day's front-page story as a headline, the other news under
 	/// it in ranked order, the small stuff last. A multi-day skip groups each day under its dateline.</summary>
-	private void RenderPaper(string[] dayDigests, bool multiDay) {
+	private void RenderPaper(string[] dayDigests, bool multiDay, System.Collections.Generic.IReadOnlyList<string> trade) {
 		foreach (Node child in paperBody.GetChildren()) child.QueueFree();
 		Color ink = new("30291d"), rust = new("6b3a1c");
 		string DigestDate(string digest) {
@@ -250,6 +250,12 @@ public partial class UIManager : Control
 				first = false;
 			}
 			if (multiDay) paperBody.AddChild(new HSeparator());
+		}
+		// What the rest of the business did: the chart, a market breaking, a rival's signing. Not the player's ledger.
+		if (trade != null && trade.Count > 0) {
+			paperBody.AddChild(new HSeparator());
+			paperBody.AddChild(PaperText("THE TRADE", 16, rust));
+			foreach (string line in trade) paperBody.AddChild(PaperText(line, 19, new Color("4a4132")));
 		}
 	}
 

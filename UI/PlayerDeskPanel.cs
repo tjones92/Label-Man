@@ -522,8 +522,11 @@ public partial class PlayerDeskPanel : Control {
 	private static string WhileYouWait(PlayerDesk desk) {
 		var options = new List<string>();
 		if (desk.AtHome && desk.CanStillWorkThePhones()) options.Add("work the phones (free)");
-		if (desk.Label.cashReserves >= 20f && desk.Masters.Any(master => !master.Released && desk.AcetatesFor(master.Record?.recordId) == 0))
-			options.Add("cut a $20 acetate");
+		// The acetate is the one thing that can pay off before the plant delivers: a test disc a local DJ can play.
+		if (desk.Masters.Any(master => !master.Released && desk.AcetatesFor(master.Record?.recordId) > 0))
+			options.Add("hand your acetate to a local DJ");
+		else if (desk.Label.cashReserves >= 20f && desk.Masters.Any(master => !master.Released))
+			options.Add("cut a $20 acetate (a test disc a DJ can play now)");
 		if (desk.Label.CurrentRosterSize > 0) options.Add("work up songs");
 		else options.Add("scout a room (hours only)");
 		return "Meanwhile: " + (options.Count == 1 ? options[0]
@@ -1127,14 +1130,14 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, signed);
 				Refresh();
 			},
-			() => { negotiating = null; Refresh(); });
+			() => { negotiating = null; Refresh(); }, b);
 	}
 
 	/// <summary>The editable grid shared by the plain contract form, every tabling round of a
 	/// Firm/Hardball negotiation, and a renewal. Just the fields and the two buttons -- caller
 	/// supplies the prefill, what the submit button says and does, and what "not now" does.</summary>
 	private void TermsForm(ContractTermSheet prefill, string submitLabel,
-			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel) {
+			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel, ContractTermSheet? ask = null) {
 		var grid = new GridContainer { Columns = 2 };
 		grid.AddThemeConstantOverride("h_separation", 18);
 		grid.AddThemeConstantOverride("v_separation", 8);
@@ -1169,6 +1172,36 @@ public partial class PlayerDeskPanel : Control {
 		grid.AddChild(FormLabel("Creative control"));
 		var artistControl = Check("Artist has creative control", prefill.ArtistCreativeControl);
 		grid.AddChild(artistControl);
+
+		// The two gives are not free: say what each one costs, and keep the line live as the boxes are ticked.
+		var givesNote = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		givesNote.AddThemeFontSizeOverride("font_size", 15);
+		content.AddChild(givesNote);
+		void UpdateGives() {
+			bool conceded = !labelPub.ButtonPressed || artistControl.ButtonPressed;
+			givesNote.Text = PlayerDesk.PublishingPriceLine(labelPub.ButtonPressed) + "\n" +
+				PlayerDesk.CreativeControlPriceLine(artistControl.ButtonPressed);
+			givesNote.AddThemeColorOverride("font_color", conceded ? Rust : Heard);
+		}
+		labelPub.Toggled += _ => UpdateGives();
+		artistControl.Toggled += _ => UpdateGives();
+		UpdateGives();
+
+		var lowball = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		lowball.AddThemeFontSizeOverride("font_size", 15);
+		lowball.AddThemeColorOverride("font_color", Rust);
+		content.AddChild(lowball);
+		void UpdateLowball() {
+			if (ask is not ContractTermSheet theirs || theirs.Advance <= 0f) { lowball.Visible = false; return; }
+			float under = PlayerDesk.UnderAskFraction(theirs, new ContractTermSheet((float)advance.Value, (float)royalty.Value / 100f,
+				(int)term.Value, (int)singles.Value, labelPub.ButtonPressed, artistControl.ButtonPressed,
+				theirs.NegotiationDifficulty, theirs.Manager, theirs.ManagerName, theirs.DemandSummary));
+			lowball.Visible = under >= 0.20f;
+			lowball.Text = $"{under:P0} under their ask. They'll sign, and they'll remember it: the renewal comes back priced higher.";
+		}
+		advance.ValueChanged += _ => UpdateLowball();
+		royalty.ValueChanged += _ => UpdateLowball();
+		UpdateLowball();
 
 		var commitment = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		commitment.AddThemeColorOverride("font_color", Ink);
@@ -1244,10 +1277,10 @@ public partial class PlayerDeskPanel : Control {
 			: $"TABLE AGAIN  ({PlayerDesk.NegotiationRoundHours}h)";
 		float advanceFloor = PlayerDesk.MinimumAdvanceForAcceptance(talk);
 		Body($"Their ask: ${talk.ask.Advance:N0}, {talk.ask.RoyaltyRate:P1}, {talk.ask.TermYears} year(s), " +
-			$"{talk.ask.SinglesObligation} single(s). This {talk.posture.ToString().ToLowerInvariant()} act needs at least ${advanceFloor:N0} up front plus terms that meet their overall threshold. " +
+			$"{talk.ask.SinglesObligation} single(s){(talk.ask.LabelOwnsPublishing ? "" : ", they keep the publishing")}{(talk.ask.ArtistCreativeControl ? ", they hold creative control" : "")}. This {talk.posture.ToString().ToLowerInvariant()} act needs at least ${advanceFloor:N0} up front plus terms that meet their overall threshold. " +
 			$"Each table round costs {PlayerDesk.NegotiationRoundHours} hours.");
 		Body(talk.draftOffer.HasValue ? "The last meeting could not be held; your entered terms are still below." :
-			talk.roundsPlayed == 0 ? "These fields start at their ask. Change them to make your opening offer." : "These fields start with your last offer. Change any term before putting it back on the table.");
+			talk.roundsPlayed == 0 ? "These fields start on your label's standard paper: you keep the publishing and have the final word. Their ask is above; every give you tick is a concession." : "These fields start with your last offer. Change any term before putting it back on the table.");
 		TermsForm(PlayerDesk.CurrentOffer(talk), label,
 			(advance, royalty, term, singles, labelPub, artistControl) => {
 				bool ok = PlayerDesk.Instance.TableOffer(talk, advance, royalty, term, singles, labelPub, artistControl, out string message);
@@ -1260,7 +1293,7 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, ok);
 				CloseTalkIfDone(talk);
 				Refresh();
-			});
+			}, talk.ask);
 	}
 
 	/// <summary>A negotiation scene serves both a new signing (closes `negotiating`) and a renewal
@@ -1406,7 +1439,7 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, renewed);
 				Refresh();
 			},
-			() => { renewingArtist = null; Refresh(); });
+			() => { renewingArtist = null; Refresh(); }, offer.Ask);
 	}
 
 	/// <summary>The MANAGE window for one act: repertoire (write / teach a cover) and the studio.</summary>
@@ -1705,10 +1738,13 @@ public partial class PlayerDeskPanel : Control {
 		dialog.AddButton("SET THIS ASIDE", () => Choose("shelve"));
 		var own = dialog.AddButton("USE THEIR OWN MATERIAL", () => Choose("own"));
 		own.Disabled = !checks.Any(c => c.Choice.Kind == PlayerDesk.MaterialKind.Original);
-		dialog.AddButton("INSIST — BOOK THE ROOM", () => {
+		var insist = dialog.AddButton(artist.artistCreativeControl ? "THEIR CALL — CAN'T INSIST" : "INSIST — BOOK THE ROOM", () => {
 			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true);
 			Say(message, ok); Refresh();
 		}, PaperModal.ButtonKind.Primary);
+		// Creative control is the act's final word on material: the contract you signed takes the override away.
+		insist.Disabled = artist.artistCreativeControl;
+		if (artist.artistCreativeControl) dialog.AddText($"{artist.stageName} holds creative control under their contract, so you can't overrule this.");
 	}
 
 	/// <summary>The console: keep a take per song, then print. Selecting a take is free.</summary>
@@ -2311,7 +2347,9 @@ public partial class PlayerDeskPanel : Control {
 				foreach ((string recordId, string title, bool inMarket) in singles) {
 					PlayerDesk.PressStock stock = desk.StockFor(recordId);
 					bool repressable = desk.HasBeenPressed(recordId);
-					singlePicker.AddItem($"\"{title}\"{(inMarket ? "" : " (upcoming)")}  —  {(stock?.Remaining ?? 0):N0} sellable, {(stock?.PromoRemaining ?? 0):N0} promo in the office{(repressable ? " (repress)" : "")}");
+					PlayerDesk.PressOrder onOrder = desk.PressingOrderFor(recordId);
+					singlePicker.AddItem($"\"{title}\"{(inMarket ? "" : " (upcoming)")}  —  {(stock?.Remaining ?? 0):N0} sellable, {(stock?.PromoRemaining ?? 0):N0} promo in the office{(repressable ? " (repress)" : "")}" +
+						(onOrder != null ? $"  —  ON ORDER, due {onOrder.Arrives.ToHeadlineString()}" : ""));
 				}
 				int selectedPressIndex = singles.FindIndex(single => single.RecordId == selectedPressRecordId);
 				if (selectedPressIndex >= 0) singlePicker.Selected = selectedPressIndex + 1;
@@ -2346,6 +2384,10 @@ public partial class PlayerDeskPanel : Control {
 					}
 					string recordId = singles[Mathf.Clamp(singlePicker.Selected - 1, 0, singles.Count - 1)].RecordId;
 					if (order != null) order.Disabled = false;
+					// A run already in the plant: the button stops reading like a first order. It still works, behind
+					// a confirm, because a second run is sometimes right -- but it never looks like a fresh one.
+					PlayerDesk.PressOrder inPlant = desk.PressingOrderFor(recordId);
+					if (order != null) order.Text = inPlant != null ? "ORDER ANOTHER PRESSING…" : "ORDER PRESSING";
 					bool repress = desk.HasBeenPressed(recordId);
 					int qty = (int)qtyInput.Value;
 					float cost = PlayerDesk.PressingCost(qty, repress);
@@ -2358,6 +2400,7 @@ public partial class PlayerDeskPanel : Control {
 					// only muddied that point. Spelling out the qty/promo split directly (qty - promo sellable,
 					// promo out of this run) makes the subtraction visible instead of implying an extra cost.
 					runCost.Text =
+						(inPlant != null ? $"ALREADY ON ORDER: {inPlant.Quantity:N0} due {inPlant.Arrives.ToHeadlineString()}. This would be a second run.  ·  " : "") +
 						$"Run cost: ${cost:N0}  (${cost / Math.Max(1.0, qty):F2}/disc){(repress ? " — repress, no lacquer fee" : "")}" +
 						(promo > 0 ? $"   ·   {qty - promo:N0} sellable + {promo:N0} promo, out of this {qty:N0}-unit run" : "") +
 						(repress ? "" : $"   ·   promo capped at {promoCap:N0} ({PlayerDesk.PressPromoCapFraction:P0})") +

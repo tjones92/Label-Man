@@ -227,8 +227,66 @@ public partial class PlayerDesk : Node {
 		return talk;
 	}
 
-	/// <summary>Prefill for the tabling form: the last thing you tabled, or the ask itself for round one.</summary>
-	public static ContractTermSheet CurrentOffer(ContractTalk talk) => talk.draftOffer ?? talk.lastOffer ?? talk.ask;
+	/// <summary>Prefill for the tabling form: what you last tabled, else the label's standard paper for round one.
+	/// Round one used to open on the act's own ask, with the publishing and the final word already conceded, so
+	/// giving them away was never a decision. Now the label's paper is the opening and every give is a tick.</summary>
+	public static ContractTermSheet CurrentOffer(ContractTalk talk) => talk.draftOffer ?? talk.lastOffer ?? StandardPaper(talk.ask);
+
+	/// <summary>The label's own paper at the act's numbers: the label keeps the publishing and has the final say.</summary>
+	public static ContractTermSheet StandardPaper(ContractTermSheet ask) => new(ask.Advance, ask.RoyaltyRate,
+		ask.TermYears, ask.SinglesObligation, true, false,
+		ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
+
+	// ========================================================================================
+	// WHAT THE GIVES COST -- the two control axes had no visible price, so they were free concessions
+	// ========================================================================================
+
+	private const int MechanicalExampleCopies = 100000;
+
+	/// <summary>The long-tail price of artist-owned publishing, in the one currency the player already sees:
+	/// the compulsory mechanical the label pays the writer on every copy of a 45 (MechanicalRoyaltyService
+	/// charges both sides, and a label that controls the song pays itself nothing).</summary>
+	public static string PublishingPriceLine(bool labelKeepsPublishing) {
+		if (labelKeepsPublishing) return "You keep the publishing: no mechanicals owed on their own songs.";
+		float perCopy = MechanicalRoyaltyService.RatePerCopy * 100f;
+		float bothSides = MechanicalExampleCopies * MechanicalRoyaltyService.RatePerCopy * 2f;
+		return $"They keep the publishing: you owe them {perCopy:0.#} cents a copy on each of their own songs. " +
+			$"A {MechanicalExampleCopies:N0}-copy single with both sides theirs costs you about ${bothSides:N0} in mechanicals.";
+	}
+
+	public static string CreativeControlPriceLine(bool artistHasControl) => artistHasControl
+		? "They have the final word: they can turn down songs they don't like, and you can't insist in the studio."
+		: "You have the final word on material: they may object, but you can insist.";
+
+	// ========================================================================================
+	// THE LOWBALL GRUDGE -- a cheap first signing is paid for at renewal
+	// ========================================================================================
+
+	private const float GrudgeAdvancePremium = 0.50f;   // a signing at nothing asks half again on the advance
+	private const float GrudgeRoyaltyPremium = 0.20f;
+	private const float GrudgeNoticeFloor = 0.20f;
+
+	/// <summary>How far under their ask the signed paper landed, on whichever of the two money axes fell
+	/// furthest. 0 at or above the ask, 1 at nothing.</summary>
+	public static float UnderAskFraction(ContractTermSheet ask, ContractTermSheet signed) {
+		float advance = ask.Advance > 0f ? 1f - signed.Advance / ask.Advance : 0f;
+		float royalty = ask.RoyaltyRate > 0f ? 1f - signed.RoyaltyRate / ask.RoyaltyRate : 0f;
+		return Mathf.Clamp(Mathf.Max(advance, royalty), 0f, 1f);
+	}
+
+	/// <summary>A renewal ask raised by what the act remembers of how cheaply it signed. The act's own
+	/// current stats already priced the ask (<see cref="AILabel.GenerateTermSheet"/>); this only adds the
+	/// grudge on top, and says so in the summary so the premium is never a hidden number.</summary>
+	public static ContractTermSheet WithGrudge(ContractTermSheet ask, float grudge) {
+		if (grudge <= 0.001f) return ask;
+		float advance = Mathf.Ceil(ask.Advance * (1f + GrudgeAdvancePremium * grudge) / 5f) * 5f;
+		float royalty = Mathf.Min(0.15f, Mathf.Ceil(ask.RoyaltyRate * (1f + GrudgeRoyaltyPremium * grudge) * 400f) / 400f);
+		string summary = AILabel.BuildDemandSummary(ask.Manager, advance, royalty, ask.LabelOwnsPublishing, ask.ArtistCreativeControl);
+		if (grudge >= GrudgeNoticeFloor)
+			summary += $" They haven't forgotten signing {grudge:P0} under their ask -- the new paper starts higher for it.";
+		return new ContractTermSheet(advance, royalty, ask.TermYears, ask.SinglesObligation,
+			ask.LabelOwnsPublishing, ask.ArtistCreativeControl, ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, summary);
+	}
 
 	/// <summary>The package must clear the act's weighted reservation and meet a minimum cash floor.
 	/// Otherwise control and quota concessions could make a 20%-of-ask advance pass on paper even when
@@ -402,7 +460,7 @@ public partial class PlayerDesk : Node {
 	private void FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
 		talk.stage = ContractTalkStage.Done;
 		if (talk.IsRenewal) {
-			FinalizeRenewal(talk.renewalArtist, sheet, out message);
+			FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message);
 			PendingRenewal = null;
 		} else {
 			FinalizeSigning(talk.prospect, sheet, out message);
@@ -519,6 +577,8 @@ public partial class PlayerDesk : Node {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		float paid = Label.SignArtist(prospect.Artist, year, sheet);
+		float underAsk = prospect.HasBaseline ? UnderAskFraction(prospect.Baseline, sheet) : 0f;
+		prospect.Artist.signedUnderAskFraction = underAsk;
 		CompetitorManager.Instance?.RecordExpense(Label, paid);
 		ArtistManager.Instance?.SignArtist(prospect.Artist, Label.labelId, year);
 		Label.SetOperatingRosterTarget(Label.CurrentRosterSize, LabelOperatingTargetReason.OrganicGrowth, week);
@@ -529,7 +589,8 @@ public partial class PlayerDesk : Node {
 
 		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
-		message = $"Signed {prospect.Artist.stageName}.";
+		message = $"Signed {prospect.Artist.stageName}." + (underAsk >= GrudgeNoticeFloor
+			? " They took the cheap deal, and they'll remember it when the paper comes up for renewal." : "");
 	}
 
 	// ========================================================================================
@@ -555,7 +616,7 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 
-		ContractTermSheet ask = Label.GenerateTermSheet(artist, year);
+		ContractTermSheet ask = WithGrudge(Label.GenerateTermSheet(artist, year), artist.signedUnderAskFraction);
 		NegotiationPosture posture = PostureOf(artist);
 		var offer = new RenewalOffer { Artist = artist, Ask = ask, Posture = posture };
 		if (posture != NegotiationPosture.Pushover) {
@@ -598,7 +659,7 @@ public partial class PlayerDesk : Node {
 		}
 
 		Spend(NegotiationRoundHours);
-		FinalizeRenewal(artist, sheet, out message);
+		FinalizeRenewal(artist, sheet, ask, out message);
 		PendingRenewal = null;
 		Changed?.Invoke();
 		return true;
@@ -607,7 +668,7 @@ public partial class PlayerDesk : Node {
 	/// <summary>The write path for a successful renewal -- mirrors RosterManager's own AI re-sign
 	/// branch (new advance paid, term/expiry/obligation reset, releases-under-this-deal zeroed), plus
 	/// the two axes only the player's negotiation actually touches (publishing, creative control).</summary>
-	private void FinalizeRenewal(SimulatedArtist artist, ContractTermSheet sheet, out string message) {
+	private void FinalizeRenewal(SimulatedArtist artist, ContractTermSheet sheet, ContractTermSheet ask, out string message) {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		artist.unrecoupedAdvance = sheet.Advance;
@@ -619,6 +680,8 @@ public partial class PlayerDesk : Node {
 		artist.royaltyRate = sheet.RoyaltyRate;
 		artist.labelOwnsPublishing = sheet.LabelOwnsPublishing;
 		artist.artistCreativeControl = sheet.ArtistCreativeControl;
+		// Paying the premium (or talking them down) clears the old grudge; a fresh lowball starts a new one.
+		artist.signedUnderAskFraction = UnderAskFraction(ask, sheet);
 		CompetitorManager.Instance?.RecordExpense(Label, sheet.Advance);
 		artist.careerEvents.Add($"{year}: Re-signed with {Label.labelName} (${sheet.Advance:N0} advance, {sheet.TermYears}yr" +
 			(sheet.SinglesObligation > 0 ? $", {sheet.SinglesObligation} sides)" : ")"));

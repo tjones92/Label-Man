@@ -953,6 +953,7 @@ public partial class PlayerDesk : Node {
 
 	private void OnRivalTalentMarketAppointment(RosterManager.DailyTalentMarketAppointment appointment) {
 		if (appointment?.SelectedArtist == null || appointment.Label == null || appointment.Label.isPlayerOwned) return;
+		RecordRivalSigning(appointment);
 		WatchNote entry = notebook.FirstOrDefault(note => note.Artist?.artistId == appointment.SelectedArtist.artistId);
 		if (entry == null || (entry.LastRivalInterestDate.HasValue && entry.LastRivalInterestDate.Value == appointment.Date)) return;
 		if (appointment.Outcome is not ("AcceptedUncontested" or "AcceptedArtistChoice" or "LostArtistChoice" or "Nominated")) return;
@@ -2110,6 +2111,11 @@ public partial class PlayerDesk : Node {
 			.22f * artist.studioPerformance + .12f * StudioQualityT(), 0, 1)
 	};
 
+	/// <summary>Creative control has teeth: an act that holds it turns down more of what you put in front of it
+	/// (a higher bar to clear), and its no cannot be overridden in the studio. Player booking only -- the AI's
+	/// own material gate calls <see cref="PolarSongBehavior.Refuses"/> at scale 1.</summary>
+	public const float CreativeControlRefusalScale = 1.30f;
+
 	/// <summary>Direct act feedback. Only the refusal decision crosses the truth boundary; its wording
 	/// is the act's communicated response, rather than a hidden deficit or numerical fit display.</summary>
 	public IReadOnlyList<string> MaterialRefusals(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier? tier = null) {
@@ -2120,7 +2126,7 @@ public partial class PlayerDesk : Node {
 			var choice = choices[i];
 			if (choice == null || CompositionCatalogService.GetSong(choice.SongId) == null) continue;
 			var proposal = PolarPlayerPerception.Proposal(choice, artist, PreviewMasterId(i), tier.HasValue ? PreviewSessionContext(tier.Value, artist) : null);
-			if (PolarSongBehavior.Refuses(proposal.fit, artist, empty))
+			if (PolarSongBehavior.Refuses(proposal.fit, artist, empty, artist.artistCreativeControl ? CreativeControlRefusalScale : 1f))
 				responses.Add($"{artist.stageName} on “{choice.Title}”: “This doesn't feel like us. We'd rather work on our own material.”");
 		}
 		return responses;
@@ -2133,6 +2139,10 @@ public partial class PlayerDesk : Node {
 		List<MaterialChoice> cutting = (choices ?? Array.Empty<MaterialChoice>()).Where(c => c != null).ToList();
 		if (cutting.Count == 0) { message = "Pick at least one song to cut."; return false; }
 		var refusals = MaterialRefusals(artist, cutting, tier);
+		if (refusals.Count > 0 && artist.artistCreativeControl) {
+			message = string.Join("\n", refusals) + $"\n{artist.stageName} holds creative control -- it's their call, and you can't insist.";
+			return false;
+		}
 		if (!overrideRefusal && refusals.Count > 0) { message = string.Join("\n", refusals); return false; }
 		hours = Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
 		if (!Require(hours, out message)) return false;
@@ -4079,6 +4089,7 @@ public partial class PlayerDesk : Node {
 		ResolvePendingMailings();
 		ScanForCoversOfOwnSongs();
 		CheckBreakoutHeadlines();
+		GatherTradeNews();
 		// Last, so the paper also carries what the morning itself turned up (a pressing arriving, a record
 		// going out, a market breaking) instead of holding it back a day.
 		if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
