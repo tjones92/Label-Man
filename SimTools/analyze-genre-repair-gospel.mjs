@@ -44,5 +44,5 @@ for(const seed of [1001,1002]) {
   concentration:concentration(rows.filter(inherited)),actBooks:{medianDistinctSongs:quantile(actBooks.map(r=>r.uniqueSongs),.5),p90DistinctSongs:quantile(actBooks.map(r=>r.uniqueSongs),.9),medianTop10Share:quantile(actBooks.map(r=>r.top10Share),.5)},periods,inputs});
 }
 const output={definition:'Fresh 1960–September 1961 monthly Gospel trajectory; all live slots, all signing statuses. Pre-existing acceptance: 65–70% inherited, <=2% secular. Unknown contexts remain explicit.',manifest:{path:manifestPath,sha256:sha(manifestPath)},trajectories};
-fs.writeFileSync('SimTools/GenreRepertoireRepairGospelRegression.json',JSON.stringify(output,null,2)+'\n');
+fs.writeFileSync(process.argv[3]??'SimTools/GenreRepertoireRepairGospelRegression.json',JSON.stringify(output,null,2)+'\n');
 console.log(JSON.stringify(trajectories.map(({periods,inputs,...r})=>r),null,2));

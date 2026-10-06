@@ -62,9 +62,11 @@ public partial class ChartAuditRunner {
   genreFollowUpSlots?.Dispose();genreFollowUpPools?.Dispose();genreFollowUpCatalog?.Dispose();genreFollowUpSources?.Dispose();genreFollowUpSources=null;genreRepairReference?.Dispose();
  }
  private void CaptureGenreRepairReference(SimulatedArtist artist,bool unsigned,GameDate date,ActRepertoireState priorState) {
-  bool mode=LiveRepertoire.AuditGenreRepair;var observer=SongMaterialSelectionService.ObserveLiveSource;
+  bool mode=LiveRepertoire.AuditGenreRepair,easyMode=LiveRepertoire.AuditEasySoundtracks;var observer=SongMaterialSelectionService.ObserveLiveSource;
   try {
-   LiveRepertoire.AuditGenreRepair=false;SongMaterialSelectionService.ObserveLiveSource=null;
+   if(easySoundtrackCensus)LiveRepertoire.AuditEasySoundtracks=false;
+   else LiveRepertoire.AuditGenreRepair=false;
+   SongMaterialSelectionService.ObserveLiveSource=null;
    using var random=new Godot.RandomNumberGenerator {Seed=CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}")};
    var set=new PlayerDesk.Prospect {Artist=artist};PlayerDesk.Instance.BuildLiveSet(set,artist,date.year,0,random);
    for(int i=0;i<set.LiveSet.Count;i++) {
@@ -73,6 +75,6 @@ public partial class ChartAuditRunner {
      song?.originYear??date.year,song?.originKind.ToString()??"ArtistOriginal",song?.primaryGenre.ToString()??artist.primaryGenre.ToString(),song?.secondaryGenre.ToString()??"",Csv(song?.repertoireSeedFamily),song?.isPublicDomain??false,DF(currentPolarSample.Weight),currentPolarSample.CrossSection,
      (song?.contentContext??item.ContentContext).ToString()));
    }
-  } finally {LiveRepertoire.AuditGenreRepair=mode;SongMaterialSelectionService.ObserveLiveSource=observer;artist.repertoireState=priorState;}
+  } finally {LiveRepertoire.AuditGenreRepair=mode;LiveRepertoire.AuditEasySoundtracks=easyMode;SongMaterialSelectionService.ObserveLiveSource=observer;artist.repertoireState=priorState;}
  }
 }

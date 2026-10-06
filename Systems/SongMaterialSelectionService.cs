@@ -617,7 +617,7 @@ public static class SongMaterialSelectionService {
 		}
 		// Preserve calibrated source mixes. Media is a family opportunity WITHIN
 		// the selected source, so it cannot displace a Folk/Easy source allocation.
-		if(LiveRepertoire.SetMix(artist,year)!=null)return SelectLiveCoversCore(eligible,artist,year,count);
+		if(LiveRepertoire.SetMix(artist,year)!=null||LiveRepertoire.UnrestrictedSoundtracks(artist))return SelectLiveCoversCore(eligible,artist,year,count);
 		var media=eligible.Where(LiveRepertoire.ExternalMedia).ToArray();
 		if(media.Length==0)return SelectLiveCoversCore(eligible,artist,year,count);
 		int month=TimeManager.Instance?.CurrentDate.month??1;
@@ -646,13 +646,14 @@ public static class SongMaterialSelectionService {
 		if(count<=0)return System.Array.Empty<SongComposition>();
 		int Slot(int i)=>slotIndices==null?i:slotIndices[i];
 		var mix=LiveRepertoire.SetMix(artist,year);
+		bool unrestrictedMedia=LiveRepertoire.UnrestrictedSoundtracks(artist);
 		if(mix!=null) {
 			var mixPool=pool.Where(s=>s!=null&&s.originYear<=year&&s.isCoverable&&!LiveRepertoire.OwnOriginal(s,artist)&&LiveRepertoire.EligibleLive(s,artist)).DistinctBy(s=>s.songId)
 				.Where(s=>!RejectedSample(s,artist,new Record {recordId=$"live:{artist.artistId}:{year}:{s.songId}",primaryGenre=artist.primaryGenre},year)).ToArray();
 			var sources=System.Enum.GetValues<LiveCoverSource>().ToDictionary(source=>source,
-				source=>PolarSongBehavior.RankLive(mixPool.Where(s=>mix.Source(s,year)==source&&(!LiveRepertoire.AuditGenreRepair||!LiveRepertoire.ExternalMedia(s))),artist,year).Take(count).ToList());
+				source=>PolarSongBehavior.RankLive(mixPool.Where(s=>mix.Source(s,year)==source&&(unrestrictedMedia||!LiveRepertoire.AuditGenreRepair||!LiveRepertoire.ExternalMedia(s))),artist,year).Take(count).ToList());
 			var mediaSources=System.Enum.GetValues<LiveCoverSource>().ToDictionary(source=>source,
-				source=>mixPool.Where(s=>LiveRepertoire.AuditGenreRepair&&LiveRepertoire.ExternalMedia(s)&&mix.Source(s,year)==source).ToList());
+				source=>mixPool.Where(s=>!unrestrictedMedia&&LiveRepertoire.AuditGenreRepair&&LiveRepertoire.ExternalMedia(s)&&mix.Source(s,year)==source).ToList());
 			var mediaRanks=System.Enum.GetValues<LiveCoverSource>().ToDictionary(source=>source,source=>new Dictionary<string,List<SongComposition>>());
 			bool Available(LiveCoverSource source)=>sources[source].Count>0||mediaSources[source].Count>0;
 			var chosen=new List<SongComposition>();

@@ -13,6 +13,8 @@ public static class LiveRepertoire {
  // Headless causal replay only; normal play always uses all five repair phases.
  internal static int AuditPhase=5;
  internal static bool AuditGenreRepair=true; // Fixed-world comparator only; never persisted.
+ internal static bool AuditEasySoundtracks=true; // Fixed-world comparator only; never persisted.
+ internal static bool UnrestrictedSoundtracks(SimulatedArtist artist)=>AuditGenreRepair&&AuditEasySoundtracks&&artist.primaryGenre==Genre.EasyListening;
  internal static bool AuditDisableAffinity, AuditSmoothRanking;
  private static readonly Dictionary<Genre,List<SongComposition>> secondary=new();
  public static void Reset()=>secondary.Clear();
@@ -35,7 +37,7 @@ public static class LiveRepertoire {
   if(song==null)return false;
   if(Affinity(artist)?.SacredLiveOnly==true&&song.contentContext is not SongContentContext.Sacred and not SongContentContext.Unknown)return false;
   if(!AuditGenreRepair)return true;
-  if(ScreenInstrumental(song)&&!Instrumental(artist))return false;
+  if(ScreenInstrumental(song)&&!Instrumental(artist)&&!UnrestrictedSoundtracks(artist))return false;
   if(artist.primaryGenre==Genre.Childrens&&RepertoireProvenance.ComedyRoutine(song))return false;
   if(artist.primaryGenre==Genre.Comedy) {
    if(song.primaryGenre==Genre.Childrens||song.repertoireSeedFamily=="Children songs")return false;

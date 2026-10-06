@@ -21,6 +21,7 @@ public partial class ChartAuditRunner {
  private bool polarVerifySnapshot;
  private bool genreFollowUpCensus;
  private bool genreRepairCensus;
+ private bool easySoundtrackCensus;
  private bool ObserveGenre(Genre genre)=>!genreFollowUpCensus||genreRepairCensus||GenreFollowUpGenres.Contains(genre);
  private int polarCensusFromYear = 1960;
  private readonly HashSet<int> polarCensusMonths = new();
@@ -79,6 +80,7 @@ public partial class ChartAuditRunner {
   }
   genreFollowUpCensus = args.Contains("--genre-followup-census");
   genreRepairCensus = args.Contains("--genre-repertoire-repair-census");
+  easySoundtrackCensus = args.Contains("--easy-soundtrack-census");
   if(polarCensusFromYear < 1960 || polarCensusFromYear > 1963 || polarCensusMonths.Any(m=>m<1||m>12)) throw new ArgumentException("Invalid census observation window.");
   if (args.Contains("--polar-no-census")) polarCensusMode = "none";
   polarVerifySnapshot = args.Contains("--polar-verify-snapshot");

@@ -25,13 +25,18 @@ public static class GenreRepertoireRepairChecks {
     var large=small.Concat(Enumerable.Range(0,100).Select(n=>new SongComposition {songId="extra-cue-"+n,originYear=1960,primaryGenre=cue.primaryGenre,secondaryGenre=cue.secondaryGenre,originKind=cue.originKind,repertoireSeedFamily=cue.repertoireSeedFamily,isCoverable=true})).ToArray();
     var a=SongMaterialSelectionService.SelectLiveCovers(small,act,1960,1);var b=SongMaterialSelectionService.SelectLiveCovers(large.Reverse(),act,1960,1);
     Check(a.Count==1&&b.Count==1,"Supplied source fills");
-    Check(LiveRepertoire.ExternalMedia(a[0])==LiveRepertoire.ExternalMedia(b[0]),"Adding cues cannot increase media opportunity "+genre);
-    Check(LiveRepertoire.ScreenInstrumental(a[0])==LiveRepertoire.ScreenInstrumental(b[0]),"Adding cues cannot increase screen-family opportunity "+genre);
+    if(genre!=Genre.EasyListening) {
+     Check(LiveRepertoire.ExternalMedia(a[0])==LiveRepertoire.ExternalMedia(b[0]),"Adding cues cannot increase media opportunity "+genre);
+     Check(LiveRepertoire.ScreenInstrumental(a[0])==LiveRepertoire.ScreenInstrumental(b[0]),"Adding cues cannot increase screen-family opportunity "+genre);
+    }
     var set=SongMaterialSelectionService.SelectLiveCovers(large,act,1960,5);
     Check(set.Select(s=>s.songId).Distinct().Count()==set.Count,"No duplicate compositions");
    }
    var vocal=new SimulatedArtist {artistId="repair-vocal",primaryGenre=Genre.TraditionalPop,members=new(){new Musician {isActive=true,isLeadVocalist=true,primaryRole=MusicianRole.LeadVocals}}};
    Check(!LiveRepertoire.EligibleLive(cue,vocal)&&LiveRepertoire.EligibleLive(stage,vocal),"Vocal film songs retained; instrumental cues excluded");
+   vocal.primaryGenre=Genre.EasyListening;
+   Check(LiveRepertoire.EligibleLive(cue,vocal),"Vocal Easy acts can interpret screen themes");
+   Check(SongMaterialSelectionService.SelectLiveCovers(new[]{cue},vocal,1960,1).Single()==cue,"Vocal Easy screen theme resolves in live selection");
    var mixFixtures=Enumerable.Range(0,5).SelectMany(i=>new[] {
     new SongComposition {songId="repair-trad-"+i,originYear=1900,isTraditional=true,isPublicDomain=true,isCoverable=true},
     new SongComposition {songId="repair-std-"+i,originYear=1940,establishedYear=1955,isStandard=true,isCoverable=true},
@@ -42,6 +47,8 @@ public static class GenreRepertoireRepairChecks {
     var a=SongMaterialSelectionService.SelectLiveCovers(mixFixtures,easy,1960,1);
     var b=SongMaterialSelectionService.SelectLiveCovers(mixFixtures.Append(cue).Append(stage),easy,1960,1);
     Check(mix.Source(a[0],1960)==mix.Source(b[0],1960),"Media cannot displace Easy's selected source");
+    var expected=PolarSongBehavior.RankLive(mixFixtures.Append(cue).Append(stage).Where(s=>mix.Source(s,1960)==mix.Source(a[0],1960)),easy,1960).First();
+    Check(b[0]==expected,"Easy soundtrack and ordinary songs compete on ranking within the selected source");
    }
    var comic=new SimulatedArtist {artistId="repair-comic",primaryGenre=Genre.Comedy};
    var routine=new SongComposition {songId="repair-routine",originKind=SongOriginKind.ArtistOriginal,primaryGenre=Genre.Comedy,originArtistId=comic.artistId,originYear=1940,establishedYear=1955,isStandard=true,isCoverable=true};
