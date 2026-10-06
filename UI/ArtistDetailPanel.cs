@@ -61,7 +61,7 @@ public partial class ArtistDetailPanel : Control
 	private void BuildTabs()
 	{
 		Clear(tabs); tabButtons.Clear(); tabPages.Clear();
-		AddTab("OVERVIEW", ShowOverview); AddTab("DISCOGRAPHY", ShowDiscography); AddTab("GIGOGRAPHY", ShowGigography);
+		AddTab("OVERVIEW", ShowOverview); AddTab("DISCOGRAPHY", ShowDiscography);
 		AddTab("AWARDS", ShowAwards); AddTab("PERSONNEL", ShowPersonnel);
 		if (artist.isPlayerOwned) AddTab("CONTRACT", ShowContract);
 		int start = Mathf.Clamp(startTabIndex, 0, tabPages.Count - 1);
@@ -157,7 +157,7 @@ public partial class ArtistDetailPanel : Control
 	private void ShowContract()
 	{
 		AddHeading("INTERNAL — CONTRACT"); AddBody($"Royalty rate: {artist.royaltyRate:P1}\nUnrecouped advance: ${artist.unrecoupedAdvance:N0}\nTerm: {artist.contractLength} years\nExpires: {artist.contractExpiresYear}");
-		AddHeading("INTERNAL — TALENT"); AddBody($"Vocals {artist.vocalPower:P0}  •  Musicianship {artist.musicianship:P0}  •  Songwriting {artist.songwritingAbility:P0}\nLive {artist.livePerformance:P0}  •  Studio {artist.studioPerformance:P0}  •  Cohesion {artist.groupCohesion:P0}");
+		AddHeading("A&R IMPRESSION"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
 	}
 	private List<RecordRuntimeData> GetRecords() => ChartManager.Instance?.GetAllRecords().Where(r => r?.baseRecord?.artistId == profile.artistId).ToList() ?? new();
 	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }

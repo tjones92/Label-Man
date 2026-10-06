@@ -120,7 +120,7 @@ public static class PlayerStopFactory {
 					StopId = $"{city.cityId}_shop_{i}", DisplayName = name,
 					CityId = city.cityId, Kind = PlayerDesk.StopKind.Shop,
 					ReportsToTrades = reports,
-				});
+				}.WithCharacter(seed));
 			}
 
 			regionsById.TryGetValue(city.parentRegionId, out MarketRegion region);
@@ -133,7 +133,7 @@ public static class PlayerStopFactory {
 				result.Add(new PlayerDesk.PlayerStop {
 					StopId = $"{city.cityId}_op_{i}", DisplayName = name,
 					CityId = city.cityId, Kind = PlayerDesk.StopKind.Op
-				});
+				}.WithCharacter(seed));
 			}
 
 			// Directive §3.1/§6: "one-stop counter -- MarketCity.distribution.hasOneStopDistributors --
@@ -148,7 +148,7 @@ public static class PlayerStopFactory {
 					// Directive §7.1: "the one-stop, and the one or two biggest dealers in a hub" -- a
 					// metro one-stop always reports to the trades, on top of whichever shops do.
 					ReportsToTrades = true,
-				});
+				}.WithCharacter(seed));
 			}
 
 			// Directive §3.1: hop/club/church table. Weighted off the region's church network, youth share
@@ -170,7 +170,7 @@ public static class PlayerStopFactory {
 				result.Add(new PlayerDesk.PlayerStop {
 					StopId = $"{city.cityId}_venue_{i}", DisplayName = name,
 					CityId = city.cityId, Kind = PlayerDesk.StopKind.Venue
-				});
+				}.WithCharacter(seed));
 			}
 		}
 		return result;

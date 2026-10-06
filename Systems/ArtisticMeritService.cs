@@ -74,6 +74,6 @@ public static class ArtisticMeritService {
 		float craft = GetCraft(record.originality, record.productionQuality,
 			record.album?.thematicCohesion ?? 0f, isAlbum, labelProductionQuality,
 			record.album?.bodyOfWork ?? 0f);
-		return GetMerit(craft, GetFormatAmbition(record.format, record.album?.albumFormat ?? AlbumFormat.Standard));
+		return GetMerit(PolarSongBehavior.CriticCraft(craft, record), GetFormatAmbition(record.format, record.album?.albumFormat ?? AlbumFormat.Standard));
 	}
 }

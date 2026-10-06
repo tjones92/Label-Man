@@ -1,0 +1,1610 @@
+{
+  "kind": "Predicted source draws on retained act/slot frames; not a fresh trajectory or fit-gate result",
+  "results": [
+    {
+      "mean": 0.75,
+      "spread": 0.1,
+      "inside": 10,
+      "min": 63.2013201320132,
+      "max": 69.37406855439642,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 488,
+          "share": 64.98002663115845
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 689,
+          "share": 69.03807615230461
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 931,
+          "share": 69.37406855439642
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1166,
+          "share": 67.24336793540945
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1851,
+          "share": 66.36787378988885
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2087,
+          "share": 65.98166297818527
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2193,
+          "share": 66.43441381399576
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 383,
+          "share": 63.2013201320132
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 590,
+          "share": 66.66666666666667
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 730,
+          "share": 64.65899025686448
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 943,
+          "share": 66.78470254957507
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1556,
+          "share": 65.96015260703687
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1698,
+          "share": 64.63646745336887
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1882,
+          "share": 65.12110726643598
+        }
+      ]
+    },
+    {
+      "mean": 0.75,
+      "spread": 0.2,
+      "inside": 10,
+      "min": 61.22112211221122,
+      "max": 69.44858420268257,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 490,
+          "share": 65.24633821571238
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 688,
+          "share": 68.937875751503
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 932,
+          "share": 69.44858420268257
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1159,
+          "share": 66.8396770472895
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1848,
+          "share": 66.26030835424883
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2082,
+          "share": 65.82358520392033
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2196,
+          "share": 66.52529536504089
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 371,
+          "share": 61.22112211221122
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 589,
+          "share": 66.55367231638418
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 732,
+          "share": 64.83613817537643
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 941,
+          "share": 66.64305949008498
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1554,
+          "share": 65.8753709198813
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1679,
+          "share": 63.91320898363152
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1858,
+          "share": 64.29065743944636
+        }
+      ]
+    },
+    {
+      "mean": 0.75,
+      "spread": 0.25,
+      "inside": 10,
+      "min": 60.396039603960396,
+      "max": 69.44858420268257,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 492,
+          "share": 65.51264980026632
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 678,
+          "share": 67.93587174348697
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 932,
+          "share": 69.44858420268257
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1147,
+          "share": 66.14763552479816
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1854,
+          "share": 66.47543922552886
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2074,
+          "share": 65.57066076509643
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2198,
+          "share": 66.58588306573766
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 366,
+          "share": 60.396039603960396
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 581,
+          "share": 65.64971751412429
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 726,
+          "share": 64.30469441984057
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 949,
+          "share": 67.20963172804532
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1557,
+          "share": 66.00254345061467
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1681,
+          "share": 63.989341454130184
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1854,
+          "share": 64.1522491349481
+        }
+      ]
+    },
+    {
+      "mean": 0.77,
+      "spread": 0.1,
+      "inside": 12,
+      "min": 65.01650165016501,
+      "max": 71.60953800298063,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 503,
+          "share": 66.97736351531292
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 708,
+          "share": 70.94188376753507
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 961,
+          "share": 71.60953800298063
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1199,
+          "share": 69.14648212226066
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1906,
+          "share": 68.33990677662244
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2148,
+          "share": 67.91021182421751
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2251,
+          "share": 68.19145713420176
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 394,
+          "share": 65.01650165016501
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 601,
+          "share": 67.909604519774
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 757,
+          "share": 67.0504871567759
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 959,
+          "share": 67.91784702549575
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1596,
+          "share": 67.65578635014836
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1738,
+          "share": 66.15911686334222
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1932,
+          "share": 66.85121107266436
+        }
+      ]
+    },
+    {
+      "mean": 0.77,
+      "spread": 0.2,
+      "inside": 11,
+      "min": 63.2013201320132,
+      "max": 71.08792846497765,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 506,
+          "share": 67.37683089214381
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 704,
+          "share": 70.54108216432866
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 954,
+          "share": 71.08792846497765
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1184,
+          "share": 68.28143021914649
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1893,
+          "share": 67.87378988884905
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2142,
+          "share": 67.72051849509958
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2254,
+          "share": 68.2823386852469
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 383,
+          "share": 63.2013201320132
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 602,
+          "share": 68.0225988700565
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 748,
+          "share": 66.2533215234721
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 964,
+          "share": 68.27195467422096
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1602,
+          "share": 67.9101314116151
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1729,
+          "share": 65.8165207460982
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1914,
+          "share": 66.22837370242215
+        }
+      ]
+    },
+    {
+      "mean": 0.77,
+      "spread": 0.25,
+      "inside": 11,
+      "min": 62.37623762376238,
+      "max": 70.86438152011922,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 502,
+          "share": 66.84420772303595
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 699,
+          "share": 70.04008016032064
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 951,
+          "share": 70.86438152011922
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1187,
+          "share": 68.45444059976931
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1893,
+          "share": 67.87378988884905
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2144,
+          "share": 67.78374960480556
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2251,
+          "share": 68.19145713420176
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 378,
+          "share": 62.37623762376238
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 603,
+          "share": 68.13559322033899
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 748,
+          "share": 66.2533215234721
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 970,
+          "share": 68.69688385269122
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1593,
+          "share": 67.528613819415
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1726,
+          "share": 65.70232204035021
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1904,
+          "share": 65.88235294117646
+        }
+      ]
+    },
+    {
+      "mean": 0.78,
+      "spread": 0.1,
+      "inside": 11,
+      "min": 65.84158415841584,
+      "max": 72.57824143070044,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 509,
+          "share": 67.7762982689747
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 718,
+          "share": 71.9438877755511
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 974,
+          "share": 72.57824143070044
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1215,
+          "share": 70.06920415224913
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1936,
+          "share": 69.41556113302259
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2177,
+          "share": 68.82706291495415
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2278,
+          "share": 69.009391093608
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 399,
+          "share": 65.84158415841584
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 609,
+          "share": 68.8135593220339
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 767,
+          "share": 67.9362267493357
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 969,
+          "share": 68.62606232294617
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1622,
+          "share": 68.75794828317083
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1764,
+          "share": 67.1488389798249
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1954,
+          "share": 67.61245674740485
+        }
+      ]
+    },
+    {
+      "mean": 0.78,
+      "spread": 0.2,
+      "inside": 11,
+      "min": 64.52145214521452,
+      "max": 72.20566318926974,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 513,
+          "share": 68.30892143808255
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 714,
+          "share": 71.54308617234469
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 969,
+          "share": 72.20566318926974
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1209,
+          "share": 69.72318339100346
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1915,
+          "share": 68.66260308354249
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2167,
+          "share": 68.51090736642428
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2278,
+          "share": 69.009391093608
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 391,
+          "share": 64.52145214521452
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 608,
+          "share": 68.70056497175142
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 757,
+          "share": 67.0504871567759
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 980,
+          "share": 69.40509915014164
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1620,
+          "share": 68.67316659601526
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1759,
+          "share": 66.95850780357823
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1940,
+          "share": 67.1280276816609
+        }
+      ]
+    },
+    {
+      "mean": 0.78,
+      "spread": 0.25,
+      "inside": 11,
+      "min": 63.2013201320132,
+      "max": 71.7585692995529,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 511,
+          "share": 68.04260985352863
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 710,
+          "share": 71.14228456913828
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 963,
+          "share": 71.7585692995529
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1202,
+          "share": 69.3194925028835
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1914,
+          "share": 68.62674793832915
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2178,
+          "share": 68.85867846980715
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2272,
+          "share": 68.82762799151772
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 383,
+          "share": 63.2013201320132
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 612,
+          "share": 69.15254237288136
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 757,
+          "share": 67.0504871567759
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 979,
+          "share": 69.3342776203966
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1612,
+          "share": 68.33403984739296
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1746,
+          "share": 66.46364674533689
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1929,
+          "share": 66.74740484429066
+        }
+      ]
+    },
+    {
+      "mean": 0.79,
+      "spread": 0.1,
+      "inside": 9,
+      "min": 66.996699669967,
+      "max": 73.09985096870342,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 515,
+          "share": 68.57523302263648
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 727,
+          "share": 72.84569138276554
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 981,
+          "share": 73.09985096870342
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1228,
+          "share": 70.81891580161476
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1961,
+          "share": 70.31193976335604
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2198,
+          "share": 69.4909895668669
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2314,
+          "share": 70.09996970614965
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 406,
+          "share": 66.996699669967
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 615,
+          "share": 69.49152542372882
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 778,
+          "share": 68.91054030115146
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 980,
+          "share": 69.40509915014164
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1643,
+          "share": 69.64815599830436
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1782,
+          "share": 67.8340312143129
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1986,
+          "share": 68.719723183391
+        }
+      ]
+    },
+    {
+      "mean": 0.79,
+      "spread": 0.2,
+      "inside": 9,
+      "min": 65.51155115511551,
+      "max": 72.84569138276554,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 516,
+          "share": 68.70838881491345
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 727,
+          "share": 72.84569138276554
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 977,
+          "share": 72.80178837555887
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1219,
+          "share": 70.29988465974625
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1943,
+          "share": 69.66654714951595
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2191,
+          "share": 69.26968068289598
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2313,
+          "share": 70.06967585580128
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 397,
+          "share": 65.51155115511551
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 617,
+          "share": 69.71751412429379
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 769,
+          "share": 68.11337466784765
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 991,
+          "share": 70.1841359773371
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1638,
+          "share": 69.43620178041543
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1781,
+          "share": 67.79596497906357
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1965,
+          "share": 67.99307958477509
+        }
+      ]
+    },
+    {
+      "mean": 0.79,
+      "spread": 0.25,
+      "inside": 9,
+      "min": 63.86138613861386,
+      "max": 72.54509018036072,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 517,
+          "share": 68.84154460719041
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 724,
+          "share": 72.54509018036072
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 972,
+          "share": 72.42921013412817
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1215,
+          "share": 70.06920415224913
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1942,
+          "share": 69.63069200430262
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2208,
+          "share": 69.80714511539678
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2306,
+          "share": 69.85761890336262
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 387,
+          "share": 63.86138613861386
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 619,
+          "share": 69.94350282485875
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 768,
+          "share": 68.02480070859167
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 993,
+          "share": 70.3257790368272
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1632,
+          "share": 69.18185671894871
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1760,
+          "share": 66.99657403882756
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1949,
+          "share": 67.43944636678201
+        }
+      ]
+    },
+    {
+      "mean": 0.8,
+      "spread": 0.1,
+      "inside": 4,
+      "min": 67.32673267326733,
+      "max": 74.44113263785395,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 525,
+          "share": 69.90679094540613
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 735,
+          "share": 73.64729458917836
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 999,
+          "share": 74.44113263785395
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1243,
+          "share": 71.68396770472896
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1984,
+          "share": 71.13660810326282
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2221,
+          "share": 70.21814732848561
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2345,
+          "share": 71.03907906694941
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 408,
+          "share": 67.32673267326733
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 622,
+          "share": 70.28248587570621
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 792,
+          "share": 70.15057573073517
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 992,
+          "share": 70.25495750708215
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1665,
+          "share": 70.58075455701568
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1810,
+          "share": 68.89988580129425
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 2006,
+          "share": 69.41176470588235
+        }
+      ]
+    },
+    {
+      "mean": 0.8,
+      "spread": 0.2,
+      "inside": 4,
+      "min": 66.33663366336634,
+      "max": 73.91952309985096,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 526,
+          "share": 70.0399467376831
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 735,
+          "share": 73.64729458917836
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 992,
+          "share": 73.91952309985096
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1234,
+          "share": 71.16493656286043
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1972,
+          "share": 70.70634636070277
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2224,
+          "share": 70.31299399304457
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2344,
+          "share": 71.00878521660103
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 402,
+          "share": 66.33663366336634
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 622,
+          "share": 70.28248587570621
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 779,
+          "share": 68.99911426040744
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 999,
+          "share": 70.75070821529745
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1660,
+          "share": 70.36880033912675
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1810,
+          "share": 68.89988580129425
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1986,
+          "share": 68.719723183391
+        }
+      ]
+    },
+    {
+      "mean": 0.8,
+      "spread": 0.25,
+      "inside": 5,
+      "min": 64.85148514851485,
+      "max": 73.74749498997996,
+      "quarters": [
+        {
+          "seed": 1001,
+          "quarter": "1960-Q1",
+          "slots": 751,
+          "inherited": 521,
+          "share": 69.37416777629826
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q2",
+          "slots": 998,
+          "inherited": 736,
+          "share": 73.74749498997996
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q3",
+          "slots": 1342,
+          "inherited": 980,
+          "share": 73.02533532041728
+        },
+        {
+          "seed": 1001,
+          "quarter": "1960-Q4",
+          "slots": 1734,
+          "inherited": 1223,
+          "share": 70.53056516724337
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q1",
+          "slots": 2789,
+          "inherited": 1968,
+          "share": 70.56292577984941
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q2",
+          "slots": 3163,
+          "inherited": 2228,
+          "share": 70.43945621245653
+        },
+        {
+          "seed": 1001,
+          "quarter": "1961-Q3",
+          "slots": 3301,
+          "inherited": 2334,
+          "share": 70.70584671311724
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q1",
+          "slots": 606,
+          "inherited": 393,
+          "share": 64.85148514851485
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q2",
+          "slots": 885,
+          "inherited": 626,
+          "share": 70.73446327683615
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q3",
+          "slots": 1129,
+          "inherited": 775,
+          "share": 68.64481842338353
+        },
+        {
+          "seed": 1002,
+          "quarter": "1960-Q4",
+          "slots": 1412,
+          "inherited": 998,
+          "share": 70.6798866855524
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q1",
+          "slots": 2359,
+          "inherited": 1651,
+          "share": 69.98728274692667
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q2",
+          "slots": 2627,
+          "inherited": 1785,
+          "share": 67.94822992006091
+        },
+        {
+          "seed": 1002,
+          "quarter": "1961-Q3",
+          "slots": 2890,
+          "inherited": 1978,
+          "share": 68.44290657439447
+        }
+      ]
+    }
+  ]
+}

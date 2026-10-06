@@ -1,0 +1,1650 @@
+{
+  "version": "polar-repertoire-v1",
+  "provenance": "Spec A §§3–7 and Spec B consolidated taxonomy. Six base rows reproduce A §4; other rows, genre priors, modifiers and resolver choices are provisional author proposals, not approved calibration.",
+  "axisOrder": [
+    "VocalPower",
+    "VocalNuance",
+    "Musicianship",
+    "Ensemble",
+    "LyricDelivery",
+    "StudioCraft",
+    "Toughness",
+    "Sophistication",
+    "Sincerity",
+    "Maturity"
+  ],
+  "numbers": {
+    "capabilityPenalty": 2.2,
+    "headroomBonus": 0.12,
+    "identityBasePenalty": 0.7,
+    "rigidityPenalty": 0.6,
+    "momentPenalty": 1.3,
+    "neutralMoment": 0.5,
+    "wordDensityBlend": 0.45,
+    "productionDemandStep": 0.12,
+    "instrumentationDemandStep": 0.04,
+    "techniqueDemandStep": 0.06,
+    "formDemandStep": 0.12,
+    "plasticityDensityPenalty": 0.15,
+    "plasticityFormPenalty": 0.1,
+    "actorNuanceTechnical": 0.55,
+    "actorNuanceVersatility": 0.3,
+    "actorNuanceReliability": 0.15,
+    "ensembleCohesion": 0.6,
+    "ensembleSkill": 0.4,
+    "deliveryTechnical": 0.6,
+    "deliveryVersatility": 0.4,
+    "sessionProducerWeight": 0.5,
+    "missingSessionCraft": 0.4,
+    "backupVocalFactor": 0.65,
+    "traitIdentityAdjustment": 0.08,
+    "historyIdentityBlend": 0.1,
+    "neutralTrait": 0.5,
+    "reachCraft": 0.35,
+    "reachExperimental": 0.35,
+    "reachCohesion": 0.3,
+    "missingDisposition": 0.3,
+    "rigidityBase": 0.25,
+    "rigidityAmbition": 0.55,
+    "rigidityRoots": 0.2,
+    "candidateDemandReach": 0.5,
+    "resolverIdentityWeight": 2,
+    "resolverExecutionWeight": 1,
+    "nearTie": 0.001,
+    "lyricFlipStretch": 0.06,
+    "lyricFlipReach": 0.65,
+    "reinterpretationThreshold": 0.05,
+    "reinterpretationLandedCenter": 0.5,
+    "reinterpretationMultiplier": 2,
+    "refusalBase": 0.3,
+    "refusalAmbition": 0.35,
+    "refusalStretchCapability": 0.9,
+    "newSigningStanding": 0.15,
+    "emptySongbookSoftening": 0.5,
+    "tasteDrift": 0.2,
+    "maxShadowRowsPerWeek": 2048,
+    "selectionCapability": 0.35,
+    "selectionIdentity": 0.45,
+    "selectionMoment": 0.2,
+    "executionPenalty": 0.35,
+    "executionFullCapability": 0.9,
+    "recordingHookBlend": 0.9,
+    "hookCeilingStrength": 0.15,
+    "recordingQualityHookWeight": 0.5,
+    "recordingQualityProductionWeight": 0.3,
+    "promotionRealizationWeight": 0.65,
+    "criticIdentityPenalty": 0.2,
+    "momentConversionStrength": 0.1,
+    "rockStandardFactor": 0.02,
+    "rockTraditionalFactor": 0.02
+  },
+  "identityWeights": [
+    1.25,
+    1,
+    1.15,
+    0.85
+  ],
+  "families": {
+    "Pop": {
+      "identity": [
+        0.25,
+        0.6,
+        0.65,
+        0.55
+      ],
+      "fallback": "MidTempoPopSong"
+    },
+    "Rock": {
+      "identity": [
+        0.75,
+        0.3,
+        0.7,
+        0.45
+      ],
+      "fallback": "MidTempoRocker"
+    },
+    "RhythmAndSoul": {
+      "identity": [
+        0.7,
+        0.35,
+        0.9,
+        0.65
+      ],
+      "fallback": "HornDrivenSoulNumber"
+    },
+    "Gospel": {
+      "identity": [
+        0.5,
+        0.35,
+        0.95,
+        0.7
+      ],
+      "fallback": "SpiritualShout"
+    },
+    "Country": {
+      "identity": [
+        0.45,
+        0.4,
+        0.9,
+        0.7
+      ],
+      "fallback": "CountryTwoBeat"
+    },
+    "Folk": {
+      "identity": [
+        0.4,
+        0.65,
+        0.9,
+        0.7
+      ],
+      "fallback": "VerseDrivenSong"
+    },
+    "Jazz": {
+      "identity": [
+        0.35,
+        0.85,
+        0.7,
+        0.85
+      ],
+      "fallback": "Swinger"
+    },
+    "Blues": {
+      "identity": [
+        0.65,
+        0.3,
+        0.9,
+        0.75
+      ],
+      "fallback": "SlowBlues"
+    },
+    "Classical": {
+      "identity": [
+        0.2,
+        0.95,
+        0.8,
+        0.85
+      ],
+      "fallback": "ReverieMoodPiece"
+    },
+    "Latin": {
+      "identity": [
+        0.45,
+        0.5,
+        0.7,
+        0.6
+      ],
+      "fallback": "DanceNumber"
+    },
+    "Caribbean": {
+      "identity": [
+        0.5,
+        0.35,
+        0.75,
+        0.55
+      ],
+      "fallback": "DanceNumber"
+    },
+    "NonMusic": {
+      "identity": [
+        0.3,
+        0.45,
+        0.35,
+        0.55
+      ],
+      "fallback": "SpokenWord"
+    }
+  },
+  "genreOverrides": {
+    "TraditionalPop": {
+      "identity": [
+        0.2,
+        0.85,
+        0.75,
+        0.85
+      ],
+      "fallback": "LushStandard"
+    },
+    "EasyListening": {
+      "identity": [
+        0.15,
+        0.8,
+        0.7,
+        0.8
+      ],
+      "fallback": "ReverieMoodPiece"
+    },
+    "GarageRock": {
+      "identity": [
+        0.85,
+        0.15,
+        0.7,
+        0.35
+      ],
+      "fallback": "StomperRocker"
+    },
+    "TeenPop": {
+      "identity": [
+        0.2,
+        0.4,
+        0.55,
+        0.25
+      ],
+      "fallback": "BrightPopNumber"
+    },
+    "BaroquePop": {
+      "identity": [
+        0.2,
+        0.85,
+        0.75,
+        0.6
+      ],
+      "fallback": "ChamberBaroquePiece"
+    }
+  },
+  "lyricModifiers": {
+    "RomanticAddress": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -0.05,
+      0,
+      0.05,
+      0
+    ],
+    "DemandBoast": [
+      0.05,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.15,
+      0,
+      0.05,
+      0.05
+    ],
+    "InvectiveAccusation": [
+      0,
+      0,
+      0,
+      0,
+      0.05,
+      0,
+      0.15,
+      0,
+      0,
+      0
+    ],
+    "Narrative": [
+      0,
+      0,
+      0,
+      0,
+      0.1,
+      0,
+      0,
+      0.05,
+      0,
+      0.05
+    ],
+    "Confessional": [
+      0,
+      0.05,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0.1,
+      0.05
+    ],
+    "TopicalTestimony": [
+      0,
+      0,
+      0,
+      0,
+      0.1,
+      0,
+      0,
+      0.05,
+      0.05,
+      0.05
+    ],
+    "SurrealCatalogue": [
+      0,
+      0,
+      0,
+      0,
+      0.1,
+      0,
+      0,
+      0.05,
+      -0.1,
+      0
+    ],
+    "Nonsense": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -0.2,
+      0
+    ],
+    "CallAndResponse": [
+      0,
+      0,
+      0,
+      0.1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "vocalModifiers": {
+    "Crooned": [
+      -0.1,
+      0.1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Conversational": [
+      -0.05,
+      0.05,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Belted": [
+      0.12,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Testifying": [
+      0.1,
+      0.1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Shouted": [
+      0.1,
+      -0.1,
+      0,
+      0,
+      0,
+      0,
+      0.05,
+      0,
+      0,
+      0
+    ],
+    "HarmonyBlend": [
+      0,
+      0,
+      0,
+      0.15,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Spoken": [
+      -0.15,
+      -0.1,
+      0,
+      0,
+      0.1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Deadpan": [
+      -0.1,
+      -0.1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -0.1,
+      0
+    ]
+  },
+  "archetypes": [
+    {
+      "name": "StomperRocker",
+      "axes": [
+        0.65,
+        0.2,
+        0.4,
+        0.7,
+        0.2,
+        0.2,
+        0.8,
+        0.2,
+        0.6,
+        0.35
+      ],
+      "plasticity": 0.6,
+      "fromYear": 1950,
+      "families": [
+        "Rock"
+      ],
+      "pace": "fast",
+      "mood": "driving",
+      "provenance": "Spec A §4 base row; availability/shape proposals"
+    },
+    {
+      "name": "MidTempoRocker",
+      "axes": [
+        0.55,
+        0.3,
+        0.45,
+        0.6,
+        0.4,
+        0.3,
+        0.7,
+        0.3,
+        0.7,
+        0.45
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1950,
+      "families": [
+        "Rock"
+      ],
+      "pace": "mid-tempo",
+      "mood": "assertive",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "GrooveRiffVamp",
+      "axes": [
+        0.45,
+        0.35,
+        0.45,
+        0.65,
+        0.25,
+        0.3,
+        0.65,
+        0.25,
+        0.65,
+        0.55
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1950,
+      "families": [
+        "Rock",
+        "RhythmAndSoul",
+        "Blues"
+      ],
+      "pace": "mid-tempo",
+      "mood": "languid",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "ShuffleTwelveBar",
+      "axes": [
+        0.45,
+        0.4,
+        0.4,
+        0.5,
+        0.35,
+        0.2,
+        0.6,
+        0.25,
+        0.75,
+        0.6
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Rock",
+        "Blues",
+        "RhythmAndSoul"
+      ],
+      "pace": "shuffle",
+      "mood": "easy",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "SlowBlues",
+      "axes": [
+        0.5,
+        0.7,
+        0.45,
+        0.35,
+        0.45,
+        0.2,
+        0.6,
+        0.3,
+        0.9,
+        0.75
+      ],
+      "plasticity": 0.45,
+      "fromYear": 1900,
+      "families": [
+        "Blues",
+        "RhythmAndSoul",
+        "Rock"
+      ],
+      "pace": "slow",
+      "mood": "desolate",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "JamExtendedWorkout",
+      "axes": [
+        0.4,
+        0.35,
+        0.85,
+        0.75,
+        0.2,
+        0.3,
+        0.7,
+        0.4,
+        0.7,
+        0.65
+      ],
+      "plasticity": 0.4,
+      "fromYear": 1965,
+      "families": [
+        "Rock",
+        "Jazz",
+        "Blues"
+      ],
+      "pace": "extended",
+      "mood": "exploratory",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "LightAndShadeEpic",
+      "axes": [
+        0.7,
+        0.65,
+        0.8,
+        0.8,
+        0.5,
+        0.65,
+        0.7,
+        0.65,
+        0.85,
+        0.75
+      ],
+      "plasticity": 0.25,
+      "fromYear": 1967,
+      "families": [
+        "Rock"
+      ],
+      "pace": "shifting",
+      "mood": "dramatic",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "CountryTwoBeat",
+      "axes": [
+        0.45,
+        0.35,
+        0.4,
+        0.5,
+        0.4,
+        0.2,
+        0.55,
+        0.25,
+        0.7,
+        0.45
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Country",
+        "Rock"
+      ],
+      "pace": "two-beat",
+      "mood": "jaunty",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "BrightPopNumber",
+      "axes": [
+        0.4,
+        0.35,
+        0.3,
+        0.6,
+        0.25,
+        0.45,
+        0.25,
+        0.4,
+        0.55,
+        0.25
+      ],
+      "plasticity": 0.7,
+      "fromYear": 1900,
+      "families": [
+        "Pop"
+      ],
+      "pace": "bright",
+      "mood": "hopeful",
+      "provenance": "Spec A §4 base row; availability/shape proposals"
+    },
+    {
+      "name": "MidTempoPopSong",
+      "axes": [
+        0.4,
+        0.5,
+        0.35,
+        0.55,
+        0.45,
+        0.4,
+        0.3,
+        0.5,
+        0.7,
+        0.45
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Pop"
+      ],
+      "pace": "mid-tempo",
+      "mood": "warm",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "JauntyMusicHallRomp",
+      "axes": [
+        0.4,
+        0.45,
+        0.35,
+        0.6,
+        0.6,
+        0.3,
+        0.2,
+        0.55,
+        0.35,
+        0.6
+      ],
+      "plasticity": 0.5,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "NonMusic"
+      ],
+      "pace": "jaunty",
+      "mood": "playful",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "SingAlongChant",
+      "axes": [
+        0.5,
+        0.2,
+        0.2,
+        0.7,
+        0.2,
+        0.2,
+        0.4,
+        0.2,
+        0.65,
+        0.35
+      ],
+      "plasticity": 0.75,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Rock",
+        "Gospel"
+      ],
+      "pace": "mid-tempo",
+      "mood": "communal",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "DanceNumber",
+      "axes": [
+        0.4,
+        0.3,
+        0.4,
+        0.75,
+        0.2,
+        0.4,
+        0.45,
+        0.35,
+        0.5,
+        0.35
+      ],
+      "plasticity": 0.7,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "RhythmAndSoul",
+        "Latin",
+        "Caribbean"
+      ],
+      "pace": "fast",
+      "mood": "celebratory",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "ChamberBaroquePiece",
+      "axes": [
+        0.4,
+        0.75,
+        0.6,
+        0.85,
+        0.45,
+        0.7,
+        0.15,
+        0.9,
+        0.8,
+        0.65
+      ],
+      "plasticity": 0.35,
+      "fromYear": 1964,
+      "families": [
+        "Pop",
+        "Classical"
+      ],
+      "pace": "measured",
+      "mood": "wistful",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "DramaticBalladBigBuild",
+      "axes": [
+        0.85,
+        0.75,
+        0.45,
+        0.75,
+        0.45,
+        0.55,
+        0.5,
+        0.55,
+        0.95,
+        0.75
+      ],
+      "plasticity": 0.5,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "RhythmAndSoul",
+        "Gospel"
+      ],
+      "pace": "dramatic-build",
+      "mood": "resolute",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "SlowBallad",
+      "axes": [
+        0.45,
+        0.75,
+        0.3,
+        0.45,
+        0.45,
+        0.3,
+        0.2,
+        0.55,
+        0.85,
+        0.65
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Country",
+        "Folk",
+        "RhythmAndSoul"
+      ],
+      "pace": "slow",
+      "mood": "yearning",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "ReverieMoodPiece",
+      "axes": [
+        0.3,
+        0.7,
+        0.45,
+        0.55,
+        0.25,
+        0.6,
+        0.15,
+        0.75,
+        0.75,
+        0.65
+      ],
+      "plasticity": 0.4,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Jazz",
+        "Classical"
+      ],
+      "pace": "slow",
+      "mood": "dreamlike",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "LushStandard",
+      "axes": [
+        0.55,
+        0.9,
+        0.25,
+        0.7,
+        0.55,
+        0.5,
+        0.15,
+        0.9,
+        0.75,
+        0.9
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Jazz"
+      ],
+      "pace": "measured",
+      "mood": "elegant",
+      "provenance": "Spec A §4 base row; availability/shape proposals"
+    },
+    {
+      "name": "SaloonBallad",
+      "axes": [
+        0.35,
+        0.9,
+        0.3,
+        0.4,
+        0.7,
+        0.25,
+        0.25,
+        0.8,
+        0.95,
+        0.95
+      ],
+      "plasticity": 0.4,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Jazz"
+      ],
+      "pace": "slow",
+      "mood": "reflective",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "CharmSong",
+      "axes": [
+        0.35,
+        0.65,
+        0.3,
+        0.5,
+        0.4,
+        0.3,
+        0.15,
+        0.65,
+        0.65,
+        0.65
+      ],
+      "plasticity": 0.6,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Jazz"
+      ],
+      "pace": "lilting",
+      "mood": "hopeful",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "Swinger",
+      "axes": [
+        0.5,
+        0.7,
+        0.65,
+        0.8,
+        0.45,
+        0.3,
+        0.35,
+        0.8,
+        0.6,
+        0.8
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Jazz"
+      ],
+      "pace": "swing",
+      "mood": "confident",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "HornDrivenSoulNumber",
+      "axes": [
+        0.8,
+        0.55,
+        0.4,
+        0.8,
+        0.35,
+        0.4,
+        0.7,
+        0.35,
+        0.85,
+        0.6
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1950,
+      "families": [
+        "RhythmAndSoul"
+      ],
+      "pace": "mid-tempo",
+      "mood": "commanding",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "DeepSoulPleader",
+      "axes": [
+        0.85,
+        0.8,
+        0.35,
+        0.55,
+        0.3,
+        0.3,
+        0.55,
+        0.35,
+        0.95,
+        0.7
+      ],
+      "plasticity": 0.35,
+      "fromYear": 1950,
+      "families": [
+        "RhythmAndSoul",
+        "Gospel"
+      ],
+      "pace": "dramatic-build",
+      "mood": "yearning",
+      "provenance": "Spec A §4 base row; availability/shape proposals"
+    },
+    {
+      "name": "FunkWorkout",
+      "axes": [
+        0.75,
+        0.35,
+        0.65,
+        0.85,
+        0.25,
+        0.4,
+        0.85,
+        0.25,
+        0.7,
+        0.6
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1965,
+      "families": [
+        "RhythmAndSoul"
+      ],
+      "pace": "fast",
+      "mood": "insistent",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "SpiritualShout",
+      "axes": [
+        0.9,
+        0.65,
+        0.35,
+        0.8,
+        0.3,
+        0.2,
+        0.65,
+        0.25,
+        0.95,
+        0.7
+      ],
+      "plasticity": 0.5,
+      "fromYear": 1900,
+      "families": [
+        "Gospel",
+        "RhythmAndSoul"
+      ],
+      "pace": "dramatic-build",
+      "mood": "exultant",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "VerseDrivenSong",
+      "axes": [
+        0.3,
+        0.55,
+        0.25,
+        0.3,
+        0.95,
+        0.2,
+        0.4,
+        0.75,
+        0.85,
+        0.7
+      ],
+      "plasticity": 0.25,
+      "fromYear": 1900,
+      "families": [
+        "Folk",
+        "Country"
+      ],
+      "pace": "measured",
+      "mood": "reflective",
+      "provenance": "Spec A §4 base row; availability/shape proposals"
+    },
+    {
+      "name": "ProtestMessageSong",
+      "axes": [
+        0.4,
+        0.5,
+        0.3,
+        0.4,
+        0.9,
+        0.2,
+        0.65,
+        0.65,
+        0.95,
+        0.7
+      ],
+      "plasticity": 0.3,
+      "fromYear": 1900,
+      "families": [
+        "Folk",
+        "Country",
+        "Rock"
+      ],
+      "pace": "measured",
+      "mood": "resolute",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "RagaModalDrone",
+      "axes": [
+        0.35,
+        0.55,
+        0.8,
+        0.7,
+        0.3,
+        0.65,
+        0.35,
+        0.8,
+        0.8,
+        0.7
+      ],
+      "plasticity": 0.2,
+      "fromYear": 1965,
+      "families": [
+        "Rock",
+        "Pop",
+        "Classical"
+      ],
+      "pace": "sustained",
+      "mood": "meditative",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "SuiteMultiPart",
+      "axes": [
+        0.5,
+        0.55,
+        0.85,
+        0.9,
+        0.55,
+        0.95,
+        0.45,
+        0.9,
+        0.7,
+        0.75
+      ],
+      "plasticity": 0.15,
+      "fromYear": 1966,
+      "families": [
+        "Rock",
+        "Pop",
+        "Classical"
+      ],
+      "pace": "shifting",
+      "mood": "dramatic",
+      "provenance": "Spec A §4 base row; availability/shape proposals"
+    },
+    {
+      "name": "Collage",
+      "axes": [
+        0.2,
+        0.2,
+        0.65,
+        0.6,
+        0.45,
+        0.95,
+        0.4,
+        0.85,
+        0.35,
+        0.7
+      ],
+      "plasticity": 0.2,
+      "fromYear": 1966,
+      "families": [
+        "Rock",
+        "Pop",
+        "NonMusic"
+      ],
+      "pace": "shifting",
+      "mood": "surreal",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "Novelty",
+      "axes": [
+        0.35,
+        0.3,
+        0.25,
+        0.5,
+        0.55,
+        0.35,
+        0.25,
+        0.3,
+        0.15,
+        0.3
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "NonMusic"
+      ],
+      "pace": "jaunty",
+      "mood": "comic",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "SpokenWord",
+      "axes": [
+        0.1,
+        0.35,
+        0.1,
+        0.15,
+        0.95,
+        0.2,
+        0.45,
+        0.6,
+        0.7,
+        0.8
+      ],
+      "plasticity": 0.25,
+      "fromYear": 1900,
+      "families": [
+        "NonMusic",
+        "Folk"
+      ],
+      "pace": "spoken",
+      "mood": "reflective",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "Medley",
+      "axes": [
+        0.55,
+        0.6,
+        0.65,
+        0.8,
+        0.55,
+        0.45,
+        0.4,
+        0.6,
+        0.65,
+        0.65
+      ],
+      "plasticity": 0.35,
+      "fromYear": 1900,
+      "families": [
+        "Pop",
+        "Jazz",
+        "Rock"
+      ],
+      "pace": "shifting",
+      "mood": "varied",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "LivePartyRecord",
+      "axes": [
+        0.65,
+        0.3,
+        0.4,
+        0.8,
+        0.4,
+        0.2,
+        0.6,
+        0.2,
+        0.6,
+        0.4
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Rock",
+        "RhythmAndSoul",
+        "Pop"
+      ],
+      "pace": "fast",
+      "mood": "communal",
+      "provenance": "Provisional proposal from Spec B shape"
+    },
+    {
+      "name": "CountryShuffle",
+      "axes": [
+        0.45,
+        0.4,
+        0.5,
+        0.55,
+        0.4,
+        0.2,
+        0.45,
+        0.3,
+        0.75,
+        0.65
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Country"
+      ],
+      "pace": "shuffle",
+      "mood": "jaunty",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "CountryWaltz",
+      "axes": [
+        0.35,
+        0.55,
+        0.45,
+        0.45,
+        0.45,
+        0.25,
+        0.25,
+        0.45,
+        0.8,
+        0.65
+      ],
+      "plasticity": 0.65,
+      "fromYear": 1900,
+      "families": [
+        "Country"
+      ],
+      "pace": "waltz",
+      "mood": "yearning",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "WesternSwing",
+      "axes": [
+        0.4,
+        0.45,
+        0.7,
+        0.75,
+        0.35,
+        0.3,
+        0.4,
+        0.55,
+        0.65,
+        0.6
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1930,
+      "families": [
+        "Country"
+      ],
+      "pace": "swing",
+      "mood": "celebratory",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "NashvilleBallad",
+      "axes": [
+        0.35,
+        0.65,
+        0.55,
+        0.7,
+        0.4,
+        0.6,
+        0.2,
+        0.65,
+        0.75,
+        0.7
+      ],
+      "plasticity": 0.6,
+      "fromYear": 1955,
+      "families": [
+        "Country"
+      ],
+      "pace": "slow",
+      "mood": "yearning",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "BossaSong",
+      "axes": [
+        0.25,
+        0.6,
+        0.65,
+        0.6,
+        0.45,
+        0.35,
+        0.2,
+        0.75,
+        0.65,
+        0.6
+      ],
+      "plasticity": 0.5,
+      "fromYear": 1958,
+      "families": [
+        "Jazz",
+        "Latin"
+      ],
+      "pace": "syncopated",
+      "mood": "intimate",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ModernJazzInstrumental",
+      "axes": [
+        0,
+        0,
+        0.85,
+        0.75,
+        0,
+        0.35,
+        0.4,
+        0.85,
+        0.6,
+        0.6
+      ],
+      "plasticity": 0.4,
+      "fromYear": 1945,
+      "families": [
+        "Jazz"
+      ],
+      "pace": "swing",
+      "mood": "exploratory",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "SurfInstrumental",
+      "axes": [
+        0,
+        0,
+        0.65,
+        0.7,
+        0,
+        0.35,
+        0.6,
+        0.35,
+        0.55,
+        0.35
+      ],
+      "plasticity": 0.45,
+      "fromYear": 1958,
+      "families": [
+        "Rock"
+      ],
+      "pace": "fast",
+      "mood": "driving",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "QuietHymn",
+      "axes": [
+        0.3,
+        0.45,
+        0.35,
+        0.35,
+        0.4,
+        0.15,
+        0.15,
+        0.35,
+        0.95,
+        0.75
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Gospel"
+      ],
+      "pace": "slow",
+      "mood": "reverent",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "GospelQuartet",
+      "axes": [
+        0.55,
+        0.6,
+        0.45,
+        0.75,
+        0.45,
+        0.2,
+        0.3,
+        0.45,
+        0.9,
+        0.7
+      ],
+      "plasticity": 0.5,
+      "fromYear": 1900,
+      "families": [
+        "Gospel"
+      ],
+      "pace": "measured",
+      "mood": "communal",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "GospelChoir",
+      "axes": [
+        0.65,
+        0.5,
+        0.55,
+        0.85,
+        0.4,
+        0.3,
+        0.3,
+        0.5,
+        0.9,
+        0.7
+      ],
+      "plasticity": 0.45,
+      "fromYear": 1900,
+      "families": [
+        "Gospel"
+      ],
+      "pace": "dramatic-build",
+      "mood": "exultant",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "LatinBolero",
+      "axes": [
+        0.35,
+        0.65,
+        0.6,
+        0.6,
+        0.45,
+        0.3,
+        0.25,
+        0.65,
+        0.75,
+        0.65
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Latin"
+      ],
+      "pace": "slow",
+      "mood": "yearning",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "LatinDance",
+      "axes": [
+        0.45,
+        0.45,
+        0.65,
+        0.75,
+        0.35,
+        0.3,
+        0.4,
+        0.55,
+        0.65,
+        0.45
+      ],
+      "plasticity": 0.55,
+      "fromYear": 1900,
+      "families": [
+        "Latin",
+        "Caribbean"
+      ],
+      "pace": "fast",
+      "mood": "celebratory",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "TexMexSong",
+      "axes": [
+        0.4,
+        0.5,
+        0.55,
+        0.65,
+        0.5,
+        0.25,
+        0.4,
+        0.4,
+        0.8,
+        0.6
+      ],
+      "plasticity": 0.6,
+      "fromYear": 1900,
+      "families": [
+        "Latin"
+      ],
+      "pace": "two-beat",
+      "mood": "narrative",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ClassicalOrchestral",
+      "axes": [
+        0,
+        0,
+        0.9,
+        0.95,
+        0,
+        0.5,
+        0.3,
+        0.95,
+        0.65,
+        0.8
+      ],
+      "plasticity": 0.2,
+      "fromYear": 1700,
+      "families": [
+        "Classical"
+      ],
+      "pace": "measured",
+      "mood": "dramatic",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ClassicalChamber",
+      "axes": [
+        0,
+        0,
+        0.85,
+        0.85,
+        0,
+        0.35,
+        0.2,
+        0.9,
+        0.75,
+        0.8
+      ],
+      "plasticity": 0.25,
+      "fromYear": 1700,
+      "families": [
+        "Classical"
+      ],
+      "pace": "measured",
+      "mood": "reflective",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    },
+    {
+      "name": "ClassicalSolo",
+      "axes": [
+        0,
+        0,
+        0.9,
+        0.25,
+        0,
+        0.25,
+        0.2,
+        0.9,
+        0.75,
+        0.8
+      ],
+      "plasticity": 0.25,
+      "fromYear": 1700,
+      "families": [
+        "Classical"
+      ],
+      "pace": "measured",
+      "mood": "reflective",
+      "provenance": "Polar repertoire directive Phase 1: provisional unsigned author proposal; review pending."
+    }
+  ]
+}

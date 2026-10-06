@@ -1,0 +1,1170 @@
+{
+  "definition": "Fresh 1960–September 1961 monthly Gospel trajectory; all live slots, all signing statuses. Pre-existing acceptance: 65–70% inherited, <=2% secular. Unknown contexts remain explicit.",
+  "manifest": {
+    "path": "SimLogs/polar-directive3-trajectory-easy-soundtrack-gospel-v1-runs.json",
+    "sha256": "08426eba2d9ed1d028c83dcbdd5acf9bf07e25a028013f73d8574616b9c7b3ff"
+  },
+  "trajectories": [
+    {
+      "seed": 1001,
+      "weeks": 91,
+      "lastDate": [
+        1961,
+        9,
+        29
+      ],
+      "monthlyObservations": 21,
+      "slots": 13828,
+      "inherited": 9623,
+      "inheritedShare": 69.59068556551924,
+      "secular": 0,
+      "secularShare": 0,
+      "unknown": 0,
+      "inheritedAccepted": true,
+      "secularAccepted": true,
+      "concentration": {
+        "slots": 9623,
+        "uniqueSongs": 257,
+        "top10Share": 12.459731892341265
+      },
+      "actBooks": {
+        "medianDistinctSongs": 5,
+        "p90DistinctSongs": 7,
+        "medianTop10Share": 100
+      },
+      "periods": [
+        {
+          "scope": "all",
+          "period": "full",
+          "slots": 13828,
+          "inherited": 9623,
+          "inheritedShare": 69.59068556551924,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q1",
+          "slots": 792,
+          "inherited": 568,
+          "inheritedShare": 71.71717171717172,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q2",
+          "slots": 1053,
+          "inherited": 762,
+          "inheritedShare": 72.36467236467236,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q3",
+          "slots": 1361,
+          "inherited": 972,
+          "inheritedShare": 71.41807494489346,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q4",
+          "slots": 1711,
+          "inherited": 1190,
+          "inheritedShare": 69.5499707773232,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q1",
+          "slots": 2743,
+          "inherited": 1880,
+          "inheritedShare": 68.53809697411593,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q2",
+          "slots": 3026,
+          "inherited": 2086,
+          "inheritedShare": 68.9358889623265,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q3",
+          "slots": 3142,
+          "inherited": 2165,
+          "inheritedShare": 68.90515595162317,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "full",
+          "slots": 4840,
+          "inherited": 3405,
+          "inheritedShare": 70.35123966942149,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q1",
+          "slots": 675,
+          "inherited": 477,
+          "inheritedShare": 70.66666666666667,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q2",
+          "slots": 664,
+          "inherited": 490,
+          "inheritedShare": 73.79518072289157,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q3",
+          "slots": 686,
+          "inherited": 487,
+          "inheritedShare": 70.99125364431487,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q4",
+          "slots": 703,
+          "inherited": 501,
+          "inheritedShare": 71.26600284495021,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q1",
+          "slots": 660,
+          "inherited": 471,
+          "inheritedShare": 71.36363636363636,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q2",
+          "slots": 714,
+          "inherited": 492,
+          "inheritedShare": 68.90756302521008,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q3",
+          "slots": 738,
+          "inherited": 487,
+          "inheritedShare": 65.98915989159892,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "full",
+          "slots": 8988,
+          "inherited": 6218,
+          "inheritedShare": 69.18113039608367,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q1",
+          "slots": 117,
+          "inherited": 91,
+          "inheritedShare": 77.77777777777777,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q2",
+          "slots": 389,
+          "inherited": 272,
+          "inheritedShare": 69.9228791773779,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q3",
+          "slots": 675,
+          "inherited": 485,
+          "inheritedShare": 71.85185185185185,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q4",
+          "slots": 1008,
+          "inherited": 689,
+          "inheritedShare": 68.35317460317461,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q1",
+          "slots": 2083,
+          "inherited": 1409,
+          "inheritedShare": 67.64282285165626,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q2",
+          "slots": 2312,
+          "inherited": 1594,
+          "inheritedShare": 68.9446366782007,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q3",
+          "slots": 2404,
+          "inherited": 1678,
+          "inheritedShare": 69.80033277870216,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        }
+      ],
+      "inputs": [
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1",
+          "weeks": 32,
+          "date": [
+            1960,
+            8,
+            12
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 91,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1",
+              "--weeks=91",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:35:00.3896655Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 188.2660404,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1-invocation.json",
+              "sha256": "603417b3b103966ee5e1a973bc46e8e2cb9431631709f9e0336561b21cbda8eb"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1.log",
+              "sha256": "d78ad519a009f9bae3790c26e8d239aa538d2a2cfd85af3f43cfc6ef601f6bc4"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1-directive2-quarter-slots.csv",
+              "sha256": "175381b484401b906837291583a0a19285cb10a806d0a4a2f1708afdba3aa0b8"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1-polar-research.json",
+              "sha256": "b33812dec09f8620500859bf6d2155638e141235d6c105391f04d13a1e0b1620"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2",
+          "weeks": 23,
+          "date": [
+            1961,
+            1,
+            20
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 59,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2",
+              "--weeks=59",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s1-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:38:12.7623904Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 188.5907019,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2-invocation.json",
+              "sha256": "a863a18748686495b0008072d3573d73d99053d424ae01c1835bb7230df312de"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2.log",
+              "sha256": "3b7994f2ab5b8293c01d2be1b9620802a7b2f994337f9cc314dcce39ab53cc30"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2-directive2-quarter-slots.csv",
+              "sha256": "23def08de9f2d2d6a9b1891d3bf60b7f16f834bfe521ea70e0817e8ebbece6f9"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2-polar-research.json",
+              "sha256": "4a75d656c6219f8ad7d3f8c49deba95201e97007faa87e08e53f034a6d4ec4a3"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3",
+          "weeks": 18,
+          "date": [
+            1961,
+            5,
+            26
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 36,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3",
+              "--weeks=36",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s2-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:41:25.1946332Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 190.7739224,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3-invocation.json",
+              "sha256": "552ecef4203ac22d3d397eb762a8e19b20427e84e274ac22da1b0784e0675a3c"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3.log",
+              "sha256": "a1429af79f99638ca175f807bf8eb803db71b5b5bbc5ea9396490ca46de537d1"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3-directive2-quarter-slots.csv",
+              "sha256": "75d836cc587cb1997535a18c47fcfc71bc035e97150844b0a2da75e634d8b1f5"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3-polar-research.json",
+              "sha256": "942c1353c60300441791c364c0d0e37f691ac7281e80013d6e507cce2aceec46"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4",
+          "weeks": 14,
+          "date": [
+            1961,
+            9,
+            1
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 18,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4",
+              "--weeks=18",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s3-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:44:40.2436255Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 205.4942622,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4-invocation.json",
+              "sha256": "9675c62010cf81a6bd88b1654487873de52368152743d1f798152e36a0a46afb"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4.log",
+              "sha256": "8e360725bdd59f8074c35133804fbfdb65a6c2646d4d1badcd64e88a8deeb479"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4-directive2-quarter-slots.csv",
+              "sha256": "e73ae32789fdc0edefa37ff1777dd6a8a9980ee3f784f519dfb241a43786fb06"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4-polar-research.json",
+              "sha256": "167832e0ddde43b81a6b59c12f687ed4487825909791275970bb003e4222145e"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s5",
+          "weeks": 4,
+          "date": [
+            1961,
+            9,
+            29
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 4,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s5",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s5",
+              "--weeks=4",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s4-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:48:08.6604175Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 81.0351549,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s5-invocation.json",
+              "sha256": "19c2193fb9680fdd60b5c72b1cb6c6729bce808f1dd5f5c197fb0f469471b502"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s5.log",
+              "sha256": "89cc87968c9d5430bf3adc5bc33b258154ac1c65bc241eb84414165133addf66"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s5-directive2-quarter-slots.csv",
+              "sha256": "910aa12225fb382e3c617012b9316f805adc94a2a4e63d775c11682fd7dc9205"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1001-s5-polar-research.json",
+              "sha256": "67b1170d09c0dbb429ea596e67eef83e34c42cbb00371d57ff22ca5fba81213f"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed": 1002,
+      "weeks": 91,
+      "lastDate": [
+        1961,
+        9,
+        29
+      ],
+      "monthlyObservations": 21,
+      "slots": 12762,
+      "inherited": 8441,
+      "inheritedShare": 66.14167058454788,
+      "secular": 0,
+      "secularShare": 0,
+      "unknown": 0,
+      "inheritedAccepted": true,
+      "secularAccepted": true,
+      "concentration": {
+        "slots": 8441,
+        "uniqueSongs": 228,
+        "top10Share": 24.795640326975477
+      },
+      "actBooks": {
+        "medianDistinctSongs": 5,
+        "p90DistinctSongs": 7,
+        "medianTop10Share": 100
+      },
+      "periods": [
+        {
+          "scope": "all",
+          "period": "full",
+          "slots": 12762,
+          "inherited": 8441,
+          "inheritedShare": 66.14167058454788,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q1",
+          "slots": 616,
+          "inherited": 409,
+          "inheritedShare": 66.3961038961039,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q2",
+          "slots": 976,
+          "inherited": 643,
+          "inheritedShare": 65.8811475409836,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q3",
+          "slots": 1207,
+          "inherited": 800,
+          "inheritedShare": 66.28003314001657,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q4",
+          "slots": 1558,
+          "inherited": 1037,
+          "inheritedShare": 66.5596919127086,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q1",
+          "slots": 2542,
+          "inherited": 1639,
+          "inheritedShare": 64.47678992918962,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q2",
+          "slots": 2770,
+          "inherited": 1828,
+          "inheritedShare": 65.9927797833935,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q3",
+          "slots": 3093,
+          "inherited": 2085,
+          "inheritedShare": 67.41028128031037,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "full",
+          "slots": 4340,
+          "inherited": 2849,
+          "inheritedShare": 65.64516129032258,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q1",
+          "slots": 553,
+          "inherited": 369,
+          "inheritedShare": 66.72694394213381,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q2",
+          "slots": 594,
+          "inherited": 388,
+          "inheritedShare": 65.31986531986531,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q3",
+          "slots": 607,
+          "inherited": 391,
+          "inheritedShare": 64.41515650741351,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q4",
+          "slots": 587,
+          "inherited": 387,
+          "inheritedShare": 65.92844974446338,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q1",
+          "slots": 621,
+          "inherited": 393,
+          "inheritedShare": 63.28502415458937,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q2",
+          "slots": 692,
+          "inherited": 462,
+          "inheritedShare": 66.76300578034682,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q3",
+          "slots": 686,
+          "inherited": 459,
+          "inheritedShare": 66.90962099125365,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "full",
+          "slots": 8422,
+          "inherited": 5592,
+          "inheritedShare": 66.39753027784374,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q1",
+          "slots": 63,
+          "inherited": 40,
+          "inheritedShare": 63.492063492063494,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q2",
+          "slots": 382,
+          "inherited": 255,
+          "inheritedShare": 66.75392670157068,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q3",
+          "slots": 600,
+          "inherited": 409,
+          "inheritedShare": 68.16666666666667,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q4",
+          "slots": 971,
+          "inherited": 650,
+          "inheritedShare": 66.94129763130793,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q1",
+          "slots": 1921,
+          "inherited": 1246,
+          "inheritedShare": 64.8620510150963,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q2",
+          "slots": 2078,
+          "inherited": 1366,
+          "inheritedShare": 65.73628488931665,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q3",
+          "slots": 2407,
+          "inherited": 1626,
+          "inheritedShare": 67.55297050270046,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        }
+      ],
+      "inputs": [
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1",
+          "weeks": 37,
+          "date": [
+            1960,
+            9,
+            16
+          ],
+          "invocation": {
+            "seed": 1002,
+            "mode": "on",
+            "weeks": 91,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1002",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1",
+              "--weeks=91",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:49:33.7431495Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 188.7903942,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1-invocation.json",
+              "sha256": "5c67d3a462a00687ece54c526521cd2a670815efe3e2d23a74b7c84661a3165f"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1.log",
+              "sha256": "4bb1fd93930b67efe71e92a7cb528b055112034d1664403e48ba71fb64c8bbdf"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1-directive2-quarter-slots.csv",
+              "sha256": "9ce4868f7d13919a21b7b62913d2a4ac502ce0b2c59e25507110b91be6af5d08"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1-polar-research.json",
+              "sha256": "06a308945ddbcb2a35c4fd24f88ab661147b7843785ce69dab8e32793b973f35"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2",
+          "weeks": 20,
+          "date": [
+            1961,
+            2,
+            3
+          ],
+          "invocation": {
+            "seed": 1002,
+            "mode": "on",
+            "weeks": 54,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1002",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2",
+              "--weeks=54",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s1-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:52:44.9983582Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 197.5213279,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2-invocation.json",
+              "sha256": "77605a78dc53d98548844fcce5ed96c00c1f96799cfd3c4ac9124a2bf4756541"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2.log",
+              "sha256": "9addba92caba940e7e73ae476ab3f14bac350730853fe66116e163905ed734a4"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2-directive2-quarter-slots.csv",
+              "sha256": "c9b39aab1f0559cec7d5c2639a847fbbf088d1845e39af6ff72b0656bdc57b14"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2-polar-research.json",
+              "sha256": "d8c03a44d30623960cd1efa47187da4e136dd94162e3db9b0d3d50275d960132"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3",
+          "weeks": 26,
+          "date": [
+            1961,
+            8,
+            4
+          ],
+          "invocation": {
+            "seed": 1002,
+            "mode": "on",
+            "weeks": 34,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1002",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3",
+              "--weeks=34",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s2-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:56:04.7323005Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 193.7275019,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3-invocation.json",
+              "sha256": "d42b9418628e133cde7b9fad9efb729677ac2bd2ad629bb1af5a2030299b324d"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3.log",
+              "sha256": "ab347a1b485766dc1d33dfa52f105eeda2a5ad94059a7e3e150ae0dc4aac79b2"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3-directive2-quarter-slots.csv",
+              "sha256": "70a1a652ebeae4d9a8b30e9417c9f9e13449f5b2d59b66e5ae18d31e67f1a4cf"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3-polar-research.json",
+              "sha256": "ab99b2b59432e53dcdaffeee5078ededbcf03510289b9137bb021f94c3f56c6e"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s4",
+          "weeks": 8,
+          "date": [
+            1961,
+            9,
+            29
+          ],
+          "invocation": {
+            "seed": 1002,
+            "mode": "on",
+            "weeks": 8,
+            "run": "polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s4",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1002",
+              "--run=polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s4",
+              "--weeks=8",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s3-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T01:59:21.0757716Z",
+            "assemblySha256": "D3BF5337E3088FE4317E0D7D3684937D8871246A8F253CAC37EF7B18072D9322",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 86.458401,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s4-invocation.json",
+              "sha256": "6e9b7450ca5ed9cc5f40506b629a9d30ca83506609bd6d279c23135bed19664f"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s4.log",
+              "sha256": "7df284f20bbbd9ca5819f37d468f4f0c572d6f7df6aca35a6e2816010b88c7eb"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s4-directive2-quarter-slots.csv",
+              "sha256": "80fa5ec4f073906e758b635f6981f09e202464d825f3592b808d541ed0e2b755"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-easy-soundtrack-gospel-v1-1002-s4-polar-research.json",
+              "sha256": "72caa7e0402c3610c790af442e1512a57389037772bbb47a5ca286be6aa963e4"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

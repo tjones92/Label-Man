@@ -76,7 +76,7 @@ public partial class PlayerDesk : Node {
 		Spend(RecordHopHours);
 		if (fee > 0f) { Label.cashReserves -= fee; Label.monthlyExpenses += fee; }
 
-		int qty = Mathf.Min(Mathf.RoundToInt(SuggestedPlacement(stop) * RecordHopWholesaleMultiplier), stockOnHand.Remaining);
+		int qty = Mathf.Min(Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * RecordHopWholesaleMultiplier), stockOnHand.Remaining);
 		stockOnHand.Remaining -= qty;
 		BookTrunkSale(rec, qty, stop, cashNow: true);
 		TouchStop(stop, 0.06f);

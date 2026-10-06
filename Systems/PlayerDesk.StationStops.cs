@@ -18,7 +18,10 @@ public partial class PlayerDesk : Node {
 	public const int WaitForHimMinutes = 180;
 	public const int LeaveWithReceptionistMinutes = 15;
 	public const int AskSurveyMinutes = 30;
-	public const int DropOffMaxCopies = 2;
+	/// <summary>The TOP of the range a station will keep, not the flat amount it always takes -- see
+	/// <see cref="DropOffAtStation"/>. A jock who wants a record keeps one for his own shift, one for
+	/// the other jock, and one for the library; a jock doing you a favour keeps one.</summary>
+	public const int DropOffMaxCopies = 4;
 
 	private const float DropOffConviction = 0.75f;
 	private const float WaitForHimConviction = 0.90f;
@@ -75,29 +78,86 @@ public partial class PlayerDesk : Node {
 		return entry;
 	}
 
-	/// <summary>Directive §4: "Drop off a copy" -- 1h, 1-2 promo copies, conviction ~0.75. A small
-	/// rapport tick, and a discovery if this jock isn't in the book yet.</summary>
+	/// <summary>Directive §4: "Drop off a copy" -- 1h, conviction ~0.75. A small rapport tick, and a
+	/// discovery if this jock isn't in the book yet.
+	///
+	/// Bug report: "I'm handing out 2 copies to every record station? And they always accept them? I
+	/// don't have to fight for them?" Both halves were literally true -- the verb took the flat
+	/// DropOffMaxCopies with no roll of any kind, so a Top 40 station took exactly as many copies of a
+	/// gospel side from a stranger as an R&amp;B station took of a hot local record from a man it knew.
+	/// It reads the room now (see <see cref="StationInterest"/>): the format, the jock's own taste, what
+	/// rapport you've built, and what the record is. He can wave you off -- and that refusal is what
+	/// WAIT FOR HIM and LEAVE W/ DESK are for.</summary>
 	public bool DropOffAtStation(string stopId, string recordId, out string message) {
 		if (!ValidateStationAction(stopId, recordId, out PlayerStop stop, out RadioStation station, out PressStock stockOnHand, out message)) return false;
 		if (!Require(1, out message)) return false;
 
 		Spend(1);
-		int copies = Mathf.Min(DropOffMaxCopies, stockOnHand.PromoRemaining);
-		stockOnHand.PromoRemaining -= copies;
-		ServiceStation(recordId, station.stationId, DropOffConviction, ServicingSource.HandDelivered);
 		stop.LastVisitWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? stop.LastVisitWeek;
+		string title = TitleForRecord(recordId);
+		float interest = StationInterest(station, recordId, out string coolReason);
+
+		if (GD.Randf() > Mathf.Clamp(DropOffBaseChance + interest * DropOffInterestWeight, 0.06f, 0.96f)) {
+			// A no still put you in front of him -- he knows the label's name now, and nothing else.
+			RolodexEntry met = EnsureStationEntry(station, discover: true);
+			met?.log.Insert(0, $"{Today()} — Wouldn't take \"{title}\" off my hands.");
+			Note($"{station.callsign} wouldn't take \"{title}\" -- {coolReason}.");
+			message = $"{station.callsign} passed on \"{title}\" -- {coolReason}. Wait him out, or leave one with the desk.";
+			Changed?.Invoke();
+			return true;
+		}
+
+		// How many he'll actually keep: a jock taking a record he has no intention of playing keeps one
+		// for the pile; a jock who likes it keeps a spare for the other shift and one for the library.
+		int copies = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(1f, DropOffMaxCopies, interest)), 1, stockOnHand.PromoRemaining);
+		stockOnHand.PromoRemaining -= copies;
+		// Conviction is what he'll actually give it, not a flat number for walking in the door.
+		ServiceStation(recordId, station.stationId, Mathf.Lerp(DropOffConvictionCool, DropOffConviction, interest), ServicingSource.HandDelivered);
 
 		RolodexEntry entry = EnsureStationEntry(station, discover: true);
-		string title = TitleForRecord(recordId);
 		if (entry != null) {
-			float after = ApplyRapport(entry, DropOffRapportGain);
+			float after = ApplyRapport(entry, DropOffRapportGain * Mathf.Lerp(0.5f, 1.5f, interest));
 			entry.MaybePromoteState(after);
 			entry.log.Insert(0, $"{Today()} — Dropped off \"{title}\" in person, {copies} cop{(copies == 1 ? "y" : "ies")}.");
 		}
 		Note($"Dropped {copies} promo cop{(copies == 1 ? "y" : "ies")} of \"{title}\" at {station.callsign}.");
-		message = $"Left {copies} with {station.callsign}. He's got a copy now.";
+		message = copies > 1
+			? $"{station.callsign} took {copies} -- he wanted a spare for the other shift."
+			: $"Left one with {station.callsign}. It's in the pile.";
 		Changed?.Invoke();
 		return true;
+	}
+
+	// What a cold walk-in is worth on its own, and how much the room adds on top.
+	private const float DropOffBaseChance = 0.22f;
+	private const float DropOffInterestWeight = 0.72f;
+	private const float DropOffConvictionCool = 0.45f;
+
+	/// <summary>How much this station wants this record, 0-1 -- the one place the station verbs ask that
+	/// question. Built only from things that already exist: the real <see cref="ChartManager.FormatAdmittanceFor"/>
+	/// the weekly playlist meeting scores with, the jock's own genre affinity, the rapport the player has
+	/// actually cultivated, and the record's hook. No new station stat, and no parallel taste model.
+	/// <paramref name="coolReason"/> comes back with the biggest thing standing in the way, so a refusal
+	/// tells the player something he can act on rather than reading as a coin flip.</summary>
+	private float StationInterest(RadioStation station, string recordId, out string coolReason) {
+		coolReason = "he's just not interested";
+		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
+		if (rec?.baseRecord == null) return 0.3f;
+		var chart = ChartManager.Instance;
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		Genre genre = rec.baseRecord.primaryGenre;
+
+		float format = Mathf.Clamp(chart?.FormatAdmittanceFor(genre, station, year) ?? 0.5f, 0f, 1f);
+		Deejay dj = chart?.GetDeejay(station.leadDjId);
+		float affinity = Mathf.Clamp((dj?.GenreAffinity(genre) ?? 1f) * 0.5f, 0f, 1f);
+		float rapport = Mathf.Clamp(station.rt?.Rapport(Label?.labelId ?? "") ?? 0f, 0f, 1f);
+		float hook = Mathf.Clamp(rec.baseRecord.hookStrength, 0f, 1f);
+
+		if (format < 0.25f) coolReason = $"a {GenreNameFormatter.Format(genre)} side isn't what {station.callsign} programmes";
+		else if (rapport < 0.10f) coolReason = "he's never heard of you and the stack's already full";
+		else if (hook < 0.45f) coolReason = "he listened to eight bars and handed it back";
+
+		return Mathf.Clamp(format * 0.35f + affinity * 0.15f + rapport * 0.20f + hook * 0.30f, 0f, 1f);
 	}
 
 	/// <summary>Directive §4: "Wait for him" -- 3h, 1-2 promo copies, conviction ~0.90, and the pitch
@@ -111,7 +171,10 @@ public partial class PlayerDesk : Node {
 		if (entry == null) { message = "There's nobody here to wait for -- the station has no lead jock on record."; return null; }
 
 		Spend(3);
-		int copies = Mathf.Min(DropOffMaxCopies, stockOnHand.PromoRemaining);
+		// No refusal roll here -- you waited him out, so he takes it and the pitch scene IS the fight.
+		// How many he keeps still reads the room, the same as a drop-off.
+		float interest = StationInterest(station, recordId, out _);
+		int copies = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(1f, DropOffMaxCopies, interest)), 1, stockOnHand.PromoRemaining);
 		stockOnHand.PromoRemaining -= copies;
 		ServiceStation(recordId, station.stationId, WaitForHimConviction, ServicingSource.HandDelivered);
 		stop.LastVisitWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? stop.LastVisitWeek;

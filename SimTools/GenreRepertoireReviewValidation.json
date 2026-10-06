@@ -1,0 +1,5795 @@
+{
+  "definitions": {
+    "scope": "Startup and retained evolving-world snapshots; not a new 48-month trajectory or historical measured rates.",
+    "numerator": "Traditional lineage plus established standards as of observation year. Public-domain union also reported separately.",
+    "denominator": "All filled live slots, weighted by stratum population/sample. Signed and unsigned separate. Repeated acts are not independent observations."
+  },
+  "fingerprints": [
+    {
+      "run": "genre-review-current-start-1001",
+      "completeDates": [
+        "1/1/1960"
+      ],
+      "input": "SimLogs/genre-review-current-start-1001-repertoire-slots.csv",
+      "sha256": "49f61e1bac968c2ada6395b3cf35060969476da4d21fbbf09a17fc31cf6a8d88",
+      "invocation": {
+        "seed": 1001,
+        "mode": "on",
+        "weeks": 2,
+        "run": "genre-review-current-start-1001",
+        "census": "sample",
+        "samplePerStratum": 6,
+        "diagnosticActs": 0,
+        "maxSeconds": 120,
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1001",
+          "--run=genre-review-current-start-1001",
+          "--weeks=2",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit",
+          "--polar-census=sample",
+          "--polar-sample-per-stratum=6",
+          "--polar-diagnostic-acts=0",
+          "--polar-max-seconds=120",
+          "--composition-shape-v1=on",
+          "--composition-shape-v2=on"
+        ],
+        "startedUtc": "2026-10-05T20:32:16.0004809Z",
+        "assemblySha256": "0022992448BEF93F0A5CBD033173201E64195EEC557B69EE38581B1E223EE247",
+        "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+        "repertoireTableSha256": "BE484E78EDE3140A1E7AB720E3371E37047086FC789DEC00CDE501211A0C37B4",
+        "elapsedSeconds": 32.0656215,
+        "exitCode": 0
+      }
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "completeDates": [
+        "1/1/1960"
+      ],
+      "input": "SimLogs/genre-review-final-start-1002-repertoire-slots.csv",
+      "sha256": "df74f9bb7bfc248dfb75067ed9bb2a18b82691ae619a124a86c83bfcf9730a2a",
+      "invocation": {
+        "seed": 1002,
+        "mode": "on",
+        "weeks": 1,
+        "run": "genre-review-final-start-1002",
+        "census": "sample",
+        "samplePerStratum": 3,
+        "diagnosticActs": 0,
+        "maxSeconds": 120,
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1002",
+          "--run=genre-review-final-start-1002",
+          "--weeks=1",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit",
+          "--polar-census=sample",
+          "--polar-sample-per-stratum=3",
+          "--polar-diagnostic-acts=0",
+          "--polar-max-seconds=120",
+          "--composition-shape-v1=on",
+          "--composition-shape-v2=on"
+        ],
+        "startedUtc": "2026-10-05T20:41:56.8442884Z",
+        "assemblySha256": "ECA66893856A39D7558362E22CF7B3B42AED1622D08D5C8BB0D765B52084CA9C",
+        "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+        "repertoireTableSha256": "BE484E78EDE3140A1E7AB720E3371E37047086FC789DEC00CDE501211A0C37B4",
+        "elapsedSeconds": 26.7577933,
+        "exitCode": 0
+      }
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "completeDates": [
+        "9/6/1963"
+      ],
+      "input": "SimLogs/genre-review-final-1963-1001-repertoire-slots.csv",
+      "sha256": "36d9088825eec0a44cb3151b0b18f57ff82aa91e14db83c67a7e821503e5aecd",
+      "invocation": {
+        "seed": 1001,
+        "mode": "on",
+        "weeks": 1,
+        "run": "genre-review-final-1963-1001",
+        "census": "sample",
+        "samplePerStratum": 3,
+        "diagnosticActs": 0,
+        "maxSeconds": 300,
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1001",
+          "--run=genre-review-final-1963-1001",
+          "--weeks=1",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit",
+          "--polar-census=sample",
+          "--polar-sample-per-stratum=3",
+          "--polar-diagnostic-acts=0",
+          "--polar-max-seconds=300",
+          "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\folk-easy-bandleaders-v2-1001-s9-polar-checkpoint.json.gz",
+          "--polar-verify-snapshot",
+          "--composition-shape-v1=on",
+          "--composition-shape-v2=on"
+        ],
+        "startedUtc": "2026-10-05T20:41:42.1046015Z",
+        "assemblySha256": "ECA66893856A39D7558362E22CF7B3B42AED1622D08D5C8BB0D765B52084CA9C",
+        "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+        "repertoireTableSha256": "BE484E78EDE3140A1E7AB720E3371E37047086FC789DEC00CDE501211A0C37B4",
+        "elapsedSeconds": 117.5105101,
+        "exitCode": 0
+      }
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "completeDates": [
+        "10/4/1963"
+      ],
+      "input": "SimLogs/genre-review-final-1963-1002-repertoire-slots.csv",
+      "sha256": "5d3cf21747fa0e86899ebfd2a901762e1702461cde2610a35d6c931264fe514f",
+      "invocation": {
+        "seed": 1002,
+        "mode": "on",
+        "weeks": 1,
+        "run": "genre-review-final-1963-1002",
+        "census": "sample",
+        "samplePerStratum": 3,
+        "diagnosticActs": 0,
+        "maxSeconds": 300,
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1002",
+          "--run=genre-review-final-1963-1002",
+          "--weeks=1",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit",
+          "--polar-census=sample",
+          "--polar-sample-per-stratum=3",
+          "--polar-diagnostic-acts=0",
+          "--polar-max-seconds=300",
+          "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\folk-easy-bandleaders-v2-1002-s9-polar-checkpoint.json.gz",
+          "--polar-verify-snapshot",
+          "--composition-shape-v1=on",
+          "--composition-shape-v2=on"
+        ],
+        "startedUtc": "2026-10-05T20:44:09.3417368Z",
+        "assemblySha256": "ECA66893856A39D7558362E22CF7B3B42AED1622D08D5C8BB0D765B52084CA9C",
+        "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+        "repertoireTableSha256": "BE484E78EDE3140A1E7AB720E3371E37047086FC789DEC00CDE501211A0C37B4",
+        "elapsedSeconds": 126.9483086,
+        "exitCode": 0
+      }
+    }
+  ],
+  "measures": [
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 69,
+      "observedActs": 18,
+      "weightedSlots": 1208.6666666666663,
+      "shares": {
+        "traditionalLineage": 2.0683949255377834,
+        "establishedStandard": 13.485934914506347,
+        "existingCover": 53.08880308880311,
+        "newlyAuthored": 31.356867071152788
+      },
+      "stdTradPct": 15.554329840044131,
+      "tradStandardOrPDPct": 15.554329840044128
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 69,
+      "observedActs": 18,
+      "weightedSlots": 1208.6666666666663,
+      "shares": {
+        "traditionalLineage": 2.0683949255377834,
+        "establishedStandard": 13.485934914506347,
+        "existingCover": 53.08880308880311,
+        "newlyAuthored": 31.356867071152788
+      },
+      "stdTradPct": 15.554329840044131,
+      "tradStandardOrPDPct": 15.554329840044128
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "genre",
+      "observedSlots": 76,
+      "observedActs": 18,
+      "weightedSlots": 772.5000000000002,
+      "shares": {
+        "traditionalLineage": 51.67206040992448,
+        "establishedStandard": 30.075512405609476,
+        "existingCover": 8.349514563106794,
+        "newlyAuthored": 9.90291262135922
+      },
+      "stdTradPct": 81.74757281553396,
+      "tradStandardOrPDPct": 82.80474649406686
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "cohort",
+      "observedSlots": 76,
+      "observedActs": 18,
+      "weightedSlots": 772.5000000000002,
+      "shares": {
+        "traditionalLineage": 51.67206040992448,
+        "establishedStandard": 30.075512405609476,
+        "existingCover": 8.349514563106794,
+        "newlyAuthored": 9.90291262135922
+      },
+      "stdTradPct": 81.74757281553396,
+      "tradStandardOrPDPct": 82.80474649406686
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 73,
+      "observedActs": 18,
+      "weightedSlots": 1752.0000000000018,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 8.675799086757982,
+        "existingCover": 55.76484018264833,
+        "newlyAuthored": 35.55936073059356
+      },
+      "stdTradPct": 8.675799086757982,
+      "tradStandardOrPDPct": 17.941400304413985
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 73,
+      "observedActs": 18,
+      "weightedSlots": 1752.0000000000018,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 8.675799086757982,
+        "existingCover": 55.76484018264833,
+        "newlyAuthored": 35.55936073059356
+      },
+      "stdTradPct": 8.675799086757982,
+      "tradStandardOrPDPct": 17.941400304413985
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 72,
+      "observedActs": 18,
+      "weightedSlots": 154.83333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 71.7976318622174,
+        "existingCover": 6.88912809472551,
+        "newlyAuthored": 21.31324004305705
+      },
+      "stdTradPct": 71.7976318622174,
+      "tradStandardOrPDPct": 71.7976318622174
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 72,
+      "observedActs": 18,
+      "weightedSlots": 154.83333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 71.7976318622174,
+        "existingCover": 6.88912809472551,
+        "newlyAuthored": 21.31324004305705
+      },
+      "stdTradPct": 71.7976318622174,
+      "tradStandardOrPDPct": 71.7976318622174
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 69,
+      "observedActs": 18,
+      "weightedSlots": 155.83333333333326,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 64.49197860962565,
+        "existingCover": 5.882352941176474,
+        "newlyAuthored": 29.625668449197878
+      },
+      "stdTradPct": 64.49197860962565,
+      "tradStandardOrPDPct": 64.49197860962565
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 69,
+      "observedActs": 18,
+      "weightedSlots": 155.83333333333326,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 64.49197860962565,
+        "existingCover": 5.882352941176474,
+        "newlyAuthored": 29.625668449197878
+      },
+      "stdTradPct": 64.49197860962565,
+      "tradStandardOrPDPct": 64.49197860962565
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 142,
+      "observedActs": 35,
+      "weightedSlots": 261.6666666666665,
+      "shares": {
+        "traditionalLineage": 1.7834394904458608,
+        "establishedStandard": 68.5987261146497,
+        "existingCover": 28.28025477707008,
+        "newlyAuthored": 1.3375796178343957
+      },
+      "stdTradPct": 70.38216560509557,
+      "tradStandardOrPDPct": 71.7834394904459
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 75,
+      "observedActs": 17,
+      "weightedSlots": 135.33333333333337,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 64.5320197044335,
+        "existingCover": 35.46798029556648,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 64.5320197044335,
+      "tradStandardOrPDPct": 67.24137931034483
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 42,
+      "observedActs": 10,
+      "weightedSlots": 42,
+      "shares": {
+        "traditionalLineage": 21.428571428571427,
+        "establishedStandard": 21.428571428571427,
+        "existingCover": 38.095238095238095,
+        "newlyAuthored": 19.047619047619047
+      },
+      "stdTradPct": 42.857142857142854,
+      "tradStandardOrPDPct": 42.857142857142854
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 42,
+      "observedActs": 10,
+      "weightedSlots": 42,
+      "shares": {
+        "traditionalLineage": 21.428571428571427,
+        "establishedStandard": 21.428571428571427,
+        "existingCover": 38.095238095238095,
+        "newlyAuthored": 19.047619047619047
+      },
+      "stdTradPct": 42.857142857142854,
+      "tradStandardOrPDPct": 42.857142857142854
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 136,
+      "observedActs": 35,
+      "weightedSlots": 339.6666666666664,
+      "shares": {
+        "traditionalLineage": 2.7968596663395506,
+        "establishedStandard": 63.78802747791961,
+        "existingCover": 33.12070657507361,
+        "newlyAuthored": 0.2944062806673211
+      },
+      "stdTradPct": 66.58488714425917,
+      "tradStandardOrPDPct": 66.58488714425917
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 68,
+      "observedActs": 17,
+      "weightedSlots": 143.66666666666666,
+      "shares": {
+        "traditionalLineage": 3.596287703016242,
+        "establishedStandard": 67.28538283062643,
+        "existingCover": 28.42227378190256,
+        "newlyAuthored": 0.6960556844547564
+      },
+      "stdTradPct": 70.88167053364268,
+      "tradStandardOrPDPct": 70.88167053364266
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 69,
+      "observedActs": 18,
+      "weightedSlots": 1070.8333333333342,
+      "shares": {
+        "traditionalLineage": 1.9299610894941621,
+        "establishedStandard": 46.08560311284042,
+        "existingCover": 28.357976653696475,
+        "newlyAuthored": 23.626459143968855
+      },
+      "stdTradPct": 48.01556420233458,
+      "tradStandardOrPDPct": 52.466926070038866
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 69,
+      "observedActs": 18,
+      "weightedSlots": 1070.8333333333342,
+      "shares": {
+        "traditionalLineage": 1.9299610894941621,
+        "establishedStandard": 46.08560311284042,
+        "existingCover": 28.357976653696475,
+        "newlyAuthored": 23.626459143968855
+      },
+      "stdTradPct": 48.01556420233458,
+      "tradStandardOrPDPct": 52.466926070038866
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 71,
+      "observedActs": 18,
+      "weightedSlots": 743.9999999999993,
+      "shares": {
+        "traditionalLineage": 8.512544802867392,
+        "establishedStandard": 38.01523297491043,
+        "existingCover": 21.50537634408604,
+        "newlyAuthored": 31.966845878136215
+      },
+      "stdTradPct": 46.52777777777783,
+      "tradStandardOrPDPct": 48.67831541218644
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 71,
+      "observedActs": 18,
+      "weightedSlots": 743.9999999999993,
+      "shares": {
+        "traditionalLineage": 8.512544802867392,
+        "establishedStandard": 38.01523297491043,
+        "existingCover": 21.50537634408604,
+        "newlyAuthored": 31.966845878136215
+      },
+      "stdTradPct": 46.52777777777783,
+      "tradStandardOrPDPct": 48.67831541218644
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 79,
+      "observedActs": 18,
+      "weightedSlots": 1924.3333333333342,
+      "shares": {
+        "traditionalLineage": 1.013337952537675,
+        "establishedStandard": 18.88965875627922,
+        "existingCover": 47.88671401351114,
+        "newlyAuthored": 32.210289277671905
+      },
+      "stdTradPct": 19.902996708816897,
+      "tradStandardOrPDPct": 20.78641953923436
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 79,
+      "observedActs": 18,
+      "weightedSlots": 1924.3333333333342,
+      "shares": {
+        "traditionalLineage": 1.013337952537675,
+        "establishedStandard": 18.88965875627922,
+        "existingCover": 47.88671401351114,
+        "newlyAuthored": 32.210289277671905
+      },
+      "stdTradPct": 19.902996708816897,
+      "tradStandardOrPDPct": 20.78641953923436
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 71,
+      "observedActs": 18,
+      "weightedSlots": 483.83333333333354,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 32.242507750602805,
+        "existingCover": 42.33551498449876,
+        "newlyAuthored": 25.42197726489837
+      },
+      "stdTradPct": 32.242507750602805,
+      "tradStandardOrPDPct": 38.374095763003766
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 71,
+      "observedActs": 18,
+      "weightedSlots": 483.83333333333354,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 32.242507750602805,
+        "existingCover": 42.33551498449876,
+        "newlyAuthored": 25.42197726489837
+      },
+      "stdTradPct": 32.242507750602805,
+      "tradStandardOrPDPct": 38.374095763003766
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "genre",
+      "observedSlots": 76,
+      "observedActs": 18,
+      "weightedSlots": 239.66666666666663,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 60.848400556328244,
+        "existingCover": 27.885952712100142,
+        "newlyAuthored": 11.265646731571628
+      },
+      "stdTradPct": 60.848400556328244,
+      "tradStandardOrPDPct": 63.35187760778861
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "cohort",
+      "observedSlots": 76,
+      "observedActs": 18,
+      "weightedSlots": 239.66666666666663,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 60.848400556328244,
+        "existingCover": 27.885952712100142,
+        "newlyAuthored": 11.265646731571628
+      },
+      "stdTradPct": 60.848400556328244,
+      "tradStandardOrPDPct": 63.35187760778861
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 96,
+      "observedActs": 23,
+      "weightedSlots": 470.5000000000003,
+      "shares": {
+        "traditionalLineage": 1.3106624158696416,
+        "establishedStandard": 52.46191994332265,
+        "existingCover": 29.082536308891235,
+        "newlyAuthored": 17.14488133191639
+      },
+      "stdTradPct": 53.77258235919229,
+      "tradStandardOrPDPct": 61.990789939780335
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "standardsInterpreter",
+      "scope": "cohort",
+      "observedSlots": 72,
+      "observedActs": 17,
+      "weightedSlots": 410.5000000000002,
+      "shares": {
+        "traditionalLineage": 1.5022330491270801,
+        "establishedStandard": 57.69386926512378,
+        "existingCover": 30.89727974015427,
+        "newlyAuthored": 9.906617945594798
+      },
+      "stdTradPct": 59.196102314250865,
+      "tradStandardOrPDPct": 67.39748274462033
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 68,
+      "observedActs": 18,
+      "weightedSlots": 196.00000000000006,
+      "shares": {
+        "traditionalLineage": 2.2108843537414957,
+        "establishedStandard": 61.22448979591833,
+        "existingCover": 36.56462585034013,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 63.43537414965982,
+      "tradStandardOrPDPct": 63.43537414965982
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "composerLed",
+      "scope": "cohort",
+      "observedSlots": 24,
+      "observedActs": 6,
+      "weightedSlots": 60,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 16.666666666666668,
+        "existingCover": 16.666666666666668,
+        "newlyAuthored": 66.66666666666667
+      },
+      "stdTradPct": 16.666666666666668,
+      "tradStandardOrPDPct": 25
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 75,
+      "observedActs": 18,
+      "weightedSlots": 96.16666666666661,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 49.04679376083193,
+        "existingCover": 24.090121317157728,
+        "newlyAuthored": 26.86308492201041
+      },
+      "stdTradPct": 49.04679376083193,
+      "tradStandardOrPDPct": 49.04679376083193
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 75,
+      "observedActs": 18,
+      "weightedSlots": 96.16666666666661,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 49.04679376083193,
+        "existingCover": 24.090121317157728,
+        "newlyAuthored": 26.86308492201041
+      },
+      "stdTradPct": 49.04679376083193,
+      "tradStandardOrPDPct": 49.04679376083193
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 50,
+      "observedActs": 12,
+      "weightedSlots": 50,
+      "shares": {
+        "traditionalLineage": 16,
+        "establishedStandard": 12,
+        "existingCover": 40,
+        "newlyAuthored": 32
+      },
+      "stdTradPct": 28,
+      "tradStandardOrPDPct": 28
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 50,
+      "observedActs": 12,
+      "weightedSlots": 50,
+      "shares": {
+        "traditionalLineage": 16,
+        "establishedStandard": 12,
+        "existingCover": 40,
+        "newlyAuthored": 32
+      },
+      "stdTradPct": 28,
+      "tradStandardOrPDPct": 28
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 67,
+      "observedActs": 18,
+      "weightedSlots": 126.33333333333334,
+      "shares": {
+        "traditionalLineage": 3.693931398416886,
+        "establishedStandard": 72.9551451187335,
+        "existingCover": 20.58047493403694,
+        "newlyAuthored": 2.7704485488126647
+      },
+      "stdTradPct": 76.64907651715038,
+      "tradStandardOrPDPct": 76.64907651715038
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 71,
+      "observedActs": 18,
+      "weightedSlots": 1943.1666666666642,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 70.45201132172576,
+        "newlyAuthored": 29.54798867827433
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 1.1664808302598866
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 71,
+      "observedActs": 18,
+      "weightedSlots": 1943.1666666666642,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 70.45201132172576,
+        "newlyAuthored": 29.54798867827433
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 1.1664808302598866
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 77,
+      "observedActs": 18,
+      "weightedSlots": 416.3333333333336,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0.9607686148919129,
+        "existingCover": 72.37790232185743,
+        "newlyAuthored": 26.66132906325059
+      },
+      "stdTradPct": 0.9607686148919129,
+      "tradStandardOrPDPct": 0.9607686148919129
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 77,
+      "observedActs": 18,
+      "weightedSlots": 416.3333333333336,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0.9607686148919129,
+        "existingCover": 72.37790232185743,
+        "newlyAuthored": 26.66132906325059
+      },
+      "stdTradPct": 0.9607686148919129,
+      "tradStandardOrPDPct": 0.9607686148919129
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 30,
+      "observedActs": 7,
+      "weightedSlots": 30,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 50,
+        "existingCover": 26.666666666666668,
+        "newlyAuthored": 23.333333333333332
+      },
+      "stdTradPct": 50,
+      "tradStandardOrPDPct": 50
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 30,
+      "observedActs": 7,
+      "weightedSlots": 30,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 50,
+        "existingCover": 26.666666666666668,
+        "newlyAuthored": 23.333333333333332
+      },
+      "stdTradPct": 50,
+      "tradStandardOrPDPct": 50
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 16,
+      "observedActs": 4,
+      "weightedSlots": 16,
+      "shares": {
+        "traditionalLineage": 68.75,
+        "establishedStandard": 0,
+        "existingCover": 0,
+        "newlyAuthored": 31.25
+      },
+      "stdTradPct": 68.75,
+      "tradStandardOrPDPct": 68.75
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 16,
+      "observedActs": 4,
+      "weightedSlots": 16,
+      "shares": {
+        "traditionalLineage": 68.75,
+        "establishedStandard": 0,
+        "existingCover": 0,
+        "newlyAuthored": 31.25
+      },
+      "stdTradPct": 68.75,
+      "tradStandardOrPDPct": 68.75
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 30,
+      "observedActs": 7,
+      "weightedSlots": 30,
+      "shares": {
+        "traditionalLineage": 70,
+        "establishedStandard": 3.3333333333333335,
+        "existingCover": 0,
+        "newlyAuthored": 26.666666666666668
+      },
+      "stdTradPct": 73.33333333333333,
+      "tradStandardOrPDPct": 73.33333333333333
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 30,
+      "observedActs": 7,
+      "weightedSlots": 30,
+      "shares": {
+        "traditionalLineage": 70,
+        "establishedStandard": 3.3333333333333335,
+        "existingCover": 0,
+        "newlyAuthored": 26.666666666666668
+      },
+      "stdTradPct": 73.33333333333333,
+      "tradStandardOrPDPct": 73.33333333333333
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 5,
+      "observedActs": 1,
+      "weightedSlots": 5,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 80,
+        "existingCover": 20,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 80,
+      "tradStandardOrPDPct": 80
+    },
+    {
+      "run": "genre-review-current-start-1001",
+      "seed": 1001,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 5,
+      "observedActs": 1,
+      "weightedSlots": 5,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 80,
+        "existingCover": 20,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 80,
+      "tradStandardOrPDPct": 80
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 417.6666666666668,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 40.30327214684756,
+        "existingCover": 32.00319233838786,
+        "newlyAuthored": 27.69353551476456
+      },
+      "stdTradPct": 40.30327214684756,
+      "tradStandardOrPDPct": 40.30327214684756
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 417.6666666666668,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 40.30327214684756,
+        "existingCover": 32.00319233838786,
+        "newlyAuthored": 27.69353551476456
+      },
+      "stdTradPct": 40.30327214684756,
+      "tradStandardOrPDPct": 40.30327214684756
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1004.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 31.619110816191114,
+        "existingCover": 25.41473125414731,
+        "newlyAuthored": 42.966157929661584
+      },
+      "stdTradPct": 31.619110816191114,
+      "tradStandardOrPDPct": 33.642999336429995
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1004.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 31.619110816191114,
+        "existingCover": 25.41473125414731,
+        "newlyAuthored": 42.966157929661584
+      },
+      "stdTradPct": 31.619110816191114,
+      "tradStandardOrPDPct": 33.642999336429995
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 57.33333333333331,
+      "shares": {
+        "traditionalLineage": 8.139534883720934,
+        "establishedStandard": 26.74418604651164,
+        "existingCover": 40.69767441860467,
+        "newlyAuthored": 24.4186046511628
+      },
+      "stdTradPct": 34.88372093023258,
+      "tradStandardOrPDPct": 34.88372093023258
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 57.33333333333331,
+      "shares": {
+        "traditionalLineage": 8.139534883720934,
+        "establishedStandard": 26.74418604651164,
+        "existingCover": 40.69767441860467,
+        "newlyAuthored": 24.4186046511628
+      },
+      "stdTradPct": 34.88372093023258,
+      "tradStandardOrPDPct": 34.88372093023258
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 166.00000000000009,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 55.02008032128509,
+        "existingCover": 16.46586345381525,
+        "newlyAuthored": 28.514056224899587
+      },
+      "stdTradPct": 55.02008032128509,
+      "tradStandardOrPDPct": 55.02008032128509
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 166.00000000000009,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 55.02008032128509,
+        "existingCover": 16.46586345381525,
+        "newlyAuthored": 28.514056224899587
+      },
+      "stdTradPct": 55.02008032128509,
+      "tradStandardOrPDPct": 55.02008032128509
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 175.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 68.69070208728651,
+        "existingCover": 20.6831119544592,
+        "newlyAuthored": 10.626185958254267
+      },
+      "stdTradPct": 68.69070208728651,
+      "tradStandardOrPDPct": 70.77798861480075
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 175.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 68.69070208728651,
+        "existingCover": 20.6831119544592,
+        "newlyAuthored": 10.626185958254267
+      },
+      "stdTradPct": 68.69070208728651,
+      "tradStandardOrPDPct": 70.77798861480075
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1584.666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 6.47875473285654,
+        "existingCover": 68.7210769877997,
+        "newlyAuthored": 24.800168279343705
+      },
+      "stdTradPct": 6.47875473285654,
+      "tradStandardOrPDPct": 17.22759781236853
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1584.666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 6.47875473285654,
+        "existingCover": 68.7210769877997,
+        "newlyAuthored": 24.800168279343705
+      },
+      "stdTradPct": 6.47875473285654,
+      "tradStandardOrPDPct": 17.22759781236853
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "genre",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 716.666666666667,
+      "shares": {
+        "traditionalLineage": 44.74418604651161,
+        "establishedStandard": 29.16279069767441,
+        "existingCover": 18.465116279069758,
+        "newlyAuthored": 7.627906976744184
+      },
+      "stdTradPct": 73.90697674418601,
+      "tradStandardOrPDPct": 77.16279069767438
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 716.666666666667,
+      "shares": {
+        "traditionalLineage": 44.74418604651161,
+        "establishedStandard": 29.16279069767441,
+        "existingCover": 18.465116279069758,
+        "newlyAuthored": 7.627906976744184
+      },
+      "stdTradPct": 73.90697674418601,
+      "tradStandardOrPDPct": 77.16279069767438
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1639.0000000000005,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 27.293064876957494,
+        "existingCover": 43.74618669920681,
+        "newlyAuthored": 28.960748423835668
+      },
+      "stdTradPct": 27.293064876957494,
+      "tradStandardOrPDPct": 27.293064876957494
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1639.0000000000005,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 27.293064876957494,
+        "existingCover": 43.74618669920681,
+        "newlyAuthored": 28.960748423835668
+      },
+      "stdTradPct": 27.293064876957494,
+      "tradStandardOrPDPct": 27.293064876957494
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 122,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 38.52459016393443,
+        "existingCover": 28.688524590163933,
+        "newlyAuthored": 32.78688524590164
+      },
+      "stdTradPct": 38.52459016393443,
+      "tradStandardOrPDPct": 38.52459016393443
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 122,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 38.52459016393443,
+        "existingCover": 28.688524590163933,
+        "newlyAuthored": 32.78688524590164
+      },
+      "stdTradPct": 38.52459016393443,
+      "tradStandardOrPDPct": 38.52459016393443
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 8,
+      "weightedSlots": 35,
+      "shares": {
+        "traditionalLineage": 57.142857142857146,
+        "establishedStandard": 0,
+        "existingCover": 11.428571428571429,
+        "newlyAuthored": 31.428571428571427
+      },
+      "stdTradPct": 57.142857142857146,
+      "tradStandardOrPDPct": 57.142857142857146
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 8,
+      "weightedSlots": 35,
+      "shares": {
+        "traditionalLineage": 57.142857142857146,
+        "establishedStandard": 0,
+        "existingCover": 11.428571428571429,
+        "newlyAuthored": 31.428571428571427
+      },
+      "stdTradPct": 57.142857142857146,
+      "tradStandardOrPDPct": 57.142857142857146
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 7,
+      "observedActs": 2,
+      "weightedSlots": 7,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 71.42857142857143,
+        "existingCover": 14.285714285714286,
+        "newlyAuthored": 14.285714285714286
+      },
+      "stdTradPct": 71.42857142857143,
+      "tradStandardOrPDPct": 71.42857142857143
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 7,
+      "observedActs": 2,
+      "weightedSlots": 7,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 71.42857142857143,
+        "existingCover": 14.285714285714286,
+        "newlyAuthored": 14.285714285714286
+      },
+      "stdTradPct": 71.42857142857143,
+      "tradStandardOrPDPct": 71.42857142857143
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1284.6666666666663,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 3.632589517384536,
+        "existingCover": 66.52828230409968,
+        "newlyAuthored": 29.839128178515832
+      },
+      "stdTradPct": 3.632589517384536,
+      "tradStandardOrPDPct": 3.632589517384536
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1284.6666666666663,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 3.632589517384536,
+        "existingCover": 66.52828230409968,
+        "newlyAuthored": 29.839128178515832
+      },
+      "stdTradPct": 3.632589517384536,
+      "tradStandardOrPDPct": 3.632589517384536
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 693.3333333333335,
+      "shares": {
+        "traditionalLineage": 2.6923076923076916,
+        "establishedStandard": 33.36538461538461,
+        "existingCover": 30.961538461538463,
+        "newlyAuthored": 32.980769230769226
+      },
+      "stdTradPct": 36.0576923076923,
+      "tradStandardOrPDPct": 39.99999999999999
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 693.3333333333335,
+      "shares": {
+        "traditionalLineage": 2.6923076923076916,
+        "establishedStandard": 33.36538461538461,
+        "existingCover": 30.961538461538463,
+        "newlyAuthored": 32.980769230769226
+      },
+      "stdTradPct": 36.0576923076923,
+      "tradStandardOrPDPct": 39.99999999999999
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 2008.3333333333328,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.489626556016598,
+        "existingCover": 76.82987551867221,
+        "newlyAuthored": 20.680497925311208
+      },
+      "stdTradPct": 2.489626556016598,
+      "tradStandardOrPDPct": 2.489626556016598
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 2008.3333333333328,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.489626556016598,
+        "existingCover": 76.82987551867221,
+        "newlyAuthored": 20.680497925311208
+      },
+      "stdTradPct": 2.489626556016598,
+      "tradStandardOrPDPct": 2.489626556016598
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 51,
+      "observedActs": 12,
+      "weightedSlots": 618.9999999999995,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 49.54227248249871,
+        "existingCover": 26.5481960150781,
+        "newlyAuthored": 23.90953150242327
+      },
+      "stdTradPct": 49.54227248249871,
+      "tradStandardOrPDPct": 53.311793214862746
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "composerLed",
+      "scope": "cohort",
+      "observedSlots": 12,
+      "observedActs": 3,
+      "weightedSlots": 111.99999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 25.000000000000004,
+        "existingCover": 0,
+        "newlyAuthored": 75.00000000000001
+      },
+      "stdTradPct": 25.000000000000004,
+      "tradStandardOrPDPct": 25.000000000000004
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 68,
+      "observedActs": 18,
+      "weightedSlots": 290.33333333333326,
+      "shares": {
+        "traditionalLineage": 3.329506314580942,
+        "establishedStandard": 58.32376578645239,
+        "existingCover": 35.820895522388064,
+        "newlyAuthored": 2.5258323765786455
+      },
+      "stdTradPct": 61.65327210103334,
+      "tradStandardOrPDPct": 61.65327210103334
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 162.33333333333331,
+      "shares": {
+        "traditionalLineage": 3.6960985626283374,
+        "establishedStandard": 58.316221765913774,
+        "existingCover": 37.987679671457904,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 62.01232032854211,
+      "tradStandardOrPDPct": 62.01232032854211
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 175.66666666666669,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 59.0132827324478,
+        "existingCover": 11.385199240986717,
+        "newlyAuthored": 29.60151802656546
+      },
+      "stdTradPct": 59.0132827324478,
+      "tradStandardOrPDPct": 59.0132827324478
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 175.66666666666669,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 59.0132827324478,
+        "existingCover": 11.385199240986717,
+        "newlyAuthored": 29.60151802656546
+      },
+      "stdTradPct": 59.0132827324478,
+      "tradStandardOrPDPct": 59.0132827324478
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 76,
+      "observedActs": 18,
+      "weightedSlots": 310.00000000000006,
+      "shares": {
+        "traditionalLineage": 0.43010752688172027,
+        "establishedStandard": 53.97849462365591,
+        "existingCover": 43.65591397849463,
+        "newlyAuthored": 1.9354838709677415
+      },
+      "stdTradPct": 54.408602150537625,
+      "tradStandardOrPDPct": 54.40860215053762
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 110.99999999999997,
+      "shares": {
+        "traditionalLineage": 1.2012012012012014,
+        "establishedStandard": 69.36936936936937,
+        "existingCover": 29.429429429429437,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 70.57057057057057,
+      "tradStandardOrPDPct": 70.57057057057057
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 532.0000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75.12531328320802,
+        "newlyAuthored": 24.874686716791977
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 532.0000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75.12531328320802,
+        "newlyAuthored": 24.874686716791977
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 34.99999999999999,
+      "shares": {
+        "traditionalLineage": 23.809523809523814,
+        "establishedStandard": 11.42857142857143,
+        "existingCover": 36.1904761904762,
+        "newlyAuthored": 28.571428571428577
+      },
+      "stdTradPct": 35.23809523809524,
+      "tradStandardOrPDPct": 35.23809523809525
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 34.99999999999999,
+      "shares": {
+        "traditionalLineage": 23.809523809523814,
+        "establishedStandard": 11.42857142857143,
+        "existingCover": 36.1904761904762,
+        "newlyAuthored": 28.571428571428577
+      },
+      "stdTradPct": 35.23809523809524,
+      "tradStandardOrPDPct": 35.23809523809525
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 128.00000000000003,
+      "shares": {
+        "traditionalLineage": 2.8645833333333326,
+        "establishedStandard": 58.333333333333314,
+        "existingCover": 33.072916666666664,
+        "newlyAuthored": 5.729166666666665
+      },
+      "stdTradPct": 61.19791666666665,
+      "tradStandardOrPDPct": 61.197916666666636
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "standardsInterpreter",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 507,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 54.9638395792242,
+        "existingCover": 32.4128862590401,
+        "newlyAuthored": 12.623274161735699
+      },
+      "stdTradPct": 54.9638395792242,
+      "tradStandardOrPDPct": 59.56607495069036
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 198.9999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 45.39363484087105,
+        "existingCover": 51.5912897822446,
+        "newlyAuthored": 3.0150753768844236
+      },
+      "stdTradPct": 45.39363484087105,
+      "tradStandardOrPDPct": 45.39363484087105
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 27,
+      "observedActs": 7,
+      "weightedSlots": 43.00000000000001,
+      "shares": {
+        "traditionalLineage": 66.66666666666664,
+        "establishedStandard": 0,
+        "existingCover": 5.426356589147286,
+        "newlyAuthored": 27.906976744186046
+      },
+      "stdTradPct": 66.66666666666664,
+      "tradStandardOrPDPct": 66.66666666666664
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 27,
+      "observedActs": 7,
+      "weightedSlots": 43.00000000000001,
+      "shares": {
+        "traditionalLineage": 66.66666666666664,
+        "establishedStandard": 0,
+        "existingCover": 5.426356589147286,
+        "newlyAuthored": 27.906976744186046
+      },
+      "stdTradPct": 66.66666666666664,
+      "tradStandardOrPDPct": 66.66666666666664
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 14,
+      "observedActs": 4,
+      "weightedSlots": 17,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 56.86274509803921,
+        "existingCover": 7.84313725490196,
+        "newlyAuthored": 35.294117647058826
+      },
+      "stdTradPct": 56.86274509803921,
+      "tradStandardOrPDPct": 56.86274509803921
+    },
+    {
+      "run": "genre-review-final-start-1002",
+      "seed": 1002,
+      "date": "1/1/1960",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 14,
+      "observedActs": 4,
+      "weightedSlots": 17,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 56.86274509803921,
+        "existingCover": 7.84313725490196,
+        "newlyAuthored": 35.294117647058826
+      },
+      "stdTradPct": 56.86274509803921,
+      "tradStandardOrPDPct": 56.86274509803921
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TraditionalPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 2969.6666666666674,
+      "shares": {
+        "traditionalLineage": 2.065327197216298,
+        "establishedStandard": 25.569648669884383,
+        "existingCover": 45.57189359075091,
+        "newlyAuthored": 26.793130542148383
+      },
+      "stdTradPct": 27.634975867100678,
+      "tradStandardOrPDPct": 39.18509372544617
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TraditionalPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 2969.6666666666674,
+      "shares": {
+        "traditionalLineage": 2.065327197216298,
+        "establishedStandard": 25.569648669884383,
+        "existingCover": 45.57189359075091,
+        "newlyAuthored": 26.793130542148383
+      },
+      "stdTradPct": 27.634975867100678,
+      "tradStandardOrPDPct": 39.18509372544617
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Jazz",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 49,
+      "observedActs": 12,
+      "weightedSlots": 1759.333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 54.33876468359223,
+        "existingCover": 28.400909435392187,
+        "newlyAuthored": 17.260325881015532
+      },
+      "stdTradPct": 54.33876468359223,
+      "tradStandardOrPDPct": 54.33876468359223
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Jazz",
+      "unsigned": true,
+      "cohort": "standardsInterpreter",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1470.000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 63.628117913832135,
+        "existingCover": 31.179138321995442,
+        "newlyAuthored": 5.192743764172333
+      },
+      "stdTradPct": 63.628117913832135,
+      "tradStandardOrPDPct": 63.628117913832135
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 956.6666666666671,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.1254355400696854,
+        "existingCover": 69.5121951219512,
+        "newlyAuthored": 28.362369337979082
+      },
+      "stdTradPct": 2.1254355400696854,
+      "tradStandardOrPDPct": 2.1254355400696854
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 956.6666666666671,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.1254355400696854,
+        "existingCover": 69.5121951219512,
+        "newlyAuthored": 28.362369337979082
+      },
+      "stdTradPct": 2.1254355400696854,
+      "tradStandardOrPDPct": 2.1254355400696854
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RockAndRoll",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 4164,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.2094140249759846,
+        "existingCover": 66.95485110470702,
+        "newlyAuthored": 30.835734870317
+      },
+      "stdTradPct": 2.2094140249759846,
+      "tradStandardOrPDPct": 2.2094140249759846
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RockAndRoll",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 4164,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.2094140249759846,
+        "existingCover": 66.95485110470702,
+        "newlyAuthored": 30.835734870317
+      },
+      "stdTradPct": 2.2094140249759846,
+      "tradStandardOrPDPct": 2.2094140249759846
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 728.0000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 33.37912087912088,
+        "existingCover": 28.754578754578752,
+        "newlyAuthored": 37.86630036630037
+      },
+      "stdTradPct": 33.37912087912088,
+      "tradStandardOrPDPct": 33.37912087912088
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 728.0000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 33.37912087912088,
+        "existingCover": 28.754578754578752,
+        "newlyAuthored": 37.86630036630037
+      },
+      "stdTradPct": 33.37912087912088,
+      "tradStandardOrPDPct": 33.37912087912088
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TeenPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 2660.000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 15.689223057644103,
+        "existingCover": 51.879699248120275,
+        "newlyAuthored": 32.431077694235576
+      },
+      "stdTradPct": 15.689223057644103,
+      "tradStandardOrPDPct": 15.689223057644103
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TeenPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 2660.000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 15.689223057644103,
+        "existingCover": 51.879699248120275,
+        "newlyAuthored": 32.431077694235576
+      },
+      "stdTradPct": 15.689223057644103,
+      "tradStandardOrPDPct": 15.689223057644103
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1346.0000000000002,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 17.880138682516094,
+        "existingCover": 49.18276374442792,
+        "newlyAuthored": 32.937097573055965
+      },
+      "stdTradPct": 17.880138682516094,
+      "tradStandardOrPDPct": 19.86131748390292
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1346.0000000000002,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 17.880138682516094,
+        "existingCover": 49.18276374442792,
+        "newlyAuthored": 32.937097573055965
+      },
+      "stdTradPct": 17.880138682516094,
+      "tradStandardOrPDPct": 19.86131748390292
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 778.333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 73.5331905781584,
+        "newlyAuthored": 26.466809421841525
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 778.333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 73.5331905781584,
+        "newlyAuthored": 26.466809421841525
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Blues",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1336.6666666666665,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 37.95511221945138,
+        "existingCover": 35.66084788029926,
+        "newlyAuthored": 26.384039900249384
+      },
+      "stdTradPct": 37.95511221945138,
+      "tradStandardOrPDPct": 39.80049875311721
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Blues",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1336.6666666666665,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 37.95511221945138,
+        "existingCover": 35.66084788029926,
+        "newlyAuthored": 26.384039900249384
+      },
+      "stdTradPct": 37.95511221945138,
+      "tradStandardOrPDPct": 39.80049875311721
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 76,
+      "observedActs": 18,
+      "weightedSlots": 2232.000000000001,
+      "shares": {
+        "traditionalLineage": 1.2096774193548383,
+        "establishedStandard": 74.10394265232972,
+        "existingCover": 23.476702508960564,
+        "newlyAuthored": 1.2096774193548383
+      },
+      "stdTradPct": 75.31362007168455,
+      "tradStandardOrPDPct": 75.31362007168457
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1022.3333333333333,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 71.56830779263123,
+        "existingCover": 28.431692207368766,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 71.56830779263123,
+      "tradStandardOrPDPct": 71.56830779263123
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 42,
+      "observedActs": 9,
+      "weightedSlots": 1263.9999999999998,
+      "shares": {
+        "traditionalLineage": 1.4504219409282701,
+        "establishedStandard": 9.309071729957807,
+        "existingCover": 53.77109704641353,
+        "newlyAuthored": 35.469409282700425
+      },
+      "stdTradPct": 10.759493670886078,
+      "tradStandardOrPDPct": 12.209915611814349
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 42,
+      "observedActs": 9,
+      "weightedSlots": 1263.9999999999998,
+      "shares": {
+        "traditionalLineage": 1.4504219409282701,
+        "establishedStandard": 9.309071729957807,
+        "existingCover": 53.77109704641353,
+        "newlyAuthored": 35.469409282700425
+      },
+      "stdTradPct": 10.759493670886078,
+      "tradStandardOrPDPct": 12.209915611814349
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1314.3333333333335,
+      "shares": {
+        "traditionalLineage": 4.615774790768449,
+        "establishedStandard": 5.807760588384478,
+        "existingCover": 62.23687547552622,
+        "newlyAuthored": 27.339589145320815
+      },
+      "stdTradPct": 10.423535379152929,
+      "tradStandardOrPDPct": 10.423535379152929
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1314.3333333333335,
+      "shares": {
+        "traditionalLineage": 4.615774790768449,
+        "establishedStandard": 5.807760588384478,
+        "existingCover": 62.23687547552622,
+        "newlyAuthored": 27.339589145320815
+      },
+      "stdTradPct": 10.423535379152929,
+      "tradStandardOrPDPct": 10.423535379152929
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RnB",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 3560.6666666666656,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 12.057667103538666,
+        "existingCover": 60.28833551769334,
+        "newlyAuthored": 27.653997378768025
+      },
+      "stdTradPct": 12.057667103538666,
+      "tradStandardOrPDPct": 16.008238157648382
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RnB",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 3560.6666666666656,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 12.057667103538666,
+        "existingCover": 60.28833551769334,
+        "newlyAuthored": 27.653997378768025
+      },
+      "stdTradPct": 12.057667103538666,
+      "tradStandardOrPDPct": 16.008238157648382
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Folk",
+      "unsigned": true,
+      "cohort": "traditionalRevival",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 2045.6666666666665,
+      "shares": {
+        "traditionalLineage": 30.07984357177774,
+        "establishedStandard": 17.011569170604535,
+        "existingCover": 33.632067785562974,
+        "newlyAuthored": 19.276519472054748
+      },
+      "stdTradPct": 47.091412742382275,
+      "tradStandardOrPDPct": 47.09141274238228
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Folk",
+      "unsigned": true,
+      "cohort": "traditionalRevival",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 2045.6666666666665,
+      "shares": {
+        "traditionalLineage": 30.07984357177774,
+        "establishedStandard": 17.011569170604535,
+        "existingCover": 33.632067785562974,
+        "newlyAuthored": 19.276519472054748
+      },
+      "stdTradPct": 47.091412742382275,
+      "tradStandardOrPDPct": 47.09141274238228
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 55,
+      "observedActs": 12,
+      "weightedSlots": 637.9999999999997,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 19.592476489028225,
+        "existingCover": 58.30721003134799,
+        "newlyAuthored": 22.100313479623843
+      },
+      "stdTradPct": 19.592476489028225,
+      "tradStandardOrPDPct": 21.473354231974934
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "standardsInterpreter",
+      "scope": "cohort",
+      "observedSlots": 43,
+      "observedActs": 9,
+      "weightedSlots": 558,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 18.817204301075268,
+        "existingCover": 66.66666666666667,
+        "newlyAuthored": 14.516129032258064
+      },
+      "stdTradPct": 18.817204301075268,
+      "tradStandardOrPDPct": 20.967741935483872
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 302,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 27.1523178807947,
+        "existingCover": 39.735099337748345,
+        "newlyAuthored": 33.11258278145695
+      },
+      "stdTradPct": 27.1523178807947,
+      "tradStandardOrPDPct": 27.1523178807947
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 302,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 27.1523178807947,
+        "existingCover": 39.735099337748345,
+        "newlyAuthored": 33.11258278145695
+      },
+      "stdTradPct": 27.1523178807947,
+      "tradStandardOrPDPct": 27.1523178807947
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1050.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 71.98604060913704,
+        "newlyAuthored": 28.013959390862944
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1050.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 71.98604060913704,
+        "newlyAuthored": 28.013959390862944
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "genre",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 531.6666666666667,
+      "shares": {
+        "traditionalLineage": 31.473354231974923,
+        "establishedStandard": 9.780564263322882,
+        "existingCover": 33.91849529780564,
+        "newlyAuthored": 24.827586206896548
+      },
+      "stdTradPct": 41.2539184952978,
+      "tradStandardOrPDPct": 43.00940438871473
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "cohort",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 531.6666666666667,
+      "shares": {
+        "traditionalLineage": 31.473354231974923,
+        "establishedStandard": 9.780564263322882,
+        "existingCover": 33.91849529780564,
+        "newlyAuthored": 24.827586206896548
+      },
+      "stdTradPct": 41.2539184952978,
+      "tradStandardOrPDPct": 43.00940438871473
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 1405.3333333333328,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 62.523719165085424,
+        "existingCover": 7.87476280834915,
+        "newlyAuthored": 29.601518026565472
+      },
+      "stdTradPct": 62.523719165085424,
+      "tradStandardOrPDPct": 62.523719165085424
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 1405.3333333333328,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 62.523719165085424,
+        "existingCover": 7.87476280834915,
+        "newlyAuthored": 29.601518026565472
+      },
+      "stdTradPct": 62.523719165085424,
+      "tradStandardOrPDPct": 62.523719165085424
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 935.9999999999999,
+      "shares": {
+        "traditionalLineage": 65.84757834757836,
+        "establishedStandard": 3.73931623931624,
+        "existingCover": 2.243589743589744,
+        "newlyAuthored": 28.169515669515672
+      },
+      "stdTradPct": 69.5868945868946,
+      "tradStandardOrPDPct": 69.5868945868946
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 935.9999999999999,
+      "shares": {
+        "traditionalLineage": 65.84757834757836,
+        "establishedStandard": 3.73931623931624,
+        "existingCover": 2.243589743589744,
+        "newlyAuthored": 28.169515669515672
+      },
+      "stdTradPct": 69.5868945868946,
+      "tradStandardOrPDPct": 69.5868945868946
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 288.6666666666666,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 33.14087759815244,
+        "existingCover": 37.066974595842964,
+        "newlyAuthored": 29.79214780600463
+      },
+      "stdTradPct": 33.14087759815244,
+      "tradStandardOrPDPct": 33.14087759815244
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 288.6666666666666,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 33.14087759815244,
+        "existingCover": 37.066974595842964,
+        "newlyAuthored": 29.79214780600463
+      },
+      "stdTradPct": 33.14087759815244,
+      "tradStandardOrPDPct": 33.14087759815244
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 77,
+      "observedActs": 18,
+      "weightedSlots": 741.0000000000007,
+      "shares": {
+        "traditionalLineage": 0.9896536212325676,
+        "establishedStandard": 71.83985605038231,
+        "existingCover": 23.07692307692306,
+        "newlyAuthored": 4.093567251461985
+      },
+      "stdTradPct": 72.82950967161487,
+      "tradStandardOrPDPct": 73.81916329284743
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 363.99999999999983,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 72.98534798534801,
+        "existingCover": 18.68131868131869,
+        "newlyAuthored": 8.333333333333337
+      },
+      "stdTradPct": 72.98534798534801,
+      "tradStandardOrPDPct": 72.98534798534801
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 376.9999999999998,
+      "shares": {
+        "traditionalLineage": 1.9451812555260841,
+        "establishedStandard": 70.73386383731216,
+        "existingCover": 27.320954907161816,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 72.67904509283824,
+      "tradStandardOrPDPct": 74.62422634836432
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 796.3333333333329,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 13.311008790288831,
+        "existingCover": 65.59229803264967,
+        "newlyAuthored": 21.09669317706154
+      },
+      "stdTradPct": 13.311008790288831,
+      "tradStandardOrPDPct": 13.311008790288831
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 796.3333333333329,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 13.311008790288831,
+        "existingCover": 65.59229803264967,
+        "newlyAuthored": 21.09669317706154
+      },
+      "stdTradPct": 13.311008790288831,
+      "tradStandardOrPDPct": 13.311008790288831
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Jazz",
+      "unsigned": true,
+      "cohort": "composerLed",
+      "scope": "cohort",
+      "observedSlots": 14,
+      "observedActs": 3,
+      "weightedSlots": 289.3333333333333,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 7.142857142857144,
+        "existingCover": 14.285714285714288,
+        "newlyAuthored": 78.57142857142857
+      },
+      "stdTradPct": 7.142857142857144,
+      "tradStandardOrPDPct": 7.142857142857144
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Soul",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 4060.0000000000023,
+      "shares": {
+        "traditionalLineage": 4.1707717569786515,
+        "establishedStandard": 10.640394088669945,
+        "existingCover": 62.70935960591131,
+        "newlyAuthored": 22.479474548440056
+      },
+      "stdTradPct": 14.811165845648597,
+      "tradStandardOrPDPct": 18.981937602627248
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Soul",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 4060.0000000000023,
+      "shares": {
+        "traditionalLineage": 4.1707717569786515,
+        "establishedStandard": 10.640394088669945,
+        "existingCover": 62.70935960591131,
+        "newlyAuthored": 22.479474548440056
+      },
+      "stdTradPct": 14.811165845648597,
+      "tradStandardOrPDPct": 18.981937602627248
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "DooWop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1883.9999999999998,
+      "shares": {
+        "traditionalLineage": 2.1585279547062988,
+        "establishedStandard": 12.597310686482661,
+        "existingCover": 62.3496107572541,
+        "newlyAuthored": 22.894550601556972
+      },
+      "stdTradPct": 14.755838641188962,
+      "tradStandardOrPDPct": 14.755838641188962
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "DooWop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1883.9999999999998,
+      "shares": {
+        "traditionalLineage": 2.1585279547062988,
+        "establishedStandard": 12.597310686482661,
+        "existingCover": 62.3496107572541,
+        "newlyAuthored": 22.894550601556972
+      },
+      "stdTradPct": 14.755838641188962,
+      "tradStandardOrPDPct": 14.755838641188962
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Gospel",
+      "unsigned": true,
+      "cohort": "inheritedRepertoire",
+      "scope": "genre",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 1193.333333333333,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 80.7262569832402,
+        "existingCover": 14.832402234636872,
+        "newlyAuthored": 4.441340782122906
+      },
+      "stdTradPct": 80.7262569832402,
+      "tradStandardOrPDPct": 80.7262569832402
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Gospel",
+      "unsigned": true,
+      "cohort": "inheritedRepertoire",
+      "scope": "cohort",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 1193.333333333333,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 80.7262569832402,
+        "existingCover": 14.832402234636872,
+        "newlyAuthored": 4.441340782122906
+      },
+      "stdTradPct": 80.7262569832402,
+      "tradStandardOrPDPct": 80.7262569832402
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "genre",
+      "observedSlots": 31,
+      "observedActs": 9,
+      "weightedSlots": 353.66666666666674,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 63.71347785108386,
+        "existingCover": 30.0659754948162,
+        "newlyAuthored": 6.220546654099905
+      },
+      "stdTradPct": 63.71347785108386,
+      "tradStandardOrPDPct": 63.71347785108386
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "cohort",
+      "observedSlots": 31,
+      "observedActs": 9,
+      "weightedSlots": 353.66666666666674,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 63.71347785108386,
+        "existingCover": 30.0659754948162,
+        "newlyAuthored": 6.220546654099905
+      },
+      "stdTradPct": 63.71347785108386,
+      "tradStandardOrPDPct": 63.71347785108386
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1094.3333333333337,
+      "shares": {
+        "traditionalLineage": 15.808711544319218,
+        "establishedStandard": 25.068534876637216,
+        "existingCover": 30.734084678647562,
+        "newlyAuthored": 28.388668900395967
+      },
+      "stdTradPct": 40.87724642095643,
+      "tradStandardOrPDPct": 40.877246420956425
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1094.3333333333337,
+      "shares": {
+        "traditionalLineage": 15.808711544319218,
+        "establishedStandard": 25.068534876637216,
+        "existingCover": 30.734084678647562,
+        "newlyAuthored": 28.388668900395967
+      },
+      "stdTradPct": 40.87724642095643,
+      "tradStandardOrPDPct": 40.877246420956425
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Country",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 31,
+      "observedActs": 9,
+      "weightedSlots": 3410.6666666666656,
+      "shares": {
+        "traditionalLineage": 6.655590304925726,
+        "establishedStandard": 2.0621579358874125,
+        "existingCover": 65.12900703674747,
+        "newlyAuthored": 26.153244722439414
+      },
+      "stdTradPct": 8.717748240813137,
+      "tradStandardOrPDPct": 8.717748240813137
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Country",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 31,
+      "observedActs": 9,
+      "weightedSlots": 3410.6666666666656,
+      "shares": {
+        "traditionalLineage": 6.655590304925726,
+        "establishedStandard": 2.0621579358874125,
+        "existingCover": 65.12900703674747,
+        "newlyAuthored": 26.153244722439414
+      },
+      "stdTradPct": 8.717748240813137,
+      "tradStandardOrPDPct": 8.717748240813137
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 41,
+      "observedActs": 9,
+      "weightedSlots": 1209.6666666666667,
+      "shares": {
+        "traditionalLineage": 2.232019840176357,
+        "establishedStandard": 76.2468999724442,
+        "existingCover": 19.289060347203087,
+        "newlyAuthored": 2.232019840176357
+      },
+      "stdTradPct": 78.47891981262056,
+      "tradStandardOrPDPct": 78.47891981262056
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 265.3333333333333,
+      "shares": {
+        "traditionalLineage": 51.00502512562814,
+        "establishedStandard": 7.412060301507538,
+        "existingCover": 11.809045226130655,
+        "newlyAuthored": 29.773869346733665
+      },
+      "stdTradPct": 58.41708542713567,
+      "tradStandardOrPDPct": 58.417085427135696
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 265.3333333333333,
+      "shares": {
+        "traditionalLineage": 51.00502512562814,
+        "establishedStandard": 7.412060301507538,
+        "existingCover": 11.809045226130655,
+        "newlyAuthored": 29.773869346733665
+      },
+      "stdTradPct": 58.41708542713567,
+      "tradStandardOrPDPct": 58.417085427135696
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 378.6666666666665,
+      "shares": {
+        "traditionalLineage": 13.73239436619719,
+        "establishedStandard": 22.71126760563381,
+        "existingCover": 32.04225352112677,
+        "newlyAuthored": 31.514084507042263
+      },
+      "stdTradPct": 36.443661971831,
+      "tradStandardOrPDPct": 36.443661971831
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 378.6666666666665,
+      "shares": {
+        "traditionalLineage": 13.73239436619719,
+        "establishedStandard": 22.71126760563381,
+        "existingCover": 32.04225352112677,
+        "newlyAuthored": 31.514084507042263
+      },
+      "stdTradPct": 36.443661971831,
+      "tradStandardOrPDPct": 36.443661971831
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "SurfRock",
+      "unsigned": false,
+      "cohort": "vocal",
+      "scope": "genre",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 441.66666666666663,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 5.5094339622641515,
+        "existingCover": 55.84905660377358,
+        "newlyAuthored": 38.64150943396228
+      },
+      "stdTradPct": 5.5094339622641515,
+      "tradStandardOrPDPct": 5.5094339622641515
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "SurfRock",
+      "unsigned": false,
+      "cohort": "vocal",
+      "scope": "cohort",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 441.66666666666663,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 5.5094339622641515,
+        "existingCover": 55.84905660377358,
+        "newlyAuthored": 38.64150943396228
+      },
+      "stdTradPct": 5.5094339622641515,
+      "tradStandardOrPDPct": 5.5094339622641515
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 539,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 18.367346938775512,
+        "existingCover": 60.48237476808905,
+        "newlyAuthored": 21.150278293135436
+      },
+      "stdTradPct": 18.367346938775512,
+      "tradStandardOrPDPct": 18.367346938775512
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 539,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 18.367346938775512,
+        "existingCover": 60.48237476808905,
+        "newlyAuthored": 21.150278293135436
+      },
+      "stdTradPct": 18.367346938775512,
+      "tradStandardOrPDPct": 18.367346938775512
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "composerLed",
+      "scope": "cohort",
+      "observedSlots": 12,
+      "observedActs": 3,
+      "weightedSlots": 80,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 25,
+        "existingCover": 0,
+        "newlyAuthored": 74.99999999999999
+      },
+      "stdTradPct": 25,
+      "tradStandardOrPDPct": 25
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "LatinPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 257.6666666666666,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 25.097024579560163,
+        "existingCover": 51.0996119016818,
+        "newlyAuthored": 23.803363518758093
+      },
+      "stdTradPct": 25.097024579560163,
+      "tradStandardOrPDPct": 25.097024579560163
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "LatinPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 257.6666666666666,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 25.097024579560163,
+        "existingCover": 51.0996119016818,
+        "newlyAuthored": 23.803363518758093
+      },
+      "stdTradPct": 25.097024579560163,
+      "tradStandardOrPDPct": 25.097024579560163
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 257,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 18.67704280155642,
+        "existingCover": 54.86381322957198,
+        "newlyAuthored": 26.459143968871594
+      },
+      "stdTradPct": 18.67704280155642,
+      "tradStandardOrPDPct": 18.67704280155642
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 257,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 18.67704280155642,
+        "existingCover": 54.86381322957198,
+        "newlyAuthored": 26.459143968871594
+      },
+      "stdTradPct": 18.67704280155642,
+      "tradStandardOrPDPct": 18.67704280155642
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": true,
+      "cohort": "contemporaryInterpreter",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 567.3333333333335,
+      "shares": {
+        "traditionalLineage": 32.902467685076374,
+        "establishedStandard": 22.32667450058754,
+        "existingCover": 23.03172737955346,
+        "newlyAuthored": 21.739130434782602
+      },
+      "stdTradPct": 55.22914218566392,
+      "tradStandardOrPDPct": 57.1092831962397
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": true,
+      "cohort": "contemporaryInterpreter",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 567.3333333333335,
+      "shares": {
+        "traditionalLineage": 32.902467685076374,
+        "establishedStandard": 22.32667450058754,
+        "existingCover": 23.03172737955346,
+        "newlyAuthored": 21.739130434782602
+      },
+      "stdTradPct": 55.22914218566392,
+      "tradStandardOrPDPct": 57.1092831962397
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "SurfRock",
+      "unsigned": true,
+      "cohort": "vocal",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 809.3333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75.53542009884679,
+        "newlyAuthored": 24.46457990115321
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "SurfRock",
+      "unsigned": true,
+      "cohort": "vocal",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 809.3333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75.53542009884679,
+        "newlyAuthored": 24.46457990115321
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": false,
+      "cohort": "contemporaryInterpreter",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 164.66666666666652,
+      "shares": {
+        "traditionalLineage": 38.05668016194335,
+        "establishedStandard": 20.647773279352247,
+        "existingCover": 22.267206477732813,
+        "newlyAuthored": 19.02834008097168
+      },
+      "stdTradPct": 58.7044534412956,
+      "tradStandardOrPDPct": 60.323886639676196
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": false,
+      "cohort": "contemporaryInterpreter",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 164.66666666666652,
+      "shares": {
+        "traditionalLineage": 38.05668016194335,
+        "establishedStandard": 20.647773279352247,
+        "existingCover": 22.267206477732813,
+        "newlyAuthored": 19.02834008097168
+      },
+      "stdTradPct": 58.7044534412956,
+      "tradStandardOrPDPct": 60.323886639676196
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BossaNova",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 45,
+      "observedActs": 12,
+      "weightedSlots": 230,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 5.36231884057971,
+        "existingCover": 54.782608695652165,
+        "newlyAuthored": 39.85507246376811
+      },
+      "stdTradPct": 5.36231884057971,
+      "tradStandardOrPDPct": 8.550724637681158
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BossaNova",
+      "unsigned": false,
+      "cohort": "contemporaryBrazilian",
+      "scope": "cohort",
+      "observedSlots": 12,
+      "observedActs": 3,
+      "weightedSlots": 76,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 8.333333333333332,
+        "existingCover": 25,
+        "newlyAuthored": 66.66666666666667
+      },
+      "stdTradPct": 8.333333333333332,
+      "tradStandardOrPDPct": 16.666666666666664
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BossaNova",
+      "unsigned": false,
+      "cohort": "olderSongbook",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 154,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 3.896103896103896,
+        "existingCover": 69.48051948051948,
+        "newlyAuthored": 26.623376623376622
+      },
+      "stdTradPct": 3.896103896103896,
+      "tradStandardOrPDPct": 4.545454545454546
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BossaNova",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 47,
+      "observedActs": 12,
+      "weightedSlots": 590.6666666666671,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 18.73589164785552,
+        "existingCover": 58.1264108352144,
+        "newlyAuthored": 23.137697516930007
+      },
+      "stdTradPct": 18.73589164785552,
+      "tradStandardOrPDPct": 18.73589164785552
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BossaNova",
+      "unsigned": true,
+      "cohort": "contemporaryBrazilian",
+      "scope": "cohort",
+      "observedSlots": 11,
+      "observedActs": 3,
+      "weightedSlots": 66,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 9.090909090909092,
+        "existingCover": 18.181818181818183,
+        "newlyAuthored": 72.72727272727273
+      },
+      "stdTradPct": 9.090909090909092,
+      "tradStandardOrPDPct": 9.090909090909092
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BossaNova",
+      "unsigned": true,
+      "cohort": "olderSongbook",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 524.6666666666669,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 19.949174078780175,
+        "existingCover": 63.151207115628935,
+        "newlyAuthored": 16.89961880559084
+      },
+      "stdTradPct": 19.949174078780175,
+      "tradStandardOrPDPct": 19.949174078780175
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "GarageRock",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 98.99999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 66.32996632996634,
+        "newlyAuthored": 33.670033670033675
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "GarageRock",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 98.99999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 66.32996632996634,
+        "newlyAuthored": 33.670033670033675
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "GarageRock",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 55.99999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 73.21428571428572,
+        "newlyAuthored": 26.785714285714285
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "GarageRock",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 55.99999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 73.21428571428572,
+        "newlyAuthored": 26.785714285714285
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BritishBeat",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 12,
+      "observedActs": 3,
+      "weightedSlots": 16,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 100,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1001",
+      "seed": 1001,
+      "date": "9/6/1963",
+      "genre": "BritishBeat",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 12,
+      "observedActs": 3,
+      "weightedSlots": 16,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 100,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Soul",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 4293.999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 5.690110231330539,
+        "existingCover": 61.67520571339855,
+        "newlyAuthored": 32.63468405527093
+      },
+      "stdTradPct": 5.690110231330539,
+      "tradStandardOrPDPct": 5.690110231330539
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Soul",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 4293.999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 5.690110231330539,
+        "existingCover": 61.67520571339855,
+        "newlyAuthored": 32.63468405527093
+      },
+      "stdTradPct": 5.690110231330539,
+      "tradStandardOrPDPct": 5.690110231330539
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 982.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 68.9620081411126,
+        "newlyAuthored": 31.037991858887388
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RockAndRoll",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 982.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 68.9620081411126,
+        "newlyAuthored": 31.037991858887388
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TeenPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 3121.3333333333326,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 67.93037163605301,
+        "newlyAuthored": 32.06962836394703
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TeenPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 3121.3333333333326,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 67.93037163605301,
+        "newlyAuthored": 32.06962836394703
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Jazz",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 47,
+      "observedActs": 12,
+      "weightedSlots": 1793.6666666666665,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 55.138450102211486,
+        "existingCover": 28.95372607322059,
+        "newlyAuthored": 15.907823824567926
+      },
+      "stdTradPct": 55.138450102211486,
+      "tradStandardOrPDPct": 55.138450102211486
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Jazz",
+      "unsigned": true,
+      "cohort": "composerLed",
+      "scope": "cohort",
+      "observedSlots": 11,
+      "observedActs": 3,
+      "weightedSlots": 363,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 27.272727272727273,
+        "existingCover": 0,
+        "newlyAuthored": 72.72727272727273
+      },
+      "stdTradPct": 27.272727272727273,
+      "tradStandardOrPDPct": 27.272727272727273
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "LatinPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 229.3333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 26.889534883720923,
+        "existingCover": 44.33139534883719,
+        "newlyAuthored": 28.77906976744186
+      },
+      "stdTradPct": 26.889534883720923,
+      "tradStandardOrPDPct": 26.889534883720923
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "LatinPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 32,
+      "observedActs": 9,
+      "weightedSlots": 229.3333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 26.889534883720923,
+        "existingCover": 44.33139534883719,
+        "newlyAuthored": 28.77906976744186
+      },
+      "stdTradPct": 26.889534883720923,
+      "tradStandardOrPDPct": 26.889534883720923
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1382.3333333333333,
+      "shares": {
+        "traditionalLineage": 1.9049915601639738,
+        "establishedStandard": 8.102242585001207,
+        "existingCover": 54.256088738847374,
+        "newlyAuthored": 35.73667711598746
+      },
+      "stdTradPct": 10.00723414516518,
+      "tradStandardOrPDPct": 10.00723414516518
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Country",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1382.3333333333333,
+      "shares": {
+        "traditionalLineage": 1.9049915601639738,
+        "establishedStandard": 8.102242585001207,
+        "existingCover": 54.256088738847374,
+        "newlyAuthored": 35.73667711598746
+      },
+      "stdTradPct": 10.00723414516518,
+      "tradStandardOrPDPct": 10.00723414516518
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 882.0000000000003,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 23.204837490551768,
+        "existingCover": 36.885865457294,
+        "newlyAuthored": 39.90929705215418
+      },
+      "stdTradPct": 23.204837490551768,
+      "tradStandardOrPDPct": 23.204837490551768
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TraditionalPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 882.0000000000003,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 23.204837490551768,
+        "existingCover": 36.885865457294,
+        "newlyAuthored": 39.90929705215418
+      },
+      "stdTradPct": 23.204837490551768,
+      "tradStandardOrPDPct": 23.204837490551768
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 70,
+      "observedActs": 18,
+      "weightedSlots": 561.3333333333338,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 78.74109263657957,
+        "existingCover": 18.883610451306403,
+        "newlyAuthored": 2.3752969121140124
+      },
+      "stdTradPct": 78.74109263657957,
+      "tradStandardOrPDPct": 78.74109263657957
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 271.99999999999994,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 76.71568627450979,
+        "existingCover": 18.38235294117647,
+        "newlyAuthored": 4.901960784313727
+      },
+      "stdTradPct": 76.71568627450979,
+      "tradStandardOrPDPct": 76.71568627450979
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 945.9999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 3.9464411557434818,
+        "existingCover": 68.99224806201552,
+        "newlyAuthored": 27.06131078224102
+      },
+      "stdTradPct": 3.9464411557434818,
+      "tradStandardOrPDPct": 3.9464411557434818
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TeenPop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 945.9999999999999,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 3.9464411557434818,
+        "existingCover": 68.99224806201552,
+        "newlyAuthored": 27.06131078224102
+      },
+      "stdTradPct": 3.9464411557434818,
+      "tradStandardOrPDPct": 3.9464411557434818
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 1264,
+      "shares": {
+        "traditionalLineage": 3.5073839662447264,
+        "establishedStandard": 17.43143459915612,
+        "existingCover": 47.5210970464135,
+        "newlyAuthored": 31.54008438818565
+      },
+      "stdTradPct": 20.938818565400844,
+      "tradStandardOrPDPct": 20.938818565400844
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Soul",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 1264,
+      "shares": {
+        "traditionalLineage": 3.5073839662447264,
+        "establishedStandard": 17.43143459915612,
+        "existingCover": 47.5210970464135,
+        "newlyAuthored": 31.54008438818565
+      },
+      "stdTradPct": 20.938818565400844,
+      "tradStandardOrPDPct": 20.938818565400844
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RockAndRoll",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 3748.6666666666642,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 4.437133202916596,
+        "existingCover": 73.51947359061003,
+        "newlyAuthored": 22.04339320647342
+      },
+      "stdTradPct": 4.437133202916596,
+      "tradStandardOrPDPct": 4.437133202916596
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RockAndRoll",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 3748.6666666666642,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 4.437133202916596,
+        "existingCover": 73.51947359061003,
+        "newlyAuthored": 22.04339320647342
+      },
+      "stdTradPct": 4.437133202916596,
+      "tradStandardOrPDPct": 4.437133202916596
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Blues",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 41,
+      "observedActs": 9,
+      "weightedSlots": 1788.9999999999995,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 36.10955841252097,
+        "existingCover": 42.05328861561395,
+        "newlyAuthored": 21.837152971865102
+      },
+      "stdTradPct": 36.10955841252097,
+      "tradStandardOrPDPct": 43.30165828209429
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Blues",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 41,
+      "observedActs": 9,
+      "weightedSlots": 1788.9999999999995,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 36.10955841252097,
+        "existingCover": 42.05328861561395,
+        "newlyAuthored": 21.837152971865102
+      },
+      "stdTradPct": 36.10955841252097,
+      "tradStandardOrPDPct": 43.30165828209429
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 71,
+      "observedActs": 18,
+      "weightedSlots": 2310.999999999999,
+      "shares": {
+        "traditionalLineage": 1.730852444829079,
+        "establishedStandard": 71.09476417135443,
+        "existingCover": 25.443530938987454,
+        "newlyAuthored": 1.730852444829079
+      },
+      "stdTradPct": 72.82561661618351,
+      "tradStandardOrPDPct": 72.82561661618351
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1072,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 68.84328358208954,
+        "existingCover": 31.15671641791045,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 68.84328358208954,
+      "tradStandardOrPDPct": 68.84328358208954
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 786.0000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 19.72010178117048,
+        "existingCover": 51.65394402035624,
+        "newlyAuthored": 28.625954198473277
+      },
+      "stdTradPct": 19.72010178117048,
+      "tradStandardOrPDPct": 19.72010178117048
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "LatinPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 786.0000000000001,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 19.72010178117048,
+        "existingCover": 51.65394402035624,
+        "newlyAuthored": 28.625954198473277
+      },
+      "stdTradPct": 19.72010178117048,
+      "tradStandardOrPDPct": 19.72010178117048
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1201.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 10.596393897364772,
+        "existingCover": 52.12205270457697,
+        "newlyAuthored": 37.28155339805826
+      },
+      "stdTradPct": 10.596393897364772,
+      "tradStandardOrPDPct": 10.596393897364772
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RnB",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1201.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 10.596393897364772,
+        "existingCover": 52.12205270457697,
+        "newlyAuthored": 37.28155339805826
+      },
+      "stdTradPct": 10.596393897364772,
+      "tradStandardOrPDPct": 10.596393897364772
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 1174.0000000000005,
+      "shares": {
+        "traditionalLineage": 3.293583191368539,
+        "establishedStandard": 16.63827370812038,
+        "existingCover": 53.946621237932966,
+        "newlyAuthored": 26.12152186257807
+      },
+      "stdTradPct": 19.931856899488917,
+      "tradStandardOrPDPct": 19.93185689948892
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Comedy",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 1174.0000000000005,
+      "shares": {
+        "traditionalLineage": 3.293583191368539,
+        "establishedStandard": 16.63827370812038,
+        "existingCover": 53.946621237932966,
+        "newlyAuthored": 26.12152186257807
+      },
+      "stdTradPct": 19.931856899488917,
+      "tradStandardOrPDPct": 19.93185689948892
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 440.66666666666674,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 19.9697428139183,
+        "existingCover": 50.83207261724658,
+        "newlyAuthored": 29.198184568835096
+      },
+      "stdTradPct": 19.9697428139183,
+      "tradStandardOrPDPct": 19.9697428139183
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Blues",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 440.66666666666674,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 19.9697428139183,
+        "existingCover": 50.83207261724658,
+        "newlyAuthored": 29.198184568835096
+      },
+      "stdTradPct": 19.9697428139183,
+      "tradStandardOrPDPct": 19.9697428139183
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TraditionalPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 2890.6666666666674,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 39.87546125461254,
+        "existingCover": 33.8330258302583,
+        "newlyAuthored": 26.29151291512915
+      },
+      "stdTradPct": 39.87546125461254,
+      "tradStandardOrPDPct": 39.87546125461254
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TraditionalPop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 2890.6666666666674,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 39.87546125461254,
+        "existingCover": 33.8330258302583,
+        "newlyAuthored": 26.29151291512915
+      },
+      "stdTradPct": 39.87546125461254,
+      "tradStandardOrPDPct": 39.87546125461254
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "genre",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 593.6666666666666,
+      "shares": {
+        "traditionalLineage": 20.550252667040994,
+        "establishedStandard": 33.239752947782144,
+        "existingCover": 27.400336889387987,
+        "newlyAuthored": 18.809657495788887
+      },
+      "stdTradPct": 53.79000561482314,
+      "tradStandardOrPDPct": 53.79000561482314
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Folk",
+      "unsigned": false,
+      "cohort": "traditionalRevival",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 593.6666666666666,
+      "shares": {
+        "traditionalLineage": 20.550252667040994,
+        "establishedStandard": 33.239752947782144,
+        "existingCover": 27.400336889387987,
+        "newlyAuthored": 18.809657495788887
+      },
+      "stdTradPct": 53.79000561482314,
+      "tradStandardOrPDPct": 53.79000561482314
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 45,
+      "observedActs": 12,
+      "weightedSlots": 495.6666666666669,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 25.353059852051103,
+        "existingCover": 44.18291862811026,
+        "newlyAuthored": 30.464021519838578
+      },
+      "stdTradPct": 25.353059852051103,
+      "tradStandardOrPDPct": 25.353059852051103
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "standardsInterpreter",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 375.66666666666674,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 30.789707187222714,
+        "existingCover": 52.97249334516414,
+        "newlyAuthored": 16.23779946761313
+      },
+      "stdTradPct": 30.789707187222714,
+      "tradStandardOrPDPct": 30.789707187222714
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 603.6666666666665,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 6.84704583103258,
+        "existingCover": 61.457758144671466,
+        "newlyAuthored": 31.69519602429598
+      },
+      "stdTradPct": 6.84704583103258,
+      "tradStandardOrPDPct": 6.84704583103258
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "DooWop",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 603.6666666666665,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 6.84704583103258,
+        "existingCover": 61.457758144671466,
+        "newlyAuthored": 31.69519602429598
+      },
+      "stdTradPct": 6.84704583103258,
+      "tradStandardOrPDPct": 6.84704583103258
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 550.6666666666666,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 13.438256658595643,
+        "existingCover": 60.77481840193706,
+        "newlyAuthored": 25.786924939467315
+      },
+      "stdTradPct": 13.438256658595643,
+      "tradStandardOrPDPct": 13.438256658595643
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TexMex",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 550.6666666666666,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 13.438256658595643,
+        "existingCover": 60.77481840193706,
+        "newlyAuthored": 25.786924939467315
+      },
+      "stdTradPct": 13.438256658595643,
+      "tradStandardOrPDPct": 13.438256658595643
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Jazz",
+      "unsigned": true,
+      "cohort": "standardsInterpreter",
+      "scope": "cohort",
+      "observedSlots": 36,
+      "observedActs": 9,
+      "weightedSlots": 1430.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 62.20876048462255,
+        "existingCover": 36.300093196644916,
+        "newlyAuthored": 1.4911463187325253
+      },
+      "stdTradPct": 62.20876048462255,
+      "tradStandardOrPDPct": 62.20876048462255
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "DooWop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1878.3333333333323,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 12.990239574090515,
+        "existingCover": 56.7169476486247,
+        "newlyAuthored": 30.292812777284844
+      },
+      "stdTradPct": 12.990239574090515,
+      "tradStandardOrPDPct": 12.990239574090515
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "DooWop",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1878.3333333333323,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 12.990239574090515,
+        "existingCover": 56.7169476486247,
+        "newlyAuthored": 30.292812777284844
+      },
+      "stdTradPct": 12.990239574090515,
+      "tradStandardOrPDPct": 12.990239574090515
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": false,
+      "cohort": "contemporaryInterpreter",
+      "scope": "genre",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 287.3333333333334,
+      "shares": {
+        "traditionalLineage": 22.157772621809734,
+        "establishedStandard": 20.069605568445468,
+        "existingCover": 35.15081206496519,
+        "newlyAuthored": 22.621809744779576
+      },
+      "stdTradPct": 42.2273781902552,
+      "tradStandardOrPDPct": 42.22737819025522
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": false,
+      "cohort": "contemporaryInterpreter",
+      "scope": "cohort",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 287.3333333333334,
+      "shares": {
+        "traditionalLineage": 22.157772621809734,
+        "establishedStandard": 20.069605568445468,
+        "existingCover": 35.15081206496519,
+        "newlyAuthored": 22.621809744779576
+      },
+      "stdTradPct": 42.2273781902552,
+      "tradStandardOrPDPct": 42.22737819025522
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Country",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 3747.3333333333344,
+      "shares": {
+        "traditionalLineage": 1.565557729941291,
+        "establishedStandard": 25.12008539405799,
+        "existingCover": 49.946628713751984,
+        "newlyAuthored": 23.3677281622487
+      },
+      "stdTradPct": 26.68564312399928,
+      "tradStandardOrPDPct": 26.685643123999284
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Country",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 3747.3333333333344,
+      "shares": {
+        "traditionalLineage": 1.565557729941291,
+        "establishedStandard": 25.12008539405799,
+        "existingCover": 49.946628713751984,
+        "newlyAuthored": 23.3677281622487
+      },
+      "stdTradPct": 26.68564312399928,
+      "tradStandardOrPDPct": 26.685643123999284
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Jazz",
+      "unsigned": false,
+      "cohort": "composerLed",
+      "scope": "cohort",
+      "observedSlots": 12,
+      "observedActs": 3,
+      "weightedSlots": 120,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 8.333333333333334,
+        "existingCover": 16.666666666666668,
+        "newlyAuthored": 75
+      },
+      "stdTradPct": 8.333333333333334,
+      "tradStandardOrPDPct": 8.333333333333334
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "EasyListening",
+      "unsigned": false,
+      "cohort": "standardsLed",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 289.33333333333337,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 80.64516129032253,
+        "existingCover": 19.354838709677413,
+        "newlyAuthored": 0
+      },
+      "stdTradPct": 80.64516129032253,
+      "tradStandardOrPDPct": 80.64516129032253
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Gospel",
+      "unsigned": true,
+      "cohort": "inheritedRepertoire",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1087,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 74.79300827966883,
+        "existingCover": 10.855565777368906,
+        "newlyAuthored": 14.351425942962281
+      },
+      "stdTradPct": 74.79300827966883,
+      "tradStandardOrPDPct": 74.79300827966883
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Gospel",
+      "unsigned": true,
+      "cohort": "inheritedRepertoire",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1087,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 74.79300827966883,
+        "existingCover": 10.855565777368906,
+        "newlyAuthored": 14.351425942962281
+      },
+      "stdTradPct": 74.79300827966883,
+      "tradStandardOrPDPct": 74.79300827966883
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 1034.0000000000005,
+      "shares": {
+        "traditionalLineage": 69.92263056092843,
+        "establishedStandard": 0,
+        "existingCover": 1.9342359767891675,
+        "newlyAuthored": 28.143133462282385
+      },
+      "stdTradPct": 69.92263056092843,
+      "tradStandardOrPDPct": 69.92263056092843
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Childrens",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 1034.0000000000005,
+      "shares": {
+        "traditionalLineage": 69.92263056092843,
+        "establishedStandard": 0,
+        "existingCover": 1.9342359767891675,
+        "newlyAuthored": 28.143133462282385
+      },
+      "stdTradPct": 69.92263056092843,
+      "tradStandardOrPDPct": 69.92263056092843
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Folk",
+      "unsigned": true,
+      "cohort": "traditionalRevival",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1936.6666666666672,
+      "shares": {
+        "traditionalLineage": 38.8984509466437,
+        "establishedStandard": 19.62134251290877,
+        "existingCover": 19.741824440619613,
+        "newlyAuthored": 21.738382099827877
+      },
+      "stdTradPct": 58.51979345955246,
+      "tradStandardOrPDPct": 58.51979345955248
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Folk",
+      "unsigned": true,
+      "cohort": "traditionalRevival",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 1936.6666666666672,
+      "shares": {
+        "traditionalLineage": 38.8984509466437,
+        "establishedStandard": 19.62134251290877,
+        "existingCover": 19.741824440619613,
+        "newlyAuthored": 21.738382099827877
+      },
+      "stdTradPct": 58.51979345955246,
+      "tradStandardOrPDPct": 58.51979345955248
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1299.666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 54.655039753783015,
+        "existingCover": 17.645550141061804,
+        "newlyAuthored": 27.699410105155167
+      },
+      "stdTradPct": 54.655039753783015,
+      "tradStandardOrPDPct": 54.655039753783015
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Classical",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1299.666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 54.655039753783015,
+        "existingCover": 17.645550141061804,
+        "newlyAuthored": 27.699410105155167
+      },
+      "stdTradPct": 54.655039753783015,
+      "tradStandardOrPDPct": 54.655039753783015
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 248.00000000000003,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 22.17741935483871,
+        "existingCover": 44.08602150537634,
+        "newlyAuthored": 33.736559139784944
+      },
+      "stdTradPct": 22.17741935483871,
+      "tradStandardOrPDPct": 22.17741935483871
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Classical",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 248.00000000000003,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 22.17741935483871,
+        "existingCover": 44.08602150537634,
+        "newlyAuthored": 33.736559139784944
+      },
+      "stdTradPct": 22.17741935483871,
+      "tradStandardOrPDPct": 22.17741935483871
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RnB",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 3102.9999999999977,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.438500375980236,
+        "existingCover": 61.25255129444631,
+        "newlyAuthored": 36.30894832957355
+      },
+      "stdTradPct": 2.438500375980236,
+      "tradStandardOrPDPct": 6.918036308948335
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "RnB",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 3102.9999999999977,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 2.438500375980236,
+        "existingCover": 61.25255129444631,
+        "newlyAuthored": 36.30894832957355
+      },
+      "stdTradPct": 2.438500375980236,
+      "tradStandardOrPDPct": 6.918036308948335
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 416.33333333333314,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 81.82546036829467,
+        "existingCover": 8.246597277822262,
+        "newlyAuthored": 9.927942353883113
+      },
+      "stdTradPct": 81.82546036829467,
+      "tradStandardOrPDPct": 81.82546036829467
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Gospel",
+      "unsigned": false,
+      "cohort": "inheritedRepertoire",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 416.33333333333314,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 81.82546036829467,
+        "existingCover": 8.246597277822262,
+        "newlyAuthored": 9.927942353883113
+      },
+      "stdTradPct": 81.82546036829467,
+      "tradStandardOrPDPct": 81.82546036829467
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "EasyListening",
+      "unsigned": true,
+      "cohort": "contemporaryInstrumental",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 1239,
+      "shares": {
+        "traditionalLineage": 3.228410008071025,
+        "establishedStandard": 73.04277643260694,
+        "existingCover": 20.500403551251008,
+        "newlyAuthored": 3.228410008071025
+      },
+      "stdTradPct": 76.27118644067797,
+      "tradStandardOrPDPct": 76.27118644067797
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 191.00000000000003,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 13.612565445026176,
+        "existingCover": 57.24258289703317,
+        "newlyAuthored": 29.144851657940656
+      },
+      "stdTradPct": 13.612565445026176,
+      "tradStandardOrPDPct": 13.612565445026176
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "TexMex",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 34,
+      "observedActs": 9,
+      "weightedSlots": 191.00000000000003,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 13.612565445026176,
+        "existingCover": 57.24258289703317,
+        "newlyAuthored": 29.144851657940656
+      },
+      "stdTradPct": 13.612565445026176,
+      "tradStandardOrPDPct": 13.612565445026176
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 429.66666666666686,
+      "shares": {
+        "traditionalLineage": 10.783553141970517,
+        "establishedStandard": 36.4623739332816,
+        "existingCover": 23.584173778122565,
+        "newlyAuthored": 29.16989914662528
+      },
+      "stdTradPct": 47.24592707525211,
+      "tradStandardOrPDPct": 47.24592707525211
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Comedy",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 39,
+      "observedActs": 9,
+      "weightedSlots": 429.66666666666686,
+      "shares": {
+        "traditionalLineage": 10.783553141970517,
+        "establishedStandard": 36.4623739332816,
+        "existingCover": 23.584173778122565,
+        "newlyAuthored": 29.16989914662528
+      },
+      "stdTradPct": 47.24592707525211,
+      "tradStandardOrPDPct": 47.24592707525211
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "SurfRock",
+      "unsigned": true,
+      "cohort": "vocal",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 746.9999999999997,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75.27889335118255,
+        "newlyAuthored": 24.7211066488175
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "SurfRock",
+      "unsigned": true,
+      "cohort": "vocal",
+      "scope": "cohort",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 746.9999999999997,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75.27889335118255,
+        "newlyAuthored": 24.7211066488175
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": true,
+      "cohort": "contemporaryInterpreter",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 546.6666666666667,
+      "shares": {
+        "traditionalLineage": 28.65853658536585,
+        "establishedStandard": 21.219512195121947,
+        "existingCover": 27.80487804878049,
+        "newlyAuthored": 22.317073170731703
+      },
+      "stdTradPct": 49.8780487804878,
+      "tradStandardOrPDPct": 49.878048780487795
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "ContemporaryFolk",
+      "unsigned": true,
+      "cohort": "contemporaryInterpreter",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 546.6666666666667,
+      "shares": {
+        "traditionalLineage": 28.65853658536585,
+        "establishedStandard": 21.219512195121947,
+        "existingCover": 27.80487804878049,
+        "newlyAuthored": 22.317073170731703
+      },
+      "stdTradPct": 49.8780487804878,
+      "tradStandardOrPDPct": 49.878048780487795
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 336.33333333333337,
+      "shares": {
+        "traditionalLineage": 71.65510406342914,
+        "establishedStandard": 2.1803766105054505,
+        "existingCover": 3.0723488602576805,
+        "newlyAuthored": 23.092170465807726
+      },
+      "stdTradPct": 73.83548067393458,
+      "tradStandardOrPDPct": 73.83548067393458
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "Childrens",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 37,
+      "observedActs": 9,
+      "weightedSlots": 336.33333333333337,
+      "shares": {
+        "traditionalLineage": 71.65510406342914,
+        "establishedStandard": 2.1803766105054505,
+        "existingCover": 3.0723488602576805,
+        "newlyAuthored": 23.092170465807726
+      },
+      "stdTradPct": 73.83548067393458,
+      "tradStandardOrPDPct": 73.83548067393458
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "SurfRock",
+      "unsigned": false,
+      "cohort": "vocal",
+      "scope": "genre",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 431.00000000000006,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 62.49033255993812,
+        "newlyAuthored": 37.50966744006187
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "SurfRock",
+      "unsigned": false,
+      "cohort": "vocal",
+      "scope": "cohort",
+      "observedSlots": 40,
+      "observedActs": 9,
+      "weightedSlots": 431.00000000000006,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 62.49033255993812,
+        "newlyAuthored": 37.50966744006187
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BossaNova",
+      "unsigned": false,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 33,
+      "observedActs": 9,
+      "weightedSlots": 229.00000000000006,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 13.537117903930127,
+        "existingCover": 59.67976710334787,
+        "newlyAuthored": 26.78311499272198
+      },
+      "stdTradPct": 13.537117903930127,
+      "tradStandardOrPDPct": 15.429403202328961
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BossaNova",
+      "unsigned": false,
+      "cohort": "olderSongbook",
+      "scope": "cohort",
+      "observedSlots": 23,
+      "observedActs": 6,
+      "weightedSlots": 185.6666666666667,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 12.028725314183122,
+        "existingCover": 71.2746858168761,
+        "newlyAuthored": 16.69658886894075
+      },
+      "stdTradPct": 12.028725314183122,
+      "tradStandardOrPDPct": 12.028725314183122
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BossaNova",
+      "unsigned": true,
+      "cohort": "mixed",
+      "scope": "genre",
+      "observedSlots": 49,
+      "observedActs": 12,
+      "weightedSlots": 458.6666666666668,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 28.197674418604645,
+        "existingCover": 42.15116279069767,
+        "newlyAuthored": 29.651162790697665
+      },
+      "stdTradPct": 28.197674418604645,
+      "tradStandardOrPDPct": 28.197674418604645
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BossaNova",
+      "unsigned": true,
+      "cohort": "olderSongbook",
+      "scope": "cohort",
+      "observedSlots": 35,
+      "observedActs": 9,
+      "weightedSlots": 393.3333333333333,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 31.694915254237294,
+        "existingCover": 45.59322033898306,
+        "newlyAuthored": 22.711864406779657
+      },
+      "stdTradPct": 31.694915254237294,
+      "tradStandardOrPDPct": 31.694915254237294
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BossaNova",
+      "unsigned": true,
+      "cohort": "contemporaryBrazilian",
+      "scope": "cohort",
+      "observedSlots": 14,
+      "observedActs": 3,
+      "weightedSlots": 65.33333333333333,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 7.142857142857143,
+        "existingCover": 21.42857142857143,
+        "newlyAuthored": 71.42857142857143
+      },
+      "stdTradPct": 7.142857142857143,
+      "tradStandardOrPDPct": 7.142857142857143
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BossaNova",
+      "unsigned": false,
+      "cohort": "contemporaryBrazilian",
+      "scope": "cohort",
+      "observedSlots": 10,
+      "observedActs": 3,
+      "weightedSlots": 43.333333333333336,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 19.999999999999996,
+        "existingCover": 9.999999999999998,
+        "newlyAuthored": 69.99999999999999
+      },
+      "stdTradPct": 19.999999999999996,
+      "tradStandardOrPDPct": 30
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "GarageRock",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 20,
+      "observedActs": 5,
+      "weightedSlots": 31,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 3.225806451612903,
+        "existingCover": 58.064516129032256,
+        "newlyAuthored": 38.70967741935484
+      },
+      "stdTradPct": 3.225806451612903,
+      "tradStandardOrPDPct": 3.225806451612903
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "GarageRock",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 20,
+      "observedActs": 5,
+      "weightedSlots": 31,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 3.225806451612903,
+        "existingCover": 58.064516129032256,
+        "newlyAuthored": 38.70967741935484
+      },
+      "stdTradPct": 3.225806451612903,
+      "tradStandardOrPDPct": 3.225806451612903
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "GarageRock",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 143.33333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 76.27906976744187,
+        "newlyAuthored": 23.72093023255814
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "GarageRock",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 38,
+      "observedActs": 9,
+      "weightedSlots": 143.33333333333334,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 76.27906976744187,
+        "newlyAuthored": 23.72093023255814
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BritishBeat",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 9,
+      "observedActs": 2,
+      "weightedSlots": 9,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 88.88888888888889,
+        "newlyAuthored": 11.11111111111111
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BritishBeat",
+      "unsigned": true,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 9,
+      "observedActs": 2,
+      "weightedSlots": 9,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 88.88888888888889,
+        "newlyAuthored": 11.11111111111111
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BritishBeat",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "genre",
+      "observedSlots": 8,
+      "observedActs": 2,
+      "weightedSlots": 8,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75,
+        "newlyAuthored": 25
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    },
+    {
+      "run": "genre-review-final-1963-1002",
+      "seed": 1002,
+      "date": "10/4/1963",
+      "genre": "BritishBeat",
+      "unsigned": false,
+      "cohort": "mixedContemporary",
+      "scope": "cohort",
+      "observedSlots": 8,
+      "observedActs": 2,
+      "weightedSlots": 8,
+      "shares": {
+        "traditionalLineage": 0,
+        "establishedStandard": 0,
+        "existingCover": 75,
+        "newlyAuthored": 25
+      },
+      "stdTradPct": 0,
+      "tradStandardOrPDPct": 0
+    }
+  ]
+}

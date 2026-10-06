@@ -1,0 +1,112 @@
+{
+  "checkpoint": "e1dcbae",
+  "branch": "codex/polar-song-data-model",
+  "phase": "data-model-and-shadow",
+  "date": "2026-10-02",
+  "files": [
+    {
+      "path": "Data/AlbumTrack.cs",
+      "sha256": "F16FA5A65002BBB06527E21BDEAF41F7A6F564D5F329F94293E5F05537BB2698"
+    },
+    {
+      "path": "Data/PolarSongMetadata.cs",
+      "sha256": "837445C67106D9B730E2CF49161A9C656DABB9D9159EDB7CF4CB03537BFA08AA"
+    },
+    {
+      "path": "Data/PolarSongProfiles.cs",
+      "sha256": "649B532C4A5EFDEEB1F658B38C3618ED7BBB00A901BA9DBDAB3676CD24CCEA0E"
+    },
+    {
+      "path": "Data/PolarSongTable.json",
+      "sha256": "86FDCFD289A878C67AFEF1BF9452DC75EDE555314E292E795FDA8E955604B4FE"
+    },
+    {
+      "path": "Data/Record.cs",
+      "sha256": "94A3D0F7122286799D2146CDE4B67DDA690B75D657A62AB7A55BD030BDB2934A"
+    },
+    {
+      "path": "Data/SongComposition.cs",
+      "sha256": "ACCD1B16C33E1A7F7F9782775C2A9FE7516BEDCE8CB3C66A4C50C1083E035EE0"
+    },
+    {
+      "path": "SimTools/analyze-polar-data-neutrality.mjs",
+      "sha256": "F530D59A6C58B9C9149512A00A84643E32387E2B5484C0E46EFB38B93DB80A11"
+    },
+    {
+      "path": "SimTools/analyze-polar-shadow.mjs",
+      "sha256": "E91DCCB7AD63165988AE8BC84B2210A6E4FC49342F9E4599178D8D44DC9FDF9B"
+    },
+    {
+      "path": "SimTools/ChartAuditRunner.cs",
+      "sha256": "6B151EB726AAEA9CE943CFB145F3F7A97E2B7359879692498E7C517ADCB4AA94"
+    },
+    {
+      "path": "SimTools/PolarSongDataChecks.cs",
+      "sha256": "ABB02EF73F2F609F411DA340CC6E48777FF8C5FB37041386B44A80A92270E8C9"
+    },
+    {
+      "path": "SimTools/PolarSongFitChecks.cs",
+      "sha256": "0BFAC47391C85B204E096A0778272FDB1C210D4B3B4288027F387774BE53999B"
+    },
+    {
+      "path": "SimTools/SaveLoadRoundTripRunner.cs",
+      "sha256": "C348AFE2B9717F8E789CE5DDE7AB4B515E71886BADC7AED57FC343980E6667B9"
+    },
+    {
+      "path": "Systems/ChartManager.cs",
+      "sha256": "E486C4A0C3E88FBF7A317FD5470C5DAAD5B94E201D4865CD9FB546F021A120EC"
+    },
+    {
+      "path": "Systems/CompetitorManager.cs",
+      "sha256": "1DD4CC86E5EA9710BA5ABDF973A3895D4D9CF0F11759738F00108F4907189146"
+    },
+    {
+      "path": "Systems/CompositionCatalogService.cs",
+      "sha256": "4A41E6BC1CABF13E00853E2B1760B7C122D06F13F5C9EFC942C94BD5E1BAE27E"
+    },
+    {
+      "path": "Systems/PlayerDesk.cs",
+      "sha256": "E6DA67203B4A5987CC0E4E3651F79C8A34DBBB917CB63AF53540550AE1107E49"
+    },
+    {
+      "path": "Systems/PolarActProfileDeriver.cs",
+      "sha256": "C5942708A427BB8613AED512AD74160957C868E040F96B43944213FDB5836D4E"
+    },
+    {
+      "path": "Systems/PolarCoverResolver.cs",
+      "sha256": "3B118B996247FE2752D9252870C1C5F9D5E84EFB9EC713AD0EFCA8DF72DC740A"
+    },
+    {
+      "path": "Systems/PolarMaterialFit.cs",
+      "sha256": "1A1252E2A33F60C168892BCA6FECAF12CF297B5A169CE83DA38C28E06C59E489"
+    },
+    {
+      "path": "Systems/PolarSongMetadataService.cs",
+      "sha256": "7B659931B4398B27737BB62A1935B67D2AC346069A19E0AB22BC69B542792367"
+    },
+    {
+      "path": "Systems/PolarSongShadowTelemetry.cs",
+      "sha256": "70BF7172FEE43CB744A13A60FD40D403966701EB578B3731334DE5A86C67A390"
+    },
+    {
+      "path": "Systems/PolarSongTable.cs",
+      "sha256": "B952A4F23F40E3C1B0EC83AB89A72AFBC053F40A988E3B21D30457EF87CC3E73"
+    },
+    {
+      "path": "Systems/SaveGameService.cs",
+      "sha256": "E043C5229A73647843D00C1BCB6DFD0959A5AEC1ADC6FDB65DA5738C34344584"
+    },
+    {
+      "path": "Systems/SongMaterialSelectionService.cs",
+      "sha256": "9394D496545C40000851517F63DDCA9A92187BA2AD8162D8F4001D53683AA6FC"
+    },
+    {
+      "path": "Systems/SongProfileDeriver.cs",
+      "sha256": "E560839BD794AE9E5629DBFAA2419E19346C9E65ACA668DE6761D03D9AB292BA"
+    },
+    {
+      "path": "Systems/WorldSaveData.cs",
+      "sha256": "203C45DE19EA095DE9D705D41D72A52FA715F89663E26DD2405BE6D3F5985059"
+    }
+  ]
+}

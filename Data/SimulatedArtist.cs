@@ -7,6 +7,9 @@ using Godot;
 public class SimulatedArtist {
 	public string artistId;
 	public string stageName;
+	public ActRepertoireState repertoireState;
+	// Explicit performance-role authoring; absent in older saves preserves the solo-vocal fallback.
+	public bool instrumentalPerformance;
 	public ArtistType type;
 	public List<Musician> members = new List<Musician>();
 

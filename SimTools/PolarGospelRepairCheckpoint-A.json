@@ -1,0 +1,17 @@
+{
+  "name": "A",
+  "paths": [
+    "Data/PolarSongTable.json",
+    "Systems/PolarSongTable.cs",
+    "Systems/SimulationSeedBootstrap.cs",
+    "SimTools/PolarGenrePriorAudit.json"
+  ],
+  "sourceHashes": {
+    "Data/PolarSongTable.json": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+    "Systems/PolarSongTable.cs": "9ABBDC449D43ADC50CEA675D88FC1676DEBA759A0A3267C1F4DE27AF8C674FF8",
+    "Systems/SimulationSeedBootstrap.cs": "A2E6D5DEB50D5041E5A561C1349145D5A2687BD9F3F5362F565FB86112939016",
+    "SimTools/PolarGenrePriorAudit.json": "423AB5FB65EBF1BC6A851949AA37D814BE80929EC4FCE79CCE31266CCF16E498"
+  },
+  "status": "implemented",
+  "scope": "Final package source checkpoint; no commits or prior user work reset."
+}

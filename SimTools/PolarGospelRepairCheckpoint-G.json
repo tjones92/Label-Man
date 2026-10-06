@@ -1,0 +1,14 @@
+{
+  "package": "G",
+  "status": "measured-review-required",
+  "sourceHashes": {
+    "SimTools/ChartAuditRunner.PolarDirective2.cs": "D8F7E7A4896DF040352A60FBDBE543C83EB2B76A02798DA70DB5624C866605E0",
+    "SimTools/run-polar-directive2-trajectories.ps1": "95613F08CB62958CFBF0A4F41BF9BB2F9195F2A45F307D48AD001675914A7BC2",
+    "SimTools/analyze-polar-directive2-trajectories.mjs": "6D9101B0CE354F8F1BAB6124F520EB823165C45C363BBE377F4C2D29504DD67D"
+  },
+  "developmentSeeds": [
+    1001,
+    1002
+  ],
+  "holdOutReady": false
+}

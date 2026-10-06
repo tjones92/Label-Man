@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-03",
+  "scope": "Follow-up touched files and reference config/binary; no historical manifest overwritten",
+  "files": [
+    {
+      "path": "Systems/SongMaterialSelectionService.cs",
+      "sha256": "B5B27040449C67CE532DEF9B22FC2DC69E0D24D2E2255BD95B1E803645C4DB89"
+    },
+    {
+      "path": "Systems/PolarSongBehavior.cs",
+      "sha256": "FDB6ABDDFCB40D1D474BDC49E703C7F0396FA51310E3019D42CA0B50F9F47359"
+    },
+    {
+      "path": "Systems/PlayerDesk.cs",
+      "sha256": "463502229DF4F2875209F486AF543DD59E7EE7F31ED8003E6E6A7933822AEEA6"
+    },
+    {
+      "path": "Systems/CompetitorManager.cs",
+      "sha256": "B73BC6FDEE7667EE415B370880CB5506F471AE7512B60BFFAADE34E6F03138EE"
+    },
+    {
+      "path": "SimTools/ChartAuditRunner.PolarFinal.cs",
+      "sha256": "B5A7A6DB4786DE727488D925305D99F7D80728DAE7FB8AEDF419841918465C3A"
+    },
+    {
+      "path": "SimTools/ChartAuditRunner.PolarFollowup.cs",
+      "sha256": "22E0333599B782E42DE823B2919BC59AB4C8AD1D8BBEAF7E6AE1F17DCD23218D"
+    },
+    {
+      "path": "SimTools/ChartAuditRunner.PolarFollowup.cs.uid",
+      "sha256": "8E2B5B813DE722472BE511C6AB38DBD2C0AB5E6009A0D40CA40F87BD1E45EE7E"
+    },
+    {
+      "path": "SimTools/PolarFollowupProbe.cs",
+      "sha256": "2925A46C0CF4166AEA7DF17BFA9B2BF8DDB8DDC9D0E0D0EDE7992719CB206244"
+    },
+    {
+      "path": "SimTools/PolarFollowupProbe.cs.uid",
+      "sha256": "1074D7193697E1B6898C476FA4F6A5A8B867DAF220F8B03F6C7264028F365D26"
+    },
+    {
+      "path": "SimTools/PolarFollowupProbe.tscn",
+      "sha256": "2279EB01204FBB802D97884F4AE3A51E70BC5BEF2FC4B6A81EE8C63415CF7674"
+    },
+    {
+      "path": "SimTools/PolarRefusalAvoidanceChecks.cs",
+      "sha256": "674052DD9F4E2475C563588EFC3CC249ECFA7F893AC896E32DC881C96C245153"
+    },
+    {
+      "path": "SimTools/PolarRefusalAvoidanceChecks.cs.uid",
+      "sha256": "9ABE7FE6FC3D2F1CEDA9985D94889F4C4D43F369D088E0AD8376C0D2600974A9"
+    },
+    {
+      "path": "SimTools/SaveLoadRoundTripRunner.cs",
+      "sha256": "BFD34A76659603CB42BA23D0282978B44078B4FD6EAAECCCFA7F52F6EF008A1B"
+    },
+    {
+      "path": "SimTools/analyze-polar-followup.mjs",
+      "sha256": "2F7926F5775E11AC6C378C1F90124E73C4ED63776109692659E727BD2BB39EEF"
+    },
+    {
+      "path": "SimTools/validate-polar-followup.mjs",
+      "sha256": "98C10FB8899D004E086CC2CE620256582E2DE4912B1918C53DABBD0C6430955E"
+    },
+    {
+      "path": "SimTools/write-polar-followup-report.mjs",
+      "sha256": "F14F17A623CB7E48068B08F0BC7DA05409C260A0F74D0D1CDA6476A596098420"
+    },
+    {
+      "path": "SimTools/run-polar-followup-audit.ps1",
+      "sha256": "48145B73F13FD7E692B0A8C2AA2A175376953B71EA711FBD924E6B6AFB93526C"
+    },
+    {
+      "path": "SimTools/PolarFollowupValidation.json",
+      "sha256": "CBE841795DE18759B11330BFDFDDB1E13A774788DD5D02E07CB9271115D58128"
+    },
+    {
+      "path": "SimTools/PolarFollowupReport.md",
+      "sha256": "AED5FA5243947B9277AA0203D37D13327A324E1584E599B50ACC6F6B11A3C5F8"
+    },
+    {
+      "path": "Data/PolarSongTable.json",
+      "sha256": "880B00DA30EFCAD28FB48486CAD42D72E30022CAD751C2073D4E2F38874D42A2"
+    },
+    {
+      "path": "Data/PolarPerceptionTable.json",
+      "sha256": "7A83C0CB28DA0B8720AC5E10C54D73E8E85C0CF580B1D2D91663B3AB389EE2AA"
+    },
+    {
+      "path": ".godot/mono/temp/bin/Debug/Label Man.dll",
+      "sha256": "0651D965E3D0B3FB3876A33A97472246CC1C2F8E2912F51C50E8DDC5D92CC900"
+    }
+  ]
+}

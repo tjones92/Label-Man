@@ -7,6 +7,12 @@
 /SimLogs/*
 !/SimLogs/.gdignore
 
+# Audit/validation output belongs in SimLogs/, never in SimTools/. Older JSON dumps that
+# were committed before this rule stay tracked; any new JSON here is ignored. A genuine
+# input table belongs in Data/ (or force-add it deliberately).
+/SimTools/*.json
+/tmp/
+
 # Godot import artifacts generated for the SimTools analysis CSVs.
 # The CSVs themselves are tracked; the per-column .translation shards are not.
 /SimTools/*.csv.import

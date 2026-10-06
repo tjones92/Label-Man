@@ -1,0 +1,150 @@
+{
+  "status": "passed",
+  "scope": "Gospel attribution only; paired fixed-world diagnostic counterfactuals and retained history. No gameplay repair or hold-out validation.",
+  "build": {
+    "errors": 0,
+    "warnings": 4,
+    "warningStatus": "Existing obsolete compatibility APIs and unused event"
+  },
+  "retainedInitialProbeMatches": [
+    {
+      "seed": 1001,
+      "actors": 53,
+      "familyRows": 276,
+      "candidateCountsAndBestScores": true,
+      "withinWindowCounts": true
+    },
+    {
+      "seed": 1002,
+      "actors": 40,
+      "familyRows": 205,
+      "candidateCountsAndBestScores": true,
+      "withinWindowCounts": true
+    }
+  ],
+  "worldChecks": [
+    {
+      "prefix": "polar-gospel-attribution-start-1001-v2",
+      "actors": 53,
+      "candidates": 5164,
+      "worldUnchanged": true,
+      "baselineSelectorMatched": true,
+      "explicitSubjectCandidates": 0
+    },
+    {
+      "prefix": "polar-gospel-attribution-start-1002",
+      "actors": 40,
+      "candidates": 3929,
+      "worldUnchanged": true,
+      "baselineSelectorMatched": true,
+      "explicitSubjectCandidates": 0
+    },
+    {
+      "prefix": "polar-gospel-attribution-later-1001-v2",
+      "actors": 245,
+      "candidates": 57930,
+      "worldUnchanged": true,
+      "baselineSelectorMatched": true,
+      "explicitSubjectCandidates": 0
+    },
+    {
+      "prefix": "polar-gospel-attribution-later-1002-v2",
+      "actors": 200,
+      "candidates": 45955,
+      "worldUnchanged": true,
+      "baselineSelectorMatched": true,
+      "explicitSubjectCandidates": 0
+    }
+  ],
+  "marketDiagnosticRevisions": [
+    {
+      "seed": 1001,
+      "candidateAndActorBytesIdentical": true,
+      "allExistingVariantsIdentical": true,
+      "worldHashIdentical": true
+    },
+    {
+      "seed": 1002,
+      "candidateAndActorBytesIdentical": true,
+      "allExistingVariantsIdentical": true,
+      "worldHashIdentical": true
+    }
+  ],
+  "simulationRuns": [
+    {
+      "seed": 1001,
+      "weeks": 62,
+      "date": "3/10/1961",
+      "seconds": 187.1014917,
+      "weeklyComparison": {
+        "comparableRows": 52,
+        "identicalRows": 52,
+        "definition": "Aggregate weekly equality supports trajectory consistency only over these rows; it does not establish complete world or lost original admission-event equality."
+      }
+    },
+    {
+      "seed": 1002,
+      "weeks": 58,
+      "date": "2/10/1961",
+      "seconds": 187.0205451,
+      "weeklyComparison": {
+        "comparableRows": 52,
+        "identicalRows": 52,
+        "definition": "Aggregate weekly equality supports trajectory consistency only over these rows; it does not establish complete world or lost original admission-event equality."
+      }
+    }
+  ],
+  "analysisSha256": "d85ed8fce1810730fda3a71a53831b3a9dfde34fd01c43baab6a627457c1d889",
+  "inputHashes": {
+    "Data/PolarSongTable.json": "2179dc205ffb490ce9795ab1e730de2d80e123858a11129762f0d858d4b4b117",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-gospel-summary.json": "2595e1c96de6f0f2ed949423cea2d46feb7773697d06734f11d0fca39a3aa922",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-gospel-candidates.csv": "cd81bafa471a21db55a42250fee4e7886b434e2cca5f8bd0018b6a3929258903",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-gospel-actors.csv": "38b5fcbe1951822543295aa326a33227927dc1f0aa7f9cc228ddabfa27ccea23",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-gospel-selections.csv": "2df6242394f28396c6ab836e575578a27e47a89697ce9c69b9af892377ff6ae9",
+    "SimLogs/polar-gospel-attribution-start-1001-v2-invocation.json": "6db048258b8041c82cb6c40dcebfc3f91a621d94c48a7d4ba270b5c62ee9d2bd",
+    "Data/PolarRepertoireTable.json": "56a202fe311705eea5acaf0fe22520543668822dd89dd70e8fd3ee5a6bd13a94",
+    "SimLogs/polar-repertoire-fit-probe-1001.csv": "f9fc0c69d2b042d8bd304cb3b5640c1912de7ff385237afbee6b7a12466c6d6f",
+    "SimLogs/polar-gospel-attribution-start-1002-gospel-summary.json": "fa48b67daeff62e862eac634a95a7b799ee78a8452971c3af86ef025c1a7ec37",
+    "SimLogs/polar-gospel-attribution-start-1002-gospel-candidates.csv": "56f1d98f89780d48a2a124f89a4c76821df7fb0350bafd49565a70f4eade3233",
+    "SimLogs/polar-gospel-attribution-start-1002-gospel-actors.csv": "ab061b9a862646881c2d09277ec87532f699166dabd3ac0accd150d9bc731fa0",
+    "SimLogs/polar-gospel-attribution-start-1002-gospel-selections.csv": "7242bff0da346761524e28f36daad87c364a1eef044191fde49e55dd78a9996d",
+    "SimLogs/polar-gospel-attribution-start-1002-invocation.json": "f8b204f0b2ffb2879e6dcb3a1339bc76ee04a893bd3d85f4a395144d18c14dc4",
+    "SimLogs/polar-repertoire-fit-probe-1002.csv": "9853d77b92ce4c6f6e7457ab0af361e319539de584f7f07ef9d1f711ddf83588",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-gospel-summary.json": "068dab654126a62ff67656e4b195cd39dd9c418de6ce7f1dcdc6896a46fb7bdd",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-gospel-candidates.csv": "db14f4703364516fead9c8e84bd2a7e40f05a8ed04907ae12003a68d10d95f55",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-gospel-actors.csv": "776cbdc54a8e4aba41e6cd400ed1c62a07b834dad36fca57dd9ff745abf64c06",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-gospel-selections.csv": "5746a4f48b566889c537079d689469cad77f283212b61c65c6f0dbef3453ccbd",
+    "SimLogs/polar-gospel-attribution-later-1001-v2-invocation.json": "ee499eaa43340caf9dd9236dd3f1390a28f6dcba78c92ee6a11dbfada7206c4a",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-gospel-summary.json": "76834c12b0cb83cf8b4ef28c46451eeba4e15d344faca163fd720146bddfa829",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-gospel-candidates.csv": "6ac5cf0d6f14ccc496e5bf0c113a7d7f71e8396ca50cfa0782ac9b648152ed90",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-gospel-actors.csv": "c5b39f5632557f7a9f02829c97023bfd3a5fd665c5efe50287aa5f32bcaad691",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-gospel-selections.csv": "f657c848d66830d20d07fc37b66757bb9d5d82c3c0daa156032c8b4d46097435",
+    "SimLogs/polar-gospel-attribution-later-1002-v2-invocation.json": "508a7409665e7fe21f69f4a71f5b8e078283ebf1a1cd7ac80e98112851f934b3",
+    "SimLogs/polar-repertoire-final-1001-repertoire-slots.csv": "e46491f19cab3707e78830152552de6b29e5f902c0bd94f1a65393c8e071d583",
+    "SimLogs/polar-repertoire-final-1002-repertoire-slots.csv": "7156e7dc7a6b0443acf0a7f34e63786af6ef5be1c0490ba4a5f962c5260d849c",
+    "SimLogs/polar-gospel-routes-1001-polar-research.json": "ed63b3221cee34ef384406331b61f42b7735b76a590d8bcda8dc7996fb453629",
+    "SimLogs/polar-gospel-routes-1001-repertoire-admissions.csv": "78c4d958c7dcd300afea6e7a631f8602cc8ebd973aa57d44da47ee042580cc8e",
+    "SimLogs/polar-gospel-routes-1001-polar-checkpoint.json.gz": "4412d530dfe964125fd06661a1bee77ee3085512c1367a49958f04c94f5998b1",
+    "SimLogs/polar-repertoire-final-1001-polar-final-weekly.csv": "c7756d4c0cbc87074919ab54a56f719a19fbdcc00b45f0fbf4df55d3fe12d43e",
+    "SimLogs/polar-gospel-routes-1001-polar-final-weekly.csv": "f5d50db1459dba43e80c79596aec12d0eea160b4c52765f9756b76f7cf36b105",
+    "SimLogs/polar-gospel-routes-1001-invocation.json": "ff54acc237073e71b721ac65bc3bd8f6d590900964316dbf89b0910dfb121fca",
+    "SimLogs/polar-gospel-routes-1002-polar-research.json": "427715c197971fa8a54bb2dea4724bebf76c15b55a8d9219e1813b3b5b11c8b2",
+    "SimLogs/polar-gospel-routes-1002-repertoire-admissions.csv": "1b65cd063ba1b7adaa923cc794752a2be793c838d5d717a4df2c7cd61c19ccdb",
+    "SimLogs/polar-gospel-routes-1002-polar-checkpoint.json.gz": "d0e84e7893598053fece2d8aba30c1cf2e839642af2b7191f04e635c393b2191",
+    "SimLogs/polar-repertoire-final-1002-polar-final-weekly.csv": "bab9bbf057ddb40cf55067b85859761e56c414a17c070705b99de84f5c1524cc",
+    "SimLogs/polar-gospel-routes-1002-polar-final-weekly.csv": "a573278eb861b08d9b328c7be2caeaae3d227bf3c9821f9bfa72f8e9a1ffc2ff",
+    "SimLogs/polar-gospel-routes-1002-invocation.json": "8e338ad8460e85f9ba418d3ea7377eb00b1c90184938ecab7e323fe37f40bf24",
+    "SimTools/PolarGospelAttributionProbe.cs": "bdc82b8afc46feb787eb7fe91cb6627d56074882984864e3c41676f116764fd6",
+    "SimTools/PolarGospelAttributionProbe.tscn": "7456a75b796da47ae95fe88206315d5c414636ae479f7e6546af7ed2e33e76a3",
+    "SimTools/run-polar-gospel-attribution.ps1": "7aaa8659e1782d4a852595de36714b0f6c13adba49c2ba73b186c04399efabbf",
+    "SimTools/analyze-polar-gospel-attribution.mjs": "62b520b921fb358e1eb33f61f3e645ba090da8fe457d2bf59251a28fc061d3a2",
+    "Systems/PolarActProfileDeriver.cs": "9f8c17424967bb8c81f455efc261318a1bc3811f2a0c33a9f6446b32a65695a8",
+    "Systems/PolarCoverResolver.cs": "1be6a8bbbb7d6bc5e79434e68dab6840aebaab99e971b4a01fe88956670a04ac",
+    "Systems/PolarMaterialFit.cs": "b5ec6c9e7bb0daf73134f6ef1b6e298e8455656f04bc02e695403122d893deee",
+    "Systems/PolarSongBehavior.cs": "1df8466226ab493f563072c3c097bbc1d04b96783892894bfb5c113d827b8d52",
+    "Systems/LiveRepertoire.cs": "5f66d3be95a6a3e732f2f72be9930e36119cdd1e92a3cf9a332222cfa3ee41d9",
+    "Systems/CompositionCatalogService.cs": "a6c3d1c0c09c17d492aba03ae091f03b876689afe43ca26b287281a353d9731c"
+  },
+  "productionRepair": false,
+  "holdOutUsed": false
+}

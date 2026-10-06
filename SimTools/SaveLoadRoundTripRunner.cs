@@ -22,11 +22,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 			int weeks = 26;
 			bool integration = false;
 			bool mechanicalCheck = false;
+			bool polarDataCheck = false;
+			bool polarFitCheck = false;
 			string inspectSlot = null;
 			foreach (string arg in OS.GetCmdlineUserArgs()) {
 				if (arg.StartsWith("--weeks=", StringComparison.Ordinal)) weeks = int.Parse(arg["--weeks=".Length..]);
 				else if (arg == "--integration") integration = true;
 				else if (arg == "--mechanical-royalty-check") mechanicalCheck = true;
+				else if (arg == "--polar-song-data-check") polarDataCheck = true;
+				else if (arg == "--polar-song-fit-check") polarFitCheck = true;
 				else if (arg.StartsWith("--inspect-slot=", StringComparison.Ordinal)) inspectSlot = arg["--inspect-slot=".Length..];
 			}
 
@@ -34,8 +38,28 @@ public partial class SaveLoadRoundTripRunner : Node {
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 
 			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
-			if (inspectSlot != null) { RunInspect(inspectSlot); return; }
+			if (inspectSlot != null) { RunInspect(inspectSlot, weeks); return; }
 			if (mechanicalCheck) { RunMechanicalRoyaltyCheck(); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--genre-repertoire-repair-check")) { GenreRepertoireRepairChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--folk-easy-check")) { FolkEasyListeningChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--gospel-preference-check")) { GospelPreferenceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--gospel-preference-probe")) { GospelPreferenceChecks.Probe(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-repertoire-fit-probe")) { PolarRepertoireChecks.FitProbe(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-gospel-repair-check")) { PolarGospelRepairChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-directive3-check")) { PolarGospelDirective3Checks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-gospel-followup-check")) { PolarGospelFollowupChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-repertoire-check")) { PolarRepertoireChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-refusal-avoidance-check")) { PolarRefusalAvoidanceChecks.Run(); GetTree().Quit(0); return; }
+			if (polarDataCheck) { PolarSongDataChecks.Run(); GetTree().Quit(0); return; }
+			if (polarFitCheck) { PolarSongFitChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-song-behavior-check")) { PolarSongBehaviorChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-recording-realization-check")) { PolarRecordingRealizationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-rock-songbook-check")) { PolarRockSongbookChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-player-perception-check")) { PolarPlayerPerceptionChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--polar-song-shadow")) {
+				PolarSongMetadataService.ShadowProfilesEnabled = true;
+				PolarSongMetadataService.WarmCommittedProfiles(PolarSongTable.Current);
+			}
 
 			for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
 
@@ -613,7 +637,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 	/// record id ("player_2") is the symptom this exists to catch -- a record the dead-stock cull deleted out
 	/// from under the references that point at it. Fails on any such line; otherwise diagnostic only.
 	/// </summary>
-	private void RunInspect(string slot) {
+	/// <summary><paramref name="runWeeks"/> &gt; 0 runs the loaded save forward before the readout, so the
+	/// trunk's day loop can be measured on real placed stock: does a lot actually sell through, or does
+	/// the decay curve strand it on the shelf forever?</summary>
+	private void RunInspect(string slot, int runWeeks) {
 		if (PlayerDesk.Instance == null) { GD.Print("SAVELOAD_INSPECT_ERROR reason=no-desk"); GetTree().Quit(3); return; }
 		if (!SaveGameService.Load(slot, out string loadMsg)) {
 			GD.Print($"SAVELOAD_INSPECT_FAIL slot={slot} reason=load:{loadMsg}");
@@ -622,6 +649,14 @@ public partial class SaveLoadRoundTripRunner : Node {
 		}
 		PlayerDesk desk = PlayerDesk.Instance;
 		GD.Print($"SAVELOAD_INSPECT slot={slot} message=\"{loadMsg}\"");
+		if (runWeeks > 0) {
+			foreach (RecordRuntimeData record in desk.ReleasedRecords)
+				GD.Print($"  BEFORE \"{record.baseRecord.title}\" units={record.totalUnitsSold}");
+			foreach ((string cityName, string stopName, string title, int remaining) in desk.StopStock())
+				GD.Print($"  BEFORE_STOCK {cityName} — {stopName} \"{title}\" remaining={remaining}");
+			for (int w = 0; w < runWeeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
+			GD.Print($"  RAN weeks={runWeeks}");
+		}
 		int titles = 0;
 		foreach (RecordRuntimeData record in desk.ReleasedRecords) {
 			titles++;
@@ -635,6 +670,27 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (dangling) unresolved++;
 			GD.Print($"  STOCK {cityName} — {stopName} \"{title}\" remaining={remaining} dangling={dangling}");
 		}
+		// Retail placement readout: for each released title, what every named account in the player's
+		// current city would actually take, and how likely it is to take it at all. This is the check
+		// for the "every shop takes exactly 2" report -- if the spread here is a single number, the
+		// order model is reading nothing but the relationship.
+		foreach (RecordRuntimeData record in desk.ReleasedRecords) {
+			string recordId = record.baseRecord.recordId;
+			foreach (PlayerDesk.PlayerStop stop in desk.StopsInCity(desk.CurrentCityId)) {
+				if (stop.Kind == PlayerDesk.StopKind.Station || stop.Kind == PlayerDesk.StopKind.OneStop) continue;
+				// Sample the order a few times: it carries a per-visit jitter on top of the fixed terms.
+				int lo = int.MaxValue, hi = 0;
+				for (int i = 0; i < 24; i++) {
+					int take = desk.SuggestedPlacement(stop, recordId);
+					lo = Math.Min(lo, take); hi = Math.Max(hi, take);
+				}
+				GD.Print($"  PLACEMENT \"{record.baseRecord.title}\" {stop.Kind} {stop.DisplayName}" +
+					$" rel={stop.Relationship:F2} nerve={stop.BuyerNerve:F2} lean={stop.AudienceLean:F2}" +
+					$" access={desk.DebugRetailAccess(stop, recordId):F2} accept={desk.DebugAcceptChance(stop, recordId):P0}" +
+					$" take={lo}-{hi}");
+			}
+		}
+
 		GD.Print(unresolved == 0
 			? $"SAVELOAD_INSPECT_PASS slot={slot} discography={titles} danglingStockRefs=0"
 			: $"SAVELOAD_INSPECT_FAIL slot={slot} discography={titles} danglingStockRefs={unresolved}");

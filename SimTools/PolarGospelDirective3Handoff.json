@@ -1,0 +1,161 @@
+{
+  "registeredCommit": "8cd5879c33d0e2e60d6f179d8eb4b7cb00b341f4",
+  "status": "implemented shape/diagnostics; gated expansion; original quarterly Folk attribution unresolved; not hold-out ready",
+  "checks": {
+    "seeds": [
+      1001,
+      1002
+    ],
+    "buildErrors": 0,
+    "worldEquivalenceFrames": 4,
+    "trajectoryWeeks": [
+      91,
+      91
+    ],
+    "aReplayWeeks": [
+      91,
+      91
+    ],
+    "holdOutUsed": false
+  },
+  "sources": [
+    {
+      "path": "C:/Project/Label-Man/Systems/CompositionShapeVariation.cs",
+      "sha256": "108C935BBD6819118F225CB70229328DEC71BE0A9159077B000E49A416969F5F"
+    },
+    {
+      "path": "C:/Project/Label-Man/Systems/SongProfileDeriver.cs",
+      "sha256": "CC1AB2C51CD08810F520E3D199C1BD732C634B8F465F9FFC193A5A4A11360DD3"
+    },
+    {
+      "path": "C:/Project/Label-Man/Systems/SimulationSeedBootstrap.cs",
+      "sha256": "DA202CB27E1FB0332D2E5C5C4BBEE0BBA1441E45291DB82741380E54280F00FD"
+    },
+    {
+      "path": "C:/Project/Label-Man/Systems/CompositionCatalogService.cs",
+      "sha256": "7E50216CCF9732F9ED2EE501BDD67D71C99E1F59FBB3C79893E28E5CD75F082B"
+    },
+    {
+      "path": "C:/Project/Label-Man/Systems/GospelSongbookExpansion.cs",
+      "sha256": "EF7F9E94EE5C19634EE8558A73F7169EAA629CD69D8020A2B6720A0D2DDA07B2"
+    },
+    {
+      "path": "C:/Project/Label-Man/Systems/LiveRepertoire.cs",
+      "sha256": "867F2FE5EE2591020153C5B9F1524F4074E16B52FC0446D8492615A66479DDD7"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelRepairProbe.cs",
+      "sha256": "32A0406F8FB2F1B339CABCC971C565B07A24BA36054772AFE41BB8E2D2526035"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelRepairProbe.Directive3.cs",
+      "sha256": "86E8269D1381CD4C08F449F999D447A376918D1148D072E2EEBA943CA6725FDE"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3AReplay.cs",
+      "sha256": "0F1E07AC1EC864E75B55C1C43E2DEE3AAFEB40377CEBC264853284E20369C50F"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/ChartAuditRunner.PolarDirective2.cs",
+      "sha256": "20360C15634A805029BACE3EE6958477248B15C44C88F1643EE8DE6C79D78207"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/SaveLoadRoundTripRunner.cs",
+      "sha256": "D218DDB187386EF77C59F5C1085216885116E47C15F340644D49D278C950EB50"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3Checks.cs",
+      "sha256": "A2B650C51F90CE895BBF364233B8DF9A0BC929FE18272C302811F9B0DBF97B37"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarPlayerPerceptionChecks.cs",
+      "sha256": "23481FA8709F856090BF2FBCC59CA9E9034BF4149FB9F641F6E6CB791E78AC5D"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/run-polar-gospel-repair.ps1",
+      "sha256": "EE84C1C503DD87E53615FEC742FA5D53A46238E7952B44D264C4F50EAA0D9427"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/run-polar-research.ps1",
+      "sha256": "DF8954B910C40CFB5A4889A733925A04C69D41E8246B3A8455ABBF93B7B91EBC"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/run-polar-directive3-trajectories.ps1",
+      "sha256": "58FCD5A82066C6EC7722E645D6BE1C7F43EEFDDBAA5F25C6652DFAD016C32103"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/analyze-polar-directive3.mjs",
+      "sha256": "48FD3E503BBD773B07DBFA1BFCAA947E8C7EEB66BA2C787289A5204A29F112FC"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/analyze-polar-directive3-trajectories.mjs",
+      "sha256": "DF9FE4A1325AFE2B466DBB5918657BB432EE1DC0AE1A63F28553EA19F4C65B03"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/analyze-polar-directive3-a-replay.mjs",
+      "sha256": "F46290A8FD566414C00581556EF780CE4EE80809D98A4079932CEA577C94ACCC"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/write-polar-directive3-report.mjs",
+      "sha256": "33F9FD59499DE63B5B05D6EC43A89896E792D1E063FEC803228820FF184002F3"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/serve-polar-shape-sheet.mjs",
+      "sha256": "5A8C9284DD465791417A93849BB7E7D10A9148F7EA6EEC731CA0176C5BD64EF1"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/validate-polar-directive3-handoff.mjs",
+      "sha256": "7786FAC36525E7F7003C417C48EE76B54C01F4F2A0BEE838EA0EF376878BD6EC"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelRepairDirective3Report.md",
+      "sha256": "47D725BAA4C27B66F813E2644D032CF78DF37ED6784FAE36B8A89B7FB1928928"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelRepairDirective3Validation.json",
+      "sha256": "474199DC624E164C82641F54D68CD080E64DD6AB6AADDFE46967030D09EF5D75"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3Trajectories.json",
+      "sha256": "F373F9722C19003561268819F90FAE2CFE9312FD098890FA299C6B8E2DB27B10"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3AReplay.json",
+      "sha256": "D2E595EBDD0419288F800C8BDDFE12D65F2DA00E3EBC5E2285A9153BD448750E"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarShapeSampleSheet.html",
+      "sha256": "07EBAEA13DC15DFE57ADDC617B4386142D182768D597B0B9014A0D77D8AFE7E7"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3RegistrationAmendment1.md",
+      "sha256": "6F6129BE5C92AE2672A0C081399210F4DAC761C572E1471EB074EB4E1D8B7588"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3RegistrationAmendment2.md",
+      "sha256": "E47FE6B9119B422A23EEA01FF7CB008B4BF8DE29C43FB14436833897B411A793"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3RegistrationAmendment3.md",
+      "sha256": "F31DA6A40BBF528DCD927B2654D45EB83ED3C91D0FBFB59DC0B5B8B087686EAF"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3RegistrationAmendment4.md",
+      "sha256": "2591C9F2AB1127A0EF768C0B323F2C4CE91A40B3A935B042459479D7C81873F4"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3RegistrationAmendment5.md",
+      "sha256": "C2B3E1E526BEA26F007BD2DA18A9E8C8EB05C1D3DA46B1FF360DD442C279CE7F"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3Census.csv",
+      "sha256": "D4D83A760DE4EBACFDB3A9ED07C5CACD876E4BB896C0DEF2EA14B7FDE35AFD60"
+    },
+    {
+      "path": "C:/Project/Label-Man/SimTools/PolarGospelDirective3AReplayRegistration.json",
+      "sha256": "AEF28355B936450E9E4BA7991718FF6DE2539A41FAF1D98290CF53A5F0620BF6"
+    }
+  ]
+}

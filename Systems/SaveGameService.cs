@@ -19,9 +19,10 @@ using Godot;
 /// is restored.
 /// </summary>
 public static class SaveGameService {
-	// v1: player layer only. v2: adds the full-world section (WorldSaveData). A v1 file loads under v2 with a
+	// v1: player layer only. v2: adds the full-world section (WorldSaveData). A v1 file loads under v3 with a
 	// null World -- the freshly generated world is left standing and the player layer restores over it.
-	public const int CurrentVersion = 2;
+	// v3: adds composition-owned demo/plasticity state and durable master metadata/linkage.
+	public const int CurrentVersion = 3;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -259,11 +260,17 @@ public sealed class PlayerSaveData {
 	public List<SongSaveData> Songs { get; set; } = new();
 	public Dictionary<string, List<RepertoireSaveData>> Repertoire { get; set; } = new();
 	public List<CoverRehearsalSaveData> Rehearsals { get; set; } = new();  // covers in progress, not yet in a set
+	public PendingSessionSaveData Session { get; set; }  // booked/paid takes awaiting print; absent in old saves
+	public List<PolarObservation> PolarObservations { get; set; } // absent in older saves
 	public List<string> ShippedBSideRecordIds { get; set; } = new();       // B-side masters that shipped on a single's flip
 	// Dealer-margin-and-flip directive §3.2/§3.5.4: records that already resolved a flip event (split
 	// action or a reversal), plus the week-boundary cursor gating CheckWeeklyFlip the same way
 	// LastCallGenWeek gates CheckWeeklyInboundCalls.
 	public List<string> FlipResolvedRecordIds { get; set; } = new();
+	// "recordId|regionId" (and "recordId|NATIONAL") for every breakout the office has already been told
+	// about -- see PlayerDesk.CheckWeeklyBreakoutNotices. Persisted so a reload doesn't re-announce news
+	// the player has already read.
+	public List<string> BreakoutNoticesShown { get; set; } = new();
 	public int LastFlipCheckWeek { get; set; } = -1;
 	// Dealer-margin-and-flip directive §4, R1: the week-boundary cursor gating CheckWeeklyReturns, same
 	// pattern as LastFlipCheckWeek above. Individual lots' ReturnRequested flag rides on their own
@@ -272,6 +279,10 @@ public sealed class PlayerSaveData {
 	// Dealer-margin-and-flip directive §4, R2: live returnable carton sales.
 	public List<OneStopCartonSaleSaveData> OneStopCartonSales { get; set; } = new();
 	public List<string> Log { get; set; } = new();
+	public string MorningDigest { get; set; }
+	public int UnreadLogCount { get; set; }
+	public List<ProspectNotebookSaveData> Notebook { get; set; } = new();
+	public Dictionary<string, int> AcetateCopies { get; set; } = new();
 	public List<WeekBookSaveData> Books { get; set; } = new();
 
 	// Player-layer completion: the whole working state of the desk.
@@ -325,6 +336,8 @@ public sealed class PlayerSaveData {
 	public List<RecordServicingSaveData> Servicing { get; set; } = new();
 	// Promo mechanic directive §6.1: who's been sent to the trade review desk and what came back.
 	public List<TradeSubmissionSaveData> TradeSubmissions { get; set; } = new();
+	// Promo mechanic directive §5: mailings spent but not yet resolved (see PendingMailing.cs).
+	public List<PendingMailingSaveData> PendingMailings { get; set; } = new();
 	// Promo mechanic directive §6.2: live paid trade ads.
 	public List<TradeAdSaveData> TradeAds { get; set; } = new();
 	// Publishing & Cover-Song directive Part II §II.2: covers of the player's own songs, noticed.
@@ -355,6 +368,25 @@ public sealed class PlayerSaveData {
 	public Dictionary<string, int> LeasedMasterExpiryWeek { get; set; } = new();
 	public List<string> OneStopKnownRecordIds { get; set; } = new();
 	public DistributionDealSaveData PendingDistributionOffer { get; set; }
+}
+
+/// <summary>Player's saved A&R notebook entry. Stores the unsigned act itself so generated local prospects survive reloads.</summary>
+public sealed class ProspectNotebookSaveData {
+	public SimulatedArtist Artist { get; set; }
+	public int Venue { get; set; }
+	public int Year { get; set; }
+	public int Month { get; set; }
+	public int Day { get; set; }
+	public float ReadQuality { get; set; }
+	public float ReadConfidence { get; set; }
+	public float AskingAdvance { get; set; }
+	public string Note { get; set; }
+	public int HeardCount { get; set; }
+	public bool FollowedUp { get; set; }
+	public List<RepertoireSaveData> LiveSet { get; set; } = new();
+	public int LastRivalYear { get; set; }
+	public int LastRivalMonth { get; set; }
+	public int LastRivalDay { get; set; }
 }
 
 /// <summary>Flat save record for <see cref="DistributionDeal"/> -- used both for the player's
@@ -443,6 +475,11 @@ public sealed class LabelSaveData {
 	public float lifetimeWholesaleWriteOffs { get; set; }
 	public string[] strongRegions { get; set; } = Array.Empty<string>();
 	public string[] distributionRegions { get; set; } = Array.Empty<string>();
+	// Wholesale lines the label placed itself (AILabel.independentDistributionRegions) -- the ONLY thing
+	// PlaceLine writes, and until now the one coverage field the player save dropped. Without it a player
+	// who placed a line and reloaded silently lost the region: HasDistributionInRegionForRecord went back
+	// to false, and ChartManager.RestockHotRecords resumed skipping his records' shops there.
+	public string[] independentDistributionRegions { get; set; } = Array.Empty<string>();
 	public int[] preferredGenres { get; set; } = Array.Empty<int>();
 	public int[] secondaryGenres { get; set; } = Array.Empty<int>();
 	public List<string> RosterArtistIds { get; set; } = new();
@@ -467,6 +504,7 @@ public sealed class LabelSaveData {
 		lifetimeWholesaleWriteOffs = l.lifetimeWholesaleWriteOffs,
 		strongRegions = l.strongRegions ?? Array.Empty<string>(),
 		distributionRegions = l.distributionRegions ?? Array.Empty<string>(),
+		independentDistributionRegions = (l.independentDistributionRegions ?? new HashSet<string>()).ToArray(),
 		preferredGenres = (l.preferredGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		secondaryGenres = (l.secondaryGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList(),
@@ -490,6 +528,10 @@ public sealed class LabelSaveData {
 		l.lifetimeWholesaleWriteOffs = lifetimeWholesaleWriteOffs;
 		l.strongRegions = strongRegions ?? Array.Empty<string>();
 		l.distributionRegions = distributionRegions ?? Array.Empty<string>();
+		l.independentDistributionRegions ??= new HashSet<string>(StringComparer.Ordinal);
+		l.independentDistributionRegions.Clear();
+		foreach (string regionId in independentDistributionRegions ?? Array.Empty<string>())
+			l.independentDistributionRegions.Add(regionId);
 		l.preferredGenres = (preferredGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.secondaryGenres = (secondaryGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.hasAnsweringService = HasAnsweringService;
@@ -525,7 +567,52 @@ public sealed class SongSaveData {
 	};
 }
 
+/// <summary>Plain lists allow the console's readonly runtime collections to be reconstructed on load.
+/// The selected takes are restored directly, without spending cash or drawing new randomness.</summary>
+public sealed class PendingSessionSaveData {
+	public string ArtistId { get; set; }
+	public PlayerDesk.StudioTier Tier { get; set; }
+	public int Hours { get; set; }
+	public float Cost { get; set; }
+	public GameDate Date { get; set; }
+	public List<SessionCutSaveData> Cuts { get; set; } = new();
+
+	public static PendingSessionSaveData From(PlayerDesk.PendingSession session) => session == null ? null : new() {
+		ArtistId = session.ArtistId, Tier = session.Tier, Hours = session.Hours, Cost = session.Cost, Date = session.Date,
+		Cuts = session.Cuts.Select(cut => new SessionCutSaveData {
+			Choice = cut.Choice, KeptTake = cut.KeptTake,
+			Takes = cut.Takes.Select(t => new PlayerDesk.SessionTake { Number = t.Number, Hook = t.Hook, Production = t.Production }).ToList()
+		}).ToList()
+	};
+
+	public PlayerDesk.PendingSession ToSession(IReadOnlyList<PlayerDesk.Song> songbook) {
+		var session = new PlayerDesk.PendingSession { ArtistId = ArtistId, Tier = Tier, Hours = Hours, Cost = Cost, Date = Date };
+		foreach (var saved in Cuts ?? new()) {
+			if (saved?.Choice == null || saved.Takes == null || saved.Takes.Count == 0) continue;
+			var choice = saved.Choice;
+			// Printing marks the actual songbook object recorded, rather than a deserialized duplicate.
+			if (choice.WrittenSong != null) {
+				var linked = songbook.FirstOrDefault(s => s.SongId == choice.WrittenSong.SongId);
+				if (linked == null) continue;
+				choice.WrittenSong = linked;
+			}
+			var cut = new PlayerDesk.SessionCut { Choice = choice, KeptTake = Mathf.Clamp(saved.KeptTake, 0, saved.Takes.Count - 1) };
+			cut.Takes.AddRange(saved.Takes);
+			session.Cuts.Add(cut);
+		}
+		return session.Cuts.Count == 0 ? null : session;
+	}
+}
+
+public sealed class SessionCutSaveData {
+	public PlayerDesk.MaterialChoice Choice { get; set; }
+	public List<PlayerDesk.SessionTake> Takes { get; set; } = new();
+	public int KeptTake { get; set; }
+}
+
 public sealed class RepertoireSaveData {
+	public SongContentContext ContentContext { get; set; }
+	public string ReferenceMasterId { get; set; }
 	public string Title { get; set; }
 	public string SourceTag { get; set; }
 	public bool IsOriginal { get; set; }
@@ -538,6 +625,8 @@ public sealed class RepertoireSaveData {
 	public string RecordedId { get; set; }
 
 	public static RepertoireSaveData From(PlayerDesk.RepertoireItem r) => new() {
+		ContentContext = r.ContentContext,
+		ReferenceMasterId = r.ReferenceMasterId,
 		Title = r.Title, SourceTag = r.SourceTag, IsOriginal = r.IsOriginal, SongId = r.SongId,
 		IsCommission = r.IsCommission,
 		Genre = (int)r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
@@ -545,6 +634,8 @@ public sealed class RepertoireSaveData {
 	};
 
 	public PlayerDesk.RepertoireItem ToItem() => new() {
+		ContentContext = ContentContext,
+		ReferenceMasterId = ReferenceMasterId,
 		Title = Title, SourceTag = SourceTag, IsOriginal = IsOriginal, SongId = SongId,
 		IsCommission = IsCommission,
 		Genre = (Genre)Genre, ReadHook = ReadHook, ReadQuality = ReadQuality,
@@ -554,6 +645,7 @@ public sealed class RepertoireSaveData {
 
 /// <summary>A cover an act is working up but doesn't have yet (see <see cref="PlayerDesk.CoverRehearsal"/>).</summary>
 public sealed class CoverRehearsalSaveData {
+	public string ReferenceMasterId { get; set; }
 	public string ArtistId { get; set; }
 	public string SongId { get; set; }
 	public string Title { get; set; }
@@ -570,6 +662,7 @@ public sealed class CoverRehearsalSaveData {
 	public bool IsCommission { get; set; }
 
 	public static CoverRehearsalSaveData From(PlayerDesk.CoverRehearsal r) => new() {
+		ReferenceMasterId = r.ReferenceMasterId,
 		ArtistId = r.ArtistId, SongId = r.SongId, Title = r.Title, SourceTag = r.SourceTag, Genre = (int)r.Genre,
 		ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
 		StartedYear = r.Started.year, StartedMonth = r.Started.month, StartedDay = r.Started.day,
@@ -578,6 +671,7 @@ public sealed class CoverRehearsalSaveData {
 	};
 
 	public PlayerDesk.CoverRehearsal ToRehearsal() => new() {
+		ReferenceMasterId = ReferenceMasterId,
 		ArtistId = ArtistId, SongId = SongId, Title = Title, SourceTag = SourceTag, Genre = (Genre)Genre,
 		ReadHook = ReadHook, ReadQuality = ReadQuality,
 		Started = new GameDate(StartedYear, StartedMonth, StartedDay),
@@ -652,6 +746,8 @@ public sealed class RecordSaveData {
 	public int Day { get; set; }
 	// Composition / publishing identity.
 	public string songId { get; set; }
+	public string masterId { get; set; }
+	public string bSideMasterId { get; set; }
 	public int songSource { get; set; }
 	public bool isCover { get; set; }
 	public string originalRecordId { get; set; }
@@ -693,7 +789,7 @@ public sealed class RecordSaveData {
 		hookStrength = r.hookStrength, productionQuality = r.productionQuality, originality = r.originality,
 		danceability = r.danceability, controversy = r.controversy,
 		Year = r.releaseDate.year, Month = r.releaseDate.month, Day = r.releaseDate.day,
-		songId = r.songId, songSource = (int)r.songSource, isCover = r.isCover,
+		songId = r.songId, masterId = r.masterId, bSideMasterId = r.bSideMasterId, songSource = (int)r.songSource, isCover = r.isCover,
 		originalRecordId = r.originalRecordId, originalArtistId = r.originalArtistId, publisherId = r.publisherId,
 		publishingControllerLabelId = r.publishingControllerLabelId, publishingControllerArtistId = r.publishingControllerArtistId,
 		publishingControl = (int)r.publishingControl,
@@ -722,7 +818,7 @@ public sealed class RecordSaveData {
 		hookStrength = hookStrength, productionQuality = productionQuality, originality = originality,
 		danceability = danceability, controversy = controversy,
 		releaseDate = new GameDate(Year, Month, Day),
-		songId = songId, songSource = (SongMaterialSource)songSource, isCover = isCover,
+		songId = songId, masterId = masterId, bSideMasterId = bSideMasterId, songSource = (SongMaterialSource)songSource, isCover = isCover,
 		originalRecordId = originalRecordId, originalArtistId = originalArtistId, publisherId = publisherId,
 		publishingControllerLabelId = publishingControllerLabelId, publishingControllerArtistId = publishingControllerArtistId,
 		publishingControl = (PublishingControlType)publishingControl,
@@ -955,6 +1051,15 @@ public sealed class PressOrderSaveData {
 	public int OrderedYear { get; set; }
 	public int OrderedMonth { get; set; }
 	public int OrderedDay { get; set; }
+	public int MailedYear { get; set; }
+	public int MailedMonth { get; set; }
+	public int MailedDay { get; set; }
+	public int PlatingYear { get; set; }
+	public int PlatingMonth { get; set; }
+	public int PlatingDay { get; set; }
+	public int QueueYear { get; set; }
+	public int QueueMonth { get; set; }
+	public int QueueDay { get; set; }
 	public int ArrivesYear { get; set; }
 	public int ArrivesMonth { get; set; }
 	public int ArrivesDay { get; set; }
@@ -974,6 +1079,10 @@ public sealed class ConsignmentLotSaveData {
 	public int WindowCardExpiresWeek { get; set; }
 	// Dealer-margin-and-flip directive §4, R1: this lot has gone dead and the stop wants it back.
 	public bool ReturnRequested { get; set; }
+	// The sub-copy remainder of the lot's daily sell-through (PlayerDesk.ConsignmentLot.SellThroughCarry).
+	// Under a copy by definition, but dropping it on every save/load would hand a reloading player a small
+	// permanent refund of demand on every lot he holds.
+	public float SellThroughCarry { get; set; }
 }
 
 /// <summary>Flat save record for one live <see cref="PlayerDesk.OneStopCartonSale"/> (directive §4, R2).</summary>

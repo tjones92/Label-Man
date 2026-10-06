@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-03",
+  "files": [
+    {
+      "path": "SimTools/PolarSongReport.md",
+      "sha256": "D809A3807C47FD924426E1E50C4C80E8C90F869704FF61ED001D9895598C89C6"
+    },
+    {
+      "path": "SimTools/PolarSongTables.md",
+      "sha256": "0D3C3DBE9BD454D6A096473C4921C96F317DC86F7DD4788E7CC71139FF6E114F"
+    },
+    {
+      "path": "SimTools/PolarSongFinalValidation.json",
+      "sha256": "AE27891142B4585D58AB229C0123BEB0CF16FC9A9986F14A230977C8AE74325A"
+    },
+    {
+      "path": "SimTools/PolarSongFinalHashes.json",
+      "sha256": "20E1CB52E677868A861331B65508516AF758C9E5F8EA0E5B74D6AAB818788482"
+    }
+  ]
+}

@@ -429,6 +429,34 @@ public sealed partial class StationNetwork {
 		_ => 0.5f
 	};
 
+	/// <summary>Which real city a station sits in. region.majorCities is unset on every live region
+	/// (SimTools/DistanceSubstratePhase0MappingReport.md), so the old fallback to region.regionName
+	/// produced a cityName DistanceModel.GetCityByName could never resolve -- every station stop
+	/// projection and every player-reachability check against a station silently failed
+	/// (PlayerDesk.cs EnsureStops, PlayerDesk.RolodexVerbs.cs OfferToBringIt). Spread stations across
+	/// the region's real registered cities (weighted toward the bigger markets by distributionTier)
+	/// rather than collapsing every station in a region into its single hub -- Detroit/Cleveland/
+	/// Cincinnati are real cities in "greatlakes" too, not just Chicago. Deterministic on
+	/// indexInRegion, NOT the shared rng: this field feeds no AI chart/economy math, and consuming
+	/// the live rng stream here would shift every draw after it (wattage, payola, clearChannel) for
+	/// no in-fiction reason, breaking the AI-inertness byte comparison the promo directive requires.</summary>
+	private static string PickStationCityName(MarketRegion region, int indexInRegion) {
+		if (region.majorCities is { Length: > 0 } majors) return majors[indexInRegion % majors.Length];
+
+		List<MarketCity> citiesInRegion = DistanceModel.GetCities()
+			.Where(c => c.parentRegionId == region.regionId)
+			.OrderBy(c => c.cityId, StringComparer.Ordinal)
+			.ToList();
+		if (citiesInRegion.Count == 0) return DistanceModel.GetHubCityForRegion(region.regionId)?.name ?? region.regionName;
+
+		var weighted = new List<MarketCity>();
+		foreach (MarketCity city in citiesInRegion) {
+			int weight = Mathf.Max(1, 5 - city.distributionTier); // tier 1 (hub) carries the most stations
+			for (int i = 0; i < weight; i++) weighted.Add(city);
+		}
+		return weighted[indexInRegion % weighted.Count].name;
+	}
+
 	private RadioStation CreateStation(MarketRegion region, StationFormat format, bool flagship, bool west, int indexInRegion) {
 		var (high, mid, light) = SlotsForFormat(format);
 		bool clearChannel = rng.Randf() < (flagship ? 0.40f : 0.08f);
@@ -438,7 +466,7 @@ public sealed partial class StationNetwork {
 		return new RadioStation {
 			stationId = $"{region.regionId}-stn-{indexInRegion:D2}",
 			callsign = GenerateCallsign(west),
-			cityName = region.majorCities is { Length: > 0 } ? region.majorCities[0] : region.regionName,
+			cityName = PickStationCityName(region, indexInRegion),
 			regionId = region.regionId,
 			latinLeaning = format == StationFormat.Top40 && region.regionType == RegionType.Western
 				&& RegionalLatinShare(region) > 0.05f,

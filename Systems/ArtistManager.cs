@@ -331,6 +331,8 @@ public sealed class LaborMarketWeeklySnapshot {
 		};
 		
 		GenerateMembers(artist, type, primaryGenre, year);
+		ConfigureEasyListeningBandleader(artist,year);
+		ConfigureJazzInstrumentalist(artist);
 		artist.stageName = type is ArtistType.SoloMale or ArtistType.SoloFemale
 			? artist.members[0].FullName
 			: GenerateStageName(type, primaryGenre, year);
@@ -353,6 +355,35 @@ public sealed class LaborMarketWeeklySnapshot {
 		ArtistEvolutionService.Initialize(artist, year);
 		artistRegistry[id] = artist;
 		return artist;
+	}
+	internal static void ConfigureEasyListeningBandleader(SimulatedArtist artist,int year) {
+		if(artist.primaryGenre!=Genre.EasyListening)return;
+		var mix=PolarRepertoireTable.Current.LiveSetMixes.GetValueOrDefault(nameof(Genre.EasyListening))?.FirstOrDefault(m=>year>=m.FromYear&&year<=m.ToYear);
+		if(mix==null||RepertoireTaxonomy.Unit($"{SimulationSeedBootstrap.RequestedSeed}|easy-instrumental-role|{artist.artistId}")>=mix.InstrumentalActShare)return;
+		// Reuse generated performers and traits. This keyed role choice consumes no population RNG.
+		artist.instrumentalPerformance=true;
+		var roles=new[]{MusicianRole.Piano,MusicianRole.Bass,MusicianRole.Drums,MusicianRole.Saxophone,MusicianRole.Trumpet,MusicianRole.Violin};
+		for(int i=0;i<artist.members.Count;i++) {
+			var member=artist.members[i];member.primaryRole=roles[i%roles.Length];member.isLeadVocalist=false;member.isBandLeader=i==0;
+			if(i==0)member.isPrimaryWriter=true;
+		}
+	}
+	// Every Jazz lineup was generated around a lead vocalist, so a working instrumental combo
+	// could not exist. Keyed like the Easy bandleader: consumes no population RNG. Vocal groups
+	// stay vocal; a leader-named solo or duo act is often an instrumentalist.
+	internal static bool AuditJazzInstrumentalists=true; // Fixed-world comparator only; never persisted.
+	internal static void ConfigureJazzInstrumentalist(SimulatedArtist artist) {
+		if(!AuditJazzInstrumentalists||artist.primaryGenre!=Genre.Jazz||artist.type==ArtistType.VocalGroup||artist.members.Count==0)return;
+		var t=PolarRepertoireTable.Current;
+		float share=artist.type==ArtistType.Band?t.N("jazzInstrumentalBandShare"):t.N("jazzInstrumentalLeaderShare");
+		if(RepertoireTaxonomy.Unit($"{SimulationSeedBootstrap.RequestedSeed}|jazz-instrumental-role|{artist.artistId}")>=share)return;
+		artist.instrumentalPerformance=true;
+		var leads=new[]{MusicianRole.Saxophone,MusicianRole.Trumpet,MusicianRole.Piano};
+		var lead=leads[(int)(RepertoireTaxonomy.Unit($"{SimulationSeedBootstrap.RequestedSeed}|jazz-lead-instrument|{artist.artistId}")*leads.Length)%leads.Length];
+		foreach(var member in artist.members) {
+			if(member.primaryRole is MusicianRole.LeadVocals or MusicianRole.BackingVocals)member.primaryRole=lead;
+			member.isLeadVocalist=false;
+		}
 	}
 	
 	/// <summary>

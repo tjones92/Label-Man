@@ -471,6 +471,7 @@ public static class ChartSimulator {
 		// === 4. DEMAND CURVE ===
 		float demandCurve = Mathf.Pow(quality, QUALITY_EXPONENT);
 		float conversionRate = BASE_PURCHASE_RATE * demandCurve * exhaustionFactor;
+		if (PolarSongBehavior.UsePolarFitSelection) conversionRate *= PolarSongBehavior.MomentMultiplier(record.baseRecord);
 		// The high-volume label families dominate every measured sales window.
 		// Keep indie-family conversion intact instead of applying another blanket
 		// purchase-rate reduction that erases their narrow charting margin.

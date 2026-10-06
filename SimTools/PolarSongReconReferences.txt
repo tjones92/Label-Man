@@ -1,0 +1,128 @@
+SimTools/ChartAuditRunner.cs:2318:		Musician lead = artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive);
+SimTools/ChartAuditRunner.cs:3754:				F(data.breakoutVelocityInput), F(data.breakoutAudienceInput), F(data.breakoutMediaInput), F(data.breakoutGenreFitInput),
+UI\PlayerDeskPanel.cs:636:		string qualityRead = prospect.ReadQuality >= 0.72f ? "strong prospects"
+UI\PlayerDeskPanel.cs:637:			: prospect.ReadQuality >= 0.50f ? "promising, with questions"
+UI\PlayerDeskPanel.cs:638:			: prospect.ReadQuality >= 0.30f ? "rough but worth another look" : "a long shot";
+UI\PlayerDeskPanel.cs:677:			$"    ♪ \"{item.Title}\" ({item.SourceTag}) — {DescribeRead(item.ReadHook, prospect.ReadConfidence)}");
+UI\PlayerDeskPanel.cs:1029:			else SongLine($"\"{item.Title}\"", tag, item.ReadHook);
+Systems\ArtistCriticalAcclaimService.cs:47:	public static float GetCraftScore(float originality, float productionQuality, float thematicCohesion,
+Systems\ArtistCriticalAcclaimService.cs:79:		float craft = GetCraftScore(baseRecord.originality, baseRecord.productionQuality,
+Data\ArtistEvolution.cs:14:	public float artisticAmbition;      // wants to make important records
+Data\ArtistEvolution.cs:17:	public float rootsAttachment;       // resistance to abandoning the original sound
+Systems\ArtistDiscographyService.cs:77:			evolution.artisticAmbition >= .65f) yield return ReputationTag.Innovator;
+Systems\ArtistDiscographyService.cs:81:			evolution.artisticAmbition < .45f) yield return ReputationTag.Derivative;
+Systems\ArtistEvolutionService.cs:97:		profile.artisticAmbition = Clamp01(.50f * writerCreativity + .35f * ambition + .15f * versatility);
+Systems\ArtistEvolutionService.cs:100:		profile.rootsAttachment = Clamp01(.40f * loyalty + .35f * (1f - versatility) + .25f * temperament);
+Systems\ArtistEvolutionPressureService.cs:109:		profile.rootsMode = profile.rootsAttachment >= .55f &&
+Systems\ArtistEvolutionPressureService.cs:150:		.50f * profile.artisticAmbition + .35f * profile.conceptualThinking +
+Systems\ArtistEvolutionPressureService.cs:176:			(.55f + .45f * profile.artisticAmbition), 0f, 1f);
+Systems\ArtistEvolutionPressureService.cs:253:		return Mathf.Clamp(.40f * profile.rootsAttachment + .22f * Mathf.Clamp(artist.reputation, 0f, 1f) +
+Systems\ArtistManager.cs:1151:		Musician lead = artist.GetLeadSinger() ?? artist.members.FirstOrDefault(member => member.isActive);
+Data\SimulatedArtist.cs:381:	public Musician GetLeadSinger() => members.FirstOrDefault(m => m.isActive && m.isLeadVocalist);
+Data\SongComposition.cs:109:public sealed class SongRecordingMemory {
+Data\SongComposition.cs:117:	public float definitiveVersionScore;
+Data\SongComposition.cs:156:	public List<SongRecordingMemory> recordings = new();
+Data\SongComposition.cs:158:	public float GetCraftScore() {
+Data\RegionalRecordData.cs:110:	public float breakoutGenreFitInput;
+Systems\ChartManager.cs:861:			float genreFit = GetGenreFit(record.baseRecord.primaryGenre, region);
+Systems\ChartManager.cs:1901:			data.breakoutGenreFitInput = genreFit;
+Systems\ChartManager.cs:2195:	private float GetGenreFit(Genre genre, MarketRegion region) {
+Systems\CompositionCatalogService.cs:527:	/// <see cref="SongRecordingMemory"/>, raises the song's national familiarity (saturating, by hit
+Systems\CompositionCatalogService.cs:545:		song.recordings.Add(new SongRecordingMemory {
+Systems\CompositionCatalogService.cs:553:			definitiveVersionScore = successScore
+Systems\CompositionCatalogService.cs:651:		var c = new CompositionSaveData {
+Systems\CompositionCatalogService.cs:676:		CompositionSaveData c = w.Composition;
+Systems\CompetitorManager.cs:3533:			float genreFit = GetGenreFit(record.primaryGenre, region);
+Systems\CompetitorManager.cs:3655:			float genreFit = GetGenreFit(record.primaryGenre, region);
+Systems\CompetitorManager.cs:3706:	private float GetGenreFit(Genre genre, MarketRegion region) {
+Systems\PublishingCaptureService.cs:40:		if (StableUnit(record.artistId, record.recordId, "pubcapture") >= captureRate) return;
+Systems\PublishingCaptureService.cs:48:	private static float StableUnit(string artistId, string recordId, string salt) {
+Systems\SaveGameService.cs:377:	public float ReadQuality { get; set; }
+Systems\SaveGameService.cs:574:	public float ReadHook { get; set; }
+Systems\SaveGameService.cs:575:	public float ReadQuality { get; set; }
+Systems\SaveGameService.cs:582:		Genre = (int)r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
+Systems\SaveGameService.cs:589:		Genre = (Genre)Genre, ReadHook = ReadHook, ReadQuality = ReadQuality,
+Systems\SaveGameService.cs:601:	public float ReadHook { get; set; }
+Systems\SaveGameService.cs:602:	public float ReadQuality { get; set; }
+Systems\SaveGameService.cs:613:		ReadHook = r.ReadHook, ReadQuality = r.ReadQuality,
+Systems\SaveGameService.cs:621:		ReadHook = ReadHook, ReadQuality = ReadQuality,
+Systems\PlayerDesk.cs:153:	public sealed class RepertoireItem {
+Systems\PlayerDesk.cs:166:		public float ReadHook;
+Systems\PlayerDesk.cs:167:		public float ReadQuality;
+Systems\PlayerDesk.cs:183:		public float ReadHook;
+Systems\PlayerDesk.cs:184:		public float ReadQuality;
+Systems\PlayerDesk.cs:196:		public float ReadQuality;
+Systems\PlayerDesk.cs:225:		public float ReadQuality;
+Systems\PlayerDesk.cs:262:	public sealed class MaterialChoice {
+Systems\PlayerDesk.cs:1274:				ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0),
+Systems\PlayerDesk.cs:1358:			ReadQuality = prospect.ReadQuality, ReadConfidence = prospect.ReadConfidence,
+Systems\PlayerDesk.cs:1389:		float readQuality = Mathf.Lerp(entry.ReadQuality, freshRead, Mathf.Clamp(staleDays / 120f, 0f, 0.55f));
+Systems\PlayerDesk.cs:1391:			Artist = entry.Artist, Venue = entry.Venue, ReadQuality = readQuality,
+Systems\PlayerDesk.cs:1428:				ReadHook = Read(hook), ReadQuality = Read(hook)
+Systems\PlayerDesk.cs:1451:				ReadHook = Read(song.commercialHook), ReadQuality = Read(song.GetCraftScore())
+Systems\PlayerDesk.cs:1479:		prospect.ReadQuality = Mathf.Clamp(Mathf.Lerp(prospect.ReadQuality, truth, 0.6f), 0f, 1f);
+Systems\PlayerDesk.cs:1484:			watched.ReadQuality = prospect.ReadQuality;
+Systems\PlayerDesk.cs:1864:			ReadHook = song.commercialHook, ReadQuality = song.GetCraftScore(),
+Systems\PlayerDesk.cs:1879:		var top = pool.OrderByDescending(s => s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f)
+Systems\PlayerDesk.cs:1914:			ReadHook = song.commercialHook, ReadQuality = song.GetCraftScore(),
+Systems\PlayerDesk.cs:1937:				Genre = r.Genre, ReadHook = r.ReadHook, ReadQuality = r.ReadQuality
+Systems\PlayerDesk.cs:2158:					? SongMaterialSelectionService.BuildCoverForSong(artist, record, song, record.primaryGenre, year)
+Systems\PlayerDesk.cs:4126:	private const float FlipGenreFitWeight = 0.10f;    // w4: does the flip suit the panel better?
+Systems\PlayerDesk.cs:4202:				+ FlipReachWeight * reachTerm + FlipGenreFitWeight * genreFitDelta + workedFlipBoost;
+Systems\PlayerDesk.cs:4869:				ReadQuality = entry.ReadQuality, ReadConfidence = entry.ReadConfidence,
+Systems\PlayerDesk.cs:5111:				ReadQuality = saved.ReadQuality, ReadConfidence = saved.ReadConfidence,
+Systems\PlayerDesk.ContractNegotiation.cs:65:		float ambition = artist?.evolution?.artisticAmbition ?? 0.5f;
+Systems\ScoutingPerception.cs:37:		float unit = StableUnit(label.labelId, artist.artistId, discoveryWindow);   // [0,1)
+Systems\ScoutingPerception.cs:63:	private static float StableUnit(string labelId, string artistId, int window) {
+Systems\SongMaterialApplicationService.cs:21:			material.FamiliarityAtRelease, material.ArrangementOriginality, material.ProfessionalPolish);
+Systems\SongMaterialApplicationService.cs:56:				Mathf.Clamp(material.ArrangementOriginality * 0.70f + creativity * 0.15f, 0f, 1f),
+Systems\SongMaterialApplicationService.cs:58:				Mathf.Clamp(material.ArrangementOriginality * 0.80f + creativity * 0.15f, 0f, 1f),
+Systems\SongMaterialApplicationService.cs:94:		track.arrangementOriginality = material.ArrangementOriginality;
+Systems\SongMaterialSelectionService.cs:57:	public static SelectedSongMaterial BuildCoverForSong(
+Systems\SongMaterialSelectionService.cs:62:		float artistFit = InterpretationFit(artist, song, genre);
+Systems\SongMaterialSelectionService.cs:76:			ArrangementOriginality = ArrangementOriginality(artist, record, year, "playercover"),
+Systems\SongMaterialSelectionService.cs:77:			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.6f, 0f, 1f)
+Systems\SongMaterialSelectionService.cs:98:			FamiliarityAtRelease = 0f, ArrangementOriginality = Mathf.Clamp(song.originality * 0.65f, 0f, 1f),
+Systems\SongMaterialSelectionService.cs:99:			ProfessionalPolish = polish, ArtistIdentityFit = 0.30f
+Systems\SongMaterialSelectionService.cs:136:		float noise = (StableUnit(artist.artistId, record.recordId, year, "artwrite") - 0.5f) * 0.10f;
+Systems\SongMaterialSelectionService.cs:148:			FamiliarityAtRelease = 0f, ArrangementOriginality = originality, ProfessionalPolish = 0f,
+Systems\SongMaterialSelectionService.cs:149:			ArtistIdentityFit = Mathf.Clamp(0.45f + writerCraft * 0.40f + eraWeight * 0.15f, 0f, 1f)
+Systems\SongMaterialSelectionService.cs:162:		SongComposition song = SampleBest(CompositionCatalogService.GetProfessionalForGenre(genre),
+Systems\SongMaterialSelectionService.cs:179:			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist));
+Systems\SongMaterialSelectionService.cs:185:			FamiliarityAtRelease = 0f, ArrangementOriginality = Mathf.Clamp(song.originality * 0.65f, 0f, 1f),
+Systems\SongMaterialSelectionService.cs:186:			ProfessionalPolish = polish, ArtistIdentityFit = 0.30f
+Systems\SongMaterialSelectionService.cs:196:		SongComposition song = SampleBestAcross(artist, record, year, "std",
+Systems\SongMaterialSelectionService.cs:201:		float artistFit = InterpretationFit(artist, song, genre);
+Systems\SongMaterialSelectionService.cs:211:			ArrangementOriginality = ArrangementOriginality(artist, record, year, "stdarr"),
+Systems\SongMaterialSelectionService.cs:212:			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.6f, 0f, 1f)
+Systems\SongMaterialSelectionService.cs:222:		SongComposition song = SampleBestAcross(artist, record, year, "hit", HitPoolsFor(genre), applyFatigue: true);
+Systems\SongMaterialSelectionService.cs:226:		float artistFit = InterpretationFit(artist, song, genre);
+Systems\SongMaterialSelectionService.cs:233:			* (0.55f + 0.45f * q) * (1f - ExternalPenalty(artist));
+Systems\SongMaterialSelectionService.cs:242:			ArrangementOriginality = ArrangementOriginality(artist, record, year, "hitarr"),
+Systems\SongMaterialSelectionService.cs:243:			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.5f, 0f, 1f)
+Systems\SongMaterialSelectionService.cs:251:		SongComposition song = SampleBestAcross(artist, record, year, "trad",
+Systems\SongMaterialSelectionService.cs:255:		float artistFit = InterpretationFit(artist, song, genre);
+Systems\SongMaterialSelectionService.cs:266:			ArrangementOriginality = ArrangementOriginality(artist, record, year, "tradarr"),
+Systems\SongMaterialSelectionService.cs:267:			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.55f, 0f, 1f)
+Systems\SongMaterialSelectionService.cs:430:	private static float ExternalPenalty(SimulatedArtist artist) {
+Systems\SongMaterialSelectionService.cs:432:		return Mathf.Clamp(artist.evolution.artisticAmbition * 0.08f + artist.evolution.rootsAttachment * 0.04f, 0f, 0.4f);
+Systems\SongMaterialSelectionService.cs:438:	private static float CoverFatigueShadow(SongComposition song) {
+Systems\SongMaterialSelectionService.cs:443:			foreach (var rec in song.recordings) if (rec.definitiveVersionScore > bestDefinitive) bestDefinitive = rec.definitiveVersionScore;
+Systems\SongMaterialSelectionService.cs:448:	private static float GenreFit(SongComposition song, Genre genre) =>
+Systems\SongMaterialSelectionService.cs:451:	private static float InterpretationFit(SimulatedArtist artist, SongComposition song, Genre genre) =>
+Systems\SongMaterialSelectionService.cs:452:		Mathf.Clamp(artist.CalculateBaseQuality() * 0.55f + GenreFit(song, genre) * 0.30f + song.adaptability * 0.15f, 0f, 1f);
+Systems\SongMaterialSelectionService.cs:454:	private static float ArrangementOriginality(SimulatedArtist artist, Record record, int year, string salt) {
+Systems\SongMaterialSelectionService.cs:456:		float noise = (StableUnit(artist.artistId, record.recordId, year, salt) - 0.5f) * 0.2f;
+Systems\SongMaterialSelectionService.cs:511:	private static SongComposition SampleBestAcross(
+Systems\SongMaterialSelectionService.cs:522:			float u = StableUnit(artist.artistId, record.recordId, year, $"{salt}{i}");
+Systems\SongMaterialSelectionService.cs:526:			float score = s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f;
+Systems\SongMaterialSelectionService.cs:529:			if (applyFatigue) score *= CoverFatigueShadow(s);
+Systems\SongMaterialSelectionService.cs:546:	private static SongComposition SampleBest(
+Systems\SongMaterialSelectionService.cs:555:			float u = StableUnit(artist.artistId, record.recordId, year, $"{salt}{i}");
+Systems\SongMaterialSelectionService.cs:559:			float score = s.GetCraftScore() + s.GetFamiliarityForYear(year) * 0.2f;
+Systems\SongMaterialSelectionService.cs:573:		float roll = StableUnit(artist.artistId, record.recordId, year, "pick") * total;
+Systems\SongMaterialSelectionService.cs:584:	private static float StableUnit(string artistId, string recordId, int year, string salt) {
+Systems\SongMaterialSelectionService.cs:610:	public float ArrangementOriginality;
+Systems\SongMaterialSelectionService.cs:612:	public float ArtistIdentityFit;
+Systems\WorldSaveData.cs:91:	public CompositionSaveData Composition { get; set; }
+Systems\WorldSaveData.cs:100:public sealed class CompositionSaveData {

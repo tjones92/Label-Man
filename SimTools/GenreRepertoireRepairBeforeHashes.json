@@ -1,0 +1,42 @@
+[
+  {
+    "sha256": "8F55294D3C6FEC517CBE4C049553840EF60C768E8C71C5C6505B80DFF168C5D6",
+    "path": "Systems/LiveRepertoire.cs"
+  },
+  {
+    "sha256": "94100697A434199F38C7E57595104ADD9FB3E592FF1EFE10FB5E6F8BF8736BAC",
+    "path": "Systems/SongMaterialSelectionService.cs"
+  },
+  {
+    "sha256": "18A4E1792FEA53DD4143A4408E11D27C644599EEACC168433AC747E92E15D6D6",
+    "path": "Systems/RepertoireProvenance.cs"
+  },
+  {
+    "sha256": "8ABD13121A809B187833122DC3B7E5D16CAA8E7680A7830E5A23C674188B5AB7",
+    "path": "Systems/PolarRepertoireTable.cs"
+  },
+  {
+    "sha256": "7E4B2637EC074967575C1A0A1DD7E02107192459D42F1B85EAC3D53CB068D799",
+    "path": "Systems/CompositionCatalogService.cs"
+  },
+  {
+    "sha256": "85C779FC383D821BA35E6CB57BC22626DAF428AB6406D68414EC5C5D6E26B9FD",
+    "path": "Systems/PlayerDesk.cs"
+  },
+  {
+    "sha256": "BE484E78EDE3140A1E7AB720E3371E37047086FC789DEC00CDE501211A0C37B4",
+    "path": "Data/PolarRepertoireTable.json"
+  },
+  {
+    "sha256": "B7D104CC108D388E23C126A1293EC5C0A9B3609B6BFAAE32C50792BA23470275",
+    "path": "SimTools/ChartAuditRunner.GenreFollowUp.cs"
+  },
+  {
+    "sha256": "DF97AB46DE429306B396A2A00FF3EEE8D9FB52A72DCD28E202EA38104F075CA8",
+    "path": "SimTools/ChartAuditRunner.PolarRepertoire.cs"
+  },
+  {
+    "sha256": "1E1251206A9C2A8A5813CCDB6656C50D9E9702D1F8197EA73B67BE8417305B1C",
+    "path": "SimTools/SaveLoadRoundTripRunner.cs"
+  }
+]

@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import assert from 'node:assert/strict';
+const read=p=>JSON.parse(fs.readFileSync(p,'utf8').replace(/^\uFEFF/,''));
+const sha=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex').toUpperCase();
+const h=read('SimTools/PolarGospelDirective3Handoff.json'),r=read('SimTools/PolarGospelDirective3Checkpoint.json');
+for(const f of [...r.files,...h.sources,...h.artifacts])assert.equal(sha(f.path),f.sha256,f.path);
+assert.equal(h.registeredCommit,r.commit);assert.equal(h.checks.holdOutUsed,false);
+const v=read('SimTools/PolarGospelRepairDirective3Validation.json'),t=read('SimTools/PolarGospelDirective3Trajectories.json'),a=read('SimTools/PolarGospelDirective3AReplay.json');
+assert.equal(v.frames.length,4);assert(v.frames.every(f=>f.worldUnchanged&&f.retainedSelectionLinesByteExact&&f.actorPoolsExact));
+for(const run of [...t.completed,...a.completed])assert.equal(run.weeks,91);
+const report=fs.readFileSync('SimTools/PolarGospelRepairDirective3Report.md','utf8');assert(!/undefined|NaN/.test(report));
+const html=fs.readFileSync('SimTools/PolarShapeSampleSheet.html','utf8');assert.equal((html.match(/class="song"/g)??[]).length,80);assert.equal((html.match(/<svg /g)??[]).length,160);assert(!/<script|<link|<img|https?:/i.test(html));
+assert(report.includes('No Gospel songs were added'));assert(report.includes('No hold-out run'));
+console.log('DIRECTIVE3_HANDOFF_PASS hashes=exact frames=4 trajectories=91x2 replay=91x2 sheet=80x2 noHoldOut=true');

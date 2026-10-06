@@ -1,0 +1,16 @@
+{
+  "package": "H",
+  "status": "implemented-verified",
+  "sourceHashes": {
+    "Systems/CompositionShapeVariation.cs": "3B7F64AF967DCDA598F7D9D0DEAE99B96C53D1C1FB8C2A717B29129AE88E2B7D",
+    "Systems/SongProfileDeriver.cs": "CEE3AF0EA0F80093E6DF1E97E60E9E4F281C6C1ABDD4F539B736D94CB444C97A",
+    "Systems/WorldSaveData.cs": "5FCD7338AABC28B28DCDDE471CD41C749021492B7CFFA973ABD57E85F0903031",
+    "Systems/PolarSongMetadataService.cs": "0CD73A9B41B313F9FB56AE45D0EA21B541F2EB9BC6113401FDDDDB9630A2327F",
+    "Systems/SimulationSeedBootstrap.cs": "23693B83431E857FC9DF4DA7DC99969187BD8E9BF820FFEDB529A5B22A1E26FE"
+  },
+  "developmentSeeds": [
+    1001,
+    1002
+  ],
+  "holdOutReady": false
+}

@@ -2,13 +2,9 @@ using Godot;
 
 /// <summary>
 /// Applies a chosen <see cref="SelectedSongMaterial"/> to a Record (Publishing & Cover-Song Phase 1):
-/// stamps the song identity + credit snapshot, then blends the composition into the record's realized
-/// performance attributes. A professional song lifts hook toward its studio-ready value; a cover keeps
-/// the performance hook but takes the song's (lower) composition originality, offset by arrangement
-/// originality. NO RNG here -- the material already carries deterministic expected values.
-///
-/// Phase 1 changes chart-facing attributes (hook/originality/production) but NOT money: settlement
-/// still keys off SimulatedArtist.labelOwnsPublishing until Phase 3.
+/// stamps composition rights and master lineage, then realizes the performance without RNG.
+/// Enabled recordings blend the raw composition hook with performance, apply a gradual ceiling,
+/// and lose hook/production only through Capability. Disabled recordings retain the legacy blend.
 /// </summary>
 public static class SongMaterialApplicationService {
 	public static void Apply(Record record, SelectedSongMaterial material, AILabel label, SimulatedArtist artist) {
@@ -18,11 +14,20 @@ public static class SongMaterialApplicationService {
 		CompositionCatalogService.ApplyToRecord(
 			record, material.Song, material.Source, material.IsCover,
 			material.OriginalRecordId, material.OriginalArtistId,
-			material.FamiliarityAtRelease, material.ArrangementOriginality, material.ProfessionalPolish);
+			material.FamiliarityAtRelease, material.ArrangementOriginality, material.ProfessionalPolish,
+			PolarSongBehavior.UsePolarFitSelection ? material.PolarProposal : null);
 
 		// Phase 3b support: a label may capture publishing on commissioned professional material through
 		// its own arm (majors most). Deterministic, gated; only rewrites the record's publishing control.
 		PublishingCaptureService.MaybeCapture(record, material, label);
+		if (PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyRealization && material.PolarProposal != null) {
+			// Composition hook remains raw material, independent of performer capability.
+			float execution = PolarSongBehavior.ExecutionFactor(material.PolarProposal.fit.Capability);
+			record.hookStrength = Mathf.Clamp(PolarSongBehavior.RealizeHook(record.hookStrength, material.Song.commercialHook) * execution, 0, 1);
+			record.productionQuality = Mathf.Clamp(record.productionQuality * execution, 0, 1);
+			record.arrangementOriginality = material.PolarProposal.fit.Stretch;
+			return;
+		}
 
 		// The existing generated hook is the performance/recording variance; blend it toward the
 		// composition's expected hook by how much authority the source's song carries.
@@ -67,14 +72,14 @@ public static class SongMaterialApplicationService {
 	/// <summary>
 	/// Stamps a chosen material's song identity onto a non-single AlbumTrack (Publishing & Cover-Song
 	/// §15: give every album cut a composition origin, so a retired track keeps its song biography).
-	/// IDENTITY ONLY -- it deliberately does NOT blend the track's quality/hook/production/danceability.
-	/// Those already drive album pooledAppeal and lead-single (promo) selection; leaving them untouched
-	/// keeps the album economy byte-identical while adding the missing song origin. The performance
-	/// blend is the released single's job -- a promo lifted off this track re-selects its own material.
+	/// Disabled behavior stamps identity only. Enabled cuts use the same realization as singles;
+	/// their latent quality changes by the hook/production deltas used by single quality. Promotion
+	/// reuses this performance and must not apply the material or execution loss a second time.
 	/// </summary>
 	public static void ApplyIdentityToAlbumTrack(AlbumTrack track, SelectedSongMaterial material) {
 		if (track == null || material?.Song == null) return;
 		SongComposition song = material.Song;
+		CompositionCatalogService.AdmitUnpublished(song,song.originYear,material.PolarProposal?.plannedMasterId??track.masterId);
 		track.songId = song.songId;
 		track.songSource = material.Source;
 		track.isCover = material.IsCover;
@@ -92,5 +97,14 @@ public static class SongMaterialApplicationService {
 		track.songFamiliarityAtRelease = material.FamiliarityAtRelease;
 		track.standardDurability = song.standardDurability;
 		track.arrangementOriginality = material.ArrangementOriginality;
+		if (PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyRealization && material.PolarProposal != null) {
+			float execution = PolarSongBehavior.ExecutionFactor(material.PolarProposal.fit.Capability);
+			float priorHook = track.hookStrength, priorProduction = track.productionQuality;
+			track.hookStrength = Mathf.Clamp(PolarSongBehavior.RealizeHook(priorHook, song.commercialHook) * execution, 0, 1);
+			track.productionQuality = Mathf.Clamp(priorProduction * execution, 0, 1);
+			track.quality = PolarSongBehavior.AuditOriginalRealization ? track.quality * execution :
+				Mathf.Clamp(track.quality + PolarSongTable.Current.N("recordingQualityHookWeight") * (track.hookStrength - priorHook)
+					+ PolarSongTable.Current.N("recordingQualityProductionWeight") * (track.productionQuality - priorProduction), 0, 1);
+		}
 	}
 }

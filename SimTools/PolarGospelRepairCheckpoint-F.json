@@ -1,0 +1,12 @@
+{
+  "package": "F",
+  "status": "measured-review-required",
+  "sourceHashes": {
+    "SimTools/analyze-polar-directive2.mjs": "06801F79F79D09241625C9A2FF8A74097C9FA721E0CCBEB9E4C1ABF4B6CC5BE6"
+  },
+  "developmentSeeds": [
+    1001,
+    1002
+  ],
+  "holdOutReady": false
+}

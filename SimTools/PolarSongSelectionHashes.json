@@ -1,0 +1,23 @@
+{
+  "Systems/PolarSongBehavior.cs": "9f51a26e0eef3b0d0a0fc03128c343ad64528a4d15c62a3ce05352adb6c75c76",
+  "Data/PolarSongMetadata.cs": "bee88f4f74ce4935bccfa407a60fdec9b0d847c67d786cdbf05ee475b2b8b108",
+  "Data/PolarSongTable.json": "63898eb86ad1eb37ce210db0aea56586b49cf19381c2c3bb31d7976dee4f0fba",
+  "Systems/PolarSongMetadataService.cs": "c52b7cb1a0be02ad79a249c61712edb65f008b5c86bbeb95b3a33b8297ccdf44",
+  "Systems/CompositionCatalogService.cs": "67a6119b357c8733747ae2ac10d8a4e3ae443d2414d34c23ab3d66ac9bc4025a",
+  "Systems/SongMaterialApplicationService.cs": "fe077d394b925a7c154a00cd06d2146bb3c6cf1edfd589a1f100388560f49373",
+  "Systems/ArtisticMeritService.cs": "bc04d7aa68ec31ed6561e748f3563c06d2af6fbe082813d852f4078a8dc03ba8",
+  "Systems/ArtistCriticalAcclaimService.cs": "ff09a3936a4aa338835070e190b7d0a79fc67eb3d2b7b8c09fb28845bc98c3fd",
+  "Systems/ChartSimulator.cs": "2e48885288075621b9a3786c756c8345e5e2e4cfee142e4a8fd4dee274e5335a",
+  "Systems/ChartManager.cs": "31414bacf2e2d915e28a43e9b0e16866567bd6b69f01326873194b8d5598fce9",
+  "Systems/WorldSaveData.cs": "efd4b8c82582f732a69b7db76eb66b99f21ae963d9fca7261a85287aaad19318",
+  "Systems/SimulationSeedBootstrap.cs": "f04527f98880180f69f6ea6d19c718abeb18263ab83012690f5367da3cc1bd6b",
+  "Systems/SongMaterialSelectionService.cs": "086a0992e8495993c1ede67534204c371e44b8784cc2ae7246eed51a28fdf8a9",
+  "Systems/PlayerDesk.cs": "ef7ad36c2e3b69e593b43a48f3029f3a4258d7a6df3d6cc3cea8f7a2fef2753b",
+  "Systems/SaveGameService.cs": "7b3d10fa2af3037eca29a0e8aa8138dbd8c26deef6fa7f4673e690e03ecdb815",
+  "Systems/CompetitorManager.cs": "363890a5c92aff7441b389387c8f2b30becee3b29022e5d604048cbe6b55f3fb",
+  "SimTools/PolarSongBehaviorChecks.cs": "b492ff69856fe0e39f7d8211420314d9da921e9108e91b0aea244a9c0fee733b",
+  "SimTools/SaveLoadRoundTripRunner.cs": "888634adcef844995009fb29966f86f26bbb9484862b57878194e5bc25774489",
+  "Systems/PolarSongTable.cs": "120714684bbc2d99fd23679056fb3cf439abaed2c18e6df4d2e56afec1a86fe7",
+  "SimTools/analyze-polar-selection.mjs": "d76adbd084b5a99aa7283087f79034da5d38598d1208139e456e9129131b28d3",
+  "SimTools/PolarSongSelectionReport.md": "7d48f0448e29aea33dea4e596bfdf5b5dc039ac8d376f1f7de20758efd877f5e"
+}

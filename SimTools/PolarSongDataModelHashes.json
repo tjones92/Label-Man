@@ -1,0 +1,63 @@
+{
+  "checkpoint": "e1dcbae",
+  "branch": "codex/polar-song-data-model",
+  "date": "2026-10-02",
+  "files": [
+    {
+      "path": "Data/AlbumTrack.cs",
+      "sha256": "F16FA5A65002BBB06527E21BDEAF41F7A6F564D5F329F94293E5F05537BB2698"
+    },
+    {
+      "path": "Data/PolarSongMetadata.cs",
+      "sha256": "2E212C65357DEDF8760B0E631C4708D7647FE335CBAB67BAA0088D414C013381"
+    },
+    {
+      "path": "Data/Record.cs",
+      "sha256": "94A3D0F7122286799D2146CDE4B67DDA690B75D657A62AB7A55BD030BDB2934A"
+    },
+    {
+      "path": "Data/SongComposition.cs",
+      "sha256": "ACCD1B16C33E1A7F7F9782775C2A9FE7516BEDCE8CB3C66A4C50C1083E035EE0"
+    },
+    {
+      "path": "SimTools/analyze-polar-data-neutrality.mjs",
+      "sha256": "F530D59A6C58B9C9149512A00A84643E32387E2B5484C0E46EFB38B93DB80A11"
+    },
+    {
+      "path": "SimTools/PolarSongDataChecks.cs",
+      "sha256": "9B0FD672F97218F6978D7C5C9DF70FEAFDC899CEE1EE09B0B00850B32CF151A1"
+    },
+    {
+      "path": "SimTools/SaveLoadRoundTripRunner.cs",
+      "sha256": "6B35C28764275EB7A78C30E997382B5F4E5F2CD665ECE4D99B0894B1EAE8603B"
+    },
+    {
+      "path": "Systems/ChartManager.cs",
+      "sha256": "E486C4A0C3E88FBF7A317FD5470C5DAAD5B94E201D4865CD9FB546F021A120EC"
+    },
+    {
+      "path": "Systems/CompetitorManager.cs",
+      "sha256": "1DD4CC86E5EA9710BA5ABDF973A3895D4D9CF0F11759738F00108F4907189146"
+    },
+    {
+      "path": "Systems/CompositionCatalogService.cs",
+      "sha256": "4A41E6BC1CABF13E00853E2B1760B7C122D06F13F5C9EFC942C94BD5E1BAE27E"
+    },
+    {
+      "path": "Systems/PlayerDesk.cs",
+      "sha256": "E6DA67203B4A5987CC0E4E3651F79C8A34DBBB917CB63AF53540550AE1107E49"
+    },
+    {
+      "path": "Systems/PolarSongMetadataService.cs",
+      "sha256": "0CB62C38177874A422703E8068A8D76547EA0539808FDB8DB0D13E47C5E0557B"
+    },
+    {
+      "path": "Systems/SaveGameService.cs",
+      "sha256": "E043C5229A73647843D00C1BCB6DFD0959A5AEC1ADC6FDB65DA5738C34344584"
+    },
+    {
+      "path": "Systems/WorldSaveData.cs",
+      "sha256": "203C45DE19EA095DE9D705D41D72A52FA715F89663E26DD2405BE6D3F5985059"
+    }
+  ]
+}

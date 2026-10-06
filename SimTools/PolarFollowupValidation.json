@@ -1,0 +1,270 @@
+{
+  "date": "2026-10-03",
+  "scope": "Pre-decade checkpoint; two-week census only; retained ten-year baseline; no new decade run",
+  "neutrality": [
+    {
+      "seed": 1001,
+      "streams": 79,
+      "complete": true,
+      "byteIdentical": true,
+      "mismatches": []
+    },
+    {
+      "seed": 1002,
+      "streams": 79,
+      "complete": true,
+      "byteIdentical": true,
+      "mismatches": []
+    }
+  ],
+  "smoke": [
+    {
+      "seed": 1001,
+      "mode": "off",
+      "run": "polar-followup-checkpoint-off-1001",
+      "invocation": {
+        "seed": 1001,
+        "mode": "off",
+        "weeks": 2,
+        "run": "polar-followup-checkpoint-off-1001",
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1001",
+          "--run=polar-followup-checkpoint-off-1001",
+          "--weeks=2",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit",
+          "--disable-polar-fit-selection"
+        ],
+        "startedUtc": "2026-10-03T21:04:39.4360320Z",
+        "assemblySha256": "0651D965E3D0B3FB3876A33A97472246CC1C2F8E2912F51C50E8DDC5D92CC900",
+        "tableSha256": "880B00DA30EFCAD28FB48486CAD42D72E30022CAD751C2073D4E2F38874D42A2",
+        "perceptionTableSha256": "7A83C0CB28DA0B8720AC5E10C54D73E8E85C0CF580B1D2D91663B3AB389EE2AA"
+      },
+      "complete": true,
+      "masterAssignments": 1302,
+      "singles": 105,
+      "albumTracks": 1197,
+      "strongRefusals": 0,
+      "excludedAttempts": 0,
+      "recordingUnfilled": 0,
+      "liveUnfilled": 0,
+      "sets": 135,
+      "shortSets": 71,
+      "slots": 308,
+      "originals": 118,
+      "recentHits": 37,
+      "ordinaryCovers": 0,
+      "traditional": 28,
+      "standards": 125
+    },
+    {
+      "seed": 1001,
+      "mode": "on",
+      "run": "polar-followup-checkpoint-on-1001",
+      "invocation": {
+        "seed": 1001,
+        "mode": "on",
+        "weeks": 2,
+        "run": "polar-followup-checkpoint-on-1001",
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1001",
+          "--run=polar-followup-checkpoint-on-1001",
+          "--weeks=2",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit"
+        ],
+        "startedUtc": "2026-10-03T21:04:37.9914010Z",
+        "assemblySha256": "0651D965E3D0B3FB3876A33A97472246CC1C2F8E2912F51C50E8DDC5D92CC900",
+        "tableSha256": "880B00DA30EFCAD28FB48486CAD42D72E30022CAD751C2073D4E2F38874D42A2",
+        "perceptionTableSha256": "7A83C0CB28DA0B8720AC5E10C54D73E8E85C0CF580B1D2D91663B3AB389EE2AA"
+      },
+      "complete": true,
+      "masterAssignments": 1218,
+      "singles": 117,
+      "albumTracks": 1101,
+      "strongRefusals": 0,
+      "excludedAttempts": 0,
+      "recordingUnfilled": 0,
+      "liveUnfilled": 222,
+      "sets": 135,
+      "shortSets": 71,
+      "slots": 308,
+      "originals": 118,
+      "recentHits": 178,
+      "ordinaryCovers": 0,
+      "traditional": 1,
+      "standards": 11
+    },
+    {
+      "seed": 1002,
+      "mode": "off",
+      "run": "polar-followup-checkpoint-off-1002",
+      "invocation": {
+        "seed": 1002,
+        "mode": "off",
+        "weeks": 2,
+        "run": "polar-followup-checkpoint-off-1002",
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1002",
+          "--run=polar-followup-checkpoint-off-1002",
+          "--weeks=2",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit",
+          "--disable-polar-fit-selection"
+        ],
+        "startedUtc": "2026-10-03T21:04:38.8019129Z",
+        "assemblySha256": "0651D965E3D0B3FB3876A33A97472246CC1C2F8E2912F51C50E8DDC5D92CC900",
+        "tableSha256": "880B00DA30EFCAD28FB48486CAD42D72E30022CAD751C2073D4E2F38874D42A2",
+        "perceptionTableSha256": "7A83C0CB28DA0B8720AC5E10C54D73E8E85C0CF580B1D2D91663B3AB389EE2AA"
+      },
+      "complete": true,
+      "masterAssignments": 1308,
+      "singles": 102,
+      "albumTracks": 1206,
+      "strongRefusals": 0,
+      "excludedAttempts": 0,
+      "recordingUnfilled": 0,
+      "liveUnfilled": 0,
+      "sets": 167,
+      "shortSets": 100,
+      "slots": 354,
+      "originals": 131,
+      "recentHits": 57,
+      "ordinaryCovers": 0,
+      "traditional": 24,
+      "standards": 142
+    },
+    {
+      "seed": 1002,
+      "mode": "on",
+      "run": "polar-followup-checkpoint-on-1002",
+      "invocation": {
+        "seed": 1002,
+        "mode": "on",
+        "weeks": 2,
+        "run": "polar-followup-checkpoint-on-1002",
+        "arguments": [
+          "--headless",
+          "--path",
+          ".",
+          "SimTools/ChartAuditRunner.tscn",
+          "--",
+          "--seed=1002",
+          "--run=polar-followup-checkpoint-on-1002",
+          "--weeks=2",
+          "--enable-genre-market-v2",
+          "--enable-artist-population-lifecycle",
+          "--calibration",
+          "--polar-final-audit",
+          "--polar-followup-audit"
+        ],
+        "startedUtc": "2026-10-03T21:04:42.3236107Z",
+        "assemblySha256": "0651D965E3D0B3FB3876A33A97472246CC1C2F8E2912F51C50E8DDC5D92CC900",
+        "tableSha256": "880B00DA30EFCAD28FB48486CAD42D72E30022CAD751C2073D4E2F38874D42A2",
+        "perceptionTableSha256": "7A83C0CB28DA0B8720AC5E10C54D73E8E85C0CF580B1D2D91663B3AB389EE2AA"
+      },
+      "complete": true,
+      "masterAssignments": 1388,
+      "singles": 111,
+      "albumTracks": 1277,
+      "strongRefusals": 0,
+      "excludedAttempts": 0,
+      "recordingUnfilled": 0,
+      "liveUnfilled": 327,
+      "sets": 167,
+      "shortSets": 100,
+      "slots": 354,
+      "originals": 131,
+      "recentHits": 192,
+      "ordinaryCovers": 0,
+      "traditional": 9,
+      "standards": 22
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "polar-song-data-check",
+      "file": "SimLogs/polar-followup-checkpoint-polar-song-data-check.log",
+      "pass": true,
+      "lines": [
+        "POLAR_SONG_DATA_PASS ownership=ok legacy=ok saves=ok tags=ok"
+      ]
+    },
+    {
+      "name": "polar-song-fit-check",
+      "file": "SimLogs/polar-followup-checkpoint-polar-song-fit-check.log",
+      "pass": true,
+      "lines": [
+        "POLAR_FIXTURE F1 Beatles capability=1 identity=0.9732742 moment=0.5 deficit=0 worst=VocalPower stretch=0.22529411 referenceDistance=0.28101707 raw-reference mismatch; identity improves after pull",
+        "POLAR_FIXTURE F2 Respect capability=0.99506223 identity=0.92243195 moment=0.5 deficit=0.050000012 worst=Ensemble stretch=0.054117657 referenceDistance=0.10673219 archetype=HornDrivenSoulNumber outcome=0.023582285",
+        "POLAR_FIXTURE F3 garage capability=0.23313794 identity=0.293845 moment=0.5 deficit=0.75 worst=VocalNuance stretch=0.055000007 referenceDistance=0.61799014 Nobody in this band can sing this: unmet vocalNuance and ensemble",
+        "POLAR_FIXTURE F4 Tenderness capability=0.99802196 identity=0.95365286 moment=0.5 deficit=0.029999971 worst=VocalPower stretch=0.39 referenceDistance=0.4577438 archetype=DeepSoulPleader pace=dramatic-build mood=yearning",
+        "POLAR_SONG_FIT_PASS fixtures=F1,F2,F3,F4 purity=ok determinism=ok marketLag=ok adapter=ok"
+      ]
+    },
+    {
+      "name": "polar-song-behavior-check",
+      "file": "SimLogs/polar-followup-checkpoint-polar-song-behavior-check.log",
+      "pass": true,
+      "lines": [
+        "POLAR_SONG_BEHAVIOR_PASS selection=ok liveSet=ok lineage=ok execution=ok critic=ok moment=ok disabled=ok persistence=ok"
+      ]
+    },
+    {
+      "name": "polar-recording-realization-check",
+      "file": "SimLogs/polar-followup-checkpoint-polar-recording-realization-check.log",
+      "pass": true,
+      "lines": [
+        "POLAR_RECORDING_REALIZATION_PASS strongQuality=0.760000 failedQuality=0.580333 limitedHook=0.259500 unlimitedHook=0.270000 critic=0.640000 moment=1.050000"
+      ]
+    },
+    {
+      "name": "polar-rock-songbook-check",
+      "file": "SimLogs/polar-followup-checkpoint-polar-rock-songbook-check.log",
+      "pass": true,
+      "lines": [
+        "POLAR_ROCK_SONGBOOK_PASS prior=0.0111248465 live=41/1536 album=49/6144 albumsWithExceptions=27/512 deterministic=ok disabled=ok"
+      ]
+    },
+    {
+      "name": "polar-player-perception-check",
+      "file": "SimLogs/polar-followup-checkpoint-polar-player-perception-check.log",
+      "pass": true,
+      "lines": [
+        "POLAR_PLAYER_PERCEPTION_PASS reopen=ok evidence=ok staff=ok market=ok save=ok intervals=ok rng=ok purePreview=ok comparison=ok refusal=ok override=ok disabled=ok"
+      ]
+    },
+    {
+      "name": "polar-refusal-avoidance-check",
+      "file": "SimLogs/polar-followup-checkpoint-polar-refusal-avoidance-check.log",
+      "pass": true,
+      "lines": [
+        "POLAR_REFUSAL_AVOIDANCE_PASS sharedRule=ok allRefused=unfilled acceptedAlternative=ok auditCounts=ok rng=ok disabled=ok"
+      ]
+    }
+  ]
+}

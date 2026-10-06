@@ -64,7 +64,9 @@ public enum SongOriginKind {
 	ArtistOriginal,
 	ProfessionalOffice,
 	LabelStaff,
-	RecentHit
+	RecentHit,
+	ExternalMediaTheme,
+	ExternalMediaComposition
 }
 
 /// <summary>Professional publishing "scenes" -- rights-metadata only in this phase.</summary>
@@ -124,8 +126,34 @@ public sealed class SongRecordingMemory {
 /// </summary>
 [Serializable]
 public sealed class SongComposition {
+	// Composition subject; only explicit author/import evidence may establish it.
+	public SongContentContext contentContext = SongContentContext.Unknown;
+	public string contextAuthorshipEvidence;
+	public int shapeVariationSchemaVersion;
+	public float[] shapeVariation;
 	public string songId;
 	public string title;
+	// Additive v1 truth variation. Null in older saves preserves their existing truth.
+	public int repertoireSchemaVersion;
+	public float[] repertoireVariation;
+	public string repertoireSeedFamily;
+	public string externalMediaSourceRecordId;
+	public string originArtistId;
+	public ExternalMediaSourceType? externalMediaSourceType;
+	public int? establishedYear;
+	public int repertoireFirstReleaseYear;
+	public List<string> repertoireAdmissionRoutes = new();
+	// Directive N ownership split. Null is absent evidence, including valid zero-valued data.
+	public SongTaxonomy demoTaxonomy;
+	public SongMeter defaultMeter;
+	public SongForm defaultForm;
+	public float? wordDensity;
+	public string[] contentTagIds = Array.Empty<string>();
+	public float? plasticity;
+	public bool plasticityFrozen;
+	public string firstCommittedMasterId;
+	public string plasticitySourceMasterId;
+	public string plasticityProvenance;
 	public Genre primaryGenre;
 	public Genre secondaryGenre;
 	// Seasonal / holiday and other secondary tags, mirrored onto covering records' genreTagIds so
@@ -170,7 +198,7 @@ public sealed class SongComposition {
 	public float GetFamiliarityForYear(int year) {
 		int age = Mathf.Max(0, year - originYear);
 		// Standards decay slowly; fad songs decay quickly.
-		float retention = isStandard
+		float retention = (isTraditional || RepertoireProvenance.GameplayStandard(this,year))
 			? Mathf.Pow(0.992f, age)
 			: Mathf.Pow(0.955f, age);
 		return Mathf.Clamp(nationalFamiliarity * retention + standardDurability * 0.12f, 0f, 1f);
