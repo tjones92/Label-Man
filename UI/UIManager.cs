@@ -26,6 +26,9 @@ public partial class UIManager : Control
 	private SystemFont paperSerif;
 	private ScrollContainer paperScroll;
 	private bool paperQueued, uiOpenBeforePaper;
+	private PanelContainer announcement;
+	private Label announcementText;
+	private int announcementTicket;
 	private readonly List<string> queuedMorningDigests = new();
 
 	[ExportGroup("State")]
@@ -83,7 +86,10 @@ public partial class UIManager : Control
 		BuildDeskProps();
 		BuildMainHud();
 		BuildMorningPaper();
-		if (PlayerDesk.Instance != null) PlayerDesk.Instance.Changed += UpdateMainHud;
+		if (PlayerDesk.Instance != null) {
+			PlayerDesk.Instance.Changed += UpdateMainHud;
+			PlayerDesk.Instance.Announcement += ShowAnnouncement;
+		}
 		if (TimeManager.Instance != null) TimeManager.Instance.OnHourChanged += _ => UpdateMainHud();
 		UpdateMainHud();
 		// A new player should land on the founding card instead of having to guess that the office
@@ -118,6 +124,33 @@ public partial class UIManager : Control
 		recordJacket.GrowHorizontal = Control.GrowDirection.Begin;
 		recordJacket.Clicked += () => OpenOfficeAt("CATALOG");
 		AddChild(recordJacket);
+
+		// A banner for moments that deserve a beat of their own (the vinyl landing). Above the morning paper's
+		// shade, top-centre, click-through: it announces and gets out of the way.
+		announcement = new PanelContainer { Name = "Announcement", Visible = false, ZIndex = 40, MouseFilter = Control.MouseFilterEnum.Ignore };
+		announcement.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+		announcement.GrowHorizontal = Control.GrowDirection.Both;
+		announcement.OffsetTop = 210;   // clear of the record jacket in the top corner
+		announcement.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+			BgColor = new Color("f1e5c8"), BorderColor = new Color("b5541c"),
+			BorderWidthLeft = 3, BorderWidthRight = 3, BorderWidthTop = 3, BorderWidthBottom = 3,
+			CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4,
+			ContentMarginLeft = 24, ContentMarginRight = 24, ContentMarginTop = 12, ContentMarginBottom = 12,
+			ShadowColor = new Color(0, 0, 0, .35f), ShadowSize = 8
+		});
+		announcementText = new Label { MouseFilter = Control.MouseFilterEnum.Ignore };
+		announcementText.AddThemeFontSizeOverride("font_size", 22);
+		announcementText.AddThemeColorOverride("font_color", new Color("2b2115"));
+		announcement.AddChild(announcementText);
+		AddChild(announcement);
+	}
+
+	private void ShowAnnouncement(string text) {
+		if (announcement == null || string.IsNullOrWhiteSpace(text)) return;
+		announcementText.Text = text;
+		announcement.Show();
+		int ticket = ++announcementTicket;   // a newer banner must not be hidden by an older banner's timer
+		GetTree().CreateTimer(7.0).Timeout += () => { if (ticket == announcementTicket) announcement.Hide(); };
 	}
 
 	private void UpdateMainHud() {
@@ -343,7 +376,10 @@ public partial class UIManager : Control
 
 	public override void _ExitTree()
 	{
-		if (PlayerDesk.Instance != null) PlayerDesk.Instance.Changed -= UpdateMainHud;
+		if (PlayerDesk.Instance != null) {
+			PlayerDesk.Instance.Changed -= UpdateMainHud;
+			PlayerDesk.Instance.Announcement -= ShowAnnouncement;
+		}
 		if (TimeManager.Instance != null) {
 			TimeManager.Instance.OnDayStarted -= OnMorningStarted;
 			TimeManager.Instance.OnClockRestored -= OnClockRestored;

@@ -223,6 +223,8 @@ public partial class PlayerDesk : Node {
 		public ContractTalk Talk;
 		/// <summary>Set only when patience ran out at the table -- the act won't take a fresh approach until then.</summary>
 		public GameDate? CooldownUntil;
+		/// <summary>An easy act has already made its one counter; a second offer under the floor ends the talk.</summary>
+		public bool PushoverCountered;
 	}
 
 	/// <summary>A durable notebook entry for an unsigned act the label may want to approach later.</summary>
@@ -912,6 +914,9 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>Raised whenever anything the desk UI displays has changed.</summary>
 	public event Action Changed;
+	/// <summary>A moment worth stopping the player for (the vinyl landing), with the line to announce. The
+	/// desk scene shows it as a banner; it never carries state, so a missed one costs nothing.</summary>
+	public event Action<string> Announcement;
 
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
@@ -1168,6 +1173,14 @@ public partial class PlayerDesk : Node {
 	/// <summary>What the town's acts ask relative to the national going rate. An unrecorded town is the home office's.</summary>
 	private float AskScaleFor(string cityId) =>
 		CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label?.homeCityId : cityId).AskScale;
+
+	/// <summary>The range an unknown act in this room usually asks for, in the town the player is standing in:
+	/// the room's base band across the half-to-double talent spread. For the A&amp;R room picker, so the price
+	/// of a room is on the screen before the money is spent.</summary>
+	public (float Low, float High) TypicalAsk(ScoutingVenue venue) {
+		float band = VenueAdvanceBase(venue) * AskScaleFor(CurrentCityId);
+		return (RoundToContractFigure(band * 0.5f), RoundToContractFigure(band * 2f));
+	}
 
 	private static float VenueAdvanceAsk(SimulatedArtist artist, ScoutingVenue venue, float marketScale = 1f) {
 		float talent = 0.5f + (artist.CalculateBaseQuality() * 1.5f);          // 0.5x .. 2.0x
@@ -1750,17 +1763,29 @@ public partial class PlayerDesk : Node {
 			Mathf.Clamp(singlesObligation, 0, 30), labelOwnsPublishing, artistCreativeControl,
 			b.NegotiationDifficulty, b.Manager, b.ManagerName, b.DemandSummary);
 		prospect.Draft = sheet;
-		// An eager act may take the quick form near its ask. A substantial lowball turns the same form
-		// into a two-hour table round, where the act can counter or walk instead of silently signing.
-		bool lowAdvance = b.Advance > 0f && advance < b.Advance * 0.50f;
-		bool lowRoyalty = b.RoyaltyRate > 0f && sheet.RoyaltyRate < b.RoyaltyRate * 0.75f;
-		if (lowAdvance || lowRoyalty) {
-			prospect.Posture = NegotiationPosture.Firm;
-			ContractTalk talk = OpenNegotiation(prospect);
-			TableOffer(talk, advance, sheet.RoyaltyRate, sheet.TermYears, sheet.SinglesObligation,
-				sheet.LabelOwnsPublishing, sheet.ArtistCreativeControl, out message);
-			return talk.stage == ContractTalkStage.Done;
+		// An easy act signs near its ask, but not at any price: below a generous floor it makes one mild
+		// counter, and if the next offer is still under the floor it walks. No scene -- one round each.
+		if (!ClearsPushoverFloor(b, sheet, out PushoverShortfall shortfall)) {
+			if (!Require(NegotiationRoundHours, out message)) return false;
+			Spend(NegotiationRoundHours);
+			string name = prospect.Artist.stageName;
+			if (prospect.PushoverCountered || shortfall.FarBelow) {
+				prospect.PushoverCountered = false;
+				prospect.Draft = null;
+				GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+				prospect.CooldownUntil = today.AddDays(ForcedWalkCooldownDays);
+				Note($"{name} walked from the table. Give it time before you go back.");
+				message = $"{name}'s side laughs and picks up their gear -- not at those numbers. Try again after {prospect.CooldownUntil.Value.ToShortString()}.";
+			} else {
+				prospect.PushoverCountered = true;
+				prospect.Draft = PushoverCounter(prospect, sheet, shortfall);
+				message = PushoverCounterLine(name, prospect.Draft.Value, shortfall);
+				Note(message);
+			}
+			Changed?.Invoke();
+			return false;
 		}
+		prospect.PushoverCountered = false;
 		if (!Require(SignHours, out message)) return false;
 		if (!Label.CanAffordToSign(advance)) {
 			float reserve = Label.GetMonthlyOverhead() * 2f;
@@ -2496,7 +2521,12 @@ public partial class PlayerDesk : Node {
 			stock.TotalPressed += order.Quantity;
 			stock.TotalSpent += order.Cost;
 			string promoNote = promo > 0 ? $" ({promo:N0} promo)" : "";
-			Note($"The pressing plant delivered {order.Quantity:N0} of \"{TitleForRecord(order.RecordId)}\"{promoNote}.");
+			string title = TitleForRecord(order.RecordId);
+			// What the vinyl is waiting on, so the arrival ends with the next move rather than a bare fact.
+			PlannedRelease waiting = planned.FirstOrDefault(entry => entry.Master?.Record?.recordId == order.RecordId);
+			string next = waiting == null ? "" : waiting.Dated ? $" It ships {waiting.Date.ToHeadlineString()}." : " Set its release date.";
+			Note($"The pressing plant delivered {order.Quantity:N0} of \"{title}\"{promoNote} -- the vinyl is in the office.{next}");
+			Announcement?.Invoke($"THE VINYL IS IN  —  {order.Quantity:N0} of \"{title}\" at the office.{next}");
 		}
 	}
 
@@ -3970,6 +4000,15 @@ public partial class PlayerDesk : Node {
 			return Mathf.Max(1, TimeManager.Instance?.DaysBetween(today, pressing.Arrives) ?? 1);
 		PressStock stock = StockFor(single.Master.Record.recordId);
 		return stock?.TotalPressed > 0 && stock.Remaining + stock.PromoRemaining > 0 ? 1 : -1;
+	}
+
+	/// <summary>The date the form opens on: the day after the vinyl lands (so the first morning of stock is
+	/// in the office before the record ships), or tomorrow if the stock is already on the shelf. The
+	/// plant's own quote moves with its queue, so this is derived, never a fixed number of days.</summary>
+	public int SuggestedReleaseDays(PlannedRelease single) {
+		int earliest = EarliestReleaseDays(single);
+		if (earliest < 1) return earliest;
+		return PressingOrderFor(single.Master.Record.recordId) != null ? earliest + 1 : earliest;
 	}
 
 	/// <summary>Singles that have been assembled but not yet given a release date -- ready to press and date.</summary>

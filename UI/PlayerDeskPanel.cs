@@ -919,10 +919,23 @@ public partial class PlayerDeskPanel : Control {
 		[PlayerDesk.ScoutingVenue.IndustryMeets] = "the trade, better acts"
 	};
 
+	/// <summary>What the room is like to buy from -- the quality half of the price/quality line.</summary>
+	private static readonly Dictionary<PlayerDesk.ScoutingVenue, string> VenueCharacter = new() {
+		[PlayerDesk.ScoutingVenue.ClubsAndRoadhouses] = "The local scene: raw, unrepresented, and they take pocket money.",
+		[PlayerDesk.ScoutingVenue.TheatresAndSupperClubs] = "Working pros with a going rate; steadier, and they know it.",
+		[PlayerDesk.ScoutingVenue.HonkyTonks] = "Cheap and plentiful: a fifth and a steak dinner buys a signature.",
+		[PlayerDesk.ScoutingVenue.IndustryMeets] = "The priciest room: polished youth-pop product, usually with someone speaking for them."
+	};
+
+	private static string TypicalAskText(PlayerDesk.ScoutingVenue venue) {
+		(float low, float high) = PlayerDesk.Instance.TypicalAsk(venue);
+		return $"asks ${low:N0}–{high:N0}";
+	}
+
 	private static string VenueOptionLabel(PlayerDesk.ScoutingVenue venue) {
 		(int open, int close) = PlayerDesk.VenueHours(venue);
 		string name = Cap(PlayerDesk.VenueName(venue));
-		return $"{name}  ({VenueBlurb[venue]})  —  open {Hour12(open)}–{Hour12(close)}";
+		return $"{name}  ({VenueBlurb[venue]})  —  {TypicalAskText(venue)}  —  open {Hour12(open)}–{Hour12(close)}";
 	}
 
 	private void PageAandR() {
@@ -977,6 +990,7 @@ public partial class PlayerDeskPanel : Control {
 		scout.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.ScoutVenue(selectedVenue, out string message); Say(message, ok); return ok; });
 		venueRow.AddChild(scout);
 		content.AddChild(venueRow);
+		Body($"{VenueCharacter[selectedVenue]} Typical {TypicalAskText(selectedVenue)} — you have {Money(desk.Label.cashReserves)}.");
 
 		if (desk.Slate.Count == 0) Body("No acts on the pad. Go hear somebody, or bring a notebook entry back without another scouting trip.");
 		else {
@@ -1098,14 +1112,18 @@ public partial class PlayerDeskPanel : Control {
 		Heading($"CONTRACT — {prospect.Artist.stageName.ToUpperInvariant()}");
 		if (!string.IsNullOrEmpty(b.DemandSummary))
 			Body($"Their ask: {b.DemandSummary}");
-		Body("Your terms are shown below. This act may accept or walk when you put the offer forward. " +
-			$"The meeting costs {PlayerDesk.SignHours} hours; the advance is charged when they sign.");
+		Body(prospect.PushoverCountered
+			? "They've named their number. Put it forward again, or step back -- a second offer under it and they walk."
+			: "They'll sign near their ask, but not at any price: go too low and they counter once, then walk. " +
+				$"Signing takes {PlayerDesk.SignHours} hours and the advance is charged then; a refused offer costs {PlayerDesk.NegotiationRoundHours}.");
 
 		TermsForm(prefill, $"OFFER CONTRACT  ({PlayerDesk.SignHours}h)",
 			(advance, royalty, term, singles, labelPub, artistControl) => {
 				bool signed = PlayerDesk.Instance.OfferContract(prospect, advance, royalty, term, singles,
 					labelPub, artistControl, out string message);
-				if (signed) negotiating = null;
+				GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+				bool walked = !signed && prospect.CooldownUntil is GameDate until && today < until;
+				if (signed || walked) negotiating = null;
 				Say(message, signed);
 				Refresh();
 			},
@@ -1332,7 +1350,7 @@ public partial class PlayerDeskPanel : Control {
 
 			int songs = desk.RepertoireFor(artist.artistId).Count
 				+ desk.UnrecordedSongs.Count(s => s.ArtistId == artist.artistId);
-			string manager = artist.manager == ManagerArchetype.None ? "" : $"   •   managed by {artist.managerName ?? Words(artist.manager.ToString())}";
+			string manager = artist.manager == ManagerArchetype.None ? "" : $"   •   managed by {artist.managerName ?? "a manager"}";
 			var text = new Label {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
 				AutowrapMode = TextServer.AutowrapMode.WordSmart,
@@ -2620,7 +2638,7 @@ public partial class PlayerDeskPanel : Control {
 				daysRow.AddThemeConstantOverride("separation", 10);
 				daysRow.AddChild(FormLabel("Ship in (days)"));
 				int firstEarliest = desk.EarliestReleaseDays(undated[0]);
-				var daysInput = Spin(firstEarliest, 120, 1, Mathf.Max(firstEarliest, 21));
+				var daysInput = Spin(firstEarliest, 120, 1, desk.SuggestedReleaseDays(undated[0]));
 				daysRow.AddChild(daysInput);
 				daysRow.AddChild(FormLabel("Campaign ($)"));
 				// Promo mechanic directive §11: "default the field to $0." The awareness a player record
@@ -2636,13 +2654,15 @@ public partial class PlayerDeskPanel : Control {
 				void UpdateDatePreview() {
 					PlayerDesk.PlannedRelease selected = undated[Mathf.Clamp(singleDatePick.Selected, 0, undated.Count - 1)];
 					GameDate shipDate = (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate).AddDays((int)daysInput.Value);
-					datePreview.Text = $"Setting the date takes {PlayerDesk.ScheduleHours}h. \"{selected.Master.SongTitle}\" ships {shipDate.ToHeadlineString()}; " +
+					PlayerDesk.PressOrder inPlant = desk.PressingOrderFor(selected.Master.Record.recordId);
+					string vinyl = inPlant != null ? $"The vinyl lands {inPlant.Arrives.ToHeadlineString()}; it can't ship before. " : "";
+					datePreview.Text = $"{vinyl}Setting the date takes {PlayerDesk.ScheduleHours}h. \"{selected.Master.SongTitle}\" ships {shipDate.ToHeadlineString()}; " +
 						$"campaign ${budgetInput.Value:N0} is charged on release.";
 				}
 				singleDatePick.ItemSelected += index => {
-					int earliest = desk.EarliestReleaseDays(undated[Mathf.Clamp((int)index, 0, undated.Count - 1)]);
-					daysInput.MinValue = earliest;
-					daysInput.Value = Mathf.Max(daysInput.Value, earliest);
+					PlayerDesk.PlannedRelease picked = undated[Mathf.Clamp((int)index, 0, undated.Count - 1)];
+					daysInput.MinValue = desk.EarliestReleaseDays(picked);
+					daysInput.Value = desk.SuggestedReleaseDays(picked);
 					UpdateDatePreview();
 				};
 				daysInput.ValueChanged += _ => UpdateDatePreview();

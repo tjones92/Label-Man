@@ -52,6 +52,72 @@ public partial class PlayerDesk : Node {
 	}
 
 	// ========================================================================================
+	// THE PUSHOVER FLOOR -- easy to sign, not free to sign
+	// ========================================================================================
+
+	/// <summary>Where a one-click offer fell short of what an easy act will take. Flags say which terms
+	/// are under the floor; the floor itself rides along so the counter can name it.</summary>
+	public readonly struct PushoverShortfall {
+		public readonly bool Advance, Royalty, Term, Singles, FarBelow;
+		public readonly float MinAdvance, MinRoyalty;
+		public readonly int MaxTerm, MaxSingles;
+		public PushoverShortfall(bool advance, bool royalty, bool term, bool singles, bool farBelow,
+				float minAdvance, float minRoyalty, int maxTerm, int maxSingles) {
+			Advance = advance; Royalty = royalty; Term = term; Singles = singles; FarBelow = farBelow;
+			MinAdvance = minAdvance; MinRoyalty = minRoyalty; MaxTerm = maxTerm; MaxSingles = maxSingles;
+		}
+	}
+
+	/// <summary>The floor an easy act will sign above: 40% of the advance ask and 70% of the royalty
+	/// ask, a term no more than two years past theirs and no more than four extra sides. A Local
+	/// Hustler, eager to close, takes 30% / 60%. Control and publishing are not floored here -- an easy
+	/// act has no stake in them; the managers who do are the ones that get the full negotiation.
+	/// Deterministic on the offer and the manager, so a player can learn what each kind will take.</summary>
+	private static bool ClearsPushoverFloor(ContractTermSheet ask, ContractTermSheet offer, out PushoverShortfall shortfall) {
+		bool eager = ask.Manager == ManagerArchetype.LocalHustler;
+		float minAdvance = Mathf.Ceil(ask.Advance * (eager ? 0.30f : 0.40f));
+		float minRoyalty = Mathf.Min(ask.RoyaltyRate, Mathf.Ceil(ask.RoyaltyRate * (eager ? 0.60f : 0.70f) * 400f) / 400f);
+		int maxTerm = Mathf.Min(7, ask.TermYears + 2);
+		int maxSingles = Mathf.Min(30, ask.SinglesObligation + 4);
+
+		bool advance = offer.Advance < minAdvance;
+		bool royalty = offer.RoyaltyRate < minRoyalty - 0.00001f;
+		bool term = offer.TermYears > maxTerm;
+		bool singles = offer.SinglesObligation > maxSingles;
+		bool farBelow = (ask.Advance > 0f && offer.Advance < ask.Advance * 0.15f)
+			|| (ask.RoyaltyRate > 0f && offer.RoyaltyRate < ask.RoyaltyRate * 0.40f);
+		shortfall = new PushoverShortfall(advance, royalty, term, singles, farBelow, minAdvance, minRoyalty, maxTerm, maxSingles);
+		return !(advance || royalty || term || singles);
+	}
+
+	/// <summary>The one mild counter: the player's own offer with every short term lifted to the floor.
+	/// The advance is fogged by scouting -- a good ear hears nearly the exact number, a poor one hears a
+	/// figure up to ~15% high -- but never below the floor, so taking the counter always signs.</summary>
+	private ContractTermSheet PushoverCounter(Prospect prospect, ContractTermSheet offer, PushoverShortfall s) {
+		ContractTermSheet ask = prospect.Baseline;
+		float advance = offer.Advance;
+		if (s.Advance) {
+			float unit = StableNegotiationUnit(Label?.labelId ?? "", prospect.Artist.artistId, 0);
+			float fogged = s.MinAdvance * (1f + unit * NegotiationFogBand() * 0.5f);
+			advance = Mathf.Min(Mathf.Max(ask.Advance, s.MinAdvance), Mathf.Ceil(fogged / 5f) * 5f);
+			advance = Mathf.Max(advance, s.MinAdvance);
+		}
+		return new ContractTermSheet(advance, s.Royalty ? s.MinRoyalty : offer.RoyaltyRate,
+			s.Term ? s.MaxTerm : offer.TermYears, s.Singles ? s.MaxSingles : offer.SinglesObligation,
+			offer.LabelOwnsPublishing, offer.ArtistCreativeControl,
+			ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
+	}
+
+	private static string PushoverCounterLine(string name, ContractTermSheet counter, PushoverShortfall s) {
+		var parts = new List<string>();
+		if (s.Advance) parts.Add($"around ${counter.Advance:N0} up front");
+		if (s.Royalty) parts.Add($"{counter.RoyaltyRate:P2} on the records");
+		if (s.Term) parts.Add($"no more than {counter.TermYears} years");
+		if (s.Singles) parts.Add($"no more than {counter.SinglesObligation} sides owed");
+		return $"{name}'s side shakes their head. \"We'd come to terms at {string.Join(", ", parts)}.\" The form is set to that -- one more try.";
+	}
+
+	// ========================================================================================
 	// THE RESERVATION PACKAGE
 	// ========================================================================================
 
@@ -65,10 +131,12 @@ public partial class PlayerDesk : Node {
 		float ambition = artist?.evolution?.artisticAmbition ?? 0.5f;
 		float pragmatism = artist?.evolution?.commercialPragmatism ?? 0.5f;
 		ManagerProfile.Modifiers mods = ManagerProfile.Of(artist?.manager ?? ManagerArchetype.None);
+		// What each manager digs in on: a Shark holds the money lines, a Svengali wants a long leash.
+		ManagerArchetype kind = artist?.manager ?? ManagerArchetype.None;
 		var w = new Dictionary<ContractAxis, float> {
-			[ContractAxis.Advance] = 0.20f + pragmatism * 0.28f,
-			[ContractAxis.Royalty] = 0.18f + pragmatism * 0.20f,
-			[ContractAxis.Term] = 0.09f,
+			[ContractAxis.Advance] = 0.20f + pragmatism * 0.28f + (kind == ManagerArchetype.Shark ? 0.14f : 0f),
+			[ContractAxis.Royalty] = 0.18f + pragmatism * 0.20f + (kind == ManagerArchetype.Shark ? 0.14f : 0f),
+			[ContractAxis.Term] = 0.09f + (kind == ManagerArchetype.Svengali ? 0.12f : 0f),
 			[ContractAxis.Deliverables] = 0.08f + ambition * 0.10f,
 			[ContractAxis.Publishing] = 0.13f + ambition * 0.24f + (mods.DemandsArtistPublishing ? 0.12f : 0f),
 			[ContractAxis.CreativeControl] = 0.13f + ambition * 0.28f + (mods.DemandsArtistControl ? 0.12f : 0f),

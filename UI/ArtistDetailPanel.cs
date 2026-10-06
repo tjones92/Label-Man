@@ -178,7 +178,7 @@ public partial class ArtistDetailPanel : Control
 	{
 		string manager = artist.manager == ManagerArchetype.None || string.IsNullOrEmpty(artist.managerName)
 			? "Unmanaged: no one speaks for them at the table."
-			: $"Managed by {artist.managerName} ({Format(artist.manager)}).";
+			: $"Managed by {artist.managerName}.";
 		return $"{(artist.labelOwnsPublishing ? "The label keeps the publishing." : "The act keeps their publishing.")}\n" +
 			$"{(artist.artistCreativeControl ? "The act has creative control." : "The label has the final say on material.")}\n{manager}";
 	}
