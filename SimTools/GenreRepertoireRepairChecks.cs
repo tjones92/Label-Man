@@ -48,8 +48,56 @@ public static class GenreRepertoireRepairChecks {
     var b=SongMaterialSelectionService.SelectLiveCovers(mixFixtures.Append(cue).Append(stage),easy,1960,1);
     Check(mix.Source(a[0],1960)==mix.Source(b[0],1960),"Media cannot displace Easy's selected source");
     var expected=PolarSongBehavior.RankLive(mixFixtures.Append(cue).Append(stage).Where(s=>mix.Source(s,1960)==mix.Source(a[0],1960)),easy,1960).First();
-    Check(b[0]==expected,"Easy soundtrack and ordinary songs compete on ranking within the selected source");
+    LiveRepertoire.AuditEasyJazzFollowUp=false;
+    try {Check(SongMaterialSelectionService.SelectLiveCovers(mixFixtures.Append(cue).Append(stage),easy,1960,1)[0]==expected,"Easy soundtrack and ordinary songs compete on ranking within the selected source");}
+    finally {LiveRepertoire.AuditEasyJazzFollowUp=true;}
+    Check(b[0]==expected||mix.Source(b[0],1960)==LiveCoverSource.Contemporary&&!LiveRepertoire.ExternalMedia(b[0]),"Only the recent-hit channel departs from the merged ranking");
    }
+   // Easy recent-hit channel: era-ramped, act-leaning, and teen hits only when big.
+   var easyMix=PolarRepertoireTable.Current.LiveSetMixes["EasyListening"][0];
+   Check(easyMix.RecentHitShare(1961,12)==easyMix.RecentHitFloor&&easyMix.RecentHitShare(1966,1)==easyMix.RecentHitCeiling&&easyMix.RecentHitShare(1963,1)>easyMix.RecentHitFloor,"Recent-hit share ramps from 1962");
+   var smallTeen=new SongComposition {songId="repair-small-teen",originYear=1961,primaryGenre=Genre.TeenPop,nationalFamiliarity=.4f,isCoverable=true};
+   var bigTeen=new SongComposition {songId="repair-big-teen",originYear=1961,primaryGenre=Genre.TeenPop,nationalFamiliarity=.9f,isCoverable=true};
+   var chartedTeen=new SongComposition {songId="repair-charted-teen",originYear=1961,primaryGenre=Genre.TeenPop,nationalFamiliarity=.1f,isCoverable=true};
+   chartedTeen.recordings.Add(new SongRecordingMemory {peakPosition=3});
+   var popHit=new SongComposition {songId="repair-pop-hit",originYear=1961,primaryGenre=Genre.TraditionalPop,nationalFamiliarity=.2f,isCoverable=true};
+   Check(!LiveRepertoire.RecentHitCandidate(smallTeen)&&LiveRepertoire.RecentHitCandidate(bigTeen)&&LiveRepertoire.RecentHitCandidate(chartedTeen)&&LiveRepertoire.RecentHitCandidate(popHit)&&!LiveRepertoire.RecentHitCandidate(cue),"Teen hits qualify only when big; media never");
+   int contemporarySlots=0,hitSlots=0,smallTeenSlots=0;
+   for(int i=0;i<2000;i++) {
+    var easy=new SimulatedArtist {artistId="repair-easy-hit-"+i,primaryGenre=Genre.EasyListening,type=ArtistType.Band,members=new(){new Musician {isActive=true,primaryRole=MusicianRole.Piano}}};
+    var picks=SongMaterialSelectionService.SelectLiveCovers(mixFixtures.Append(cue).Append(stage).Append(smallTeen).Append(popHit),easy,1964,3);
+    Check(picks.Select(s=>s.songId).Distinct().Count()==picks.Count,"Recent-hit channel never duplicates a composition");
+    foreach(var s in picks.Where(s=>easyMix.Source(s,1964)==LiveCoverSource.Contemporary)){contemporarySlots++;if(!LiveRepertoire.ExternalMedia(s))hitSlots++;if(s==smallTeen)smallTeenSlots++;}
+   }
+   Check(hitSlots>0&&hitSlots<contemporarySlots,"Recent hits and soundtracks share the Contemporary source");
+   Check(smallTeenSlots==0||smallTeenSlots<hitSlots,"Small teen hits do not ride the protected channel");
+   var faith=new SimulatedArtist {artistId="repair-faith",evolution=new ArtistEvolutionProfile {commercialPragmatism=.8f,rootsAttachment=.3f}};
+   var vaughn=new SimulatedArtist {artistId="repair-vaughn",evolution=new ArtistEvolutionProfile {commercialPragmatism=.3f,rootsAttachment=.8f}};
+   Check(LiveRepertoire.RecentHitLean(faith)>1.5f&&LiveRepertoire.RecentHitLean(vaughn)<.5f,"Disposition separates hit-chasing and traditional acts");
+   // Jazz lineups: a keyed instrumental share; vocal groups stay vocal.
+   int bands=0,soloists=0;
+   for(int i=0;i<4000;i++) {
+    var band=new SimulatedArtist {artistId="repair-jazz-band-"+i,primaryGenre=Genre.Jazz,type=ArtistType.Band,members=new(){new Musician {isActive=true,isLeadVocalist=true,primaryRole=MusicianRole.LeadVocals},new Musician {isActive=true,primaryRole=MusicianRole.Piano}}};
+    var solo=new SimulatedArtist {artistId="repair-jazz-solo-"+i,primaryGenre=Genre.Jazz,type=ArtistType.SoloMale,members=new(){new Musician {isActive=true,isLeadVocalist=true,primaryRole=MusicianRole.LeadVocals}}};
+    var group=new SimulatedArtist {artistId="repair-jazz-group-"+i,primaryGenre=Genre.Jazz,type=ArtistType.VocalGroup,members=new(){new Musician {isActive=true,isLeadVocalist=true,primaryRole=MusicianRole.LeadVocals}}};
+    foreach(var act in new[]{band,solo,group})ArtistManager.ConfigureJazzInstrumentalist(act);
+    if(LiveRepertoire.Instrumental(band))bands++;if(LiveRepertoire.Instrumental(solo))soloists++;
+    Check(!LiveRepertoire.Instrumental(group),"Jazz vocal groups stay vocal");
+   }
+   var table2=PolarRepertoireTable.Current;
+   Check(Math.Abs(bands/4000f-table2.N("jazzInstrumentalBandShare"))<.03f&&Math.Abs(soloists/4000f-table2.N("jazzInstrumentalLeaderShare"))<.03f,"Jazz instrumental shares match the authored values");
+   // Jazz screen themes replace only non-inherited covers, at the authored per-slot opportunity.
+   var jazzContemporary=new SongComposition {songId="repair-jazz-contemporary",originYear=1958,primaryGenre=Genre.Jazz,isCoverable=true};
+   int screenSlots=0,trials=4000;
+   for(int i=0;i<trials;i++) {
+    var combo=new SimulatedArtist {artistId="repair-jazz-combo-"+i,primaryGenre=Genre.Jazz,type=ArtistType.Band,members=new(){new Musician {isActive=true,primaryRole=MusicianRole.Saxophone}}};
+    var set=SongMaterialSelectionService.SelectLiveCovers(new[]{standard,jazzContemporary,cue},combo,1963,2);
+    Check(set.Contains(standard),"Jazz screen themes never displace an inherited standard");
+    if(set.Contains(cue))screenSlots++;
+    var singer=new SimulatedArtist {artistId="repair-jazz-singer-"+i,primaryGenre=Genre.Jazz,members=new(){new Musician {isActive=true,isLeadVocalist=true,primaryRole=MusicianRole.LeadVocals}}};
+    Check(!SongMaterialSelectionService.SelectLiveCovers(new[]{standard,jazzContemporary,cue},singer,1963,2).Contains(cue),"Vocal Jazz acts keep the instrumental-cue bar");
+   }
+   Check(Math.Abs(screenSlots/(float)trials-table2.N("jazzScreenOpportunity"))<.03f,"Jazz screen opportunity matches the authored rate");
    var comic=new SimulatedArtist {artistId="repair-comic",primaryGenre=Genre.Comedy};
    var routine=new SongComposition {songId="repair-routine",originKind=SongOriginKind.ArtistOriginal,primaryGenre=Genre.Comedy,originArtistId=comic.artistId,originYear=1940,establishedYear=1955,isStandard=true,isCoverable=true};
    Check(!routine.EstablishedAsOf(2000),"Comedy does not age into standards");
@@ -94,6 +142,6 @@ public static class GenreRepertoireRepairChecks {
    SongMaterialSelectionService.SelectLiveCovers(originals.Append(standard),new SimulatedArtist {artistId="repair-rng",primaryGenre=Genre.TeenPop},1960,3);
    Check(GD.Randf()==expectedRandom,"Live source decisions preserve the global RNG stream");
   } finally {PolarSongBehavior.AuditLiveFit=oldFit;PolarSongBehavior.AuditLiveProposal=oldProposal;SongMaterialSelectionService.ObserveLiveSource=oldObserver;}
-  GD.Print("GENRE_REPERTOIRE_REPAIR_CHECK_PASS media=countIndependent instrumentals=compatible comedy=authorOnly books=retained fallback=measured rights=preserved migration=idempotent");
+  GD.Print("GENRE_REPERTOIRE_REPAIR_CHECK_PASS media=countIndependent instrumentals=compatible comedy=authorOnly books=retained fallback=measured rights=preserved migration=idempotent easyRecentHits=channelled jazzScreen=rated jazzLineups=keyed");
  }
 }

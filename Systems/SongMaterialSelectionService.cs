@@ -615,6 +615,31 @@ public static class SongMaterialSelectionService {
 			}
 			return routines; // Empty authored slots become new routines in BuildLiveSet.
 		}
+		if(LiveRepertoire.JazzScreenChannel(artist))
+			return JazzScreenThemes(SelectLiveCoversMedia(eligible.Where(s=>!LiveRepertoire.ScreenInstrumental(s)).ToArray(),artist,year,count),
+				eligible.Where(LiveRepertoire.ScreenInstrumental),artist,year);
+		return SelectLiveCoversMedia(eligible,artist,year,count);
+	}
+	// Jazz film themes ("Exodus", "Peter Gunn") are contemporary material: a calibrated per-slot
+	// opportunity that replaces only a non-inherited, non-media cover, so standards and the
+	// stage/film family are untouched by construction. Vocal acts keep the instrumental-cue bar.
+	private static IReadOnlyList<SongComposition> JazzScreenThemes(IReadOnlyList<SongComposition> covers,IEnumerable<SongComposition> screen,SimulatedArtist artist,int year) {
+		var themes=PolarSongBehavior.RankLive(screen,artist,year)
+			.Where(s=>!PolarSongBehavior.UsePolarFitSelection||!RejectedSample(s,artist,new Record {recordId=$"live:{artist.artistId}:{year}:{s.songId}",primaryGenre=artist.primaryGenre},year)).ToList();
+		if(themes.Count==0)return covers;
+		int month=TimeManager.Instance?.CurrentDate.month??1;
+		float opportunity=PolarRepertoireTable.Current.N("jazzScreenOpportunity");
+		var result=covers.ToArray();
+		for(int slot=0;slot<result.Length&&themes.Count>0;slot++) {
+			var song=result[slot];
+			if(LiveRepertoire.ExternalMedia(song)||song.isTraditional||song.EstablishedAsOf(year)||LiveRepertoire.OwnOriginal(song,artist))continue;
+			if(RepertoireTaxonomy.Unit($"{artist.artistId}|live-jazz-screen|{year}|{month}|{slot}")>=opportunity)continue;
+			result[slot]=themes[0];themes.RemoveAt(0);
+			ObserveLiveSource?.Invoke(new(artist,year,slot,false,false,"screen",result[slot].songId));
+		}
+		return result;
+	}
+	private static IReadOnlyList<SongComposition> SelectLiveCoversMedia(SongComposition[] eligible,SimulatedArtist artist,int year,int count) {
 		// Preserve calibrated source mixes. Media is a family opportunity WITHIN
 		// the selected source, so it cannot displace a Folk/Easy source allocation.
 		if(LiveRepertoire.SetMix(artist,year)!=null||LiveRepertoire.UnrestrictedSoundtracks(artist))return SelectLiveCoversCore(eligible,artist,year,count);
@@ -655,6 +680,13 @@ public static class SongMaterialSelectionService {
 			var mediaSources=System.Enum.GetValues<LiveCoverSource>().ToDictionary(source=>source,
 				source=>mixPool.Where(s=>!unrestrictedMedia&&LiveRepertoire.AuditGenreRepair&&LiveRepertoire.ExternalMedia(s)&&mix.Source(s,year)==source).ToList());
 			var mediaRanks=System.Enum.GetValues<LiveCoverSource>().ToDictionary(source=>source,source=>new Dictionary<string,List<SongComposition>>());
+			// Easy: soundtracks out-rank every recent hit in the merged Contemporary ranking, so a
+			// share of Contemporary slots is reserved for hits. No cap on soundtracks elsewhere.
+			bool hitChannel=LiveRepertoire.RecentHitChannel(artist)&&mix.RecentHitCeiling>0;
+			var recentHits=hitChannel?PolarSongBehavior.RankLive(mixPool.Where(s=>mix.Source(s,year)==LiveCoverSource.Contemporary&&LiveRepertoire.RecentHitCandidate(s)),artist,year).Take(count).ToList():null;
+			float recentHitShare=hitChannel?System.Math.Min(1f,mix.RecentHitShare(year,TimeManager.Instance?.CurrentDate.month??1)*LiveRepertoire.RecentHitLean(artist)):0;
+			var used=new HashSet<string>();
+			void SkipUsed(List<SongComposition> list){while(list.Count>0&&used.Contains(list[0].songId))list.RemoveAt(0);}
 			bool Available(LiveCoverSource source)=>sources[source].Count>0||mediaSources[source].Count>0;
 			var chosen=new List<SongComposition>();
 			for(int slot=0;slot<count&&System.Enum.GetValues<LiveCoverSource>().Any(Available);slot++) {
@@ -672,7 +704,11 @@ public static class SongMaterialSelectionService {
 				var media=mediaSources[source];
 				float opportunity=media.Select(s=>LiveRepertoire.AccessWeight(s,artist,year,month)).DefaultIfEmpty(0).Max();
 				SongComposition selected=null;
-				if(media.Count>0&&(sources[source].Count==0||RepertoireTaxonomy.Unit($"{artist.artistId}|live-media-source|{year}|{month}|{Slot(slot)}")<opportunity)) {
+				if(hitChannel&&source==LiveCoverSource.Contemporary&&RepertoireTaxonomy.Unit($"{artist.artistId}|live-recent-hit|{year}|{month}|{Slot(slot)}")<recentHitShare) {
+					SkipUsed(recentHits);
+					if(recentHits.Count>0){selected=recentHits[0];recentHits.RemoveAt(0);ObserveLiveSource?.Invoke(new(artist,year,Slot(slot),false,false,"recentHit",selected.songId));}
+				}
+				if(selected==null&&media.Count>0&&(sources[source].Count==0||RepertoireTaxonomy.Unit($"{artist.artistId}|live-media-source|{year}|{month}|{Slot(slot)}")<opportunity)) {
 					var families=media.GroupBy(s=>LiveRepertoire.ScreenInstrumental(s)?"screen":"stageFilm").OrderBy(g=>g.Key)
 						.Select(g=>new {Family=g.Key,Weight=g.Max(s=>LiveRepertoire.AccessWeight(s,artist,year,month)),Songs=g.ToArray()}).ToArray();
 					float familyDraw=RepertoireTaxonomy.Unit($"{artist.artistId}|live-media-family|{year}|{month}|{Slot(slot)}")*families.Sum(f=>f.Weight);
@@ -681,8 +717,9 @@ public static class SongMaterialSelectionService {
 					selected=ranking[0];ranking.RemoveAt(0);media.Remove(selected);
 					ObserveLiveSource?.Invoke(new(artist,year,Slot(slot),false,false,family.Family,selected.songId));
 				}
+				if(hitChannel)SkipUsed(sources[source]);
 				if(selected==null&&sources[source].Count>0){selected=sources[source][0];sources[source].RemoveAt(0);}
-				if(selected!=null)chosen.Add(selected);
+				if(selected!=null){chosen.Add(selected);used.Add(selected.songId);}
 			}
 			return ReportLiveFill(chosen,artist,year,count);
 		}

@@ -15,6 +15,22 @@ public static class LiveRepertoire {
  internal static bool AuditGenreRepair=true; // Fixed-world comparator only; never persisted.
  internal static bool AuditEasySoundtracks=true; // Fixed-world comparator only; never persisted.
  internal static bool UnrestrictedSoundtracks(SimulatedArtist artist)=>AuditGenreRepair&&AuditEasySoundtracks&&artist.primaryGenre==Genre.EasyListening;
+ internal static bool AuditEasyJazzFollowUp=true; // Fixed-world comparator only; never persisted.
+ internal static bool RecentHitChannel(SimulatedArtist artist)=>UnrestrictedSoundtracks(artist)&&AuditEasyJazzFollowUp;
+ internal static bool JazzScreenChannel(SimulatedArtist artist)=>AuditGenreRepair&&AuditEasyJazzFollowUp&&artist.primaryGenre==Genre.Jazz;
+ // A Faith-style act chases the current charts; a Vaughn/Conniff-style act stays on standards.
+ // Reads the stable disposition; a multiplier in (0,2) on the era ramp, 1 at a neutral tilt.
+ internal static float RecentHitLean(SimulatedArtist artist) {
+  var e=artist.evolution;
+  float tilt=e!=null?e.commercialPragmatism-e.rootsAttachment:(RepertoireTaxonomy.Unit(State(artist).preferenceSeed+"|recent-hit-lean")-.5f)*.25f;
+  return 2/(1+MathF.Exp(-tilt/PolarRepertoireTable.Current.N("recentHitActLeanScale")));
+ }
+ // Peak strength of the best chart run (#1 = 1, #40 ~ 0); seeded hits carry their size as familiarity.
+ internal static float HitSize(SongComposition song)=>song.recordings.Count>0
+  ?song.recordings.Where(r=>r.peakPosition is >=1 and <=40).Select(r=>(41-r.peakPosition)/40f).DefaultIfEmpty(0).Max()
+  :song.nationalFamiliarity;
+ internal static bool TeenHit(SongComposition song)=>song.primaryGenre is Genre.TeenPop or Genre.GirlGroup or Genre.Bubblegum;
+ internal static bool RecentHitCandidate(SongComposition song)=>!ExternalMedia(song)&&(!TeenHit(song)||HitSize(song)>=PolarRepertoireTable.Current.N("teenRecentHitMinimumSize"));
  internal static bool AuditDisableAffinity, AuditSmoothRanking;
  private static readonly Dictionary<Genre,List<SongComposition>> secondary=new();
  public static void Reset()=>secondary.Clear();

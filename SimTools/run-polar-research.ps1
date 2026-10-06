@@ -19,6 +19,7 @@ param(
  [switch]$GenreFollowUpCensus,
  [switch]$GenreRepairCensus,
  [switch]$EasySoundtrackCensus,
+ [switch]$EasyJazzFollowUpCensus,
  [ValidateRange(1960,1963)][int]$CensusFromYear = 1960,
  [int[]]$CensusMonths = @(),
  [string]$Godot = 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe'
@@ -44,6 +45,7 @@ try {
  if ($GenreFollowUpCensus) { $polarResearchArgs += '--genre-followup-census' }
  if ($GenreRepairCensus) { $polarResearchArgs += @('--genre-followup-census','--genre-repertoire-repair-census') }
  if ($EasySoundtrackCensus) { $polarResearchArgs += @('--genre-followup-census','--genre-repertoire-repair-census','--easy-soundtrack-census') }
+ if ($EasyJazzFollowUpCensus) { $polarResearchArgs += @('--genre-followup-census','--genre-repertoire-repair-census','--easy-jazz-followup-census') }
  $polarResearchArgs += "--polar-census-from-year=$CensusFromYear"
  if ($CensusMonths.Count) { $polarResearchArgs += "--polar-census-months=$($CensusMonths -join ',')" }
  $polarResearchWatch = [Diagnostics.Stopwatch]::StartNew()

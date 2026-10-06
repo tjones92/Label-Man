@@ -18,7 +18,12 @@
     "exceptionalWriter": 0.85,
     "composerLedCutoff": 0.65,
     "establishmentAge": 15,
-    "establishmentDurability": 0.5
+    "establishmentDurability": 0.5,
+    "jazzInstrumentalBandShare": 0.85,
+    "jazzInstrumentalLeaderShare": 0.5,
+    "jazzScreenOpportunity": 0.34,
+    "teenRecentHitMinimumSize": 0.7,
+    "recentHitActLeanScale": 0.08
   },
   "assignments": {
     "Tin Pan Alley": [
@@ -1235,7 +1240,11 @@
         "originals": 2,
         "standardToYear": 1954,
         "instrumentalOriginalsOnly": true,
-        "instrumentalActShare": 0.5
+        "instrumentalActShare": 0.5,
+        "recentHitFloor": 0.1,
+        "recentHitCeiling": 0.7,
+        "recentHitFromYear": 1962,
+        "recentHitToYear": 1966
       }
     ]
   }

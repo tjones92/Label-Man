@@ -38,7 +38,8 @@ public sealed class PolarRepertoireTable {
    if(!Enum.TryParse<Genre>(genre,out _)||rows==null||rows.Length==0)throw new InvalidOperationException("Invalid live set genre");
    foreach(var row in rows)if(row.FromYear>row.ToYear||row.StandardFromYear>row.StandardToYear||
     new[]{row.Traditional,row.Standards,row.Contemporary,row.Originals,row.InstrumentalActShare}.Any(w=>!float.IsFinite(w)||w<0)||!float.IsFinite(row.Total)||row.Total<=0||row.CoverTotal<=0||row.InstrumentalActShare>1||
-    row.InstrumentalOriginalsOnly&&(row.InstrumentalActShare<=0||row.Originals/row.Total>row.InstrumentalActShare))
+    row.InstrumentalOriginalsOnly&&(row.InstrumentalActShare<=0||row.Originals/row.Total>row.InstrumentalActShare)||
+    new[]{row.RecentHitFloor,row.RecentHitCeiling}.Any(w=>!float.IsFinite(w)||w<0||w>1)||row.RecentHitFloor>row.RecentHitCeiling||row.RecentHitCeiling>0&&row.RecentHitFromYear>row.RecentHitToYear)
     throw new InvalidOperationException("Invalid live set mix");
    var ordered=rows.OrderBy(r=>r.FromYear).ToArray();
    for(int i=1;i<ordered.Length;i++)if(ordered[i].FromYear<=ordered[i-1].ToYear)throw new InvalidOperationException("Overlapping live set eras");
@@ -58,6 +59,14 @@ public sealed class LiveSetMix {
  public int StandardToYear {get;set;} = int.MaxValue;
  public bool InstrumentalOriginalsOnly {get;set;}
  public float InstrumentalActShare {get;set;}
+ // Probability that a Contemporary-source slot is reserved for recent hits rather than the
+ // merged ranking (where soundtrack themes otherwise always win). Linear era ramp; 0 = no channel.
+ public float RecentHitFloor {get;set;}
+ public float RecentHitCeiling {get;set;}
+ public int RecentHitFromYear {get;set;}
+ public int RecentHitToYear {get;set;}
+ public float RecentHitShare(int year,int month)=>RecentHitCeiling<=0?0:
+  RecentHitFloor+(RecentHitCeiling-RecentHitFloor)*Math.Clamp((year+(month-1)/12f-RecentHitFromYear)/Math.Max(1,RecentHitToYear-RecentHitFromYear),0,1);
  public float CoverTotal=>Traditional+Standards+Contemporary;
  public float Total=>CoverTotal+Originals;
  public LiveCoverSource Source(SongComposition song,int year)=>song.isTraditional||song.isPublicDomain?LiveCoverSource.Traditional:
