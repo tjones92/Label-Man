@@ -1087,6 +1087,9 @@ public partial class PlayerDesk : Node {
 		_ => Array.Empty<GenreFamily>()
 	};
 
+	/// <summary>How far a scout's ear can be off on one hearing: the spread of every live-set read.</summary>
+	public static float ScoutingReadNoise(float scoutingAbility) => Mathf.Lerp(0.30f, 0.10f, Mathf.Clamp(scoutingAbility, 0f, 1f));
+
 	public static string VenueName(ScoutingVenue venue) => venue switch {
 		ScoutingVenue.ClubsAndRoadhouses => "the clubs & roadhouses",
 		ScoutingVenue.TheatresAndSupperClubs => "the theatres & supper clubs",
@@ -1272,7 +1275,7 @@ public partial class PlayerDesk : Node {
 		}
 
 		foreach (SimulatedArtist artist in slateActs) {
-			float noise = Mathf.Lerp(0.30f, 0.10f, Mathf.Clamp(Label.scoutingAbility, 0f, 1f));
+			float noise = ScoutingReadNoise(Label.scoutingAbility);
 			var prospect = new Prospect {
 				Artist = artist,
 				Venue = venue,

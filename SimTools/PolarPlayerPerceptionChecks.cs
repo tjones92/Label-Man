@@ -47,8 +47,9 @@ public static class PolarPlayerPerceptionChecks {
 		Check(Json(song) == songBefore && Json(PolarSongMetadataService.Capture()) == mastersBefore && desk.PreviewMasterId() == idBefore, "preview leaves song, masters and ID allocation untouched");
 		var other = ArtistManager.Instance.GetUnsignedArtists().First(a => a.primaryGenre != artist.primaryGenre);
 		Check(Json(view.act.axes) != Json(PolarPlayerPerception.Compare(choice, other, PolarEvidenceGate.Demo, "preview-fixture", idBefore).act.axes), "same song compares differently across acts");
+		CheckHearings(desk, artist, choice, idBefore);
 		CheckRefusal(desk);
-		GD.Print("POLAR_PLAYER_PERCEPTION_PASS reopen=ok evidence=ok staff=ok market=ok save=ok intervals=ok rng=ok purePreview=ok comparison=ok refusal=ok override=ok disabled=ok");
+		GD.Print("POLAR_PLAYER_PERCEPTION_PASS reopen=ok evidence=ok staff=ok market=ok save=ok intervals=ok rng=ok purePreview=ok comparison=ok hearings=ok refusal=ok override=ok disabled=ok");
 	}
 	private static void CheckIntervals() {
 		// Samples exercise the renderer's band arithmetic independently of observer bias.
@@ -70,7 +71,8 @@ public static class PolarPlayerPerceptionChecks {
 			}
 		}
 	}
-	public static (SimulatedArtist Artist, PlayerDesk.MaterialChoice Choice) RefusalFixture(PlayerDesk desk) {
+	/// <param name="margin">How far past the refusal bar the stretch must sit; 1 takes the first real refusal.</param>
+	public static (SimulatedArtist Artist, PlayerDesk.MaterialChoice Choice) RefusalFixture(PlayerDesk desk, float margin = 1) {
 		var artist = new SimulatedArtist { artistId = "resistance-fixture", stageName = "The Test Players", labelId = desk.Label.labelId,
 			type = ArtistType.Band, careerState = CareerState.Superstar, groupCohesion = 0,
 			evolution = new ArtistEvolutionProfile { artisticAmbition = 1, rootsAttachment = 1, experimentalAppetite = 1 },
@@ -87,7 +89,8 @@ public static class PolarPlayerPerceptionChecks {
 				PolarSongMetadataService.EnsureComposition(candidate);
 				var act = PolarActProfileDeriver.Derive(artist, desk.Label, desk.PreviewSessionContext(PlayerDesk.StudioTier.Budget, artist), PolarSongTable.Current);
 				var proposal = PolarCoverResolver.Propose(candidate, null, act, genre, 1960, 1, desk.PreviewMasterId(), null, PolarSongTable.Current);
-				if (PolarMaterialFit.WouldRefuse(proposal.fit, 1, 1, false, PolarSongTable.Current)) { refused = candidate; break; }
+				if (PolarMaterialFit.WouldRefuse(proposal.fit, 1, 1, false, PolarSongTable.Current) &&
+					proposal.fit.Stretch >= proposal.fit.Capability * PolarSongTable.Current.N("refusalStretchCapability") * margin) { refused = candidate; break; }
 			}
 			if (refused != null) break;
 		}
@@ -96,6 +99,8 @@ public static class PolarPlayerPerceptionChecks {
 		world.Composition.Songs[refused.songId] = refused; CompositionCatalogService.RehydrateWorld(world);
 		var choice = new PlayerDesk.MaterialChoice { SongId = refused.songId, Title = refused.title, Kind = PlayerDesk.MaterialKind.LiveCover, ReferenceMasterId = "demo:" + refused.songId, Detail = "fixture cover" };
 		var player = desk.CaptureState();
+		// The fixture may be built more than once in a run; keep one roster entry for the fixture act.
+		player.Label.RosterArtistIds.Remove(artist.artistId); player.RosterArtists.RemoveAll(a => a.artistId == artist.artistId);
 		player.Label.RosterArtistIds.Add(artist.artistId); player.RosterArtists.Add(artist);
 		player.Repertoire[artist.artistId] = new() {
 			RepertoireSaveData.From(new PlayerDesk.RepertoireItem { Title = "Our Own Tune", IsOriginal = true, SourceTag = "their own" }),
@@ -103,7 +108,41 @@ public static class PolarPlayerPerceptionChecks {
 		Check(desk.RestoreState(player, out var message), message);
 		return (artist, choice);
 	}
+	/// <summary>Ear hearings read the song itself; only studio hearings project an act, fit or pushback.</summary>
+	private static void CheckHearings(PlayerDesk desk, SimulatedArtist artist, PlayerDesk.MaterialChoice choice, string id) {
+		var label = desk.Label;
+		float oldProduction = label.productionQuality, oldScouting = label.scoutingAbility;
+		label.productionQuality = 1; label.scoutingAbility = 0;
+		var venue = new PolarHearing { source = PolarHearingSource.Venue, place = "the honky-tonks", when = GameDate.StartDate, heardHook = .62f, heardHookConfidence = .5f };
+		var live = PolarPlayerPerception.Compare(choice, artist, PolarEvidenceGate.FirstListen, "hearing-fixture", id, hearing: venue);
+		Check(live.source == PolarHearingSource.Venue && live.showsAct && !live.showsFit && !live.mayResist && live.resistance == "", "venue read projects no fit or pushback");
+		Check(live.subjectLabel.StartsWith("Heard live · the honky-tonks"), "venue read names where it was heard: " + live.subjectLabel);
+		Check(live.hook.lo < .62f && live.hook.hi > .62f && live.hookText == "Likely a strong tune", "venue hook agrees with the set list read: " + live.hookText);
+		Check(!string.IsNullOrEmpty(live.tightnessText), "watching the act yields a tightness read");
+		var studio = PolarPlayerPerception.Compare(choice, artist, PolarEvidenceGate.FirstListen, "hearing-fixture", id);
+		float Width(PolarBand band) => band.hi - band.lo;
+		Check(Width(live.act.axes[0]) > Width(studio.act.axes[0]), "a stage read of the act is the scout's ear, not the producer's");
+		label.productionQuality = oldProduction; label.scoutingAbility = oldScouting;
+
+		var record = PolarPlayerPerception.Compare(choice, artist, PolarEvidenceGate.Demo, "hearing-fixture", id,
+			hearing: new PolarHearing { source = PolarHearingSource.Record, fitWithAct = true });
+		Check(record.heard == record.reference && !record.showsAct && record.showsFit && record.referenceFit?.Length == 3 && record.resistance == "", "record read is the song plus a small fit");
+		Check(record.subjectLabel.StartsWith("Heard on record · ") || record.subjectLabel.StartsWith("Known from the sheet music"), "record read names its source: " + record.subjectLabel);
+		Check(Json(record) == Json(PolarPlayerPerception.Compare(choice, artist, PolarEvidenceGate.Demo, "hearing-fixture", id,
+			hearing: new PolarHearing { source = PolarHearingSource.Record, fitWithAct = true })), "record read stable on reopen");
+		Check(!studio.mayResist || studio.resistance != "", "studio pushback text appears only with a confident read");
+		Check(studio.mayResist || studio.resistance == "", "no default pushback line");
+	}
 	private static void CheckRefusal(PlayerDesk desk) {
+		// Warnings are for refusals the staff can be sure of; a knife-edge refusal may stay unflagged.
+		var (clearArtist, clearChoice) = RefusalFixture(desk, 1.3f);
+		PolarComparisonRead Studio(PolarEvidenceGate gate, string eventId) => PolarPlayerPerception.Compare(clearChoice, clearArtist, gate, eventId,
+			desk.PreviewMasterId(), desk.PreviewSessionContext(PlayerDesk.StudioTier.Budget, clearArtist));
+		var sure = Studio(PolarEvidenceGate.Rehearsal, "refusal-read");
+		Check(sure.mayResist && sure.resistance.StartsWith("Expect pushback"), "a working read of a clear refusal warns: " + sure.resistance);
+		Check(!Studio(PolarEvidenceGate.Demo, "refusal-read-demo").mayResist, "a rough demo read is never sure enough to warn");
+		Check(!PolarPlayerPerception.Compare(clearChoice, clearArtist, PolarEvidenceGate.Playback, "refusal-read-venue", desk.PreviewMasterId(),
+			hearing: new PolarHearing { source = PolarHearingSource.Venue, place = "a club", heardHook = .5f, heardHookConfidence = .5f }).mayResist, "pushback is never read away from the studio");
 		var (artist, choice) = RefusalFixture(desk);
 		var choices = new[] { choice };
 		float cash = desk.Label.cashReserves; int hour = TimeManager.Instance.CurrentHour; string id = desk.PreviewMasterId();

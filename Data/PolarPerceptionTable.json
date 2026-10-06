@@ -7,6 +7,8 @@
   "identityErrorStrong": 0.04,
   "marketErrorWeak": 0.36,
   "marketErrorStrong": 0.14,
+  "hookErrorWeak": 0.30,
+  "hookErrorStrong": 0.06,
   "bandWidth": 0.8,
   "arrangementDescriptionThreshold": 0.04,
   "gateScale": { "FirstListen": 1.0, "FollowUp": 0.7, "Demo": 0.8, "Rehearsal": 0.5, "Playback": 0.16 },

@@ -313,11 +313,6 @@ public partial class PlayerDeskPanel : Control {
 		return "Scout the scene, or check the ledger for the latest news.";
 	}
 
-	private static string DescribeRead(float value, float confidence) {
-		string core = value >= 0.75f ? "a standout hook" : value >= 0.55f ? "a strong tune" : value >= 0.35f ? "a fair number" : "a weak number";
-		return confidence >= 0.7f ? core : confidence >= 0.45f ? $"likely {core}" : $"might be {core}";
-	}
-
 	private void Say(string message) => statusLabel.Text = message ?? string.Empty;
 
 	private void Act(Func<bool> action) {
@@ -674,9 +669,9 @@ public partial class PlayerDeskPanel : Control {
 		setText.AddThemeFontSizeOverride("font_size", 14);
 		setText.AddThemeColorOverride("font_color", Heard);
 		int shown = Mathf.Min(prospect.HeardCount, prospect.LiveSet.Count);
+		// The hook read is the ear on the tune itself, so it shows in both modes; fit is a studio question.
 		var lines = prospect.LiveSet.Take(shown).Select(item =>
-			PolarSongBehavior.UsePolarFitSelection ? $"    ♪ \"{item.Title}\" ({item.SourceTag})" :
-			$"    ♪ \"{item.Title}\" ({item.SourceTag}) — {DescribeRead(item.ReadHook, prospect.ReadConfidence)}");
+			$"    ♪ \"{item.Title}\" ({item.SourceTag}) — {PolarPlayerPerception.DescribeHook(item.ReadHook, prospect.ReadConfidence)}");
 		int hidden = prospect.LiveSet.Count - shown;
 		string tail = hidden > 0 ? $"\n    …and {hidden} more you didn't catch — follow up to hear the full set." : "";
 		setText.Text = (shown == 0 ? "    (didn't catch their set)" : string.Join("\n", lines)) + tail;
@@ -694,7 +689,9 @@ public partial class PlayerDeskPanel : Control {
 					var material = new PlayerDesk.MaterialChoice { Title = heard.Title, SongId = heard.SongId, ReferenceMasterId = heard.ReferenceMasterId,
 						Kind = heard.IsOriginal ? PlayerDesk.MaterialKind.Original : PlayerDesk.MaterialKind.LiveCover, Detail = heard.SourceTag };
 					host.AddChild(ComparisonCard(prospect.Artist, material, prospect.FollowedUp ? PolarEvidenceGate.FollowUp : PolarEvidenceGate.FirstListen,
-						"venue:" + PlayerDesk.Instance.SlateDate + ":" + prospect.Artist.artistId, null, 0));
+						"venue:" + PlayerDesk.Instance.SlateDate + ":" + prospect.Artist.artistId, null, 0, hearing: new PolarHearing {
+							source = PolarHearingSource.Venue, place = PlayerDesk.VenueName(prospect.Venue), when = PlayerDesk.Instance.SlateDate,
+							heardHook = heard.ReadHook, heardHookConfidence = prospect.ReadConfidence }));
 				}
 				songs.ItemSelected += _ => Update(); Update();
 				preview.Confirmed += () => preview.QueueFree(); preview.Canceled += () => preview.QueueFree();
@@ -1099,7 +1096,8 @@ public partial class PlayerDeskPanel : Control {
 			}
 			content.AddChild(row);
 			if (PolarSongBehavior.UsePolarFitSelection && polarCatalogSong == cover.SongId)
-				content.AddChild(ComparisonCard(artist, cover, PolarEvidenceGate.Demo, "catalogue:" + cover.SongId, null, 0));
+				content.AddChild(ComparisonCard(artist, cover, PolarEvidenceGate.Demo, "catalogue:" + cover.SongId, null, 0,
+					hearing: new PolarHearing { source = PolarHearingSource.Record, fitWithAct = true }));
 		}
 	}
 
@@ -1196,7 +1194,8 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	private Control ComparisonCard(SimulatedArtist artist, PlayerDesk.MaterialChoice choice, PolarEvidenceGate gate,
-		string eventId, PolarSessionContext session, int slot, Func<SimulatedArtist, PolarSessionContext> sessionForAct = null, string printedMasterId = null) {
+		string eventId, PolarSessionContext session, int slot, Func<SimulatedArtist, PolarSessionContext> sessionForAct = null, string printedMasterId = null,
+		PolarHearing hearing = null) {
 		var card = new PanelContainer();
 		card.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = Paper, ContentMarginLeft = 12,
 			ContentMarginRight = 12, ContentMarginTop = 12, ContentMarginBottom = 12 });
@@ -1209,18 +1208,20 @@ public partial class PlayerDeskPanel : Control {
 		Copy($"“{choice.Title}”", Ink);
 		var names = PlayerDesk.Instance.Roster.Prepend(artist).DistinctBy(a => a.artistId).ToList();
 		var picker = Option(); foreach (var act in names) picker.AddItem(act.stageName);
-		// A kept take belongs to the recorded act; previews can compare the same material across the roster.
-		picker.Disabled = gate == PolarEvidenceGate.Playback; column.AddChild(picker);
+		// A kept take belongs to the recorded act; studio previews can compare the same material across the roster.
+		// Ear reads are about the song as heard, so there is no act to project it onto.
+		picker.Disabled = gate == PolarEvidenceGate.Playback; picker.Visible = hearing?.IsEar != true; column.AddChild(picker);
 		var evidence = Copy("", Heard);
 		var explanation = Copy("", Ink); var resistance = Copy("", Rust);
 		var graph = new PolarComparisonWidget(); column.AddChild(graph);
 		void Update() {
 			var selected = names[picker.Selected];
 			var read = PolarPlayerPerception.Compare(choice, selected, selected.artistId == artist.artistId ? gate : PolarEvidenceGate.Demo, eventId,
-				PlayerDesk.Instance.PreviewMasterId(slot), sessionForAct?.Invoke(selected) ?? session, printedMasterId);
+				PlayerDesk.Instance.PreviewMasterId(slot), sessionForAct?.Invoke(selected) ?? session, printedMasterId, hearing);
 			evidence.Text = read.subjectLabel + " · " + read.evidenceLabel;
-			graph.SetRead(read); explanation.Text = read.arrangement + " " + read.explanation;
-			resistance.Text = read.resistance;
+			graph.SetRead(read); explanation.Text = (read.arrangement + " " + read.explanation).Trim();
+			explanation.Visible = explanation.Text != "";
+			resistance.Text = read.resistance; resistance.Visible = read.resistance != "";
 		}
 		picker.ItemSelected += _ => Update(); Update(); return card;
 	}
@@ -1453,7 +1454,8 @@ public partial class PlayerDeskPanel : Control {
 					var choice = new PlayerDesk.MaterialChoice { Title = master.SongTitle, SongId = master.Record.songId };
 					var scroll = ComparisonScroll(); dialog.AddChild(scroll);
 					scroll.AddChild(ComparisonCard(artist, choice, PolarEvidenceGate.Playback, "master:" + master.Record.masterId,
-						new PolarSessionContext { producerCraft = desk.Label.productionQuality, studioCraft = master.Record.productionQuality }, 0, printedMasterId: master.Record.masterId));
+						new PolarSessionContext { producerCraft = desk.Label.productionQuality, studioCraft = master.Record.productionQuality }, 0, printedMasterId: master.Record.masterId,
+						hearing: new PolarHearing { source = PolarHearingSource.Playback }));
 					dialog.Confirmed += () => dialog.QueueFree(); dialog.Canceled += () => dialog.QueueFree(); AddChild(dialog); dialog.PopupCentered();
 				};
 			}

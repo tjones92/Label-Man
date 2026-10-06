@@ -40,27 +40,39 @@ public static class PolarPlayerPerception {
 			plannedId, PolarSongBehavior.CaptureTaste().GetValueOrDefault(artist.primaryGenre), PolarSongTable.Current);
 	}
 
+	/// <summary>Kind suffix for reads made by the scout's ear rather than by working with the act in a room.</summary>
+	public const string EarKind = ":ear";
+	private static readonly string[] Demands = { "vocal power", "vocal nuance", "instrumental skill", "ensemble precision", "lyric delivery", "studio execution" };
+
+	/// <summary>Studio hearings project the act onto the song (identity, fit, pushback). Every other hearing is the
+	/// player's ear on the song itself: its shape, its hook and, when the act was watched playing it, how tight they were.</summary>
 	public static PolarComparisonRead Compare(PlayerDesk.MaterialChoice choice, SimulatedArtist artist, PolarEvidenceGate gate,
-		string eventId, string plannedId, PolarSessionContext session = null, string printedMasterId = null) {
+		string eventId, string plannedId, PolarSessionContext session = null, string printedMasterId = null, PolarHearing hearing = null) {
+		hearing ??= PolarHearing.Studio;
+		bool ear = hearing.IsEar;
 		var label = PlayerDesk.Instance.Label;
 		PolarArrangementProposal proposal;
-		if (printedMasterId == null) proposal = Proposal(choice, artist, plannedId, session);
+		SongComposition song;
+		if (printedMasterId == null) { song = Subject(choice, artist); proposal = Proposal(choice, artist, plannedId, session); }
 		else {
 			var master = PolarSongMetadataService.Get(printedMasterId) ?? throw new ArgumentException("Unknown printed master");
-			var song = CompositionCatalogService.GetSong(master.songId);
+			song = CompositionCatalogService.GetSong(master.songId);
 			var parent = PolarSongMetadataService.Get(master.parentRecordingId);
 			proposal = new PolarArrangementProposal { songId = master.songId, parentRecordingId = master.parentRecordingId,
 				referenceProfile = SongProfileDeriver.Derive(song, parent?.taxonomy ?? song.demoTaxonomy, PolarSongTable.Current),
 				realizedProfile = master.cachedProfile?.Copy() ?? SongProfileDeriver.Derive(song, master.taxonomy, PolarSongTable.Current) };
 		}
 		var actor = PolarActProfileDeriver.Derive(artist, label, session, PolarSongTable.Current);
+		// Your own act is known from working with them; a stranger on a stage is only what the scout's ear caught.
 		var act = Observe(actor.axes, actor.interpretiveReach, actor.identityRigidity, artist.evolution?.artisticAmbition ?? .5f,
-			0, label, "act:" + artist.artistId, "performer", eventId, gate);
+			0, label, "act:" + artist.artistId, "performer" + (hearing.WatchedAct ? EarKind : ""), eventId, gate);
 		string subject = proposal.parentRecordingId ?? "demo:" + proposal.songId;
-		var reference = Observe(proposal.referenceProfile.axes, 0, 0, 0, proposal.referenceProfile.plasticity, label, subject, "heard-material", eventId, gate);
+		string earKind = ear ? EarKind : "";
+		var reference = Observe(proposal.referenceProfile.axes, 0, 0, 0, proposal.referenceProfile.plasticity, label, subject, "heard-material" + earKind, eventId, gate);
 		var proposed = Observe(proposal.realizedProfile.axes, 0, 0, 0, proposal.realizedProfile.plasticity, label,
 			printedMasterId == null ? "arrangement:" + artist.artistId + ":" + subject + ":" + plannedId : "master:" + printedMasterId,
-			printedMasterId == null ? "prospective-arrangement" : "printed-performance", eventId, gate);
+			(printedMasterId == null ? "prospective-arrangement" : "printed-performance") + earKind, eventId, gate);
+		if (ear) return Hear(choice, artist, gate, eventId, hearing, song, proposal, act, reference, proposed, printedMasterId);
 		var taste = PolarSongBehavior.CaptureTaste().GetValueOrDefault(artist.primaryGenre);
 		bool hasMarket = taste != null && taste.observations > 0 && taste.asOfWeek <= ChartManager.Instance.GetCurrentChartWeek();
 		PolarBand[] market = null;
@@ -72,26 +84,103 @@ public static class PolarPlayerPerception {
 		}
 		var before = FitBands(reference.axes, act.axes, act.rigidity, market);
 		var after = FitBands(proposed.axes, act.axes, act.rigidity, market);
-		var stretch = IdentityDifference(reference.axes, proposed.axes, squared: false);
 		float standing = Standing(artist);
 		float softening = PlayerDesk.Instance.RepertoireFor(artist.artistId).Count == 0 && !PlayerDesk.Instance.SongsFor(artist.artistId).Any()
 			? PolarSongTable.Current.N("emptySongbookSoftening") : 1;
-		float threshold = (PolarSongTable.Current.N("refusalBase") + PolarSongTable.Current.N("refusalAmbition") * act.ambition.hi * standing) * softening;
-		bool resistance = after[1].lo < threshold && stretch.hi >= after[0].lo * PolarSongTable.Current.N("refusalStretchCapability");
+		// Pushback is only voiced when the staff are sure: they have worked the song with the act (rehearsal or
+		// playback, not a rough demo read), and their best guess -- the centres of what they observed, run
+		// through the same refusal rule the act uses -- says the act will balk.
+		bool emptySongbook = softening != 1;
+		float[] Centers(PolarObservation o) => o.axes.Select(b => b.Center).ToArray();
+		var guess = PolarMaterialFit.Evaluate(new SongProfile { axes = Centers(reference) }, new SongProfile { axes = Centers(proposed) },
+			new ActProfile { axes = Centers(act), identityRigidity = act.rigidity.Center }, null, 0, PolarSongTable.Current);
+		bool resistance = gate is PolarEvidenceGate.Rehearsal or PolarEvidenceGate.Playback &&
+			PolarMaterialFit.WouldRefuse(guess, act.ambition.Center, standing, emptySongbook, PolarSongTable.Current);
 		int weakest = Enumerable.Range(0, SongProfile.DemandCount).OrderByDescending(i => proposed.axes[i].Center - act.axes[i].Center).First();
 		float gap = proposed.axes[weakest].Center - act.axes[weakest].Center;
-		string[] demands = { "vocal power", "vocal nuance", "instrumental skill", "ensemble precision", "lyric delivery", "studio execution" };
-		string explanation = gap > 0 ? $"The arrangement may stretch their {demands[weakest]}." : "The heard arrangement seems within their playing range.";
+		string explanation = gap > 0 ? $"The arrangement may stretch their {Demands[weakest]}." : "The heard arrangement seems within their playing range.";
 		int identityGap = Enumerable.Range(SongProfile.DemandCount, SongProfile.IdentityCount).OrderByDescending(i => Math.Abs(proposed.axes[i].Center - act.axes[i].Center)).First();
-		string[] mismatch = { "Its edge may sit outside the act's style.", "Its polish may sit outside the act's style.", "Its emotional tone may feel unfamiliar to them.", "Its outlook may sit outside the act's style." };
-		string resistanceText = resistance ? "They may resist this material. " + mismatch[identityGap - SongProfile.DemandCount] : "Resistance is possible; no strong sign in this read.";
+		string[] mismatch = { "Its edge sits outside the act's style.", "Its polish sits outside the act's style.", "Its emotional tone is unfamiliar to them.", "Its outlook sits outside the act's style." };
 		float pull = proposed.axes[(int)SongAxis.Toughness].Center - reference.axes[(int)SongAxis.Toughness].Center;
 		return new PolarComparisonRead { songTitle = choice.Title, actName = artist.stageName, reference = reference, proposed = proposed, act = act,
 			referenceFit = before, proposedFit = after, hasMarketEvidence = hasMarket, mayResist = resistance, isRecorded = printedMasterId != null,
-			subjectLabel = proposal.parentRecordingId == null ? "Demo / inferred reference" : "Heard reference performance",
-			evidenceLabel = gate.ToString() == "FirstListen" ? "First listen · broad read" : gate + " · observed read",
-			explanation = explanation, resistance = printedMasterId == null ? resistanceText : "Playback read · use it when choosing their next material.",
+			source = PolarHearingSource.Studio, showsAct = true, showsFit = true,
+			subjectLabel = choice.Kind == PlayerDesk.MaterialKind.Original && proposal.parentRecordingId == null ? "Their own demo"
+				: proposal.parentRecordingId == null ? "Reference: the sheet music" : "Reference: " + RecordName(song, proposal.parentRecordingId),
+			evidenceLabel = GateLabel(gate), explanation = explanation,
+			resistance = resistance ? "Expect pushback on this one. " + mismatch[identityGap - SongProfile.DemandCount] : "",
 			arrangement = printedMasterId != null ? "Playback: the printed version." : Math.Abs(pull) < Config.ArrangementDescriptionThreshold ? "Preview: a reading close to the heard version." : pull > 0 ? "Preview: a harder-edged reading." : "Preview: a gentler reading." };
+	}
+
+	private static PolarComparisonRead Hear(PlayerDesk.MaterialChoice choice, SimulatedArtist artist, PolarEvidenceGate gate, string eventId,
+		PolarHearing hearing, SongComposition song, PolarArrangementProposal proposal, PolarObservation act, PolarObservation reference,
+		PolarObservation proposed, string printedMasterId) {
+		var label = PlayerDesk.Instance.Label;
+		var heard = hearing.source == PolarHearingSource.Record ? reference : proposed;
+		var read = new PolarComparisonRead { songTitle = choice.Title, actName = artist.stageName, reference = reference, proposed = proposed, act = act,
+			heard = heard, source = hearing.source, showsAct = hearing.WatchedAct, showsFit = hearing.fitWithAct, isRecorded = printedMasterId != null,
+			fromSheetMusic = hearing.source == PolarHearingSource.Record && proposal.parentRecordingId == null,
+			evidenceLabel = GateLabel(gate), resistance = "", arrangement = "", explanation = "" };
+		read.subjectLabel = hearing.source switch {
+			PolarHearingSource.Venue => "Heard live · " + hearing.place + (hearing.when is GameDate when ? ", " + when.ToHeadlineString() : ""),
+			PolarHearingSource.Playback => "Your pressing",
+			_ => read.fromSheetMusic ? "Known from the sheet music · no record heard" : "Heard on record · " + RecordName(song, proposal.parentRecordingId)
+		};
+
+		// The hook is the scout's ear on the tune itself. A venue read is the one the set list already showed.
+		float scouting = Math.Clamp(label.scoutingAbility, 0, 1);
+		if (hearing.heardHook is float heardHook) {
+			float spread = PlayerDesk.ScoutingReadNoise(hearing.heardHookConfidence);
+			read.hook = new PolarBand(heardHook - spread, heardHook + spread);
+			read.hookText = Capitalize(DescribeHook(heardHook, hearing.heardHookConfidence));
+		} else {
+			float truth = song?.commercialHook ?? 0;
+			if (printedMasterId != null) truth = PlayerDesk.Instance.Masters.FirstOrDefault(m => m.Record.masterId == printedMasterId)?.Record.hookStrength ?? truth;
+			float error = Mathf.Lerp(Config.HookErrorWeak, Config.HookErrorStrong, scouting) * Config.GateScale[gate.ToString()];
+			read.hook = Read(truth, error, $"{label.labelId}|{heard.subjectId}|hook|{eventId}", "hook");
+			read.hookText = Capitalize(DescribeHook(read.hook.Center, BandConfidence(read.hook)));
+		}
+
+		if (hearing.WatchedAct) {
+			var ensemble = act.axes[(int)SongAxis.Ensemble];
+			string tight = ensemble.Center >= .7f ? "locked in" : ensemble.Center >= .5f ? "tight enough" : ensemble.Center >= .3f ? "a little loose" : "ragged";
+			read.tightnessText = Capitalize(BandConfidence(ensemble) >= .7f ? tight : "probably " + tight);
+			// Studio execution is not something a stage shows.
+			int weakest = Enumerable.Range(0, (int)SongAxis.StudioCraft).OrderByDescending(i => heard.axes[i].Center - act.axes[i].Center).First();
+			read.explanation = heard.axes[weakest].lo > act.axes[weakest].hi ? $"They were audibly reaching on the {Demands[weakest]}."
+				: heard.axes[weakest].Center > act.axes[weakest].Center ? $"The {Demands[weakest]} may have stretched them." : "They had it well in hand.";
+		}
+		if (hearing.fitWithAct) {
+			// Choosing material for your own act: a short read against what you know of them. The full
+			// arrangement, market moment and any pushback are studio reads.
+			read.referenceFit = FitBands(reference.axes, act.axes, act.rigidity, null);
+			int weakest = Enumerable.Range(0, SongProfile.DemandCount).OrderByDescending(i => reference.axes[i].Center - act.axes[i].Center).First();
+			read.explanation = reference.axes[weakest].Center > act.axes[weakest].Center
+				? $"It may stretch {artist.stageName}'s {Demands[weakest]}." : $"It looks within {artist.stageName}'s range.";
+		}
+		return read;
+	}
+
+	public static string DescribeHook(float value, float confidence) {
+		string core = value >= 0.75f ? "a standout hook" : value >= 0.55f ? "a strong tune" : value >= 0.35f ? "a fair number" : "a weak number";
+		return confidence >= 0.7f ? core : confidence >= 0.45f ? $"likely {core}" : $"might be {core}";
+	}
+	/// <summary>Reads a band's width back onto the scouting-confidence scale the set list uses.</summary>
+	private static float BandConfidence(PolarBand band) => Math.Clamp(1 - (band.hi - band.lo) * 1.5f, 0, 1);
+	private static string Capitalize(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text[1..];
+	private static string GateLabel(PolarEvidenceGate gate) => gate switch {
+		PolarEvidenceGate.FirstListen => "first listen · broad read",
+		PolarEvidenceGate.FollowUp => "second look · closer read",
+		PolarEvidenceGate.Rehearsal => "rehearsal · working read",
+		PolarEvidenceGate.Playback => "playback · close read",
+		_ => "rough read"
+	};
+	private static string RecordName(SongComposition song, string masterId) {
+		var memory = song?.recordings?.FirstOrDefault(r => r.recordId == masterId);
+		var master = PolarSongMetadataService.Get(masterId);
+		string name = memory?.artistName ?? (master?.artistId == null ? null : ArtistManager.Instance?.GetArtist(master.artistId)?.stageName);
+		int year = memory?.year ?? master?.recordingYear ?? 0;
+		return name == null ? (year > 0 ? $"a {year} record" : "a record") : year > 0 ? $"{name}'s {year} record" : $"{name}'s record";
 	}
 
 	public static PolarObservation Observe(float[] axes, float reach, float rigidity, float ambition, float plasticity,
@@ -102,7 +191,9 @@ public static class PolarPlayerPerception {
 		// Keep earned evidence even when a later view asks for a weaker gate; improved staff may refine it.
 		if (prior != null && Config.GateScale[prior.gate.ToString()] < Config.GateScale[gate.ToString()]) gate = prior.gate;
 		float scale = Config.GateScale[gate.ToString()];
-		float demandError = Mathf.Lerp(Config.DemandErrorWeak, Config.DemandErrorStrong, Math.Clamp(observer.productionQuality, 0, 1)) * scale;
+		// Away from the studio, reading what a performance demands is the scout's ear, not the producer's.
+		float demandSkill = kind.EndsWith(EarKind, StringComparison.Ordinal) ? observer.scoutingAbility : observer.productionQuality;
+		float demandError = Mathf.Lerp(Config.DemandErrorWeak, Config.DemandErrorStrong, Math.Clamp(demandSkill, 0, 1)) * scale;
 		float identityError = Mathf.Lerp(Config.IdentityErrorWeak, Config.IdentityErrorStrong, Math.Clamp(observer.scoutingAbility, 0, 1)) * scale;
 		if (kind == "market") identityError = Mathf.Lerp(Config.MarketErrorWeak, Config.MarketErrorStrong, Math.Clamp(observer.marketingPower, 0, 1));
 		if (prior != null && prior.demandError <= demandError && prior.identityError <= identityError) return prior;
