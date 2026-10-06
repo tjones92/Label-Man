@@ -1440,7 +1440,7 @@ public partial class PlayerDesk : Node {
 			});
 		}
 		// An unpublished professional composition is new material, with its real song identity.
-		if(flexibleOriginals && LiveRepertoire.SetMix(artist,year)==null && prospect.LiveSet.Count<targetSize &&
+		if(flexibleOriginals && (!LiveRepertoire.AuditGenreRepair||artist.primaryGenre!=Genre.Comedy) && LiveRepertoire.SetMix(artist,year)==null && prospect.LiveSet.Count<targetSize &&
 			RepertoireTaxonomy.Unit(artist.artistId+"|supplied-new")<(1-artist.songwritingAbility)*.20f) {
 			var supplied=CompositionCatalogService.GetProfessionalForGenre(artist.primaryGenre)
 				.Where(s=>s.originYear<=year&&s.repertoireFirstReleaseYear==0)
@@ -1460,18 +1460,30 @@ public partial class PlayerDesk : Node {
 			pool.AddRange(CompositionCatalogService.GetCoverableHitsForFamily(family));
 		}
 		if(PolarSongBehavior.UsePolarFitSelection&&LiveRepertoire.AuditPhase>=2) pool=LiveRepertoire.Pool(artist,year,TimeManager.Instance?.CurrentDate.month??1);
+		if(PolarSongBehavior.UsePolarFitSelection)pool=pool.Where(s=>LiveRepertoire.EligibleLive(s,artist)).ToList();
 		int want = (flexibleOriginals ? targetSize : DrawInt(3, 5)) - prospect.LiveSet.Count;
 		if (PolarSongBehavior.UsePolarFitSelection) {
 			if(LiveRepertoire.AuditPhase<2&&SongMaterialSelectionService.IsRockSongbookContext(artist.primaryGenre))pool.AddRange(SongMaterialSelectionService.RockLiveCoverPool(artist.primaryGenre));
-			auditPool?.Invoke(want, pool);
+			int authoredReplacement=0;
 			foreach (var song in SongMaterialSelectionService.SelectLiveCovers(pool, artist, year, want)) {
 				prospect.LiveSet.Add(new RepertoireItem {
-					Title = song.title, SourceTag = song.EstablishedAsOf(year) ? "standard" : "cover", IsOriginal = false,
+					Title = song.title, SourceTag = artist.primaryGenre==Genre.Comedy&&LiveRepertoire.OwnOriginal(song,artist)?"their own":song.EstablishedAsOf(year) ? "standard" : "cover", IsOriginal = false,
 					SongId = song.songId, Genre = song.primaryGenre, ContentContext = song.contentContext,
 					ReferenceMasterId = PolarSongBehavior.Reference(song, year)?.masterId ?? "demo:" + song.songId,
 					ReadHook = Read(song.commercialHook), ReadQuality = Read(song.GetCraftScore())
 				});
 			}
+			// Comedians author the rest of their programme instead of borrowing a
+			// stranger's routine. Keyed placeholder reads add no global RNG draws.
+			if(LiveRepertoire.AuditGenreRepair&&artist.primaryGenre==Genre.Comedy&&flexibleOriginals)while(prospect.LiveSet.Count<targetSize) {
+				int slot=prospect.LiveSet.Count;float hook=Mathf.Clamp(artist.songwritingAbility*.7f+
+					RepertoireTaxonomy.Unit($"{artist.artistId}|new-routine|{year}|{TimeManager.Instance?.CurrentDate.month??1}|{slot}")*.4f-.15f,0,1);
+				float noise=(RepertoireTaxonomy.Unit($"{artist.artistId}|routine-read|{year}|{slot}")*2-1)*readNoise;
+				prospect.LiveSet.Add(new RepertoireItem {Title="New routine",SourceTag="their own",IsOriginal=true,Genre=Genre.Comedy,
+					ContentContext=SongContentContext.Secular,ReadHook=Mathf.Clamp(hook+noise,0,1),ReadQuality=Mathf.Clamp(hook+noise,0,1)});
+				authoredReplacement++;
+			}
+			auditPool?.Invoke(want-authoredReplacement, pool);
 			prospect.HeardCount = Mathf.Min(prospect.LiveSet.Count, DrawInt(1, 2));
 			return;
 		}

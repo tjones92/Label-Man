@@ -12,6 +12,7 @@ public sealed class ActRepertoireState {
 public static class LiveRepertoire {
  // Headless causal replay only; normal play always uses all five repair phases.
  internal static int AuditPhase=5;
+ internal static bool AuditGenreRepair=true; // Fixed-world comparator only; never persisted.
  internal static bool AuditDisableAffinity, AuditSmoothRanking;
  private static readonly Dictionary<Genre,List<SongComposition>> secondary=new();
  public static void Reset()=>secondary.Clear();
@@ -21,14 +22,27 @@ public static class LiveRepertoire {
   if(!pool.Contains(song))pool.Add(song);
  }
  private static ActRepertoireState State(SimulatedArtist artist)=>artist.repertoireState??=new ActRepertoireState {preferenceSeed=RepertoireTaxonomy.Hash(artist.artistId+"|repertoire")};
- public static RepertoireAffinity Affinity(SimulatedArtist artist)=>PolarRepertoireTable.Current.GenreAffinities.GetValueOrDefault(artist.primaryGenre.ToString());
+ public static RepertoireAffinity Affinity(SimulatedArtist artist)=>!AuditGenreRepair&&artist.primaryGenre is Genre.TeenPop or Genre.Classical or Genre.Childrens?null:PolarRepertoireTable.Current.GenreAffinities.GetValueOrDefault(artist.primaryGenre.ToString());
  public static LiveSetMix SetMix(SimulatedArtist artist,int year)=>AuditPhase<4||AuditDisableAffinity?null:
   PolarRepertoireTable.Current.LiveSetMixes.GetValueOrDefault(artist.primaryGenre.ToString())?.FirstOrDefault(m=>year>=m.FromYear&&year<=m.ToYear);
  public static bool OwnOriginal(SongComposition song,SimulatedArtist artist)=>song.originKind==SongOriginKind.ArtistOriginal&&
   (!string.IsNullOrEmpty(song.originArtistId)&&song.originArtistId==artist.artistId||song.credits?.Any(c=>c.isArtistMember&&!string.IsNullOrEmpty(c.writerId)&&artist.members?.Any(m=>m?.personId==c.writerId)==true)==true);
  // Old/imported unknowns retain their behavior and remain explicitly unknown in reports.
  // Only creation/import evidence can label them; do not silently call them sacred.
- public static bool EligibleLive(SongComposition song,SimulatedArtist artist)=>Affinity(artist)?.SacredLiveOnly!=true||song.contentContext is SongContentContext.Sacred or SongContentContext.Unknown;
+ public static bool ExternalMedia(SongComposition song)=>song?.originKind is SongOriginKind.ExternalMediaComposition or SongOriginKind.ExternalMediaTheme;
+ public static bool ScreenInstrumental(SongComposition song)=>ExternalMedia(song)&&(song.repertoireSeedFamily=="Screen instrumental"||song.externalMediaSourceType==ExternalMediaSourceType.FilmScore||song.demoTaxonomy?.vocalPresence==SongVocalPresence.Instrumental);
+ public static bool EligibleLive(SongComposition song,SimulatedArtist artist) {
+  if(song==null)return false;
+  if(Affinity(artist)?.SacredLiveOnly==true&&song.contentContext is not SongContentContext.Sacred and not SongContentContext.Unknown)return false;
+  if(!AuditGenreRepair)return true;
+  if(ScreenInstrumental(song)&&!Instrumental(artist))return false;
+  if(artist.primaryGenre==Genre.Childrens&&RepertoireProvenance.ComedyRoutine(song))return false;
+  if(artist.primaryGenre==Genre.Comedy) {
+   if(song.primaryGenre==Genre.Childrens||song.repertoireSeedFamily=="Children songs")return false;
+   return RepertoireProvenance.ComedyRoutine(song)?OwnOriginal(song,artist):song.primaryGenre==Genre.Classical;
+  }
+  return true;
+ }
  public static float InheritedLiveShare(SimulatedArtist artist) {
   var affinity=Affinity(artist);
   if(affinity==null)return 0;
@@ -46,6 +60,8 @@ public static class LiveRepertoire {
  };
  private static float Access(SongComposition song,Genre genre) {
   var t=PolarRepertoireTable.Current;
+  if(AuditGenreRepair&&(genre==Genre.Comedy&&(song.primaryGenre==Genre.Childrens||song.repertoireSeedFamily=="Children songs")||
+   genre==Genre.Childrens&&RepertoireProvenance.ComedyRoutine(song)))return 0;
   if(song.primaryGenre==genre)return t.N("exactAccess");
   if(song.secondaryGenre==genre)return t.N("secondaryAccess");
   GenreFamily Family(Genre g)=>GenreCatalog.TryGet(GenreCatalog.MapLegacy(g),out var p)?p.Family:GenreFamily.Pop;
@@ -74,11 +90,18 @@ public static class LiveRepertoire {
    }
   }
   if(additional!=null)source.AddRange(additional);
-  var ranked=source.Where(s=>s!=null&&s.originYear<=year).DistinctBy(s=>s.songId)
+  if(AuditGenreRepair&&artist.primaryGenre==Genre.Comedy)source.AddRange(CompositionCatalogService.GetCatalogForGenre(Genre.Comedy).Where(s=>OwnOriginal(s,artist)));
+  var available=source.Where(s=>s!=null&&s.originYear<=year).DistinctBy(s=>s.songId).ToArray();
+  var ranked=available.Where(s=>!AuditGenreRepair||!ExternalMedia(s))
    .Select(s=>new {Song=s,Weight=AccessWeight(s,artist,year,month),Draw=RepertoireTaxonomy.Unit(State(artist).preferenceSeed+"|access|"+s.songId)})
    .Where(x=>x.Weight>0).OrderBy(x=>x.Draw/x.Weight).ThenBy(x=>RepertoireTaxonomy.Hash(x.Song.songId+"|access-collision")).ToArray();
   // A four-song introductory book for acts entering a scene; independent of requested covers.
-  return ranked.Where((x,i)=>x.Draw<x.Weight||i<4).Select(x=>x.Song).ToList();
+  var book=ranked.Where((x,i)=>x.Draw<x.Weight||i<4).Select(x=>x.Song).ToList();
+  // Media access is a source opportunity, not one lottery ticket per album cut.
+  // Keep the existing tiers; selection draws once per source/slot below.
+  if(AuditGenreRepair)book.AddRange(available.Where(s=>ExternalMedia(s)&&AccessWeight(s,artist,year,month)>0));
+  if(AuditGenreRepair&&artist.primaryGenre==Genre.Comedy)book.AddRange(available.Where(s=>OwnOriginal(s,artist)));
+  return book.DistinctBy(s=>s.songId).ToList();
  }
  public static float Preference(SongComposition song,SimulatedArtist artist,int year,int month) {
   var t=PolarRepertoireTable.Current;ulong seed=State(artist).preferenceSeed;
@@ -91,11 +114,11 @@ public static class LiveRepertoire {
   return RepertoireTaxonomy.Unit(seed+"|preference|"+song.songId)+drift+genrePreference*t.N("genrePreferenceWeight")+
    song.commercialHook*t.N("hookPreference")+song.GetFamiliarityForYear(year)*t.N("familiarityPreference");
  }
- public static float WritingPropensity(SimulatedArtist artist,int year)=>Cohort(artist,year) switch {
+ public static float WritingPropensity(SimulatedArtist artist,int year)=>Affinity(artist)?.WritingPropensity??(Cohort(artist,year) switch {
   "composerLed"=>.85f,"standardsInterpreter"=>.20f,"traditionalRevival"=>.25f,"inheritedRepertoire"=>.30f,
   "standardsLed"=>.20f,"contemporaryInstrumental"=>.60f,"contemporaryInterpreter"=>.90f,"earlyRevival"=>.40f,
   "olderSongbook"=>.65f,"contemporaryBrazilian"=>.85f,_=>artist.primaryGenre==Genre.Country?.70f:artist.primaryGenre==Genre.SurfRock?.75f:.65f
- };
+ });
  public static int OriginalCount(SimulatedArtist artist,int year,int size) {
   if(size<=0)return 0;
   var mix=SetMix(artist,year);
@@ -112,7 +135,7 @@ public static class LiveRepertoire {
   float strength=Math.Clamp((artist.songwritingAbility-t.N("writingFloor"))/(t.N("exceptionalWriter")-t.N("writingFloor")),0,1);
   int count=(int)Math.Round(size*strength*WritingPropensity(artist,year),MidpointRounding.AwayFromZero);
   float rareChance=Cohort(artist,year)=="composerLed"?.12f:.03f;
-  if(artist.songwritingAbility>=t.N("exceptionalWriter")&&RepertoireTaxonomy.Unit(State(artist).preferenceSeed+"|all-original")<rareChance)return size;
+  if(Affinity(artist)?.WritingPropensity==null&&artist.songwritingAbility>=t.N("exceptionalWriter")&&RepertoireTaxonomy.Unit(State(artist).preferenceSeed+"|all-original")<rareChance)return size;
   return Math.Clamp(count,0,size-1);
  }
 }

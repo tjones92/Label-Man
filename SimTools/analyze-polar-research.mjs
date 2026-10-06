@@ -13,7 +13,7 @@ export function csvRows(path) {
 }
 const yes=v=>v==='True';
 const percent=(n,d)=>d?100*n/d:null;
-const categories=['newlyAuthored','existingCover','establishedStandard','traditionalLineage'];
+const categories=['newlyAuthored','existingCover','establishedStandard','traditionalLineage','ownAuthored'];
 export function analyzePolarResearch(prefix) {
  assert(/^[A-Za-z0-9-]+$/.test(prefix));
  const root='SimLogs/'+prefix;

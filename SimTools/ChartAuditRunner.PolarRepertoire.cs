@@ -10,6 +10,7 @@ public partial class ChartAuditRunner {
  private string repertoireDirectory;
  private readonly HashSet<string> repertoireSampled = new(StringComparer.Ordinal);
  private void OpenRepertoireAudit(string directory) {
+  if(genreFollowUpCensus) OpenGenreFollowUp(directory);
   repertoireDirectory=directory;
   repertoireSlots=CreateWriter(Path.Combine(directory,runName+"-repertoire-slots.csv"));
   repertoireSlots.WriteLine("seed,date,year,month,genre,artistId,unsigned,slot,songId,category,publicDomain,archetype,originYear,originKind,instrumental,writingAbility,cohort,seedFamily,arrangementArchetype,sampleCohort,writingBin,stratumPopulation,stratumSample,sampleWeight,crossSection,panel");
@@ -25,7 +26,7 @@ public partial class ChartAuditRunner {
    var item=prospect.LiveSet[i];var song=CompositionCatalogService.GetSong(item.SongId);
    var profile=song==null?null:SongProfileDeriver.Derive(song,song.demoTaxonomy,PolarSongTable.Current);
    var arrangement=song==null||item.IsOriginal?null:PolarSongBehavior.LiveProposal(song,artist,date.year);
-   repertoireSlots.WriteLine(prefix+","+string.Join(",",i,Csv(item.SongId),item.IsOriginal?"newlyAuthored":RepertoireProvenance.Category(song,date.year),song?.isPublicDomain??false,profile?.archetype.ToString()??"placeholder",song?.originYear??date.year,song?.originKind.ToString()??"ArtistOriginal",LiveRepertoire.Instrumental(artist),DF(artist.songwritingAbility),LiveRepertoire.Cohort(artist,date.year),Csv(song?.repertoireSeedFamily),arrangement?.realizedProfile.archetype.ToString()??"placeholder")+","+PolarSampleSuffix);
+   repertoireSlots.WriteLine(prefix+","+string.Join(",",i,Csv(item.SongId),RepertoireProvenance.CategoryForAct(song,artist,date.year,item.IsOriginal),song?.isPublicDomain??false,profile?.archetype.ToString()??"placeholder",song?.originYear??date.year,song?.originKind.ToString()??"ArtistOriginal",LiveRepertoire.Instrumental(artist),DF(artist.songwritingAbility),LiveRepertoire.Cohort(artist,date.year),Csv(song?.repertoireSeedFamily),arrangement?.realizedProfile.archetype.ToString()??"placeholder")+","+PolarSampleSuffix);
   }
   // One act per genre/cohort/vocal role/population/month; identical actors/pools for the A/B.
   if(polarDiagnosticsUsed < polarDiagnosticLimit && repertoireSampled.Add($"{date.year}:{date.month}:{artist.primaryGenre}:{LiveRepertoire.Cohort(artist,date.year)}:{LiveRepertoire.Instrumental(artist)}:{unsigned}")) {
@@ -50,6 +51,7 @@ public partial class ChartAuditRunner {
   repertoireAdmissions.Flush();repertoireSlots.Flush();repertoireOrdering.Flush();
  }
  private void CloseRepertoireAudit() {
+  CloseGenreFollowUp();
   FlushRepertoireAdmissions();repertoireSlots.Dispose();repertoireAdmissions.Dispose();repertoireOrdering.Dispose();
   using var inventory=CreateWriter(Path.Combine(repertoireDirectory,runName+"-repertoire-inventory.csv"));
   inventory.WriteLine("songId,genre,secondaryGenre,originYear,originKind,seedFamily,archetype,traditional,publicDomain,establishedYear,firstReleaseYear,admissionRoutes");

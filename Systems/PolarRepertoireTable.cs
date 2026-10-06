@@ -31,7 +31,8 @@ public sealed class PolarRepertoireTable {
   }
   foreach(var band in t.Bands)if(band.Min<0||band.Max>100||band.Min>band.Max)throw new InvalidOperationException("Invalid historical band");
   foreach(var (genre,a) in t.GenreAffinities)if(!Enum.TryParse<Genre>(genre,out _)||a==null||
-   !float.IsFinite(a.InheritedLiveShare)||!float.IsFinite(a.ActSpread)||a.InheritedLiveShare<0||a.InheritedLiveShare>1||a.ActSpread<0||a.ActSpread>1)
+   !float.IsFinite(a.InheritedLiveShare)||!float.IsFinite(a.ActSpread)||a.InheritedLiveShare<0||a.InheritedLiveShare>1||a.ActSpread<0||a.ActSpread>1||
+   a.SongbookFamily!=null&&!t.Assignments.ContainsKey(a.SongbookFamily)||a.WritingPropensity.HasValue&&(!float.IsFinite(a.WritingPropensity.Value)||a.WritingPropensity<0||a.WritingPropensity>1))
    throw new InvalidOperationException("Invalid genre repertoire affinity");
   foreach(var (genre,rows) in t.LiveSetMixes) {
    if(!Enum.TryParse<Genre>(genre,out _)||rows==null||rows.Length==0)throw new InvalidOperationException("Invalid live set genre");
@@ -69,6 +70,8 @@ public sealed class RepertoireAffinity {
  public float InheritedLiveShare {get;set;}
  public float ActSpread {get;set;}
  public bool SacredLiveOnly {get;set;}
+ public string SongbookFamily {get;set;}
+ public float? WritingPropensity {get;set;}
 }
 public sealed class RepertoireAssignment {
  public string Context {get;set;}

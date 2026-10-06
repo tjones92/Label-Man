@@ -1,0 +1,1032 @@
+{
+  "definition": "Fresh 1960–September 1961 monthly Gospel trajectory; all live slots, all signing statuses. Pre-existing acceptance: 65–70% inherited, <=2% secular. Unknown contexts remain explicit.",
+  "manifest": {
+    "path": "SimLogs/polar-directive3-trajectory-genre-repair-gospel-v3-runs.json",
+    "sha256": "4d87199039989b4692191995e4abdf9288f3a5d1a7ddc10e817b34148c4aea94"
+  },
+  "trajectories": [
+    {
+      "seed": 1001,
+      "weeks": 91,
+      "lastDate": [
+        1961,
+        9,
+        29
+      ],
+      "monthlyObservations": 21,
+      "slots": 13822,
+      "inherited": 9620,
+      "inheritedShare": 69.59918969758357,
+      "secular": 0,
+      "secularShare": 0,
+      "unknown": 0,
+      "inheritedAccepted": true,
+      "secularAccepted": true,
+      "concentration": {
+        "slots": 9620,
+        "uniqueSongs": 259,
+        "top10Share": 12.785862785862786
+      },
+      "actBooks": {
+        "medianDistinctSongs": 5,
+        "p90DistinctSongs": 7,
+        "medianTop10Share": 100
+      },
+      "periods": [
+        {
+          "scope": "all",
+          "period": "full",
+          "slots": 13822,
+          "inherited": 9620,
+          "inheritedShare": 69.59918969758357,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q1",
+          "slots": 792,
+          "inherited": 568,
+          "inheritedShare": 71.71717171717172,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q2",
+          "slots": 1053,
+          "inherited": 762,
+          "inheritedShare": 72.36467236467236,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q3",
+          "slots": 1361,
+          "inherited": 972,
+          "inheritedShare": 71.41807494489346,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q4",
+          "slots": 1711,
+          "inherited": 1190,
+          "inheritedShare": 69.5499707773232,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q1",
+          "slots": 2743,
+          "inherited": 1880,
+          "inheritedShare": 68.53809697411593,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q2",
+          "slots": 3026,
+          "inherited": 2086,
+          "inheritedShare": 68.9358889623265,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q3",
+          "slots": 3136,
+          "inherited": 2162,
+          "inheritedShare": 68.94132653061224,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "full",
+          "slots": 4717,
+          "inherited": 3342,
+          "inheritedShare": 70.8501165995336,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q1",
+          "slots": 675,
+          "inherited": 477,
+          "inheritedShare": 70.66666666666667,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q2",
+          "slots": 664,
+          "inherited": 490,
+          "inheritedShare": 73.79518072289157,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q3",
+          "slots": 686,
+          "inherited": 487,
+          "inheritedShare": 70.99125364431487,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q4",
+          "slots": 703,
+          "inherited": 498,
+          "inheritedShare": 70.83926031294452,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q1",
+          "slots": 638,
+          "inherited": 457,
+          "inheritedShare": 71.63009404388714,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q2",
+          "slots": 685,
+          "inherited": 483,
+          "inheritedShare": 70.51094890510949,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q3",
+          "slots": 666,
+          "inherited": 450,
+          "inheritedShare": 67.56756756756756,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "full",
+          "slots": 9105,
+          "inherited": 6278,
+          "inheritedShare": 68.95112575507963,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q1",
+          "slots": 117,
+          "inherited": 91,
+          "inheritedShare": 77.77777777777777,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q2",
+          "slots": 389,
+          "inherited": 272,
+          "inheritedShare": 69.9228791773779,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q3",
+          "slots": 675,
+          "inherited": 485,
+          "inheritedShare": 71.85185185185185,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q4",
+          "slots": 1008,
+          "inherited": 692,
+          "inheritedShare": 68.65079365079364,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q1",
+          "slots": 2105,
+          "inherited": 1423,
+          "inheritedShare": 67.60095011876484,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q2",
+          "slots": 2341,
+          "inherited": 1603,
+          "inheritedShare": 68.47501067919693,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q3",
+          "slots": 2470,
+          "inherited": 1712,
+          "inheritedShare": 69.31174089068826,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        }
+      ],
+      "inputs": [
+        {
+          "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s1",
+          "weeks": 35,
+          "date": [
+            1960,
+            9,
+            2
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 91,
+            "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s1",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-genre-repair-gospel-v3-1001-s1",
+              "--weeks=91",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T00:26:00.6345748Z",
+            "assemblySha256": "79C063C84198E85D16CCB8CAF763AA6C27CF0DE881B9B64B3B52ECC277FA2DD7",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 201.8715296,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s1-invocation.json",
+              "sha256": "94b8f8537f67c9a5b4f8d6cf7ad053f639dcb609e0f2b2cfbb0a9e356304f081"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s1.log",
+              "sha256": "eed1101e35803bb995c5b03b6007da513a1312afb911e7bfc8bf0d3186856c10"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s1-directive2-quarter-slots.csv",
+              "sha256": "835ac061f6c98f27423d065340a098ec616483ef664d3408f3db01111e33cc5f"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s1-polar-research.json",
+              "sha256": "d3888100474c0b15c1b877690a2ad2f6a190b8ac912a8f805d7d7f847ff6aa4c"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s2",
+          "weeks": 26,
+          "date": [
+            1961,
+            3,
+            3
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 56,
+            "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s2",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-genre-repair-gospel-v3-1001-s2",
+              "--weeks=56",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-genre-repair-gospel-v3-1001-s1-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T00:29:25.7000832Z",
+            "assemblySha256": "79C063C84198E85D16CCB8CAF763AA6C27CF0DE881B9B64B3B52ECC277FA2DD7",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 194.8948092,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s2-invocation.json",
+              "sha256": "360dced56e7bbf8fca5c2ffc44358e5771e6ba76e43f087ed69dcd3cd2d9d3e2"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s2.log",
+              "sha256": "a03fc5aeef2dab59d153bb09ad1b20eacd98f81a44d53980fce39dbb06fb8b24"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s2-directive2-quarter-slots.csv",
+              "sha256": "e0c9ec3f62a18baf9453bbd3c67d214da023df7caee107fa8f5f5d8865d3f02a"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s2-polar-research.json",
+              "sha256": "1faf155bfa4cf0637ae6e0a0f01d3aee1453518754e20d04de474499093cd3f2"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s3",
+          "weeks": 22,
+          "date": [
+            1961,
+            8,
+            4
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 30,
+            "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s3",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-genre-repair-gospel-v3-1001-s3",
+              "--weeks=30",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-genre-repair-gospel-v3-1001-s2-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T00:32:42.7643788Z",
+            "assemblySha256": "79C063C84198E85D16CCB8CAF763AA6C27CF0DE881B9B64B3B52ECC277FA2DD7",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 198.5440466,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s3-invocation.json",
+              "sha256": "d303c352600e7ed7f7b4db512d95cb08ed3b016f10272c22b45e82df993a4a2b"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s3.log",
+              "sha256": "45424f42ec7a9e9d9560d7d3b7ab25723df82a90f8676ace3890afffdfb1e23e"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s3-directive2-quarter-slots.csv",
+              "sha256": "088f31055f81cd0ffe650cedf1e9d2c21c22ff648be4b1a22e6d7fd3c89c70bd"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s3-polar-research.json",
+              "sha256": "9f62fdf2c57ce4aadd01c533f1134b9469763805db174a5b6f63e119e56bdc5e"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s4",
+          "weeks": 8,
+          "date": [
+            1961,
+            9,
+            29
+          ],
+          "invocation": {
+            "seed": 1001,
+            "mode": "on",
+            "weeks": 8,
+            "run": "polar-directive3-fresh-genre-repair-gospel-v3-1001-s4",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1001",
+              "--run=polar-directive3-fresh-genre-repair-gospel-v3-1001-s4",
+              "--weeks=8",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-genre-repair-gospel-v3-1001-s3-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T00:36:03.8119727Z",
+            "assemblySha256": "79C063C84198E85D16CCB8CAF763AA6C27CF0DE881B9B64B3B52ECC277FA2DD7",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 101.7549676,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s4-invocation.json",
+              "sha256": "755af85f2cab4301fc53fe56723a53881bcf02909233272b57a743d6ddfa0869"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s4.log",
+              "sha256": "397a95da07f660d4a11057246a316aa2966f628009af1148838083ba0dff8652"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s4-directive2-quarter-slots.csv",
+              "sha256": "6a66adfca8d2f52011b1ceae84720927f1e20fcdc8e879e6a2a0eda4cb235b4d"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1001-s4-polar-research.json",
+              "sha256": "06d3f78ecf4eaaec1814b77b8816099ea887f7234731dd0c70fa41490a703edc"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "seed": 1002,
+      "weeks": 91,
+      "lastDate": [
+        1961,
+        9,
+        29
+      ],
+      "monthlyObservations": 21,
+      "slots": 12765,
+      "inherited": 8443,
+      "inheritedShare": 66.14179396788093,
+      "secular": 0,
+      "secularShare": 0,
+      "unknown": 0,
+      "inheritedAccepted": true,
+      "secularAccepted": true,
+      "concentration": {
+        "slots": 8443,
+        "uniqueSongs": 226,
+        "top10Share": 23.948833353073553
+      },
+      "actBooks": {
+        "medianDistinctSongs": 5,
+        "p90DistinctSongs": 7,
+        "medianTop10Share": 100
+      },
+      "periods": [
+        {
+          "scope": "all",
+          "period": "full",
+          "slots": 12765,
+          "inherited": 8443,
+          "inheritedShare": 66.14179396788093,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q1",
+          "slots": 616,
+          "inherited": 409,
+          "inheritedShare": 66.3961038961039,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q2",
+          "slots": 976,
+          "inherited": 643,
+          "inheritedShare": 65.8811475409836,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q3",
+          "slots": 1207,
+          "inherited": 800,
+          "inheritedShare": 66.28003314001657,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1960-Q4",
+          "slots": 1561,
+          "inherited": 1039,
+          "inheritedShare": 66.55989750160154,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q1",
+          "slots": 2542,
+          "inherited": 1639,
+          "inheritedShare": 64.47678992918962,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q2",
+          "slots": 2770,
+          "inherited": 1828,
+          "inheritedShare": 65.9927797833935,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "all",
+          "period": "1961-Q3",
+          "slots": 3093,
+          "inherited": 2085,
+          "inheritedShare": 67.41028128031037,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "full",
+          "slots": 4145,
+          "inherited": 2711,
+          "inheritedShare": 65.40410132689988,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q1",
+          "slots": 553,
+          "inherited": 369,
+          "inheritedShare": 66.72694394213381,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q2",
+          "slots": 594,
+          "inherited": 388,
+          "inheritedShare": 65.31986531986531,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q3",
+          "slots": 607,
+          "inherited": 391,
+          "inheritedShare": 64.41515650741351,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1960-Q4",
+          "slots": 603,
+          "inherited": 395,
+          "inheritedShare": 65.50580431177445,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q1",
+          "slots": 558,
+          "inherited": 356,
+          "inheritedShare": 63.799283154121866,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q2",
+          "slots": 604,
+          "inherited": 393,
+          "inheritedShare": 65.06622516556291,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "signed",
+          "period": "1961-Q3",
+          "slots": 626,
+          "inherited": 419,
+          "inheritedShare": 66.93290734824281,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "full",
+          "slots": 8620,
+          "inherited": 5732,
+          "inheritedShare": 66.49651972157773,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q1",
+          "slots": 63,
+          "inherited": 40,
+          "inheritedShare": 63.492063492063494,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q2",
+          "slots": 382,
+          "inherited": 255,
+          "inheritedShare": 66.75392670157068,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q3",
+          "slots": 600,
+          "inherited": 409,
+          "inheritedShare": 68.16666666666667,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1960-Q4",
+          "slots": 958,
+          "inherited": 644,
+          "inheritedShare": 67.22338204592901,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q1",
+          "slots": 1984,
+          "inherited": 1283,
+          "inheritedShare": 64.66733870967742,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q2",
+          "slots": 2166,
+          "inherited": 1435,
+          "inheritedShare": 66.2511542012927,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        },
+        {
+          "scope": "unsigned",
+          "period": "1961-Q3",
+          "slots": 2467,
+          "inherited": 1666,
+          "inheritedShare": 67.53141467369275,
+          "secular": 0,
+          "secularShare": 0,
+          "unknown": 0
+        }
+      ],
+      "inputs": [
+        {
+          "run": "polar-directive3-fresh-genre-repair-gospel-v3-1002-s1",
+          "weeks": 48,
+          "date": [
+            1960,
+            12,
+            2
+          ],
+          "invocation": {
+            "seed": 1002,
+            "mode": "on",
+            "weeks": 91,
+            "run": "polar-directive3-fresh-genre-repair-gospel-v3-1002-s1",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1002",
+              "--run=polar-directive3-fresh-genre-repair-gospel-v3-1002-s1",
+              "--weeks=91",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T00:37:48.3548855Z",
+            "assemblySha256": "79C063C84198E85D16CCB8CAF763AA6C27CF0DE881B9B64B3B52ECC277FA2DD7",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 193.3987172,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s1-invocation.json",
+              "sha256": "ab5c4b270a710eb7a7a0b8d75e1f81f103797cbbcd15a8537d3ad8b5068ba6d6"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s1.log",
+              "sha256": "d925113efd609e26f5e77d98cb1af3543d7fefc960a161029f9fbd443f6acdd4"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s1-directive2-quarter-slots.csv",
+              "sha256": "748d0d3ee255918783bb635b7ade7efaeb48d99a901d7f80a185ad53b770942e"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s1-polar-research.json",
+              "sha256": "45937c7be6b6cf7466f4d66036c3c3c7ace10b4fde63ea50f7d640d3178efc3b"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-genre-repair-gospel-v3-1002-s2",
+          "weeks": 26,
+          "date": [
+            1961,
+            6,
+            2
+          ],
+          "invocation": {
+            "seed": 1002,
+            "mode": "on",
+            "weeks": 43,
+            "run": "polar-directive3-fresh-genre-repair-gospel-v3-1002-s2",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1002",
+              "--run=polar-directive3-fresh-genre-repair-gospel-v3-1002-s2",
+              "--weeks=43",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-genre-repair-gospel-v3-1002-s1-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T00:41:04.1013859Z",
+            "assemblySha256": "79C063C84198E85D16CCB8CAF763AA6C27CF0DE881B9B64B3B52ECC277FA2DD7",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 197.3287204,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s2-invocation.json",
+              "sha256": "0be31480c9d17f0865f162fdefb81b3cdd0883482c468daf6dc95bd2c4090a5e"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s2.log",
+              "sha256": "f1f2b01a9c08da8184117a79fb702c71a449592d80d3f85e44cc3b2f81d523b7"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s2-directive2-quarter-slots.csv",
+              "sha256": "6db9119b66769125e34dec9df2399aecca2683719c4a42792fc9fb618d988967"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s2-polar-research.json",
+              "sha256": "4f8178f8de4f0fb567202fbdaf1150bec0fc54648f6f74487da5c8ac106edd09"
+            }
+          ]
+        },
+        {
+          "run": "polar-directive3-fresh-genre-repair-gospel-v3-1002-s3",
+          "weeks": 17,
+          "date": [
+            1961,
+            9,
+            29
+          ],
+          "invocation": {
+            "seed": 1002,
+            "mode": "on",
+            "weeks": 17,
+            "run": "polar-directive3-fresh-genre-repair-gospel-v3-1002-s3",
+            "census": "none",
+            "samplePerStratum": 4,
+            "diagnosticActs": 0,
+            "maxSeconds": 180,
+            "arguments": [
+              "--headless",
+              "--path",
+              ".",
+              "SimTools/ChartAuditRunner.tscn",
+              "--",
+              "--seed=1002",
+              "--run=polar-directive3-fresh-genre-repair-gospel-v3-1002-s3",
+              "--weeks=17",
+              "--enable-genre-market-v2",
+              "--enable-artist-population-lifecycle",
+              "--calibration",
+              "--polar-final-audit",
+              "--polar-followup-audit",
+              "--polar-census=none",
+              "--polar-sample-per-stratum=4",
+              "--polar-diagnostic-acts=0",
+              "--polar-max-seconds=180",
+              "--polar-load-snapshot=C:\\Project\\Label-Man\\SimLogs\\polar-directive3-fresh-genre-repair-gospel-v3-1002-s2-polar-checkpoint.json.gz",
+              "--polar-verify-snapshot",
+              "--composition-shape-v1=on",
+              "--composition-shape-v2=on",
+              "--polar-directive2-trajectory",
+              "--polar-directive3-trajectory",
+              "--polar-census-from-year=1960"
+            ],
+            "startedUtc": "2026-10-06T00:44:23.8561724Z",
+            "assemblySha256": "79C063C84198E85D16CCB8CAF763AA6C27CF0DE881B9B64B3B52ECC277FA2DD7",
+            "tableSha256": "294998E65ECF6A7E02ED4BE266D840FB96E13ECF216A652D117BD84DE4BFF035",
+            "repertoireTableSha256": "BCAE8B0FAC36305D0DD8522CCB56729B9088597FE7BE66F40FE9183DB9FEEA70",
+            "elapsedSeconds": 159.9582922,
+            "exitCode": 0
+          },
+          "files": [
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s3-invocation.json",
+              "sha256": "a07093e2fe30efafcf5e3b0e002dc9a3c7d5081b80a51f34541deaa6d1ea2283"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s3.log",
+              "sha256": "d6d47db57aa9e1e1492ebf0f374239ab8e00c2a6efc6204605588d6f8ff217b1"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s3-directive2-quarter-slots.csv",
+              "sha256": "9bc962e3ece88ae10c6ea0b50169d4541cc5963a449fd5fbccb5ec8e372e9f6b"
+            },
+            {
+              "path": "SimLogs/polar-directive3-fresh-genre-repair-gospel-v3-1002-s3-polar-research.json",
+              "sha256": "5aef3da164b672fefe199b55e0fe8648948e88958a5feaf395d7d501fd7457b0"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

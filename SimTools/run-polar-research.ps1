@@ -1,5 +1,5 @@
 param(
- [ValidateSet(1001,1002)][int]$Seed = 1001,
+ [ValidateRange(1,2147483647)][int]$Seed = 1001,
  [ValidateSet('on','off')][string]$Mode = 'on',
  [ValidateRange(1,209)][int]$Weeks = 2,
  [Parameter(Mandatory=$true)][string]$Run,
@@ -16,6 +16,10 @@ param(
  [switch]$Directive3Trajectory,
  [switch]$Directive3AReplay,
  [switch]$FolkEasyTrajectory,
+ [switch]$GenreFollowUpCensus,
+ [switch]$GenreRepairCensus,
+ [ValidateRange(1960,1963)][int]$CensusFromYear = 1960,
+ [int[]]$CensusMonths = @(),
  [string]$Godot = 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe'
 )
 $ErrorActionPreference = 'Stop'
@@ -36,6 +40,10 @@ try {
  if ($Directive3Trajectory) { $polarResearchArgs += @('--polar-directive2-trajectory','--polar-directive3-trajectory') }
  if ($Directive3AReplay) { $polarResearchArgs += @('--polar-directive3-a-replay','--polar-repair-legacy-world') }
  if ($FolkEasyTrajectory) { $polarResearchArgs += '--folk-easy-trajectory' }
+ if ($GenreFollowUpCensus) { $polarResearchArgs += '--genre-followup-census' }
+ if ($GenreRepairCensus) { $polarResearchArgs += @('--genre-followup-census','--genre-repertoire-repair-census') }
+ $polarResearchArgs += "--polar-census-from-year=$CensusFromYear"
+ if ($CensusMonths.Count) { $polarResearchArgs += "--polar-census-months=$($CensusMonths -join ',')" }
  $polarResearchWatch = [Diagnostics.Stopwatch]::StartNew()
  $polarInvocation = [ordered]@{seed=$Seed;mode=$Mode;weeks=$Weeks;run=$Run;census=$Census;samplePerStratum=$SamplePerStratum;diagnosticActs=$DiagnosticActs;maxSeconds=$MaxSeconds;arguments=$polarResearchArgs;startedUtc=[DateTime]::UtcNow.ToString('o');assemblySha256=(Get-FileHash '.godot/mono/temp/bin/Debug/Label Man.dll').Hash;tableSha256=(Get-FileHash Data/PolarSongTable.json).Hash;repertoireTableSha256=(Get-FileHash Data/PolarRepertoireTable.json).Hash}
  $polarInvocation | ConvertTo-Json -Depth 5 | Set-Content "SimLogs/$Run-invocation.json"

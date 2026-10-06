@@ -19,6 +19,12 @@ public partial class ChartAuditRunner {
  private int polarStopAfterActs;
  private string polarLoadSnapshot;
  private bool polarVerifySnapshot;
+ private bool genreFollowUpCensus;
+ private bool genreRepairCensus;
+ private bool ObserveGenre(Genre genre)=>!genreFollowUpCensus||genreRepairCensus||GenreFollowUpGenres.Contains(genre);
+ private int polarCensusFromYear = 1960;
+ private readonly HashSet<int> polarCensusMonths = new();
+ private static readonly HashSet<Genre> GenreFollowUpGenres = new() { Genre.TeenPop, Genre.Country, Genre.Comedy, Genre.Classical, Genre.Childrens, Genre.TraditionalPop };
  private readonly Stopwatch polarResearchClock = Stopwatch.StartNew();
  private readonly HashSet<string> polarPanel = new(StringComparer.Ordinal);
  private StreamWriter polarSamplingWriter, polarCoverageWriter, polarTimingWriter;
@@ -68,7 +74,12 @@ public partial class ChartAuditRunner {
    if (arg.StartsWith("--polar-max-seconds=")) polarMaxSeconds = double.Parse(arg["--polar-max-seconds=".Length..], CultureInfo.InvariantCulture);
    if (arg.StartsWith("--polar-stop-after-acts=")) polarStopAfterActs = int.Parse(arg["--polar-stop-after-acts=".Length..], CultureInfo.InvariantCulture);
    if (arg.StartsWith("--polar-load-snapshot=")) polarLoadSnapshot = arg["--polar-load-snapshot=".Length..];
+   if (arg.StartsWith("--polar-census-from-year=")) polarCensusFromYear = int.Parse(arg["--polar-census-from-year=".Length..], CultureInfo.InvariantCulture);
+   if (arg.StartsWith("--polar-census-months=")) foreach(var month in arg["--polar-census-months=".Length..].Split(',')) polarCensusMonths.Add(int.Parse(month, CultureInfo.InvariantCulture));
   }
+  genreFollowUpCensus = args.Contains("--genre-followup-census");
+  genreRepairCensus = args.Contains("--genre-repertoire-repair-census");
+  if(polarCensusFromYear < 1960 || polarCensusFromYear > 1963 || polarCensusMonths.Any(m=>m<1||m>12)) throw new ArgumentException("Invalid census observation window.");
   if (args.Contains("--polar-no-census")) polarCensusMode = "none";
   polarVerifySnapshot = args.Contains("--polar-verify-snapshot");
   if (!new[] { "sample", "full", "none" }.Contains(polarCensusMode) || polarSamplePerStratum < 1 || polarDiagnosticLimit < 0 || !double.IsFinite(polarMaxSeconds) || polarMaxSeconds < 0 || polarStopAfterActs < 0)
@@ -89,6 +100,7 @@ public partial class ChartAuditRunner {
   var payload = new {
    schemaVersion = 1, run = runName, seed = requestedSeed, censusMode = polarCensusMode,
    samplePerStratum = polarSamplePerStratum, diagnosticActsPerMonth = polarDiagnosticLimit, maxSeconds = polarMaxSeconds,
+   observationWindow = new { fromYear = polarCensusFromYear, months = polarCensusMonths.OrderBy(m=>m).ToArray(), genres = genreFollowUpCensus&&!genreRepairCensus ? GenreFollowUpGenres.OrderBy(g=>g).Select(g=>g.ToString()).ToArray() : null },
    definitions = new {
     provenance = PolarProvenanceDefinition,
     sampling = "Lowest seed/artist hash ranks within genre, cohort, signed/unsigned population and writing bin; no month in hash. All acts in strata smaller than the cap. Weight = population/sample. Panel-only observations have weight zero.",
@@ -190,6 +202,7 @@ public partial class ChartAuditRunner {
     Artist = a, Unsigned = unsignedIds.Contains(a.artistId), Cohort = LiveRepertoire.Cohort(a, date.year),
     WritingBin = a.songwritingAbility <= .3f ? "low" : a.songwritingAbility <= .6f ? "middle" : "high"
    }).ToArray();
+  if(genreFollowUpCensus) all = all.Where(a=>ObserveGenre(a.Artist.primaryGenre)).ToArray();
   var strata = all.GroupBy(a => (a.Artist.primaryGenre, a.Cohort, a.Unsigned, a.WritingBin)).ToDictionary(g => g.Key, g => g.ToArray());
   bool firstSample = polarPanel.Count == 0;
   foreach (var group in strata.Values) {
@@ -198,7 +211,7 @@ public partial class ChartAuditRunner {
    if (firstSample) polarPanel.UnionWith(group.Where(a => a.CrossSection).Select(a => a.Artist.artistId));
    foreach (var entry in group) { entry.Population = group.Length; entry.Sample = count; entry.Panel = polarPanel.Contains(entry.Artist.artistId); }
   }
-  var expected = strata.Keys.Concat(PolarRepertoireTable.Current.Bands.SelectMany(b => new[] { true, false }.SelectMany(u => PolarWritingBins.Select(w => (Enum.Parse<Genre>(b.Genre), b.Cohort, u, w)))))
+  var expected = strata.Keys.Concat(PolarRepertoireTable.Current.Bands.Where(b=>ObserveGenre(Enum.Parse<Genre>(b.Genre))).SelectMany(b => new[] { true, false }.SelectMany(u => PolarWritingBins.Select(w => (Enum.Parse<Genre>(b.Genre), b.Cohort, u, w)))))
    .Distinct().OrderBy(k => k.Item1).ThenBy(k => k.Item2, StringComparer.Ordinal).ThenBy(k => k.Item3).ThenBy(k => k.Item4, StringComparer.Ordinal);
   foreach (var key in expected) {
    var group = strata.GetValueOrDefault(key, Array.Empty<PolarSample>());
@@ -213,6 +226,9 @@ public partial class ChartAuditRunner {
   var date = TimeManager.Instance.CurrentDate;
   int month = date.year * 12 + date.month;
   if (date.year > 1963 || polarCensusMonth == month) return;
+  // Opt-in observation windows skip census/checkpoint overhead outside requested months.
+  // Stop and completion checkpoints remain unchanged; no simulation ticks are skipped.
+  if(date.year < polarCensusFromYear || polarCensusMonths.Count>0&&!polarCensusMonths.Contains(date.month)) return;
   CheckPolarResearchStop();
   FlushPolarResearch();
   SavePolarCheckpoint("before-census");
@@ -237,10 +253,12 @@ public partial class ChartAuditRunner {
    var priorRepertoire = artist.repertoireState;
    try {
     using var random = new RandomNumberGenerator { Seed = CensusSeed($"{requestedSeed}:{date.year}:{date.month}:{artist.artistId}") };
+    if(genreRepairCensus)CaptureGenreRepairReference(artist,entry.Unsigned,date,priorRepertoire);
     var prospect = new PlayerDesk.Prospect { Artist = artist };
     int requested = 0; List<SongComposition> pool = null;
     PlayerDesk.Instance.BuildLiveSet(prospect, artist, date.year, 0, random, (want, songs) => { requested = want; pool = songs; });
     CapturePolarDiversitySet(artist, prospect, pool, requested, entry.Unsigned);
+    if(genreFollowUpCensus) CaptureGenreFollowUp(artist, prospect, pool, requested, entry.Unsigned);
     int originals = prospect.LiveSet.Count(s => s.IsOriginal);
     if (polarCensusMode == "full" && entry.Unsigned) {
      if (!legacyFull.TryGetValue(artist.primaryGenre, out var counts)) legacyFull[artist.primaryGenre] = counts = new int[10];

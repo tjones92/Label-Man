@@ -65,7 +65,8 @@ public enum SongOriginKind {
 	ProfessionalOffice,
 	LabelStaff,
 	RecentHit,
-	ExternalMediaTheme
+	ExternalMediaTheme,
+	ExternalMediaComposition
 }
 
 /// <summary>Professional publishing "scenes" -- rights-metadata only in this phase.</summary>

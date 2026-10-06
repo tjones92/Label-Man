@@ -706,21 +706,42 @@ public static class CompositionCatalogService {
 		if(LiveRepertoire.AuditPhase<5||record==null)return;
 		int year=record.releaseDate.year>0?record.releaseDate.year:TimeManager.Instance?.CurrentDate.year??0;
 		if(record.format==ReleaseFormat.Album && record.album!=null) {
-			if(record.album.albumFormat==AlbumFormat.Soundtrack&&record.album.externalMedia!=null)AdmitExternalMediaTheme(record,year);
+			if(record.album.albumFormat==AlbumFormat.Soundtrack&&record.album.externalMedia!=null)AdmitExternalMediaAlbum(record,year);
 			foreach(var track in record.album.GetAllTracks())if(track!=null)RecordRepertoireRelease(GetSong(track.songId),year,track.masterId,true);
 		}else RecordRepertoireRelease(GetSong(record.songId),year,record.recordId,false);
 	}
-	// The external-media engine has no track list. Author one representative theme,
-	// separately from the album/master and its licensing contract. No global RNG is consumed.
+	// Album cuts are masters inside the album, never separately released Records. Keep the
+	// existing theme ID/shape and the album's pooled appeal, license and release economics.
+	internal static void AdmitExternalMediaAlbum(Record record,int year) {
+		var theme=AdmitExternalMediaTheme(record,year);
+		if(theme==null||record.album.GetAllTracks().Length>0)return;
+		int count=record.album.runtimeMinutes>0?Math.Clamp((int)Math.Round(record.album.runtimeMinutes/3f),8,16):12;
+		var tracks=new AlbumTrack[count];
+		for(int i=0;i<count;i++) {
+			var song=i==0?theme:CreateExternalMediaComposition(record,year,i);
+			var track=new AlbumTrack {masterId=$"{record.recordId}:media:{i:D2}",title=song.title,genre=record.primaryGenre,
+				quality=record.album.pooledAppeal,hookStrength=record.hookStrength,productionQuality=record.productionQuality,
+				danceability=record.danceability,isReleasedSingle=false,releaseDate=record.releaseDate};
+			SongMaterialApplicationService.ApplyIdentityToAlbumTrack(track,new SelectedSongMaterial {
+				Song=song,Source=SongMaterialSource.ExternalProfessional,IsCover=false,FamiliarityAtRelease=song.GetFamiliarityForYear(year)});
+			PolarSongMetadataService.RegisterTrack(track,song,track.masterId,record.artistId,record.releaseDate);
+			tracks[i]=track;
+		}
+		record.album.nonSingleTracks=tracks;
+	}
+	// The representative theme remains compatible with albums/savegames from the previous pass.
 	internal static SongComposition AdmitExternalMediaTheme(Record record,int year) {
+		return CreateExternalMediaComposition(record,year,0);
+	}
+	private static SongComposition CreateExternalMediaComposition(Record record,int year,int cut) {
 		if(record?.album?.externalMedia==null||record.album.albumFormat!=AlbumFormat.Soundtrack||string.IsNullOrEmpty(record.recordId))return null;
-		string id="song_media_theme_"+record.recordId;
+		string id=cut==0?"song_media_theme_"+record.recordId:$"song_media_cut_{record.recordId}_{cut:D2}";
 		if(songs.TryGetValue(id,out var existing))return existing;
 		float U(string salt)=>RepertoireTaxonomy.Unit(id+"|"+salt);
 		var media=record.album.externalMedia;
 		bool instrumental=media.sourceType==ExternalMediaSourceType.FilmScore;
-		var song=new SongComposition {songId=id,title=record.title+" (theme)",primaryGenre=Genre.EasyListening,secondaryGenre=Genre.TraditionalPop,
-			originYear=year,originKind=SongOriginKind.ExternalMediaTheme,repertoireFirstReleaseYear=year,
+		var song=new SongComposition {songId=id,title=record.title+(cut==0?" (theme)":instrumental?$" (cue {cut+1})":$" (song {cut+1})"),primaryGenre=Genre.EasyListening,secondaryGenre=Genre.TraditionalPop,
+			originYear=year,originKind=cut==0?SongOriginKind.ExternalMediaTheme:SongOriginKind.ExternalMediaComposition,repertoireFirstReleaseYear=year,
 			externalMediaSourceRecordId=record.recordId,externalMediaSourceType=media.sourceType,
 			compositionQuality=.5f+media.criticalPrestige*.3f,melodicStrength=.55f+U("melody")*.25f,lyricQuality=instrumental?0:.5f+U("lyric")*.25f,
 			commercialHook=.45f+media.sourcePopularity*.3f,rhythmicAppeal=.4f+U("rhythm")*.2f,adaptability=.7f,
@@ -730,7 +751,7 @@ public static class CompositionCatalogService {
 		song.rights.controlType=PublishingControlType.ExternalPublisher;
 		song.rights.publisherId="external_media_publisher";song.rights.publisherName="Screen & Stage Publisher";
 		song.credits.Add(new SongwriterCredit {writerType=WriterEntityType.HouseCredit,writerName="Screen & Stage Composer",share=1});
-		Register(song);AdmitRepertoire(song,"externalMediaTheme",year,record.recordId);
+		Register(song);AdmitRepertoire(song,cut==0?"externalMediaTheme":"externalMediaAlbumCut",year,record.recordId);
 		return song;
 	}
 	private static void GenerateNativeRepertoire(int startYear) {
@@ -744,8 +765,8 @@ public static class CompositionCatalogService {
 				compositionQuality=.50f+U("craft")*.30f,melodicStrength=.50f+U("melody")*.30f,lyricQuality=.45f+U("lyric")*.30f,
 				commercialHook=.40f+U("hook")*.35f,rhythmicAppeal=.40f+U("rhythm")*.35f,adaptability=.50f+U("adaptability")*.20f,
 				originality=.40f+U("originality")*.30f,standardDurability=.50f+U("durability")*.30f,nationalFamiliarity=.25f+U("familiarity")*.35f,
-				isTraditional=scene.Traditional,isPublicDomain=scene.Traditional||year<1923,isStandard=!scene.Traditional&&(scene.EstablishedYear??year+RepertoireProvenance.EstablishmentAge)<=startYear,isCoverable=true,
-				repertoireFirstReleaseYear=year,establishedYear=scene.Traditional?null:scene.EstablishedYear??year+RepertoireProvenance.EstablishmentAge};
+				isTraditional=scene.Traditional,isPublicDomain=scene.Traditional||year<1923,isStandard=scene.Family!="Comedy routines"&&!scene.Traditional&&(scene.EstablishedYear??year+RepertoireProvenance.EstablishmentAge)<=startYear,isCoverable=true,
+				repertoireFirstReleaseYear=year,establishedYear=scene.Traditional||scene.Family=="Comedy routines"?null:scene.EstablishedYear??year+RepertoireProvenance.EstablishmentAge};
 			RepertoireTaxonomy.Assign(song,scene.Family,Math.Max(startYear,year));
 			if(song.isPublicDomain){song.rights.controlType=PublishingControlType.PublicDomain;song.rights.writerShare=song.rights.publisherShare=0;}
 			else {song.rights.controlType=PublishingControlType.ExternalPublisher;song.rights.publisherId="native_songbook";song.rights.publisherName="Independent Repertoire";}
@@ -781,7 +802,7 @@ public static class CompositionCatalogService {
 		var c = new CompositionSaveData {
 			ShapeVariationVersion = CompositionShapeVariation.ActiveVersion,
 			ShapeVariationWorldSeed = CompositionShapeVariation.WorldSeed,
-			RepertoireSchemaVersion = 1,
+			RepertoireSchemaVersion = 2,
 			UsePolarFitSelection = PolarSongBehavior.UsePolarFitSelection,
 			PolarTaste = PolarSongBehavior.CaptureTaste(),
 			PolarMasters = PolarSongMetadataService.Capture(),
@@ -808,6 +829,13 @@ public static class CompositionCatalogService {
 		w.Composition = c;
 	}
 
+	internal static int MigrateComedyRepertoire(IEnumerable<SongComposition> catalogue) {
+		int changed=0;
+		foreach(var song in catalogue.Where(RepertoireProvenance.ComedyRoutine))if(song.establishedYear.HasValue||song.isStandard) {
+			song.establishedYear=null;song.isStandard=false;changed++;
+		}
+		return changed;
+	}
 	public static void RehydrateWorld(WorldSaveData w) {
 		CompositionSaveData c = w.Composition;
 		if (c == null) return;
@@ -818,6 +846,7 @@ public static class CompositionCatalogService {
 
 		songs.Clear();
 		foreach (var kv in c.Songs ?? new Dictionary<string, SongComposition>()) if (kv.Value != null) songs[kv.Key] = kv.Value;
+		if(c.RepertoireSchemaVersion<2){MigrateComedyRepertoire(songs.Values);c.RepertoireSchemaVersion=2;}
 		PolarSongMetadataService.Restore(c.PolarMasters);
 		foreach (var song in songs.Values) PolarSongMetadataService.EnsureComposition(song);
 		PolarSongMetadataService.MigrateRecords((w.Records ?? new()).Where(r => r != null).Select(r => r.baseRecord), w.RetiredTrackArchive);

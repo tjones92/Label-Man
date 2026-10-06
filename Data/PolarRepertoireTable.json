@@ -1170,6 +1170,17 @@
       "sacredLiveOnly": true,
       "actSpread": 0.1,
       "inheritedLiveShare": 0.77
+    },
+    "TeenPop": {
+      "inheritedLiveShare": 0.06,
+      "actSpread": 0.02
+    },
+    "Classical": {
+      "songbookFamily": "Classical works",
+      "writingPropensity": 0.1
+    },
+    "Childrens": {
+      "songbookFamily": "Children songs"
     }
   },
   "liveSetMixes": {

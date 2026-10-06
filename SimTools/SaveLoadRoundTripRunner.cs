@@ -40,6 +40,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
 			if (inspectSlot != null) { RunInspect(inspectSlot, weeks); return; }
 			if (mechanicalCheck) { RunMechanicalRoyaltyCheck(); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--genre-repertoire-repair-check")) { GenreRepertoireRepairChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--folk-easy-check")) { FolkEasyListeningChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--gospel-preference-check")) { GospelPreferenceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--gospel-preference-probe")) { GospelPreferenceChecks.Probe(); GetTree().Quit(0); return; }

@@ -74,16 +74,38 @@ public static class FolkEasyListeningChecks {
   var venue=PlayerDesk.ScoutingVenue.TheatresAndSupperClubs;
   Check(PlayerDesk.AdmitsGenre(venue,false,PlayerDesk.FamiliesFor(venue),Genre.EasyListening,1960),"Supper club scouting admits Easy Listening");
   foreach(var type in Enum.GetValues<ExternalMediaSourceType>()) {
-   var record=new Record {recordId="folk-easy-media-check-"+type,title="Theme fixture",format=ReleaseFormat.Album,releaseDate=new GameDate(1960,1,1),
-    album=new Album {albumFormat=AlbumFormat.Soundtrack,externalMedia=new ExternalMediaProfile {sourceType=type,sourcePopularity=.6f,criticalPrestige=.7f},trackRefs=Array.Empty<AlbumTrack>(),nonSingleTracks=Array.Empty<AlbumTrack>()}};
+   var record=new Record {recordId="folk-easy-media-check-"+type,title="Theme fixture",format=ReleaseFormat.Album,primaryGenre=Genre.TraditionalPop,releaseDate=new GameDate(1960,1,1),
+    hookStrength=.7f,productionQuality=.6f,danceability=.5f,
+    album=new Album {albumFormat=AlbumFormat.Soundtrack,runtimeMinutes=36,pooledAppeal=.7f,externalMedia=new ExternalMediaProfile {sourceType=type,sourcePopularity=.6f,criticalPrestige=.7f,upfrontLicenseFee=12345},trackRefs=Array.Empty<AlbumTrack>(),nonSingleTracks=Array.Empty<AlbumTrack>()}};
+   int recordCount=ChartManager.Instance.GetAllRecords().Count;
    CompositionCatalogService.OnRecordReleased(record);
-   var theme=CompositionCatalogService.AllSongs.Single(s=>s.externalMediaSourceRecordId==record.recordId);
+   var theme=CompositionCatalogService.AllSongs.Single(s=>s.externalMediaSourceRecordId==record.recordId&&s.originKind==SongOriginKind.ExternalMediaTheme);
    Check(theme.originYear==1960&&!theme.isStandard&&!theme.isPublicDomain&&theme.repertoireAdmissionRoutes.Contains("externalMediaTheme"),"Released media creates a contemporary theme");
    Check(theme.demoTaxonomy.vocalPresence==(type==ExternalMediaSourceType.FilmScore?SongVocalPresence.Instrumental:SongVocalPresence.Present),"Film score is instrumental; cast/film songs are vocal");
    Check(ReferenceEquals(theme,CompositionCatalogService.AdmitExternalMediaTheme(record,1960)),"Media theme admission is idempotent");
    string saved=JsonSerializer.Serialize(theme,SaveGameService.TestJsonOptions);
    Check(saved==JsonSerializer.Serialize(JsonSerializer.Deserialize<SongComposition>(saved,SaveGameService.TestJsonOptions),SaveGameService.TestJsonOptions),"Media theme metadata/rights survive save/load");
    Check(CompositionCatalogService.GetCoverableHitsForGenre(Genre.EasyListening).Contains(theme),"Released theme is available to cover selection");
+   var tracks=record.album.GetAllTracks();
+   Check(tracks.Length==12&&tracks.Select(t=>t.songId).Distinct().Count()==12&&tracks.Select(t=>t.masterId).Distinct().Count()==12,"Media album has separate compositions and masters");
+   Check(tracks.All(t=>!t.isReleasedSingle&&string.IsNullOrEmpty(t.sourceRecordId)&&t.songSource==SongMaterialSource.ExternalProfessional&&!t.isCover),"Media cuts are original album performances, never singles");
+   Check(tracks.All(t=>CompositionCatalogService.GetSong(t.songId)?.externalMediaSourceRecordId==record.recordId&&PolarSongMetadataService.Get(t.masterId)?.songId==t.songId),"Media cuts retain source and master links");
+   Check(tracks.All(t=>CompositionCatalogService.GetSong(t.songId).demoTaxonomy.vocalPresence==(type==ExternalMediaSourceType.FilmScore?SongVocalPresence.Instrumental:SongVocalPresence.Present)),"All cues/songs retain score or vocal context");
+   Check(tracks.All(t=>CompositionCatalogService.GetSong(t.songId).repertoireAdmissionRoutes.Contains("albumRepertoire")),"Every media cut is admitted through album release");
+   Check(record.album.trackRefs.Length==0&&record.album.leadSingleIds.Length==0&&record.projectRole==ProjectRecordRole.None&&ChartManager.Instance.GetAllRecords().Count==recordCount,"Media track authoring creates no chart records or promo singles");
+   var promoFactory=typeof(CompetitorManager).GetMethod("CreatePromoSingleFromAlbum",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+   Check(promoFactory.Invoke(CompetitorManager.Instance,new object[]{record,null,null,1960})==null,"External-media originals cannot enter promo-single extraction");
+   Check(record.album.pooledAppeal==.7f&&record.hookStrength==.7f&&record.album.externalMedia.upfrontLicenseFee==12345,"Media authoring preserves album appeal and license economics");
+   string albumSaved=JsonSerializer.Serialize(record.album,SaveGameService.TestJsonOptions);
+   var albumCopy=JsonSerializer.Deserialize<Album>(albumSaved,SaveGameService.TestJsonOptions);
+   Check(albumSaved==JsonSerializer.Serialize(albumCopy,SaveGameService.TestJsonOptions)&&albumCopy.GetAllTracks().Length==12,"Album tracks and composition identities survive save/load");
+   CompositionCatalogService.OnRecordReleased(record);
+   Check(ReferenceEquals(tracks[0],record.album.GetAllTracks()[0])&&CompositionCatalogService.AllSongs.Count(s=>s.externalMediaSourceRecordId==record.recordId)==12,"Repeated release does not duplicate cuts");
+   var priorPool=CompositionCatalogService.GetCoverableHitsForGenre(Genre.EasyListening).Where(s=>s.externalMediaSourceRecordId!=record.recordId||s.originKind==SongOriginKind.ExternalMediaTheme).ToArray();
+   var expandedPool=priorPool.Concat(tracks.Skip(1).Select(t=>CompositionCatalogService.GetSong(t.songId))).ToArray();
+   foreach(var genre in Enum.GetValues<Genre>().Where(g=>g!=Genre.EasyListening))
+    Check(SongMaterialSelectionService.RecordingHitPool(expandedPool,genre).Select(s=>s.songId).SequenceEqual(SongMaterialSelectionService.RecordingHitPool(priorPool,genre).Select(s=>s.songId)),"Added cuts preserve non-Easy recording pool order: "+genre);
+   Check(SongMaterialSelectionService.RecordingHitPool(expandedPool,Genre.EasyListening).Count==expandedPool.Length,"Easy Listening retains recording access to every cut");
   }
   // Future year readings of a fresh world, explicitly separate from evolved trajectories.
   var unsigned=ArtistManager.Instance.GetUnsignedArtists().Select(a=>a.artistId).ToHashSet();

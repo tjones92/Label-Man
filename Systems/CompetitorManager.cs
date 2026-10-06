@@ -1367,6 +1367,15 @@ public partial class CompetitorManager : Node {
 	// see soundtracks. See SimTools/D7SoundtrackCastAlbumHandoff.md §3.2, §5 and ExternalMediaService.
 	private void ProcessWeeklySoundtrackOrigination(GameDate date) {
 		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) return;
+		// Older worlds may have a representative theme but no album cuts. Fill those in place;
+		// the album remains the sole market release, with its original release year and license.
+		if (LiveRepertoire.AuditPhase >= 5)
+			foreach (var runtime in ChartManager.Instance.GetAllRecords()) {
+				var existing = runtime.baseRecord;
+				if (existing.format == ReleaseFormat.Album && existing.album?.albumFormat == AlbumFormat.Soundtrack &&
+					existing.album.externalMedia != null && existing.album.GetAllTracks().Length == 0)
+					CompositionCatalogService.OnRecordReleased(existing);
+			}
 		if (GD.Randf() >= ExternalMediaService.OriginationsForYear(date.year) / 52f) return;
 		bool allowBlockbuster = soundtrackBlockbustersThisRun < ExternalMediaService.BlockbusterDecadeCap;
 		ExternalMediaProfile profile = ExternalMediaService.GenerateProfile(date.year, allowBlockbuster);
@@ -3396,6 +3405,9 @@ public partial class CompetitorManager : Node {
 
 	private Record CreatePromoSingleFromAlbum(Record albumRecord, SimulatedArtist artist, AILabel label, int year) {
 		Album album = albumRecord.album ?? throw new System.InvalidOperationException("Promo project requires a generated album.");
+		// Cast/film originals are album-only. An artist's separately recorded interpretation
+		// uses normal material selection and never extracts the external-media master.
+		if (album.albumFormat == AlbumFormat.Soundtrack && album.externalMedia != null) return null;
 		if (PolarSongBehavior.UsePolarFitSelection && (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0)) return null;
 		if (album.nonSingleTracks == null || album.nonSingleTracks.Length == 0) throw new System.InvalidOperationException("Promo project album has no eligible original track.");
 		bool useStructuredPromoTracks = PolarSongBehavior.UsePolarFitSelection || (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
