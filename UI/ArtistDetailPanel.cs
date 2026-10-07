@@ -8,6 +8,7 @@ public partial class ArtistDetailPanel : Control
 	public event Action<string> LabelRequested;
 	public event Action Closed;
 	private Label nameLabel, chromeLabel;
+	private PortraitPhoto portrait;   // the act's publicity glossy, a halftone plate coded by genre and lineup
 	private Button labelButton;
 	private Control labelStrip;   // the label's crest and name, laid out like a letterhead
 	private LabelCrest labelCrest;
@@ -28,7 +29,9 @@ public partial class ArtistDetailPanel : Control
 		profile = ArtistManager.Instance?.GetPublicProfile(artistId);
 		if (artist == null || profile == null) { GD.PushWarning($"Artist not found: {artistId}"); return; }
 		artist.isPlayerOwned |= isOwnedByPlayer;
-		nameLabel.Text = profile.name.ToUpperInvariant();
+		nameLabel.Text = profile.name;
+		portrait.Set(Portraits.ForAct(artist), new Vector2(84, 106), artist.artistId);
+		portrait.Visible = true;
 		chromeLabel.Text = $"{Format(profile.artistType)}  •  {Format(profile.primaryGenre)}  •  {profile.homeRegion}\n{Format(profile.careerState)}  |  Formed {profile.formedYear}";
 		ShowLabelStrip(profile.labelId, profile.labelName);
 		BuildTabs();
@@ -62,9 +65,10 @@ public partial class ArtistDetailPanel : Control
 		style.ContentMarginLeft = 34; style.ContentMarginRight = 34; style.ContentMarginTop = 28; style.ContentMarginBottom = 28;
 		folder.AddThemeStyleboxOverride("panel", style);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
-		var header = new HBoxContainer(); root.AddChild(header);
-		nameLabel = new Label(); nameLabel.AddThemeFontSizeOverride("font_size", 30); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
-		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
+		var header = new HBoxContainer(); header.AddThemeConstantOverride("separation", 16); root.AddChild(header);
+		portrait = new PortraitPhoto { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkCenter }; header.AddChild(portrait);
+		nameLabel = new Label(); nameLabel.AddThemeFontOverride("font", PaperTheme.Elite); nameLabel.VerticalAlignment = VerticalAlignment.Center; nameLabel.AddThemeFontSizeOverride("font_size", 32); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
+		var close = new Button { Text = "CLOSE  ×", SizeFlagsVertical = SizeFlags.ShrinkCenter }; close.Pressed += ClosePanel; header.AddChild(close);
 		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); chromeLabel.AddThemeColorOverride("font_color", new Color("3a2c18")); root.AddChild(chromeLabel);
 		// "Signed to" strip: crest, then the label name as a button in the label's own lettering.
 		var strip = new HBoxContainer(); strip.AddThemeConstantOverride("separation", 10); labelStrip = strip; root.AddChild(strip);

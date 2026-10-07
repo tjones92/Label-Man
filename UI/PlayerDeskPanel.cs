@@ -49,9 +49,8 @@ public partial class PlayerDeskPanel : Control {
 	private string selectedFoundingCityId;
 	private string foundingLabelName = string.Empty;
 	private LabelBrand foundingBrand;   // null until the player customises the crest; then the brand they built
-	// ROLODEX page state: which card is focused (index into PlayerDesk.Rolodex) and whether
-	// the call view for that card is open.
-	private int rolodexFocus;
+	// ROLODEX page state (the tab and card focus live in PlayerDeskPanel.Rolodex.cs): the record the
+	// next call will pitch.
 	private string rolodexPitchRecordId;
 	private GameDate lastStatusDate;
 	private bool hasStatusDate;
@@ -1126,7 +1125,12 @@ public partial class PlayerDeskPanel : Control {
 		sheet.AddThemeStyleboxOverride("panel", indexPaper);
 		var card = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		card.AddThemeConstantOverride("separation", 4);
-		sheet.AddChild(card);
+		// The publicity glossy pasted to the card: a halftone plate of the act, coded by genre and who is in the band.
+		var cardBody = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		cardBody.AddThemeConstantOverride("separation", 16);
+		cardBody.AddChild(new PortraitPhoto().Set(Portraits.ForAct(prospect.Artist), new Vector2(108, 136), prospect.Artist.artistId));
+		cardBody.AddChild(card);
+		sheet.AddChild(cardBody);
 
 		float quality = prospect.ReadQuality;
 		string qualityRead = PlayerDesk.ReadVerdict(quality);
@@ -1141,7 +1145,7 @@ public partial class PlayerDeskPanel : Control {
 			Text = prospect.Artist.stageName, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center,
 			ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = prospect.Artist.stageName
 		};
-		name.AddThemeFontOverride("font", PaperTheme.TypedBold);
+		name.AddThemeFontOverride("font", PaperTheme.Elite);
 		name.AddThemeFontSizeOverride("font_size", 24);
 		name.AddThemeColorOverride("font_color", Ink);
 		head.AddChild(name);
@@ -1566,49 +1570,33 @@ public partial class PlayerDeskPanel : Control {
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		foreach (SimulatedArtist artist in desk.Roster.ToList()) {
 			bool matured = RosterManager.IsContractMatured(artist, year, week);
-			var card = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-			card.AddThemeConstantOverride("separation", 2);
-
-			var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-			row.AddThemeConstantOverride("separation", 12);
-
 			int songs = desk.RepertoireFor(artist.artistId).Count
 				+ desk.UnrecordedSongs.Count(s => s.ArtistId == artist.artistId);
 			string manager = artist.manager == ManagerArchetype.None ? "" : $"   •   managed by {artist.managerName ?? "a manager"}";
-			var text = new Label {
-				SizeFlagsHorizontal = SizeFlags.ExpandFill,
-				AutowrapMode = TextServer.AutowrapMode.WordSmart,
-				Text = $"{artist.stageName}  —  {GenreNameFormatter.Format(artist.primaryGenre)}  •  {Words(artist.careerState.ToString())}\n" +
-					$"    {artist.totalReleases} {CountWord(artist.totalReleases, "release")}   •   {artist.top40Hits} Top 40   •   {songs} in the songbook   •   " +
-					$"{artist.royaltyRate:P1} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}"
-			};
-			text.AddThemeColorOverride("font_color", matured ? Rust : Ink);
-			row.AddChild(text);
+			// Each act is a 45 sleeve: the publicity photo, the name typed across it, the figures, and the player's disc in the window.
+			var sleeve = new SleeveCard().Set(artist, desk.Label,
+				$"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Words(artist.careerState.ToString())}", matured);
+			sleeve.AddFact($"{artist.totalReleases} {CountWord(artist.totalReleases, "release")}   •   {artist.top40Hits} Top 40   •   {songs} in the songbook");
+			sleeve.AddFact($"{artist.royaltyRate:P1} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}", matured ? Rust : null);
 
 			SimulatedArtist captured = artist;
 			if (matured) {
-				var renew = Btn("RENEW");
-				renew.CustomMinimumSize = new Vector2(120, 40);
+				var renew = Primary("RENEW");
 				renew.Pressed += () => {
 					bool ok = PlayerDesk.Instance.ApproachRenewal(captured, out string message);
 					if (ok) renewingArtist = captured;
 					Say(message, ok);
 					Refresh();
 				};
-				row.AddChild(renew);
+				sleeve.AddVerb(renew);
 			}
-
 			var manage = Btn("MANAGE");
-			manage.CustomMinimumSize = new Vector2(150, 40);
 			manage.Pressed += () => { managingArtistId = captured.artistId; browsingCovers = false; Refresh(); };
-			row.AddChild(manage);
-
+			sleeve.AddVerb(manage);
 			var dossier = Btn("DOSSIER");
-			dossier.CustomMinimumSize = new Vector2(110, 40);
 			dossier.Pressed += () => UIManager.Instance?.OpenArtist(captured.artistId, true);
-			row.AddChild(dossier);
-			card.AddChild(row);
-			content.AddChild(card);
+			sleeve.AddVerb(dossier);
+			content.AddChild(sleeve);
 		}
 	}
 
@@ -3189,155 +3177,6 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 	// ROLODEX
 	// ========================================================================
-
-	// Mouse wheel spins through the Rolodex cards when that tab is open.
-	public override void _GuiInput(InputEvent ev) {
-		if (currentTab == RolodexTab && PlayerDesk.Instance?.ActiveCall == null && ev is InputEventMouseButton mb && mb.Pressed) {
-			var cards = PlayerDesk.Instance?.Rolodex;
-			if (cards != null && cards.Count > 1) {
-				if (mb.ButtonIndex == MouseButton.WheelDown) {
-					rolodexFocus = (rolodexFocus + 1) % cards.Count;
-					GetViewport().SetInputAsHandled();
-					Refresh();
-				} else if (mb.ButtonIndex == MouseButton.WheelUp) {
-					rolodexFocus = ((rolodexFocus - 1) + cards.Count) % cards.Count;
-					GetViewport().SetInputAsHandled();
-					Refresh();
-				}
-			}
-		}
-	}
-
-	private void PageRolodex() {
-		PlayerDesk desk = PlayerDesk.Instance;
-
-		// A live call takes over the page entirely -- you are on the phone, not browsing a book.
-		if (desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended) {
-			PageCall(desk, desk.ActiveCall);
-			return;
-		}
-
-		var cards = desk.Rolodex;
-		if (cards.Count == 0) {
-			Heading("THE ROLODEX");
-			Body("Your book is empty. Nobody in this business knows your name yet, and nobody is going " +
-				"to call you first. Get on the phone.");
-			RenderWorkThePhones(desk);
-			return;
-		}
-
-		rolodexFocus = Mathf.Clamp(rolodexFocus, 0, cards.Count - 1);
-		RolodexEntry entry = cards[rolodexFocus];
-
-		var navRow = new HBoxContainer();
-		navRow.AddThemeConstantOverride("separation", 10);
-		if (cards.Count > 1) {
-			var prev = Btn("‹");
-			prev.CustomMinimumSize = new Vector2(44, 38);
-			prev.Pressed += () => { rolodexFocus = ((rolodexFocus - 1) + cards.Count) % cards.Count; Refresh(); };
-			navRow.AddChild(prev);
-		}
-		var cardCount = new Label { Text = $"Card {rolodexFocus + 1} of {cards.Count}", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		cardCount.AddThemeColorOverride("font_color", Heard);
-		navRow.AddChild(cardCount);
-		if (cards.Count > 1) {
-			var next = Btn("›");
-			next.CustomMinimumSize = new Vector2(44, 38);
-			next.Pressed += () => { rolodexFocus = (rolodexFocus + 1) % cards.Count; Refresh(); };
-			navRow.AddChild(next);
-		}
-		content.AddChild(navRow);
-
-		RenderCard(desk, entry);
-	}
-
-	/// <summary>The focused card: portrait monogram, identity, tier, what you know about his hours, and
-	/// what he is currently carrying for you.</summary>
-	private void RenderCard(PlayerDesk desk, RolodexEntry entry) {
-		Deejay dj = ChartManager.Instance?.GetDeejay(entry.djId);
-		RadioStation station = ChartManager.Instance?.GetRadioStation(entry.stationId);
-
-		var mono = new Label {
-			Text = Monogram(entry.displayName),
-			HorizontalAlignment = HorizontalAlignment.Center,
-			VerticalAlignment = VerticalAlignment.Center,
-			CustomMinimumSize = new Vector2(90, 90)
-		};
-		mono.AddThemeFontSizeOverride("font_size", 32);
-		mono.AddThemeColorOverride("font_color", Paper);
-		var monoBack = new PanelContainer { CustomMinimumSize = new Vector2(90, 90) };
-		monoBack.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = ArchetypeColor(dj?.archetype ?? DJArchetype.CompanyMan) });
-		monoBack.AddChild(mono);
-		content.AddChild(monoBack);
-
-		Heading(entry.displayName);
-		if (station != null) Body($"{station.callsign}  ·  {station.format}  ·  {station.cityName}");
-
-		float rapport = station?.rt?.Rapport(desk.Label?.labelId ?? "") ?? 0f;
-		RapportTier tier = RolodexEntry.EffectiveTier(entry, rapport);
-		string discoveryLabel = entry.state switch {
-			DiscoveryState.HeardOf => "Heard of you",
-			DiscoveryState.Introduced => "Introduced",
-			DiscoveryState.Known => "Known",
-			DiscoveryState.Trusted => "Trusted",
-			_ => "New contact"
-		};
-		var tierLabel = new Label { Text = $"{RolodexEntry.TierLabel(tier)}  ·  {discoveryLabel}" };
-		tierLabel.AddThemeColorOverride("font_color", RolodexEntry.TierColor(tier));
-		content.AddChild(tierLabel);
-
-		if (dj != null) Body(RolodexEntry.ArchetypeBlurb(dj.archetype));
-
-		// When to call him. Learned, not given -- an unreached name comes with no hours.
-		if (dj != null) {
-			Daypart shift = RolodexShifts.ShiftOf(dj);
-			if (entry.callbackDate != null) {
-				bool due = desk.CallbackDue(entry);
-				var callback = new Label { Text = due ? "Your call-back is due now." : $"Call-back set for {desk.CallbackWhen(entry)}." };
-				callback.AddThemeColorOverride("font_color", due ? new Color("4a7a4a") : Heard);
-				content.AddChild(callback);
-				var cancel = Btn("CANCEL THE CALL-BACK");
-				cancel.Pressed += () => { desk.CancelCallback(entry); Refresh(); };
-				content.AddChild(cancel);
-			}
-			if (entry.shiftKnown) {
-				int hour = TimeManager.Instance?.CurrentHour ?? 12;
-				bool nowGood = RolodexShifts.ReachableAt(shift, hour);
-				var hours = new Label { Text = RolodexShifts.WindowAdvice(shift) + (nowGood ? "  ·  He should be in right now." : "  ·  Wrong time of day.") };
-				hours.AddThemeColorOverride("font_color", nowGood ? new Color("4a7a4a") : Rust);
-				content.AddChild(hours);
-			} else {
-				Body("You don't know his hours yet. Call and find out the hard way.");
-			}
-		}
-
-		if (entry.theyOweThem) Body("He owes you one.");
-		if (entry.youOweThem) Body("You owe him one.");
-		if (entry.payolaBurned) Body("The cash channel is closed with him.");
-		if (entry.professionallyBurned) Body("He doesn't take your word any more.");
-
-		// What he is actually carrying for you right now -- the record-level commitment, not the mood.
-		RenderCarrying(desk, entry);
-
-		var openBtn = Btn($"PLACE A CALL  ({PlayerDesk.DialMinutes} min)");
-		openBtn.CustomMinimumSize = new Vector2(230, 40);
-		openBtn.Pressed += () => {
-			string rid = rolodexPitchRecordId != null && desk.RecordsOnTheTable().Any(item => item.RecordId == rolodexPitchRecordId)
-				? rolodexPitchRecordId : desk.RecordsOnTheTable().Select(item => item.RecordId).FirstOrDefault();
-			rolodexPitchRecordId = rid;
-			desk.PlaceCall(entry, rid, out string msg);
-			if (!string.IsNullOrEmpty(msg)) Say(msg);
-			Refresh();
-		};
-		content.AddChild(openBtn);
-
-		if (entry.log.Count > 0) {
-			Heading("HISTORY");
-			foreach (string line in entry.log) Body(line);
-		}
-
-		RenderWorkThePhones(desk);
-	}
 
 	/// <summary>The live advocacy this station is holding for you: the record-specific promise a won
 	/// call actually buys, with the weeks left on it.</summary>

@@ -53,6 +53,8 @@ public static class CompositionCatalogService {
 
 	public static bool Initialized => initialized;
 	public static int SongCount => songs.Count;
+	/// <summary>The publisher houses, for the Rolodex's directory of who plugs what.</summary>
+	public static IReadOnlyList<MusicPublisher> Publishers => publishers;
 	public static int StandardCount { get { int n = 0; foreach (var kv in standardsByGenre) n += kv.Value.Count; return n; } }
 
 	public static void Initialize(int startYear, IEnumerable<AILabel> labels, ulong seed) {

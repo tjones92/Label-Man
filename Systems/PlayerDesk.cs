@@ -1683,6 +1683,22 @@ public partial class PlayerDesk : Node {
 	/// <summary>How far off a read can be, as the +/- fraction the note's wording is blurred by.</summary>
 	public static float ReadFog(float confidence) => Mathf.Lerp(0.30f, 0.10f, Mathf.Clamp(confidence, 0f, 1f));
 
+	/// <summary>How clear the picture of an act is, as a word. The ± percentage is the model's number, never the
+	/// player's: a scout does not know how wrong he is, he knows how muddy it looks.</summary>
+	public static string FogWord(float confidence) =>
+		confidence >= 0.80f ? "nearly clear"
+		: confidence >= 0.55f ? "mostly clear"
+		: confidence >= 0.30f ? "hazy" : "murky";
+
+	/// <summary>The follow-up's fog line in plain language: where the picture was, where it is, never a figure.</summary>
+	public static string DescribeFogClearing(float confidenceBefore, float confidenceAfter) {
+		string was = FogWord(confidenceBefore), now = FogWord(confidenceAfter);
+		if (confidenceAfter - confidenceBefore < 0.02f) return $"There was little left to clear; the picture of them was already {now}.";
+		return was != now
+			? $"The picture sharpened: what looked {was} now looks {now}."
+			: $"The picture came into better focus, though it is still {now}.";
+	}
+
 	/// <summary>What two hours bought, as sentences, headline first. Says so plainly when the answer is "the verdict
 	/// stands": a follow-up that confirms a read is information too, and it should not look like nothing happened.</summary>
 	private static List<string> DescribeFollowUp(Prospect prospect, float qualityBefore, float confidenceBefore,
@@ -1697,7 +1713,7 @@ public partial class PlayerDesk : Node {
 		lines.Add(before != after
 			? $"Your read moved from “{before}” to “{after}”."
 			: $"Your read stands at “{after}” — {drift}.");
-		lines.Add($"The fog on it narrowed from ±{ReadFog(confidenceBefore) * 100f:0}% to ±{ReadFog(prospect.ReadConfidence) * 100f:0}%.");
+		lines.Add(DescribeFogClearing(confidenceBefore, prospect.ReadConfidence));
 
 		// 2. The things the note put in words: what they write and how they play a room.
 		(string size, string writing, string stage) was = ProspectNoteParts(noteBefore);
@@ -2827,6 +2843,12 @@ public partial class PlayerDesk : Node {
 		string.IsNullOrEmpty(cityId) ? Enumerable.Empty<PlayerStop>()
 			: EnsureStops().Values.Where(s => s.CityId == cityId)
 				.OrderBy(s => s.Kind).ThenBy(s => s.DisplayName, StringComparer.Ordinal);
+
+	/// <summary>The shop, jukebox and one-stop accounts the player has actually dealt with -- worked, stocked or warmed up.
+	/// What the Rolodex's SHOPS &amp; OPS tab lists; a read of existing state, nothing is created.</summary>
+	public IEnumerable<PlayerStop> KnownAccounts() =>
+		EnsureStops().Values.Where(s => (s.Kind == StopKind.Shop || s.Kind == StopKind.Op || s.Kind == StopKind.OneStop)
+			&& (s.Relationship > 0f || s.LastVisitWeek > 0 || s.OnHand.Count > 0));
 
 	/// <summary>How many of a single a stop will comfortably hold: a cold call is a handful, a cultivated
 	/// account takes a real box, and an op's route always moves more than a shop's counter -- "one op

@@ -9,6 +9,7 @@ using Godot;
 ///   Libre Franklin -- the trade-paper sans: UI text, buttons, headings.
 ///   Gelasio        -- the press serif (a metric-compatible Georgia): the newspaper.
 ///   Courier Prime  -- the office typewriter: typed fields and columns of figures.
+///   Special Elite  -- the worn typewriter that types a name on an index card or a record sleeve (Apache 2.0).
 /// Plus five display faces for a label's own lettering (see <see cref="Lettering"/>).
 ///
 /// Colours are the room's own: ink and ledger paper from the desk panel, rust for headings, oxblood for the
@@ -29,7 +30,7 @@ public static class PaperTheme {
 	public const string Primary = "PrimaryButton";
 
 	private static Theme theme;
-	private static Font sans, sansSemi, sansBold, serif, serifBold, serifItalic, typed, typedBold;
+	private static Font sans, sansSemi, sansBold, serif, serifBold, serifItalic, typed, typedBold, elite;
 	private static Font[] lettering;
 
 	/// <summary>Libre Franklin at regular weight: the default UI face.</summary>
@@ -43,6 +44,8 @@ public static class PaperTheme {
 	/// <summary>Courier Prime: forms, typed fields and figures.</summary>
 	public static Font Typed { get { EnsureFonts(); return typed; } }
 	public static Font TypedBold { get { EnsureFonts(); return typedBold; } }
+	/// <summary>Special Elite: the worn office typewriter, for the name typed on an index card or a sleeve.</summary>
+	public static Font Elite { get { EnsureFonts(); return elite; } }
 
 	/// <summary>The face a label prints its name in. Five open-licence display faces (Bevan, Abril Fatface, Alfa Slab One,
 	/// Yellowtail, Limelight), one per <see cref="LetteringStyle"/>; Abril Fatface is also the newspaper's nameplate.</summary>
@@ -94,6 +97,8 @@ public static class PaperTheme {
 		serifItalic = gelasioItalic;
 		typed = courier;
 		typedBold = courierBold;
+		// Special Elite is the card-name face; a build without the file keeps the old Courier Prime Bold.
+		elite = FileAccess.FileExists("res://UI/Fonts/SpecialElite-Regular.ttf") ? LoadFont("res://UI/Fonts/SpecialElite-Regular.ttf") : courierBold;
 	}
 
 	/// <summary>The imported font if the editor has imported it; otherwise the raw file bytes, so a missing
