@@ -1272,7 +1272,8 @@ public partial class PlayerDeskPanel : Control {
 		// gets a bar and a few words and the set gets one sentence, so the choice is about the act, not a star count.
 		if (shown == 0) card.AddChild(FaintLine("    (didn't catch their set)"));
 		foreach (PlayerDesk.RepertoireItem item in prospect.LiveSet.Take(shown))
-			card.AddChild(SongRow($"    ♪ \"{item.Title}\" ({item.SourceTag}){(prospect.NewlyHeard.Contains(item.Title) ? "  — new" : "")}", item.ReadHook, prospect.ReadConfidence));
+			card.AddChild(SongRow($"    ♪ \"{item.Title}\" ({item.SourceTag}){(prospect.NewlyHeard.Contains(item.Title) ? "  — new" : "")}", item.ReadHook, prospect.ReadConfidence,
+				PolarPlayerPerception.DescribeCharacter(new PlayerDesk.MaterialChoice { SongId = item.SongId })));
 		string setSummary = SetSummary(prospect.LiveSet.Take(shown).Select(item => item.ReadHook).ToList(), prospect.ReadConfidence);
 		if (setSummary.Length > 0) card.AddChild(FaintLine("    THE SET: " + setSummary));
 		if (hidden > 0) card.AddChild(FaintLine($"    …and {hidden} more you didn't catch — follow up to hear the full set."));
@@ -1310,7 +1311,11 @@ public partial class PlayerDeskPanel : Control {
 				var preview = PaperModal.OpenClipboard(this, "A&R — HEARD MATERIAL", 1040);
 				var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 				var scroll = ComparisonScroll(); preview.Body.AddChild(scroll); scroll.AddChild(column);
-				var songs = Option(); foreach (var item in prospect.LiveSet.Take(shown)) songs.AddItem(item.Title);
+				var songs = Option();
+				foreach (var item in prospect.LiveSet.Take(shown)) {
+					string character = PolarPlayerPerception.DescribeCharacter(new PlayerDesk.MaterialChoice { SongId = item.SongId });
+					songs.AddItem(character.Length == 0 ? item.Title : $"{item.Title}  —  {character}");
+				}
 				column.AddChild(songs); var host = new VBoxContainer(); column.AddChild(host);
 				void Update() {
 					Clear(host); var heard = prospect.LiveSet[songs.Selected];
@@ -1778,7 +1783,8 @@ public partial class PlayerDeskPanel : Control {
 		foreach (PlayerDesk.RepertoireItem item in have) {
 			string tag = item.IsOriginal ? "their own" : item.SourceTag;
 			if (item.Recorded) RecordedLine(desk, $"\"{item.Title}\"", tag, item.RecordedId, artist.artistId);
-			else if (PolarSongBehavior.UsePolarFitSelection) content.AddChild(SongRow($"    ♪ \"{item.Title}\" ({tag})", item.ReadHook, 0.8f));
+			else if (PolarSongBehavior.UsePolarFitSelection) content.AddChild(SongRow($"    ♪ \"{item.Title}\" ({tag})", item.ReadHook, 0.8f,
+				PolarPlayerPerception.DescribeCharacter(new PlayerDesk.MaterialChoice { SongId = item.SongId })));
 			else SongLine($"\"{item.Title}\"", tag, item.ReadHook);
 		}
 		foreach (PlayerDesk.Song song in written) {
@@ -4310,13 +4316,23 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>One tune in a list: its name, a bar for how the hook sounded (with a fog band when the read is rough),
 	/// and a few words. The words use the same cut points as the bar's colour.</summary>
-	private Control SongRow(string left, float hook, float confidence) {
+	private Control SongRow(string left, float hook, float confidence, string character = "") {
 		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		row.AddThemeConstantOverride("separation", 10);
 		var title = new Label { Text = left, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		title.AddThemeFontSizeOverride("font_size", 15);
 		title.AddThemeColorOverride("font_color", Ink);
-		row.AddChild(title);
+		if (string.IsNullOrEmpty(character)) row.AddChild(title);
+		else {
+			// The song's archetype, mood and lyrical turn under its name, as in the catalogue and the studio pickers.
+			var stack = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			stack.AddThemeConstantOverride("separation", 0);
+			stack.AddChild(title);
+			var traits = FaintLine("      " + character);
+			traits.AddThemeFontSizeOverride("font_size", 13);
+			stack.AddChild(traits);
+			row.AddChild(stack);
+		}
 		row.AddChild(new ReadBar().Set(hook, confidence));
 		var words = new Label { Text = PolarPlayerPerception.DescribeHook(hook, confidence), CustomMinimumSize = new Vector2(190, 0) };
 		words.AddThemeFontSizeOverride("font_size", 14);

@@ -60,6 +60,7 @@ public partial class ChartDetailPanel : Control
 	private bool NewThisWeek => OnList ? listRow.LastRank == 0 : currentRecord.weeksOnChart == 1;
 	private List<Control> spawnedTags = new List<Control>();
 	private LabelCrest labelDisc;
+	private Label characterText;   // the song's archetype, mood and lyrical turn, under the label line
 	private HBoxContainer stampRow;
 
 	public event System.Action<RecordRuntimeData> OnViewArtistClicked;
@@ -139,6 +140,10 @@ public partial class ChartDetailPanel : Control
 		head.AddChild(headText);
 		foreach (Label line in new[] { titleText, artistText, labelGenreText, releaseDateText })
 			if (line != null) line.Reparent(headText, false);
+		characterText = new Label { Visible = false, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		Face(characterText, PaperTheme.SerifItalic, 15, steadyColor);
+		headText.AddChild(characterText);
+		if (labelGenreText != null) headText.MoveChild(characterText, labelGenreText.GetIndex() + 1);
 		labelDisc = new LabelCrest { Visible = false };
 		head.AddChild(labelDisc);
 		var headRule = Rule(2f, new Color(ink, 0.85f));
@@ -267,6 +272,12 @@ public partial class ChartDetailPanel : Control
 			string label = GetLabelDisplayName(baseRecord.labelId);
 			string genre = GenreNameFormatter.Format(baseRecord.primaryGenre);
 			labelGenreText.Text = $"{label}  •  {genre}";
+		}
+
+		if (characterText != null)
+		{
+			characterText.Text = PolarPlayerPerception.DescribeCharacter(baseRecord);
+			characterText.Visible = characterText.Text.Length > 0;
 		}
 	}
 
