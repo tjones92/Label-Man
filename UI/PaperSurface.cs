@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 /// <summary>
@@ -23,6 +24,10 @@ public partial class PaperStyleBox : StyleBox {
 	/// <summary>An index card: a red rule this far below the top, then blue ruled lines under it. 0 = plain paper.</summary>
 	public float HeaderRule;
 	public float RuleSpacing = 24f;
+	/// <summary>Things that have happened to this sheet: a steel paper clip on the top edge, a coffee mug's ring.
+	/// <see cref="DecalSeed"/> picks the corner and the angle, so a given sheet always wears them the same way.</summary>
+	public bool Clip, Ring;
+	public int DecalSeed;
 
 	private StyleBoxFlat baseBox;
 
@@ -62,7 +67,71 @@ public partial class PaperStyleBox : StyleBox {
 				PaperTextures.Burn.GetRid(), new Vector2(PaperTextures.BurnMargin, PaperTextures.BurnMargin),
 				new Vector2(PaperTextures.BurnMargin, PaperTextures.BurnMargin), RenderingServer.NinePatchAxisMode.Stretch,
 				RenderingServer.NinePatchAxisMode.Stretch, false, new Color(1, 1, 1, Burn));
+		if (Ring) DrawRing(toCanvasItem, inner);
+		if (Clip) DrawClip(toCanvasItem, inner);
 	}
+
+	private static float Wobble(int seed, int i) => ((Portraits.Hash($"decal{seed}:{i}") % 200u) / 100f - 1f);
+
+	/// <summary>A mug stood on the sheet: a broken ring in coffee brown, heavier on one side where the rim sat, with a
+	/// fainter second ring and a few spatters.</summary>
+	private void DrawRing(Rid canvas, Rect2 inner) {
+		bool right = Wobble(DecalSeed, 0) > 0f;
+		float radius = 38f + Wobble(DecalSeed, 1) * 5f;
+		Vector2 centre = new(right ? inner.End.X - radius - 26f : inner.Position.X + radius + 26f, inner.End.Y - radius - 22f);
+		float start = Wobble(DecalSeed, 2) * Mathf.Pi, sweep = Mathf.Pi * (1.55f + Wobble(DecalSeed, 3) * 0.2f);
+		for (int pass = 0; pass < 2; pass++) {
+			var points = new Vector2[41];
+			for (int i = 0; i < points.Length; i++) {
+				float a = start + sweep * i / (points.Length - 1);
+				float r = radius + pass * 3.5f + Wobble(DecalSeed + pass * 7, 10 + i) * 0.9f;
+				points[i] = centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+			}
+			Color coffee = pass == 0 ? new Color(0.36f, 0.21f, 0.07f, 0.30f) : new Color(0.36f, 0.21f, 0.07f, 0.14f);
+			var colours = new Color[points.Length];
+			for (int i = 0; i < colours.Length; i++) colours[i] = coffee;
+			RenderingServer.CanvasItemAddPolyline(canvas, points, colours, pass == 0 ? 3.2f : 1.6f, true);
+		}
+		RenderingServer.CanvasItemAddCircle(canvas, centre, radius - 2f, new Color(0.36f, 0.21f, 0.07f, 0.045f));
+		for (int i = 0; i < 4; i++) {
+			float a = start + Wobble(DecalSeed, 30 + i) * 3f, d = radius + 8f + (Wobble(DecalSeed, 40 + i) + 1f) * 7f;
+			RenderingServer.CanvasItemAddCircle(canvas, centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d, 1.4f + (Wobble(DecalSeed, 50 + i) + 1f) * 0.8f, new Color(0.36f, 0.21f, 0.07f, 0.28f));
+		}
+	}
+
+	/// <summary>A gem paper clip: three nested loops of steel wire with a shadow beneath and a glint along the wire,
+	/// pinned over the top edge at a slight angle.</summary>
+	private void DrawClip(Rid canvas, Rect2 inner) {
+		bool left = Wobble(DecalSeed, 60) > 0f;
+		float angle = (left ? 1f : -1f) * (0.04f + (Wobble(DecalSeed, 61) + 1f) * 0.05f);   // the foot leans out toward the edge
+		Vector2 origin = new(left ? inner.Position.X + 5f : inner.End.X - 29f, inner.Position.Y - 10f);
+		const float scale = 1.35f;
+		var path = new List<Vector2>();
+		void Arc(float cx, float cy, float r, float a0, float a1) {
+			for (int i = 0; i <= 8; i++) { float a = a0 + (a1 - a0) * i / 8f; path.Add(new Vector2(cx + Mathf.Cos(a) * r, cy + Mathf.Sin(a) * r)); }
+		}
+		path.Add(new Vector2(3, 40)); path.Add(new Vector2(3, 9));
+		Arc(9, 9, 6, Mathf.Pi, Mathf.Tau);
+		path.Add(new Vector2(15, 44));
+		Arc(10.5f, 44, 4.5f, 0f, Mathf.Pi);
+		path.Add(new Vector2(6, 18));
+		Arc(9, 18, 3, Mathf.Pi, Mathf.Tau);
+		path.Add(new Vector2(12, 38));
+		float cos = Mathf.Cos(angle), sin = Mathf.Sin(angle);
+		Vector2 Place(Vector2 p, Vector2 shift) => origin + shift + new Vector2((p.X * cos - p.Y * sin) * scale, (p.X * sin + p.Y * cos) * scale);
+		for (int layer = 0; layer < 3; layer++) {
+			var points = new Vector2[path.Count];
+			Vector2 shift = layer == 0 ? new Vector2(1.8f, 2.6f) : layer == 2 ? new Vector2(-0.6f, -0.6f) : Vector2.Zero;
+			for (int i = 0; i < points.Length; i++) points[i] = Place(path[i], shift);
+			Color wire = layer == 0 ? new Color(0, 0, 0, 0.28f) : layer == 1 ? new Color(0.58f, 0.60f, 0.64f) : new Color(0.93f, 0.94f, 0.96f, 0.85f);
+			var colours = new Color[points.Length];
+			for (int i = 0; i < colours.Length; i++) colours[i] = wire;
+			RenderingServer.CanvasItemAddPolyline(canvas, points, colours, layer == 2 ? 0.8f : 2.3f, true);
+		}
+	}
+
+	/// <summary>Puts a paper clip and/or a coffee ring on this sheet.</summary>
+	public PaperStyleBox Decorated(bool clip, bool ring, int seed) { Clip = clip; Ring = ring; DecalSeed = seed; return this; }
 
 	/// <summary>A sheet of paper with the standard margins.</summary>
 	public static PaperStyleBox Sheet(Color fill, int marginX = 26, int marginY = 22, int shadow = 14, Color? border = null) {
@@ -186,17 +255,25 @@ public partial class FolderTabStyle : StyleBox {
 	public const float Slope = 12f, Drop = 6f;
 	/// <summary>How far the open tab reaches below its own rectangle, to cover the gap and the card's top rule.</summary>
 	public float Bridge = 8f;
+	/// <summary>0..2. A closed tab sits 3px lower per step, so a row of them is cut at three heights like a filing folder.</summary>
+	public int Stagger;
+	/// <summary>A typed label stuck on the tab; <see cref="Tilt"/> is how crooked it went on (radians).</summary>
+	public bool Sticker = true;
+	public float Tilt;
 
-	public static FolderTabStyle Make(Color fill, bool active, float bridge = 8f) {
-		var style = new FolderTabStyle { Fill = fill, Active = active, Bridge = bridge };
+	public float DropFor => Drop - 3f + Stagger * 3f;
+
+	public static FolderTabStyle Make(Color fill, bool active, float bridge = 8f, int stagger = 0) {
+		var style = new FolderTabStyle { Fill = fill, Active = active, Bridge = bridge, Stagger = Mathf.Clamp(stagger, 0, 2) };
+		style.Tilt = (style.Stagger - 1) * 0.006f + (active ? 0.004f : 0f);
 		style.ContentMarginLeft = Slope + 6; style.ContentMarginRight = Slope + 6;
-		style.ContentMarginTop = 5 + (active ? 0 : Drop); style.ContentMarginBottom = 5;
+		style.ContentMarginTop = 5 + (active ? 0 : style.DropFor); style.ContentMarginBottom = 5;
 		return style;
 	}
 
 	public override void _Draw(Rid toCanvasItem, Rect2 rect) {
 		float left = rect.Position.X, right = rect.End.X;
-		float top = rect.Position.Y + (Active ? 0f : Drop), bottom = rect.End.Y + (Active ? Bridge : 0f);
+		float top = rect.Position.Y + (Active ? 0f : DropFor), bottom = rect.End.Y + (Active ? Bridge : 0f);
 		const float s = Slope;
 		var points = new Vector2[] {
 			new(left, bottom), new(left + s - 3, top + 7), new(left + s + 1, top + 2), new(left + s + 5, top),
@@ -212,5 +289,24 @@ public partial class FolderTabStyle : StyleBox {
 		var lineColors = new Color[outline.Length];
 		for (int i = 0; i < lineColors.Length; i++) lineColors[i] = Border;
 		RenderingServer.CanvasItemAddPolyline(toCanvasItem, outline, lineColors, 1.5f, true);
+		if (Sticker) DrawSticker(toCanvasItem, new Rect2(left + s + 1f, top + 7f, rect.Size.X - 2f * (s + 1f), Mathf.Max(8f, rect.End.Y - 4f - (top + 7f))));
+	}
+
+	/// <summary>The typed label: a cream slip with a hairline edge and a drop of shadow, put on a hair crooked.</summary>
+	private void DrawSticker(Rid canvas, Rect2 slip) {
+		Vector2 centre = slip.GetCenter();
+		float cos = Mathf.Cos(Tilt), sin = Mathf.Sin(Tilt);
+		Vector2 Corner(float dx, float dy, float lift = 0f) {
+			Vector2 d = new(dx * slip.Size.X / 2f, dy * slip.Size.Y / 2f);
+			return centre + new Vector2(d.X * cos - d.Y * sin, d.X * sin + d.Y * cos) + new Vector2(lift, lift);
+		}
+		var shadow = new[] { Corner(-1, -1, 1.2f), Corner(1, -1, 1.2f), Corner(1, 1, 1.2f), Corner(-1, 1, 1.2f) };
+		RenderingServer.CanvasItemAddPolygon(canvas, shadow, new[] { new Color(0, 0, 0, 0.16f), new Color(0, 0, 0, 0.16f), new Color(0, 0, 0, 0.16f), new Color(0, 0, 0, 0.16f) });
+		Color slipColour = Active ? new Color("fbf4df") : new Color("f0e4c2");
+		var face = new[] { Corner(-1, -1), Corner(1, -1), Corner(1, 1), Corner(-1, 1) };
+		RenderingServer.CanvasItemAddPolygon(canvas, face, new[] { slipColour, slipColour, slipColour, slipColour });
+		var edge = new[] { face[0], face[1], face[2], face[3], face[0] };
+		Color hairline = new(0.44f, 0.33f, 0.17f, 0.55f);
+		RenderingServer.CanvasItemAddPolyline(canvas, edge, new[] { hairline, hairline, hairline, hairline, hairline }, 1f, true);
 	}
 }

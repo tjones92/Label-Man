@@ -49,13 +49,14 @@ public partial class LinocutIcon : Control {
 		float s = Size.X;
 		switch (kind) {
 			case InstinctKind.Ear:
-				Block(new[] { .55f, .10f, .72f, .14f, .82f, .28f, .84f, .46f, .76f, .60f, .67f, .70f, .65f, .82f, .57f, .92f, .46f, .90f, .42f, .80f, .45f, .70f, .36f, .60f, .30f, .46f, .30f, .30f, .38f, .18f }, Ink);
-				Cut(new[] { .52f, .22f, .66f, .27f, .71f, .40f, .64f, .53f, .55f, .62f }, .036f, 1);        // the helix
-				Cut(new[] { .50f, .43f, .56f, .36f, .62f, .42f, .57f, .51f, .50f, .50f }, .03f, 2);          // the bowl
-				Cut(new[] { .52f, .66f, .54f, .78f }, .03f, 3);
-				for (int ring = 0; ring < 3; ring++) {
-					float radius = (.14f + ring * .075f) * s;
-					DrawArc(P(.30f, .46f, 90 + ring), radius, Mathf.Pi * 0.82f, Mathf.Pi * 1.18f, 14, Ink, Mathf.Max(1.4f, .032f * s), true);   // sound arriving
+				// An ear in profile, open to the left where the sound comes from: a broad top, the tragus bumping out
+				// of the face side and a full lobe, so it reads as an ear and not a bulb on a stem.
+				Block(new[] { .40f, .13f, .58f, .06f, .75f, .12f, .84f, .28f, .85f, .46f, .79f, .62f, .70f, .76f, .63f, .88f, .54f, .95f, .45f, .91f, .43f, .80f, .45f, .70f, .35f, .64f, .31f, .54f, .38f, .49f, .34f, .40f, .34f, .26f }, Ink);
+				Cut(new[] { .46f, .26f, .59f, .20f, .71f, .27f, .75f, .42f, .71f, .55f, .63f, .65f }, .06f, 1);          // the helix, one fat gouge
+				Cut(new[] { .52f, .36f, .62f, .37f, .63f, .48f, .54f, .55f, .49f, .48f }, .05f, 2);                      // the antihelix curl
+				for (int ring = 0; ring < 2; ring++) {
+					float radius = (.15f + ring * .11f) * s;
+					DrawArc(P(.36f, .46f, 90 + ring), radius, Mathf.Pi * 0.80f, Mathf.Pi * 1.20f, 14, Ink, Mathf.Max(2.2f, .06f * s), true);   // sound arriving
 				}
 				break;
 			case InstinctKind.Street:

@@ -245,7 +245,7 @@ public partial class PlayerDeskPanel : Control {
 		root.AddChild(tabs);
 
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(Paper, 26, 22, 6));
+		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(Paper, 26, 22, 6).Decorated(clip: true, ring: true, seed: 8));
 		root.AddChild(paper);
 
 		contentScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
@@ -469,7 +469,8 @@ public partial class PlayerDeskPanel : Control {
 				"ROLODEX" => desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended ? 1 : 0,
 				_ => 0
 			};
-			tabButtons[i].Text = count > 0 ? $"{title}  •  {count}" : title;
+			tabButtons[i].Text = title;
+			TabStamp.Apply(tabButtons[i], count);
 		}
 	}
 
@@ -1054,6 +1055,20 @@ public partial class PlayerDeskPanel : Control {
 		[PlayerDesk.ScoutingVenue.IndustryMeets] = "The priciest room: polished youth-pop product, usually with someone speaking for them."
 	};
 
+	private static readonly Dictionary<PlayerDesk.ScoutingVenue, string> VenueTitle = new() {
+		[PlayerDesk.ScoutingVenue.ClubsAndRoadhouses] = "Clubs & roadhouses",
+		[PlayerDesk.ScoutingVenue.TheatresAndSupperClubs] = "Theatres & supper clubs",
+		[PlayerDesk.ScoutingVenue.HonkyTonks] = "Honky-tonks",
+		[PlayerDesk.ScoutingVenue.IndustryMeets] = "Industry meets"
+	};
+
+	private static readonly Dictionary<PlayerDesk.ScoutingVenue, VenueGlyph> VenueGlyphs = new() {
+		[PlayerDesk.ScoutingVenue.ClubsAndRoadhouses] = VenueGlyph.Club,
+		[PlayerDesk.ScoutingVenue.TheatresAndSupperClubs] = VenueGlyph.Theatre,
+		[PlayerDesk.ScoutingVenue.HonkyTonks] = VenueGlyph.HonkyTonk,
+		[PlayerDesk.ScoutingVenue.IndustryMeets] = VenueGlyph.Meet
+	};
+
 	private static string TypicalAskText(PlayerDesk.ScoutingVenue venue) {
 		(float low, float high) = PlayerDesk.Instance.TypicalAsk(venue);
 		return $"asks ${low:N0}–{high:N0}";
@@ -1089,22 +1104,24 @@ public partial class PlayerDeskPanel : Control {
 			});
 		}
 
-		var venueRow = new HBoxContainer();
-		venueRow.AddThemeConstantOverride("separation", 12);
-		var venuePicker = Option();
-		venuePicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-		venuePicker.CustomMinimumSize = new Vector2(0, 40);
-		for (int i = 0; i < VenueOrder.Length; i++) venuePicker.AddItem(VenueOptionLabel(VenueOrder[i]));
-		venuePicker.Selected = Array.IndexOf(VenueOrder, selectedVenue);
-		venuePicker.ItemSelected += index => {
-			selectedVenue = VenueOrder[index];
-			hasUserSelectedVenue = true;
-			Refresh();
-		};
-		venueRow.AddChild(venuePicker);
+		// The rooms are handbills in a row, the picked one pinned up. Which one is picked is the state the dropdown used to hold.
+		int hourNow = TimeManager.Instance?.CurrentHour ?? 9;
+		var board = new HBoxContainer();
+		board.AddThemeConstantOverride("separation", 14);
+		for (int i = 0; i < VenueOrder.Length; i++) {
+			PlayerDesk.ScoutingVenue venue = VenueOrder[i];
+			(int open, int close) = PlayerDesk.VenueHours(venue);
+			var handbill = VenueHandbill.Make(VenueGlyphs[venue], VenueTitle[venue], VenueBlurb[venue], TypicalAskText(venue),
+				$"open {Hour12(open)}–{Hour12(close)}", hourNow >= open && hourNow < close, venue == selectedVenue, i);
+			handbill.TooltipText = VenueCharacter[venue];
+			PlayerDesk.ScoutingVenue picked = venue;
+			handbill.Pressed += () => { selectedVenue = picked; hasUserSelectedVenue = true; Refresh(); };
+			board.AddChild(handbill);
+		}
+		content.AddChild(board);
 
 		(int selectedOpen, int selectedClose) = PlayerDesk.VenueHours(selectedVenue);
-		int currentHour = TimeManager.Instance?.CurrentHour ?? 9;
+		int currentHour = hourNow;
 		bool selectedVenueOpen = currentHour >= selectedOpen && currentHour < selectedClose;
 		var scout = Btn(selectedVenueOpen
 			? $"GO SCOUTING  ({PlayerDesk.ScoutHours}h)"
@@ -1115,9 +1132,18 @@ public partial class PlayerDeskPanel : Control {
 			: currentHour < selectedOpen ? $"This room opens at {Hour12(selectedOpen)}." : $"This room has closed for tonight; it opens at {Hour12(selectedOpen)}.";
 		scout.CustomMinimumSize = new Vector2(220, 40);
 		scout.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.ScoutVenue(selectedVenue, out string message); Say(message, ok); return ok; });
+		var venueRow = new HBoxContainer();
+		venueRow.AddThemeConstantOverride("separation", 14);
+		var venueNote = new Label {
+			Text = $"{VenueCharacter[selectedVenue]} Typical {TypicalAskText(selectedVenue)} — you have {Money(desk.Label.cashReserves)}.",
+			AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center
+		};
+		venueNote.AddThemeFontOverride("font", PaperTheme.Serif);
+		venueNote.AddThemeFontSizeOverride("font_size", 17);
+		venueNote.AddThemeColorOverride("font_color", Ink);
+		venueRow.AddChild(venueNote);
 		venueRow.AddChild(scout);
 		content.AddChild(venueRow);
-		Body($"{VenueCharacter[selectedVenue]} Typical {TypicalAskText(selectedVenue)} — you have {Money(desk.Label.cashReserves)}.");
 
 		if (desk.Slate.Count == 0) Body("No acts on the pad. Go hear somebody, or bring a notebook entry back without another scouting trip.");
 		else {
@@ -4209,10 +4235,13 @@ public partial class PlayerDeskPanel : Control {
 	internal static void StyleFolderTab(Button button, bool active) {
 		Color fill = active ? Paper : new Color("c6a35f");
 		Color hover = active ? fill : new Color("d6b676");
-		button.AddThemeStyleboxOverride("normal", FolderTabStyle.Make(fill, active));
-		button.AddThemeStyleboxOverride("hover", FolderTabStyle.Make(hover, active));
-		button.AddThemeStyleboxOverride("pressed", FolderTabStyle.Make(fill, active));
-		button.AddThemeStyleboxOverride("disabled", FolderTabStyle.Make(fill, active));
+		int stagger = button.GetIndex() % 3;   // cut at three heights, like a filing folder
+		button.AddThemeStyleboxOverride("normal", FolderTabStyle.Make(fill, active, 8f, stagger));
+		button.AddThemeStyleboxOverride("hover", FolderTabStyle.Make(hover, active, 8f, stagger));
+		button.AddThemeStyleboxOverride("pressed", FolderTabStyle.Make(fill, active, 8f, stagger));
+		button.AddThemeStyleboxOverride("disabled", FolderTabStyle.Make(fill, active, 8f, stagger));
+		button.AddThemeFontOverride("font", PaperTheme.Elite);
+		button.AddThemeFontSizeOverride("font_size", 15);
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_disabled_color" })
 			button.AddThemeColorOverride(name, Ink);

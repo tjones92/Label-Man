@@ -13,14 +13,17 @@ public partial class FolderTabButton : Button
 		Modulate = Colors.White;
 		Color ink = new("2b2115");
 		Color fillColor = active ? ActiveColor : InactiveColor;
+		int stagger = GetIndex() % 3;   // cut at three heights, like a filing folder
 		// The dossier leaves a 10px gap between the tab row and the card, so the open tab reaches 12px down to meet it.
-		AddThemeStyleboxOverride("normal", FolderTabStyle.Make(fillColor, active, 12f));
-		AddThemeStyleboxOverride("hover", FolderTabStyle.Make(active ? fillColor : fillColor.Lightened(.15f), active, 12f));
-		AddThemeStyleboxOverride("pressed", FolderTabStyle.Make(fillColor, active, 12f));
-		AddThemeStyleboxOverride("disabled", FolderTabStyle.Make(fillColor, active, 12f));
+		AddThemeStyleboxOverride("normal", FolderTabStyle.Make(fillColor, active, 12f, stagger));
+		AddThemeStyleboxOverride("hover", FolderTabStyle.Make(active ? fillColor : fillColor.Lightened(.15f), active, 12f, stagger));
+		AddThemeStyleboxOverride("pressed", FolderTabStyle.Make(fillColor, active, 12f, stagger));
+		AddThemeStyleboxOverride("disabled", FolderTabStyle.Make(fillColor, active, 12f, stagger));
 		AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_disabled_color" })
 			AddThemeColorOverride(name, ink);
+		AddThemeFontOverride("font", PaperTheme.Elite);
+		AddThemeFontSizeOverride("font_size", 16);
 		ZIndex = active ? 1 : 0;
 	}
 }

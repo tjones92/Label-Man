@@ -77,7 +77,7 @@ public partial class ArtistDetailPanel : Control
 		labelButton = new Button { Alignment = HorizontalAlignment.Left, Flat = true }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; strip.AddChild(labelButton);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6)); root.AddChild(paper);
+		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6).Decorated(clip: true, ring: false, seed: 5)); root.AddChild(paper);
 		var scroll = new ScrollContainer(); paper.AddChild(scroll);
 		content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 12); scroll.AddChild(content);
 	}
@@ -237,8 +237,14 @@ public partial class ArtistDetailPanel : Control
 		modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
 	}
 	private List<RecordRuntimeData> GetRecords() => ChartManager.Instance?.GetAllRecords().Where(r => r?.baseRecord?.artistId == profile.artistId).ToList() ?? new();
-	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }
-	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); l.AddThemeColorOverride("font_color", new Color("2b2115")); content.AddChild(l); }
+	private void AddHeading(string text) {
+		// A typed rubric over a hairline, as on the Morning Paper and the label dossier.
+		var l = new Label { Text = text };
+		l.AddThemeFontOverride("font", PaperTheme.SansSemiBold); l.AddThemeFontSizeOverride("font_size", 15); l.AddThemeColorOverride("font_color", PaperTheme.Rust);
+		content.AddChild(l);
+		content.AddChild(new ColorRect { Color = new Color(PaperTheme.Rust, 0.45f), CustomMinimumSize = new Vector2(0, 1), MouseFilter = MouseFilterEnum.Ignore });
+	}
+	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontOverride("font", PaperTheme.Serif); l.AddThemeFontSizeOverride("font_size", 18); l.AddThemeColorOverride("font_color", new Color("2b2115")); content.AddChild(l); }
 	private static string Format(object value) { var s = value?.ToString() ?? ""; return string.Concat(s.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString())); }
 	private static void Clear(Node node) { foreach (Node child in node.GetChildren()) { node.RemoveChild(child); child.QueueFree(); } }
 }

@@ -2,7 +2,7 @@
 
 Branch `codex/playtest-ui-ux-fixes`. Source: the art-direction critic's notes
 (`Label-Man-playtest/Playtest/critics/art-direction-critic.md`, final report plus addendum A). This file records where that
-list stands (updated after session 5), the **Label brand kit** (built), and the other critic pieces still open.
+list stands (updated after session 6), the **Label brand kit** (built), and the other critic pieces still open.
 
 ## 1. Where the critic's top ten stands
 
@@ -154,6 +154,46 @@ window and taskbar. There is no export preset yet; when one exists, set `applica
 Verified by a temporary driver scene (deleted): desk with and without the gold record, all five Finances ledgers, the Save/Load list,
 studio and ear clipboards on fabricated reads, the real inline card through ROSTER > MANAGE, ReadBars and the icon at five sizes.
 
+## 2c. Session 6: tabs, decals, the grade, the label and record cards, the venue board
+
+**Morning Paper bug.** `DismissMorningPaper` ended with `paperSheet.Position = Vector2.Zero`. On a centre-anchored Control
+`Position` is absolute, so every paper after the first opened in the top-left corner. `UIManager.CenterPaperSheet()` re-applies
+the anchors and offsets (at build, after the slide-out, and again before each show). Verified by driving three morning
+cycles and reading the sheet's position each time.
+
+**Tabs.** `FolderTabStyle` takes a `Stagger` (0..2: a closed tab sits 3px lower per step, picked by child index % 3) and draws a
+typed cream sticker with a hairline edge, a drop of shadow and a hair of tilt. Tab text is Special Elite. Unread counts are no
+longer "LEDGER • 3" in the text: `UI/TabStamp.cs` strikes a red double-ring stamp over the tab's shoulder
+(`TabStamp.Apply(button, count)`). Both the office tabs (`StyleFolderTab`) and the dossier tabs (`FolderTabButton`) use it.
+
+**Decals.** `PaperStyleBox.Decorated(clip, ring, seed)` adds a steel gem paper clip on the top edge and/or a coffee ring, drawn in the
+stylebox (so no nodes) and seeded so a sheet always wears them the same way. On: the Morning Paper, the office page, both
+dossiers, the record card, the modal. The clip sits in the sheet's margin, leaning outward.
+
+**Grade and vignette.** `UI/ScreenGrade.cs` is a CanvasLayer (90, above the modals) with a multiply warm tint and a radial
+dark-brown vignette, installed from `UIManager._Ready`. One place to change the look of the whole screen. Strength is
+`VignetteStrength` (0.22 after a first 0.36 read as a stage spotlight on the light pages).
+
+**Label dossier.** The roster is 45-sleeve cards (`SleeveCard`, as on the player's own roster) with the label's own disc in the
+die-cut window; headings are a typed rust rubric over a hairline and body copy is the serif. The artist dossier got the same
+headings.
+
+**Record card (`ChartDetailPanel`).** Still the scene's nodes, restyled in `Restyle()`: paper sheet with clip and ring, the title in
+the serif, the act typed, the label's 45 in the corner, the position circled like a chart-row rank, state struck as stamps (No. 1,
+New entry, Bullet, Anchor, Gold record, Million seller), sales in a ruled typewriter box and tags as typed stickers. The card now
+sizes to its contents and grows from the middle (the scene fixed it at 700px).
+
+**Venue scene.** The A&R page's dropdown is four handbills (`UI/VenueBoard.cs`): a linocut of each room (`VenueIcon`: roadhouse,
+marquee, swing doors under a star, microphone), the name in poster slab, who plays it, the ask, the hours and an OPEN / SHUT
+stamp. The picked room is pinned and ringed. Same state as before (`selectedVenue`, `hasUserSelectedVenue`).
+
+**The Ear linocut** was a bulb: a round head on a narrow stem. It is now an ear in profile (broad top, a tragus on the face
+side, one fat helix gouge, an antihelix curl, a tapering lobe) with two bold sound arcs, checked at 128, 64, 46, 30 and 24px.
+
+Verified by the temporary driver in `tmp/shot` (git-ignored): the paper cycle, tabs with stamps, label roster, record card,
+the A&R board, the icons at five sizes. **Not done here:** the Band Room (it is untracked work on `band-member-simulation`; see
+that branch), the hearing plates beyond the Polar widget (already clipboard sheets), the dossier portrait and boxed fields.
+
 ## 3. Other critic pieces still open
 
 Ranked by how much of the painted-versus-flat gap each closes.
@@ -176,8 +216,7 @@ Ranked by how much of the painted-versus-flat gap each closes.
 7. **Iconography**: Ear, Street, Suit, Fixer as linocut icons; stars to vinyl discs (`StarBar` is still a glyph helper).
 8. **Type upgrades that need font files** (the nameplate is done in Abril Fatface; the pad note is gone): Special Elite
     for index-card names (Courier Prime Bold today), Abril Fatface for the nameplate.
-9. **Small surface work**: staggered tabs with typed stickers and a red stamp circle for unread counts; the
-    "Start a Label" page (origin buttons, star glyphs, no title card); paper-clip, coffee-ring and tilt decals; a shared
-    warm grade, grain and vignette over painting and UI.
-10. **Critic's unreviewed screens**: Band Room, venue and hearing scenes, label and record detail panels. Ask the critic to
-    continue from shot 057 on a fresh playthrough.
+9. **Small surface work**: DONE in session 6 (staggered sticker tabs, unread stamps, clip and coffee-ring decals, warm grade
+    and vignette; the founding page's title card and origin buttons were done earlier). Left: a grain layer in `ScreenGrade`.
+10. **Critic's unreviewed screens**: label dossier, record card and the A&R venue scene are done (section 2c). Band Room is on
+    `band-member-simulation`. Ask the critic to continue from shot 057 on a fresh playthrough.

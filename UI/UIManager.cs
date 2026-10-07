@@ -116,6 +116,7 @@ public partial class UIManager : Control
 		BuildDeskProps();
 		BuildMainHud();
 		BuildMorningPaper();
+		ScreenGrade.Install(this);
 		if (PlayerDesk.Instance != null) {
 			PlayerDesk.Instance.Changed += UpdateMainHud;
 			PlayerDesk.Instance.Announcement += ShowAnnouncement;
@@ -396,6 +397,7 @@ public partial class UIManager : Control
 			morningPaper.MoveToFront();
 			// The paper lands on the desk: a short fade and settle rather than a pop.
 			morningPaper.Modulate = new Color(1, 1, 1, 0);
+			CenterPaperSheet();
 			paperSheet.Scale = new Vector2(0.96f, 0.96f);
 			var land = CreateTween().SetParallel(true);
 			land.TweenProperty(morningPaper, "modulate:a", 1.0f, 0.18);
@@ -581,15 +583,12 @@ public partial class UIManager : Control
 
 		// The sheet is a plain Control so the fold corner can sit on its own corner, outside the layout.
 		paperSheet = new Control { MouseFilter = MouseFilterEnum.Stop };
-		paperSheet.SetAnchorsPreset(LayoutPreset.Center);
-		paperSheet.OffsetLeft = -450; paperSheet.OffsetRight = 450;
-		paperSheet.OffsetTop = -335; paperSheet.OffsetBottom = 335;
-		paperSheet.PivotOffset = new Vector2(450, 335);
 		morningPaper.AddChild(paperSheet);
+		CenterPaperSheet();
 		var sheet = new PanelContainer { MouseFilter = MouseFilterEnum.Pass };
 		sheet.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		// Newsprint: greyer and rougher than the office's ledger paper.
-		var newsprint = PaperStyleBox.Sheet(new Color("e6dbbf"), 42, 26, 18, new Color("867655"));
+		var newsprint = PaperStyleBox.Sheet(new Color("e6dbbf"), 42, 26, 18, new Color("867655")).Decorated(clip: true, ring: true, seed: 3);
 		newsprint.Grain = 1.4f; newsprint.Falloff = 0.8f; newsprint.Burn = 0.8f;
 		sheet.AddThemeStyleboxOverride("panel", newsprint);
 		paperSheet.AddChild(sheet);
@@ -651,6 +650,17 @@ public partial class UIManager : Control
 
 	private bool paperSliding;
 
+	/// <summary>Seats the sheet in the middle of the screen. The slide-out tween moves Position directly, which on an
+	/// anchored control is an absolute value, so putting the sheet back means re-applying the anchors and offsets, not
+	/// zeroing Position (that left every later paper at the top left).</summary>
+	private void CenterPaperSheet() {
+		paperSheet.SetAnchorsPreset(LayoutPreset.Center);
+		paperSheet.OffsetLeft = -450; paperSheet.OffsetRight = 450;
+		paperSheet.OffsetTop = -335; paperSheet.OffsetBottom = 335;
+		paperSheet.PivotOffset = new Vector2(450, 335);
+		paperSheet.RotationDegrees = 0f;
+	}
+
 	private void DismissMorningPaper() {
 		if (morningPaper?.Visible != true || paperSliding) return;
 		isUIOpen = uiOpenBeforePaper;
@@ -665,8 +675,7 @@ public partial class UIManager : Control
 			paperSliding = false;
 			morningPaper.Hide();
 			morningPaper.Modulate = Colors.White;
-			paperSheet.Position = Vector2.Zero;
-			paperSheet.RotationDegrees = 0f;
+			CenterPaperSheet();
 			UpdateMainHud();
 		};
 		UpdateMainHud();

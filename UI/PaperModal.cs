@@ -78,7 +78,7 @@ public partial class PaperModal : CanvasLayer {
 		var card = new PanelContainer { CustomMinimumSize = new Vector2(width, 0) };
 		if (clipboard) card.AddThemeStyleboxOverride("panel", new ClipboardStyle());
 		else {
-			var sheet = PaperStyleBox.Sheet(Paper, 28, 22, 18, Rust);
+			var sheet = PaperStyleBox.Sheet(Paper, 28, 22, 18, Rust).Decorated(clip: false, ring: true, seed: 2);
 			sheet.BorderWidth = 2; sheet.Radius = 3; sheet.ShadowAlpha = 0.5f;
 			sheet.ContentMarginBottom = 20;
 			card.AddThemeStyleboxOverride("panel", sheet);
