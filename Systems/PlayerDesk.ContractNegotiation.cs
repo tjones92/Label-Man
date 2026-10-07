@@ -241,22 +241,33 @@ public partial class PlayerDesk : Node {
 	// WHAT THE GIVES COST -- the two control axes had no visible price, so they were free concessions
 	// ========================================================================================
 
-	private const int MechanicalExampleCopies = 100000;
+	private static readonly int[] MechanicalLadderCopies = { 1000, 10000, 100000 };
 
 	/// <summary>The long-tail price of artist-owned publishing, in the one currency the player already sees:
 	/// the compulsory mechanical the label pays the writer on every copy of a 45 (MechanicalRoyaltyService
-	/// charges both sides, and a label that controls the song pays itself nothing).</summary>
-	public static string PublishingPriceLine(bool labelKeepsPublishing) {
-		if (labelKeepsPublishing) return "You keep the publishing: no mechanicals owed on their own songs.";
-		float perCopy = MechanicalRoyaltyService.RatePerCopy * 100f;
-		float bothSides = MechanicalExampleCopies * MechanicalRoyaltyService.RatePerCopy * 2f;
-		return $"They keep the publishing: you owe them {perCopy:0.#} cents a copy on each of their own songs. " +
-			$"A {MechanicalExampleCopies:N0}-copy single with both sides theirs costs you about ${bothSides:N0} in mechanicals.";
+	/// charges both sides, and a label that controls the song pays itself nothing). Shown as a hover tooltip
+	/// on the Publishing row, so the form itself stays quiet; the line for the box's current state leads.</summary>
+	public static string PublishingTooltip(bool labelKeepsPublishing) {
+		float perCopyCents = MechanicalRoyaltyService.RatePerCopy * 100f;
+		string ladder = string.Join("  ·  ", MechanicalLadderCopies.Select(copies =>
+			$"{copies:N0} copies: ${copies * MechanicalRoyaltyService.RatePerCopy * 2f:N0}"));
+		string keeps = "Label keeps the publishing: no mechanicals owed on the songs they write.";
+		string gives = $"Act keeps the publishing: you owe them {perCopyCents:0.#}¢ a copy on every side of a 45 that is theirs.\n" +
+			$"Both sides theirs — {ladder}.\n" +
+			"It is owed from the first copy sold.";
+		return (labelKeepsPublishing ? keeps + "\n\n" + gives : gives + "\n\n" + keeps) +
+			"\n\nCovers of other people's songs owe their own publishers either way, unless you control the song.";
 	}
 
-	public static string CreativeControlPriceLine(bool artistHasControl) => artistHasControl
-		? "They have the final word: they can turn down songs they don't like, and you can't insist in the studio."
-		: "You have the final word on material: they may object, but you can insist.";
+	/// <summary>What the creative-control box costs, in the one place the sim charges for it: the act's no in the
+	/// studio (<see cref="CreativeControlRefusalScale"/>), for every session of the term.</summary>
+	public static string CreativeControlTooltip(bool artistHasControl) {
+		int barPercent = Mathf.RoundToInt((CreativeControlRefusalScale - 1f) * 100f);
+		string gives = $"Act holds creative control: they turn down songs they don't like — their bar is {barPercent}% higher than a free act's — " +
+			"and you can't insist in the studio. A no sends you back to pick other material, every session of the term.";
+		string keeps = "You hold creative control: they may still object to a song, but you can insist and cut it anyway.";
+		return artistHasControl ? gives + "\n\n" + keeps : keeps + "\n\n" + gives;
+	}
 
 	// ========================================================================================
 	// THE LOWBALL GRUDGE -- a cheap first signing is paid for at renewal

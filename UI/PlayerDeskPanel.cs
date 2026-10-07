@@ -1088,9 +1088,7 @@ public partial class PlayerDeskPanel : Control {
 
 		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		row.AddThemeConstantOverride("separation", 12);
-		string qualityRead = prospect.ReadQuality >= 0.72f ? "strong prospects"
-			: prospect.ReadQuality >= 0.50f ? "promising, with questions"
-			: prospect.ReadQuality >= 0.30f ? "rough but worth another look" : "a long shot";
+		string qualityRead = PlayerDesk.ReadVerdict(prospect.ReadQuality);
 		var text = new Label {
 			SizeFlagsHorizontal = SizeFlags.ExpandFill,
 			AutowrapMode = TextServer.AutowrapMode.WordSmart,
@@ -1118,6 +1116,19 @@ public partial class PlayerDeskPanel : Control {
 			row.AddChild(approach);
 		}
 		card.AddChild(row);
+		// What the second look changed. The bar and the fog moved on every follow-up but the headline phrase seldom does,
+		// so without this the two hours look like they did nothing.
+		if (prospect.Learned is { Count: > 0 }) {
+			var learned = new Label { Text = "WHAT THE SECOND LOOK TURNED UP" };
+			learned.AddThemeFontSizeOverride("font_size", 13);
+			learned.AddThemeColorOverride("font_color", Rust);
+			card.AddChild(learned);
+			for (int i = 0; i < prospect.Learned.Count; i++) {
+				Label line = FaintLine("    • " + prospect.Learned[i]);
+				if (i == 0) line.AddThemeColorOverride("font_color", Ink);
+				card.AddChild(line);
+			}
+		}
 		if (!PlayerDesk.Instance.Notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) {
 			var note = Btn("ADD TO NOTEBOOK");
 			note.Disabled = PlayerDesk.Instance.Notebook.Count >= 6;
@@ -1132,7 +1143,7 @@ public partial class PlayerDeskPanel : Control {
 		// gets a bar and a few words and the set gets one sentence, so the choice is about the act, not a star count.
 		if (shown == 0) card.AddChild(FaintLine("    (didn't catch their set)"));
 		foreach (PlayerDesk.RepertoireItem item in prospect.LiveSet.Take(shown))
-			card.AddChild(SongRow($"    ♪ \"{item.Title}\" ({item.SourceTag})", item.ReadHook, prospect.ReadConfidence));
+			card.AddChild(SongRow($"    ♪ \"{item.Title}\" ({item.SourceTag}){(prospect.NewlyHeard.Contains(item.Title) ? "  — new" : "")}", item.ReadHook, prospect.ReadConfidence));
 		string setSummary = SetSummary(prospect.LiveSet.Take(shown).Select(item => item.ReadHook).ToList(), prospect.ReadConfidence);
 		if (setSummary.Length > 0) card.AddChild(FaintLine("    THE SET: " + setSummary));
 		if (hidden > 0) card.AddChild(FaintLine($"    …and {hidden} more you didn't catch — follow up to hear the full set."));
@@ -1219,23 +1230,22 @@ public partial class PlayerDeskPanel : Control {
 		var singles = Spin(0, 30, 1, prefill.SinglesObligation);
 		grid.AddChild(singles);
 
-		grid.AddChild(FormLabel("Publishing"));
+		var publishingLabel = FormLabel("Publishing");
+		grid.AddChild(publishingLabel);
 		var labelPub = Check("Label keeps the publishing", prefill.LabelOwnsPublishing);
 		grid.AddChild(labelPub);
 
-		grid.AddChild(FormLabel("Creative control"));
+		var controlLabel = FormLabel("Creative control");
+		grid.AddChild(controlLabel);
 		var artistControl = Check("Artist has creative control", prefill.ArtistCreativeControl);
 		grid.AddChild(artistControl);
 
-		// The two gives are not free: say what each one costs, and keep the line live as the boxes are ticked.
-		var givesNote = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
-		givesNote.AddThemeFontSizeOverride("font_size", 15);
-		content.AddChild(givesNote);
+		// The two gives are not free, but the price lives in a hover rather than on the page: the long-tail cost
+		// (mechanicals at 1,000 / 10,000 / 100,000 copies; the studio veto) leads with the box's current state.
+		foreach (Label rowLabel in new[] { publishingLabel, controlLabel }) rowLabel.MouseFilter = MouseFilterEnum.Stop;
 		void UpdateGives() {
-			bool conceded = !labelPub.ButtonPressed || artistControl.ButtonPressed;
-			givesNote.Text = PlayerDesk.PublishingPriceLine(labelPub.ButtonPressed) + "\n" +
-				PlayerDesk.CreativeControlPriceLine(artistControl.ButtonPressed);
-			givesNote.AddThemeColorOverride("font_color", conceded ? Rust : Heard);
+			publishingLabel.TooltipText = labelPub.TooltipText = PlayerDesk.PublishingTooltip(labelPub.ButtonPressed);
+			controlLabel.TooltipText = artistControl.TooltipText = PlayerDesk.CreativeControlTooltip(artistControl.ButtonPressed);
 		}
 		labelPub.Toggled += _ => UpdateGives();
 		artistControl.Toggled += _ => UpdateGives();

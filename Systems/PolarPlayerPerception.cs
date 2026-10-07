@@ -194,9 +194,12 @@ public static class PolarPlayerPerception {
 	}
 
 	public static string DescribeHook(float value, float confidence) {
-		string core = value >= 0.75f ? "a standout hook" : value >= 0.55f ? "a strong tune" : value >= 0.35f ? "a fair number" : "a weak number";
+		string core = HookWord(value);
 		return confidence >= 0.7f ? core : confidence >= 0.45f ? $"likely {core}" : $"might be {core}";
 	}
+	/// <summary>The unhedged bucket for a hook read; two reads in different buckets are a different verdict.</summary>
+	public static string HookWord(float value) =>
+		value >= 0.75f ? "a standout hook" : value >= 0.55f ? "a strong tune" : value >= 0.35f ? "a fair number" : "a weak number";
 	/// <summary>Reads a band's width back onto the scouting-confidence scale the set list uses.</summary>
 	private static float BandConfidence(PolarBand band) => Math.Clamp(1 - (band.hi - band.lo) * 1.5f, 0, 1);
 	private static string Capitalize(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text[1..];

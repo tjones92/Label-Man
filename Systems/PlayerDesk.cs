@@ -212,6 +212,11 @@ public partial class PlayerDesk : Node {
 		public int HeardCount;
 		/// <summary>A second look has been taken: the full set is legible and the read has tightened.</summary>
 		public bool FollowedUp;
+		/// <summary>What the second look changed, as sentences for the card, headline first. Null until a follow-up
+		/// is taken; the numbers move on every follow-up but the descriptive bucket often does not, so this says so.</summary>
+		public List<string> Learned;
+		/// <summary>Titles the follow-up added to what the player has heard, so the set can mark them.</summary>
+		public readonly HashSet<string> NewlyHeard = new();
 		/// <summary>The label's opening offer, generated once when the player approaches. See <see cref="ApproachToSign"/>.</summary>
 		public ContractTermSheet Baseline;
 		/// <summary>Terms the player last entered when a signing was refused for time or cash.</summary>
@@ -1625,6 +1630,12 @@ public partial class PlayerDesk : Node {
 		if (!Require(FollowUpHours, out message)) return false;
 
 		Spend(FollowUpHours);
+		// Remember what the pad said before the second look, so the card can say what the two hours bought.
+		float qualityBefore = prospect.ReadQuality, confidenceBefore = prospect.ReadConfidence;
+		string noteBefore = prospect.Note;
+		int heardBefore = prospect.HeardCount;
+		List<float> hooksBefore = prospect.LiveSet.Take(heardBefore).Select(item => item.ReadHook).ToList();
+
 		prospect.FollowedUp = true;
 		prospect.HeardCount = prospect.LiveSet.Count;
 		// The read tightens toward the truth now that you've spent real time on them.
@@ -1632,6 +1643,14 @@ public partial class PlayerDesk : Node {
 		prospect.ReadQuality = Mathf.Clamp(Mathf.Lerp(prospect.ReadQuality, truth, 0.6f), 0f, 1f);
 		prospect.ReadConfidence = Mathf.Clamp(prospect.ReadConfidence + 0.25f, 0f, 1f);
 		prospect.Note = DescribeProspect(prospect.Artist, Label, Mathf.Lerp(0.30f, 0.10f, prospect.ReadConfidence));
+		// The material tightens with the act: a second hearing of a tune is closer to the tune than the first was.
+		foreach (RepertoireItem item in prospect.LiveSet) {
+			SongComposition song = string.IsNullOrEmpty(item.SongId) ? null : CompositionCatalogService.GetSong(item.SongId);
+			if (song != null) item.ReadHook = Mathf.Clamp(Mathf.Lerp(item.ReadHook, song.commercialHook, 0.6f), 0f, 1f);
+		}
+		prospect.NewlyHeard.Clear();
+		foreach (RepertoireItem item in prospect.LiveSet.Skip(heardBefore)) prospect.NewlyHeard.Add(item.Title);
+		prospect.Learned = DescribeFollowUp(prospect, qualityBefore, confidenceBefore, noteBefore, heardBefore, hooksBefore);
 		WatchNote watched = notebook.FirstOrDefault(entry => entry.Artist?.artistId == prospect.Artist.artistId);
 		if (watched != null) {
 			watched.ReadQuality = prospect.ReadQuality;
@@ -1643,10 +1662,57 @@ public partial class PlayerDesk : Node {
 			watched.LiveSet.Clear();
 			watched.LiveSet.AddRange(prospect.LiveSet);
 		}
-		Note($"Followed up with {prospect.Artist.stageName} -- heard the full set ({prospect.LiveSet.Count} songs).");
-		message = $"You know {prospect.Artist.stageName} a lot better now.";
+		Note($"Followed up with {prospect.Artist.stageName} -- heard the full set ({prospect.LiveSet.Count} songs). {prospect.Learned[0]}");
+		message = $"{prospect.Artist.stageName}: {prospect.Learned[0]}";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>The descriptive read of an act in one phrase. The bar under it moves on every follow-up but the phrase
+	/// seldom does, so the card compares phrases before and after (<see cref="DescribeFollowUp"/>).</summary>
+	public static string ReadVerdict(float readQuality) =>
+		readQuality >= 0.72f ? "strong prospects"
+		: readQuality >= 0.50f ? "promising, with questions"
+		: readQuality >= 0.30f ? "rough but worth another look" : "a long shot";
+
+	/// <summary>How far off a read can be, as the +/- fraction the note's wording is blurred by.</summary>
+	public static float ReadFog(float confidence) => Mathf.Lerp(0.30f, 0.10f, Mathf.Clamp(confidence, 0f, 1f));
+
+	/// <summary>What two hours bought, as sentences, headline first. Says so plainly when the answer is "the verdict
+	/// stands": a follow-up that confirms a read is information too, and it should not look like nothing happened.</summary>
+	private static List<string> DescribeFollowUp(Prospect prospect, float qualityBefore, float confidenceBefore,
+			string noteBefore, int heardBefore, IReadOnlyList<float> hooksBefore) {
+		var lines = new List<string>();
+
+		// 1. The act itself.
+		string before = ReadVerdict(qualityBefore), after = ReadVerdict(prospect.ReadQuality);
+		float delta = prospect.ReadQuality - qualityBefore;
+		string drift = Mathf.Abs(delta) < 0.03f ? "about what you thought"
+			: delta > 0f ? "a little better than you thought" : "a little worse than you thought";
+		lines.Add(before != after
+			? $"Your read moved from “{before}” to “{after}”."
+			: $"Your read stands at “{after}” — {drift}.");
+		lines.Add($"The fog on it narrowed from ±{ReadFog(confidenceBefore) * 100f:0}% to ±{ReadFog(prospect.ReadConfidence) * 100f:0}%.");
+
+		// 2. The things the note put in words: what they write and how they play a room.
+		(string size, string writing, string stage) was = ProspectNoteParts(noteBefore);
+		(string size, string writing, string stage) now = ProspectNoteParts(prospect.Note);
+		if (was.writing != now.writing) lines.Add($"Their writing: {was.writing} → {now.writing}.");
+		if (was.stage != now.stage) lines.Add($"On the stand: “{was.stage}” → “{now.stage}”.");
+
+		// 3. The set.
+		int fresh = prospect.LiveSet.Count - heardBefore;
+		if (fresh <= 0) {
+			lines.Add("You had already caught the whole set.");
+		} else {
+			RepertoireItem pick = prospect.LiveSet.Skip(heardBefore).OrderByDescending(item => item.ReadHook).First();
+			lines.Add($"Heard {fresh} more {(fresh == 1 ? "song" : "songs")}; the pick of them is “{pick.Title}”, {PolarPlayerPerception.DescribeHook(pick.ReadHook, prospect.ReadConfidence)}.");
+		}
+		for (int i = 0; i < hooksBefore.Count && i < prospect.LiveSet.Count; i++) {
+			string wasWord = PolarPlayerPerception.HookWord(hooksBefore[i]), nowWord = PolarPlayerPerception.HookWord(prospect.LiveSet[i].ReadHook);
+			if (wasWord != nowWord) lines.Add($"“{prospect.LiveSet[i].Title}” sounded like {wasWord}; the second hearing says {nowWord}.");
+		}
+		return lines;
 	}
 
 	/// <summary>
@@ -1743,6 +1809,12 @@ public partial class PlayerDesk : Node {
 		string stage = stageRead >= 0.68f ? "commands the room"
 			: stageRead >= 0.42f ? "holds the room" : "still finding their footing";
 		return $"{artist.members.Count(member => member.isActive)}-piece, {writing}, {stage}";
+	}
+
+	/// <summary>Splits a <see cref="DescribeProspect"/> note back into its three phrases, so two reads of one act can be compared.</summary>
+	private static (string size, string writing, string stage) ProspectNoteParts(string note) {
+		string[] parts = (note ?? string.Empty).Split(", ");
+		return (parts.ElementAtOrDefault(0) ?? "", parts.ElementAtOrDefault(1) ?? "", parts.ElementAtOrDefault(2) ?? "");
 	}
 
 	private static float StableReadOffset(AILabel label, SimulatedArtist artist, string field) {
