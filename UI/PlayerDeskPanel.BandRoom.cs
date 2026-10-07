@@ -56,7 +56,7 @@ public partial class PlayerDeskPanel {
 
 		var card = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		var paper = PaperStyleBox.Sheet(new Color("f3ebd0"), 18, 10, 8);
-		paper.HeaderRule = 34f;
+		paper.HeaderRule = 46f;
 		card.AddThemeStyleboxOverride("panel", paper);
 		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		row.AddThemeConstantOverride("separation", 16);
