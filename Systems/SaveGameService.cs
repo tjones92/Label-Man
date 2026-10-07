@@ -217,6 +217,18 @@ public static class SaveGameService {
 		return true;
 	}
 
+	/// <summary>The rolling autosave slots. Three, so a bad dawn can be walked back a few mornings.</summary>
+	public static readonly string[] AutosaveSlots = { "Autosave 1", "Autosave 2", "Autosave 3" };
+
+	/// <summary>Writes the oldest of the three autosave slots (an empty one first). The slot picked is returned
+	/// so the caller can report it; the write itself is an ordinary <see cref="Save"/>.</summary>
+	public static bool Autosave(out string slot, out string message) {
+		slot = AutosaveSlots
+			.OrderBy(name => HasSave(name) ? (long)Godot.FileAccess.GetModifiedTime(PathFor(name)) : 0L)
+			.First();
+		return Save(slot, out message);
+	}
+
 	/// <summary>Restores the player layer from a save file. Returns false with a reason.</summary>
 	public static bool Load(string slot, out string message) {
 		if (!HasSave(slot)) { message = "No save in that slot."; return false; }
@@ -404,6 +416,16 @@ public sealed class ProspectNotebookSaveData {
 	public int LastRivalYear { get; set; }
 	public int LastRivalMonth { get; set; }
 	public int LastRivalDay { get; set; }
+	// The handshake: a week's hold on the act, and a rival the desk heard circling them.
+	public int HeldYear { get; set; }
+	public int HeldMonth { get; set; }
+	public int HeldDay { get; set; }
+	public int Handshakes { get; set; }
+	public string CirclingLabel { get; set; }
+	public string CirclingLabelId { get; set; }
+	public int CircleYear { get; set; }
+	public int CircleMonth { get; set; }
+	public int CircleDay { get; set; }
 }
 
 /// <summary>Flat save record for <see cref="DistributionDeal"/> -- used both for the player's

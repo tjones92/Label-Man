@@ -159,6 +159,12 @@ public partial class ArtistDetailPanel : Control
 		AddHeading("INTERNAL — CONTRACT"); AddBody($"Royalty rate: {artist.royaltyRate:P1}\nUnrecouped advance: ${artist.unrecoupedAdvance:N0}\nTerm: {artist.contractLength} years\nExpires: {artist.contractExpiresYear}");
 		AddHeading("DELIVERABLES"); AddBody(DeliverablesText());
 		AddHeading("RIGHTS AND MANAGEMENT"); AddBody(RightsText());
+		if (artist.manager != ManagerArchetype.None) {
+			var who = new Button { Text = "WHAT THIS MANAGER MEANS FOR YOU", Alignment = HorizontalAlignment.Left, CustomMinimumSize = new Vector2(340, 38), SizeFlagsHorizontal = SizeFlags.ShrinkBegin };
+			who.TooltipText = "What they do for the label, and what they cost it.";
+			who.Pressed += () => ManagerNote(this, artist);
+			content.AddChild(who);
+		}
 		AddHeading("A&R IMPRESSION"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
 	}
 	/// <summary>What the act still owes under this deal. Sides count records they have put out on this label
@@ -181,6 +187,19 @@ public partial class ArtistDetailPanel : Control
 			: $"Managed by {artist.managerName}.";
 		return $"{(artist.labelOwnsPublishing ? "The label keeps the publishing." : "The act keeps their publishing.")}\n" +
 			$"{(artist.artistCreativeControl ? "The act has creative control." : "The label has the final say on material.")}\n{manager}";
+	}
+	/// <summary>What a manager does for the label and what they cost it. Names the person, not the type of manager:
+	/// the player learns the type from how the manager behaves at the table. Every number comes off
+	/// <see cref="ManagerProfile"/>, the same table the contract talks and the chart read.</summary>
+	public static void ManagerNote(Node host, SimulatedArtist managed) {
+		(_, string helps, string costs) = ManagerProfile.Describe(managed.manager);
+		string who = managed.managerName ?? "Their manager";
+		var modal = PaperModal.Open(host, who.ToUpperInvariant(), 640);
+		modal.AddText($"{who} manages {managed.stageName}.");
+		modal.AddText("What they do for you: " + helps);
+		modal.AddText("What they cost you: " + costs);
+		modal.AddText("This follows the act. When their contract comes up, the same manager is across the table.");
+		modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
 	}
 	private List<RecordRuntimeData> GetRecords() => ChartManager.Instance?.GetAllRecords().Where(r => r?.baseRecord?.artistId == profile.artistId).ToList() ?? new();
 	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }

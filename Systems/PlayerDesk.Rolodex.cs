@@ -251,6 +251,16 @@ public partial class PlayerDesk : Node {
 	// CONTEXT -- the one place a call is allowed to learn anything
 	// ========================================================================================
 
+	/// <summary>What can be on the table in a call: every released record, then every master you hold an acetate
+	/// of that is not out yet (the first month's only way to have something to talk about).</summary>
+	public IEnumerable<(string RecordId, string Title, bool IsAcetate)> RecordsOnTheTable() {
+		foreach (RecordRuntimeData rec in ReleasedRecords)
+			if (rec.baseRecord != null) yield return (rec.baseRecord.recordId, rec.baseRecord.title, false);
+		foreach (Master tape in masters)
+			if (!tape.Released && tape.Record != null && AcetatesFor(tape.Record.recordId) > 0)
+				yield return (tape.Record.recordId, tape.SongTitle, true);
+	}
+
 	/// <summary>Gather every real fact the scene may reference. Called once when the line connects and
 	/// again whenever the record under discussion changes.</summary>
 	public RolodexCallContext BuildCallContext(RolodexEntry entry, string recordId) {
@@ -288,14 +298,22 @@ public partial class PlayerDesk : Node {
 
 		c.record = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
 		c.baseRecord = c.record?.baseRecord;
+		// A master with an acetate counts as the record on the table: the ear and the format read need only
+		// its hook, production and genre. Nothing is out, so there are no sales, no servicing and no runtime record.
+		if (c.baseRecord == null && AcetatesFor(recordId) > 0) {
+			Master tape = masters.FirstOrDefault(item => item.Record?.recordId == recordId && !item.Released);
+			if (tape?.Record != null) { c.baseRecord = tape.Record; c.isAcetate = true; }
+		}
 		if (c.baseRecord != null) {
 			c.recordHook = c.baseRecord.hookStrength;
 			c.recordProduction = c.baseRecord.productionQuality;
 			c.recordOriginality = c.baseRecord.originality;
 			c.recordQuality = (c.recordHook + c.recordProduction + c.recordOriginality) / 3f;
-			c.salesSupport = ChartSimulator.GetSalesSupportRatio(c.record);
-			c.unitsTotal = c.record.totalUnitsSold;
-			c.unitsThisWeek = c.record.unitsThisWeek;
+			if (c.record != null) {
+				c.salesSupport = ChartSimulator.GetSalesSupportRatio(c.record);
+				c.unitsTotal = c.record.totalUnitsSold;
+				c.unitsThisWeek = c.record.unitsThisWeek;
+			}
 			c.djGenreAffinity = c.dj?.GenreAffinity(c.baseRecord.primaryGenre) ?? 1f;
 			c.isServiced = IsServiced(c.baseRecord.recordId, entry.stationId);
 			c.servicingConviction = ServicingConviction(c.baseRecord.recordId, entry.stationId);
@@ -323,7 +341,7 @@ public partial class PlayerDesk : Node {
 			// Dealer-margin-and-flip directive §3.4: the flip pitch's own eligibility and quality
 			// terms. flipWorkable requires isServiced (set above) -- he can't be talked into turning
 			// over a disc he was never sent.
-			if (!string.IsNullOrEmpty(c.baseRecord.bSideSongId)) {
+			if (!c.isAcetate && !string.IsNullOrEmpty(c.baseRecord.bSideSongId)) {
 				c.bSideHook = c.baseRecord.bSideHookStrength;
 				c.bSideProduction = c.baseRecord.bSideProductionQuality;
 				c.bSideOriginality = c.baseRecord.bSideOriginality;
@@ -364,7 +382,7 @@ public partial class PlayerDesk : Node {
 					&& c.region.currentGenreAcceptance.TryGetValue(g, out float acc) ? acc : 0.5f;
 				c.regionalGenreMomentum = c.region.genreMomentum != null
 					&& c.region.genreMomentum.TryGetValue(g, out float mom) ? mom : 0f;
-				c.regionalAwareness = c.record.regionalData != null
+				c.regionalAwareness = c.record?.regionalData != null
 					&& c.record.regionalData.TryGetValue(c.region.regionId, out RegionalRecordData rd) ? rd.awareness : 0f;
 				c.formatAdmittance = chart?.FormatAdmittanceFor(c.baseRecord.primaryGenre, c.station, c.year) ?? 0f;
 			}
@@ -628,6 +646,8 @@ public partial class PlayerDesk : Node {
 	/// <summary>Beat 3: the one-sentence read of the business situation on the table right now.</summary>
 	private static string SituationRead(RolodexCallContext c) {
 		if (!c.HasRecord) return "You have nothing out to talk about. This is a courtesy call and you both know it.";
+		if (c.isAcetate)
+			return $"You have one acetate of \"{c.baseRecord.title}\" and no pressing yet. He can hear it down the line, but there is nothing for him to play on the air.";
 		if (c.advocacyAlready > 0.01f)
 			return $"He is already carrying \"{c.baseRecord.title}\" into his meetings. Asking twice is how you spend goodwill for nothing.";
 		if (c.formatAdmittance < 0.08f)

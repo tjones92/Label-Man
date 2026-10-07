@@ -241,6 +241,14 @@ public partial class PlayerDesk : Node {
 		public int HeardCount;
 		public bool FollowedUp;
 		public GameDate? LastRivalInterestDate;
+		/// <summary>You shook hands on them: no rival signs them until this date.</summary>
+		public GameDate? HeldUntil;
+		/// <summary>How many weeks of handshake you've already spent on this act. They only wait so long.</summary>
+		public int Handshakes;
+		/// <summary>A record man the desk heard is circling this act, and the day the deal lands if you do nothing.</summary>
+		public string CirclingLabel;
+		public string CirclingLabelId;
+		public GameDate? CirclingResolves;
 		public readonly List<RepertoireItem> LiveSet = new();
 	}
 
@@ -2125,6 +2133,10 @@ public partial class PlayerDesk : Node {
 			Note(r.IsCommission
 				? $"The writer delivered \"{r.Title}\" for {artist?.stageName ?? "the act"} — ready to record."
 				: $"{artist?.stageName ?? "The act"} has \"{r.Title}\" in the set now.");
+			// A cover or a commission the player has been waiting on is worth stopping a skip for.
+			FlagSkipStop(r.IsCommission
+				? $"\"{r.Title}\" is in from the writer"
+				: $"{artist?.stageName ?? "The act"} has \"{r.Title}\" ready", EventType.Reminder);
 		}
 	}
 
@@ -4168,23 +4180,113 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	private void ProcessRivalCrowding(GameDate date) {
 		if (RosterManager.Instance == null) return;
+		ExpireHandshakes(date);
 		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
 		var seen = new HashSet<string>(StringComparer.Ordinal);
-		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen)>();
-		foreach (Prospect prospect in slate) {
-			if (prospect?.Artist != null) watched.Add((prospect.Artist, prospect.CityId, SlateDate));
-		}
+		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen, WatchNote Note)>();
+		// The notebook goes first: an act that is both on the pad and in the notebook is the notebook's (it carries the
+		// circling warning and the handshake), and the roll is keyed on the act, so the order changes nothing else.
 		foreach (WatchNote entry in notebook) {
-			if (entry?.Artist != null) watched.Add((entry.Artist, entry.CityId, entry.LastSeen));
+			if (entry?.Artist != null) watched.Add((entry.Artist, entry.CityId, entry.LastSeen, entry));
 		}
-		foreach ((SimulatedArtist artist, string cityId, GameDate seenOn) in watched) {
+		foreach (Prospect prospect in slate) {
+			if (prospect?.Artist != null) watched.Add((prospect.Artist, prospect.CityId, SlateDate, null));
+		}
+		foreach ((SimulatedArtist artist, string cityId, GameDate seenOn, WatchNote entry) in watched) {
 			if (!string.IsNullOrEmpty(artist.labelId) || !seen.Add(artist.artistId)) continue;
+			// A rival who has been circling an act closes the deal on the day they said -- unless you shook hands.
+			if (entry?.CirclingResolves != null) {
+				if (date < entry.CirclingResolves.Value) continue;
+				string circler = entry.CirclingLabel;
+				entry.CirclingLabel = null; entry.CirclingLabelId = null; entry.CirclingResolves = null;
+				AILabel taker = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date, entry.CirclingLabelId);
+				if (taker != null) Note($"{taker.labelName} signed {artist.stageName} before you could get to them.");
+				else if (entry.HeldUntil.HasValue) Note($"{circler ?? "A rival"} came calling for {artist.stageName}, but you'd already shaken hands.");
+				continue;
+			}
+			if (entry?.HeldUntil != null) continue; // a handshake is a handshake
 			if (seenOn >= date) continue; // you only just heard them; give the room a night first
 			float crowding = CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label.homeCityId : cityId).Crowding;
 			float roll = StableUnit($"{seed}|{artist.artistId}|{date.year}-{date.month}-{date.day}|CityCrowding");
 			if (roll >= RivalCrowdingDailyBase * crowding) continue;
+			if (entry != null) {
+				// An act in the notebook gets a warning and a few days' grace: time is the one thing a cash-poor
+				// label has, so the player can spend it (see HoldWithHandshake) instead of an advance.
+				AILabel circling = RosterManager.Instance.FindRivalToPlayer(artist, date);
+				if (circling == null) continue;
+				entry.CirclingLabel = circling.labelName;
+				entry.CirclingLabelId = circling.labelId;
+				entry.CirclingResolves = date.AddDays(CirclingWarningDays);
+				entry.LastRivalInterestDate = date;
+				Note($"A&R heard that {circling.labelName} is circling {artist.stageName}. A handshake would hold them -- it costs {HandshakeHours} hours, not cash.");
+				continue;
+			}
 			AILabel rival = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date);
 			if (rival != null) Note($"{rival.labelName} signed {artist.stageName} before you could get to them.");
+		}
+	}
+
+	// ------------------------------------------------------------------------------------------------
+	// THE HANDSHAKE -- spend time, not cash, to keep a notebook act off a rival's desk for a week.
+	// ------------------------------------------------------------------------------------------------
+
+	public const int HandshakeHours = 2;
+	public const int HandshakeDays = 7;
+	/// <summary>An act waits two weeks at most; after that it is sign them or lose them.</summary>
+	public const int MaxHandshakesPerAct = 2;
+	public const int MaxHeldActs = 2;
+	/// <summary>Days between a rival starting to circle and the deal landing.</summary>
+	public const int CirclingWarningDays = 3;
+
+	public int HeldActCount => notebook.Count(entry => entry?.HeldUntil != null);
+
+	/// <summary>Whether the player can shake on this act right now, and if not, why (shown on the button).</summary>
+	public bool CanHoldWithHandshake(WatchNote entry, out string reason) {
+		reason = "";
+		if (entry?.Artist == null) { reason = "No act selected."; return false; }
+		if (!string.IsNullOrEmpty(entry.Artist.labelId)) { reason = "They're signed already."; return false; }
+		if (entry.HeldUntil.HasValue) { reason = $"You shook on it -- they'll wait until {entry.HeldUntil.Value.ToHeadlineString()}."; return false; }
+		if (entry.Handshakes >= MaxHandshakesPerAct) { reason = $"{entry.Artist.stageName} has waited long enough. Sign them or let them go."; return false; }
+		if (HeldActCount >= MaxHeldActs) { reason = $"You can only have {MaxHeldActs} acts on a handshake at once."; return false; }
+		return Require(HandshakeHours, out reason);
+	}
+
+	/// <summary>
+	/// "Give me a week." Costs <see cref="HandshakeHours"/> and no money; the act stays unsigned but no rival
+	/// record man can sign them for <see cref="HandshakeDays"/> days. A circling rival is turned back at the door.
+	/// </summary>
+	public bool HoldWithHandshake(string artistId, out string message) {
+		WatchNote entry = notebook.FirstOrDefault(note => note?.Artist?.artistId == artistId);
+		if (!CanHoldWithHandshake(entry, out message)) return false;
+		Spend(HandshakeHours);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		entry.HeldUntil = today.AddDays(HandshakeDays);
+		entry.Handshakes++;
+		RosterManager.Instance?.SetPlayerHold(artistId, entry.HeldUntil.Value);
+		bool wasCircled = entry.CirclingResolves.HasValue;
+		Note($"Shook hands with {entry.Artist.stageName}: they'll wait until {entry.HeldUntil.Value.ToHeadlineString()}.");
+		message = wasCircled
+			? $"{entry.Artist.stageName} will turn {entry.CirclingLabel ?? "the other label"} away. They'll wait until {entry.HeldUntil.Value.ToHeadlineString()}."
+			: $"{entry.Artist.stageName} will wait until {entry.HeldUntil.Value.ToHeadlineString()}.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Lets lapsed handshakes go (the act is on the market again) and drops notebook entries that have
+	/// since signed with the player.</summary>
+	private void ExpireHandshakes(GameDate date) {
+		foreach (WatchNote entry in notebook.ToList()) {
+			if (entry?.Artist == null) continue;
+			if (!string.IsNullOrEmpty(entry.Artist.labelId) && entry.Artist.labelId == Label?.labelId) {
+				RosterManager.Instance?.ClearPlayerHold(entry.Artist.artistId);
+				notebook.Remove(entry);
+				continue;
+			}
+			if (entry.HeldUntil.HasValue && date > entry.HeldUntil.Value) {
+				entry.HeldUntil = null;
+				RosterManager.Instance?.ClearPlayerHold(entry.Artist.artistId);
+				Note($"Your handshake with {entry.Artist.stageName} has run out; they're back on the market.");
+			}
 		}
 	}
 
@@ -4225,6 +4327,7 @@ public partial class PlayerDesk : Node {
 		// Last, so the paper also carries what the morning itself turned up (a pressing arriving, a record
 		// going out, a market breaking) instead of holding it back a day.
 		if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
+		QueueDawnAutosave();
 		Changed?.Invoke();
 	}
 
@@ -5402,6 +5505,9 @@ public partial class PlayerDesk : Node {
 				LastRivalYear = entry.LastRivalInterestDate?.year ?? 0,
 				LastRivalMonth = entry.LastRivalInterestDate?.month ?? 0,
 				LastRivalDay = entry.LastRivalInterestDate?.day ?? 0,
+				HeldYear = entry.HeldUntil?.year ?? 0, HeldMonth = entry.HeldUntil?.month ?? 0, HeldDay = entry.HeldUntil?.day ?? 0,
+				Handshakes = entry.Handshakes, CirclingLabel = entry.CirclingLabel, CirclingLabelId = entry.CirclingLabelId,
+				CircleYear = entry.CirclingResolves?.year ?? 0, CircleMonth = entry.CirclingResolves?.month ?? 0, CircleDay = entry.CirclingResolves?.day ?? 0,
 				LiveSet = entry.LiveSet.Select(RepertoireSaveData.From).ToList()
 			}).ToList(),
 			AcetateCopies = new Dictionary<string, int>(acetateCopies),
@@ -5628,6 +5734,7 @@ public partial class PlayerDesk : Node {
 		pendingSession = data.Session?.ToSession(songs);
 		slate.Clear();
 		notebook.Clear();
+		RosterManager.Instance?.ClearAllPlayerHolds();
 		generatedProspectIds.Clear();
 		foreach (ProspectNotebookSaveData saved in data.Notebook ?? new List<ProspectNotebookSaveData>()) {
 			if (saved?.Artist == null || string.IsNullOrEmpty(saved.Artist.artistId)) continue;
@@ -5643,8 +5750,12 @@ public partial class PlayerDesk : Node {
 				ReadQuality = saved.ReadQuality, ReadConfidence = saved.ReadConfidence,
 				AskingAdvance = saved.AskingAdvance, Note = saved.Note,
 				HeardCount = saved.HeardCount, FollowedUp = saved.FollowedUp,
-				LastRivalInterestDate = saved.LastRivalYear > 0 ? new GameDate(saved.LastRivalYear, saved.LastRivalMonth, saved.LastRivalDay) : null
+				LastRivalInterestDate = saved.LastRivalYear > 0 ? new GameDate(saved.LastRivalYear, saved.LastRivalMonth, saved.LastRivalDay) : null,
+				HeldUntil = saved.HeldYear > 0 ? new GameDate(saved.HeldYear, saved.HeldMonth, saved.HeldDay) : null,
+				Handshakes = saved.Handshakes, CirclingLabel = saved.CirclingLabel, CirclingLabelId = saved.CirclingLabelId,
+				CirclingResolves = saved.CircleYear > 0 ? new GameDate(saved.CircleYear, saved.CircleMonth, saved.CircleDay) : null
 			};
+			if (entry.HeldUntil.HasValue) RosterManager.Instance?.SetPlayerHold(artist.artistId, entry.HeldUntil.Value);
 			entry.LiveSet.AddRange((saved.LiveSet ?? new List<RepertoireSaveData>()).Select(item => item.ToItem()));
 			notebook.Add(entry);
 		}

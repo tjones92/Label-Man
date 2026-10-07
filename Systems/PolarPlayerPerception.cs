@@ -32,6 +32,22 @@ public static class PolarPlayerPerception {
 		CompositionShapeVariation.Ensure(demo); // Local provisional composition, no registry or RNG writes.
 		return demo;
 	}
+	/// <summary>What a song IS, in the player's words: its archetype, mood and lyrical turn, read off the written song.
+	/// Empty for material with no composition behind it yet (a fresh original is still a demo). Flavour, not a score:
+	/// it tells two songs apart without ranking them.</summary>
+	public static string DescribeCharacter(PlayerDesk.MaterialChoice choice) {
+		SongTaxonomy taxonomy = CompositionCatalogService.GetSong(choice?.SongId)?.demoTaxonomy;
+		if (taxonomy == null) return "";
+		string Words(string name) => string.Concat(name.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + char.ToLowerInvariant(c) : i == 0 ? char.ToLowerInvariant(c).ToString() : c.ToString()));
+		var parts = new List<string>();
+		if (taxonomy.archetype != SongArchetype.Unknown) parts.Add(Words(taxonomy.archetype.ToString()));
+		if (!string.IsNullOrWhiteSpace(taxonomy.mood)) parts.Add(taxonomy.mood.Trim().ToLowerInvariant() + " mood");
+		SongLyricMode lyric = taxonomy.lyricModes?.FirstOrDefault(mode => mode != SongLyricMode.Unknown) ?? SongLyricMode.Unknown;
+		if (lyric != SongLyricMode.Unknown) parts.Add("lyrics: " + Words(lyric.ToString()));
+		string text = string.Join("  ·  ", parts);
+		return text.Length == 0 ? "" : char.ToUpperInvariant(text[0]) + text[1..];
+	}
+
 	public static PolarArrangementProposal Proposal(PlayerDesk.MaterialChoice choice, SimulatedArtist artist, string plannedId, PolarSessionContext session = null) {
 		var song = Subject(choice, artist);
 		var reference = choice.Kind == PlayerDesk.MaterialKind.LiveCover ? PolarSongBehavior.Reference(song, TimeManager.Instance.CurrentDate.year, choice.ReferenceMasterId) : null;

@@ -645,8 +645,10 @@ public partial class PlayerDesk : Node {
 		generatedProspectIds.Remove(prospect.Artist.artistId);
 		slate.Remove(prospect);
 		prospect.Draft = null;
+		// They're on the roster now; the notebook is for acts you cannot sign yet.
+		notebook.RemoveAll(entry => entry?.Artist?.artistId == prospect.Artist.artistId);
 
-		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
+		Note($"Signed {prospect.Artist.stageName} --${paid:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
 		message = $"Signed {prospect.Artist.stageName}." + (underAsk >= GrudgeNoticeFloor
 			? " They took the cheap deal, and they'll remember it when the paper comes up for renewal." : "");

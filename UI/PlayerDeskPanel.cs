@@ -510,6 +510,26 @@ public partial class PlayerDeskPanel : Control {
 	private static int WaitingTab(PlayerDesk desk) =>
 		desk.AtHome && desk.CanStillWorkThePhones() ? RolodexTab : desk.Label.CurrentRosterSize > 0 ? 1 : 0;
 
+	/// <summary>A soft warning, not a block: when a spend takes the bank from at least one month's overhead to under it,
+	/// say so before the money goes. Opens a paper modal and returns true (the caller stops; the modal's go-ahead button
+	/// runs <paramref name="proceed"/>). Returns false when the spend is safe and the caller should just carry on.</summary>
+	private bool WarnIfUnderOverhead(string what, float cost, string goLabel, Action proceed) {
+		AILabel label = PlayerDesk.Instance?.Label;
+		if (label == null) return false;
+		float overhead = label.GetMonthlyOverhead();
+		float before = label.cashReserves, after = before - cost;
+		if (before < overhead || after >= overhead) return false;
+		var modal = PaperModal.Open(this, "THAT LEAVES YOU THIN", 620);
+		modal.AddText($"{what} costs ${cost:N0}. You'd have {Money(after)} left, which is under one month's overhead. {NextBillNote(PlayerDesk.Instance)}");
+		var landing = PlayerDesk.Instance.PendingPressings().Select(item => (GameDate?)item.Arrives).FirstOrDefault();
+		modal.AddText(landing.HasValue
+			? $"Nothing comes in from sales until the vinyl does ({landing.Value.ToHeadlineString()}). The bank will wait a few months, but it will not wait forever."
+			: "Nothing comes in until a record is pressed and selling. The bank will wait a few months, but it will not wait forever.");
+		modal.AddButton("NOT YET", null);
+		modal.AddButton(goLabel, proceed, PaperModal.ButtonKind.Primary);
+		return true;
+	}
+
 	/// <summary>The one bill the player is running toward, named only when cash is already short.</summary>
 	private static string NextBillNote(PlayerDesk desk) {
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
@@ -524,7 +544,7 @@ public partial class PlayerDeskPanel : Control {
 		if (desk.AtHome && desk.CanStillWorkThePhones()) options.Add("work the phones (free)");
 		// The acetate is the one thing that can pay off before the plant delivers: a test disc a local DJ can play.
 		if (desk.Masters.Any(master => !master.Released && desk.AcetatesFor(master.Record?.recordId) > 0))
-			options.Add("hand your acetate to a local DJ");
+			options.Add("play your acetate down the phone to a DJ, or hand it to one in person");
 		else if (desk.Label.cashReserves >= 20f && desk.Masters.Any(master => !master.Released))
 			options.Add("cut a $20 acetate (a test disc a DJ can play now)");
 		if (desk.Label.CurrentRosterSize > 0) options.Add("work up songs");
@@ -580,15 +600,11 @@ public partial class PlayerDeskPanel : Control {
 		feedbackToastBadge.AddThemeColorOverride("font_color", accent);
 		feedbackToastText.Text = message;
 		feedbackToast.TooltipText = message;
+		// The result of a click lands at the top of the screen, out of the way of the page the player is working in
+		// (it used to open under the cursor, which put it dead centre of the file).
 		Vector2 viewportSize = GetViewportRect().Size;
 		Vector2 toastSize = feedbackToast.Size;
-		Vector2 mouse = GetGlobalMousePosition();
-		Vector2 position = mouse + new Vector2(18, 18);
-		if (position.X + toastSize.X > viewportSize.X - 12) position.X = mouse.X - toastSize.X - 18;
-		if (position.Y + toastSize.Y > viewportSize.Y - 12) position.Y = mouse.Y - toastSize.Y - 18;
-		feedbackToast.Position = new Vector2(
-			Mathf.Clamp(position.X, 12, Mathf.Max(12, viewportSize.X - toastSize.X - 12)),
-			Mathf.Clamp(position.Y, 12, Mathf.Max(12, viewportSize.Y - toastSize.Y - 12)));
+		feedbackToast.GlobalPosition = new Vector2(Mathf.Max(12, (viewportSize.X - toastSize.X) / 2f), 12);
 		feedbackToast.Show();
 		// A refusal stays up a little longer: the player needs to read what to fix.
 		feedbackToastTimer.Start(kind == FeedbackKind.Warning ? 5.5 : 3.5);
@@ -1006,19 +1022,37 @@ public partial class PlayerDeskPanel : Control {
 		foreach (PlayerDesk.WatchNote entry in desk.Notebook.ToList()) {
 			SimulatedArtist artist = entry.Artist;
 			if (artist == null) continue;
-			bool signedElsewhere = !string.IsNullOrEmpty(artist.labelId);
+			bool signedByYou = !string.IsNullOrEmpty(artist.labelId) && artist.labelId == desk.Label?.labelId;
+			bool signedElsewhere = !string.IsNullOrEmpty(artist.labelId) && !signedByYou;
 			string labelName = signedElsewhere ? ChartManager.Instance?.GetLabelName(artist.labelId) ?? "another label" : null;
 			GameDate today = TimeManager.Instance?.CurrentDate ?? entry.LastSeen;
 			int ageDays = Mathf.Max(0, (new DateTime(today.year, today.month, today.day) - new DateTime(entry.LastSeen.year, entry.LastSeen.month, entry.LastSeen.day)).Days);
 			string freshness = ageDays == 0 ? "seen today" : $"last seen {ageDays} days ago";
 			if (ageDays >= 30) freshness += "  •  stale read";
-			Body($"{artist.stageName} — {GenreNameFormatter.Format(artist.primaryGenre)}  •  {freshness}  •  {entry.Note}" +
-				(signedElsewhere ? $"\n    RIVAL SIGNED THEM: {labelName}." : ""));
+			string status = signedElsewhere ? $"\n    RIVAL SIGNED THEM: {labelName}."
+				: signedByYou ? "\n    SIGNED — they're on your roster now."
+				: entry.HeldUntil.HasValue ? $"\n    HANDSHAKE: they'll wait for you until {entry.HeldUntil.Value.ToHeadlineString()}."
+				: entry.CirclingResolves.HasValue ? $"\n    {entry.CirclingLabel ?? "A rival"} is circling them — the deal lands {entry.CirclingResolves.Value.ToHeadlineString()} unless you step in."
+				: "";
+			Body($"{artist.stageName} — {GenreNameFormatter.Format(artist.primaryGenre)}  •  {freshness}  •  {entry.Note}{status}");
 			var actions = new HBoxContainer();
+			actions.AddThemeConstantOverride("separation", 10);
 			var revisit = Btn("BRING BACK TO THE PAD");
-			revisit.Disabled = signedElsewhere;
+			revisit.Disabled = signedElsewhere || signedByYou;
 			revisit.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.RevisitNotebookAct(artist.artistId, out string message); Say(message, ok); return ok; });
 			actions.AddChild(revisit);
+			if (!signedElsewhere && !signedByYou) {
+				// Time instead of cash: shake on it and a rival cannot sign them for a week.
+				bool canHold = desk.CanHoldWithHandshake(entry, out string holdWhy);
+				var hold = Btn($"HOLD THEM — HANDSHAKE ({PlayerDesk.HandshakeHours}h)");
+				hold.Disabled = !canHold;
+				hold.TooltipText = canHold
+					? $"No money changes hands: {PlayerDesk.HandshakeHours} hours of talk buys {PlayerDesk.HandshakeDays} days when no rival can sign them. Two weeks at most."
+					: holdWhy;
+				string heldId = artist.artistId;
+				hold.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.HoldWithHandshake(heldId, out string message); Say(message, ok); return ok; });
+				actions.AddChild(hold);
+			}
 			var remove = Btn("REMOVE");
 			remove.Pressed += () => Act(() => { PlayerDesk.Instance.RemoveFromNotebook(artist.artistId); Say("Removed from the notebook.", true); return true; });
 			actions.AddChild(remove);
@@ -1071,17 +1105,16 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		// The live set: what you caught on the night, and -- after a follow-up -- the rest of it.
-		var setText = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
-		setText.AddThemeFontSizeOverride("font_size", 14);
-		setText.AddThemeColorOverride("font_color", Heard);
 		int shown = Mathf.Min(prospect.HeardCount, prospect.LiveSet.Count);
-		// The hook read is the ear on the tune itself, so it shows in both modes; fit is a studio question.
-		var lines = prospect.LiveSet.Take(shown).Select(item =>
-			$"    ♪ \"{item.Title}\" ({item.SourceTag}) — hook {StarBar(item.ReadHook)}  {PolarPlayerPerception.DescribeHook(item.ReadHook, prospect.ReadConfidence)}");
 		int hidden = prospect.LiveSet.Count - shown;
-		string tail = hidden > 0 ? $"\n    …and {hidden} more you didn't catch — follow up to hear the full set." : "";
-		setText.Text = (shown == 0 ? "    (didn't catch their set)" : string.Join("\n", lines)) + tail;
-		card.AddChild(setText);
+		// The hook read is the ear on the tune itself, so it shows in both modes; fit is a studio question. Each tune
+		// gets a bar and a few words and the set gets one sentence, so the choice is about the act, not a star count.
+		if (shown == 0) card.AddChild(FaintLine("    (didn't catch their set)"));
+		foreach (PlayerDesk.RepertoireItem item in prospect.LiveSet.Take(shown))
+			card.AddChild(SongRow($"    ♪ \"{item.Title}\" ({item.SourceTag})", item.ReadHook, prospect.ReadConfidence));
+		string setSummary = SetSummary(prospect.LiveSet.Take(shown).Select(item => item.ReadHook).ToList(), prospect.ReadConfidence);
+		if (setSummary.Length > 0) card.AddChild(FaintLine("    THE SET: " + setSummary));
+		if (hidden > 0) card.AddChild(FaintLine($"    …and {hidden} more you didn't catch — follow up to hear the full set."));
 		if (PolarSongBehavior.UsePolarFitSelection && shown > 0) {
 			var compare = Btn("COMPARE HEARD MATERIAL");
 			compare.Pressed += () => {
@@ -1409,14 +1442,6 @@ public partial class PlayerDeskPanel : Control {
 				row.AddChild(renew);
 			}
 
-			if (artist.manager != ManagerArchetype.None) {
-				var who = Btn("MANAGER?");
-				who.CustomMinimumSize = new Vector2(120, 40);
-				who.TooltipText = "What this manager does for you, and what they cost you.";
-				who.Pressed += () => ManagerExplainer(captured);
-				row.AddChild(who);
-			}
-
 			var manage = Btn("MANAGE");
 			manage.CustomMinimumSize = new Vector2(150, 40);
 			manage.Pressed += () => { managingArtistId = captured.artistId; browsingCovers = false; Refresh(); };
@@ -1429,18 +1454,6 @@ public partial class PlayerDeskPanel : Control {
 			card.AddChild(row);
 			content.AddChild(card);
 		}
-	}
-
-	/// <summary>Tap-through on the roster line: who the manager is, what they do for the label, what they cost.
-	/// Every number comes off <see cref="ManagerProfile"/>, the same table the contract talks and the chart read.</summary>
-	private void ManagerExplainer(SimulatedArtist artist) {
-		(string role, string helps, string costs) = ManagerProfile.Describe(artist.manager);
-		var modal = PaperModal.Open(this, $"{(artist.managerName ?? "THE MANAGER").ToUpperInvariant()}", 640);
-		modal.AddText($"{role}, managing {artist.stageName}.");
-		modal.AddText("What they do for you: " + helps);
-		modal.AddText("What they cost you: " + costs);
-		modal.AddText("This follows the act. When their contract comes up, the same manager is across the table.");
-		modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
 	}
 
 	/// <summary>The renewal menu for a matured contract: Pushover gets the same quick one-click form
@@ -1536,7 +1549,7 @@ public partial class PlayerDeskPanel : Control {
 		foreach (PlayerDesk.RepertoireItem item in have) {
 			string tag = item.IsOriginal ? "their own" : item.SourceTag;
 			if (item.Recorded) RecordedLine(desk, $"\"{item.Title}\"", tag, item.RecordedId, artist.artistId);
-			else if (PolarSongBehavior.UsePolarFitSelection) Body($"    ♪ \"{item.Title}\" ({tag}) — hook {StarBar(item.ReadHook)} — compare in the studio below");
+			else if (PolarSongBehavior.UsePolarFitSelection) content.AddChild(SongRow($"    ♪ \"{item.Title}\" ({tag})", item.ReadHook, 0.8f));
 			else SongLine($"\"{item.Title}\"", tag, item.ReadHook);
 		}
 		foreach (PlayerDesk.Song song in written) {
@@ -1546,6 +1559,9 @@ public partial class PlayerDeskPanel : Control {
 		}
 		foreach (PlayerDesk.CoverRehearsal r in rehearsing)
 			RehearsingLine(r);
+		var uncut = have.Where(item => !item.Recorded).Select(item => item.ReadHook).Concat(PolarSongBehavior.UsePolarFitSelection ? Enumerable.Empty<float>() : written.Where(song => !song.Recorded).Select(song => song.Hook)).ToList();
+		string setLine = SetSummary(uncut, 0.8f);
+		if (setLine.Length > 0) content.AddChild(FaintLine("    THE SET: " + setLine + (PolarSongBehavior.UsePolarFitSelection ? " Compare the songs in the studio below." : "")));
 
 		if (browsingCovers) CoverBrowser(desk, artist);
 	}
@@ -1569,8 +1585,9 @@ public partial class PlayerDeskPanel : Control {
 			var text = new Label {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
 				AutowrapMode = TextServer.AutowrapMode.WordSmart,
-				Text = PolarSongBehavior.UsePolarFitSelection ? $"    ♪ \"{cover.Title}\" ({cover.Detail}) — {GenreNameFormatter.Format(cover.Genre)}" :
-					$"    ♪ \"{cover.Title}\"  ({cover.Detail})  —  {GenreNameFormatter.Format(cover.Genre)}   •   hook {StarBar(cover.Hook)}"
+				Text = (PolarSongBehavior.UsePolarFitSelection ? $"    ♪ \"{cover.Title}\" ({cover.Detail}) — {GenreNameFormatter.Format(cover.Genre)}" :
+					$"    ♪ \"{cover.Title}\"  ({cover.Detail})  —  {GenreNameFormatter.Format(cover.Genre)}   •   {PolarPlayerPerception.DescribeHook(cover.Hook, 0.8f)}")
+					+ (PolarPlayerPerception.DescribeCharacter(cover) is { Length: > 0 } coverCharacter ? "\n      " + coverCharacter : "")
 			};
 			text.AddThemeColorOverride("font_color", Ink);
 			row.AddChild(text);
@@ -1654,18 +1671,28 @@ public partial class PlayerDeskPanel : Control {
 			var comparePickers = new HBoxContainer();
 			comparePickers.AddThemeConstantOverride("separation", 10);
 			comparePickers.AddChild(FormLabel("SONG A"));
-			var songA = Option(); songA.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			var songA = Option(); songA.SizeFlagsHorizontal = SizeFlags.ExpandFill; songA.ClipText = true; songA.CustomMinimumSize = new Vector2(200, 36);
 			comparePickers.AddChild(songA);
 			comparePickers.AddChild(FormLabel("SONG B"));
-			var songB = Option(); songB.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			var songB = Option(); songB.SizeFlagsHorizontal = SizeFlags.ExpandFill; songB.ClipText = true; songB.CustomMinimumSize = new Vector2(200, 36);
 			comparePickers.AddChild(songB);
 			for (int i = 0; i < options.Count; i++) {
-				songA.AddItem(options[i].Describe());
-				songB.AddItem(options[i].Describe());
+				string character = PolarPlayerPerception.DescribeCharacter(options[i]);
+				string pickerText = character.Length == 0 ? options[i].Describe() : $"{options[i].Describe()}  —  {character}";
+				songA.AddItem(pickerText);
+				songB.AddItem(pickerText);
 			}
 			songA.Selected = 0;
 			songB.Selected = options.Count > 1 ? 1 : 0;
 			songB.Disabled = options.Count < 2;
+			// The same song twice would only draw one chart, so each picker rules out whatever the other has chosen.
+			void RuleOutDuplicate() {
+				for (int i = 0; i < options.Count; i++) {
+					songA.SetItemDisabled(i, options.Count > 1 && i == songB.Selected);
+					songB.SetItemDisabled(i, options.Count > 1 && i == songA.Selected);
+				}
+			}
+			RuleOutDuplicate();
 			content.AddChild(comparePickers);
 			var previewHost = new VBoxContainer(); content.AddChild(previewHost);
 			void UpdatePreview() {
@@ -1687,8 +1714,8 @@ public partial class PlayerDeskPanel : Control {
 				}
 				previewHost.AddChild(cards);
 			}
-			songA.ItemSelected += _ => UpdatePreview();
-			songB.ItemSelected += _ => UpdatePreview();
+			songA.ItemSelected += _ => { RuleOutDuplicate(); UpdatePreview(); };
+			songB.ItemSelected += _ => { RuleOutDuplicate(); UpdatePreview(); };
 			tierPicker.ItemSelected += _ => UpdatePreview();
 			UpdatePreview();
 		}
@@ -1700,9 +1727,14 @@ public partial class PlayerDeskPanel : Control {
 			PlayerDesk.StudioTier tier = Tiers[Mathf.Clamp(tierPicker.Selected, 0, Tiers.Length - 1)];
 			var responses = PlayerDesk.Instance.MaterialRefusals(artist, chosen, tier);
 			if (responses.Count > 0) { RefusalDialog(artist, chosen, tier, (int)hoursInput.Value, responses, checks); return; }
-			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, (int)hoursInput.Value, out string message);
-			Say(message, ok);
-			Refresh();
+			int bookHours = (int)hoursInput.Value;
+			void Book() {
+				bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, bookHours, out string message);
+				Say(message, ok);
+				Refresh();
+			}
+			float roomCost = desk.SessionCost(tier, bookHours);
+			if (!WarnIfUnderOverhead($"{PlayerDesk.StudioTierName(tier)} for {bookHours}h", roomCost, $"BOOK IT — ${roomCost:N0}", Book)) Book();
 		};
 		content.AddChild(cost);
 		content.AddChild(book);
@@ -1721,6 +1753,8 @@ public partial class PlayerDeskPanel : Control {
 			column.AddChild(label); return label;
 		}
 		Copy($"“{choice.Title}”", Ink);
+		string songCharacter = PolarPlayerPerception.DescribeCharacter(choice);
+		if (songCharacter.Length > 0) Copy(songCharacter, Heard);
 		var names = PlayerDesk.Instance.Roster.Prepend(artist).DistinctBy(a => a.artistId).ToList();
 		var picker = Option(); foreach (var act in names) picker.AddItem(act.stageName);
 		// A kept take belongs to the recorded act; studio previews can compare the same material across the roster.
@@ -1786,15 +1820,23 @@ public partial class PlayerDeskPanel : Control {
 			for (int t = 0; t < cut.Takes.Count; t++) {
 				PlayerDesk.SessionTake take = cut.Takes[t];
 				bool kept = t == cut.KeptTake;
-				// The stars are what the take actually is, and the pre-ticked take is chosen from them, so they
-				// show in both modes; the radar below is the read of how the take sits with the act.
-				var btn = Btn($"Take {take.Number}{(kept ? "  ✓" : "")}\nhook {StarBar(take.Hook)}\nprod {StarBar(take.Production)}");
-				btn.CustomMinimumSize = new Vector2(190, 78);
+				// What each take actually is -- the hook the act got on tape and the sound of the room -- as bars with a
+				// few words, so the choice is a trade (a livelier pass against a cleaner one) and not a star count.
+				// The radar below is the read of how the take sits with the act.
+				var takeCard = new VBoxContainer { CustomMinimumSize = new Vector2(220, 0) };
+				takeCard.AddThemeConstantOverride("separation", 3);
+				var btn = Btn($"Take {take.Number}{(kept ? "  ✓" : "")}");
+				btn.CustomMinimumSize = new Vector2(220, 40);
 				btn.ToggleMode = true;
 				btn.ButtonPressed = kept;
 				int cutIndex = c, takeIndex = t;
 				btn.Pressed += () => { PlayerDesk.Instance.KeepTake(cutIndex, takeIndex); Refresh(); };
-				takesRow.AddChild(btn);
+				takeCard.AddChild(btn);
+				takeCard.AddChild(FaintLine("hook: " + PolarPlayerPerception.DescribeHook(take.Hook, 1f)));
+				takeCard.AddChild(new ReadBar { CustomMinimumSize = new Vector2(220, 12) }.Set(take.Hook));
+				takeCard.AddChild(FaintLine("sound: " + SoundWords(take.Production)));
+				takeCard.AddChild(new ReadBar { CustomMinimumSize = new Vector2(220, 12) }.Set(take.Production));
+				takesRow.AddChild(takeCard);
 			}
 			content.AddChild(takesRow);
 			if (PolarSongBehavior.UsePolarFitSelection) {
@@ -1804,6 +1846,9 @@ public partial class PlayerDeskPanel : Control {
 						producerCraft = PlayerDesk.Instance.Label.productionQuality, studioCraft = take.Production }, c));
 			}
 		}
+
+		string keptSummary = SetSummary(session.Cuts.Select(cut => cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)].Hook).ToList(), 1f);
+		if (keptSummary.Length > 0) content.AddChild(FaintLine("THE SIDES AS KEPT: " + keptSummary));
 
 		var buttons = new HBoxContainer();
 		buttons.AddThemeConstantOverride("separation", 12);
@@ -1826,10 +1871,7 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	private void SongLine(string title, string tag, float hook) {
-		var text = new Label { Text = $"    ♪ {title}  ({tag}) — hook {StarBar(hook)}" };
-		text.AddThemeFontSizeOverride("font_size", 15);
-		text.AddThemeColorOverride("font_color", Ink);
-		content.AddChild(text);
+		content.AddChild(SongRow($"    ♪ {title}  ({tag})", hook, 0.8f));
 	}
 
 	/// <summary>A number the act has cut: shown with its status, and (once it's out) a link to the discography.</summary>
@@ -1961,7 +2003,7 @@ public partial class PlayerDeskPanel : Control {
 		if (shelf.Count == 0) { Body("Nothing cut and waiting. Cut a record from an act's MANAGE window."); return; }
 		foreach (PlayerDesk.Master master in shelf) {
 			Body($"\"{master.SongTitle}\"  —  {master.Record.artistName}\n" +
-				(PolarSongBehavior.UsePolarFitSelection ? "    " : $"    hook {StarBar(master.Record.hookStrength)}   •   production {StarBar(master.Record.productionQuality)}   •   ") +
+				(PolarSongBehavior.UsePolarFitSelection ? "    " : $"    hook: {PolarPlayerPerception.DescribeHook(master.Record.hookStrength, 1f)}   •   sound: {SoundWords(master.Record.productionQuality)}   •   ") +
 				$"cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}");
 			var artist = ArtistManager.Instance.GetArtist(master.Record.artistId);
 			if (PolarSongBehavior.UsePolarFitSelection && artist != null && PolarSongMetadataService.Get(master.Record.masterId) != null) {
@@ -2510,8 +2552,8 @@ public partial class PlayerDeskPanel : Control {
 				order = Btn("ORDER PRESSING");
 				order.CustomMinimumSize = new Vector2(240, 42);
 				UpdateRunCost();
-				void SubmitPress(string recordId, bool confirmAdditionalRun) => Act(() => {
-					bool ordered = PlayerDesk.Instance.OrderPressing(recordId, (int)qtyInput.Value, (int)promoInput.Value,
+				void SubmitPress(string recordId, bool confirmAdditionalRun, int runQuantity, int runPromo) => Act(() => {
+					bool ordered = PlayerDesk.Instance.OrderPressing(recordId, runQuantity, runPromo,
 						out string message, confirmAdditionalRun);
 					Say(message, ordered);
 					if (ordered) selectedPressRecordId = null;
@@ -2522,10 +2564,14 @@ public partial class PlayerDeskPanel : Control {
 					string recordId = singles[Mathf.Clamp(singlePicker.Selected - 1, 0, singles.Count - 1)].RecordId;
 					PlayerDesk.PressOrder pending = desk.PressingOrderFor(recordId);
 					if (pending == null) {
-						SubmitPress(recordId, false);
+						int runQty = (int)qtyInput.Value, runPromo = (int)promoInput.Value;
+						float runCost = PlayerDesk.PressingCost(runQty, desk.HasBeenPressed(recordId));
+						if (!WarnIfUnderOverhead($"A run of {runQty:N0}", runCost, $"PRESS IT — ${runCost:N0}", () => SubmitPress(recordId, false, runQty, runPromo)))
+							SubmitPress(recordId, false, runQty, runPromo);
 						return;
 					}
-					float extraCost = PlayerDesk.PressingCost((int)qtyInput.Value, desk.HasBeenPressed(recordId));
+					int extraQty = (int)qtyInput.Value, extraPromo = (int)promoInput.Value;
+					float extraCost = PlayerDesk.PressingCost(extraQty, desk.HasBeenPressed(recordId));
 					var confirm = PaperModal.Open(this, "ORDER ANOTHER PRESSING?", 600);
 					confirm.AddText($"A run of \"{singles[Mathf.Clamp(singlePicker.Selected - 1, 0, singles.Count - 1)].Title}\" is already due {pending.Arrives.ToHeadlineString()}.");
 					bool canAfford = desk.Label.cashReserves >= extraCost;
@@ -2533,7 +2579,7 @@ public partial class PlayerDeskPanel : Control {
 						? $"Order another {qtyInput.Value:N0} now for ${extraCost:N0}? You'd have {Money(desk.Label.cashReserves - extraCost)} left."
 						: $"Another {qtyInput.Value:N0} costs ${extraCost:N0}, and you're {Money(extraCost - desk.Label.cashReserves)} short.");
 					confirm.AddButton("NOT NOW", null);
-					confirm.AddButton($"ORDER ANOTHER ${extraCost:N0}", () => SubmitPress(recordId, true), PaperModal.ButtonKind.Primary).Disabled = !canAfford;
+					confirm.AddButton($"ORDER ANOTHER ${extraCost:N0}", () => SubmitPress(recordId, true, extraQty, extraPromo), PaperModal.ButtonKind.Primary).Disabled = !canAfford;
 				};
 				content.AddChild(order);
 				content.AddChild(pressExtras);
@@ -3147,7 +3193,8 @@ public partial class PlayerDeskPanel : Control {
 		var openBtn = Btn($"PLACE A CALL  ({PlayerDesk.DialMinutes} min)");
 		openBtn.CustomMinimumSize = new Vector2(230, 40);
 		openBtn.Pressed += () => {
-			string rid = rolodexPitchRecordId ?? desk.ReleasedRecords.FirstOrDefault(r => r.baseRecord != null)?.baseRecord.recordId;
+			string rid = rolodexPitchRecordId != null && desk.RecordsOnTheTable().Any(item => item.RecordId == rolodexPitchRecordId)
+				? rolodexPitchRecordId : desk.RecordsOnTheTable().Select(item => item.RecordId).FirstOrDefault();
 			rolodexPitchRecordId = rid;
 			desk.PlaceCall(entry, rid, out string msg);
 			if (!string.IsNullOrEmpty(msg)) Say(msg);
@@ -3251,15 +3298,15 @@ public partial class PlayerDeskPanel : Control {
 				$"{RolodexEntry.TierLabel(c.tier)}");
 
 		// The record on the table. Switching it rebuilds the situation read.
-		var records = desk.ReleasedRecords.Where(r => r.baseRecord != null).ToList();
+		var records = desk.RecordsOnTheTable().ToList();
 		if (records.Count > 0 && call.stage is CallStage.Open) {
 			var pickRow = new HBoxContainer();
 			pickRow.AddThemeConstantOverride("separation", 6);
 			pickRow.AddChild(FormLabel("On the table:"));
-			foreach (RecordRuntimeData rec in records) {
-				bool picked = rec.baseRecord.recordId == call.recordId;
-				var recBtn = Btn($"{(picked ? "» " : "")}{rec.baseRecord.title}");
-				string rid = rec.baseRecord.recordId;
+			foreach ((string recordId, string recordTitle, bool isAcetate) in records) {
+				bool picked = recordId == call.recordId;
+				var recBtn = Btn($"{(picked ? "» " : "")}{recordTitle}{(isAcetate ? " (acetate)" : "")}");
+				string rid = recordId;
 				recBtn.Pressed += () => { rolodexPitchRecordId = rid; desk.SetCallRecord(call, rid); Refresh(); };
 				pickRow.AddChild(recBtn);
 			}
@@ -4190,6 +4237,52 @@ public partial class PlayerDeskPanel : Control {
 			TooltipText = $"Type a value, then press Enter or leave the field to apply it. Arrow step: {step:G}. Range: {min:G}–{max:G}.",
 			CustomMinimumSize = new Vector2(160, 34)
 		};
+
+	private Label FaintLine(string text) {
+		var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		label.AddThemeFontSizeOverride("font_size", 14);
+		label.AddThemeColorOverride("font_color", Heard);
+		return label;
+	}
+
+	/// <summary>One tune in a list: its name, a bar for how the hook sounded (with a fog band when the read is rough),
+	/// and a few words. The words use the same cut points as the bar's colour.</summary>
+	private Control SongRow(string left, float hook, float confidence) {
+		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		row.AddThemeConstantOverride("separation", 10);
+		var title = new Label { Text = left, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		title.AddThemeFontSizeOverride("font_size", 15);
+		title.AddThemeColorOverride("font_color", Ink);
+		row.AddChild(title);
+		row.AddChild(new ReadBar().Set(hook, confidence));
+		var words = new Label { Text = PolarPlayerPerception.DescribeHook(hook, confidence), CustomMinimumSize = new Vector2(190, 0) };
+		words.AddThemeFontSizeOverride("font_size", 14);
+		words.AddThemeColorOverride("font_color", ReadBar.ColorFor(hook).Darkened(0.2f));
+		row.AddChild(words);
+		return row;
+	}
+
+	/// <summary>The whole set in a sentence: how strong the hooks are and what a crowd would do with them. Reads the
+	/// shape of the set (a showpiece, a steady hand, filler) rather than ranking it, and hedges when the read is rough.</summary>
+	private static string SetSummary(IReadOnlyList<float> hooks, float confidence) {
+		if (hooks == null || hooks.Count == 0) return "";
+		float peak = hooks.Max(), mean = hooks.Average();
+		// One tune is not a set: say what the one tune would do, and don't invent company for it.
+		string body = hooks.Count == 1
+			? peak >= 0.75f ? "the one tune you caught would stop a room."
+				: peak >= 0.55f ? "the one tune you caught is a good one; a crowd would enjoy it."
+				: peak >= 0.38f ? "the one tune you caught was a fair one." : "the one tune you caught wouldn't hold a crowd."
+			: peak >= 0.75f && mean >= 0.55f ? "a standout number and good company around it. The room stays warm all night."
+			: peak >= 0.75f ? "one number that would stop a room, with filler around it. The crowd wakes up once."
+			: mean >= 0.55f ? "solid all the way through, with no single showstopper. Nobody leaves, and nobody hums it on the way out."
+			: mean >= 0.38f ? "a fair set. Pleasant enough; the room never quite leans in."
+			: "a weak set. Polite applause at best.";
+		string lead = confidence >= 0.7f ? "" : confidence >= 0.45f ? "From what you caught, probably " : "A rough read, but maybe ";
+		return lead.Length == 0 ? char.ToUpperInvariant(body[0]) + body[1..] : lead + body;
+	}
+
+	/// <summary>What a take's production sounds like, in the same buckets as the bar's colour.</summary>
+	private static string SoundWords(float v) => v >= 0.75f ? "a label-quality sound" : v >= 0.55f ? "clean and full" : v >= 0.35f ? "serviceable" : "thin and rough";
 
 	private static string StarBar(float value) {
 		int filled = Mathf.Clamp(Mathf.RoundToInt(value * 5f), 0, 5);

@@ -368,6 +368,7 @@ public partial class RosterManager : Node {
 		}
 		
 		if (candidates.Count == 0) candidates = ArtistManager.Instance.GetUnsignedArtists();
+		if (playerHolds.Count > 0) candidates = candidates.Where(artist => !IsHeldForPlayer(artist.artistId)).ToList();
 		if (candidates.Count == 0) return null;
 		
 		var scored = candidates
@@ -509,6 +510,7 @@ public partial class RosterManager : Node {
 			.OrderBy(label => label.labelId, StringComparer.Ordinal).ToList();
 		summary.DueLabels = due.Count;
 		List<SimulatedArtist> supplySnapshot = ArtistManager.Instance?.GetUnsignedArtists() ?? new List<SimulatedArtist>();
+		if (playerHolds.Count > 0) supplySnapshot = supplySnapshot.Where(artist => !IsHeldForPlayer(artist.artistId)).ToList();
 		summary.SupplySnapshotCount = supplySnapshot.Count;
 		summary.FreshSupplySnapshotCount = supplySnapshot.Count(IsFreshSupplyCandidate);
 		summary.ExperiencedSupplySnapshotCount = summary.SupplySnapshotCount - summary.FreshSupplySnapshotCount;
@@ -659,7 +661,7 @@ public partial class RosterManager : Node {
 	}
 	internal static int GetCalendarChartWeekForProbe(GameDate date) => CalendarChartWeek(date);
 
-	private bool CanCommitDailyOffer(DailyNomination nomination, int chartWeek) => nomination?.Label != null && nomination.Artist != null &&
+	private bool CanCommitDailyOffer(DailyNomination nomination, int chartWeek) => nomination?.Label != null && nomination.Artist != null && !IsHeldForPlayer(nomination.Artist.artistId) &&
 		IsEligibleForEnabledScouting(nomination.Label) && HasDailyVacancy(nomination.Label) && !IsRuntimeBirthWeekBlocked(nomination.Label, chartWeek) &&
 		ArtistManager.Instance != null && ArtistManager.Instance.IsEligibleForPopulationSigning(nomination.Artist, chartWeek) &&
 		nomination.Label.CanAffordToSign(nomination.Label.CalculateManagerAdjustedAdvance(nomination.Artist));
@@ -672,19 +674,8 @@ public partial class RosterManager : Node {
 	/// Which rival gets there first is a stable function of (label, artist, day): no random draws.
 	/// Returns the label that signed the act, or null when nobody in that market could take them today.
 	/// </summary>
-	public AILabel TrySignAsRivalToPlayer(SimulatedArtist artist, GameDate date) {
-		if (artist == null || !string.IsNullOrEmpty(artist.labelId)) return null;
-		List<AILabel> labels = GetAllLabels();
-		if (labels == null) return null;
-		int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? CalendarChartWeek(date);
-		if (ArtistManager.Instance == null || !ArtistManager.Instance.IsEligibleForPopulationSigning(artist, chartWeek)) return null;
-		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
-		AILabel rival = labels
-			.Where(label => IsEligibleForEnabledScouting(label) && HasDailyVacancy(label) && !IsRuntimeBirthWeekBlocked(label, chartWeek)
-				&& IsInScoutingRegion(artist, ChartManager.Instance?.GetRegionById(label.homeRegion))
-				&& label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(artist)))
-			.OrderBy(label => StableDailyMarketHash($"{seed}|{label.labelId}|{artist.artistId}|{date.year}-{date.month}-{date.day}|PlayerCrowding"))
-			.FirstOrDefault();
+	public AILabel TrySignAsRivalToPlayer(SimulatedArtist artist, GameDate date, string preferredLabelId = null) {
+		AILabel rival = FindRivalToPlayer(artist, date, preferredLabelId);
 		if (rival == null) return null;
 		float advance = rival.SignArtist(artist, date.year);
 		CompetitorManager.Instance?.RecordExpense(rival, advance);
@@ -692,6 +683,34 @@ public partial class RosterManager : Node {
 		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
 		return rival;
 	}
+
+	/// <summary>The rival record man who would get to this act first today, without signing anyone -- the
+	/// player desk uses it to say who is circling an act before the deal lands. Null while the player has
+	/// shaken hands on the act, or when nobody in that market can take them.</summary>
+	public AILabel FindRivalToPlayer(SimulatedArtist artist, GameDate date, string preferredLabelId = null) {
+		if (artist == null || !string.IsNullOrEmpty(artist.labelId) || IsHeldForPlayer(artist.artistId)) return null;
+		List<AILabel> labels = GetAllLabels();
+		if (labels == null) return null;
+		int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? CalendarChartWeek(date);
+		if (ArtistManager.Instance == null || !ArtistManager.Instance.IsEligibleForPopulationSigning(artist, chartWeek)) return null;
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		// The record man the desk warned about is the one who comes back for the act, if he still can.
+		return labels
+			.Where(label => IsEligibleForEnabledScouting(label) && HasDailyVacancy(label) && !IsRuntimeBirthWeekBlocked(label, chartWeek)
+				&& IsInScoutingRegion(artist, ChartManager.Instance?.GetRegionById(label.homeRegion))
+				&& label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(artist)))
+			.OrderBy(label => label.labelId == preferredLabelId ? 0 : 1)
+			.ThenBy(label => StableDailyMarketHash($"{seed}|{label.labelId}|{artist.artistId}|{date.year}-{date.month}-{date.day}|PlayerCrowding"))
+			.FirstOrDefault();
+	}
+
+	// Acts the player has shaken hands on: no rival record man signs them while the hold stands. Empty unless
+	// a player label has placed one, so every filter in this file is inert in a run without a player.
+	private readonly Dictionary<string, GameDate> playerHolds = new(StringComparer.Ordinal);
+	public void SetPlayerHold(string artistId, GameDate until) { if (!string.IsNullOrEmpty(artistId)) playerHolds[artistId] = until; }
+	public void ClearPlayerHold(string artistId) { if (artistId != null) playerHolds.Remove(artistId); }
+	public void ClearAllPlayerHolds() => playerHolds.Clear();
+	public bool IsHeldForPlayer(string artistId) => playerHolds.Count > 0 && artistId != null && playerHolds.ContainsKey(artistId);
 
 	private static readonly Dictionary<string, float> labelBuzzCache = new(StringComparer.Ordinal);
 	private static int labelBuzzCacheWeek = -1;
@@ -1134,6 +1153,7 @@ public partial class RosterManager : Node {
 		List<SimulatedArtist> eligible = (supplySnapshot ?? ArtistManager.Instance.GetUnsignedArtists())
 			.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, currentWeek))
 			.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
+			.Where(artist => Instance?.IsHeldForPlayer(artist.artistId) != true)
 			.ToList();
 		if (freshLane.HasValue) eligible = eligible.Where(artist => freshLane.Value
 			? artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance

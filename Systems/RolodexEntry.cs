@@ -57,6 +57,9 @@ public sealed class RolodexEntry {
 
     public List<string> log = new();
 
+    /// <summary>Records whose acetate has already been played to this man down the phone -- once each.</summary>
+    public List<string> acetatesPlayed = new();
+
     /// <summary>Derive the relationship tier from the live rapport score. One source of truth.</summary>
     public static RapportTier ClassifyRapport(float rapport, DiscoveryState state) {
         if (rapport >= 0.6f) return RapportTier.Loyal;
@@ -150,6 +153,7 @@ public sealed class RolodexEntrySaveData {
     public int    AppointmentExpiresWeek { get; set; }
     public List<PendingRecordMemorySaveData> PendingMemories { get; set; } = new();
     public List<string> Log     { get; set; } = new();
+    public List<string> AcetatesPlayed { get; set; } = new();
 
     public static RolodexEntrySaveData From(RolodexEntry e) => new() {
         DjId = e.djId, StationId = e.stationId, StateOrdinal = (int)e.state,
@@ -159,7 +163,8 @@ public sealed class RolodexEntrySaveData {
         ShiftKnown = e.shiftKnown,
         AppointmentRecordId = e.appointmentRecordId, AppointmentExpiresWeek = e.appointmentExpiresWeek,
         PendingMemories = e.pendingMemories.ConvertAll(PendingRecordMemorySaveData.From),
-        Log = new List<string>(e.log)
+        Log = new List<string>(e.log),
+        AcetatesPlayed = new List<string>(e.acetatesPlayed)
     };
 
     public RolodexEntry ToEntry() => new() {
@@ -171,6 +176,7 @@ public sealed class RolodexEntrySaveData {
         shiftKnown = ShiftKnown,
         appointmentRecordId = AppointmentRecordId ?? "", appointmentExpiresWeek = AppointmentExpiresWeek,
         pendingMemories = (PendingMemories ?? new List<PendingRecordMemorySaveData>()).ConvertAll(m => m.ToMemory()),
-        log = Log ?? new List<string>()
+        log = Log ?? new List<string>(),
+        acetatesPlayed = AcetatesPlayed ?? new List<string>()
     };
 }
