@@ -292,9 +292,22 @@ public partial class PlayerDesk : Node {
 	/// Otherwise control and quota concessions could make a 20%-of-ask advance pass on paper even when
 	/// the act's stated money demand is the main reason they came to the table.</summary>
 	private static bool ClearsReservation(ContractTalk talk, ContractTermSheet offer, float extraValue = 0f) {
+		if (HardLineBroken(talk, offer).HasValue) return false;
 		if (PackageValue(offer, talk.ask, talk.weights) + extraValue < talk.reservation) return false;
 		return talk.ask.Advance <= 0f || offer.Advance >= MinimumAdvanceForAcceptance(talk);
 	}
+
+	/// <summary>The one axis an act will not trade at any price. A Visionary's "Publishing is non-negotiable"
+	/// used to be a weighted axis like the rest, so a generous enough advance bought it out. Now no package
+	/// clears while the label still holds the publishing the act has said it keeps. Null while the offer
+	/// respects the line, or the act has none.</summary>
+	public static ContractAxis? HardLineBroken(ContractTalk talk, ContractTermSheet offer) {
+		if (talk?.ask == null || !offer.LabelOwnsPublishing) return null;
+		return ManagerProfile.Of(talk.ask.Manager).DemandsArtistPublishing ? ContractAxis.Publishing : null;
+	}
+
+	private static ContractAxis ObjectionAxisFor(ContractTalk talk, ContractTermSheet offer) =>
+		HardLineBroken(talk, offer) ?? WorstAxis(offer, talk.ask, talk.weights);
 
 	public static float MinimumAdvanceForAcceptance(ContractTalk talk) => talk?.ask == null ? 0f
 		: talk.ask.Advance * (talk.posture == NegotiationPosture.Hardball ? 0.65f : 0.50f);
@@ -345,10 +358,15 @@ public partial class PlayerDesk : Node {
 
 		if (ClearsReservation(talk, offer)) { FinalizeSign(talk, offer, out message); return true; }
 
-		talk.patienceLeft--;
-		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
+		// A hard line isn't haggling: it costs the meeting, but not a point of patience. The act said it up
+		// front, and the point of the line is that nothing else on the table moves it.
+		bool hardLine = HardLineBroken(talk, offer).HasValue;
+		if (!hardLine) {
+			talk.patienceLeft--;
+			if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
+		}
 
-		talk.objectionAxis = WorstAxis(offer, talk.ask, talk.weights);
+		talk.objectionAxis = ObjectionAxisFor(talk, offer);
 		talk.stage = ContractTalkStage.Objection;
 		string line = ObjectionLine(talk, offer);
 		talk.log.Insert(0, line);
@@ -422,7 +440,7 @@ public partial class PlayerDesk : Node {
 		talk.patienceLeft--;
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
 
-		talk.objectionAxis = WorstAxis(promised, talk.ask, talk.weights);
+		talk.objectionAxis = ObjectionAxisFor(talk, promised);
 		string line = $"\"{PromiseSinglesBump} more sides, and I'll make sure the next one gets pushed properly.\" " +
 			"He weighs it -- a promise is not a number, and he knows it.";
 		talk.log.Insert(0, line);
@@ -445,7 +463,7 @@ public partial class PlayerDesk : Node {
 		if (ClearsReservation(talk, CurrentOffer(talk))) { FinalizeSign(talk, CurrentOffer(talk), out message); return true; }
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
 
-		talk.objectionAxis = WorstAxis(CurrentOffer(talk), talk.ask, talk.weights);
+		talk.objectionAxis = ObjectionAxisFor(talk, CurrentOffer(talk));
 		string line = "He doesn't move much, but he doesn't hang up either.";
 		talk.log.Insert(0, line);
 		message = line;
@@ -459,6 +477,8 @@ public partial class PlayerDesk : Node {
 
 	private void FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
 		talk.stage = ContractTalkStage.Done;
+		// Read before anything is written: the margin is about the paper as tabled.
+		string margin = SignedMarginLine(talk, sheet);
 		if (talk.IsRenewal) {
 			FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message);
 			PendingRenewal = null;
@@ -466,7 +486,44 @@ public partial class PlayerDesk : Node {
 			FinalizeSigning(talk.prospect, sheet, out message);
 			talk.prospect.Talk = null;
 		}
+		message += margin;
 		Changed?.Invoke();
+	}
+
+	/// <summary>The advance below which this exact paper would have been refused: everything else as signed,
+	/// solved off the same weighted package the table scored it with. Null when there is no cash axis to read
+	/// (an act that asked for nothing up front).</summary>
+	private static float? LowestAdvanceThatClears(ContractTalk talk, ContractTermSheet signed) {
+		ContractTermSheet ask = talk.ask;
+		if (ask.Advance <= 0f || !talk.weights.TryGetValue(ContractAxis.Advance, out float weight) || weight <= 0f) return null;
+		float rest = PackageValue(signed, ask, talk.weights) - weight * AxisTerm(ContractAxis.Advance, signed, ask);
+		float extra = Mathf.Max(0f, talk.lastOfferValue - PackageValue(signed, ask, talk.weights));
+		float needed = (talk.reservation - extra - rest) / weight;
+		float byPackage = ask.Advance * Mathf.Clamp(needed, 0f, 1.5f);
+		return Mathf.Ceil(Mathf.Max(byPackage, MinimumAdvanceForAcceptance(talk)) / 5f) * 5f;
+	}
+
+	private string SignedMarginLine(ContractTalk talk, ContractTermSheet signed) {
+		float? lowest = LowestAdvanceThatClears(talk, signed);
+		return lowest.HasValue ? AdvanceMarginLine(lowest.Value, signed.Advance, talk.Artist.artistId) : "";
+	}
+
+	/// <summary>The after-the-fact read on how hard the number was pushed: a sharp ear hears the floor almost
+	/// exactly, a middling one hears it through the same fog the objections use, and a poor one only learns
+	/// whether it was close. Closes the loop the lowball used to leave open -- a signing with no texture
+	/// teaches nothing.</summary>
+	private string AdvanceMarginLine(float lowest, float paid, string artistId) {
+		lowest = Mathf.Min(lowest, paid);
+		float spare = paid - lowest;
+		if (spare <= Mathf.Max(5f, paid * 0.08f)) return " That was about as low as they'd go.";
+		float ability = Label?.scoutingAbility ?? 0.5f;
+		if (ability < 0.35f) return " That was easier than it should have been.";
+		float unit = StableNegotiationUnit(Label?.labelId ?? "", artistId, 99);
+		float heard = ability >= 0.6f ? lowest
+			: Mathf.Min(paid, Mathf.Ceil(lowest * (1f + (unit * 2f - 1f) * NegotiationFogBand()) / 5f) * 5f);
+		return ability >= 0.6f
+			? $" They'd have gone as low as ${heard:N0}."
+			: $" They'd have gone as low as ${heard:N0}, give or take.";
 	}
 
 	/// <summary>Voluntary and forced walks land very differently depending on what was on the table.
@@ -559,7 +616,9 @@ public partial class PlayerDesk : Node {
 			ContractAxis.Deliverables => offer.SinglesObligation > talk.ask.SinglesObligation
 				? "\"That's a lot of sides to owe you. They don't want to be grinding out product just to stay clear of you.\""
 				: "\"They want more guaranteed shots at the market than that -- fewer sides means fewer chances at a hit.\"",
-			ContractAxis.Publishing => "\"They'll come down on the money, but they want to keep the publishing.\"",
+			ContractAxis.Publishing => HardLineBroken(talk, offer).HasValue
+				? "\"The publishing isn't for sale. Not for any advance. Put it back in their name or we're done talking.\""
+				: "\"They'll come down on the money, but they want to keep the publishing.\"",
 			ContractAxis.CreativeControl => "\"They want the final word on what gets cut. That's the sticking point.\"",
 			_ => "\"Something in there doesn't sit right with them.\"",
 		};

@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 
 /// <summary>
@@ -35,6 +36,38 @@ public static class ManagerProfile {
 			AdvanceDemandMult = adv; RoyaltyDemandMult = roy; NegotiationDifficulty = diff;
 			MomentumAura = mom; ChartVisibilityAura = vis; ProductionBonus = prod; PrestigeBonus = prestige;
 			DemandsArtistControl = artistCtrl; DemandsArtistPublishing = artistPub;
+		}
+	}
+
+	/// <summary>What the manager does for the label and what they cost it, in the player's terms. Read
+	/// straight off <see cref="Of"/> so the explainer can never drift from the numbers the sim uses.</summary>
+	public static (string Role, string Helps, string Costs) Describe(ManagerArchetype archetype) {
+		Modifiers m = Of(archetype);
+		string Pct(float mult) => $"{Mathf.Abs(mult - 1f) * 100f:0}%";
+		string advance = m.AdvanceDemandMult > 1f ? $"asks {Pct(m.AdvanceDemandMult)} more up front" : m.AdvanceDemandMult < 1f ? $"asks {Pct(m.AdvanceDemandMult)} less up front" : "";
+		string royalty = m.RoyaltyDemandMult > 1f ? $"holds out for {Pct(m.RoyaltyDemandMult)} more on the royalty" : m.RoyaltyDemandMult < 1f ? $"takes {Pct(m.RoyaltyDemandMult)} less on the royalty" : "";
+		string money = string.Join(" and ", new[] { advance, royalty }.Where(part => part.Length > 0));
+		string push = m.ChartVisibilityAura >= 0.15f ? "a strong, constant push on the act's chart visibility"
+			: m.ChartVisibilityAura > 0f ? "a small lift to the act's chart visibility" : "";
+		switch (archetype) {
+			case ManagerArchetype.LocalHustler:
+				return ("Local hustler",
+					$"Eager to deal and easy to sit across from: {money}. Plus {push}.",
+					"Local only. He has no weight outside the home scene.");
+			case ManagerArchetype.Shark:
+				return ("Shark",
+					$"Works the act's promotion hard: {push}.",
+					$"Brutal at the table: {money}, on a short term so he can renegotiate from strength.");
+			case ManagerArchetype.Svengali:
+				return ("Svengali",
+					$"Sharpens the records: about {m.ProductionBonus * 100f:0} points on realized production quality, and he {royalty}.",
+					"Wants the reins: a long exclusive term, and hard bargaining over the length of the deal.");
+			case ManagerArchetype.Visionary:
+				return ("Visionary",
+					$"Protects the artist's interests and adds {push}.",
+					$"Expensive: {money}. The publishing stays in the act's name, and no advance changes that. They also hold the final word on material.");
+			default:
+				return ("Unmanaged", "Nobody between you and the act: easy to sign.", "Nobody pushing their records for them, either.");
 		}
 	}
 

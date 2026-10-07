@@ -13,6 +13,8 @@ public partial class UIManager : Control
 	[Export] private ArtistDetailPanel artistDetailPanel;
 	[Export] private LabelDetailPanel labelDetailPanel;
 	private Button calendarButton;
+	private TextureRect officeBackdrop;
+	private Tween officeLightTween;
 	private PopupPanel calendarPopup;
 	private SpinBox skipDaysInput;
 	private PlayerDeskPanel deskPanel;
@@ -43,6 +45,7 @@ public partial class UIManager : Control
 	{
 		if (artistDetailPanel != null) artistDetailPanel.LabelRequested += id => OpenLabel(id);
 		if (labelDetailPanel != null) labelDetailPanel.ArtistRequested += id => OpenArtist(id);
+		officeBackdrop = GetNodeOrNull<TextureRect>("TextureRect");
 		calendarButton = GetNodeOrNull<Button>("CalendarBtn");
 		if (calendarButton != null) {
 			calendarButton.GuiInput += OnCalendarGuiInput;
@@ -90,7 +93,12 @@ public partial class UIManager : Control
 			PlayerDesk.Instance.Changed += UpdateMainHud;
 			PlayerDesk.Instance.Announcement += ShowAnnouncement;
 		}
-		if (TimeManager.Instance != null) TimeManager.Instance.OnHourChanged += _ => UpdateMainHud();
+		if (TimeManager.Instance != null) {
+			TimeManager.Instance.OnHourChanged += OnHourChangedForHud;
+			TimeManager.Instance.OnDayStarted += OnDayStartedForLight;
+			TimeManager.Instance.OnClockRestored += OnDayStartedForLight;
+		}
+		ApplyOfficeLight(animate: false);
 		UpdateMainHud();
 		// A new player should land on the founding card instead of having to guess that the office
 		// tab opens the game. Loaded games and an existing label stay on the desk scene as before.
@@ -391,7 +399,46 @@ public partial class UIManager : Control
 			TimeManager.Instance.OnClockRestored -= OnClockRestored;
 			TimeManager.Instance.OnDayStarted -= UpdateCalendarButton;
 			TimeManager.Instance.OnClockRestored -= UpdateCalendarButton;
+			TimeManager.Instance.OnHourChanged -= OnHourChangedForHud;
+			TimeManager.Instance.OnDayStarted -= OnDayStartedForLight;
+			TimeManager.Instance.OnClockRestored -= OnDayStartedForLight;
 		}
+	}
+
+	private void OnHourChangedForHud(int _) { ApplyOfficeLight(animate: true); UpdateMainHud(); }
+	private void OnDayStartedForLight(GameDate _) => ApplyOfficeLight(animate: false);
+
+	// ── Office light ────────────────────────────────────────────────────────────────────────────
+	// One painted desk serves every hour, so the hour tints it: full daylight through the working day,
+	// warm toward six, a dusk blue by eight, night after nine. Modulate only darkens, and it takes the
+	// whole painted room with it, lamp included. When a real night-lit background exists, crossfade to it
+	// with the same OfficeTint(hour) deciding the blend and drop the modulate.
+	private static readonly (float Hour, Color Tint)[] OfficeLightKeys = {
+		(9f,  new Color(1.00f, 1.00f, 1.00f)),
+		(15f, new Color(1.00f, 1.00f, 1.00f)),
+		(17f, new Color(1.00f, 0.93f, 0.82f)),   // low sun through the blinds
+		(19f, new Color(0.84f, 0.74f, 0.74f)),   // dusk
+		(21f, new Color(0.52f, 0.56f, 0.76f)),   // night
+	};
+
+	public static Color OfficeTint(float hour) {
+		if (hour <= OfficeLightKeys[0].Hour) return OfficeLightKeys[0].Tint;
+		for (int i = 1; i < OfficeLightKeys.Length; i++) {
+			if (hour > OfficeLightKeys[i].Hour) continue;
+			var (h0, c0) = OfficeLightKeys[i - 1];
+			var (h1, c1) = OfficeLightKeys[i];
+			return c0.Lerp(c1, (hour - h0) / (h1 - h0));
+		}
+		return OfficeLightKeys[^1].Tint;
+	}
+
+	private void ApplyOfficeLight(bool animate) {
+		if (officeBackdrop == null || TimeManager.Instance == null) return;
+		Color target = OfficeTint(TimeManager.Instance.CurrentHour + TimeManager.Instance.CurrentMinute / 60f);
+		officeLightTween?.Kill();
+		if (!animate) { officeBackdrop.Modulate = target; return; }
+		officeLightTween = CreateTween();
+		officeLightTween.TweenProperty(officeBackdrop, "modulate", target, 0.8);
 	}
 
 	public void OpenArtist(string artistId, bool isOwnedByPlayer = false, int startTab = 0)

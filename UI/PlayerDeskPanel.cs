@@ -1118,9 +1118,9 @@ public partial class PlayerDeskPanel : Control {
 		Body(prospect.PushoverCountered
 			? "They've named their number. Put it forward again, or step back -- a second offer under it and they walk."
 			: "They'll sign near their ask, but not at any price: go too low and they counter once, then walk. " +
-				$"Signing takes {PlayerDesk.SignHours} hours and the advance is charged then; a refused offer costs {PlayerDesk.NegotiationRoundHours}.");
+				$"The meeting takes {PlayerDesk.PushoverSignHours} hours, signed or not, and the advance is charged when they sign.");
 
-		TermsForm(prefill, $"OFFER CONTRACT  ({PlayerDesk.SignHours}h)",
+		TermsForm(prefill, $"OFFER CONTRACT  ({PlayerDesk.PushoverSignHours}h)",
 			(advance, royalty, term, singles, labelPub, artistControl) => {
 				bool signed = PlayerDesk.Instance.OfferContract(prospect, advance, royalty, term, singles,
 					labelPub, artistControl, out string message);
@@ -1308,7 +1308,9 @@ public partial class PlayerDeskPanel : Control {
 		ContractTermSheet current = PlayerDesk.CurrentOffer(talk);
 		float advanceFloor = PlayerDesk.MinimumAdvanceForAcceptance(talk);
 		var stand = new Label {
-			Text = (talk.lastOfferValue >= talk.reservation && current.Advance < advanceFloor
+			Text = PlayerDesk.HardLineBroken(talk, current).HasValue
+				? $"A hard line: they keep the publishing, whatever the money. No advance moves this; tick it back to them and table again. {talk.patienceLeft} of {talk.patienceMax} round(s) of patience left."
+				: (talk.lastOfferValue >= talk.reservation && current.Advance < advanceFloor
 					? $"The terms read well overall ({talk.lastOfferValue * 100f:F0}%), but they won't go below ${advanceFloor:N0} up front; you offered ${current.Advance:N0}. "
 					: $"Package read: {talk.lastOfferValue * 100f:F0}% (needs {talk.reservation * 100f:F0}%). Advance floor: ${advanceFloor:N0}; you offered ${current.Advance:N0}. ") +
 				$"{talk.patienceLeft} of {talk.patienceMax} round(s) of patience left.",
@@ -1407,6 +1409,14 @@ public partial class PlayerDeskPanel : Control {
 				row.AddChild(renew);
 			}
 
+			if (artist.manager != ManagerArchetype.None) {
+				var who = Btn("MANAGER?");
+				who.CustomMinimumSize = new Vector2(120, 40);
+				who.TooltipText = "What this manager does for you, and what they cost you.";
+				who.Pressed += () => ManagerExplainer(captured);
+				row.AddChild(who);
+			}
+
 			var manage = Btn("MANAGE");
 			manage.CustomMinimumSize = new Vector2(150, 40);
 			manage.Pressed += () => { managingArtistId = captured.artistId; browsingCovers = false; Refresh(); };
@@ -1419,6 +1429,18 @@ public partial class PlayerDeskPanel : Control {
 			card.AddChild(row);
 			content.AddChild(card);
 		}
+	}
+
+	/// <summary>Tap-through on the roster line: who the manager is, what they do for the label, what they cost.
+	/// Every number comes off <see cref="ManagerProfile"/>, the same table the contract talks and the chart read.</summary>
+	private void ManagerExplainer(SimulatedArtist artist) {
+		(string role, string helps, string costs) = ManagerProfile.Describe(artist.manager);
+		var modal = PaperModal.Open(this, $"{(artist.managerName ?? "THE MANAGER").ToUpperInvariant()}", 640);
+		modal.AddText($"{role}, managing {artist.stageName}.");
+		modal.AddText("What they do for you: " + helps);
+		modal.AddText("What they cost you: " + costs);
+		modal.AddText("This follows the act. When their contract comes up, the same manager is across the table.");
+		modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
 	}
 
 	/// <summary>The renewal menu for a matured contract: Pushover gets the same quick one-click form
@@ -3765,6 +3787,7 @@ public partial class PlayerDeskPanel : Control {
 		PlayerDesk.InboundCallReason.StationAdded => "it's on the air there",
 		PlayerDesk.InboundCallReason.Requests => "getting requests for it",
 		PlayerDesk.InboundCallReason.AdjacentCity => "heard about it from next door",
+		PlayerDesk.InboundCallReason.PreOrder => "heard it on the acetate, wants some held for the pressing",
 		_ => "called"
 	};
 

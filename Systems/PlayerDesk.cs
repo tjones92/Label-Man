@@ -21,7 +21,8 @@ public partial class PlayerDesk : Node {
 	// rest of the game rather than inventing a second economy of time.
 	public const int ScoutHours = ActionCosts.QuickMeeting;         // 2 -- catch a set with time left for a second look
 	public const int FollowUpHours = ActionCosts.QuickMeeting;      // 2 -- a second look and a talk
-	public const int SignHours = ActionCosts.LongMeeting;           // 6 -- contract negotiation
+	public const int SignHours = ActionCosts.LongMeeting;           // 6 -- a real sit-down (master deals); a Hardball negotiation reaches this in rounds
+	public const int PushoverSignHours = ActionCosts.QuickMeeting;  // 2 -- an easy act signs over one meeting, not 60% of a day
 	public const int WriteHours = ActionCosts.Songwriting;          // 4 -- a writing session
 	public const int DistributionHours = ActionCosts.RegionalTravel;// 4 -- travel and pitch a house
 	public const int ScheduleHours = ActionCosts.Planning;          // 2 -- booking the release
@@ -745,7 +746,8 @@ public partial class PlayerDesk : Node {
 		Requests,      // a shop you've never visited, but the counter's fielding requests for it
 		StationAdded,  // same "stranger" call, triggered off airplay rather than raw sales velocity
 		AdjacentCity,  // a stop in a town next to one you've already worked wants in too
-		OneStopTest    // the metro one-stop's first look -- directive §6, surfaced through a stop it already serves
+		OneStopTest,   // the metro one-stop's first look -- directive §6, surfaced through a stop it already serves
+		PreOrder       // a DJ liked the acetate and word reached a counter: hold me some when the pressing lands
 	}
 
 	/// <summary>One piece of "they called me" demand (directive §4.2): a stop asking for stock beyond
@@ -852,13 +854,16 @@ public partial class PlayerDesk : Node {
 		acetateCopies.Remove(recordId);
 		ServiceStation(recordId, stationId, 0.9f, ServicingSource.HandDelivered);
 		Master master = masters.First(item => item.Record.recordId == recordId);
-		string reaction = master.Record.hookStrength >= 0.72f
-			? "He likes the refrain and asks for a store copy when the pressing lands."
+		bool strong = master.Record.hookStrength >= PreOrderHookBar;
+		string reaction = strong
+			? "He likes the refrain, asks for a copy when the pressing lands, and says he'll mention it to the shops."
 			: master.Record.hookStrength >= 0.45f
 				? "He wants to hear it again once there's a finished 45."
 				: "He listens politely, but won't promise a spin yet.";
 		Note($"Handed an acetate of \"{TitleForRecord(recordId)}\" to {station.callsign} in {here.regionName}. {reaction}");
-		message = $"{station.callsign}: {reaction}";
+		int preOrders = strong ? GeneratePreOrders(recordId, station, master.Record.hookStrength) : 0;
+		message = $"{station.callsign}: {reaction}" + (preOrders > 0
+			? $" Word gets round: {preOrders} account{(preOrders == 1 ? "" : "s")} will be ringing the office about it." : "");
 		Changed?.Invoke();
 		return true;
 	}
@@ -1738,7 +1743,7 @@ public partial class PlayerDesk : Node {
 	}
 
 	/// <summary>
-	/// Puts a concrete contract on the table. The player set the terms; this is where the six-hour
+	/// Puts a concrete contract on the table. The player set the terms; this is where the two-hour
 	/// negotiation is spent and the act is actually signed. Non-money fields (singles obligation,
 	/// negotiation difficulty, the manager) are carried from the opening offer so a hand-set advance
 	/// does not erase the rest of the deal.
@@ -1787,7 +1792,7 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 		prospect.PushoverCountered = false;
-		if (!Require(SignHours, out message)) return false;
+		if (!Require(PushoverSignHours, out message)) return false;
 		if (!Label.CanAffordToSign(advance)) {
 			float reserve = Label.GetMonthlyOverhead() * 2f;
 			float after = Label.cashReserves - advance;
@@ -1795,8 +1800,10 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 
-		Spend(SignHours);
+		Spend(PushoverSignHours);
+		string artistId = prospect.Artist.artistId;
 		FinalizeSigning(prospect, sheet, out message);
+		if (b.Advance > 0f) message += AdvanceMarginLine(Mathf.Max(0f, shortfall.MinAdvance), advance, artistId);
 		prospect.Draft = null;
 		Changed?.Invoke();
 		return true;
@@ -2877,7 +2884,9 @@ public partial class PlayerDesk : Node {
 		float acceptChance = Mathf.Clamp(
 			(PitchBaseChance + stop.Relationship * PitchRelationshipWeight + PitchEarPull(stop, recordId)) * access,
 			0.03f, 0.97f);
-		if (untried && GD.Randf() > acceptChance) {
+		// A pre-order is a shop that already asked for it: no cold-counter roll, and at least what it asked for.
+		int preOrder = PreOrderQty(stop, recordId);
+		if (untried && preOrder == 0 && GD.Randf() > acceptChance) {
 			TouchStop(stop, 0.02f); // a passed call still counts as an introduction
 			stop.PassedRecordIds.Add(recordId); // sticks until GenerateInboundCalls clears it on real evidence
 			// A market that isn't open to the sound at all yet (directive §10) reads differently than an
@@ -2895,7 +2904,7 @@ public partial class PlayerDesk : Node {
 		// record. The access term is deliberately NOT applied again here: it already decided the yes/no
 		// above, and a shop that says yes is by construction one that serves this audience -- taxing its
 		// order a second time was what pinned every doo-wop lot in the Great Lakes at two copies.
-		int cap = Mathf.Max(1, SuggestedPlacement(stop, recordId));
+		int cap = Mathf.Max(Mathf.Max(1, SuggestedPlacement(stop, recordId)), preOrder);
 		int place = Mathf.Min(cap, stockOnHand.Remaining);
 		stockOnHand.Remaining -= place;
 		ConsignmentLot lot = LotFor(stop, recordId);
@@ -2933,7 +2942,7 @@ public partial class PlayerDesk : Node {
 		// Consignment carries no risk for him, so there's no yes/no roll to have already priced the
 		// segregation term in: it still scales the order here (directive §10), unlike the COD path.
 		float access = RetailAccessFactor(stop, recordId);
-		int cap = Mathf.Max(1, Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * access));
+		int cap = Mathf.Max(Mathf.Max(1, Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * access)), PreOrderQty(stop, recordId));
 		int place = Mathf.Min(cap, stockOnHand.Remaining);
 		stockOnHand.Remaining -= place;
 		ConsignmentLot lot = LotFor(stop, recordId);
@@ -3487,20 +3496,70 @@ public partial class PlayerDesk : Node {
 	private static bool IsUntriedAt(PlayerStop stop, string recordId) =>
 		!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot) || lot.Placed <= 0;
 
-	private void AddCall(PlayerStop stop, string recordId, int qty, InboundCallReason reason, int week, bool consignment) {
+	private void AddCall(PlayerStop stop, string recordId, int qty, InboundCallReason reason, int week, bool consignment, int expiresWeek = 0) {
 		stop.PassedRecordIds.Remove(recordId); // a call in is the "potential success" that reopens a pass
 		inboundCalls.Add(new InboundCall {
 			StopId = stop.StopId, RecordId = recordId, Week = week, RequestedQty = Mathf.Max(1, qty),
-			Reason = reason, ExpiresWeek = week + CallExpiryWeeks, ConsignmentTerms = consignment
+			Reason = reason, ExpiresWeek = expiresWeek > 0 ? expiresWeek : week + CallExpiryWeeks, ConsignmentTerms = consignment
 		});
 		string reasonText = reason switch {
 			InboundCallReason.SoldOut => "sold out and wants more",
 			InboundCallReason.StationAdded => "it's on the air there and the counter's fielding requests",
 			InboundCallReason.Requests => "getting asked for it at the counter",
 			InboundCallReason.OneStopTest => "heard about it from an account they serve and want a look",
+			InboundCallReason.PreOrder => "heard it's good and wants some held for when the pressing lands",
 			_ => "wants in on it"
 		};
 		Note($"{stop.DisplayName} in {CityName(stop.CityId)} called -- {reasonText} on \"{TitleForRecord(recordId)}\".");
+	}
+
+	/// <summary>The copies a stop asked to have held off an acetate, or 0 when it has no pre-order open.</summary>
+	private int PreOrderQty(PlayerStop stop, string recordId) =>
+		inboundCalls.FirstOrDefault(c => c.StopId == stop.StopId && c.RecordId == recordId && c.Reason == InboundCallReason.PreOrder)?.RequestedQty ?? 0;
+
+	// What a counter plausibly pre-orders off one good radio ear: a dozen at most. The DJ himself never buys -- stations
+	// were serviced free -- so the demand is the record shops and operators who hear him play it or hear him talk.
+	private const int PreOrderShopMin = 6, PreOrderShopMax = 12;
+	private const int PreOrderOpMin = 10, PreOrderOpMax = 20;
+	private const float PreOrderHookBar = 0.72f;
+	private const float PreOrderOperatorHookBar = 0.85f;
+
+	/// <summary>A DJ who loved the acetate talks: up to two record stores in his market ask to be held a few
+	/// copies, and on an outstanding hook one jukebox operator does too. They lapse two weeks after the
+	/// vinyl is due, so the first revenue signal arrives while the plant is still working. Deterministic -- no
+	/// RNG -- so it can't move the stream the trunk and the AI economy read.</summary>
+	private int GeneratePreOrders(string recordId, RadioStation station, float hook) {
+		string regionId = station.regionId;
+		string stationCityId = DistanceModel.GetCityByName(station.cityName)?.cityId;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		PressOrder order = pressOrders.FirstOrDefault(o => o.RecordId == recordId);
+		int weeksToVinyl = order == null ? 5 : Mathf.CeilToInt(Mathf.Max(0, TimeManager.Instance?.DaysBetween(today, order.Arrives) ?? 0) / 7f);
+		int expires = Mathf.Max(week + CallExpiryWeeks, week + weeksToVinyl + 2);
+		float strength = Mathf.Clamp((hook - PreOrderHookBar) / (1f - PreOrderHookBar), 0f, 1f);
+
+		List<PlayerStop> inMarket = EnsureStops().Values.Where(s =>
+			string.Equals(DistanceModel.GetCityById(s.CityId)?.parentRegionId, regionId, StringComparison.Ordinal)
+			&& IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId))
+			// His own town hears him first; the rest of the market is the tie-break.
+			.OrderBy(s => string.Equals(s.CityId, stationCityId, StringComparison.Ordinal) ? 0 : 1)
+			.ThenBy(s => StableNegotiationUnit(Label?.labelId ?? "", s.StopId + "|" + recordId, 7)).ToList();
+
+		int made = 0;
+		foreach (PlayerStop shop in inMarket.Where(s => s.Kind == StopKind.Shop).Take(2)) {
+			AddCall(shop, recordId, PreOrderShopMin + Mathf.RoundToInt(strength * (PreOrderShopMax - PreOrderShopMin)),
+				InboundCallReason.PreOrder, week, consignment: false, expiresWeek: expires);
+			made++;
+		}
+		if (hook >= PreOrderOperatorHookBar) {
+			PlayerStop op = inMarket.FirstOrDefault(s => s.Kind == StopKind.Op);
+			if (op != null) {
+				AddCall(op, recordId, PreOrderOpMin + Mathf.RoundToInt(strength * (PreOrderOpMax - PreOrderOpMin)),
+					InboundCallReason.PreOrder, week, consignment: false, expiresWeek: expires);
+				made++;
+			}
+		}
+		return made;
 	}
 
 	/// <summary>Answering a call is the highest-trust relationship tick in the game (directive §4.2) --
