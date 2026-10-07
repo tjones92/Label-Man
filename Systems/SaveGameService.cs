@@ -66,19 +66,37 @@ public static class SaveGameService {
 		public int Month { get; set; }
 		public int Day { get; set; }
 		public string LabelName { get; set; }
+		// The label's chosen brand; null crest = none chosen (or a sidecar from before the brand kit), so the list derives one from the name.
+		public int? BrandCrest { get; set; }
+		public int BrandPalette { get; set; }
+		public int BrandLettering { get; set; }
+		public string BrandMonogram { get; set; }
 	}
 
 	private static void WriteMeta(string slot, SaveEnvelope envelope) {
+		var label = envelope.Player?.Label;
+		WriteMetaFile(slot, new SaveMeta {
+			Version = envelope.Version, SavedAtUtc = envelope.SavedAtUtc,
+			Year = envelope.Year, Month = envelope.Month, Day = envelope.Day,
+			LabelName = label?.labelName ?? slot,
+			BrandCrest = label?.BrandCrest, BrandPalette = label?.BrandPalette ?? 0,
+			BrandLettering = label?.BrandLettering ?? 0, BrandMonogram = label?.BrandMonogram
+		});
+	}
+
+	private static void WriteMetaFile(string slot, SaveMeta meta) {
 		try {
-			var meta = new SaveMeta {
-				Version = envelope.Version, SavedAtUtc = envelope.SavedAtUtc,
-				Year = envelope.Year, Month = envelope.Month, Day = envelope.Day,
-				LabelName = envelope.Player?.Label?.labelName ?? slot
-			};
 			using Godot.FileAccess file = Godot.FileAccess.Open(MetaPathFor(slot), Godot.FileAccess.ModeFlags.Write);
 			file?.StoreString(JsonSerializer.Serialize(meta));
 		} catch { /* the meta sidecar is an optimization; ListSaves falls back to the body header */ }
 	}
+
+	/// <summary>The crest a save's label wears in the load list: the one the player chose, else the one its name hashes to
+	/// (the same fallback <see cref="LabelBrand.For"/> gives a player label with no stored brand).</summary>
+	private static LabelBrand BrandFrom(SaveMeta meta, string labelName) =>
+		meta.BrandCrest.HasValue
+			? new LabelBrand { Crest = (CrestShape)meta.BrandCrest.Value, PaletteIndex = meta.BrandPalette, Lettering = (LetteringStyle)meta.BrandLettering, Monogram = meta.BrandMonogram ?? "" }
+			: LabelBrand.Derive(labelName);
 
 	public static bool IsValidSlotName(string slot, out string reason) {
 		string name = slot?.Trim() ?? string.Empty;
@@ -112,7 +130,7 @@ public static class SaveGameService {
 	}
 
 	/// <summary>A save on disk, for the load menu. Read from each file's lightweight header only.</summary>
-	public readonly record struct SaveInfo(string Slot, string LabelName, GameDate InGameDate, DateTime SavedAtUtc);
+	public readonly record struct SaveInfo(string Slot, string LabelName, GameDate InGameDate, DateTime SavedAtUtc, LabelBrand Brand = null);
 
 	/// <summary>Every save on disk, newest first. Corrupt or unreadable files are skipped, not thrown.</summary>
 	public static List<SaveInfo> ListSaves() {
@@ -123,10 +141,13 @@ public static class SaveGameService {
 			if (!file.EndsWith(".json")) continue;
 			string slot = file.Substring(0, file.Length - ".json".Length);
 			try {
+				// A sidecar from before the brand kit has no brand, so its crest is the name-derived one until that slot is next saved;
+				// reading every old body just to draw a crest would cost seconds per large save.
 				SaveMeta meta = ReadMeta(slot) ?? ReadHeaderFromBody(slot);
 				if (meta == null) continue;
 				DateTime.TryParse(meta.SavedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime savedAt);
-				result.Add(new SaveInfo(slot, meta.LabelName ?? slot, new GameDate(meta.Year, meta.Month, meta.Day), savedAt));
+				string name = meta.LabelName ?? slot;
+				result.Add(new SaveInfo(slot, name, new GameDate(meta.Year, meta.Month, meta.Day), savedAt, BrandFrom(meta, name)));
 			} catch { /* skip a save we can't read */ }
 		}
 		result.Sort((a, b) => b.SavedAtUtc.CompareTo(a.SavedAtUtc));
@@ -163,7 +184,9 @@ public static class SaveGameService {
 		return new SaveMeta {
 			Version = header.Version, SavedAtUtc = header.SavedAtUtc,
 			Year = header.Year, Month = header.Month, Day = header.Day,
-			LabelName = header.Player?.Label?.labelName ?? slot
+			LabelName = header.Player?.Label?.labelName ?? slot,
+			BrandCrest = header.Player?.Label?.BrandCrest, BrandPalette = header.Player?.Label?.BrandPalette ?? 0,
+			BrandLettering = header.Player?.Label?.BrandLettering ?? 0, BrandMonogram = header.Player?.Label?.BrandMonogram
 		};
 	}
 
@@ -185,7 +208,13 @@ public static class SaveGameService {
 		public int Day { get; set; }
 		public HeaderPlayer Player { get; set; }
 		public sealed class HeaderPlayer { public HeaderLabel Label { get; set; } }
-		public sealed class HeaderLabel { public string labelName { get; set; } }
+		public sealed class HeaderLabel {
+			public string labelName { get; set; }
+			public int? BrandCrest { get; set; }
+			public int BrandPalette { get; set; }
+			public int BrandLettering { get; set; }
+			public string BrandMonogram { get; set; }
+		}
 	}
 
 	/// <summary>Snapshots the player layer and the clock into a save file. Returns false with a reason.</summary>

@@ -34,25 +34,55 @@ public partial class PaperModal : CanvasLayer {
 		return modal;
 	}
 
-	private void Build(string title, float width) {
+	/// <summary>The comparison sheet: the same modal, but the page is a sheet on a clipboard (brass clip, hardboard) laid on
+	/// the green felt of the desk instead of a card over a dimmed room. The charts it carries are plates of graph paper, so
+	/// the whole thing reads as the A&amp;R man's working papers rather than a pop-up.</summary>
+	public static PaperModal OpenClipboard(Node host, string title, float width = 980, Action onCancel = null) {
+		var modal = new PaperModal { Layer = 60, onCancel = onCancel };
+		modal.Build(title, width, clipboard: true);
+		host.AddChild(modal);
+		return modal;
+	}
+
+	private void Build(string title, float width, bool clipboard = false) {
 		// A CanvasLayer does not inherit the window's theme, so the modal carries the office theme itself.
 		var root = new Control { MouseFilter = Control.MouseFilterEnum.Stop, Theme = PaperTheme.Build() };
 		root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		AddChild(root);
 
-		var dim = new ColorRect { Color = new Color(0.07f, 0.05f, 0.03f, 0.62f), MouseFilter = Control.MouseFilterEnum.Ignore };
-		dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-		root.AddChild(dim);
+		if (clipboard) {
+			var felt = new TextureRect {
+				Texture = PaperTextures.Felt, StretchMode = TextureRect.StretchModeEnum.Tile,
+				ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, MouseFilter = Control.MouseFilterEnum.Ignore
+			};
+			felt.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+			root.AddChild(felt);
+			// Lamp light pooling on the middle of the felt: clear in the centre, dark toward the corners.
+			var gradient = new Gradient { Offsets = new[] { 0f, 0.5f, 1f }, Colors = new[] { new Color(0, 0, 0, 0), new Color(0, 0, 0, 0.08f), new Color(0.02f, 0.04f, 0.03f, 0.72f) } };
+			var vignette = new TextureRect {
+				Texture = new GradientTexture2D { Gradient = gradient, Fill = GradientTexture2D.FillEnum.Radial, FillFrom = new Vector2(0.5f, 0.5f), FillTo = new Vector2(1f, 0.5f), Width = 256, Height = 256 },
+				StretchMode = TextureRect.StretchModeEnum.Scale, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, MouseFilter = Control.MouseFilterEnum.Ignore
+			};
+			vignette.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+			root.AddChild(vignette);
+		} else {
+			var dim = new ColorRect { Color = new Color(0.07f, 0.05f, 0.03f, 0.62f), MouseFilter = Control.MouseFilterEnum.Ignore };
+			dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+			root.AddChild(dim);
+		}
 
 		var center = new CenterContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
 		center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		root.AddChild(center);
 
 		var card = new PanelContainer { CustomMinimumSize = new Vector2(width, 0) };
-		var sheet = PaperStyleBox.Sheet(Paper, 28, 22, 18, Rust);
-		sheet.BorderWidth = 2; sheet.Radius = 3; sheet.ShadowAlpha = 0.5f;
-		sheet.ContentMarginBottom = 20;
-		card.AddThemeStyleboxOverride("panel", sheet);
+		if (clipboard) card.AddThemeStyleboxOverride("panel", new ClipboardStyle());
+		else {
+			var sheet = PaperStyleBox.Sheet(Paper, 28, 22, 18, Rust);
+			sheet.BorderWidth = 2; sheet.Radius = 3; sheet.ShadowAlpha = 0.5f;
+			sheet.ContentMarginBottom = 20;
+			card.AddThemeStyleboxOverride("panel", sheet);
+		}
 		center.AddChild(card);
 
 		var column = new VBoxContainer();

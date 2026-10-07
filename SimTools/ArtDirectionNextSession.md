@@ -2,8 +2,7 @@
 
 Branch `codex/playtest-ui-ux-fixes`. Source: the art-direction critic's notes
 (`Label-Man-playtest/Playtest/critics/art-direction-critic.md`, final report plus addendum A). This file records where that
-list stands after the second art pass, then sketches the **Label brand kit** (deliberately not built yet) and lists the
-other critic pieces still open.
+list stands (updated after session 5), the **Label brand kit** (built), and the other critic pieces still open.
 
 ## 1. Where the critic's top ten stands
 
@@ -16,9 +15,9 @@ other critic pieces still open.
 | 5 | Paper material pass | Done: `PaperStyleBox` (grain, edge burn, lamp falloff, contact shadow) on the folder, cards, paper, chart sheet, modal, banner, dossiers; `FolderTabStyle` trapezoid tabs that open into the card. |
 | 6 | Time-of-day lamp lighting | Partial: the hour tint exists (`UIManager.OfficeTint`) and now also tints the painted-text layer. No animated smoke, dust or blind-slat bands. |
 | 7 | Morning Paper v2 | Done: nameplate, ears (edition, price), two ruled columns, lead hierarchy, fold-corner dismiss, settle-in. |
-| 8 | Index cards, carbon contract | Done: A&R index card (typewriter name, stamped verdict, inline buttons); contract is a carbon duplicate with letterhead, DUPLICATE stamp, signature line. Compare dialog is still the modal, not a clipboard sheet. |
-| 9 | Chart language | Partial: chart rows (clipped columns, circled live rank numerals, palette movement colours, highlighter on your own record). Radar/bars/identity box not re-inked. |
-| 10 | Label brand kit | Built (section 2): data, crest control, founding picker, integration points 1-4, the nameplate, wall record, stack disc, jacket disc, paper ad and SIGNED stamp. Gold record, Save/Load row and window icon remain. |
+| 8 | Index cards, carbon contract | Done: A&R index card (typewriter name, stamped verdict, inline buttons); contract is a carbon duplicate with letterhead, DUPLICATE stamp, signature line. The compare dialog is now a clipboard on felt (session 5, section 3). |
+| 9 | Chart language | Done: chart rows (clipped columns, circled live rank numerals, palette movement colours, highlighter on your own record) and, in session 5, the Polar radar, identity box, fit lamps and `ReadBar` as grease pencil on pinned graph paper (teal and lilac retired). Open: reusing the chart rows as a trade sheet for genre/regional charts; `ChartTitle` is still static scene text ("BILLBOARD HOT 100 — SINGLES"). |
+| 10 | Label brand kit | Built (section 2): data, crest control, founding picker, integration points 1-4, the nameplate, wall record, stack disc, jacket disc, paper ad and SIGNED stamp. Complete as of session 5: gold record, Save/Load crest, window icon. The right-hand stack's top disc is deliberately left out. |
 
 Item 6 of the user's list (tooltips): "?" badges now use `TipLabel` (`UI/PaperTip.cs`): wrapped at 340px, text centred. Godot
 places a tooltip beside the pointer, so it is a centred block, not centred on the badge. Other long tooltips still stretch;
@@ -42,8 +41,8 @@ lifts the open tab with `ZIndex = 1`, and a z lift beats tree order, so a buried
 top. `UIManager.StackDossiers` now gives the dossier being opened its own z band (4) above the buried one (2). Any new
 stacked panel that holds folder tabs needs the same.
 
-Not done: gold record at a sales milestone, stack centre label on the right-hand stack (its top disc is hidden in the
-painting), Save/Load row crest, window icon.
+**Session 5 landed:** the gold record (`UI/PaintedGoldRecord.cs`), the Save/Load row crest and the window icon.
+Deliberately not done: the centre label on the right-hand stack (its top disc is hidden in the painting; the author said skip).
 
 Departures from the sketch below: crests are drawn live (a Control retains its draw commands, so no baked textures were
 needed); lettering is five preview buttons, not a drop-down; the brand lives on `AILabel.brand` (null for AI labels, so
@@ -52,7 +51,7 @@ build, because the copy in the google/fonts repo segfaults Godot 4.7's font impo
 four are OFL. Verified by driver: founding picker, office header, chart, contract, both dossiers, paper, a 12-label gallery,
 a save/load round trip (including an old-save fallback) and an even spread of brands over all 601 labels.
 
-### Original sketch (kept for the open items)
+### Original sketch (historical; every item in it has now landed except the right-hand stack)
 
 Goal: the one saturated colour on any page belongs to the player's label. Crest + colour pair + lettering, chosen at
 founding, carried through the desk, dossier, contract, chart and paper.
@@ -114,33 +113,71 @@ determinism of `LabelBrand.For`, save round trip, probe-run byte identity.
 Estimate: one session if the fonts are approved (data, crest control, founding picker, integration points 1-4); the wall
 record, stacks and paper ad the session after.
 
+## 2b. Session 5: the charts re-inked, the clipboard, the ledger, and the brand kit's last pieces
+
+**Pencil and paper.** `UI/GreasePencil.cs` is the shared drawing kit: graphite, blue pencil, green pencil and red grease pencil,
+a wandering two-pass stroke (the wander is a hash of seed and vertex index, never an RNG, so a redraw is stable and no seeded
+stream can move), dashed lines, graph paper and brass pins. Series colours are fixed across the Polar read: **graphite** = the
+song as heard, **blue** = the arrangement or performance, **green dashed** = your read of the act, **red grease** only where the
+song reaches past what the act can do. `ReadBar` uses the same pencils on a ruled strip with a highlighter wash for the doubt.
+
+**`PolarComparisonWidget`** is one 890x430 plate of graph paper pinned at its corners (`ShrinkCenter`, so it never stretches).
+The identity box is 224px. Fit is a row of ten indicator lamps: lit up to the best guess, a dim glow through the doubt, dark
+beyond; the bezel is the series' pencil colour. Radar names sit outside the rim on their own side. The legend is stacked in the left
+column because a one-line legend runs into the identity box's notes.
+
+**Clipboard.** `PaperModal.OpenClipboard` (felt baize backdrop + vignette, `UI/ClipboardStyle.cs`: hardboard, hanging hole, paper
+sheet, brass clip, all drawn by one stylebox so the card grows with its contents). It is used for COMPARE HEARD MATERIAL and COMPARE
+PLAYBACK at width 1040 (the plate is 890 and the scroll bar needs room). `ComparisonCard(..., onSheet: true)` drops its own paper
+inside a modal; inline (roster, catalogue, takes) the card is a `PaperStyleBox` sheet with the plate on it.
+
+**Ledger.** `UI/LedgerTable.cs` draws the whole page itself (paper, double red margin rule, ruled rows, ruled figure columns,
+Courier Prime figures). A cell that starts with "(" is a loss and draws in stamp red; `LedgerTable.Money` and `.Deduct` make them;
+`Total` rows get a single rule over and a double rule under. It replaced `Table()` on THE BOOKS, LAST WEEK'S SETTLEMENT, WEEK BY
+WEEK, RECORD BY RECORD and ARTIST ACCOUNTS. Master lease/sale buttons moved out of the record rows into a "a one-off deal on the master"
+line under the table, because a table drawn as one control cannot hold buttons.
+
+**Gold record.** `PaintedGoldRecord` hangs a framed gold disc with a brass plaque on the right-hand panelling once a record passes
+500,000 copies (the bar `ChartDetailPanel.GetSalesTierDescription` already calls "Gold Record territory"; keep the two in step).
+It shows the best seller and "N GOLD" when there are several, has a hover tooltip, and re-checks once per game day. A record crossing
+the bar while you play raises a banner; `Forget()` on load/clock-restore stops a loaded save re-announcing. Its centre label is the
+player's own 45 label.
+
+**Save/Load crest.** `SaveMeta` and the header now carry the label's chosen brand, and `SaveInfo.Brand` feeds a crest on each row.
+A sidecar written before this commit has no brand, so its row shows the name-derived crest until that slot is saved again (reading
+every old 10-15 MB save body to draw a crest costs seconds each; deliberately not done). Verified by a save/list round trip through both the
+sidecar and the body-header fallback.
+
+**Window icon.** `icon.svg` is a 45 (black disc, grooves, cream centre label with an oxblood star). Godot uses `config/icon` for the
+window and taskbar. There is no export preset yet; when one exists, set `application/icon` to an `.ico` for the exe.
+
+Verified by a temporary driver scene (deleted): desk with and without the gold record, all five Finances ledgers, the Save/Load list,
+studio and ear clipboards on fabricated reads, the real inline card through ROSTER > MANAGE, ReadBars and the icon at five sizes.
+
 ## 3. Other critic pieces still open
 
 Ranked by how much of the painted-versus-flat gap each closes.
 
-1. **Charts re-inked** (top-ten #9, remainder): radar and bars as grease pencil on graph paper, retire teal and lilac,
-   identity box at 220px or more, perceived-fit as lamps. `PolarComparisonWidget.cs`, `ReadBar.cs`. Also reuse the chart
-   rows as one "trade sheet" scene for genre charts and regional breakouts, and a masthead-free plate so the trade name
-   and chart type are live text. `ChartTitle` in `MainMenu.tscn` still reads "BILLBOARD HOT 100".
-2. **Compare dialog as a clipboard sheet on felt** with brass pins; today it is a `PaperModal` around the radar.
-3. **Finances as a ledger sheet**: tabular Courier, right-aligned figures, negatives in parentheses in stamp red, totals
-   under a double rule. `Table()` already right-aligns; it needs ruled columns and the sheet.
-4. **Rolodex cards with A-Z tabs, roster as 45-sleeve cards, dossier portrait and boxed typed fields** (acts still have no
+1. **Trade sheet** (remainder of top-ten #9): reuse the chart rows as one scene for genre charts and regional breakouts, with
+   a masthead-free plate so the trade name and chart type are live text. `ChartTitle` in `MainMenu.tscn` is static text
+   ("BILLBOARD HOT 100 — SINGLES"), and "Billboard" is a real trade name (the critic's unresolved IP question, section 2.5).
+   The charts-as-pencil work, the clipboard compare sheet and the ledger are done (section 2b).
+2. **Rolodex cards with A-Z tabs, roster as 45-sleeve cards, dossier portrait and boxed typed fields** (acts still have no
    faces: halftone silhouettes coded by genre).
-5. **Distribution, Office and Catalog as pressing-plant work orders**: three-part NCR set, boxed QTY/SPEED/SIDE fields,
+3. **Distribution, Office and Catalog as pressing-plant work orders**: three-part NCR set, boxed QTY/SPEED/SIDE fields,
    a RUSH stamp. Catalog's stage board is already a board; Office and Distribution are still prose.
-6. **Feedback toast as a Post-it or telegram slip** next to the control that failed, not the top-left toast.
-7. **Morning Paper follow-ups**: quiet-day fillers (weather, a price ticker, an ad), rolling repeated sales lines up
+4. **Feedback toast as a Post-it or telegram slip** next to the control that failed, not the top-left toast.
+5. **Morning Paper follow-ups**: quiet-day fillers (weather, a price ticker, an ad), rolling repeated sales lines up
    ("36 copies at 4 tables"), a halftone slot, clippings with stamps (SOLD OUT), slide-out on fold, an Extra edition.
    The author declined suppressing quiet days; fill them instead.
-8. **Desk props and time**: animated smoke, dust in the lamp cone, blind-slat bands, ashtray that fills with overtime,
+6. **Desk props and time**: animated smoke, dust in the lamp cone, blind-slat bands, ashtray that fills with overtime,
    pink "WHILE YOU WERE OUT" slips for queued calls, a Rolodex prop, the door as a route map, a filing cabinet for
    Save/Load, record-stack height tracking catalogue size.
-9. **Iconography**: Ear, Street, Suit, Fixer as linocut icons; stars to vinyl discs (`StarBar` is still a glyph helper).
-10. **Type upgrades that need font files** (the nameplate is done in Abril Fatface; the pad note is gone): Special Elite
+7. **Iconography**: Ear, Street, Suit, Fixer as linocut icons; stars to vinyl discs (`StarBar` is still a glyph helper).
+8. **Type upgrades that need font files** (the nameplate is done in Abril Fatface; the pad note is gone): Special Elite
     for index-card names (Courier Prime Bold today), Abril Fatface for the nameplate.
-11. **Small surface work**: staggered tabs with typed stickers and a red stamp circle for unread counts; the
+9. **Small surface work**: staggered tabs with typed stickers and a red stamp circle for unread counts; the
     "Start a Label" page (origin buttons, star glyphs, no title card); paper-clip, coffee-ring and tilt decals; a shared
     warm grade, grain and vignette over painting and UI.
-12. **Critic's unreviewed screens**: Band Room, venue and hearing scenes, label and record detail panels. Ask the critic to
+10. **Critic's unreviewed screens**: Band Room, venue and hearing scenes, label and record detail panels. Ask the critic to
     continue from shot 057 on a fresh playthrough.

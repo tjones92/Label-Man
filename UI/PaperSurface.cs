@@ -80,7 +80,32 @@ public static class PaperTextures {
 	public const int BurnSize = 96, BurnMargin = 30;
 	private const int FalloffSize = 64;
 
-	private static ImageTexture grain, burn, falloff;
+	private static ImageTexture grain, burn, falloff, felt;
+
+	/// <summary>Billiard-table baize: a dark green nap with brighter and darker fibres, tiling seamlessly.</summary>
+	public static ImageTexture Felt { get { return felt ??= BuildFelt(); } }
+
+	private static ImageTexture BuildFelt() {
+		var rng = new RandomNumberGenerator { Seed = 1961 };
+		const int n = 192;
+		var image = Image.CreateEmpty(n, n, false, Image.Format.Rgba8);
+		for (int y = 0; y < n; y++)
+			for (int x = 0; x < n; x++) {
+				float nap = (rng.Randf() - 0.5f) * 0.075f;
+				image.SetPixel(x, y, new Color(0.145f + nap * 0.7f, 0.255f + nap, 0.185f + nap * 0.8f));
+			}
+		for (int i = 0; i < 520; i++) {
+			float x = rng.Randf() * n, y = rng.Randf() * n, angle = rng.Randf() * Mathf.Tau;
+			int length = rng.RandiRange(3, 9);
+			bool light = rng.Randf() > 0.45f;
+			Color fibre = light ? new Color(0.45f, 0.62f, 0.48f, 0.16f) : new Color(0.03f, 0.08f, 0.05f, 0.22f);
+			for (int s = 0; s < length; s++) {
+				int px = ((int)(x + Mathf.Cos(angle) * s) % n + n) % n, py = ((int)(y + Mathf.Sin(angle) * s) % n + n) % n;
+				image.SetPixel(px, py, image.GetPixel(px, py).Blend(fibre));
+			}
+		}
+		return ImageTexture.CreateFromImage(image);
+	}
 
 	/// <summary>Fine speckle, a few drifting blotches (foxing) and short fibres; tiles seamlessly.</summary>
 	public static ImageTexture Grain { get { return grain ??= BuildGrain(); } }

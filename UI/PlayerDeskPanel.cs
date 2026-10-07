@@ -918,6 +918,7 @@ public partial class PlayerDeskPanel : Control {
 		foreach (SaveGameService.SaveInfo info in saves) {
 			var row = new HBoxContainer();
 			row.AddThemeConstantOverride("separation", 10);
+			row.AddChild(new LabelCrest().Set(info.Brand, info.LabelName, 38));
 			string tag = info.Slot == currentSlot ? "CURRENT  •  " : SaveGameService.IsAutosaveSlot(info.Slot) ? "AUTOSAVE  •  " : "";
 			var text = new Label {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
@@ -1217,7 +1218,7 @@ public partial class PlayerDeskPanel : Control {
 			var compare = Btn("COMPARE HEARD MATERIAL");
 			compare.CustomMinimumSize = new Vector2(0, 36);
 			compare.Pressed += () => {
-				var preview = PaperModal.Open(this, "A&R — HEARD MATERIAL", 980);
+				var preview = PaperModal.OpenClipboard(this, "A&R — HEARD MATERIAL", 1040);
 				var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 				var scroll = ComparisonScroll(); preview.Body.AddChild(scroll); scroll.AddChild(column);
 				var songs = Option(); foreach (var item in prospect.LiveSet.Take(shown)) songs.AddItem(item.Title);
@@ -1229,7 +1230,7 @@ public partial class PlayerDeskPanel : Control {
 					host.AddChild(ComparisonCard(prospect.Artist, material, prospect.FollowedUp ? PolarEvidenceGate.FollowUp : PolarEvidenceGate.FirstListen,
 						"venue:" + PlayerDesk.Instance.SlateDate + ":" + prospect.Artist.artistId, null, 0, hearing: new PolarHearing {
 							source = PolarHearingSource.Venue, place = PlayerDesk.VenueName(prospect.Venue), when = PlayerDesk.Instance.SlateDate,
-							heardHook = heard.ReadHook, heardHookConfidence = prospect.ReadConfidence }));
+							heardHook = heard.ReadHook, heardHookConfidence = prospect.ReadConfidence }, onSheet: true));
 				}
 				songs.ItemSelected += _ => Update(); Update();
 				preview.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
@@ -1914,10 +1915,10 @@ public partial class PlayerDeskPanel : Control {
 
 	private Control ComparisonCard(SimulatedArtist artist, PlayerDesk.MaterialChoice choice, PolarEvidenceGate gate,
 		string eventId, PolarSessionContext session, int slot, Func<SimulatedArtist, PolarSessionContext> sessionForAct = null, string printedMasterId = null,
-		PolarHearing hearing = null) {
+		PolarHearing hearing = null, bool onSheet = false) {
 		var card = new PanelContainer();
-		card.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = Paper, ContentMarginLeft = 12,
-			ContentMarginRight = 12, ContentMarginTop = 12, ContentMarginBottom = 12 });
+		// On a clipboard the sheet is the modal's own paper; inline it is a sheet of its own.
+		card.AddThemeStyleboxOverride("panel", onSheet ? new StyleBoxEmpty() : PaperStyleBox.Sheet(Paper, 12, 12, 8));
 		var column = new VBoxContainer(); column.AddThemeConstantOverride("separation", 7); card.AddChild(column);
 		Label Copy(string text, Color color) {
 			var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -2258,12 +2259,12 @@ public partial class PlayerDeskPanel : Control {
 		var compare = Btn("COMPARE PLAYBACK");
 		content.AddChild(compare);
 		compare.Pressed += () => {
-			var dialog = PaperModal.Open(this, "PRINTED MASTER — PLAYBACK", 980);
+			var dialog = PaperModal.OpenClipboard(this, "PRINTED MASTER — PLAYBACK", 1040);
 			var choice = new PlayerDesk.MaterialChoice { Title = master.SongTitle, SongId = master.Record.songId };
 			var scroll = ComparisonScroll(); dialog.Body.AddChild(scroll);
 			scroll.AddChild(ComparisonCard(artist, choice, PolarEvidenceGate.Playback, "master:" + master.Record.masterId,
 				new PolarSessionContext { producerCraft = desk.Label.productionQuality, studioCraft = master.Record.productionQuality }, 0, printedMasterId: master.Record.masterId,
-				hearing: new PolarHearing { source = PolarHearingSource.Playback }));
+				hearing: new PolarHearing { source = PolarHearingSource.Playback }, onSheet: true));
 			dialog.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
 		};
 	}
@@ -3047,11 +3048,17 @@ public partial class PlayerDeskPanel : Control {
 		Heading("THE BOOKS");
 		float owed = label.outstandingWholesaleReceivables;
 		float reserved = label.outstandingWholesaleReturnsReserve;
-		Body($"Cash on hand: {Money(label.cashReserves)}\n" +
-			$"Owed to you by wholesalers: ${owed:N0}\n" +
-			(reserved > 0.5f ? $"Held back against returns: ${reserved:N0} -- released or written off when the window closes\n" : "") +
-			$"Written off to short payment, under-reporting, and dead returns: ${label.lifetimeWholesaleWriteOffs:N0}\n" +
-			$"Monthly overhead: ${label.GetMonthlyOverhead():N0}   •   signing reserve: ${2f * label.GetMonthlyOverhead():N0}   •   last month's profit: {Money(label.lastMonthlyProfit)}");
+		var books = new List<LedgerTable.Row> {
+			LedgerTable.Entry("Cash on hand", LedgerTable.Money(label.cashReserves)),
+			LedgerTable.Entry("Owed to you by wholesalers", LedgerTable.Money(owed))
+		};
+		if (reserved > 0.5f) books.Add(LedgerTable.Entry("Held back against returns", LedgerTable.Deduct(reserved)));
+		books.Add(LedgerTable.Entry("Written off: short pay, under-reporting, dead returns", LedgerTable.Deduct(label.lifetimeWholesaleWriteOffs)));
+		books.Add(LedgerTable.Entry("Monthly overhead", LedgerTable.Deduct(label.GetMonthlyOverhead())));
+		books.Add(LedgerTable.Entry("Signing reserve (two months of overhead)", LedgerTable.Money(2f * label.GetMonthlyOverhead())));
+		books.Add(LedgerTable.Total("Last month's profit", LedgerTable.Money(label.lastMonthlyProfit)));
+		content.AddChild(new LedgerTable().Set("The label's position", null, books));
+		if (reserved > 0.5f) Body("Money held back against returns is released, or written off, when the window closes.");
 		Body($"Signing advances must leave more than ${2f * label.GetMonthlyOverhead():N0} cash (two months of overhead). " +
 			$"The overdraft ceiling is ${-desk.CreditFloor:N0}, but it is not a loan; each month-end below $0 advances the closure count, which resets when cash is above $0.");
 		if (label.cashReserves < 0f)
@@ -3061,22 +3068,22 @@ public partial class PlayerDeskPanel : Control {
 		PlayerDesk.WeekBooks latest = desk.Books.FirstOrDefault();
 		if (latest == null) Body("No week has settled yet. The chart settles on Fridays.");
 		else {
-			Body($"{latest.Units:N0} units sold");
-			var settlementRows = new List<string[]> {
-				new[] { "retail gross", $"${latest.Gross:N0}" },
-				new[] { "− manufacturing", $"${latest.ManufacturingCost:N0}" },
-				new[] { "− distributor's skim", $"${latest.DistributionSkim:N0}" },
-				new[] { "− artist royalty", $"${latest.ArtistRoyalty:N0}" }
+			var settlementRows = new List<LedgerTable.Row> {
+				LedgerTable.Entry("Units sold", $"{latest.Units:N0}"),
+				LedgerTable.Entry("Retail gross", LedgerTable.Money(latest.Gross)),
+				LedgerTable.Entry("Less: manufacturing", LedgerTable.Deduct(latest.ManufacturingCost)),
+				LedgerTable.Entry("Less: distributor's skim", LedgerTable.Deduct(latest.DistributionSkim)),
+				LedgerTable.Entry("Less: artist royalty", LedgerTable.Deduct(latest.ArtistRoyalty))
 			};
 			if (latest.RunnerCommission > 0f)
-				settlementRows.Add(new[] { "− runner's commission", $"${latest.RunnerCommission:N0}" });
-			settlementRows.Add(new[] { "= earned", $"${latest.Earned:N0}" });
-			settlementRows.Add(new[] { "− billed on credit", $"${latest.Deferred:N0}" });
+				settlementRows.Add(LedgerTable.Entry("Less: runner's commission", LedgerTable.Deduct(latest.RunnerCommission)));
+			settlementRows.Add(LedgerTable.Total("Earned", LedgerTable.Money(latest.Earned)));
+			settlementRows.Add(LedgerTable.Entry("Less: billed on credit", LedgerTable.Deduct(latest.Deferred)));
 			if (latest.TrunkHeld > 0f)
-				settlementRows.Add(new[] { "− held by the towns", $"${latest.TrunkHeld:N0}" });
-			settlementRows.Add(new[] { "+ old invoices paid", $"${latest.Collected:N0}" });
-			settlementRows.Add(new[] { "= reached the bank", $"${latest.Banked:N0}" });
-			Table(null, settlementRows);
+				settlementRows.Add(LedgerTable.Entry("Less: held by the towns", LedgerTable.Deduct(latest.TrunkHeld)));
+			settlementRows.Add(LedgerTable.Entry("Plus: old invoices paid", LedgerTable.Money(latest.Collected)));
+			settlementRows.Add(LedgerTable.Total("Reached the bank", LedgerTable.Money(latest.Banked)));
+			content.AddChild(new LedgerTable().Set("Week ending " + latest.Date.ToHeadlineString(), null, settlementRows));
 			if (latest.Deferred > 0f)
 				Body($"${latest.Deferred:N0} of what you earned this week went out on credit — " +
 					"the houses pay on their own terms.");
@@ -3125,35 +3132,37 @@ public partial class PlayerDeskPanel : Control {
 		var weeks = desk.Books.Take(14).ToList();
 		if (weeks.Count == 0) Body("Nothing settled yet.");
 		else
-			Table(new[] { "week ending", "units", "earned", "banked", "owed you", "cash" },
-				weeks.Select(week => new[] {
-					week.Date.ToHeadlineString(), $"{week.Units:N0}", $"${week.Earned:N0}",
-					$"${week.Banked:N0}", $"${week.Outstanding:N0}", $"${week.Cash:N0}"
-				}));
+			content.AddChild(new LedgerTable().Set(null, new[] { "week ending", "units", "earned", "banked", "owed you", "cash" },
+				weeks.Select(week => LedgerTable.Entry(week.Date.ToHeadlineString(), $"{week.Units:N0}", LedgerTable.Money(week.Earned),
+					LedgerTable.Money(week.Banked), LedgerTable.Money(week.Outstanding), LedgerTable.Money(week.Cash)))));
 
 		Heading("RECORD BY RECORD");
 		var released = desk.ReleasedRecords.OrderByDescending(record => record.lifetimeLabelNet).ToList();
 		if (released.Count == 0) Body("Nothing released yet.");
-		else
+		else {
+			var recordRows = new List<LedgerTable.Row>();
 			foreach (RecordRuntimeData record in released) {
 				float net = record.lifetimeLabelNet;
 				float cost = record.sunkProductionCost;
 				// Fold in this week's trunk units whose money is already booked but whose count hasn't
 				// settled yet, so dollars-per-unit reads straight mid-week.
 				long unitsLifetime = record.totalUnitsSold + desk.PendingTrunkUnits(record.baseRecord.recordId);
-				string recordId = record.baseRecord.recordId;
-				Body($"\"{record.baseRecord.title}\" — {record.baseRecord.artistName}\n" +
-					$"    {unitsLifetime:N0} units lifetime   •   {record.unitsThisWeek:N0} this week   •   " +
-					$"{(record.peakPosition > 0 ? $"peak #{record.peakPosition}" : "uncharted")}\n" +
-					$"    earned ${net:N0} against ${cost:N0} of tape   •   " +
-					$"{(net >= cost ? $"in the black by ${net - cost:N0}" : $"${cost - net:N0} still to make back")}");
+				recordRows.Add(LedgerTable.Entry($"\"{record.baseRecord.title}\" — {record.baseRecord.artistName}",
+					$"{unitsLifetime:N0}", $"{record.unitsThisWeek:N0}", record.peakPosition > 0 ? $"#{record.peakPosition}" : "—",
+					LedgerTable.Money(net), LedgerTable.Money(cost), LedgerTable.Money(net - cost)));
+			}
+			content.AddChild(new LedgerTable().Set(null, new[] { "record", "units", "this wk", "peak", "earned", "tape", "net" }, recordRows));
+			Body("Net is what a record has earned against its tape. In parentheses, it still has that much to make back.");
 
+			foreach (RecordRuntimeData record in released) {
+				string recordId = record.baseRecord.recordId;
 				// Directive §9: a one-off transaction on this one title, distinct from the P&D deal
 				// above (which covers the whole catalog). Only on the table once a station and a
 				// one-stop both know it -- MasterDealEligible is the single source of truth for that.
 				if (desk.IsMasterOut(recordId)) {
-					Body("    the master's out on this one -- not yours to sell right now.");
+					Body($"\"{record.baseRecord.title}\" — the master's out on this one; not yours to sell right now.");
 				} else if (desk.MasterDealEligible(recordId)) {
+					Body($"\"{record.baseRecord.title}\" — a one-off deal on the master:");
 					var dealRow = new HBoxContainer();
 					dealRow.AddThemeConstantOverride("separation", 10);
 					var leaseBtn = Btn($"LEASE THE MASTER (${desk.MasterLeaseValue(recordId):N0}, {PlayerDesk.MasterLeaseTermWeeks}wk)");
@@ -3167,13 +3176,14 @@ public partial class PlayerDeskPanel : Control {
 					content.AddChild(dealRow);
 				}
 			}
+		}
 
 		Heading("ARTIST ACCOUNTS");
 		var roster = desk.Roster.ToList();
 		if (roster.Count == 0) { Body("Nobody signed."); return; }
-		foreach (SimulatedArtist artist in roster)
-			Body($"{artist.stageName} — ${artist.unrecoupedAdvance:N0} unrecouped   •   " +
-				$"${artist.totalRoyaltyEarnings:N0} paid through   •   {artist.royaltyRate:P1} of retail");
+		content.AddChild(new LedgerTable().Set(null, new[] { "act", "unrecouped", "paid through", "of retail" },
+			roster.Select(artist => LedgerTable.Entry(artist.stageName, LedgerTable.Money(artist.unrecoupedAdvance),
+				LedgerTable.Money(artist.totalRoyaltyEarnings), $"{artist.royaltyRate:P1}"))));
 	}
 
 	// ========================================================================
@@ -4071,42 +4081,6 @@ public partial class PlayerDeskPanel : Control {
 		GetTree().CreateTimer(0.03).Timeout += () => { if (IsInstanceValid(contentScroll)) contentScroll.ScrollVertical = keep; };
 	}
 
-	/// <summary>
-	/// A real grid, because the default font is proportional and space-padded columns do not line up
-	/// in it. Pass null headers for an unheaded two- or three-column list.
-	/// </summary>
-	private void Table(string[] headers, IEnumerable<string[]> rows) {
-		var materialized = rows.ToList();
-		int columns = headers?.Length ?? materialized.FirstOrDefault()?.Length ?? 0;
-		if (columns == 0) return;
-
-		var grid = new GridContainer { Columns = columns };
-		grid.AddThemeConstantOverride("h_separation", 12);
-		grid.AddThemeConstantOverride("v_separation", 4);
-		content.AddChild(grid);
-
-		if (headers != null)
-			foreach (string header in headers) {
-				var cell = new Label { Text = header };
-				cell.AddThemeFontSizeOverride("font_size", 14);
-				cell.AddThemeColorOverride("font_color", new Color("8a6a3a"));
-				grid.AddChild(cell);
-			}
-
-		foreach (string[] row in materialized)
-			for (int column = 0; column < columns; column++) {
-				var cell = new Label {
-					Text = column < row.Length ? row[column] : string.Empty,
-					AutowrapMode = TextServer.AutowrapMode.WordSmart,
-					// Figures read right-aligned; the first column is the label for the row.
-					HorizontalAlignment = column == 0 ? HorizontalAlignment.Left : HorizontalAlignment.Right,
-					SizeFlagsHorizontal = SizeFlags.ExpandFill
-				};
-				cell.AddThemeFontSizeOverride("font_size", 15);
-				cell.AddThemeColorOverride("font_color", Ink);
-				grid.AddChild(cell);
-			}
-	}
 
 	private void Body(string text) {
 		var node = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart };

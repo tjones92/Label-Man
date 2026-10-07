@@ -21,6 +21,7 @@ public partial class UIManager : Control
 	private Button deskButton;
 	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
 	private PaintedRecordLabels paintedRecords;   // the player's label on the wall record and the top of the stack
+	private PaintedGoldRecord paintedGold;        // the gold record on the wall, once a record passes the bar
 	private PanelContainer mainHud;
 	private RecordJacketWidget recordJacket;
 	private Label hudDate, hudNextUp, hudTicker;
@@ -143,6 +144,8 @@ public partial class UIManager : Control
 		MoveChild(paintedLayer, officeBackdrop != null ? officeBackdrop.GetIndex() + 1 : 0);
 		paintedRecords = new PaintedRecordLabels();
 		paintedLayer.AddChild(paintedRecords);
+		paintedGold = new PaintedGoldRecord();
+		paintedLayer.AddChild(paintedGold);
 	}
 
 	// Centre, tilt (rad) and size of each painted flip card in the scene's 1920x1080 space.
@@ -315,6 +318,11 @@ public partial class UIManager : Control
 		TimeManager time = TimeManager.Instance;
 		PlayerDesk desk = PlayerDesk.Instance;
 		paintedRecords?.Set(desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName);
+		if (paintedGold != null) {
+			int dayKey = time == null ? 0 : time.CurrentDate.year * 400 + time.CurrentDate.month * 32 + time.CurrentDate.day;
+			string wentGold = paintedGold.Refresh(desk, desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName, dayKey);
+			if (wentGold != null) ShowAnnouncement($"GOLD RECORD  —  \"{wentGold}\" has passed {PaintedGoldRecord.GoldUnits:N0} copies");
+		}
 		bool overdrawn = desk?.Label != null && desk.Label.cashReserves < 0f;
 		string cash = desk?.Label == null ? "" : $"  •  {(overdrawn ? "−" : "")}${Mathf.Abs(desk.Label.cashReserves):N0} cash";
 		hudDate.Text = time == null ? "" : $"{time.CurrentDate.ToHeadlineString()}  •  {time.GetTimeString()}{cash}";
@@ -328,6 +336,7 @@ public partial class UIManager : Control
 	public void RefreshMainHud() => UpdateMainHud();
 
 	private void OnClockRestored(GameDate date) {
+		paintedGold?.Forget();
 		DismissMorningPaper();
 		UpdateMainHud();
 	}
