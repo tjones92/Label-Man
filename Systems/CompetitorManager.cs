@@ -1095,7 +1095,8 @@ public partial class CompetitorManager : Node {
 				mechanicalRoyalty += MechanicalRoyaltyService.ChargeSide(
 					runtimeData.baseRecord.publishingControl, runtimeData.baseRecord.publishingControllerLabelId,
 					runtimeData.baseRecord.publishingControllerArtistId, artist, label, mechanicalUnits,
-					id => GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+					id => GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
+					MechanicalRoyaltyService.LabelCutInShare(runtimeData.baseRecord, label));
 				if (!string.IsNullOrEmpty(runtimeData.baseRecord.bSideSongId)) {
 					mechanicalRoyalty += MechanicalRoyaltyService.ChargeSide(
 						runtimeData.baseRecord.bSidePublishingControl, runtimeData.baseRecord.bSidePublishingControllerLabelId,

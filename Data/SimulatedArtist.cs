@@ -132,6 +132,9 @@ public class SimulatedArtist {
 	// the term, so a prolific act works its deal out early and a slow one runs the clock.
 	public int contractReleases;
 	public int contractSinglesObligation;
+	/// <summary>The leaving-member clause (band-member simulation §4.7): period contracts commonly gave the label
+	/// an option on any member who left. Written at every signing; read only when a member actually leaves.</summary>
+	public bool contractLeavingMemberOption;
 
 	// The gatekeeper (Scouting Mechanic Phase 3). Stamped at generation; defaults keep every
 	// pre-stamp artist a neutral None with a label-favorable contract, so the scaffolding is inert
@@ -146,6 +149,28 @@ public class SimulatedArtist {
 	// Career-arc state. Null unless artist evolution is observing or enabled, so the
 	// default path allocates nothing extra across a 22.5k-artist registry.
 	public ArtistEvolutionProfile evolution;
+
+	// ---- Band-member simulation (SimTools/BandMemberSimulationDirective.md) ---------------------------
+	// Sparse: every list stays null until something happens to this act, so a quiet band costs nothing.
+	/// <summary>Frozen records of past stints. The people themselves moved on (to the pool or another act).</summary>
+	public List<AlumniRecord> alumni;
+	/// <summary>Edges between members with something going on. Allocated on first strain.</summary>
+	public List<MemberRelation> relations;
+	/// <summary>Writers who have written together, and whether they have a credit pact.</summary>
+	public List<WritingPartnership> writingPartnerships;
+	/// <summary>Deviation from resting cohesion, in [-.3, +.2]. Moves on events (directive §4.5).</summary>
+	public float morale;
+	public int lastMemberChangeYear = -1;
+	public int honeymoonUntilYear = -1;
+	// Year-start snapshots of the lifetime counters, so the annual pass reads THIS year's evidence.
+	public int bandLifeYear = -1;
+	public int chartedAtYearStart;
+	public int top40AtYearStart;
+	public int breakoutsAtYearStart;
+	public int releasesAtYearStart;
+	public int unitsAtYearStart;
+	/// <summary>Observe-only counterfactual: the year this act WOULD have dissolved. 0 = still together.</summary>
+	public int observedEndYear;
 
 	public void RecalculateStats() {
 		if (members.Count == 0) return;
@@ -186,9 +211,21 @@ public class SimulatedArtist {
 	public float CalculateRecordQuality() {
 		float baseQuality = CalculateBaseQuality();
 		float varianceRange = (1f - groupCohesion) * 0.2f;
+		// Band-member simulation §2.9 (world scope only): a room that can't stand each other is erratic in the
+		// studio -- mostly worse, occasionally better. The SAME two draws are taken (the stream stays aligned);
+		// only the symmetric range widens, so the mean record is unchanged by construction.
+		if (BandLife.WorldChurn) varianceRange *= 1f + RoomTension();
 		float variance = (float)GD.RandRange(-varianceRange, varianceRange);
 		float luck = (float)GD.RandRange(-0.08f, 0.08f);
 		return Mathf.Clamp(baseQuality + variance + luck, 0f, 1f);
+	}
+
+	/// <summary>How badly the room is getting on, 0..1: low morale and the worst live grudge between members.</summary>
+	public float RoomTension() {
+		float worst = 0f;
+		if (relations != null)
+			foreach (MemberRelation e in relations) if (!e.secret && e.strain > worst) worst = e.strain;
+		return Mathf.Clamp(Mathf.Max(0f, -morale) * 1.5f + worst * 0.6f, 0f, 1f);
 	}
 
 	public void UpdateAfterChartRun(int peakPosition, int weeksOnChart, int unitsSold, bool creditCurrentContract = true,
@@ -382,7 +419,33 @@ public class SimulatedArtist {
 
 	public List<Musician> GetActiveMembers() => members.Where(m => m.isActive).ToList();
 	public Musician GetLeadSinger() => members.FirstOrDefault(m => m.isActive && m.isLeadVocalist);
+	/// <summary>Legacy single-writer read: the first active writer in LIST ORDER. Kept as the cowriting-off
+	/// credit path; anything that asks "who writes in this act" should use <see cref="GetWriters"/>.</summary>
 	public Musician GetMainWriter() => members.FirstOrDefault(m => m.isActive && m.isPrimaryWriter);
+
+	/// <summary>Minor writers -- members not flagged as writers -- still bring the odd song (the Harrison
+	/// quota). Their weight is this fraction of what the same creativity and ambition earn a writer.</summary>
+	public const float MinorWriterWeightScale = 0.15f;
+	/// <summary>Below this creativity a non-writer contributes nothing at all.</summary>
+	public const float MinorWriterCreativityFloor = 0.55f;
+
+	/// <summary>
+	/// Everyone in the active lineup who writes, with how much of the act's writing they'd pull toward
+	/// themselves: creativity x ambition, floored so a credited writer is never weightless. Flagged writers
+	/// are primary; a creative non-writer is a minor writer at <see cref="MinorWriterWeightScale"/>.
+	/// Ordered by personId so a weighted keyed draw over this list never depends on lineup list order.
+	/// </summary>
+	public List<(Musician Member, float Weight, bool Primary)> GetWriters() {
+		var writers = new List<(Musician, float, bool)>();
+		foreach (Musician m in members) {
+			if (m == null || !m.isActive) continue;
+			float drive = Mathf.Max(0.05f, m.creativity * m.ambition);
+			if (m.isPrimaryWriter) writers.Add((m, drive, true));
+			else if (m.creativity >= MinorWriterCreativityFloor) writers.Add((m, drive * MinorWriterWeightScale, false));
+		}
+		writers.Sort((a, b) => string.CompareOrdinal(a.Item1.personId, b.Item1.personId));
+		return writers;
+	}
 }
 
 public enum CareerState {

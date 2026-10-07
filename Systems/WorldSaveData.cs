@@ -91,6 +91,20 @@ public sealed class WorldSaveData {
 	public CompositionSaveData Composition { get; set; }
 
 	// Phase 4 (cont.): radio.
+
+	// --- Band-member simulation (save v4) --- the person pool, the band-life world seed and the annual
+	// pass bookkeeping. Relations, alumni, partners and member fields ride inside the artists themselves.
+	// Absent in a v3 save: the pool starts empty and every person keeps today's defaults.
+	public BandLifeSaveData BandLife { get; set; }
+}
+
+/// <summary>Band-member simulation world state that does not live on an artist or a musician.</summary>
+public sealed class BandLifeSaveData {
+	public List<PooledPerson> Pool { get; set; } = new();
+	public ulong? WorldSeed { get; set; }
+	public int LastAnnualYear { get; set; }
+	public int FormationDebt { get; set; }
+	public Dictionary<int, int> DeparturesByYear { get; set; } = new();
 }
 
 /// <summary>The composition catalogue (CompositionCatalogService). Songs, writers, publishers, and the writer
@@ -117,6 +131,8 @@ public sealed class CompositionSaveData {
 	public List<ProfessionalSongwriter> ProfessionalWriters { get; set; } = new();
 	public List<MusicPublisher> Publishers { get; set; } = new();
 	public Dictionary<string, CompositionCatalogService.WriterCreditLedgerEntry> WriterLedger { get; set; } = new();
+	// v4: per-stint (personId|artistId) credit ledger. Absent in older saves -> empty.
+	public Dictionary<string, CompositionCatalogService.WriterCreditLedgerEntry> WriterStintLedger { get; set; } = new();
 	public int SongCounter { get; set; }
 	public bool HasRng { get; set; }
 	public ulong RngState { get; set; }
@@ -241,6 +257,7 @@ public static class WorldStateService {
 		CompetitorManager.Instance?.CaptureEconomy(world);
 		RosterManager.Instance?.CaptureCaches(world);
 		CompositionCatalogService.CaptureWorld(world);
+		BandLifeService.CaptureWorld(world);
 		return world;
 	}
 
@@ -259,6 +276,7 @@ public static class WorldStateService {
 		CompetitorManager.Instance?.RehydrateEconomy(world);
 		RosterManager.Instance?.RehydrateCaches(world);
 		CompositionCatalogService.RehydrateWorld(world);
+		BandLifeService.RehydrateWorld(world, date.year);
 		ChartManager.Instance?.RestoreChartWeek(world.ChartWeek);
 		// Restore the frozen "for week ending" date. A pre-fix save (year 0) never stored it, so recover the most
 		// recent week-ending Saturday from the restored calendar date.

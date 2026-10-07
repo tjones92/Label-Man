@@ -34,8 +34,14 @@ public static class CompositionCatalogService {
 	private static readonly Dictionary<GenreFamily, List<SongComposition>> coverableHitsByFamily = new();
 	private static readonly List<ProfessionalSongwriter> professionalWriters = new();
 	private static readonly List<MusicPublisher> publishers = new();
-	// Phase 5: per-person songwriting chart-credit ledger (telemetry-only, keyed by personId).
+	// Phase 5: per-person songwriting chart-credit ledger (telemetry-only, keyed by personId). This is the
+	// person ROLL-UP; the per-stint ledger below separates credits earned in one act from the next.
 	private static readonly Dictionary<string, WriterCreditLedgerEntry> writerLedger = new(StringComparer.Ordinal);
+	// Band-member simulation §2.3: the same ledger keyed personId|artistId, so once people move between acts
+	// a credit earned in one band is never read as a grievance in the next. Also carries the credit MASS each
+	// member holds on the act's originals (written when the credit is, not when a run completes), which is
+	// what the CreditAndMoney strain reads as a share.
+	private static readonly Dictionary<string, WriterCreditLedgerEntry> writerStintLedger = new(StringComparer.Ordinal);
 	// Phase 3b catalog succession: label-controlled compositions indexed by controller label, so a dying
 	// label's publishing catalog can pass to a successor instead of silently leaking (covers of its hits
 	// then pay the successor). Only artist-originals carry a song-level controller label.
@@ -74,6 +80,7 @@ public static class CompositionCatalogService {
 		professionalWriters.Clear();
 		publishers.Clear();
 		writerLedger.Clear();
+		writerStintLedger.Clear();
 		songsByControllerLabel.Clear();
 		songCounter = 0;
 		rng = new RandomNumberGenerator {
@@ -366,22 +373,9 @@ public static class CompositionCatalogService {
 			song.rights.controllerArtistId = artist.artistId;
 		}
 
-		Musician writer = artist.GetMainWriter();
-		if (writer != null) {
-			song.credits.Add(new SongwriterCredit {
-				writerType = WriterEntityType.Musician,
-				writerId = writer.personId,
-				writerName = writer.FullName,
-				share = 1f,
-				isArtistMember = true
-			});
-		} else {
-			song.credits.Add(new SongwriterCredit {
-				writerType = WriterEntityType.HouseCredit,
-				writerName = artist.stageName,
-				share = 1f
-			});
-		}
+		// Credits: a writing team from the act's writers (co-writing on), or the legacy first-writer credit.
+		// Either way a house credit stands in when the act has no writer. Credits only -- no trait moves.
+		CowritingService.CreditOriginal(song, artist, record.recordId, year);
 
 		Register(song);
 		IndexControllerLabel(song);
@@ -510,17 +504,7 @@ public static class CompositionCatalogService {
 			song.rights.controlType = PublishingControlType.ArtistControlled;
 			song.rights.controllerArtistId = artist.artistId;
 		}
-		Musician writer = artist.GetMainWriter();
-		if (writer != null) {
-			song.credits.Add(new SongwriterCredit {
-				writerType = WriterEntityType.Musician, writerId = writer.personId,
-				writerName = writer.FullName, share = 1f, isArtistMember = true
-			});
-		} else {
-			song.credits.Add(new SongwriterCredit {
-				writerType = WriterEntityType.HouseCredit, writerName = artist.stageName, share = 1f
-			});
-		}
+		CowritingService.CreditOriginal(song, artist, record.recordId, year);
 		// Song-only registration: an artist-original is reachable by id but is NOT a selectable cover
 		// candidate. It enters coverableHitsByGenre only if it charts (Phase 4).
 		PolarSongMetadataService.EnsureComposition(song);
@@ -612,28 +596,100 @@ public static class CompositionCatalogService {
 				led = new WriterCreditLedgerEntry { personId = credit.writerId, name = credit.writerName };
 				writerLedger[credit.writerId] = led;
 			}
-			led.creditedRuns++;
-			if (song.originKind == SongOriginKind.ArtistOriginal) led.originalCredits++;
-			if (top40) led.top40Credits++;
-			if (peak == 1) led.number1Credits++;
-			led.totalUnits += Mathf.Max(0, record.totalUnitsSold);
-			led.bestSuccess = Mathf.Max(led.bestSuccess, successScore);
+			AccrueRun(led, song, top40, peak, record.totalUnitsSold, successScore);
+			// The stint: credits on an act's own original belong to the act the song came from.
+			if (credit.isArtistMember && !string.IsNullOrEmpty(song.originArtistId))
+				AccrueRun(StintEntry(credit.writerId, song.originArtistId, credit.writerName), song, top40, peak,
+					record.totalUnitsSold, successScore);
 		}
 	}
 
-	/// <summary>Per-person accumulation of songwriting chart credits (Phase 5, telemetry-only).</summary>
+	private static void AccrueRun(WriterCreditLedgerEntry led, SongComposition song, bool top40, int peak, int units,
+		float successScore) {
+		led.creditedRuns++;
+		if (song.originKind == SongOriginKind.ArtistOriginal) led.originalCredits++;
+		if (top40) led.top40Credits++;
+		if (peak == 1) led.number1Credits++;
+		led.totalUnits += Mathf.Max(0, units);
+		led.bestSuccess = Mathf.Max(led.bestSuccess, successScore);
+	}
+
+	private static WriterCreditLedgerEntry StintEntry(string personId, string artistId, string name) {
+		string key = StintKey(personId, artistId);
+		if (!writerStintLedger.TryGetValue(key, out WriterCreditLedgerEntry entry)) {
+			entry = new WriterCreditLedgerEntry { personId = personId, artistId = artistId, name = name };
+			writerStintLedger[key] = entry;
+		}
+		return entry;
+	}
+
+	public static string StintKey(string personId, string artistId) => personId + "|" + artistId;
+
+	/// <summary>
+	/// Records who holds the credit on a freshly credited artist original, per stint. Called wherever an
+	/// original's credits are written. Pure accumulation into a ledger nothing in the economy reads.
+	/// </summary>
+	internal static void RecordOriginalCredits(SongComposition song, SimulatedArtist artist) {
+		if (song?.credits == null || artist == null) return;
+		int memberWriters = 0;
+		foreach (SongwriterCredit credit in song.credits)
+			if (credit.isArtistMember && !string.IsNullOrEmpty(credit.writerId)) memberWriters++;
+		foreach (SongwriterCredit credit in song.credits) {
+			if (!credit.isArtistMember || string.IsNullOrEmpty(credit.writerId)) continue;
+			WriterCreditLedgerEntry entry = StintEntry(credit.writerId, artist.artistId, credit.writerName);
+			entry.creditMass += credit.share;
+			entry.songs++;
+			if (memberWriters > 1) entry.coWrittenSongs++;
+		}
+	}
+
+	/// <summary>One member's credited share of an act's originals: their credit mass over the act's total.
+	/// Zero for a member with no credits; zero everywhere for an act with no credited originals.</summary>
+	public static float GetStintCreditShare(string personId, SimulatedArtist artist) {
+		if (artist?.members == null || string.IsNullOrEmpty(personId)) return 0f;
+		float mine = 0f, total = 0f;
+		foreach (Musician m in artist.members) {
+			if (m == null) continue;
+			float mass = writerStintLedger.TryGetValue(StintKey(m.personId, artist.artistId), out var e) ? e.creditMass : 0f;
+			total += mass;
+			if (m.personId == personId) mine = mass;
+		}
+		if (artist.alumni != null)
+			foreach (AlumniRecord a in artist.alumni)
+				if (writerStintLedger.TryGetValue(StintKey(a.personId, artist.artistId), out var e)) total += e.creditMass;
+		return total > 0f ? mine / total : 0f;
+	}
+
+	public static WriterCreditLedgerEntry GetStint(string personId, string artistId) =>
+		writerStintLedger.TryGetValue(StintKey(personId, artistId), out var e) ? e : null;
+
+	/// <summary>Whether a person holds any writer credit anywhere -- the pool's "career to continue" test.</summary>
+	public static bool HasAnyWriterCredit(string personId) {
+		if (string.IsNullOrEmpty(personId)) return false;
+		if (writerLedger.ContainsKey(personId)) return true;
+		foreach (WriterCreditLedgerEntry e in writerStintLedger.Values) if (e.personId == personId && e.songs > 0) return true;
+		return false;
+	}
+
+	/// <summary>Per-person accumulation of songwriting chart credits (Phase 5, telemetry-only). The same type
+	/// serves the per-stint ledger, where <see cref="artistId"/> is set and the credit-mass fields are filled.</summary>
 	public sealed class WriterCreditLedgerEntry {
 		public string personId;
 		public string name;
+		public string artistId;      // set on stint entries only
 		public int creditedRuns;     // completed chart runs of songs this person is credited on
 		public int originalCredits;  // of those, artist-original compositions
 		public int top40Credits;
 		public int number1Credits;
 		public long totalUnits;
 		public float bestSuccess;
+		public float creditMass;     // stint only: sum of credit shares across the act's originals
+		public int songs;            // stint only: originals credited in this act
+		public int coWrittenSongs;   // stint only: of those, credited to more than one member
 	}
 
 	public static IReadOnlyCollection<WriterCreditLedgerEntry> WriterCreditLedger => writerLedger.Values;
+	public static IReadOnlyCollection<WriterCreditLedgerEntry> WriterStintLedger => writerStintLedger.Values;
 
 	// Index an artist-original whose publishing a label controls, so catalog succession can find it.
 	private static void IndexControllerLabel(SongComposition song) {
@@ -819,6 +875,7 @@ public static class CompositionCatalogService {
 			ProfessionalWriters = professionalWriters.ToList(),
 			Publishers = publishers.ToList(),
 			WriterLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerLedger),
+			WriterStintLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerStintLedger),
 			SongCounter = songCounter
 		};
 		if (rng != null && titleRng != null) {
@@ -870,6 +927,8 @@ public static class CompositionCatalogService {
 		publishers.Clear(); publishers.AddRange(c.Publishers ?? new List<MusicPublisher>());
 		writerLedger.Clear();
 		foreach (var kv in c.WriterLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerLedger[kv.Key] = kv.Value;
+		writerStintLedger.Clear();
+		foreach (var kv in c.WriterStintLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerStintLedger[kv.Key] = kv.Value;
 
 		songCounter = c.SongCounter;
 		if (c.HasRng) {

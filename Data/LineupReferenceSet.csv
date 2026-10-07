@@ -1,0 +1,110 @@
+act,type,firstTop40Year,lineupChange,firstChangeYear,changeCause,split,splitYear,soloSpinout,serviceLoss,serviceYear,deaths,deathYear,deathChannel,deathAge,verified,source,note
+The Beatles,Band,1964,Y,1962,Fired,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Pete_Best,Pete Best dismissed Aug 1962 (before first US top 40); split 1970 outside window
+The Rolling Stones,Band,1964,Y,1969,Reliability,N,,N,N,,1,1969,Substance,27,memory,https://en.wikipedia.org/wiki/Brian_Jones,Brian Jones left June 1969 (drug arrests/unreliability); drowned July 1969 under the influence
+The Beach Boys,Band,1962,Y,1963,Outsider,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/David_Marks,David Marks left 1963 after clashes with manager Murry Wilson; Brian Wilson off the road Dec 1964 (Burnout/studio-only)
+The Four Seasons,VocalGroup,1962,Y,1965,Burnout,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Nick_Massi,Nick Massi left 1965 tired of touring
+The Temptations,VocalGroup,1964,Y,1968,Spotlight,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/David_Ruffin,David Ruffin fired 1968 after demanding top billing; went solo
+The Supremes,VocalGroup,1964,Y,1967,Reliability,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Florence_Ballard,Florence Ballard fired 1967 (missed shows/drinking); act rebilled Diana Ross & the Supremes 1967
+The Miracles,VocalGroup,1961,Y,1964,Burnout,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Claudette_Robinson,Claudette Robinson stopped touring 1964 but kept recording (studio-only)
+The Four Tops,VocalGroup,1964,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Four_Tops,Same four members through the decade
+Martha and the Vandellas,VocalGroup,1963,Y,1964,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Annette_Beard,Annette Beard left 1964 (marriage/pregnancy)
+The Marvelettes,VocalGroup,1961,Y,1963,Burnout,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Marvelettes,Juanita Cowart left 1963 (breakdown); Georgeanna Tillman 1965 (illness); Gladys Horton 1967
+The Drifters,VocalGroup,1960,Y,1960,CreditAndMoney,N,,Y,N,,1,1964,Substance,27,web,https://en.wikipedia.org/wiki/Rudy_Lewis,Name owned by manager; Ben E. King left 1960 over pay -> solo; Rudy Lewis died May 1964 (ruled probable overdose; disputed)
+The Platters,VocalGroup,1960,Y,1960,Spotlight,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Tony_Williams_(singer),Tony Williams left 1960 for a solo career; name owned by Buck Ram
+The Coasters,VocalGroup,1960,Y,1961,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Coasters,Frequent turnover; Cornell Gunter left 1961
+The Shirelles,VocalGroup,1960,Y,1968,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Shirelles,Doris Coley left 1968 (marriage)
+The Crystals,VocalGroup,1961,Y,1962,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Crystals,Mary Thomas left 1962 (marriage); producer-owned name -- He's a Rebel sung by Darlene Love
+The Ronettes,VocalGroup,1963,N,,None,Y,1967,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Ronettes,Disbanded 1967 under producer control (Outsider)
+The Shangri-Las,VocalGroup,1964,Y,1965,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Shangri-Las,Mary Ann Ganser and Betty Weiss in and out 1965-66
+Dion and the Belmonts,VocalGroup,1960,N,,None,Y,1960,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Dion_and_the_Belmonts,Dion left 1960 for a solo career (Direction/Spotlight)
+The Everly Brothers,Duo,1960,N,,None,N,,N,Y,1961,0,,,,web,https://en.wikipedia.org/wiki/The_Everly_Brothers,Both enlisted in the Marine Corps Reserve Oct 1961 to avoid the draft; six months active duty
+Simon & Garfunkel,Duo,1966,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Simon_%26_Garfunkel,Split 1970 outside window
+The Righteous Brothers,Duo,1964,N,,None,Y,1968,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Righteous_Brothers,Bill Medley left 1968 for a solo career
+Sam & Dave,Duo,1966,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Sam_%26_Dave,First split 1970
+"Peter, Paul and Mary",VocalGroup,1962,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Peter,_Paul_and_Mary,Same trio through the decade
+The Kingston Trio,VocalGroup,1960,Y,1961,CreditAndMoney,Y,1967,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Dave_Guard,Dave Guard left 1961 over finances and direction; trio disbanded 1967
+The Byrds,Band,1965,Y,1966,Burnout,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Gene_Clark,Gene Clark left 1966 (fear of flying; resentment over his writing royalties); Crosby fired 1967
+The Mamas & the Papas,VocalGroup,1966,Y,1966,Romance,Y,1968,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Michelle_Phillips,Michelle Phillips fired 1966 after an affair with Gene Clark; rehired; disbanded 1968
+The Lovin' Spoonful,Band,1965,Y,1967,Outsider,Y,1969,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Zal_Yanovsky,Zal Yanovsky left 1967 after a drug bust; John Sebastian left 1968 for a solo career
+The Turtles,Band,1965,Y,1966,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Turtles,Rhythm section changes 1966-67
+The Association,Band,1966,Y,1967,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Association,Gary Alexander left 1967 (went to India)
+The Monkees,Band,1966,Y,1968,Burnout,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Peter_Tork,Peter Tork left Dec 1968
+The Young Rascals,Band,1966,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Rascals,Changes begin 1970
+The Doors,Band,1967,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Doors,No change in the decade
+Jefferson Airplane,Band,1967,Y,1966,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Signe_Anderson,Signe Anderson left 1966 after having a baby; Skip Spence 1966
+Buffalo Springfield,Band,1967,Y,1967,Outsider,Y,1968,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Buffalo_Springfield,Bruce Palmer deported 1967 after a drug arrest; Neil Young in and out; split 1968
+Cream,Band,1968,N,,None,Y,1968,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Cream_(band),Split 1968 amid Baker-Bruce clashes (Direction/Spotlight)
+The Yardbirds,Band,1965,Y,1965,Direction,Y,1968,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Yardbirds,Eric Clapton left 1965 over commercial direction; Jeff Beck fired 1966
+The Animals,Band,1964,Y,1965,CreditAndMoney,Y,1966,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Alan_Price,Alan Price left 1965 (fear of flying; arrangement credit on House of the Rising Sun); original lineup split 1966
+The Kinks,Band,1964,Y,1969,Burnout,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Pete_Quaife,Pete Quaife left 1969
+The Who,Band,1965,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Who,No change in the decade
+The Zombies,Band,1964,N,,None,Y,1967,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Zombies,Split Dec 1967 for lack of success/money
+The Hollies,Band,1964,Y,1966,CreditAndMoney,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Hollies,Eric Haydock fired 1966 over money; Graham Nash left Dec 1968 (Direction)
+Herman's Hermits,Band,1964,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Herman%27s_Hermits,No change in the decade
+The Dave Clark Five,Band,1964,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Dave_Clark_Five,No change in the decade
+Gerry and the Pacemakers,Band,1964,N,,None,Y,1966,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Gerry_and_the_Pacemakers,Disbanded 1966
+The Searchers,Band,1964,Y,1964,Spotlight,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Searchers_(band),Tony Jackson left 1964; Chris Curtis left 1966
+Manfred Mann,Band,1964,Y,1965,Direction,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Manfred_Mann,Mike Vickers left 1965; Paul Jones left 1966 for a solo career
+The Spencer Davis Group,Band,1967,Y,1967,Direction,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Spencer_Davis_Group,Steve and Muff Winwood left 1967
+The Moody Blues,Band,1965,Y,1966,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Moody_Blues,Denny Laine and Clint Warwick left 1966
+Peter and Gordon,Duo,1964,N,,None,Y,1968,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Peter_and_Gordon,Split 1968
+Chad & Jeremy,Duo,1964,N,,None,Y,1968,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Chad_%26_Jeremy,Split 1968
+Jay and the Americans,VocalGroup,1962,Y,1962,Direction,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Jay_and_the_Americans,Jay Traynor left 1962; replaced by Jay Black
+The Dovells,VocalGroup,1961,Y,1963,Spotlight,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Len_Barry,Len Barry left 1963 for a solo career (1-2-3 1965)
+Paul Revere & the Raiders,Band,1965,Y,1966,Service,N,,N,Y,1966,0,,,,web,https://en.wikipedia.org/wiki/Drake_Levin,Drake Levin left 1966 for the National Guard when the draft beckoned; replaced by Jim Valley
+Gary Lewis & the Playboys,Band,1965,N,,None,Y,1967,N,Y,1967,0,,,,web,https://en.wikipedia.org/wiki/Gary_Lewis_%26_the_Playboys,Gary Lewis drafted Jan 1967; the Playboys disbanded
+Elvis Presley,Solo,1960,N,,None,N,,N,Y,1958,0,,,,web,https://en.wikipedia.org/wiki/Elvis_Presley,Army 1958-60 (service began before the window; RCA released stockpiled sides)
+The Box Tops,Band,1967,Y,1968,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Box_Tops,John Evans and Danny Smythe left 1968 to return to school
+The Left Banke,Band,1966,Y,1967,Direction,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Left_Banke,Michael Brown left 1967
+Sly and the Family Stone,Band,1968,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Sly_and_the_Family_Stone,No change in the decade
+Booker T. & the M.G.'s,Band,1962,Y,1965,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Booker_T._%26_the_M.G.%27s,Donald Dunn replaced Lewie Steinberg on bass c.1965
+The Bar-Kays,Band,1967,Y,1967,Death,N,,N,N,,4,1967,Travel,18,memory,https://en.wikipedia.org/wiki/The_Bar-Kays,Four members died in Otis Redding's plane crash Dec 1967; the band was rebuilt
+Otis Redding,Solo,1965,N,,None,N,,N,N,,1,1967,Travel,26,memory,https://en.wikipedia.org/wiki/Otis_Redding,Plane crash Dec 1967; (Sittin' On) The Dock of the Bay #1 posthumously 1968
+Patsy Cline,Solo,1961,N,,None,N,,N,N,,1,1963,Travel,30,memory,https://en.wikipedia.org/wiki/Patsy_Cline,Plane crash March 1963
+Jim Reeves,Solo,1960,N,,None,N,,N,N,,1,1964,Travel,40,memory,https://en.wikipedia.org/wiki/Jim_Reeves,Plane crash July 1964
+Johnny Horton,Solo,1960,N,,None,N,,N,N,,1,1960,Travel,35,memory,https://en.wikipedia.org/wiki/Johnny_Horton,Car crash Nov 1960 driving home from a show
+Sam Cooke,Solo,1960,N,,None,N,,N,N,,1,1964,Misadventure,33,memory,https://en.wikipedia.org/wiki/Sam_Cooke,Shot Dec 1964
+Johnny Burnette,Solo,1960,N,,None,N,,N,N,,1,1964,Misadventure,30,memory,https://en.wikipedia.org/wiki/Johnny_Burnette,Boating accident Aug 1964
+Dinah Washington,Solo,1960,N,,None,N,,N,N,,1,1963,Substance,39,web,https://en.wikipedia.org/wiki/Dinah_Washington,Accidental overdose of prescription barbiturates and alcohol Dec 1963
+Nat King Cole,Solo,1960,N,,None,N,,N,N,,1,1965,Illness,45,memory,https://en.wikipedia.org/wiki/Nat_King_Cole,Lung cancer Feb 1965
+The Bobby Fuller Four,Band,1966,N,,None,Y,1966,N,N,,1,1966,Misadventure,23,memory,https://en.wikipedia.org/wiki/Bobby_Fuller,Bobby Fuller found dead July 1966; the band ended
+Little Willie John,Solo,1960,N,,None,N,,N,N,,1,1968,Misadventure,30,web,https://en.wikipedia.org/wiki/Little_Willie_John,Died in Washington State Penitentiary May 1968 (heart attack on the certificate; disputed)
+Spanky and Our Gang,VocalGroup,1967,Y,1968,Death,Y,1969,N,N,,1,1968,Misadventure,27,web,https://en.wikipedia.org/wiki/Spanky_and_Our_Gang,Malcolm Hale died Oct 1968 (bronchial pneumonia per coroner; carbon monoxide per later accounts); disbanded 1969
+Shorty Long,Solo,1968,N,,None,N,,N,N,,1,1969,Misadventure,29,web,https://en.wikipedia.org/wiki/Shorty_Long,Drowned when his boat capsized on the Detroit River June 1969
+The Jimi Hendrix Experience,Band,1968,Y,1969,Direction,Y,1969,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Noel_Redding,Noel Redding left June 1969; the Experience ended
+Creedence Clearwater Revival,Band,1969,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Creedence_Clearwater_Revival,No change in the decade
+Steppenwolf,Band,1968,Y,1968,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Steppenwolf_(band),Rushton Moreve left 1968
+The Highwaymen,VocalGroup,1961,N,,None,Y,1964,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Highwaymen_(folk_band),Disbanded 1964 as members went to graduate school
+The New Christy Minstrels,VocalGroup,1963,Y,1963,Direction,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_New_Christy_Minstrels,Constant turnover; Barry McGuire left 1965 for a solo career
+The Impressions,VocalGroup,1961,Y,1962,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Impressions,Richard and Arthur Brooks left 1962
+Gladys Knight & the Pips,VocalGroup,1961,Y,1962,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Gladys_Knight_%26_the_Pips,Langston George left 1962
+Little Anthony and the Imperials,VocalGroup,1960,Y,1961,Spotlight,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Little_Anthony_and_the_Imperials,Little Anthony left 1961 for a solo attempt; returned 1963
+Jan and Dean,Duo,1963,N,,None,Y,1966,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Jan_and_Dean,Jan Berry's car crash April 1966 ended the act (LifeEvent)
+The Ventures,Band,1960,Y,1962,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Ventures,Drummer Howie Johnson left 1962 after a car accident injury
+The Tornados,Band,1962,Y,1963,Spotlight,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Tornados,Heinz Burt left 1963 for a solo career
+The Dave Brubeck Quartet,Band,1961,N,,None,Y,1967,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Dave_Brubeck_Quartet,Classic quartet disbanded 1967
+The Kingsmen,Band,1963,Y,1963,Spotlight,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Kingsmen,Jack Ely left 1963 when Lynn Easton (who held the name) took over lead vocals
+Big Brother and the Holding Company,Band,1968,Y,1968,Spotlight,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Big_Brother_and_the_Holding_Company,Janis Joplin left Dec 1968 for a solo career
+Love,Band,1966,Y,1968,Reliability,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Love_(band),Arthur Lee replaced the lineup 1968 amid drug problems
+The Youngbloods,Band,1969,Y,1969,Unknown,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Youngbloods,Jerry Corbitt left 1969
+The Easybeats,Band,1967,Y,1967,LifeEvent,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Easybeats,Snowy Fleet left 1967 for family reasons
+The Small Faces,Band,1968,N,,None,Y,1969,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Small_Faces,Steve Marriott left 1969 (Direction)
+Bee Gees,Band,1967,Y,1969,Spotlight,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Robin_Gibb,Robin Gibb left 1969 for a solo career; Colin Petersen fired 1969
+Wayne Fontana and the Mindbenders,Band,1965,Y,1965,Spotlight,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Mindbenders,Wayne Fontana left 1965 for a solo career; the Mindbenders charted without him 1966
+Them,Band,1965,Y,1966,Direction,N,,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Them_(band),Van Morrison left 1966
+The Walker Brothers,VocalGroup,1965,N,,None,Y,1967,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Walker_Brothers,Split 1967
+The Seekers,VocalGroup,1965,N,,None,Y,1968,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Seekers,Judith Durham left 1968 for a solo career; the group ended
+Mitch Ryder & the Detroit Wheels,Band,1965,N,,None,Y,1967,Y,N,,0,,,,memory,https://en.wikipedia.org/wiki/Mitch_Ryder,Producer Bob Crewe split Ryder from the band for a solo career 1967 (Outsider)
+The Grass Roots,Band,1967,Y,1969,Reliability,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Grass_Roots,Creed Bratton fired 1969
+The Chiffons,VocalGroup,1963,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Chiffons,No change in the decade
+Bobby Vee,Solo,1960,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Bobby_Vee,Solo act; no service or death
+Roy Orbison,Solo,1960,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Roy_Orbison,Solo act
+Del Shannon,Solo,1961,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Del_Shannon,Solo act
+Chubby Checker,Solo,1960,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Chubby_Checker,Solo act
+Brenda Lee,Solo,1960,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Brenda_Lee,Solo act
+Dusty Springfield,Solo,1964,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Dusty_Springfield,Solo act (left the Springfields 1963)
+Petula Clark,Solo,1965,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Petula_Clark,Solo act
+Sonny & Cher,Duo,1965,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Sonny_%26_Cher,No split in the decade
+Ike & Tina Turner,Duo,1960,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/Ike_%26_Tina_Turner,No split in the decade
+The 5th Dimension,VocalGroup,1967,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_5th_Dimension,No change in the decade
+The Isley Brothers,VocalGroup,1962,N,,None,N,,N,N,,0,,,,memory,https://en.wikipedia.org/wiki/The_Isley_Brothers,No change in the decade

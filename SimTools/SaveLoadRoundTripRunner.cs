@@ -53,6 +53,10 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (polarDataCheck) { PolarSongDataChecks.Run(); GetTree().Quit(0); return; }
 			if (polarFitCheck) { PolarSongFitChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--polar-song-behavior-check")) { PolarSongBehaviorChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--band-life-check")) {
+				for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
+				BandLifeChecks.Run(); GetTree().Quit(0); return;
+			}
 			if (OS.GetCmdlineUserArgs().Contains("--polar-recording-realization-check")) { PolarRecordingRealizationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--polar-rock-songbook-check")) { PolarRockSongbookChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--polar-player-perception-check")) { PolarPlayerPerceptionChecks.Run(); GetTree().Quit(0); return; }

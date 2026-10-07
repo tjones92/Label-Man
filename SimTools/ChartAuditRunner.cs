@@ -407,6 +407,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnSupplySelection += OnSupplySelection;
 			GenreSupplyService.OnTraditionalPopFallback += OnTraditionalPopFallback;
 			if (ArtistEvolution.Observing) ArtistEvolutionService.OnEvolutionObservation += OnEvolutionObservation;
+			OpenBandLifeOutputs();
 			if (ArtistEvolution.CulturalMemoryEnabled) CulturalMemoryService.OnEventPublished += OnCulturalEventPublished;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			WriteDistanceSubstrateRows();
@@ -3853,6 +3854,7 @@ public partial class ChartAuditRunner : Node {
 			}
 		}
 		WriteMusicianRecognitionRows();
+		WriteBandLifeEndOfRun();
 		recordWriter?.Dispose();
 		songMaterialWriter?.Dispose();
 		polarSongShadow?.Dispose();

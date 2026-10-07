@@ -426,6 +426,9 @@ public partial class AILabel : Resource {
 		artist.contractReleases = 0;
 		artist.labelOwnsPublishing = sheet.LabelOwnsPublishing;   // the economic axis (Phase 4 gives it teeth)
 		artist.artistCreativeControl = sheet.ArtistCreativeControl;
+		// The period's standard leaving-member clause. Stored on the act rather than the term sheet: nothing
+		// negotiates it, and nothing reads it until a member actually leaves (band-member simulation §4.7).
+		artist.contractLeavingMemberOption = true;
 
 		roster.Add(artist);
 		artist.careerEvents.Add($"{currentYear}: Signed to {labelName} (${sheet.Advance:N0} advance, {artist.contractLength}yr" +

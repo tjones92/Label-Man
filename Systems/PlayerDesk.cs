@@ -245,6 +245,9 @@ public partial class PlayerDesk : Node {
 		public GameDate Written;
 		public bool Recorded;
 		public string RecordedId;   // the player record it was cut to, once recorded
+		// Band Room writing session: who wrote it. Credited to exactly this team when it is cut.
+		public List<string> TeamPersonIds;
+		public bool WithStaffWriter;
 	}
 
 	/// <summary>What a session is cutting -- where the material comes from.</summary>
@@ -925,9 +928,11 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
+		InitBandRoom();
 	}
 
 	public override void _ExitTree() {
+		TeardownBandRoom();
 		if (TimeManager.Instance != null) {
 			TimeManager.Instance.OnDayStarted -= OnDayStarted;
 			TimeManager.Instance.OnHourChanged -= OnHourChanged;
@@ -2099,9 +2104,14 @@ public partial class PlayerDesk : Node {
 		int takes = Mathf.Clamp(Mathf.RoundToInt((float)hours / cutting.Count), 1, 4);
 
 		var session = new PendingSession { ArtistId = artist.artistId, Tier = tier, Hours = hours, Cost = cost, Date = today };
+		// The Band Room in the studio: a hired session player lifts the execution (and humiliates the member he
+		// replaced); a room that can't stand each other plays erratically -- the same number of draws, a wider
+		// spread around the same mean (directive §2.9).
+		float sessionLift = ConsumeSessionPlayer(artist);
+		float tension = artist.RoomTension();
 		foreach (MaterialChoice choice in cutting) {
 			var cut = new SessionCut { Choice = choice };
-			for (int i = 1; i <= takes; i++) cut.Takes.Add(RollTake(i, artist, choice, tier, t));
+			for (int i = 1; i <= takes; i++) cut.Takes.Add(RollTake(i, artist, choice, tier, t, sessionLift, tension));
 			cut.KeptTake = BestTakeIndex(cut.Takes);
 			session.Cuts.Add(cut);
 		}
@@ -2113,17 +2123,27 @@ public partial class PlayerDesk : Node {
 		return true;
 	}
 
-	private static SessionTake RollTake(int number, SimulatedArtist artist, MaterialChoice choice, StudioTier tier, float studioT) {
+	private static SessionTake RollTake(int number, SimulatedArtist artist, MaterialChoice choice, StudioTier tier, float studioT,
+		float sessionLift = 0f, float tension = 0f) {
 		// The room sets a production ceiling; the act's ear sets the hook; each take rolls around them.
 		float tierProd = tier switch { StudioTier.Budget => 0.30f, StudioTier.Top => 0.62f, _ => 0.46f };
 		float basePerformance = choice.WrittenSong != null ? choice.WrittenSong.Hook
 			: Mathf.Clamp(artist.studioPerformance * 0.5f + artist.livePerformance * 0.2f + 0.15f, 0f, 1f);
+		// Tension widens each draw about its own centre, so the mean take is unchanged and the count of draws
+		// is the same: the room is erratic, not worse on average.
+		float hookNoise = (float)GD.RandRange(-0.10, 0.14);
+		float prodNoise = (float)GD.RandRange(-0.08, 0.10);
+		if (tension > 0f) {
+			hookNoise = 0.02f + (hookNoise - 0.02f) * (1f + tension);
+			prodNoise = 0.01f + (prodNoise - 0.01f) * (1f + tension);
+		}
 		return new SessionTake {
 			Number = number,
-			Hook = Mathf.Clamp(basePerformance * 0.75f + studioT * 0.10f + (float)GD.RandRange(-0.10, 0.14), 0f, 1f),
-			Production = Mathf.Clamp(tierProd + artist.studioPerformance * 0.22f + studioT * 0.12f + (float)GD.RandRange(-0.08, 0.10), 0f, 1f)
+			Hook = Mathf.Clamp(basePerformance * 0.75f + studioT * 0.10f + hookNoise + sessionLift * 0.3f, 0f, 1f),
+			Production = Mathf.Clamp(tierProd + artist.studioPerformance * 0.22f + studioT * 0.12f + prodNoise + sessionLift, 0f, 1f)
 		};
 	}
+
 
 	// Bug report: "could autoselecting master give away the un-noised quality? ... the game selecting
 	// a 3-star/3-star over a 3-star/4-star." Overall (the raw Hook/Production average) doesn't respect
@@ -2208,8 +2228,12 @@ public partial class PlayerDesk : Node {
 			danceability = choice.WrittenSong != null ? choice.WrittenSong.Danceability : (float)GD.RandRange(0.3, 0.95)
 		};
 
-		// Stamp the song identity and blend the take toward the material (same path as the AI).
-		SelectedSongMaterial material = ResolveMaterial(choice, artist, record, year, week);
+		// Stamp the song identity and blend the take toward the material (same path as the AI). A Band Room
+		// writing-session song carries its own team onto the credit (CowritingService reads it via the override).
+		pendingTeamForCut = choice.WrittenSong?.TeamPersonIds;
+		SelectedSongMaterial material;
+		try { material = ResolveMaterial(choice, artist, record, year, week); }
+		finally { pendingTeamForCut = null; }
 		if (material?.Song != null) {
 			PolarSongBehavior.Prepare(material, artist, record, record.primaryGenre, year, Label,
 				new PolarSessionContext { producerCraft = Label.productionQuality, studioCraft = take.Production });
@@ -3019,7 +3043,8 @@ public partial class PlayerDesk : Node {
 			mechanical += MechanicalRoyaltyService.ChargeSide(
 				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
 				rec.baseRecord.publishingControllerArtistId, artist, Label, qty,
-				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
+				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label));
 			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
 				mechanical += MechanicalRoyaltyService.ChargeSide(
 					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
@@ -3133,7 +3158,8 @@ public partial class PlayerDesk : Node {
 			float mechanical = MechanicalRoyaltyService.ChargeSide(
 				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
 				rec.baseRecord.publishingControllerArtistId, artist, Label, take,
-				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
+				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label));
 			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
 				mechanical += MechanicalRoyaltyService.ChargeSide(
 					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
@@ -3878,6 +3904,7 @@ public partial class PlayerDesk : Node {
 		ChargeHotelIfAway();
 		DeliverArrivedPressings(date);
 		ProcessCoverRehearsals(date);
+		ProcessWritingSessions(date);
 		foreach (PlannedRelease release in planned.Where(entry => entry.Dated && entry.Date <= date).ToList()) {
 			planned.Remove(release);
 			FireRelease(release, date);
@@ -4042,7 +4069,8 @@ public partial class PlayerDesk : Node {
 			mechanical += MechanicalRoyaltyService.ChargeSide(
 				rec.baseRecord.publishingControl, rec.baseRecord.publishingControllerLabelId,
 				rec.baseRecord.publishingControllerArtistId, artist, Label, units,
-				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+				id => CompetitorManager.Instance?.GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
+				MechanicalRoyaltyService.LabelCutInShare(rec.baseRecord, Label));
 			if (!string.IsNullOrEmpty(rec.baseRecord.bSideSongId)) {
 				mechanical += MechanicalRoyaltyService.ChargeSide(
 					rec.baseRecord.bSidePublishingControl, rec.baseRecord.bSidePublishingControllerLabelId,
@@ -4631,6 +4659,8 @@ public partial class PlayerDesk : Node {
 		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
 		// word on against what the records actually sold.
 		ProcessRolodexWeek();
+		// The Band Room: expire stale visits, raise fact-backed requests, run the road bookings.
+		ProcessBandRoomWeek(date);
 		// The plant collects on a due credit run before the settlement snapshot -- certain, not a dice
 		// roll, so it shows in this week's Cash the same as any other bill (directive §11).
 		SettlePlantCreditIfDue();
@@ -5083,6 +5113,7 @@ public partial class PlayerDesk : Node {
 			Advocacy = (ChartManager.Instance?.Advocacy.Active ?? (IReadOnlyList<StationAdvocacy>)Array.Empty<StationAdvocacy>())
 				.Select(StationAdvocacySaveData.From).ToList(),
 			StationState = CaptureStationState(),
+			BandRoom = CaptureBandRoom(),
 		};
 		return data;
 	}
@@ -5124,6 +5155,7 @@ public partial class PlayerDesk : Node {
 		ChartManager.Instance?.Advocacy.Restore(
 			(data.Advocacy ?? new List<StationAdvocacySaveData>()).Select(a => a.ToAdvocacy()));
 		RestoreStationState(data.StationState);
+		RestoreBandRoom(data.BandRoom);
 		ActiveCall = null;   // you are not on the phone in a loaded game
 		// Same reasoning as ActiveCall: a live negotiation (new signing or renewal) is scene state,
 		// not save state -- Prospect.Talk dies with the slate.Clear() below, but PendingRenewal is a

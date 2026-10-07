@@ -191,6 +191,7 @@ public partial class PlayerDeskPanel : Control {
 		AddTab("OFFICE", PageOffice);
 		AddTab("LEDGER", PageLedger);
 		AddTab("ROLODEX", PageRolodex);
+		AddTab("BAND ROOM", PageBandRoom);
 	}
 
 	private void AddTab(string title, Action page) {
@@ -203,7 +204,7 @@ public partial class PlayerDeskPanel : Control {
 		tabButtons.Add(button);
 	}
 
-	// Tab order: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5), LEDGER(6), ROLODEX(7).
+	// Tab order: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5), LEDGER(6), ROLODEX(7), BAND ROOM(8).
 	private const int DistributionTab = 3;
 	private const int RolodexTab = 7;
 
@@ -297,6 +298,7 @@ public partial class PlayerDeskPanel : Control {
 				"OFFICE" => desk.PendingCalls().Count(),
 				"DISTRIBUTION" => desk.PendingPressings().Count(),
 				"ROLODEX" => desk.Rolodex.Count,
+				"BAND ROOM" => desk.PendingVisitCount,
 				_ => 0
 			};
 			tabButtons[i].Text = count > 0 ? $"{title}  •  {count}" : title;
@@ -305,6 +307,8 @@ public partial class PlayerDeskPanel : Control {
 
 	private static string NextUpHint(PlayerDesk desk) {
 		if (desk.Label.CurrentRosterSize == 0) return "Go hear an act.";
+		if (desk.PendingVisits().Any(v => v.kind is BandVisitKind.Death or BandVisitKind.Ultimatum or BandVisitKind.Departure))
+			return "Somebody is waiting for you in the Band Room.";
 		if (desk.Session != null) return "Choose takes and print the masters.";
 		if (desk.Masters.Any(master => !master.Scheduled && !master.Released)) return "Assemble a single from the masters on your shelf.";
 		if (desk.Planned.Any(single => !single.Dated)) return "Send an assembled single to the pressing plant and set its date.";

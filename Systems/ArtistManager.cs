@@ -333,6 +333,9 @@ public sealed class LaborMarketWeeklySnapshot {
 		GenerateMembers(artist, type, primaryGenre, year);
 		ConfigureEasyListeningBandleader(artist,year);
 		ConfigureJazzInstrumentalist(artist);
+		// Band-member Phase 1b: split axes, keyed on the world seed and person id and anchored on the roles
+		// just configured. Consumes nothing from the population or global stream; nothing reads them yet.
+		MemberAxesService.EnsureAxes(artist, year);
 		artist.stageName = type is ArtistType.SoloMale or ArtistType.SoloFemale
 			? artist.members[0].FullName
 			: GenerateStageName(type, primaryGenre, year);
@@ -782,11 +785,15 @@ public sealed class LaborMarketWeeklySnapshot {
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		formedThisWeek = 0;
 		if (formationYear != date.year) {
+			bool rollover = formationYear >= 0;
 			formationYear = date.year;
 			formationAccumulator = 0d;
 			formationYearPeakTarget = 0;
 			formedYtd = 0;
 			recentRuntimeFormationCounts.Clear();
+			// Band-member simulation: the annual pass over the year that just ended. A no-op unless band life
+			// is observing or lineup churn is on; draws nothing from any stream (every chance is keyed).
+			if (rollover) BandLifeService.OnYearBoundary(date.year);
 		}
 		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
 		ApplyLifecycleExits(date.year);
@@ -804,6 +811,16 @@ public sealed class LaborMarketWeeklySnapshot {
 		formationYearPeakTarget = Mathf.Max(formationYearPeakTarget, annualTarget);
 		int count = CalculateCalendarFormationCount(ref formationAccumulator, formedYtd, annualTarget,
 			formationYearPeakTarget);
+		// THE SERVO SEAM (SimTools/BandMemberSimulationDirective.md §2.19). Solo spin-outs built at the year
+		// boundary already filled a vacancy, so the servo forms that many fewer fresh acts. They count toward
+		// the year's quota exactly as a fresh formation does: lineup churn changes who forms, never how many.
+		// Zero unless lineup churn has built an act, so this loop is untouched with the feature off.
+		int peopleBuilt = BandLifeService.ConsumeFormationDebt(count);
+		if (peopleBuilt > 0) {
+			count -= peopleBuilt;
+			formedThisWeek += peopleBuilt;
+			formedYtd += peopleBuilt;
+		}
 		for (int i = 0; i < count; i++) {
 			generatingRuntimePopulation = true;
 			try {
@@ -819,6 +836,9 @@ public sealed class LaborMarketWeeklySnapshot {
 				artist.formedYear = date.year;
 				artist.cohort = ArtistCohort.RuntimeFormation;
 				artist.prospectMarketStatus = ProspectMarketStatus.Seeking;
+				// Recombination (world-scope lineup churn only): staff part of the new act from pooled people
+				// whose scenes adjoin this genre. Generated first, so the population stream is unchanged.
+				BandLifeService.TryRecombine(artist, date.year);
 				unsignedArtists.Add(artist);
 				recentRuntimeFormationCounts[primary] = recentRuntimeFormationCounts.GetValueOrDefault(primary) + 1;
 				formedThisWeek++;
@@ -1152,6 +1172,9 @@ public sealed class LaborMarketWeeklySnapshot {
 
 	private void ApplyTerminalExit(SimulatedArtist artist, int year) {
 		bool group = IsGroupAct(artist);
+		// Band-member simulation: measured as a quiet dissolution in every scope; where lineups apply, the
+		// people with careers to continue go to the pool instead of evaporating with the act (§2.12).
+		BandLifeService.OnLifecycleTerminalExit(artist, year);
 		artist.lifecycleStatus = group ? ArtistLifecycleStatus.Disbanded : ArtistLifecycleStatus.Retired;
 		artist.careerState = group ? CareerState.Disbanded : CareerState.Retired;
 		artist.prospectMarketStatus = ProspectMarketStatus.NotProspect;
@@ -1215,7 +1238,85 @@ public sealed class LaborMarketWeeklySnapshot {
 	public void RestoreArtist(SimulatedArtist artist) {
 		if (artist == null || string.IsNullOrEmpty(artist.artistId)) return;
 		artistRegistry[artist.artistId] = artist;
+		foreach (Musician member in artist.members ?? new List<Musician>())
+			if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
+		MemberAxesService.EnsureAxes(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
 		unsignedArtists.RemoveAll(candidate => candidate.artistId == artist.artistId);
+	}
+
+	/// <summary>Indexes a person who entered the world outside generation -- a keyed replacement hire.</summary>
+	public void RegisterMusician(Musician musician) {
+		if (musician != null && !string.IsNullOrEmpty(musician.personId)) musicianRegistry[musician.personId] = musician;
+	}
+
+	/// <summary>Drops a generated person who never entered the world (a recombination swapped them out).</summary>
+	public void UnregisterMusician(string personId) {
+		if (!string.IsNullOrEmpty(personId)) musicianRegistry.Remove(personId);
+	}
+
+	/// <summary>
+	/// A member's solo career (SimTools/BandMemberSimulationDirective.md §4.7): a new act built around the
+	/// person, inheriting their recognition, credits and partner. It enters the labor market as a seeking
+	/// prospect. The formation servo is charged for it (<see cref="BandLifeService.ConsumeFormationDebt"/>), so
+	/// it changes who forms, not how many. Draws nothing: ids are counters, everything else is inherited.
+	/// </summary>
+	public SimulatedArtist CreateSoloSpinOut(Musician person, SimulatedArtist from, int year) {
+		if (person == null || from == null) return null;
+		artistIdCounter++;
+		var solo = new SimulatedArtist {
+			artistId = $"artist_{artistIdCounter:D5}",
+			stageName = person.FullName,
+			type = person.isMale ? ArtistType.SoloMale : ArtistType.SoloFemale,
+			primaryGenre = from.primaryGenre,
+			secondaryGenre = from.secondaryGenre,
+			formationPrimaryGenre = from.primaryGenre,
+			formationSecondaryGenre = from.secondaryGenre,
+			homeRegion = from.homeRegion,
+			formedYear = year,
+			careerState = CareerState.Unsigned,
+			cohort = ArtistCohort.RuntimeFormation,
+			prospectMarketStatus = ProspectMarketStatus.Seeking,
+			lifecycleStatus = ArtistLifecycleStatus.Active,
+			publicRecognition = person.personalRecognition,
+			reputation = from.reputation * 0.5f,
+			momentum = from.momentum * 0.5f,
+		};
+		BandLifeService.JoinAct(person, solo, MusicianRole.LeadVocals, lead: true, writer: person.isPrimaryWriter, year);
+		person.isFoundingMember = true;
+		person.isBandLeader = true;
+		solo.RecalculateStats();
+		solo.careerEvents.Add($"{year}: {person.FullName} went solo from {from.stageName}");
+		ArtistEvolutionService.Initialize(solo, year);
+		artistRegistry[solo.artistId] = solo;
+		unsignedArtists.Add(solo);
+		EmitPopulationEvent("solo-spinout", solo);
+		return solo;
+	}
+
+	/// <summary>
+	/// Ends an act through the band-member simulation (a split, the voice dying, the last member leaving).
+	/// Same terminal state as a lifecycle exit; the next lifecycle sweep takes it off its label's roster. Any
+	/// pending album still releases -- that is the posthumous-release path.
+	/// </summary>
+	public void EndActForBandLife(SimulatedArtist artist, int year, string why, bool group) {
+		artist.lifecycleStatus = group ? ArtistLifecycleStatus.Disbanded : ArtistLifecycleStatus.Retired;
+		artist.careerState = group ? CareerState.Disbanded : CareerState.Retired;
+		artist.prospectMarketStatus = ProspectMarketStatus.NotProspect;
+		artist.prospectSeekingWeeks = 0;
+		artist.prospectLatentWeeks = 0;
+		artist.isActive = false;
+		artist.disbandReason = why;
+		foreach (Musician member in artist.members.Where(member => member.isActive)) { member.isActive = false; member.reasonLeft = why; }
+		artist.careerEvents.Add($"{year}: {(group ? "Split" : "Ended")} -- {why}");
+		MarkUnsignedPoolRemoval(artist);
+		EmitPopulationEvent(group ? "disbandment" : "retirement", artist);
+	}
+
+	/// <summary>Mints a fresh person id from the same counter generation uses, so ids stay unique world-wide.
+	/// A counter, not a draw: it advances no random stream.</summary>
+	public string NextMusicianId() {
+		musicianIdCounter++;
+		return $"mus_{musicianIdCounter:D6}";
 	}
 
 	// ========================================================================
@@ -1256,6 +1357,9 @@ public sealed class LaborMarketWeeklySnapshot {
 			artistRegistry[artist.artistId] = artist;
 			foreach (Musician member in artist.members ?? new List<Musician>())
 				if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
+			// A v3 save predates member axes: generate them now from the stored technicalSkill (keyed, so the
+			// same person gets the same axes they would have been born with).
+			MemberAxesService.EnsureAxes(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
 		}
 		foreach (string id in w.UnsignedArtistIds ?? new List<string>())
 			if (id != null && artistRegistry.TryGetValue(id, out SimulatedArtist artist)) unsignedArtists.Add(artist);
@@ -1310,6 +1414,12 @@ public sealed class LaborMarketWeeklySnapshot {
 			name = m.FullName, role = m.primaryRole, joinedYear = m.joinedYear,
 			isFoundingMember = m.isFoundingMember, isActive = m.isActive, reasonLeft = m.reasonLeft
 		}).ToList();
+		// Past stints (band-member simulation): the people moved on, the act remembers them.
+		if (artist.alumni != null)
+			profile.personnel.AddRange(artist.alumni.Select(r => new ArtistPersonnelProfile {
+				name = r.name, role = r.role, joinedYear = r.joinedYear, isFoundingMember = false, isActive = false,
+				reasonLeft = $"{r.reason} ({r.leftYear})"
+			}));
 		if (artist.numberOnes > 0) profile.reputationTags.Add(ReputationTag.HitMachine);
 		if (artist.careerState >= CareerState.Established) profile.reputationTags.Add(ReputationTag.Established);
 		if (artist.momentum > 0.5f) profile.reputationTags.Add(ReputationTag.RisingStar);

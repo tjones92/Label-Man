@@ -76,6 +76,7 @@ public static class ArtistEvolutionService {
 	/// </summary>
 	public static void DeriveDisposition(SimulatedArtist artist, ArtistEvolutionProfile profile) {
 		List<Musician> members = artist.members?.Where(member => member.isActive).ToList() ?? new List<Musician>();
+		profile.dispositionLineupHash = ActiveLineupHash(artist);
 		if (members.Count == 0) {
 			profile.dispositionMemberCount = 0;
 			return;
@@ -104,13 +105,34 @@ public static class ArtistEvolutionService {
 		profile.dispositionMemberCount = members.Count;
 	}
 
-	/// <summary>Re-derives only when the lineup size actually moved. Cheap enough to call per project.</summary>
-	private static void RefreshDispositionIfLineupChanged(SimulatedArtist artist) {
+	/// <summary>
+	/// Re-derives only when the people in the room actually changed. Compares a hash of the active
+	/// members' person ids, not their count: a count missed a 1-for-1 swap, so a band that replaced its
+	/// singer kept the old singer's disposition (SimTools/BandMemberSimulationDirective.md §1).
+	/// Cheap enough to call per project.
+	/// </summary>
+	internal static void RefreshDispositionIfLineupChanged(SimulatedArtist artist) {
 		ArtistEvolutionProfile profile = artist.evolution;
 		if (profile == null) return;
-		int active = artist.members?.Count(member => member.isActive) ?? 0;
-		if (active == profile.dispositionMemberCount) return;
+		if (ActiveLineupHash(artist) == profile.dispositionLineupHash) return;
 		DeriveDisposition(artist, profile);
+	}
+
+	/// <summary>Order-independent FNV-1a over the active members' person ids, ordinal-sorted. Never 0, so 0
+	/// can mean "not yet derived" on a profile from an old save.</summary>
+	internal static ulong ActiveLineupHash(SimulatedArtist artist) {
+		const ulong offset = 14695981039346656037UL, prime = 1099511628211UL;
+		var ids = new List<string>();
+		if (artist?.members != null)
+			foreach (Musician member in artist.members)
+				if (member != null && member.isActive) ids.Add(member.personId ?? string.Empty);
+		ids.Sort(StringComparer.Ordinal);
+		ulong hash = offset;
+		foreach (string id in ids) {
+			foreach (char c in id) { hash ^= c; hash *= prime; }
+			hash ^= '|'; hash *= prime;
+		}
+		return hash == 0UL ? 1UL : hash;
 	}
 
 	internal static void EmitObservation(ArtistEvolutionTelemetry telemetry) => OnEvolutionObservation?.Invoke(telemetry);

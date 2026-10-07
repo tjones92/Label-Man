@@ -22,7 +22,10 @@ public static class SaveGameService {
 	// v1: player layer only. v2: adds the full-world section (WorldSaveData). A v1 file loads under v3 with a
 	// null World -- the freshly generated world is left standing and the player layer restores over it.
 	// v3: adds composition-owned demo/plasticity state and durable master metadata/linkage.
-	public const int CurrentVersion = 3;
+	// v4: the band-member simulation -- person pool, per-stint writer ledger, band-life seed, and the new
+	// member/act fields (relations, alumni, partners, axes, life state), which ride inside the artists. A v3
+	// save loads with defaults: empty pool, no edges, axes generated on load from the stored technicalSkill.
+	public const int CurrentVersion = 4;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -259,6 +262,8 @@ public sealed class PlayerSaveData {
 	public List<SimulatedArtist> RosterArtists { get; set; } = new();
 	public List<SongSaveData> Songs { get; set; } = new();
 	public Dictionary<string, List<RepertoireSaveData>> Repertoire { get; set; } = new();
+	// v4: the Band Room -- open visits, member trust in the label, road bookings, promises and cut-ins.
+	public BandRoomSaveData BandRoom { get; set; }
 	public List<CoverRehearsalSaveData> Rehearsals { get; set; } = new();  // covers in progress, not yet in a set
 	public PendingSessionSaveData Session { get; set; }  // booked/paid takes awaiting print; absent in old saves
 	public List<PolarObservation> PolarObservations { get; set; } // absent in older saves
@@ -552,18 +557,21 @@ public sealed class SongSaveData {
 	public int Day { get; set; }
 	public bool Recorded { get; set; }
 	public string RecordedId { get; set; }
+	public List<string> TeamPersonIds { get; set; }
+	public bool WithStaffWriter { get; set; }
 
 	public static SongSaveData From(PlayerDesk.Song s) => new() {
 		SongId = s.SongId, Title = s.Title, ArtistId = s.ArtistId, Genre = (int)s.Genre,
 		Hook = s.Hook, Originality = s.Originality, Danceability = s.Danceability,
 		Year = s.Written.year, Month = s.Written.month, Day = s.Written.day, Recorded = s.Recorded,
-		RecordedId = s.RecordedId
+		RecordedId = s.RecordedId, TeamPersonIds = s.TeamPersonIds?.ToList(), WithStaffWriter = s.WithStaffWriter
 	};
 
 	public PlayerDesk.Song ToSong() => new() {
 		SongId = SongId, Title = Title, ArtistId = ArtistId, Genre = (Genre)Genre,
 		Hook = Hook, Originality = Originality, Danceability = Danceability,
-		Written = new GameDate(Year, Month, Day), Recorded = Recorded, RecordedId = RecordedId
+		Written = new GameDate(Year, Month, Day), Recorded = Recorded, RecordedId = RecordedId,
+		TeamPersonIds = TeamPersonIds?.ToList(), WithStaffWriter = WithStaffWriter
 	};
 }
 

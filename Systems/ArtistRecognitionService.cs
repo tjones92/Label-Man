@@ -119,7 +119,23 @@ public static class ArtistRecognitionService {
 			artist.recognitionLastUpdatedWeek = week;
 			if (artist.publicRecognition > 0f) artist.publicRecognition *= PublicRecognitionDecay;
 			if (artist.culturalStanding > 0f) artist.culturalStanding *= CulturalStandingDecay;
+			if (artist.members != null)
+				foreach (Musician member in artist.members) DecayMemberRecognition(member);
 		}
+		PersonPool.ForEachPersonOncePerWeek(week, DecayMemberRecognition);
+	}
+
+	/// <summary>
+	/// A person's name fades at the act's rate (SimTools/BandMemberSimulationDirective.md §2.4). Before this,
+	/// member recognition never decayed while the act's did, so the ratio between them rose with elapsed
+	/// time alone and a forgotten one-hit singer passed the old solo gate years later. Only the two name
+	/// stocks decay: <see cref="Musician.creativeReputation"/> is the maker's standing, read live by
+	/// <see cref="EffectiveRecognition"/>, and decays with nothing here so this pass moves no launch.
+	/// </summary>
+	private static void DecayMemberRecognition(Musician member) {
+		if (member == null) return;
+		if (member.personalRecognition > 0f) member.personalRecognition *= PublicRecognitionDecay;
+		if (member.liveReputation > 0f) member.liveReputation *= PublicRecognitionDecay;
 	}
 
 	// ---- launch profile (Phase A: audited, not consumed) --------------------------------------

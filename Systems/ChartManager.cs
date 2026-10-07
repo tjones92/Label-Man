@@ -31,6 +31,12 @@ public partial class ChartManager : Node {
 	[Export] private bool artistRecognitionEnabled = false;
 	[Export] private bool managersEnabled = false;
 	[Export] private bool seedStarCanopyEnabled = false;
+	// Band-member simulation (SimTools/BandMemberSimulationDirective.md). Cowriting credits and member axes are
+	// economy-inert (proved by probe hash); roster-scoped churn touches only the player's own acts. World-scope
+	// churn and the world phases (team writing, growth, identity) are command-line only until their A/Bs pass.
+	[Export] private bool cowritingEnabled = false;
+	[Export] private bool memberAxesEnabled = false;
+	[Export] private bool rosterLineupChurnEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -328,6 +334,8 @@ public partial class ChartManager : Node {
 		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
 		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
+		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
+			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs());
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();

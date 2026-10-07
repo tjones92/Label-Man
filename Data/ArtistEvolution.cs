@@ -64,6 +64,10 @@ public sealed class ArtistEvolutionProfile {
 	public int lastIdentityChangeYear = -1;
 	public int projectsSinceIdentityChange;
 	public int dispositionMemberCount;  // lineup size the disposition was derived from
+	/// <summary>Hash of the active members' person ids the disposition was derived from. A count alone
+	/// missed a 1-for-1 swap, so a new singer re-derived nothing. 0 = unknown (an old save): re-derive once,
+	/// which is a pure read of the same lineup and so reproduces the same values.</summary>
+	public ulong dispositionLineupHash;
 
 	// --- the drift window: the last N project genres. Fixed capacity ring, oldest overwritten.
 	public Genre[] recentProjectGenres = new Genre[ArtistEvolution.DriftWindow];
