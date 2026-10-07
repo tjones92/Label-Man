@@ -50,6 +50,14 @@ public partial class ChartDetailPanel : Control
 	[Export] private Color numberOneColor = new Color(1f, 0.84f, 0f);
 
 	private RecordRuntimeData currentRecord;
+	// Set when the card was opened from a genre or regional list: the place on THAT list, and its name ("Country", "Great Lakes").
+	// Null for the Hot 100 and Top LPs, whose places are the record's own. A record has one Hot 100 position, and it is not the
+	// place it holds on a list of its own genre -- #1 on Country can be #2 on the Hot 100, or off it, at position 0.
+	private TradeChartRow listRow;
+	private string listName;
+	private bool OnList => listRow != null;
+	private int Place => OnList ? listRow.Rank : currentRecord.currentPosition;
+	private bool NewThisWeek => OnList ? listRow.LastRank == 0 : currentRecord.weeksOnChart == 1;
 	private List<Control> spawnedTags = new List<Control>();
 	private LabelCrest labelDisc;
 	private HBoxContainer stampRow;
@@ -194,10 +202,11 @@ public partial class ChartDetailPanel : Control
 		if (stampRow == null) return;
 		foreach (Node child in stampRow.GetChildren()) { stampRow.RemoveChild(child); child.QueueFree(); }
 		void Stamp(string text, Color colour, float tilt) => stampRow.AddChild(new RubberStamp().Set(text, colour, tilt, 15));
-		if (record.currentPosition == 1) Stamp("No. 1", RubberStamp.Red, -0.08f);
-		if (record.weeksOnChart == 1) Stamp("New entry", RubberStamp.Blue, 0.05f);
-		if (record.isBullet) Stamp("Bullet", new Color("2f6b2a"), -0.04f);
-		if (record.isAnchor) Stamp("Anchor", RubberStamp.Red, 0.04f);
+		if (Place == 1) Stamp(OnList ? $"No. 1 {listName}" : "No. 1", RubberStamp.Red, -0.08f);
+		if (NewThisWeek) Stamp("New entry", RubberStamp.Blue, 0.05f);
+		// Bullet and anchor are Hot 100 movement marks; a list ranked on a week's sales does not award them.
+		if (!OnList && record.isBullet) Stamp("Bullet", new Color("2f6b2a"), -0.04f);
+		if (!OnList && record.isAnchor) Stamp("Anchor", RubberStamp.Red, 0.04f);
 		if (record.totalUnitsSold >= 1000000) Stamp("Million seller", RubberStamp.Red, -0.06f);
 		else if (record.totalUnitsSold >= 500000) Stamp("Gold record", new Color("9c6a00"), 0.05f);
 		stampRow.Visible = stampRow.GetChildCount() > 0;
@@ -205,11 +214,15 @@ public partial class ChartDetailPanel : Control
 
 	// === PUBLIC API ===
 
-	public void Show(RecordRuntimeData record)
+	/// <summary>Opens the card. From a genre or regional list pass that list's row and name, so the card speaks about the place the
+	/// reader clicked rather than the record's Hot 100 position.</summary>
+	public void Show(RecordRuntimeData record, TradeChartRow row = null, string listName = null)
 	{
 		if (record == null) return;
 
 		currentRecord = record;
+		listRow = listName == null ? null : row;
+		this.listName = listRow == null ? null : listName;
 
 		PopulateHeader(record);
 		UpdateLabelDisc(record);
@@ -227,6 +240,8 @@ public partial class ChartDetailPanel : Control
 	{
 		if (panelRoot != null) panelRoot.Visible = false;
 		currentRecord = null;
+		listRow = null;
+		listName = null;
 		ClearTags();
 	}
 
@@ -259,17 +274,17 @@ public partial class ChartDetailPanel : Control
 	{
 		if (positionText != null)
 		{
-			if (record.currentPosition > 0)
+			if (Place > 0)
 			{
-				positionText.Text = $"#{record.currentPosition}";
+				positionText.Text = $"#{Place}";
 
-				if (record.currentPosition == 1)
+				if (Place == 1)
 					positionText.AddThemeColorOverride("font_color", numberOneColor);
 				// The card background is always light (cream/white), so the position must read dark --
 				// the old white / light-grey tiers vanished on it.
-				else if (record.currentPosition <= 10)
+				else if (Place <= 10)
 					positionText.AddThemeColorOverride("font_color", new Color("2b2115"));
-				else if (record.currentPosition <= 40)
+				else if (Place <= 40)
 					positionText.AddThemeColorOverride("font_color", new Color("4a3f2f"));
 				else
 					positionText.AddThemeColorOverride("font_color", new Color("6b5a3a"));
@@ -287,6 +302,24 @@ public partial class ChartDetailPanel : Control
 		if (chartStatsText != null)
 		{
 			var sb = new StringBuilder();
+
+			if (OnList)
+			{
+				// A list ranked on this week's sales keeps no peak and no weeks, so say what is known: where it sat last week, and
+				// where the same record stands on the Hot 100.
+				sb.Append($"{listName} list");
+				if (listRow.LastRank > 0) sb.Append($"  |  Last Week: #{listRow.LastRank}");
+				else if (listRow.LastRank == 0) sb.Append("  |  NEW ENTRY");
+				sb.Append('\n');
+				if (record.currentPosition > 0)
+					sb.Append($"Hot 100: #{record.currentPosition}  |  Peak: #{record.peakPosition}  |  Weeks: {record.weeksOnChart}");
+				else if (record.peakPosition > 0)
+					sb.Append($"Off the Hot 100 this week  |  Peaked at #{record.peakPosition}");
+				else
+					sb.Append("Has not reached the Hot 100");
+				chartStatsText.Text = sb.ToString();
+				return;
+			}
 
 			if (record.peakPosition > 0)
 				sb.Append($"Peak: #{record.peakPosition}");
@@ -314,6 +347,15 @@ public partial class ChartDetailPanel : Control
 
 	private void PopulateMovementText(RecordRuntimeData record)
 	{
+		if (OnList)
+		{
+			int was = listRow.LastRank, change = was - listRow.Rank;
+			if (was == 0) { movementText.Text = "NEW"; movementText.AddThemeColorOverride("font_color", newEntryColor); }
+			else if (was < 0 || change == 0) { movementText.Text = "—"; movementText.AddThemeColorOverride("font_color", steadyColor); }
+			else if (change > 0) { movementText.Text = $"▲{change}"; movementText.AddThemeColorOverride("font_color", risingColor); }
+			else { movementText.Text = $"▼{-change}"; movementText.AddThemeColorOverride("font_color", fallingColor); }
+			return;
+		}
 		if (record.lastWeekPosition == 0 && record.currentPosition > 0)
 		{
 			movementText.Text = "NEW";
@@ -349,10 +391,18 @@ public partial class ChartDetailPanel : Control
 	private void PopulateNarrativeDescriptions(RecordRuntimeData record)
 	{
 		if (recordDescriptionText != null)
-			recordDescriptionText.Text = JournalisticDescriptor.DescribeRecord(record);
+			recordDescriptionText.Text = OnList
+				? JournalisticDescriptor.DescribeRecord(record, listName, listRow.Rank)
+				: JournalisticDescriptor.DescribeRecord(record);
 
 		if (chartCommentaryText != null)
-			chartCommentaryText.Text = JournalisticDescriptor.GetChartMovementComment(record);
+		{
+			chartCommentaryText.Text = OnList
+				? JournalisticDescriptor.GetListMovementComment(record, listRow.Rank, listRow.LastRank)
+				: JournalisticDescriptor.GetChartMovementComment(record);
+			// Regional action keeps no week-on-week memory, so it has no movement to remark on; don't leave a blank line.
+			chartCommentaryText.Visible = chartCommentaryText.Text.Length > 0;
+		}
 
 		if (regionalHintText != null)
 		{
@@ -433,12 +483,12 @@ public partial class ChartDetailPanel : Control
 		var tags = new List<ReputationTag>();
 		var r = record.baseRecord;
 
-		if (record.currentPosition == 1) tags.Add(ReputationTag.HitMachine);
-		else if (record.peakPosition <= 10 && record.weeksOnChart >= 10) tags.Add(ReputationTag.MainstreamAppeal);
+		if (Place == 1) tags.Add(ReputationTag.HitMachine);
+		else if (record.peakPosition > 0 && record.peakPosition <= 10 && record.weeksOnChart >= 10) tags.Add(ReputationTag.MainstreamAppeal);
 
-		if (record.isBullet) tags.Add(ReputationTag.RisingStar);
+		if (!OnList && record.isBullet) tags.Add(ReputationTag.RisingStar);
 		if (record.weeksOnChart >= 20) tags.Add(ReputationTag.Established);
-		if (record.weeksOnChart == 1 && record.currentPosition <= 40) tags.Add(ReputationTag.ArtistToWatch);
+		if (NewThisWeek && Place <= 40) tags.Add(ReputationTag.ArtistToWatch);
 
 		if (r.hookStrength > 0.8f) tags.Add(ReputationTag.RadioFriendly);
 		if (r.originality > 0.8f) tags.Add(ReputationTag.Innovator);
@@ -462,18 +512,19 @@ public partial class ChartDetailPanel : Control
 
 	private void UpdateVisualIndicators(RecordRuntimeData record)
 	{
-		if (bulletIndicator != null) bulletIndicator.Visible = record.isBullet;
-		if (anchorIndicator != null) anchorIndicator.Visible = record.isAnchor;
-		if (newEntryIndicator != null) newEntryIndicator.Visible = record.weeksOnChart == 1;
-		if (numberOneIndicator != null) numberOneIndicator.Visible = record.currentPosition == 1;
+		bool bullet = !OnList && record.isBullet, anchor = !OnList && record.isAnchor;
+		if (bulletIndicator != null) bulletIndicator.Visible = bullet;
+		if (anchorIndicator != null) anchorIndicator.Visible = anchor;
+		if (newEntryIndicator != null) newEntryIndicator.Visible = NewThisWeek;
+		if (numberOneIndicator != null) numberOneIndicator.Visible = Place == 1;
 
 		if (backgroundRect != null)
 		{
-			if (record.currentPosition == 1)
+			if (Place == 1)
 				backgroundRect.Color = new Color(1f, 0.98f, 0.9f);
-			else if (record.isBullet)
+			else if (bullet)
 				backgroundRect.Color = new Color(0.95f, 1f, 0.95f);
-			else if (record.isAnchor)
+			else if (anchor)
 				backgroundRect.Color = new Color(1f, 0.95f, 0.95f);
 			else
 				backgroundRect.Color = Colors.White;

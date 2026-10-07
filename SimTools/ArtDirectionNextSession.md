@@ -192,7 +192,33 @@ side, one fat helix gouge, an antihelix curl, a tapering lobe) with two bold sou
 
 Verified by the temporary driver in `tmp/shot` (git-ignored): the paper cycle, tabs with stamps, label roster, record card,
 the A&R board, the icons at five sizes. **Not done here:** the Band Room (it is untracked work on `band-member-simulation`; see
-that branch), the hearing plates beyond the Polar widget (already clipboard sheets), the dossier portrait and boxed fields.
+that branch; it was restyled there in 28f1cf4), the hearing plates beyond the Polar widget (already clipboard sheets).
+
+## 2d. Session 7: playtest fixes, boxed fields
+
+Found in a Copper Kettle save (Mar 4, 1960), all fixed and screenshot-verified through the driver:
+
+* **Office header.** The date/hours/cash block is a `RichTextLabel` set in bold (Libre Franklin Bold). The cash figure is 21px and
+  green when positive, stamp red when negative, ink at exactly zero (`PlayerDeskPanel.CashMarkup`; inks are darkened from the chart's
+  rising/falling pair to hold against manila).
+* **Label dossier, TRACK RECORD.** "Signed to Mercury Records" on Mercury's own page read as the label signing itself, because each
+  line is the *act's* career entry. `LabelDetailPanel.NotableMoves` now leads with the act's name, strips the label's name out of
+  the line, sorts by year and drops the seeding bookkeeping ("Established Star at launch (seeded canopy ...)"), which is how the
+  starting world was built and not an event.
+* **Genre and regional record cards.** The country list is a ranking of its own (units this week, `TradeCharts.BuildGenre`), but the
+  card was reading the record's Hot 100 fields: a #1 country record said "peaked at #2" and a record off the Hot 100 (position 0) said
+  "A top 10 smash, currently at #0" and OUT. `ChartDetailPanel.Show(record, row, listName)` now takes the clicked row; with a list it
+  shows the place on that list, the movement against last week's *list* rank, stamps like "No. 1 Country", no bullet/anchor, and a
+  second stats line for the Hot 100 ("Hot 100: #2 | Peak: #2" or "Has not reached the Hot 100"). A list keeps no peak or weeks of its
+  own (no stored history, by design), so it does not print any. `JournalisticDescriptor.DescribeRecord` also guards `position > 0`.
+* **Card wording is deterministic.** The record blurb drew from `GD.RandRange`, the global stream the sim also seeds, so opening a card
+  moved it and the wording re-rolled on every open. The record describers now use a generator seeded from the record id, week and total
+  units (FNV), so the same card reads the same and no sim stream moves. The label/artist describers still use the global stream.
+* **Regional chips over the card.** `ChartUI` adds the MARKET chips and the empty-list note after the scene's `ChartDetailPanel`, so they
+  drew on top of it. `BehindRecordCard` slots them in under the card.
+* **Boxed typed fields** (`UI/TypedFields.cs`): a rust caption over a typewriter value in a ruled box, wrapping in an `HFlowContainer`.
+  On the artist dossier it replaces the "Duo • Teen Pop • East Coast / New Signing | Formed 1960" lines and the CHART RECORD sentence.
+  Not yet used elsewhere (the label dossier's header lines and the contract summary are the next candidates).
 
 ## 3. Other critic pieces still open
 

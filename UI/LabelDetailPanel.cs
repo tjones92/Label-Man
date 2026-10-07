@@ -84,8 +84,34 @@ public partial class LabelDetailPanel : Control
 	private void ShowTrackRecord()
 	{
 		AddHeading("BY THE NUMBERS"); AddBody($"{profile.totalReleases} releases  •  {profile.top40Hits} Top 40 hits  •  {profile.numberOneHits} #1 hits");
-		var events = label.roster?.SelectMany(a => a.careerEvents).Where(e => e.Contains(label.labelName, StringComparison.OrdinalIgnoreCase)).TakeLast(12).ToList() ?? new();
+		var events = NotableMoves();
 		AddHeading("NOTABLE MOVES"); AddBody(events.Count == 0 ? "No notable signings or departures on file." : string.Join("\n", events));
+	}
+
+	/// <summary>
+	/// The label's signings, re-signings and releases, newest last. Each act's own career line reads "Signed to Mercury Records"
+	/// -- true on the act's page, but on the label's own page it said the label signed itself, with nobody named. So the act leads
+	/// the line and the label's name comes out of it. Seeding bookkeeping ("Established Star at launch (seeded canopy)") is how the
+	/// starting world was built, not something that happened to the label, so it never prints.
+	/// </summary>
+	private List<string> NotableMoves()
+	{
+		var moves = new List<(int Year, string Line)>();
+		foreach (SimulatedArtist artist in label.roster?.Where(a => a != null) ?? Enumerable.Empty<SimulatedArtist>()) {
+			foreach (string entry in artist.careerEvents) {
+				if (!entry.Contains(label.labelName, StringComparison.OrdinalIgnoreCase)) continue;
+				if (entry.Contains("seeded canopy", StringComparison.OrdinalIgnoreCase)) continue;
+				int colon = entry.IndexOf(':');
+				if (colon < 4 || !int.TryParse(entry.AsSpan(0, colon), out int year)) continue;
+				string what = entry[(colon + 1)..].Trim()
+					.Replace($"Re-signed with {label.labelName}", "re-signed", StringComparison.OrdinalIgnoreCase)
+					.Replace($"Signed to {label.labelName}", "signed", StringComparison.OrdinalIgnoreCase)
+					.Replace($"Released from {label.labelName}", "released", StringComparison.OrdinalIgnoreCase);
+				if (what.Length > 0) what = char.ToUpperInvariant(what[0]) + what[1..];
+				moves.Add((year, $"{year}: {artist.stageName} — {what}"));
+			}
+		}
+		return moves.OrderBy(m => m.Year).Select(m => m.Line).TakeLast(12).ToList();
 	}
 	private void AddHeading(string text) {
 		// A typed rubric over a hairline, as on the Morning Paper, rather than a bigger copy of the body face.

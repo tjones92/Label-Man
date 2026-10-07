@@ -14,7 +14,8 @@ using Godot;
 /// single "put a record out" loop doesn't ping-pong across four tabs.
 /// </summary>
 public partial class PlayerDeskPanel : Control {
-	private Label titleLabel, clockLabel, stockLabel, statusLabel;
+	private Label titleLabel, stockLabel, statusLabel;
+	private RichTextLabel clockLabel;   // BBCode: the whole block is bold and the cash figure carries its own colour
 	private LabelCrest titleCrest;
 	private Button redInkLabel, saveLoadButton;
 	private Button nextUpLabel;
@@ -165,9 +166,14 @@ public partial class PlayerDeskPanel : Control {
 		close.Pressed += ClosePanel;
 		header.AddChild(close);
 
-		clockLabel = new Label();
-		clockLabel.AddThemeFontSizeOverride("font_size", 17);
-		clockLabel.AddThemeColorOverride("font_color", Ink);
+		// The folder's upper header: set in bold so it stands out from the body copy below it. It is a RichTextLabel
+		// because the cash figure alone is struck in green or red, and has to be readable at a glance.
+		clockLabel = new RichTextLabel { BbcodeEnabled = true, FitContent = true, ScrollActive = false, MouseFilter = MouseFilterEnum.Stop, AutowrapMode = TextServer.AutowrapMode.Off };
+		clockLabel.AddThemeFontOverride("normal_font", PaperTheme.SansBold);
+		clockLabel.AddThemeFontOverride("bold_font", PaperTheme.SansBold);
+		clockLabel.AddThemeFontSizeOverride("normal_font_size", 17);
+		clockLabel.AddThemeFontSizeOverride("bold_font_size", 17);
+		clockLabel.AddThemeColorOverride("default_color", Ink);
 		root.AddChild(clockLabel);
 		stockLabel = new Label { ClipText = true, CustomMinimumSize = new Vector2(0, 22) };
 		stockLabel.AddThemeColorOverride("font_color", HeaderFade);
@@ -423,7 +429,7 @@ public partial class PlayerDeskPanel : Control {
 			$"{time?.CurrentDate.ToLongString()}  •  {time?.GetTimeString()}  •  " +
 			$"{time?.RegularTimeRemainingText ?? "0m"} regular until {time?.RegularWorkdayEndTime ?? "6:00 PM"} + " +
 			$"{time?.OvertimeRemainingText ?? "0m"} overtime to {time?.HardStopTime ?? "9:00 PM"}, no overtime fee ({time?.GetDayStatus()})\n" +
-			$"{where}  |  {Money(label.cashReserves)} cash  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts  |  " +
+			$"{where}  |  {CashMarkup(label.cashReserves)} cash  |  {label.CurrentRosterSize}/{label.maxRosterSize} acts  |  " +
 			$"{desk.WorkedCities.Count()} {CountWord(desk.WorkedCities.Count(), "town")} worked";
 		clockLabel.TooltipText = time == null ? string.Empty
 			: $"Regular workday ends at {time.RegularWorkdayEndTime}; overtime can carry jobs to the {time.HardStopTime} hard stop. There is no overtime surcharge. Each action must finish by the hard stop.";
@@ -4352,6 +4358,14 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>Dollars with the sign in front of the symbol: -$75, never $-75.</summary>
 	private static string Money(float amount) => amount < 0f ? $"−${-amount:N0}" : $"${amount:N0}";
+
+	// Cash in the header: green in the black, red in the red, ink at exactly nothing. Both inks are darkened from the
+	// chart's rising/falling pair so they hold against the manila folder.
+	private static readonly Color CashBlack = new("17501a"), CashRed = new("8f1f18");
+	private static string CashMarkup(float cash) {
+		string ink = cash > 0f ? CashBlack.ToHtml(false) : cash < 0f ? CashRed.ToHtml(false) : Ink.ToHtml(false);
+		return $"[font_size=21][color=#{ink}]{Money(cash)}[/color][/font_size]";
+	}
 
 	private static string Hour12(int hour) {
 		int h = ((hour + 11) % 12) + 1;
