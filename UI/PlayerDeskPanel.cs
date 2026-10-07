@@ -261,7 +261,7 @@ public partial class PlayerDeskPanel : Control {
 
 		feedbackToast = new PanelContainer {
 			Name = "ActionFeedbackToast", Visible = false, ZIndex = 25,
-			MouseFilter = MouseFilterEnum.Ignore, Size = new Vector2(560, 76)
+			MouseFilter = MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(300, 0)
 		};
 		feedbackToast.SetAnchorsPreset(LayoutPreset.TopLeft);
 		ApplyFeedbackStyle(feedbackToast, FeedbackKind.Info);
@@ -283,6 +283,7 @@ public partial class PlayerDeskPanel : Control {
 		};
 		feedbackToastText.AddThemeColorOverride("font_color", Ink);
 		feedbackToastText.AddThemeFontSizeOverride("font_size", 16);
+		feedbackToastText.CustomMinimumSize = new Vector2(250, 0);
 		toastRow.AddChild(feedbackToastText);
 		AddChild(feedbackToast);
 		feedbackToastTimer = new Timer { OneShot = true, WaitTime = 3.5 };
@@ -598,14 +599,20 @@ public partial class PlayerDeskPanel : Control {
 	private static readonly Color FeedbackRed = new("9a2b1a");
 
 	private static void ApplyFeedbackStyle(PanelContainer toast, FeedbackKind kind) {
-		Color accent = kind switch { FeedbackKind.Success => FeedbackGreen, FeedbackKind.Warning => FeedbackRed, _ => Rust };
-		Color bg = kind switch { FeedbackKind.Success => new Color("e4ead0"), FeedbackKind.Warning => new Color("f4d9c6"), _ => Paper };
-		toast.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = bg, BorderColor = accent,
-			BorderWidthLeft = 6, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
-			ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 8, ContentMarginBottom = 8,
-			ShadowColor = new Color(0, 0, 0, .35f), ShadowSize = 8
-		});
+		// A refusal is a Post-it stuck beside the control that was refused; anything else is a telegram slip.
+		if (kind == FeedbackKind.Warning) {
+			var note = PaperStyleBox.Sheet(new Color("f5df73"), 16, 12, 8, new Color("c9b04a"));
+			note.ShadowAlpha = 0.5f; note.ShadowOffset = new Vector2(3, 5); note.Burn = 0f; note.Falloff = 0.5f; note.Grain = 0.45f; note.Radius = 1; note.BorderWidth = 1;
+			toast.AddThemeStyleboxOverride("panel", note);
+		} else {
+			Color band = kind == FeedbackKind.Success ? new Color("2f4a8a") : Rust;
+			toast.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+				BgColor = new Color("f3ead2"), BorderColor = band,
+				BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 6, BorderWidthBottom = 1,
+				ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 8, ContentMarginBottom = 9,
+				ShadowColor = new Color(0, 0, 0, .35f), ShadowSize = 8, ShadowOffset = new Vector2(1, 3)
+			});
+		}
 	}
 
 	/// <summary>A neutral note (hints, navigation, "nothing to do").</summary>
@@ -622,18 +629,59 @@ public partial class PlayerDeskPanel : Control {
 		if (string.IsNullOrWhiteSpace(message) || feedbackToast == null) return;
 
 		ApplyFeedbackStyle(feedbackToast, kind);
+		bool note = kind == FeedbackKind.Warning;
 		feedbackToastBadge.Text = kind switch { FeedbackKind.Success => "✓", FeedbackKind.Warning => "!", _ => "i" };
-		feedbackToastBadge.AddThemeColorOverride("font_color", accent);
+		feedbackToastBadge.AddThemeColorOverride("font_color", note ? new Color("a3261a") : accent);
+		// The Post-it is scrawled in grease pencil; the telegram is typed.
+		feedbackToastText.AddThemeFontOverride("font", note ? PaperTheme.Elite : PaperTheme.Typed);
+		feedbackToastText.AddThemeColorOverride("font_color", note ? new Color("4a1812") : Ink);
 		feedbackToastText.Text = message;
 		feedbackToast.TooltipText = message;
-		// The result of a click lands at the top of the screen, out of the way of the page the player is working in
-		// (it used to open under the cursor, which put it dead centre of the file).
-		Vector2 viewportSize = GetViewportRect().Size;
-		Vector2 toastSize = feedbackToast.Size;
-		feedbackToast.GlobalPosition = new Vector2(Mathf.Max(12, (viewportSize.X - toastSize.X) / 2f), 12);
+		feedbackToast.ResetSize();
+		feedbackToast.RotationDegrees = note ? -2.4f : 0f;
+
+		// Where it goes: a refusal sticks beside the control the player just pressed, so the reason is at the point of the
+		// mistake. Anything with no control under the cursor (a keyboard action, a timer) falls back to the top of the desk.
+		Control pressed = note ? PressedControl() : null;
+		feedbackToast.Modulate = new Color(1, 1, 1, 0);
 		feedbackToast.Show();
+		PlaceSlip(pressed?.GetGlobalRect(), pressed != null ? GetGlobalMousePosition() : (Vector2?)null);
 		// A refusal stays up a little longer: the player needs to read what to fix.
-		feedbackToastTimer.Start(kind == FeedbackKind.Warning ? 5.5 : 3.5);
+		feedbackToastTimer.Start(kind == FeedbackKind.Warning ? 6.0 : 3.5);
+	}
+
+	/// <summary>The button (or field) under the cursor, if it belongs to this desk: the control a click just landed on.</summary>
+	private Control PressedControl() {
+		Control hovered = GetViewport()?.GuiGetHoveredControl();
+		for (Control node = hovered; node != null; node = node.GetParent() as Control) {
+			if (node == feedbackToast || feedbackToast.IsAncestorOf(node)) return null;
+			if ((node is BaseButton || node is SpinBox || node is LineEdit) && IsAncestorOf(node) && node.IsVisibleInTree()) return node;
+		}
+		return null;
+	}
+
+	private async void PlaceSlip(Rect2? target, Vector2? mouse) {
+		// Wait a frame so the slip has its real size (its width is fixed, its height is its words).
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		if (!IsInstanceValid(feedbackToast) || !feedbackToast.Visible) return;
+		Vector2 viewport = GetViewportRect().Size, size = feedbackToast.Size;
+		Vector2 at;
+		if (target is Rect2 rect && mouse is Vector2 pointer) {
+			// Stuck on the control's upper edge, under the pointer: half over the button, half over the page above it.
+			float x = Mathf.Clamp(pointer.X - size.X * 0.35f, rect.Position.X - 6f, Mathf.Max(rect.Position.X, rect.End.X - size.X + 6f));
+			float above = rect.Position.Y - size.Y + 14f;
+			float y = above >= 8f ? above : rect.End.Y - 12f;
+			at = new Vector2(x, y);
+		} else {
+			at = new Vector2((viewport.X - size.X) / 2f, 12f);
+		}
+		at = new Vector2(Mathf.Clamp(at.X, 8f, Mathf.Max(8f, viewport.X - size.X - 8f)), Mathf.Clamp(at.Y, 8f, Mathf.Max(8f, viewport.Y - size.Y - 8f)));
+		feedbackToast.PivotOffset = size / 2f;
+		feedbackToast.GlobalPosition = at;
+		feedbackToast.Scale = new Vector2(0.86f, 0.86f);
+		var tween = CreateTween().SetParallel(true);
+		tween.TweenProperty(feedbackToast, "scale", Vector2.One, 0.14).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+		tween.TweenProperty(feedbackToast, "modulate:a", 1f, 0.08);
 	}
 
 	private void Act(Func<bool> action) {
