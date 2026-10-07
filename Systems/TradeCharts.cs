@@ -16,6 +16,8 @@ public sealed class TradeChartRow {
 /// published yet).</summary>
 public sealed class TradeChartView {
 	public string Title, Noun, Note;
+	/// <summary>What the record card calls this list ("Country", "Great Lakes"); null for the Hot 100 and Top LPs, whose positions are the record's own.</summary>
+	public string ListName;
 	public List<TradeChartRow> Rows = new();
 }
 
@@ -96,9 +98,9 @@ public static class TradeCharts {
 		var view = new TradeChartView { Noun = "SINGLES" };
 		int size = kind == TradeChartKind.EasyListening ? EasyListeningSize : GenreListSize;
 		switch (kind) {
-			case TradeChartKind.RnB: view.Title = $"{TradeName} HOT R&B SINGLES"; break;
-			case TradeChartKind.Country: view.Title = $"{TradeName} HOT COUNTRY SINGLES"; break;
-			default: view.Title = $"{TradeName} EASY LISTENING"; break;
+			case TradeChartKind.RnB: view.Title = $"{TradeName} HOT R&B SINGLES"; view.ListName = "R&B"; break;
+			case TradeChartKind.Country: view.Title = $"{TradeName} HOT COUNTRY SINGLES"; view.ListName = "Country"; break;
+			default: view.Title = $"{TradeName} EASY LISTENING"; view.ListName = "Easy Listening"; break;
 		}
 		if (kind == TradeChartKind.EasyListening && today < EasyListeningFirstIssue) {
 			view.Note = "THE TRADE DOES NOT PRINT AN EASY LISTENING LIST UNTIL JULY 17, 1961.";
@@ -125,7 +127,7 @@ public static class TradeCharts {
 	private static TradeChartView BuildRegional(ChartManager manager, string regionId) {
 		MarketRegion region = manager.GetRegionById(regionId) ?? manager.GetAllRegions().FirstOrDefault();
 		string name = region?.regionName ?? "THE REGIONS";
-		var view = new TradeChartView { Title = $"{TradeName} REGIONAL ACTION — {name.ToUpperInvariant()}", Noun = "SINGLES" };
+		var view = new TradeChartView { Title = $"{TradeName} REGIONAL ACTION — {name.ToUpperInvariant()}", Noun = "SINGLES", ListName = name };
 		if (region == null) return view;
 		List<RecordRuntimeData> top = manager.GetAllRecords()
 			.Where(r => r.baseRecord != null && r.baseRecord.format != ReleaseFormat.Album

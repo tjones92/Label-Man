@@ -7,7 +7,8 @@ public partial class ArtistDetailPanel : Control
 {
 	public event Action<string> LabelRequested;
 	public event Action Closed;
-	private Label nameLabel, chromeLabel;
+	private Label nameLabel;
+	private HFlowContainer chromeRow;   // the act's particulars, one typed box each
 	private PortraitPhoto portrait;   // the act's publicity glossy, a halftone plate coded by genre and lineup
 	private Button labelButton;
 	private Control labelStrip;   // the label's crest and name, laid out like a letterhead
@@ -32,7 +33,9 @@ public partial class ArtistDetailPanel : Control
 		nameLabel.Text = profile.name;
 		portrait.Set(Portraits.ForAct(artist), new Vector2(84, 106), artist.artistId);
 		portrait.Visible = true;
-		chromeLabel.Text = $"{Format(profile.artistType)}  •  {Format(profile.primaryGenre)}  •  {profile.homeRegion}\n{Format(profile.careerState)}  |  Formed {profile.formedYear}";
+		TypedFields.Fill(chromeRow,
+			("Type", Format(profile.artistType)), ("Genre", Format(profile.primaryGenre)), ("Region", profile.homeRegion?.ToString() ?? "—"),
+			("Status", Format(profile.careerState)), ("Formed", profile.formedYear.ToString()));
 		ShowLabelStrip(profile.labelId, profile.labelName);
 		BuildTabs();
 		Visible = true;
@@ -69,7 +72,7 @@ public partial class ArtistDetailPanel : Control
 		portrait = new PortraitPhoto { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkCenter }; header.AddChild(portrait);
 		nameLabel = new Label(); nameLabel.AddThemeFontOverride("font", PaperTheme.Elite); nameLabel.VerticalAlignment = VerticalAlignment.Center; nameLabel.AddThemeFontSizeOverride("font_size", 32); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
 		var close = new Button { Text = "CLOSE  ×", SizeFlagsVertical = SizeFlags.ShrinkCenter }; close.Pressed += ClosePanel; header.AddChild(close);
-		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); chromeLabel.AddThemeColorOverride("font_color", new Color("3a2c18")); root.AddChild(chromeLabel);
+		chromeRow = new HFlowContainer(); chromeRow.AddThemeConstantOverride("h_separation", 8); chromeRow.AddThemeConstantOverride("v_separation", 6); root.AddChild(chromeRow);
 		// "Signed to" strip: crest, then the label name as a button in the label's own lettering.
 		var strip = new HBoxContainer(); strip.AddThemeConstantOverride("separation", 10); labelStrip = strip; root.AddChild(strip);
 		labelCrest = new LabelCrest(); strip.AddChild(labelCrest);
@@ -102,7 +105,8 @@ public partial class ArtistDetailPanel : Control
 	private void ShowOverview()
 	{
 		AddHeading("PUBLIC FILE"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
-		AddHeading("CHART RECORD"); AddBody($"{profile.totalCharted} chart entries   •   {profile.top40Hits} Top 40   •   {profile.top10Hits} Top 10   •   {profile.numberOneHits} #1 hits");
+		AddHeading("CHART RECORD");
+		content.AddChild(TypedFields.Row(("Chart entries", profile.totalCharted.ToString()), ("Top 40", profile.top40Hits.ToString()), ("Top 10", profile.top10Hits.ToString()), ("#1 hits", profile.numberOneHits.ToString())));
 		AddHeading("LINEUP AT A GLANCE"); AddBody(string.Join("\n", profile.personnel.Where(p => p.isActive).Select(p => $"{p.name} — {Format(p.role)}")));
 		ShowStanding();
 		// The public file's tags, plus whatever the career arc itself earned.

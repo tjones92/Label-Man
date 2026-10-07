@@ -6,34 +6,53 @@ public static class JournalisticDescriptor {
 	
 	// === RECORD DESCRIPTIONS ===
 	
-	public static string DescribeRecord(RecordRuntimeData record) {
+	/// <summary>
+	/// The record's blurb. Whichever of these sentences are picked from a pool is picked from a generator seeded by the record and
+	/// the week, never the global one: opening a card is a UI act, so it must not draw from (and so move) the stream the sim
+	/// shares, and the same card should read the same way if it is opened twice in a week.
+	/// <paramref name="listName"/> and <paramref name="listRank"/> place the record on a genre or regional list instead of the
+	/// Hot 100: the position, bullet, anchor and peak below are Hot 100 facts, and a country record at #1 on its own list can be
+	/// #2 on the Hot 100 or off it altogether (position 0, which used to print as "a top 10 smash at #0").
+	/// </summary>
+	public static string DescribeRecord(RecordRuntimeData record, string listName = null, int listRank = 0) {
+		picker = SeededPicker(record, 1);
+		try { return DescribeRecordCore(record, listName, listRank); }
+		finally { picker = null; }
+	}
+
+	private static string DescribeRecordCore(RecordRuntimeData record, string listName, int listRank) {
 		var descriptions = new List<string>();
 		var r = record.baseRecord;
-		
-		if (record.currentPosition == 1) {
-			descriptions.Add("The #1 record in America.");
-		} else if (record.currentPosition <= 10) {
-			descriptions.Add($"A top 10 smash, currently at #{record.currentPosition}.");
-		} else if (record.currentPosition <= 40) {
-			descriptions.Add($"A solid hit at #{record.currentPosition}.");
-		} else if (record.currentPosition > 0) {
-			descriptions.Add($"Bubbling under at #{record.currentPosition}.");
+		bool onList = listName != null;
+		int position = onList ? listRank : record.currentPosition;
+		string where = onList ? $"on the {listName} list" : "in America";
+
+		if (position == 1) {
+			descriptions.Add($"The #1 record {where}.");
+		} else if (position > 0 && position <= 10) {
+			descriptions.Add($"A top 10 smash{(onList ? $" on the {listName} list" : "")}, currently at #{position}.");
+		} else if (position > 0 && position <= 40) {
+			descriptions.Add($"A solid hit{(onList ? $" on the {listName} list" : "")} at #{position}.");
+		} else if (position > 0) {
+			descriptions.Add($"Bubbling under{(onList ? $" on the {listName} list" : "")} at #{position}.");
 		}
-		
-		if (record.isBullet) {
-			descriptions.Add("The fastest riser on the chart this week.");
-		} else if (record.isAnchor) {
-			descriptions.Add("Slipping fast down the charts.");
-		}
-		
-		if (record.weeksOnChart >= 20) {
-			descriptions.Add($"A perennial favorite, now in its {record.weeksOnChart}th week.");
-		} else if (record.weeksOnChart >= 10) {
-			descriptions.Add("Showing real staying power.");
-		}
-		
-		if (record.peakPosition < record.currentPosition && record.peakPosition <= 10) {
-			descriptions.Add($"Previously peaked at #{record.peakPosition}.");
+
+		if (!onList) {
+			if (record.isBullet) {
+				descriptions.Add("The fastest riser on the chart this week.");
+			} else if (record.isAnchor) {
+				descriptions.Add("Slipping fast down the charts.");
+			}
+
+			if (record.weeksOnChart >= 20) {
+				descriptions.Add($"A perennial favorite, now in its {record.weeksOnChart}th week.");
+			} else if (record.weeksOnChart >= 10) {
+				descriptions.Add("Showing real staying power.");
+			}
+
+			if (record.peakPosition < record.currentPosition && record.peakPosition <= 10) {
+				descriptions.Add($"Previously peaked at #{record.peakPosition}.");
+			}
 		}
 		
 		if (r.hookStrength > 0.8f) {
@@ -369,7 +388,21 @@ public static class JournalisticDescriptor {
 	
 	// === HELPERS ===
 	
+	// Set only while a record card is being worded (see DescribeRecord); null means the global generator, as before.
+	private static System.Random picker;
+
+	/// <summary>A generator that is a pure function of the record and the chart week (FNV-1a, never string.GetHashCode).</summary>
+	private static System.Random SeededPicker(RecordRuntimeData record, int salt) {
+		uint hash = 2166136261u;
+		foreach (char c in record.baseRecord?.recordId ?? "") hash = (hash ^ c) * 16777619u;
+		hash = (hash ^ (uint)record.weeksOnChart) * 16777619u;
+		hash = (hash ^ (uint)record.totalUnitsSold) * 16777619u;
+		hash = (hash ^ (uint)salt) * 16777619u;
+		return new System.Random((int)hash);
+	}
+
 	private static string GetRandomElement(string[] options) {
+		if (picker != null) return options[picker.Next(options.Length)];
 		// Fix: GD.RandRange instead of Random.Range
 		return options[(int)GD.RandRange(0, options.Length)];
 	}
@@ -384,7 +417,7 @@ public static class JournalisticDescriptor {
 		
 		// Fix: Mathf.Min works fine with using Godot at the top
 		for (int i = 0; i < Mathf.Min(count, source.Count); i++) {
-			int pick = (int)GD.RandRange(0, indices.Count);
+			int pick = picker != null ? picker.Next(indices.Count) : (int)GD.RandRange(0, indices.Count);
 			result.Add(source[indices[pick]]);
 			indices.RemoveAt(pick);
 		}
@@ -395,8 +428,23 @@ public static class JournalisticDescriptor {
 	// === CHART MOVEMENT COMMENTARY ===
 	
 	public static string GetChartMovementComment(RecordRuntimeData record) {
-		if (record.lastWeekPosition == 0) {
-			if (record.currentPosition <= 10) {
+		picker = SeededPicker(record, 2);
+		try { return MovementComment(record.lastWeekPosition, record.currentPosition); }
+		finally { picker = null; }
+	}
+
+	/// <summary>The same remark for a place on a genre list. <paramref name="lastRank"/> is 0 for a new entry and -1 where the list
+	/// keeps no week-on-week memory (regional action), which has nothing to say about movement.</summary>
+	public static string GetListMovementComment(RecordRuntimeData record, int rank, int lastRank) {
+		if (lastRank < 0) return "";
+		picker = SeededPicker(record, 3);
+		try { return MovementComment(lastRank, rank); }
+		finally { picker = null; }
+	}
+
+	private static string MovementComment(int lastWeekPosition, int currentPosition) {
+		if (lastWeekPosition == 0) {
+			if (currentPosition <= 10) {
 				return GetRandomElement(new[] {
 					"Exploding onto the chart!",
 					"A stunning debut!",
@@ -412,7 +460,7 @@ public static class JournalisticDescriptor {
 			});
 		}
 		
-		int movement = record.lastWeekPosition - record.currentPosition;
+		int movement = lastWeekPosition - currentPosition;
 		
 		if (movement >= 20) {
 			return GetRandomElement(new[] {

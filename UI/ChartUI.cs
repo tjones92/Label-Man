@@ -105,7 +105,10 @@ public partial class ChartUI : Control
 
 		if (detailPanel != null && record != null)
 		{
-			detailPanel.Show(record);
+			// A genre or regional list is a ranking of its own: hand the card the row that was clicked so it speaks about this list's
+			// place, not the record's Hot 100 position (which may be a different number, or none at all).
+			TradeChartRow row = view.ListName == null ? null : view.Rows.FirstOrDefault(r => r.Record == record);
+			detailPanel.Show(record, row, row == null ? null : view.ListName);
 		}
 		else
 		{
@@ -271,6 +274,7 @@ public partial class ChartUI : Control
 		regionRow = new HBoxContainer { Name = "RegionRow", Position = new Vector2(135f, 712f), Visible = false };
 		regionRow.AddThemeConstantOverride("separation", 8);
 		AddChild(regionRow);
+		BehindRecordCard(regionRow);
 		var heading = new Label { Text = "MARKET:", VerticalAlignment = VerticalAlignment.Center };
 		heading.AddThemeFontOverride("font", PaperTheme.SansBold);
 		heading.AddThemeFontSizeOverride("font_size", 13);
@@ -299,6 +303,15 @@ public partial class ChartUI : Control
 		noteLabel.AddThemeFontSizeOverride("font_size", 20);
 		noteLabel.AddThemeColorOverride("font_color", PaperTheme.Fade);
 		AddChild(noteLabel);
+		BehindRecordCard(noteLabel);
+	}
+
+	/// <summary>Anything added to the sheet after the scene was built lands above the record card in the draw order, so the market
+	/// chips printed over it. Slot a control in just under the card instead.</summary>
+	private void BehindRecordCard(Control control)
+	{
+		if (detailPanel != null && detailPanel.GetParent() == control.GetParent())
+			MoveChild(control, detailPanel.GetIndex());
 	}
 
 	private void SelectKind(TradeChartKind next)

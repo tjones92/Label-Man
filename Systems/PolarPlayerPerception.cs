@@ -35,8 +35,11 @@ public static class PolarPlayerPerception {
 	/// <summary>What a song IS, in the player's words: its archetype, mood and lyrical turn, read off the written song.
 	/// Empty for material with no composition behind it yet (a fresh original is still a demo). Flavour, not a score:
 	/// it tells two songs apart without ranking them.</summary>
-	public static string DescribeCharacter(PlayerDesk.MaterialChoice choice) {
-		SongTaxonomy taxonomy = CompositionCatalogService.GetSong(choice?.SongId)?.demoTaxonomy;
+	public static string DescribeCharacter(PlayerDesk.MaterialChoice choice) => DescribeCharacter(CompositionCatalogService.GetSong(choice?.SongId)?.demoTaxonomy);
+	/// <summary>A released record's character: the master as cut where one was printed, otherwise the written song.</summary>
+	public static string DescribeCharacter(Record record) => record == null ? "" : DescribeCharacter(
+		PolarSongMetadataService.Get(record.PlugMasterId)?.taxonomy ?? CompositionCatalogService.GetSong(record.songId)?.demoTaxonomy);
+	public static string DescribeCharacter(SongTaxonomy taxonomy) {
 		if (taxonomy == null) return "";
 		string Words(string name) => string.Concat(name.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + char.ToLowerInvariant(c) : i == 0 ? char.ToLowerInvariant(c).ToString() : c.ToString()));
 		var parts = new List<string>();
