@@ -24,12 +24,20 @@ public partial class TimeManager : Node {
 	public GameDate CurrentDate => currentDate;
 	public int CurrentHour => currentHour;
 	public int CurrentMinute => currentMinute;
+	public int RegularWorkdayEndHour => workDayEndHour;
+	public int HardStopHour => workDayEndHour + maxOvertimeHours;
+	public string RegularWorkdayEndTime => FormatHour(workDayEndHour);
+	public string HardStopTime => FormatHour(HardStopHour);
 	/// <summary>Minutes from now to the end of the day including overtime. The real budget a sub-hour
 	/// action is checked against.</summary>
 	public int MinutesRemainingWithOvertime =>
-		Mathf.Max(0, (workDayEndHour + maxOvertimeHours) * 60 - (currentHour * 60 + currentMinute));
-	public int HoursRemaining => Mathf.Max(0, workDayEndHour - currentHour);
-	public int HoursRemainingWithOvertime => Mathf.Max(0, (workDayEndHour + maxOvertimeHours) - currentHour);
+		Mathf.Max(0, HardStopHour * 60 - (currentHour * 60 + currentMinute));
+	public int RegularMinutesRemaining =>
+		Mathf.Max(0, workDayEndHour * 60 - (currentHour * 60 + currentMinute));
+	public int HoursRemaining => RegularMinutesRemaining / 60;
+	public int HoursRemainingWithOvertime => MinutesRemainingWithOvertime / 60;
+	public string RegularTimeRemainingText => FormatDuration(RegularMinutesRemaining);
+	public string OvertimeRemainingText => FormatDuration(Mathf.Max(0, MinutesRemainingWithOvertime - RegularMinutesRemaining));
 	public bool IsWorkDay => !currentDate.IsWeekend;
 	public bool IsOvertime => currentHour >= workDayEndHour;
 	public bool IsDayOver => currentHour >= workDayEndHour + maxOvertimeHours;
@@ -47,6 +55,10 @@ public partial class TimeManager : Node {
 	public event Action<int> OnHourChanged;
 	public event Action<ScheduledEvent> OnEventTriggered;
 	public event Action<ScheduledEvent> OnSkipInterrupted;
+	/// <summary>Asked after each day of a multi-day skip: did something happen that the player was waiting on
+	/// (a pressing landing, a ship date, a call at the office)? Returns its headline, or null. The scheduled
+	/// calendar only knows the chart Fridays and the Grammys; these stops are discovered as the days run.</summary>
+	public Func<(string Title, EventType Type)?> PlayerStopProbe;
 	public event Action OnGameEnded;
 
 	public override void _EnterTree() {
@@ -79,8 +91,8 @@ public partial class TimeManager : Node {
 	}
 
 	public bool CanAffordHours(int hours, bool allowOvertime = false) {
-		int available = allowOvertime ? HoursRemainingWithOvertime : HoursRemaining;
-		return hours <= available;
+		int availableMinutes = allowOvertime ? MinutesRemainingWithOvertime : RegularMinutesRemaining;
+		return hours >= 0 && hours * 60 <= availableMinutes;
 	}
 
 	public bool SpendHours(int hours, bool allowOvertime = false) {
@@ -170,12 +182,21 @@ public partial class TimeManager : Node {
 			GameDate tomorrow = currentDate.NextDay();
 			var interruptEvent = GetInterruptEventForDate(tomorrow, minimumInterruptPriority);
 
+			AdvanceToNextDay();
+
+			// The day-start handlers have run, so anything the player was waiting on (the vinyl, a ship date, a
+			// ringing office) has already happened by now. The probe is drained every day so a stop never
+			// carries over into the next skip.
+			var playerStop = PlayerStopProbe?.Invoke();
+			if (interruptEvent == null && playerStop != null) {
+				interruptEvent = new ScheduledEvent(playerStop.Value.Title, currentDate, playerStop.Value.Type) {
+					priority = EventPriority.High
+				};
+			}
 			if (interruptEvent != null) {
-				AdvanceToNextDay();
 				OnSkipInterrupted?.Invoke(interruptEvent);
 				return interruptEvent;
 			}
-			AdvanceToNextDay();
 		}
 		return null;
 	}
@@ -272,6 +293,20 @@ public partial class TimeManager : Node {
 		if (displayHour == 0) displayHour = 12;
 		string ampm = currentHour >= 12 ? "PM" : "AM";
 		return $"{displayHour}:{currentMinute:D2} {ampm}";
+	}
+
+	private static string FormatHour(int hour) {
+		int displayHour = hour > 12 ? hour - 12 : hour;
+		string ampm = hour >= 12 ? "PM" : "AM";
+		return $"{displayHour}:00 {ampm}";
+	}
+
+	private static string FormatDuration(int minutes) {
+		if (minutes <= 0) return "0m";
+		int hours = minutes / 60;
+		int remainder = minutes % 60;
+		if (hours == 0) return $"{remainder}m";
+		return remainder == 0 ? $"{hours}h" : $"{hours}h {remainder}m";
 	}
 
 	public string GetDayStatus() {

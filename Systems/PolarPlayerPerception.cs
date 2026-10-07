@@ -32,6 +32,22 @@ public static class PolarPlayerPerception {
 		CompositionShapeVariation.Ensure(demo); // Local provisional composition, no registry or RNG writes.
 		return demo;
 	}
+	/// <summary>What a song IS, in the player's words: its archetype, mood and lyrical turn, read off the written song.
+	/// Empty for material with no composition behind it yet (a fresh original is still a demo). Flavour, not a score:
+	/// it tells two songs apart without ranking them.</summary>
+	public static string DescribeCharacter(PlayerDesk.MaterialChoice choice) {
+		SongTaxonomy taxonomy = CompositionCatalogService.GetSong(choice?.SongId)?.demoTaxonomy;
+		if (taxonomy == null) return "";
+		string Words(string name) => string.Concat(name.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + char.ToLowerInvariant(c) : i == 0 ? char.ToLowerInvariant(c).ToString() : c.ToString()));
+		var parts = new List<string>();
+		if (taxonomy.archetype != SongArchetype.Unknown) parts.Add(Words(taxonomy.archetype.ToString()));
+		if (!string.IsNullOrWhiteSpace(taxonomy.mood)) parts.Add(taxonomy.mood.Trim().ToLowerInvariant() + " mood");
+		SongLyricMode lyric = taxonomy.lyricModes?.FirstOrDefault(mode => mode != SongLyricMode.Unknown) ?? SongLyricMode.Unknown;
+		if (lyric != SongLyricMode.Unknown) parts.Add("lyrics: " + Words(lyric.ToString()));
+		string text = string.Join("  ·  ", parts);
+		return text.Length == 0 ? "" : char.ToUpperInvariant(text[0]) + text[1..];
+	}
+
 	public static PolarArrangementProposal Proposal(PlayerDesk.MaterialChoice choice, SimulatedArtist artist, string plannedId, PolarSessionContext session = null) {
 		var song = Subject(choice, artist);
 		var reference = choice.Kind == PlayerDesk.MaterialKind.LiveCover ? PolarSongBehavior.Reference(song, TimeManager.Instance.CurrentDate.year, choice.ReferenceMasterId) : null;
@@ -96,9 +112,7 @@ public static class PolarPlayerPerception {
 			new ActProfile { axes = Centers(act), identityRigidity = act.rigidity.Center }, null, 0, PolarSongTable.Current);
 		bool resistance = gate is PolarEvidenceGate.Rehearsal or PolarEvidenceGate.Playback &&
 			PolarMaterialFit.WouldRefuse(guess, act.ambition.Center, standing, emptySongbook, PolarSongTable.Current);
-		int weakest = Enumerable.Range(0, SongProfile.DemandCount).OrderByDescending(i => proposed.axes[i].Center - act.axes[i].Center).First();
-		float gap = proposed.axes[weakest].Center - act.axes[weakest].Center;
-		string explanation = gap > 0 ? $"The arrangement may stretch their {Demands[weakest]}." : "The heard arrangement seems within their playing range.";
+		string explanation = StretchText(proposed.axes, act.axes, "The arrangement", "their", "The heard arrangement seems within their playing range.");
 		int identityGap = Enumerable.Range(SongProfile.DemandCount, SongProfile.IdentityCount).OrderByDescending(i => Math.Abs(proposed.axes[i].Center - act.axes[i].Center)).First();
 		string[] mismatch = { "Its edge sits outside the act's style.", "Its polish sits outside the act's style.", "Its emotional tone is unfamiliar to them.", "Its outlook sits outside the act's style." };
 		float pull = proposed.axes[(int)SongAxis.Toughness].Center - reference.axes[(int)SongAxis.Toughness].Center;
@@ -137,7 +151,7 @@ public static class PolarPlayerPerception {
 			float truth = song?.commercialHook ?? 0;
 			if (printedMasterId != null) truth = PlayerDesk.Instance.Masters.FirstOrDefault(m => m.Record.masterId == printedMasterId)?.Record.hookStrength ?? truth;
 			float error = Mathf.Lerp(Config.HookErrorWeak, Config.HookErrorStrong, scouting) * Config.GateScale[gate.ToString()];
-			read.hook = Read(truth, error, $"{label.labelId}|{heard.subjectId}|hook|{eventId}", "hook");
+			read.hook = Read(truth, error, $"{label.labelId}|{heard.subjectId}|hook|{eventId}", "hook", $"{label.labelId}|hook|{hearing.source}");
 			read.hookText = Capitalize(DescribeHook(read.hook.Center, BandConfidence(read.hook)));
 		}
 
@@ -154,17 +168,38 @@ public static class PolarPlayerPerception {
 			// Choosing material for your own act: a short read against what you know of them. The full
 			// arrangement, market moment and any pushback are studio reads.
 			read.referenceFit = FitBands(reference.axes, act.axes, act.rigidity, null);
-			int weakest = Enumerable.Range(0, SongProfile.DemandCount).OrderByDescending(i => reference.axes[i].Center - act.axes[i].Center).First();
-			read.explanation = reference.axes[weakest].Center > act.axes[weakest].Center
-				? $"It may stretch {artist.stageName}'s {Demands[weakest]}." : $"It looks within {artist.stageName}'s range.";
+			read.explanation = StretchText(reference.axes, act.axes, "It", "their", $"It looks within {artist.stageName}'s range.");
 		}
 		return read;
 	}
 
+	/// <summary>
+	/// The song's biggest asks of the act, graded. Naming only the single weakest axis made every song of one
+	/// archetype read "may stretch their vocal power" word for word; the size of the stretch, and the second
+	/// demand when it is a real one, is what tells two songs apart. Sizes are the read centres, so they carry
+	/// the same uncertainty the bands show.
+	/// </summary>
+	private static string StretchText(PolarBand[] song, PolarBand[] act, string subject, string possessive, string within) {
+		var gaps = Enumerable.Range(0, SongProfile.DemandCount)
+			.Select(i => (Axis: i, Gap: song[i].Center - act[i].Center))
+			.OrderByDescending(entry => entry.Gap).ToList();
+		var first = gaps[0];
+		if (first.Gap <= 0.02f) return within;
+		string Size(float gap) => gap < .06f ? "slightly" : gap < .14f ? "noticeably" : gap < .24f ? "a good deal" : "far beyond what they have";
+		string text = $"{subject} may stretch {possessive} {Demands[first.Axis]} {Size(first.Gap)}";
+		var second = gaps[1];
+		if (second.Gap >= .05f) text += $", and {possessive} {Demands[second.Axis]} {Size(second.Gap)}";
+		text += ".";
+		return text;
+	}
+
 	public static string DescribeHook(float value, float confidence) {
-		string core = value >= 0.75f ? "a standout hook" : value >= 0.55f ? "a strong tune" : value >= 0.35f ? "a fair number" : "a weak number";
+		string core = HookWord(value);
 		return confidence >= 0.7f ? core : confidence >= 0.45f ? $"likely {core}" : $"might be {core}";
 	}
+	/// <summary>The unhedged bucket for a hook read; two reads in different buckets are a different verdict.</summary>
+	public static string HookWord(float value) =>
+		value >= 0.75f ? "a standout hook" : value >= 0.55f ? "a strong tune" : value >= 0.35f ? "a fair number" : "a weak number";
 	/// <summary>Reads a band's width back onto the scouting-confidence scale the set list uses.</summary>
 	private static float BandConfidence(PolarBand band) => Math.Clamp(1 - (band.hi - band.lo) * 1.5f, 0, 1);
 	private static string Capitalize(string text) => string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text[1..];
@@ -186,7 +221,7 @@ public static class PolarPlayerPerception {
 	public static PolarObservation Observe(float[] axes, float reach, float rigidity, float ambition, float plasticity,
 		AILabel observer, string subject, string kind, string eventId, PolarEvidenceGate gate) {
 		string version = Hash(string.Join("|", axes.Concat(new[] { reach, rigidity, ambition, plasticity }).Select(v => v.ToString("R", System.Globalization.CultureInfo.InvariantCulture))) + "|" + PolarSongTable.Current.ContentFingerprint);
-		string key = $"{observer.labelId}|{subject}|{kind}|{eventId}|{version}|{Config.Version}";
+		string key = $"{observer.labelId}|{subject}|{kind}|{eventId}|{version}|{Config.Version}|{NoiseModel}";
 		observations.TryGetValue(key, out var prior);
 		// Keep earned evidence even when a later view asks for a weaker gate; improved staff may refine it.
 		if (prior != null && Config.GateScale[prior.gate.ToString()] < Config.GateScale[gate.ToString()]) gate = prior.gate;
@@ -201,7 +236,8 @@ public static class PolarPlayerPerception {
 		var observation = new PolarObservation { key = key, observerId = observer.labelId, subjectId = subject, kind = kind, eventId = eventId,
 			subjectVersion = version, perceptionVersion = Config.Version, gate = gate, demandError = demandError, identityError = identityError,
 			axes = new PolarBand[SongProfile.AxisCount] };
-		for (int i = 0; i < axes.Length; i++) observation.axes[i] = Read(axes[i], i < SongProfile.DemandCount ? demandError : identityError, key, "axis" + i);
+		for (int i = 0; i < axes.Length; i++) observation.axes[i] = Read(axes[i], i < SongProfile.DemandCount ? demandError : identityError, key, "axis" + i,
+			$"{observer.labelId}|{kind}|axis{i}");
 		observation.reach = Read(reach, identityError, key, "reach");
 		observation.rigidity = Read(rigidity, identityError, key, "rigidity");
 		observation.ambition = Read(ambition, identityError, key, "ambition");
@@ -210,8 +246,18 @@ public static class PolarPlayerPerception {
 		observations[key] = observation;
 		return observation;
 	}
-	private static PolarBand Read(float truth, float error, string key, string salt) {
-		float center = Math.Clamp(truth + (Unit(key + "|" + salt) - .5f) * error, 0, 1);
+	/// <summary>Part of every observation key, so reads made under an older noise model are never reused.</summary>
+	private const string NoiseModel = "shared-bias-v1";
+	/// <summary>How much of a read's miss is the observer's own lean (the same for every song of that kind on
+	/// that axis) rather than luck on this one hearing. A producer who over-hears vocal power does it to every
+	/// song, so two songs heard the same way still compare truthfully even while each read is uncertain. With
+	/// fully independent noise, the miss on each song was as big as the real difference between songs of one
+	/// archetype and the ordering between them was scrambled.</summary>
+	private const float SharedBiasShare = .75f;
+	private static PolarBand Read(float truth, float error, string key, string salt, string biasKey = null) {
+		float miss = biasKey == null ? Unit(key + "|" + salt) - .5f
+			: SharedBiasShare * (Unit(biasKey + "|lean") - .5f) + (1 - SharedBiasShare) * (Unit(key + "|" + salt) - .5f);
+		float center = Math.Clamp(truth + miss * error, 0, 1);
 		return new PolarBand(center - error * Config.BandWidth, center + error * Config.BandWidth);
 	}
 	private static float Unit(string value) { ulong hash = 14695981039346656037UL; foreach (char c in value) { hash ^= c; hash = unchecked(hash * 1099511628211UL); } return (hash >> 40) / 16777216f; }

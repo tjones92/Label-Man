@@ -21,7 +21,8 @@ public partial class PlayerDesk : Node {
 	// rest of the game rather than inventing a second economy of time.
 	public const int ScoutHours = ActionCosts.QuickMeeting;         // 2 -- catch a set with time left for a second look
 	public const int FollowUpHours = ActionCosts.QuickMeeting;      // 2 -- a second look and a talk
-	public const int SignHours = ActionCosts.LongMeeting;           // 6 -- contract negotiation
+	public const int SignHours = ActionCosts.LongMeeting;           // 6 -- a real sit-down (master deals); a Hardball negotiation reaches this in rounds
+	public const int PushoverSignHours = ActionCosts.QuickMeeting;  // 2 -- an easy act signs over one meeting, not 60% of a day
 	public const int WriteHours = ActionCosts.Songwriting;          // 4 -- a writing session
 	public const int DistributionHours = ActionCosts.RegionalTravel;// 4 -- travel and pitch a house
 	public const int ScheduleHours = ActionCosts.Planning;          // 2 -- booking the release
@@ -139,7 +140,7 @@ public partial class PlayerDesk : Node {
 	private const float GasPerMile = 0.02f;       // ~2c/mile: cheap gas, cheap car
 
 	public const float FoundingCapital = 800f;
-	private const int PlayerRosterCapacity = 6;
+	public const int PlayerRosterCapacity = 6;
 
 	/// <summary>Where the player went to hear acts. Each room draws a different crowd.</summary>
 	public enum ScoutingVenue { ClubsAndRoadhouses, TheatresAndSupperClubs, HonkyTonks, IndustryMeets }
@@ -202,14 +203,24 @@ public partial class PlayerDesk : Node {
 		public float AskingAdvance;
 		public string Note;
 		public ScoutingVenue Venue;
+		/// <summary>The town the act was found in -- it sets what they ask (see <see cref="CityProfile.AskScale"/>) and how
+		/// hard rivals in that town circle them. Empty means the home office's town.</summary>
+		public string CityId;
 		/// <summary>The act's full live set. Only <see cref="HeardCount"/> of it is visible until follow-up.</summary>
 		public readonly List<RepertoireItem> LiveSet = new();
 		/// <summary>How many songs the player actually caught on the night, before a second look.</summary>
 		public int HeardCount;
 		/// <summary>A second look has been taken: the full set is legible and the read has tightened.</summary>
 		public bool FollowedUp;
+		/// <summary>What the second look changed, as sentences for the card, headline first. Null until a follow-up
+		/// is taken; the numbers move on every follow-up but the descriptive bucket often does not, so this says so.</summary>
+		public List<string> Learned;
+		/// <summary>Titles the follow-up added to what the player has heard, so the set can mark them.</summary>
+		public readonly HashSet<string> NewlyHeard = new();
 		/// <summary>The label's opening offer, generated once when the player approaches. See <see cref="ApproachToSign"/>.</summary>
 		public ContractTermSheet Baseline;
+		/// <summary>Terms the player last entered when a signing was refused for time or cash.</summary>
+		public ContractTermSheet? Draft;
 		public bool HasBaseline;
 		/// <summary>How hard this act is to sign -- see SimTools/ContractNegotiationDirective.md Part 2.
 		/// Pushover stays the single-click ContractForm; Firm/Hardball opens <see cref="Talk"/>.</summary>
@@ -218,6 +229,8 @@ public partial class PlayerDesk : Node {
 		public ContractTalk Talk;
 		/// <summary>Set only when patience ran out at the table -- the act won't take a fresh approach until then.</summary>
 		public GameDate? CooldownUntil;
+		/// <summary>An easy act has already made its one counter; a second offer under the floor ends the talk.</summary>
+		public bool PushoverCountered;
 	}
 
 	/// <summary>A durable notebook entry for an unsigned act the label may want to approach later.</summary>
@@ -229,9 +242,18 @@ public partial class PlayerDesk : Node {
 		public float ReadConfidence;
 		public float AskingAdvance;
 		public string Note;
+		public string CityId;
 		public int HeardCount;
 		public bool FollowedUp;
 		public GameDate? LastRivalInterestDate;
+		/// <summary>You shook hands on them: no rival signs them until this date.</summary>
+		public GameDate? HeldUntil;
+		/// <summary>How many weeks of handshake you've already spent on this act. They only wait so long.</summary>
+		public int Handshakes;
+		/// <summary>A record man the desk heard is circling this act, and the day the deal lands if you do nothing.</summary>
+		public string CirclingLabel;
+		public string CirclingLabelId;
+		public GameDate? CirclingResolves;
 		public readonly List<RepertoireItem> LiveSet = new();
 	}
 
@@ -426,6 +448,33 @@ public partial class PlayerDesk : Node {
 	// Open "they called me" demand (directive §4). Generated once per chart week (CheckWeeklyInboundCalls),
 	// answered by working the stop normally (TryFulfillCall), or left to expire.
 	private readonly List<InboundCall> inboundCalls = new();
+	/// <summary>How many shops and operators are asking for stock right now (the shipping ticket is stamped RUSH while any are).</summary>
+	public int OpenInboundCallCount => inboundCalls.Count;
+
+	/// <summary>One pink "while you were out" slip: who, what, and the department that holds it.</summary>
+	public sealed class DeskMessage { public string From, Text, Tab; }
+
+	/// <summary>What is waiting for the player when they come back to the desk: the calls the answering service took (a shop sold
+	/// out, a station adding a record) and any Rolodex call-back that has come due. A read of live state, nothing is stored.</summary>
+	public List<DeskMessage> DeskMessages() {
+		var list = new List<DeskMessage>();
+		foreach (InboundCall call in inboundCalls.OrderBy(c => c.ExpiresWeek)) {
+			PlayerStop stop = GetStop(call.StopId);
+			string why = call.Reason switch {
+				InboundCallReason.SoldOut => "sold out, wants more of",
+				InboundCallReason.StationAdded => "has it on the air:",
+				InboundCallReason.Requests => "getting requests for",
+				InboundCallReason.AdjacentCity => "heard about",
+				InboundCallReason.OneStopTest => "wants a look at",
+				InboundCallReason.PreOrder => "wants some held of",
+				_ => "called about"
+			};
+			list.Add(new DeskMessage { From = stop?.DisplayName ?? "A shop", Text = $"{why} \"{TitleForRecord(call.RecordId)}\" ({call.RequestedQty:N0})", Tab = "DISTRIBUTION" });
+		}
+		foreach (RolodexEntry entry in Rolodex.Where(e => e.callbackDate != null && CallbackDue(e)))
+			list.Add(new DeskMessage { From = entry.displayName, Text = "your call-back is due now", Tab = "ROLODEX" });
+		return list;
+	}
 	private int lastCallGenWeek = -1;
 	// Dealer-margin-and-flip directive §4, R2: live returnable carton sales -- pruned of anything past
 	// its window or fully exercised by CheckWeeklyReturns.
@@ -448,6 +497,9 @@ public partial class PlayerDesk : Node {
 	// People (directive §7). The runner is null until hired; unlock ratchets on and never closes once earned.
 	private PlayerRunner runner;
 	private bool runnerUnlocked;
+	// The first industry meet always carries one represented act, so the manager's objection loop is met by
+	// design rather than by luck. One-shot per save.
+	private bool firstMeetManagerShown;
 	private int lastRunnerTickWeek = -1;
 	// "Persistent reorders in one city" -- successful ServiceStop calls, tallied per city toward the unlock.
 	private readonly Dictionary<string, int> serviceReorderCountByCity = new(StringComparer.Ordinal);
@@ -740,7 +792,8 @@ public partial class PlayerDesk : Node {
 		Requests,      // a shop you've never visited, but the counter's fielding requests for it
 		StationAdded,  // same "stranger" call, triggered off airplay rather than raw sales velocity
 		AdjacentCity,  // a stop in a town next to one you've already worked wants in too
-		OneStopTest    // the metro one-stop's first look -- directive §6, surfaced through a stop it already serves
+		OneStopTest,   // the metro one-stop's first look -- directive §6, surfaced through a stop it already serves
+		PreOrder       // a DJ liked the acetate and word reached a counter: hold me some when the pressing lands
 	}
 
 	/// <summary>One piece of "they called me" demand (directive §4.2): a stop asking for stock beyond
@@ -817,7 +870,7 @@ public partial class PlayerDesk : Node {
 
 	public PressStock StockFor(string recordId) =>
 		recordId != null && inventory.TryGetValue(recordId, out PressStock stock) ? stock : null;
-	public int AcetatesFor(string recordId) => acetateCopies.GetValueOrDefault(recordId, 0);
+	public int AcetatesFor(string recordId) => recordId == null ? 0 : acetateCopies.GetValueOrDefault(recordId, 0);
 
 	public bool CutAcetate(string recordId, out string message) {
 		Master master = masters.FirstOrDefault(item => item.Record?.recordId == recordId);
@@ -847,13 +900,16 @@ public partial class PlayerDesk : Node {
 		acetateCopies.Remove(recordId);
 		ServiceStation(recordId, stationId, 0.9f, ServicingSource.HandDelivered);
 		Master master = masters.First(item => item.Record.recordId == recordId);
-		string reaction = master.Record.hookStrength >= 0.72f
-			? "He likes the refrain and asks for a store copy when the pressing lands."
+		bool strong = master.Record.hookStrength >= PreOrderHookBar;
+		string reaction = strong
+			? "He likes the refrain, asks for a copy when the pressing lands, and says he'll mention it to the shops."
 			: master.Record.hookStrength >= 0.45f
 				? "He wants to hear it again once there's a finished 45."
 				: "He listens politely, but won't promise a spin yet.";
 		Note($"Handed an acetate of \"{TitleForRecord(recordId)}\" to {station.callsign} in {here.regionName}. {reaction}");
-		message = $"{station.callsign}: {reaction}";
+		int preOrders = strong ? GeneratePreOrders(recordId, station, master.Record.hookStrength) : 0;
+		message = $"{station.callsign}: {reaction}" + (preOrders > 0
+			? $" Word gets round: {preOrders} account{(preOrders == 1 ? "" : "s")} will be ringing the office about it." : "");
 		Changed?.Invoke();
 		return true;
 	}
@@ -909,6 +965,45 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>Raised whenever anything the desk UI displays has changed.</summary>
 	public event Action Changed;
+	/// <summary>A moment worth stopping the player for (the vinyl landing), with the line to announce. The
+	/// desk scene shows it as a banner; it never carries state, so a missed one costs nothing.</summary>
+	public event Action<string> Announcement;
+
+	// What happened this morning that a calendar skip should stop for. Filled by the day-start handlers, cleared
+	// at the start of the next day, read by TimeManager.PlayerStopProbe while a skip runs.
+	private readonly List<(string Title, EventType Type)> skipStops = new();
+
+	/// <summary>Marks the morning as worth stopping a skip for. Office events (a ringing phone) only count
+	/// while the player is at the home office -- on the road he isn't there to hear them, so they don't wake
+	/// a skip that is covering his trip.</summary>
+	private void FlagSkipStop(string title, EventType type, bool officeOnly = false) {
+		if (officeOnly && !AtHome) return;
+		if (skipStops.Any(stop => stop.Title == title)) return;
+		skipStops.Add((title, type));
+	}
+
+	private (string Title, EventType Type)? ProbeSkipStop() {
+		if (skipStops.Count == 0) return null;
+		// The vinyl and the ship date outrank a phone call when several land on the same morning.
+		EventType lead = skipStops.OrderBy(stop => stop.Type == EventType.PressingPlantDelivery ? 0 : stop.Type == EventType.RecordRelease ? 1 : 2).First().Type;
+		string title = string.Join("  •  ", skipStops.Select(stop => stop.Title));
+		skipStops.Clear();
+		return (title, lead);
+	}
+
+	/// <summary>The soonest thing the player is waiting on that the calendar does not list: a pressing landing
+	/// or a dated release. Lets "skip to next event" name what it will really stop for.</summary>
+	public (GameDate Date, string Title)? NextPlayerEvent(GameDate after) {
+		(GameDate Date, string Title)? best = null;
+		void Consider(GameDate date, string title) {
+			if (date <= after) return;
+			if (best == null || date < best.Value.Date) best = (date, title);
+		}
+		foreach (PressOrder order in pressOrders) Consider(order.Arrives, $"vinyl for \"{TitleForRecord(order.RecordId)}\" lands");
+		foreach (PlannedRelease release in planned.Where(entry => entry.Dated))
+			Consider(release.Date, $"\"{release.Master?.SongTitle}\" ships");
+		return best;
+	}
 
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
@@ -926,6 +1021,7 @@ public partial class PlayerDesk : Node {
 			// Likewise last for the month: CompetitorManager has already charged the player's overhead
 			// by the time this runs, so the solvency check reads the post-overhead balance.
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
+			TimeManager.Instance.PlayerStopProbe = ProbeSkipStop;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
 		InitBandRoom();
@@ -938,15 +1034,17 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnHourChanged -= OnHourChanged;
 			TimeManager.Instance.OnWeekEnded -= OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
+			if (TimeManager.Instance.PlayerStopProbe == ProbeSkipStop) TimeManager.Instance.PlayerStopProbe = null;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment -= OnRivalTalentMarketAppointment;
 		if (Instance == this) Instance = null;
 	}
 
-	private void OnHourChanged(int hour) => Changed?.Invoke();
+	private void OnHourChanged(int hour) { AnnounceDueCallbacks(); Changed?.Invoke(); }
 
 	private void OnRivalTalentMarketAppointment(RosterManager.DailyTalentMarketAppointment appointment) {
 		if (appointment?.SelectedArtist == null || appointment.Label == null || appointment.Label.isPlayerOwned) return;
+		RecordRivalSigning(appointment);
 		WatchNote entry = notebook.FirstOrDefault(note => note.Artist?.artistId == appointment.SelectedArtist.artistId);
 		if (entry == null || (entry.LastRivalInterestDate.HasValue && entry.LastRivalInterestDate.Value == appointment.Date)) return;
 		if (appointment.Outcome is not ("AcceptedUncontested" or "AcceptedArtistChoice" or "LostArtistChoice" or "Nominated")) return;
@@ -1002,7 +1100,12 @@ public partial class PlayerDesk : Node {
 	public bool FoundLabel(string labelName, string cityId, out string message) =>
 		FoundLabel(labelName, cityId, FoundingArchetype.TradeInsider, out message);
 
-	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, out string message) {
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, out string message) =>
+		FoundLabel(labelName, cityId, archetype, null, out message);
+
+	/// <summary>Founds the label wearing the crest, colours and lettering the player picked. A null brand lets the
+	/// label derive one from its name, so skipping the picker still yields a unique look.</summary>
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, LabelBrand brand, out string message) {
 		if (Label != null) { message = "You already run a label."; return false; }
 		// The player picks the town they work out of; the market it sits in is inferred from it.
 		MarketCity city = DistanceModel.GetCityById(cityId);
@@ -1047,6 +1150,7 @@ public partial class PlayerDesk : Node {
 			runtimeBirthWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			runtimeBirthYear = year
 		};
+		label.brand = brand?.Clone() ?? LabelBrand.Derive(label.labelName);
 		label.distributionStrength = 0.05f;
 		label.preferredGenres = TopRegionalGenres(region, 2);
 		label.secondaryGenres = Array.Empty<Genre>();
@@ -1061,7 +1165,6 @@ public partial class PlayerDesk : Node {
 		currentCityId = city.cityId; // you start at your own office
 
 		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${profile.Capital:N0}.");
-		Note($"You are {profile.Name}. {profile.Tagline}");
 		message = $"{label.labelName} is open.";
 		Changed?.Invoke();
 		return true;
@@ -1164,10 +1267,22 @@ public partial class PlayerDesk : Node {
 	/// manager multiplies on top, which is why a Shark on a bar band is still a tell. Rounded to a
 	/// number a period contract would actually carry.
 	/// </summary>
-	private static float VenueAdvanceAsk(SimulatedArtist artist, ScoutingVenue venue) {
+	/// <summary>What the town's acts ask relative to the national going rate. An unrecorded town is the home office's.</summary>
+	private float AskScaleFor(string cityId) =>
+		CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label?.homeCityId : cityId).AskScale;
+
+	/// <summary>The range an unknown act in this room usually asks for, in the town the player is standing in:
+	/// the room's base band across the half-to-double talent spread. For the A&amp;R room picker, so the price
+	/// of a room is on the screen before the money is spent.</summary>
+	public (float Low, float High) TypicalAsk(ScoutingVenue venue) {
+		float band = VenueAdvanceBase(venue) * AskScaleFor(CurrentCityId);
+		return (RoundToContractFigure(band * 0.5f), RoundToContractFigure(band * 2f));
+	}
+
+	private static float VenueAdvanceAsk(SimulatedArtist artist, ScoutingVenue venue, float marketScale = 1f) {
 		float talent = 0.5f + (artist.CalculateBaseQuality() * 1.5f);          // 0.5x .. 2.0x
 		float standing = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
-		float ask = VenueAdvanceBase(venue) * talent * standing
+		float ask = VenueAdvanceBase(venue) * talent * standing * marketScale
 			* ManagerProfile.Of(artist.manager).AdvanceDemandMult;
 		return RoundToContractFigure(ask);
 	}
@@ -1279,6 +1394,8 @@ public partial class PlayerDesk : Node {
 			return true;
 		}
 
+		if (trade) EnsureRepresentedActOnFirstMeet(slateActs);
+
 		foreach (SimulatedArtist artist in slateActs) {
 			float noise = ScoutingReadNoise(Label.scoutingAbility);
 			var prospect = new Prospect {
@@ -1286,16 +1403,35 @@ public partial class PlayerDesk : Node {
 				Venue = venue,
 				ReadQuality = ScoutingPerception.PerceivedQuality(artist, Label, 0),
 				ReadConfidence = Mathf.Clamp(Label.scoutingAbility, 0f, 1f),
-				AskingAdvance = VenueAdvanceAsk(artist, venue),
+				CityId = CurrentCityId,
+				AskingAdvance = VenueAdvanceAsk(artist, venue, AskScaleFor(CurrentCityId)),
 				Note = DescribeProspect(artist, Label, noise)
 			};
 			BuildLiveSet(prospect, artist, year, noise);
 			slate.Add(prospect);
 		}
-		Note($"Worked {VenueName(venue)} in {region.regionName}: {slate.Count} act(s) on the pad.");
-		message = $"Caught {slate.Count} act(s).";
+		Note($"Worked {VenueName(venue)} in {region.regionName}: {slate.Count} {(slate.Count == 1 ? "act" : "acts")} on the pad.");
+		message = $"Caught {slate.Count} {(slate.Count == 1 ? "act" : "acts")}.";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	/// The first industry meet a player ever works always has someone with a manager on the bill. The meet is
+	/// "professionally represented" product by its own description, yet a thin slate can come up all unmanaged,
+	/// and then a new player's first signing is the one-click Pushover form and the table (objections, the
+	/// hard line, a counter) is never seen. The act is chosen by asking the least, so the lesson is
+	/// affordable, and a manager is stamped on a real unsigned act only if none of the slate has one.
+	/// </summary>
+	private void EnsureRepresentedActOnFirstMeet(List<SimulatedArtist> slateActs) {
+		if (firstMeetManagerShown) return;
+		firstMeetManagerShown = true;
+		if (!ManagerSystem.Enabled || slateActs.Count == 0) return;
+		if (slateActs.Any(act => act.manager != ManagerArchetype.None)) return;
+		SimulatedArtist pick = slateActs.OrderBy(act => VenueAdvanceAsk(act, ScoutingVenue.IndustryMeets, AskScaleFor(CurrentCityId))).First();
+		float roll = GD.Randf();
+		pick.manager = roll < 0.5f ? ManagerArchetype.Visionary : roll < 0.8f ? ManagerArchetype.Shark : ManagerArchetype.Svengali;
+		pick.managerName = GenerateManagerNameFor();
 	}
 
 	// A genre the market has essentially no ear for is not on the bill at all -- this is the hard floor
@@ -1366,7 +1502,7 @@ public partial class PlayerDesk : Node {
 		if (notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) { message = "Already in your notebook."; return false; }
 		if (notebook.Count >= 6) { message = "The notebook is full. Remove an act before adding another."; return false; }
 		var entry = new WatchNote {
-			Artist = prospect.Artist, Venue = prospect.Venue,
+			Artist = prospect.Artist, Venue = prospect.Venue, CityId = prospect.CityId,
 			LastSeen = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate,
 			ReadQuality = prospect.ReadQuality, ReadConfidence = prospect.ReadConfidence,
 			AskingAdvance = prospect.AskingAdvance, Note = prospect.Note,
@@ -1401,7 +1537,7 @@ public partial class PlayerDesk : Node {
 			Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) / 4));
 		float readQuality = Mathf.Lerp(entry.ReadQuality, freshRead, Mathf.Clamp(staleDays / 120f, 0f, 0.55f));
 		var prospect = new Prospect {
-			Artist = entry.Artist, Venue = entry.Venue, ReadQuality = readQuality,
+			Artist = entry.Artist, Venue = entry.Venue, CityId = entry.CityId, ReadQuality = readQuality,
 			ReadConfidence = confidence, AskingAdvance = entry.AskingAdvance,
 			Note = DescribeProspect(entry.Artist, Label, Mathf.Lerp(0.30f, 0.10f, confidence)),
 			HeardCount = Mathf.Min(entry.HeardCount, entry.LiveSet.Count), FollowedUp = false
@@ -1531,6 +1667,12 @@ public partial class PlayerDesk : Node {
 		if (!Require(FollowUpHours, out message)) return false;
 
 		Spend(FollowUpHours);
+		// Remember what the pad said before the second look, so the card can say what the two hours bought.
+		float qualityBefore = prospect.ReadQuality, confidenceBefore = prospect.ReadConfidence;
+		string noteBefore = prospect.Note;
+		int heardBefore = prospect.HeardCount;
+		List<float> hooksBefore = prospect.LiveSet.Take(heardBefore).Select(item => item.ReadHook).ToList();
+
 		prospect.FollowedUp = true;
 		prospect.HeardCount = prospect.LiveSet.Count;
 		// The read tightens toward the truth now that you've spent real time on them.
@@ -1538,6 +1680,14 @@ public partial class PlayerDesk : Node {
 		prospect.ReadQuality = Mathf.Clamp(Mathf.Lerp(prospect.ReadQuality, truth, 0.6f), 0f, 1f);
 		prospect.ReadConfidence = Mathf.Clamp(prospect.ReadConfidence + 0.25f, 0f, 1f);
 		prospect.Note = DescribeProspect(prospect.Artist, Label, Mathf.Lerp(0.30f, 0.10f, prospect.ReadConfidence));
+		// The material tightens with the act: a second hearing of a tune is closer to the tune than the first was.
+		foreach (RepertoireItem item in prospect.LiveSet) {
+			SongComposition song = string.IsNullOrEmpty(item.SongId) ? null : CompositionCatalogService.GetSong(item.SongId);
+			if (song != null) item.ReadHook = Mathf.Clamp(Mathf.Lerp(item.ReadHook, song.commercialHook, 0.6f), 0f, 1f);
+		}
+		prospect.NewlyHeard.Clear();
+		foreach (RepertoireItem item in prospect.LiveSet.Skip(heardBefore)) prospect.NewlyHeard.Add(item.Title);
+		prospect.Learned = DescribeFollowUp(prospect, qualityBefore, confidenceBefore, noteBefore, heardBefore, hooksBefore);
 		WatchNote watched = notebook.FirstOrDefault(entry => entry.Artist?.artistId == prospect.Artist.artistId);
 		if (watched != null) {
 			watched.ReadQuality = prospect.ReadQuality;
@@ -1549,10 +1699,73 @@ public partial class PlayerDesk : Node {
 			watched.LiveSet.Clear();
 			watched.LiveSet.AddRange(prospect.LiveSet);
 		}
-		Note($"Followed up with {prospect.Artist.stageName} -- heard the full set ({prospect.LiveSet.Count} songs).");
-		message = $"You know {prospect.Artist.stageName} a lot better now.";
+		Note($"Followed up with {prospect.Artist.stageName} -- heard the full set ({prospect.LiveSet.Count} songs). {prospect.Learned[0]}");
+		message = $"{prospect.Artist.stageName}: {prospect.Learned[0]}";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>The descriptive read of an act in one phrase. The bar under it moves on every follow-up but the phrase
+	/// seldom does, so the card compares phrases before and after (<see cref="DescribeFollowUp"/>).</summary>
+	public static string ReadVerdict(float readQuality) =>
+		readQuality >= 0.72f ? "strong prospects"
+		: readQuality >= 0.50f ? "promising, with questions"
+		: readQuality >= 0.30f ? "rough but worth another look" : "a long shot";
+
+	/// <summary>How far off a read can be, as the +/- fraction the note's wording is blurred by.</summary>
+	public static float ReadFog(float confidence) => Mathf.Lerp(0.30f, 0.10f, Mathf.Clamp(confidence, 0f, 1f));
+
+	/// <summary>How clear the picture of an act is, as a word. The ± percentage is the model's number, never the
+	/// player's: a scout does not know how wrong he is, he knows how muddy it looks.</summary>
+	public static string FogWord(float confidence) =>
+		confidence >= 0.80f ? "nearly clear"
+		: confidence >= 0.55f ? "mostly clear"
+		: confidence >= 0.30f ? "hazy" : "murky";
+
+	/// <summary>The follow-up's fog line in plain language: where the picture was, where it is, never a figure.</summary>
+	public static string DescribeFogClearing(float confidenceBefore, float confidenceAfter) {
+		string was = FogWord(confidenceBefore), now = FogWord(confidenceAfter);
+		if (confidenceAfter - confidenceBefore < 0.02f) return $"There was little left to clear; the picture of them was already {now}.";
+		return was != now
+			? $"The picture sharpened: what looked {was} now looks {now}."
+			: $"The picture came into better focus, though it is still {now}.";
+	}
+
+	/// <summary>What two hours bought, as sentences, headline first. Says so plainly when the answer is "the verdict
+	/// stands": a follow-up that confirms a read is information too, and it should not look like nothing happened.</summary>
+	private static List<string> DescribeFollowUp(Prospect prospect, float qualityBefore, float confidenceBefore,
+			string noteBefore, int heardBefore, IReadOnlyList<float> hooksBefore) {
+		var lines = new List<string>();
+
+		// 1. The act itself.
+		string before = ReadVerdict(qualityBefore), after = ReadVerdict(prospect.ReadQuality);
+		float delta = prospect.ReadQuality - qualityBefore;
+		string drift = Mathf.Abs(delta) < 0.03f ? "about what you thought"
+			: delta > 0f ? "a little better than you thought" : "a little worse than you thought";
+		lines.Add(before != after
+			? $"Your read moved from “{before}” to “{after}”."
+			: $"Your read stands at “{after}” — {drift}.");
+		lines.Add(DescribeFogClearing(confidenceBefore, prospect.ReadConfidence));
+
+		// 2. The things the note put in words: what they write and how they play a room.
+		(string size, string writing, string stage) was = ProspectNoteParts(noteBefore);
+		(string size, string writing, string stage) now = ProspectNoteParts(prospect.Note);
+		if (was.writing != now.writing) lines.Add($"Their writing: {was.writing} → {now.writing}.");
+		if (was.stage != now.stage) lines.Add($"On the stand: “{was.stage}” → “{now.stage}”.");
+
+		// 3. The set.
+		int fresh = prospect.LiveSet.Count - heardBefore;
+		if (fresh <= 0) {
+			lines.Add("You had already caught the whole set.");
+		} else {
+			RepertoireItem pick = prospect.LiveSet.Skip(heardBefore).OrderByDescending(item => item.ReadHook).First();
+			lines.Add($"Heard {fresh} more {(fresh == 1 ? "song" : "songs")}; the pick of them is “{pick.Title}”, {PolarPlayerPerception.DescribeHook(pick.ReadHook, prospect.ReadConfidence)}.");
+		}
+		for (int i = 0; i < hooksBefore.Count && i < prospect.LiveSet.Count; i++) {
+			string wasWord = PolarPlayerPerception.HookWord(hooksBefore[i]), nowWord = PolarPlayerPerception.HookWord(prospect.LiveSet[i].ReadHook);
+			if (wasWord != nowWord) lines.Add($"“{prospect.LiveSet[i].Title}” sounded like {wasWord}; the second hearing says {nowWord}.");
+		}
+		return lines;
 	}
 
 	/// <summary>
@@ -1651,6 +1864,12 @@ public partial class PlayerDesk : Node {
 		return $"{artist.members.Count(member => member.isActive)}-piece, {writing}, {stage}";
 	}
 
+	/// <summary>Splits a <see cref="DescribeProspect"/> note back into its three phrases, so two reads of one act can be compared.</summary>
+	private static (string size, string writing, string stage) ProspectNoteParts(string note) {
+		string[] parts = (note ?? string.Empty).Split(", ");
+		return (parts.ElementAtOrDefault(0) ?? "", parts.ElementAtOrDefault(1) ?? "", parts.ElementAtOrDefault(2) ?? "");
+	}
+
 	private static float StableReadOffset(AILabel label, SimulatedArtist artist, string field) {
 		const ulong offset = 14695981039346656037UL;
 		const ulong prime = 1099511628211UL;
@@ -1692,7 +1911,7 @@ public partial class PlayerDesk : Node {
 		// The term sheet's own advance is the AI's tier-priced offer; for the player the ROOM sets the
 		// band, so the ask the player already saw on the pad is the number that opens the table. Keeping
 		// them the same figure is what makes the ask an anchor you can negotiate against.
-		prospect.AskingAdvance = VenueAdvanceAsk(prospect.Artist, prospect.Venue);
+		prospect.AskingAdvance = VenueAdvanceAsk(prospect.Artist, prospect.Venue, AskScaleFor(prospect.CityId));
 		float royalty = VenueRoyaltyBaseline(prospect.Artist, prospect.Venue);
 		int singles = PlayerDeliverablesAsk(prospect.Artist, t.TermYears, year);
 		prospect.Baseline = new ContractTermSheet(prospect.AskingAdvance, royalty, t.TermYears,
@@ -1718,7 +1937,7 @@ public partial class PlayerDesk : Node {
 	}
 
 	/// <summary>
-	/// Puts a concrete contract on the table. The player set the terms; this is where the six-hour
+	/// Puts a concrete contract on the table. The player set the terms; this is where the two-hour
 	/// negotiation is spent and the act is actually signed. Non-money fields (singles obligation,
 	/// negotiation difficulty, the manager) are carried from the opening offer so a hand-set advance
 	/// does not erase the rest of the deal.
@@ -1726,6 +1945,7 @@ public partial class PlayerDesk : Node {
 	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears, int singlesObligation,
 		bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
+		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!prospect.HasBaseline) { message = "Approach them first."; return false; }
 		// Firm/Hardball acts don't take an accept-or-walk offer -- they go through TableOffer's
 		// negotiation loop instead. See SimTools/ContractNegotiationDirective.md Part 2.
@@ -1733,24 +1953,52 @@ public partial class PlayerDesk : Node {
 			message = "They want to talk terms, not just sign -- work it through the negotiation.";
 			return false;
 		}
-		if (!Require(SignHours, out message)) return false;
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
 
 		advance = Mathf.Max(0f, advance);
-		if (!Label.CanAffordToSign(advance)) {
-			message = $"You can't cover a ${advance:N0} advance and hold next month's overhead.";
-			return false;
-		}
-
 		ContractTermSheet b = prospect.Baseline;
 		var sheet = new ContractTermSheet(
 			advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f), Mathf.Clamp(termYears, 1, 7),
 			Mathf.Clamp(singlesObligation, 0, 30), labelOwnsPublishing, artistCreativeControl,
 			b.NegotiationDifficulty, b.Manager, b.ManagerName, b.DemandSummary);
+		prospect.Draft = sheet;
+		// An easy act signs near its ask, but not at any price: below a generous floor it makes one mild
+		// counter, and if the next offer is still under the floor it walks. No scene -- one round each.
+		if (!ClearsPushoverFloor(b, sheet, out PushoverShortfall shortfall)) {
+			if (!Require(NegotiationRoundHours, out message)) return false;
+			Spend(NegotiationRoundHours);
+			string name = prospect.Artist.stageName;
+			if (prospect.PushoverCountered || shortfall.FarBelow) {
+				prospect.PushoverCountered = false;
+				prospect.Draft = null;
+				GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+				prospect.CooldownUntil = today.AddDays(ForcedWalkCooldownDays);
+				Note($"{name} walked from the table. Give it time before you go back.");
+				message = $"{name}'s side laughs and picks up their gear -- not at those numbers. Try again after {prospect.CooldownUntil.Value.ToShortString()}.";
+			} else {
+				prospect.PushoverCountered = true;
+				prospect.Draft = PushoverCounter(prospect, sheet, shortfall);
+				message = PushoverCounterLine(name, prospect.Draft.Value, shortfall);
+				Note(message);
+			}
+			Changed?.Invoke();
+			return false;
+		}
+		prospect.PushoverCountered = false;
+		if (!Require(PushoverSignHours, out message)) return false;
+		if (!Label.CanAffordToSign(advance)) {
+			float reserve = Label.GetMonthlyOverhead() * 2f;
+			float after = Label.cashReserves - advance;
+			message = $"A ${advance:N0} advance would leave ${after:N0}; signing requires more than ${reserve:N0} after the advance (two months of overhead). Lower the advance or wait for more cash.";
+			return false;
+		}
 
-		Spend(SignHours);
+		Spend(PushoverSignHours);
+		string artistId = prospect.Artist.artistId;
 		FinalizeSigning(prospect, sheet, out message);
+		if (b.Advance > 0f) message += AdvanceMarginLine(Mathf.Max(0f, shortfall.MinAdvance), advance, artistId);
+		prospect.Draft = null;
 		Changed?.Invoke();
 		return true;
 	}
@@ -2010,6 +2258,10 @@ public partial class PlayerDesk : Node {
 			Note(r.IsCommission
 				? $"The writer delivered \"{r.Title}\" for {artist?.stageName ?? "the act"} — ready to record."
 				: $"{artist?.stageName ?? "The act"} has \"{r.Title}\" in the set now.");
+			// A cover or a commission the player has been waiting on is worth stopping a skip for.
+			FlagSkipStop(r.IsCommission
+				? $"\"{r.Title}\" is in from the writer"
+				: $"{artist?.stageName ?? "The act"} has \"{r.Title}\" ready", EventType.Reminder);
 		}
 	}
 
@@ -2031,16 +2283,22 @@ public partial class PlayerDesk : Node {
 	};
 
 	/// <summary>0 (weak local studios) .. 1 (a signature-sound town), from the region's music industry.</summary>
-	private float StudioQualityT() {
-		MarketRegion region = ChartManager.Instance?.GetRegionById(Label?.homeRegion);
+	private float StudioQualityT() => StudioQualityIn(Label?.homeCityId, Label?.homeRegion);
+
+	/// <summary>A town's studio quality (<see cref="CityProfile.Studio"/>; the region's rooms for an unauthored town).
+	/// Static so the founding screen can quote a town before it is chosen.</summary>
+	public static float StudioQualityIn(string cityId, string regionId) {
+		MarketRegion region = ChartManager.Instance?.GetRegionById(regionId);
 		float mod = region != null ? ChartSimulator.GetStudioQualityModifier(region) : 0.7f;
-		return Mathf.Clamp((mod - 0.5f) / 0.65f, 0f, 1f);
+		return CityProfiles.StudioQuality(cityId, Mathf.Clamp((mod - 0.5f) / 0.65f, 0f, 1f));
 	}
 
-	public float StudioHourlyRate(StudioTier tier) {
+	public static float StudioHourlyRateIn(string cityId, string regionId, StudioTier tier) {
 		(float low, float high) = StudioRateRange(tier);
-		return Mathf.Round(Mathf.Lerp(low, high, StudioQualityT()));
+		return Mathf.Round(Mathf.Lerp(low, high, StudioQualityIn(cityId, regionId)));
 	}
+
+	public float StudioHourlyRate(StudioTier tier) => StudioHourlyRateIn(Label?.homeCityId, Label?.homeRegion, tier);
 
 	public float SessionCost(StudioTier tier, int hours) =>
 		StudioHourlyRate(tier) * Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
@@ -2058,6 +2316,11 @@ public partial class PlayerDesk : Node {
 			.22f * artist.studioPerformance + .12f * StudioQualityT(), 0, 1)
 	};
 
+	/// <summary>Creative control has teeth: an act that holds it turns down more of what you put in front of it
+	/// (a higher bar to clear), and its no cannot be overridden in the studio. Player booking only -- the AI's
+	/// own material gate calls <see cref="PolarSongBehavior.Refuses"/> at scale 1.</summary>
+	public const float CreativeControlRefusalScale = 1.30f;
+
 	/// <summary>Direct act feedback. Only the refusal decision crosses the truth boundary; its wording
 	/// is the act's communicated response, rather than a hidden deficit or numerical fit display.</summary>
 	public IReadOnlyList<string> MaterialRefusals(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier? tier = null) {
@@ -2068,7 +2331,7 @@ public partial class PlayerDesk : Node {
 			var choice = choices[i];
 			if (choice == null || CompositionCatalogService.GetSong(choice.SongId) == null) continue;
 			var proposal = PolarPlayerPerception.Proposal(choice, artist, PreviewMasterId(i), tier.HasValue ? PreviewSessionContext(tier.Value, artist) : null);
-			if (PolarSongBehavior.Refuses(proposal.fit, artist, empty))
+			if (PolarSongBehavior.Refuses(proposal.fit, artist, empty, artist.artistCreativeControl ? CreativeControlRefusalScale : 1f))
 				responses.Add($"{artist.stageName} on “{choice.Title}”: “This doesn't feel like us. We'd rather work on our own material.”");
 		}
 		return responses;
@@ -2081,6 +2344,10 @@ public partial class PlayerDesk : Node {
 		List<MaterialChoice> cutting = (choices ?? Array.Empty<MaterialChoice>()).Where(c => c != null).ToList();
 		if (cutting.Count == 0) { message = "Pick at least one song to cut."; return false; }
 		var refusals = MaterialRefusals(artist, cutting, tier);
+		if (refusals.Count > 0 && artist.artistCreativeControl) {
+			message = string.Join("\n", refusals) + $"\n{artist.stageName} holds creative control -- it's their call, and you can't insist.";
+			return false;
+		}
 		if (!overrideRefusal && refusals.Count > 0) { message = string.Join("\n", refusals); return false; }
 		hours = Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
 		if (!Require(hours, out message)) return false;
@@ -2334,11 +2601,16 @@ public partial class PlayerDesk : Node {
 		HasBeenPressed(recordId) ? 0
 			: Mathf.Min(MaxPromoCount(recordId, quantity), Mathf.RoundToInt(quantity * PressPromoSuggestedFraction));
 
-	public bool OrderPressing(string recordId, int quantity, int promoCount, out string message) {
+	public bool OrderPressing(string recordId, int quantity, int promoCount, out string message, bool confirmAdditionalRun = false) {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (string.IsNullOrEmpty(recordId)) { message = "No single selected."; return false; }
 		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to press right now -- the master's out."; return false; }
+		PressOrder alreadyInPlant = PressingOrderFor(recordId);
+		if (alreadyInPlant != null && !confirmAdditionalRun) {
+			message = $"A run of \"{TitleForRecord(recordId)}\" is already due {alreadyInPlant.Arrives.ToHeadlineString()}. Confirm another run before ordering it.";
+			return false;
+		}
 		bool repress = HasBeenPressed(recordId);
 		int minimum = MinimumPressRun(recordId);
 		if (quantity < minimum) {
@@ -2418,6 +2690,7 @@ public partial class PlayerDesk : Node {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (plantCredit != null) { message = "You still owe the plant for the last credit run."; return false; }
+		if (PressingOrderFor(recordId) != null) { message = "A run is already on the way for that single."; return false; }
 		if (OpenCallDemand(recordId) < PlantCreditDemandThreshold) { message = "The plant isn't hearing enough on that one to front you a run."; return false; }
 		if (!Require(PlantCreditHours, out message)) return false;
 
@@ -2482,7 +2755,13 @@ public partial class PlayerDesk : Node {
 			stock.TotalPressed += order.Quantity;
 			stock.TotalSpent += order.Cost;
 			string promoNote = promo > 0 ? $" ({promo:N0} promo)" : "";
-			Note($"The pressing plant delivered {order.Quantity:N0} of \"{TitleForRecord(order.RecordId)}\"{promoNote}.");
+			string title = TitleForRecord(order.RecordId);
+			// What the vinyl is waiting on, so the arrival ends with the next move rather than a bare fact.
+			PlannedRelease waiting = planned.FirstOrDefault(entry => entry.Master?.Record?.recordId == order.RecordId);
+			string next = waiting == null ? "" : waiting.Dated ? $" It ships {waiting.Date.ToHeadlineString()}." : " Set its release date.";
+			Note($"The pressing plant delivered {order.Quantity:N0} of \"{title}\"{promoNote} -- the vinyl is in the office.{next}");
+			Announcement?.Invoke($"THE VINYL IS IN  —  {order.Quantity:N0} of \"{title}\" at the office.{next}");
+			FlagSkipStop($"The vinyl for \"{title}\" is in", EventType.PressingPlantDelivery);
 		}
 	}
 
@@ -2616,6 +2895,12 @@ public partial class PlayerDesk : Node {
 			: EnsureStops().Values.Where(s => s.CityId == cityId)
 				.OrderBy(s => s.Kind).ThenBy(s => s.DisplayName, StringComparer.Ordinal);
 
+	/// <summary>The shop, jukebox and one-stop accounts the player has actually dealt with -- worked, stocked or warmed up.
+	/// What the Rolodex's SHOPS &amp; OPS tab lists; a read of existing state, nothing is created.</summary>
+	public IEnumerable<PlayerStop> KnownAccounts() =>
+		EnsureStops().Values.Where(s => (s.Kind == StopKind.Shop || s.Kind == StopKind.Op || s.Kind == StopKind.OneStop)
+			&& (s.Relationship > 0f || s.LastVisitWeek > 0 || s.OnHand.Count > 0));
+
 	/// <summary>How many of a single a stop will comfortably hold: a cold call is a handful, a cultivated
 	/// account takes a real box, and an op's route always moves more than a shop's counter -- "one op
 	/// order should match a week of shop-by-shop nickels" (directive §3.3). Only the default the picker
@@ -2706,6 +2991,7 @@ public partial class PlayerDesk : Node {
 	/// pitch is not the same errand as driving between towns (DistributionHours, 4h) -- it's a quick
 	/// in-town stop, longer for an op working a whole route than a clerk at one counter.</summary>
 	public static int EstimatedStopHours(StopKind kind) => kind == StopKind.Op ? 2 : 1;
+	public static string StopVisitEstimate(StopKind kind) => kind == StopKind.Op ? "1–3h" : "1–2h";
 
 	/// <summary>Real time cost of working one account, rolled fresh each visit: mostly the estimate,
 	/// sometimes a quick in-and-out, sometimes the owner wants to talk or the route's backed up. A flat
@@ -2785,6 +3071,13 @@ public partial class PlayerDesk : Node {
 		return true;
 	}
 
+	/// <summary>Whether this account's once-per-day counter visit has already been used.</summary>
+	public bool HasWorkedStopToday(string stopId) {
+		PlayerStop stop = GetStop(stopId);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		return stop != null && stop.LastApproachDate == today;
+	}
+
 	/// <summary>
 	/// COD: ask the stop to take copies outright. A cold account can say no, or take only a handful --
 	/// refusal is common and correct, the honest cost of a first visit (directive §3.3). Placed stock
@@ -2815,7 +3108,9 @@ public partial class PlayerDesk : Node {
 		float acceptChance = Mathf.Clamp(
 			(PitchBaseChance + stop.Relationship * PitchRelationshipWeight + PitchEarPull(stop, recordId)) * access,
 			0.03f, 0.97f);
-		if (untried && GD.Randf() > acceptChance) {
+		// A pre-order is a shop that already asked for it: no cold-counter roll, and at least what it asked for.
+		int preOrder = PreOrderQty(stop, recordId);
+		if (untried && preOrder == 0 && GD.Randf() > acceptChance) {
 			TouchStop(stop, 0.02f); // a passed call still counts as an introduction
 			stop.PassedRecordIds.Add(recordId); // sticks until GenerateInboundCalls clears it on real evidence
 			// A market that isn't open to the sound at all yet (directive §10) reads differently than an
@@ -2833,7 +3128,7 @@ public partial class PlayerDesk : Node {
 		// record. The access term is deliberately NOT applied again here: it already decided the yes/no
 		// above, and a shop that says yes is by construction one that serves this audience -- taxing its
 		// order a second time was what pinned every doo-wop lot in the Great Lakes at two copies.
-		int cap = Mathf.Max(1, SuggestedPlacement(stop, recordId));
+		int cap = Mathf.Max(Mathf.Max(1, SuggestedPlacement(stop, recordId)), preOrder);
 		int place = Mathf.Min(cap, stockOnHand.Remaining);
 		stockOnHand.Remaining -= place;
 		ConsignmentLot lot = LotFor(stop, recordId);
@@ -2871,7 +3166,7 @@ public partial class PlayerDesk : Node {
 		// Consignment carries no risk for him, so there's no yes/no roll to have already priced the
 		// segregation term in: it still scales the order here (directive §10), unlike the COD path.
 		float access = RetailAccessFactor(stop, recordId);
-		int cap = Mathf.Max(1, Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * access));
+		int cap = Mathf.Max(Mathf.Max(1, Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * access)), PreOrderQty(stop, recordId));
 		int place = Mathf.Min(cap, stockOnHand.Remaining);
 		stockOnHand.Remaining -= place;
 		ConsignmentLot lot = LotFor(stop, recordId);
@@ -3223,6 +3518,15 @@ public partial class PlayerDesk : Node {
 	public bool HasOpenCall(string stopId, string recordId) =>
 		inboundCalls.Any(c => c.StopId == stopId && c.RecordId == recordId);
 
+	/// <summary>What a stop has said it will hold back for a pressing still at the plant ("holds 12 of
+	/// \"Title\" for the pressing"), or null. The row shows the quantity so the pre-order is a number the player
+	/// can plan the run around, not just a phone icon.</summary>
+	public string PreOrderNote(string stopId) {
+		List<InboundCall> held = inboundCalls.Where(c => c.StopId == stopId && c.Reason == InboundCallReason.PreOrder).ToList();
+		if (held.Count == 0) return null;
+		return string.Join(", ", held.Select(c => $"holds {c.RequestedQty:N0} of \"{TitleForRecord(c.RecordId)}\" for the pressing"));
+	}
+
 	/// <summary>Runs at most once per chart week (from OnDayStarted): expires anything overdue, then
 	/// rolls for a fresh batch. A week boundary, not a daily one -- InboundCalls are lower-frequency,
 	/// office-readout events, not another daily-tick system layered on top of the trunk.</summary>
@@ -3427,20 +3731,71 @@ public partial class PlayerDesk : Node {
 	private static bool IsUntriedAt(PlayerStop stop, string recordId) =>
 		!stop.OnHand.TryGetValue(recordId, out ConsignmentLot lot) || lot.Placed <= 0;
 
-	private void AddCall(PlayerStop stop, string recordId, int qty, InboundCallReason reason, int week, bool consignment) {
+	private void AddCall(PlayerStop stop, string recordId, int qty, InboundCallReason reason, int week, bool consignment, int expiresWeek = 0) {
 		stop.PassedRecordIds.Remove(recordId); // a call in is the "potential success" that reopens a pass
 		inboundCalls.Add(new InboundCall {
 			StopId = stop.StopId, RecordId = recordId, Week = week, RequestedQty = Mathf.Max(1, qty),
-			Reason = reason, ExpiresWeek = week + CallExpiryWeeks, ConsignmentTerms = consignment
+			Reason = reason, ExpiresWeek = expiresWeek > 0 ? expiresWeek : week + CallExpiryWeeks, ConsignmentTerms = consignment
 		});
 		string reasonText = reason switch {
 			InboundCallReason.SoldOut => "sold out and wants more",
 			InboundCallReason.StationAdded => "it's on the air there and the counter's fielding requests",
 			InboundCallReason.Requests => "getting asked for it at the counter",
 			InboundCallReason.OneStopTest => "heard about it from an account they serve and want a look",
+			InboundCallReason.PreOrder => "heard it's good and wants some held for when the pressing lands",
 			_ => "wants in on it"
 		};
 		Note($"{stop.DisplayName} in {CityName(stop.CityId)} called -- {reasonText} on \"{TitleForRecord(recordId)}\".");
+		FlagSkipStop($"{stop.DisplayName} called the office", EventType.IncomingCall, officeOnly: true);
+	}
+
+	/// <summary>The copies a stop asked to have held off an acetate, or 0 when it has no pre-order open.</summary>
+	private int PreOrderQty(PlayerStop stop, string recordId) =>
+		inboundCalls.FirstOrDefault(c => c.StopId == stop.StopId && c.RecordId == recordId && c.Reason == InboundCallReason.PreOrder)?.RequestedQty ?? 0;
+
+	// What a counter plausibly pre-orders off one good radio ear: a dozen at most. The DJ himself never buys -- stations
+	// were serviced free -- so the demand is the record shops and operators who hear him play it or hear him talk.
+	private const int PreOrderShopMin = 6, PreOrderShopMax = 12;
+	private const int PreOrderOpMin = 10, PreOrderOpMax = 20;
+	private const float PreOrderHookBar = 0.72f;
+	private const float PreOrderOperatorHookBar = 0.85f;
+
+	/// <summary>A DJ who loved the acetate talks: up to two record stores in his market ask to be held a few
+	/// copies, and on an outstanding hook one jukebox operator does too. They lapse two weeks after the
+	/// vinyl is due, so the first revenue signal arrives while the plant is still working. Deterministic -- no
+	/// RNG -- so it can't move the stream the trunk and the AI economy read.</summary>
+	private int GeneratePreOrders(string recordId, RadioStation station, float hook) {
+		string regionId = station.regionId;
+		string stationCityId = DistanceModel.GetCityByName(station.cityName)?.cityId;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		PressOrder order = pressOrders.FirstOrDefault(o => o.RecordId == recordId);
+		int weeksToVinyl = order == null ? 5 : Mathf.CeilToInt(Mathf.Max(0, TimeManager.Instance?.DaysBetween(today, order.Arrives) ?? 0) / 7f);
+		int expires = Mathf.Max(week + CallExpiryWeeks, week + weeksToVinyl + 2);
+		float strength = Mathf.Clamp((hook - PreOrderHookBar) / (1f - PreOrderHookBar), 0f, 1f);
+
+		List<PlayerStop> inMarket = EnsureStops().Values.Where(s =>
+			string.Equals(DistanceModel.GetCityById(s.CityId)?.parentRegionId, regionId, StringComparison.Ordinal)
+			&& IsUntriedAt(s, recordId) && !HasOpenCall(s.StopId, recordId))
+			// His own town hears him first; the rest of the market is the tie-break.
+			.OrderBy(s => string.Equals(s.CityId, stationCityId, StringComparison.Ordinal) ? 0 : 1)
+			.ThenBy(s => StableNegotiationUnit(Label?.labelId ?? "", s.StopId + "|" + recordId, 7)).ToList();
+
+		int made = 0;
+		foreach (PlayerStop shop in inMarket.Where(s => s.Kind == StopKind.Shop).Take(2)) {
+			AddCall(shop, recordId, PreOrderShopMin + Mathf.RoundToInt(strength * (PreOrderShopMax - PreOrderShopMin)),
+				InboundCallReason.PreOrder, week, consignment: false, expiresWeek: expires);
+			made++;
+		}
+		if (hook >= PreOrderOperatorHookBar) {
+			PlayerStop op = inMarket.FirstOrDefault(s => s.Kind == StopKind.Op);
+			if (op != null) {
+				AddCall(op, recordId, PreOrderOpMin + Mathf.RoundToInt(strength * (PreOrderOpMax - PreOrderOpMin)),
+					InboundCallReason.PreOrder, week, consignment: false, expiresWeek: expires);
+				made++;
+			}
+		}
+		return made;
 	}
 
 	/// <summary>Answering a call is the highest-trust relationship tick in the game (directive §4.2) --
@@ -3560,6 +3915,50 @@ public partial class PlayerDesk : Node {
 			runner.RouteStopIds.Remove(stopId);
 			message = $"{stop.DisplayName} taken off his route.";
 		}
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>The account kinds a runner can carry stock to: record shops and jukebox operators. One-stops,
+	/// venues and radio stations are the player's own conversations.</summary>
+	public static bool RunnerCanWork(StopKind kind) => kind == StopKind.Shop || kind == StopKind.Op;
+
+	/// <summary>Every account the runner is allowed to cover: shops and operators in towns the player has
+	/// personally opened, in the same kind-then-name order the day-sheet uses.</summary>
+	public IEnumerable<PlayerStop> RunnerEligibleStops() =>
+		workedCities.OrderBy(cityId => CityName(cityId), StringComparer.Ordinal)
+			.SelectMany(StopsInCity).Where(stop => RunnerCanWork(stop.Kind));
+
+	/// <summary>How well he knows one account, 0-1 (his own curve, not the player's relationship).</summary>
+	public float RunnerFamiliarityAt(string stopId) =>
+		runner != null && runner.Familiarity.TryGetValue(stopId, out float familiarity) ? familiarity : 0f;
+
+	/// <summary>Adds or drops a whole list of accounts in one action -- a town's worth, or every account he
+	/// may cover. Same rules as <see cref="AssignRunnerStop"/> per stop (shops and operators only, in towns
+	/// the player has opened), but it books one summary note and one refresh instead of one per account.</summary>
+	public bool SetRunnerRoute(IEnumerable<string> stopIds, bool onRoute, out string message) {
+		message = null;
+		if (runner == null) { message = "No runner to send."; return false; }
+		int changed = 0, already = 0, blocked = 0;
+		var towns = new HashSet<string>(StringComparer.Ordinal);
+		foreach (string stopId in stopIds.ToList()) {
+			PlayerStop stop = GetStop(stopId);
+			if (stop == null || !RunnerCanWork(stop.Kind) || (onRoute && !workedCities.Contains(stop.CityId))) { blocked++; continue; }
+			if (runner.RouteStopIds.Contains(stopId) == onRoute) { already++; continue; }
+			if (onRoute) runner.RouteStopIds.Add(stopId); else runner.RouteStopIds.Remove(stopId);
+			towns.Add(stop.CityId);
+			changed++;
+		}
+		if (changed == 0) {
+			message = blocked > 0 ? "He can only cover shops and jukebox operators in towns you've opened yourself."
+				: onRoute ? "Every one of those accounts is already on his route." : "None of those accounts were on his route.";
+			return blocked == 0;
+		}
+		string where = towns.Count == 1 ? CityName(towns.First()) : $"{towns.Count} towns";
+		message = onRoute
+			? $"{changed:N0} {(changed == 1 ? "account" : "accounts")} in {where} added to his route."
+			: $"{changed:N0} {(changed == 1 ? "account" : "accounts")} in {where} taken off his route.";
+		Note(message);
 		Changed?.Invoke();
 		return true;
 	}
@@ -3874,14 +4273,18 @@ public partial class PlayerDesk : Node {
 		if (single.Dated) { message = "That single already has a release date."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (!Require(ScheduleHours, out message)) return false;
+		int earliestDays = EarliestReleaseDays(single);
+		if (earliestDays < 1) { message = "Order a pressing first so the single can ship after the vinyl arrives."; return false; }
 		marketingBudget = Mathf.Max(0f, marketingBudget);
-		if (marketingBudget > Label.cashReserves) {
-			message = $"You can't cover a ${marketingBudget:N0} campaign on ${Label.cashReserves:N0} cash.";
+		if (marketingBudget > 0f && marketingBudget > Label.cashReserves) {
+			message = $"You're ${marketingBudget - Label.cashReserves:N0} short of the ${marketingBudget:N0} campaign. Set it to $0 to date the single now.";
 			return false;
 		}
 
 		Spend(ScheduleHours);
-		GameDate date = (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate).AddDays(Mathf.Max(1, daysOut));
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int safeDaysOut = Mathf.Max(earliestDays, daysOut);
+		GameDate date = today.AddDays(safeDaysOut);
 		single.Dated = true;
 		single.Date = date;
 		single.MarketingBudget = marketingBudget;
@@ -3893,15 +4296,170 @@ public partial class PlayerDesk : Node {
 		return true;
 	}
 
+	/// <summary>Minimum days from today before a dated release can ship: after its pressing arrives.</summary>
+	public int EarliestReleaseDays(PlannedRelease single) {
+		if (single?.Master?.Record == null) return -1;
+		PressOrder pressing = PressingOrderFor(single.Master.Record.recordId);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		if (pressing != null)
+			return Mathf.Max(1, TimeManager.Instance?.DaysBetween(today, pressing.Arrives) ?? 1);
+		PressStock stock = StockFor(single.Master.Record.recordId);
+		return stock?.TotalPressed > 0 && stock.Remaining + stock.PromoRemaining > 0 ? 1 : -1;
+	}
+
+	/// <summary>The date the form opens on: the day after the vinyl lands (so the first morning of stock is
+	/// in the office before the record ships), or tomorrow if the stock is already on the shelf. The
+	/// plant's own quote moves with its queue, so this is derived, never a fixed number of days.</summary>
+	public int SuggestedReleaseDays(PlannedRelease single) {
+		int earliest = EarliestReleaseDays(single);
+		if (earliest < 1) return earliest;
+		return PressingOrderFor(single.Master.Record.recordId) != null ? earliest + 1 : earliest;
+	}
+
 	/// <summary>Singles that have been assembled but not yet given a release date -- ready to press and date.</summary>
 	public IEnumerable<PlannedRelease> UndatedSingles() => planned.Where(single => !single.Dated);
+
+	/// <summary>Daily chance, in a town with Crowding 1.0, that a rival record man gets to an act you have
+	/// been looking at before you do. A trade town (<see cref="CityProfile.Crowding"/> ~2.4) loses roughly
+	/// one in five acts a week; a quiet one (~0.3) hardly ever.</summary>
+	private const float RivalCrowdingDailyBase = 0.012f;
+
+	/// <summary>
+	/// The crowded-rooms cost of a big market: every unsigned act on the pad or in the notebook runs the
+	/// risk that somebody else in the same scene signs them first, in proportion to how many record men
+	/// work that town. The roll is a stable hash, not a random draw, so it never touches the global RNG
+	/// stream; the signing itself goes through <see cref="RosterManager.TrySignAsRivalToPlayer"/>.
+	/// </summary>
+	private void ProcessRivalCrowding(GameDate date) {
+		if (RosterManager.Instance == null) return;
+		ExpireHandshakes(date);
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		var seen = new HashSet<string>(StringComparer.Ordinal);
+		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen, WatchNote Note)>();
+		// The notebook goes first: an act that is both on the pad and in the notebook is the notebook's (it carries the
+		// circling warning and the handshake), and the roll is keyed on the act, so the order changes nothing else.
+		foreach (WatchNote entry in notebook) {
+			if (entry?.Artist != null) watched.Add((entry.Artist, entry.CityId, entry.LastSeen, entry));
+		}
+		foreach (Prospect prospect in slate) {
+			if (prospect?.Artist != null) watched.Add((prospect.Artist, prospect.CityId, SlateDate, null));
+		}
+		foreach ((SimulatedArtist artist, string cityId, GameDate seenOn, WatchNote entry) in watched) {
+			if (!string.IsNullOrEmpty(artist.labelId) || !seen.Add(artist.artistId)) continue;
+			// A rival who has been circling an act closes the deal on the day they said -- unless you shook hands.
+			if (entry?.CirclingResolves != null) {
+				if (date < entry.CirclingResolves.Value) continue;
+				string circler = entry.CirclingLabel, circlerId = entry.CirclingLabelId;
+				entry.CirclingLabel = null; entry.CirclingLabelId = null; entry.CirclingResolves = null;
+				AILabel taker = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date, circlerId);
+				if (taker != null) Note($"{taker.labelName} signed {artist.stageName} before you could get to them.");
+				else if (entry.HeldUntil.HasValue) Note($"{circler ?? "A rival"} came calling for {artist.stageName}, but you'd already shaken hands.");
+				continue;
+			}
+			if (entry?.HeldUntil != null) continue; // a handshake is a handshake
+			if (seenOn >= date) continue; // you only just heard them; give the room a night first
+			float crowding = CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label.homeCityId : cityId).Crowding;
+			float roll = StableUnit($"{seed}|{artist.artistId}|{date.year}-{date.month}-{date.day}|CityCrowding");
+			if (roll >= RivalCrowdingDailyBase * crowding) continue;
+			if (entry != null) {
+				// An act in the notebook gets a warning and a few days' grace: time is the one thing a cash-poor
+				// label has, so the player can spend it (see HoldWithHandshake) instead of an advance.
+				AILabel circling = RosterManager.Instance.FindRivalToPlayer(artist, date);
+				if (circling == null) continue;
+				entry.CirclingLabel = circling.labelName;
+				entry.CirclingLabelId = circling.labelId;
+				entry.CirclingResolves = date.AddDays(CirclingWarningDays);
+				entry.LastRivalInterestDate = date;
+				Note($"A&R heard that {circling.labelName} is circling {artist.stageName}. A handshake would hold them -- it costs {HandshakeHours} hours, not cash.");
+				continue;
+			}
+			AILabel rival = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date);
+			if (rival != null) Note($"{rival.labelName} signed {artist.stageName} before you could get to them.");
+		}
+	}
+
+	// ------------------------------------------------------------------------------------------------
+	// THE HANDSHAKE -- spend time, not cash, to keep a notebook act off a rival's desk for a week.
+	// ------------------------------------------------------------------------------------------------
+
+	public const int HandshakeHours = 2;
+	public const int HandshakeDays = 7;
+	/// <summary>An act waits two weeks at most; after that it is sign them or lose them.</summary>
+	public const int MaxHandshakesPerAct = 2;
+	public const int MaxHeldActs = 2;
+	/// <summary>Days between a rival starting to circle and the deal landing.</summary>
+	public const int CirclingWarningDays = 3;
+
+	public int HeldActCount => notebook.Count(entry => entry?.HeldUntil != null);
+
+	/// <summary>Whether the player can shake on this act right now, and if not, why (shown on the button).</summary>
+	public bool CanHoldWithHandshake(WatchNote entry, out string reason) {
+		reason = "";
+		if (entry?.Artist == null) { reason = "No act selected."; return false; }
+		if (!string.IsNullOrEmpty(entry.Artist.labelId)) { reason = "They're signed already."; return false; }
+		if (entry.HeldUntil.HasValue) { reason = $"You shook on it -- they'll wait until {entry.HeldUntil.Value.ToHeadlineString()}."; return false; }
+		if (entry.Handshakes >= MaxHandshakesPerAct) { reason = $"{entry.Artist.stageName} has waited long enough. Sign them or let them go."; return false; }
+		if (HeldActCount >= MaxHeldActs) { reason = $"You can only have {MaxHeldActs} acts on a handshake at once."; return false; }
+		return Require(HandshakeHours, out reason);
+	}
+
+	/// <summary>
+	/// "Give me a week." Costs <see cref="HandshakeHours"/> and no money; the act stays unsigned but no rival
+	/// record man can sign them for <see cref="HandshakeDays"/> days. A circling rival is turned back at the door.
+	/// </summary>
+	public bool HoldWithHandshake(string artistId, out string message) {
+		WatchNote entry = notebook.FirstOrDefault(note => note?.Artist?.artistId == artistId);
+		if (!CanHoldWithHandshake(entry, out message)) return false;
+		Spend(HandshakeHours);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		entry.HeldUntil = today.AddDays(HandshakeDays);
+		entry.Handshakes++;
+		RosterManager.Instance?.SetPlayerHold(artistId, entry.HeldUntil.Value);
+		bool wasCircled = entry.CirclingResolves.HasValue;
+		Note($"Shook hands with {entry.Artist.stageName}: they'll wait until {entry.HeldUntil.Value.ToHeadlineString()}.");
+		message = wasCircled
+			? $"{entry.Artist.stageName} will turn {entry.CirclingLabel ?? "the other label"} away. They'll wait until {entry.HeldUntil.Value.ToHeadlineString()}."
+			: $"{entry.Artist.stageName} will wait until {entry.HeldUntil.Value.ToHeadlineString()}.";
+		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>Lets lapsed handshakes go (the act is on the market again) and drops notebook entries that have
+	/// since signed with the player.</summary>
+	private void ExpireHandshakes(GameDate date) {
+		foreach (WatchNote entry in notebook.ToList()) {
+			if (entry?.Artist == null) continue;
+			if (!string.IsNullOrEmpty(entry.Artist.labelId) && entry.Artist.labelId == Label?.labelId) {
+				RosterManager.Instance?.ClearPlayerHold(entry.Artist.artistId);
+				notebook.Remove(entry);
+				continue;
+			}
+			if (entry.HeldUntil.HasValue && date > entry.HeldUntil.Value) {
+				entry.HeldUntil = null;
+				RosterManager.Instance?.ClearPlayerHold(entry.Artist.artistId);
+				Note($"Your handshake with {entry.Artist.stageName} has run out; they're back on the market.");
+			}
+		}
+	}
+
+	/// <summary>A stable value in [0, 1) from a key -- FNV-1a, so the same (seed, act, day) always rolls the same.</summary>
+	private static float StableUnit(string key) {
+		ulong hash = 14695981039346656037UL;
+		foreach (char value in key) { hash ^= value; hash *= 1099511628211UL; }
+		return (hash >> 40) * (1f / 16777216f);
+	}
 
 	private void OnDayStarted(GameDate date) {
 		// You are not still holding a man on the line at nine the next morning.
 		ActiveCall = null;
-		if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1));
-		if (Label == null) return;
+		skipStops.Clear();
+		if (Label == null) {
+			if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
+			return;
+		}
 		ChargeHotelIfAway();
+		ProcessRivalCrowding(date);
+		ProcessCallbacksAtDawn(date);
 		DeliverArrivedPressings(date);
 		ProcessCoverRehearsals(date);
 		ProcessWritingSessions(date);
@@ -3918,14 +4476,93 @@ public partial class PlayerDesk : Node {
 		ResolveTradeSubmissions();
 		ResolvePendingMailings();
 		ScanForCoversOfOwnSongs();
+		CheckBreakoutHeadlines();
+		GatherTradeNews();
+		// Last, so the paper also carries what the morning itself turned up (a pressing arriving, a record
+		// going out, a market breaking) instead of holding it back a day.
+		if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
+		QueueDawnAutosave();
 		Changed?.Invoke();
 	}
 
-	private void RefreshMorningDigest(GameDate date) {
+	/// <summary>The paper for the morning of <paramref name="today"/>: everything the office logged yesterday
+	/// plus what the start of today turned up, ranked so the story that matters most leads.</summary>
+	private void RefreshMorningDigest(GameDate date, GameDate today) {
 		string prefix = date.ToShortString() + "  ";
-		string[] events = log.Where(entry => entry.StartsWith(prefix, StringComparison.Ordinal)).Take(6).ToArray();
+		string todayPrefix = today.ToShortString() + "  ";
+		// The log is newest-first; within a rank the paper keeps that order.
+		IEnumerable<string> yesterday = log.Where(entry => entry.StartsWith(prefix, StringComparison.Ordinal))
+			.Select(entry => entry.Substring(prefix.Length));
+		IEnumerable<string> thisMorning = log.Where(entry => entry.StartsWith(todayPrefix, StringComparison.Ordinal))
+			.Select(entry => entry.Substring(todayPrefix.Length));
+		string[] dayEvents = CompactDuplicateEvents(yesterday.Concat(thisMorning));
+		string[] consequential = dayEvents.Where(IsConsequentialMorningEvent).ToArray();
+		string[] events = (consequential.Length > 0
+				? consequential.Concat(dayEvents.Where(entry => !IsConsequentialMorningEvent(entry)).Take(6))
+				: dayEvents.Take(6))
+			.Select((entry, index) => (entry, index))
+			.OrderBy(item => MorningStoryRank(item.entry)).ThenBy(item => item.index)
+			.Select(item => item.entry).ToArray();
 		MorningDigest = events.Length == 0 ? $"{date.ToHeadlineString()}: a quiet day at the office." :
-			$"{date.ToHeadlineString()}: " + string.Join("  •  ", events.Select(entry => entry.Substring(prefix.Length)));
+			$"{date.ToHeadlineString()}: " + string.Join("  •  ", events);
+	}
+
+	/// <summary>0 = front-page news (a record out, a market breaking, a pressing in, the bank), 1 = other
+	/// consequential business, 2 = everything else. The Morning Paper leads with the best rank-0 story.</summary>
+	public static int MorningStoryRank(string entry) {
+		string[] lead = {
+			"THE DOORS CLOSE", "BREAKOUT", "RELEASED:", "CHART DEBUT", "pressing plant delivered", "plant collected",
+			"in the red", "back in the black"
+		};
+		if (lead.Any(signal => entry.Contains(signal, StringComparison.OrdinalIgnoreCase))) return 0;
+		return IsConsequentialMorningEvent(entry) ? 1 : 2;
+	}
+
+	/// <summary>Front-page news on the paper's lead line: the first story if it is rank 0.</summary>
+	public static bool IsFrontPageStory(string entry) => MorningStoryRank(entry) == 0;
+
+	/// <summary>A player record clearing the regional-breakout bar in a market the label already sells into.
+	/// (The uncovered-market case is CheckWeeklyBreakoutNotices, which says what door to try.) This is the
+	/// headline: the record is working somewhere, and what to do about it is a thing to protect, not to chase.</summary>
+	private void CheckBreakoutHeadlines() {
+		if (Label == null) return;
+		foreach (RecordRuntimeData rec in ReleasedRecords) {
+			if (rec?.baseRecord == null || rec.regionalData == null) continue;
+			string recordId = rec.baseRecord.recordId;
+			foreach (var pair in rec.regionalData) {
+				if (pair.Value == null || pair.Value.breakoutStage < RegionalBreakoutStage.RegionalBreakout) continue;
+				if (!breakoutNoticesShown.Add($"{recordId}|{pair.Key}|BREAKOUT")) continue;
+				string regionName = ChartManager.Instance?.GetRegionById(pair.Key)?.regionName ?? pair.Key;
+				string title = TitleForRecord(recordId);
+				bool covered = Label.HasDistributionInRegion(pair.Key);
+				int onHand = StockFor(recordId)?.Remaining ?? 0;
+				Note(covered
+					? $"BREAKOUT: \"{title}\" is breaking out in {regionName}, and your line there is carrying it. Keep stock moving -- a dry shelf now wastes it."
+					: $"BREAKOUT: \"{title}\" is breaking out in {regionName}, where you have no line. Check THE TRADES in DISTRIBUTION -- that demand is waiting on a shelf."
+						+ (onHand > 0 ? string.Empty : " You're also out of sellable stock."));
+			}
+		}
+	}
+
+	private static string[] CompactDuplicateEvents(IEnumerable<string> entries) {
+		List<string> ordered = entries.ToList();
+		Dictionary<string, int> counts = ordered.GroupBy(entry => entry, StringComparer.Ordinal)
+			.ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+		var emitted = new HashSet<string>(StringComparer.Ordinal);
+		return ordered.Where(emitted.Add)
+			.Select(entry => counts[entry] > 1 ? $"{entry} (×{counts[entry]})" : entry)
+			.ToArray();
+	}
+
+	private static bool IsConsequentialMorningEvent(string entry) {
+		string[] signals = {
+			"THE DOORS CLOSE", "THE FLIP", "RELEASED:", "CHART DEBUT", "CHART RESULT", "CHART MOVE", "RADIO DROP",
+			"pressing plant delivered", "plant collected",
+			"gave up waiting", "passed on", "took ", "bought ", "broke", "breaking", "comes courting",
+			"warehouse", "credit", "returned", "THE TRADE SHEETS", "THE ONE-STOP", "collections",
+			"in the red", "back in the black", "will take a carton", "signed with", "offer"
+		};
+		return signals.Any(signal => entry.Contains(signal, StringComparison.OrdinalIgnoreCase));
 	}
 
 	/// <summary>A night away from your own bed is a motel bill.</summary>
@@ -4231,6 +4868,7 @@ public partial class PlayerDesk : Node {
 		}
 		string flip = release.BSide != null ? $" b/w \"{release.BSide.SongTitle}\"" : "";
 		Note($"RELEASED: \"{release.Master.SongTitle}\"{flip} by {artist.stageName} ({date.ToHeadlineString()}).");
+		FlagSkipStop($"Release day: \"{release.Master.SongTitle}\" is out", EventType.RecordRelease);
 	}
 
 	// ========================================================================
@@ -4630,7 +5268,7 @@ public partial class PlayerDesk : Node {
 		if (IsGameOver) { message = "The label has folded -- load a save to keep playing."; return false; }
 		if (TimeManager.Instance == null) { message = "No clock."; return false; }
 		if (!TimeManager.Instance.CanAffordHours(hours, allowOvertime: true)) {
-			message = $"Not enough hours left today (needs {hours}h).";
+			message = $"This takes {hours}h and won't fit before the {TimeManager.Instance.HardStopTime} hard stop. It will be available tomorrow.";
 			return false;
 		}
 		message = string.Empty;
@@ -4655,6 +5293,7 @@ public partial class PlayerDesk : Node {
 
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
+		LogWeeklyPlayerOutcomes();
 		// Rolodex settlement lands before the books are drawn up so any payola penalty shows in this
 		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
 		// word on against what the records actually sold.
@@ -4705,6 +5344,30 @@ public partial class PlayerDesk : Node {
 		weeklyMechanicalRoyalty = 0f;
 		lastSnapshotCash = cash;
 		Changed?.Invoke();
+	}
+
+	/// <summary>Write major player-record changes into the office log after the chart settles, so the
+	/// Morning Paper can carry them even when the player skips over Friday.</summary>
+	private void LogWeeklyPlayerOutcomes() {
+		foreach (RecordRuntimeData record in ReleasedRecords) {
+			if (record?.baseRecord == null) continue;
+			string title = TitleForRecord(record.baseRecord.recordId);
+			if (record.currentPosition > 0 && record.lastWeekPosition <= 0)
+				Note($"CHART DEBUT: \"{title}\" enters the Hot 100 at #{record.currentPosition}.");
+			else if (record.currentPosition == 1 && record.lastWeekPosition != 1)
+				Note($"CHART RESULT: \"{title}\" reaches #1 on the Hot 100.");
+			else if (record.currentPosition > 0 && record.lastWeekPosition > 0
+				&& Math.Abs(record.currentPosition - record.lastWeekPosition) >= 10)
+				Note($"CHART MOVE: \"{title}\" moved from #{record.lastWeekPosition} to #{record.currentPosition}.");
+
+			if (record.regionalData == null) continue;
+			foreach (var pair in record.regionalData) {
+				RegionalRecordData region = pair.Value;
+				if (region?.stationsDropped != true || region.stationDropAge != record.weeksSinceRelease) continue;
+				string regionName = ChartManager.Instance?.GetRegionById(pair.Key)?.regionName ?? pair.Key;
+				Note($"RADIO DROP: stations in {regionName} moved \"{title}\" out of current rotation.");
+			}
+		}
 	}
 
 	/// <summary>The receivables book: what each house owes and when its terms run out.</summary>
@@ -4991,7 +5654,7 @@ public partial class PlayerDesk : Node {
 			MorningDigest = MorningDigest,
 			UnreadLogCount = UnreadLogCount,
 			Notebook = notebook.Select(entry => new ProspectNotebookSaveData {
-				Artist = entry.Artist, Venue = (int)entry.Venue,
+				Artist = entry.Artist, Venue = (int)entry.Venue, CityId = entry.CityId,
 				Year = entry.LastSeen.year, Month = entry.LastSeen.month, Day = entry.LastSeen.day,
 				ReadQuality = entry.ReadQuality, ReadConfidence = entry.ReadConfidence,
 				AskingAdvance = entry.AskingAdvance, Note = entry.Note,
@@ -4999,6 +5662,9 @@ public partial class PlayerDesk : Node {
 				LastRivalYear = entry.LastRivalInterestDate?.year ?? 0,
 				LastRivalMonth = entry.LastRivalInterestDate?.month ?? 0,
 				LastRivalDay = entry.LastRivalInterestDate?.day ?? 0,
+				HeldYear = entry.HeldUntil?.year ?? 0, HeldMonth = entry.HeldUntil?.month ?? 0, HeldDay = entry.HeldUntil?.day ?? 0,
+				Handshakes = entry.Handshakes, CirclingLabel = entry.CirclingLabel, CirclingLabelId = entry.CirclingLabelId,
+				CircleYear = entry.CirclingResolves?.year ?? 0, CircleMonth = entry.CirclingResolves?.month ?? 0, CircleDay = entry.CirclingResolves?.day ?? 0,
 				LiveSet = entry.LiveSet.Select(RepertoireSaveData.From).ToList()
 			}).ToList(),
 			AcetateCopies = new Dictionary<string, int>(acetateCopies),
@@ -5077,6 +5743,7 @@ public partial class PlayerDesk : Node {
 			// People (directive §7): the runner's own state, plus the unlock ledger so a reload can't
 			// re-earn (or lose) an unlock already granted.
 			RunnerUnlocked = runnerUnlocked,
+			FirstMeetManagerShown = firstMeetManagerShown,
 			ServiceReorderCountByCity = new Dictionary<string, int>(serviceReorderCountByCity),
 			LastRunnerTickWeek = lastRunnerTickWeek,
 			WeeklyRunnerCommission = weeklyRunnerCommission,
@@ -5226,6 +5893,7 @@ public partial class PlayerDesk : Node {
 		pendingSession = data.Session?.ToSession(songs);
 		slate.Clear();
 		notebook.Clear();
+		RosterManager.Instance?.ClearAllPlayerHolds();
 		generatedProspectIds.Clear();
 		foreach (ProspectNotebookSaveData saved in data.Notebook ?? new List<ProspectNotebookSaveData>()) {
 			if (saved?.Artist == null || string.IsNullOrEmpty(saved.Artist.artistId)) continue;
@@ -5236,12 +5904,17 @@ public partial class PlayerDesk : Node {
 			var entry = new WatchNote {
 				Artist = artist,
 				Venue = Enum.IsDefined(typeof(ScoutingVenue), saved.Venue) ? (ScoutingVenue)saved.Venue : ScoutingVenue.ClubsAndRoadhouses,
+				CityId = saved.CityId,
 				LastSeen = new GameDate(saved.Year, saved.Month, saved.Day),
 				ReadQuality = saved.ReadQuality, ReadConfidence = saved.ReadConfidence,
 				AskingAdvance = saved.AskingAdvance, Note = saved.Note,
 				HeardCount = saved.HeardCount, FollowedUp = saved.FollowedUp,
-				LastRivalInterestDate = saved.LastRivalYear > 0 ? new GameDate(saved.LastRivalYear, saved.LastRivalMonth, saved.LastRivalDay) : null
+				LastRivalInterestDate = saved.LastRivalYear > 0 ? new GameDate(saved.LastRivalYear, saved.LastRivalMonth, saved.LastRivalDay) : null,
+				HeldUntil = saved.HeldYear > 0 ? new GameDate(saved.HeldYear, saved.HeldMonth, saved.HeldDay) : null,
+				Handshakes = saved.Handshakes, CirclingLabel = saved.CirclingLabel, CirclingLabelId = saved.CirclingLabelId,
+				CirclingResolves = saved.CircleYear > 0 ? new GameDate(saved.CircleYear, saved.CircleMonth, saved.CircleDay) : null
 			};
+			if (entry.HeldUntil.HasValue) RosterManager.Instance?.SetPlayerHold(artist.artistId, entry.HeldUntil.Value);
 			entry.LiveSet.AddRange((saved.LiveSet ?? new List<RepertoireSaveData>()).Select(item => item.ToItem()));
 			notebook.Add(entry);
 		}
@@ -5384,6 +6057,7 @@ public partial class PlayerDesk : Node {
 
 		// People (directive §7).
 		runnerUnlocked = data.RunnerUnlocked;
+		firstMeetManagerShown = data.FirstMeetManagerShown;
 		lastRunnerTickWeek = data.LastRunnerTickWeek;
 		weeklyRunnerCommission = data.WeeklyRunnerCommission;
 		weeklyMechanicalRoyalty = data.WeeklyMechanicalRoyalty;

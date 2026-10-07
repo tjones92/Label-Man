@@ -8,7 +8,10 @@ public partial class ArtistDetailPanel : Control
 	public event Action<string> LabelRequested;
 	public event Action Closed;
 	private Label nameLabel, chromeLabel;
+	private PortraitPhoto portrait;   // the act's publicity glossy, a halftone plate coded by genre and lineup
 	private Button labelButton;
+	private Control labelStrip;   // the label's crest and name, laid out like a letterhead
+	private LabelCrest labelCrest;
 	private HBoxContainer tabs;
 	private VBoxContainer content;
 	private readonly List<FolderTabButton> tabButtons = new();
@@ -26,10 +29,11 @@ public partial class ArtistDetailPanel : Control
 		profile = ArtistManager.Instance?.GetPublicProfile(artistId);
 		if (artist == null || profile == null) { GD.PushWarning($"Artist not found: {artistId}"); return; }
 		artist.isPlayerOwned |= isOwnedByPlayer;
-		nameLabel.Text = profile.name.ToUpperInvariant();
+		nameLabel.Text = profile.name;
+		portrait.Set(Portraits.ForAct(artist), new Vector2(84, 106), artist.artistId);
+		portrait.Visible = true;
 		chromeLabel.Text = $"{Format(profile.artistType)}  •  {Format(profile.primaryGenre)}  •  {profile.homeRegion}\n{Format(profile.careerState)}  |  Formed {profile.formedYear}";
-		labelButton.Text = string.IsNullOrEmpty(profile.labelId) ? "Independent" : $"Label: {profile.labelName}";
-		labelButton.Visible = !string.IsNullOrEmpty(profile.labelId);
+		ShowLabelStrip(profile.labelId, profile.labelName);
 		BuildTabs();
 		Visible = true;
 		MoveToFront();
@@ -37,23 +41,43 @@ public partial class ArtistDetailPanel : Control
 
 	public void ClosePanel() { Visible = false; Closed?.Invoke(); }
 
+	private void ShowLabelStrip(string labelId, string labelName)
+	{
+		labelStrip.Visible = !string.IsNullOrEmpty(labelId);
+		if (!labelStrip.Visible) return;
+		AILabel signed = ChartManager.Instance?.GetLabelById(labelId);
+		LabelBrand brand = signed != null ? LabelBrand.For(signed) : LabelBrand.Derive(labelId);
+		labelCrest.Set(brand, labelName, 34f);
+		labelCrest.Visible = true;
+		labelButton.Text = brand.DisplayName(labelName);
+		labelButton.AddThemeFontOverride("font", PaperTheme.Lettering(brand.Lettering));
+		labelButton.AddThemeFontSizeOverride("font_size", brand.Lettering == LetteringStyle.Script ? 26 : 19);
+		labelButton.AddThemeColorOverride("font_color", brand.Pair.Ink);
+	}
+
 	private void BuildUi()
 	{
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		MouseFilter = MouseFilterEnum.Stop;
 		var shade = new ColorRect { Color = new Color(0, 0, 0, .38f) }; shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(shade);
 		var folder = new PanelContainer(); folder.SetAnchorsPreset(LayoutPreset.Center); folder.Position = new Vector2(-570, -410); folder.Size = new Vector2(1140, 820); AddChild(folder);
-		var style = new StyleBoxFlat { BgColor = new Color("d7b978"), CornerRadiusTopLeft = 8, CornerRadiusTopRight = 8, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3, BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2, BorderColor = new Color("70552c"), ContentMarginLeft = 34, ContentMarginRight = 34, ContentMarginTop = 28, ContentMarginBottom = 28 };
+		var style = new PaperStyleBox { Fill = new Color("d7b978"), Border = new Color("70552c"), BorderWidth = 2, Radius = 3, ShadowSize = 24, ShadowAlpha = 0.55f, ShadowOffset = new Vector2(0, 10), Burn = 1.15f };
+		style.ContentMarginLeft = 34; style.ContentMarginRight = 34; style.ContentMarginTop = 28; style.ContentMarginBottom = 28;
 		folder.AddThemeStyleboxOverride("panel", style);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
-		var header = new HBoxContainer(); root.AddChild(header);
-		nameLabel = new Label(); nameLabel.AddThemeFontSizeOverride("font_size", 30); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
-		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
+		var header = new HBoxContainer(); header.AddThemeConstantOverride("separation", 16); root.AddChild(header);
+		portrait = new PortraitPhoto { Visible = false, SizeFlagsVertical = SizeFlags.ShrinkCenter }; header.AddChild(portrait);
+		nameLabel = new Label(); nameLabel.AddThemeFontOverride("font", PaperTheme.Elite); nameLabel.VerticalAlignment = VerticalAlignment.Center; nameLabel.AddThemeFontSizeOverride("font_size", 32); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
+		var close = new Button { Text = "CLOSE  ×", SizeFlagsVertical = SizeFlags.ShrinkCenter }; close.Pressed += ClosePanel; header.AddChild(close);
 		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); chromeLabel.AddThemeColorOverride("font_color", new Color("3a2c18")); root.AddChild(chromeLabel);
-		labelButton = new Button { Alignment = HorizontalAlignment.Left }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; root.AddChild(labelButton);
+		// "Signed to" strip: crest, then the label name as a button in the label's own lettering.
+		var strip = new HBoxContainer(); strip.AddThemeConstantOverride("separation", 10); labelStrip = strip; root.AddChild(strip);
+		labelCrest = new LabelCrest(); strip.AddChild(labelCrest);
+		var signedTo = new Label { Text = "SIGNED TO", VerticalAlignment = VerticalAlignment.Center }; signedTo.AddThemeFontOverride("font", PaperTheme.SansSemiBold); signedTo.AddThemeFontSizeOverride("font_size", 13); signedTo.AddThemeColorOverride("font_color", new Color("3a2c18")); strip.AddChild(signedTo);
+		labelButton = new Button { Alignment = HorizontalAlignment.Left, Flat = true }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; strip.AddChild(labelButton);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-		paper.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("f1e5c8"), ContentMarginLeft = 28, ContentMarginRight = 28, ContentMarginTop = 24, ContentMarginBottom = 24 }); root.AddChild(paper);
+		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6).Decorated(clip: true, ring: false, seed: 5)); root.AddChild(paper);
 		var scroll = new ScrollContainer(); paper.AddChild(scroll);
 		content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 12); scroll.AddChild(content);
 	}
@@ -141,7 +165,7 @@ public partial class ArtistDetailPanel : Control
 	private void AddReleases(List<RecordRuntimeData> records)
 	{
 		foreach (var r in records.OrderByDescending(r => r.baseRecord.releaseDate))
-			AddBody($"“{r.baseRecord.title}”  —  {r.baseRecord.releaseDate.ToHeadlineString()}\nPeak {(r.peakPosition > 0 ? "#" + r.peakPosition : "—")}  •  {r.weeksOnChart} weeks  •  {ChartDetailPanel.GetSalesTierDescription(r.totalUnitsSold)}");
+			AddBody($"“{r.baseRecord.title}”  —  {r.baseRecord.releaseDate.ToHeadlineString()}\nPeak {(r.peakPosition > 0 ? "#" + r.peakPosition : "—")}  •  {r.weeksOnChart} {(r.weeksOnChart == 1 ? "week" : "weeks")}  •  {ChartDetailPanel.GetSalesTierDescription(r.totalUnitsSold)}");
 	}
 	private void ShowGigography() { AddHeading("ON THE ROAD"); AddBody("Gigography is coming soon. Touring records are not yet kept by the simulation."); }
 	private void ShowAwards()
@@ -156,12 +180,71 @@ public partial class ArtistDetailPanel : Control
 	}
 	private void ShowContract()
 	{
+		AddSignedStamp();
 		AddHeading("INTERNAL — CONTRACT"); AddBody($"Royalty rate: {artist.royaltyRate:P1}\nUnrecouped advance: ${artist.unrecoupedAdvance:N0}\nTerm: {artist.contractLength} years\nExpires: {artist.contractExpiresYear}");
+		AddHeading("DELIVERABLES"); AddBody(DeliverablesText());
+		AddHeading("RIGHTS AND MANAGEMENT"); AddBody(RightsText());
+		if (artist.manager != ManagerArchetype.None) {
+			var who = new Button { Text = "WHAT THIS MANAGER MEANS FOR YOU", Alignment = HorizontalAlignment.Left, CustomMinimumSize = new Vector2(340, 38), SizeFlagsHorizontal = SizeFlags.ShrinkBegin };
+			who.TooltipText = "What they do for the label, and what they cost it.";
+			who.Pressed += () => ManagerNote(this, artist);
+			content.AddChild(who);
+		}
 		AddHeading("A&R IMPRESSION"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
 	}
+	/// <summary>The deal is signed: the house stamp, in the signing label's ink, pressed at the top of the page.</summary>
+	private void AddSignedStamp()
+	{
+		AILabel signed = ChartManager.Instance?.GetLabelById(artist.labelId);
+		Color ink = signed != null ? LabelBrand.For(signed).Pair.Ink : RubberStamp.Blue;
+		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		row.AddChild(new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore });
+		row.AddChild(new RubberStamp().Set("Signed", ink, -0.09f, 22));
+		content.AddChild(row);
+	}
+	/// <summary>What the act still owes under this deal. Sides count records they have put out on this label
+	/// since the term began; whichever of the sides or the clock runs out first ends the deal.</summary>
+	private string DeliverablesText()
+	{
+		int owed = artist.contractSinglesObligation;
+		if (owed <= 0) return "No sides owed. This deal runs by the clock: it ends when the term does.";
+		int startYear = artist.contractExpiresYear - artist.contractLength;
+		int delivered = GetRecords().Count(r => r.baseRecord.labelId == artist.labelId && r.baseRecord.releaseDate.year >= startYear);
+		int togo = Mathf.Max(0, owed - delivered);
+		return togo == 0
+			? $"All {owed} sides delivered ({delivered} released). The deal ends when the sides are delivered or the term runs out, whichever is first."
+			: $"{delivered} of {owed} sides released, {togo} to go. The deal ends when the sides are delivered or the term runs out, whichever is first.";
+	}
+	private string RightsText()
+	{
+		string manager = artist.manager == ManagerArchetype.None || string.IsNullOrEmpty(artist.managerName)
+			? "Unmanaged: no one speaks for them at the table."
+			: $"Managed by {artist.managerName}.";
+		return $"{(artist.labelOwnsPublishing ? "The label keeps the publishing." : "The act keeps their publishing.")}\n" +
+			$"{(artist.artistCreativeControl ? "The act has creative control." : "The label has the final say on material.")}\n{manager}";
+	}
+	/// <summary>What a manager does for the label and what they cost it. Names the person, not the type of manager:
+	/// the player learns the type from how the manager behaves at the table. Every number comes off
+	/// <see cref="ManagerProfile"/>, the same table the contract talks and the chart read.</summary>
+	public static void ManagerNote(Node host, SimulatedArtist managed) {
+		(_, string helps, string costs) = ManagerProfile.Describe(managed.manager);
+		string who = managed.managerName ?? "Their manager";
+		var modal = PaperModal.Open(host, who.ToUpperInvariant(), 640);
+		modal.AddText($"{who} manages {managed.stageName}.");
+		modal.AddText("What they do for you: " + helps);
+		modal.AddText("What they cost you: " + costs);
+		modal.AddText("This follows the act. When their contract comes up, the same manager is across the table.");
+		modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
+	}
 	private List<RecordRuntimeData> GetRecords() => ChartManager.Instance?.GetAllRecords().Where(r => r?.baseRecord?.artistId == profile.artistId).ToList() ?? new();
-	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }
-	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); l.AddThemeColorOverride("font_color", new Color("2b2115")); content.AddChild(l); }
+	private void AddHeading(string text) {
+		// A typed rubric over a hairline, as on the Morning Paper and the label dossier.
+		var l = new Label { Text = text };
+		l.AddThemeFontOverride("font", PaperTheme.SansSemiBold); l.AddThemeFontSizeOverride("font_size", 15); l.AddThemeColorOverride("font_color", PaperTheme.Rust);
+		content.AddChild(l);
+		content.AddChild(new ColorRect { Color = new Color(PaperTheme.Rust, 0.45f), CustomMinimumSize = new Vector2(0, 1), MouseFilter = MouseFilterEnum.Ignore });
+	}
+	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontOverride("font", PaperTheme.Serif); l.AddThemeFontSizeOverride("font_size", 18); l.AddThemeColorOverride("font_color", new Color("2b2115")); content.AddChild(l); }
 	private static string Format(object value) { var s = value?.ToString() ?? ""; return string.Concat(s.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString())); }
 	private static void Clear(Node node) { foreach (Node child in node.GetChildren()) { node.RemoveChild(child); child.QueueFree(); } }
 }

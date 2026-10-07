@@ -228,13 +228,22 @@ public static class JournalisticDescriptor {
 
 	// === ARTIST DESCRIPTIONS ===
 	
+	/// <summary>"an R&amp;B act", "an Easy Listening act", "a Teen Pop act": vowel sounds, plus the letter names
+	/// that start with one (R, F, L, M, N, S, X read "ar", "ef", "el"...). Only the genres that begin with
+	/// such a letter-name abbreviation need the special case.</summary>
+	private static bool WithAn(string word) =>
+		!string.IsNullOrEmpty(word) && ("AEIOU".IndexOf(char.ToUpperInvariant(word[0])) >= 0 || word.StartsWith("R&B", System.StringComparison.Ordinal));
+
 	public static string DescribeArtist(ArtistPublicProfile artist) {
 		var lines = new List<string>();
 		
+		string genreName = GenreNameFormatter.Format(artist.primaryGenre);
+		string article = WithAn(genreName) ? "an" : "a";
+		string region = string.IsNullOrEmpty(artist.homeCity) ? "parts unknown" : $"the {artist.homeCity} region";
 		if (artist.isBand) {
-			lines.Add($"{artist.name} are a {artist.primaryGenre.ToString().ToLower()} act out of {artist.homeCity}.");
+			lines.Add($"{artist.name} are {article} {genreName} act out of {region}.");
 		} else {
-			lines.Add($"{artist.name} is a {artist.primaryGenre.ToString().ToLower()} singer from {artist.homeCity}.");
+			lines.Add($"{artist.name} is {article} {genreName} singer from {region}.");
 		}
 		
 		if (artist.totalCharted == 0) {
@@ -253,7 +262,7 @@ public static class JournalisticDescriptor {
 			} else {
 				lines.Add("They've reached the summit with a #1 hit.");
 			}
-		} else if (artist.highestPosition <= 10) {
+		} else if (artist.highestPosition > 0 && artist.highestPosition <= 10) {
 			lines.Add($"Their highest charting single reached #{artist.highestPosition}.");
 		}
 		

@@ -83,6 +83,16 @@ public partial class PlayerDesk : Node {
 	/// man, or -- if you are good, or lucky, or calling at the right hour -- you actually get through.
 	/// STREET raises both the odds and the quality of who you land on.
 	/// </summary>
+	/// <summary>Whether a round of calls could still land a new name: some reporter station in the home region
+	/// is not yet in the book. The desk's NEXT UP uses this to offer the phones only when they can pay.</summary>
+	public bool CanStillWorkThePhones() {
+		var chart = ChartManager.Instance;
+		if (Label == null || chart == null) return false;
+		var known = new HashSet<string>(rolodex.Select(e => e.stationId), StringComparer.Ordinal);
+		return chart.ReporterStationsInRegion(Label.homeRegion)
+			.Any(s => !known.Contains(s.stationId) && !string.IsNullOrEmpty(s.leadDjId) && chart.GetDeejay(s.leadDjId) != null);
+	}
+
 	public bool WorkThePhones(out string message) {
 		if (!RequireHome(out message)) return false;
 		if (Label == null) { message = "You don't have a label yet."; return false; }
@@ -241,6 +251,16 @@ public partial class PlayerDesk : Node {
 	// CONTEXT -- the one place a call is allowed to learn anything
 	// ========================================================================================
 
+	/// <summary>What can be on the table in a call: every released record, then every master you hold an acetate
+	/// of that is not out yet (the first month's only way to have something to talk about).</summary>
+	public IEnumerable<(string RecordId, string Title, bool IsAcetate)> RecordsOnTheTable() {
+		foreach (RecordRuntimeData rec in ReleasedRecords)
+			if (rec.baseRecord != null) yield return (rec.baseRecord.recordId, rec.baseRecord.title, false);
+		foreach (Master tape in masters)
+			if (!tape.Released && tape.Record != null && AcetatesFor(tape.Record.recordId) > 0)
+				yield return (tape.Record.recordId, tape.SongTitle, true);
+	}
+
 	/// <summary>Gather every real fact the scene may reference. Called once when the line connects and
 	/// again whenever the record under discussion changes.</summary>
 	public RolodexCallContext BuildCallContext(RolodexEntry entry, string recordId) {
@@ -278,14 +298,22 @@ public partial class PlayerDesk : Node {
 
 		c.record = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
 		c.baseRecord = c.record?.baseRecord;
+		// A master with an acetate counts as the record on the table: the ear and the format read need only
+		// its hook, production and genre. Nothing is out, so there are no sales, no servicing and no runtime record.
+		if (c.baseRecord == null && AcetatesFor(recordId) > 0) {
+			Master tape = masters.FirstOrDefault(item => item.Record?.recordId == recordId && !item.Released);
+			if (tape?.Record != null) { c.baseRecord = tape.Record; c.isAcetate = true; }
+		}
 		if (c.baseRecord != null) {
 			c.recordHook = c.baseRecord.hookStrength;
 			c.recordProduction = c.baseRecord.productionQuality;
 			c.recordOriginality = c.baseRecord.originality;
 			c.recordQuality = (c.recordHook + c.recordProduction + c.recordOriginality) / 3f;
-			c.salesSupport = ChartSimulator.GetSalesSupportRatio(c.record);
-			c.unitsTotal = c.record.totalUnitsSold;
-			c.unitsThisWeek = c.record.unitsThisWeek;
+			if (c.record != null) {
+				c.salesSupport = ChartSimulator.GetSalesSupportRatio(c.record);
+				c.unitsTotal = c.record.totalUnitsSold;
+				c.unitsThisWeek = c.record.unitsThisWeek;
+			}
 			c.djGenreAffinity = c.dj?.GenreAffinity(c.baseRecord.primaryGenre) ?? 1f;
 			c.isServiced = IsServiced(c.baseRecord.recordId, entry.stationId);
 			c.servicingConviction = ServicingConviction(c.baseRecord.recordId, entry.stationId);
@@ -313,7 +341,7 @@ public partial class PlayerDesk : Node {
 			// Dealer-margin-and-flip directive §3.4: the flip pitch's own eligibility and quality
 			// terms. flipWorkable requires isServiced (set above) -- he can't be talked into turning
 			// over a disc he was never sent.
-			if (!string.IsNullOrEmpty(c.baseRecord.bSideSongId)) {
+			if (!c.isAcetate && !string.IsNullOrEmpty(c.baseRecord.bSideSongId)) {
 				c.bSideHook = c.baseRecord.bSideHookStrength;
 				c.bSideProduction = c.baseRecord.bSideProductionQuality;
 				c.bSideOriginality = c.baseRecord.bSideOriginality;
@@ -354,7 +382,7 @@ public partial class PlayerDesk : Node {
 					&& c.region.currentGenreAcceptance.TryGetValue(g, out float acc) ? acc : 0.5f;
 				c.regionalGenreMomentum = c.region.genreMomentum != null
 					&& c.region.genreMomentum.TryGetValue(g, out float mom) ? mom : 0f;
-				c.regionalAwareness = c.record.regionalData != null
+				c.regionalAwareness = c.record?.regionalData != null
 					&& c.record.regionalData.TryGetValue(c.region.regionId, out RegionalRecordData rd) ? rd.awareness : 0f;
 				c.formatAdmittance = chart?.FormatAdmittanceFor(c.baseRecord.primaryGenre, c.station, c.year) ?? 0f;
 			}
@@ -430,6 +458,7 @@ public partial class PlayerDesk : Node {
 
 		// Connected. You have had your shot at him for the day -- no redialling him after this call ends.
 		djReachedToday.Add(entry.djId);
+		entry.callbackDate = null;   // he is on the line; the call-back has done its job
 		// Ratchet HeardOf -> Introduced: you have now actually spoken to him.
 		if (entry.state == DiscoveryState.HeardOf) {
 			entry.state = DiscoveryState.Introduced;
@@ -618,6 +647,8 @@ public partial class PlayerDesk : Node {
 	/// <summary>Beat 3: the one-sentence read of the business situation on the table right now.</summary>
 	private static string SituationRead(RolodexCallContext c) {
 		if (!c.HasRecord) return "You have nothing out to talk about. This is a courtesy call and you both know it.";
+		if (c.isAcetate)
+			return $"You have one acetate of \"{c.baseRecord.title}\" and no pressing yet. He can hear it down the line, but there is nothing for him to play on the air.";
 		if (c.advocacyAlready > 0.01f)
 			return $"He is already carrying \"{c.baseRecord.title}\" into his meetings. Asking twice is how you spend goodwill for nothing.";
 		if (c.formatAdmittance < 0.08f)
@@ -662,5 +693,84 @@ public partial class PlayerDesk : Node {
 		if (!ChartSimulator.IsStationDropCandidate(rd)) return false;
 		float chance = ChartSimulator.GetStationDropChance(ChartSimulator.GetSalesSupportRatio(rec), rec.weeksSincePeakUnits);
 		return chance >= SlidingDropChanceWarningBar;
+	}
+
+	// ========================================================================================
+	// CALL BACK AT 5 PM -- a note on the card, not a held slot
+	// ========================================================================================
+
+	private readonly HashSet<string> callbackAnnounced = new(StringComparer.Ordinal);
+
+	/// <summary>When "call him back" should land after this failed call: the next hour if he is live on air and still
+	/// in his window, the start of his window if it has not opened yet, otherwise the start of it tomorrow.</summary>
+	public (GameDate Date, int Hour) CallbackSlotFor(RolodexCall call) {
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int hour = TimeManager.Instance?.CurrentHour ?? 9;
+		(int from, int to) = RolodexShifts.ReachableWindow(call.ctx.shift);
+		if (call.failure == ConnectFailure.OnAir && hour + 1 <= to) return (today, hour + 1);
+		if (hour < from) return (today, from);
+		return (today.AddDays(1), from);
+	}
+
+	public bool CanScheduleCallback(RolodexCall call) =>
+		call?.entry != null && call.stage == CallStage.NotConnected && call.failure is ConnectFailure.OffShift or ConnectFailure.OnAir;
+
+	/// <summary>"Call back at 5 PM." Costs nothing: it puts the hour on the card, wakes a calendar skip on the morning
+	/// it falls due, and raises a banner when the clock reaches it. The call itself is still yours to place.</summary>
+	public bool ScheduleCallback(RolodexCall call, out string message) {
+		message = "";
+		if (!CanScheduleCallback(call)) { message = "There's nothing to call back about."; return false; }
+		(GameDate date, int hour) = CallbackSlotFor(call);
+		call.entry.callbackDate = date;
+		call.entry.callbackHour = hour;
+		callbackAnnounced.Remove(call.entry.djId);
+		string when = CallbackWhen(call.entry);
+		Note($"Set a call-back to {call.entry.displayName} for {when}.");
+		message = $"You'll call {call.entry.displayName} back at {when}. The clock will say when.";
+		EndCall(call);
+		return true;
+	}
+
+	public void CancelCallback(RolodexEntry entry) {
+		if (entry?.callbackDate == null) return;
+		entry.callbackDate = null;
+		callbackAnnounced.Remove(entry.djId);
+		Changed?.Invoke();
+	}
+
+	/// <summary>"5 PM today" / "5 PM tomorrow" / "5 PM on Jan 9", or empty when none stands.</summary>
+	public string CallbackWhen(RolodexEntry entry) {
+		if (entry?.callbackDate == null) return "";
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		GameDate date = entry.callbackDate.Value;
+		string day = date == today ? "today" : date == today.AddDays(1) ? "tomorrow" : $"on {date.ToHeadlineString()}";
+		return $"{RolodexShifts.ClockLabel(entry.callbackHour)} {day}";
+	}
+
+	/// <summary>The call-back's hour has come: it is the day, and the clock is at or past the hour.</summary>
+	public bool CallbackDue(RolodexEntry entry) {
+		if (entry?.callbackDate == null) return false;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		return entry.callbackDate.Value == today && (TimeManager.Instance?.CurrentHour ?? 0) >= entry.callbackHour;
+	}
+
+	/// <summary>Morning: a call-back for a day gone by lapses; one for today stops a skip so it is not slept through.</summary>
+	private void ProcessCallbacksAtDawn(GameDate date) {
+		callbackAnnounced.Clear();
+		foreach (RolodexEntry entry in rolodex) {
+			if (entry?.callbackDate == null) continue;
+			if (entry.callbackDate.Value < date) { entry.callbackDate = null; continue; }
+			if (entry.callbackDate.Value == date)
+				FlagSkipStop($"Call {entry.displayName} back at {RolodexShifts.ClockLabel(entry.callbackHour)}", EventType.IncomingCall, officeOnly: true);
+		}
+	}
+
+	/// <summary>The hour passes a call-back's time: say so once, from wherever the player is in the day.</summary>
+	private void AnnounceDueCallbacks() {
+		foreach (RolodexEntry entry in rolodex) {
+			if (!CallbackDue(entry) || !callbackAnnounced.Add(entry.djId)) continue;
+			Note($"{entry.displayName} should be at the station now -- time for that call-back.");
+			Announcement?.Invoke($"{entry.displayName} should be in now. Time for that call-back.");
+		}
 	}
 }

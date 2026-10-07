@@ -20,6 +20,9 @@ public partial class AILabel : Resource {
 	[Export] public int foundedYear;
 	[Export] public bool isHistorical;
 	[Export] public bool isPlayerOwned;
+	// The label's crest, colours and lettering. Only the player picks one (at founding); everyone else leaves this
+	// null and wears LabelBrand.For(label), derived from the id. Null is not written to the world save.
+	public LabelBrand brand;
 	
 	[ExportGroup("Genres")]
 	public Genre[] preferredGenres;
@@ -486,12 +489,12 @@ public partial class AILabel : Resource {
 		string pub = labelPub ? "label keeps publishing" : "artist keeps publishing";
 		string ctrl = artistControl ? "artist creative control" : "label creative control";
 		return m switch {
-			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P0}, {pub}.",
-			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P0}, {pub}. Wants strong local push.",
-			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P0}, {pub}. Short term, renegotiates fast.",
-			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P0}. Long exclusive term.",
-			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P0}. Publishing is non-negotiable.",
-			_ => $"${advance:N0}, {royalty:P0}, {pub}."
+			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P1}, {pub}.",
+			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P1}, {pub}. Wants strong local push.",
+			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P1}, {pub}. Short term, renegotiates fast.",
+			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P1}. Long exclusive term.",
+			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P1}. Publishing is non-negotiable.",
+			_ => $"${advance:N0}, {royalty:P1}, {pub}."
 		};
 	}
 
@@ -761,8 +764,8 @@ public partial class AILabel : Resource {
 		return false;
 	}
 	
-	/// <summary>Rent-free home operation: what the player's label costs to keep the lights on each month.</summary>
-	public const float PlayerHomeOfficeOverhead = 75f;
+	/// <summary>What it costs the player each month to keep the lights on: a phone line, postage and a filing
+	/// cabinet, plus the rent for an office in the town they chose (see <see cref="CityProfiles"/>).</summary>
 	// Directive §4.3: "$5-10/mo -- trivial against the $75 overhead, so it's an early, affordable
 	// unlock" -- the real first "secretary," catching InboundCalls while the player's on the road.
 	// Explicitly exempted from invariant 5's "no new fixed cost the player can reach before the
@@ -771,11 +774,11 @@ public partial class AILabel : Resource {
 	public bool hasAnsweringService;
 
 	public float GetMonthlyOverhead() {
-		// The player starts out of a home or apartment, not an office: a phone line, a filing cabinet
-		// on the kitchen table, and postage. There is no per-artist line because the player's marginal
+		// The player starts out of a one-room office: a phone line, a filing cabinet and postage, plus
+		// whatever the town charges for the room. There is no per-artist line because the player's marginal
 		// cost of an act is already charged where it lands -- studio time, pressing, gas on the road.
 		// Player-only, so the AI economy's overhead schedule is untouched.
-		if (isPlayerOwned) return PlayerHomeOfficeOverhead + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
+		if (isPlayerOwned) return CityProfiles.MonthlyOverhead(homeCityId) + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
 		float baseOverhead = tier switch {
 			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
 			LabelTier.Small => 150f, LabelTier.Boutique => 250f, _ => 300f

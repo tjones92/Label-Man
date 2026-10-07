@@ -81,9 +81,9 @@ public static class PolarSongBehavior {
 		return fit.Capability * table.N("selectionCapability") + fit.Identity * table.N("selectionIdentity") + fit.Moment * table.N("selectionMoment");
 	}
 	// Same pure rule and standing as player booking. Callers supply the actual songbook state.
-	internal static bool Refuses(MaterialFit fit, SimulatedArtist artist, bool emptySongbook) =>
+	internal static bool Refuses(MaterialFit fit, SimulatedArtist artist, bool emptySongbook, float thresholdScale = 1f) =>
 		PolarMaterialFit.WouldRefuse(fit, artist.evolution?.artisticAmbition ?? .5f,
-			PolarPlayerPerception.Standing(artist), emptySongbook, PolarSongTable.Current);
+			PolarPlayerPerception.Standing(artist), emptySongbook, PolarSongTable.Current, thresholdScale);
 	// Autonomous commission/live-set decision only; player catalogues do not call this ordering.
 	internal static IEnumerable<SongComposition> SuitableSongs(IEnumerable<SongComposition> pool, SimulatedArtist artist, int year) =>
 		pool.Where(s => s != null && s.originYear <= year).DistinctBy(s => s.songId)

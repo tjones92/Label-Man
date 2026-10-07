@@ -142,7 +142,10 @@ public class SimulatedArtist {
 	public ManagerArchetype manager = ManagerArchetype.None;
 	public string managerName;                 // flavor: "managed by Sol Kramer" - null if unmanaged
 	public bool labelOwnsPublishing = true;    // the goldmine axis; default label-favorable
-	public bool artistCreativeControl;         // stored now; auto genre-drift / artist-dictated LPs later
+	public bool artistCreativeControl;         // the player's studio gate honours it: the act can't be overruled on material
+	// How far under its ask the player signed this act (0 = at or above, 1 = nothing). Read at renewal, when
+	// the act remembers the lowball and asks for it back. Player signings only; the AI never writes it.
+	public float signedUnderAskFraction;
 
 	public List<string> careerEvents = new List<string>();
 

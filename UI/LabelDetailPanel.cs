@@ -8,6 +8,8 @@ public partial class LabelDetailPanel : Control
 	public event Action<string> ArtistRequested;
 	public event Action Closed;
 	private Label nameLabel, chromeLabel;
+	private LabelCrest crest;
+	private ColorRect letterheadRule;
 	private HBoxContainer tabs;
 	private VBoxContainer content;
 	private readonly List<FolderTabButton> tabButtons = new();
@@ -20,24 +22,39 @@ public partial class LabelDetailPanel : Control
 		label = ChartManager.Instance?.GetLabelById(labelId) ?? LabelLifecycleManager.Instance?.GetLabelById(labelId);
 		if (label == null) { GD.PushWarning($"Label not found: {labelId}"); return; }
 		label.isPlayerOwned |= isOwnedByPlayer; profile = label.GetPublicProfile();
-		nameLabel.Text = profile.labelName.ToUpperInvariant();
+		ApplyBrand();
 		chromeLabel.Text = $"{Format(profile.archetype)}  •  {Format(profile.tier)}\n{profile.headquartersCity}  •  Founded {profile.foundedYear}";
 		BuildTabs(); Visible = true; MoveToFront();
 	}
 	public void ClosePanel() { Visible = false; Closed?.Invoke(); }
+	/// <summary>Dresses the header as the label's letterhead: crest, name in its lettering and ink, a rule in its accent.</summary>
+	private void ApplyBrand()
+	{
+		LabelBrand brand = LabelBrand.For(label);
+		crest.Set(brand, label.labelName, 56f);
+		nameLabel.Text = brand.DisplayName(profile.labelName);
+		nameLabel.AddThemeFontOverride("font", PaperTheme.Lettering(brand.Lettering));
+		nameLabel.AddThemeFontSizeOverride("font_size", brand.Lettering == LetteringStyle.Script ? 44 : 34);
+		nameLabel.AddThemeColorOverride("font_color", brand.Pair.Ink);
+		letterheadRule.Color = brand.Pair.Accent;
+	}
 
 	private void BuildUi()
 	{
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Stop;
 		var shade = new ColorRect { Color = new Color(0, 0, 0, .38f) }; shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(shade);
 		var folder = new PanelContainer(); folder.SetAnchorsPreset(LayoutPreset.Center); folder.Position = new Vector2(-540, -380); folder.Size = new Vector2(1080, 760); AddChild(folder);
-		folder.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("cba96a"), BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2, BorderColor = new Color("654a27"), ContentMarginLeft = 34, ContentMarginRight = 34, ContentMarginTop = 28, ContentMarginBottom = 28 });
+		var folderPaper = new PaperStyleBox { Fill = new Color("cba96a"), Border = new Color("654a27"), BorderWidth = 2, Radius = 3, ShadowSize = 24, ShadowAlpha = 0.55f, ShadowOffset = new Vector2(0, 10), Burn = 1.15f };
+		folderPaper.ContentMarginLeft = 34; folderPaper.ContentMarginRight = 34; folderPaper.ContentMarginTop = 28; folderPaper.ContentMarginBottom = 28;
+		folder.AddThemeStyleboxOverride("panel", folderPaper);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
-		var header = new HBoxContainer(); root.AddChild(header); nameLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill }; nameLabel.AddThemeFontSizeOverride("font_size", 30); header.AddChild(nameLabel);
+		var header = new HBoxContainer(); header.AddThemeConstantOverride("separation", 14); root.AddChild(header); crest = new LabelCrest(); header.AddChild(crest); nameLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis }; nameLabel.AddThemeFontSizeOverride("font_size", 30); header.AddChild(nameLabel);
+		// The letterhead rule: the label's accent colour under its name.
+		letterheadRule = new ColorRect { CustomMinimumSize = new Vector2(0, 4), Color = new Color("8a7048") }; root.AddChild(letterheadRule);
 		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
 		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); root.AddChild(chromeLabel);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
-		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; paper.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("f1e5c8"), ContentMarginLeft = 28, ContentMarginRight = 28, ContentMarginTop = 24, ContentMarginBottom = 24 }); root.AddChild(paper);
+		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6).Decorated(clip: false, ring: true, seed: 11)); root.AddChild(paper);
 		var scroll = new ScrollContainer(); paper.AddChild(scroll); content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 12); scroll.AddChild(content);
 	}
 	private void BuildTabs() { Clear(tabs); tabButtons.Clear(); AddTab("OVERVIEW", ShowOverview); AddTab("ROSTER", ShowRoster); AddTab("TRACK RECORD", ShowTrackRecord); ActivateTab(0, ShowOverview); }
@@ -52,7 +69,17 @@ public partial class LabelDetailPanel : Control
 	private void ShowRoster()
 	{
 		AddHeading("SIGNED ROSTER"); if (label.roster == null || label.roster.Count == 0) { AddBody("No signed artists on file."); return; }
-		foreach (var artist in label.roster.Where(a => a != null)) { var b = new Button { Text = $"{artist.stageName}   [{Format(artist.careerState)}]", Alignment = HorizontalAlignment.Left }; string id = artist.artistId; b.Pressed += () => ArtistRequested?.Invoke(id); content.AddChild(b); }
+		// Each signing is a 45 sleeve, as on the player's own roster: the publicity photo, the name typed across the top, and this
+		// label's disc showing through the die-cut window.
+		foreach (var artist in label.roster.Where(a => a != null)) {
+			var sleeve = new SleeveCard().Set(artist, label, $"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Format(artist.careerState)}", false);
+			sleeve.AddFact($"{artist.totalReleases} {(artist.totalReleases == 1 ? "release" : "releases")}   •   {artist.top40Hits} Top 40");
+			string id = artist.artistId;
+			var open = new Button { Text = "DOSSIER" };
+			open.Pressed += () => ArtistRequested?.Invoke(id);
+			sleeve.AddVerb(open);
+			content.AddChild(sleeve);
+		}
 	}
 	private void ShowTrackRecord()
 	{
@@ -60,8 +87,14 @@ public partial class LabelDetailPanel : Control
 		var events = label.roster?.SelectMany(a => a.careerEvents).Where(e => e.Contains(label.labelName, StringComparison.OrdinalIgnoreCase)).TakeLast(12).ToList() ?? new();
 		AddHeading("NOTABLE MOVES"); AddBody(events.Count == 0 ? "No notable signings or departures on file." : string.Join("\n", events));
 	}
-	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }
-	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); content.AddChild(l); }
+	private void AddHeading(string text) {
+		// A typed rubric over a hairline, as on the Morning Paper, rather than a bigger copy of the body face.
+		var l = new Label { Text = text };
+		l.AddThemeFontOverride("font", PaperTheme.SansSemiBold); l.AddThemeFontSizeOverride("font_size", 15); l.AddThemeColorOverride("font_color", PaperTheme.Rust);
+		content.AddChild(l);
+		content.AddChild(new ColorRect { Color = new Color(PaperTheme.Rust, 0.45f), CustomMinimumSize = new Vector2(0, 1), MouseFilter = MouseFilterEnum.Ignore });
+	}
+	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontOverride("font", PaperTheme.Serif); l.AddThemeFontSizeOverride("font_size", 18); l.AddThemeColorOverride("font_color", PaperTheme.Ink); content.AddChild(l); }
 	private static string Format(object value) { var s = value?.ToString() ?? ""; return string.Concat(s.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString())); }
 	private static void Clear(Node node) { foreach (Node child in node.GetChildren()) { node.RemoveChild(child); child.QueueFree(); } }
 }

@@ -49,8 +49,8 @@ public static class PolarMaterialFit {
 		fit.Stretch < table.N("reinterpretationThreshold") ? 0 : fit.Stretch * familiarity *
 		(fit.Capability * act.interpretiveReach - table.N("reinterpretationLandedCenter")) * table.N("reinterpretationMultiplier");
 	// Also used by the enabled player booking gate; override does not invent morale/economy penalties.
-	public static bool WouldRefuse(MaterialFit fit, float ambition, float standing, bool emptySongbook, PolarSongTable table) {
-		float threshold = table.N("refusalBase") + table.N("refusalAmbition") * ambition * standing;
+	public static bool WouldRefuse(MaterialFit fit, float ambition, float standing, bool emptySongbook, PolarSongTable table, float thresholdScale = 1f) {
+		float threshold = (table.N("refusalBase") + table.N("refusalAmbition") * ambition * standing) * thresholdScale;
 		if (emptySongbook) threshold *= table.N("emptySongbookSoftening");
 		return fit.Identity < threshold && fit.Stretch >= fit.Capability * table.N("refusalStretchCapability");
 	}

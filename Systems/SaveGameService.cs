@@ -69,28 +69,71 @@ public static class SaveGameService {
 		public int Month { get; set; }
 		public int Day { get; set; }
 		public string LabelName { get; set; }
+		// The label's chosen brand; null crest = none chosen (or a sidecar from before the brand kit), so the list derives one from the name.
+		public int? BrandCrest { get; set; }
+		public int BrandPalette { get; set; }
+		public int BrandLettering { get; set; }
+		public string BrandMonogram { get; set; }
 	}
 
 	private static void WriteMeta(string slot, SaveEnvelope envelope) {
+		var label = envelope.Player?.Label;
+		WriteMetaFile(slot, new SaveMeta {
+			Version = envelope.Version, SavedAtUtc = envelope.SavedAtUtc,
+			Year = envelope.Year, Month = envelope.Month, Day = envelope.Day,
+			LabelName = label?.labelName ?? slot,
+			BrandCrest = label?.BrandCrest, BrandPalette = label?.BrandPalette ?? 0,
+			BrandLettering = label?.BrandLettering ?? 0, BrandMonogram = label?.BrandMonogram
+		});
+	}
+
+	private static void WriteMetaFile(string slot, SaveMeta meta) {
 		try {
-			var meta = new SaveMeta {
-				Version = envelope.Version, SavedAtUtc = envelope.SavedAtUtc,
-				Year = envelope.Year, Month = envelope.Month, Day = envelope.Day,
-				LabelName = envelope.Player?.Label?.labelName ?? slot
-			};
 			using Godot.FileAccess file = Godot.FileAccess.Open(MetaPathFor(slot), Godot.FileAccess.ModeFlags.Write);
 			file?.StoreString(JsonSerializer.Serialize(meta));
 		} catch { /* the meta sidecar is an optimization; ListSaves falls back to the body header */ }
 	}
 
+	/// <summary>The crest a save's label wears in the load list: the one the player chose, else the one its name hashes to
+	/// (the same fallback <see cref="LabelBrand.For"/> gives a player label with no stored brand).</summary>
+	private static LabelBrand BrandFrom(SaveMeta meta, string labelName) =>
+		meta.BrandCrest.HasValue
+			? new LabelBrand { Crest = (CrestShape)meta.BrandCrest.Value, PaletteIndex = meta.BrandPalette, Lettering = (LetteringStyle)meta.BrandLettering, Monogram = meta.BrandMonogram ?? "" }
+			: LabelBrand.Derive(labelName);
+
+	public static bool IsValidSlotName(string slot, out string reason) {
+		string name = slot?.Trim() ?? string.Empty;
+		if (name.Length == 0) { reason = "Enter a name for this save."; return false; }
+		if (name.Length > 48) { reason = "Save names can be up to 48 characters."; return false; }
+		if (name.EndsWith('.') || name.EndsWith(' ')) { reason = "A save name cannot end with a period or space."; return false; }
+		if (name.Any(c => !(char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.' or '\'' or '(' or ')'))) {
+			reason = "Use letters, numbers, spaces, periods, apostrophes, parentheses, hyphens, or underscores.";
+			return false;
+		}
+		reason = string.Empty;
+		return true;
+	}
+
 	private static string Sanitize(string slot) =>
 		string.IsNullOrWhiteSpace(slot) ? "quicksave"
-			: new string(slot.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray());
+			: new string(slot.Trim().Where(c => char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.' or '\'' or '(' or ')').ToArray());
 
 	public static bool HasSave(string slot = "quicksave") => Godot.FileAccess.FileExists(PathFor(slot));
 
+	/// <summary>The slot the player last saved to or loaded from this session, or null. The load menu pins it to the
+	/// top; a rolling autosave never moves it, so a dawn write cannot steal the player's own slot.</summary>
+	public static string CurrentSlot { get; private set; }
+
+	public static bool IsAutosaveSlot(string slot) => AutosaveSlots.Contains(slot, StringComparer.Ordinal);
+
+	/// <summary>The most recently written save of any kind (manual or autosave), for the boot "Continue" button.</summary>
+	public static SaveInfo? NewestSave() {
+		List<SaveInfo> saves = ListSaves();
+		return saves.Count == 0 ? null : saves[0];
+	}
+
 	/// <summary>A save on disk, for the load menu. Read from each file's lightweight header only.</summary>
-	public readonly record struct SaveInfo(string Slot, string LabelName, GameDate InGameDate, DateTime SavedAtUtc);
+	public readonly record struct SaveInfo(string Slot, string LabelName, GameDate InGameDate, DateTime SavedAtUtc, LabelBrand Brand = null);
 
 	/// <summary>Every save on disk, newest first. Corrupt or unreadable files are skipped, not thrown.</summary>
 	public static List<SaveInfo> ListSaves() {
@@ -101,10 +144,13 @@ public static class SaveGameService {
 			if (!file.EndsWith(".json")) continue;
 			string slot = file.Substring(0, file.Length - ".json".Length);
 			try {
+				// A sidecar from before the brand kit has no brand, so its crest is the name-derived one until that slot is next saved;
+				// reading every old body just to draw a crest would cost seconds per large save.
 				SaveMeta meta = ReadMeta(slot) ?? ReadHeaderFromBody(slot);
 				if (meta == null) continue;
 				DateTime.TryParse(meta.SavedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime savedAt);
-				result.Add(new SaveInfo(slot, meta.LabelName ?? slot, new GameDate(meta.Year, meta.Month, meta.Day), savedAt));
+				string name = meta.LabelName ?? slot;
+				result.Add(new SaveInfo(slot, name, new GameDate(meta.Year, meta.Month, meta.Day), savedAt, BrandFrom(meta, name)));
 			} catch { /* skip a save we can't read */ }
 		}
 		result.Sort((a, b) => b.SavedAtUtc.CompareTo(a.SavedAtUtc));
@@ -141,7 +187,9 @@ public static class SaveGameService {
 		return new SaveMeta {
 			Version = header.Version, SavedAtUtc = header.SavedAtUtc,
 			Year = header.Year, Month = header.Month, Day = header.Day,
-			LabelName = header.Player?.Label?.labelName ?? slot
+			LabelName = header.Player?.Label?.labelName ?? slot,
+			BrandCrest = header.Player?.Label?.BrandCrest, BrandPalette = header.Player?.Label?.BrandPalette ?? 0,
+			BrandLettering = header.Player?.Label?.BrandLettering ?? 0, BrandMonogram = header.Player?.Label?.BrandMonogram
 		};
 	}
 
@@ -163,12 +211,20 @@ public static class SaveGameService {
 		public int Day { get; set; }
 		public HeaderPlayer Player { get; set; }
 		public sealed class HeaderPlayer { public HeaderLabel Label { get; set; } }
-		public sealed class HeaderLabel { public string labelName { get; set; } }
+		public sealed class HeaderLabel {
+			public string labelName { get; set; }
+			public int? BrandCrest { get; set; }
+			public int BrandPalette { get; set; }
+			public int BrandLettering { get; set; }
+			public string BrandMonogram { get; set; }
+		}
 	}
 
 	/// <summary>Snapshots the player layer and the clock into a save file. Returns false with a reason.</summary>
 	public static bool Save(string slot, out string message) {
 		if (PlayerDesk.Instance?.HasLabel != true) { message = "No label to save yet."; return false; }
+		if (!IsValidSlotName(slot, out message)) return false;
+		slot = slot.Trim();
 
 		var envelope = new SaveEnvelope {
 			Version = CurrentVersion,
@@ -205,6 +261,18 @@ public static class SaveGameService {
 		return true;
 	}
 
+	/// <summary>The rolling autosave slots. Three, so a bad dawn can be walked back a few mornings.</summary>
+	public static readonly string[] AutosaveSlots = { "Autosave 1", "Autosave 2", "Autosave 3" };
+
+	/// <summary>Writes the oldest of the three autosave slots (an empty one first). The slot picked is returned
+	/// so the caller can report it; the write itself is an ordinary <see cref="Save"/>.</summary>
+	public static bool Autosave(out string slot, out string message) {
+		slot = AutosaveSlots
+			.OrderBy(name => HasSave(name) ? (long)Godot.FileAccess.GetModifiedTime(PathFor(name)) : 0L)
+			.First();
+		return Save(slot, out message);
+	}
+
 	/// <summary>Restores the player layer from a save file. Returns false with a reason.</summary>
 	public static bool Load(string slot, out string message) {
 		if (!HasSave(slot)) { message = "No save in that slot."; return false; }
@@ -235,7 +303,9 @@ public static class SaveGameService {
 		GameDate savedDate = new GameDate(envelope.Year, envelope.Month, envelope.Day);
 		WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed);
 
-		return PlayerDesk.Instance.RestoreState(envelope.Player, out message);
+		bool restored = PlayerDesk.Instance.RestoreState(envelope.Player, out message);
+		if (restored) CurrentSlot = slot;
+		return restored;
 	}
 }
 
@@ -357,6 +427,7 @@ public sealed class PlayerSaveData {
 	// re-earn (or lose) an unlock already granted. Project promo leaves no state of its own to persist --
 	// it's an ephemeral PayolaLedger arrangement, same as the existing Rolodex payola calls.
 	public bool RunnerUnlocked { get; set; }
+	public bool FirstMeetManagerShown { get; set; }
 	public Dictionary<string, int> ServiceReorderCountByCity { get; set; } = new();
 	public int LastRunnerTickWeek { get; set; } = -1;
 	public float WeeklyRunnerCommission { get; set; }
@@ -379,6 +450,7 @@ public sealed class PlayerSaveData {
 public sealed class ProspectNotebookSaveData {
 	public SimulatedArtist Artist { get; set; }
 	public int Venue { get; set; }
+	public string CityId { get; set; }
 	public int Year { get; set; }
 	public int Month { get; set; }
 	public int Day { get; set; }
@@ -392,6 +464,16 @@ public sealed class ProspectNotebookSaveData {
 	public int LastRivalYear { get; set; }
 	public int LastRivalMonth { get; set; }
 	public int LastRivalDay { get; set; }
+	// The handshake: a week's hold on the act, and a rival the desk heard circling them.
+	public int HeldYear { get; set; }
+	public int HeldMonth { get; set; }
+	public int HeldDay { get; set; }
+	public int Handshakes { get; set; }
+	public string CirclingLabel { get; set; }
+	public string CirclingLabelId { get; set; }
+	public int CircleYear { get; set; }
+	public int CircleMonth { get; set; }
+	public int CircleDay { get; set; }
 }
 
 /// <summary>Flat save record for <see cref="DistributionDeal"/> -- used both for the player's
@@ -492,6 +574,12 @@ public sealed class LabelSaveData {
 	// Directive §9: the player's own P&D deal, if any. Excluded from the full-world save's generic
 	// AILabel capture (the player's label is excluded there by design), so it round-trips here instead.
 	public DistributionDealSaveData ActiveDeal { get; set; }
+	// The crest, colours and lettering the player picked at founding. BrandCrest is null for a save from before
+	// the brand kit (and for any label that never chose), which falls back to LabelBrand.For(label).
+	public int? BrandCrest { get; set; }
+	public int BrandPalette { get; set; }
+	public int BrandLettering { get; set; }
+	public string BrandMonogram { get; set; }
 
 	public static LabelSaveData From(AILabel l) => new() {
 		labelId = l.labelId, labelName = l.labelName, founderName = l.founderName,
@@ -514,7 +602,9 @@ public sealed class LabelSaveData {
 		secondaryGenres = (l.secondaryGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList(),
 		HasAnsweringService = l.hasAnsweringService,
-		ActiveDeal = DistributionDealSaveData.From(l.activeDeal)
+		ActiveDeal = DistributionDealSaveData.From(l.activeDeal),
+		BrandCrest = l.brand == null ? null : (int)l.brand.Crest, BrandPalette = l.brand?.PaletteIndex ?? 0,
+		BrandLettering = l.brand == null ? 0 : (int)l.brand.Lettering, BrandMonogram = l.brand?.Monogram
 	};
 
 	public void ApplyTo(AILabel l) {
@@ -541,6 +631,10 @@ public sealed class LabelSaveData {
 		l.secondaryGenres = (secondaryGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.hasAnsweringService = HasAnsweringService;
 		l.activeDeal = ActiveDeal?.ToDeal();
+		l.brand = BrandCrest.HasValue ? new LabelBrand {
+			Crest = (CrestShape)BrandCrest.Value, PaletteIndex = BrandPalette, Lettering = (LetteringStyle)BrandLettering,
+			Monogram = BrandMonogram ?? ""
+		} : null;
 	}
 }
 

@@ -26,7 +26,6 @@ public static class PlayerStopFactory {
 	private const int MinShopsPerCity = 6;
 	private const int MaxShopsPerCity = 12;
 	private const int HubShopBonus = 6;
-	private const int TierShopBonus = 2;
 
 	private const int MinOpsPerCity = 1;
 	private const int MaxOpsPerCity = 3;
@@ -88,6 +87,20 @@ public static class PlayerStopFactory {
 	};
 
 	/// <summary>
+	/// The record shops a player can actually call on in a town: a size curve over the city's shop census
+	/// (<see cref="DistributionNetwork.recordStoreCount"/>, which already folds in metro population and
+	/// inventory depth), plus one for a regional hub. This used to add (distribution tier x 2) with a +6
+	/// hub bonus -- but tier 1 is the STRONGEST tier, so the sum ran backwards: a tier-4 town in Montana
+	/// got the same shop count as New York, and a mid-size hub out-shopped Boston and San Francisco.
+	/// Log-shaped so a 550-shop metro is roughly three times a 25-shop one, not twenty times.
+	/// </summary>
+	public static int ShopCountFor(MarketCity city) {
+		float census = city?.distribution?.recordStoreCount ?? 0;
+		int shops = Mathf.RoundToInt(4f + 3f * Mathf.Log(1f + census / 8f)) + (city != null && city.isRegionalHub ? 1 : 0);
+		return Mathf.Clamp(shops, MinShopsPerCity, MaxShopsPerCity + HubShopBonus);
+	}
+
+	/// <summary>
 	/// Pure entry point: no singletons, no global RNG, deterministic in (cities, regions, seed).
 	/// </summary>
 	public static List<PlayerDesk.PlayerStop> Generate(
@@ -107,9 +120,7 @@ public static class PlayerStopFactory {
 		foreach (MarketCity city in cities.OrderBy(c => c.cityId, StringComparer.Ordinal)) {
 			if (city == null || string.IsNullOrEmpty(city.cityId)) continue;
 
-			int shopCount = Mathf.Clamp(
-				MinShopsPerCity + (city.isRegionalHub ? HubShopBonus : 0) + Mathf.Max(0, city.distributionTier) * TierShopBonus,
-				MinShopsPerCity, MaxShopsPerCity + HubShopBonus + TierShopBonus * 4);
+			int shopCount = ShopCountFor(city);
 			for (int i = 0; i < shopCount; i++) {
 				string name = NextUniqueName(shopPool, ShopSuffixes, possessive: true, ref shopCursor, usedNames, rng);
 				// Promo mechanic directive §7.1: "one or two per city" -- the biggest dealer(s), fixed by
