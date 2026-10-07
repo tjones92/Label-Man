@@ -2107,13 +2107,15 @@ public partial class PlayerDeskPanel : Control {
 				: pressed ? "ASSEMBLED  •  pressed, needs a release date"
 				: "ASSEMBLED  •  press it, then date it";
 			string title = $"\"{single.Master.SongTitle}\"{(single.BSide != null ? $" b/w \"{single.BSide.SongTitle}\"" : "")} — {single.Master.Record.artistName}";
+			// RUSH: dated to ship within ten days and the vinyl is not in the office yet.
+			bool rush = single.Dated && DaysBetween(today, single.Date) <= 10 && (order != null || !pressed);
 			StageCard(title, stage, MasterDetail(single.Master), () => {
 				if (!single.Dated && desk.EarliestReleaseDays(single) > 0) DateControls(desk, single);
 				if (order == null && !pressed) PressingControls(desk, id, true);
 				else if (order != null || pressed) PressingControls(desk, id, false);
 				AcetateControls(desk, id);
 				CompareControls(desk, single.Master);
-			});
+			}, "Pressing order", rush ? "RUSH" : null);
 		}
 
 		foreach (PlayerDesk.Master master in shelf) {
@@ -2124,7 +2126,7 @@ public partial class PlayerDeskPanel : Control {
 					AssembleControls(desk, master);
 					AcetateControls(desk, id);
 					CompareControls(desk, master);
-				});
+				}, "Master receiving slip");
 		}
 	}
 
@@ -2144,7 +2146,7 @@ public partial class PlayerDeskPanel : Control {
 			StageCard($"\"{record.baseRecord.title}\" — {record.baseRecord.artistName}", stockLine,
 				(record.peakPosition > 0 ? $"peak #{record.peakPosition}, {record.weeksOnChart} {CountWord(record.weeksOnChart, "week")} on the chart" : "has not charted") +
 				$"  •  {record.weeksSinceRelease} {CountWord(record.weeksSinceRelease, "week")} out",
-				() => PressingControls(desk, id, false));
+				() => PressingControls(desk, id, false), "Repress requisition", order != null ? "ON ORDER" : null, RubberStamp.Blue);
 		}
 	}
 
@@ -2152,35 +2154,24 @@ public partial class PlayerDeskPanel : Control {
 		(PolarSongBehavior.UsePolarFitSelection ? "" : $"hook: {PolarPlayerPerception.DescribeHook(master.Record.hookStrength, 1f)}   •   sound: {SoundWords(master.Record.productionQuality)}   •   ") +
 		$"cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}";
 
-	/// <summary>A record's card on the board. The controls callback adds to the card, not the page.</summary>
-	private void StageCard(string title, string stage, string detail, Action controls) {
-		var card = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		card.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = new Color("ead9ad"), BorderColor = new Color("b79c5e"),
-			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
-			CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3,
-			ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 10, ContentMarginBottom = 12
-		});
-		var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		column.AddThemeConstantOverride("separation", 6);
-		card.AddChild(column);
+	/// <summary>A record's card on the board, set as the plant's work order for it: the plant's name over the form, the
+	/// serial, the job typed into boxes, and a stamp if the job is urgent. The controls callback adds to the form, not the page.</summary>
+	private void StageCard(string title, string stage, string detail, Action controls, string formType = "Pressing order",
+			string stamp = null, Color? stampInk = null) {
+		PlayerDesk desk = PlayerDesk.Instance;
+		WorkOrder.Form form = WorkOrder.Begin(RolodexDirectory.PlantFirm(desk?.Label), PaperTheme.Lettering(LetteringStyle.HeavySlab), 19,
+			formType, WorkOrder.Serial("job:" + title), stamp, stampInk);
+		form.Body.AddChild(WorkOrder.Typed("JOB", title, 0f, true));
+		if (stage != null) form.Body.AddChild(WorkOrder.Typed("STATUS", stage, 0f, true, Rust));
 		VBoxContainer page = content;
-		page.AddChild(card);
-		content = column;
+		page.AddChild(form.Sheet);
+		content = form.Body;
+		formDepth++;
 		try {
-			var name = new Label { Text = title, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-			name.AddThemeFontSizeOverride("font_size", 17);
-			name.AddThemeColorOverride("font_color", Ink);
-			column.AddChild(name);
-			if (stage != null) {
-				var stageLine = new Label { Text = stage, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-				stageLine.AddThemeFontSizeOverride("font_size", 15);
-				stageLine.AddThemeColorOverride("font_color", Rust);
-				column.AddChild(stageLine);
-			}
-			if (!string.IsNullOrEmpty(detail)) column.AddChild(FaintLine(detail));
+			if (!string.IsNullOrEmpty(detail)) form.Body.AddChild(FaintLine(detail));
 			controls?.Invoke();
 		} finally {
+			formDepth--;
 			content = page;
 		}
 	}
@@ -2278,13 +2269,14 @@ public partial class PlayerDeskPanel : Control {
 		int initialMin = desk.MinimumPressRun(recordId);
 		var runSizeRow = new HBoxContainer();
 		runSizeRow.AddThemeConstantOverride("separation", 10);
-		runSizeRow.AddChild(FormLabel("Qty"));
 		var qtyInput = Spin(initialMin, 100000, 1, initialMin);
-		runSizeRow.AddChild(qtyInput);
-		runSizeRow.AddChild(FormLabel("Promo (of Qty)"));
+		runSizeRow.AddChild(WorkOrder.Field("Qty", qtyInput));
 		// A first run opens on roughly a quarter promo (capped); a repress opens at zero (SuggestedPromoCount).
 		var promoInput = Spin(0, initialMin, 1, desk.SuggestedPromoCount(recordId, initialMin));
-		runSizeRow.AddChild(promoInput);
+		runSizeRow.AddChild(WorkOrder.Field("Promo (of qty)", promoInput));
+		// What the plant prints on every 45 order: the speed, and both sides of the one disc.
+		runSizeRow.AddChild(WorkOrder.Typed("Speed", "45 rpm", 96f));
+		runSizeRow.AddChild(WorkOrder.Typed("Sides", "A + B", 96f));
 		content.AddChild(runSizeRow);
 
 		var runCost = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -2379,19 +2371,19 @@ public partial class PlayerDeskPanel : Control {
 	private void DateControls(PlayerDesk desk, PlayerDesk.PlannedRelease single) {
 		var daysRow = new HBoxContainer();
 		daysRow.AddThemeConstantOverride("separation", 10);
-		var daysLabel = FormLabel("Ship in (days)");
-		daysRow.AddChild(daysLabel);
 		var daysInput = Spin(desk.EarliestReleaseDays(single), 120, 1, desk.SuggestedReleaseDays(single));
-		daysRow.AddChild(daysInput);
-		var campaignLabel = FormLabel("Campaign ($)");
+		daysRow.AddChild(WorkOrder.Field("Ship in (days)", daysInput));
+		var campaignLabel = new Label();
 		campaignLabel.MouseFilter = Control.MouseFilterEnum.Stop;
 		// The awareness a player record earns is supposed to come off the verbs on this branch (serviced jocks,
 		// the mailing, the review desk, the road), not off a slider, so the field opens at $0.
 		campaignLabel.TooltipText = "The campaign is shipping samples and a trade announcement, charged the day it ships. It is not a way to buy a hit: " +
 			"an $800 label leaves it at zero and earns its awareness on the road, with promo copies in jocks' hands, the mailing and the review desk.";
-		daysRow.AddChild(campaignLabel);
 		var budgetInput = Spin(0, 50000, 1, 0);
-		daysRow.AddChild(budgetInput);
+		Control campaignField = WorkOrder.Field("Campaign ($)", budgetInput);
+		campaignField.MouseFilter = Control.MouseFilterEnum.Stop;
+		campaignField.TooltipText = campaignLabel.TooltipText;
+		daysRow.AddChild(campaignField);
 		content.AddChild(daysRow);
 
 		var datePreview = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -2439,7 +2431,7 @@ public partial class PlayerDeskPanel : Control {
 	// DISTRIBUTION
 	// ========================================================================
 
-	private void PageDistribution() {
+	private void DistributionBody() {
 		PlayerDesk desk = PlayerDesk.Instance;
 		AILabel label = desk.Label;
 		Heading("DISTRIBUTION", "The places your records go: the towns you drive to, the shops and operators in them, " +
@@ -3519,7 +3511,7 @@ public partial class PlayerDeskPanel : Control {
 	// OFFICE (the ledger / log)
 	// ========================================================================
 
-	private void PageOffice() {
+	private void OfficeBody() {
 		PlayerDesk desk = PlayerDesk.Instance;
 
 		// Character card: who you are and what you can read.
@@ -3838,13 +3830,14 @@ public partial class PlayerDeskPanel : Control {
 			BgColor = fill, BorderColor = Rust,
 			BorderWidthBottom = 2, ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 4, ContentMarginBottom = 4
 		};
-		header.AddThemeStyleboxOverride("normal", Box(new Color("e4d09f")));
-		header.AddThemeStyleboxOverride("hover", Box(new Color("f1e2b8")));
-		header.AddThemeStyleboxOverride("pressed", Box(new Color("e4d09f")));
+		header.AddThemeStyleboxOverride("normal", formDepth > 0 ? WorkOrder.SectionBand() : Box(new Color("e4d09f")));
+		header.AddThemeStyleboxOverride("hover", formDepth > 0 ? WorkOrder.SectionBand(true) : Box(new Color("f1e2b8")));
+		header.AddThemeStyleboxOverride("pressed", formDepth > 0 ? WorkOrder.SectionBand() : Box(new Color("e4d09f")));
 		header.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" })
-			header.AddThemeColorOverride(name, Rust);
-		header.AddThemeFontSizeOverride("font_size", 18);
+			header.AddThemeColorOverride(name, formDepth > 0 ? WorkOrder.FormInk : Rust);
+		header.AddThemeFontSizeOverride("font_size", formDepth > 0 ? 15 : 18);
+		if (formDepth > 0) header.AddThemeFontOverride("font", PaperTheme.SansBold);
 		header.Pressed += () => {
 			int keep = contentScroll.ScrollVertical;
 			sectionOpen[key] = !open;
@@ -3886,6 +3879,7 @@ public partial class PlayerDeskPanel : Control {
 		node.AddThemeFontSizeOverride("font_size", 20);
 		node.AddThemeFontOverride("font", PaperTheme.SansBold);
 		node.AddThemeColorOverride("font_color", Rust);
+		if (formDepth > 0) StyleFormHeading(node);
 		if (help == null) { content.AddChild(node); return node; }
 		var row = new HBoxContainer();
 		row.AddThemeConstantOverride("separation", 8);

@@ -445,6 +445,8 @@ public partial class PlayerDesk : Node {
 	// Open "they called me" demand (directive §4). Generated once per chart week (CheckWeeklyInboundCalls),
 	// answered by working the stop normally (TryFulfillCall), or left to expire.
 	private readonly List<InboundCall> inboundCalls = new();
+	/// <summary>How many shops and operators are asking for stock right now (the shipping ticket is stamped RUSH while any are).</summary>
+	public int OpenInboundCallCount => inboundCalls.Count;
 	private int lastCallGenWeek = -1;
 	// Dealer-margin-and-flip directive §4, R2: live returnable carton sales -- pruned of anything past
 	// its window or fully exercised by CheckWeeklyReturns.

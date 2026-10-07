@@ -35,6 +35,10 @@ public static class RolodexDirectory {
 		"Moretti", "Pelletier", "Bascombe" };
 	private static readonly string[] PlantNames = { "Apex Record Pressing", "Monarch Plastics", "Allied Pressing Company", "Bell-Tone Processing", "Keystone Matrix & Pressing" };
 
+	/// <summary>The plant this label presses at. One per label, stable, and the name printed on its press-order forms.</summary>
+	public static string PlantFirm(AILabel label) =>
+		PlantNames[Portraits.Hash("plant:" + (label?.labelId ?? "")) % (uint)PlantNames.Length];
+
 	public static string PersonName(string key, bool female = false) {
 		uint h = Portraits.Hash(key);
 		string[] pool = female ? FemaleFirst : MaleFirst;
@@ -138,10 +142,9 @@ public static class RolodexDirectory {
 		AILabel label = desk.Label;
 		if (label == null) return new List<DirectoryCard>();
 		string key = "plant:" + label.labelId;
-		uint h = Portraits.Hash(key);
 		var card = new DirectoryCard {
 			Role = RolodexRole.Plant, Key = key, Name = PersonName(key), Title = "Plant foreman",
-			Firm = PlantNames[h % (uint)PlantNames.Length], Place = string.IsNullOrEmpty(label.headquartersCity) ? "your town" : label.headquartersCity,
+			Firm = PlantFirm(label), Place = string.IsNullOrEmpty(label.headquartersCity) ? "your town" : label.headquartersCity,
 			Figure = Portraits.Foreman(key), GoToTab = "CATALOG", GoToLabel = "OPEN THE CATALOG"
 		};
 		var orders = desk.PendingPressings().ToList();
