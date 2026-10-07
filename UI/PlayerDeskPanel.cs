@@ -694,6 +694,7 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void PageFounding() {
+		content.AddChild(FoundingTitleCard());
 		// A returning player's first button: the newest save of any kind, autosaves included.
 		SaveGameService.SaveInfo? newest = SaveGameService.NewestSave();
 		if (newest.HasValue) {
@@ -731,6 +732,15 @@ public partial class PlayerDeskPanel : Control {
 			});
 			btn.AddThemeColorOverride("font_color", isSelected ? Paper : Ink);
 			btn.Pressed += () => { selectedArchetype = captured; Refresh(); };
+			// Each origin wears the print of what it is best at (a linocut, on a paper patch when the button is dark).
+			ExecutiveInstinctProfile spread = FoundingArchetypeData.Get(arch).Instincts;
+			btn.AddThemeStyleboxOverride("hover", (StyleBox)btn.GetThemeStylebox("normal").Duplicate());
+			btn.AddThemeStyleboxOverride("pressed", (StyleBox)btn.GetThemeStylebox("normal").Duplicate());
+			btn.Alignment = HorizontalAlignment.Right;
+			var badge = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore, Position = new Vector2(8, 5), Size = new Vector2(34, 34) };
+			badge.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("f1e5c8"), CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3 });
+			badge.AddChild(new LinocutIcon().Set(StrongestInstinct(spread), 30f));
+			btn.AddChild(badge);
 			archetypeRow.AddChild(btn);
 		}
 
@@ -738,14 +748,9 @@ public partial class PlayerDeskPanel : Control {
 		Body($"{selected.Tagline}  ·  Starting capital: ${selected.Capital:N0}");
 		Body(selected.Description);
 
-		// Instinct spread.
-		var instincts = selected.Instincts;
-		Body($"THE EAR {StarBar(instincts.TheEar / 5f)}   THE STREET {StarBar(instincts.TheStreet / 5f)}   " +
-			$"THE SUIT {StarBar(instincts.TheSuit / 5f)}   THE FIXER {StarBar(instincts.TheFixer / 5f)}");
-
-		// Label stats summary line.
-		Body($"Scouting {StarBar(selected.ScoutingAbility)}   Production {StarBar(selected.ProductionQuality)}   " +
-			$"Marketing {StarBar(selected.MarketingPower)}");
+		// Instinct spread: four linocuts with a vinyl rating each, then the label's three stats the same way.
+		content.AddChild(InstinctRow(selected.Instincts, false));
+		content.AddChild(StatRow(("Scouting", selected.ScoutingAbility), ("Production", selected.ProductionQuality), ("Marketing", selected.MarketingPower)));
 		float firstRunCost = PlayerDesk.PressingCost(PlayerDesk.PressMinimumOrder);
 		Body($"MONEY AND RUNWAY  ·  ${selected.Capital:N0} starting cash; a first {PlayerDesk.PressMinimumOrder:N0}-copy pressing costs about ${firstRunCost:N0}. " +
 			$"Monthly overhead is the office rent of the town you pick plus ${CityProfiles.OfficeBaseOverhead:N0} for the phone and postage: ${CityProfiles.OverheadRange().Low:N0} to ${CityProfiles.OverheadRange().High:N0} a month. The overdraft ceiling is three months of overhead below zero (not borrowed cash); the bank closes the label after three red month-ends in a row. Climb back above $0 at month-end to reset the count.");
@@ -3567,10 +3572,7 @@ public partial class PlayerDeskPanel : Control {
 		ExecutiveInstinctProfile inst = desk.InstinctProfile;
 		Heading($"{archProfile.Name.ToUpperInvariant()}");
 		Body(archProfile.Tagline);
-		Body($"THE EAR {StarBar(inst.TheEar / 5f)} ({inst.TheEar})   " +
-			$"THE STREET {StarBar(inst.TheStreet / 5f)} ({inst.TheStreet})   " +
-			$"THE SUIT {StarBar(inst.TheSuit / 5f)} ({inst.TheSuit})   " +
-			$"THE FIXER {StarBar(inst.TheFixer / 5f)} ({inst.TheFixer})");
+		content.AddChild(InstinctRow(inst, true));
 
 		PhoneSection(desk);
 		ReturnsSection(desk);
@@ -4310,10 +4312,6 @@ public partial class PlayerDeskPanel : Control {
 	/// <summary>What a take's production sounds like, in the same buckets as the bar's colour.</summary>
 	private static string SoundWords(float v) => v >= 0.75f ? "a label-quality sound" : v >= 0.55f ? "clean and full" : v >= 0.35f ? "serviceable" : "thin and rough";
 
-	private static string StarBar(float value) {
-		int filled = Mathf.Clamp(Mathf.RoundToInt(value * 5f), 0, 5);
-		return new string('★', filled) + new string('☆', 5 - filled);
-	}
 
 	private static string Cap(string text) =>
 		string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
