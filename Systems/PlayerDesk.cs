@@ -1133,7 +1133,6 @@ public partial class PlayerDesk : Node {
 		currentCityId = city.cityId; // you start at your own office
 
 		Note($"{label.labelName} opens for business in {city.name}, {region.regionName} with ${profile.Capital:N0}.");
-		Note($"You are {profile.Name}. {profile.Tagline}");
 		message = $"{label.labelName} is open.";
 		Changed?.Invoke();
 		return true;

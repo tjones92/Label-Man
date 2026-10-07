@@ -176,6 +176,7 @@ public partial class ArtistDetailPanel : Control
 	}
 	private void ShowContract()
 	{
+		AddSignedStamp();
 		AddHeading("INTERNAL — CONTRACT"); AddBody($"Royalty rate: {artist.royaltyRate:P1}\nUnrecouped advance: ${artist.unrecoupedAdvance:N0}\nTerm: {artist.contractLength} years\nExpires: {artist.contractExpiresYear}");
 		AddHeading("DELIVERABLES"); AddBody(DeliverablesText());
 		AddHeading("RIGHTS AND MANAGEMENT"); AddBody(RightsText());
@@ -186,6 +187,16 @@ public partial class ArtistDetailPanel : Control
 			content.AddChild(who);
 		}
 		AddHeading("A&R IMPRESSION"); AddBody(JournalisticDescriptor.DescribeArtist(profile));
+	}
+	/// <summary>The deal is signed: the house stamp, in the signing label's ink, pressed at the top of the page.</summary>
+	private void AddSignedStamp()
+	{
+		AILabel signed = ChartManager.Instance?.GetLabelById(artist.labelId);
+		Color ink = signed != null ? LabelBrand.For(signed).Pair.Ink : RubberStamp.Blue;
+		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		row.AddChild(new Control { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore });
+		row.AddChild(new RubberStamp().Set("Signed", ink, -0.09f, 22));
+		content.AddChild(row);
 	}
 	/// <summary>What the act still owes under this deal. Sides count records they have put out on this label
 	/// since the term began; whichever of the sides or the clock runs out first ends the deal.</summary>

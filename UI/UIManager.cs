@@ -20,6 +20,7 @@ public partial class UIManager : Control
 	private PlayerDeskPanel deskPanel;
 	private Button deskButton;
 	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
+	private PaintedRecordLabels paintedRecords;   // the player's label on the wall record and the top of the stack
 	private PanelContainer mainHud;
 	private RecordJacketWidget recordJacket;
 	private Label hudDate, hudNextUp, hudTicker;
@@ -140,6 +141,8 @@ public partial class UIManager : Control
 		AddChild(paintedLayer);
 		// Just above the bare painting, below the hotspots and every panel.
 		MoveChild(paintedLayer, officeBackdrop != null ? officeBackdrop.GetIndex() + 1 : 0);
+		paintedRecords = new PaintedRecordLabels();
+		paintedLayer.AddChild(paintedRecords);
 	}
 
 	// Centre, tilt (rad) and size of each painted flip card in the scene's 1920x1080 space.
@@ -311,6 +314,7 @@ public partial class UIManager : Control
 		if (billboardButton != null) billboardButton.Visible = !isUIOpen;
 		TimeManager time = TimeManager.Instance;
 		PlayerDesk desk = PlayerDesk.Instance;
+		paintedRecords?.Set(desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName);
 		bool overdrawn = desk?.Label != null && desk.Label.cashReserves < 0f;
 		string cash = desk?.Label == null ? "" : $"  •  {(overdrawn ? "−" : "")}${Mathf.Abs(desk.Label.cashReserves):N0} cash";
 		hudDate.Text = time == null ? "" : $"{time.CurrentDate.ToHeadlineString()}  •  {time.GetTimeString()}{cash}";
@@ -451,6 +455,50 @@ public partial class UIManager : Control
 			target.AddChild(PaperText("THE TRADE", 15, rust, PaperTheme.SansSemiBold));
 			foreach (string line in trade) target.AddChild(PaperText(line, 17, body));
 		}
+		// A record of the player's went out: the label takes a small ad under the news, in its own crest and ink.
+		string released = dayDigests.SelectMany(digest => digest.Split("  •  ", System.StringSplitOptions.RemoveEmptyEntries))
+			.FirstOrDefault(story => story.Contains("RELEASED:", System.StringComparison.Ordinal));
+		AILabel playerLabel = PlayerDesk.Instance?.Label;
+		if (released != null && playerLabel != null) paperBody.AddChild(ReleaseAd(released, playerLabel, ink, rule));
+	}
+
+	/// <summary>The label's ad for a record that just went out: the 45's centre label, "NEW ON" the label in its
+	/// lettering, the title and the act. Built off the story the desk logged ("RELEASED: "Title" b/w "Flip" by Act (date).").</summary>
+	private Control ReleaseAd(string story, AILabel label, Color ink, Color rule) {
+		var match = System.Text.RegularExpressions.Regex.Match(story, "RELEASED: \"(?<a>[^\"]+)\"(?: b/w \"(?<b>[^\"]+)\")? by (?<act>.+?) \\(");
+		string title = match.Success ? match.Groups["a"].Value : "A new release";
+		string flip = match.Success && match.Groups["b"].Success ? match.Groups["b"].Value : null;
+		string act = match.Success ? match.Groups["act"].Value : null;
+		LabelBrand brand = LabelBrand.For(label);
+
+		var frame = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ShrinkCenter };
+		frame.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+			BgColor = new Color(1f, 1f, 1f, 0.12f), BorderColor = ink,
+			BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
+			ContentMarginLeft = 16, ContentMarginRight = 22, ContentMarginTop = 12, ContentMarginBottom = 12
+		});
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 16);
+		frame.AddChild(row);
+		row.AddChild(new LabelCrest().Set(brand, label.labelName, 92f, LabelCrest.Mode.Disc45));
+
+		var text = new VBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkCenter };
+		text.AddThemeConstantOverride("separation", 1);
+		row.AddChild(text);
+		Label Line(string value, Font font, int size, Color color) {
+			var line = new Label { Text = value };
+			line.AddThemeFontOverride("font", font);
+			line.AddThemeFontSizeOverride("font_size", size);
+			line.AddThemeColorOverride("font_color", color);
+			return line;
+		}
+		text.AddChild(Line($"NEW ON {brand.DisplayName(label.labelName).ToUpperInvariant()}", PaperTheme.Lettering(brand.Lettering), brand.Lettering == LetteringStyle.Script ? 26 : 17, brand.Pair.Ink));
+		text.AddChild(Line($"“{title}”", PaperTheme.SerifBold, 27, ink));
+		if (flip != null) text.AddChild(Line($"backed with “{flip}”", paperSerif, 16, ink));
+		if (act != null) text.AddChild(Line($"by {act}", paperSerif, 17, ink));
+		text.AddChild(new ColorRect { Color = brand.Pair.Accent, CustomMinimumSize = new Vector2(0, 3), MouseFilter = MouseFilterEnum.Ignore });
+		text.AddChild(Line("A 45 at better record shops everywhere", PaperTheme.SansSemiBold, 12, rule.Darkened(0.35f)));
+		return frame;
 	}
 
 	private void BuildMorningPaper() {
@@ -655,9 +703,19 @@ public partial class UIManager : Control
 	public void OpenArtist(string artistId, bool isOwnedByPlayer = false, int startTab = 0)
 	{
 		if (string.IsNullOrEmpty(artistId) || artistDetailPanel == null) return;
+		StackDossiers(artistDetailPanel, labelDetailPanel);
 		artistDetailPanel.ShowArtist(artistId, isOwnedByPlayer, startTab);
 		isUIOpen = true;
 		UpdateMainHud();
+	}
+
+	// The two dossiers stack (close the artist and the label is still under it). The open folder tab lifts
+	// itself with ZIndex, and a z lift beats tree order, so the buried dossier's tab would otherwise draw
+	// through the one on top. Give the dossier being opened its own band above the other's.
+	private static void StackDossiers(Control top, Control buried)
+	{
+		if (buried != null) buried.ZIndex = 2;
+		top.ZIndex = 4;
 	}
 
 	/// <summary>Opens an act's dossier straight to its DISCOGRAPHY page (tab index 1).</summary>
@@ -666,6 +724,7 @@ public partial class UIManager : Control
 	public void OpenLabel(string labelId, bool isOwnedByPlayer = false)
 	{
 		if (string.IsNullOrEmpty(labelId) || labelDetailPanel == null) return;
+		StackDossiers(labelDetailPanel, artistDetailPanel);
 		labelDetailPanel.ShowLabel(labelId, isOwnedByPlayer);
 		isUIOpen = true;
 		UpdateMainHud();

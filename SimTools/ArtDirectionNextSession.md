@@ -18,7 +18,7 @@ other critic pieces still open.
 | 7 | Morning Paper v2 | Done: nameplate, ears (edition, price), two ruled columns, lead hierarchy, fold-corner dismiss, settle-in. |
 | 8 | Index cards, carbon contract | Done: A&R index card (typewriter name, stamped verdict, inline buttons); contract is a carbon duplicate with letterhead, DUPLICATE stamp, signature line. Compare dialog is still the modal, not a clipboard sheet. |
 | 9 | Chart language | Partial: chart rows (clipped columns, circled live rank numerals, palette movement colours, highlighter on your own record). Radar/bars/identity box not re-inked. |
-| 10 | Label brand kit | Built (section 2): data, crest control, founding picker, integration points 1-4 and the nameplate. Wall record, stacks and paper ad remain. |
+| 10 | Label brand kit | Built (section 2): data, crest control, founding picker, integration points 1-4, the nameplate, wall record, stack disc, jacket disc, paper ad and SIGNED stamp. Gold record, Save/Load row and window icon remain. |
 
 Item 6 of the user's list (tooltips): "?" badges now use `TipLabel` (`UI/PaperTip.cs`): wrapped at 340px, text centred. Godot
 places a tooltip beside the pointer, so it is a centred block, not centred on the badge. Other long tooltips still stretch;
@@ -32,8 +32,18 @@ hash of the id, so every AI label and any old save has a brand), `UI/LabelCrest.
 One, Yellowtail, Limelight, with licences). Landed: office header, label dossier (letterhead + accent rule), artist dossier
 "signed to" strip, chart label column (crest chip), contract letterhead, Morning Paper nameplate (Abril).
 
-Not done: wall record and stack centre labels, gold record, paper ad, `RecordJacketWidget` centre label, Save/Load row,
-window icon, a SIGNED stamp (only DUPLICATE exists today).
+**Session 4 landed:** the player's 45 centre label on the framed wall record and on the top disc of the left stack
+(`UI/PaintedRecordLabels.cs`, in `paintedLayer` so the hour tints it; hidden until a label is founded), the centre label in
+the corner of `RecordJacketWidget`, a "NEW ON <label>" ad at the foot of the Morning Paper whenever a `RELEASED:` story runs
+(`UIManager.ReleaseAd`), and a SIGNED stamp in the label's ink on a player act's CONTRACT tab (`ArtistDetailPanel`).
+
+Also fixed: label -> roster -> artist drew the label dossier's open ROSTER tab through the artist dossier. `FolderTabButton`
+lifts the open tab with `ZIndex = 1`, and a z lift beats tree order, so a buried dossier's tab showed through the one on
+top. `UIManager.StackDossiers` now gives the dossier being opened its own z band (4) above the buried one (2). Any new
+stacked panel that holds folder tabs needs the same.
+
+Not done: gold record at a sales milestone, stack centre label on the right-hand stack (its top disc is hidden in the
+painting), Save/Load row crest, window icon.
 
 Departures from the sketch below: crests are drawn live (a Control retains its draw commands, so no baked textures were
 needed); lettering is five preview buttons, not a drop-down; the brand lives on `AILabel.brand` (null for AI labels, so

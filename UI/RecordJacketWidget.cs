@@ -65,10 +65,14 @@ public partial class RecordJacketWidget : PanelContainer {
 		if (!Visible) return;
 		foreach (Node child in rows.GetChildren()) { rows.RemoveChild(child); child.QueueFree(); }
 
-		var caption = new Label { Text = "RECORDS IN THE WORKS", MouseFilter = MouseFilterEnum.Ignore };
+		// The sleeve's die-cut window shows the label's own 45 centre label.
+		var header = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+		var caption = new Label { Text = "RECORDS IN THE WORKS", MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter };
 		caption.AddThemeFontSizeOverride("font_size", 13);
 		caption.AddThemeColorOverride("font_color", Heard);
-		rows.AddChild(caption);
+		header.AddChild(caption);
+		header.AddChild(new LabelCrest().Set(LabelBrand.For(desk.Label), desk.Label.labelName, 40f, LabelCrest.Mode.Disc45));
+		rows.AddChild(header);
 
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		List<JacketEntry> entries = JacketEntries(desk, today);
