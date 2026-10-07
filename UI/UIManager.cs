@@ -31,7 +31,7 @@ public partial class UIManager : Control
 	private Tween propTagTween;
 	private int propTagTicket;
 	private Control morningPaper;
-	private Label paperDate, paperHeading, paperEdition, paperPrice;
+	private Label paperDate, paperHeading, paperEdition, paperPrice, paperMasthead, paperExtraBand;
 	private Control paperSheet;
 	private VBoxContainer paperBody;
 	private Font paperSerif;
@@ -372,8 +372,11 @@ public partial class UIManager : Control
 				: digests;
 			if (dayDigests.Length == 0) dayDigests = digests.TakeLast(1).ToArray();
 			GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-			paperEdition.Text = $"{today.DayName.ToUpperInvariant()} EDITION";
-			paperPrice.Text = today.DayOfWeek == System.DayOfWeek.Sunday ? "TEN CENTS" : "FIVE CENTS";
+			// A big enough day earns an EXTRA: a red band over the nameplate, a special edition, a dearer price.
+			bool extra = PaperExtras.IsExtra(dayDigests);
+			paperExtraBand.Visible = extra;
+			paperEdition.Text = extra ? "SPECIAL EXTRA EDITION" : $"{today.DayName.ToUpperInvariant()} EDITION";
+			paperPrice.Text = extra || today.DayOfWeek == System.DayOfWeek.Sunday ? "TEN CENTS" : "FIVE CENTS";
 			RenderPaper(dayDigests, digests.Length > 1, currentDesk.TakeTradeNews());
 			paperScroll.ScrollVertical = 0;
 			if (!morningPaper.Visible) uiOpenBeforePaper = isUIOpen;
@@ -416,8 +419,8 @@ public partial class UIManager : Control
 		foreach (string digest in dayDigests) {
 			int dateEnd = digest.IndexOf(": ", System.StringComparison.Ordinal);
 			string events = dateEnd >= 0 ? digest.Substring(dateEnd + 2) : digest;
-			string[] stories = events.Split("  •  ", System.StringSplitOptions.RemoveEmptyEntries)
-				.Distinct(System.StringComparer.OrdinalIgnoreCase)
+			string[] stories = PaperExtras.RollUp(events.Split("  •  ", System.StringSplitOptions.RemoveEmptyEntries)
+				.Distinct(System.StringComparer.OrdinalIgnoreCase))
 				.Select(story => char.ToUpperInvariant(story[0]) + story.Substring(1)).ToArray();
 			if (multiDay) {
 				paperBody.AddChild(PaperText(DigestDate(digest).ToUpperInvariant(), 15, rust, PaperTheme.SansSemiBold));
@@ -429,7 +432,18 @@ public partial class UIManager : Control
 			bool realLead = front.Count > 0;
 			string lead = realLead ? front[0] : rest.Count > 0 ? rest[0] : null;
 			if (!realLead && rest.Count > 0) rest.RemoveAt(0);
-			if (lead != null) paperBody.AddChild(PaperText(lead, realLead ? 36 : 26, ink, PaperTheme.SerifBold));
+			if (lead != null) {
+				Label headline = PaperText(lead, realLead ? 36 : 26, ink, PaperTheme.SerifBold);
+				// A story about one of the player's acts carries the act's halftone photo beside the headline.
+				SimulatedArtist leadAct = realLead ? PaperExtras.ActFor(lead, PlayerDesk.Instance) : null;
+				if (leadAct != null) {
+					var leadRow = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+					leadRow.AddThemeConstantOverride("separation", 18);
+					leadRow.AddChild(headline);
+					leadRow.AddChild(PaperExtras.PhotoSlot(leadAct));
+					paperBody.AddChild(leadRow);
+				} else paperBody.AddChild(headline);
+			}
 			foreach (string story in front.Skip(1)) paperBody.AddChild(PaperText(story, 23, ink, PaperTheme.SerifBold));
 			bool lastDay = ReferenceEquals(digest, dayDigests[^1]);
 			bool hasTrade = trade != null && trade.Count > 0 && lastDay;
@@ -444,7 +458,8 @@ public partial class UIManager : Control
 			foreach (string story in rest) {
 				// Flow into whichever column is shorter, so the two stay level.
 				bool intoLeft = leftChars <= rightChars;
-				(intoLeft ? left : right).AddChild(PaperText(story, 17, body));
+				string stamp = PaperExtras.StampFor(story);
+				(intoLeft ? left : right).AddChild(stamp != null ? PaperExtras.Clipping(story, stamp, 17, body) : PaperText(story, 17, body));
 				if (intoLeft) leftChars += story.Length + 40; else rightChars += story.Length + 40;
 			}
 			var columns = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -463,6 +478,34 @@ public partial class UIManager : Control
 			target.AddChild(PaperRule(1, rule));
 			target.AddChild(PaperText("THE TRADE", 15, rust, PaperTheme.SansSemiBold));
 			foreach (string line in trade) target.AddChild(PaperText(line, 17, body));
+		}
+		// A quiet day is filled, not hidden: the weather, the price board and an ad, so there is always a paper to read.
+		int storyCount = dayDigests.Sum(digest => digest.Split("  •  ", System.StringSplitOptions.RemoveEmptyEntries).Length);
+		GameDate paperDay = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		AILabel house = PlayerDesk.Instance?.Label;
+		if (lastLeft != null && lastRight != null) {
+			VBoxContainer shorter = leftChars <= rightChars ? lastLeft : lastRight, longer = ReferenceEquals(shorter, lastLeft) ? lastRight : lastLeft;
+			shorter.AddChild(PaperExtras.Weather(paperDay, house, ink, rust));
+			if (storyCount < 6) {
+				longer.AddChild(PaperExtras.PriceBoard(paperDay, ink, rust));
+				shorter.AddChild(PaperExtras.Ad(paperDay, house, ink));
+			}
+		} else {
+			// Nothing was set in columns today (one line of news, or none): give the paper its own two.
+			var left = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			var right = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			left.AddThemeConstantOverride("separation", 12);
+			right.AddThemeConstantOverride("separation", 12);
+			left.AddChild(PaperExtras.Weather(paperDay, house, ink, rust));
+			left.AddChild(PaperExtras.PriceBoard(paperDay, ink, rust));
+			right.AddChild(PaperExtras.Ad(paperDay, house, ink));
+			var columns = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			columns.AddThemeConstantOverride("separation", 18);
+			columns.AddChild(left);
+			columns.AddChild(new ColorRect { Color = new Color(rule, 0.7f), CustomMinimumSize = new Vector2(1, 0), MouseFilter = MouseFilterEnum.Ignore });
+			columns.AddChild(right);
+			paperBody.AddChild(PaperRule(1, rule));
+			paperBody.AddChild(columns);
 		}
 		// A record of the player's went out: the label takes a small ad under the news, in its own crest and ink.
 		string released = dayDigests.SelectMany(digest => digest.Split("  •  ", System.StringSplitOptions.RemoveEmptyEntries))
@@ -561,9 +604,14 @@ public partial class UIManager : Control
 		column.AddChild(ears);
 
 		// The nameplate: Abril Fatface, big, between a thick rule and a hairline.
+		paperExtraBand = Small("EXTRA  ★  EXTRA  ★  EXTRA", HorizontalAlignment.Center, PaperTheme.Lettering(LetteringStyle.HeavySlab), 20);
+		paperExtraBand.AddThemeColorOverride("font_color", StampRed);
+		paperExtraBand.Visible = false;
+		column.AddChild(paperExtraBand);
 		column.AddChild(PaperRule(4, ink));
 		column.AddChild(PaperRule(1, ink));
 		Label masthead = Small("The Morning Paper", HorizontalAlignment.Center, PaperTheme.Lettering(LetteringStyle.Didone), 64);
+		paperMasthead = masthead;
 		column.AddChild(masthead);
 		column.AddChild(PaperRule(1, ink));
 		column.AddChild(PaperRule(4, ink));
@@ -589,10 +637,26 @@ public partial class UIManager : Control
 		paperSheet.AddChild(corner);
 	}
 
+	private bool paperSliding;
+
 	private void DismissMorningPaper() {
-		if (morningPaper?.Visible != true) return;
-		morningPaper.Hide();
+		if (morningPaper?.Visible != true || paperSliding) return;
 		isUIOpen = uiOpenBeforePaper;
+		// Folded away: the sheet slides off the desk toward you, tipping as it goes, and the room fades back in.
+		paperSliding = true;
+		paperSheet.PivotOffset = new Vector2(450, 335);
+		var slide = CreateTween().SetParallel(true);
+		slide.TweenProperty(paperSheet, "position:y", paperSheet.Position.Y + 760f, 0.26).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+		slide.TweenProperty(paperSheet, "rotation_degrees", -4.5f, 0.26).SetEase(Tween.EaseType.In);
+		slide.TweenProperty(morningPaper, "modulate:a", 0f, 0.26).SetEase(Tween.EaseType.In);
+		slide.Finished += () => {
+			paperSliding = false;
+			morningPaper.Hide();
+			morningPaper.Modulate = Colors.White;
+			paperSheet.Position = Vector2.Zero;
+			paperSheet.RotationDegrees = 0f;
+			UpdateMainHud();
+		};
 		UpdateMainHud();
 	}
 
