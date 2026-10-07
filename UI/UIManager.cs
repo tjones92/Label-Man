@@ -22,6 +22,8 @@ public partial class UIManager : Control
 	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
 	private PaintedRecordLabels paintedRecords;   // the player's label on the wall record and the top of the stack
 	private PaintedGoldRecord paintedGold;        // the gold record on the wall, once a record passes the bar
+	private PaintedStack paintedStack;            // the left-hand pile, one sleeve higher for every record the label has made
+	private MessageSlips messageSlips;            // pink WHILE YOU WERE OUT slips pinned beside the door
 	private PanelContainer mainHud;
 	private RecordJacketWidget recordJacket;
 	private Label hudDate, hudNextUp, hudTicker;
@@ -142,10 +144,15 @@ public partial class UIManager : Control
 		AddChild(paintedLayer);
 		// Just above the bare painting, below the hotspots and every panel.
 		MoveChild(paintedLayer, officeBackdrop != null ? officeBackdrop.GetIndex() + 1 : 0);
+		paintedLayer.AddChild(new DeskAtmosphere());
+		paintedStack = new PaintedStack();
+		paintedLayer.AddChild(paintedStack);
 		paintedRecords = new PaintedRecordLabels();
 		paintedLayer.AddChild(paintedRecords);
 		paintedGold = new PaintedGoldRecord();
 		paintedLayer.AddChild(paintedGold);
+		messageSlips = new MessageSlips { Open = tab => OpenOfficeAt(tab) };
+		paintedLayer.AddChild(messageSlips);
 	}
 
 	// Centre, tilt (rad) and size of each painted flip card in the scene's 1920x1080 space.
@@ -318,6 +325,11 @@ public partial class UIManager : Control
 		TimeManager time = TimeManager.Instance;
 		PlayerDesk desk = PlayerDesk.Instance;
 		paintedRecords?.Set(desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName);
+		// The pile grows with the catalogue: a sleeve for every record cut, pressed or out.
+		int made = desk?.HasLabel == true ? desk.ReleasedRecords.Count() + desk.Masters.Count() + desk.Planned.Count() : 0;
+		paintedStack?.Set(made);
+		paintedRecords?.SetStackLift(PaintedStack.Lift(made));
+		messageSlips?.Set(desk?.HasLabel == true && !desk.IsGameOver ? desk.DeskMessages() : new List<PlayerDesk.DeskMessage>());
 		if (paintedGold != null) {
 			int dayKey = time == null ? 0 : time.CurrentDate.year * 400 + time.CurrentDate.month * 32 + time.CurrentDate.day;
 			string wentGold = paintedGold.Refresh(desk, desk?.Label != null ? LabelBrand.For(desk.Label) : null, desk?.Label?.labelName, dayKey);

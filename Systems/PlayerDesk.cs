@@ -447,6 +447,31 @@ public partial class PlayerDesk : Node {
 	private readonly List<InboundCall> inboundCalls = new();
 	/// <summary>How many shops and operators are asking for stock right now (the shipping ticket is stamped RUSH while any are).</summary>
 	public int OpenInboundCallCount => inboundCalls.Count;
+
+	/// <summary>One pink "while you were out" slip: who, what, and the department that holds it.</summary>
+	public sealed class DeskMessage { public string From, Text, Tab; }
+
+	/// <summary>What is waiting for the player when they come back to the desk: the calls the answering service took (a shop sold
+	/// out, a station adding a record) and any Rolodex call-back that has come due. A read of live state, nothing is stored.</summary>
+	public List<DeskMessage> DeskMessages() {
+		var list = new List<DeskMessage>();
+		foreach (InboundCall call in inboundCalls.OrderBy(c => c.ExpiresWeek)) {
+			PlayerStop stop = GetStop(call.StopId);
+			string why = call.Reason switch {
+				InboundCallReason.SoldOut => "sold out, wants more of",
+				InboundCallReason.StationAdded => "has it on the air:",
+				InboundCallReason.Requests => "getting requests for",
+				InboundCallReason.AdjacentCity => "heard about",
+				InboundCallReason.OneStopTest => "wants a look at",
+				InboundCallReason.PreOrder => "wants some held of",
+				_ => "called about"
+			};
+			list.Add(new DeskMessage { From = stop?.DisplayName ?? "A shop", Text = $"{why} \"{TitleForRecord(call.RecordId)}\" ({call.RequestedQty:N0})", Tab = "DISTRIBUTION" });
+		}
+		foreach (RolodexEntry entry in Rolodex.Where(e => e.callbackDate != null && CallbackDue(e)))
+			list.Add(new DeskMessage { From = entry.displayName, Text = "your call-back is due now", Tab = "ROLODEX" });
+		return list;
+	}
 	private int lastCallGenWeek = -1;
 	// Dealer-margin-and-flip directive §4, R2: live returnable carton sales -- pruned of anything past
 	// its window or fully exercised by CheckWeeklyReturns.

@@ -16,6 +16,14 @@ public partial class PaintedRecordLabels : Control {
 
 	private LabelBrand brand;
 	private string labelName = "";
+	private float stackLift;
+
+	/// <summary>How far the stack has grown (see <see cref="PaintedStack"/>): the top disc rides up with it.</summary>
+	public void SetStackLift(float lift) {
+		if (Mathf.IsEqualApprox(lift, stackLift)) return;
+		stackLift = lift;
+		QueueRedraw();
+	}
 
 	public PaintedRecordLabels() {
 		MouseFilter = MouseFilterEnum.Ignore;
@@ -36,7 +44,7 @@ public partial class PaintedRecordLabels : Control {
 		// The flat disc on the wall.
 		LabelCrest.DrawDisc45(this, new Rect2(WallCentre - Vector2.One * WallRadius, Vector2.One * WallRadius * 2f), brand, labelName);
 		// The top record of the stack: the same label squashed onto the disc's ellipse.
-		DrawSetTransform(StackCentre, 0f, new Vector2(1f, StackSquash));
+		DrawSetTransform(StackCentre + new Vector2(0f, -stackLift), 0f, new Vector2(1f, StackSquash));
 		LabelCrest.DrawDisc45(this, new Rect2(Vector2.One * -StackRadius, Vector2.One * StackRadius * 2f), brand, labelName);
 		DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
 	}
