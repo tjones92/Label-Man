@@ -43,7 +43,8 @@ public partial class ArtistDetailPanel : Control
 		MouseFilter = MouseFilterEnum.Stop;
 		var shade = new ColorRect { Color = new Color(0, 0, 0, .38f) }; shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(shade);
 		var folder = new PanelContainer(); folder.SetAnchorsPreset(LayoutPreset.Center); folder.Position = new Vector2(-570, -410); folder.Size = new Vector2(1140, 820); AddChild(folder);
-		var style = new StyleBoxFlat { BgColor = new Color("d7b978"), CornerRadiusTopLeft = 8, CornerRadiusTopRight = 8, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3, BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2, BorderColor = new Color("70552c"), ContentMarginLeft = 34, ContentMarginRight = 34, ContentMarginTop = 28, ContentMarginBottom = 28 };
+		var style = new PaperStyleBox { Fill = new Color("d7b978"), Border = new Color("70552c"), BorderWidth = 2, Radius = 3, ShadowSize = 24, ShadowAlpha = 0.55f, ShadowOffset = new Vector2(0, 10), Burn = 1.15f };
+		style.ContentMarginLeft = 34; style.ContentMarginRight = 34; style.ContentMarginTop = 28; style.ContentMarginBottom = 28;
 		folder.AddThemeStyleboxOverride("panel", style);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
 		var header = new HBoxContainer(); root.AddChild(header);
@@ -53,7 +54,7 @@ public partial class ArtistDetailPanel : Control
 		labelButton = new Button { Alignment = HorizontalAlignment.Left }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; root.AddChild(labelButton);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-		paper.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("f1e5c8"), ContentMarginLeft = 28, ContentMarginRight = 28, ContentMarginTop = 24, ContentMarginBottom = 24 }); root.AddChild(paper);
+		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6)); root.AddChild(paper);
 		var scroll = new ScrollContainer(); paper.AddChild(scroll);
 		content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 12); scroll.AddChild(content);
 	}

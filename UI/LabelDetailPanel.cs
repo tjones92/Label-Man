@@ -31,13 +31,15 @@ public partial class LabelDetailPanel : Control
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); MouseFilter = MouseFilterEnum.Stop;
 		var shade = new ColorRect { Color = new Color(0, 0, 0, .38f) }; shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect); AddChild(shade);
 		var folder = new PanelContainer(); folder.SetAnchorsPreset(LayoutPreset.Center); folder.Position = new Vector2(-540, -380); folder.Size = new Vector2(1080, 760); AddChild(folder);
-		folder.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("cba96a"), BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2, BorderColor = new Color("654a27"), ContentMarginLeft = 34, ContentMarginRight = 34, ContentMarginTop = 28, ContentMarginBottom = 28 });
+		var folderPaper = new PaperStyleBox { Fill = new Color("cba96a"), Border = new Color("654a27"), BorderWidth = 2, Radius = 3, ShadowSize = 24, ShadowAlpha = 0.55f, ShadowOffset = new Vector2(0, 10), Burn = 1.15f };
+		folderPaper.ContentMarginLeft = 34; folderPaper.ContentMarginRight = 34; folderPaper.ContentMarginTop = 28; folderPaper.ContentMarginBottom = 28;
+		folder.AddThemeStyleboxOverride("panel", folderPaper);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
 		var header = new HBoxContainer(); root.AddChild(header); nameLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill }; nameLabel.AddThemeFontSizeOverride("font_size", 30); header.AddChild(nameLabel);
 		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
 		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); root.AddChild(chromeLabel);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
-		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; paper.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color("f1e5c8"), ContentMarginLeft = 28, ContentMarginRight = 28, ContentMarginTop = 24, ContentMarginBottom = 24 }); root.AddChild(paper);
+		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill }; paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6)); root.AddChild(paper);
 		var scroll = new ScrollContainer(); paper.AddChild(scroll); content = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill }; content.AddThemeConstantOverride("separation", 12); scroll.AddChild(content);
 	}
 	private void BuildTabs() { Clear(tabs); tabButtons.Clear(); AddTab("OVERVIEW", ShowOverview); AddTab("ROSTER", ShowRoster); AddTab("TRACK RECORD", ShowTrackRecord); ActivateTab(0, ShowOverview); }

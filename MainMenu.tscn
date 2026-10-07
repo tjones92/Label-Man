@@ -52,22 +52,18 @@ texture = ExtResource("2_h7a2f")
 [node name="BillboardButton" type="TextureButton" parent="." unique_id=1732141028]
 layout_mode = 1
 anchors_preset = -1
-anchor_top = 0.469
-anchor_right = 0.261
-anchor_bottom = 0.61200005
-offset_left = 21.0
-offset_top = -0.4580078
-offset_right = 4.0529785
-offset_bottom = 3.815918
+anchor_top = 0.453
+anchor_right = 0.28
+anchor_bottom = 0.56
 
 [node name="CalendarBtn" type="Button" parent="." unique_id=469256875]
 layout_mode = 0
-offset_left = 1315.0
-offset_top = 454.99997
-offset_right = 1659.0
-offset_bottom = 522.0
-rotation = 0.15777898
-scale = Vector2(1.4390271, 2.3790245)
+offset_left = 1290.0
+offset_top = 470.0
+offset_right = 1810.0
+offset_bottom = 640.0
+rotation = 0.12
+flat = true
 
 [node name="ChartPanel" type="Control" parent="." unique_id=699117346 node_paths=PackedStringArray("chartPanel", "dateHeader", "slots", "nextPageButton", "prevPageButton", "closeButton", "detailPanel")]
 visible = false

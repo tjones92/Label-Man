@@ -24,6 +24,12 @@ public partial class ChartUI : Control
 
 	public override void _Ready()
 	{
+		// The chart sheet is paper under the same lamp as the office: grain, scorched edges, a contact shadow.
+		if (GetNodeOrNull<PanelContainer>("ChartPaper") is PanelContainer paper) {
+			var sheet = PaperStyleBox.Sheet(new Color("f0e4c3"), 24, 20, 22, new Color("6a4c29"));
+			sheet.BorderWidth = 2;
+			paper.AddThemeStyleboxOverride("panel", sheet);
+		}
 		if (nextPageButton != null) nextPageButton.Pressed += NextPage;
 		if (prevPageButton != null) prevPageButton.Pressed += PrevPage;
 		if (closeButton != null) closeButton.Pressed += CloseChart;

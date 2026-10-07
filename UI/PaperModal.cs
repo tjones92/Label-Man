@@ -35,7 +35,8 @@ public partial class PaperModal : CanvasLayer {
 	}
 
 	private void Build(string title, float width) {
-		var root = new Control { MouseFilter = Control.MouseFilterEnum.Stop };
+		// A CanvasLayer does not inherit the window's theme, so the modal carries the office theme itself.
+		var root = new Control { MouseFilter = Control.MouseFilterEnum.Stop, Theme = PaperTheme.Build() };
 		root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		AddChild(root);
 
@@ -48,13 +49,10 @@ public partial class PaperModal : CanvasLayer {
 		root.AddChild(center);
 
 		var card = new PanelContainer { CustomMinimumSize = new Vector2(width, 0) };
-		card.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = Paper, BorderColor = Rust,
-			BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
-			CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3,
-			ContentMarginLeft = 28, ContentMarginRight = 28, ContentMarginTop = 22, ContentMarginBottom = 20,
-			ShadowColor = new Color(0, 0, 0, .5f), ShadowSize = 18
-		});
+		var sheet = PaperStyleBox.Sheet(Paper, 28, 22, 18, Rust);
+		sheet.BorderWidth = 2; sheet.Radius = 3; sheet.ShadowAlpha = 0.5f;
+		sheet.ContentMarginBottom = 20;
+		card.AddThemeStyleboxOverride("panel", sheet);
 		center.AddChild(card);
 
 		var column = new VBoxContainer();

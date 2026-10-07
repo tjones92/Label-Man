@@ -19,11 +19,18 @@ public partial class UIManager : Control
 	private SpinBox skipDaysInput;
 	private PlayerDeskPanel deskPanel;
 	private Button deskButton;
-	private PanelContainer mainHud;
+	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
+	private Control padNote;
 	private RecordJacketWidget recordJacket;
-	private Label hudDateCash, hudTicker;
+	private Label hudDate, hudTimeCash, hudNextUp, hudTicker;
+	private readonly Label[] calendarCards = new Label[4];   // month, weekday, day, year
+	private PanelContainer propTag;
+	private Label propTagText;
+	private Tween propTagTween;
+	private int propTagTicket;
 	private Control morningPaper;
-	private Label paperDate, paperHeading;
+	private Label paperDate, paperHeading, paperEdition, paperPrice;
+	private Control paperSheet;
 	private VBoxContainer paperBody;
 	private Font paperSerif;
 	private ScrollContainer paperScroll;
@@ -48,10 +55,19 @@ public partial class UIManager : Control
 		if (labelDetailPanel != null) labelDetailPanel.ArtistRequested += id => OpenArtist(id);
 		officeBackdrop = GetNodeOrNull<TextureRect>("TextureRect");
 		calendarButton = GetNodeOrNull<Button>("CalendarBtn");
+		BuildPaintedLayer();
 		if (calendarButton != null) {
+			// A transparent hotspot over the painted flip calendar. The date is lettered on the painted cards
+			// themselves (BuildCalendarCards), so nothing here is stretched to fit the prop.
+			calendarButton.Flat = true;
+			calendarButton.Text = "";
+			calendarButton.FocusMode = Control.FocusModeEnum.None;
 			calendarButton.GuiInput += OnCalendarGuiInput;
-			calendarButton.TooltipText = "Click to advance one day. Right-click to choose a skip option.";
 			calendarButton.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
+			StyleHotspot(calendarButton, 8);
+			BuildCalendarCards();
+			calendarButton.MouseEntered += () => ShowPropTag("THE CALENDAR  -  click: next day  -  right-click: skip ahead", new Vector2(1545, 470));
+			calendarButton.MouseExited += HidePropTag;
 			UpdateCalendarButton(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
 		}
 		if (TimeManager.Instance != null) {
@@ -84,8 +100,14 @@ public partial class UIManager : Control
 		}
 		billboardButton = GetNodeOrNull<TextureButton>("BillboardButton");
 		if (billboardButton != null) {
-			billboardButton.TooltipText = "Hot 100 — open the charts.";
 			billboardButton.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
+			// A TextureButton with no texture draws nothing, so the rim-light is a panel it shows on hover.
+			var rim = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false, ZIndex = 1 };
+			rim.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+			rim.AddThemeStyleboxOverride("panel", HotspotRim());
+			billboardButton.AddChild(rim);
+			billboardButton.MouseEntered += () => { rim.Visible = true; ShowPropTag("THE TRADES  -  this week's Hot 100", new Vector2(270, 484)); };
+			billboardButton.MouseExited += () => { rim.Visible = false; HidePropTag(); };
 		}
 		BuildDeskProps();
 		BuildMainHud();
@@ -106,23 +128,137 @@ public partial class UIManager : Control
 		if (PlayerDesk.Instance?.HasLabel != true) OnClick_Desk();
 	}
 
+	// ── Painted-desk text ───────────────────────────────────────────────────────────────────────
+	// Everything lettered on the painting (the calendar's cards, the note on the ledger pad) sits in one layer
+	// beneath the panels, so it takes the office light with the painting instead of glowing against it at night.
+	private static readonly Color Graphite = new("3b3128");
+	private static readonly Color GreaseRed = new("b3361f");
+	private static readonly Color StampRed = new("a8322a");
+
+	private void BuildPaintedLayer() {
+		paintedLayer = new Control { Name = "PaintedLayer", MouseFilter = Control.MouseFilterEnum.Ignore };
+		paintedLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		AddChild(paintedLayer);
+		// Just above the bare painting, below the hotspots and every panel.
+		MoveChild(paintedLayer, officeBackdrop != null ? officeBackdrop.GetIndex() + 1 : 0);
+	}
+
+	// Centre, tilt (rad) and size of each painted flip card in the scene's 1920x1080 space.
+	private static readonly (Vector2 Centre, float Tilt, Vector2 Size)[] CalendarCardRects = {
+		(new Vector2(1380, 543), 0.10f, new Vector2(128, 100)),    // month
+		(new Vector2(1526, 548), 0.13f, new Vector2(136, 112)),    // day
+		(new Vector2(1683, 580), 0.105f, new Vector2(148, 122)),   // year
+	};
+
+	/// <summary>The date lettered on the three painted flip cards: month, day (with the weekday above it), year.
+	/// Each card is placed, tilted and sized to the painting's own card, so the type sits flat on the paper.</summary>
+	private void BuildCalendarCards() {
+		// calendarCards: 0 month, 1 weekday, 2 day, 3 year
+		int[] slot = { 0, 2, 3 };
+		for (int i = 0; i < 3; i++) {
+			var (centre, tilt, size) = CalendarCardRects[i];
+			var label = new Label {
+				MouseFilter = Control.MouseFilterEnum.Ignore, Size = size,
+				HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+				Position = centre - size / 2, PivotOffset = size / 2, Rotation = tilt
+			};
+			label.AddThemeFontOverride("font", PaperTheme.SansBold);
+			paintedLayer.AddChild(label);
+			calendarCards[slot[i]] = label;
+		}
+		// The weekday rides above the day number on the middle card.
+		var weekday = new Label {
+			MouseFilter = Control.MouseFilterEnum.Ignore, Size = new Vector2(136, 26),
+			HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+		};
+		weekday.PivotOffset = weekday.Size / 2;
+		weekday.Position = CalendarCardRects[1].Centre + new Vector2(0, 38) - weekday.Size / 2;
+		weekday.Rotation = CalendarCardRects[1].Tilt;
+		weekday.AddThemeFontOverride("font", PaperTheme.SansSemiBold);
+		weekday.AddThemeFontSizeOverride("font_size", 20);
+		paintedLayer.AddChild(weekday);
+		calendarCards[1] = weekday;
+	}
+
+	/// <summary>A transparent hotspot: nothing drawn at rest, an amber rim-light and an 8% brighten on hover.</summary>
+	private static StyleBoxFlat HotspotRim(int radius = 10) => new() {
+		BgColor = new Color(1f, 0.89f, 0.68f, 0.08f), BorderColor = new Color("f2b35a"),
+		BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
+		CornerRadiusTopLeft = radius, CornerRadiusTopRight = radius, CornerRadiusBottomLeft = radius, CornerRadiusBottomRight = radius
+	};
+
+	private static void StyleHotspot(Button button, int radius = 10) {
+		StyleBoxFlat rim = HotspotRim(radius);
+		button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
+		button.AddThemeStyleboxOverride("hover", rim);
+		button.AddThemeStyleboxOverride("pressed", rim);
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+	}
+
+	/// <summary>The typed paper tag that names a prop while the pointer is on it. One tag, moved to each prop.</summary>
+	private void BuildPropTag() {
+		propTag = new PanelContainer { Name = "PropTag", Visible = false, ZIndex = 12, MouseFilter = Control.MouseFilterEnum.Ignore, Modulate = new Color(1, 1, 1, 0) };
+		propTag.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+			BgColor = new Color("f6ecd0"), BorderColor = PaperTheme.Rust,
+			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
+			CornerRadiusTopLeft = 2, CornerRadiusTopRight = 2, CornerRadiusBottomLeft = 2, CornerRadiusBottomRight = 2,
+			ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 6, ContentMarginBottom = 6,
+			ShadowColor = new Color(0, 0, 0, 0.4f), ShadowSize = 6, ShadowOffset = new Vector2(1, 3)
+		});
+		propTagText = new Label { MouseFilter = Control.MouseFilterEnum.Ignore, HorizontalAlignment = HorizontalAlignment.Center };
+		propTagText.AddThemeFontOverride("font", PaperTheme.TypedBold);
+		propTagText.AddThemeFontSizeOverride("font_size", 15);
+		propTagText.AddThemeColorOverride("font_color", PaperTheme.Ink);
+		propTag.AddChild(propTagText);
+		AddChild(propTag);
+	}
+
+	private void ShowPropTag(string text, Vector2 above) {
+		if (propTag == null || isUIOpen) return;
+		propTagText.Text = text;
+		propTag.Visible = true;
+		propTag.Size = propTag.GetCombinedMinimumSize();
+		Vector2 view = GetViewportRect().Size;
+		propTag.Position = new Vector2(
+			Mathf.Clamp(above.X - propTag.Size.X / 2f, 12f, Mathf.Max(12f, view.X - propTag.Size.X - 12f)),
+			Mathf.Clamp(above.Y - propTag.Size.Y - 6f, 8f, Mathf.Max(8f, view.Y - propTag.Size.Y - 8f)));
+		propTagTicket++;
+		propTagTween?.Kill();
+		propTagTween = CreateTween();
+		propTagTween.TweenProperty(propTag, "modulate:a", 1.0f, 0.12);
+	}
+
+	private void HidePropTag() {
+		if (propTag == null || !propTag.Visible) return;
+		int ticket = ++propTagTicket;
+		propTagTween?.Kill();
+		propTagTween = CreateTween();
+		propTagTween.TweenProperty(propTag, "modulate:a", 0.0f, 0.1);
+		propTagTween.TweenCallback(Callable.From(() => { if (ticket == propTagTicket) propTag.Visible = false; }));
+	}
+
 	private void BuildMainHud() {
-		mainHud = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore, ZIndex = 10, Size = new Vector2(510, 86) };
-		mainHud.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
-		// The desk shortcut occupies the upper corner. Keep the news underneath its hit area.
-		mainHud.Position = new Vector2(18, 110);
-		mainHud.CustomMinimumSize = new Vector2(510, 86);
-		mainHud.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.96f, 0.91f, 0.78f, 0.91f), ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 8, ContentMarginBottom = 8 });
-		var stack = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-		hudDateCash = new Label { MouseFilter = Control.MouseFilterEnum.Ignore };
-		hudDateCash.AddThemeFontSizeOverride("font_size", 17);
-		hudDateCash.AddThemeColorOverride("font_color", new Color("2b2115"));
-		hudTicker = new Label { MouseFilter = Control.MouseFilterEnum.Ignore, ClipText = true, CustomMinimumSize = new Vector2(480, 0) };
-		hudTicker.AddThemeColorOverride("font_color", new Color("6b3a1c"));
-		stack.AddChild(hudDateCash);
-		stack.AddChild(hudTicker);
-		mainHud.AddChild(stack);
-		AddChild(mainHud);
+		BuildPropTag();
+		// The day's state is pencilled on the ledger pad, the one big blank on the painted desk, rather than
+		// pasted over the lamp: date, clock and cash, the next step, and the latest office news.
+		padNote = new Control { Name = "PadNote", MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(1062, 700), Rotation = 0.06f };
+		var stack = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(232, 0) };
+		stack.AddThemeConstantOverride("separation", 2);
+		Label Pencil(Font font, int size, Color color, int maxLines = 0) {
+			var label = new Label { MouseFilter = Control.MouseFilterEnum.Ignore, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(232, 0) };
+			label.AddThemeFontOverride("font", font);
+			label.AddThemeFontSizeOverride("font_size", size);
+			label.AddThemeColorOverride("font_color", color);
+			if (maxLines > 0) { label.MaxLinesVisible = maxLines; label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
+			return label;
+		}
+		hudDate = Pencil(PaperTheme.TypedBold, 21, Graphite);
+		hudTimeCash = Pencil(PaperTheme.Typed, 17, Graphite);
+		hudNextUp = Pencil(PaperTheme.TypedBold, 15, GreaseRed, 3);
+		hudTicker = Pencil(PaperTheme.Typed, 14, new Color(Graphite, 0.8f), 2);
+		foreach (Label label in new[] { hudDate, hudTimeCash, hudNextUp, hudTicker }) stack.AddChild(label);
+		padNote.AddChild(stack);
+		paintedLayer.AddChild(padNote);
 
 		// The record jacket mirrors the OPEN THE OFFICE button from the opposite corner.
 		recordJacket = new RecordJacketWidget { ZIndex = 10 };
@@ -140,13 +276,9 @@ public partial class UIManager : Control
 		announcement.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
 		announcement.GrowHorizontal = Control.GrowDirection.Both;
 		announcement.OffsetTop = 210;   // clear of the record jacket in the top corner
-		announcement.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = new Color("f1e5c8"), BorderColor = new Color("b5541c"),
-			BorderWidthLeft = 3, BorderWidthRight = 3, BorderWidthTop = 3, BorderWidthBottom = 3,
-			CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4, CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4,
-			ContentMarginLeft = 24, ContentMarginRight = 24, ContentMarginTop = 12, ContentMarginBottom = 12,
-			ShadowColor = new Color(0, 0, 0, .35f), ShadowSize = 8
-		});
+		var banner = PaperStyleBox.Sheet(new Color("f1e5c8"), 24, 12, 8, new Color("b5541c"));
+		banner.BorderWidth = 3; banner.Radius = 4; banner.ShadowAlpha = 0.35f;
+		announcement.AddThemeStyleboxOverride("panel", banner);
 		announcementText = new Label { MouseFilter = Control.MouseFilterEnum.Ignore };
 		announcementText.AddThemeFontSizeOverride("font_size", 22);
 		announcementText.AddThemeColorOverride("font_color", new Color("2b2115"));
@@ -163,8 +295,9 @@ public partial class UIManager : Control
 	}
 
 	private void UpdateMainHud() {
-		if (hudDateCash == null) return;
-		mainHud.Visible = !isUIOpen;
+		if (hudDate == null) return;
+		padNote.Visible = !isUIOpen;
+		if (isUIOpen) { propTagTicket++; propTag.Visible = false; }
 		if (recordJacket != null) {
 			recordJacket.Refresh(PlayerDesk.Instance);
 			if (isUIOpen) recordJacket.Visible = false;
@@ -173,8 +306,14 @@ public partial class UIManager : Control
 		if (billboardButton != null) billboardButton.Visible = !isUIOpen;
 		TimeManager time = TimeManager.Instance;
 		PlayerDesk desk = PlayerDesk.Instance;
-		string cash = desk?.Label == null ? "" : $"  •  {(desk.Label.cashReserves < 0f ? "−" : "")}${Mathf.Abs(desk.Label.cashReserves):N0} cash";
-		hudDateCash.Text = time == null ? "" : $"{time.CurrentDate.ToHeadlineString()}  •  {time.GetTimeString()}{cash}";
+		hudDate.Text = time == null ? "" : $"{time.CurrentDate.DayName[..3]} {time.CurrentDate.ToHeadlineString()}";
+		bool overdrawn = desk?.Label != null && desk.Label.cashReserves < 0f;
+		string cash = desk?.Label == null ? "" : $"  {(overdrawn ? "-" : "")}${Mathf.Abs(desk.Label.cashReserves):N0}";
+		hudTimeCash.Text = time == null ? "" : $"{time.GetTimeString()}{cash}{(desk?.Label == null ? "" : " cash")}";
+		hudTimeCash.AddThemeColorOverride("font_color", overdrawn ? StampRed : Graphite);
+		bool hasStep = desk?.HasLabel == true && !desk.IsGameOver && desk.Label != null;
+		hudNextUp.Text = hasStep ? "NEXT UP: " + PlayerDeskPanel.NextUpHint(desk) : "";
+		hudNextUp.Visible = hasStep;
 		hudTicker.Text = desk?.Log.FirstOrDefault() ?? "No office news yet.";
 	}
 
@@ -215,56 +354,98 @@ public partial class UIManager : Control
 				? digests.Where(digest => !digest.EndsWith("a quiet day at the office.", System.StringComparison.Ordinal)).ToArray()
 				: digests;
 			if (dayDigests.Length == 0) dayDigests = digests.TakeLast(1).ToArray();
+			GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+			paperEdition.Text = $"{today.DayName.ToUpperInvariant()} EDITION";
+			paperPrice.Text = today.DayOfWeek == System.DayOfWeek.Sunday ? "TEN CENTS" : "FIVE CENTS";
 			RenderPaper(dayDigests, digests.Length > 1, currentDesk.TakeTradeNews());
 			paperScroll.ScrollVertical = 0;
 			if (!morningPaper.Visible) uiOpenBeforePaper = isUIOpen;
 			morningPaper.Show();
 			morningPaper.MoveToFront();
+			// The paper lands on the desk: a short fade and settle rather than a pop.
+			morningPaper.Modulate = new Color(1, 1, 1, 0);
+			paperSheet.Scale = new Vector2(0.96f, 0.96f);
+			var land = CreateTween().SetParallel(true);
+			land.TweenProperty(morningPaper, "modulate:a", 1.0f, 0.18);
+			land.TweenProperty(paperSheet, "scale", Vector2.One, 0.22).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
 			isUIOpen = true;
 			UpdateMainHud();
 		}).CallDeferred();
 	}
 
-	private Label PaperText(string text, int size, Color color) {
+	private Label PaperText(string text, int size, Color color, Font font = null) {
 		var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		label.AddThemeFontOverride("font", paperSerif);
+		label.AddThemeFontOverride("font", font ?? paperSerif);
 		label.AddThemeFontSizeOverride("font_size", size);
 		label.AddThemeColorOverride("font_color", color);
 		return label;
 	}
 
-	/// <summary>Lays the paper out like a paper: the day's front-page story as a headline, the other news under
-	/// it in ranked order, the small stuff last. A multi-day skip groups each day under its dateline.</summary>
+	private static Control PaperRule(float thickness, Color color) =>
+		new ColorRect { Color = color, CustomMinimumSize = new Vector2(0, thickness), MouseFilter = MouseFilterEnum.Ignore };
+
+	/// <summary>Lays the paper out like a paper: the day's front-page story as a headline across the top, other front-page
+	/// items under it, and the small stuff (then the trade) in two ruled columns. A multi-day skip groups each day under
+	/// its dateline.</summary>
 	private void RenderPaper(string[] dayDigests, bool multiDay, System.Collections.Generic.IReadOnlyList<string> trade) {
 		foreach (Node child in paperBody.GetChildren()) child.QueueFree();
-		Color ink = new("30291d"), rust = new("6b3a1c");
+		Color ink = new("30291d"), rust = new("6b3a1c"), body = new("4a4132"), rule = new("867655");
 		string DigestDate(string digest) {
 			int end = digest.IndexOf(": ", System.StringComparison.Ordinal);
 			return end >= 0 ? digest.Substring(0, end) : digest;
 		}
+		VBoxContainer lastLeft = null, lastRight = null;
+		int leftChars = 0, rightChars = 0;
 		foreach (string digest in dayDigests) {
 			int dateEnd = digest.IndexOf(": ", System.StringComparison.Ordinal);
 			string events = dateEnd >= 0 ? digest.Substring(dateEnd + 2) : digest;
 			string[] stories = events.Split("  •  ", System.StringSplitOptions.RemoveEmptyEntries)
 				.Distinct(System.StringComparer.OrdinalIgnoreCase)
 				.Select(story => char.ToUpperInvariant(story[0]) + story.Substring(1)).ToArray();
-			if (multiDay) paperBody.AddChild(PaperText(DigestDate(digest).ToUpperInvariant(), 16, rust));
-			bool first = true, markedRule = false;
-			foreach (string story in stories) {
-				bool front = PlayerDesk.IsFrontPageStory(story);
-				if (!front && !markedRule && !first) { paperBody.AddChild(new HSeparator()); markedRule = true; }
-				// The lead is a real headline; other front-page items are still bigger than the small stuff.
-				int size = front ? (first ? 30 : 23) : 19;
-				paperBody.AddChild(PaperText(story, size, front ? ink : new Color("4a4132")));
-				first = false;
+			if (multiDay) {
+				paperBody.AddChild(PaperText(DigestDate(digest).ToUpperInvariant(), 15, rust, PaperTheme.SansSemiBold));
+				paperBody.AddChild(PaperRule(1, rule));
 			}
-			if (multiDay) paperBody.AddChild(new HSeparator());
+			var front = stories.Where(PlayerDesk.IsFrontPageStory).ToList();
+			var rest = stories.Where(story => !PlayerDesk.IsFrontPageStory(story)).ToList();
+			// The lead is the day's real headline. With no front-page news the first item still leads, smaller.
+			bool realLead = front.Count > 0;
+			string lead = realLead ? front[0] : rest.Count > 0 ? rest[0] : null;
+			if (!realLead && rest.Count > 0) rest.RemoveAt(0);
+			if (lead != null) paperBody.AddChild(PaperText(lead, realLead ? 36 : 26, ink, PaperTheme.SerifBold));
+			foreach (string story in front.Skip(1)) paperBody.AddChild(PaperText(story, 23, ink, PaperTheme.SerifBold));
+			bool lastDay = ReferenceEquals(digest, dayDigests[^1]);
+			bool hasTrade = trade != null && trade.Count > 0 && lastDay;
+			if (rest.Count == 0 && !hasTrade) { if (multiDay) paperBody.AddChild(PaperRule(1, rule)); continue; }
+
+			if (lead != null) paperBody.AddChild(PaperRule(1, rule));
+			var left = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			var right = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			left.AddThemeConstantOverride("separation", 10);
+			right.AddThemeConstantOverride("separation", 10);
+			leftChars = rightChars = 0;
+			foreach (string story in rest) {
+				// Flow into whichever column is shorter, so the two stay level.
+				bool intoLeft = leftChars <= rightChars;
+				(intoLeft ? left : right).AddChild(PaperText(story, 17, body));
+				if (intoLeft) leftChars += story.Length + 40; else rightChars += story.Length + 40;
+			}
+			var columns = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			columns.AddThemeConstantOverride("separation", 18);
+			columns.AddChild(left);
+			columns.AddChild(new ColorRect { Color = new Color(rule, 0.7f), CustomMinimumSize = new Vector2(1, 0), MouseFilter = MouseFilterEnum.Ignore });
+			columns.AddChild(right);
+			paperBody.AddChild(columns);
+			lastLeft = left; lastRight = right;
+			if (multiDay) paperBody.AddChild(PaperRule(1, rule));
 		}
 		// What the rest of the business did: the chart, a market breaking, a rival's signing. Not the player's ledger.
-		if (trade != null && trade.Count > 0) {
-			paperBody.AddChild(new HSeparator());
-			paperBody.AddChild(PaperText("THE TRADE", 16, rust));
-			foreach (string line in trade) paperBody.AddChild(PaperText(line, 19, new Color("4a4132")));
+		// It runs as a rubric at the foot of the shorter column of the latest day.
+		if (trade != null && trade.Count > 0 && lastLeft != null) {
+			VBoxContainer target = leftChars <= rightChars ? lastLeft : lastRight;
+			target.AddChild(PaperRule(1, rule));
+			target.AddChild(PaperText("THE TRADE", 15, rust, PaperTheme.SansSemiBold));
+			foreach (string line in trade) target.AddChild(PaperText(line, 17, body));
 		}
 	}
 
@@ -281,46 +462,72 @@ public partial class UIManager : Control
 			}
 		};
 		morningPaper.AddChild(shade);
-		var sheet = new PanelContainer { MouseFilter = MouseFilterEnum.Stop };
-		sheet.SetAnchorsPreset(LayoutPreset.Center);
-		sheet.Position = new Vector2(-380, -310);
-		sheet.Size = new Vector2(760, 620);
-		sheet.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = new Color("eee2c5"), BorderColor = new Color("867655"),
-			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
-			ContentMarginLeft = 38, ContentMarginRight = 38, ContentMarginTop = 30, ContentMarginBottom = 26,
-			ShadowColor = new Color(0, 0, 0, .4f), ShadowSize = 12
-		});
-		morningPaper.AddChild(sheet);
+
+		// The sheet is a plain Control so the fold corner can sit on its own corner, outside the layout.
+		paperSheet = new Control { MouseFilter = MouseFilterEnum.Stop };
+		paperSheet.SetAnchorsPreset(LayoutPreset.Center);
+		paperSheet.OffsetLeft = -450; paperSheet.OffsetRight = 450;
+		paperSheet.OffsetTop = -335; paperSheet.OffsetBottom = 335;
+		paperSheet.PivotOffset = new Vector2(450, 335);
+		morningPaper.AddChild(paperSheet);
+		var sheet = new PanelContainer { MouseFilter = MouseFilterEnum.Pass };
+		sheet.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+		// Newsprint: greyer and rougher than the office's ledger paper.
+		var newsprint = PaperStyleBox.Sheet(new Color("e6dbbf"), 42, 26, 18, new Color("867655"));
+		newsprint.Grain = 1.4f; newsprint.Falloff = 0.8f; newsprint.Burn = 0.8f;
+		sheet.AddThemeStyleboxOverride("panel", newsprint);
+		paperSheet.AddChild(sheet);
 		var column = new VBoxContainer();
-		column.AddThemeConstantOverride("separation", 16);
+		column.AddThemeConstantOverride("separation", 8);
 		sheet.AddChild(column);
 		Font serif = PaperTheme.Serif;   // bundled Gelasio, so the paper reads the same on every OS
 		paperSerif = serif;
-		Label NewspaperText(string text, int size, HorizontalAlignment alignment) {
-			var label = new Label { Text = text, HorizontalAlignment = alignment, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-			label.AddThemeFontOverride("font", serif);
+		Color ink = new("30291d");
+		Label Small(string text, HorizontalAlignment alignment, Font font, int size) {
+			var label = new Label { Text = text, HorizontalAlignment = alignment, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			label.AddThemeFontOverride("font", font);
 			label.AddThemeFontSizeOverride("font_size", size);
-			label.AddThemeColorOverride("font_color", new Color("30291d"));
+			label.AddThemeColorOverride("font_color", ink);
 			return label;
 		}
-		Label masthead = NewspaperText("The Morning Paper", 42, HorizontalAlignment.Center);
-		masthead.AddThemeFontOverride("font", PaperTheme.SerifBold);
+
+		// The ears: edition on the left, price on the right, either side of the date.
+		var ears = new HBoxContainer();
+		paperEdition = Small("", HorizontalAlignment.Left, PaperTheme.SansSemiBold, 13);
+		paperDate = Small("", HorizontalAlignment.Center, PaperTheme.SansSemiBold, 14);
+		paperPrice = Small("", HorizontalAlignment.Right, PaperTheme.SansSemiBold, 13);
+		ears.AddChild(paperEdition); ears.AddChild(paperDate); ears.AddChild(paperPrice);
+		column.AddChild(ears);
+
+		// The nameplate: heavy, big, between a thick rule and a hairline.
+		column.AddChild(PaperRule(4, ink));
+		column.AddChild(PaperRule(1, ink));
+		Label masthead = Small("The Morning Paper", HorizontalAlignment.Center, PaperTheme.SerifBold, 64);
+		masthead.AddThemeColorOverride("font_outline_color", ink);
+		masthead.AddThemeConstantOverride("outline_size", 1);   // a hair of outline: the nameplate wants more ink than a bold cut has
 		column.AddChild(masthead);
-		column.AddChild(new HSeparator());
-		paperDate = NewspaperText("", 16, HorizontalAlignment.Center);
-		column.AddChild(paperDate);
-		column.AddChild(new HSeparator());
-		paperHeading = NewspaperText("YESTERDAY AT THE LABEL", 20, HorizontalAlignment.Left);
+		column.AddChild(PaperRule(1, ink));
+		column.AddChild(PaperRule(4, ink));
+
+		paperHeading = Small("YESTERDAY AT THE LABEL", HorizontalAlignment.Left, PaperTheme.SansSemiBold, 15);
+		paperHeading.AddThemeColorOverride("font_color", new Color("6b3a1c"));
 		column.AddChild(paperHeading);
 		paperScroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
 		column.AddChild(paperScroll);
+		var bodyGutter = new MarginContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		bodyGutter.AddThemeConstantOverride("margin_right", 10);
+		paperScroll.AddChild(bodyGutter);
 		paperBody = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		paperBody.AddThemeConstantOverride("separation", 12);
-		paperScroll.AddChild(paperBody);
-		var dismiss = new Button { Text = "FOLD THE PAPER  ×", CustomMinimumSize = new Vector2(0, 42) };
-		dismiss.Pressed += DismissMorningPaper;
-		column.AddChild(dismiss);
+		bodyGutter.AddChild(paperBody);
+
+		// The dog-ear folds the paper away.
+		var corner = new FoldCorner { ZIndex = 2 };
+		corner.SetAnchorsPreset(LayoutPreset.BottomRight);
+		corner.OffsetLeft = -FoldCorner.LiftedSize; corner.OffsetTop = -FoldCorner.LiftedSize;
+		corner.OffsetRight = 0; corner.OffsetBottom = 0;
+		corner.Pressed += DismissMorningPaper;
+		paperSheet.AddChild(corner);
 	}
 
 	private void DismissMorningPaper() {
@@ -343,29 +550,27 @@ public partial class UIManager : Control
 
 	private void BuildDeskProps()
 	{
-		var props = new (string Caption, string Tab, Rect2 Area)[] {
-			("Phone — the Rolodex: DJs, stations and calls", "ROLODEX", new Rect2(1518, 330, 222, 118)),
-			("Record stack — your catalog", "CATALOG", new Rect2(1740, 306, 180, 174)),
-			("Typewriter — the ledger of money, acts and records", "LEDGER", new Rect2(1344, 312, 140, 136)),
-			("Checkbook — the books and finances", "FINANCES", new Rect2(18, 606, 810, 282)),
-			("Notepad — scout and sign acts (A&R)", "A&R", new Rect2(108, 892, 1188, 188)),
+		// Rects hug the painted prop; Tag is the point the paper tag hangs above.
+		var props = new (string Caption, string Tab, Rect2 Area, Vector2 Tag)[] {
+			("THE PHONE  -  the Rolodex: DJs, stations and calls", "ROLODEX", new Rect2(1480, 330, 252, 134), new Vector2(1606, 326)),
+			("THE STACKS  -  your catalog", "CATALOG", new Rect2(1740, 306, 180, 174), new Vector2(1830, 302)),
+			("THE STACKS  -  your catalog", "CATALOG", new Rect2(846, 326, 286, 112), new Vector2(989, 322)),
+			("THE TYPEWRITER  -  ledger of money, acts and records", "LEDGER", new Rect2(1165, 290, 313, 158), new Vector2(1322, 286)),
+			("THE CHECKBOOK  -  the books and finances", "FINANCES", new Rect2(18, 606, 810, 282), new Vector2(420, 602)),
+			("THE PAD  -  scout and sign acts (A&R)", "A&R", new Rect2(108, 892, 1188, 188), new Vector2(700, 888)),
 		};
 		int insertAt = deskPanel != null ? deskPanel.GetIndex() : GetChildCount();
-		foreach (var (caption, tab, area) in props) {
+		foreach (var (caption, tab, area, tag) in props) {
 			var button = new Button {
-				Flat = true, FocusMode = Control.FocusModeEnum.None, TooltipText = caption,
+				Flat = true, FocusMode = Control.FocusModeEnum.None,
 				MouseDefaultCursorShape = Control.CursorShape.PointingHand,
-				Position = area.Position, Size = area.Size, Name = "Prop" + tab.Replace("&", "")
+				Position = area.Position, Size = area.Size, Name = "Prop" + tab.Replace("&", "") + insertAt
 			};
-			var hover = new StyleBoxFlat {
-				BgColor = new Color(1f, 0.92f, 0.62f, 0.16f), BorderColor = new Color(0.95f, 0.88f, 0.65f, 0.85f),
-				BorderWidthLeft = 3, BorderWidthRight = 3, BorderWidthTop = 3, BorderWidthBottom = 3,
-				CornerRadiusTopLeft = 10, CornerRadiusTopRight = 10, CornerRadiusBottomLeft = 10, CornerRadiusBottomRight = 10
-			};
-			button.AddThemeStyleboxOverride("hover", hover);
-			button.AddThemeStyleboxOverride("pressed", hover);
-			button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-			string target = tab;
+			StyleHotspot(button);
+			string target = tab, text = caption;
+			Vector2 tagPoint = tag;
+			button.MouseEntered += () => ShowPropTag(text, tagPoint);
+			button.MouseExited += HidePropTag;
 			button.Pressed += () => OpenOfficeAt(target);
 			AddChild(button);
 			MoveChild(button, insertAt++);   // beneath the office panel and the paper, above the bare scene
@@ -439,9 +644,10 @@ public partial class UIManager : Control
 		if (officeBackdrop == null || TimeManager.Instance == null) return;
 		Color target = OfficeTint(TimeManager.Instance.CurrentHour + TimeManager.Instance.CurrentMinute / 60f);
 		officeLightTween?.Kill();
-		if (!animate) { officeBackdrop.Modulate = target; return; }
-		officeLightTween = CreateTween();
+		if (!animate) { officeBackdrop.Modulate = target; if (paintedLayer != null) paintedLayer.Modulate = target; return; }
+		officeLightTween = CreateTween().SetParallel(true);
 		officeLightTween.TweenProperty(officeBackdrop, "modulate", target, 0.8);
+		if (paintedLayer != null) officeLightTween.TweenProperty(paintedLayer, "modulate", target, 0.8);
 	}
 
 	public void OpenArtist(string artistId, bool isOwnedByPlayer = false, int startTab = 0)
@@ -603,7 +809,18 @@ public partial class UIManager : Control
 
 	private void UpdateCalendarButton(GameDate date)
 	{
-		if (calendarButton != null) calendarButton.Text = $"NEXT DAY\n{date.ToHeadlineString()}";
+		if (calendarCards[0] == null) return;
+		// Weekends are in stamp red, like the printed calendars of the day.
+		Color ink = date.IsWeekend ? StampRed : new Color("2b2115");
+		void Letter(Label label, string text, int size) {
+			label.Text = text;
+			label.AddThemeFontSizeOverride("font_size", size);
+			label.AddThemeColorOverride("font_color", new Color(ink, 0.9f));
+		}
+		Letter(calendarCards[0], date.ShortMonthName.ToUpperInvariant(), 42);
+		Letter(calendarCards[1], date.DayName[..3].ToUpperInvariant(), 20);
+		Letter(calendarCards[2], date.day.ToString(), 62);
+		Letter(calendarCards[3], date.year.ToString(), 40);
 	}
 
 	public void OnClick_CloseAll()

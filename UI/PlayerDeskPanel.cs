@@ -132,12 +132,14 @@ public partial class PlayerDeskPanel : Control {
 		folder.SetAnchorsPreset(LayoutPreset.Center);
 		folder.Position = new Vector2(-600, -430);
 		folder.Size = new Vector2(1200, 860);
-		folder.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = Folder, CornerRadiusTopLeft = 8, CornerRadiusTopRight = 8,
-			BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
-			BorderColor = new Color("70552c"),
-			ContentMarginLeft = 30, ContentMarginRight = 30, ContentMarginTop = 24, ContentMarginBottom = 24
-		});
+		// Manila with the desk's own lighting: contact shadow, lamp falloff, grain and scorched edges.
+		var folderPaper = new PaperStyleBox {
+			Fill = Folder, Border = new Color("70552c"), BorderWidth = 2, Radius = 3, ShadowSize = 24, ShadowAlpha = 0.55f,
+			ShadowOffset = new Vector2(0, 10), Burn = 1.15f
+		};
+		folderPaper.ContentMarginLeft = 30; folderPaper.ContentMarginRight = 30;
+		folderPaper.ContentMarginTop = 24; folderPaper.ContentMarginBottom = 24;
+		folder.AddThemeStyleboxOverride("panel", folderPaper);
 		AddChild(folder);
 
 		var root = new VBoxContainer();
@@ -236,14 +238,11 @@ public partial class PlayerDeskPanel : Control {
 		root.AddChild(idleRow);
 
 		tabs = new HBoxContainer();
-		tabs.AddThemeConstantOverride("separation", 4);
+		tabs.AddThemeConstantOverride("separation", -2);   // trapezoid tabs meet at the foot and open out at the shoulders
 		root.AddChild(tabs);
 
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-		paper.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
-			BgColor = Paper, ContentMarginLeft = 26, ContentMarginRight = 26,
-			ContentMarginTop = 22, ContentMarginBottom = 22
-		});
+		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(Paper, 26, 22, 6));
 		root.AddChild(paper);
 
 		contentScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
@@ -403,7 +402,7 @@ public partial class PlayerDeskPanel : Control {
 
 		if (tabButtons.Count == 0) { BuildTabs(); currentTab = 0; currentPage = PageAandR; }
 		for (int index = 0; index < tabButtons.Count; index++)
-			StyleToggle(tabButtons[index], index == currentTab);
+			StyleFolderTab(tabButtons[index], index == currentTab);
 		UpdateTabBadges(desk);
 
 		AILabel label = desk.Label;
@@ -506,7 +505,7 @@ public partial class PlayerDeskPanel : Control {
 		return ("Check the ledger and stock outlook, or plan the next record.", 1);
 	}
 
-	private static string NextUpHint(PlayerDesk desk) => NextUpStep(desk).Text;
+	public static string NextUpHint(PlayerDesk desk) => NextUpStep(desk).Text;
 
 	/// <summary>Where "waiting on money or the plant" work happens: the phones if they can still land a name,
 	/// otherwise the roster, where songs get written and covers taught.</summary>
@@ -1085,41 +1084,52 @@ public partial class PlayerDeskPanel : Control {
 		}
 	}
 
-	/// <summary>One act on the pad: the read, what you heard them play, and the next move.</summary>
+	/// <summary>One act on the pad, as a 3x5 index card: the name typed on the red rule, the verdict stamped on the
+	/// card, what you heard them play, and the next move as small buttons along the foot.</summary>
 	private void ProspectCard(PlayerDesk.Prospect prospect) {
+		var sheet = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var indexPaper = PaperStyleBox.Sheet(new Color("f3ebd0"), 20, 10, 8);
+		indexPaper.HeaderRule = 52f;
+		indexPaper.Burn = 0.7f; indexPaper.Falloff = 0.6f;
+		sheet.AddThemeStyleboxOverride("panel", indexPaper);
 		var card = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		card.AddThemeConstantOverride("separation", 3);
+		card.AddThemeConstantOverride("separation", 4);
+		sheet.AddChild(card);
 
-		var row = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		row.AddThemeConstantOverride("separation", 12);
-		string qualityRead = PlayerDesk.ReadVerdict(prospect.ReadQuality);
-		var text = new Label {
-			SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			AutowrapMode = TextServer.AutowrapMode.WordSmart,
-			Text = $"{prospect.Artist.stageName}  —  {GenreNameFormatter.Format(prospect.Artist.primaryGenre)}\n" +
-				$"    your read: {qualityRead}{(prospect.ReadConfidence >= 0.7f ? " (close read)" : " (rough read)")}   •   {prospect.Note}   •   asking ${prospect.AskingAdvance:N0}"
+		float quality = prospect.ReadQuality;
+		string qualityRead = PlayerDesk.ReadVerdict(quality);
+		(string stampText, Color stampInk) = quality >= 0.72f ? ("Strong prospects", RubberStamp.Blue)
+			: quality >= 0.50f ? ("Promising", RubberStamp.Blue)
+			: quality >= 0.30f ? ("Another look", PaperTheme.Fade) : ("Long shot", RubberStamp.Red);
+
+		// The red rule sits under this row: name in the typewriter face, genre, then the stamp.
+		var head = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 42) };
+		head.AddThemeConstantOverride("separation", 12);
+		var name = new Label {
+			Text = prospect.Artist.stageName, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center,
+			ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = prospect.Artist.stageName
 		};
-		text.AddThemeColorOverride("font_color", Ink);
-		row.AddChild(text);
+		name.AddThemeFontOverride("font", PaperTheme.TypedBold);
+		name.AddThemeFontSizeOverride("font_size", 24);
+		name.AddThemeColorOverride("font_color", Ink);
+		head.AddChild(name);
+		var genre = new Label { Text = GenreNameFormatter.Format(prospect.Artist.primaryGenre).ToUpperInvariant(), VerticalAlignment = VerticalAlignment.Center };
+		genre.AddThemeFontOverride("font", PaperTheme.SansSemiBold);
+		genre.AddThemeFontSizeOverride("font_size", 13);
+		genre.AddThemeColorOverride("font_color", Rust);
+		head.AddChild(genre);
+		var stamp = new RubberStamp { MouseFilter = MouseFilterEnum.Stop, TooltipText = $"Your read: {qualityRead}{(prospect.ReadConfidence >= 0.7f ? " (close read)" : " (rough read)")}." }
+			.Set(stampText, stampInk, -0.1f, 15);
+		head.AddChild(stamp);
+		card.AddChild(head);
+
+		var meta = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill,
+			Text = $"{prospect.Note}   •   asking ${prospect.AskingAdvance:N0}   •   {(prospect.ReadConfidence >= 0.7f ? "close read" : "rough read")}" };
+		meta.AddThemeFontSizeOverride("font_size", 15);
+		meta.AddThemeColorOverride("font_color", Ink);
+		card.AddChild(meta);
 
 		PlayerDesk.Prospect captured = prospect;
-		if (!prospect.FollowedUp) {
-			var follow = Btn($"FOLLOW UP ({PlayerDesk.FollowUpHours}h)");
-			follow.CustomMinimumSize = new Vector2(180, 40);
-			follow.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.FollowUp(captured, out string message); Say(message, ok); return ok; });
-			row.AddChild(follow);
-		} else {
-			var approach = Btn("APPROACH");
-			approach.CustomMinimumSize = new Vector2(150, 40);
-			approach.Pressed += () => {
-				bool ok = PlayerDesk.Instance.ApproachToSign(captured, out string message);
-				if (ok) negotiating = captured;
-				Say(message, ok);
-				Refresh();
-			};
-			row.AddChild(approach);
-		}
-		card.AddChild(row);
 		// What the second look changed. The bar and the fog moved on every follow-up but the headline phrase seldom does,
 		// so without this the two hours look like they did nothing.
 		if (prospect.Learned is { Count: > 0 }) {
@@ -1133,12 +1143,6 @@ public partial class PlayerDeskPanel : Control {
 				card.AddChild(line);
 			}
 		}
-		if (!PlayerDesk.Instance.Notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) {
-			var note = Btn("ADD TO NOTEBOOK");
-			note.Disabled = PlayerDesk.Instance.Notebook.Count >= 6;
-			note.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.AddToNotebook(captured, out string message); Say(message, ok); return ok; });
-			card.AddChild(note);
-		}
 
 		// The live set: what you caught on the night, and -- after a follow-up -- the rest of it.
 		int shown = Mathf.Min(prospect.HeardCount, prospect.LiveSet.Count);
@@ -1151,8 +1155,36 @@ public partial class PlayerDeskPanel : Control {
 		string setSummary = SetSummary(prospect.LiveSet.Take(shown).Select(item => item.ReadHook).ToList(), prospect.ReadConfidence);
 		if (setSummary.Length > 0) card.AddChild(FaintLine("    THE SET: " + setSummary));
 		if (hidden > 0) card.AddChild(FaintLine($"    …and {hidden} more you didn't catch — follow up to hear the full set."));
+
+		// Small buttons along the foot, not a full-width bar each.
+		var foot = new HBoxContainer();
+		foot.AddThemeConstantOverride("separation", 10);
+		if (!prospect.FollowedUp) {
+			var follow = Primary($"FOLLOW UP ({PlayerDesk.FollowUpHours}h)");
+			follow.CustomMinimumSize = new Vector2(0, 36);
+			follow.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.FollowUp(captured, out string message); Say(message, ok); return ok; });
+			foot.AddChild(follow);
+		} else {
+			var approach = Primary("APPROACH");
+			approach.CustomMinimumSize = new Vector2(0, 36);
+			approach.Pressed += () => {
+				bool ok = PlayerDesk.Instance.ApproachToSign(captured, out string message);
+				if (ok) negotiating = captured;
+				Say(message, ok);
+				Refresh();
+			};
+			foot.AddChild(approach);
+		}
+		if (!PlayerDesk.Instance.Notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) {
+			var note = Btn("ADD TO NOTEBOOK");
+			note.CustomMinimumSize = new Vector2(0, 36);
+			note.Disabled = PlayerDesk.Instance.Notebook.Count >= 6;
+			note.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.AddToNotebook(captured, out string message); Say(message, ok); return ok; });
+			foot.AddChild(note);
+		}
 		if (PolarSongBehavior.UsePolarFitSelection && shown > 0) {
 			var compare = Btn("COMPARE HEARD MATERIAL");
+			compare.CustomMinimumSize = new Vector2(0, 36);
 			compare.Pressed += () => {
 				var preview = PaperModal.Open(this, "A&R — HEARD MATERIAL", 980);
 				var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -1171,9 +1203,12 @@ public partial class PlayerDeskPanel : Control {
 				songs.ItemSelected += _ => Update(); Update();
 				preview.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
 			};
-			card.AddChild(compare);
+			foot.AddChild(compare);
 		}
-		content.AddChild(card);
+		var footGap = new Control { CustomMinimumSize = new Vector2(0, 4) };
+		card.AddChild(footGap);
+		card.AddChild(foot);
+		content.AddChild(sheet);
 	}
 
 	/// <summary>The contract menu: the label's opening offer, editable, then put on the table.
@@ -1199,18 +1234,48 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, signed);
 				Refresh();
 			},
-			() => { negotiating = null; Refresh(); }, b);
+			() => { negotiating = null; Refresh(); }, b, prospect.Artist.stageName);
 	}
 
 	/// <summary>The editable grid shared by the plain contract form, every tabling round of a
 	/// Firm/Hardball negotiation, and a renewal. Just the fields and the two buttons -- caller
 	/// supplies the prefill, what the submit button says and does, and what "not now" does.</summary>
 	private void TermsForm(ContractTermSheet prefill, string submitLabel,
-			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel, ContractTermSheet? ask = null) {
+			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel, ContractTermSheet? ask = null, string artistName = null) {
+		// The agreement is a carbon duplicate: onionskin with the label's letterhead, typed field rubrics, and a
+		// signature line at the foot. The buttons below it are what you do with the sheet.
+		Color carbonInk = new("3d4a8f");
+		var sheet = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		var carbon = PaperStyleBox.Sheet(new Color("e9e6d8"), 28, 18, 8, new Color("a7a28e"));
+		carbon.Grain = 0.8f; carbon.Burn = 0.6f; carbon.Falloff = 0.5f;
+		sheet.AddThemeStyleboxOverride("panel", carbon);
+		content.AddChild(sheet);
+		var form = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		form.AddThemeConstantOverride("separation", 10);
+		sheet.AddChild(form);
+
+		Label Typed(string text, int size, Color color, bool bold = false) {
+			var label = new Label { Text = text };
+			label.AddThemeFontOverride("font", bold ? PaperTheme.TypedBold : PaperTheme.Typed);
+			label.AddThemeFontSizeOverride("font_size", size);
+			label.AddThemeColorOverride("font_color", color);
+			return label;
+		}
+		var letterhead = new HBoxContainer();
+		var heading = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		heading.AddThemeConstantOverride("separation", 0);
+		var house = Typed((PlayerDesk.Instance?.Label?.labelName ?? "THE LABEL").ToUpperInvariant(), 18, carbonInk, true);
+		heading.AddChild(house);
+		heading.AddChild(Typed("ARTIST RECORDING AGREEMENT  ·  DUPLICATE", 13, carbonInk));
+		letterhead.AddChild(heading);
+		letterhead.AddChild(new RubberStamp().Set("Duplicate", carbonInk, -0.13f, 14, 0.5f));
+		form.AddChild(letterhead);
+		form.AddChild(new ColorRect { Color = new Color(carbonInk, 0.55f), CustomMinimumSize = new Vector2(0, 2), MouseFilter = MouseFilterEnum.Ignore });
+
 		var grid = new GridContainer { Columns = 2 };
 		grid.AddThemeConstantOverride("h_separation", 18);
 		grid.AddThemeConstantOverride("v_separation", 8);
-		content.AddChild(grid);
+		form.AddChild(grid);
 
 		grid.AddChild(FormLabel("Advance ($)"));
 		// Step of 5, not 25 -- a coarse step silently snapped a typed $35 down to $25 on finalize.
@@ -1258,7 +1323,7 @@ public partial class PlayerDeskPanel : Control {
 		var lowball = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		lowball.AddThemeFontSizeOverride("font_size", 15);
 		lowball.AddThemeColorOverride("font_color", Rust);
-		content.AddChild(lowball);
+		form.AddChild(lowball);
 		void UpdateLowball() {
 			if (ask is not ContractTermSheet theirs || theirs.Advance <= 0f) { lowball.Visible = false; return; }
 			float under = PlayerDesk.UnderAskFraction(theirs, new ContractTermSheet((float)advance.Value, (float)royalty.Value / 100f,
@@ -1273,7 +1338,7 @@ public partial class PlayerDeskPanel : Control {
 
 		var commitment = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		commitment.AddThemeColorOverride("font_color", Ink);
-		content.AddChild(commitment);
+		form.AddChild(commitment);
 		void UpdateCommitment() {
 			AILabel label = PlayerDesk.Instance?.Label;
 			if (label == null) { commitment.Text = "No label cash available."; return; }
@@ -1286,6 +1351,21 @@ public partial class PlayerDeskPanel : Control {
 		}
 		advance.ValueChanged += _ => UpdateCommitment();
 		UpdateCommitment();
+
+		// The foot of the agreement: where the artist signs, where the label does, and the day.
+		var signRow = new HBoxContainer { CustomMinimumSize = new Vector2(0, 48) };
+		signRow.AddThemeConstantOverride("separation", 36);
+		void SignatureLine(string caption, float weight) {
+			var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsStretchRatio = weight, SizeFlagsVertical = SizeFlags.ShrinkEnd };
+			column.AddThemeConstantOverride("separation", 2);
+			column.AddChild(new ColorRect { Color = new Color("2b2115"), CustomMinimumSize = new Vector2(0, 1), MouseFilter = MouseFilterEnum.Ignore });
+			column.AddChild(Typed(caption, 13, new Color("45381f")));
+			signRow.AddChild(column);
+		}
+		SignatureLine(string.IsNullOrEmpty(artistName) ? "Signed for the artist" : $"Signed for the artist  ({artistName})", 1.4f);
+		SignatureLine("For the label", 1f);
+		SignatureLine($"Date  {(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate).ToHeadlineString()}", 0.8f);
+		form.AddChild(signRow);
 
 		var buttons = new HBoxContainer();
 		buttons.AddThemeConstantOverride("separation", 12);
@@ -1361,7 +1441,7 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, ok);
 				CloseTalkIfDone(talk);
 				Refresh();
-			}, talk.ask);
+			}, talk.ask, talk.Artist.stageName);
 	}
 
 	/// <summary>A negotiation scene serves both a new signing (closes `negotiating`) and a renewal
@@ -1509,7 +1589,7 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, renewed);
 				Refresh();
 			},
-			() => { renewingArtist = null; Refresh(); }, offer.Ask);
+			() => { renewingArtist = null; Refresh(); }, offer.Ask, offer.Artist.stageName);
 	}
 
 	/// <summary>The MANAGE window for one act: repertoire (write / teach a cover) and the studio.</summary>
@@ -3928,7 +4008,7 @@ public partial class PlayerDeskPanel : Control {
 
 	/// <summary>A small "?" that explains a section on hover, so the page can say what to do and the tooltip can say why.</summary>
 	private static Control HelpBadge(string help) {
-		var badge = new Label {
+		var badge = new TipLabel {
 			Text = "?", TooltipText = help, MouseFilter = Control.MouseFilterEnum.Stop,
 			MouseDefaultCursorShape = Control.CursorShape.Help, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
 			HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
@@ -4225,6 +4305,21 @@ public partial class PlayerDeskPanel : Control {
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color" })
 			button.AddThemeColorOverride(name, text);
+	}
+
+	/// <summary>The department tabs as real folder tabs: the open one is the card's own paper and overlaps its top
+	/// edge so they read as one sheet; the rest sit lower in manila shade.</summary>
+	internal static void StyleFolderTab(Button button, bool active) {
+		Color fill = active ? Paper : new Color("c6a35f");
+		Color hover = active ? fill : new Color("d6b676");
+		button.AddThemeStyleboxOverride("normal", FolderTabStyle.Make(fill, active));
+		button.AddThemeStyleboxOverride("hover", FolderTabStyle.Make(hover, active));
+		button.AddThemeStyleboxOverride("pressed", FolderTabStyle.Make(fill, active));
+		button.AddThemeStyleboxOverride("disabled", FolderTabStyle.Make(fill, active));
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		foreach (string name in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_disabled_color" })
+			button.AddThemeColorOverride(name, Ink);
+		button.ZIndex = active ? 1 : 0;
 	}
 
 	private static void StyleField(LineEdit edit) {
