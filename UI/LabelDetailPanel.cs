@@ -8,6 +8,8 @@ public partial class LabelDetailPanel : Control
 	public event Action<string> ArtistRequested;
 	public event Action Closed;
 	private Label nameLabel, chromeLabel;
+	private LabelCrest crest;
+	private ColorRect letterheadRule;
 	private HBoxContainer tabs;
 	private VBoxContainer content;
 	private readonly List<FolderTabButton> tabButtons = new();
@@ -20,11 +22,22 @@ public partial class LabelDetailPanel : Control
 		label = ChartManager.Instance?.GetLabelById(labelId) ?? LabelLifecycleManager.Instance?.GetLabelById(labelId);
 		if (label == null) { GD.PushWarning($"Label not found: {labelId}"); return; }
 		label.isPlayerOwned |= isOwnedByPlayer; profile = label.GetPublicProfile();
-		nameLabel.Text = profile.labelName.ToUpperInvariant();
+		ApplyBrand();
 		chromeLabel.Text = $"{Format(profile.archetype)}  •  {Format(profile.tier)}\n{profile.headquartersCity}  •  Founded {profile.foundedYear}";
 		BuildTabs(); Visible = true; MoveToFront();
 	}
 	public void ClosePanel() { Visible = false; Closed?.Invoke(); }
+	/// <summary>Dresses the header as the label's letterhead: crest, name in its lettering and ink, a rule in its accent.</summary>
+	private void ApplyBrand()
+	{
+		LabelBrand brand = LabelBrand.For(label);
+		crest.Set(brand, label.labelName, 56f);
+		nameLabel.Text = brand.DisplayName(profile.labelName);
+		nameLabel.AddThemeFontOverride("font", PaperTheme.Lettering(brand.Lettering));
+		nameLabel.AddThemeFontSizeOverride("font_size", brand.Lettering == LetteringStyle.Script ? 44 : 34);
+		nameLabel.AddThemeColorOverride("font_color", brand.Pair.Ink);
+		letterheadRule.Color = brand.Pair.Accent;
+	}
 
 	private void BuildUi()
 	{
@@ -35,7 +48,9 @@ public partial class LabelDetailPanel : Control
 		folderPaper.ContentMarginLeft = 34; folderPaper.ContentMarginRight = 34; folderPaper.ContentMarginTop = 28; folderPaper.ContentMarginBottom = 28;
 		folder.AddThemeStyleboxOverride("panel", folderPaper);
 		var root = new VBoxContainer(); root.AddThemeConstantOverride("separation", 10); folder.AddChild(root);
-		var header = new HBoxContainer(); root.AddChild(header); nameLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill }; nameLabel.AddThemeFontSizeOverride("font_size", 30); header.AddChild(nameLabel);
+		var header = new HBoxContainer(); header.AddThemeConstantOverride("separation", 14); root.AddChild(header); crest = new LabelCrest(); header.AddChild(crest); nameLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis }; nameLabel.AddThemeFontSizeOverride("font_size", 30); header.AddChild(nameLabel);
+		// The letterhead rule: the label's accent colour under its name.
+		letterheadRule = new ColorRect { CustomMinimumSize = new Vector2(0, 4), Color = new Color("8a7048") }; root.AddChild(letterheadRule);
 		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
 		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); root.AddChild(chromeLabel);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
@@ -63,7 +78,7 @@ public partial class LabelDetailPanel : Control
 		AddHeading("NOTABLE MOVES"); AddBody(events.Count == 0 ? "No notable signings or departures on file." : string.Join("\n", events));
 	}
 	private void AddHeading(string text) { var l = new Label { Text = text }; l.AddThemeFontSizeOverride("font_size", 21); l.AddThemeColorOverride("font_color", new Color("5b351f")); content.AddChild(l); }
-	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); content.AddChild(l); }
+	private void AddBody(string text) { var l = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart }; l.AddThemeFontSizeOverride("font_size", 17); l.AddThemeColorOverride("font_color", PaperTheme.Ink); content.AddChild(l); }
 	private static string Format(object value) { var s = value?.ToString() ?? ""; return string.Concat(s.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString())); }
 	private static void Clear(Node node) { foreach (Node child in node.GetChildren()) { node.RemoveChild(child); child.QueueFree(); } }
 }

@@ -1068,7 +1068,12 @@ public partial class PlayerDesk : Node {
 	public bool FoundLabel(string labelName, string cityId, out string message) =>
 		FoundLabel(labelName, cityId, FoundingArchetype.TradeInsider, out message);
 
-	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, out string message) {
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, out string message) =>
+		FoundLabel(labelName, cityId, archetype, null, out message);
+
+	/// <summary>Founds the label wearing the crest, colours and lettering the player picked. A null brand lets the
+	/// label derive one from its name, so skipping the picker still yields a unique look.</summary>
+	public bool FoundLabel(string labelName, string cityId, FoundingArchetype archetype, LabelBrand brand, out string message) {
 		if (Label != null) { message = "You already run a label."; return false; }
 		// The player picks the town they work out of; the market it sits in is inferred from it.
 		MarketCity city = DistanceModel.GetCityById(cityId);
@@ -1113,6 +1118,7 @@ public partial class PlayerDesk : Node {
 			runtimeBirthWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			runtimeBirthYear = year
 		};
+		label.brand = brand?.Clone() ?? LabelBrand.Derive(label.labelName);
 		label.distributionStrength = 0.05f;
 		label.preferredGenres = TopRegionalGenres(region, 2);
 		label.secondaryGenres = Array.Empty<Genre>();

@@ -9,6 +9,8 @@ public partial class ArtistDetailPanel : Control
 	public event Action Closed;
 	private Label nameLabel, chromeLabel;
 	private Button labelButton;
+	private Control labelStrip;   // the label's crest and name, laid out like a letterhead
+	private LabelCrest labelCrest;
 	private HBoxContainer tabs;
 	private VBoxContainer content;
 	private readonly List<FolderTabButton> tabButtons = new();
@@ -28,14 +30,27 @@ public partial class ArtistDetailPanel : Control
 		artist.isPlayerOwned |= isOwnedByPlayer;
 		nameLabel.Text = profile.name.ToUpperInvariant();
 		chromeLabel.Text = $"{Format(profile.artistType)}  •  {Format(profile.primaryGenre)}  •  {profile.homeRegion}\n{Format(profile.careerState)}  |  Formed {profile.formedYear}";
-		labelButton.Text = string.IsNullOrEmpty(profile.labelId) ? "Independent" : $"Label: {profile.labelName}";
-		labelButton.Visible = !string.IsNullOrEmpty(profile.labelId);
+		ShowLabelStrip(profile.labelId, profile.labelName);
 		BuildTabs();
 		Visible = true;
 		MoveToFront();
 	}
 
 	public void ClosePanel() { Visible = false; Closed?.Invoke(); }
+
+	private void ShowLabelStrip(string labelId, string labelName)
+	{
+		labelStrip.Visible = !string.IsNullOrEmpty(labelId);
+		if (!labelStrip.Visible) return;
+		AILabel signed = ChartManager.Instance?.GetLabelById(labelId);
+		LabelBrand brand = signed != null ? LabelBrand.For(signed) : LabelBrand.Derive(labelId);
+		labelCrest.Set(brand, labelName, 34f);
+		labelCrest.Visible = true;
+		labelButton.Text = brand.DisplayName(labelName);
+		labelButton.AddThemeFontOverride("font", PaperTheme.Lettering(brand.Lettering));
+		labelButton.AddThemeFontSizeOverride("font_size", brand.Lettering == LetteringStyle.Script ? 26 : 19);
+		labelButton.AddThemeColorOverride("font_color", brand.Pair.Ink);
+	}
 
 	private void BuildUi()
 	{
@@ -51,7 +66,11 @@ public partial class ArtistDetailPanel : Control
 		nameLabel = new Label(); nameLabel.AddThemeFontSizeOverride("font_size", 30); nameLabel.AddThemeColorOverride("font_color", new Color("2b2115")); nameLabel.SizeFlagsHorizontal = SizeFlags.ExpandFill; header.AddChild(nameLabel);
 		var close = new Button { Text = "CLOSE  ×" }; close.Pressed += ClosePanel; header.AddChild(close);
 		chromeLabel = new Label(); chromeLabel.AddThemeFontSizeOverride("font_size", 17); chromeLabel.AddThemeColorOverride("font_color", new Color("3a2c18")); root.AddChild(chromeLabel);
-		labelButton = new Button { Alignment = HorizontalAlignment.Left }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; root.AddChild(labelButton);
+		// "Signed to" strip: crest, then the label name as a button in the label's own lettering.
+		var strip = new HBoxContainer(); strip.AddThemeConstantOverride("separation", 10); labelStrip = strip; root.AddChild(strip);
+		labelCrest = new LabelCrest(); strip.AddChild(labelCrest);
+		var signedTo = new Label { Text = "SIGNED TO", VerticalAlignment = VerticalAlignment.Center }; signedTo.AddThemeFontOverride("font", PaperTheme.SansSemiBold); signedTo.AddThemeFontSizeOverride("font_size", 13); signedTo.AddThemeColorOverride("font_color", new Color("3a2c18")); strip.AddChild(signedTo);
+		labelButton = new Button { Alignment = HorizontalAlignment.Left, Flat = true }; labelButton.Pressed += () => { if (!string.IsNullOrEmpty(profile?.labelId)) LabelRequested?.Invoke(profile.labelId); }; strip.AddChild(labelButton);
 		tabs = new HBoxContainer(); tabs.AddThemeConstantOverride("separation", 4); root.AddChild(tabs);
 		var paper = new PanelContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
 		paper.AddThemeStyleboxOverride("panel", PaperStyleBox.Sheet(new Color("f1e5c8"), 28, 24, 6)); root.AddChild(paper);

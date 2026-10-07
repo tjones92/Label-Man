@@ -12,19 +12,37 @@ other critic pieces still open.
 | 1 | Bundle fonts, one Theme | Done (`UI/PaperTheme.cs`, `UI/Fonts`). |
 | 2 | Re-skin stock controls | Done in the Theme. `PaperModal`'s CanvasLayer did not inherit it (stock grey buttons); fixed by giving its root `PaperTheme.Build()`. |
 | 3 | Contrast offenders | Done earlier (tabs, chips, selected sub-tab, NEXT UP). |
-| 4 | Calendar and hotspots | Done: transparent calendar hotspot, date lettered on the three painted cards (month, weekday over day, year; weekends in stamp red), hover tag + amber rim on every prop, HUD pencilled onto the ledger pad with NEXT UP. |
+| 4 | Calendar and hotspots | Done: transparent calendar hotspot, date lettered on the three painted cards (month, weekday over day, year; weekends in stamp red), hover tag + amber rim on every prop. The HUD (date, clock, cash, NEXT UP, latest news) is back in the paper widget under OPEN THE OFFICE: pencilled on the ledger pad it read as part of the painting, not a prompt. |
 | 5 | Paper material pass | Done: `PaperStyleBox` (grain, edge burn, lamp falloff, contact shadow) on the folder, cards, paper, chart sheet, modal, banner, dossiers; `FolderTabStyle` trapezoid tabs that open into the card. |
 | 6 | Time-of-day lamp lighting | Partial: the hour tint exists (`UIManager.OfficeTint`) and now also tints the painted-text layer. No animated smoke, dust or blind-slat bands. |
 | 7 | Morning Paper v2 | Done: nameplate, ears (edition, price), two ruled columns, lead hierarchy, fold-corner dismiss, settle-in. |
 | 8 | Index cards, carbon contract | Done: A&R index card (typewriter name, stamped verdict, inline buttons); contract is a carbon duplicate with letterhead, DUPLICATE stamp, signature line. Compare dialog is still the modal, not a clipboard sheet. |
 | 9 | Chart language | Partial: chart rows (clipped columns, circled live rank numerals, palette movement colours, highlighter on your own record). Radar/bars/identity box not re-inked. |
-| 10 | Label brand kit | Sketched below. |
+| 10 | Label brand kit | Built (section 2): data, crest control, founding picker, integration points 1-4 and the nameplate. Wall record, stacks and paper ad remain. |
 
 Item 6 of the user's list (tooltips): "?" badges now use `TipLabel` (`UI/PaperTip.cs`): wrapped at 340px, text centred. Godot
 places a tooltip beside the pointer, so it is a centred block, not centred on the badge. Other long tooltips still stretch;
 make any that matter a `TipButton`/`TipLabel`.
 
-## 2. Label brand kit: implementation sketch
+## 2. Label brand kit
+
+**Status (session 3): built.** `Data/LabelBrand.cs` (shape, palette, lettering, monogram; `For(label)` derives from an FNV
+hash of the id, so every AI label and any old save has a brand), `UI/LabelCrest.cs` (procedural crest, the 45 centre label,
+`Letterhead`), `UI/LabelBrandPicker.cs` (the founding step) and five fonts in `UI/Fonts` (Bevan, Abril Fatface, Alfa Slab
+One, Yellowtail, Limelight, with licences). Landed: office header, label dossier (letterhead + accent rule), artist dossier
+"signed to" strip, chart label column (crest chip), contract letterhead, Morning Paper nameplate (Abril).
+
+Not done: wall record and stack centre labels, gold record, paper ad, `RecordJacketWidget` centre label, Save/Load row,
+window icon, a SIGNED stamp (only DUPLICATE exists today).
+
+Departures from the sketch below: crests are drawn live (a Control retains its draw commands, so no baked textures were
+needed); lettering is five preview buttons, not a drop-down; the brand lives on `AILabel.brand` (null for AI labels, so
+nothing new in the world save) and maps through `LabelSaveData.Brand*`. Fonts: the Abril file is the Google Fonts served
+build, because the copy in the google/fonts repo segfaults Godot 4.7's font importer; Yellowtail is Apache 2.0, the other
+four are OFL. Verified by driver: founding picker, office header, chart, contract, both dossiers, paper, a 12-label gallery,
+a save/load round trip (including an old-save fallback) and an even spread of brands over all 601 labels.
+
+### Original sketch (kept for the open items)
 
 Goal: the one saturated colour on any page belongs to the player's label. Crest + colour pair + lettering, chosen at
 founding, carried through the desk, dossier, contract, chart and paper.
@@ -109,7 +127,7 @@ Ranked by how much of the painted-versus-flat gap each closes.
    pink "WHILE YOU WERE OUT" slips for queued calls, a Rolodex prop, the door as a route map, a filing cabinet for
    Save/Load, record-stack height tracking catalogue size.
 9. **Iconography**: Ear, Street, Suit, Fixer as linocut icons; stars to vinyl discs (`StarBar` is still a glyph helper).
-10. **Type upgrades that need font files**: Caveat or Kalam for the pad note (it is Courier Prime today), Special Elite
+10. **Type upgrades that need font files** (the nameplate is done in Abril Fatface; the pad note is gone): Special Elite
     for index-card names (Courier Prime Bold today), Abril Fatface for the nameplate.
 11. **Small surface work**: staggered tabs with typed stickers and a red stamp circle for unread counts; the
     "Start a Label" page (origin buttons, star glyphs, no title card); paper-clip, coffee-ring and tilt decals; a shared

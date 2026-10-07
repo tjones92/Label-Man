@@ -9,6 +9,7 @@ using Godot;
 ///   Libre Franklin -- the trade-paper sans: UI text, buttons, headings.
 ///   Gelasio        -- the press serif (a metric-compatible Georgia): the newspaper.
 ///   Courier Prime  -- the office typewriter: typed fields and columns of figures.
+/// Plus five display faces for a label's own lettering (see <see cref="Lettering"/>).
 ///
 /// Colours are the room's own: ink and ledger paper from the desk panel, rust for headings, oxblood for the
 /// one verb on a card that spends time or money, and a highlighter yellow for hover and selection.
@@ -29,6 +30,7 @@ public static class PaperTheme {
 
 	private static Theme theme;
 	private static Font sans, sansSemi, sansBold, serif, serifBold, serifItalic, typed, typedBold;
+	private static Font[] lettering;
 
 	/// <summary>Libre Franklin at regular weight: the default UI face.</summary>
 	public static Font Sans { get { EnsureFonts(); return sans; } }
@@ -41,6 +43,21 @@ public static class PaperTheme {
 	/// <summary>Courier Prime: forms, typed fields and figures.</summary>
 	public static Font Typed { get { EnsureFonts(); return typed; } }
 	public static Font TypedBold { get { EnsureFonts(); return typedBold; } }
+
+	/// <summary>The face a label prints its name in. Five open-licence display faces (Bevan, Abril Fatface, Alfa Slab One,
+	/// Yellowtail, Limelight), one per <see cref="LetteringStyle"/>; Abril Fatface is also the newspaper's nameplate.</summary>
+	public static Font Lettering(LetteringStyle style) {
+		if (lettering == null) {
+			lettering = new Font[] {
+				LoadFont("res://UI/Fonts/Bevan-Regular.ttf"),            // Slab
+				LoadFont("res://UI/Fonts/AbrilFatface-Regular.ttf"),     // Didone
+				LoadFont("res://UI/Fonts/AlfaSlabOne-Regular.ttf"),      // HeavySlab
+				LoadFont("res://UI/Fonts/Yellowtail-Regular.ttf"),       // Script
+				LoadFont("res://UI/Fonts/Limelight-Regular.ttf")         // Deco
+			};
+		}
+		return lettering[(int)style];
+	}
 
 	/// <summary>Puts the theme on the whole window, so every Control and popup under it inherits it.</summary>
 	public static void Apply(Window window) {

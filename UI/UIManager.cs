@@ -20,9 +20,9 @@ public partial class UIManager : Control
 	private PlayerDeskPanel deskPanel;
 	private Button deskButton;
 	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
-	private Control padNote;
+	private PanelContainer mainHud;
 	private RecordJacketWidget recordJacket;
-	private Label hudDate, hudTimeCash, hudNextUp, hudTicker;
+	private Label hudDate, hudNextUp, hudTicker;
 	private readonly Label[] calendarCards = new Label[4];   // month, weekday, day, year
 	private PanelContainer propTag;
 	private Label propTagText;
@@ -129,9 +129,8 @@ public partial class UIManager : Control
 	}
 
 	// ── Painted-desk text ───────────────────────────────────────────────────────────────────────
-	// Everything lettered on the painting (the calendar's cards, the note on the ledger pad) sits in one layer
+	// Everything lettered on the painting (the calendar's cards) sits in one layer
 	// beneath the panels, so it takes the office light with the painting instead of glowing against it at night.
-	private static readonly Color Graphite = new("3b3128");
 	private static readonly Color GreaseRed = new("b3361f");
 	private static readonly Color StampRed = new("a8322a");
 
@@ -239,26 +238,32 @@ public partial class UIManager : Control
 
 	private void BuildMainHud() {
 		BuildPropTag();
-		// The day's state is pencilled on the ledger pad, the one big blank on the painted desk, rather than
-		// pasted over the lamp: date, clock and cash, the next step, and the latest office news.
-		padNote = new Control { Name = "PadNote", MouseFilter = Control.MouseFilterEnum.Ignore, Position = new Vector2(1062, 700), Rotation = 0.06f };
-		var stack = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore, CustomMinimumSize = new Vector2(232, 0) };
-		stack.AddThemeConstantOverride("separation", 2);
-		Label Pencil(Font font, int size, Color color, int maxLines = 0) {
-			var label = new Label { MouseFilter = Control.MouseFilterEnum.Ignore, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(232, 0) };
-			label.AddThemeFontOverride("font", font);
+		// The day's state sits in a paper widget under OPEN THE OFFICE: date, clock and cash, the next step, and
+		// the latest office news. (Pencilled on the ledger pad it read as part of the painting, not as a prompt.)
+		mainHud = new PanelContainer { Name = "MainHud", MouseFilter = Control.MouseFilterEnum.Ignore, ZIndex = 10 };
+		mainHud.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopLeft);
+		// The desk shortcut occupies the upper corner. Keep the news underneath its hit area.
+		mainHud.Position = new Vector2(18, 110);
+		mainHud.CustomMinimumSize = new Vector2(510, 0);
+		mainHud.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.96f, 0.91f, 0.78f, 0.91f), ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 8, ContentMarginBottom = 8 });
+		var stack = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+		Label Line(Font font, int size, Color color, int maxLines = 0) {
+			var label = new Label { MouseFilter = Control.MouseFilterEnum.Ignore, ClipText = true, CustomMinimumSize = new Vector2(480, 0) };
+			if (font != null) label.AddThemeFontOverride("font", font);
 			label.AddThemeFontSizeOverride("font_size", size);
 			label.AddThemeColorOverride("font_color", color);
-			if (maxLines > 0) { label.MaxLinesVisible = maxLines; label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis; }
+			if (maxLines > 0) {
+				label.ClipText = false; label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+				label.MaxLinesVisible = maxLines; label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+			}
 			return label;
 		}
-		hudDate = Pencil(PaperTheme.TypedBold, 21, Graphite);
-		hudTimeCash = Pencil(PaperTheme.Typed, 17, Graphite);
-		hudNextUp = Pencil(PaperTheme.TypedBold, 15, GreaseRed, 3);
-		hudTicker = Pencil(PaperTheme.Typed, 14, new Color(Graphite, 0.8f), 2);
-		foreach (Label label in new[] { hudDate, hudTimeCash, hudNextUp, hudTicker }) stack.AddChild(label);
-		padNote.AddChild(stack);
-		paintedLayer.AddChild(padNote);
+		hudDate = Line(null, 17, new Color("2b2115"));
+		hudNextUp = Line(PaperTheme.TypedBold, 15, GreaseRed, 2);
+		hudTicker = Line(null, 15, new Color("6b3a1c"));
+		foreach (Label label in new[] { hudDate, hudNextUp, hudTicker }) stack.AddChild(label);
+		mainHud.AddChild(stack);
+		AddChild(mainHud);
 
 		// The record jacket mirrors the OPEN THE OFFICE button from the opposite corner.
 		recordJacket = new RecordJacketWidget { ZIndex = 10 };
@@ -296,7 +301,7 @@ public partial class UIManager : Control
 
 	private void UpdateMainHud() {
 		if (hudDate == null) return;
-		padNote.Visible = !isUIOpen;
+		mainHud.Visible = !isUIOpen;
 		if (isUIOpen) { propTagTicket++; propTag.Visible = false; }
 		if (recordJacket != null) {
 			recordJacket.Refresh(PlayerDesk.Instance);
@@ -306,11 +311,10 @@ public partial class UIManager : Control
 		if (billboardButton != null) billboardButton.Visible = !isUIOpen;
 		TimeManager time = TimeManager.Instance;
 		PlayerDesk desk = PlayerDesk.Instance;
-		hudDate.Text = time == null ? "" : $"{time.CurrentDate.DayName[..3]} {time.CurrentDate.ToHeadlineString()}";
 		bool overdrawn = desk?.Label != null && desk.Label.cashReserves < 0f;
-		string cash = desk?.Label == null ? "" : $"  {(overdrawn ? "-" : "")}${Mathf.Abs(desk.Label.cashReserves):N0}";
-		hudTimeCash.Text = time == null ? "" : $"{time.GetTimeString()}{cash}{(desk?.Label == null ? "" : " cash")}";
-		hudTimeCash.AddThemeColorOverride("font_color", overdrawn ? StampRed : Graphite);
+		string cash = desk?.Label == null ? "" : $"  •  {(overdrawn ? "−" : "")}${Mathf.Abs(desk.Label.cashReserves):N0} cash";
+		hudDate.Text = time == null ? "" : $"{time.CurrentDate.ToHeadlineString()}  •  {time.GetTimeString()}{cash}";
+		hudDate.AddThemeColorOverride("font_color", overdrawn ? StampRed : new Color("2b2115"));
 		bool hasStep = desk?.HasLabel == true && !desk.IsGameOver && desk.Label != null;
 		hudNextUp.Text = hasStep ? "NEXT UP: " + PlayerDeskPanel.NextUpHint(desk) : "";
 		hudNextUp.Visible = hasStep;
@@ -499,12 +503,10 @@ public partial class UIManager : Control
 		ears.AddChild(paperEdition); ears.AddChild(paperDate); ears.AddChild(paperPrice);
 		column.AddChild(ears);
 
-		// The nameplate: heavy, big, between a thick rule and a hairline.
+		// The nameplate: Abril Fatface, big, between a thick rule and a hairline.
 		column.AddChild(PaperRule(4, ink));
 		column.AddChild(PaperRule(1, ink));
-		Label masthead = Small("The Morning Paper", HorizontalAlignment.Center, PaperTheme.SerifBold, 64);
-		masthead.AddThemeColorOverride("font_outline_color", ink);
-		masthead.AddThemeConstantOverride("outline_size", 1);   // a hair of outline: the nameplate wants more ink than a bold cut has
+		Label masthead = Small("The Morning Paper", HorizontalAlignment.Center, PaperTheme.Lettering(LetteringStyle.Didone), 64);
 		column.AddChild(masthead);
 		column.AddChild(PaperRule(1, ink));
 		column.AddChild(PaperRule(4, ink));

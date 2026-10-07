@@ -17,6 +17,9 @@ public partial class ChartEntryUI : Control
 	private static readonly Color Cream = new("f6ecd0");
 
 	private RecordRuntimeData myRecord;
+	private LabelBrand labelBrand;   // the crest drawn beside the label column; null on an empty row
+	private string labelFullName = "";
+	private const float CrestSize = 22f;
 	public System.Action<RecordRuntimeData> OnEntryClicked;
 
 	public override void _Ready()
@@ -44,6 +47,8 @@ public partial class ChartEntryUI : Control
 		Style(movementText, PaperTheme.SansSemiBold, 13, Ink);
 		// The rank is drawn as a circled numeral (see _Draw), so the plain text label stays out of the way.
 		if (rankText != null) rankText.Visible = false;
+		// The label column opens with its crest chip; the abbreviation moves right to make room.
+		if (labelText != null) labelText.OffsetLeft += CrestSize + 4f;
 	}
 
 	public override void _Draw() {
@@ -68,6 +73,11 @@ public partial class ChartEntryUI : Control
 		Vector2 measure = font.GetStringSize(text, HorizontalAlignment.Left, -1, size);
 		DrawString(font, new Vector2(centre.X - measure.X / 2f, centre.Y + (font.GetAscent(size) - font.GetDescent(size)) / 2f),
 			text, HorizontalAlignment.Left, -1, size, numeral);
+		// The label's crest chip, at the head of the label column.
+		if (labelBrand != null && labelText != null) {
+			float chipX = labelText.OffsetLeft - CrestSize - 4f;
+			LabelCrest.DrawCrest(this, new Rect2(chipX, (Size.Y - CrestSize) / 2f, CrestSize, CrestSize), labelBrand, labelFullName);
+		}
 	}
 
 	public override void _GuiInput(InputEvent @event)
@@ -102,12 +112,16 @@ public partial class ChartEntryUI : Control
 		if (songText != null) { songText.Text = record.baseRecord.title; songText.TooltipText = record.baseRecord.title; }
 		if (artistText != null) { artistText.Text = record.baseRecord.artistName; artistText.TooltipText = record.baseRecord.artistName; }
 		if (labelText != null) labelText.Text = playerOwned ? $"YOU · {GetLabelAbbrev(record.baseRecord.labelId)}" : GetLabelAbbrev(record.baseRecord.labelId);
+		AILabel owner = ChartManager.Instance?.GetLabelById(record.baseRecord.labelId);
+		labelFullName = owner?.labelName ?? "";
+		labelBrand = string.IsNullOrEmpty(record.baseRecord.labelId) ? null : owner != null ? LabelBrand.For(owner) : LabelBrand.Derive(record.baseRecord.labelId);
 		QueueRedraw();
 	}
 
 	public void Clear()
 	{
 		myRecord = null;
+		labelBrand = null;
 		Modulate = Colors.White;
 		if (rankText != null) rankText.Text = "";
 		if (movementText != null) movementText.Text = "";

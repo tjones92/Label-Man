@@ -540,6 +540,12 @@ public sealed class LabelSaveData {
 	// Directive §9: the player's own P&D deal, if any. Excluded from the full-world save's generic
 	// AILabel capture (the player's label is excluded there by design), so it round-trips here instead.
 	public DistributionDealSaveData ActiveDeal { get; set; }
+	// The crest, colours and lettering the player picked at founding. BrandCrest is null for a save from before
+	// the brand kit (and for any label that never chose), which falls back to LabelBrand.For(label).
+	public int? BrandCrest { get; set; }
+	public int BrandPalette { get; set; }
+	public int BrandLettering { get; set; }
+	public string BrandMonogram { get; set; }
 
 	public static LabelSaveData From(AILabel l) => new() {
 		labelId = l.labelId, labelName = l.labelName, founderName = l.founderName,
@@ -562,7 +568,9 @@ public sealed class LabelSaveData {
 		secondaryGenres = (l.secondaryGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList(),
 		HasAnsweringService = l.hasAnsweringService,
-		ActiveDeal = DistributionDealSaveData.From(l.activeDeal)
+		ActiveDeal = DistributionDealSaveData.From(l.activeDeal),
+		BrandCrest = l.brand == null ? null : (int)l.brand.Crest, BrandPalette = l.brand?.PaletteIndex ?? 0,
+		BrandLettering = l.brand == null ? 0 : (int)l.brand.Lettering, BrandMonogram = l.brand?.Monogram
 	};
 
 	public void ApplyTo(AILabel l) {
@@ -589,6 +597,10 @@ public sealed class LabelSaveData {
 		l.secondaryGenres = (secondaryGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.hasAnsweringService = HasAnsweringService;
 		l.activeDeal = ActiveDeal?.ToDeal();
+		l.brand = BrandCrest.HasValue ? new LabelBrand {
+			Crest = (CrestShape)BrandCrest.Value, PaletteIndex = BrandPalette, Lettering = (LetteringStyle)BrandLettering,
+			Monogram = BrandMonogram ?? ""
+		} : null;
 	}
 }
 

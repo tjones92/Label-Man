@@ -15,6 +15,7 @@ using Godot;
 /// </summary>
 public partial class PlayerDeskPanel : Control {
 	private Label titleLabel, clockLabel, stockLabel, statusLabel;
+	private LabelCrest titleCrest;
 	private Button redInkLabel, saveLoadButton;
 	private Button nextUpLabel;
 	private Label feedbackToastText, feedbackToastBadge;
@@ -47,6 +48,7 @@ public partial class PlayerDeskPanel : Control {
 	private FoundingArchetype selectedArchetype = FoundingArchetype.TradeInsider;
 	private string selectedFoundingCityId;
 	private string foundingLabelName = string.Empty;
+	private LabelBrand foundingBrand;   // null until the player customises the crest; then the brand they built
 	// ROLODEX page state: which card is focused (index into PlayerDesk.Rolodex) and whether
 	// the call view for that card is open.
 	private int rolodexFocus;
@@ -148,7 +150,9 @@ public partial class PlayerDeskPanel : Control {
 
 		var header = new HBoxContainer();
 		root.AddChild(header);
-		titleLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		titleCrest = new LabelCrest { Visible = false };
+		header.AddChild(titleCrest);
+		titleLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis };
 		titleLabel.AddThemeFontSizeOverride("font_size", 28);
 		titleLabel.AddThemeFontOverride("font", PaperTheme.SansBold);
 		titleLabel.AddThemeColorOverride("font_color", Ink);   // was the default near-white on manila (~1.8:1)
@@ -349,6 +353,7 @@ public partial class PlayerDeskPanel : Control {
 			hasStatusDate = true;
 		}
 
+		ApplyTitleBrand(null);
 		if (desk == null) { titleLabel.Text = "DESK UNAVAILABLE"; return; }
 
 		// Founding, save/load and game-over have no stock, next step or red-ink state; an empty bordered
@@ -410,7 +415,7 @@ public partial class PlayerDeskPanel : Control {
 			nextUpLabel.Text = $"NEXT UP  •  {NextUpHint(desk)}";
 			nextUpLabel.TooltipText = nextUpLabel.Text;
 		}
-		titleLabel.Text = label.labelName.ToUpperInvariant();
+		ApplyTitleBrand(label);
 		string region = ChartManager.Instance?.GetRegionById(label.homeRegion)?.regionName ?? label.homeRegion;
 		string home = string.IsNullOrEmpty(label.headquartersCity) ? region : $"{label.headquartersCity}, {region}";
 		string where = desk.AtHome ? $"at the office in {home}" : $"on the road in {desk.CurrentCity?.name ?? "town"}";
@@ -555,6 +560,25 @@ public partial class PlayerDeskPanel : Control {
 			: string.Join(", ", options.Take(options.Count - 1)) + ", or " + options[^1]) + ".";
 	}
 
+	/// <summary>The folder's title in the label's own dress: its crest beside the name in its lettering and ink.
+	/// A null label (founding, save/load, game over) puts the plain office heading back.</summary>
+	private void ApplyTitleBrand(AILabel label) {
+		if (label == null) {
+			titleCrest.Visible = false;
+			titleLabel.AddThemeFontOverride("font", PaperTheme.SansBold);
+			titleLabel.AddThemeFontSizeOverride("font_size", 28);
+			titleLabel.AddThemeColorOverride("font_color", Ink);
+			return;
+		}
+		LabelBrand brand = LabelBrand.For(label);
+		titleCrest.Set(brand, label.labelName, 46f);
+		titleCrest.Visible = true;
+		titleLabel.Text = brand.DisplayName(label.labelName);
+		titleLabel.AddThemeFontOverride("font", PaperTheme.Lettering(brand.Lettering));
+		titleLabel.AddThemeFontSizeOverride("font_size", brand.Lettering == LetteringStyle.Script ? 40 : 30);
+		titleLabel.AddThemeColorOverride("font_color", brand.Pair.Ink);
+	}
+
 	private void OpenNextUp() {
 		PlayerDesk desk = PlayerDesk.Instance;
 		if (desk == null) return;
@@ -685,7 +709,8 @@ public partial class PlayerDeskPanel : Control {
 
 		var nameEdit = new LineEdit { PlaceholderText = "Label name", Text = foundingLabelName, CustomMinimumSize = new Vector2(400, 38) };
 		StyleField(nameEdit);
-		nameEdit.TextChanged += value => foundingLabelName = value;
+		LabelBrandPicker brandPicker = null;
+		nameEdit.TextChanged += value => { foundingLabelName = value; brandPicker?.SetLabelName(value); };
 		content.AddChild(nameEdit);
 
 		// A town is a founding decision, so show the local advantages on a card instead of hiding them in a dropdown.
@@ -709,12 +734,18 @@ public partial class PlayerDeskPanel : Control {
 		townRow.AddChild(browse);
 		content.AddChild(townRow);
 
+		Heading("YOUR LABEL'S PAPER");
+		Body("A crest, a pair of period colours and a lettering for the name. They go on your office, your contracts, the chart and the paper; skip it and the name picks for you.");
+		brandPicker = new LabelBrandPicker(foundingBrand, foundingLabelName);
+		brandPicker.Changed += () => foundingBrand = brandPicker.Customised ? brandPicker.Current : null;
+		content.AddChild(brandPicker);
+
 		var found = Primary("OPEN THE DOORS");
 		found.CustomMinimumSize = new Vector2(240, 44);
 		found.TooltipText = "Start the label with the selected background, name, town, and starting cash.";
 		found.Pressed += () => {
 			if (cities.Count == 0) { Say("No towns loaded.", false); return; }
-			bool ok = PlayerDesk.Instance.FoundLabel(nameEdit.Text, selectedFoundingCityId ?? cities[0].cityId, selectedArchetype, out string message);
+			bool ok = PlayerDesk.Instance.FoundLabel(nameEdit.Text, selectedFoundingCityId ?? cities[0].cityId, selectedArchetype, brandPicker.Current, out string message);
 			Say(message, ok);
 			Refresh();
 		};
@@ -1262,10 +1293,19 @@ public partial class PlayerDeskPanel : Control {
 			return label;
 		}
 		var letterhead = new HBoxContainer();
-		var heading = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		letterhead.AddThemeConstantOverride("separation", 12);
+		AILabel house = PlayerDesk.Instance?.Label;
+		LabelBrand houseBrand = LabelBrand.For(house);
+		string houseName = house?.labelName ?? "The Label";
+		letterhead.AddChild(new LabelCrest().Set(houseBrand, houseName, 48f));
+		var heading = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ShrinkCenter };
 		heading.AddThemeConstantOverride("separation", 0);
-		var house = Typed((PlayerDesk.Instance?.Label?.labelName ?? "THE LABEL").ToUpperInvariant(), 18, carbonInk, true);
-		heading.AddChild(house);
+		// The house name is printed in the label's own lettering and ink; the rest of the sheet stays carbon blue.
+		var houseLine = new Label { Text = houseBrand.DisplayName(houseName), ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis };
+		houseLine.AddThemeFontOverride("font", PaperTheme.Lettering(houseBrand.Lettering));
+		houseLine.AddThemeFontSizeOverride("font_size", houseBrand.Lettering == LetteringStyle.Script ? 34 : 24);
+		houseLine.AddThemeColorOverride("font_color", houseBrand.Pair.Ink);
+		heading.AddChild(houseLine);
 		heading.AddChild(Typed("ARTIST RECORDING AGREEMENT  ·  DUPLICATE", 13, carbonInk));
 		letterhead.AddChild(heading);
 		letterhead.AddChild(new RubberStamp().Set("Duplicate", carbonInk, -0.13f, 14, 0.5f));

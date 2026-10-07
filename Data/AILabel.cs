@@ -20,6 +20,9 @@ public partial class AILabel : Resource {
 	[Export] public int foundedYear;
 	[Export] public bool isHistorical;
 	[Export] public bool isPlayerOwned;
+	// The label's crest, colours and lettering. Only the player picks one (at founding); everyone else leaves this
+	// null and wears LabelBrand.For(label), derived from the id. Null is not written to the world save.
+	public LabelBrand brand;
 	
 	[ExportGroup("Genres")]
 	public Genre[] preferredGenres;
