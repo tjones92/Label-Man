@@ -17,6 +17,7 @@ public partial class ChartEntryUI : Control
 	private static readonly Color Cream = new("f6ecd0");
 
 	private RecordRuntimeData myRecord;
+	private int displayRank;   // the rank on THIS list: the Hot 100 position, or the place on a genre or regional list
 	private LabelBrand labelBrand;   // the crest drawn beside the label column; null on an empty row
 	private string labelFullName = "";
 	private const float CrestSize = 22f;
@@ -63,11 +64,11 @@ public partial class ChartEntryUI : Control
 		// The circled rank numeral. A pencilled ring for your own record; navy discs for the rest, olive and
 		// stamp red where the row is a bullet or an anchor.
 		Vector2 centre = new(24f, Size.Y / 2f);
-		Color disc = player ? Cream : myRecord.isBullet ? Olive : myRecord.isAnchor ? StampRed : Navy;
+		Color disc = player ? Cream : myRecord.isBullet && !altList ? Olive : myRecord.isAnchor && !altList ? StampRed : Navy;
 		Color numeral = player ? PaperTheme.Rust : Cream;
 		DrawCircle(centre, 13.5f, disc);
 		if (player) DrawArc(centre, 13f, 0f, Mathf.Tau, 36, PaperTheme.Rust, 2f, true);
-		string text = myRecord.currentPosition.ToString();
+		string text = displayRank.ToString();
 		Font font = PaperTheme.SansBold;
 		int size = text.Length >= 3 ? 11 : 14;
 		Vector2 measure = font.GetStringSize(text, HorizontalAlignment.Left, -1, size);
@@ -97,17 +98,25 @@ public partial class ChartEntryUI : Control
 		}
 	}
 
-	public void Populate(RecordRuntimeData record)
+	private bool altList;   // a genre or regional list: bullets and anchors are Hot 100 marks, so the numeral stays plain
+
+	/// <summary>A row on the main list, ranked by the record's own chart position.</summary>
+	public void Populate(RecordRuntimeData record) => Populate(record, record.currentPosition, record.lastWeekPosition, false);
+
+	/// <param name="lastRank">0 = new this week; -1 = the list keeps no memory of last week (prints a dash).</param>
+	public void Populate(RecordRuntimeData record, int rank, int lastRank, bool alternateList)
 	{
 		myRecord = record;
+		displayRank = rank;
+		altList = alternateList;
 		bool playerOwned = record?.baseRecord?.isPlayerOwned ?? false;
 		Modulate = Colors.White;
 
-		if (rankText != null) rankText.Text = $"#{record.currentPosition}";   // kept for the node tree; the numeral is drawn
+		if (rankText != null) rankText.Text = $"#{rank}";   // kept for the node tree; the numeral is drawn
 		if (movementText != null) {
-			int change = record.lastWeekPosition - record.currentPosition;
-			movementText.Text = record.lastWeekPosition <= 0 ? "NEW" : change > 0 ? $"▲ {change}" : change < 0 ? $"▼ {-change}" : "—";
-			movementText.AddThemeColorOverride("font_color", change > 0 ? Olive : change < 0 ? StampRed : PaperTheme.Fade);
+			int change = lastRank - rank;
+			movementText.Text = lastRank < 0 ? "—" : lastRank == 0 ? "NEW" : change > 0 ? $"▲ {change}" : change < 0 ? $"▼ {-change}" : "—";
+			movementText.AddThemeColorOverride("font_color", lastRank < 0 ? PaperTheme.Fade : change > 0 ? Olive : change < 0 ? StampRed : PaperTheme.Fade);
 		}
 		if (songText != null) { songText.Text = record.baseRecord.title; songText.TooltipText = record.baseRecord.title; }
 		if (artistText != null) { artistText.Text = record.baseRecord.artistName; artistText.TooltipText = record.baseRecord.artistName; }
