@@ -77,25 +77,25 @@ public partial class PaperStyleBox : StyleBox {
 	/// fainter second ring and a few spatters.</summary>
 	private void DrawRing(Rid canvas, Rect2 inner) {
 		bool right = Wobble(DecalSeed, 0) > 0f;
-		float radius = 38f + Wobble(DecalSeed, 1) * 5f;
-		Vector2 centre = new(right ? inner.End.X - radius - 26f : inner.Position.X + radius + 26f, inner.End.Y - radius - 22f);
+		float radius = 64f + Wobble(DecalSeed, 1) * 8f;
+		Vector2 centre = new(right ? inner.End.X - radius - 34f : inner.Position.X + radius + 34f, inner.End.Y - radius - 30f);
 		float start = Wobble(DecalSeed, 2) * Mathf.Pi, sweep = Mathf.Pi * (1.55f + Wobble(DecalSeed, 3) * 0.2f);
 		for (int pass = 0; pass < 2; pass++) {
 			var points = new Vector2[41];
 			for (int i = 0; i < points.Length; i++) {
 				float a = start + sweep * i / (points.Length - 1);
-				float r = radius + pass * 3.5f + Wobble(DecalSeed + pass * 7, 10 + i) * 0.9f;
+				float r = radius + pass * 6f + Wobble(DecalSeed + pass * 7, 10 + i) * 1.4f;
 				points[i] = centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
 			}
-			Color coffee = pass == 0 ? new Color(0.36f, 0.21f, 0.07f, 0.30f) : new Color(0.36f, 0.21f, 0.07f, 0.14f);
+			Color coffee = pass == 0 ? new Color(0.36f, 0.21f, 0.07f, 0.36f) : new Color(0.36f, 0.21f, 0.07f, 0.17f);
 			var colours = new Color[points.Length];
 			for (int i = 0; i < colours.Length; i++) colours[i] = coffee;
-			RenderingServer.CanvasItemAddPolyline(canvas, points, colours, pass == 0 ? 3.2f : 1.6f, true);
+			RenderingServer.CanvasItemAddPolyline(canvas, points, colours, pass == 0 ? 5f : 2.4f, true);
 		}
-		RenderingServer.CanvasItemAddCircle(canvas, centre, radius - 2f, new Color(0.36f, 0.21f, 0.07f, 0.045f));
+		RenderingServer.CanvasItemAddCircle(canvas, centre, radius - 3f, new Color(0.36f, 0.21f, 0.07f, 0.05f));
 		for (int i = 0; i < 4; i++) {
-			float a = start + Wobble(DecalSeed, 30 + i) * 3f, d = radius + 8f + (Wobble(DecalSeed, 40 + i) + 1f) * 7f;
-			RenderingServer.CanvasItemAddCircle(canvas, centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d, 1.4f + (Wobble(DecalSeed, 50 + i) + 1f) * 0.8f, new Color(0.36f, 0.21f, 0.07f, 0.28f));
+			float a = start + Wobble(DecalSeed, 30 + i) * 3f, d = radius + 12f + (Wobble(DecalSeed, 40 + i) + 1f) * 11f;
+			RenderingServer.CanvasItemAddCircle(canvas, centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d, 2.2f + (Wobble(DecalSeed, 50 + i) + 1f) * 1.4f, new Color(0.36f, 0.21f, 0.07f, 0.32f));
 		}
 	}
 
