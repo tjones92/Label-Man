@@ -108,6 +108,7 @@ public partial class PlayerDeskPanel : Control {
 			case "OFFICE": GoToTab(5, PageOffice); break;
 			case "LEDGER": GoToTab(6, PageLedger); break;
 			case "ROLODEX": GoToTab(RolodexTab, PageRolodex); break;
+			case "BAND ROOM": GoToTab(BandRoomTab, PageBandRoom); break;
 		}
 	}
 
@@ -594,6 +595,7 @@ public partial class PlayerDeskPanel : Control {
 			case CatalogTab: GoToTab(CatalogTab, PageCatalog); break;
 			case 4: GoToTab(4, PageFinances); break;
 			case RolodexTab: GoToTab(RolodexTab, PageRolodex); break;
+			case BandRoomTab: GoToTab(BandRoomTab, PageBandRoom); break;
 			default: GoToTab(DistributionTab, PageDistribution); break;
 		}
 	}
