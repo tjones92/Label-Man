@@ -8,7 +8,7 @@ public partial class PolarComparisonWidget : Control {
 	private readonly Color ink = new("30291d"), muted = new("75674d"), teal = new("247c7e"), gold = new("be8840"), violet = new("725989"), rust = new("a44836");
 	private Font font;
 	public void SetRead(PolarComparisonRead value) { read = value; QueueRedraw(); }
-	public override void _Ready() { CustomMinimumSize = new Vector2(870, 390); MouseFilter = MouseFilterEnum.Ignore; font = ThemeDB.FallbackFont; }
+	public override void _Ready() { CustomMinimumSize = new Vector2(870, 390); MouseFilter = MouseFilterEnum.Ignore; font = PaperTheme.SansSemiBold; }
 	public override void _Draw() {
 		if (read == null || font == null) return;
 		if (read.source != PolarHearingSource.Studio) { DrawEar(); return; }
@@ -121,7 +121,12 @@ public partial class PolarComparisonWidget : Control {
 				DrawLine(Spoke(center, radius * read.act.axes[i].hi, i), Spoke(center, radius * song[i].lo, i), rust, 4, true);
 	}
 	private void Legend(Vector2 at, params (string Text, Color Color)[] items) {
-		foreach (var (text, color) in items) { Label(text, at, color, 12); at.X += font.GetStringSize(text, fontSize: 12).X + 14; }
+		// A colour swatch, then the name in ink: the series colours alone measured 2.3-3.3:1 as text on the paper.
+		foreach (var (text, color) in items) {
+			DrawRect(new Rect2(at.X, at.Y - 9, 10, 10), color);
+			Label(text, new Vector2(at.X + 15, at.Y), ink, 12);
+			at.X += 15 + font.GetStringSize(text, fontSize: 12).X + 16;
+		}
 	}
 	private void Label(string text, Vector2 at, Color color, int size) => DrawString(font, at, text, fontSize: size, modulate: color);
 	private Vector2 Spoke(Vector2 center, float radius, int axis) { float angle = -Mathf.Pi / 2 + axis * Mathf.Tau / 6; return center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius; }

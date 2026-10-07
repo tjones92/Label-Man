@@ -11,6 +11,11 @@ using Godot;
 /// </summary>
 public partial class RecordJacketWidget : PanelContainer {
 	private static readonly string[] JacketStages = { "SONGS", "TAKES", "MASTER", "PRESSING", "SHIP DATE" };
+	// Where each rectangle's work is done, for the hover on a stage that is done or still ahead.
+	private static readonly string[] JacketSections = {
+		"Roster → Manage", "Roster → Manage", "Catalog", "Catalog", "Catalog"
+	};
+	private static readonly string[] JacketStageNames = { "Songs", "Takes", "Master", "Pressing", "Ship date" };
 	private const int JacketMaxRows = 3;
 	public const float JacketWidth = 580f;
 
@@ -29,6 +34,7 @@ public partial class RecordJacketWidget : PanelContainer {
 		public string Title;
 		public int Stage;          // index into JacketStages: the stage the record is in right now
 		public string Detail;      // short, after the stage name: "lands Mar 21 (19d)"
+		public string NowTip;      // what the current rectangle says on hover: the step and its ETA
 		public int SortDays = int.MaxValue;
 		public string Tooltip;
 	}
@@ -66,7 +72,7 @@ public partial class RecordJacketWidget : PanelContainer {
 
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		List<JacketEntry> entries = JacketEntries(desk, today);
-		TooltipText = "Songs → Takes → Master → Pressing → Ship date. Click to open the Catalog.";
+		TooltipText = "Click to open the Catalog.";
 		if (entries.Count == 0) {
 			var empty = new Label {
 				Text = "Nothing in the works. Book an act's studio time to start one.",
@@ -104,8 +110,10 @@ public partial class RecordJacketWidget : PanelContainer {
 		pips.AddThemeConstantOverride("separation", 2);
 		for (int stage = 0; stage < JacketStages.Length; stage++)
 			pips.AddChild(new ColorRect {
-				CustomMinimumSize = new Vector2(20, 11), MouseFilter = MouseFilterEnum.Ignore,
-				Color = stage < entry.Stage ? JacketDone : stage == entry.Stage ? JacketNow : JacketLater
+				CustomMinimumSize = new Vector2(20, 11), MouseFilter = MouseFilterEnum.Pass,
+				Color = stage < entry.Stage ? JacketDone : stage == entry.Stage ? JacketNow : JacketLater,
+				TooltipText = stage == entry.Stage ? entry.NowTip ?? $"{JacketStageNames[stage]} — {entry.Detail}"
+					: $"{JacketStageNames[stage]}{(stage < entry.Stage ? " — done" : "")} · {JacketSections[stage]}"
 			});
 		row.AddChild(pips);
 
@@ -159,22 +167,25 @@ public partial class RecordJacketWidget : PanelContainer {
 			if (single == null) {
 				entry.Stage = 2;
 				entry.Detail = "assemble a single";
-				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: master cut {master.Cut.ToHeadlineString()}. Pair it into a 45 in Distribution.";
+				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: master cut {master.Cut.ToHeadlineString()}. Pair it into a 45 in the Catalog.";
 			} else if (order != null) {
 				int days = DaysFrom(today, order.Arrives);
 				entry.Stage = 3;
 				entry.SortDays = days;
 				entry.Detail = $"lands {ShortDay(order.Arrives)} ({days}d)";
-				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: {PlayerDeskPanel.PipelinePressStage(order, today)}" + (ships != null ? $"\nThen {ships}." : "\nNo ship date set yet.");
+				(string step, GameDate ends) = PlayerDeskPanel.PipelinePressStep(order, today);
+				int stepDays = DaysFrom(today, ends);
+				entry.NowTip = $"{step} — {(stepDays == 0 ? "done today" : $"done in {stepDays}d")} ({ShortDay(ends)})";
+				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: on order, vinyl lands {order.Arrives.ToHeadlineString()}." + (ships != null ? $" Then {ships}." : " No ship date set yet.");
 			} else if (pressed) {
 				entry.Stage = 4;
 				entry.SortDays = single.Dated ? DaysFrom(today, single.Date) : int.MaxValue;
 				entry.Detail = shipsShort ?? "set a date";
-				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: pressed and in the office. " + (ships != null ? $"It {ships}." : "Set its release date in Distribution.");
+				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: pressed and in the office. " + (ships != null ? $"It {ships}." : "Set its release date in the Catalog.");
 			} else {
 				entry.Stage = 3;
 				entry.Detail = "not ordered yet";
-				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: assembled. Order a pressing in Distribution" + (ships != null ? $"; it is dated to ship {single.Date.ToHeadlineString()}." : ".");
+				entry.Tooltip = $"\"{master.SongTitle}\" by {by}: assembled. Order a pressing in the Catalog" + (ships != null ? $"; it is dated to ship {single.Date.ToHeadlineString()}." : ".");
 			}
 			entries.Add(entry);
 		}

@@ -807,7 +807,7 @@ public partial class PlayerDesk : Node {
 			if (archetype == ManagerArchetype.None) continue;   // rolled "still nobody's biting" this pass
 			artist.manager = archetype;
 			artist.managerName = GenerateManagerNameFor();
-			Note($"{artist.stageName} picked up a manager: {artist.managerName ?? "somebody"} ({archetype}).");
+			Note($"{artist.stageName} picked up a manager: {artist.managerName ?? "somebody"}.");
 		}
 	}
 

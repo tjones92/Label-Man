@@ -25,7 +25,7 @@ public partial class UIManager : Control
 	private Control morningPaper;
 	private Label paperDate, paperHeading;
 	private VBoxContainer paperBody;
-	private SystemFont paperSerif;
+	private Font paperSerif;
 	private ScrollContainer paperScroll;
 	private bool paperQueued, uiOpenBeforePaper;
 	private PanelContainer announcement;
@@ -43,6 +43,7 @@ public partial class UIManager : Control
 
 	public override void _Ready()
 	{
+		PaperTheme.Apply(GetWindow());
 		if (artistDetailPanel != null) artistDetailPanel.LabelRequested += id => OpenLabel(id);
 		if (labelDetailPanel != null) labelDetailPanel.ArtistRequested += id => OpenArtist(id);
 		officeBackdrop = GetNodeOrNull<TextureRect>("TextureRect");
@@ -294,7 +295,7 @@ public partial class UIManager : Control
 		var column = new VBoxContainer();
 		column.AddThemeConstantOverride("separation", 16);
 		sheet.AddChild(column);
-		var serif = new SystemFont { FontNames = new[] { "Georgia", "Times New Roman" } };
+		Font serif = PaperTheme.Serif;   // bundled Gelasio, so the paper reads the same on every OS
 		paperSerif = serif;
 		Label NewspaperText(string text, int size, HorizontalAlignment alignment) {
 			var label = new Label { Text = text, HorizontalAlignment = alignment, AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -303,7 +304,9 @@ public partial class UIManager : Control
 			label.AddThemeColorOverride("font_color", new Color("30291d"));
 			return label;
 		}
-		column.AddChild(NewspaperText("The Morning Paper", 42, HorizontalAlignment.Center));
+		Label masthead = NewspaperText("The Morning Paper", 42, HorizontalAlignment.Center);
+		masthead.AddThemeFontOverride("font", PaperTheme.SerifBold);
+		column.AddChild(masthead);
 		column.AddChild(new HSeparator());
 		paperDate = NewspaperText("", 16, HorizontalAlignment.Center);
 		column.AddChild(paperDate);
@@ -564,6 +567,8 @@ public partial class UIManager : Control
 		margin.AddChild(options);
 		var title = new Label { Text = "ADVANCE CALENDAR" };
 		title.AddThemeFontSizeOverride("font_size", 22);
+		title.AddThemeFontOverride("font", PaperTheme.SansBold);
+		title.AddThemeColorOverride("font_color", PaperTheme.Rust);
 		options.AddChild(title);
 
 		var friday = new Button { Text = "Skip to Friday" };

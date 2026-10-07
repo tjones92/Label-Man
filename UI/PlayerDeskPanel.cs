@@ -40,7 +40,6 @@ public partial class PlayerDeskPanel : Control {
 	private string managingArtistId;
 	private bool browsingCovers;
 	private string polarCatalogSong;
-	private string selectedPressRecordId;
 	// Whether the save/load menu is up (takes over the panel, like founding / game-over).
 	private bool browsingSaves;
 	private PopupPanel foundingCityPopup;
@@ -52,7 +51,6 @@ public partial class PlayerDeskPanel : Control {
 	// the call view for that card is open.
 	private int rolodexFocus;
 	private string rolodexPitchRecordId;
-	private bool focusAssemblyAfterPrint;
 	private GameDate lastStatusDate;
 	private bool hasStatusDate;
 	// Money sizes chosen before the sentence is spoken -- the number is part of the offer, not a
@@ -72,6 +70,8 @@ public partial class PlayerDeskPanel : Control {
 	private static readonly Color Folder = new("d7b978");
 	private static readonly Color Heard = new("6b5a3a");
 	private static readonly Color Rust = new("6b3a1c");
+	// Secondary text on the manila header: Heard (6b5a3a) measured 3.5:1 there; this is ~6.5:1.
+	private static readonly Color HeaderFade = new("45381f");
 	private const int LowStockWarningThreshold = 75;
 
 	public override void _Ready() {
@@ -148,6 +148,8 @@ public partial class PlayerDeskPanel : Control {
 		root.AddChild(header);
 		titleLabel = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 		titleLabel.AddThemeFontSizeOverride("font_size", 28);
+		titleLabel.AddThemeFontOverride("font", PaperTheme.SansBold);
+		titleLabel.AddThemeColorOverride("font_color", Ink);   // was the default near-white on manila (~1.8:1)
 		header.AddChild(titleLabel);
 		var saveLoad = Btn("SAVE / LOAD");
 		saveLoadButton = saveLoad;
@@ -163,7 +165,7 @@ public partial class PlayerDeskPanel : Control {
 		clockLabel.AddThemeColorOverride("font_color", Ink);
 		root.AddChild(clockLabel);
 		stockLabel = new Label { ClipText = true, CustomMinimumSize = new Vector2(0, 22) };
-		stockLabel.AddThemeColorOverride("font_color", Heard);
+		stockLabel.AddThemeColorOverride("font_color", HeaderFade);
 		root.AddChild(stockLabel);
 		nextUpLabel = Btn("");
 		nextUpLabel.CustomMinimumSize = new Vector2(0, 30);
@@ -313,6 +315,7 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	// Tab order: A&R(0), ROSTER(1), CATALOG(2), DISTRIBUTION(3), FINANCES(4), OFFICE(5), LEDGER(6), ROLODEX(7).
+	private const int CatalogTab = 2;
 	private const int DistributionTab = 3;
 	private const int RolodexTab = 7;
 
@@ -439,7 +442,7 @@ public partial class PlayerDeskPanel : Control {
 			.Where(note => !string.IsNullOrEmpty(note)).ToList();
 		stockLabel.Text = stockNotes.Count == 0 ? "STOCK  •  no released records on hand" : "STOCK  •  " + string.Join("   |   ", stockNotes);
 		stockLabel.TooltipText = stockLabel.Text;
-		stockLabel.AddThemeColorOverride("font_color", stockNotes.Any(note => note.Contains("LOW", StringComparison.Ordinal) || note.Contains("SOLD OUT", StringComparison.Ordinal)) ? Rust : Heard);
+		stockLabel.AddThemeColorOverride("font_color", stockNotes.Any(note => note.Contains("LOW", StringComparison.Ordinal) || note.Contains("SOLD OUT", StringComparison.Ordinal)) ? Rust : HeaderFade);
 		// A running tab is survivable, but the bank is watching. Spell out the credit line and the clock on it.
 		redInkLabel.Visible = label.cashReserves < 0f;
 		redInkLabel.Text = label.cashReserves < 0f ? $"⚠ IN THE RED {desk.MonthsInTheRed}/3" : string.Empty;
@@ -458,7 +461,7 @@ public partial class PlayerDeskPanel : Control {
 			int count = title switch {
 				"LEDGER" => desk.UnreadLogCount,
 				"OFFICE" => desk.PendingCalls().Count(),
-				"DISTRIBUTION" => desk.PendingPressings().Count(),
+				"CATALOG" => desk.PendingPressings().Count(),
 				"ROLODEX" => desk.ActiveCall != null && desk.ActiveCall.stage != CallStage.Ended ? 1 : 0,
 				_ => 0
 			};
@@ -475,17 +478,17 @@ public partial class PlayerDeskPanel : Control {
 		AILabel label = desk.Label;
 		if (desk.Session != null) return ("Choose takes and print the masters.", 1);
 		if (desk.Masters.Any(master => !master.Scheduled && !master.Released))
-			return ("Assemble a single from the masters on your shelf.", DistributionTab);
+			return ("Assemble a single from the masters on your shelf.", CatalogTab);
 		if (desk.Planned.Any(single => !single.Dated)) {
 			PlayerDesk.PlannedRelease waiting = desk.Planned.First(single => !single.Dated);
 			PlayerDesk.PressOrder order = desk.PressingOrderFor(waiting.Master.Record.recordId);
-			if (order != null) return ($"Set the release date; the plant run lands {order.Arrives.ToHeadlineString()}.", DistributionTab);
+			if (order != null) return ($"Set the release date; the plant run lands {order.Arrives.ToHeadlineString()}.", CatalogTab);
 			if ((desk.StockFor(waiting.Master.Record.recordId)?.Remaining ?? 0) > 0)
-				return ("Set the release date; pressed stock is already in the office.", DistributionTab);
+				return ("Set the release date; pressed stock is already in the office.", CatalogTab);
 			int minimum = desk.MinimumPressRun(waiting.Master.Record.recordId);
 			float cost = PlayerDesk.PressingCost(minimum, desk.HasBeenPressed(waiting.Master.Record.recordId));
 			if (label.cashReserves >= cost)
-				return ($"Order a pressing for the assembled single (${cost:N0}, leaves {Money(label.cashReserves - cost)}).", DistributionTab);
+				return ($"Order a pressing for the assembled single (${cost:N0}, leaves {Money(label.cashReserves - cost)}).", CatalogTab);
 			return ($"A pressing is ${cost:N0}; you have {Money(label.cashReserves)}. " +
 				$"{NextBillNote(desk)} {WhileYouWait(desk)}", WaitingTab(desk));
 		}
@@ -559,6 +562,7 @@ public partial class PlayerDeskPanel : Control {
 		switch (NextUpStep(desk).Tab) {
 			case 0: GoToTab(0, PageAandR); break;
 			case 1: GoToTab(1, PageRoster); break;
+			case CatalogTab: GoToTab(CatalogTab, PageCatalog); break;
 			case 4: GoToTab(4, PageFinances); break;
 			case RolodexTab: GoToTab(RolodexTab, PageRolodex); break;
 			default: GoToTab(DistributionTab, PageDistribution); break;
@@ -706,7 +710,7 @@ public partial class PlayerDeskPanel : Control {
 		townRow.AddChild(browse);
 		content.AddChild(townRow);
 
-		var found = Btn("OPEN THE DOORS");
+		var found = Primary("OPEN THE DOORS");
 		found.CustomMinimumSize = new Vector2(240, 44);
 		found.TooltipText = "Start the label with the selected background, name, town, and starting cash.";
 		found.Pressed += () => {
@@ -1285,7 +1289,7 @@ public partial class PlayerDeskPanel : Control {
 
 		var buttons = new HBoxContainer();
 		buttons.AddThemeConstantOverride("separation", 12);
-		var offer = Btn(submitLabel);
+		var offer = Primary(submitLabel);
 		offer.CustomMinimumSize = new Vector2(260, 44);
 		offer.Pressed += () => onSubmit((float)advance.Value, (float)royalty.Value / 100f,
 			(int)term.Value, (int)singles.Value, labelPub.ButtonPressed, artistControl.ButtonPressed);
@@ -1768,7 +1772,7 @@ public partial class PlayerDeskPanel : Control {
 			UpdatePreview();
 		}
 
-		var book = Btn("BOOK THE ROOM");
+		var book = Primary("BOOK THE ROOM");
 		book.CustomMinimumSize = new Vector2(300, 44);
 		book.Pressed += () => {
 			var chosen = checks.Where(c => c.Box.ButtonPressed).Select(c => c.Choice).ToList();
@@ -1900,14 +1904,13 @@ public partial class PlayerDeskPanel : Control {
 
 		var buttons = new HBoxContainer();
 		buttons.AddThemeConstantOverride("separation", 12);
-		var print = Btn("PRINT MASTERS");
+		var print = Primary("PRINT MASTERS");
 		print.CustomMinimumSize = new Vector2(240, 44);
 		print.Pressed += () => {
 			bool ok = PlayerDesk.Instance.PrintSession(out string message);
 			Say(message, ok);
-			// A finished master's next stop is the assembly bench. Land there even if the Distribution
-			// page was previously scrolled through a long town route.
-			if (ok) { focusAssemblyAfterPrint = true; GoToTab(DistributionTab, PageDistribution); }
+			// A finished master's next stop is its card on the Catalog board, where it is assembled into a 45.
+			if (ok) GoToTab(CatalogTab, PageCatalog);
 			else Refresh();
 		};
 		buttons.AddChild(print);
@@ -1957,118 +1960,356 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	// ========================================================================
-	// CATALOG (masters on the shelf + scheduling releases)
+	// CATALOG (the stage board: every record's next step is a button on its own row)
 	// ========================================================================
+
+	// Titles whose "order a pressing" form is open. An assembled single that has never been pressed always
+	// shows it; a run already in the plant, or a released title (a repress), keeps it behind a button so a
+	// second order never looks like a first one.
+	private readonly HashSet<string> openPressForms = new();
 
 	private void PageCatalog() {
 		PlayerDesk desk = PlayerDesk.Instance;
+		PipelineBoard(desk);
+		MarketBoard(desk);
+	}
 
-		PipelineSection(desk);
+	/// <summary>One card per record that is not out yet, nearest to the shops first. The card names the stage
+	/// the record is in and carries that stage's controls, so nothing has to be looked up on another tab.</summary>
+	private void PipelineBoard(PlayerDesk desk) {
+		Heading("SINGLE PIPELINE", "A record's trip from tape to the shops: cut the sides, assemble them into a 45, " +
+			"order the pressing, then date the release for after the vinyl lands. Each card carries the button for its next step.");
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		List<PlayerDesk.PlannedRelease> singles = desk.Planned
+			.OrderByDescending(single => single.Dated).ThenByDescending(single => desk.PressingOrderFor(single.Master.Record.recordId) != null).ToList();
+		List<PlayerDesk.Master> shelf = desk.Masters.Where(master => !master.Scheduled && !master.Released).ToList();
+		if (singles.Count == 0 && shelf.Count == 0) {
+			Body("Nothing cut and waiting. Cut a record from an act's MANAGE window.");
+			return;
+		}
 
-		ShelfList(desk);
+		foreach (PlayerDesk.PlannedRelease single in singles) {
+			string id = single.Master.Record.recordId;
+			PlayerDesk.PressOrder order = desk.PressingOrderFor(id);
+			bool pressed = (desk.StockFor(id)?.TotalPressed ?? 0) > 0;
+			string ships = single.Dated ? $"ships {single.Date.ToHeadlineString()}" : null;
+			string stage = order != null ? PipelinePressStage(order, today) + (ships != null ? $"  •  {ships}" : "")
+				: ships != null ? $"DATED  •  {ships}"
+				: pressed ? "ASSEMBLED  •  pressed, needs a release date"
+				: "ASSEMBLED  •  press it, then date it";
+			string title = $"\"{single.Master.SongTitle}\"{(single.BSide != null ? $" b/w \"{single.BSide.SongTitle}\"" : "")} — {single.Master.Record.artistName}";
+			StageCard(title, stage, MasterDetail(single.Master), () => {
+				if (!single.Dated && desk.EarliestReleaseDays(single) > 0) DateControls(desk, single);
+				if (order == null && !pressed) PressingControls(desk, id, true);
+				else if (order != null || pressed) PressingControls(desk, id, false);
+				AcetateControls(desk, id);
+				CompareControls(desk, single.Master);
+			});
+		}
 
-		Heading("PUTTING A SINGLE OUT");
-		Body("Cutting two sides is only the start. Head to DISTRIBUTION to pair them into a 45 and send it to " +
-			"the pressing plant — then, once the plant has quoted a turnaround, set the release date there so " +
-			"the record ships after the vinyl's actually landed.");
+		foreach (PlayerDesk.Master master in shelf) {
+			string id = master.Record.recordId;
+			StageCard($"\"{master.SongTitle}\" — {master.Record.artistName}",
+				"MASTER ON THE SHELF  •  " + (desk.AcetatesFor(id) > 0 ? "acetate ready, " : "") + "pair it with a flip side",
+				MasterDetail(master), () => {
+					AssembleControls(desk, master);
+					AcetateControls(desk, id);
+					CompareControls(desk, master);
+				});
+		}
+	}
 
-		Heading("READY TO PRESS");
-		List<PlayerDesk.PlannedRelease> undated = desk.Planned.Where(entry => !entry.Dated).ToList();
-		if (undated.Count == 0) Body("No singles assembled yet.");
-		foreach (PlayerDesk.PlannedRelease single in undated)
-			Body($"\"{single.Master.SongTitle}\"{(single.BSide != null ? $" b/w \"{single.BSide.SongTitle}\"" : "")} " +
-				$"by {single.Master.Record.artistName}  —  assembled, no date yet");
-
-		Heading("ON THE SCHEDULE");
-		List<PlayerDesk.PlannedRelease> dated = desk.Planned.Where(entry => entry.Dated).OrderBy(entry => entry.Date).ToList();
-		if (dated.Count == 0) Body("Nothing dated.");
-		foreach (PlayerDesk.PlannedRelease release in dated)
-			Body($"{release.Date.ToHeadlineString()}  —  \"{release.Master.SongTitle}\"" +
-				$"{(release.BSide != null ? $" b/w \"{release.BSide.SongTitle}\"" : "")} by {release.Master.Record.artistName}  " +
-				$"(${release.MarketingBudget:N0} campaign)");
-
+	/// <summary>Records already out: how they are doing, what is left in the office, and the repress button.</summary>
+	private void MarketBoard(PlayerDesk desk) {
 		Heading("IN THE MARKET");
 		List<RecordRuntimeData> released = desk.ReleasedRecords.OrderByDescending(record => record.weeksSinceRelease).ToList();
 		if (released.Count == 0) { Body("Nothing out yet."); return; }
-		foreach (RecordRuntimeData record in released)
-			Body($"\"{record.baseRecord.title}\" by {record.baseRecord.artistName}  —  " +
-				$"{(record.peakPosition > 0 ? $"peak #{record.peakPosition}, {record.weeksOnChart} {CountWord(record.weeksOnChart, "week")} on" : "has not charted")}  •  " +
-				$"{record.weeksSinceRelease} {CountWord(record.weeksSinceRelease, "week")} out");
-	}
-
-	private void PipelineSection(PlayerDesk desk) {
-		Heading("SINGLE PIPELINE");
-		var entries = new List<(string Id, string Title, string Stage)>();
-		foreach (PlayerDesk.Master master in desk.Masters.Where(master => !master.Released)) {
-			string id = master.Record?.recordId;
-			if (string.IsNullOrEmpty(id)) continue;
-			PlayerDesk.PressOrder order = desk.PressingOrderFor(id);
-			var single = desk.Planned.FirstOrDefault(item => item.Master?.Record?.recordId == id);
-			string stage = order != null ? PipelinePressStage(order, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate)
-				: single != null ? single.Dated ? $"DATED  •  ships {single.Date.ToHeadlineString()}" : "ASSEMBLED  •  ready to press and date"
-				: desk.AcetatesFor(id) > 0 ? "MASTER ON SHELF  •  acetate ready" : "MASTER ON SHELF  •  assemble as a single";
-			entries.Add((id, master.SongTitle, stage));
-		}
-		foreach (RecordRuntimeData record in desk.ReleasedRecords.Take(8)) {
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		foreach (RecordRuntimeData record in released) {
 			string id = record.baseRecord.recordId;
 			PlayerDesk.PressOrder order = desk.PressingOrderFor(id);
 			PlayerDesk.PressStock stock = desk.StockFor(id);
-			string stage = order != null ? $"REPRESS  •  {PipelinePressStage(order, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate)}"
+			string stockLine = order != null ? $"REPRESS  •  {PipelinePressStage(order, today)}"
 				: stock?.Remaining > 0 ? $"IN OFFICE  •  {stock.Remaining:N0} copies"
-				: "IN MARKET";
-			entries.Add((id, record.baseRecord.title, stage));
-		}
-		if (entries.Count == 0) { Body("No masters or records in the pipeline yet."); return; }
-		foreach (var entry in entries) {
-			Body($"{entry.Title}  —  {entry.Stage}");
-			PlayerDesk.Master master = desk.Masters.FirstOrDefault(item => item.Record?.recordId == entry.Id);
-			if (master == null || master.Released) continue;
-			var controls = new HBoxContainer();
-			if (desk.AcetatesFor(entry.Id) == 0) {
-				var cut = Btn("CUT AN ACETATE  ($20, 1h)");
-				cut.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.CutAcetate(entry.Id, out string message); Say(message, ok); return ok; });
-				controls.AddChild(cut);
-			} else {
-				RadioStation[] localStations = desk.Rolodex.Select(card => ChartManager.Instance?.GetRadioStation(card.stationId))
-					.Where(station => station != null && station.regionId == desk.CurrentCity?.parentRegionId)
-					.Distinct().ToArray();
-				if (localStations.Length > 0) {
-					var stationPicker = Option();
-					foreach (RadioStation station in localStations) stationPicker.AddItem(station.callsign);
-					controls.AddChild(stationPicker);
-					var deliver = Btn("HAND DELIVER  (1h)");
-					deliver.Pressed += () => Act(() => { string id = localStations[Mathf.Clamp(stationPicker.Selected, 0, localStations.Length - 1)].stationId; bool ok = PlayerDesk.Instance.DeliverAcetateToStation(entry.Id, id, out string message); Say(message, ok); return ok; });
-					controls.AddChild(deliver);
-				}
-			}
-			if (controls.GetChildCount() > 0) content.AddChild(controls);
+				: "No copies left in the office";
+			StageCard($"\"{record.baseRecord.title}\" — {record.baseRecord.artistName}", stockLine,
+				(record.peakPosition > 0 ? $"peak #{record.peakPosition}, {record.weeksOnChart} {CountWord(record.weeksOnChart, "week")} on the chart" : "has not charted") +
+				$"  •  {record.weeksSinceRelease} {CountWord(record.weeksSinceRelease, "week")} out",
+				() => PressingControls(desk, id, false));
 		}
 	}
 
-	private void ShelfList(PlayerDesk desk) {
-		Heading("MASTERS ON THE SHELF");
-		List<PlayerDesk.Master> shelf = desk.Masters.Where(master => !master.Scheduled).ToList();
-		if (shelf.Count == 0) { Body("Nothing cut and waiting. Cut a record from an act's MANAGE window."); return; }
-		foreach (PlayerDesk.Master master in shelf) {
-			Body($"\"{master.SongTitle}\"  —  {master.Record.artistName}\n" +
-				(PolarSongBehavior.UsePolarFitSelection ? "    " : $"    hook: {PolarPlayerPerception.DescribeHook(master.Record.hookStrength, 1f)}   •   sound: {SoundWords(master.Record.productionQuality)}   •   ") +
-				$"cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}");
-			var artist = ArtistManager.Instance.GetArtist(master.Record.artistId);
-			if (PolarSongBehavior.UsePolarFitSelection && artist != null && PolarSongMetadataService.Get(master.Record.masterId) != null) {
-				var compare = Btn("COMPARE PLAYBACK"); content.AddChild(compare);
-				compare.Pressed += () => {
-					var dialog = PaperModal.Open(this, "PRINTED MASTER — PLAYBACK", 980);
-					var choice = new PlayerDesk.MaterialChoice { Title = master.SongTitle, SongId = master.Record.songId };
-					var scroll = ComparisonScroll(); dialog.Body.AddChild(scroll);
-					scroll.AddChild(ComparisonCard(artist, choice, PolarEvidenceGate.Playback, "master:" + master.Record.masterId,
-						new PolarSessionContext { producerCraft = desk.Label.productionQuality, studioCraft = master.Record.productionQuality }, 0, printedMasterId: master.Record.masterId,
-						hearing: new PolarHearing { source = PolarHearingSource.Playback }));
-					dialog.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
-				};
+	private static string MasterDetail(PlayerDesk.Master master) =>
+		(PolarSongBehavior.UsePolarFitSelection ? "" : $"hook: {PolarPlayerPerception.DescribeHook(master.Record.hookStrength, 1f)}   •   sound: {SoundWords(master.Record.productionQuality)}   •   ") +
+		$"cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}";
+
+	/// <summary>A record's card on the board. The controls callback adds to the card, not the page.</summary>
+	private void StageCard(string title, string stage, string detail, Action controls) {
+		var card = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		card.AddThemeStyleboxOverride("panel", new StyleBoxFlat {
+			BgColor = new Color("ead9ad"), BorderColor = new Color("b79c5e"),
+			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,
+			CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3, CornerRadiusBottomLeft = 3, CornerRadiusBottomRight = 3,
+			ContentMarginLeft = 14, ContentMarginRight = 14, ContentMarginTop = 10, ContentMarginBottom = 12
+		});
+		var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+		column.AddThemeConstantOverride("separation", 6);
+		card.AddChild(column);
+		VBoxContainer page = content;
+		page.AddChild(card);
+		content = column;
+		try {
+			var name = new Label { Text = title, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			name.AddThemeFontSizeOverride("font_size", 17);
+			name.AddThemeColorOverride("font_color", Ink);
+			column.AddChild(name);
+			if (stage != null) {
+				var stageLine = new Label { Text = stage, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+				stageLine.AddThemeFontSizeOverride("font_size", 15);
+				stageLine.AddThemeColorOverride("font_color", Rust);
+				column.AddChild(stageLine);
 			}
+			if (!string.IsNullOrEmpty(detail)) column.AddChild(FaintLine(detail));
+			controls?.Invoke();
+		} finally {
+			content = page;
 		}
 	}
 
+	/// <summary>MASTER stage: pair this cut with a flip side from the shelf.</summary>
+	private void AssembleControls(PlayerDesk desk, PlayerDesk.Master master) {
+		List<PlayerDesk.Master> flips = desk.Masters.Where(other => !other.Scheduled && !other.Released && other != master).ToList();
+		if (flips.Count == 0) {
+			content.AddChild(FaintLine("A 45 needs two cuts. Record another song for the flip side, then assemble."));
+			return;
+		}
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 10);
+		row.AddChild(FormLabel("Flip side"));
+		var flipPicker = Option();
+		flipPicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+		flipPicker.CustomMinimumSize = new Vector2(0, 36);
+		foreach (PlayerDesk.Master flip in flips) flipPicker.AddItem($"\"{flip.SongTitle}\" — {flip.Record.artistName}");
+		row.AddChild(flipPicker);
+		content.AddChild(row);
+
+		var assemble = Primary("ASSEMBLE THE SINGLE");
+		assemble.CustomMinimumSize = new Vector2(300, 42);
+		assemble.TooltipText = "The A-side is the plug side that chases the chart; the flip rides along on the same disc.";
+		assemble.Pressed += () => Act(() => {
+			bool ok = PlayerDesk.Instance.AssembleSingle(master, flips[Mathf.Clamp(flipPicker.Selected, 0, flips.Count - 1)], out string message);
+			Say(message, ok);
+			return true;
+		});
+		content.AddChild(assemble);
+	}
+
+	private void AcetateControls(PlayerDesk desk, string recordId) {
+		var controls = new HBoxContainer();
+		if (desk.AcetatesFor(recordId) == 0) {
+			var cut = Btn("CUT AN ACETATE  ($20, 1h)");
+			cut.TooltipText = "One test disc a local DJ can play now, long before the pressing lands.";
+			cut.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.CutAcetate(recordId, out string message); Say(message, ok); return ok; });
+			controls.AddChild(cut);
+		} else {
+			RadioStation[] localStations = desk.Rolodex.Select(card => ChartManager.Instance?.GetRadioStation(card.stationId))
+				.Where(station => station != null && station.regionId == desk.CurrentCity?.parentRegionId)
+				.Distinct().ToArray();
+			if (localStations.Length > 0) {
+				var stationPicker = Option();
+				foreach (RadioStation station in localStations) stationPicker.AddItem(station.callsign);
+				controls.AddChild(stationPicker);
+				var deliver = Btn("HAND DELIVER  (1h)");
+				deliver.Pressed += () => Act(() => {
+					string stationId = localStations[Mathf.Clamp(stationPicker.Selected, 0, localStations.Length - 1)].stationId;
+					bool ok = PlayerDesk.Instance.DeliverAcetateToStation(recordId, stationId, out string message);
+					Say(message, ok);
+					return ok;
+				});
+				controls.AddChild(deliver);
+			}
+		}
+		if (controls.GetChildCount() > 0) content.AddChild(controls);
+	}
+
+	private void CompareControls(PlayerDesk desk, PlayerDesk.Master master) {
+		var artist = ArtistManager.Instance.GetArtist(master.Record.artistId);
+		if (!PolarSongBehavior.UsePolarFitSelection || artist == null || PolarSongMetadataService.Get(master.Record.masterId) == null) return;
+		var compare = Btn("COMPARE PLAYBACK");
+		content.AddChild(compare);
+		compare.Pressed += () => {
+			var dialog = PaperModal.Open(this, "PRINTED MASTER — PLAYBACK", 980);
+			var choice = new PlayerDesk.MaterialChoice { Title = master.SongTitle, SongId = master.Record.songId };
+			var scroll = ComparisonScroll(); dialog.Body.AddChild(scroll);
+			scroll.AddChild(ComparisonCard(artist, choice, PolarEvidenceGate.Playback, "master:" + master.Record.masterId,
+				new PolarSessionContext { producerCraft = desk.Label.productionQuality, studioCraft = master.Record.productionQuality }, 0, printedMasterId: master.Record.masterId,
+				hearing: new PolarHearing { source = PolarHearingSource.Playback }));
+			dialog.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
+		};
+	}
+
+	/// <summary>PRESSING stage: the run form for one title. With <paramref name="alwaysOpen"/> the form is the
+	/// card's main control; otherwise a button opens it, because a second order is a deliberate act.</summary>
+	private void PressingControls(PlayerDesk desk, string recordId, bool alwaysOpen) {
+		bool open = alwaysOpen || openPressForms.Contains(recordId);
+		if (!alwaysOpen) {
+			PlayerDesk.PressOrder inPlant = desk.PressingOrderFor(recordId);
+			var toggle = Btn(open ? "HIDE THE ORDER FORM" : inPlant != null ? "ORDER ANOTHER PRESSING…" : "ORDER A REPRESS…");
+			toggle.CustomMinimumSize = new Vector2(260, 36);
+			toggle.Pressed += () => {
+				if (!openPressForms.Remove(recordId)) openPressForms.Add(recordId);
+				RefreshKeepingScroll();
+			};
+			content.AddChild(toggle);
+			if (!open) return;
+		}
+		if (!desk.AtHome) { content.AddChild(FaintLine("You place a run from the office — drive home to order.")); return; }
+
+		string title = desk.PressableSingles().FirstOrDefault(single => single.RecordId == recordId).Title ?? recordId;
+		int initialMin = desk.MinimumPressRun(recordId);
+		var runSizeRow = new HBoxContainer();
+		runSizeRow.AddThemeConstantOverride("separation", 10);
+		runSizeRow.AddChild(FormLabel("Qty"));
+		var qtyInput = Spin(initialMin, 100000, 1, initialMin);
+		runSizeRow.AddChild(qtyInput);
+		runSizeRow.AddChild(FormLabel("Promo (of Qty)"));
+		// A first run opens on roughly a quarter promo (capped); a repress opens at zero (SuggestedPromoCount).
+		var promoInput = Spin(0, initialMin, 1, desk.SuggestedPromoCount(recordId, initialMin));
+		runSizeRow.AddChild(promoInput);
+		content.AddChild(runSizeRow);
+
+		var runCost = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		runCost.AddThemeColorOverride("font_color", Rust);
+		content.AddChild(runCost);
+		void UpdateRunCost() {
+			PlayerDesk.PressOrder inPlant = desk.PressingOrderFor(recordId);
+			bool repress = desk.HasBeenPressed(recordId);
+			int qty = (int)qtyInput.Value;
+			float cost = PlayerDesk.PressingCost(qty, repress);
+			int promoCap = desk.MaxPromoCount(recordId, qty);
+			promoInput.MaxValue = promoCap;
+			if (promoInput.Value > promoCap) promoInput.Value = promoCap;
+			int promo = (int)promoInput.Value;
+			// Promo copies come out of the run, they are not extra discs: spell out the split so nobody reads it as a second bill.
+			runCost.Text =
+				(inPlant != null ? $"ALREADY ON ORDER: {inPlant.Quantity:N0} due {inPlant.Arrives.ToHeadlineString()}. This would be a second run.  ·  " : "") +
+				$"Run cost: ${cost:N0}  (${cost / Math.Max(1.0, qty):F2}/disc){(repress ? " — repress, no lacquer fee" : "")}" +
+				(promo > 0 ? $"   ·   {qty - promo:N0} sellable + {promo:N0} promo, out of this {qty:N0}-unit run" : "") +
+				(repress ? "" : $"   ·   promo capped at {promoCap:N0} ({PlayerDesk.PressPromoCapFraction:P0})") +
+				$"   ·   cash after order: {Money(desk.Label.cashReserves - cost)}{MonthEndCashPreview(desk.Label, desk.Label.cashReserves - cost)}";
+		}
+		qtyInput.ValueChanged += _ => UpdateRunCost();
+		promoInput.ValueChanged += _ => UpdateRunCost();
+		UpdateRunCost();
+
+		void SubmitPress(bool confirmAdditionalRun, int runQuantity, int runPromo) => Act(() => {
+			bool ordered = PlayerDesk.Instance.OrderPressing(recordId, runQuantity, runPromo, out string message, confirmAdditionalRun);
+			Say(message, ordered);
+			if (ordered) openPressForms.Remove(recordId);
+			return true;
+		});
+		var order = Primary(desk.PressingOrderFor(recordId) != null ? "ORDER ANOTHER PRESSING…" : "ORDER PRESSING");
+		order.CustomMinimumSize = new Vector2(240, 42);
+		order.TooltipText = $"A first pressing needs {PlayerDesk.PressMinimumOrder}. About {PlayerDesk.PressVinylPerUnit + PlayerDesk.PressSleeveLabelPerUnit:F2}/disc " +
+			$"plus ${PlayerDesk.PressLacquerSetup:N0} lacquer setup (once per title) and ${PlayerDesk.PressShipping:N0} for sleeves, labels and freight. " +
+			$"Once a title's stampers are cut, a repress can run as low as {PlayerDesk.PressReorderMinimum} with no lacquer fee. " +
+			"A run is a whole 45, both sides on the one disc, and the plant takes weeks to turn it round.";
+		order.Pressed += () => {
+			PlayerDesk.PressOrder pending = desk.PressingOrderFor(recordId);
+			int runQty = (int)qtyInput.Value, runPromo = (int)promoInput.Value;
+			float runPrice = PlayerDesk.PressingCost(runQty, desk.HasBeenPressed(recordId));
+			if (pending == null) {
+				if (!WarnIfUnderOverhead($"A run of {runQty:N0}", runPrice, $"PRESS IT — ${runPrice:N0}", () => SubmitPress(false, runQty, runPromo)))
+					SubmitPress(false, runQty, runPromo);
+				return;
+			}
+			var confirm = PaperModal.Open(this, "ORDER ANOTHER PRESSING?", 600);
+			confirm.AddText($"A run of \"{title}\" is already due {pending.Arrives.ToHeadlineString()}.");
+			bool canAfford = desk.Label.cashReserves >= runPrice;
+			confirm.AddText(canAfford
+				? $"Order another {runQty:N0} now for ${runPrice:N0}? You'd have {Money(desk.Label.cashReserves - runPrice)} left."
+				: $"Another {runQty:N0} costs ${runPrice:N0}, and you're {Money(runPrice - desk.Label.cashReserves)} short.");
+			confirm.AddButton("NOT NOW", null);
+			confirm.AddButton($"ORDER ANOTHER ${runPrice:N0}", () => SubmitPress(true, runQty, runPromo), PaperModal.ButtonKind.Primary).Disabled = !canAfford;
+		};
+		content.AddChild(order);
+
+		int fillDemand = desk.OpenCallDemand(recordId);
+		if (fillDemand > 0) {
+			var fill = Btn($"PRESS TO FILL OPEN CALLS  (~{desk.PressToFillQuantity(recordId):N0}, {fillDemand:N0} asked for)");
+			fill.CustomMinimumSize = new Vector2(300, 42);
+			fill.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PressToFill(recordId, out string message); Say(message, ok); return true; });
+			content.AddChild(fill);
+		}
+
+		var creditOwed = desk.PlantCreditOwed;
+		if (creditOwed.HasValue && creditOwed.Value.RecordId == recordId) {
+			var (_, amount, weeksAway) = creditOwed.Value;
+			content.AddChild(FaintLine($"Plant credit outstanding: ${amount:N0} due on \"{title}\" in {weeksAway} week(s) — it collects on schedule whether or not the record's still moving."));
+		} else if (!creditOwed.HasValue && desk.PlantCreditEligible(recordId)) {
+			float creditCost = PlayerDesk.PressingCost(PlayerDesk.PlantCreditQuantity, desk.HasBeenPressed(recordId));
+			var creditBtn = Btn($"TAKE THE CREDIT RUN  ({PlayerDesk.PlantCreditHours}h)");
+			creditBtn.CustomMinimumSize = new Vector2(260, 42);
+			creditBtn.TooltipText = $"\"{title}\" is moving enough that the plant would front a run: {PlayerDesk.PlantCreditQuantity:N0} units, nothing down, " +
+				$"${creditCost:N0} due in {PlayerDesk.PlantCreditTermWeeks} weeks.";
+			creditBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.RequestPlantCredit(recordId, out string message); Say(message, ok); return true; });
+			content.AddChild(creditBtn);
+		}
+		if (desk.CanReverseTheSides(recordId)) {
+			int reverseQty = desk.MinimumPressRun(recordId);
+			var reverseBtn = Btn("REVERSE THE SIDES");
+			reverseBtn.CustomMinimumSize = new Vector2(240, 42);
+			reverseBtn.TooltipText = $"\"{title}\" has a flip that hasn't broken yet. Reverse the sides with a {reverseQty:N0}-unit all-promo repress " +
+				$"(${PlayerDesk.PressingCost(reverseQty, true):N0}); stations already carrying it will be re-serviced.";
+			reverseBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.ReverseTheSidesManually(recordId, out string message); Say(message, ok); return true; });
+			content.AddChild(reverseBtn);
+		}
+	}
+
+	/// <summary>SHIP DATE stage: date an assembled single for after its vinyl lands.</summary>
+	private void DateControls(PlayerDesk desk, PlayerDesk.PlannedRelease single) {
+		var daysRow = new HBoxContainer();
+		daysRow.AddThemeConstantOverride("separation", 10);
+		var daysLabel = FormLabel("Ship in (days)");
+		daysRow.AddChild(daysLabel);
+		var daysInput = Spin(desk.EarliestReleaseDays(single), 120, 1, desk.SuggestedReleaseDays(single));
+		daysRow.AddChild(daysInput);
+		var campaignLabel = FormLabel("Campaign ($)");
+		campaignLabel.MouseFilter = Control.MouseFilterEnum.Stop;
+		// The awareness a player record earns is supposed to come off the verbs on this branch (serviced jocks,
+		// the mailing, the review desk, the road), not off a slider, so the field opens at $0.
+		campaignLabel.TooltipText = "The campaign is shipping samples and a trade announcement, charged the day it ships. It is not a way to buy a hit: " +
+			"an $800 label leaves it at zero and earns its awareness on the road, with promo copies in jocks' hands, the mailing and the review desk.";
+		daysRow.AddChild(campaignLabel);
+		var budgetInput = Spin(0, 50000, 1, 0);
+		daysRow.AddChild(budgetInput);
+		content.AddChild(daysRow);
+
+		var datePreview = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		datePreview.AddThemeColorOverride("font_color", Rust);
+		content.AddChild(datePreview);
+		void UpdateDatePreview() {
+			GameDate shipDate = (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate).AddDays((int)daysInput.Value);
+			PlayerDesk.PressOrder inPlant = desk.PressingOrderFor(single.Master.Record.recordId);
+			string vinyl = inPlant != null ? $"The vinyl lands {inPlant.Arrives.ToHeadlineString()}; it can't ship before. " : "";
+			datePreview.Text = $"{vinyl}Setting the date takes {PlayerDesk.ScheduleHours}h. It ships {shipDate.ToHeadlineString()}; " +
+				$"campaign ${budgetInput.Value:N0} is charged on release.";
+		}
+		daysInput.ValueChanged += _ => UpdateDatePreview();
+		budgetInput.ValueChanged += _ => UpdateDatePreview();
+		UpdateDatePreview();
+
+		var setDate = Primary($"SET THE DATE  ({PlayerDesk.ScheduleHours}h)");
+		setDate.CustomMinimumSize = new Vector2(300, 44);
+		setDate.Pressed += () => Act(() => {
+			bool ok = PlayerDesk.Instance.SetReleaseDate(single, (int)daysInput.Value, (float)budgetInput.Value, out string message);
+			Say(message, ok);
+			return true;
+		});
+		content.AddChild(setDate);
+	}
+
+	/// <summary>The press stage of a title in the plant, as a strip: MASTER ✓ → MAILED ✓ → [PLATING] → ...</summary>
 	internal static string PipelinePressStage(PlayerDesk.PressOrder order, GameDate today) {
 		int stage = today < order.Mailed ? 1 : today < order.PlatingComplete ? 2 : today < order.QueueComplete ? 3 : today < order.Arrives ? 4 : 5;
 		string[] labels = { "MASTER", "MAILED", "PLATING", "PLANT QUEUE", "SHIPPED", "IN OFFICE" };
@@ -2077,6 +2318,14 @@ public partial class PlayerDeskPanel : Control {
 		return $"{strip}  •  ETA {eta}d ({order.Arrives.ToHeadlineString()})";
 	}
 
+	/// <summary>Which step of the plant's route a run is on right now, and the day that step ends.</summary>
+	internal static (string Name, GameDate Ends) PipelinePressStep(PlayerDesk.PressOrder order, GameDate today) =>
+		today < order.Mailed ? ("Mailed", order.Mailed)
+		: today < order.PlatingComplete ? ("Plating", order.PlatingComplete)
+		: today < order.QueueComplete ? ("Plant queue", order.QueueComplete)
+		: today < order.Arrives ? ("Shipped", order.Arrives)
+		: ("In the office", order.Arrives);
+
 	// ========================================================================
 	// DISTRIBUTION
 	// ========================================================================
@@ -2084,19 +2333,25 @@ public partial class PlayerDeskPanel : Control {
 	private void PageDistribution() {
 		PlayerDesk desk = PlayerDesk.Instance;
 		AILabel label = desk.Label;
-		Heading("DISTRIBUTION");
+		Heading("DISTRIBUTION", "The places your records go: the towns you drive to, the shops and operators in them, " +
+			"the stations and trades you work by mail, and the houses and distributors that carry you where you can't. " +
+			"Assembling, pressing and dating a record happen on its row in the CATALOG.");
+
+		// Sections whose precondition isn't met stay out of the page entirely; one line says what unlocks them.
+		bool hasReleased = desk.ReleasedRecords.Any(record => record?.baseRecord != null);
+		if (!hasReleased)
+			Body("More of this desk — the mailing, the trades, distribution deals and the wholesale houses — opens once your first single is out.");
 
 		// --- WHERE YOU ARE + DRIVING ---
 		MarketCity here = desk.CurrentCity;
 		string hereName = here?.name ?? "the office";
-		SectionHeading("travel", desk.AtHome ? "AT THE OFFICE" : $"ON THE ROAD — {hereName.ToUpperInvariant()}", !desk.AtHome || desk.PressedSinglesOnHand().Any());
-		Body(desk.AtHome
-			? "Assemble and press your records here, work your own home town out of the trunk, then set out to work " +
-			  "the towns you can reach. Trunk sales in the town you're standing in are cash in hand; a town you've " +
-			  "left holds your cut until you drive back to collect it."
-			: $"You're in {hereName}. Work this town out of the trunk, drive on to a neighbouring town, or head home. " +
-			  "Working or driving into a town collects whatever its shops have been holding for you. The office and " +
-			  "studio are out of reach until you're back — and every night away is a motel bill.");
+		SectionHeading("travel", desk.AtHome ? "AT THE OFFICE" : $"ON THE ROAD — {hereName.ToUpperInvariant()}", !desk.AtHome || desk.PressedSinglesOnHand().Any(),
+			desk.AtHome
+				? "Work your own home town out of the trunk, then set out to work the towns you can reach. Trunk sales in the town " +
+				  "you're standing in are cash in hand; a town you've left holds your cut until you drive back to collect it."
+				: $"You're in {hereName}. Work this town out of the trunk, drive on to a neighbouring town, or head home. " +
+				  "Working or driving into a town collects whatever its shops have been holding for you. The office and " +
+				  "studio are out of reach until you're back — and every night away is a motel bill.");
 
 		List<MarketCity> reach = desk.ReachableCities()
 			.OrderBy(c => ChartManager.Instance?.GetRegionById(c.parentRegionId)?.regionName ?? c.parentRegionId)
@@ -2131,20 +2386,25 @@ public partial class PlayerDeskPanel : Control {
 		// --- STOPS IN THIS TOWN: named shops and jukebox operators, each with its own relationship,
 		// stock, and terms -- pitch (COD, refusal is real), consign (worse cash, the low-risk fallback),
 		// or service (restock + collect, once a stop already has history) ---
-		SectionHeading("stops", $"STOPS IN {here.name.ToUpper()}", desk.PressedSinglesOnHand().Any() || desk.PromoSinglesOnHand().Any());
-		Body("PITCH places copies on COD terms: as customers buy them, you get paid in cash while you're in that town; " +
-			"when you're away, the account holds your cut until you return (with a small daily wire). CONSIGN is easier " +
-			"shelf space, but every sale goes onto the store's balance until you collect it. Account rows show shelf stock " +
-			"and money owed; SERVICE collects and restocks. The pressing cost was paid up front.");
 		List<(string RecordId, string Title, int OnHand)> onHand = desk.PressedSinglesOnHand().ToList();
 		List<(string RecordId, string Title, int PromoOnHand)> promoOnHand = desk.PromoSinglesOnHand().ToList();
 		List<PlayerDesk.PlayerStop> stopsHere = desk.StopsInCity(here.cityId).ToList();
 		// Flags which stops have a call waiting (directive §4) so the player doesn't have to cross-check
 		// the OFFICE phone list by hand while deciding who to work first.
 		var stopsWithCalls = new HashSet<string>(desk.PendingCalls().Select(c => c.Call.StopId), StringComparer.Ordinal);
-		if (onHand.Count == 0 && promoOnHand.Count == 0)
+		// Shops and operators matter once there is stock to place, or a stop here already holds copies, owes money or has called.
+		bool showStops = onHand.Count > 0 || promoOnHand.Count > 0 ||
+			stopsHere.Any(stop => stop.OnHand.Values.Sum(lot => lot.Remaining) > 0 || stop.OpenBalance > 0.5f || stopsWithCalls.Contains(stop.StopId));
+		if (showStops)
+			SectionHeading("stops", $"STOPS IN {here.name.ToUpper()}", onHand.Count > 0 || promoOnHand.Count > 0,
+				"PITCH places copies on COD terms: as customers buy them, you get paid in cash while you're in that town; " +
+				"when you're away, the account holds your cut until you return (with a small daily wire). CONSIGN is easier " +
+				"shelf space, but every sale goes onto the store's balance until you collect it. Account rows show shelf stock " +
+				"and money owed; SERVICE collects and restocks. The pressing cost was paid up front.");
+		if (!showStops) { }
+		else if (onHand.Count == 0 && promoOnHand.Count == 0)
 			Body(desk.AtHome
-				? "Nothing pressed on hand to sell or service yet — assemble a single and order a run below, then work a stop once it's in."
+				? "Nothing pressed on hand to sell or service right now — order a run from the CATALOG."
 				: "Nothing pressed on hand to leave here — you carry stock out from the office.");
 		else if (stopsHere.Count == 0)
 			Body("No named accounts in this town yet.");
@@ -2389,456 +2649,132 @@ public partial class PlayerDeskPanel : Control {
 			content.AddChild(home);
 		}
 
-		// --- ASSEMBLE A SINGLE (office only): pair two shelf masters so it can be pressed and, later, dated ---
-		if (desk.AtHome) {
-			if (focusAssemblyAfterPrint) sectionOpen["assemble"] = true;
-			Button assemblyHeading = SectionHeading("assemble", "ASSEMBLE A SINGLE", desk.Masters.Any(master => !master.Scheduled));
-			if (focusAssemblyAfterPrint) {
-				focusAssemblyAfterPrint = false;
-				Callable.From(() => {
-					if (IsInstanceValid(contentScroll) && IsInstanceValid(assemblyHeading))
-						contentScroll.ScrollVertical = Mathf.Max(0, (int)assemblyHeading.Position.Y - 20);
-				}).CallDeferred();
-			}
-			Body("A 45 is an A-side (the plug side that chases the chart) and a different B-side on the flip. Pair " +
-				"them here, then send the single to the plant below — you set its release date once you know the turnaround.");
-			List<PlayerDesk.Master> shelf = desk.Masters.Where(master => !master.Scheduled).ToList();
-			if (shelf.Count < 2) Body(desk.Planned.Any(single => !single.Dated)
-				? "Your assembled single is waiting below for a pressing and a release date. Cut two more masters to assemble another."
-				: "You need two masters on the shelf — cut an A-side and a B-side first.");
-			else {
-				var aRow = new HBoxContainer();
-				aRow.AddThemeConstantOverride("separation", 10);
-				aRow.AddChild(FormLabel("A-side"));
-				var aPicker = Option();
-				aPicker.CustomMinimumSize = new Vector2(460, 36);
-				foreach (PlayerDesk.Master master in shelf)
-					aPicker.AddItem($"\"{master.SongTitle}\" — {master.Record.artistName}");
-				aRow.AddChild(aPicker);
-				content.AddChild(aRow);
-
-				var bRow = new HBoxContainer();
-				bRow.AddThemeConstantOverride("separation", 10);
-				bRow.AddChild(FormLabel("B-side"));
-				var bPicker = Option();
-				bPicker.CustomMinimumSize = new Vector2(460, 36);
-				foreach (PlayerDesk.Master master in shelf)
-					bPicker.AddItem($"\"{master.SongTitle}\" — {master.Record.artistName}");
-				bPicker.Selected = 1;
-				bRow.AddChild(bPicker);
-				content.AddChild(bRow);
-
-				var assemble = Btn("ASSEMBLE THE SINGLE");
-				assemble.CustomMinimumSize = new Vector2(300, 42);
-				assemble.Pressed += () => Act(() => {
-					PlayerDesk.Master aSide = shelf[Mathf.Clamp(aPicker.Selected, 0, shelf.Count - 1)];
-					PlayerDesk.Master bSide = shelf[Mathf.Clamp(bPicker.Selected, 0, shelf.Count - 1)];
-					bool ok = PlayerDesk.Instance.AssembleSingle(aSide, bSide, out string message);
-					Say(message, ok);
-					return true;
-				});
-				content.AddChild(assemble);
-			}
-		}
-
-		// --- PRESSING (office only) ---
-		SectionHeading("plant", "THE PRESSING PLANT", NeedsPressing(desk));
-		Body($"First pressing needs {PlayerDesk.PressMinimumOrder}. About {PlayerDesk.PressVinylPerUnit + PlayerDesk.PressSleeveLabelPerUnit:F2}/disc " +
-			$"plus ${PlayerDesk.PressLacquerSetup:N0} lacquer setup (once per title) and ${PlayerDesk.PressShipping:N0} for sleeves, labels and freight. " +
-			$"Once a title's stampers are cut, a repress can run as low as {PlayerDesk.PressReorderMinimum} with no lacquer fee. " +
-			"A run is a whole 45 — both sides on the one disc — and the plant takes weeks to turn it round.");
-		if (!desk.AtHome) Body("You place a run from the office — drive home to order.");
-		else {
-			List<(string RecordId, string Title, bool InMarket)> singles = desk.PressableSingles().ToList();
-			if (singles.Count == 0) Body("Assemble a single first — you press a finished 45, both sides together.");
-			else {
-				var pickRow = new HBoxContainer();
-				pickRow.AddThemeConstantOverride("separation", 10);
-				var singlePicker = Option();
-				singlePicker.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				singlePicker.CustomMinimumSize = new Vector2(0, 36);
-				singlePicker.AddItem("Choose a single to press…");
-				foreach ((string recordId, string title, bool inMarket) in singles) {
-					PlayerDesk.PressStock stock = desk.StockFor(recordId);
-					bool repressable = desk.HasBeenPressed(recordId);
-					PlayerDesk.PressOrder onOrder = desk.PressingOrderFor(recordId);
-					singlePicker.AddItem($"\"{title}\"{(inMarket ? "" : " (upcoming)")}  —  {(stock?.Remaining ?? 0):N0} sellable, {(stock?.PromoRemaining ?? 0):N0} promo in the office{(repressable ? " (repress)" : "")}" +
-						(onOrder != null ? $"  —  ON ORDER, due {onOrder.Arrives.ToHeadlineString()}" : ""));
-				}
-				int selectedPressIndex = singles.FindIndex(single => single.RecordId == selectedPressRecordId);
-				if (selectedPressIndex >= 0) singlePicker.Selected = selectedPressIndex + 1;
-				else selectedPressRecordId = null;
-				pickRow.AddChild(singlePicker);
-				content.AddChild(pickRow);
-
-				var runSizeRow = new HBoxContainer();
-				runSizeRow.AddThemeConstantOverride("separation", 10);
-				runSizeRow.AddChild(FormLabel("Qty"));
-				string initialRecordId = selectedPressIndex >= 0 ? singles[selectedPressIndex].RecordId : singles[0].RecordId;
-				int initialMin = desk.MinimumPressRun(initialRecordId);
-				var qtyInput = Spin(initialMin, 100000, 1, initialMin);
-				runSizeRow.AddChild(qtyInput);
-				runSizeRow.AddChild(FormLabel("Promo (of Qty)"));
-				// Directive §3.1: "Suggested UI default on a first run: 120 of 500" -- roughly a quarter
-				// of the minimum run, capped at PressPromoCapFraction. A repress carries no cap, and
-				// opens at zero (see PlayerDesk.SuggestedPromoCount).
-				var promoInput = Spin(0, initialMin, 1, desk.SuggestedPromoCount(initialRecordId, initialMin));
-				runSizeRow.AddChild(promoInput);
-				content.AddChild(runSizeRow);
-
-				var runCost = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-				runCost.AddThemeColorOverride("font_color", Rust);
-				content.AddChild(runCost);
-				Button order = null;
-				void UpdateRunCost() {
-					if (singlePicker.Selected <= 0) {
-						runCost.Text = "Choose a title before ordering a pressing.";
-						if (order != null) order.Disabled = true;
-						return;
-					}
-					string recordId = singles[Mathf.Clamp(singlePicker.Selected - 1, 0, singles.Count - 1)].RecordId;
-					if (order != null) order.Disabled = false;
-					// A run already in the plant: the button stops reading like a first order. It still works, behind
-					// a confirm, because a second run is sometimes right -- but it never looks like a fresh one.
-					PlayerDesk.PressOrder inPlant = desk.PressingOrderFor(recordId);
-					if (order != null) order.Text = inPlant != null ? "ORDER ANOTHER PRESSING…" : "ORDER PRESSING";
-					bool repress = desk.HasBeenPressed(recordId);
-					int qty = (int)qtyInput.Value;
-					float cost = PlayerDesk.PressingCost(qty, repress);
-					int promoCap = desk.MaxPromoCount(recordId, qty);
-					promoInput.MaxValue = promoCap;
-					if (promoInput.Value > promoCap) promoInput.Value = promoCap;
-					int promo = (int)promoInput.Value;
-					// Bug report: "make it clearer this [promo count] comes FROM the total amount of printed
-					// vinyl, not an added amount of records" -- and drop the estimated-sales-lost figure, which
-					// only muddied that point. Spelling out the qty/promo split directly (qty - promo sellable,
-					// promo out of this run) makes the subtraction visible instead of implying an extra cost.
-					runCost.Text =
-						(inPlant != null ? $"ALREADY ON ORDER: {inPlant.Quantity:N0} due {inPlant.Arrives.ToHeadlineString()}. This would be a second run.  ·  " : "") +
-						$"Run cost: ${cost:N0}  (${cost / Math.Max(1.0, qty):F2}/disc){(repress ? " — repress, no lacquer fee" : "")}" +
-						(promo > 0 ? $"   ·   {qty - promo:N0} sellable + {promo:N0} promo, out of this {qty:N0}-unit run" : "") +
-						(repress ? "" : $"   ·   promo capped at {promoCap:N0} ({PlayerDesk.PressPromoCapFraction:P0})") +
-						$"   ·   cash after order: {Money(desk.Label.cashReserves - cost)}{MonthEndCashPreview(desk.Label, desk.Label.cashReserves - cost)}";
-				}
-				(string RecordId, string Title, bool InMarket) picked = default;
-				var pressExtras = new VBoxContainer();
-				void AddExtraBody(string text) {
-					var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
-					label.AddThemeColorOverride("font_color", Ink);
-					pressExtras.AddChild(label);
-				}
-				void UpdatePressExtras() {
-					Clear(pressExtras);
-					picked = singlePicker.Selected > 0 ? singles[singlePicker.Selected - 1] : default;
-					if (string.IsNullOrEmpty(picked.RecordId)) return;
-					int fillDemand = desk.OpenCallDemand(picked.RecordId);
-					if (fillDemand > 0) {
-						int fillQty = desk.PressToFillQuantity(picked.RecordId);
-						var fill = Btn($"PRESS TO FILL OPEN CALLS  (~{fillQty:N0}, {fillDemand:N0} asked for)");
-						fill.CustomMinimumSize = new Vector2(300, 42);
-						fill.Pressed += () => Act(() => {
-							bool ok = PlayerDesk.Instance.PressToFill(picked.RecordId, out string message);
-							Say(message, ok);
-							return true;
-						});
-						pressExtras.AddChild(fill);
-					}
-
-					var creditOwed = desk.PlantCreditOwed;
-					if (creditOwed.HasValue) {
-						var (creditRecordId, amount, weeksAway) = creditOwed.Value;
-						string creditTitle = singles.FirstOrDefault(s => s.RecordId == creditRecordId).Title ?? creditRecordId;
-						AddExtraBody($"Plant credit outstanding: ${amount:N0} due on \"{creditTitle}\" in {weeksAway} week(s) — it collects on schedule whether or not the record's still moving.");
-					} else if (desk.PlantCreditEligible(picked.RecordId)) {
-						float creditCost = PlayerDesk.PressingCost(PlayerDesk.PlantCreditQuantity, desk.HasBeenPressed(picked.RecordId));
-						AddExtraBody($"\"{picked.Title}\" is moving enough that the plant would front a run: {PlayerDesk.PlantCreditQuantity:N0} units, nothing down, ${creditCost:N0} due in {PlayerDesk.PlantCreditTermWeeks} weeks.");
-						var creditBtn = Btn($"TAKE THE CREDIT RUN  ({PlayerDesk.PlantCreditHours}h)");
-						creditBtn.CustomMinimumSize = new Vector2(260, 42);
-						creditBtn.Pressed += () => Act(() => {
-							bool ok = PlayerDesk.Instance.RequestPlantCredit(picked.RecordId, out string message);
-							Say(message, ok);
-							return true;
-						});
-						pressExtras.AddChild(creditBtn);
-					}
-					if (desk.CanReverseTheSides(picked.RecordId)) {
-						int reverseQty = desk.MinimumPressRun(picked.RecordId);
-						float reverseCost = PlayerDesk.PressingCost(reverseQty, true);
-						AddExtraBody($"\"{picked.Title}\" has a flip that hasn't broken yet. Reverse the sides with a {reverseQty:N0}-unit all-promo repress (${reverseCost:N0}); stations already carrying it will be re-serviced.");
-						var reverseBtn = Btn("REVERSE THE SIDES");
-						reverseBtn.CustomMinimumSize = new Vector2(240, 42);
-						reverseBtn.Pressed += () => Act(() => {
-							bool ok = PlayerDesk.Instance.ReverseTheSidesManually(picked.RecordId, out string message);
-							Say(message, ok);
-							return true;
-						});
-						pressExtras.AddChild(reverseBtn);
-					}
-				}
-				qtyInput.ValueChanged += _ => UpdateRunCost();
-				promoInput.ValueChanged += _ => UpdateRunCost();
-				singlePicker.ItemSelected += idx => {
-					if (idx <= 0) {
-						selectedPressRecordId = null;
-						UpdateRunCost();
-						UpdatePressExtras();
-						return;
-					}
-					string pickedId = singles[Mathf.Clamp((int)idx - 1, 0, singles.Count - 1)].RecordId;
-					selectedPressRecordId = pickedId;
-					int minRun = desk.MinimumPressRun(pickedId);
-					qtyInput.MinValue = minRun;
-					if (qtyInput.Value < minRun) qtyInput.Value = minRun;
-					// A different title is a fresh ticket -- re-open on that title's suggested promo split
-					// rather than carrying the last one's number across.
-					promoInput.Value = desk.SuggestedPromoCount(pickedId, (int)qtyInput.Value);
-					UpdateRunCost();
-					UpdatePressExtras();
-				};
-				UpdateRunCost();
-
-				order = Btn("ORDER PRESSING");
-				order.CustomMinimumSize = new Vector2(240, 42);
-				UpdateRunCost();
-				void SubmitPress(string recordId, bool confirmAdditionalRun, int runQuantity, int runPromo) => Act(() => {
-					bool ordered = PlayerDesk.Instance.OrderPressing(recordId, runQuantity, runPromo,
-						out string message, confirmAdditionalRun);
-					Say(message, ordered);
-					if (ordered) selectedPressRecordId = null;
-					return true;
-				});
-				order.Pressed += () => {
-					if (singlePicker.Selected <= 0) return;
-					string recordId = singles[Mathf.Clamp(singlePicker.Selected - 1, 0, singles.Count - 1)].RecordId;
-					PlayerDesk.PressOrder pending = desk.PressingOrderFor(recordId);
-					if (pending == null) {
-						int runQty = (int)qtyInput.Value, runPromo = (int)promoInput.Value;
-						float runCost = PlayerDesk.PressingCost(runQty, desk.HasBeenPressed(recordId));
-						if (!WarnIfUnderOverhead($"A run of {runQty:N0}", runCost, $"PRESS IT — ${runCost:N0}", () => SubmitPress(recordId, false, runQty, runPromo)))
-							SubmitPress(recordId, false, runQty, runPromo);
-						return;
-					}
-					int extraQty = (int)qtyInput.Value, extraPromo = (int)promoInput.Value;
-					float extraCost = PlayerDesk.PressingCost(extraQty, desk.HasBeenPressed(recordId));
-					var confirm = PaperModal.Open(this, "ORDER ANOTHER PRESSING?", 600);
-					confirm.AddText($"A run of \"{singles[Mathf.Clamp(singlePicker.Selected - 1, 0, singles.Count - 1)].Title}\" is already due {pending.Arrives.ToHeadlineString()}.");
-					bool canAfford = desk.Label.cashReserves >= extraCost;
-					confirm.AddText(canAfford
-						? $"Order another {qtyInput.Value:N0} now for ${extraCost:N0}? You'd have {Money(desk.Label.cashReserves - extraCost)} left."
-						: $"Another {qtyInput.Value:N0} costs ${extraCost:N0}, and you're {Money(extraCost - desk.Label.cashReserves)} short.");
-					confirm.AddButton("NOT NOW", null);
-					confirm.AddButton($"ORDER ANOTHER ${extraCost:N0}", () => SubmitPress(recordId, true, extraQty, extraPromo), PaperModal.ButtonKind.Primary).Disabled = !canAfford;
-				};
-				content.AddChild(order);
-				content.AddChild(pressExtras);
-				UpdatePressExtras();
-
-			}
-		}
-
-		var pending = desk.PendingPressings().ToList();
-		if (pending.Count > 0) {
-			Body("At the plant now:");
-			foreach ((string title, int quantity, GameDate arrives) in pending)
-				Body($"    {quantity:N0} of \"{title}\"  —  due {arrives.ToHeadlineString()}");
-		}
-
 		// --- THE MAILING (office only, directive §5): the only way to touch a market you can't drive to ---
-		SectionHeading("mailing", "THE MAILING", false);
-		Body($"Office only. {ActionCosts.Planning}h for up to {PlayerDesk.MailingFreePieces} pieces, plus an hour per further " +
-			$"{PlayerDesk.MailingPiecesPerExtraHour}. About ${PlayerDesk.MailerCostPerCopy:F2}/copy for the mailer and postage. " +
-			"Most of it lands in the bin — what lands only just gets him listening.");
-		if (!desk.AtHome) {
-			Body("You mail from the office — drive home to work the list.");
-		} else if (promoOnHand.Count == 0) {
-			Body("No promo copies on hand to mail — press some, or strike a repress all-promo.");
-		} else {
-			List<MarketRegion> regions = (ChartManager.Instance?.GetAllRegions() ?? Enumerable.Empty<MarketRegion>())
-				.OrderBy(r => r.regionName).ToList();
-			if (regions.Count == 0) Body("No market data.");
-			else {
-				var mailRow = new HBoxContainer();
-				mailRow.AddThemeConstantOverride("separation", 10);
-				var mailSinglePick = Option();
-				mailSinglePick.CustomMinimumSize = new Vector2(320, 36);
-				foreach ((string _, string title, int inHand) in promoOnHand)
-					mailSinglePick.AddItem($"\"{title}\" — {inHand:N0} promo on hand");
-				mailRow.AddChild(mailSinglePick);
+		if (promoOnHand.Count > 0) {
+			SectionHeading("mailing", "THE MAILING", false,
+				$"Office only. {ActionCosts.Planning}h for up to {PlayerDesk.MailingFreePieces} pieces, plus an hour per further " +
+				$"{PlayerDesk.MailingPiecesPerExtraHour}. About ${PlayerDesk.MailerCostPerCopy:F2}/copy for the mailer and postage. " +
+				"The only way to touch a market you can't drive to. Most of it lands in the bin — what lands only just gets him listening.");
+			if (!desk.AtHome) {
+				Body("You mail from the office — drive home to work the list.");
+			} else if (promoOnHand.Count == 0) {
+				Body("No promo copies on hand to mail — press some, or strike a repress all-promo.");
+			} else {
+				List<MarketRegion> regions = (ChartManager.Instance?.GetAllRegions() ?? Enumerable.Empty<MarketRegion>())
+					.OrderBy(r => r.regionName).ToList();
+				if (regions.Count == 0) Body("No market data.");
+				else {
+					var mailRow = new HBoxContainer();
+					mailRow.AddThemeConstantOverride("separation", 10);
+					var mailSinglePick = Option();
+					mailSinglePick.CustomMinimumSize = new Vector2(320, 36);
+					foreach ((string _, string title, int inHand) in promoOnHand)
+						mailSinglePick.AddItem($"\"{title}\" — {inHand:N0} promo on hand");
+					mailRow.AddChild(mailSinglePick);
 
-				var regionPick = Option();
-				regionPick.CustomMinimumSize = new Vector2(240, 36);
-				foreach (MarketRegion r in regions) regionPick.AddItem(r.regionName);
-				mailRow.AddChild(regionPick);
+					var regionPick = Option();
+					regionPick.CustomMinimumSize = new Vector2(240, 36);
+					foreach (MarketRegion r in regions) regionPick.AddItem(r.regionName);
+					mailRow.AddChild(regionPick);
 
-				mailRow.AddChild(FormLabel("Copies"));
-				var mailCount = Spin(1, 500, 1, 25);
-				mailRow.AddChild(mailCount);
-				content.AddChild(mailRow);
+					mailRow.AddChild(FormLabel("Copies"));
+					var mailCount = Spin(1, 500, 1, 25);
+					mailRow.AddChild(mailCount);
+					content.AddChild(mailRow);
 
-				var mailBtn = Btn("MAIL THE LIST");
-				mailBtn.CustomMinimumSize = new Vector2(200, 42);
-				mailBtn.Pressed += () => Act(() => {
-					if (promoOnHand.Count == 0) return false;
-					string recordId = promoOnHand[Mathf.Clamp(mailSinglePick.Selected, 0, promoOnHand.Count - 1)].RecordId;
-					string regionId = regions[Mathf.Clamp(regionPick.Selected, 0, regions.Count - 1)].regionId;
-					bool ok = PlayerDesk.Instance.MailPromoCopies(recordId, regionId, (int)mailCount.Value, out string message);
-					Say(message, ok);
-					return true;
-				});
-				content.AddChild(mailBtn);
+					var mailBtn = Btn("MAIL THE LIST");
+					mailBtn.CustomMinimumSize = new Vector2(200, 42);
+					mailBtn.Pressed += () => Act(() => {
+						if (promoOnHand.Count == 0) return false;
+						string recordId = promoOnHand[Mathf.Clamp(mailSinglePick.Selected, 0, promoOnHand.Count - 1)].RecordId;
+						string regionId = regions[Mathf.Clamp(regionPick.Selected, 0, regions.Count - 1)].regionId;
+						bool ok = PlayerDesk.Instance.MailPromoCopies(recordId, regionId, (int)mailCount.Value, out string message);
+						Say(message, ok);
+						return true;
+					});
+					content.AddChild(mailBtn);
+				}
 			}
 		}
 
 		// --- THE TRADES (office only, directive §6.1/§6.3): the review desk and the breakout column ---
-		SectionHeading("trades", "THE TRADES", false);
-		Body($"One submission per record, {ActionCosts.Paperwork}h and one promo copy plus ${PlayerDesk.TradeReviewPostage:F2} postage. " +
-			"A week or two later you hear back — most records got nothing. A real pick talks to distributors " +
-			"and one-stops, not to the public.");
-		if (!desk.AtHome) {
-			Body("You work the trades from the office.");
-		} else {
-			List<RecordRuntimeData> tradeReleased = desk.ReleasedRecords.Where(r => r?.baseRecord != null).ToList();
-			if (tradeReleased.Count == 0) Body("Nothing released yet to submit.");
-			else {
-				foreach (RecordRuntimeData rec in tradeReleased) {
-					string recordId = rec.baseRecord.recordId;
-					string title = rec.baseRecord.title;
-					var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-					row.AddThemeConstantOverride("separation", 4);
-					var titleLabel = new Label { Text = $"    \"{title}\"", SizeFlagsHorizontal = SizeFlags.ExpandFill };
-					titleLabel.AddThemeColorOverride("font_color", Ink);
-					row.AddChild(titleLabel);
+		if (hasReleased) {
+			SectionHeading("trades", "THE TRADES", false,
+				$"One submission per record, {ActionCosts.Paperwork}h and one promo copy plus ${PlayerDesk.TradeReviewPostage:F2} postage. " +
+				"A week or two later you hear back — most records got nothing. A real pick talks to distributors " +
+				"and one-stops, not to the public.");
+			if (!desk.AtHome) {
+				Body("You work the trades from the office.");
+			} else {
+				List<RecordRuntimeData> tradeReleased = desk.ReleasedRecords.Where(r => r?.baseRecord != null).ToList();
+				if (tradeReleased.Count == 0) Body("Nothing released yet to submit.");
+				else {
+					foreach (RecordRuntimeData rec in tradeReleased) {
+						string recordId = rec.baseRecord.recordId;
+						string title = rec.baseRecord.title;
+						var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+						row.AddThemeConstantOverride("separation", 4);
+						var titleLabel = new Label { Text = $"    \"{title}\"", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+						titleLabel.AddThemeColorOverride("font_color", Ink);
+						row.AddChild(titleLabel);
 
-					string status;
-					if (desk.HasPendingTradeSubmission(recordId)) status = "at the desk, waiting to hear back";
-					else {
-						TradeOutcome outcome = desk.ActiveTradeOutcome(recordId);
-						status = outcome != TradeOutcome.Nothing ? $"{PlayerDesk.TradeOutcomeLabel(outcome)} — live"
-							: desk.HasEverSubmittedToTrade(recordId) ? "came back with nothing" : "not submitted";
+						string status;
+						if (desk.HasPendingTradeSubmission(recordId)) status = "at the desk, waiting to hear back";
+						else {
+							TradeOutcome outcome = desk.ActiveTradeOutcome(recordId);
+							status = outcome != TradeOutcome.Nothing ? $"{PlayerDesk.TradeOutcomeLabel(outcome)} — live"
+								: desk.HasEverSubmittedToTrade(recordId) ? "came back with nothing" : "not submitted";
+						}
+						List<string> breakouts = desk.BreakoutRegionNames(recordId).ToList();
+						if (breakouts.Count > 0) status += $"  ·  BREAKOUT: {string.Join(", ", breakouts)}";
+						TradeAdTier? activeAd = desk.ActiveTradeAdTier(recordId);
+						if (activeAd.HasValue) status += $"  ·  {PlayerDesk.TradeAdTierName(activeAd.Value)} ad running";
+						var statusLabel = new Label {
+							Text = status, SizeFlagsHorizontal = SizeFlags.ExpandFill,
+							AutowrapMode = TextServer.AutowrapMode.WordSmart
+						};
+						statusLabel.AddThemeColorOverride("font_color", Ink);
+						row.AddChild(statusLabel);
+
+						if (!desk.HasEverSubmittedToTrade(recordId)) {
+							var submitBtn = Btn("SUBMIT TO REVIEW DESK");
+							submitBtn.CustomMinimumSize = new Vector2(220, 32);
+							submitBtn.Pressed += () => Act(() => {
+								bool ok = PlayerDesk.Instance.SubmitToReviewDesk(recordId, out string message);
+								Say(message, ok);
+								return true;
+							});
+							row.AddChild(submitBtn);
+						}
+						content.AddChild(row);
+
+						// Directive §6.2: a guaranteed, paid version of the same signal -- $75/$250/$600, era
+						// rate, not a genuine gamble tier. A full page is most of an $800 label's cash in one line.
+						var adRow = new HBoxContainer();
+						adRow.AddThemeConstantOverride("separation", 10);
+						var adLabel = FormLabel("        Trade ad:");
+						adLabel.CustomMinimumSize = new Vector2(120, 28);
+						adRow.AddChild(adLabel);
+						foreach (TradeAdTier tier in new[] { TradeAdTier.QuarterPage, TradeAdTier.HalfPage, TradeAdTier.FullPage }) {
+							var adBtn = Btn($"{PlayerDesk.TradeAdTierName(tier).ToUpper()} (${PlayerDesk.TradeAdCost(tier):N0})");
+							adBtn.CustomMinimumSize = new Vector2(160, 28);
+							adBtn.Pressed += () => Act(() => {
+								bool ok = PlayerDesk.Instance.BuyTradeAd(recordId, tier, out string message);
+								Say(message, ok);
+								return true;
+							});
+							adRow.AddChild(adBtn);
+						}
+						content.AddChild(adRow);
 					}
-					List<string> breakouts = desk.BreakoutRegionNames(recordId).ToList();
-					if (breakouts.Count > 0) status += $"  ·  BREAKOUT: {string.Join(", ", breakouts)}";
-					TradeAdTier? activeAd = desk.ActiveTradeAdTier(recordId);
-					if (activeAd.HasValue) status += $"  ·  {PlayerDesk.TradeAdTierName(activeAd.Value)} ad running";
-					var statusLabel = new Label {
-						Text = status, SizeFlagsHorizontal = SizeFlags.ExpandFill,
-						AutowrapMode = TextServer.AutowrapMode.WordSmart
-					};
-					statusLabel.AddThemeColorOverride("font_color", Ink);
-					row.AddChild(statusLabel);
-
-					if (!desk.HasEverSubmittedToTrade(recordId)) {
-						var submitBtn = Btn("SUBMIT TO REVIEW DESK");
-						submitBtn.CustomMinimumSize = new Vector2(220, 32);
-						submitBtn.Pressed += () => Act(() => {
-							bool ok = PlayerDesk.Instance.SubmitToReviewDesk(recordId, out string message);
-							Say(message, ok);
-							return true;
-						});
-						row.AddChild(submitBtn);
-					}
-					content.AddChild(row);
-
-					// Directive §6.2: a guaranteed, paid version of the same signal -- $75/$250/$600, era
-					// rate, not a genuine gamble tier. A full page is most of an $800 label's cash in one line.
-					var adRow = new HBoxContainer();
-					adRow.AddThemeConstantOverride("separation", 10);
-					var adLabel = FormLabel("        Trade ad:");
-					adLabel.CustomMinimumSize = new Vector2(120, 28);
-					adRow.AddChild(adLabel);
-					foreach (TradeAdTier tier in new[] { TradeAdTier.QuarterPage, TradeAdTier.HalfPage, TradeAdTier.FullPage }) {
-						var adBtn = Btn($"{PlayerDesk.TradeAdTierName(tier).ToUpper()} (${PlayerDesk.TradeAdCost(tier):N0})");
-						adBtn.CustomMinimumSize = new Vector2(160, 28);
-						adBtn.Pressed += () => Act(() => {
-							bool ok = PlayerDesk.Instance.BuyTradeAd(recordId, tier, out string message);
-							Say(message, ok);
-							return true;
-						});
-						adRow.AddChild(adBtn);
-					}
-					content.AddChild(adRow);
 				}
-			}
 
-			List<(string LabelName, string Title, string RegionName)> rivalBreakouts = desk.RivalBreakoutListings().Take(6).ToList();
-			if (rivalBreakouts.Count > 0) {
-				Body("This week's breakout column, elsewhere:");
-				foreach ((string labelName, string title, string regionName) in rivalBreakouts)
-					Body($"    {labelName} — \"{title}\" breaking out in {regionName}");
-			}
-		}
-
-		// --- SET THE RELEASE DATE (office only): date an assembled single now the plant's quoted a turnaround ---
-		if (desk.AtHome) {
-			SectionHeading("release", "SET THE RELEASE DATE", desk.UndatedSingles().Any(single => desk.EarliestReleaseDays(single) > 0));
-			Body($"Costs {PlayerDesk.ScheduleHours} hours. Date an assembled single for after its vinyl lands — check " +
-				"the plant's due dates above. Where it's sold is set below.");
-			Body("The campaign is shipping samples and a trade announcement, charged the day it ships — not a way to " +
-				"buy a hit. An $800 label leaves it at zero and earns its awareness on the road: promo copies in " +
-				"jocks' hands, the mailing, the review desk.");
-			List<PlayerDesk.PlannedRelease> undated = desk.UndatedSingles()
-				.Where(single => desk.EarliestReleaseDays(single) > 0).ToList();
-			if (undated.Count == 0) Body(desk.UndatedSingles().Any()
-				? "Order a pressing first. The plant's arrival date sets the earliest day this record can ship."
-				: "No single assembled and waiting on a date.");
-			else {
-				var pickRow = new HBoxContainer();
-				pickRow.AddThemeConstantOverride("separation", 10);
-				var singleDatePick = Option();
-				singleDatePick.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-				singleDatePick.CustomMinimumSize = new Vector2(0, 36);
-				foreach (PlayerDesk.PlannedRelease single in undated) {
-					PlayerDesk.PressOrder order = desk.PressingOrderFor(single.Master.Record.recordId);
-					string availability = order != null ? $"vinyl due {order.Arrives.ToHeadlineString()}" : "pressed stock in office";
-					singleDatePick.AddItem($"\"{single.Master.SongTitle}\"{(single.BSide != null ? $" b/w \"{single.BSide.SongTitle}\"" : "")} — {single.Master.Record.artistName} · {availability}");
+				List<(string LabelName, string Title, string RegionName)> rivalBreakouts = desk.RivalBreakoutListings().Take(6).ToList();
+				if (rivalBreakouts.Count > 0) {
+					Body("This week's breakout column, elsewhere:");
+					foreach ((string labelName, string title, string regionName) in rivalBreakouts)
+						Body($"    {labelName} — \"{title}\" breaking out in {regionName}");
 				}
-				pickRow.AddChild(singleDatePick);
-				content.AddChild(pickRow);
-
-				var daysRow = new HBoxContainer();
-				daysRow.AddThemeConstantOverride("separation", 10);
-				daysRow.AddChild(FormLabel("Ship in (days)"));
-				int firstEarliest = desk.EarliestReleaseDays(undated[0]);
-				var daysInput = Spin(firstEarliest, 120, 1, desk.SuggestedReleaseDays(undated[0]));
-				daysRow.AddChild(daysInput);
-				daysRow.AddChild(FormLabel("Campaign ($)"));
-				// Promo mechanic directive §11: "default the field to $0." The awareness a player record
-				// earns is supposed to come off the verbs on this branch -- serviced jocks, the mailing,
-				// the trades, the road -- not off a slider. A pre-filled figure taught the exact opposite
-				// lesson on the one screen where it mattered most.
-				var budgetInput = Spin(0, 50000, 1, 0);
-				daysRow.AddChild(budgetInput);
-				content.AddChild(daysRow);
-				var datePreview = new Label();
-				datePreview.AddThemeColorOverride("font_color", Rust);
-				content.AddChild(datePreview);
-				void UpdateDatePreview() {
-					PlayerDesk.PlannedRelease selected = undated[Mathf.Clamp(singleDatePick.Selected, 0, undated.Count - 1)];
-					GameDate shipDate = (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate).AddDays((int)daysInput.Value);
-					PlayerDesk.PressOrder inPlant = desk.PressingOrderFor(selected.Master.Record.recordId);
-					string vinyl = inPlant != null ? $"The vinyl lands {inPlant.Arrives.ToHeadlineString()}; it can't ship before. " : "";
-					datePreview.Text = $"{vinyl}Setting the date takes {PlayerDesk.ScheduleHours}h. \"{selected.Master.SongTitle}\" ships {shipDate.ToHeadlineString()}; " +
-						$"campaign ${budgetInput.Value:N0} is charged on release.";
-				}
-				singleDatePick.ItemSelected += index => {
-					PlayerDesk.PlannedRelease picked = undated[Mathf.Clamp((int)index, 0, undated.Count - 1)];
-					daysInput.MinValue = desk.EarliestReleaseDays(picked);
-					daysInput.Value = desk.SuggestedReleaseDays(picked);
-					UpdateDatePreview();
-				};
-				daysInput.ValueChanged += _ => UpdateDatePreview();
-				budgetInput.ValueChanged += _ => UpdateDatePreview();
-				UpdateDatePreview();
-
-				var setDate = Btn($"SET THE DATE  ({PlayerDesk.ScheduleHours}h)");
-				setDate.CustomMinimumSize = new Vector2(300, 44);
-				setDate.Pressed += () => Act(() => {
-					PlayerDesk.PlannedRelease single = undated[Mathf.Clamp(singleDatePick.Selected, 0, undated.Count - 1)];
-					bool ok = PlayerDesk.Instance.SetReleaseDate(single, (int)daysInput.Value, (float)budgetInput.Value, out string message);
-					Say(message, ok);
-					return true;
-				});
-				content.AddChild(setDate);
 			}
 		}
 
@@ -2846,86 +2782,92 @@ public partial class PlayerDeskPanel : Control {
 		ArtistBuyInSection(desk);
 
 		// --- STOCK OUT IN THE TOWNS ---
-		SectionHeading("towns", "OUT IN THE TOWNS", false);
 		var stopStock = desk.StopStock().OrderBy(s => s.CityName).ThenBy(s => s.StopName).ToList();
-		if (stopStock.Count == 0) Body("No stock out at any account yet. Press a run, then drive it out and pitch or consign it.");
-		else
-			foreach ((string cityName, string stopName, string title, int remaining) in stopStock)
-				Body($"    {cityName} — {stopName}: {remaining:N0} of \"{title}\" left on the shelves");
-
 		var owedByStop = desk.OpenBalancesByStop().OrderByDescending(t => t.Amount).ToList();
-		if (owedByStop.Count > 0) {
-			Body("Waiting to be collected (drive back to pocket the lump; a thin wire trickles in meanwhile):");
-			foreach ((string cityName, string stopName, float amount) in owedByStop)
-				Body($"    {cityName} — {stopName}: ${amount:N0} they're holding for you");
+		if (stopStock.Count > 0 || owedByStop.Count > 0) {
+			SectionHeading("towns", "OUT IN THE TOWNS", false,
+				"Copies sitting on shelves at accounts you've placed, and the money those accounts are holding for you.");
+			if (stopStock.Count > 0)
+				foreach ((string cityName, string stopName, string title, int remaining) in stopStock)
+					Body($"    {cityName} — {stopName}: {remaining:N0} of \"{title}\" left on the shelves");
+
+			if (owedByStop.Count > 0) {
+				Body("Waiting to be collected (drive back to pocket the lump; a thin wire trickles in meanwhile):");
+				foreach ((string cityName, string stopName, float amount) in owedByStop)
+					Body($"    {cityName} — {stopName}: ${amount:N0} they're holding for you");
+			}
 		}
 
 		// --- P&D DISTRIBUTION DEAL (directive §9) ---
-		SectionHeading("pnd", "P&D DISTRIBUTION DEAL", false);
-		if (label.activeDeal != null) {
-			var deal = label.activeDeal;
-			string distName = CompetitorManager.Instance?.GetLabel(deal.distributorId)?.labelName ?? deal.distributorId;
-			int weeksLeft = Mathf.Max(0, deal.signedWeek + deal.termWeeks - (ChartManager.Instance?.GetCurrentChartWeek() ?? 0));
-			Body($"Under contract to {distName} — {deal.marginSkim:P0} skim, {weeksLeft} week(s) left on the term" +
-				(deal.ownsMasters ? ", masters signed away." : ", masters still yours.") +
-				(deal.unrecoupedAdvance > 0.5f ? $" ${deal.unrecoupedAdvance:N0} of the advance still unrecouped." : ""));
-		} else if (desk.PendingDistributionOffer != null) {
-			var offer = desk.PendingDistributionOffer;
-			string distName = desk.PendingDistributionOfferDistributorName ?? offer.distributorId;
-			Body($"{distName} is offering: {offer.marginSkim:P0} skim, {offer.termWeeks}-week term" +
-				(offer.advance > 0f ? $", ${offer.advance:N0} advance" : ", no advance") +
-				(offer.ownsMasters ? ", and they take the masters." : ", masters stay yours.") +
-				" Decide before pursuing anything else.");
-			var offerRow = new HBoxContainer();
-			offerRow.AddThemeConstantOverride("separation", 10);
-			var acceptBtn = Btn("SIGN");
-			acceptBtn.CustomMinimumSize = new Vector2(140, 40);
-			acceptBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.AcceptDistributionOffer(out string message); Say(message, ok); return ok; });
-			offerRow.AddChild(acceptBtn);
-			var declineBtn = Btn("WALK AWAY");
-			declineBtn.CustomMinimumSize = new Vector2(140, 40);
-			declineBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.DeclineDistributionOffer(out string message); Say(message, ok); return ok; });
-			offerRow.AddChild(declineBtn);
-			content.AddChild(offerRow);
-		} else {
-			Body("A pressing-and-distribution deal covers the whole catalog for the term, not one title: an advance " +
+		if (hasReleased || label.activeDeal != null || desk.PendingDistributionOffer != null) {
+			SectionHeading("pnd", "P&D DISTRIBUTION DEAL", label.activeDeal != null || desk.PendingDistributionOffer != null,
+				"A pressing-and-distribution deal covers the whole catalog for the term, not one title: an advance " +
 				"(maybe), a real cut of everything, and often the masters, in trade for a distributor's own national " +
 				"network. Only worth pitching once a record's proven itself regionally — otherwise nobody's biting.");
-			var pitchBtn = Btn($"PITCH FOR A DEAL ({PlayerDesk.SignHours}h)");
-			pitchBtn.CustomMinimumSize = new Vector2(220, 40);
-			pitchBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PursueDistributionDeal(out string message); Say(message, ok); return ok; });
-			content.AddChild(pitchBtn);
+			if (label.activeDeal != null) {
+				var deal = label.activeDeal;
+				string distName = CompetitorManager.Instance?.GetLabel(deal.distributorId)?.labelName ?? deal.distributorId;
+				int weeksLeft = Mathf.Max(0, deal.signedWeek + deal.termWeeks - (ChartManager.Instance?.GetCurrentChartWeek() ?? 0));
+				Body($"Under contract to {distName} — {deal.marginSkim:P0} skim, {weeksLeft} week(s) left on the term" +
+					(deal.ownsMasters ? ", masters signed away." : ", masters still yours.") +
+					(deal.unrecoupedAdvance > 0.5f ? $" ${deal.unrecoupedAdvance:N0} of the advance still unrecouped." : ""));
+			} else if (desk.PendingDistributionOffer != null) {
+				var offer = desk.PendingDistributionOffer;
+				string distName = desk.PendingDistributionOfferDistributorName ?? offer.distributorId;
+				Body($"{distName} is offering: {offer.marginSkim:P0} skim, {offer.termWeeks}-week term" +
+					(offer.advance > 0f ? $", ${offer.advance:N0} advance" : ", no advance") +
+					(offer.ownsMasters ? ", and they take the masters." : ", masters stay yours.") +
+					" Decide before pursuing anything else.");
+				var offerRow = new HBoxContainer();
+				offerRow.AddThemeConstantOverride("separation", 10);
+				var acceptBtn = Btn("SIGN");
+				acceptBtn.CustomMinimumSize = new Vector2(140, 40);
+				acceptBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.AcceptDistributionOffer(out string message); Say(message, ok); return ok; });
+				offerRow.AddChild(acceptBtn);
+				var declineBtn = Btn("WALK AWAY");
+				declineBtn.CustomMinimumSize = new Vector2(140, 40);
+				declineBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.DeclineDistributionOffer(out string message); Say(message, ok); return ok; });
+				offerRow.AddChild(declineBtn);
+				content.AddChild(offerRow);
+			} else {
+				var pitchBtn = Btn($"PITCH FOR A DEAL ({PlayerDesk.SignHours}h)");
+				pitchBtn.CustomMinimumSize = new Vector2(220, 40);
+				pitchBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PursueDistributionDeal(out string message); Say(message, ok); return ok; });
+				content.AddChild(pitchBtn);
+			}
 		}
 
 		// --- WHOLESALE HOUSES (the gamble) ---
-		SectionHeading("wholesale", "WHOLESALE HOUSES — THE GAMBLE", false);
-		Body("Some markets are too far to drive a line to. Hand it to a wholesale house out there and they'll press " +
-			"it into shops you'll never reach — but they pay on their own terms months later, skim their cut, and " +
-			"only for what they admit they sold. Without a real regional breakout to show them it's a cold pitch they " +
-			"can turn down, or take on worse terms; break out there first and they come courting instead.");
-		List<MarketRegion> open = desk.GetPlaceableMarkets().ToList();
-		if (open.Count == 0) { Body("No house anywhere has room for another line right now."); return; }
-		foreach (MarketRegion region in open) {
-			var row = new HBoxContainer();
-			row.AddThemeConstantOverride("separation", 12);
-			int houses = CompetitorManager.Instance?.GetIndependentDistributorsInRegion(region.regionId)
-				.Count(house => house.HasCapacity && !house.CarriesLabel(label.labelId)) ?? 0;
-			bool proven = desk.IsProvenInRegion(region.regionId);
-			var text = new Label {
-				SizeFlagsHorizontal = SizeFlags.ExpandFill,
-				AutowrapMode = TextServer.AutowrapMode.WordSmart,
-				Text = $"{region.regionName}  —  {houses} house(s) with room  —  " +
-					(proven ? "they've heard of you here" : "no proof here yet — a cold pitch")
-			};
-			text.AddThemeColorOverride("font_color", proven ? Ink : Rust);
-			row.AddChild(text);
+		if (hasReleased) {
+			SectionHeading("wholesale", "WHOLESALE HOUSES — THE GAMBLE", false,
+				"Some markets are too far to drive a line to. Hand it to a wholesale house out there and they'll press " +
+				"it into shops you'll never reach — but they pay on their own terms months later, skim their cut, and " +
+				"only for what they admit they sold. Without a real regional breakout to show them it's a cold pitch they " +
+				"can turn down, or take on worse terms; break out there first and they come courting instead.");
+			List<MarketRegion> open = desk.GetPlaceableMarkets().ToList();
+			if (open.Count == 0) { Body("No house anywhere has room for another line right now."); return; }
+			foreach (MarketRegion region in open) {
+				var row = new HBoxContainer();
+				row.AddThemeConstantOverride("separation", 12);
+				int houses = CompetitorManager.Instance?.GetIndependentDistributorsInRegion(region.regionId)
+					.Count(house => house.HasCapacity && !house.CarriesLabel(label.labelId)) ?? 0;
+				bool proven = desk.IsProvenInRegion(region.regionId);
+				var text = new Label {
+					SizeFlagsHorizontal = SizeFlags.ExpandFill,
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+					Text = $"{region.regionName}  —  {houses} house(s) with room  —  " +
+						(proven ? "they've heard of you here" : "no proof here yet — a cold pitch")
+				};
+				text.AddThemeColorOverride("font_color", proven ? Ink : Rust);
+				row.AddChild(text);
 
-			var place = Btn(proven ? $"TAKE THE MEETING ({PlayerDesk.DistributionHours}h)" : $"GAMBLE A LINE ({PlayerDesk.DistributionHours}h)");
-			place.CustomMinimumSize = new Vector2(220, 40);
-			string capturedId = region.regionId;
-			place.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PlaceLine(capturedId, out string message); Say(message, ok); return ok; });
-			row.AddChild(place);
-			content.AddChild(row);
+				var place = Btn(proven ? $"TAKE THE MEETING ({PlayerDesk.DistributionHours}h)" : $"GAMBLE A LINE ({PlayerDesk.DistributionHours}h)");
+				place.CustomMinimumSize = new Vector2(220, 40);
+				string capturedId = region.regionId;
+				place.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.PlaceLine(capturedId, out string message); Say(message, ok); return ok; });
+				row.AddChild(place);
+				content.AddChild(row);
+			}
 		}
 	}
 
@@ -2939,8 +2881,8 @@ public partial class PlayerDeskPanel : Control {
 		List<(SimulatedArtist Artist, string RecordId, string Title, int OnHand)> eligible = desk.BuyInEligible().ToList();
 		if (eligible.Count == 0) return;
 
-		SectionHeading("buyin", "ARTIST BUY-IN", desk.Label.cashReserves < 0f);
-		Body($"An act will take {PlayerDesk.ArtistBuyInMin}-{PlayerDesk.ArtistBuyInMax} of its own single off your hands " +
+		SectionHeading("buyin", "ARTIST BUY-IN", desk.Label.cashReserves < 0f,
+			$"An act will take {PlayerDesk.ArtistBuyInMin}-{PlayerDesk.ArtistBuyInMax} of its own single off your hands " +
 			$"outright, cash on the spot -- ${PlayerDesk.ArtistBuyInPrice:F2}/copy, a discount for the volume, and it's theirs " +
 			"to work on their own.");
 
@@ -3916,7 +3858,7 @@ public partial class PlayerDeskPanel : Control {
 	// stages that have something to do right now; whatever the player toggles is remembered.
 	private readonly Dictionary<string, bool> sectionOpen = new();
 
-	private Button SectionHeading(string key, string title, bool defaultOpen) {
+	private Button SectionHeading(string key, string title, bool defaultOpen, string help = null) {
 		content = contentRoot;   // close the previous section: later rows belong to this one
 		bool open = sectionOpen.TryGetValue(key, out bool chosen) ? chosen : defaultOpen;
 		var header = Btn($"{(open ? "▾" : "▸")}  {title}");
@@ -3940,7 +3882,15 @@ public partial class PlayerDeskPanel : Control {
 			Refresh();
 			GetTree().CreateTimer(0.03).Timeout += () => { if (IsInstanceValid(contentScroll)) contentScroll.ScrollVertical = keep; };
 		};
-		contentRoot.AddChild(header);
+		if (help == null) contentRoot.AddChild(header);
+		else {
+			header.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+			var headerRow = new HBoxContainer();
+			headerRow.AddThemeConstantOverride("separation", 8);
+			headerRow.AddChild(header);
+			headerRow.AddChild(HelpBadge(help));
+			contentRoot.AddChild(headerRow);
+		}
 		var body = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, Visible = open };
 		body.AddThemeConstantOverride("separation", 10);
 		contentRoot.AddChild(body);
@@ -3962,12 +3912,43 @@ public partial class PlayerDeskPanel : Control {
 		return unpressedSingle || soldOut;
 	}
 
-	private Label Heading(string text) {
+	private Label Heading(string text, string help = null) {
 		var node = new Label { Text = text };
 		node.AddThemeFontSizeOverride("font_size", 20);
+		node.AddThemeFontOverride("font", PaperTheme.SansBold);
 		node.AddThemeColorOverride("font_color", Rust);
-		content.AddChild(node);
+		if (help == null) { content.AddChild(node); return node; }
+		var row = new HBoxContainer();
+		row.AddThemeConstantOverride("separation", 8);
+		row.AddChild(node);
+		row.AddChild(HelpBadge(help));
+		content.AddChild(row);
 		return node;
+	}
+
+	/// <summary>A small "?" that explains a section on hover, so the page can say what to do and the tooltip can say why.</summary>
+	private static Control HelpBadge(string help) {
+		var badge = new Label {
+			Text = "?", TooltipText = help, MouseFilter = Control.MouseFilterEnum.Stop,
+			MouseDefaultCursorShape = Control.CursorShape.Help, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+			HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+			CustomMinimumSize = new Vector2(24, 24)
+		};
+		badge.AddThemeFontSizeOverride("font_size", 15);
+		badge.AddThemeColorOverride("font_color", Rust);
+		badge.AddThemeStyleboxOverride("normal", new StyleBoxFlat {
+			BgColor = new Color("f6ecd0"), BorderColor = Rust,
+			BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
+			CornerRadiusTopLeft = 12, CornerRadiusTopRight = 12, CornerRadiusBottomLeft = 12, CornerRadiusBottomRight = 12
+		});
+		return badge;
+	}
+
+	/// <summary>Rebuilds the page and puts the scroll back, for a toggle that opens a form in place.</summary>
+	private void RefreshKeepingScroll() {
+		int keep = contentScroll.ScrollVertical;
+		Refresh();
+		GetTree().CreateTimer(0.03).Timeout += () => { if (IsInstanceValid(contentScroll)) contentScroll.ScrollVertical = keep; };
 	}
 
 	/// <summary>
@@ -4223,6 +4204,9 @@ public partial class PlayerDeskPanel : Control {
 	// near-white and it vanishes (the "highlighting an option should not be white" note).
 	private static Button Btn(string text) => new Button { Text = text };
 
+	/// <summary>The one verb on a card that spends time or money: a solid oxblood button.</summary>
+	private static Button Primary(string text) => new Button { Text = text, ThemeTypeVariation = PaperTheme.Primary };
+
 	/// <summary>Tab / filter-chip state as real styles instead of alpha: the selected one is dark with
 	/// light text, the others are light paper with full-contrast ink (alpha-faded text measured ~2:1).</summary>
 	private static void StyleToggle(Button button, bool active) {
@@ -4262,24 +4246,8 @@ public partial class PlayerDeskPanel : Control {
 	/// when on. The stock glyphs read backwards on the paper (a filled square meant "off").</summary>
 	private static void EnsureCheckIcons() {
 		if (checkOffIcon != null) return;
-		const int size = 20;
-		ImageTexture Make(bool on) {
-			var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
-			Color border = new("4a3a24"), fill = on ? Rust : new Color("fbf3dc");
-			for (int y = 1; y < size - 1; y++)
-				for (int x = 1; x < size - 1; x++) {
-					bool edge = x < 3 || y < 3 || x >= size - 3 || y >= size - 3;
-					image.SetPixel(x, y, edge ? border : fill);
-				}
-			if (on) {
-				// A two-stroke tick, three pixels thick, in paper white.
-				for (int i = 0; i < 4; i++) for (int t = 0; t < 3; t++) image.SetPixel(5 + i, 10 + i + t - 1, Colors.White);
-				for (int i = 0; i < 7; i++) for (int t = 0; t < 3; t++) image.SetPixel(8 + i, 13 - i + t - 1, Colors.White);
-			}
-			return ImageTexture.CreateFromImage(image);
-		}
-		checkOffIcon = Make(false);
-		checkOnIcon = Make(true);
+		checkOffIcon = PaperTheme.CheckIcon(false);
+		checkOnIcon = PaperTheme.CheckIcon(true);
 	}
 
 	private static CheckBox Check(string text, bool pressed) {
