@@ -16,7 +16,7 @@ public partial class TabStamp : Control {
 		if (stamp == null) {
 			stamp = new TabStamp { Name = NodeName, MouseFilter = MouseFilterEnum.Ignore, ZIndex = 2 };
 			stamp.SetAnchorsPreset(LayoutPreset.TopRight);
-			stamp.OffsetLeft = -30; stamp.OffsetRight = -2; stamp.OffsetTop = -8; stamp.OffsetBottom = 20;
+			stamp.OffsetLeft = -26; stamp.OffsetRight = 2; stamp.OffsetTop = -15; stamp.OffsetBottom = 13;
 			stamp.PivotOffset = new Vector2(14, 14);
 			stamp.RotationDegrees = -9f;
 			tab.AddChild(stamp);
