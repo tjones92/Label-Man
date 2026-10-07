@@ -534,10 +534,17 @@ public partial class UIManager : Control
 
 		var nextEvent = TimeManager.Instance.GetNextEvent();
 		var nextButton = calendarPopup.GetNode<Button>("Margin/Options/NextEvent");
-		nextButton.Text = nextEvent == null
-			? "No upcoming event"
-			: $"Skip to next event ({nextEvent.title}, {nextEvent.date.ToHeadlineString()})";
-		nextButton.Disabled = nextEvent == null;
+		// The calendar only lists chart days; the vinyl landing or a ship date can come sooner, and a skip
+		// stops for those (and for a ringing office) too, so the button names whichever is first.
+		var ownEvent = PlayerDesk.Instance?.NextPlayerEvent(TimeManager.Instance.CurrentDate);
+		if (ownEvent != null && (nextEvent == null || ownEvent.Value.Date < nextEvent.date))
+			nextButton.Text = $"Skip to next event ({ownEvent.Value.Title}, {ownEvent.Value.Date.ToHeadlineString()})";
+		else
+			nextButton.Text = nextEvent == null
+				? "No upcoming event"
+				: $"Skip to next event ({nextEvent.title}, {nextEvent.date.ToHeadlineString()})";
+		nextButton.Disabled = nextEvent == null && ownEvent == null;
+		nextButton.TooltipText = "Stops early for the vinyl landing, a ship date, or a call at the office while you are there.";
 		calendarPopup.PopupCentered(new Vector2I(500, 300));
 	}
 
@@ -584,6 +591,9 @@ public partial class UIManager : Control
 		var interruptedBy = skip();
 		string reason = interruptedBy == null ? "" : $" (stopped for {interruptedBy.title})";
 		GD.Print($"Calendar advanced to {TimeManager.Instance.CurrentDate.ToLongString()}{reason}.");
+		// The vinyl landing already raises its own banner; the rest would otherwise stop the skip silently.
+		if (interruptedBy != null && interruptedBy.eventType is EventType.IncomingCall or EventType.RecordRelease)
+			ShowAnnouncement($"SKIP STOPPED  —  {interruptedBy.title}");
 	}
 
 	private void UpdateCalendarButton(GameDate date)

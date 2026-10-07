@@ -1077,7 +1077,7 @@ public partial class PlayerDeskPanel : Control {
 		int shown = Mathf.Min(prospect.HeardCount, prospect.LiveSet.Count);
 		// The hook read is the ear on the tune itself, so it shows in both modes; fit is a studio question.
 		var lines = prospect.LiveSet.Take(shown).Select(item =>
-			$"    ♪ \"{item.Title}\" ({item.SourceTag}) — {PolarPlayerPerception.DescribeHook(item.ReadHook, prospect.ReadConfidence)}");
+			$"    ♪ \"{item.Title}\" ({item.SourceTag}) — hook {StarBar(item.ReadHook)}  {PolarPlayerPerception.DescribeHook(item.ReadHook, prospect.ReadConfidence)}");
 		int hidden = prospect.LiveSet.Count - shown;
 		string tail = hidden > 0 ? $"\n    …and {hidden} more you didn't catch — follow up to hear the full set." : "";
 		setText.Text = (shown == 0 ? "    (didn't catch their set)" : string.Join("\n", lines)) + tail;
@@ -1536,7 +1536,7 @@ public partial class PlayerDeskPanel : Control {
 		foreach (PlayerDesk.RepertoireItem item in have) {
 			string tag = item.IsOriginal ? "their own" : item.SourceTag;
 			if (item.Recorded) RecordedLine(desk, $"\"{item.Title}\"", tag, item.RecordedId, artist.artistId);
-			else if (PolarSongBehavior.UsePolarFitSelection) Body($"    ♪ \"{item.Title}\" ({tag}) — compare in the studio below");
+			else if (PolarSongBehavior.UsePolarFitSelection) Body($"    ♪ \"{item.Title}\" ({tag}) — hook {StarBar(item.ReadHook)} — compare in the studio below");
 			else SongLine($"\"{item.Title}\"", tag, item.ReadHook);
 		}
 		foreach (PlayerDesk.Song song in written) {
@@ -1786,9 +1786,10 @@ public partial class PlayerDeskPanel : Control {
 			for (int t = 0; t < cut.Takes.Count; t++) {
 				PlayerDesk.SessionTake take = cut.Takes[t];
 				bool kept = t == cut.KeptTake;
-				var btn = Btn(PolarSongBehavior.UsePolarFitSelection ? $"Take {take.Number}{(kept ? "  ✓" : "")}\nPLAYBACK READ" :
-					$"Take {take.Number}{(kept ? "  ✓" : "")}\nhook {StarBar(take.Hook)}\nprod {StarBar(take.Production)}");
-				btn.CustomMinimumSize = new Vector2(190, 62);
+				// The stars are what the take actually is, and the pre-ticked take is chosen from them, so they
+				// show in both modes; the radar below is the read of how the take sits with the act.
+				var btn = Btn($"Take {take.Number}{(kept ? "  ✓" : "")}\nhook {StarBar(take.Hook)}\nprod {StarBar(take.Production)}");
+				btn.CustomMinimumSize = new Vector2(190, 78);
 				btn.ToggleMode = true;
 				btn.ButtonPressed = kept;
 				int cutIndex = c, takeIndex = t;
@@ -2148,6 +2149,7 @@ public partial class PlayerDeskPanel : Control {
 							+ (stockHere > 0 ? $" — {stockHere:N0} on shelf" : "")
 							+ (stop.OpenBalance > 0.5f ? $" — ${stop.OpenBalance:N0} owed" : "")
 							+ (stopsWithCalls.Contains(stop.StopId) ? " — they called" : "")
+							+ (desk.PreOrderNote(stop.StopId) is string held ? $": {held}" : "")
 							// Directive §7.1: the one or two identified dealers a city's survey/trade
 							// numbers actually come from -- flagged so the player can tell them apart, but
 							// only once he's EARNED that (worked the counter, or asked at the station whose

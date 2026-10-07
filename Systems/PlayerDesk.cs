@@ -454,6 +454,9 @@ public partial class PlayerDesk : Node {
 	// People (directive §7). The runner is null until hired; unlock ratchets on and never closes once earned.
 	private PlayerRunner runner;
 	private bool runnerUnlocked;
+	// The first industry meet always carries one represented act, so the manager's objection loop is met by
+	// design rather than by luck. One-shot per save.
+	private bool firstMeetManagerShown;
 	private int lastRunnerTickWeek = -1;
 	// "Persistent reorders in one city" -- successful ServiceStop calls, tallied per city toward the unlock.
 	private readonly Dictionary<string, int> serviceReorderCountByCity = new(StringComparer.Ordinal);
@@ -923,6 +926,42 @@ public partial class PlayerDesk : Node {
 	/// desk scene shows it as a banner; it never carries state, so a missed one costs nothing.</summary>
 	public event Action<string> Announcement;
 
+	// What happened this morning that a calendar skip should stop for. Filled by the day-start handlers, cleared
+	// at the start of the next day, read by TimeManager.PlayerStopProbe while a skip runs.
+	private readonly List<(string Title, EventType Type)> skipStops = new();
+
+	/// <summary>Marks the morning as worth stopping a skip for. Office events (a ringing phone) only count
+	/// while the player is at the home office -- on the road he isn't there to hear them, so they don't wake
+	/// a skip that is covering his trip.</summary>
+	private void FlagSkipStop(string title, EventType type, bool officeOnly = false) {
+		if (officeOnly && !AtHome) return;
+		if (skipStops.Any(stop => stop.Title == title)) return;
+		skipStops.Add((title, type));
+	}
+
+	private (string Title, EventType Type)? ProbeSkipStop() {
+		if (skipStops.Count == 0) return null;
+		// The vinyl and the ship date outrank a phone call when several land on the same morning.
+		EventType lead = skipStops.OrderBy(stop => stop.Type == EventType.PressingPlantDelivery ? 0 : stop.Type == EventType.RecordRelease ? 1 : 2).First().Type;
+		string title = string.Join("  •  ", skipStops.Select(stop => stop.Title));
+		skipStops.Clear();
+		return (title, lead);
+	}
+
+	/// <summary>The soonest thing the player is waiting on that the calendar does not list: a pressing landing
+	/// or a dated release. Lets "skip to next event" name what it will really stop for.</summary>
+	public (GameDate Date, string Title)? NextPlayerEvent(GameDate after) {
+		(GameDate Date, string Title)? best = null;
+		void Consider(GameDate date, string title) {
+			if (date <= after) return;
+			if (best == null || date < best.Value.Date) best = (date, title);
+		}
+		foreach (PressOrder order in pressOrders) Consider(order.Arrives, $"vinyl for \"{TitleForRecord(order.RecordId)}\" lands");
+		foreach (PlannedRelease release in planned.Where(entry => entry.Dated))
+			Consider(release.Date, $"\"{release.Master?.SongTitle}\" ships");
+		return best;
+	}
+
 	public override void _EnterTree() {
 		if (Instance != null && Instance != this) { QueueFree(); return; }
 		Instance = this;
@@ -939,6 +978,7 @@ public partial class PlayerDesk : Node {
 			// Likewise last for the month: CompetitorManager has already charged the player's overhead
 			// by the time this runs, so the solvency check reads the post-overhead balance.
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
+			TimeManager.Instance.PlayerStopProbe = ProbeSkipStop;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
 	}
@@ -949,6 +989,7 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnHourChanged -= OnHourChanged;
 			TimeManager.Instance.OnWeekEnded -= OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
+			if (TimeManager.Instance.PlayerStopProbe == ProbeSkipStop) TimeManager.Instance.PlayerStopProbe = null;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment -= OnRivalTalentMarketAppointment;
 		if (Instance == this) Instance = null;
@@ -1303,6 +1344,8 @@ public partial class PlayerDesk : Node {
 			return true;
 		}
 
+		if (trade) EnsureRepresentedActOnFirstMeet(slateActs);
+
 		foreach (SimulatedArtist artist in slateActs) {
 			float noise = ScoutingReadNoise(Label.scoutingAbility);
 			var prospect = new Prospect {
@@ -1321,6 +1364,24 @@ public partial class PlayerDesk : Node {
 		message = $"Caught {slate.Count} {(slate.Count == 1 ? "act" : "acts")}.";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>
+	/// The first industry meet a player ever works always has someone with a manager on the bill. The meet is
+	/// "professionally represented" product by its own description, yet a thin slate can come up all unmanaged,
+	/// and then a new player's first signing is the one-click Pushover form and the table (objections, the
+	/// hard line, a counter) is never seen. The act is chosen by asking the least, so the lesson is
+	/// affordable, and a manager is stamped on a real unsigned act only if none of the slate has one.
+	/// </summary>
+	private void EnsureRepresentedActOnFirstMeet(List<SimulatedArtist> slateActs) {
+		if (firstMeetManagerShown) return;
+		firstMeetManagerShown = true;
+		if (!ManagerSystem.Enabled || slateActs.Count == 0) return;
+		if (slateActs.Any(act => act.manager != ManagerArchetype.None)) return;
+		SimulatedArtist pick = slateActs.OrderBy(act => VenueAdvanceAsk(act, ScoutingVenue.IndustryMeets, AskScaleFor(CurrentCityId))).First();
+		float roll = GD.Randf();
+		pick.manager = roll < 0.5f ? ManagerArchetype.Visionary : roll < 0.8f ? ManagerArchetype.Shark : ManagerArchetype.Svengali;
+		pick.managerName = GenerateManagerNameFor();
 	}
 
 	// A genre the market has essentially no ear for is not on the bill at all -- this is the hard floor
@@ -2544,6 +2605,7 @@ public partial class PlayerDesk : Node {
 			string next = waiting == null ? "" : waiting.Dated ? $" It ships {waiting.Date.ToHeadlineString()}." : " Set its release date.";
 			Note($"The pressing plant delivered {order.Quantity:N0} of \"{title}\"{promoNote} -- the vinyl is in the office.{next}");
 			Announcement?.Invoke($"THE VINYL IS IN  —  {order.Quantity:N0} of \"{title}\" at the office.{next}");
+			FlagSkipStop($"The vinyl for \"{title}\" is in", EventType.PressingPlantDelivery);
 		}
 	}
 
@@ -3292,6 +3354,15 @@ public partial class PlayerDesk : Node {
 	public bool HasOpenCall(string stopId, string recordId) =>
 		inboundCalls.Any(c => c.StopId == stopId && c.RecordId == recordId);
 
+	/// <summary>What a stop has said it will hold back for a pressing still at the plant ("holds 12 of
+	/// \"Title\" for the pressing"), or null. The row shows the quantity so the pre-order is a number the player
+	/// can plan the run around, not just a phone icon.</summary>
+	public string PreOrderNote(string stopId) {
+		List<InboundCall> held = inboundCalls.Where(c => c.StopId == stopId && c.Reason == InboundCallReason.PreOrder).ToList();
+		if (held.Count == 0) return null;
+		return string.Join(", ", held.Select(c => $"holds {c.RequestedQty:N0} of \"{TitleForRecord(c.RecordId)}\" for the pressing"));
+	}
+
 	/// <summary>Runs at most once per chart week (from OnDayStarted): expires anything overdue, then
 	/// rolls for a fresh batch. A week boundary, not a daily one -- InboundCalls are lower-frequency,
 	/// office-readout events, not another daily-tick system layered on top of the trunk.</summary>
@@ -3511,6 +3582,7 @@ public partial class PlayerDesk : Node {
 			_ => "wants in on it"
 		};
 		Note($"{stop.DisplayName} in {CityName(stop.CityId)} called -- {reasonText} on \"{TitleForRecord(recordId)}\".");
+		FlagSkipStop($"{stop.DisplayName} called the office", EventType.IncomingCall, officeOnly: true);
 	}
 
 	/// <summary>The copies a stop asked to have held off an acetate, or 0 when it has no pre-order open.</summary>
@@ -4126,6 +4198,7 @@ public partial class PlayerDesk : Node {
 	private void OnDayStarted(GameDate date) {
 		// You are not still holding a man on the line at nine the next morning.
 		ActiveCall = null;
+		skipStops.Clear();
 		if (Label == null) {
 			if (date > GameDate.StartDate) RefreshMorningDigest(date.AddDays(-1), date);
 			return;
@@ -4537,6 +4610,7 @@ public partial class PlayerDesk : Node {
 		}
 		string flip = release.BSide != null ? $" b/w \"{release.BSide.SongTitle}\"" : "";
 		Note($"RELEASED: \"{release.Master.SongTitle}\"{flip} by {artist.stageName} ({date.ToHeadlineString()}).");
+		FlagSkipStop($"Release day: \"{release.Master.SongTitle}\" is out", EventType.RecordRelease);
 	}
 
 	// ========================================================================
@@ -5406,6 +5480,7 @@ public partial class PlayerDesk : Node {
 			// People (directive §7): the runner's own state, plus the unlock ledger so a reload can't
 			// re-earn (or lose) an unlock already granted.
 			RunnerUnlocked = runnerUnlocked,
+			FirstMeetManagerShown = firstMeetManagerShown,
 			ServiceReorderCountByCity = new Dictionary<string, int>(serviceReorderCountByCity),
 			LastRunnerTickWeek = lastRunnerTickWeek,
 			WeeklyRunnerCommission = weeklyRunnerCommission,
@@ -5712,6 +5787,7 @@ public partial class PlayerDesk : Node {
 
 		// People (directive §7).
 		runnerUnlocked = data.RunnerUnlocked;
+		firstMeetManagerShown = data.FirstMeetManagerShown;
 		lastRunnerTickWeek = data.LastRunnerTickWeek;
 		weeklyRunnerCommission = data.WeeklyRunnerCommission;
 		weeklyMechanicalRoyalty = data.WeeklyMechanicalRoyalty;

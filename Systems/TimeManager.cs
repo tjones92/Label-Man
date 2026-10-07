@@ -55,6 +55,10 @@ public partial class TimeManager : Node {
 	public event Action<int> OnHourChanged;
 	public event Action<ScheduledEvent> OnEventTriggered;
 	public event Action<ScheduledEvent> OnSkipInterrupted;
+	/// <summary>Asked after each day of a multi-day skip: did something happen that the player was waiting on
+	/// (a pressing landing, a ship date, a call at the office)? Returns its headline, or null. The scheduled
+	/// calendar only knows the chart Fridays and the Grammys; these stops are discovered as the days run.</summary>
+	public Func<(string Title, EventType Type)?> PlayerStopProbe;
 	public event Action OnGameEnded;
 
 	public override void _EnterTree() {
@@ -178,12 +182,21 @@ public partial class TimeManager : Node {
 			GameDate tomorrow = currentDate.NextDay();
 			var interruptEvent = GetInterruptEventForDate(tomorrow, minimumInterruptPriority);
 
+			AdvanceToNextDay();
+
+			// The day-start handlers have run, so anything the player was waiting on (the vinyl, a ship date, a
+			// ringing office) has already happened by now. The probe is drained every day so a stop never
+			// carries over into the next skip.
+			var playerStop = PlayerStopProbe?.Invoke();
+			if (interruptEvent == null && playerStop != null) {
+				interruptEvent = new ScheduledEvent(playerStop.Value.Title, currentDate, playerStop.Value.Type) {
+					priority = EventPriority.High
+				};
+			}
 			if (interruptEvent != null) {
-				AdvanceToNextDay();
 				OnSkipInterrupted?.Invoke(interruptEvent);
 				return interruptEvent;
 			}
-			AdvanceToNextDay();
 		}
 		return null;
 	}

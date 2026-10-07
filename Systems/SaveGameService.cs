@@ -367,6 +367,7 @@ public sealed class PlayerSaveData {
 	// re-earn (or lose) an unlock already granted. Project promo leaves no state of its own to persist --
 	// it's an ephemeral PayolaLedger arrangement, same as the existing Rolodex payola calls.
 	public bool RunnerUnlocked { get; set; }
+	public bool FirstMeetManagerShown { get; set; }
 	public Dictionary<string, int> ServiceReorderCountByCity { get; set; } = new();
 	public int LastRunnerTickWeek { get; set; } = -1;
 	public float WeeklyRunnerCommission { get; set; }
