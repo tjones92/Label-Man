@@ -57,6 +57,12 @@ public sealed class RolodexEntry {
 
     public List<string> log = new();
 
+    /// <summary>A call-back the player set after finding him off shift: "call back at 5 PM". Null = none standing.
+    /// Costs nothing and holds nothing -- it is a note on the card that wakes a calendar skip and tells the player
+    /// when the window opens.</summary>
+    public GameDate? callbackDate;
+    public int callbackHour;
+
     /// <summary>Records whose acetate has already been played to this man down the phone -- once each.</summary>
     public List<string> acetatesPlayed = new();
 
@@ -154,6 +160,10 @@ public sealed class RolodexEntrySaveData {
     public List<PendingRecordMemorySaveData> PendingMemories { get; set; } = new();
     public List<string> Log     { get; set; } = new();
     public List<string> AcetatesPlayed { get; set; } = new();
+    public int CallbackYear { get; set; }   // 0 = no call-back standing
+    public int CallbackMonth { get; set; }
+    public int CallbackDay { get; set; }
+    public int CallbackHour { get; set; }
 
     public static RolodexEntrySaveData From(RolodexEntry e) => new() {
         DjId = e.djId, StationId = e.stationId, StateOrdinal = (int)e.state,
@@ -164,7 +174,9 @@ public sealed class RolodexEntrySaveData {
         AppointmentRecordId = e.appointmentRecordId, AppointmentExpiresWeek = e.appointmentExpiresWeek,
         PendingMemories = e.pendingMemories.ConvertAll(PendingRecordMemorySaveData.From),
         Log = new List<string>(e.log),
-        AcetatesPlayed = new List<string>(e.acetatesPlayed)
+        AcetatesPlayed = new List<string>(e.acetatesPlayed),
+        CallbackYear = e.callbackDate?.year ?? 0, CallbackMonth = e.callbackDate?.month ?? 0,
+        CallbackDay = e.callbackDate?.day ?? 0, CallbackHour = e.callbackHour
     };
 
     public RolodexEntry ToEntry() => new() {
@@ -177,6 +189,8 @@ public sealed class RolodexEntrySaveData {
         appointmentRecordId = AppointmentRecordId ?? "", appointmentExpiresWeek = AppointmentExpiresWeek,
         pendingMemories = (PendingMemories ?? new List<PendingRecordMemorySaveData>()).ConvertAll(m => m.ToMemory()),
         log = Log ?? new List<string>(),
-        acetatesPlayed = AcetatesPlayed ?? new List<string>()
+        acetatesPlayed = AcetatesPlayed ?? new List<string>(),
+        callbackDate = CallbackYear > 0 ? new GameDate(CallbackYear, CallbackMonth, CallbackDay) : null,
+        callbackHour = CallbackHour
     };
 }

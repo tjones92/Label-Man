@@ -458,6 +458,7 @@ public partial class PlayerDesk : Node {
 
 		// Connected. You have had your shot at him for the day -- no redialling him after this call ends.
 		djReachedToday.Add(entry.djId);
+		entry.callbackDate = null;   // he is on the line; the call-back has done its job
 		// Ratchet HeardOf -> Introduced: you have now actually spoken to him.
 		if (entry.state == DiscoveryState.HeardOf) {
 			entry.state = DiscoveryState.Introduced;
@@ -692,5 +693,84 @@ public partial class PlayerDesk : Node {
 		if (!ChartSimulator.IsStationDropCandidate(rd)) return false;
 		float chance = ChartSimulator.GetStationDropChance(ChartSimulator.GetSalesSupportRatio(rec), rec.weeksSincePeakUnits);
 		return chance >= SlidingDropChanceWarningBar;
+	}
+
+	// ========================================================================================
+	// CALL BACK AT 5 PM -- a note on the card, not a held slot
+	// ========================================================================================
+
+	private readonly HashSet<string> callbackAnnounced = new(StringComparer.Ordinal);
+
+	/// <summary>When "call him back" should land after this failed call: the next hour if he is live on air and still
+	/// in his window, the start of his window if it has not opened yet, otherwise the start of it tomorrow.</summary>
+	public (GameDate Date, int Hour) CallbackSlotFor(RolodexCall call) {
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int hour = TimeManager.Instance?.CurrentHour ?? 9;
+		(int from, int to) = RolodexShifts.ReachableWindow(call.ctx.shift);
+		if (call.failure == ConnectFailure.OnAir && hour + 1 <= to) return (today, hour + 1);
+		if (hour < from) return (today, from);
+		return (today.AddDays(1), from);
+	}
+
+	public bool CanScheduleCallback(RolodexCall call) =>
+		call?.entry != null && call.stage == CallStage.NotConnected && call.failure is ConnectFailure.OffShift or ConnectFailure.OnAir;
+
+	/// <summary>"Call back at 5 PM." Costs nothing: it puts the hour on the card, wakes a calendar skip on the morning
+	/// it falls due, and raises a banner when the clock reaches it. The call itself is still yours to place.</summary>
+	public bool ScheduleCallback(RolodexCall call, out string message) {
+		message = "";
+		if (!CanScheduleCallback(call)) { message = "There's nothing to call back about."; return false; }
+		(GameDate date, int hour) = CallbackSlotFor(call);
+		call.entry.callbackDate = date;
+		call.entry.callbackHour = hour;
+		callbackAnnounced.Remove(call.entry.djId);
+		string when = CallbackWhen(call.entry);
+		Note($"Set a call-back to {call.entry.displayName} for {when}.");
+		message = $"You'll call {call.entry.displayName} back at {when}. The clock will say when.";
+		EndCall(call);
+		return true;
+	}
+
+	public void CancelCallback(RolodexEntry entry) {
+		if (entry?.callbackDate == null) return;
+		entry.callbackDate = null;
+		callbackAnnounced.Remove(entry.djId);
+		Changed?.Invoke();
+	}
+
+	/// <summary>"5 PM today" / "5 PM tomorrow" / "5 PM on Jan 9", or empty when none stands.</summary>
+	public string CallbackWhen(RolodexEntry entry) {
+		if (entry?.callbackDate == null) return "";
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		GameDate date = entry.callbackDate.Value;
+		string day = date == today ? "today" : date == today.AddDays(1) ? "tomorrow" : $"on {date.ToHeadlineString()}";
+		return $"{RolodexShifts.ClockLabel(entry.callbackHour)} {day}";
+	}
+
+	/// <summary>The call-back's hour has come: it is the day, and the clock is at or past the hour.</summary>
+	public bool CallbackDue(RolodexEntry entry) {
+		if (entry?.callbackDate == null) return false;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		return entry.callbackDate.Value == today && (TimeManager.Instance?.CurrentHour ?? 0) >= entry.callbackHour;
+	}
+
+	/// <summary>Morning: a call-back for a day gone by lapses; one for today stops a skip so it is not slept through.</summary>
+	private void ProcessCallbacksAtDawn(GameDate date) {
+		callbackAnnounced.Clear();
+		foreach (RolodexEntry entry in rolodex) {
+			if (entry?.callbackDate == null) continue;
+			if (entry.callbackDate.Value < date) { entry.callbackDate = null; continue; }
+			if (entry.callbackDate.Value == date)
+				FlagSkipStop($"Call {entry.displayName} back at {RolodexShifts.ClockLabel(entry.callbackHour)}", EventType.IncomingCall, officeOnly: true);
+		}
+	}
+
+	/// <summary>The hour passes a call-back's time: say so once, from wherever the player is in the day.</summary>
+	private void AnnounceDueCallbacks() {
+		foreach (RolodexEntry entry in rolodex) {
+			if (!CallbackDue(entry) || !callbackAnnounced.Add(entry.djId)) continue;
+			Note($"{entry.displayName} should be at the station now -- time for that call-back.");
+			Announcement?.Invoke($"{entry.displayName} should be in now. Time for that call-back.");
+		}
 	}
 }

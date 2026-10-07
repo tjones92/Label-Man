@@ -99,6 +99,18 @@ public static class SaveGameService {
 
 	public static bool HasSave(string slot = "quicksave") => Godot.FileAccess.FileExists(PathFor(slot));
 
+	/// <summary>The slot the player last saved to or loaded from this session, or null. The load menu pins it to the
+	/// top; a rolling autosave never moves it, so a dawn write cannot steal the player's own slot.</summary>
+	public static string CurrentSlot { get; private set; }
+
+	public static bool IsAutosaveSlot(string slot) => AutosaveSlots.Contains(slot, StringComparer.Ordinal);
+
+	/// <summary>The most recently written save of any kind (manual or autosave), for the boot "Continue" button.</summary>
+	public static SaveInfo? NewestSave() {
+		List<SaveInfo> saves = ListSaves();
+		return saves.Count == 0 ? null : saves[0];
+	}
+
 	/// <summary>A save on disk, for the load menu. Read from each file's lightweight header only.</summary>
 	public readonly record struct SaveInfo(string Slot, string LabelName, GameDate InGameDate, DateTime SavedAtUtc);
 
@@ -259,7 +271,9 @@ public static class SaveGameService {
 		GameDate savedDate = new GameDate(envelope.Year, envelope.Month, envelope.Day);
 		WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed);
 
-		return PlayerDesk.Instance.RestoreState(envelope.Player, out message);
+		bool restored = PlayerDesk.Instance.RestoreState(envelope.Player, out message);
+		if (restored) CurrentSlot = slot;
+		return restored;
 	}
 }
 

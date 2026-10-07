@@ -116,7 +116,7 @@ public partial class PaperModal : CanvasLayer {
 		Cancel();
 	}
 
-	private static void StylePrimary(Button button, Color fill) {
+	internal static void StylePrimary(Button button, Color fill) {
 		StyleBoxFlat Box(Color color) => new() {
 			BgColor = color, BorderColor = new Color("2b2115"),
 			BorderWidthLeft = 1, BorderWidthRight = 1, BorderWidthTop = 1, BorderWidthBottom = 1,

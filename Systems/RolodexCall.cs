@@ -160,6 +160,8 @@ public static class RolodexShifts {
 		return hour >= from && hour <= to;
 	}
 
+	public static string ClockLabel(int hour24) { int h = hour24 % 12; if (h == 0) h = 12; return $"{h} {(hour24 >= 12 ? "PM" : "AM")}"; }
+
 	/// <summary>Plain-English advice for the card: when to try him.</summary>
 	public static string WindowAdvice(Daypart part) {
 		(int from, int to) = ReachableWindow(part);

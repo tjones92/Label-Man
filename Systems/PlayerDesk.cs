@@ -835,7 +835,7 @@ public partial class PlayerDesk : Node {
 
 	public PressStock StockFor(string recordId) =>
 		recordId != null && inventory.TryGetValue(recordId, out PressStock stock) ? stock : null;
-	public int AcetatesFor(string recordId) => acetateCopies.GetValueOrDefault(recordId, 0);
+	public int AcetatesFor(string recordId) => recordId == null ? 0 : acetateCopies.GetValueOrDefault(recordId, 0);
 
 	public bool CutAcetate(string recordId, out string message) {
 		Master master = masters.FirstOrDefault(item => item.Record?.recordId == recordId);
@@ -1003,7 +1003,7 @@ public partial class PlayerDesk : Node {
 		if (Instance == this) Instance = null;
 	}
 
-	private void OnHourChanged(int hour) => Changed?.Invoke();
+	private void OnHourChanged(int hour) { AnnounceDueCallbacks(); Changed?.Invoke(); }
 
 	private void OnRivalTalentMarketAppointment(RosterManager.DailyTalentMarketAppointment appointment) {
 		if (appointment?.SelectedArtist == null || appointment.Label == null || appointment.Label.isPlayerOwned) return;
@@ -4197,9 +4197,9 @@ public partial class PlayerDesk : Node {
 			// A rival who has been circling an act closes the deal on the day they said -- unless you shook hands.
 			if (entry?.CirclingResolves != null) {
 				if (date < entry.CirclingResolves.Value) continue;
-				string circler = entry.CirclingLabel;
+				string circler = entry.CirclingLabel, circlerId = entry.CirclingLabelId;
 				entry.CirclingLabel = null; entry.CirclingLabelId = null; entry.CirclingResolves = null;
-				AILabel taker = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date, entry.CirclingLabelId);
+				AILabel taker = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date, circlerId);
 				if (taker != null) Note($"{taker.labelName} signed {artist.stageName} before you could get to them.");
 				else if (entry.HeldUntil.HasValue) Note($"{circler ?? "A rival"} came calling for {artist.stageName}, but you'd already shaken hands.");
 				continue;
@@ -4307,6 +4307,7 @@ public partial class PlayerDesk : Node {
 		}
 		ChargeHotelIfAway();
 		ProcessRivalCrowding(date);
+		ProcessCallbacksAtDawn(date);
 		DeliverArrivedPressings(date);
 		ProcessCoverRehearsals(date);
 		foreach (PlannedRelease release in planned.Where(entry => entry.Dated && entry.Date <= date).ToList()) {

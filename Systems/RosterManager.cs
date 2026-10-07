@@ -694,15 +694,24 @@ public partial class RosterManager : Node {
 		int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? CalendarChartWeek(date);
 		if (ArtistManager.Instance == null || !ArtistManager.Instance.IsEligibleForPopulationSigning(artist, chartWeek)) return null;
 		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
-		// The record man the desk warned about is the one who comes back for the act, if he still can.
+		// The record man the desk warned about is the one who comes back for the act, if he still can. A label
+		// with no open slot in its own daily plan still makes room for an act in its genre while it is under its
+		// roster cap: the AI's operating target is a pacing throttle for ITS market, not a reason a rival would
+		// pass on an act a player has been circling -- otherwise nobody ever "has a vacancy" and the player never
+		// sees a rival coming. A label with a true vacancy is still preferred.
 		return labels
-			.Where(label => IsEligibleForEnabledScouting(label) && HasDailyVacancy(label) && !IsRuntimeBirthWeekBlocked(label, chartWeek)
+			.Where(label => IsEligibleForEnabledScouting(label) && CanTakeActFromPlayer(label, artist) && !IsRuntimeBirthWeekBlocked(label, chartWeek)
 				&& IsInScoutingRegion(artist, ChartManager.Instance?.GetRegionById(label.homeRegion))
 				&& label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(artist)))
 			.OrderBy(label => label.labelId == preferredLabelId ? 0 : 1)
+			.ThenBy(label => HasDailyVacancy(label) ? 0 : 1)
 			.ThenBy(label => StableDailyMarketHash($"{seed}|{label.labelId}|{artist.artistId}|{date.year}-{date.month}-{date.day}|PlayerCrowding"))
 			.FirstOrDefault();
 	}
+
+	private static bool CanTakeActFromPlayer(AILabel label, SimulatedArtist artist) =>
+		HasDailyVacancy(label) ||
+		(label.CurrentRosterSize < label.maxRosterSize && ((label.preferredGenres?.Contains(artist.primaryGenre) ?? false) || (label.secondaryGenres?.Contains(artist.primaryGenre) ?? false)));
 
 	// Acts the player has shaken hands on: no rival record man signs them while the hold stands. Empty unless
 	// a player label has placed one, so every filter in this file is inert in a run without a player.

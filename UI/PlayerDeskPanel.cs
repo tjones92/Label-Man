@@ -620,6 +620,21 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void PageFounding() {
+		// A returning player's first button: the newest save of any kind, autosaves included.
+		SaveGameService.SaveInfo? newest = SaveGameService.NewestSave();
+		if (newest.HasValue) {
+			SaveGameService.SaveInfo last = newest.Value;
+			string lastSlot = last.Slot;
+			Heading("WELCOME BACK");
+			Body($"{last.LabelName}, {last.InGameDate.ToHeadlineString()}  •  {(SaveGameService.IsAutosaveSlot(lastSlot) ? "autosave" : $"saved as \"{lastSlot}\"")}, {last.SavedAtUtc.ToLocalTime():g}");
+			var cont = Btn("CONTINUE");
+			cont.CustomMinimumSize = new Vector2(260, 46);
+			PaperModal.StylePrimary(cont, Rust);
+			cont.Pressed += () => { bool ok = SaveGameService.Load(lastSlot, out string message); Say(message, ok); Refresh(); };
+			content.AddChild(cont);
+			Body("Or start a new label below, or open SAVE / LOAD to pick another save.");
+		}
+
 		Heading("WHO WERE YOU BEFORE THIS?");
 		Body("Start here: choose your background, name the label, pick a home town, then open the doors.");
 
@@ -859,14 +874,20 @@ public partial class PlayerDeskPanel : Control {
 			: "Open a label before you can save.");
 
 		Heading("LOAD");
-		List<SaveGameService.SaveInfo> saves = SaveGameService.ListSaves();
+		// The slot you are playing on first, then the rolling autosaves, then everything else newest-first.
+		string currentSlot = SaveGameService.CurrentSlot;
+		List<SaveGameService.SaveInfo> saves = SaveGameService.ListSaves()
+			.OrderBy(info => info.Slot == currentSlot ? 0 : SaveGameService.IsAutosaveSlot(info.Slot) ? 1 : 2)
+			.ThenByDescending(info => info.SavedAtUtc)
+			.ToList();
 		if (saves.Count == 0) { Body("No saves on disk yet."); return; }
 		foreach (SaveGameService.SaveInfo info in saves) {
 			var row = new HBoxContainer();
 			row.AddThemeConstantOverride("separation", 10);
+			string tag = info.Slot == currentSlot ? "CURRENT  •  " : SaveGameService.IsAutosaveSlot(info.Slot) ? "AUTOSAVE  •  " : "";
 			var text = new Label {
 				SizeFlagsHorizontal = SizeFlags.ExpandFill,
-				Text = $"{info.Slot}  —  {info.LabelName}, {info.InGameDate.ToHeadlineString()}   •   saved {info.SavedAtUtc.ToLocalTime():g}"
+				Text = $"{tag}{info.Slot}  —  {info.LabelName}, {info.InGameDate.ToHeadlineString()}   •   saved {info.SavedAtUtc.ToLocalTime():g}"
 			};
 			text.AddThemeColorOverride("font_color", Ink);
 			row.AddChild(text);
@@ -1590,7 +1611,24 @@ public partial class PlayerDeskPanel : Control {
 					+ (PolarPlayerPerception.DescribeCharacter(cover) is { Length: > 0 } coverCharacter ? "\n      " + coverCharacter : "")
 			};
 			text.AddThemeColorOverride("font_color", Ink);
-			row.AddChild(text);
+			if (PolarSongBehavior.UsePolarFitSelection) {
+				// The hook is the song's own pull, not a fit question, so the catalogue shows it as a bar under the title
+				// (the same read the non-Polar line prints); fit with the act stays behind COMPARE / PREVIEW.
+				var stack = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+				stack.AddThemeConstantOverride("separation", 2);
+				text.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+				stack.AddChild(text);
+				var hookRow = new HBoxContainer();
+				hookRow.AddThemeConstantOverride("separation", 10);
+				hookRow.AddChild(new Control { CustomMinimumSize = new Vector2(24, 0) });
+				hookRow.AddChild(new ReadBar().Set(cover.Hook, 0.8f));
+				var hookWords = new Label { Text = PolarPlayerPerception.DescribeHook(cover.Hook, 0.8f) };
+				hookWords.AddThemeFontSizeOverride("font_size", 14);
+				hookWords.AddThemeColorOverride("font_color", ReadBar.ColorFor(cover.Hook).Darkened(0.2f));
+				hookRow.AddChild(hookWords);
+				stack.AddChild(hookRow);
+				row.AddChild(stack);
+			} else row.AddChild(text);
 			string songId = cover.SongId;
 			var take = Btn($"TEACH (~{days}d)");
 			take.CustomMinimumSize = new Vector2(150, 36);
@@ -3171,6 +3209,15 @@ public partial class PlayerDeskPanel : Control {
 		// When to call him. Learned, not given -- an unreached name comes with no hours.
 		if (dj != null) {
 			Daypart shift = RolodexShifts.ShiftOf(dj);
+			if (entry.callbackDate != null) {
+				bool due = desk.CallbackDue(entry);
+				var callback = new Label { Text = due ? "Your call-back is due now." : $"Call-back set for {desk.CallbackWhen(entry)}." };
+				callback.AddThemeColorOverride("font_color", due ? new Color("4a7a4a") : Heard);
+				content.AddChild(callback);
+				var cancel = Btn("CANCEL THE CALL-BACK");
+				cancel.Pressed += () => { desk.CancelCallback(entry); Refresh(); };
+				content.AddChild(cancel);
+			}
 			if (entry.shiftKnown) {
 				int hour = TimeManager.Instance?.CurrentHour ?? 12;
 				bool nowGood = RolodexShifts.ReachableAt(shift, hour);
@@ -3363,7 +3410,18 @@ public partial class PlayerDeskPanel : Control {
 	}
 
 	private void RenderNotConnected(PlayerDesk desk, RolodexCall call) {
-		var again = Btn($"TRY AGAIN  ({PlayerDesk.DialMinutes} min)");
+		// He is off shift or on the air: ringing again in five minutes is the wrong answer, so the better one leads.
+		bool wrongTime = desk.CanScheduleCallback(call);
+		if (wrongTime) {
+			(GameDate callDate, int callHour) = desk.CallbackSlotFor(call);
+			GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+			string when = callDate == today ? "today" : "tomorrow";
+			var later = Btn($"CALL BACK AT {RolodexShifts.ClockLabel(callHour)}  ({when}, no time spent)");
+			later.CustomMinimumSize = new Vector2(360, 40);
+			later.Pressed += () => { desk.ScheduleCallback(call, out string msg); if (!string.IsNullOrEmpty(msg)) Say(msg); Refresh(); };
+			content.AddChild(later);
+		}
+		var again = Btn(wrongTime ? $"TRY HIM ANYWAY  ({PlayerDesk.DialMinutes} min)" : $"TRY AGAIN  ({PlayerDesk.DialMinutes} min)");
 		again.Pressed += () => {
 			desk.EndCall(call);
 			desk.PlaceCall(call.entry, call.recordId, out string msg);
