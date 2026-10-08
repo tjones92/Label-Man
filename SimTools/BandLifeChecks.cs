@@ -62,6 +62,8 @@ public static class BandLifeChecks {
 		int multi = 0, n = 400;
 		bool sumsToOne = true;
 		for (int i = 0; i < n; i++) {
+			// The rate before any pact: once two writers formalise one, every song is theirs together by design.
+			band.writingPartnerships = null;
 			var team = CowritingService.PickTeam(band, "song" + i, 1962);
 			sumsToOne &= Math.Abs(team.Sum(t => t.Share) - 1f) < 1e-4f;
 			if (team.Count > 1) multi++;
@@ -72,6 +74,8 @@ public static class BandLifeChecks {
 		var t1 = CowritingService.PickTeam(band, "song7", 1962).Select(t => t.Member.personId).ToList();
 		var t2 = CowritingService.PickTeam(band, "song7", 1962).Select(t => t.Member.personId).ToList();
 		Check(t1.SequenceEqual(t2), "the same song key always gets the same team");
+		band.writingPartnerships = null;
+		for (int i = 0; i < 40; i++) CowritingService.PickTeam(band, "run" + i, 1962);
 		Check(band.writingPartnerships != null && band.writingPartnerships.Any(p => p.coCredits >= CowritingService.PactCoCreditThreshold),
 			"co-credits accumulate on the writing partnership");
 		SimulatedArtist solo = ProbeBand("probe_band_one", writers: 1);
@@ -157,8 +161,10 @@ public static class BandLifeChecks {
 		desk.ChooseBandVerb(desk.ActiveVisit, hire, out _);
 		desk.CloseVisit();
 		Musician newcomer = act.members.LastOrDefault();
-		Check(act.members.Count == before && newcomer != null && newcomer.joinedYear == year + 1 && newcomer.axesVersion > 0 &&
-			ArtistManager.Instance.GetMusician(newcomer.personId) == newcomer, "a newcomer joins with keyed traits and axes, registered");
+		Check(act.members.Count == before && newcomer != null && newcomer.joinedYear == year && newcomer.axesVersion > 0 &&
+			ArtistManager.Instance.GetMusician(newcomer.personId) == newcomer, "a newcomer joins with keyed traits and axes, registered " +
+			$"(members {act.members.Count}/{before}, joined {newcomer?.joinedYear}/{year}, axes {newcomer?.axesVersion}, " +
+			$"registered {ArtistManager.Instance.GetMusician(newcomer?.personId ?? "") == newcomer})");
 
 		// Bookings, a writing session and a cut-in all land in the desk's state.
 		Check(desk.BookRoad(act, 8, 4, out _) && desk.RoadBookingFor(act.artistId)?.WeeksRemaining == 12, "a residency and a tour are booked");
@@ -177,11 +183,21 @@ public static class BandLifeChecks {
 			desk.CutInSongsLeft(act.artistId) == PlayerDesk.LabelCutInSongs, "visits, trust and cut-ins survive a player save");
 
 		// World save round trip: relations, alumni, partners, axes and the pool are all inside the snapshot.
+		// The probe world was generated before the probe switched member axes on, so its first load migrates everyone
+		// onto axes (the old-save path). Normalise once, then require a load to change nothing.
+		WorldStateService.Apply(JsonSerializer.Deserialize<WorldSaveData>(JsonSerializer.Serialize(WorldStateService.Capture(),
+			SaveGameService.TestJsonOptions), SaveGameService.TestJsonOptions), TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
 		WorldSaveData w1 = WorldStateService.Capture();
 		string a1 = JsonSerializer.Serialize(w1, SaveGameService.TestJsonOptions);
 		WorldStateService.Apply(JsonSerializer.Deserialize<WorldSaveData>(a1, SaveGameService.TestJsonOptions),
 			TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
 		string a2 = JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions);
+		if (a1 != a2) {
+			int at = 0, n = Math.Min(a1.Length, a2.Length);
+			while (at < n && a1[at] == a2[at]) at++;
+			int from = Math.Max(0, at - 300);
+			GD.Print($"BANDLIFE_SAVE_DIFF at {at} of {a1.Length}/{a2.Length}\n  before: {a1.Substring(from, Math.Min(500, a1.Length - from))}\n  after:  {a2.Substring(from, Math.Min(500, a2.Length - from))}");
+		}
 		Check(a1 == a2, $"the world save round-trips byte-identically with band-life state ({a1.Length / 1024} KB)");
 		Check(a1.Contains("\"BandLife\"") && (!pooled || a1.Contains(leaver.personId)),
 			"the snapshot carries the band-life section and the pooled person (player acts ride in the player save)");

@@ -64,15 +64,24 @@ public static class BandLifeService {
 	/// <summary>Good morale delays the stages; bad morale speeds them (§4.5 consumer 1).</summary>
 	public const float MoraleStageShift = 0.5f;
 	public const float SolventCohesionWeight = 0.30f;
+	/// <summary>How much of a year's success and resting cohesion actually absorbs incoming strain.</summary>
+	public const float SolventScale = 0.77f;
+	/// <summary>Overall level of the pairwise terms (not Burnout). Fitted offline with SimTools/fit_band_life_strain.py
+	/// on the 2026-10-07 observe decade: charting groups lose a member to strain at ~10% a year, never-charted groups
+	/// rarely (they dissolve quietly), and no cause takes more than ~30% of departures.</summary>
+	public const float StrainScale = 1.45f;
 
-	public const float CreditMoneyWeight = 0.60f;
-	public const float SpotlightWeight = 0.40f;
+	// The first fit (credit .6, spotlight .4, friction .015) left credit and spotlight an order of magnitude under the
+	// static personality terms, so any uniform scale-up made Direction and Reliability win every departure. The event
+	// terms carry the tail; the static terms are the background they land on.
+	public const float CreditMoneyWeight = 2.0f;
+	public const float SpotlightWeight = 2.5f;
 	public const float DirectionWeight = 0.25f;
-	public const float ProjectFrictionWeight = 0.015f;
+	public const float ProjectFrictionWeight = 0.054f;
 	public const float ReliabilityWeight = 0.30f;
-	public const float SubstanceReliabilityWeight = 0.20f;
-	public const float BurnoutWeight = 0.12f;
-	public const float PartnerOutsiderWeight = 0.05f;
+	public const float SubstanceReliabilityWeight = 0.95f;
+	public const float BurnoutWeight = 0.35f;
+	public const float PartnerOutsiderWeight = 0.10f;
 	public const float RivalryWeight = 0.06f;
 	public const float RivalryToDirection = 0.10f;
 	public const float RivalryToCredit = 0.05f;
@@ -87,18 +96,24 @@ public static class BandLifeService {
 	public const float SoloSpotlightShare = 0.50f;
 	/// <summary>Annual cap on APPLIED strain-driven AI departures. A circuit breaker, not the rate: set at roughly
 	/// twice the would-be rate the Phase 2 observe run measured. Deaths, the draft and life events are uncapped.</summary>
-	public static int BreakerAnnualCap = 400;
+	public static int BreakerAnnualCap = 700;
 	/// <summary>Of the vacancies the formation servo fills while the pool can staff one, the share built from pooled people.</summary>
 	public const float RecombinationShare = 0.25f;
 
 	// ==== life events ====================================================================================
-	public const float DraftActExposure = 0.30f;
-	public const float TravelDeathRate = 0.00060f;
+	/// <summary>Fitted on the 2026-10-07 observe decades: .30 cost 3.5-4.5% of charting groups a member to service by
+	/// 1968 against the reference set's ~2.75% (3 of 109 acts; wide error). The year shape follows the induction table.</summary>
+	public const float DraftActExposure = 0.18f;
+	/// <summary>Halved from .0006: travel alone gave 12-14 charting deaths over 1960-65 against ~7 in the reference.</summary>
+	public const float TravelDeathRate = 0.00030f;
 	public const float IllnessDeathRate = 0.00012f;
 	public const float MisadventureDeathRate = 0.00008f;
 	public const float SubstanceDeathRate = 0.030f;
 	public const float SubstanceDeathThreshold = 0.50f;
 	public const float SubstanceOnsetRate = 0.05f;
+	/// <summary>Once using, the yearly chance of carrying on, before reliability and the era ramp. Without it a single
+	/// onset only decayed and nobody ever reached the bust or death thresholds: the late-decade channel was dead.</summary>
+	public const float SubstancePersistence = 0.70f;
 	public const float ExhaustionRate = 0.012f;
 	public const float MarriageRate = 0.07f;
 	public const float ChildrenRate = 0.12f;
@@ -324,10 +339,15 @@ public static class BandLifeService {
 			float personalFame = Mathf.Max(Mathf.Clamp(m.personalRecognition * 4f, 0f, 1f), ctx.fame * 0.6f);
 			float onset = SubstanceOnsetRate * (1f - m.reliability) * (0.3f + personalFame) * SceneSubstance(a.primaryGenre) *
 				SubstanceEra(year) * (0.5f + ctx.roadLoad);
+			bool usingNow = m.substanceLoad >= 0.05f;
+			float carryOn = usingNow ? SubstancePersistence * Mathf.Clamp(1.2f - m.reliability, 0f, 1f) * SubstanceEra(year) : 0f;
 			if (BandLife.Chance(k + "|substance", onset)) {
 				bool first = m.substanceLoad < 0.05f;
 				m.substanceLoad = Mathf.Clamp(m.substanceLoad + 0.15f + 0.15f * BandLife.Unit(k + "|dose"), 0f, 1f);
 				if (first) { summary.substanceOnsets++; EmitPerson(ctx, m, "substance-onset", detail: F(m.substanceLoad)); }
+			} else if (BandLife.Chance(k + "|substance-continues", carryOn)) {
+				// Habit: a smaller dose on top of what is already there.
+				m.substanceLoad = Mathf.Clamp(m.substanceLoad + 0.08f + 0.08f * BandLife.Unit(k + "|dose-continued"), 0f, 1f);
 			} else if (m.substanceLoad > 0f) {
 				m.substanceLoad = Mathf.Max(0f, m.substanceLoad * 0.85f - 0.01f);
 			}
@@ -562,7 +582,7 @@ public static class BandLifeService {
 		List<Musician> people = ctx.present;
 		float totalRecognition = people.Sum(m => m.personalRecognition);
 		float Spot(Musician m) => totalRecognition > 0.005f ? m.personalRecognition / totalRecognition : 1f / people.Count;
-		float solvent = ctx.success + ctx.restingCohesion * SolventCohesionWeight;
+		float solvent = (ctx.success + ctx.restingCohesion * SolventCohesionWeight) * SolventScale;
 		float scale = ctx.constitution switch {
 			LineupConstitution.LeaderAndSidemen => SidemanStrainScale,
 			LineupConstitution.NameOwned => NameOwnedStrainScale,
@@ -615,7 +635,7 @@ public static class BandLifeService {
 			float strainBefore = existing?.strain ?? 0f;
 
 			float total = 0f;
-			for (int c = 0; c < incoming.Length; c++) { incoming[c] *= scale * ctx.workFactor; total += incoming[c]; }
+			for (int c = 0; c < incoming.Length; c++) { incoming[c] *= scale * ctx.workFactor * StrainScale; total += incoming[c]; }
 			float excess = Mathf.Max(0f, total - solvent);
 			if (OnPairTerms != null)
 				OnPairTerms(new PairTermRow {
