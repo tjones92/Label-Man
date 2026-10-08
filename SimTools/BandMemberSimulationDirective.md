@@ -977,8 +977,8 @@ All telemetry goes to `SimLogs/<run>-lineup-*.csv` ([[audit-output-goes-to-simlo
 | 2 | W (observe) | `--observe-band-life` | strain, rivalry, morale, life events (draft, death by channel), romance, stages, and would-be departures by kind and cause; **no writes** to anything that existed before | counts by success tier, cause, year and channel; breaker sized at ~2× the observed rate; `DraftActExposure` and death rates fitted; reference set and `DraftInductions.csv` built |
 | 3 | P (dev checkpoint) | `--enable-lineup-churn=roster` | the one churn implementation, scoped to the player's roster, plus the Band Room, visits, verbs (writing session, cut-in, dry-out, posthumous release included), roster cards and residency booking | AI byte-identical in headless runs; playtest on seed 1002 ([[polar-playtest-seed-1001-commission-break]]) |
 | 4 | W | `--enable-lineup-churn` (scope = world) | the same code with the scope widened: AI departures, draft and death, replacement, dissolution into the pool, solo spin-outs through the servo, recombination, the leaving-member-option rule, the trade-press "Scene" feed; the Polar deriver re-derives on lineup change | two-seed decade A/B against the §7 measures |
-| 4d | W | `--member-fame-share=X` | member slice of act fame raised (§4.15 "What it is not"); the spin-out rate it buys | two-seed decade A/B; spin-outs per decade and their success, against the reference set's solo spin-outs. **Run 2026-10-08 (§11): calibration-neutral, buys no spin-outs alone; default stays .45 pending the intent fix** |
-| 4e | W | `WouldConsiderSoloCareer` (no flag) | solo intent: success raises the urge, tenure no longer only raises the ties (§13) | one 1965-69 window from the saved 1965 world with the doubled slice. **Run 2026-10-08 (§13): 13 of 67 groups with 5+ top-40 hits lost a member to a solo career (19.4%, ref 17.6%); 12 of 26 spin-outs charted; calibration-neutral** |
+| 4d | W | `--member-fame-share=X` | member slice of act fame raised (§4.15 "What it is not"); the spin-out rate it buys | two-seed decade A/B; spin-outs per decade and their success, against the reference set's solo spin-outs. **Run 2026-10-08 (§12): calibration-neutral, buys no spin-outs alone; default raised to .90 with 4d2 (§13)** |
+| 4d2 | W | `WouldConsiderSoloCareer` (no flag) | solo intent: success raises the urge, tenure no longer only raises the ties (§13) | one 1965-69 window from the saved 1965 world with the doubled slice. **Run 2026-10-08 (§13): 13 of 67 groups with 5+ top-40 hits lost a member to a solo career (19.4%, ref 17.6%); 12 of 26 spin-outs charted; calibration-neutral** |
 | 4e | F→W | `--enable-member-wealth` | the wealth stock and its sink, observe-only (§4.15); then the readers one at a time: independence, money grievance, lasting fame, hazards | observe stage byte-identical (probe hash); readers sized offline from the observe ledger, smoke-tested on 104-week probes, then bundled into one two-seed decade A/B (see "Test tiers" below); the intra-act wealth gap distribution reported (writers vs non-writers in charting acts) |
 | 4f | W | `--enable-road-fatigue` | road fatigue as a recovering level with burnout and the success offset (§4.16) | two-seed A/B; exhaustion retirements per year no longer climbing with the unsigned-club backlog; `StudioOnly` exits concentrated in rich, charting acts |
 | 4c | W | `--enable-team-writing` | co-writing layers 2–4 (§4.14): team craft, professional teams, AI cut-ins | its own two-seed decade A/B; mean hook inside the noise floor |
@@ -1279,7 +1279,7 @@ bundled with the slice in one A/B from the same two 1965 worlds:
 Separately, spin-outs that never chart are a launch question (the solo act starts Unsigned with half the act's
 reputation and no label): the leaving-member option fired 4 times in four windows.
 
-## 13. Status — Phase 4e (solo intent), 2026-10-08
+## 13. Status — Phase 4d2 (solo intent), 2026-10-08
 
 **Author decision (2026-10-08): rework the intent; one post-1965 window, no paired seed.** Paired seeds come back
 with the next A/B in this directive or the one after it.
@@ -1332,11 +1332,10 @@ on the same seed. The causes look like history: the spotlight carries most spin-
 walks. About half the spin-outs chart, and one reached #2.
 
 **Open for the author.**
-1. **The slice default.** The tested configuration is intent + .90. At the code default (.45), the offline
-   estimate is about a quarter of the bar-and-spotlight population (26 against 100 acts per decade), so roughly
-   5% of 5+-hit groups. Flipping `DefaultMemberFameShare` to .90 is a one-line change with one trap: the resume
-   rescale treats a world saved without the flag as the default. A flagless world (`bms4-w65-*`) must keep reading
-   as .45, so the flip needs a separate "flagless = .45" constant. Recommendation: flip, with that constant.
+1. **The slice default. Resolved (author, 2026-10-08): flipped to .90.** `DefaultMemberFameShare = 0.90`.
+   Saved audit worlds now store their slice (`AuditWorldFile.MemberFameShare`). A world without it predates the
+   flip, and resumes as `LegacyMemberFameShare` (.45) unless its flags say otherwise. Smoke-tested: a flagless resume
+   of `bms4-w65-1001` printed `MEMBER_FAME_RESCALED saved=0.45 now=0.9`. The bms4e worlds carry the flag explicitly.
 2. **The next paired A/B** should run intent + .90 on both 1965 worlds against `bms4d-ctl-*`, and seed 2002
    especially, since the sizing was fitted on seed 1001.
 

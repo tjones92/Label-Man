@@ -33,6 +33,8 @@ public partial class ChartAuditRunner {
 		public int Month { get; set; }
 		public int Day { get; set; }
 		public string[] Flags { get; set; } = Array.Empty<string>();
+		/// <summary>The member fame slice the world was run at. Absent from worlds saved before Phase 4d2.</summary>
+		public float? MemberFameShare { get; set; }
 		public WorldSaveData World { get; set; }
 	}
 
@@ -77,6 +79,7 @@ public partial class ChartAuditRunner {
 			WorldSeed = SimulationSeedBootstrap.RequestedSeed,
 			Year = now.year, Month = now.month, Day = now.day,
 			Flags = SimulationFlags(),
+			MemberFameShare = MusicianRecognitionService.MemberFameShare,
 			World = WorldStateService.Capture()
 		};
 		string path = WorldPath(name);
@@ -109,7 +112,7 @@ public partial class ChartAuditRunner {
 
 		var date = new GameDate(file.Year, file.Month, file.Day);
 		WorldStateService.Apply(file.World, date, file.WorldSeed);
-		RescaleMemberFameForResume(file.Flags);
+		RescaleMemberFameForResume(file);
 		GD.Print($"CHART_AUDIT_WORLD_RESUMED name={resumeWorldName} date={date.ToShortString()} chartWeek={file.World.ChartWeek}");
 	}
 
@@ -118,9 +121,12 @@ public partial class ChartAuditRunner {
 	/// the old slice. Every deposit is proportional to the slice and decay is multiplicative, so while the stocks are
 	/// far from saturation (the best member sits near .13) a 1960-start run under the new slice would hold the old
 	/// stock times new/old. Rescale once, so the window measures the treatment rather than a ramp toward it.
+	/// A world that does not record its slice predates Phase 4d2: an explicit flag wins, otherwise it ran at the old
+	/// default (.45), not today's.
 	/// </summary>
-	private static void RescaleMemberFameForResume(string[] savedFlags) {
-		float saved = MusicianRecognitionService.ParseFameShare(savedFlags) ?? MusicianRecognitionService.DefaultMemberFameShare;
+	private static void RescaleMemberFameForResume(AuditWorldFile file) {
+		float saved = file.MemberFameShare ?? MusicianRecognitionService.ParseFameShare(file.Flags) ??
+			MusicianRecognitionService.LegacyMemberFameShare;
 		float now = MusicianRecognitionService.MemberFameShare;
 		if (Mathf.IsEqualApprox(saved, now) || saved <= 0f) return;
 		float ratio = now / saved;

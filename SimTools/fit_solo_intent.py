@@ -1,4 +1,4 @@
-"""Phase 4e sizing (SimTools/BandMemberSimulationDirective.md §13): replay Musician.WouldConsiderSoloCareer offline.
+"""Phase 4d2 sizing (SimTools/BandMemberSimulationDirective.md §13): replay Musician.WouldConsiderSoloCareer offline.
 
 Usage:  py SimTools/fit_solo_intent.py [<obs-run>] [--slice-ratio=2.0]
 
