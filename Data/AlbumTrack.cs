@@ -1,7 +1,7 @@
 using Godot;
 
-[GlobalClass]
-public partial class AlbumTrack : Resource {
+// A plain C# class, not a Godot Resource (see Record). Saved fields-only.
+public partial class AlbumTrack : IFieldsOnlySave {
 	[Export] public string sourceRecordId;
 	[Export] public string masterId;
 	[Export] public string title;

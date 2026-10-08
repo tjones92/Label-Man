@@ -1,7 +1,10 @@
 using Godot;
 
-[GlobalClass]
-public partial class Record : Resource {
+// A plain C# class, not a Godot Resource: the sim creates and discards these by the hundred thousand, and as
+// Resources each one was a native ref-counted object for the finalizer thread to release. The [Export]
+// attributes are documentation only; nothing exports these to the editor. The world save still writes them
+// fields-only (IFieldsOnlySave).
+public partial class Record : IFieldsOnlySave {
 	[ExportGroup("Identity")]
 	[Export] public string recordId;
 	[Export] public string title;

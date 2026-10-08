@@ -206,16 +206,23 @@ public sealed class WorldLabelSaveData {
 	};
 }
 
+/// <summary>Marks a plain data class the world save writes by declared fields only, as it does Godot objects.
+/// See <see cref="WorldJsonContracts.FieldsOnly"/>.</summary>
+public interface IFieldsOnlySave { }
+
 /// <summary>System.Text.Json contract tweaks for the world save.</summary>
 public static class WorldJsonContracts {
 	/// <summary>Restricts the world's whole-serialized entities to their declared fields, dropping every
 	/// property. Applies to:
 	/// <list type="bullet">
-	/// <item>every Godot <see cref="GodotObject"/>-derived type (AILabel, Record, Album, AlbumTrack, ...) --
+	/// <item>every Godot <see cref="GodotObject"/>-derived type (AILabel, ...) --
 	/// dropping their computed properties (e.g. AILabel.distributionStrength, whose setter would corrupt
 	/// ownedReach on load) and the inherited GodotObject/Resource members (NativeInstance, ResourcePath, ...)
 	/// that are otherwise unserializable. Applying this to <i>all</i> GodotObject types means a new Resource
 	/// added to the graph is handled automatically -- no enumeration to maintain;</item>
+	/// <item>every <see cref="IFieldsOnlySave"/> type (Record, Album, AlbumTrack): former Resources made plain
+	/// C# classes, which keep the same field-only shape (Record.PlugMasterId, AlbumTrack.HasStoredComponents
+	/// stay out of the save);</item>
 	/// <item><see cref="GameDate"/>, a struct whose computed properties build a System.DateTime (DayOfWeek,
 	/// IsFriday, ...); a default (year 0) GameDate anywhere in the graph would otherwise throw
 	/// "un-representable DateTime" on serialize. Fields-only serializes it as {year,month,day}.</item>
@@ -226,7 +233,8 @@ public static class WorldJsonContracts {
 	/// treatment; the round-trip probe surfaces any field that fails to restore.</summary>
 	public static void FieldsOnly(JsonTypeInfo typeInfo) {
 		if (typeInfo.Kind != JsonTypeInfoKind.Object) return;
-		bool fieldOnly = typeInfo.Type == typeof(GameDate) || typeof(GodotObject).IsAssignableFrom(typeInfo.Type);
+		bool fieldOnly = typeInfo.Type == typeof(GameDate) || typeof(GodotObject).IsAssignableFrom(typeInfo.Type) ||
+			typeof(IFieldsOnlySave).IsAssignableFrom(typeInfo.Type);
 		if (!fieldOnly) return;
 		bool isLabel = typeInfo.Type == typeof(AILabel);
 		for (int i = typeInfo.Properties.Count - 1; i >= 0; i--) {

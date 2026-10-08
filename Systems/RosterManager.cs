@@ -1131,15 +1131,37 @@ public partial class RosterManager : Node {
 	internal static int GetDiscoverySlateSize(float scoutingAbility) => Mathf.Clamp(
 		MinimumDiscoverySlateSize + Mathf.RoundToInt(Mathf.Clamp(scoutingAbility, 0f, 1f) *
 		(MaximumDiscoverySlateSize - MinimumDiscoverySlateSize)), MinimumDiscoverySlateSize, MaximumDiscoverySlateSize);
-	internal static ulong GetStableDiscoveryKey(string labelId, string artistId, int discoveryWindow) {
-		const ulong offset = 14695981039346656037UL;
-		const ulong prime = 1099511628211UL;
-		ulong hash = offset;
-		foreach (char value in $"{labelId}|{artistId}|{discoveryWindow}") { hash ^= value; hash *= prime; }
+	// FNV-1a over "{labelId}|{artistId}|{discoveryWindow}", hashed piecewise so the per-artist call allocates nothing.
+	internal static ulong GetStableDiscoveryKey(string labelId, string artistId, int discoveryWindow) =>
+		Fnv(Fnv(DiscoveryKeyPrefix(labelId), artistId), $"|{discoveryWindow}");
+	private static ulong DiscoveryKeyPrefix(string labelId) => Fnv(Fnv(14695981039346656037UL, labelId), "|");
+	private static ulong Fnv(ulong hash, string text) {
+		foreach (char value in text ?? string.Empty) { hash ^= value; hash *= 1099511628211UL; }
 		return hash;
 	}
-	private static string NormalizeRegionName(string value) => new((value ?? string.Empty)
-		.Where(System.Char.IsLetterOrDigit).Select(System.Char.ToLowerInvariant).ToArray());
+	// Region names are a handful of strings compared per unsigned artist per scouting call; normalise each once.
+	private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> normalizedRegionNames = new(System.StringComparer.Ordinal);
+	private static string NormalizeRegionName(string value) => normalizedRegionNames.GetOrAdd(value ?? string.Empty, v => new(v
+		.Where(System.Char.IsLetterOrDigit).Select(System.Char.ToLowerInvariant).ToArray()));
+
+	/// <summary>The first <paramref name="count"/> of <paramref name="pool"/> in ascending stable discovery key,
+	/// ties kept in pool order: exactly <c>pool.OrderBy(key).Take(count)</c>, without sorting the whole pool.</summary>
+	private static List<SimulatedArtist> TakeLowestDiscoveryKeys(List<SimulatedArtist> pool, string labelId, int discoveryWindow, int count) {
+		if (count <= 0) return new List<SimulatedArtist>();
+		var best = new List<(ulong Key, SimulatedArtist Artist)>(System.Math.Min(count, pool.Count) + 1);
+		ulong prefix = DiscoveryKeyPrefix(labelId);
+		string suffix = $"|{discoveryWindow}";
+		foreach (SimulatedArtist artist in pool) {
+			ulong key = Fnv(Fnv(prefix, artist.artistId), suffix);
+			// Equal keys go after those already held, which arrived earlier: OrderBy's stability.
+			if (best.Count == count && key >= best[^1].Key) continue;
+			int lo = 0, hi = best.Count;
+			while (lo < hi) { int mid = (lo + hi) >> 1; if (best[mid].Key <= key) lo = mid + 1; else hi = mid; }
+			best.Insert(lo, (key, artist));
+			if (best.Count > count) best.RemoveAt(best.Count - 1);
+		}
+		return best.ConvertAll(entry => entry.Artist);
+	}
 	private static bool IsInScoutingRegion(SimulatedArtist artist, MarketRegion region) => artist != null && region != null &&
 		NormalizeRegionName(artist.homeRegion) == NormalizeRegionName(region.regionName);
 
@@ -1175,9 +1197,7 @@ public partial class RosterManager : Node {
 		List<SimulatedArtist> discoveryPool = nationalFreshRecovery ? eligible : regional;
 		discoveryPoolCount = discoveryPool.Count;
 		int discoveryWindow = Mathf.Max(0, currentWeek - 1) / DiscoveryRefreshWindowWeeks;
-		return discoveryPool
-			.OrderBy(artist => GetStableDiscoveryKey(label.labelId, artist.artistId, discoveryWindow))
-			.Take(nationalFreshRecovery ? slateSize * 4 : slateSize)
+		return TakeLowestDiscoveryKeys(discoveryPool, label.labelId, discoveryWindow, nationalFreshRecovery ? slateSize * 4 : slateSize)
 			// Fog the slate ranking too, else even fogged scoring only ever sees the truly-best acts.
 			.OrderByDescending(artist => ScoutingPerception.PerceivedQuality(artist, label, discoveryWindow) *
 				GenreSupplyService.GetSupplyWeight(artist.primaryGenre, label, artist, region, year))

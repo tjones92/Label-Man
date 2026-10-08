@@ -246,7 +246,8 @@ public partial class CompetitorManager : Node {
 	[Export] private bool consolidationAllowNationalMidTier = false;
 
 	[ExportGroup("Historical Records")]
-	[Export] private Record[] historicalRecords;
+	// Never assigned by any scene; kept as the hook the historical-seed paths read. Not exported: Record is a plain C# class.
+	private Record[] historicalRecords = null;
 	
 	[ExportGroup("Debug")]
 	[Export] private bool debugMode = false;
