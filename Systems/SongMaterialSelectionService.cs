@@ -574,26 +574,44 @@ public static class SongMaterialSelectionService {
 	private static IReadOnlyList<SongComposition>[] StandardPoolsFor(Genre genre,int year) {
 		var fams = CoverSourceFamilies(genre);
 		var pools = new IReadOnlyList<SongComposition>[fams.Length];
-		for (int i = 0; i < fams.Length; i++) pools[i] = MergedStandards(fams[i])
-			.Where(s=>RepertoireProvenance.GameplayStandard(s,year)&&MediaCutRecordingAccess(s,genre)).ToArray();
+		var establishment = RepertoireProvenance.CurrentEstablishmentRule();
+		for (int i = 0; i < fams.Length; i++) {
+			var merged = MergedStandards(fams[i]);
+			var pool = new List<SongComposition>();
+			for (int j = 0; j < merged.Count; j++) {
+				var s = merged[j];
+				if (RepertoireProvenance.GameplayStandard(s,year,establishment)&&MediaCutRecordingAccess(s,genre)) pool.Add(s);
+			}
+			pools[i] = pool.ToArray();
+		}
 		return pools;
 	}
 
-	// The standards-plus-hits union, distinct by song id in first-seen order, rebuilt only when either source list
-	// grows (both are append-only; a load replaces them). Rebuilding it per call was ~20% of a late-decade run. The
-	// year/genre filter above still runs per call, because establishment reads song state that moves every week.
-	private sealed record MergedPool(IReadOnlyList<SongComposition> Standards, int StandardsCount,
-		IReadOnlyList<SongComposition> Hits, int HitsCount, SongComposition[] Songs);
+	// The standards-plus-hits union, distinct by song id in first-seen order. Both sources are append-only (a load
+	// replaces them), so new hits are appended to the cached union; only a new standard, which sorts ahead of every
+	// hit, forces a rebuild. Rebuilding it per call was ~20% of a late-decade run. The year/genre filter above
+	// still runs per call, because establishment reads song state that moves every week.
+	private sealed class MergedPool {
+		public IReadOnlyList<SongComposition> Standards, Hits;
+		public int StandardsCount, HitsCount;
+		public readonly List<SongComposition> Songs = new();
+		public readonly HashSet<string> SongIds = new();
+		public void Append(SongComposition s) { if (SongIds.Add(s.songId)) Songs.Add(s); }
+	}
 	private static readonly Dictionary<GenreFamily, MergedPool> mergedStandards = new();
-	private static SongComposition[] MergedStandards(GenreFamily family) {
+	private static List<SongComposition> MergedStandards(GenreFamily family) {
 		var standards = CompositionCatalogService.GetStandardsForFamily(family);
 		var hits = LiveRepertoire.AuditPhase>=5 ? CompositionCatalogService.GetCoverableHitsForFamily(family) : System.Array.Empty<SongComposition>();
 		if (mergedStandards.TryGetValue(family, out var cached) && ReferenceEquals(cached.Standards, standards) &&
-			cached.StandardsCount == standards.Count && ReferenceEquals(cached.Hits, hits) && cached.HitsCount == hits.Count)
+			cached.StandardsCount == standards.Count && ReferenceEquals(cached.Hits, hits) && cached.HitsCount <= hits.Count) {
+			while (cached.HitsCount < hits.Count) cached.Append(hits[cached.HitsCount++]);
 			return cached.Songs;
-		var songs = standards.Concat(hits).DistinctBy(s=>s.songId).ToArray();
-		mergedStandards[family] = new MergedPool(standards, standards.Count, hits, hits.Count, songs);
-		return songs;
+		}
+		var pool = new MergedPool { Standards = standards, StandardsCount = standards.Count, Hits = hits, HitsCount = hits.Count };
+		foreach (var s in standards) pool.Append(s);
+		foreach (var s in hits) pool.Append(s);
+		mergedStandards[family] = pool;
+		return pool.Songs;
 	}
 
 	private static IReadOnlyList<SongComposition>[] TraditionalPoolsFor(Genre genre) {
