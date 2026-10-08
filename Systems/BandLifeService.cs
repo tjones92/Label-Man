@@ -108,12 +108,12 @@ public static class BandLifeService {
 	public const float TravelDeathRate = 0.00030f;
 	public const float IllnessDeathRate = 0.00012f;
 	public const float MisadventureDeathRate = 0.00008f;
-	public const float SubstanceDeathRate = 0.030f;
+	public const float SubstanceDeathRate = 0.060f; // with the habit draw: ~15 deaths a seed, nearly all 1968-69 (offline Monte Carlo over the world-run onsets)
 	public const float SubstanceDeathThreshold = 0.50f;
 	public const float SubstanceOnsetRate = 0.05f;
 	/// <summary>Once using, the yearly chance of carrying on, before reliability and the era ramp. Without it a single
 	/// onset only decayed and nobody ever reached the bust or death thresholds: the late-decade channel was dead.</summary>
-	public const float SubstancePersistence = 0.70f;
+	public const float SubstancePersistence = 0.80f;
 	public const float ExhaustionRate = 0.012f;
 	public const float MarriageRate = 0.07f;
 	public const float ChildrenRate = 0.12f;
@@ -340,14 +340,14 @@ public static class BandLifeService {
 			float onset = SubstanceOnsetRate * (1f - m.reliability) * (0.3f + personalFame) * SceneSubstance(a.primaryGenre) *
 				SubstanceEra(year) * (0.5f + ctx.roadLoad);
 			bool usingNow = m.substanceLoad >= 0.05f;
-			float carryOn = usingNow ? SubstancePersistence * Mathf.Clamp(1.2f - m.reliability, 0f, 1f) * SubstanceEra(year) : 0f;
+			float carryOn = usingNow ? Mathf.Clamp(SubstancePersistence * (0.6f + 0.8f * (1f - m.reliability)), 0f, 1f) * SubstanceEra(year) : 0f;
 			if (BandLife.Chance(k + "|substance", onset)) {
 				bool first = m.substanceLoad < 0.05f;
 				m.substanceLoad = Mathf.Clamp(m.substanceLoad + 0.15f + 0.15f * BandLife.Unit(k + "|dose"), 0f, 1f);
 				if (first) { summary.substanceOnsets++; EmitPerson(ctx, m, "substance-onset", detail: F(m.substanceLoad)); }
 			} else if (BandLife.Chance(k + "|substance-continues", carryOn)) {
 				// Habit: a smaller dose on top of what is already there.
-				m.substanceLoad = Mathf.Clamp(m.substanceLoad + 0.08f + 0.08f * BandLife.Unit(k + "|dose-continued"), 0f, 1f);
+				m.substanceLoad = Mathf.Clamp(m.substanceLoad + 0.10f + 0.10f * BandLife.Unit(k + "|dose-continued"), 0f, 1f);
 			} else if (m.substanceLoad > 0f) {
 				m.substanceLoad = Mathf.Max(0f, m.substanceLoad * 0.85f - 0.01f);
 			}

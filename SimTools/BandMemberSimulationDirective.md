@@ -1053,3 +1053,35 @@ player can pull the tour and dry him out, at a cost in momentum, or keep the act
 its biggest summer.
 
 Every line above reads a number the simulation already holds, or will hold once its phase lands.
+
+---
+
+## 11. Status — Phase 4 A/B, 2026-10-08
+
+**Runs.** Controls `bms2-obs-{1001,2002}` (observe scope is economy-identical, so it is the control; stopped mid-1969,
+scored on 1960-67). World `bms2-world-{1001,2002}` on the same build plus the fitted constants. Compare with
+`py SimTools/band_life_ab.py <control> <world> --max-year=1967`; lineup measures with `SimTools/analyze_band_life.py`.
+Strain weights were fitted offline from the control's pair log with `SimTools/fit_band_life_strain.py`.
+
+**Calibration (§7.5) — passes.** World minus same-seed control, against a seed-to-seed spread of 44.6 / 26:
+genre-share sumAbsErr −4.0 / −7.5; year-end slot error −34 / +12; album unit share within ±0.8 pt; owner-Major
+entry share ±4 pt, mixed sign.
+
+**Lineup measures.** Failing acts dissolve quietly 91-92% (§7.1 ok). Largest cause Direction 25-26% (§7.2 ok).
+Cascades 8-10%, breaker never binds (§7.3 ok). Charting acts losing a member to service 2.2-2.6% vs reference 2.8%,
+peaking 1966-67 (§7.5a ok). Charting deaths 1960-65: 7 and 3 vs reference 7 (§7.5b ok). Charting groups that
+changed lineup: 34-38% vs the reference's 63% (selection-biased toward famous long careers).
+
+**Open.**
+1. §7.4 population conservation **misses**: formations are unchanged (spin-outs replace fresh acts), but active acts
+   end 2.5-3.3% below control by 1967-68 (seed spread ~1%). Cause: ~190 band-life dissolutions a year by 1968 that
+   nothing refills, a large share following exhaustion retirements (~380/yr late; `roadYears` grows without bound
+   for long-unsigned club acts). Author decision: credit dissolutions to the formation servo (conserves acts, raises
+   formations ~8%), accept the deficit (economy unaffected), or bound exhaustion.
+2. The substance channel produced no deaths and one bust: a single onset only decayed. A habit draw was added and
+   sized by an offline Monte Carlo over the world-run onsets (~15 substance deaths per seed, nearly all 1968-69,
+   ~3 among charting people). Not yet measured in a decade run; the 27-Club age report (§4.8.2) is owed with it.
+3. Solo spin-outs are rare (4-8 per decade): the spotlight-share and launch-bar gate almost never opens.
+
+World-scope churn stays command-line only (`--enable-lineup-churn=world`) until item 1 is decided. Scene defaults now
+turn on co-writing, member axes and roster-scope churn.
