@@ -93,7 +93,7 @@ public static class PolarSongBehavior {
 			.ThenBy(x => RepertoireTaxonomy.Hash(artist.artistId + "|collision|" + x.Song.songId)).Select(x => x.Song);
 	internal static PolarArrangementProposal LiveProposal(SongComposition song, SimulatedArtist artist, int year) =>
 		Prepare(new SelectedSongMaterial { Song = song, IsCover = true }, artist,
-			new Record { recordId = $"live:{artist.artistId}:{year}:{song.songId}", primaryGenre = artist.primaryGenre }, artist.primaryGenre, year).PolarProposal;
+			SongMaterialSelectionService.LiveKey($"live:{artist.artistId}:{year}:{song.songId}", artist.primaryGenre), artist.primaryGenre, year).PolarProposal;
 	internal static IEnumerable<SongComposition> RankLive(IEnumerable<SongComposition> pool, SimulatedArtist artist, int year) {
 		if(LiveRepertoire.AuditPhase<3)return LegacyAuditRanking(pool,artist,year);
 		var candidates=pool.Where(s=>s!=null&&s.originYear<=year&&LiveRepertoire.EligibleLive(s,artist)).DistinctBy(s=>s.songId).Select(s=>new {

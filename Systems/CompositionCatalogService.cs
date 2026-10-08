@@ -734,11 +734,21 @@ public static class CompositionCatalogService {
 		if (!coverableHitsByGenre.TryGetValue(song.primaryGenre, out var pool)) {
 			pool = new List<SongComposition>(); coverableHitsByGenre[song.primaryGenre] = pool;
 		}
-		if (!pool.Contains(song)) pool.Add(song);
+		AddIfAbsent(pool, song);
 		if(LiveRepertoire.AuditPhase<5){AddToPool(coverableHitsByFamily,FamilyOf(song.primaryGenre),song);return;}
 		var family=FamilyOf(song.primaryGenre);
 		if(!coverableHitsByFamily.TryGetValue(family,out var familyPool)) coverableHitsByFamily[family]=familyPool=new();
-		if(!familyPool.Contains(song))familyPool.Add(song);
+		AddIfAbsent(familyPool, song);
+	}
+
+	// List.Contains on these pools was a linear scan per admission, ~9% of a late-decade run. The pools are
+	// append-only (a load rebuilds them as new lists), so a set that catches up on the list's tail is exact.
+	private sealed class PoolMembership { public readonly HashSet<SongComposition> Set = new(); public int Synced; }
+	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<SongComposition>, PoolMembership> poolMembership = new();
+	private static void AddIfAbsent(List<SongComposition> list, SongComposition song) {
+		PoolMembership m = poolMembership.GetValue(list, _ => new PoolMembership());
+		while (m.Synced < list.Count) m.Set.Add(list[m.Synced++]);
+		if (m.Set.Add(song)) { list.Add(song); m.Synced++; }
 	}
 
 	// Phase 5 admissions are independent of chart outcome. Routes persist on compositions and indexes already serialize.

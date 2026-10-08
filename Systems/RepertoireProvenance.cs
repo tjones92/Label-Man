@@ -8,7 +8,7 @@ public static class RepertoireProvenance {
  public static float EstablishmentDurability => PolarRepertoireTable.Current.N("establishmentDurability");
  internal static bool GameplayStandard(SongComposition song,int year)=>LiveRepertoire.AuditPhase<5?song.isStandard:song.EstablishedAsOf(year);
  public static bool ComedyRoutine(SongComposition song) => song != null && (song.repertoireSeedFamily=="Comedy routines" || song.primaryGenre==Genre.Comedy);
- public static bool EstablishedAsOf(this SongComposition song, int year) => song != null && (!LiveRepertoire.AuditGenreRepair||!ComedyRoutine(song)) && song.originYear <= year && !song.isTraditional &&
+ public static bool EstablishedAsOf(this SongComposition song, int year) => song != null && song.originYear <= year && !song.isTraditional && (!LiveRepertoire.AuditGenreRepair||!ComedyRoutine(song)) &&
   (song.establishedYear.HasValue ? song.establishedYear.Value<=year :
    year-song.originYear>=EstablishmentAge && (song.standardDurability>=EstablishmentDurability ||
     song.nationalFamiliarity>=.40f&&song.recordings.Select(r=>r.artistId).Distinct().Count()>=3) &&
