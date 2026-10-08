@@ -583,7 +583,9 @@ public partial class CompetitorManager : Node {
 	/// selling at least as well as the one being courted.
 	/// </summary>
 	private (AILabel Major, AILabel Dropped) SelectMajorWillingToDropWeakestClient(AILabel client) {
-		int courtedCharting = GetRecentChartingRecordCount(client.labelId);
+		// Pure read over every Major's held clients; count all labels' recent charting records in one pass.
+		System.Func<string, int> chartingCount = RecentChartingRecordCounter();
+		int courtedCharting = chartingCount(client.labelId);
 		AILabel bestMajor = null, bestDrop = null;
 		int bestDropCharting = int.MaxValue;
 		foreach (AILabel major in aiLabels) {
@@ -595,7 +597,7 @@ public partial class CompetitorManager : Node {
 			foreach (AILabel held in aiLabels) {
 				if (held.activeDeal?.distributorId != major.labelId || held == client) continue;
 				if (held.IsSubsidiary) continue;
-				int charting = GetRecentChartingRecordCount(held.labelId);
+				int charting = chartingCount(held.labelId);
 				if (charting >= courtedCharting || charting >= bestDropCharting) continue;
 				bestMajor = major;
 				bestDrop = held;
@@ -4910,12 +4912,26 @@ public partial class CompetitorManager : Node {
 	public int GetRecentChartingRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
 		int active = ChartManager.Instance.GetAllRecords().Count(record =>
-			record.baseRecord.labelId == labelId &&
-			record.weeksSinceRelease <= maxAgeWeeks &&
-			record.weeksOnChart > 0);
-		return active + CountRecentRetiredRecordEvidence(
-			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
-			maxAgeWeeks, requireCharted: true, requireTop40: false);
+			record.baseRecord.labelId == labelId && IsRecentChartingRecord(record, maxAgeWeeks));
+		return active + RecentRetiredChartingCount(labelId, maxAgeWeeks);
+	}
+	private static bool IsRecentChartingRecord(RecordRuntimeData record, int maxAgeWeeks) =>
+		record.weeksSinceRelease <= maxAgeWeeks && record.weeksOnChart > 0;
+	private int RecentRetiredChartingCount(string labelId, int maxAgeWeeks) => CountRecentRetiredRecordEvidence(
+		retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+		maxAgeWeeks, requireCharted: true, requireTop40: false);
+	/// <summary>GetRecentChartingRecordCount for every label at once, for callers that ask about many labels while
+	/// nothing changes: one pass over the records instead of one per label. Same predicate, same totals.</summary>
+	private System.Func<string, int> RecentChartingRecordCounter(int maxAgeWeeks = 52) {
+		if (ChartManager.Instance == null) return _ => 0;
+		var active = new Dictionary<string, int>(System.StringComparer.Ordinal);
+		foreach (RecordRuntimeData record in ChartManager.Instance.GetAllRecords()) {
+			string id = record.baseRecord.labelId;
+			if (id != null && IsRecentChartingRecord(record, maxAgeWeeks)) active[id] = active.GetValueOrDefault(id) + 1;
+		}
+		var totals = new Dictionary<string, int>(System.StringComparer.Ordinal);
+		return labelId => string.IsNullOrEmpty(labelId) ? 0 : totals.TryGetValue(labelId, out int n) ? n :
+			totals[labelId] = active.GetValueOrDefault(labelId) + RecentRetiredChartingCount(labelId, maxAgeWeeks);
 	}
 
 	public int GetRecentReleasedRecordCount(string labelId, int maxAgeWeeks = 52) {
