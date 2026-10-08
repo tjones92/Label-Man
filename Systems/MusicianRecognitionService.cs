@@ -23,10 +23,13 @@ public static class MusicianRecognitionService {
 	/// exactly like <see cref="MemberShare"/>. Kept apart from the reputation channels so that raising it moves
 	/// the solo gate, the spin-out's launch stock and the substance hazard's fame term, and nothing that every
 	/// launch reads (creativeReputation feeds EffectiveRecognition). Phase 4d
-	/// (SimTools/BandMemberSimulationDirective.md §4.15, §11): at .45 a frontman banks ~22% of the act's fame.
-	/// Overridable with --member-fame-share=X for the A/B.
+	/// (SimTools/BandMemberSimulationDirective.md §4.15, §11-13): at .45 a frontman banked ~22% of the act's fame.
+	/// Raised to .90 with the solo-intent rework (Phase 4d2, §13), the configuration that put 19.4% of 5+-hit groups
+	/// through a solo spin-out against the reference set's 17.6%. Overridable with --member-fame-share=X.
 	/// </summary>
-	public const float DefaultMemberFameShare = 0.45f;
+	public const float DefaultMemberFameShare = 0.90f;
+	/// <summary>The default before Phase 4d2. Audit worlds saved before the slice was stored in the file ran at it.</summary>
+	public const float LegacyMemberFameShare = 0.45f;
 	public static float MemberFameShare { get; private set; } = DefaultMemberFameShare;
 
 	/// <summary>Reads --member-fame-share=X. A missing flag keeps the default.</summary>

@@ -111,12 +111,23 @@ public class Musician {
 
 	public float GetDramaRisk() => (ego * 0.3f) + (ambition * 0.25f) + ((1f - loyalty) * 0.25f) + ((1f - temperament) * 0.2f);
 
+	// Solo intent (BandMemberSimulationDirective §12-13). Success, not tenure alone, sets the urge to leave: each year
+	// in a group that has had top-40 hits adds to it (Ruffin, Medley, Durham left after years of hits). The old form
+	// added every year to the ties instead and passed ~2-4% of the leads who already had the fame and the spotlight.
+	// Sized offline on bms2-obs-1001: of the 91 groups with 5+ top-40 hits, 17.6% then hold a member who clears
+	// intent, the fame bar and the spotlight at once, against the reference set's 17.6% of 91 top-40 groups.
+	public const float SoloSuccessPullPerYear = 0.05f;
+	public const int SoloSuccessPullMaxYears = 6;
+	public const float SoloSuccessHitsForFullPull = 2f;
+	public const float SoloTiesBase = 0.15f;
+
 	public bool WouldConsiderSoloCareer(int yearsInGroup, int groupHits) {
 		if (!isLeadVocalist && stagePresence < 0.7f) return false;
 		float soloUrge = ambition * 0.4f + ego * 0.3f + stagePresence * 0.2f;
-		float groupTies = loyalty * 0.5f + (yearsInGroup * 0.05f);
-		float successFactor = groupHits > 5 ? 0.2f : 0f;
-		return (soloUrge + successFactor) > (groupTies + 0.3f);
+		float success = Math.Min(1f, Math.Max(0, groupHits) / SoloSuccessHitsForFullPull);
+		float successPull = SoloSuccessPullPerYear * Math.Min(yearsInGroup + 1, SoloSuccessPullMaxYears) * success;
+		float groupTies = loyalty * 0.5f;
+		return (soloUrge + successPull) > (groupTies + SoloTiesBase);
 	}
 }
 

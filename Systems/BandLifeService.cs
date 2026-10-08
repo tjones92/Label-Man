@@ -946,7 +946,7 @@ public static class BandLifeService {
 				formationDebt++;
 				Emit(new BandLifeEvent { year = year, artistId = solo.artistId, stageName = solo.stageName, personId = m.personId,
 					personName = m.FullName, otherPersonId = a.artistId, eventType = "solo-spinout", kind = DepartureKind.SoloCareer,
-					applied = true, playerOwned = a.isPlayerOwned, everCharted = ctx.everCharted });
+					cause = c.cause, applied = true, playerOwned = a.isPlayerOwned, everCharted = ctx.everCharted });
 				if (!a.isPlayerOwned && TryAiLeavingMemberOption(a, solo, year)) summary.leavingMemberOptions++;
 			}
 		} else if (c.kind == DepartureKind.Service) {

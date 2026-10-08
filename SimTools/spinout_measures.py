@@ -42,7 +42,11 @@ def analyze(run, min_year):
     spins = [e for e in events if e["event"] == "solo-spinout"]
     print(f"=== {run} (from {min_year}) ===")
     print(f"spin-outs {len(spins)}  by year {dict(sorted(Counter(e['year'] for e in spins).items()))}")
-    print(f"  by cause {dict(Counter(e['cause'] for e in spins))}  from charted acts {sum(e['everCharted'] == 'true' for e in spins)}")
+    # The solo-spinout row carried no cause before 2026-10-08 (it read as the enum default, CreditAndMoney); the
+    # matching SoloCareer departure row has the real one.
+    true_cause = {(e["year"], e["personId"]): e["cause"] for e in events
+                  if e["kind"] == "SoloCareer" and e["event"] != "solo-spinout"}
+    print(f"  by cause {dict(Counter(true_cause.get((e['year'], e['personId']), e['cause']) for e in spins))}  from charted acts {sum(e['everCharted'] == 'true' for e in spins)}")
 
     # Top-40 group acts in the window: lineup events carry no top-40 flag, so use chartedThisYear on group acts as
     # the in-window charting population and report the reference share beside it.
@@ -52,18 +56,17 @@ def analyze(run, min_year):
     print(f"  group acts charting in-window with any lineup event {len(charted_groups)}; donor acts {len(donors)}"
           f" ({len(donors & charted_groups) / max(1, len(charted_groups)):.1%} of them)  ref: {ref:.1%} of {n} top-40 groups")
 
+    # Peak Hot 100 position per spin-out act, from the weekly records log. (first-chart-events is a LABEL's first
+    # chart entry, not a record's; reading it here reported "no spin-out ever charted" through 2026-10-08.)
     solo_ids = {e["artistId"] for e in spins}
-    records = {}
-    for r in read(f"{run}-live-records-snapshot.csv"):
-        if r["artistId"] in solo_ids:
-            records.setdefault(r["recordId"], r["artistId"])
     charted = {}
-    for r in read(f"{run}-first-chart-events.csv"):
-        a = records.get(r["recordId"])
-        if a and int(r["year"]) >= min_year:
-            charted[a] = min(charted.get(a, 999), int(r["currentPosition"]))
-    debuts = sorted(charted.values())
-    print(f"  spin-out acts that charted {len(charted)}/{len(solo_ids)}; best debut positions {debuts[:15]}")
+    for r in read(f"{run}-records.csv"):
+        pos = int(float(r["currentPosition"] or 0))
+        if r["artistId"] in solo_ids and pos > 0:
+            charted[r["artistId"]] = min(charted.get(r["artistId"], 999), pos)
+    peaks = sorted(charted.values())
+    print(f"  spin-out acts that charted {len(charted)}/{len(solo_ids)} (top 40: {sum(p <= 40 for p in peaks)});"
+          f" peak positions {peaks[:15]}")
 
     annual = [r for r in read(f"{run}-lineup-annual.csv") if int(r["year"]) >= min_year]
     subst = sum(int(r["deathSubstance"]) for r in annual)
