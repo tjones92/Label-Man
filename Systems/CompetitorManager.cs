@@ -1629,7 +1629,7 @@ public partial class CompetitorManager : Node {
 			runtimeData.sunkProductionCost, maturity);
 		float residual = Mathf.Clamp((estimatedOutcome - expectedNet) / scale, -ResponsiveMemoryResidualLimit, ResponsiveMemoryResidualLimit);
 		if (float.IsNaN(residual) || float.IsInfinity(residual)) return;
-		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == releaseId);
+		FormatMemoryObservation observation = FindObservation(memory.observations, releaseId);
 		if (observation == null) {
 			observation = new FormatMemoryObservation { releaseId = releaseId, projectId = runtimeData.albumProjectId,
 				releaseLane = runtimeData.projectRole, estimatorLane = lane,
@@ -1727,7 +1727,7 @@ public partial class CompetitorManager : Node {
 		AILabel label = GetLabel(project.currentLabelId);
 		if (label == null) return;
 		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(RevenueEstimatorLane.AlbumWithPromo);
-		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == project.projectId);
+		FormatMemoryObservation observation = FindObservation(memory.observations, project.projectId);
 		if (observation == null) {
 			observation = new FormatMemoryObservation {
 				releaseId = project.projectId, projectId = project.projectId,
@@ -1764,10 +1764,30 @@ public partial class CompetitorManager : Node {
 		});
 	}
 
+	// Observation lists only ever grow by Add (a load brings new lists), so a per-list index that catches up on the
+	// tail answers FirstOrDefault(o => o.releaseId == id) exactly: the first observation with an id wins. The linear
+	// scan over the pooled album memory was ~17% of a late-decade run.
+	private sealed class ObservationIndex {
+		public readonly Dictionary<string, FormatMemoryObservation> ById = new(System.StringComparer.Ordinal);
+		public FormatMemoryObservation FirstNullId;
+		public int Synced;
+	}
+	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<FormatMemoryObservation>, ObservationIndex> observationIndexes = new();
+	private static FormatMemoryObservation FindObservation(List<FormatMemoryObservation> observations, string releaseId) {
+		ObservationIndex index = observationIndexes.GetValue(observations, _ => new ObservationIndex());
+		if (index.Synced > observations.Count) observationIndexes.AddOrUpdate(observations, index = new ObservationIndex());
+		while (index.Synced < observations.Count) {
+			FormatMemoryObservation item = observations[index.Synced++];
+			if (item.releaseId == null) index.FirstNullId ??= item;
+			else index.ById.TryAdd(item.releaseId, item);
+		}
+		if (releaseId == null) return index.FirstNullId;
+		return index.ById.TryGetValue(releaseId, out FormatMemoryObservation found) ? found : null;
+	}
+
 	private void UpdatePooledAlbumWithPromoObservation(AlbumProject project, int projectAge, bool finalized,
 		float residual, float maturityWeight) {
-		FormatMemoryObservation observation = pooledAlbumWithPromoMemory.observations
-			.FirstOrDefault(item => item.releaseId == project.projectId);
+		FormatMemoryObservation observation = FindObservation(pooledAlbumWithPromoMemory.observations, project.projectId);
 		if (observation == null) {
 			observation = new FormatMemoryObservation {
 				releaseId = project.projectId, projectId = project.projectId,

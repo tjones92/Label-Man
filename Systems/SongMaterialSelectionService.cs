@@ -624,8 +624,24 @@ public static class SongMaterialSelectionService {
 	private static IReadOnlyList<SongComposition>[] HitPoolsFor(Genre genre) {
 		var fams = CoverSourceFamilies(genre);
 		var pools = new IReadOnlyList<SongComposition>[fams.Length];
-		for (int i = 0; i < fams.Length; i++) pools[i] = RecordingHitPool(CompositionCatalogService.GetCoverableHitsForFamily(fams[i]),genre);
+		for (int i = 0; i < fams.Length; i++) pools[i] = genre==Genre.EasyListening
+			? CompositionCatalogService.GetCoverableHitsForFamily(fams[i])
+			: MediaCutFilteredHits(CompositionCatalogService.GetCoverableHitsForFamily(fams[i]));
 		return pools;
+	}
+	// RecordingHitPool for a non-Easy-Listening act, kept per hit list. The hit lists are append-only and
+	// originKind is fixed at construction, so the filtered list only ever catches up on the tail. Re-filtering
+	// the whole list per call was ~11% of a late-decade run.
+	private sealed class FilteredHits { public readonly List<SongComposition> Songs = new(); public int Synced; }
+	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyList<SongComposition>, FilteredHits> mediaCutFilteredHits = new();
+	private static IReadOnlyList<SongComposition> MediaCutFilteredHits(IReadOnlyList<SongComposition> hits) {
+		FilteredHits filtered = mediaCutFilteredHits.GetValue(hits, _ => new FilteredHits());
+		if (filtered.Synced > hits.Count) mediaCutFilteredHits.AddOrUpdate(hits, filtered = new FilteredHits());
+		while (filtered.Synced < hits.Count) {
+			var s = hits[filtered.Synced++];
+			if (s.originKind != SongOriginKind.ExternalMediaComposition) filtered.Songs.Add(s); // MediaCutRecordingAccess off Easy Listening
+		}
+		return filtered.Songs;
 	}
 	// Additional cast/film cuts supply live repertoire and Easy Listening interpretations.
 	// Remove them before sampling elsewhere, preserving the previous catalogue indices and draws.
