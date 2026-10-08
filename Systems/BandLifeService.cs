@@ -130,6 +130,7 @@ public static class BandLifeService {
 	// ==== state ==========================================================================================
 	private static int lastAnnualYear = -1;
 	private static int formationDebt;
+	private static int formationCredit;
 	private static readonly Dictionary<int, int> appliedStrainDeparturesByYear = new();
 
 	public static event Action<BandLifeEvent> OnEvent;
@@ -152,6 +153,7 @@ public static class BandLifeService {
 
 	public static int LastAnnualYear => lastAnnualYear;
 	public static int FormationDebt => formationDebt;
+	public static int FormationCredit => formationCredit;
 
 	private sealed class ActYear {
 		public SimulatedArtist artist;
@@ -1165,6 +1167,9 @@ public static class BandLifeService {
 	/// it from rosters; the surviving members go to the pool if they have careers to continue.</summary>
 	private static void EndAct(SimulatedArtist a, int year, string why, BandLifeAnnualSummary summary) {
 		summary.dissolutions++;
+		// The other half of the servo seam: an act band life ends is a vacancy the formation servo refills, so the
+		// population is conserved (§7.4). World scope only -- a roster-scope split must leave the AI world untouched.
+		if (BandLife.WorldChurn) formationCredit++;
 		bool group = ArtistManager.IsGroupAct(a);
 		foreach (Musician m in a.members.Where(x => x.isActive).ToList()) {
 			bool career = PersonPool.HasCareerToContinue(m, year, CompositionCatalogService.HasAnyWriterCredit(m.personId));
@@ -1277,6 +1282,21 @@ public static class BandLifeService {
 		int paid = Math.Min(formationDebt, freshFormations);
 		formationDebt -= paid;
 		return paid;
+	}
+
+	/// <summary>
+	/// The servo's refill for acts band life ended (§7.4). Without it the lifecycle's own exits are refilled by the
+	/// calibrated formation rate but band-life dissolutions are not, and the active population ran 2.5-3.3% short by
+	/// 1968. The year's dissolutions land at the boundary; the refill is spread evenly over the weeks left in the
+	/// year, so the replacements form on the calendar like any other act instead of as one January cohort. These
+	/// are extra fresh formations on top of the servo's quota (they don't count toward its annual ceiling): they
+	/// replace acts, they don't stand in for the servo's own demand-driven ones.
+	/// </summary>
+	public static int ReleaseFormationCredit(int weeksLeftInYear) {
+		if (formationCredit <= 0) return 0;
+		int release = (formationCredit + Math.Max(1, weeksLeftInYear) - 1) / Math.Max(1, weeksLeftInYear);
+		formationCredit -= release;
+		return release;
 	}
 
 	/// <summary>
@@ -1427,6 +1447,7 @@ public static class BandLifeService {
 			WorldSeed = SimulationSeedBootstrap.RequestedSeed.HasValue ? null : BandLife.WorldSeed,
 			LastAnnualYear = lastAnnualYear,
 			FormationDebt = formationDebt,
+			FormationCredit = formationCredit,
 			DeparturesByYear = new Dictionary<int, int>(appliedStrainDeparturesByYear),
 		};
 	}
@@ -1438,6 +1459,7 @@ public static class BandLifeService {
 			PersonPool.Reset();
 			lastAnnualYear = year - 1;
 			formationDebt = 0;
+			formationCredit = 0;
 			appliedStrainDeparturesByYear.Clear();
 			if (ArtistManager.Instance != null) BaselineSnapshots(ArtistManager.Instance.GetAllArtists());
 			return;
@@ -1447,12 +1469,13 @@ public static class BandLifeService {
 		foreach (PooledPerson p in PersonPool.All) ArtistManager.Instance?.RegisterMusician(p.person);
 		lastAnnualYear = s.LastAnnualYear;
 		formationDebt = s.FormationDebt;
+		formationCredit = s.FormationCredit;
 		appliedStrainDeparturesByYear.Clear();
 		foreach (var kv in s.DeparturesByYear ?? new Dictionary<int, int>()) appliedStrainDeparturesByYear[kv.Key] = kv.Value;
 	}
 
 	internal static void ResetForProbe() {
-		lastAnnualYear = -1; formationDebt = 0; appliedStrainDeparturesByYear.Clear(); recombinationsThisYear = 0;
+		lastAnnualYear = -1; formationDebt = 0; formationCredit = 0; appliedStrainDeparturesByYear.Clear(); recombinationsThisYear = 0;
 		quietThisYear[0] = quietThisYear[1] = 0;
 		PersonPool.Reset();
 	}

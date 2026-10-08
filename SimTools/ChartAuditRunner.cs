@@ -355,6 +355,7 @@ public partial class ChartAuditRunner : Node {
 	public override void _Ready() {
 		try {
 			ParseArguments();
+			ParseResumeArguments();
 			ConfigurePolarResearch();
 			if (catastrophicFailFast || catastrophicControlPreflight) LoadCatastrophicFailFastControl();
 			if (catastrophicControlPreflight) {
@@ -381,6 +382,7 @@ public partial class ChartAuditRunner : Node {
 				if (!ArtistPopulationLifecycle.Enabled) throw new InvalidOperationException("Artist evolution probes require --enable-artist-population-lifecycle.");
 				foreach (string result in ArtistEvolutionProbeSuite.Run()) GD.Print("EVO_PROBE_PASS: " + result);
 			}
+			ResumeWorldIfRequested();
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
@@ -432,6 +434,7 @@ public partial class ChartAuditRunner : Node {
 				polarSongShadow?.ObserveCompletedWeek(ChartManager.Instance.GetCurrentChart(), ChartManager.Instance.GetCurrentChartWeek());
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
 				ValidateEmergentSigningFloor();
+				MaybeSaveWorld();
 				if (week % 52 == 0) {
 					WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds);
 					FlushAnnualStreams();

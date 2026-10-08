@@ -821,7 +821,12 @@ public sealed class LaborMarketWeeklySnapshot {
 			formedThisWeek += peopleBuilt;
 			formedYtd += peopleBuilt;
 		}
-		for (int i = 0; i < count; i++) {
+		// Acts band life dissolved are refilled here (world-scope churn only; zero otherwise). They form like any
+		// fresh act but sit outside the calendar quota, so they replace acts rather than displace the servo's own.
+		int dayOfYear = (date.month - 1) * 30 + Mathf.Min(date.day, 30);
+		int refills = BandLifeService.ReleaseFormationCredit(Mathf.Max(1, (int)Math.Ceiling((365 - dayOfYear) / 7.0)));
+		for (int i = 0; i < count + refills; i++) {
+			bool quota = i < count;
 			generatingRuntimePopulation = true;
 			try {
 				// This scope includes every runtime-formation decision.  In
@@ -842,7 +847,7 @@ public sealed class LaborMarketWeeklySnapshot {
 				unsignedArtists.Add(artist);
 				recentRuntimeFormationCounts[primary] = recentRuntimeFormationCounts.GetValueOrDefault(primary) + 1;
 				formedThisWeek++;
-				formedYtd++;
+				if (quota) formedYtd++;
 				EmitPopulationEvent("formation", artist);
 			} finally {
 				generatingRuntimePopulation = false;

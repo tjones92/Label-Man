@@ -104,6 +104,8 @@ public sealed class BandLifeSaveData {
 	public ulong? WorldSeed { get; set; }
 	public int LastAnnualYear { get; set; }
 	public int FormationDebt { get; set; }
+	/// <summary>Band-life dissolutions not yet refilled by the formation servo.</summary>
+	public int FormationCredit { get; set; }
 	public Dictionary<int, int> DeparturesByYear { get; set; } = new();
 }
 

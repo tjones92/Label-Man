@@ -784,6 +784,75 @@ Alan Freed's credit on "Maybellene" are the textbook cases.
 - After a split, each former partner's songs come from their own crafts alone. The Lennon-without-
   McCartney record is measurably different without any special case.
 
+### 4.15 Wealth — people get rich, unevenly (author-approved 2026-10-08)
+
+The case this models: inside a successful band, two members (the writers) become measurably richer and better
+known than the rest. That gap is friction, and it is what the press will eventually write about. Wealth has to
+be **uneven inside an act**. An even split would be the band's money, which `totalRoyaltyEarnings` already holds.
+
+**The stock (observe-only first).** `Musician.wealth`, updated at the year boundary from figures the economy
+already computes. It moves no economy figure:
+
+| Flow | Source | Split |
+|---|---|---|
+| Performer royalty | the year's increase in `artist.totalRoyaltyEarnings` (already net of recoupment, `CompetitorManager.cs:1212`) | evenly across the members present that year (the period convention); `LeaderAndSidemen` sidemen get a wage instead, and the leader keeps the rest |
+| Writer income | the writer ledger's units × credit share × the writer's half of the mechanical (1¢) | per credit, so co-writing (§4.14) is the source of the gap |
+| Spending | `wealth × spendRate(fame, ego)` | a sink, not a cap: fame and ego raise the lifestyle, so wealth is a level that rises and falls, never a counter that only grows. Most 1960s musicians went broke; the stock must allow that |
+
+On the AI side, mechanicals live inside COGS (`MechanicalRoyaltyService` is player-only). The writer term here is
+**derived for the person's account only** and is never charged to a label.
+
+**Readers, each on its own, in this order:**
+
+1. **Independence.** Wealth lowers the cost of leaving. It raises the chance that an exit is `SoloCareer` or
+   `StudioOnly` rather than nothing, and it lowers the weight the act's success carries in the solvent for that
+   member. A rich member can afford to walk, and a rich act can afford to stop touring (§4.16).
+2. **The money grievance.** CreditAndMoney (§4.4) reads the wealth gap between the pair as well as the credit
+   gap: "he's bought a house; I'm still in a flat." This closes §2.10's "`MoneyDispute` has no input".
+3. **Lasting fame (small).** A non-decaying recognition term from conspicuous wealth: the estate, the cars, the
+   fan-magazine spread. It keeps a rich star known between records. It is kept modest **on purpose**: wealth
+   comes from the same records as recognition, so a large term would count success twice. This is the hook the
+   press mechanics will read (celebrity interest scales with fame × wealth).
+4. **Hazards and visits.** Wealth replaces the fame proxy in the substance hazard. It backs the Band Room's
+   advance request and the "we don't need the road" ultimatum with a number.
+
+**What it is not.** It is not the fix for rare solo spin-outs (§11 open item 3). Measured on the bms2 world run:
+6,701 group members at decade end, 65 above the 0.05 launch bar, 30 of those also holding half the spotlight.
+The best individual recognition was 0.13, while top acts reach 0.66. The binding term is the **member's slice
+of act fame**: `ShareArtistRecognitionGain` passes 45% of each gain through a visibility split, so a frontman
+banks ~22% of his act's fame. Raising that slice is a separate one-constant world change (Phase 4d). It comes
+before wealth, so the spin-out rate it buys is measured on its own.
+
+### 4.16 Road fatigue is a level, not a counter (author-approved 2026-10-08)
+
+`roadYears` only accumulates (`BandLifeService.cs:315`), so exhaustion (`:401`) grows without bound. For club acts
+that stay unsigned for years it reached ~380 retirements a year by 1968 (§11). The fix is the strain pattern
+(§2.14), a level with a sink, **not a cap**:
+
+```
+fatigue ← fatigue + roadLoad                                   // a road year adds
+fatigue ← fatigue − recovery · offRoadShare                    // recovery only while OFF the road
+recovery = baseRecovery / (1 + k_wear · careerRoadYears)        // the more an act has toured, the slower it heals (burnout)
+             · (1 + k_success · success)                        // success motivates: it slows burnout, it never prevents it
+```
+
+- **Recovery only off the road.** Rest is the only sink. An act on the road all year does not heal, however
+  successful it is.
+- **Burnout is the slowing rate.** `careerRoadYears` stays a lifetime counter (it feeds travel and romance
+  hazards, where exposure really is cumulative). Fatigue is the level the exhaustion hazard reads. A veteran
+  rests as long as a newcomer and comes back less recovered.
+- **Success offsets but does not save.** `k_success` is bounded so that a top-40 act on a heavy schedule still
+  accumulates. The Beatles in 1966 were the most successful act alive and still stopped.
+- **Wealth is the way out** (§4.15 reader 1). Stopping touring costs road income and momentum. A rich act can
+  pay that; a poor one keeps going until the hazard fires. The exit becomes `StudioOnly` (the Brian Wilson /
+  1966 Beatles case) when the act can afford it, and a retirement or dissolution when it can't.
+- **AI work proxy until touring exists.** `offRoadShare` comes from the same annual-hours proxy as §4.10. An
+  unsigned club act's year counts as part road and part rest, by its room class. Today's model treats it as
+  all road, and that is why the unsigned club population exhausts itself. Player acts read the booked calendar
+  once tour/residency booking (§5.4) lands.
+- Old saves load with `fatigue = roadYears` scaled by a one-time decay, so a loaded world doesn't retire its
+  veterans in a single January.
+
 ---
 
 ## 5. Part B — the Band Room: characters talk
@@ -904,11 +973,45 @@ All telemetry goes to `SimLogs/<run>-lineup-*.csv` ([[audit-output-goes-to-simlo
 | 2 | W (observe) | `--observe-band-life` | strain, rivalry, morale, life events (draft, death by channel), romance, stages, and would-be departures by kind and cause; **no writes** to anything that existed before | counts by success tier, cause, year and channel; breaker sized at ~2× the observed rate; `DraftActExposure` and death rates fitted; reference set and `DraftInductions.csv` built |
 | 3 | P (dev checkpoint) | `--enable-lineup-churn=roster` | the one churn implementation, scoped to the player's roster, plus the Band Room, visits, verbs (writing session, cut-in, dry-out, posthumous release included), roster cards and residency booking | AI byte-identical in headless runs; playtest on seed 1002 ([[polar-playtest-seed-1001-commission-break]]) |
 | 4 | W | `--enable-lineup-churn` (scope = world) | the same code with the scope widened: AI departures, draft and death, replacement, dissolution into the pool, solo spin-outs through the servo, recombination, the leaving-member-option rule, the trade-press "Scene" feed; the Polar deriver re-derives on lineup change | two-seed decade A/B against the §7 measures |
+| 4d | W | (constant) | member slice of act fame raised (§4.15 "What it is not"); the spin-out rate it buys | two-seed decade A/B; spin-outs per decade and their success, against the reference set's solo spin-outs |
+| 4e | F→W | `--enable-member-wealth` | the wealth stock and its sink, observe-only (§4.15); then the readers one at a time: independence, money grievance, lasting fame, hazards | observe stage byte-identical (probe hash); readers sized offline from the observe ledger, smoke-tested on 104-week probes, then bundled into one two-seed decade A/B (see "Test tiers" below); the intra-act wealth gap distribution reported (writers vs non-writers in charting acts) |
+| 4f | W | `--enable-road-fatigue` | road fatigue as a recovering level with burnout and the success offset (§4.16) | two-seed A/B; exhaustion retirements per year no longer climbing with the unsigned-club backlog; `StudioOnly` exits concentrated in rich, charting acts |
 | 4c | W | `--enable-team-writing` | co-writing layers 2–4 (§4.14): team craft, professional teams, AI cut-ins | its own two-seed decade A/B; mean hook inside the noise floor |
 | 5 | W | `--enable-musician-growth` | a shadow pass first (grown skills computed beside the live fields, drift reported), then live: growth, decline, personality drift | mean base quality of active acts within the control's noise floor every year; 1969 skill spread wider than 1961 |
 | 5b | W | `--polar-member-axes` | `PolarActProfileDeriver` reads the split axes | Polar fit A/B in the polar branch's own harness |
 | 6 | P | (with 5) | scouting the rough: ceiling tells, the revisit delta, the potential read | playtest |
 | 7 | W | `--enable-member-identity` | identity on people; spread feeds Direction and reach; partner pull | decade A/B; the evolution ledger's mix unchanged within noise |
+
+**Test tiers (author-agreed 2026-10-08).** A decade run per change is too slow. Each world change climbs only as
+far as it needs to:
+
+1. **Offline sizing.** Replay constants in Python over an observe run's telemetry (the `fit_band_life_strain.py`
+   precedent). No run.
+2. **104-week probe.** A probe hash proves an observe stage is inert. For a live change it is a smoke test
+   (population, money, exit counts) that catches the horribly amiss, never a verdict: late-building stocks
+   (wealth, fatigue) barely show by 1962, and short-run deltas have inverted
+   ([[short-run-deltas-can-invert]]).
+3. **Single-seed decade**, beside its control, only when a direction is needed.
+4. **Two-seed decade A/B** for the bundle of changes that passed tiers 1-3, before merge (the evolution-bundle
+   precedent).
+
+**Late-decade windows (built 2026-10-08, `SimTools/ChartAuditRunner.Resume.cs`).**
+`--save-world-at-year=1965 --save-world=<name>` writes the AI world to `SimLogs/worlds/<name>.world.json.gz` the
+first time the clock reaches that year, and the run carries on. `--resume-world=<name>` loads it before week one
+(`--weeks` then counts from there; `--seed` must match the save). The flags that wrote the world are stored with
+it, and any difference prints `RESUME_FLAG_MISMATCH`. A treatment arm adding its own flag is the intended use.
+Verified: a 1961 world (41 MB) resumed twice gave 80/80 byte-identical CSVs. Against the unbroken run over the
+same 17 weeks, formations (688) and drops matched exactly, because the private streams are restored, while
+signings moved 474→469 from the reseeded global stream. A 1965-67 window should run ~15-20 min against ~50 for
+a decade. Constraints:
+
+- On load the global stream is **reseeded**, not restored (`WorldSaveData.cs:300`). A resumed run is therefore
+  not a continuation of the unbroken decade. Both arms resume from the same save, and the old decade control
+  is not their control. The shared 1960-64 history narrows the noise floor.
+- The save must already hold what the treatment reads (e.g. a wealth stock accumulated from 1960, so the save is
+  cut from an observe run). A change that acts from 1960 needs a save made with it on.
+- Accumulated telemetry (year-end recaps, rollups) starts at the resume; score only the resumed years.
+- Before trusting it: two resumes from one save produce byte-identical CSVs.
 
 **Both player and AI breakups land in this branch** (author decision, 2026-10-06). There is **one**
 churn implementation with a scope switch — not a player system plus an AI system. Phase 3 is a
@@ -1072,16 +1175,39 @@ Cascades 8-10%, breaker never binds (§7.3 ok). Charting acts losing a member to
 peaking 1966-67 (§7.5a ok). Charting deaths 1960-65: 7 and 3 vs reference 7 (§7.5b ok). Charting groups that
 changed lineup: 34-38% vs the reference's 63% (selection-biased toward famous long careers).
 
-**Open.**
-1. §7.4 population conservation **misses**: formations are unchanged (spin-outs replace fresh acts), but active acts
-   end 2.5-3.3% below control by 1967-68 (seed spread ~1%). Cause: ~190 band-life dissolutions a year by 1968 that
-   nothing refills, a large share following exhaustion retirements (~380/yr late; `roadYears` grows without bound
-   for long-unsigned club acts). Author decision: credit dissolutions to the formation servo (conserves acts, raises
-   formations ~8%), accept the deficit (economy unaffected), or bound exhaustion.
-2. The substance channel produced no deaths and one bust: a single onset only decayed. A habit draw was added and
-   sized by an offline Monte Carlo over the world-run onsets (~15 substance deaths per seed, nearly all 1968-69,
-   ~3 among charting people). Not yet measured in a decade run; the 27-Club age report (§4.8.2) is owed with it.
-3. Solo spin-outs are rare (4-8 per decade): the spotlight-share and launch-bar gate almost never opens.
+**Open items from the first A/B, and how they closed.**
+1. §7.4 population conservation **missed**. Active acts ended 2.5-3.3% below control by 1967-68 (seed spread
+   ~1%), because ~190 band-life dissolutions a year went unrefilled. **Author decision (2026-10-08): refill.**
+   `EndAct` credits every world-scope dissolution to the formation servo (`BandLifeService.ReleaseFormationCredit`).
+   The refills are spread over the weeks left in the year and sit outside the servo's calendar quota. The servo
+   sat at its 2,200 floor every year in every run (supply already exceeds label demand), so nothing counteracts
+   them. Exhaustion is left alone; §4.16 fixes it as a level, not a cap.
+2. The substance channel produced no deaths; a habit draw was added (now measured below).
+3. Solo spin-outs are rare (4-8 per decade). Cause measured: the member's slice of act fame, not the gate (§4.15
+   "What it is not"; Phase 4d).
 
-World-scope churn stays command-line only (`--enable-lineup-churn=world`) until item 1 is decided. Scene defaults now
-turn on co-writing, member axes and roster-scope churn.
+**Refill A/B (`bms3-refill-{1001,2002}` vs `bms2-obs-*`, 1960-67).** Note: the obs controls never wrote a 1968
+genre-shape row, so `--max-year=1968` silently adds the world's 1968 error against nothing (it read as +32 / +34;
+the earlier bms2 world run's "+43" at 1968 was the same artifact). Score on 1960-67.
+
+| Measure | 1001 | 2002 |
+|---|---|---|
+| Active acts vs control, 1967 / 1968 | +0.7% / +0.8% | +0.7% / +1.3% |
+| Formations 1968 | 2,406 (+9.4%) | 2,393 (+8.8%) |
+| Genre-share sumAbsErr Δ | −12.6 | −8.8 |
+| Year-end slot error Δ | −30 | +14 |
+| Album unit share | within ±0.5 pt | within ±0.5 pt |
+| Owner-Major entry share | ±5 pt, mixed sign | ±5 pt, mixed sign |
+| Quiet-dissolution share of failing acts (§7.1) | 91% | 91% |
+| Largest cause (§7.2) | 27.0% | 28.3% |
+| Cascades / breaker binds (§7.3) | 9% / 0 yrs | 9% / 0 yrs |
+| Charting deaths 1960-65 (§7.5b, ref 7) | 8 | 6 |
+| Substance deaths through 1968 (all) | 2, ages 25 and 35 | 5, median 28 |
+
+Population is conserved: the act count now runs slightly above control, and groups run ~0.8% below, because
+refills follow the runtime type mix. The ~9% formation rise moved no calibration measure outside the seed spread
+(44.6 / 26); both seeds improved share error, with Soul the largest mover. Substance deaths now exist and start
+in 1967, below the Monte Carlo's ~15 per seed through 1969. The 27-Club report has n=7 so far: too few to read.
+
+World-scope churn stays command-line only until the merge A/B. Scene defaults turn on co-writing, member axes and
+roster-scope churn.
