@@ -823,6 +823,10 @@ of act fame**: `ShareArtistRecognitionGain` passes 45% of each gain through a vi
 banks ~22% of his act's fame. Raising that slice is a separate one-constant world change (Phase 4d). It comes
 before wealth, so the spin-out rate it buys is measured on its own.
 
+**Corrected by the Phase 4d A/B (§11, 2026-10-08):** the slice is *a* binding term, not *the* binding term.
+Doubling it tripled the members above the launch bar and left spin-outs at 1-2 per window. The term that binds is
+`WouldConsiderSoloCareer`'s intent (§11 "Phase 4d").
+
 ### 4.16 Road fatigue is a level, not a counter (author-approved 2026-10-08)
 
 `roadYears` only accumulates (`BandLifeService.cs:315`), so exhaustion (`:401`) grows without bound. For club acts
@@ -973,7 +977,7 @@ All telemetry goes to `SimLogs/<run>-lineup-*.csv` ([[audit-output-goes-to-simlo
 | 2 | W (observe) | `--observe-band-life` | strain, rivalry, morale, life events (draft, death by channel), romance, stages, and would-be departures by kind and cause; **no writes** to anything that existed before | counts by success tier, cause, year and channel; breaker sized at ~2× the observed rate; `DraftActExposure` and death rates fitted; reference set and `DraftInductions.csv` built |
 | 3 | P (dev checkpoint) | `--enable-lineup-churn=roster` | the one churn implementation, scoped to the player's roster, plus the Band Room, visits, verbs (writing session, cut-in, dry-out, posthumous release included), roster cards and residency booking | AI byte-identical in headless runs; playtest on seed 1002 ([[polar-playtest-seed-1001-commission-break]]) |
 | 4 | W | `--enable-lineup-churn` (scope = world) | the same code with the scope widened: AI departures, draft and death, replacement, dissolution into the pool, solo spin-outs through the servo, recombination, the leaving-member-option rule, the trade-press "Scene" feed; the Polar deriver re-derives on lineup change | two-seed decade A/B against the §7 measures |
-| 4d | W | (constant) | member slice of act fame raised (§4.15 "What it is not"); the spin-out rate it buys | two-seed decade A/B; spin-outs per decade and their success, against the reference set's solo spin-outs |
+| 4d | W | `--member-fame-share=X` | member slice of act fame raised (§4.15 "What it is not"); the spin-out rate it buys | two-seed decade A/B; spin-outs per decade and their success, against the reference set's solo spin-outs. **Run 2026-10-08 (§11): calibration-neutral, buys no spin-outs alone; default stays .45 pending the intent fix** |
 | 4e | F→W | `--enable-member-wealth` | the wealth stock and its sink, observe-only (§4.15); then the readers one at a time: independence, money grievance, lasting fame, hazards | observe stage byte-identical (probe hash); readers sized offline from the observe ledger, smoke-tested on 104-week probes, then bundled into one two-seed decade A/B (see "Test tiers" below); the intra-act wealth gap distribution reported (writers vs non-writers in charting acts) |
 | 4f | W | `--enable-road-fatigue` | road fatigue as a recovering level with burnout and the success offset (§4.16) | two-seed A/B; exhaustion retirements per year no longer climbing with the unsigned-club backlog; `StudioOnly` exits concentrated in rich, charting acts |
 | 4c | W | `--enable-team-writing` | co-writing layers 2–4 (§4.14): team craft, professional teams, AI cut-ins | its own two-seed decade A/B; mean hook inside the noise floor |
@@ -1211,3 +1215,65 @@ in 1967, below the Monte Carlo's ~15 per seed through 1969. The 27-Club report h
 
 World-scope churn stays command-line only until the merge A/B. Scene defaults turn on co-writing, member axes and
 roster-scope churn.
+
+## 12. Status — Phase 4d (member fame slice), 2026-10-08
+
+The first real use of the resume (§6 "Late-decade windows"). Two 1965 worlds were cut from 1960-start runs with the
+refill flags (`--enable-cowriting --enable-member-axes --observe-band-life --enable-lineup-churn=world` plus the
+canonical pair), saved as `SimLogs/worlds/bms4-w65-{1001,2002}`. Each seed then ran two 261-week windows to 1970:
+`bms4d-ctl-*` (default slice .45) and `bms4d-fame90-*` (`--member-fame-share=0.90`). Measures:
+`py SimTools/spinout_measures.py <run>` and `py SimTools/band_life_ab.py <ctl> <treatment> --max-year=1969`.
+
+**What changed in code.**
+- `MusicianRecognitionService.MemberFameShare` is the slice that becomes `personalRecognition`. It is separate from
+  `MemberShare`, which still feeds `liveReputation` and `creativeReputation`. `creativeReputation` reaches every
+  launch through `EffectiveRecognition`, so raising it would move the calibrated economy through a second channel.
+  The fame slice reaches only the solo gate, a spin-out's launch stock and the substance hazard's fame term. At the
+  default it is byte-identical (same expression, same floats).
+- A resume under a different slice from the one the world was saved with rescales every member's fame once by
+  new/old (`CHART_AUDIT_MEMBER_FAME_RESCALED`). Deposits are proportional to the slice, decay is multiplicative, and
+  the stocks sit far below saturation (best member ~.25), so this reproduces a 1960-start treatment to first order.
+  The window then measures the treatment itself, not a ramp toward it.
+- **Bug fixed:** world churn keeps an act on ice when the draft takes its only or last member
+  (`WouldDissolve` returns false for `Service`). A label could still pick that act for a release, and
+  `GenerateRecordFromArtist` threw on `members.Max` (`bms4d-ctl-2002` died in Feb 1968). `TryReleaseRecord` now
+  skips an act with no members. It never fires without churn, and the three windows that finished on the old build
+  never reached the throw, so they are unchanged by it. The control was re-run on the fixed build.
+
+**Result (1965-69 windows, treatment vs same-world control).**
+
+| Measure | 1001 ctl / .90 | 2002 ctl / .90 |
+|---|---|---|
+| Members ≥ .05 launch bar at end | 186 / 561 | 171 / 528 |
+| Best member fame | .244 / .468 | .254 / .457 |
+| Solo spin-outs | 1 / 1 | 1 / 2 |
+| Spin-out acts that charted | 0 / 0 | 0 / 0 |
+| Substance onsets / deaths | 750 / 2 → 745 / 2 | 713 / 4 → 712 / 3 |
+| Genre-share sumAbsErr Δ | −5.7 | +1.2 |
+| Year-end slot error Δ | +8 | 0 |
+| Album unit share | within ±0.2 pt | within ±0.3 pt |
+| Owner-Major entry share | ±4.7 pt, mixed sign | ±3.4 pt, mixed sign |
+| Active acts, 1968 | +0.2% | 0.0% |
+
+Reference: 16 of the reference set's 91 top-40 groups (17.6%) lost a member to a solo career. The model's rate is
+0.1-0.2% of charting groups, before and after. Every spin-out in every run (bms3 included, 15 in all) came through
+CreditAndMoney, and **none of the solo acts has ever charted**.
+
+**Why: the intent gate binds.** Replaying the gate over the `bms2-obs-1001` pair log (lead singers in charting acts
+who clear the bar at a doubled slice and hold half the spotlight, n=336), `WouldConsiderSoloCareer` passes 2.1%.
+The urge (`ambition·.4 + ego·.3 + stagePresence·.2`) averages .42, and the ties (`loyalty·.5 + yearsInGroup·.05 + .3`)
+average .78. The years-in-group term alone is worth .18 at the mean tenure of 3.7 years, and it runs the wrong way:
+history's spin-outs came after years of success (Ruffin, Medley, Sebastian, Durham), and here every year in the
+group makes a member less likely to leave. Dropping it lifts intent to 13%. The `groupHits > 5` bonus (+.2) is
+out of reach for nearly every act ([[careers-are-two-records-long]]).
+
+**Decision for the author.** The slice stays at .45 by default: alone it buys nothing measurable and costs nothing
+measurable. It is the *second* term, though: with the intent fixed, a doubled slice would put 100 acts past bar and
+spotlight per decade against 26 at .45 (offline, `bms2-obs-1001`). The proposed next change is the intent itself,
+bundled with the slice in one A/B from the same two 1965 worlds:
+- tenure raises the urge after success instead of only raising the ties (the act's top-40 hits or recognition,
+  not `> 5` hits);
+- the success-blind constant .3 is re-sized offline against the reference set's 17.6%, read on top-40 groups.
+
+Separately, spin-outs that never chart are a launch question (the solo act starts Unsigned with half the act's
+reputation and no label): the leaving-member option fired 4 times in four windows.

@@ -19,6 +19,30 @@ public static class MusicianRecognitionService {
 	public const float MemberShare = 0.45f;
 
 	/// <summary>
+	/// Share of a realized act gain that becomes the members' FAME (personalRecognition), split by visibility
+	/// exactly like <see cref="MemberShare"/>. Kept apart from the reputation channels so that raising it moves
+	/// the solo gate, the spin-out's launch stock and the substance hazard's fame term, and nothing that every
+	/// launch reads (creativeReputation feeds EffectiveRecognition). Phase 4d
+	/// (SimTools/BandMemberSimulationDirective.md §4.15, §11): at .45 a frontman banks ~22% of the act's fame.
+	/// Overridable with --member-fame-share=X for the A/B.
+	/// </summary>
+	public const float DefaultMemberFameShare = 0.45f;
+	public static float MemberFameShare { get; private set; } = DefaultMemberFameShare;
+
+	/// <summary>Reads --member-fame-share=X. A missing flag keeps the default.</summary>
+	public static void Configure(IEnumerable<string> arguments) {
+		MemberFameShare = ParseFameShare(arguments) ?? DefaultMemberFameShare;
+	}
+
+	public static float? ParseFameShare(IEnumerable<string> arguments) {
+		const string prefix = "--member-fame-share=";
+		foreach (string argument in arguments ?? System.Array.Empty<string>())
+			if (argument.StartsWith(prefix, System.StringComparison.Ordinal))
+				return Mathf.Clamp(float.Parse(argument[prefix.Length..], System.Globalization.CultureInfo.InvariantCulture), 0f, 1f);
+		return null;
+	}
+
+	/// <summary>
 	/// How much of the public's attention a member catches. The front person carries the act's
 	/// name; a sideman carries little. Never zero, so every credited member accrues something.
 	/// </summary>
@@ -37,10 +61,11 @@ public static class MusicianRecognitionService {
 		float totalWeight = members.Sum(VisibilityWeight);
 		if (totalWeight <= 0f) return;
 		float pool = realizedGain * MemberShare;
+		float famePool = realizedGain * MemberFameShare;
 		foreach (Musician m in members) {
 			float share = pool * (VisibilityWeight(m) / totalWeight);
 			if (share <= 0f) continue;
-			m.personalRecognition = Gain(m.personalRecognition, share);
+			m.personalRecognition = Gain(m.personalRecognition, famePool * (VisibilityWeight(m) / totalWeight));
 			// The performer's name and the maker's name are the two durable person-level channels
 			// (§8.1/§8.3). A member can hold both; a session drummer holds neither strongly.
 			if (m.isLeadVocalist || m.stagePresence > 0.6f)

@@ -337,6 +337,7 @@ public partial class ChartManager : Node {
 		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
 			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs());
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
+		MusicianRecognitionService.Configure(OS.GetCmdlineUserArgs());
 
 		InitializeGenreMomentum();
 		GenerateAILabelsIfNeeded();

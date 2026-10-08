@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -100,6 +101,31 @@ public partial class ChartAuditRunner {
 
 		var date = new GameDate(file.Year, file.Month, file.Day);
 		WorldStateService.Apply(file.World, date, file.WorldSeed);
+		RescaleMemberFameForResume(file.Flags);
 		GD.Print($"CHART_AUDIT_WORLD_RESUMED name={resumeWorldName} date={date.ToShortString()} chartWeek={file.World.ChartWeek}");
+	}
+
+	/// <summary>
+	/// A world saved under one --member-fame-share and resumed under another (Phase 4d) holds member fame banked at
+	/// the old slice. Every deposit is proportional to the slice and decay is multiplicative, so while the stocks are
+	/// far from saturation (the best member sits near .13) a 1960-start run under the new slice would hold the old
+	/// stock times new/old. Rescale once, so the window measures the treatment rather than a ramp toward it.
+	/// </summary>
+	private static void RescaleMemberFameForResume(string[] savedFlags) {
+		float saved = MusicianRecognitionService.ParseFameShare(savedFlags) ?? MusicianRecognitionService.DefaultMemberFameShare;
+		float now = MusicianRecognitionService.MemberFameShare;
+		if (Mathf.IsEqualApprox(saved, now) || saved <= 0f) return;
+		float ratio = now / saved;
+		var seen = new HashSet<Musician>();
+		int rescaled = 0;
+		void Rescale(Musician m) {
+			if (m == null || !seen.Add(m) || m.personalRecognition <= 0f) return;
+			m.personalRecognition = Mathf.Clamp(m.personalRecognition * ratio, 0f, 1f);
+			rescaled++;
+		}
+		foreach (SimulatedArtist artist in ArtistManager.Instance.GetAllArtists())
+			if (artist?.members != null) foreach (Musician m in artist.members) Rescale(m);
+		foreach (PooledPerson pooled in PersonPool.All) Rescale(pooled.person);
+		GD.Print($"CHART_AUDIT_MEMBER_FAME_RESCALED saved={saved:0.###} now={now:0.###} people={rescaled}");
 	}
 }

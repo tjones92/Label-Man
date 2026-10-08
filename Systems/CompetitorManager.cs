@@ -1841,6 +1841,12 @@ public partial class CompetitorManager : Node {
 			lastReleaseAttemptFailedArtistSelection = true;
 			return false;
 		}
+		// World lineup churn keeps an act whose only (or last) member is in the service on ice rather than ending it
+		// (BandLifeService.WouldDissolve). Nobody is there to record until they come home. Never true without churn.
+		if (artist.members == null || artist.members.Count == 0) {
+			lastReleaseAttemptFailedArtistSelection = true;
+			return false;
+		}
 		Genre artistPrimary = artist.primaryGenre;
 		Genre artistSecondary = artist.secondaryGenre;
 		GenreSupplyService.GenreSelection projectSelection = ChooseEnabledGenreSupply(label, artist, date.year);
