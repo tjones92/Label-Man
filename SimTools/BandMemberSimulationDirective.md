@@ -978,6 +978,7 @@ All telemetry goes to `SimLogs/<run>-lineup-*.csv` ([[audit-output-goes-to-simlo
 | 3 | P (dev checkpoint) | `--enable-lineup-churn=roster` | the one churn implementation, scoped to the player's roster, plus the Band Room, visits, verbs (writing session, cut-in, dry-out, posthumous release included), roster cards and residency booking | AI byte-identical in headless runs; playtest on seed 1002 ([[polar-playtest-seed-1001-commission-break]]) |
 | 4 | W | `--enable-lineup-churn` (scope = world) | the same code with the scope widened: AI departures, draft and death, replacement, dissolution into the pool, solo spin-outs through the servo, recombination, the leaving-member-option rule, the trade-press "Scene" feed; the Polar deriver re-derives on lineup change | two-seed decade A/B against the §7 measures |
 | 4d | W | `--member-fame-share=X` | member slice of act fame raised (§4.15 "What it is not"); the spin-out rate it buys | two-seed decade A/B; spin-outs per decade and their success, against the reference set's solo spin-outs. **Run 2026-10-08 (§11): calibration-neutral, buys no spin-outs alone; default stays .45 pending the intent fix** |
+| 4e | W | `WouldConsiderSoloCareer` (no flag) | solo intent: success raises the urge, tenure no longer only raises the ties (§13) | one 1965-69 window from the saved 1965 world with the doubled slice. **Run 2026-10-08 (§13): 13 of 67 groups with 5+ top-40 hits lost a member to a solo career (19.4%, ref 17.6%); 12 of 26 spin-outs charted; calibration-neutral** |
 | 4e | F→W | `--enable-member-wealth` | the wealth stock and its sink, observe-only (§4.15); then the readers one at a time: independence, money grievance, lasting fame, hazards | observe stage byte-identical (probe hash); readers sized offline from the observe ledger, smoke-tested on 104-week probes, then bundled into one two-seed decade A/B (see "Test tiers" below); the intra-act wealth gap distribution reported (writers vs non-writers in charting acts) |
 | 4f | W | `--enable-road-fatigue` | road fatigue as a recovering level with burnout and the success offset (§4.16) | two-seed A/B; exhaustion retirements per year no longer climbing with the unsigned-club backlog; `StudioOnly` exits concentrated in rich, charting acts |
 | 4c | W | `--enable-team-writing` | co-writing layers 2–4 (§4.14): team craft, professional teams, AI cut-ins | its own two-seed decade A/B; mean hook inside the noise floor |
@@ -1277,3 +1278,65 @@ bundled with the slice in one A/B from the same two 1965 worlds:
 
 Separately, spin-outs that never chart are a launch question (the solo act starts Unsigned with half the act's
 reputation and no label): the leaving-member option fired 4 times in four windows.
+
+## 13. Status — Phase 4e (solo intent), 2026-10-08
+
+**Author decision (2026-10-08): rework the intent; one post-1965 window, no paired seed.** Paired seeds come back
+with the next A/B in this directive or the one after it.
+
+**What changed in code.**
+- `Musician.WouldConsiderSoloCareer`: the urge is `ambition·.4 + ego·.3 + stagePresence·.2 + successPull`, where
+  `successPull = .05 × min(yearsInGroup + 1, 6) × min(1, actTop40Hits / 2)`. The ties are `loyalty·.5 + .15`.
+  Tenure is gone from the ties, and the `hits > 5` bonus is gone. A year in a group that has had hits now pushes
+  toward leaving, up to +.30. A year in a group without hits pushes neither way. This is the only change to the
+  sim. It also reaches the Band Room's solo-single request (`PlayerDesk.BandRoom`), which reads `IsSoloViable`.
+- Sized offline with `py SimTools/fit_solo_intent.py` over the `bms2-obs-1001` pair log at a doubled slice. The
+  91 model groups with 5+ top-40 hits match the reference set's size. 18.7% of them ever hold a member past the
+  fame bar and the spotlight test. The old intent let 2.2% through; the new one lets 17.6% through.
+- Telemetry: the `solo-spinout` event never set a cause, so it always read as the enum default, CreditAndMoney.
+  It now carries the departure's cause. **This corrects §12's claim that every spin-out came through
+  CreditAndMoney**: by the matching departure rows, the old runs' spin-outs were mostly Spotlight too.
+- `SimTools/spinout_measures.py` read chart success from `first-chart-events`, which records a *label's* first
+  chart entry, not a record's. It now takes each spin-out act's peak from `records.csv`. **This retracts §12's
+  claim that no spin-out has ever charted**: the claim came from the wrong table. The old runs' spin-outs (2 and 3
+  in the bms4d windows) did not chart under the corrected measure either.
+- `--save-world-at-year` takes a list (`1966,1967,1968,1969`). Each year is saved as `<save-world or run>-<year>`.
+
+**Run.** `bms4e-intent90-1001` resumed `bms4-w65-1001` with the canonical pair, the refill flags, and
+`--member-fame-share=0.90`. It ran 261 weeks and is scored against `bms4d-ctl-1001` (.45, old intent) and
+`bms4d-fame90-1001` (.90, old intent). The window holds five band-life passes, 1964-68: a resume runs the 1964
+pass first (§6), and the 1969 pass falls in 1970, outside the window. Worlds were saved along the way as
+`SimLogs/worlds/bms4e-intent90-1001-{1966,1967,1968,1969}`. They carry this treatment's departures, so they are
+starting points for work that builds on the new intent. They are not clean controls for it; `bms4-w65-*` still
+are.
+
+| Measure | ctl (.45, old) | fame90 (.90, old) | intent90 (.90, new) |
+|---|---|---|---|
+| Solo spin-outs, passes 1964-68 | 2 | 3 | 26 |
+| Groups with 5+ top-40 hits that lost a member solo | 2 of 64 (3.1%) | — | 13 of 67 (19.4%) |
+| Groups with 3+ hits / 1+ hit | 1.1% / 0.2% | — | 7.2% / 1.8% |
+| Spin-out cause (from the departure row) | Spotlight 2 | Spotlight 2, Credit 1 | Spotlight 18, Direction 4, Credit 2, Burnout 2 |
+| Spin-out acts that charted (top 40) | 0 of 2 | 0 of 3 | 12 of 26 (3); peaks 2, 20, 38, 43, 52, ... |
+| Spin-outs signed (by first signing tier) | — | — | 24 signings: Indep 9, MidTier 7, Major 6, Boutique 2 |
+| Leaving-member options exercised | 1 | 1 | 8 |
+
+Calibration, intent90 minus ctl, 1965-69: genre-share sumAbsErr −3.6 (Soul +6.5 is the largest per-genre
+move); year-end slot error +4; album unit share within ±0.2 pt; owner-Major entry share +0.1 to +4.0 pt, all
+the same sign. That last one is inside the ±4.7 seen for the slice alone, though one-sided this time. Active acts
+1965-68 are within 0.2% of control; groups are 0.8% below by 1968, the spin-outs having moved members into solo
+acts. All of these are inside the seed spread (§11: 44.6 / 26 on the first two). Substance deaths: 1 (control 2).
+
+**Reading.** On success-matched groups the rate lands on the reference: 19.4% against 17.6%, with n=13. The
+caveats are a single seed, a five-pass window against careers in the reference set, and a sizing that was fitted
+on the same seed. The causes look like history: the spotlight carries most spin-outs, and the famous member
+walks. About half the spin-outs chart, and one reached #2.
+
+**Open for the author.**
+1. **The slice default.** The tested configuration is intent + .90. At the code default (.45), the offline
+   estimate is about a quarter of the bar-and-spotlight population (26 against 100 acts per decade), so roughly
+   5% of 5+-hit groups. Flipping `DefaultMemberFameShare` to .90 is a one-line change with one trap: the resume
+   rescale treats a world saved without the flag as the default. A flagless world (`bms4-w65-*`) must keep reading
+   as .45, so the flip needs a separate "flagless = .45" constant. Recommendation: flip, with that constant.
+2. **The next paired A/B** should run intent + .90 on both 1965 worlds against `bms4d-ctl-*`, and seed 2002
+   especially, since the sizing was fitted on seed 1001.
+
