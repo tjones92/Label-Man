@@ -16,9 +16,9 @@ using Godot;
 /// (DiscoveryRefreshWindowWeeks), so a scout revisiting a region gets a fresh (still noisy) read
 /// over time - a good scout's reads converge on truth, a bad scout's stay scattered.
 ///
-/// SCOPE: fog only the LIVE daily/monthly-market read sites. The frozen launch-roster allocation
-/// (PopulateInitialRoster -> ScoreArtistForLabel) stays omniscient - fogging it would reshape the
-/// seeded 1960 industry and break calibration.
+/// SCOPE: live daily/monthly scouting and opt-in scene launch allocation. The recruitment-off
+/// launch allocation retains its calibrated true-quality reader. Scene recruitment uses a fixed
+/// prelaunch window (-1), so repeated opening rounds cannot reroll a scout's read.
 /// </summary>
 public static class ScoutingPerception {
 	// Matches ChartManager.ReleaseRecord's release-perception band.

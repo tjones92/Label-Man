@@ -120,3 +120,5 @@ cohort placement as explicit mechanisms, then rerun the same controls. Do not ad
 unlogged national recovery, rewrite legacy hometowns, lower advances, mint acts or
 inflate birth targets to conceal access mismatch. Paired-seed decade acceptance is
 still due after the bounded candidate becomes viable.
+
+Opening allocation follow-up: see [Phase 4 initialization repair](LocalScenePhase4InitializationHandoff.md) for the round-based tier competition, access-first style fallback, scouting fog, matched economic results and unchanged city-placement imbalance.

@@ -21,7 +21,7 @@ def hashes(folder, name):
     result = {}
     for path in (folder / "SimLogs").glob(name + "-*.csv"):
         suffix = path.name[len(name) + 1:]
-        if suffix.startswith(("scene-identity-", "scene-participation-", "scene-room-", "scene-work-", "scene-recruitment-")):
+        if suffix.startswith(("scene-identity-", "scene-participation-", "scene-room-", "scene-work-", "scene-recruitment-", "scene-initialization-")):
             continue
         result[suffix] = hashlib.sha256(path.read_bytes()).hexdigest()
     return result

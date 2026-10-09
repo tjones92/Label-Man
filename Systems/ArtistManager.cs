@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -1453,6 +1453,10 @@ public sealed class LaborMarketWeeklySnapshot {
 		return profile;
 	}
 	public Musician GetMusician(string musicianId) => musicianRegistry.TryGetValue(musicianId, out var musician) ? musician : null;
+	// Launch allocation precedes prospect-search bootstrap. Preserve its existing unsigned/lifecycle
+	// eligibility without exposing latent reserves to live recruitment.
+	internal List<SimulatedArtist> GetLaunchRosterCandidates() => unsignedArtists
+		.Where(a => a.cohort == ArtistCohort.InitialLegacy && IsEligibleUnsignedCandidate(a)).ToList();
 	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(artist => IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist)).ToList();
 
 	/// <summary>

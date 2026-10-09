@@ -17,6 +17,24 @@ public partial class ChartAuditRunner {
                     r.RoadMiles?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? "", Csv(r.AccessEvidence), Csv(r.Explanation) }));
         using var labels = new StreamWriter(Path.Combine(dir, $"{runName}-scene-recruitment-labels-{phase}.csv"));
         labels.WriteLine("labelId,tier,hqPlaceId,active,rosterSize,operatingTarget,unfilledSlots,accessiblePool,discoverySlate");
+        if (phase == "start" && LocalScenes.Recruitment) {
+            using var initialization = new StreamWriter(Path.Combine(dir, $"{runName}-scene-initialization-labels.csv"));
+            initialization.WriteLine("labelId,tier,hqPlaceId,target,filled,unfilled,accessiblePreferred,accessibleSecondary,accessibleAny,meanTrueQuality,strongActs");
+            foreach (var label in ChartManager.Instance.GetAllLabels().OrderBy(l => l.labelId, StringComparer.Ordinal)) {
+                if (!RosterManager.Instance.SceneInitialization.TryGetValue(label.labelId, out var o)) continue;
+                initialization.WriteLine(string.Join(",", new[] { Csv(label.labelId), label.tier.ToString(), Csv(label.geography?.basePlaceId),
+                    o.Target.ToString(), o.Filled.ToString(), (o.Target - o.Filled).ToString(),
+                    o.AccessiblePreferred.ToString(), o.AccessibleSecondary.ToString(), o.AccessibleAny.ToString(),
+                    o.MeanQuality.ToString("F6", System.Globalization.CultureInfo.InvariantCulture), o.StrongActs.ToString() }));
+            }
+            using var appointments = new StreamWriter(Path.Combine(dir, $"{runName}-scene-initialization-appointments.csv"));
+            appointments.WriteLine("round,labelId,artistId,slateSize,trueQuality,perceivedQuality");
+            foreach (var a in RosterManager.Instance.SceneInitializationAppointments)
+                appointments.WriteLine(string.Join(",", new[] { a.Round.ToString(), Csv(a.LabelId), Csv(a.ArtistId), a.SlateSize.ToString(),
+                    a.TrueQuality.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),
+                    a.PerceivedQuality.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) }));
+        }
+
         var supply = ArtistManager.Instance.GetUnsignedArtists();
         foreach (var label in ChartManager.Instance.GetAllLabels().OrderBy(l => l.labelId, StringComparer.Ordinal)) {
             var slate = RosterManager.SceneSupplyForProbe(label, TimeManager.Instance.CurrentDate.year, false, supply, out int count);

@@ -74,6 +74,46 @@ public static class SceneRecruitmentChecks {
         var recovery = RosterManager.SceneSupplyForProbe(live, year, true, supply, out int recoveryCount);
         Check(normalCount == recoveryCount && normal.Select(a => a.artistId).SequenceEqual(recovery.Select(a => a.artistId)), "recovery cannot widen geographic access or attention");
         Check(normal.All(a => SceneRecruitmentService.Explain(live, a, ChartManager.Instance.GetCurrentChartWeek()).Eligible), "native supply selector filters geography");
+        // Access-first fallback: a globally available but distant preferred style must not
+        // suppress an accessible secondary style (the former initialization defect).
+        var styleLabel = Label("memphis");
+        styleLabel.preferredGenres = new[] { Genre.Country };
+        styleLabel.secondaryGenres = new[] { Genre.RnB };
+        var remoteStyle = Act("seattle"); remoteStyle.artistId = "remote-country"; remoteStyle.primaryGenre = Genre.Country;
+        var localStyle = Act("memphis"); localStyle.artistId = "local-rnb"; localStyle.primaryGenre = Genre.RnB;
+        var otherStyle = Act("memphis"); otherStyle.artistId = "local-jazz"; otherStyle.primaryGenre = Genre.Jazz;
+        Check(RosterManager.SceneInitialPool(styleLabel, new[] { remoteStyle, localStyle, otherStyle })
+            .Select(a => a.artistId).SequenceEqual(new[] { localStyle.artistId }), "accessible secondary survives remote preferred supply");
+        var localPreferred = Act("memphis"); localPreferred.artistId = "local-country"; localPreferred.primaryGenre = Genre.Country;
+        Check(RosterManager.SceneInitialPool(styleLabel, new[] { localPreferred, localStyle }).Single() == localPreferred,
+            "reachable preferred style retains priority");
+        Check(RosterManager.SceneInitialPool(styleLabel, new[] { remoteStyle, otherStyle }).Single() == otherStyle,
+            "broader style fallback remains inside reach");
+        Check(RosterManager.SceneInitialPool(styleLabel, new[] { remoteStyle }).Count == 0,
+            "no style fallback grants unexplained national access");
+        var ordering = new[] { Label("memphis"), Label("memphis", LabelTier.Major), Label("memphis", LabelTier.Independent) };
+        for (int i = 0; i < ordering.Length; i++) ordering[i].labelId = "order-" + i;
+        Check(RosterManager.SceneInitializationOrder(ordering, 0).First().tier == LabelTier.Major,
+            "majors retain first opportunity each round");
+        Check(RosterManager.SceneInitializationOrder(ordering, 3).Select(l => l.labelId)
+            .SequenceEqual(RosterManager.SceneInitializationOrder(ordering.Reverse(), 3).Select(l => l.labelId)),
+            "allocation order is independent of list storage");
+        var observations = RosterManager.Instance.SceneInitialization;
+        Check(observations.Count == labels.Count, "all launch labels have desired headcount diagnostics");
+        Check(observations.Values.All(o => o.Filled <= o.Target), "rounds never exceed tier launch targets");
+        Check(observations.Values.Where(o => o.Filled < o.Target).All(o => o.AccessibleAny == 0),
+            "underfilled launch rosters identify actual exhausted accessible supply");
+        var appointments = RosterManager.Instance.SceneInitializationAppointments;
+        Check(appointments.Count == observations.Values.Sum(o => o.Filled), "every launch allocation retains an appointment");
+        Check(appointments.GroupBy(a => (a.Round, a.LabelId)).All(g => g.Count() == 1),
+            "no label fills twice before its competitors get a round");
+        Check(appointments.Select(a => a.ArtistId).Distinct().Count() == appointments.Count,
+            "initial competition never assigns an act twice");
+        Check(appointments.All(a => a.SlateSize <= RosterManager.GetDiscoverySlateSize(labels.First(l => l.labelId == a.LabelId).scoutingAbility)),
+            "opening attention remains bounded by native scouting");
+        Check(appointments.Any(a => Math.Abs(a.TrueQuality - a.PerceivedQuality) > .01f),
+            "launch allocation uses imperfect reads rather than true quality");
+
         string json = JsonSerializer.Serialize(original, SaveGameService.TestJsonOptions);
         WorldStateService.Apply(JsonSerializer.Deserialize<WorldSaveData>(json, SaveGameService.TestJsonOptions), TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
         Check(json == JsonSerializer.Serialize(WorldStateService.Capture(), SaveGameService.TestJsonOptions), "world roundtrip retains recruitment evidence");

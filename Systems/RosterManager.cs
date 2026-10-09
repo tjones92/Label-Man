@@ -206,7 +206,8 @@ public partial class RosterManager : Node {
 	
 	public void InitializeAllRosters(List<AILabel> labels, int year) {
 		GD.Print($"RosterManager: Initializing rosters for {labels.Count} labels...");
-		foreach (var label in labels) {
+		if (LocalScenes.Recruitment) InitializeSceneRosters(labels, year);
+		else foreach (var label in labels) {
 			label.InitializeRoster();
 			PopulateInitialRoster(label, year);
 			if (ArtistPopulationLifecycle.Enabled) {
@@ -361,6 +362,7 @@ public partial class RosterManager : Node {
 	
 	private SimulatedArtist FindArtistForLabel(AILabel label, int year) {
 		if (ArtistManager.Instance == null) return null;
+		if (LocalScenes.Recruitment) return FindSceneInitialArtist(label);
 		var candidates = new List<SimulatedArtist>();
 		
 		foreach (var genre in label.preferredGenres) {
@@ -398,14 +400,14 @@ public partial class RosterManager : Node {
 	
 	private float ScoreArtistForLabel(SimulatedArtist artist, AILabel label) {
 		float score = 0f;
-		float quality = artist.CalculateBaseQuality();
+		float quality = LocalScenes.Recruitment ? ScoutingPerception.PerceivedQuality(artist, label, -1) : artist.CalculateBaseQuality();
 		score += quality * (0.5f + label.scoutingAbility * 0.5f);
 		
 		if (label.preferredGenres.Contains(artist.primaryGenre)) score += 0.4f;
 		else if (label.secondaryGenres != null && label.secondaryGenres.Contains(artist.primaryGenre)) score += 0.2f;
 		
 		if (artist.reputation < 0.1f) score *= 0.5f + (label.riskTolerance * 0.5f);
-		score *= (float)GD.RandRange(0.8f, 1.2f);
+		if (!LocalScenes.Recruitment) score *= (float)GD.RandRange(0.8f, 1.2f);
 		if (LocalScenes.Recruitment) score *= SceneRecruitmentService.Explain(label, artist, 0).Weight;
 		return score;
 	}
