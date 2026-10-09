@@ -340,6 +340,7 @@ public partial class ChartManager : Node {
 		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
 		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
+		LocalScenes.ValidateDependencies();
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
 		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
@@ -682,6 +683,7 @@ public partial class ChartManager : Node {
 		// reached by prewarm because this method only runs on a live weekly tick.
 		long lifecycleProfileStart = SimulationPerformanceProfiler.Begin();
 		ArtistManager.Instance?.AdvancePopulationLifecycle(date);
+		LocalScenePersistenceService.Advance(currentChartWeek, date.year);
 		SimulationPerformanceProfiler.EndPopulationLifecycle(lifecycleProfileStart);
 	}
 

@@ -1360,6 +1360,8 @@ public partial class PlayerDesk : Node {
 		MarketRegion region = CurrentRegion();
 		if (region == null) { message = "No market resolved where you are."; return false; }
 
+		if (LocalScenes.Persisting) return ScoutPersistentScene(venue, out message);
+
 		bool trade = venue == ScoutingVenue.IndustryMeets;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		Dictionary<Genre, float> affinity = BuildRegionAffinity(region);
@@ -1577,7 +1579,7 @@ public partial class PlayerDesk : Node {
 	/// song is actually cut; the covers point at real catalog songs so the recording step can pull
 	/// the composition. Only <see cref="Prospect.HeardCount"/> of this is visible before a follow-up.
 	/// </summary>
-	internal void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise, RandomNumberGenerator auditRandom = null, Action<int, List<SongComposition>> auditPool = null) {
+	internal void BuildLiveSet(Prospect prospect, SimulatedArtist artist, int year, float readNoise, RandomNumberGenerator auditRandom = null, Action<int, List<SongComposition>> auditPool = null, bool sceneRead = false) {
 		// Census-only local draws leave the population simulation's global RNG untouched.
 		double Draw(double low, double high) => auditRandom == null ? GD.RandRange(low, high) : low + (high - low) * auditRandom.Randf();
 		int DrawInt(int low, int high) => auditRandom == null ? (int)GD.RandRange(low, high) : auditRandom.RandiRange(low, high);
@@ -1590,7 +1592,7 @@ public partial class PlayerDesk : Node {
 		for (int i = 0; i < originals; i++) {
 			float hook = Mathf.Clamp(artist.songwritingAbility * 0.7f + (float)Draw(-0.15, 0.25), 0f, 1f);
 			prospect.LiveSet.Add(new RepertoireItem {
-				Title = auditRandom != null ? "Census original" : NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Untitled",
+				Title = auditRandom != null ? (sceneRead ? "Unrecorded original" : "Census original") : NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Untitled",
 				SourceTag = "their own", IsOriginal = true, Genre = artist.primaryGenre,
 				ContentContext = artist.primaryGenre==Genre.Gospel?SongContentContext.Sacred:SongContentContext.Secular,
 				ReadHook = Read(hook), ReadQuality = Read(hook)
@@ -1920,6 +1922,7 @@ public partial class PlayerDesk : Node {
 	/// no point opening the menu at all.
 	/// </summary>
 	public bool ApproachToSign(Prospect prospect, out string message) {
+        if (LocalScenes.Persisting && !CanCommitSceneSigning(prospect, out message)) return false;
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
 		if (!prospect.FollowedUp) { message = "Follow up with them before you make an offer."; return false; }
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
@@ -2026,7 +2029,7 @@ public partial class PlayerDesk : Node {
 
 		Spend(PushoverSignHours);
 		string artistId = prospect.Artist.artistId;
-		FinalizeSigning(prospect, sheet, out message);
+		if (!FinalizeSigning(prospect, sheet, out message)) return false;
 		if (b.Advance > 0f) message += AdvanceMarginLine(Mathf.Max(0f, shortfall.MinAdvance), advance, artistId);
 		prospect.Draft = null;
 		Changed?.Invoke();
@@ -5667,6 +5670,8 @@ public partial class PlayerDesk : Node {
 			(ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>()).Where(r => r.baseRecord.isPlayerOwned).Select(r => r.baseRecord)));
 		var data = new PlayerSaveData {
 			Label = LabelSaveData.From(Label),
+            GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+            SceneDiscoveries = sceneDiscoveries.Count == 0 ? null : sceneDiscoveries.Values.OrderBy(d => d.ArtistId, StringComparer.Ordinal).ToList(),
 			RosterArtists = (Label.roster ?? new List<SimulatedArtist>()).ToList(),
 			Songs = songs.Select(SongSaveData.From).ToList(),
 			Repertoire = repertoire.ToDictionary(kv => kv.Key,
@@ -5927,6 +5932,10 @@ public partial class PlayerDesk : Node {
 		notebook.Clear();
 		RosterManager.Instance?.ClearAllPlayerHolds();
 		generatedProspectIds.Clear();
+        generatedProspectIds.UnionWith(data.GeneratedProspectIds ?? new List<string>());
+        sceneDiscoveries.Clear();
+        foreach (var discovery in data.SceneDiscoveries ?? new List<SceneDiscovery>())
+            if (!string.IsNullOrEmpty(discovery?.ArtistId)) sceneDiscoveries[discovery.ArtistId] = discovery;
 		foreach (ProspectNotebookSaveData saved in data.Notebook ?? new List<ProspectNotebookSaveData>()) {
 			if (saved?.Artist == null || string.IsNullOrEmpty(saved.Artist.artistId)) continue;
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(saved.Artist.artistId);
@@ -6133,6 +6142,7 @@ public partial class PlayerDesk : Node {
 			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
 		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
 		LocalSceneIdentityService.CompleteDirectPlayerRestore();
+        if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
 		Note(message);
 		Changed?.Invoke();
 		return true;

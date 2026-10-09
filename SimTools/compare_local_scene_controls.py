@@ -40,8 +40,9 @@ comparisons = []
 for job in manifest['jobs']:
     mode, seed, root = job['mode'], job['seed'], Path(job['root'])
     if mode == 'control': continue
-    name = f'{tag}-{mode}-{seed}'
-    base = f'{tag}-control-{seed}'
+    name = job.get('name', f'{tag}-{mode}-{seed}')
+    base_job = next(j for j in manifest['jobs'] if j['mode']=='control' and j['seed']==seed)
+    base = base_job.get('name', f'{tag}-control-{seed}')
     if name not in completed or base not in completed: continue
     base_root = Path(next(j['root'] for j in manifest['jobs'] if j['mode']=='control' and j['seed']==seed))
     a, b = csvs(base_root, base), csvs(root, name)

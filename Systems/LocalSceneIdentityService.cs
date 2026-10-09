@@ -20,6 +20,7 @@ public static class LocalSceneIdentityService {
         WorldSeed = SimulationSeedBootstrap.RequestedSeed ?? BandLife.WorldSeed
     };
     /// <summary>Stable across processes and saves. Never uses String.GetHashCode or a mutable RNG.</summary>
+    public static ulong KeyedSeed => State.WorldSeed;
     public static double AssignmentUnit(ulong seed, string key) {
         unchecked {
             ulong h = 14695981039346656037UL ^ seed ^ Namespace;
@@ -64,6 +65,7 @@ public static class LocalSceneIdentityService {
         }
         foreach (Musician person in artist.members ?? new List<Musician>()) EnsurePerson(person, geo.basePlaceId, geo.baseEvidence);
         Index(artist);
+        LocalScenePersistenceService.ObserveArtist(artist);
     }
     public static void EnsurePerson(Musician person, string baseId, PlaceEvidence evidence) {
         if (!LocalScenes.Observing || restoring || person == null || string.IsNullOrEmpty(baseId)) return;
@@ -146,7 +148,8 @@ public static class LocalSceneIdentityService {
             state.ContentVersion = ScenePlaceRegistry.ContentVersion; state.AssignmentVersion = AssignmentVersion;
         }
         previousState = null;
+        LocalScenePersistenceService.CompleteRestore();
     }
     public static void CompleteDirectPlayerRestore() { if (!restoring) CompleteRestore(); }
-    public static void CancelRestore() { if (!restoring) return; restoring = false; state = previousState; previousState = null; byBase.Clear(); indexedBase.Clear(); }
+    public static void CancelRestore() { LocalScenePersistenceService.CancelRestore(); if (!restoring) return; restoring = false; state = previousState; previousState = null; byBase.Clear(); indexedBase.Clear(); }
 }

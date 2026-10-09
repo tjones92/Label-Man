@@ -367,7 +367,7 @@ public partial class PlayerDesk : Node {
 		talk.draftOffer = null;
 		talk.lastOfferValue = PackageValue(offer, talk.ask, talk.weights);
 
-		if (ClearsReservation(talk, offer)) { FinalizeSign(talk, offer, out message); return true; }
+		if (ClearsReservation(talk, offer)) { return FinalizeSign(talk, offer, out message); }
 
 		// A hard line isn't haggling: it costs the meeting, but not a point of patience. The act said it up
 		// front, and the point of the line is that nothing else on the table moves it.
@@ -446,7 +446,7 @@ public partial class PlayerDesk : Node {
 		talk.lastOffer = promised;
 		talk.lastOfferValue = PackageValue(promised, talk.ask, talk.weights) + credit;
 
-		if (ClearsReservation(talk, promised, credit)) { FinalizeSign(talk, promised, out message); return true; }
+		if (ClearsReservation(talk, promised, credit)) { return FinalizeSign(talk, promised, out message); }
 
 		talk.patienceLeft--;
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
@@ -471,7 +471,7 @@ public partial class PlayerDesk : Node {
 		if (!patient) { WalkAway(talk, forced: true, out message); return true; }
 
 		talk.reservation = Mathf.Max(0.55f, talk.reservation - 0.03f);
-		if (ClearsReservation(talk, CurrentOffer(talk))) { FinalizeSign(talk, CurrentOffer(talk), out message); return true; }
+		if (ClearsReservation(talk, CurrentOffer(talk))) { return FinalizeSign(talk, CurrentOffer(talk), out message); }
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
 
 		talk.objectionAxis = ObjectionAxisFor(talk, CurrentOffer(talk));
@@ -486,19 +486,20 @@ public partial class PlayerDesk : Node {
 	// RESOLUTION
 	// ========================================================================================
 
-	private void FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
-		talk.stage = ContractTalkStage.Done;
+	private bool FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
 		// Read before anything is written: the margin is about the paper as tabled.
 		string margin = SignedMarginLine(talk, sheet);
 		if (talk.IsRenewal) {
 			FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message);
 			PendingRenewal = null;
 		} else {
-			FinalizeSigning(talk.prospect, sheet, out message);
+			if (!FinalizeSigning(talk.prospect, sheet, out message)) return false;
 			talk.prospect.Talk = null;
 		}
+		talk.stage = ContractTalkStage.Done;
 		message += margin;
 		Changed?.Invoke();
+        return true;
 	}
 
 	/// <summary>The advance below which this exact paper would have been refused: everything else as signed,
@@ -643,7 +644,11 @@ public partial class PlayerDesk : Node {
 	/// Pushover path (<see cref="OfferContract"/>, which spends the flat SignHours up front) and a
 	/// negotiated close (<see cref="FinalizeSign"/>, where the hours were already spent one round at
 	/// a time).</summary>
-	private void FinalizeSigning(Prospect prospect, ContractTermSheet sheet, out string message) {
+	private bool FinalizeSigning(Prospect prospect, ContractTermSheet sheet, out string message) {
+        if (LocalScenes.Persisting && (!CanCommitSceneSigning(prospect, out message) || !Label.CanAffordToSign(sheet.Advance))) {
+            message = string.IsNullOrEmpty(message) ? "The label can no longer afford these terms." : message;
+            return false;
+        }
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		float paid = Label.SignArtist(prospect.Artist, year, sheet);
@@ -663,6 +668,7 @@ public partial class PlayerDesk : Node {
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
 		message = $"Signed {prospect.Artist.stageName}." + (underAsk >= GrudgeNoticeFloor
 			? " They took the cheap deal, and they'll remember it when the paper comes up for renewal." : "");
+        return true;
 	}
 
 	// ========================================================================================

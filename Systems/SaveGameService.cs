@@ -26,7 +26,8 @@ public static class SaveGameService {
 	// member/act fields (relations, alumni, partners, axes, life state), which ride inside the artists. A v3
 	// save loads with defaults: empty pool, no edges, axes generated on load from the stored technicalSkill.
 	// v5: geographic identity with unknown/inferred origins, moves, and a separate assignment seed.
-	public const int CurrentVersion = 5;
+	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
+	public const int CurrentVersion = 6;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -334,6 +335,8 @@ public sealed class SaveEnvelope {
 }
 
 public sealed class PlayerSaveData {
+    public List<string> GeneratedProspectIds { get; set; }
+    public List<SceneDiscovery> SceneDiscoveries { get; set; }
 	public LabelSaveData Label { get; set; }
 	// The roster acts themselves, serialized whole -- so a relaunch (or a runtime-signed act the fresh world
 	// never generated) brings the real artists back, not just their ids. Field serialization is on for these.
