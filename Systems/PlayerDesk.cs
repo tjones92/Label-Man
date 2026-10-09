@@ -206,6 +206,8 @@ public partial class PlayerDesk : Node {
 		/// <summary>The town the act was found in -- it sets what they ask (see <see cref="CityProfile.AskScale"/>) and how
 		/// hard rivals in that town circle them. Empty means the home office's town.</summary>
 		public string CityId;
+        public string SceneRoomId;
+        public string SceneBillId;
 		/// <summary>The act's full live set. Only <see cref="HeardCount"/> of it is visible until follow-up.</summary>
 		public readonly List<RepertoireItem> LiveSet = new();
 		/// <summary>How many songs the player actually caught on the night, before a second look.</summary>
@@ -245,6 +247,8 @@ public partial class PlayerDesk : Node {
 		public float AskingAdvance;
 		public string Note;
 		public string CityId;
+        public string SceneRoomId;
+        public string SceneBillId;
 		public int HeardCount;
 		public bool FollowedUp;
 		/// <summary>Scouting the rough: the execution read when the act was first noted, and when, so a revisit three
@@ -1354,7 +1358,8 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool ScoutVenue(ScoutingVenue venue, out string message) {
 		if (!Require(ScoutHours, out message)) return false;
-		if (!VenueOpenNow(venue, out message)) return false;
+		if (LocalScenes.Rooms) return ScoutScheduledCategory(venue, out message);
+        if (!VenueOpenNow(venue, out message)) return false;
 		// You scout the scene wherever you physically are -- no signing an act 700 miles from home who'd
 		// never relocate. On the road that's the town you're in; otherwise your own market.
 		MarketRegion region = CurrentRegion();
@@ -1512,7 +1517,7 @@ public partial class PlayerDesk : Node {
 		if (notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) { message = "Already in your notebook."; return false; }
 		if (notebook.Count >= 6) { message = "The notebook is full. Remove an act before adding another."; return false; }
 		var entry = new WatchNote {
-			Artist = prospect.Artist, Venue = prospect.Venue, CityId = prospect.CityId,
+			Artist = prospect.Artist, Venue = prospect.Venue, CityId = prospect.CityId, SceneRoomId = prospect.SceneRoomId, SceneBillId = prospect.SceneBillId,
 			LastSeen = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate,
 			ReadQuality = prospect.ReadQuality, ReadConfidence = prospect.ReadConfidence,
 			AskingAdvance = prospect.AskingAdvance, Note = prospect.Note,
@@ -1550,7 +1555,7 @@ public partial class PlayerDesk : Node {
 			Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) / 4));
 		float readQuality = Mathf.Lerp(entry.ReadQuality, freshRead, Mathf.Clamp(staleDays / 120f, 0f, 0.55f));
 		var prospect = new Prospect {
-			Artist = entry.Artist, Venue = entry.Venue, CityId = entry.CityId, ReadQuality = readQuality,
+			Artist = entry.Artist, Venue = entry.Venue, CityId = entry.CityId, SceneRoomId = entry.SceneRoomId, SceneBillId = entry.SceneBillId, ReadQuality = readQuality,
 			ReadConfidence = confidence, AskingAdvance = entry.AskingAdvance,
 			Note = DescribeProspect(entry.Artist, Label, Mathf.Lerp(0.30f, 0.10f, confidence)),
 			HeardCount = Mathf.Min(entry.HeardCount, entry.LiveSet.Count), FollowedUp = false
@@ -1678,9 +1683,30 @@ public partial class PlayerDesk : Node {
 		// clubs/roadhouses open again." The first look already gates on VenueOpenNow (line ~1080);
 		// the second look never did, so a room that doesn't open until 5pm could be "revisited" over
 		// breakfast. Same room, same hours.
-		if (!VenueOpenNow(prospect.Venue, out message)) return false;
+		SceneBill followUpBill = null;
+		SceneRoomProfile followUpRoom = null;
+		if (LocalScenes.Rooms && !string.IsNullOrEmpty(prospect.SceneRoomId)) {
+            followUpRoom = SceneRoomCatalog.Get(prospect.SceneRoomId);
+            if (followUpRoom?.PlaceId != LocalScenePersistenceService.SceneIdFor(CurrentCityId)) {
+                message = "You need to be in this act's booked city."; return false;
+            }
+            var sceneBill = LocalSceneRoomService.CurrentBill(prospect.SceneRoomId, TimeManager.Instance.CurrentDate, TimeManager.Instance.CurrentHour);
+            if (sceneBill == null || !LocalSceneRoomService.Hear(sceneBill, TimeManager.Instance.CurrentHour).Any(a => a.artistId == prospect.Artist.artistId)) {
+                message = "This act is not on a bill you can catch now. Check the room's calendar."; return false;
+            }
+            if (Label.cashReserves < followUpRoom.Admission) { message = "You cannot cover admission."; return false; }
+            followUpBill = sceneBill;
+        } else if (!VenueOpenNow(prospect.Venue, out message)) return false;
 		if (!Require(FollowUpHours, out message)) return false;
-
+		if (followUpBill != null) {
+            Label.cashReserves -= followUpRoom.Admission;
+            if (prospect.SceneBillId != followUpBill.Id) {
+                prospect.LiveSet.Clear(); prospect.LiveSet.AddRange(ReadSceneRoomSet(prospect.Artist, followUpBill));
+                prospect.HeardCount = 0;
+            }
+            prospect.SceneBillId = followUpBill.Id;
+            RememberRoomEncounter(prospect.Artist.artistId, followUpRoom, followUpBill, TimeManager.Instance.CurrentDate);
+        }
 		Spend(FollowUpHours);
 		// Remember what the pad said before the second look, so the card can say what the two hours bought.
 		float qualityBefore = prospect.ReadQuality, confidenceBefore = prospect.ReadConfidence;
@@ -1707,6 +1733,7 @@ public partial class PlayerDesk : Node {
 		prospect.Rough = ReadRough(prospect, watched);
 		if (watched != null) watched.Rough = prospect.Rough;
 		if (watched != null) {
+			watched.SceneRoomId = prospect.SceneRoomId; watched.SceneBillId = prospect.SceneBillId;
 			watched.ReadQuality = prospect.ReadQuality;
 			watched.ReadConfidence = prospect.ReadConfidence;
 			watched.Note = prospect.Note;
@@ -5690,7 +5717,7 @@ public partial class PlayerDesk : Node {
 			MorningDigest = MorningDigest,
 			UnreadLogCount = UnreadLogCount,
 			Notebook = notebook.Select(entry => new ProspectNotebookSaveData {
-				Artist = entry.Artist, Venue = (int)entry.Venue, CityId = entry.CityId,
+				Artist = entry.Artist, Venue = (int)entry.Venue, CityId = entry.CityId, SceneRoomId = entry.SceneRoomId, SceneBillId = entry.SceneBillId,
 				Year = entry.LastSeen.year, Month = entry.LastSeen.month, Day = entry.LastSeen.day,
 				ReadQuality = entry.ReadQuality, ReadConfidence = entry.ReadConfidence,
 				AskingAdvance = entry.AskingAdvance, Note = entry.Note,
@@ -5946,7 +5973,7 @@ public partial class PlayerDesk : Node {
 			var entry = new WatchNote {
 				Artist = artist,
 				Venue = Enum.IsDefined(typeof(ScoutingVenue), saved.Venue) ? (ScoutingVenue)saved.Venue : ScoutingVenue.ClubsAndRoadhouses,
-				CityId = saved.CityId,
+				CityId = saved.CityId, SceneRoomId = saved.SceneRoomId, SceneBillId = saved.SceneBillId,
 				LastSeen = new GameDate(saved.Year, saved.Month, saved.Day),
 				ReadQuality = saved.ReadQuality, ReadConfidence = saved.ReadConfidence,
 				AskingAdvance = saved.AskingAdvance, Note = saved.Note,

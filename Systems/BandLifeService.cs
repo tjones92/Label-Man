@@ -362,6 +362,7 @@ public static class BandLifeService {
 		// A studio-only member makes the records and stays home for the dates.
 		foreach (Musician m in ctx.present) {
 			float load = m.lifeState == MemberLifeState.StudioOnly ? 0f : ctx.roadLoad;
+			LocalSceneRoomService.AttributeRoadBudget(a.artistId, m.personId, ctx.year, load * MemberGrowthService.RoadHoursAtFullLoad);
 			UpdateFatigue(m, load, ctx.success);
 			m.roadYears += load;
 		}

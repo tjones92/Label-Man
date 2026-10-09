@@ -78,7 +78,7 @@ public static class LocalScenePersistenceService {
         Reindex(act);
         return true;
     }
-    private static bool Present(SimulatedArtist act, string scene, int week) {
+    internal static bool Present(SimulatedArtist act, string scene, int week) {
         if (!Performs(act) || act.sceneParticipations == null) return false;
         var current = act.sceneParticipations.Where(p => p.startWeek <= week && (!p.endWeek.HasValue || p.endWeek.Value >= week) &&
             p.relationship != SceneRelationship.Alumnus).ToArray();

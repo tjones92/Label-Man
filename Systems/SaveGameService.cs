@@ -27,7 +27,8 @@ public static class SaveGameService {
 	// save loads with defaults: empty pool, no edges, axes generated on load from the stored technicalSkill.
 	// v5: geographic identity with unknown/inferred origins, moves, and a separate assignment seed.
 	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
-	public const int CurrentVersion = 6;
+    // v7: dated room bills, engagements, performance/work ledgers and notebook source IDs.
+	public const int CurrentVersion = 7;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -468,6 +469,8 @@ public sealed class ProspectNotebookSaveData {
 	public List<string> Rough { get; set; }
 	public int Venue { get; set; }
 	public string CityId { get; set; }
+    public string SceneRoomId { get; set; }
+    public string SceneBillId { get; set; }
 	public int Year { get; set; }
 	public int Month { get; set; }
 	public int Day { get; set; }

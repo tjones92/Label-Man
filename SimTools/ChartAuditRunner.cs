@@ -420,6 +420,7 @@ public partial class ChartAuditRunner : Node {
 			CapturePolarCensus();
 			WriteSceneIdentityCensus("start");
         WriteSceneParticipationCensus("start");
+        WriteSceneRoomCensus("start");
 
 			var annualWallTime = Stopwatch.StartNew();
 		for (int week = 1; week <= requestedWeeks; week++) {
@@ -449,6 +450,7 @@ public partial class ChartAuditRunner : Node {
 			}
 			WriteSceneIdentityCensus("end");
         WriteSceneParticipationCensus("end");
+        WriteSceneRoomCensus("end");
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
 			WriteGenreShapeYear();

@@ -99,6 +99,7 @@ public sealed class WorldSaveData {
 	// v5: separate seed/content contract; entities retain geographic identity inline, never duplicated.
 	public SceneIdentitySaveData SceneIdentity { get; set; }
 	public ScenePersistenceSaveData ScenePersistence { get; set; }
+    public SceneRoomSaveData SceneRooms { get; set; }
 }
 
 /// <summary>Band-member simulation world state that does not live on an artist or a musician.</summary>
@@ -278,6 +279,7 @@ public static class WorldStateService {
 		BandLifeService.CaptureWorld(world);
 		LocalSceneIdentityService.CaptureWorld(world);
 		LocalScenePersistenceService.CaptureWorld(world);
+        LocalSceneRoomService.CaptureWorld(world);
 		return world;
 	}
 
@@ -289,14 +291,17 @@ public static class WorldStateService {
 		if (world == null) {
 			if (deferSceneRelink) {
                 LocalScenePersistenceService.BeginRestore(null);
+                LocalSceneRoomService.BeginRestore(null);
                 LocalSceneIdentityService.BeginRestore(null, worldSeed);
             }
 			return;
 		}
 		// Validate scene versions before mutating managers. Real player loads defer migration until success.
 		LocalScenePersistenceService.ValidateRestore(world.ScenePersistence);
+        LocalSceneRoomService.ValidateRestore(world.SceneRooms);
 		LocalSceneIdentityService.BeginRestore(world.SceneIdentity, worldSeed);
 		LocalScenePersistenceService.BeginRestore(world.ScenePersistence);
+        LocalSceneRoomService.BeginRestore(world.SceneRooms);
 
 		TimeManager.Instance?.RestoreClock(date, world.Hour, world.Minute);
 		ArtistManager.Instance?.RehydrateWorld(world);

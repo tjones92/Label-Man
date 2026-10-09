@@ -5,12 +5,16 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument('manifest', type=Path)
 parser.add_argument('--persistence', action='store_true')
+parser.add_argument('--rooms', action='store_true')
 args = parser.parse_args()
 manifest = json.loads(args.manifest.read_text(encoding='utf-8-sig'))
 tag = args.manifest.parent.name
 ignored_fields = {'SceneIdentity', 'geography', 'Geography'}
-if args.persistence:
+if args.persistence or args.rooms:
     ignored_fields |= {'ScenePersistence', 'sceneParticipations'}
+
+if args.rooms:
+    ignored_fields |= {'SceneRooms'}
 
 def digest(path):
     h = hashlib.sha256()
@@ -22,7 +26,8 @@ def csvs(root, name):
     out = {}
     for p in (root/'SimLogs').glob(name+'-*.csv'):
         suffix = p.name[len(name)+1:]
-        if suffix.startswith('scene-identity-') or args.persistence and suffix.startswith('scene-participation-'): continue
+        if suffix.startswith('scene-identity-') or (args.persistence or args.rooms) and suffix.startswith('scene-participation-'): continue
+        if args.rooms and suffix.startswith(('scene-room-', 'scene-work-')): continue
         out[suffix] = digest(p)
     return out
 

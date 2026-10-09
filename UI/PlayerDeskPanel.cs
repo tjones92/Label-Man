@@ -1109,7 +1109,9 @@ public partial class PlayerDeskPanel : Control {
 		Body($"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only " +
 			"draws a crowd at its own hours. What you hear is your read on the act, not the truth — a better ear " +
 			"narrows the gap.");
-		if (!hasUserSelectedVenue) {
+		if (LocalScenes.Rooms) SceneRoomsBoard(desk);
+        else {
+        if (!hasUserSelectedVenue) {
 			int now = TimeManager.Instance?.CurrentHour ?? 9;
 			selectedVenue = VenueOrder.FirstOrDefault(venue => {
 				(int open, int close) = PlayerDesk.VenueHours(venue);
@@ -1157,10 +1159,11 @@ public partial class PlayerDeskPanel : Control {
 		venueRow.AddChild(venueNote);
 		venueRow.AddChild(scout);
 		content.AddChild(venueRow);
+        }
 
 		if (desk.Slate.Count == 0) Body("No acts on the pad. Go hear somebody, or bring a notebook entry back without another scouting trip.");
 		else {
-			Heading($"CAUGHT {desk.SlateDate.ToHeadlineString()}  —  {PlayerDesk.VenueName(desk.Slate[0].Venue)}");
+			Heading($"CAUGHT {desk.SlateDate.ToHeadlineString()}  —  {SceneRoomCatalog.Get(desk.Slate[0].SceneRoomId)?.Name ?? PlayerDesk.VenueName(desk.Slate[0].Venue)}");
 			foreach (PlayerDesk.Prospect prospect in desk.Slate.ToList()) ProspectCard(prospect);
 		}
 

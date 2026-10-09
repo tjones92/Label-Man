@@ -38,4 +38,8 @@ public sealed class SceneDiscovery {
     public string LastPlaceId { get; set; }
     public int LastWeek { get; set; }
     public int Venue { get; set; }
+    public string RoomId { get; set; }
+    public string BillId { get; set; }
+    public string ContactId { get; set; }
+    public int LastDay { get; set; }
 }

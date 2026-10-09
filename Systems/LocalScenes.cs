@@ -6,6 +6,7 @@ using System.Linq;
 public static class LocalScenes {
     public static bool Observing { get; private set; }
     public static bool Persisting { get; private set; }
+    public static bool Rooms { get; private set; }
     public static void ValidateDependencies() {
         if (Persisting && !ArtistPopulationLifecycle.Enabled)
             throw new ArgumentException("Persistent scenes require the existing artist population lifecycle birth owner.");
@@ -27,7 +28,13 @@ public static class LocalScenes {
             && !args.Contains("--disable-artist-population-lifecycle", StringComparer.Ordinal)
             && !args.Contains("--disable-genre-market-v2", StringComparer.Ordinal);
         persist |= defaultPersistence;
+
+        bool enableRooms = args.Contains("--enable-scene-rooms", StringComparer.Ordinal);
+        bool disableRooms = args.Contains("--disable-scene-rooms", StringComparer.Ordinal);
+        if (enableRooms && (disableRooms || !persist))
+            throw new ArgumentException("Scene rooms require persistence and cannot be enabled and disabled together.");
         Observing = observe || persist;
         Persisting = persist;
+        Rooms = persist && !disableRooms;
     }
 }

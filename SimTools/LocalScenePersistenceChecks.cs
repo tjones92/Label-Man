@@ -31,7 +31,7 @@ public static class LocalScenePersistenceChecks {
         try { LocalScenes.Configure(new[] { "--enable-persistent-scenes", "--disable-persistent-scenes" }); }
         catch (ArgumentException) { defaultConflictRejected = true; }
         Check(defaultConflictRejected, "explicit persistence enable/disable conflict rejected");
-        LocalScenes.Configure(new[] { "--enable-persistent-scenes" });
+        LocalScenes.Configure(new[] { "--enable-persistent-scenes", "--disable-scene-rooms" });
         int week = ChartManager.Instance.GetCurrentChartWeek();
         GameDate date = TimeManager.Instance.CurrentDate;
         var origin = WorldStateService.Capture();
@@ -143,7 +143,7 @@ public static class LocalScenePersistenceChecks {
             Check(SaveGameService.Load(slot, out _), "real player load succeeds with scenes disabled");
             Check(Json(desk.Label.geography) == labelGeo && Json(desk.SceneDiscoveries) == discoveries, "off-after-on preserves label identity and discovery ledger");
             Check(am.GetAllArtists().Any(a => a.sceneParticipations?.Count > 0), "disabled load preserves resident histories");
-            LocalScenes.Configure(new[] { "--enable-persistent-scenes" });
+            LocalScenes.Configure(new[] { "--enable-persistent-scenes", "--disable-scene-rooms" });
             LocalSceneIdentityService.CompleteDirectPlayerRestore();
             Check(SaveGameService.Load(slot, out _), "real player load succeeds with scenes enabled");
             TimeManager.Instance.RestoreClock(date, 12);

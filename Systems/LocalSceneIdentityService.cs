@@ -149,7 +149,8 @@ public static class LocalSceneIdentityService {
         }
         previousState = null;
         LocalScenePersistenceService.CompleteRestore();
+        LocalSceneRoomService.CompleteRestore();
     }
     public static void CompleteDirectPlayerRestore() { if (!restoring) CompleteRestore(); }
-    public static void CancelRestore() { LocalScenePersistenceService.CancelRestore(); if (!restoring) return; restoring = false; state = previousState; previousState = null; byBase.Clear(); indexedBase.Clear(); }
+    public static void CancelRestore() { LocalSceneRoomService.CancelRestore(); LocalScenePersistenceService.CancelRestore(); if (!restoring) return; restoring = false; state = previousState; previousState = null; byBase.Clear(); indexedBase.Clear(); }
 }
