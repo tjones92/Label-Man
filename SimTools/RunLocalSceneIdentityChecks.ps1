@@ -1,15 +1,15 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$RunTag = 'scene1-fixed-v1',
     [string]$Godot = 'C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe',
-    [int]$MinimumFreeMiB = 1536
+    [int]$MinimumFreeMiB = 768
 )
 
 # Invoke only within a user-authorized game test window. Tests run serially.
 $ErrorActionPreference = 'Stop'
 $sceneRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if ($RunTag -notmatch '^[a-z0-9-]+$') { throw 'RunTag must contain lowercase letters, digits and hyphens.' }
-if ($MinimumFreeMiB -lt 1536) { throw 'Short suite requires at least 1536 MiB of available RAM before each job.' }
+if ($MinimumFreeMiB -lt 768) { throw 'Short suite requires at least 768 MiB of available RAM before each job.' }
 if (!(Test-Path -LiteralPath $Godot)) { throw 'Godot binary missing.' }
 $sceneArtifactPath = Join-Path $sceneRoot "SimLogs/$RunTag"
 if (Test-Path -LiteralPath $sceneArtifactPath) { throw 'Run family exists; choose a new RunTag.' }

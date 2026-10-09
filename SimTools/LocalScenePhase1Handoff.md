@@ -75,3 +75,15 @@ Require `SCENE_IDENTITY_CHECK_PASS`, `SAVELOAD_ROUNDTRIP_PASS` and exit 0. Also 
 The user authorized overlapping the current band run if memory headroom permits. The running band engine (PID 25612, `bms5-obs-1001`) used about 1.2 GiB; available physical RAM measured 325-482 MiB on a machine with 7413 MiB usable. No scene test was launched because that leaves insufficient capacity for a second engine while the late-decade world grows. No other process was stopped or modified.
 
 `SimTools/RunLocalSceneIdentityChecks.ps1` now packages six serial fixed/round-trip jobs, explicit comparator flags, process/RAM admission checks, hashes, logs and completion markers. PowerShell parsing passes. It requires a clear engine window and at least 1536 MiB free before each job. It has not executed; runtime acceptance remains pending. The user's current authorization permits testing when capacity is available without asking for the same authorization again.
+
+## Resumed validation results
+
+Committed band work through `e0a3a91547d862b1f2c9755c88edadf0783af024` was integrated at `f03036e1d26ab4c7293dfc3861e455eb3bdc9b4a`. This supersedes the earlier comparator boundary. The frozen control uses `e0a3a91`; the treatment uses the Phase 1 assembly at `f03036e`. Their hashes and exact flags are in `SimLogs/scene1-matched-v3/runs.json`. The latest band phase defaults are common to both.
+
+- `scene1-fixed-v2`: all six jobs passed, exit 0. Fixed identity probes in off and observed modes; world/gzip byte-identical round trips at 0 and 26 weeks in both modes.
+- `scene1-matched-v3`: all seven 52-week runs passed, exit 0, exact week counts. Seeds 1001/2002 in control, off and observed modes, plus seed 1001 control repeat.
+- Every comparison matched all 84 existing CSV files byte-for-byte: repeat, both off seeds, both observed seeds. Early world snapshots matched after removing only `SceneIdentity` and inline geographic identity. The comparator records the explicit ignored fields; no economic tolerance or compensation was applied.
+- Godot reports the existing `MissingSingletonsTemp.cs`/`Rolodex` autoload class-name error in both frozen control and treatment. It is not a scene regression; the run completion markers, economy hashes and save checks all pass. It remains a pre-existing runtime diagnostic.
+- Available memory improved after the band run ended. The short suite admission threshold was revised to 768 MiB for fresh 0/26-week worlds; jobs remain serial. This threshold is not permission to launch a late-decade world with the same headroom.
+
+Bounded Phase 1 validation passes. Real player save coverage is included in the Phase 2 fixed probe. The full two-seed decade gate remains outstanding; this record does not claim decade acceptance. The user explicitly authorized continuing into Phase 2, so its opt-in implementation proceeds behind a separate persistence gate while broader acceptance remains tracked.
