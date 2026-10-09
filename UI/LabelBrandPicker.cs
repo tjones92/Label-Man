@@ -33,12 +33,12 @@ public partial class LabelBrandPicker : VBoxContainer {
 	/// <summary>The brand as it stands (a copy: the caller may keep it).</summary>
 	public LabelBrand Current => brand.Clone();
 
-	private string Name => string.IsNullOrWhiteSpace(labelName) ? "Player Records" : labelName.Trim();
+	private string DisplayName => string.IsNullOrWhiteSpace(labelName) ? "Player Records" : labelName.Trim();
 
 	public LabelBrandPicker(LabelBrand chosen, string name) {
 		labelName = name ?? "";
 		Customised = chosen != null;
-		brand = chosen?.Clone() ?? LabelBrand.Derive(Name);
+		brand = chosen?.Clone() ?? LabelBrand.Derive(DisplayName);
 		AddThemeConstantOverride("separation", 10);
 		Build();
 		Sync();
@@ -47,7 +47,7 @@ public partial class LabelBrandPicker : VBoxContainer {
 	/// <summary>The name field changed: follow it until the player has made a choice of their own.</summary>
 	public void SetLabelName(string name) {
 		labelName = name ?? "";
-		if (!Customised) brand = LabelBrand.Derive(Name);
+		if (!Customised) brand = LabelBrand.Derive(DisplayName);
 		Sync();
 	}
 
@@ -147,7 +147,7 @@ public partial class LabelBrandPicker : VBoxContainer {
 		var reset = new Button { Text = "USE THE NAME'S OWN", TooltipText = "Let the label's name decide: every name gets its own crest." };
 		reset.Pressed += () => {
 			Customised = false;
-			brand = LabelBrand.Derive(Name);
+			brand = LabelBrand.Derive(DisplayName);
 			Sync();
 			Changed?.Invoke();
 		};
@@ -199,24 +199,24 @@ public partial class LabelBrandPicker : VBoxContainer {
 			Mark(crestButtons[i], (int)brand.Crest == i);
 			LabelBrand face = brand.Clone();
 			face.Crest = (CrestShape)i;
-			crestFaces[i].Set(face, Name, 40);
+			crestFaces[i].Set(face, DisplayName, 40);
 		}
 		for (int i = 0; i < paletteButtons.Count; i++) Mark(paletteButtons[i], brand.PaletteIndex == i);
 		for (int i = 0; i < letteringButtons.Count; i++) {
 			Mark(letteringButtons[i], (int)brand.Lettering == i);
 			bool script = i == (int)LetteringStyle.Script;
-			string word = Name.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+			string word = DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
 			letteringSamples[i].Text = script ? word : word.ToUpperInvariant();
 		}
-		monogramEdit.PlaceholderText = LabelBrand.InitialsOf(Name);
+		monogramEdit.PlaceholderText = LabelBrand.InitialsOf(DisplayName);
 		if (monogramEdit.Text != brand.Monogram) monogramEdit.Text = brand.Monogram;
 		syncing = false;
 		SyncPreview();
 	}
 
 	private void SyncPreview() {
-		disc.Set(brand, Name, 170f, LabelCrest.Mode.Disc45);
+		disc.Set(brand, DisplayName, 170f, LabelCrest.Mode.Disc45);
 		foreach (Node child in letterheadHost.GetChildren()) { letterheadHost.RemoveChild(child); child.QueueFree(); }
-		letterheadHost.AddChild(LabelCrest.Letterhead(brand, Name, 44, 26, 270f));
+		letterheadHost.AddChild(LabelCrest.Letterhead(brand, DisplayName, 44, 26, 270f));
 	}
 }

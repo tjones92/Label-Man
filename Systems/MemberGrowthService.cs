@@ -92,7 +92,6 @@ public static class MemberGrowthService {
 		bool live = BandLife.GrowthEnabled;
 		var rows = new Dictionary<Musician, GrowthRow>();
 		(float hours, float weighted) = Hours(a, roadLoad, releasesNow);
-		bool changed = false;
 		foreach (Musician m in present) {
 			if (m.axesVersion == 0) MemberAxesService.EnsureAxes(m, a, year);
 			if (m.axesVersion == 0) continue;

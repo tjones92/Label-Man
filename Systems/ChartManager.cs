@@ -320,7 +320,6 @@ public partial class ChartManager : Node {
 	public event Action<RecordRuntimeData> OnRecordChartUpdated;
 	public event Action<RecordRuntimeData> OnRecordLeftChart;
 	public event Action<RecordRuntimeData> OnRecordRetired;
-	public event Action<Genre, float> OnGenreMomentumChanged;
 	/// <summary>Raised once after sales are frozen and before any record can retire.</summary>
 	public event Action<CompletedWeekSettlement> OnWeekSettlement;
 	public int RetiredTrackResolutionAttempts { get; private set; }

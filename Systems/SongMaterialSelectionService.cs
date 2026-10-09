@@ -527,8 +527,10 @@ public static class SongMaterialSelectionService {
 	private static float GenreFit(SongComposition song, Genre genre) =>
 		song.primaryGenre == genre ? 1f : song.secondaryGenre == genre ? 0.6f : 0.3f;
 
+#pragma warning disable CS0618
 	private static float InterpretationFit(SimulatedArtist artist, SongComposition song, Genre genre) =>
 		PolarSongBehavior.UsePolarFitSelection && !PolarSongBehavior.AuditLegacyRealization ? 0f : LegacyInterpretationFit(artist, song, genre);
+#pragma warning restore CS0618 // legacy path, reached only when polar selection is off
 	[System.Obsolete("Compatibility-only. Polar selection and consumers use separate MaterialFit components.")]
 	private static float LegacyInterpretationFit(SimulatedArtist artist, SongComposition song, Genre genre) =>
 		Mathf.Clamp(artist.CalculateBaseQuality() * 0.55f + GenreFit(song, genre) * 0.30f + song.adaptability * 0.15f, 0f, 1f);
@@ -867,7 +869,9 @@ public static class SongMaterialSelectionService {
 			if (s == null) continue;
 			if (RejectedSample(s, artist, record, year)) continue;
 			Observe(artist, record, s, record.primaryGenre, year, "pool", salt);
+#pragma warning disable CS0618
 			float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
+#pragma warning restore CS0618 // legacy path, reached only when polar selection is off
 			// Recent-hit covers: prefer the less-worn song so covers spread across many hits and the
 			// 3rd/4th cover of one hit (or a definitive #1) is avoided -- without cutting the bucket share.
 			if (applyFatigue) score *= CoverFatigueShadow(s);
@@ -902,7 +906,9 @@ public static class SongMaterialSelectionService {
 			if (filter != null && !filter(s)) continue;
 			if (RejectedSample(s, artist, record, year, salt == "pro")) continue;
 			Observe(artist, record, s, record.primaryGenre, year, "pool", salt);
+#pragma warning disable CS0618
 			float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
+#pragma warning restore CS0618 // legacy path, reached only when polar selection is off
 			if (score > bestScore || (PolarSongBehavior.UsePolarFitSelection && score == bestScore && (best == null || GenreFit(s, record.primaryGenre) > GenreFit(best, record.primaryGenre)))) { bestScore = score; best = s; }
 		}
 		return best;
