@@ -42,8 +42,6 @@ public partial class PlayerDesk {
             using var localDraws = new RandomNumberGenerator { Seed = readSeed };
             BuildLiveSet(prospect, artist, year, noise, localDraws, sceneRead: true);
             prospect.Rough = ReadRough(prospect, notebook.FirstOrDefault(n => n.Artist?.artistId == artist.artistId));
-            if (!string.IsNullOrEmpty(artist.labelId)) prospect.Note += $"; signed to {ChartManager.Instance?.GetLabelName(artist.labelId) ?? "another label"}";
-            else if (ArtistManager.Instance?.IsEligibleForPopulationSigning(artist, week) != true) prospect.Note += "; not taking record offers right now";
             slate.Add(prospect);
             RememberSceneDiscovery(artist.artistId, placeId, venue, week);
         }
@@ -52,6 +50,17 @@ public partial class PlayerDesk {
         Note($"Worked {VenueName(venue)} in {CurrentCity?.name ?? placeId}: {message}");
         Changed?.Invoke();
         return true;
+    }
+    public static bool SceneDealAvailable(Prospect prospect) => prospect?.Artist != null &&
+        ReferenceEquals(ArtistManager.Instance?.GetArtist(prospect.Artist.artistId), prospect.Artist) &&
+        ArtistManager.Instance.IsEligibleForPopulationSigning(prospect.Artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+    public static string SceneDealDescription(Prospect prospect) {
+        if (prospect?.Artist == null || !ReferenceEquals(ArtistManager.Instance?.GetArtist(prospect.Artist.artistId), prospect.Artist))
+            return "entry needs updating";
+        if (!string.IsNullOrEmpty(prospect.Artist.labelId)) return "under contract to " +
+            (ChartManager.Instance?.GetLabelName(prospect.Artist.labelId) ?? "another label");
+        if (prospect.Artist.prospectMarketStatus == ProspectMarketStatus.Latent) return "not looking for a record deal";
+        return SceneDealAvailable(prospect) ? $"asking ${prospect.AskingAdvance:N0}" : "not taking record offers right now";
     }
     /// <summary>Commit checks use the canonical object and the existing activation/cooldown owner.</summary>
     private bool CanCommitSceneSigning(Prospect prospect, out string message) {

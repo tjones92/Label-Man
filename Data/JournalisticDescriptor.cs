@@ -259,7 +259,7 @@ public static class JournalisticDescriptor {
 		string genreName = GenreNameFormatter.Format(artist.primaryGenre);
 		string article = WithAn(genreName) ? "an" : "a";
 		string region = !string.IsNullOrEmpty(artist.homeCity) ? artist.homeCity :
-			string.IsNullOrEmpty(artist.homeRegion) ? "parts unknown" : $"the {artist.homeRegion} region";
+			!string.IsNullOrEmpty(artist.baseCity) || string.IsNullOrEmpty(artist.homeRegion) ? "parts unknown" : $"the {artist.homeRegion} region";
 		if (artist.isBand) {
 			lines.Add($"{artist.name} are {article} {genreName} act out of {region}.");
 		} else {

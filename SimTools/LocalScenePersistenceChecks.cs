@@ -82,7 +82,11 @@ public static class LocalScenePersistenceChecks {
         string sets1 = Json(desk.Slate.Select(p => p.LiveSet).ToList());
         Check(desk.Slate.Count > 0, "persistent local cast discoverable");
         TimeManager.Instance.RestoreClock(date, 12);
+        GD.Seed(771122);
+        float expectedNextDraw = GD.Randf();
+        GD.Seed(771122);
         Check(desk.ScoutVenue(PlayerDesk.ScoutingVenue.HonkyTonks, out _), "second real scouting visit");
+        Check(GD.Randf() == expectedNextDraw, "scouting observations leave the global RNG stream untouched");
         Check(slate1 == string.Join('|', desk.Slate.Select(p => p.Artist.artistId)) && sets1 == Json(desk.Slate.Select(p => p.LiveSet).ToList()),
             "repeat visit preserves cast IDs and read repertoire");
         Check(idsBefore.SequenceEqual(am.GetAllArtists().Select(a => a.artistId).OrderBy(id => id)), "visits never create/delete population");
@@ -100,6 +104,17 @@ public static class LocalScenePersistenceChecks {
         Check(!desk.ApproachToSign(stale, out _), "stale noncanonical discovery rejected");
         var signedCard = new PlayerDesk.Prospect { Artist = signed, FollowedUp = true };
         Check(!desk.ApproachToSign(signedCard, out _) && signed.labelId == owner.labelId, "rival ownership cannot be overwritten from observed cast");
+        Check(!PlayerDesk.SceneDealAvailable(latentCard) && PlayerDesk.SceneDealDescription(latentCard).Contains("not looking"), "latent card shows deal unavailable rather than a price");
+        Check(!PlayerDesk.SceneDealAvailable(signedCard) && PlayerDesk.SceneDealDescription(signedCard).Contains("under contract"), "signed card explains unavailable contract");
+        int hourBeforeStale = TimeManager.Instance.CurrentHour;
+        float moneyBeforeStale = desk.Label.cashReserves;
+        stale.HasBaseline = true;
+        Check(!desk.OfferContract(stale, 0, .05f, 1, 1, true, false, out _) &&
+            TimeManager.Instance.CurrentHour == hourBeforeStale && desk.Label.cashReserves == moneyBeforeStale, "stale offer rejected before time/payment");
+        bool futureRejected = false;
+        try { WorldStateService.Apply(new WorldSaveData { ScenePersistence = new ScenePersistenceSaveData { SchemaVersion = 99 } }, date, SimulationSeedBootstrap.RequestedSeed); }
+        catch (InvalidOperationException) { futureRejected = true; }
+        Check(futureRejected && idsBefore.SequenceEqual(am.GetAllArtists().Select(a => a.artistId).OrderBy(id => id)), "future persistence schema rejected before world mutation");
         string slot = "Scene probe " + Guid.NewGuid().ToString("N");
         try {
             Check(SaveGameService.Save(slot, out _), "real gzip world/player save");

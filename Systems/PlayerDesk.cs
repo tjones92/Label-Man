@@ -1977,6 +1977,7 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears, int singlesObligation,
 		bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
+        if (LocalScenes.Persisting && !CanCommitSceneSigning(prospect, out message)) return false;
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!prospect.HasBaseline) { message = "Approach them first."; return false; }

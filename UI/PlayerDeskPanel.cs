@@ -1253,8 +1253,9 @@ public partial class PlayerDeskPanel : Control {
 		head.AddChild(stamp);
 		card.AddChild(head);
 
+        string dealText = LocalScenes.Persisting ? PlayerDesk.SceneDealDescription(prospect) : $"asking ${prospect.AskingAdvance:N0}";
 		var meta = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			Text = $"{prospect.Note}   •   asking ${prospect.AskingAdvance:N0}   •   {(prospect.ReadConfidence >= 0.7f ? "close read" : "rough read")}" };
+			Text = $"{prospect.Note}   •   {dealText}   •   {(prospect.ReadConfidence >= 0.7f ? "close read" : "rough read")}" };
 		meta.AddThemeFontSizeOverride("font_size", 15);
 		meta.AddThemeColorOverride("font_color", Ink);
 		card.AddChild(meta);
@@ -1300,6 +1301,10 @@ public partial class PlayerDeskPanel : Control {
 			foot.AddChild(follow);
 		} else {
 			var approach = Primary("APPROACH");
+            if (LocalScenes.Persisting && !PlayerDesk.SceneDealAvailable(prospect)) {
+                approach.Disabled = true;
+                approach.TooltipText = PlayerDesk.SceneDealDescription(prospect);
+            }
 			approach.CustomMinimumSize = new Vector2(0, 36);
 			approach.Pressed += () => {
 				bool ok = PlayerDesk.Instance.ApproachToSign(captured, out string message);

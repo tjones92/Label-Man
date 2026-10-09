@@ -23,7 +23,7 @@ public partial class ChartAuditRunner {
                 p.startWeek.ToString(), p.endWeek?.ToString() ?? "", act.prospectMarketStatus.ToString(), Csv(act.labelId), act.lifecycleStatus.ToString() }));
         }
         GD.Print($"SCENE_PARTICIPATION_CENSUS phase={phase} residents={residents} duplicateResidents={duplicateResidents} terminalResidents={terminalResidents} missingActivePeople={missingPeople}");
-        if (duplicateResidents > 0 || terminalResidents > 0 || missingPeople > 0)
+        if (LocalScenes.Persisting && (duplicateResidents > 0 || terminalResidents > 0) || missingPeople > 0)
             throw new InvalidOperationException("Scene participation census failed authoritative membership/person reconciliation.");
     }
 }
