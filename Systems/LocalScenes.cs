@@ -7,9 +7,12 @@ public static class LocalScenes {
     public static bool Observing { get; private set; }
     public static bool Persisting { get; private set; }
     public static bool Rooms { get; private set; }
+    public static bool Recruitment { get; private set; }
     public static void ValidateDependencies() {
         if (Persisting && !ArtistPopulationLifecycle.Enabled)
             throw new ArgumentException("Persistent scenes require the existing artist population lifecycle birth owner.");
+        if (Recruitment && (!Persisting || !GenreMarketV2.Enabled))
+            throw new ArgumentException("Scene recruitment requires persistent scenes and the genre market.");
     }
     public static void Configure(IEnumerable<string> arguments) {
         string[] args = (arguments ?? Array.Empty<string>()).ToArray();
@@ -20,8 +23,8 @@ public static class LocalScenes {
         if (persist && (disable || args.Contains("--disable-persistent-scenes", StringComparer.Ordinal)))
             throw new ArgumentException("Persistent scenes conflict with the requested scene disable flag.");
         if (observe && disable) throw new ArgumentException("--observe-local-scenes conflicts with --disable-local-scenes.");
-        if (args.Any(a => a is "--enable-local-scenes" or "--enable-scene-recruitment" or "--enable-scene-dynamics"))
-            throw new ArgumentException("Use --enable-persistent-scenes for persistence. Geographic recruitment and dynamics are not implemented.");
+        if (args.Any(a => a is "--enable-local-scenes" or "--enable-scene-dynamics"))
+            throw new ArgumentException("Use --enable-persistent-scenes for persistence and --enable-scene-recruitment for gated recruitment. Dynamics are not implemented.");
         // An explicit observation/disable mode wins over the development default.
         // Dependency-off controls remain clean; explicit enable still requires validation.
         bool defaultPersistence = !observe && !disable && !disablePersistence
@@ -33,8 +36,13 @@ public static class LocalScenes {
         bool disableRooms = args.Contains("--disable-scene-rooms", StringComparer.Ordinal);
         if (enableRooms && (disableRooms || !persist))
             throw new ArgumentException("Scene rooms require persistence and cannot be enabled and disabled together.");
+        bool recruitment = args.Contains("--enable-scene-recruitment", StringComparer.Ordinal);
+        if (recruitment && (args.Contains("--disable-scene-recruitment", StringComparer.Ordinal) || !persist || observe ||
+            args.Contains("--disable-genre-market-v2", StringComparer.Ordinal)))
+            throw new ArgumentException("Scene recruitment requires persistence and genre market, and conflicts with observe/disable modes.");
         Observing = observe || persist;
         Persisting = persist;
         Rooms = persist && !disableRooms;
+        Recruitment = recruitment;
     }
 }

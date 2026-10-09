@@ -28,7 +28,8 @@ public static class SaveGameService {
 	// v5: geographic identity with unknown/inferred origins, moves, and a separate assignment seed.
 	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
     // v7: dated room bills, engagements, performance/work ledgers and notebook source IDs.
-	public const int CurrentVersion = 7;
+	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
+	public const int CurrentVersion = 8;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
