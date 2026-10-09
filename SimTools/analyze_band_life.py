@@ -43,7 +43,8 @@ def analyze(run):
     p(f"years {min(years)}-{max(years)}")
 
     departures = [e for e in events if e["event"] in ("departure", "departure-dissolves")]
-    strain_kinds = {"Acrimony", "Fired", "SoloCareer", "Dissolution"}
+    # WalkedOut is a strain exit rerouted by §16 (it keeps its Reliability cause); the other §16 kinds are life exits.
+    strain_kinds = {"Acrimony", "Fired", "SoloCareer", "Dissolution", "WalkedOut"}
     strain_dep = [e for e in departures if e["kind"] in strain_kinds]
     life_dep = [e for e in departures if e["kind"] not in strain_kinds]
 
@@ -146,6 +147,16 @@ def analyze(run):
           f"{r['substanceOnsets']:>4s} / {r['marriages']:>5s} / {r['affairs']:>3s} / {float(r['meanStrain']):.3f} / {float(r['meanMorale']):+.3f}")
     kinds = Counter(e["kind"] for e in departures)
     p(f"\nall departures by kind: {dict(kinds)}")
+    # §16.4 measure 2: what the player reads. Share of each kind among never-charted group departures, by period.
+    p("\n[16] never-charted group departures by kind and period (share of all their departures)")
+    for lo, hi in ((1960, 1964), (1965, 1966), (1967, 1969)):
+        es = [e for e in departures if e["everCharted"] == "false" and e["constitution"] != "Solo" and lo <= int(e["year"]) <= hi]
+        if not es:
+            continue
+        k = Counter(e["kind"] for e in es)
+        unreliable = sum(1 for e in es if e["kind"] == "Fired" and e["cause"] == "Reliability")
+        p(f"  {lo}-{hi}: n={len(es)}  Fired(unreliable) {unreliable / len(es):.0%}  " +
+          "  ".join(f"{kk} {v / len(es):.0%}" for kk, v in k.most_common()))
     text = "\n".join(out)
     print(text)
     with open(os.path.join(LOGS, f"{run}-lineup-measures.txt"), "w", encoding="utf-8") as f:

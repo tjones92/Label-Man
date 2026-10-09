@@ -28,7 +28,8 @@ public partial class ChartAuditRunner {
 			string.Join(",", Enum.GetNames(typeof(DeathChannel)).Select(n => "death" + n)) + "," +
 			"deathsCharting,draftEligible,drafted,draftedCharting,draftReturns,exhaustion,substanceOnsets,busts,marriages,children," +
 			"couples,coupleBreakups,affairs,discoveries,quietDissolutionsCharted,quietDissolutionsNeverCharted,poolSize,poolEntries," +
-			"poolExpired,replacements,replacementsFromPool,spinOuts,dissolutions,recombinations,leavingMemberOptions");
+			"poolExpired,replacements,replacementsFromPool,spinOuts,dissolutions,recombinations,leavingMemberOptions," +
+			"jailed,injuries,breakdowns,lifeReturns");
 		BandLifeService.OnEvent += WriteLineupEvent;
 		BandLifeService.OnAnnualSummary += WriteLineupAnnual;
 		// Calibration only: every pair's raw strain terms each year (large; opt-in).
@@ -102,7 +103,7 @@ public partial class ChartAuditRunner {
 			I(s.substanceOnsets), I(s.busts), I(s.marriages), I(s.children), I(s.couples), I(s.coupleBreakups), I(s.affairs),
 			I(s.discoveries), I(s.quietDissolutionsCharted), I(s.quietDissolutionsNeverCharted), I(s.poolSize), I(s.poolEntries),
 			I(s.poolExpired), I(s.replacements), I(s.replacementsFromPool), I(s.spinOuts), I(s.dissolutions), I(s.recombinations),
-			I(s.leavingMemberOptions)
+			I(s.leavingMemberOptions), I(s.jailed), I(s.injuries), I(s.breakdowns), I(s.lifeReturns)
 		});
 		lineupAnnualWriter?.WriteLine(string.Join(",", cells));
 		lineupAnnualWriter?.Flush();

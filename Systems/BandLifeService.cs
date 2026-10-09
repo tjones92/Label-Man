@@ -35,6 +35,7 @@ public sealed class BandLifeAnnualSummary {
 	public readonly int[] deathsByChannel = new int[Enum.GetValues(typeof(DeathChannel)).Length];
 	public int deathsCharting, drafted, draftedCharting, draftEligible, draftReturns;
 	public int exhaustion, substanceOnsets, busts, marriages, children, couples, coupleBreakups, affairs, discoveries;
+	public int jailed, injuries, breakdowns, lifeReturns; // §16 life exits (their departures are in departuresByKind)
 	public int quietDissolutionsCharted, quietDissolutionsNeverCharted;
 	public int strainDeparturesCharted, strainDeparturesNeverCharted, actsLosingMemberCharted, actsLosingMemberNeverCharted;
 	public int poolSize, poolEntries, poolExpired, replacements, replacementsFromPool, spinOuts, dissolutions, recombinations;
@@ -135,6 +136,26 @@ public static class BandLifeService {
 	public const float CoupleBreakupRate = 0.25f;
 	public const float AffairRate = 0.05f;
 	public const float AffairDiscoveryRate = 0.35f;
+
+	// ==== life exits (§16, --enable-life-exits) ===========================================================
+	// Sized offline on the bms5-on2-1001 member log (1967-68) against ~480 departures a year; the comment on each is
+	// the expected count a year in 1968, all acts (charted in brackets).
+	/// <summary>Jazz's substance era: flat at the decade mean of the ramp, so its decade exposure is unchanged but the
+	/// heroin era doesn't wait for 1965. A full 1.0 would have added ~30% to early-decade users.</summary>
+	public const float JazzSubstanceEra = 0.61f;
+	public const float BustRate = 0.45f;              // 47 busts (15)
+	public const float BustLoadFloor = 0.15f;
+	public const float BustJailShare = 0.50f;         // 24 jailed (8); the rest are fined
+	public const float InjuryRate = 0.003f;           // 23 (11): the non-fatal side of the travel channel, 10x its rate
+	public const float InjuryCareerEndingShare = 0.30f;
+	public const float BreakdownRate = 0.02f;         // 3 (2)
+	public const float DayJobRate = 0.005f;           // 80 (4); ~115 before 1965
+	public const float FamilyRate = 0.0007f;          // 44 (5)
+	public const float SchoolRate = 0.016f;           // 25 (1)
+	public const float DevoutShare = 0.20f;
+	public const float ChurchRate = 0.0025f;          // 8 (2)
+	public const float SessionSkillBar = 0.68f;
+	public const float SessionRate = 0.016f;          // 35 (6)
 
 	// ==== morale =========================================================================================
 	public const float MoraleMin = -0.30f, MoraleMax = 0.20f, MoraleRelax = 0.70f;
@@ -412,10 +433,11 @@ public static class BandLifeService {
 			// Wealth reader 4 (§4.15): money, not the fame proxy, is what buys the habit.
 			float exposure = MemberWealthService.Readers
 				? Mathf.Max(MemberWealthService.SubstanceExposure(m, personalFame), ctx.fame * 0.6f) : personalFame;
+			float era = SubstanceEra(year, a.primaryGenre);
 			float onset = SubstanceOnsetRate * (1f - m.reliability) * (0.3f + exposure) * SceneSubstance(a.primaryGenre) *
-				SubstanceEra(year) * (0.5f + ctx.roadLoad);
+				era * (0.5f + ctx.roadLoad);
 			bool usingNow = m.substanceLoad >= 0.05f;
-			float carryOn = usingNow ? Mathf.Clamp(SubstancePersistence * (0.6f + 0.8f * (1f - m.reliability)), 0f, 1f) * SubstanceEra(year) : 0f;
+			float carryOn = usingNow ? Mathf.Clamp(SubstancePersistence * (0.6f + 0.8f * (1f - m.reliability)), 0f, 1f) * era : 0f;
 			if (BandLife.Chance(k + "|substance", onset)) {
 				bool first = m.substanceLoad < 0.05f;
 				m.substanceLoad = Mathf.Clamp(m.substanceLoad + 0.15f + 0.15f * BandLife.Unit(k + "|dose"), 0f, 1f);
@@ -427,7 +449,8 @@ public static class BandLifeService {
 				m.substanceLoad = Mathf.Max(0f, m.substanceLoad * 0.85f - 0.01f);
 			}
 			if (m.substanceLoad > SubstanceDeathThreshold) m.substanceHeavyYears++;
-			if (m.substanceLoad > 0.35f && BandLife.Chance(k + "|bust", 0.05f * m.substanceLoad * (0.3f + exposure))) {
+			// With life exits on, the bust is rolled after the draft (below) and can put the member in jail.
+			if (!BandLife.LifeExits && m.substanceLoad > 0.35f && BandLife.Chance(k + "|bust", 0.05f * m.substanceLoad * (0.3f + exposure))) {
 				summary.busts++;
 				EmitPerson(ctx, m, "bust", detail: F(m.substanceLoad));
 			}
@@ -439,7 +462,7 @@ public static class BandLifeService {
 			float illness = IllnessDeathRate * Mathf.Exp((age - 40) / 8f);
 			float misadventure = MisadventureDeathRate * (0.5f + personalFame);
 			float substance = m.substanceLoad > SubstanceDeathThreshold
-				? SubstanceDeathRate * (m.substanceLoad - SubstanceDeathThreshold) * (1 + m.substanceHeavyYears) * SubstanceEra(year)
+				? SubstanceDeathRate * (m.substanceLoad - SubstanceDeathThreshold) * (1 + m.substanceHeavyYears) * era
 				: 0f;
 			float death = travel + illness + misadventure + substance;
 			if (BandLife.Chance(k + "|death", death)) {
@@ -470,6 +493,18 @@ public static class BandLifeService {
 				}
 			}
 
+			// Busts (§16): police attention follows the habit and the name. Half the busts end in a year inside.
+			if (BandLife.LifeExits && m.substanceLoad >= BustLoadFloor &&
+				BandLife.Chance(k + "|bust", BustRate * m.substanceLoad * (0.3f + exposure) * BustClimate(a, year))) {
+				summary.busts++;
+				EmitPerson(ctx, m, "bust", detail: F(m.substanceLoad));
+				if (BandLife.Chance(k + "|jailed", BustJailShare)) {
+					summary.jailed++;
+					LifeExit(ctx, m, DepartureKind.Busted, StrainCause.Reliability, candidates, MemberLifeState.Jailed, year + 1);
+					continue;
+				}
+			}
+
 			// Exhaustion: the road wears a short fuse down. A writer or studio hand stays for the records.
 			// Phase 4f: the hazard reads the recovering fatigue level, not the lifetime counter (§4.16).
 			float wear = BandLife.RoadFatigue ? m.fatigue : m.roadYears;
@@ -491,6 +526,8 @@ public static class BandLifeService {
 					continue;
 				}
 			}
+
+			if (BandLife.LifeExits && TryLifeExit(ctx, m, age, successTier, summary, candidates)) continue;
 
 			// Marriage and children: a partner off the road pulls toward home; a father is draft-exempt.
 			bool single = m.partner == null || m.partner.state is PartnerState.Divorced or PartnerState.Separated;
@@ -518,6 +555,130 @@ public static class BandLifeService {
 		1965 => 0.40f, 1966 => 0.60f, 1967 => 0.85f, _ => 1.0f
 	};
 
+	/// <summary>The era ramp, except that with life exits on Jazz runs flat at its decade mean (§16.2).</summary>
+	private static float SubstanceEra(int year, Genre g) =>
+		BandLife.LifeExits && FamilyOf(g) == GenreFamily.Jazz ? JazzSubstanceEra : SubstanceEra(year);
+
+	/// <summary>How hard the police are looking: London's Drug Squad from 1966, a flat climate in the US.</summary>
+	private static float BustClimate(SimulatedArtist a, int year) => !IsBritishAct(a) ? 1.0f : year >= 1966 ? 1.6f : 0.5f;
+
+	/// <summary>The LSD years, for the substance side of a breakdown.</summary>
+	private static float Psychedelia(int year) => year >= 1967 ? 1.0f : year == 1966 ? 0.5f : 0f;
+
+	/// <summary>Faith and the scene it lives in: who might leave the music for the church.</summary>
+	private static float FaithScene(Genre g) => FamilyOf(g) switch {
+		GenreFamily.Gospel => 1.0f,
+		GenreFamily.RhythmAndSoul => 0.6f,
+		GenreFamily.Country or GenreFamily.Blues => 0.4f,
+		_ => 0.1f
+	};
+
+	/// <summary>
+	/// The life exits after exhaustion (§16), at most one a person a year: injury, breakdown, the church, session
+	/// work, a steady job, family, school. Each is a keyed hazard on what the sim already knows about the person; a
+	/// group-only exit doesn't apply to a solo act, whose unknown quitting is already a quiet dissolution.
+	/// </summary>
+	private static bool TryLifeExit(ActYear ctx, Musician m, int age, float successTier,
+		BandLifeAnnualSummary summary, List<DepartureCandidate> candidates) {
+		SimulatedArtist a = ctx.artist;
+		int year = ctx.year;
+		string k = $"{m.personId}|{year}";
+		bool group = ctx.constitution != LineupConstitution.Solo;
+		bool active = m.lifeState == MemberLifeState.Active;
+
+		// Injury: most road crashes didn't kill anyone. Same inputs as the travel death channel.
+		if (active && BandLife.Chance(k + "|injury", InjuryRate * ctx.roadLoad * (0.3f + 2f * successTier))) {
+			summary.injuries++;
+			if (BandLife.Chance(k + "|injury-career", InjuryCareerEndingShare))
+				LifeExit(ctx, m, DepartureKind.Injured, StrainCause.Burnout, candidates, MemberLifeState.Retired);
+			else
+				LifeExit(ctx, m, DepartureKind.Injured, StrainCause.Burnout, candidates, MemberLifeState.Injured, year + 1);
+			return true;
+		}
+
+		// Breakdown: the habit in the acid years, or the pressure of a name on a worn-out short fuse. A writer or studio
+		// hand stays for the records (Brian Wilson, 1964); anyone else is gone (Barrett, Spence).
+		float shortFuse = (1f - m.temperament) * (1f - m.temperament);
+		float acid = 3f * Mathf.Max(0f, m.substanceLoad - 0.25f) * Psychedelia(year);
+		float pressure = Mathf.Clamp(m.fatigue / 3f, 0f, 1f) * ctx.fame;
+		if (active && BandLife.Chance(k + "|breakdown", BreakdownRate * shortFuse * (acid + pressure))) {
+			summary.breakdowns++;
+			if (group && (m.isPrimaryWriter || m.studioEfficiency > 0.6f)) {
+				m.lifeState = MemberLifeState.StudioOnly;
+				EmitPerson(ctx, m, "studio-only", kind: DepartureKind.StudioOnly, cause: StrainCause.Burnout, detail: "breakdown");
+				NotifyPlayer(ctx, m, "studio-only", DepartureKind.StudioOnly, StrainCause.Burnout);
+				return false;
+			}
+			LifeExit(ctx, m, DepartureKind.Breakdown, StrainCause.Burnout, candidates, MemberLifeState.Retired);
+			return true;
+		}
+
+		// The church: a devout few, mostly from the gospel side of the street; a habit can be what sends them.
+		if (BandLife.Unit(m.personId + "|devout") < DevoutShare &&
+			BandLife.Chance(k + "|church", ChurchRate * FaithScene(a.primaryGenre) * (1f + 2f * m.substanceLoad) * (age >= 22 ? 1f : 0.5f))) {
+			LifeExit(ctx, m, DepartureKind.Church, StrainCause.Direction, candidates, MemberLifeState.Retired);
+			return true;
+		}
+		if (!group || !active) return false;
+
+		// Session work: a strong player in an act going nowhere takes the steady studio money. Sidemen are pros already.
+		if (m.technicalSkill >= SessionSkillBar) {
+			float skill = (m.technicalSkill - SessionSkillBar) / (1f - SessionSkillBar);
+			float p = SessionRate * skill * (1f - ctx.fame) * (ctx.chartedNow > 0 ? 0.3f : 1f) *
+				(1f - Mathf.Clamp(m.personalRecognition * 10f, 0f, 1f)) * (m.isLeadVocalist ? 0.3f : 1f) *
+				(ctx.constitution == LineupConstitution.LeaderAndSidemen && !m.isBandLeader ? 1.5f : 1f);
+			if (BandLife.Chance(k + "|session", p)) {
+				LifeExit(ctx, m, DepartureKind.SessionWork, StrainCause.CreditAndMoney, candidates);
+				return true;
+			}
+		}
+
+		// A steady job: the band isn't paying and the factory is. The early-decade exit for unknown acts.
+		if (ctx.chartedNow == 0) {
+			float ageJob = age < 18 ? 0.2f : age <= 21 ? 0.7f : age <= 30 ? 1f : age <= 40 ? 0.6f : 0.3f;
+			float jobEra = year <= 1964 ? 1f : year switch { 1965 => 0.9f, 1966 => 0.8f, _ => 0.7f };
+			float p = DayJobRate * (1f - MemberWealthService.Norm(m)) * (ctx.everCharted ? 0.3f : 1f) * ageJob *
+				(1.2f - m.ambition) * jobEra * (string.IsNullOrEmpty(a.labelId) ? 1f : 0.6f);
+			if (BandLife.Chance(k + "|day-job", p)) {
+				LifeExit(ctx, m, DepartureKind.DayJob, StrainCause.CreditAndMoney, candidates, MemberLifeState.Retired);
+				return true;
+			}
+		}
+
+		// Family: a parent's illness, the family business, a household that needs them home.
+		bool married = m.partner?.state == PartnerState.Married;
+		float famAge = age < 22 ? 0.5f : age <= 30 ? 1f : age <= 45 ? 1.4f : 1f;
+		float home = m.hasChildren ? 1.5f : married ? 1.2f : 1f;
+		if (BandLife.Chance(k + "|family", FamilyRate * famAge * home * (ctx.everCharted ? 0.5f : 1f))) {
+			LifeExit(ctx, m, DepartureKind.Family, StrainCause.Outsider, candidates);
+			return true;
+		}
+
+		// School: parents pull a teenager out; at 18-20 it's college, and in the draft years a student deferment.
+		if (age <= 20) {
+			float deferment = m.isMale && age >= 18 && year >= 1965 && year <= 1968 && !IsBritishAct(a) ? 1.4f : 1f;
+			float p = SchoolRate * (ctx.everCharted ? 0.3f : 1f) * (1f - 0.5f * m.ambition) * deferment;
+			if (BandLife.Chance(k + "|school", p)) {
+				LifeExit(ctx, m, DepartureKind.School, StrainCause.Outsider, candidates, MemberLifeState.Retired);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/// <summary>A life exit leaves the lineup now and is resolved with the other non-strain departures. A temporary
+	/// absence carries the year the person comes back, exactly as the draft does.</summary>
+	private static void LifeExit(ActYear ctx, Musician m, DepartureKind kind, StrainCause cause, List<DepartureCandidate> candidates,
+		MemberLifeState state = MemberLifeState.Active, int untilYear = 0) {
+		m.lifeState = state;
+		if (IsAwayState(state)) m.lifeStateUntilYear = untilYear;
+		ctx.present.Remove(m);
+		candidates.Add(new DepartureCandidate { ctx = ctx, leaver = m, kind = kind, cause = cause });
+	}
+
+	/// <summary>Away for a while and coming back: the draft, a jail term, an injury.</summary>
+	private static bool IsAwayState(MemberLifeState s) => s is MemberLifeState.Drafted or MemberLifeState.Jailed or MemberLifeState.Injured;
+
 	private static float SceneSubstance(Genre g) => FamilyOf(g) switch {
 		GenreFamily.Rock or GenreFamily.Jazz or GenreFamily.Blues => 1.6f,
 		GenreFamily.RhythmAndSoul or GenreFamily.Country => 1.0f,
@@ -525,22 +686,20 @@ public static class BandLifeService {
 		_ => 0.7f
 	};
 
-	/// <summary>Draftees whose two years are up come home: back to their act if it still exists and still wants
-	/// them, otherwise into the pool as a free agent.</summary>
+	/// <summary>Draftees whose two years are up come home -- and, with life exits (§16), the jailed and the injured
+	/// whose year is up: back to their act if it still exists and still wants them, otherwise into the pool as a free
+	/// agent.</summary>
 	private static void ReturnDraftees(int year, BandLifeAnnualSummary summary) {
-		// Observe scope: the draftee never left the lineup; he simply comes back to it.
+		// Observe scope (or a voice the act waited for): the person never left the lineup; they simply come back to it.
 		foreach (SimulatedArtist a in ArtistManager.Instance.GetAllArtists())
 			if (a?.members != null)
 				foreach (Musician m in a.members)
-					if (m.lifeState == MemberLifeState.Drafted && m.lifeStateUntilYear <= year) {
-						m.lifeState = MemberLifeState.Active;
-						summary.draftReturns++;
-					}
+					if (IsAwayState(m.lifeState) && m.lifeStateUntilYear <= year) CountReturn(m, summary);
 		foreach (PooledPerson p in PersonPool.Ordered().ToList()) {
 			Musician m = p.person;
-			if (m.lifeState != MemberLifeState.Drafted || m.lifeStateUntilYear > year) continue;
-			m.lifeState = MemberLifeState.Active;
-			summary.draftReturns++;
+			if (!IsAwayState(m.lifeState) || m.lifeStateUntilYear > year) continue;
+			MemberLifeState wasAway = m.lifeState;
+			CountReturn(m, summary);
 			SimulatedArtist old = ArtistManager.Instance.GetArtist(p.lastArtistId);
 			bool wanted = old != null && old.lifecycleStatus == ArtistLifecycleStatus.Active && Applies(old) &&
 				(old.members.Count(x => x.isActive) < 4 || BandLife.Chance($"{m.personId}|{year}|rejoin", 0.5f));
@@ -549,11 +708,21 @@ public static class BandLifeService {
 			AlumniRecord stint = old.alumni?.LastOrDefault(r => r.personId == m.personId);
 			JoinAct(m, old, stint?.role ?? m.primaryRole, stint?.wasLeadVocalist == true, stint?.wasWriter == true, year);
 			old.alumni?.Remove(stint);
-			old.careerEvents.Add($"{year}: {m.FullName} back from the service");
+			old.careerEvents.Add(wasAway switch {
+				MemberLifeState.Jailed => $"{year}: {m.FullName} out of jail and back",
+				MemberLifeState.Injured => $"{year}: {m.FullName} back on their feet",
+				_ => $"{year}: {m.FullName} back from the service"
+			});
 			AfterLineupChange(old, year, MoraleHoneymoon * 0.5f);
 			Emit(new BandLifeEvent { year = year, artistId = old.artistId, stageName = old.stageName, personId = m.personId,
-				personName = m.FullName, eventType = "draft-return", applied = true, playerOwned = old.isPlayerOwned });
+				personName = m.FullName, eventType = wasAway == MemberLifeState.Drafted ? "draft-return" : "life-return",
+				detail = wasAway.ToString(), applied = true, playerOwned = old.isPlayerOwned });
 		}
+	}
+
+	private static void CountReturn(Musician m, BandLifeAnnualSummary summary) {
+		if (m.lifeState == MemberLifeState.Drafted) summary.draftReturns++; else summary.lifeReturns++;
+		m.lifeState = MemberLifeState.Active;
 	}
 
 	// ---- morale (§4.5) ------------------------------------------------------------------------------------
@@ -975,7 +1144,14 @@ public static class BandLifeService {
 	private static DepartureKind StrainKind(DepartureCandidate c) {
 		SimulatedArtist a = c.ctx.artist;
 		if (c.ctx.constitution == LineupConstitution.Duo) return DepartureKind.Dissolution;
-		if ((c.cause is StrainCause.Reliability or StrainCause.Outsider) && c.leaver != c.complainer) return DepartureKind.Fired;
+		if ((c.cause is StrainCause.Reliability or StrainCause.Outsider) && c.leaver != c.complainer) {
+			// §16: a member who is using often goes before the vote -- a short fuse walks out, a placid one is let go.
+			// The cause stays Reliability, so the cause mix (§7.2) reads exactly as before.
+			if (BandLife.LifeExits && c.cause == StrainCause.Reliability && c.leaver.substanceLoad >= 0.05f &&
+				BandLife.Chance($"{c.leaver.personId}|{c.ctx.year}|walkout", 1f - c.leaver.temperament))
+				return DepartureKind.WalkedOut;
+			return DepartureKind.Fired;
+		}
 		if (IsSoloViable(c.leaver, a, c.ctx.year)) return DepartureKind.SoloCareer;
 		return DepartureKind.Acrimony;
 	}
@@ -1010,7 +1186,7 @@ public static class BandLifeService {
 
 		if (!ctx.apply) {
 			// Observe: the counterfactual. The person is measured as gone; the economy's lineup is untouched.
-			if (c.kind != DepartureKind.Service) m.observedGoneYear = year;
+			if (!IsAwayState(m.lifeState)) m.observedGoneYear = year;
 			if (dissolve) { a.observedEndYear = year; summary.dissolutions++; }
 			ShockSurvivors(ctx, c.kind, apply: false);
 			return;
@@ -1018,9 +1194,15 @@ public static class BandLifeService {
 
 		if (a.isPlayerOwned) OnPlayerSignal?.Invoke(evt);
 		// A drafted VOICE doesn't leave: the act goes dormant around him and the label lives off what's in the
-		// can until he's home (RCA kept Elvis on the charts 1958-60). He stays on the roll as Drafted.
-		if (c.kind == DepartureKind.Service && IsVoice(m, ctx)) {
-			a.careerEvents.Add($"{year}: {m.FullName} drafted; the act waits for him");
+		// can until he's home (RCA kept Elvis on the charts 1958-60). He stays on the roll as Drafted. A jailed or
+		// injured voice holds the act the same way (§16).
+		bool away = IsAwayState(m.lifeState);
+		if (away && IsVoice(m, ctx)) {
+			a.careerEvents.Add(m.lifeState switch {
+				MemberLifeState.Jailed => $"{year}: {m.FullName} jailed; the act waits",
+				MemberLifeState.Injured => $"{year}: {m.FullName} hurt on the road; the act waits",
+				_ => $"{year}: {m.FullName} drafted; the act waits for him"
+			});
 			ShockSurvivors(ctx, c.kind, apply: true);
 			return;
 		}
@@ -1035,9 +1217,15 @@ public static class BandLifeService {
 					cause = c.cause, applied = true, playerOwned = a.isPlayerOwned, everCharted = ctx.everCharted });
 				if (!a.isPlayerOwned && TryAiLeavingMemberOption(a, solo, year)) summary.leavingMemberOptions++;
 			}
-		} else if (c.kind == DepartureKind.Service) {
+		} else if (away) {
+			// Drafted, jailed or injured: held in the pool until they come home (ReturnDraftees).
 			PersonPool.Add(new PooledPerson { person = m, lastArtistId = a.artistId, lastStageName = a.stageName,
-				lastGenre = a.primaryGenre, homeRegion = a.homeRegion, sinceYear = year, leftAs = DepartureKind.Service });
+				lastGenre = a.primaryGenre, homeRegion = a.homeRegion, sinceYear = year, leftAs = c.kind });
+		} else if (c.kind == DepartureKind.SessionWork) {
+			// A session player is exactly who the pool's session hire looks for, career or no.
+			PersonPool.Add(new PooledPerson { person = m, lastArtistId = a.artistId, lastStageName = a.stageName,
+				lastGenre = a.primaryGenre, homeRegion = a.homeRegion, sinceYear = year, leftAs = c.kind });
+			summary.poolEntries++;
 		} else if (c.kind != DepartureKind.Death && PersonPool.HasCareerToContinue(m, year, CompositionCatalogService.HasAnyWriterCredit(m.personId))) {
 			PersonPool.Add(new PooledPerson { person = m, lastArtistId = a.artistId, lastStageName = a.stageName,
 				lastGenre = a.primaryGenre, homeRegion = a.homeRegion, sinceYear = year, leftAs = c.kind });
@@ -1072,6 +1260,15 @@ public static class BandLifeService {
 		DepartureKind.Fired => c.cause == StrainCause.Reliability ? "Fired (unreliable)" : "Fired",
 		DepartureKind.LifeEvent => "Left the road",
 		DepartureKind.Dissolution => "The act split",
+		DepartureKind.Busted => "Jailed after a drug bust",
+		DepartureKind.WalkedOut => "Walked out",
+		DepartureKind.Breakdown => "Breakdown",
+		DepartureKind.Injured => c.leaver.lifeState == MemberLifeState.Retired ? "Badly hurt in a road accident" : "Hurt on the road",
+		DepartureKind.DayJob => "Took a steady job",
+		DepartureKind.Family => "Went home to family",
+		DepartureKind.School => c.leaver.GetAge(c.ctx.year) < 18 ? "Parents pulled them out" : "Went to college",
+		DepartureKind.Church => "Left music for the church",
+		DepartureKind.SessionWork => "Went to session work",
 		_ => c.cause switch {
 			StrainCause.CreditAndMoney => "Quit over credit and money",
 			StrainCause.Spotlight => "Quit over the spotlight",
@@ -1087,12 +1284,14 @@ public static class BandLifeService {
 	/// name-owned act's owner always keeps the name.</summary>
 	private static bool WouldDissolve(ActYear ctx, Musician leaver, DepartureCandidate c) {
 		if (ctx.constitution == LineupConstitution.NameOwned) return false;
-		if (ctx.constitution is LineupConstitution.Duo or LineupConstitution.Solo) return c.kind != DepartureKind.Service;
+		// Someone away (drafted, jailed, injured) is coming back: their absence never ends the act.
+		bool away = IsAwayState(leaver.lifeState);
+		if (ctx.constitution is LineupConstitution.Duo or LineupConstitution.Solo) return !away;
 		var remaining = ctx.present.Where(m => m != leaver).ToList();
-		if (remaining.Count == 0) return c.kind != DepartureKind.Service;
-		if (ctx.constitution == LineupConstitution.LeaderAndSidemen) return leaver.isBandLeader && c.kind != DepartureKind.Service;
+		if (remaining.Count == 0) return !away;
+		if (ctx.constitution == LineupConstitution.LeaderAndSidemen) return leaver.isBandLeader && !away;
 		float total = VoiceWeight(leaver, ctx.artist) + remaining.Sum(m => VoiceWeight(m, ctx.artist));
-		return c.kind != DepartureKind.Service && VoiceWeight(leaver, ctx.artist) / total > 0.5f;
+		return !away && VoiceWeight(leaver, ctx.artist) / total > 0.5f;
 	}
 
 	private static bool IsVoice(Musician m, ActYear ctx) =>
@@ -1110,6 +1309,9 @@ public static class BandLifeService {
 		float shock = kind switch {
 			DepartureKind.Death => MoraleDeath, DepartureKind.Service => MoraleService,
 			DepartureKind.Acrimony or DepartureKind.SoloCareer => MoraleAcrimony, DepartureKind.Fired => MoraleAcrimony * 0.5f,
+			DepartureKind.WalkedOut => MoraleAcrimony * 0.75f,
+			DepartureKind.Busted or DepartureKind.Injured => MoraleService,
+			DepartureKind.Breakdown => MoraleDeath * 0.4f,
 			_ => 0f
 		};
 		a.morale = Mathf.Clamp(a.morale + shock, MoraleMin, MoraleMax);

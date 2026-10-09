@@ -520,6 +520,7 @@ Evaluated at the year boundary for each member, on that member's worst edge:
 | `LifeEvent` | the other §4.8 events |
 | `StudioOnly` | Burnout, for a writer or a member with a high studio role |
 | `Dissolution` | a duo split, or the last voiced member leaving |
+| `Busted`, `WalkedOut`, `Breakdown`, `Injured`, `DayJob`, `Family`, `School`, `Church`, `SessionWork` | the life exits, §16 (`--enable-life-exits`) |
 
 **Guards:**
 
@@ -566,6 +567,7 @@ population stream.
 | Substance | ramps up from 1965: `(1 − reliability) × fame × scene` (rock, psych and jazz higher) | `substanceLoad` up → reliability drifts down → Reliability strain; a bust is a trade-press scandal; it feeds the death hazard (§4.8.2) |
 | Marriage / children | ramped by age | road reluctance (Burnout); partner presence (Outsider); a father is draft-exempt |
 | Death | §4.8.2 | `Deceased` |
+| Life exits | §16: busts, injuries, breakdowns, the church, session work, a steady job, family, school | `Jailed(+1y)`, `Injured(+1y)`, `Retired`, or the pool |
 
 #### 4.8.1 The draft — the real curve, scaled to its real reach
 
@@ -1519,3 +1521,147 @@ What changes now (tooling only, so the economy is untouched):
      codes Yanovsky and Palmer.
 
    Either one needs a run.
+
+## 16. Life exits — more ways to leave a band (author-approved 2026-10-08)
+
+**Why.** §15's open question 2. A player's early acts are never-charted, and about half their strain exits read
+"Fired (unreliable)". The author chose to add new kinds of exit rather than reweight `w_sub`. Two kinds of change:
+
+- Most substance firings get a truer name.
+- Most new exits are ordinary life, which the early decade lacked. Substance is near zero before 1965, so
+  it could not supply those years.
+
+The charted cause mix that §15 found on target is left alone: the reroutes keep their `StrainCause`, and every new
+exit is a non-strain life event.
+
+**Switch.** `--enable-life-exits` / `--disable-life-exits`; scene export `lifeExitsEnabled`, on by default like the
+§14 phases. Off, the pass is unchanged: the old bust roll and the old `SubstanceEra` run as before.
+
+### 16.1 The new kinds
+
+Rates were sized offline on the `bms5-on2-1001` member log (1967-68, `size_life_exits.py` in the session scratchpad)
+against today's ~480 departures a year. The "Sized" column is expected exits a year in 1968, with the charted part
+in brackets.
+
+| Kind | Who / hazard | Outcome | Sized 1968 |
+|---|---|---|---|
+| `Busted` | Replaces the old bust roll. Users at load ≥ .15: `.45 · load · (.3 + exposure) · climate`, where climate is 1.6 for British acts from 1966 (the Drug Squad years), .5 for them before, and 1.0 in the US | Half go to jail: `Jailed` until next year, then back like a draftee. The other half are fined, a trade-press scandal with no exit. | 47 busts, 24 jailed (8) |
+| `WalkedOut` | A reroute. A Reliability strain exit whose leaver is using (load ≥ .05) walks out instead of being fired, with chance `1 − temperament` | Leaves. Pooled if they have a career left. Survivors' morale takes ¾ of the Acrimony shock. | about 40 of the ~80 user firings |
+| `Breakdown` | `.02 · (1 − temperament)² · (3 · max(0, load − .25) · psychedelia + min(1, fatigue/3) · fame)`; psychedelia is .5 in 1966 and 1 from 1967 | A writer or studio hand goes studio-only (Brian Wilson, 1964). Anyone else retires (Barrett, Spence). Rare by design. | 3 (2) |
+| `Injured` | The non-fatal side of the travel channel: 10× `TravelDeathRate` on the same inputs, `.003 · roadLoad · (.3 + 2 · successTier)` | 70% are out a year (`Injured`, then back like a draftee); 30% are career-ending and retire. | 23 (11) |
+| `DayJob` | Groups not charting this year: `.005 · (1 − wealthNorm) · age · (1.2 − ambition) · era`. Weighted ×.3 if the act ever charted, ×.6 if it is signed. Age peaks at 22-30. Era is 1.0 to 1964, then .9, .8, .7. | Retires: took a steady job. The early-decade exit for unknown acts. | 80 (4), about 115 before 1965 |
+| `Family` | Groups: `.0007 · age · home`. Age is .5 under 22, 1 to 30, 1.4 to 45. Home is 1.5 with children, 1.2 married. ×.5 if the act ever charted. | Leaves; pooled if they have a career left. A parent's illness, the family business. | 44 (5) |
+| `School` | Groups, age ≤ 20: `.016 · (1 − .5 · ambition)`, ×.3 if charted. Under 18 it reads "parents pulled them out"; 18-20 is college. Men aged 18-20 in 1965-68 get ×1.4 (the student deferment). | Retires from music | 25 (1); more early, when members are younger |
+| `Church` | Keyed devout draw (20% of people) · `.0025 · scene · (1 + 2 · load)`, ×.5 under 22. Scene: Gospel 1, R&B/Soul .6, Country and Blues .4, else .1. | Retires to the ministry (Little Richard, 1957). Can end a solo act. | 8 (2) |
+| `SessionWork` | Groups, technical skill ≥ .68: `.016 · (skill − .68)/.32 · (1 − fame) · (1 − 10 · recognition)`. ×.3 if charting now, ×.3 for a lead vocalist, ×1.5 for a sideman. | Joins the pool as a session player, where the Band Room's session hire can find them | 35 (6) |
+
+Total: about 245 new exits a year late in the decade, about 35 of them from charted acts (against 145 charted strain
+departures). DayJob, Family, School and SessionWork apply to groups only; a solo unknown who quits is already a
+quiet dissolution. Busted, Injured, Breakdown and Church apply to everyone.
+
+**Temporary absences** (`Jailed`, `Injured`) reuse the draft's machinery:
+- They are new `MemberLifeState` values with `lifeStateUntilYear`.
+- A voice who is away holds the act dormant instead of ending it.
+- `ReturnDraftees` brings all three states home.
+- `draftReturns` still counts only the draft; `lifeReturns` counts the rest.
+
+**Order in the yearly pass.** Death, then the draft, then busts, then the new exits after exhaustion, then
+marriage. A person makes at most one exit a year.
+
+### 16.2 Jazz substance runs all decade
+
+`SubstanceEra` ramps from .25 (to 1964) to 1.0 (1968). Jazz (Jazz, BossaNova) is about 6.5% of members and 8-11% of
+late users. Giving Jazz 1.0 all decade would add about 30% to early-decade users. That tips the rates, which the
+author ruled out.
+
+So Jazz gets a **flat** `JazzSubstanceEra = .61`, the decade mean of the ramp. Jazz's decade total of onset exposure
+is unchanged, but it moves earlier (the heroin era did not wait for 1965):
+- Early-decade users overall: about +14%.
+- Late-decade users: about −4%.
+
+### 16.3 Not built
+
+- **A bust barring a British member from US touring.** Members have no territory-level road load, so there is
+  nothing for it to act on. Prose only, for now.
+- **Drying out.** The author cut it.
+
+### 16.4 Measures (the run owed)
+
+The A/B is `--disable-life-exits` against the default, on a 1965-69 resume (§14's window), with `band_life_ab.py`
+and `phase_bundle_measures.py`.
+
+1. **Each kind lands near its sized count** (±50%, single seed). Busted, Breakdown and Church are too small to
+   test for a single kind; read them pooled.
+2. **The player-facing goal** (`analyze_band_life.py` section [16]). In 1967-69 never-charted group departures,
+   "Fired (unreliable)" is 28% of all exits on `bms5-on2-1001`. Expected: about 12-15%. Walkouts take about half the
+   user firings, and the new life exits grow the denominator.
+3. **The §7.2 cause kill** still reads charted groups. Their Reliability share should not move, since the reroutes
+   keep their cause.
+4. **Population conservation** (§7.4). Active acts and formations stay inside the noise floor. More exits mean more
+   replacements and folds, so this is the real risk. If acts fall outside the floor, DayJob and Family are the knobs.
+5. **Calibration** (§7.5) inside the noise floor.
+6. **Jazz.** Substance onsets and deaths over 1960-69 are within ±10% of the control. Jazz's own exits move
+   earlier. This needs a 1960-start run to see the early half.
+
+### 16.5 Results (2026-10-09, seed 1001)
+
+**Runs.** Both arms are 1960-start with the §12 refill flags and `--log-band-life-members`; the only difference is
+`--disable-life-exits`. Each ran 263 weeks (`lx-jazz-{on,off}-1001`) and saved its own 1965 world
+(`lx-jazz-{on,off}-w65`). The 1965-69 windows resumed each arm from its **own** save (`lx-late-{on,off}-1001`,
+passes 1964-68). Own saves, not a shared one, because life exits act from 1960 (§6: a change that acts from 1960
+needs a save made with it on). The arms therefore differ from 1960, and the noise floor is the §11 seed spread, not
+the narrower shared-save floor. The windows ask for 263 weeks but the game ends 1970-01-01 after 261, so the runner
+throws `CHART_AUDIT_FAILED` at the end; the CSVs are written (only `publishing-ledger` and `writer-credits` are
+missing). The 1969 pass never runs, as in §12.
+
+1. **Per-kind counts, 1968 (sized in brackets).** DayJob 79 (80), Family 40 (44), WalkedOut 54 (40), School 35 (25),
+   SessionWork 44 (35), Injured 17 (23), Church 13 (8), Busted-as-jailed 25 (24), Breakdown 1 (3). Everything with a
+   readable count is inside ±50% except Church (1.6x on 8; pooled Busted+Breakdown+Church 39 against 35).
+2. **Player-facing goal.** Never-charted group departures 1967-68, "Fired (unreliable)": **31% control -> 11%
+   treatment** (the target was 12-15%; WalkedOut takes 7%). Early periods: 13% -> 5%, 16% -> 7%.
+3. **§7.2 cause kill.** Charted-group Reliability share 1967-69: control 25%, treatment 24%. Max single cause 31.4%
+   (kill line 45%). No movement.
+4. **Population.** Acts 1964-68 within 0.3% of control (17,473 / 17,438 ... 20,924 / 20,975). Groups -1.0% by 1968
+   (12,862 / 12,996). Formations +2.6%. Inside the §12 precedent (groups -0.8%). DayJob and Family stay as they are.
+5. **Calibration.** Genre-share sumAbsErr -0.5; year-end slot error +2; album unit share within 0.1 pt every year.
+   **Owner-Major chart-entry share is one-sided high: +2.6 to +3.2 pt in 1965-68, +5.4 in the 1969 row**, against
+   the +-4.7 the slice alone showed. Inside the floor until the last row; watch it at the merge A/B.
+6. **Jazz (Jazz + BossaNova, 1960-68, the window has no 1969 pass).**
+
+   | | control | treatment | change |
+   |---|---|---|---|
+   | onsets 1960-64 | 21 | 44 | +110% |
+   | onsets 1965-68 | 93 | 88 | -5% |
+   | onsets 1960-68 | 114 | 132 | +15.8% |
+   | all-genre onsets 1960-64 / 1960-68 | 221 / 1068 | 244 / 1114 | +10.4% / +4.3% |
+
+   The early doubling is the flat `.61` against a `.25` ramp, as designed. **The ±10% bar is not met on the
+   nominal number, and cannot be resolved on this one seed:** scaling each control year by `.61/ramp` predicts +9.7%
+   for 1960-68 by construction, because the 1969 year (where the ramp is 1.0 and the flat value costs onsets) is
+   outside the window. The observed +15.8% is 6 points over that, about 0.4 sigma of Poisson noise on 114-132
+   events. `.61` is also not the plain mean of the ramp (`.51`); it reads as an onset-weighted mean, so "decade
+   exposure unchanged" holds only with 1969 in. **Jazz substance deaths: 0 in both arms.** All-genre substance deaths
+   are 1 (control) against 5 (treatment); at this n the +-10% test on deaths has no power. The ramp and flat value are
+   unchanged for now. Jazz's own exits move earlier: DayJob, Family, School and SessionWork appear from 1960 where
+   the control has none.
+
+**Byte-identity proof (2026-10-09, done).** `--disable-life-exits` against a build without the feature. The `lx-jazz`
+off arm cannot be the reference (§13 changed after `bms4-w65` was cut), so the reference is a worktree at `01ee660`:
+that commit has the §13 gate, and every §16 change was still uncommitted. Same seed 1001, canonical pair, §12 refill
+flags and `--log-band-life-members`; the current tree ran with `--disable-life-exits`. Two pairs:
+
+| Pair | Window | Result |
+|---|---|---|
+| 1960 start | 156 weeks (passes 1960-61) | 84 of 85 CSVs byte-identical |
+| Resume `lx-jazz-off-w65` | 156 weeks (passes 1964-66: 111 draft returns, 3 busts, 60-163 substance onsets a year) | 83 of 85 byte-identical |
+
+The only differences are log text, none in the simulation:
+- `lineup-annual.csv` has 13 new columns (`kindBusted` ... `kindSessionWork`, `jailed`, `injuries`, `breakdowns`,
+  `lifeReturns`), all 0 with the feature off. On the shared columns every row matches.
+- `lineup-events.csv`: all 35 `draft-return` rows carry `detail=Drafted` where the reference left it blank (the
+  generalised return path in `ReturnDraftees`). Every other column of every row matches.
+
+The first pair alone did not exercise the refactors: it had 59 draft departures but no returns or busts yet.
+The resume pair does (draft returns from 1964, busts from 1966). The reference build reads the resume save with a
+`RESUME_FLAG_MISMATCH` warning (the save records `--disable-life-exits`, which it has no flag for) and carries on.
+Scorers: `SimTools/jazz_life_check.py` (stitch halves with `early+late`), `band_life_ab.py`, `analyze_band_life.py`.

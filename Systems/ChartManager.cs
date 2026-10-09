@@ -47,6 +47,8 @@ public partial class ChartManager : Node {
 	[Export] private bool musicianGrowthEnabled = false;
 	[Export] private bool polarMemberAxesEnabled = false;
 	[Export] private bool memberIdentityEnabled = false;
+	// §16 life exits: busts, walkouts, breakdowns, injuries, day jobs, family, school, church, session work.
+	[Export] private bool lifeExitsEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -349,7 +351,7 @@ public partial class ChartManager : Node {
 			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs(),
 			new BandLife.WorldPhaseDefaults { Wealth = memberWealthEnabled, RoadFatigue = roadFatigueEnabled,
 				TeamWriting = teamWritingEnabled, Growth = musicianGrowthEnabled, PolarMemberAxes = polarMemberAxesEnabled,
-				Identity = memberIdentityEnabled });
+				Identity = memberIdentityEnabled, LifeExits = lifeExitsEnabled });
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 		MusicianRecognitionService.Configure(OS.GetCmdlineUserArgs());
 

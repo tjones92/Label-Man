@@ -18,11 +18,16 @@ public enum StrainCause { CreditAndMoney, Spotlight, Direction, Reliability, Rom
 /// demand, then goes (directive §4.6).</summary>
 public enum DepartureStage { Content, Brewing, Ultimatum }
 
-/// <summary>What a departure actually was.</summary>
-public enum DepartureKind { None, SoloCareer, Acrimony, Fired, Service, Death, LifeEvent, StudioOnly, Dissolution }
+/// <summary>What a departure actually was. Busted onward are the life exits (directive §16); new values go at the
+/// end, since saves and the annual CSV carry these by position.</summary>
+public enum DepartureKind {
+	None, SoloCareer, Acrimony, Fired, Service, Death, LifeEvent, StudioOnly, Dissolution,
+	Busted, WalkedOut, Breakdown, Injured, DayJob, Family, School, Church, SessionWork
+}
 
-/// <summary>Where a person's life stands, independent of which act they are in.</summary>
-public enum MemberLifeState { Active, Drafted, StudioOnly, Retired, Deceased }
+/// <summary>Where a person's life stands, independent of which act they are in.
+/// Drafted, Jailed and Injured are temporary absences: <c>lifeStateUntilYear</c> is the year the person comes back.</summary>
+public enum MemberLifeState { Active, Drafted, StudioOnly, Retired, Deceased, Jailed, Injured }
 
 /// <summary>What kind of lineup an act is. Derived, never stored (directive §4.3): it changes what a
 /// departure MEANS without adding a field anyone has to keep in sync.</summary>

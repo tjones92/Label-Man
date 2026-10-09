@@ -73,7 +73,7 @@ public class Musician {
 	public MusicianPartner partner;     // sparse
 	public bool hasChildren;            // draft-exempt; road reluctance
 	public MemberLifeState lifeState;
-	public int lifeStateUntilYear;      // Drafted: the year he comes home
+	public int lifeStateUntilYear;      // Drafted, Jailed, Injured: the year they come home
 	public int deathYear;
 	public DeathChannel deathChannel;
 

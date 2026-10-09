@@ -1233,6 +1233,8 @@ public partial class PlayerDesk {
 			var life = new List<string>();
 			if (m.lifeState == MemberLifeState.StudioOnly) life.Add("records only, off the road");
 			if (m.lifeState == MemberLifeState.Drafted) life.Add($"in the service until {m.lifeStateUntilYear}");
+			if (m.lifeState == MemberLifeState.Jailed) life.Add($"in jail until {m.lifeStateUntilYear}");
+			if (m.lifeState == MemberLifeState.Injured) life.Add($"laid up until {m.lifeStateUntilYear}");
 			if (m.roadYears >= 3f) life.Add($"{Mathf.RoundToInt(m.roadYears)} hard years on the road");
 			if (i.TheStreet >= 2 && m.substanceLoad > 0.35f) life.Add(m.substanceLoad > 0.55f ? "using, and it shows" : "using");
 			card.Life = life.Count == 0 ? null : string.Join("; ", life) + ".";
