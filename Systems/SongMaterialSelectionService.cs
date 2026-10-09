@@ -191,9 +191,12 @@ public static class SongMaterialSelectionService {
 		float eraWeight = GetArtistWrittenEraWeight(genre, year);
 		float writerCraft = ArtistWriterCraft(artist);
 		float noise = (StableUnit(artist.artistId, record.recordId, year, "artwrite") - 0.5f) * 0.10f;
-		float compositionQuality = Mathf.Clamp(writerCraft * 0.80f + eraWeight * 0.10f + noise, 0f, 1f);
-		float hook = Mathf.Clamp(compositionQuality * 0.75f + record.hookStrength * 0.15f, 0f, 1f);
-		float lyric = Mathf.Clamp(writerCraft * 0.70f + eraWeight * 0.10f, 0f, 1f);
+		// Phase 4c: the team that will be credited, scored against its lead (zero shift for a lone writer).
+		TeamWritingService.Crafts team = TeamWritingService.ForArtistOriginal(artist, record.recordId, year);
+		float compositionQuality = Mathf.Clamp(writerCraft * 0.80f + eraWeight * 0.10f + noise +
+			TeamWritingService.TeamCraftWeight * team.Melody, 0f, 1f);
+		float hook = Mathf.Clamp(compositionQuality * 0.75f + record.hookStrength * 0.15f + TeamWritingService.TeamCraftWeight * team.Hook, 0f, 1f);
+		float lyric = Mathf.Clamp(writerCraft * 0.70f + eraWeight * 0.10f + TeamWritingService.TeamCraftWeight * team.Lyric, 0f, 1f);
 		float originality = Mathf.Clamp(artist.members.Count > 0 ? artist.members[0].creativity * 0.6f + 0.2f : 0.4f, 0f, 1f);
 
 		SongComposition song = CompositionCatalogService.CreateArtistOriginal(

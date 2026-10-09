@@ -134,7 +134,12 @@ public static class ArtistRecognitionService {
 	/// </summary>
 	private static void DecayMemberRecognition(Musician member) {
 		if (member == null) return;
-		if (member.personalRecognition > 0f) member.personalRecognition *= PublicRecognitionDecay;
+		if (member.personalRecognition > 0f) {
+			// Wealth reader 3 (§4.15): conspicuous money keeps a name known between records -- a small floor, never a gain.
+			float floor = MemberWealthService.LastingFame(member);
+			float decayed = member.personalRecognition * PublicRecognitionDecay;
+			member.personalRecognition = member.personalRecognition > floor ? Mathf.Max(decayed, floor) : decayed;
+		}
 		if (member.liveReputation > 0f) member.liveReputation *= PublicRecognitionDecay;
 	}
 

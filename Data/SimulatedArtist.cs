@@ -172,6 +172,9 @@ public class SimulatedArtist {
 	public int breakoutsAtYearStart;
 	public int releasesAtYearStart;
 	public int unitsAtYearStart;
+	// Phase 4e: the royalty already split into members' wealth.
+	public float royaltyAtYearStart;
+	public bool wealthBaselined;
 	/// <summary>Observe-only counterfactual: the year this act WOULD have dissolved. 0 = still together.</summary>
 	public int observedEndYear;
 

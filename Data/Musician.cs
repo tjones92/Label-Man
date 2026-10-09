@@ -91,6 +91,24 @@ public class Musician {
 	public float effectiveHours;
 	public bool traitsBaselined;
 	public float generatedEgo, generatedLoyalty, generatedTemperament, generatedReliability;
+	public float formationCreativity;   // the creativity growth declines from; 0 until first seen
+	public int growthOriginYear;        // the year growth first saw this person: decline is measured from the age then
+
+	// Phase 4e -- wealth (MemberWealthService, §4.15). Written at the year boundary; read only by the wealth readers.
+	public float wealth;
+	public bool wealthBaselined;
+	public double writerUnitsAtYearStart; // share-weighted charted units already paid into wealth
+	public float lastYearIncome, lastYearWriterIncome;
+
+	// Phase 4f -- road fatigue (§4.16): a recovering level. Written every band-life year; read by the exhaustion
+	// hazard only with --enable-road-fatigue (roadYears stays the lifetime exposure for travel and romance).
+	public float fatigue;
+	public bool fatigueBaselined;
+
+	// Phase 7 -- identity on people (MemberIdentityService, §4.12). identityVersion 0 means "not generated yet".
+	public int identityVersion;
+	public float identityToughness, identitySophistication, identitySincerity, identityMaturity;
+	public float[] identityGenerated;   // drift is bounded around these
 
 	// Parameterless ctor for save/load deserialization (System.Text.Json). The population always builds
 	// members through the ctor below; this exists only so a saved member can be rehydrated field-by-field.
@@ -121,9 +139,10 @@ public class Musician {
 	public const float SoloSuccessHitsForFullPull = 2f;
 	public const float SoloTiesBase = 0.15f;
 
-	public bool WouldConsiderSoloCareer(int yearsInGroup, int groupHits) {
+	/// <param name="independence">Phase 4e: the urge a member's own money adds (0 unless the wealth readers are on).</param>
+	public bool WouldConsiderSoloCareer(int yearsInGroup, int groupHits, float independence = 0f) {
 		if (!isLeadVocalist && stagePresence < 0.7f) return false;
-		float soloUrge = ambition * 0.4f + ego * 0.3f + stagePresence * 0.2f;
+		float soloUrge = ambition * 0.4f + ego * 0.3f + stagePresence * 0.2f + independence;
 		float success = Math.Min(1f, Math.Max(0, groupHits) / SoloSuccessHitsForFullPull);
 		float successPull = SoloSuccessPullPerYear * Math.Min(yearsInGroup + 1, SoloSuccessPullMaxYears) * success;
 		float groupTies = loyalty * 0.5f;

@@ -33,6 +33,7 @@ public static class CompositionCatalogService {
 	private static readonly Dictionary<GenreFamily, List<SongComposition>> traditionalByFamily = new();
 	private static readonly Dictionary<GenreFamily, List<SongComposition>> coverableHitsByFamily = new();
 	private static readonly List<ProfessionalSongwriter> professionalWriters = new();
+	private static bool proTeamsBuilt;
 	private static readonly List<MusicPublisher> publishers = new();
 	// Phase 5: per-person songwriting chart-credit ledger (telemetry-only, keyed by personId). This is the
 	// person ROLL-UP; the per-stint ledger below separates credits earned in one act from the next.
@@ -95,6 +96,11 @@ public static class CompositionCatalogService {
 		GeneratePreGameRecentHits(startYear);
 		GenerateProfessionalPool(labels, startYear);
 		GenerateInitialProfessionalCatalog(startYear);
+		proTeamsBuilt = false;
+		if (BandLife.TeamWritingEnabled) {
+			TeamWritingService.BuildProfessionalTeams(professionalWriters, songs.Values, BandLife.WorldSeed);
+			proTeamsBuilt = true;
+		}
 		if(LiveRepertoire.AuditPhase>=5) {
 			GenerateNativeRepertoire(startYear);
 			foreach(var song in professionalByGenre.Values.SelectMany(p=>p)) AdmitRepertoire(song,"unpublished",startYear);
@@ -599,6 +605,7 @@ public static class CompositionCatalogService {
 				writerLedger[credit.writerId] = led;
 			}
 			AccrueRun(led, song, top40, peak, record.totalUnitsSold, successScore);
+			led.shareUnits += Mathf.Max(0, record.totalUnitsSold) * credit.share;
 			// The stint: credits on an act's own original belong to the act the song came from.
 			if (credit.isArtistMember && !string.IsNullOrEmpty(song.originArtistId))
 				AccrueRun(StintEntry(credit.writerId, song.originArtistId, credit.writerName), song, top40, peak,
@@ -662,6 +669,11 @@ public static class CompositionCatalogService {
 		return total > 0f ? mine / total : 0f;
 	}
 
+	/// <summary>A person's share-weighted charted units across every credit (the wealth stock's writer term). Absent
+	/// from ledgers saved before Phase 4e, so a resumed old world counts writer income from the resume on.</summary>
+	public static double GetPersonShareUnits(string personId) =>
+		!string.IsNullOrEmpty(personId) && writerLedger.TryGetValue(personId, out var e) ? e.shareUnits : 0d;
+
 	public static WriterCreditLedgerEntry GetStint(string personId, string artistId) =>
 		writerStintLedger.TryGetValue(StintKey(personId, artistId), out var e) ? e : null;
 
@@ -688,6 +700,7 @@ public static class CompositionCatalogService {
 		public float creditMass;     // stint only: sum of credit shares across the act's originals
 		public int songs;            // stint only: originals credited in this act
 		public int coWrittenSongs;   // stint only: of those, credited to more than one member
+		public double shareUnits;    // person only: charted units x this person's credit share (the wealth stock's writer term)
 	}
 
 	public static IReadOnlyCollection<WriterCreditLedgerEntry> WriterCreditLedger => writerLedger.Values;
@@ -888,7 +901,8 @@ public static class CompositionCatalogService {
 			Publishers = publishers.ToList(),
 			WriterLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerLedger),
 			WriterStintLedger = new Dictionary<string, WriterCreditLedgerEntry>(writerStintLedger),
-			SongCounter = songCounter
+			SongCounter = songCounter,
+			ProTeamsBuilt = proTeamsBuilt
 		};
 		if (rng != null && titleRng != null) {
 			c.HasRng = true;
@@ -943,6 +957,12 @@ public static class CompositionCatalogService {
 		foreach (var kv in c.WriterStintLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerStintLedger[kv.Key] = kv.Value;
 
 		songCounter = c.SongCounter;
+		proTeamsBuilt = c.ProTeamsBuilt;
+		// Phase 4c on a world saved without it: the standing teams form once, now.
+		if (!proTeamsBuilt && BandLife.TeamWritingEnabled) {
+			TeamWritingService.BuildProfessionalTeams(professionalWriters, songs.Values, BandLife.WorldSeed);
+			proTeamsBuilt = true;
+		}
 		if (c.HasRng) {
 			rng = new RandomNumberGenerator { Seed = c.RngSeed }; rng.State = c.RngState;
 			titleRng = new RandomNumberGenerator { Seed = c.TitleRngSeed }; titleRng.State = c.TitleRngState;

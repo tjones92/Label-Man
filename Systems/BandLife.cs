@@ -44,6 +44,9 @@ public static class BandLife {
 	private static bool growthShadow;
 	private static bool polarMemberAxes;
 	private static bool memberIdentity;
+	private static bool wealthObserve;
+	private static bool wealthReaders;
+	private static bool roadFatigue;
 	private static ulong? interactiveSeed;
 
 	/// <summary>Phase 1: artist originals are credited to writing teams rather than to the first writer in list order.</summary>
@@ -69,6 +72,12 @@ public static class BandLife {
 	public static bool PolarMemberAxes => polarMemberAxes && memberAxes;
 	/// <summary>Phase 7: identity lives on people.</summary>
 	public static bool MemberIdentityEnabled => memberIdentity;
+	/// <summary>Phase 4e: the wealth stock is kept (observe, or with its readers).</summary>
+	public static bool MemberWealthActive => (wealthObserve || wealthReaders) && AnnualPassActive;
+	/// <summary>Phase 4e: the wealth readers (independence, money grievance, lasting fame, substance exposure) are live.</summary>
+	public static bool MemberWealthReaders => wealthReaders && AnnualPassActive;
+	/// <summary>Phase 4f: the exhaustion hazard reads the recovering fatigue level instead of lifetime road years.</summary>
+	public static bool RoadFatigue => roadFatigue;
 
 	/// <summary>
 	/// The world seed every keyed band-life draw includes (directive §2.18). Ids come from counters, so a
@@ -106,11 +115,18 @@ public static class BandLife {
 	/// <summary>Keyed Bernoulli trial.</summary>
 	public static bool Chance(string key, float probability) => probability > 0f && Unit(key) < probability;
 
+	/// <summary>The world phases' shipped defaults (scene exports). Each has an --enable-X and a --disable-X flag.</summary>
+	public struct WorldPhaseDefaults {
+		public bool Wealth, RoadFatigue, TeamWriting, Growth, PolarMemberAxes, Identity;
+	}
+
 	public static void Configure(bool cowritingDefault, bool memberAxesDefault, LineupChurnScope churnDefault,
-		IEnumerable<string> arguments) {
+		IEnumerable<string> arguments, WorldPhaseDefaults phases = default) {
 		if (configured) return;
 		bool enableCowriting = false, disableCowriting = false, enableAxes = false, disableAxes = false;
-		bool disableChurn = false;
+		bool disableChurn = false, disableWealth = false, disableFatigue = false;
+		bool disableTeam = false, disableGrowth = false, disablePolarAxes = false, disableIdentity = false;
+		bool explicitAxesReader = false, explicitTeam = false;
 		LineupChurnScope? requestedScope = null;
 		foreach (string argument in arguments ?? Array.Empty<string>()) {
 			switch (argument) {
@@ -123,13 +139,33 @@ public static class BandLife {
 				case "--enable-lineup-churn": requestedScope = LineupChurnScope.World; break;
 				case "--enable-lineup-churn=roster": requestedScope = LineupChurnScope.Roster; break;
 				case "--enable-lineup-churn=world": requestedScope = LineupChurnScope.World; break;
-				case "--enable-team-writing": teamWriting = true; break;
-				case "--enable-musician-growth": musicianGrowth = true; break;
-				case "--shadow-musician-growth": growthShadow = true; break;
-				case "--polar-member-axes": polarMemberAxes = true; break;
+				case "--enable-team-writing": teamWriting = true; explicitTeam = true; break;
+				case "--enable-musician-growth": musicianGrowth = true; explicitAxesReader = true; break;
+				case "--shadow-musician-growth": growthShadow = true; explicitAxesReader = true; break;
+				case "--polar-member-axes": polarMemberAxes = true; explicitAxesReader = true; break;
 				case "--enable-member-identity": memberIdentity = true; break;
+				case "--observe-member-wealth": wealthObserve = true; break;
+				case "--enable-member-wealth": wealthReaders = true; break;
+				case "--disable-member-wealth": disableWealth = true; break;
+				case "--enable-road-fatigue": roadFatigue = true; break;
+				case "--disable-road-fatigue": disableFatigue = true; break;
+				case "--disable-team-writing": disableTeam = true; break;
+				case "--disable-musician-growth": disableGrowth = true; break;
+				case "--disable-polar-member-axes": disablePolarAxes = true; break;
+				case "--disable-member-identity": disableIdentity = true; break;
 			}
 		}
+		// Shipped defaults fill in whatever the command line didn't ask for or turn off.
+		if (!disableWealth && phases.Wealth) wealthReaders = true;
+		if (!disableFatigue && phases.RoadFatigue) roadFatigue = true;
+		if (!disableTeam && phases.TeamWriting) teamWriting = true;
+		if (!disableGrowth && phases.Growth) musicianGrowth = true;
+		if (!disablePolarAxes && phases.PolarMemberAxes) polarMemberAxes = true;
+		if (!disableIdentity && phases.Identity) memberIdentity = true;
+		if (disableTeam) teamWriting = false;
+		if (disableGrowth) { musicianGrowth = false; growthShadow = false; }
+		if (disablePolarAxes) polarMemberAxes = false;
+		if (disableIdentity) memberIdentity = false;
 		if (enableCowriting && disableCowriting)
 			throw new ArgumentException("--enable-cowriting and --disable-cowriting cannot be used together.");
 		if (enableAxes && disableAxes)
@@ -146,9 +182,14 @@ public static class BandLife {
 				throw new ArgumentException("Band-life observation and lineup churn require the artist population lifecycle.");
 			churnScope = LineupChurnScope.Off;
 		}
-		// Growth, team craft and identity read the split axes and the writing teams they build on.
+		// Growth, team craft and identity read the split axes and the writing teams they build on. A shipped default
+		// that lost its prerequisite to a --disable flag quietly stands down; an explicit request still throws.
+		if (!memberAxes && !explicitAxesReader) { musicianGrowth = false; growthShadow = false; polarMemberAxes = false; }
+		if (!cowriting && !explicitTeam) teamWriting = false;
 		if ((musicianGrowth || growthShadow || polarMemberAxes) && !memberAxes)
 			throw new ArgumentException("Musician growth and --polar-member-axes require member axes (--enable-member-axes).");
+		if (disableWealth) { wealthObserve = false; wealthReaders = false; }
+		if (disableFatigue) roadFatigue = false;
 		if (teamWriting && !cowriting)
 			throw new ArgumentException("--enable-team-writing requires --enable-cowriting.");
 		configured = true;
@@ -156,22 +197,26 @@ public static class BandLife {
 
 	internal readonly struct Switches {
 		public readonly bool Cowriting, MemberAxes, Observe, TeamWriting, Growth, GrowthShadow, PolarAxes, Identity;
+		public readonly bool WealthObserve, WealthReaders, RoadFatigue;
 		public readonly LineupChurnScope Scope;
 		public Switches(bool cowriting, bool memberAxes, bool observe, LineupChurnScope scope, bool teamWriting,
-			bool growth, bool growthShadow, bool polarAxes, bool identity) {
+			bool growth, bool growthShadow, bool polarAxes, bool identity, bool wealthObserve = false, bool wealthReaders = false,
+			bool roadFatigue = false) {
 			Cowriting = cowriting; MemberAxes = memberAxes; Observe = observe; Scope = scope; TeamWriting = teamWriting;
 			Growth = growth; GrowthShadow = growthShadow; PolarAxes = polarAxes; Identity = identity;
+			WealthObserve = wealthObserve; WealthReaders = wealthReaders; RoadFatigue = roadFatigue;
 		}
 	}
 
 	internal static Switches CaptureSwitches() => new(cowriting, memberAxes, observe, churnScope, teamWriting,
-		musicianGrowth, growthShadow, polarMemberAxes, memberIdentity);
+		musicianGrowth, growthShadow, polarMemberAxes, memberIdentity, wealthObserve, wealthReaders, roadFatigue);
 
 	internal static void RestoreSwitches(Switches s) {
 		configured = true;
 		cowriting = s.Cowriting; memberAxes = s.MemberAxes; observe = s.Observe; churnScope = s.Scope;
 		teamWriting = s.TeamWriting; musicianGrowth = s.Growth; growthShadow = s.GrowthShadow;
 		polarMemberAxes = s.PolarAxes; memberIdentity = s.Identity;
+		wealthObserve = s.WealthObserve; wealthReaders = s.WealthReaders; roadFatigue = s.RoadFatigue;
 	}
 
 	internal static void ConfigureForProbe(bool cowritingOn = false, bool axesOn = false, bool observeOn = false,

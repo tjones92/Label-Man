@@ -12,6 +12,7 @@ public partial class ChartAuditRunner {
 	private StreamWriter lineupEventWriter;
 	private StreamWriter lineupAnnualWriter;
 	private StreamWriter lineupPairWriter;
+	private StreamWriter lineupMemberWriter;
 
 	private void OpenBandLifeOutputs() {
 		if (!BandLife.AnnualPassActive) return;
@@ -39,6 +40,28 @@ public partial class ChartAuditRunner {
 				"substanceA,substanceB,spotA,spotB,recognitionA,recognitionB,soloViableA,soloViableB,writerA,writerB,leadA,leadB,burnoutRaw,morale");
 			BandLifeService.OnPairTerms += WriteLineupPair;
 		}
+		// Calibration only (Phases 4e, 4f, 5): one row per person per act-year -- wealth, fatigue, growth (opt-in).
+		if (Array.Exists(OS.GetCmdlineUserArgs(), a => a == "--log-band-life-members")) {
+			lineupMemberWriter = CreateWriter(Path.Combine(dir, $"{runName}-lineup-members.csv"));
+			lineupMemberWriter.WriteLine("year,artistId,personId,age,constitution,everCharted,signed,chartedNow,top40Now,releasesNow,lifeState," +
+				"lead,writer,roadLoad,roadYears,fatigue,temperament,reliability,ego,ambition,loyalty,creativity,studioEfficiency," +
+				"personalRecognition,actFame,substanceLoad,wealth,income,writerIncome,hours,weightedHours,effectiveHours," +
+				"technicalNow,technicalGrown,vocalPowerGrown,instrumentalGrown,creativityGrown");
+			BandLifeService.OnMemberYear += WriteLineupMember;
+		}
+	}
+
+	private void WriteLineupMember(BandLifeService.MemberYearRow r) {
+		static string B(bool v) => v ? "1" : "0";
+		static string I(int v) => v.ToString(CultureInfo.InvariantCulture);
+		lineupMemberWriter?.WriteLine(string.Join(",", new[] {
+			I(r.year), r.artistId, r.personId, I(r.age), r.constitution.ToString(), B(r.everCharted), B(r.signed), I(r.chartedNow),
+			I(r.top40Now), I(r.releasesNow), r.lifeState.ToString(), B(r.lead), B(r.writer), F(r.roadLoad), F(r.roadYears), F(r.fatigue),
+			F(r.temperament), F(r.reliability), F(r.ego), F(r.ambition), F(r.loyalty), F(r.creativity), F(r.studioEfficiency),
+			F(r.personalRecognition), F(r.actFame), F(r.substanceLoad), F(r.wealth), F(r.income), F(r.writerIncome), F(r.hours),
+			F(r.weightedHours), F(r.effectiveHours), F(r.technicalNow), F(r.technicalGrown), F(r.vocalPowerGrown),
+			F(r.instrumentalGrown), F(r.creativityGrown)
+		}));
 	}
 
 	private void WriteLineupPair(BandLifeService.PairTermRow r) {
@@ -90,7 +113,9 @@ public partial class ChartAuditRunner {
 		BandLifeService.OnEvent -= WriteLineupEvent;
 		BandLifeService.OnAnnualSummary -= WriteLineupAnnual;
 		BandLifeService.OnPairTerms -= WriteLineupPair;
+		BandLifeService.OnMemberYear -= WriteLineupMember;
 		lineupPairWriter?.Dispose(); lineupPairWriter = null;
+		lineupMemberWriter?.Dispose(); lineupMemberWriter = null;
 		lineupEventWriter?.Dispose(); lineupEventWriter = null;
 		lineupAnnualWriter?.Dispose(); lineupAnnualWriter = null;
 		if (ArtistManager.Instance == null) return;

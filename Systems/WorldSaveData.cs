@@ -107,6 +107,9 @@ public sealed class BandLifeSaveData {
 	/// <summary>Band-life dissolutions not yet refilled by the formation servo.</summary>
 	public int FormationCredit { get; set; }
 	public Dictionary<int, int> DeparturesByYear { get; set; } = new();
+	/// <summary>Phase 5: the population centres growth is written relative to.</summary>
+	public float GrowthTechnicalCentre { get; set; }
+	public float GrowthCreativityCentre { get; set; }
 }
 
 /// <summary>The composition catalogue (CompositionCatalogService). Songs, writers, publishers, and the writer
@@ -136,6 +139,8 @@ public sealed class CompositionSaveData {
 	// v4: per-stint (personId|artistId) credit ledger. Absent in older saves -> empty.
 	public Dictionary<string, CompositionCatalogService.WriterCreditLedgerEntry> WriterStintLedger { get; set; } = new();
 	public int SongCounter { get; set; }
+	/// <summary>Phase 4c: staff writers have been paired into standing teams in this world.</summary>
+	public bool ProTeamsBuilt { get; set; }
 	public bool HasRng { get; set; }
 	public ulong RngState { get; set; }
 	public ulong RngSeed { get; set; }

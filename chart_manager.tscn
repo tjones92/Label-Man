@@ -1827,6 +1827,12 @@ cowritingEnabled = true
 memberAxesEnabled = true
 rosterLineupChurnEnabled = true
 worldLineupChurnEnabled = true
+memberWealthEnabled = true
+roadFatigueEnabled = true
+teamWritingEnabled = true
+musicianGrowthEnabled = true
+polarMemberAxesEnabled = true
+memberIdentityEnabled = true
 allRegions = Array[Object]([SubResource("Resource_77lym"), SubResource("Resource_gp"), SubResource("Resource_4xj30"), SubResource("Resource_w3svk"), SubResource("Resource_wkcml"), SubResource("Resource_om038"), SubResource("Resource_gx6p6")])
 
 [node name="DistanceModel" type="Node" parent="."]

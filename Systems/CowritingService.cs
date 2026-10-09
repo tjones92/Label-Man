@@ -74,12 +74,20 @@ public static class CowritingService {
 		TeamOverride over = artist.isPlayerOwned ? PlayerTeamOverride?.Invoke(artist, songKey) : null;
 		List<(Musician Member, float Share)> team = over != null && over.PersonIds.Count > 0
 			? OverrideTeam(artist, over, year) : PickTeam(artist, songKey, year);
-		float memberScale = over != null && over.LabelCutInShare > 0f && team.Count > 0 ? 1f - over.LabelCutInShare : 1f;
+		// Phase 4c layer 4: an AI label's cut-in, the AI twin of the player's demand.
+		float aiCutIn = over == null && team.Count > 0 ? TeamWritingService.AiCutInShare(artist, songKey) : 0f;
+		float cutIn = over != null && over.LabelCutInShare > 0f ? over.LabelCutInShare : aiCutIn;
+		float memberScale = cutIn > 0f && team.Count > 0 ? 1f - cutIn : 1f;
 		if (team.Count == 0) song.credits.Add(HouseCredit(artist));
 		else foreach ((Musician member, float share) in team) song.credits.Add(MemberCredit(member, share * memberScale));
-		if (memberScale < 1f)
-			song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.HouseCredit, writerId = LabelWriterId(over.LabelId),
-				writerName = over.LabelName, share = over.LabelCutInShare });
+		if (memberScale < 1f) {
+			string labelId = over != null ? over.LabelId : artist.labelId;
+			string labelName = over != null ? over.LabelName :
+				ChartManager.Instance?.GetAllLabels()?.FirstOrDefault(l => l.labelId == artist.labelId)?.labelName ?? "the label";
+			song.credits.Add(new SongwriterCredit { writerType = WriterEntityType.HouseCredit, writerId = LabelWriterId(labelId),
+				writerName = labelName, share = cutIn });
+			if (aiCutIn > 0f) TeamWritingService.ApplyCutInStrain(artist, team.Select(t => t.Member), year);
+		}
 		CompositionCatalogService.RecordOriginalCredits(song, artist);
 		if (over != null) {
 			foreach ((Musician member, _) in team) over.CreditedPersonIds.Add(member.personId);
@@ -96,7 +104,8 @@ public static class CowritingService {
 	/// flagged writer co-writes some of the time, and a minor writer occasionally gets a hand in.
 	/// Returns (member, share) with shares summing to 1; empty when the act has no writer at all.
 	/// </summary>
-	public static List<(Musician Member, float Share)> PickTeam(SimulatedArtist artist, string songKey, int year) {
+	/// <param name="record">False for a side-effect-free peek (team craft scores the team before the song exists).</param>
+	public static List<(Musician Member, float Share)> PickTeam(SimulatedArtist artist, string songKey, int year, bool record = true) {
 		var team = new List<(Musician, float)>();
 		List<(Musician Member, float Weight, bool Primary)> writers = artist.GetWriters();
 		// An act with no flagged writer keeps the house credit, exactly as before: a band of creative
@@ -113,7 +122,7 @@ public static class CowritingService {
 			Musician partner = writers.First(w => w.Member.personId == Other(pact, lead.personId)).Member;
 			team.Add((lead, 0.5f));
 			team.Add((partner, 0.5f));
-			RecordCoCredit(artist, lead, partner, year);
+			if (record) RecordCoCredit(artist, lead, partner, year);
 			return team;
 		}
 
@@ -122,7 +131,7 @@ public static class CowritingService {
 			Musician partner = WeightedPick(otherPrimaries, $"{key}|partner");
 			team.Add((lead, 0.5f));
 			team.Add((partner, 0.5f));
-			RecordCoCredit(artist, lead, partner, year);
+			if (record) RecordCoCredit(artist, lead, partner, year);
 			return team;
 		}
 

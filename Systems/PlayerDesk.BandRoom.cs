@@ -28,6 +28,8 @@ public partial class PlayerDesk {
 	public const float TourWeeklyNet = 30f;
 	public const float LabelCutInShare = 0.25f;
 	public const int LabelCutInSongs = 3;
+	/// <summary>Below this much money of their own, a married member with children asks for an advance (§4.15).</summary>
+	public const float BandRoomBrokeWealth = 1500f;
 
 	/// <summary>One button in a Band Room scene.</summary>
 	public sealed class BandOption {
@@ -277,8 +279,12 @@ public partial class PlayerDesk {
 				}
 				if (m.creativity >= 0.6f && originals >= 3 && (stint?.songs ?? 0) == 0) request = BandRequest.SongOnRecord;
 				else if (a.members.Count > 1 && BandLifeService.IsSoloViable(m, a, YearNow)) { request = BandRequest.SoloSingle; cause = StrainCause.Spotlight; }
-				else if (m.partner?.state == PartnerState.Married && m.hasChildren && a.totalRoyaltyEarnings < 200f) request = BandRequest.Advance;
-				else if (m.roadYears >= 3f && (m.hasChildren || m.partner?.state == PartnerState.Married) && m.lifeState == MemberLifeState.Active)
+				// Wealth reader 4 (§4.15): the advance and the "we don't need the road" asks are backed by the member's own
+				// money when the stock exists -- a broke father asks for an advance; a rich, worn-out one asks to stop touring.
+				else if (m.partner?.state == PartnerState.Married && m.hasChildren &&
+					(BandLife.MemberWealthActive ? m.wealth < BandRoomBrokeWealth : a.totalRoyaltyEarnings < 200f)) request = BandRequest.Advance;
+				else if (m.lifeState == MemberLifeState.Active && (BandLife.RoadFatigue ? m.fatigue >= 2f : m.roadYears >= 3f) &&
+					(m.hasChildren || m.partner?.state == PartnerState.Married || MemberWealthService.Norm(m) >= MemberWealthService.StudioOnlyAffordNorm))
 					{ request = BandRequest.OffTheRoad; cause = StrainCause.Burnout; }
 				if (request == BandRequest.None) continue;
 				// Not every fact becomes a visit the week it is true.

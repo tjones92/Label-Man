@@ -225,6 +225,8 @@ public sealed class ProfessionalSongwriter {
 	public float trendSensitivity;
 	public int activeStartYear;
 	public int activeEndYear;
+	/// <summary>Phase 4c: the staff writer this one writes with as a standing team, or null.</summary>
+	public string teamPartnerId;
 }
 
 /// <summary>A publisher house. Rights-metadata only in this phase.</summary>
