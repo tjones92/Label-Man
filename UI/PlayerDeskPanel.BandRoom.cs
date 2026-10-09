@@ -278,6 +278,24 @@ public partial class PlayerDeskPanel {
 		VBoxContainer order = form.Body;
 		SimulatedArtist captured = act;
 
+		if (LocalScenes.Relocation) {
+			order.AddChild(WorkOrder.Section("Working base"));
+			order.AddChild(new Label { Text = $"Hometown: {ScenePlaceRegistry.Get(act.geography?.originPlaceId)?.Name ?? "unknown"} · Base: {ScenePlaceRegistry.Get(act.geography?.basePlaceId)?.Name ?? "unknown"}" });
+			var pending = SceneEcosystemService.Moves.FirstOrDefault(m => m.ArtistId == act.artistId && m.Status == SceneMoveStatus.Planned);
+			if (pending != null) order.AddChild(new Label { Text = $"Move arranged to {ScenePlaceRegistry.Get(pending.ToPlaceId)?.Name}; arrival {LocalSceneRoomService.Date(pending.ArrivalDay).ToHeadlineString()}." });
+			else foreach (var program in SceneEcosystemService.Programs.Where(p => p.SponsorId == desk.Label.labelId && p.ThroughDay >= LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate) + 28)) {
+				var room = SceneRoomCatalog.Get(program.RoomId);
+				bool route = ScenePlaceRegistry.TryDomesticRoadMiles(act.geography?.basePlaceId, room.PlaceId, out double miles) && miles > 0 && miles <= SceneDynamicsMobility.MaximumRoadMiles;
+				float cost = route ? (float)(100 * act.members.Count(m => m.isActive && m.lifeState == MemberLifeState.Active) + .5 * miles) : 0;
+				var move = Btn($"PROPOSE FUNDED MOVE TO {ScenePlaceRegistry.Get(room.PlaceId).Name.ToUpperInvariant()}  ({(route ? Money(cost) : "ROUTE UNAVAILABLE")})");
+				move.Disabled = !route;
+				move.TooltipText = "Needs unanimous member agreement, suitable work and no existing engagements. If everyone agrees, the displayed travel and temporary housing cost is paid upfront and the move is arranged.";
+				string programId = program.Id;
+				move.Pressed += () => Act(() => { bool ok = desk.RelocateAct(captured.artistId, programId, out string result); Say(result, ok); return ok; });
+				order.AddChild(move);
+			}
+		}
+
 		order.AddChild(WorkOrder.Section("The road"));
 		var road = new HBoxContainer();
 		road.AddThemeConstantOverride("separation", 10);

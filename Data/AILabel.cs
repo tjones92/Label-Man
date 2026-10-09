@@ -15,6 +15,9 @@ public partial class AILabel : Resource {
 	[Export] public string labelName;
 	[Export] public string founderName;
 	[Export] public string headquartersCity;
+	// Phase 1 observation metadata. Existing economic identity fields remain authoritative.
+	public GeographicIdentity geography;
+    public List<SceneBusinessConnection> sceneBusinessConnections;
 	[Export] public LabelArchetype archetype;
 	[Export] public LabelTier tier;
 	[Export] public int foundedYear;
@@ -338,7 +341,7 @@ public partial class AILabel : Resource {
 		float talentMult = 0.5f + (artist.CalculateBaseQuality() * 1.5f);
 		float reputationMult = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
 		float competitionMult = tier == LabelTier.Major ? 1.5f : 1f;
-		return baseAdvance * talentMult * reputationMult * competitionMult;
+		return baseAdvance * talentMult * reputationMult * competitionMult * ScenePriceFeedback.Multiplier(artist);
 	}
 	
 	public float CalculateRoyaltyRate(SimulatedArtist artist) {

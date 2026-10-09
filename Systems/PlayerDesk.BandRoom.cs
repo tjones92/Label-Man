@@ -591,7 +591,7 @@ public partial class PlayerDesk {
 		var seen = new HashSet<string>();
 		for (int i = 0; i < count; i++) {
 			PooledPerson p = PersonPool.Ordered().Where(x => !seen.Contains(x.person.personId))
-				.Where(x => x.person.lifeState == MemberLifeState.Active && x.lastArtistId != a.artistId)
+				.Where(x => x.person.lifeState == MemberLifeState.Active && x.lastArtistId != a.artistId && SceneSourceService.CanJoinFromPool(x.person, a))
 				.OrderByDescending(x => (lead ? (MemberAxesService.IsSinger(x.person) ? 3f : 0f) : (x.person.primaryRole == role ? 3f : 1f)) +
 					(x.homeRegion == a.homeRegion ? 1f : 0f) + x.person.technicalSkill)
 				.ThenBy(x => x.person.personId, StringComparer.Ordinal).FirstOrDefault();
@@ -985,6 +985,9 @@ public partial class PlayerDesk {
 	public bool BookRoad(SimulatedArtist a, int residencyWeeks, int tourWeeks, out string message) {
 		message = "";
 		if (a == null || a.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
+		if (SceneEcosystemService.Moves.Any(m => m.ArtistId == a.artistId && m.Status == SceneMoveStatus.Planned)) {
+			message = "The act already has a relocation arranged."; return false;
+		}
 		if (!Require(1, out message)) return false;
 		Spend(1);
 		RoadBooking b = BookingFor(a);

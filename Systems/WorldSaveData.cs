@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization.Metadata;
@@ -96,6 +96,11 @@ public sealed class WorldSaveData {
 	// pass bookkeeping. Relations, alumni, partners and member fields ride inside the artists themselves.
 	// Absent in a v3 save: the pool starts empty and every person keeps today's defaults.
 	public BandLifeSaveData BandLife { get; set; }
+	// v5: separate seed/content contract; entities retain geographic identity inline, never duplicated.
+	public SceneIdentitySaveData SceneIdentity { get; set; }
+	public ScenePersistenceSaveData ScenePersistence { get; set; }
+    public SceneRoomSaveData SceneRooms { get; set; }
+    public SceneEcosystemSaveData SceneEcosystem { get; set; }
 }
 
 /// <summary>Band-member simulation world state that does not live on an artist or a musician.</summary>
@@ -273,6 +278,10 @@ public static class WorldStateService {
 		RosterManager.Instance?.CaptureCaches(world);
 		CompositionCatalogService.CaptureWorld(world);
 		BandLifeService.CaptureWorld(world);
+		LocalSceneIdentityService.CaptureWorld(world);
+		LocalScenePersistenceService.CaptureWorld(world);
+        LocalSceneRoomService.CaptureWorld(world);
+        SceneEcosystemService.CaptureWorld(world);
 		return world;
 	}
 
@@ -280,8 +289,25 @@ public static class WorldStateService {
 	/// is a no-op -- the freshly generated world is left standing and the player layer restores over it.
 	/// Order matters: artists first, then labels (whose rosters relink to those artists), then the lifecycle
 	/// (whose active list is the very same object as the label list).</summary>
-	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed) {
-		if (world == null) return;
+	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
+        SceneAttentionFeedback.Reset(); // derived prior-week cache must not survive a load/rollback
+		if (world == null) {
+			if (deferSceneRelink) {
+                LocalScenePersistenceService.BeginRestore(null);
+                LocalSceneRoomService.BeginRestore(null);
+                SceneEcosystemService.BeginRestore(null);
+                LocalSceneIdentityService.BeginRestore(null, worldSeed);
+            }
+			return;
+		}
+		// Validate scene versions before mutating managers. Real player loads defer migration until success.
+		LocalScenePersistenceService.ValidateRestore(world.ScenePersistence);
+        LocalSceneRoomService.ValidateRestore(world.SceneRooms);
+        SceneEcosystemService.ValidateRestore(world.SceneEcosystem);
+		LocalSceneIdentityService.BeginRestore(world.SceneIdentity, worldSeed);
+		LocalScenePersistenceService.BeginRestore(world.ScenePersistence);
+        LocalSceneRoomService.BeginRestore(world.SceneRooms);
+        SceneEcosystemService.BeginRestore(world.SceneEcosystem);
 
 		TimeManager.Instance?.RestoreClock(date, world.Hour, world.Minute);
 		ArtistManager.Instance?.RehydrateWorld(world);
@@ -303,6 +329,7 @@ public static class WorldStateService {
 
 		// Reseed the global RNG deterministically so repeated loads of this save continue identically.
 		GD.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
+		if (!deferSceneRelink) LocalSceneIdentityService.CompleteRestore();
 	}
 
 	/// <summary>SplitMix64-style mix of the world seed and the resumed week into a stable global RNG seed.</summary>

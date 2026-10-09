@@ -342,6 +342,7 @@ public partial class ChartManager : Node {
 		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
 		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
+		LocalScenes.ValidateDependencies();
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
 		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
@@ -432,6 +433,7 @@ public partial class ChartManager : Node {
 		// first live Friday settlement. A load overwrites this via RestoreChartWeekEndingDate.
 		GameDate start = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		chartWeekEndingDate = start.AddDays(start.DaysUntil(System.DayOfWeek.Saturday));
+        LocalSceneRoomService.EnsureCalendar(start);
 	}
 
 	public override void _ExitTree() {
@@ -495,6 +497,7 @@ public partial class ChartManager : Node {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
 		if (aiLabels != null && !aiLabels.Contains(label)) aiLabels.Add(label);
 		labelLookup[label.labelId] = label;
+		LocalSceneIdentityService.EnsureLabel(label);
 	}
 
 	// ========================================================================
@@ -683,6 +686,7 @@ public partial class ChartManager : Node {
 		// reached by prewarm because this method only runs on a live weekly tick.
 		long lifecycleProfileStart = SimulationPerformanceProfiler.Begin();
 		ArtistManager.Instance?.AdvancePopulationLifecycle(date);
+		LocalScenePersistenceService.Advance(currentChartWeek, date.year);
 		SimulationPerformanceProfiler.EndPopulationLifecycle(lifecycleProfileStart);
 	}
 

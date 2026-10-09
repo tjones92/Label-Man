@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -152,6 +152,7 @@ public partial class ArtistManager : Node {
 	public event System.Action<string, SimulatedArtist> OnPopulationEvent;
 	private void EmitPopulationEvent(string eventType, SimulatedArtist artist) {
 		if (ArtistPopulationLifecycle.Enabled && artist != null) OnPopulationEvent?.Invoke(eventType, artist);
+		LocalScenePersistenceService.ObserveArtist(artist);
 	}
 	
 	public override void _EnterTree() {
@@ -302,7 +303,10 @@ public sealed class LaborMarketWeeklySnapshot {
 	internal static int GetDefaultInitialPoolSizeForPath(bool enabledLifecyclePath) =>
 		enabledLifecyclePath ? EnabledLifecycleInitialPoolSize : LegacyInitialPoolSize;
 	
-	public SimulatedArtist GenerateArtist(ArtistType type, Genre genre, int year, string region) {
+	public SimulatedArtist GenerateArtist(ArtistType type, Genre genre, int year, string region, ScenePlace formationPlace = null) {
+		// A place is a typed fifth argument; the fourth argument remains the calibrated region string.
+		if (formationPlace != null && ScenePlaceRegistry.Get(formationPlace.Id) == null)
+			throw new ArgumentException("Formation place is not in the identity registry.", nameof(formationPlace));
 		artistIdCounter++;
 		string id = $"artist_{artistIdCounter:D5}";
 		Genre primaryGenre;
@@ -357,6 +361,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		// takes nothing from the stream the reputation draw left it on.
 		ArtistEvolutionService.Initialize(artist, year);
 		artistRegistry[id] = artist;
+		LocalSceneIdentityService.EnsureArtist(artist, generated: true, formationPlaceId: formationPlace?.Id);
 		return artist;
 	}
 	internal static void ConfigureEasyListeningBandleader(SimulatedArtist artist,int year) {
@@ -1247,6 +1252,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
 		MemberAxesService.EnsureAxes(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
 		unsignedArtists.RemoveAll(candidate => candidate.artistId == artist.artistId);
+		LocalSceneIdentityService.EnsureArtist(artist);
 	}
 
 	/// <summary>Indexes a person who entered the world outside generation -- a keyed replacement hire.</summary>
@@ -1286,6 +1292,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			reputation = from.reputation * 0.5f,
 			momentum = from.momentum * 0.5f,
 		};
+		LocalSceneIdentityService.EnsureArtist(solo, generated: true, formationPlaceId: person.geography?.basePlaceId ?? from.geography?.basePlaceId);
 		BandLifeService.JoinAct(person, solo, MusicianRole.LeadVocals, lead: true, writer: person.isPrimaryWriter, year);
 		person.isFoundingMember = true;
 		person.isBandLeader = true;
@@ -1392,10 +1399,20 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// trip does not silently grow the population. Refuses if the act was signed (has a label) so a
 	/// signed prospect can never be pulled out from under the roster.
 	/// </summary>
+    /// <summary>Adopts an existing discovery into the authoritative pool without a birth, reroll, or activation.</summary>
+    public bool AdoptScoutingDiscovery(string artistId) {
+        if (!LocalScenes.Persisting || string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
+        LocalSceneIdentityService.EnsureArtist(artist);
+        if (IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active &&
+            !unsignedArtists.Contains(artist)) unsignedArtists.Add(artist);
+        return true;
+    }
 	public bool RemoveUnsignedArtist(string artistId) {
 		if (string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
-		if (!string.IsNullOrEmpty(artist.labelId)) return false;
+		if (!string.IsNullOrEmpty(artist.labelId) || artist.sceneParticipations?.Count > 0) return false;
 		artistRegistry.Remove(artistId);
+		LocalSceneIdentityService.ForgetArtist(artistId);
+		LocalScenePersistenceService.ForgetArtist(artistId);
 		return true;
 	}
 
@@ -1408,6 +1425,11 @@ public sealed class LaborMarketWeeklySnapshot {
 			artistId = artist.artistId, name = artist.stageName, artistType = artist.type,
 			isBand = artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup,
 			homeRegion = artist.homeRegion, primaryGenre = artist.primaryGenre, secondaryGenre = artist.secondaryGenre,
+		homeCity = ScenePlaceRegistry.Get(artist.geography?.originPlaceId)?.Name,
+		baseCity = ScenePlaceRegistry.Get(artist.geography?.basePlaceId)?.Name,
+		formationPlaceId = artist.geography?.originPlaceId, basePlaceId = artist.geography?.basePlaceId,
+		originEvidence = artist.geography?.originEvidence ?? PlaceEvidence.Unknown,
+		baseEvidence = artist.geography?.baseEvidence ?? PlaceEvidence.Unknown,
 			formedYear = artist.formedYear, careerState = artist.careerState, labelId = artist.labelId,
 			labelName = ChartManager.Instance?.GetLabelName(artist.labelId) ?? "Independent",
 			totalCharted = artist.charted, top40Hits = artist.top40Hits, top10Hits = artist.top10Hits,
@@ -1431,6 +1453,10 @@ public sealed class LaborMarketWeeklySnapshot {
 		return profile;
 	}
 	public Musician GetMusician(string musicianId) => musicianRegistry.TryGetValue(musicianId, out var musician) ? musician : null;
+	// Launch allocation precedes prospect-search bootstrap. Preserve its existing unsigned/lifecycle
+	// eligibility without exposing latent reserves to live recruitment.
+	internal List<SimulatedArtist> GetLaunchRosterCandidates() => unsignedArtists
+		.Where(a => a.cohort == ArtistCohort.InitialLegacy && IsEligibleUnsignedCandidate(a)).ToList();
 	public List<SimulatedArtist> GetUnsignedArtists() => unsignedArtists.Where(artist => IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist)).ToList();
 
 	/// <summary>

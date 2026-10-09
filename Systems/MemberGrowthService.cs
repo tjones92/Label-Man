@@ -98,6 +98,7 @@ public static class MemberGrowthService {
 			if (m.axesVersion == 0) continue;
 			BaselineCreativity(m, year);
 			bool works = m.lifeState == MemberLifeState.Active || (m.lifeState == MemberLifeState.StudioOnly);
+            if (m.lifeState == MemberLifeState.Active) LocalSceneRoomService.AttributeBudget(a.artistId, m.personId, year, hours);
 			float personHours = m.lifeState == MemberLifeState.StudioOnly ? SessionHoursPerRelease * releasesNow * KindSession : weighted;
 			if (works) m.effectiveHours += personHours * m.developmentRate * Plasticity(m.GetAge(year));
 			GrowthRow row = Grown(m, year);

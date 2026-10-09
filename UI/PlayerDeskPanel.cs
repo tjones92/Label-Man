@@ -1109,7 +1109,9 @@ public partial class PlayerDeskPanel : Control {
 		Body($"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only " +
 			"draws a crowd at its own hours. What you hear is your read on the act, not the truth — a better ear " +
 			"narrows the gap.");
-		if (!hasUserSelectedVenue) {
+		if (LocalScenes.Rooms) SceneRoomsBoard(desk);
+        else {
+        if (!hasUserSelectedVenue) {
 			int now = TimeManager.Instance?.CurrentHour ?? 9;
 			selectedVenue = VenueOrder.FirstOrDefault(venue => {
 				(int open, int close) = PlayerDesk.VenueHours(venue);
@@ -1157,10 +1159,11 @@ public partial class PlayerDeskPanel : Control {
 		venueRow.AddChild(venueNote);
 		venueRow.AddChild(scout);
 		content.AddChild(venueRow);
+        }
 
 		if (desk.Slate.Count == 0) Body("No acts on the pad. Go hear somebody, or bring a notebook entry back without another scouting trip.");
 		else {
-			Heading($"CAUGHT {desk.SlateDate.ToHeadlineString()}  —  {PlayerDesk.VenueName(desk.Slate[0].Venue)}");
+			Heading($"CAUGHT {desk.SlateDate.ToHeadlineString()}  —  {SceneRoomCatalog.Get(desk.Slate[0].SceneRoomId)?.Name ?? PlayerDesk.VenueName(desk.Slate[0].Venue)}");
 			foreach (PlayerDesk.Prospect prospect in desk.Slate.ToList()) ProspectCard(prospect);
 		}
 
@@ -1253,8 +1256,9 @@ public partial class PlayerDeskPanel : Control {
 		head.AddChild(stamp);
 		card.AddChild(head);
 
+        string dealText = LocalScenes.Persisting ? PlayerDesk.SceneDealDescription(prospect) : $"asking ${prospect.AskingAdvance:N0}";
 		var meta = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			Text = $"{prospect.Note}   •   asking ${prospect.AskingAdvance:N0}   •   {(prospect.ReadConfidence >= 0.7f ? "close read" : "rough read")}" };
+			Text = $"{prospect.Note}   •   {dealText}   •   {(prospect.ReadConfidence >= 0.7f ? "close read" : "rough read")}" };
 		meta.AddThemeFontSizeOverride("font_size", 15);
 		meta.AddThemeColorOverride("font_color", Ink);
 		card.AddChild(meta);
@@ -1300,6 +1304,10 @@ public partial class PlayerDeskPanel : Control {
 			foot.AddChild(follow);
 		} else {
 			var approach = Primary("APPROACH");
+            if (LocalScenes.Persisting && !PlayerDesk.SceneDealAvailable(prospect)) {
+                approach.Disabled = true;
+                approach.TooltipText = PlayerDesk.SceneDealDescription(prospect);
+            }
 			approach.CustomMinimumSize = new Vector2(0, 36);
 			approach.Pressed += () => {
 				bool ok = PlayerDesk.Instance.ApproachToSign(captured, out string message);

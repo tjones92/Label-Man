@@ -5,6 +5,8 @@ using Godot;
 [Serializable]
 public class Musician {
 	public string personId;
+	// Phase 1 observation metadata. Existing economic identity fields remain authoritative.
+	public GeographicIdentity geography;
 	public string firstName;
 	public string lastName;
 	public string FullName => $"{firstName} {lastName}";

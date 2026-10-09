@@ -98,6 +98,7 @@ public partial class TimeManager : Node {
 	public bool SpendHours(int hours, bool allowOvertime = false) {
 		if (!CanAffordHours(hours, allowOvertime)) return false;
 		currentHour += hours;
+		LocalSceneRoomService.Advance(currentDate, currentHour);
 		OnHourChanged?.Invoke(currentHour);
 		return true;
 	}
@@ -118,12 +119,14 @@ public partial class TimeManager : Node {
 		int total = currentHour * 60 + currentMinute + minutes;
 		currentHour = total / 60;
 		currentMinute = total % 60;
+		LocalSceneRoomService.Advance(currentDate, currentHour);
 		OnHourChanged?.Invoke(currentHour);
 		return true;
 	}
 
 	public void ForceSpendHours(int hours) {
 		currentHour += hours;
+		LocalSceneRoomService.Advance(currentDate, currentHour);
 		OnHourChanged?.Invoke(currentHour);
 		if (IsDayOver) EndDay();
 	}
@@ -134,6 +137,7 @@ public partial class TimeManager : Node {
 	}
 
 	private void ProcessDayEnd() {
+		LocalSceneRoomService.Advance(currentDate, 24);
 		OnDayEnded?.Invoke(currentDate);
 		if (currentDate.IsFriday) {
 			OnWeekEnded?.Invoke(currentDate);
@@ -171,6 +175,8 @@ public partial class TimeManager : Node {
 			return;
 		}
 
+		SceneEcosystemService.Advance(currentDate);
+		LocalSceneRoomService.EnsureCalendar(currentDate);
 		Rolodex.Instance?.AdvanceDay();
 		TriggerEventsForDate(currentDate);
 		OnDayStarted?.Invoke(currentDate);

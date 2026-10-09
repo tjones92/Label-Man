@@ -383,6 +383,7 @@ public static class BandLifeService {
 		// A studio-only member makes the records and stays home for the dates.
 		foreach (Musician m in ctx.present) {
 			float load = m.lifeState == MemberLifeState.StudioOnly ? 0f : ctx.roadLoad;
+			LocalSceneRoomService.AttributeRoadBudget(a.artistId, m.personId, ctx.year, load * MemberGrowthService.RoadHoursAtFullLoad);
 			UpdateFatigue(m, load, ctx.success);
 			m.roadYears += load;
 		}
@@ -701,7 +702,7 @@ public static class BandLifeService {
 			MemberLifeState wasAway = m.lifeState;
 			CountReturn(m, summary);
 			SimulatedArtist old = ArtistManager.Instance.GetArtist(p.lastArtistId);
-			bool wanted = old != null && old.lifecycleStatus == ArtistLifecycleStatus.Active && Applies(old) &&
+			bool wanted = old != null && old.lifecycleStatus == ArtistLifecycleStatus.Active && Applies(old) && SceneSourceService.CanJoinFromPool(m, old) &&
 				(old.members.Count(x => x.isActive) < 4 || BandLife.Chance($"{m.personId}|{year}|rejoin", 0.5f));
 			if (!wanted) { p.sinceYear = year; p.leftAs = DepartureKind.None; continue; }
 			PersonPool.Take(m.personId);
@@ -1360,6 +1361,7 @@ public static class BandLifeService {
 		ResetStage(m);
 		a.members.Add(m);
 		ArtistManager.Instance?.RegisterMusician(m);
+		LocalSceneIdentityService.PersonJoined(m, a, year);
 		MemberAxesService.EnsureAxes(m, a, year);
 		MemberIdentityService.EnsureIdentity(m, a, year);
 		a.careerEvents.Add($"{year}: {m.FullName} joined ({role})");
@@ -1407,7 +1409,7 @@ public static class BandLifeService {
 
 	public static PooledPerson FindPoolReplacement(SimulatedArtist a, MusicianRole role, bool lead, int year) =>
 		PersonPool.Ordered()
-			.Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 45 && p.lastArtistId != a.artistId)
+			.Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 45 && p.lastArtistId != a.artistId && SceneSourceService.CanJoinFromPool(p.person, a))
 			.Select(p => (p, score: RoleMatch(role, lead, p.person) + (p.homeRegion == a.homeRegion ? 1f : 0f) +
 				SceneMatch(p.lastGenre, a.primaryGenre) + (p.person.GetAge(year) <= 35 ? 0.5f : 0f) + p.person.technicalSkill))
 			.Where(x => RoleMatch(role, lead, x.p.person) >= 2f)
@@ -1449,6 +1451,7 @@ public static class BandLifeService {
 		m.loyalty = Stat("loy", 0.58f, 0.20f);
 		m.temperament = Stat("temp", 0.56f, 0.20f);
 		m.primaryRole = role;
+		LocalSceneIdentityService.EnsurePerson(m, a.geography?.basePlaceId, PlaceEvidence.Simulated);
 		return m;
 	}
 
@@ -1541,6 +1544,7 @@ public static class BandLifeService {
 		Musician hire;
 		bool fromPool = poolPersonId != null;
 		if (fromPool) {
+			if (!SceneSourceService.CanJoinFromPool(PersonPool.Get(poolPersonId)?.person, a)) return null;
 			PooledPerson p = PersonPool.Take(poolPersonId);
 			if (p == null) return null;
 			hire = p.person;
@@ -1597,7 +1601,7 @@ public static class BandLifeService {
 	public static bool TryRecombine(SimulatedArtist fresh, int year) {
 		if (!BandLife.WorldChurn || fresh == null || !ArtistManager.IsGroupAct(fresh) || fresh.members.Count < 2) return false;
 		if (!BandLife.Chance($"recombine|{fresh.artistId}", RecombinationShare)) return false;
-		var fits = PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 40 &&
+		var fits = PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 40 && SceneSourceService.CanJoinFromPool(p.person, fresh) &&
 			SceneMatch(p.lastGenre, fresh.primaryGenre) >= 0.75f &&
 			(p.homeRegion == fresh.homeRegion || BandLife.Unit($"recombine-region|{p.person.personId}|{fresh.artistId}") < 0.25f)).ToList();
 		if (fits.Count < 2) return false;
@@ -1616,6 +1620,7 @@ public static class BandLifeService {
 			ResetStage(person);
 			fresh.members[index] = person;
 			ArtistManager.Instance.RegisterMusician(person);
+			LocalSceneIdentityService.PersonJoined(person, fresh, year);
 			if (++swapped >= Mathf.Max(2, fresh.members.Count / 2)) break;
 		}
 		if (swapped < 2) return swapped > 0;
