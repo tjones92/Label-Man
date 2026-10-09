@@ -7,7 +7,7 @@ using System.Linq;
 /// ArtistManager and band life still own the population and people. Indices contain IDs, never copies.
 /// </summary>
 public static class LocalSceneIdentityService {
-    public const int AssignmentVersion = 2;
+    public const int AssignmentVersion = 3;
     private const ulong Namespace = 0x7363656e65696431UL; // sceneid1: distinct from population/band-life draws
     private static SceneIdentitySaveData state;
     private static SceneIdentitySaveData previousState;
@@ -39,10 +39,12 @@ public static class LocalSceneIdentityService {
         if (string.IsNullOrEmpty(geo.basePlaceId)) {
             string origin = ScenePlaceRegistry.Get(geo.originPlaceId)?.Id;
             string supplied = ScenePlaceRegistry.Get(formationPlaceId)?.Id;
+            if (generated && supplied == null && origin == null)
+                supplied = SceneSourceService.FormationPlace(State.WorldSeed, artist.artistId, artist.primaryGenre);
             geo.basePlaceId = supplied ?? origin ?? InferBase(State.WorldSeed, artist.artistId, artist.homeRegion, artist.primaryGenre, artist.cohort, artist.formedYear);
             geo.baseEvidence = generated ? PlaceEvidence.Simulated : PlaceEvidence.Inferred;
             geo.assignmentSource = geo.basePlaceId == null ? "unmapped-legacy-region" :
-                supplied != null ? "existing-formation-location" : origin != null ? "existing-origin-base-inference" : "keyed-national-city-opportunity-genre-prior-v2";
+                supplied != null ? (formationPlaceId != null ? "existing-formation-location" : "keyed-us-facing-source-opportunity-prior-v1") : origin != null ? "existing-origin-base-inference" : "keyed-national-city-opportunity-genre-prior-v2";
             geo.assignmentVersion = AssignmentVersion;
         }
         // Only a newly simulated formation may establish a procedural hometown. Legacy migration cannot.
@@ -78,6 +80,10 @@ public static class LocalSceneIdentityService {
     }
     public static void EnsureLabel(AILabel label) {
         if (!LocalScenes.Observing || restoring || label == null) return;
+        EnsureLabelIdentity(label);
+        SceneSourceService.EnsureConnections(label);
+    }
+    private static void EnsureLabelIdentity(AILabel label) {
         GeographicIdentity existing = label.geography;
         // Only repair our own unresolved literal projection. Credible saved identities,
         // origins and moves win; catalog correction never constitutes a relocation.

@@ -73,6 +73,10 @@ public partial class PlayerDesk {
             message = "They're not taking offers right now."; return false;
         }
         if (Label?.HasRosterSpace != true) { message = "Roster is full."; return false; }
+        if (prospect.SourceConnectionId != null &&
+            SceneSourceService.Connection(Label, prospect.Artist.geography?.basePlaceId, ChartManager.Instance.GetCurrentChartWeek())?.Id != prospect.SourceConnectionId) {
+            message = "This demo's source introduction has expired or changed. Renew the introduction and review a current submission."; return false;
+        }
         return true;
     }
 }

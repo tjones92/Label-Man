@@ -17,6 +17,26 @@ public partial class PlayerDeskPanel {
             (item.ArtistId != null && desk.SceneDiscoveries.Any(d => d.ArtistId == item.ArtistId) ? " You have heard this act before." : ""));
         if (news.Count > 0) { var read = Btn("MARK LOCAL REPORTS READ"); read.Pressed += () => { desk.MarkSceneNewsRead(); Refresh(); }; content.AddChild(read); }
         foreach (string lead in desk.SceneLeadNotes()) Body(lead);
+        if (LocalScenes.ExtendedWorld) {
+            Body("SOURCE OFFICES — introductions bring demo submissions to your US label. Contracts and recording arrangements remain separate.");
+            var sourcePlaces = SceneSourceService.Profiles.Select(p => p.PlaceId).Concat(SceneSourceService.Institutions.Select(i => i.PlaceId)).ToArray();
+            var sourceRow = new HBoxContainer();
+            var office = new OptionButton { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            foreach (string place in sourcePlaces) office.AddItem(ScenePlaceRegistry.Get(place).Name +
+                (ScenePlaceRegistry.Get(place).CountryCode == "GB" ? " (UK)" : " (US)"));
+            var source = Btn("");
+            void UpdateSource() {
+                string place = sourcePlaces[office.Selected];
+                bool connected = SceneSourceService.Connection(desk.Label, place, ChartManager.Instance.GetCurrentChartWeek()) != null;
+                source.Text = connected ? "REVIEW DEMOS  (2h)" : "ARRANGE INTRODUCTION  ($150 · 2h)";
+                source.TooltipText = SceneSourceService.Profile(place)?.BusinessPath ?? SceneSourceService.Institutions.First(i => i.PlaceId == place).Practice;
+            }
+            office.ItemSelected += _ => UpdateSource(); UpdateSource();
+            source.Pressed += () => Act(() => { string place = sourcePlaces[office.Selected]; string result;
+                bool ok = SceneSourceService.Connection(desk.Label, place, ChartManager.Instance.GetCurrentChartWeek()) != null ?
+                    desk.ReviewSourceDemos(place, out result) : desk.ArrangeSourceIntroduction(place, out result); Say(result, ok); return ok; });
+            sourceRow.AddChild(office); sourceRow.AddChild(source); content.AddChild(sourceRow);
+        }
         Body("Named rooms keep their own bills. A return visit hears the same scheduled people; a record deal is a separate conversation.");
         var grid = new GridContainer { Columns = 3, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         grid.AddThemeConstantOverride("h_separation", 12); grid.AddThemeConstantOverride("v_separation", 12);

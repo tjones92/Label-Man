@@ -17,6 +17,7 @@ public partial class AILabel : Resource {
 	[Export] public string headquartersCity;
 	// Phase 1 observation metadata. Existing economic identity fields remain authoritative.
 	public GeographicIdentity geography;
+    public List<SceneBusinessConnection> sceneBusinessConnections;
 	[Export] public LabelArchetype archetype;
 	[Export] public LabelTier tier;
 	[Export] public int foundedYear;

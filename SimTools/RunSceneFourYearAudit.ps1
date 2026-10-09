@@ -7,7 +7,7 @@ $sceneFolder=Join-Path $sceneRoot "SimLogs/$RunTag"
 if($RunTag -notmatch '^[a-z0-9-]+$' -or (Test-Path $sceneFolder) -or $Weeks -lt 1){throw 'Choose a new valid run tag and positive duration.'}
 $sceneFlags=@('--enable-genre-market-v2','--enable-artist-population-lifecycle','--enable-artist-evolution',
  '--enable-artist-recognition','--enable-managers','--seed-star-canopy','--enable-cowriting','--enable-member-axes',
- '--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--aggregate-only',
+ '--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--disable-scene-extended-world','--aggregate-only',
  '--local-scene-identity-audit','--local-scene-persistence-audit','--scene-room-audit','--scene-recruitment-audit')
 $sceneJobs=@(@{mode='off';seed=1001},@{mode='recruitment';seed=1001},@{mode='off';seed=2002},@{mode='recruitment';seed=2002})
 New-Item -ItemType Directory -Path $sceneFolder | Out-Null

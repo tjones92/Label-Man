@@ -662,8 +662,8 @@ public partial class PlayerDesk : Node {
                 ArtistId = prospect.Artist.artistId, LabelId = Label.labelId, Week = week, Year = year,
                 Phase = "PlayerContract", SigningGenre = prospect.Artist.primaryGenre,
                 BasePlaceId = prospect.Artist.geography?.basePlaceId, OriginPlaceId = prospect.Artist.geography?.originPlaceId,
-                HqPlaceId = Label.geography?.basePlaceId, Route = "PlayerEncounter",
-                AccessEvidence = prospect.SceneBillId ?? prospect.SceneRoomId ?? prospect.CityId,
+                HqPlaceId = Label.geography?.basePlaceId, Route = prospect.SourceConnectionId != null ? "PlayerSourceDemo" : "PlayerEncounter",
+                AccessEvidence = prospect.SourceConnectionId ?? prospect.SceneBillId ?? prospect.SceneRoomId ?? prospect.CityId,
                 Explanation = "Player signed a heard act after the canonical ownership and affordability checks." });
         }
 		Label.SetOperatingRosterTarget(Label.CurrentRosterSize, LabelOperatingTargetReason.OrganicGrowth, week);

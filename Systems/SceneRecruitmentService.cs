@@ -29,6 +29,15 @@ public static class SceneRecruitmentService {
             .ThenBy(p => p.provenance, StringComparer.Ordinal).FirstOrDefault();
         if (guest != null)
             return Result(true, "LocalVisitor", null, .85f, guest.provenance);
+        if (hq.CountryCode == "GB" && home.CountryCode == "GB" &&
+            SceneSourceService.Connection(label, home.Id, week) is { } sourceCircuit)
+            return Result(true, "SourceCircuit", null, .25f, sourceCircuit.Id + ": " + sourceCircuit.Provenance);
+        if (hq.CountryCode == "US" && home.CountryCode == "US" && SceneSourceService.IsSource(home.Id) &&
+            SceneSourceService.Connection(label, home.Id, week) is { } specialist)
+            return Result(true, "SpecialistReferral", null, .25f, specialist.Id + ": " + specialist.Provenance);
+        if (hq.CountryCode == "US" && home.CountryCode != "US" &&
+            SceneSourceService.Profile(home.Id) != null && SceneSourceService.Connection(label, home.Id, week) is { } connection)
+            return Result(true, "ForeignAgency", null, .12f, connection.Id + ": " + connection.Provenance);
         if (hq.CountryCode != "US" || home.CountryCode != "US")
             return Result(false, "NoInternationalConnection");
         // Never use legacy distribution proxies as a literal satellite HQ or unknown road route.
@@ -87,7 +96,8 @@ public static class SceneRecruitmentService {
             BasePlaceId = access.BasePlaceId, RoadMiles = access.RoadMiles,
             AccessEvidence = access.Evidence,
             OriginPlaceId = artist.geography?.originPlaceId,
-            Explanation = access.Route == "LocalVisitor" ? "Dated guest participation at HQ; base retained" :
+            Explanation = access.Route is "ForeignAgency" or "SourceCircuit" or "SpecialistReferral" ? "Dated business introduction; no artist travel, move, master license or new distribution implied" :
+                access.Route == "LocalVisitor" ? "Dated guest participation at HQ; base retained" :
                 "Recruitment access v1; contract retains origin and working base; no relocation required"
         });
     }

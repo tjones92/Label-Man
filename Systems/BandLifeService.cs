@@ -543,7 +543,7 @@ public static class BandLifeService {
 			m.lifeState = MemberLifeState.Active;
 			summary.draftReturns++;
 			SimulatedArtist old = ArtistManager.Instance.GetArtist(p.lastArtistId);
-			bool wanted = old != null && old.lifecycleStatus == ArtistLifecycleStatus.Active && Applies(old) &&
+			bool wanted = old != null && old.lifecycleStatus == ArtistLifecycleStatus.Active && Applies(old) && SceneSourceService.CanJoinFromPool(m, old) &&
 				(old.members.Count(x => x.isActive) < 4 || BandLife.Chance($"{m.personId}|{year}|rejoin", 0.5f));
 			if (!wanted) { p.sinceYear = year; p.leftAs = DepartureKind.None; continue; }
 			PersonPool.Take(m.personId);
@@ -1207,7 +1207,7 @@ public static class BandLifeService {
 
 	public static PooledPerson FindPoolReplacement(SimulatedArtist a, MusicianRole role, bool lead, int year) =>
 		PersonPool.Ordered()
-			.Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 45 && p.lastArtistId != a.artistId)
+			.Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 45 && p.lastArtistId != a.artistId && SceneSourceService.CanJoinFromPool(p.person, a))
 			.Select(p => (p, score: RoleMatch(role, lead, p.person) + (p.homeRegion == a.homeRegion ? 1f : 0f) +
 				SceneMatch(p.lastGenre, a.primaryGenre) + (p.person.GetAge(year) <= 35 ? 0.5f : 0f) + p.person.technicalSkill))
 			.Where(x => RoleMatch(role, lead, x.p.person) >= 2f)
@@ -1342,6 +1342,7 @@ public static class BandLifeService {
 		Musician hire;
 		bool fromPool = poolPersonId != null;
 		if (fromPool) {
+			if (!SceneSourceService.CanJoinFromPool(PersonPool.Get(poolPersonId)?.person, a)) return null;
 			PooledPerson p = PersonPool.Take(poolPersonId);
 			if (p == null) return null;
 			hire = p.person;
@@ -1398,7 +1399,7 @@ public static class BandLifeService {
 	public static bool TryRecombine(SimulatedArtist fresh, int year) {
 		if (!BandLife.WorldChurn || fresh == null || !ArtistManager.IsGroupAct(fresh) || fresh.members.Count < 2) return false;
 		if (!BandLife.Chance($"recombine|{fresh.artistId}", RecombinationShare)) return false;
-		var fits = PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 40 &&
+		var fits = PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 40 && SceneSourceService.CanJoinFromPool(p.person, fresh) &&
 			SceneMatch(p.lastGenre, fresh.primaryGenre) >= 0.75f &&
 			(p.homeRegion == fresh.homeRegion || BandLife.Unit($"recombine-region|{p.person.personId}|{fresh.artistId}") < 0.25f)).ToList();
 		if (fits.Count < 2) return false;

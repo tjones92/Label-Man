@@ -9,7 +9,7 @@ $sceneFolder=Join-Path $sceneRoot "SimLogs/$sceneRun"
 if(Test-Path $sceneFolder){throw 'Use a fresh tag.'}
 if(@(Get-Process | Where-Object ProcessName -Match '^Godot|^Label Man$').Count){throw 'Another game is active.'}
 New-Item -ItemType Directory -Path $sceneFolder | Out-Null
-$sceneArgs=@('--headless','--path','.','SimTools/ChartAuditRunner.tscn','--','--seed=1001','--weeks=26',"--run=$sceneRun",'--enable-genre-market-v2','--enable-artist-population-lifecycle','--enable-artist-evolution','--enable-artist-recognition','--enable-managers','--seed-star-canopy','--enable-cowriting','--enable-member-axes','--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--aggregate-only','--observe-scene-dynamics','--scene-recruitment-audit','--scene-room-audit')
+$sceneArgs=@('--headless','--path','.','SimTools/ChartAuditRunner.tscn','--','--seed=1001','--weeks=26',"--run=$sceneRun",'--enable-genre-market-v2','--enable-artist-population-lifecycle','--enable-artist-evolution','--enable-artist-recognition','--enable-managers','--seed-star-canopy','--enable-cowriting','--enable-member-axes','--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--disable-scene-extended-world','--aggregate-only','--observe-scene-dynamics','--scene-recruitment-audit','--scene-room-audit')
 $sceneOut=Join-Path $sceneFolder 'console.log'
 $sceneProcess=Start-Process -FilePath $sceneGodot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneOut -RedirectStandardError (Join-Path $sceneFolder 'errors.log')
 while(!$sceneProcess.WaitForExit(10000)){}

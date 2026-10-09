@@ -13,9 +13,9 @@ $sceneJobs=@(
  @{name='information-2002';root=$sceneRoot;driver='SaveLoadRoundTripRunner';seed=2002;weeks=0;flags=@('--scene-information-check');marker='SCENE_INFORMATION_CHECK_PASS'},
  @{name='integration-1001';root=$sceneRoot;driver='SaveLoadRoundTripRunner';seed=1001;weeks=0;flags=@('--integration');marker='SAVELOAD_INTEGRATION_PASS'},
  @{name='ui-1001';root=$sceneRoot;driver='SceneRoomUiRunner';seed=1001;weeks=0;flags=@('--scene-information-ui-check');marker='SCENE_INFORMATION_UI_PASS'},
- @{name="$RunTag-control-1001";root=$scenePrior;driver='ChartAuditRunner';seed=1001;weeks=8;flags=@('--aggregate-only')+$sceneSlices;marker='CHART_AUDIT_COMPLETE'},
- @{name="$RunTag-default-1001";root=$sceneRoot;driver='ChartAuditRunner';seed=1001;weeks=8;flags=@('--aggregate-only');marker='CHART_AUDIT_COMPLETE'},
- @{name="$RunTag-explicit-1001";root=$sceneRoot;driver='ChartAuditRunner';seed=1001;weeks=8;flags=@('--aggregate-only')+$sceneSlices;marker='CHART_AUDIT_COMPLETE'}
+ @{name="$RunTag-control-1001";root=$scenePrior;driver='ChartAuditRunner';seed=1001;weeks=8;flags=@('--disable-scene-extended-world','--aggregate-only')+$sceneSlices;marker='CHART_AUDIT_COMPLETE'},
+ @{name="$RunTag-default-1001";root=$sceneRoot;driver='ChartAuditRunner';seed=1001;weeks=8;flags=@('--disable-scene-extended-world','--aggregate-only');marker='CHART_AUDIT_COMPLETE'},
+ @{name="$RunTag-explicit-1001";root=$sceneRoot;driver='ChartAuditRunner';seed=1001;weeks=8;flags=@('--disable-scene-extended-world','--aggregate-only')+$sceneSlices;marker='CHART_AUDIT_COMPLETE'}
 )
 $sceneManifest=[ordered]@{assemblySha256=(Get-FileHash (Join-Path $sceneRoot '.godot/mono/temp/bin/Debug/Label Man.dll')).Hash;priorAssemblySha256=(Get-FileHash (Join-Path $scenePrior '.godot/mono/temp/bin/Debug/Label Man.dll')).Hash;sourceHashes=@(Get-ChildItem (Join-Path $sceneRoot 'Systems'),(Join-Path $sceneRoot 'Data'),(Join-Path $sceneRoot 'SimTools') -Filter '*.cs' | Get-FileHash | Select-Object Path,Hash);jobs=$sceneJobs;results=@();maximumParallel=1}
 foreach($sceneJob in $sceneJobs){

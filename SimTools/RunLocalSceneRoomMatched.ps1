@@ -9,7 +9,7 @@ if($RunTag -notmatch '^[a-z0-9-]+$' -or (Test-Path -LiteralPath $sceneFolder)){t
 if(@(Get-Process | Where-Object ProcessName -Match '^Godot|^Label Man$').Count){throw 'Another game is active.'}
 $sceneFlags=@('--enable-genre-market-v2','--enable-artist-population-lifecycle','--enable-artist-evolution',
  '--enable-artist-recognition','--enable-managers','--seed-star-canopy','--enable-cowriting','--enable-member-axes',
- '--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--aggregate-only',
+ '--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--disable-scene-extended-world','--aggregate-only',
  '--local-scene-identity-audit','--local-scene-persistence-audit','--scene-room-audit')
 $sceneJobs=@()
 $sceneResults=@()

@@ -39,7 +39,9 @@ public static class SceneCityPlacementChecks {
             writer.WriteLine("city,cohort,acts,share,signed");
             foreach (var cohort in acts.Select(a => a.cohort).Distinct().OrderBy(c => c)) {
                 var group = acts.Where(a => a.cohort == cohort).ToArray();
-                foreach (var city in cities.OrderByDescending(p => group.Count(a => a.geography?.basePlaceId == p.Id))) {
+                var censusPlaces = ScenePlaceRegistry.All.Where(p => p.Id == p.PlayableCityId || SceneSourceService.IsSource(p.Id)).ToArray();
+                Check(group.All(a => censusPlaces.Any(p => p.Id == a.geography?.basePlaceId)), "census includes every domestic, specialist and foreign cohort act");
+                foreach (var city in censusPlaces.OrderByDescending(p => group.Count(a => a.geography?.basePlaceId == p.Id))) {
                     var residents = group.Where(a => a.geography?.basePlaceId == city.Id).ToArray();
                     writer.WriteLine(FormattableString.Invariant($"{city.Id},{cohort},{residents.Length},{residents.Length/(double)group.Length:F6},{residents.Count(a => !string.IsNullOrEmpty(a.labelId))}"));
                 }

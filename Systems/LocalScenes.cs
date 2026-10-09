@@ -13,6 +13,7 @@ public static class LocalScenes {
     public static bool PriceFeedback { get; private set; }
     public static bool Institutions { get; private set; }
     public static bool Relocation { get; private set; }
+    public static bool ExtendedWorld { get; private set; }
     public static void ValidateDependencies() {
         if (Persisting && !ArtistPopulationLifecycle.Enabled)
             throw new ArgumentException("Persistent scenes require the existing artist population lifecycle birth owner.");
@@ -62,6 +63,9 @@ public static class LocalScenes {
                 (args.Contains("--disable-scene-" + slice, StringComparer.Ordinal) || !effectiveRecruitment || disableRooms))
                 throw new ArgumentException("Scene " + slice + " requires persistent rooms and recruitment and cannot be enabled and disabled together.");
         bool defaultSlices = effectiveRecruitment && !disableRooms;
+        bool extended = args.Contains("--enable-scene-extended-world", StringComparer.Ordinal);
+        if (extended && (!defaultSlices || args.Contains("--disable-scene-extended-world", StringComparer.Ordinal)))
+            throw new ArgumentException("Extended source scenes require persistent rooms and recruitment and conflict with explicit disable.");
         institutions |= defaultSlices && !args.Contains("--disable-scene-institutions", StringComparer.Ordinal);
         price |= defaultSlices && !args.Contains("--disable-scene-price-feedback", StringComparer.Ordinal);
         relocation |= defaultSlices && institutions && !args.Contains("--disable-scene-relocation", StringComparer.Ordinal);
@@ -72,6 +76,7 @@ public static class LocalScenes {
         PriceFeedback = price;
         Institutions = institutions;
         Relocation = relocation;
+        ExtendedWorld = extended || (defaultSlices && !args.Contains("--disable-scene-extended-world", StringComparer.Ordinal));
         AttentionFeedbackAudit = args.Contains("--scene-feedback-audit", StringComparer.Ordinal);
         SceneAttentionFeedback.Reset();
         Observing = observe || persist;

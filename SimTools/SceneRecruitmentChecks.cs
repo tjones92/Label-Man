@@ -72,7 +72,8 @@ public static class SceneRecruitmentChecks {
         Check(WorldStateService.Capture().PopulationRngState == original.PopulationRngState, "recruitment query preserves population RNG");
         var world = ArtistManager.Instance.GetAllArtists().ToList();
         var histories = world.SelectMany(a => a.sceneRecruitmentHistory ?? new()).ToList();
-        Check(histories.Count > 0 && histories.All(r => r.Route is "Catchment" or "RoadCircuit" or "NationalAr" or "LocalVisitor"), "opening roster signings all explained");
+        Check(histories.Count > 0 && histories.All(r => r.Route is "Catchment" or "RoadCircuit" or "NationalAr" or "LocalVisitor" or "ForeignAgency" or "SpecialistReferral" or "SourceCircuit"), "opening roster signings all explained");
+        Check(histories.Where(r => r.Route is "ForeignAgency" or "SpecialistReferral" or "SourceCircuit").All(r => !string.IsNullOrWhiteSpace(r.AccessEvidence) && r.RoadMiles == null), "source contracts retain business evidence without invented travel");
         Check(histories.All(r => r.BasePlaceId == ArtistManager.Instance.GetArtist(r.ArtistId).geography.basePlaceId), "opening contracts do not teleport acts");
         var labels = ChartManager.Instance.GetAllLabels();
         Check(labels.SelectMany(l => l.roster).All(a => a.sceneRecruitmentHistory?.Any(r => r.LabelId == a.labelId) == true), "no initialization signing bypass");

@@ -29,7 +29,7 @@ public static class SaveGameService {
 	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
     // v7: dated room bills, engagements, performance/work ledgers and notebook source IDs.
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
-	public const int CurrentVersion = 9; // funded scene programs and relocation commitments
+	public const int CurrentVersion = 10; // v9: funded programs/moves; v10: source connections and demo provenance
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -473,6 +473,7 @@ public sealed class ProspectNotebookSaveData {
 	public string CityId { get; set; }
     public string SceneRoomId { get; set; }
     public string SceneBillId { get; set; }
+    public string SourceConnectionId { get; set; }
 	public int Year { get; set; }
 	public int Month { get; set; }
 	public int Day { get; set; }
@@ -555,6 +556,7 @@ public sealed class LabelSaveData {
 	public string founderName { get; set; }
 	public string headquartersCity { get; set; }
 	public GeographicIdentity Geography { get; set; }
+    public List<SceneBusinessConnection> SceneBusinessConnections { get; set; }
 	public string homeRegion { get; set; }
 	public string homeCityId { get; set; }
 	public int archetype { get; set; }
@@ -606,7 +608,7 @@ public sealed class LabelSaveData {
 
 	public static LabelSaveData From(AILabel l) => new() {
 		labelId = l.labelId, labelName = l.labelName, founderName = l.founderName,
-		headquartersCity = l.headquartersCity, Geography = l.geography, homeRegion = l.homeRegion, homeCityId = l.homeCityId,
+		headquartersCity = l.headquartersCity, Geography = l.geography, SceneBusinessConnections = LocalSceneRoomService.Copy(l.sceneBusinessConnections), homeRegion = l.homeRegion, homeCityId = l.homeCityId,
 		archetype = (int)l.archetype, tier = (int)l.tier, foundedYear = l.foundedYear,
 		cashReserves = l.cashReserves, monthlyRevenue = l.monthlyRevenue, monthlyExpenses = l.monthlyExpenses,
 		lastMonthlyProfit = l.lastMonthlyProfit, reputation = l.reputation, maxRosterSize = l.maxRosterSize,
@@ -633,6 +635,7 @@ public sealed class LabelSaveData {
 	public void ApplyTo(AILabel l) {
 		l.labelId = labelId; l.labelName = labelName; l.founderName = founderName;
 		l.headquartersCity = headquartersCity; l.geography = Geography; l.homeRegion = homeRegion; l.homeCityId = homeCityId;
+        l.sceneBusinessConnections = LocalSceneRoomService.Copy(SceneBusinessConnections);
 		l.archetype = (LabelArchetype)archetype; l.tier = (LabelTier)tier; l.foundedYear = foundedYear;
 		l.cashReserves = cashReserves; l.monthlyRevenue = monthlyRevenue; l.monthlyExpenses = monthlyExpenses;
 		l.lastMonthlyProfit = lastMonthlyProfit; l.reputation = reputation; l.maxRosterSize = maxRosterSize;

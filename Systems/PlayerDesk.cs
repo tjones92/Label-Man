@@ -208,6 +208,7 @@ public partial class PlayerDesk : Node {
 		public string CityId;
         public string SceneRoomId;
         public string SceneBillId;
+        public string SourceConnectionId;
 		/// <summary>The act's full live set. Only <see cref="HeardCount"/> of it is visible until follow-up.</summary>
 		public readonly List<RepertoireItem> LiveSet = new();
 		/// <summary>How many songs the player actually caught on the night, before a second look.</summary>
@@ -249,6 +250,7 @@ public partial class PlayerDesk : Node {
 		public string CityId;
         public string SceneRoomId;
         public string SceneBillId;
+        public string SourceConnectionId;
 		public int HeardCount;
 		public bool FollowedUp;
 		/// <summary>Scouting the rough: the execution read when the act was first noted, and when, so a revisit three
@@ -1518,7 +1520,7 @@ public partial class PlayerDesk : Node {
 		if (notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) { message = "Already in your notebook."; return false; }
 		if (notebook.Count >= 6) { message = "The notebook is full. Remove an act before adding another."; return false; }
 		var entry = new WatchNote {
-			Artist = prospect.Artist, Venue = prospect.Venue, CityId = prospect.CityId, SceneRoomId = prospect.SceneRoomId, SceneBillId = prospect.SceneBillId,
+			Artist = prospect.Artist, Venue = prospect.Venue, CityId = prospect.CityId, SceneRoomId = prospect.SceneRoomId, SceneBillId = prospect.SceneBillId, SourceConnectionId = prospect.SourceConnectionId,
 			LastSeen = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate,
 			ReadQuality = prospect.ReadQuality, ReadConfidence = prospect.ReadConfidence,
 			AskingAdvance = prospect.AskingAdvance, Note = prospect.Note,
@@ -1556,7 +1558,7 @@ public partial class PlayerDesk : Node {
 			Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) / 4));
 		float readQuality = Mathf.Lerp(entry.ReadQuality, freshRead, Mathf.Clamp(staleDays / 120f, 0f, 0.55f));
 		var prospect = new Prospect {
-			Artist = entry.Artist, Venue = entry.Venue, CityId = entry.CityId, SceneRoomId = entry.SceneRoomId, SceneBillId = entry.SceneBillId, ReadQuality = readQuality,
+			Artist = entry.Artist, Venue = entry.Venue, CityId = entry.CityId, SceneRoomId = entry.SceneRoomId, SceneBillId = entry.SceneBillId, SourceConnectionId = entry.SourceConnectionId, ReadQuality = readQuality,
 			ReadConfidence = confidence, AskingAdvance = entry.AskingAdvance,
 			Note = DescribeProspect(entry.Artist, Label, Mathf.Lerp(0.30f, 0.10f, confidence)),
 			HeardCount = Mathf.Min(entry.HeardCount, entry.LiveSet.Count), FollowedUp = false
@@ -1679,6 +1681,7 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool FollowUp(Prospect prospect, out string message) {
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
+        if (prospect.SourceConnectionId != null) return FollowUpSourceDemo(prospect, out message);
 		if (prospect.FollowedUp) { message = "You've already had a second look."; return true; }
 		// Bug report: "I can follow up with a club act at 9am -- should have to wait until the
 		// clubs/roadhouses open again." The first look already gates on VenueOpenNow (line ~1080);
@@ -5719,7 +5722,7 @@ public partial class PlayerDesk : Node {
 			MorningDigest = MorningDigest,
 			UnreadLogCount = UnreadLogCount,
 			Notebook = notebook.Select(entry => new ProspectNotebookSaveData {
-				Artist = entry.Artist, Venue = (int)entry.Venue, CityId = entry.CityId, SceneRoomId = entry.SceneRoomId, SceneBillId = entry.SceneBillId,
+				Artist = entry.Artist, Venue = (int)entry.Venue, CityId = entry.CityId, SceneRoomId = entry.SceneRoomId, SceneBillId = entry.SceneBillId, SourceConnectionId = entry.SourceConnectionId,
 				Year = entry.LastSeen.year, Month = entry.LastSeen.month, Day = entry.LastSeen.day,
 				ReadQuality = entry.ReadQuality, ReadConfidence = entry.ReadConfidence,
 				AskingAdvance = entry.AskingAdvance, Note = entry.Note,
@@ -5976,7 +5979,7 @@ public partial class PlayerDesk : Node {
 			var entry = new WatchNote {
 				Artist = artist,
 				Venue = Enum.IsDefined(typeof(ScoutingVenue), saved.Venue) ? (ScoutingVenue)saved.Venue : ScoutingVenue.ClubsAndRoadhouses,
-				CityId = saved.CityId, SceneRoomId = saved.SceneRoomId, SceneBillId = saved.SceneBillId,
+				CityId = saved.CityId, SceneRoomId = saved.SceneRoomId, SceneBillId = saved.SceneBillId, SourceConnectionId = saved.SourceConnectionId,
 				LastSeen = new GameDate(saved.Year, saved.Month, saved.Day),
 				ReadQuality = saved.ReadQuality, ReadConfidence = saved.ReadConfidence,
 				AskingAdvance = saved.AskingAdvance, Note = saved.Note,
