@@ -302,7 +302,10 @@ public sealed class LaborMarketWeeklySnapshot {
 	internal static int GetDefaultInitialPoolSizeForPath(bool enabledLifecyclePath) =>
 		enabledLifecyclePath ? EnabledLifecycleInitialPoolSize : LegacyInitialPoolSize;
 	
-	public SimulatedArtist GenerateArtist(ArtistType type, Genre genre, int year, string region) {
+	public SimulatedArtist GenerateArtist(ArtistType type, Genre genre, int year, string region, ScenePlace formationPlace = null) {
+		// A place is a typed fifth argument; the fourth argument remains the calibrated region string.
+		if (formationPlace != null && ScenePlaceRegistry.Get(formationPlace.Id) == null)
+			throw new ArgumentException("Formation place is not in the identity registry.", nameof(formationPlace));
 		artistIdCounter++;
 		string id = $"artist_{artistIdCounter:D5}";
 		Genre primaryGenre;
@@ -357,6 +360,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		// takes nothing from the stream the reputation draw left it on.
 		ArtistEvolutionService.Initialize(artist, year);
 		artistRegistry[id] = artist;
+		LocalSceneIdentityService.EnsureArtist(artist, generated: true, formationPlaceId: formationPlace?.Id);
 		return artist;
 	}
 	internal static void ConfigureEasyListeningBandleader(SimulatedArtist artist,int year) {
@@ -1247,6 +1251,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
 		MemberAxesService.EnsureAxes(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
 		unsignedArtists.RemoveAll(candidate => candidate.artistId == artist.artistId);
+		LocalSceneIdentityService.EnsureArtist(artist);
 	}
 
 	/// <summary>Indexes a person who entered the world outside generation -- a keyed replacement hire.</summary>
@@ -1286,6 +1291,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			reputation = from.reputation * 0.5f,
 			momentum = from.momentum * 0.5f,
 		};
+		LocalSceneIdentityService.EnsureArtist(solo, generated: true, formationPlaceId: person.geography?.basePlaceId ?? from.geography?.basePlaceId);
 		BandLifeService.JoinAct(person, solo, MusicianRole.LeadVocals, lead: true, writer: person.isPrimaryWriter, year);
 		person.isFoundingMember = true;
 		person.isBandLeader = true;
@@ -1396,6 +1402,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		if (string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
 		if (!string.IsNullOrEmpty(artist.labelId)) return false;
 		artistRegistry.Remove(artistId);
+		LocalSceneIdentityService.ForgetArtist(artistId);
 		return true;
 	}
 
@@ -1408,6 +1415,11 @@ public sealed class LaborMarketWeeklySnapshot {
 			artistId = artist.artistId, name = artist.stageName, artistType = artist.type,
 			isBand = artist.type is ArtistType.Band or ArtistType.Duo or ArtistType.Trio or ArtistType.VocalGroup,
 			homeRegion = artist.homeRegion, primaryGenre = artist.primaryGenre, secondaryGenre = artist.secondaryGenre,
+		homeCity = ScenePlaceRegistry.Get(artist.geography?.originPlaceId)?.Name,
+		baseCity = ScenePlaceRegistry.Get(artist.geography?.basePlaceId)?.Name,
+		formationPlaceId = artist.geography?.originPlaceId, basePlaceId = artist.geography?.basePlaceId,
+		originEvidence = artist.geography?.originEvidence ?? PlaceEvidence.Unknown,
+		baseEvidence = artist.geography?.baseEvidence ?? PlaceEvidence.Unknown,
 			formedYear = artist.formedYear, careerState = artist.careerState, labelId = artist.labelId,
 			labelName = ChartManager.Instance?.GetLabelName(artist.labelId) ?? "Independent",
 			totalCharted = artist.charted, top40Hits = artist.top40Hits, top10Hits = artist.top10Hits,

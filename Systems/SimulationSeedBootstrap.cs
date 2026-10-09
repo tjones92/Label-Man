@@ -11,6 +11,12 @@ public partial class SimulationSeedBootstrap : Node {
 
 	public override void _EnterTree() {
 		var args = OS.GetCmdlineUserArgs();
+		try { LocalScenes.Configure(args); }
+		catch (Exception ex) {
+			GD.PrintErr("LOCAL_SCENE_FLAGS_REJECTED: " + ex.Message);
+			GetTree().Quit(2);
+			return;
+		}
 		try { GospelSongbookExpansion.ValidateRequest(args); }
 		catch (Exception ex) {
 			GD.PrintErr("GOSPEL_SONGBOOK_V2_REJECTED: " + ex.Message);

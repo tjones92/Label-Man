@@ -25,7 +25,8 @@ public static class SaveGameService {
 	// v4: the band-member simulation -- person pool, per-stint writer ledger, band-life seed, and the new
 	// member/act fields (relations, alumni, partners, axes, life state), which ride inside the artists. A v3
 	// save loads with defaults: empty pool, no edges, axes generated on load from the stored technicalSkill.
-	public const int CurrentVersion = 4;
+	// v5: geographic identity with unknown/inferred origins, moves, and a separate assignment seed.
+	public const int CurrentVersion = 5;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -301,10 +302,17 @@ public static class SaveGameService {
 		// top of it -- so roster acts and the player's released records re-link against the saved world, not a
 		// fresh one. A v1 save has a null World and this is a no-op.
 		GameDate savedDate = new GameDate(envelope.Year, envelope.Month, envelope.Day);
-		WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed);
-
-		bool restored = PlayerDesk.Instance.RestoreState(envelope.Player, out message);
-		if (restored) CurrentSlot = slot;
+		bool restored;
+		try {
+			WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed, deferSceneRelink: true);
+			restored = PlayerDesk.Instance.RestoreState(envelope.Player, out message);
+			if (restored) { LocalSceneIdentityService.CompleteRestore(); CurrentSlot = slot; }
+			else LocalSceneIdentityService.CancelRestore();
+		} catch (Exception error) {
+			LocalSceneIdentityService.CancelRestore();
+			message = $"Load failed: {error.Message}";
+			return false;
+		}
 		return restored;
 	}
 }
@@ -532,6 +540,7 @@ public sealed class LabelSaveData {
 	public string labelName { get; set; }
 	public string founderName { get; set; }
 	public string headquartersCity { get; set; }
+	public GeographicIdentity Geography { get; set; }
 	public string homeRegion { get; set; }
 	public string homeCityId { get; set; }
 	public int archetype { get; set; }
@@ -583,7 +592,7 @@ public sealed class LabelSaveData {
 
 	public static LabelSaveData From(AILabel l) => new() {
 		labelId = l.labelId, labelName = l.labelName, founderName = l.founderName,
-		headquartersCity = l.headquartersCity, homeRegion = l.homeRegion, homeCityId = l.homeCityId,
+		headquartersCity = l.headquartersCity, Geography = l.geography, homeRegion = l.homeRegion, homeCityId = l.homeCityId,
 		archetype = (int)l.archetype, tier = (int)l.tier, foundedYear = l.foundedYear,
 		cashReserves = l.cashReserves, monthlyRevenue = l.monthlyRevenue, monthlyExpenses = l.monthlyExpenses,
 		lastMonthlyProfit = l.lastMonthlyProfit, reputation = l.reputation, maxRosterSize = l.maxRosterSize,
@@ -609,7 +618,7 @@ public sealed class LabelSaveData {
 
 	public void ApplyTo(AILabel l) {
 		l.labelId = labelId; l.labelName = labelName; l.founderName = founderName;
-		l.headquartersCity = headquartersCity; l.homeRegion = homeRegion; l.homeCityId = homeCityId;
+		l.headquartersCity = headquartersCity; l.geography = Geography; l.homeRegion = homeRegion; l.homeCityId = homeCityId;
 		l.archetype = (LabelArchetype)archetype; l.tier = (LabelTier)tier; l.foundedYear = foundedYear;
 		l.cashReserves = cashReserves; l.monthlyRevenue = monthlyRevenue; l.monthlyExpenses = monthlyExpenses;
 		l.lastMonthlyProfit = lastMonthlyProfit; l.reputation = reputation; l.maxRosterSize = maxRosterSize;

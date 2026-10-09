@@ -146,6 +146,7 @@ public partial class DistanceModel : Node {
 		(MarketCity city, string source) = ResolveHomeCity(label);
 		label.homeCityId = city?.cityId ?? GetHubCityIdForRegion(label.homeRegion);
 		label.homeCityAssignmentSource = source;
+		LocalSceneIdentityService.EnsureLabel(label);
 	}
 
 	public static (MarketCity City, string Source) ResolveHomeCity(AILabel label) {

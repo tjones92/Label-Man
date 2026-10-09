@@ -16,6 +16,8 @@ public class SimulatedArtist {
 	public Genre primaryGenre;
 	public Genre secondaryGenre;
 	public string homeRegion;
+	// Phase 1 observation metadata. Existing economic identity fields remain authoritative.
+	public GeographicIdentity geography;
 	public int formedYear;
 	public ArtistCohort cohort = ArtistCohort.InitialLegacy;
 	// Participation in the enabled first-contract labor market is intentionally

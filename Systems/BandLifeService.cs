@@ -1072,6 +1072,7 @@ public static class BandLifeService {
 		ResetStage(m);
 		a.members.Add(m);
 		ArtistManager.Instance?.RegisterMusician(m);
+		LocalSceneIdentityService.PersonJoined(m, a, year);
 		MemberAxesService.EnsureAxes(m, a, year);
 		a.careerEvents.Add($"{year}: {m.FullName} joined ({role})");
 		a.lastMemberChangeYear = year;
@@ -1160,6 +1161,7 @@ public static class BandLifeService {
 		m.loyalty = Stat("loy", 0.58f, 0.20f);
 		m.temperament = Stat("temp", 0.56f, 0.20f);
 		m.primaryRole = role;
+		LocalSceneIdentityService.EnsurePerson(m, a.geography?.basePlaceId, PlaceEvidence.Simulated);
 		return m;
 	}
 
@@ -1327,6 +1329,7 @@ public static class BandLifeService {
 			ResetStage(person);
 			fresh.members[index] = person;
 			ArtistManager.Instance.RegisterMusician(person);
+			LocalSceneIdentityService.PersonJoined(person, fresh, year);
 			if (++swapped >= Mathf.Max(2, fresh.members.Count / 2)) break;
 		}
 		if (swapped < 2) return swapped > 0;

@@ -258,13 +258,17 @@ public static class JournalisticDescriptor {
 		
 		string genreName = GenreNameFormatter.Format(artist.primaryGenre);
 		string article = WithAn(genreName) ? "an" : "a";
-		string region = string.IsNullOrEmpty(artist.homeCity) ? "parts unknown" : $"the {artist.homeCity} region";
+		string region = !string.IsNullOrEmpty(artist.homeCity) ? artist.homeCity :
+			string.IsNullOrEmpty(artist.homeRegion) ? "parts unknown" : $"the {artist.homeRegion} region";
 		if (artist.isBand) {
 			lines.Add($"{artist.name} are {article} {genreName} act out of {region}.");
 		} else {
 			lines.Add($"{artist.name} is {article} {genreName} singer from {region}.");
 		}
 		
+		if (!string.IsNullOrEmpty(artist.baseCity) && artist.baseCity != artist.homeCity)
+			lines.Add($"Their working base is {artist.baseCity}{(artist.baseEvidence == PlaceEvidence.Inferred ? " (inferred)" : "")}.");
+
 		if (artist.totalCharted == 0) {
 			lines.Add("They haven't charted yet, but the industry is watching.");
 		} else if (artist.totalCharted == 1) {

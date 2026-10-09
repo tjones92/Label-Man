@@ -482,6 +482,7 @@ public partial class ChartManager : Node {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return;
 		if (aiLabels != null && !aiLabels.Contains(label)) aiLabels.Add(label);
 		labelLookup[label.labelId] = label;
+		LocalSceneIdentityService.EnsureLabel(label);
 	}
 
 	// ========================================================================

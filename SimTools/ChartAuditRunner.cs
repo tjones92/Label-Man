@@ -418,6 +418,7 @@ public partial class ChartAuditRunner : Node {
 			InitializeObservedState();
 			CaptureDirective2Week();
 			CapturePolarCensus();
+			WriteSceneIdentityCensus("start");
 
 			var annualWallTime = Stopwatch.StartNew();
 		for (int week = 1; week <= requestedWeeks; week++) {
@@ -445,6 +446,7 @@ public partial class ChartAuditRunner : Node {
 				while (TimeManager.Instance.CurrentDate < GameDate.EndDate) TimeManager.Instance.DebugAdvanceDay();
 				GD.Print($"POLAR_FINAL_DATE date={TimeManager.Instance.CurrentDate.ToShortString()} enabled={PolarSongBehavior.UsePolarFitSelection}");
 			}
+			WriteSceneIdentityCensus("end");
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
 			WriteGenreShapeYear();

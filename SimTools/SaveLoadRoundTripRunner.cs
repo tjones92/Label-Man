@@ -37,6 +37,8 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (TimeManager.Instance == null || ChartManager.Instance == null)
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 
+			if (OS.GetCmdlineUserArgs().Contains("--local-scene-identity-check")) { LocalSceneIdentityChecks.Run(); GetTree().Quit(0); return; }
+
 			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
 			if (inspectSlot != null) { RunInspect(inspectSlot, weeks); return; }
 			if (mechanicalCheck) { RunMechanicalRoyaltyCheck(); return; }

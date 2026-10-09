@@ -6098,6 +6098,7 @@ public partial class PlayerDesk : Node {
 			? $"Loaded {label.labelName}."
 			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
 		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
+		LocalSceneIdentityService.CompleteDirectPlayerRestore();
 		Note(message);
 		Changed?.Invoke();
 		return true;
