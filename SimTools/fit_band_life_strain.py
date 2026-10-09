@@ -14,6 +14,9 @@ in BandLifeService correspond to: --scale=1.45 --w-credit=2.0 --w-spot=2.5 --w-d
 --w-burn=0.35 --w-out=0.1 --friction=3.6 --solvent=0.77. A pair log written under the fitted constants already carries
 StrainScale's friction and SolventScale in its projectFriction and solvent columns, so replay it with --friction=1
 --solvent=1 and the remaining weights above.
+
+--sub-mult scales the logged substanceRaw, to replay an older pair log at a newer substance stock. The bms2-obs logs
+predate the habit-draw resize (b9c63be); --sub-mult=1.8 puts them at the 1967-68 stock of the bms5 runs (§15).
 """
 import os
 import sys
@@ -28,7 +31,7 @@ CAUSES = ["CreditAndMoney", "Spotlight", "Direction", "Reliability", "Burnout", 
 
 LIVE = dict(scale=1.0, retention=0.60, w_credit=0.60, w_spot=0.40, w_dir=0.25, w_rel=0.30, w_sub=0.20, w_burn=0.12,
             w_out=0.05, friction=1.0, r_dir=0.10, r_credit=0.05, brewing=0.45, ultimatum=0.65, departure=0.85,
-            morale_shift=0.5, solvent=1.0)
+            morale_shift=0.5, solvent=1.0, sub_mult=1.0)
 
 
 def load(run):
@@ -43,7 +46,7 @@ def replay(pairs, acts, p):
         "CreditAndMoney": p["w_credit"] * pairs["creditRaw"] + p["r_credit"] * pairs["rivalry"],
         "Spotlight": p["w_spot"] * pairs["spotlightRaw"],
         "Direction": p["w_dir"] * pairs["directionRaw"] + p["friction"] * pairs["projectFriction"] + p["r_dir"] * pairs["rivalry"],
-        "Reliability": p["w_rel"] * pairs["reliabilityRaw"] + p["w_sub"] * pairs["substanceRaw"],
+        "Reliability": p["w_rel"] * pairs["reliabilityRaw"] + p["w_sub"] * p["sub_mult"] * pairs["substanceRaw"],
         "Outsider": p["w_out"] * pairs["outsiderRaw"],
     }
     mult = p["scale"] * pairs["scale"] * pairs["workFactor"]

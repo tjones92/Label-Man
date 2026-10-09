@@ -1428,12 +1428,94 @@ invariants), and `SaveLoadRoundTripRunner` passes over a band-life pass.
 
 The first treatment (`bms5-on`) raised the release hook 1.3% and cut Direction to 13%; `TeamCraftWeight` .5 → .2 and
 the Direction power fixed both. Reliability is the largest cause in **both** arms (38-39% by 1967-68, with the
-substance era); that predates this bundle, and is over §7.2's line. It is the next thing to look at.
+substance era); that predates this bundle. (Correction, §15: §7.2's kill line is 45%, not 30%, and on charted groups
+the share is 24%.)
 
 **Open.**
-1. Reliability at 38% of late-decade departures, in control as well as treatment.
+1. ~~Reliability at 38% of late-decade departures, in control as well as treatment.~~ Investigated in §15.
 2. The scouting card was checked logically (`--band-life-check` prints real cards), not by a screenshot.
 3. Wealth starts at a 35% seed in resumed worlds. A 1960-start run is where the writer/non-writer gap will show at
    full size (writer income is only 1.8% of income in a resumed 1968 window, because the share-weighted ledger starts
    at the resume).
 4. The paired-seed check of the whole bundle is still owed, at the author's discretion.
+
+## 15. Reliability at 38% late in the decade — investigation, 2026-10-08
+
+No new runs. Everything here comes from data already on disk: the lineup logs of `bms3-refill-*`, `bms4d-ctl-*`,
+`bms4e-intent90-1001` and `bms5-{off,on2}-1001`, the `bms5` member snapshots, the `bms2-obs-1001` pair log, and
+`Data/LineupReferenceSet.csv`.
+
+**The line.** §7.2 kills at 45% for any single cause. The 30% in §2.17 is the sketch's unsourced prior, not a limit.
+§14 said Reliability was "over §7.2's line"; it was not. Still, it was rising: 1968 alone ran 41-44% (`bms4d-ctl-1001`
+44%), and no run has scored a 1969 year-end pass yet.
+
+**1. It is substance, through the firing channel.** In 1967-68 (`bms5-off` / `on2`):
+- 71-74% of Reliability departures fire a member who is using (`substanceLoad` ≥ .05 that year).
+- About 1% of group members are using, and each one is fired at **13-15% a year**. Non-users leave over
+  Reliability at 0.05-0.07% a year, roughly 250 times less often.
+- The term behind it is `SubstanceReliabilityWeight · max(load)`. It puts .95 × ~.30 on **every** edge the user
+  is on, and unlike the trait term it carries no temperament factor. The other members all become complainers, so
+  the user is the one who leaves (`Fired`).
+- Drop the using-leaver exits and the pooled Reliability share falls to 14-15%. That is an upper bound, since some
+  of that strain would leave under another cause.
+
+**2. The 38% is mostly never-charted acts.** By period, for group strain departures:
+
+| | 1960-64 | 1965-66 | 1967-69 |
+|---|---|---|---|
+| Charted groups, model (all runs) | 5-9% | 12-17% | 18-24% |
+| Never-charted, model | 40-48% | 47-53% | 50-53% |
+| Reference, Reliability first changes | 0 / 20 | 0 / 15 | 4 / 22 (18%); 4 / 14 strain-coded (29%) |
+
+- In never-charted acts Reliability has led all decade, including 1960-64, when substance was near zero. Spotlight
+  (× fame) and CreditAndMoney (× money) are close to 0 for unknown acts, so Reliability and Direction win by default.
+- Never-charted acts are 55% of late departures, so they set the pooled number.
+- The reference covers only top-40 groups. On those the model sits at 18-24% late, inside the reference.
+- The reference's late changes are drug-heavy as well: 6 of the 14 strain-coded 1967-69 first changes are
+  drug-linked. Four are coded Reliability (Jones, Ballard, Love, Bratton), and two were busts coded Outsider
+  (Yanovsky, Palmer).
+- Once using leavers are removed, charted Reliability is 5%. So nearly all of the charted late Reliability is
+  substance, and that is the historical pattern.
+
+**3. Why it overshot: the weight was fitted before the habit was resized.** `w_sub` .20 → .95 was fitted (b81ca92)
+on the `bms2-obs` pair log. b9c63be then strengthened the habit draw:
+- persistence went from about .42 to about .74 a year at reliability .6;
+- the dose went up 25%.
+
+The weight was not refitted afterwards. Onsets barely moved (pairs with a user: 1.85% → 1.94% in 1967), but the
+load per user rose about 1.8× (.18 → .30 in 1967). An offline replay of the `bms2-obs-1001` pair log
+(`fit_band_life_strain.py`, fitted constants, new `--sub-mult`) shows this:
+
+| Substance stock / `w_sub` | Pooled 1967-68 | Charted | Never | Total departures 1960-68 |
+|---|---|---|---|---|
+| as fitted (×1.0) / .95 | 25% | 13% | 39% | 1,813 |
+| today (×1.8) / .95 | **39%** | **25%** | **52%** | 2,025 |
+| ×1.8 / .60 | 27% | 15% | 40% | 1,845 |
+| ×1.8 / .45 | 22% | 11% | 34% | 1,779 |
+| ×1.8 / .30 | 18% | 8% | 30% | 1,738 |
+
+The ×1.8 / .95 row matches the live runs (39% pooled, 24% charted, 50-52% never), which validates the replay. At
+the stock it was fitted on, the weight gave 25%.
+
+**Recommendation: don't cut `w_sub` to chase the pooled number.**
+- Refitting to the old effective level (about .53) would drop charted late Reliability to about 13%, below the
+  reference's 18-29%.
+- It would also remove about 9% of all strain departures, most of them late. That moves the refill and population
+  measures (§7.4), so it would need a seed A/B.
+- The charted mix is the only part with a benchmark, and it currently matches history.
+
+What changes now (tooling only, so the economy is untouched):
+- `analyze_band_life.py` §[2] prints the mix by period × charted/never-charted.
+- The 45% kill now reads charted groups. The pooled max is report-only.
+
+**Still open.**
+1. Score a 1969 year-end pass. Pooled 1968 was 41-44%, and 1969 runs at `SubstanceEra` 1.0 with users still rising
+   (1.0% → 1.2% of members), so the charted number may move too.
+2. A design question for the author, about what the player sees. A player's early acts are never-charted, and half
+   their strain exits are "Fired (unreliable)". If that reads as samey, the structural lever is not `w_sub`. Two
+   options:
+   - give the substance term the complainer's `(1 − temperament)` factor, as the trait term already has;
+   - route some substance exits to a non-strain kind: walked out, or a bust coded Outsider, the way the reference
+     codes Yanovsky and Palmer.
+
+   Either one needs a run.

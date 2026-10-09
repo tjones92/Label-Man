@@ -76,7 +76,21 @@ def analyze(run):
     life_mix = Counter(e["kind"] for e in life_dep)
     p(f"  life-event departures: {dict(life_mix)}")
     top = max(mix.values()) / max(1, total) if total else 0
-    p(f"  KILL if any single cause > 45%: {'FAIL' if top > 0.45 else 'ok'} (max {top:.1%})")
+    p(f"  pooled max {top:.1%} (report only: the reference covers top-40 groups, so the kill reads charted groups)")
+    # The pooled mix is mostly never-charted acts, where Spotlight and Credit (fame- and money-scaled) are ~0 and
+    # Reliability wins by default. Compare like with like: charted groups against the reference, by period.
+    groups_dep = [e for e in strain_dep if e["constitution"] != "Solo"]
+    for lo, hi in ((1960, 1964), (1965, 1966), (1967, 1969)):
+        for tier in ("true", "false"):
+            s = [e for e in groups_dep if lo <= int(e["year"]) <= hi and e["everCharted"] == tier]
+            if s:
+                c = Counter(e["cause"] for e in s)
+                p(f"  {lo}-{hi} {'charted' if tier == 'true' else 'never  '} n={len(s):4d}  " +
+                  "  ".join(f"{k[:5]} {c.get(k, 0) / len(s):4.0%}" for k in CAUSES))
+    charted_dep = [e for e in groups_dep if e["everCharted"] == "true"]
+    cmix = Counter(e["cause"] for e in charted_dep)
+    ctop = max(cmix.values()) / len(charted_dep) if charted_dep else 0
+    p(f"  KILL if any single cause > 45% of charted-group departures: {'FAIL' if ctop > 0.45 else 'ok'} (max {ctop:.1%})")
 
     # 3. cascades
     by_act = defaultdict(list)
