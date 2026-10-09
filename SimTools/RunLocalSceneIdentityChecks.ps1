@@ -50,7 +50,7 @@ foreach ($sceneJob in $sceneJobs) {
     $sceneArgs = @('--headless', '--path', '.', 'SimTools/SaveLoadRoundTripRunner.tscn', '--', '--seed=1001', "--weeks=$($sceneJob.weeks)") + $sceneFlags + $sceneJob.flags
     Write-Output "Starting $($sceneJob.name), available RAM $sceneFreeBefore MiB."
     $sceneStarted = [DateTime]::UtcNow
-    $sceneProcess = Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError $sceneStderr
+    $sceneProcess = Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError $sceneStderr; $null=$sceneProcess.Handle
     # The console launcher owns the engine child. Do not kill other runs or impose a launcher-only timeout.
     while (!$sceneProcess.WaitForExit(10000)) { Write-Output "Running $($sceneJob.name): $([int]([DateTime]::UtcNow - $sceneStarted).TotalSeconds)s." }
     $sceneProcess.WaitForExit()

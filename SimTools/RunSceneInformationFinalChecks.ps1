@@ -25,7 +25,7 @@ foreach($sceneJob in $sceneJobs){
  if($sceneJob.driver -eq 'ChartAuditRunner'){$sceneArgs+=@("--run=$($sceneJob.name)")}
  $sceneOut=Join-Path $sceneFolder "$($sceneJob.name)-console.log"
  $sceneStart=[datetime]::UtcNow
- $sceneProcess=Start-Process -FilePath $sceneGodot -ArgumentList $sceneArgs -WorkingDirectory $sceneJob.root -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneOut -RedirectStandardError (Join-Path $sceneFolder "$($sceneJob.name)-errors.log")
+ $sceneProcess=Start-Process -FilePath $sceneGodot -ArgumentList $sceneArgs -WorkingDirectory $sceneJob.root -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneOut -RedirectStandardError (Join-Path $sceneFolder "$($sceneJob.name)-errors.log"); $null=$sceneProcess.Handle
  while(!$sceneProcess.WaitForExit(10000)){}
  $sceneProcess.WaitForExit()
  $scenePassed=$sceneProcess.ExitCode -eq 0 -and (Get-Content $sceneOut -Raw).Contains($sceneJob.marker)

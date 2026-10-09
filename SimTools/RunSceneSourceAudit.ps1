@@ -12,7 +12,7 @@ New-Item -ItemType Directory -Path $scenePreflightFolder -Force | Out-Null
 foreach($scenePreflightSeed in @(1001,2002)) {
  $scenePreflightArgs=@('--headless','--path','.','SimTools/SaveLoadRoundTripRunner.tscn','--',"--seed=$scenePreflightSeed",'--weeks=0','--scene-source-check','--enable-genre-market-v2','--enable-artist-population-lifecycle','--enable-artist-evolution','--enable-artist-recognition','--enable-managers','--seed-star-canopy','--enable-cowriting','--enable-member-axes','--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90')
  $scenePreflightOutput=Join-Path $scenePreflightFolder "$RunTag-$scenePreflightSeed-console.log"
- $scenePreflightProcess=Start-Process -FilePath $scenePreflightGodot -ArgumentList $scenePreflightArgs -WorkingDirectory (Join-Path $PSScriptRoot '..') -WindowStyle Hidden -PassThru -RedirectStandardOutput $scenePreflightOutput -RedirectStandardError (Join-Path $scenePreflightFolder "$RunTag-$scenePreflightSeed-errors.log")
+ $scenePreflightProcess=Start-Process -FilePath $scenePreflightGodot -ArgumentList $scenePreflightArgs -WorkingDirectory (Join-Path $PSScriptRoot '..') -WindowStyle Hidden -PassThru -RedirectStandardOutput $scenePreflightOutput -RedirectStandardError (Join-Path $scenePreflightFolder "$RunTag-$scenePreflightSeed-errors.log"); $null=$scenePreflightProcess.Handle
  while(!$scenePreflightProcess.WaitForExit(10000)){}
  $scenePreflightProcess.WaitForExit()
  if($scenePreflightProcess.ExitCode -ne 0 -or !(Get-Content $scenePreflightOutput -Raw).Contains('SCENE_SOURCE_CHECK_PASS')){throw 'Source preflight failed.'}
@@ -41,7 +41,7 @@ foreach($sceneJob in $sceneJobs){
  $sceneArgs=@('--headless','--path','.','SimTools/ChartAuditRunner.tscn','--',"--weeks=$Weeks","--run=$sceneName","--seed=$($sceneJob.seed)")+$sceneFlags+@($sceneExtra)
  $sceneStdout=Join-Path $sceneFolder "$sceneName-console.log"
  $sceneStart=[datetime]::UtcNow
- $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError (Join-Path $sceneFolder "$sceneName-errors.log")
+ $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError (Join-Path $sceneFolder "$sceneName-errors.log"); $null=$sceneProcess.Handle
  while(!$sceneProcess.WaitForExit(10000)){}
  $sceneProcess.WaitForExit()
  $sceneRows=@(Import-Csv (Join-Path $sceneRoot "SimLogs/$sceneName-weeks.csv"))

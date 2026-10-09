@@ -42,7 +42,7 @@ while($scenePending.Count -or $sceneActive.Count){
   $sceneJob=$scenePending[0]; $scenePending=@($scenePending | Select-Object -Skip 1)
   $sceneArgs=@('--headless','--path','.','SimTools/ChartAuditRunner.tscn','--','--weeks=52',"--run=$($sceneJob.name)","--seed=$($sceneJob.seed)",
    '--save-world-at-year=1960',"--save-world=$($sceneJob.name)-start")+$sceneFlags+$sceneJob.extra
-  $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sceneFolder "$($sceneJob.name)-console.log") -RedirectStandardError (Join-Path $sceneFolder "$($sceneJob.name)-errors.log")
+  $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sceneFolder "$($sceneJob.name)-console.log") -RedirectStandardError (Join-Path $sceneFolder "$($sceneJob.name)-errors.log"); $null=$sceneProcess.Handle
   $sceneActive+=@{job=$sceneJob;process=$sceneProcess;start=[datetime]::UtcNow;args=$sceneArgs}
   Write-Output "Started $($sceneJob.name)."
  }

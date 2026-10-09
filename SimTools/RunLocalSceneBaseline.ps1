@@ -29,7 +29,7 @@ foreach ($sceneJob in $sceneJobs) {
     if (@(Get-Process | Where-Object { $_.ProcessName -match '^Godot|^Label Man$' }).Count -gt 0) { throw 'Another Godot/game process is active; stop and coordinate before retrying.' }
     $sceneArgs = @('--headless', '--path', '.', 'SimTools/ChartAuditRunner.tscn', '--', "--weeks=$($sceneJob.weeks)", "--run=$($sceneJob.name)", "--seed=$($sceneJob.seed)", '--aggregate-only') + $sceneFlags + $sceneJob.extra
     Write-Output "Starting $($sceneJob.name): $($sceneJob.weeks) weeks, seed $($sceneJob.seed)."
-    $sceneProcess = Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sceneArtifacts "$($sceneJob.name)-console.log") -RedirectStandardError (Join-Path $sceneArtifacts "$($sceneJob.name)-errors.log")
+    $sceneProcess = Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $sceneArtifacts "$($sceneJob.name)-console.log") -RedirectStandardError (Join-Path $sceneArtifacts "$($sceneJob.name)-errors.log"); $null=$sceneProcess.Handle
     $sceneStarted = [DateTime]::UtcNow
     while (!$sceneProcess.WaitForExit(10000)) {
         if (([DateTime]::UtcNow - $sceneStarted).TotalMinutes -gt 30) {

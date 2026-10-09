@@ -25,7 +25,7 @@ foreach($sceneJob in $sceneJobs){
  $sceneArgs=@('--headless','--path','.','SimTools/ChartAuditRunner.tscn','--',"--weeks=$sceneJobWeeks","--run=$sceneName","--seed=$($sceneJob.seed)")+$sceneFlags+@($sceneExtra)
  $sceneStdout=Join-Path $sceneFolder "$sceneName-console.log"
  $sceneStart=[datetime]::UtcNow
- $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError (Join-Path $sceneFolder "$sceneName-errors.log")
+ $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError (Join-Path $sceneFolder "$sceneName-errors.log"); $null=$sceneProcess.Handle
  while(!$sceneProcess.WaitForExit(10000)){Write-Output "Running $sceneName."}
  $sceneProcess.WaitForExit()
  $sceneRows=@(Import-Csv (Join-Path $sceneRoot "SimLogs/$sceneName-weeks.csv"))

@@ -27,7 +27,7 @@ foreach($sceneJob in $sceneJobs){
  $sceneArgs=@('--headless','--path','.','SimTools/SaveLoadRoundTripRunner.tscn','--',"--seed=$($sceneJob.seed)","--weeks=$($sceneJob.weeks)")+$sceneFlags+$sceneJob.flags
  $sceneStart=[datetime]::UtcNow
  $sceneStdout=Join-Path $sceneFolder "$($sceneJob.name)-console.log"
- $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError (Join-Path $sceneFolder "$($sceneJob.name)-errors.log")
+ $sceneProcess=Start-Process -FilePath $Godot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneStdout -RedirectStandardError (Join-Path $sceneFolder "$($sceneJob.name)-errors.log"); $null=$sceneProcess.Handle
  while(!$sceneProcess.WaitForExit(10000)){Write-Output "Running $($sceneJob.name)."}
  $sceneProcess.WaitForExit()
  $scenePassed=$sceneProcess.ExitCode -eq 0 -and (Get-Content $sceneStdout -Raw).Contains($sceneJob.marker)

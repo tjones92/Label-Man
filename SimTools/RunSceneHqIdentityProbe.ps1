@@ -10,7 +10,7 @@ if(@(Get-Process | Where-Object ProcessName -Match '^Godot|^Label Man$').Count){
 New-Item -ItemType Directory -Path $sceneFolder | Out-Null
 $sceneArgs=@('--headless','--path','.','SimTools/SaveLoadRoundTripRunner.tscn','--','--seed=1001','--weeks=0','--enable-genre-market-v2','--enable-artist-population-lifecycle','--enable-artist-evolution','--enable-artist-recognition','--enable-managers','--seed-star-canopy','--enable-cowriting','--enable-member-axes','--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--observe-local-scenes','--local-scene-identity-check')
 $sceneOut=Join-Path $sceneFolder 'console.log'
-$sceneProcess=Start-Process -FilePath $sceneGodot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneOut -RedirectStandardError (Join-Path $sceneFolder 'errors.log')
+$sceneProcess=Start-Process -FilePath $sceneGodot -ArgumentList $sceneArgs -WorkingDirectory $sceneRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput $sceneOut -RedirectStandardError (Join-Path $sceneFolder 'errors.log'); $null=$sceneProcess.Handle
 while(!$sceneProcess.WaitForExit(10000)){}
 $sceneProcess.WaitForExit()
 $scenePassed=$sceneProcess.ExitCode -eq 0 -and (Get-Content $sceneOut -Raw).Contains('SCENE_IDENTITY_CHECK_PASS')
