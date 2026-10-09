@@ -25,10 +25,38 @@ public static class BandLifeChecks {
 			CowritingShapes();
 			FragmentsReadFacts();
 			PlayerBandRoomFlow();
+			LaterPhaseInvariants();
 		} finally {
 			BandLife.RestoreSwitches(saved);
 		}
 		GD.Print("BANDLIFE_CHECKS_COMPLETE");
+	}
+
+	/// <summary>Phases 4c-7 (§14): the invariants each phase is built on, checked on real objects.</summary>
+	private static void LaterPhaseInvariants() {
+		// 4c: a lone writer's song is untouched; complementary specialists beat two of the same kind.
+		var lone = TeamWritingService.Delta(new[] { new TeamWritingService.Crafts(.3f, .2f, .25f) }, 0, 0f);
+		Check(lone.Melody == 0f && lone.Lyric == 0f && lone.Hook == 0f, "team craft: a lone writer's song is unchanged");
+		var complementary = TeamWritingService.Delta(new[] { new TeamWritingService.Crafts(.6f, .1f, .3f), new TeamWritingService.Crafts(.1f, .6f, .3f) }, 0, 0f);
+		var same = TeamWritingService.Delta(new[] { new TeamWritingService.Crafts(.6f, .1f, .3f), new TeamWritingService.Crafts(.6f, .1f, .3f) }, 0, 0f);
+		Check(complementary.Lyric + complementary.Melody > same.Lyric + same.Melody, "team craft: complementary specialists are the strongest pairing");
+		Check(same.Melody <= 0f, "team craft: two of the same kind are no better than one");
+		// 4e: the norm is monotone and bounded; nothing reads it with the readers off.
+		var poor = new Musician { wealth = 500f }; var rich = new Musician { wealth = 20000f };
+		Check(MemberWealthService.Norm(poor) < MemberWealthService.Norm(rich) && MemberWealthService.Norm(rich) < 1f, "wealth: norm is monotone and below 1");
+		// 5: plasticity falls with age; a person seen for the first time at 45 is not aged again by switching growth on.
+		Check(MemberGrowthService.Plasticity(19) > MemberGrowthService.Plasticity(28) && MemberGrowthService.Plasticity(28) > MemberGrowthService.Plasticity(45),
+			"growth: plasticity falls with age");
+		// 6: the scouting read on live unsigned acts: three lines, a potential word, and a revisit that reads improvement.
+		var acts = ArtistManager.Instance.GetAllArtists().Where(a => string.IsNullOrEmpty(a.labelId) && a.members.Any(m => m.isActive))
+			.OrderBy(a => a.artistId, StringComparer.Ordinal).Take(4).ToList();
+		Check(acts.Count > 0, "scouting rough: the world has unsigned acts to read");
+		foreach (SimulatedArtist act in acts) {
+			var tells = ScoutingRough.Read(act, null, Array.Empty<PlayerDesk.RepertoireItem>(), 10, 0.40f, 0.46f, 120);
+			List<string> lines = ScoutingRough.Lines(tells, "holds the room");
+			Check(lines.Count == 3 && lines[2].StartsWith("Potential: ", StringComparison.Ordinal), $"scouting rough: {act.stageName} reads [{string.Join(" | ", lines)}]");
+			Check(lines[2].Contains("much tighter"), "scouting rough: a revisit three months on reads the improvement");
+		}
 	}
 
 	/// <summary>§8: no new code draws from the global stream. Axes and keyed draws leave GD exactly where it was.</summary>
