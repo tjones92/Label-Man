@@ -69,3 +69,9 @@ Require `SCENE_IDENTITY_CHECK_PASS`, `SAVELOAD_ROUNDTRIP_PASS` and exit 0. Also 
 4. Load an integrated legacy world under observation twice: origin unknown, base/evidence/assignment unchanged on the second load, no new acts/people/contracts or other world changes. Save the migrated world; run two identical 8-week continuations and compare all existing outputs plus identity diagnostics. Verify saved band-slice flags remain effective.
 
 5. Shared act/person hooks also require the band branch's established two-seed decade economic comparison after fixed and 52-week checks pass. Do not substitute obsolete scalar guardrails. Phase 1 is not accepted, and Phase 2 must not begin, until the coordinated runtime results establish unchanged economic controls and save/replay behavior.
+
+## Test-window capacity check, October 8
+
+The user authorized overlapping the current band run if memory headroom permits. The running band engine (PID 25612, `bms5-obs-1001`) used about 1.2 GiB; available physical RAM measured 325-482 MiB on a machine with 7413 MiB usable. No scene test was launched because that leaves insufficient capacity for a second engine while the late-decade world grows. No other process was stopped or modified.
+
+`SimTools/RunLocalSceneIdentityChecks.ps1` now packages six serial fixed/round-trip jobs, explicit comparator flags, process/RAM admission checks, hashes, logs and completion markers. PowerShell parsing passes. It requires a clear engine window and at least 1536 MiB free before each job. It has not executed; runtime acceptance remains pending. The user's current authorization permits testing when capacity is available without asking for the same authorization again.
