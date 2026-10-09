@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -2209,6 +2209,7 @@ public partial class ChartAuditRunner : Node {
 			int exits = previousChartIds.Count(id => !chartIds.Contains(id));
 			int newRecords = activeIds.Count(id => !previousActiveIds.Contains(id));
 			int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
+			WriteSceneDynamicsRows(week, date);
 			WriteTierVolumeRows(week, records);
 			WriteLabelFinanceRows(week, date.year);
 			WriteMarketRevenueRows(week, date.year, records);
@@ -3913,6 +3914,8 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWeeklyWriter?.Dispose();
 		decadeAnnualRollupWriter?.Dispose();
 		performanceProfileWriter?.Dispose();
+		sceneDynamicsWriter?.Dispose();
+		sceneOpportunityWriter?.Dispose();
 		cityRosterWriter?.Dispose();
 		distanceMatrixWriter?.Dispose();
 		labelGeographyWriter?.Dispose();

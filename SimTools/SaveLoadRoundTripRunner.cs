@@ -37,6 +37,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (TimeManager.Instance == null || ChartManager.Instance == null)
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 
+			if (OS.GetCmdlineUserArgs().Contains("--scene-dynamics-check")) { SceneDynamicsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--scene-city-placement-check")) { SceneCityPlacementChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--scene-recruitment-check")) { SceneRecruitmentChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--scene-room-check")) { LocalSceneRoomChecks.Run(); GetTree().Quit(0); return; }

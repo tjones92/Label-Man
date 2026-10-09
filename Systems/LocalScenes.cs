@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-/// <summary>Persistent discovery defaults on; explicit off and identity-only modes preserve regression controls.</summary>
+/// <summary>Persistence, rooms and US recruitment default on; explicit off modes preserve controls.</summary>
 public static class LocalScenes {
     public static bool Observing { get; private set; }
     public static bool Persisting { get; private set; }
@@ -24,7 +24,7 @@ public static class LocalScenes {
             throw new ArgumentException("Persistent scenes conflict with the requested scene disable flag.");
         if (observe && disable) throw new ArgumentException("--observe-local-scenes conflicts with --disable-local-scenes.");
         if (args.Any(a => a is "--enable-local-scenes" or "--enable-scene-dynamics"))
-            throw new ArgumentException("Use --enable-persistent-scenes for persistence and --enable-scene-recruitment for gated recruitment. Dynamics are not implemented.");
+            throw new ArgumentException("Use --enable-persistent-scenes for persistence and --enable-scene-recruitment for recruitment. Live dynamics are not implemented; --observe-scene-dynamics is audit-only.");
         // An explicit observation/disable mode wins over the development default.
         // Dependency-off controls remain clean; explicit enable still requires validation.
         bool defaultPersistence = !observe && !disable && !disablePersistence
@@ -36,6 +36,8 @@ public static class LocalScenes {
         bool disableRooms = args.Contains("--disable-scene-rooms", StringComparer.Ordinal);
         if (enableRooms && (disableRooms || !persist))
             throw new ArgumentException("Scene rooms require persistence and cannot be enabled and disabled together.");
+        if (args.Contains("--observe-scene-dynamics", StringComparer.Ordinal) && (!persist || disableRooms))
+            throw new ArgumentException("Scene dynamics observation requires persistence and rooms.");
         bool recruitment = args.Contains("--enable-scene-recruitment", StringComparer.Ordinal);
         if (recruitment && (args.Contains("--disable-scene-recruitment", StringComparer.Ordinal) || !persist || observe ||
             args.Contains("--disable-genre-market-v2", StringComparer.Ordinal)))
@@ -43,6 +45,8 @@ public static class LocalScenes {
         Observing = observe || persist;
         Persisting = persist;
         Rooms = persist && !disableRooms;
-        Recruitment = recruitment;
+        Recruitment = recruitment || (persist && !observe
+            && !args.Contains("--disable-scene-recruitment", StringComparer.Ordinal)
+            && !args.Contains("--disable-genre-market-v2", StringComparer.Ordinal));
     }
 }

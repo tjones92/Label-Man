@@ -195,6 +195,22 @@ public static class LocalSceneRoomService {
         return Array.AsReadOnly((canonical?.Appearances ?? new()).Where(s => s.Status != SceneBillStatus.Cancelled && s.EndHour > (fromHour ?? bill.StartHour) && StagePeople(ArtistManager.Instance.GetArtist(s.ArtistId) ?? new SimulatedArtist()).SequenceEqual(s.PersonIds))
             .Select(s => ArtistManager.Instance.GetArtist(s.ArtistId)).Where(a => Eligible(a, room, bill.Day)).ToArray());
     }
+    /// <summary>Read existing future facts. Unlike Calendar, this never ensures or advances a schedule.</summary>
+    internal static (int Slots, int BookedSlots, int BookedActs, int RecurringActs) ObserveWeekCapacity(string placeId, int week) {
+        var rooms = SceneRoomCatalog.All.Where(r => r.PlaceId == placeId && r.IsPerformance).ToArray();
+        var roomIds = rooms.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+        // Schedule's existing two-appearance rule, limited to actual dated performance nights.
+        int slots = rooms.Sum(r => Enumerable.Range(week * 7, 7).Count(day => {
+            var date = Date(day);
+            return date <= GameDate.EndDate && date.year >= r.FromYear && date.year <= r.ThroughYear
+                && r.Nights.Contains(date.DayOfWeek);
+        }) * 2);
+        var booked = (state?.Bills ?? new()).Where(b => roomIds.Contains(b.RoomId) && b.Day / 7 == week)
+            .SelectMany(b => b.Appearances).Where(a => a.Status != SceneBillStatus.Cancelled).ToArray();
+        int recurring = (state?.Engagements ?? new()).Where(e => roomIds.Contains(e.RoomId)
+            && e.StartDay <= week * 7 + 6 && e.ThroughDay >= week * 7).Select(e => e.ArtistId).Distinct().Count();
+        return (slots, booked.Length, booked.Select(a => a.ArtistId).Distinct().Count(), recurring);
+    }
     public static void CaptureWorld(WorldSaveData world) => world.SceneRooms = Copy(state);
     public static void ValidateRestore(SceneRoomSaveData saved) {
         if (saved == null) return;
