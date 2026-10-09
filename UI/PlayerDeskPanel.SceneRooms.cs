@@ -11,6 +11,12 @@ public partial class PlayerDeskPanel {
         var calendar = LocalSceneRoomService.Calendar(desk.CurrentCityId, date);
         if (!rooms.Any(r => r.Id == selectedSceneRoomId)) selectedSceneRoomId =
             rooms.FirstOrDefault(r => LocalSceneRoomService.CurrentBill(r.Id, date, hour) != null)?.Id ?? rooms.FirstOrDefault()?.Id;
+        var news = desk.LocalSceneNews();
+        Body(news.Count == 0 ? "LOCAL SCENE — no unread reports." : "LOCAL SCENE — since your last recap");
+        foreach (var item in news) Body($"{LocalSceneRoomService.Date(item.AvailableDay).ToHeadlineString()} · {item.Source}: {item.Text}" +
+            (item.ArtistId != null && desk.SceneDiscoveries.Any(d => d.ArtistId == item.ArtistId) ? " You have heard this act before." : ""));
+        if (news.Count > 0) { var read = Btn("MARK LOCAL REPORTS READ"); read.Pressed += () => { desk.MarkSceneNewsRead(); Refresh(); }; content.AddChild(read); }
+        foreach (string lead in desk.SceneLeadNotes()) Body(lead);
         Body("Named rooms keep their own bills. A return visit hears the same scheduled people; a record deal is a separate conversation.");
         var grid = new GridContainer { Columns = 3, SizeFlagsHorizontal = SizeFlags.ExpandFill };
         grid.AddThemeConstantOverride("h_separation", 12); grid.AddThemeConstantOverride("v_separation", 12);
@@ -29,6 +35,20 @@ public partial class PlayerDeskPanel {
         var selected = rooms.FirstOrDefault(r => r.Id == selectedSceneRoomId);
         if (selected == null) { Body("No detailed rooms are available for this place."); return; }
         Body($"{selected.ContactName} posts these bills. {selected.Kind} · {selected.Programming(date.year)}.");
+        var tip = Btn($"ASK {selected.ContactName.ToUpperInvariant()} FOR A LISTENING TIP  (1h)");
+        tip.Disabled = desk.SceneContactFamiliarity(selected.ContactId) < 2;
+        tip.TooltipText = "Hear two different bills here to build familiarity. Tips refer to actual announced performances; follow up by hearing the bill.";
+        tip.Pressed += () => Act(() => { bool ok = desk.AskSceneBooker(selected.Id, out string result); Say(result, ok); return ok; });
+        content.AddChild(tip);
+        if (LocalScenes.Institutions && selected.IsPerformance) {
+            var program = SceneEcosystemService.Programs.FirstOrDefault(p => p.RoomId == selected.Id && p.ThroughDay >= LocalSceneRoomService.Day(date));
+            if (program == null) {
+                var fund = Btn($"FUND 13-WEEK REHEARSAL & SHOWCASE PROGRAM  ({Money(SceneEcosystemService.ProgramCost)})");
+                fund.TooltipText = "One extra set per performance night, starting in two weeks. The label pays upfront and must retain its operating reserve.";
+                fund.Pressed += () => Act(() => { bool ok = desk.FundSceneProgram(selected.Id, out string result); Say(result, ok); return ok; });
+                content.AddChild(fund);
+            } else Body($"Funded program: {LocalSceneRoomService.Date(program.StartDay).ToHeadlineString()} through {LocalSceneRoomService.Date(program.ThroughDay).ToHeadlineString()}; one extra set on each performance night.");
+        }
         foreach (var bill in calendar.Where(b => b.RoomId == selected.Id).Take(4)) {
             string names = string.Join("; ", bill.Appearances.Select(a =>
                 $"{ArtistManager.Instance.GetArtist(a.ArtistId)?.stageName ?? "unavailable act"} ({a.Role}{(a.Residency ? ", regular engagement" : "")})"));

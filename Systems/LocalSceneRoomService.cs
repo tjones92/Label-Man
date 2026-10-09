@@ -20,6 +20,7 @@ public static class LocalSceneRoomService {
     private static string StandingKey(string room, string artist) => room + "|" + artist;
     public static bool Eligible(SimulatedArtist act, SceneRoomProfile room, int day) {
         if (room == null || act == null || !LocalScenePersistenceService.Present(act, room.PlaceId, day / 7)) return false;
+        if (!SceneEcosystemService.AvailableAt(act.artistId, room.PlaceId, day)) return false;
         int year = Date(day).year;
         if (year < room.FromYear || year > room.ThroughYear) return false;
         GenreFamily family = GenreCatalog.Get(GenreCatalog.MapLegacy(act.primaryGenre, year)).Family;
@@ -69,7 +70,7 @@ public static class LocalSceneRoomService {
                     .ThenBy(a => Draw($"engagement|{room.Id}|{term}|{a.artistId}"))
                     .ThenBy(a => a.artistId, StringComparer.Ordinal);
                 foreach (var act in candidates) {
-                    if (bill.Appearances.Count == 2) break;
+                    if (bill.Appearances.Count == SceneEcosystemService.Slots(room, day)) break;
                     string[] people = StagePeople(act);
                     int hour = room.OpenHour + bill.Appearances.Count;
                     // No cross-city teleporting or shared-musician overlap. We conservatively keep a
@@ -77,7 +78,8 @@ public static class LocalSceneRoomService {
                     if (actPlaces.TryGetValue($"{day}|{act.artistId}", out var ar) && ar != room.Id ||
                         people.Any(p => reservations.Contains($"{day}|{hour}|{p}") ||
                             personPlaces.TryGetValue($"{day}|{p}", out var pr) && pr != room.Id)) continue;
-                    bool regular = act.sceneParticipations.Any(p => p.relationship == SceneRelationship.Resident && p.sceneId == room.PlaceId &&
+                    bool regular = !SceneEcosystemService.HasPlannedMove(act.artistId) &&
+                        act.sceneParticipations.Any(p => p.relationship == SceneRelationship.Resident && p.sceneId == room.PlaceId &&
                         !p.endWeek.HasValue && p.performanceLevel >= ScenePerformanceLevel.Working);
                     if (regular && !regularIds.Contains(act.artistId))
                         State.Engagements.Add(new() { RoomId = room.Id, ArtistId = act.artistId, StartDay = day, ThroughDay = (term + 1) * 91 - 1 });
@@ -87,6 +89,7 @@ public static class LocalSceneRoomService {
                     actPlaces[$"{day}|{act.artistId}"] = room.Id;
                     foreach (string person in people) { reservations.Add($"{day}|{hour}|{person}"); personPlaces[$"{day}|{person}"] = room.Id; }
                 }
+                if (bill.Appearances.Count == 3) bill.Appearances[1].Role = "middle set";
                 int prior = bill.Appearances.Sum(a => standing.TryGetValue(StandingKey(room.Id, a.ArtistId), out var s) ? Math.Min(12, s.Shows) : 0);
                 bill.ExpectedAudience = bill.Appearances.Count == 0 ? 0 : Math.Min(room.Capacity,
                     (int)(room.Capacity * (.30 + .15 * bill.Appearances.Count + .01 * prior)));
@@ -107,6 +110,7 @@ public static class LocalSceneRoomService {
     /// <summary>Called by the clock, independently of visits. Resolve each shared fact exactly once.</summary>
     public static void Advance(GameDate date, int hour) {
         if (!LocalScenes.Rooms || restoring) return;
+        SceneEcosystemService.Advance(date);
         int day = Day(date);
         if (day < 0 || day < State.LastResolvedDay || day == State.LastResolvedDay && hour <= State.LastResolvedHour) return;
         CancelFrozenPast(day);
@@ -196,15 +200,21 @@ public static class LocalSceneRoomService {
             .Select(s => ArtistManager.Instance.GetArtist(s.ArtistId)).Where(a => Eligible(a, room, bill.Day)).ToArray());
     }
     /// <summary>Read existing future facts. Unlike Calendar, this never ensures or advances a schedule.</summary>
+    // Pure read: do not create state or schedule while examining a potential move.
+    internal static bool HasFutureCommitment(string artistId, int day) =>
+        state?.Bills.Any(b => b.Day >= day && b.Status == SceneBillStatus.Scheduled &&
+            b.Appearances.Any(a => a.ArtistId == artistId && a.Status == SceneBillStatus.Scheduled)) == true ||
+        state?.Engagements.Any(e => e.ArtistId == artistId && e.ThroughDay >= day) == true;
+
     internal static (int Slots, int BookedSlots, int BookedActs, int RecurringActs) ObserveWeekCapacity(string placeId, int week) {
         var rooms = SceneRoomCatalog.All.Where(r => r.PlaceId == placeId && r.IsPerformance).ToArray();
         var roomIds = rooms.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
         // Schedule's existing two-appearance rule, limited to actual dated performance nights.
-        int slots = rooms.Sum(r => Enumerable.Range(week * 7, 7).Count(day => {
+        int slots = rooms.Sum(r => Enumerable.Range(week * 7, 7).Sum(day => {
             var date = Date(day);
             return date <= GameDate.EndDate && date.year >= r.FromYear && date.year <= r.ThroughYear
-                && r.Nights.Contains(date.DayOfWeek);
-        }) * 2);
+                && r.Nights.Contains(date.DayOfWeek) ? SceneEcosystemService.Slots(r, day) : 0;
+        }));
         var booked = (state?.Bills ?? new()).Where(b => roomIds.Contains(b.RoomId) && b.Day / 7 == week)
             .SelectMany(b => b.Appearances).Where(a => a.Status != SceneBillStatus.Cancelled).ToArray();
         int recurring = (state?.Engagements ?? new()).Where(e => roomIds.Contains(e.RoomId)

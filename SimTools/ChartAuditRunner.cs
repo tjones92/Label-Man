@@ -3916,6 +3916,11 @@ public partial class ChartAuditRunner : Node {
 		performanceProfileWriter?.Dispose();
 		sceneDynamicsWriter?.Dispose();
 		sceneOpportunityWriter?.Dispose();
+		sceneMoveWriter?.Dispose();
+		sceneAttentionWriter?.Dispose();
+		sceneAttentionEvidenceWriter?.Dispose();
+        sceneFeedbackWriter?.Dispose();
+        sceneEcosystemWriter?.Dispose();
 		cityRosterWriter?.Dispose();
 		distanceMatrixWriter?.Dispose();
 		labelGeographyWriter?.Dispose();

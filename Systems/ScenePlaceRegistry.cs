@@ -18,11 +18,11 @@ public static class SceneRegionAdapter {
 }
 
 /// <summary>
-/// Identity catalog v1. Domestic market coordinates reuse the game's approximate map; satellite/UK
+/// Identity catalog v2. Domestic market coordinates reuse the game's approximate map; satellite/UK
 /// coordinates are deliberately unknown until sourced. Catchments are design links, not birthplace aliases.
 /// </summary>
 public static class ScenePlaceRegistry {
-    public const int ContentVersion = 1;
+    public const int ContentVersion = 2;
     private static readonly IReadOnlyDictionary<string, ScenePlace> Places;
     private static readonly Dictionary<string, string> Names = new(StringComparer.OrdinalIgnoreCase);
     public static IReadOnlyList<ScenePlace> All { get; }
@@ -34,6 +34,7 @@ public static class ScenePlaceRegistry {
                 Latitude = city.mapCoords.Y / 50.0, Longitude = city.mapCoords.X / (0.788010754 * 50.0),
                 CoordinateSource = "DistanceModel approximate game map; not a historical population source" });
         }
+        Satellite(places, "newark", "Newark", "eastcoast", "new_york");
         Satellite(places, "oakland", "Oakland", "westcoast", "san_francisco");
         Satellite(places, "berkeley", "Berkeley", "westcoast", "san_francisco");
         Satellite(places, "cambridge", "Cambridge", "eastcoast", "boston");
@@ -49,9 +50,9 @@ public static class ScenePlaceRegistry {
         Satellite(places, "denton", "Denton", "southwest", "dallas");
         Satellite(places, "hollywood", "Hollywood", "westcoast", "los_angeles");
         Satellite(places, "pasadena", "Pasadena", "westcoast", "los_angeles");
-        Satellite(places, "milwaukee", "Milwaukee", "greatlakes", null);
-        Satellite(places, "indianapolis", "Indianapolis", "greatlakes", null);
-        Satellite(places, "jackson_ms", "Jackson, Mississippi", "deepsouth", null);
+        RoadPlace(places, "milwaukee", "Milwaukee", "greatlakes", 43.063348, -87.966695, "55");
+        RoadPlace(places, "indianapolis", "Indianapolis", "greatlakes", 39.776664, -86.145935, "18");
+        RoadPlace(places, "jackson_ms", "Jackson, Mississippi", "deepsouth", 32.315834, -90.21285, "28");
         foreach (string name in new[] { "London", "Liverpool", "Manchester", "Birmingham", "Glasgow", "Bristol" })
             Add(places, new ScenePlace { Id = "gb_" + name.ToLowerInvariant(), Name = name, CountryCode = "GB" });
         // Textual synonyms only. Oakland, Milwaukee, etc. retain their own identities.
@@ -70,6 +71,21 @@ public static class ScenePlaceRegistry {
     }
     private static void Satellite(Dictionary<string, ScenePlace> places, string id, string name, string region, string catchment) =>
         Add(places, new ScenePlace { Id = id, Name = name, CountryCode = "US", MarketRegionId = region, PlayableCityId = catchment });
+    // Census representative coordinates are modern map anchors only. No population,
+    // historical venue or catchment is inferred from these data.
+    private static void RoadPlace(Dictionary<string, ScenePlace> places, string id, string name,
+        string region, double lat, double lon, string state) => Add(places, new ScenePlace {
+            Id = id, Name = name, CountryCode = "US", MarketRegionId = region,
+            Latitude = lat, Longitude = lon,
+            CoordinateSource = $"https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazetteer/2024_gaz_place_{state}.txt; INTPTLAT/INTPTLONG; approximate game route anchor"
+        });
+    public static ScenePlace ResolveHeadquarters(string name, string region) {
+        string regionId = SceneRegionAdapter.ToId(region);
+        ScenePlace place = ByName(name);
+        if (place == null && regionId == "deepsouth" && string.Equals(name?.Trim(), "Jackson", StringComparison.OrdinalIgnoreCase))
+            place = Get("jackson_ms");
+        return place?.CountryCode == "US" && regionId != null && place.MarketRegionId != regionId ? null : place;
+    }
     public static ScenePlace Get(string id) => id != null && Places.TryGetValue(id, out var place) ? place : null;
     public static ScenePlace ByName(string name) => !string.IsNullOrWhiteSpace(name) && Names.TryGetValue(name.Trim(), out var id) ? Get(id) : null;
     public static IReadOnlyList<ScenePlace> PlayableInRegion(string region) {

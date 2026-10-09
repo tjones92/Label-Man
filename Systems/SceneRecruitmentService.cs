@@ -33,7 +33,8 @@ public static class SceneRecruitmentService {
             return Result(false, "NoInternationalConnection");
         // Never use legacy distribution proxies as a literal satellite HQ or unknown road route.
         float? miles = hq.PlayableCityId != null && home.PlayableCityId != null
-            ? DistanceModel.GetRoadMilesBetween(hq.PlayableCityId, home.PlayableCityId) : null;
+            ? DistanceModel.GetRoadMilesBetween(hq.PlayableCityId, home.PlayableCityId)
+            : ScenePlaceRegistry.TryDomesticRoadMiles(hq.Id, home.Id, out double roadMiles) ? (float)roadMiles : null;
         float radius = label.tier switch {
             LabelTier.Major => 900f, LabelTier.MidTier => 650f,
             LabelTier.Independent => 350f, _ => 225f
@@ -52,10 +53,24 @@ public static class SceneRecruitmentService {
             .Where(x => x.Access.Eligible).ToList();
         accessibleCount = accessible.Count;
         // Weighted sampling without replacement. Attention remains finite, including recovery.
-        return accessible.OrderBy(x => -Math.Log(Math.Max(1e-12,
-                LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
-                    $"recruitment-v1|{label.labelId}|{x.Artist.artistId}|{window}"))) / x.Access.Weight)
-            .ThenBy(x => x.Artist.artistId, StringComparer.Ordinal).Take(count).Select(x => x.Artist).ToList();
+        double Key(SimulatedArtist artist) => -Math.Log(Math.Max(1e-12,
+            LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
+                $"recruitment-v1|{label.labelId}|{artist.artistId}|{window}")));
+        if (!LocalScenes.AttentionFeedback)
+            return accessible.OrderBy(x => Key(x.Artist) / x.Access.Weight)
+                .ThenBy(x => x.Artist.artistId, StringComparer.Ordinal).Take(count).Select(x => x.Artist).ToList();
+        var feedback = SceneAttentionFeedback.Capture(week);
+        var weighted = accessible.Select(x => (x.Artist, x.Access,
+            Multiplier: feedback.Multiplier(x.Access.BasePlaceId, x.Artist.primaryGenre), Key: Key(x.Artist))).ToArray();
+        var selected = weighted.OrderBy(x => x.Key / (x.Access.Weight * x.Multiplier))
+            .ThenBy(x => x.Artist.artistId, StringComparer.Ordinal).Take(count).ToArray();
+        if (LocalScenes.AttentionFeedbackAudit) {
+            var baseline = weighted.OrderBy(x => x.Key / x.Access.Weight)
+                .ThenBy(x => x.Artist.artistId, StringComparer.Ordinal).Take(count);
+            SceneAttentionFeedback.Observe(weighted.Select(x => x.Multiplier), selected.Select(x => x.Multiplier),
+                baseline.Select(x => x.Artist.artistId), selected.Select(x => x.Artist.artistId));
+        }
+        return selected.Select(x => x.Artist).ToList();
     }
 
     public static bool CanAccess(AILabel label, SimulatedArtist artist, int week) =>
@@ -67,7 +82,7 @@ public static class SceneRecruitmentService {
         if (!access.Eligible) throw new InvalidOperationException("Recruitment committed without geographic access.");
         artist.sceneRecruitmentHistory ??= new List<SceneRecruitmentRecord>();
         artist.sceneRecruitmentHistory.Add(new SceneRecruitmentRecord {
-            LabelId = label.labelId, ArtistId = artist.artistId, Week = week, Year = year,
+            LabelId = label.labelId, ArtistId = artist.artistId, SigningGenre = artist.primaryGenre, Week = week, Year = year,
             Phase = phase, Route = access.Route, HqPlaceId = access.HqPlaceId,
             BasePlaceId = access.BasePlaceId, RoadMiles = access.RoadMiles,
             AccessEvidence = access.Evidence,

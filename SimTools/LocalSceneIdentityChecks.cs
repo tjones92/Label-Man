@@ -14,7 +14,7 @@ public static class LocalSceneIdentityChecks {
         try {
             LocalScenes.Configure(new[] { "--observe-local-scenes" });
             Check(ScenePlaceRegistry.All.Count(p => p.Id == p.PlayableCityId) == 31, "31 playable identities");
-            Check(ScenePlaceRegistry.All.Select(p => p.Id).Distinct().Count() == 55, "55 unique canonical places");
+            Check(ScenePlaceRegistry.All.Select(p => p.Id).Distinct().Count() == 56, "56 unique canonical places; no new playable city");
             Check(SceneRegionAdapter.ToId("Deep South") == "deepsouth" && SceneRegionAdapter.ToDisplay("deepsouth") == "Deep South", "region name/ID adapter");
             Check(SceneRegionAdapter.ToId("Atlantis") == null, "unknown region has no hub fallback");
             Check(ScenePlaceRegistry.ByName("Oakland").Id == "oakland" && ScenePlaceRegistry.Get("oakland").PlayableCityId == "san_francisco", "satellite distinct from catchment");
@@ -47,7 +47,17 @@ public static class LocalSceneIdentityChecks {
             Check(foreign.geography.basePlaceId == "gb_liverpool" && foreign.homeCityId == "new_york" && foreign.homeRegion == "eastcoast", "foreign HQ and US distribution remain separate");
             var ambiguous = new AILabel { headquartersCity = "Jackson", homeRegion = "deepsouth", homeCityId = "memphis" };
             LocalSceneIdentityService.EnsureLabel(ambiguous);
-            Check(ambiguous.geography.basePlaceId == null, "unmapped literal does not become distribution hub HQ");
+            Check(ambiguous.geography.basePlaceId == "jackson_ms" && ambiguous.headquartersCity == "Jackson" && ambiguous.homeCityId == "memphis", "Jackson resolved without moving HQ or sales projection");
+            Check(ScenePlaceRegistry.ResolveHeadquarters("Jackson", "rockies") == null && ScenePlaceRegistry.ByName("Jackson") == null, "Jackson requires Mississippi region context");
+            var repair = new AILabel { headquartersCity = "Newark", homeRegion = "eastcoast", homeCityId = "new_york",
+                geography = new GeographicIdentity { assignmentSource = "unresolved-literal-hq; distribution-proxy-not-origin" } };
+            LocalSceneIdentityService.EnsureLabel(repair);
+            string repaired = Json(repair);
+            LocalSceneIdentityService.EnsureLabel(repair);
+            Check(Json(repair) == repaired && repair.geography.basePlaceId == "newark" && repair.geography.moves == null, "old unresolved projection repaired once without a move");
+            repair.geography.basePlaceId = "oakland"; repair.geography.originPlaceId = "oakland";
+            LocalSceneIdentityService.EnsureLabel(repair);
+            Check(repair.geography.basePlaceId == "oakland", "credible saved HQ identity is never overwritten");
             var unknown = new SimulatedArtist { artistId = "scene-probe-unknown", homeRegion = "unknown" };
             LocalSceneIdentityService.EnsureArtist(unknown);
             Check(unknown.geography.basePlaceId == null && unknown.homeRegion == "unknown", "unknown region preserved");
@@ -70,7 +80,7 @@ public static class LocalSceneIdentityChecks {
             try { LocalScenes.Configure(new[] { "--observe-local-scenes", "--disable-local-scenes" }); } catch (ArgumentException) { rejected = true; }
             Check(rejected, "contradictory flags rejected");
             rejected = false;
-            try { LocalScenes.Configure(new[] { "--enable-scene-recruitment" }); } catch (ArgumentException) { rejected = true; }
+            try { LocalScenes.Configure(new[] { "--observe-local-scenes", "--enable-scene-recruitment" }); } catch (ArgumentException) { rejected = true; }
             Check(rejected, "later phase flags rejected");
             rejected = false;
             try { LocalSceneIdentityService.BeginRestore(new SceneIdentitySaveData { ContentVersion = 99 }, 1001); } catch (InvalidOperationException) { rejected = true; }

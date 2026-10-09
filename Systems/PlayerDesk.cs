@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -1295,7 +1295,8 @@ public partial class PlayerDesk : Node {
 		float standing = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
 		float ask = VenueAdvanceBase(venue) * talent * standing * marketScale
 			* ManagerProfile.Of(artist.manager).AdvanceDemandMult;
-		return RoundToContractFigure(ask);
+		// Apply heat after the legacy rounding, so low-dollar asks cannot jump past the 10% ceiling.
+		return RoundToContractFigure(ask) * ScenePriceFeedback.Multiplier(artist);
 	}
 
 	/// <summary>
@@ -5699,6 +5700,7 @@ public partial class PlayerDesk : Node {
 		var data = new PlayerSaveData {
 			Label = LabelSaveData.From(Label),
             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+            SceneInformation = CaptureSceneInformation(),
             SceneDiscoveries = sceneDiscoveries.Count == 0 ? null : sceneDiscoveries.Values.OrderBy(d => d.ArtistId, StringComparer.Ordinal).ToList(),
 			RosterArtists = (Label.roster ?? new List<SimulatedArtist>()).ToList(),
 			Songs = songs.Select(SongSaveData.From).ToList(),
@@ -5961,6 +5963,7 @@ public partial class PlayerDesk : Node {
 		RosterManager.Instance?.ClearAllPlayerHolds();
 		generatedProspectIds.Clear();
         generatedProspectIds.UnionWith(data.GeneratedProspectIds ?? new List<string>());
+        RestoreSceneInformation(data.SceneInformation);
         sceneDiscoveries.Clear();
         foreach (var discovery in data.SceneDiscoveries ?? new List<SceneDiscovery>())
             if (!string.IsNullOrEmpty(discovery?.ArtistId)) sceneDiscoveries[discovery.ArtistId] = discovery;

@@ -175,6 +175,7 @@ public partial class TimeManager : Node {
 			return;
 		}
 
+		SceneEcosystemService.Advance(currentDate);
 		LocalSceneRoomService.EnsureCalendar(currentDate);
 		Rolodex.Instance?.AdvanceDay();
 		TriggerEventsForDate(currentDate);

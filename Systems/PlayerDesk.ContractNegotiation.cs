@@ -656,6 +656,16 @@ public partial class PlayerDesk : Node {
 		prospect.Artist.signedUnderAskFraction = underAsk;
 		CompetitorManager.Instance?.RecordExpense(Label, paid);
 		ArtistManager.Instance?.SignArtist(prospect.Artist, Label.labelId, year);
+        if (LocalScenes.Persisting) {
+            prospect.Artist.sceneRecruitmentHistory ??= new();
+            prospect.Artist.sceneRecruitmentHistory.Add(new SceneRecruitmentRecord {
+                ArtistId = prospect.Artist.artistId, LabelId = Label.labelId, Week = week, Year = year,
+                Phase = "PlayerContract", SigningGenre = prospect.Artist.primaryGenre,
+                BasePlaceId = prospect.Artist.geography?.basePlaceId, OriginPlaceId = prospect.Artist.geography?.originPlaceId,
+                HqPlaceId = Label.geography?.basePlaceId, Route = "PlayerEncounter",
+                AccessEvidence = prospect.SceneBillId ?? prospect.SceneRoomId ?? prospect.CityId,
+                Explanation = "Player signed a heard act after the canonical ownership and affordability checks." });
+        }
 		Label.SetOperatingRosterTarget(Label.CurrentRosterSize, LabelOperatingTargetReason.OrganicGrowth, week);
 		repertoire[prospect.Artist.artistId] = new List<RepertoireItem>(prospect.LiveSet);
 		generatedProspectIds.Remove(prospect.Artist.artistId);

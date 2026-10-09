@@ -36,6 +36,7 @@ public partial class PlayerDesk {
             slate.Add(prospect);
             RememberRoomEncounter(artist.artistId, room, bill, date);
         }
+        RememberSceneContact(room, bill);
         message = $"Heard {slate.Count} {(slate.Count == 1 ? "act" : "acts")} at {room.Name}. The booker handles this room's announced bills; record-deal availability is separate.";
         Note(message); Changed?.Invoke(); return true;
     }

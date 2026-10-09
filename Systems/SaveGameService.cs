@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -29,7 +29,7 @@ public static class SaveGameService {
 	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
     // v7: dated room bills, engagements, performance/work ledgers and notebook source IDs.
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
-	public const int CurrentVersion = 8;
+	public const int CurrentVersion = 9; // funded scene programs and relocation commitments
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -339,6 +339,7 @@ public sealed class SaveEnvelope {
 public sealed class PlayerSaveData {
     public List<string> GeneratedProspectIds { get; set; }
     public List<SceneDiscovery> SceneDiscoveries { get; set; }
+    public SceneInformationKnowledge SceneInformation { get; set; }
 	public LabelSaveData Label { get; set; }
 	// The roster acts themselves, serialized whole -- so a relaunch (or a runtime-signed act the fresh world
 	// never generated) brings the real artists back, not just their ids. Field serialization is on for these.

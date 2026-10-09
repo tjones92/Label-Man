@@ -19,6 +19,15 @@ public static class SceneRecruitmentChecks {
         SimulatedArtist Act(string place) => new() {
             artistId = "geographic-probe-act", geography = new GeographicIdentity { basePlaceId = place, originPlaceId = place }
         };
+        Check(ScenePlaceRegistry.All.Count(p => p.Id == p.PlayableCityId) == 31, "HQ repairs do not add playable cities");
+        var newark = SceneRecruitmentService.Explain(Label("newark"), Act("new_york"), 1);
+        Check(newark.Eligible && newark.Route == "Catchment" && newark.HqPlaceId == "newark", "Newark HQ retains identity in NYC catchment");
+        var milwaukee = SceneRecruitmentService.Explain(Label("milwaukee"), Act("chicago"), 1);
+        Check(milwaukee.Eligible && milwaukee.Route == "RoadCircuit" && milwaukee.RoadMiles > 0 && milwaukee.HqPlaceId == "milwaukee", "Milwaukee road route preserves HQ");
+        Check(SceneRecruitmentService.Explain(Label("indianapolis"), Act("cincinnati"), 1).Route == "RoadCircuit", "Indianapolis connects by road, not alias");
+        Check(SceneRecruitmentService.Explain(Label("jackson_ms", LabelTier.Independent), Act("memphis"), 1).Route == "RoadCircuit", "Jackson remains distinct from Memphis");
+        Check(!SceneRecruitmentService.Explain(Label("milwaukee"), Act("seattle"), 1).Eligible, "repaired road access remains bounded");
+        Check(SceneRecruitmentService.Explain(Label("chicago"), Act("milwaukee"), 1).RoadMiles == milwaukee.RoadMiles, "satellite roads work in both directions");
         var indie = Label("memphis", LabelTier.Independent);
         var near = Act("nashville"); var far = Act("seattle");
         Check(SceneRecruitmentService.Explain(indie, Act("memphis"), 1).Route == "Catchment", "same scene accessible");

@@ -340,7 +340,7 @@ public partial class AILabel : Resource {
 		float talentMult = 0.5f + (artist.CalculateBaseQuality() * 1.5f);
 		float reputationMult = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
 		float competitionMult = tier == LabelTier.Major ? 1.5f : 1f;
-		return baseAdvance * talentMult * reputationMult * competitionMult;
+		return baseAdvance * talentMult * reputationMult * competitionMult * ScenePriceFeedback.Multiplier(artist);
 	}
 	
 	public float CalculateRoyaltyRate(SimulatedArtist artist) {

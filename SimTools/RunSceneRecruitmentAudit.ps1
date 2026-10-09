@@ -8,6 +8,7 @@ if($RunTag -notmatch '^[a-z0-9-]+$' -or (Test-Path $sceneFolder) -or $Weeks -lt 
 $sceneFlags=@('--enable-genre-market-v2','--enable-artist-population-lifecycle','--enable-artist-evolution',
  '--enable-artist-recognition','--enable-managers','--seed-star-canopy','--enable-cowriting','--enable-member-axes',
  '--observe-band-life','--enable-lineup-churn=world','--member-fame-share=0.90','--aggregate-only',
+ '--disable-scene-attention-feedback','--disable-scene-price-feedback','--disable-scene-institutions','--disable-scene-relocation',
  '--local-scene-identity-audit','--local-scene-persistence-audit','--scene-room-audit','--scene-recruitment-audit')
 $sceneJobs=@(@{mode='off';seed=1001},@{mode='recruitment';seed=1001},@{mode='recruitment';seed=2002})
 New-Item -ItemType Directory -Path $sceneFolder | Out-Null

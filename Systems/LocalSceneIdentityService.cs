@@ -77,11 +77,22 @@ public static class LocalSceneIdentityService {
         geo.basePlaceId = target; geo.baseEvidence = PlaceEvidence.Simulated;
     }
     public static void EnsureLabel(AILabel label) {
-        if (!LocalScenes.Observing || restoring || label == null || label.geography != null) return;
-        ScenePlace place = ScenePlaceRegistry.ByName(label.headquartersCity);
-        // Domestic literal matches must agree with known region context. Never confuse Augusta, ME/GA.
-        string region = SceneRegionAdapter.ToId(label.homeRegion);
-        if (place?.CountryCode == "US" && region != null && place.MarketRegionId != region) place = null;
+        if (!LocalScenes.Observing || restoring || label == null) return;
+        GeographicIdentity existing = label.geography;
+        // Only repair our own unresolved literal projection. Credible saved identities,
+        // origins and moves win; catalog correction never constitutes a relocation.
+        if (existing != null && (!string.IsNullOrEmpty(existing.basePlaceId) ||
+            !string.IsNullOrEmpty(existing.originPlaceId) || existing.moves?.Count > 0 ||
+            existing.assignmentSource != "unresolved-literal-hq; distribution-proxy-not-origin")) return;
+        ScenePlace place = ScenePlaceRegistry.ResolveHeadquarters(label.headquartersCity, label.homeRegion);
+        if (existing != null) {
+            if (place == null) return;
+            existing.originPlaceId = existing.basePlaceId = place.Id;
+            existing.originEvidence = existing.baseEvidence = PlaceEvidence.Explicit;
+            existing.assignmentSource = "resolved-existing-literal-hq-v2; no relocation";
+            existing.assignmentVersion = AssignmentVersion;
+            return;
+        }
         label.geography = new GeographicIdentity { originPlaceId = place?.Id, basePlaceId = place?.Id,
             originEvidence = place == null ? PlaceEvidence.Unknown : PlaceEvidence.Explicit,
             baseEvidence = place == null ? PlaceEvidence.Unknown : PlaceEvidence.Explicit,
@@ -136,7 +147,8 @@ public static class LocalSceneIdentityService {
         previousState = null;
         LocalScenePersistenceService.CompleteRestore();
         LocalSceneRoomService.CompleteRestore();
+        SceneEcosystemService.CompleteRestore();
     }
     public static void CompleteDirectPlayerRestore() { if (!restoring) CompleteRestore(); }
-    public static void CancelRestore() { LocalSceneRoomService.CancelRestore(); LocalScenePersistenceService.CancelRestore(); if (!restoring) return; restoring = false; state = previousState; previousState = null; byBase.Clear(); indexedBase.Clear(); }
+    public static void CancelRestore() { SceneEcosystemService.CancelRestore(); LocalSceneRoomService.CancelRestore(); LocalScenePersistenceService.CancelRestore(); if (!restoring) return; restoring = false; state = previousState; previousState = null; byBase.Clear(); indexedBase.Clear(); }
 }

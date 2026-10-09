@@ -32,12 +32,27 @@ public partial class SceneRoomUiRunner : Node {
             cards = Descendants(panel).OfType<VenueHandbill>().Where(c => !c.IsQueuedForDeletion()).ToArray();
             cards[0].EmitSignal(Button.SignalName.Pressed);
             for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            string dir = ProjectSettings.GlobalizePath("res://SimLogs/scene3-ui-v1"); Directory.CreateDirectory(dir);
+            bool information = OS.GetCmdlineUserArgs().Contains("--scene-information-ui-check");
+            if (information) {
+                var tip = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("ASK ") && b.Text.Contains("LISTENING TIP"));
+                if (!tip.Disabled) throw new InvalidOperationException("A new player must earn booker familiarity.");
+                if (!Descendants(panel).OfType<Label>().Any(l => !l.IsQueuedForDeletion() && l.Text.Contains("LOCAL SCENE"))) throw new InvalidOperationException("Local recap is missing.");
+            }
+            bool ecosystem = OS.GetCmdlineUserArgs().Contains("--scene-ecosystem-ui-check");
+            if (ecosystem) {
+                float before = desk.Label.cashReserves;
+                var fund = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("FUND 13-WEEK"));
+                fund.EmitSignal(Button.SignalName.Pressed);
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (SceneEcosystemService.Programs.Count != 1 || desk.Label.cashReserves != before - SceneEcosystemService.ProgramCost)
+                    throw new InvalidOperationException("Funding button must create one program and book its real expense.");
+            }
+            string dir = ProjectSettings.GlobalizePath(information ? "res://SimLogs/scene6-information-ui-v1" : ecosystem ? "res://SimLogs/scene5-ecosystem-ui-v1" : "res://SimLogs/scene3-ui-v1"); Directory.CreateDirectory(dir);
             File.WriteAllText(Path.Combine(dir, "ui.txt"), string.Join("\n", Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion()).Select(l => l.Text)));
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             var image = GetViewport().GetTexture().GetImage();
             if (image.SavePng(Path.Combine(dir, "board.png")) != Error.Ok) throw new InvalidOperationException("Screenshot failed.");
-            GD.Print("SCENE_ROOM_UI_PASS rooms=6 selection=true layout=true"); GetTree().Quit(0);
+            GD.Print(information ? "SCENE_INFORMATION_UI_PASS rooms=6 recap=true earnedTip=true" : ecosystem ? "SCENE_ECOSYSTEM_UI_PASS rooms=6 funding=true layout=true" : "SCENE_ROOM_UI_PASS rooms=6 selection=true layout=true"); GetTree().Quit(0);
         } catch (Exception ex) { GD.PrintErr("SCENE_ROOM_UI_FAILED: " + ex); GetTree().Quit(1); }
     }
 }

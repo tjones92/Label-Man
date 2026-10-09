@@ -985,6 +985,9 @@ public partial class PlayerDesk {
 	public bool BookRoad(SimulatedArtist a, int residencyWeeks, int tourWeeks, out string message) {
 		message = "";
 		if (a == null || a.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
+		if (SceneEcosystemService.Moves.Any(m => m.ArtistId == a.artistId && m.Status == SceneMoveStatus.Planned)) {
+			message = "The act already has a relocation arranged."; return false;
+		}
 		if (!Require(1, out message)) return false;
 		Spend(1);
 		RoadBooking b = BookingFor(a);
