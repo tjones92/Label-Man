@@ -8,7 +8,7 @@ if ($RunTag -notmatch '^[a-z0-9-]+$') { throw 'RunTag must contain lowercase let
 if (!(Test-Path -LiteralPath $Godot)) { throw 'Godot binary missing.' }
 $sceneArtifacts = Join-Path $sceneRoot "SimLogs/$RunTag"
 if (Test-Path -LiteralPath $sceneArtifacts) { throw 'Run family exists; choose a new RunTag.' }
-$sceneFlags = @('--enable-genre-market-v2', '--enable-artist-population-lifecycle', '--enable-artist-evolution', '--enable-artist-recognition', '--enable-managers', '--seed-star-canopy', '--enable-cowriting', '--enable-member-axes', '--observe-band-life', '--enable-lineup-churn=world', '--member-fame-share=0.45')
+$sceneFlags = @('--disable-local-scenes', '--enable-genre-market-v2', '--enable-artist-population-lifecycle', '--enable-artist-evolution', '--enable-artist-recognition', '--enable-managers', '--seed-star-canopy', '--enable-cowriting', '--enable-member-axes', '--observe-band-life', '--enable-lineup-churn=world', '--member-fame-share=0.45')
 $sceneJobs = @(
     @{ name = "$RunTag-1001"; seed = 1001; weeks = 52; extra = @('--save-world-at-year=1960', "--save-world=$RunTag-w0-1001") },
     @{ name = "$RunTag-repeat-1001"; seed = 1001; weeks = 52; extra = @('--save-world-at-year=1960', "--save-world=$RunTag-w0-repeat-1001") },

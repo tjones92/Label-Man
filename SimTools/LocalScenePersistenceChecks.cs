@@ -13,6 +13,25 @@ public static class LocalScenePersistenceChecks {
         int checks = 0;
         void Check(bool ok, string detail) { if (!ok) throw new InvalidOperationException("SCENE_PERSISTENCE_CHECK_FAILED: " + detail); checks++; }
         string Json(object value) => JsonSerializer.Serialize(value, opts);
+        LocalScenes.Configure(Array.Empty<string>());
+        Check(LocalScenes.Persisting && LocalScenes.Observing, "default enables persistent discovery");
+        LocalScenes.Configure(new[] { "--disable-persistent-scenes" });
+        Check(!LocalScenes.Persisting && !LocalScenes.Observing, "persistence disable preserves all-off control");
+        LocalScenes.Configure(new[] { "--disable-local-scenes" });
+        Check(!LocalScenes.Persisting && !LocalScenes.Observing, "scene disable preserves all-off control");
+        LocalScenes.Configure(new[] { "--observe-local-scenes" });
+        Check(!LocalScenes.Persisting && LocalScenes.Observing, "observation stays identity-only");
+        LocalScenes.Configure(new[] { "--disable-artist-population-lifecycle" });
+        Check(!LocalScenes.Persisting && !LocalScenes.Observing, "population-off suppresses persistence default");
+        LocalScenes.Configure(new[] { "--disable-genre-market-v2" });
+        Check(!LocalScenes.Persisting && !LocalScenes.Observing, "genre-off suppresses persistence default");
+        LocalScenes.Configure(new[] { "--observe-local-scenes", "--disable-persistent-scenes" });
+        Check(!LocalScenes.Persisting && LocalScenes.Observing, "persistence-off permits explicit identity observation");
+        bool defaultConflictRejected = false;
+        try { LocalScenes.Configure(new[] { "--enable-persistent-scenes", "--disable-persistent-scenes" }); }
+        catch (ArgumentException) { defaultConflictRejected = true; }
+        Check(defaultConflictRejected, "explicit persistence enable/disable conflict rejected");
+        LocalScenes.Configure(new[] { "--enable-persistent-scenes" });
         int week = ChartManager.Instance.GetCurrentChartWeek();
         GameDate date = TimeManager.Instance.CurrentDate;
         var origin = WorldStateService.Capture();

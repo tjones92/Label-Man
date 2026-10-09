@@ -8,7 +8,7 @@ Phase 2 implementation `f23400c` and the final availability refinements build wi
 
 `ArtistManager` remains the sole act population/birth owner; `BandLifeService` remains the people and formation-debt/credit owner. Scene history and indexes reference canonical artist IDs. Scene reads have no factory, removal, activation, offer, debt, credit, or quota operation.
 
-`--enable-persistent-scenes` enables identity observation and scene persistence. It requires the existing population lifecycle. It is off by default. Observe-only still means identity only; off preserves stored identity/history but assigns no new scene metadata. Conflicting enable/disable flags and unimplemented recruitment/dynamics flags are rejected.
+`--enable-persistent-scenes` enables identity observation and scene persistence. It requires the existing population lifecycle. It originally shipped off by default; the 2026-10-08 development-default decision below supersedes that setting. Observe-only still means identity only; off preserves stored identity/history but assigns no new scene metadata. Conflicting enable/disable flags and unimplemented recruitment/dynamics flags are rejected.
 
 Each act records resident/visitor/session/touring relationships, observed place, dates, participation level and provenance. Performance participation is separate from `ProspectMarketStatus`: signed residents and latent contract prospects can be heard; an encounter never activates a latent prospect. The existing activation, ownership and cooldown service still decides who may sign. Terminal actors stay in the registry with closed scene history. An existing base change closes the previous resident relationship and creates one current relationship; formation origin is retained.
 
@@ -40,7 +40,7 @@ Current casts are bounded to one world week (45 distinct identity/catchment scen
 - `compare_local_scene_controls.py <manifest> --persistence` compares all existing CSVs and normalized early world snapshots, excluding only the explicit new scene metadata/diagnostic fields. It supports frozen control runs recorded by name in a manifest.
 - The pre-existing `MissingSingletonsTemp.cs`/`Rolodex` class-name autoload diagnostic occurs in both control and treatment; it remains outside this scene change.
 
-Broad economic acceptance still owes the established paired-seed decade gate. Bounded equality is not a claim of decade acceptance. Persistence remains opt-in while that broader gate is pending; Phase 3 is not part of this implementation.
+Broad economic acceptance still owes the established paired-seed decade gate. Bounded equality is not a claim of decade acceptance. The original opt-in gate is superseded by the development-default decision below; the broader decade acceptance remains pending. Phase 3 is not part of this implementation.
 
 ## Completed bounded validation
 
@@ -53,4 +53,17 @@ The matched family uses the core `f23400c` implementation, recorded by its sourc
 
 Testing was serial, with process and free-memory checks before each launch; no test remains running. The primary checkout subsequently advanced to `01ee660`; that later band change is outside this frozen comparison and has not been merged into the scene branch. The primary checkout was not edited.
 
-The next phase is actual scene rooms, bills, appearances and work accounting. Phase 3 has not started. The broader decade gate remains open before default enablement or a claim of long-horizon economic acceptance.
+The next phase is actual scene rooms, bills, appearances and work accounting. Phase 3 has not started. The broader decade gate remains open before a claim of long-horizon economic acceptance. Development default enablement is authorized below.
+## 2026-10-08: two-year smoke gate and development default
+
+The user authorized enabling persistence, checking a quick two-year run for serious failures, and keeping it enabled for subsequent phases if that check passed. This revises the previous default-enablement gate for continued development; it does not accept long-horizon economics or waive the eventual paired-seed decade comparison.
+
+- `SimLogs/scene2-two-year-1001-v1/runs.json`: seed 1001 completed exactly 104 chart weeks (1960-1961), exit 0 and the completion marker, in approximately 295 seconds. It used the frozen `7035c79` assembly (the exact final Phase 2 fixed-test assembly), with explicit persistence enabled and the established band/population settings.
+- `SimLogs/scene2-two-year-1001-v1/integrity.json`: all nine weekly population/labor integrity fields have maximum zero. Start/end scene census has zero duplicate residents, terminal residents or missing canonical active people. Residents grow from 7,000 to 11,353 through the existing population owner. No NaN/Infinity CSV values were found.
+- First-year prefixes for weeks, artist population, artist labor market, market revenue and label finance exactly match the previous validated seed-1001 persistent run. This is a single-seed serious-failure smoke check, not a paired 104-week economic comparison or decade acceptance.
+
+`SimLogs/scene2-default-checks-v1/runs.json` records the rebuilt default-on assembly: both seeds 1001 and 2002 pass 53 persistence checks without an enable flag (including actual world/player gzip reloads); explicit off and observe-only each pass 30 identity checks. The build passes with zero errors and the same six existing warnings. All simulation processes have exited.
+
+Persistence now defaults on in the scene branch. `--disable-local-scenes` and `--disable-persistent-scenes` retain the all-off control; `--observe-local-scenes` remains identity-only. Explicit population/genre dependency-off flags suppress the persistence default, while explicit persistence enable still validates its lifecycle dependency. The baseline harness now explicitly disables scenes so future control runs do not silently become treatments.
+
+Subsequent phases should use the enabled development default, retain explicit off/observation controls, and continue targeted checks, save/replay checks and bounded comparisons. The paired-seed decade gate remains due before long-horizon acceptance. No Phase 3 implementation was added by this default change; the primary band checkout remains untouched.
