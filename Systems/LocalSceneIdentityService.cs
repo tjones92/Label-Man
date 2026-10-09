@@ -7,7 +7,7 @@ using System.Linq;
 /// ArtistManager and band life still own the population and people. Indices contain IDs, never copies.
 /// </summary>
 public static class LocalSceneIdentityService {
-    public const int AssignmentVersion = 1;
+    public const int AssignmentVersion = 2;
     private const ulong Namespace = 0x7363656e65696431UL; // sceneid1: distinct from population/band-life draws
     private static SceneIdentitySaveData state;
     private static SceneIdentitySaveData previousState;
@@ -29,23 +29,9 @@ public static class LocalSceneIdentityService {
             return (h >> 11) * (1.0 / 9007199254740992.0);
         }
     }
-    /// <summary>
-    /// Provisional placement priors, not historical genre shares or economic weights. Every city in a
-    /// legacy region remains eligible; small qualitative fits avoid assigning all legacy acts to a hub.
-    /// </summary>
-    public static string InferBase(ulong seed, string entityId, string region, Genre genre, ArtistCohort cohort) {
-        var places = ScenePlaceRegistry.PlayableInRegion(region);
-        if (places.Count == 0) return null;
-        double Fit(ScenePlace p) => (genre, p.Id) switch {
-            (Genre.Country, "nashville") or (Genre.Jazz, "new_orleans") or (Genre.LatinPop, "miami") or
-            (Genre.TexMex, "san_antonio") or (Genre.Soul, "memphis") or (Genre.Soul, "detroit") or
-            (Genre.Folk, "boston") or (Genre.Folk, "san_francisco") => 1.5,
-            _ => 1.0
-        };
-        double draw = AssignmentUnit(seed, $"v1|base|{entityId}|{(int)cohort}|{(int)genre}") * places.Sum(Fit);
-        foreach (ScenePlace place in places) { draw -= Fit(place); if (draw < 0) return place.Id; }
-        return places[^1].Id;
-    }
+    /// <summary>Versioned national opportunity placement; preserves the separate commercial region.</summary>
+    public static string InferBase(ulong seed, string entityId, string region, Genre genre, ArtistCohort cohort, int year = 1960) =>
+        SceneCityPlacement.Assign(seed, entityId, region, genre, cohort, year);
     public static void EnsureArtist(SimulatedArtist artist, bool generated = false, string formationPlaceId = null) {
         if (!LocalScenes.Observing || restoring || artist == null) return;
         artist.geography ??= new GeographicIdentity();
@@ -53,10 +39,10 @@ public static class LocalSceneIdentityService {
         if (string.IsNullOrEmpty(geo.basePlaceId)) {
             string origin = ScenePlaceRegistry.Get(geo.originPlaceId)?.Id;
             string supplied = ScenePlaceRegistry.Get(formationPlaceId)?.Id;
-            geo.basePlaceId = supplied ?? origin ?? InferBase(State.WorldSeed, artist.artistId, artist.homeRegion, artist.primaryGenre, artist.cohort);
+            geo.basePlaceId = supplied ?? origin ?? InferBase(State.WorldSeed, artist.artistId, artist.homeRegion, artist.primaryGenre, artist.cohort, artist.formedYear);
             geo.baseEvidence = generated ? PlaceEvidence.Simulated : PlaceEvidence.Inferred;
             geo.assignmentSource = geo.basePlaceId == null ? "unmapped-legacy-region" :
-                supplied != null ? "existing-formation-location" : origin != null ? "existing-origin-base-inference" : "keyed-region-genre-cohort-prior-v1";
+                supplied != null ? "existing-formation-location" : origin != null ? "existing-origin-base-inference" : "keyed-national-city-opportunity-genre-prior-v2";
             geo.assignmentVersion = AssignmentVersion;
         }
         // Only a newly simulated formation may establish a procedural hometown. Legacy migration cannot.
