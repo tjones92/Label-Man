@@ -115,6 +115,20 @@ public static class BandLifeService {
 	/// onset only decayed and nobody ever reached the bust or death thresholds: the late-decade channel was dead.</summary>
 	public const float SubstancePersistence = 0.80f;
 	public const float ExhaustionRate = 0.012f;
+	/// <summary>The exhaustion rate on the fatigue level (Phase 4f). Fatigue sits below lifetime road years for anyone who
+	/// rests, so the rate is 1.5x: on bms5-obs-1001 that puts expected exits at about half the old count and flat, with
+	/// charting acts near their old rate (they rest least).</summary>
+	public const float FatigueExhaustionRate = 0.018f;
+	// ==== road fatigue (§4.16, Phase 4f) ================================================================
+	/// <summary>Share of the fatigue level an act sheds over a fully rested year, before wear and success.</summary>
+	public const float FatigueRecovery = 0.80f;
+	/// <summary>Burnout is the slowing rate: each lifetime road year slows recovery.</summary>
+	public const float FatigueWear = 0.08f;
+	/// <summary>Success motivates: it speeds recovery, bounded so a hit act on a heavy schedule still accumulates.</summary>
+	public const float FatigueSuccess = 1.0f;
+	/// <summary>An old world's fatigue starts at this share of the lifetime road years, so a load doesn't retire its
+	/// veterans in a single January.</summary>
+	public const float FatigueSeedFromRoadYears = 0.50f;
 	public const float MarriageRate = 0.07f;
 	public const float ChildrenRate = 0.12f;
 	public const float InBandCoupleRate = 0.010f;
@@ -146,9 +160,40 @@ public static class BandLifeService {
 		public float creditRaw, spotlightRaw, directionRaw, projectFriction, reliabilityRaw, substanceRaw, outsiderRaw, rivalry;
 		public float scale, workFactor, solvent, strainBefore, strainAfter;
 		public float creditShareA, creditShareB, temperamentA, temperamentB, loyaltyA, loyaltyB, egoA, egoB, ambitionA, ambitionB;
-		public float reliabilityA, reliabilityB, substanceA, substanceB, spotA, spotB, recognitionA, recognitionB;
+		public float reliabilityA, reliabilityB, substanceA, substanceB, spotA, spotB, recognitionA, recognitionB, wealthA, wealthB;
 		public bool soloViableA, soloViableB, writerA, writerB, leadA, leadB;
 		public bool burnoutRow; public float burnoutRaw, morale; public string burnoutDefaultA, burnoutDefaultB;
+	}
+
+	/// <summary>Calibration telemetry (Phases 4e, 4f, 5): one row per person per act-year, after life events. Opt-in.</summary>
+	public static event Action<MemberYearRow> OnMemberYear;
+	public sealed class MemberYearRow {
+		public int year, age, chartedNow, top40Now, releasesNow; public string artistId, personId; public bool everCharted, signed;
+		public LineupConstitution constitution; public MemberLifeState lifeState; public bool lead, writer;
+		public float roadLoad, roadYears, fatigue, temperament, reliability, ego, ambition, loyalty, creativity, studioEfficiency;
+		public float personalRecognition, actFame, substanceLoad, wealth, income, writerIncome;
+		public float hours, weightedHours, effectiveHours, technicalNow, technicalGrown, vocalPowerGrown, instrumentalGrown, creativityGrown;
+	}
+
+	private static void EmitMemberYears(ActYear ctx, Dictionary<Musician, MemberGrowthService.GrowthRow> growth) {
+		if (OnMemberYear == null) return;
+		SimulatedArtist a = ctx.artist;
+		foreach (Musician m in ctx.present) {
+			MemberGrowthService.GrowthRow g = growth != null && growth.TryGetValue(m, out var row) ? row : null;
+			OnMemberYear(new MemberYearRow {
+				year = ctx.year, age = m.GetAge(ctx.year), chartedNow = ctx.chartedNow, top40Now = ctx.top40Now, releasesNow = ctx.releasesNow,
+				artistId = a.artistId, personId = m.personId, everCharted = ctx.everCharted, signed = !string.IsNullOrEmpty(a.labelId),
+				constitution = ctx.constitution, lifeState = m.lifeState, lead = m.isLeadVocalist, writer = m.isPrimaryWriter,
+				roadLoad = ctx.roadLoad, roadYears = m.roadYears, fatigue = m.fatigue, temperament = m.temperament, reliability = m.reliability,
+				ego = m.ego, ambition = m.ambition, loyalty = m.loyalty, creativity = m.creativity, studioEfficiency = m.studioEfficiency,
+				personalRecognition = m.personalRecognition, actFame = ctx.fame, substanceLoad = m.substanceLoad, wealth = m.wealth,
+				income = m.lastYearIncome, writerIncome = m.lastYearWriterIncome,
+				hours = g?.hours ?? 0f, weightedHours = g?.weightedHours ?? 0f, effectiveHours = m.effectiveHours,
+				technicalNow = m.technicalSkill, technicalGrown = g?.technicalGrown ?? m.technicalSkill,
+				vocalPowerGrown = g?.vocalPowerGrown ?? m.vocalPower, instrumentalGrown = g?.instrumentalGrown ?? m.instrumentalSkill,
+				creativityGrown = g?.creativityGrown ?? m.creativity
+			});
+		}
 	}
 
 	public static int LastAnnualYear => lastAnnualYear;
@@ -204,6 +249,7 @@ public static class BandLifeService {
 			ProcessAct(ctx, summary, candidates);
 		}
 		ResolveDepartures(candidates, summary);
+		MemberGrowthService.EndPass();
 		foreach (PooledPerson gone in PersonPool.ExpireStale(year)) {
 			summary.poolExpired++;
 			Emit(new BandLifeEvent { year = year, personId = gone.person.personId, personName = gone.person.FullName,
@@ -297,6 +343,8 @@ public static class BandLifeService {
 
 	private static GenreFamily FamilyOf(Genre g) => GenreCatalog.TryGet(g, out var p) ? p.Family : GenreFamily.Pop;
 
+	public static bool IsClubFamilyGenre(Genre g) => IsClubFamily(g);
+
 	private static bool IsClubFamily(Genre g) => FamilyOf(g) is GenreFamily.Rock or GenreFamily.RhythmAndSoul or
 		GenreFamily.Blues or GenreFamily.Jazz or GenreFamily.Country;
 
@@ -312,8 +360,16 @@ public static class BandLifeService {
 	private static void ProcessAct(ActYear ctx, BandLifeAnnualSummary summary, List<DepartureCandidate> candidates) {
 		SimulatedArtist a = ctx.artist;
 		// A studio-only member makes the records and stays home for the dates.
-		foreach (Musician m in ctx.present) if (m.lifeState != MemberLifeState.StudioOnly) m.roadYears += ctx.roadLoad;
+		foreach (Musician m in ctx.present) {
+			float load = m.lifeState == MemberLifeState.StudioOnly ? 0f : ctx.roadLoad;
+			UpdateFatigue(m, load, ctx.success);
+			m.roadYears += load;
+		}
+		MemberWealthService.OnActYear(a, ctx.present, ctx.constitution, ctx.roadLoad, ctx.year);
 		LifeEvents(ctx, summary, candidates);
+		var growth = MemberGrowthService.OnActYear(a, ctx.present, ctx.roadLoad, ctx.releasesNow, ctx.year);
+		MemberIdentityService.OnActYear(a, ctx.present, ctx.year);
+		EmitMemberYears(ctx, growth);
 		if (ctx.present.Count == 0) return;
 		UpdateMorale(ctx);
 		if (ctx.constitution != LineupConstitution.Solo) {
@@ -328,6 +384,20 @@ public static class BandLifeService {
 		}
 	}
 
+	/// <summary>
+	/// Road fatigue (§4.16): a level with a sink, not a counter. A road year adds its load; rest is the only sink, and
+	/// it heals more slowly the more a person has toured (burnout) and a little faster when the act is winning. Kept in
+	/// every scope (it moves nothing until --enable-road-fatigue points the exhaustion hazard at it).
+	/// </summary>
+	private static void UpdateFatigue(Musician m, float load, float success) {
+		if (!m.fatigueBaselined) {
+			m.fatigueBaselined = true;
+			m.fatigue = m.roadYears * FatigueSeedFromRoadYears;
+		}
+		float recovery = FatigueRecovery / (1f + FatigueWear * m.roadYears) * (1f + FatigueSuccess * success);
+		m.fatigue = Mathf.Max(0f, m.fatigue * (1f - Mathf.Clamp(recovery * (1f - load), 0f, 1f)) + load);
+	}
+
 	// ---- life events (§4.8) -----------------------------------------------------------------------------
 
 	private static void LifeEvents(ActYear ctx, BandLifeAnnualSummary summary, List<DepartureCandidate> candidates) {
@@ -339,7 +409,10 @@ public static class BandLifeService {
 
 			// Substance (§4.8): ramps up from 1965, keyed to unreliability, fame and the scene.
 			float personalFame = Mathf.Max(Mathf.Clamp(m.personalRecognition * 4f, 0f, 1f), ctx.fame * 0.6f);
-			float onset = SubstanceOnsetRate * (1f - m.reliability) * (0.3f + personalFame) * SceneSubstance(a.primaryGenre) *
+			// Wealth reader 4 (§4.15): money, not the fame proxy, is what buys the habit.
+			float exposure = MemberWealthService.Readers
+				? Mathf.Max(MemberWealthService.SubstanceExposure(m, personalFame), ctx.fame * 0.6f) : personalFame;
+			float onset = SubstanceOnsetRate * (1f - m.reliability) * (0.3f + exposure) * SceneSubstance(a.primaryGenre) *
 				SubstanceEra(year) * (0.5f + ctx.roadLoad);
 			bool usingNow = m.substanceLoad >= 0.05f;
 			float carryOn = usingNow ? Mathf.Clamp(SubstancePersistence * (0.6f + 0.8f * (1f - m.reliability)), 0f, 1f) * SubstanceEra(year) : 0f;
@@ -354,7 +427,7 @@ public static class BandLifeService {
 				m.substanceLoad = Mathf.Max(0f, m.substanceLoad * 0.85f - 0.01f);
 			}
 			if (m.substanceLoad > SubstanceDeathThreshold) m.substanceHeavyYears++;
-			if (m.substanceLoad > 0.35f && BandLife.Chance(k + "|bust", 0.05f * m.substanceLoad * (0.3f + personalFame))) {
+			if (m.substanceLoad > 0.35f && BandLife.Chance(k + "|bust", 0.05f * m.substanceLoad * (0.3f + exposure))) {
 				summary.busts++;
 				EmitPerson(ctx, m, "bust", detail: F(m.substanceLoad));
 			}
@@ -398,10 +471,15 @@ public static class BandLifeService {
 			}
 
 			// Exhaustion: the road wears a short fuse down. A writer or studio hand stays for the records.
-			float exhaustion = ExhaustionRate * m.roadYears * (1f - m.temperament) * Mathf.Clamp((age - 18) / 16f, 0.2f, 1.3f);
+			// Phase 4f: the hazard reads the recovering fatigue level, not the lifetime counter (§4.16).
+			float wear = BandLife.RoadFatigue ? m.fatigue : m.roadYears;
+			float exhaustion = (BandLife.RoadFatigue ? FatigueExhaustionRate : ExhaustionRate) * wear * (1f - m.temperament) *
+				Mathf.Clamp((age - 18) / 16f, 0.2f, 1.3f);
 			if (m.lifeState == MemberLifeState.Active && BandLife.Chance(k + "|exhaustion", exhaustion)) {
 				summary.exhaustion++;
-				bool studioRole = ctx.constitution != LineupConstitution.Solo && (m.isPrimaryWriter || m.studioEfficiency > 0.6f);
+				// Wealth reader 1: a member who can afford it stops touring rather than quitting (the 1966 Beatles).
+				bool studioRole = ctx.constitution != LineupConstitution.Solo && (m.isPrimaryWriter || m.studioEfficiency > 0.6f) ||
+					MemberWealthService.CanAffordStudioOnly(m);
 				if (studioRole) {
 					m.lifeState = MemberLifeState.StudioOnly;
 					EmitPerson(ctx, m, "studio-only", kind: DepartureKind.StudioOnly, cause: StrainCause.Burnout);
@@ -607,7 +685,8 @@ public static class BandLifeService {
 			float shareY = CompositionCatalogService.GetStintCreditShare(y.personId, a);
 			float resentY = Mathf.Max(0f, shareX - shareY) * y.ambition * y.ego * (0.3f + 0.7f * y.creativity);
 			float resentX = Mathf.Max(0f, shareY - shareX) * x.ambition * x.ego * (0.3f + 0.7f * x.creativity);
-			float creditRaw = Mathf.Max(resentX, resentY) * (0.25f + 0.75f * ctx.money);
+			float creditRaw = Mathf.Max(resentX, resentY) * (0.25f + 0.75f * ctx.money)
+				+ MemberWealthService.WealthGapGrievance(x, y); // wealth reader 2: the money grievance
 
 			// Spotlight: has the public learned one name? Read on spotlight SHARE, never raw recognition (§2.4).
 			float spotX = Spot(x), spotY = Spot(y);
@@ -618,6 +697,8 @@ public static class BandLifeService {
 			float dExp = (0.5f * x.musicalVersatility + 0.4f * x.creativity + 0.1f * x.ego) - (0.5f * y.musicalVersatility + 0.4f * y.creativity + 0.1f * y.ego);
 			float dPrag = (0.4f * x.reliability + 0.3f * (1f - x.creativity) + 0.3f * x.loyalty) - (0.4f * y.reliability + 0.3f * (1f - y.creativity) + 0.3f * y.loyalty);
 			float directionRaw = Mathf.Sqrt(dExp * dExp + dPrag * dPrag) * (0.5f + Mathf.Max(x.creativity, y.creativity));
+			// Phase 7: once identity lives on people, half of Direction is the distance between what they want to be.
+			directionRaw = MemberIdentityService.DirectionRaw(directionRaw, x, y);
 
 			// Reliability: sign fixed (§2.10) -- high temperament is even-tempered, so the DRAMA term is (1 - t).
 			float reliabilityRaw = Mathf.Max(1f - x.reliability, 1f - y.reliability) * Mathf.Max(1f - x.temperament, 1f - y.temperament);
@@ -638,18 +719,22 @@ public static class BandLifeService {
 
 			float total = 0f;
 			for (int c = 0; c < incoming.Length; c++) { incoming[c] *= scale * ctx.workFactor * StrainScale; total += incoming[c]; }
-			float excess = Mathf.Max(0f, total - solvent);
+			// Wealth reader 1: the act's success absorbs less of a rich member's strain -- they don't need the band.
+			float pairSolvent = MemberWealthService.Readers
+				? (ctx.success * MemberWealthService.SuccessSolventFactor(x, y) + ctx.restingCohesion * SolventCohesionWeight) * SolventScale
+				: solvent;
+			float excess = Mathf.Max(0f, total - pairSolvent);
 			if (OnPairTerms != null)
 				OnPairTerms(new PairTermRow {
 					year = ctx.year, artistId = a.artistId, everCharted = ctx.everCharted, chartedNow = ctx.chartedNow, top40Now = ctx.top40Now,
 					constitution = ctx.constitution, personA = x.personId, personB = y.personId, creditRaw = creditRaw, spotlightRaw = spotlightRaw,
 					directionRaw = directionRaw, projectFriction = projectFriction, reliabilityRaw = reliabilityRaw, substanceRaw = substanceRaw,
-					outsiderRaw = outsiderRaw, rivalry = rivalry, scale = scale, workFactor = ctx.workFactor, solvent = solvent,
+					outsiderRaw = outsiderRaw, rivalry = rivalry, scale = scale, workFactor = ctx.workFactor, solvent = pairSolvent,
 					strainBefore = strainBefore, strainAfter = existing == null && excess <= 0f ? 0f : Mathf.Clamp(strainBefore * StrainRetention + excess, 0f, 1f), creditShareA = shareX, creditShareB = shareY,
 					temperamentA = x.temperament, temperamentB = y.temperament, loyaltyA = x.loyalty, loyaltyB = y.loyalty,
 					egoA = x.ego, egoB = y.ego, ambitionA = x.ambition, ambitionB = y.ambition, reliabilityA = x.reliability,
 					reliabilityB = y.reliability, substanceA = x.substanceLoad, substanceB = y.substanceLoad, spotA = spotX, spotB = spotY,
-					recognitionA = x.personalRecognition, recognitionB = y.personalRecognition,
+					recognitionA = x.personalRecognition, recognitionB = y.personalRecognition, wealthA = x.wealth, wealthB = y.wealth,
 					soloViableA = IsSoloViable(x, a, ctx.year), soloViableB = IsSoloViable(y, a, ctx.year),
 					writerA = x.isPrimaryWriter, writerB = y.isPrimaryWriter, leadA = x.isLeadVocalist, leadB = y.isLeadVocalist
 				});
@@ -807,7 +892,8 @@ public static class BandLifeService {
 		float spot = total > 0.005f ? m.personalRecognition / total : 0f;
 		int yearsInGroup = Mathf.Max(0, year - m.joinedYear);
 		int hits = a.top40Hits;
-		return m.WouldConsiderSoloCareer(yearsInGroup, hits) && spot >= SoloSpotlightShare && m.personalRecognition >= SoloLaunchBar;
+		return m.WouldConsiderSoloCareer(yearsInGroup, hits, MemberWealthService.SoloIndependence(m)) &&
+			spot >= SoloSpotlightShare && m.personalRecognition >= SoloLaunchBar;
 	}
 
 	/// <summary>
@@ -1074,6 +1160,7 @@ public static class BandLifeService {
 		ArtistManager.Instance?.RegisterMusician(m);
 		LocalSceneIdentityService.PersonJoined(m, a, year);
 		MemberAxesService.EnsureAxes(m, a, year);
+		MemberIdentityService.EnsureIdentity(m, a, year);
 		a.careerEvents.Add($"{year}: {m.FullName} joined ({role})");
 		a.lastMemberChangeYear = year;
 	}
@@ -1452,6 +1539,8 @@ public static class BandLifeService {
 			FormationDebt = formationDebt,
 			FormationCredit = formationCredit,
 			DeparturesByYear = new Dictionary<int, int>(appliedStrainDeparturesByYear),
+			GrowthTechnicalCentre = MemberGrowthService.TechnicalCentre,
+			GrowthCreativityCentre = MemberGrowthService.CreativityCentre,
 		};
 	}
 
@@ -1475,12 +1564,14 @@ public static class BandLifeService {
 		formationCredit = s.FormationCredit;
 		appliedStrainDeparturesByYear.Clear();
 		foreach (var kv in s.DeparturesByYear ?? new Dictionary<int, int>()) appliedStrainDeparturesByYear[kv.Key] = kv.Value;
+		MemberGrowthService.RestoreCentres(s.GrowthTechnicalCentre, s.GrowthCreativityCentre);
 	}
 
 	internal static void ResetForProbe() {
 		lastAnnualYear = -1; formationDebt = 0; formationCredit = 0; appliedStrainDeparturesByYear.Clear(); recombinationsThisYear = 0;
 		quietThisYear[0] = quietThisYear[1] = 0;
 		PersonPool.Reset();
+		MemberGrowthService.ResetForProbe();
 	}
 }
 

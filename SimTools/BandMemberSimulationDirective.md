@@ -979,13 +979,13 @@ All telemetry goes to `SimLogs/<run>-lineup-*.csv` ([[audit-output-goes-to-simlo
 | 4 | W | `--enable-lineup-churn` (scope = world) | the same code with the scope widened: AI departures, draft and death, replacement, dissolution into the pool, solo spin-outs through the servo, recombination, the leaving-member-option rule, the trade-press "Scene" feed; the Polar deriver re-derives on lineup change | two-seed decade A/B against the §7 measures |
 | 4d | W | `--member-fame-share=X` | member slice of act fame raised (§4.15 "What it is not"); the spin-out rate it buys | two-seed decade A/B; spin-outs per decade and their success, against the reference set's solo spin-outs. **Run 2026-10-08 (§12): calibration-neutral, buys no spin-outs alone; default raised to .90 with 4d2 (§13)** |
 | 4d2 | W | `WouldConsiderSoloCareer` (no flag) | solo intent: success raises the urge, tenure no longer only raises the ties (§13) | one 1965-69 window from the saved 1965 world with the doubled slice. **Run 2026-10-08 (§13): 13 of 67 groups with 5+ top-40 hits lost a member to a solo career (19.4%, ref 17.6%); 12 of 26 spin-outs charted; calibration-neutral** |
-| 4e | F→W | `--enable-member-wealth` | the wealth stock and its sink, observe-only (§4.15); then the readers one at a time: independence, money grievance, lasting fame, hazards | observe stage byte-identical (probe hash); readers sized offline from the observe ledger, smoke-tested on 104-week probes, then bundled into one two-seed decade A/B (see "Test tiers" below); the intra-act wealth gap distribution reported (writers vs non-writers in charting acts) |
-| 4f | W | `--enable-road-fatigue` | road fatigue as a recovering level with burnout and the success offset (§4.16) | two-seed A/B; exhaustion retirements per year no longer climbing with the unsigned-club backlog; `StudioOnly` exits concentrated in rich, charting acts |
-| 4c | W | `--enable-team-writing` | co-writing layers 2–4 (§4.14): team craft, professional teams, AI cut-ins | its own two-seed decade A/B; mean hook inside the noise floor |
-| 5 | W | `--enable-musician-growth` | a shadow pass first (grown skills computed beside the live fields, drift reported), then live: growth, decline, personality drift | mean base quality of active acts within the control's noise floor every year; 1969 skill spread wider than 1961 |
-| 5b | W | `--polar-member-axes` | `PolarActProfileDeriver` reads the split axes | Polar fit A/B in the polar branch's own harness |
-| 6 | P | (with 5) | scouting the rough: ceiling tells, the revisit delta, the potential read | playtest |
-| 7 | W | `--enable-member-identity` | identity on people; spread feeds Direction and reach; partner pull | decade A/B; the evolution ledger's mix unchanged within noise |
+| 4e | F→W | `--enable-member-wealth` | the wealth stock and its sink, observe-only (§4.15); then the readers one at a time: independence, money grievance, lasting fame, hazards | observe stage byte-identical (probe hash); readers sized offline from the observe ledger, smoke-tested on 104-week probes, then bundled into one two-seed decade A/B (see "Test tiers" below); the intra-act wealth gap distribution reported (writers vs non-writers in charting acts) **Built and on by default 2026-10-08 (§14).** |
+| 4f | W | `--enable-road-fatigue` | road fatigue as a recovering level with burnout and the success offset (§4.16) | two-seed A/B; exhaustion retirements per year no longer climbing with the unsigned-club backlog; `StudioOnly` exits concentrated in rich, charting acts **Built and on by default 2026-10-08 (§14).** |
+| 4c | W | `--enable-team-writing` | co-writing layers 2–4 (§4.14): team craft, professional teams, AI cut-ins | its own two-seed decade A/B; mean hook inside the noise floor **Built and on by default 2026-10-08 (§14).** |
+| 5 | W | `--enable-musician-growth` | a shadow pass first (grown skills computed beside the live fields, drift reported), then live: growth, decline, personality drift | mean base quality of active acts within the control's noise floor every year; 1969 skill spread wider than 1961 **Built and on by default 2026-10-08 (§14).** |
+| 5b | W | `--polar-member-axes` | `PolarActProfileDeriver` reads the split axes | Polar fit A/B in the polar branch's own harness **Built and on by default 2026-10-08 (§14).** |
+| 6 | P | (with 5) | scouting the rough: ceiling tells, the revisit delta, the potential read | playtest **Built and on by default 2026-10-08 (§14).** |
+| 7 | W | `--enable-member-identity` | identity on people; spread feeds Direction and reach; partner pull | decade A/B; the evolution ledger's mix unchanged within noise **Built and on by default 2026-10-08 (§14).** |
 
 **Test tiers (author-agreed 2026-10-08).** A decade run per change is too slow. Each world change climbs only as
 far as it needs to:
@@ -1339,3 +1339,101 @@ walks. About half the spin-outs chart, and one reached #2.
 2. **The next paired A/B** should run intent + .90 on both 1965 worlds against `bms4d-ctl-*`, and seed 2002
    especially, since the sizing was fitted on seed 1001.
 
+## 14. Status — Phases 4e, 4f, 4c, 5, 5b, 6, 7 (built, on by default), 2026-10-08
+
+**Author decisions (2026-10-08).** World churn is on by default. The remaining phases ship in this branch without a
+decade run; later-decade snapshot windows are the check that nothing breaks unduly. `main` had no content this
+branch lacks (the five PR merges are bookkeeping over commits already in its history), so nothing was merged.
+
+**Defaults and flags.** `chart_manager.tscn` turns on `worldLineupChurnEnabled` and every phase below. Each phase has
+`--enable-X` / `--disable-X` (`member-wealth`, `road-fatigue`, `team-writing`, `musician-growth`, `polar-member-axes`,
+`member-identity`). `--observe-member-wealth` and `--shadow-musician-growth` keep a stock without readers.
+`--log-band-life-members` writes one row per person per act-year (`<run>-lineup-members.csv`).
+
+**What was built.**
+- **4e wealth** (`MemberWealthService`). A stock per person: the act's performer royalty for the year, split evenly
+  (sidemen get a wage and the leader keeps the rest), plus writer mechanicals (share-weighted charted units x 1¢, from
+  a new `shareUnits` on the person ledger), less spending of 18-70% a year by ego and fame. Old worlds seed 35% of
+  lifetime income. There are four readers on `Norm = 1 − exp(−wealth/$8k)`:
+  1. Independence: +.12·Norm to the solo urge; the act's success absorbs less of a rich member's strain; an exhausted
+     member with Norm ≥ .45 goes studio-only instead of quitting.
+  2. The money grievance: the wealth gap enters CreditAndMoney.
+  3. Lasting fame: a floor of at most .02 on member fame.
+  4. Substance exposure, plus the Band Room's advance and off-the-road asks.
+- **4f fatigue.** `fatigue ← fatigue·(1 − recovery·(1 − load)) + load`, with `recovery = .8/(1 + .08·roadYears)·(1 +
+  success)`. The exhaustion hazard reads it at rate .018 (×1.5, since fatigue sits below road years for anyone who
+  rests). Old worlds seed fatigue at half their road years. `roadYears` stays the lifetime exposure.
+- **4c team writing** (`TeamWritingService`). Member crafts: melody = creativity×versatility, lyric =
+  creativity×diction, hook = creativity×stagePresence. A team scores the max of each craft, less friction that grows
+  with similarity, plus a small bonus for rivalry. The shift over the lead writer's own craft applies at weight .2;
+  a lone writer is unchanged. Staff writers pair into standing teams by keyed draws, preferring complementary crafts,
+  and 60% of their catalogue becomes team songs, one for one. An older world forms its teams once, on load. AI cut-ins:
+  a Shark-managed act whose label owns its publishing loses 25% of the credit on 35% of its originals, and its writers
+  carry CreditAndMoney and Outsider strain. `PickTeam` gained a side-effect-free peek.
+- **5 growth** (`MemberGrowthService`).
+  - Hours come from the act's state: club rooms 900 a year at residency weight, road 900×load at .65, sessions 40 per
+    release at .45, rehearsal 150 at .35. Plasticity falls from 1 at 20 to .3 at 35.
+  - Each axis is `formation + (ceiling − formation)(1 − e^(−hours/3000))`, less decline counted from the age at the
+    growth origin. A 45-year-old's voice is not aged again by switching growth on.
+  - **Population centring:** each pass subtracts the population's mean shift, so the young grow against the field
+    while the field's mean holds. Unchecked, the shadow's mean rose +.0055 then +.011 a year.
+  - Live writes wait for the end of the pass.
+  - Personality drifts within ±.2 of the generated values: ego with fame, loyalty with tenure, temperament with road
+    years, reliability with substance.
+- **5b.** `PolarActProfileDeriver` reads instrumental skill for Musicianship and the lead's vocal power, control and
+  diction for the vocal axes.
+- **6 scouting the rough** (`ScoutingRough`, player only). The tells are median age, the heard set's capability
+  deficit (`PolarMaterialFit`), the originals share, a blurred ambition read, and a revisit 90+ days after the first
+  note (the improvement delta in the label's execution read). The potential read (wide / some room / narrow) is built
+  from the tells only. The card shows Execution / Identity / Potential lines; the notebook saves the first note.
+- **7 identity on people** (`MemberIdentityService`).
+  - People are drawn at the act's genre prior, ±.06 keyed spread inside the band, plus the trait adjustments the
+    deriver used to apply act-wide.
+  - Drift: 8% a year toward the prior of what the act now plays, and a married partner (more with children) pulls
+    toward maturity and sincerity.
+  - The act's Polar identity axes are the voice-weighted mean of its members. The project-history blend and the
+    ratifier still apply.
+  - The identity spread adds up to .06 reach.
+  - Direction is half the old proxy and half `.211·(distance·(.5 + maxCreativity)/.1536)^1.58`. A linear term
+    matched the proxy's mean but not its tail (q90/q99 .35/.48 against .46/.75) and cut Direction's share 22% → 13%;
+    the power matches median, tail and mean (fitted on one-week pair-log probes of the 1968 world).
+
+**Runs.** These are 1968-69 windows from `bms4e-intent90-1001-1968`, at slice .90, with world churn.
+- `bms5-obs-1001` is the sizing run (wealth stock and growth shadow only), sized with
+  `py SimTools/size_band_life_members.py`.
+- `bms5-off-1001` is the control: every phase `--disable`d.
+- `bms5-on-1001` is the first treatment, on defaults.
+- `bms5-on2-1001` is the treatment after the two fixes.
+- Measures: `py SimTools/phase_bundle_measures.py <ctl> <trt>` and `band_life_ab.py`.
+
+**Inertness.** `bms5-off` against `bms5-obs`: every economy CSV is identical on every row both runs wrote. The obs run
+stopped one week short of the 1969 year-end, so 13 annual files differ only by their missing 1969 rows. The world
+save round-trips byte-identically with every new field (`--band-life-check`, which now includes Phase 4c-7
+invariants), and `SaveLoadRoundTripRunner` passes over a band-life pass.
+
+| Measure (1968-69 window) | control `bms5-off` | `bms5-on2` |
+|---|---|---|
+| Genre-share sumAbsErr / year-end slot error | 90.3 / 1003 | 85.3 (−5.0) / 997 (−6) |
+| Album unit share 1968 / 1969 | 51.87 / 55.41 | 51.88 / 55.41 |
+| Owner-Major entry share 1968 / 1969 | 38.2 / 42.0 | 38.3 / 39.4 |
+| Active acts 1968 | 21,000 | 20,992 |
+| Release hook (all / originals / professional) | .6267 / .4916 / .8151 | .6285 / .4936 / .8218 |
+| Exhaustion exits 1967 / 1968 | 343 / 357 | 171 / 169 |
+| Dissolutions 1967 / 1968 | 222 / 224 | 170 / 176 |
+| Studio-only exits (share from charted acts) | 403 (30%) | 293 (36%) |
+| Cause mix: Credit / Spotlight / Direction / Reliability / Burnout | 12 / 7 / 22 / 39 / 16% | 15 / 8 / 16 / 38 / 19% |
+| Mean member technical skill 1968 | .4535 | .4534 |
+| Charting groups' wealth, writers vs others (median / q90) | — | $596 / $4,596 vs $602 / $3,736 |
+| Spin-outs (charted) | 14 (2) | 11 (4) |
+
+The first treatment (`bms5-on`) raised the release hook 1.3% and cut Direction to 13%; `TeamCraftWeight` .5 → .2 and
+the Direction power fixed both. Reliability is the largest cause in **both** arms (38-39% by 1967-68, with the
+substance era); that predates this bundle, and is over §7.2's line. It is the next thing to look at.
+
+**Open.**
+1. Reliability at 38% of late-decade departures, in control as well as treatment.
+2. The scouting card was checked logically (`--band-life-check` prints real cards), not by a screenshot.
+3. Wealth starts at a 35% seed in resumed worlds. A 1960-start run is where the writer/non-writer gap will show at
+   full size (writer income is only 1.8% of income in a resumed 1968 window, because the share-weighted ledger starts
+   at the resume).
+4. The paired-seed check of the whole bundle is still owed, at the author's discretion.

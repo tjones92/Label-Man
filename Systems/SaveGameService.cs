@@ -457,6 +457,12 @@ public sealed class PlayerSaveData {
 /// <summary>Player's saved A&R notebook entry. Stores the unsigned act itself so generated local prospects survive reloads.</summary>
 public sealed class ProspectNotebookSaveData {
 	public SimulatedArtist Artist { get; set; }
+	// Scouting the rough (§4.13): the first note's execution read and date, for the improvement delta.
+	public float? ExecutionAtNote { get; set; }
+	public int FirstNotedYear { get; set; }
+	public int FirstNotedMonth { get; set; }
+	public int FirstNotedDay { get; set; }
+	public List<string> Rough { get; set; }
 	public int Venue { get; set; }
 	public string CityId { get; set; }
 	public int Year { get; set; }

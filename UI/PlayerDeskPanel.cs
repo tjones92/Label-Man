@@ -1181,7 +1181,9 @@ public partial class PlayerDeskPanel : Control {
 				: entry.HeldUntil.HasValue ? $"\n    HANDSHAKE: they'll wait for you until {entry.HeldUntil.Value.ToHeadlineString()}."
 				: entry.CirclingResolves.HasValue ? $"\n    {entry.CirclingLabel ?? "A rival"} is circling them — the deal lands {entry.CirclingResolves.Value.ToHeadlineString()} unless you step in."
 				: "";
-			Body($"{artist.stageName} — {GenreNameFormatter.Format(artist.primaryGenre)}  •  {freshness}  •  {entry.Note}{status}");
+			string potential = entry.Rough?.LastOrDefault();
+			Body($"{artist.stageName} — {GenreNameFormatter.Format(artist.primaryGenre)}  •  {freshness}  •  {entry.Note}" +
+				$"{(potential != null ? "\n    " + potential : "")}{status}");
 			var actions = new HBoxContainer();
 			actions.AddThemeConstantOverride("separation", 10);
 			var revisit = Btn("BRING BACK TO THE PAD");
@@ -1256,6 +1258,9 @@ public partial class PlayerDeskPanel : Control {
 		meta.AddThemeFontSizeOverride("font_size", 15);
 		meta.AddThemeColorOverride("font_color", Ink);
 		card.AddChild(meta);
+		// Scouting the rough: Execution / Identity / Potential, read from tells -- never the ceiling itself.
+		if (prospect.Rough is { Count: > 0 })
+			foreach (string line in prospect.Rough) card.AddChild(FaintLine("    " + line));
 
 		PlayerDesk.Prospect captured = prospect;
 		// What the second look changed. The bar and the fog moved on every follow-up but the headline phrase seldom does,

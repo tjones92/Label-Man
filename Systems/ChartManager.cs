@@ -39,6 +39,14 @@ public partial class ChartManager : Node {
 	[Export] private bool memberAxesEnabled = false;
 	[Export] private bool rosterLineupChurnEnabled = false;
 	[Export] private bool worldLineupChurnEnabled = false;
+	// The world phases after Phase 4 (directive §14): wealth, road fatigue, team writing, growth, the Polar deriver's
+	// member axes, identity on people. Each also has --enable-X / --disable-X on the command line.
+	[Export] private bool memberWealthEnabled = false;
+	[Export] private bool roadFatigueEnabled = false;
+	[Export] private bool teamWritingEnabled = false;
+	[Export] private bool musicianGrowthEnabled = false;
+	[Export] private bool polarMemberAxesEnabled = false;
+	[Export] private bool memberIdentityEnabled = false;
 
 	[ExportGroup("AI Labels")]
 	private List<AILabel> aiLabels;
@@ -338,7 +346,10 @@ public partial class ChartManager : Node {
 		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
 		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
 			worldLineupChurnEnabled ? LineupChurnScope.World :
-			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs());
+			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs(),
+			new BandLife.WorldPhaseDefaults { Wealth = memberWealthEnabled, RoadFatigue = roadFatigueEnabled,
+				TeamWriting = teamWritingEnabled, Growth = musicianGrowthEnabled, PolarMemberAxes = polarMemberAxesEnabled,
+				Identity = memberIdentityEnabled });
 		GenreSupplyService.Configure(OS.GetCmdlineUserArgs());
 		MusicianRecognitionService.Configure(OS.GetCmdlineUserArgs());
 

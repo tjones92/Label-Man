@@ -219,6 +219,8 @@ public partial class PlayerDesk : Node {
 		public readonly HashSet<string> NewlyHeard = new();
 		/// <summary>The label's opening offer, generated once when the player approaches. See <see cref="ApproachToSign"/>.</summary>
 		public ContractTermSheet Baseline;
+		/// <summary>Scouting the rough (§4.13): the Execution / Identity / Potential lines, built from tells only.</summary>
+		public List<string> Rough;
 		/// <summary>Terms the player last entered when a signing was refused for time or cash.</summary>
 		public ContractTermSheet? Draft;
 		public bool HasBaseline;
@@ -245,6 +247,11 @@ public partial class PlayerDesk : Node {
 		public string CityId;
 		public int HeardCount;
 		public bool FollowedUp;
+		/// <summary>Scouting the rough: the execution read when the act was first noted, and when, so a revisit three
+		/// months on can read how far they've come (§4.13's improvement delta).</summary>
+		public float? ExecutionAtNote;
+		public GameDate? FirstNoted;
+		public List<string> Rough;
 		public GameDate? LastRivalInterestDate;
 		/// <summary>You shook hands on them: no rival signs them until this date.</summary>
 		public GameDate? HeldUntil;
@@ -1408,6 +1415,7 @@ public partial class PlayerDesk : Node {
 				Note = DescribeProspect(artist, Label, noise)
 			};
 			BuildLiveSet(prospect, artist, year, noise);
+			prospect.Rough = ReadRough(prospect, null);
 			slate.Add(prospect);
 		}
 		Note($"Worked {VenueName(venue)} in {region.regionName}: {slate.Count} {(slate.Count == 1 ? "act" : "acts")} on the pad.");
@@ -1509,6 +1517,9 @@ public partial class PlayerDesk : Node {
 			HeardCount = prospect.HeardCount, FollowedUp = prospect.FollowedUp
 		};
 		entry.LiveSet.AddRange(prospect.LiveSet);
+		entry.ExecutionAtNote = ExecutionRead(prospect.Artist);
+		entry.FirstNoted = entry.LastSeen;
+		entry.Rough = prospect.Rough;
 		notebook.Add(entry);
 		Note($"Added {prospect.Artist.stageName} to the A&R notebook.");
 		message = $"{prospect.Artist.stageName} is in your notebook.";
@@ -1543,6 +1554,8 @@ public partial class PlayerDesk : Node {
 			HeardCount = Mathf.Min(entry.HeardCount, entry.LiveSet.Count), FollowedUp = false
 		};
 		prospect.LiveSet.AddRange(entry.LiveSet);
+		prospect.Rough = ReadRough(prospect, entry);
+		entry.Rough = prospect.Rough;
 		slate.Clear();
 		slate.Add(prospect);
 		SlateDate = entry.LastSeen;
@@ -1689,6 +1702,8 @@ public partial class PlayerDesk : Node {
 		foreach (RepertoireItem item in prospect.LiveSet.Skip(heardBefore)) prospect.NewlyHeard.Add(item.Title);
 		prospect.Learned = DescribeFollowUp(prospect, qualityBefore, confidenceBefore, noteBefore, heardBefore, hooksBefore);
 		WatchNote watched = notebook.FirstOrDefault(entry => entry.Artist?.artistId == prospect.Artist.artistId);
+		prospect.Rough = ReadRough(prospect, watched);
+		if (watched != null) watched.Rough = prospect.Rough;
 		if (watched != null) {
 			watched.ReadQuality = prospect.ReadQuality;
 			watched.ReadConfidence = prospect.ReadConfidence;
@@ -1853,6 +1868,21 @@ public partial class PlayerDesk : Node {
 
 	private static string Normalize(string value) =>
 		new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+
+	/// <summary>The execution read the improvement delta compares: the label's perceived quality of the act now.</summary>
+	private float ExecutionRead(SimulatedArtist artist) => ScoutingPerception.PerceivedQuality(artist, Label, 0);
+
+	/// <summary>Scouting the rough (§4.13): the tells from what the player heard, and from the first note if there is one.</summary>
+	private List<string> ReadRough(Prospect prospect, WatchNote noted) {
+		if (prospect?.Artist == null) return null;
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int days = noted?.FirstNoted is GameDate first
+			? Mathf.Max(0, (new DateTime(today.year, today.month, today.day) - new DateTime(first.year, first.month, first.day)).Days) : 0;
+		var heard = prospect.LiveSet.Take(Mathf.Max(prospect.HeardCount, prospect.FollowedUp ? prospect.LiveSet.Count : 0));
+		ScoutingRough.Tells tells = ScoutingRough.Read(prospect.Artist, Label, heard, ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
+			noted?.ExecutionAtNote, ExecutionRead(prospect.Artist), days);
+		return ScoutingRough.Lines(tells, ProspectNoteParts(prospect.Note).stage);
+	}
 
 	private static string DescribeProspect(SimulatedArtist artist, AILabel label, float noise) {
 		float writingRead = Mathf.Clamp(artist.songwritingAbility + StableReadOffset(label, artist, "writing") * noise, 0f, 1f);
@@ -5665,7 +5695,9 @@ public partial class PlayerDesk : Node {
 				HeldYear = entry.HeldUntil?.year ?? 0, HeldMonth = entry.HeldUntil?.month ?? 0, HeldDay = entry.HeldUntil?.day ?? 0,
 				Handshakes = entry.Handshakes, CirclingLabel = entry.CirclingLabel, CirclingLabelId = entry.CirclingLabelId,
 				CircleYear = entry.CirclingResolves?.year ?? 0, CircleMonth = entry.CirclingResolves?.month ?? 0, CircleDay = entry.CirclingResolves?.day ?? 0,
-				LiveSet = entry.LiveSet.Select(RepertoireSaveData.From).ToList()
+				LiveSet = entry.LiveSet.Select(RepertoireSaveData.From).ToList(),
+				ExecutionAtNote = entry.ExecutionAtNote, Rough = entry.Rough,
+				FirstNotedYear = entry.FirstNoted?.year ?? 0, FirstNotedMonth = entry.FirstNoted?.month ?? 0, FirstNotedDay = entry.FirstNoted?.day ?? 0
 			}).ToList(),
 			AcetateCopies = new Dictionary<string, int>(acetateCopies),
 			Books = books.Select(WeekBookSaveData.From).ToList(),
@@ -5912,7 +5944,9 @@ public partial class PlayerDesk : Node {
 				LastRivalInterestDate = saved.LastRivalYear > 0 ? new GameDate(saved.LastRivalYear, saved.LastRivalMonth, saved.LastRivalDay) : null,
 				HeldUntil = saved.HeldYear > 0 ? new GameDate(saved.HeldYear, saved.HeldMonth, saved.HeldDay) : null,
 				Handshakes = saved.Handshakes, CirclingLabel = saved.CirclingLabel, CirclingLabelId = saved.CirclingLabelId,
-				CirclingResolves = saved.CircleYear > 0 ? new GameDate(saved.CircleYear, saved.CircleMonth, saved.CircleDay) : null
+				CirclingResolves = saved.CircleYear > 0 ? new GameDate(saved.CircleYear, saved.CircleMonth, saved.CircleDay) : null,
+				ExecutionAtNote = saved.ExecutionAtNote, Rough = saved.Rough,
+				FirstNoted = saved.FirstNotedYear > 0 ? new GameDate(saved.FirstNotedYear, saved.FirstNotedMonth, saved.FirstNotedDay) : null
 			};
 			if (entry.HeldUntil.HasValue) RosterManager.Instance?.SetPlayerHold(artist.artistId, entry.HeldUntil.Value);
 			entry.LiveSet.AddRange((saved.LiveSet ?? new List<RepertoireSaveData>()).Select(item => item.ToItem()));
