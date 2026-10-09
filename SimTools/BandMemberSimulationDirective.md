@@ -1436,10 +1436,12 @@ the share is 24%.)
 **Open.**
 1. ~~Reliability at 38% of late-decade departures, in control as well as treatment.~~ Investigated in §15.
 2. The scouting card was checked logically (`--band-life-check` prints real cards), not by a screenshot.
-3. Wealth starts at a 35% seed in resumed worlds. A 1960-start run is where the writer/non-writer gap will show at
-   full size (writer income is only 1.8% of income in a resumed 1968 window, because the share-weighted ledger starts
-   at the resume).
-4. The paired-seed check of the whole bundle is still owed, at the author's discretion.
+3. ~~Wealth starts at a 35% seed in resumed worlds.~~ Checked 2026-10-09 on `lx-jazz-on-1001` (1960-start, 1960-64,
+   charting groups). The gap does not grow at full size: writer income is 0.6-0.9% of income (1.8% in the resumed
+   window), medians are level (writers $573-1,447 against others $801-1,289, with no consistent sign), and writers'
+   q90 is 1.1-1.6x others' in 1961-64 ($6.0-7.2k against $4.1-6.3k). The writer premium is a tail effect. If a
+   visible premium is wanted, the lever is writer income's share of the ledger, not the wealth seed.
+4. ~~The paired-seed check of the whole bundle.~~ Skipped by the author, 2026-10-09.
 
 ## 15. Reliability at 38% late in the decade — investigation, 2026-10-08
 
@@ -1625,7 +1627,15 @@ missing). The 1969 pass never runs, as in §12.
    (12,862 / 12,996). Formations +2.6%. Inside the §12 precedent (groups -0.8%). DayJob and Family stay as they are.
 5. **Calibration.** Genre-share sumAbsErr -0.5; year-end slot error +2; album unit share within 0.1 pt every year.
    **Owner-Major chart-entry share is one-sided high: +2.6 to +3.2 pt in 1965-68, +5.4 in the 1969 row**, against
-   the +-4.7 the slice alone showed. Inside the floor until the last row; watch it at the merge A/B.
+   the +-4.7 the slice alone showed. Inside the floor until the last row.
+   *Noise check (2026-10-09), from runs already on disk.* Owner-Major entry share, year-by-year differences between
+   arms that should agree in expectation (same save, a slice parameter changed): `bms4d` ctl-vs-fame90 1001
+   -0.7 / +4.6 / -3.9 / -0.4 / -0.4, 2002 +0.3 / +3.4 / -1.1 / 0 / -2.3, ctl-vs-intent90 1001 +0.9 / +2.5 / +0.1 /
+   -0.7 / +4.0. So single years of +-4 are routine, and the 1969 +5.4 alone is not distinguishable from that. What is
+   less comfortable is the sign: life-exits on minus off is +2.5 / +1.6 / +3.2 / +1.3 / +5.4 over 1965-69, and
+   -2.3 / +2.3 / +2.2 / +3.9 over 1961-64 in the 1960-start half. Years of one run are serially correlated, so that is
+   weaker than ten independent draws. Read: possibly a small real tilt of about +2 pt, mechanism unidentified; not
+   a failure. One seed cannot separate it. The first time a second seed of this window exists, compare it.
 6. **Jazz (Jazz + BossaNova, 1960-68, the window has no 1969 pass).**
 
    | | control | treatment | change |
