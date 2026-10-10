@@ -65,12 +65,14 @@ public static class SessionEmploymentService {
 
 	/// <summary>A crew's score: mean skill and reading. The record lift is measured against a typical crew.</summary>
 	public static float CrewScore(IEnumerable<Musician> crew) => crew.Select(m => 0.5f * m.technicalSkill + 0.5f * m.sightReading).DefaultIfEmpty(0f).Average();
-	/// <summary>The typical crew's score (net/house runs; see the directive). A crew above it lifts the record's
-	/// production, one below drags it: zero-centred, because existing record calibration already stands for the
-	/// session players every vocal record used.</summary>
-	public const float TypicalCrewScore = 0f;
-	/// <summary>Production change per point of crew score above typical (the Band Room lift is 0.10 per point of skill).</summary>
-	public const float RecordLiftPerPoint = 0.10f;
+	/// <summary>The typical crew's score: 0.876 / 0.881 measured on made-v1 seeds 1001 / 2002. A crew above it lifts the
+	/// record's production, one below drags it: zero-centred, because existing record calibration already stands for
+	/// the session players every vocal record used.</summary>
+	public const float TypicalCrewScore = 0.88f;
+	/// <summary>Production change per point of crew score off typical. A design input: AI crews are drawn from the best
+	/// local readers, so their spread is narrow, and the Band Room's 0.10 per point would move production about 0.01. At
+	/// 0.30 a top crew adds ~0.015 and a thin small-town crew costs ~0.04, enough to make where a label records matter.</summary>
+	public const float RecordLiftPerPoint = 0.30f;
 	public static bool RecordLift { get; private set; }
 	// Diagnostics, not saved: crew scores, to size TypicalCrewScore.
 	public static double CrewScoreSum { get; private set; }

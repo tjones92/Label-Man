@@ -95,19 +95,74 @@ Contact hires are few for now: former-bandmate edges first appear at the 1960 pa
 Session edges link players to singers, and they matter once a singer forms or joins a band. Both compound over a
 decade, and the decade comparison measures that.
 
-## 4. Phase 2 — next
+## 4. Phase 2 — built
 
-- **House bands.** A solo act on a room bill is backed by local players (pooled first, then members of acts not
-  booked that night), paid per player, linked as contacts. This also fixes the solo door-share high end in the live
-  calibration (`LocalSceneLiveCalibrationDirective.md` §5).
-- **Session hours feed growth.** Studio work for others is real practice at `KindSession`. It moves growth, so it
-  needs the reference comparison.
-- **Sessions feed the record.** A strong crew lifts execution, as the player's Band Room session hire already does.
-  This moves the economy, so it lands last, behind the decade comparison.
-- **Player surfaces.** Notebook entries for "who knows whom", leads where a contact tells the player where a former
-  member landed (Rolodex rule: every sentence backed by an event and IDs), and a session-crew line on a label card.
-- **Wider contacts.** Bookers (already familiar), DJs (Rolodex), record shops, distributors and rival A&R as contact
-  nodes, so a tip can come through the people the player actually knows.
+- **House bands** (`SceneHouseBandService`, `--disable-scene-house-bands`). An act that can't back itself (the
+  session rule: fewer than two active rhythm players) is backed by three local players on a club, listening-room or
+  roadhouse bill. Coffeehouses and community halls are left as they are.
+  - **Who:** working players (`technicalSkill` ≥ 0.55, below the session bar; a house band reads less than a studio).
+    They are members of acts present in the town, or pooled players based there. They are ranked by a room-regular
+    bonus (up to +1 at 20 shows), a contact bonus (+0.5 for knowing the singer) and skill.
+  - **Booking:** backers are reserved like performers: one room a day, no double-booked hour. The room census's
+    conflict check covers them.
+  - **Pay:** they are paid per player. A door is split across act and band; a wage or flat fee is paid to each
+    player. They are linked as `HouseBand` contacts.
+  - **Ledger:** their hours and pay sit in the room ledger as `Backing` work rows. A pooled backer's house work also
+    keeps them in music.
+  - **Solo door share:** this fixes the high end flagged in the live calibration. The expected-night pay for a backed
+    act also counts the band.
+- **Employment counts as practice** (`--disable-employment-growth`). An act member's session hours (3 per session) at
+  `KindSession` and house-band hours at `KindResidency` are added on top of the act's own allowance.
+- **Player surfaces.**
+  - The Band Room audition list says how a candidate knows the act: "Played with Joe in The Hawks.", "Worked
+    sessions with Joe for Decca.", or "Fell out with Joe in The Hawks.".
+  - A new desk action, **Ask your musicians who they know** (1 hour, scene-rooms board), turns the roster's contact
+    edges into up to three dated tips: who is between bands, and where a former bandmate or session partner plays
+    now. For example: "Spencer Harris: Enzo Mitchell now plays in The Jackson Strings, on Weathered Records; they cut
+    sessions together for Hurting Records."
+  - Tips never repeat a person in the same state, fallouts are not passed on, and a stale tip says so. Tips are
+    saved with the player (`SceneInformationKnowledge.Tips`).
+- **Crews are hired when the record is made** (`GenerateRecordFromArtist`), not at release. Singles pulled from an
+  album, compilations and reissues no longer hire a second crew, so crewed records fell from ~4,300 to ~3,000 a year.
+- **The record lift** (`--disable-session-record-lift`). Production moves 0.30 per point of crew score (mean skill and
+  reading) off the typical crew. Typical is 0.876 / 0.881, measured on `made-v1` seeds 1001 / 2002. It is zero-centred
+  because existing record calibration already stands for the session players every vocal record used. A top crew adds
+  ~0.015; a thin small-town crew costs ~0.04.
+- **Checks:** `--contact-network-check` (21): flags, edge invariants, link semantics, ledgers, the audition sentence,
+  the player's tips across a player save, and a byte-identical world round-trip of the network and both ledgers.
+
+### Results — Phase 2
+
+`house-v1` (house bands, employment growth, tips) against `ref-45c5219`, 104 weeks:
+
+| | seed 1001 | seed 2002 |
+|---|---:|---:|
+| Backers / rooms / backer-sets (2 years) | 310 / 92 / 100,476 | 295 / 92 / 105,595 |
+| Player-room pairs with 20+ shows (standing house bands) | 382 | 387 |
+| Live income p50 / p99 / max, 1960 | $1,012 / $7,776 / $9,609 → $864 / $3,038 / $6,219 | $1,024 / $7,776 / $9,624 → $902 / $3,038 / $5,744 |
+| Room census person conflicts / remote days | 0 / 0 | 0 / 0 |
+| Band-life outcomes, 1960 pass | identical | identical |
+| Singles / album units, 2 years | −0.05% / +0.19% | +0.03% / −0.11% |
+
+Record lift: `lift-v1` against `ref-dc20d52` (`made-v1`: crews at recording, lift inert), 104 weeks. This is the
+first change in this directive that moves the economy, so band-life numbers move too, because charts feed success.
+The 1960 band-life deltas below run in opposite directions on the two seeds: that is the reshuffled stream, not
+an effect.
+
+| | seed 1001 | seed 2002 |
+|---|---:|---:|
+| Mean crew score | 0.875 | 0.881 |
+| Singles / album units, 2 years | −0.62% / +1.75% | −0.82% / +2.04% |
+| First-chart events, all labels | 314 → 328 | 316 → 320 |
+| First-chart events by New York labels | 86 → 94 | 103 → 107 |
+| Strain departures, 1960 | 32 → 43 | 50 → 39 |
+| Pool hires, 1960 | 153 → 173 | 170 → 165 |
+
+New York labels gain a few first-chart entries on both seeds and the thinner session towns lose one or two; that is
+the intended direction, but it is inside two-seed noise. The one consistent signal is album units +1.8-2.0% with
+singles −0.6-0.8%, on both seeds. The lift is zero-mean on production, so this is most likely convexity: sales
+respond more to a good album than they lose on a weak one. It is small, and the decade comparison decides whether
+it stands; `--disable-session-record-lift` isolates it.
 
 ## 5. Phase 3 — the rest of the handoff item
 
