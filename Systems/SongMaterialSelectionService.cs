@@ -67,7 +67,9 @@ public static class SongMaterialSelectionService {
 			MaterialCandidate forced = BuildForSource(forcedSource.Value, label, artist, record, genre, year, chartWeek);
 			if (forced?.Material?.Song != null && !Rejected(forced.Material, artist, record, genre, year, label)) {
 				Observe(artist, record, forced.Material.Song, genre, year, "forced", forced.Material.Source.ToString(), forced.Material.OriginalRecordId);
-				return PolarSongBehavior.Prepare(forced.Material, artist, record, genre, year, label);
+				var prepared = PolarSongBehavior.Prepare(forced.Material, artist, record, genre, year, label);
+				RepertoireInfluenceService.OnSelected(prepared, artist, record, year);
+				return prepared;
 			}
 		}
 		var candidates = new List<MaterialCandidate>();
@@ -93,6 +95,7 @@ public static class SongMaterialSelectionService {
 		}
 		var selected = WeightedPick(candidates, artist, record, year);
 		Observe(artist, record, selected.Song, genre, year, "selected", selected.Source.ToString(), selected.OriginalRecordId);
+		RepertoireInfluenceService.OnSelected(selected, artist, record, year);
 		return selected;
 	}
 
@@ -254,7 +257,9 @@ public static class SongMaterialSelectionService {
 		float pref = GetCoverStandardPreference(genre, year);
 		if (pref <= 0.01f) return null;
 		SongComposition song = SampleBestAcross(artist, record, year, "std",
-			StandardPoolsFor(genre,year));
+			StandardPoolsFor(genre,year), false, out float sampled);
+		SongComposition carried = CarriedCover(artist, record, genre, year, false, sampled, out var carrier, out var carrierPerson);
+		song = carried ?? song;
 		if (song == null) return null;
 
 		float familiarity = song.GetFamiliarityForYear(year);
@@ -271,6 +276,7 @@ public static class SongMaterialSelectionService {
 			ArrangementOriginality = ArrangementOriginality(artist, record, year, "stdarr"),
 			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.6f, 0f, 1f)
 		};
+		if (carried != null) RepertoireInfluenceService.MarkCarried(material, carrier, carrierPerson, artist, record, year);
 		return new MaterialCandidate { Material = material, Score = score };
 	}
 
@@ -279,7 +285,9 @@ public static class SongMaterialSelectionService {
 	) {
 		// Coverable hits: pre-game recent hits (1955-59) plus in-game hits (Phase 4), across adjacent
 		// families so a rock act can cover a recent R&B hit.
-		SongComposition song = SampleBestAcross(artist, record, year, "hit", HitPoolsFor(genre), applyFatigue: true);
+		SongComposition song = SampleBestAcross(artist, record, year, "hit", HitPoolsFor(genre), true, out float sampled);
+		SongComposition carried = CarriedCover(artist, record, genre, year, true, sampled, out var carrier, out var carrierPerson);
+		song = carried ?? song;
 		if (song == null) return null;
 
 		float familiarity = song.GetFamiliarityForYear(year);
@@ -302,6 +310,7 @@ public static class SongMaterialSelectionService {
 			ArrangementOriginality = ArrangementOriginality(artist, record, year, "hitarr"),
 			ProfessionalPolish = 0f, ArtistIdentityFit = Mathf.Clamp(artistFit * 0.5f, 0f, 1f)
 		};
+		if (carried != null) RepertoireInfluenceService.MarkCarried(material, carrier, carrierPerson, artist, record, year);
 		return new MaterialCandidate { Material = material, Score = score };
 	}
 
@@ -849,18 +858,21 @@ public static class SongMaterialSelectionService {
 				new Record { recordId = $"live:{artist.artistId}:{year}:unfilled:{i}", primaryGenre = artist.primaryGenre }, "live-unfilled");
 		return songs;
 	}
-
 	// Deterministically sample across several pools (a genre's adjacent-family cover sources) and
 	// return the best-scoring song -- bounded cost, never a full-catalog scan.
 	private static SongComposition SampleBestAcross(
 		SimulatedArtist artist, Record record, int year, string salt, IReadOnlyList<SongComposition>[] pools,
 		bool applyFatigue = false
+	) => SampleBestAcross(artist, record, year, salt, pools, applyFatigue, out _);
+	private static SongComposition SampleBestAcross(
+		SimulatedArtist artist, Record record, int year, string salt, IReadOnlyList<SongComposition>[] pools,
+		bool applyFatigue, out float bestScore
 	) {
+		bestScore = -1f;
 		int total = 0;
 		foreach (var p in pools) total += p?.Count ?? 0;
 		if (total == 0) return null;
 		SongComposition best = null;
-		float bestScore = -1f;
 		int take = Mathf.Min(CatalogSampleSize, total);
 		for (int i = 0; i < take; i++) {
 			float u = StableUnit(artist.artistId, record.recordId, year, $"{salt}{i}");
@@ -869,15 +881,37 @@ public static class SongMaterialSelectionService {
 			if (s == null) continue;
 			if (RejectedSample(s, artist, record, year)) continue;
 			Observe(artist, record, s, record.primaryGenre, year, "pool", salt);
-#pragma warning disable CS0618
-			float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
-#pragma warning restore CS0618 // legacy path, reached only when polar selection is off
-			// Recent-hit covers: prefer the less-worn song so covers spread across many hits and the
-			// 3rd/4th cover of one hit (or a definitive #1) is avoided -- without cutting the bucket share.
-			if (applyFatigue) score *= CoverFatigueShadow(s);
+			float score = SampleScore(s, artist, record, year, applyFatigue);
 			if (score > bestScore || (PolarSongBehavior.UsePolarFitSelection && score == bestScore && (best == null || GenreFit(s, record.primaryGenre) > GenreFit(best, record.primaryGenre)))) { bestScore = score; best = s; }
 		}
 		return best;
+	}
+	private static float SampleScore(SongComposition s, SimulatedArtist artist, Record record, int year, bool applyFatigue) {
+#pragma warning disable CS0618
+		float score = PolarSongBehavior.UsePolarFitSelection ? PolarSongBehavior.SelectionScore(PolarSongBehavior.Fit(s, artist, record.primaryGenre, year)) : LegacySelectionScore(s, year);
+#pragma warning restore CS0618 // legacy path, reached only when polar selection is off
+		// Recent-hit covers: prefer the less-worn song so covers spread across many hits and the
+		// 3rd/4th cover of one hit (or a definitive #1) is avoided -- without cutting the bucket share.
+		if (applyFatigue) score *= CoverFatigueShadow(s);
+		return score;
+	}
+
+	// Repertoire influence: a song a member carried in from another act competes with the sample (with a bonus for
+	// being known), if it is one this source's pools would offer. Null keeps the sampled song.
+	private static SongComposition CarriedCover(SimulatedArtist artist, Record record, Genre genre, int year, bool hit,
+		float sampledScore, out CarriedSong carrier, out Musician person) {
+		carrier = null; person = null;
+		if (!RepertoireInfluenceService.Enabled) return null;
+		var families = CoverSourceFamilies(genre);
+		var rule = RepertoireProvenance.CurrentEstablishmentRule();
+		bool Eligible(SongComposition s) =>
+			s.originYear <= year && System.Array.IndexOf(families, CompositionCatalogService.PoolFamilyOf(s)) >= 0 &&
+			(hit ? CompositionCatalogService.IsCoverableHit(s) && (genre == Genre.EasyListening || MediaCutRecordingAccess(s, genre))
+				: (s.isStandard || LiveRepertoire.AuditPhase >= 5 && CompositionCatalogService.IsCoverableHit(s)) &&
+				  RepertoireProvenance.GameplayStandard(s, year, rule) && MediaCutRecordingAccess(s, genre)) &&
+			!RejectedSample(s, artist, record, year);
+		return RepertoireInfluenceService.BestCarried(artist, Eligible, s => SampleScore(s, artist, record, year, hit),
+			sampledScore, out carrier, out person);
 	}
 
 	private static SongComposition ResolveGlobal(IReadOnlyList<SongComposition>[] pools, int gidx) {
@@ -967,6 +1001,9 @@ public sealed class SelectedSongMaterial {
 	public float ArrangementOriginality;
 	public float ProfessionalPolish;
 	public float ArtistIdentityFit;
+	/// <summary>Repertoire influence: the song a member carried in from another act, and who. Null otherwise.</summary>
+	internal CarriedSong Carried;
+	internal Musician CarriedBy;
 }
 
 internal sealed class MaterialCandidate {

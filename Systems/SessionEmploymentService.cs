@@ -78,12 +78,12 @@ public static class SessionEmploymentService {
 	public static double CrewScoreSum { get; private set; }
 
 	/// <summary>Called once per AI record as it is made (GenerateRecordFromArtist). Player-owned records hire
-	/// through the Band Room instead.</summary>
-	public static void OnRecordMade(Record record, AILabel label, SimulatedArtist act) {
-		if (!Enabled || record == null || record.isPlayerOwned || label == null || ArtistManager.Instance == null) return;
-		if (!NeedsCrew(act)) return;
+	/// through the Band Room instead. Returns the crew hired (empty when none).</summary>
+	public static IReadOnlyList<Musician> OnRecordMade(Record record, AILabel label, SimulatedArtist act) {
+		if (!Enabled || record == null || record.isPlayerOwned || label == null || ArtistManager.Instance == null) return Array.Empty<Musician>();
+		if (!NeedsCrew(act)) return Array.Empty<Musician>();
 		string place = LocalScenePersistenceService.SceneIdFor(label.geography?.basePlaceId);
-		if (string.IsNullOrEmpty(place)) { RecordsUncrewed++; return; }
+		if (string.IsNullOrEmpty(place)) { RecordsUncrewed++; return Array.Empty<Musician>(); }
 		var date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		int year = date.year, week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		if (week != loadWeek) { weekLoad.Clear(); loadWeek = week; }
@@ -98,7 +98,7 @@ public static class SessionEmploymentService {
 				+ 0.1f * BandLife.Unit($"session|{record.recordId}|{m.personId}")))
 			.OrderByDescending(x => x.score).ThenBy(x => x.m.personId, StringComparer.Ordinal)
 			.Take(size).Select(x => x.m).ToList();
-		if (crew.Count == 0) { RecordsUncrewed++; return; }
+		if (crew.Count == 0) { RecordsUncrewed++; return crew; }
 		RecordsCrewed++;
 		float score = CrewScore(crew);
 		CrewScoreSum += score;
@@ -121,6 +121,7 @@ public static class SessionEmploymentService {
 			foreach (Musician member in act.members)
 				if (member.isActive) ContactNetworkService.Link(crew[i].personId, member.personId, ContactKind.Session, year, sessions, via: label.labelId);
 		}
+		return crew;
 	}
 
 	private static float RegularScore(string label, string person) =>

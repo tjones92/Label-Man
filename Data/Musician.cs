@@ -114,6 +114,10 @@ public class Musician {
 	public float identityToughness, identitySophistication, identitySincerity, identityMaturity;
 	public float[] identityGenerated;   // drift is bounded around these
 
+	// Repertoire influence (RepertoireInfluenceService): the songs this person knows from records and club sets,
+	// most recent last, at most RepertoireInfluenceService.CarryLimit. Null until they play something.
+	public System.Collections.Generic.List<CarriedSong> carriedSongs;
+
 	// Parameterless ctor for save/load deserialization (System.Text.Json). The population always builds
 	// members through the ctor below; this exists only so a saved member can be rehydrated field-by-field.
 	public Musician() { isActive = true; }

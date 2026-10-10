@@ -22,6 +22,8 @@ public static class LocalScenes {
     public static bool LiveIncome { get; private set; }
     /// <summary>Local players back acts that can't back themselves (SceneHouseBandService).</summary>
     public static bool HouseBands { get; private set; }
+    /// <summary>AI labels fund local programs on their own (SceneEcosystemService.InvestForAi). Requires institutions.</summary>
+    public static bool AiInvestment { get; private set; }
     public static void ValidateDependencies() {
         if (Persisting && !ArtistPopulationLifecycle.Enabled)
             throw new ArgumentException("Persistent scenes require the existing artist population lifecycle birth owner.");
@@ -104,6 +106,10 @@ public static class LocalScenes {
         if (args.Contains("--enable-scene-house-bands", StringComparer.Ordinal) && (!Rooms || args.Contains("--disable-scene-house-bands", StringComparer.Ordinal)))
             throw new ArgumentException("House bands require scene rooms and cannot be enabled and disabled together.");
         HouseBands = Rooms && !args.Contains("--disable-scene-house-bands", StringComparer.Ordinal);
+        if (args.Contains("--enable-ai-scene-investment", StringComparer.Ordinal) && (!Institutions || args.Contains("--disable-ai-scene-investment", StringComparer.Ordinal)))
+            throw new ArgumentException("AI scene investment requires funded scene institutions and cannot be enabled and disabled together.");
+        AiInvestment = Institutions && !args.Contains("--disable-ai-scene-investment", StringComparer.Ordinal);
+        SceneEcosystemService.ResetDiagnostics();
         Recruitment = recruitment || (persist && !observe
             && !args.Contains("--disable-scene-recruitment", StringComparer.Ordinal)
             && !args.Contains("--disable-genre-market-v2", StringComparer.Ordinal));

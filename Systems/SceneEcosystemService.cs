@@ -101,7 +101,9 @@ public static class SceneEcosystemService {
     public static bool AvailableAt(string artistId, string placeId, int day) =>
         state?.Moves.Any(m => m.ArtistId == artistId && m.Status == SceneMoveStatus.Planned && day >= m.DepartureDay) != true;
     public static void Advance(GameDate date) {
-        if (!LocalScenes.Relocation || !LocalScenes.Institutions || restoring || state == null) return;
+        if (!LocalScenes.Institutions || restoring) return;
+        if (LocalScenes.AiInvestment) InvestForAi(date);
+        if (!LocalScenes.Relocation || state == null) return;
         int day = LocalSceneRoomService.Day(date);
         if (day <= state.LastProcessedDay) return;
         foreach (var move in state.Moves.Where(m => m.Status == SceneMoveStatus.Planned && m.ArrivalDay <= day)
@@ -137,10 +139,68 @@ public static class SceneEcosystemService {
         }
         state.LastProcessedDay = day;
     }
+    // ---- AI labels fund programs on their own (SimTools/ContactNetworkDirective.md Â§5.1) ---------------------------
+    /// <summary>A label funds a local room only when it already has this many roster acts based in town that the
+    /// room programs: investment follows the acts it has, it doesn't speculate.</summary>
+    public const int MinimumLocalActs = 2;
+    /// <summary>Chance a qualifying label funds a program in a quarter. A gameplay prior, not a measured rate.</summary>
+    public const float AiInvestChance = 0.25f;
+    /// <summary>Cash a label keeps on hand, in programs' worth, before it spends on the scene.</summary>
+    public const float AiReserveMultiple = 10f;
+    /// <summary>Out-of-town roster acts a label offers the funded move to, in turn, until one accepts.</summary>
+    public const int AiMoveOffers = 3;
+    // Diagnostics, not saved.
+    public static int AiPrograms { get; private set; }
+    public static int AiMoveAttempts { get; private set; }
+    public static int AiMoves { get; private set; }
+    public static void ResetDiagnostics() { AiPrograms = AiMoveAttempts = AiMoves = 0; }
+    private static GenreFamily FamilyOf(SimulatedArtist a, int year) => GenreCatalog.Get(GenreCatalog.MapLegacy(a.primaryGenre, year)).Family;
+
+    /// <summary>Once a quarter, independent AI labels with acts in their home town may fund a program at the local room
+    /// that programs those acts, then offer one out-of-town act on the roster a funded move there. The program and the
+    /// move go through the same rules, costs and consent as the player's. Majors don't: their A&R ran through offices.</summary>
+    private static void InvestForAi(GameDate date) {
+        int day = LocalSceneRoomService.Day(date);
+        if (day < 0 || ChartManager.Instance == null) return;
+        int window = day / (SceneDynamicsMobility.WindowWeeks * 7);
+        if (window <= State.LastInvestmentWindow) return;
+        State.LastInvestmentWindow = window;
+        int year = date.year;
+        foreach (AILabel label in ChartManager.Instance.GetAllLabels()
+            .Where(l => l != null && l.IsActive && !l.isPlayerOwned && l.tier != LabelTier.Major)
+            .OrderBy(l => l.labelId, StringComparer.Ordinal).ToList()) {
+            string scene = LocalScenePersistenceService.SceneIdFor(label.geography?.basePlaceId);
+            if (scene == null || label.roster == null || label.cashReserves < AiReserveMultiple * ProgramCost) continue;
+            if (state.Programs.Any(p => p.SponsorId == label.labelId && p.ThroughDay >= day)) continue;
+            var acts = label.roster.Where(a => a != null && a.isActive && a.lifecycleStatus == ArtistLifecycleStatus.Active &&
+                a.careerState is not (CareerState.Retired or CareerState.Disbanded)).ToArray();
+            var local = acts.Where(a => LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId) == scene).ToArray();
+            if (local.Length < MinimumLocalActs) continue;
+            var room = SceneRoomCatalog.ForPlace(scene)
+                .Where(r => r.IsPerformance && !state.Programs.Any(p => p.RoomId == r.Id && p.ThroughDay >= day))
+                .Select(r => (Room: r, Acts: local.Count(a => r.Families.Contains(FamilyOf(a, year)))))
+                .Where(x => x.Acts >= MinimumLocalActs)
+                .OrderByDescending(x => x.Acts).ThenBy(x => x.Room.Id, StringComparer.Ordinal).Select(x => x.Room).FirstOrDefault();
+            if (room == null) continue;
+            if (LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
+                $"ai-scene-invest-v1|{label.labelId}|{window}") >= AiInvestChance) continue;
+            if (!FundProgram(label, room.Id, out _)) continue;
+            AiPrograms++;
+            if (!LocalScenes.Relocation) continue;
+            string programId = state.Programs[^1].Id;
+            foreach (var act in acts.Where(a => LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId) is string s && s != scene &&
+                    room.Families.Contains(FamilyOf(a, year)))
+                .OrderBy(a => a.artistId, StringComparer.Ordinal).Take(AiMoveOffers)) {
+                AiMoveAttempts++;
+                if (ProposeMove(label, act.artistId, programId, out _)) { AiMoves++; break; }
+            }
+        }
+    }
+
     public static void CaptureWorld(WorldSaveData world) => world.SceneEcosystem = LocalSceneRoomService.Copy(state);
     public static void ValidateRestore(SceneEcosystemSaveData saved) {
         if (saved == null) return;
-        if (saved.SchemaVersion != 1 || saved.LastProcessedDay < -1 || saved.Programs == null || saved.Moves == null ||
+        if (saved.SchemaVersion is not (1 or 2) || saved.LastProcessedDay < -1 || saved.LastInvestmentWindow < -1 || saved.Programs == null || saved.Moves == null ||
             saved.Programs.Select(p => p.Id).Distinct().Count() != saved.Programs.Count ||
             saved.Moves.Select(m => m.Id).Distinct().Count() != saved.Moves.Count ||
             saved.Moves.Where(m => m.Status == SceneMoveStatus.Planned).GroupBy(m => m.ArtistId).Any(g => g.Count() > 1) ||

@@ -10,7 +10,8 @@ public static class SceneEcosystemChecks {
         string Json(object o) => JsonSerializer.Serialize(o, SaveGameService.TestJsonOptions);
         var date = TimeManager.Instance.CurrentDate;
         var original = JsonSerializer.Deserialize<WorldSaveData>(Json(WorldStateService.Capture()), SaveGameService.TestJsonOptions);
-        var flags = new[] { "--enable-scene-institutions", "--enable-scene-relocation", "--enable-scene-price-feedback" };
+        // The player path runs without AI investment, which would add programs and moves of its own; it is checked below.
+        var flags = new[] { "--enable-scene-institutions", "--enable-scene-relocation", "--enable-scene-price-feedback", "--disable-ai-scene-investment" };
         try {
             LocalScenes.Configure(Array.Empty<string>());
             Check(LocalScenes.AttentionFeedback && LocalScenes.Institutions && LocalScenes.Relocation && LocalScenes.PriceFeedback, "independent defaults");
@@ -69,7 +70,7 @@ public static class SceneEcosystemChecks {
             int count = snapshot.Artists.Count;
             WorldStateService.Apply(JsonSerializer.Deserialize<WorldSaveData>(Json(snapshot), SaveGameService.TestJsonOptions), date, SimulationSeedBootstrap.RequestedSeed);
             Check(Json(snapshot) == Json(WorldStateService.Capture()), "pending move and program roundtrip");
-            LocalScenes.Configure(new[] { "--enable-scene-institutions", "--disable-scene-relocation" });
+            LocalScenes.Configure(new[] { "--enable-scene-institutions", "--disable-scene-relocation", "--disable-ai-scene-investment" });
             SceneEcosystemService.Advance(LocalSceneRoomService.Date(move.ArrivalDay));
             Check(SceneEcosystemService.Moves.Single().Status == SceneMoveStatus.Planned, "disabling relocation freezes commitments without erasing them");
             LocalScenes.Configure(flags);
@@ -128,6 +129,35 @@ public static class SceneEcosystemChecks {
             bool invalidRejected = false;
             try { SceneEcosystemService.ValidateRestore(invalid); } catch (InvalidOperationException) { invalidRejected = true; }
             Check(invalidRejected, "invalid movement dates rejected before restore");
+
+            // AI investment: independents fund programs on their own, once a quarter, without global RNG.
+            WorldStateService.Apply(JsonSerializer.Deserialize<WorldSaveData>(Json(snapshot), SaveGameService.TestJsonOptions), date, SimulationSeedBootstrap.RequestedSeed);
+            bool clash = false;
+            try { LocalScenes.Configure(new[] { "--enable-ai-scene-investment", "--disable-scene-institutions" }); } catch (ArgumentException) { clash = true; }
+            Check(clash, "AI investment needs institutions");
+            LocalScenes.Configure(Array.Empty<string>());
+            Check(LocalScenes.AiInvestment, "AI investment on by default");
+            foreach (var l in ChartManager.Instance.GetAllLabels()) l.cashReserves = Math.Max(l.cashReserves, 1000000);
+            int before = SceneEcosystemService.Programs.Count;
+            var quarter = LocalSceneRoomService.Date(LocalSceneRoomService.Day(date) + 91);
+            GD.Seed(311); uint expected = GD.Randi(); GD.Seed(311);
+            SceneEcosystemService.Advance(quarter);
+            Check(GD.Randi() == expected, "AI investment consumes no global RNG");
+            var funded = SceneEcosystemService.Programs.Skip(before).ToList();
+            Check(funded.Count > 0 && funded.Count == SceneEcosystemService.AiPrograms, "qualifying independents fund programs: " + funded.Count);
+            Check(funded.All(f => ChartManager.Instance.GetLabelById(f.SponsorId) is { isPlayerOwned: false } s && s.tier != LabelTier.Major), "only independent AI labels invest");
+            Check(funded.GroupBy(f => f.RoomId).All(g => g.Count() == 1) && funded.GroupBy(f => f.SponsorId).All(g => g.Count() == 1), "one program per room and per label");
+            Check(funded.All(f => ChartManager.Instance.GetLabelById(f.SponsorId).roster.Count(r =>
+                LocalScenePersistenceService.SceneIdFor(r.geography?.basePlaceId) == SceneRoomCatalog.Get(f.RoomId).PlaceId &&
+                SceneRoomCatalog.Get(f.RoomId).Families.Contains(GenreCatalog.Get(GenreCatalog.MapLegacy(r.primaryGenre, quarter.year)).Family)) >= SceneEcosystemService.MinimumLocalActs),
+                "a program follows the label's own local acts");
+            string afterQuarter = Json(WorldStateService.Capture());
+            SceneEcosystemService.Advance(quarter);
+            Check(Json(WorldStateService.Capture()) == afterQuarter, "one decision per quarter");
+            var reloaded = JsonSerializer.Deserialize<WorldSaveData>(afterQuarter, SaveGameService.TestJsonOptions);
+            WorldStateService.Apply(reloaded, quarter, SimulationSeedBootstrap.RequestedSeed);
+            SceneEcosystemService.Advance(quarter);
+            Check(Json(WorldStateService.Capture()) == afterQuarter, "a reload does not decide the quarter twice");
         } finally { WorldStateService.Apply(original, date, SimulationSeedBootstrap.RequestedSeed); LocalScenes.Configure(Array.Empty<string>()); }
         GD.Print($"SCENE_ECOSYSTEM_CHECK_PASS checks={checks}");
     }

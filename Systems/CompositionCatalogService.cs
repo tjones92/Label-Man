@@ -758,6 +758,15 @@ public static class CompositionCatalogService {
 	// append-only (a load rebuilds them as new lists), so a set that catches up on the list's tail is exact.
 	private sealed class PoolMembership { public readonly HashSet<SongComposition> Set = new(); public int Synced; }
 	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<SongComposition>, PoolMembership> poolMembership = new();
+	/// <summary>Whether a song is in its genre's coverable-hit pool (a set lookup, not a scan).</summary>
+	public static bool IsCoverableHit(SongComposition song) {
+		if (song == null || !coverableHitsByGenre.TryGetValue(song.primaryGenre, out var list)) return false;
+		PoolMembership m = poolMembership.GetValue(list, _ => new PoolMembership());
+		while (m.Synced < list.Count) m.Set.Add(list[m.Synced++]);
+		return m.Set.Contains(song);
+	}
+	/// <summary>The family pool a listed song sits in: standards and coverable hits both file by primary genre.</summary>
+	public static GenreFamily PoolFamilyOf(SongComposition song) => FamilyOf(song.primaryGenre);
 	private static void AddIfAbsent(List<SongComposition> list, SongComposition song) {
 		PoolMembership m = poolMembership.GetValue(list, _ => new PoolMembership());
 		while (m.Synced < list.Count) m.Set.Add(list[m.Synced++]);

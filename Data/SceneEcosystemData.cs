@@ -25,8 +25,11 @@ public sealed class SceneFundedMove {
     public string Reason { get; set; }
 }
 public sealed class SceneEcosystemSaveData {
-    public int SchemaVersion { get; set; } = 1;
+    /// <summary>2 adds LastInvestmentWindow (AI scene investment). A version-1 save starts from -1.</summary>
+    public int SchemaVersion { get; set; } = 2;
     public int LastProcessedDay { get; set; } = -1;
+    /// <summary>The last quarter in which AI labels decided whether to fund a program.</summary>
+    public int LastInvestmentWindow { get; set; } = -1;
     public List<SceneProgram> Programs { get; set; } = new();
     public List<SceneFundedMove> Moves { get; set; } = new();
 }

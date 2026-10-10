@@ -167,6 +167,7 @@ public static class LocalSceneRoomService {
                     foreach (string other in slot.PersonIds.Concat(slot.BackingPersonIds).Where(o => o != person))
                         ContactNetworkService.Link(person, other, ContactKind.HouseBand, bill.Year, via: slot.ArtistId);
                 }
+                RepertoireInfluenceService.OnBacked(slot.BackingPersonIds, slot.Set, slot.ArtistId, bill.Year);
                 State.CompletedPerformances++;
             }
             if (bill.Day == day && bill.EndHour > hour) continue;
@@ -226,6 +227,12 @@ public static class LocalSceneRoomService {
     }
     /// <summary>A person's house-band work for a year, across every act they backed.</summary>
     public static (float Hours, float Pay) Backing(string person, int year) => person == null ? (0f, 0f) : backing.GetValueOrDefault(year + "|" + person);
+    /// <summary>Everyone who played house-band sets in a year, in person-id order.</summary>
+    public static IEnumerable<string> BackersIn(int year) {
+        string prefix = year + "|";
+        return backing.Where(kv => kv.Value.Hours > 0f && kv.Key.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(kv => kv.Key.Substring(prefix.Length)).OrderBy(p => p, StringComparer.Ordinal);
+    }
     public static IReadOnlyCollection<SceneHouseBandStanding> HouseStanding => houseStanding.Values;
 
     public static void AttributeBudget(string artist, string person, int year, float baselineHours) {

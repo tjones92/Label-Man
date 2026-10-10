@@ -164,8 +164,97 @@ singles −0.6-0.8%, on both seeds. The lift is zero-mean on production, so this
 respond more to a good album than they lose on a weak one. It is small, and the decade comparison decides whether
 it stands; `--disable-session-record-lift` isolates it.
 
-## 5. Phase 3 — the rest of the handoff item
+## 5. Phase 3 â€” built
 
-Autonomous AI investment in scenes (funded programs exist; AI labels deciding to fund them does not), consented
-migration driven by work and contacts, and repertoire influence: standards and arrangements travelling with people
-and performances.
+Three channels, each on by default with its own off flag. None draws global RNG; every decision is keyed.
+
+### 5.1 AI labels fund scene programs (`SceneEcosystemService.InvestForAi`, `--disable-ai-scene-investment`)
+
+The player could already fund a 13-week program (one extra set per performance night, $600) and offer a roster act a
+funded, consented move to it. AI labels now do the same on their own:
+
+- **When:** once a quarter (the mobility window, 91 days). The quarter is saved (`SceneEcosystemSaveData`
+  schema 2, `LastInvestmentWindow`; a version-1 save starts at -1), so a reload never decides a quarter twice.
+- **Who:** active, non-player, non-Major labels whose home city is mapped. Majors are excluded: their A&R ran through
+  offices and agencies (Phase 7), not local rooms.
+- **Why this room:** the label has at least two active roster acts based in its home town whose genre family the room
+  programs (`MinimumLocalActs`). Investment follows the acts a label already has; it doesn't speculate. The room that
+  programs the most of them wins.
+- **Restraint:** the label holds 10 programs' worth of cash (`AiReserveMultiple`) and has no current program. A keyed
+  draw passes at 0.25 a quarter (`AiInvestChance`, a gameplay prior). `FundProgram` still enforces one program per room,
+  the operating reserve and the real expense.
+- **The move:** after funding, the label offers the program to up to three out-of-town roster acts whose family fits,
+  in turn, through the player's own `ProposeMove`: 350-mile domestic route, 1.5x genre opportunity, every member's
+  keyed consent, prepaid travel and housing, cooldowns.
+
+### 5.2 Musicians move for work and contacts (`WorkMigrationService`, `--disable-work-migration`)
+
+At the band-life year end, after the pool expires its stale members:
+
+- **Who:** a pooled player (between bands) in a US town who had no session or house-band work all year, and hasn't
+  moved in two years.
+- **Where:** a town where someone they know without a fallout is based and the trade is busier. The destination needs
+  at least 8 working players (session or house-band) and more than at home. Towns are scored
+  `ln(1 + shared jobs with contacts there) + ln(1 + working players there)`. The contact they worked with most is
+  named as the one who told them.
+- **Consent:** keyed, `0.25 + 0.35Â·ambition âˆ’ 0.20 if children âˆ’ 0.15Â·fatigue âˆ’ 0.15 at 40+`, clamped to
+  [0.05, 0.80].
+- **Cost:** a month's room and the bus fare, `$40 + $0.025/mile` in 1960 dollars, CPI-adjusted, paid from their own
+  wealth. No savings, no move.
+- **Effect:** base place and `homeRegion` change (dated `PlaceMove`, `Simulated` evidence); origin never does. Session
+  hiring, house bands and pool replacement all read the new base.
+
+### 5.3 Songs and arrangements travel with people (`RepertoireInfluenceService`, `--disable-repertoire-influence`)
+
+- **Learning:** each person carries up to 8 songs (`Musician.carriedSongs`, most recent last). They learn a song by
+  cutting it: the members and the session crew of a single learn its song, and of an album its first two promoted
+  tracks. They also learn by backing it: a house band learns the catalogue songs of the set it backs.
+- **Use:** when an AI act builds a standard or recent-hit cover candidate, songs its members carried in from *other*
+  acts are weighed against the six-song catalogue sample. They get the same fit score (and cover fatigue, for hits)
+  Ã—1.25 for being known (`KnownSongBonus`). A carried song must be one that source's own pools would offer, in the same
+  families, establishment and media rules, and must not already be recorded by this act.
+- **Arrangement:** a carried single brings its arrangement. When its master exists, the cover's polar reference
+  (`ReferenceSubjectId`) is the record the member played on, not the latest version.
+- **Once chosen it is the act's own:** the members re-learn it via this act, so it isn't offered as carried again.
+
+`p3-v1` had a counting bug: it logged every carried *candidate* the builder made, and an act could re-offer the same
+carried album song. Counting now happens at selection (`ChooseMaterial`), and a chosen song becomes the act's own.
+
+### Results â€” Phase 3
+
+`p3-v2` (all three on) against `ref-1aab603-{1001,2002}-104`, same flags. `p3-off` (all three disabled) is
+byte-identical to the reference on both seeds (95 of 95 CSVs), so the refactors are inert.
+
+| | seed 1001 | seed 2002 |
+|---|---:|---:|
+| AI programs, 2 years (sponsors) | 254 (171) | 242 (167) |
+| by tier: Independent / Boutique / Small / MidTier | 117 / 75 / 39 / 23 | 117 / 66 / 43 / 16 |
+| top cities | NY 25, Chicago 22, Nashville 19-20, LA 18 | same order |
+| AI-funded moves offered / made / arrived | 171 / 12 / 10 | 105 / 8 / 5 |
+| Work moves (1960 year end): considered / declined / no savings / moved | 17 / 9 / 1 / 7 | 34 / 18 / 4 / 12 |
+| Carried covers chosen (standard / recent hit) | 216 (107 / 109) | 197 (100 / 97) |
+| distinct songs / acts; most covers of one song via carrying | 192 / 97; 3 | 180 / 88; 3 |
+| covers following the carrier's arrangement | 82 | 87 |
+| Singles / album units, 2 years | +0.18% / âˆ’1.00% | +0.46% / âˆ’2.20% |
+
+The shapes are historical without being authored. Funded moves run Philadelphiaâ†’New York, Memphis and
+Cincinnatiâ†’Nashville, St. Louisâ†’Chicago, Cincinnatiâ†’Detroit and Portlandâ†’Seattle. Work moves go to New York,
+Nashville, Los Angeles and Chicago, and the cheap short hops (Philadelphia, Boston, Baltimoreâ†’New York) are the
+common ones. Programs land on clubs and community halls first.
+
+Units: albums are down on both seeds. The ablations don't isolate it. Repertoire influence alone (`p3-rep`, run on the
+pre-fix build) gave âˆ’0.46% / +0.17%; everything but repertoire (`p3-norep`) gave âˆ’0.80% / +0.65%. Each piece flips sign
+across seeds, so the combined âˆ’1.0% / âˆ’2.2% is most likely the reshuffled stream, as with Phase 2's record lift. It is
+not program spending: the sponsoring labels' album projects rose on both seeds (1,683â†’1,703 and 1,259â†’1,324). The
+decade comparison decides it.
+
+Checks: `--contact-network-check` 67 (was 21: phase 3 flags, the carried-song list, carried-in semantics, logged work
+moves, AI program invariants, a version-1 ecosystem save); `--scene-ecosystem-check` 51 on both seeds (the player path
+now runs with AI investment off, plus a new AI block: no global RNG, independents only, one program per room and per
+label, follows local acts, one decision per quarter across a reload); 26-week save/load round trip with institutions
+and relocation on.
+
+## 6. Next
+
+Codex's last feature: foreign master licensing, territorial rights and recording provenance. Then the two-seed decade
+comparison covers live calibration, the contact network and this phase together.

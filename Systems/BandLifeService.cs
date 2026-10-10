@@ -278,6 +278,7 @@ public static class BandLifeService {
 				artistId = gone.lastArtistId, stageName = gone.lastStageName, eventType = "pool-expired", applied = true,
 				age = gone.person.GetAge(year) });
 		}
+		WorkMigrationService.OnYearEnd(year);
 		ContactNetworkService.Prune();
 		foreach (ActYear ctx in contexts) Snapshot(ctx.artist);
 		Summarize(contexts, summary);

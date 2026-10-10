@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -3278,7 +3278,9 @@ public partial class CompetitorManager : Node {
 		}
 
 		// The session happens when the record is made: hire the crew now, so it can shape the record.
-		SessionEmploymentService.OnRecordMade(record, label, artist);
+		var crew = SessionEmploymentService.OnRecordMade(record, label, artist);
+		// Everyone who played on it now knows the song (repertoire influence).
+		RepertoireInfluenceService.OnRecordMade(record, artist, crew);
 		return record;
 	}
 

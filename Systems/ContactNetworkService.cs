@@ -28,6 +28,8 @@ public static class ContactNetworkService {
 		if (enable && disable) throw new ArgumentException("--enable-contact-network and --disable-contact-network cannot be used together.");
 		Enabled = !disable;
 		SessionEmploymentService.Configure(args);
+		RepertoireInfluenceService.Configure(args);
+		WorkMigrationService.Configure(args);
 	}
 
 	private static string Key(string x, string y) => string.CompareOrdinal(x, y) < 0 ? x + "|" + y : y + "|" + x;
@@ -118,7 +120,10 @@ public static class ContactNetworkService {
 		}
 	}
 
-	public static void Reset() { edges.Clear(); adjacency.Clear(); ContactHires = 0; SessionEmploymentService.Reset(); }
+	public static void Reset() {
+		edges.Clear(); adjacency.Clear(); ContactHires = 0;
+		SessionEmploymentService.Reset(); RepertoireInfluenceService.Reset(); WorkMigrationService.Reset();
+	}
 
 	public static void CaptureWorld(WorldSaveData world) {
 		world.ContactNetwork = new ContactNetworkSaveData {

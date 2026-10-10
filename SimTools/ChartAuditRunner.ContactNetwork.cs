@@ -30,6 +30,36 @@ public partial class ChartAuditRunner {
 			foreach (var r in SessionEmploymentService.Regulars.OrderBy(r => r.LabelId, StringComparer.Ordinal).ThenBy(r => r.PersonId, StringComparer.Ordinal))
 				writer.WriteLine($"{r.LabelId},{r.PersonId},{r.Sessions},{r.LastYear}");
 		}
+		using (var writer = new StreamWriter(Path.Combine(dir, $"{runName}-carried-covers.csv"))) {
+			writer.WriteLine("recordId,artistId,songId,carrierId,viaArtistId,source,year");
+			foreach (var c in RepertoireInfluenceService.Choices)
+				writer.WriteLine($"{c.RecordId},{c.ArtistId},{c.SongId},{c.CarrierId},{c.ViaArtistId},{c.Source},{c.Year}");
+		}
+		using (var writer = new StreamWriter(Path.Combine(dir, $"{runName}-work-moves.csv"))) {
+			writer.WriteLine("year,personId,from,to,contactId,miles,cost,destinationWorkers,homeWorkers");
+			foreach (var m in WorkMigrationService.Log)
+				writer.WriteLine(FormattableString.Invariant($"{m.Year},{m.PersonId},{m.From},{m.To},{m.ContactId},{m.Miles:F0},{m.Cost:F2},{m.DestinationWorkers},{m.HomeWorkers}"));
+		}
+		using (var writer = new StreamWriter(Path.Combine(dir, $"{runName}-scene-programs.csv"))) {
+			writer.WriteLine("programId,roomId,sponsorId,sponsorTier,player,startDay,throughDay,cost");
+			foreach (var p in SceneEcosystemService.Programs) {
+				var l = ChartManager.Instance?.GetLabelById(p.SponsorId);
+				writer.WriteLine(FormattableString.Invariant($"{p.Id},{p.RoomId},{p.SponsorId},{l?.tier},{(l?.isPlayerOwned == true ? 1 : 0)},{p.StartDay},{p.ThroughDay},{p.Cost}"));
+			}
+			foreach (var m in SceneEcosystemService.Moves)
+				writer.WriteLine($"#move,{m.ArtistId},{m.SponsorId},{m.FromPlaceId},{m.ToPlaceId},{m.Status},{m.ArrivalDay},{m.Cost}");
+		}
+		int carrying = 0, carried = 0;
+		foreach (var a in ArtistManager.Instance.GetAllArtists())
+			foreach (var m in a.members ?? new()) if (m.isActive && m.carriedSongs?.Count > 0) { carrying++; carried += m.carriedSongs.Count; }
+		GD.Print($"REPERTOIRE_INFLUENCE_CENSUS learned={RepertoireInfluenceService.SongsLearned} considered={RepertoireInfluenceService.CarriedConsidered} " +
+			$"chosen={RepertoireInfluenceService.CarriedChosen} arrangements={RepertoireInfluenceService.ArrangementsCarried} " +
+			$"activeMembersCarrying={carrying} songsCarried={carried}");
+		GD.Print($"WORK_MIGRATION_CENSUS considered={WorkMigrationService.Considered} declined={WorkMigrationService.Declined} " +
+			$"unaffordable={WorkMigrationService.Unaffordable} moved={WorkMigrationService.Moved}");
+		GD.Print($"AI_SCENE_INVESTMENT_CENSUS programs={SceneEcosystemService.AiPrograms} allPrograms={SceneEcosystemService.Programs.Count} " +
+			$"moveAttempts={SceneEcosystemService.AiMoveAttempts} moves={SceneEcosystemService.AiMoves} " +
+			$"arrived={SceneEcosystemService.Moves.Count(m => m.Status == SceneMoveStatus.Arrived)} cancelled={SceneEcosystemService.Moves.Count(m => m.Status == SceneMoveStatus.Cancelled)}");
 		var edges = ContactNetworkService.Edges;
 		GD.Print($"CONTACT_NETWORK_CENSUS edges={edges.Count} bandmate={edges.Count(e => e.Kinds.HasFlag(ContactKind.FormerBandmate))} " +
 			$"session={edges.Count(e => e.Kinds.HasFlag(ContactKind.Session))} fallout={edges.Count(e => e.Fallout)} " +
