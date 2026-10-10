@@ -69,7 +69,7 @@ public static class LocalSceneRoomChecks {
             Check(Json(completed) == Json(Snapshot()), "duplicate clock callback adds no gigs, fees or practice");
             Check(am.GetAllArtists().Count() == artistCount, "performances do not create or delete acts");
             Check(WorldStateService.Capture().ArtistIdCounter == original.ArtistIdCounter && WorldStateService.Capture().MusicianIdCounter == original.MusicianIdCounter, "performance does not spend birth counters");
-            Check(completed.Bills.All(b => b.Attendance <= SceneRoomCatalog.Get(b.RoomId).Capacity && b.Attendance >= 0), "attendance bounded by each physical room");
+            Check(completed.Bills.All(b => b.Attendance <= LocalSceneRoomService.CapacityOf(b) && b.Attendance >= 0), "attendance bounded by each physical room");
             Check(completed.Bills.Where(b => SceneRoomCatalog.Get(b.RoomId).Kind == SceneRoomKind.TradeEvent).All(b => b.GrossReceipts == 0), "trade listening appointments do not pay stage receipts");
             var worker = completed.Work.First();
             LocalSceneRoomService.AttributeBudget(worker.ArtistId, worker.PersonId, worker.Year, 450);

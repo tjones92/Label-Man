@@ -14,6 +14,8 @@ public static class LocalScenes {
     public static bool Institutions { get; private set; }
     public static bool Relocation { get; private set; }
     public static bool ExtendedWorld { get; private set; }
+    /// <summary>Dated room size, admission and pay terms (SceneLiveEconomics). Observation-only; default on with rooms.</summary>
+    public static bool LiveCalibration { get; private set; }
     public static void ValidateDependencies() {
         if (Persisting && !ArtistPopulationLifecycle.Enabled)
             throw new ArgumentException("Persistent scenes require the existing artist population lifecycle birth owner.");
@@ -82,6 +84,11 @@ public static class LocalScenes {
         Observing = observe || persist;
         Persisting = persist;
         Rooms = persist && !disableRooms;
+        bool enableLive = args.Contains("--enable-scene-live-calibration", StringComparer.Ordinal);
+        bool disableLive = args.Contains("--disable-scene-live-calibration", StringComparer.Ordinal);
+        if (enableLive && (disableLive || !Rooms))
+            throw new ArgumentException("Live calibration requires scene rooms and cannot be enabled and disabled together.");
+        LiveCalibration = Rooms && !disableLive;
         Recruitment = recruitment || (persist && !observe
             && !args.Contains("--disable-scene-recruitment", StringComparer.Ordinal)
             && !args.Contains("--disable-genre-market-v2", StringComparer.Ordinal));

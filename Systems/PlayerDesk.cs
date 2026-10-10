@@ -1698,12 +1698,12 @@ public partial class PlayerDesk : Node {
             if (sceneBill == null || !LocalSceneRoomService.Hear(sceneBill, TimeManager.Instance.CurrentHour).Any(a => a.artistId == prospect.Artist.artistId)) {
                 message = "This act is not on a bill you can catch now. Check the room's calendar."; return false;
             }
-            if (Label.cashReserves < followUpRoom.Admission) { message = "You cannot cover admission."; return false; }
+            if (Label.cashReserves < SceneLiveEconomics.Admission(followUpRoom, TimeManager.Instance.CurrentDate.year)) { message = "You cannot cover admission."; return false; }
             followUpBill = sceneBill;
         } else if (!VenueOpenNow(prospect.Venue, out message)) return false;
 		if (!Require(FollowUpHours, out message)) return false;
 		if (followUpBill != null) {
-            Label.cashReserves -= followUpRoom.Admission;
+            Label.cashReserves -= SceneLiveEconomics.Admission(followUpRoom, TimeManager.Instance.CurrentDate.year);
             if (prospect.SceneBillId != followUpBill.Id) {
                 prospect.LiveSet.Clear(); prospect.LiveSet.AddRange(ReadSceneRoomSet(prospect.Artist, followUpBill));
                 prospect.HeardCount = 0;

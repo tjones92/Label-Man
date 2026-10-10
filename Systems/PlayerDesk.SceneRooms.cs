@@ -16,9 +16,10 @@ public partial class PlayerDesk {
         if (bill == null) { message = "There is no set or listening appointment you can catch now. Check this room's calendar."; return false; }
         var cast = LocalSceneRoomService.Hear(bill, hour);
         if (cast.Count == 0) { message = "The announced bill cannot go ahead. No new act has been substituted."; return false; }
-        if (Label.cashReserves < room.Admission) { message = "You cannot cover admission."; return false; }
+        float admission = SceneLiveEconomics.Admission(room, date.year);
+        if (Label.cashReserves < admission) { message = "You cannot cover admission."; return false; }
         AdoptLegacyDiscoveries();
-        Label.cashReserves -= room.Admission;
+        Label.cashReserves -= admission;
         Spend(ScoutHours); // The clock resolves shared work, irrespective of who observes it.
         slate.Clear(); SlateDate = date;
         foreach (var artist in cast) {

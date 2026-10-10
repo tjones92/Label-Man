@@ -44,11 +44,13 @@ public partial class PlayerDeskPanel {
             bool open = LocalSceneRoomService.CurrentBill(room.Id, date, hour) != null;
             var next = calendar.FirstOrDefault(b => b.RoomId == room.Id && (b.Day > LocalSceneRoomService.Day(date) || b.EndHour > hour));
             var card = VenueHandbill.Make(VenueGlyphs[room.Category], room.Name, room.Programming(date.year),
-                room.Admission > 0 ? $"admission {Money(room.Admission)}" : "no admission charge",
+                SceneLiveEconomics.Admission(room, date.year) is var admission && admission > 0 ? $"admission {Money(admission)}"
+                    : SceneLiveEconomics.Calibrated && SceneLiveEconomics.Terms(room.Kind) == SceneRoomPayTerms.Basket ? "no admission · the basket goes round"
+                    : "no admission charge",
                 next == null ? "no announced bill" : $"{LocalSceneRoomService.Date(next.Day).ShortMonthName} {LocalSceneRoomService.Date(next.Day).day} · {Hour12(next.StartHour)}–{Hour12(next.EndHour)}",
                 open, room.Id == selectedSceneRoomId, (int)room.Kind);
             card.CustomMinimumSize = new Vector2(0, 340);
-            card.TooltipText = $"{room.Kind} · capacity {room.Capacity} · {room.ContactName}\nFictional supporting room. {room.Source}.";
+            card.TooltipText = $"{room.Kind} · capacity {SceneLiveEconomics.Capacity(room)} · {room.ContactName}\nFictional supporting room. {room.Source}.";
             string id = room.Id; card.Pressed += () => { selectedSceneRoomId = id; Refresh(); }; grid.AddChild(card);
         }
         content.AddChild(grid);

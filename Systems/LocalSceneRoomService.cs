@@ -91,8 +91,9 @@ public static class LocalSceneRoomService {
                 }
                 if (bill.Appearances.Count == 3) bill.Appearances[1].Role = "middle set";
                 int prior = bill.Appearances.Sum(a => standing.TryGetValue(StandingKey(room.Id, a.ArtistId), out var s) ? Math.Min(12, s.Shows) : 0);
-                bill.ExpectedAudience = bill.Appearances.Count == 0 ? 0 : Math.Min(room.Capacity,
-                    (int)(room.Capacity * (.30 + .15 * bill.Appearances.Count + .01 * prior)));
+                bill.Capacity = SceneLiveEconomics.Capacity(room);
+                bill.ExpectedAudience = bill.Appearances.Count == 0 ? 0 : Math.Min(bill.Capacity,
+                    (int)(bill.Capacity * (.30 + .15 * bill.Appearances.Count + .01 * prior)));
                 State.Bills.Add(bill);
             }
         }
@@ -156,20 +157,43 @@ public static class LocalSceneRoomService {
             if (bill.Day == day && bill.EndHour > hour) continue;
             var performed = bill.Appearances.Where(a => a.Status == SceneBillStatus.Performed).ToArray();
             bill.Status = performed.Length > 0 ? SceneBillStatus.Performed : SceneBillStatus.Cancelled;
-            bill.Attendance = performed.Length == 0 ? 0 : Math.Min(room.Capacity,
+            int capacity = CapacityOf(bill);
+            bill.Attendance = performed.Length == 0 ? 0 : Math.Min(capacity,
                 (int)(bill.ExpectedAudience * performed.Length / Math.Max(1f, bill.Appearances.Count) * (.8 + .35 * Draw("attendance|" + bill.Id))));
-            bill.GrossReceipts = room.IsPerformance ? bill.Attendance * room.Admission : 0;
-            bill.Response = performed.Length == 0 ? "No set went ahead." : bill.Attendance >= room.Capacity * .6
+            bill.GrossReceipts = room.IsPerformance ? bill.Attendance * SceneLiveEconomics.Admission(room, bill.Year) : 0;
+            bill.Response = performed.Length == 0 ? "No set went ahead." : bill.Attendance >= capacity * .6
                 ? "A busy room stayed for the sets." : "A small audience stayed for the sets.";
             foreach (var slot in performed) {
                 if (!room.IsPerformance) continue;
-                slot.Fee = bill.GrossReceipts * .5f / performed.Length;
+                slot.Fee = SceneLiveEconomics.SlotFee(room, bill, slot, performed.Length);
                 foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).FeeShare += slot.Fee / slot.PersonIds.Count;
             }
+            RecordRoomYear(room, bill, performed);
         }
     }
     /// <summary>Attribute real work inside the existing annual allowance. The band owner alone applies
     /// fatigue/growth. Excess observed work is exposed for later calibration, never silently added twice.</summary>
+    /// <summary>A bill's physical bound: the capacity recorded when it was made, or the room's on an older save.</summary>
+    public static int CapacityOf(SceneBill bill) => bill == null ? 0 : bill.Capacity > 0 ? bill.Capacity
+        : SceneRoomCatalog.Get(bill.RoomId)?.Capacity ?? 0;
+
+    /// <summary>Diagnostics only (the live-calibration audit): one row per room and year. Not saved, so a resumed
+    /// world reports from the resume onward.</summary>
+    public sealed class RoomYear {
+        public string RoomId; public int Year, Capacity, Bills, Sets, Attendance, PlayerNights;
+        public float Admission, Receipts, ActPay;
+    }
+    private static readonly Dictionary<string, RoomYear> roomYears = new(StringComparer.Ordinal);
+    public static IReadOnlyCollection<RoomYear> RoomYears => roomYears.Values;
+    private static void RecordRoomYear(SceneRoomProfile room, SceneBill bill, SceneAppearance[] performed) {
+        if (room == null || !room.IsPerformance || performed.Length == 0) return;
+        string key = room.Id + "|" + bill.Year;
+        if (!roomYears.TryGetValue(key, out var row)) roomYears[key] = row = new() { RoomId = room.Id, Year = bill.Year,
+            Capacity = CapacityOf(bill), Admission = SceneLiveEconomics.Admission(room, bill.Year) };
+        row.Bills++; row.Sets += performed.Length; row.Attendance += bill.Attendance; row.Receipts += bill.GrossReceipts;
+        foreach (var slot in performed) { row.ActPay += slot.Fee; row.PlayerNights += slot.PersonIds.Count; }
+    }
+
     public static void AttributeBudget(string artist, string person, int year, float baselineHours) {
         if (!LocalScenes.Rooms || !work.TryGetValue(WorkKey(artist, person, year), out var account)) return;
         account.AttributedHours = Math.Min(account.StageHours, Math.Max(0, baselineHours));

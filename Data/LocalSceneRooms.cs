@@ -41,6 +41,8 @@ public sealed class SceneBill {
     public int Year { get; set; }
     public int StartHour { get; set; }
     public int EndHour { get; set; }
+    /// <summary>The room's capacity when the bill was made (0 on bills saved before live calibration).</summary>
+    public int Capacity { get; set; }
     public int ExpectedAudience { get; set; }
     public int Attendance { get; set; }
     public float GrossReceipts { get; set; }
