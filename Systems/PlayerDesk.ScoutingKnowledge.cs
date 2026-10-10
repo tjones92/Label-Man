@@ -96,7 +96,7 @@ public partial class PlayerDesk {
         if (samples.Length == 0) lines.Add("Legacy impressions only; source and coverage unknown.");
         else {
             var last = samples.Last(); var read = last.Interpretation;
-            string place = SceneRoomCatalog.Get(last.RoomId)?.Name ?? last.RoomId;
+            string place = last.RoomName ?? SceneRoomCatalog.Get(last.RoomId)?.Name ?? last.RoomId;
             int nights = samples.Select(o => o.OccurredDay).Distinct().Count();
             lines.Add($"Heard {samples.Length} distinct {(samples.Length == 1 ? "set" : "sets")} on {nights} {(nights == 1 ? "date" : "dates")}. Last: {place}, {LocalSceneRoomService.Date(last.OccurredDay.Value).ToHeadlineString()}; {last.Coverage:P0} of the scheduled set.");
             if (read != null) {
@@ -137,7 +137,9 @@ public partial class PlayerDesk {
         return $"Next: {SceneRoomCatalog.Get(next.b.RoomId)?.Name}, {LocalSceneRoomService.Date(next.b.Day).ToHeadlineString()}, {next.a.StartHour}:00. Check availability before leaving.";
     }
     public IReadOnlyList<string> ScoutingProvenance(string artistId) => scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId)?.Observations
-        .Select(o => $"{o.Kind} · {o.SourceName ?? o.Channel} · occurred {(o.OccurredDay.HasValue ? LocalSceneRoomService.Date(o.OccurredDay.Value).ToHeadlineString() : "unknown")}, acquired {LocalSceneRoomService.Date(o.AcquiredDay).ToHeadlineString()} · {o.Credibility} · {o.Conditions ?? o.Claim} · event {o.EventId ?? "unknown"}").ToArray() ?? Array.Empty<string>();
+        .Select(o => $"{o.Kind} · {o.SourceName ?? o.Channel} · {o.RoomName ?? SceneRoomCatalog.Get(o.RoomId)?.Name ?? "place unknown"} · occurred {(o.OccurredDay.HasValue ? LocalSceneRoomService.Date(o.OccurredDay.Value).ToHeadlineString() : "unknown")}, acquired {LocalSceneRoomService.Date(o.AcquiredDay).ToHeadlineString()} at {(o.AcquiredMinute.HasValue ? $"{o.AcquiredMinute.Value / 60:00}:{o.AcquiredMinute.Value % 60:00}" : "unknown time")} · {o.Credibility} · {o.Conditions ?? o.Claim}" +
+            (o.Kind == ScoutingEvidenceKind.Performance ? $" · listened {o.StartMinute / 60:00}:{o.StartMinute % 60:00}–{o.EndMinute / 60:00}:{o.EndMinute % 60:00} · {o.Coverage:P0} coverage · " +
+                (o.Coverage >= .9 ? "Heard material: " : "Announced material; individual titles heard are uncertain: ") + string.Join("; ", o.Set.Select(s => s.Title + (s.Original ? " (original)" : " (standard)"))) : "")).ToArray() ?? Array.Empty<string>();
     public bool AskScoutingBooker(string roomId, string artistId, bool bookingHistory, out string message) {
         if (!LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver) { message = "New scouting evidence is disabled; recorded notes are retained."; return false; }
         var room = SceneRoomCatalog.Get(roomId); var artist = ArtistManager.Instance.GetArtist(artistId);
@@ -159,9 +161,9 @@ public partial class PlayerDesk {
         Spend(1);
         scoutingKnowledge.Visit = null; // A substantive conversation competes with careful listening.
         dossier.Observations.Add(new() { Id = $"claim-v1|{Label.labelId}|{eventId}", EventId = eventId, LabelId = Label.labelId,
-            ArtistId = artistId, ArtistName = artist.stageName, Kind = ScoutingEvidenceKind.BookerClaim, RoomId = roomId,
+            ArtistId = artistId, ArtistName = artist.stageName, Kind = ScoutingEvidenceKind.BookerClaim, RoomId = roomId, RoomName = room.Name,
             SourceId = room.ContactId, SourceName = room.ContactName, Channel = "booker conversation", OccurredDay = bookingHistory ? null : next?.Day,
-            AcquiredDay = day, Credibility = "local booking record; limited to this room", Claim = claim });
+            AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate), AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, Credibility = "local booking record; limited to this room", Claim = claim });
         message = room.ContactName + ": " + claim; Note(message); Changed?.Invoke(); return true;
     }
     private void RememberFoundingAct(Prospect prospect, ContractTermSheet terms) {

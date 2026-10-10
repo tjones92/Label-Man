@@ -27,7 +27,7 @@ public partial class PlayerDesk {
         if (slots.Length == 0) { message = "That appearance is not playing now. You can wait for its announced start."; return false; }
         slots = slots.Where(a => !HasObservedPerformance(ScenePerformanceService.EventId(bill, a))).ToArray();
         if (slots.Length == 0) { message = "This performance is already in your notebook. Another date can answer a new question."; return false; }
-        var hearable = LocalSceneRoomService.Hear(bill, clock.CurrentHour).Select(a => a.artistId).ToHashSet();
+        var hearable = LocalSceneRoomService.Hear(bill, clock.CurrentHour, (int)Math.Ceiling((now + ScoutHours * 60) / 60.0)).Select(a => a.artistId).ToHashSet();
         slots = slots.Where(a => hearable.Contains(a.ArtistId)).ToArray();
         if (slots.Length == 0) { message = "The announced lineup cannot go ahead. No replacement act has been created."; return false; }
         // Snapshot coverage before time advances. A later appearance is never credited unless we stay through it.
@@ -52,9 +52,9 @@ public partial class PlayerDesk {
             string identity = ScenePerformanceService.EventId(bill, slot);
             var dossier = Dossier(artist.artistId, artist.stageName);
             dossier.Observations.Add(new() { Id = $"observation-v1|{Label.labelId}|{identity}", LabelId = Label.labelId, ArtistId = artist.artistId,
-                ArtistName = artist.stageName, Kind = ScoutingEvidenceKind.Performance, EventId = identity, BillId = bill.Id, RoomId = room.Id,
+                ArtistName = artist.stageName, Kind = ScoutingEvidenceKind.Performance, EventId = identity, BillId = bill.Id, RoomId = room.Id, RoomName = room.Name,
                 SourceId = Label.labelId, SourceName = "Your listening", Channel = room.IsPerformance ? "live set" : "listening appointment",
-                OccurredDay = bill.Day, AcquiredDay = bill.Day, StartMinute = from, EndMinute = through, Coverage = coverage,
+                OccurredDay = bill.Day, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate), AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, StartMinute = from, EndMinute = through, Coverage = coverage,
                 Credibility = coverage >= .9 ? "full set impression; observer judgment remains uncertain" : "partial set impression; limited coverage",
                 PersonIds = slot.PersonIds.ToList(), BackingPersonIds = slot.BackingPersonIds?.ToList() ?? new(), Set = LocalSceneRoomService.Copy(slot.Set),
                 Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage),

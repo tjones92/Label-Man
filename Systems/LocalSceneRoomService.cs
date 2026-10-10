@@ -260,11 +260,12 @@ public static class LocalSceneRoomService {
     }
     public static int ShowsAt(string roomId, string artistId) => standing.GetValueOrDefault(StandingKey(roomId, artistId))?.Shows ?? 0;
     public static SceneBill Bill(string id) => Copy(state?.Bills.FirstOrDefault(b => b.Id == id));
-    public static IReadOnlyList<SimulatedArtist> Hear(SceneBill bill, int? fromHour = null) {
+    public static IReadOnlyList<SimulatedArtist> Hear(SceneBill bill, int? fromHour = null, int? throughHour = null) {
         if (!LocalScenes.Rooms || bill == null) return Array.Empty<SimulatedArtist>();
+        if ((throughHour ?? bill.EndHour) <= (fromHour ?? bill.StartHour)) return Array.Empty<SimulatedArtist>();
         var canonical = State.Bills.FirstOrDefault(b => b.Id == bill.Id);
         var room = SceneRoomCatalog.Get(canonical?.RoomId);
-        return Array.AsReadOnly((canonical?.Appearances ?? new()).Where(s => s.Status != SceneBillStatus.Cancelled && s.EndHour > (fromHour ?? bill.StartHour) && StagePeople(ArtistManager.Instance.GetArtist(s.ArtistId) ?? new SimulatedArtist()).SequenceEqual(s.PersonIds))
+        return Array.AsReadOnly((canonical?.Appearances ?? new()).Where(s => s.Status != SceneBillStatus.Cancelled && s.EndHour > (fromHour ?? bill.StartHour) && s.StartHour < (throughHour ?? bill.EndHour) && StagePeople(ArtistManager.Instance.GetArtist(s.ArtistId) ?? new SimulatedArtist()).SequenceEqual(s.PersonIds))
             .Select(s => ArtistManager.Instance.GetArtist(s.ArtistId)).Where(a => Eligible(a, room, bill.Day)).ToArray());
     }
     /// <summary>Read existing future facts. Unlike Calendar, this never ensures or advances a schedule.</summary>

@@ -5,7 +5,7 @@ using Godot;
 
 public partial class PlayerDesk {
     private readonly Dictionary<string, SceneDiscovery> sceneDiscoveries = new(StringComparer.Ordinal);
-    public IReadOnlyList<SceneDiscovery> SceneDiscoveries => Array.AsReadOnly(sceneDiscoveries.Values.OrderBy(d => d.ArtistId, StringComparer.Ordinal).ToArray());
+    public IReadOnlyList<SceneDiscovery> SceneDiscoveries => Array.AsReadOnly(sceneDiscoveries.Values.OrderBy(d => d.ArtistId, StringComparer.Ordinal).Select(LocalSceneRoomService.Copy).ToArray());
 
     private void AdoptLegacyDiscoveries() {
         foreach (string id in generatedProspectIds.ToArray()) ArtistManager.Instance?.AdoptScoutingDiscovery(id);

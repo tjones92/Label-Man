@@ -460,8 +460,6 @@ public partial class PlayerDesk : Node {
 	// ========================================================================================
 
 	private bool FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
-		// Read before anything is written: the margin is about the paper as tabled.
-		string margin = "";
 		if (talk.IsRenewal) {
 			FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message);
 			PendingRenewal = null;
@@ -470,45 +468,8 @@ public partial class PlayerDesk : Node {
 			talk.prospect.Talk = null;
 		}
 		talk.stage = ContractTalkStage.Done;
-		message += margin;
 		Changed?.Invoke();
         return true;
-	}
-
-	/// <summary>The advance below which this exact paper would have been refused: everything else as signed,
-	/// solved off the same weighted package the table scored it with. Null when there is no cash axis to read
-	/// (an act that asked for nothing up front).</summary>
-	private static float? LowestAdvanceThatClears(ContractTalk talk, ContractTermSheet signed) {
-		ContractTermSheet ask = talk.ask;
-		if (ask.Advance <= 0f || !talk.weights.TryGetValue(ContractAxis.Advance, out float weight) || weight <= 0f) return null;
-		float rest = PackageValue(signed, ask, talk.weights) - weight * AxisTerm(ContractAxis.Advance, signed, ask);
-		float extra = Mathf.Max(0f, talk.lastOfferValue - PackageValue(signed, ask, talk.weights));
-		float needed = (talk.reservation - extra - rest) / weight;
-		float byPackage = ask.Advance * Mathf.Clamp(needed, 0f, 1.5f);
-		return Mathf.Ceil(Mathf.Max(byPackage, MinimumAdvanceForAcceptance(talk)) / 5f) * 5f;
-	}
-
-	private string SignedMarginLine(ContractTalk talk, ContractTermSheet signed) {
-		float? lowest = LowestAdvanceThatClears(talk, signed);
-		return lowest.HasValue ? AdvanceMarginLine(lowest.Value, signed.Advance, talk.Artist.artistId) : "";
-	}
-
-	/// <summary>The after-the-fact read on how hard the number was pushed: a sharp ear hears the floor almost
-	/// exactly, a middling one hears it through the same fog the objections use, and a poor one only learns
-	/// whether it was close. Closes the loop the lowball used to leave open -- a signing with no texture
-	/// teaches nothing.</summary>
-	private string AdvanceMarginLine(float lowest, float paid, string artistId) {
-		lowest = Mathf.Min(lowest, paid);
-		float spare = paid - lowest;
-		if (spare <= Mathf.Max(5f, paid * 0.08f)) return " That was about as low as they'd go.";
-		float ability = Label?.scoutingAbility ?? 0.5f;
-		if (ability < 0.35f) return " That was easier than it should have been.";
-		float unit = StableNegotiationUnit(Label?.labelId ?? "", artistId, 99);
-		float heard = ability >= 0.6f ? lowest
-			: Mathf.Min(paid, Mathf.Ceil(lowest * (1f + (unit * 2f - 1f) * NegotiationFogBand()) / 5f) * 5f);
-		return ability >= 0.6f
-			? $" They'd have gone as low as ${heard:N0}."
-			: $" They'd have gone as low as ${heard:N0}, give or take.";
 	}
 
 	/// <summary>Voluntary and forced walks land very differently depending on what was on the table.
@@ -592,9 +553,7 @@ public partial class PlayerDesk : Node {
 		};
 
 		return axis switch {
-			ContractAxis.Advance => sharp
-				? $"\"{who} {wants} more money up front -- {sizeWord} more than you're offering.\""
-				: $"\"{who} {wants} more money up front -- {sizeWord} more than you're offering.\"",
+			ContractAxis.Advance => $"\"{who} {wants} more money up front -- {sizeWord} more than you're offering.\"",
 			ContractAxis.Royalty => sharp
 				? $"\"The points are the problem. {offer.RoyaltyRate:P1} isn't going to cut it -- you're {sizeWord} off.\""
 				: "\"It's the percentage that's sticking.\"",

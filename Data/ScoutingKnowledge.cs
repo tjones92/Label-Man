@@ -22,11 +22,14 @@ public sealed class ScoutingObservation {
     public string EventId { get; set; }
     public string BillId { get; set; }
     public string RoomId { get; set; }
+    public string RoomName { get; set; }
     public string SourceId { get; set; }
     public string SourceName { get; set; }
     public string Channel { get; set; }
     public int? OccurredDay { get; set; }
     public int AcquiredDay { get; set; }
+    // Unknown for older observations; never infer a historical time on load.
+    public int? AcquiredMinute { get; set; }
     public int StartMinute { get; set; }
     public int EndMinute { get; set; }
     public float Coverage { get; set; }

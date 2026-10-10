@@ -61,7 +61,8 @@ public partial class SceneRoomUiRunner : Node {
                 if (SceneEcosystemService.Programs.Count != 1 || desk.Label.cashReserves != before - SceneEcosystemService.ProgramCost)
                     throw new InvalidOperationException("Funding button must create one program and book its real expense.");
             }
-            bool scouting = OS.GetCmdlineUserArgs().Contains("--scouting-experience-ui-check");
+            bool evidenceDetails = OS.GetCmdlineUserArgs().Contains("--scouting-evidence-ui-check");
+            bool scouting = evidenceDetails || OS.GetCmdlineUserArgs().Contains("--scouting-experience-ui-check");
             if (scouting) {
                 var bill = LocalSceneRoomService.Calendar(desk.CurrentCityId, TimeManager.Instance.CurrentDate)
                     .First(b => b.Appearances.Count > 0 && b.Appearances[0].EndHour <= TimeManager.Instance.HardStopHour && b.Status == SceneBillStatus.Scheduled);
@@ -80,13 +81,27 @@ public partial class SceneRoomUiRunner : Node {
                     throw new InvalidOperationException("Listening must create an honest notebook with provenance and no hidden contract thresholds.");
                 foreach (var scroll in Descendants(panel).OfType<ScrollContainer>()) scroll.ScrollVertical = 100000;
                 for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (evidenceDetails) {
+                    var details = Descendants(panel).OfType<Button>().First(b => !b.IsQueuedForDeletion() && b.Text == "SOURCES & COVERAGE");
+                    details.EmitSignal(Button.SignalName.Pressed);
+                    for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    var modal = Descendants(panel).OfType<PaperModal>().Single(m => !m.IsQueuedForDeletion());
+                    var labels = Descendants(modal).OfType<Label>().ToArray();
+                    if (!Descendants(modal).OfType<ScrollContainer>().Any() ||
+                        !labels.Any(l => l.Text.Contains("Heard material:") && l.Text.Contains("coverage") && l.Text.Contains("acquired")) ||
+                        labels.Any(l => l.Text.Contains("performance-v1|")))
+                        throw new InvalidOperationException("Evidence details need bounded scrolling, acquired coverage/material and no raw event keys.");
+                    var done = Descendants(modal).OfType<Button>().Single(b => b.Text == "DONE");
+                    if (done.GlobalPosition.Y < 0 || done.GlobalPosition.Y + done.Size.Y > GetViewport().GetVisibleRect().Size.Y)
+                        throw new InvalidOperationException("Evidence notebook dismissal must remain within the viewport.");
+                }
             }
-            string dir = ProjectSettings.GlobalizePath(scouting ? "res://SimLogs/scouting-ui-v1" : sources ? "res://SimLogs/scene7-source-ui-v1" : information ? "res://SimLogs/scene6-information-ui-v1" : ecosystem ? "res://SimLogs/scene5-ecosystem-ui-v1" : "res://SimLogs/scene3-ui-v1"); Directory.CreateDirectory(dir);
+            string dir = ProjectSettings.GlobalizePath(evidenceDetails ? "res://SimLogs/scouting-migration-ui-v1" : scouting ? "res://SimLogs/scouting-ui-v1" : sources ? "res://SimLogs/scene7-source-ui-v1" : information ? "res://SimLogs/scene6-information-ui-v1" : ecosystem ? "res://SimLogs/scene5-ecosystem-ui-v1" : "res://SimLogs/scene3-ui-v1"); Directory.CreateDirectory(dir);
             File.WriteAllText(Path.Combine(dir, "ui.txt"), string.Join("\n", Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion()).Select(l => l.Text)));
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             var image = GetViewport().GetTexture().GetImage();
             if (image.SavePng(Path.Combine(dir, "board.png")) != Error.Ok) throw new InvalidOperationException("Screenshot failed.");
-            GD.Print(scouting ? "SCOUTING_EXPERIENCE_UI_PASS rooms=6 listening=true notebook=true thresholdsHidden=true" : sources ? "SCENE_SOURCE_UI_PASS rooms=6 sourceIntro=true" : information ? "SCENE_INFORMATION_UI_PASS rooms=6 recap=true coldTip=true" : ecosystem ? "SCENE_ECOSYSTEM_UI_PASS rooms=6 funding=true layout=true" : "SCENE_ROOM_UI_PASS rooms=6 selection=true layout=true"); GetTree().Quit(0);
+            GD.Print(evidenceDetails ? "SCOUTING_EVIDENCE_UI_PASS sources=true scrolling=true material=true dismissalVisible=true" : scouting ? "SCOUTING_EXPERIENCE_UI_PASS rooms=6 listening=true notebook=true thresholdsHidden=true" : sources ? "SCENE_SOURCE_UI_PASS rooms=6 sourceIntro=true" : information ? "SCENE_INFORMATION_UI_PASS rooms=6 recap=true coldTip=true" : ecosystem ? "SCENE_ECOSYSTEM_UI_PASS rooms=6 funding=true layout=true" : "SCENE_ROOM_UI_PASS rooms=6 selection=true layout=true"); GetTree().Quit(0);
         } catch (Exception ex) { GD.PrintErr("SCENE_ROOM_UI_FAILED: " + ex); GetTree().Quit(1); }
     }
 }

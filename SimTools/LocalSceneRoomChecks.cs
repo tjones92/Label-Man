@@ -142,6 +142,14 @@ public static class LocalSceneRoomChecks {
             float cash = desk.Label.cashReserves;
             Check(desk.ScoutSceneRoom(first.RoomId, out _), "player hears the actual named bill");
             Check(desk.Label.cashReserves == cash - SceneLiveEconomics.Admission(room, date.year), "room admission charged once per visit");
+            string evidenceBefore = Json(desk.CaptureState().ScoutingKnowledge);
+            string discoveriesBefore = Json(desk.SceneDiscoveries);
+            Check(desk.Notebook.Count == 0 && desk.ScoutingDossiers.All(d => d.Observations.Count == 1), "automatic evidence requires no watch-list pinning");
+            desk.CaptureState().ScoutingKnowledge.Dossiers.First().Observations.Clear();
+            Check(Json(desk.CaptureState().ScoutingKnowledge) == evidenceBefore, "save capture detaches nested acquired evidence");
+            desk.SceneDiscoveries.First().RoomId = null;
+            desk.CaptureState().SceneDiscoveries.First().BillId = null;
+            Check(Json(desk.SceneDiscoveries) == discoveriesBefore, "discovery projection and save capture are detached");
             string read = Json(desk.Slate.Select(p => new { p.Artist.artistId, p.LiveSet }).ToList());
             string billsAfter = Json(Snapshot());
             TimeManager.Instance.RestoreClock(date, first.StartHour);
@@ -149,6 +157,18 @@ public static class LocalSceneRoomChecks {
             Check(!desk.ScoutSceneRoom(first.RoomId, out _), "repeat observation of booked bill is rejected without new evidence or cost");
             Check(read == Json(desk.Slate.Select(p => new { p.Artist.artistId, p.LiveSet }).ToList()) && billsAfter == Json(Snapshot()), "repeat observation preserves shared sets and work ledger");
             Check(GD.Randf() == next, "room scouting does not alter global RNG");
+            Check(Json(desk.CaptureState().ScoutingKnowledge) == evidenceBefore, "same-event replay preserves acquired evidence");
+            var limitedRooms = Snapshot();
+            var limitedBill = limitedRooms.Bills.Single(b => b.Id == first.Id);
+            limitedBill.Appearances = new() { LocalSceneRoomService.Copy(first.Appearances[0]) };
+            limitedBill.Appearances[0].StartHour = first.StartHour + 2;
+            limitedBill.Appearances[0].EndHour = first.StartHour + 3;
+            RestoreRooms(limitedRooms);
+            Check(LocalSceneRoomService.Hear(limitedBill, first.StartHour).Count == 1 &&
+                LocalSceneRoomService.Hear(limitedBill, first.StartHour, first.StartHour + PlayerDesk.ScoutHours).Count == 0,
+                "bounded listening excludes later world appearances");
+            Check(LocalSceneRoomService.Hear(limitedBill, first.StartHour + 2, first.StartHour + 2).Count == 0, "empty listening interval acquires no evidence");
+            RestoreRooms(before);
             Check(desk.SceneDiscoveries.All(d => d.RoomId == first.RoomId && d.BillId == first.Id && d.ContactId == room.ContactId), "knowledge stores actual room/bill/contact provenance");
             var prospect = desk.Slate.First();
             Check(desk.AddToNotebook(prospect, out _), "notebook remembers named encounter");
@@ -161,6 +181,7 @@ public static class LocalSceneRoomChecks {
                 LocalScenes.Configure(Array.Empty<string>());
                 Check(SaveGameService.Load(slotName, out _) && Json(Snapshot()) == Json(saved), "enabled real load preserves exact calendar/work state");
                 Check(desk.CaptureState().Notebook.Single().SceneRoomId == first.RoomId, "notebook source survives gzip reload");
+                Check(Json(desk.CaptureState().ScoutingKnowledge) == evidenceBefore, "acquired dossier evidence survives real gzip reload with scenes off and on");
                 var savedWorld = WorldStateService.Capture();
                 var worldJson = Json(savedWorld);
                 WorldStateService.Apply(LocalSceneRoomService.Copy(savedWorld), TimeManager.Instance.CurrentDate, SimulationSeedBootstrap.RequestedSeed);
@@ -181,6 +202,12 @@ public static class LocalSceneRoomChecks {
             Check(desk.Label.cashReserves == cash - SceneLiveEconomics.Admission(room, date.year) && desk.SceneDiscoveries.Single(d => d.ArtistId == prospect.Artist.artistId).BillId == laterBill.Id,
                 "follow-up admission and knowledge belong to the actual encounter");
             Check(desk.CaptureState().Notebook.Single().SceneBillId == laterBill.Id, "follow-up updates notebook bill provenance");
+            var laterKnowledge = desk.ScoutingDossiers.Single(d => d.ArtistId == prospect.Artist.artistId);
+            Check(laterKnowledge.Observations.Count(o => o.Kind == ScoutingEvidenceKind.Performance) == 2, "later actual date adds independent evidence");
+            string retainedEvidence = Json(desk.CaptureState().ScoutingKnowledge);
+            desk.RemoveFromNotebook(prospect.Artist.artistId);
+            LocalSceneRoomService.EnsureCalendar(date.AddDays(40));
+            Check(Json(desk.CaptureState().ScoutingKnowledge) == retainedEvidence, "watch removal and calendar pruning preserve acquired history");
             GD.Print($"SCENE_ROOM_CHECK_PASS checks={checks}");
         } finally {
             LocalScenes.Configure(Array.Empty<string>());

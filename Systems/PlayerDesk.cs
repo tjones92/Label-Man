@@ -5723,7 +5723,7 @@ public partial class PlayerDesk : Node {
             ScoutingKnowledge = CaptureScoutingKnowledge(),
             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
             SceneInformation = CaptureSceneInformation(),
-            SceneDiscoveries = sceneDiscoveries.Count == 0 ? null : sceneDiscoveries.Values.OrderBy(d => d.ArtistId, StringComparer.Ordinal).ToList(),
+            SceneDiscoveries = sceneDiscoveries.Count == 0 ? null : sceneDiscoveries.Values.OrderBy(d => d.ArtistId, StringComparer.Ordinal).Select(LocalSceneRoomService.Copy).ToList(),
 			RosterArtists = (Label.roster ?? new List<SimulatedArtist>()).ToList(),
 			Songs = songs.Select(SongSaveData.From).ToList(),
 			Repertoire = repertoire.ToDictionary(kv => kv.Key,
@@ -5986,7 +5986,7 @@ public partial class PlayerDesk : Node {
         RestoreSceneInformation(data.SceneInformation);
         sceneDiscoveries.Clear();
         foreach (var discovery in data.SceneDiscoveries ?? new List<SceneDiscovery>())
-            if (!string.IsNullOrEmpty(discovery?.ArtistId)) sceneDiscoveries[discovery.ArtistId] = discovery;
+            if (!string.IsNullOrEmpty(discovery?.ArtistId)) sceneDiscoveries[discovery.ArtistId] = LocalSceneRoomService.Copy(discovery);
 		foreach (ProspectNotebookSaveData saved in data.Notebook ?? new List<ProspectNotebookSaveData>()) {
 			if (saved?.Artist == null || string.IsNullOrEmpty(saved.Artist.artistId)) continue;
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(saved.Artist.artistId);

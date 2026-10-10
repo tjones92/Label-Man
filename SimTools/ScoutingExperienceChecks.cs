@@ -31,6 +31,9 @@ public static class ScoutingExperienceChecks {
         var observation = knowledge.Dossiers[0].Observations[0];
         Check(observation.EventId == identity && observation.PersonIds.SequenceEqual(slot.PersonIds) && observation.Coverage == 1, "event, people and complete coverage preserved");
         Check(clock.CurrentHour == slot.EndHour && clock.CurrentMinute == 0, "one scheduled set spends its actual duration");
+        Check(observation.RoomName == room.Name && observation.AcquiredMinute == slot.EndHour * 60, "room name and actual acquisition time retained");
+        Check(desk.ScoutingProvenance(act.artistId).Any(l => l.Contains(room.Name) && l.Contains("Heard material:")) &&
+            desk.ScoutingProvenance(act.artistId).All(l => !l.Contains("performance-v1|")), "player provenance shows room and material without raw event keys");
         Check(Math.Abs(cash - desk.Label.cashReserves - SceneLiveEconomics.Admission(room, bill.Year)) < .01, "admission charged once");
         Check(observation.BillAttendance == null || observation.BillCapacity > 0, "audience count always has a denominator");
         string summary = Json(desk.ScoutingSummary(act.artistId));

@@ -27,7 +27,11 @@ public partial class PlayerDeskPanel {
             }
             var details = Btn("SOURCES & COVERAGE"); details.Pressed += () => {
                 var modal = PaperModal.OpenClipboard(this, dossier.ArtistName + " — EVIDENCE", 850);
-                foreach (string line in desk.ScoutingProvenance(dossier.ArtistId)) modal.AddText(line);
+                var scroll = ComparisonScroll();
+                var notes = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+                notes.AddThemeConstantOverride("separation", 12);
+                scroll.AddChild(notes); modal.Body.AddChild(scroll);
+                foreach (string line in desk.ScoutingProvenance(dossier.ArtistId)) notes.AddChild(FaintLine(line));
                 modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
             }; row.AddChild(details); content.AddChild(row);
         }
