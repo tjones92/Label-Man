@@ -85,13 +85,24 @@ public static class MemberWealthService {
 		foreach (Musician m in present) {
 			float writer = WriterIncomeSinceSnapshot(m);
 			float live = SceneLiveEconomics.MemberLiveIncome(a, m, liveHours, players, year);
-			float income = pay.GetValueOrDefault(m) + writer + SceneLiveEconomics.LiveSavingsShare * live;
+			float session = SessionEmploymentService.Pay(m.personId, year);
+			float income = pay.GetValueOrDefault(m) + writer + SceneLiveEconomics.LiveSavingsShare * (live + session);
 			float spend = Mathf.Clamp(SpendBase + SpendEgo * m.ego + SpendFame * Mathf.Max(fame, Mathf.Clamp(m.personalRecognition * 4f, 0f, 1f)), 0f, 0.85f);
 			m.wealth = Mathf.Max(0f, m.wealth * (1f - spend) + income);
 			m.lastYearIncome = income;
 			m.lastYearWriterIncome = writer;
 			m.lastYearLiveIncome = live;
 		}
+	}
+
+	/// <summary>A pooled player's year: no act pays them, but session work does. Same lifestyle sink as members.</summary>
+	public static void OnPooledYear(Musician m, float sessionPay) {
+		if (!BandLife.MemberWealthActive || m == null) return;
+		float spend = Mathf.Clamp(SpendBase + SpendEgo * m.ego + SpendFame * Mathf.Clamp(m.personalRecognition * 4f, 0f, 1f), 0f, 0.85f);
+		float income = SceneLiveEconomics.LiveSavingsShare * sessionPay;
+		m.wealth = Mathf.Max(0f, m.wealth * (1f - spend) + income);
+		m.lastYearIncome = income;
+		m.lastYearLiveIncome = sessionPay;
 	}
 
 	/// <summary>Writer income since the person's last snapshot, and a new snapshot: share-weighted charted units.</summary>

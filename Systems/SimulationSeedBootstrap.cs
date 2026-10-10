@@ -11,7 +11,7 @@ public partial class SimulationSeedBootstrap : Node {
 
 	public override void _EnterTree() {
 		var args = OS.GetCmdlineUserArgs();
-		try { LocalScenes.Configure(args); }
+		try { LocalScenes.Configure(args); ContactNetworkService.Configure(args); }
 		catch (Exception ex) {
 			GD.PrintErr("LOCAL_SCENE_FLAGS_REJECTED: " + ex.Message);
 			GetTree().Quit(2);

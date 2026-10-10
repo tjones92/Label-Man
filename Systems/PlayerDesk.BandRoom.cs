@@ -593,7 +593,7 @@ public partial class PlayerDesk {
 			PooledPerson p = PersonPool.Ordered().Where(x => !seen.Contains(x.person.personId))
 				.Where(x => x.person.lifeState == MemberLifeState.Active && x.lastArtistId != a.artistId && SceneSourceService.CanJoinFromPool(x.person, a))
 				.OrderByDescending(x => (lead ? (MemberAxesService.IsSinger(x.person) ? 3f : 0f) : (x.person.primaryRole == role ? 3f : 1f)) +
-					(x.homeRegion == a.homeRegion ? 1f : 0f) + x.person.technicalSkill)
+					(x.homeRegion == a.homeRegion ? 1f : 0f) + ContactNetworkService.HiringScore(x.person, a) + x.person.technicalSkill)
 				.ThenBy(x => x.person.personId, StringComparer.Ordinal).FirstOrDefault();
 			if (p == null) break;
 			seen.Add(p.person.personId);

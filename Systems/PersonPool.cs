@@ -67,7 +67,8 @@ public static class PersonPool {
 	/// <summary>People who waited too long, or died while waiting, leave the pool. Returns who left.</summary>
 	public static List<PooledPerson> ExpireStale(int year) {
 		var gone = pool.Values.Where(p => p.person.lifeState == MemberLifeState.Deceased ||
-			p.person.lifeState == MemberLifeState.Retired || year - p.sinceYear >= MaximumPoolYears)
+			p.person.lifeState == MemberLifeState.Retired ||
+			(year - p.sinceYear >= MaximumPoolYears && !SessionEmploymentService.WorkedIn(p.person.personId, year)))
 			.OrderBy(p => p.person.personId, StringComparer.Ordinal).ToList();
 		foreach (PooledPerson p in gone) pool.Remove(p.person.personId);
 		return gone;

@@ -452,6 +452,7 @@ public partial class ChartAuditRunner : Node {
 			WriteSceneIdentityCensus("end");
         WriteSceneParticipationCensus("end");
         WriteSceneRoomCensus("end");
+        WriteContactNetworkCensus();
         WriteSceneRecruitmentCensus("end");
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();

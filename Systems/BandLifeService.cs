@@ -271,12 +271,14 @@ public static class BandLifeService {
 		}
 		ResolveDepartures(candidates, summary);
 		MemberGrowthService.EndPass();
+		SessionEmploymentService.OnYearEnd(year);
 		foreach (PooledPerson gone in PersonPool.ExpireStale(year)) {
 			summary.poolExpired++;
 			Emit(new BandLifeEvent { year = year, personId = gone.person.personId, personName = gone.person.FullName,
 				artistId = gone.lastArtistId, stageName = gone.lastStageName, eventType = "pool-expired", applied = true,
 				age = gone.person.GetAge(year) });
 		}
+		ContactNetworkService.Prune();
 		foreach (ActYear ctx in contexts) Snapshot(ctx.artist);
 		Summarize(contexts, summary);
 		OnAnnualSummary?.Invoke(summary);
@@ -1336,6 +1338,7 @@ public static class BandLifeService {
 			personId = m.personId, name = m.FullName, role = m.primaryRole, joinedYear = m.joinedYear, leftYear = year,
 			reason = reason, departureKind = kind, wasLeadVocalist = m.isLeadVocalist, wasWriter = m.isPrimaryWriter
 		});
+		ContactNetworkService.OnMemberLeft(a, m, kind, year);
 		a.members.Remove(m);
 		m.isActive = false;
 		m.reasonLeft = reason;
@@ -1395,6 +1398,7 @@ public static class BandLifeService {
 		PooledPerson best = FindPoolReplacement(a, departed.primaryRole, departed.isLeadVocalist, year);
 		Musician hire;
 		if (best != null) {
+			if (ContactNetworkService.KnowsAny(best.person, a)) ContactNetworkService.ContactHires++;
 			PersonPool.Take(best.person.personId);
 			hire = best.person;
 			fromPool = true;
@@ -1411,6 +1415,7 @@ public static class BandLifeService {
 		PersonPool.Ordered()
 			.Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 45 && p.lastArtistId != a.artistId && SceneSourceService.CanJoinFromPool(p.person, a))
 			.Select(p => (p, score: RoleMatch(role, lead, p.person) + (p.homeRegion == a.homeRegion ? 1f : 0f) +
+				ContactNetworkService.HiringScore(p.person, a) +
 				SceneMatch(p.lastGenre, a.primaryGenre) + (p.person.GetAge(year) <= 35 ? 0.5f : 0f) + p.person.technicalSkill))
 			.Where(x => RoleMatch(role, lead, x.p.person) >= 2f)
 			.OrderByDescending(x => x.score).ThenBy(x => x.p.person.personId, StringComparer.Ordinal)
@@ -1603,13 +1608,15 @@ public static class BandLifeService {
 		if (!BandLife.Chance($"recombine|{fresh.artistId}", RecombinationShare)) return false;
 		var fits = PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.GetAge(year) < 40 && SceneSourceService.CanJoinFromPool(p.person, fresh) &&
 			SceneMatch(p.lastGenre, fresh.primaryGenre) >= 0.75f &&
-			(p.homeRegion == fresh.homeRegion || BandLife.Unit($"recombine-region|{p.person.personId}|{fresh.artistId}") < 0.25f)).ToList();
+			(p.homeRegion == fresh.homeRegion || ContactNetworkService.KnowsAny(p.person, fresh) ||
+			 BandLife.Unit($"recombine-region|{p.person.personId}|{fresh.artistId}") < 0.25f)).ToList();
 		if (fits.Count < 2) return false;
 		int swapped = 0;
 		foreach (Musician slot in fresh.members.ToList()) {
 			PooledPerson fit = fits.FirstOrDefault(p => RoleMatch(slot.primaryRole, slot.isLeadVocalist, p.person) >= 2f);
 			if (fit == null) continue;
 			fits.Remove(fit);
+			if (ContactNetworkService.KnowsAny(fit.person, fresh)) ContactNetworkService.ContactHires++;
 			PersonPool.Take(fit.person.personId);
 			int index = fresh.members.IndexOf(slot);
 			Musician person = fit.person;
@@ -1775,6 +1782,7 @@ public static class BandLifeService {
 		lastAnnualYear = -1; formationDebt = 0; formationCredit = 0; appliedStrainDeparturesByYear.Clear(); recombinationsThisYear = 0;
 		quietThisYear[0] = quietThisYear[1] = 0;
 		PersonPool.Reset();
+		ContactNetworkService.Reset();
 		MemberGrowthService.ResetForProbe();
 	}
 }
