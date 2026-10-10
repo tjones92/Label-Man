@@ -148,6 +148,7 @@ public static class LocalSceneRoomService {
                 bool available = Eligible(act, room, bill.Day) && StagePeople(act).SequenceEqual(slot.PersonIds);
                 slot.Status = available ? SceneBillStatus.Performed : SceneBillStatus.Cancelled;
                 if (!available) slot.CancellationReason = "The act's presence, career or lineup changed after booking.";
+                if (available && LocalScenes.ScoutingExperience) slot.Performance ??= ScenePerformanceService.Resolve(bill, slot, act);
                 if (!available || !room.IsPerformance) continue;
                 string key = StandingKey(room.Id, slot.ArtistId);
                 if (!standing.TryGetValue(key, out var rank)) {
@@ -257,6 +258,8 @@ public static class LocalSceneRoomService {
         EnsureCalendar(date);
         return Copy(State.Bills.FirstOrDefault(b => b.RoomId == roomId && b.Day == Day(date) && b.StartHour <= hour && b.EndHour >= hour + PlayerDesk.ScoutHours && b.Status == SceneBillStatus.Scheduled));
     }
+    public static int ShowsAt(string roomId, string artistId) => standing.GetValueOrDefault(StandingKey(roomId, artistId))?.Shows ?? 0;
+    public static SceneBill Bill(string id) => Copy(state?.Bills.FirstOrDefault(b => b.Id == id));
     public static IReadOnlyList<SimulatedArtist> Hear(SceneBill bill, int? fromHour = null) {
         if (!LocalScenes.Rooms || bill == null) return Array.Empty<SimulatedArtist>();
         var canonical = State.Bills.FirstOrDefault(b => b.Id == bill.Id);

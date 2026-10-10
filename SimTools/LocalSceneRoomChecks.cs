@@ -146,7 +146,7 @@ public static class LocalSceneRoomChecks {
             string billsAfter = Json(Snapshot());
             TimeManager.Instance.RestoreClock(date, first.StartHour);
             GD.Seed(554433); next = GD.Randf(); GD.Seed(554433);
-            Check(desk.ScoutSceneRoom(first.RoomId, out _), "repeat observation of booked bill succeeds");
+            Check(!desk.ScoutSceneRoom(first.RoomId, out _), "repeat observation of booked bill is rejected without new evidence or cost");
             Check(read == Json(desk.Slate.Select(p => new { p.Artist.artistId, p.LiveSet }).ToList()) && billsAfter == Json(Snapshot()), "repeat observation preserves shared sets and work ledger");
             Check(GD.Randf() == next, "room scouting does not alter global RNG");
             Check(desk.SceneDiscoveries.All(d => d.RoomId == first.RoomId && d.BillId == first.Id && d.ContactId == room.ContactId), "knowledge stores actual room/bill/contact provenance");
@@ -173,8 +173,8 @@ public static class LocalSceneRoomChecks {
             var laterBill = before.Bills.FirstOrDefault(b => b.Day > first.Day && b.RoomId == first.RoomId && b.Appearances.Any(a => a.ArtistId == prospect.Artist.artistId));
             Check(laterBill != null, "recurring act has another announced bill for a real follow-up");
             RestoreRooms(before);
-            TimeManager.Instance.RestoreClock(LocalSceneRoomService.Date(laterBill.Day), laterBill.StartHour);
             var laterSlot = laterBill.Appearances.Single(a => a.ArtistId == prospect.Artist.artistId);
+            TimeManager.Instance.RestoreClock(LocalSceneRoomService.Date(laterBill.Day), laterSlot.StartHour);
             cash = desk.Label.cashReserves;
             Check(desk.FollowUp(prospect, out _), "follow-up attends the act's next actual bill");
             Check(prospect.SceneBillId == laterBill.Id && prospect.LiveSet.Select(s => s.SongId).SequenceEqual(laterSlot.Set.Select(s => s.SongId)), "follow-up reads the new shared set, not a stale prior set");

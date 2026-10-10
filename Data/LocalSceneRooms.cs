@@ -23,6 +23,7 @@ public sealed class SceneSetSong {
     public SongContentContext ContentContext { get; set; }
 }
 public sealed class SceneAppearance {
+    public ScenePerformanceSnapshot Performance { get; set; }
     public string ArtistId { get; set; }
     public List<string> PersonIds { get; set; } = new();
     public string Role { get; set; }

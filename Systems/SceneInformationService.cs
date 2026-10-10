@@ -39,7 +39,7 @@ public static class SceneInformationService {
     }
     public static SceneLead Lead(SceneRoomProfile room, IEnumerable<SceneBill> calendar,
         IEnumerable<string> knownArtists, IEnumerable<string> heardBills, int day, int hour) {
-        if (room == null || (heardBills ?? Array.Empty<string>()).Distinct().Take(2).Count() < 2) return null;
+        if (room == null) return null;
         var known = new HashSet<string>(knownArtists ?? Array.Empty<string>(), StringComparer.Ordinal);
         foreach (var bill in calendar.Where(b => b.RoomId == room.Id && b.Status == SceneBillStatus.Scheduled &&
             (b.Day > day || (b.Day == day && b.StartHour > hour))).OrderBy(b => b.Day).ThenBy(b => b.Id, StringComparer.Ordinal)) {

@@ -47,7 +47,9 @@ public partial class SceneRoomUiRunner : Node {
             }
             if (information) {
                 var tip = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("ASK ") && b.Text.Contains("LISTENING TIP"));
-                if (!tip.Disabled) throw new InvalidOperationException("A new player must earn booker familiarity.");
+                var selectedRoom = SceneRoomCatalog.ForPlace(desk.CurrentCityId)[0];
+                bool available = TimeManager.Instance.CurrentHour >= selectedRoom.OpenHour && TimeManager.Instance.CurrentHour < selectedRoom.CloseHour;
+                if (tip.Disabled == available) throw new InvalidOperationException("Cold booker access follows posted hours, not a familiarity checklist.");
                 if (!Descendants(panel).OfType<Label>().Any(l => !l.IsQueuedForDeletion() && l.Text.Contains("LOCAL SCENE"))) throw new InvalidOperationException("Local recap is missing.");
             }
             bool ecosystem = OS.GetCmdlineUserArgs().Contains("--scene-ecosystem-ui-check");
@@ -59,12 +61,32 @@ public partial class SceneRoomUiRunner : Node {
                 if (SceneEcosystemService.Programs.Count != 1 || desk.Label.cashReserves != before - SceneEcosystemService.ProgramCost)
                     throw new InvalidOperationException("Funding button must create one program and book its real expense.");
             }
-            string dir = ProjectSettings.GlobalizePath(sources ? "res://SimLogs/scene7-source-ui-v1" : information ? "res://SimLogs/scene6-information-ui-v1" : ecosystem ? "res://SimLogs/scene5-ecosystem-ui-v1" : "res://SimLogs/scene3-ui-v1"); Directory.CreateDirectory(dir);
+            bool scouting = OS.GetCmdlineUserArgs().Contains("--scouting-experience-ui-check");
+            if (scouting) {
+                var bill = LocalSceneRoomService.Calendar(desk.CurrentCityId, TimeManager.Instance.CurrentDate)
+                    .First(b => b.Appearances.Count > 0 && b.Appearances[0].EndHour <= TimeManager.Instance.HardStopHour && b.Status == SceneBillStatus.Scheduled);
+                var targetRoom = SceneRoomCatalog.Get(bill.RoomId);
+                TimeManager.Instance.RestoreClock(LocalSceneRoomService.Date(bill.Day), bill.Appearances[0].StartHour);
+                cards = Descendants(panel).OfType<VenueHandbill>().Where(c => !c.IsQueuedForDeletion()).ToArray();
+                cards.First(c => Descendants(c).OfType<Label>().Any(l => l.Text == targetRoom.Name.ToUpperInvariant())).EmitSignal(Button.SignalName.Pressed);
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var listen = Descendants(panel).OfType<Button>().First(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("LISTEN ("));
+                listen.EmitSignal(Button.SignalName.Pressed);
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var text = Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion()).Select(l => l.Text).ToArray();
+                if (desk.ScoutingDossiers.Count == 0 || !text.Any(t => t.StartsWith("Ensemble / execution:")) ||
+                    !Descendants(panel).OfType<Button>().Any(b => !b.IsQueuedForDeletion() && b.Text == "SOURCES & COVERAGE") ||
+                    text.Any(t => t.Contains("Package read:") || t.Contains("Advance floor:") || t.Contains("round(s) of patience")))
+                    throw new InvalidOperationException("Listening must create an honest notebook with provenance and no hidden contract thresholds.");
+                foreach (var scroll in Descendants(panel).OfType<ScrollContainer>()) scroll.ScrollVertical = 100000;
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
+            string dir = ProjectSettings.GlobalizePath(scouting ? "res://SimLogs/scouting-ui-v1" : sources ? "res://SimLogs/scene7-source-ui-v1" : information ? "res://SimLogs/scene6-information-ui-v1" : ecosystem ? "res://SimLogs/scene5-ecosystem-ui-v1" : "res://SimLogs/scene3-ui-v1"); Directory.CreateDirectory(dir);
             File.WriteAllText(Path.Combine(dir, "ui.txt"), string.Join("\n", Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion()).Select(l => l.Text)));
             await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             var image = GetViewport().GetTexture().GetImage();
             if (image.SavePng(Path.Combine(dir, "board.png")) != Error.Ok) throw new InvalidOperationException("Screenshot failed.");
-            GD.Print(sources ? "SCENE_SOURCE_UI_PASS rooms=6 sourceIntro=true" : information ? "SCENE_INFORMATION_UI_PASS rooms=6 recap=true earnedTip=true" : ecosystem ? "SCENE_ECOSYSTEM_UI_PASS rooms=6 funding=true layout=true" : "SCENE_ROOM_UI_PASS rooms=6 selection=true layout=true"); GetTree().Quit(0);
+            GD.Print(scouting ? "SCOUTING_EXPERIENCE_UI_PASS rooms=6 listening=true notebook=true thresholdsHidden=true" : sources ? "SCENE_SOURCE_UI_PASS rooms=6 sourceIntro=true" : information ? "SCENE_INFORMATION_UI_PASS rooms=6 recap=true coldTip=true" : ecosystem ? "SCENE_ECOSYSTEM_UI_PASS rooms=6 funding=true layout=true" : "SCENE_ROOM_UI_PASS rooms=6 selection=true layout=true"); GetTree().Quit(0);
         } catch (Exception ex) { GD.PrintErr("SCENE_ROOM_UI_FAILED: " + ex); GetTree().Quit(1); }
     }
 }

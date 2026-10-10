@@ -39,7 +39,7 @@ public static class SceneInformationChecks {
         var bill = new SceneBill { Id="fixture-bill", RoomId=room.Id, Day=5, StartHour=19, EndHour=23,
             Appearances=new() { new SceneAppearance { ArtistId="new-act", Status=SceneBillStatus.Scheduled } } };
         SceneLead Tip(string[] known, string[] heard, int day=1) => SceneInformationService.Lead(room,new[] {bill},known,heard,day,19);
-        Check(Tip(Array.Empty<string>(),new[] {"one","one"}) == null, "same bill cannot farm familiarity");
+        Check(Tip(Array.Empty<string>(),Array.Empty<string>()) != null, "cold booker conversation can point to an actual announced set");
         var lead=Tip(Array.Empty<string>(),new[] {"one","two"});
         Check(lead?.BillId == bill.Id && lead.ArtistId == "new-act" && lead.ExpiresDay == bill.Day, "tip is a partial pointer at a real dated bill");
         Check(Json(lead)==Json(Tip(Array.Empty<string>(),new[] {"one","two"})), "no reroll on repeated tip query");

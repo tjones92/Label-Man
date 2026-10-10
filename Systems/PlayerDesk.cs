@@ -1545,7 +1545,8 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>Put a noted act back on the A&R pad without another scouting trip. A follow-up still costs time.</summary>
 	public bool RevisitNotebookAct(string artistId, out string message) {
-		WatchNote entry = notebook.FirstOrDefault(item => item?.Artist?.artistId == artistId);
+		if (HasScoutingEvidence(artistId)) return OpenScoutingDossier(artistId, out message);
+        WatchNote entry = notebook.FirstOrDefault(item => item?.Artist?.artistId == artistId);
 		if (entry?.Artist == null) { message = "That act is no longer in the notebook."; return false; }
 		if (!string.IsNullOrEmpty(entry.Artist.labelId)) { message = $"{entry.Artist.stageName} signed with another label."; return false; }
 		if (slate.Any(prospect => prospect.Artist?.artistId == artistId)) { message = "They're already on the pad."; return true; }
@@ -1682,6 +1683,7 @@ public partial class PlayerDesk : Node {
 	public bool FollowUp(Prospect prospect, out string message) {
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
         if (prospect.SourceConnectionId != null) return FollowUpSourceDemo(prospect, out message);
+        if (LocalScenes.Rooms && prospect.SceneRoomId != null) return FollowUpScoutingEvidence(prospect, out message);
 		if (prospect.FollowedUp) { message = "You've already had a second look."; return true; }
 		// Bug report: "I can follow up with a club act at 9am -- should have to wait until the
 		// clubs/roadhouses open again." The first look already gates on VenueOpenNow (line ~1080);
@@ -1955,7 +1957,7 @@ public partial class PlayerDesk : Node {
 	public bool ApproachToSign(Prospect prospect, out string message) {
         if (LocalScenes.Persisting && !CanCommitSceneSigning(prospect, out message)) return false;
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
-		if (!prospect.FollowedUp) { message = "Follow up with them before you make an offer."; return false; }
+		if (!prospect.FollowedUp && !HasScoutingEvidence(prospect.Artist.artistId)) { message = "Hear an act before making an offer."; return false; }
 		if (!Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		if (!string.IsNullOrEmpty(prospect.Artist.labelId)) { message = "Somebody signed them first."; return false; }
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
@@ -1964,7 +1966,18 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 
-		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (HasScoutingEvidence(prospect.Artist.artistId) && scoutingNegotiations.TryGetValue(prospect.Artist.artistId, out var prior) && prior != prospect) {
+            prospect.Baseline = prior.Baseline; prospect.HasBaseline = prior.HasBaseline; prospect.Draft = prior.Draft;
+            prospect.Posture = prior.Posture; prospect.CooldownUntil = prior.CooldownUntil; prospect.PushoverCountered = prior.PushoverCountered;
+            prospect.Talk = prior.Talk; if (prospect.Talk != null) prospect.Talk.prospect = prospect;
+            if (prospect.CooldownUntil.HasValue && today < prospect.CooldownUntil.Value) {
+                message = "They declined another meeting for now. Return after " + prospect.CooldownUntil.Value.ToShortString() + "."; return false;
+            }
+        }
+        if (prospect.HasBaseline && (prospect.Talk == null || prospect.Talk.stage != ContractTalkStage.Done)) {
+            RememberScoutingNegotiation(prospect); message = "Returned to the existing terms discussion."; Changed?.Invoke(); return true;
+        }
+        int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		if (ArtistManager.Instance?.IsEligibleForPopulationSigning(prospect.Artist, week) == false) {
 			message = "They're not taking offers right now.";
 			return false;
@@ -1990,6 +2003,7 @@ public partial class PlayerDesk : Node {
 		// single-click form -- and a managed or high-drama act opens the negotiation scene instead.
 		prospect.Posture = PostureOf(prospect.Artist);
 		prospect.Talk = prospect.Posture == NegotiationPosture.Pushover ? null : OpenNegotiation(prospect);
+        RememberScoutingNegotiation(prospect);
 
 		message = prospect.Posture != NegotiationPosture.Pushover
 			? $"{prospect.Artist.stageName} wants to talk terms. {prospect.Baseline.DemandSummary}"
@@ -2012,6 +2026,9 @@ public partial class PlayerDesk : Node {
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!prospect.HasBaseline) { message = "Approach them first."; return false; }
+        if (prospect.CooldownUntil.HasValue && (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate) < prospect.CooldownUntil.Value) {
+            message = "They are not ready to discuss another offer yet."; return false;
+        }
 		// Firm/Hardball acts don't take an accept-or-walk offer -- they go through TableOffer's
 		// negotiation loop instead. See SimTools/ContractNegotiationDirective.md Part 2.
 		if (prospect.Posture != NegotiationPosture.Pushover) {
@@ -2039,6 +2056,7 @@ public partial class PlayerDesk : Node {
 				prospect.Draft = null;
 				GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 				prospect.CooldownUntil = today.AddDays(ForcedWalkCooldownDays);
+                prospect.HasBaseline = false;
 				Note($"{name} walked from the table. Give it time before you go back.");
 				message = $"{name}'s side laughs and picks up their gear -- not at those numbers. Try again after {prospect.CooldownUntil.Value.ToShortString()}.";
 			} else {
@@ -2062,7 +2080,7 @@ public partial class PlayerDesk : Node {
 		Spend(PushoverSignHours);
 		string artistId = prospect.Artist.artistId;
 		if (!FinalizeSigning(prospect, sheet, out message)) return false;
-		if (b.Advance > 0f) message += AdvanceMarginLine(Mathf.Max(0f, shortfall.MinAdvance), advance, artistId);
+		// Acceptance thresholds stay internal; signed terms are the evidence.
 		prospect.Draft = null;
 		Changed?.Invoke();
 		return true;
@@ -5702,6 +5720,7 @@ public partial class PlayerDesk : Node {
 			(ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>()).Where(r => r.baseRecord.isPlayerOwned).Select(r => r.baseRecord)));
 		var data = new PlayerSaveData {
 			Label = LabelSaveData.From(Label),
+            ScoutingKnowledge = CaptureScoutingKnowledge(),
             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
             SceneInformation = CaptureSceneInformation(),
             SceneDiscoveries = sceneDiscoveries.Count == 0 ? null : sceneDiscoveries.Values.OrderBy(d => d.ArtistId, StringComparer.Ordinal).ToList(),
@@ -5894,10 +5913,8 @@ public partial class PlayerDesk : Node {
 		RestoreStationState(data.StationState);
 		RestoreBandRoom(data.BandRoom);
 		ActiveCall = null;   // you are not on the phone in a loaded game
-		// Same reasoning as ActiveCall: a live negotiation (new signing or renewal) is scene state,
-		// not save state -- Prospect.Talk dies with the slate.Clear() below, but PendingRenewal is a
-		// bare field with no owning collection to clear it for us, so it needs the explicit reset or
-		// a same-session load could resume a stale renewal against the freshly-loaded world.
+        // Scouting negotiations restore by canonical act ID near the end of this method.
+        // Renewal scenes retain their legacy transient contract; clear the old one before loading.
 		PendingRenewal = null;
 		maturedNotified.Clear();
 
@@ -6175,7 +6192,8 @@ public partial class PlayerDesk : Node {
 			? $"Loaded {label.labelName}."
 			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
 		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
-		LocalSceneIdentityService.CompleteDirectPlayerRestore();
+		RestoreScoutingKnowledge(data.ScoutingKnowledge);
+        LocalSceneIdentityService.CompleteDirectPlayerRestore();
         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
 		Note(message);
 		Changed?.Invoke();

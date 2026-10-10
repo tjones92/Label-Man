@@ -16,7 +16,6 @@ using Godot;
 public partial class PlayerDesk : Node {
 
 	public const int NegotiationRoundHours = ActionCosts.QuickMeeting;   // 2h to table, sweeten, promise, or hold firm
-	private const int PromiseSinglesBump = 2;                            // extra sides promised, not paid for
 	private const int ForcedWalkCooldownDays = 10;                       // patience exhausted on a NEW signing -- give it time
 
 	/// <summary>The live renewal in progress, if any -- held here (not the UI) so it survives a
@@ -428,37 +427,11 @@ public partial class PlayerDesk : Node {
 		}
 	}
 
-	/// <summary>Costs no cash today: more sides promised, a real push behind the next release. Reads
-	/// as a straight package-value bonus weighted by commercial pragmatism -- the act that will chase
-	/// a hit under pressure is the one a promise actually moves -- and writes the extra obligation
-	/// onto the eventual contract via the existing contractSinglesObligation.</summary>
-	private bool PlayPromise(ContractTalk talk, out string message) {
-		if (!Require(NegotiationRoundHours, out message)) return false;
-		Spend(NegotiationRoundHours);
-
-		ContractTermSheet o = CurrentOffer(talk);
-		var promised = new ContractTermSheet(o.Advance, o.RoyaltyRate, o.TermYears,
-			Mathf.Clamp(o.SinglesObligation + PromiseSinglesBump, 0, 30), o.LabelOwnsPublishing, o.ArtistCreativeControl,
-			o.NegotiationDifficulty, o.Manager, o.ManagerName, o.DemandSummary);
-		float pragmatism = talk.Artist.evolution?.commercialPragmatism ?? 0.5f;
-		float credit = Mathf.Lerp(0.05f, 0.16f, pragmatism);
-
-		talk.lastOffer = promised;
-		talk.lastOfferValue = PackageValue(promised, talk.ask, talk.weights) + credit;
-
-		if (ClearsReservation(talk, promised, credit)) { return FinalizeSign(talk, promised, out message); }
-
-		talk.patienceLeft--;
-		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
-
-		talk.objectionAxis = ObjectionAxisFor(talk, promised);
-		string line = $"\"{PromiseSinglesBump} more sides, and I'll make sure the next one gets pushed properly.\" " +
-			"He weighs it -- a promise is not a number, and he knows it.";
-		talk.log.Insert(0, line);
-		message = line;
-		Changed?.Invoke();
-		return true;
-	}
+    /// <summary>Reject uncosted promises until their resources, due dates and remedies have an owner.</summary>
+    private bool PlayPromise(ContractTalk talk, out string message) {
+        message = "This label cannot offer a scored recording or promotion promise until resources, deadlines and remedies can be enforced. Discuss the concrete contract terms instead.";
+        return false;
+    }
 
 	/// <summary>Re-table the same numbers and see who blinks. A patient act (at least half its rounds
 	/// left) softens a little; an impatient one walks right there -- the bluff, and it can be called.</summary>
@@ -488,7 +461,7 @@ public partial class PlayerDesk : Node {
 
 	private bool FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
 		// Read before anything is written: the margin is about the paper as tabled.
-		string margin = SignedMarginLine(talk, sheet);
+		string margin = "";
 		if (talk.IsRenewal) {
 			FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message);
 			PendingRenewal = null;
@@ -569,6 +542,7 @@ public partial class PlayerDesk : Node {
 				message = "You step back. Nothing's burned -- come back whenever.";
 			}
 			talk.prospect.Talk = null;
+            talk.prospect.HasBaseline = false;
 		}
 		Changed?.Invoke();
 	}
@@ -619,7 +593,7 @@ public partial class PlayerDesk : Node {
 
 		return axis switch {
 			ContractAxis.Advance => sharp
-				? $"\"{who} {wants} real money up front. You're {perceivedGap * 100f:F0}% short of where they'd sign.\""
+				? $"\"{who} {wants} more money up front -- {sizeWord} more than you're offering.\""
 				: $"\"{who} {wants} more money up front -- {sizeWord} more than you're offering.\"",
 			ContractAxis.Royalty => sharp
 				? $"\"The points are the problem. {offer.RoyaltyRate:P1} isn't going to cut it -- you're {sizeWord} off.\""
@@ -652,6 +626,7 @@ public partial class PlayerDesk : Node {
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		float paid = Label.SignArtist(prospect.Artist, year, sheet);
+        RememberFoundingAct(prospect, sheet);
 		float underAsk = prospect.HasBaseline ? UnderAskFraction(prospect.Baseline, sheet) : 0f;
 		prospect.Artist.signedUnderAskFraction = underAsk;
 		CompetitorManager.Instance?.RecordExpense(Label, paid);

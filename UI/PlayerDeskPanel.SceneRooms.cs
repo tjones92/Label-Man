@@ -5,6 +5,7 @@ using Godot;
 public partial class PlayerDeskPanel {
     private string selectedSceneRoomId;
     private void SceneRoomsBoard(PlayerDesk desk) {
+        Body($"Available today: {TimeManager.Instance?.HoursRemainingWithOvertime ?? 0}h · cash {Money(desk.Label.cashReserves)}. Waiting advances the ordinary world, including expenses and other labels' decisions.");
         var rooms = SceneRoomCatalog.ForPlace(desk.CurrentCityId);
         var date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
         int hour = TimeManager.Instance?.CurrentHour ?? 9;
@@ -65,8 +66,8 @@ public partial class PlayerDeskPanel {
         if (selected == null) { Body("No detailed rooms are available for this place."); return; }
         Body($"{selected.ContactName} posts these bills. {selected.Kind} · {selected.Programming(date.year)}.");
         var tip = Btn($"ASK {selected.ContactName.ToUpperInvariant()} FOR A LISTENING TIP  (1h)");
-        tip.Disabled = desk.SceneContactFamiliarity(selected.ContactId) < 2;
-        tip.TooltipText = "Hear two different bills here to build familiarity. Tips refer to actual announced performances; follow up by hearing the bill.";
+        tip.Disabled = hour < selected.OpenHour || hour >= selected.CloseHour;
+        tip.TooltipText = "Ask during posted hours. Tips refer to actual announced performances; hearing a set can justify an approach.";
         tip.Pressed += () => Act(() => { bool ok = desk.AskSceneBooker(selected.Id, out string result); Say(result, ok); return ok; });
         content.AddChild(tip);
         if (LocalScenes.Institutions && selected.IsPerformance) {
@@ -79,15 +80,35 @@ public partial class PlayerDeskPanel {
             } else Body($"Funded program: {LocalSceneRoomService.Date(program.StartDay).ToHeadlineString()} through {LocalSceneRoomService.Date(program.ThroughDay).ToHeadlineString()}; one extra set on each performance night.");
         }
         foreach (var bill in calendar.Where(b => b.RoomId == selected.Id).Take(4)) {
-            string names = string.Join("; ", bill.Appearances.Select(a =>
-                $"{ArtistManager.Instance.GetArtist(a.ArtistId)?.stageName ?? "unavailable act"} ({a.Role}{(a.Residency ? ", regular engagement" : "")})"));
-            Body($"{LocalSceneRoomService.Date(bill.Day).ToHeadlineString()} · {Hour12(bill.StartHour)}–{Hour12(bill.EndHour)} — " +
-                (names.Length == 0 ? "No act announced." : names) + (bill.Status == SceneBillStatus.Cancelled ? " Cancelled." : ""));
+            Body($"{LocalSceneRoomService.Date(bill.Day).ToHeadlineString()} · {Hour12(bill.StartHour)}–{Hour12(bill.EndHour)}" + (bill.Status == SceneBillStatus.Cancelled ? " · cancelled" : ""));
+            foreach (var slot in bill.Appearances) {
+                var artist = ArtistManager.Instance.GetArtist(slot.ArtistId);
+                string eventId = ScenePerformanceService.EventId(bill, slot);
+                Body($"    {Hour12(slot.StartHour)}–{Hour12(slot.EndHour)} · {artist?.stageName ?? "unavailable act"} · {slot.Role} · {slot.Status}");
+                if (slot.Status != SceneBillStatus.Scheduled || bill.Status != SceneBillStatus.Scheduled) continue;
+                int now = hour * 60 + (TimeManager.Instance?.CurrentMinute ?? 0);
+                bool playing = bill.Day == LocalSceneRoomService.Day(date) && slot.StartHour * 60 <= now && slot.EndHour * 60 > now;
+                bool future = bill.Day > LocalSceneRoomService.Day(date) || bill.Day == LocalSceneRoomService.Day(date) && slot.StartHour * 60 > now;
+                if (!playing && !future) continue;
+                var row = new HBoxContainer();
+                if (playing) {
+                    float admission = desk.AdmissionForVisit(bill, selected, now);
+                    var hear = Btn($"LISTEN ({slot.EndHour * 60 - now}min · {Money(admission)} admission)");
+                    hear.Pressed += () => Act(() => { bool ok = desk.ListenSceneAppearance(bill.Id, eventId, out string result); Say(result, ok); return ok; }); row.AddChild(hear);
+                } else {
+                    var wait = Btn($"WAIT UNTIL {LocalSceneRoomService.Date(bill.Day).ToHeadlineString()} · {Hour12(slot.StartHour)}");
+                    wait.Disabled = slot.EndHour > (TimeManager.Instance?.HardStopHour ?? 21);
+                    wait.TooltipText = "Time passes through the ordinary clock. No admission is charged until listening; check the bill again on arrival.";
+                    wait.Pressed += () => Act(() => { bool ok = desk.WaitForSceneAppearance(bill.Id, eventId, out string result); Say(result, ok); return ok; }); row.AddChild(wait);
+                }
+                content.AddChild(row);
+            }
         }
+
         bool available = LocalSceneRoomService.CurrentBill(selected.Id, date, hour) != null;
         var listen = Btn(available ? $"GO HEAR THE BILL  ({PlayerDesk.ScoutHours}h)" : "NO BILL TO CATCH NOW");
         listen.Disabled = !available;
-        listen.TooltipText = "A visit needs two hours within the announced bill and covers admission once. Free community and coffeehouse visits need no drinks.";
+        listen.TooltipText = "Hear the next two hours of actual appearances. Consecutive listening shares the visit admission. Free community and coffeehouse visits need no drinks.";
         listen.Pressed += () => Act(() => { bool ok = desk.ScoutSceneRoom(selected.Id, out string message); Say(message, ok); return ok; });
         content.AddChild(listen);
     }

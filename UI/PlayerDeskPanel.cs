@@ -516,7 +516,7 @@ public partial class PlayerDeskPanel : Control {
 			return ($"Pressing on the way: {incoming.Quantity:N0} of \"{incoming.Title}\" due {incoming.Arrives.ToHeadlineString()}. {WhileYouWait(desk)}", WaitingTab(desk));
 		}
 		if (label.cashReserves < 0f) return ("Cash is tight. Collect receivables, sell from the trunk, or check the red-ink recovery options.", 4);
-		if (label.CurrentRosterSize == 0) return ("Hear an act and add one to the A&R notebook.", 0);
+		if (label.CurrentRosterSize == 0) return (desk.ScoutingDossiers.Count > 0 ? "Discuss terms with a heard act, or choose another announced set." : "Hear an announced set. Observations go into your notebook automatically.", 0);
 		if (label.roster.Any(artist => desk.RepertoireFor(artist.artistId).Any(item => !item.Recorded)))
 			return ("Manage an act to choose material and cut a record.", 1);
 		if (label.CurrentRosterSize < label.maxRosterSize) return ("Scout an act or review the latest office news.", 0);
@@ -1167,9 +1167,11 @@ public partial class PlayerDeskPanel : Control {
 			foreach (PlayerDesk.Prospect prospect in desk.Slate.ToList()) ProspectCard(prospect);
 		}
 
-		Heading($"A&R NOTEBOOK  ({desk.Notebook.Count}/6)");
+		Heading($"A&R NOTEBOOK  ({desk.ScoutingDossiers.Count} recorded acts)");
 		if (desk.Notebook.Count == 0) Body("Keep an eye on an act you cannot sign yet.");
+		ScoutingNotebook(desk);
 		foreach (PlayerDesk.WatchNote entry in desk.Notebook.ToList()) {
+            if (desk.ScoutingDossiers.Any(d => d.ArtistId == entry.Artist?.artistId)) continue;
 			SimulatedArtist artist = entry.Artist;
 			if (artist == null) continue;
 			bool signedByYou = !string.IsNullOrEmpty(artist.labelId) && artist.labelId == desk.Label?.labelId;
@@ -1212,150 +1214,29 @@ public partial class PlayerDeskPanel : Control {
 		}
 	}
 
-	/// <summary>One act on the pad, as a 3x5 index card: the name typed on the red rule, the verdict stamped on the
-	/// card, what you heard them play, and the next move as small buttons along the foot.</summary>
-	private void ProspectCard(PlayerDesk.Prospect prospect) {
-		var sheet = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		var indexPaper = PaperStyleBox.Sheet(new Color("f3ebd0"), 20, 10, 8);
-		indexPaper.HeaderRule = 52f;
-		indexPaper.Burn = 0.7f; indexPaper.Falloff = 0.6f;
-		sheet.AddThemeStyleboxOverride("panel", indexPaper);
-		var card = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		card.AddThemeConstantOverride("separation", 4);
-		// The publicity glossy pasted to the card: a halftone plate of the act, coded by genre and who is in the band.
-		var cardBody = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-		cardBody.AddThemeConstantOverride("separation", 16);
-		cardBody.AddChild(new PortraitPhoto().Set(Portraits.ForAct(prospect.Artist), new Vector2(108, 136), prospect.Artist.artistId));
-		cardBody.AddChild(card);
-		sheet.AddChild(cardBody);
-
-		float quality = prospect.ReadQuality;
-		string qualityRead = PlayerDesk.ReadVerdict(quality);
-		(string stampText, Color stampInk) = quality >= 0.72f ? ("Strong prospects", RubberStamp.Blue)
-			: quality >= 0.50f ? ("Promising", RubberStamp.Blue)
-			: quality >= 0.30f ? ("Another look", PaperTheme.Fade) : ("Long shot", RubberStamp.Red);
-
-		// The red rule sits under this row: name in the typewriter face, genre, then the stamp.
-		var head = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 42) };
-		head.AddThemeConstantOverride("separation", 12);
-		var name = new Label {
-			Text = prospect.Artist.stageName, SizeFlagsHorizontal = SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center,
-			ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, TooltipText = prospect.Artist.stageName
-		};
-		name.AddThemeFontOverride("font", PaperTheme.Elite);
-		name.AddThemeFontSizeOverride("font_size", 24);
-		name.AddThemeColorOverride("font_color", Ink);
-		head.AddChild(name);
-		var genre = new Label { Text = GenreNameFormatter.Format(prospect.Artist.primaryGenre).ToUpperInvariant(), VerticalAlignment = VerticalAlignment.Center };
-		genre.AddThemeFontOverride("font", PaperTheme.SansSemiBold);
-		genre.AddThemeFontSizeOverride("font_size", 13);
-		genre.AddThemeColorOverride("font_color", Rust);
-		head.AddChild(genre);
-		var stamp = new RubberStamp { MouseFilter = MouseFilterEnum.Stop, TooltipText = $"Your read: {qualityRead}{(prospect.ReadConfidence >= 0.7f ? " (close read)" : " (rough read)")}." }
-			.Set(stampText, stampInk, -0.1f, 15);
-		head.AddChild(stamp);
-		card.AddChild(head);
-
-        string dealText = LocalScenes.Persisting ? PlayerDesk.SceneDealDescription(prospect) : $"asking ${prospect.AskingAdvance:N0}";
-		var meta = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill,
-			Text = $"{prospect.Note}   •   {dealText}   •   {(prospect.ReadConfidence >= 0.7f ? "close read" : "rough read")}" };
-		meta.AddThemeFontSizeOverride("font_size", 15);
-		meta.AddThemeColorOverride("font_color", Ink);
-		card.AddChild(meta);
-		// Scouting the rough: Execution / Identity / Potential, read from tells -- never the ceiling itself.
-		if (prospect.Rough is { Count: > 0 })
-			foreach (string line in prospect.Rough) card.AddChild(FaintLine("    " + line));
-
-		PlayerDesk.Prospect captured = prospect;
-		// What the second look changed. The bar and the fog moved on every follow-up but the headline phrase seldom does,
-		// so without this the two hours look like they did nothing.
-		if (prospect.Learned is { Count: > 0 }) {
-			var learned = new Label { Text = "WHAT THE SECOND LOOK TURNED UP" };
-			learned.AddThemeFontSizeOverride("font_size", 13);
-			learned.AddThemeColorOverride("font_color", Rust);
-			card.AddChild(learned);
-			for (int i = 0; i < prospect.Learned.Count; i++) {
-				Label line = FaintLine("    • " + prospect.Learned[i]);
-				if (i == 0) line.AddThemeColorOverride("font_color", Ink);
-				card.AddChild(line);
-			}
-		}
-
-		// The live set: what you caught on the night, and -- after a follow-up -- the rest of it.
-		int shown = Mathf.Min(prospect.HeardCount, prospect.LiveSet.Count);
-		int hidden = prospect.LiveSet.Count - shown;
-		// The hook read is the ear on the tune itself, so it shows in both modes; fit is a studio question. Each tune
-		// gets a bar and a few words and the set gets one sentence, so the choice is about the act, not a star count.
-		if (shown == 0) card.AddChild(FaintLine("    (didn't catch their set)"));
-		foreach (PlayerDesk.RepertoireItem item in prospect.LiveSet.Take(shown))
-			card.AddChild(SongRow($"    ♪ \"{item.Title}\" ({item.SourceTag}){(prospect.NewlyHeard.Contains(item.Title) ? "  — new" : "")}", item.ReadHook, prospect.ReadConfidence,
-				PolarPlayerPerception.DescribeCharacter(new PlayerDesk.MaterialChoice { SongId = item.SongId })));
-		string setSummary = SetSummary(prospect.LiveSet.Take(shown).Select(item => item.ReadHook).ToList(), prospect.ReadConfidence);
-		if (setSummary.Length > 0) card.AddChild(FaintLine("    THE SET: " + setSummary));
-		if (hidden > 0) card.AddChild(FaintLine($"    …and {hidden} more you didn't catch — follow up to hear the full set."));
-
-		// Small buttons along the foot, not a full-width bar each.
-		var foot = new HBoxContainer();
-		foot.AddThemeConstantOverride("separation", 10);
-		if (!prospect.FollowedUp) {
-			var follow = Primary($"FOLLOW UP ({PlayerDesk.FollowUpHours}h)");
-			follow.CustomMinimumSize = new Vector2(0, 36);
-			follow.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.FollowUp(captured, out string message); Say(message, ok); return ok; });
-			foot.AddChild(follow);
-		} else {
-			var approach = Primary("APPROACH");
-            if (LocalScenes.Persisting && !PlayerDesk.SceneDealAvailable(prospect)) {
-                approach.Disabled = true;
-                approach.TooltipText = PlayerDesk.SceneDealDescription(prospect);
-            }
-			approach.CustomMinimumSize = new Vector2(0, 36);
-			approach.Pressed += () => {
-				bool ok = PlayerDesk.Instance.ApproachToSign(captured, out string message);
-				if (ok) negotiating = captured;
-				Say(message, ok);
-				Refresh();
-			};
-			foot.AddChild(approach);
-		}
-		if (!PlayerDesk.Instance.Notebook.Any(entry => entry.Artist?.artistId == prospect.Artist.artistId)) {
-			var note = Btn("ADD TO NOTEBOOK");
-			note.CustomMinimumSize = new Vector2(0, 36);
-			note.Disabled = PlayerDesk.Instance.Notebook.Count >= 6;
-			note.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.AddToNotebook(captured, out string message); Say(message, ok); return ok; });
-			foot.AddChild(note);
-		}
-		if (PolarSongBehavior.UsePolarFitSelection && shown > 0) {
-			var compare = Btn("COMPARE HEARD MATERIAL");
-			compare.CustomMinimumSize = new Vector2(0, 36);
-			compare.Pressed += () => {
-				var preview = PaperModal.OpenClipboard(this, "A&R — HEARD MATERIAL", 1040);
-				var column = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-				var scroll = ComparisonScroll(); preview.Body.AddChild(scroll); scroll.AddChild(column);
-				var songs = Option();
-				foreach (var item in prospect.LiveSet.Take(shown)) {
-					string character = PolarPlayerPerception.DescribeCharacter(new PlayerDesk.MaterialChoice { SongId = item.SongId });
-					songs.AddItem(character.Length == 0 ? item.Title : $"{item.Title}  —  {character}");
-				}
-				column.AddChild(songs); var host = new VBoxContainer(); column.AddChild(host);
-				void Update() {
-					Clear(host); var heard = prospect.LiveSet[songs.Selected];
-					var material = new PlayerDesk.MaterialChoice { Title = heard.Title, SongId = heard.SongId, ReferenceMasterId = heard.ReferenceMasterId,
-						Kind = heard.IsOriginal ? PlayerDesk.MaterialKind.Original : PlayerDesk.MaterialKind.LiveCover, Detail = heard.SourceTag };
-					host.AddChild(ComparisonCard(prospect.Artist, material, prospect.FollowedUp ? PolarEvidenceGate.FollowUp : PolarEvidenceGate.FirstListen,
-						"venue:" + PlayerDesk.Instance.SlateDate + ":" + prospect.Artist.artistId, null, 0, hearing: new PolarHearing {
-							source = PolarHearingSource.Venue, place = PlayerDesk.VenueName(prospect.Venue), when = PlayerDesk.Instance.SlateDate,
-							heardHook = heard.ReadHook, heardHookConfidence = prospect.ReadConfidence }, onSheet: true));
-				}
-				songs.ItemSelected += _ => Update(); Update();
-				preview.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
-			};
-			foot.AddChild(compare);
-		}
-		var footGap = new Control { CustomMinimumSize = new Vector2(0, 4) };
-		card.AddChild(footGap);
-		card.AddChild(foot);
-		content.AddChild(sheet);
-	}
+    /// <summary>A heard act's evidence and next actions; ordinary cards expose no scalar verdict.</summary>
+    private void ProspectCard(PlayerDesk.Prospect prospect) {
+        var desk = PlayerDesk.Instance;
+        Heading(prospect.Artist.stageName.ToUpperInvariant());
+        Body(GenreNameFormatter.Format(prospect.Artist.primaryGenre) + " · " + PlayerDesk.SceneDealDescription(prospect));
+        foreach (string line in desk.ScoutingSummary(prospect.Artist.artistId)) Body(line);
+        foreach (var song in prospect.LiveSet.Take(prospect.HeardCount)) Body($"    ♪ {song.Title} ({song.SourceTag})");
+        var row = new HFlowContainer();
+        if (prospect.SceneRoomId != null) {
+            var follow = Btn("HEAR ANOTHER ANNOUNCED SET");
+            follow.Pressed += () => Act(() => { bool ok = desk.FollowUp(prospect, out string result); Say(result, ok); return ok; }); row.AddChild(follow);
+            var booker = Btn("ASK ABOUT THIS ROOM'S BOOKING HISTORY (1h)");
+            booker.Pressed += () => Act(() => { bool ok = desk.AskScoutingBooker(prospect.SceneRoomId, prospect.Artist.artistId, true, out string result); Say(result, ok); return ok; }); row.AddChild(booker);
+        } else if (!prospect.FollowedUp) {
+            var follow = Btn($"FOLLOW UP ({PlayerDesk.FollowUpHours}h)");
+            follow.Pressed += () => Act(() => { bool ok = desk.FollowUp(prospect, out string result); Say(result, ok); return ok; }); row.AddChild(follow);
+        }
+        var approach = Primary("DISCUSS TERMS");
+        approach.Disabled = !PlayerDesk.SceneDealAvailable(prospect) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId));
+        approach.TooltipText = PlayerDesk.SceneDealDescription(prospect);
+        approach.Pressed += () => { bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
+        row.AddChild(approach); content.AddChild(row);
+    }
 
 	/// <summary>The contract menu: the label's opening offer, editable, then put on the table.
 	/// Pushover only -- signing is a single accept-or-walk click.</summary>
@@ -1485,7 +1366,7 @@ public partial class PlayerDeskPanel : Control {
 				(int)term.Value, (int)singles.Value, labelPub.ButtonPressed, artistControl.ButtonPressed,
 				theirs.NegotiationDifficulty, theirs.Manager, theirs.ManagerName, theirs.DemandSummary));
 			lowball.Visible = under >= 0.20f;
-			lowball.Text = $"{under:P0} under their ask. They'll sign, and they'll remember it: the renewal comes back priced higher.";
+			lowball.Text = $"{under:P0} under their ask. If they accept, the concession may affect a later renewal.";
 		}
 		advance.ValueChanged += _ => UpdateLowball();
 		royalty.ValueChanged += _ => UpdateLowball();
@@ -1578,9 +1459,8 @@ public partial class PlayerDeskPanel : Control {
 		string label = talk.roundsPlayed == 0
 			? $"TABLE OFFER  ({PlayerDesk.NegotiationRoundHours}h)"
 			: $"TABLE AGAIN  ({PlayerDesk.NegotiationRoundHours}h)";
-		float advanceFloor = PlayerDesk.MinimumAdvanceForAcceptance(talk);
 		Body($"Their ask: ${talk.ask.Advance:N0}, {talk.ask.RoyaltyRate:P1}, {talk.ask.TermYears} year(s), " +
-			$"{talk.ask.SinglesObligation} single(s){(talk.ask.LabelOwnsPublishing ? "" : ", they keep the publishing")}{(talk.ask.ArtistCreativeControl ? ", they hold creative control" : "")}. This {talk.posture.ToString().ToLowerInvariant()} act needs at least ${advanceFloor:N0} up front plus terms that meet their overall threshold. " +
+			$"{talk.ask.SinglesObligation} single(s){(talk.ask.LabelOwnsPublishing ? "" : ", they keep the publishing")}{(talk.ask.ArtistCreativeControl ? ", they hold creative control" : "")}. " +
 			$"Each table round costs {PlayerDesk.NegotiationRoundHours} hours.");
 		Body(talk.draftOffer.HasValue ? "The last meeting could not be held; your entered terms are still below." :
 			talk.roundsPlayed == 0 ? "These fields start on your label's standard paper: you keep the publishing and have the final word. Their ask is above; every give you tick is a concession." : "These fields start with your last offer. Change any term before putting it back on the table.");
@@ -1609,16 +1489,10 @@ public partial class PlayerDeskPanel : Control {
 	private void NegotiationObjection(ContractTalk talk) {
 		Heading("HE COUNTERS");
 		ContractTermSheet current = PlayerDesk.CurrentOffer(talk);
-		float advanceFloor = PlayerDesk.MinimumAdvanceForAcceptance(talk);
-		var stand = new Label {
-			Text = PlayerDesk.HardLineBroken(talk, current).HasValue
-				? $"A hard line: they keep the publishing, whatever the money. No advance moves this; tick it back to them and table again. {talk.patienceLeft} of {talk.patienceMax} round(s) of patience left."
-				: (talk.lastOfferValue >= talk.reservation && current.Advance < advanceFloor
-					? $"The terms read well overall ({talk.lastOfferValue * 100f:F0}%), but they won't go below ${advanceFloor:N0} up front; you offered ${current.Advance:N0}. "
-					: $"Package read: {talk.lastOfferValue * 100f:F0}% (needs {talk.reservation * 100f:F0}%). Advance floor: ${advanceFloor:N0}; you offered ${current.Advance:N0}. ") +
-				$"{talk.patienceLeft} of {talk.patienceMax} round(s) of patience left.",
-			AutowrapMode = TextServer.AutowrapMode.WordSmart,
-		};
+        var stand = new Label {
+            Text = talk.log.FirstOrDefault() ?? "They have not accepted this package. Consider their stated objection and counterterms.",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
 		stand.AddThemeColorOverride("font_color", Heard);
 		content.AddChild(stand);
 
@@ -1627,8 +1501,6 @@ public partial class PlayerDeskPanel : Control {
 		if (PlayerDesk.CanTradeAxes(talk))
 			NegotiationCounterButton(talk, ContractCounter.TradeAxes,
 				"TRADE", "Give back the publishing and the final word; the advance comes down to match.");
-		NegotiationCounterButton(talk, ContractCounter.Promise,
-			$"PROMISE  ({PlayerDesk.NegotiationRoundHours}h)", "More sides, a real push -- costs nothing today.");
 		NegotiationCounterButton(talk, ContractCounter.HoldFirm,
 			$"HOLD FIRM  ({PlayerDesk.NegotiationRoundHours}h)", "Table it again unchanged and see who blinks.");
 		NegotiationCounterButton(talk, ContractCounter.Walk,

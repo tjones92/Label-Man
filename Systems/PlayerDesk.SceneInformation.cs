@@ -48,9 +48,6 @@ public partial class PlayerDesk {
         if (Label == null || room == null || !LocalScenes.Rooms || room.PlaceId != LocalScenePersistenceService.SceneIdFor(CurrentCityId)) {
             message = "Visit this room's city to speak with its booker."; return false;
         }
-        if (SceneContactFamiliarity(room.ContactId) < 2) {
-            message = "Hear two different bills here first so the booker gets to know you."; return false;
-        }
         if (!Require(1, out message)) return false;
         var date = TimeManager.Instance.CurrentDate;
         int day = LocalSceneRoomService.Day(date), hour = TimeManager.Instance.CurrentHour;
@@ -58,7 +55,7 @@ public partial class PlayerDesk {
             message = "The booker is available during this room's posted hours."; return false;
         }
         var lead = SceneInformationService.Lead(room, LocalSceneRoomService.Calendar(CurrentCityId, date),
-            sceneDiscoveries.Keys, sceneInformation.Contacts.First(c => c.ContactId == room.ContactId).HeardBillIds, day, hour);
+            sceneDiscoveries.Keys, sceneInformation.Contacts.FirstOrDefault(c => c.ContactId == room.ContactId)?.HeardBillIds ?? new(), day, hour);
         if (lead == null || sceneInformation.Leads.Any(l => l.Id == lead.Id)) {
             message = "The booker has no new introduction on the announced bills."; return false;
         }
@@ -117,7 +114,7 @@ public partial class PlayerDesk {
         bool pooled = t.AboutArtistId == null;
         bool stale = pooled ? !PersonPool.Contains(t.AboutPersonId)
             : ArtistManager.Instance.GetArtist(t.AboutArtistId)?.members.Any(m => m.isActive && m.personId == t.AboutPersonId) != true;
-        return $"{LocalSceneRoomService.Date(t.ReceivedDay).ToHeadlineString()} · {t.Text}{(stale ? " (That has changed since.)" : "")}";
+        return $"{LocalSceneRoomService.Date(t.ReceivedDay).ToHeadlineString()} Â· {t.Text}{(stale ? " (That has changed since.)" : "")}";
     }).ToArray();
     public IReadOnlyList<string> SceneLeadNotes() {
         int day = LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
@@ -127,7 +124,7 @@ public partial class PlayerDesk {
             var bill = LocalSceneRoomService.Calendar(room?.PlaceId, TimeManager.Instance.CurrentDate).FirstOrDefault(b => b.Id == l.BillId);
             bool valid = bill?.Status == SceneBillStatus.Scheduled && bill.Appearances.Any(a => a.ArtistId == l.ArtistId && a.Status == SceneBillStatus.Scheduled);
             string status = valid ? "check the calendar before going" : "the bill changed or the set has passed; verify with the room";
-            return $"{room?.ContactName ?? "Booker"}: {act?.stageName ?? "archived act"} at {room?.Name ?? l.RoomId}, {LocalSceneRoomService.Date(l.PerformanceDay).ToHeadlineString()} — {status}. {l.Evidence}";
+            return $"{room?.ContactName ?? "Booker"}: {act?.stageName ?? "archived act"} at {room?.Name ?? l.RoomId}, {LocalSceneRoomService.Date(l.PerformanceDay).ToHeadlineString()} â€” {status}. {l.Evidence}";
         }).ToArray();
     }
 }

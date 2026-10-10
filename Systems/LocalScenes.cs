@@ -7,6 +7,8 @@ public static class LocalScenes {
     public static bool Observing { get; private set; }
     public static bool Persisting { get; private set; }
     public static bool Rooms { get; private set; }
+    public static bool ScoutingExperience { get; private set; }
+    public static bool ScoutingExperienceObserver { get; private set; }
     public static bool Recruitment { get; private set; }
     public static bool AttentionFeedback { get; private set; }
     public static bool AttentionFeedbackAudit { get; private set; }
@@ -92,6 +94,13 @@ public static class LocalScenes {
         Observing = observe || persist;
         Persisting = persist;
         Rooms = persist && !disableRooms;
+        bool scoutingOff = args.Contains("--disable-scouting-experience", StringComparer.Ordinal);
+        bool scoutingOn = args.Contains("--enable-scouting-experience", StringComparer.Ordinal);
+        bool scoutingObserve = args.Contains("--observe-scouting-experience", StringComparer.Ordinal);
+        if ((scoutingOn || scoutingObserve) && (scoutingOff || !Rooms))
+            throw new ArgumentException("Scouting experience requires persistent rooms and cannot be enabled and disabled together.");
+        ScoutingExperience = Rooms && !scoutingOff;
+        ScoutingExperienceObserver = ScoutingExperience && scoutingObserve;
         bool enableLive = args.Contains("--enable-scene-live-calibration", StringComparer.Ordinal);
         bool disableLive = args.Contains("--disable-scene-live-calibration", StringComparer.Ordinal);
         if (enableLive && (disableLive || !Rooms))
