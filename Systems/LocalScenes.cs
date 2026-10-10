@@ -16,6 +16,10 @@ public static class LocalScenes {
     public static bool ExtendedWorld { get; private set; }
     /// <summary>Dated room size, admission and pay terms (SceneLiveEconomics). Observation-only; default on with rooms.</summary>
     public static bool LiveCalibration { get; private set; }
+    /// <summary>Members of an act with no band-life hours allowance are credited their realized room hours.</summary>
+    public static bool RoomGrowthCredit { get; private set; }
+    /// <summary>Live pay reaches members' wealth (SceneLiveEconomics.MemberLiveIncome). Requires live calibration.</summary>
+    public static bool LiveIncome { get; private set; }
     public static void ValidateDependencies() {
         if (Persisting && !ArtistPopulationLifecycle.Enabled)
             throw new ArgumentException("Persistent scenes require the existing artist population lifecycle birth owner.");
@@ -89,6 +93,12 @@ public static class LocalScenes {
         if (enableLive && (disableLive || !Rooms))
             throw new ArgumentException("Live calibration requires scene rooms and cannot be enabled and disabled together.");
         LiveCalibration = Rooms && !disableLive;
+        foreach (string slice in new[] { "room-growth-credit", "member-live-income" })
+            if (args.Contains("--enable-" + slice, StringComparer.Ordinal) &&
+                (args.Contains("--disable-" + slice, StringComparer.Ordinal) || !LiveCalibration))
+                throw new ArgumentException("--enable-" + slice + " requires live calibration and cannot be combined with its disable flag.");
+        RoomGrowthCredit = Rooms && !args.Contains("--disable-room-growth-credit", StringComparer.Ordinal);
+        LiveIncome = LiveCalibration && !args.Contains("--disable-member-live-income", StringComparer.Ordinal);
         Recruitment = recruitment || (persist && !observe
             && !args.Contains("--disable-scene-recruitment", StringComparer.Ordinal)
             && !args.Contains("--disable-genre-market-v2", StringComparer.Ordinal));

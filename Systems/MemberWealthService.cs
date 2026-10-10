@@ -80,13 +80,17 @@ public static class MemberWealthService {
 			}
 		}
 		float fame = Mathf.Clamp(a.publicRecognition * 2.5f, 0f, 1f);
+		float liveHours = MemberGrowthService.LiveHours(a, roadLoad);
+		int players = present.Count(x => x.lifeState == MemberLifeState.Active);
 		foreach (Musician m in present) {
 			float writer = WriterIncomeSinceSnapshot(m);
-			float income = pay.GetValueOrDefault(m) + writer;
+			float live = SceneLiveEconomics.MemberLiveIncome(a, m, liveHours, players, year);
+			float income = pay.GetValueOrDefault(m) + writer + SceneLiveEconomics.LiveSavingsShare * live;
 			float spend = Mathf.Clamp(SpendBase + SpendEgo * m.ego + SpendFame * Mathf.Max(fame, Mathf.Clamp(m.personalRecognition * 4f, 0f, 1f)), 0f, 0.85f);
 			m.wealth = Mathf.Max(0f, m.wealth * (1f - spend) + income);
 			m.lastYearIncome = income;
 			m.lastYearWriterIncome = writer;
+			m.lastYearLiveIncome = live;
 		}
 	}
 

@@ -28,7 +28,7 @@ public static class SceneDynamicsObservations {
                         && p.sceneId == place.Id) == true).ToArray();
             var rooms = SceneRoomCatalog.All.Where(r => r.PlaceId == place.Id && r.IsPerformance).ToArray();
             bool Bookable(SimulatedArtist a) => rooms.Any(r => Enumerable.Range(week * 7, 7).Any(day =>
-                LocalSceneRoomService.Date(day) <= GameDate.EndDate && r.Nights.Contains(LocalSceneRoomService.Date(day).DayOfWeek)
+                LocalSceneRoomService.Date(day) <= GameDate.EndDate && SceneLiveEconomics.OpenOn(r, LocalSceneRoomService.Date(day).DayOfWeek)
                 && LocalSceneRoomService.Eligible(a, r, day)));
             int bookable = residents.Count(Bookable);
             var capacity = LocalSceneRoomService.ObserveWeekCapacity(place.Id, week);

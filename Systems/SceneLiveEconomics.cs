@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 public enum SceneRoomPayTerms { DoorSplit, HouseWage, Basket, Offering, FlatFee, None }
 
@@ -65,15 +66,69 @@ public static class SceneLiveEconomics {
 
     /// <summary>Cover charge or minimum at the door. A listening room asks more than a club; basket houses,
     /// community programs and roadhouses take nothing at the door.</summary>
-    public static float Admission(SceneRoomProfile room, int year) {
-        if (room == null) return 0f;
-        if (!Calibrated) return room.Admission;
-        float base1960 = room.Kind switch { SceneRoomKind.Club => 1.00f, SceneRoomKind.ListeningRoom => 1.50f, _ => 0f };
+    public static float Admission(SceneRoomProfile room, int year) =>
+        room == null ? 0f : !Calibrated ? room.Admission : AdmissionFor(room.Kind, year);
+    private static float AdmissionFor(SceneRoomKind kind, int year) {
+        float base1960 = kind switch { SceneRoomKind.Club => 1.00f, SceneRoomKind.ListeningRoom => 1.50f, _ => 0f };
         return MathF.Round(base1960 * PriceLevel(year) * 20f) / 20f;
     }
 
+    /// <summary>Working clubs ran most of the week, not two nights: Tuesday to Saturday here (directive §4). Other
+    /// rooms keep their catalog rhythm.</summary>
+    private static readonly DayOfWeek[] ClubWeek = { DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday };
+    public static bool OpenOn(SceneRoomProfile room, DayOfWeek day) => room != null &&
+        (Calibrated && room.Kind == SceneRoomKind.Club ? Array.IndexOf(ClubWeek, day) >= 0 : room.Nights.Contains(day));
+
     /// <summary>The town's going rate relative to New York (the authored unsigned-act ask in CityProfiles).</summary>
     public static float GoingRate(string placeId) => CityProfiles.Get(placeId).AskScale / CityProfiles.Get("new_york").AskScale;
+
+    // ---- the unrealized part of a working year (live income; directive §5) ----------------------------------
+    /// <summary>A working night: a room set stands for the act's engagement that night, about four hours of sets.</summary>
+    public const float HoursPerWorkingNight = 4f;
+    /// <summary>Measured in live-cal-v1: fill 0.69-0.75 in every kind, and two acts on nearly every bill.</summary>
+    public const float TypicalFill = 0.72f, TypicalActsPerBill = 2f;
+    /// <summary>The share of live pay a working player keeps past rent and food (into the wealth stock). Live money is
+    /// wages, spent as it is earned; royalties arrive as lump sums. A design input, not a cap.</summary>
+    public const float LiveSavingsShare = 0.25f;
+
+    private static readonly SceneRoomKind[] KindPreference = {
+        SceneRoomKind.Club, SceneRoomKind.ListeningRoom, SceneRoomKind.Roadhouse, SceneRoomKind.Coffeehouse, SceneRoomKind.CommunityHall };
+    /// <summary>The room an act of this family usually works in its town (first match in a fixed order).</summary>
+    public static SceneRoomProfile WorkingRoom(string placeId, GenreFamily family) {
+        var rooms = SceneRoomCatalog.ForPlace(placeId);
+        if (rooms.Count == 0) rooms = SceneRoomCatalog.ForPlace("new_york");
+        foreach (var kind in KindPreference) {
+            var room = rooms.FirstOrDefault(r => r.Kind == kind && r.Families.Contains(family));
+            if (room != null) return room;
+        }
+        return rooms.FirstOrDefault(r => r.Kind == SceneRoomKind.Club);
+    }
+
+    /// <summary>What one player expects from a typical night in that room: the realized pay rules at typical fill.</summary>
+    public static float ExpectedPlayerNightPay(SceneRoomProfile room, int year, int players) {
+        if (room == null || !room.IsPerformance || players <= 0) return 0f;
+        float level = PriceLevel(year), crowd = Capacity(room) * TypicalFill;
+        return Terms(room.Kind) switch {
+            SceneRoomPayTerms.DoorSplit => crowd * AdmissionFor(room.Kind, year) * DoorShare / TypicalActsPerBill / players,
+            SceneRoomPayTerms.HouseWage => NewYorkScalePerNight * GoingRate(room.PlaceId) * level,
+            SceneRoomPayTerms.FlatFee => FlatFeePerNight * GoingRate(room.PlaceId) * level,
+            SceneRoomPayTerms.Basket => crowd * BasketPerHead * level / TypicalActsPerBill / players,
+            SceneRoomPayTerms.Offering => crowd * OfferingPerHead * level / TypicalActsPerBill / players,
+            _ => 0f
+        };
+    }
+
+    /// <summary>A member's live pay for the year: what their room sets actually paid, plus the rest of the act's paid
+    /// live hours (road for a signed act, room work for one seeking a deal) at the town's expected night. Gross.</summary>
+    public static float MemberLiveIncome(SimulatedArtist a, Musician m, float liveHours, int players, int year) {
+        if (!LocalScenes.LiveIncome || a == null || m == null || m.lifeState != MemberLifeState.Active) return 0f;
+        (float stage, float pay) = LocalSceneRoomService.Realized(a.artistId, m.personId, year);
+        float unrealized = Math.Max(0f, Math.Max(liveHours, stage) - stage);
+        if (unrealized <= 0f) return pay;
+        string place = LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId);
+        var room = WorkingRoom(place, GenreCatalog.Get(GenreCatalog.MapLegacy(a.primaryGenre, year)).Family);
+        return pay + unrealized / HoursPerWorkingNight * ExpectedPlayerNightPay(room, year, Math.Max(1, players));
+    }
 
     /// <summary>One act's pay for one set, given the finished bill. Door, basket and offering money is shared across
     /// the acts that played; wages and flat fees are per player.</summary>

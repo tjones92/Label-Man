@@ -192,7 +192,7 @@ public static class BandLifeService {
 		public int year, age, chartedNow, top40Now, releasesNow; public string artistId, personId; public bool everCharted, signed;
 		public LineupConstitution constitution; public MemberLifeState lifeState; public bool lead, writer;
 		public float roadLoad, roadYears, fatigue, temperament, reliability, ego, ambition, loyalty, creativity, studioEfficiency;
-		public float personalRecognition, actFame, substanceLoad, wealth, income, writerIncome;
+		public float personalRecognition, actFame, substanceLoad, wealth, income, writerIncome, liveIncome;
 		public float hours, weightedHours, effectiveHours, technicalNow, technicalGrown, vocalPowerGrown, instrumentalGrown, creativityGrown;
 	}
 
@@ -208,7 +208,7 @@ public static class BandLifeService {
 				roadLoad = ctx.roadLoad, roadYears = m.roadYears, fatigue = m.fatigue, temperament = m.temperament, reliability = m.reliability,
 				ego = m.ego, ambition = m.ambition, loyalty = m.loyalty, creativity = m.creativity, studioEfficiency = m.studioEfficiency,
 				personalRecognition = m.personalRecognition, actFame = ctx.fame, substanceLoad = m.substanceLoad, wealth = m.wealth,
-				income = m.lastYearIncome, writerIncome = m.lastYearWriterIncome,
+				income = m.lastYearIncome, writerIncome = m.lastYearWriterIncome, liveIncome = m.lastYearLiveIncome,
 				hours = g?.hours ?? 0f, weightedHours = g?.weightedHours ?? 0f, effectiveHours = m.effectiveHours,
 				technicalNow = m.technicalSkill, technicalGrown = g?.technicalGrown ?? m.technicalSkill,
 				vocalPowerGrown = g?.vocalPowerGrown ?? m.vocalPower, instrumentalGrown = g?.instrumentalGrown ?? m.instrumentalSkill,

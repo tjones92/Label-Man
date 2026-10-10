@@ -101,6 +101,8 @@ public class Musician {
 	public bool wealthBaselined;
 	public double writerUnitsAtYearStart; // share-weighted charted units already paid into wealth
 	public float lastYearIncome, lastYearWriterIncome;
+	/// <summary>Gross live pay last year (rooms plus the unrealized working year); a quarter of it reaches wealth.</summary>
+	public float lastYearLiveIncome;
 
 	// Phase 4f -- road fatigue (§4.16): a recovering level. Written every band-life year; read by the exhaustion
 	// hazard only with --enable-road-fatigue (roadYears stays the lifetime exposure for travel and romance).

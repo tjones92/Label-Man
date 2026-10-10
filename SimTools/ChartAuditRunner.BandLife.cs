@@ -47,7 +47,7 @@ public partial class ChartAuditRunner {
 			lineupMemberWriter.WriteLine("year,artistId,personId,age,constitution,everCharted,signed,chartedNow,top40Now,releasesNow,lifeState," +
 				"lead,writer,roadLoad,roadYears,fatigue,temperament,reliability,ego,ambition,loyalty,creativity,studioEfficiency," +
 				"personalRecognition,actFame,substanceLoad,wealth,income,writerIncome,hours,weightedHours,effectiveHours," +
-				"technicalNow,technicalGrown,vocalPowerGrown,instrumentalGrown,creativityGrown");
+				"technicalNow,technicalGrown,vocalPowerGrown,instrumentalGrown,creativityGrown,liveIncome");
 			BandLifeService.OnMemberYear += WriteLineupMember;
 		}
 	}
@@ -61,7 +61,7 @@ public partial class ChartAuditRunner {
 			F(r.temperament), F(r.reliability), F(r.ego), F(r.ambition), F(r.loyalty), F(r.creativity), F(r.studioEfficiency),
 			F(r.personalRecognition), F(r.actFame), F(r.substanceLoad), F(r.wealth), F(r.income), F(r.writerIncome), F(r.hours),
 			F(r.weightedHours), F(r.effectiveHours), F(r.technicalNow), F(r.technicalGrown), F(r.vocalPowerGrown),
-			F(r.instrumentalGrown), F(r.creativityGrown)
+			F(r.instrumentalGrown), F(r.creativityGrown), F(r.liveIncome)
 		}));
 	}
 

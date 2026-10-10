@@ -77,7 +77,7 @@ fees, supper-room minimums. Sources consulted October 9, 2026.
 **Inertness requirement.** Nothing in the world economy reads room money, so the calibrated and flat arms must
 write identical economy CSVs. Results are in §6.
 
-## 4. Phase B — live-work volume (first finding in; still inert)
+## 4. Phase B — live-work volume (built)
 
 Read from the same ledgers (`<run>-scene-work-end.csv`, 1960 rows: the 1961 rows wait for that year's band pass).
 No new control runs are needed for this phase.
@@ -95,15 +95,18 @@ exactly 0. `MemberGrowthService.Hours` gives hours only to signed acts and unsig
 unsigned act gets (0, 0). Rooms book any present act, so those acts play about 26 hours a year that count toward no
 allowance and earn no growth. The ledger exposes it, as the room contract requires.
 
-Proposed fix (a mechanism change, so not applied): an act with a zero allowance is credited its realized room hours
-at `KindResidency` weight. It is small (26 h against 450-900 for seekers), but it moves growth, so it needs a reference
-comparison before it lands.
+**Fix (approved 2026-10-09, built).** A member of an act with a zero allowance is credited their realized room hours
+at `KindResidency` weight (`MemberGrowthService.OnActYear`; `--disable-room-growth-credit`). Unbudgeted room hours
+in 1960 fell to 0 of 115,577 (seed 1001) and 0 of 115,744 (seed 2002).
 
-Open author questions: should a working club run more than two nights a week (period clubs ran five or six), and
-should open-mic/hoot nights (unpaid, many short sets) exist as a bill shape? More nights grow realized hours inside
-the same allowance, so growth stays untouched for acts that have one.
+**Club week (approved, built).** Working clubs run Tuesday to Saturday instead of Friday and Saturday
+(`SceneLiveEconomics.OpenOn`, part of live calibration). Club sets rose from ~6,570 to 16,244 a year. More nights grow
+realized hours inside the same allowance, so growth is untouched for acts that have one. This is no longer inert:
+the relocation service skips acts with future bookings, so moves shift slightly.
 
-## 5. Phase C — live income reaches people (mechanism; needs a decision and a decade A/B)
+Still open: open-mic/hoot nights (unpaid, many short sets) as a bill shape.
+
+## 5. Phase C — live income reaches people (built; decade comparison deferred)
 
 Add a live term to `MemberWealthService.OnActYear`: the member's room `FeeShare` for the year, plus a background
 estimate for the unrealized part of the allowance at the town's rate. This is the history: most working musicians
@@ -112,6 +115,44 @@ work would keep players in music (the atlas's "a technically accomplished act de
 residency pays steadily"). It needs a two-seed decade comparison (treatment arms only, against one decade reference per seed at the base commit) on the band-life measures (day-job share, Reliability
 share, solo intent, studio-only) before it defaults on. Player-owned acts' room pay should go to the members, not
 the label; the existing `BookRoad` label income stays as it is.
+
+**Built (approved 2026-10-09).** `SceneLiveEconomics.MemberLiveIncome`, called from `MemberWealthService.OnActYear`;
+`--disable-member-live-income`, and it requires live calibration. A member's gross live pay for the year is:
+
+- realized room pay (`FeeShare`), plus
+- the rest of the act's paid live hours (`MemberGrowthService.LiveHours`: road hours for a signed act, 900/450 room
+  hours for one seeking a deal, none otherwise) less realized stage hours, at 4 hours a working night, priced at
+  `ExpectedPlayerNightPay`: the town's working room for the act's genre family, under that room's pay rules at
+  typical fill (0.72) and two acts a bill.
+
+A quarter of it (`LiveSavingsShare`, design input) enters the wealth stock; the rest is rent and food. Only Active
+members earn it; studio-only members play no dates. `Musician.lastYearLiveIncome` records the gross, and
+`--log-band-life-members` writes it as `liveIncome`.
+
+`live-inc-v1` (104 weeks, seeds 1001/2002, treatment only, compared with the `ref-bc4e829` references). Only the 1960
+band-life pass falls inside 104 weeks, so this is a direction check, not acceptance:
+
+| 1960 | seed 1001 | seed 2002 |
+|---|---:|---:|
+| Gross live pay, unsigned member, median / p90 | $1,161 / $2,560 | $1,208 / $2,572 |
+| Gross live pay, signed member, median / p90 | $628 / $1,967 | $628 / $1,968 |
+| Wealth, median / p99 | $282 / $2,080 | $295 / $2,214 |
+| DayJob departures, ref → treatment | 61 → 59 | 57 → 56 |
+| Every other departure kind | unchanged | unchanged (one Busted +1 on 1001) |
+| Singles / album units, 2 years | +0.12% / −0.43% | −0.05% / +0.19% |
+
+A working local player grossing about $1,200 is in line with the anchors: union scale was $90 a week, and most of
+these players were not on scale. The effect on band life compounds as the stock builds; at a ~0.35 spend share the
+median steady state is ~$830 (Norm ≈ 0.10), which lowers the day-job hazard by about a tenth. The decade comparison
+measures that.
+
+Known high end: a solo act takes a whole act's door share, so a solo seeking a deal in a New York club grosses
+~$7,800 (the p99). That is above a full year at scale ($4,680). It touches ~1% of member-years; a solo-with-house-band
+pay rule is the fix if the decade run shows it matters.
+
+**Deferred by the author:** the two-seed decade comparison runs once, at the end, after this and Codex's remaining
+two features (employment/AI investment/migration/repertoire/contact networks; foreign licensing/territorial rights/
+provenance) are built. Treatment arms only, against one decade reference per seed at the base commit.
 
 ## 6. Results — Phase A
 

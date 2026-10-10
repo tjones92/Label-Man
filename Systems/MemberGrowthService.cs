@@ -97,11 +97,17 @@ public static class MemberGrowthService {
 			if (m.axesVersion == 0) continue;
 			BaselineCreativity(m, year);
 			bool works = m.lifeState == MemberLifeState.Active || (m.lifeState == MemberLifeState.StudioOnly);
-            if (m.lifeState == MemberLifeState.Active) LocalSceneRoomService.AttributeBudget(a.artistId, m.personId, year, hours);
-			float personHours = m.lifeState == MemberLifeState.StudioOnly ? SessionHoursPerRelease * releasesNow * KindSession : weighted;
+			// An act with no allowance (unsigned, not seeking a deal) still plays the rooms: credit what it played.
+			float memberHours = hours, memberWeighted = weighted;
+			if (hours <= 0f && LocalScenes.RoomGrowthCredit) {
+				memberHours = LocalSceneRoomService.Realized(a.artistId, m.personId, year).StageHours;
+				memberWeighted = memberHours * KindResidency;
+			}
+            if (m.lifeState == MemberLifeState.Active) LocalSceneRoomService.AttributeBudget(a.artistId, m.personId, year, memberHours);
+			float personHours = m.lifeState == MemberLifeState.StudioOnly ? SessionHoursPerRelease * releasesNow * KindSession : memberWeighted;
 			if (works) m.effectiveHours += personHours * m.developmentRate * Plasticity(m.GetAge(year));
 			GrowthRow row = Grown(m, year);
-			row.hours = works ? hours : 0f;
+			row.hours = works ? memberHours : 0f;
 			row.weightedHours = works ? personHours : 0f;
 			rows[m] = row;
 			passTechnicalShift += row.rawTechnicalShift;
@@ -111,6 +117,13 @@ public static class MemberGrowthService {
 		}
 		return rows;
 	}
+
+	/// <summary>The year's paid live hours (road for a signed act, room work for one seeking a deal): Hours less the
+	/// sessions and rehearsal, which pay nothing at the door.</summary>
+	public static float LiveHours(SimulatedArtist a, float roadLoad) =>
+		!string.IsNullOrEmpty(a.labelId) ? RoadHoursAtFullLoad * roadLoad
+		: a.prospectMarketStatus == ProspectMarketStatus.Seeking ? (BandLifeService.IsClubFamilyGenre(a.primaryGenre) ? ClubRoomHours : OtherRoomHours)
+		: 0f;
 
 	/// <summary>The year's raw and kind-weighted hours from the act's state.</summary>
 	public static (float Hours, float Weighted) Hours(SimulatedArtist a, float roadLoad, int releasesNow) {

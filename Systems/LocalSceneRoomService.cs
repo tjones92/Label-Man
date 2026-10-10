@@ -57,7 +57,7 @@ public static class LocalSceneRoomService {
         }
         for (int day = Math.Max(week * 7, earliestDay); day < week * 7 + 7 && Date(day) <= GameDate.EndDate; day++) {
             GameDate date = Date(day);
-            foreach (var room in SceneRoomCatalog.All.Where(r => r.Nights.Contains(date.DayOfWeek))) {
+            foreach (var room in SceneRoomCatalog.All.Where(r => SceneLiveEconomics.OpenOn(r, date.DayOfWeek))) {
                 if (State.Bills.Any(b => b.RoomId == room.Id && b.Day == day)) continue;
                 string id = $"{room.Id}:{day}";
                 var bill = new SceneBill { Id = id, RoomId = room.Id, Day = day, Year = date.year,
@@ -194,6 +194,10 @@ public static class LocalSceneRoomService {
         foreach (var slot in performed) { row.ActPay += slot.Fee; row.PlayerNights += slot.PersonIds.Count; }
     }
 
+    /// <summary>A person's realized stage hours and room pay for a year (zero without an account).</summary>
+    public static (float StageHours, float Pay) Realized(string artist, string person, int year) =>
+        work.TryGetValue(WorkKey(artist, person, year), out var account) ? (account.StageHours, account.FeeShare) : (0f, 0f);
+
     public static void AttributeBudget(string artist, string person, int year, float baselineHours) {
         if (!LocalScenes.Rooms || !work.TryGetValue(WorkKey(artist, person, year), out var account)) return;
         account.AttributedHours = Math.Min(account.StageHours, Math.Max(0, baselineHours));
@@ -237,7 +241,7 @@ public static class LocalSceneRoomService {
         int slots = rooms.Sum(r => Enumerable.Range(week * 7, 7).Sum(day => {
             var date = Date(day);
             return date <= GameDate.EndDate && date.year >= r.FromYear && date.year <= r.ThroughYear
-                && r.Nights.Contains(date.DayOfWeek) ? SceneEcosystemService.Slots(r, day) : 0;
+                && SceneLiveEconomics.OpenOn(r, date.DayOfWeek) ? SceneEcosystemService.Slots(r, day) : 0;
         }));
         var booked = (state?.Bills ?? new()).Where(b => roomIds.Contains(b.RoomId) && b.Day / 7 == week)
             .SelectMany(b => b.Appearances).Where(a => a.Status != SceneBillStatus.Cancelled).ToArray();
