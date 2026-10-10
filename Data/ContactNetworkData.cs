@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 /// <summary>How two people know each other (SimTools/ContactNetworkDirective.md). Flags: a pair can be both.</summary>
 [Flags]
-public enum ContactKind { None = 0, FormerBandmate = 1, Session = 2 }
+public enum ContactKind { None = 0, FormerBandmate = 1, Session = 2, HouseBand = 4 }
 
 /// <summary>One remembered relationship between two people, allocated when they actually work together or part.
 /// A and B are ordinal-sorted person ids; the edge is undirected.</summary>
@@ -17,6 +17,8 @@ public sealed class ContactEdge {
 	public int Jobs { get; set; }
 	/// <summary>They parted badly (acrimony, firing, a walkout). A fallout never recommends anyone.</summary>
 	public bool Fallout { get; set; }
+	/// <summary>Where they last worked together: the act they shared or backed, or the label whose session it was.</summary>
+	public string Via { get; set; }
 }
 
 /// <summary>A person's paid session work in one year.</summary>

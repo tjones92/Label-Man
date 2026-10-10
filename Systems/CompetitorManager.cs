@@ -3277,6 +3277,8 @@ public partial class CompetitorManager : Node {
 			CompositionCatalogService.AttachArtistOriginal(record, artist, label, year);
 		}
 
+		// The session happens when the record is made: hire the crew now, so it can shape the record.
+		SessionEmploymentService.OnRecordMade(record, label, artist);
 		return record;
 	}
 

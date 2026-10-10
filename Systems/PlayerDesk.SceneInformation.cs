@@ -12,6 +12,7 @@ public partial class PlayerDesk {
     private void RestoreSceneInformation(SceneInformationKnowledge data) {
         sceneInformation = CopySceneInformation(data);
         sceneInformation.Contacts ??= new(); sceneInformation.Leads ??= new(); sceneInformation.ReadThroughDay ??= new(); sceneInformation.ReadEvents ??= new();
+        sceneInformation.Tips ??= new();
     }
     private void RememberSceneContact(SceneRoomProfile room, SceneBill bill) {
         var contact = sceneInformation.Contacts.FirstOrDefault(c => c.ContactId == room.ContactId);
@@ -68,6 +69,56 @@ public partial class PlayerDesk {
         message = $"{room.ContactName} suggests hearing {ArtistManager.Instance.GetArtist(lead.ArtistId)?.stageName ?? "the announced act"} at {room.Name} on {LocalSceneRoomService.Date(lead.PerformanceDay).ToHeadlineString()}. Go hear the set before talking terms.";
         Note(message); Changed?.Invoke(); return true;
     }
+    public const int TipsPerAsk = 3;
+    /// <summary>Ask the people on your roster who they know: up to three new tips, each from a real contact edge,
+    /// about someone between bands or where a former bandmate or session partner plays now. Fallouts are not passed on.
+    /// One hour.</summary>
+    public bool AskAround(out string message) {
+        message = "";
+        if (Label == null || !ContactNetworkService.Enabled) { message = "Nobody to ask."; return false; }
+        var roster = ArtistManager.Instance.GetAllArtists().Where(a => a.labelId == Label.labelId && a.lifecycleStatus == ArtistLifecycleStatus.Active)
+            .OrderBy(a => a.artistId, StringComparer.Ordinal).ToList();
+        var mine = roster.SelectMany(a => a.members.Where(m => m.isActive).Select(m => (act: a, m))).ToList();
+        if (mine.Count == 0) { message = "Sign an act first; your musicians are the ones who know people."; return false; }
+        var actOf = new Dictionary<string, SimulatedArtist>(StringComparer.Ordinal);
+        foreach (var a in ArtistManager.Instance.GetAllArtists().Where(x => x.lifecycleStatus == ArtistLifecycleStatus.Active))
+            foreach (var m in a.members) if (m.isActive && m.personId != null) actOf[m.personId] = a;
+        var myPeople = mine.Select(x => x.m.personId).ToHashSet(StringComparer.Ordinal);
+        int day = LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
+        var fresh = new List<ContactTip>();
+        foreach (var (act, m) in mine) {
+            foreach (string other in ContactNetworkService.ContactsOf(m.personId).OrderBy(o => o, StringComparer.Ordinal)
+                .Select(o => (o, e: ContactNetworkService.Edge(m.personId, o))).Where(x => !x.e.Fallout)
+                .OrderByDescending(x => x.e.Jobs).ThenByDescending(x => x.e.LastYear).ThenBy(x => x.o, StringComparer.Ordinal).Select(x => x.o)) {
+                if (myPeople.Contains(other) || fresh.Count >= TipsPerAsk) continue;
+                var person = ArtistManager.Instance.GetMusician(other);
+                if (person == null || person.lifeState != MemberLifeState.Active) continue;
+                actOf.TryGetValue(other, out var where);
+                bool pooled = PersonPool.Contains(other);
+                if (where == null && !pooled) continue;
+                string id = other + "|" + (where?.artistId ?? "pool");
+                if (sceneInformation.Tips.Any(t => t.Id == id) || fresh.Any(t => t.Id == id)) continue;
+                string how = ContactNetworkService.HowTheyKnow(m.personId, other);
+                string state = where == null ? "is between bands"
+                    : $"now plays in {where.stageName}{(string.IsNullOrEmpty(where.labelId) ? ", unsigned" : $", on {ChartManager.Instance.GetLabelName(where.labelId) ?? "a label"}")}";
+                fresh.Add(new ContactTip { Id = id, FromPersonId = m.personId, AboutPersonId = other, AboutArtistId = where?.artistId, ReceivedDay = day,
+                    Text = $"{m.FullName}{(act.stageName == m.FullName ? "" : $" ({act.stageName})")}: {person.FullName} {state}; {how}." });
+            }
+        }
+        if (fresh.Count == 0) { message = "Your musicians have nothing new on anyone they know."; return false; }
+        if (!Require(1, out message)) return false;
+        Spend(1);
+        sceneInformation.Tips.AddRange(fresh);
+        if (sceneInformation.Tips.Count > 48) sceneInformation.Tips.RemoveRange(0, sceneInformation.Tips.Count - 48);
+        message = string.Join(" ", fresh.Select(t => t.Text));
+        Note(message); Changed?.Invoke(); return true;
+    }
+    public IReadOnlyList<string> ContactTipNotes() => sceneInformation.Tips.OrderByDescending(t => t.ReceivedDay).Take(6).Select(t => {
+        bool pooled = t.AboutArtistId == null;
+        bool stale = pooled ? !PersonPool.Contains(t.AboutPersonId)
+            : ArtistManager.Instance.GetArtist(t.AboutArtistId)?.members.Any(m => m.isActive && m.personId == t.AboutPersonId) != true;
+        return $"{LocalSceneRoomService.Date(t.ReceivedDay).ToHeadlineString()} · {t.Text}{(stale ? " (That has changed since.)" : "")}";
+    }).ToArray();
     public IReadOnlyList<string> SceneLeadNotes() {
         int day = LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
         return sceneInformation.Leads.Where(l => l.ExpiresDay >= day).OrderBy(l => l.PerformanceDay).Select(l => {

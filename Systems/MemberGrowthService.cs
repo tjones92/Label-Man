@@ -104,6 +104,13 @@ public static class MemberGrowthService {
 				memberWeighted = memberHours * KindResidency;
 			}
             if (m.lifeState == MemberLifeState.Active) LocalSceneRoomService.AttributeBudget(a.artistId, m.personId, year, memberHours);
+			// Work for other acts (sessions, house-band sets) is practice too, on top of the act's own allowance.
+			if (SessionEmploymentService.EmploymentGrowth && m.lifeState == MemberLifeState.Active) {
+				float studio = SessionEmploymentService.Sessions(m.personId, year) * SessionEmploymentService.HoursPerSession;
+				float backed = LocalSceneRoomService.Backing(m.personId, year).Hours;
+				memberHours += studio + backed;
+				memberWeighted += studio * KindSession + backed * KindResidency;
+			}
 			float personHours = m.lifeState == MemberLifeState.StudioOnly ? SessionHoursPerRelease * releasesNow * KindSession : memberWeighted;
 			if (works) m.effectiveHours += personHours * m.developmentRate * Plasticity(m.GetAge(year));
 			GrowthRow row = Grown(m, year);

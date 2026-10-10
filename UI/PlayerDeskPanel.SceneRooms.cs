@@ -17,6 +17,13 @@ public partial class PlayerDeskPanel {
             (item.ArtistId != null && desk.SceneDiscoveries.Any(d => d.ArtistId == item.ArtistId) ? " You have heard this act before." : ""));
         if (news.Count > 0) { var read = Btn("MARK LOCAL REPORTS READ"); read.Pressed += () => { desk.MarkSceneNewsRead(); Refresh(); }; content.AddChild(read); }
         foreach (string lead in desk.SceneLeadNotes()) Body(lead);
+        if (ContactNetworkService.Enabled) {
+            foreach (string contactTip in desk.ContactTipNotes()) Body(contactTip);
+            var ask = Btn("ASK YOUR MUSICIANS WHO THEY KNOW  (1h)");
+            ask.TooltipText = "Former bandmates, session partners and house-band players your roster knows: who is free, and where the rest play now.";
+            ask.Pressed += () => Act(() => { bool ok = desk.AskAround(out string result); Say(result, ok); return ok; });
+            content.AddChild(ask);
+        }
         if (LocalScenes.ExtendedWorld) {
             Body("SOURCE OFFICES — introductions bring demo submissions to your US label. Contracts and recording arrangements remain separate.");
             var sourcePlaces = SceneSourceService.Profiles.Select(p => p.PlaceId).Concat(SceneSourceService.Institutions.Select(i => i.PlaceId)).ToArray();

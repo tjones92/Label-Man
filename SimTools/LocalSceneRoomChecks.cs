@@ -141,7 +141,7 @@ public static class LocalSceneRoomChecks {
             RestoreRooms(before);
             float cash = desk.Label.cashReserves;
             Check(desk.ScoutSceneRoom(first.RoomId, out _), "player hears the actual named bill");
-            Check(desk.Label.cashReserves == cash - room.Admission, "room admission charged once per visit");
+            Check(desk.Label.cashReserves == cash - SceneLiveEconomics.Admission(room, date.year), "room admission charged once per visit");
             string read = Json(desk.Slate.Select(p => new { p.Artist.artistId, p.LiveSet }).ToList());
             string billsAfter = Json(Snapshot());
             TimeManager.Instance.RestoreClock(date, first.StartHour);
@@ -178,7 +178,7 @@ public static class LocalSceneRoomChecks {
             cash = desk.Label.cashReserves;
             Check(desk.FollowUp(prospect, out _), "follow-up attends the act's next actual bill");
             Check(prospect.SceneBillId == laterBill.Id && prospect.LiveSet.Select(s => s.SongId).SequenceEqual(laterSlot.Set.Select(s => s.SongId)), "follow-up reads the new shared set, not a stale prior set");
-            Check(desk.Label.cashReserves == cash - room.Admission && desk.SceneDiscoveries.Single(d => d.ArtistId == prospect.Artist.artistId).BillId == laterBill.Id,
+            Check(desk.Label.cashReserves == cash - SceneLiveEconomics.Admission(room, date.year) && desk.SceneDiscoveries.Single(d => d.ArtistId == prospect.Artist.artistId).BillId == laterBill.Id,
                 "follow-up admission and knowledge belong to the actual encounter");
             Check(desk.CaptureState().Notebook.Single().SceneBillId == laterBill.Id, "follow-up updates notebook bill provenance");
             GD.Print($"SCENE_ROOM_CHECK_PASS checks={checks}");

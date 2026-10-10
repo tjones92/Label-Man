@@ -123,11 +123,14 @@ public static class SceneLiveEconomics {
     public static float MemberLiveIncome(SimulatedArtist a, Musician m, float liveHours, int players, int year) {
         if (!LocalScenes.LiveIncome || a == null || m == null || m.lifeState != MemberLifeState.Active) return 0f;
         (float stage, float pay) = LocalSceneRoomService.Realized(a.artistId, m.personId, year);
+        pay += LocalSceneRoomService.Backing(m.personId, year).Pay;
         float unrealized = Math.Max(0f, Math.Max(liveHours, stage) - stage);
         if (unrealized <= 0f) return pay;
         string place = LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId);
         var room = WorkingRoom(place, GenreCatalog.Get(GenreCatalog.MapLegacy(a.primaryGenre, year)).Family);
-        return pay + unrealized / HoursPerWorkingNight * ExpectedPlayerNightPay(room, year, Math.Max(1, players));
+        // An act that is backed in its working room shares the night with the house band.
+        int band = Math.Max(1, players) + (SceneHouseBandService.Needs(a, room) ? SceneHouseBandService.BandSize : 0);
+        return pay + unrealized / HoursPerWorkingNight * ExpectedPlayerNightPay(room, year, band);
     }
 
     /// <summary>One act's pay for one set, given the finished bill. Door, basket and offering money is shared across
@@ -135,7 +138,7 @@ public static class SceneLiveEconomics {
     public static float SlotFee(SceneRoomProfile room, SceneBill bill, SceneAppearance slot, int performedActs) {
         if (room == null || !room.IsPerformance || performedActs <= 0) return 0f;
         if (!Calibrated) return bill.GrossReceipts * DoorShare / performedActs;
-        float level = PriceLevel(bill.Year), players = slot.PersonIds.Count;
+        float level = PriceLevel(bill.Year), players = slot.PersonIds.Count + (slot.BackingPersonIds?.Count ?? 0);
         return Terms(room.Kind) switch {
             SceneRoomPayTerms.DoorSplit => bill.GrossReceipts * DoorShare / performedActs,
             SceneRoomPayTerms.HouseWage => players * NewYorkScalePerNight * GoingRate(room.PlaceId) * level,

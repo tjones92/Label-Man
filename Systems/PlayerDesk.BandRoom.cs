@@ -580,7 +580,8 @@ public partial class PlayerDesk {
 			opts.Add(new BandOption {
 				verb = BandVerb.HireFromPool, targetPersonId = p.person.personId,
 				label = $"Hire {p.person.FullName} ({RoleWord(p.person.primaryRole)}, ex-{p.lastStageName}, {p.person.GetAge(YearNow)})",
-				subLabel = $"{SkillWord(p.person.technicalSkill)}. Free since {p.sinceYear}.{(p.person.personalRecognition > 0.02f ? " People know the name." : "")}"
+				subLabel = $"{SkillWord(p.person.technicalSkill)}. Free since {p.sinceYear}.{(p.person.personalRecognition > 0.02f ? " People know the name." : "")}" +
+					(ContactNetworkService.Describe(p.person, a) is string known ? " " + known : "")
 			});
 		opts.Add(new BandOption { verb = BandVerb.HireNewcomer, label = "Find somebody new through the musicians' union",
 			subLabel = "An unknown. You won't know what you've got until the first date." });

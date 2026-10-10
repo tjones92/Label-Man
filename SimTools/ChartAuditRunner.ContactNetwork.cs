@@ -20,6 +20,11 @@ public partial class ChartAuditRunner {
 				writer.WriteLine(FormattableString.Invariant($"{a.PersonId},{a.Year},{a.Sessions},{a.Pay},{m?.geography?.basePlaceId},{(m?.isActive == true ? 1 : 0)}"));
 			}
 		}
+		using (var writer = new StreamWriter(Path.Combine(dir, $"{runName}-house-bands.csv"))) {
+			writer.WriteLine("roomId,personId,shows,lastDay");
+			foreach (var h in LocalSceneRoomService.HouseStanding.OrderBy(h => h.RoomId, StringComparer.Ordinal).ThenBy(h => h.PersonId, StringComparer.Ordinal))
+				writer.WriteLine($"{h.RoomId},{h.PersonId},{h.Shows},{h.LastDay}");
+		}
 		using (var writer = new StreamWriter(Path.Combine(dir, $"{runName}-session-regulars.csv"))) {
 			writer.WriteLine("labelId,personId,sessions,lastYear");
 			foreach (var r in SessionEmploymentService.Regulars.OrderBy(r => r.LabelId, StringComparer.Ordinal).ThenBy(r => r.PersonId, StringComparer.Ordinal))
@@ -29,6 +34,9 @@ public partial class ChartAuditRunner {
 		GD.Print($"CONTACT_NETWORK_CENSUS edges={edges.Count} bandmate={edges.Count(e => e.Kinds.HasFlag(ContactKind.FormerBandmate))} " +
 			$"session={edges.Count(e => e.Kinds.HasFlag(ContactKind.Session))} fallout={edges.Count(e => e.Fallout)} " +
 			$"contactHires={ContactNetworkService.ContactHires} crewed={SessionEmploymentService.RecordsCrewed} uncrewed={SessionEmploymentService.RecordsUncrewed} " +
-			$"sessionPlayers={SessionEmploymentService.Accounts.Select(a => a.PersonId).Distinct().Count()}");
+			$"sessionPlayers={SessionEmploymentService.Accounts.Select(a => a.PersonId).Distinct().Count()} " +
+			$"house={edges.Count(e => e.Kinds.HasFlag(ContactKind.HouseBand))} houseBackers={LocalSceneRoomService.HouseStanding.Select(h => h.PersonId).Distinct().Count()} " +
+			$"houseShows={LocalSceneRoomService.HouseStanding.Sum(h => h.Shows)} houseRegulars20={LocalSceneRoomService.HouseStanding.Count(h => h.Shows >= 20)} " +
+			FormattableString.Invariant($"meanCrewScore={(SessionEmploymentService.RecordsCrewed > 0 ? SessionEmploymentService.CrewScoreSum / SessionEmploymentService.RecordsCrewed : 0):F4}"));
 	}
 }

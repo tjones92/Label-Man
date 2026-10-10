@@ -11,6 +11,8 @@ public static class LocalSceneRoomService {
     private static bool restoring;
     private static readonly Dictionary<string, SceneWorkAccount> work = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, SceneRoomStanding> standing = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, SceneHouseBandStanding> houseStanding = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, (float Hours, float Pay)> backing = new(StringComparer.Ordinal);
     private static SceneRoomSaveData State => state ??= new();
     public static int Day(GameDate date) => (int)(new DateTime(date.year, date.month, date.day) - new DateTime(1960, 1, 1)).TotalDays;
     public static GameDate Date(int day) => GameDate.StartDate.AddDays(day);
@@ -49,7 +51,7 @@ public static class LocalSceneRoomService {
         var personPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
         var actPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var bill in State.Bills) foreach (var slot in bill.Appearances) {
-            foreach (string person in slot.PersonIds) {
+            foreach (string person in slot.PersonIds.Concat(slot.BackingPersonIds ?? new())) {
                 personPlaces[$"{bill.Day}|{person}"] = bill.RoomId;
                 for (int h = slot.StartHour; h < slot.EndHour; h++) reservations.Add($"{bill.Day}|{h}|{person}");
             }
@@ -83,11 +85,13 @@ public static class LocalSceneRoomService {
                         !p.endWeek.HasValue && p.performanceLevel >= ScenePerformanceLevel.Working);
                     if (regular && !regularIds.Contains(act.artistId))
                         State.Engagements.Add(new() { RoomId = room.Id, ArtistId = act.artistId, StartDay = day, ThroughDay = (term + 1) * 91 - 1 });
+                    var backers = SceneHouseBandService.Needs(act, room)
+                        ? SceneHouseBandService.Pick(room, act, day, hour, people, personPlaces, reservations, HouseShows) : null;
                     bill.Appearances.Add(new() { ArtistId = act.artistId, PersonIds = people.ToList(), StartHour = hour, EndHour = hour + 1,
                         Role = bill.Appearances.Count == 0 ? "opening set" : "closing set", Residency = regular,
-                        Set = SetFor(act, id, date.year) });
+                        Set = SetFor(act, id, date.year), BackingPersonIds = backers?.Count > 0 ? backers : null });
                     actPlaces[$"{day}|{act.artistId}"] = room.Id;
-                    foreach (string person in people) { reservations.Add($"{day}|{hour}|{person}"); personPlaces[$"{day}|{person}"] = room.Id; }
+                    foreach (string person in people.Concat(backers ?? new())) { reservations.Add($"{day}|{hour}|{person}"); personPlaces[$"{day}|{person}"] = room.Id; }
                 }
                 if (bill.Appearances.Count == 3) bill.Appearances[1].Role = "middle set";
                 int prior = bill.Appearances.Sum(a => standing.TryGetValue(StandingKey(room.Id, a.ArtistId), out var s) ? Math.Min(12, s.Shows) : 0);
@@ -130,10 +134,10 @@ public static class LocalSceneRoomService {
             }
         }
     }
-    private static SceneWorkAccount Account(string artist, string person, int year) {
+    private static SceneWorkAccount Account(string artist, string person, int year, bool backed = false) {
         string key = WorkKey(artist, person, year);
         if (work.TryGetValue(key, out var account)) return account;
-        account = new() { ArtistId = artist, PersonId = person, Year = year };
+        account = new() { ArtistId = artist, PersonId = person, Year = year, Backing = backed };
         work.Add(key, account); State.Work.Add(account); return account;
     }
     private static void Resolve(int day, int hour) {
@@ -152,6 +156,17 @@ public static class LocalSceneRoomService {
                 }
                 rank.Shows++; rank.LastDay = bill.Day;
                 foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).StageHours += slot.EndHour - slot.StartHour;
+                slot.BackingPersonIds?.RemoveAll(p => ArtistManager.Instance.GetMusician(p)?.lifeState != MemberLifeState.Active);
+                foreach (string person in slot.BackingPersonIds ?? new()) {
+                    var account = Account(slot.ArtistId, person, bill.Year, backed: true);
+                    account.StageHours += slot.EndHour - slot.StartHour;
+                    AddBacking(person, bill.Year, slot.EndHour - slot.StartHour, 0f);
+                    string hk = room.Id + "|" + person;
+                    if (!houseStanding.TryGetValue(hk, out var hs)) { houseStanding[hk] = hs = new() { RoomId = room.Id, PersonId = person }; State.HouseStanding.Add(hs); }
+                    hs.Shows++; hs.LastDay = bill.Day;
+                    foreach (string other in slot.PersonIds.Concat(slot.BackingPersonIds).Where(o => o != person))
+                        ContactNetworkService.Link(person, other, ContactKind.HouseBand, bill.Year, via: slot.ArtistId);
+                }
                 State.CompletedPerformances++;
             }
             if (bill.Day == day && bill.EndHour > hour) continue;
@@ -166,7 +181,12 @@ public static class LocalSceneRoomService {
             foreach (var slot in performed) {
                 if (!room.IsPerformance) continue;
                 slot.Fee = SceneLiveEconomics.SlotFee(room, bill, slot, performed.Length);
-                foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).FeeShare += slot.Fee / slot.PersonIds.Count;
+                int band = slot.PersonIds.Count + (slot.BackingPersonIds?.Count ?? 0);
+                foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).FeeShare += slot.Fee / band;
+                foreach (string person in slot.BackingPersonIds ?? new()) {
+                    Account(slot.ArtistId, person, bill.Year, backed: true).FeeShare += slot.Fee / band;
+                    AddBacking(person, bill.Year, 0f, slot.Fee / band);
+                }
             }
             RecordRoomYear(room, bill, performed);
         }
@@ -191,12 +211,22 @@ public static class LocalSceneRoomService {
         if (!roomYears.TryGetValue(key, out var row)) roomYears[key] = row = new() { RoomId = room.Id, Year = bill.Year,
             Capacity = CapacityOf(bill), Admission = SceneLiveEconomics.Admission(room, bill.Year) };
         row.Bills++; row.Sets += performed.Length; row.Attendance += bill.Attendance; row.Receipts += bill.GrossReceipts;
-        foreach (var slot in performed) { row.ActPay += slot.Fee; row.PlayerNights += slot.PersonIds.Count; }
+        foreach (var slot in performed) { row.ActPay += slot.Fee; row.PlayerNights += slot.PersonIds.Count + (slot.BackingPersonIds?.Count ?? 0); }
     }
 
     /// <summary>A person's realized stage hours and room pay for a year (zero without an account).</summary>
     public static (float StageHours, float Pay) Realized(string artist, string person, int year) =>
         work.TryGetValue(WorkKey(artist, person, year), out var account) ? (account.StageHours, account.FeeShare) : (0f, 0f);
+
+    private static int HouseShows(string room, string person) => houseStanding.TryGetValue(room + "|" + person, out var s) ? s.Shows : 0;
+    private static void AddBacking(string person, int year, float hours, float pay) {
+        string key = year + "|" + person;
+        var (h, p) = backing.GetValueOrDefault(key);
+        backing[key] = (h + hours, p + pay);
+    }
+    /// <summary>A person's house-band work for a year, across every act they backed.</summary>
+    public static (float Hours, float Pay) Backing(string person, int year) => person == null ? (0f, 0f) : backing.GetValueOrDefault(year + "|" + person);
+    public static IReadOnlyCollection<SceneHouseBandStanding> HouseStanding => houseStanding.Values;
 
     public static void AttributeBudget(string artist, string person, int year, float baselineHours) {
         if (!LocalScenes.Rooms || !work.TryGetValue(WorkKey(artist, person, year), out var account)) return;
@@ -264,14 +294,19 @@ public static class LocalSceneRoomService {
             throw new InvalidOperationException("Duplicate room work/standing IDs.");
     }
     public static void BeginRestore(SceneRoomSaveData saved) {
-        ValidateRestore(saved); previous = state; state = Copy(saved); restoring = true; work.Clear(); standing.Clear();
+        ValidateRestore(saved); previous = state; state = Copy(saved); restoring = true; work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear();
     }
     public static void CompleteRestore() { restoring = false; previous = null; Reindex(); }
     public static void CancelRestore() { if (!restoring) return; state = previous; previous = null; restoring = false; Reindex(); }
     private static void Reindex() {
-        work.Clear(); standing.Clear();
+        work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear();
         if (state == null) return;
-        foreach (var account in state.Work) work.Add(WorkKey(account.ArtistId, account.PersonId, account.Year), account);
+        state.HouseStanding ??= new();
+        foreach (var account in state.Work) {
+            work.Add(WorkKey(account.ArtistId, account.PersonId, account.Year), account);
+            if (account.Backing) AddBacking(account.PersonId, account.Year, account.StageHours, account.FeeShare);
+        }
         foreach (var row in state.Standing) standing.Add(StandingKey(row.RoomId, row.ArtistId), row);
+        foreach (var row in state.HouseStanding) houseStanding[row.RoomId + "|" + row.PersonId] = row;
     }
 }

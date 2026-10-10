@@ -68,7 +68,8 @@ public static class PersonPool {
 	public static List<PooledPerson> ExpireStale(int year) {
 		var gone = pool.Values.Where(p => p.person.lifeState == MemberLifeState.Deceased ||
 			p.person.lifeState == MemberLifeState.Retired ||
-			(year - p.sinceYear >= MaximumPoolYears && !SessionEmploymentService.WorkedIn(p.person.personId, year)))
+			(year - p.sinceYear >= MaximumPoolYears && !SessionEmploymentService.WorkedIn(p.person.personId, year) &&
+			 LocalSceneRoomService.Backing(p.person.personId, year).Hours <= 0f))
 			.OrderBy(p => p.person.personId, StringComparer.Ordinal).ToList();
 		foreach (PooledPerson p in gone) pool.Remove(p.person.personId);
 		return gone;

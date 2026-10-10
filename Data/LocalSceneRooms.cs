@@ -33,6 +33,8 @@ public sealed class SceneAppearance {
     public string CancellationReason { get; set; }
     public float Fee { get; set; }
     public List<SceneSetSong> Set { get; set; } = new();
+    /// <summary>House-band players backing the act (not members of it). Null on older saves.</summary>
+    public List<string> BackingPersonIds { get; set; }
 }
 public sealed class SceneBill {
     public string Id { get; set; }
@@ -67,6 +69,8 @@ public sealed class SceneWorkAccount {
     public float UnbudgetedHours { get; set; }
     public float AttributedRoadHours { get; set; }
     public float BackgroundRoadHours { get; set; }
+    /// <summary>House-band work backing ArtistId, which is not this person's own act.</summary>
+    public bool Backing { get; set; }
 }
 public sealed class SceneRoomStanding {
     public string RoomId { get; set; }
@@ -86,4 +90,12 @@ public sealed class SceneRoomSaveData {
     public List<SceneWorkAccount> Work { get; set; } = new();
     public List<SceneRoomStanding> Standing { get; set; } = new();
     public long CompletedPerformances { get; set; }
+    /// <summary>House-band regulars: shows each player has backed in each room.</summary>
+    public List<SceneHouseBandStanding> HouseStanding { get; set; } = new();
+}
+public sealed class SceneHouseBandStanding {
+    public string RoomId { get; set; }
+    public string PersonId { get; set; }
+    public int Shows { get; set; }
+    public int LastDay { get; set; }
 }

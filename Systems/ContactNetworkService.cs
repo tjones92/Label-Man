@@ -33,7 +33,7 @@ public static class ContactNetworkService {
 	private static string Key(string x, string y) => string.CompareOrdinal(x, y) < 0 ? x + "|" + y : y + "|" + x;
 
 	/// <summary>Records that two people worked together (or parted). Repeated work deepens the edge.</summary>
-	public static void Link(string x, string y, ContactKind kind, int year, int jobs = 1, bool fallout = false) {
+	public static void Link(string x, string y, ContactKind kind, int year, int jobs = 1, bool fallout = false, string via = null) {
 		if (!Enabled || string.IsNullOrEmpty(x) || string.IsNullOrEmpty(y) || x == y) return;
 		string key = Key(x, y);
 		if (!edges.TryGetValue(key, out var edge)) {
@@ -46,6 +46,7 @@ public static class ContactNetworkService {
 		edge.LastYear = Math.Max(edge.LastYear, year);
 		edge.Jobs += Math.Max(1, jobs);
 		edge.Fallout |= fallout;
+		if (via != null) edge.Via = via;
 	}
 	private static HashSet<string> Adjacent(string person) {
 		if (!adjacency.TryGetValue(person, out var set)) adjacency[person] = set = new(StringComparer.Ordinal);
@@ -66,13 +67,42 @@ public static class ContactNetworkService {
 	}
 	public static float HiringScore(Musician person, SimulatedArtist act) => KnowsAny(person, act) ? HiringBonus : 0f;
 
+	/// <summary>How a candidate knows the act, in a sentence, from the strongest edge to a current member (the Band
+	/// Room's audition list). A fallout is reported too: the player should know. Null when they know nobody.</summary>
+	public static string Describe(Musician person, SimulatedArtist act) {
+		if (!Enabled || person == null || act?.members == null || !adjacency.TryGetValue(person.personId, out var set)) return null;
+		var known = act.members.Where(m => m.isActive && m.personId != null && set.Contains(m.personId))
+			.Select(m => (m, e: edges[Key(person.personId, m.personId)]))
+			.OrderBy(x => x.e.Fallout).ThenByDescending(x => x.e.Jobs).ThenBy(x => x.m.personId, StringComparer.Ordinal).ToList();
+		if (known.Count == 0) return null;
+		var (member, edge) = known[0];
+		string first = member.firstName;
+		string actName = ArtistManager.Instance?.GetArtist(edge.Via)?.stageName;
+		string labelName = ChartManager.Instance?.GetLabelById(edge.Via)?.labelName;
+		if (edge.Fallout) return $"Fell out with {first}{(actName != null ? $" in {actName}" : "")}.";
+		if (edge.Kinds.HasFlag(ContactKind.FormerBandmate)) return $"Played with {first}{(actName != null ? $" in {actName}" : "")}.";
+		if (edge.Kinds.HasFlag(ContactKind.HouseBand)) return $"Backed {first}{(actName != null ? $" with {actName}" : "")} in the clubs.";
+		return $"Worked sessions with {first}{(labelName != null ? $" for {labelName}" : "")}.";
+	}
+
+	/// <summary>How two people know each other, as a clause ("played together in The Hawks"). Null without an edge.</summary>
+	public static string HowTheyKnow(string x, string y) {
+		var edge = Edge(x, y);
+		if (edge == null) return null;
+		string actName = ArtistManager.Instance?.GetArtist(edge.Via)?.stageName;
+		string labelName = ChartManager.Instance?.GetLabelById(edge.Via)?.labelName;
+		if (edge.Kinds.HasFlag(ContactKind.FormerBandmate)) return $"they played together{(actName != null ? $" in {actName}" : "")}";
+		if (edge.Kinds.HasFlag(ContactKind.HouseBand)) return $"they worked the clubs together{(actName != null ? $" behind {actName}" : "")}";
+		return $"they cut sessions together{(labelName != null ? $" for {labelName}" : "")}";
+	}
+
 	/// <summary>A member leaving an act: they now know each remaining member as a former bandmate.</summary>
 	public static void OnMemberLeft(SimulatedArtist act, Musician leaver, DepartureKind kind, int year) {
 		if (!Enabled || act?.members == null || leaver == null) return;
 		bool fallout = kind is DepartureKind.Acrimony or DepartureKind.Fired or DepartureKind.WalkedOut;
 		int years = Math.Max(1, year - Math.Max(leaver.joinedYear, 1950) + 1);
 		foreach (Musician m in act.members)
-			if (m != leaver && m.isActive) Link(leaver.personId, m.personId, ContactKind.FormerBandmate, year, years, fallout);
+			if (m != leaver && m.isActive) Link(leaver.personId, m.personId, ContactKind.FormerBandmate, year, years, fallout, act.artistId);
 	}
 
 	/// <summary>Year end: forget edges where either person has died or retired from music.</summary>
@@ -93,7 +123,7 @@ public static class ContactNetworkService {
 	public static void CaptureWorld(WorldSaveData world) {
 		world.ContactNetwork = new ContactNetworkSaveData {
 			Edges = edges.Values.OrderBy(e => e.A, StringComparer.Ordinal).ThenBy(e => e.B, StringComparer.Ordinal)
-				.Select(e => new ContactEdge { A = e.A, B = e.B, Kinds = e.Kinds, FirstYear = e.FirstYear, LastYear = e.LastYear, Jobs = e.Jobs, Fallout = e.Fallout })
+				.Select(e => new ContactEdge { A = e.A, B = e.B, Kinds = e.Kinds, FirstYear = e.FirstYear, LastYear = e.LastYear, Jobs = e.Jobs, Fallout = e.Fallout, Via = e.Via })
 				.ToList()
 		};
 		SessionEmploymentService.Capture(world.ContactNetwork);
@@ -107,7 +137,7 @@ public static class ContactNetworkService {
 		if (saved.SchemaVersion != 1) throw new InvalidOperationException("Unsupported contact network schema.");
 		foreach (var e in saved.Edges ?? new()) {
 			if (string.IsNullOrEmpty(e.A) || string.IsNullOrEmpty(e.B) || e.A == e.B) continue;
-			edges[Key(e.A, e.B)] = new ContactEdge { A = e.A, B = e.B, Kinds = e.Kinds, FirstYear = e.FirstYear, LastYear = e.LastYear, Jobs = e.Jobs, Fallout = e.Fallout };
+			edges[Key(e.A, e.B)] = new ContactEdge { A = e.A, B = e.B, Kinds = e.Kinds, FirstYear = e.FirstYear, LastYear = e.LastYear, Jobs = e.Jobs, Fallout = e.Fallout, Via = e.Via };
 			Adjacent(e.A).Add(e.B);
 			Adjacent(e.B).Add(e.A);
 		}

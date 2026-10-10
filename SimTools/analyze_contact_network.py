@@ -55,10 +55,22 @@ def main():
         r, t = pd.read_csv(find(ref, "decade-annual-rollup.csv")), pd.read_csv(find(trt, "decade-annual-rollup.csv"))
         print("units, 2 years:", {c: f"{(t[c].sum() - r[c].sum()) / r[c].sum() * 100:+.2f}%" for c in ("singleUnits", "albumUnits")})
 
+        try:
+            house = pd.read_csv(find(trt, "house-bands.csv"))
+            per_room = house.groupby("roomId").agg(players=("personId", "nunique"), shows=("shows", "sum"))
+            print(f"house bands: {house.personId.nunique()} backers in {len(per_room)} rooms, {house.shows.sum()} backer-sets; "
+                  f"players per room median {per_room.players.median():.0f}; room-player pairs with 20+ shows {int((house.shows >= 20).sum())}")
+        except FileNotFoundError:
+            pass
         m = pd.read_csv(find(trt, "lineup-members.csv"))
         m60 = m[m.year == 1960]
         mr = pd.read_csv(find(ref, "lineup-members.csv"))
         mr60 = mr[mr.year == 1960]
+        if "liveIncome" in m60:
+            print(f"live income 1960 p50/p99/max ref {mr60.liveIncome.median():.0f}/{mr60.liveIncome.quantile(.99):.0f}/{mr60.liveIncome.max():.0f}"
+                  f" -> trt {m60.liveIncome.median():.0f}/{m60.liveIncome.quantile(.99):.0f}/{m60.liveIncome.max():.0f}")
+        print(f"growth hours 1960 mean ref {mr60.hours.mean():.0f} -> trt {m60.hours.mean():.0f}; "
+              f"technicalGrown-technicalNow mean ref {(mr60.technicalGrown - mr60.technicalNow).mean():+.4f} -> trt {(m60.technicalGrown - m60.technicalNow).mean():+.4f}")
         print(f"member wealth 1960 median ref {mr60.wealth.median():.0f} -> trt {m60.wealth.median():.0f}; "
               f"p99 {mr60.wealth.quantile(.99):.0f} -> {m60.wealth.quantile(.99):.0f}")
 

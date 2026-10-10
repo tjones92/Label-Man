@@ -20,6 +20,8 @@ public static class LocalScenes {
     public static bool RoomGrowthCredit { get; private set; }
     /// <summary>Live pay reaches members' wealth (SceneLiveEconomics.MemberLiveIncome). Requires live calibration.</summary>
     public static bool LiveIncome { get; private set; }
+    /// <summary>Local players back acts that can't back themselves (SceneHouseBandService).</summary>
+    public static bool HouseBands { get; private set; }
     public static void ValidateDependencies() {
         if (Persisting && !ArtistPopulationLifecycle.Enabled)
             throw new ArgumentException("Persistent scenes require the existing artist population lifecycle birth owner.");
@@ -99,6 +101,9 @@ public static class LocalScenes {
                 throw new ArgumentException("--enable-" + slice + " requires live calibration and cannot be combined with its disable flag.");
         RoomGrowthCredit = Rooms && !args.Contains("--disable-room-growth-credit", StringComparer.Ordinal);
         LiveIncome = LiveCalibration && !args.Contains("--disable-member-live-income", StringComparer.Ordinal);
+        if (args.Contains("--enable-scene-house-bands", StringComparer.Ordinal) && (!Rooms || args.Contains("--disable-scene-house-bands", StringComparer.Ordinal)))
+            throw new ArgumentException("House bands require scene rooms and cannot be enabled and disabled together.");
+        HouseBands = Rooms && !args.Contains("--disable-scene-house-bands", StringComparer.Ordinal);
         Recruitment = recruitment || (persist && !observe
             && !args.Contains("--disable-scene-recruitment", StringComparer.Ordinal)
             && !args.Contains("--disable-genre-market-v2", StringComparer.Ordinal));

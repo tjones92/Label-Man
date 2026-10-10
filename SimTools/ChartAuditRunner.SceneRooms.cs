@@ -9,7 +9,7 @@ public partial class ChartAuditRunner {
         var world = new WorldSaveData(); LocalSceneRoomService.CaptureWorld(world);
         var state = world.SceneRooms;
         if (state == null) { GD.Print($"SCENE_ROOM_CENSUS phase={phase} disabled=true"); return; }
-        var slots = state.Bills.SelectMany(b => b.Appearances.SelectMany(a => a.PersonIds.Select(p => new { Key = $"{b.Day}|{a.StartHour}|{p}", DayPerson = $"{b.Day}|{p}", b.RoomId }))).ToArray();
+        var slots = state.Bills.SelectMany(b => b.Appearances.SelectMany(a => a.PersonIds.Concat(a.BackingPersonIds ?? new()).Select(p => new { Key = $"{b.Day}|{a.StartHour}|{p}", DayPerson = $"{b.Day}|{p}", b.RoomId }))).ToArray();
         int conflicts = slots.Length - slots.Select(s => s.Key).Distinct().Count();
         int remoteDays = slots.GroupBy(s => s.DayPerson).Count(g => g.Select(s => s.RoomId).Distinct().Count() > 1);
         int duplicateBills = state.Bills.Count - state.Bills.Select(b => b.Id).Distinct().Count();
