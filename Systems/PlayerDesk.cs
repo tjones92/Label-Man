@@ -325,6 +325,9 @@ public partial class PlayerDesk : Node {
 		public int Number;
 		public float Hook;         // the performance captured on this pass, before the song is weighed in
 		public float Production;
+		public string EngineerNote;
+		public string PerformerNote;
+		public string ProducerNote;
 		public float Overall => (Hook + Production) * 0.5f;
 	}
 
@@ -332,7 +335,7 @@ public partial class PlayerDesk : Node {
 	public sealed class SessionCut {
 		public MaterialChoice Choice;
 		public readonly List<SessionTake> Takes = new();
-		public int KeptTake;       // index into Takes
+		public int KeptTake = -1;  // -1 is explicitly unselected
 	}
 
 	/// <summary>
@@ -345,6 +348,8 @@ public partial class PlayerDesk : Node {
 		public int Hours;
 		public float Cost;
 		public GameDate Date;
+		public string SessionId;
+		public bool ManualSelection;
 		public readonly List<SessionCut> Cuts = new();
 	}
 
@@ -2495,7 +2500,8 @@ public partial class PlayerDesk : Node {
 		// Takes are what the hours buy: time spread across songs. Fewer songs, more takes each.
 		int takes = Mathf.Clamp(Mathf.RoundToInt((float)hours / cutting.Count), 1, 4);
 
-		var session = new PendingSession { ArtistId = artist.artistId, Tier = tier, Hours = hours, Cost = cost, Date = today };
+		var session = new PendingSession { ArtistId = artist.artistId, Tier = tier, Hours = hours, Cost = cost, Date = today,
+			ManualSelection = true, SessionId = $"{Label.labelId}:{artist.artistId}:{today}:{studioNow}:{counter}" };
 		// The Band Room in the studio: a hired session player lifts the execution (and humiliates the member he
 		// replaced); a room that can't stand each other plays erratically -- the same number of draws, a wider
 		// spread around the same mean (directive §2.9).
@@ -2504,7 +2510,7 @@ public partial class PlayerDesk : Node {
 		foreach (MaterialChoice choice in cutting) {
 			var cut = new SessionCut { Choice = choice };
 			for (int i = 1; i <= takes; i++) cut.Takes.Add(RollTake(i, artist, choice, tier, t, sessionLift, tension));
-			cut.KeptTake = BestTakeIndex(cut.Takes);
+			StudioTakeEvidence.Observe(session, cut, session.Cuts.Count, Label.productionQuality, artist.studioPerformance);
 			session.Cuts.Add(cut);
 		}
 		pendingSession = session;
@@ -2537,33 +2543,23 @@ public partial class PlayerDesk : Node {
 	}
 
 
-	// Bug report: "could autoselecting master give away the un-noised quality? ... the game selecting
-	// a 3-star/3-star over a 3-star/4-star." Overall (the raw Hook/Production average) doesn't respect
-	// the stars the console actually shows (UI/PlayerDeskPanel.cs TakesView, StarBar): two dimensions
-	// each round independently, so a "solid 3/3" take's average can out-score a "3/4" take that only
-	// just tips into its 4th star, and the auto-kept take looks worse than one sitting right next to it.
-	// Compare on the visible star total first -- a take can never be auto-kept over one that displays
-	// strictly better -- and fall back to the raw average only to break a tie between equal star totals.
-	private static int StarCount(float value) => Mathf.Clamp(Mathf.RoundToInt(value * 5f), 0, 5);
-
-	private static bool IsBetterTake(SessionTake a, SessionTake b) {
-		int starsA = StarCount(a.Hook) + StarCount(a.Production);
-		int starsB = StarCount(b.Hook) + StarCount(b.Production);
-		return starsA != starsB ? starsA > starsB : a.Overall > b.Overall;
-	}
-
-	private static int BestTakeIndex(List<SessionTake> takes) {
-		int best = 0;
-		for (int i = 1; i < takes.Count; i++) if (IsBetterTake(takes[i], takes[best])) best = i;
-		return best;
-	}
-
 	/// <summary>Chooses which take of a song to keep before printing.</summary>
 	public void KeepTake(int cutIndex, int takeIndex) {
 		if (pendingSession == null) return;
 		if (cutIndex < 0 || cutIndex >= pendingSession.Cuts.Count) return;
 		SessionCut cut = pendingSession.Cuts[cutIndex];
-		cut.KeptTake = Mathf.Clamp(takeIndex, 0, cut.Takes.Count - 1);
+		if (takeIndex < 0 || takeIndex >= cut.Takes.Count) return;
+		cut.KeptTake = takeIndex;
+		Changed?.Invoke();
+	}
+
+	/// <summary>Explicit delegation using the same attributed evidence the player can read.</summary>
+	public void DelegateTakeSelection() {
+		if (pendingSession == null) return;
+		foreach (var cut in pendingSession.Cuts) {
+			if (cut.KeptTake >= 0 || cut.Takes.Count == 0) continue;
+			cut.KeptTake = StudioTakeEvidence.Choose(cut.Takes);
+		}
 		Changed?.Invoke();
 	}
 
@@ -2574,6 +2570,9 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool PrintSession(out string message) {
 		if (pendingSession == null) { message = "No session to print."; return false; }
+		if (pendingSession.Cuts.Count == 0 || pendingSession.Cuts.Any(c => c.KeptTake < 0 || c.KeptTake >= c.Takes.Count)) {
+			message = "Keep a take for every song, or ask the producer to choose, before printing."; return false;
+		}
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(pendingSession.ArtistId);
 		if (artist == null) { pendingSession = null; message = "The act is gone; session scrapped."; Changed?.Invoke(); return false; }
 

@@ -29,7 +29,9 @@ public static class SaveGameService {
 	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
     // v7: dated room bills, engagements, performance/work ledgers and notebook source IDs.
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
-	public const int CurrentVersion = 13; // v9: programs/moves; v10: source demos; v11: scouting; v12: conversations; v13: unsigned sessions, lineup reservations and paid samples
+	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
+	// v13: unsigned sessions, lineup reservations and paid samples.
+	public const int CurrentVersion = 14; // explicit unselected studio takes and frozen listening evidence
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -707,6 +709,8 @@ public sealed class SongSaveData {
 /// <summary>Plain lists allow the console's readonly runtime collections to be reconstructed on load.
 /// The selected takes are restored directly, without spending cash or drawing new randomness.</summary>
 public sealed class PendingSessionSaveData {
+	public string SessionId { get; set; }
+	public bool ManualSelection { get; set; }
 	public string ArtistId { get; set; }
 	public PlayerDesk.StudioTier Tier { get; set; }
 	public int Hours { get; set; }
@@ -716,14 +720,17 @@ public sealed class PendingSessionSaveData {
 
 	public static PendingSessionSaveData From(PlayerDesk.PendingSession session) => session == null ? null : new() {
 		ArtistId = session.ArtistId, Tier = session.Tier, Hours = session.Hours, Cost = session.Cost, Date = session.Date,
+		SessionId = session.SessionId, ManualSelection = session.ManualSelection,
 		Cuts = session.Cuts.Select(cut => new SessionCutSaveData {
 			Choice = cut.Choice, KeptTake = cut.KeptTake,
-			Takes = cut.Takes.Select(t => new PlayerDesk.SessionTake { Number = t.Number, Hook = t.Hook, Production = t.Production }).ToList()
+			Takes = cut.Takes.Select(t => new PlayerDesk.SessionTake { Number = t.Number, Hook = t.Hook, Production = t.Production,
+				EngineerNote = t.EngineerNote, PerformerNote = t.PerformerNote, ProducerNote = t.ProducerNote }).ToList()
 		}).ToList()
 	};
 
 	public PlayerDesk.PendingSession ToSession(IReadOnlyList<PlayerDesk.Song> songbook) {
-		var session = new PlayerDesk.PendingSession { ArtistId = ArtistId, Tier = Tier, Hours = Hours, Cost = Cost, Date = Date };
+		var session = new PlayerDesk.PendingSession { ArtistId = ArtistId, Tier = Tier, Hours = Hours, Cost = Cost, Date = Date,
+			SessionId = SessionId, ManualSelection = ManualSelection };
 		foreach (var saved in Cuts ?? new()) {
 			if (saved?.Choice == null || saved.Takes == null || saved.Takes.Count == 0) continue;
 			var choice = saved.Choice;
@@ -733,8 +740,11 @@ public sealed class PendingSessionSaveData {
 				if (linked == null) continue;
 				choice.WrittenSong = linked;
 			}
-			var cut = new PlayerDesk.SessionCut { Choice = choice, KeptTake = Mathf.Clamp(saved.KeptTake, 0, saved.Takes.Count - 1) };
+			var cut = new PlayerDesk.SessionCut { Choice = choice,
+				KeptTake = ManualSelection && saved.KeptTake < 0 ? -1 : Mathf.Clamp(saved.KeptTake, 0, saved.Takes.Count - 1) };
 			cut.Takes.AddRange(saved.Takes);
+			StudioTakeEvidence.Observe(session, cut, session.Cuts.Count, PlayerDesk.Instance?.Label?.productionQuality ?? .4f,
+				ArtistManager.Instance?.GetArtist(ArtistId)?.studioPerformance ?? .4f);
 			session.Cuts.Add(cut);
 		}
 		return session.Cuts.Count == 0 ? null : session;

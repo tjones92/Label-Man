@@ -18,6 +18,8 @@ public partial class UIManager : Control
 	private PopupPanel calendarPopup;
 	private SpinBox skipDaysInput;
 	private PlayerDeskPanel deskPanel;
+	private PlayerDeskPanel gameMenu;
+	private bool uiOpenBeforeMenu;
 	private Button deskButton;
 	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
 	private PaintedRecordLabels paintedRecords;   // the player's label on the wall record and the top of the stack
@@ -131,6 +133,7 @@ public partial class UIManager : Control
 		// A new player should land on the founding card instead of having to guess that the office
 		// tab opens the game. Loaded games and an existing label stay on the desk scene as before.
 		if (PlayerDesk.Instance?.HasLabel != true) OnClick_Desk();
+		StartupProfile.Mark("interface-ready");
 	}
 
 	// ── Painted-desk text ───────────────────────────────────────────────────────────────────────
@@ -688,6 +691,26 @@ public partial class UIManager : Control
 		}
 	}
 
+	public override void _UnhandledInput(InputEvent input) {
+		if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape } || PaperModal.IsOpen) return;
+		if (gameMenu?.Visible == true) gameMenu.ClosePanel();
+		else OpenGameMenu();
+		GetViewport().SetInputAsHandled();
+	}
+
+	public void OpenGameMenu() {
+		if (gameMenu?.Visible == true) return;
+		uiOpenBeforeMenu = isUIOpen;
+		if (gameMenu == null) {
+			gameMenu = new PlayerDeskPanel { Name = "GameMenu" };
+			AddChild(gameMenu);
+			gameMenu.MenuClosed = () => { isUIOpen = uiOpenBeforeMenu; UpdateMainHud(); };
+		}
+		isUIOpen = true;
+		gameMenu.OpenGameMenu();
+		UpdateMainHud();
+	}
+
 	// Props on the desk art that open a department. Rects are in the scene's 1920x1080 design space.
 	private readonly List<Button> deskProps = new();
 	private TextureButton billboardButton;
@@ -980,6 +1003,8 @@ public partial class UIManager : Control
 
 	public void OnClick_CloseAll()
 	{
+		uiOpenBeforeMenu = false;
+		if (gameMenu != null) gameMenu.Visible = false;
 		DismissMorningPaper();
 		if (ledgerPanel != null) ledgerPanel.Visible = false;
 		if (dialoguePanel != null) dialoguePanel.Visible = false;

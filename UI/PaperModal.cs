@@ -21,6 +21,10 @@ public partial class PaperModal : CanvasLayer {
 	private HBoxContainer buttons;
 	private Action onCancel;
 	private bool closed;
+	private static int openCount;
+	public static bool IsOpen => openCount > 0;
+	public override void _EnterTree() { openCount++; }
+	public override void _ExitTree() { openCount--; }
 
 	/// <summary>Where the caller puts the modal's content (wrapped text, a scroll of cards, a form).</summary>
 	public VBoxContainer Body { get; private set; }

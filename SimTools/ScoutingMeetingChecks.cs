@@ -176,7 +176,7 @@ public static class ScoutingMeetingChecks {
         var legacy = LocalSceneRoomService.Copy(baseWorld.SceneRooms); legacy.Conversations = null; legacy.ConversationOrdinal = 0;
         LocalSceneRoomService.BeginRestore(legacy); LocalSceneRoomService.CompleteRestore();
         Check(desk.ScoutingMeetings.Count == 0 && Quote() != null, "v11 room state gains empty appointments, not invented consent");
-        Check(SaveGameService.CurrentVersion == 13, "old executables reject saves containing authoritative appointments");
+        Check(SaveGameService.CurrentVersion >= 13, "old executables reject saves containing authoritative appointments");
         GD.Print($"SCOUTING_MEETING_CHECK_PASS checks={checks}");
     }
 }

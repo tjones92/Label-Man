@@ -10,6 +10,7 @@ public partial class SimulationSeedBootstrap : Node {
 	public static ulong? RequestedSeed { get; private set; }
 
 	public override void _EnterTree() {
+		StartupProfile.Mark("bootstrap");
 		var args = OS.GetCmdlineUserArgs();
 		try { LocalScenes.Configure(args); ContactNetworkService.Configure(args); ContractPricing.Configure(args); }
 		catch (Exception ex) {

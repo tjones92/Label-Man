@@ -17,7 +17,8 @@ public partial class PlayerDeskPanel : Control {
 	private Label titleLabel, stockLabel, statusLabel;
 	private RichTextLabel clockLabel;   // BBCode: the whole block is bold and the cash figure carries its own colour
 	private LabelCrest titleCrest;
-	private Button redInkLabel, saveLoadButton;
+	private Button redInkLabel;
+	public Action MenuClosed;
 	private Button nextUpLabel;
 	private Label feedbackToastText, feedbackToastBadge;
 	private PanelContainer feedbackToast;
@@ -115,8 +116,14 @@ public partial class PlayerDeskPanel : Control {
 
 	public void ClosePanel() {
 		Visible = false;
+		if (browsingSaves && MenuClosed != null) { MenuClosed(); return; }
 		if (UIManager.Instance != null) UIManager.Instance.isUIOpen = false;
 		UIManager.Instance?.RefreshMainHud();
+	}
+
+	public void OpenGameMenu() {
+		browsingSaves = true;
+		Open();
 	}
 
 	// ========================================================================
@@ -158,10 +165,6 @@ public partial class PlayerDeskPanel : Control {
 		titleLabel.AddThemeFontOverride("font", PaperTheme.SansBold);
 		titleLabel.AddThemeColorOverride("font_color", Ink);   // was the default near-white on manila (~1.8:1)
 		header.AddChild(titleLabel);
-		var saveLoad = Btn("SAVE / LOAD");
-		saveLoadButton = saveLoad;
-		saveLoad.Pressed += () => { browsingSaves = true; Refresh(); };
-		header.AddChild(saveLoad);
 
 		var close = Btn("CLOSE  ×");
 		close.Pressed += ClosePanel;
@@ -370,10 +373,9 @@ public partial class PlayerDeskPanel : Control {
 		bool inGame = desk.HasLabel && !desk.IsGameOver && !browsingSaves;
 		stockLabel.Visible = nextUpLabel.Visible = inGame;
 		if (!inGame) redInkLabel.Visible = false;
-		saveLoadButton.Visible = !browsingSaves;   // already on that page
 
 		if (browsingSaves) {
-			titleLabel.Text = "SAVE / LOAD";
+			titleLabel.Text = "GAME MENU  •  ESC";
 			clockLabel.Text = time == null ? "" : $"{time.CurrentDate.ToLongString()}  •  {time.GetTimeString()}";
 			if (idleRow != null) idleRow.Visible = false;
 			foreach (Node child in tabs.GetChildren()) child.QueueFree();
@@ -721,7 +723,7 @@ public partial class PlayerDeskPanel : Control {
 			PaperModal.StylePrimary(cont, Rust);
 			cont.Pressed += () => { bool ok = SaveGameService.Load(lastSlot, out string message); Say(message, ok); Refresh(); };
 			content.AddChild(cont);
-			Body("Or start a new label below, or open SAVE / LOAD to pick another save.");
+			Body("Or start a new label below. Press Esc to save, load another game, or exit.");
 		}
 
 		Heading("WHO WERE YOU BEFORE THIS?");
@@ -934,10 +936,18 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void PageSaves(PlayerDesk desk) {
-		var back = Btn("‹ BACK");
+		var back = Btn("RESUME  •  ESC");
 		back.CustomMinimumSize = new Vector2(160, 36);
-		back.Pressed += () => { browsingSaves = false; Refresh(); };
+		back.Pressed += ClosePanel;
 		content.AddChild(back);
+		var exit = Btn("EXIT GAME");
+		exit.Pressed += () => {
+			var confirm = PaperModal.Open(this, "EXIT GAME?", 540);
+			confirm.AddText("Exit to the desktop? Progress since your last save will be lost.");
+			confirm.AddButton("STAY HERE", null);
+			confirm.AddButton("EXIT GAME", () => GetTree().Quit(), PaperModal.ButtonKind.Danger);
+		};
+		content.AddChild(exit);
 
 		Heading("SAVE");
 		if (desk.HasLabel && !desk.IsGameOver) {
@@ -995,7 +1005,10 @@ public partial class PlayerDeskPanel : Control {
 			string slot = info.Slot;
 			var load = Btn("LOAD");
 			load.CustomMinimumSize = new Vector2(120, 36);
-			load.Pressed += () => { bool ok = SaveGameService.Load(slot, out string message); Say(message, ok); browsingSaves = false; Refresh(); };
+			load.Pressed += () => {
+				bool ok = SaveGameService.Load(slot, out string message); Say(message, ok);
+				if (ok) { UIManager.Instance?.OnClick_CloseAll(); ClosePanel(); } else Refresh();
+			};
 			row.AddChild(load);
 			var del = Btn("DELETE");
 			del.CustomMinimumSize = new Vector2(120, 36);
@@ -1033,7 +1046,7 @@ public partial class PlayerDeskPanel : Control {
 		buttons.AddThemeConstantOverride("separation", 12);
 		var load = Btn("LOAD A SAVE");
 		load.CustomMinimumSize = new Vector2(220, 44);
-		load.Pressed += () => { browsingSaves = true; Refresh(); };
+		load.Pressed += () => UIManager.Instance?.OpenGameMenu();
 		buttons.AddChild(load);
 		var close = Btn("CLOSE DESK");
 		close.CustomMinimumSize = new Vector2(160, 44);
@@ -2070,7 +2083,7 @@ public partial class PlayerDeskPanel : Control {
 	private void TakesView(PlayerDesk.PendingSession session, SimulatedArtist artist) {
 		Body($"ON THE CONSOLE — {PlayerDesk.StudioTierName(session.Tier)}, {session.Hours}h, ${session.Cost:N0} spent. " +
 			"Keep the take you want for each song, then print the masters.");
-		Body("✓ marks the take currently selected to print. Take selection is free; choose another if its vocal, band, or production read suits the record better.");
+		Body("No take is selected for you. Read the listening notes, then keep one performance per song or ask the producer to choose. Earlier takes stay safe while you compare.");
 
 		for (int c = 0; c < session.Cuts.Count; c++) {
 			PlayerDesk.SessionCut cut = session.Cuts[c];
@@ -2083,39 +2096,33 @@ public partial class PlayerDeskPanel : Control {
 			for (int t = 0; t < cut.Takes.Count; t++) {
 				PlayerDesk.SessionTake take = cut.Takes[t];
 				bool kept = t == cut.KeptTake;
-				// What each take actually is -- the hook the act got on tape and the sound of the room -- as bars with a
-				// few words, so the choice is a trade (a livelier pass against a cleaner one) and not a star count.
-				// The radar below is the read of how the take sits with the act.
 				var takeCard = new VBoxContainer { CustomMinimumSize = new Vector2(220, 0) };
 				takeCard.AddThemeConstantOverride("separation", 3);
-				var btn = Btn($"Take {take.Number}{(kept ? "  ✓" : "")}");
+				var btn = Btn($"{(kept ? "KEPT" : "KEEP")} TAKE {take.Number}{(kept ? "  ✓" : "")}");
 				btn.CustomMinimumSize = new Vector2(220, 40);
 				btn.ToggleMode = true;
 				btn.ButtonPressed = kept;
 				int cutIndex = c, takeIndex = t;
 				btn.Pressed += () => { PlayerDesk.Instance.KeepTake(cutIndex, takeIndex); Refresh(); };
 				takeCard.AddChild(btn);
-				takeCard.AddChild(FaintLine("hook: " + PolarPlayerPerception.DescribeHook(take.Hook, 1f)));
-				takeCard.AddChild(new ReadBar { CustomMinimumSize = new Vector2(220, 12) }.Set(take.Hook));
-				takeCard.AddChild(FaintLine("sound: " + SoundWords(take.Production)));
-				takeCard.AddChild(new ReadBar { CustomMinimumSize = new Vector2(220, 12) }.Set(take.Production));
+				foreach (string note in new[] { "Engineer: " + take.EngineerNote, "Performer: " + take.PerformerNote, "Producer: " + take.ProducerNote }) {
+					var line = new Label { Text = note, AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(220, 0) };
+					line.AddThemeColorOverride("font_color", Heard);
+					takeCard.AddChild(line);
+				}
 				takesRow.AddChild(takeCard);
 			}
 			content.AddChild(takesRow);
-			if (PolarSongBehavior.UsePolarFitSelection) {
-				var take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
-				content.AddChild(ComparisonCard(artist, cut.Choice, PolarEvidenceGate.Playback,
-					$"session:{session.Date}:{artist.artistId}:{c}:take:{take.Number}", new PolarSessionContext {
-						producerCraft = PlayerDesk.Instance.Label.productionQuality, studioCraft = take.Production }, c));
-			}
+			content.AddChild(FaintLine(cut.KeptTake < 0 ? "No performance kept yet." : $"Take {cut.Takes[cut.KeptTake].Number} kept for this side."));
 		}
 
-		string keptSummary = SetSummary(session.Cuts.Select(cut => cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)].Hook).ToList(), 1f);
-		if (keptSummary.Length > 0) content.AddChild(FaintLine("THE SIDES AS KEPT: " + keptSummary));
+		int unselected = session.Cuts.Count(cut => cut.KeptTake < 0);
+		content.AddChild(FaintLine(unselected == 0 ? "Every side has a kept performance." : $"{unselected} side(s) still need a kept performance."));
 
 		var buttons = new HBoxContainer();
 		buttons.AddThemeConstantOverride("separation", 12);
 		var print = Primary("PRINT MASTERS");
+		print.Disabled = unselected > 0;
 		print.CustomMinimumSize = new Vector2(240, 44);
 		print.Pressed += () => {
 			bool ok = PlayerDesk.Instance.PrintSession(out string message);
@@ -2125,6 +2132,10 @@ public partial class PlayerDeskPanel : Control {
 			else Refresh();
 		};
 		buttons.AddChild(print);
+		var delegateChoice = Btn("LET THE PRODUCER CHOOSE");
+		delegateChoice.Disabled = unselected == 0;
+		delegateChoice.Pressed += () => { PlayerDesk.Instance.DelegateTakeSelection(); Say("The producer chose from the listening notes for the unselected sides.", true); Refresh(); };
+		buttons.AddChild(delegateChoice);
 		var scrap = Btn("SCRAP");
 		scrap.CustomMinimumSize = new Vector2(140, 44);
 		scrap.Pressed += () => { PlayerDesk.Instance.ScrapSession(); Say("Session scrapped.", true); Refresh(); };
