@@ -341,6 +341,8 @@ public sealed class PlayerSaveData {
     public List<ContractCommitment> ContractCommitments { get; set; }
     /// <summary>Optional: rival offers on acts the player pursued (PlayerDesk.RivalOffers). Older saves hold none.</summary>
     public List<RivalOffer> RivalOffers { get; set; }
+    /// <summary>Optional: rival courtships (inquiry, meeting, offer) and what the player heard of them (PlayerDesk.RivalCourtship).</summary>
+    public List<RivalCourtship> RivalCourtships { get; set; }
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
     public List<string> GeneratedProspectIds { get; set; }

@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-public enum ScoutingSourceQuestion { BookingHistory, NextDate, AnnouncedMaterial, BillAudience }
+public enum ScoutingSourceQuestion { BookingHistory, NextDate, AnnouncedMaterial, BillAudience, ActDraw }
 
 // Ephemeral quote from the existing room owner. No reservation or new world fact.
 public sealed class ScoutingSourceAnswer {
@@ -17,6 +17,9 @@ public sealed class ScoutingSourceAnswer {
     public int? BillAttendance { get; init; }
     public int BillCapacity { get; init; }
     public int? BillListedActs { get; init; }
+    public int? DrawNights { get; init; }
+    public int? DrawArrivals { get; init; }
+    public float? DrawStayed { get; init; }
     public bool Available { get; init; }
     public string UnavailableReason { get; init; }
 }
@@ -27,6 +30,7 @@ public partial class PlayerDesk {
         ScoutingSourceQuestion.NextDate => "When are they booked here next?",
         ScoutingSourceQuestion.AnnouncedMaterial => "What material is announced for their next set?",
         ScoutingSourceQuestion.BillAudience => "How many attended their last completed bill here?",
+        ScoutingSourceQuestion.ActDraw => "Who comes in for them?",
         _ => "Unknown question"
     };
 
@@ -42,7 +46,8 @@ public partial class PlayerDesk {
             .SelectMany(b => b.Appearances.Where(a => a.ArtistId == artistId && a.Status == SceneBillStatus.Scheduled &&
                 (b.Day > day || a.EndHour * 60 > minute)).Select(a => (bill: b, slot: a)))
             .OrderBy(x => x.bill.Day).ThenBy(x => x.slot.StartHour).ThenBy(x => x.bill.Id, StringComparer.Ordinal).FirstOrDefault();
-        string eventId, claim, billId = null; int? occurred = null, attendance = null, listedActs = null; int capacity = 0;
+        string eventId, claim, billId = null; int? occurred = null, attendance = null, listedActs = null, drawNights = null, drawArrivals = null; int capacity = 0;
+        float? drawStayed = null;
         switch (question) {
             case ScoutingSourceQuestion.BookingHistory:
                 int shows = LocalSceneRoomService.ShowsAt(roomId, artistId);
@@ -57,6 +62,16 @@ public partial class PlayerDesk {
                 eventId = $"booker-audience|{roomId}|{artistId}|{billId ?? "none"}";
                 claim = completed == null ? "No completed bill with a capacity and attendance record for this act remains in our calendar. Their individual draw is unknown."
                     : $"Our completed bill record for {LocalSceneRoomService.Date(completed.Day).ToHeadlineString()} counts {attendance} attendees against a capacity of {capacity}. That is the whole bill, including the other acts; it does not show how many came for this act or would follow them elsewhere.";
+                break;
+            case ScoutingSourceQuestion.ActDraw:
+                // The booker's own count of the door on their nights: who came in for their set, not the room's regulars.
+                var draw = LocalSceneRoomService.DrawAt(roomId, artistId);
+                drawNights = draw?.Nights; drawArrivals = draw == null ? null : (int)(Math.Round(draw.Value.AverageArrivals / 5d) * 5); drawStayed = draw?.AverageStayed;
+                eventId = $"booker-draw|{roomId}|{artistId}|{draw?.Nights ?? 0}";
+                claim = draw == null ? "We haven't kept count of who comes in for them yet. Their own draw here is unknown."
+                    : $"Over {draw.Value.Nights} of their nights here, about {(drawArrivals == 0 ? "nobody in particular" : drawArrivals + " people")} a night come in for their set" +
+                      (draw.Value.AverageStayed >= .75f ? ", and the room mostly stays for them." : draw.Value.AverageStayed >= .5f ? "; about half the room stays through." : "; the room tends to thin out while they play.") +
+                      " That's this room, on our nights. It doesn't say who'd follow them across town.";
                 break;
             default:
                 billId = upcoming.bill?.Id; occurred = upcoming.bill?.Day;
@@ -85,7 +100,7 @@ public partial class PlayerDesk {
         return new() { EventId = eventId, BillId = billId, RoomId = room.Id, SourceId = room.ContactId, SourceName = room.ContactName,
             PlaceName = ScenePlaceRegistry.Get(room.PlaceId)?.Name,
             Claim = claim, OccurredDay = occurred, BillAttendance = attendance, BillCapacity = capacity,
-            BillListedActs = listedActs,
+            BillListedActs = listedActs, DrawNights = drawNights, DrawArrivals = drawArrivals, DrawStayed = drawStayed,
             Available = blocked == null, UnavailableReason = blocked };
     }
 
@@ -107,7 +122,8 @@ public partial class PlayerDesk {
             Channel = "booker conversation", PlaceId = room.PlaceId, PlaceName = answer.PlaceName,
             OccurredDay = answer.OccurredDay, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate),
             AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, Credibility = "local booking record; limited to this room", Claim = answer.Claim,
-            BillAttendance = answer.BillAttendance, BillCapacity = answer.BillCapacity, BillListedActs = answer.BillListedActs });
+            BillAttendance = answer.BillAttendance, BillCapacity = answer.BillCapacity, BillListedActs = answer.BillListedActs,
+            SetArrivals = answer.DrawArrivals, SetStayedShare = answer.DrawStayed, DrawNights = answer.DrawNights });
         message = answer.SourceName + ": " + answer.Claim; Note(message); Changed?.Invoke(); return true;
     }
 }

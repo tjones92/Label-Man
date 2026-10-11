@@ -333,7 +333,13 @@ public partial class AILabel : Resource {
 		return cashReserves - advanceCost > minReserve;
 	}
 	
-	public float CalculateAdvanceOffer(SimulatedArtist artist) {
+	/// <summary>The label's advance for this act: the act's own going rate while it is unproven, the legacy tier price once
+	/// its record proves out (see <see cref="ContractPricing"/>).</summary>
+	public float CalculateAdvanceOffer(SimulatedArtist artist) =>
+		ContractPricing.Advance(tier, artist, LegacyAdvanceOffer(artist));
+
+	/// <summary>The pre-historical tier price: a major's $5,000 base times talent, standing and a 1.5x competition premium.</summary>
+	public float LegacyAdvanceOffer(SimulatedArtist artist) {
 		float baseAdvance = tier switch {
 			LabelTier.Major => 5000f, LabelTier.MidTier => 2000f, LabelTier.Independent => 800f,
 			LabelTier.Small => 300f, LabelTier.Boutique => 500f, _ => 500f
@@ -660,9 +666,9 @@ public partial class AILabel : Resource {
 		bool useOperatingRosterTarget) {
 		int rosterSize = CurrentRosterSize;
 		int rosterCapacity = useOperatingRosterTarget ? OperatingRosterTarget : maxRosterSize;
-		float estimatedAdvance = tier switch {
+		float estimatedAdvance = ContractPricing.EstimatedFirstAdvance(tier, tier switch {
 			LabelTier.Major => 5000f, LabelTier.MidTier => 2000f, _ => 800f
-		};
+		});
 		if (rosterSize >= rosterCapacity) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, 1f,
 			false, 1f, 0, 1f, 0f, null, false, "RosterFull");
 		if (!CanAffordToSign(estimatedAdvance)) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance,

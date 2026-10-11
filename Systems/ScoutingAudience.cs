@@ -75,7 +75,52 @@ public static class ScoutingAudience {
             }
         }
         if (reports.Length == 0) lines.Add("Listening before a bill completes does not supply its final attendance. Later calendar results do not fill old notes automatically.");
-        lines.Add("A second set, listener or report from one bill is still one crowd. These records do not establish who came for this act, who stayed for it, or who would travel to another room. Capacity, admission, other acts and the room itself can differ.");
+        lines.Add("A second set, listener or report from one bill is still one crowd. Capacity, admission, other acts and the room itself can differ.");
+        lines.AddRange(DrawDetails(dossier));
         return lines.AsReadOnly();
+    }
+
+    // ---- Phase 5: who came for this act ---------------------------------------------------------------
+
+    private static ScoutingObservation[] DrawReports(ScoutingDossier dossier) =>
+        (dossier?.Observations ?? new()).Where(o => o.SetArrivals is >= 0 &&
+                o.Kind is ScoutingEvidenceKind.Performance or ScoutingEvidenceKind.BookerClaim)
+            .GroupBy(o => o.Kind == ScoutingEvidenceKind.Performance ? "seen|" + (o.EventId ?? o.Id) : "booker|" + o.RoomId, StringComparer.Ordinal)
+            // A booker's later count supersedes the earlier one from the same room; a night you watched is one night.
+            .Select(g => g.OrderBy(o => o.AcquiredDay).ThenBy(o => o.AcquiredMinute ?? 0).Last())
+            .OrderBy(o => o.OccurredDay ?? o.AcquiredDay).ThenBy(o => o.AcquiredDay).ToArray();
+
+    /// <summary>What a watcher at the back can tell about who came in for a set: a band, never a head count.</summary>
+    private static string Arrivals(int arrived, int present) =>
+        arrived <= 0 ? "nobody you could pick out came in for their set" :
+        arrived < 8 ? "a handful came in for their set" :
+        arrived < 20 ? "a dozen or so came in for their set" :
+        present > 0 && arrived >= present * .45 ? "a good part of the room was there for them" : "a few dozen came in for their set";
+    private static string Stayed(float share) =>
+        share >= .75f ? "most of the room stayed through" : share >= .5f ? "about half the room stayed through" : "the room thinned while they played";
+
+    /// <summary>The act's own draw where it has been seen: by you, set by set, or by a booker's count of their nights. Then
+    /// whether it travels -- only rooms and towns where somebody actually saw people come for them count.</summary>
+    public static IReadOnlyList<string> DrawDetails(ScoutingDossier dossier) {
+        var reports = DrawReports(dossier);
+        var lines = new List<string>();
+        if (reports.Length == 0) {
+            lines.Add("Their own draw: not seen yet. Watch most of a set to see who comes in for it, or ask a booker who comes in for them.");
+            return lines;
+        }
+        foreach (var o in reports) {
+            if (o.Kind == ScoutingEvidenceKind.Performance)
+                lines.Add($"{Room(o)} · {Date(o.OccurredDay)} · your eyes: {Arrivals(o.SetArrivals.Value, o.SetPresent ?? 0)}; {Stayed(o.SetStayedShare ?? 0f)}" +
+                    (o.SetRequests > 0 ? "; people called out for songs of theirs" : "") + ". One night in one room.");
+            else
+                lines.Add($"{Room(o)} · {o.SourceName ?? "the booker"}, received {Date(o.AcquiredDay)}: about {o.SetArrivals} a night come in for them over {o.DrawNights} night(s) there. Their count, their room.");
+        }
+        int rooms = reports.Where(o => o.SetArrivals > 0).Select(o => o.RoomId).Where(id => id != null).Distinct(StringComparer.Ordinal).Count();
+        int towns = reports.Where(o => o.SetArrivals > 0).Select(o => o.PlaceId).Where(id => id != null).Distinct(StringComparer.Ordinal).Count();
+        lines.Add(rooms == 0 ? "Their own draw: nobody has seen people come in for them yet."
+            : towns > 1 ? $"Their own draw has been seen in {rooms} rooms across {towns} towns. It travels at least that far."
+            : rooms > 1 ? $"Their own draw has been seen in {rooms} rooms in one town. Whether it travels out of town is unknown."
+            : "Their own draw has been seen in one room only. Whether anybody would follow them to another room is unknown.");
+        return lines;
     }
 }

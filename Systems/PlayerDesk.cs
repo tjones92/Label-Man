@@ -1037,7 +1037,13 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 			TimeManager.Instance.PlayerStopProbe = ProbeSkipStop;
 		}
-		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
+		if (RosterManager.Instance != null) {
+			RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
+			// A rival's daily market choosing an act the player is pursuing courts it instead of signing on the spot, and the
+			// player's visible pursuit weights the AI's slates. Both are inert without a player label (PlayerDesk.RivalCourtship).
+			RosterManager.Instance.PlayerPursuitInterceptor = InterceptAiNomination;
+		}
+		SceneRecruitmentService.ActVisibility = AiVisibilityWeight;
 		InitBandRoom();
 	}
 
@@ -1264,9 +1270,7 @@ public partial class PlayerDesk : Node {
 	/// worked by the trade (Brill-Building teen pop, girl groups, bubblegum, sunshine pop, doo-wop, and
 	/// a lot of rock'n'roll). These are who the industry meet points you at, and they command more.
 	/// </summary>
-	private static readonly HashSet<Genre> ManufacturedGenres = new() {
-		Genre.TeenPop, Genre.Bubblegum, Genre.GirlGroup, Genre.DooWop, Genre.SunshinePop, Genre.RockAndRoll
-	};
+	private static HashSet<Genre> ManufacturedGenres => ContractPricing.ManufacturedGenres;
 
 	/// <summary>
 	/// What an unknown act asks to sign, by the room you found them in. The room IS the price band in
@@ -1274,15 +1278,9 @@ public partial class PlayerDesk : Node {
 	/// working a supper club has a going rate, and the trade's manufactured product arrives with people
 	/// behind it and a number in mind. These are the BASE asks -- the act's own talent and standing
 	/// scale them in <see cref="VenueAdvanceAsk"/>, and a manager scales them again on top.
-	/// Player-only: the AI economy still prices signings off <see cref="AILabel.CalculateAdvanceOffer"/>.
+	/// The bands live in <see cref="ContractPricing"/>, which prices an unproven act the same way for the AI's labels.
 	/// </summary>
-	private static float VenueAdvanceBase(ScoutingVenue venue) => venue switch {
-		ScoutingVenue.HonkyTonks            => 20f,    // a fifth and a steak dinner
-		ScoutingVenue.ClubsAndRoadhouses    => 25f,    // "you're buying, right?"
-		ScoutingVenue.TheatresAndSupperClubs => 260f,  // working pros with a going rate
-		ScoutingVenue.IndustryMeets         => 600f,   // polished product, professionally represented
-		_                                   => 25f
-	};
+	private static float VenueAdvanceBase(ScoutingVenue venue) => ContractPricing.VenueBase(venue);
 
 	/// <summary>
 	/// The advance this act asks the player for. Venue sets the band; the act's talent and any standing
@@ -4456,8 +4454,10 @@ public partial class PlayerDesk : Node {
 	private void ProcessRivalCrowding(GameDate date) {
 		if (RosterManager.Instance == null) return;
 		ExpireHandshakes(date);
-		// Offers whose day has come are answered before anybody new comes calling (PlayerDesk.RivalOffers).
+		// Offers whose day has come are answered before anybody new comes calling (PlayerDesk.RivalOffers), then courtships
+		// move on a step (PlayerDesk.RivalCourtship).
 		ResolveRivalOffers(date);
+		if (LocalScenes.RivalOffers) AdvanceRivalCourtships(date);
 		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
 		var seen = new HashSet<string>(StringComparer.Ordinal);
 		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen, WatchNote Note, bool Talking)>();
@@ -4487,18 +4487,22 @@ public partial class PlayerDesk : Node {
 				else if (entry.HeldUntil.HasValue) Note($"{circler ?? "A rival"} came calling for {artist.stageName}, but you'd already shaken hands.");
 				continue;
 			}
-			if (LocalScenes.RivalOffers && PendingOffer(artist.artistId) != null) continue; // one offer at a time, answered on its day
+			// One pursuit at a time: a courtship under way, or an offer waiting on its day.
+			if (LocalScenes.RivalOffers && (PendingOffer(artist.artistId) != null || ActiveCourtship(artist.artistId) != null)) continue;
 			if (entry?.HeldUntil != null) continue; // a handshake is a handshake
 			if (seenOn >= date) continue; // you only just heard them; give the room a night first
 			float crowding = CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label.homeCityId : cityId).Crowding;
 			float roll = StableUnit($"{seed}|{artist.artistId}|{date.year}-{date.month}-{date.day}|CityCrowding");
-			if (roll >= RivalCrowdingDailyBase * crowding) continue;
-			if (LocalScenes.RivalOffers && (entry != null || talking)) {
-				// The rival puts paper in front of them and waits for an answer, instead of signing on sight.
+			// What the player's own pursuit has let other people see draws other labels to look (Phase 5).
+			float visible = LocalScenes.RivalOffers ? PursuitVisibility(artist.artistId, LocalSceneRoomService.Day(date)) : 0f;
+			if (roll >= RivalCrowdingDailyBase * crowding * (1f + VisibilityInquiryGain * visible)) continue;
+			if (LocalScenes.RivalOffers) {
+				// A rival comes to hear them, may sit down with them, and may put paper in front of them -- every act the
+				// player is looking at, the untouched ones on the pad included. Nobody signs on sight.
 				AILabel bidder = RosterManager.Instance.FindRivalToPlayer(artist, date);
 				if (bidder == null) continue;
 				if (entry != null) entry.LastRivalInterestDate = date;
-				MakeRivalOffer(artist, bidder, date);
+				StartCourtship(artist, bidder, date, RivalCourtshipOrigin.Crowding);
 				continue;
 			}
 			if (entry != null) {
@@ -4516,6 +4520,7 @@ public partial class PlayerDesk : Node {
 			AILabel rival = RosterManager.Instance.TrySignAsRivalToPlayer(artist, date);
 			if (rival != null) Note($"{rival.labelName} signed {artist.stageName} before you could get to them.");
 		}
+		ProcessRenewalPoaching(date);
 	}
 
 	// ------------------------------------------------------------------------------------------------
@@ -5786,6 +5791,7 @@ public partial class PlayerDesk : Node {
             RenewalDiscussion = CaptureRenewalDiscussion(),
             ContractCommitments = CaptureContractCommitments(),
             RivalOffers = CaptureRivalOffers(),
+            RivalCourtships = CaptureRivalCourtships(),
             RosterDepartures = CaptureRosterDepartures(),
 			Label = LabelSaveData.From(Label),
             ScoutingKnowledge = CaptureScoutingKnowledge(),
@@ -5955,6 +5961,7 @@ public partial class PlayerDesk : Node {
         if (!ValidateRenewalDiscussion(data.RenewalDiscussion, data.Label.labelId, out message)) return false;
         if (!ValidateContractCommitments(data.ContractCommitments, data.Label.labelId, out message)) return false;
         if (!ValidateRivalOffers(data.RivalOffers, data.Label.labelId, out message)) return false;
+        if (!ValidateRivalCourtships(data.RivalCourtships, data.Label.labelId, out message)) return false;
         if (!ValidateRosterDepartures(data.RosterDepartures, data.Label.labelId, out message)) return false;
         if (!ValidateSavedOutlooks(data, out message)) return false;
 
@@ -6269,6 +6276,7 @@ public partial class PlayerDesk : Node {
         RestoreRenewalDiscussion(data.RenewalDiscussion);
         RestoreContractCommitments(data.ContractCommitments);
         RestoreRivalOffers(data.RivalOffers);
+        RestoreRivalCourtships(data.RivalCourtships);
         RestoreRosterDepartures(data.RosterDepartures);
         LocalSceneIdentityService.CompleteDirectPlayerRestore();
         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();

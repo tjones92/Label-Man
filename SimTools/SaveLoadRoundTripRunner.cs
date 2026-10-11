@@ -47,6 +47,7 @@ public partial class SaveLoadRoundTripRunner : Node {
             if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-check")) { ScoutingSessionPromiseChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-outlook-check")) { ScoutingContractOutlookChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-credible-offers-check")) { ScoutingCredibleOffersChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-rival-courtship-check")) { ScoutingRivalCourtshipChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--scouting-contract-outlook-survey=", StringComparison.Ordinal)) is string survey) {
                 ScoutingContractOutlookChecks.Survey(survey["--scouting-contract-outlook-survey=".Length..]); GetTree().Quit(0); return;
             }

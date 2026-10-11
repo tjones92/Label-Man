@@ -585,6 +585,12 @@ public partial class RosterManager : Node {
 				winner.Appointment.Outcome = "InvalidatedBeforeCommit"; winner.Label.lastScoutingOutcome = winner.Appointment.Outcome;
 				summary.InvalidatedBeforeCommit++; continue;
 			}
+			// An act the player is pursuing is courted, not signed on the spot: the label meets it and makes an offer it
+			// weighs against the player's (PlayerDesk.RivalCourtship). Null without a player, so the AI market is unchanged.
+			if (PlayerPursuitInterceptor?.Invoke(winner.Artist, winner.Label, date) == true) {
+				winner.Appointment.Outcome = "CourtingPlayerAct"; winner.Label.lastScoutingOutcome = winner.Appointment.Outcome;
+				continue;
+			}
 			float advance = winner.Label.SignArtist(winner.Artist, date.year);
 			CompetitorManager.Instance?.RecordExpense(winner.Label, advance);
 			ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(winner.Artist, winner.Label.labelId, date.year);
@@ -746,6 +752,30 @@ public partial class RosterManager : Node {
 			.FirstOrDefault();
 	}
 
+	/// <summary>Set by the player desk: true when it takes over a daily nomination of an act the player is pursuing.</summary>
+	public Func<SimulatedArtist, AILabel, GameDate, bool> PlayerPursuitInterceptor { get; set; }
+
+	/// <summary>A label that could take on one of the player's acts whose contract has run out: the same reach, room,
+	/// genre and cash tests as <see cref="FindRivalToPlayer"/>, for an act still on the player's roster. Stable order, no
+	/// draws. Null when nobody can.</summary>
+	public AILabel FindRivalForPlayerRenewal(SimulatedArtist artist, GameDate date, string preferredLabelId = null) {
+		if (artist == null || string.IsNullOrEmpty(artist.labelId) || artist.lifecycleStatus != ArtistLifecycleStatus.Active || !artist.isActive) return null;
+		List<AILabel> labels = GetAllLabels();
+		if (labels == null) return null;
+		int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? CalendarChartWeek(date);
+		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+		return labels
+			.Where(label => !label.isPlayerOwned && label.labelId != artist.labelId && IsEligibleForEnabledScouting(label) &&
+				CanTakeActFromPlayer(label, artist) && !IsRuntimeBirthWeekBlocked(label, chartWeek)
+				&& (LocalScenes.Recruitment ? SceneRecruitmentService.CanAccess(label, artist, chartWeek) :
+					IsInScoutingRegion(artist, ChartManager.Instance?.GetRegionById(label.homeRegion)))
+				&& label.CanAffordToSign(label.CalculateManagerAdjustedAdvance(artist)))
+			.OrderBy(label => label.labelId == preferredLabelId ? 0 : 1)
+			.ThenBy(label => HasDailyVacancy(label) ? 0 : 1)
+			.ThenBy(label => StableDailyMarketHash($"{seed}|{label.labelId}|{artist.artistId}|{date.year}-{date.month}-{date.day}|PlayerRenewal"))
+			.FirstOrDefault();
+	}
+
 	private static bool CanTakeActFromPlayer(AILabel label, SimulatedArtist artist) =>
 		HasDailyVacancy(label) ||
 		(label.CurrentRosterSize < label.maxRosterSize && ((label.preferredGenres?.Contains(artist.primaryGenre) ?? false) || (label.secondaryGenres?.Contains(artist.primaryGenre) ?? false)));
@@ -767,6 +797,7 @@ public partial class RosterManager : Node {
 	/// Motown-over-a-major pull. Cached per chart week (the underlying scan is O(allRecords));
 	/// collision resolution only queries the handful of labels contesting an artist, so it stays cheap.
 	/// </summary>
+	internal static float LabelBuzz(AILabel label) => GetLabelBuzz(label);
 	private static float GetLabelBuzz(AILabel label) {
 		if (label == null || string.IsNullOrEmpty(label.labelId)) return 0f;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
@@ -796,13 +827,21 @@ public partial class RosterManager : Node {
 		return count == 0 ? 0.5f : sum / count;
 	}
 
+	/// <summary>The legacy price a major would put on this act, for the choice's money scale. Pure.</summary>
+	private static float LegacyMajorAdvance(SimulatedArtist artist) =>
+		5000f * (0.5f + artist.CalculateBaseQuality() * 1.5f) * (1f + artist.reputation * 2f + artist.momentum * 1.5f) * 1.5f
+		* ScenePriceFeedback.Multiplier(artist);
+
 	private static ArtistChoiceUtility CalculateArtistChoiceUtility(SimulatedArtist artist, AILabel label) {
 		float genreFit = (label.preferredGenres?.Contains(artist.primaryGenre) ?? false) ? 1f : (label.secondaryGenres?.Contains(artist.primaryGenre) ?? false) ? .55f : 0f;
 		float locality = NormalizeRegionName(artist.homeRegion) == NormalizeRegionName(label.homeRegion) ? 1f : 0f;
 		if (LocalScenes.Recruitment) locality = SceneRecruitmentService.Explain(label, artist,
 			ChartManager.Instance?.GetCurrentChartWeek() ?? 0).Locality;
 		float royalty = Mathf.Clamp(label.CalculateRoyaltyRate(artist) / .15f, 0f, 1f);
-		float advance = Mathf.Clamp(label.CalculateAdvanceOffer(artist) / 12000f, 0f, 1f);
+		// Money is read against the best this act could be offered by anybody, so a label's premium still counts once
+		// advances are priced to the act (ContractPricing) rather than to the buyer.
+		float advance = Mathf.Clamp(label.CalculateAdvanceOffer(artist) /
+			ContractPricing.ChoiceMoneyScale(artist, () => LegacyMajorAdvance(artist)), 0f, 1f);
 		float opportunity = Mathf.Clamp(1f - ((float)label.CurrentRosterSize / Mathf.Max(1, label.OperatingRosterTarget)), 0f, 1f);
 		float affinity = (StableDailyMarketHash($"ArtistLabelAffinity|{artist.artistId}|{label.labelId}") % 10001UL) / 10000f;
 		// Live buzz replaces static tier reputation in the reputation slot (field name kept for

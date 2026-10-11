@@ -35,14 +35,16 @@ public partial class PlayerDesk {
     }
 
     public string ScoutingCompetitionSummary(string artistId) {
+        string interest = RivalInterestHistory(artistId);
         string offers = RivalOfferHistory(artistId);
         string summary = ScoutingReportSummary(artistId);
-        return offers == null ? summary : offers + " " + summary;
+        return string.Join(" ", new[] { interest, offers, summary }.Where(s => s != null));
     }
 
     /// <summary>What the player knows of other labels' offers for this act: pending, and how earlier ones ended.</summary>
     private string RivalOfferHistory(string artistId) {
-        var known = rivalOffers.Where(o => o.ArtistId == artistId).OrderBy(o => o.MadeDay).ToList();
+        // An offer nobody told the player about stays out of the notebook; its outcome may surface as a public report.
+        var known = rivalOffers.Where(o => o.ArtistId == artistId && o.Disclosure != RivalOfferDisclosure.Unknown).OrderBy(o => o.MadeDay).ToList();
         if (known.Count == 0) return null;
         return string.Join(" ", known.Select(o => {
             string made = LocalSceneRoomService.Date(o.KnownDay).ToHeadlineString();

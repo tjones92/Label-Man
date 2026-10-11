@@ -81,6 +81,11 @@ public sealed class SceneRoomStanding {
     /// <summary>Appearances before the calendar began (the world-start pre-roll). History the room remembers;
     /// never counted toward a live bill's expected audience. Zero on legacy saves.</summary>
     public int PriorShows { get; set; }
+    /// <summary>The room's record of who came in for this act (Phase 5): sets attributed, people who came for them, and the
+    /// share of the room that stayed, summed. Zero on older saves.</summary>
+    public int DrawSets { get; set; }
+    public int DrawTotal { get; set; }
+    public float StayedTotal { get; set; }
 }
 public sealed class SceneRoomSaveData {
     public long ConversationOrdinal { get; set; }

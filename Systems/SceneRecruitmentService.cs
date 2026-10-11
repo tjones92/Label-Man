@@ -56,6 +56,10 @@ public static class SceneRecruitmentService {
         return Result(false, miles.HasValue ? "OutsideReach" : "UnknownRoadRoute", miles);
     }
 
+    /// <summary>Set by the player desk: how far the player's visible pursuit weights an act in an AI slate (1 = not at all).
+    /// Unset, or no player label, leaves every slate exactly as before.</summary>
+    public static Func<SimulatedArtist, double> ActVisibility { get; set; }
+
     public static List<SimulatedArtist> Slate(AILabel label, IEnumerable<SimulatedArtist> pool,
         int week, int window, int count, out int accessibleCount) {
         var accessible = pool.Select(a => (Artist: a, Access: Explain(label, a, week)))
@@ -65,12 +69,14 @@ public static class SceneRecruitmentService {
         double Key(SimulatedArtist artist) => -Math.Log(Math.Max(1e-12,
             LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
                 $"recruitment-v1|{label.labelId}|{artist.artistId}|{window}")));
+        double Seen(SimulatedArtist artist) => ActVisibility?.Invoke(artist) ?? 1d;
         if (!LocalScenes.AttentionFeedback)
-            return accessible.OrderBy(x => Key(x.Artist) / x.Access.Weight)
+            return accessible.OrderBy(x => Key(x.Artist) / (x.Access.Weight * Seen(x.Artist)))
                 .ThenBy(x => x.Artist.artistId, StringComparer.Ordinal).Take(count).Select(x => x.Artist).ToList();
         var feedback = SceneAttentionFeedback.Capture(week);
         var weighted = accessible.Select(x => (x.Artist, x.Access,
-            Multiplier: feedback.Multiplier(x.Access.BasePlaceId, x.Artist.primaryGenre), Key: Key(x.Artist))).ToArray();
+            // The scene's attention and the player's visible pursuit both say "people are looking here"; the larger counts, never both.
+            Multiplier: Math.Max(feedback.Multiplier(x.Access.BasePlaceId, x.Artist.primaryGenre), Seen(x.Artist)), Key: Key(x.Artist))).ToArray();
         var selected = weighted.OrderBy(x => x.Key / (x.Access.Weight * x.Multiplier))
             .ThenBy(x => x.Artist.artistId, StringComparer.Ordinal).Take(count).ToArray();
         if (LocalScenes.AttentionFeedbackAudit) {

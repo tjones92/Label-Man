@@ -86,9 +86,10 @@ public partial class PlayerDesk {
         return new() {
             // Distribution the label has: its own trucks and wholesalers, plus any national access it holds or borrows.
             [CapabilityAxis.Reach] = credibility * Mathf.Clamp(0.6f * label.effectiveNationalReach + 0.4f * label.ownedReach, 0f, 1f),
-            // Achievable promotion: what it spends on marketing and what it has actually charted.
-            [CapabilityAxis.Promotion] = credibility * Mathf.Clamp(0.45f * label.marketingPower + 0.35f * Mathf.Min(1f, label.top40Hits / 4f) +
-                0.20f * label.reputation, 0f, 1f),
+            // Achievable promotion: what it spends on marketing, what it has actually charted, and how hot it is right now --
+            // records on the chart today are the pitch (the same buzz the AI's own artist choice weighs).
+            [CapabilityAxis.Promotion] = credibility * Mathf.Clamp(0.35f * label.marketingPower + 0.25f * Mathf.Min(1f, label.top40Hits / 4f) +
+                0.25f * RosterManager.LabelBuzz(label) + 0.15f * label.reputation, 0f, 1f),
             // Funded recording: how many sessions its cash would pay for, and the quality of what comes out.
             [CapabilityAxis.Recording] = credibility * Mathf.Clamp(0.5f * Mathf.Min(1f, sessions / 6f) + 0.5f * label.productionQuality, 0f, 1f),
             // Attention it can realistically give: a short roster is the small label's advantage, and the act can see it.
@@ -230,7 +231,8 @@ public partial class PlayerDesk {
         outlook.ReservationLift = OutlookWorkLift * outlook.Work;
         outlook.RoomWithheld = Mathf.Clamp(DoubtRoomShare * outlook.Doubt, 0f, MaxRoomWithheld);
         outlook.Relationship = RelationshipCredit(artist, renewal, outlook.Stated);
-        var offer = renewal ? null : PendingOffer(artist.artistId);
+        var pending = PendingOffer(artist.artistId);
+        var offer = pending != null && pending.Renewal == renewal ? pending : null;
         outlook.CompetingOfferId = offer?.Id;
 
         float worst = 0f;

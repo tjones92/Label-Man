@@ -4,8 +4,9 @@ using System.Linq;
 using Godot;
 
 public enum RivalOfferStatus { Pending, Accepted, Declined, Withdrawn, Lapsed }
-/// <summary>How the player knows of the offer: word on the street (who and when, not the terms), or from the act's own side.</summary>
-public enum RivalOfferDisclosure { Rumored, Disclosed }
+/// <summary>How the player knows of the offer: word from somebody who could know (who and when, not the terms), from the act's
+/// own side, or not at all -- an offer nobody told the player about still stands, and the act may answer it unseen.</summary>
+public enum RivalOfferDisclosure { Rumored, Disclosed, Unknown }
 
 /// <summary>
 /// A real offer an AI label has put in front of an unsigned act the player is pursuing, with the day the act will answer
@@ -30,6 +31,10 @@ public sealed class RivalOffer {
     public int? DisclosedDay { get; set; }
     public RivalOfferStatus Status { get; set; }
     public int? ResolvedDay { get; set; }
+    /// <summary>The courtship that led here (PlayerDesk.RivalCourtship); null for an offer made before courtships existed.</summary>
+    public string CourtshipId { get; set; }
+    /// <summary>An offer to one of the player's own acts whose contract has run out: accepted, the act leaves the label.</summary>
+    public bool Renewal { get; set; }
 }
 
 // ============================================================================================
@@ -99,26 +104,42 @@ public partial class PlayerDesk {
             .Concat(scoutingNegotiations.TryGetValue(artistId, out var kept) && kept.HasBaseline ? new[] { kept } : Array.Empty<Prospect>())
             .Distinct();
 
-    /// <summary>The rival who rolled up on a watched act makes an offer instead of signing on sight.</summary>
-    private RivalOffer MakeRivalOffer(SimulatedArtist artist, AILabel rival, GameDate date) {
+    /// <summary>The rival puts paper in front of the act. The act's own side tells the player if it is talking to them (or
+    /// is on the player's roster); otherwise word reaches the player only through a musician who knows the act or talk
+    /// around a scene the player has been working, and without the terms. Nobody else, and the offer goes unseen.</summary>
+    private RivalOffer MakeRivalOffer(SimulatedArtist artist, AILabel rival, GameDate date, RivalCourtship courtship = null) {
         int today = LocalSceneRoomService.Day(date);
-        bool disclosed = ActWouldDisclose(artist.artistId);
+        bool renewal = courtship?.Origin == RivalCourtshipOrigin.Renewal;
+        bool disclosed = renewal || ActWouldDisclose(artist.artistId);
+        bool rumored = !disclosed && (courtship == null || RosterContactFor(artist) != null || WithinSceneTalk(artist, today));
         var offer = new RivalOffer {
             Id = $"{Label.labelId}|{artist.artistId}|{rival.labelId}|{today}", PlayerLabelId = Label.labelId,
             ArtistId = artist.artistId, ArtistName = artist.stageName, RivalLabelId = rival.labelId, RivalLabelName = rival.labelName,
             MadeDay = today, DecisionDay = today + RivalOfferDecisionDays, Terms = RivalOfferTerms(rival, artist, today, date.year),
-            Disclosure = disclosed ? RivalOfferDisclosure.Disclosed : RivalOfferDisclosure.Rumored,
-            KnownDay = today, DisclosedDay = disclosed ? today : null, Status = RivalOfferStatus.Pending };
+            Disclosure = disclosed ? RivalOfferDisclosure.Disclosed : rumored ? RivalOfferDisclosure.Rumored : RivalOfferDisclosure.Unknown,
+            KnownDay = today, DisclosedDay = disclosed ? today : null, Status = RivalOfferStatus.Pending,
+            CourtshipId = courtship?.Id, Renewal = renewal };
         rivalOffers.Add(offer);
-        Note(disclosed
-            ? $"{artist.stageName}'s side tells you {rival.labelName} has offered them {RivalTermsText(offer.Terms)}. They answer {rival.labelName} by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}."
-            : $"Word is {rival.labelName} has made {artist.stageName} an offer, and wants an answer by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. You haven't heard the terms.");
+        if (offer.Disclosure != RivalOfferDisclosure.Unknown)
+            Note(disclosed
+                ? $"{artist.stageName}'s side tells you {rival.labelName} has offered them {RivalTermsText(offer.Terms)}. They answer {rival.labelName} by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}." +
+                  (renewal ? " Their contract with you has run out: renew on better paper before then, or they go." : "")
+                : $"Word is {rival.labelName} has made {artist.stageName} an offer, and wants an answer by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. You haven't heard the terms.");
         // An easy act with a real offer in hand no longer signs on one click: it wants to talk terms.
         foreach (Prospect p in OpenDiscussions(artist.artistId).ToList()) {
             if (p.Posture != NegotiationPosture.Pushover || p.Talk != null) continue;
             p.Posture = NegotiationPosture.Firm;
             p.PushoverCountered = false;
             OpenNegotiation(p, ReadContractOutlook(artist, renewal: false));
+        }
+        // Likewise an easy renewal already opened: the act now has something to weigh it against.
+        if (renewal && PendingRenewal?.Artist == artist && PendingRenewal.Posture == NegotiationPosture.Pushover && PendingRenewal.Talk == null) {
+            var outlook = ReadContractOutlook(artist, renewal: true);
+            PendingRenewal.Posture = NegotiationPosture.Firm;
+            ContractTalk talk = BuildTalk(artist, PendingRenewal.Ask, NegotiationPosture.Firm);
+            ApplyOutlook(talk, outlook);
+            talk.renewalArtist = artist;
+            PendingRenewal.Talk = talk;
         }
         return offer;
     }
@@ -127,6 +148,7 @@ public partial class PlayerDesk {
     private void DiscloseRivalOffer(string artistId) {
         var offer = PendingOffer(artistId);
         if (offer == null || offer.Disclosure == RivalOfferDisclosure.Disclosed) return;
+        if (offer.Disclosure == RivalOfferDisclosure.Unknown) offer.KnownDay = TodayIndex();
         offer.Disclosure = RivalOfferDisclosure.Disclosed; offer.DisclosedDay = TodayIndex();
         Note($"{offer.ArtistName}'s side confirms {offer.RivalLabelName}'s offer: {RivalTermsText(offer.Terms)}, answered by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}.");
     }
@@ -137,6 +159,7 @@ public partial class PlayerDesk {
         int today = LocalSceneRoomService.Day(date);
         foreach (RivalOffer offer in rivalOffers.Where(o => o.Status == RivalOfferStatus.Pending).ToList()) {
             var artist = ArtistManager.Instance?.GetArtist(offer.ArtistId);
+            if (offer.Renewal) { ResolveRenewalOffer(offer, artist, date, today); EndOfferCourtship(offer, today); continue; }
             if (artist == null || !string.IsNullOrEmpty(artist.labelId) || artist.lifecycleStatus != ArtistLifecycleStatus.Active) {
                 offer.Status = artist?.labelId == Label?.labelId && artist?.labelId != null ? RivalOfferStatus.Declined : RivalOfferStatus.Lapsed;
                 offer.ResolvedDay = today;
@@ -145,14 +168,51 @@ public partial class PlayerDesk {
             if (today < offer.DecisionDay) continue;
             offer.ResolvedDay = today;
             AILabel taker = RosterManager.Instance?.SignRivalOfferToPlayerAct(artist, date, offer.RivalLabelId, offer.Terms);
+            bool seen = offer.Disclosure != RivalOfferDisclosure.Unknown;
             if (taker != null) {
                 offer.Status = RivalOfferStatus.Accepted;
-                Note($"{artist.stageName} took {taker.labelName}'s offer and signed with them.");
+                if (seen) Note($"{artist.stageName} took {taker.labelName}'s offer and signed with them.");
             } else {
                 offer.Status = RivalOfferStatus.Withdrawn;
-                Note($"{offer.RivalLabelName}'s offer for {artist.stageName} fell through -- they can't take on the act now. {artist.stageName} is still unsigned.");
+                if (seen) Note($"{offer.RivalLabelName}'s offer for {artist.stageName} fell through -- they can't take on the act now. {artist.stageName} is still unsigned.");
             }
+            EndOfferCourtship(offer, today);
         }
+        foreach (RivalOffer offer in rivalOffers.Where(o => o.Status != RivalOfferStatus.Pending && o.CourtshipId != null)) EndOfferCourtship(offer, today);
+    }
+
+    private void EndOfferCourtship(RivalOffer offer, int today) {
+        var c = rivalCourtships.FirstOrDefault(x => x.Id == offer.CourtshipId);
+        if (c != null && c.Stage == RivalCourtshipStage.Offer && offer.Status != RivalOfferStatus.Pending)
+            EndCourtship(c, RivalCourtshipStage.Ended, offer.ResolvedDay ?? today, "offer " + offer.Status.ToString().ToLowerInvariant());
+    }
+
+    /// <summary>The decision day on an offer to the player's own act. Renewed in time: turned down. Still on run-out paper
+    /// and the rival still able: the act lets its contract end and signs with the rival on exactly those terms.</summary>
+    private void ResolveRenewalOffer(RivalOffer offer, SimulatedArtist artist, GameDate date, int today) {
+        int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+        bool ours = artist != null && artist.labelId == Label?.labelId && artist.lifecycleStatus == ArtistLifecycleStatus.Active;
+        if (!ours || !RosterManager.IsContractMatured(artist, date.year, week)) {
+            offer.Status = ours ? RivalOfferStatus.Declined : RivalOfferStatus.Lapsed; offer.ResolvedDay = today;
+            if (ours) Note($"{artist.stageName} turned down {offer.RivalLabelName}'s offer and stayed with you.");
+            return;
+        }
+        if (today < offer.DecisionDay) return;
+        offer.ResolvedDay = today;
+        AILabel able = RosterManager.Instance?.FindRivalForPlayerRenewal(artist, date, offer.RivalLabelId);
+        if (able?.labelId != offer.RivalLabelId || !able.CanAffordToSign(offer.Terms.Advance)) {
+            offer.Status = RivalOfferStatus.Withdrawn;
+            Note($"{offer.RivalLabelName}'s offer for {artist.stageName} fell through. They're still yours on the old paper until you renew.");
+            return;
+        }
+        if (PendingRenewal?.Artist == artist) { if (PendingRenewal.Talk != null) PendingRenewal.Talk.stage = ContractTalkStage.Done; PendingRenewal = null; }
+        ArtistManager.Instance?.DropArtist(artist, date.year, Label, ArtistDropReason.ContractExpired);
+        maturedNotified.Remove(artist.artistId);
+        AILabel taker = RosterManager.Instance?.SignRivalOfferToPlayerAct(artist, date, offer.RivalLabelId, offer.Terms);
+        offer.Status = taker != null ? RivalOfferStatus.Accepted : RivalOfferStatus.Withdrawn;
+        Note(taker != null
+            ? $"{artist.stageName} let their contract with you run out and signed with {taker.labelName}."
+            : $"{artist.stageName} let their contract with you run out, but {offer.RivalLabelName}'s deal fell through. They're a free agent.");
     }
 
     /// <summary>The player signed the act: any offer it had is turned down.</summary>
@@ -171,7 +231,7 @@ public partial class PlayerDesk {
     /// <summary>What the player knows of a pending offer, for the notebook, the pad and the table. Null when none.</summary>
     public string RivalOfferLine(string artistId) {
         var offer = PendingOffer(artistId);
-        if (offer == null) return null;
+        if (offer == null || offer.Disclosure == RivalOfferDisclosure.Unknown) return null;
         string due = LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString();
         return offer.Disclosure == RivalOfferDisclosure.Disclosed
             ? $"{offer.RivalLabelName} has offered them {RivalTermsText(offer.Terms)}. They answer by {due}."
@@ -188,6 +248,11 @@ public partial class PlayerDesk {
               "Beat it, or show us why you're the better home.\"";
     }
 
+    /// <summary>Against a real offer, what each label can do weighs more than in the act's general outlook: with advances
+    /// priced to the act (ContractPricing), the paper's money is close, and the buzz, the record and the push behind each
+    /// label decide it. Bounded both ways: a label nobody has heard of still has to make up the gap in the terms.</summary>
+    private const float RivalEdgeScale = 1.0f, RivalEdgeFloor = -0.30f, RivalEdgeCeiling = 0.15f;
+
     /// <summary>What this label can do against the offering label, as the act weighs both: the same capability reading the
     /// outlook uses, with the rival's offer in hand (no discount for doubt it will come). Pure.</summary>
     private float RivalOfferEdge(SimulatedArtist artist, RivalOffer offer, ContractOutlook outlook) {
@@ -195,17 +260,18 @@ public partial class PlayerDesk {
         if (rival == null || outlook?.Priorities == null || outlook.Priorities.Count == 0) return 0f;
         int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
         var theirs = CapabilitiesOf(rival, artist, week, rival.GetProductionCost(), CredibilityOf(rival, 0));
-        return Mathf.Clamp(OutlookStandingScale * (Fit(outlook.Priorities, outlook.Player) - Fit(outlook.Priorities, theirs)),
-            OutlookStandingFloor, OutlookStandingCeiling);
+        return Mathf.Clamp(RivalEdgeScale * (Fit(outlook.Priorities, outlook.Player) - Fit(outlook.Priorities, theirs)),
+            RivalEdgeFloor, RivalEdgeCeiling);
     }
 
     /// <summary>The act signs with the player only on paper that beats the rival's offer, counting what each label can do
-    /// for it and the player's promises and relationship. A renewal, or an act with no offer, always passes.</summary>
+    /// for it and the player's promises and relationship. A renewal is weighed against an offer made for it at run-out;
+    /// an act with no offer always passes.</summary>
     private bool BeatsRivalOffer(ContractTalk talk, ContractTermSheet offer) {
-        if (talk?.Artist == null || talk.IsRenewal) return true;
+        if (talk?.Artist == null) return true;
         var rival = PendingOffer(talk.Artist.artistId);
-        if (rival == null) return true;
-        var outlook = ReadContractOutlook(talk.Artist, renewal: false);
+        if (rival == null || rival.Renewal != talk.IsRenewal) return true;
+        var outlook = ReadContractOutlook(talk.Artist, renewal: talk.IsRenewal);
         float edge = RivalOfferEdge(talk.Artist, rival, outlook) + outlook.Relationship;
         // Both papers are read against one reference. Against the act's own ask the advance term saturates at 1.5x, so
         // a rival's $5,000 would read the same as the player's $45; against the larger of the two, money counts in full.

@@ -67,6 +67,11 @@ public partial class PlayerDesk {
                 Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage),
                 BillAttendance = resolved.Status == SceneBillStatus.Performed ? resolved.Attendance : null, BillCapacity = LocalSceneRoomService.CapacityOf(resolved),
                 BillListedActs = listedActs, BillAdmissionQuote = postedAdmission,
+                // You saw who came in for the set and who stayed only if you were there for most of it.
+                SetPresent = coverage >= .5f ? slot.Performance.Audience?.Present : null,
+                SetArrivals = coverage >= .5f ? slot.Performance.Audience?.ArrivedFor : null,
+                SetStayedShare = coverage >= .5f ? slot.Performance.Audience?.StayedShare : null,
+                SetRequests = coverage >= .5f ? slot.Performance.Audience?.Requests : null,
                 Conditions = $"{slot.Role}; {room.Kind}; {(slot.Residency ? "regular engagement" : "announced booking")}. Repertoire is the scheduled set; partial coverage does not identify every song heard." });
             if (listener != null) RememberScoutingListener(dossier, dossier.Observations.Last(), slot.Performance, listener);
             var prospect = new Prospect { Artist = artist, Venue = room.Category, CityId = CurrentCityId, SceneRoomId = room.Id, SceneBillId = bill.Id,

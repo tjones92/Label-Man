@@ -15,6 +15,10 @@ public static class LocalScenes {
     /// <summary>A rival's interest in an act the player is pursuing is a real offer with a decision day
     /// (PlayerDesk.RivalOffers). Off restores the three-day circling warning. Player-only; nothing runs without a player label.</summary>
     public static bool RivalOffers { get; private set; }
+    /// <summary>Phase 5: the people who came in for a set add a bounded amount to the act's public recognition through the
+    /// recognition owner. On with the scouting experience (which resolves set audiences); --disable-live-draw-recognition
+    /// is the control. Changes the AI world: every act with a live draw is affected.</summary>
+    public static bool LiveDrawRecognition { get; private set; }
     public static bool Recruitment { get; private set; }
     public static bool AttentionFeedback { get; private set; }
     public static bool AttentionFeedbackAudit { get; private set; }
@@ -126,6 +130,10 @@ public static class LocalScenes {
         if (args.Contains("--enable-rival-offers", StringComparer.Ordinal) && args.Contains("--disable-rival-offers", StringComparer.Ordinal))
             throw new ArgumentException("--enable-rival-offers cannot be combined with --disable-rival-offers.");
         RivalOffers = !args.Contains("--disable-rival-offers", StringComparer.Ordinal);
+        if (args.Contains("--enable-live-draw-recognition", StringComparer.Ordinal) &&
+            (args.Contains("--disable-live-draw-recognition", StringComparer.Ordinal) || !ScoutingExperience))
+            throw new ArgumentException("--enable-live-draw-recognition requires the scouting experience and cannot be combined with its disable flag.");
+        LiveDrawRecognition = ScoutingExperience && !args.Contains("--disable-live-draw-recognition", StringComparer.Ordinal);
         bool enableLive = args.Contains("--enable-scene-live-calibration", StringComparer.Ordinal);
         bool disableLive = args.Contains("--disable-scene-live-calibration", StringComparer.Ordinal);
         if (enableLive && (disableLive || !Rooms))

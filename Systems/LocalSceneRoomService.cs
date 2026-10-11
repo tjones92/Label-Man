@@ -202,6 +202,7 @@ public static partial class LocalSceneRoomService {
                     standing.Add(key, rank); State.Standing.Add(rank);
                 }
                 rank.Shows++; rank.LastDay = bill.Day;
+                if (slot.Performance != null && slot.Performance.Audience == null) AttributeSetAudience(bill, slot, act, rank);
                 actShows[slot.ArtistId] = ActShows(slot.ArtistId) + 1;
                 foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).StageHours += slot.EndHour - slot.StartHour;
                 slot.BackingPersonIds?.RemoveAll(p => ArtistManager.Instance.GetMusician(p)?.lifeState != MemberLifeState.Active);
@@ -262,6 +263,45 @@ public static partial class LocalSceneRoomService {
         row.Bills++; row.Sets += performed.Length; row.Attendance += bill.Attendance; row.Receipts += bill.GrossReceipts;
         foreach (var slot in performed) { row.ActPay += slot.Fee; row.PlayerNights += slot.PersonIds.Count + (slot.BackingPersonIds?.Count ?? 0); }
     }
+
+    /// <summary>Who came for one set, resolved once when it ends (Phase 5). The crowd is the bill's expected audience at the
+    /// same keyed draw its attendance uses; it splits the way the expected audience was built -- the room's own .30 nobody
+    /// is credited with, and each act's billing share plus its standing in this room -- so a packed room never reads as one
+    /// act's following. How much of the room stays reads the set's stage communication; requests need nights here before.
+    /// Keyed draws only; nothing here moves fees, work, attendance or development.</summary>
+    private static void AttributeSetAudience(SceneBill bill, SceneAppearance slot, SimulatedArtist act, SceneRoomStanding rank) {
+        bool rotation = LocalScenes.RoomRotation;
+        int n = Math.Max(1, bill.Appearances.Count);
+        int drawing = rotation ? Math.Min(2, n) : n;
+        double scale = rotation ? (double)drawing / n : 1d;
+        // Standing before this bill: a slot already resolved in this bill has been counted once.
+        int Prior(SceneAppearance a) => standing.TryGetValue(StandingKey(bill.RoomId, a.ArtistId), out var s)
+            ? Math.Min(12, Math.Max(0, s.Shows - (a.Status == SceneBillStatus.Performed ? 1 : 0))) : 0;
+        double Share(SceneAppearance a) => scale * (.15 + .01 * Prior(a));
+        double total = .30 + bill.Appearances.Sum(Share);
+        int capacity = CapacityOf(bill);
+        int present = Math.Min(capacity, (int)(bill.ExpectedAudience * (.8 + .35 * Draw("attendance|" + bill.Id))));
+        string id = slot.Performance.Id;
+        int arrived = Math.Min(present, (int)Math.Round(present * Share(slot) / total * (.75 + .5 * Draw("set-arrivals|" + id))));
+        float stayed = Math.Clamp(.35f + .45f * slot.Performance.Communication + .2f * slot.Performance.Execution + ((float)Draw("set-stayed|" + id) - .5f) * .16f, .15f, 1f);
+        int prior = Prior(slot);
+        int requests = prior < 3 ? 0 : (int)(arrived * Math.Min(1d, prior / 12d) * .12 * (.5 + Draw("set-requests|" + id)));
+        slot.Performance.Audience = new() { Present = present, ArrivedFor = arrived, StayedShare = stayed, Requests = requests };
+        rank.DrawSets++; rank.DrawTotal += arrived; rank.StayedTotal += stayed;
+        // A bounded, once-per-set contribution to the act's public recognition through its owner (diminishing returns
+        // there). A strong local draw is worth about a chart entry a year; a room's regulars are worth nothing.
+        if (LocalScenes.LiveDrawRecognition)
+            ArtistRecognitionService.AddPublicRecognition(act, LiveDrawRecognitionPerHead * Math.Min(arrived, LiveDrawRecognitionHeadCap));
+    }
+    /// <summary>Recognition per person who came in for a set, and the most heads one set can count.</summary>
+    public const float LiveDrawRecognitionPerHead = 2e-6f;
+    public const int LiveDrawRecognitionHeadCap = 60;
+
+    /// <summary>The room's record of an act's draw here: nights attributed, average who came in for them, average share that
+    /// stayed. Null before any attributed night.</summary>
+    public static (int Nights, int AverageArrivals, float AverageStayed)? DrawAt(string roomId, string artistId) =>
+        standing.TryGetValue(StandingKey(roomId, artistId), out var s) && s.DrawSets > 0
+            ? (s.DrawSets, (int)Math.Round((double)s.DrawTotal / s.DrawSets), s.StayedTotal / s.DrawSets) : null;
 
     /// <summary>A person's realized stage hours and room pay for a year (zero without an account).</summary>
     public static (float StageHours, float Pay) Realized(string artist, string person, int year) =>

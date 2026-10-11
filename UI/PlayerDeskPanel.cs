@@ -1185,6 +1185,7 @@ public partial class PlayerDeskPanel : Control {
 				: signedByYou ? "\n    SIGNED — they're on your roster now."
 				: entry.HeldUntil.HasValue ? $"\n    HANDSHAKE: they'll wait for you until {entry.HeldUntil.Value.ToHeadlineString()}."
 				: desk.RivalOfferLine(artist.artistId) is string offerLine ? "\n    RIVAL OFFER: " + offerLine
+				: desk.RivalInterestLine(artist.artistId) is string interest ? "\n    RIVAL INTEREST: " + interest
 				: entry.CirclingResolves.HasValue ? $"\n    {entry.CirclingLabel ?? "A rival"} is circling them — the deal lands {entry.CirclingResolves.Value.ToHeadlineString()} unless you step in."
 				: "";
 			string potential = entry.Rough?.LastOrDefault();
@@ -1478,7 +1479,7 @@ public partial class PlayerDeskPanel : Control {
 			addPromise.Pressed += () => { bool ok = PlayerDesk.Instance.AddSessionPromise(talk, out string result); Say(result, ok); Refresh(); };
 			content.AddChild(addPromise);
 		}
-		if (!talk.IsRenewal && PlayerDesk.Instance.RivalOfferLine(talk.Artist.artistId) is string rivalPaper)
+		if (PlayerDesk.Instance.RivalOfferLine(talk.Artist.artistId) is string rivalPaper)
 			Body("OTHER PAPER: " + rivalPaper + " Your package has to beat theirs, counting what each label can do for them.");
 		if (talk.distributionPromised) {
 			Body($"Your offer includes a wholesale house carrying their first record within {PlayerDesk.DistributionPromiseDays / 7} weeks of its release. " +
@@ -1671,6 +1672,9 @@ public partial class PlayerDeskPanel : Control {
 					},
 					daysLeft <= 14 ? Rust : null);
 			}
+			// Run-out paper is an open door: what the act's side has said about another label's interest or offer.
+			if (matured && (desk.RivalOfferLine(artist.artistId) ?? desk.RivalInterestLine(artist.artistId)) is string rivalWord)
+				sleeve.AddFact(rivalWord, Rust);
 
 			SimulatedArtist captured = artist;
 			if (matured) {

@@ -10,8 +10,22 @@ public sealed class ScenePerformanceSnapshot {
     public float Material { get; set; }
     public float Communication { get; set; }
     public bool OriginalMaterial { get; set; }
+    /// <summary>Who was in the room for this set and who came for it (Phase 5). Null on snapshots resolved before it existed.</summary>
+    public SetAudience Audience { get; set; }
 }
-public enum ScoutingEvidenceKind { Performance, BookerClaim, LegacyImpression, PublicReport, ListenerOpinion, ActBusinessClaim, BusinessStatement, MeetingStatement, RehearsalSample, DemoSample }
+/// <summary>The audience of one set, resolved once by the room owner whether or not anybody from a label is there. The
+/// room's own crowd is never credited to an act: only the people who came in for this set are.</summary>
+public sealed class SetAudience {
+    /// <summary>The crowd in the room during the set.</summary>
+    public int Present { get; set; }
+    /// <summary>People who came in for this act's set -- its own draw, not the room's regulars or the other acts'.</summary>
+    public int ArrivedFor { get; set; }
+    /// <summary>Share of the room still there at the end of the set (0-1).</summary>
+    public float StayedShare { get; set; }
+    /// <summary>Calls for particular songs: people who know the act's material from earlier nights here.</summary>
+    public int Requests { get; set; }
+}
+public enum ScoutingEvidenceKind { Performance, BookerClaim, LegacyImpression, PublicReport, ListenerOpinion, ActBusinessClaim, BusinessStatement, MeetingStatement, RehearsalSample, DemoSample, RivalInterest }
 public enum ScoutingBusinessStatementKind { OpeningAsk, Counter, Objection, Declined, SteppedBack, Agreement }
 // Only stated contractual fields, never utility, reservation, posture or patience.
 public sealed class ScoutingStatedTerms {
@@ -69,6 +83,13 @@ public sealed class ScoutingObservation {
     // Acquired bill context; absent in older evidence. Quote is posted admission, not paid cost.
     public int? BillListedActs { get; set; }
     public float? BillAdmissionQuote { get; set; }
+    // Set-level audience seen from the room (a heard set) or the booker's record of the act's draw. Absent in older evidence.
+    public int? SetPresent { get; set; }
+    public int? SetArrivals { get; set; }
+    public float? SetStayedShare { get; set; }
+    public int? SetRequests { get; set; }
+    /// <summary>The nights a booker's draw figure averages over; null for a set the player watched.</summary>
+    public int? DrawNights { get; set; }
     // Optional paid consultation cost. Zero for existing and roster-listener observations.
     public float ConsultationFee { get; set; }
     public string Conditions { get; set; }
