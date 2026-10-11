@@ -63,9 +63,12 @@ public static partial class LocalSceneRoomService {
         _ => "conversation-table|" + roomId
     };
     private static bool ConversationSlotFree(string labelId, string personId, string roomId, int day, int start, int end, string exceptId = null, ScoutingAppointmentActivity activity = ScoutingAppointmentActivity.Conversation) =>
-        !HasPerformanceBooking(personId, day, start, end, roomId) && !ConversationBooking(personId, day, start, end, roomId, exceptId) &&
+        !StudioPersonReserved(personId, day, start, end) && !HasPerformanceBooking(personId, day, start, end, roomId) && !ConversationBooking(personId, day, start, end, roomId, exceptId) &&
         !(state?.Conversations?.Any(c => c.Id != exceptId && Pending(c) && c.Day == day && c.StartMinute < end && c.EndMinute > start &&
             (c.LabelId == labelId || AppointmentResource(c.Activity, c.RoomId, c.LabelId) == AppointmentResource(activity, roomId, labelId))) ?? false);
+
+    private static bool StudioPersonReserved(string id, int day, int start, int end) => PlayerDesk.Instance?.Session is { FlowVersion: > 0 } session &&
+        Day(session.Date) == day && session.ParticipantIds.Contains(id) && session.StartMinute < end && session.StartMinute + session.Hours * 60 > start;
 
     private static bool RehearsalRoomOccupied(string roomId, int day, int start, int end) => state?.Bills.Any(b =>
         b.RoomId == roomId && b.Day == day && b.Status != SceneBillStatus.Cancelled && b.Appearances.Any(a => a.Status != SceneBillStatus.Cancelled && a.StartHour * 60 < end && a.EndHour * 60 > start)) == true;
@@ -163,6 +166,14 @@ public static partial class LocalSceneRoomService {
     }
     internal static bool HasStudioAppointment(string labelId, int day, int start, int end) => state?.Conversations.Any(c => Pending(c) &&
         c.LabelId == labelId && c.Activity == ScoutingAppointmentActivity.Demo && c.Day == day && c.StartMinute < end && c.EndMinute > start) == true;
+
+    internal static bool StudioParticipantsFree(string labelId, IEnumerable<string> people, GameDate date, int start, int end) =>
+        people.All(id => !StudioPersonReserved(id, Day(date), start, end) &&
+            !(state?.Bills.Any(b => b.Day == Day(date) && b.Status != SceneBillStatus.Cancelled && b.Appearances.Any(a =>
+                a.Status != SceneBillStatus.Cancelled && a.StartHour * 60 < end && a.EndHour * 60 > start &&
+                (a.PersonIds.Contains(id) || (a.BackingPersonIds?.Contains(id) ?? false)))) ?? false) &&
+            !(state?.Conversations.Any(c => Pending(c) && c.Day == Day(date) && c.StartMinute < end && c.EndMinute > start &&
+                (c.LabelId == labelId || c.PersonId == id || c.ParticipantIds.Contains(id))) ?? false));
     internal static bool BeginConversation(string id, string labelId, out string message) {
         var c = state?.Conversations.FirstOrDefault(c => c.Id == id && c.LabelId == labelId); var clock = TimeManager.Instance;
         if (c == null || c.Status != SceneConversationStatus.Scheduled) { message = c?.Response ?? "This appointment is not scheduled."; return false; }

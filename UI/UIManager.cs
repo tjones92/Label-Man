@@ -893,6 +893,7 @@ public partial class UIManager : Control
 
 	public void OnClick_Calendar()
 	{
+		if (StudioBlocksCalendar()) return;
 		if (isUIOpen) return;
 		if (TimeManager.Instance == null) return;
 		TimeManager.Instance.SkipDays(1);
@@ -901,6 +902,7 @@ public partial class UIManager : Control
 
 	public void AdvanceOneDayFromDesk()
 	{
+		if (StudioBlocksCalendar()) return;
 		if (PlayerDesk.Instance?.HasLabel != true || TimeManager.Instance == null) return;
 		TimeManager.Instance.SkipDays(1);
 	}
@@ -916,6 +918,7 @@ public partial class UIManager : Control
 
 	private void ShowCalendarPopup()
 	{
+		if (StudioBlocksCalendar()) return;
 		if (TimeManager.Instance == null) return;
 		if (calendarPopup == null) BuildCalendarPopup();
 
@@ -933,6 +936,12 @@ public partial class UIManager : Control
 		nextButton.Disabled = nextEvent == null && ownEvent == null;
 		nextButton.TooltipText = "Stops early for the vinyl landing, a ship date, or a call at the office while you are there.";
 		calendarPopup.PopupCentered(new Vector2I(500, 300));
+	}
+
+	private bool StudioBlocksCalendar() {
+		if (PlayerDesk.Instance?.InStudio != true) return false;
+		ShowAnnouncement("Finish or abandon the paid studio date before advancing the calendar.");
+		return true;
 	}
 
 	private void BuildCalendarPopup()
@@ -976,6 +985,7 @@ public partial class UIManager : Control
 
 	private void RunCalendarSkip(System.Func<ScheduledEvent> skip)
 	{
+		if (StudioBlocksCalendar()) return;
 		calendarPopup.Hide();
 		var interruptedBy = skip();
 		string reason = interruptedBy == null ? "" : $" (stopped for {interruptedBy.title})";

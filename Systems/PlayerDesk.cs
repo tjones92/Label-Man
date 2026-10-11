@@ -320,8 +320,12 @@ public partial class PlayerDesk : Node {
 	/// <summary>The room you book. Better rooms cost more per hour and cut cleaner tape.</summary>
 	public enum StudioTier { Budget, Mid, Top }
 
-	/// <summary>One pass at a song. More studio time buys more passes; you keep the best one.</summary>
+	/// <summary>A retained performance and its frozen listening evidence; the player chooses what to keep.</summary>
 	public sealed class SessionTake {
+		public string TakeId;
+		public float Vocal, Ensemble, Feel, Capture;
+		public StudioDirection Direction;
+		public string BandNote;
 		public int Number;
 		public float Hook;         // the performance captured on this pass, before the song is weighed in
 		public float Production;
@@ -333,6 +337,8 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>One song being cut this session, its takes, and which take the player keeps.</summary>
 	public sealed class SessionCut {
+		public int Rehearsals;
+		public StudioDirection Direction;
 		public MaterialChoice Choice;
 		public readonly List<SessionTake> Takes = new();
 		public int KeptTake = -1;  // -1 is explicitly unselected
@@ -340,9 +346,16 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>
 	/// A booked session sitting on the console: the room, the money already spent, and the takes,
-	/// waiting for the player to keep one per song and print the masters. See <see cref="StartSession"/>.
+	/// working toward a kept performance per song and finished masters. See <see cref="StartSession"/>.
 	/// </summary>
 	public sealed class PendingSession {
+		public int FlowVersion;
+		public StudioBrief Brief;
+		public StudioRoomSnapshot Room;
+		public int StartMinute, ElapsedMinutes, ActionNumber;
+		public float WorkloadMinutes, SessionLift, Tension, ProducerCraft, StudioPerformance, LivePerformance;
+		public List<string> ParticipantIds = new();
+		public List<string> ActionLog = new();
 		public string ArtistId;
 		public StudioTier Tier;
 		public int Hours;
@@ -355,6 +368,7 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>A finished master, paid for and sitting on the shelf until it is scheduled.</summary>
 	public sealed class Master {
+		public StudioMasterHistory StudioHistory;
 		public Record Record;
 		public string ArtistId;
 		public string SongTitle;
@@ -2461,7 +2475,7 @@ public partial class PlayerDesk : Node {
 		return responses;
 	}
 
-	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message, bool overrideRefusal = false) {
+	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message, bool overrideRefusal = false, StudioBrief brief = StudioBrief.CaptureLiveAct) {
 		if (pendingSession != null) { message = "There's already a session on the console -- print or scrap it first."; return false; }
 		if (!RequireHome(out message)) return false;
 		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
@@ -2488,6 +2502,7 @@ public partial class PlayerDesk : Node {
 			message = $"You're ${cost - Label.cashReserves:N0} short of a ${cost:N0} session.";
 			return false;
 		}
+		if (StudioExperience.Enabled) return StartStudioDate(artist, cutting, tier, hours, cost, studioNow, brief, out message);
 
 		Spend(hours);
 		Label.cashReserves -= cost;
@@ -2575,6 +2590,7 @@ public partial class PlayerDesk : Node {
 		}
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(pendingSession.ArtistId);
 		if (artist == null) { pendingSession = null; message = "The act is gone; session scrapped."; Changed?.Invoke(); return false; }
+		if (pendingSession.FlowVersion > 0 && !SpendStudioWork(pendingSession, FinishMinutes(pendingSession), "House finish and final playback", out message)) return false;
 
 		int year = pendingSession.Date.year;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
@@ -2636,7 +2652,8 @@ public partial class PlayerDesk : Node {
 
 		masters.Add(new Master {
 			Record = record, ArtistId = artist.artistId, SongTitle = record.title,
-			ProductionCost = cost, Cut = date
+			ProductionCost = cost, Cut = date,
+			StudioHistory = pendingSession?.FlowVersion > 0 ? StudioMasterHistory.From(pendingSession, take) : null
 		});
 		return true;
 	}
@@ -5398,6 +5415,7 @@ public partial class PlayerDesk : Node {
 	/// meet just to move the clock. Hours are clamped to what's left in the day, overtime included.
 	/// </summary>
 	public bool PassTime(int hours, out string message) {
+		if (InStudio) { message = "The paid studio date is still running. Take a break in the room, finish, or abandon the date first."; return false; }
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		TimeManager time = TimeManager.Instance;
 		if (time == null) { message = "No clock."; return false; }
@@ -5420,6 +5438,7 @@ public partial class PlayerDesk : Node {
 	private bool SpendMinutes(int minutes) => TimeManager.Instance?.SpendMinutes(minutes) ?? false;
 
 	private bool Require(int hours, out string message) {
+		if (InStudio) { message = "Finish or abandon the active studio date before starting another desk job."; return false; }
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (IsGameOver) { message = "The label has folded -- load a save to keep playing."; return false; }
 		if (TimeManager.Instance == null) { message = "No clock."; return false; }

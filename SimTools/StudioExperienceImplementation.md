@@ -1,4 +1,4 @@
-# Studio expansion — first implementation slice
+# Studio expansion — implementation progress
 
 Branch: `codex/studio-experience-expansion`, based on `scouting-experience-expansion` at `f00635a`. Existing local changes in the project file, artist manager and export presets are preserved and are not part of this slice.
 
@@ -49,8 +49,36 @@ The foundation runner loads the real UI and tests menu restoration, nested confi
 
 Final results: build succeeded with zero warnings/errors; foundation checks passed 23 assertions on each of seeds 1001 and 1002, including the actual studio scene's disabled print control and absence of raw take bars; the scouting funded-session regression passed 65 assertions. `git diff --check` passed for this slice.
 
-## Next studio slice
+## Original slice boundary
 
 This is a selection/evidence foundation, not the complete early date milestone. Booking still uses tiers and batch-generated takes, spends the booked time upfront and keeps the established realization/economic paths. Observation generation has a private keyed stream; performance generation and final material realization still use their existing random owners. The listening notes are coarse impressions of the current Hook/Production model, not a detailed diagnosis of actual vocal/ensemble/capture components.
 
 Next: map all realization consumers; introduce stable named local room/capability snapshots; persist an incremental action clock, protected source takes, arrangement revisions and cross-song workload; then preparation/direction, finishing and full date delegation. Preserve existing funded-session promise semantics, session-player/payment owners and calibrated composition application. Broader economic or autonomous behavior changes need explicit off/observe/enabled states and separate validation. Human playthroughs through pressing remain required for the complete milestone.
+
+## Incremental working date (second slice)
+
+New player dates use stable fictional local room identities and a saved mono-layout/rate/craft snapshot. Local quality limits the available room selection; sparse cities receive a modest recording service rather than three universal choices. Rates and the existing room-cost recoupment owner are retained. The quote separates room and booked musician cost, includes stock/playback/house finishing, and checks that setup, a pass per song and finishing fit before accepting payment.
+
+Only 20 minutes of setup pass at booking. Rehearsal takes 15 minutes, a pass 12, direction and a break 10 each, and finishing 10 per side. Work is incremental and protects finishing time. Other desk jobs and calendar skips are blocked during the paid date. The current own lineup is checked against overlapping shows/appointments and reserved for the quoted window. An actual paid start keeps the existing funded-session promise; abandoning does not refund incurred costs.
+
+Passes now have distinct vocal, ensemble, feel and capture components. Rehearsal improves coordination within bounds; cross-song workload causes fatigue, and breaks partially recover it. Directions trade one aspect against another, respect basic lineup applicability and can be declined under creative control. Earlier performances and kept choices survive every subsequent action. Engineer, performer, band and producer notes are frozen attributed impressions, with no raw quality cards or truth-based tie-breakers.
+
+The player can delegate remaining work under a capture, tighten or explore brief. Delegation uses the same actions and visible listening impressions, preserves manual choices, limits retries, and reserves time for the flip and finishing. It leaves final review and printing to the player. Masters retain room, selected performance, direction, observations, participants and work history.
+
+Save v15 persists empty/unselected sides, preparation, room snapshot, action number, workload, private take identities and master history. Legacy paid batch dates remain batch dates with their original takes and payment. New take generation and observation use private keyed draws; saving/reloading and consuming unrelated gameplay RNG cannot reroll the next identical action. Final material realization retains its existing RNG owner and is not covered by that private-take guarantee.
+
+Player rollout is `--studio-experience=off|observe|enabled`, default enabled. Off and observe retain the previous batch behavior; observe currently has no additional telemetry. No autonomous production or shared economic defaults were changed.
+
+### Realization owners
+
+`PlayerDesk.PrintMaster` still prepares and applies selected material once. `SongMaterialApplicationService` remains the sole capability/composition blending owner. The new performance calculation does not apply a second capability penalty. Existing competitor singles/promoted masters call `Apply`; album tracks and seeded catalog tracks use `ApplyIdentityToAlbumTrack`. `SongMaterialSelectionService` prepares selection candidates through the existing polar behavior. Those shared consumers are unchanged.
+
+### Validation and remaining scope
+
+`StudioDateRunner.tscn` passed 39 assertions on seeds 1001 and 1002: actual UI controls/no raw bars, setup/payment ownership, availability/reservations, empty-side compressed saves, rehearsal/fatigue comparisons, direction/no-op costs, protected takes, private next-action continuation after reload, bounded delegation, finishing, master histories, idempotent printing and abandonment. `StudioFoundationRunner.tscn` with `--studio-experience=off` passed 23 assertions. The headless foundation fixture reports Godot resource leaks on exit; its assertions pass, but this is not a clean visual playthrough.
+
+The funded scouting-session regression passed 65 assertions with incremental dates enabled. After closing the calendar-skip bypass and correcting the overhead warning's musician fee, the build succeeded with zero warnings/errors and the studio runner passed all 39 assertions again on seed 1001. `git diff --check` passed.
+
+Startup cache comparisons and timing limitations are recorded in [StartupCacheResults.md](StartupCacheResults.md).
+
+This is a playable incremental-date foundation, not the full directive. Persistent engineer relationships, detailed arrangements/material-member interactions, actual hired-musician identity/credits, backing crew discovery, room travel and independent recording layouts remain. The existing session-player booking/payment path is reused, including its anonymous-player fallback. Room identities are fictional and derived from the retained tier calibration, rather than a researched facility catalog. Human sessions through pressing/release, economic calibration and the broader first-three-dates onboarding remain to be evaluated.

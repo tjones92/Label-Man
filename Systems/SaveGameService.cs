@@ -31,7 +31,7 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 14; // explicit unselected studio takes and frozen listening evidence
+	public const int CurrentVersion = 15; // v14: unselected takes; v15: incremental dates, room snapshots and master histories
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -709,6 +709,7 @@ public sealed class SongSaveData {
 /// <summary>Plain lists allow the console's readonly runtime collections to be reconstructed on load.
 /// The selected takes are restored directly, without spending cash or drawing new randomness.</summary>
 public sealed class PendingSessionSaveData {
+	public StudioSessionState Flow { get; set; }
 	public string SessionId { get; set; }
 	public bool ManualSelection { get; set; }
 	public string ArtistId { get; set; }
@@ -721,18 +722,22 @@ public sealed class PendingSessionSaveData {
 	public static PendingSessionSaveData From(PlayerDesk.PendingSession session) => session == null ? null : new() {
 		ArtistId = session.ArtistId, Tier = session.Tier, Hours = session.Hours, Cost = session.Cost, Date = session.Date,
 		SessionId = session.SessionId, ManualSelection = session.ManualSelection,
+		Flow = StudioSessionState.From(session),
 		Cuts = session.Cuts.Select(cut => new SessionCutSaveData {
-			Choice = cut.Choice, KeptTake = cut.KeptTake,
+			Choice = cut.Choice, KeptTake = cut.KeptTake, Rehearsals = cut.Rehearsals, Direction = cut.Direction,
 			Takes = cut.Takes.Select(t => new PlayerDesk.SessionTake { Number = t.Number, Hook = t.Hook, Production = t.Production,
-				EngineerNote = t.EngineerNote, PerformerNote = t.PerformerNote, ProducerNote = t.ProducerNote }).ToList()
+				EngineerNote = t.EngineerNote, PerformerNote = t.PerformerNote, ProducerNote = t.ProducerNote,
+				TakeId = t.TakeId, Vocal = t.Vocal, Ensemble = t.Ensemble, Feel = t.Feel, Capture = t.Capture,
+				Direction = t.Direction, BandNote = t.BandNote }).ToList()
 		}).ToList()
 	};
 
 	public PlayerDesk.PendingSession ToSession(IReadOnlyList<PlayerDesk.Song> songbook) {
 		var session = new PlayerDesk.PendingSession { ArtistId = ArtistId, Tier = Tier, Hours = Hours, Cost = Cost, Date = Date,
 			SessionId = SessionId, ManualSelection = ManualSelection };
+		Flow?.Apply(session);
 		foreach (var saved in Cuts ?? new()) {
-			if (saved?.Choice == null || saved.Takes == null || saved.Takes.Count == 0) continue;
+			if (saved?.Choice == null || saved.Takes == null || saved.Takes.Count == 0 && session.FlowVersion == 0) continue;
 			var choice = saved.Choice;
 			// Printing marks the actual songbook object recorded, rather than a deserialized duplicate.
 			if (choice.WrittenSong != null) {
@@ -741,7 +746,8 @@ public sealed class PendingSessionSaveData {
 				choice.WrittenSong = linked;
 			}
 			var cut = new PlayerDesk.SessionCut { Choice = choice,
-				KeptTake = ManualSelection && saved.KeptTake < 0 ? -1 : Mathf.Clamp(saved.KeptTake, 0, saved.Takes.Count - 1) };
+				Rehearsals = saved.Rehearsals, Direction = saved.Direction,
+				KeptTake = saved.Takes.Count == 0 || ManualSelection && saved.KeptTake < 0 ? -1 : Mathf.Clamp(saved.KeptTake, 0, saved.Takes.Count - 1) };
 			cut.Takes.AddRange(saved.Takes);
 			StudioTakeEvidence.Observe(session, cut, session.Cuts.Count, PlayerDesk.Instance?.Label?.productionQuality ?? .4f,
 				ArtistManager.Instance?.GetArtist(ArtistId)?.studioPerformance ?? .4f);
@@ -752,6 +758,8 @@ public sealed class PendingSessionSaveData {
 }
 
 public sealed class SessionCutSaveData {
+	public int Rehearsals { get; set; }
+	public StudioDirection Direction { get; set; }
 	public PlayerDesk.MaterialChoice Choice { get; set; }
 	public List<PlayerDesk.SessionTake> Takes { get; set; } = new();
 	public int KeptTake { get; set; }
@@ -1139,6 +1147,7 @@ public sealed class RuntimeRecordSaveData {
 // ============================================================================
 
 public sealed class MasterSaveData {
+	public StudioMasterHistory StudioHistory { get; set; }
 	public RecordSaveData Record { get; set; }
 	public string ArtistId { get; set; }
 	public string SongTitle { get; set; }
@@ -1152,12 +1161,12 @@ public sealed class MasterSaveData {
 	public static MasterSaveData From(PlayerDesk.Master m) => new() {
 		Record = RecordSaveData.From(m.Record), ArtistId = m.ArtistId, SongTitle = m.SongTitle,
 		ProductionCost = m.ProductionCost, Year = m.Cut.year, Month = m.Cut.month, Day = m.Cut.day,
-		Scheduled = m.Scheduled, Released = m.Released
+		Scheduled = m.Scheduled, Released = m.Released, StudioHistory = m.StudioHistory
 	};
 
 	public PlayerDesk.Master ToMaster() => new() {
 		Record = Record.ToRecord(), ArtistId = ArtistId, SongTitle = SongTitle, ProductionCost = ProductionCost,
-		Cut = new GameDate(Year, Month, Day), Scheduled = Scheduled, Released = Released
+		Cut = new GameDate(Year, Month, Day), Scheduled = Scheduled, Released = Released, StudioHistory = StudioHistory
 	};
 
 	/// <summary>The master's stable key -- its record id -- used to re-link planned releases on load.</summary>

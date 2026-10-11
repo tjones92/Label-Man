@@ -26,17 +26,23 @@ public static class StudioTakeEvidence {
             string takeKey = $"{key}|{side}|{take.Number}";
             take.ProducerNote ??= Delivery[Read(take.Hook, producerCraft, takeKey + "|producer")];
             take.EngineerNote ??= Capture[Read(take.Production, .65f, takeKey + "|engineer")];
-            int feeling = Read(take.Hook, performerCraft, takeKey + "|performer");
+            int feeling = Read(session.FlowVersion > 0 ? take.Vocal : take.Hook, performerCraft, takeKey + "|performer");
             take.PerformerNote ??= feeling >= 2 ? "That pass felt like we meant it." : "I think we can settle into it more.";
+            if (session.FlowVersion > 0) take.BandNote ??= Read(take.Ensemble, performerCraft, takeKey + "|band") >= 2
+                ? "The entrances and ending felt together to us." : "We still felt some uncertainty at the changes.";
         }
     }
 
     private static int Read(float truth, float expertise, string key) {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
-        double draw = ((uint)hash[0] | (uint)hash[1] << 8 | (uint)hash[2] << 16 | (uint)hash[3] << 24) / (double)uint.MaxValue;
+        double draw = Unit(key);
         double uncertainty = .10 + .18 * (1 - Math.Clamp(expertise, 0f, 1f));
         double impression = truth + (draw * 2 - 1) * uncertainty;
         return impression < .30 ? 0 : impression < .45 ? 1 : impression < .62 ? 2 : 3;
+    }
+
+    public static double Unit(string key) {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(key));
+        return ((uint)hash[0] | (uint)hash[1] << 8 | (uint)hash[2] << 16 | (uint)hash[3] << 24) / (double)uint.MaxValue;
     }
 
     public static int Choose(IReadOnlyList<PlayerDesk.SessionTake> takes) => Enumerable.Range(0, takes.Count)
