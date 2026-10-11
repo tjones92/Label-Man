@@ -51,6 +51,14 @@ public static partial class LocalSceneRoomService {
     private static int Term(int day) => day >= 0 ? day / 91 : (day - 90) / 91;
     /// <param name="asOfDay">Pre-roll only: book the past with the world as it stands on this day (see Prewarm).</param>
     private static void Schedule(int week, int earliestDay, int? asOfDay = null) {
+        bool cacheReads = StartupCaches.Enabled;
+        var billed = cacheReads ? State.Bills.Select(b => (b.RoomId, b.Day)).ToHashSet() : null;
+        var lineups = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        string[] PeopleFor(SimulatedArtist act) {
+            if (!cacheReads) return StagePeople(act);
+            if (!lineups.TryGetValue(act.artistId, out var people)) lineups.Add(act.artistId, people = StagePeople(act));
+            return people;
+        }
         var reservations = new HashSet<string>(StringComparer.Ordinal);
         var personPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
         var actPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -77,7 +85,7 @@ public static partial class LocalSceneRoomService {
             var engaged = workingWeek ? State.Engagements.Where(e => e.StartDay <= day && e.ThroughDay >= day)
                 .Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal) : null;
             foreach (var room in SceneRoomCatalog.All.Where(r => SceneLiveEconomics.OpenOn(r, date.DayOfWeek))) {
-                if (State.Bills.Any(b => b.RoomId == room.Id && b.Day == day)) continue;
+                if (cacheReads ? billed.Contains((room.Id, day)) : State.Bills.Any(b => b.RoomId == room.Id && b.Day == day)) continue;
                 string id = $"{room.Id}:{day}";
                 int slots = SceneEcosystemService.Slots(room, day);
                 // A funded program's extra set runs past the room's usual close.
@@ -98,7 +106,7 @@ public static partial class LocalSceneRoomService {
                     bool fullTime = workingWeek && FullTime(act, engaged);
                     // A day-job act plays weekends (WorkingWeek).
                     if (!FitsWorkingWeek(act, room, day, fullTime)) continue;
-                    string[] people = StagePeople(act);
+                    string[] people = PeopleFor(act);
                     // Rotation books the top of the bill first, so it fills the night from the closing set back.
                     int hour = rotation ? room.OpenHour + slots - 1 - bill.Appearances.Count : room.OpenHour + bill.Appearances.Count;
                     // No cross-city teleporting or shared-musician overlap. Without double rooms a performer's whole
@@ -144,6 +152,7 @@ public static partial class LocalSceneRoomService {
                 bill.ExpectedAudience = bill.Appearances.Count == 0 ? 0 : Math.Min(bill.Capacity,
                     (int)(bill.Capacity * (.30 + .15 * drawing + standingDraw)));
                 State.Bills.Add(bill);
+                billed?.Add((room.Id, day));
             }
         }
         State.Bills = State.Bills.OrderBy(b => b.Day).ThenBy(b => b.RoomId, StringComparer.Ordinal).ToList();
