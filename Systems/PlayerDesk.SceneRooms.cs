@@ -9,7 +9,7 @@ public partial class PlayerDesk {
         if (bill == null) { message = "That bill is no longer on the calendar."; return false; }
         return ListenSceneRoom(bill.RoomId, eventId, out message);
     }
-    private bool ListenSceneRoom(string roomId, string eventId, out string message) {
+    private bool ListenSceneRoom(string roomId, string eventId, out string message, ScoutingListener listener = null) {
         if (!LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver) { message = "Scouting encounters are disabled or in observer mode. Existing evidence is retained."; return false; }
         if (!LocalScenes.Rooms) { message = "The room calendar is disabled."; return false; }
         var room = SceneRoomCatalog.Get(roomId);
@@ -34,11 +34,17 @@ public partial class PlayerDesk {
         int end = eventId != null ? slots.Max(a => a.EndHour) * 60 : Math.Min(now + ScoutHours * 60, slots.Max(a => a.EndHour) * 60);
         int duration = end - now;
         if (!clock.CanAffordMinutes(duration)) { message = "This listening would pass today's hard stop. Choose an earlier set."; return false; }
-        float admission = AdmissionForVisit(bill, room, now);
-        if (Label.cashReserves < admission) { message = "You cannot cover admission."; return false; }
-        AdoptLegacyDiscoveries(); Label.cashReserves -= admission;
+        float admission = AdmissionForVisit(bill, room, now) + (listener?.Admission ?? 0);
+        float postedAdmission = SceneLiveEconomics.Admission(room, bill.Year);
+        int listedActs = bill.Appearances.Select(a => a.ArtistId).Distinct(StringComparer.Ordinal).Count();
+        var admittedListeners = scoutingKnowledge.Visit is { } priorVisit && priorVisit.BillId == bill.Id && priorVisit.Day == bill.Day && priorVisit.EndMinute == now
+            ? (priorVisit.ListenerIds ?? new()).ToList() : new System.Collections.Generic.List<string>();
+        if (listener != null && !admittedListeners.Contains(listener.PersonId)) admittedListeners.Add(listener.PersonId);
+        float consultation = listener?.ConsultationFee ?? 0;
+        if (Label.cashReserves < admission + consultation) { message = "You cannot cover admission and any listening consultation."; return false; }
+        AdoptLegacyDiscoveries(); Label.cashReserves -= admission + consultation; Label.monthlyExpenses += consultation;
         clock.SpendMinutes(duration);
-        scoutingKnowledge.Visit = new() { BillId = bill.Id, Day = bill.Day, EndMinute = end, AdmissionPaid = admission };
+        scoutingKnowledge.Visit = new() { BillId = bill.Id, Day = bill.Day, EndMinute = end, AdmissionPaid = admission, ListenerIds = admittedListeners };
         var resolved = LocalSceneRoomService.Bill(bill.Id);
         slate.Clear(); SlateDate = date;
         foreach (var booked in slots) {
@@ -53,13 +59,16 @@ public partial class PlayerDesk {
             var dossier = Dossier(artist.artistId, artist.stageName);
             dossier.Observations.Add(new() { Id = $"observation-v1|{Label.labelId}|{identity}", LabelId = Label.labelId, ArtistId = artist.artistId,
                 ArtistName = artist.stageName, Kind = ScoutingEvidenceKind.Performance, EventId = identity, BillId = bill.Id, RoomId = room.Id, RoomName = room.Name,
-                SourceId = Label.labelId, SourceName = "Your listening", Channel = room.IsPerformance ? "live set" : "listening appointment",
+                SourceId = Label.labelId, SourceName = "Your listening", PlaceId = room.PlaceId,
+                PlaceName = ScenePlaceRegistry.Get(room.PlaceId)?.Name, Channel = room.IsPerformance ? "live set" : "listening appointment",
                 OccurredDay = bill.Day, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate), AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, StartMinute = from, EndMinute = through, Coverage = coverage,
                 Credibility = coverage >= .9 ? "full set impression; observer judgment remains uncertain" : "partial set impression; limited coverage",
                 PersonIds = slot.PersonIds.ToList(), BackingPersonIds = slot.BackingPersonIds?.ToList() ?? new(), Set = LocalSceneRoomService.Copy(slot.Set),
                 Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage),
                 BillAttendance = resolved.Status == SceneBillStatus.Performed ? resolved.Attendance : null, BillCapacity = LocalSceneRoomService.CapacityOf(resolved),
+                BillListedActs = listedActs, BillAdmissionQuote = postedAdmission,
                 Conditions = $"{slot.Role}; {room.Kind}; {(slot.Residency ? "regular engagement" : "announced booking")}. Repertoire is the scheduled set; partial coverage does not identify every song heard." });
+            if (listener != null) RememberScoutingListener(dossier, dossier.Observations.Last(), slot.Performance, listener);
             var prospect = new Prospect { Artist = artist, Venue = room.Category, CityId = CurrentCityId, SceneRoomId = room.Id, SceneBillId = bill.Id,
                 AskingAdvance = VenueAdvanceAsk(artist, room.Category, AskScaleFor(CurrentCityId)), Note = $"Heard the {slot.Role} at {room.Name}." };
             if (coverage >= .9) prospect.LiveSet.AddRange(ReadSceneRoomSet(artist, resolved, slot));
@@ -75,6 +84,7 @@ public partial class PlayerDesk {
         RememberSceneContact(room, bill);
         message = slate.Count == 0 ? "The scheduled set changed during the visit. Time and admission were consumed; no performance evidence was invented."
             : $"Heard {slate.Count} {(slate.Count == 1 ? "act" : "acts")} at {room.Name}. Evidence saved automatically. You can discuss terms now or choose a question for another date.";
+        if (listener != null && slate.Count > 0) message += $" {listener.Name} left a separate judgment of this same performance.";
         Note(message); Changed?.Invoke(); return true;
     }
     private bool HasObservedPerformance(string eventId) => scoutingKnowledge.Dossiers.Any(d => d.Observations.Any(o => o.EventId == eventId && o.Kind == ScoutingEvidenceKind.Performance));
@@ -90,6 +100,7 @@ public partial class PlayerDesk {
         int day = LocalSceneRoomService.Day(clock.CurrentDate), now = clock.CurrentHour * 60 + clock.CurrentMinute;
         if (bill.Day < day || bill.Day == day && slot.StartHour * 60 < now) { message = "The set has already started; catch the remaining performance or choose another date."; return false; }
         if (slot.EndHour > clock.HardStopHour) { message = "This appearance ends after your hard stop. Choose an earlier set."; return false; }
+        if (bill.Day > day && slot.StartHour < clock.WorkdayStartHour) { message = "This start is before your working day. Choose a later set."; return false; }
         while (LocalSceneRoomService.Day(clock.CurrentDate) < bill.Day && !clock.IsGameOver && !IsGameOver) clock.EndDay();
         if (clock.IsGameOver || IsGameOver) { message = "The waiting ended with the label's operating window."; return false; }
         bool staying = scoutingKnowledge.Visit?.BillId == bill.Id && scoutingKnowledge.Visit.Day == bill.Day &&

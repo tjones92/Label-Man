@@ -53,7 +53,8 @@ public static class SceneEcosystemChecks {
             Check(sponsor.cashReserves == cash - SceneEcosystemService.ProgramCost && sponsor.monthlyExpenses == expenses + SceneEcosystemService.ProgramCost, "real expense accounting");
             Check(!SceneEcosystemService.FundProgram(sponsor, roomId, out _) && SceneEcosystemService.Programs.Count == 1, "duplicate funding cannot farm slots");
             var room = SceneRoomCatalog.Get(roomId);
-            Check(SceneEcosystemService.Slots(room, p.StartDay - 1) == 2 && SceneEcosystemService.Slots(room, p.StartDay) == 3 && SceneEcosystemService.Slots(room, p.ThroughDay + 1) == 2, "dated opening and expiry");
+            int baseSlots = LocalSceneRoomService.BaseSlots(room);
+            Check(SceneEcosystemService.Slots(room, p.StartDay - 1) == baseSlots && SceneEcosystemService.Slots(room, p.StartDay) == baseSlots + 1 && SceneEcosystemService.Slots(room, p.ThroughDay + 1) == baseSlots, "dated opening and expiry");
             var detached = SceneEcosystemService.Programs.Single(); detached.StartDay = 0;
             Check(SceneEcosystemService.Programs.Single().StartDay == 14, "program queries return detached state");
             Check(SceneEcosystemService.ProposeMove(sponsor, a.artistId, p.Id, out string message), "funded consented move: " + message);

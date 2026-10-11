@@ -24,6 +24,7 @@ public partial class TimeManager : Node {
 	public GameDate CurrentDate => currentDate;
 	public int CurrentHour => currentHour;
 	public int CurrentMinute => currentMinute;
+	public int WorkdayStartHour => workDayStartHour;
 	public int RegularWorkdayEndHour => workDayEndHour;
 	public int HardStopHour => workDayEndHour + maxOvertimeHours;
 	public string RegularWorkdayEndTime => FormatHour(workDayEndHour);

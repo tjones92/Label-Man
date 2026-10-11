@@ -242,6 +242,7 @@ public partial class PlayerDesk : Node {
 		} else {
 			tradeAds.Add(new TradeAd { RecordId = recordId, Tier = tier, PurchasedWeek = week, ExpiresWeek = expires });
 		}
+		KeepPromotionPromises(recordId, tier);
 
 		string title = TitleForRecord(recordId);
 		Note($"Bought a {TradeAdTierName(tier)} trade ad for \"{title}\" -- ${cost:N0}. Distributors and jocks read this, not kids.");

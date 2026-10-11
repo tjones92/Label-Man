@@ -599,6 +599,7 @@ public partial class RosterManager : Node {
 			if (HasDailyVacancy(label)) label.SetNextScoutingDate(date.AddDays(7));
 			else { label.ClearScoutingAppointment(); label.lastScoutingOutcome = "ServiceSatisfied"; }
 		}
+		RecordScoutingMarketDecisions(appointments);
 		foreach (DailyTalentMarketAppointment appointment in appointments) OnDailyTalentMarketAppointment?.Invoke(appointment);
 		dailyTalentMarketSummaries.Add(summary);
 		OnDailyTalentMarketCleared?.Invoke(summary);
@@ -695,6 +696,23 @@ public partial class RosterManager : Node {
 		AILabel rival = FindRivalToPlayer(artist, date, preferredLabelId);
 		if (rival == null) return null;
 		float advance = rival.SignArtist(artist, date.year);
+		CompetitorManager.Instance?.RecordExpense(rival, advance);
+		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
+		SceneRecruitmentService.RecordSigning(rival, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "PlayerRival");
+		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
+		return rival;
+	}
+
+	/// <summary>
+	/// The act answers a rival's pending offer (PlayerDesk.RivalOffers): only the label that made it can sign, on exactly the
+	/// terms it offered, and only if it still could today -- reach, roster room, the act's eligibility and the cash for that
+	/// advance. No other label stands in, and nothing here draws the global RNG. Returns the label, or null if the offer has
+	/// fallen through. Commits through the same calls as <see cref="TrySignAsRivalToPlayer"/>.
+	/// </summary>
+	public AILabel SignRivalOfferToPlayerAct(SimulatedArtist artist, GameDate date, string labelId, ContractTermSheet terms) {
+		AILabel rival = FindRivalToPlayer(artist, date, labelId);
+		if (rival == null || rival.labelId != labelId || !rival.CanAffordToSign(terms.Advance)) return null;
+		float advance = rival.SignArtist(artist, date.year, terms);
 		CompetitorManager.Instance?.RecordExpense(rival, advance);
 		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
 		SceneRecruitmentService.RecordSigning(rival, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "PlayerRival");

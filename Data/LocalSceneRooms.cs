@@ -78,13 +78,20 @@ public sealed class SceneRoomStanding {
     public string ArtistId { get; set; }
     public int Shows { get; set; }
     public int LastDay { get; set; }
+    /// <summary>Appearances before the calendar began (the world-start pre-roll). History the room remembers;
+    /// never counted toward a live bill's expected audience. Zero on legacy saves.</summary>
+    public int PriorShows { get; set; }
 }
 public sealed class SceneRoomSaveData {
+    public long ConversationOrdinal { get; set; }
+    public List<SceneConversation> Conversations { get; set; } = new();
     public int SchemaVersion { get; set; } = 1;
     public int ContentVersion { get; set; } = 1;
     public int LastScheduledWeek { get; set; } = -1;
     public int LastResolvedDay { get; set; } = -1;
     public int LastResolvedHour { get; set; } = -1;
+    /// <summary>Weeks of room history pre-rolled at world start; zero on legacy saves and with the prewarm off.</summary>
+    public int PriorWeeks { get; set; }
     // Current and following calendar week only. Lifetime counters are sparse ID-based summaries.
     public List<SceneBill> Bills { get; set; } = new();
     public List<SceneEngagement> Engagements { get; set; } = new();

@@ -1191,6 +1191,7 @@ public partial class PlayerDesk {
 		Label.cashReserves -= sheet.Advance;
 		Label.monthlyExpenses += sheet.Advance;
 		ArtistManager.Instance?.SignArtist(solo, Label.labelId, YearNow);
+        RememberFoundingAct(solo, sheet);
 		Note($"Exercised the leaving-member option: {solo.stageName} signed (${sheet.Advance:N0}).");
 		return true;
 	}

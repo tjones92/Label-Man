@@ -36,7 +36,10 @@ public partial class PlayerDesk {
     }
     public void MarkSceneNewsRead() {
         if (!LocalScenes.Rooms) return;
-        foreach (var item in LocalSceneNews()) sceneInformation.ReadEvents[item.Id] = item.AvailableDay;
+        foreach (var item in LocalSceneNews()) {
+            RememberScoutingReport(item);
+            sceneInformation.ReadEvents[item.Id] = item.AvailableDay;
+        }
         int day = LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
         foreach (var id in sceneInformation.ReadEvents.Where(p => day - p.Value > 104 * 7).Select(p => p.Key).ToArray()) sceneInformation.ReadEvents.Remove(id);
         sceneInformation.ReadThroughDay[LocalScenePersistenceService.SceneIdFor(CurrentCityId)] =

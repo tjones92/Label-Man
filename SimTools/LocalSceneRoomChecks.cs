@@ -42,10 +42,14 @@ public static class LocalSceneRoomChecks {
             Check(before.Bills.All(b => b.Appearances.All(s => am.GetArtist(s.ArtistId) != null)), "bill IDs resolve canonical acts");
             var reservations = before.Bills.SelectMany(b => b.Appearances.SelectMany(s => s.PersonIds.Select(p => new { Key = $"{b.Day}|{s.StartHour}|{p}", DayPerson = $"{b.Day}|{p}", b.RoomId })));
             Check(reservations.Select(r => r.Key).Distinct().Count() == reservations.Count(), "no overlapping shared-musician slots");
-            Check(reservations.GroupBy(r => r.DayPerson).All(g => g.Select(r => r.RoomId).Distinct().Count() == 1), "a person cannot teleport between rooms/cities in a day");
+            // Double rooms (LocalSceneRoomService.WorkingWeek): a full-time act may cross town to one more room; the
+            // working-week invariants (gap, same act, full-time) are checked in SceneRoomRotationChecks.
+            Check(reservations.GroupBy(r => r.DayPerson).All(g => g.Select(r => r.RoomId).Distinct().Count() <= (LocalScenes.DoubleRooms ? LocalSceneRoomService.MaxRoomsPerDay : 1) &&
+                g.Select(r => SceneRoomCatalog.Get(r.RoomId).PlaceId).Distinct().Count() == 1), "a person cannot teleport between cities, or work more rooms in a day than the rule allows");
             Check(before.Bills.All(b => b.Appearances.All(s => s.PersonIds.Distinct().Count() == s.PersonIds.Count)), "person IDs deduplicated within a show");
             Check(before.Bills.All(b => b.Appearances.All(s => s.Set.All(t => t.SongId == null || CompositionCatalogService.GetSong(t.SongId) != null))), "shared repertoire references existing compositions");
-            Check(before.Engagements.Count > 0 && before.Engagements.All(e => e.ThroughDay >= e.StartDay), "dated recurring engagements exist");
+            // With rotation an engagement is earned by playing the room, so a new world opens with none (SceneRoomRotationChecks).
+            Check((LocalScenes.RoomRotation || before.Engagements.Count > 0) && before.Engagements.All(e => e.ThroughDay >= e.StartDay), "dated recurring engagements exist");
             Check(before.Bills.Any(b => b.Appearances.Any(s => !string.IsNullOrEmpty(am.GetArtist(s.ArtistId).labelId))), "signed residents remain publicly hearable");
             Check(before.Bills.Any(b => b.Appearances.Any(s => am.GetArtist(s.ArtistId).prospectMarketStatus == ProspectMarketStatus.Latent)), "latent contract prospects can work publicly");
             ulong populationBefore = original.PopulationRngState;

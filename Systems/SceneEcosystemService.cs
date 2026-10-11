@@ -16,7 +16,7 @@ public static class SceneEcosystemService {
     private static bool Canonical(AILabel label) => label != null && label.IsActive &&
         (ReferenceEquals(PlayerDesk.Instance?.Label, label) || ChartManager.Instance.GetAllLabels().Any(l => ReferenceEquals(l, label)));
     private static void Pay(AILabel label, float cost) => CompetitorManager.Instance.RecordExpense(label, cost);
-    public static int Slots(SceneRoomProfile room, int day) => 2 +
+    public static int Slots(SceneRoomProfile room, int day) => LocalSceneRoomService.BaseSlots(room) +
         (LocalScenes.Institutions && room.IsPerformance && state?.Programs.Any(p => p.RoomId == room.Id &&
             p.StartDay <= day && p.ThroughDay >= day) == true ? 1 : 0);
     public static bool FundProgram(AILabel sponsor, string roomId, out string message) {

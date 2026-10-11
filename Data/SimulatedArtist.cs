@@ -20,6 +20,7 @@ public class SimulatedArtist {
 	public GeographicIdentity geography;
 	public List<SceneParticipation> sceneParticipations;
 	public List<SceneRecruitmentRecord> sceneRecruitmentHistory;
+	public List<SceneMarketDecision> sceneMarketHistory; // Optional, bounded, completed decisions only; never an AI reader.
 	public int formedYear;
 	public ArtistCohort cohort = ArtistCohort.InitialLegacy;
 	// Participation in the enabled first-contract labor market is intentionally

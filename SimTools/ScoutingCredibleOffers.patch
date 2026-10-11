@@ -1,0 +1,1670 @@
+diff --git a/SimTools/SaveLoadRoundTripRunner.cs b/SimTools/SaveLoadRoundTripRunner.cs
+index 4ced466..ab5a2f1 100644
+--- a/SimTools/SaveLoadRoundTripRunner.cs
++++ b/SimTools/SaveLoadRoundTripRunner.cs
+@@ -46,6 +46,7 @@ public partial class SaveLoadRoundTripRunner : Node {
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-check")) { ScoutingContractContinuityChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-check")) { ScoutingSessionPromiseChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-outlook-check")) { ScoutingContractOutlookChecks.Run(); GetTree().Quit(0); return; }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-credible-offers-check")) { ScoutingCredibleOffersChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--scouting-contract-outlook-survey=", StringComparison.Ordinal)) is string survey) {
+                 ScoutingContractOutlookChecks.Survey(survey["--scouting-contract-outlook-survey=".Length..]); GetTree().Quit(0); return;
+             }
+diff --git a/SimTools/SceneRoomPrewarmChecks.cs b/SimTools/SceneRoomPrewarmChecks.cs
+index 4b69735..f4da054 100644
+--- a/SimTools/SceneRoomPrewarmChecks.cs
++++ b/SimTools/SceneRoomPrewarmChecks.cs
+@@ -9,11 +9,13 @@ using Godot;
+ public static class SceneRoomPrewarmChecks {
+     public static void Run() {
+         if (!LocalScenes.Rooms) throw new InvalidOperationException("Scene rooms must be enabled for these checks.");
+-        if (LocalScenes.RoomPrewarm) throw new InvalidOperationException("Run on a control world (without --enable-scene-room-prewarm).");
++        if (LocalScenes.RoomPrewarm) throw new InvalidOperationException("Run on a control world (with --disable-scene-room-prewarm).");
+         int checks = 0;
+         void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCENE_ROOM_PREWARM_CHECK_FAILED: " + why); checks++; }
+         string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
+         string[] args = OS.GetCmdlineUserArgs();
++        // The prewarm is on by default, so the control world is created with the explicit off flag.
++        string[] defaults = args.Where(a => a != "--disable-scene-room-prewarm").ToArray();
+         var date = TimeManager.Instance.CurrentDate;
+         int today = LocalSceneRoomService.Day(date);
+         var am = ArtistManager.Instance;
+@@ -30,15 +32,17 @@ public static class SceneRoomPrewarmChecks {
+             Check(today == 0 && control.PriorWeeks == 0 && control.Standing.All(s => s.PriorShows == 0), "control world starts with no pre-rolled history");
+ 
+             // 1. Flags follow the repository's convention.
+-            bool Rejects(params string[] extra) { try { LocalScenes.Configure(args.Concat(extra)); return false; } catch (ArgumentException) { return true; } }
++            bool Rejects(params string[] extra) { try { LocalScenes.Configure(defaults.Concat(extra)); return false; } catch (ArgumentException) { return true; } }
+             Check(Rejects("--enable-scene-room-prewarm", "--disable-scene-room-prewarm"), "enable and disable together are refused");
+             Check(Rejects("--enable-scene-room-prewarm", "--disable-scene-rooms"), "the prewarm requires scene rooms");
+             Check(Rejects("--enable-scene-room-prewarm", "--scene-room-prewarm-weeks=0"), "a zero-week pre-roll is refused");
+-            LocalScenes.Configure(args);
+-            Check(!LocalScenes.RoomPrewarm, "off by default");
++            LocalScenes.Configure(defaults);
++            Check(LocalScenes.RoomPrewarm && LocalScenes.RoomPrewarmWeeks == LocalScenes.DefaultRoomPrewarmWeeks, "on by default with rooms, 52 weeks");
++            LocalScenes.Configure(defaults.Append("--disable-scene-rooms"));
++            Check(!LocalScenes.RoomPrewarm, "off without scene rooms");
+ 
+             // 2. A pre-roll from a fresh calendar, with the global and population streams pinned.
+-            LocalScenes.Configure(args.Append("--enable-scene-room-prewarm"));
++            LocalScenes.Configure(defaults.Append("--enable-scene-room-prewarm"));
+             Check(LocalScenes.RoomPrewarm && LocalScenes.RoomPrewarmWeeks == LocalScenes.DefaultRoomPrewarmWeeks, "enabled with the default 52 weeks");
+             ulong population = WorldStateService.Capture().PopulationRngState;
+             GD.Seed(4417); float next = GD.Randf(); GD.Seed(4417);
+diff --git a/SimTools/SceneRoomUiRunner.cs b/SimTools/SceneRoomUiRunner.cs
+index 87001b8..82a7ebf 100644
+--- a/SimTools/SceneRoomUiRunner.cs
++++ b/SimTools/SceneRoomUiRunner.cs
+@@ -75,6 +75,69 @@ public partial class SceneRoomUiRunner : Node {
+                 await Shot("roster.png");
+                 GD.Print("SCOUTING_CONTRACT_OUTLOOK_UI_PASS weighing=true ownLabel=true labelObjection=true push=true free=true hidden=true roster=true"); GetTree().Quit(0); return;
+             }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-credible-offers-ui-check")) {
++                var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
++                var prospect = ScoutingContractOutlookChecks.PrepareAct(desk); var act = prospect.Artist;
++                act.evolution.artisticAmbition = 0.95f;
++                var bidder = ScoutingCredibleOffersChecks.OpenRival(act) ?? throw new InvalidOperationException("Need a reachable rival.");
++                desk.MakeRivalOfferForCheck(act, bidder);
++                if (!desk.ApproachToSign(prospect, out message) || prospect.Talk == null) throw new InvalidOperationException("Need a negotiation: " + message);
++                var talk = prospect.Talk; var offer = desk.PendingRivalOffer(act.artistId);
++                typeof(PlayerDeskPanel).GetField("negotiating", flags).SetValue(panel, prospect);
++                async System.Threading.Tasks.Task Show(string tab) { panel.OpenAtTab(tab); for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); }
++                IEnumerable<Label> Labels() => Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion() && l.IsVisibleInTree());
++                Button Find(Func<Button, bool> match) => Descendants(panel).OfType<Button>().SingleOrDefault(b => !b.IsQueuedForDeletion() && match(b));
++                void NoHidden() {
++                    if (Labels().Any(l => l.Text.Contains("reservation") || l.Text.Contains("patience") || l.Text.Contains("credib") || l.Text.Contains("stake")))
++                        throw new InvalidOperationException("Hidden acceptance values must not render.");
++                }
++                string offersDir = ProjectSettings.GlobalizePath("res://SimLogs/scouting-credible-offers-ui-v1"); Directory.CreateDirectory(offersDir);
++                async System.Threading.Tasks.Task Shot(string name) {
++                    foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
++                    await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                    GetViewport().GetTexture().GetImage().SavePng(Path.Combine(offersDir, name));
++                }
++                await Show("A&R");
++                if (!Labels().Any(l => l.Text.StartsWith("OTHER PAPER:") && l.Text.Contains(bidder.labelName) && l.Text.Contains("$")) ||
++                    !Labels().Any(l => l.Text.Contains(bidder.labelName) && l.Text.Contains("They answer by")))
++                    throw new InvalidOperationException("The table must state the rival's real offer and its decision day.");
++                NoHidden();
++                await Shot("offer.png");
++                float cash = desk.Label.cashReserves; int minute = TimeManager.Instance.CurrentHour * 60 + TimeManager.Instance.CurrentMinute;
++                var add = Find(b => b.Name == "AddDistributionPromise") ?? throw new InvalidOperationException("Tabling form must offer the distribution promise.");
++                add.EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (!talk.distributionPromised || !Labels().Any(l => l.Text.StartsWith("Your offer includes a wholesale house")) || Find(b => b.Name == "DropDistributionPromise") == null)
++                    throw new InvalidOperationException("Tabling form must show the distribution promise and a way to drop it.");
++                if (desk.Label.cashReserves != cash || TimeManager.Instance.CurrentHour * 60 + TimeManager.Instance.CurrentMinute != minute || desk.ContractCommitments.Count > 0)
++                    throw new InvalidOperationException("Proposing must cost nothing and commit nothing.");
++                await Shot("tabling.png");
++                var (losing, winning) = ScoutingCredibleOffersChecks.RivalBoundTerms(desk, talk, offer);
++                if (!losing.HasValue || !winning.HasValue) throw new InvalidOperationException("Need losing and winning packages.");
++                var lose = losing.Value;
++                if (!desk.TableOffer(talk, lose.Advance, lose.RoyaltyRate, lose.TermYears, lose.SinglesObligation, lose.LabelOwnsPublishing,
++                        lose.ArtistCreativeControl, out message) || talk.stage != ContractTalkStage.Objection) throw new InvalidOperationException("Need the rival objection: " + message);
++                await Show("A&R");
++                if (!Labels().Any(l => l.Text.Contains(bidder.labelName) && l.Text.Contains("Beat it")) || Find(b => b.Text == "SWEETEN IT") == null)
++                    throw new InvalidOperationException("The objection must name the rival's paper and offer a way back to the table.");
++                NoHidden();
++                await Shot("objection.png");
++                var win = winning.Value;
++                desk.PlayNegotiationCounter(talk, ContractCounter.SweetenAxis, out _);
++                if (!desk.TableOffer(talk, win.Advance, win.RoyaltyRate, win.TermYears, win.SinglesObligation, win.LabelOwnsPublishing,
++                        win.ArtistCreativeControl, out message) || talk.stage != ContractTalkStage.Done) throw new InvalidOperationException("Paper that beats the rival must sign: " + message);
++                typeof(PlayerDeskPanel).GetField("negotiating", flags).SetValue(panel, null);
++                await Show("A&R");
++                if (!Labels().Any(l => l.Text.Contains(bidder.labelName) && l.Text.Contains("turned down")))
++                    throw new InvalidOperationException("The notebook must record how the rival's offer ended.");
++                await Shot("notebook.png");
++                await Show("ROSTER");
++                int due = desk.ContractCommitments.Single(c => c.Kind == ContractCommitmentKind.Distribution).DueDay;
++                if (!Labels().Any(l => l.Text == $"Record promised out by {LocalSceneRoomService.Date(due).ToShortString()}, then a wholesale line"))
++                    throw new InvalidOperationException("Roster card must show the open distribution promise.");
++                await Shot("roster.png");
++                GD.Print("SCOUTING_CREDIBLE_OFFERS_UI_PASS offer=true distribution=true free=true rivalObjection=true hidden=true notebook=true roster=true"); GetTree().Quit(0); return;
++            }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-ui-check")) {
+                 var prospect = ScoutingSessionPromiseChecks.PrepareNegotiation(desk); var talk = prospect.Talk; var ask = talk.ask;
+                 if (!desk.TableOffer(talk, PlayerDesk.MinimumAdvanceForAcceptance(talk) - 5, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation,
+diff --git a/b/SimTools/ScoutingCredibleOffersChecks.cs b/SimTools/ScoutingCredibleOffersChecks.cs
+new file mode 100644
+index 0000000..d4e18cf
+--- /dev/null
++++ b/SimTools/ScoutingCredibleOffersChecks.cs
+@@ -0,0 +1,304 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using System.Text.Json;
++using Godot;
++
++/// <summary>Phase 4, credible offers: a rival's real offer with a decision day, the distribution promise, relationship
++/// credit (introductions, earlier dealings, word of mouth) and the first act's broken-promise consequences. Deterministic
++/// fixtures on a real heard act; AI labels are only given room and cash so a rival exists.</summary>
++public static class ScoutingCredibleOffersChecks {
++    /// <summary>At week 0 every reachable AI label sits at its operating target. Give the reachable ones room, the act's genre
++    /// and cash, so a real rival exists, and return the one that would come for the act: the best-paying, so its offer is
++    /// real competition for a small label's paper.</summary>
++    public static AILabel OpenRival(SimulatedArtist act) {
++        int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
++        var reachable = CompetitorManager.Instance.GetOperatingLabels().Where(l => !l.isPlayerOwned && !l.IsSubsidiary &&
++            SceneRecruitmentService.Explain(l, act, week).Eligible && l.CurrentRosterSize < l.maxRosterSize)
++            .OrderBy(l => l.labelId, StringComparer.Ordinal).Take(5).ToList();
++        foreach (var l in reachable) { l.operatingRosterTarget = l.CurrentRosterSize + 1; l.preferredGenres = new[] { act.primaryGenre }; l.cashReserves += 200000f; }
++        var richest = reachable.OrderByDescending(l => l.CalculateManagerAdjustedAdvance(act)).ThenBy(l => l.labelId, StringComparer.Ordinal).FirstOrDefault();
++        return richest == null ? null : RosterManager.Instance.FindRivalToPlayer(act, TimeManager.Instance.CurrentDate, richest.labelId);
++    }
++
++    /// <summary>Packages that clear the act's own reservation: the first that still loses to the pending rival offer, and
++    /// the first that beats it. Found by search over the money and the gives.</summary>
++    public static (ContractTermSheet? Losing, ContractTermSheet? Winning) RivalBoundTerms(PlayerDesk desk, ContractTalk talk, RivalOffer offer) {
++        var ask = talk.ask;
++        ContractTermSheet? losing = null, winning = null;
++        float top = Mathf.Max(ask.Advance * 1.5f, offer.Terms.Advance * 1.2f);
++        foreach (bool control in new[] { false, true })
++        foreach (bool publishing in new[] { true, false })
++        foreach (int term in new[] { ask.TermYears, 1 }.Distinct())
++        for (int step = 0; step <= 40; step++) {
++            float advance = Mathf.Ceil(Mathf.Lerp(PlayerDesk.MinimumAdvanceForAcceptance(talk), top, step / 40f) / 5f) * 5f;
++            var s = new ContractTermSheet(advance, ask.RoyaltyRate, term, ask.SinglesObligation, publishing, control,
++                ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
++            if (!desk.ClearsReservationForCheck(talk, s)) continue;
++            if (!desk.BeatsRivalOfferOf(talk, s)) losing ??= s; else winning ??= s;
++        }
++        return (losing, winning);
++    }
++
++    public static void Run() {
++        int checks = 0;
++        void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCOUTING_CREDIBLE_OFFERS_FAILED: " + why); checks++; }
++        string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
++        var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
++        string[] args = OS.GetCmdlineUserArgs();
++        string message;
++
++        // 0. Flags: rival offers and the room prewarm are on by default, with explicit off controls.
++        Check(LocalScenes.RivalOffers && LocalScenes.RoomPrewarm, "rival offers and the room prewarm are on by default");
++        bool Rejects(params string[] extra) { try { LocalScenes.Configure(args.Concat(extra)); return false; } catch (ArgumentException) { return true; } }
++        Check(Rejects("--enable-rival-offers", "--disable-rival-offers"), "enable and disable together are refused");
++        LocalScenes.Configure(args.Append("--disable-rival-offers"));
++        Check(!LocalScenes.RivalOffers && LocalScenes.ContractOutlook, "--disable-rival-offers turns offers off and leaves the outlook");
++        LocalScenes.Configure(args);
++
++        Check(desk.FoundLabel("Credible Offers", "nashville", out message), "found label: " + message);
++        var prospect = ScoutingContractOutlookChecks.PrepareAct(desk); string id = prospect.Artist.artistId; var act = prospect.Artist;
++        string Scene(SimulatedArtist a) => LocalScenePersistenceService.SceneIdFor(a?.geography?.basePlaceId);
++        var savedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture()); var savedPlayer = LocalSceneRoomService.Copy(desk.CaptureState());
++        var date = clock.CurrentDate; int hour = clock.CurrentHour, minute = clock.CurrentMinute;
++        int Minute() => clock.CurrentHour * 60 + clock.CurrentMinute;
++        int Today() => LocalSceneRoomService.Day(clock.CurrentDate);
++        void Restore(PlayerSaveData player, GameDate when, int h, int m, WorldSaveData world) {
++            LocalScenes.Configure(args);
++            WorldStateService.Apply(LocalSceneRoomService.Copy(world), when, SimulationSeedBootstrap.RequestedSeed);
++            Check(desk.RestoreState(LocalSceneRoomService.Copy(player), out message), "restore: " + message);
++            clock.RestoreClock(when, h, m);
++            if (desk.Slate.All(p => p.Artist.artistId != id)) desk.OpenScoutingDossier(id, out _);
++            prospect = desk.Slate.FirstOrDefault(p => p.Artist.artistId == id);
++            act = am.GetArtist(id);
++        }
++        void Reset() => Restore(savedPlayer, date, hour, minute, savedWorld);
++
++        // 1. A rival's offer: real terms from its own pricing, a decision day, no draws, no world writes.
++        Reset();
++        act.evolution.artisticAmbition = 0.95f; // talks terms with a new label, so there is a table to beat
++        var bidder = OpenRival(act); // AI labels given room and cash; restored by the next Reset
++        Check(bidder != null, "fixture needs a reachable rival");
++        string worldBefore = Json(WorldStateService.Capture());
++        GD.Seed(931); uint draw = GD.Randi(); GD.Seed(931);
++        var offer = desk.MakeRivalOfferForCheck(act, bidder);
++        Check(GD.Randi() == draw && Json(WorldStateService.Capture()) == worldBefore, "making an offer draws nothing and writes no world state");
++        Check(offer.RivalLabelId == bidder.labelId && offer.Status == RivalOfferStatus.Pending && offer.DecisionDay == Today() + PlayerDesk.RivalOfferDecisionDays &&
++            offer.Terms.Advance == Mathf.Ceil(bidder.CalculateManagerAdjustedAdvance(act) / 5f) * 5f && offer.Terms.TermYears is >= 1 and <= 7,
++            "the offer is the rival's own pricing with a decision day");
++        Check(Json(PlayerDesk.RivalOfferTerms(bidder, act, Today(), clock.CurrentDate.year)) == Json(offer.Terms), "the terms are deterministic");
++        Check(offer.Disclosure == RivalOfferDisclosure.Rumored && desk.RivalOfferLine(id).Contains(bidder.labelName) && !desk.RivalOfferLine(id).Contains("$"),
++            "before any talk the player hears who and when, not the terms");
++        Check(desk.AddToNotebook(prospect, out message), "notebook: " + message);
++        var entry = desk.Notebook.First(n => n.Artist.artistId == id);
++        Check(!desk.CanHoldWithHandshake(entry, out string reason) && reason.Contains(bidder.labelName), "a handshake does not hold an act past another label's offer: " + reason);
++
++        // 2. At the table: the act says what it holds, and talks terms.
++        Check(desk.ApproachToSign(prospect, out message) && prospect.Talk != null && prospect.Posture != NegotiationPosture.Pushover, "an act holding an offer talks terms: " + message);
++        var talk = prospect.Talk; var ask = talk.ask;
++        var told = desk.PendingRivalOffer(id);
++        Check(told.Disclosure == RivalOfferDisclosure.Disclosed && told.DisclosedDay == Today() && desk.RivalOfferLine(id).Contains("$"), "opening talks discloses the terms");
++        Check(talk.outlookStated.Any(l => l.Contains(bidder.labelName) && l.Contains("$")) && talk.outlookStated.All(l => !l.Contains("No offer has been made")),
++            "the outlook states the real offer and drops the belief");
++        Check(PlayerDesk.PostureFor(act, desk.ReadContractOutlook(act, false)) != NegotiationPosture.Pushover, "any act with paper in hand talks terms");
++        var opened = LocalSceneRoomService.Copy(desk.CaptureState()); var openedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture());
++        var openedDate = clock.CurrentDate; int openedHour = clock.CurrentHour, openedMinute = clock.CurrentMinute;
++        void Reopen() { Restore(opened, openedDate, openedHour, openedMinute, openedWorld); talk = prospect.Talk; bidder = CompetitorManager.Instance.GetLabel(bidder.labelId); }
++
++        // 3. Terms the act would take on their own still lose to better paper; terms that beat it sign, and the rival is turned down.
++        var (losing, winning) = RivalBoundTerms(desk, talk, told);
++        GD.Print($"CREDIBLE_OFFERS table ask=${ask.Advance:N0} rival={PlayerDesk.RivalTermsText(told.Terms)} losing={(losing.HasValue ? "$" + losing.Value.Advance : "none")} winning={(winning.HasValue ? "$" + winning.Value.Advance : "none")}");
++        Check(losing.HasValue && winning.HasValue, "fixture needs terms that clear the act's own reservation but lose to the rival, and terms that beat it");
++        var nearAsk = new ContractTermSheet(Mathf.Ceil(ask.Advance * 1.5f), ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, true, false,
++            ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
++        Check(told.Terms.Advance < ask.Advance * 5f || !desk.BeatsRivalOfferOf(talk, nearAsk), "money far above the act's ask still counts: half again their ask doesn't beat it");
++        bool Table(ContractTermSheet s) => desk.TableOffer(talk, s.Advance, s.RoyaltyRate, s.TermYears, s.SinglesObligation, s.LabelOwnsPublishing, s.ArtistCreativeControl, out message);
++        int patience = talk.patienceLeft;
++        Check(Table(losing.Value) && talk.stage == ContractTalkStage.Objection && talk.log[0].Contains(bidder.labelName) && talk.capabilityObjection == null &&
++            talk.patienceLeft == patience - 1 && string.IsNullOrEmpty(am.GetArtist(id).labelId) && desk.PendingRivalOffer(id) != null,
++            "the objection names the rival's paper, costs a round and signs nothing: " + message);
++        Reopen();
++        Check(Table(winning.Value) && talk.stage == ContractTalkStage.Done && am.GetArtist(id).labelId == desk.Label.labelId, "paper that beats the rival's signs: " + message);
++        Check(desk.RivalOffers.Single(o => o.ArtistId == id).Status == RivalOfferStatus.Declined && desk.PendingRivalOffer(id) == null, "the rival is turned down");
++        Check(desk.ScoutingCompetitionSummary(id).Contains("turned down"), "the notebook records how the offer ended");
++
++        // 4. The decision day: the act takes the rival's paper, exactly as offered, from that label only.
++        Reopen();
++        clock.RestoreClock(LocalSceneRoomService.Date(told.DecisionDay - 1), 6);
++        desk.ResolveRivalOffersForCheck();
++        Check(desk.PendingRivalOffer(id) != null && string.IsNullOrEmpty(act.labelId), "nothing happens before the decision day");
++        clock.RestoreClock(LocalSceneRoomService.Date(told.DecisionDay), 6);
++        GD.Seed(932); draw = GD.Randi(); GD.Seed(932);
++        desk.ResolveRivalOffersForCheck();
++        Check(GD.Randi() == draw, "the rival's signing draws no global RNG");
++        act = am.GetArtist(id);
++        Check(act.labelId == bidder.labelId && bidder.roster.Contains(act) && act.unrecoupedAdvance == told.Terms.Advance && act.royaltyRate == told.Terms.RoyaltyRate &&
++            act.contractLength == told.Terms.TermYears && desk.RivalOffers.Single(o => o.ArtistId == id).Status == RivalOfferStatus.Accepted,
++            "on the day, the act signs with the rival on exactly the offered terms");
++        Check(!Table(winning.Value) && act.labelId == bidder.labelId, "the player's table is closed once they've signed elsewhere: " + message);
++
++        // 5. A rival that can no longer take the act withdraws; an act that is gone lapses the offer.
++        Reopen();
++        bidder.cashReserves = 0f;
++        clock.RestoreClock(LocalSceneRoomService.Date(told.DecisionDay), 6);
++        desk.ResolveRivalOffersForCheck();
++        Check(desk.RivalOffers.Single(o => o.ArtistId == id).Status == RivalOfferStatus.Withdrawn && string.IsNullOrEmpty(am.GetArtist(id).labelId),
++            "an offer the rival can't honour falls through and the act stays unsigned");
++        Reopen();
++        act.lifecycleStatus = ArtistLifecycleStatus.Retired;
++        desk.ResolveRivalOffersForCheck();
++        Check(desk.RivalOffers.Single(o => o.ArtistId == id).Status == RivalOfferStatus.Lapsed, "an act that is gone lapses the offer");
++
++        // 6. Save/load keeps a pending, disclosed offer; malformed offers are refused before mutation; older saves invent none.
++        Reopen();
++        string slot = "Credible " + Guid.NewGuid().ToString("N");
++        try {
++            string expected = Json(desk.RivalOffers);
++            Check(SaveGameService.Save(slot, out message) && SaveGameService.Load(slot, out message), "compressed save/load: " + message);
++            Check(Json(desk.RivalOffers) == expected && desk.RivalOfferLine(id) != null, "the offer survives reload unchanged");
++        } finally { SaveGameService.Delete(slot); }
++        foreach (var corrupt in new Action<PlayerSaveData>[] {
++            s => s.RivalOffers[0].PlayerLabelId = "someone_else",
++            s => s.RivalOffers[0].DecisionDay = s.RivalOffers[0].MadeDay - 1,
++            s => s.RivalOffers[0].DisclosedDay = null,
++            s => s.RivalOffers[0].Terms = new ContractTermSheet(float.NaN, 0.05f, 2, 3, true, false, 0f, ManagerArchetype.None, null, null),
++            s => { var twin = LocalSceneRoomService.Copy(s.RivalOffers[0]); twin.Id += "|2"; s.RivalOffers.Add(twin); },
++            s => s.RivalOffers[0].Status = (RivalOfferStatus)42 }) {
++            var invalid = LocalSceneRoomService.Copy(opened); corrupt(invalid);
++            string state = Json(desk.CaptureState());
++            Check(!desk.RestoreState(invalid, out message) && Json(desk.CaptureState()) == state, "malformed offer rejected before mutation");
++        }
++        var older = LocalSceneRoomService.Copy(opened); older.RivalOffers = null;
++        Check(desk.RestoreState(older, out message) && desk.RivalOffers.Count == 0, "an older save holds no offers and none are invented");
++
++        // 7. The distribution promise: free to propose, scored, refused when the label already has a line.
++        Reset();
++        act.evolution.artisticAmbition = 0.95f; act.evolution.commercialPragmatism = 0.8f;
++        Check(desk.ApproachToSign(prospect, out message) && prospect.Talk != null, "a talk without a rival: " + message);
++        talk = prospect.Talk; ask = talk.ask;
++        float cash = desk.Label.cashReserves; float baseCredit = desk.AcceptanceCreditForCheck(talk); int before = Minute();
++        GD.Seed(933); draw = GD.Randi(); GD.Seed(933); worldBefore = Json(WorldStateService.Capture());
++        Check(desk.AddDistributionPromise(talk, out message) && talk.distributionPromised && !desk.AddDistributionPromise(talk, out _), "distribution joins the package once: " + message);
++        Check(GD.Randi() == draw && desk.Label.cashReserves == cash && Minute() == before && Json(WorldStateService.Capture()) == worldBefore && desk.ContractCommitments.Count == 0,
++            "proposing distribution spends, draws and commits nothing");
++        float credit = desk.AcceptanceCreditForCheck(talk) - baseCredit;
++        Check(credit >= 0.02f && credit <= 0.08f, $"the promise is scored inside the session range ({credit:0.000})");
++        Check(desk.WithdrawDistributionPromise(talk, out message) && !talk.distributionPromised, "it can be withdrawn");
++        desk.Label.independentDistributionRegions.Add(desk.Label.homeRegion);
++        Check(!desk.AddDistributionPromise(talk, out message) && message.Contains("already"), "a line the act can already see is not a promise: " + message);
++        desk.Label.independentDistributionRegions.Remove(desk.Label.homeRegion);
++        Check(desk.AddDistributionPromise(talk, out message), "promise again");
++        int agreed = Today();
++        var generous = new ContractTermSheet(ask.Advance * 1.5f, ask.RoyaltyRate, 1, ask.SinglesObligation, false, true,
++            ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
++        Check(Table(generous) && talk.stage == ContractTalkStage.Done && am.GetArtist(id).labelId == desk.Label.labelId, "a generous package with the promise signs: " + message);
++        var line = desk.ContractCommitments.Single(c => c.Kind == ContractCommitmentKind.Distribution);
++        Check(line.Status == ContractCommitmentStatus.Open && line.DueDay == agreed + PlayerDesk.PromotionReleaseDeadlineDays && line.QuotedCost == 0f && line.ReleaseDay == null,
++            "one distribution commitment, due once there is a record");
++        Check(desk.FoundingAct?.ArtistId == id, "the first signing is the first name on the label");
++        desk.TrackRosterDeparturesForCheck(); // the dawn watch now knows the act is on the roster
++        var signed = LocalSceneRoomService.Copy(desk.CaptureState()); var signedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture());
++        var signedDate = clock.CurrentDate; int signedHour = clock.CurrentHour, signedMinute = clock.CurrentMinute;
++        void Resign() => Restore(signed, signedDate, signedHour, signedMinute, signedWorld);
++
++        // Two acts to hear the story: one from the founding act's own town, one from elsewhere who knows nobody.
++        var neighbour = am.GetAllArtists().Where(a => a.artistId != id && string.IsNullOrEmpty(a.labelId) && a.lifecycleStatus == ArtistLifecycleStatus.Active &&
++            Scene(a) == Scene(act) && a.members.Any(m => m.isActive)).OrderBy(a => a.artistId, StringComparer.Ordinal).First();
++        bool Knows(SimulatedArtist x, SimulatedArtist y) => x.members.Any(m => y.members.Any(o => m.personId == o.personId || ContactNetworkService.Edge(m.personId, o.personId) != null));
++        var stranger = am.GetAllArtists().Where(a => a.artistId != id && string.IsNullOrEmpty(a.labelId) && a.lifecycleStatus == ArtistLifecycleStatus.Active &&
++            Scene(a) != null && Scene(a) != Scene(act) && a.members.Count(m => m.isActive) >= 2 && !Knows(a, act)).OrderBy(a => a.artistId, StringComparer.Ordinal).First();
++        string neighbourId = neighbour.artistId, strangerId = stranger.artistId;
++        ContractOutlook Read(string artistId) => desk.ReadContractOutlook(am.GetArtist(artistId), false);
++        float baseNeighbour = Read(neighbourId).Relationship, baseStranger = Read(strangerId).Relationship;
++
++        // 8. Kept: a record out and a wholesale line on it keep the promise -- and the first act's town hears it.
++        int released = agreed + 10;
++        ChartManager.Instance.ReleaseRecord(new Record { recordId = "credible_line_single", title = "Credible Line", artistId = id,
++            artistName = act.stageName, labelId = desk.Label.labelId, isPlayerOwned = true, format = ReleaseFormat.Single,
++            primaryGenre = act.primaryGenre, releaseDate = LocalSceneRoomService.Date(released) });
++        clock.RestoreClock(LocalSceneRoomService.Date(released), 22); clock.EndDay();
++        line = desk.ContractCommitments.Single(c => c.Kind == ContractCommitmentKind.Distribution);
++        Check(line.ReleaseDay == released && line.DueDay == released + PlayerDesk.DistributionPromiseDays && line.Status == ContractCommitmentStatus.Open,
++            "the release starts the distribution clock; no line yet");
++        desk.Label.independentDistributionRegions.Add(desk.Label.homeRegion);
++        clock.RestoreClock(clock.CurrentDate, 22); clock.EndDay();
++        line = desk.ContractCommitments.Single(c => c.Kind == ContractCommitmentKind.Distribution);
++        Check(line.Status == ContractCommitmentStatus.Kept && line.ResolvedDay == Today(), "a wholesale house carrying the record keeps the promise");
++        var keptNeighbour = Read(neighbourId);
++        Check(keptNeighbour.Stated.Any(l => l.Contains(act.stageName) && l.Contains("kept your word")) && keptNeighbour.Relationship > baseNeighbour,
++            "the first act's own town hears the promise was kept");
++        Check(Read(strangerId).Stated.All(l => !l.Contains(act.stageName)), "an act that knows nobody connected hears nothing");
++        Check(desk.FoundingActSummary().Contains("kept the promise"), "the founding history records the kept promise");
++
++        // 9. Broken: no record by the deadline. Their town hears it, a connected stranger hears it, an unconnected one doesn't.
++        Resign();
++        int events = act.careerEvents.Count;
++        clock.RestoreClock(LocalSceneRoomService.Date(agreed + PlayerDesk.PromotionReleaseDeadlineDays), 22); clock.EndDay();
++        line = desk.ContractCommitments.Single(c => c.Kind == ContractCommitmentKind.Distribution);
++        int brokenDay = Today();
++        Check(line.Status == ContractCommitmentStatus.Missed && act.careerEvents.Skip(events).Count(e => e.Contains("never put out the record it promised to distribute")) == 1,
++            "a record that never came out breaks the distribution promise once");
++        var heard = Read(neighbourId);
++        Check(heard.Stated.Any(l => l.Contains("first name on your label") && l.Contains("broke your word")) && heard.Relationship <= baseNeighbour - 0.025f, $"the founding act's town hears the broken promise ({baseNeighbour:0.000} -> {heard.Relationship:0.000})");
++        Check(Read(strangerId).Stated.All(l => !l.Contains(act.stageName)) && Mathf.IsEqualApprox(Read(strangerId).Relationship, baseStranger), "no connection, no story");
++        var strangerMember = am.GetArtist(strangerId).members.First(m => m.isActive);
++        var actMember = act.members.First(m => m.isActive);
++        ContactNetworkService.Link(strangerMember.personId, actMember.personId, ContactKind.Session, clock.CurrentDate.year);
++        var connected = Read(strangerId);
++        Check(connected.Stated.Any(l => l.Contains(strangerMember.FullName) && l.Contains("broke a promise")) && connected.Relationship < baseStranger - 0.015f,
++            "somebody who knows the act's people hears it");
++        act.contractSinglesObligation = 2; act.contractReleases = 2; clock.RestoreClock(clock.CurrentDate, 9);
++        Check(desk.ApproachRenewal(act, out message) && desk.PendingRenewal.Ask.DemandSummary.Contains("distribution you promised"), "the renewal ask names it: " + message);
++        desk.StepBackFromRenewal(out _);
++        Check(desk.FoundingActSummary().Contains("broke a promise"), "the founding history records the broken promise");
++        clock.RestoreClock(LocalSceneRoomService.Date(brokenDay + PlayerDesk.WordOfMouthDays + 1), 9);
++        Check(Read(neighbourId).Stated.All(l => !l.Contains("first name on your label")), "the story is not told forever");
++
++        // 10. The founding act leaves after the broken promise: recorded with it, and the story comes back up.
++        clock.RestoreClock(LocalSceneRoomService.Date(brokenDay), 9);
++        desk.Label.roster.Remove(act); act.labelId = null; act.lifecycleStatus = ArtistLifecycleStatus.Disbanded;
++        desk.TrackRosterDeparturesForCheck();
++        var gone = desk.RosterDepartures.Single(d => d.ArtistId == id);
++        Check(gone.Kind == RosterDepartureKind.Disbanded && gone.UnansweredBroken == 1 && gone.Founding, "the departure records the unanswered broken promise");
++        Check(desk.FoundingActSummary().Contains("left with a broken promise unanswered"), "the founding history says how they left");
++        string brokenSave = Json(desk.CaptureState());
++        slot = "Credible " + Guid.NewGuid().ToString("N");
++        try {
++            Check(SaveGameService.Save(slot, out message) && SaveGameService.Load(slot, out message), "save/load with a departure: " + message);
++            var back = desk.RosterDepartures.Single(d => d.ArtistId == id);
++            Check(back.Kind == gone.Kind && back.Day == gone.Day && back.UnansweredBroken == 1 && back.Founding, "the departure survives reload");
++        } finally { SaveGameService.Delete(slot); }
++        var badDeparture = JsonSerializer.Deserialize<PlayerSaveData>(brokenSave, SaveGameService.TestJsonOptions);
++        badDeparture.RosterDepartures[0].Kind = (RosterDepartureKind)77;
++        string stateNow = Json(desk.CaptureState());
++        Check(!desk.RestoreState(badDeparture, out message) && Json(desk.CaptureState()) == stateNow, "a malformed departure is refused before mutation");
++
++        // 11. An amicable departure: nothing broken, so no penalty -- and the act would come back on fair terms.
++        Resign();
++        desk.Label.roster.Remove(act); act.labelId = null; act.lifecycleStatus = ArtistLifecycleStatus.Disbanded;
++        desk.TrackRosterDeparturesForCheck();
++        Check(desk.RosterDepartures.Single(d => d.ArtistId == id).UnansweredBroken == 0 && desk.FoundingActSummary().Contains("parted on fair terms"),
++            "a departure with nothing broken is fair");
++        Check(Read(neighbourId).Stated.All(l => !l.Contains("broke")) && Read(neighbourId).Relationship >= baseNeighbour - 0.0001f, "a fair departure carries no penalty");
++        act.lifecycleStatus = ArtistLifecycleStatus.Active;
++        Check(desk.ReadContractOutlook(act, false).Stated.Any(l => l.Contains("parted on fair terms")), "the act remembers leaving on fair terms");
++
++        // 12. An introduction: one of their people knows somebody on your roster. A fallout cuts the other way.
++        Resign();
++        float plain = Read(strangerId).Relationship;
++        var members = am.GetArtist(strangerId).members.Where(m => m.isActive).OrderBy(m => m.personId, StringComparer.Ordinal).ToList();
++        ContactNetworkService.Link(members[0].personId, actMember.personId, ContactKind.Session, clock.CurrentDate.year);
++        var introduced = Read(strangerId);
++        Check(introduced.Stated.Any(l => l.Contains(members[0].FullName) && l.Contains("on your label")) && introduced.Relationship > plain + 0.01f,
++            "an introduction through the roster helps");
++        var others = act.members.Where(m => m.isActive && m.personId != actMember.personId).ToList();
++        if (others.Count > 0) {
++            ContactNetworkService.Link(members[1].personId, others[0].personId, ContactKind.FormerBandmate, clock.CurrentDate.year, fallout: true);
++            var both = Read(strangerId);
++            Check(both.Stated.Any(l => l.Contains("fell out")) && both.Relationship < introduced.Relationship, "a fallout with somebody on the roster counts against");
++        }
++
++        Reset();
++        GD.Print($"SCOUTING_CREDIBLE_OFFERS_PASS checks={checks}");
++    }
++}
+diff --git a/Systems/ContractTalk.cs b/Systems/ContractTalk.cs
+index 68dbed9..5ad1e07 100644
+--- a/Systems/ContractTalk.cs
++++ b/Systems/ContractTalk.cs
+@@ -33,6 +33,7 @@ public enum ContractCounter {
+ 	HoldFirm,      // re-table unchanged; softens their number if patience is high, ends it if not
+ 	Walk,          // step back from the table voluntarily
+ 	PromisePromotion, // a half-page trade ad on their first record -- no cash now, writes an enforced commitment
++	PromiseDistribution, // a wholesale house carries their first record -- no cash now, writes an enforced commitment
+ }
+ 
+ /// <summary>Where the scene sits. The UI renders one stage at a time.</summary>
+@@ -66,6 +67,7 @@ public sealed class ContractTalk {
+ 	public ContractTermSheet? draftOffer;                        // kept in the form after a time or cash refusal
+ 	public bool sessionPromised;                                // the package includes a funded session (PlayerDesk.ContractCommitments)
+ 	public bool promotionPromised;                              // the package includes a promotion push on their first record
++	public bool distributionPromised;                           // the package includes a wholesale line for their first record
+ 	// The contract outlook, read once when the table opens (PlayerDesk.ContractOutlook). The credit is hidden: what this
+ 	// label can do against the act's real alternative, plus the relationship. Zero on older saves, which reproduce the old check.
+ 	public float outlookCredit;
+diff --git a/Systems/LocalScenes.cs b/Systems/LocalScenes.cs
+index 3e2e8fb..fb61662 100644
+--- a/Systems/LocalScenes.cs
++++ b/Systems/LocalScenes.cs
+@@ -12,6 +12,9 @@ public static class LocalScenes {
+     public static bool ScoutingExperienceObserver { get; private set; }
+     /// <summary>Acts weigh this label against their real alternative at the table. Player-only; no AI reads it.</summary>
+     public static bool ContractOutlook { get; private set; }
++    /// <summary>A rival's interest in an act the player is pursuing is a real offer with a decision day
++    /// (PlayerDesk.RivalOffers). Off restores the three-day circling warning. Player-only; nothing runs without a player label.</summary>
++    public static bool RivalOffers { get; private set; }
+     public static bool Recruitment { get; private set; }
+     public static bool AttentionFeedback { get; private set; }
+     public static bool AttentionFeedbackAudit { get; private set; }
+@@ -120,6 +123,9 @@ public static class LocalScenes {
+         ScoutingExperienceObserver = ScoutingExperience && scoutingObserve;
+         ScoutingMarketHistory = ScoutingExperience && !args.Contains("--disable-scouting-market-history", StringComparer.Ordinal);
+         ContractOutlook = !args.Contains("--disable-contract-outlook", StringComparer.Ordinal);
++        if (args.Contains("--enable-rival-offers", StringComparer.Ordinal) && args.Contains("--disable-rival-offers", StringComparer.Ordinal))
++            throw new ArgumentException("--enable-rival-offers cannot be combined with --disable-rival-offers.");
++        RivalOffers = !args.Contains("--disable-rival-offers", StringComparer.Ordinal);
+         bool enableLive = args.Contains("--enable-scene-live-calibration", StringComparer.Ordinal);
+         bool disableLive = args.Contains("--disable-scene-live-calibration", StringComparer.Ordinal);
+         if (enableLive && (disableLive || !Rooms))
+@@ -138,8 +144,8 @@ public static class LocalScenes {
+         bool disablePrewarm = args.Contains("--disable-scene-room-prewarm", StringComparer.Ordinal);
+         if (enablePrewarm && (disablePrewarm || !Rooms))
+             throw new ArgumentException("Room prewarm requires scene rooms and cannot be enabled and disabled together.");
+-        // Off until reviewed for default; --disable-scene-room-prewarm is the explicit control.
+-        RoomPrewarm = Rooms && enablePrewarm && !disablePrewarm;
++        // On by default with rooms: history only and AI-inert. --disable-scene-room-prewarm is the explicit control.
++        RoomPrewarm = Rooms && !disablePrewarm;
+         if (args.Contains("--enable-scene-room-rotation", StringComparer.Ordinal) && (!Rooms || args.Contains("--disable-scene-room-rotation", StringComparer.Ordinal)))
+             throw new ArgumentException("Room rotation requires scene rooms and cannot be enabled and disabled together.");
+         RoomRotation = Rooms && !args.Contains("--disable-scene-room-rotation", StringComparer.Ordinal);
+diff --git a/Systems/PlayerDesk.ContractCommitments.cs b/Systems/PlayerDesk.ContractCommitments.cs
+index 37f539d..2992741 100644
+--- a/Systems/PlayerDesk.ContractCommitments.cs
++++ b/Systems/PlayerDesk.ContractCommitments.cs
+@@ -3,13 +3,14 @@ using System.Collections.Generic;
+ using System.Linq;
+ using Godot;
+ 
+-public enum ContractCommitmentKind { FundedSession, FundedPromotion }
++public enum ContractCommitmentKind { FundedSession, FundedPromotion, Distribution }
+ public enum ContractCommitmentStatus { Open, Kept, Missed, Void }
+ 
+ /// <summary>
+ /// One enforceable promise written into a player contract. A funded session: the label books and pays for a studio
+ /// session with the act before <see cref="DueDay"/>. A funded promotion: the label buys at least a half-page trade ad
+-/// for the act's first record within eight weeks of its release. The same record carries the agreement, its
++/// for the act's first record within eight weeks of its release. Distribution: a wholesale house (a placed line, or a
++/// distribution deal covering the record) carries their first record within eight weeks of its release. The same record carries the agreement, its
+ /// fulfillment, a miss and the remedy, so nothing about the promise is reconstructed from the roster later. IDs only.
+ /// </summary>
+ public sealed class ContractCommitment {
+@@ -20,7 +21,7 @@ public sealed class ContractCommitment {
+     public ContractCommitmentKind Kind { get; set; }
+     public bool Renewal { get; set; }
+     public int AgreedDay { get; set; }
+-    /// <summary>For a promotion, the release deadline until the first record is out, then eight weeks after it.</summary>
++    /// <summary>For a promotion or distribution promise, the release deadline until the first record is out, then eight weeks after it.</summary>
+     public int DueDay { get; set; }
+     /// <summary>The cheapest qualifying session, or the half-page rate, when agreed. A quote for planning, not escrow.</summary>
+     public float QuotedCost { get; set; }
+@@ -28,7 +29,7 @@ public sealed class ContractCommitment {
+     public int? ResolvedDay { get; set; }
+     /// <summary>A missed promise is answered once, by the next renewal ask that carries it.</summary>
+     public bool RemedyApplied { get; set; }
+-    /// <summary>Promotion only: the day the act's first record after the agreement came out. Absent on older saves.</summary>
++    /// <summary>Promotion and distribution only: the day the act's first record after the agreement came out. Absent on older saves.</summary>
+     public int? ReleaseDay { get; set; }
+ }
+ 
+@@ -37,7 +38,9 @@ public partial class PlayerDesk {
+     public const int SessionPromiseDays = 56;
+     /// <summary>Days after the first record's release within which the promised trade ad must run.</summary>
+     public const int PromotionPromiseDays = 56;
+-    /// <summary>A promotion promise for a record that never comes out is broken at this many days after signing.</summary>
++    /// <summary>Days after the first record's release within which a wholesale house must be carrying it.</summary>
++    public const int DistributionPromiseDays = 56;
++    /// <summary>A promotion or distribution promise for a record that never comes out is broken at this many days after signing.</summary>
+     public const int PromotionReleaseDeadlineDays = 273;
+     /// <summary>The smallest push that keeps a promotion promise.</summary>
+     public const TradeAdTier PromotionPromiseTier = TradeAdTier.HalfPage;
+@@ -63,9 +66,22 @@ public partial class PlayerDesk {
+     internal static float PromotionPromiseValue(SimulatedArtist artist) =>
+         0.02f + 0.06f * Mathf.Clamp(artist?.evolution?.commercialPragmatism ?? 0.5f, 0f, 1f);
+ 
++    /// <summary>What a promised wholesale line is worth: the same range, weighted to acts that want the record in shops past
++    /// town -- the pragmatic, and those who think they could go further. Read only by the acceptance check; never shown.</summary>
++    internal static float DistributionPromiseValue(SimulatedArtist artist, float prospects) =>
++        0.02f + 0.06f * Mathf.Clamp(0.6f * (artist?.evolution?.commercialPragmatism ?? 0.5f) + 0.4f * prospects, 0f, 1f);
++
+     private float PromiseValue(ContractTalk talk) =>
+         (talk?.sessionPromised == true ? SessionPromiseValue(talk.Artist) : 0f) +
+-        (talk?.promotionPromised == true ? PromotionPromiseValue(talk.Artist) : 0f);
++        (talk?.promotionPromised == true ? PromotionPromiseValue(talk.Artist) : 0f) +
++        (talk?.distributionPromised == true ? DistributionPromiseValue(talk.Artist, ProspectsNow(talk.Artist)) : 0f);
++
++    /// <summary>A wholesale house already carrying the label's line, or a distribution deal in force. The act can see it.</summary>
++    private bool LabelHasWholesaleLine() => Label != null && (Label.AllCoveredRegions().Any() || Label.activeDeal != null);
++
++    /// <summary>A record carried past the trunk: a house that takes the label's line, or a deal that covers this record.</summary>
++    private bool RecordCarried(string recordId) => Label != null && (Label.AllCoveredRegions().Any() ||
++        Label.RecordCoveredByActiveDeal(recordId) && (Label.activeDeal.grantedRegions?.Length ?? 0) > 0);
+ 
+     private float PromisedCash(ContractTalk talk, bool withSession, bool withPromotion) =>
+         (withSession ? SessionPromiseQuote() : 0f) + (withPromotion ? PromotionPromiseQuote() : 0f);
+@@ -137,6 +153,34 @@ public partial class PlayerDesk {
+         return true;
+     }
+ 
++    /// <summary>Attach a distribution promise: a wholesale house carries their first record within
++    /// <see cref="DistributionPromiseDays"/> of its release. Costs nothing now; placing a line costs the trip, as ever.
++    /// Only a label with no line yet can promise one -- a line the act can already see is not a promise.</summary>
++    public bool AddDistributionPromise(ContractTalk talk, out string message) {
++        if (!CurrentTalk(talk, out message)) return false;
++        if (talk.stage is not (ContractTalkStage.Tabling or ContractTalkStage.Objection)) { message = "Not at that point in the talks."; return false; }
++        if (talk.distributionPromised) { message = "Distribution is already part of your offer."; return false; }
++        if (LabelHasWholesaleLine()) { message = "A wholesale house already carries your line, and they can see it. There's nothing to promise."; return false; }
++        if (OpenPromiseFor(talk.Artist.artistId, ContractCommitmentKind.Distribution)) {
++            message = "You still owe them the distribution you promised before. Keep that one before promising it again."; return false;
++        }
++        talk.distributionPromised = true;
++        talk.stage = ContractTalkStage.Tabling;
++        message = $"You promise a wholesale house will carry their first record within {DistributionPromiseDays / 7} weeks of its release. " +
++            "Table the package to see where they stand.";
++        Changed?.Invoke();
++        return true;
++    }
++
++    public bool WithdrawDistributionPromise(ContractTalk talk, out string message) {
++        if (!CurrentTalk(talk, out message)) return false;
++        if (talk.stage != ContractTalkStage.Tabling || !talk.distributionPromised) { message = "There's no distribution promise on the table."; return false; }
++        talk.distributionPromised = false;
++        message = "The distribution promise is off the table.";
++        Changed?.Invoke();
++        return true;
++    }
++
+     public bool WithdrawPromotionPromise(ContractTalk talk, out string message) {
+         if (!CurrentTalk(talk, out message)) return false;
+         if (talk.stage != ContractTalkStage.Tabling || !talk.promotionPromised) { message = "There's no promotion promise on the table."; return false; }
+@@ -167,6 +211,11 @@ public partial class PlayerDesk {
+             Note($"Promised {artist.stageName} a {TradeAdTierName(PromotionPromiseTier).ToLowerInvariant()} trade ad within {PromotionPromiseDays / 7} weeks of their first record " +
+                 $"(the record itself out by {LocalSceneRoomService.Date(today + PromotionReleaseDeadlineDays).ToShortString()}).");
+         }
++        if (talk.distributionPromised) {
++            Write(ContractCommitmentKind.Distribution, "distribution", today + PromotionReleaseDeadlineDays, 0f);
++            Note($"Promised {artist.stageName} a wholesale house for their first record within {DistributionPromiseDays / 7} weeks of its release " +
++                $"(the record itself out by {LocalSceneRoomService.Date(today + PromotionReleaseDeadlineDays).ToShortString()}).");
++        }
+     }
+ 
+     /// <summary>A paid session with the act keeps any open session promise to them. Called after the money moved.</summary>
+@@ -210,18 +259,33 @@ public partial class PlayerDesk {
+             if (artist == null || artist.labelId != c.LabelId || Label?.roster?.Contains(artist) != true) {
+                 c.Status = ContractCommitmentStatus.Void; c.ResolvedDay = today; continue;
+             }
+-            if (c.Kind == ContractCommitmentKind.FundedPromotion && !c.ReleaseDay.HasValue && FirstReleaseSince(c.ArtistId, c.AgreedDay) is int released) {
++            if (c.Kind is ContractCommitmentKind.FundedPromotion or ContractCommitmentKind.Distribution && !c.ReleaseDay.HasValue &&
++                    FirstReleaseSince(c.ArtistId, c.AgreedDay) is int released) {
+                 c.ReleaseDay = released;
+-                c.DueDay = Math.Min(c.DueDay, released + PromotionPromiseDays);
++                c.DueDay = Math.Min(c.DueDay, released + (c.Kind == ContractCommitmentKind.Distribution ? DistributionPromiseDays : PromotionPromiseDays));
++            }
++            // A wholesale house carrying any of their records since the agreement keeps it; checked before a miss.
++            if (c.Kind == ContractCommitmentKind.Distribution && c.ReleaseDay.HasValue && today <= c.DueDay &&
++                    ReleasedRecords.Any(r => r.baseRecord?.artistId == c.ArtistId && ReleaseDayOf(r.baseRecord) >= c.AgreedDay && RecordCarried(r.baseRecord.recordId))) {
++                c.Status = ContractCommitmentStatus.Kept; c.ResolvedDay = today;
++                Note($"Kept the promise: a wholesale house is carrying {c.ArtistName}'s record.");
++                continue;
+             }
+             if (today <= c.DueDay) continue;
+             c.Status = ContractCommitmentStatus.Missed; c.ResolvedDay = today;
+-            string broken = c.Kind == ContractCommitmentKind.FundedSession ? "never booked the session it promised"
+-                : c.ReleaseDay.HasValue ? "never pushed the record it promised to promote" : "never put out the record it promised to promote";
++            string broken = c.Kind switch {
++                ContractCommitmentKind.FundedSession => "never booked the session it promised",
++                ContractCommitmentKind.Distribution => c.ReleaseDay.HasValue ? "never got the record into shops past the trunk as it promised"
++                    : "never put out the record it promised to distribute",
++                _ => c.ReleaseDay.HasValue ? "never pushed the record it promised to promote" : "never put out the record it promised to promote",
++            };
+             artist.careerEvents.Add($"{date.year}: {Label.labelName} {broken}.");
+-            Note(c.Kind == ContractCommitmentKind.FundedSession
+-                ? $"You never booked the session you promised {artist.stageName}. They'll remember it when the paper comes up."
+-                : $"You never gave {artist.stageName}'s record the push you promised. They'll remember it when the paper comes up.");
++            Note(c.Kind switch {
++                ContractCommitmentKind.FundedSession => $"You never booked the session you promised {artist.stageName}. They'll remember it when the paper comes up.",
++                ContractCommitmentKind.Distribution => $"You never got {artist.stageName}'s record into a wholesale house as you promised. They'll remember it when the paper comes up.",
++                _ => $"You never gave {artist.stageName}'s record the push you promised. They'll remember it when the paper comes up.",
++            });
++            OnPromiseBroken(c, artist);
+         }
+     }
+ 
+@@ -232,7 +296,8 @@ public partial class PlayerDesk {
+     private ContractTermSheet WithMissedPromises(ContractTermSheet ask, string artistId) {
+         int sessions = UnansweredMissedPromises(artistId, ContractCommitmentKind.FundedSession);
+         int pushes = UnansweredMissedPromises(artistId, ContractCommitmentKind.FundedPromotion);
+-        int missed = sessions + pushes;
++        int lines = UnansweredMissedPromises(artistId, ContractCommitmentKind.Distribution);
++        int missed = sessions + pushes + lines;
+         if (missed == 0) return ask;
+         float advance = Mathf.Ceil(ask.Advance * (1f + MissedSessionAdvancePremium * missed) / 5f) * 5f;
+         string summary = ask.DemandSummary ?? "";
+@@ -242,6 +307,9 @@ public partial class PlayerDesk {
+         if (pushes > 0) summary += pushes == 1
+             ? " They remember the push you promised their record and never gave it -- they want more up front this time."
+             : $" They remember {pushes} promised pushes you never gave -- they want more up front this time.";
++        if (lines > 0) summary += lines == 1
++            ? " They remember the distribution you promised and never delivered -- they want more up front this time."
++            : $" They remember {lines} records you promised to get into shops and didn't -- they want more up front this time.";
+         return new ContractTermSheet(advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, ask.LabelOwnsPublishing,
+             ask.ArtistCreativeControl, ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, summary.Trim());
+     }
+@@ -272,8 +340,8 @@ public partial class PlayerDesk {
+                 !float.IsFinite(c.QuotedCost) || c.QuotedCost < 0 ||
+                 (c.Status == ContractCommitmentStatus.Open) == c.ResolvedDay.HasValue ||
+                 c.ResolvedDay < c.AgreedDay || c.RemedyApplied && c.Status != ContractCommitmentStatus.Missed ||
+-                c.ReleaseDay.HasValue && (c.Kind != ContractCommitmentKind.FundedPromotion || c.ReleaseDay < c.AgreedDay) ||
+-                c.Kind == ContractCommitmentKind.FundedPromotion && c.DueDay > c.AgreedDay + PromotionReleaseDeadlineDays) return false;
++                c.ReleaseDay.HasValue && (c.Kind == ContractCommitmentKind.FundedSession || c.ReleaseDay < c.AgreedDay) ||
++                c.Kind != ContractCommitmentKind.FundedSession && c.DueDay > c.AgreedDay + PromotionReleaseDeadlineDays) return false;
+         }
+         return true;
+     }
+diff --git a/Systems/PlayerDesk.ContractNegotiation.cs b/Systems/PlayerDesk.ContractNegotiation.cs
+index 2fb0e37..e28ca00 100644
+--- a/Systems/PlayerDesk.ContractNegotiation.cs
++++ b/Systems/PlayerDesk.ContractNegotiation.cs
+@@ -379,7 +379,9 @@ public partial class PlayerDesk : Node {
+ 		talk.lastOfferValue = PackageValue(offer, talk.ask, talk.weights);
+         if (!CurrentTalk(talk, out message) || !CurrentContractCash(offer, out message)) { Changed?.Invoke(); return false; }
+ 
+-		if (ClearsReservation(talk, offer, AcceptanceCredit(talk))) { return FinalizeSign(talk, offer, out message); }
++		// Terms the act would take still have to beat any other label's paper it holds (PlayerDesk.RivalOffers).
++		bool clears = ClearsReservation(talk, offer, AcceptanceCredit(talk));
++		if (clears && BeatsRivalOffer(talk, offer)) { return FinalizeSign(talk, offer, out message); }
+ 
+ 		// A hard line isn't haggling: it costs the meeting, but not a point of patience. The act said it up
+ 		// front, and the point of the line is that nothing else on the table moves it.
+@@ -390,9 +392,10 @@ public partial class PlayerDesk : Node {
+ 		}
+ 
+ 		talk.objectionAxis = ObjectionAxisFor(talk, offer);
+-		talk.capabilityObjection = hardLine ? null : CapabilityObjectionFor(talk, offer);
++		talk.capabilityObjection = hardLine || clears ? null : CapabilityObjectionFor(talk, offer);
+ 		talk.stage = ContractTalkStage.Objection;
+-		string line = talk.capabilityObjection.HasValue ? CapabilityObjectionLine(talk) : ObjectionLine(talk, offer);
++		string line = clears ? RivalOfferObjectionLine(talk)
++			: talk.capabilityObjection.HasValue ? CapabilityObjectionLine(talk) : ObjectionLine(talk, offer);
+ 		talk.log.Insert(0, line);
+         if (!talk.IsRenewal) RememberScoutingBusinessStatement(talk.prospect, "objection|" + talk.roundsPlayed,
+             ScoutingBusinessStatementKind.Objection, line);
+@@ -434,6 +437,7 @@ public partial class PlayerDesk : Node {
+ 
+ 			case ContractCounter.Promise: return PlayPromise(talk, out message);
+ 			case ContractCounter.PromisePromotion: return AddPromotionPromise(talk, out message);
++			case ContractCounter.PromiseDistribution: return AddDistributionPromise(talk, out message);
+ 			case ContractCounter.HoldFirm: return PlayHoldFirm(talk, out message);
+ 
+ 			case ContractCounter.Walk:
+@@ -461,12 +465,14 @@ public partial class PlayerDesk : Node {
+ 		if (!patient) { WalkAway(talk, forced: true, out message); return true; }
+ 
+ 		talk.reservation = Mathf.Max(0.55f, talk.reservation - 0.03f);
+-		if (ClearsReservation(talk, CurrentOffer(talk), AcceptanceCredit(talk))) { return FinalizeSign(talk, CurrentOffer(talk), out message); }
++		bool clears = ClearsReservation(talk, CurrentOffer(talk), AcceptanceCredit(talk));
++		if (clears && BeatsRivalOffer(talk, CurrentOffer(talk))) { return FinalizeSign(talk, CurrentOffer(talk), out message); }
+ 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
+ 
+ 		talk.objectionAxis = ObjectionAxisFor(talk, CurrentOffer(talk));
+-		talk.capabilityObjection = HardLineBroken(talk, CurrentOffer(talk)).HasValue ? null : CapabilityObjectionFor(talk, CurrentOffer(talk));
+-		string line = talk.capabilityObjection.HasValue
++		talk.capabilityObjection = clears || HardLineBroken(talk, CurrentOffer(talk)).HasValue ? null : CapabilityObjectionFor(talk, CurrentOffer(talk));
++		string line = clears ? "He doesn't move much, but he doesn't hang up either. " + RivalOfferObjectionLine(talk)
++			: talk.capabilityObjection.HasValue
+ 			? "He doesn't move much, but he doesn't hang up either. " + CapabilityObjectionLine(talk)
+ 			: "He doesn't move much, but he doesn't hang up either.";
+ 		talk.log.Insert(0, line);
+@@ -617,6 +623,7 @@ public partial class PlayerDesk : Node {
+ 		prospect.Artist.signedUnderAskFraction = underAsk;
+ 		CompetitorManager.Instance?.RecordExpense(Label, paid);
+ 		ArtistManager.Instance?.SignArtist(prospect.Artist, Label.labelId, year);
++        DeclineRivalOffersFor(prospect.Artist);
+         RememberFoundingAct(prospect, sheet);
+         if (LocalScenes.Persisting) {
+             prospect.Artist.sceneRecruitmentHistory ??= new();
+diff --git a/Systems/PlayerDesk.ContractOutlook.cs b/Systems/PlayerDesk.ContractOutlook.cs
+index 444b7d1..cbdd662 100644
+--- a/Systems/PlayerDesk.ContractOutlook.cs
++++ b/Systems/PlayerDesk.ContractOutlook.cs
+@@ -17,10 +17,11 @@ public enum CapabilityAxis { Reach, Promotion, Recording, Attention, Local }
+ //   * what the act weighs, from its existing ambition, pragmatism and prospects;
+ //   * its outside option -- staying as it is (how much it is working, from the room ledger) or the
+ //     strongest AI label that could actually reach it (SceneRecruitmentService), has roster room and
+-//     wants its genre. That is a modeled belief about the market, never an offer: no rival offer is
+-//     created, recorded or shown, and nothing here writes AI state;
+-//   * the relationship: time spent with the act away from the stage, earlier walk-outs, and the
+-//     promises this label kept or broke.
++//     wants its genre. That is a modeled belief about the market, never an offer, and nothing here
++//     writes AI state. A rival's actual offer is PlayerDesk.RivalOffers: the act states it here and the
++//     acceptance check weighs it separately, so the belief and the offer are never counted twice;
++//   * the relationship: time spent with the act away from the stage, earlier walk-outs, the promises
++//     this label kept or broke, introductions and word of mouth (PlayerDesk.Reputation).
+ //
+ // The result is a bounded credit (often negative for a label nobody has heard of) that the existing
+ // acceptance check adds to the package. Pure and deterministic: no GD.Rand*, no world mutation, so a
+@@ -51,6 +52,9 @@ public sealed class ContractOutlook {
+     public float Doubt;
+     /// <summary>Internal only: the label the act's belief is built on. Never shown or named to the player.</summary>
+     public string RivalLabelId;
++    /// <summary>A real offer the act holds from another label (PlayerDesk.RivalOffers), if any. Unlike the belief above, it
++    /// is named and its terms stated, because the act has it in hand.</summary>
++    public string CompetingOfferId;
+     /// <summary>The axis the act weighs where this label trails its alternative the most, if it trails.</summary>
+     public CapabilityAxis? Gap;
+     /// <summary>What the act and its people actually said, for the negotiation page. No numbers, no hidden values.</summary>
+@@ -226,6 +230,8 @@ public partial class PlayerDesk {
+         outlook.ReservationLift = OutlookWorkLift * outlook.Work;
+         outlook.RoomWithheld = Mathf.Clamp(DoubtRoomShare * outlook.Doubt, 0f, MaxRoomWithheld);
+         outlook.Relationship = RelationshipCredit(artist, renewal, outlook.Stated);
++        var offer = renewal ? null : PendingOffer(artist.artistId);
++        outlook.CompetingOfferId = offer?.Id;
+ 
+         float worst = 0f;
+         foreach (CapabilityAxis axis in Enum.GetValues<CapabilityAxis>()) {
+@@ -238,12 +244,15 @@ public partial class PlayerDesk {
+         if (outlook.Gap == null && outlook.Doubt >= OutlookFirmDoubt)
+             outlook.Gap = new[] { CapabilityAxis.Reach, CapabilityAxis.Promotion, CapabilityAxis.Recording }
+                 .OrderByDescending(a => outlook.Priorities[a] * Mathf.Max(0f, ProvenLabel[a] - outlook.Player[a])).ThenBy(a => a).First();
+-        StateOutlook(artist, outlook, work, !waiting && chance * pullUsed >= 0.04f, waiting && chance * waitingPull >= 0.03f, ambition);
++        StateOutlook(artist, outlook, work, offer == null && !waiting && chance * pullUsed >= 0.04f,
++            offer == null && waiting && chance * waitingPull >= 0.03f, ambition, offer == null ? null : RivalOfferLine(artist.artistId));
+         return outlook;
+     }
+ 
+     /// <summary>Trust follows treatment, bounded so no cheap repeated action buys a signature: time spent with the act
+-    /// away from the stage, talks that broke down before, and, at renewal, the promises this label kept or broke.</summary>
++    /// away from the stage, talks that broke down before, the promises this label kept or broke to them (at renewal or
++    /// on coming back), an introduction through somebody on the roster, an earlier stay on the label, and what their
++    /// people have heard about how the label treats others (PlayerDesk.Reputation).</summary>
+     private float RelationshipCredit(SimulatedArtist artist, bool renewal, List<string> stated) {
+         float credit = 0f;
+         var dossier = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artist.artistId);
+@@ -255,7 +264,7 @@ public partial class PlayerDesk {
+         }
+         int walkouts = seen.Count(o => o.Kind == ScoutingEvidenceKind.BusinessStatement && o.BusinessStatementKind == ScoutingBusinessStatementKind.Declined);
+         if (walkouts > 0) { credit -= Mathf.Min(0.03f, 0.015f * walkouts); stated.Add("They remember talks with you breaking down before."); }
+-        if (renewal) {
++        {
+             var mine = contractCommitments.Where(c => c.ArtistId == artist.artistId && c.LabelId == Label.labelId).ToList();
+             int kept = mine.Count(c => c.Status == ContractCommitmentStatus.Kept);
+             int missed = mine.Count(c => c.Status == ContractCommitmentStatus.Missed);
+@@ -264,13 +273,15 @@ public partial class PlayerDesk {
+             if (kept > 0) stated.Add(kept == 1 ? "You kept the promise you made them last time." : $"You kept the {kept} promises you made them.");
+             if (missed > 0) stated.Add(missed == 1 ? "They haven't forgotten the promise you broke." : $"They haven't forgotten the {missed} promises you broke.");
+         }
++        if (!renewal) credit += IntroductionCreditFor(artist, stated) + FormerActCreditFor(artist, stated);
++        credit += WordOfMouthCredit(artist, stated);
+         return Mathf.Clamp(credit, OutlookRelationshipFloor, OutlookRelationshipCeiling);
+     }
+ 
+     /// <summary>The page shows what the act and its people said, built only from facts the game holds: rooms they are
+     /// booked into, what they keep asking about, and a belief about the market, which is never presented as an offer.</summary>
+     private static void StateOutlook(SimulatedArtist artist, ContractOutlook outlook,
+-            (IReadOnlyList<string> Booked, string Engagement, int Shows) work, bool believesInRival, bool willWait, float ambition) {
++            (IReadOnlyList<string> Booked, string Engagement, int Shows) work, bool believesInRival, bool willWait, float ambition, string offerLine = null) {
+         var lines = new List<string>();
+         if (outlook.Doubt >= OutlookFirmDoubt)
+             lines.Add(outlook.Credibility <= 0.36f
+@@ -282,6 +293,7 @@ public partial class PlayerDesk {
+         else if (rooms.Count > 0) lines.Add($"They're booked at {string.Join(" and ", rooms)} in the coming days{(outlook.Work >= OutlookFirmWork ? ". They aren't short of work." : ".")}");
+         else if (work.Shows >= 10) lines.Add("They've played these rooms for a while, though nothing is on the calendar right now.");
+         else lines.Add("They aren't working much right now.");
++        if (offerLine != null) lines.Add(offerLine);
+         if (believesInRival)
+             lines.Add("They believe a label with wider distribution could take an interest in them, and they'd want to hear it out. No offer has been made that you know of.");
+         else if (willWait)
+@@ -334,6 +346,8 @@ public partial class PlayerDesk {
+     internal static NegotiationPosture PostureFor(SimulatedArtist artist, ContractOutlook outlook) {
+         NegotiationPosture posture = PostureOf(artist);
+         if (outlook == null) return posture;
++        // An act with another label's paper in hand talks terms with anybody.
++        if (posture == NegotiationPosture.Pushover && outlook.CompetingOfferId != null) posture = NegotiationPosture.Firm;
+         if (posture == NegotiationPosture.Pushover && (outlook.Standing <= OutlookFirmStanding || outlook.Work >= OutlookFirmWork ||
+                 outlook.Doubt >= OutlookFirmDoubt))
+             posture = NegotiationPosture.Firm;
+diff --git a/b/Systems/PlayerDesk.Reputation.cs b/Systems/PlayerDesk.Reputation.cs
+new file mode 100644
+index 0000000..a9d413b
+--- /dev/null
++++ b/Systems/PlayerDesk.Reputation.cs
+@@ -0,0 +1,234 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Godot;
++
++public enum RosterDepartureKind { TalksBrokeDown, Disbanded, Retired, SignedElsewhere, Other }
++
++/// <summary>An act leaving the player's roster, recorded the dawn it is found gone, with how things stood: whether any
++/// promise to it was still broken and unanswered when it went. Historical; nothing rebuilds it from the roster later.</summary>
++public sealed class RosterDeparture {
++    public string LabelId { get; set; }
++    public string ArtistId { get; set; }
++    public string ArtistName { get; set; }
++    public int Day { get; set; }
++    public RosterDepartureKind Kind { get; set; }
++    /// <summary>Promises this label broke to the act and never answered, as of the day it left.</summary>
++    public int UnansweredBroken { get; set; }
++    public bool Founding { get; set; }
++}
++
++// ============================================================================================
++// TRUST FOLLOWS TREATMENT -- Phase 4/6 of the scouting expansion directive (§5, §10-§11).
++//
++// What an act has heard about this label comes from people who could have told it: a member who
++// knows somebody on the label's roster (the contact network), people who know an act this label
++// made promises to, and -- for the first name on the label -- the town that act calls home. Each is
++// bounded, dated and causal: no story without a connection, none older than three years, and a
++// fair departure carries no penalty at all. Player-side only; read by the contract outlook.
++// ============================================================================================
++public partial class PlayerDesk {
++    /// <summary>How long a kept or broken promise is still talked about.</summary>
++    public const int WordOfMouthDays = 3 * 365;
++    private const float BrokenWordCredit = -0.02f, FoundingBrokenWordCredit = -0.03f;
++    private const float KeptWordCredit = 0.01f, FoundingKeptWordCredit = 0.015f;
++    private const float WordOfMouthFloor = -0.05f, WordOfMouthCeiling = 0.02f;
++    private const float IntroductionCredit = 0.015f, FalloutCredit = -0.01f, FormerActCredit = 0.01f;
++
++    private readonly List<RosterDeparture> rosterDepartures = new();
++    private readonly HashSet<string> rosterSeen = new(StringComparer.Ordinal);
++    public IReadOnlyList<RosterDeparture> RosterDepartures => LocalSceneRoomService.Copy(rosterDepartures).AsReadOnly();
++
++    /// <summary>What the act believes its chances are with a bigger label, read now. Pure.</summary>
++    private float ProspectsNow(SimulatedArtist artist) => artist == null ? 0f :
++        ProspectsOf(artist, WorkLevel(LocalSceneRoomService.ObserveActWork(artist.artistId, TodayIndex())));
++
++    private static string SceneOf(SimulatedArtist artist) => LocalScenePersistenceService.SceneIdFor(artist?.geography?.basePlaceId);
++    private static string TownName(string sceneId) => ScenePlaceRegistry.Get(sceneId)?.Name ?? DistanceModel.GetCityById(sceneId)?.name ?? "town";
++
++    // ========================================================================================
++    // DEPARTURES
++    // ========================================================================================
++
++    /// <summary>Dawn: an act that was on the roster yesterday and isn't today has left. Recorded once, with how it left
++    /// and whether a broken promise went with it.</summary>
++    private void TrackRosterDepartures(GameDate date) {
++        if (Label?.roster == null) return;
++        var now = Label.roster.Where(a => a != null).Select(a => a.artistId).ToHashSet(StringComparer.Ordinal);
++        foreach (string id in rosterSeen.Where(id => !now.Contains(id)).OrderBy(id => id, StringComparer.Ordinal).ToList()) {
++            var artist = ArtistManager.Instance?.GetArtist(id);
++            var kind = artist == null ? RosterDepartureKind.Other
++                : artist.lifecycleStatus == ArtistLifecycleStatus.Disbanded ? RosterDepartureKind.Disbanded
++                : artist.lifecycleStatus == ArtistLifecycleStatus.Retired ? RosterDepartureKind.Retired
++                : !string.IsNullOrEmpty(artist.labelId) && artist.labelId != Label.labelId ? RosterDepartureKind.SignedElsewhere
++                : artist.lastDropReason == ArtistDropReason.ContractExpired ? RosterDepartureKind.TalksBrokeDown
++                : RosterDepartureKind.Other;
++            int broken = contractCommitments.Count(c => c.ArtistId == id && c.LabelId == Label.labelId &&
++                c.Status == ContractCommitmentStatus.Missed && !c.RemedyApplied);
++            bool founding = scoutingKnowledge.FoundingAct?.ArtistId == id;
++            rosterDepartures.Add(new RosterDeparture { LabelId = Label.labelId, ArtistId = id, ArtistName = artist?.stageName ?? id,
++                Day = LocalSceneRoomService.Day(date), Kind = kind, UnansweredBroken = broken, Founding = founding });
++            if (founding && broken > 0)
++                Note($"{artist?.stageName ?? "Your first act"} have left the label with your broken promise unanswered. Word of it is all over {TownName(SceneOf(artist))}.");
++            else if (founding)
++                Note($"{artist?.stageName ?? "Your first act"}, the first name on the label, have moved on. You parted on fair terms.");
++        }
++        rosterSeen.Clear(); rosterSeen.UnionWith(now);
++    }
++
++    /// <summary>The roster as it stands is the baseline after founding or a load: nothing that left before is invented.</summary>
++    private void ResetRosterWatch() {
++        rosterSeen.Clear();
++        if (Label?.roster != null) rosterSeen.UnionWith(Label.roster.Where(a => a != null).Select(a => a.artistId));
++    }
++
++    /// <summary>Called once, the dawn a promise is recorded broken. The first name on the label is the one its home town
++    /// knows the label by, so that story is told there.</summary>
++    private void OnPromiseBroken(ContractCommitment c, SimulatedArtist artist) {
++        if (scoutingKnowledge.FoundingAct?.ArtistId != c.ArtistId) return;
++        Note($"Word gets round {TownName(SceneOf(artist))}: the label broke its word to {artist.stageName}, the first act it ever signed.");
++    }
++
++    // ========================================================================================
++    // WHAT THE ACT HAS HEARD
++    // ========================================================================================
++
++    private static IEnumerable<string> PeopleOf(SimulatedArtist act, bool everyone) =>
++        act?.members?.Where(m => m?.personId != null && (everyone || m.isActive)).Select(m => m.personId) ?? Enumerable.Empty<string>();
++
++    /// <summary>The first pair of people, one in each act, who know each other (or the same person in both).
++    /// Null when nobody connects them.</summary>
++    private static (Musician Ours, Musician Theirs, ContactEdge Edge)? Connection(SimulatedArtist act, SimulatedArtist other, bool othersFormer) {
++        if (act == null || other == null) return null;
++        foreach (Musician m in act.members.Where(m => m?.personId != null && m.isActive).OrderBy(m => m.personId, StringComparer.Ordinal))
++        foreach (Musician o in other.members.Where(o => o?.personId != null && (othersFormer || o.isActive)).OrderBy(o => o.personId, StringComparer.Ordinal)) {
++            if (m.personId == o.personId) return (m, o, null);
++            if (ContactNetworkService.Enabled && ContactNetworkService.Edge(m.personId, o.personId) is { } edge) return (m, o, edge);
++        }
++        return null;
++    }
++
++    /// <summary>Word of mouth: kept and broken promises to acts this one's people know, within
++    /// <see cref="WordOfMouthDays"/>. The founding act's story is also known across its home town. Bounded, dated, causal.</summary>
++    private float WordOfMouthCredit(SimulatedArtist artist, List<string> stated) {
++        if (Label == null || artist == null) return 0f;
++        int today = TodayIndex();
++        string founding = scoutingKnowledge.FoundingAct?.ArtistId;
++        string scene = SceneOf(artist);
++        float credit = 0f;
++        foreach (var story in contractCommitments.Where(c => c.LabelId == Label.labelId && c.ArtistId != artist.artistId &&
++                c.Status is ContractCommitmentStatus.Missed or ContractCommitmentStatus.Kept && c.ResolvedDay.HasValue)
++                .GroupBy(c => c.ArtistId).OrderBy(g => g.Key, StringComparer.Ordinal)) {
++            var other = ArtistManager.Instance?.GetArtist(story.Key);
++            if (other == null) continue;
++            // A broken promise never answered is the story told; otherwise a kept one is. A departure over a broken
++            // promise brings the story back up the day they leave.
++            var broken = story.Where(c => c.Status == ContractCommitmentStatus.Missed && !c.RemedyApplied).ToList();
++            var leftOver = rosterDepartures.LastOrDefault(d => d.ArtistId == story.Key && d.UnansweredBroken > 0);
++            int brokenDay = broken.Count == 0 ? -1 : Math.Max(broken.Max(c => c.ResolvedDay.Value), leftOver?.Day ?? -1);
++            var kept = story.Where(c => c.Status == ContractCommitmentStatus.Kept).ToList();
++            int keptDay = kept.Count == 0 ? -1 : kept.Max(c => c.ResolvedDay.Value);
++            bool isBroken = brokenDay >= 0 && today - brokenDay <= WordOfMouthDays;
++            bool isKept = !isBroken && broken.Count == 0 && keptDay >= 0 && today - keptDay <= WordOfMouthDays;
++            if (!isBroken && !isKept) continue;
++            bool foundingStory = story.Key == founding && scene != null && SceneOf(other) == scene;
++            var link = Connection(artist, other, othersFormer: true);
++            if (link == null && !foundingStory) continue;
++            string who = link == null ? null : link.Value.Ours.FullName;
++            if (isBroken) {
++                credit += foundingStory ? FoundingBrokenWordCredit : BrokenWordCredit;
++                stated.Add(foundingStory
++                    ? $"Everybody around {TownName(scene)} knows {other.stageName} were the first name on your label, and that you broke your word to them."
++                    : $"{who} knows {other.stageName}'s people. They've heard you broke a promise to them.");
++            } else {
++                credit += foundingStory ? FoundingKeptWordCredit : KeptWordCredit;
++                stated.Add(foundingStory
++                    ? $"{other.stageName}, the first act you signed, say you kept your word to them. People around {TownName(scene)} have heard."
++                    : $"{who} knows {other.stageName}'s people. They've heard you keep your word.");
++            }
++        }
++        return Mathf.Clamp(credit, WordOfMouthFloor, WordOfMouthCeiling);
++    }
++
++    /// <summary>An introduction: one of their people knows somebody on the label's roster. A fallout cuts the other way.
++    /// An act the label has broken its word to and never answered vouches for nobody; that story travels as word of mouth.</summary>
++    private float IntroductionCreditFor(SimulatedArtist artist, List<string> stated) {
++        if (Label?.roster == null || artist == null || !ContactNetworkService.Enabled) return 0f;
++        float credit = 0f; bool introduced = false, fellOut = false;
++        foreach (SimulatedArtist ours in Label.roster.Where(a => a != null && a != artist).OrderBy(a => a.artistId, StringComparer.Ordinal)) {
++            if (contractCommitments.Any(c => c.ArtistId == ours.artistId && c.Status == ContractCommitmentStatus.Missed && !c.RemedyApplied)) continue;
++            foreach (Musician m in artist.members.Where(m => m?.personId != null && m.isActive).OrderBy(m => m.personId, StringComparer.Ordinal))
++            foreach (Musician o in ours.members.Where(o => o?.personId != null && o.isActive).OrderBy(o => o.personId, StringComparer.Ordinal)) {
++                var edge = ContactNetworkService.Edge(m.personId, o.personId);
++                if (edge == null) continue;
++                if (edge.Fallout && !fellOut) {
++                    fellOut = true; credit += FalloutCredit;
++                    stated.Add($"{m.FullName} fell out with {o.FullName}, who plays in {ours.stageName} on your label.");
++                } else if (!edge.Fallout && !introduced) {
++                    introduced = true; credit += IntroductionCredit;
++                    stated.Add($"{m.FullName} knows {o.FullName} from {ours.stageName}, on your label. They've heard what it's like working with you.");
++                }
++            }
++        }
++        return credit;
++    }
++
++    /// <summary>An act that has been on the label before and left on fair terms remembers it.</summary>
++    private float FormerActCreditFor(SimulatedArtist artist, List<string> stated) {
++        var left = rosterDepartures.LastOrDefault(d => d.ArtistId == artist?.artistId && d.LabelId == Label?.labelId);
++        if (left == null || left.UnansweredBroken > 0 || left.Kind == RosterDepartureKind.TalksBrokeDown) return 0f;
++        stated.Add("They've been on your label before and parted on fair terms.");
++        return FormerActCredit;
++    }
++
++    // ========================================================================================
++    // THE FIRST NAME ON THE LABEL
++    // ========================================================================================
++
++    /// <summary>How the founding act has been treated, for the founding history: promises kept and broken, and how
++    /// (if) it left. Built from the commitment and departure records only.</summary>
++    private string FoundingTreatmentSummary(string artistId) {
++        if (Label == null || artistId == null) return "";
++        var mine = contractCommitments.Where(c => c.ArtistId == artistId && c.LabelId == Label.labelId).ToList();
++        int kept = mine.Count(c => c.Status == ContractCommitmentStatus.Kept);
++        var broken = mine.Where(c => c.Status == ContractCommitmentStatus.Missed).ToList();
++        var parts = new List<string>();
++        if (kept > 0) parts.Add(kept == 1 ? "You kept the promise you made them." : $"You kept the {kept} promises you made them.");
++        if (broken.Count > 0) {
++            int open = broken.Count(c => !c.RemedyApplied);
++            parts.Add((broken.Count == 1 ? "You broke a promise to them" : $"You broke {broken.Count} promises to them") +
++                $" (first on {LocalSceneRoomService.Date(broken.Min(c => c.ResolvedDay ?? c.DueDay)).ToHeadlineString()})" +
++                (open == 0 ? ", and answered for it at renewal." : ". The town they came from has heard about it."));
++        }
++        var left = rosterDepartures.LastOrDefault(d => d.ArtistId == artistId && d.LabelId == Label.labelId);
++        if (left != null) {
++            string how = left.Kind switch {
++                RosterDepartureKind.TalksBrokeDown => "renewal talks broke down",
++                RosterDepartureKind.Disbanded => "the band broke up",
++                RosterDepartureKind.Retired => "they retired",
++                RosterDepartureKind.SignedElsewhere => "they signed elsewhere",
++                _ => "they moved on",
++            };
++            parts.Add($"Left the label {LocalSceneRoomService.Date(left.Day).ToHeadlineString()}: {how}. " +
++                (left.UnansweredBroken > 0 ? "They left with a broken promise unanswered." : "You parted on fair terms."));
++        }
++        return string.Join(" ", parts);
++    }
++
++    private List<RosterDeparture> CaptureRosterDepartures() => rosterDepartures.Count == 0 ? null : LocalSceneRoomService.Copy(rosterDepartures);
++
++    private static bool ValidateRosterDepartures(List<RosterDeparture> saved, string labelId, out string message) {
++        message = "The saved roster departures are invalid; no player state was restored.";
++        return saved == null || saved.All(d => d != null && d.LabelId == labelId && !string.IsNullOrEmpty(d.ArtistId) &&
++            Enum.IsDefined(d.Kind) && d.Day >= 0 && d.UnansweredBroken >= 0);
++    }
++
++    private void RestoreRosterDepartures(List<RosterDeparture> saved) {
++        rosterDepartures.Clear();
++        if (saved != null) rosterDepartures.AddRange(LocalSceneRoomService.Copy(saved));
++        ResetRosterWatch();
++    }
++
++    /// <summary>Fixture access: run the dawn roster watch for today. Never rendered.</summary>
++    internal void TrackRosterDeparturesForCheck() => TrackRosterDepartures(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
++}
+diff --git a/b/Systems/PlayerDesk.RivalOffers.cs b/Systems/PlayerDesk.RivalOffers.cs
+new file mode 100644
+index 0000000..01225c9
+--- /dev/null
++++ b/Systems/PlayerDesk.RivalOffers.cs
+@@ -0,0 +1,257 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Godot;
++
++public enum RivalOfferStatus { Pending, Accepted, Declined, Withdrawn, Lapsed }
++/// <summary>How the player knows of the offer: word on the street (who and when, not the terms), or from the act's own side.</summary>
++public enum RivalOfferDisclosure { Rumored, Disclosed }
++
++/// <summary>
++/// A real offer an AI label has put in front of an unsigned act the player is pursuing, with the day the act will answer
++/// it. Made only through the player's crowding roll, by a label the recruitment owner says can reach, afford and roster
++/// the act today; signed only by that label, on exactly these terms, on the decision day -- unless the player signs the
++/// act first. One record carries the offer, what the player knew of it and when, and how it ended. IDs only.
++/// </summary>
++public sealed class RivalOffer {
++    public string Id { get; set; }
++    public string PlayerLabelId { get; set; }
++    public string ArtistId { get; set; }
++    public string ArtistName { get; set; }
++    public string RivalLabelId { get; set; }
++    public string RivalLabelName { get; set; }
++    public int MadeDay { get; set; }
++    /// <summary>The act answers the offer at dawn on this day.</summary>
++    public int DecisionDay { get; set; }
++    public ContractTermSheet Terms { get; set; }
++    public RivalOfferDisclosure Disclosure { get; set; }
++    /// <summary>When the player first heard of it, and when the act's side told them the terms (if it has).</summary>
++    public int KnownDay { get; set; }
++    public int? DisclosedDay { get; set; }
++    public RivalOfferStatus Status { get; set; }
++    public int? ResolvedDay { get; set; }
++}
++
++// ============================================================================================
++// RIVAL OFFERS -- Phase 4 of the scouting expansion directive (§9-§10, "actual outside options").
++//
++// The crowding roll (PlayerDesk.ProcessRivalCrowding) used to give a notebook act a three-day
++// "circling" warning and then sign it to the rival. The rival's interest is now an offer: real
++// terms from that label's own pricing, a decision day, and a record of what the player was told.
++// The act weighs it at the player's table -- the player has to beat the paper, or show why this
++// label is the better home -- and takes it on the day unless the player has signed them.
++//
++// Nothing here runs without a player label, and nothing draws the global RNG: the terms are the
++// label's pure advance and royalty pricing plus a stable-hash term, and the signing applies them as
++// given. The world write is the same rival signing the crowding roll already made.
++// ============================================================================================
++public partial class PlayerDesk {
++    /// <summary>Days an act takes to answer a rival's offer.</summary>
++    public const int RivalOfferDecisionDays = 5;
++
++    private readonly List<RivalOffer> rivalOffers = new();
++    public IReadOnlyList<RivalOffer> RivalOffers => LocalSceneRoomService.Copy(rivalOffers).AsReadOnly();
++
++    private int TodayIndex() => LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
++
++    private RivalOffer PendingOffer(string artistId) => artistId == null ? null :
++        rivalOffers.FirstOrDefault(o => o.ArtistId == artistId && o.Status == RivalOfferStatus.Pending);
++
++    /// <summary>The pending offer for this act, detached, if the player knows of one.</summary>
++    public RivalOffer PendingRivalOffer(string artistId) => LocalSceneRoomService.Copy(PendingOffer(artistId));
++
++    /// <summary>What the rival would actually sign: its own advance and royalty pricing for this act (pure), the manager's
++    /// demands as a term sheet carries them, and the term and sides drawn from a stable hash rather than the global RNG.</summary>
++    internal static ContractTermSheet RivalOfferTerms(AILabel rival, SimulatedArtist artist, int day, int year) {
++        ManagerProfile.Modifiers mods = ManagerProfile.Of(artist.manager);
++        ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
++        int Range(string what, int min, int max) =>
++            Math.Min(max, min + (int)(StableUnit($"{seed}|{rival.labelId}|{artist.artistId}|{day}|RivalOffer{what}") * (max - min + 1)));
++        float advance = Mathf.Ceil(rival.CalculateManagerAdjustedAdvance(artist) / 5f) * 5f;
++        float royalty = artist.manager == ManagerArchetype.None ? rival.CalculateRoyaltyRate(artist)
++            : Mathf.Clamp(rival.CalculateRoyaltyRate(artist) * mods.RoyaltyDemandMult, 0.02f, 0.15f);
++        (int min, int max) span = artist.careerState switch {
++            CareerState.Superstar => (1, 3), CareerState.Star => (2, 4), CareerState.Established => (3, 5), CareerState.Rising => (2, 3), _ => (1, 2)
++        };
++        int bias = (rival.tier is LabelTier.Major or LabelTier.MidTier ? 1 : 0) + (rival.artistLoyalty > 0.65f ? 1 : 0) -
++            (rival.tier is LabelTier.Small or LabelTier.Boutique ? 1 : 0);
++        int term = Math.Clamp(Range("Term", span.min, span.max) + bias, 1, 7);
++        term = artist.manager switch { ManagerArchetype.Shark => Math.Max(1, term - 1), ManagerArchetype.Svengali => Math.Min(7, term + 1), _ => term };
++        int singles = year > AILabel.SinglesObligationFinalYear ? 0 : artist.careerState switch {
++            CareerState.Superstar or CareerState.Star or CareerState.Established => 0,
++            CareerState.Rising => Range("Sides", 4, 8),
++            _ => Range("Sides", 3, 6)
++        };
++        return new ContractTermSheet(advance, royalty, term, singles, !mods.DemandsArtistPublishing, mods.DemandsArtistControl,
++            mods.NegotiationDifficulty, artist.manager, artist.managerName, null);
++    }
++
++    /// <summary>Whether the act's own side would tell the player about an offer: they are in a terms discussion with the
++    /// player, or have sat down with them. Otherwise the player hears only who is making an offer and when it's due.</summary>
++    private bool ActWouldDisclose(string artistId) =>
++        OpenDiscussions(artistId).Any() ||
++        scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId)?.Observations
++            .Any(o => o.Kind is ScoutingEvidenceKind.MeetingStatement or ScoutingEvidenceKind.BusinessStatement) == true;
++
++    /// <summary>Every live prospect object holding a terms discussion with this act (the pad and the kept negotiations).</summary>
++    private IEnumerable<Prospect> OpenDiscussions(string artistId) =>
++        slate.Where(p => p?.Artist?.artistId == artistId && p.HasBaseline)
++            .Concat(scoutingNegotiations.TryGetValue(artistId, out var kept) && kept.HasBaseline ? new[] { kept } : Array.Empty<Prospect>())
++            .Distinct();
++
++    /// <summary>The rival who rolled up on a watched act makes an offer instead of signing on sight.</summary>
++    private RivalOffer MakeRivalOffer(SimulatedArtist artist, AILabel rival, GameDate date) {
++        int today = LocalSceneRoomService.Day(date);
++        bool disclosed = ActWouldDisclose(artist.artistId);
++        var offer = new RivalOffer {
++            Id = $"{Label.labelId}|{artist.artistId}|{rival.labelId}|{today}", PlayerLabelId = Label.labelId,
++            ArtistId = artist.artistId, ArtistName = artist.stageName, RivalLabelId = rival.labelId, RivalLabelName = rival.labelName,
++            MadeDay = today, DecisionDay = today + RivalOfferDecisionDays, Terms = RivalOfferTerms(rival, artist, today, date.year),
++            Disclosure = disclosed ? RivalOfferDisclosure.Disclosed : RivalOfferDisclosure.Rumored,
++            KnownDay = today, DisclosedDay = disclosed ? today : null, Status = RivalOfferStatus.Pending };
++        rivalOffers.Add(offer);
++        Note(disclosed
++            ? $"{artist.stageName}'s side tells you {rival.labelName} has offered them {RivalTermsText(offer.Terms)}. They answer {rival.labelName} by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}."
++            : $"Word is {rival.labelName} has made {artist.stageName} an offer, and wants an answer by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. You haven't heard the terms.");
++        // An easy act with a real offer in hand no longer signs on one click: it wants to talk terms.
++        foreach (Prospect p in OpenDiscussions(artist.artistId).ToList()) {
++            if (p.Posture != NegotiationPosture.Pushover || p.Talk != null) continue;
++            p.Posture = NegotiationPosture.Firm;
++            p.PushoverCountered = false;
++            OpenNegotiation(p, ReadContractOutlook(artist, renewal: false));
++        }
++        return offer;
++    }
++
++    /// <summary>Opening or reopening talks: the act's side tells the player what it has been offered.</summary>
++    private void DiscloseRivalOffer(string artistId) {
++        var offer = PendingOffer(artistId);
++        if (offer == null || offer.Disclosure == RivalOfferDisclosure.Disclosed) return;
++        offer.Disclosure = RivalOfferDisclosure.Disclosed; offer.DisclosedDay = TodayIndex();
++        Note($"{offer.ArtistName}'s side confirms {offer.RivalLabelName}'s offer: {RivalTermsText(offer.Terms)}, answered by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}.");
++    }
++
++    /// <summary>Dawn: every pending offer whose day has come is answered. The act signs with the rival on exactly the terms
++    /// offered, if that label still can; otherwise the offer has fallen through. Acts that are gone or signed lapse it.</summary>
++    private void ResolveRivalOffers(GameDate date) {
++        int today = LocalSceneRoomService.Day(date);
++        foreach (RivalOffer offer in rivalOffers.Where(o => o.Status == RivalOfferStatus.Pending).ToList()) {
++            var artist = ArtistManager.Instance?.GetArtist(offer.ArtistId);
++            if (artist == null || !string.IsNullOrEmpty(artist.labelId) || artist.lifecycleStatus != ArtistLifecycleStatus.Active) {
++                offer.Status = artist?.labelId == Label?.labelId && artist?.labelId != null ? RivalOfferStatus.Declined : RivalOfferStatus.Lapsed;
++                offer.ResolvedDay = today;
++                continue;
++            }
++            if (today < offer.DecisionDay) continue;
++            offer.ResolvedDay = today;
++            AILabel taker = RosterManager.Instance?.SignRivalOfferToPlayerAct(artist, date, offer.RivalLabelId, offer.Terms);
++            if (taker != null) {
++                offer.Status = RivalOfferStatus.Accepted;
++                Note($"{artist.stageName} took {taker.labelName}'s offer and signed with them.");
++            } else {
++                offer.Status = RivalOfferStatus.Withdrawn;
++                Note($"{offer.RivalLabelName}'s offer for {artist.stageName} fell through -- they can't take on the act now. {artist.stageName} is still unsigned.");
++            }
++        }
++    }
++
++    /// <summary>The player signed the act: any offer it had is turned down.</summary>
++    private void DeclineRivalOffersFor(SimulatedArtist artist) {
++        foreach (RivalOffer offer in rivalOffers.Where(o => o.ArtistId == artist.artistId && o.Status == RivalOfferStatus.Pending)) {
++            offer.Status = RivalOfferStatus.Declined; offer.ResolvedDay = TodayIndex();
++            Note($"{artist.stageName} turned down {offer.RivalLabelName}'s offer.");
++        }
++    }
++
++    public static string RivalTermsText(ContractTermSheet t) =>
++        $"${t.Advance:N0} up front, {t.RoyaltyRate:P1} royalty, {t.TermYears} {(t.TermYears == 1 ? "year" : "years")}" +
++        (t.SinglesObligation > 0 ? $", {t.SinglesObligation} sides owed" : "") +
++        (t.LabelOwnsPublishing ? "" : ", they keep the publishing") + (t.ArtistCreativeControl ? ", they keep the final word" : "");
++
++    /// <summary>What the player knows of a pending offer, for the notebook, the pad and the table. Null when none.</summary>
++    public string RivalOfferLine(string artistId) {
++        var offer = PendingOffer(artistId);
++        if (offer == null) return null;
++        string due = LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString();
++        return offer.Disclosure == RivalOfferDisclosure.Disclosed
++            ? $"{offer.RivalLabelName} has offered them {RivalTermsText(offer.Terms)}. They answer by {due}."
++            : $"Word is {offer.RivalLabelName} has made them an offer; they want an answer by {due}. Talk to them to hear the terms.";
++    }
++
++    /// <summary>The act's side of a rival offer, said at the table. Facts the act holds; nothing hidden.</summary>
++    private string RivalOfferObjectionLine(ContractTalk talk) {
++        var offer = PendingOffer(talk.Artist.artistId);
++        string who = string.IsNullOrEmpty(talk.ask.ManagerName) ? "They" : talk.ask.ManagerName;
++        return offer == null ? "\"There's other paper on the table. Yours has to beat it.\""
++            : $"\"{offer.RivalLabelName} has put paper in front of us: {RivalTermsText(offer.Terms)}. " +
++              $"{(who == "They" ? "We" : who)} answer{(who == "They" ? "" : "s")} them by {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. " +
++              "Beat it, or show us why you're the better home.\"";
++    }
++
++    /// <summary>What this label can do against the offering label, as the act weighs both: the same capability reading the
++    /// outlook uses, with the rival's offer in hand (no discount for doubt it will come). Pure.</summary>
++    private float RivalOfferEdge(SimulatedArtist artist, RivalOffer offer, ContractOutlook outlook) {
++        var rival = CompetitorManager.Instance?.GetLabel(offer.RivalLabelId);
++        if (rival == null || outlook?.Priorities == null || outlook.Priorities.Count == 0) return 0f;
++        int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
++        var theirs = CapabilitiesOf(rival, artist, week, rival.GetProductionCost(), CredibilityOf(rival, 0));
++        return Mathf.Clamp(OutlookStandingScale * (Fit(outlook.Priorities, outlook.Player) - Fit(outlook.Priorities, theirs)),
++            OutlookStandingFloor, OutlookStandingCeiling);
++    }
++
++    /// <summary>The act signs with the player only on paper that beats the rival's offer, counting what each label can do
++    /// for it and the player's promises and relationship. A renewal, or an act with no offer, always passes.</summary>
++    private bool BeatsRivalOffer(ContractTalk talk, ContractTermSheet offer) {
++        if (talk?.Artist == null || talk.IsRenewal) return true;
++        var rival = PendingOffer(talk.Artist.artistId);
++        if (rival == null) return true;
++        var outlook = ReadContractOutlook(talk.Artist, renewal: false);
++        float edge = RivalOfferEdge(talk.Artist, rival, outlook) + outlook.Relationship;
++        // Both papers are read against one reference. Against the act's own ask the advance term saturates at 1.5x, so
++        // a rival's $5,000 would read the same as the player's $45; against the larger of the two, money counts in full.
++        ContractTermSheet a = talk.ask;
++        var reference = new ContractTermSheet(Mathf.Max(a.Advance, rival.Terms.Advance), a.RoyaltyRate, a.TermYears, a.SinglesObligation,
++            a.LabelOwnsPublishing, a.ArtistCreativeControl, a.NegotiationDifficulty, a.Manager, a.ManagerName, a.DemandSummary);
++        return PackageValue(offer, reference, talk.weights) + PromiseValue(talk) + edge >= PackageValue(rival.Terms, reference, talk.weights);
++    }
++
++    /// <summary>Fixture access: whether this package beats the pending offer. Never rendered.</summary>
++    internal bool BeatsRivalOfferOf(ContractTalk talk, ContractTermSheet offer) => BeatsRivalOffer(talk, offer);
++
++    /// <summary>Fixture access: make the offer a reachable rival would make today. Never rendered.</summary>
++    internal RivalOffer MakeRivalOfferForCheck(SimulatedArtist artist, AILabel rival) =>
++        LocalSceneRoomService.Copy(MakeRivalOffer(artist, rival, TimeManager.Instance?.CurrentDate ?? GameDate.StartDate));
++
++    /// <summary>Fixture access: run the dawn answer for today. Never rendered.</summary>
++    internal void ResolveRivalOffersForCheck() => ResolveRivalOffers(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
++
++    /// <summary>Fixture access: the ordinary acceptance check (reservation, floor, hard line), without any rival. Never rendered.</summary>
++    internal bool ClearsReservationForCheck(ContractTalk talk, ContractTermSheet offer) => ClearsReservation(talk, offer, AcceptanceCredit(talk));
++
++    /// <summary>Fixture access: everything the acceptance check adds to the package. Never rendered.</summary>
++    internal float AcceptanceCreditForCheck(ContractTalk talk) => AcceptanceCredit(talk);
++
++    private List<RivalOffer> CaptureRivalOffers() => rivalOffers.Count == 0 ? null : LocalSceneRoomService.Copy(rivalOffers);
++
++    private static bool ValidateRivalOffers(List<RivalOffer> saved, string labelId, out string message) {
++        message = "The saved rival offers are invalid; no player state was restored.";
++        if (saved == null) return true; // Older saves hold no offers; none are invented.
++        var ids = new HashSet<string>(StringComparer.Ordinal);
++        foreach (var o in saved) {
++            if (o == null || string.IsNullOrEmpty(o.Id) || !ids.Add(o.Id) || o.PlayerLabelId != labelId || string.IsNullOrEmpty(o.ArtistId) ||
++                string.IsNullOrEmpty(o.RivalLabelId) || !Enum.IsDefined(o.Status) || !Enum.IsDefined(o.Disclosure) ||
++                o.MadeDay < 0 || o.DecisionDay < o.MadeDay || o.KnownDay < o.MadeDay ||
++                (o.Disclosure == RivalOfferDisclosure.Disclosed) != o.DisclosedDay.HasValue || o.DisclosedDay < o.KnownDay ||
++                (o.Status == RivalOfferStatus.Pending) == o.ResolvedDay.HasValue || o.ResolvedDay < o.MadeDay ||
++                !float.IsFinite(o.Terms.Advance) || o.Terms.Advance < 0f || !float.IsFinite(o.Terms.RoyaltyRate) ||
++                o.Terms.RoyaltyRate < 0f || o.Terms.RoyaltyRate > 0.15f || o.Terms.TermYears is < 1 or > 7 || o.Terms.SinglesObligation < 0 ||
++                saved.Count(x => x?.ArtistId == o.ArtistId && x.Status == RivalOfferStatus.Pending) > 1) return false;
++        }
++        return true;
++    }
++
++    private void RestoreRivalOffers(List<RivalOffer> saved) {
++        rivalOffers.Clear();
++        if (saved != null) rivalOffers.AddRange(LocalSceneRoomService.Copy(saved));
++    }
++}
+diff --git a/Systems/PlayerDesk.ScoutingCompetition.cs b/Systems/PlayerDesk.ScoutingCompetition.cs
+index 88539fe..54bf149 100644
+--- a/Systems/PlayerDesk.ScoutingCompetition.cs
++++ b/Systems/PlayerDesk.ScoutingCompetition.cs
+@@ -35,6 +35,30 @@ public partial class PlayerDesk {
+     }
+ 
+     public string ScoutingCompetitionSummary(string artistId) {
++        string offers = RivalOfferHistory(artistId);
++        string summary = ScoutingReportSummary(artistId);
++        return offers == null ? summary : offers + " " + summary;
++    }
++
++    /// <summary>What the player knows of other labels' offers for this act: pending, and how earlier ones ended.</summary>
++    private string RivalOfferHistory(string artistId) {
++        var known = rivalOffers.Where(o => o.ArtistId == artistId).OrderBy(o => o.MadeDay).ToList();
++        if (known.Count == 0) return null;
++        return string.Join(" ", known.Select(o => {
++            string made = LocalSceneRoomService.Date(o.KnownDay).ToHeadlineString();
++            string terms = o.Disclosure == RivalOfferDisclosure.Disclosed ? $" ({RivalTermsText(o.Terms)})" : " (terms not heard)";
++            string end = o.ResolvedDay.HasValue ? LocalSceneRoomService.Date(o.ResolvedDay.Value).ToHeadlineString() : null;
++            return o.Status switch {
++                RivalOfferStatus.Pending => $"Offer from {o.RivalLabelName}, heard {made}{terms}; they answer by {LocalSceneRoomService.Date(o.DecisionDay).ToHeadlineString()}.",
++                RivalOfferStatus.Accepted => $"{o.RivalLabelName}'s offer{terms}, heard {made}, was accepted {end}.",
++                RivalOfferStatus.Declined => $"{o.RivalLabelName}'s offer{terms}, heard {made}, was turned down {end} when they signed with you.",
++                RivalOfferStatus.Withdrawn => $"{o.RivalLabelName}'s offer{terms}, heard {made}, fell through {end}.",
++                _ => $"{o.RivalLabelName}'s offer{terms}, heard {made}, lapsed {end}.",
++            };
++        }));
++    }
++
++    private string ScoutingReportSummary(string artistId) {
+         var dossier = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId);
+         var report = dossier?.Observations.LastOrDefault(o => o.Kind == ScoutingEvidenceKind.PublicReport);
+         var account = dossier?.Observations.LastOrDefault(o => o.Kind == ScoutingEvidenceKind.ActBusinessClaim);
+diff --git a/Systems/PlayerDesk.ScoutingKnowledge.cs b/Systems/PlayerDesk.ScoutingKnowledge.cs
+index 0e65732..389d9a1 100644
+--- a/Systems/PlayerDesk.ScoutingKnowledge.cs
++++ b/Systems/PlayerDesk.ScoutingKnowledge.cs
+@@ -19,7 +19,7 @@ public partial class PlayerDesk {
+         var copy = new ContractTalk { ask = t.ask, posture = t.posture, weights = t.weights == null ? null : new(t.weights),
+             reservation = t.reservation, patienceMax = t.patienceMax, patienceLeft = t.patienceLeft, roundsPlayed = t.roundsPlayed,
+             stage = t.stage, objectionAxis = t.objectionAxis, lastOfferValue = t.lastOfferValue, lastOffer = t.lastOffer, draftOffer = t.draftOffer, sessionPromised = t.sessionPromised,
+-            promotionPromised = t.promotionPromised, outlookCredit = t.outlookCredit, outlookLift = t.outlookLift, capabilityGap = t.capabilityGap,
++            promotionPromised = t.promotionPromised, distributionPromised = t.distributionPromised, outlookCredit = t.outlookCredit, outlookLift = t.outlookLift, capabilityGap = t.capabilityGap,
+             capabilityObjection = t.capabilityObjection, outlookStated = t.outlookStated?.ToList() ?? new() };
+         copy.log.AddRange(t.log); return copy;
+     }
+@@ -174,7 +174,8 @@ public partial class PlayerDesk {
+             ? "First name on the label: the first signature was not recorded in this history. Later deals will not replace it."
+             : null;
+         string time = memory.Minute.HasValue ? $" at {memory.Minute.Value / 60:00}:{memory.Minute.Value % 60:00}" : "";
++        string treatment = FoundingTreatmentSummary(memory.ArtistId);
+         return $"FIRST NAME ON THE LABEL: {memory.ArtistName}, {LocalSceneRoomService.Date(memory.Day).ToHeadlineString()}{time}. {memory.Context} " +
+-            "Original agreement: " + ScoutingTermsText(ScoutingStatedTerms.From(memory.Terms));
++            "Original agreement: " + ScoutingTermsText(ScoutingStatedTerms.From(memory.Terms)) + (treatment.Length > 0 ? " " + treatment : "");
+     }
+ }
+diff --git a/Systems/PlayerDesk.cs b/Systems/PlayerDesk.cs
+index df7d8e4..ae22798 100644
+--- a/Systems/PlayerDesk.cs
++++ b/Systems/PlayerDesk.cs
+@@ -1181,6 +1181,9 @@ public partial class PlayerDesk : Node {
+ 		scoutingNegotiations.Clear();
+ 		PendingRenewal = null;
+         contractCommitments.Clear();
++        rivalOffers.Clear();
++        rosterDepartures.Clear();
++        ResetRosterWatch();
+ 		PolarPlayerPerception.Reset();
+ 		currentCityId = city.cityId; // you start at your own office
+ 
+@@ -1983,6 +1986,7 @@ public partial class PlayerDesk : Node {
+             }
+         }
+         if (prospect.HasBaseline && (prospect.Talk == null || prospect.Talk.stage != ContractTalkStage.Done)) {
++            DiscloseRivalOffer(prospect.Artist.artistId);
+             RememberScoutingNegotiation(prospect); message = "Returned to the existing terms discussion."; Changed?.Invoke(); return true;
+         }
+         int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+@@ -2011,6 +2015,8 @@ public partial class PlayerDesk : Node {
+ 		// single-click form -- and a managed or high-drama act opens the negotiation scene instead.
+ 		// Temperament alone used to decide this. Now an act with a real alternative, or a full week of work, sits
+ 		// down and talks terms with a label that can't match it (PlayerDesk.ContractOutlook).
++		// The act's side tells you what other paper it holds before it says anything else.
++		DiscloseRivalOffer(prospect.Artist.artistId);
+ 		ContractOutlook outlook = ReadContractOutlook(prospect.Artist, renewal: false);
+ 		prospect.Posture = PostureFor(prospect.Artist, outlook);
+ 		prospect.Talk = prospect.Posture == NegotiationPosture.Pushover ? null : OpenNegotiation(prospect, outlook);
+@@ -2042,6 +2048,17 @@ public partial class PlayerDesk : Node {
+         if (prospect.CooldownUntil.HasValue && (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate) < prospect.CooldownUntil.Value) {
+             message = "They are not ready to discuss another offer yet."; return false;
+         }
++		// An easy act that now holds another label's offer wants to talk terms (PlayerDesk.RivalOffers).
++		if (prospect.Posture == NegotiationPosture.Pushover && PendingOffer(prospect.Artist.artistId) is { } rivalPaper) {
++			prospect.Posture = NegotiationPosture.Firm;
++			prospect.PushoverCountered = false;
++			OpenNegotiation(prospect, ReadContractOutlook(prospect.Artist, renewal: false));
++			DiscloseRivalOffer(prospect.Artist.artistId);
++			RememberScoutingNegotiation(prospect);
++			message = $"{prospect.Artist.stageName} have {rivalPaper.RivalLabelName}'s offer in hand now. They want to talk terms.";
++			Changed?.Invoke();
++			return false;
++		}
+ 		// Firm/Hardball acts don't take an accept-or-walk offer -- they go through TableOffer's
+ 		// negotiation loop instead. See SimTools/ContractNegotiationDirective.md Part 2.
+ 		if (prospect.Posture != NegotiationPosture.Pushover) {
+@@ -4439,20 +4456,28 @@ public partial class PlayerDesk : Node {
+ 	private void ProcessRivalCrowding(GameDate date) {
+ 		if (RosterManager.Instance == null) return;
+ 		ExpireHandshakes(date);
++		// Offers whose day has come are answered before anybody new comes calling (PlayerDesk.RivalOffers).
++		ResolveRivalOffers(date);
+ 		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
+ 		var seen = new HashSet<string>(StringComparer.Ordinal);
+-		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen, WatchNote Note)>();
++		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen, WatchNote Note, bool Talking)>();
+ 		// The notebook goes first: an act that is both on the pad and in the notebook is the notebook's (it carries the
+ 		// circling warning and the handshake), and the roll is keyed on the act, so the order changes nothing else.
+ 		foreach (WatchNote entry in notebook) {
+-			if (entry?.Artist != null) watched.Add((entry.Artist, entry.CityId, entry.LastSeen, entry));
++			if (entry?.Artist != null) watched.Add((entry.Artist, entry.CityId, entry.LastSeen, entry, false));
+ 		}
+ 		foreach (Prospect prospect in slate) {
+-			if (prospect?.Artist != null) watched.Add((prospect.Artist, prospect.CityId, SlateDate, null));
++			if (prospect?.Artist != null) watched.Add((prospect.Artist, prospect.CityId, SlateDate, null, prospect.HasBaseline));
+ 		}
+-		foreach ((SimulatedArtist artist, string cityId, GameDate seenOn, WatchNote entry) in watched) {
++		// With rival offers, an act you are talking terms with is watched even off the pad: it is the act a rival's paper
++		// matters most for, and it would tell you.
++		if (LocalScenes.RivalOffers)
++			foreach (Prospect kept in scoutingNegotiations.Values.Where(p => p?.Artist != null && p.HasBaseline).OrderBy(p => p.Artist.artistId, StringComparer.Ordinal))
++				watched.Add((kept.Artist, kept.CityId, GameDate.StartDate, null, true));
++		foreach ((SimulatedArtist artist, string cityId, GameDate seenOn, WatchNote entry, bool talking) in watched) {
+ 			if (!string.IsNullOrEmpty(artist.labelId) || !seen.Add(artist.artistId)) continue;
+ 			// A rival who has been circling an act closes the deal on the day they said -- unless you shook hands.
++			// (An older save's warning, or rival offers switched off; new interest is an offer with a decision day.)
+ 			if (entry?.CirclingResolves != null) {
+ 				if (date < entry.CirclingResolves.Value) continue;
+ 				string circler = entry.CirclingLabel, circlerId = entry.CirclingLabelId;
+@@ -4462,11 +4487,20 @@ public partial class PlayerDesk : Node {
+ 				else if (entry.HeldUntil.HasValue) Note($"{circler ?? "A rival"} came calling for {artist.stageName}, but you'd already shaken hands.");
+ 				continue;
+ 			}
++			if (LocalScenes.RivalOffers && PendingOffer(artist.artistId) != null) continue; // one offer at a time, answered on its day
+ 			if (entry?.HeldUntil != null) continue; // a handshake is a handshake
+ 			if (seenOn >= date) continue; // you only just heard them; give the room a night first
+ 			float crowding = CityProfiles.Get(string.IsNullOrEmpty(cityId) ? Label.homeCityId : cityId).Crowding;
+ 			float roll = StableUnit($"{seed}|{artist.artistId}|{date.year}-{date.month}-{date.day}|CityCrowding");
+ 			if (roll >= RivalCrowdingDailyBase * crowding) continue;
++			if (LocalScenes.RivalOffers && (entry != null || talking)) {
++				// The rival puts paper in front of them and waits for an answer, instead of signing on sight.
++				AILabel bidder = RosterManager.Instance.FindRivalToPlayer(artist, date);
++				if (bidder == null) continue;
++				if (entry != null) entry.LastRivalInterestDate = date;
++				MakeRivalOffer(artist, bidder, date);
++				continue;
++			}
+ 			if (entry != null) {
+ 				// An act in the notebook gets a warning and a few days' grace: time is the one thing a cash-poor
+ 				// label has, so the player can spend it (see HoldWithHandshake) instead of an advance.
+@@ -4504,6 +4538,11 @@ public partial class PlayerDesk : Node {
+ 		if (entry?.Artist == null) { reason = "No act selected."; return false; }
+ 		if (!string.IsNullOrEmpty(entry.Artist.labelId)) { reason = "They're signed already."; return false; }
+ 		if (entry.HeldUntil.HasValue) { reason = $"You shook on it -- they'll wait until {entry.HeldUntil.Value.ToHeadlineString()}."; return false; }
++		if (PendingOffer(entry.Artist.artistId) is { } offer) {
++			reason = $"{offer.RivalLabelName} has an offer in front of them until {LocalSceneRoomService.Date(offer.DecisionDay).ToHeadlineString()}. " +
++				"A handshake won't hold them past it -- put paper in front of them.";
++			return false;
++		}
+ 		if (entry.Handshakes >= MaxHandshakesPerAct) { reason = $"{entry.Artist.stageName} has waited long enough. Sign them or let them go."; return false; }
+ 		if (HeldActCount >= MaxHeldActs) { reason = $"You can only have {MaxHeldActs} acts on a handshake at once."; return false; }
+ 		return Require(HandshakeHours, out reason);
+@@ -4565,6 +4604,7 @@ public partial class PlayerDesk : Node {
+ 		}
+ 		ChargeHotelIfAway();
+ 		ProcessRivalCrowding(date);
++		TrackRosterDepartures(date);
+ 		ProcessCallbacksAtDawn(date);
+         ProcessContractCommitments(date);
+ 		DeliverArrivedPressings(date);
+@@ -5745,6 +5785,8 @@ public partial class PlayerDesk : Node {
+ 		var data = new PlayerSaveData {
+             RenewalDiscussion = CaptureRenewalDiscussion(),
+             ContractCommitments = CaptureContractCommitments(),
++            RivalOffers = CaptureRivalOffers(),
++            RosterDepartures = CaptureRosterDepartures(),
+ 			Label = LabelSaveData.From(Label),
+             ScoutingKnowledge = CaptureScoutingKnowledge(),
+             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+@@ -5912,6 +5954,8 @@ public partial class PlayerDesk : Node {
+ 		if (data?.Label == null) { message = "Nothing to load."; return false; }
+         if (!ValidateRenewalDiscussion(data.RenewalDiscussion, data.Label.labelId, out message)) return false;
+         if (!ValidateContractCommitments(data.ContractCommitments, data.Label.labelId, out message)) return false;
++        if (!ValidateRivalOffers(data.RivalOffers, data.Label.labelId, out message)) return false;
++        if (!ValidateRosterDepartures(data.RosterDepartures, data.Label.labelId, out message)) return false;
+         if (!ValidateSavedOutlooks(data, out message)) return false;
+ 
+ 		// A load lifts any game-over: you're picking the label back up from a solvent point in its history.
+@@ -6224,6 +6268,8 @@ public partial class PlayerDesk : Node {
+ 		RestoreScoutingKnowledge(data.ScoutingKnowledge);
+         RestoreRenewalDiscussion(data.RenewalDiscussion);
+         RestoreContractCommitments(data.ContractCommitments);
++        RestoreRivalOffers(data.RivalOffers);
++        RestoreRosterDepartures(data.RosterDepartures);
+         LocalSceneIdentityService.CompleteDirectPlayerRestore();
+         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
+ 		Note(message);
+diff --git a/Systems/RosterManager.cs b/Systems/RosterManager.cs
+index 0a8be70..327c985 100644
+--- a/Systems/RosterManager.cs
++++ b/Systems/RosterManager.cs
+@@ -703,6 +703,23 @@ public partial class RosterManager : Node {
+ 		return rival;
+ 	}
+ 
++	/// <summary>
++	/// The act answers a rival's pending offer (PlayerDesk.RivalOffers): only the label that made it can sign, on exactly the
++	/// terms it offered, and only if it still could today -- reach, roster room, the act's eligibility and the cash for that
++	/// advance. No other label stands in, and nothing here draws the global RNG. Returns the label, or null if the offer has
++	/// fallen through. Commits through the same calls as <see cref="TrySignAsRivalToPlayer"/>.
++	/// </summary>
++	public AILabel SignRivalOfferToPlayerAct(SimulatedArtist artist, GameDate date, string labelId, ContractTermSheet terms) {
++		AILabel rival = FindRivalToPlayer(artist, date, labelId);
++		if (rival == null || rival.labelId != labelId || !rival.CanAffordToSign(terms.Advance)) return null;
++		float advance = rival.SignArtist(artist, date.year, terms);
++		CompetitorManager.Instance?.RecordExpense(rival, advance);
++		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, rival.labelId, date.year);
++		SceneRecruitmentService.RecordSigning(rival, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "PlayerRival");
++		WeeklySignings++; RecordSigning(rival.tier, artist, transition.IsReSigning);
++		return rival;
++	}
++
+ 	/// <summary>The rival record man who would get to this act first today, without signing anyone -- the
+ 	/// player desk uses it to say who is circling an act before the deal lands. Null while the player has
+ 	/// shaken hands on the act, or when nobody in that market can take them.</summary>
+diff --git a/Systems/SaveGameService.cs b/Systems/SaveGameService.cs
+index 7c379f0..88f9301 100644
+--- a/Systems/SaveGameService.cs
++++ b/Systems/SaveGameService.cs
+@@ -339,6 +339,10 @@ public sealed class SaveEnvelope {
+ public sealed class PlayerSaveData {
+     public RenewalDiscussionSaveData RenewalDiscussion { get; set; }
+     public List<ContractCommitment> ContractCommitments { get; set; }
++    /// <summary>Optional: rival offers on acts the player pursued (PlayerDesk.RivalOffers). Older saves hold none.</summary>
++    public List<RivalOffer> RivalOffers { get; set; }
++    /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
++    public List<RosterDeparture> RosterDepartures { get; set; }
+     public List<string> GeneratedProspectIds { get; set; }
+     public List<SceneDiscovery> SceneDiscoveries { get; set; }
+     public SceneInformationKnowledge SceneInformation { get; set; }
+diff --git a/UI/PlayerDeskPanel.cs b/UI/PlayerDeskPanel.cs
+index 8192727..85954db 100644
+--- a/UI/PlayerDeskPanel.cs
++++ b/UI/PlayerDeskPanel.cs
+@@ -1184,6 +1184,7 @@ public partial class PlayerDeskPanel : Control {
+ 			string status = signedElsewhere ? $"\n    RIVAL SIGNED THEM: {labelName}."
+ 				: signedByYou ? "\n    SIGNED — they're on your roster now."
+ 				: entry.HeldUntil.HasValue ? $"\n    HANDSHAKE: they'll wait for you until {entry.HeldUntil.Value.ToHeadlineString()}."
++				: desk.RivalOfferLine(artist.artistId) is string offerLine ? "\n    RIVAL OFFER: " + offerLine
+ 				: entry.CirclingResolves.HasValue ? $"\n    {entry.CirclingLabel ?? "A rival"} is circling them — the deal lands {entry.CirclingResolves.Value.ToHeadlineString()} unless you step in."
+ 				: "";
+ 			string potential = entry.Rough?.LastOrDefault();
+@@ -1477,6 +1478,22 @@ public partial class PlayerDeskPanel : Control {
+ 			addPromise.Pressed += () => { bool ok = PlayerDesk.Instance.AddSessionPromise(talk, out string result); Say(result, ok); Refresh(); };
+ 			content.AddChild(addPromise);
+ 		}
++		if (!talk.IsRenewal && PlayerDesk.Instance.RivalOfferLine(talk.Artist.artistId) is string rivalPaper)
++			Body("OTHER PAPER: " + rivalPaper + " Your package has to beat theirs, counting what each label can do for them.");
++		if (talk.distributionPromised) {
++			Body($"Your offer includes a wholesale house carrying their first record within {PlayerDesk.DistributionPromiseDays / 7} weeks of its release. " +
++				$"Place a line (or sign a distribution deal) before then. The record itself has to be out within {PlayerDesk.PromotionReleaseDeadlineDays / 7} weeks of signing.");
++			var dropLine = Btn("DROP THE DISTRIBUTION PROMISE");
++			dropLine.Name = "DropDistributionPromise";
++			dropLine.Pressed += () => { bool ok = PlayerDesk.Instance.WithdrawDistributionPromise(talk, out string result); Say(result, ok); Refresh(); };
++			content.AddChild(dropLine);
++		} else {
++			var addLine = Btn("ADD A DISTRIBUTION PROMISE");
++			addLine.Name = "AddDistributionPromise";
++			addLine.TooltipText = DistributionPromiseHelp();
++			addLine.Pressed += () => { bool ok = PlayerDesk.Instance.AddDistributionPromise(talk, out string result); Say(result, ok); Refresh(); };
++			content.AddChild(addLine);
++		}
+ 		string ad = PlayerDesk.TradeAdTierName(PlayerDesk.PromotionPromiseTier).ToLowerInvariant();
+ 		if (talk.promotionPromised) {
+ 			Body($"Your offer includes a {ad} trade ad for their first record within {PlayerDesk.PromotionPromiseDays / 7} weeks of its release — " +
+@@ -1537,12 +1554,19 @@ public partial class PlayerDeskPanel : Control {
+ 				$"(about ${PlayerDesk.Instance.SessionPromiseQuote():N0} at the cheapest room, paid when you book). Miss it and they'll remember at renewal.");
+ 		if (!talk.promotionPromised)
+ 			NegotiationCounterButton(talk, ContractCounter.PromisePromotion, "PROMISE A PUSH", PromotionPromiseHelp());
++		if (!talk.distributionPromised)
++			NegotiationCounterButton(talk, ContractCounter.PromiseDistribution, "PROMISE DISTRIBUTION", DistributionPromiseHelp());
+ 		NegotiationCounterButton(talk, ContractCounter.HoldFirm,
+ 			$"HOLD FIRM  ({PlayerDesk.NegotiationRoundHours}h)", "Table it again unchanged and see who blinks.");
+ 		NegotiationCounterButton(talk, ContractCounter.Walk,
+ 			"WALK AWAY", "Step back from the table. Nothing's burned.");
+ 	}
+ 
++	private static string DistributionPromiseHelp() =>
++		$"Commit to get their first record carried by a wholesale house -- a line you place, or a distribution deal -- within {PlayerDesk.DistributionPromiseDays / 7} weeks " +
++		$"of its release, and get that record out within {PlayerDesk.PromotionReleaseDeadlineDays / 7} weeks of signing. Only a label with no line yet can promise it. " +
++		"Miss it and they'll remember at renewal.";
++
+ 	private static string PromotionPromiseHelp() =>
+ 		$"Commit to a {PlayerDesk.TradeAdTierName(PlayerDesk.PromotionPromiseTier).ToLowerInvariant()} trade ad (${PlayerDesk.PromotionPromiseQuote():N0}) for their first record " +
+ 		$"within {PlayerDesk.PromotionPromiseDays / 7} weeks of its release, and get that record out within {PlayerDesk.PromotionReleaseDeadlineDays / 7} weeks of signing. " +
+@@ -1640,8 +1664,11 @@ public partial class PlayerDeskPanel : Control {
+ 			foreach (ContractCommitment promise in desk.OpenCommitmentsFor(artist.artistId)) {
+ 				int daysLeft = promise.DueDay - LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
+ 				string due = LocalSceneRoomService.Date(promise.DueDay).ToShortString();
+-				sleeve.AddFact(promise.Kind == ContractCommitmentKind.FundedSession ? $"Session promised by {due}"
+-					: promise.ReleaseDay.HasValue ? $"Trade ad promised by {due}" : $"Record promised out by {due}, then a trade ad",
++				sleeve.AddFact(promise.Kind switch {
++						ContractCommitmentKind.FundedSession => $"Session promised by {due}",
++						ContractCommitmentKind.Distribution => promise.ReleaseDay.HasValue ? $"Wholesale line promised by {due}" : $"Record promised out by {due}, then a wholesale line",
++						_ => promise.ReleaseDay.HasValue ? $"Trade ad promised by {due}" : $"Record promised out by {due}, then a trade ad",
++					},
+ 					daysLeft <= 14 ? Rust : null);
+ 			}
+ 

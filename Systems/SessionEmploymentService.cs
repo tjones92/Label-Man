@@ -143,6 +143,21 @@ public static class SessionEmploymentService {
 		community[place] = list;
 		return list;
 	}
+	/// <summary>Read-only supply for a one-off listening consultation. Uses session-hire qualifications,
+	/// canonical people and actual local availability; it records no session, practice or contact credit.</summary>
+	public static IReadOnlyList<Musician> ListeningCandidates(string place, int day) {
+		if (!Enabled || ArtistManager.Instance == null) return Array.Empty<Musician>();
+		var candidates = new List<Musician>();
+		foreach (string id in LocalSceneIdentityService.ArtistsBasedAt(place)) {
+			var act = ArtistManager.Instance.GetArtist(id);
+			if (act?.lifecycleStatus != ArtistLifecycleStatus.Active ||
+				!LocalScenePersistenceService.Present(act, place, day / 7) || !SceneEcosystemService.AvailableAt(id, place, day)) continue;
+			candidates.AddRange(act.members.Where(m => m.isActive && Capable(m)));
+		}
+		candidates.AddRange(PersonPool.Ordered().Where(p => LocalScenePersistenceService.SceneIdFor(p.person.geography?.basePlaceId) == place &&
+			Capable(p.person)).Select(p => p.person));
+		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
+	}
 	private static bool Capable(Musician m) =>
 		m.lifeState == MemberLifeState.Active && m.technicalSkill >= SkillBar && m.sightReading >= ReadingBar &&
 		IsRhythmPlayer(m);

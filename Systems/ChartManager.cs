@@ -432,6 +432,7 @@ public partial class ChartManager : Node {
 		// first live Friday settlement. A load overwrites this via RestoreChartWeekEndingDate.
 		GameDate start = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		chartWeekEndingDate = start.AddDays(start.DaysUntil(System.DayOfWeek.Saturday));
+        LocalSceneRoomService.Prewarm(start);
         LocalSceneRoomService.EnsureCalendar(start);
 	}
 

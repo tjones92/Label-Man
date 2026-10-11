@@ -4,8 +4,16 @@ using Godot;
 
 public partial class PlayerDeskPanel {
     private string selectedSceneRoomId;
+    private bool showScoutingItinerary = true;
     private void SceneRoomsBoard(PlayerDesk desk) {
-        Body($"Available today: {TimeManager.Instance?.HoursRemainingWithOvertime ?? 0}h · cash {Money(desk.Label.cashReserves)}. Waiting advances the ordinary world, including expenses and other labels' decisions.");
+        Body($"Available today: {TimeManager.Instance?.MinutesRemainingWithOvertime ?? 0}min · cash {Money(desk.Label.cashReserves)}. Waiting advances the ordinary world, including expenses and other labels' decisions.");
+        ScoutingMeetingAgenda(desk);
+        if (LocalScenes.ScoutingExperience && !LocalScenes.ScoutingExperienceObserver) {
+            var browse = Btn(showScoutingItinerary ? "BROWSE ALL ROOM CALENDARS" : "SHOW NEXT AFFORDABLE SETS");
+            browse.Pressed += () => { showScoutingItinerary = !showScoutingItinerary; Refresh(); };
+            content.AddChild(browse);
+            if (showScoutingItinerary) ScoutingItineraryBoard(desk);
+        }
         var rooms = SceneRoomCatalog.ForPlace(desk.CurrentCityId);
         var date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
         int hour = TimeManager.Instance?.CurrentHour ?? 9;
@@ -16,7 +24,7 @@ public partial class PlayerDeskPanel {
         Body(news.Count == 0 ? "LOCAL SCENE — no unread reports." : "LOCAL SCENE — since your last recap");
         foreach (var item in news) Body($"{LocalSceneRoomService.Date(item.AvailableDay).ToHeadlineString()} · {item.Source}: {item.Text}" +
             (item.ArtistId != null && desk.SceneDiscoveries.Any(d => d.ArtistId == item.ArtistId) ? " You have heard this act before." : ""));
-        if (news.Count > 0) { var read = Btn("MARK LOCAL REPORTS READ"); read.Pressed += () => { desk.MarkSceneNewsRead(); Refresh(); }; content.AddChild(read); }
+        if (news.Count > 0) { var read = Btn(LocalScenes.ScoutingExperience && !LocalScenes.ScoutingExperienceObserver ? "SAVE LOCAL REPORTS & MARK READ" : "MARK LOCAL REPORTS READ"); read.TooltipText = "Save public signing reports for acts already in your notebook, including archived notes. No time or money spent; reports do not grant a hold."; read.Pressed += () => { desk.MarkSceneNewsRead(); Refresh(); }; content.AddChild(read); }
         foreach (string lead in desk.SceneLeadNotes()) Body(lead);
         if (ContactNetworkService.Enabled) {
             foreach (string contactTip in desk.ContactTipNotes()) Body(contactTip);
@@ -94,14 +102,18 @@ public partial class PlayerDeskPanel {
                 if (playing) {
                     float admission = desk.AdmissionForVisit(bill, selected, now);
                     var hear = Btn($"LISTEN ({slot.EndHour * 60 - now}min · {Money(admission)} admission)");
+                    hear.Disabled = slot.EndHour > (TimeManager.Instance?.HardStopHour ?? 21) || admission > desk.Label.cashReserves;
+                    ScoutingTimeRisk(desk, hear, bill.Day, slot.EndHour * 60);
                     hear.Pressed += () => Act(() => { bool ok = desk.ListenSceneAppearance(bill.Id, eventId, out string result); Say(result, ok); return ok; }); row.AddChild(hear);
                 } else {
                     var wait = Btn($"WAIT UNTIL {LocalSceneRoomService.Date(bill.Day).ToHeadlineString()} · {Hour12(slot.StartHour)}");
                     wait.Disabled = slot.EndHour > (TimeManager.Instance?.HardStopHour ?? 21);
                     wait.TooltipText = "Time passes through the ordinary clock. No admission is charged until listening; check the bill again on arrival.";
+                    ScoutingTimeRisk(desk, wait, bill.Day, slot.StartHour * 60);
                     wait.Pressed += () => Act(() => { bool ok = desk.WaitForSceneAppearance(bill.Id, eventId, out string result); Say(result, ok); return ok; }); row.AddChild(wait);
                 }
                 content.AddChild(row);
+                if (playing) ScoutingListenerControls(desk, bill, eventId);
             }
         }
 
@@ -109,7 +121,49 @@ public partial class PlayerDeskPanel {
         var listen = Btn(available ? $"GO HEAR THE BILL  ({PlayerDesk.ScoutHours}h)" : "NO BILL TO CATCH NOW");
         listen.Disabled = !available;
         listen.TooltipText = "Hear the next two hours of actual appearances. Consecutive listening shares the visit admission. Free community and coffeehouse visits need no drinks.";
+        var activeBill = calendar.FirstOrDefault(b => b.RoomId == selected.Id && b.Day == LocalSceneRoomService.Day(date) && b.Status == SceneBillStatus.Scheduled && b.Appearances.Count > 0);
+        if (available && activeBill != null) ScoutingTimeRisk(desk, listen, activeBill.Day,
+            System.Math.Min(hour * 60 + (TimeManager.Instance?.CurrentMinute ?? 0) + PlayerDesk.ScoutHours * 60, activeBill.Appearances.Max(a => a.EndHour) * 60));
         listen.Pressed += () => Act(() => { bool ok = desk.ScoutSceneRoom(selected.Id, out string message); Say(message, ok); return ok; });
         content.AddChild(listen);
+    }
+
+    private void ScoutingItineraryBoard(PlayerDesk desk) {
+        if (!LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver) return;
+        var local = desk.ScoutingItinerary();
+        var options = local.Where(o => o.Affordable).DistinctBy(o => o.BillId).Take(2).ToArray();
+        bool circuit = options.Length == 0;
+        if (circuit) options = desk.ScoutingItinerary(true).Where(o => o.Affordable && o.TravelMinutes > 0)
+            .DistinctBy(o => o.CityId).Take(2).ToArray();
+        Body(circuit ? "PLAN A LISTEN — no affordable unheard local set is currently reachable." : "PLAN A LISTEN — next affordable local bills");
+        if (options.Length == 0) {
+            Body(local.Count > 0 ? $"The lowest local admission quote is {Money(local.Min(o => o.Admission))}. Check your cash and the room calendar."
+                : "No unheard set fits the remaining posted calendar and your working hours. Rest for a fresh day, check the connected towns, or review an existing notebook lead.");
+            return;
+        }
+        foreach (var option in options) {
+            string timing = option.Playing
+                ? (option.ListeningMinutes < option.EndMinute - option.StartMinute ? "playing now; partial set" : "playing now; full set available")
+                : option.DaysUntil == 0 ? "today" : option.DaysUntil == 1 ? "tomorrow" : $"in {option.DaysUntil} days";
+            string town = circuit ? DistanceModel.GetCityById(option.CityId)?.name + " · " : "";
+            Body($"{town}{option.RoomName} · {option.ArtistName} · {LocalSceneRoomService.Date(option.Day).ToHeadlineString()} · {Hour12(option.StartMinute / 60)}–{Hour12(option.EndMinute / 60)}\n" +
+                $"{timing} · {option.WaitingMinutes}min wait on set day · {option.ListeningMinutes}min listening · {Money(option.Admission)} admission" +
+                (circuit ? $" · {option.TravelMinutes / 60}h drive now · {Money(option.TravelCost)} one-way gas; return trip separate" : ""));
+            var action = Btn(circuit ? "DRIVE TO THIS TOWN" : option.Playing ? "LISTEN TO THIS SET" : "WAIT FOR THIS SET");
+            action.TooltipText = circuit ? "Travel uses the existing drive action. On arrival, check the local list and wait or listen."
+                : "Waiting and listening are separate choices. Admission is charged by listening; signed and uninterested acts also appear on bills.";
+            var clock = TimeManager.Instance;
+            ScoutingTimeRisk(desk, action, circuit ? LocalSceneRoomService.Day(clock.CurrentDate) : option.Day,
+                circuit ? clock.CurrentHour * 60 + clock.CurrentMinute + option.TravelMinutes : option.Playing ? option.EndMinute : option.StartMinute);
+            action.Pressed += () => Act(() => {
+                string result;
+                bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
+                    ? desk.ListenSceneAppearance(option.BillId, option.EventId, out result)
+                    : desk.WaitForSceneAppearance(option.BillId, option.EventId, out result);
+                Say(result, ok); return ok;
+            });
+            content.AddChild(action);
+        }
+        Body("These are calendar choices. Browse all rooms for other bills. Quotes use current cash; waiting can change expenses and bills.");
     }
 }

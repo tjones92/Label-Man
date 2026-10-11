@@ -87,6 +87,8 @@ public static class SceneLiveEconomics {
     public const float HoursPerWorkingNight = 4f;
     /// <summary>Measured in live-cal-v1: fill 0.69-0.75 in every kind, and two acts on nearly every bill.</summary>
     public const float TypicalFill = 0.72f, TypicalActsPerBill = 2f;
+    /// <summary>Acts sharing a typical night's door in this room: the room's bill size (two before room rotation).</summary>
+    public static float ActsPerBill(SceneRoomProfile room) => LocalScenes.RoomRotation ? LocalSceneRoomService.BaseSlots(room) : TypicalActsPerBill;
     /// <summary>The share of live pay a working player keeps past rent and food (into the wealth stock). Live money is
     /// wages, spent as it is earned; royalties arrive as lump sums. A design input, not a cap.</summary>
     public const float LiveSavingsShare = 0.25f;
@@ -109,11 +111,11 @@ public static class SceneLiveEconomics {
         if (room == null || !room.IsPerformance || players <= 0) return 0f;
         float level = PriceLevel(year), crowd = Capacity(room) * TypicalFill;
         return Terms(room.Kind) switch {
-            SceneRoomPayTerms.DoorSplit => crowd * AdmissionFor(room.Kind, year) * DoorShare / TypicalActsPerBill / players,
+            SceneRoomPayTerms.DoorSplit => crowd * AdmissionFor(room.Kind, year) * DoorShare / ActsPerBill(room) / players,
             SceneRoomPayTerms.HouseWage => NewYorkScalePerNight * GoingRate(room.PlaceId) * level,
             SceneRoomPayTerms.FlatFee => FlatFeePerNight * GoingRate(room.PlaceId) * level,
-            SceneRoomPayTerms.Basket => crowd * BasketPerHead * level / TypicalActsPerBill / players,
-            SceneRoomPayTerms.Offering => crowd * OfferingPerHead * level / TypicalActsPerBill / players,
+            SceneRoomPayTerms.Basket => crowd * BasketPerHead * level / ActsPerBill(room) / players,
+            SceneRoomPayTerms.Offering => crowd * OfferingPerHead * level / ActsPerBill(room) / players,
             _ => 0f
         };
     }

@@ -1106,9 +1106,9 @@ public partial class PlayerDeskPanel : Control {
 		negotiating = null;
 
 		Heading("A&R — WORK THE SCENE");
-		Body($"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only " +
-			"draws a crowd at its own hours. What you hear is your read on the act, not the truth — a better ear " +
-			"narrows the gap.");
+		Body(LocalScenes.Rooms
+            ? "Choose a room and an announced set. Listening time and admission are shown before you go. Your ear shapes the impression; judging the act is your decision."
+            : $"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only draws a crowd at its own hours. Your ear shapes the impression; judging the act is your decision.");
 		if (LocalScenes.Rooms) SceneRoomsBoard(desk);
         else {
         if (!hasUserSelectedVenue) {
@@ -1184,6 +1184,7 @@ public partial class PlayerDeskPanel : Control {
 			string status = signedElsewhere ? $"\n    RIVAL SIGNED THEM: {labelName}."
 				: signedByYou ? "\n    SIGNED — they're on your roster now."
 				: entry.HeldUntil.HasValue ? $"\n    HANDSHAKE: they'll wait for you until {entry.HeldUntil.Value.ToHeadlineString()}."
+				: desk.RivalOfferLine(artist.artistId) is string offerLine ? "\n    RIVAL OFFER: " + offerLine
 				: entry.CirclingResolves.HasValue ? $"\n    {entry.CirclingLabel ?? "A rival"} is circling them — the deal lands {entry.CirclingResolves.Value.ToHeadlineString()} unless you step in."
 				: "";
 			string potential = entry.Rough?.LastOrDefault();
@@ -1246,6 +1247,7 @@ public partial class PlayerDeskPanel : Control {
 		Heading($"CONTRACT — {prospect.Artist.stageName.ToUpperInvariant()}");
 		if (!string.IsNullOrEmpty(b.DemandSummary))
 			Body($"Their ask: {b.DemandSummary}");
+		OutlookBlock(PlayerDesk.Instance.ContractOutlookLines(prospect.Artist, renewal: false));
 		Body(prospect.PushoverCountered
 			? "They've named their number. Put it forward again, or step back -- a second offer under it and they walk."
 			: "They'll sign near their ask, but not at any price: go too low and they counter once, then walk. " +
@@ -1268,7 +1270,7 @@ public partial class PlayerDeskPanel : Control {
 	/// Firm/Hardball negotiation, and a renewal. Just the fields and the two buttons -- caller
 	/// supplies the prefill, what the submit button says and does, and what "not now" does.</summary>
 	private void TermsForm(ContractTermSheet prefill, string submitLabel,
-			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel, ContractTermSheet? ask = null, string artistName = null) {
+			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel, ContractTermSheet? ask = null, string artistName = null, bool renewal = false) {
 		// The agreement is a carbon duplicate: onionskin with the label's letterhead, typed field rubrics, and a
 		// signature line at the foot. The buttons below it are what you do with the sheet.
 		Color carbonInk = new("3d4a8f");
@@ -1372,18 +1374,14 @@ public partial class PlayerDeskPanel : Control {
 		royalty.ValueChanged += _ => UpdateLowball();
 		UpdateLowball();
 
-		var commitment = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		var commitment = new Label { Name = "OfferResourcePlan", AutowrapMode = TextServer.AutowrapMode.WordSmart, MouseFilter = MouseFilterEnum.Stop };
 		commitment.AddThemeColorOverride("font_color", Ink);
 		form.AddChild(commitment);
 		void UpdateCommitment() {
-			AILabel label = PlayerDesk.Instance?.Label;
-			if (label == null) { commitment.Text = "No label cash available."; return; }
-			float reserve = label.GetMonthlyOverhead() * 2f;
-			float after = label.cashReserves - (float)advance.Value;
-			bool clears = after > reserve;
-			commitment.Text = $"Cash after advance: {Money(after)}  ·  signing reserve: ${reserve:N0} (2 months of ${label.GetMonthlyOverhead():N0} overhead)  ·  " +
-				(clears ? "reserve covered" : $"must leave more than ${reserve:N0} — lower the advance or wait for more cash");
-			commitment.AddThemeColorOverride("font_color", clears ? Ink : Rust);
+			var plan = PlayerDesk.Instance?.PreviewOfferResources((float)advance.Value, renewal);
+			commitment.Text = plan?.Summary ?? "No label cash available.";
+			commitment.TooltipText = plan == null ? "" : string.Join("\n", plan.FeeDetails);
+			commitment.AddThemeColorOverride("font_color", plan?.AdvanceAffordable == true ? Ink : Rust);
 		}
 		advance.ValueChanged += _ => UpdateCommitment();
 		UpdateCommitment();
@@ -1428,6 +1426,7 @@ public partial class PlayerDeskPanel : Control {
 		string verb = talk.IsRenewal ? "RENEWING" : "NEGOTIATING";
 		Heading($"{verb} — {talk.Artist.stageName.ToUpperInvariant()}  ({talk.posture.ToString().ToUpperInvariant()})");
 		if (talk.roundsPlayed == 0) Body(talk.ask.DemandSummary);
+		OutlookBlock(talk.outlookStated);
 
 		if (talk.log.Count > 0) {
 			var frame = new PanelContainer();
@@ -1464,6 +1463,52 @@ public partial class PlayerDeskPanel : Control {
 			$"Each table round costs {PlayerDesk.NegotiationRoundHours} hours.");
 		Body(talk.draftOffer.HasValue ? "The last meeting could not be held; your entered terms are still below." :
 			talk.roundsPlayed == 0 ? "These fields start on your label's standard paper: you keep the publishing and have the final word. Their ask is above; every give you tick is a concession." : "These fields start with your last offer. Change any term before putting it back on the table.");
+		if (talk.sessionPromised) {
+			Body($"Your offer includes a funded studio session within {PlayerDesk.SessionPromiseDays / 7} weeks of signing — about " +
+				$"${PlayerDesk.Instance.SessionPromiseQuote():N0} at the cheapest room, paid when you book it. Signing needs cash for the advance and the session.");
+			var dropPromise = Btn("DROP THE SESSION PROMISE");
+			dropPromise.Name = "DropSessionPromise";
+			dropPromise.Pressed += () => { bool ok = PlayerDesk.Instance.WithdrawSessionPromise(talk, out string result); Say(result, ok); Refresh(); };
+			content.AddChild(dropPromise);
+		} else {
+			var addPromise = Btn("ADD A SESSION PROMISE");
+			addPromise.Name = "AddSessionPromise";
+			addPromise.TooltipText = $"Commit to book and pay for studio time with them within {PlayerDesk.SessionPromiseDays / 7} weeks of signing " +
+				$"(about ${PlayerDesk.Instance.SessionPromiseQuote():N0} at the cheapest room). Miss it and they'll remember at renewal.";
+			addPromise.Pressed += () => { bool ok = PlayerDesk.Instance.AddSessionPromise(talk, out string result); Say(result, ok); Refresh(); };
+			content.AddChild(addPromise);
+		}
+		if (!talk.IsRenewal && PlayerDesk.Instance.RivalOfferLine(talk.Artist.artistId) is string rivalPaper)
+			Body("OTHER PAPER: " + rivalPaper + " Your package has to beat theirs, counting what each label can do for them.");
+		if (talk.distributionPromised) {
+			Body($"Your offer includes a wholesale house carrying their first record within {PlayerDesk.DistributionPromiseDays / 7} weeks of its release. " +
+				$"Place a line (or sign a distribution deal) before then. The record itself has to be out within {PlayerDesk.PromotionReleaseDeadlineDays / 7} weeks of signing.");
+			var dropLine = Btn("DROP THE DISTRIBUTION PROMISE");
+			dropLine.Name = "DropDistributionPromise";
+			dropLine.Pressed += () => { bool ok = PlayerDesk.Instance.WithdrawDistributionPromise(talk, out string result); Say(result, ok); Refresh(); };
+			content.AddChild(dropLine);
+		} else {
+			var addLine = Btn("ADD A DISTRIBUTION PROMISE");
+			addLine.Name = "AddDistributionPromise";
+			addLine.TooltipText = DistributionPromiseHelp();
+			addLine.Pressed += () => { bool ok = PlayerDesk.Instance.AddDistributionPromise(talk, out string result); Say(result, ok); Refresh(); };
+			content.AddChild(addLine);
+		}
+		string ad = PlayerDesk.TradeAdTierName(PlayerDesk.PromotionPromiseTier).ToLowerInvariant();
+		if (talk.promotionPromised) {
+			Body($"Your offer includes a {ad} trade ad for their first record within {PlayerDesk.PromotionPromiseDays / 7} weeks of its release — " +
+				$"${PlayerDesk.PromotionPromiseQuote():N0}, paid when you buy it. The record itself has to be out within {PlayerDesk.PromotionReleaseDeadlineDays / 7} weeks of signing.");
+			var dropPush = Btn("DROP THE PROMOTION PROMISE");
+			dropPush.Name = "DropPromotionPromise";
+			dropPush.Pressed += () => { bool ok = PlayerDesk.Instance.WithdrawPromotionPromise(talk, out string result); Say(result, ok); Refresh(); };
+			content.AddChild(dropPush);
+		} else {
+			var addPush = Btn("ADD A PROMOTION PROMISE");
+			addPush.Name = "AddPromotionPromise";
+			addPush.TooltipText = PromotionPromiseHelp();
+			addPush.Pressed += () => { bool ok = PlayerDesk.Instance.AddPromotionPromise(talk, out string result); Say(result, ok); Refresh(); };
+			content.AddChild(addPush);
+		}
 		TermsForm(PlayerDesk.CurrentOffer(talk), label,
 			(advance, royalty, term, singles, labelPub, artistControl) => {
 				bool ok = PlayerDesk.Instance.TableOffer(talk, advance, royalty, term, singles, labelPub, artistControl, out string message);
@@ -1476,7 +1521,7 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, ok);
 				CloseTalkIfDone(talk);
 				Refresh();
-			}, talk.ask, talk.Artist.stageName);
+			}, talk.ask, talk.Artist.stageName, talk.IsRenewal);
 	}
 
 	/// <summary>A negotiation scene serves both a new signing (closes `negotiating`) and a renewal
@@ -1497,14 +1542,60 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(stand);
 
 		NegotiationCounterButton(talk, ContractCounter.SweetenAxis,
-			"SWEETEN IT", "Go back and raise the number he's actually stuck on.");
+			"SWEETEN IT", talk.capabilityObjection.HasValue
+				? "It isn't one number — it's what your label can't do yet. Better terms can still make up for it."
+				: "Go back and raise the number he's actually stuck on.");
 		if (PlayerDesk.CanTradeAxes(talk))
 			NegotiationCounterButton(talk, ContractCounter.TradeAxes,
 				"TRADE", "Give back the publishing and the final word; the advance comes down to match.");
+		if (!talk.sessionPromised)
+			NegotiationCounterButton(talk, ContractCounter.Promise, "PROMISE A SESSION",
+				$"Commit to book and pay for studio time with them within {PlayerDesk.SessionPromiseDays / 7} weeks of signing " +
+				$"(about ${PlayerDesk.Instance.SessionPromiseQuote():N0} at the cheapest room, paid when you book). Miss it and they'll remember at renewal.");
+		if (!talk.promotionPromised)
+			NegotiationCounterButton(talk, ContractCounter.PromisePromotion, "PROMISE A PUSH", PromotionPromiseHelp());
+		if (!talk.distributionPromised)
+			NegotiationCounterButton(talk, ContractCounter.PromiseDistribution, "PROMISE DISTRIBUTION", DistributionPromiseHelp());
 		NegotiationCounterButton(talk, ContractCounter.HoldFirm,
 			$"HOLD FIRM  ({PlayerDesk.NegotiationRoundHours}h)", "Table it again unchanged and see who blinks.");
 		NegotiationCounterButton(talk, ContractCounter.Walk,
 			"WALK AWAY", "Step back from the table. Nothing's burned.");
+	}
+
+	private static string DistributionPromiseHelp() =>
+		$"Commit to get their first record carried by a wholesale house -- a line you place, or a distribution deal -- within {PlayerDesk.DistributionPromiseDays / 7} weeks " +
+		$"of its release, and get that record out within {PlayerDesk.PromotionReleaseDeadlineDays / 7} weeks of signing. Only a label with no line yet can promise it. " +
+		"Miss it and they'll remember at renewal.";
+
+	private static string PromotionPromiseHelp() =>
+		$"Commit to a {PlayerDesk.TradeAdTierName(PlayerDesk.PromotionPromiseTier).ToLowerInvariant()} trade ad (${PlayerDesk.PromotionPromiseQuote():N0}) for their first record " +
+		$"within {PlayerDesk.PromotionPromiseDays / 7} weeks of its release, and get that record out within {PlayerDesk.PromotionReleaseDeadlineDays / 7} weeks of signing. " +
+		"Miss it and they'll remember at renewal.";
+
+	/// <summary>What the act says it is weighing, and the player's own label in plain facts. Never a score.</summary>
+	private void OutlookBlock(IEnumerable<string> lines) {
+		var said = lines?.Where(l => !string.IsNullOrWhiteSpace(l)).ToList() ?? new List<string>();
+		string own = PlayerDesk.Instance?.OwnLabelSummary();
+		if (said.Count == 0 && string.IsNullOrEmpty(own)) return;
+		var box = new VBoxContainer { Name = "ContractOutlook" };
+		box.AddThemeConstantOverride("separation", 4);
+		var head = new Label { Text = "WHAT THEY'RE WEIGHING" };
+		head.AddThemeFontSizeOverride("font_size", 14);
+		head.AddThemeColorOverride("font_color", Ink);
+		box.AddChild(head);
+		foreach (string line in said) {
+			var lbl = new Label { Text = "•  " + line, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			lbl.AddThemeFontSizeOverride("font_size", 15);
+			lbl.AddThemeColorOverride("font_color", Heard);
+			box.AddChild(lbl);
+		}
+		if (!string.IsNullOrEmpty(own)) {
+			var lbl = new Label { Name = "OwnLabelSummary", Text = own, AutowrapMode = TextServer.AutowrapMode.WordSmart };
+			lbl.AddThemeFontSizeOverride("font_size", 14);
+			lbl.AddThemeColorOverride("font_color", Ink);
+			box.AddChild(lbl);
+		}
+		content.AddChild(box);
 	}
 
 	private void NegotiationCounterButton(ContractTalk talk, ContractCounter counter, string label, string sub) {
@@ -1537,6 +1628,16 @@ public partial class PlayerDeskPanel : Control {
 			return;
 		}
 		renewingArtist = null;
+        if (desk.PendingRenewal is { } pending) {
+            Body("Renewal discussion retained for " + pending.Artist.stageName + ".");
+            if (desk.RenewalDiscussionUnavailable() is { } reason) Body(reason);
+            var resumeRenewal = Btn("RESUME RENEWAL DISCUSSION");
+            resumeRenewal.Pressed += () => { renewingArtist = pending.Artist; managingArtistId = null; Refresh(); };
+            content.AddChild(resumeRenewal);
+            var dismissRenewal = Btn("STEP BACK FROM RENEWAL");
+            dismissRenewal.Pressed += () => { bool ok = desk.StepBackFromRenewal(out string result); Say(result, ok); Refresh(); };
+            content.AddChild(dismissRenewal);
+        }
 
 		// Clicking an act opens its MANAGE window in place of the list.
 		SimulatedArtist managed = managingArtistId == null ? null
@@ -1560,6 +1661,16 @@ public partial class PlayerDeskPanel : Control {
 				$"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Words(artist.careerState.ToString())}", matured);
 			sleeve.AddFact($"{artist.totalReleases} {CountWord(artist.totalReleases, "release")}   •   {artist.top40Hits} Top 40   •   {songs} in the songbook");
 			sleeve.AddFact($"{artist.royaltyRate:P1} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}", matured ? Rust : null);
+			foreach (ContractCommitment promise in desk.OpenCommitmentsFor(artist.artistId)) {
+				int daysLeft = promise.DueDay - LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
+				string due = LocalSceneRoomService.Date(promise.DueDay).ToShortString();
+				sleeve.AddFact(promise.Kind switch {
+						ContractCommitmentKind.FundedSession => $"Session promised by {due}",
+						ContractCommitmentKind.Distribution => promise.ReleaseDay.HasValue ? $"Wholesale line promised by {due}" : $"Record promised out by {due}, then a wholesale line",
+						_ => promise.ReleaseDay.HasValue ? $"Trade ad promised by {due}" : $"Record promised out by {due}, then a trade ad",
+					},
+					daysLeft <= 14 ? Rust : null);
+			}
 
 			SimulatedArtist captured = artist;
 			if (matured) {
@@ -1585,10 +1696,12 @@ public partial class PlayerDeskPanel : Control {
 	/// <summary>The renewal menu for a matured contract: Pushover gets the same quick one-click form
 	/// as a first signing; Firm/Hardball opens the same negotiation scene, different nouns.</summary>
 	private void RenewalScene(RenewalOffer offer) {
+        if (PlayerDesk.Instance.RenewalDiscussionUnavailable() is { } reason) Body(reason);
 		if (offer.Posture != NegotiationPosture.Pushover) { NegotiationScene(offer.Talk); return; }
 
 		Heading($"RENEW — {offer.Artist.stageName.ToUpperInvariant()}");
 		if (!string.IsNullOrEmpty(offer.Ask.DemandSummary)) Body($"Their ask: {offer.Ask.DemandSummary}");
+		OutlookBlock(PlayerDesk.Instance.ContractOutlookLines(offer.Artist, renewal: true));
 		Body("Your terms are shown below. The meeting costs " +
 			$"{PlayerDesk.NegotiationRoundHours} hours; the advance is charged when they sign.");
 
@@ -1600,7 +1713,7 @@ public partial class PlayerDeskPanel : Control {
 				Say(message, renewed);
 				Refresh();
 			},
-			() => { renewingArtist = null; Refresh(); }, offer.Ask, offer.Artist.stageName);
+			() => { renewingArtist = null; Refresh(); }, offer.Ask, offer.Artist.stageName, true);
 	}
 
 	/// <summary>The MANAGE window for one act: repertoire (write / teach a cover) and the studio.</summary>

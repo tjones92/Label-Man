@@ -37,7 +37,27 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (TimeManager.Instance == null || ChartManager.Instance == null)
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 
-			if (OS.GetCmdlineUserArgs().Contains("--scouting-experience-check")) { ScoutingExperienceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scouting-business-check")) { ScoutingBusinessChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-check")) { ScoutingOpeningChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-commitment-planning-check")) { ScoutingCommitmentPlanningChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-founding-history-check")) { ScoutingFoundingHistoryChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-check")) { ScoutingAudienceChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-check")) { ScoutingOfferPlanningChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-check")) { ScoutingContractContinuityChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-check")) { ScoutingSessionPromiseChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-outlook-check")) { ScoutingContractOutlookChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-credible-offers-check")) { ScoutingCredibleOffersChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--scouting-contract-outlook-survey=", StringComparison.Ordinal)) is string survey) {
+                ScoutingContractOutlookChecks.Survey(survey["--scouting-contract-outlook-survey=".Length..]); GetTree().Quit(0); return;
+            }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-terms-check")) { ScoutingTermsChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-market-history-check")) { ScoutingMarketHistoryChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-hired-listener-check")) { ScoutingHiredListenerChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-listener-check")) { ScoutingListenerChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-experience-check")) { ScoutingExperienceChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scene-information-check")) { SceneInformationChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scene-source-check")) { SceneSourceChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--scene-ecosystem-check")) { SceneEcosystemChecks.Run(); GetTree().Quit(0); return; }
@@ -46,6 +66,8 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--scene-city-placement-check")) { SceneCityPlacementChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--scene-recruitment-check")) { SceneRecruitmentChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--scene-room-check")) { LocalSceneRoomChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-room-prewarm-check")) { SceneRoomPrewarmChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-room-rotation-check")) { SceneRoomRotationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--local-scene-persistence-check")) { LocalScenePersistenceChecks.Run(); GetTree().Quit(0); return; }
 
 			if (OS.GetCmdlineUserArgs().Contains("--local-scene-identity-check")) { LocalSceneIdentityChecks.Run(); GetTree().Quit(0); return; }

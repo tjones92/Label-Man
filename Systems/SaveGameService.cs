@@ -29,7 +29,7 @@ public static class SaveGameService {
 	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
     // v7: dated room bills, engagements, performance/work ledgers and notebook source IDs.
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
-	public const int CurrentVersion = 11; // v9: programs/moves; v10: source demos; v11: shared live snapshots, scouting evidence and negotiations
+	public const int CurrentVersion = 13; // v9: programs/moves; v10: source demos; v11: scouting; v12: conversations; v13: unsigned sessions, lineup reservations and paid samples
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -337,6 +337,12 @@ public sealed class SaveEnvelope {
 }
 
 public sealed class PlayerSaveData {
+    public RenewalDiscussionSaveData RenewalDiscussion { get; set; }
+    public List<ContractCommitment> ContractCommitments { get; set; }
+    /// <summary>Optional: rival offers on acts the player pursued (PlayerDesk.RivalOffers). Older saves hold none.</summary>
+    public List<RivalOffer> RivalOffers { get; set; }
+    /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
+    public List<RosterDeparture> RosterDepartures { get; set; }
     public List<string> GeneratedProspectIds { get; set; }
     public List<SceneDiscovery> SceneDiscoveries { get; set; }
     public SceneInformationKnowledge SceneInformation { get; set; }

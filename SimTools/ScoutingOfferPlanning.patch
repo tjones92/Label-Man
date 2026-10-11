@@ -1,0 +1,268 @@
+diff --git a/Systems/PlayerDesk.OfferPlanning.cs b/Systems/PlayerDesk.OfferPlanning.cs
+new file mode 100644
+--- /dev/null
++++ b/Systems/PlayerDesk.OfferPlanning.cs
+@@ -0,0 +1,44 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++
++public partial class PlayerDesk {
++    /// <summary>Own-resource forecast only; no artist acceptance, promise, booking or cash mutation.</summary>
++    public sealed record OfferResourcePlan(float Advance, float CashAfterAdvance, float MonthlyOverhead,
++        float SigningReserve, bool AdvanceAffordable, int RosterUsed, int RosterCapacity, bool RosterSpace,
++        bool Renewal, float PendingAppointmentFees, int PendingAppointmentCount, float BudgetSessionCost,
++        float CashAfterFeesAndSession, bool Home, bool ConsoleFree, int MeetingHours, bool MeetingFits,
++        string AppointmentRisk, IReadOnlyList<string> FeeDetails) {
++        public string Summary =>
++            $"Cash after advance: ${CashAfterAdvance:N0} · signing reserve: ${SigningReserve:N0} (2 months of current ${MonthlyOverhead:N0} overhead) · " +
++            (AdvanceAffordable ? "reserve covered." : $"must leave more than ${SigningReserve:N0}; lower the advance or wait for more cash.") +
++            $"\nRoster: {RosterUsed}/{RosterCapacity} · " + (Renewal ? "renewal uses the existing slot." : RosterSpace ? "space for one new act." : "full; a new signing needs a free slot.") +
++            $"\nAgreed unpaid appointments: ${PendingAppointmentFees:N0} across {PendingAppointmentCount} retained booking(s), payable at attendance; no cash set aside. These appointments can change or be cancelled." +
++            $"\nRecording estimate: home budget room, {MinSessionHours}h, ${BudgetSessionCost:N0}; after the advance, retained appointment fees and this session: ${CashAfterFeesAndSession:N0}. " +
++            (CashAfterFeesAndSession < 0 ? "This combined plan exceeds current cash. " : "") +
++            (!Home ? "Return home to use this route. " : "") + (!ConsoleFree ? "Print or scrap the session on the console first. " : "") +
++            "Material, consent and a free date still need checking. This is one session estimate, not a funded promise or a release budget; pressing, distribution, travel and later overhead are extra." +
++            $"\nMeeting: {MeetingHours}h · " + (MeetingFits ? "fits today's remaining hours." : "does not fit today's remaining hours.") +
++            (AppointmentRisk == null ? "" : "\n" + AppointmentRisk);
++    }
++
++    public OfferResourcePlan PreviewOfferResources(float advance, bool renewal = false, int meetingHours = NegotiationRoundHours) {
++        if (Label == null || !float.IsFinite(advance) || advance < 0 || meetingHours < 0 || meetingHours > 24) return null;
++        var clock = TimeManager.Instance;
++        int day = clock == null ? 0 : LocalSceneRoomService.Day(clock.CurrentDate);
++        int minute = clock == null ? 0 : clock.CurrentHour * 60 + clock.CurrentMinute;
++        // Retained quotes are not escrow or debt. Never refresh status or infer that signing cancels a booking.
++        var fees = ScoutingMeetings.Where(m => !m.Paid && m.Fee > 0 && float.IsFinite(m.Fee) &&
++            m.Status is SceneConversationStatus.Scheduled or SceneConversationStatus.InProgress &&
++            (m.Day > day || m.Day == day && (m.Status == SceneConversationStatus.InProgress ? m.EndMinute > minute : m.StartMinute >= minute)))
++            .OrderBy(m => m.Day).ThenBy(m => m.StartMinute).ThenBy(m => m.Id, StringComparer.Ordinal).ToArray();
++        float unpaid = fees.Sum(m => m.Fee), after = Label.cashReserves - advance;
++        float overhead = Label.GetMonthlyOverhead(), session = SessionCost(StudioTier.Budget, MinSessionHours);
++        bool fits = clock?.CanAffordHours(meetingHours, allowOvertime: true) == true;
++        return new(advance, after, overhead, overhead * 2, Label.CanAffordToSign(advance),
++            Label.CurrentRosterSize, Label.maxRosterSize, Label.HasRosterSpace, renewal, unpaid, fees.Length, session,
++            after - unpaid - session, AtHome, Session == null, meetingHours, fits,
++            fits ? ScoutingAppointmentRiskText(day, minute + meetingHours * 60) : null,
++            Array.AsReadOnly(fees.Select(m => $"{m.ArtistName} · {m.Activity.ToString().ToLowerInvariant()} · {LocalSceneRoomService.Date(m.Day).ToHeadlineString()} {m.StartMinute / 60:00}:{m.StartMinute % 60:00} · ${m.Fee:N0} unpaid").ToArray()));
++    }
++}
+diff --git a/UI/PlayerDeskPanel.cs b/UI/PlayerDeskPanel.cs
+--- a/UI/PlayerDeskPanel.cs
++++ b/UI/PlayerDeskPanel.cs
+@@ -1268,7 +1268,7 @@
+ 	/// Firm/Hardball negotiation, and a renewal. Just the fields and the two buttons -- caller
+ 	/// supplies the prefill, what the submit button says and does, and what "not now" does.</summary>
+ 	private void TermsForm(ContractTermSheet prefill, string submitLabel,
+-			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel, ContractTermSheet? ask = null, string artistName = null) {
++			Action<float, float, int, int, bool, bool> onSubmit, Action onCancel, ContractTermSheet? ask = null, string artistName = null, bool renewal = false) {
+ 		// The agreement is a carbon duplicate: onionskin with the label's letterhead, typed field rubrics, and a
+ 		// signature line at the foot. The buttons below it are what you do with the sheet.
+ 		Color carbonInk = new("3d4a8f");
+@@ -1372,18 +1372,14 @@
+ 		royalty.ValueChanged += _ => UpdateLowball();
+ 		UpdateLowball();
+ 
+-		var commitment = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
++		var commitment = new Label { Name = "OfferResourcePlan", AutowrapMode = TextServer.AutowrapMode.WordSmart, MouseFilter = MouseFilterEnum.Stop };
+ 		commitment.AddThemeColorOverride("font_color", Ink);
+ 		form.AddChild(commitment);
+ 		void UpdateCommitment() {
+-			AILabel label = PlayerDesk.Instance?.Label;
+-			if (label == null) { commitment.Text = "No label cash available."; return; }
+-			float reserve = label.GetMonthlyOverhead() * 2f;
+-			float after = label.cashReserves - (float)advance.Value;
+-			bool clears = after > reserve;
+-			commitment.Text = $"Cash after advance: {Money(after)}  ·  signing reserve: ${reserve:N0} (2 months of ${label.GetMonthlyOverhead():N0} overhead)  ·  " +
+-				(clears ? "reserve covered" : $"must leave more than ${reserve:N0} — lower the advance or wait for more cash");
+-			commitment.AddThemeColorOverride("font_color", clears ? Ink : Rust);
++			var plan = PlayerDesk.Instance?.PreviewOfferResources((float)advance.Value, renewal);
++			commitment.Text = plan?.Summary ?? "No label cash available.";
++			commitment.TooltipText = plan == null ? "" : string.Join("\n", plan.FeeDetails);
++			commitment.AddThemeColorOverride("font_color", plan?.AdvanceAffordable == true ? Ink : Rust);
+ 		}
+ 		advance.ValueChanged += _ => UpdateCommitment();
+ 		UpdateCommitment();
+@@ -1476,7 +1472,7 @@
+ 				Say(message, ok);
+ 				CloseTalkIfDone(talk);
+ 				Refresh();
+-			}, talk.ask, talk.Artist.stageName);
++			}, talk.ask, talk.Artist.stageName, talk.IsRenewal);
+ 	}
+ 
+ 	/// <summary>A negotiation scene serves both a new signing (closes `negotiating`) and a renewal
+@@ -1600,7 +1596,7 @@
+ 				Say(message, renewed);
+ 				Refresh();
+ 			},
+-			() => { renewingArtist = null; Refresh(); }, offer.Ask, offer.Artist.stageName);
++			() => { renewingArtist = null; Refresh(); }, offer.Ask, offer.Artist.stageName, true);
+ 	}
+ 
+ 	/// <summary>The MANAGE window for one act: repertoire (write / teach a cover) and the studio.</summary>
+diff --git a/SimTools/ScoutingOfferPlanningChecks.cs b/SimTools/ScoutingOfferPlanningChecks.cs
+new file mode 100644
+--- /dev/null
++++ b/SimTools/ScoutingOfferPlanningChecks.cs
+@@ -0,0 +1,103 @@
++using System;
++using System.Linq;
++using System.Text.Json;
++using Godot;
++
++public static class ScoutingOfferPlanningChecks {
++    // Real bill, actual listening and invitation. Controlled eligibility isolates this resource forecast.
++    public static SceneConversation PrepareDemo(PlayerDesk desk) {
++        var clock = TimeManager.Instance; var am = ArtistManager.Instance;
++        SceneBill bill = LocalSceneRoomService.Calendar(desk.CurrentCityId, clock.CurrentDate).First(b => {
++            if (b.Status != SceneBillStatus.Scheduled || b.Appearances.Count == 0) return false;
++            var a = b.Appearances[0]; var room = SceneRoomCatalog.Get(b.RoomId);
++            if (a.Set.Count == 0 || a.EndHour * 60 + PlayerDesk.ScoutingInvitationMinutes > Math.Min(clock.HardStopHour, room.CloseHour) * 60) return false;
++            clock.RestoreClock(LocalSceneRoomService.Date(b.Day), a.EndHour);
++            var act = am.GetArtist(a.ArtistId);
++            var leader = act.members.FirstOrDefault(m => m.isActive && m.lifeState == MemberLifeState.Active &&
++                (m.isBandLeader || act.members.Count == 1) && a.PersonIds.Contains(m.personId) &&
++                !LocalSceneRoomService.HasPersonBooking(m.personId, b.Day, a.EndHour * 60, a.EndHour * 60 + 15, room.Id));
++            return leader != null && LocalSceneRoomService.QuoteConversation(desk.Label, a.ArtistId, leader.personId,
++                room.Id, ScenePerformanceService.EventId(b, a), ScoutingAppointmentActivity.Demo) != null;
++        });
++        var slot = bill.Appearances[0];
++        clock.RestoreClock(LocalSceneRoomService.Date(bill.Day), slot.StartHour);
++        if (!desk.ListenSceneAppearance(bill.Id, ScenePerformanceService.EventId(bill, slot), out string message)) throw new InvalidOperationException(message);
++        var artist = am.GetArtist(slot.ArtistId);
++        artist.labelId = null; artist.careerState = CareerState.Unsigned; artist.lifecycleStatus = ArtistLifecycleStatus.Active;
++        artist.prospectMarketStatus = ProspectMarketStatus.Seeking; artist.manager = ManagerArchetype.None;
++        var quote = desk.PreviewScoutingInvitation(artist.artistId, ScoutingAppointmentActivity.Demo);
++        if (quote == null || !desk.ArrangeScoutingMeeting(artist.artistId, quote.Id, out message, ScoutingAppointmentActivity.Demo)) throw new InvalidOperationException(message);
++        return desk.ScoutingMeetings.Single();
++    }
++
++    public static void Run() {
++        int checks = 0;
++        void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCOUTING_OFFER_PLANNING_FAILED: " + why); checks++; }
++        string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
++        var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
++        Check(desk.PreviewOfferResources(0) == null, "no label yields no invented budget");
++        Check(desk.FoundLabel("Offer Planning", "nashville", out string message), "found label: " + message);
++        var booking = PrepareDemo(desk);
++        float advance = 100, reserve = desk.Label.GetMonthlyOverhead() * 2;
++        desk.Label.cashReserves = advance + reserve;
++        Check(!desk.PreviewOfferResources(advance).AdvanceAffordable, "strict reserve boundary matches signing owner");
++        desk.Label.cashReserves += 1;
++        Check(desk.PreviewOfferResources(advance).AdvanceAffordable, "one dollar over reserve clears current cash rule");
++        desk.Label.cashReserves = 10000;
++        var plan = desk.PreviewOfferResources(advance);
++        Check(plan.PendingAppointmentFees == booking.Fee && plan.PendingAppointmentCount == 1 && plan.FeeDetails.Single().Contains(booking.ArtistName), "real unpaid demo has named frozen fee");
++        Check(plan.BudgetSessionCost == desk.SessionCost(PlayerDesk.StudioTier.Budget, PlayerDesk.MinSessionHours) &&
++            plan.CashAfterFeesAndSession == desk.Label.cashReserves - advance - booking.Fee - plan.BudgetSessionCost, "combines existing quote and actual fee without treating either as paid");
++        Check(plan.Summary.Contains("not a funded promise") && plan.Summary.Contains("distribution") && plan.Summary.Contains("current") &&
++            !plan.Summary.Contains("reservation") && !plan.Summary.Contains("patience"), "forecast labels limits without hidden acceptance values");
++        Check(desk.PreviewOfferResources(float.NaN) == null && desk.PreviewOfferResources(float.PositiveInfinity) == null &&
++            desk.PreviewOfferResources(-1) == null && desk.PreviewOfferResources(0, meetingHours: -1) == null, "invalid forecasts cannot appear affordable");
++        var baselineWorld = LocalSceneRoomService.Copy(WorldStateService.Capture()); var baselinePlayer = LocalSceneRoomService.Copy(desk.CaptureState());
++        var baselineDate = clock.CurrentDate; int hour = clock.CurrentHour, minute = clock.CurrentMinute;
++        void Reset() {
++            LocalScenes.Configure(Array.Empty<string>());
++            WorldStateService.Apply(LocalSceneRoomService.Copy(baselineWorld), baselineDate, SimulationSeedBootstrap.RequestedSeed);
++            Check(desk.RestoreState(LocalSceneRoomService.Copy(baselinePlayer), out message), "restore booked baseline");
++            clock.RestoreClock(baselineDate, hour, minute);
++        }
++        string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
++        GD.Seed(741); uint draw = GD.Randi(); GD.Seed(741);
++        for (int i = 0; i < 8; i++) desk.PreviewOfferResources(advance + i, i % 2 == 0);
++        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GD.Randi() == draw, "editing forecasts preserves all world/player state and RNG");
++        var rooms = WorldStateService.Capture().SceneRooms;
++        rooms.Conversations.Single().Fee += 5;
++        Check(desk.PreviewOfferResources(advance).PendingAppointmentFees == booking.Fee, "external captures cannot rewrite forecast fees");
++        desk.Label.maxRosterSize = desk.Label.CurrentRosterSize;
++        Check(!desk.PreviewOfferResources(advance).RosterSpace && desk.PreviewOfferResources(advance, true).Summary.Contains("existing slot"), "full roster is distinguished from renewal slot");
++        Reset();
++        clock.RestoreClock(LocalSceneRoomService.Date(booking.Day), booking.StartMinute / 60 - 2, booking.StartMinute % 60);
++        Check(desk.PreviewOfferResources(advance).AppointmentRisk == null, "meeting ending exactly at start is safe");
++        clock.RestoreClock(clock.CurrentDate, clock.CurrentHour, clock.CurrentMinute + 1);
++        Check(desk.PreviewOfferResources(advance).AppointmentRisk?.Contains(booking.ArtistName) == true, "passing start identifies actual obligation");
++        clock.RestoreClock(clock.CurrentDate, clock.HardStopHour - 1);
++        Check(!desk.PreviewOfferResources(advance).MeetingFits && desk.PreviewOfferResources(advance).AppointmentRisk == null, "blocked late meeting does not predict consumed time");
++        Reset();
++        foreach (var mode in new[] { "--disable-scouting-experience", "--observe-scouting-experience" }) {
++            LocalScenes.Configure(new[] { mode });
++            Check(desk.PreviewOfferResources(advance).PendingAppointmentFees == booking.Fee, "feature mode retains booked cost history: " + mode);
++        }
++        LocalScenes.Configure(Array.Empty<string>());
++        string slotName = "Offer plan " + Guid.NewGuid().ToString("N");
++        string forecast = Json(desk.PreviewOfferResources(advance));
++        try {
++            Check(SaveGameService.Save(slotName, out message) && SaveGameService.Load(slotName, out message), "real compressed save/load: " + message);
++            Check(Json(desk.PreviewOfferResources(advance)) == forecast, "reload reproduces forecast without new persisted fields");
++        } finally { SaveGameService.Delete(slotName); }
++        float cash = desk.Label.cashReserves;
++        Check(desk.CancelScoutingMeeting(booking.Id, out message) && desk.Label.cashReserves == cash && desk.PreviewOfferResources(advance).PendingAppointmentFees == 0, "actual free cancellation removes fee forecast");
++        Reset(); desk.Label.cashReserves = booking.Fee - 1;
++        Check(desk.PreviewOfferResources(0).CashAfterFeesAndSession < 0 && desk.PreviewOfferResources(0).Summary.Contains("exceeds current cash"), "combined-plan shortfall is explicit");
++        Reset();
++        Check(desk.WaitForScoutingMeeting(booking.Id, out message), "wait for real demo: " + message);
++        cash = desk.Label.cashReserves;
++        Check(desk.AttendScoutingMeeting(booking.Id, out message), "attend actual demo: " + message);
++        Check(desk.Label.cashReserves == cash - booking.Fee && desk.PreviewOfferResources(advance).PendingAppointmentFees == 0 &&
++            desk.ScoutingMeetings.Single().Paid, "paid completed demo is not deducted twice");
++        GD.Print($"SCOUTING_OFFER_PLANNING_PASS checks={checks}");
++    }
++}
+diff --git a/SimTools/SaveLoadRoundTripRunner.cs b/SimTools/SaveLoadRoundTripRunner.cs
+--- a/SimTools/SaveLoadRoundTripRunner.cs
++++ b/SimTools/SaveLoadRoundTripRunner.cs
+@@ -42,6 +42,7 @@
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-commitment-planning-check")) { ScoutingCommitmentPlanningChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-founding-history-check")) { ScoutingFoundingHistoryChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-check")) { ScoutingAudienceChecks.Run(); GetTree().Quit(0); return; }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-check")) { ScoutingOfferPlanningChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+diff --git a/SimTools/SceneRoomUiRunner.cs b/SimTools/SceneRoomUiRunner.cs
+--- a/SimTools/SceneRoomUiRunner.cs
++++ b/SimTools/SceneRoomUiRunner.cs
+@@ -21,6 +21,42 @@
+             var fold = Descendants(this).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "FOLD THE PAPER  ×");
+             fold?.EmitSignal(Button.SignalName.Pressed);
+             for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-ui-check")) {
++                var booking = ScoutingOfferPlanningChecks.PrepareDemo(desk);
++                var clock = TimeManager.Instance;
++                clock.RestoreClock(LocalSceneRoomService.Date(booking.Day), booking.StartMinute / 60 - 1, booking.StartMinute % 60);
++                desk.Label.cashReserves = 10000;
++                if (!desk.OpenScoutingDossier(booking.ArtistId, out message)) throw new InvalidOperationException(message);
++                var prospect = desk.Slate.Single(p => p.Artist.artistId == booking.ArtistId);
++                if (!desk.ApproachToSign(prospect, out message)) throw new InvalidOperationException(message);
++                prospect.Posture = NegotiationPosture.Pushover; prospect.Talk = null;
++                typeof(PlayerDeskPanel).GetField("negotiating", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panel, prospect);
++                panel.OpenAtTab("A&R");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var resource = Descendants(panel).OfType<Label>().Single(l => !l.IsQueuedForDeletion() && l.Name == "OfferResourcePlan");
++                if (!resource.Text.Contains("Recording estimate") || !resource.Text.Contains("passes an agreed start") || !resource.TooltipText.Contains(booking.ArtistName))
++                    throw new InvalidOperationException("Contract needs recording estimate, named unpaid fee and actual appointment conflict.");
++                var inputs = Descendants(panel).OfType<SpinBox>().Where(s => !s.IsQueuedForDeletion()).ToArray();
++                var advanceInput = inputs.Single(s => s.MaxValue == 100000);
++                float cash = desk.Label.cashReserves; int evidence = desk.ScoutingDossiers.Sum(d => d.Observations.Count);
++                string before = resource.Text;
++                advanceInput.Value = cash - booking.Fee + 1;
++                if (resource.Text == before || !resource.Text.Contains("exceeds current cash") || desk.Label.cashReserves != cash ||
++                    desk.ScoutingDossiers.Sum(d => d.Observations.Count) != evidence || desk.ScoutingMeetings.Single().Paid)
++                    throw new InvalidOperationException("Editing must update the combined shortfall without spending money or acquiring evidence.");
++                advanceInput.Value = 100;
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var scroll = Descendants(panel).OfType<ScrollContainer>().Single(s => s.IsAncestorOf(resource));
++                scroll.ScrollVertical = (int)resource.Position.Y;
++                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                string output = ProjectSettings.GlobalizePath("res://SimLogs/scouting-offer-planning-ui-v1"); Directory.CreateDirectory(output);
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(output, "contract.png"));
++                var submit = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("OFFER CONTRACT"));
++                if (submit.Disabled || resource.Size.X <= 0) throw new InvalidOperationException("Forecast must leave the choice available.");
++                GD.Print("SCOUTING_OFFER_PLANNING_UI_PASS sharedForm=true liveBudget=true namedFees=true risk=true noSpend=true choice=true"); GetTree().Quit(0); return;
++            }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-ui-check")) {
+                 var audienceClock = TimeManager.Instance;
+                 audienceClock.RestoreClock(GameDate.StartDate, 9);
