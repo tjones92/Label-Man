@@ -358,6 +358,45 @@ public partial class SceneRoomUiRunner : Node {
                     throw new InvalidOperationException("Cancellation must release the warning, preserving only its ordinary cancellation notice.");
                 GD.Print("SCOUTING_COMMITMENT_PLANNING_UI_PASS agendaOnce=true archived=true warning=true choice=true cancellation=true"); GetTree().Quit(0); return;
             }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-rooms-ui-check")) {
+                // Phase 6: a room reads as a place with a named booker, and what the room hid shows up in the notebook.
+                TimeManager.Instance.RestoreClock(GameDate.StartDate, 9);
+                var club = SceneRoomCatalog.ForPlace(desk.CurrentCityId).Single(r => r.Kind == SceneRoomKind.Club);
+                panel.OpenAtTab("A&R");
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "BROWSE ALL ROOM CALENDARS").EmitSignal(Button.SignalName.Pressed);
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Descendants(panel).OfType<VenueHandbill>().Where(c => !c.IsQueuedForDeletion()).Single(c => Descendants(c).OfType<Label>().Any(l => l.Text.Contains(club.Name, StringComparison.OrdinalIgnoreCase)))
+                    .EmitSignal(Button.SignalName.Pressed);
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var texts = Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion() && l.IsVisibleInTree()).Select(l => l.Text).ToArray();
+                if (!texts.Any(t => t.StartsWith("Club, about") && t.Contains("words and fine vocal detail get lost"))) throw new InvalidOperationException("The selected room needs its plain description.");
+                if (!texts.Any(t => t.StartsWith(club.ContactName + " has booked " + club.Name))) throw new InvalidOperationException("The booker needs a name and a stated remit.");
+                if (texts.Any(t => t.Contains("ListeningRoom") || t.Contains("CommunityHall") || t.Contains(" booker posts"))) throw new InvalidOperationException("Raw room kinds must not reach the board.");
+                if (Descendants(panel).OfType<Button>().All(b => b.IsQueuedForDeletion() || !b.Text.StartsWith("ASK " + club.ContactName.ToUpperInvariant())))
+                    throw new InvalidOperationException("The tip button asks the booker by name.");
+                var described = Descendants(panel).OfType<Label>().First(l => !l.IsQueuedForDeletion() && l.Text.StartsWith("Club, about"));
+                Descendants(panel).OfType<ScrollContainer>().FirstOrDefault(s => s.IsAncestorOf(described))?.EnsureControlVisible(described);
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                string roomsDir = ProjectSettings.GlobalizePath("res://SimLogs/scouting-rooms-ui-v1"); Directory.CreateDirectory(roomsDir);
+                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(roomsDir, "room.png"));
+                var clubSet = desk.ScoutingItinerary().First(o => o.RoomId == club.Id);
+                if (!desk.WaitForSceneAppearance(clubSet.BillId, clubSet.EventId, out message) || !desk.ListenSceneAppearance(clubSet.BillId, clubSet.EventId, out message)) throw new InvalidOperationException(message);
+                panel.OpenAtTab("A&R");
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                texts = Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion()).Select(l => l.Text).ToArray();
+                if (!texts.Any(t => t.StartsWith("Material:") && t.Contains("the words were hard to follow over the club"))) throw new InvalidOperationException("The notebook must say the club hid the words.");
+                if (!texts.Any(t => t.StartsWith("Rooms so far: heard only in clubs.") && t.Contains("quieter room"))) throw new InvalidOperationException("The notebook should name a room that answers the hidden question.");
+                var gapLine = Descendants(panel).OfType<Label>().First(l => !l.IsQueuedForDeletion() && l.Text.StartsWith("Rooms so far:"));
+                Descendants(panel).OfType<ScrollContainer>().FirstOrDefault(s => s.IsAncestorOf(gapLine))?.EnsureControlVisible(gapLine);
+                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(roomsDir, "notebook.png"));
+                GD.Print("SCOUTING_ROOMS_UI_PASS description=true booker=true caveat=true gap=true"); GetTree().Quit(0); return;
+            }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-ui-check")) {
                 TimeManager.Instance.RestoreClock(GameDate.StartDate, 9);
                 panel.OpenAtTab("A&R");

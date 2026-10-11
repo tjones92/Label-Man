@@ -64,7 +64,7 @@ public partial class PlayerDesk {
                 OccurredDay = bill.Day, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate), AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, StartMinute = from, EndMinute = through, Coverage = coverage,
                 Credibility = coverage >= .9 ? "full set impression; observer judgment remains uncertain" : "partial set impression; limited coverage",
                 PersonIds = slot.PersonIds.ToList(), BackingPersonIds = slot.BackingPersonIds?.ToList() ?? new(), Set = LocalSceneRoomService.Copy(slot.Set),
-                Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage),
+                Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage, room.Kind),
                 BillAttendance = resolved.Status == SceneBillStatus.Performed ? resolved.Attendance : null, BillCapacity = LocalSceneRoomService.CapacityOf(resolved),
                 BillListedActs = listedActs, BillAdmissionQuote = postedAdmission,
                 // You saw who came in for the set and who stayed only if you were there for most of it.
@@ -72,7 +72,7 @@ public partial class PlayerDesk {
                 SetArrivals = coverage >= .5f ? slot.Performance.Audience?.ArrivedFor : null,
                 SetStayedShare = coverage >= .5f ? slot.Performance.Audience?.StayedShare : null,
                 SetRequests = coverage >= .5f ? slot.Performance.Audience?.Requests : null,
-                Conditions = $"{slot.Role}; {room.Kind}; {(slot.Residency ? "regular engagement" : "announced booking")}. Repertoire is the scheduled set; partial coverage does not identify every song heard." });
+                Conditions = $"{slot.Role}; {SceneRoomCharacter.KindName(room.Kind)}; {(slot.Residency ? "regular engagement" : "announced booking")}. Repertoire is the scheduled set; partial coverage does not identify every song heard." });
             if (listener != null) RememberScoutingListener(dossier, dossier.Observations.Last(), slot.Performance, listener);
             var prospect = new Prospect { Artist = artist, Venue = room.Category, CityId = CurrentCityId, SceneRoomId = room.Id, SceneBillId = bill.Id,
                 AskingAdvance = VenueAdvanceAsk(artist, room.Category, AskScaleFor(CurrentCityId)), Note = $"Heard the {slot.Role} at {room.Name}." };

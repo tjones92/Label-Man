@@ -66,13 +66,15 @@ public partial class PlayerDeskPanel {
                 next == null ? "no announced bill" : $"{LocalSceneRoomService.Date(next.Day).ShortMonthName} {LocalSceneRoomService.Date(next.Day).day} · {Hour12(next.StartHour)}–{Hour12(next.EndHour)}",
                 open, room.Id == selectedSceneRoomId, (int)room.Kind);
             card.CustomMinimumSize = new Vector2(0, 340);
-            card.TooltipText = $"{room.Kind} · capacity {SceneLiveEconomics.Capacity(room)} · {room.ContactName}\nFictional supporting room. {room.Source}.";
+            card.TooltipText = $"{SceneRoomCharacter.KindName(room.Kind)} · about {SceneLiveEconomics.Capacity(room)} people · booked by {room.ContactName}\n" +
+                $"{SceneRoomCharacter.HearingText(room.Kind)}\nFictional supporting room. {room.Source}.";
             string id = room.Id; card.Pressed += () => { selectedSceneRoomId = id; Refresh(); }; grid.AddChild(card);
         }
         content.AddChild(grid);
         var selected = rooms.FirstOrDefault(r => r.Id == selectedSceneRoomId);
         if (selected == null) { Body("No detailed rooms are available for this place."); return; }
-        Body($"{selected.ContactName} posts these bills. {selected.Kind} · {selected.Programming(date.year)}.");
+        Body(SceneRoomCharacter.Describe(selected, date.year));
+        Body(SceneRoomCharacter.BookerRemit(selected));
         var tip = Btn($"ASK {selected.ContactName.ToUpperInvariant()} FOR A LISTENING TIP  (1h)");
         tip.Disabled = hour < selected.OpenHour || hour >= selected.CloseHour;
         tip.TooltipText = "Ask during posted hours. Tips refer to actual announced performances; hearing a set can justify an approach.";

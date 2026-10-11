@@ -140,4 +140,17 @@ public sealed class ScoutingKnowledgeSaveData {
     // False only for a label whose history starts here. Null means older, unknown history.
     public bool? FoundingHistoryStarted { get; set; }
     public List<ScoutingNegotiationState> Negotiations { get; set; } = new();
+    /// <summary>Approaches to heard acts that were not looking for a deal. Null on older saves.</summary>
+    public List<ScoutingDirectApproach> Approaches { get; set; }
+}
+public enum ScoutingApproachStatus { Considering, Ready, Declined, Lapsed }
+/// <summary>A label asked an act that was off the market whether it would hear an offer. The act either agreed to think
+/// it over (the population owner may bring it back on the market at its weekly pass) or said no for this season.</summary>
+public sealed class ScoutingDirectApproach {
+    public string ArtistId { get; set; }
+    public string ArtistName { get; set; }
+    public int Day { get; set; }
+    public ScoutingApproachStatus Status { get; set; }
+    /// <summary>Considering: the day the act's side said it would answer by. Declined: the first day to ask again.</summary>
+    public int UntilDay { get; set; }
 }

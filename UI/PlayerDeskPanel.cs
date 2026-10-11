@@ -1233,9 +1233,11 @@ public partial class PlayerDeskPanel : Control {
             var follow = Btn($"FOLLOW UP ({PlayerDesk.FollowUpHours}h)");
             follow.Pressed += () => Act(() => { bool ok = desk.FollowUp(prospect, out string result); Say(result, ok); return ok; }); row.AddChild(follow);
         }
-        var approach = Primary("DISCUSS TERMS");
-        approach.Disabled = !PlayerDesk.SceneDealAvailable(prospect) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId));
-        approach.TooltipText = PlayerDesk.SceneDealDescription(prospect);
+        bool askFirst = desk.CanAskDirectApproach(prospect.Artist);
+        var approach = Primary(askFirst ? "ASK IF THEY'D HEAR AN OFFER" : "DISCUSS TERMS");
+        approach.Disabled = !askFirst && (!PlayerDesk.SceneDealAvailable(prospect) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId)));
+        approach.TooltipText = askFirst ? "They aren't looking for a record deal. Their side may think it over and answer within about a week, or say no for this season. No money or time spent."
+            : PlayerDesk.SceneDealDescription(prospect);
         approach.Pressed += () => { bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
         row.AddChild(approach); content.AddChild(row);
     }

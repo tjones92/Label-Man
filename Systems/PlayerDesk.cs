@@ -1044,6 +1044,8 @@ public partial class PlayerDesk : Node {
 			RosterManager.Instance.PlayerPursuitInterceptor = InterceptAiNomination;
 		}
 		SceneRecruitmentService.ActVisibility = AiVisibilityWeight;
+		// Acts that agreed to think over the player's approach go back to the population owner's weekly activation pass.
+		if (ArtistManager.Instance != null) ArtistManager.Instance.DirectApproachProvider = DirectApproachIds;
 		InitBandRoom();
 	}
 
@@ -1963,6 +1965,8 @@ public partial class PlayerDesk : Node {
 	/// no point opening the menu at all.
 	/// </summary>
 	public bool ApproachToSign(Prospect prospect, out string message) {
+        // An act heard but off the market is asked whether it would hear an offer (PlayerDesk.DirectApproach).
+        if (TryDirectApproach(prospect?.Artist, out message)) return false;
         if (LocalScenes.Persisting && !CanCommitSceneSigning(prospect, out message)) return false;
 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
 		if (!prospect.FollowedUp && !HasScoutingEvidence(prospect.Artist.artistId)) { message = "Hear an act before making an offer."; return false; }
@@ -4458,6 +4462,7 @@ public partial class PlayerDesk : Node {
 		// move on a step (PlayerDesk.RivalCourtship).
 		ResolveRivalOffers(date);
 		if (LocalScenes.RivalOffers) AdvanceRivalCourtships(date);
+		AdvanceDirectApproaches(date);
 		ulong seed = SimulationSeedBootstrap.RequestedSeed ?? 0UL;
 		var seen = new HashSet<string>(StringComparer.Ordinal);
 		var watched = new List<(SimulatedArtist Artist, string CityId, GameDate Seen, WatchNote Note, bool Talking)>();

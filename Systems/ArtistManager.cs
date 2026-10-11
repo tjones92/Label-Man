@@ -917,6 +917,10 @@ public sealed class LaborMarketWeeklySnapshot {
 		label?.IsActive == true && label.CanAffordToSign(label.PreviewScoutingGate(useOperatingRosterTarget: true).EstimatedAdvance)
 			? Mathf.Max(0, label.OperatingRosterTarget - label.CurrentRosterSize) : 0;
 
+	/// <summary>Acts off the market that a label made a concrete approach to and that agreed to consider it
+	/// (PlayerDesk.DirectApproach). Read once a week by the activation pass; null without a player label.</summary>
+	public Func<IReadOnlyCollection<string>> DirectApproachProvider { get; set; }
+
 	private void ActivateProspectsForHiringOpportunities() {
 		SimulatedArtist[] seeking = artistRegistry.Values.Where(IsSeekingProspect).ToArray();
 		SimulatedArtist[] latent = artistRegistry.Values.Where(IsLatentProspect).ToArray();
@@ -925,7 +929,14 @@ public sealed class LaborMarketWeeklySnapshot {
 		lastSeekingProspects = seeking.Count(IsFirstContractProspect);
 		lastLatentProspects = latent.Count(IsFirstContractProspect);
 		int requested = CalculateProspectActivationCount(latent.Length, seeking.Length, opportunities);
-		SimulatedArtist[] activated = OrderLatentProspects(latent).Take(requested).ToArray();
+		// A concrete approach from a label that has heard the act is demand for THAT act. The player's desk supplies the
+		// acts it approached, already capped by its own open roster slots; they come back first and on top of the AI's
+		// budget, so they take nobody else's activation. Null in a world without a player: the pass is unchanged.
+		var approached = DirectApproachProvider?.Invoke();
+		SimulatedArtist[] considered = approached == null || approached.Count == 0 ? Array.Empty<SimulatedArtist>()
+			: latent.Where(a => approached.Contains(a.artistId)).OrderBy(a => a.artistId, StringComparer.Ordinal).ToArray();
+		if (considered.Length > 0) latent = latent.Except(considered).ToArray();
+		SimulatedArtist[] activated = considered.Concat(OrderLatentProspects(latent).Take(requested)).ToArray();
 		foreach (SimulatedArtist artist in activated) {
 			ReturnProspectToSearchableMarket(artist);
 			EmitPopulationEvent("prospect-activated", artist);

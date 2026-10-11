@@ -33,6 +33,7 @@ public partial class PlayerDesk {
         if (Label != null && (scoutingKnowledge.FoundingAct != null || !scoutingKnowledge.FoundingHistoryStarted.HasValue))
             scoutingKnowledge.FoundingHistoryStarted = true;
         scoutingKnowledge.Dossiers ??= new();
+        scoutingKnowledge.Approaches?.RemoveAll(a => a == null || string.IsNullOrEmpty(a.ArtistId) || !Enum.IsDefined(a.Status));
         scoutingNegotiations.Clear();
         foreach (var state in scoutingKnowledge.Negotiations ?? new()) {
             var artist = ArtistManager.Instance?.GetArtist(state.ArtistId);
@@ -106,11 +107,14 @@ public partial class PlayerDesk {
             int nights = samples.Select(o => o.OccurredDay).Distinct().Count();
             lines.Add($"Heard {samples.Length} distinct {(samples.Length == 1 ? "set" : "sets")} on {nights} {(nights == 1 ? "date" : "dates")}. Last: {place}, {LocalSceneRoomService.Date(last.OccurredDay.Value).ToHeadlineString()}; {last.Coverage:P0} of the scheduled set.");
             if (read != null) {
-                lines.Add(read.Vocals.HasValue ? "Vocals: " + AxisDescription(read.Vocals.Value) + "." : "Vocals: no lead-vocal evidence in this set.");
-                lines.Add("Ensemble / execution: " + AxisDescription(read.Execution) + ".");
-                lines.Add("Material: " + AxisDescription(read.Material) + (read.OriginalMaterial ? (last.Coverage >= .9 ? "; heard an unrecorded original. More material could test this impression." : "; an original was scheduled, but partial coverage leaves what you heard uncertain.") : "; familiar material, no original writing demonstrated.") );
-                lines.Add("Stage communication: " + AxisDescription(read.Communication) + ".");
+                var kind = SceneRoomCatalog.Get(last.RoomId)?.Kind;
+                string Room(ScoutingQuestion axis) => kind.HasValue && SceneRoomCharacter.Masks(kind.Value, axis) is { } masked ? " (" + masked + ")" : "";
+                lines.Add(read.Vocals.HasValue ? "Vocals: " + AxisDescription(read.Vocals.Value) + Room(ScoutingQuestion.Vocals) + "." : "Vocals: no lead-vocal evidence in this set.");
+                lines.Add("Ensemble / execution: " + AxisDescription(read.Execution) + Room(ScoutingQuestion.Ensemble) + ".");
+                lines.Add("Material: " + AxisDescription(read.Material) + Room(ScoutingQuestion.Material) + (read.OriginalMaterial ? (last.Coverage >= .9 ? "; heard an unrecorded original. More material could test this impression." : "; an original was scheduled, but partial coverage leaves what you heard uncertain.") : "; familiar material, no original writing demonstrated.") );
+                lines.Add("Stage communication: " + AxisDescription(read.Communication) + Room(ScoutingQuestion.Stage) + ".");
             }
+            if (ScoutingRoomGap(dossier, samples) is { } gap) lines.Add(gap);
             if (!dossier.Observations.Any(o => o.Kind == ScoutingEvidenceKind.DemoSample)) lines.Add("Recording readiness: no recording evidence acquired.");
             var current = ArtistManager.Instance?.GetArtist(artistId);
             var people = current?.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).Select(m => m.personId).OrderBy(id => id, StringComparer.Ordinal);
@@ -129,12 +133,31 @@ public partial class PlayerDesk {
         if (ScoutingListenerComparison(dossier) is { } comparison) lines.Add(comparison);
         if (ScoutingMeetingSummary(artistId) is { } meeting) lines.Add(meeting);
         lines.Add(ScoutingAudience.Summary(dossier));
+        if (DirectApproachSummary(artistId) is { } approach) lines.Add(approach);
         lines.AddRange(ScoutingBusinessStatements(artistId));
         lines.Add(ScoutingCompetitionSummary(artistId));
         if (ScoutingOtherKnownLeads(artistId) is { } alternatives) lines.Add(alternatives);
         lines.Add(NextScoutingOpportunity(artistId));
         return lines;
     }
+    /// <summary>A question every room so far has hidden: which kind of room would answer it. The pinned question
+    /// first, then material, vocals, ensemble and stage. Null once some room has let you hear it.</summary>
+    internal static string ScoutingRoomGap(ScoutingDossier dossier, ScoutingObservation[] samples) {
+        var kinds = samples.Select(o => SceneRoomCatalog.Get(o.RoomId)?.Kind).Where(k => k.HasValue).Select(k => k.Value).Distinct().ToArray();
+        if (kinds.Length == 0) return null;
+        var order = new[] { dossier.Question, ScoutingQuestion.Material, ScoutingQuestion.Vocals, ScoutingQuestion.Ensemble, ScoutingQuestion.Stage };
+        foreach (var axis in order.Where(q => q != ScoutingQuestion.None).Distinct()) {
+            if (axis == ScoutingQuestion.Vocals && samples.All(o => o.Interpretation?.Vocals == null)) continue;
+            if (!kinds.All(k => SceneRoomCharacter.Masks(k, axis) != null)) continue;
+            string where = string.Join(" and ", kinds.Select(k => SceneRoomCharacter.KindName(k) + "s"));
+            string better = SceneRoomCharacter.BetterRoomFor(axis);
+            return $"Rooms so far: heard only in {where}. {char.ToUpperInvariant(better[0])}{better.Substring(1)} would answer the {ScoutingAxisName(axis)} question better.";
+        }
+        return null;
+    }
+    private static string ScoutingAxisName(ScoutingQuestion axis) => axis switch {
+        ScoutingQuestion.Vocals => "vocal", ScoutingQuestion.Ensemble => "ensemble", ScoutingQuestion.Material => "material", _ => "stage"
+    };
     public IReadOnlyList<string> ScoutingAudienceDetails(string artistId) =>
         ScoutingAudience.Details(scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId));
     public string NextScoutingOpportunity(string artistId) {

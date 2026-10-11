@@ -59,7 +59,7 @@ public static class SceneRoomCatalog {
                 string id = city.Id + ":" + suffix;
                 rooms.Add(new(id, city.Id, name, kind, category, early, late, city.Source,
                     Array.AsReadOnly(families), Array.AsReadOnly(nights), open, open + 3, capacity, admission,
-                    id + ":booker", name + " booker"));
+                    id + ":booker", SceneRoomCharacter.BookerName(id)));
             }
             Add("club", city.Club, SceneRoomKind.Club, PlayerDesk.ScoutingVenue.ClubsAndRoadhouses, city.Early, city.Late, 120, 1, 17, DayOfWeek.Friday, DayOfWeek.Saturday);
             Add("listening", city.Listening, SceneRoomKind.ListeningRoom, PlayerDesk.ScoutingVenue.TheatresAndSupperClubs,

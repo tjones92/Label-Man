@@ -12,6 +12,8 @@ public sealed record SceneRoomProfile(string Id, string PlaceId, string Name, Sc
     public int FromYear => 1960;
     public int ThroughYear => 1969;
     public bool IsPerformance => Kind != SceneRoomKind.TradeEvent;
+    /// <summary>The booker's name with the role and room, for provenance lines that must say who could know.</summary>
+    public string ContactTitle => $"{ContactName}, booker at {Name}";
     public string Programming(int year) => year < 1965 ? Community : LateCommunity;
 }
 

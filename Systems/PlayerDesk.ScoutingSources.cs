@@ -97,7 +97,7 @@ public partial class PlayerDesk {
             blocked = "Allow an hour within the booker's posted room hours.";
         else if (minute + 60 > clock.HardStopHour * 60 || clock.HoursRemainingWithOvertime < 1)
             blocked = "There is not an hour left for this conversation today.";
-        return new() { EventId = eventId, BillId = billId, RoomId = room.Id, SourceId = room.ContactId, SourceName = room.ContactName,
+        return new() { EventId = eventId, BillId = billId, RoomId = room.Id, SourceId = room.ContactId, SourceName = room.ContactTitle,
             PlaceName = ScenePlaceRegistry.Get(room.PlaceId)?.Name,
             Claim = claim, OccurredDay = occurred, BillAttendance = attendance, BillCapacity = capacity,
             BillListedActs = listedActs, DrawNights = drawNights, DrawArrivals = drawArrivals, DrawStayed = drawStayed,

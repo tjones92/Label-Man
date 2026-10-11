@@ -19,9 +19,14 @@ public static class ScenePerformanceService {
             Execution = Sample("execution", execution), Material = Sample("material", material),
             Communication = Sample("communication", people.Length > 0 ? people.Average(m => m.stagePresence) : artist.livePerformance), OriginalMaterial = originals };
     }
-    public static ScenePerformanceSnapshot Interpret(ScenePerformanceSnapshot live, string labelId, float ability, float coverage) {
-        float noise = .08f + .20f * (1 - Math.Clamp(ability, 0, 1)) + .08f * (1 - coverage);
+    /// <param name="room">The kind of room it was heard in. A room hides some things from every listener alike
+    /// (SceneRoomCharacter.HearingIn); null for a rehearsal or demo sample.</param>
+    public static ScenePerformanceSnapshot Interpret(ScenePerformanceSnapshot live, string labelId, float ability, float coverage, SceneRoomKind? room = null) {
+        float baseNoise = .08f + .20f * (1 - Math.Clamp(ability, 0, 1)) + .08f * (1 - coverage);
+        var hearing = room.HasValue ? SceneRoomCharacter.HearingIn(room.Value) : default;
         float Read(string axis, float value) {
+            float noise = baseNoise + axis switch { "vocals" => hearing.Vocals, "execution" => hearing.Execution,
+                "material" => hearing.Material, _ => hearing.Communication };
             // Stable observer blind spot plus event-specific error. Reopening evidence never improves it.
             float bias = (float)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, $"scout-bias-v1|{labelId}|{axis}") * 2 - 1);
             float error = (float)(LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, $"scout-event-v1|{labelId}|{live.Id}|{axis}") * 2 - 1);

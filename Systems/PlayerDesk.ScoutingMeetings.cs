@@ -70,7 +70,7 @@ public partial class PlayerDesk {
     private void ObserveScoutingMeetingNotice(SceneConversation meeting) {
         if (meeting == null || meeting.Status is SceneConversationStatus.Scheduled or SceneConversationStatus.InProgress || meeting.Status == SceneConversationStatus.Completed && meeting.Activity != ScoutingAppointmentActivity.Conversation) return;
         var room = SceneRoomCatalog.Get(meeting.RoomId);
-        RememberScoutingMeeting(meeting, "notice|" + meeting.Status, meeting.Response, room?.ContactId, room?.ContactName, "appointment notice");
+        RememberScoutingMeeting(meeting, "notice|" + meeting.Status, meeting.Response, room?.ContactId, room?.ContactTitle, "appointment notice");
     }
     public bool WaitForScoutingMeeting(string id, out string message) {
         message = "This scouting appointment is unavailable.";

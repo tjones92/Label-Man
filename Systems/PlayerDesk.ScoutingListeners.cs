@@ -84,10 +84,11 @@ public partial class PlayerDesk {
 
     private void RememberScoutingListener(ScoutingDossier dossier, ScoutingObservation heard, ScenePerformanceSnapshot performance, ScoutingListener listener) {
         string source = "musician|" + listener.PersonId;
-        var voices = ScenePerformanceService.Interpret(performance, source, listener.Vocals, heard.Coverage);
-        var ensemble = ScenePerformanceService.Interpret(performance, source, listener.Execution, heard.Coverage);
-        var material = ScenePerformanceService.Interpret(performance, source, listener.Material, heard.Coverage);
-        var stage = ScenePerformanceService.Interpret(performance, source, listener.Stage, heard.Coverage);
+        var room = SceneRoomCatalog.Get(heard.RoomId)?.Kind;
+        var voices = ScenePerformanceService.Interpret(performance, source, listener.Vocals, heard.Coverage, room);
+        var ensemble = ScenePerformanceService.Interpret(performance, source, listener.Execution, heard.Coverage, room);
+        var material = ScenePerformanceService.Interpret(performance, source, listener.Material, heard.Coverage, room);
+        var stage = ScenePerformanceService.Interpret(performance, source, listener.Stage, heard.Coverage, room);
         var opinion = LocalSceneRoomService.Copy(heard);
         opinion.Id = $"listener-opinion-v1|{Label.labelId}|{heard.EventId}|{listener.PersonId}";
         opinion.Kind = ScoutingEvidenceKind.ListenerOpinion; opinion.SourceId = listener.PersonId; opinion.SourceName = listener.Name;

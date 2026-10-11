@@ -163,7 +163,7 @@ public partial class PlayerDesk {
     /// pursue in the dossiers. An act merely heard once and filed is not.</summary>
     internal bool IsPursuing(string artistId) =>
         artistId != null && (notebook.Any(n => n?.Artist?.artistId == artistId) || slate.Any(p => p?.Artist?.artistId == artistId) ||
-            scoutingNegotiations.ContainsKey(artistId) ||
+            scoutingNegotiations.ContainsKey(artistId) || IsConsideringApproach(artistId) ||
             scoutingKnowledge.Dossiers.Any(d => d.ArtistId == artistId && d.Priority is ScoutingPriority.Watch or ScoutingPriority.Pursue));
 
     /// <summary>The AI's daily market chose an act the player is pursuing. Instead of signing on the spot, the label comes
@@ -322,8 +322,8 @@ public partial class PlayerDesk {
             var room = SceneRoomCatalog.Get(c.RoomId);
             string roomName = room?.Name ?? "the room";
             Hear(c, new RivalSighting { Day = visit.AcquiredDay, Stage = RivalCourtshipStage.Inquiry, Channel = RivalSightingChannel.RoomBooker,
-                SourceId = "booker|" + c.RoomId, SourceName = $"the booker at {roomName}",
-                Text = $"The booker at {roomName} mentions {c.RivalLabelName} sent somebody to hear {c.ArtistName} on {LocalSceneRoomService.Date(c.InquiryDay).ToHeadlineString()}." });
+                SourceId = "booker|" + c.RoomId, SourceName = room?.ContactTitle ?? $"the booker at {roomName}",
+                Text = $"{(room == null ? "The booker at " + roomName : room.ContactName + ", who books " + roomName + ",")} mentions {c.RivalLabelName} sent somebody to hear {c.ArtistName} on {LocalSceneRoomService.Date(c.InquiryDay).ToHeadlineString()}." });
         }
     }
 
