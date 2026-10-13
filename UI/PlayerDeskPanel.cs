@@ -1962,7 +1962,7 @@ public partial class PlayerDeskPanel : Control {
 
 	private void RefusalDialog(SimulatedArtist artist, List<PlayerDesk.MaterialChoice> chosen, PlayerDesk.StudioTier tier,
 		int hours, IReadOnlyList<string> responses, List<(CheckBox Box, PlayerDesk.MaterialChoice Choice)> checks, StudioBrief brief = StudioBrief.CaptureLiveAct,
-		string roomId = null, string engineerId = null) {
+		string roomId = null, string engineerId = null, bool backingSingers = false) {
 		var dialog = PaperModal.Open(this, "THE ACT PUSHES BACK", 780);
 		var material = chosen.First(c => responses.Any(r => r.Contains("“" + c.Title + "”", StringComparison.Ordinal)));
 		var read = PolarPlayerPerception.Compare(material, artist, PolarEvidenceGate.Rehearsal, "booking:" + artist.artistId + ":" + material.Title,
@@ -1978,7 +1978,7 @@ public partial class PlayerDeskPanel : Control {
 		var own = dialog.AddButton("USE THEIR OWN MATERIAL", () => Choose("own"));
 		own.Disabled = !checks.Any(c => c.Choice.Kind == PlayerDesk.MaterialKind.Original);
 		var insist = dialog.AddButton(artist.artistCreativeControl ? "THEIR CALL — CAN'T INSIST" : "INSIST — BOOK THE ROOM", () => {
-			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true, brief: brief, roomId: roomId, engineerId: engineerId);
+			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true, brief: brief, roomId: roomId, engineerId: engineerId, backingSingers: backingSingers);
 			Say(message, ok); Refresh();
 		}, PaperModal.ButtonKind.Primary);
 		// Creative control is the act's final word on material: the contract you signed takes the override away.

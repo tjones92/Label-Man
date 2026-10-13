@@ -2498,9 +2498,10 @@ public partial class PlayerDesk : Node {
 	}
 
 	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message, bool overrideRefusal = false,
-		StudioBrief brief = StudioBrief.CaptureLiveAct, string roomId = null, string engineerId = null) {
+		StudioBrief brief = StudioBrief.CaptureLiveAct, string roomId = null, string engineerId = null, bool backingSingers = false) {
 		if (pendingSession != null) { message = "There's already a session on the console -- print or scrap it first."; return false; }
-		if (!RequireHome(out message)) return false;
+		// Up in another town with this act on a studio trip, the rooms there are the studio.
+		if (StudioTripHere(artist?.artistId) == null && !RequireHome(out message)) return false;
 		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		List<MaterialChoice> cutting = (choices ?? Array.Empty<MaterialChoice>()).Where(c => c != null).ToList();
 		if (cutting.Count == 0) { message = "Pick at least one song to cut."; return false; }
@@ -2511,7 +2512,7 @@ public partial class PlayerDesk : Node {
 		}
 		if (!overrideRefusal && refusals.Count > 0) { message = string.Join("\n", refusals); return false; }
 		hours = Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
-		if (StudioExperience.Enabled) return StartStudioDate(artist, cutting, roomId ?? StudioRoomCatalog.LocalId(Label.homeCityId, tier), engineerId, hours, brief, out message);
+		if (StudioExperience.Enabled) return StartStudioDate(artist, cutting, roomId ?? StudioRoomCatalog.LocalId(Label.homeCityId, tier), engineerId, hours, brief, out message, backingSingers);
         var studioClock = TimeManager.Instance;
         int studioNow = studioClock.CurrentHour * 60 + studioClock.CurrentMinute;
         if (LocalSceneRoomService.HasStudioAppointment(Label.labelId, LocalSceneRoomService.Day(studioClock.CurrentDate), studioNow, studioNow + hours * 60)) {
@@ -2622,13 +2623,13 @@ public partial class PlayerDesk : Node {
 		int year = pendingSession.Date.year;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		float perMasterCost = pendingSession.Cost / Mathf.Max(1, pendingSession.Cuts.Count);
-		int printed = 0;
+		int printed = 0, mastersBefore = masters.Count;
 		foreach (SessionCut cut in pendingSession.Cuts) {
 			SessionTake take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
 			if (PrintMaster(artist, cut.Choice, take, perMasterCost, pendingSession.Date, year, week, SelectedStudioFinish(cut), cut.Structure)) printed++;
 		}
 		Note($"Printed {printed} master(s) from the {StudioTierName(pendingSession.Tier)} date with {artist.stageName}.");
-		RememberStudioVisit(pendingSession, true);
+		RememberStudioVisit(pendingSession, true, masters.Skip(mastersBefore).Select(m => m.Record?.recordId).Where(id => id != null).ToList());
 		pendingSession = null;
 		message = $"{printed} master(s) on the shelf." + AwayFromHomeNote();
 		Changed?.Invoke();
@@ -4325,6 +4326,7 @@ public partial class PlayerDesk : Node {
 		}
 		if (Label.cashReserves < gas) { message = $"You're ${gas - Label.cashReserves:N0} short of the ${gas:N0} gas."; return false; }
 
+		LeaveStudioTripFor(dest.cityId);
 		Spend(hours);
 		if (gas > 0f) { Label.cashReserves -= gas; Label.monthlyExpenses += gas; }
 		currentCityId = dest.cityId;
@@ -4666,6 +4668,7 @@ public partial class PlayerDesk : Node {
 			return;
 		}
 		ChargeHotelIfAway();
+		ProcessStudioTripDawn(date);
 		ProcessRivalCrowding(date);
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);
@@ -5506,6 +5509,8 @@ public partial class PlayerDesk : Node {
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
 		LogWeeklyPlayerOutcomes();
+		// Rooms become known for the label's records cut there: note how they charted this week.
+		UpdateStudioHits(date);
 		// Rolodex settlement lands before the books are drawn up so any payola penalty shows in this
 		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
 		// word on against what the records actually sold.
@@ -5854,6 +5859,7 @@ public partial class PlayerDesk : Node {
             RivalCourtships = CaptureRivalCourtships(),
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
+            StudioTrip = studioTrip?.Copy(),
 			Label = LabelSaveData.From(Label),
             ScoutingKnowledge = CaptureScoutingKnowledge(),
             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
@@ -6025,6 +6031,7 @@ public partial class PlayerDesk : Node {
         if (!ValidateRivalCourtships(data.RivalCourtships, data.Label.labelId, out message)) return false;
         if (!ValidateRosterDepartures(data.RosterDepartures, data.Label.labelId, out message)) return false;
         if (!ValidateStudioVisits(data.StudioVisits, out message)) return false;
+        if (!ValidateStudioTrip(data.StudioTrip, out message)) return false;
         if (!ValidateSavedOutlooks(data, out message)) return false;
 
 		// A load lifts any game-over: you're picking the label back up from a solvent point in its history.
@@ -6341,6 +6348,7 @@ public partial class PlayerDesk : Node {
         RestoreRivalCourtships(data.RivalCourtships);
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
+        studioTrip = data.StudioTrip?.Copy();
         LocalSceneIdentityService.CompleteDirectPlayerRestore();
         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
 		Note(message);

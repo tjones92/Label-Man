@@ -31,7 +31,7 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 19; // v16: arrangements; v17: retained source-bound mono finishes; v18: song structure, part rehearsal, located reads; v19: breakdowns, named session players, travel, chief/second engineers
+	public const int CurrentVersion = 20; // v20: house players, backing singers, room renown, studio trips; v16: arrangements; v17: retained source-bound mono finishes; v18: song structure, part rehearsal, located reads; v19: breakdowns, named session players, travel, chief/second engineers
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -348,6 +348,8 @@ public sealed class PlayerSaveData {
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
     public List<StudioVisit> StudioVisits { get; set; }
+    /// <summary>Optional (v20): a band driven up to a studio town ahead of its date. Older saves hold none.</summary>
+    public StudioTrip StudioTrip { get; set; }
     public List<string> GeneratedProspectIds { get; set; }
     public List<SceneDiscovery> SceneDiscoveries { get; set; }
     public SceneInformationKnowledge SceneInformation { get; set; }

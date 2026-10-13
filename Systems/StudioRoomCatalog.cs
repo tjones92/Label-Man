@@ -24,6 +24,10 @@ public sealed class StudioRoomSnapshot {
     public bool Specialist, SupportsChamber, EngineerRequested;
     public string Specialty;
     public float EngineerPremium;   // per hour, charged only when the label asked for the chief by name
+    // v20: renown the room has earned from the label's records cut there, and the rate before it. A room's renown is
+    // reputation and demand (busier staff, a higher rate, a full calendar), never a quality stat. Zero on older saves.
+    public float Renown, BaseRate;
+    public bool ActCutAHit;         // this act cut a charting record here: the owner keeps time and the chief for them
     public StudioRoomSnapshot Copy() => (StudioRoomSnapshot)MemberwiseClone();
 }
 

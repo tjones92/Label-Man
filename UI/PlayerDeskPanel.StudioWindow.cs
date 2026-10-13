@@ -9,7 +9,7 @@ using Godot;
 /// layout only; every action calls the same PlayerDesk owner it always has.
 /// </summary>
 public partial class PlayerDeskPanel {
-    private bool studioCompare, studioReview;
+    private bool studioCompare, studioReview, studioBacking;
     private readonly HashSet<string> studioSongs = new(), studioOpenTakes = new();
     private int studioRoomIndex, studioHours = 3, studioBrief;
     private string studioRoomId;
@@ -163,12 +163,19 @@ public partial class PlayerDeskPanel {
                 sheet.AddChild(card);
             }
         } else {
-            var local = offers.Where(o => o.Local).ToList(); var away = offers.Where(o => !o.Local).ToList();
-            StudioRoomGroup(sheet, "In town", local.Count == 1 ? "The only recording service in town." : "Click a room for its sound, engineer and finishing.");
+            var local = offers.Where(o => o.Local).ToList(); var away = offers.Where(o => !o.Local && !o.Overnight).ToList();
+            var overnight = offers.Where(o => o.Overnight).ToList();
+            bool onTrip = desk.ActiveStudioTrip is { } trip && trip.CityId == desk.CurrentCityId;
+            StudioRoomGroup(sheet, onTrip ? "In " + desk.CurrentCity?.name : "In town", onTrip ? "You drove up with the band. Any room in town will do."
+                : local.Count == 1 ? "The only recording service in town." : "Click a room for its sound, engineer and finishing.");
             foreach (var each in local) StudioRoomCard(desk, artist, each, each == offer, sheet);
             if (away.Count > 0) {
                 StudioRoomGroup(sheet, "A drive away", "The band rides with you. The drive comes out of the day, and you'll be in that town when the date ends.");
                 foreach (var each in away) StudioRoomCard(desk, artist, each, each == offer, sheet);
+            }
+            if (overnight.Count > 0) {
+                StudioRoomGroup(sheet, "Drive up the night before", "Too far to drive and record the same day. Drive the band up today, stay at a motel, and book the room there tomorrow.");
+                foreach (var each in overnight) StudioRoomCard(desk, artist, each, each == offer, sheet);
             }
         }
 
@@ -205,6 +212,47 @@ public partial class PlayerDeskPanel {
             StudioText(sheet, BriefNotes[Mathf.Clamp(studioBrief, 0, BriefNotes.Length - 1)] + " A brief adds no quality by itself, and you can change course on the day.", 14, Heard);
         }
 
+        // 4. Who plays: the owner's house players, a booked session musician, backing singers for a singer who needs them.
+        StudioBackingOffer backingOffer = null;
+        CheckBox backingBox = null;
+        Label backingTalk = null;
+        var booked = incremental ? desk.SessionPlayerFor(artist.artistId) : null;
+        bool needsBacking = incremental && PlayerDesk.StudioNeedsBacking(artist);
+        if (incremental && (offer.House != null || booked != null || needsBacking)) {
+            sheet.AddChild(WorkOrder.Section("4   Who plays"));
+            if (offer.House != null) {
+                StudioText(sheet, (offer.House.Insists ? "House players, at the owner's insistence: " : "") + offer.House.Reason, 14, offer.House.Insists ? Ink : Heard);
+                foreach (var p in offer.House.Insists ? offer.House.Players : new List<StudioHousePlayer>())
+                    StudioText(sheet, $"   {p.Name} on {PlayerDesk.RoleWord(p.Role).ToLowerInvariant()}{(p.ReplacesName != null ? $", in place of {p.ReplacesName}" : "")}  ·  ${p.Fee:N0}", 14, Ink, PaperTheme.Typed);
+            }
+            if (booked != null) StudioText(sheet, $"Booked in the Band Room: {booked.Name}, sitting in  ·  ${booked.Fee:N0}", 14, Ink);
+            if (needsBacking) {
+                int bStart = now + offer.DriveHours * 60;
+                backingOffer = offer.Overnight ? null : desk.StudioBackingSingers(offer.Room.CityId, artist, time?.CurrentDate ?? GameDate.StartDate, bStart, bStart + studioHours * 60,
+                    offer.House?.Insists == true ? offer.House.Players.Select(p => p.PersonId) : null);
+                if (backingOffer == null) StudioText(sheet, offer.Overnight ? "Nobody in the act sings behind the lead. Backing singers can be hired when you book the room up there."
+                    : "Nobody in the act sings behind the lead, and no backing singers are free in that town for this date.", 14, Heard);
+                else {
+                    backingBox = Check($"Hire backing singers: {backingOffer.Text}", studioBacking);
+                    backingBox.Toggled += on => studioBacking = on;
+                    sheet.AddChild(backingBox);
+                    backingTalk = StudioText(sheet, "", 14, Heard);
+                }
+            }
+        }
+        void UpdateBackingTalk() {
+            if (backingTalk == null) return;
+            var lines = checks.Where(c => c.Box.ButtonPressed && shapes.ContainsKey(c.Choice)).Select(c => {
+                float call = PlayerDesk.StudioBackingCall(shapes[c.Choice], c.Choice.WrittenSong?.Genre ?? artist.primaryGenre);
+                return $"\"{c.Choice.Title}\": " + (call >= PlayerDesk.StudioBackingCallBar ? "calls for voices behind the singer."
+                    : call < .4f ? "voices would clutter it." : "voices would make little difference.");
+            }).ToList();
+            backingTalk.Text = string.Join("\n", lines);
+            backingTalk.Visible = lines.Count > 0;
+        }
+        foreach (var item in checks) item.Box.Toggled += _ => UpdateBackingTalk();
+        UpdateBackingTalk();
+
         // Quote
         sheet.AddChild(WorkOrder.Section("Quote"));
         var quote = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -213,7 +261,16 @@ public partial class PlayerDeskPanel {
         var plan = StudioText(sheet, "", 14, Heard);
         var footer = StudioRow(sheet);
         footer.AddChild(StudioSpacer());
-        var book = Primary("BOOK THE ROOM");
+        bool overnightRoom = incremental && offer.Overnight;
+        // A same-day room can also be driven up to the day before, to start the date with a full day.
+        Button driveUp = null;
+        if (incremental && !offer.Local && !overnightRoom) {
+            driveUp = Btn("DRIVE UP TODAY, RECORD TOMORROW");
+            driveUp.CustomMinimumSize = new Vector2(0, 44);
+            driveUp.TooltipText = $"Drive the band up now and book the room there tomorrow with a full day. Band motel ${offer.BandLodging:N0} a night, plus your own.";
+            footer.AddChild(driveUp);
+        }
+        var book = Primary(overnightRoom ? "DRIVE UP WITH THE BAND" : "BOOK THE ROOM");
         book.CustomMinimumSize = new Vector2(260, 44);
         footer.AddChild(book);
 
@@ -231,19 +288,44 @@ public partial class PlayerDeskPanel {
         int drive = offer?.DriveHours ?? 0;
         float gas = offer?.Gas ?? 0;
         float RoomCost(int hours) => incremental ? PlayerDesk.StudioRoomCost(offer.Room, hours) : desk.SessionCost(tier, hours);
+        bool onThisTrip = desk.ActiveStudioTrip is { } myTrip && myTrip.ArtistId == artist.artistId && myTrip.CityId == desk.CurrentCityId;
+        float houseFee = incremental && offer.House?.Insists == true ? offer.House.Fee : 0;
+        float BackingFee() => backingBox?.ButtonPressed == true ? backingOffer.Fee : 0;
         void UpdateCost() {
             int hours = (int)hoursInput.Value;
             float roomCost = RoomCost(hours);
-            float musicianFee = incremental ? desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0 : 0;
+            float musicianFee = (incremental ? desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0 : 0) + houseFee + BackingFee();
             int songCount = checks.Count(check => check.Box.ButtonPressed);
+            foreach (Node child in quote.GetChildren()) { quote.RemoveChild(child); child.QueueFree(); }
+            float rate = incremental ? offer.Room.HourlyRate : desk.StudioHourlyRate(tier);
+            if (overnightRoom) {
+                // Today is the drive and a night at the motel; the room is booked and paid up there tomorrow.
+                float trip = gas + offer.BandLodging + PlayerDesk.HotelNightly;
+                window.Text = $"Tomorrow, after a {drive}h drive today";
+                QuoteLine($"Gas for the {drive}h drive up (the drive home costs the same)", $"${gas:N0}");
+                QuoteLine("Band motel tonight, two to a room", $"${offer.BandLodging:N0}");
+                QuoteLine("Your own motel tonight", $"${PlayerDesk.HotelNightly:N0}");
+                QuoteLine("Total today", $"${trip:N0}", true);
+                QuoteLine($"Then tomorrow: room, {hours} h at ${rate:N0}{(musicianFee > 0 ? ", plus musicians" : "")}, paid when you book it there", $"${roomCost + musicianFee:N0}");
+                QuoteLine("Cash after the trip and the date", Money(desk.Label.cashReserves - trip - roomCost - musicianFee));
+                string tripProblem = offer.Locked != null ? offer.Locked
+                    : !desk.AtHome ? "You need to be back in town to set off with the band."
+                    : time != null && drive * 60 > time.MinutesRemainingWithOvertime ? $"The {drive}h drive won't fit before the {time.HardStopTime} hard stop. Set off early in the day."
+                    : desk.Label.cashReserves < gas + offer.BandLodging ? $"You're {Money(gas + offer.BandLodging - desk.Label.cashReserves)} short of the gas and the band's motel."
+                    : null;
+                plan.Text = tripProblem ?? $"You'll be in {DistanceModel.GetCityById(offer.Room.CityId)?.name} tonight with {artist.stageName}. Book the room there tomorrow (or today, if there's light left); the songs you tick here stay ticked.";
+                plan.AddThemeColorOverride("font_color", tripProblem == null ? Heard : Rust);
+                book.Disabled = tripProblem != null;
+                return;
+            }
             float after = desk.Label.cashReserves - roomCost - musicianFee - gas;
             int start = now + drive * 60;
             window.Text = $"{StudioClockStrip.ClockText(start)} to {StudioClockStrip.ClockText(start + hours * 60)}" + (drive > 0 ? $", after a {drive}h drive" : ", starting now");
-            foreach (Node child in quote.GetChildren()) { quote.RemoveChild(child); child.QueueFree(); }
-            float rate = incremental ? offer.Room.HourlyRate : desk.StudioHourlyRate(tier);
-            QuoteLine($"Room, {hours} h at ${rate:N0}", $"${rate * hours:N0}");
+            QuoteLine($"Room, {hours} h at ${rate:N0}" + (incremental && offer.Room.BaseRate > 0 && rate > offer.Room.BaseRate ? $" (was ${offer.Room.BaseRate:N0} before its records got around)" : ""), $"${rate * hours:N0}");
             if (incremental && offer.Room.EngineerPremium > 0) QuoteLine($"{offer.Room.EngineerName} asked for by name, {hours} h at ${offer.Room.EngineerPremium:N0}", $"${offer.Room.EngineerPremium * hours:N0}");
-            if (musicianFee > 0) QuoteLine("Booked session musician", $"${musicianFee:N0}");
+            if (incremental && desk.SessionPlayerFor(artist.artistId) is { } bandRoom) QuoteLine("Booked session musician", $"${bandRoom.Fee:N0}");
+            if (houseFee > 0) QuoteLine($"House players ({offer.House.Players.Count}), at the owner's insistence", $"${houseFee:N0}");
+            if (BackingFee() > 0) QuoteLine($"Backing singers: {backingOffer.GroupName}", $"${BackingFee():N0}");
             if (drive > 0) QuoteLine($"Gas for the {drive}h drive out (the drive home costs the same)", $"${gas:N0}");
             if (incremental) QuoteLine("Setup, tape stock, playback, house finish", "included");
             QuoteLine("Total", $"${roomCost + musicianFee + gas:N0}", true);
@@ -256,7 +338,7 @@ public partial class PlayerDeskPanel {
             bool lateDrive = drive > 0 && time != null && (drive + hours) * 60 > time.MinutesRemainingWithOvertime;
             string problem = offer?.Locked != null ? "No introduction yet: this room books its regulars and people who come recommended."
                 : songCount == 0 ? "Tick at least one song to book."
-                : !desk.AtHome ? "You need to be back in town to book the room."
+                : !desk.AtHome && !onThisTrip ? "You need to be back in town, or up here with this act on a studio trip, to book a room."
                 : lateDrive ? $"The drive and a {hours}h date won't fit before the {time.HardStopTime} hard stop. Book this room early in the day."
                 : after < 0 ? $"You're {Money(-after)} short of this booking."
                 : tooTight ? "Not enough time: setup, a pass per song and finishing won't fit. Add an hour or drop a song."
@@ -266,25 +348,36 @@ public partial class PlayerDeskPanel {
                 : $"{songCount} song(s) in {hours} hours.");
             plan.AddThemeColorOverride("font_color", problem == null ? Heard : Rust);
             book.Disabled = problem != null;
+            if (driveUp != null) driveUp.Disabled = offer.Locked != null || !desk.AtHome || desk.Label.cashReserves < gas + offer.BandLodging ||
+                time != null && drive * 60 > time.MinutesRemainingWithOvertime;
         }
         hoursInput.ValueChanged += value => { studioHours = (int)value; UpdateCost(); };
         foreach (var item in checks) item.Box.Toggled += _ => UpdateCost();
+        if (backingBox != null) backingBox.Toggled += _ => UpdateCost();
         UpdateCost();
 
         string roomId = offer?.Room.Id, engineerId = roomId == null ? null : studioEngineerAsk.GetValueOrDefault(roomId);
+        void DriveUp() {
+            bool ok = desk.DriveUpForStudio(artist, roomId, out string message);
+            Say(message, ok);
+            Refresh();
+        }
+        if (driveUp != null) driveUp.Pressed += DriveUp;
         book.Pressed += () => {
+            if (overnightRoom) { DriveUp(); return; }
             var chosen = checks.Where(c => c.Box.ButtonPressed).Select(c => c.Choice).ToList();
             var brief = (StudioBrief)studioBrief;
+            bool backing = backingBox?.ButtonPressed == true;
             var responses = PlayerDesk.Instance.MaterialRefusals(artist, chosen, tier);
-            if (responses.Count > 0) { RefusalDialog(artist, chosen, tier, (int)hoursInput.Value, responses, checks, brief, roomId, engineerId); return; }
+            if (responses.Count > 0) { RefusalDialog(artist, chosen, tier, (int)hoursInput.Value, responses, checks, brief, roomId, engineerId, backing); return; }
             int bookHours = (int)hoursInput.Value;
             void Book() {
-                bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, bookHours, out string message, brief: brief, roomId: roomId, engineerId: engineerId);
-                if (ok) { studioSide = 0; studioReview = false; studioOpenTakes.Clear(); }
+                bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, bookHours, out string message, brief: brief, roomId: roomId, engineerId: engineerId, backingSingers: backing);
+                if (ok) { studioSide = 0; studioReview = false; studioOpenTakes.Clear(); studioBacking = false; }
                 Say(message, ok);
                 Refresh();
             }
-            float dateCost = RoomCost(bookHours) + (desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0) + gas;
+            float dateCost = RoomCost(bookHours) + (desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0) + houseFee + BackingFee() + gas;
             if (!WarnIfUnderOverhead($"{roomName} for {bookHours}h", dateCost, $"BOOK IT — ${dateCost:N0}", Book)) Book();
         };
     }
@@ -348,12 +441,15 @@ public partial class PlayerDeskPanel {
         if (locked) Chip(head, "Introduction needed", PaperTheme.Oxblood);
         else if (offer.Introduction != null) Chip(head, "Introduced", new Color("3f6b3a"));
         if (desk.StudioMemory(room, artist.artistId) != null) Chip(head, "Knows this act", new Color("3f6b3a"));
+        if (offer.House?.Insists == true && offer.House.Locked == null) Chip(head, "House band", WorkOrder.FormInk);
+        if (room.Renown >= .15f) Chip(head, "In demand", PaperTheme.Oxblood);
+        if (offer.Overnight) Chip(head, "Overnight", Rust);
         head.AddChild(StudioSpacer());
         Text(head, $"${room.HourlyRate:N0} an hour", 18, Ink, PaperTheme.TypedBold, wrap: false);
 
         string where = offer.Local ? "" : $"{DistanceModel.GetCityById(room.CityId)?.name} · {offer.DriveHours}h drive each way · ${offer.Gas:N0} gas";
         if (!selected) {
-            string sub = string.Join("   ·   ", new[] { where, room.EngineerName == null ? null : "Engineer today: " + room.EngineerName, StudioPeople.AcousticsShort(room) }
+            string sub = string.Join("   ·   ", new[] { where, room.EngineerName == null ? null : (offer.Overnight ? "Engineer tomorrow: " : "Engineer today: ") + room.EngineerName, StudioPeople.AcousticsShort(room) }
                 .Where(s => !string.IsNullOrEmpty(s)));
             Text(body, sub, 14, Heard);
             return;
@@ -368,10 +464,17 @@ public partial class PlayerDeskPanel {
             name.CustomMinimumSize = new Vector2(92, 0); name.VerticalAlignment = VerticalAlignment.Top;
             Text(row, text, 15, color ?? Ink);
         }
-        if (!offer.Local) Row("Travel", $"{where}. You'll be in {DistanceModel.GetCityById(room.CityId)?.name} when the date ends.");
+        string town = DistanceModel.GetCityById(room.CityId)?.name;
+        if (offer.Overnight) Row("Travel", $"{where}. Too far to drive and record the same day: drive the band up today, stay the night " +
+            $"(band motel ${offer.BandLodging:N0}, two to a room, plus your own), and book the room in {town} tomorrow. Motel and gas are the label's, not studio cost.");
+        else if (!offer.Local) Row("Travel", $"{where}. You'll be in {town} when the date ends. Or drive up today and record tomorrow with a full day (band motel ${offer.BandLodging:N0} a night).");
         Row("Sound", StudioPeople.AcousticsText(room) + " " + room.Layout + ".");
         if (locked) Row("Access", offer.Locked, PaperTheme.Oxblood);
         else if (offer.Introduction != null) Row("Access", offer.Introduction);
+        if (offer.House is { Locked: null } house)
+            Row("House band", house.Insists ? house.Reason + " " + string.Join("; ", house.Players.Select(p => $"{p.Name} ({PlayerDesk.RoleWord(p.Role).ToLowerInvariant()}, ${p.Fee:N0})")) + "."
+                : house.Reason, house.Insists ? Ink : new Color("3f6b3a"));
+        if (desk.StudioRenownText(room) is { } renown) Row("Reputation", renown);
         if (room.EngineerName != null) {
             string first = room.EngineerName.Split(' ')[0];
             string role = room.CapabilityVersion >= 4 ? room.EngineerHouse ? "chief engineer" : "second engineer" : room.EngineerHouse ? "house engineer" : "relief engineer";
@@ -480,7 +583,11 @@ public partial class PlayerDeskPanel {
         facts.AddChild(WorkOrder.Typed("Paid", $"${session.Cost:N0}", 80));
         if (incremental) facts.AddChild(WorkOrder.Typed("Brief", BriefNames[Mathf.Clamp((int)session.Brief, 0, BriefNames.Length - 1)], 250));
         if (!string.IsNullOrEmpty(session.Room?.EngineerName)) facts.AddChild(WorkOrder.Typed("Engineer", session.Room.EngineerName, 200));
-        foreach (var hire in session.Hires) facts.AddChild(WorkOrder.Typed("Session " + PlayerDesk.RoleWord(hire.Role).ToLowerInvariant(), $"{hire.Name} for {hire.ReplacesName}", 260));
+        foreach (var hire in session.Hires.Where(h => h.Kind != StudioHireKind.BackingVoice))
+            facts.AddChild(WorkOrder.Typed((hire.Kind == StudioHireKind.HousePlayer ? "House " : "Session ") + PlayerDesk.RoleWord(hire.Role).ToLowerInvariant(),
+                hire.Replaces ? $"{hire.Name} for {hire.ReplacesName}" : hire.Name, 260));
+        foreach (var group in session.Hires.Where(h => h.Kind == StudioHireKind.BackingVoice).GroupBy(h => h.GroupName))
+            facts.AddChild(WorkOrder.Typed("Backing vocals", $"{group.Key} ({group.Count()})", 260));
 
         // The room's clock.
         if (incremental) {
@@ -645,6 +752,25 @@ public partial class PlayerDeskPanel {
             choices.AddChild(keep);
             sheet.AddChild(panel);
         }
+        // The producer's suggestion when a singer's song sounds bare with nobody behind them.
+        if (desk.StudioBackingCallIn() is { } backing) {
+            var panel = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(PaperTheme.Highlighter, 0.30f), BorderColor = Rust,
+                BorderWidthLeft = 4, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+                ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 8, ContentMarginBottom = 8 });
+            var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 6); panel.AddChild(box);
+            StudioText(box, "CALL IN BACKING SINGERS?", 13, Rust, PaperTheme.SansBold);
+            StudioText(box, backing.Text, 15, Ink);
+            var choices = StudioFlow(box);
+            var call = Primary($"CALL {backing.GroupName.ToUpperInvariant()} IN  ·  ${backing.Fee:N0}  ·  {backing.ArrivalMinutes}m");
+            call.Disabled = left < backing.ArrivalMinutes + held;
+            call.Pressed += () => { bool ok = desk.CallInBackingSingers(out string m); Say(m, ok); Refresh(); };
+            choices.AddChild(call);
+            var keep = Btn("KEEP IT TO THE ACT'S OWN VOICES");
+            keep.Pressed += () => { bool ok = desk.DeclineBackingSingers(out string m); Say(m, ok); Refresh(); };
+            choices.AddChild(keep);
+            sheet.AddChild(panel);
+        }
         var work = StudioFlow(sheet);
         int passMinutes = PlayerDesk.StudioPassMinutes(cut), rehearsalMinutes = PlayerDesk.StudioRehearsalMinutesFor(cut);
         var pass = Primary($"CUT A TAKE  ·  {passMinutes}m");
@@ -749,7 +875,12 @@ public partial class PlayerDeskPanel {
         number.AddThemeConstantOverride("separation", 0);
         StudioText(number, $"TAKE {take.Number}", 18, take.Incomplete ? Heard : WorkOrder.FormInk, PaperTheme.TypedBold);
         if (take.Incomplete) StudioText(number, take.FalseStart ? "false start" : "broke down", 12, PaperTheme.Oxblood, PaperTheme.SansBold);
-        if (take.SessionPersonIds?.Count > 0) StudioText(number, "with session player", 12, Heard);
+        if (take.SessionPersonIds?.Count > 0) {
+            var on = PlayerDesk.Instance.Session?.Hires.Where(h => take.SessionPersonIds.Contains(h.PersonId)).ToList() ?? new();
+            if (on.Any(h => h.Kind == StudioHireKind.HousePlayer)) StudioText(number, "with house band", 12, Heard);
+            if (on.Any(h => h.Kind == StudioHireKind.Replacement)) StudioText(number, "with session player", 12, Heard);
+            if (on.Any(h => h.Kind == StudioHireKind.BackingVoice)) StudioText(number, "with backing vocals", 12, Heard);
+        }
         if (incremental) {
             if (take.Arrangement != StudioArrangement.Live) StudioText(number, PlayerDesk.ArrangementName(take.Arrangement) + (take.ArrangementRevision > 1 ? $" (rev. {take.ArrangementRevision})" : ""), 12, Heard);
             if (take.Direction != StudioDirection.None) StudioText(number, PlayerDesk.DirectionName(take.Direction), 12, Heard);

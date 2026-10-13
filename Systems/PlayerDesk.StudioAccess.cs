@@ -11,6 +11,14 @@ public sealed class StudioRoomOffer {
     public int DriveHours;
     public float Gas;
     public bool Local => DriveHours == 0;
+    /// <summary>Too far to drive and record the same day: the band drives up and stays the night.</summary>
+    public bool Overnight => DriveHours > PlayerDesk.MaxStudioDriveHours;
+    /// <summary>The band's motel for a night, should the label drive up the day before.</summary>
+    public float BandLodging;
+    /// <summary>The date this card's staffing is for: tomorrow for an overnight room, otherwise today.</summary>
+    public GameDate StaffedFor;
+    /// <summary>A specialist owner's terms for this act. Null at an ordinary room.</summary>
+    public StudioHousePlan House;
     /// <summary>Who opened a specialist room's door, in a sentence. Null for an ordinary room.</summary>
     public string Introduction;
     /// <summary>Why this room cannot be booked. Null when it can.</summary>
@@ -32,29 +40,41 @@ public partial class PlayerDesk {
     public List<string> StudioRoomIds() {
         var ids = new List<string>();
         if (Label == null) return ids;
+        // Up with the band on a studio trip: the rooms in the town you're in.
+        if (StudioExperience.Enabled && studioTrip != null && CurrentCityId == studioTrip.CityId) {
+            var here = DistanceModel.GetCityById(studioTrip.CityId);
+            ids.AddRange(StudioRoomCatalog.Available(here.cityId, here.parentRegionId).Select(t => StudioRoomCatalog.LocalId(here.cityId, t)));
+            if (StudioRoomCatalog.HasSpecialist(here.cityId, here.parentRegionId)) ids.Add(StudioRoomCatalog.SpecialistId(here.cityId));
+            if (!ids.Contains(studioTrip.RoomId)) ids.Add(studioTrip.RoomId);
+            return ids;
+        }
         ids.AddRange(StudioRoomCatalog.Available(Label.homeCityId, Label.homeRegion).Select(t => StudioRoomCatalog.LocalId(Label.homeCityId, t)));
         if (!StudioExperience.Enabled) return ids;
         if (StudioRoomCatalog.HasSpecialist(Label.homeCityId, Label.homeRegion)) ids.Add(StudioRoomCatalog.SpecialistId(Label.homeCityId));
         var home = DistanceModel.GetCityById(Label.homeCityId);
         float homeQuality = StudioQualityIn(Label.homeCityId, Label.homeRegion);
-        var away = DistanceModel.GetCities()
-            .Where(c => c.cityId != Label.homeCityId && CanReach(home, c) && DriveQuote(Label.homeCityId, c.cityId).Hours <= MaxStudioDriveHours)
+        var reachable = DistanceModel.GetCities()
+            .Where(c => c.cityId != Label.homeCityId && CanReach(home, c) && DriveQuote(Label.homeCityId, c.cityId).Hours <= MaxOvernightDriveHours)
             .Select(c => (City: c, Quality: StudioQualityIn(c.cityId, c.parentRegionId), Hours: DriveQuote(Label.homeCityId, c.cityId).Hours))
             .Where(x => x.Quality > homeQuality + .05f || StudioRoomCatalog.HasSpecialist(x.City.cityId, x.City.parentRegionId))
-            .OrderByDescending(x => x.Quality).ThenBy(x => x.Hours).ThenBy(x => x.City.cityId, StringComparer.Ordinal)
-            .Take(MaxOutOfTownRooms);
+            .OrderByDescending(x => x.Quality).ThenBy(x => x.Hours).ThenBy(x => x.City.cityId, StringComparer.Ordinal).ToList();
+        // A day's drive first, then up to two rooms worth driving up for the night before.
+        var away = reachable.Where(x => x.Hours <= MaxStudioDriveHours).Take(MaxOutOfTownRooms)
+            .Concat(reachable.Where(x => x.Hours > MaxStudioDriveHours).Take(MaxOvernightRooms));
         foreach (var x in away)
             ids.Add(StudioRoomCatalog.HasSpecialist(x.City.cityId, x.City.parentRegionId) ? StudioRoomCatalog.SpecialistId(x.City.cityId)
                 : StudioRoomCatalog.LocalId(x.City.cityId, StudioRoomCatalog.Available(x.City.cityId, x.City.parentRegionId)[^1]));
         return ids;
     }
 
-    /// <summary>The bookable room snapshot for today, with the engineer on duty (or the one asked for) and any
-    /// remembered work with this act. Null for an unknown room.</summary>
-    public StudioRoomSnapshot StudioRoom(string roomId, string artistId, string engineerId = null) {
+    /// <summary>The bookable room snapshot for a date (today unless given), with its renown and rate, the engineer on
+    /// duty (or the one asked for) and any remembered work with this act. Null for an unknown room.</summary>
+    public StudioRoomSnapshot StudioRoom(string roomId, string artistId, string engineerId = null, GameDate? on = null) {
         var room = StudioRoomCatalog.ById(roomId, out var tier);
         if (room == null || !StudioExperience.Enabled) return room;
-        StudioRoomCatalog.Staff(room, tier, StudioToday, engineerId);
+        var date = on ?? StudioToday;
+        ApplyStudioRenown(room, artistId, date);
+        StudioRoomCatalog.Staff(room, tier, date, engineerId);
         var last = StudioPeople.LastWith(studioVisits, room.EngineerId, artistId);
         room.FamiliarDates = studioVisits.Count(v => v.EngineerId == room.EngineerId && v.ArtistId == artistId);
         room.SetupMinutes = StudioPeople.SetupMinutes(room, last != null);
@@ -65,18 +85,34 @@ public partial class PlayerDesk {
         StudioRoom(StudioRoomCatalog.LocalId(Label.homeCityId, tier), artistId);
 
     public StudioRoomOffer StudioOffer(string roomId, string artistId, string engineerId = null) {
-        var room = StudioRoom(roomId, artistId, engineerId);
-        if (room == null) return null;
-        StudioRoomCatalog.ById(roomId, out var tier);
-        var offer = new StudioRoomOffer { Room = room, Tier = tier };
-        if (room.CityId != Label.homeCityId) (offer.DriveHours, offer.Gas) = DriveQuote(Label.homeCityId, room.CityId);
-        if (StudioExperience.Enabled) offer.Engineers = StudioPeople.Engineers(room, tier, StudioToday);
+        var shape = StudioRoomCatalog.ById(roomId, out var tier);
+        if (shape == null) return null;
+        // Drives are quoted from home; a room in the town you're already in for a studio trip is no drive at all.
+        var offer = new StudioRoomOffer { Tier = tier };
+        if (shape.CityId != Label.homeCityId && shape.CityId != CurrentCityId) (offer.DriveHours, offer.Gas) = DriveQuote(Label.homeCityId, shape.CityId);
+        offer.StaffedFor = offer.Overnight ? StudioToday.NextDay() : StudioToday;
+        var room = offer.Room = StudioRoom(roomId, artistId, engineerId, offer.StaffedFor);
+        var artist = ArtistManager.Instance?.GetArtist(artistId);
+        if (StudioExperience.Enabled) {
+            offer.Engineers = StudioPeople.Engineers(room, tier, offer.StaffedFor);
+            if (artist != null) offer.BandLodging = BandLodgingPerNight(ActivePeople(artist).Count);
+        }
         if (room.Specialist) {
             offer.Introduction = StudioIntroduction(room);
             if (offer.Introduction == null) {
                 string city = DistanceModel.GetCityById(room.CityId)?.name ?? "town";
                 offer.Locked = $"{room.Name} books its regulars and people who come recommended. A disc jockey in {city} who knows you, " +
                     $"or a session player there who knows one of your acts, could introduce you.";
+            }
+        }
+        if (StudioExperience.Enabled) {
+            offer.Locked ??= StudioBookedSolid(room, offer.StaffedFor);
+            if (room.Specialist && artist != null) {
+                // The house band is booked for the working day the date would fall in.
+                var clock = TimeManager.Instance;
+                int start = offer.Overnight ? (clock?.WorkdayStartHour ?? 9) * 60 : (clock?.CurrentHour ?? 9) * 60 + (clock?.CurrentMinute ?? 0) + offer.DriveHours * 60;
+                offer.House = StudioHouseBand(room, artist, offer.StaffedFor, start, (clock?.HardStopHour ?? 21) * 60);
+                offer.Locked ??= offer.House?.Locked;
             }
         }
         return offer;

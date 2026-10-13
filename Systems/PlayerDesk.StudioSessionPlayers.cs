@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
+/// <summary>Why an outsider is on the date: a session player the label chose in place of a member, a specialist room's
+/// house player the owner insisted on (in place of a member, or filling a part a singer has no one for), or one voice of
+/// a hired backing group. Older saves hold only replacements.</summary>
+public enum StudioHireKind { Replacement, HousePlayer, BackingVoice }
+
 /// <summary>A named session musician on a studio date, in place of one member. Credited on every master whose kept take
 /// they played on; a take cut before they arrived is the band's own performance.</summary>
 public sealed class StudioSessionHire {
@@ -10,8 +15,13 @@ public sealed class StudioSessionHire {
     public MusicianRole Role;
     public float Skill, Reading, Fee, Lift, EnsembleLift;
     public bool CalledIn;   // called in on the day, rather than booked ahead in the Band Room
+    // v20: house players and backing voices. A backing voice belongs to a named group and replaces nobody.
+    public StudioHireKind Kind;
+    public string GroupName;
+    public bool Replaces => !string.IsNullOrEmpty(ReplacesPersonId);
     public StudioSessionHire Copy() => (StudioSessionHire)MemberwiseClone();
-    public bool Valid => !string.IsNullOrEmpty(PersonId) && !string.IsNullOrEmpty(Name) && !string.IsNullOrEmpty(ReplacesPersonId) && Enum.IsDefined(Role) &&
+    public bool Valid => !string.IsNullOrEmpty(PersonId) && !string.IsNullOrEmpty(Name) && Enum.IsDefined(Kind) && Enum.IsDefined(Role) &&
+        (Kind != StudioHireKind.Replacement || Replaces) && (Kind != StudioHireKind.BackingVoice || !Replaces && !string.IsNullOrEmpty(GroupName) && Lift == 0 && EnsembleLift == 0) &&
         new[] { Skill, Reading, Fee, Lift, EnsembleLift }.All(float.IsFinite) && Fee >= 0 && Lift is >= 0 and <= .10f && EnsembleLift is >= 0 and <= .06f;
 }
 
@@ -75,14 +85,14 @@ public partial class PlayerDesk {
     /// <summary>The performer a weak aspect rests on: the lead voice for power and lyric, otherwise the loosest player on
     /// the floor. A session player stands in for the member they replaced. Ties go to the stable person id.</summary>
     private static (string PersonId, string Name, float Skill, bool Hired) StudioFault(PendingSession session, SimulatedArtist artist, StudioAspect aspect) {
-        var replaced = session.Hires.Select(h => h.ReplacesPersonId).ToHashSet();
+        var replaced = session.Hires.Where(h => h.Replaces).Select(h => h.ReplacesPersonId).ToHashSet();
         var members = artist.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active && !replaced.Contains(m.personId)).ToList();
         if (aspect is StudioAspect.Power or StudioAspect.Lyric) {
             var voice = members.Where(m => m.isLeadVocalist).OrderBy(m => m.personId, StringComparer.Ordinal).FirstOrDefault();
             if (voice != null) return (voice.personId, voice.firstName, MemberSinging(voice), false);
         }
         var players = members.Where(m => !Sings(m.primaryRole)).Select(m => (PersonId: m.personId, Name: m.firstName, Skill: MemberPlaying(m), Hired: false))
-            .Concat(session.Hires.Select(h => (h.PersonId, Name: h.Name.Split(' ')[0], h.Skill, Hired: true)))
+            .Concat(session.Hires.Where(h => h.Kind != StudioHireKind.BackingVoice).Select(h => (h.PersonId, Name: h.Name.Split(' ')[0], h.Skill, Hired: true)))
             .OrderBy(x => x.Skill).ThenBy(x => x.PersonId, StringComparer.Ordinal).ToList();
         if (players.Count > 0) return players[0];
         var anyone = members.OrderBy(m => m.personId, StringComparer.Ordinal).FirstOrDefault();
@@ -123,7 +133,7 @@ public partial class PlayerDesk {
         if (session?.FlowVersion != 1 || session.Room == null) return null;
         var artist = ArtistManager.Instance?.GetArtist(session.ArtistId);
         if (artist == null) return null;
-        var replaced = session.Hires.Select(h => h.ReplacesPersonId).ToHashSet();
+        var replaced = session.Hires.Where(h => h.Replaces).Select(h => h.ReplacesPersonId).ToHashSet();
         var member = session.Cuts.SelectMany(c => c.Takes).Where(t => t.Incomplete && t.FaultPersonId != null)
             .GroupBy(t => t.FaultPersonId).Where(g => g.Count() >= StudioCallInAfterBreakdowns && !session.DeclinedCallIns.Contains(g.Key) && !replaced.Contains(g.Key))
             .Select(g => (Member: artist.members.FirstOrDefault(m => m.personId == g.Key && m.isActive), Count: g.Count()))
@@ -196,8 +206,13 @@ public partial class PlayerDesk {
         message = "The band keeps its own player."; Changed?.Invoke(); return true;
     }
 
-    /// <summary>The credits for a kept take: the session players who played on it.</summary>
-    public static List<string> StudioSessionCredits(PendingSession session, SessionTake take) =>
-        session.Hires.Where(h => take.SessionPersonIds?.Contains(h.PersonId) == true)
-            .Select(h => $"{h.Name} ({RoleWord(h.Role).ToLowerInvariant()}, in place of {h.ReplacesName})").ToList();
+    /// <summary>The credits for a kept take: the session players who played on it, house players as the room's, and a
+    /// backing group once, by its name, with its voices.</summary>
+    public static List<string> StudioSessionCredits(PendingSession session, SessionTake take) {
+        var on = session.Hires.Where(h => take.SessionPersonIds?.Contains(h.PersonId) == true).ToList();
+        return on.Where(h => h.Kind != StudioHireKind.BackingVoice).Select(h => $"{h.Name} ({RoleWord(h.Role).ToLowerInvariant()}" +
+                (h.Kind == StudioHireKind.HousePlayer ? ", the room's house player" : "") + (h.Replaces ? $", in place of {h.ReplacesName})" : ")"))
+            .Concat(on.Where(h => h.Kind == StudioHireKind.BackingVoice).GroupBy(h => h.GroupName)
+                .Select(g => $"{g.Key} (backing vocals: {string.Join(", ", g.Select(h => h.Name))})")).ToList();
+    }
 }

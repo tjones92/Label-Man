@@ -43,16 +43,18 @@ public partial class PlayerDesk {
         return Math.Max(0, session.StartMinute + session.Hours * 60 - time.CurrentHour * 60 - time.CurrentMinute);
     }
 
-    private bool StartStudioDate(SimulatedArtist artist, List<MaterialChoice> choices, string roomId, string engineerId, int hours, StudioBrief brief, out string message) {
+    private bool StartStudioDate(SimulatedArtist artist, List<MaterialChoice> choices, string roomId, string engineerId, int hours, StudioBrief brief, out string message, bool backingSingers = false) {
         if (!Enum.IsDefined(brief)) { message = "Unknown session brief."; return false; }
         var offer = StudioRoomIds().Contains(roomId) ? StudioOffer(roomId, artist.artistId, engineerId) : null;
         if (offer == null) { message = "That room is not one you can book from here."; return false; }
         if (offer.Locked != null) { message = offer.Locked; return false; }
+        if (offer.Overnight) { message = $"{offer.Room.Name} is a {offer.DriveHours}h drive: too far to drive and record the same day. Drive up with the band and stay the night."; return false; }
         if (engineerId != null && offer.Room.EngineerId != engineerId) { message = "That engineer is not in the building today."; return false; }
+        if (!AtHome && StudioTripHere(artist.artistId) == null) { message = "You need to be back in town, or up with this act on a studio trip, to book a room."; return false; }
         var room = offer.Room; var tier = offer.Tier;
         var clock = TimeManager.Instance;
         int now = clock.CurrentHour * 60 + clock.CurrentMinute, start = now + offer.DriveHours * 60;
-        if (offer.Local && LocalSceneRoomService.HasStudioAppointment(Label.labelId, LocalSceneRoomService.Day(clock.CurrentDate), now, now + hours * 60)) {
+        if (offer.Local && room.CityId == Label.homeCityId && LocalSceneRoomService.HasStudioAppointment(Label.labelId, LocalSceneRoomService.Day(clock.CurrentDate), now, now + hours * 60)) {
             message = "The studio is reserved for an unsigned demo during this session. Cancel or attend that appointment first."; return false;
         }
         if (!Require(offer.DriveHours + hours, out message)) {
@@ -70,12 +72,21 @@ public partial class PlayerDesk {
             message = "A performer has a show or appointment during this date. Choose another start or a shorter date."; return false;
         }
         float roomCost = StudioRoomCost(room, hours), playerFee = SessionPlayerFor(artist.artistId)?.Fee ?? 0;
-        if (Label.cashReserves < roomCost + playerFee + offer.Gas) {
-            float need = roomCost + playerFee + offer.Gas;
-            message = $"The room{(playerFee > 0 ? ", booked musician" : "")}{(offer.Local ? "" : " and gas")} cost ${need:N0}; you are ${need - Label.cashReserves:N0} short."; return false;
+        // A specialist owner's house players, re-read for the actual window, and backing voices if asked for.
+        var house = room.Specialist ? StudioHouseBand(room, artist, today, start, start + hours * 60) : null;
+        if (house?.Locked != null) { message = house.Locked; return false; }
+        StudioBackingOffer backing = null;
+        if (backingSingers) {
+            backing = StudioBackingSingers(room.CityId, artist, today, start, start + hours * 60, house?.Players.Select(p => p.PersonId));
+            if (backing == null) { message = StudioNeedsBacking(artist) ? "No backing singers are free in that town for this date." : $"{artist.stageName} has its own singers."; return false; }
+        }
+        float hired = (house?.Insists == true ? house.Fee : 0) + (backing?.Fee ?? 0);
+        if (Label.cashReserves < roomCost + playerFee + hired + offer.Gas) {
+            float need = roomCost + playerFee + hired + offer.Gas;
+            message = $"The room{(playerFee + hired > 0 ? ", musicians" : "")}{(offer.Local ? "" : " and gas")} cost ${need:N0}; you are ${need - Label.cashReserves:N0} short."; return false;
         }
         // An out-of-town date starts with the drive, through the ordinary road owner: its hours, its gas, and the
-        // player physically in that town afterwards. The act rides along.
+        // player physically in that town afterwards. The act rides along. On a studio trip the drive is behind you.
         if (!offer.Local && !Travel(room.CityId, out message)) return false;
         start = clock.CurrentHour * 60 + clock.CurrentMinute;
         var session = new PendingSession {
@@ -101,13 +112,18 @@ public partial class PlayerDesk {
         session.ElapsedMinutes = room.SetupMinutes;
         session.WorkloadMinutes = room.SetupMinutes * .25f;
         if (!offer.Local) session.ActionLog.Add($"Drove {offer.DriveHours}h to {DistanceModel.GetCityById(room.CityId)?.name} with the band (${offer.Gas:N0} gas).");
+        if (room.Renown >= .01f) session.ActionLog.Add($"Room rate ${room.HourlyRate:N0} an hour (posted before its records got around: ${room.BaseRate:N0}).");
         session.ActionLog.Add($"Setup: {room.SetupMinutes} minutes. Room ${roomCost:N0}; booked musician ${playerFee:N0}; stock, playback and house finish included.");
         if (!string.IsNullOrEmpty(room.EngineerName))
             session.ActionLog.Add($"Engineer: {room.EngineerName}{(room.CapabilityVersion >= 4 ? room.EngineerHouse ? ", the chief" : ", the second engineer" : room.EngineerHouse ? "" : ", relief for the house engineer")}" +
                 $"{(room.EngineerRequested ? $", asked for by name{(room.EngineerPremium > 0 ? $" (${room.EngineerPremium:N0} an hour more)" : "")}" : "")}" +
                 $"{(room.FamiliarDates > 0 ? $", who has worked {room.FamiliarDates} earlier date(s) with this act" : "")}.");
-        foreach (var hire in session.Hires) session.ActionLog.Add($"Session player: {hire.Name} on {RoleWord(hire.Role).ToLowerInvariant()}, in place of {hire.ReplacesName}.");
+        foreach (var hire in session.Hires.Where(h => h.Kind == StudioHireKind.Replacement)) session.ActionLog.Add($"Session player: {hire.Name} on {RoleWord(hire.Role).ToLowerInvariant()}, in place of {hire.ReplacesName}.");
+        if (house != null && house.Reason != null) session.ActionLog.Add("Owner: " + house.Reason);
+        SeatHousePlayers(session, artist, house);
+        if (backing != null) SeatBackingSingers(session, artist, backing);
         if (offer.Introduction != null) session.ActionLog.Add("Introduction: " + offer.Introduction);
+        CompleteStudioTrip(session);
         pendingSession = session;
         KeepSessionPromises(artist);
         Note($"Started a {hours}h paid date at {session.Room.Name} with {artist.stageName}, {choices.Count} side(s), ${session.Cost:N0}.");
@@ -210,7 +226,7 @@ public partial class PlayerDesk {
         float baseHook = cut.Choice.WrittenSong?.Hook ?? Math.Clamp(skill * .5f + session.LivePerformance * .2f + .15f, 0, 1);
         float vocal = Mathf.Clamp(baseHook * .75f + session.Room.Craft * .10f + .02f + .12f * Noise("vocal") * (1 + session.Tension) - fatigue * .10f, 0, 1);
         // A session player standing in for a looser member tightens the band from their first pass (zero without one).
-        float sessionEnsemble = Math.Min(.06f, session.Hires.Sum(h => h.EnsembleLift));
+        float sessionEnsemble = Math.Min(.06f, session.Hires.Sum(h => h.EnsembleLift));   // backing voices carry none
         float ensemble = Mathf.Clamp(skill * .65f + .15f + learning + sessionEnsemble + .10f * Noise("ensemble") - fatigue * .07f, 0, 1);
         float feel = Mathf.Clamp(baseHook * .75f + session.LivePerformance * .12f + .10f * Noise("feel") - fatigue * .08f, 0, 1);
         float captureBase = session.Tier == StudioTier.Budget ? .30f : session.Tier == StudioTier.Top ? .62f : .46f;
@@ -236,6 +252,13 @@ public partial class PlayerDesk {
             if (shape.PowerDemand + shape.LyricDemand > 0) vocal += (power * shape.PowerDemand + lyric * shape.LyricDemand) / (shape.PowerDemand + shape.LyricDemand);
             ensemble += StudioSongStructures.PartLift(shape, cut.PartRehearsals, StudioAspect.Ensemble);
             feel += StudioSongStructures.PartLift(shape, cut.PartRehearsals, StudioAspect.Feel);
+        }
+        // Voices behind the lead fill out a song that calls for them and clutter one that doesn't (zero without a group).
+        float backingVoice = StudioBackingVoiceOn(session);
+        if (backingVoice >= 0) {
+            var act = ArtistManager.Instance.GetArtist(session.ArtistId);
+            float backing = StudioBackingVocal(StudioBackingCall(shape, cut.Choice.WrittenSong?.Genre ?? act.primaryGenre), backingVoice);
+            vocal += backing; feel += Math.Max(0, backing) * .4f;
         }
         var take = new SessionTake {
             TakeId = key, Number = number, Vocal = Mathf.Clamp(vocal, 0, 1), Ensemble = Mathf.Clamp(ensemble, 0, 1),

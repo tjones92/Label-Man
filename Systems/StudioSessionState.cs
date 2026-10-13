@@ -30,6 +30,7 @@ public sealed class StudioSessionState {
             new[] { Room.EngineerEar, Room.EngineerHands, Room.Intimacy, Room.Liveliness, Room.Control }.Any(v => !float.IsFinite(v) || v < 0 || v > 1)))
             throw new InvalidOperationException("Invalid saved studio room.");
         if (Room.CapabilityVersion >= 4 && (!float.IsFinite(Room.EngineerPremium) || Room.EngineerPremium < 0 || Room.Specialist && string.IsNullOrEmpty(Room.Specialty)) ||
+            !float.IsFinite(Room.Renown) || Room.Renown is < 0 or >= 1 || !float.IsFinite(Room.BaseRate) || Room.BaseRate < 0 || Room.BaseRate > Room.HourlyRate ||
             BreakdownVersion is < 0 or > 1 || (Hires ?? new()).Any(h => h == null || !h.Valid) || (Hires ?? new()).GroupBy(h => h.PersonId).Any(g => g.Count() > 1) ||
             (DeclinedCallIns ?? new()).Any(string.IsNullOrEmpty))
             throw new InvalidOperationException("Invalid saved studio personnel.");

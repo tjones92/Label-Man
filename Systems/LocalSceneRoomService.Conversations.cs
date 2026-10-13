@@ -63,7 +63,7 @@ public static partial class LocalSceneRoomService {
         _ => "conversation-table|" + roomId
     };
     private static bool ConversationSlotFree(string labelId, string personId, string roomId, int day, int start, int end, string exceptId = null, ScoutingAppointmentActivity activity = ScoutingAppointmentActivity.Conversation) =>
-        !StudioPersonReserved(personId, day, start, end) && !HasPerformanceBooking(personId, day, start, end, roomId) && !ConversationBooking(personId, day, start, end, roomId, exceptId) &&
+        !StudioPersonReserved(personId, day, start, end) && PlayerDesk.Instance?.StudioTripHolds(personId, day) != true && !HasPerformanceBooking(personId, day, start, end, roomId) && !ConversationBooking(personId, day, start, end, roomId, exceptId) &&
         !(state?.Conversations?.Any(c => c.Id != exceptId && Pending(c) && c.Day == day && c.StartMinute < end && c.EndMinute > start &&
             (c.LabelId == labelId || AppointmentResource(c.Activity, c.RoomId, c.LabelId) == AppointmentResource(activity, roomId, labelId))) ?? false);
 

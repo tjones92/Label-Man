@@ -1070,16 +1070,18 @@ public partial class PlayerDesk {
 
 	/// <summary>Pays a session player and takes the cost to the band: the lift the player brings, and the member's
 	/// humiliation. Shared by a Band Room booking and a player called in on the day.</summary>
-	private float ApplySessionHire(SimulatedArtist a, Musician replaced, string name, float skill, float reading, float fee) {
+	/// <param name="upset">How hard the member takes it: 1 when the label chose to replace them; less when a studio owner's
+	/// house rule did, since the label did not single them out.</param>
+	private float ApplySessionHire(SimulatedArtist a, Musician replaced, string name, float skill, float reading, float fee, float upset = 1f) {
 		Label.cashReserves -= fee;
 		Label.monthlyExpenses += fee;
 		float lift = Mathf.Clamp(0.10f * (skill - (replaced?.technicalSkill ?? 0.45f)) + 0.04f * reading, 0f, 0.10f);
 		if (replaced != null) {
 			int year = YearNow;
 			foreach (Musician x in a.members.Where(x => x.isActive && x != replaced))
-				BandLifeService.AddStrain(BandLifeService.Edge(a, replaced, x), StrainCause.Outsider, 0.12f, year);
-			a.morale = Mathf.Clamp(a.morale - 0.05f, BandLifeService.MoraleMin, BandLifeService.MoraleMax);
-			AddTrust(replaced, -0.10f);
+				BandLifeService.AddStrain(BandLifeService.Edge(a, replaced, x), StrainCause.Outsider, 0.12f * upset, year);
+			a.morale = Mathf.Clamp(a.morale - 0.05f * upset, BandLifeService.MoraleMin, BandLifeService.MoraleMax);
+			AddTrust(replaced, -0.10f * upset);
 			Note($"{name} played {replaced.firstName}'s part. {replaced.firstName} sat in the control room and watched.");
 		}
 		return lift;

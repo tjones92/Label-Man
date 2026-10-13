@@ -178,6 +178,28 @@ public static class SessionEmploymentService {
 			Capable(p.person)).Select(p => p.person));
 		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
 	}
+	/// <summary>Singers in a town who could sing backing parts on a session: members of acts based and present there, and
+	/// pooled people, who sing and can learn a part from a sheet or by ear. Read-only, like the players' list.</summary>
+	public static IReadOnlyList<Musician> SingerCandidates(string place, int day) {
+		if (!Enabled || ArtistManager.Instance == null) return Array.Empty<Musician>();
+		var candidates = new List<Musician>();
+		foreach (string id in LocalSceneIdentityService.ArtistsBasedAt(place)) {
+			var act = ArtistManager.Instance.GetArtist(id);
+			if (act?.lifecycleStatus != ArtistLifecycleStatus.Active ||
+				!LocalScenePersistenceService.Present(act, place, day / 7) || !SceneEcosystemService.AvailableAt(id, place, day)) continue;
+			candidates.AddRange(act.members.Where(m => m.isActive && CapableSinger(m)));
+		}
+		candidates.AddRange(PersonPool.Ordered().Where(p => LocalScenePersistenceService.SceneIdFor(p.person.geography?.basePlaceId) == place &&
+			CapableSinger(p.person)).Select(p => p.person));
+		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
+	}
+	/// <summary>A backing singer needs a voice that holds a part (control counts more than power) and enough reading or
+	/// ear to learn it quickly. Provisional authored bars, below the players' because parts are taught in the room.</summary>
+	public const float SingerBar = 0.55f, SingerReadingBar = 0.40f;
+	public static float BackingVoice(Musician m) => m.axesVersion > 0 ? .35f * m.vocalPower + .65f * m.vocalControl : m.technicalSkill;
+	private static bool CapableSinger(Musician m) =>
+		m.lifeState == MemberLifeState.Active && (m.isLeadVocalist || m.primaryRole is MusicianRole.LeadVocals or MusicianRole.BackingVocals) &&
+		BackingVoice(m) >= SingerBar && m.sightReading >= SingerReadingBar;
 	private static bool Capable(Musician m) =>
 		m.lifeState == MemberLifeState.Active && m.technicalSkill >= SkillBar && m.sightReading >= ReadingBar &&
 		IsRhythmPlayer(m);

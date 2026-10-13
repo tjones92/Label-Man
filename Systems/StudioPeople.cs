@@ -12,10 +12,23 @@ public sealed class StudioVisit {
     public int Passes, KeptSides;
     public bool Printed;
     public List<int> FlaggedParts = new();
+    // v20: the records printed on this date, and how those that charted did. Older visits hold neither.
+    public List<string> RecordIds;
+    public List<StudioHit> Hits;
     public StudioVisit Copy() => new() {
         SessionId = SessionId, RoomId = RoomId, RoomName = RoomName, CityId = CityId, EngineerId = EngineerId, EngineerName = EngineerName,
-        ArtistId = ArtistId, Date = Date, Passes = Passes, KeptSides = KeptSides, Printed = Printed, FlaggedParts = new(FlaggedParts ?? new())
+        ArtistId = ArtistId, Date = Date, Passes = Passes, KeptSides = KeptSides, Printed = Printed, FlaggedParts = new(FlaggedParts ?? new()),
+        RecordIds = RecordIds?.ToList(), Hits = Hits?.Select(h => h.Copy()).ToList()
     };
+}
+
+/// <summary>A record cut on a remembered date that reached the chart: its best position and the week the trade first
+/// saw it there. Kept on the visit, so a room's renown outlives the record's chart run.</summary>
+public sealed class StudioHit {
+    public string RecordId, Title, ArtistName;
+    public int Peak;
+    public GameDate Charted;
+    public StudioHit Copy() => (StudioHit)MemberwiseClone();
 }
 
 /// <summary>The people and acoustics of the fictional local rooms. Every value is derived from a stable key, never a
@@ -46,7 +59,9 @@ public static class StudioPeople {
     public static List<Engineer> Engineers(StudioRoomSnapshot room, PlayerDesk.StudioTier tier, GameDate date) {
         string day = $"{date.year}-{date.month}-{date.day}";
         bool away = StudioTakeEvidence.Unit($"{room.Id}|engineer-away|{day}") < 1 / 6.0;
-        bool booked = !away && StudioTakeEvidence.Unit($"{room.Id}|chief-booked|{day}") < .5;
+        // A room with a name draws regular clients, so its chief is booked more often; the act that cut its hit gets
+        // the chief whenever the chief is in, because the room wants the follow-up.
+        bool booked = !away && !room.ActCutAHit && StudioTakeEvidence.Unit($"{room.Id}|chief-booked|{day}") < .5 + .3 * Math.Clamp(room.Renown, 0, 1);
         (float earLow, float earHigh, float handsLow, float handsHigh) = room.Specialist ? (.70f, .95f, .60f, .90f) : tier switch {
             PlayerDesk.StudioTier.Budget => (.45f, .75f, .35f, .60f),
             PlayerDesk.StudioTier.Mid => (.55f, .85f, .50f, .75f),
@@ -144,7 +159,7 @@ public partial class PlayerDesk {
             $"{first} remembers where they stand at the microphones, so setup should take {room.SetupMinutes}m, and that {remembered}.";
     }
 
-    private void RememberStudioVisit(PendingSession session, bool printed) {
+    private void RememberStudioVisit(PendingSession session, bool printed, List<string> recordIds = null) {
         if (session?.FlowVersion != 1 || session.Room?.CapabilityVersion < 3 || string.IsNullOrEmpty(session.Room.EngineerId)) return;
         if (studioVisits.Any(v => v.SessionId == session.SessionId)) return;
         var flagged = new List<int>(new int[Enum.GetValues<StudioSectionKind>().Length]);
@@ -153,7 +168,8 @@ public partial class PlayerDesk {
         studioVisits.Add(new StudioVisit {
             SessionId = session.SessionId, RoomId = session.Room.Id, RoomName = session.Room.Name, CityId = session.Room.CityId,
             EngineerId = session.Room.EngineerId, EngineerName = session.Room.EngineerName, ArtistId = session.ArtistId, Date = session.Date,
-            Passes = session.Cuts.Sum(c => c.Takes.Count), KeptSides = session.Cuts.Count(c => c.KeptTake >= 0), Printed = printed, FlaggedParts = flagged
+            Passes = session.Cuts.Sum(c => c.Takes.Count), KeptSides = session.Cuts.Count(c => c.KeptTake >= 0), Printed = printed, FlaggedParts = flagged,
+            RecordIds = recordIds?.Count > 0 ? recordIds : null
         });
     }
 
@@ -162,7 +178,9 @@ public partial class PlayerDesk {
         int parts = Enum.GetValues<StudioSectionKind>().Length;
         bool valid = saved == null || saved.All(v => v != null && !string.IsNullOrEmpty(v.SessionId) && !string.IsNullOrEmpty(v.EngineerId) &&
             !string.IsNullOrEmpty(v.ArtistId) && v.Passes >= 0 && v.KeptSides >= 0 && v.FlaggedParts != null && v.FlaggedParts.Count == parts &&
-            v.FlaggedParts.All(n => n >= 0)) && saved.Select(v => v.SessionId).Distinct().Count() == saved.Count;
+            v.FlaggedParts.All(n => n >= 0) && (v.RecordIds == null || v.RecordIds.All(id => !string.IsNullOrEmpty(id))) &&
+            (v.Hits == null || v.Hits.All(h => h != null && !string.IsNullOrEmpty(h.RecordId) && h.Peak is >= 1 and <= 100 && v.RecordIds?.Contains(h.RecordId) == true) &&
+                v.Hits.Select(h => h.RecordId).Distinct().Count() == v.Hits.Count)) && saved.Select(v => v.SessionId).Distinct().Count() == saved.Count;
         message = valid ? "" : "The saved studio history is damaged.";
         return valid;
     }

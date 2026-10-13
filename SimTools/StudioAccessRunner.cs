@@ -52,7 +52,7 @@ public partial class StudioAccessRunner : Node {
             var offers = ids.Select(id => desk.StudioOffer(id, artist.artistId)).ToList();
             Check(GD.Randi() == next && Json(offers) == Json(desk.StudioRoomIds().Select(id => desk.StudioOffer(id, artist.artistId)).ToList()),
                 "Listing rooms is stable and draws no gameplay randomness");
-            var local = offers.Where(o => o.Local).ToList(); var away = offers.Where(o => !o.Local).ToList();
+            var local = offers.Where(o => o.Local).ToList(); var away = offers.Where(o => !o.Local && !o.Overnight).ToList();
             Check(local.Count == StudioRoomCatalog.Available(desk.Label.homeCityId, desk.Label.homeRegion).Length && local.All(o => o.Room.CityId == "atlanta"),
                 "Every local room is offered: " + string.Join(", ", local.Select(o => o.Room.Name)));
             Check(away.Count is > 0 and <= PlayerDesk.MaxOutOfTownRooms && away.All(o => o.DriveHours is > 0 and <= PlayerDesk.MaxStudioDriveHours && o.Gas > 0) &&
@@ -131,7 +131,7 @@ public partial class StudioAccessRunner : Node {
             Check(desk.CurrentCityId == special.Room.CityId && !desk.AtHome && trip.StartMinute == 540 + special.DriveHours * 60 &&
                 clock.CurrentHour * 60 + clock.CurrentMinute == trip.StartMinute + trip.Room.SetupMinutes,
                 $"The drive comes out of the day before the date starts ({special.DriveHours}h), and the player is in {special.Room.CityId}");
-            Check(Math.Abs(before - desk.Label.cashReserves - (PlayerDesk.StudioRoomCost(trip.Room, 3) + special.Gas)) < .01f && trip.Cost == PlayerDesk.StudioRoomCost(trip.Room, 3) &&
+            Check(Math.Abs(before - desk.Label.cashReserves - (PlayerDesk.StudioRoomCost(trip.Room, 3) + special.Gas + trip.Hires.Sum(h => h.Fee))) < .01f && Math.Abs(trip.Cost - PlayerDesk.StudioRoomCost(trip.Room, 3) - trip.Hires.Sum(h => h.Fee)) < .01f &&
                 trip.ActionLog[0].StartsWith("Drove "), "Room and gas are each charged once; gas is not studio cost");
             Check(!desk.DriveHome(out message) && desk.CurrentCityId == special.Room.CityId, "Driving off mid-date is refused: " + message);
             Check(desk.CutStudioTake(0, out message), "Work at the out-of-town room: " + message);

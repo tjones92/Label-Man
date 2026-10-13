@@ -174,3 +174,73 @@ Directive slice 2 remains partial. Not done: travelling to rooms in other cities
 Validation: build passed with zero warnings/errors. The new `StudioAccessRunner.tscn` passed 179 / 183 assertions on seeds 1001 / 1002. Measured over 56-58 real bands × 3 passes, breakdowns ran 22.2% / 14.0% for the loosest third, 0.0% / 3.5% for the tightest and 9.5% / 9.8% overall. Flubs ran 4.8% / 1.7%. The call-in fired on both seeds. `StudioDateRunner` passed 121 on both seeds with `--studio-breakdowns=off` (it assumes every pass completes). `StudioReturnVisitRunner` passed 35 on both (updated to chief/second staffing). The legacy foundation (`--studio-experience=off`) passed 23 and the funded scouting promise 65. Rendered booking captures were inspected: `SimLogs/studio-access-booking-*.png`.
 
 Not done: specialist owners insisting on their own house players, room renown and pricing responding to the label's records, travel lodging or overnight dates, a call-in for a singer needing backing vocalists, and human playthroughs/economic calibration. Rooms, specialists, engineers and every rate here are fictional and provisional.
+
+## House players, room renown, overnight trips and backing singers (ninth slice)
+
+Historical grounding (sources checked October 13, 2026; design inputs, not a facility census):
+
+- **House players.** The period's distinctive rooms ran with their own rhythm sections, and outside acts mostly recorded with them: Dave Bartholomew's band backed nearly every date at Cosimo Matassa's J&M (New Orleans, about $15 an hour); Booker T. & the M.G.'s backed Stax's acts and the Atlantic singers Jerry Wexler sent to Memphis; FAME's successive rhythm sections were why singers drove to Muscle Shoals. Norbert Putnam recalled that most acts didn't travel with a band and arrived with charts. Sources describe the house band as a draw more than a written rule, so the owner insists only where he has reason to.
+- **Renown and rates.** Arthur Alexander's "You Better Move On" (FAME, 1961; the first gold record in Muscle Shoals history) paid for Rick Hall's larger Avalon Avenue studio in 1962 and drew outside acts. No source gave 1960s rate cards for Sun or Gold Star, or documented a rate rise after a hit, so the rate response is a modest authored assumption. The directive's rule applies: renown has a lag and capacity limits, and one hit must not price the label out of its own room.
+- **Overnight trips.** Buddy Holly and the Crickets drove from Lubbock to Norman Petty's Clovis studio. Petty charged per song rather than per hour, recorded late at night beside a machine shop, and the band slept in the guest room by day. Singers came to Muscle Shoals and Memphis from far away.
+- **Backing singers.** The Jordanaires and the Anita Kerr Singers sang behind a large share of Nashville's late-50s/early-60s sides, often several sessions a day. 1960 AFM/AFTRA scale figures could not be confirmed, so fees reuse the Band Room's provisional scale.
+
+**House players.** At a specialist room the owner's terms come with the booking card (`StudioHouseBand`, pure and keyed):
+
+- A singer without a rhythm section (`NeedsCrew`) gets the house drums and bass, plus piano if nobody plays a chord instrument. They fill parts; nobody is replaced.
+- A band the owner doesn't know, below the tight-band bar (.58), has the house drummer and bass player sit in for its own.
+- A tight band brings its own players. So does a band that has printed a date there before and plays at .50 or better.
+- House players are the town's best-reading session players, with a stable per-room key, so the same regulars recur.
+- An owner insists only on parts somebody in town plays on sessions; a town with no session community has no house section.
+- A house player who is booked elsewhere locks the room for the day. An act with creative control won't record without its own players, so where the owner insists the room is locked.
+- Fees use the Band Room scale, paid at booking and not recouped. A replaced member takes it half as hard as a label's own replacement (`ApplySessionHire(..., upset)`).
+- House players are reserved for the date and appear on every take. A member who sat out is never blamed for a breakdown. Masters credit "the room's house player".
+
+**Renown and rates.** A remembered date now records the record ids it printed, and a weekly pass notes each one that charts (best peak and the week it was first seen). This lives on the visit, so renown outlives the chart run. A room's renown is a pure function of those hits and the date:
+
+- Weight: 1 for a top-ten hit, .5 for top forty, .15 for a minor chart record.
+- Timing: no pull for 4 weeks, ramping to full at 16 weeks, then a 104-week half-life. Renown = 1 − exp(−sum/1.5).
+- Rate: the posted rate rises up to 40% with renown, and the label that made the room's name pays half of the rise.
+- Demand: the act that cut the hit always gets the chief and never finds the room full. Other acts find the chief booked more often (.5 → .5 + .3·renown) and the room booked solid on up to 30%·renown of days.
+- Renown is never a quality input. The card shows what the room is known for and the rate change.
+
+**Overnight trips.** Rooms more than a day's drive away (6 to 12 hours; the 12h cap is a 9 a.m. start to the hard stop) are listed under "Drive up the night before", staffed for tomorrow, and can't be booked the same day. "Drive up with the band" (`DriveUpForStudio`):
+
+- Drives through the ordinary road owner, then holds the act on a trip for the arrival day and the next.
+- Bills the band's motel each dawn (two to a room at the player's $9 rate) alongside the player's own.
+- On arrival the sheet lists that town's rooms as local, and `StartSession` accepts them away from home.
+- Leaving town, or letting the next day pass, sends the band home. Starting the date logs the trip and the nights.
+- Same-day rooms can be driven up to the day before as well, to start with a full day. Gas and motels are the label's costs, not studio cost, and are not recouped. Trip holds keep the band out of scouting appointments.
+
+**Backing singers.** An act needs backing when no member besides the lead sings, or has the voice to hold a harmony (backing voice ≥ .45; a hired singer needs .55 and reading .40).
+
+- `SessionEmploymentService.SingerCandidates` supplies the town's singers. The best two or three free ones form "The [leader] Singers", each paid 10 + 30 × reading.
+- A song's call for voices comes from its archetype (gospel shouts, sing-alongs, bright pop and big ballads high; blues, message songs and spoken word low), adjusted by genre (doo-wop, girl groups, soul, Nashville country and teen pop up; folk, blues and jazz down).
+- A pass's vocal changes by .09 × (call − .4) × (.5 + voice), clamped to −.02 to +.05, so a group lifts a song that calls for it and clutters one that doesn't. Feel gains 40% of any lift.
+- They can be booked on the sheet, which says song by song whether voices help. Or, after a complete pass on a song that calls for them, the producer suggests calling the group in (30-minute wait; declinable for the date).
+- Credits name the group once. Delegation never hires anyone.
+
+Save v20 adds:
+
+- Hire `Kind`/`GroupName`, validated: a backing voice replaces nobody and carries no playing lift; a replacement must replace someone.
+- Room `Renown`/`BaseRate`/`ActCutAHit`, validated within bounds.
+- Visit `RecordIds`/`Hits`, validated: peaks 1-100 and only printed records.
+- `PlayerSaveData.StudioTrip`.
+
+Older saves load with no hires of the new kinds, zero renown and no trip. Everything is player-only inside `--studio-experience=enabled`, and no AI or shared economic path changes. With no hits and no trip, room listings, staffing and rates are unchanged from slice 8.
+
+**Validation:**
+
+- Build passed with zero warnings/errors.
+- The new `StudioRoomsRunner.tscn` passed 88 / 86 assertions on seeds 1001 / 1002; a few branches depend on who is free that day. It covers: pure, RNG-free listings; overnight rooms (Atlanta → Philadelphia's specialist, 12h); the same-day refusal; the drive, gas and holds; trip save/load and damage refusal; dawn billing; a morning date with no second drive; lapse and drive-off; owner insistence, the tight-band and visited-band excuses, the creative-control lock, house fees once, the half-weight upset, reservations, house players on every take, no blame for sat-out members, credits and invalid-hire refusal; backing-call and effect ordering and bounds; pure group finding; a band with its own harmony refused; fees once; an identical-draw lift within the effect; the mid-date suggestion, decline and call-in with the wait; delegation hiring nobody; hit weight and pull; the weekly chart pass; lag; the regular's rate; chief and calendar demand; renown save/load, damage and session-room refusal; and the booking sheet's grouping, trip button and motel quote.
+- Measured renown on one top-ten hit at 20 weeks: .48. The rate went $33 → $36 for the label ($39 market). The hit act got the chief on 80 of 80 days the chief was in. Another act got the chief on 23 of 90 days (37 for an unknown room) and found the room booked solid on 17 of 90.
+- Population: 657-694 of ~940 bands and ~990 of ~1,600 singer acts need backing at the .45 bar.
+- Regressions: `StudioAccessRunner` 179/183 (updated: overnight rooms are excluded from its same-day list, and house fees count in its cash check); `StudioDateRunner --studio-breakdowns=off` 121/121; `StudioReturnVisitRunner` 35/35; legacy foundation (`--studio-experience=off`) 23; funded scouting promise 65.
+- Rendered captures inspected: `SimLogs/studio-rooms-booking-*.png`.
+
+Not done:
+
+- Specialist rooms' house players are the town's best readers, not authored named crews. A town's session community can be thin (Philadelphia had none on some days).
+- Rates respond only to the label's own records. AI labels don't book these rooms, so other labels' hits don't move them.
+- Overnight trips are one stay before a date; multi-day lockouts and late-night (Petty-style) dates are not modelled.
+- Backing singers are not offered on dates run by the producer.
+- Human playthroughs and economic calibration remain outstanding.
