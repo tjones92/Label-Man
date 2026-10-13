@@ -16,7 +16,7 @@ public static class ScoutingComparison {
     private static bool SameRoom(ScoutingObservation a, ScoutingObservation b) =>
         !string.IsNullOrEmpty(a.RoomId) && a.RoomId == b.RoomId;
 
-    private static bool SameContext(ScoutingObservation a, ScoutingObservation b) =>
+    internal static bool SameContext(ScoutingObservation a, ScoutingObservation b) =>
         SamePeople(a, b) && SameMaterial(a, b) && SameRoom(a, b);
 
     private static float? Axis(ScoutingObservation o, ScoutingQuestion question) => question switch {

@@ -82,6 +82,9 @@ public partial class PlayerDesk {
 		public float Skill;
 		public float SightReading;
 		public float Fee;
+		// A named local session player (null on older bookings, and when nobody local plays the part).
+		public string PersonId;
+		public MusicianRole Role;
 	}
 
 	/// <summary>A writing session in progress: two writers in a room, a song at the end of it.</summary>
@@ -1032,15 +1035,19 @@ public partial class PlayerDesk {
 		message = "";
 		if (a == null || replaced == null || a.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		string key = $"session|{a.artistId}|{replaced.personId}|{ChartWeekNow}";
-		PooledPerson pooled = PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.sightReading >= 0.55f)
+		// A real local player who plays the part comes first; otherwise the best reader in the pool, as before.
+		Musician local = Sings(replaced.primaryRole) ? null : StudioSessionCandidates(Label.homeCityId, replaced, a, StudioToday, 0).FirstOrDefault();
+		PooledPerson pooled = local != null ? null : PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.sightReading >= 0.55f)
 			.OrderByDescending(p => p.person.sightReading + p.person.technicalSkill).ThenBy(p => p.person.personId, StringComparer.Ordinal).FirstOrDefault();
-		float skill = pooled?.person.technicalSkill ?? Mathf.Clamp(0.62f + 0.12f * BandLife.Normal(key + "|skill"), 0.35f, 0.95f);
-		float reading = pooled?.person.sightReading ?? Mathf.Clamp(0.70f + 0.10f * BandLife.Normal(key + "|read"), 0.4f, 1f);
-		string name = pooled?.person.FullName ?? string.Join(" ", BandLifeNames.Person(true, key).First, BandLifeNames.Person(true, key).Last);
-		float fee = Mathf.Round(15f + 60f * reading);
+		Musician person = local ?? pooled?.person;
+		float skill = person?.technicalSkill ?? Mathf.Clamp(0.62f + 0.12f * BandLife.Normal(key + "|skill"), 0.35f, 0.95f);
+		float reading = person?.sightReading ?? Mathf.Clamp(0.70f + 0.10f * BandLife.Normal(key + "|read"), 0.4f, 1f);
+		string name = person?.FullName ?? string.Join(" ", BandLifeNames.Person(true, key).First, BandLifeNames.Person(true, key).Last);
+		float fee = SessionPlayerFee(reading);
 		if (Label.cashReserves < fee) { message = $"A session man who reads like that costs ${fee:N0}."; return false; }
-		sessionPlayers[a.artistId] = new SessionPlayerBooking { ArtistId = a.artistId, ReplacesPersonId = replaced.personId, Name = name, Skill = skill, SightReading = reading, Fee = fee };
-		message = $"{name} will sit in for {replaced.firstName} at the next session (${fee:N0}, paid at the date).";
+		sessionPlayers[a.artistId] = new SessionPlayerBooking { ArtistId = a.artistId, ReplacesPersonId = replaced.personId, Name = name, Skill = skill, SightReading = reading, Fee = fee,
+			PersonId = local?.personId, Role = replaced.primaryRole };
+		message = $"{name}{(local != null ? $", who plays {RoleWord(replaced.primaryRole).ToLowerInvariant()} on sessions in town," : "")} will sit in for {replaced.firstName} at the next session (${fee:N0}, paid at the date).";
 		Note($"Booked session man {name} in place of {replaced.firstName} ({a.stageName}).");
 		Changed?.Invoke();
 		return true;
@@ -1049,19 +1056,31 @@ public partial class PlayerDesk {
 	public SessionPlayerBooking SessionPlayerFor(string artistId) => artistId != null && sessionPlayers.TryGetValue(artistId, out var b) ? b : null;
 
 	/// <summary>Consumed by StartSession: the production lift the hired player brings, and the humiliation.</summary>
-	private float ConsumeSessionPlayer(SimulatedArtist a) {
+	private float ConsumeSessionPlayer(SimulatedArtist a) => ConsumeSessionPlayer(a, out _);
+	private float ConsumeSessionPlayer(SimulatedArtist a, out SessionPlayerBooking used) {
+		used = null;
 		if (a == null || !sessionPlayers.Remove(a.artistId, out SessionPlayerBooking b)) return 0f;
+		used = b;
 		Musician replaced = a.members.FirstOrDefault(m => m.personId == b.ReplacesPersonId);
-		Label.cashReserves -= b.Fee;
-		Label.monthlyExpenses += b.Fee;
-		float lift = Mathf.Clamp(0.10f * (b.Skill - (replaced?.technicalSkill ?? 0.45f)) + 0.04f * b.SightReading, 0f, 0.10f);
+		float lift = ApplySessionHire(a, replaced, b.Name, b.Skill, b.SightReading, b.Fee);
+		if (b.PersonId != null && SessionEmploymentService.ListeningCandidates(Label.homeCityId, LocalSceneRoomService.Day(StudioToday))
+			.FirstOrDefault(m => m.personId == b.PersonId) is { } person) SessionEmploymentService.OnPlayerSession(person, Label.labelId, a, b.Fee);
+		return lift;
+	}
+
+	/// <summary>Pays a session player and takes the cost to the band: the lift the player brings, and the member's
+	/// humiliation. Shared by a Band Room booking and a player called in on the day.</summary>
+	private float ApplySessionHire(SimulatedArtist a, Musician replaced, string name, float skill, float reading, float fee) {
+		Label.cashReserves -= fee;
+		Label.monthlyExpenses += fee;
+		float lift = Mathf.Clamp(0.10f * (skill - (replaced?.technicalSkill ?? 0.45f)) + 0.04f * reading, 0f, 0.10f);
 		if (replaced != null) {
 			int year = YearNow;
 			foreach (Musician x in a.members.Where(x => x.isActive && x != replaced))
 				BandLifeService.AddStrain(BandLifeService.Edge(a, replaced, x), StrainCause.Outsider, 0.12f, year);
 			a.morale = Mathf.Clamp(a.morale - 0.05f, BandLifeService.MoraleMin, BandLifeService.MoraleMax);
 			AddTrust(replaced, -0.10f);
-			Note($"{b.Name} played {replaced.firstName}'s part. {replaced.firstName} sat in the control room and watched.");
+			Note($"{name} played {replaced.firstName}'s part. {replaced.firstName} sat in the control room and watched.");
 		}
 		return lift;
 	}

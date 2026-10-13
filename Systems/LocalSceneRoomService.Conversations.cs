@@ -68,7 +68,7 @@ public static partial class LocalSceneRoomService {
             (c.LabelId == labelId || AppointmentResource(c.Activity, c.RoomId, c.LabelId) == AppointmentResource(activity, roomId, labelId))) ?? false);
 
     private static bool StudioPersonReserved(string id, int day, int start, int end) => PlayerDesk.Instance?.Session is { FlowVersion: > 0 } session &&
-        Day(session.Date) == day && session.ParticipantIds.Contains(id) && session.StartMinute < end && session.StartMinute + session.Hours * 60 > start;
+        Day(session.Date) == day && (session.ParticipantIds.Contains(id) || session.Hires.Any(h => h.PersonId == id)) && session.StartMinute < end && session.StartMinute + session.Hours * 60 > start;
 
     private static bool RehearsalRoomOccupied(string roomId, int day, int start, int end) => state?.Bills.Any(b =>
         b.RoomId == roomId && b.Day == day && b.Status != SceneBillStatus.Cancelled && b.Appearances.Any(a => a.Status != SceneBillStatus.Cancelled && a.StartHour * 60 < end && a.EndHour * 60 > start)) == true;

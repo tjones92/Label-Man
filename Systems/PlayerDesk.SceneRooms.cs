@@ -67,8 +67,8 @@ public partial class PlayerDesk {
                 Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage, room.Kind),
                 BillAttendance = resolved.Status == SceneBillStatus.Performed ? resolved.Attendance : null, BillCapacity = LocalSceneRoomService.CapacityOf(resolved),
                 BillListedActs = listedActs, BillAdmissionQuote = postedAdmission,
-                // You saw who came in for the set and who stayed only if you were there for most of it.
-                SetPresent = coverage >= .5f ? slot.Performance.Audience?.Present : null,
+                // A glance tells you how full the room looks. Arrivals and retention require a longer watch.
+                SetPresent = slot.Performance.Audience?.Present,
                 SetArrivals = coverage >= .5f ? slot.Performance.Audience?.ArrivedFor : null,
                 SetStayedShare = coverage >= .5f ? slot.Performance.Audience?.StayedShare : null,
                 SetRequests = coverage >= .5f ? slot.Performance.Audience?.Requests : null,

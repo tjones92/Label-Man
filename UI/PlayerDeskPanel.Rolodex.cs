@@ -16,6 +16,7 @@ public partial class PlayerDeskPanel {
 	private static readonly Dictionary<RolodexRole, Color> RoleInk = new() {
 		{ RolodexRole.Deejay, new Color("1b2a52") }, { RolodexRole.Manager, new Color("8f2a22") }, { RolodexRole.Publisher, new Color("5a2d4a") },
 		{ RolodexRole.Plant, new Color("4f5c2c") }, { RolodexRole.Distributor, new Color("2f5560") }, { RolodexRole.Dealer, new Color("8a5a1c") },
+		{ RolodexRole.Booker, new Color("42624a") }, { RolodexRole.Engineer, new Color("3d3d5c") },
 	};
 
 	/// <summary>Surname first, as a real book files them.</summary>
@@ -83,7 +84,7 @@ public partial class PlayerDeskPanel {
 
 	/// <summary>The divider tabs across the top of the book, one per identity function, each with how many cards it holds.</summary>
 	private void RolodexTabs(PlayerDesk desk) {
-		var row = new HBoxContainer();
+		var row = new HFlowContainer();
 		row.AddThemeConstantOverride("separation", 6);
 		foreach (RolodexRole role in Enum.GetValues<RolodexRole>()) {
 			RolodexRole captured = role;
@@ -170,7 +171,13 @@ public partial class PlayerDeskPanel {
 			var go = Btn(person.GoToLabel ?? "OPEN");
 			go.CustomMinimumSize = new Vector2(280, 38);
 			go.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
-			go.Pressed += () => OpenAtTab(tab);
+			go.Pressed += () => {
+				OpenAtTab(tab);
+				if (person.Role == RolodexRole.Booker) {
+					var room = SceneRoomCatalog.All.FirstOrDefault(r => r.ContactId == person.Key);
+					if (room != null) OpenScoutingVenue(PlayerDesk.Instance, room.Id);
+				}
+			};
 			body.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 			body.AddChild(go);
 		}

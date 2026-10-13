@@ -31,7 +31,7 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 15; // v14: unselected takes; v15: incremental dates, room snapshots and master histories
+	public const int CurrentVersion = 19; // v16: arrangements; v17: retained source-bound mono finishes; v18: song structure, part rehearsal, located reads; v19: breakdowns, named session players, travel, chief/second engineers
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -347,6 +347,7 @@ public sealed class PlayerSaveData {
     public List<RivalCourtship> RivalCourtships { get; set; }
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
+    public List<StudioVisit> StudioVisits { get; set; }
     public List<string> GeneratedProspectIds { get; set; }
     public List<SceneDiscovery> SceneDiscoveries { get; set; }
     public SceneInformationKnowledge SceneInformation { get; set; }
@@ -724,11 +725,16 @@ public sealed class PendingSessionSaveData {
 		SessionId = session.SessionId, ManualSelection = session.ManualSelection,
 		Flow = StudioSessionState.From(session),
 		Cuts = session.Cuts.Select(cut => new SessionCutSaveData {
+			Finish = cut.Finish, FinishWork = cut.FinishWork.Select(w => w.Copy()).ToList(),
 			Choice = cut.Choice, KeptTake = cut.KeptTake, Rehearsals = cut.Rehearsals, Direction = cut.Direction,
+			Arrangement = cut.Arrangement, ArrangementRevision = cut.ArrangementRevision,
+			Structure = cut.Structure, PartRehearsals = cut.Structure == null ? null : cut.PartRehearsals.ToList(),
 			Takes = cut.Takes.Select(t => new PlayerDesk.SessionTake { Number = t.Number, Hook = t.Hook, Production = t.Production,
+				TroubleSection = t.TroubleSection, ProducerDetail = t.ProducerDetail, EngineerDetail = t.EngineerDetail, Minutes = t.Minutes,
 				EngineerNote = t.EngineerNote, PerformerNote = t.PerformerNote, ProducerNote = t.ProducerNote,
 				TakeId = t.TakeId, Vocal = t.Vocal, Ensemble = t.Ensemble, Feel = t.Feel, Capture = t.Capture,
-				Direction = t.Direction, BandNote = t.BandNote }).ToList()
+				Direction = t.Direction, BandNote = t.BandNote, Arrangement = t.Arrangement, ArrangementRevision = t.ArrangementRevision,
+				Incomplete = t.Incomplete, FalseStart = t.FalseStart, FaultPersonId = t.FaultPersonId, SessionPersonIds = t.SessionPersonIds?.ToList() }).ToList()
 		}).ToList()
 	};
 
@@ -738,6 +744,9 @@ public sealed class PendingSessionSaveData {
 		Flow?.Apply(session);
 		foreach (var saved in Cuts ?? new()) {
 			if (saved?.Choice == null || saved.Takes == null || saved.Takes.Count == 0 && session.FlowVersion == 0) continue;
+			if (!Enum.IsDefined(saved.Arrangement) || saved.ArrangementRevision < 0 ||
+				saved.Takes.Any(t => t == null || !Enum.IsDefined(t.Arrangement) || t.ArrangementRevision < 0))
+				throw new InvalidOperationException("Invalid saved studio arrangement.");
 			var choice = saved.Choice;
 			// Printing marks the actual songbook object recorded, rather than a deserialized duplicate.
 			if (choice.WrittenSong != null) {
@@ -747,17 +756,53 @@ public sealed class PendingSessionSaveData {
 			}
 			var cut = new PlayerDesk.SessionCut { Choice = choice,
 				Rehearsals = saved.Rehearsals, Direction = saved.Direction,
+				Arrangement = saved.Arrangement, ArrangementRevision = saved.ArrangementRevision,
 				KeptTake = saved.Takes.Count == 0 || ManualSelection && saved.KeptTake < 0 ? -1 : Mathf.Clamp(saved.KeptTake, 0, saved.Takes.Count - 1) };
+			// A pass that fell apart is never a kept performance, and only names session players who were on the date.
+			if (cut.KeptTake >= 0 && saved.Takes[cut.KeptTake].Incomplete ||
+				saved.Takes.Any(t => t.Incomplete && (session.BreakdownVersion == 0 || !t.FalseStart && t.TroubleSection < 0) || t.FalseStart && (!t.Incomplete || t.FaultPersonId != null) ||
+					t.SessionPersonIds != null && t.SessionPersonIds.Any(id => session.Hires.All(h => h.PersonId != id))))
+				throw new InvalidOperationException("Invalid saved studio take.");
 			cut.Takes.AddRange(saved.Takes);
+			if (session.FlowVersion > 0) {
+				// v17 and earlier dates had no song structure. It is a pure derivation, so derive it now;
+				// their paid takes keep the flat pass time and gain no located reads after the fact.
+				cut.Structure = saved.Structure ?? StudioSongStructures.For(choice, ArtistManager.Instance?.GetArtist(ArtistId));
+				int parts = Enum.GetValues<StudioSectionKind>().Length;
+				if (!cut.Structure.Valid || saved.PartRehearsals != null && (saved.PartRehearsals.Count != parts || saved.PartRehearsals.Any(n => n < 0)) ||
+					saved.Takes.Any(t => t.TroubleSection < -1 || t.TroubleSection >= cut.Structure.Sections.Count || t.Minutes < 0))
+					throw new InvalidOperationException("Invalid saved song structure.");
+				if (saved.PartRehearsals != null) { cut.PartRehearsals.Clear(); cut.PartRehearsals.AddRange(saved.PartRehearsals); }
+			}
+			if (!Enum.IsDefined(saved.Finish) || (saved.FinishWork ?? new()).Any(w => w == null || !Enum.IsDefined(w.Finish) || w.Finish == StudioFinish.House ||
+				!StudioFinishValid(session, cut, w)) ||
+				(saved.FinishWork ?? new()).GroupBy(w => (w.TakeId, w.Finish)).Any(g => g.Count() > 1))
+				throw new InvalidOperationException("Invalid saved studio finish.");
+			cut.Finish = saved.Finish;
+			cut.FinishWork.AddRange((saved.FinishWork ?? new()).Select(w => w.Copy()));
+			if (cut.Finish != StudioFinish.House && PlayerDesk.SelectedStudioFinish(cut) == null)
+				throw new InvalidOperationException("The saved finish has no selected source.");
 			StudioTakeEvidence.Observe(session, cut, session.Cuts.Count, PlayerDesk.Instance?.Label?.productionQuality ?? .4f,
 				ArtistManager.Instance?.GetArtist(ArtistId)?.studioPerformance ?? .4f);
 			session.Cuts.Add(cut);
 		}
 		return session.Cuts.Count == 0 ? null : session;
 	}
+	private static bool StudioFinishValid(PlayerDesk.PendingSession session, PlayerDesk.SessionCut cut, StudioFinishWork work) =>
+		session.FlowVersion > 0 && PlayerDesk.StudioFinishes(session.Room).Contains(work.Finish) &&
+		!string.IsNullOrEmpty(work.TakeId) && cut.Takes.Any(t => t.TakeId == work.TakeId) && !string.IsNullOrEmpty(work.Note) &&
+		work.Minutes == PlayerDesk.StudioProcessingMinutes && work.ActionNumber > 0 && work.ActionNumber <= session.ActionNumber &&
+		float.IsFinite(work.HookChange) && Math.Abs(work.HookChange) <= .05f &&
+		float.IsFinite(work.ProductionChange) && Math.Abs(work.ProductionChange) <= .05f;
 }
 
 public sealed class SessionCutSaveData {
+	public StudioFinish Finish { get; set; }
+	public List<StudioFinishWork> FinishWork { get; set; } = new();
+	public StudioArrangement Arrangement { get; set; }
+	public int ArrangementRevision { get; set; }
+	public StudioSongStructure Structure { get; set; }
+	public List<int> PartRehearsals { get; set; }
 	public int Rehearsals { get; set; }
 	public StudioDirection Direction { get; set; }
 	public PlayerDesk.MaterialChoice Choice { get; set; }

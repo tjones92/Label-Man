@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 public sealed class SceneContactKnowledge {
     public string ContactId { get; set; }
+    public int? IntroducedDay { get; set; }
     public List<string> HeardBillIds { get; set; } = new();
 }
 public sealed class SceneLead {

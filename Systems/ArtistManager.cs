@@ -1410,14 +1410,14 @@ public sealed class LaborMarketWeeklySnapshot {
 	/// trip does not silently grow the population. Refuses if the act was signed (has a label) so a
 	/// signed prospect can never be pulled out from under the roster.
 	/// </summary>
-    /// <summary>Adopts an existing discovery into the authoritative pool without a birth, reroll, or activation.</summary>
-    public bool AdoptScoutingDiscovery(string artistId) {
-        if (!LocalScenes.Persisting || string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
-        LocalSceneIdentityService.EnsureArtist(artist);
-        if (IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active &&
-            !unsignedArtists.Contains(artist)) unsignedArtists.Add(artist);
-        return true;
-    }
+	/// <summary>Adopts an existing discovery into the authoritative pool without a birth, reroll, or activation.</summary>
+	public bool AdoptScoutingDiscovery(string artistId) {
+		if (!LocalScenes.Persisting || string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
+		LocalSceneIdentityService.EnsureArtist(artist);
+		if (IsEligibleUnsignedCandidate(artist) && IsProspectSearchEligible(artist) && artist.lifecycleStatus == ArtistLifecycleStatus.Active &&
+			!unsignedArtists.Contains(artist)) unsignedArtists.Add(artist);
+		return true;
+	}
 	public bool RemoveUnsignedArtist(string artistId) {
 		if (string.IsNullOrEmpty(artistId) || !artistRegistry.TryGetValue(artistId, out var artist)) return false;
 		if (!string.IsNullOrEmpty(artist.labelId) || artist.sceneParticipations?.Count > 0) return false;

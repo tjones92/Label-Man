@@ -5,7 +5,7 @@ public partial class PlayerDeskPanel {
         string warning = desk.ScoutingAppointmentRiskText(day, minute, exceptId);
         if (warning == null) return;
         Body(warning);
-        action.Text += " · PASSES APPOINTMENT START";
+        action.Text += " · !";
         action.TooltipText += "\n" + warning;
     }
 }

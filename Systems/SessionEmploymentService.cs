@@ -124,7 +124,27 @@ public static class SessionEmploymentService {
 		return crew;
 	}
 
-	private static float RegularScore(string label, string person) =>
+	/// <summary>A player session hire (the Band Room or a studio call-in): the same paid work, regular standing and
+	/// contacts an AI crew earns. The record's quality is the studio's business, not this service's.</summary>
+	public static void OnPlayerSession(Musician person, string labelId, SimulatedArtist act, float pay) {
+		if (!Enabled || person?.personId == null || labelId == null) return;
+		var date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int year = date.year, week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (week != loadWeek) { weekLoad.Clear(); loadWeek = week; }
+		weekLoad[person.personId] = weekLoad.GetValueOrDefault(person.personId) + 1;
+		string key = AccountKey(person.personId, year);
+		if (!accounts.TryGetValue(key, out var account)) accounts[key] = account = new SessionWorkAccount { PersonId = person.personId, Year = year };
+		account.Sessions++;
+		account.Pay += pay;
+		string rk = RegularKey(labelId, person.personId);
+		if (!regulars.TryGetValue(rk, out var regular)) regulars[rk] = regular = new SessionRegular { LabelId = labelId, PersonId = person.personId };
+		regular.Sessions++;
+		regular.LastYear = year;
+		foreach (Musician member in act?.members ?? new List<Musician>())
+			if (member.isActive && member.personId != person.personId) ContactNetworkService.Link(person.personId, member.personId, ContactKind.Session, year, 1, via: labelId);
+	}
+
+	public static float RegularScore(string label, string person) =>
 		regulars.TryGetValue(RegularKey(label, person), out var r) ? RegularBonus * Math.Min(1f, r.Sessions / (float)RegularSaturation) : 0f;
 
 	/// <summary>The town's session-capable people this year: members of acts based there, and pooled players based

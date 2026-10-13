@@ -31,30 +31,34 @@ public partial class PlayerDeskPanel {
             actions.AddChild(cancel); content.AddChild(actions);
         }
     }
-    private void ScoutingMeetingInvitation(PlayerDesk desk, ScoutingDossier dossier) {
-        ScoutingActivityInvitation(desk, dossier, ScoutingAppointmentActivity.Rehearsal);
-        ScoutingActivityInvitation(desk, dossier, ScoutingAppointmentActivity.Demo);
-        var invitation = desk.PreviewScoutingInvitation(dossier.ArtistId);
-        if (invitation == null) return;
-        Body($"Ask {invitation.PersonName} after the set about returning to {SceneRoomCatalog.Get(invitation.RoomId)?.Name} on " +
-            $"{LocalSceneRoomService.Date(invitation.Day).ToHeadlineString()}, {invitation.StartMinute / 60:00}:{invitation.StartMinute % 60:00}, for a record discussion. " +
-            "The time is a proposal; they may decline. Scheduling takes 15min, with no fee.");
-        var ask = Btn("ASK FOR RETURN MEETING (15min · no fee)");
-        ask.TooltipText = "Ask the actual free member you heard today. A consent response books a named speaker and a conversation slot. It does not reserve the act, grant signing consent, improve listening judgments or establish terms.";
-        ask.Pressed += () => Act(() => { bool ok = desk.ArrangeScoutingMeeting(dossier.ArtistId, invitation.Id, out string result); Say(result, ok); return ok; });
-        content.AddChild(ask);
+    private void OpenScoutingConversation(PlayerDesk desk, ScoutingDossier dossier) {
+        var modal = PaperModal.Open(this, dossier.ArtistName + " · CONVERSATION", 750);
+        WithinScouting(modal.Body, () => {
+            ScoutingText("What would you like to talk about?", 17, Ink, PaperTheme.SansBold);
+            var prospect = desk.Slate.FirstOrDefault(p => p.Artist?.artistId == dossier.ArtistId);
+            if (prospect != null) ProspectCard(prospect, showEvidence: false, beforeConversationAction: modal.Close);
+            ScoutingBusinessConversation(desk, dossier, modal.Close);
+            ScoutingMeetingInvitation(desk, dossier, modal);
+        });
+        modal.AddButton("BACK", null);
     }
-    private void ScoutingActivityInvitation(PlayerDesk desk, ScoutingDossier dossier, ScoutingAppointmentActivity activity) {
-        var quote = desk.PreviewScoutingInvitation(dossier.ArtistId, activity);
-        if (quote == null) return;
-        Body($"Propose a {activity.ToString().ToLowerInvariant()} on {LocalSceneRoomService.Date(quote.Day).ToHeadlineString()}, {quote.StartMinute / 60:00}:{quote.StartMinute % 60:00}: " +
-            $"{(activity == ScoutingAppointmentActivity.Demo ? "Home budget studio" : SceneRoomCatalog.Get(quote.RoomId)?.Name)} · {quote.ParticipantIds.Count} named participant(s), one song from the heard set, {(quote.EndMinute - quote.StartMinute) / 60}h, ${quote.Fee:0} payable at attendance. Cancellation before starting is free; consumed sessions are not refunded.");
-        Body("Proposed material: " + quote.Material.Single().Title + ". Lineup: " + string.Join(", ", quote.ParticipantIds.Select(id =>
-            ArtistManager.Instance.GetArtist(dossier.ArtistId).members.First(m => m.personId == id).FullName)) + ".");
-        var ask = Btn($"ASK FOR {activity.ToString().ToUpperInvariant()} (15min · no invitation fee)");
-        ask.TooltipText = "The existing bandleader agrees for the named lineup; every participant must remain available. No substitution, master, release, audience evidence or promise to sign. A demo uses the home budget studio console.";
-        ask.Pressed += () => Act(() => { bool ok = desk.ArrangeScoutingMeeting(dossier.ArtistId, quote.Id, out string result, activity); Say(result, ok); return ok; });
-        content.AddChild(ask);
+    private void ScoutingMeetingInvitation(PlayerDesk desk, ScoutingDossier dossier, PaperModal modal) {
+        var choices = new HFlowContainer(); content.AddChild(choices);
+        foreach (var activity in new[] { ScoutingAppointmentActivity.Rehearsal, ScoutingAppointmentActivity.Demo, ScoutingAppointmentActivity.Conversation }) {
+            var quote = desk.PreviewScoutingInvitation(dossier.ArtistId, activity);
+            string label = activity == ScoutingAppointmentActivity.Conversation ? "RETURN MEETING" : activity.ToString().ToUpperInvariant();
+            var ask = ScoutingSmallButton("ASK FOR " + label);
+            ask.Disabled = quote == null;
+            ask.TooltipText = quote == null ? "Talk after a set you've heard today, while a member is available to arrange another visit."
+                : $"Propose {LocalSceneRoomService.Date(quote.Day).ToHeadlineString()}, {quote.StartMinute / 60:00}:{quote.StartMinute % 60:00} at " +
+                  (activity == ScoutingAppointmentActivity.Demo ? "Home budget studio" : SceneRoomCatalog.Get(quote.RoomId)?.Name) +
+                  $". Asking takes 15min, with no fee. The act may decline. The visit takes {(quote.EndMinute - quote.StartMinute) / 60}h and costs ${quote.Fee:0} when you attend." +
+                  (activity == ScoutingAppointmentActivity.Conversation ? " A meeting doesn't reserve the act or commit them to a deal." :
+                  "\nSong: " + quote.Material.Single().Title + ". Players: " + string.Join(", ", quote.ParticipantIds.Select(id => ArtistManager.Instance.GetArtist(dossier.ArtistId).members.First(m => m.personId == id).FullName)) +
+                  ". Cancel before starting for free; time and fees already spent aren't refunded.");
+            ask.Pressed += () => { modal.Close(); Act(() => { bool ok = desk.ArrangeScoutingMeeting(dossier.ArtistId, quote.Id, out string result, activity); Say(result, ok); return ok; }); };
+            choices.AddChild(ask);
+        }
     }
 
 }

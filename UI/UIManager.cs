@@ -19,6 +19,8 @@ public partial class UIManager : Control
 	private SpinBox skipDaysInput;
 	private PlayerDeskPanel deskPanel;
 	private PlayerDeskPanel gameMenu;
+	private PlayerDeskPanel studioWindow;
+	private bool officeBeforeStudio, officeBeforeMenu, studioBeforeMenu;
 	private bool uiOpenBeforeMenu;
 	private Button deskButton;
 	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
@@ -701,14 +703,44 @@ public partial class UIManager : Control
 	public void OpenGameMenu() {
 		if (gameMenu?.Visible == true) return;
 		uiOpenBeforeMenu = isUIOpen;
+		officeBeforeMenu = deskPanel?.Visible == true;
+		studioBeforeMenu = studioWindow?.Visible == true;
+		if (deskPanel != null) deskPanel.Hide();
+		if (studioWindow != null) studioWindow.Hide();
 		if (gameMenu == null) {
-			gameMenu = new PlayerDeskPanel { Name = "GameMenu" };
+			gameMenu = new PlayerDeskPanel { Name = "GameMenu", ZIndex = 50 };
 			AddChild(gameMenu);
-			gameMenu.MenuClosed = () => { isUIOpen = uiOpenBeforeMenu; UpdateMainHud(); };
+			gameMenu.MenuClosed = () => {
+				if (officeBeforeMenu) deskPanel?.Open();
+				if (studioBeforeMenu) studioWindow?.Open();
+				isUIOpen = uiOpenBeforeMenu; UpdateMainHud();
+			};
 		}
 		isUIOpen = true;
 		gameMenu.OpenGameMenu();
 		UpdateMainHud();
+	}
+
+	public void OpenStudio(string artistId) {
+		if (gameMenu?.Visible == true) return;
+		if (studioWindow?.Visible != true) officeBeforeStudio = deskPanel?.Visible == true;
+		if (deskPanel != null) deskPanel.Hide();
+		if (studioWindow == null) {
+			studioWindow = new PlayerDeskPanel { Name = "StudioWindow", ZIndex = 30 };
+			AddChild(studioWindow);
+			studioWindow.StudioClosed = () => {
+				if (officeBeforeStudio) deskPanel?.Open();
+				isUIOpen = officeBeforeStudio; UpdateMainHud();
+			};
+		}
+		studioWindow.OpenStudio(artistId);
+		isUIOpen = true; UpdateMainHud();
+	}
+
+	public void OpenStudioCatalog() {
+		studioWindow?.Hide();
+		deskPanel?.OpenAtTab("CATALOG");
+		isUIOpen = true; UpdateMainHud();
 	}
 
 	// Props on the desk art that open a department. Rects are in the scene's 1920x1080 design space.
@@ -1014,6 +1046,8 @@ public partial class UIManager : Control
 	public void OnClick_CloseAll()
 	{
 		uiOpenBeforeMenu = false;
+		officeBeforeMenu = studioBeforeMenu = officeBeforeStudio = false;
+		studioWindow?.Hide();
 		if (gameMenu != null) gameMenu.Visible = false;
 		DismissMorningPaper();
 		if (ledgerPanel != null) ledgerPanel.Visible = false;

@@ -47,12 +47,12 @@ public partial class StudioFoundationRunner : Node {
             var session = desk.Session;
             Check(session.Cuts.All(c => c.KeptTake == -1 && c.Takes.Count == 2), "Manual date has paid takes and no selected default");
             office.OpenAtTab("ROSTER");
-            typeof(PlayerDeskPanel).GetField("managingArtistId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(office, artist.artistId);
-            typeof(PlayerDeskPanel).GetMethod("Refresh", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic).Invoke(office, null);
+            main.OpenStudio(artist.artistId);
+            var studio = main.GetNode<PlayerDeskPanel>("StudioWindow");
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            Check(Walk(office).OfType<Button>().Any(b => b.Text == "PRINT MASTERS" && b.Disabled), "Actual studio UI blocks printing until every side is selected");
-            Check(!Walk(office).OfType<ReadBar>().Any() && Walk(office).OfType<Label>().Any(l => l.Text.StartsWith("Engineer: ")),
+            Check(Walk(studio).OfType<Button>().Any(b => b.Text == "PRINT MASTERS" && b.Disabled), "Actual studio UI blocks printing until every side is selected");
+            Check(!Walk(studio).OfType<ReadBar>().Any() && Walk(studio).OfType<Label>().Any(l => l.Text.StartsWith("Engineer: ")),
                 "Actual studio UI displays attributed notes with no raw take bars");
             float cash = desk.Label.cashReserves; int hour = clock.CurrentHour; int masters = desk.Masters.Count;
             Check(!desk.PrintSession(out _) && desk.Session == session && desk.Masters.Count == masters, "Unselected print is refused without losing the date");

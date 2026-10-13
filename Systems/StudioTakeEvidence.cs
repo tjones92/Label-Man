@@ -25,7 +25,7 @@ public static class StudioTakeEvidence {
         foreach (var take in cut.Takes) {
             string takeKey = $"{key}|{side}|{take.Number}";
             take.ProducerNote ??= Delivery[Read(take.Hook, producerCraft, takeKey + "|producer")];
-            take.EngineerNote ??= Capture[Read(take.Production, .65f, takeKey + "|engineer")];
+            take.EngineerNote ??= Capture[Read(take.Production, PlayerDesk.StudioEngineerExpertise(session.Room), takeKey + "|engineer")];
             int feeling = Read(session.FlowVersion > 0 ? take.Vocal : take.Hook, performerCraft, takeKey + "|performer");
             take.PerformerNote ??= feeling >= 2 ? "That pass felt like we meant it." : "I think we can settle into it more.";
             if (session.FlowVersion > 0) take.BandNote ??= Read(take.Ensemble, performerCraft, takeKey + "|band") >= 2
@@ -45,7 +45,8 @@ public static class StudioTakeEvidence {
         return ((uint)hash[0] | (uint)hash[1] << 8 | (uint)hash[2] << 16 | (uint)hash[3] << 24) / (double)uint.MaxValue;
     }
 
-    public static int Choose(IReadOnlyList<PlayerDesk.SessionTake> takes) => Enumerable.Range(0, takes.Count)
+    /// <summary>The producer's pick from the attributed notes; -1 when no pass is complete (a pass that fell apart can't be kept).</summary>
+    public static int Choose(IReadOnlyList<PlayerDesk.SessionTake> takes) => Enumerable.Range(0, takes.Count).Where(i => !takes[i].Incomplete)
         .OrderByDescending(i => Array.IndexOf(Delivery, takes[i].ProducerNote))
-        .ThenByDescending(i => Array.IndexOf(Capture, takes[i].EngineerNote)).ThenBy(i => i).First();
+        .ThenByDescending(i => Array.IndexOf(Capture, takes[i].EngineerNote)).ThenBy(i => i).DefaultIfEmpty(-1).First();
 }

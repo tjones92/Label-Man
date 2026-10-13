@@ -95,7 +95,97 @@ public partial class PlayerDesk {
         Changed?.Invoke(); return true;
     }
     private static string AxisDescription(float value) => value >= .72f ? "assured in this set" : value >= .48f ? "held together, with questions" : "uneven in this set";
-    public IReadOnlyList<string> ScoutingSummary(string artistId) {
+    private static string PerformanceDescription(float value, ScoutingQuestion axis) {
+        int level = value >= .72f ? 2 : value >= .48f ? 1 : 0;
+        string[] words = axis switch {
+            ScoutingQuestion.Vocals => new[] { "The singing sounded uncertain; another listen would help you judge the voice.", "The singing carried the songs, though it wasn't consistently convincing.", "The singing sounded confident and convincing." },
+            ScoutingQuestion.Ensemble => new[] { "The playing felt uneven as a group. Hear them again to judge how well they work together.", "The group got through the set together, but the playing didn't always feel settled.", "The players sounded assured together, with a convincing sense of teamwork." },
+            ScoutingQuestion.Material => new[] { "The songs didn't make a convincing impression. Hear more of their material before deciding.", "The songs had something to offer, but you weren't sold on the material as a whole.", "The songs made a strong impression and gave the act something worth hearing." },
+            _ => new[] { "They struggled to put the performance across. Another room may give you a clearer impression.", "They put the songs across, though their stage presence wasn't consistently compelling.", "They came across confidently on stage and gave the performance a clear presence." }
+        };
+        return words[level];
+    }
+    public IReadOnlyList<string> ScoutingPlayerNotes(string artistId) {
+        var dossier = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId);
+        var last = dossier == null ? null : ScoutingComparison.Performances(dossier).LastOrDefault();
+        var read = last?.Interpretation;
+        var sessions = new Queue<ScoutingObservation>((dossier?.Observations ?? new()).Where(o => o.Kind is ScoutingEvidenceKind.DemoSample or ScoutingEvidenceKind.RehearsalSample).TakeLast(2));
+        return ScoutingSummary(artistId, false).Select(line => {
+            string Limit(ScoutingQuestion axis) {
+                var kind = SceneRoomCatalog.Get(last?.RoomId)?.Kind;
+                return kind.HasValue && SceneRoomCharacter.Masks(kind.Value, axis) is { } mask ? " Keep in mind: " + mask + "." : "";
+            }
+            if (line.StartsWith("Heard ") && last != null) {
+                var samples = ScoutingComparison.Performances(dossier);
+                int dates = samples.Select(o => o.OccurredDay).Distinct().Count();
+                return $"Listening history: {samples.Length} {(samples.Length == 1 ? "set" : "sets")} across {dates} {(dates == 1 ? "date" : "dates")}. Last heard at {last.RoomName ?? SceneRoomCatalog.Get(last.RoomId)?.Name}, {LocalSceneRoomService.Date(last.OccurredDay.Value).ToHeadlineString()}. " +
+                    (last.Coverage >= .9f ? "You heard the full set." : "You missed part of this set.");
+            }
+            if (read != null) {
+                if (line.StartsWith("Vocals:")) return "Vocals: " + (read.Vocals.HasValue ? PerformanceDescription(read.Vocals.Value, ScoutingQuestion.Vocals) + Limit(ScoutingQuestion.Vocals) : "This was an instrumental set; you haven't heard their singing.");
+                if (line.StartsWith("Ensemble / execution:")) return "Ensemble: " + PerformanceDescription(read.Execution, ScoutingQuestion.Ensemble) + Limit(ScoutingQuestion.Ensemble);
+                if (line.StartsWith("Material:")) return "Material: " + PerformanceDescription(read.Material, ScoutingQuestion.Material) + Limit(ScoutingQuestion.Material) +
+                    (read.OriginalMaterial ? last.Coverage >= .9 ? " You heard an unrecorded original; hearing more of their own songs would help." : " An original was on the bill, but you missed part of the set." : " You heard familiar songs, so their own writing is still a question.");
+                if (line.StartsWith("Stage communication:")) return "Stage presence: " + PerformanceDescription(read.Communication, ScoutingQuestion.Stage) + Limit(ScoutingQuestion.Stage);
+            }
+            if (line.StartsWith("Consistency:")) return PlayerConsistency(dossier);
+            if (line.StartsWith("Follow-up:")) return ScoutingPlayerQuestionRead(dossier);
+            if ((line.StartsWith("DemoSample:") || line.StartsWith("RehearsalSample:")) && sessions.Count > 0) {
+                var sample = sessions.Dequeue();
+                return (sample.Kind == ScoutingEvidenceKind.DemoSample ? "Demo: " : "Rehearsal: ") +
+                    LocalSceneRoomService.Date(sample.OccurredDay ?? sample.AcquiredDay).ToHeadlineString() + ". " +
+                    (sample.Interpretation is { } impression ? PerformanceDescription(impression.Execution, ScoutingQuestion.Ensemble) + " " +
+                    (impression.Vocals.HasValue ? PerformanceDescription(impression.Vocals.Value, ScoutingQuestion.Vocals) : "No lead singing was heard.") : "You kept a note of the visit, but no musical impression.") +
+                    " This was one agreed song with the players named for the visit.";
+            }
+            if (line.StartsWith("Audience:")) return "Audience: " + ScoutingAudience.RoomImpression(dossier).First();
+            if (line.StartsWith("Recording readiness:")) return "Recording: You haven't heard them on a recording yet. A demo could help you judge how they come across in the studio.";
+            if (line.StartsWith("What they want: no")) return "What they want: You haven't asked what they want from a record deal yet.";
+            if (line.StartsWith("Competition: no")) return "Competition: You haven't heard of another signing. Ask the act where things stand.";
+            if (line.StartsWith("Lineup changed")) return "Lineup: The people in the act have changed or moved on. These notes describe the players you heard then.";
+            return line;
+        }).ToArray();
+    }
+    public static string ScoutingPlayerQuestionRead(ScoutingDossier dossier) => dossier.Question == ScoutingQuestion.None ? null : PlayerConsistency(dossier, dossier.Question, "Follow-up: ");
+    private static string PlayerConsistency(ScoutingDossier dossier, ScoutingQuestion question = ScoutingQuestion.Ensemble, string prefix = "Consistency: ") {
+        float? Axis(ScoutingObservation o) => question switch {
+            ScoutingQuestion.Vocals => o.Interpretation?.Vocals, ScoutingQuestion.Material => o.Interpretation?.Material,
+            ScoutingQuestion.Stage => o.Interpretation?.Communication, _ => o.Interpretation?.Execution
+        };
+        string subject = question switch { ScoutingQuestion.Vocals => "singing", ScoutingQuestion.Material => "material", ScoutingQuestion.Stage => "stage presence", _ => "playing" };
+        var samples = ScoutingComparison.Performances(dossier);
+        if (samples.Length == 0) return prefix + "Hear a set first, then come back on another date to compare.";
+        if (samples.Select(o => o.OccurredDay).Distinct().Count() < 2)
+            return prefix + "You've heard them on one date. Come back another day to see whether this was a typical performance.";
+        var last = samples.Last();
+        var usable = samples.Where(o => o.OccurredDay < last.OccurredDay).GroupBy(o => o.OccurredDay).Select(g => g.Last())
+            .Where(o => o.Coverage >= .9f && Axis(o).HasValue).ToArray();
+        var earlier = usable.LastOrDefault(o => ScoutingComparison.SameContext(o, last)) ?? usable.LastOrDefault();
+        if (last.Coverage < .9f || (earlier == null && samples.Where(o => o.OccurredDay < last.OccurredDay).All(o => o.Coverage < .9f)))
+            return prefix + "You missed part of a set on one of your visits. Hear a full set on another date for a fair comparison.";
+        if (earlier == null || !Axis(last).HasValue) return prefix + "You don't have a clear impression of their " + subject + " on both dates yet. Listen for it next time.";
+        float difference = Axis(last).Value - Axis(earlier).Value;
+        string impression = Math.Abs(difference) <= .2f ? $"The {subject} left a similar impression on both visits." : difference > 0 ? $"The {subject} made a stronger impression on your later visit." : $"The {subject} made a weaker impression on your later visit.";
+        return prefix + impression + " " +
+            (!ScoutingComparison.SameContext(earlier, last)
+                ? "The room, players or songs changed too, so hear them again before deciding how dependable they are." : "Two visits give you a starting impression; more nights will tell you how dependable they are.");
+    }
+    public IReadOnlyList<(string Axis, string Read, string Limitation)> ScoutingListeningAxes(string artistId) {
+        var dossier = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId);
+        var last = dossier == null ? null : ScoutingComparison.Performances(dossier).LastOrDefault();
+        var read = last?.Interpretation;
+        if (read == null) return Array.Empty<(string, string, string)>();
+        var kind = SceneRoomCatalog.Get(last.RoomId)?.Kind;
+        string Limit(ScoutingQuestion axis) => kind.HasValue ? SceneRoomCharacter.Masks(kind.Value, axis) : null;
+        string Brief(float value, string low, string middle, string high) => value >= .72f ? high : value >= .48f ? middle : low;
+        return new[] {
+            ("Vocals", read.Vocals.HasValue ? Brief(read.Vocals.Value, "Uncertain singing", "Carried the songs; not always convincing", "Confident and convincing singing") : "No lead vocals heard", Limit(ScoutingQuestion.Vocals)),
+            ("Playing", Brief(read.Execution, "Uneven as a group", "Together, but not always settled", "Assured playing together"), Limit(ScoutingQuestion.Ensemble)),
+            ("Material", Brief(read.Material, "Songs didn't convince", "Something to offer; hear more songs", "Songs made a strong impression"), Limit(ScoutingQuestion.Material)),
+            ("Stage presence", Brief(read.Communication, "Struggled to put the set across", "Put the songs across; presence varied", "Confident presence on stage"), Limit(ScoutingQuestion.Stage))
+        };
+    }
+    public IReadOnlyList<string> ScoutingSummary(string artistId, bool includeOtherLeads = true) {
         var dossier = scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId);
         if (dossier == null) return new[] { "An earlier impression; no performance provenance recorded. Further listening can answer specific questions." };
         var samples = ScoutingComparison.Performances(dossier);
@@ -136,8 +226,10 @@ public partial class PlayerDesk {
         if (DirectApproachSummary(artistId) is { } approach) lines.Add(approach);
         lines.AddRange(ScoutingBusinessStatements(artistId));
         lines.Add(ScoutingCompetitionSummary(artistId));
-        if (ScoutingOtherKnownLeads(artistId) is { } alternatives) lines.Add(alternatives);
-        lines.Add(NextScoutingOpportunity(artistId));
+        if (includeOtherLeads) {
+            if (ScoutingOtherKnownLeads(artistId) is { } alternatives) lines.Add(alternatives);
+            lines.Add(NextScoutingOpportunity(artistId));
+        }
         return lines;
     }
     /// <summary>A question every room so far has hidden: which kind of room would answer it. The pinned question
