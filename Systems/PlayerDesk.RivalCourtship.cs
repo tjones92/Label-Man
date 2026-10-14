@@ -322,8 +322,8 @@ public partial class PlayerDesk {
             var room = SceneRoomCatalog.Get(c.RoomId);
             string roomName = room?.Name ?? "the room";
             Hear(c, new RivalSighting { Day = visit.AcquiredDay, Stage = RivalCourtshipStage.Inquiry, Channel = RivalSightingChannel.RoomBooker,
-                SourceId = "booker|" + c.RoomId, SourceName = room?.ContactTitle ?? $"the booker at {roomName}",
-                Text = $"{(room == null ? "The booker at " + roomName : room.ContactName + ", who books " + roomName + ",")} mentions {c.RivalLabelName} sent somebody to hear {c.ArtistName} on {LocalSceneRoomService.Date(c.InquiryDay).ToHeadlineString()}." });
+                SourceId = "booker|" + c.RoomId, SourceName = KnowsSceneBooker(c.RoomId) ? room?.ContactTitle : $"the booker at {roomName}",
+                Text = $"{(room == null || !KnowsSceneBooker(c.RoomId) ? "The booker at " + roomName : room.ContactName + ", who books " + roomName + ",")} mentions {c.RivalLabelName} sent somebody to hear {c.ArtistName} on {LocalSceneRoomService.Date(c.InquiryDay).ToHeadlineString()}." });
         }
     }
 

@@ -10,8 +10,9 @@ public partial class SimulationSeedBootstrap : Node {
 	public static ulong? RequestedSeed { get; private set; }
 
 	public override void _EnterTree() {
+		StartupProfile.Mark("bootstrap");
 		var args = OS.GetCmdlineUserArgs();
-		try { LocalScenes.Configure(args); ContactNetworkService.Configure(args); ContractPricing.Configure(args); }
+		try { LocalScenes.Configure(args); ContactNetworkService.Configure(args); ContractPricing.Configure(args); StudioExperience.Configure(args); }
 		catch (Exception ex) {
 			GD.PrintErr("LOCAL_SCENE_FLAGS_REJECTED: " + ex.Message);
 			GetTree().Quit(2);

@@ -124,7 +124,27 @@ public static class SessionEmploymentService {
 		return crew;
 	}
 
-	private static float RegularScore(string label, string person) =>
+	/// <summary>A player session hire (the Band Room or a studio call-in): the same paid work, regular standing and
+	/// contacts an AI crew earns. The record's quality is the studio's business, not this service's.</summary>
+	public static void OnPlayerSession(Musician person, string labelId, SimulatedArtist act, float pay) {
+		if (!Enabled || person?.personId == null || labelId == null) return;
+		var date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int year = date.year, week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+		if (week != loadWeek) { weekLoad.Clear(); loadWeek = week; }
+		weekLoad[person.personId] = weekLoad.GetValueOrDefault(person.personId) + 1;
+		string key = AccountKey(person.personId, year);
+		if (!accounts.TryGetValue(key, out var account)) accounts[key] = account = new SessionWorkAccount { PersonId = person.personId, Year = year };
+		account.Sessions++;
+		account.Pay += pay;
+		string rk = RegularKey(labelId, person.personId);
+		if (!regulars.TryGetValue(rk, out var regular)) regulars[rk] = regular = new SessionRegular { LabelId = labelId, PersonId = person.personId };
+		regular.Sessions++;
+		regular.LastYear = year;
+		foreach (Musician member in act?.members ?? new List<Musician>())
+			if (member.isActive && member.personId != person.personId) ContactNetworkService.Link(person.personId, member.personId, ContactKind.Session, year, 1, via: labelId);
+	}
+
+	public static float RegularScore(string label, string person) =>
 		regulars.TryGetValue(RegularKey(label, person), out var r) ? RegularBonus * Math.Min(1f, r.Sessions / (float)RegularSaturation) : 0f;
 
 	/// <summary>The town's session-capable people this year: members of acts based there, and pooled players based
@@ -158,6 +178,48 @@ public static class SessionEmploymentService {
 			Capable(p.person)).Select(p => p.person));
 		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
 	}
+	/// <summary>Singers in a town who could sing backing parts on a session: members of acts based and present there, and
+	/// pooled people, who sing and can learn a part from a sheet or by ear. Read-only, like the players' list.</summary>
+	public static IReadOnlyList<Musician> SingerCandidates(string place, int day) {
+		if (!Enabled || ArtistManager.Instance == null) return Array.Empty<Musician>();
+		var candidates = new List<Musician>();
+		foreach (string id in LocalSceneIdentityService.ArtistsBasedAt(place)) {
+			var act = ArtistManager.Instance.GetArtist(id);
+			if (act?.lifecycleStatus != ArtistLifecycleStatus.Active ||
+				!LocalScenePersistenceService.Present(act, place, day / 7) || !SceneEcosystemService.AvailableAt(id, place, day)) continue;
+			candidates.AddRange(act.members.Where(m => m.isActive && CapableSinger(m)));
+		}
+		candidates.AddRange(PersonPool.Ordered().Where(p => LocalScenePersistenceService.SceneIdFor(p.person.geography?.basePlaceId) == place &&
+			CapableSinger(p.person)).Select(p => p.person));
+		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
+	}
+	/// <summary>Horn players in a town who could play a written line on a session: members of acts based and present there,
+	/// and pooled people, who play sax or trumpet (as their part or a double) and read. Read-only, like the players' list.</summary>
+	public static IReadOnlyList<Musician> HornCandidates(string place, int day) {
+		if (!Enabled || ArtistManager.Instance == null) return Array.Empty<Musician>();
+		var candidates = new List<Musician>();
+		foreach (string id in LocalSceneIdentityService.ArtistsBasedAt(place)) {
+			var act = ArtistManager.Instance.GetArtist(id);
+			if (act?.lifecycleStatus != ArtistLifecycleStatus.Active ||
+				!LocalScenePersistenceService.Present(act, place, day / 7) || !SceneEcosystemService.AvailableAt(id, place, day)) continue;
+			candidates.AddRange(act.members.Where(m => m.isActive && CapableHorn(m)));
+		}
+		candidates.AddRange(PersonPool.Ordered().Where(p => LocalScenePersistenceService.SceneIdFor(p.person.geography?.basePlaceId) == place &&
+			CapableHorn(p.person)).Select(p => p.person));
+		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
+	}
+	/// <summary>Horns read more than rhythm players had to: a written line is the job. Provisional authored bars.</summary>
+	public const float HornSkillBar = 0.60f, HornReadingBar = 0.55f;
+	private static bool CapableHorn(Musician m) =>
+		m.lifeState == MemberLifeState.Active && m.technicalSkill >= HornSkillBar && m.sightReading >= HornReadingBar &&
+		(MemberRoleService.Plays(m, MusicianRole.Saxophone) || MemberRoleService.Plays(m, MusicianRole.Trumpet));
+	/// <summary>A backing singer needs a voice that holds a part (control counts more than power) and enough reading or
+	/// ear to learn it quickly. Provisional authored bars, below the players' because parts are taught in the room.</summary>
+	public const float SingerBar = 0.55f, SingerReadingBar = 0.40f;
+	public static float BackingVoice(Musician m) => m.axesVersion > 0 ? .35f * m.vocalPower + .65f * m.vocalControl : m.technicalSkill;
+	private static bool CapableSinger(Musician m) =>
+		m.lifeState == MemberLifeState.Active && (m.isLeadVocalist || m.primaryRole is MusicianRole.LeadVocals or MusicianRole.BackingVocals) &&
+		BackingVoice(m) >= SingerBar && m.sightReading >= SingerReadingBar;
 	private static bool Capable(Musician m) =>
 		m.lifeState == MemberLifeState.Active && m.technicalSkill >= SkillBar && m.sightReading >= ReadingBar &&
 		IsRhythmPlayer(m);

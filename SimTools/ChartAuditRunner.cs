@@ -434,6 +434,7 @@ public partial class ChartAuditRunner : Node {
 			long captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
 				CapturePolarFinalWeek(week);
+				CaptureSessionSupplyWeek(week);
 				CapturePolarCensus();
 				polarSongShadow?.ObserveCompletedWeek(ChartManager.Instance.GetCurrentChart(), ChartManager.Instance.GetCurrentChartWeek());
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
@@ -453,6 +454,7 @@ public partial class ChartAuditRunner : Node {
         WriteSceneParticipationCensus("end");
         WriteSceneRoomCensus("end");
         WriteContactNetworkCensus();
+        CloseSessionSupply();
         WriteSceneRecruitmentCensus("end");
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();

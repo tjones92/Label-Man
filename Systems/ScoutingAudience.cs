@@ -41,6 +41,26 @@ public static class ScoutingAudience {
         return false;
     }
 
+    /// <summary>A recollection of acquired observations, never today's calendar.</summary>
+    public static IReadOnlyList<string> RoomImpression(ScoutingDossier dossier) {
+        var seen = dossier?.Observations.Where(o => o.Kind == ScoutingEvidenceKind.Performance && (o.SetPresent.HasValue || Usable(o)))
+            .OrderBy(o => o.OccurredDay).ThenBy(o => o.EndMinute).LastOrDefault();
+        var lines = new List<string>();
+        string Sentence(string text) => char.ToUpperInvariant(text[0]) + text[1..] + ".";
+        if (seen != null) {
+            int? present = seen.SetPresent ?? seen.BillAttendance;
+            float? ratio = present.HasValue && seen.BillCapacity > 0 ? (float)present.Value / seen.BillCapacity : null;
+            string fullness = ratio >= .85f ? "nearly full" : ratio >= .6f ? "busy, with a few spaces left" : ratio >= .35f ? "about half full" : ratio.HasValue ? "quiet, with plenty of space" : "a crowd you didn't size up";
+            lines.Add($"{seen.RoomName ?? "The room"} was {fullness} when you watched. · {Date(seen.OccurredDay)}");
+            if (seen.SetStayedShare.HasValue) lines.Add(Sentence(Stayed(seen.SetStayedShare.Value)) + (seen.SetRequests > 0 ? " People called out for their songs." : ""));
+            if (seen.SetArrivals.HasValue) lines.Add(Sentence(Arrivals(seen.SetArrivals.Value, seen.SetPresent ?? 0)));
+        } else {
+            var report = Reports(dossier).LastOrDefault();
+            lines.Add(report == null ? "You haven't made a note of the crowd yet. Look around on your next visit." : $"{report.SourceName ?? "The booker"} described {report.RoomName ?? "the room"} as {Fullness(report)} on {Date(report.OccurredDay)}.");
+        }
+        return lines;
+    }
+
     public static string Summary(ScoutingDossier dossier) {
         var reports = Reports(dossier);
         if (reports.Length == 0) return "Audience: no usable completed whole-bill attendance evidence acquired. Ask a room's booker about a completed bill; individual draw is unknown.";

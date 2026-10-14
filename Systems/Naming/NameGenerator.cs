@@ -50,7 +50,7 @@ public partial class NameGenerator : Node {
 	// engine let those callers see Instance != null but _engine == null, so GenerateLabelName fell
 	// back to the literal "Records". Autoloads _EnterTree in listed order, and SimulationSeedBootstrap
 	// (which sets the naming seed) precedes us, so loading here is both safe and seed-stable.
-	public override void _EnterTree() { Instance = this; EnsureLoaded(); }
+	public override void _EnterTree() { Instance = this; EnsureLoaded(); StartupProfile.Mark("naming-data"); }
 
 	public override void _Ready() { EnsureLoaded(); }
 

@@ -10,5 +10,6 @@
     <Compile Remove="SimTools\NamingCoreTests\**\*.cs" />
     <!-- A checkout of another branch can be nested under tmp\; its sources are not this build's. -->
     <Compile Remove="tmp\playtest-ui-ux-fixes\**\*.cs" />
+    <Compile Remove="tmp\scouting-unsigned\**\*.cs" />
   </ItemGroup>
 </Project>

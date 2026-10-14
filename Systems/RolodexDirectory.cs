@@ -4,7 +4,7 @@ using System.Linq;
 using Godot;
 
 /// <summary>The identity function of a person in the book. Each is a tab of the Rolodex.</summary>
-public enum RolodexRole { Deejay, Manager, Publisher, Plant, Distributor, Dealer }
+public enum RolodexRole { Deejay, Manager, Publisher, Plant, Distributor, Dealer, Booker, Engineer }
 
 /// <summary>One card in the book. Deejay cards carry the playable <see cref="RolodexEntry"/>; the rest are the
 /// people behind things the player already deals with, read off real state.</summary>
@@ -51,6 +51,8 @@ public static class RolodexDirectory {
 		RolodexRole.Publisher => "PUBLISHERS",
 		RolodexRole.Plant => "PLANT",
 		RolodexRole.Distributor => "DISTRIBUTOR",
+		RolodexRole.Booker => "BOOKERS",
+		RolodexRole.Engineer => "ENGINEERS",
 		_ => "SHOPS & OPS",
 	};
 
@@ -60,6 +62,8 @@ public static class RolodexDirectory {
 		RolodexRole.Publisher => "The publishers have not been catalogued yet.",
 		RolodexRole.Plant => "You have no label to press for.",
 		RolodexRole.Distributor => "You have no distribution deal. Nobody is carrying your records but you.",
+		RolodexRole.Booker => "No venue bookers met yet. Visit a venue during its posted hours and introduce yourself.",
+		RolodexRole.Engineer => "You have not worked a studio date yet. The engineers you record with are filed here.",
 		_ => "No shop or jukebox operator has taken a record from you yet. Get out of the office and work a town.",
 	};
 
@@ -71,9 +75,35 @@ public static class RolodexDirectory {
 			case RolodexRole.Plant: return Plant(desk);
 			case RolodexRole.Distributor: return Distributor(desk);
 			case RolodexRole.Dealer: return Dealers(desk);
+			case RolodexRole.Booker: return desk.IntroducedSceneBookers.Select(room => {
+				var card = new DirectoryCard { Role = role, Key = room.ContactId, Name = room.ContactName, Title = "Venue booker",
+					Firm = room.Name, Place = ScenePlaceRegistry.Get(room.PlaceId)?.Name, Figure = Portraits.Businessman(room.ContactId),
+					GoToTab = "A&R", GoToLabel = "VENUE & CALENDAR", };
+				card.Facts.Add((SceneRoomCharacter.BookerRemit(room), false));
+				card.Facts.Add(($"Available at the venue: {room.OpenHour:00}:00–{room.CloseHour:00}:00. Ask in person for listening tips and booking history.", false));
+				return card;
+			}).ToList();
+			case RolodexRole.Engineer: return Engineers(desk);
 			default: return new List<DirectoryCard>();
 		}
 	}
+
+	/// <summary>Recording engineers the label has worked a date with, read off the remembered studio visits.</summary>
+	private static List<DirectoryCard> Engineers(PlayerDesk desk) =>
+		desk.StudioVisits.GroupBy(v => v.EngineerId).Select(group => {
+			var visits = group.OrderByDescending(v => v.Date.year * 10000 + v.Date.month * 100 + v.Date.day).ToList();
+			var last = visits[0];
+			var card = new DirectoryCard { Role = RolodexRole.Engineer, Key = group.Key, Name = last.EngineerName,
+				Title = group.Key.EndsWith("|relief", StringComparison.Ordinal) ? "Relief engineer" : group.Key.EndsWith("|second", StringComparison.Ordinal) ? "Second engineer" : "Chief engineer",
+				// The room they're on the staff of, which is not always the room of the last date: a guest engineer is still theirs.
+				Firm = StudioRoomCatalog.ById(StudioPeople.HomeRoomId(group.Key), out _)?.Name ?? last.RoomName, Place = DistanceModel.GetCityById(last.CityId)?.name, Figure = Portraits.Businessman(group.Key),
+				GoToTab = "ROSTER", GoToLabel = "TAKE AN ACT INTO THE STUDIO" };
+			var acts = visits.Select(v => ArtistManager.Instance?.GetArtist(v.ArtistId)?.stageName ?? "an act no longer on file").Distinct().ToList();
+			card.Facts.Add(($"{visits.Count} date(s) together, last on {last.Date.ToHeadlineString()}: {string.Join(", ", acts)}.", false));
+			card.Facts.Add(($"{visits.Sum(v => v.Passes)} passes; {visits.Count(v => v.Printed)} date(s) printed, {visits.Count(v => !v.Printed)} abandoned.", visits.Any(v => !v.Printed)));
+			card.Facts.Add(("Ask for this engineer by name when booking the room, or bring them in to another room in town on a quiet day at their own: the same act gets a quicker setup and a closer read of the tape.", false));
+			return card;
+		}).ToList();
 
 	public static int Count(PlayerDesk desk, RolodexRole role) =>
 		role == RolodexRole.Deejay ? desk?.Rolodex.Count ?? 0 : Cards(desk, role).Count;

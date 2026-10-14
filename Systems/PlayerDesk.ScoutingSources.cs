@@ -124,6 +124,7 @@ public partial class PlayerDesk {
             AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, Credibility = "local booking record; limited to this room", Claim = answer.Claim,
             BillAttendance = answer.BillAttendance, BillCapacity = answer.BillCapacity, BillListedActs = answer.BillListedActs,
             SetArrivals = answer.DrawArrivals, SetStayedShare = answer.DrawStayed, DrawNights = answer.DrawNights });
+        RememberBookerIntroduction(room);
         message = answer.SourceName + ": " + answer.Claim; Note(message); Changed?.Invoke(); return true;
     }
 }

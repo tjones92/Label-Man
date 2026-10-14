@@ -32,7 +32,15 @@ public partial class TimeManager : Node {
 	/// <summary>Minutes from now to the end of the day including overtime. The real budget a sub-hour
 	/// action is checked against.</summary>
 	public int MinutesRemainingWithOvertime =>
-		Mathf.Max(0, HardStopHour * 60 - (currentHour * 60 + currentMinute));
+		Mathf.Max(0, DayStopMinute - (currentHour * 60 + currentMinute));
+	/// <summary>Asked for a later stop than the hard stop, in minutes from today's midnight, or 0. Only a booked
+	/// late-night studio date answers, so the clock can run past midnight for it (24:00 and on stay the same
+	/// calendar day until the day is ended) and for nothing else.</summary>
+	public Func<int> LateStopProbe;
+	/// <summary>Where today's clock stops: the hard stop, or later while a late-night date holds the room.</summary>
+	public int DayStopMinute => Mathf.Max(HardStopHour * 60, LateStopProbe?.Invoke() ?? 0);
+	/// <summary>Hours slept before the next working day after a night that ran past midnight.</summary>
+	public const int SleepHoursAfterLateNight = 8;
 	public int RegularMinutesRemaining =>
 		Mathf.Max(0, workDayEndHour * 60 - (currentHour * 60 + currentMinute));
 	public int HoursRemaining => RegularMinutesRemaining / 60;
@@ -41,7 +49,7 @@ public partial class TimeManager : Node {
 	public string OvertimeRemainingText => FormatDuration(Mathf.Max(0, MinutesRemainingWithOvertime - RegularMinutesRemaining));
 	public bool IsWorkDay => !currentDate.IsWeekend;
 	public bool IsOvertime => currentHour >= workDayEndHour;
-	public bool IsDayOver => currentHour >= workDayEndHour + maxOvertimeHours;
+	public bool IsDayOver => currentHour * 60 + currentMinute >= DayStopMinute;
 	public bool IsFriday => currentDate.IsFriday;
 	public bool IsGameOver => currentDate > GameDate.EndDate;
 
@@ -164,9 +172,12 @@ public partial class TimeManager : Node {
 		int previousMonth = currentDate.month;
 		int previousYear = currentDate.year;
 
+		// A night that ran past midnight is slept off: the next day starts after a night's sleep, not at nine.
+		int ended = currentHour * 60 + currentMinute;
+		int wake = Mathf.Max(workDayStartHour * 60, ended - 24 * 60 + SleepHoursAfterLateNight * 60);
 		currentDate = currentDate.NextDay();
-		currentHour = workDayStartHour;
-		currentMinute = 0;
+		currentHour = wake / 60;
+		currentMinute = wake % 60;
 
 		if (currentDate.month != previousMonth) OnMonthChanged?.Invoke(currentDate);
 		if (currentDate.year != previousYear) OnYearChanged?.Invoke(currentDate);
@@ -294,15 +305,18 @@ public partial class TimeManager : Node {
 		return (int)(toDt - fromDt).TotalDays;
 	}
 
+	// Hours past midnight (24 and on, during a late-night date) read as the small hours of the morning.
 	public string GetTimeString() {
-		int displayHour = currentHour > 12 ? currentHour - 12 : currentHour;
+		int hour = currentHour % 24;
+		int displayHour = hour > 12 ? hour - 12 : hour;
 		if (displayHour == 0) displayHour = 12;
-		string ampm = currentHour >= 12 ? "PM" : "AM";
+		string ampm = hour >= 12 ? "PM" : "AM";
 		return $"{displayHour}:{currentMinute:D2} {ampm}";
 	}
 
 	private static string FormatHour(int hour) {
-		int displayHour = hour > 12 ? hour - 12 : hour;
+		hour %= 24;
+		int displayHour = hour > 12 ? hour - 12 : hour == 0 ? 12 : hour;
 		string ampm = hour >= 12 ? "PM" : "AM";
 		return $"{displayHour}:00 {ampm}";
 	}

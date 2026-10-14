@@ -361,6 +361,7 @@ public partial class ChartManager : Node {
 	}
 
 	public override void _Ready() {
+		StartupProfile.Mark("autoloads-ready");
 		if (TimeManager.Instance != null) {
 			TimeManager.Instance.OnWeekEnded += OnWeekEnded;
 			TimeManager.Instance.OnYearChanged += OnYearChanged;
@@ -378,16 +379,19 @@ public partial class ChartManager : Node {
 		}
 
 		// 2. Generate labels
+		StartupProfile.Mark("artist-pool");
 		GD.Print("=== INITIALIZATION STEP 2: Labels ===");
 		GenerateAILabelsIfNeeded();
 		GD.Print($"Labels generated: {aiLabels?.Count ?? 0}");
 
 		// 3. Populate rosters
+		StartupProfile.Mark("labels");
 		GD.Print("=== INITIALIZATION STEP 3: Rosters ===");
 		if (RosterManager.Instance != null && aiLabels != null) {
 			RosterManager.Instance.InitializeAllRosters(aiLabels, year);
 			int totalSigned = aiLabels.Sum(l => l.CurrentRosterSize);
 			GD.Print($"Total artists signed to labels: {totalSigned}");
+			StartupProfile.Mark("rosters");
 			// The enabled lifecycle needs a real unsigned talent market, but that
 			// reserve must not inflate or reorder the frozen 3,000-artist launch
 			// roster allocation. Generate it afterward on the isolated population
@@ -398,6 +402,7 @@ public partial class ChartManager : Node {
 		}
 
 		// 4. Initialize competitor manager
+		StartupProfile.Mark("rosters-and-unsigned-reserve");
 		GD.Print("=== INITIALIZATION STEP 4: Competitor Manager ===");
 		if (CompetitorManager.Instance != null && aiLabels != null) {
 			CompetitorManager.Instance.Initialize(aiLabels);
@@ -410,6 +415,7 @@ public partial class ChartManager : Node {
 		}
 
 		// 5. Initialize regions
+		StartupProfile.Mark("competitors");
 		InitializeRegions();
 
 		// 6. Set zeitgeist
@@ -422,9 +428,11 @@ public partial class ChartManager : Node {
 		stationNetwork.LogProjectedMix(allRegions);
 
 		// 7. Pre-warm
+		StartupProfile.Mark("regions-and-radio");
 		GD.Print("=== INITIALIZATION STEP 5: Pre-warm ===");
 		GD.Print($"Records before prewarm: {allRecords.Count}");
 		PrewarmSimulation();
+		StartupProfile.Mark("chart-prewarm");
 		GD.Print($"Records after prewarm: {allRecords.Count}");
 		GD.Print($"Chart size: {currentChart.Count}");
 
@@ -433,7 +441,9 @@ public partial class ChartManager : Node {
 		GameDate start = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		chartWeekEndingDate = start.AddDays(start.DaysUntil(System.DayOfWeek.Saturday));
         LocalSceneRoomService.Prewarm(start);
+		StartupProfile.Mark("room-prewarm");
         LocalSceneRoomService.EnsureCalendar(start);
+		StartupProfile.Mark("room-calendar");
 	}
 
 	public override void _ExitTree() {

@@ -8,6 +8,8 @@ public partial class RosterManager {
     internal readonly List<SceneInitializationAppointment> SceneInitializationAppointments = new();
     internal sealed record SceneInitializationAppointment(int Round, string LabelId, string ArtistId, int SlateSize, float TrueQuality, float PerceivedQuality);
     private int sceneInitializationRound;
+    private Dictionary<string, SimulatedArtist[]> initialAccessible;
+    private HashSet<string> initialUnsigned;
     internal readonly Dictionary<string, SceneInitializationObservation> SceneInitialization = new(StringComparer.Ordinal);
     internal sealed record SceneInitializationObservation(int Target, int Filled, int AccessiblePreferred,
         int AccessibleSecondary, int AccessibleAny, float MeanQuality, int StrongActs);
@@ -31,6 +33,10 @@ public partial class RosterManager {
         var accessible = supply.DistinctBy(a => a.artistId)
             .Where(a => SceneRecruitmentService.CanAccess(label, a, 0))
             .OrderBy(a => a.artistId, StringComparer.Ordinal).ToList();
+        return InitialStylePool(label, accessible);
+    }
+
+    private static List<SimulatedArtist> InitialStylePool(AILabel label, List<SimulatedArtist> accessible) {
         var preferred = accessible.Where(a => MatchesInitialStyle(label.preferredGenres, a)).ToList();
         if (preferred.Count > 0) return preferred;
         var secondary = accessible.Where(a => MatchesInitialStyle(label.secondaryGenres, a)).ToList();
@@ -50,6 +56,15 @@ public partial class RosterManager {
     }
 
     private void InitializeSceneRosters(List<AILabel> labels, int year) {
+        if (StartupCaches.Enabled) {
+            initialAccessible = new(StringComparer.Ordinal);
+            initialUnsigned = ArtistManager.Instance.GetLaunchRosterCandidates().Select(a => a.artistId).ToHashSet(StringComparer.Ordinal);
+        }
+        try { InitializeSceneRostersCore(labels, year); }
+        finally { initialAccessible = null; initialUnsigned = null; }
+    }
+
+    private void InitializeSceneRostersCore(List<AILabel> labels, int year) {
         SceneInitialization.Clear();
         SceneInitializationAppointments.Clear();
         var targets = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -65,6 +80,7 @@ public partial class RosterManager {
                 var artist = FindArtistForLabel(label, year);
                 if (artist == null) { remaining.Remove(label); continue; }
                 InitialSignArtist(label, artist, year);
+                if (artist.labelId == label.labelId) initialUnsigned?.Remove(artist.artistId);
                 if (label.CurrentRosterSize >= targets[label.labelId]) remaining.Remove(label);
             }
         }
@@ -86,8 +102,17 @@ public partial class RosterManager {
     }
 
     private SimulatedArtist FindSceneInitialArtist(AILabel label) {
-        var pool = SceneInitialPool(label, ArtistManager.Instance.GetLaunchRosterCandidates()
-            .Where(a => !IsHeldForPlayer(a.artistId)));
+        List<SimulatedArtist> pool;
+        if (initialAccessible != null) {
+            // Access, geography and style do not change during launch allocation. Only unsigned membership does.
+            if (!initialAccessible.TryGetValue(label.labelId, out var accessible)) {
+                accessible = ArtistManager.Instance.GetLaunchRosterCandidates().DistinctBy(a => a.artistId)
+                    .Where(a => SceneRecruitmentService.CanAccess(label, a, 0))
+                    .OrderBy(a => a.artistId, StringComparer.Ordinal).ToArray();
+                initialAccessible.Add(label.labelId, accessible);
+            }
+            pool = InitialStylePool(label, accessible.Where(a => initialUnsigned.Contains(a.artistId) && !IsHeldForPlayer(a.artistId)).ToList());
+        } else pool = SceneInitialPool(label, ArtistManager.Instance.GetLaunchRosterCandidates().Where(a => !IsHeldForPlayer(a.artistId)));
         // A stable prelaunch read, not a new read on every round. Replace signed slate members
         // from the remaining real pool; repeated queries cannot reroll perception.
         var slate = SceneRecruitmentService.Slate(label, pool, 0, -1,

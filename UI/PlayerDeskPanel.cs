@@ -17,7 +17,12 @@ public partial class PlayerDeskPanel : Control {
 	private Label titleLabel, stockLabel, statusLabel;
 	private RichTextLabel clockLabel;   // BBCode: the whole block is bold and the cash figure carries its own colour
 	private LabelCrest titleCrest;
-	private Button redInkLabel, saveLoadButton;
+	private Button redInkLabel;
+	public Action MenuClosed;
+	public Action StudioClosed;
+	private bool studioMode;
+	private string studioArtistId;
+	private int studioSide;
 	private Button nextUpLabel;
 	private Label feedbackToastText, feedbackToastBadge;
 	private PanelContainer feedbackToast;
@@ -115,8 +120,22 @@ public partial class PlayerDeskPanel : Control {
 
 	public void ClosePanel() {
 		Visible = false;
+		if (browsingSaves && MenuClosed != null) { MenuClosed(); return; }
+		if (studioMode && StudioClosed != null) { StudioClosed(); return; }
 		if (UIManager.Instance != null) UIManager.Instance.isUIOpen = false;
 		UIManager.Instance?.RefreshMainHud();
+	}
+
+	public void OpenGameMenu() {
+		browsingSaves = true;
+		Open();
+	}
+
+	public void OpenStudio(string artistId) {
+		studioMode = true; browsingSaves = false;
+		if (studioArtistId != artistId) { studioSide = 0; studioSongs.Clear(); studioCompare = studioReview = false; studioOpenTakes.Clear(); }
+		studioArtistId = artistId;
+		Open();
 	}
 
 	// ========================================================================
@@ -124,6 +143,7 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void BuildUi() {
+		Theme = PaperTheme.Build();
 		SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
 		MouseFilter = MouseFilterEnum.Stop;
 
@@ -158,10 +178,6 @@ public partial class PlayerDeskPanel : Control {
 		titleLabel.AddThemeFontOverride("font", PaperTheme.SansBold);
 		titleLabel.AddThemeColorOverride("font_color", Ink);   // was the default near-white on manila (~1.8:1)
 		header.AddChild(titleLabel);
-		var saveLoad = Btn("SAVE / LOAD");
-		saveLoadButton = saveLoad;
-		saveLoad.Pressed += () => { browsingSaves = true; Refresh(); };
-		header.AddChild(saveLoad);
 
 		var close = Btn("CLOSE  ×");
 		close.Pressed += ClosePanel;
@@ -370,10 +386,10 @@ public partial class PlayerDeskPanel : Control {
 		bool inGame = desk.HasLabel && !desk.IsGameOver && !browsingSaves;
 		stockLabel.Visible = nextUpLabel.Visible = inGame;
 		if (!inGame) redInkLabel.Visible = false;
-		saveLoadButton.Visible = !browsingSaves;   // already on that page
 
 		if (browsingSaves) {
-			titleLabel.Text = "SAVE / LOAD";
+			tabs.Hide();
+			titleLabel.Text = "GAME MENU  •  ESC";
 			clockLabel.Text = time == null ? "" : $"{time.CurrentDate.ToLongString()}  •  {time.GetTimeString()}";
 			if (idleRow != null) idleRow.Visible = false;
 			foreach (Node child in tabs.GetChildren()) child.QueueFree();
@@ -405,7 +421,13 @@ public partial class PlayerDeskPanel : Control {
 			PageGameOver(desk);
 			return;
 		}
-		if (idleRow != null) idleRow.Visible = true;
+		if (studioMode) {
+			tabs.Hide(); idleRow.Hide(); stockLabel.Hide(); nextUpLabel.Hide(); redInkLabel.Hide();
+			titleLabel.Text = "THE STUDIO";
+			clockLabel.Text = $"{time?.CurrentDate.ToHeadlineString()}  •  {time?.GetTimeString()}  •  {CashMarkup(desk.Label.cashReserves)} cash";
+			Clear(content); RenderStudioWindow(desk); return;
+		}
+		if (idleRow != null) idleRow.Visible = !desk.InStudio;
 		// The idle row is built once, so the evening button has to be re-read from the clock every refresh.
 		if (waitEveningButton != null) {
 			bool eveningStarted = (time?.CurrentHour ?? 9) >= 17;
@@ -415,6 +437,7 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		if (tabButtons.Count == 0) { BuildTabs(); currentTab = 0; currentPage = PageAandR; }
+		tabs.Visible = true;
 		for (int index = 0; index < tabButtons.Count; index++)
 			StyleFolderTab(tabButtons[index], index == currentTab);
 		UpdateTabBadges(desk);
@@ -595,6 +618,7 @@ public partial class PlayerDeskPanel : Control {
 	private void OpenNextUp() {
 		PlayerDesk desk = PlayerDesk.Instance;
 		if (desk == null) return;
+		if (desk.Session != null) { UIManager.Instance?.OpenStudio(desk.Session.ArtistId); return; }
 		switch (NextUpStep(desk).Tab) {
 			case 0: GoToTab(0, PageAandR); break;
 			case 1: GoToTab(1, PageRoster); break;
@@ -721,7 +745,7 @@ public partial class PlayerDeskPanel : Control {
 			PaperModal.StylePrimary(cont, Rust);
 			cont.Pressed += () => { bool ok = SaveGameService.Load(lastSlot, out string message); Say(message, ok); Refresh(); };
 			content.AddChild(cont);
-			Body("Or start a new label below, or open SAVE / LOAD to pick another save.");
+			Body("Or start a new label below. Press Esc to save, load another game, or exit.");
 		}
 
 		Heading("WHO WERE YOU BEFORE THIS?");
@@ -934,10 +958,18 @@ public partial class PlayerDeskPanel : Control {
 	// ========================================================================
 
 	private void PageSaves(PlayerDesk desk) {
-		var back = Btn("‹ BACK");
+		var back = Btn("RESUME  •  ESC");
 		back.CustomMinimumSize = new Vector2(160, 36);
-		back.Pressed += () => { browsingSaves = false; Refresh(); };
+		back.Pressed += ClosePanel;
 		content.AddChild(back);
+		var exit = Btn("EXIT GAME");
+		exit.Pressed += () => {
+			var confirm = PaperModal.Open(this, "EXIT GAME?", 540);
+			confirm.AddText("Exit to the desktop? Progress since your last save will be lost.");
+			confirm.AddButton("STAY HERE", null);
+			confirm.AddButton("EXIT GAME", () => GetTree().Quit(), PaperModal.ButtonKind.Danger);
+		};
+		content.AddChild(exit);
 
 		Heading("SAVE");
 		if (desk.HasLabel && !desk.IsGameOver) {
@@ -995,7 +1027,10 @@ public partial class PlayerDeskPanel : Control {
 			string slot = info.Slot;
 			var load = Btn("LOAD");
 			load.CustomMinimumSize = new Vector2(120, 36);
-			load.Pressed += () => { bool ok = SaveGameService.Load(slot, out string message); Say(message, ok); browsingSaves = false; Refresh(); };
+			load.Pressed += () => {
+				bool ok = SaveGameService.Load(slot, out string message); Say(message, ok);
+				if (ok) { UIManager.Instance?.OnClick_CloseAll(); ClosePanel(); } else Refresh();
+			};
 			row.AddChild(load);
 			var del = Btn("DELETE");
 			del.CustomMinimumSize = new Vector2(120, 36);
@@ -1033,7 +1068,7 @@ public partial class PlayerDeskPanel : Control {
 		buttons.AddThemeConstantOverride("separation", 12);
 		var load = Btn("LOAD A SAVE");
 		load.CustomMinimumSize = new Vector2(220, 44);
-		load.Pressed += () => { browsingSaves = true; Refresh(); };
+		load.Pressed += () => UIManager.Instance?.OpenGameMenu();
 		buttons.AddChild(load);
 		var close = Btn("CLOSE DESK");
 		close.CustomMinimumSize = new Vector2(160, 44);
@@ -1106,8 +1141,16 @@ public partial class PlayerDeskPanel : Control {
 		negotiating = null;
 
 		Heading("A&R — WORK THE SCENE");
+		var scoutingTabs = new HFlowContainer();
+		foreach (string view in new[] { "FIND A SET", "ACT NOTEBOOK" }) {
+			var tab = Btn(view); tab.Disabled = scoutingView == view;
+			tab.Pressed += () => { scoutingView = view; Refresh(); };
+			scoutingTabs.AddChild(tab);
+		}
+		content.AddChild(scoutingTabs);
+		if (scoutingView == "ACT NOTEBOOK") { ScoutingActsPage(desk); return; }
 		Body(LocalScenes.Rooms
-            ? "Choose a room and an announced set. Listening time and admission are shown before you go. Your ear shapes the impression; judging the act is your decision."
+            ? "Find a set to hear, or explore a venue's calendar."
             : $"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only draws a crowd at its own hours. Your ear shapes the impression; judging the act is your decision.");
 		if (LocalScenes.Rooms) SceneRoomsBoard(desk);
         else {
@@ -1146,7 +1189,7 @@ public partial class PlayerDeskPanel : Control {
 			? $"This room is open until {Hour12(selectedClose)}."
 			: currentHour < selectedOpen ? $"This room opens at {Hour12(selectedOpen)}." : $"This room has closed for tonight; it opens at {Hour12(selectedOpen)}.";
 		scout.CustomMinimumSize = new Vector2(220, 40);
-		scout.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.ScoutVenue(selectedVenue, out string message); Say(message, ok); return ok; });
+		scout.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.ScoutVenue(selectedVenue, out string message); if (ok) scoutingView = "ACT NOTEBOOK"; Say(message, ok); return ok; });
 		var venueRow = new HBoxContainer();
 		venueRow.AddThemeConstantOverride("separation", 14);
 		var venueNote = new Label {
@@ -1160,15 +1203,18 @@ public partial class PlayerDeskPanel : Control {
 		venueRow.AddChild(scout);
 		content.AddChild(venueRow);
         }
+	}
 
-		if (desk.Slate.Count == 0) Body("No acts on the pad. Go hear somebody, or bring a notebook entry back without another scouting trip.");
+	private string scoutingView = "FIND A SET";
+	private void ScoutingActsPage(PlayerDesk desk) {
+		ScoutingMeetingAgenda(desk);
+		if (desk.Slate.Count == 0 && desk.ScoutingDossiers.Count == 0) Body("Hear a set to start your notebook. Every act you hear is saved here automatically.");
 		else {
-			Heading($"CAUGHT {desk.SlateDate.ToHeadlineString()}  —  {SceneRoomCatalog.Get(desk.Slate[0].SceneRoomId)?.Name ?? PlayerDesk.VenueName(desk.Slate[0].Venue)}");
-			foreach (PlayerDesk.Prospect prospect in desk.Slate.ToList()) ProspectCard(prospect);
+			foreach (PlayerDesk.Prospect prospect in desk.Slate.ToList())
+				if (!desk.ScoutingDossiers.Any(d => d.ArtistId == prospect.Artist.artistId)) ProspectCard(prospect);
 		}
 
 		Heading($"A&R NOTEBOOK  ({desk.ScoutingDossiers.Count} recorded acts)");
-		if (desk.Notebook.Count == 0) Body("Keep an eye on an act you cannot sign yet.");
 		ScoutingNotebook(desk);
 		foreach (PlayerDesk.WatchNote entry in desk.Notebook.ToList()) {
             if (desk.ScoutingDossiers.Any(d => d.ArtistId == entry.Artist?.artistId)) continue;
@@ -1217,19 +1263,19 @@ public partial class PlayerDeskPanel : Control {
 	}
 
     /// <summary>A heard act's evidence and next actions; ordinary cards expose no scalar verdict.</summary>
-    private void ProspectCard(PlayerDesk.Prospect prospect) {
+    private void ProspectCard(PlayerDesk.Prospect prospect, bool showEvidence = true, Action beforeConversationAction = null) {
         var desk = PlayerDesk.Instance;
-        Heading(prospect.Artist.stageName.ToUpperInvariant());
+        if (showEvidence) Heading(prospect.Artist.stageName.ToUpperInvariant());
         Body(GenreNameFormatter.Format(prospect.Artist.primaryGenre) + " · " + PlayerDesk.SceneDealDescription(prospect));
-        foreach (string line in desk.ScoutingSummary(prospect.Artist.artistId)) Body(line);
-        foreach (var song in prospect.LiveSet.Take(prospect.HeardCount)) Body($"    ♪ {song.Title} ({song.SourceTag})");
+        if (showEvidence) foreach (string line in desk.ScoutingSummary(prospect.Artist.artistId)) Body(line);
+        if (showEvidence) foreach (var song in prospect.LiveSet.Take(prospect.HeardCount)) Body($"    ♪ {song.Title} ({song.SourceTag})");
         var row = new HFlowContainer();
-        if (prospect.SceneRoomId != null) {
+        if (prospect.SceneRoomId != null && showEvidence) {
             var follow = Btn("HEAR ANOTHER ANNOUNCED SET");
             follow.Pressed += () => Act(() => { bool ok = desk.FollowUp(prospect, out string result); Say(result, ok); return ok; }); row.AddChild(follow);
             var booker = Btn("ASK ABOUT THIS ROOM'S BOOKING HISTORY (1h)");
             booker.Pressed += () => Act(() => { bool ok = desk.AskScoutingBooker(prospect.SceneRoomId, prospect.Artist.artistId, true, out string result); Say(result, ok); return ok; }); row.AddChild(booker);
-        } else if (!prospect.FollowedUp) {
+        } else if (prospect.SceneRoomId == null && !prospect.FollowedUp) {
             var follow = Btn($"FOLLOW UP ({PlayerDesk.FollowUpHours}h)");
             follow.Pressed += () => Act(() => { bool ok = desk.FollowUp(prospect, out string result); Say(result, ok); return ok; }); row.AddChild(follow);
         }
@@ -1238,7 +1284,7 @@ public partial class PlayerDeskPanel : Control {
         approach.Disabled = !askFirst && (!PlayerDesk.SceneDealAvailable(prospect) || (!prospect.FollowedUp && !desk.HasScoutingEvidence(prospect.Artist.artistId)));
         approach.TooltipText = askFirst ? "They aren't looking for a record deal. Their side may think it over and answer within about a week, or say no for this season. No money or time spent."
             : PlayerDesk.SceneDealDescription(prospect);
-        approach.Pressed += () => { bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
+        approach.Pressed += () => { beforeConversationAction?.Invoke(); bool ok = desk.ApproachToSign(prospect, out string result); if (ok) negotiating = prospect; Say(result, ok); Refresh(); };
         row.AddChild(approach); content.AddChild(row);
     }
 
@@ -1650,7 +1696,7 @@ public partial class PlayerDeskPanel : Control {
 
 		Heading("ROSTER");
 		if (!desk.Roster.Any()) { Body("Nobody signed yet. Go find an act on the A&R page."); return; }
-		Body("Click an act to manage them — their songbook, teaching covers, and cutting records all live in there.");
+		Body("Manage an act's songbook, or take them into the studio to make a record.");
 
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
@@ -1692,6 +1738,9 @@ public partial class PlayerDeskPanel : Control {
 			var manage = Btn("MANAGE");
 			manage.Pressed += () => { managingArtistId = captured.artistId; browsingCovers = false; Refresh(); };
 			sleeve.AddVerb(manage);
+			var studio = Btn(desk.Session?.ArtistId == artist.artistId ? "RETURN TO STUDIO" : "TAKE INTO STUDIO");
+			studio.Pressed += () => UIManager.Instance?.OpenStudio(captured.artistId);
+			sleeve.AddVerb(studio);
 			var dossier = Btn("DOSSIER");
 			dossier.Pressed += () => UIManager.Instance?.OpenArtist(captured.artistId, true);
 			sleeve.AddVerb(dossier);
@@ -1748,7 +1797,9 @@ public partial class PlayerDeskPanel : Control {
 		}
 
 		RepertoireSection(desk, artist);
-		StudioSection(desk, artist);
+		var studio = Primary(desk.Session?.ArtistId == artist.artistId ? "RETURN TO STUDIO" : "TAKE INTO STUDIO");
+		studio.Pressed += () => UIManager.Instance?.OpenStudio(artist.artistId);
+		content.AddChild(studio);
 	}
 
 	private void RepertoireSection(PlayerDesk desk, SimulatedArtist artist) {
@@ -1871,141 +1922,9 @@ public partial class PlayerDeskPanel : Control {
 		}
 	}
 
-	private static readonly PlayerDesk.StudioTier[] Tiers =
-		{ PlayerDesk.StudioTier.Budget, PlayerDesk.StudioTier.Mid, PlayerDesk.StudioTier.Top };
-
-	private void StudioSection(PlayerDesk desk, SimulatedArtist artist) {
-		Heading("THE STUDIO");
-
-		// One session sits on the console at a time. If it's this act's, show it; if another act's, say so.
-		if (desk.Session != null) {
-			if (desk.Session.ArtistId == artist.artistId) { TakesView(desk.Session, artist); return; }
-			SimulatedArtist other = ArtistManager.Instance?.GetArtist(desk.Session.ArtistId);
-			Body($"A session is on the console with {other?.stageName ?? "another act"} — print or scrap it before you " +
-				"book this one.");
-			return;
-		}
-
-		Body("When you decide they're ready, book the room. A 45 is an A-side and a B-side, so cut at least two. " +
-			"Longer over fewer songs buys more takes; you keep the best of each.");
-		Body("Budget, Mid, and Top rooms raise production quality and hourly cost. Your town's studio quality also shifts the quote and the session read, so the same room can cost and sound a little different from city to city.");
-
-		Body("Songs to cut:");
-		List<PlayerDesk.MaterialChoice> options = desk.MaterialOptionsFor(artist).ToList();
-		if (options.Count <= 1)
-			Body("    They've nothing worked up yet — write one or teach a cover above first.");
-		var checks = new List<(CheckBox Box, PlayerDesk.MaterialChoice Choice)>();
-		foreach (PlayerDesk.MaterialChoice option in options) {
-			var box = Check(option.Describe(), false);
-			content.AddChild(box);
-			checks.Add((box, option));
-		}
-
-		var roomRow = new HBoxContainer();
-		roomRow.AddThemeConstantOverride("separation", 12);
-		roomRow.AddChild(FormLabel("Room"));
-		var tierPicker = Option();
-		tierPicker.CustomMinimumSize = new Vector2(320, 36);
-		foreach (PlayerDesk.StudioTier tier in Tiers)
-			tierPicker.AddItem($"{PlayerDesk.StudioTierName(tier)} — ${desk.StudioHourlyRate(tier):N0}/hr");
-		tierPicker.Selected = 1;
-		roomRow.AddChild(tierPicker);
-		roomRow.AddChild(FormLabel("Hours"));
-		var hoursInput = Spin(PlayerDesk.MinSessionHours, PlayerDesk.MaxSessionHours, 1, 4);
-		roomRow.AddChild(hoursInput);
-		content.AddChild(roomRow);
-
-		var cost = new Label { SizeFlagsHorizontal = SizeFlags.ExpandFill, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-		cost.AddThemeColorOverride("font_color", Rust);
-		void UpdateCost() {
-			PlayerDesk.StudioTier tier = Tiers[Mathf.Clamp(tierPicker.Selected, 0, Tiers.Length - 1)];
-			int hours = (int)hoursInput.Value;
-			float total = desk.SessionCost(tier, hours);
-			int songCount = checks.Count(check => check.Box.ButtonPressed);
-			float after = desk.Label.cashReserves - total;
-			cost.Text = $"BOOKING SUMMARY  ·  {songCount} song(s)  ·  {PlayerDesk.StudioTierName(tier)}  ·  {hours}h  ·  ${total:N0}  ·  cash after: {Money(after)}{MonthEndCashPreview(desk.Label, after)}";
-		}
-		tierPicker.ItemSelected += _ => UpdateCost();
-		hoursInput.ValueChanged += _ => UpdateCost();
-		foreach (var item in checks) item.Box.Toggled += _ => UpdateCost();
-		UpdateCost();
-		if (PolarSongBehavior.UsePolarFitSelection && options.Count > 0) {
-			Body("Pick two songs below to compare side by side. The read estimates audience demand, this act's delivery, and how the arrangement changes what listeners hear; uncertain reads are shown as a range. Use the checkboxes above to decide what to cut.");
-			var comparePickers = new HBoxContainer();
-			comparePickers.AddThemeConstantOverride("separation", 10);
-			comparePickers.AddChild(FormLabel("SONG A"));
-			var songA = Option(); songA.SizeFlagsHorizontal = SizeFlags.ExpandFill; songA.ClipText = true; songA.CustomMinimumSize = new Vector2(200, 36);
-			comparePickers.AddChild(songA);
-			comparePickers.AddChild(FormLabel("SONG B"));
-			var songB = Option(); songB.SizeFlagsHorizontal = SizeFlags.ExpandFill; songB.ClipText = true; songB.CustomMinimumSize = new Vector2(200, 36);
-			comparePickers.AddChild(songB);
-			for (int i = 0; i < options.Count; i++) {
-				string character = PolarPlayerPerception.DescribeCharacter(options[i]);
-				string pickerText = character.Length == 0 ? options[i].Describe() : $"{options[i].Describe()}  —  {character}";
-				songA.AddItem(pickerText);
-				songB.AddItem(pickerText);
-			}
-			songA.Selected = 0;
-			songB.Selected = options.Count > 1 ? 1 : 0;
-			songB.Disabled = options.Count < 2;
-			// The same song twice would only draw one chart, so each picker rules out whatever the other has chosen.
-			void RuleOutDuplicate() {
-				for (int i = 0; i < options.Count; i++) {
-					songA.SetItemDisabled(i, options.Count > 1 && i == songB.Selected);
-					songB.SetItemDisabled(i, options.Count > 1 && i == songA.Selected);
-				}
-			}
-			RuleOutDuplicate();
-			content.AddChild(comparePickers);
-			var previewHost = new VBoxContainer(); content.AddChild(previewHost);
-			void UpdatePreview() {
-				foreach (Node child in previewHost.GetChildren()) { previewHost.RemoveChild(child); child.QueueFree(); }
-				var cards = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-				cards.AddThemeConstantOverride("h_separation", 12);
-				cards.AddThemeConstantOverride("v_separation", 10);
-				foreach (int pickIndex in new[] { (int)songA.Selected, (int)songB.Selected }.Distinct()) {
-					PlayerDesk.MaterialChoice option = options[Mathf.Clamp(pickIndex, 0, options.Count - 1)];
-					string songId = option.SongId ?? option.Title;
-					int slot = checks.Take(pickIndex).Count(c => c.Box.ButtonPressed);
-					var gate = option.Kind == PlayerDesk.MaterialKind.LiveCover ? PolarEvidenceGate.Rehearsal : PolarEvidenceGate.Demo;
-					Control card = ComparisonCard(artist, option, gate, "repertoire:" + artist.artistId + ":" + songId,
-						desk.PreviewSessionContext(Tiers[tierPicker.Selected], artist), slot,
-						selected => desk.PreviewSessionContext(Tiers[tierPicker.Selected], selected));
-					card.CustomMinimumSize = new Vector2(460, 0);
-					card.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-					cards.AddChild(card);
-				}
-				previewHost.AddChild(cards);
-			}
-			songA.ItemSelected += _ => { RuleOutDuplicate(); UpdatePreview(); };
-			songB.ItemSelected += _ => { RuleOutDuplicate(); UpdatePreview(); };
-			tierPicker.ItemSelected += _ => UpdatePreview();
-			UpdatePreview();
-		}
-
-		var book = Primary("BOOK THE ROOM");
-		book.CustomMinimumSize = new Vector2(300, 44);
-		book.Pressed += () => {
-			var chosen = checks.Where(c => c.Box.ButtonPressed).Select(c => c.Choice).ToList();
-			PlayerDesk.StudioTier tier = Tiers[Mathf.Clamp(tierPicker.Selected, 0, Tiers.Length - 1)];
-			var responses = PlayerDesk.Instance.MaterialRefusals(artist, chosen, tier);
-			if (responses.Count > 0) { RefusalDialog(artist, chosen, tier, (int)hoursInput.Value, responses, checks); return; }
-			int bookHours = (int)hoursInput.Value;
-			void Book() {
-				bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, bookHours, out string message);
-				Say(message, ok);
-				Refresh();
-			}
-			float roomCost = desk.SessionCost(tier, bookHours);
-			if (!WarnIfUnderOverhead($"{PlayerDesk.StudioTierName(tier)} for {bookHours}h", roomCost, $"BOOK IT — ${roomCost:N0}", Book)) Book();
-		};
-		content.AddChild(cost);
-		content.AddChild(book);
-	}
-
 	private Control ComparisonCard(SimulatedArtist artist, PlayerDesk.MaterialChoice choice, PolarEvidenceGate gate,
 		string eventId, PolarSessionContext session, int slot, Func<SimulatedArtist, PolarSessionContext> sessionForAct = null, string printedMasterId = null,
-		PolarHearing hearing = null, bool onSheet = false) {
+		PolarHearing hearing = null, bool onSheet = false, bool actFixed = false) {
 		var card = new PanelContainer();
 		// On a clipboard the sheet is the modal's own paper; inline it is a sheet of its own.
 		card.AddThemeStyleboxOverride("panel", onSheet ? new StyleBoxEmpty() : PaperStyleBox.Sheet(Paper, 12, 12, 8));
@@ -2018,11 +1937,11 @@ public partial class PlayerDeskPanel : Control {
 		Copy($"“{choice.Title}”", Ink);
 		string songCharacter = PolarPlayerPerception.DescribeCharacter(choice);
 		if (songCharacter.Length > 0) Copy(songCharacter, Heard);
-		var names = PlayerDesk.Instance.Roster.Prepend(artist).DistinctBy(a => a.artistId).ToList();
+		var names = actFixed ? new List<SimulatedArtist> { artist } : PlayerDesk.Instance.Roster.Prepend(artist).DistinctBy(a => a.artistId).ToList();
 		var picker = Option(); foreach (var act in names) picker.AddItem(act.stageName);
-		// A kept take belongs to the recorded act; studio previews can compare the same material across the roster.
+		// A kept take belongs to the recorded act. The catalogue can compare material across the roster; a studio booking is for one act.
 		// Ear reads are about the song as heard, so there is no act to project it onto.
-		picker.Disabled = gate == PolarEvidenceGate.Playback; picker.Visible = hearing?.IsEar != true; column.AddChild(picker);
+		picker.Disabled = gate == PolarEvidenceGate.Playback; picker.Visible = hearing?.IsEar != true && !actFixed; column.AddChild(picker);
 		var evidence = Copy("", Heard);
 		var explanation = Copy("", Ink); var resistance = Copy("", Rust);
 		var graph = new PolarComparisonWidget(); column.AddChild(graph);
@@ -2042,7 +1961,8 @@ public partial class PlayerDeskPanel : Control {
 	};
 
 	private void RefusalDialog(SimulatedArtist artist, List<PlayerDesk.MaterialChoice> chosen, PlayerDesk.StudioTier tier,
-		int hours, IReadOnlyList<string> responses, List<(CheckBox Box, PlayerDesk.MaterialChoice Choice)> checks) {
+		int hours, IReadOnlyList<string> responses, List<(CheckBox Box, PlayerDesk.MaterialChoice Choice)> checks, StudioBrief brief = StudioBrief.CaptureLiveAct,
+		string roomId = null, string engineerId = null, bool backingSingers = false, StudioBookingOptions options = null) {
 		var dialog = PaperModal.Open(this, "THE ACT PUSHES BACK", 780);
 		var material = chosen.First(c => responses.Any(r => r.Contains("“" + c.Title + "”", StringComparison.Ordinal)));
 		var read = PolarPlayerPerception.Compare(material, artist, PolarEvidenceGate.Rehearsal, "booking:" + artist.artistId + ":" + material.Title,
@@ -2058,78 +1978,12 @@ public partial class PlayerDeskPanel : Control {
 		var own = dialog.AddButton("USE THEIR OWN MATERIAL", () => Choose("own"));
 		own.Disabled = !checks.Any(c => c.Choice.Kind == PlayerDesk.MaterialKind.Original);
 		var insist = dialog.AddButton(artist.artistCreativeControl ? "THEIR CALL — CAN'T INSIST" : "INSIST — BOOK THE ROOM", () => {
-			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true);
+			bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, hours, out string message, overrideRefusal: true, brief: brief, roomId: roomId, engineerId: engineerId, backingSingers: backingSingers, options: options);
 			Say(message, ok); Refresh();
 		}, PaperModal.ButtonKind.Primary);
 		// Creative control is the act's final word on material: the contract you signed takes the override away.
 		insist.Disabled = artist.artistCreativeControl;
 		if (artist.artistCreativeControl) dialog.AddText($"{artist.stageName} holds creative control under their contract, so you can't overrule this.");
-	}
-
-	/// <summary>The console: keep a take per song, then print. Selecting a take is free.</summary>
-	private void TakesView(PlayerDesk.PendingSession session, SimulatedArtist artist) {
-		Body($"ON THE CONSOLE — {PlayerDesk.StudioTierName(session.Tier)}, {session.Hours}h, ${session.Cost:N0} spent. " +
-			"Keep the take you want for each song, then print the masters.");
-		Body("✓ marks the take currently selected to print. Take selection is free; choose another if its vocal, band, or production read suits the record better.");
-
-		for (int c = 0; c < session.Cuts.Count; c++) {
-			PlayerDesk.SessionCut cut = session.Cuts[c];
-			var title = new Label { Text = $"\"{cut.Choice.Title}\"  ({cut.Choice.Detail})" };
-			title.AddThemeColorOverride("font_color", Ink);
-			content.AddChild(title);
-
-			var takesRow = new HBoxContainer();
-			takesRow.AddThemeConstantOverride("separation", 8);
-			for (int t = 0; t < cut.Takes.Count; t++) {
-				PlayerDesk.SessionTake take = cut.Takes[t];
-				bool kept = t == cut.KeptTake;
-				// What each take actually is -- the hook the act got on tape and the sound of the room -- as bars with a
-				// few words, so the choice is a trade (a livelier pass against a cleaner one) and not a star count.
-				// The radar below is the read of how the take sits with the act.
-				var takeCard = new VBoxContainer { CustomMinimumSize = new Vector2(220, 0) };
-				takeCard.AddThemeConstantOverride("separation", 3);
-				var btn = Btn($"Take {take.Number}{(kept ? "  ✓" : "")}");
-				btn.CustomMinimumSize = new Vector2(220, 40);
-				btn.ToggleMode = true;
-				btn.ButtonPressed = kept;
-				int cutIndex = c, takeIndex = t;
-				btn.Pressed += () => { PlayerDesk.Instance.KeepTake(cutIndex, takeIndex); Refresh(); };
-				takeCard.AddChild(btn);
-				takeCard.AddChild(FaintLine("hook: " + PolarPlayerPerception.DescribeHook(take.Hook, 1f)));
-				takeCard.AddChild(new ReadBar { CustomMinimumSize = new Vector2(220, 12) }.Set(take.Hook));
-				takeCard.AddChild(FaintLine("sound: " + SoundWords(take.Production)));
-				takeCard.AddChild(new ReadBar { CustomMinimumSize = new Vector2(220, 12) }.Set(take.Production));
-				takesRow.AddChild(takeCard);
-			}
-			content.AddChild(takesRow);
-			if (PolarSongBehavior.UsePolarFitSelection) {
-				var take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
-				content.AddChild(ComparisonCard(artist, cut.Choice, PolarEvidenceGate.Playback,
-					$"session:{session.Date}:{artist.artistId}:{c}:take:{take.Number}", new PolarSessionContext {
-						producerCraft = PlayerDesk.Instance.Label.productionQuality, studioCraft = take.Production }, c));
-			}
-		}
-
-		string keptSummary = SetSummary(session.Cuts.Select(cut => cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)].Hook).ToList(), 1f);
-		if (keptSummary.Length > 0) content.AddChild(FaintLine("THE SIDES AS KEPT: " + keptSummary));
-
-		var buttons = new HBoxContainer();
-		buttons.AddThemeConstantOverride("separation", 12);
-		var print = Primary("PRINT MASTERS");
-		print.CustomMinimumSize = new Vector2(240, 44);
-		print.Pressed += () => {
-			bool ok = PlayerDesk.Instance.PrintSession(out string message);
-			Say(message, ok);
-			// A finished master's next stop is its card on the Catalog board, where it is assembled into a 45.
-			if (ok) GoToTab(CatalogTab, PageCatalog);
-			else Refresh();
-		};
-		buttons.AddChild(print);
-		var scrap = Btn("SCRAP");
-		scrap.CustomMinimumSize = new Vector2(140, 44);
-		scrap.Pressed += () => { PlayerDesk.Instance.ScrapSession(); Say("Session scrapped.", true); Refresh(); };
-		buttons.AddChild(scrap);
-		content.AddChild(buttons);
 	}
 
 	private void SongLine(string title, string tag, float hook) {
@@ -2254,7 +2108,9 @@ public partial class PlayerDeskPanel : Control {
 
 	private static string MasterDetail(PlayerDesk.Master master) =>
 		(PolarSongBehavior.UsePolarFitSelection ? "" : $"hook: {PolarPlayerPerception.DescribeHook(master.Record.hookStrength, 1f)}   •   sound: {SoundWords(master.Record.productionQuality)}   •   ") +
-		$"cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}";
+		$"cost ${master.ProductionCost:N0}   •   cut {master.Cut.ToHeadlineString()}" +
+		(master.StudioHistory is { } h ? $"\n{h.RoomName}{(h.EngineerName != null ? $" with {h.EngineerName}" : "")}  •  kept take {h.KeptTake}  •  {h.ElapsedMinutes} minutes worked\n" +
+			(h.SessionPlayers?.Count > 0 ? "Session: " + string.Join("; ", h.SessionPlayers) + "\n" : "") + $"{PlayerDesk.ArrangementName(h.Arrangement)}  •  revision {h.ArrangementRevision}\n{PlayerDesk.FinishName(h.FinishWork?.Finish ?? StudioFinish.House)}\n" + string.Join(" ", h.Notes) + (h.FinishWork == null ? "" : "\n" + h.FinishWork.Note) : "");
 
 	/// <summary>A record's card on the board, set as the plant's work order for it: the plant's name over the form, the
 	/// serial, the job typed into boxes, and a stamp if the job is urgent. The controls callback adds to the form, not the page.</summary>

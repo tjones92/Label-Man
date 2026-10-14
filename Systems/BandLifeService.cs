@@ -1353,6 +1353,7 @@ public static class BandLifeService {
 	/// <summary>A person joins an act. Membership facts reset; person facts (traits, skills, recognition, life
 	/// state, road years) carry over (§4.1).</summary>
 	public static void JoinAct(Musician m, SimulatedArtist a, MusicianRole role, bool lead, bool writer, int year) {
+		MusicianRole oldRole = m.primaryRole;
 		m.primaryRole = role;
 		m.isLeadVocalist = lead;
 		m.isPrimaryWriter = writer || (m.isPrimaryWriter && m.creativity > 0.6f);
@@ -1368,6 +1369,7 @@ public static class BandLifeService {
 		LocalSceneIdentityService.PersonJoined(m, a, year);
 		MemberAxesService.EnsureAxes(m, a, year);
 		MemberIdentityService.EnsureIdentity(m, a, year);
+		MemberRoleService.OnPrimaryChanged(m, oldRole, a.primaryGenre, year);
 		a.careerEvents.Add($"{year}: {m.FullName} joined ({role})");
 		a.lastMemberChangeYear = year;
 	}
@@ -1457,6 +1459,7 @@ public static class BandLifeService {
 		m.loyalty = Stat("loy", 0.58f, 0.20f);
 		m.temperament = Stat("temp", 0.56f, 0.20f);
 		m.primaryRole = role;
+		MemberRoleService.Ensure(m, a.primaryGenre, year);
 		LocalSceneIdentityService.EnsurePerson(m, a.geography?.basePlaceId, PlaceEvidence.Simulated);
 		return m;
 	}
@@ -1621,8 +1624,10 @@ public static class BandLifeService {
 			PersonPool.Take(fit.person.personId);
 			int index = fresh.members.IndexOf(slot);
 			Musician person = fit.person;
+			MusicianRole formerRole = person.primaryRole;
 			ArtistManager.Instance.UnregisterMusician(slot.personId);
 			person.primaryRole = slot.primaryRole; person.isLeadVocalist = slot.isLeadVocalist; person.isBandLeader = slot.isBandLeader;
+			MemberRoleService.OnPrimaryChanged(person, formerRole, fresh.primaryGenre, year);
 			person.isPrimaryWriter = slot.isPrimaryWriter || person.isPrimaryWriter; person.joinedYear = year;
 			person.isFoundingMember = true; person.isActive = true; person.reasonLeft = null; person.observedGoneYear = 0;
 			ResetStage(person);

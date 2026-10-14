@@ -18,6 +18,10 @@ public partial class UIManager : Control
 	private PopupPanel calendarPopup;
 	private SpinBox skipDaysInput;
 	private PlayerDeskPanel deskPanel;
+	private PlayerDeskPanel gameMenu;
+	private PlayerDeskPanel studioWindow;
+	private bool officeBeforeStudio, officeBeforeMenu, studioBeforeMenu;
+	private bool uiOpenBeforeMenu;
 	private Button deskButton;
 	private Control paintedLayer;   // text that lives ON the painted desk; tinted with it by the office light
 	private PaintedRecordLabels paintedRecords;   // the player's label on the wall record and the top of the stack
@@ -131,6 +135,7 @@ public partial class UIManager : Control
 		// A new player should land on the founding card instead of having to guess that the office
 		// tab opens the game. Loaded games and an existing label stay on the desk scene as before.
 		if (PlayerDesk.Instance?.HasLabel != true) OnClick_Desk();
+		StartupProfile.Mark("interface-ready");
 	}
 
 	// ── Painted-desk text ───────────────────────────────────────────────────────────────────────
@@ -688,6 +693,56 @@ public partial class UIManager : Control
 		}
 	}
 
+	public override void _UnhandledInput(InputEvent input) {
+		if (input is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape } || PaperModal.IsOpen) return;
+		if (gameMenu?.Visible == true) gameMenu.ClosePanel();
+		else OpenGameMenu();
+		GetViewport().SetInputAsHandled();
+	}
+
+	public void OpenGameMenu() {
+		if (gameMenu?.Visible == true) return;
+		uiOpenBeforeMenu = isUIOpen;
+		officeBeforeMenu = deskPanel?.Visible == true;
+		studioBeforeMenu = studioWindow?.Visible == true;
+		if (deskPanel != null) deskPanel.Hide();
+		if (studioWindow != null) studioWindow.Hide();
+		if (gameMenu == null) {
+			gameMenu = new PlayerDeskPanel { Name = "GameMenu", ZIndex = 50 };
+			AddChild(gameMenu);
+			gameMenu.MenuClosed = () => {
+				if (officeBeforeMenu) deskPanel?.Open();
+				if (studioBeforeMenu) studioWindow?.Open();
+				isUIOpen = uiOpenBeforeMenu; UpdateMainHud();
+			};
+		}
+		isUIOpen = true;
+		gameMenu.OpenGameMenu();
+		UpdateMainHud();
+	}
+
+	public void OpenStudio(string artistId) {
+		if (gameMenu?.Visible == true) return;
+		if (studioWindow?.Visible != true) officeBeforeStudio = deskPanel?.Visible == true;
+		if (deskPanel != null) deskPanel.Hide();
+		if (studioWindow == null) {
+			studioWindow = new PlayerDeskPanel { Name = "StudioWindow", ZIndex = 30 };
+			AddChild(studioWindow);
+			studioWindow.StudioClosed = () => {
+				if (officeBeforeStudio) deskPanel?.Open();
+				isUIOpen = officeBeforeStudio; UpdateMainHud();
+			};
+		}
+		studioWindow.OpenStudio(artistId);
+		isUIOpen = true; UpdateMainHud();
+	}
+
+	public void OpenStudioCatalog() {
+		studioWindow?.Hide();
+		deskPanel?.OpenAtTab("CATALOG");
+		isUIOpen = true; UpdateMainHud();
+	}
+
 	// Props on the desk art that open a department. Rects are in the scene's 1920x1080 design space.
 	private readonly List<Button> deskProps = new();
 	private TextureButton billboardButton;
@@ -870,6 +925,7 @@ public partial class UIManager : Control
 
 	public void OnClick_Calendar()
 	{
+		if (StudioBlocksCalendar(oneDay: true)) return;
 		if (isUIOpen) return;
 		if (TimeManager.Instance == null) return;
 		TimeManager.Instance.SkipDays(1);
@@ -878,6 +934,7 @@ public partial class UIManager : Control
 
 	public void AdvanceOneDayFromDesk()
 	{
+		if (StudioBlocksCalendar(oneDay: true)) return;
 		if (PlayerDesk.Instance?.HasLabel != true || TimeManager.Instance == null) return;
 		TimeManager.Instance.SkipDays(1);
 	}
@@ -893,6 +950,7 @@ public partial class UIManager : Control
 
 	private void ShowCalendarPopup()
 	{
+		if (StudioBlocksCalendar()) return;
 		if (TimeManager.Instance == null) return;
 		if (calendarPopup == null) BuildCalendarPopup();
 
@@ -910,6 +968,14 @@ public partial class UIManager : Control
 		nextButton.Disabled = nextEvent == null && ownEvent == null;
 		nextButton.TooltipText = "Stops early for the vinyl landing, a ship date, or a call at the office while you are there.";
 		calendarPopup.PopupCentered(new Vector2I(500, 300));
+	}
+
+	private bool StudioBlocksCalendar(bool oneDay = false) {
+		if (PlayerDesk.Instance?.InStudio != true) return false;
+		// A lockout keeps the room overnight: the calendar may move to the next booked day, and no further.
+		if (oneDay && PlayerDesk.Instance.StudioSleepsOn) return false;
+		ShowAnnouncement("Finish or abandon the paid studio date before advancing the calendar.");
+		return true;
 	}
 
 	private void BuildCalendarPopup()
@@ -953,6 +1019,7 @@ public partial class UIManager : Control
 
 	private void RunCalendarSkip(System.Func<ScheduledEvent> skip)
 	{
+		if (StudioBlocksCalendar()) return;
 		calendarPopup.Hide();
 		var interruptedBy = skip();
 		string reason = interruptedBy == null ? "" : $" (stopped for {interruptedBy.title})";
@@ -980,6 +1047,10 @@ public partial class UIManager : Control
 
 	public void OnClick_CloseAll()
 	{
+		uiOpenBeforeMenu = false;
+		officeBeforeMenu = studioBeforeMenu = officeBeforeStudio = false;
+		studioWindow?.Hide();
+		if (gameMenu != null) gameMenu.Visible = false;
 		DismissMorningPaper();
 		if (ledgerPanel != null) ledgerPanel.Visible = false;
 		if (dialoguePanel != null) dialoguePanel.Visible = false;

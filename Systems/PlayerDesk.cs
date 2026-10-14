@@ -320,36 +320,86 @@ public partial class PlayerDesk : Node {
 	/// <summary>The room you book. Better rooms cost more per hour and cut cleaner tape.</summary>
 	public enum StudioTier { Budget, Mid, Top }
 
-	/// <summary>One pass at a song. More studio time buys more passes; you keep the best one.</summary>
+	/// <summary>A retained performance and its frozen listening evidence; the player chooses what to keep.</summary>
 	public sealed class SessionTake {
+		public string TakeId;
+		public float Vocal, Ensemble, Feel, Capture;
+		public StudioDirection Direction;
+		public StudioArrangement Arrangement;
+		public int ArrangementRevision;
+		public string BandNote;
+		// v18 located reads: which part of the song this pass was weakest in, as the producer and engineer heard it.
+		public int TroubleSection = -1;
+		public string ProducerDetail, EngineerDetail;
+		// v19: a pass that fell apart at its weak part (never keepable), who it rested on, and the session players on it.
+		public bool Incomplete, FalseStart;   // a false start is an incomplete take that says nothing about anyone's part
+		public string FaultPersonId;
+		public List<string> SessionPersonIds;
+		public int Minutes;
+		// v21: shape, layout, incident, derivation and erasure (null on takes from earlier dates).
+		public StudioTakeWork Work;
 		public int Number;
 		public float Hook;         // the performance captured on this pass, before the song is weighed in
 		public float Production;
+		public string EngineerNote;
+		public string PerformerNote;
+		public string ProducerNote;
 		public float Overall => (Hook + Production) * 0.5f;
 	}
 
 	/// <summary>One song being cut this session, its takes, and which take the player keeps.</summary>
 	public sealed class SessionCut {
+		public StudioFinish Finish;
+		public readonly List<StudioFinishWork> FinishWork = new();
+		public int Rehearsals;
+		public StudioSongStructure Structure;
+		// Targeted rehearsal per part of the song, indexed by StudioSectionKind.
+		public List<int> PartRehearsals = new(new int[Enum.GetValues<StudioSectionKind>().Length]);
+		public StudioDirection Direction;
+		public StudioArrangement Arrangement;
+		public int ArrangementRevision;
+		// v21: key, tempo, trimmed ends, balance and ideas taken up (null on dates booked before rules v2).
+		public StudioCutWork Work;
 		public MaterialChoice Choice;
 		public readonly List<SessionTake> Takes = new();
-		public int KeptTake;       // index into Takes
+		public int KeptTake = -1;  // -1 is explicitly unselected
 	}
 
 	/// <summary>
 	/// A booked session sitting on the console: the room, the money already spent, and the takes,
-	/// waiting for the player to keep one per song and print the masters. See <see cref="StartSession"/>.
+	/// working toward a kept performance per song and finished masters. See <see cref="StartSession"/>.
 	/// </summary>
 	public sealed class PendingSession {
+		public int FlowVersion;
+		public StudioBrief Brief;
+		public StudioRoomSnapshot Room;
+		public int StartMinute, ElapsedMinutes, ActionNumber;
+		public float WorkloadMinutes, SessionLift, Tension, ProducerCraft, StudioPerformance, LivePerformance;
+		public List<string> ParticipantIds = new();
+		public List<string> ActionLog = new();
+		// v19: named session players on the date, members kept on their part after a suggestion, and whether passes
+		// on this date can fall apart (zero for dates begun before breakdowns existed).
+		public List<StudioSessionHire> Hires = new();
+		public List<string> DeclinedCallIns = new();
+		public int BreakdownVersion;
+		// v21: which studio rules this date was booked under (PlayerDesk.StudioRulesCurrent). 0 = slice-9 rules, so a date
+		// paid for before a rule existed never gains it. 2 = the act's own harmony singers.
+		public int RulesVersion;
+		// v21: layout, tape stock, open faults, lockout days, night rate (null on dates booked before rules v2).
+		public StudioDateWork Work;
 		public string ArtistId;
 		public StudioTier Tier;
 		public int Hours;
 		public float Cost;
 		public GameDate Date;
+		public string SessionId;
+		public bool ManualSelection;
 		public readonly List<SessionCut> Cuts = new();
 	}
 
 	/// <summary>A finished master, paid for and sitting on the shelf until it is scheduled.</summary>
 	public sealed class Master {
+		public StudioMasterHistory StudioHistory;
 		public Record Record;
 		public string ArtistId;
 		public string SongTitle;
@@ -1036,6 +1086,7 @@ public partial class PlayerDesk : Node {
 			// by the time this runs, so the solvency check reads the post-overhead balance.
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 			TimeManager.Instance.PlayerStopProbe = ProbeSkipStop;
+			TimeManager.Instance.LateStopProbe = StudioLateStop;
 		}
 		if (RosterManager.Instance != null) {
 			RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
@@ -1057,6 +1108,7 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnWeekEnded -= OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
 			if (TimeManager.Instance.PlayerStopProbe == ProbeSkipStop) TimeManager.Instance.PlayerStopProbe = null;
+			if (TimeManager.Instance.LateStopProbe == StudioLateStop) TimeManager.Instance.LateStopProbe = null;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment -= OnRivalTalentMarketAppointment;
 		if (Instance == this) Instance = null;
@@ -2456,9 +2508,11 @@ public partial class PlayerDesk : Node {
 		return responses;
 	}
 
-	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message, bool overrideRefusal = false) {
+	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message, bool overrideRefusal = false,
+		StudioBrief brief = StudioBrief.CaptureLiveAct, string roomId = null, string engineerId = null, bool backingSingers = false, StudioBookingOptions options = null) {
 		if (pendingSession != null) { message = "There's already a session on the console -- print or scrap it first."; return false; }
-		if (!RequireHome(out message)) return false;
+		// Up in another town with this act on a studio trip, the rooms there are the studio.
+		if (StudioTripHere(artist?.artistId) == null && !RequireHome(out message)) return false;
 		if (artist == null || artist.labelId != Label?.labelId) { message = "That act isn't on your roster."; return false; }
 		List<MaterialChoice> cutting = (choices ?? Array.Empty<MaterialChoice>()).Where(c => c != null).ToList();
 		if (cutting.Count == 0) { message = "Pick at least one song to cut."; return false; }
@@ -2469,6 +2523,7 @@ public partial class PlayerDesk : Node {
 		}
 		if (!overrideRefusal && refusals.Count > 0) { message = string.Join("\n", refusals); return false; }
 		hours = Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
+		if (StudioExperience.Enabled) return StartStudioDate(artist, cutting, roomId ?? StudioRoomCatalog.LocalId(Label.homeCityId, tier), engineerId, hours, brief, out message, backingSingers, options);
         var studioClock = TimeManager.Instance;
         int studioNow = studioClock.CurrentHour * 60 + studioClock.CurrentMinute;
         if (LocalSceneRoomService.HasStudioAppointment(Label.labelId, LocalSceneRoomService.Day(studioClock.CurrentDate), studioNow, studioNow + hours * 60)) {
@@ -2495,7 +2550,8 @@ public partial class PlayerDesk : Node {
 		// Takes are what the hours buy: time spread across songs. Fewer songs, more takes each.
 		int takes = Mathf.Clamp(Mathf.RoundToInt((float)hours / cutting.Count), 1, 4);
 
-		var session = new PendingSession { ArtistId = artist.artistId, Tier = tier, Hours = hours, Cost = cost, Date = today };
+		var session = new PendingSession { ArtistId = artist.artistId, Tier = tier, Hours = hours, Cost = cost, Date = today,
+			ManualSelection = true, SessionId = $"{Label.labelId}:{artist.artistId}:{today}:{studioNow}:{counter}" };
 		// The Band Room in the studio: a hired session player lifts the execution (and humiliates the member he
 		// replaced); a room that can't stand each other plays erratically -- the same number of draws, a wider
 		// spread around the same mean (directive §2.9).
@@ -2504,7 +2560,7 @@ public partial class PlayerDesk : Node {
 		foreach (MaterialChoice choice in cutting) {
 			var cut = new SessionCut { Choice = choice };
 			for (int i = 1; i <= takes; i++) cut.Takes.Add(RollTake(i, artist, choice, tier, t, sessionLift, tension));
-			cut.KeptTake = BestTakeIndex(cut.Takes);
+			StudioTakeEvidence.Observe(session, cut, session.Cuts.Count, Label.productionQuality, artist.studioPerformance);
 			session.Cuts.Add(cut);
 		}
 		pendingSession = session;
@@ -2537,33 +2593,24 @@ public partial class PlayerDesk : Node {
 	}
 
 
-	// Bug report: "could autoselecting master give away the un-noised quality? ... the game selecting
-	// a 3-star/3-star over a 3-star/4-star." Overall (the raw Hook/Production average) doesn't respect
-	// the stars the console actually shows (UI/PlayerDeskPanel.cs TakesView, StarBar): two dimensions
-	// each round independently, so a "solid 3/3" take's average can out-score a "3/4" take that only
-	// just tips into its 4th star, and the auto-kept take looks worse than one sitting right next to it.
-	// Compare on the visible star total first -- a take can never be auto-kept over one that displays
-	// strictly better -- and fall back to the raw average only to break a tie between equal star totals.
-	private static int StarCount(float value) => Mathf.Clamp(Mathf.RoundToInt(value * 5f), 0, 5);
-
-	private static bool IsBetterTake(SessionTake a, SessionTake b) {
-		int starsA = StarCount(a.Hook) + StarCount(a.Production);
-		int starsB = StarCount(b.Hook) + StarCount(b.Production);
-		return starsA != starsB ? starsA > starsB : a.Overall > b.Overall;
-	}
-
-	private static int BestTakeIndex(List<SessionTake> takes) {
-		int best = 0;
-		for (int i = 1; i < takes.Count; i++) if (IsBetterTake(takes[i], takes[best])) best = i;
-		return best;
-	}
-
 	/// <summary>Chooses which take of a song to keep before printing.</summary>
 	public void KeepTake(int cutIndex, int takeIndex) {
 		if (pendingSession == null) return;
 		if (cutIndex < 0 || cutIndex >= pendingSession.Cuts.Count) return;
 		SessionCut cut = pendingSession.Cuts[cutIndex];
-		cut.KeptTake = Mathf.Clamp(takeIndex, 0, cut.Takes.Count - 1);
+		if (takeIndex < 0 || takeIndex >= cut.Takes.Count || cut.Takes[takeIndex].Incomplete || cut.Takes[takeIndex].Work?.Erased == true) return;
+		if (cut.KeptTake != takeIndex) cut.Finish = StudioFinish.House;
+		cut.KeptTake = takeIndex;
+		Changed?.Invoke();
+	}
+
+	/// <summary>Explicit delegation using the same attributed evidence the player can read.</summary>
+	public void DelegateTakeSelection() {
+		if (pendingSession == null) return;
+		foreach (var cut in pendingSession.Cuts) {
+			if (cut.KeptTake >= 0 || cut.Takes.Count == 0) continue;
+			cut.KeptTake = StudioTakeEvidence.Choose(cut.Takes);   // -1 when every pass fell apart
+		}
 		Changed?.Invoke();
 	}
 
@@ -2574,20 +2621,28 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool PrintSession(out string message) {
 		if (pendingSession == null) { message = "No session to print."; return false; }
+		if (pendingSession.Cuts.Count == 0 || pendingSession.Cuts.Any(c => c.KeptTake < 0 || c.KeptTake >= c.Takes.Count || c.Takes[c.KeptTake].Incomplete)) {
+			message = "Keep a take for every song, or ask the producer to choose, before printing."; return false;
+		}
+		if (pendingSession.Cuts.Any(c => c.Finish != StudioFinish.House && SelectedStudioFinish(c) == null)) {
+			message = "That finish has no retained version of the kept source. Choose the included house finish or process the kept take."; return false;
+		}
 		SimulatedArtist artist = ArtistManager.Instance?.GetArtist(pendingSession.ArtistId);
 		if (artist == null) { pendingSession = null; message = "The act is gone; session scrapped."; Changed?.Invoke(); return false; }
+		if (pendingSession.FlowVersion > 0 && !SpendStudioWork(pendingSession, FinishMinutes(pendingSession), "Final playback and mastering", out message)) return false;
 
 		int year = pendingSession.Date.year;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		float perMasterCost = pendingSession.Cost / Mathf.Max(1, pendingSession.Cuts.Count);
-		int printed = 0;
+		int printed = 0, mastersBefore = masters.Count;
 		foreach (SessionCut cut in pendingSession.Cuts) {
 			SessionTake take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
-			if (PrintMaster(artist, cut.Choice, take, perMasterCost, pendingSession.Date, year, week)) printed++;
+			if (PrintMaster(artist, cut.Choice, take, perMasterCost, pendingSession.Date, year, week, SelectedStudioFinish(cut), StudioStructureOf(cut, take))) printed++;
 		}
 		Note($"Printed {printed} master(s) from the {StudioTierName(pendingSession.Tier)} date with {artist.stageName}.");
+		RememberStudioVisit(pendingSession, true, masters.Skip(mastersBefore).Select(m => m.Record?.recordId).Where(id => id != null).ToList());
 		pendingSession = null;
-		message = $"{printed} master(s) on the shelf.";
+		message = $"{printed} master(s) on the shelf." + AwayFromHomeNote();
 		Changed?.Invoke();
 		return true;
 	}
@@ -2595,13 +2650,14 @@ public partial class PlayerDesk : Node {
 	/// <summary>Scraps the session on the console without printing. The money is already spent.</summary>
 	public void ScrapSession() {
 		if (pendingSession == null) return;
-		Note("Walked out of the session with nothing.");
+		Note("Walked out of the session with nothing." + AwayFromHomeNote());
+		RememberStudioVisit(pendingSession, false);
 		pendingSession = null;
 		Changed?.Invoke();
 	}
 
 	/// <summary>Builds one finished master from a kept take and its material.</summary>
-	private bool PrintMaster(SimulatedArtist artist, MaterialChoice choice, SessionTake take, float cost, GameDate date, int year, int week) {
+	private bool PrintMaster(SimulatedArtist artist, MaterialChoice choice, SessionTake take, float cost, GameDate date, int year, int week, StudioFinishWork finish = null, StudioSongStructure structure = null) {
 		var record = new Record {
 			recordId = $"player_{++counter}",
 			labelId = Label.labelId,
@@ -2632,12 +2688,19 @@ public partial class PlayerDesk : Node {
 			record.title = material.Song.title;
 			SongMaterialApplicationService.Apply(record, material, Label, artist);
 		}
+		// The arrangement belongs to this recorded performance, after the shared material blend.
+		// It changes the pulse, never the composition or its writing credits.
+		ApplyArrangementToRecord(record, take);
+		ApplyStudioFinish(record, finish);
+		// The recorded length is a fact of this performance, stored on its master rather than the composition.
+		if (structure != null && PolarSongMetadataService.Get(record.masterId)?.taxonomy is { } recorded) recorded.durationSeconds = structure.DurationSeconds;
 		if (choice.WrittenSong != null) { choice.WrittenSong.Recorded = true; choice.WrittenSong.RecordedId = record.recordId; }
 		MarkRepertoireRecorded(artist.artistId, choice, record.recordId);
 
 		masters.Add(new Master {
 			Record = record, ArtistId = artist.artistId, SongTitle = record.title,
-			ProductionCost = cost, Cut = date
+			ProductionCost = cost, Cut = date,
+			StudioHistory = pendingSession?.FlowVersion > 0 ? StudioMasterHistory.From(pendingSession, take, finish, structure) : null
 		});
 		return true;
 	}
@@ -4261,6 +4324,7 @@ public partial class PlayerDesk : Node {
 		if (dest == null) { message = "No such town."; return false; }
 		if (dest.cityId == CurrentCityId) { message = $"You're already in {dest.name}."; return false; }
 		bool goingHome = dest.cityId == Label.homeCityId;
+		if (InStudio && dest.cityId != pendingSession.Room?.CityId) { message = "Finish or abandon the studio date before driving anywhere else."; return false; }
 		if (!goingHome && !CanReach(here, dest)) {
 			message = $"{dest.name} is too far to drive to from {here?.name} -- you'd need a wholesale house out there.";
 			return false;
@@ -4272,6 +4336,7 @@ public partial class PlayerDesk : Node {
 		}
 		if (Label.cashReserves < gas) { message = $"You're ${gas - Label.cashReserves:N0} short of the ${gas:N0} gas."; return false; }
 
+		LeaveStudioTripFor(dest.cityId);
 		Spend(hours);
 		if (gas > 0f) { Label.cashReserves -= gas; Label.monthlyExpenses += gas; }
 		currentCityId = dest.cityId;
@@ -4613,6 +4678,8 @@ public partial class PlayerDesk : Node {
 			return;
 		}
 		ChargeHotelIfAway();
+		ProcessStudioTripDawn(date);
+		ProcessStudioLockoutDawn(date);
 		ProcessRivalCrowding(date);
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);
@@ -5399,6 +5466,7 @@ public partial class PlayerDesk : Node {
 	/// meet just to move the clock. Hours are clamped to what's left in the day, overtime included.
 	/// </summary>
 	public bool PassTime(int hours, out string message) {
+		if (InStudio) { message = "The paid studio date is still running. Take a break in the room, finish, or abandon the date first."; return false; }
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		TimeManager time = TimeManager.Instance;
 		if (time == null) { message = "No clock."; return false; }
@@ -5421,6 +5489,7 @@ public partial class PlayerDesk : Node {
 	private bool SpendMinutes(int minutes) => TimeManager.Instance?.SpendMinutes(minutes) ?? false;
 
 	private bool Require(int hours, out string message) {
+		if (InStudio) { message = "Finish or abandon the active studio date before starting another desk job."; return false; }
 		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (IsGameOver) { message = "The label has folded -- load a save to keep playing."; return false; }
 		if (TimeManager.Instance == null) { message = "No clock."; return false; }
@@ -5451,6 +5520,9 @@ public partial class PlayerDesk : Node {
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
 		LogWeeklyPlayerOutcomes();
+		// Rooms become known for the label's records cut there: note how they charted this week.
+		UpdateStudioHits(date);
+		UpdateStudioMarketHits(date);
 		// Rolodex settlement lands before the books are drawn up so any payola penalty shows in this
 		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
 		// word on against what the records actually sold.
@@ -5798,6 +5870,9 @@ public partial class PlayerDesk : Node {
             RivalOffers = CaptureRivalOffers(),
             RivalCourtships = CaptureRivalCourtships(),
             RosterDepartures = CaptureRosterDepartures(),
+            StudioVisits = CaptureStudioVisits(),
+            StudioTrip = studioTrip?.Copy(),
+            StudioHouseCrews = CaptureStudioHouseCrews(), StudioMarketHits = CaptureStudioMarketHits(),
 			Label = LabelSaveData.From(Label),
             ScoutingKnowledge = CaptureScoutingKnowledge(),
             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
@@ -5968,6 +6043,9 @@ public partial class PlayerDesk : Node {
         if (!ValidateRivalOffers(data.RivalOffers, data.Label.labelId, out message)) return false;
         if (!ValidateRivalCourtships(data.RivalCourtships, data.Label.labelId, out message)) return false;
         if (!ValidateRosterDepartures(data.RosterDepartures, data.Label.labelId, out message)) return false;
+        if (!ValidateStudioVisits(data.StudioVisits, out message)) return false;
+        if (!ValidateStudioTrip(data.StudioTrip, out message)) return false;
+        if (!ValidateStudioRooms(data.StudioHouseCrews, data.StudioMarketHits, out message)) return false;
         if (!ValidateSavedOutlooks(data, out message)) return false;
 
 		// A load lifts any game-over: you're picking the label back up from a solvent point in its history.
@@ -6283,6 +6361,9 @@ public partial class PlayerDesk : Node {
         RestoreRivalOffers(data.RivalOffers);
         RestoreRivalCourtships(data.RivalCourtships);
         RestoreRosterDepartures(data.RosterDepartures);
+        RestoreStudioVisits(data.StudioVisits);
+        studioTrip = data.StudioTrip?.Copy();
+        RestoreStudioRooms(data.StudioHouseCrews, data.StudioMarketHits);
         LocalSceneIdentityService.CompleteDirectPlayerRestore();
         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
 		Note(message);

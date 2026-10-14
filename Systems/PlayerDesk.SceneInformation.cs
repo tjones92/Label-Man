@@ -22,6 +22,45 @@ public partial class PlayerDesk {
     }
     public int SceneContactFamiliarity(string contactId) => sceneInformation.Contacts
         .FirstOrDefault(c => c.ContactId == contactId)?.HeardBillIds.Distinct().Count() ?? 0;
+    public bool KnowsSceneBooker(string roomId) {
+        var room = SceneRoomCatalog.Get(roomId);
+        return room != null && (sceneInformation.Contacts.Any(c => c.ContactId == room.ContactId && c.IntroducedDay.HasValue) ||
+            scoutingKnowledge.Dossiers.Any(d => d.Observations.Any(o => o.SourceId == room.ContactId && o.Kind == ScoutingEvidenceKind.BookerClaim)) ||
+            sceneInformation.Leads.Any(l => l.ContactId == room.ContactId));
+    }
+    public IReadOnlyList<SceneRoomProfile> IntroducedSceneBookers => SceneRoomCatalog.All
+        .Where(r => KnowsSceneBooker(r.Id)).ToArray();
+    private void RememberBookerIntroduction(SceneRoomProfile room) {
+        var contact = sceneInformation.Contacts.FirstOrDefault(c => c.ContactId == room.ContactId);
+        if (contact == null) { contact = new() { ContactId = room.ContactId }; sceneInformation.Contacts.Add(contact); }
+        contact.IntroducedDay ??= LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+    }
+    public bool CanIntroduceSceneBooker(string roomId, out string reason) {
+        var room = SceneRoomCatalog.Get(roomId); var clock = TimeManager.Instance;
+        reason = "";
+        if (Label == null || !LocalScenes.Rooms || room == null || room.PlaceId != LocalScenePersistenceService.SceneIdFor(CurrentCityId))
+            reason = "Visit the venue's city to introduce yourself.";
+        else if (KnowsSceneBooker(roomId)) reason = "You have already met this booker.";
+        else if (clock.CurrentHour * 60 + clock.CurrentMinute < room.OpenHour * 60 ||
+                 clock.CurrentHour * 60 + clock.CurrentMinute + 15 > room.CloseHour * 60)
+            reason = "Introduce yourself during posted venue hours.";
+        else if (!clock.CanAffordMinutes(15)) reason = "Allow 15 minutes for an introduction.";
+        return reason.Length == 0;
+    }
+    public bool IntroduceSceneBooker(string roomId, out string message) {
+        if (!CanIntroduceSceneBooker(roomId, out message) || !Require(0, out message)) return false;
+        var room = SceneRoomCatalog.Get(roomId);
+        var clock = TimeManager.Instance;
+        bool continuous = scoutingKnowledge.Visit?.Day == LocalSceneRoomService.Day(clock.CurrentDate) &&
+            scoutingKnowledge.Visit.EndMinute == clock.CurrentHour * 60 + clock.CurrentMinute &&
+            LocalSceneRoomService.Bill(scoutingKnowledge.Visit.BillId)?.RoomId == room.Id;
+        SpendMinutes(15);
+        RememberBookerIntroduction(room);
+        if (continuous) scoutingKnowledge.Visit.EndMinute = clock.CurrentHour * 60 + clock.CurrentMinute;
+        else scoutingKnowledge.Visit = null;
+        message = $"You meet {room.ContactName}, who books {room.Name}. Added to your Rolodex.";
+        Note(message); Changed?.Invoke(); return true;
+    }
     public IReadOnlyList<SceneNewsItem> LocalSceneNews() {
         if (!LocalScenes.Rooms) return Array.Empty<SceneNewsItem>();
         int day = LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
@@ -63,6 +102,7 @@ public partial class PlayerDesk {
             message = "The booker has no new introduction on the announced bills."; return false;
         }
         Spend(1);
+        RememberBookerIntroduction(room);
         sceneInformation.Leads.RemoveAll(l => l.ExpiresDay < day);
         sceneInformation.Leads.Add(lead);
         if (sceneInformation.Leads.Count > 64) sceneInformation.Leads.RemoveAt(0);

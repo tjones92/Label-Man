@@ -1,0 +1,250 @@
+--- /dev/null
++++ b/Systems/PlayerDesk.ScoutingItineraryRisks.cs
+@@ -0,0 +1,27 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++
++public partial class PlayerDesk {
++    // This is a detached projection, not a refresh of appointment status or consent.
++    // Reaching a start exactly is safe; passing it without attendance can miss it.
++    public IReadOnlyList<SceneConversation> ScoutingAppointmentRisks(int throughDay, int throughMinute, string exceptId = null) {
++        var clock = TimeManager.Instance;
++        if (Label == null || clock == null || throughMinute < 0 || throughMinute > 1440) return Array.Empty<SceneConversation>();
++        long now = (long)LocalSceneRoomService.Day(clock.CurrentDate) * 1440 + clock.CurrentHour * 60 + clock.CurrentMinute;
++        long through = (long)throughDay * 1440 + throughMinute;
++        if (through <= now) return Array.Empty<SceneConversation>();
++        return ScoutingMeetings.Where(m => m.Id != exceptId && m.Status == SceneConversationStatus.Scheduled &&
++                (long)m.Day * 1440 + m.StartMinute >= now && (long)m.Day * 1440 + m.StartMinute < through)
++            .OrderBy(m => m.Day).ThenBy(m => m.StartMinute).ThenBy(m => m.Id, StringComparer.Ordinal).ToArray();
++    }
++
++    public string ScoutingAppointmentRiskText(int throughDay, int throughMinute, string exceptId = null) {
++        var risks = ScoutingAppointmentRisks(throughDay, throughMinute, exceptId);
++        if (risks.Count == 0) return null;
++        return "This choice passes an agreed start: " + string.Join("; ", risks.Select(m =>
++            $"{m.ArtistName} · {m.Activity.ToString().ToLowerInvariant()} · {LocalSceneRoomService.Date(m.Day).ToHeadlineString()} {m.StartMinute / 60:00}:{m.StartMinute % 60:00} · " +
++            (m.Activity == ScoutingAppointmentActivity.Demo ? "home budget studio" : SceneRoomCatalog.Get(m.RoomId)?.Name))) +
++            ". To keep it, attend first. You can also cancel or continue without attending.";
++    }
++}
+--- /dev/null
++++ b/UI/PlayerDeskPanel.ScoutingItineraryRisks.cs
+@@ -0,0 +1,11 @@
++using Godot;
++
++public partial class PlayerDeskPanel {
++    private void ScoutingTimeRisk(PlayerDesk desk, Button action, int day, int minute, string exceptId = null) {
++        string warning = desk.ScoutingAppointmentRiskText(day, minute, exceptId);
++        if (warning == null) return;
++        Body(warning);
++        action.Text += " · PASSES APPOINTMENT START";
++        action.TooltipText += "\n" + warning;
++    }
++}
+--- a/UI/PlayerDeskPanel.SceneRooms.cs
++++ b/UI/PlayerDeskPanel.SceneRooms.cs
+@@ -7,6 +7,7 @@ public partial class PlayerDeskPanel {
+     private bool showScoutingItinerary = true;
+     private void SceneRoomsBoard(PlayerDesk desk) {
+         Body($"Available today: {TimeManager.Instance?.MinutesRemainingWithOvertime ?? 0}min · cash {Money(desk.Label.cashReserves)}. Waiting advances the ordinary world, including expenses and other labels' decisions.");
++        ScoutingMeetingAgenda(desk);
+         if (LocalScenes.ScoutingExperience && !LocalScenes.ScoutingExperienceObserver) {
+             var browse = Btn(showScoutingItinerary ? "BROWSE ALL ROOM CALENDARS" : "SHOW NEXT AFFORDABLE SETS");
+             browse.Pressed += () => { showScoutingItinerary = !showScoutingItinerary; Refresh(); };
+@@ -102,11 +103,13 @@ public partial class PlayerDeskPanel {
+                     float admission = desk.AdmissionForVisit(bill, selected, now);
+                     var hear = Btn($"LISTEN ({slot.EndHour * 60 - now}min · {Money(admission)} admission)");
+                     hear.Disabled = slot.EndHour > (TimeManager.Instance?.HardStopHour ?? 21) || admission > desk.Label.cashReserves;
++                    ScoutingTimeRisk(desk, hear, bill.Day, slot.EndHour * 60);
+                     hear.Pressed += () => Act(() => { bool ok = desk.ListenSceneAppearance(bill.Id, eventId, out string result); Say(result, ok); return ok; }); row.AddChild(hear);
+                 } else {
+                     var wait = Btn($"WAIT UNTIL {LocalSceneRoomService.Date(bill.Day).ToHeadlineString()} · {Hour12(slot.StartHour)}");
+                     wait.Disabled = slot.EndHour > (TimeManager.Instance?.HardStopHour ?? 21);
+                     wait.TooltipText = "Time passes through the ordinary clock. No admission is charged until listening; check the bill again on arrival.";
++                    ScoutingTimeRisk(desk, wait, bill.Day, slot.StartHour * 60);
+                     wait.Pressed += () => Act(() => { bool ok = desk.WaitForSceneAppearance(bill.Id, eventId, out string result); Say(result, ok); return ok; }); row.AddChild(wait);
+                 }
+                 content.AddChild(row);
+@@ -118,6 +121,9 @@ public partial class PlayerDeskPanel {
+         var listen = Btn(available ? $"GO HEAR THE BILL  ({PlayerDesk.ScoutHours}h)" : "NO BILL TO CATCH NOW");
+         listen.Disabled = !available;
+         listen.TooltipText = "Hear the next two hours of actual appearances. Consecutive listening shares the visit admission. Free community and coffeehouse visits need no drinks.";
++        var activeBill = calendar.FirstOrDefault(b => b.RoomId == selected.Id && b.Day == LocalSceneRoomService.Day(date) && b.Status == SceneBillStatus.Scheduled && b.Appearances.Count > 0);
++        if (available && activeBill != null) ScoutingTimeRisk(desk, listen, activeBill.Day,
++            System.Math.Min(hour * 60 + (TimeManager.Instance?.CurrentMinute ?? 0) + PlayerDesk.ScoutHours * 60, activeBill.Appearances.Max(a => a.EndHour) * 60));
+         listen.Pressed += () => Act(() => { bool ok = desk.ScoutSceneRoom(selected.Id, out string message); Say(message, ok); return ok; });
+         content.AddChild(listen);
+     }
+@@ -146,6 +152,9 @@ public partial class PlayerDeskPanel {
+             var action = Btn(circuit ? "DRIVE TO THIS TOWN" : option.Playing ? "LISTEN TO THIS SET" : "WAIT FOR THIS SET");
+             action.TooltipText = circuit ? "Travel uses the existing drive action. On arrival, check the local list and wait or listen."
+                 : "Waiting and listening are separate choices. Admission is charged by listening; signed and uninterested acts also appear on bills.";
++            var clock = TimeManager.Instance;
++            ScoutingTimeRisk(desk, action, circuit ? LocalSceneRoomService.Day(clock.CurrentDate) : option.Day,
++                circuit ? clock.CurrentHour * 60 + clock.CurrentMinute + option.TravelMinutes : option.Playing ? option.EndMinute : option.StartMinute);
+             action.Pressed += () => Act(() => {
+                 string result;
+                 bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
+--- a/UI/PlayerDeskPanel.ScoutingKnowledge.cs
++++ b/UI/PlayerDeskPanel.ScoutingKnowledge.cs
+@@ -5,7 +5,7 @@ using Godot;
+ public partial class PlayerDeskPanel {
+     private bool showArchivedScouting;
+     private void ScoutingNotebook(PlayerDesk desk) {
+-        ScoutingMeetingAgenda(desk);
++        if (!LocalScenes.Rooms) ScoutingMeetingAgenda(desk);
+         var dossiers = desk.ScoutingDossiers;
+         if (dossiers.Count == 0) { Body("Every heard scene act is recorded automatically. Pinning sets priorities; it is optional."); return; }
+         if (desk.FoundingAct is { } founding) Body($"FIRST NAME ON THE LABEL: {founding.ArtistName}, {LocalSceneRoomService.Date(founding.Day).ToHeadlineString()}. {founding.Context} Advance {Money(founding.Terms.Advance)}, {founding.Terms.RoyaltyRate:P1}, {founding.Terms.TermYears} year(s).");
+@@ -36,6 +36,7 @@ public partial class PlayerDeskPanel {
+                 follow.Disabled = next.Playing && desk.Label.cashReserves < next.Admission;
+                 follow.TooltipText = next.Playing ? "Listen to this actual appearance; its availability is rechecked." :
+                     $"Wait until {LocalSceneRoomService.Date(next.Day).ToHeadlineString()}, {next.StartMinute / 60:00}:{next.StartMinute % 60:00}. Ordinary expenses and decisions continue. Admission is charged only when you choose to listen.";
++                ScoutingTimeRisk(desk, follow, next.Day, next.Playing ? next.EndMinute : next.StartMinute);
+                 follow.Pressed += () => Act(() => {
+                     string result;
+                     bool ok = next.Playing ? desk.ListenSceneAppearance(next.BillId, next.EventId, out result) :
+@@ -75,6 +76,7 @@ public partial class PlayerDeskPanel {
+                 var hear = Btn(next.Playing ? $"HEAR {lead.ArtistName.ToUpperInvariant()} ({next.ListeningMinutes}min · {Money(next.Admission)})" : "WAIT FOR " + lead.ArtistName.ToUpperInvariant());
+                 hear.Disabled = next.Playing && desk.Label.cashReserves < next.Admission;
+                 hear.TooltipText = "Follow this announced appearance. Waiting advances ordinary expenses and decisions; it does not listen, charge admission or reserve the act. Availability is checked again when you act.";
++                ScoutingTimeRisk(desk, hear, next.Day, next.Playing ? next.EndMinute : next.StartMinute);
+                 hear.Pressed += () => Act(() => {
+                     string result;
+                     bool ok = next.Playing ? desk.ListenSceneAppearance(next.BillId, next.EventId, out result) :
+--- a/UI/PlayerDeskPanel.ScoutingMeetings.cs
++++ b/UI/PlayerDeskPanel.ScoutingMeetings.cs
+@@ -19,6 +19,7 @@ public partial class PlayerDeskPanel {
+             attend.Disabled = !LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver || !LocalScenes.Rooms ||
+                 day > meeting.Day || day == meeting.Day && now > meeting.StartMinute;
+             attend.TooltipText = "Waiting advances ordinary expenses and other labels' decisions. Attend at the agreed start; current speaker, place, bookings and willingness are checked again. A substantial conversation creates no simultaneous listening evidence.";
++            ScoutingTimeRisk(desk, attend, meeting.Day, ready ? meeting.EndMinute : meeting.StartMinute, meeting.Id);
+             attend.Pressed += () => Act(() => {
+                 bool ok = ready ? desk.AttendScoutingMeeting(meeting.Id, out string result) : desk.WaitForScoutingMeeting(meeting.Id, out result);
+                 if (ready && ok && meeting.Activity == ScoutingAppointmentActivity.Conversation) negotiating = desk.Slate.FirstOrDefault(p => p.Artist.artistId == meeting.ArtistId && p.HasBaseline);
+--- a/UI/PlayerDeskPanel.ScoutingListeners.cs
++++ b/UI/PlayerDeskPanel.ScoutingListeners.cs
+@@ -21,6 +21,8 @@ public partial class PlayerDeskPanel {
+             together.Text = listener.ConsultationFee > 0 ? $"HIRE LISTENER (${total:0.00} total · ${listener.ConsultationFee:0.00} consultation)" : $"LISTEN TOGETHER ({Money(total)} total admission)";
+             together.Disabled = desk.Label.cashReserves < total;
+             together.TooltipText = "Both hear the same remaining set. Pay each visitor's admission once per continuous visit. A hired musician charges the displayed consultation fee for each set; a roster companion charges no consultation fee. No additional action time. Availability and the quote are checked again. Time and agreed costs are consumed if the set cancels during the visit.";
++            string risk = desk.ScoutingAppointmentRiskText(bill.Day, bill.Appearances.First(a => ScenePerformanceService.EventId(bill, a) == eventId).EndHour * 60);
++            if (risk != null) { together.Text += " · PASSES APPOINTMENT START"; prices.Text += "\n" + risk; together.TooltipText += "\n" + risk; }
+         }
+         select.ItemSelected += _ => Update();
+         together.Pressed += () => Act(() => {
+--- /dev/null
++++ b/SimTools/ScoutingCommitmentPlanningChecks.cs
+@@ -0,0 +1,53 @@
++using System;
++using System.Linq;
++using System.Text.Json;
++using Godot;
++
++public static class ScoutingCommitmentPlanningChecks {
++    public static void Run() {
++        int checks = 0;
++        void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCOUTING_COMMITMENT_PLANNING_FAILED: " + why); checks++; }
++        string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
++        var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
++        Check(desk.FoundLabel("Commitment Planning", "nashville", out string message), "found label: " + message);
++        var plan = desk.ScoutingItinerary().First(o => o.EndMinute < Math.Min(clock.HardStopHour * 60, SceneRoomCatalog.Get(o.RoomId).CloseHour * 60));
++        Check(desk.WaitForSceneAppearance(plan.BillId, plan.EventId, out message) && desk.ListenSceneAppearance(plan.BillId, plan.EventId, out message), "actual heard set: " + message);
++        var act = ArtistManager.Instance.GetArtist(plan.ArtistId);
++        act.labelId = null; act.careerState = CareerState.Unsigned; act.lifecycleStatus = ArtistLifecycleStatus.Active; act.prospectMarketStatus = ProspectMarketStatus.Seeking; act.manager = ManagerArchetype.None;
++        var quote = desk.PreviewScoutingInvitation(act.artistId);
++        Check(quote != null && desk.ArrangeScoutingMeeting(act.artistId, quote.Id, out message), "actual consent: " + message);
++        var meeting = desk.ScoutingMeetings.Single();
++        Check(meeting.Status == SceneConversationStatus.Scheduled, "scheduled appointment");
++        Check(desk.ScoutingAppointmentRisks(meeting.Day, meeting.StartMinute).Count == 0, "exact start reachable without missing it");
++        Check(desk.ScoutingAppointmentRisks(meeting.Day, meeting.StartMinute + 1).Single().Id == meeting.Id, "one minute beyond start shows the agreed appointment");
++        Check(desk.ScoutingAppointmentRisks(meeting.Day, meeting.EndMinute, meeting.Id).Count == 0, "attendance preview excludes the appointment being attended");
++        Check(desk.ScoutingAppointmentRisks(meeting.Day - 1, 1440).Count == 0 && desk.ScoutingAppointmentRisks(meeting.Day, -1).Count == 0, "valid forward interval only");
++        string warning = desk.ScoutingAppointmentRiskText(meeting.Day, meeting.StartMinute + 1);
++        Check(warning.Contains(meeting.ArtistName) && warning.Contains(SceneRoomCatalog.Get(meeting.RoomId).Name) && warning.Contains("continue without attending"), "warning identifies commitment and preserves choice");
++        desk.SetScoutingPriority(act.artistId, ScoutingPriority.Archived);
++        Check(desk.ScoutingAppointmentRisks(meeting.Day, meeting.StartMinute + 1).Count == 1, "archiving does not hide an agreed obligation");
++        string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
++        GD.Seed(712); uint draw = GD.Randi(); GD.Seed(712);
++        desk.ScoutingAppointmentRisks(meeting.Day, meeting.EndMinute); desk.ScoutingAppointmentRiskText(meeting.Day, meeting.EndMinute); desk.ScoutingItinerary();
++        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GD.Randi() == draw, "risk previews preserve complete world, player and RNG");
++        var savedPlayer = JsonSerializer.Deserialize<PlayerSaveData>(player, SaveGameService.TestJsonOptions);
++        Check(desk.RestoreState(savedPlayer, out message) && desk.ScoutingAppointmentRiskText(meeting.Day, meeting.StartMinute + 1) == warning, "player restore preserves warning");
++        string slot = "Commitment " + Guid.NewGuid().ToString("N");
++        try {
++            Check(SaveGameService.Save(slot, out message), "compressed save: " + message);
++            Check(SaveGameService.Load(slot, out message) && desk.ScoutingAppointmentRiskText(meeting.Day, meeting.StartMinute + 1) == warning, "full load preserves commitment and projection: " + message);
++        } finally { SaveGameService.Delete(slot); }
++        var baseWorld = WorldStateService.Capture(); var basePlayer = desk.CaptureState(); var date = clock.CurrentDate; int hour = clock.CurrentHour, minute = clock.CurrentMinute;
++        float cash = desk.Label.cashReserves;
++        Check(desk.CancelScoutingMeeting(meeting.Id, out message) && desk.ScoutingAppointmentRiskText(meeting.Day, meeting.EndMinute) == null && desk.Label.cashReserves == cash && clock.CurrentHour == hour && clock.CurrentMinute == minute, "free cancellation releases warning without resources");
++        WorldStateService.Apply(LocalSceneRoomService.Copy(baseWorld), date, SimulationSeedBootstrap.RequestedSeed); desk.RestoreState(basePlayer, out _); clock.RestoreClock(date, hour, minute);
++        clock.RestoreClock(LocalSceneRoomService.Date(meeting.Day), meeting.StartMinute / 60, meeting.StartMinute % 60);
++        var later = desk.ScoutingItinerary().First(o => o.Day > meeting.Day || o.Day == meeting.Day && o.StartMinute > meeting.StartMinute);
++        Check(desk.ScoutingAppointmentRisks(later.Day, later.StartMinute).Any(m => m.Id == meeting.Id), "real later set exposes the skipped commitment");
++        int evidence = desk.ScoutingDossiers.Sum(d => d.Observations.Count);
++        Check(desk.WaitForSceneAppearance(later.BillId, later.EventId, out message), "player may still choose the later set: " + message);
++        Check(desk.ScoutingMeetings.Single().Status == SceneConversationStatus.Missed && desk.ScoutingDossiers.Sum(d => d.Observations.Count) == evidence, "ordinary clock misses appointment without fabricated attendance or evidence");
++        Check(desk.ScoutingAppointmentRiskText(later.Day, later.EndMinute) == null, "missed commitment no longer presented as pending");
++        GD.Print($"SCOUTING_COMMITMENT_PLANNING_PASS checks={checks}");
++    }
++}
+--- a/SimTools/SaveLoadRoundTripRunner.cs
++++ b/SimTools/SaveLoadRoundTripRunner.cs
+@@ -39,6 +39,7 @@ public partial class SaveLoadRoundTripRunner : Node {
+ 
+ 			if (OS.GetCmdlineUserArgs().Contains("--scouting-business-check")) { ScoutingBusinessChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-check")) { ScoutingOpeningChecks.Run(); GetTree().Quit(0); return; }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-commitment-planning-check")) { ScoutingCommitmentPlanningChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+--- a/SimTools/SceneRoomUiRunner.cs
++++ b/SimTools/SceneRoomUiRunner.cs
+@@ -21,6 +21,45 @@ public partial class SceneRoomUiRunner : Node {
+             var fold = Descendants(this).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "FOLD THE PAPER  ×");
+             fold?.EmitSignal(Button.SignalName.Pressed);
+             for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-commitment-planning-ui-check")) {
++                var clock = TimeManager.Instance;
++                clock.RestoreClock(GameDate.StartDate, 9);
++                var planned = desk.ScoutingItinerary().First(o => o.EndMinute < System.Math.Min(clock.HardStopHour * 60, SceneRoomCatalog.Get(o.RoomId).CloseHour * 60));
++                if (!desk.WaitForSceneAppearance(planned.BillId, planned.EventId, out message) || !desk.ListenSceneAppearance(planned.BillId, planned.EventId, out message)) throw new InvalidOperationException(message);
++                var act = ArtistManager.Instance.GetArtist(planned.ArtistId);
++                act.labelId = null; act.careerState = CareerState.Unsigned; act.lifecycleStatus = ArtistLifecycleStatus.Active; act.prospectMarketStatus = ProspectMarketStatus.Seeking; act.manager = ManagerArchetype.None;
++                var invite = desk.PreviewScoutingInvitation(act.artistId);
++                if (invite == null || !desk.ArrangeScoutingMeeting(act.artistId, invite.Id, out message)) throw new InvalidOperationException(message);
++                desk.SetScoutingPriority(act.artistId, ScoutingPriority.Archived);
++                var meeting = desk.ScoutingMeetings.Single();
++                clock.RestoreClock(LocalSceneRoomService.Date(meeting.Day), meeting.StartMinute / 60, meeting.StartMinute % 60);
++                panel.OpenAtTab("A&R");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var agenda = Descendants(panel).OfType<Label>().Where(l => !l.IsQueuedForDeletion() && l.Text == "AGREED MEETINGS").ToArray();
++                if (agenda.Length != 1) throw new InvalidOperationException("Archived appointment must appear once on the city board.");
++                var warning = Descendants(panel).OfType<Label>().FirstOrDefault(l => !l.IsQueuedForDeletion() && l.Text.StartsWith("This choice passes an agreed start:"));
++                if (warning == null || !warning.Text.Contains(meeting.ArtistName)) throw new InvalidOperationException("Time choice needs the specific appointment warning.");
++                var continueButton = Descendants(panel).OfType<Button>().FirstOrDefault(b => !b.IsQueuedForDeletion() && (b.Text.StartsWith("LISTEN TO THIS SET") || b.Text.StartsWith("WAIT FOR THIS SET")) && b.Text.Contains("PASSES APPOINTMENT START"));
++                if (continueButton == null || continueButton.Disabled) throw new InvalidOperationException("Player must retain the choice to hear a conflicting set.");
++                var attendButton = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("ATTEND MEETING"));
++                if (attendButton.Text.Contains("PASSES APPOINTMENT START")) throw new InvalidOperationException("Attending cannot conflict with its own appointment.");
++                string riskDir = ProjectSettings.GlobalizePath("res://SimLogs/scouting-commitment-planning-ui-v1"); Directory.CreateDirectory(riskDir);
++                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(riskDir, "choices.png"));
++                foreach (var scroll in Descendants(panel).OfType<ScrollContainer>().Where(s => s.IsAncestorOf(warning)))
++                    scroll.ScrollVertical = System.Math.Max(0, scroll.ScrollVertical + (int)(warning.GlobalPosition.Y - scroll.GlobalPosition.Y) - 160);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(riskDir, "warning.png"));
++                int count = desk.ScoutingDossiers.Sum(d => d.Observations.Count);
++                Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "CANCEL MEETING").EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (desk.ScoutingMeetings.Single().Status != SceneConversationStatus.Cancelled || desk.ScoutingDossiers.Sum(d => d.Observations.Count) != count + 1 ||
++                    Descendants(panel).OfType<Label>().Any(l => !l.IsQueuedForDeletion() && l.Text.StartsWith("This choice passes an agreed start:")))
++                    throw new InvalidOperationException("Cancellation must release the warning, preserving only its ordinary cancellation notice.");
++                GD.Print("SCOUTING_COMMITMENT_PLANNING_UI_PASS agendaOnce=true archived=true warning=true choice=true cancellation=true"); GetTree().Quit(0); return;
++            }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-ui-check")) {
+                 TimeManager.Instance.RestoreClock(GameDate.StartDate, 9);
+                 panel.OpenAtTab("A&R");

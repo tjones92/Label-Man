@@ -46,6 +46,13 @@ public static class ScoutingAudienceChecks {
         Check(ScoutingAudience.Summary(dossier).Contains("1 distinct whole-bill") && !ScoutingAudience.Summary(dossier).Contains("Reports disagree"), "listening and booker are one crowd, not independent bills");
         Check(!desk.AskScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience, answer.QuoteId, out _) && clock.CurrentHour * 60 + clock.CurrentMinute == minute + 60, "duplicate source acquisition has no time or crowd progress");
         var fixture = ContextFixture(heard);
+        var unfinished = LocalSceneRoomService.Copy(heard);
+        unfinished.BillAttendance = null; unfinished.SetPresent = 40; unfinished.BillCapacity = 80;
+        unfinished.SetStayedShare = null; unfinished.SetArrivals = null; unfinished.SetRequests = null;
+        var roomView = new ScoutingDossier { Observations = new() { unfinished } };
+        Check(ScoutingAudience.RoomImpression(roomView).Single().Contains("about half full"), "Visible room occupancy works before the bill finishes without inventing audience reactions");
+        roomView.Observations.Clear(); roomView.Observations.Add(new ScoutingObservation { Kind = ScoutingEvidenceKind.DemoSample, SetPresent = 80, BillCapacity = 80 });
+        Check(ScoutingAudience.RoomImpression(roomView).Single().Contains("haven't made a note"), "Studio samples cannot invent a crowd recollection");
         string Detail(ScoutingDossier d) => string.Join("\n", ScoutingAudience.Details(d));
         Check(ScoutingAudience.Summary(fixture).Contains("2 distinct whole-bill") && ScoutingAudience.Summary(fixture).Contains("2 recorded room") && ScoutingAudience.Summary(fixture).Contains("2 recorded town"), "different retained bills, rooms and towns counted independently");
         Check(Detail(fixture).Contains("150 attendees against 200 capacity") && !Detail(fixture).Contains("149 attendees") && Detail(fixture).Contains("roughly three-quarters full"), "visual observation stays coarse while source count retains denominator");
@@ -86,6 +93,8 @@ public static class ScoutingAudienceChecks {
         string world = Json(WorldStateService.Capture()), knowledge = Json(desk.CaptureState());
         GD.Seed(872); uint draw = GD.Randi(); GD.Seed(872);
         var detail = desk.ScoutingAudienceDetails(plan.ArtistId).ToArray(); var summary = desk.ScoutingSummary(plan.ArtistId);
+        var playerNotes = desk.ScoutingPlayerNotes(plan.ArtistId).ToArray();
+        var roomNotes = ScoutingAudience.RoomImpression(desk.ScoutingDossiers.Single()).ToArray();
         Check(summary.Count(l => l.StartsWith("Audience:")) == 1 && summary.Single(l => l.StartsWith("Audience:")).Contains("2 distinct whole-bill"), "notebook uses retained history once");
         Check(world == Json(WorldStateService.Capture()) && knowledge == Json(desk.CaptureState()) && GD.Randi() == draw, "audience views preserve full world, player and RNG");
         var captured = desk.CaptureState(); captured.ScoutingKnowledge.Dossiers.Single().Observations[0].BillAttendance = 1;
@@ -93,6 +102,7 @@ public static class ScoutingAudienceChecks {
         var rooms = LocalSceneRoomService.Copy(WorldStateService.Capture().SceneRooms); rooms.Bills.RemoveAll(b => b.Id == bill.Id);
         LocalSceneRoomService.BeginRestore(rooms); LocalSceneRoomService.CompleteRestore();
         Check(desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "calendar pruning cannot rewrite retained audience evidence");
+        Check(desk.ScoutingPlayerNotes(plan.ArtistId).SequenceEqual(playerNotes) && ScoutingAudience.RoomImpression(desk.ScoutingDossiers.Single()).SequenceEqual(roomNotes), "Player impressions remain historical after calendar pruning");
         Check(desk.SetScoutingPriority(plan.ArtistId, ScoutingPriority.Archived) && desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "archive retains history");
         foreach (var flag in new[] { "--disable-scouting-experience", "--observe-scouting-experience" }) {
             LocalScenes.Configure(new[] { flag }); Check(desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "off mode retains acquired audience: " + flag);
