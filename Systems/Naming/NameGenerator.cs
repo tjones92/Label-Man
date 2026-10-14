@@ -335,6 +335,22 @@ public partial class NameGenerator : Node {
 	}
 
 	/// <summary>
+	/// A song title that is a pure function of <paramref name="key"/> (and the world's keyed seed): same key, same
+	/// title. It draws nothing from the runtime or catalog title streams and records nothing in the uniqueness
+	/// buckets, so it is safe inside world systems that must not move the AI's title stream (whose titles feed
+	/// <c>GetDeterministicTrackTraits</c>). For a scene act's own unrecorded songs, which used to carry the literal
+	/// placeholder "Unrecorded original" all the way onto a released master. Null when the engine isn't up.
+	/// </summary>
+	public string KeyedSongTitle(Genre genre, int year, string key) {
+		if (_engine == null) return null;
+		double unit = LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed, "song-title-v1|" + key);
+		var rng = new DeterministicRandom((ulong)(unit * 9007199254740992.0));
+		var ctx = MakeContext(genre, year, ArtistType.Unknown, rng);
+		string title = _engine.ExpandRouted(ChooseSongSymbol(genre, year, rng), ctx);
+		return string.IsNullOrWhiteSpace(title) ? null : title.Trim();
+	}
+
+	/// <summary>
 	/// A song title for a pre-game catalog composition (legacy standard / recent-hit cover). Same
 	/// engine and routing as <see cref="GenerateSongTitle"/>, but drawn from the dedicated catalog
 	/// stream (<c>_titleRng</c>) and written into a dedicated near-dup bucket that no runtime caller

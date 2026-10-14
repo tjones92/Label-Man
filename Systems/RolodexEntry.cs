@@ -66,6 +66,12 @@ public sealed class RolodexEntry {
     /// <summary>Records whose acetate has already been played to this man down the phone -- once each.</summary>
     public List<string> acetatesPlayed = new();
 
+    /// <summary>Early-game §6.1: the label has introduced itself on a courtesy call. The introduction's small rapport gain
+    /// happens once; a second introduction is just a repeated question.</summary>
+    public bool labelIntroduced;
+    /// <summary>Chart week of his last "what's moving" read, or 0. A newer read inside the refresh window has nothing new.</summary>
+    public int movingReadWeek;
+
     /// <summary>Derive the relationship tier from the live rapport score. One source of truth.</summary>
     public static RapportTier ClassifyRapport(float rapport, DiscoveryState state) {
         if (rapport >= 0.6f) return RapportTier.Loyal;
@@ -164,6 +170,8 @@ public sealed class RolodexEntrySaveData {
     public int CallbackMonth { get; set; }
     public int CallbackDay { get; set; }
     public int CallbackHour { get; set; }
+    public bool LabelIntroduced { get; set; }
+    public int MovingReadWeek { get; set; }
 
     public static RolodexEntrySaveData From(RolodexEntry e) => new() {
         DjId = e.djId, StationId = e.stationId, StateOrdinal = (int)e.state,
@@ -176,7 +184,8 @@ public sealed class RolodexEntrySaveData {
         Log = new List<string>(e.log),
         AcetatesPlayed = new List<string>(e.acetatesPlayed),
         CallbackYear = e.callbackDate?.year ?? 0, CallbackMonth = e.callbackDate?.month ?? 0,
-        CallbackDay = e.callbackDate?.day ?? 0, CallbackHour = e.callbackHour
+        CallbackDay = e.callbackDate?.day ?? 0, CallbackHour = e.callbackHour,
+        LabelIntroduced = e.labelIntroduced, MovingReadWeek = e.movingReadWeek
     };
 
     public RolodexEntry ToEntry() => new() {
@@ -191,6 +200,7 @@ public sealed class RolodexEntrySaveData {
         log = Log ?? new List<string>(),
         acetatesPlayed = AcetatesPlayed ?? new List<string>(),
         callbackDate = CallbackYear > 0 ? new GameDate(CallbackYear, CallbackMonth, CallbackDay) : null,
-        callbackHour = CallbackHour
+        callbackHour = CallbackHour,
+        labelIntroduced = LabelIntroduced, movingReadWeek = MovingReadWeek
     };
 }

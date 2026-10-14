@@ -424,7 +424,10 @@ public partial class PlayerDeskPanel {
             plan.Text = problem ?? (incremental
                 ? $"Plan: {setup}m setup, then one pass per song ({string.Join(", ", passes.Select(m => m + "m"))}: the song twice, for the take and a listen back, plus a reset) and {PlayerDesk.StudioFinishMinutesPerSide}m finish each — {minimum}m of {hours * 60}m. That leaves {StudioClockStrip.DurationText(hours * 60 - minimum)} for rehearsal, retakes and direction."
                 : $"{songCount} song(s) in {hours} hours.");
-            plan.AddThemeColorOverride("font_color", problem == null ? Heard : Rust);
+            // Early-game §4.1: say before the money goes if this date leaves the rest of the release unfunded. A warning, never a block.
+            string completion = problem == null ? desk.CompletionWarning(roomCost + musicianFee + gas, PlayerDesk.CompletionStageKind.Studio) : null;
+            if (completion != null) plan.Text += "\n" + completion;
+            plan.AddThemeColorOverride("font_color", problem == null && completion == null ? Heard : Rust);
             book.Disabled = problem != null;
             if (driveUp != null) driveUp.Disabled = offer.Locked != null || !desk.AtHome || desk.Label.cashReserves < gas + offer.BandLodging ||
                 time != null && drive * 60 > time.MinutesRemainingWithOvertime;

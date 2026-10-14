@@ -195,7 +195,10 @@ public static class BandLifeChecks {
 			$"registered {ArtistManager.Instance.GetMusician(newcomer?.personId ?? "") == newcomer})");
 
 		// Bookings, a writing session and a cut-in all land in the desk's state.
-		Check(desk.BookRoad(act, 8, 4, out _) && desk.RoadBookingFor(act.artistId)?.WeeksRemaining == 12, "a residency and a tour are booked");
+		// A residency is a booker's yes at a room the act has played; with no nights behind it, nobody gives one.
+		Check(!desk.BookRoad(act, 8, 0, out string noRoom) && desk.RoadBookingFor(act.artistId)?.ResidencyRoomId == null,
+			$"a residency needs a room that has seen the act ({noRoom})");
+		Check(desk.BookRoad(act, 0, 4, out _) && desk.RoadBookingFor(act.artistId)?.WeeksRemaining == 4, "a tour is booked");
 		Check(desk.CutInOnSongs(act, out _) && desk.CutInSongsLeft(act.artistId) == PlayerDesk.LabelCutInSongs, "the label cuts itself in");
 
 		// Player save round trip: the Band Room comes back whole.

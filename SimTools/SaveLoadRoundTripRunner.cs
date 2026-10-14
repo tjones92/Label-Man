@@ -353,6 +353,19 @@ public partial class SaveLoadRoundTripRunner : Node {
 				.Select(s => s.ReportsToStationIds.Count)
 				.DefaultIfEmpty(0).Max();
 
+			// Early-game directive V2 §6.1 / §6.3: a Rolodex card's courtesy-call state and a booker's night and answer.
+			PlayerDesk.Instance.WorkThePhones(out _);
+			RolodexEntry courtesyEntry = PlayerDesk.Instance.Rolodex.FirstOrDefault();
+			if (courtesyEntry != null) { courtesyEntry.labelIntroduced = true; courtesyEntry.movingReadWeek = 7; }
+			// Hop-table crowd saturation: what a room's regulars already bought survives the save.
+			PlayerDesk.PlayerStop crowdStop = homeStops.FirstOrDefault(st => st.Kind == PlayerDesk.StopKind.Venue);
+			if (crowdStop != null) crowdStop.TableCrowds["probe_record_1"] = new PlayerDesk.TableCrowd { Bought = 17.5f, LastSale = TimeManager.Instance.CurrentDate };
+			string bookingRoom = SceneRoomCatalog.All.FirstOrDefault(r => r.IsPerformance)?.Id;
+			if (bookingRoom != null) {
+				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 400, Status = SceneBillStatus.Scheduled, Note = "probe booking" });
+				LocalSceneRoomService.RecordPitch(new SceneBookerPitch { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 3, Accepted = false, ShowsAtPitch = 2 });
+			}
+
             var infoSave = PlayerDesk.Instance.CaptureState();
             infoSave.SceneInformation = new SceneInformationKnowledge {
                 Contacts = new() { new() { ContactId = "probe-contact", HeardBillIds = new() { "probe-bill-1", "probe-bill-2" } } },
@@ -534,6 +547,22 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (!tradeAdOk) fails.Add("TradeAd lost on round-trip");
 			if (!knowsReportsOk) fails.Add("knownReportingStopIds lost on round-trip");
 			if (!fanOutOk) fails.Add($"reporting fan-out {worstFanOut} stations per dealer (expected <= 2)");
+			var courtesy1 = courtesyEntry == null ? null : PlayerDesk.Instance.Rolodex.FirstOrDefault(e => e.djId == courtesyEntry.djId);
+			if (courtesyEntry != null && (courtesy1 == null || !courtesy1.labelIntroduced || courtesy1.movingReadWeek != 7)) fails.Add("Rolodex courtesy-call state lost on round-trip");
+			if (crowdStop != null) {
+				var crowd1 = PlayerDesk.Instance.StopsInCity(cityId).FirstOrDefault(st => st.StopId == crowdStop.StopId)?.TableCrowds is { } tc && tc.TryGetValue("probe_record_1", out var c1) ? c1 : null;
+				bool crowdOk = crowd1 != null && Math.Abs(crowd1.Bought - 17.5f) < 0.001f && crowd1.LastSale.Equals(crowdStop.TableCrowds["probe_record_1"].LastSale);
+				GD.Print($"TABLE_CROWD_ROUNDTRIP stop={crowdStop.StopId} bought={crowd1?.Bought} ok={crowdOk}");
+				if (!crowdOk) fails.Add("hop-table crowd lost on round-trip");
+			}
+			if (bookingRoom != null) {
+				var booking1 = LocalSceneRoomService.Bookings.FirstOrDefault(b => b.ArtistId == "probe-act");
+				var pitch1 = LocalSceneRoomService.LastPitch(bookingRoom, "probe-act");
+				bool bookingOk = booking1 != null && booking1.Day == 400 && booking1.Status == SceneBillStatus.Scheduled && booking1.Note == "probe booking"
+					&& pitch1 != null && !pitch1.Accepted && pitch1.ShowsAtPitch == 2 && pitch1.Day == 3;
+				GD.Print($"EARLY_GAME_ROUNDTRIP courtesy={courtesy1?.labelIntroduced}/{courtesy1?.movingReadWeek} booking={booking1 != null} pitch={pitch1 != null} ok={bookingOk}");
+				if (!bookingOk) fails.Add("scene booking / booker pitch lost on round-trip");
+			}
 
 			SaveGameService.Delete(slot);
 			if (fails.Count == 0) {

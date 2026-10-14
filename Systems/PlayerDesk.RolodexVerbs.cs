@@ -64,6 +64,7 @@ public partial class PlayerDesk : Node {
 			};
 			if (heard) { play.enabled = false; play.disabledReason = "You've already played him this one. Bring him the pressing."; }
 			options.Add(play);
+			AddCourtesyOptions(call, options);   // early-game §6.1
 		} else if (c.HasRecord) {
 			// Anyone can argue for their own record; only a real EAR gets to frame it as an insight. A
 			// voice tag is a claim that your instincts surfaced the line -- tagging an option the player
@@ -137,10 +138,8 @@ public partial class PlayerDesk : Node {
 				options.Add(payola);
 			}
 		} else {
-			options.Add(new CallOption {
-				label = "Nothing to pitch", enabled = false,
-				disabledReason = "You have no record in the market. Release something first.",
-			});
+			// Early-game §6.1: nothing in the market is not nothing to say. Courtesy calls, none of them a disguised pitch.
+			AddCourtesyOptions(call, options);
 		}
 
 		if (c.theyOweYou) {
@@ -215,7 +214,7 @@ public partial class PlayerDesk : Node {
 
 		// Favours and introductions are not negotiations -- you are cashing something that already
 		// exists, or asking for a name. They resolve straight away.
-		if (approach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction or RolodexApproach.PlayTheAcetate) {
+		if (approach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction or RolodexApproach.PlayTheAcetate or RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen) {
 			call.baseChance = 1f;
 			Resolve(call, out message);
 			return;
@@ -321,6 +320,7 @@ public partial class PlayerDesk : Node {
 			$"\"I've got one disc of \"{c.baseRecord?.title}\" and no pressing yet. Give me two minutes of your ear.\" You hold the phone up to the machine.",
 		RolodexApproach.AskForIntroduction =>
 			"\"Who else in this market should I know? Somebody who'd actually take the call.\"",
+		RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen => CourtesyOpeningLine(approach),
 		_ => "",
 	};
 
@@ -637,6 +637,7 @@ public partial class PlayerDesk : Node {
 				PersonalPitchMinMinutes + (int)GD.RandRange(0, PersonalPitchMaxMinutes - PersonalPitchMinMinutes),
 			RolodexApproach.AskForFavor   => AskAFavorMinMinutes + (int)GD.RandRange(0, AskAFavorMaxMinutes - AskAFavorMinMinutes),
 			RolodexApproach.AskForIntroduction => IntroductionMinutes,
+			RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen => CourtesyCallMinutes,
 			_ => 10,
 		};
 		if (TimeManager.Instance?.CanAffordMinutes(minutes) == true) { SpendMinutes(minutes); call.minutesSpent += minutes; }
@@ -645,7 +646,7 @@ public partial class PlayerDesk : Node {
 		// was played, a jock who has never been serviced with this record cannot add it -- the roll
 		// never even happens.
 		bool success = call.objection != Objection.NotServiced
-			&& (call.pendingApproach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction or RolodexApproach.PlayTheAcetate
+			&& (call.pendingApproach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction or RolodexApproach.PlayTheAcetate or RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen
 				|| GD.Randf() < call.EffectiveChance);
 		call.lastSucceeded = success;
 		call.stage = CallStage.Resolved;
@@ -659,6 +660,7 @@ public partial class PlayerDesk : Node {
 			case RolodexApproach.AskForFavor:        ResolveFavor(call, out message); break;
 			case RolodexApproach.AskForIntroduction: ResolveIntroduction(call, out message); break;
 			case RolodexApproach.PlayTheAcetate:     ResolveAcetatePlay(call, out message); break;
+			case RolodexApproach.IntroduceLabel or RolodexApproach.AskWhatsMoving or RolodexApproach.ArrangeListen: ResolveCourtesy(call, out message); break;
 		}
 
 		call.Say(RolodexSceneBeat.RelationshipAftermath,

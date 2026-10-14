@@ -1349,6 +1349,16 @@ public sealed class PlayerStopSaveData {
 	public bool OneStopTrusted { get; set; }
 	// Shop only (directive §7.3): permanently burned after a hype-the-count detection.
 	public bool HypeBurned { get; set; }
+	// Venue only: how much of the room's crowd already bought each title off the table (absent in older saves).
+	public List<TableCrowdSaveData> TableCrowds { get; set; } = new();
+}
+
+public sealed class TableCrowdSaveData {
+	public string RecordId { get; set; }
+	public float Bought { get; set; }
+	public int Year { get; set; }
+	public int Month { get; set; }
+	public int Day { get; set; }
 }
 
 public sealed class InboundCallSaveData {

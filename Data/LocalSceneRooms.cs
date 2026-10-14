@@ -107,6 +107,31 @@ public sealed class SceneRoomSaveData {
     public long CompletedPerformances { get; set; }
     /// <summary>House-band regulars: shows each player has backed in each room.</summary>
     public List<SceneHouseBandStanding> HouseStanding { get; set; } = new();
+    /// <summary>Early-game §6.3: nights a booker gave the player's act. Empty in every AI-only world.</summary>
+    public List<SceneBooking> Bookings { get; set; } = new();
+    /// <summary>Early-game §6.3: what each booker last said to the player about an act, so a no stands until something changes.</summary>
+    public List<SceneBookerPitch> BookerPitches { get; set; } = new();
+}
+/// <summary>A night a room's booker agreed to give an act the player pitched. Placed on the bill when that week is
+/// scheduled, under every ordinary rule; it can still fail to play, and says why.</summary>
+public sealed class SceneBooking {
+    public string RoomId { get; set; }
+    public string ArtistId { get; set; }
+    public string LabelId { get; set; }
+    public int Day { get; set; }
+    /// <summary>Scheduled until the week is billed; then Performed or Cancelled from the act's own appearance.</summary>
+    public SceneBillStatus Status { get; set; }
+    public bool Billed { get; set; }
+    public string Note { get; set; }
+}
+public sealed class SceneBookerPitch {
+    public string RoomId { get; set; }
+    public string ArtistId { get; set; }
+    public string LabelId { get; set; }
+    public int Day { get; set; }
+    public bool Accepted { get; set; }
+    /// <summary>The act's shows in the room when it was pitched: a no stands until this grows (or a term passes).</summary>
+    public int ShowsAtPitch { get; set; }
 }
 public sealed class SceneHouseBandStanding {
     public string RoomId { get; set; }

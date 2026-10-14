@@ -808,6 +808,14 @@ public partial class PlayerDesk : Node {
 		/// region by the same fraction. Assigned at generation like <see cref="BuyerNerve"/>.</summary>
 		public float AudienceLean = 0.5f;
 
+		/// <summary>Venue only: how many regulars this hop, club or church hall draws, 0-1 (see
+		/// <see cref="TableCrowdCeiling"/>). A fixed fact about the room, assigned at generation like
+		/// <see cref="BuyerNerve"/>, so it needs no save field.</summary>
+		public float CrowdSize = 0.5f;
+		/// <summary>Venue only: per title, how much of this room's crowd has already bought it off the table. The
+		/// same regulars don't buy the same 45 twice; new faces arrive slowly (<see cref="TableCrowdTurnoverPerWeek"/>).</summary>
+		public readonly Dictionary<string, TableCrowd> TableCrowds = new(StringComparer.Ordinal);
+
 		/// <summary>Draws this account's two fixed traits from a hash of its own StopId rather than from
 		/// the factory's shared name stream -- so adding them cannot shift a single shop's NAME, and an
 		/// existing save (whose relationships are keyed to StopId) reloads with the same roster it had.
@@ -818,6 +826,7 @@ public partial class PlayerDesk : Node {
 			h ^= worldSeed;
 			BuyerNerve = NextUnit(ref h);
 			AudienceLean = NextUnit(ref h);
+			CrowdSize = NextUnit(ref h);   // drawn after the first two, so neither of theirs moves
 			return this;
 		}
 
@@ -963,6 +972,7 @@ public partial class PlayerDesk : Node {
 		Spend(1);
 		acetateCopies.Remove(recordId);
 		ServiceStation(recordId, stationId, 0.9f, ServicingSource.HandDelivered);
+		KeepListenAppointment(recordId, station);   // early-game §6.1: a listen he agreed to, kept
 		Master master = masters.First(item => item.Record.recordId == recordId);
 		bool strong = master.Record.hookStrength >= PreOrderHookBar;
 		string reaction = strong
@@ -1251,6 +1261,19 @@ public partial class PlayerDesk : Node {
 		message = $"{label.labelName} is open.";
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>Saves made before scene originals had names carry the literal placeholder in a signed act's repertoire.
+	/// Give each unrecorded one the act's keyed title on load; anything already cut keeps the title it was printed with.</summary>
+	private void RenameScenePlaceholderOriginals() {
+		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+		foreach (var (artistId, set) in repertoire) {
+			var artist = ArtistManager.Instance?.GetArtist(artistId);
+			if (artist == null) continue;
+			int index = 0;
+			foreach (var item in set.Where(i => i.IsOriginal && !i.Recorded && i.Title == "Unrecorded original"))
+				item.Title = LocalSceneRoomService.OriginalTitle(artist, year, index++);
+		}
 	}
 
 	private static Genre[] TopRegionalGenres(MarketRegion region, int count) =>
@@ -1663,7 +1686,7 @@ public partial class PlayerDesk : Node {
 		for (int i = 0; i < originals; i++) {
 			float hook = Mathf.Clamp(artist.songwritingAbility * 0.7f + (float)Draw(-0.15, 0.25), 0f, 1f);
 			prospect.LiveSet.Add(new RepertoireItem {
-				Title = auditRandom != null ? (sceneRead ? "Unrecorded original" : "Census original") : NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Untitled",
+				Title = auditRandom != null ? (sceneRead ? LocalSceneRoomService.OriginalTitle(artist, year, i) : "Census original") : NameGenerator.Instance?.GenerateSongTitle(artist.primaryGenre, year, artist.artistId) ?? $"Untitled",
 				SourceTag = "their own", IsOriginal = true, Genre = artist.primaryGenre,
 				ContentContext = artist.primaryGenre==Genre.Gospel?SongContentContext.Sacred:SongContentContext.Secular,
 				ReadHook = Read(hook), ReadQuality = Read(hook)
@@ -2827,6 +2850,7 @@ public partial class PlayerDesk : Node {
 		int lead = today.CompareTo(order.Arrives) <= 0 ? new DateTime(order.Arrives.year, order.Arrives.month, order.Arrives.day).Subtract(new DateTime(today.year, today.month, today.day)).Days : 0;
 		GameDate arrives = order.Arrives;
 		pressOrders.Add(order);
+		HoldPreOrdersForArrival(recordId);   // early-game §6.2: the plant's lead time doesn't void the orders
 
 		string title = TitleForRecord(recordId);
 		string promoNote = promoCount > 0 ? $" ({promoCount:N0} struck as promo)" : "";
@@ -2887,6 +2911,7 @@ public partial class PlayerDesk : Node {
 		float cost = PressingCost(PlantCreditQuantity, repress);
 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		pressOrders.Add(CreatePressOrder(recordId, PlantCreditQuantity, 0, cost, today));
+		HoldPreOrdersForArrival(recordId);
 		int dueWeek = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + PlantCreditTermWeeks;
 		plantCredit = new PlantCredit { RecordId = recordId, Amount = cost, DueWeek = dueWeek };
 
@@ -3142,11 +3167,22 @@ public partial class PlayerDesk : Node {
 	/// <see cref="TrunkAppeal"/> the shelf itself sells on, so a dealer's order and the record's actual
 	/// sell-through can never disagree about whether it's any good. Neutral (1.0) with no record named.</summary>
 	private float EarForRecord(PlayerStop stop, string recordId) {
-		if (string.IsNullOrEmpty(recordId)) return 1f;
+		float? appeal = RecordAppeal(recordId, stop.CityId);
+		if (appeal == null) return 1f;
+		return Mathf.Lerp(EarMin, EarMax, Mathf.InverseLerp(EarFloorAppeal, EarCeilingAppeal, appeal.Value));
+	}
+
+	/// <summary>Early-game §6.2/F3: the one record-appeal read behind pitches, order sizing and sell-through. A released
+	/// single reads <see cref="TrunkAppeal"/> (hook, pressing and local buzz); an unreleased master heard off an acetate
+	/// reads the same hook and production terms with no buzz, because nobody in town has heard it yet. Null when the
+	/// title is neither, so callers keep their neutral fallback.</summary>
+	private float? RecordAppeal(string recordId, string cityId) {
+		if (string.IsNullOrEmpty(recordId)) return null;
 		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
-		if (rec?.baseRecord == null) return 1f;
-		float appeal = TrunkAppeal(rec, stop.CityId, 0f);
-		return Mathf.Lerp(EarMin, EarMax, Mathf.InverseLerp(EarFloorAppeal, EarCeilingAppeal, appeal));
+		if (rec?.baseRecord != null) return TrunkAppeal(rec, cityId, 0f);
+		Record unreleased = masters.FirstOrDefault(m => m.Record?.recordId == recordId)?.Record;
+		if (unreleased == null) return null;
+		return Mathf.Clamp(unreleased.hookStrength * 0.45f + unreleased.productionQuality * 0.25f, 0.04f, 1f);
 	}
 
 	/// <summary>How well a record moves across a counter in this town: its hook and its pressing, plus how
@@ -3168,10 +3204,9 @@ public partial class PlayerDesk : Node {
 	/// <see cref="EarForRecord"/> sizes the order across. Slightly negative at the bottom: a genuinely
 	/// bad record is worse than no record, because he has to look at it on his own shelf.</summary>
 	private float PitchEarPull(PlayerStop stop, string recordId) {
-		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
-		if (rec?.baseRecord == null) return 0f;
-		return Mathf.Lerp(PitchEarMin, PitchEarMax,
-			Mathf.InverseLerp(EarFloorAppeal, EarCeilingAppeal, TrunkAppeal(rec, stop.CityId, 0f)));
+		float? appeal = RecordAppeal(recordId, stop.CityId);
+		if (appeal == null) return 0f;
+		return Mathf.Lerp(PitchEarMin, PitchEarMax, Mathf.InverseLerp(EarFloorAppeal, EarCeilingAppeal, appeal.Value));
 	}
 
 	/// <summary>Rough hours a visit to this kind of account runs, for display before the roll -- see
@@ -3444,11 +3479,21 @@ public partial class PlayerDesk : Node {
 		Spend(hours);
 		stop.LastApproachDate = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 
-		int qty = Mathf.Min(SuggestedPlacement(stop, recordId), stockOnHand.Remaining);
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int qty = Mathf.Min(TableTake(stop, recordId, SuggestedPlacement(stop, recordId), today), stockOnHand.Remaining);
+		workedCities.Add(stop.CityId);
+		if (qty <= 0) {
+			TouchStop(stop, 0.02f);
+			message = $"Nobody new at {stop.DisplayName} -- the regulars who wanted \"{TitleForRecord(recordId)}\" already have it ({hours}h). " +
+				"New faces come slowly; airplay brings them faster.";
+			Note(message);
+			Changed?.Invoke();
+			return true;
+		}
 		stockOnHand.Remaining -= qty;
+		NoteTableSale(stop, recordId, qty, today);
 		BookTrunkSale(rec, qty, stop, cashNow: true);
 		TouchStop(stop, 0.06f); // no shelf to keep here, but the table remembers a familiar face
-		workedCities.Add(stop.CityId);
 
 		Note($"Sold {qty:N0} of \"{TitleForRecord(recordId)}\" off the table at {stop.DisplayName}.");
 		message = $"Sold {qty:N0} of \"{TitleForRecord(recordId)}\" at the table, cash in hand ({hours}h).";
@@ -3956,10 +4001,7 @@ public partial class PlayerDesk : Node {
 		string regionId = station.regionId;
 		string stationCityId = DistanceModel.GetCityByName(station.cityName)?.cityId;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		PressOrder order = pressOrders.FirstOrDefault(o => o.RecordId == recordId);
-		int weeksToVinyl = order == null ? 5 : Mathf.CeilToInt(Mathf.Max(0, TimeManager.Instance?.DaysBetween(today, order.Arrives) ?? 0) / 7f);
-		int expires = Mathf.Max(week + CallExpiryWeeks, week + weeksToVinyl + 2);
+		int expires = PreOrderExpiryWeek(recordId, week);
 		float strength = Mathf.Clamp((hook - PreOrderHookBar) / (1f - PreOrderHookBar), 0f, 1f);
 
 		List<PlayerStop> inMarket = EnsureStops().Values.Where(s =>
@@ -4334,7 +4376,10 @@ public partial class PlayerDesk : Node {
 			message = $"Not enough daylight to make {dest.name} today ({hours}h) -- rest and start fresh.";
 			return false;
 		}
-		if (Label.cashReserves < gas) { message = $"You're ${gas - Label.cashReserves:N0} short of the ${gas:N0} gas."; return false; }
+		// The drive home always goes, gas on the label's tab like the motel (cash may go negative; the
+		// monthly solvency check still applies) -- otherwise a broke founder is stranded paying motel
+		// nights into debt until the credit line closes the label. Outbound trips stay cash-gated.
+		if (!goingHome && Label.cashReserves < gas) { message = $"You're ${gas - Label.cashReserves:N0} short of the ${gas:N0} gas."; return false; }
 
 		LeaveStudioTripFor(dest.cityId);
 		Spend(hours);
@@ -5947,7 +5992,7 @@ public partial class PlayerDesk : Node {
 			// only for stops that actually have any (untouched stops need no row at all).
 			StopState = EnsureStops().Values
 				.Where(stop => stop.Relationship > 0f || stop.OpenBalance > 0f || stop.LastVisitWeek > 0
-					|| stop.OnHand.Count > 0 || stop.PassedRecordIds.Count > 0 || stop.OneStopUnlocked || stop.HypeBurned)
+					|| stop.OnHand.Count > 0 || stop.PassedRecordIds.Count > 0 || stop.OneStopUnlocked || stop.HypeBurned || stop.TableCrowds.Count > 0)
 				.Select(stop => new PlayerStopSaveData {
 					StopId = stop.StopId, Relationship = stop.Relationship, LastVisitWeek = stop.LastVisitWeek,
 					OpenBalance = stop.OpenBalance, MissedCallStreak = stop.MissedCallStreak,
@@ -5956,6 +6001,10 @@ public partial class PlayerDesk : Node {
 					PassedRecordIds = stop.PassedRecordIds.ToList(),
 					OneStopUnlocked = stop.OneStopUnlocked, OneStopTrusted = stop.OneStopTrusted,
 					HypeBurned = stop.HypeBurned,
+					TableCrowds = stop.TableCrowds.Select(kv => new TableCrowdSaveData {
+						RecordId = kv.Key, Bought = kv.Value.Bought,
+						Year = kv.Value.LastSale.year, Month = kv.Value.LastSale.month, Day = kv.Value.LastSale.day,
+					}).ToList(),
 					OnHand = stop.OnHand.Select(kv => new ConsignmentLotSaveData {
 						RecordId = kv.Key, Remaining = kv.Value.Remaining,
 						Placed = kv.Value.Placed, DaysSinceRestock = kv.Value.DaysSinceRestock,
@@ -6120,6 +6169,7 @@ public partial class PlayerDesk : Node {
 		repertoire.Clear();
 		foreach (var kv in data.Repertoire ?? new Dictionary<string, List<RepertoireSaveData>>())
 			repertoire[kv.Key] = (kv.Value ?? new List<RepertoireSaveData>()).Select(r => r.ToItem()).ToList();
+		RenameScenePlaceholderOriginals();
 		rehearsals.Clear();
 		rehearsals.AddRange((data.Rehearsals ?? new List<CoverRehearsalSaveData>()).Select(r => r.ToRehearsal()));
 		shippedBSideRecordIds.Clear();
@@ -6252,6 +6302,10 @@ public partial class PlayerDesk : Node {
 				stop.OneStopUnlocked = saved.OneStopUnlocked;
 				stop.OneStopTrusted = saved.OneStopTrusted;
 				stop.HypeBurned = saved.HypeBurned;
+				stop.TableCrowds.Clear();
+				foreach (TableCrowdSaveData crowd in saved.TableCrowds ?? new List<TableCrowdSaveData>())
+					if (crowd?.RecordId != null && crowd.Year > 0)
+						stop.TableCrowds[crowd.RecordId] = new TableCrowd { Bought = crowd.Bought, LastSale = new GameDate(crowd.Year, crowd.Month, crowd.Day) };
 				stop.OnHand.Clear();
 				foreach (ConsignmentLotSaveData lot in saved.OnHand ?? new List<ConsignmentLotSaveData>())
 					stop.OnHand[lot.RecordId] = new ConsignmentLot {

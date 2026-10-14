@@ -483,7 +483,7 @@ public partial class PlayerDeskPanel : Control {
 		redInkLabel.Visible = label.cashReserves < 0f;
 		redInkLabel.Text = label.cashReserves < 0f ? $"⚠ IN THE RED {desk.MonthsInTheRed}/3" : string.Empty;
 		redInkLabel.TooltipText = label.cashReserves < 0f
-			? $"Cash is {Money(label.cashReserves)}; the overdraft ceiling is ${-desk.CreditFloor:N0} -- a limit, not money you can borrow. Each month-end below $0 adds a red month (the bank closes you at 3); getting back above $0 resets the count. {desk.MonthsOfGraceLeft} red month-end(s) remain. Sell from the trunk or a hop table, buy stock back from an act, or collect receivables. Click for the books."
+			? $"Cash is {Money(label.cashReserves)}; the overdraft ceiling is ${-desk.CreditFloor:N0} -- a limit, not money you can borrow. {PlayerDesk.SolvencyRuleText} {desk.MonthsOfGraceLeft} red check(s) remain. Click for the books and CASH OPTIONS: what can bring money in, when, and how sure it is."
 			: string.Empty;
 
 		Clear(content);
@@ -538,7 +538,7 @@ public partial class PlayerDeskPanel : Control {
 			var incoming = desk.PendingPressings().OrderBy(item => item.Arrives).First();
 			return ($"Pressing on the way: {incoming.Quantity:N0} of \"{incoming.Title}\" due {incoming.Arrives.ToHeadlineString()}. {WhileYouWait(desk)}", WaitingTab(desk));
 		}
-		if (label.cashReserves < 0f) return ("Cash is tight. Collect receivables, sell from the trunk, or check the red-ink recovery options.", 4);
+		if (label.cashReserves < 0f) return ("Cash is tight. See CASH OPTIONS on the books: what can bring money in, when, and how sure it is.", 4);
 		if (label.CurrentRosterSize == 0) return (desk.ScoutingDossiers.Count > 0 ? "Discuss terms with a heard act, or choose another announced set." : "Hear an announced set. Observations go into your notebook automatically.", 0);
 		if (label.roster.Any(artist => desk.RepertoireFor(artist.artistId).Any(item => !item.Recorded)))
 			return ("Manage an act to choose material and cut a record.", 1);
@@ -791,7 +791,7 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(StatRow(("Scouting", selected.ScoutingAbility), ("Production", selected.ProductionQuality), ("Marketing", selected.MarketingPower)));
 		float firstRunCost = PlayerDesk.PressingCost(PlayerDesk.PressMinimumOrder);
 		Body($"MONEY AND RUNWAY  ·  ${selected.Capital:N0} starting cash; a first {PlayerDesk.PressMinimumOrder:N0}-copy pressing costs about ${firstRunCost:N0}. " +
-			$"Monthly overhead is the office rent of the town you pick plus ${CityProfiles.OfficeBaseOverhead:N0} for the phone and postage: ${CityProfiles.OverheadRange().Low:N0} to ${CityProfiles.OverheadRange().High:N0} a month. The overdraft ceiling is three months of overhead below zero (not borrowed cash); the bank closes the label after three red month-ends in a row. Climb back above $0 at month-end to reset the count.");
+			$"Monthly overhead is the office rent of the town you pick plus ${CityProfiles.OfficeBaseOverhead:N0} for the phone and postage: ${CityProfiles.OverheadRange().Low:N0} to ${CityProfiles.OverheadRange().High:N0} a month. The overdraft ceiling is three months of overhead below zero (not borrowed cash). The bank checks cash on the 1st of each month, after that month's overhead: three checks in a row below $0 close the label, and any check at or above $0 resets the count.");
 		Body("Instincts (1–5) affect what you can read and which contact options appear. Label stats (0–1) affect scouting, recording quality, and promotion.");
 		Body($"Your roster can hold up to {PlayerDesk.PlayerRosterCapacity} acts.");
 
@@ -1428,7 +1428,9 @@ public partial class PlayerDeskPanel : Control {
 		form.AddChild(commitment);
 		void UpdateCommitment() {
 			var plan = PlayerDesk.Instance?.PreviewOfferResources((float)advance.Value, renewal);
-			commitment.Text = plan?.Summary ?? "No label cash available.";
+			// Early-game §4.1: the release route this advance leaves, past the one-session estimate in the summary.
+			string completion = plan == null ? null : PlayerDesk.Instance.CompletionWarning((float)advance.Value + plan.PendingAppointmentFees, PlayerDesk.CompletionStageKind.Signing);
+			commitment.Text = (plan?.Summary ?? "No label cash available.") + (completion == null ? "" : "\n" + completion);
 			commitment.TooltipText = plan == null ? "" : string.Join("\n", plan.FeeDetails);
 			commitment.AddThemeColorOverride("font_color", plan?.AdvanceAffordable == true ? Ink : Rust);
 		}
@@ -2451,8 +2453,9 @@ public partial class PlayerDeskPanel : Control {
 		// Flags which stops have a call waiting (directive §4) so the player doesn't have to cross-check
 		// the OFFICE phone list by hand while deciding who to work first.
 		var stopsWithCalls = new HashSet<string>(desk.PendingCalls().Select(c => c.Call.StopId), StringComparer.Ordinal);
+		BuildAcetateCounters(desk, here);
 		// Shops and operators matter once there is stock to place, or a stop here already holds copies, owes money or has called.
-		bool showStops = onHand.Count > 0 || promoOnHand.Count > 0 ||
+		bool showStops =onHand.Count > 0 || promoOnHand.Count > 0 ||
 			stopsHere.Any(stop => stop.OnHand.Values.Sum(lot => lot.Remaining) > 0 || stop.OpenBalance > 0.5f || stopsWithCalls.Contains(stop.StopId));
 		if (showStops)
 			SectionHeading("stops", $"STOPS IN {here.name.ToUpper()}", onHand.Count > 0 || promoOnHand.Count > 0,
@@ -2998,9 +3001,11 @@ public partial class PlayerDeskPanel : Control {
 		content.AddChild(new LedgerTable().Set("The label's position", null, books));
 		if (reserved > 0.5f) Body("Money held back against returns is released, or written off, when the window closes.");
 		Body($"Signing advances must leave more than ${2f * label.GetMonthlyOverhead():N0} cash (two months of overhead). " +
-			$"The overdraft ceiling is ${-desk.CreditFloor:N0}, but it is not a loan; each month-end below $0 advances the closure count, which resets when cash is above $0.");
-		if (label.cashReserves < 0f)
-			Body($"Recovery: sell a few copies from the trunk or at a hop table for cash, buy eligible stock back from an act at ${PlayerDesk.ArtistBuyInPrice:F2}/copy, collect town balances by working or revisiting that town, and factor eligible wholesale invoices below.");
+			$"The overdraft ceiling is ${-desk.CreditFloor:N0}, but it is not a loan. {PlayerDesk.SolvencyRuleText}");
+		var check = desk.NextSolvencyCheck(label.cashReserves);
+		Body($"Next check: {check.Date.ToHeadlineString()} ({check.Days} day{(check.Days == 1 ? "" : "s")}), after ${check.Overhead:N0} overhead: {Money(check.CashAfter)} if nothing else moves -- {check.Outcome}.");
+		BuildReleaseRoute(desk);
+		BuildCashOptions(desk);
 
 		Heading("LAST WEEK'S SETTLEMENT");
 		PlayerDesk.WeekBooks latest = desk.Books.FirstOrDefault();
@@ -3883,11 +3888,92 @@ public partial class PlayerDeskPanel : Control {
 		return node;
 	}
 
+	/// <summary>Early-game §6.2: before the pressing lands, play an acetate across a shop or operator's counter and ask
+	/// him to hold copies. Shown only while an unreleased master has an acetate in hand; each yes is a COD reservation
+	/// in the call ledger, shown with what it is worth and when it lapses, never as cash.</summary>
+	private void BuildAcetateCounters(PlayerDesk desk, MarketCity here) {
+		var acetates = desk.Masters.Where(m => !m.Released && m.Record != null && desk.AcetatesFor(m.Record.recordId) > 0).ToList();
+		var counters = desk.StopsInCity(here.cityId).Where(s => s.Kind is PlayerDesk.StopKind.Shop or PlayerDesk.StopKind.Op).ToList();
+		if (acetates.Count == 0 || counters.Count == 0) return;
+		SectionHeading("advance-orders", $"ADVANCE ORDERS IN {here.name.ToUpper()}", true,
+			"Play your acetate for a dealer and ask him to hold copies for the pressing. He can pass. A yes is an order, not money: " +
+			"it pays COD when you deliver the copies, and it lapses two weeks after the vinyl is due. One approach a day per account.");
+		foreach (var master in acetates) {
+			string id = master.Record.recordId;
+			var held = desk.AdvanceOrdersFor(id);
+			Body($"\"{master.SongTitle}\": {(held.Accounts == 0 ? "no orders held yet" : $"{held.Copies:N0} copies held across {held.Accounts} account(s), about {Money(held.CodValue)} COD on delivery")}.");
+			var actions = new HFlowContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			actions.AddThemeConstantOverride("h_separation", 8);
+			actions.AddThemeConstantOverride("v_separation", 6);
+			foreach (var stop in counters) {
+				bool passed = stop.PassedRecordIds.Contains(id), holding = desk.HasOpenCall(stop.StopId, id), worked = desk.HasWorkedStopToday(stop.StopId);
+				var play = Btn($"{stop.DisplayName}{(holding ? " — holding" : passed ? " — passed" : worked ? " — tomorrow" : $" ({PlayerDesk.StopVisitEstimate(stop.Kind)})")}");
+				play.Disabled = passed || holding || worked;
+				play.TooltipText = passed ? "He heard it and passed; that stands until it catches on somewhere."
+					: holding ? "Already holding copies for the pressing." : "Play the acetate and ask him to hold copies.";
+				play.Pressed += () => Act(() => {
+					bool ok = PlayerDesk.Instance.PitchAcetateAtStop(stop.StopId, id, out string message);
+					Say(message, ok);
+					return true;
+				});
+				actions.AddChild(play);
+			}
+			content.AddChild(actions);
+		}
+	}
+
+	/// <summary>Early-game §4.1 on the books: the cheapest remaining route to a first deliverable single, costed now.</summary>
+	private void BuildReleaseRoute(PlayerDesk desk) {
+		var plan = desk.PreviewReleaseCompletion();
+		if (plan == null || plan.Remaining.Count == 0) return;
+		Heading("THE ROUTE TO A FIRST RELEASE");
+		var rows = plan.Remaining.Select(s => LedgerTable.Entry(s.Name + (s.Estimate ? " (estimate)" : ""), LedgerTable.Money(s.Cost))).ToList();
+		rows.Add(LedgerTable.Total("Still to pay", LedgerTable.Money(plan.RemainingCost)));
+		content.AddChild(new LedgerTable().Set("Cheapest credible route from here", null, rows));
+		foreach (var s in plan.Remaining) Body($"{s.Name}: {s.Note}.");
+		if (plan.OverheadBeforeArrival.Count > 0)
+			Body($"Overhead falling before a run would land (about {PlayerDesk.CompletionPlantDaysForecast} days at the plant): " +
+				string.Join(", ", plan.OverheadBeforeArrival.Select(o => $"${o.Overhead:N0} on {o.Date.ToShortString()}")) + ".");
+		string warning = desk.CompletionWarning(0f);
+		if (warning != null) Body(warning.Replace("After this, ", "As things stand, "));
+	}
+
+	/// <summary>Early-game §4.2: CASH OPTIONS. Every live route, its prerequisite, cost, expected cash, date and certainty --
+	/// and, when nothing can bring money in, an honest empty card. It never adds demand or changes the closing rule.</summary>
+	private void BuildCashOptions(PlayerDesk desk) {
+		Heading("CASH OPTIONS");
+		var options = desk.CashOptions();
+		var live = options.Where(o => o.Executable).ToList();
+		if (options.Count == 0) {
+			Body("Nothing on the books can bring in cash right now: no stock on hand, nothing owed to you, no orders waiting and no deal anyone is offering. " +
+				"Selling needs pressed records; a master deal needs airplay and a one-stop that knows the title.");
+			return;
+		}
+		if (live.Count == 0) Body("No route can be acted on right now. What is listed below is blocked or would pay too late; the reason is on each line.");
+		foreach (var o in options.OrderByDescending(o => o.Executable).ThenBy(o => o.Certainty)) {
+			string sure = o.Certainty switch {
+				PlayerDesk.CashCertainty.Owed => "owed to you",
+				PlayerDesk.CashCertainty.Accepted => "agreed if you act",
+				PlayerDesk.CashCertainty.Speculative => "a pitch, not a promise",
+				_ => "blocked"
+			};
+			string money = o.Expected > 0.5f ? $"about {Money(o.Expected)}" : "no cash figure";
+			string when = o.CashDate.HasValue ? $", {o.CashDate.Value.ToShortString()}" : "";
+			string cost = o.Cost > 0.5f ? $"; costs {Money(o.Cost)}" : "";
+			var line = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				Text = $"{(o.Executable ? "•" : "×")} {o.Route.ToUpperInvariant()} -- {o.Action} ({o.Prerequisite}). {money}{when}, {sure}{cost}. {o.Why}" };
+			line.AddThemeFontSizeOverride("font_size", 16);
+			line.AddThemeColorOverride("font_color", o.Executable ? Ink : HeaderFade);
+			content.AddChild(line);
+		}
+	}
+
+	/// <summary>F7: the overhead is taken on the 1st and the bank checks cash straight after it.</summary>
 	private static string MonthEndCashPreview(AILabel label, float cashAfterAction) {
-		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
-		int days = DateTime.DaysInMonth(today.year, today.month) - today.day + 1;
-		float overhead = label?.GetMonthlyOverhead() ?? 0f;
-		return $"  ·  ${overhead:N0} overhead due at month-end ({days} day{(days == 1 ? "" : "s")}), leaving {Money(cashAfterAction - overhead)}";
+		var check = PlayerDesk.Instance?.NextSolvencyCheck(cashAfterAction);
+		if (check == null || label == null) return "";
+		var c = check.Value;
+		return $"  ·  ${c.Overhead:N0} overhead taken {c.Date.ShortMonthName} {c.Date.day} ({c.Days} day{(c.Days == 1 ? "" : "s")}), then the bank's check: {Money(c.CashAfter)}, {c.Outcome}";
 	}
 
 	/// <summary>Directive §6: a one-stop takes no Pitch/Consign/Service -- it's "locked as a customer
