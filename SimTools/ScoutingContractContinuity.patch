@@ -1,0 +1,591 @@
+diff --git a/Systems/PlayerDesk.ContractContinuity.cs b/Systems/PlayerDesk.ContractContinuity.cs
+new file mode 100644
+--- /dev/null
++++ b/Systems/PlayerDesk.ContractContinuity.cs
+@@ -0,0 +1,137 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++
++// Identifies the commercial contract under discussion; cash/debt and release progress may change normally.
++public sealed record RenewalContractIdentity(int Sequence, int StartWeek, int SignedYear, int ExpiresWeek,
++    int ExpiresYear, int Term, int Singles, float Royalty, bool LabelPublishing, bool ArtistControl) {
++    public static RenewalContractIdentity From(SimulatedArtist a) => new(a.contractSequence, a.contractStartWeek,
++        a.signedYear, a.contractExpiresWeek, a.contractExpiresYear, a.contractLength, a.contractSinglesObligation,
++        a.royaltyRate, a.labelOwnsPublishing, a.artistCreativeControl);
++}
++
++// IDs and detached conversation state only. Never serializes another live artist graph.
++public sealed class RenewalDiscussionSaveData {
++    public string LabelId { get; set; }
++    public string ArtistId { get; set; }
++    public RenewalContractIdentity OriginalContract { get; set; }
++    public ContractTermSheet Ask { get; set; }
++    public ContractTermSheet? Draft { get; set; }
++    public NegotiationPosture Posture { get; set; }
++    public ContractTalk Talk { get; set; }
++    public List<string> Log { get; set; } = new();
++}
++
++public partial class PlayerDesk {
++    private bool CurrentRenewalArtist(SimulatedArtist artist, out string message) {
++        message = "";
++        if (artist == null || !ReferenceEquals(ArtistManager.Instance?.GetArtist(artist.artistId), artist)) {
++            message = "This act's entry is no longer current. Return to the roster."; return false;
++        }
++        if (Label?.roster?.Contains(artist) != true || artist.labelId != Label.labelId) {
++            message = "They're not on your roster any more."; return false;
++        }
++        if (!artist.isActive || artist.lifecycleStatus != ArtistLifecycleStatus.Active) {
++            message = "This act is no longer available for a renewal."; return false;
++        }
++        if (!RosterManager.IsContractMatured(artist, TimeManager.Instance?.CurrentDate.year ?? 1960,
++                ChartManager.Instance?.GetCurrentChartWeek() ?? 0)) {
++            message = "The current contract is not up for renewal."; return false;
++        }
++        return true;
++    }
++
++    private bool CurrentRenewal(SimulatedArtist artist, out string message) {
++        if (!CurrentRenewalArtist(artist, out message)) return false;
++        if (PendingRenewal?.Artist != artist) { message = "Return to the current renewal discussion first."; return false; }
++        if (PendingRenewal.OriginalContract == null || PendingRenewal.OriginalContract != RenewalContractIdentity.From(artist)) {
++            message = "The contract changed since this discussion opened. Step back and review the current agreement."; return false;
++        }
++        return true;
++    }
++
++    private bool CurrentNewOffer(Prospect prospect, out string message) {
++        if (!CanCommitSceneSigning(prospect, out message)) return false;
++        if (!prospect.HasBaseline) { message = "Approach them first."; return false; }
++        if (prospect.CooldownUntil is { } until && (TimeManager.Instance?.CurrentDate ?? GameDate.StartDate) < until) {
++            message = "They are not ready to discuss another offer yet."; return false;
++        }
++        return true;
++    }
++
++    private bool CurrentTalk(ContractTalk talk, out string message) {
++        message = "This is no longer the current discussion.";
++        if (talk == null || talk.stage == ContractTalkStage.Done) return false;
++        if (talk.IsRenewal) {
++            if (!ReferenceEquals(PendingRenewal?.Talk, talk)) return false;
++            return CurrentRenewal(talk.Artist, out message);
++        }
++        if (!ReferenceEquals(talk.prospect?.Talk, talk)) return false;
++        return CurrentNewOffer(talk.prospect, out message);
++    }
++
++    public string RenewalDiscussionUnavailable() => PendingRenewal == null ? null :
++        CurrentRenewal(PendingRenewal.Artist, out string message) ? null : message;
++
++    public bool StepBackFromRenewal(out string message) {
++        if (PendingRenewal == null) { message = "No renewal discussion is open."; return false; }
++        // Voluntary dismissal never drops an act or changes its contract, including a stale discussion.
++        if (PendingRenewal.Talk != null) PendingRenewal.Talk.stage = ContractTalkStage.Done;
++        PendingRenewal = null; message = "Stepped back from the renewal. No contract or ownership changed.";
++        Changed?.Invoke(); return true;
++    }
++
++    private static bool FiniteOffer(float advance, float royalty, out string message) {
++        message = "The advance and royalty must be finite numbers.";
++        return float.IsFinite(advance) && float.IsFinite(royalty);
++    }
++
++    private bool CurrentContractCash(ContractTermSheet sheet, out string message) {
++        if (!FiniteOffer(sheet.Advance, sheet.RoyaltyRate, out message)) return false;
++        if (Label?.CanAffordToSign(sheet.Advance) == true) { message = ""; return true; }
++        message = "The label can no longer afford these terms. The meeting time was consumed; no deal or advance payment completed. Adjust the offer or wait for more cash.";
++        return false;
++    }
++
++    private RenewalDiscussionSaveData CaptureRenewalDiscussion() => PendingRenewal == null ? null : new() {
++        LabelId = Label?.labelId, ArtistId = PendingRenewal.Artist?.artistId, OriginalContract = PendingRenewal.OriginalContract,
++        Ask = PendingRenewal.Ask, Draft = PendingRenewal.Draft, Posture = PendingRenewal.Posture,
++        Talk = DetachedTalk(PendingRenewal.Talk), Log = PendingRenewal.Talk?.log.ToList() ?? new()
++    };
++
++    private static bool ValidSavedTerms(ContractTermSheet t) => float.IsFinite(t.Advance) && t.Advance >= 0 &&
++        float.IsFinite(t.RoyaltyRate) && t.RoyaltyRate >= 0 && t.RoyaltyRate <= 1 && t.TermYears is >= 1 and <= 7 &&
++        t.SinglesObligation is >= 0 and <= 30 && float.IsFinite(t.NegotiationDifficulty) &&
++        t.NegotiationDifficulty is >= 0 and <= 1 && Enum.IsDefined(t.Manager);
++
++    private static bool ValidateRenewalDiscussion(RenewalDiscussionSaveData state, string labelId, out string message) {
++        message = "The saved renewal discussion is invalid; no player state was restored.";
++        if (state == null) return true; // Older saves contain no invented negotiation.
++        if (state.LabelId != labelId || string.IsNullOrEmpty(state.ArtistId) || state.OriginalContract == null ||
++            !float.IsFinite(state.OriginalContract.Royalty) || !ValidSavedTerms(state.Ask) ||
++            state.Draft.HasValue && !ValidSavedTerms(state.Draft.Value) || !Enum.IsDefined(state.Posture)) return false;
++        var t = state.Talk;
++        if (state.Posture == NegotiationPosture.Pushover) return t == null;
++        return t != null && t.prospect == null && t.renewalArtist == null && t.ask.Equals(state.Ask) && t.posture == state.Posture &&
++            Enum.IsDefined(t.stage) && t.stage != ContractTalkStage.Done && t.patienceMax > 0 && t.patienceLeft >= 0 &&
++            t.patienceLeft <= t.patienceMax && t.roundsPlayed >= 0 && float.IsFinite(t.reservation) && t.reservation >= 0 &&
++            float.IsFinite(t.lastOfferValue) && t.weights?.Count == Enum.GetValues<ContractAxis>().Length &&
++            t.weights.All(kv => Enum.IsDefined(kv.Key) && float.IsFinite(kv.Value) && kv.Value >= 0) && t.weights.Values.Sum() > 0 &&
++            (!t.objectionAxis.HasValue || Enum.IsDefined(t.objectionAxis.Value)) &&
++            (t.stage != ContractTalkStage.Objection || t.lastOffer.HasValue) &&
++            (!t.lastOffer.HasValue || ValidSavedTerms(t.lastOffer.Value)) && (!t.draftOffer.HasValue || ValidSavedTerms(t.draftOffer.Value));
++    }
++
++    private void RestoreRenewalDiscussion(RenewalDiscussionSaveData state) {
++        PendingRenewal = null;
++        if (state == null) return;
++        var artist = ArtistManager.Instance?.GetArtist(state.ArtistId);
++        if (artist == null) { Note("The saved renewal act could not be found. No replacement discussion was created."); return; }
++        PendingRenewal = new() { Artist = artist, Ask = state.Ask, Draft = state.Draft, Posture = state.Posture,
++            OriginalContract = state.OriginalContract, Talk = DetachedTalk(state.Talk) };
++        if (PendingRenewal.Talk != null) {
++            PendingRenewal.Talk.renewalArtist = artist;
++            PendingRenewal.Talk.log.Clear(); PendingRenewal.Talk.log.AddRange(state.Log ?? new());
++        }
++    }
++}
+diff --git a/Systems/ContractTalk.cs b/Systems/ContractTalk.cs
+--- a/Systems/ContractTalk.cs
++++ b/Systems/ContractTalk.cs
+@@ -73,6 +73,7 @@
+ /// every render). Held live on <see cref="PlayerDesk.PendingRenewal"/>.
+ /// </summary>
+ public sealed class RenewalOffer {
++	public RenewalContractIdentity OriginalContract;
+ 	public SimulatedArtist Artist;
+ 	public ContractTermSheet Ask;
+ 	public ContractTermSheet? Draft;
+diff --git a/Systems/PlayerDesk.ContractNegotiation.cs b/Systems/PlayerDesk.ContractNegotiation.cs
+--- a/Systems/PlayerDesk.ContractNegotiation.cs
++++ b/Systems/PlayerDesk.ContractNegotiation.cs
+@@ -341,6 +341,7 @@
+ 		message = "";
+ 		if (talk?.Artist == null) { message = "No negotiation open."; return false; }
+ 		if (talk.stage != ContractTalkStage.Tabling) { message = "Not at that point in the talks."; return false; }
++        if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentTalk(talk, out message)) return false;
+ 		if (Label == null) { message = "You don't have a label yet."; return false; }
+ 		if (!talk.IsRenewal && !Label.HasRosterSpace) { message = "Roster is full."; return false; }
+ 		bool ownershipOk = talk.IsRenewal ? talk.Artist.labelId == Label.labelId : string.IsNullOrEmpty(talk.Artist.labelId);
+@@ -365,6 +366,7 @@
+ 		talk.lastOffer = offer;
+ 		talk.draftOffer = null;
+ 		talk.lastOfferValue = PackageValue(offer, talk.ask, talk.weights);
++        if (!CurrentTalk(talk, out message) || !CurrentContractCash(offer, out message)) { Changed?.Invoke(); return false; }
+ 
+ 		if (ClearsReservation(talk, offer)) { return FinalizeSign(talk, offer, out message); }
+ 
+@@ -395,6 +397,8 @@
+ 		message = "";
+ 		if (talk?.Artist == null) { message = "No negotiation open."; return false; }
+ 		if (talk.stage != ContractTalkStage.Objection) { message = "Not at that point in the talks."; return false; }
++        if (counter == ContractCounter.Walk) return WalkFromTalk(talk, out message);
++        if (!CurrentTalk(talk, out message)) return false;
+ 
+ 		switch (counter) {
+ 			case ContractCounter.SweetenAxis:
+@@ -438,8 +442,11 @@
+ 	/// <summary>Re-table the same numbers and see who blinks. A patient act (at least half its rounds
+ 	/// left) softens a little; an impatient one walks right there -- the bluff, and it can be called.</summary>
+ 	private bool PlayHoldFirm(ContractTalk talk, out string message) {
++        if (!CurrentTalk(talk, out message)) return false;
++		if (!Label.CanAffordToSign(CurrentOffer(talk).Advance)) { message = "The label cannot afford the current offer. Change the terms before holding firm."; return false; }
+ 		if (!Require(NegotiationRoundHours, out message)) return false;
+ 		Spend(NegotiationRoundHours);
++        if (!CurrentTalk(talk, out message) || !CurrentContractCash(CurrentOffer(talk), out message)) { Changed?.Invoke(); return false; }
+ 
+ 		bool patient = talk.patienceLeft >= Mathf.CeilToInt(talk.patienceMax * 0.5f);
+ 		talk.patienceLeft--;
+@@ -464,8 +471,9 @@
+ 	// ========================================================================================
+ 
+ 	private bool FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
++        if (!CurrentTalk(talk, out message)) return false;
+ 		if (talk.IsRenewal) {
+-			FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message);
++			if (!FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message)) return false;
+ 			PendingRenewal = null;
+ 		} else {
+ 			if (!FinalizeSigning(talk.prospect, sheet, out message)) return false;
+@@ -518,6 +526,9 @@
+ 	public bool WalkFromTalk(ContractTalk talk, out string message) {
+ 		message = "";
+ 		if (talk == null) { message = "No negotiation open."; return false; }
++        bool live = talk.IsRenewal ? ReferenceEquals(PendingRenewal?.Talk, talk) : ReferenceEquals(talk.prospect?.Talk, talk);
++        if (!live || talk.stage == ContractTalkStage.Done) { message = "This is no longer the current discussion."; return false; }
++        // Closing a stale scene is permitted, but cannot drop or rewrite the act now owned elsewhere.
+ 		WalkAway(talk, forced: false, out message);
+ 		return true;
+ 	}
+@@ -584,10 +595,7 @@
+ 	/// negotiated close (<see cref="FinalizeSign"/>, where the hours were already spent one round at
+ 	/// a time).</summary>
+ 	private bool FinalizeSigning(Prospect prospect, ContractTermSheet sheet, out string message) {
+-        if (LocalScenes.Persisting && (!CanCommitSceneSigning(prospect, out message) || !Label.CanAffordToSign(sheet.Advance))) {
+-            message = string.IsNullOrEmpty(message) ? "The label can no longer afford these terms." : message;
+-            return false;
+-        }
++        if (!CurrentNewOffer(prospect, out message) || !CurrentContractCash(sheet, out message)) return false;
+ 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+ 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+ 		float paid = Label.SignArtist(prospect.Artist, year, sheet);
+@@ -635,6 +643,13 @@
+ 	/// </summary>
+ 	public bool ApproachRenewal(SimulatedArtist artist, out string message) {
+ 		message = "";
++        if (!CurrentRenewalArtist(artist, out message)) return false;
++        if (PendingRenewal != null) {
++            if (PendingRenewal.Artist != artist) { message = "Finish or step back from the current renewal before opening another."; return false; }
++            if (!CurrentRenewal(artist, out message)) return false;
++            message = "Returned to the existing renewal discussion. Its ask and previous rounds are retained.";
++            Changed?.Invoke(); return true;
++        }
+ 		if (artist == null || Label?.roster == null || !Label.roster.Contains(artist)) {
+ 			message = "That act isn't on your roster.";
+ 			return false;
+@@ -648,7 +663,7 @@
+ 
+ 		ContractTermSheet ask = WithGrudge(Label.GenerateTermSheet(artist, year), artist.signedUnderAskFraction);
+ 		NegotiationPosture posture = PostureOf(artist);
+-		var offer = new RenewalOffer { Artist = artist, Ask = ask, Posture = posture };
++		var offer = new RenewalOffer { Artist = artist, Ask = ask, Posture = posture, OriginalContract = RenewalContractIdentity.From(artist) };
+ 		if (posture != NegotiationPosture.Pushover) {
+ 			ContractTalk talk = BuildTalk(artist, ask, posture);
+ 			talk.renewalArtist = artist;
+@@ -669,6 +684,7 @@
+ 	public bool RenewContract(SimulatedArtist artist, float advance, float royaltyRate, int termYears, int singlesObligation,
+ 			bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
+ 		message = "";
++        if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentRenewal(artist, out message)) return false;
+ 		if (PendingRenewal == null || PendingRenewal.Artist != artist) { message = "Approach them about the renewal first."; return false; }
+ 		if (PendingRenewal.Posture != NegotiationPosture.Pushover) {
+ 			message = "They want to talk terms, not just sign -- work it through the negotiation.";
+@@ -689,7 +705,7 @@
+ 		}
+ 
+ 		Spend(NegotiationRoundHours);
+-		FinalizeRenewal(artist, sheet, ask, out message);
++		if (!FinalizeRenewal(artist, sheet, ask, out message)) { Changed?.Invoke(); return false; }
+ 		PendingRenewal = null;
+ 		Changed?.Invoke();
+ 		return true;
+@@ -698,7 +714,8 @@
+ 	/// <summary>The write path for a successful renewal -- mirrors RosterManager's own AI re-sign
+ 	/// branch (new advance paid, term/expiry/obligation reset, releases-under-this-deal zeroed), plus
+ 	/// the two axes only the player's negotiation actually touches (publishing, creative control).</summary>
+-	private void FinalizeRenewal(SimulatedArtist artist, ContractTermSheet sheet, ContractTermSheet ask, out string message) {
++	private bool FinalizeRenewal(SimulatedArtist artist, ContractTermSheet sheet, ContractTermSheet ask, out string message) {
++        if (!CurrentRenewal(artist, out message) || !CurrentContractCash(sheet, out message)) return false;
+ 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
+ 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
+ 		artist.unrecoupedAdvance = sheet.Advance;
+@@ -720,6 +737,7 @@
+ 		Note($"Renewed {artist.stageName} -- ${sheet.Advance:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
+ 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
+ 		message = $"Renewed {artist.stageName}.";
++        return true;
+ 	}
+ 
+ 	/// <summary>Monthly nag for a matured contract still sitting unrenewed -- once per spell, not
+diff --git a/Systems/PlayerDesk.cs b/Systems/PlayerDesk.cs
+--- a/Systems/PlayerDesk.cs
++++ b/Systems/PlayerDesk.cs
+@@ -1179,6 +1179,7 @@
+ 		Label = label;
+         scoutingKnowledge = new ScoutingKnowledgeSaveData { FoundingHistoryStarted = false };
+ 		scoutingNegotiations.Clear();
++		PendingRenewal = null;
+ 		PolarPlayerPerception.Reset();
+ 		currentCityId = city.cityId; // you start at your own office
+ 
+@@ -2029,6 +2030,7 @@
+ 	/// </summary>
+ 	public bool OfferContract(Prospect prospect, float advance, float royaltyRate, int termYears, int singlesObligation,
+ 		bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
++        if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentNewOffer(prospect, out message)) return false;
+         if (LocalScenes.Persisting && !CanCommitSceneSigning(prospect, out message)) return false;
+ 		if (prospect?.Artist == null) { message = "No act selected."; return false; }
+ 		if (Label == null) { message = "You don't have a label yet."; return false; }
+@@ -2057,6 +2059,7 @@
+ 		if (!ClearsPushoverFloor(b, sheet, out PushoverShortfall shortfall)) {
+ 			if (!Require(NegotiationRoundHours, out message)) return false;
+ 			Spend(NegotiationRoundHours);
++            if (!CurrentNewOffer(prospect, out message)) { Changed?.Invoke(); return false; }
+ 			string name = prospect.Artist.stageName;
+ 			if (prospect.PushoverCountered || shortfall.FarBelow) {
+ 				prospect.PushoverCountered = false;
+@@ -5734,6 +5737,7 @@
+ 		PolarSongMetadataService.MigrateRecords(masters.Select(m => m.Record).Concat(
+ 			(ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>()).Where(r => r.baseRecord.isPlayerOwned).Select(r => r.baseRecord)));
+ 		var data = new PlayerSaveData {
++            RenewalDiscussion = CaptureRenewalDiscussion(),
+ 			Label = LabelSaveData.From(Label),
+             ScoutingKnowledge = CaptureScoutingKnowledge(),
+             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+@@ -5899,6 +5903,7 @@
+ 	/// </summary>
+ 	public bool RestoreState(PlayerSaveData data, out string message) {
+ 		if (data?.Label == null) { message = "Nothing to load."; return false; }
++        if (!ValidateRenewalDiscussion(data.RenewalDiscussion, data.Label.labelId, out message)) return false;
+ 
+ 		// A load lifts any game-over: you're picking the label back up from a solvent point in its history.
+ 		IsGameOver = false;
+@@ -5929,7 +5934,7 @@
+ 		RestoreBandRoom(data.BandRoom);
+ 		ActiveCall = null;   // you are not on the phone in a loaded game
+         // Scouting negotiations restore by canonical act ID near the end of this method.
+-        // Renewal scenes retain their legacy transient contract; clear the old one before loading.
++        // Renewal discussions re-link by canonical ID after the roster has restored.
+ 		PendingRenewal = null;
+ 		maturedNotified.Clear();
+ 
+@@ -6208,6 +6213,7 @@
+ 			: $"Loaded {label.labelName} -- {missing} roster act(s) could not be re-linked.";
+ 		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
+ 		RestoreScoutingKnowledge(data.ScoutingKnowledge);
++        RestoreRenewalDiscussion(data.RenewalDiscussion);
+         LocalSceneIdentityService.CompleteDirectPlayerRestore();
+         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
+ 		Note(message);
+diff --git a/Systems/SaveGameService.cs b/Systems/SaveGameService.cs
+--- a/Systems/SaveGameService.cs
++++ b/Systems/SaveGameService.cs
+@@ -337,6 +337,7 @@
+ }
+ 
+ public sealed class PlayerSaveData {
++    public RenewalDiscussionSaveData RenewalDiscussion { get; set; }
+     public List<string> GeneratedProspectIds { get; set; }
+     public List<SceneDiscovery> SceneDiscoveries { get; set; }
+     public SceneInformationKnowledge SceneInformation { get; set; }
+diff --git a/UI/PlayerDeskPanel.cs b/UI/PlayerDeskPanel.cs
+--- a/UI/PlayerDeskPanel.cs
++++ b/UI/PlayerDeskPanel.cs
+@@ -1533,6 +1533,16 @@
+ 			return;
+ 		}
+ 		renewingArtist = null;
++        if (desk.PendingRenewal is { } pending) {
++            Body("Renewal discussion retained for " + pending.Artist.stageName + ".");
++            if (desk.RenewalDiscussionUnavailable() is { } reason) Body(reason);
++            var resumeRenewal = Btn("RESUME RENEWAL DISCUSSION");
++            resumeRenewal.Pressed += () => { renewingArtist = pending.Artist; managingArtistId = null; Refresh(); };
++            content.AddChild(resumeRenewal);
++            var dismissRenewal = Btn("STEP BACK FROM RENEWAL");
++            dismissRenewal.Pressed += () => { bool ok = desk.StepBackFromRenewal(out string result); Say(result, ok); Refresh(); };
++            content.AddChild(dismissRenewal);
++        }
+ 
+ 		// Clicking an act opens its MANAGE window in place of the list.
+ 		SimulatedArtist managed = managingArtistId == null ? null
+@@ -1581,6 +1591,7 @@
+ 	/// <summary>The renewal menu for a matured contract: Pushover gets the same quick one-click form
+ 	/// as a first signing; Firm/Hardball opens the same negotiation scene, different nouns.</summary>
+ 	private void RenewalScene(RenewalOffer offer) {
++        if (PlayerDesk.Instance.RenewalDiscussionUnavailable() is { } reason) Body(reason);
+ 		if (offer.Posture != NegotiationPosture.Pushover) { NegotiationScene(offer.Talk); return; }
+ 
+ 		Heading($"RENEW — {offer.Artist.stageName.ToUpperInvariant()}");
+diff --git a/SimTools/ScoutingContractContinuityChecks.cs b/SimTools/ScoutingContractContinuityChecks.cs
+new file mode 100644
+--- /dev/null
++++ b/SimTools/ScoutingContractContinuityChecks.cs
+@@ -0,0 +1,141 @@
++using System;
++using System.Linq;
++using System.Text.Json;
++using Godot;
++
++public static class ScoutingContractContinuityChecks {
++    public static SimulatedArtist PrepareRenewal(PlayerDesk desk, bool managed) {
++        var clock = TimeManager.Instance;
++        clock.RestoreClock(GameDate.StartDate, 9);
++        var next = desk.ScoutingItinerary().First();
++        if (!desk.WaitForSceneAppearance(next.BillId, next.EventId, out string message) ||
++            !desk.ListenSceneAppearance(next.BillId, next.EventId, out message)) throw new InvalidOperationException(message);
++        var act = ArtistManager.Instance.GetArtist(next.ArtistId);
++        act.labelId = null; act.careerState = CareerState.Unsigned; act.prospectMarketStatus = ProspectMarketStatus.Seeking;
++        act.lifecycleStatus = ArtistLifecycleStatus.Active; act.isActive = true; act.manager = ManagerArchetype.None;
++        desk.Label.cashReserves = 100000;
++        clock.RestoreClock(clock.CurrentDate, 9);
++        if (!desk.OpenScoutingDossier(act.artistId, out message)) throw new InvalidOperationException(message);
++        var prospect = desk.Slate.Single(p => p.Artist == act);
++        if (!desk.ApproachToSign(prospect, out message)) throw new InvalidOperationException(message);
++        prospect.Posture = NegotiationPosture.Pushover; prospect.Talk = null;
++        var ask = prospect.Baseline;
++        if (!desk.OfferContract(prospect, ask.Advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation,
++                ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message)) throw new InvalidOperationException(message);
++        // Deliveries, rather than an artificial clock jump, mature this controlled contract.
++        act.contractSinglesObligation = 2; act.contractReleases = 2;
++        act.manager = managed ? ManagerArchetype.Visionary : ManagerArchetype.None;
++        if (!desk.ApproachRenewal(act, out message)) throw new InvalidOperationException(message);
++        if (!managed) { desk.PendingRenewal.Posture = NegotiationPosture.Pushover; desk.PendingRenewal.Talk = null; }
++        return act;
++    }
++
++    public static void Run() {
++        int checks = 0;
++        void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCOUTING_CONTRACT_CONTINUITY_FAILED: " + why); checks++; }
++        string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
++        var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
++        Check(desk.FoundLabel("Contract Continuity", "nashville", out string message), "found label: " + message);
++        var act = PrepareRenewal(desk, true); string id = act.artistId;
++        var talk = desk.PendingRenewal.Talk;
++        Check(talk != null, "managed renewal uses existing acceptance owner");
++        var ask = desk.PendingRenewal.Ask;
++        Check(desk.TableOffer(talk, ask.Advance * .75f, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, true, false, out message) &&
++            talk.stage == ContractTalkStage.Objection, "real hard-line objection: " + message);
++        string renewal = Json(desk.CaptureState().RenewalDiscussion), world = Json(WorldStateService.Capture());
++        GD.Seed(177); uint draw = GD.Randi(); GD.Seed(177);
++        Check(desk.ApproachRenewal(act, out message) && ReferenceEquals(talk, desk.PendingRenewal.Talk) &&
++            Json(desk.CaptureState().RenewalDiscussion) == renewal && GD.Randi() == draw && Json(WorldStateService.Capture()) == world,
++            "reopening retains terms, rounds, objection and RNG");
++        var savedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture()); var savedPlayer = LocalSceneRoomService.Copy(desk.CaptureState());
++        var date = clock.CurrentDate; int hour = clock.CurrentHour, minute = clock.CurrentMinute;
++        void Reset() {
++            LocalScenes.Configure(Array.Empty<string>());
++            WorldStateService.Apply(LocalSceneRoomService.Copy(savedWorld), date, SimulationSeedBootstrap.RequestedSeed);
++            Check(desk.RestoreState(LocalSceneRoomService.Copy(savedPlayer), out message), "restore live discussion: " + message);
++            clock.RestoreClock(date, hour, minute); act = am.GetArtist(id); talk = desk.PendingRenewal.Talk; ask = desk.PendingRenewal.Ask;
++        }
++        var detached = desk.CaptureState().RenewalDiscussion;
++        detached.Log.Clear(); detached.Talk.weights.Clear();
++        Check(Json(desk.CaptureState().RenewalDiscussion) == renewal, "capture detaches all mutable discussion collections");
++        Reset();
++        var input = LocalSceneRoomService.Copy(savedPlayer);
++        Check(desk.RestoreState(input, out message), "restore input accepted");
++        input.RenewalDiscussion.Log.Clear(); input.RenewalDiscussion.Talk.weights.Clear();
++        Check(Json(desk.CaptureState().RenewalDiscussion) == renewal && ReferenceEquals(desk.PendingRenewal.Artist, am.GetArtist(id)), "restore detaches input and binds canonical act only");
++        string slot = "Renewal " + Guid.NewGuid().ToString("N");
++        try {
++            Check(SaveGameService.Save(slot, out message) && SaveGameService.Load(slot, out message), "actual compressed renewal save/load: " + message);
++            Check(Json(desk.CaptureState().RenewalDiscussion) == renewal && ReferenceEquals(desk.PendingRenewal.Talk.renewalArtist, am.GetArtist(id)), "compressed reload retains ask, draft, patience, rounds, log and binding");
++        } finally { SaveGameService.Delete(slot); }
++        Reset(); var oldTalk = talk;
++        Check(!desk.PlayNegotiationCounter(oldTalk, ContractCounter.Promise, out message), "unsupported promises remain blocked");
++        Check(desk.RestoreState(LocalSceneRoomService.Copy(savedPlayer), out message), "replace live state from save");
++        int now = clock.CurrentHour * 60 + clock.CurrentMinute;
++        Check(!desk.PlayNegotiationCounter(oldTalk, ContractCounter.HoldFirm, out message) && clock.CurrentHour * 60 + clock.CurrentMinute == now,
++            "old talk object cannot spend or commit after reload");
++        Reset();
++        var other = am.GetAllArtists().First(a => a != act && a.lifecycleStatus == ArtistLifecycleStatus.Active && a.isActive);
++        var detachedAct = LocalSceneRoomService.Copy(act);
++        Check(!desk.ApproachRenewal(detachedAct, out message) && Json(desk.CaptureState().RenewalDiscussion) == renewal, "detached act cannot replace current renewal");
++        foreach (var corrupt in new Action<RenewalDiscussionSaveData>[] {
++            s => s.LabelId = "other-label", s => s.Talk.patienceLeft = -1, s => s.Talk.weights.Clear(),
++            s => s.OriginalContract = null, s => s.Talk.renewalArtist = act }) {
++            var invalid = LocalSceneRoomService.Copy(savedPlayer); corrupt(invalid.RenewalDiscussion);
++            string playerBefore = Json(desk.CaptureState());
++            Check(!desk.RestoreState(invalid, out message) && Json(desk.CaptureState()) == playerBefore, "malformed discussion rejected before player mutation");
++        }
++        foreach (string flag in new[] { "--disable-scouting-experience", "--observe-scouting-experience" }) {
++            LocalScenes.Configure(new[] { flag });
++            Check(Json(desk.CaptureState().RenewalDiscussion) == renewal, "feature mode retains existing contract discussion");
++        }
++        Reset(); var legacy = LocalSceneRoomService.Copy(savedPlayer); legacy.RenewalDiscussion = null;
++        Check(desk.RestoreState(legacy, out message) && desk.PendingRenewal == null, "legacy missing discussion creates no invented asks or rounds");
++        Reset(); var originalTerms = RenewalContractIdentity.From(act); float cash = desk.Label.cashReserves;
++        act.labelId = other.labelId ?? "another-label"; desk.Label.roster.Remove(act);
++        Check(!desk.PlayNegotiationCounter(talk, ContractCounter.HoldFirm, out message) && desk.Label.cashReserves == cash &&
++            RenewalContractIdentity.From(act) == originalTerms && clock.CurrentHour * 60 + clock.CurrentMinute == hour * 60 + minute,
++            "lost ownership blocks hold before time or contract mutation");
++        Check(desk.WalkFromTalk(talk, out message) && act.labelId != desk.Label.labelId && RenewalContractIdentity.From(act) == originalTerms, "stale voluntary dismissal cannot reclaim or drop rival act");
++        Reset(); act.contractExpiresWeek++;
++        Check(!desk.PlayNegotiationCounter(talk, ContractCounter.HoldFirm, out message) && desk.RenewalDiscussionUnavailable()?.Contains("changed") == true,
++            "changed contract cannot be replaced by old discussion even if still delivery-matured");
++        Check(desk.StepBackFromRenewal(out message) && desk.PendingRenewal == null, "changed-contract discussion can be dismissed without contract consequences");
++        Reset(); desk.Label.cashReserves = 0;
++        Check(!desk.PlayNegotiationCounter(talk, ContractCounter.HoldFirm, out message) && talk.patienceLeft == savedPlayer.RenewalDiscussion.Talk.patienceLeft &&
++            clock.CurrentHour * 60 + clock.CurrentMinute == hour * 60 + minute, "unaffordable hold costs no time or patience");
++        Reset();
++        // Use the ordinary clock callback to isolate a real resource change during a meeting.
++        var beforeContract = RenewalContractIdentity.From(act); int beforeEvents = act.careerEvents.Count;
++        Check(desk.PlayNegotiationCounter(talk, ContractCounter.SweetenAxis, out message), "return to tabling");
++        Action<int> consumeCash = _ => desk.Label.cashReserves = 0;
++        clock.OnHourChanged += consumeCash;
++        try { Check(!desk.TableOffer(talk, ask.Advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation,
++            ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message), "cash changes during accepted-package meeting block commit"); }
++        finally { clock.OnHourChanged -= consumeCash; }
++        Check(RenewalContractIdentity.From(act) == beforeContract && act.careerEvents.Count == beforeEvents && desk.Label.cashReserves == 0 &&
++            clock.CurrentHour * 60 + clock.CurrentMinute == hour * 60 + minute + PlayerDesk.NegotiationRoundHours * 60 &&
++            talk.stage == ContractTalkStage.Tabling && desk.PendingRenewal != null, "consumed time retained, no advance or contract mutation, editable terms survive failed close");
++        Reset(); Check(desk.PlayNegotiationCounter(talk, ContractCounter.SweetenAxis, out message), "table successful renewal");
++        cash = desk.Label.cashReserves;
++        Check(desk.TableOffer(talk, ask.Advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message), "managed renewal succeeds through existing evaluator");
++        Check(desk.PendingRenewal == null && talk.stage == ContractTalkStage.Done && desk.Label.cashReserves == cash - ask.Advance && act.contractReleases == 0,
++            "successful renewal pays once and consumes existing discussion");
++        Check(!desk.TableOffer(talk, ask.Advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message), "completed renewal cannot replay");
++        Reset(); desk.PendingRenewal.Posture = NegotiationPosture.Pushover; desk.PendingRenewal.Talk = null;
++        beforeContract = RenewalContractIdentity.From(act); beforeEvents = act.careerEvents.Count;
++        clock.OnHourChanged += consumeCash;
++        try { Check(!desk.RenewContract(act, ask.Advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation,
++            ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message), "easy renewal also rechecks cash after meeting"); }
++        finally { clock.OnHourChanged -= consumeCash; }
++        Check(RenewalContractIdentity.From(act) == beforeContract && act.careerEvents.Count == beforeEvents && desk.PendingRenewal?.Draft != null,
++            "easy failed close preserves draft and old contract");
++        Reset(); desk.PendingRenewal.Posture = NegotiationPosture.Pushover; desk.PendingRenewal.Talk = null;
++        Check(!desk.RenewContract(act, float.NaN, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, true, false, out message), "nonfinite offers blocked");
++        cash = desk.Label.cashReserves;
++        Check(desk.RenewContract(act, ask.Advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message) &&
++            desk.Label.cashReserves == cash - ask.Advance, "easy renewal successful payment remains intact");
++        Reset();
++        GD.Print($"SCOUTING_CONTRACT_CONTINUITY_PASS checks={checks}");
++    }
++}
+diff --git a/SimTools/SaveLoadRoundTripRunner.cs b/SimTools/SaveLoadRoundTripRunner.cs
+--- a/SimTools/SaveLoadRoundTripRunner.cs
++++ b/SimTools/SaveLoadRoundTripRunner.cs
+@@ -43,6 +43,7 @@
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-founding-history-check")) { ScoutingFoundingHistoryChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-check")) { ScoutingAudienceChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-check")) { ScoutingOfferPlanningChecks.Run(); GetTree().Quit(0); return; }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-check")) { ScoutingContractContinuityChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+diff --git a/SimTools/SceneRoomUiRunner.cs b/SimTools/SceneRoomUiRunner.cs
+--- a/SimTools/SceneRoomUiRunner.cs
++++ b/SimTools/SceneRoomUiRunner.cs
+@@ -21,6 +21,47 @@
+             var fold = Descendants(this).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "FOLD THE PAPER  ×");
+             fold?.EmitSignal(Button.SignalName.Pressed);
+             for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-ui-check")) {
++                var act = ScoutingContractContinuityChecks.PrepareRenewal(desk, true); string actId = act.artistId;
++                var ask = desk.PendingRenewal.Ask;
++                if (!desk.TableOffer(desk.PendingRenewal.Talk, ask.Advance * .75f, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, true, false, out message) ||
++                    desk.PendingRenewal.Talk.stage != ContractTalkStage.Objection) throw new InvalidOperationException("Need a real objection: " + message);
++                int rounds = desk.PendingRenewal.Talk.roundsPlayed, patience = desk.PendingRenewal.Talk.patienceLeft;
++                string slot = "Renewal UI " + Guid.NewGuid().ToString("N");
++                try { if (!SaveGameService.Save(slot, out message) || !SaveGameService.Load(slot, out message)) throw new InvalidOperationException("Compressed save/load: " + message); }
++                finally { SaveGameService.Delete(slot); }
++                // A fresh panel session holds no renewal page; the retained discussion must be reachable from the roster.
++                typeof(PlayerDeskPanel).GetField("renewingArtist", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panel, null);
++                panel.OpenAtTab("ROSTER");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var live = ArtistManager.Instance.GetArtist(actId);
++                var retained = Descendants(panel).OfType<Label>().SingleOrDefault(l => !l.IsQueuedForDeletion() && l.Text == "Renewal discussion retained for " + live.stageName + ".");
++                if (retained == null) throw new InvalidOperationException("Roster must announce the retained renewal after reload.");
++                var terms = RenewalContractIdentity.From(live); float cashBefore = desk.Label.cashReserves;
++                int minute = TimeManager.Instance.CurrentHour * 60 + TimeManager.Instance.CurrentMinute;
++                Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "RESUME RENEWAL DISCUSSION").EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var heading = Descendants(panel).OfType<Label>().SingleOrDefault(l => !l.IsQueuedForDeletion() && l.Text.StartsWith("RENEWING — " + live.stageName.ToUpperInvariant()));
++                var talk = desk.PendingRenewal?.Talk;
++                if (heading == null || talk == null || talk.stage != ContractTalkStage.Objection || talk.roundsPlayed != rounds || talk.patienceLeft != patience ||
++                    !Descendants(panel).OfType<Button>().Any(b => !b.IsQueuedForDeletion() && b.Text.StartsWith("HOLD FIRM")))
++                    throw new InvalidOperationException("Resume must reopen the same objection with its rounds and patience.");
++                if (desk.Label.cashReserves != cashBefore || TimeManager.Instance.CurrentHour * 60 + TimeManager.Instance.CurrentMinute != minute)
++                    throw new InvalidOperationException("Resuming must cost no time or money.");
++                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
++                string continuityDir = ProjectSettings.GlobalizePath("res://SimLogs/scouting-contract-continuity-ui-v1"); Directory.CreateDirectory(continuityDir);
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(continuityDir, "renewal.png"));
++                typeof(PlayerDeskPanel).GetField("renewingArtist", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panel, null);
++                panel.OpenAtTab("ROSTER");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "STEP BACK FROM RENEWAL").EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (desk.PendingRenewal != null || RenewalContractIdentity.From(live) != terms || live.labelId != desk.Label.labelId || desk.Label.cashReserves != cashBefore ||
++                    Descendants(panel).OfType<Button>().Any(b => !b.IsQueuedForDeletion() && b.Text == "RESUME RENEWAL DISCUSSION"))
++                    throw new InvalidOperationException("Stepping back must clear the discussion without changing the contract, roster or cash.");
++                GD.Print("SCOUTING_CONTRACT_CONTINUITY_UI_PASS reload=true resume=true sameObjection=true free=true stepBack=true"); GetTree().Quit(0); return;
++            }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-ui-check")) {
+                 var booking = ScoutingOfferPlanningChecks.PrepareDemo(desk);
+                 var clock = TimeManager.Instance;

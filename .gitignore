@@ -22,6 +22,7 @@ __pycache__/
 # Exported build output; the game data pack is a build artifact, not source.
 /data_Label Man_windows_x86_64/
 
-# Godot export presets: machine-local (carries an absolute export path, and can carry
-# signing credentials). Build config, not source.
-/export_presets.cfg
+# Godot export presets are tracked: the preset carries a RELATIVE export path (build/) and no
+# signing credentials. Keep it that way; set codesign options in a local, uncommitted copy.
+# The exported exe, pck and .NET data folder land in build/.
+/build/

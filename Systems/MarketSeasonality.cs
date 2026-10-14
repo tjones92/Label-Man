@@ -58,11 +58,15 @@ public static class MarketSeasonality {
 	public static float GetMarketingEfficiencyMultiplier(int year, int month, bool liveTick) => GetMeanOneMultiplier(MarketingEfficiency, year, month, liveTick);
 	public static float GetArtistAvailabilityMultiplier(int year, int month, bool liveTick) => GetMeanOneMultiplier(ArtistAvailability, year, month, liveTick);
 
+	// Pure calendar arithmetic, called per record per week by the sales multipliers; memoised per (year, month).
+	private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, int> fridayCounts = new();
 	public static int GetLiveFridayCount(int year, int month) {
 		ValidateMonth(month);
-		int count = 0;
-		for (DateTime date = new(year, month, 1); date.Month == month; date = date.AddDays(1)) if (date.DayOfWeek == DayOfWeek.Friday) count++;
-		return count;
+		return fridayCounts.GetOrAdd(year * 16 + month, _ => {
+			int count = 0;
+			for (DateTime date = new(year, month, 1); date.Month == month; date = date.AddDays(1)) if (date.DayOfWeek == DayOfWeek.Friday) count++;
+			return count;
+		});
 	}
 	public static int GetLiveFridayCount(int year) { int total = 0; for (int month = 1; month <= 12; month++) total += GetLiveFridayCount(year, month); return total; }
 	public static IReadOnlyList<float> GetRawTable(string channel) => channel switch {

@@ -16,7 +16,6 @@ using Godot;
 public partial class PlayerDesk : Node {
 
 	public const int NegotiationRoundHours = ActionCosts.QuickMeeting;   // 2h to table, sweeten, promise, or hold firm
-	private const int PromiseSinglesBump = 2;                            // extra sides promised, not paid for
 	private const int ForcedWalkCooldownDays = 10;                       // patience exhausted on a NEW signing -- give it time
 
 	/// <summary>The live renewal in progress, if any -- held here (not the UI) so it survives a
@@ -52,6 +51,78 @@ public partial class PlayerDesk : Node {
 	}
 
 	// ========================================================================================
+	// THE PUSHOVER FLOOR -- easy to sign, not free to sign
+	// ========================================================================================
+
+	/// <summary>Where a one-click offer fell short of what an easy act will take. Flags say which terms
+	/// are under the floor; the floor itself rides along so the counter can name it.</summary>
+	public readonly struct PushoverShortfall {
+		public readonly bool Advance, Royalty, Term, Singles, FarBelow;
+		public readonly float MinAdvance, MinRoyalty;
+		public readonly int MaxTerm, MaxSingles;
+		public PushoverShortfall(bool advance, bool royalty, bool term, bool singles, bool farBelow,
+				float minAdvance, float minRoyalty, int maxTerm, int maxSingles) {
+			Advance = advance; Royalty = royalty; Term = term; Singles = singles; FarBelow = farBelow;
+			MinAdvance = minAdvance; MinRoyalty = minRoyalty; MaxTerm = maxTerm; MaxSingles = maxSingles;
+		}
+	}
+
+	/// <summary>The floor an easy act will sign above: 40% of the advance ask and 70% of the royalty
+	/// ask, a term no more than two years past theirs and no more than four extra sides. A Local
+	/// Hustler, eager to close, takes 30% / 60%. Control and publishing are not floored here -- an easy
+	/// act has no stake in them; the managers who do are the ones that get the full negotiation.
+	/// Deterministic on the offer and the manager, so a player can learn what each kind will take. The outlook moves
+	/// the floor: an act glad of any label takes a little less, one with something to lose holds a little more.</summary>
+	private static bool ClearsPushoverFloor(ContractTermSheet ask, ContractTermSheet offer, out PushoverShortfall shortfall, float outlookCredit = 0f) {
+		bool eager = ask.Manager == ManagerArchetype.LocalHustler;
+		float shift = -Mathf.Clamp(outlookCredit, -0.10f, 0.10f);
+		float minAdvance = Mathf.Ceil(ask.Advance * Mathf.Clamp((eager ? 0.30f : 0.40f) + shift, 0.20f, 0.60f));
+		float minRoyalty = Mathf.Min(ask.RoyaltyRate, Mathf.Ceil(ask.RoyaltyRate * Mathf.Clamp((eager ? 0.60f : 0.70f) + shift, 0.50f, 0.85f) * 400f) / 400f);
+		int maxTerm = Mathf.Min(7, ask.TermYears + 2);
+		int maxSingles = Mathf.Min(30, ask.SinglesObligation + 4);
+
+		bool advance = offer.Advance < minAdvance;
+		bool royalty = offer.RoyaltyRate < minRoyalty - 0.00001f;
+		bool term = offer.TermYears > maxTerm;
+		bool singles = offer.SinglesObligation > maxSingles;
+		bool farBelow = (ask.Advance > 0f && offer.Advance < ask.Advance * 0.15f)
+			|| (ask.RoyaltyRate > 0f && offer.RoyaltyRate < ask.RoyaltyRate * 0.40f);
+		shortfall = new PushoverShortfall(advance, royalty, term, singles, farBelow, minAdvance, minRoyalty, maxTerm, maxSingles);
+		return !(advance || royalty || term || singles);
+	}
+
+	/// <summary>Fixture access to the easy-act floor. Never rendered.</summary>
+	internal static bool ClearsPushoverFloorOf(ContractTermSheet ask, ContractTermSheet offer, float outlookCredit) =>
+		ClearsPushoverFloor(ask, offer, out _, outlookCredit);
+
+	/// <summary>The one mild counter: the player's own offer with every short term lifted to the floor.
+	/// The advance is fogged by scouting -- a good ear hears nearly the exact number, a poor one hears a
+	/// figure up to ~15% high -- but never below the floor, so taking the counter always signs.</summary>
+	private ContractTermSheet PushoverCounter(Prospect prospect, ContractTermSheet offer, PushoverShortfall s) {
+		ContractTermSheet ask = prospect.Baseline;
+		float advance = offer.Advance;
+		if (s.Advance) {
+			float unit = StableNegotiationUnit(Label?.labelId ?? "", prospect.Artist.artistId, 0);
+			float fogged = s.MinAdvance * (1f + unit * NegotiationFogBand() * 0.5f);
+			advance = Mathf.Min(Mathf.Max(ask.Advance, s.MinAdvance), Mathf.Ceil(fogged / 5f) * 5f);
+			advance = Mathf.Max(advance, s.MinAdvance);
+		}
+		return new ContractTermSheet(advance, s.Royalty ? s.MinRoyalty : offer.RoyaltyRate,
+			s.Term ? s.MaxTerm : offer.TermYears, s.Singles ? s.MaxSingles : offer.SinglesObligation,
+			offer.LabelOwnsPublishing, offer.ArtistCreativeControl,
+			ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
+	}
+
+	private static string PushoverCounterLine(string name, ContractTermSheet counter, PushoverShortfall s) {
+		var parts = new List<string>();
+		if (s.Advance) parts.Add($"around ${counter.Advance:N0} up front");
+		if (s.Royalty) parts.Add($"{counter.RoyaltyRate:P2} on the records");
+		if (s.Term) parts.Add($"no more than {counter.TermYears} years");
+		if (s.Singles) parts.Add($"no more than {counter.SinglesObligation} sides owed");
+		return $"{name}'s side shakes their head. \"We'd come to terms at {string.Join(", ", parts)}.\" The form is set to that -- one more try.";
+	}
+
+	// ========================================================================================
 	// THE RESERVATION PACKAGE
 	// ========================================================================================
 
@@ -65,10 +136,12 @@ public partial class PlayerDesk : Node {
 		float ambition = artist?.evolution?.artisticAmbition ?? 0.5f;
 		float pragmatism = artist?.evolution?.commercialPragmatism ?? 0.5f;
 		ManagerProfile.Modifiers mods = ManagerProfile.Of(artist?.manager ?? ManagerArchetype.None);
+		// What each manager digs in on: a Shark holds the money lines, a Svengali wants a long leash.
+		ManagerArchetype kind = artist?.manager ?? ManagerArchetype.None;
 		var w = new Dictionary<ContractAxis, float> {
-			[ContractAxis.Advance] = 0.20f + pragmatism * 0.28f,
-			[ContractAxis.Royalty] = 0.18f + pragmatism * 0.20f,
-			[ContractAxis.Term] = 0.09f,
+			[ContractAxis.Advance] = 0.20f + pragmatism * 0.28f + (kind == ManagerArchetype.Shark ? 0.14f : 0f),
+			[ContractAxis.Royalty] = 0.18f + pragmatism * 0.20f + (kind == ManagerArchetype.Shark ? 0.14f : 0f),
+			[ContractAxis.Term] = 0.09f + (kind == ManagerArchetype.Svengali ? 0.12f : 0f),
 			[ContractAxis.Deliverables] = 0.08f + ambition * 0.10f,
 			[ContractAxis.Publishing] = 0.13f + ambition * 0.24f + (mods.DemandsArtistPublishing ? 0.12f : 0f),
 			[ContractAxis.CreativeControl] = 0.13f + ambition * 0.28f + (mods.DemandsArtistControl ? 0.12f : 0f),
@@ -120,6 +193,9 @@ public partial class PlayerDesk : Node {
 		return value;
 	}
 
+	/// <summary>Fixture access to the acceptance arithmetic. Never rendered.</summary>
+	internal static float PackageValueOf(ContractTalk talk, ContractTermSheet offer) => PackageValue(offer, talk.ask, talk.weights);
+
 	/// <summary>The objection he raises: the axis contributing the most to the shortfall, weighted
 	/// by how much he actually cares about it -- not just whichever number happens to be furthest off.</summary>
 	private static ContractAxis WorstAxis(ContractTermSheet offer, ContractTermSheet ask, Dictionary<ContractAxis, float> weights) {
@@ -152,15 +228,109 @@ public partial class PlayerDesk : Node {
 
 	/// <summary>Called from <see cref="ApproachToSign"/> right after the baseline ask is built --
 	/// Pushover acts never get one of these; they stay on the existing single-click ContractForm.</summary>
-	private ContractTalk OpenNegotiation(Prospect prospect) {
+	private ContractTalk OpenNegotiation(Prospect prospect, ContractOutlook outlook) {
 		ContractTalk talk = BuildTalk(prospect.Artist, prospect.Baseline, prospect.Posture);
+		ApplyOutlook(talk, outlook);
 		talk.prospect = prospect;
 		prospect.Talk = talk;
 		return talk;
 	}
 
-	/// <summary>Prefill for the tabling form: the last thing you tabled, or the ask itself for round one.</summary>
-	public static ContractTermSheet CurrentOffer(ContractTalk talk) => talk.lastOffer ?? talk.ask;
+	/// <summary>Prefill for the tabling form: what you last tabled, else the label's standard paper for round one.
+	/// Round one used to open on the act's own ask, with the publishing and the final word already conceded, so
+	/// giving them away was never a decision. Now the label's paper is the opening and every give is a tick.</summary>
+	public static ContractTermSheet CurrentOffer(ContractTalk talk) => talk.draftOffer ?? talk.lastOffer ?? StandardPaper(talk.ask);
+
+	/// <summary>The label's own paper at the act's numbers: the label keeps the publishing and has the final say.</summary>
+	public static ContractTermSheet StandardPaper(ContractTermSheet ask) => new(ask.Advance, ask.RoyaltyRate,
+		ask.TermYears, ask.SinglesObligation, true, false,
+		ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
+
+	// ========================================================================================
+	// WHAT THE GIVES COST -- the two control axes had no visible price, so they were free concessions
+	// ========================================================================================
+
+	private static readonly int[] MechanicalLadderCopies = { 1000, 10000, 100000 };
+
+	/// <summary>The long-tail price of artist-owned publishing, in the one currency the player already sees:
+	/// the compulsory mechanical the label pays the writer on every copy of a 45 (MechanicalRoyaltyService
+	/// charges both sides, and a label that controls the song pays itself nothing). Shown as a hover tooltip
+	/// on the Publishing row, so the form itself stays quiet; the line for the box's current state leads.</summary>
+	public static string PublishingTooltip(bool labelKeepsPublishing) {
+		float perCopyCents = MechanicalRoyaltyService.RatePerCopy * 100f;
+		string ladder = string.Join("  ·  ", MechanicalLadderCopies.Select(copies =>
+			$"{copies:N0} copies: ${copies * MechanicalRoyaltyService.RatePerCopy * 2f:N0}"));
+		string keeps = "Label keeps the publishing: no mechanicals owed on the songs they write.";
+		string gives = $"Act keeps the publishing: you owe them {perCopyCents:0.#}¢ a copy on every side of a 45 that is theirs.\n" +
+			$"Both sides theirs — {ladder}.\n" +
+			"It is owed from the first copy sold.";
+		return (labelKeepsPublishing ? keeps + "\n\n" + gives : gives + "\n\n" + keeps) +
+			"\n\nCovers of other people's songs owe their own publishers either way, unless you control the song.";
+	}
+
+	/// <summary>What the creative-control box costs, in the one place the sim charges for it: the act's no in the
+	/// studio (<see cref="CreativeControlRefusalScale"/>), for every session of the term.</summary>
+	public static string CreativeControlTooltip(bool artistHasControl) {
+		int barPercent = Mathf.RoundToInt((CreativeControlRefusalScale - 1f) * 100f);
+		string gives = $"Act holds creative control: they turn down songs they don't like — their bar is {barPercent}% higher than a free act's — " +
+			"and you can't insist in the studio. A no sends you back to pick other material, every session of the term.";
+		string keeps = "You hold creative control: they may still object to a song, but you can insist and cut it anyway.";
+		return artistHasControl ? gives + "\n\n" + keeps : keeps + "\n\n" + gives;
+	}
+
+	// ========================================================================================
+	// THE LOWBALL GRUDGE -- a cheap first signing is paid for at renewal
+	// ========================================================================================
+
+	private const float GrudgeAdvancePremium = 0.50f;   // a signing at nothing asks half again on the advance
+	private const float GrudgeRoyaltyPremium = 0.20f;
+	private const float GrudgeNoticeFloor = 0.20f;
+
+	/// <summary>How far under their ask the signed paper landed, on whichever of the two money axes fell
+	/// furthest. 0 at or above the ask, 1 at nothing.</summary>
+	public static float UnderAskFraction(ContractTermSheet ask, ContractTermSheet signed) {
+		float advance = ask.Advance > 0f ? 1f - signed.Advance / ask.Advance : 0f;
+		float royalty = ask.RoyaltyRate > 0f ? 1f - signed.RoyaltyRate / ask.RoyaltyRate : 0f;
+		return Mathf.Clamp(Mathf.Max(advance, royalty), 0f, 1f);
+	}
+
+	/// <summary>A renewal ask raised by what the act remembers of how cheaply it signed. The act's own
+	/// current stats already priced the ask (<see cref="AILabel.GenerateTermSheet"/>); this only adds the
+	/// grudge on top, and says so in the summary so the premium is never a hidden number.</summary>
+	public static ContractTermSheet WithGrudge(ContractTermSheet ask, float grudge) {
+		if (grudge <= 0.001f) return ask;
+		float advance = Mathf.Ceil(ask.Advance * (1f + GrudgeAdvancePremium * grudge) / 5f) * 5f;
+		float royalty = Mathf.Min(0.15f, Mathf.Ceil(ask.RoyaltyRate * (1f + GrudgeRoyaltyPremium * grudge) * 400f) / 400f);
+		string summary = AILabel.BuildDemandSummary(ask.Manager, advance, royalty, ask.LabelOwnsPublishing, ask.ArtistCreativeControl);
+		if (grudge >= GrudgeNoticeFloor)
+			summary += $" They haven't forgotten signing {grudge:P0} under their ask -- the new paper starts higher for it.";
+		return new ContractTermSheet(advance, royalty, ask.TermYears, ask.SinglesObligation,
+			ask.LabelOwnsPublishing, ask.ArtistCreativeControl, ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, summary);
+	}
+
+	/// <summary>The package must clear the act's weighted reservation and meet a minimum cash floor.
+	/// Otherwise control and quota concessions could make a 20%-of-ask advance pass on paper even when
+	/// the act's stated money demand is the main reason they came to the table.</summary>
+	private static bool ClearsReservation(ContractTalk talk, ContractTermSheet offer, float extraValue = 0f) {
+		if (HardLineBroken(talk, offer).HasValue) return false;
+		if (PackageValue(offer, talk.ask, talk.weights) + extraValue < talk.reservation) return false;
+		return talk.ask.Advance <= 0f || offer.Advance >= MinimumAdvanceForAcceptance(talk);
+	}
+
+	/// <summary>The one axis an act will not trade at any price. A Visionary's "Publishing is non-negotiable"
+	/// used to be a weighted axis like the rest, so a generous enough advance bought it out. Now no package
+	/// clears while the label still holds the publishing the act has said it keeps. Null while the offer
+	/// respects the line, or the act has none.</summary>
+	public static ContractAxis? HardLineBroken(ContractTalk talk, ContractTermSheet offer) {
+		if (talk?.ask == null || !offer.LabelOwnsPublishing) return null;
+		return ManagerProfile.Of(talk.ask.Manager).DemandsArtistPublishing ? ContractAxis.Publishing : null;
+	}
+
+	private static ContractAxis ObjectionAxisFor(ContractTalk talk, ContractTermSheet offer) =>
+		HardLineBroken(talk, offer) ?? WorstAxis(offer, talk.ask, talk.weights);
+
+	public static float MinimumAdvanceForAcceptance(ContractTalk talk) => talk?.ask == null ? 0f
+		: talk.ask.Advance * (talk.posture == NegotiationPosture.Hardball ? 0.65f : 0.50f);
 
 	/// <summary>Whether a give-back-for-cash trade is even on the table -- there has to be a control
 	/// axis the label is currently holding for the artist to want it back.</summary>
@@ -181,36 +351,54 @@ public partial class PlayerDesk : Node {
 		message = "";
 		if (talk?.Artist == null) { message = "No negotiation open."; return false; }
 		if (talk.stage != ContractTalkStage.Tabling) { message = "Not at that point in the talks."; return false; }
-		if (!Require(NegotiationRoundHours, out message)) return false;
+        if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentTalk(talk, out message)) return false;
+		if (Label == null) { message = "You don't have a label yet."; return false; }
 		if (!talk.IsRenewal && !Label.HasRosterSpace) { message = "Roster is full."; return false; }
 		bool ownershipOk = talk.IsRenewal ? talk.Artist.labelId == Label.labelId : string.IsNullOrEmpty(talk.Artist.labelId);
 		if (!ownershipOk) { message = talk.IsRenewal ? "They're not on your roster any more." : "Somebody signed them first."; return false; }
 
 		advance = Mathf.Max(0f, advance);
-		if (!Label.CanAffordToSign(advance)) {
-			message = $"You can't cover a ${advance:N0} advance and hold next month's overhead.";
-			return false;
-		}
-
 		var offer = new ContractTermSheet(advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f),
 			Mathf.Clamp(termYears, 1, 7), Mathf.Clamp(singlesObligation, 0, 30),
 			labelOwnsPublishing, artistCreativeControl,
 			talk.ask.NegotiationDifficulty, talk.ask.Manager, talk.ask.ManagerName, talk.ask.DemandSummary);
+		talk.draftOffer = offer;
+		if (!Require(NegotiationRoundHours, out message)) return false;
+		if (!Label.CanAffordToSign(advance)) {
+			float reserve = Label.GetMonthlyOverhead() * 2f;
+			float after = Label.cashReserves - advance;
+			message = $"A ${advance:N0} advance would leave ${after:N0}; signing requires more than ${reserve:N0} after the advance (two months of overhead). Lower the advance or wait for more cash.";
+			return false;
+		}
+        if (!CanAffordCommitments(talk, advance, out message)) return false;
 
 		Spend(NegotiationRoundHours);
 		talk.roundsPlayed++;
 		talk.lastOffer = offer;
+		talk.draftOffer = null;
 		talk.lastOfferValue = PackageValue(offer, talk.ask, talk.weights);
+        if (!CurrentTalk(talk, out message) || !CurrentContractCash(offer, out message)) { Changed?.Invoke(); return false; }
 
-		if (talk.lastOfferValue >= talk.reservation) { FinalizeSign(talk, offer, out message); return true; }
+		// Terms the act would take still have to beat any other label's paper it holds (PlayerDesk.RivalOffers).
+		bool clears = ClearsReservation(talk, offer, AcceptanceCredit(talk));
+		if (clears && BeatsRivalOffer(talk, offer)) { return FinalizeSign(talk, offer, out message); }
 
-		talk.patienceLeft--;
-		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
+		// A hard line isn't haggling: it costs the meeting, but not a point of patience. The act said it up
+		// front, and the point of the line is that nothing else on the table moves it.
+		bool hardLine = HardLineBroken(talk, offer).HasValue;
+		if (!hardLine) {
+			talk.patienceLeft--;
+			if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
+		}
 
-		talk.objectionAxis = WorstAxis(offer, talk.ask, talk.weights);
+		talk.objectionAxis = ObjectionAxisFor(talk, offer);
+		talk.capabilityObjection = hardLine || clears ? null : CapabilityObjectionFor(talk, offer);
 		talk.stage = ContractTalkStage.Objection;
-		string line = ObjectionLine(talk, offer);
+		string line = clears ? RivalOfferObjectionLine(talk)
+			: talk.capabilityObjection.HasValue ? CapabilityObjectionLine(talk) : ObjectionLine(talk, offer);
 		talk.log.Insert(0, line);
+        if (!talk.IsRenewal) RememberScoutingBusinessStatement(talk.prospect, "objection|" + talk.roundsPlayed,
+            ScoutingBusinessStatementKind.Objection, line);
 		message = line;
 		Changed?.Invoke();
 		return true;
@@ -224,6 +412,8 @@ public partial class PlayerDesk : Node {
 		message = "";
 		if (talk?.Artist == null) { message = "No negotiation open."; return false; }
 		if (talk.stage != ContractTalkStage.Objection) { message = "Not at that point in the talks."; return false; }
+        if (counter == ContractCounter.Walk) return WalkFromTalk(talk, out message);
+        if (!CurrentTalk(talk, out message)) return false;
 
 		switch (counter) {
 			case ContractCounter.SweetenAxis:
@@ -246,6 +436,8 @@ public partial class PlayerDesk : Node {
 			}
 
 			case ContractCounter.Promise: return PlayPromise(talk, out message);
+			case ContractCounter.PromisePromotion: return AddPromotionPromise(talk, out message);
+			case ContractCounter.PromiseDistribution: return AddDistributionPromise(talk, out message);
 			case ContractCounter.HoldFirm: return PlayHoldFirm(talk, out message);
 
 			case ContractCounter.Walk:
@@ -258,55 +450,34 @@ public partial class PlayerDesk : Node {
 		}
 	}
 
-	/// <summary>Costs no cash today: more sides promised, a real push behind the next release. Reads
-	/// as a straight package-value bonus weighted by commercial pragmatism -- the act that will chase
-	/// a hit under pressure is the one a promise actually moves -- and writes the extra obligation
-	/// onto the eventual contract via the existing contractSinglesObligation.</summary>
-	private bool PlayPromise(ContractTalk talk, out string message) {
-		if (!Require(NegotiationRoundHours, out message)) return false;
-		Spend(NegotiationRoundHours);
-
-		ContractTermSheet o = CurrentOffer(talk);
-		var promised = new ContractTermSheet(o.Advance, o.RoyaltyRate, o.TermYears,
-			Mathf.Clamp(o.SinglesObligation + PromiseSinglesBump, 0, 30), o.LabelOwnsPublishing, o.ArtistCreativeControl,
-			o.NegotiationDifficulty, o.Manager, o.ManagerName, o.DemandSummary);
-		float pragmatism = talk.Artist.evolution?.commercialPragmatism ?? 0.5f;
-		float credit = Mathf.Lerp(0.05f, 0.16f, pragmatism);
-
-		talk.lastOffer = promised;
-		talk.lastOfferValue = PackageValue(promised, talk.ask, talk.weights) + credit;
-
-		if (talk.lastOfferValue >= talk.reservation) { FinalizeSign(talk, promised, out message); return true; }
-
-		talk.patienceLeft--;
-		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
-
-		talk.objectionAxis = WorstAxis(promised, talk.ask, talk.weights);
-		string line = $"\"{PromiseSinglesBump} more sides, and I'll make sure the next one gets pushed properly.\" " +
-			"He weighs it -- a promise is not a number, and he knows it.";
-		talk.log.Insert(0, line);
-		message = line;
-		Changed?.Invoke();
-		return true;
-	}
-
 	/// <summary>Re-table the same numbers and see who blinks. A patient act (at least half its rounds
 	/// left) softens a little; an impatient one walks right there -- the bluff, and it can be called.</summary>
 	private bool PlayHoldFirm(ContractTalk talk, out string message) {
+        if (!CurrentTalk(talk, out message)) return false;
+		if (!Label.CanAffordToSign(CurrentOffer(talk).Advance)) { message = "The label cannot afford the current offer. Change the terms before holding firm."; return false; }
+        if (!CanAffordCommitments(talk, CurrentOffer(talk).Advance, out message)) return false;
 		if (!Require(NegotiationRoundHours, out message)) return false;
 		Spend(NegotiationRoundHours);
+        if (!CurrentTalk(talk, out message) || !CurrentContractCash(CurrentOffer(talk), out message)) { Changed?.Invoke(); return false; }
 
 		bool patient = talk.patienceLeft >= Mathf.CeilToInt(talk.patienceMax * 0.5f);
 		talk.patienceLeft--;
 		if (!patient) { WalkAway(talk, forced: true, out message); return true; }
 
 		talk.reservation = Mathf.Max(0.55f, talk.reservation - 0.03f);
-		if (talk.lastOfferValue >= talk.reservation) { FinalizeSign(talk, CurrentOffer(talk), out message); return true; }
+		bool clears = ClearsReservation(talk, CurrentOffer(talk), AcceptanceCredit(talk));
+		if (clears && BeatsRivalOffer(talk, CurrentOffer(talk))) { return FinalizeSign(talk, CurrentOffer(talk), out message); }
 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
 
-		talk.objectionAxis = WorstAxis(CurrentOffer(talk), talk.ask, talk.weights);
-		string line = "He doesn't move much, but he doesn't hang up either.";
+		talk.objectionAxis = ObjectionAxisFor(talk, CurrentOffer(talk));
+		talk.capabilityObjection = clears || HardLineBroken(talk, CurrentOffer(talk)).HasValue ? null : CapabilityObjectionFor(talk, CurrentOffer(talk));
+		string line = clears ? "He doesn't move much, but he doesn't hang up either. " + RivalOfferObjectionLine(talk)
+			: talk.capabilityObjection.HasValue
+			? "He doesn't move much, but he doesn't hang up either. " + CapabilityObjectionLine(talk)
+			: "He doesn't move much, but he doesn't hang up either.";
 		talk.log.Insert(0, line);
+        if (!talk.IsRenewal) RememberScoutingBusinessStatement(talk.prospect,
+            NextScoutingBusinessOccurrence(talk.prospect, "hold-response"), ScoutingBusinessStatementKind.Objection, line);
 		message = line;
 		Changed?.Invoke();
 		return true;
@@ -316,16 +487,21 @@ public partial class PlayerDesk : Node {
 	// RESOLUTION
 	// ========================================================================================
 
-	private void FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
-		talk.stage = ContractTalkStage.Done;
+	private bool FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
+        if (!CurrentTalk(talk, out message)) return false;
+        // A promised session is part of what was agreed: if the cash for it went during the meeting, nothing commits.
+        if (!CanAffordCommitments(talk, sheet.Advance, out message)) { Changed?.Invoke(); return false; }
 		if (talk.IsRenewal) {
-			FinalizeRenewal(talk.renewalArtist, sheet, out message);
+			if (!FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message)) return false;
 			PendingRenewal = null;
 		} else {
-			FinalizeSigning(talk.prospect, sheet, out message);
+			if (!FinalizeSigning(talk.prospect, sheet, out message)) return false;
 			talk.prospect.Talk = null;
 		}
+        RecordPromises(talk);
+		talk.stage = ContractTalkStage.Done;
 		Changed?.Invoke();
+        return true;
 	}
 
 	/// <summary>Voluntary and forced walks land very differently depending on what was on the table.
@@ -359,6 +535,9 @@ public partial class PlayerDesk : Node {
 				message = "You step back. Nothing's burned -- come back whenever.";
 			}
 			talk.prospect.Talk = null;
+            talk.prospect.HasBaseline = false;
+            RememberScoutingBusinessStatement(talk.prospect, "withdrawal",
+                forced ? ScoutingBusinessStatementKind.Declined : ScoutingBusinessStatementKind.SteppedBack, message);
 		}
 		Changed?.Invoke();
 	}
@@ -367,6 +546,9 @@ public partial class PlayerDesk : Node {
 	public bool WalkFromTalk(ContractTalk talk, out string message) {
 		message = "";
 		if (talk == null) { message = "No negotiation open."; return false; }
+        bool live = talk.IsRenewal ? ReferenceEquals(PendingRenewal?.Talk, talk) : ReferenceEquals(talk.prospect?.Talk, talk);
+        if (!live || talk.stage == ContractTalkStage.Done) { message = "This is no longer the current discussion."; return false; }
+        // Closing a stale scene is permitted, but cannot drop or rewrite the act now owned elsewhere.
 		WalkAway(talk, forced: false, out message);
 		return true;
 	}
@@ -393,6 +575,7 @@ public partial class PlayerDesk : Node {
 		ContractAxis axis = talk.objectionAxis ?? ContractAxis.Advance;
 		string manager = talk.ask.ManagerName;
 		string who = string.IsNullOrEmpty(manager) ? "They" : manager;
+		string wants = who == "They" ? "want" : "wants";
 
 		float trueGap = Mathf.Max(0f, 1f - AxisTerm(axis, offer, talk.ask));
 		float unit = StableNegotiationUnit(Label?.labelId ?? "", talk.Artist.artistId, talk.roundsPlayed);
@@ -407,9 +590,7 @@ public partial class PlayerDesk : Node {
 		};
 
 		return axis switch {
-			ContractAxis.Advance => sharp
-				? $"\"{who} wants real money up front. You're {perceivedGap * 100f:F0}% short of where they'd sign.\""
-				: $"\"{who} wants more money up front -- {sizeWord} more than you're offering.\"",
+			ContractAxis.Advance => $"\"{who} {wants} more money up front -- {sizeWord} more than you're offering.\"",
 			ContractAxis.Royalty => sharp
 				? $"\"The points are the problem. {offer.RoyaltyRate:P1} isn't going to cut it -- you're {sizeWord} off.\""
 				: "\"It's the percentage that's sticking.\"",
@@ -417,7 +598,9 @@ public partial class PlayerDesk : Node {
 			ContractAxis.Deliverables => offer.SinglesObligation > talk.ask.SinglesObligation
 				? "\"That's a lot of sides to owe you. They don't want to be grinding out product just to stay clear of you.\""
 				: "\"They want more guaranteed shots at the market than that -- fewer sides means fewer chances at a hit.\"",
-			ContractAxis.Publishing => "\"They'll come down on the money, but they want to keep the publishing.\"",
+			ContractAxis.Publishing => HardLineBroken(talk, offer).HasValue
+				? "\"The publishing isn't for sale. Not for any advance. Put it back in their name or we're done talking.\""
+				: "\"They'll come down on the money, but they want to keep the publishing.\"",
 			ContractAxis.CreativeControl => "\"They want the final word on what gets cut. That's the sticking point.\"",
 			_ => "\"Something in there doesn't sit right with them.\"",
 		};
@@ -431,20 +614,42 @@ public partial class PlayerDesk : Node {
 	/// Pushover path (<see cref="OfferContract"/>, which spends the flat SignHours up front) and a
 	/// negotiated close (<see cref="FinalizeSign"/>, where the hours were already spent one round at
 	/// a time).</summary>
-	private void FinalizeSigning(Prospect prospect, ContractTermSheet sheet, out string message) {
+	private bool FinalizeSigning(Prospect prospect, ContractTermSheet sheet, out string message) {
+        if (!CurrentNewOffer(prospect, out message) || !CurrentContractCash(sheet, out message)) return false;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		float paid = Label.SignArtist(prospect.Artist, year, sheet);
+		float underAsk = prospect.HasBaseline ? UnderAskFraction(prospect.Baseline, sheet) : 0f;
+		prospect.Artist.signedUnderAskFraction = underAsk;
 		CompetitorManager.Instance?.RecordExpense(Label, paid);
 		ArtistManager.Instance?.SignArtist(prospect.Artist, Label.labelId, year);
+        DeclineRivalOffersFor(prospect.Artist);
+        RememberFoundingAct(prospect, sheet);
+        if (LocalScenes.Persisting) {
+            prospect.Artist.sceneRecruitmentHistory ??= new();
+            prospect.Artist.sceneRecruitmentHistory.Add(new SceneRecruitmentRecord {
+                ArtistId = prospect.Artist.artistId, LabelId = Label.labelId, Week = week, Year = year,
+                Phase = "PlayerContract", SigningGenre = prospect.Artist.primaryGenre,
+                BasePlaceId = prospect.Artist.geography?.basePlaceId, OriginPlaceId = prospect.Artist.geography?.originPlaceId,
+                HqPlaceId = Label.geography?.basePlaceId, Route = prospect.SourceConnectionId != null ? "PlayerSourceDemo" : "PlayerEncounter",
+                AccessEvidence = prospect.SourceConnectionId ?? prospect.SceneBillId ?? prospect.SceneRoomId ?? prospect.CityId,
+                Explanation = "Player signed a heard act after the canonical ownership and affordability checks." });
+        }
 		Label.SetOperatingRosterTarget(Label.CurrentRosterSize, LabelOperatingTargetReason.OrganicGrowth, week);
 		repertoire[prospect.Artist.artistId] = new List<RepertoireItem>(prospect.LiveSet);
 		generatedProspectIds.Remove(prospect.Artist.artistId);
 		slate.Remove(prospect);
+		prospect.Draft = null;
+		// They're on the roster now; the notebook is for acts you cannot sign yet.
+		notebook.RemoveAll(entry => entry?.Artist?.artistId == prospect.Artist.artistId);
 
-		Note($"Signed {prospect.Artist.stageName} -- ${paid:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
+		Note($"Signed {prospect.Artist.stageName} --${paid:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
-		message = $"Signed {prospect.Artist.stageName}.";
+		message = $"Signed {prospect.Artist.stageName}." + (underAsk >= GrudgeNoticeFloor
+			? " They took the cheap deal, and they'll remember it when the paper comes up for renewal." : "");
+        RememberScoutingBusinessStatement(prospect, "agreement", ScoutingBusinessStatementKind.Agreement,
+            "The deal completed: " + ScoutingTermsText(ScoutingStatedTerms.From(sheet)), sheet);
+        return true;
 	}
 
 	// ========================================================================================
@@ -459,6 +664,13 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	public bool ApproachRenewal(SimulatedArtist artist, out string message) {
 		message = "";
+        if (!CurrentRenewalArtist(artist, out message)) return false;
+        if (PendingRenewal != null) {
+            if (PendingRenewal.Artist != artist) { message = "Finish or step back from the current renewal before opening another."; return false; }
+            if (!CurrentRenewal(artist, out message)) return false;
+            message = "Returned to the existing renewal discussion. Its ask and previous rounds are retained.";
+            Changed?.Invoke(); return true;
+        }
 		if (artist == null || Label?.roster == null || !Label.roster.Contains(artist)) {
 			message = "That act isn't on your roster.";
 			return false;
@@ -470,11 +682,13 @@ public partial class PlayerDesk : Node {
 			return false;
 		}
 
-		ContractTermSheet ask = Label.GenerateTermSheet(artist, year);
-		NegotiationPosture posture = PostureOf(artist);
-		var offer = new RenewalOffer { Artist = artist, Ask = ask, Posture = posture };
+		ContractTermSheet ask = WithMissedPromises(WithGrudge(Label.GenerateTermSheet(artist, year), artist.signedUnderAskFraction), artist.artistId);
+		ContractOutlook outlook = ReadContractOutlook(artist, renewal: true);
+		NegotiationPosture posture = PostureFor(artist, outlook);
+		var offer = new RenewalOffer { Artist = artist, Ask = ask, Posture = posture, OriginalContract = RenewalContractIdentity.From(artist) };
 		if (posture != NegotiationPosture.Pushover) {
 			ContractTalk talk = BuildTalk(artist, ask, posture);
+			ApplyOutlook(talk, outlook);
 			talk.renewalArtist = artist;
 			offer.Talk = talk;
 		}
@@ -493,26 +707,42 @@ public partial class PlayerDesk : Node {
 	public bool RenewContract(SimulatedArtist artist, float advance, float royaltyRate, int termYears, int singlesObligation,
 			bool labelOwnsPublishing, bool artistCreativeControl, out string message) {
 		message = "";
+        if (!FiniteOffer(advance, royaltyRate, out message) || !CurrentRenewal(artist, out message)) return false;
 		if (PendingRenewal == null || PendingRenewal.Artist != artist) { message = "Approach them about the renewal first."; return false; }
 		if (PendingRenewal.Posture != NegotiationPosture.Pushover) {
 			message = "They want to talk terms, not just sign -- work it through the negotiation.";
 			return false;
 		}
-		if (!Require(NegotiationRoundHours, out message)) return false;
-
 		advance = Mathf.Max(0f, advance);
-		if (!Label.CanAffordToSign(advance)) {
-			message = $"You can't cover a ${advance:N0} advance and hold next month's overhead.";
-			return false;
-		}
-
 		ContractTermSheet ask = PendingRenewal.Ask;
 		var sheet = new ContractTermSheet(advance, Mathf.Clamp(royaltyRate, PlayerRoyaltyFloor, 0.15f),
 			Mathf.Clamp(termYears, 1, 7), Mathf.Clamp(singlesObligation, 0, 30), labelOwnsPublishing, artistCreativeControl,
 			ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
+		PendingRenewal.Draft = sheet;
+		if (!Require(NegotiationRoundHours, out message)) return false;
+		// The same floor a first signing has. You know this act, so the counter names the floor itself, unfogged.
+		if (!ClearsPushoverFloor(ask, sheet, out PushoverShortfall shortfall, ReadContractOutlook(artist, renewal: true).Credit)) {
+			Spend(NegotiationRoundHours);
+			if (!CurrentRenewal(artist, out message)) { Changed?.Invoke(); return false; }
+			var counter = new ContractTermSheet(shortfall.Advance ? shortfall.MinAdvance : sheet.Advance,
+				shortfall.Royalty ? shortfall.MinRoyalty : sheet.RoyaltyRate, shortfall.Term ? shortfall.MaxTerm : sheet.TermYears,
+				shortfall.Singles ? shortfall.MaxSingles : sheet.SinglesObligation, sheet.LabelOwnsPublishing, sheet.ArtistCreativeControl,
+				ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
+			PendingRenewal.Draft = counter;
+			message = PushoverCounterLine(artist.stageName, counter, shortfall);
+			Note(message);
+			Changed?.Invoke();
+			return false;
+		}
+		if (!Label.CanAffordToSign(advance)) {
+			float reserve = Label.GetMonthlyOverhead() * 2f;
+			float after = Label.cashReserves - advance;
+			message = $"A ${advance:N0} advance would leave ${after:N0}; signing requires more than ${reserve:N0} after the advance (two months of overhead). Lower the advance or wait for more cash.";
+			return false;
+		}
 
 		Spend(NegotiationRoundHours);
-		FinalizeRenewal(artist, sheet, out message);
+		if (!FinalizeRenewal(artist, sheet, ask, out message)) { Changed?.Invoke(); return false; }
 		PendingRenewal = null;
 		Changed?.Invoke();
 		return true;
@@ -521,7 +751,8 @@ public partial class PlayerDesk : Node {
 	/// <summary>The write path for a successful renewal -- mirrors RosterManager's own AI re-sign
 	/// branch (new advance paid, term/expiry/obligation reset, releases-under-this-deal zeroed), plus
 	/// the two axes only the player's negotiation actually touches (publishing, creative control).</summary>
-	private void FinalizeRenewal(SimulatedArtist artist, ContractTermSheet sheet, out string message) {
+	private bool FinalizeRenewal(SimulatedArtist artist, ContractTermSheet sheet, ContractTermSheet ask, out string message) {
+        if (!CurrentRenewal(artist, out message) || !CurrentContractCash(sheet, out message)) return false;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 		artist.unrecoupedAdvance = sheet.Advance;
@@ -533,6 +764,9 @@ public partial class PlayerDesk : Node {
 		artist.royaltyRate = sheet.RoyaltyRate;
 		artist.labelOwnsPublishing = sheet.LabelOwnsPublishing;
 		artist.artistCreativeControl = sheet.ArtistCreativeControl;
+		// Paying the premium (or talking them down) clears the old grudge; a fresh lowball starts a new one.
+		artist.signedUnderAskFraction = UnderAskFraction(ask, sheet);
+        SettleMissedPromises(artist.artistId);
 		CompetitorManager.Instance?.RecordExpense(Label, sheet.Advance);
 		artist.careerEvents.Add($"{year}: Re-signed with {Label.labelName} (${sheet.Advance:N0} advance, {sheet.TermYears}yr" +
 			(sheet.SinglesObligation > 0 ? $", {sheet.SinglesObligation} sides)" : ")"));
@@ -541,6 +775,7 @@ public partial class PlayerDesk : Node {
 		Note($"Renewed {artist.stageName} -- ${sheet.Advance:N0} advance, {sheet.RoyaltyRate:P1} royalty, {sheet.TermYears}yr" +
 			$"{(sheet.LabelOwnsPublishing ? "" : ", artist keeps publishing")}.");
 		message = $"Renewed {artist.stageName}.";
+        return true;
 	}
 
 	/// <summary>Monthly nag for a matured contract still sitting unrenewed -- once per spell, not
@@ -586,7 +821,7 @@ public partial class PlayerDesk : Node {
 			if (archetype == ManagerArchetype.None) continue;   // rolled "still nobody's biting" this pass
 			artist.manager = archetype;
 			artist.managerName = GenerateManagerNameFor();
-			Note($"{artist.stageName} picked up a manager: {artist.managerName ?? "somebody"} ({archetype}).");
+			Note($"{artist.stageName} picked up a manager: {artist.managerName ?? "somebody"}.");
 		}
 	}
 

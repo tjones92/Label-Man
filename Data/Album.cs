@@ -1,8 +1,8 @@
 using System.Linq;
 using Godot;
 
-[GlobalClass]
-public partial class Album : Resource {
+// A plain C# class, not a Godot Resource (see Record). Saved fields-only.
+public partial class Album : IFieldsOnlySave {
 	[ExportGroup("Identity")]
 	[Export] public string albumId;
 	[Export] public AlbumFormat albumFormat = AlbumFormat.Standard;

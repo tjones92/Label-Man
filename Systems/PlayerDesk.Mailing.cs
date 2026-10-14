@@ -128,6 +128,7 @@ public partial class PlayerDesk : Node {
 			}
 
 			string regionName = region?.regionName ?? mailing.RegionId;
+			if (callback) FlagSkipStop($"A DJ called back about \"{title}\"", EventType.IncomingCall, officeOnly: true);
 			Note(callback
 				? $"That mailing you sent around {regionName} for \"{title}\" -- {landed} of {mailing.StationIds.Count} landed, and one of them actually called."
 				: landed > 0

@@ -19,10 +19,11 @@ public readonly struct ContractTermSheet {
 	public readonly string ManagerName;
 	public readonly string DemandSummary;          // player-facing one-liner
 
-	public ContractTermSheet(float advance, float royalty, int term, int singles, bool labelPub,
-		bool artistControl, float difficulty, ManagerArchetype manager, string managerName, string summary) {
-		Advance = advance; RoyaltyRate = royalty; TermYears = term; SinglesObligation = singles;
-		LabelOwnsPublishing = labelPub; ArtistCreativeControl = artistControl;
-		NegotiationDifficulty = difficulty; Manager = manager; ManagerName = managerName; DemandSummary = summary;
-	}
+    [System.Text.Json.Serialization.JsonConstructor]
+    public ContractTermSheet(float advance, float royaltyRate, int termYears, int singlesObligation, bool labelOwnsPublishing,
+        bool artistCreativeControl, float negotiationDifficulty, ManagerArchetype manager, string managerName, string demandSummary) {
+        Advance = advance; RoyaltyRate = royaltyRate; TermYears = termYears; SinglesObligation = singlesObligation;
+        LabelOwnsPublishing = labelOwnsPublishing; ArtistCreativeControl = artistCreativeControl;
+        NegotiationDifficulty = negotiationDifficulty; Manager = manager; ManagerName = managerName; DemandSummary = demandSummary;
+    }
 }

@@ -52,7 +52,19 @@ public partial class PlayerDesk : Node {
 		ExecutiveInstinctProfile inst = c.instincts;
 		var options = new List<CallOption>();
 
-		if (c.HasRecord) {
+		if (c.isAcetate) {
+			// One acetate, no pressing: the only honest verb is to let him hear it. Nothing is promised either way.
+			bool heard = call.entry.acetatesPlayed.Contains(c.baseRecord.recordId);
+			var play = new CallOption {
+				label = inst.TheEar >= 3 ? "Play him the acetate down the phone. Let him hear what it is." : "Play him the acetate",
+				subLabel = $"10 min • no airplay yet, just his honest ear on \"{c.baseRecord.title}\"",
+				voice = inst.TheEar >= 3 ? ExecutiveVoice.Ear : ExecutiveVoice.None,
+				approach = RolodexApproach.PlayTheAcetate,
+				minutes = 10,
+			};
+			if (heard) { play.enabled = false; play.disabledReason = "You've already played him this one. Bring him the pressing."; }
+			options.Add(play);
+		} else if (c.HasRecord) {
 			// Anyone can argue for their own record; only a real EAR gets to frame it as an insight. A
 			// voice tag is a claim that your instincts surfaced the line -- tagging an option the player
 			// would see regardless is a lie about their own character.
@@ -203,7 +215,7 @@ public partial class PlayerDesk : Node {
 
 		// Favours and introductions are not negotiations -- you are cashing something that already
 		// exists, or asking for a name. They resolve straight away.
-		if (approach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction) {
+		if (approach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction or RolodexApproach.PlayTheAcetate) {
 			call.baseChance = 1f;
 			Resolve(call, out message);
 			return;
@@ -305,6 +317,8 @@ public partial class PlayerDesk : Node {
 			"\"I'll be straight with you — you're not the only station in this town I've called about it.\"",
 		RolodexApproach.AskForFavor =>
 			"\"You said you owed me one. I'm calling it.\"",
+		RolodexApproach.PlayTheAcetate =>
+			$"\"I've got one disc of \"{c.baseRecord?.title}\" and no pressing yet. Give me two minutes of your ear.\" You hold the phone up to the machine.",
 		RolodexApproach.AskForIntroduction =>
 			"\"Who else in this market should I know? Somebody who'd actually take the call.\"",
 		_ => "",
@@ -631,7 +645,7 @@ public partial class PlayerDesk : Node {
 		// was played, a jock who has never been serviced with this record cannot add it -- the roll
 		// never even happens.
 		bool success = call.objection != Objection.NotServiced
-			&& (call.pendingApproach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction
+			&& (call.pendingApproach is RolodexApproach.AskForFavor or RolodexApproach.AskForIntroduction or RolodexApproach.PlayTheAcetate
 				|| GD.Randf() < call.EffectiveChance);
 		call.lastSucceeded = success;
 		call.stage = CallStage.Resolved;
@@ -644,6 +658,7 @@ public partial class PlayerDesk : Node {
 			case RolodexApproach.RivalPressure:      ResolveRivalPressure(call, success, out message); break;
 			case RolodexApproach.AskForFavor:        ResolveFavor(call, out message); break;
 			case RolodexApproach.AskForIntroduction: ResolveIntroduction(call, out message); break;
+			case RolodexApproach.PlayTheAcetate:     ResolveAcetatePlay(call, out message); break;
 		}
 
 		call.Say(RolodexSceneBeat.RelationshipAftermath,
@@ -706,7 +721,7 @@ public partial class PlayerDesk : Node {
 				? $"No meeting, no memo. {c.station.callsign} is spinning \"{c.baseRecord.title}\" from " +
 				  "tonight, in light rotation. Whether it stays there is between the record and the phones."
 				: $"{c.station.callsign} already had it on. He agrees to keep it there a while longer.");
-			entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". He put it straight on the air. Rapport +{gain:F2}.");
+			entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". He put it straight on the air.");
 			Note($"{c.station.callsign} is spinning \"{c.baseRecord.title}\" -- {entry.displayName} put it on himself.");
 			message = $"{c.station.callsign} is playing it, starting tonight.";
 			return;
@@ -717,7 +732,7 @@ public partial class PlayerDesk : Node {
 		call.Say(RolodexSceneBeat.RelationshipAftermath,
 			$"He cannot just play it -- {c.station.callsign} runs off a sheet he does not write. He will argue " +
 			$"for \"{c.baseRecord.title}\" at the next {PitchAdvocacyWeeks} playlist meetings. The meeting decides.");
-		entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". Arguing it for {PitchAdvocacyWeeks} weeks. Rapport +{gain:F2}.");
+		entry.log.Insert(0, $"{Today()} — Talked him onto \"{c.baseRecord.title}\". He's arguing for it at the next {PitchAdvocacyWeeks} weekly meetings.");
 		Note($"{entry.displayName} ({c.station.callsign}) will argue \"{c.baseRecord.title}\" at the playlist meeting.");
 		message = $"He'll push it at the meeting -- {c.station.callsign} isn't his to decide.";
 	}
@@ -762,7 +777,7 @@ public partial class PlayerDesk : Node {
 
 		call.Say(RolodexSceneBeat.RelationshipAftermath,
 			$"He'll give \"{flipTitle}\" a real listen next time it's on the desk -- that is the whole ask, and it is not nothing.");
-		entry.log.Insert(0, $"{Today()} — Talked him into listening for the flip, \"{flipTitle}\". Rapport +{gain:F2}.");
+		entry.log.Insert(0, $"{Today()} — Talked him into listening for the flip, \"{flipTitle}\".");
 		Note($"{entry.displayName} ({c.station.callsign}) is listening for the flip on \"{c.baseRecord.title}\" -- \"{flipTitle}\".");
 		message = "He's open to turning it over, if it comes up.";
 	}
@@ -892,6 +907,42 @@ public partial class PlayerDesk : Node {
 		entry.log.Insert(0, $"{Today()} — Called in the favour.");
 		Note($"Called in a favour with {entry.displayName} ({c.station.callsign}).");
 		message = "He came through. Consider it even.";
+	}
+
+	/// <summary>
+	/// The phone-line acetate: he hears the one disc you have and tells you what he thinks of it. His read is his
+	/// own ear (hook and production, weighted by his taste for the genre) and whether his format could play it at all.
+	/// It buys a little rapport and an honest answer; it does NOT service the station (nothing gets played that
+	/// nobody has been sent), so a hand-delivered copy is still the way onto the air.
+	/// </summary>
+	private void ResolveAcetatePlay(RolodexCall call, out string message) {
+		RolodexCallContext c = call.ctx;
+		RolodexEntry entry = call.entry;
+		entry.acetatesPlayed.Add(c.baseRecord.recordId);
+
+		float verdict = (c.recordHook * 0.6f + c.recordProduction * 0.4f) * Mathf.Clamp(c.djGenreAffinity, 0.6f, 1.3f)
+			+ (c.djTaste - 0.5f) * 0.10f;
+		string line; float gain;
+		if (c.formatAdmittance < 0.08f) {
+			line = "\"It sounds like a record. It isn't a record I can play. Take it to somebody whose format it fits.\"";
+			gain = 0.01f; message = "He likes the sound and can't play it.";
+		} else if (verdict >= 0.60f) {
+			line = "\"Send me one when the pressing lands. And I mean send, not mention.\"";
+			gain = 0.05f; message = "He wants a copy when it's pressed.";
+		} else if (verdict >= 0.42f) {
+			line = "\"Not bad. Come back when there's a finished 45 and I'll give it a proper go.\"";
+			gain = 0.03f; message = "He'll hear it again once it's pressed.";
+		} else {
+			line = "\"I've heard worse. I've heard better more often.\"";
+			gain = 0.015f; message = "He listens politely and won't promise anything.";
+		}
+		float after = ApplyRapport(entry, gain);
+		entry.MaybePromoteState(after);
+		call.Say(RolodexSceneBeat.Success, line, speaker: entry.displayName);
+		call.Say(RolodexSceneBeat.RelationshipAftermath,
+			"He heard it and nobody has been sent anything. Hand-deliver the acetate if you want it on a turntable, not just in his ear.");
+		entry.log.Insert(0, $"{Today()} — Played him the acetate of \"{c.baseRecord.title}\" down the line. {message}");
+		Note($"Played the acetate of \"{c.baseRecord.title}\" to {entry.displayName} ({c.station.callsign}). {message}");
 	}
 
 	private void ResolveIntroduction(RolodexCall call, out string message) {

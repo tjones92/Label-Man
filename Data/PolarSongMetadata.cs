@@ -64,6 +64,9 @@ public sealed class SongTaxonomy {
 		function = function, backingPerformers = backingPerformers, vocalPerformers = vocalPerformers,
 		vocalPresence = vocalPresence, durationSeconds = durationSeconds, tags = (tags ?? new()).Copy()
 	};
+	/// <summary>Shares the arrays and tags with this taxonomy. For scratch candidates whose fields are reassigned,
+	/// never written into; deep-<see cref="Copy"/> anything that is kept.</summary>
+	internal SongTaxonomy ShallowCopy() => (SongTaxonomy)MemberwiseClone();
 }
 
 /// <summary>Spec C compatibility classification. Legacy IDs remain untouched for existing consumers.</summary>

@@ -24,7 +24,8 @@ public static class PolarCoverResolver {
 		float bestDistance = float.PositiveInfinity; ulong bestTie = ulong.MaxValue;
 		foreach (var row in candidates) {
 			if (heard.plasticity * act.interpretiveReach <= 0) continue;
-			var taxonomy = source.Copy(); taxonomy.archetype = Enum.Parse<SongArchetype>(row.Name);
+			// Each candidate only reassigns fields, so it can share the source's arrays; the winner is deep-copied below.
+			var taxonomy = source.ShallowCopy(); taxonomy.archetype = Enum.Parse<SongArchetype>(row.Name);
 			if(instrumentalReading)taxonomy.vocalPresence=SongVocalPresence.Instrumental;
 			taxonomy.primaryGenre = projectGenre;
 			taxonomy.secondaryGenre = source.primaryGenre == projectGenre ? source.secondaryGenre : source.primaryGenre;
@@ -50,7 +51,7 @@ public static class PolarCoverResolver {
 		}
 		// Empty/era-ineligible pools return an explicit straight-reading proposal, never invent a standard.
 		bool fallback = best == null;
-		best ??= source.Copy(); bestProfile ??= heard.Copy();
+		best = (best ?? source).Copy(); bestProfile ??= heard.Copy();
 		return new PolarArrangementProposal { plannedMasterId = plannedMasterId, songId = song.songId,
 			parentRecordingId = reference?.masterId, mappingVersion = table.Version, taxonomy = best,
 			referenceProfile = heard, proposedProfile = pulled, realizedProfile = bestProfile,

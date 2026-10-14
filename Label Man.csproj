@@ -8,5 +8,7 @@
   <!-- Standalone naming-Core regression harness: its own project + Main, excluded from the game build. -->
   <ItemGroup>
     <Compile Remove="SimTools\NamingCoreTests\**\*.cs" />
+    <!-- A checkout of another branch can be nested under tmp\; its sources are not this build's. -->
+    <Compile Remove="tmp\playtest-ui-ux-fixes\**\*.cs" />
   </ItemGroup>
 </Project>

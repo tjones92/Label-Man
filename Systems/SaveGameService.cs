@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -22,7 +22,14 @@ public static class SaveGameService {
 	// v1: player layer only. v2: adds the full-world section (WorldSaveData). A v1 file loads under v3 with a
 	// null World -- the freshly generated world is left standing and the player layer restores over it.
 	// v3: adds composition-owned demo/plasticity state and durable master metadata/linkage.
-	public const int CurrentVersion = 3;
+	// v4: the band-member simulation -- person pool, per-stint writer ledger, band-life seed, and the new
+	// member/act fields (relations, alumni, partners, axes, life state), which ride inside the artists. A v3
+	// save loads with defaults: empty pool, no edges, axes generated on load from the stored technicalSkill.
+	// v5: geographic identity with unknown/inferred origins, moves, and a separate assignment seed.
+	// v6: persistent scene participation, bounded casts, and ID-based player discoveries.
+    // v7: dated room bills, engagements, performance/work ledgers and notebook source IDs.
+	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
+	public const int CurrentVersion = 13; // v9: programs/moves; v10: source demos; v11: scouting; v12: conversations; v13: unsigned sessions, lineup reservations and paid samples
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -66,28 +73,71 @@ public static class SaveGameService {
 		public int Month { get; set; }
 		public int Day { get; set; }
 		public string LabelName { get; set; }
+		// The label's chosen brand; null crest = none chosen (or a sidecar from before the brand kit), so the list derives one from the name.
+		public int? BrandCrest { get; set; }
+		public int BrandPalette { get; set; }
+		public int BrandLettering { get; set; }
+		public string BrandMonogram { get; set; }
 	}
 
 	private static void WriteMeta(string slot, SaveEnvelope envelope) {
+		var label = envelope.Player?.Label;
+		WriteMetaFile(slot, new SaveMeta {
+			Version = envelope.Version, SavedAtUtc = envelope.SavedAtUtc,
+			Year = envelope.Year, Month = envelope.Month, Day = envelope.Day,
+			LabelName = label?.labelName ?? slot,
+			BrandCrest = label?.BrandCrest, BrandPalette = label?.BrandPalette ?? 0,
+			BrandLettering = label?.BrandLettering ?? 0, BrandMonogram = label?.BrandMonogram
+		});
+	}
+
+	private static void WriteMetaFile(string slot, SaveMeta meta) {
 		try {
-			var meta = new SaveMeta {
-				Version = envelope.Version, SavedAtUtc = envelope.SavedAtUtc,
-				Year = envelope.Year, Month = envelope.Month, Day = envelope.Day,
-				LabelName = envelope.Player?.Label?.labelName ?? slot
-			};
 			using Godot.FileAccess file = Godot.FileAccess.Open(MetaPathFor(slot), Godot.FileAccess.ModeFlags.Write);
 			file?.StoreString(JsonSerializer.Serialize(meta));
 		} catch { /* the meta sidecar is an optimization; ListSaves falls back to the body header */ }
 	}
 
+	/// <summary>The crest a save's label wears in the load list: the one the player chose, else the one its name hashes to
+	/// (the same fallback <see cref="LabelBrand.For"/> gives a player label with no stored brand).</summary>
+	private static LabelBrand BrandFrom(SaveMeta meta, string labelName) =>
+		meta.BrandCrest.HasValue
+			? new LabelBrand { Crest = (CrestShape)meta.BrandCrest.Value, PaletteIndex = meta.BrandPalette, Lettering = (LetteringStyle)meta.BrandLettering, Monogram = meta.BrandMonogram ?? "" }
+			: LabelBrand.Derive(labelName);
+
+	public static bool IsValidSlotName(string slot, out string reason) {
+		string name = slot?.Trim() ?? string.Empty;
+		if (name.Length == 0) { reason = "Enter a name for this save."; return false; }
+		if (name.Length > 48) { reason = "Save names can be up to 48 characters."; return false; }
+		if (name.EndsWith('.') || name.EndsWith(' ')) { reason = "A save name cannot end with a period or space."; return false; }
+		if (name.Any(c => !(char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.' or '\'' or '(' or ')'))) {
+			reason = "Use letters, numbers, spaces, periods, apostrophes, parentheses, hyphens, or underscores.";
+			return false;
+		}
+		reason = string.Empty;
+		return true;
+	}
+
 	private static string Sanitize(string slot) =>
 		string.IsNullOrWhiteSpace(slot) ? "quicksave"
-			: new string(slot.Where(c => char.IsLetterOrDigit(c) || c is '-' or '_').ToArray());
+			: new string(slot.Trim().Where(c => char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' or '.' or '\'' or '(' or ')').ToArray());
 
 	public static bool HasSave(string slot = "quicksave") => Godot.FileAccess.FileExists(PathFor(slot));
 
+	/// <summary>The slot the player last saved to or loaded from this session, or null. The load menu pins it to the
+	/// top; a rolling autosave never moves it, so a dawn write cannot steal the player's own slot.</summary>
+	public static string CurrentSlot { get; private set; }
+
+	public static bool IsAutosaveSlot(string slot) => AutosaveSlots.Contains(slot, StringComparer.Ordinal);
+
+	/// <summary>The most recently written save of any kind (manual or autosave), for the boot "Continue" button.</summary>
+	public static SaveInfo? NewestSave() {
+		List<SaveInfo> saves = ListSaves();
+		return saves.Count == 0 ? null : saves[0];
+	}
+
 	/// <summary>A save on disk, for the load menu. Read from each file's lightweight header only.</summary>
-	public readonly record struct SaveInfo(string Slot, string LabelName, GameDate InGameDate, DateTime SavedAtUtc);
+	public readonly record struct SaveInfo(string Slot, string LabelName, GameDate InGameDate, DateTime SavedAtUtc, LabelBrand Brand = null);
 
 	/// <summary>Every save on disk, newest first. Corrupt or unreadable files are skipped, not thrown.</summary>
 	public static List<SaveInfo> ListSaves() {
@@ -98,10 +148,13 @@ public static class SaveGameService {
 			if (!file.EndsWith(".json")) continue;
 			string slot = file.Substring(0, file.Length - ".json".Length);
 			try {
+				// A sidecar from before the brand kit has no brand, so its crest is the name-derived one until that slot is next saved;
+				// reading every old body just to draw a crest would cost seconds per large save.
 				SaveMeta meta = ReadMeta(slot) ?? ReadHeaderFromBody(slot);
 				if (meta == null) continue;
 				DateTime.TryParse(meta.SavedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime savedAt);
-				result.Add(new SaveInfo(slot, meta.LabelName ?? slot, new GameDate(meta.Year, meta.Month, meta.Day), savedAt));
+				string name = meta.LabelName ?? slot;
+				result.Add(new SaveInfo(slot, name, new GameDate(meta.Year, meta.Month, meta.Day), savedAt, BrandFrom(meta, name)));
 			} catch { /* skip a save we can't read */ }
 		}
 		result.Sort((a, b) => b.SavedAtUtc.CompareTo(a.SavedAtUtc));
@@ -138,7 +191,9 @@ public static class SaveGameService {
 		return new SaveMeta {
 			Version = header.Version, SavedAtUtc = header.SavedAtUtc,
 			Year = header.Year, Month = header.Month, Day = header.Day,
-			LabelName = header.Player?.Label?.labelName ?? slot
+			LabelName = header.Player?.Label?.labelName ?? slot,
+			BrandCrest = header.Player?.Label?.BrandCrest, BrandPalette = header.Player?.Label?.BrandPalette ?? 0,
+			BrandLettering = header.Player?.Label?.BrandLettering ?? 0, BrandMonogram = header.Player?.Label?.BrandMonogram
 		};
 	}
 
@@ -160,12 +215,20 @@ public static class SaveGameService {
 		public int Day { get; set; }
 		public HeaderPlayer Player { get; set; }
 		public sealed class HeaderPlayer { public HeaderLabel Label { get; set; } }
-		public sealed class HeaderLabel { public string labelName { get; set; } }
+		public sealed class HeaderLabel {
+			public string labelName { get; set; }
+			public int? BrandCrest { get; set; }
+			public int BrandPalette { get; set; }
+			public int BrandLettering { get; set; }
+			public string BrandMonogram { get; set; }
+		}
 	}
 
 	/// <summary>Snapshots the player layer and the clock into a save file. Returns false with a reason.</summary>
 	public static bool Save(string slot, out string message) {
 		if (PlayerDesk.Instance?.HasLabel != true) { message = "No label to save yet."; return false; }
+		if (!IsValidSlotName(slot, out message)) return false;
+		slot = slot.Trim();
 
 		var envelope = new SaveEnvelope {
 			Version = CurrentVersion,
@@ -202,6 +265,18 @@ public static class SaveGameService {
 		return true;
 	}
 
+	/// <summary>The rolling autosave slots. Three, so a bad dawn can be walked back a few mornings.</summary>
+	public static readonly string[] AutosaveSlots = { "Autosave 1", "Autosave 2", "Autosave 3" };
+
+	/// <summary>Writes the oldest of the three autosave slots (an empty one first). The slot picked is returned
+	/// so the caller can report it; the write itself is an ordinary <see cref="Save"/>.</summary>
+	public static bool Autosave(out string slot, out string message) {
+		slot = AutosaveSlots
+			.OrderBy(name => HasSave(name) ? (long)Godot.FileAccess.GetModifiedTime(PathFor(name)) : 0L)
+			.First();
+		return Save(slot, out message);
+	}
+
 	/// <summary>Restores the player layer from a save file. Returns false with a reason.</summary>
 	public static bool Load(string slot, out string message) {
 		if (!HasSave(slot)) { message = "No save in that slot."; return false; }
@@ -230,9 +305,18 @@ public static class SaveGameService {
 		// top of it -- so roster acts and the player's released records re-link against the saved world, not a
 		// fresh one. A v1 save has a null World and this is a no-op.
 		GameDate savedDate = new GameDate(envelope.Year, envelope.Month, envelope.Day);
-		WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed);
-
-		return PlayerDesk.Instance.RestoreState(envelope.Player, out message);
+		bool restored;
+		try {
+			WorldStateService.Apply(envelope.World, savedDate, envelope.WorldSeed, deferSceneRelink: true);
+			restored = PlayerDesk.Instance.RestoreState(envelope.Player, out message);
+			if (restored) { LocalSceneIdentityService.CompleteRestore(); CurrentSlot = slot; }
+			else LocalSceneIdentityService.CancelRestore();
+		} catch (Exception error) {
+			LocalSceneIdentityService.CancelRestore();
+			message = $"Load failed: {error.Message}";
+			return false;
+		}
+		return restored;
 	}
 }
 
@@ -253,12 +337,26 @@ public sealed class SaveEnvelope {
 }
 
 public sealed class PlayerSaveData {
+    public RenewalDiscussionSaveData RenewalDiscussion { get; set; }
+    public List<ContractCommitment> ContractCommitments { get; set; }
+    /// <summary>Optional: rival offers on acts the player pursued (PlayerDesk.RivalOffers). Older saves hold none.</summary>
+    public List<RivalOffer> RivalOffers { get; set; }
+    /// <summary>Optional: rival courtships (inquiry, meeting, offer) and what the player heard of them (PlayerDesk.RivalCourtship).</summary>
+    public List<RivalCourtship> RivalCourtships { get; set; }
+    /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
+    public List<RosterDeparture> RosterDepartures { get; set; }
+    public List<string> GeneratedProspectIds { get; set; }
+    public List<SceneDiscovery> SceneDiscoveries { get; set; }
+    public SceneInformationKnowledge SceneInformation { get; set; }
+    public ScoutingKnowledgeSaveData ScoutingKnowledge { get; set; }
 	public LabelSaveData Label { get; set; }
 	// The roster acts themselves, serialized whole -- so a relaunch (or a runtime-signed act the fresh world
 	// never generated) brings the real artists back, not just their ids. Field serialization is on for these.
 	public List<SimulatedArtist> RosterArtists { get; set; } = new();
 	public List<SongSaveData> Songs { get; set; } = new();
 	public Dictionary<string, List<RepertoireSaveData>> Repertoire { get; set; } = new();
+	// v4: the Band Room -- open visits, member trust in the label, road bookings, promises and cut-ins.
+	public BandRoomSaveData BandRoom { get; set; }
 	public List<CoverRehearsalSaveData> Rehearsals { get; set; } = new();  // covers in progress, not yet in a set
 	public PendingSessionSaveData Session { get; set; }  // booked/paid takes awaiting print; absent in old saves
 	public List<PolarObservation> PolarObservations { get; set; } // absent in older saves
@@ -352,6 +450,7 @@ public sealed class PlayerSaveData {
 	// re-earn (or lose) an unlock already granted. Project promo leaves no state of its own to persist --
 	// it's an ephemeral PayolaLedger arrangement, same as the existing Rolodex payola calls.
 	public bool RunnerUnlocked { get; set; }
+	public bool FirstMeetManagerShown { get; set; }
 	public Dictionary<string, int> ServiceReorderCountByCity { get; set; } = new();
 	public int LastRunnerTickWeek { get; set; } = -1;
 	public float WeeklyRunnerCommission { get; set; }
@@ -373,7 +472,17 @@ public sealed class PlayerSaveData {
 /// <summary>Player's saved A&R notebook entry. Stores the unsigned act itself so generated local prospects survive reloads.</summary>
 public sealed class ProspectNotebookSaveData {
 	public SimulatedArtist Artist { get; set; }
+	// Scouting the rough (§4.13): the first note's execution read and date, for the improvement delta.
+	public float? ExecutionAtNote { get; set; }
+	public int FirstNotedYear { get; set; }
+	public int FirstNotedMonth { get; set; }
+	public int FirstNotedDay { get; set; }
+	public List<string> Rough { get; set; }
 	public int Venue { get; set; }
+	public string CityId { get; set; }
+    public string SceneRoomId { get; set; }
+    public string SceneBillId { get; set; }
+    public string SourceConnectionId { get; set; }
 	public int Year { get; set; }
 	public int Month { get; set; }
 	public int Day { get; set; }
@@ -387,6 +496,16 @@ public sealed class ProspectNotebookSaveData {
 	public int LastRivalYear { get; set; }
 	public int LastRivalMonth { get; set; }
 	public int LastRivalDay { get; set; }
+	// The handshake: a week's hold on the act, and a rival the desk heard circling them.
+	public int HeldYear { get; set; }
+	public int HeldMonth { get; set; }
+	public int HeldDay { get; set; }
+	public int Handshakes { get; set; }
+	public string CirclingLabel { get; set; }
+	public string CirclingLabelId { get; set; }
+	public int CircleYear { get; set; }
+	public int CircleMonth { get; set; }
+	public int CircleDay { get; set; }
 }
 
 /// <summary>Flat save record for <see cref="DistributionDeal"/> -- used both for the player's
@@ -445,6 +564,8 @@ public sealed class LabelSaveData {
 	public string labelName { get; set; }
 	public string founderName { get; set; }
 	public string headquartersCity { get; set; }
+	public GeographicIdentity Geography { get; set; }
+    public List<SceneBusinessConnection> SceneBusinessConnections { get; set; }
 	public string homeRegion { get; set; }
 	public string homeCityId { get; set; }
 	public int archetype { get; set; }
@@ -487,10 +608,16 @@ public sealed class LabelSaveData {
 	// Directive §9: the player's own P&D deal, if any. Excluded from the full-world save's generic
 	// AILabel capture (the player's label is excluded there by design), so it round-trips here instead.
 	public DistributionDealSaveData ActiveDeal { get; set; }
+	// The crest, colours and lettering the player picked at founding. BrandCrest is null for a save from before
+	// the brand kit (and for any label that never chose), which falls back to LabelBrand.For(label).
+	public int? BrandCrest { get; set; }
+	public int BrandPalette { get; set; }
+	public int BrandLettering { get; set; }
+	public string BrandMonogram { get; set; }
 
 	public static LabelSaveData From(AILabel l) => new() {
 		labelId = l.labelId, labelName = l.labelName, founderName = l.founderName,
-		headquartersCity = l.headquartersCity, homeRegion = l.homeRegion, homeCityId = l.homeCityId,
+		headquartersCity = l.headquartersCity, Geography = l.geography, SceneBusinessConnections = LocalSceneRoomService.Copy(l.sceneBusinessConnections), homeRegion = l.homeRegion, homeCityId = l.homeCityId,
 		archetype = (int)l.archetype, tier = (int)l.tier, foundedYear = l.foundedYear,
 		cashReserves = l.cashReserves, monthlyRevenue = l.monthlyRevenue, monthlyExpenses = l.monthlyExpenses,
 		lastMonthlyProfit = l.lastMonthlyProfit, reputation = l.reputation, maxRosterSize = l.maxRosterSize,
@@ -509,12 +636,15 @@ public sealed class LabelSaveData {
 		secondaryGenres = (l.secondaryGenres ?? Array.Empty<Genre>()).Select(g => (int)g).ToArray(),
 		RosterArtistIds = (l.roster ?? new List<SimulatedArtist>()).Select(a => a.artistId).ToList(),
 		HasAnsweringService = l.hasAnsweringService,
-		ActiveDeal = DistributionDealSaveData.From(l.activeDeal)
+		ActiveDeal = DistributionDealSaveData.From(l.activeDeal),
+		BrandCrest = l.brand == null ? null : (int)l.brand.Crest, BrandPalette = l.brand?.PaletteIndex ?? 0,
+		BrandLettering = l.brand == null ? 0 : (int)l.brand.Lettering, BrandMonogram = l.brand?.Monogram
 	};
 
 	public void ApplyTo(AILabel l) {
 		l.labelId = labelId; l.labelName = labelName; l.founderName = founderName;
-		l.headquartersCity = headquartersCity; l.homeRegion = homeRegion; l.homeCityId = homeCityId;
+		l.headquartersCity = headquartersCity; l.geography = Geography; l.homeRegion = homeRegion; l.homeCityId = homeCityId;
+        l.sceneBusinessConnections = LocalSceneRoomService.Copy(SceneBusinessConnections);
 		l.archetype = (LabelArchetype)archetype; l.tier = (LabelTier)tier; l.foundedYear = foundedYear;
 		l.cashReserves = cashReserves; l.monthlyRevenue = monthlyRevenue; l.monthlyExpenses = monthlyExpenses;
 		l.lastMonthlyProfit = lastMonthlyProfit; l.reputation = reputation; l.maxRosterSize = maxRosterSize;
@@ -536,6 +666,10 @@ public sealed class LabelSaveData {
 		l.secondaryGenres = (secondaryGenres ?? Array.Empty<int>()).Select(g => (Genre)g).ToArray();
 		l.hasAnsweringService = HasAnsweringService;
 		l.activeDeal = ActiveDeal?.ToDeal();
+		l.brand = BrandCrest.HasValue ? new LabelBrand {
+			Crest = (CrestShape)BrandCrest.Value, PaletteIndex = BrandPalette, Lettering = (LetteringStyle)BrandLettering,
+			Monogram = BrandMonogram ?? ""
+		} : null;
 	}
 }
 
@@ -552,18 +686,21 @@ public sealed class SongSaveData {
 	public int Day { get; set; }
 	public bool Recorded { get; set; }
 	public string RecordedId { get; set; }
+	public List<string> TeamPersonIds { get; set; }
+	public bool WithStaffWriter { get; set; }
 
 	public static SongSaveData From(PlayerDesk.Song s) => new() {
 		SongId = s.SongId, Title = s.Title, ArtistId = s.ArtistId, Genre = (int)s.Genre,
 		Hook = s.Hook, Originality = s.Originality, Danceability = s.Danceability,
 		Year = s.Written.year, Month = s.Written.month, Day = s.Written.day, Recorded = s.Recorded,
-		RecordedId = s.RecordedId
+		RecordedId = s.RecordedId, TeamPersonIds = s.TeamPersonIds?.ToList(), WithStaffWriter = s.WithStaffWriter
 	};
 
 	public PlayerDesk.Song ToSong() => new() {
 		SongId = SongId, Title = Title, ArtistId = ArtistId, Genre = (Genre)Genre,
 		Hook = Hook, Originality = Originality, Danceability = Danceability,
-		Written = new GameDate(Year, Month, Day), Recorded = Recorded, RecordedId = RecordedId
+		Written = new GameDate(Year, Month, Day), Recorded = Recorded, RecordedId = RecordedId,
+		TeamPersonIds = TeamPersonIds?.ToList(), WithStaffWriter = WithStaffWriter
 	};
 }
 

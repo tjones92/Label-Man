@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -246,7 +246,8 @@ public partial class CompetitorManager : Node {
 	[Export] private bool consolidationAllowNationalMidTier = false;
 
 	[ExportGroup("Historical Records")]
-	[Export] private Record[] historicalRecords;
+	// Never assigned by any scene; kept as the hook the historical-seed paths read. Not exported: Record is a plain C# class.
+	private Record[] historicalRecords = null;
 	
 	[ExportGroup("Debug")]
 	[Export] private bool debugMode = false;
@@ -582,7 +583,9 @@ public partial class CompetitorManager : Node {
 	/// selling at least as well as the one being courted.
 	/// </summary>
 	private (AILabel Major, AILabel Dropped) SelectMajorWillingToDropWeakestClient(AILabel client) {
-		int courtedCharting = GetRecentChartingRecordCount(client.labelId);
+		// Pure read over every Major's held clients; count all labels' recent charting records in one pass.
+		System.Func<string, int> chartingCount = RecentChartingRecordCounter();
+		int courtedCharting = chartingCount(client.labelId);
 		AILabel bestMajor = null, bestDrop = null;
 		int bestDropCharting = int.MaxValue;
 		foreach (AILabel major in aiLabels) {
@@ -594,7 +597,7 @@ public partial class CompetitorManager : Node {
 			foreach (AILabel held in aiLabels) {
 				if (held.activeDeal?.distributorId != major.labelId || held == client) continue;
 				if (held.IsSubsidiary) continue;
-				int charting = GetRecentChartingRecordCount(held.labelId);
+				int charting = chartingCount(held.labelId);
 				if (charting >= courtedCharting || charting >= bestDropCharting) continue;
 				bestMajor = major;
 				bestDrop = held;
@@ -1095,7 +1098,8 @@ public partial class CompetitorManager : Node {
 				mechanicalRoyalty += MechanicalRoyaltyService.ChargeSide(
 					runtimeData.baseRecord.publishingControl, runtimeData.baseRecord.publishingControllerLabelId,
 					runtimeData.baseRecord.publishingControllerArtistId, artist, label, mechanicalUnits,
-					id => GetLabel(id), id => ArtistManager.Instance?.GetArtist(id));
+					id => GetLabel(id), id => ArtistManager.Instance?.GetArtist(id),
+					MechanicalRoyaltyService.LabelCutInShare(runtimeData.baseRecord, label));
 				if (!string.IsNullOrEmpty(runtimeData.baseRecord.bSideSongId)) {
 					mechanicalRoyalty += MechanicalRoyaltyService.ChargeSide(
 						runtimeData.baseRecord.bSidePublishingControl, runtimeData.baseRecord.bSidePublishingControllerLabelId,
@@ -1627,7 +1631,7 @@ public partial class CompetitorManager : Node {
 			runtimeData.sunkProductionCost, maturity);
 		float residual = Mathf.Clamp((estimatedOutcome - expectedNet) / scale, -ResponsiveMemoryResidualLimit, ResponsiveMemoryResidualLimit);
 		if (float.IsNaN(residual) || float.IsInfinity(residual)) return;
-		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == releaseId);
+		FormatMemoryObservation observation = FindObservation(memory.observations, releaseId);
 		if (observation == null) {
 			observation = new FormatMemoryObservation { releaseId = releaseId, projectId = runtimeData.albumProjectId,
 				releaseLane = runtimeData.projectRole, estimatorLane = lane,
@@ -1725,7 +1729,7 @@ public partial class CompetitorManager : Node {
 		AILabel label = GetLabel(project.currentLabelId);
 		if (label == null) return;
 		FormatRevenueMemory memory = label.GetOrCreateRevenueMemory(RevenueEstimatorLane.AlbumWithPromo);
-		FormatMemoryObservation observation = memory.observations.FirstOrDefault(item => item.releaseId == project.projectId);
+		FormatMemoryObservation observation = FindObservation(memory.observations, project.projectId);
 		if (observation == null) {
 			observation = new FormatMemoryObservation {
 				releaseId = project.projectId, projectId = project.projectId,
@@ -1762,10 +1766,30 @@ public partial class CompetitorManager : Node {
 		});
 	}
 
+	// Observation lists only ever grow by Add (a load brings new lists), so a per-list index that catches up on the
+	// tail answers FirstOrDefault(o => o.releaseId == id) exactly: the first observation with an id wins. The linear
+	// scan over the pooled album memory was ~17% of a late-decade run.
+	private sealed class ObservationIndex {
+		public readonly Dictionary<string, FormatMemoryObservation> ById = new(System.StringComparer.Ordinal);
+		public FormatMemoryObservation FirstNullId;
+		public int Synced;
+	}
+	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<FormatMemoryObservation>, ObservationIndex> observationIndexes = new();
+	private static FormatMemoryObservation FindObservation(List<FormatMemoryObservation> observations, string releaseId) {
+		ObservationIndex index = observationIndexes.GetValue(observations, _ => new ObservationIndex());
+		if (index.Synced > observations.Count) observationIndexes.AddOrUpdate(observations, index = new ObservationIndex());
+		while (index.Synced < observations.Count) {
+			FormatMemoryObservation item = observations[index.Synced++];
+			if (item.releaseId == null) index.FirstNullId ??= item;
+			else index.ById.TryAdd(item.releaseId, item);
+		}
+		if (releaseId == null) return index.FirstNullId;
+		return index.ById.TryGetValue(releaseId, out FormatMemoryObservation found) ? found : null;
+	}
+
 	private void UpdatePooledAlbumWithPromoObservation(AlbumProject project, int projectAge, bool finalized,
 		float residual, float maturityWeight) {
-		FormatMemoryObservation observation = pooledAlbumWithPromoMemory.observations
-			.FirstOrDefault(item => item.releaseId == project.projectId);
+		FormatMemoryObservation observation = FindObservation(pooledAlbumWithPromoMemory.observations, project.projectId);
 		if (observation == null) {
 			observation = new FormatMemoryObservation {
 				releaseId = project.projectId, projectId = project.projectId,
@@ -1814,6 +1838,12 @@ public partial class CompetitorManager : Node {
 		if (GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true &&
 			!IsEligibleForEnabledFormatDecision(artist)) {
 			GD.PushError($"Enabled release invariant failed: terminal artist {artist.artistId} reached release selection.");
+			lastReleaseAttemptFailedArtistSelection = true;
+			return false;
+		}
+		// World lineup churn keeps an act whose only (or last) member is in the service on ice rather than ending it
+		// (BandLifeService.WouldDissolve). Nobody is there to record until they come home. Never true without churn.
+		if (artist.members == null || artist.members.Count == 0) {
 			lastReleaseAttemptFailedArtistSelection = true;
 			return false;
 		}
@@ -3247,6 +3277,10 @@ public partial class CompetitorManager : Node {
 			CompositionCatalogService.AttachArtistOriginal(record, artist, label, year);
 		}
 
+		// The session happens when the record is made: hire the crew now, so it can shape the record.
+		var crew = SessionEmploymentService.OnRecordMade(record, label, artist);
+		// Everyone who played on it now knows the song (repertoire influence).
+		RepertoireInfluenceService.OnRecordMade(record, artist, crew);
 		return record;
 	}
 
@@ -4888,12 +4922,26 @@ public partial class CompetitorManager : Node {
 	public int GetRecentChartingRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
 		int active = ChartManager.Instance.GetAllRecords().Count(record =>
-			record.baseRecord.labelId == labelId &&
-			record.weeksSinceRelease <= maxAgeWeeks &&
-			record.weeksOnChart > 0);
-		return active + CountRecentRetiredRecordEvidence(
-			retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
-			maxAgeWeeks, requireCharted: true, requireTop40: false);
+			record.baseRecord.labelId == labelId && IsRecentChartingRecord(record, maxAgeWeeks));
+		return active + RecentRetiredChartingCount(labelId, maxAgeWeeks);
+	}
+	private static bool IsRecentChartingRecord(RecordRuntimeData record, int maxAgeWeeks) =>
+		record.weeksSinceRelease <= maxAgeWeeks && record.weeksOnChart > 0;
+	private int RecentRetiredChartingCount(string labelId, int maxAgeWeeks) => CountRecentRetiredRecordEvidence(
+		retiredLabelRecordHistory.GetValueOrDefault(labelId), ChartManager.Instance.GetCurrentChartWeek(),
+		maxAgeWeeks, requireCharted: true, requireTop40: false);
+	/// <summary>GetRecentChartingRecordCount for every label at once, for callers that ask about many labels while
+	/// nothing changes: one pass over the records instead of one per label. Same predicate, same totals.</summary>
+	private System.Func<string, int> RecentChartingRecordCounter(int maxAgeWeeks = 52) {
+		if (ChartManager.Instance == null) return _ => 0;
+		var active = new Dictionary<string, int>(System.StringComparer.Ordinal);
+		foreach (RecordRuntimeData record in ChartManager.Instance.GetAllRecords()) {
+			string id = record.baseRecord.labelId;
+			if (id != null && IsRecentChartingRecord(record, maxAgeWeeks)) active[id] = active.GetValueOrDefault(id) + 1;
+		}
+		var totals = new Dictionary<string, int>(System.StringComparer.Ordinal);
+		return labelId => string.IsNullOrEmpty(labelId) ? 0 : totals.TryGetValue(labelId, out int n) ? n :
+			totals[labelId] = active.GetValueOrDefault(labelId) + RecentRetiredChartingCount(labelId, maxAgeWeeks);
 	}
 
 	public int GetRecentReleasedRecordCount(string labelId, int maxAgeWeeks = 52) {

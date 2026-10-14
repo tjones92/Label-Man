@@ -1,0 +1,713 @@
+diff --git a/Systems/PlayerDesk.ContractCommitments.cs b/Systems/PlayerDesk.ContractCommitments.cs
+new file mode 100644
+--- /dev/null
++++ b/Systems/PlayerDesk.ContractCommitments.cs
+@@ -0,0 +1,179 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Godot;
++
++public enum ContractCommitmentKind { FundedSession }
++public enum ContractCommitmentStatus { Open, Kept, Missed, Void }
++
++/// <summary>
++/// One enforceable promise written into a player contract: the label books and pays for a studio session
++/// with the act before <see cref="DueDay"/>. The same record carries the agreement, its fulfillment, a miss
++/// and the remedy, so nothing about the promise is reconstructed from the roster later. IDs only.
++/// </summary>
++public sealed class ContractCommitment {
++    public string Id { get; set; }
++    public string LabelId { get; set; }
++    public string ArtistId { get; set; }
++    public string ArtistName { get; set; }
++    public ContractCommitmentKind Kind { get; set; }
++    public bool Renewal { get; set; }
++    public int AgreedDay { get; set; }
++    public int DueDay { get; set; }
++    /// <summary>The cheapest qualifying session when agreed. A quote for planning, not escrow.</summary>
++    public float QuotedCost { get; set; }
++    public ContractCommitmentStatus Status { get; set; }
++    public int? ResolvedDay { get; set; }
++    /// <summary>A missed promise is answered once, by the next renewal ask that carries it.</summary>
++    public bool RemedyApplied { get; set; }
++}
++
++public partial class PlayerDesk {
++    /// <summary>Days after signing within which a promised session must be booked and paid.</summary>
++    public const int SessionPromiseDays = 56;
++    /// <summary>How much a renewal ask's advance rises for each promised session the label never booked.</summary>
++    public const float MissedSessionAdvancePremium = 0.25f;
++
++    private readonly List<ContractCommitment> contractCommitments = new();
++    public IReadOnlyList<ContractCommitment> ContractCommitments => LocalSceneRoomService.Copy(contractCommitments).AsReadOnly();
++
++    /// <summary>The cheapest session that keeps the promise, at today's home rate.</summary>
++    public float SessionPromiseQuote() => SessionCost(StudioTier.Budget, MinSessionHours);
++
++    /// <summary>What a funded session is worth to this act at the table. Ambitious acts want a date in the
++    /// studio more than pragmatic ones. Read only by the acceptance check; never shown as a number.</summary>
++    internal static float SessionPromiseValue(SimulatedArtist artist) =>
++        0.02f + 0.06f * Mathf.Clamp(artist?.evolution?.artisticAmbition ?? 0.5f, 0f, 1f);
++
++    private float PromiseValue(ContractTalk talk) => talk?.sessionPromised == true ? SessionPromiseValue(talk.Artist) : 0f;
++
++    private bool CanAffordCommitments(ContractTalk talk, float advance, out string message) {
++        message = "";
++        return talk?.sessionPromised != true || CanAffordWithSession(advance, out message);
++    }
++
++    private bool CanAffordWithSession(float advance, out string message) {
++        message = "";
++        if (Label?.CanAffordToSign(advance + SessionPromiseQuote()) == true) return true;
++        message = $"The advance plus the promised session (about ${SessionPromiseQuote():N0}) would leave less than two months of overhead. " +
++            "Lower the advance, drop the session promise or wait for more cash.";
++        return false;
++    }
++
++    private bool OpenSessionPromiseFor(string artistId) =>
++        contractCommitments.Any(c => c.ArtistId == artistId && c.Status == ContractCommitmentStatus.Open);
++
++    /// <summary>Attach a funded-session promise to the package. Costs nothing now; it is scored only when the
++    /// next offer is tabled, and it is paid only when the session is actually booked. Available on the tabling
++    /// form and as the answer to an objection.</summary>
++    public bool AddSessionPromise(ContractTalk talk, out string message) {
++        if (!CurrentTalk(talk, out message)) return false;
++        if (talk.stage is not (ContractTalkStage.Tabling or ContractTalkStage.Objection)) { message = "Not at that point in the talks."; return false; }
++        if (talk.sessionPromised) { message = "The session is already part of your offer."; return false; }
++        if (OpenSessionPromiseFor(talk.Artist.artistId)) {
++            message = "You still owe them an earlier promised session. Keep that one before promising another."; return false;
++        }
++        if (!CanAffordWithSession(CurrentOffer(talk).Advance, out message)) return false;
++        talk.sessionPromised = true;
++        talk.stage = ContractTalkStage.Tabling;
++        message = $"You add a funded studio session within {SessionPromiseDays / 7} weeks of signing. Table the package to see where they stand.";
++        Changed?.Invoke();
++        return true;
++    }
++
++    private bool PlayPromise(ContractTalk talk, out string message) => AddSessionPromise(talk, out message);
++
++    /// <summary>Take the promise back off the table before the next round. Nothing has been agreed yet.</summary>
++    public bool WithdrawSessionPromise(ContractTalk talk, out string message) {
++        if (!CurrentTalk(talk, out message)) return false;
++        if (talk.stage != ContractTalkStage.Tabling || !talk.sessionPromised) { message = "There's no session promise on the table."; return false; }
++        talk.sessionPromised = false;
++        message = "The session promise is off the table.";
++        Changed?.Invoke();
++        return true;
++    }
++
++    /// <summary>Written only after the contract itself has committed.</summary>
++    private void RecordSessionPromise(ContractTalk talk) {
++        if (talk?.sessionPromised != true || Label == null) return;
++        var artist = talk.Artist;
++        int today = LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
++        int ordinal = contractCommitments.Count(c => c.ArtistId == artist.artistId);
++        contractCommitments.Add(new ContractCommitment {
++            Id = $"{Label.labelId}|{artist.artistId}|session|{today}|{ordinal}", LabelId = Label.labelId,
++            ArtistId = artist.artistId, ArtistName = artist.stageName, Kind = ContractCommitmentKind.FundedSession,
++            Renewal = talk.IsRenewal, AgreedDay = today, DueDay = today + SessionPromiseDays,
++            QuotedCost = SessionPromiseQuote(), Status = ContractCommitmentStatus.Open });
++        Note($"Promised {artist.stageName} a funded session by {LocalSceneRoomService.Date(today + SessionPromiseDays).ToShortString()}.");
++    }
++
++    /// <summary>A paid session with the act keeps any open promise to them. Called after the money moved.</summary>
++    private void KeepSessionPromises(SimulatedArtist artist) {
++        int today = LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
++        foreach (var c in contractCommitments.Where(c => c.ArtistId == artist.artistId && c.Status == ContractCommitmentStatus.Open && today <= c.DueDay)) {
++            c.Status = ContractCommitmentStatus.Kept; c.ResolvedDay = today;
++            Note($"Kept the promise: {artist.stageName} got their session.");
++        }
++    }
++
++    /// <summary>Dawn check. An act that left the roster voids the promise; a passed due date is a miss.</summary>
++    private void ProcessContractCommitments(GameDate date) {
++        int today = LocalSceneRoomService.Day(date);
++        foreach (var c in contractCommitments.Where(c => c.Status == ContractCommitmentStatus.Open)) {
++            var artist = ArtistManager.Instance?.GetArtist(c.ArtistId);
++            if (artist == null || artist.labelId != c.LabelId || Label?.roster?.Contains(artist) != true) {
++                c.Status = ContractCommitmentStatus.Void; c.ResolvedDay = today; continue;
++            }
++            if (today <= c.DueDay) continue;
++            c.Status = ContractCommitmentStatus.Missed; c.ResolvedDay = today;
++            artist.careerEvents.Add($"{date.year}: {Label.labelName} never booked the session it promised.");
++            Note($"You never booked the session you promised {artist.stageName}. They'll remember it when the paper comes up.");
++        }
++    }
++
++    private int UnansweredMissedPromises(string artistId) => contractCommitments.Count(c =>
++        c.ArtistId == artistId && c.Status == ContractCommitmentStatus.Missed && !c.RemedyApplied);
++
++    /// <summary>The remedy for a missed promise: the act asks more up front at renewal, and says why.</summary>
++    private ContractTermSheet WithMissedPromises(ContractTermSheet ask, string artistId) {
++        int missed = UnansweredMissedPromises(artistId);
++        if (missed == 0) return ask;
++        float advance = Mathf.Ceil(ask.Advance * (1f + MissedSessionAdvancePremium * missed) / 5f) * 5f;
++        string summary = (ask.DemandSummary ?? "") + (missed == 1
++            ? " They remember the session you promised and never booked -- they want more up front this time."
++            : $" They remember {missed} promised sessions you never booked -- they want more up front this time.");
++        return new ContractTermSheet(advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation, ask.LabelOwnsPublishing,
++            ask.ArtistCreativeControl, ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, summary.Trim());
++    }
++
++    /// <summary>A completed renewal has answered every miss its ask carried.</summary>
++    private void SettleMissedPromises(string artistId) {
++        foreach (var c in contractCommitments.Where(c => c.ArtistId == artistId && c.Status == ContractCommitmentStatus.Missed)) c.RemedyApplied = true;
++    }
++
++    /// <summary>Open promise for the roster card, if any.</summary>
++    public ContractCommitment OpenCommitmentFor(string artistId) => LocalSceneRoomService.Copy(
++        contractCommitments.FirstOrDefault(c => c.ArtistId == artistId && c.Status == ContractCommitmentStatus.Open));
++
++    private List<ContractCommitment> CaptureContractCommitments() =>
++        contractCommitments.Count == 0 ? null : LocalSceneRoomService.Copy(contractCommitments);
++
++    private static bool ValidateContractCommitments(List<ContractCommitment> saved, string labelId, out string message) {
++        message = "The saved contract commitments are invalid; no player state was restored.";
++        if (saved == null) return true; // Older saves hold no promises; none are invented.
++        var ids = new HashSet<string>(StringComparer.Ordinal);
++        foreach (var c in saved) {
++            if (c == null || string.IsNullOrEmpty(c.Id) || !ids.Add(c.Id) || c.LabelId != labelId || string.IsNullOrEmpty(c.ArtistId) ||
++                !Enum.IsDefined(c.Kind) || !Enum.IsDefined(c.Status) || c.DueDay < c.AgreedDay || c.AgreedDay < 0 ||
++                !float.IsFinite(c.QuotedCost) || c.QuotedCost < 0 ||
++                (c.Status == ContractCommitmentStatus.Open) == c.ResolvedDay.HasValue ||
++                c.ResolvedDay < c.AgreedDay || c.RemedyApplied && c.Status != ContractCommitmentStatus.Missed) return false;
++        }
++        return true;
++    }
++
++    private void RestoreContractCommitments(List<ContractCommitment> saved) {
++        contractCommitments.Clear();
++        if (saved != null) contractCommitments.AddRange(LocalSceneRoomService.Copy(saved));
++    }
++}
+diff --git a/Systems/ContractTalk.cs b/Systems/ContractTalk.cs
+--- a/Systems/ContractTalk.cs
++++ b/Systems/ContractTalk.cs
+@@ -29,7 +29,7 @@
+ 	None,
+ 	SweetenAxis,   // go back to the form and raise the named axis
+ 	TradeAxes,     // give back publishing/control, take the advance down in exchange
+-	Promise,       // more sides, a real push -- no cash now, writes an obligation
++	Promise,       // a funded studio session after signing -- no cash now, writes an enforced commitment
+ 	HoldFirm,      // re-table unchanged; softens their number if patience is high, ends it if not
+ 	Walk,          // step back from the table voluntarily
+ }
+@@ -63,6 +63,7 @@
+ 	public float lastOfferValue;
+ 	public ContractTermSheet? lastOffer;                        // null until the first table
+ 	public ContractTermSheet? draftOffer;                        // kept in the form after a time or cash refusal
++	public bool sessionPromised;                                // the package includes a funded session (PlayerDesk.ContractCommitments)
+ 	public readonly List<string> log = new();
+ }
+ 
+diff --git a/Systems/PlayerDesk.ScoutingKnowledge.cs b/Systems/PlayerDesk.ScoutingKnowledge.cs
+--- a/Systems/PlayerDesk.ScoutingKnowledge.cs
++++ b/Systems/PlayerDesk.ScoutingKnowledge.cs
+@@ -18,7 +18,7 @@
+         if (t == null) return null;
+         var copy = new ContractTalk { ask = t.ask, posture = t.posture, weights = t.weights == null ? null : new(t.weights),
+             reservation = t.reservation, patienceMax = t.patienceMax, patienceLeft = t.patienceLeft, roundsPlayed = t.roundsPlayed,
+-            stage = t.stage, objectionAxis = t.objectionAxis, lastOfferValue = t.lastOfferValue, lastOffer = t.lastOffer, draftOffer = t.draftOffer };
++            stage = t.stage, objectionAxis = t.objectionAxis, lastOfferValue = t.lastOfferValue, lastOffer = t.lastOffer, draftOffer = t.draftOffer, sessionPromised = t.sessionPromised };
+         copy.log.AddRange(t.log); return copy;
+     }
+     private void RememberScoutingNegotiation(Prospect prospect) {
+diff --git a/Systems/PlayerDesk.ContractNegotiation.cs b/Systems/PlayerDesk.ContractNegotiation.cs
+--- a/Systems/PlayerDesk.ContractNegotiation.cs
++++ b/Systems/PlayerDesk.ContractNegotiation.cs
+@@ -187,6 +187,9 @@
+ 		return value;
+ 	}
+ 
++	/// <summary>Fixture access to the acceptance arithmetic. Never rendered.</summary>
++	internal static float PackageValueOf(ContractTalk talk, ContractTermSheet offer) => PackageValue(offer, talk.ask, talk.weights);
++
+ 	/// <summary>The objection he raises: the axis contributing the most to the shortfall, weighted
+ 	/// by how much he actually cares about it -- not just whichever number happens to be furthest off.</summary>
+ 	private static ContractAxis WorstAxis(ContractTermSheet offer, ContractTermSheet ask, Dictionary<ContractAxis, float> weights) {
+@@ -360,6 +363,7 @@
+ 			message = $"A ${advance:N0} advance would leave ${after:N0}; signing requires more than ${reserve:N0} after the advance (two months of overhead). Lower the advance or wait for more cash.";
+ 			return false;
+ 		}
++        if (!CanAffordCommitments(talk, advance, out message)) return false;
+ 
+ 		Spend(NegotiationRoundHours);
+ 		talk.roundsPlayed++;
+@@ -368,7 +372,7 @@
+ 		talk.lastOfferValue = PackageValue(offer, talk.ask, talk.weights);
+         if (!CurrentTalk(talk, out message) || !CurrentContractCash(offer, out message)) { Changed?.Invoke(); return false; }
+ 
+-		if (ClearsReservation(talk, offer)) { return FinalizeSign(talk, offer, out message); }
++		if (ClearsReservation(talk, offer, PromiseValue(talk))) { return FinalizeSign(talk, offer, out message); }
+ 
+ 		// A hard line isn't haggling: it costs the meeting, but not a point of patience. The act said it up
+ 		// front, and the point of the line is that nothing else on the table moves it.
+@@ -433,17 +437,12 @@
+ 		}
+ 	}
+ 
+-    /// <summary>Reject uncosted promises until their resources, due dates and remedies have an owner.</summary>
+-    private bool PlayPromise(ContractTalk talk, out string message) {
+-        message = "This label cannot offer a scored recording or promotion promise until resources, deadlines and remedies can be enforced. Discuss the concrete contract terms instead.";
+-        return false;
+-    }
+-
+ 	/// <summary>Re-table the same numbers and see who blinks. A patient act (at least half its rounds
+ 	/// left) softens a little; an impatient one walks right there -- the bluff, and it can be called.</summary>
+ 	private bool PlayHoldFirm(ContractTalk talk, out string message) {
+         if (!CurrentTalk(talk, out message)) return false;
+ 		if (!Label.CanAffordToSign(CurrentOffer(talk).Advance)) { message = "The label cannot afford the current offer. Change the terms before holding firm."; return false; }
++        if (!CanAffordCommitments(talk, CurrentOffer(talk).Advance, out message)) return false;
+ 		if (!Require(NegotiationRoundHours, out message)) return false;
+ 		Spend(NegotiationRoundHours);
+         if (!CurrentTalk(talk, out message) || !CurrentContractCash(CurrentOffer(talk), out message)) { Changed?.Invoke(); return false; }
+@@ -453,7 +452,7 @@
+ 		if (!patient) { WalkAway(talk, forced: true, out message); return true; }
+ 
+ 		talk.reservation = Mathf.Max(0.55f, talk.reservation - 0.03f);
+-		if (ClearsReservation(talk, CurrentOffer(talk))) { return FinalizeSign(talk, CurrentOffer(talk), out message); }
++		if (ClearsReservation(talk, CurrentOffer(talk), PromiseValue(talk))) { return FinalizeSign(talk, CurrentOffer(talk), out message); }
+ 		if (talk.patienceLeft <= 0) { WalkAway(talk, forced: true, out message); return true; }
+ 
+ 		talk.objectionAxis = ObjectionAxisFor(talk, CurrentOffer(talk));
+@@ -472,6 +471,8 @@
+ 
+ 	private bool FinalizeSign(ContractTalk talk, ContractTermSheet sheet, out string message) {
+         if (!CurrentTalk(talk, out message)) return false;
++        // A promised session is part of what was agreed: if the cash for it went during the meeting, nothing commits.
++        if (!CanAffordCommitments(talk, sheet.Advance, out message)) { Changed?.Invoke(); return false; }
+ 		if (talk.IsRenewal) {
+ 			if (!FinalizeRenewal(talk.renewalArtist, sheet, talk.ask, out message)) return false;
+ 			PendingRenewal = null;
+@@ -479,6 +480,7 @@
+ 			if (!FinalizeSigning(talk.prospect, sheet, out message)) return false;
+ 			talk.prospect.Talk = null;
+ 		}
++        RecordSessionPromise(talk);
+ 		talk.stage = ContractTalkStage.Done;
+ 		Changed?.Invoke();
+         return true;
+@@ -661,7 +663,7 @@
+ 			return false;
+ 		}
+ 
+-		ContractTermSheet ask = WithGrudge(Label.GenerateTermSheet(artist, year), artist.signedUnderAskFraction);
++		ContractTermSheet ask = WithMissedPromises(WithGrudge(Label.GenerateTermSheet(artist, year), artist.signedUnderAskFraction), artist.artistId);
+ 		NegotiationPosture posture = PostureOf(artist);
+ 		var offer = new RenewalOffer { Artist = artist, Ask = ask, Posture = posture, OriginalContract = RenewalContractIdentity.From(artist) };
+ 		if (posture != NegotiationPosture.Pushover) {
+@@ -729,6 +731,7 @@
+ 		artist.artistCreativeControl = sheet.ArtistCreativeControl;
+ 		// Paying the premium (or talking them down) clears the old grudge; a fresh lowball starts a new one.
+ 		artist.signedUnderAskFraction = UnderAskFraction(ask, sheet);
++        SettleMissedPromises(artist.artistId);
+ 		CompetitorManager.Instance?.RecordExpense(Label, sheet.Advance);
+ 		artist.careerEvents.Add($"{year}: Re-signed with {Label.labelName} (${sheet.Advance:N0} advance, {sheet.TermYears}yr" +
+ 			(sheet.SinglesObligation > 0 ? $", {sheet.SinglesObligation} sides)" : ")"));
+diff --git a/Systems/PlayerDesk.cs b/Systems/PlayerDesk.cs
+--- a/Systems/PlayerDesk.cs
++++ b/Systems/PlayerDesk.cs
+@@ -1180,6 +1180,7 @@
+         scoutingKnowledge = new ScoutingKnowledgeSaveData { FoundingHistoryStarted = false };
+ 		scoutingNegotiations.Clear();
+ 		PendingRenewal = null;
++        contractCommitments.Clear();
+ 		PolarPlayerPerception.Reset();
+ 		currentCityId = city.cityId; // you start at your own office
+ 
+@@ -2465,6 +2466,7 @@
+ 		Label.cashReserves -= cost;
+ 		Label.monthlyExpenses += cost;
+ 		artist.unrecoupedAdvance += cost;
++        KeepSessionPromises(artist);
+ 
+ 		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+ 		float t = StudioQualityT();
+@@ -4561,6 +4563,7 @@
+ 		ChargeHotelIfAway();
+ 		ProcessRivalCrowding(date);
+ 		ProcessCallbacksAtDawn(date);
++        ProcessContractCommitments(date);
+ 		DeliverArrivedPressings(date);
+ 		ProcessCoverRehearsals(date);
+ 		ProcessWritingSessions(date);
+@@ -5738,6 +5741,7 @@
+ 			(ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>()).Where(r => r.baseRecord.isPlayerOwned).Select(r => r.baseRecord)));
+ 		var data = new PlayerSaveData {
+             RenewalDiscussion = CaptureRenewalDiscussion(),
++            ContractCommitments = CaptureContractCommitments(),
+ 			Label = LabelSaveData.From(Label),
+             ScoutingKnowledge = CaptureScoutingKnowledge(),
+             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+@@ -5904,6 +5908,7 @@
+ 	public bool RestoreState(PlayerSaveData data, out string message) {
+ 		if (data?.Label == null) { message = "Nothing to load."; return false; }
+         if (!ValidateRenewalDiscussion(data.RenewalDiscussion, data.Label.labelId, out message)) return false;
++        if (!ValidateContractCommitments(data.ContractCommitments, data.Label.labelId, out message)) return false;
+ 
+ 		// A load lifts any game-over: you're picking the label back up from a solvent point in its history.
+ 		IsGameOver = false;
+@@ -6214,6 +6219,7 @@
+ 		if (recovered > 0) message += $" Recovered {recovered} record(s) an older save had dropped.";
+ 		RestoreScoutingKnowledge(data.ScoutingKnowledge);
+         RestoreRenewalDiscussion(data.RenewalDiscussion);
++        RestoreContractCommitments(data.ContractCommitments);
+         LocalSceneIdentityService.CompleteDirectPlayerRestore();
+         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
+ 		Note(message);
+diff --git a/Systems/SaveGameService.cs b/Systems/SaveGameService.cs
+--- a/Systems/SaveGameService.cs
++++ b/Systems/SaveGameService.cs
+@@ -338,6 +338,7 @@
+ 
+ public sealed class PlayerSaveData {
+     public RenewalDiscussionSaveData RenewalDiscussion { get; set; }
++    public List<ContractCommitment> ContractCommitments { get; set; }
+     public List<string> GeneratedProspectIds { get; set; }
+     public List<SceneDiscovery> SceneDiscoveries { get; set; }
+     public SceneInformationKnowledge SceneInformation { get; set; }
+diff --git a/UI/PlayerDeskPanel.cs b/UI/PlayerDeskPanel.cs
+--- a/UI/PlayerDeskPanel.cs
++++ b/UI/PlayerDeskPanel.cs
+@@ -1460,6 +1460,21 @@
+ 			$"Each table round costs {PlayerDesk.NegotiationRoundHours} hours.");
+ 		Body(talk.draftOffer.HasValue ? "The last meeting could not be held; your entered terms are still below." :
+ 			talk.roundsPlayed == 0 ? "These fields start on your label's standard paper: you keep the publishing and have the final word. Their ask is above; every give you tick is a concession." : "These fields start with your last offer. Change any term before putting it back on the table.");
++		if (talk.sessionPromised) {
++			Body($"Your offer includes a funded studio session within {PlayerDesk.SessionPromiseDays / 7} weeks of signing — about " +
++				$"${PlayerDesk.Instance.SessionPromiseQuote():N0} at the cheapest room, paid when you book it. Signing needs cash for the advance and the session.");
++			var dropPromise = Btn("DROP THE SESSION PROMISE");
++			dropPromise.Name = "DropSessionPromise";
++			dropPromise.Pressed += () => { bool ok = PlayerDesk.Instance.WithdrawSessionPromise(talk, out string result); Say(result, ok); Refresh(); };
++			content.AddChild(dropPromise);
++		} else {
++			var addPromise = Btn("ADD A SESSION PROMISE");
++			addPromise.Name = "AddSessionPromise";
++			addPromise.TooltipText = $"Commit to book and pay for studio time with them within {PlayerDesk.SessionPromiseDays / 7} weeks of signing " +
++				$"(about ${PlayerDesk.Instance.SessionPromiseQuote():N0} at the cheapest room). Miss it and they'll remember at renewal.";
++			addPromise.Pressed += () => { bool ok = PlayerDesk.Instance.AddSessionPromise(talk, out string result); Say(result, ok); Refresh(); };
++			content.AddChild(addPromise);
++		}
+ 		TermsForm(PlayerDesk.CurrentOffer(talk), label,
+ 			(advance, royalty, term, singles, labelPub, artistControl) => {
+ 				bool ok = PlayerDesk.Instance.TableOffer(talk, advance, royalty, term, singles, labelPub, artistControl, out string message);
+@@ -1497,6 +1512,10 @@
+ 		if (PlayerDesk.CanTradeAxes(talk))
+ 			NegotiationCounterButton(talk, ContractCounter.TradeAxes,
+ 				"TRADE", "Give back the publishing and the final word; the advance comes down to match.");
++		if (!talk.sessionPromised)
++			NegotiationCounterButton(talk, ContractCounter.Promise, "PROMISE A SESSION",
++				$"Commit to book and pay for studio time with them within {PlayerDesk.SessionPromiseDays / 7} weeks of signing " +
++				$"(about ${PlayerDesk.Instance.SessionPromiseQuote():N0} at the cheapest room, paid when you book). Miss it and they'll remember at renewal.");
+ 		NegotiationCounterButton(talk, ContractCounter.HoldFirm,
+ 			$"HOLD FIRM  ({PlayerDesk.NegotiationRoundHours}h)", "Table it again unchanged and see who blinks.");
+ 		NegotiationCounterButton(talk, ContractCounter.Walk,
+@@ -1566,6 +1585,10 @@
+ 				$"{GenreNameFormatter.Format(artist.primaryGenre)}  •  {Words(artist.careerState.ToString())}", matured);
+ 			sleeve.AddFact($"{artist.totalReleases} {CountWord(artist.totalReleases, "release")}   •   {artist.top40Hits} Top 40   •   {songs} in the songbook");
+ 			sleeve.AddFact($"{artist.royaltyRate:P1} royalty   •   {(matured ? "CONTRACT UP" : $"expires {artist.contractExpiresYear}")}{manager}", matured ? Rust : null);
++			if (desk.OpenCommitmentFor(artist.artistId) is { } promise) {
++				int daysLeft = promise.DueDay - LocalSceneRoomService.Day(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate);
++				sleeve.AddFact($"Session promised by {LocalSceneRoomService.Date(promise.DueDay).ToShortString()}", daysLeft <= 14 ? Rust : null);
++			}
+ 
+ 			SimulatedArtist captured = artist;
+ 			if (matured) {
+diff --git a/SimTools/ScoutingSessionPromiseChecks.cs b/SimTools/ScoutingSessionPromiseChecks.cs
+new file mode 100644
+--- /dev/null
++++ b/SimTools/ScoutingSessionPromiseChecks.cs
+@@ -0,0 +1,208 @@
++using System;
++using System.Linq;
++using System.Text.Json;
++using Godot;
++
++public static class ScoutingSessionPromiseChecks {
++    /// <summary>A real heard act, made eligible and managed so that its approach opens the negotiation scene.</summary>
++    public static PlayerDesk.Prospect PrepareNegotiation(PlayerDesk desk) {
++        var clock = TimeManager.Instance;
++        clock.RestoreClock(GameDate.StartDate, 9);
++        var next = desk.ScoutingItinerary().First();
++        if (!desk.WaitForSceneAppearance(next.BillId, next.EventId, out string message) ||
++            !desk.ListenSceneAppearance(next.BillId, next.EventId, out message)) throw new InvalidOperationException(message);
++        var act = ArtistManager.Instance.GetArtist(next.ArtistId);
++        act.labelId = null; act.careerState = CareerState.Unsigned; act.prospectMarketStatus = ProspectMarketStatus.Seeking;
++        act.lifecycleStatus = ArtistLifecycleStatus.Active; act.isActive = true; act.manager = ManagerArchetype.Visionary;
++        desk.Label.cashReserves = 100000;
++        clock.RestoreClock(clock.CurrentDate, 9);
++        if (!desk.OpenScoutingDossier(act.artistId, out message)) throw new InvalidOperationException(message);
++        var prospect = desk.Slate.Single(p => p.Artist == act);
++        if (!desk.ApproachToSign(prospect, out message) || prospect.Talk == null) throw new InvalidOperationException("Need a negotiation: " + message);
++        return prospect;
++    }
++
++    public static void Run() {
++        int checks = 0;
++        void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCOUTING_SESSION_PROMISE_FAILED: " + why); checks++; }
++        string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
++        var desk = PlayerDesk.Instance; var clock = TimeManager.Instance; var am = ArtistManager.Instance;
++        Check(desk.FoundLabel("Session Promise", "nashville", out string message), "found label: " + message);
++        var prospect = PrepareNegotiation(desk); string id = prospect.Artist.artistId;
++        var talk = prospect.Talk; var ask = talk.ask;
++        int Minute() => clock.CurrentHour * 60 + clock.CurrentMinute;
++        var savedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture()); var savedPlayer = LocalSceneRoomService.Copy(desk.CaptureState());
++        var date = clock.CurrentDate; int hour = clock.CurrentHour, minute = clock.CurrentMinute;
++        void Restore(PlayerSaveData player, GameDate when, int h, int m, WorldSaveData world) {
++            LocalScenes.Configure(Array.Empty<string>());
++            WorldStateService.Apply(LocalSceneRoomService.Copy(world), when, SimulationSeedBootstrap.RequestedSeed);
++            Check(desk.RestoreState(LocalSceneRoomService.Copy(player), out message), "restore: " + message);
++            clock.RestoreClock(when, h, m);
++            // The slate is not saved; reopening the dossier relinks the retained negotiation without redrawing it.
++            if (desk.Slate.All(p => p.Artist.artistId != id)) desk.OpenScoutingDossier(id, out _);
++            prospect = desk.Slate.FirstOrDefault(p => p.Artist.artistId == id);
++            talk = prospect?.Talk;
++        }
++        void Reset() => Restore(savedPlayer, date, hour, minute, savedWorld);
++        // An initial table opens the objection where the promise is offered, without signing.
++        bool TableAt(float advance) => desk.TableOffer(talk, advance, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation,
++            ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message);
++        Reset();
++        Check(talk != null && talk.stage == ContractTalkStage.Tabling, "restored scouting negotiation is reachable");
++        Check(TableAt(PlayerDesk.MinimumAdvanceForAcceptance(talk) - 5) && talk.stage == ContractTalkStage.Objection, "lowball opens an objection: " + message);
++        string objectionPlayer = Json(desk.CaptureState()), objectionWorld = Json(WorldStateService.Capture());
++        savedPlayer = desk.CaptureState(); date = clock.CurrentDate; hour = clock.CurrentHour; minute = clock.CurrentMinute;
++        savedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture());
++
++        // 1. The promise is a term on the table: free to propose, no RNG, no world change.
++        float cash = desk.Label.cashReserves;
++        GD.Seed(311); uint draw = GD.Randi(); GD.Seed(311);
++        Check(desk.PlayNegotiationCounter(talk, ContractCounter.Promise, out message) && talk.sessionPromised && talk.stage == ContractTalkStage.Tabling,
++            "promise joins the package: " + message);
++        Check(GD.Randi() == draw && Json(WorldStateService.Capture()) == objectionWorld && desk.Label.cashReserves == cash &&
++            Minute() == hour * 60 + minute && desk.ContractCommitments.Count == 0, "proposing spends nothing, draws nothing and commits nothing");
++        Check(desk.WithdrawSessionPromise(talk, out message) && !talk.sessionPromised, "promise can be withdrawn before agreement");
++        Check(!desk.WithdrawSessionPromise(talk, out message), "nothing left to withdraw");
++        Check(desk.AddSessionPromise(talk, out message) && talk.sessionPromised && talk.stage == ContractTalkStage.Tabling &&
++            !desk.AddSessionPromise(talk, out message), "the tabling form can include the promise once");
++        Check(desk.WithdrawSessionPromise(talk, out message), "withdraw again");
++
++        // 2. The promise is scored: the same package fails without it and signs with it.
++        float credit = PlayerDesk.SessionPromiseValue(talk.Artist);
++        ContractTermSheet? found = null;
++        float minAdvance = PlayerDesk.MinimumAdvanceForAcceptance(talk);
++        foreach (bool control in new[] { ask.ArtistCreativeControl, false }.Distinct())
++        for (int singles = ask.SinglesObligation; singles <= ask.SinglesObligation + 8 && found == null; singles += 2)
++        for (int term = ask.TermYears; term <= 7 && found == null; term++)
++        for (int adv = 0; adv <= 10 && found == null; adv++)
++        for (int step = 0; step <= 60 && found == null; step++) {
++            float advance = Mathf.Ceil(Mathf.Lerp(ask.Advance, minAdvance, adv / 10f));
++            float royalty = Mathf.Round(ask.RoyaltyRate * (1f - step / 75f) * 10000f) / 10000f;
++            if (royalty < PlayerDesk.PlayerRoyaltyFloor || advance < minAdvance) break;
++            var sheet = new ContractTermSheet(advance, royalty, term, singles, ask.LabelOwnsPublishing, control,
++                ask.NegotiationDifficulty, ask.Manager, ask.ManagerName, ask.DemandSummary);
++            float value = PlayerDesk.PackageValueOf(talk, sheet);
++            if (PlayerDesk.HardLineBroken(talk, sheet) == null && value < talk.reservation - 0.002f && value + credit > talk.reservation + 0.002f) found = sheet;
++        }
++        Check(found.HasValue, $"fixture needs a package between the two thresholds (reservation {talk.reservation:0.000}, credit {credit:0.000})");
++        var between = found.Value;
++        bool TableSheet(ContractTermSheet s) => desk.TableOffer(talk, s.Advance, s.RoyaltyRate, s.TermYears, s.SinglesObligation,
++            s.LabelOwnsPublishing, s.ArtistCreativeControl, out message);
++        Reset(); Check(desk.PlayNegotiationCounter(talk, ContractCounter.SweetenAxis, out message), "back to tabling");
++        Check(TableSheet(between) && talk.stage == ContractTalkStage.Objection && desk.ContractCommitments.Count == 0, "unpromised package does not clear");
++        Reset(); Check(desk.PlayNegotiationCounter(talk, ContractCounter.Promise, out message), "promise");
++        cash = desk.Label.cashReserves; int agreed = LocalSceneRoomService.Day(clock.CurrentDate); float quote = desk.SessionPromiseQuote();
++        Check(TableSheet(between) && talk.stage == ContractTalkStage.Done && am.GetArtist(id).labelId == desk.Label.labelId, "promised package signs: " + message);
++        var c = desk.ContractCommitments.Single();
++        Check(c.Status == ContractCommitmentStatus.Open && c.ArtistId == id && c.AgreedDay == agreed && c.DueDay == agreed + PlayerDesk.SessionPromiseDays &&
++            c.QuotedCost == quote && !c.Renewal && c.LabelId == desk.Label.labelId, "one open commitment with due date and quote");
++        Check(desk.Label.cashReserves == cash - between.Advance, "signing pays the advance only; the session is paid when booked");
++        Check(desk.OpenCommitmentFor(id)?.Id == c.Id, "roster card can read the open promise");
++        var signedWorld = LocalSceneRoomService.Copy(WorldStateService.Capture()); var signedPlayer = LocalSceneRoomService.Copy(desk.CaptureState());
++        var signedDate = clock.CurrentDate; int signedHour = clock.CurrentHour, signedMinute = clock.CurrentMinute;
++
++        // 3. Affordability includes the promised session, checked before any time is spent.
++        Reset(); Check(desk.PlayNegotiationCounter(talk, ContractCounter.Promise, out message), "promise");
++        float reserve = desk.Label.GetMonthlyOverhead() * 2f;
++        desk.Label.cashReserves = between.Advance + reserve + quote * 0.5f;
++        Check(desk.Label.CanAffordToSign(between.Advance) && !desk.Label.CanAffordToSign(between.Advance + quote), "fixture cash covers advance but not session");
++        Check(!TableSheet(between) && message.Contains("promised session") && Minute() == hour * 60 + minute && desk.ContractCommitments.Count == 0 &&
++            talk.patienceLeft == savedPlayer.ScoutingKnowledge.Negotiations.Single(n => n.ArtistId == id).Talk.patienceLeft,
++            "unaffordable promise blocks before time or patience");
++        Check(!desk.PlayNegotiationCounter(talk, ContractCounter.SweetenAxis, out message), "still tabling");
++
++        // 4. Cash that leaves during the meeting voids the close; time stays spent.
++        Reset(); Check(desk.PlayNegotiationCounter(talk, ContractCounter.Promise, out message), "promise");
++        Action<int> drain = _ => desk.Label.cashReserves = between.Advance + reserve + quote * 0.5f;
++        clock.OnHourChanged += drain;
++        try { Check(!TableSheet(between), "drained cash blocks the close"); } finally { clock.OnHourChanged -= drain; }
++        Check(am.GetArtist(id).labelId != desk.Label.labelId && desk.ContractCommitments.Count == 0 &&
++            Minute() == hour * 60 + minute + PlayerDesk.NegotiationRoundHours * 60 && talk.sessionPromised,
++            "no contract, no commitment, meeting time consumed, promise still on the table");
++
++        // 5. Real compressed save/load keeps a promise on the table and a signed commitment.
++        Reset(); Check(desk.PlayNegotiationCounter(talk, ContractCounter.Promise, out message), "promise");
++        string slot = "Promise " + Guid.NewGuid().ToString("N");
++        try {
++            Check(SaveGameService.Save(slot, out message) && SaveGameService.Load(slot, out message), "compressed save/load: " + message);
++            Check(desk.OpenScoutingDossier(id, out message), "reopen dossier after load: " + message);
++            var reloaded = desk.Slate.First(p => p.Artist.artistId == id);
++            Check(reloaded.Talk?.sessionPromised == true && reloaded.Talk.stage == ContractTalkStage.Tabling, "tabled promise survives reload");
++            Restore(signedPlayer, signedDate, signedHour, signedMinute, signedWorld);
++            Check(SaveGameService.Save(slot, out message) && SaveGameService.Load(slot, out message), "compressed save/load signed: " + message);
++            Check(Json(desk.ContractCommitments) == Json(signedPlayer.ContractCommitments), "open commitment survives reload");
++        } finally { SaveGameService.Delete(slot); }
++
++        // 6. Kept: a real paid session inside the window.
++        Restore(signedPlayer, signedDate, signedHour, signedMinute, signedWorld);
++        var act = am.GetArtist(id); int kept = c.DueDay - 3;
++        clock.RestoreClock(LocalSceneRoomService.Date(kept), 9);
++        var material = desk.MaterialOptionsFor(act).Take(1).ToList();
++        cash = desk.Label.cashReserves; int events = act.careerEvents.Count;
++        Check(material.Count == 1 && desk.StartSession(act, material, PlayerDesk.StudioTier.Budget, PlayerDesk.MinSessionHours, out message, overrideRefusal: true),
++            "real session books: " + message);
++        var keptRecord = desk.ContractCommitments.Single();
++        Check(keptRecord.Status == ContractCommitmentStatus.Kept && keptRecord.ResolvedDay == kept && desk.Label.cashReserves < cash, "paid session keeps the promise");
++        desk.ScrapSession();
++        clock.RestoreClock(LocalSceneRoomService.Date(c.DueDay), 22); clock.EndDay();
++        Check(desk.ContractCommitments.Single().Status == ContractCommitmentStatus.Kept && act.careerEvents.Count == events, "a kept promise is never later missed");
++
++        // 7. Missed: the ordinary dawn after the due date records the miss once.
++        Restore(signedPlayer, signedDate, signedHour, signedMinute, signedWorld); act = am.GetArtist(id);
++        events = act.careerEvents.Count;
++        clock.RestoreClock(LocalSceneRoomService.Date(c.DueDay), 22); clock.EndDay();
++        var missed = desk.ContractCommitments.Single();
++        Check(missed.Status == ContractCommitmentStatus.Missed && missed.ResolvedDay == c.DueDay + 1 && !missed.RemedyApplied &&
++            act.careerEvents.Count == events + 1 && act.careerEvents.Last().Contains("never booked"), "miss recorded on the act's history");
++        clock.EndDay();
++        Check(act.careerEvents.Count == events + 1 && desk.ContractCommitments.Single().Status == ContractCommitmentStatus.Missed, "miss is not repeated");
++        clock.RestoreClock(clock.CurrentDate, 9);
++        material = desk.MaterialOptionsFor(act).Take(1).ToList();
++        Check(desk.StartSession(act, material, PlayerDesk.StudioTier.Budget, PlayerDesk.MinSessionHours, out message, overrideRefusal: true) &&
++            desk.ContractCommitments.Single().Status == ContractCommitmentStatus.Missed, "a late session cannot repair the record");
++        desk.ScrapSession();
++
++        // Remedy: the next renewal ask carries the miss, and the completed renewal answers it.
++        act.contractSinglesObligation = 2; act.contractReleases = 2;
++        clock.RestoreClock(clock.CurrentDate, 9);
++        Check(desk.ApproachRenewal(act, out message) && desk.PendingRenewal.Ask.DemandSummary.Contains("never booked"), "renewal ask names the miss: " + message);
++        var renewalAsk = desk.PendingRenewal.Ask; var rtalk = desk.PendingRenewal.Talk;
++        Check(rtalk != null, "managed renewal negotiates");
++        Check(desk.TableOffer(rtalk, renewalAsk.Advance * .5f - 5, renewalAsk.RoyaltyRate, renewalAsk.TermYears, renewalAsk.SinglesObligation,
++            renewalAsk.LabelOwnsPublishing, renewalAsk.ArtistCreativeControl, out message) && rtalk.stage == ContractTalkStage.Objection, "renewal objection");
++        Check(desk.PlayNegotiationCounter(rtalk, ContractCounter.Promise, out message) && rtalk.sessionPromised, "a fresh promise can be offered after a miss");
++        Check(desk.TableOffer(rtalk, renewalAsk.Advance, renewalAsk.RoyaltyRate, renewalAsk.TermYears, renewalAsk.SinglesObligation,
++            renewalAsk.LabelOwnsPublishing, renewalAsk.ArtistCreativeControl, out message) && desk.PendingRenewal == null, "renewal at the ask completes: " + message);
++        var after = desk.ContractCommitments;
++        Check(after.Count == 2 && after.Single(x => x.Id == c.Id).RemedyApplied && after.Single(x => x.Id != c.Id) is { Renewal: true, Status: ContractCommitmentStatus.Open },
++            "miss answered once; the renewal's promise is its own open commitment");
++
++        // 8. Void: an act that leaves the roster releases the promise without a broken-promise history.
++        Restore(signedPlayer, signedDate, signedHour, signedMinute, signedWorld); act = am.GetArtist(id);
++        Check(am.DropArtist(act, clock.CurrentDate.year, desk.Label, ArtistDropReason.ContractExpired), "drop act");
++        events = act.careerEvents.Count;
++        clock.RestoreClock(clock.CurrentDate, 22); clock.EndDay();
++        Check(desk.ContractCommitments.Single().Status == ContractCommitmentStatus.Void && !act.careerEvents.Skip(events).Any(e => e.Contains("never booked")),
++            "departure voids the promise");
++
++        // 9. Malformed saves are rejected before mutation; a legacy save invents nothing.
++        Restore(signedPlayer, signedDate, signedHour, signedMinute, signedWorld);
++        foreach (var corrupt in new Action<PlayerSaveData>[] {
++            s => s.ContractCommitments[0].LabelId = "other-label", s => s.ContractCommitments.Add(LocalSceneRoomService.Copy(s.ContractCommitments[0])),
++            s => s.ContractCommitments[0].ResolvedDay = 3, s => s.ContractCommitments[0].QuotedCost = float.NaN,
++            s => s.ContractCommitments[0].DueDay = -1, s => s.ContractCommitments[0].RemedyApplied = true }) {
++            var invalid = LocalSceneRoomService.Copy(signedPlayer); corrupt(invalid);
++            string before = Json(desk.CaptureState());
++            Check(!desk.RestoreState(invalid, out message) && Json(desk.CaptureState()) == before, "malformed commitment rejected before mutation");
++        }
++        var legacy = LocalSceneRoomService.Copy(signedPlayer); legacy.ContractCommitments = null;
++        Check(desk.RestoreState(legacy, out message) && desk.ContractCommitments.Count == 0, "legacy save has no invented promise");
++        Restore(signedPlayer, signedDate, signedHour, signedMinute, signedWorld);
++        foreach (string flag in new[] { "--disable-scouting-experience", "--observe-scouting-experience" }) {
++            LocalScenes.Configure(new[] { flag });
++            Check(Json(desk.CaptureState().ContractCommitments) == Json(signedPlayer.ContractCommitments), "feature mode keeps contract commitments");
++        }
++        LocalScenes.Configure(Array.Empty<string>());
++        GD.Print($"SCOUTING_SESSION_PROMISE_PASS checks={checks}");
++    }
++}
+diff --git a/SimTools/ScoutingContractContinuityChecks.cs b/SimTools/ScoutingContractContinuityChecks.cs
+--- a/SimTools/ScoutingContractContinuityChecks.cs
++++ b/SimTools/ScoutingContractContinuityChecks.cs
+@@ -68,8 +68,10 @@
+             Check(SaveGameService.Save(slot, out message) && SaveGameService.Load(slot, out message), "actual compressed renewal save/load: " + message);
+             Check(Json(desk.CaptureState().RenewalDiscussion) == renewal && ReferenceEquals(desk.PendingRenewal.Talk.renewalArtist, am.GetArtist(id)), "compressed reload retains ask, draft, patience, rounds, log and binding");
+         } finally { SaveGameService.Delete(slot); }
++        Reset();
++        Check(desk.PlayNegotiationCounter(talk, ContractCounter.Promise, out message) && talk.sessionPromised &&
++            desk.CaptureState().RenewalDiscussion.Talk.sessionPromised, "a session promise is part of the saved renewal discussion");
+         Reset(); var oldTalk = talk;
+-        Check(!desk.PlayNegotiationCounter(oldTalk, ContractCounter.Promise, out message), "unsupported promises remain blocked");
+         Check(desk.RestoreState(LocalSceneRoomService.Copy(savedPlayer), out message), "replace live state from save");
+         int now = clock.CurrentHour * 60 + clock.CurrentMinute;
+         Check(!desk.PlayNegotiationCounter(oldTalk, ContractCounter.HoldFirm, out message) && clock.CurrentHour * 60 + clock.CurrentMinute == now,
+diff --git a/SimTools/SaveLoadRoundTripRunner.cs b/SimTools/SaveLoadRoundTripRunner.cs
+--- a/SimTools/SaveLoadRoundTripRunner.cs
++++ b/SimTools/SaveLoadRoundTripRunner.cs
+@@ -44,6 +44,7 @@
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-check")) { ScoutingAudienceChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-check")) { ScoutingOfferPlanningChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-check")) { ScoutingContractContinuityChecks.Run(); GetTree().Quit(0); return; }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-check")) { ScoutingSessionPromiseChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+diff --git a/SimTools/SceneRoomUiRunner.cs b/SimTools/SceneRoomUiRunner.cs
+--- a/SimTools/SceneRoomUiRunner.cs
++++ b/SimTools/SceneRoomUiRunner.cs
+@@ -21,6 +21,53 @@
+             var fold = Descendants(this).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "FOLD THE PAPER  ×");
+             fold?.EmitSignal(Button.SignalName.Pressed);
+             for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-ui-check")) {
++                var prospect = ScoutingSessionPromiseChecks.PrepareNegotiation(desk); var talk = prospect.Talk; var ask = talk.ask;
++                if (!desk.TableOffer(talk, PlayerDesk.MinimumAdvanceForAcceptance(talk) - 5, ask.RoyaltyRate, ask.TermYears, ask.SinglesObligation,
++                        ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message) || talk.stage != ContractTalkStage.Objection)
++                    throw new InvalidOperationException("Need a real objection: " + message);
++                typeof(PlayerDeskPanel).GetField("negotiating", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panel, prospect);
++                panel.OpenAtTab("A&R");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                float cash = desk.Label.cashReserves; int minute = TimeManager.Instance.CurrentHour * 60 + TimeManager.Instance.CurrentMinute;
++                var promise = Descendants(panel).OfType<Button>().SingleOrDefault(b => !b.IsQueuedForDeletion() && b.Text == "PROMISE A SESSION");
++                if (promise == null) throw new InvalidOperationException("Objection must offer the session promise.");
++                promise.EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var terms = Descendants(panel).OfType<Label>().SingleOrDefault(l => !l.IsQueuedForDeletion() && l.Text.StartsWith("Your offer includes a funded studio session"));
++                var drop = Descendants(panel).OfType<Button>().SingleOrDefault(b => !b.IsQueuedForDeletion() && b.Name == "DropSessionPromise");
++                if (!talk.sessionPromised || terms == null || drop == null || !terms.Text.Contains($"${desk.SessionPromiseQuote():N0}"))
++                    throw new InvalidOperationException("Tabling form must show the promised session, its quote and a way to drop it.");
++                if (desk.Label.cashReserves != cash || TimeManager.Instance.CurrentHour * 60 + TimeManager.Instance.CurrentMinute != minute || desk.ContractCommitments.Count > 0)
++                    throw new InvalidOperationException("Proposing must cost nothing and commit nothing.");
++                if (Descendants(panel).OfType<Label>().Any(l => !l.IsQueuedForDeletion() && (l.Text.Contains("reservation") || l.Text.Contains("patience"))))
++                    throw new InvalidOperationException("Hidden acceptance values must not render.");
++                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
++                string promiseDir = ProjectSettings.GlobalizePath("res://SimLogs/scouting-session-promise-ui-v1"); Directory.CreateDirectory(promiseDir);
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(promiseDir, "tabling.png"));
++                drop.EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (talk.sessionPromised || Descendants(panel).OfType<Button>().Any(b => !b.IsQueuedForDeletion() && b.Name == "DropSessionPromise"))
++                    throw new InvalidOperationException("Dropping must take the promise off the table.");
++                var add = Descendants(panel).OfType<Button>().SingleOrDefault(b => !b.IsQueuedForDeletion() && b.Name == "AddSessionPromise");
++                if (add == null) throw new InvalidOperationException("Tabling form must let the promise be added back.");
++                add.EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (!talk.sessionPromised || !desk.TableOffer(talk, ask.Advance, ask.RoyaltyRate, ask.TermYears,
++                        ask.SinglesObligation, ask.LabelOwnsPublishing, ask.ArtistCreativeControl, out message) || talk.stage != ContractTalkStage.Done)
++                    throw new InvalidOperationException("Promised package at the ask must sign: " + message);
++                typeof(PlayerDeskPanel).GetField("negotiating", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panel, null);
++                panel.OpenAtTab("ROSTER");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var due = desk.ContractCommitments.Single(c => c.Status == ContractCommitmentStatus.Open).DueDay;
++                var fact = Descendants(panel).OfType<Label>().SingleOrDefault(l => !l.IsQueuedForDeletion() && l.Text == "Session promised by " + LocalSceneRoomService.Date(due).ToShortString());
++                if (fact == null || !fact.IsVisibleInTree()) throw new InvalidOperationException("Roster card must show the open promise and its due date.");
++                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(promiseDir, "roster.png"));
++                GD.Print("SCOUTING_SESSION_PROMISE_UI_PASS offered=true quoted=true free=true hidden=true dropped=true rosterDue=true"); GetTree().Quit(0); return;
++            }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-ui-check")) {
+                 var act = ScoutingContractContinuityChecks.PrepareRenewal(desk, true); string actId = act.artistId;
+                 var ask = desk.PendingRenewal.Ask;

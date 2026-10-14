@@ -21,6 +21,16 @@
 public static class MechanicalRoyaltyService {
 	public const float RatePerCopy = 0.02f;
 
+	/// <summary>The share of a record's A-side writer credit held by the selling label itself (a cut-in).</summary>
+	public static float LabelCutInShare(Record record, AILabel label) {
+		if (record?.songwriterIds == null || label == null) return 0f;
+		string id = CowritingService.LabelWriterId(label.labelId);
+		float share = 0f;
+		for (int i = 0; i < record.songwriterIds.Length && i < (record.songwriterShares?.Length ?? 0); i++)
+			if (record.songwriterIds[i] == id) share += record.songwriterShares[i];
+		return share;
+	}
+
 	/// <summary>
 	/// Charges ONE composition's mechanical for <paramref name="units"/> copies, resolves who actually
 	/// controls the song (self, a writer-artist, another in-game label, or nobody in-game), and applies
@@ -33,14 +43,17 @@ public static class MechanicalRoyaltyService {
 	public static float ChargeSide(
 		PublishingControlType control, string controllerLabelId, string controllerArtistId,
 		SimulatedArtist performingArtist, AILabel sellingLabel, int units,
-		System.Func<string, AILabel> getLabel, System.Func<string, SimulatedArtist> getArtist) {
+		System.Func<string, AILabel> getLabel, System.Func<string, SimulatedArtist> getArtist,
+		float sellingLabelWriterCutIn = 0f) {
 		if (units <= 0 || sellingLabel == null) return 0f;
 
 		float pool = units * RatePerCopy;
 		PublishingRoutingService.Decision routing = PublishingRoutingService.Decide(
 			control, controllerLabelId, controllerArtistId, performingArtist, sellingLabel.labelId);
 
-		float writerSlice = pool * routing.WriterArtistFraction;
+		// A label cut-in (band-member simulation §4.14 layer 4): the selling label is credited on the song, so
+		// its share of the writer's slice never leaves the building. Player-only callers pass it; 0 otherwise.
+		float writerSlice = pool * routing.WriterArtistFraction * (1f - System.Math.Clamp(sellingLabelWriterCutIn, 0f, 1f));
 		float transferSlice = pool * routing.TransferLabelFraction;
 		float leakSlice = pool * routing.ExternalLeakFraction;
 		// The payer's total is fixed the moment the fractions are drawn -- whether transferSlice lands

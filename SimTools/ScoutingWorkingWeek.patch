@@ -1,0 +1,351 @@
+diff --git a/SimTools/LocalSceneRoomChecks.cs b/SimTools/LocalSceneRoomChecks.cs
+index 8f70898..dfc785d 100644
+--- a/SimTools/LocalSceneRoomChecks.cs
++++ b/SimTools/LocalSceneRoomChecks.cs
+@@ -42,7 +42,10 @@ public static class LocalSceneRoomChecks {
+             Check(before.Bills.All(b => b.Appearances.All(s => am.GetArtist(s.ArtistId) != null)), "bill IDs resolve canonical acts");
+             var reservations = before.Bills.SelectMany(b => b.Appearances.SelectMany(s => s.PersonIds.Select(p => new { Key = $"{b.Day}|{s.StartHour}|{p}", DayPerson = $"{b.Day}|{p}", b.RoomId })));
+             Check(reservations.Select(r => r.Key).Distinct().Count() == reservations.Count(), "no overlapping shared-musician slots");
+-            Check(reservations.GroupBy(r => r.DayPerson).All(g => g.Select(r => r.RoomId).Distinct().Count() == 1), "a person cannot teleport between rooms/cities in a day");
++            // Double rooms (LocalSceneRoomService.WorkingWeek): a full-time act may cross town to one more room; the
++            // working-week invariants (gap, same act, full-time) are checked in SceneRoomRotationChecks.
++            Check(reservations.GroupBy(r => r.DayPerson).All(g => g.Select(r => r.RoomId).Distinct().Count() <= (LocalScenes.DoubleRooms ? LocalSceneRoomService.MaxRoomsPerDay : 1) &&
++                g.Select(r => SceneRoomCatalog.Get(r.RoomId).PlaceId).Distinct().Count() == 1), "a person cannot teleport between cities, or work more rooms in a day than the rule allows");
+             Check(before.Bills.All(b => b.Appearances.All(s => s.PersonIds.Distinct().Count() == s.PersonIds.Count)), "person IDs deduplicated within a show");
+             Check(before.Bills.All(b => b.Appearances.All(s => s.Set.All(t => t.SongId == null || CompositionCatalogService.GetSong(t.SongId) != null))), "shared repertoire references existing compositions");
+             // With rotation an engagement is earned by playing the room, so a new world opens with none (SceneRoomRotationChecks).
+diff --git a/SimTools/SceneRoomRotationChecks.cs b/SimTools/SceneRoomRotationChecks.cs
+index 5ff0d62..05ffc0e 100644
+--- a/SimTools/SceneRoomRotationChecks.cs
++++ b/SimTools/SceneRoomRotationChecks.cs
+@@ -32,6 +32,12 @@ public static class SceneRoomRotationChecks {
+             Check(Rejects("--enable-scene-room-rotation", "--disable-scene-rooms"), "rotation requires scene rooms");
+             LocalScenes.Configure(args);
+             Check(LocalScenes.RoomRotation, "on by default with rooms");
++            Check(Rejects("--enable-scene-day-jobs", "--disable-scene-day-jobs"), "day jobs: enable and disable together are refused");
++            Check(Rejects("--enable-scene-double-rooms", "--disable-scene-room-rotation"), "double rooms require room rotation");
++            Check(LocalScenes.DayJobs && LocalScenes.DoubleRooms, "day jobs and double rooms are on with rotation");
++            LocalScenes.Configure(args.Append("--disable-scene-room-rotation"));
++            Check(!LocalScenes.DayJobs && !LocalScenes.DoubleRooms, "and off with it");
++            LocalScenes.Configure(args);
+ 
+             // 2. The opening calendar: bill size by room kind, running order, nothing earned yet.
+             var perf = start.Bills.Where(b => SceneRoomCatalog.Get(b.RoomId).IsPerformance && b.Appearances.Count > 0).ToList();
+@@ -72,7 +78,7 @@ public static class SceneRoomRotationChecks {
+             var slotsHeld = allBills.Values.SelectMany(b => b.Appearances.SelectMany(s => s.PersonIds.Concat(s.BackingPersonIds ?? new())
+                 .Select(p => (Key: $"{b.Day}|{s.StartHour}|{p}", DayPerson: $"{b.Day}|{p}", b.RoomId)))).ToList();
+             Check(slotsHeld.Select(r => r.Key).Distinct().Count() == slotsHeld.Count, "no person plays two sets at once");
+-            Check(slotsHeld.GroupBy(r => r.DayPerson).All(g => g.Select(r => r.RoomId).Distinct().Count() == 1), "one room per person per day");
++            WorkingWeek(allBills.Values.ToList(), Snapshot().Engagements);
+ 
+             int distinct = nights.SelectMany(b => b.Appearances).Select(a => a.ArtistId).Distinct().Count();
+             int casts = nights.Select(b => string.Join("|", b.Appearances.Select(a => a.ArtistId).OrderBy(x => x, StringComparer.Ordinal))).Distinct().Count();
+@@ -83,7 +89,13 @@ public static class SceneRoomRotationChecks {
+                 $"top10share={plays.Take(10).Sum() / (float)sets:0.00} once={plays.Count(n => n == 1)}");
+             Check(nights.Count >= 50, "the club works five nights a week");
+             Check(distinct >= 25, "a rotating cast: at least 25 different acts in twelve weeks");
+-            Check(casts >= .8 * nights.Count, "nearly every night's bill is a different line-up");
++            // Day jobs (WorkingWeek): weeknights belong to the town's working pros, so their bills repeat more; the
++            // rotating cast is a weekend thing.
++            var weekendNights = nights.Where(b => LocalSceneRoomService.Weekend(LocalSceneRoomService.Date(b.Day).DayOfWeek)).ToList();
++            int weekendCasts = weekendNights.Select(b => string.Join("|", b.Appearances.Select(a => a.ArtistId).OrderBy(x => x, StringComparer.Ordinal))).Distinct().Count();
++            GD.Print($"SCENE_ROOM_ROTATION {club} weekendNights={weekendNights.Count} weekendCasts={weekendCasts}");
++            Check(weekendCasts >= .8 * weekendNights.Count, "nearly every weekend night's bill is a different line-up");
++            Check(casts >= (LocalScenes.DayJobs ? .5 : .8) * nights.Count, "most nights' bills are different line-ups");
+             var regularsHere = Snapshot().Engagements.Where(e => e.RoomId == club).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal);
+             var supportPlays = nights.SelectMany(b => b.Appearances.Where(a => a.Status == SceneBillStatus.Performed && !regularsHere.Contains(a.ArtistId)))
+                 .GroupBy(a => a.ArtistId).Select(g => g.Count()).ToArray();
+@@ -133,5 +145,52 @@ public static class SceneRoomRotationChecks {
+             RestoreRooms(start);
+         }
+         GD.Print($"SCENE_ROOM_ROTATION_PASS checks={checks}");
++
++        // The working week (LocalSceneRoomService.WorkingWeek), over every room in the country for the twelve weeks.
++        void WorkingWeek(List<SceneBill> bills, List<SceneEngagement> engagements) {
++            bool FullTime(SimulatedArtist a, int day) => LocalSceneRoomService.Traction(a) || LocalSceneRoomService.GonePro(a) || LocalSceneRoomService.ActShows(a.artistId) >= LocalSceneRoomService.ProShows ||
++                engagements.Any(e => e.ArtistId == a.artistId && e.StartDay <= day && e.ThroughDay >= day) ||
++                a.members.Any(m => m.isActive && m.lifeState == MemberLifeState.Active && MemberWealthService.Norm(m) >= MemberWealthService.StudioOnlyAffordNorm);
++            var sets = bills.Where(b => SceneRoomCatalog.Get(b.RoomId).IsPerformance).SelectMany(b => b.Appearances.SelectMany(s =>
++                s.PersonIds.Select(p => (Person: p, Backing: false)).Concat((s.BackingPersonIds ?? new()).Select(p => (Person: p, Backing: true)))
++                .Select(x => (b.Day, b.RoomId, s.ArtistId, s.StartHour, s.EndHour, x.Person, x.Backing)))).ToList();
++            int doubledDays = 0;
++            var doublers = new HashSet<string>(StringComparer.Ordinal);
++            foreach (var g in sets.GroupBy(x => (x.Day, x.Person))) {
++                var rooms = g.Select(x => x.RoomId).Distinct().ToArray();
++                Check(rooms.Length <= LocalSceneRoomService.MaxRoomsPerDay, "at most two rooms per person per day");
++                if (rooms.Length < 2) continue;
++                var dayActs = g.Select(x => x.ArtistId).Distinct().ToArray();
++                Check(dayActs.Length == 1 && g.All(x => !x.Backing), "a second room is the same act, as a member (backers stay in one room)");
++                Check(FullTime(am.GetArtist(dayActs[0]), g.Key.Day), "only a full-time act works two rooms in a day");
++                Check(rooms.Select(r => SceneRoomCatalog.Get(r).PlaceId).Distinct().Count() == 1, "both rooms are in the act's town");
++                Check(g.All(x => g.Where(y => y.RoomId != x.RoomId).All(y => x.EndHour + LocalSceneRoomService.TravelHours <= y.StartHour ||
++                    y.EndHour + LocalSceneRoomService.TravelHours <= x.StartHour)), "time to cross town between rooms");
++                doubledDays++; doublers.Add(dayActs[0]);
++            }
++            var played = bills.Where(b => SceneRoomCatalog.Get(b.RoomId).IsPerformance)
++                .SelectMany(b => b.Appearances.Select(a => (Bill: b, a.ArtistId))).ToList();
++            var weekday = played.Where(x => !LocalSceneRoomService.Weekend(LocalSceneRoomService.Date(x.Bill.Day).DayOfWeek) &&
++                SceneRoomCatalog.Get(x.Bill.RoomId).Kind != SceneRoomKind.Coffeehouse).ToList();
++            Check(weekday.All(x => FullTime(am.GetArtist(x.ArtistId), x.Bill.Day)), "day-job acts play weekends (and coffeehouse open stages)");
++            var acts = played.Select(x => x.ArtistId).Distinct().ToArray();
++            int fullTimeActs = acts.Count(id => FullTime(am.GetArtist(id), 83));
++            GD.Print($"SCENE_WORKING_WEEK_WHY signed={acts.Count(id => !string.IsNullOrEmpty(am.GetArtist(id).labelId))} traction={acts.Count(id => LocalSceneRoomService.Traction(am.GetArtist(id)))} gonePro={acts.Count(id => LocalSceneRoomService.GonePro(am.GetArtist(id)))} proShows={acts.Count(id => LocalSceneRoomService.ActShows(id) >= LocalSceneRoomService.ProShows)} " +
++                $"engaged={acts.Count(id => engagements.Any(e => e.ArtistId == id))} " +
++                $"wealthy={acts.Count(id => am.GetArtist(id).members.Any(m => m.isActive && m.lifeState == MemberLifeState.Active && MemberWealthService.Norm(m) >= MemberWealthService.StudioOnlyAffordNorm))} " +
++                $"wealthNorm p50={Pct(.5):0.00} p75={Pct(.75):0.00} p90={Pct(.9):0.00}");
++            double Pct(double q) { var v = acts.Select(id => am.GetArtist(id).members.Where(m => m.isActive).Select(MemberWealthService.Norm).DefaultIfEmpty(0f).Max()).OrderBy(x => x).ToArray(); return v[(int)(q * (v.Length - 1))]; }
++            var actDays = played.GroupBy(x => (x.Bill.Day, x.ArtistId)).Count();
++            var actRoomDays = played.Select(x => (x.Bill.Day, x.ArtistId, x.Bill.RoomId)).Distinct().Count();
++            var weekdayClub = bills.Where(b => SceneRoomCatalog.Get(b.RoomId).Kind == SceneRoomKind.Club &&
++                !LocalSceneRoomService.Weekend(LocalSceneRoomService.Date(b.Day).DayOfWeek) && b.Appearances.Count > 0).ToList();
++            var weekendClub = bills.Where(b => SceneRoomCatalog.Get(b.RoomId).Kind == SceneRoomKind.Club &&
++                LocalSceneRoomService.Weekend(LocalSceneRoomService.Date(b.Day).DayOfWeek) && b.Appearances.Count > 0).ToList();
++            GD.Print($"SCENE_WORKING_WEEK sets={played.Count} acts={acts.Length} fullTimeActs={fullTimeActs} weekdaySets={weekday.Count} " +
++                $"actDays={actDays} doubledActDays={actRoomDays - actDays} doublers={doublers.Count} personDoubleDays={doubledDays} " +
++                $"clubActsPerBill weekday={(weekdayClub.Count == 0 ? 0 : weekdayClub.Average(b => b.Appearances.Count)):0.00} weekend={(weekendClub.Count == 0 ? 0 : weekendClub.Average(b => b.Appearances.Count)):0.00}");
++            if (LocalScenes.DoubleRooms) Check(doublers.Count > 0, "some full-time acts work two rooms in a day");
++            Check(actRoomDays - actDays <= .05 * actDays, "doubling is the exception: at most one act-day in twenty");
++        }
+     }
+ }
+diff --git a/b/Systems/LocalSceneRoomService.WorkingWeek.cs b/Systems/LocalSceneRoomService.WorkingWeek.cs
+new file mode 100644
+index 0000000..9ad231a
+--- /dev/null
++++ b/Systems/LocalSceneRoomService.WorkingWeek.cs
+@@ -0,0 +1,87 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++
++/// <summary>A working week. Two limits on how often an act plays, neither a cap on a good act:
++/// <para><b>Day jobs.</b> Most local acts kept their jobs and played weekends: Friday and Saturday nights and Sunday
++/// programs. A coffeehouse open stage is the weeknight exception (the Gaslight and Gerde's ran their hootenannies on
++/// Monday and Tuesday nights, for whoever turned up with a guitar). An act lives off music, and so takes weeknight work,
++/// when its records sell, it holds a standing engagement in a room, or a member who can afford not to work.</para>
++/// <para><b>Two rooms in a day.</b> A full-time act can work a second room in its town the same day, if there is time
++/// to pack up and cross town between sets (the Beatles often played a Cavern lunchtime and an evening dance elsewhere,
++/// and sometimes a third room). At most two rooms a day; day-job acts never double; house-band backers stay in one
++/// room. The catalog's room hours (afternoon halls and roadhouses, evening clubs and coffeehouses) and families
++/// decide which acts can double at all.</para>
++/// Both follow room rotation: <c>--disable-scene-room-rotation</c> turns them off with it. <c>--disable-scene-day-jobs</c>
++/// and <c>--disable-scene-double-rooms</c> are the separate controls.</summary>
++public static partial class LocalSceneRoomService {
++    /// <summary>Hours between the end of one set and the start of a set in another room: pack up, cross town, set up.</summary>
++    public const int TravelHours = 1;
++    public const int MaxRoomsPerDay = 2;
++    /// <summary>The scheduler's place marker for a player working two rooms today: matches no room, so no house band picks them.</summary>
++    private const string SecondRoom = "(second room)";
++
++    /// <summary>Weekend nights: a day-job act plays these. Sunday holds the community and church programs.</summary>
++    public static bool Weekend(DayOfWeek day) => day is DayOfWeek.Friday or DayOfWeek.Saturday or DayOfWeek.Sunday;
++
++    /// <summary>An act that lives off music. Records that sell (a chart entry, or a career past its first signing); a
++    /// standing engagement in a room; enough room work to live on (<see cref="ProShows"/>); a young, hungry line-up
++    /// that has gone pro before the work arrives (<see cref="GonePro"/>: the Beatles quit their jobs unsigned, for
++    /// Hamburg and the Cavern); or a member who can afford not to work (the band-life StudioOnly threshold). A contract
++    /// alone is not enough: most acts on small local labels kept their jobs. Everyone else keeps a day job.</summary>
++    public static bool FullTime(SimulatedArtist act, int day) => FullTime(act, State.Engagements
++        .Where(e => e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal));
++    /// <param name="engaged">Acts holding a standing engagement that day (the scheduler keeps this set per day).</param>
++    private static bool FullTime(SimulatedArtist act, HashSet<string> engaged) => act != null && (Traction(act) ||
++        engaged.Contains(act.artistId) || ActShows(act.artistId) >= ProShows || GonePro(act) ||
++        act.members.Any(m => m.isActive && m.lifeState == MemberLifeState.Active && MemberWealthService.Norm(m) >= MemberWealthService.StudioOnlyAffordNorm));
++
++    /// <summary>Live room shows at which an act has steady enough work to quit its jobs:
++    /// half a year of weekly gigs. A weekend act reaches it in about three months of full weekends. Design input.</summary>
++    public const int ProShows = 26;
++    /// <summary>Gone pro: every active member at least this ambitious and no older than <see cref="ProMaxAge"/> (no
++    /// family to keep). Design inputs.</summary>
++    public const float ProAmbition = 0.6f;
++    public const int ProMaxAge = 25;
++    public static bool GonePro(SimulatedArtist act) {
++        int year = Date(Math.Max(0, State.LastResolvedDay)).year;
++        var people = act.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).ToArray();
++        return people.Length > 0 && people.All(m => m.ambition >= ProAmbition && m.birthYear > 0 && year - m.birthYear <= ProMaxAge);
++    }
++    /// <summary>Live room shows an act has played, every room (a derived index over standing; never saved). Pre-rolled
++    /// history is left out, as in the booker's own count, so a prewarm never moves a live bill.</summary>
++    public static int ActShows(string artistId) => artistId != null && actShows.TryGetValue(artistId, out int n) ? n : 0;
++
++    /// <summary>Records that pay: a chart entry, or a career the label is already building.</summary>
++    public static bool Traction(SimulatedArtist act) => act.charted > 0 ||
++        act.careerState is CareerState.Rising or CareerState.Established or CareerState.Star or CareerState.Superstar;
++
++    /// <summary>Can this act take tonight's slot around its job? Full-time acts work any night the room is open.</summary>
++    private static bool FitsWorkingWeek(SimulatedArtist act, SceneRoomProfile room, int day, bool fullTime) =>
++        !LocalScenes.DayJobs || fullTime || Weekend(Date(day).DayOfWeek) || room.Kind == SceneRoomKind.Coffeehouse;
++
++    /// <summary>One set already on a person's or act's day: where, when, and in what capacity.</summary>
++    private readonly record struct DaySet(string RoomId, string ArtistId, int Start, int End, bool Backing);
++
++    private static void AddDaySet(Dictionary<string, List<DaySet>> sets, string key, DaySet set) {
++        if (!sets.TryGetValue(key, out var list)) sets[key] = list = new();
++        list.Add(set);
++    }
++
++    /// <summary>May this act's people play a set at <paramref name="hour"/> in <paramref name="room"/>, given the rest of
++    /// their day? The old rule: nobody already working another room that day. With double rooms, a full-time act may
++    /// add one more room, if every one of its people's other sets that day is with this act, as a member, in that one
++    /// other room, and ends (or starts) far enough away to cross town.</summary>
++    private static bool DayAllows(SimulatedArtist act, SceneRoomProfile room, int day, int hour, string[] people, bool fullTime,
++            Dictionary<string, List<DaySet>> actSets, Dictionary<string, List<DaySet>> personSets) {
++        var elsewhere = new List<DaySet>();
++        if (actSets.TryGetValue($"{day}|{act.artistId}", out var mine)) elsewhere.AddRange(mine.Where(s => s.RoomId != room.Id));
++        foreach (string p in people)
++            if (personSets.TryGetValue($"{day}|{p}", out var theirs)) elsewhere.AddRange(theirs.Where(s => s.RoomId != room.Id));
++        if (elsewhere.Count == 0) return true;
++        if (!LocalScenes.DoubleRooms || !fullTime) return false;
++        return elsewhere.All(s => s.ArtistId == act.artistId && !s.Backing && SceneRoomCatalog.Get(s.RoomId)?.PlaceId == room.PlaceId &&
++                (s.End + TravelHours <= hour || hour + 1 + TravelHours <= s.Start)) &&
++            elsewhere.Select(s => s.RoomId).Distinct().Count() <= MaxRoomsPerDay - 1;
++    }
++}
+diff --git a/Systems/LocalSceneRoomService.cs b/Systems/LocalSceneRoomService.cs
+index f360c5c..7831457 100644
+--- a/Systems/LocalSceneRoomService.cs
++++ b/Systems/LocalSceneRoomService.cs
+@@ -13,6 +13,7 @@ public static partial class LocalSceneRoomService {
+     private static readonly Dictionary<string, SceneRoomStanding> standing = new(StringComparer.Ordinal);
+     private static readonly Dictionary<string, SceneHouseBandStanding> houseStanding = new(StringComparer.Ordinal);
+     private static readonly Dictionary<string, (float Hours, float Pay)> backing = new(StringComparer.Ordinal);
++    private static readonly Dictionary<string, int> actShows = new(StringComparer.Ordinal);
+     private static SceneRoomSaveData State => state ??= new();
+     public static int Day(GameDate date) => (int)(new DateTime(date.year, date.month, date.day) - new DateTime(1960, 1, 1)).TotalDays;
+     public static GameDate Date(int day) => GameDate.StartDate.AddDays(day);
+@@ -53,15 +54,28 @@ public static partial class LocalSceneRoomService {
+         var reservations = new HashSet<string>(StringComparer.Ordinal);
+         var personPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
+         var actPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
++        // Each person's and act's sets by day, for a second room (WorkingWeek). Only kept when double rooms are on.
++        var actSets = new Dictionary<string, List<DaySet>>(StringComparer.Ordinal);
++        var personSets = new Dictionary<string, List<DaySet>>(StringComparer.Ordinal);
++        bool doubles = LocalScenes.DoubleRooms, workingWeek = LocalScenes.DayJobs || doubles;
++        void Track(SceneBill b, SceneAppearance slot) {
++            AddDaySet(actSets, $"{b.Day}|{slot.ArtistId}", new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
++            foreach (string person in slot.PersonIds) AddDaySet(personSets, $"{b.Day}|{person}", new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
++            foreach (string person in slot.BackingPersonIds ?? new()) AddDaySet(personSets, $"{b.Day}|{person}", new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, true));
++        }
+         foreach (var bill in State.Bills) foreach (var slot in bill.Appearances) {
+             foreach (string person in slot.PersonIds.Concat(slot.BackingPersonIds ?? new())) {
+                 personPlaces[$"{bill.Day}|{person}"] = bill.RoomId;
+                 for (int h = slot.StartHour; h < slot.EndHour; h++) reservations.Add($"{bill.Day}|{h}|{person}");
+             }
+             actPlaces[$"{bill.Day}|{slot.ArtistId}"] = bill.RoomId;
++            if (doubles) Track(bill, slot);
+         }
+         for (int day = Math.Max(week * 7, earliestDay); day < week * 7 + 7 && Date(day) <= GameDate.EndDate; day++) {
+             GameDate date = Date(day);
++            // Acts holding a standing engagement today: full-time by that alone (WorkingWeek).
++            var engaged = workingWeek ? State.Engagements.Where(e => e.StartDay <= day && e.ThroughDay >= day)
++                .Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal) : null;
+             foreach (var room in SceneRoomCatalog.All.Where(r => SceneLiveEconomics.OpenOn(r, date.DayOfWeek))) {
+                 if (State.Bills.Any(b => b.RoomId == room.Id && b.Day == day)) continue;
+                 string id = $"{room.Id}:{day}";
+@@ -75,17 +89,23 @@ public static partial class LocalSceneRoomService {
+                 var regularIds = State.Engagements.Where(e => e.RoomId == room.Id && e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal);
+                 bool rotation = LocalScenes.RoomRotation;
+                 if (rotation) OfferEngagements(room, day, members, regularIds, asOfDay.HasValue);
++                engaged?.UnionWith(regularIds);
+                 var candidates = rotation ? NightOrder(room, day, members, regularIds, asOfDay.HasValue) : members.OrderBy(a => regularIds.Contains(a.artistId) ? 0 : 1)
+                     .ThenBy(a => Draw($"engagement|{room.Id}|{term}|{a.artistId}"))
+                     .ThenBy(a => a.artistId, StringComparer.Ordinal);
+                 foreach (var act in candidates) {
+                     if (bill.Appearances.Count == slots) break;
++                    bool fullTime = workingWeek && FullTime(act, engaged);
++                    // A day-job act plays weekends (WorkingWeek).
++                    if (!FitsWorkingWeek(act, room, day, fullTime)) continue;
+                     string[] people = StagePeople(act);
+                     // Rotation books the top of the bill first, so it fills the night from the closing set back.
+                     int hour = rotation ? room.OpenHour + slots - 1 - bill.Appearances.Count : room.OpenHour + bill.Appearances.Count;
+-                    // No cross-city teleporting or shared-musician overlap. We conservatively keep a
+-                    // performer's whole day in one room until intracity travel is modeled explicitly.
+-                    if (actPlaces.TryGetValue($"{day}|{act.artistId}", out var ar) && ar != room.Id ||
++                    // No cross-city teleporting or shared-musician overlap. Without double rooms a performer's whole
++                    // day stays in one room; with them, a full-time act may cross town to one more room (WorkingWeek).
++                    if (doubles ? people.Any(p => reservations.Contains($"{day}|{hour}|{p}")) ||
++                            !DayAllows(act, room, day, hour, people, fullTime, actSets, personSets)
++                        : actPlaces.TryGetValue($"{day}|{act.artistId}", out var ar) && ar != room.Id ||
+                         people.Any(p => reservations.Contains($"{day}|{hour}|{p}") ||
+                             personPlaces.TryGetValue($"{day}|{p}", out var pr) && pr != room.Id)) continue;
+                     // Rotation: only an earned engagement makes a regular (OfferEngagements); otherwise booking confers one.
+@@ -99,6 +119,9 @@ public static partial class LocalSceneRoomService {
+                         Set = asOfDay.HasValue ? new() : SetFor(act, id, date.year), BackingPersonIds = backers?.Count > 0 ? backers : null });
+                     actPlaces[$"{day}|{act.artistId}"] = room.Id;
+                     foreach (string person in people.Concat(backers ?? new())) { reservations.Add($"{day}|{hour}|{person}"); personPlaces[$"{day}|{person}"] = room.Id; }
++                    // A player crossing town to a second room is nobody's house band today: backers stay in one room.
++                    if (doubles && actSets.TryGetValue($"{day}|{act.artistId}", out var earlier) && earlier.Any(x => x.RoomId != room.Id))
++                        foreach (string person in people) personPlaces[$"{day}|{person}"] = SecondRoom;
+                 }
+                 if (rotation) {
+                     // Filled from the top of the bill back: close any gap at the start, then list in running order.
+@@ -109,6 +132,8 @@ public static partial class LocalSceneRoomService {
+                         bill.Appearances[i].Role = i == 0 ? "opening set" : i == bill.Appearances.Count - 1 ? "closing set" : "middle set";
+                 }
+                 else if (bill.Appearances.Count == 3) bill.Appearances[1].Role = "middle set";
++                // Final hours, after the running order closes up: what a second room's travel gap is measured against.
++                if (doubles) foreach (var slot in bill.Appearances) Track(bill, slot);
+                 // Live shows only: pre-rolled history (PriorShows) is not a live draw.
+                 int prior = bill.Appearances.Sum(a => standing.TryGetValue(StandingKey(room.Id, a.ArtistId), out var s) ? Math.Min(12, s.Shows) : 0);
+                 bill.Capacity = SceneLiveEconomics.Capacity(room);
+@@ -177,6 +202,7 @@ public static partial class LocalSceneRoomService {
+                     standing.Add(key, rank); State.Standing.Add(rank);
+                 }
+                 rank.Shows++; rank.LastDay = bill.Day;
++                actShows[slot.ArtistId] = ActShows(slot.ArtistId) + 1;
+                 foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).StageHours += slot.EndHour - slot.StartHour;
+                 slot.BackingPersonIds?.RemoveAll(p => ArtistManager.Instance.GetMusician(p)?.lifeState != MemberLifeState.Active);
+                 foreach (string person in slot.BackingPersonIds ?? new()) {
+@@ -349,19 +375,19 @@ public static partial class LocalSceneRoomService {
+             throw new InvalidOperationException("Invalid saved room standing.");
+     }
+     public static void BeginRestore(SceneRoomSaveData saved) {
+-        ValidateRestore(saved); previous = state; state = Copy(saved); if (state != null) state.Conversations ??= new(); restoring = true; work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear();
++        ValidateRestore(saved); previous = state; state = Copy(saved); if (state != null) state.Conversations ??= new(); restoring = true; work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear(); actShows.Clear();
+     }
+     public static void CompleteRestore() { restoring = false; previous = null; Reindex(); }
+     public static void CancelRestore() { if (!restoring) return; state = previous; previous = null; restoring = false; Reindex(); }
+     private static void Reindex() {
+-        work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear();
++        work.Clear(); standing.Clear(); houseStanding.Clear(); backing.Clear(); actShows.Clear();
+         if (state == null) return;
+         state.HouseStanding ??= new();
+         foreach (var account in state.Work) {
+             work.Add(WorkKey(account.ArtistId, account.PersonId, account.Year), account);
+             if (account.Backing) AddBacking(account.PersonId, account.Year, account.StageHours, account.FeeShare);
+         }
+-        foreach (var row in state.Standing) standing.Add(StandingKey(row.RoomId, row.ArtistId), row);
++        foreach (var row in state.Standing) { standing.Add(StandingKey(row.RoomId, row.ArtistId), row); actShows[row.ArtistId] = ActShows(row.ArtistId) + row.Shows; }
+         foreach (var row in state.HouseStanding) houseStanding[row.RoomId + "|" + row.PersonId] = row;
+     }
+ }
+diff --git a/Systems/LocalScenes.cs b/Systems/LocalScenes.cs
+index 9407564..3e2e8fb 100644
+--- a/Systems/LocalScenes.cs
++++ b/Systems/LocalScenes.cs
+@@ -35,6 +35,12 @@ public static class LocalScenes {
+     /// <summary>Rooms book a fresh bill every night: kind-sized bills, earned regulars on top, a rotating cast beneath
+     /// (LocalSceneRoomService.Rotation). Off restores the two-act bill drawn once per 91-day term.</summary>
+     public static bool RoomRotation { get; private set; }
++    /// <summary>Day-job acts play weekends (and coffeehouse open stages); full-time acts take weeknight work
++    /// (LocalSceneRoomService.WorkingWeek). Follows room rotation.</summary>
++    public static bool DayJobs { get; private set; }
++    /// <summary>A full-time act can work a second room in its town the same day, with time to cross town between sets
++    /// (LocalSceneRoomService.WorkingWeek). Follows room rotation.</summary>
++    public static bool DoubleRooms { get; private set; }
+     public const int DefaultRoomPrewarmWeeks = 52;
+     public static int RoomPrewarmWeeks { get; private set; } = DefaultRoomPrewarmWeeks;
+     public static void ValidateDependencies() {
+@@ -137,6 +143,12 @@ public static class LocalScenes {
+         if (args.Contains("--enable-scene-room-rotation", StringComparer.Ordinal) && (!Rooms || args.Contains("--disable-scene-room-rotation", StringComparer.Ordinal)))
+             throw new ArgumentException("Room rotation requires scene rooms and cannot be enabled and disabled together.");
+         RoomRotation = Rooms && !args.Contains("--disable-scene-room-rotation", StringComparer.Ordinal);
++        foreach (string slice in new[] { "scene-day-jobs", "scene-double-rooms" })
++            if (args.Contains("--enable-" + slice, StringComparer.Ordinal) &&
++                (args.Contains("--disable-" + slice, StringComparer.Ordinal) || !RoomRotation))
++                throw new ArgumentException("--enable-" + slice + " requires room rotation and cannot be combined with its disable flag.");
++        DayJobs = RoomRotation && !args.Contains("--disable-scene-day-jobs", StringComparer.Ordinal);
++        DoubleRooms = RoomRotation && !args.Contains("--disable-scene-double-rooms", StringComparer.Ordinal);
+         string prewarmWeeks =args.FirstOrDefault(a => a.StartsWith("--scene-room-prewarm-weeks=", StringComparison.Ordinal));
+         RoomPrewarmWeeks = prewarmWeeks == null ? DefaultRoomPrewarmWeeks : int.Parse(prewarmWeeks["--scene-room-prewarm-weeks=".Length..]);
+         if (RoomPrewarmWeeks < 1 || RoomPrewarmWeeks > 520) throw new ArgumentException("--scene-room-prewarm-weeks must be between 1 and 520.");

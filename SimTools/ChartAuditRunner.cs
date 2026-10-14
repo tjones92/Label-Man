@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -355,6 +355,7 @@ public partial class ChartAuditRunner : Node {
 	public override void _Ready() {
 		try {
 			ParseArguments();
+			ParseResumeArguments();
 			ConfigurePolarResearch();
 			if (catastrophicFailFast || catastrophicControlPreflight) LoadCatastrophicFailFastControl();
 			if (catastrophicControlPreflight) {
@@ -381,6 +382,7 @@ public partial class ChartAuditRunner : Node {
 				if (!ArtistPopulationLifecycle.Enabled) throw new InvalidOperationException("Artist evolution probes require --enable-artist-population-lifecycle.");
 				foreach (string result in ArtistEvolutionProbeSuite.Run()) GD.Print("EVO_PROBE_PASS: " + result);
 			}
+			ResumeWorldIfRequested();
 			regions = ChartManager.Instance.GetAllRegions().ToArray();
 			ValidateLiveRegionTaxonomy(regions);
 			OpenOutputs();
@@ -407,6 +409,7 @@ public partial class ChartAuditRunner : Node {
 			CompetitorManager.Instance.OnSupplySelection += OnSupplySelection;
 			GenreSupplyService.OnTraditionalPopFallback += OnTraditionalPopFallback;
 			if (ArtistEvolution.Observing) ArtistEvolutionService.OnEvolutionObservation += OnEvolutionObservation;
+			OpenBandLifeOutputs();
 			if (ArtistEvolution.CulturalMemoryEnabled) CulturalMemoryService.OnEventPublished += OnCulturalEventPublished;
 			if (forceDistributionDeal) InstallForcedDistributionDeal();
 			WriteDistanceSubstrateRows();
@@ -415,6 +418,10 @@ public partial class ChartAuditRunner : Node {
 			InitializeObservedState();
 			CaptureDirective2Week();
 			CapturePolarCensus();
+			WriteSceneIdentityCensus("start");
+        WriteSceneParticipationCensus("start");
+        WriteSceneRoomCensus("start");
+        WriteSceneRecruitmentCensus("start");
 
 			var annualWallTime = Stopwatch.StartNew();
 		for (int week = 1; week <= requestedWeeks; week++) {
@@ -431,6 +438,7 @@ public partial class ChartAuditRunner : Node {
 				polarSongShadow?.ObserveCompletedWeek(ChartManager.Instance.GetCurrentChart(), ChartManager.Instance.GetCurrentChartWeek());
 				SimulationPerformanceProfiler.EndCaptureWeek(captureProfileStart);
 				ValidateEmergentSigningFloor();
+				MaybeSaveWorld();
 				if (week % 52 == 0) {
 					WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds);
 					FlushAnnualStreams();
@@ -441,6 +449,11 @@ public partial class ChartAuditRunner : Node {
 				while (TimeManager.Instance.CurrentDate < GameDate.EndDate) TimeManager.Instance.DebugAdvanceDay();
 				GD.Print($"POLAR_FINAL_DATE date={TimeManager.Instance.CurrentDate.ToShortString()} enabled={PolarSongBehavior.UsePolarFitSelection}");
 			}
+			WriteSceneIdentityCensus("end");
+        WriteSceneParticipationCensus("end");
+        WriteSceneRoomCensus("end");
+        WriteContactNetworkCensus();
+        WriteSceneRecruitmentCensus("end");
 			WriteActiveOffChartRetirementRows();
 			WriteConcentrationYear();
 			WriteGenreShapeYear();
@@ -2197,6 +2210,7 @@ public partial class ChartAuditRunner : Node {
 			int exits = previousChartIds.Count(id => !chartIds.Contains(id));
 			int newRecords = activeIds.Count(id => !previousActiveIds.Contains(id));
 			int retiredRecords = previousActiveIds.Count(id => !activeIds.Contains(id));
+			WriteSceneDynamicsRows(week, date);
 			WriteTierVolumeRows(week, records);
 			WriteLabelFinanceRows(week, date.year);
 			WriteMarketRevenueRows(week, date.year, records);
@@ -3853,6 +3867,7 @@ public partial class ChartAuditRunner : Node {
 			}
 		}
 		WriteMusicianRecognitionRows();
+		WriteBandLifeEndOfRun();
 		recordWriter?.Dispose();
 		songMaterialWriter?.Dispose();
 		polarSongShadow?.Dispose();
@@ -3900,6 +3915,13 @@ public partial class ChartAuditRunner : Node {
 		albumProjectWeeklyWriter?.Dispose();
 		decadeAnnualRollupWriter?.Dispose();
 		performanceProfileWriter?.Dispose();
+		sceneDynamicsWriter?.Dispose();
+		sceneOpportunityWriter?.Dispose();
+		sceneMoveWriter?.Dispose();
+		sceneAttentionWriter?.Dispose();
+		sceneAttentionEvidenceWriter?.Dispose();
+        sceneFeedbackWriter?.Dispose();
+        sceneEcosystemWriter?.Dispose();
 		cityRosterWriter?.Dispose();
 		distanceMatrixWriter?.Dispose();
 		labelGeographyWriter?.Dispose();

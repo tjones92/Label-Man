@@ -57,7 +57,7 @@ public partial class PolarPlayerPlaytestRunner : Node {
 			await Press("COMPARE HEARD MATERIAL");
 			Check(Descendants(panel).OfType<PolarComparisonWidget>().Any(), "scouting comparison opens");
 			await Screen("02b-heard-comparison");
-			Descendants(panel).OfType<AcceptDialog>().Single(w => w.Visible).EmitSignal(AcceptDialog.SignalName.Confirmed);
+			Descendants(panel).OfType<PaperModal>().Single().Close();
 			await Frame();
 			var chosen = Desk.Slate.OrderBy(p => CompositionCatalogService.GetProfessionalForGenre(p.Artist.primaryGenre).Count > 0 ? 0 : 1)
 				.ThenBy(p => GenreCatalog.Get(p.Artist.primaryGenre).Family == GenreFamily.Rock ? 0 : 1).ThenBy(p => p.AskingAdvance).First();
@@ -137,7 +137,7 @@ public partial class PolarPlayerPlaytestRunner : Node {
 			await Press("CATALOG"); await Press("COMPARE PLAYBACK");
 			Check(Descendants(panel).OfType<PolarComparisonWidget>().Any(g => !g.IsQueuedForDeletion()), "printed master playback comparison opens");
 			await Screen("06b-master-playback");
-			Descendants(panel).OfType<AcceptDialog>().Single(w => w.Visible).EmitSignal(AcceptDialog.SignalName.Confirmed);
+			Descendants(panel).OfType<PaperModal>().Single().Close();
 			await Frame(); await Press("DISTRIBUTION");
 			Action(Desk.AssembleSingle(a, b, out message), "assemble two-sided single", message);
 			Action(Desk.OrderPressing(a.Record.recordId, 500, 120, out message), "order minimum pressing with promos", message);

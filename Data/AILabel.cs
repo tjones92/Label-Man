@@ -15,11 +15,17 @@ public partial class AILabel : Resource {
 	[Export] public string labelName;
 	[Export] public string founderName;
 	[Export] public string headquartersCity;
+	// Phase 1 observation metadata. Existing economic identity fields remain authoritative.
+	public GeographicIdentity geography;
+    public List<SceneBusinessConnection> sceneBusinessConnections;
 	[Export] public LabelArchetype archetype;
 	[Export] public LabelTier tier;
 	[Export] public int foundedYear;
 	[Export] public bool isHistorical;
 	[Export] public bool isPlayerOwned;
+	// The label's crest, colours and lettering. Only the player picks one (at founding); everyone else leaves this
+	// null and wears LabelBrand.For(label), derived from the id. Null is not written to the world save.
+	public LabelBrand brand;
 	
 	[ExportGroup("Genres")]
 	public Genre[] preferredGenres;
@@ -327,7 +333,13 @@ public partial class AILabel : Resource {
 		return cashReserves - advanceCost > minReserve;
 	}
 	
-	public float CalculateAdvanceOffer(SimulatedArtist artist) {
+	/// <summary>The label's advance for this act: the act's own going rate while it is unproven, the legacy tier price once
+	/// its record proves out (see <see cref="ContractPricing"/>).</summary>
+	public float CalculateAdvanceOffer(SimulatedArtist artist) =>
+		ContractPricing.Advance(tier, artist, LegacyAdvanceOffer(artist));
+
+	/// <summary>The pre-historical tier price: a major's $5,000 base times talent, standing and a 1.5x competition premium.</summary>
+	public float LegacyAdvanceOffer(SimulatedArtist artist) {
 		float baseAdvance = tier switch {
 			LabelTier.Major => 5000f, LabelTier.MidTier => 2000f, LabelTier.Independent => 800f,
 			LabelTier.Small => 300f, LabelTier.Boutique => 500f, _ => 500f
@@ -335,7 +347,7 @@ public partial class AILabel : Resource {
 		float talentMult = 0.5f + (artist.CalculateBaseQuality() * 1.5f);
 		float reputationMult = 1f + (artist.reputation * 2f) + (artist.momentum * 1.5f);
 		float competitionMult = tier == LabelTier.Major ? 1.5f : 1f;
-		return baseAdvance * talentMult * reputationMult * competitionMult;
+		return baseAdvance * talentMult * reputationMult * competitionMult * ScenePriceFeedback.Multiplier(artist);
 	}
 	
 	public float CalculateRoyaltyRate(SimulatedArtist artist) {
@@ -426,6 +438,9 @@ public partial class AILabel : Resource {
 		artist.contractReleases = 0;
 		artist.labelOwnsPublishing = sheet.LabelOwnsPublishing;   // the economic axis (Phase 4 gives it teeth)
 		artist.artistCreativeControl = sheet.ArtistCreativeControl;
+		// The period's standard leaving-member clause. Stored on the act rather than the term sheet: nothing
+		// negotiates it, and nothing reads it until a member actually leaves (band-member simulation §4.7).
+		artist.contractLeavingMemberOption = true;
 
 		roster.Add(artist);
 		artist.careerEvents.Add($"{currentYear}: Signed to {labelName} (${sheet.Advance:N0} advance, {artist.contractLength}yr" +
@@ -483,12 +498,12 @@ public partial class AILabel : Resource {
 		string pub = labelPub ? "label keeps publishing" : "artist keeps publishing";
 		string ctrl = artistControl ? "artist creative control" : "label creative control";
 		return m switch {
-			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P0}, {pub}.",
-			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P0}, {pub}. Wants strong local push.",
-			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P0}, {pub}. Short term, renegotiates fast.",
-			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P0}. Long exclusive term.",
-			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P0}. Publishing is non-negotiable.",
-			_ => $"${advance:N0}, {royalty:P0}, {pub}."
+			ManagerArchetype.None => $"Standard terms. ${advance:N0}, {royalty:P1}, {pub}.",
+			ManagerArchetype.LocalHustler => $"Eager to deal. ${advance:N0}, {royalty:P1}, {pub}. Wants strong local push.",
+			ManagerArchetype.Shark => $"Hard-nosed. Demands ${advance:N0} up front, {royalty:P1}, {pub}. Short term, renegotiates fast.",
+			ManagerArchetype.Svengali => $"Wants the reins: {ctrl}, ${advance:N0}, {royalty:P1}. Long exclusive term.",
+			ManagerArchetype.Visionary => $"Protects the artist: {ctrl}, {pub}, {royalty:P1}. Publishing is non-negotiable.",
+			_ => $"${advance:N0}, {royalty:P1}, {pub}."
 		};
 	}
 
@@ -651,9 +666,9 @@ public partial class AILabel : Resource {
 		bool useOperatingRosterTarget) {
 		int rosterSize = CurrentRosterSize;
 		int rosterCapacity = useOperatingRosterTarget ? OperatingRosterTarget : maxRosterSize;
-		float estimatedAdvance = tier switch {
+		float estimatedAdvance = ContractPricing.EstimatedFirstAdvance(tier, tier switch {
 			LabelTier.Major => 5000f, LabelTier.MidTier => 2000f, _ => 800f
-		};
+		});
 		if (rosterSize >= rosterCapacity) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance, 1f,
 			false, 1f, 0, 1f, 0f, null, false, "RosterFull");
 		if (!CanAffordToSign(estimatedAdvance)) return new ScoutingGateEvaluation(rosterSize, rosterCapacity, estimatedAdvance,
@@ -758,8 +773,8 @@ public partial class AILabel : Resource {
 		return false;
 	}
 	
-	/// <summary>Rent-free home operation: what the player's label costs to keep the lights on each month.</summary>
-	public const float PlayerHomeOfficeOverhead = 75f;
+	/// <summary>What it costs the player each month to keep the lights on: a phone line, postage and a filing
+	/// cabinet, plus the rent for an office in the town they chose (see <see cref="CityProfiles"/>).</summary>
 	// Directive §4.3: "$5-10/mo -- trivial against the $75 overhead, so it's an early, affordable
 	// unlock" -- the real first "secretary," catching InboundCalls while the player's on the road.
 	// Explicitly exempted from invariant 5's "no new fixed cost the player can reach before the
@@ -768,11 +783,11 @@ public partial class AILabel : Resource {
 	public bool hasAnsweringService;
 
 	public float GetMonthlyOverhead() {
-		// The player starts out of a home or apartment, not an office: a phone line, a filing cabinet
-		// on the kitchen table, and postage. There is no per-artist line because the player's marginal
+		// The player starts out of a one-room office: a phone line, a filing cabinet and postage, plus
+		// whatever the town charges for the room. There is no per-artist line because the player's marginal
 		// cost of an act is already charged where it lands -- studio time, pressing, gas on the road.
 		// Player-only, so the AI economy's overhead schedule is untouched.
-		if (isPlayerOwned) return PlayerHomeOfficeOverhead + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
+		if (isPlayerOwned) return CityProfiles.MonthlyOverhead(homeCityId) + (hasAnsweringService ? AnsweringServiceMonthlyCost : 0f);
 		float baseOverhead = tier switch {
 			LabelTier.Major => 3000f, LabelTier.MidTier => 1200f, LabelTier.Independent => 400f,
 			LabelTier.Small => 150f, LabelTier.Boutique => 250f, _ => 300f

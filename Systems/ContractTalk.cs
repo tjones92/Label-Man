@@ -29,9 +29,11 @@ public enum ContractCounter {
 	None,
 	SweetenAxis,   // go back to the form and raise the named axis
 	TradeAxes,     // give back publishing/control, take the advance down in exchange
-	Promise,       // more sides, a real push -- no cash now, writes an obligation
+	Promise,       // a funded studio session after signing -- no cash now, writes an enforced commitment
 	HoldFirm,      // re-table unchanged; softens their number if patience is high, ends it if not
 	Walk,          // step back from the table voluntarily
+	PromisePromotion, // a half-page trade ad on their first record -- no cash now, writes an enforced commitment
+	PromiseDistribution, // a wholesale house carries their first record -- no cash now, writes an enforced commitment
 }
 
 /// <summary>Where the scene sits. The UI renders one stage at a time.</summary>
@@ -62,6 +64,17 @@ public sealed class ContractTalk {
 	public ContractAxis? objectionAxis;
 	public float lastOfferValue;
 	public ContractTermSheet? lastOffer;                        // null until the first table
+	public ContractTermSheet? draftOffer;                        // kept in the form after a time or cash refusal
+	public bool sessionPromised;                                // the package includes a funded session (PlayerDesk.ContractCommitments)
+	public bool promotionPromised;                              // the package includes a promotion push on their first record
+	public bool distributionPromised;                           // the package includes a wholesale line for their first record
+	// The contract outlook, read once when the table opens (PlayerDesk.ContractOutlook). The credit is hidden: what this
+	// label can do against the act's real alternative, plus the relationship. Zero on older saves, which reproduce the old check.
+	public float outlookCredit;
+	public float outlookLift;                                   // how much the outlook raised the reservation (already inside it)
+	public CapabilityAxis? capabilityGap;                       // what the act weighs where this label trails, if anywhere
+	public CapabilityAxis? capabilityObjection;                 // set when the last objection was about the label, not the terms
+	public List<string> outlookStated = new();                  // what the act and its people said; shown on the page
 	public readonly List<string> log = new();
 }
 
@@ -72,8 +85,10 @@ public sealed class ContractTalk {
 /// every render). Held live on <see cref="PlayerDesk.PendingRenewal"/>.
 /// </summary>
 public sealed class RenewalOffer {
+	public RenewalContractIdentity OriginalContract;
 	public SimulatedArtist Artist;
 	public ContractTermSheet Ask;
+	public ContractTermSheet? Draft;
 	public NegotiationPosture Posture;
 	/// <summary>Non-null only once a Firm/Hardball renewal has actually opened the scene.</summary>
 	public ContractTalk Talk;

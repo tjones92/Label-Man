@@ -76,6 +76,9 @@ public enum RolodexApproach {
 	// own base chance (off the B-side's own quality) and its own effect (a flip-specific advocacy
 	// row -- see PlayerDesk.ResolveWorkTheFlip -- never the record's real chart candidacy).
 	WorkTheFlip,
+	// "I want you to hear this first." Only offered when the record on the table is an acetate: nothing is
+	// out, nothing is serviced, so he gives his honest ear and nothing is bought or promised either way.
+	PlayTheAcetate,
 	HangUp,
 }
 
@@ -114,6 +117,9 @@ public sealed class RolodexCallContext {
 	public MarketRegion region;
 	public RecordRuntimeData record;
 	public Record baseRecord;
+	/// <summary>The record under discussion is a master with an acetate, not a release: hook, production and
+	/// genre are real, but there are no sales, no servicing and no runtime record (<see cref="record"/> is null).</summary>
+	public bool isAcetate;
 	public SimulatedArtist artist;
 	public AILabel playerLabel;
 	public ExecutiveInstinctProfile instincts;

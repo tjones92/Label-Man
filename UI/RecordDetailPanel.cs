@@ -65,7 +65,7 @@ public partial class RecordDetailPanel : Control
 
 		if (weeksOnChartText != null)
 			weeksOnChartText.Text = record.weeksOnChart > 0
-				? $"{record.weeksOnChart} weeks on chart"
+				? $"{record.weeksOnChart} {(record.weeksOnChart == 1 ? "week" : "weeks")} on chart"
 				: "New entry";
 
 		if (movementText != null)

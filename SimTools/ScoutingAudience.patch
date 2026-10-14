@@ -1,0 +1,413 @@
+diff --git a/Data/ScoutingKnowledge.cs b/Data/ScoutingKnowledge.cs
+index f3fb64c..fefd747 100644
+--- a/Data/ScoutingKnowledge.cs
++++ b/Data/ScoutingKnowledge.cs
+@@ -46,6 +46,7 @@ public sealed class ScoutingObservation {
+     public int? OccurredWeek { get; set; }
+     public int? PublishedDay { get; set; }
+     public string PlaceId { get; set; }
++    public string PlaceName { get; set; }
+     public int AcquiredDay { get; set; }
+     // Unknown for older observations; never infer a historical time on load.
+     public int? AcquiredMinute { get; set; }
+@@ -65,6 +66,9 @@ public sealed class ScoutingObservation {
+     public ScoutingStatedTerms StatedTerms { get; set; }
+     public int? BillAttendance { get; set; }
+     public int BillCapacity { get; set; }
++    // Acquired bill context; absent in older evidence. Quote is posted admission, not paid cost.
++    public int? BillListedActs { get; set; }
++    public float? BillAdmissionQuote { get; set; }
+     // Optional paid consultation cost. Zero for existing and roster-listener observations.
+     public float ConsultationFee { get; set; }
+     public string Conditions { get; set; }
+diff --git a/Systems/PlayerDesk.SceneRooms.cs b/Systems/PlayerDesk.SceneRooms.cs
+index 91e0366..173d948 100644
+--- a/Systems/PlayerDesk.SceneRooms.cs
++++ b/Systems/PlayerDesk.SceneRooms.cs
+@@ -35,6 +35,8 @@ public partial class PlayerDesk {
+         int duration = end - now;
+         if (!clock.CanAffordMinutes(duration)) { message = "This listening would pass today's hard stop. Choose an earlier set."; return false; }
+         float admission = AdmissionForVisit(bill, room, now) + (listener?.Admission ?? 0);
++        float postedAdmission = SceneLiveEconomics.Admission(room, bill.Year);
++        int listedActs = bill.Appearances.Select(a => a.ArtistId).Distinct(StringComparer.Ordinal).Count();
+         var admittedListeners = scoutingKnowledge.Visit is { } priorVisit && priorVisit.BillId == bill.Id && priorVisit.Day == bill.Day && priorVisit.EndMinute == now
+             ? (priorVisit.ListenerIds ?? new()).ToList() : new System.Collections.Generic.List<string>();
+         if (listener != null && !admittedListeners.Contains(listener.PersonId)) admittedListeners.Add(listener.PersonId);
+@@ -57,12 +59,14 @@ public partial class PlayerDesk {
+             var dossier = Dossier(artist.artistId, artist.stageName);
+             dossier.Observations.Add(new() { Id = $"observation-v1|{Label.labelId}|{identity}", LabelId = Label.labelId, ArtistId = artist.artistId,
+                 ArtistName = artist.stageName, Kind = ScoutingEvidenceKind.Performance, EventId = identity, BillId = bill.Id, RoomId = room.Id, RoomName = room.Name,
+-                SourceId = Label.labelId, SourceName = "Your listening", Channel = room.IsPerformance ? "live set" : "listening appointment",
++                SourceId = Label.labelId, SourceName = "Your listening", PlaceId = room.PlaceId,
++                PlaceName = ScenePlaceRegistry.Get(room.PlaceId)?.Name, Channel = room.IsPerformance ? "live set" : "listening appointment",
+                 OccurredDay = bill.Day, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate), AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, StartMinute = from, EndMinute = through, Coverage = coverage,
+                 Credibility = coverage >= .9 ? "full set impression; observer judgment remains uncertain" : "partial set impression; limited coverage",
+                 PersonIds = slot.PersonIds.ToList(), BackingPersonIds = slot.BackingPersonIds?.ToList() ?? new(), Set = LocalSceneRoomService.Copy(slot.Set),
+                 Interpretation = ScenePerformanceService.Interpret(slot.Performance, Label.labelId, Label.scoutingAbility, coverage),
+                 BillAttendance = resolved.Status == SceneBillStatus.Performed ? resolved.Attendance : null, BillCapacity = LocalSceneRoomService.CapacityOf(resolved),
++                BillListedActs = listedActs, BillAdmissionQuote = postedAdmission,
+                 Conditions = $"{slot.Role}; {room.Kind}; {(slot.Residency ? "regular engagement" : "announced booking")}. Repertoire is the scheduled set; partial coverage does not identify every song heard." });
+             if (listener != null) RememberScoutingListener(dossier, dossier.Observations.Last(), slot.Performance, listener);
+             var prospect = new Prospect { Artist = artist, Venue = room.Category, CityId = CurrentCityId, SceneRoomId = room.Id, SceneBillId = bill.Id,
+diff --git a/Systems/PlayerDesk.ScoutingSources.cs b/Systems/PlayerDesk.ScoutingSources.cs
+index ba3f322..7160611 100644
+--- a/Systems/PlayerDesk.ScoutingSources.cs
++++ b/Systems/PlayerDesk.ScoutingSources.cs
+@@ -9,12 +9,14 @@ public sealed class ScoutingSourceAnswer {
+     public string QuoteId => EventId + "|" + Claim;
+     public string BillId { get; init; }
+     public string RoomId { get; init; }
++    public string PlaceName { get; init; }
+     public string SourceId { get; init; }
+     public string SourceName { get; init; }
+     public string Claim { get; init; }
+     public int? OccurredDay { get; init; }
+     public int? BillAttendance { get; init; }
+     public int BillCapacity { get; init; }
++    public int? BillListedActs { get; init; }
+     public bool Available { get; init; }
+     public string UnavailableReason { get; init; }
+ }
+@@ -40,7 +42,7 @@ public partial class PlayerDesk {
+             .SelectMany(b => b.Appearances.Where(a => a.ArtistId == artistId && a.Status == SceneBillStatus.Scheduled &&
+                 (b.Day > day || a.EndHour * 60 > minute)).Select(a => (bill: b, slot: a)))
+             .OrderBy(x => x.bill.Day).ThenBy(x => x.slot.StartHour).ThenBy(x => x.bill.Id, StringComparer.Ordinal).FirstOrDefault();
+-        string eventId, claim, billId = null; int? occurred = null, attendance = null; int capacity = 0;
++        string eventId, claim, billId = null; int? occurred = null, attendance = null, listedActs = null; int capacity = 0;
+         switch (question) {
+             case ScoutingSourceQuestion.BookingHistory:
+                 int shows = LocalSceneRoomService.ShowsAt(roomId, artistId);
+@@ -51,6 +53,7 @@ public partial class PlayerDesk {
+                 var completed = LocalSceneRoomService.LastCompletedBill(roomId, artistId, day, minute);
+                 billId = completed?.Id; occurred = completed?.Day;
+                 attendance = completed?.Attendance; capacity = completed?.Capacity ?? 0;
++                listedActs = completed?.Appearances.Select(a => a.ArtistId).Distinct(StringComparer.Ordinal).Count();
+                 eventId = $"booker-audience|{roomId}|{artistId}|{billId ?? "none"}";
+                 claim = completed == null ? "No completed bill with a capacity and attendance record for this act remains in our calendar. Their individual draw is unknown."
+                     : $"Our completed bill record for {LocalSceneRoomService.Date(completed.Day).ToHeadlineString()} counts {attendance} attendees against a capacity of {capacity}. That is the whole bill, including the other acts; it does not show how many came for this act or would follow them elsewhere.";
+@@ -80,7 +83,9 @@ public partial class PlayerDesk {
+         else if (minute + 60 > clock.HardStopHour * 60 || clock.HoursRemainingWithOvertime < 1)
+             blocked = "There is not an hour left for this conversation today.";
+         return new() { EventId = eventId, BillId = billId, RoomId = room.Id, SourceId = room.ContactId, SourceName = room.ContactName,
++            PlaceName = ScenePlaceRegistry.Get(room.PlaceId)?.Name,
+             Claim = claim, OccurredDay = occurred, BillAttendance = attendance, BillCapacity = capacity,
++            BillListedActs = listedActs,
+             Available = blocked == null, UnavailableReason = blocked };
+     }
+ 
+@@ -99,9 +104,10 @@ public partial class PlayerDesk {
+         Dossier(artistId, artist.stageName).Observations.Add(new() { Id = $"claim-v1|{Label.labelId}|{answer.EventId}", EventId = answer.EventId,
+             BillId = answer.BillId, LabelId = Label.labelId, ArtistId = artistId, ArtistName = artist.stageName,
+             Kind = ScoutingEvidenceKind.BookerClaim, RoomId = roomId, RoomName = room.Name, SourceId = answer.SourceId, SourceName = answer.SourceName,
+-            Channel = "booker conversation", OccurredDay = answer.OccurredDay, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate),
++            Channel = "booker conversation", PlaceId = room.PlaceId, PlaceName = answer.PlaceName,
++            OccurredDay = answer.OccurredDay, AcquiredDay = LocalSceneRoomService.Day(clock.CurrentDate),
+             AcquiredMinute = clock.CurrentHour * 60 + clock.CurrentMinute, Credibility = "local booking record; limited to this room", Claim = answer.Claim,
+-            BillAttendance = answer.BillAttendance, BillCapacity = answer.BillCapacity });
++            BillAttendance = answer.BillAttendance, BillCapacity = answer.BillCapacity, BillListedActs = answer.BillListedActs });
+         message = answer.SourceName + ": " + answer.Claim; Note(message); Changed?.Invoke(); return true;
+     }
+ }
+diff --git a/Systems/PlayerDesk.ScoutingKnowledge.cs b/Systems/PlayerDesk.ScoutingKnowledge.cs
+index 476dc18..da8b61a 100644
+--- a/Systems/PlayerDesk.ScoutingKnowledge.cs
++++ b/Systems/PlayerDesk.ScoutingKnowledge.cs
+@@ -110,11 +110,6 @@ public partial class PlayerDesk {
+                 lines.Add("Stage communication: " + AxisDescription(read.Communication) + ".");
+             }
+             if (!dossier.Observations.Any(o => o.Kind == ScoutingEvidenceKind.DemoSample)) lines.Add("Recording readiness: no recording evidence acquired.");
+-            if (last.BillAttendance.HasValue && last.BillCapacity > 0) {
+-                float fullness = (float)last.BillAttendance.Value / last.BillCapacity;
+-                string count = fullness >= .85 ? "nearly full" : fullness >= .6 ? "roughly three-quarters full" : fullness >= .35 ? "about half full" : "sparsely occupied";
+-                lines.Add($"Audience: the whole bill was {count}. Attendance is not an act's portable following.");
+-            } else lines.Add("Audience: no completed bill count acquired during this listening; individual draw is unknown.");
+             var current = ArtistManager.Instance?.GetArtist(artistId);
+             var people = current?.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).Select(m => m.personId).OrderBy(id => id, StringComparer.Ordinal);
+             if (people == null || !people.SequenceEqual(last.PersonIds.OrderBy(id => id, StringComparer.Ordinal)))
+@@ -131,12 +126,15 @@ public partial class PlayerDesk {
+         }
+         if (ScoutingListenerComparison(dossier) is { } comparison) lines.Add(comparison);
+         if (ScoutingMeetingSummary(artistId) is { } meeting) lines.Add(meeting);
++        lines.Add(ScoutingAudience.Summary(dossier));
+         lines.AddRange(ScoutingBusinessStatements(artistId));
+         lines.Add(ScoutingCompetitionSummary(artistId));
+         if (ScoutingOtherKnownLeads(artistId) is { } alternatives) lines.Add(alternatives);
+         lines.Add(NextScoutingOpportunity(artistId));
+         return lines;
+     }
++    public IReadOnlyList<string> ScoutingAudienceDetails(string artistId) =>
++        ScoutingAudience.Details(scoutingKnowledge.Dossiers.FirstOrDefault(d => d.ArtistId == artistId));
+     public string NextScoutingOpportunity(string artistId) {
+         if (!LocalScenes.Rooms) return "The room calendar is disabled; recorded evidence is retained.";
+         if (!LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver)
+diff --git a/UI/PlayerDeskPanel.ScoutingKnowledge.cs b/UI/PlayerDeskPanel.ScoutingKnowledge.cs
+index e9684d4..896b88f 100644
+--- a/UI/PlayerDeskPanel.ScoutingKnowledge.cs
++++ b/UI/PlayerDeskPanel.ScoutingKnowledge.cs
+@@ -52,6 +52,15 @@ public partial class PlayerDeskPanel {
+                 button.Disabled = dossier.Priority == priority;
+                 button.Pressed += () => { desk.SetScoutingPriority(dossier.ArtistId, priority); Refresh(); }; row.AddChild(button);
+             }
++            var audience = Btn("AUDIENCE EVIDENCE"); audience.Pressed += () => {
++                var modal = PaperModal.OpenClipboard(this, dossier.ArtistName + " — AUDIENCE", 850);
++                var scroll = ComparisonScroll();
++                var notes = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
++                notes.AddThemeConstantOverride("separation", 12);
++                scroll.AddChild(notes); modal.Body.AddChild(scroll);
++                foreach (string line in desk.ScoutingAudienceDetails(dossier.ArtistId)) notes.AddChild(FaintLine(line));
++                modal.AddButton("DONE", null, PaperModal.ButtonKind.Primary);
++            }; row.AddChild(audience);
+             var details = Btn("SOURCES & COVERAGE"); details.Pressed += () => {
+                 var modal = PaperModal.OpenClipboard(this, dossier.ArtistName + " — EVIDENCE", 850);
+                 var scroll = ComparisonScroll();
+diff --git a/SimTools/SaveLoadRoundTripRunner.cs b/SimTools/SaveLoadRoundTripRunner.cs
+index 154f839..3542238 100644
+--- a/SimTools/SaveLoadRoundTripRunner.cs
++++ b/SimTools/SaveLoadRoundTripRunner.cs
+@@ -41,6 +41,7 @@ public partial class SaveLoadRoundTripRunner : Node {
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-check")) { ScoutingOpeningChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-commitment-planning-check")) { ScoutingCommitmentPlanningChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-founding-history-check")) { ScoutingFoundingHistoryChecks.Run(); GetTree().Quit(0); return; }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-check")) { ScoutingAudienceChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+diff --git a/SimTools/SceneRoomUiRunner.cs b/SimTools/SceneRoomUiRunner.cs
+index 5f3d85f..9a77853 100644
+--- a/SimTools/SceneRoomUiRunner.cs
++++ b/SimTools/SceneRoomUiRunner.cs
+@@ -21,6 +21,35 @@ public partial class SceneRoomUiRunner : Node {
+             var fold = Descendants(this).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "FOLD THE PAPER  ×");
+             fold?.EmitSignal(Button.SignalName.Pressed);
+             for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-ui-check")) {
++                var audienceClock = TimeManager.Instance;
++                audienceClock.RestoreClock(GameDate.StartDate, 9);
++                var appearance = desk.ScoutingItinerary().First();
++                if (!desk.WaitForSceneAppearance(appearance.BillId, appearance.EventId, out message) || !desk.ListenSceneAppearance(appearance.BillId, appearance.EventId, out message)) throw new InvalidOperationException(message);
++                var heard = desk.ScoutingDossiers.Single(d => d.ArtistId == appearance.ArtistId).Observations.Single(o => o.Kind == ScoutingEvidenceKind.Performance);
++                var controlled = desk.CaptureState(); controlled.ScoutingKnowledge.Dossiers = new() { ScoutingAudienceChecks.ContextFixture(heard) };
++                if (!desk.RestoreState(controlled, out message)) throw new InvalidOperationException(message);
++                panel.OpenAtTab("A&R");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var audienceSummary = Descendants(panel).OfType<Label>().Single(l => !l.IsQueuedForDeletion() && l.Text.StartsWith("Audience:"));
++                if (!audienceSummary.Text.Contains("2 distinct whole-bill")) throw new InvalidOperationException("Notebook needs one crowd per bill.");
++                Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "AUDIENCE EVIDENCE").EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var sourceLine = Descendants(panel).OfType<Label>().Single(l => l.IsVisibleInTree() && l.Text.Contains("150 attendees against 200 capacity"));
++                if (!sourceLine.Text.Contains("Fixture booker") || !sourceLine.Text.Contains("Received") || !sourceLine.Text.Contains("admission not recorded")) throw new InvalidOperationException("Exact source counts need provenance and unknown admission.");
++                var visualLine = Descendants(panel).OfType<Label>().Single(l => l.IsVisibleInTree() && l.Text.StartsWith("Your listening:"));
++                if (!visualLine.Text.Contains("roughly three-quarters full") || visualLine.Text.Contains("149 attendees")) throw new InvalidOperationException("Your listening stays a broad occupancy impression.");
++                var audienceScroll = Descendants(panel).OfType<ScrollContainer>().Single(s => s.IsAncestorOf(sourceLine));
++                if (audienceScroll.Size.Y <= 0 || audienceScroll.Size.Y > 540) throw new InvalidOperationException("Audience detail needs bounded scrolling.");
++                var done = Descendants(panel).OfType<Button>().Last(b => b.IsVisibleInTree() && b.Text == "DONE");
++                if (!done.IsVisibleInTree()) throw new InvalidOperationException("Audience evidence needs an accessible dismissal.");
++                string audienceDir = ProjectSettings.GlobalizePath("res://SimLogs/scouting-audience-ui-v1"); Directory.CreateDirectory(audienceDir);
++                foreach (var toast in Descendants(panel).OfType<Control>().Where(c => c.Name == "ActionFeedbackToast")) toast.Hide();
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(audienceDir, "evidence.png"));
++                done.EmitSignal(Button.SignalName.Pressed);
++                GD.Print("SCOUTING_AUDIENCE_UI_PASS billDedup=true sourcedCounts=true broadListening=true bounded=true"); GetTree().Quit(0); return;
++            }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-founding-history-ui-check")) {
+                 var clock = TimeManager.Instance;
+                 clock.RestoreClock(GameDate.StartDate, 9);
+diff --git a/Systems/ScoutingAudience.cs b/Systems/ScoutingAudience.cs
+new file mode 100644
+--- /dev/null
++++ b/Systems/ScoutingAudience.cs
+@@ -0,0 +1,81 @@
++using System;
++using System.Collections.Generic;
++using System.Linq;
++
++/// <summary>Projects acquired whole-bill evidence only. Never refreshes from live calendars or artist truth.</summary>
++public static class ScoutingAudience {
++    private static bool Usable(ScoutingObservation o) =>
++        o.Kind is ScoutingEvidenceKind.Performance or ScoutingEvidenceKind.BookerClaim &&
++        o.BillAttendance >= 0 && o.BillCapacity > 0 && o.BillAttendance <= o.BillCapacity;
++
++    // Same event/source is a copied report, not another source or another crowd.
++    private static ScoutingObservation[] Reports(ScoutingDossier dossier) =>
++        (dossier?.Observations ?? new()).Where(Usable)
++            .Select((o, i) => (observation: o, key: !string.IsNullOrEmpty(o.EventId) ? $"{o.Kind}|{o.EventId}|{o.SourceId}" :
++                !string.IsNullOrEmpty(o.Id) ? o.Id : $"unlinked|{i}"))
++            .GroupBy(x => x.key, StringComparer.Ordinal).Select(g => g.First().observation)
++            .OrderBy(o => o.OccurredDay ?? int.MinValue).ThenBy(o => o.AcquiredDay).ThenBy(o => o.AcquiredMinute).ToArray();
++
++    private static string Room(ScoutingObservation o) =>
++        (o.RoomName ?? "room name not recorded") + " (" + (o.PlaceName ?? "town name not recorded") + ")";
++    private static string Date(int? day) => day.HasValue ? LocalSceneRoomService.Date(day.Value).ToHeadlineString() : "date unknown";
++    private static string Fullness(ScoutingObservation o) {
++        float fullness = (float)o.BillAttendance.Value / o.BillCapacity;
++        return fullness >= .85 ? "nearly full" : fullness >= .6 ? "roughly three-quarters full" : fullness >= .35 ? "about half full" : "sparsely occupied";
++    }
++    private static string Context(ScoutingObservation o) =>
++        (o.BillListedActs > 0 ? $"{o.BillListedActs} listed act(s)" : "bill size not recorded") + "; " +
++        (o.BillAdmissionQuote is >= 0 && float.IsFinite(o.BillAdmissionQuote.Value)
++            ? $"${o.BillAdmissionQuote:0.00} posted admission at your visit" : "admission not recorded");
++    private static bool Disagree(IEnumerable<ScoutingObservation> reports) {
++        var items = reports.ToArray();
++        for (int i = 0; i < items.Length; i++) for (int j = i + 1; j < items.Length; j++) {
++            var a = items[i]; var b = items[j];
++            // A visual occupancy band cannot contradict a precise report within that same band.
++            if (a.BillCapacity != b.BillCapacity ||
++                (!string.IsNullOrEmpty(a.RoomId) && !string.IsNullOrEmpty(b.RoomId) && a.RoomId != b.RoomId) ||
++                (a.OccurredDay.HasValue && b.OccurredDay.HasValue && a.OccurredDay != b.OccurredDay) ||
++                (a.Kind == ScoutingEvidenceKind.BookerClaim && b.Kind == ScoutingEvidenceKind.BookerClaim
++                    ? a.BillAttendance != b.BillAttendance : Fullness(a) != Fullness(b))) return true;
++        }
++        return false;
++    }
++
++    public static string Summary(ScoutingDossier dossier) {
++        var reports = Reports(dossier);
++        if (reports.Length == 0) return "Audience: no usable completed whole-bill attendance evidence acquired. Ask a room's booker about a completed bill; individual draw is unknown.";
++        var linked = reports.Where(o => !string.IsNullOrEmpty(o.BillId)).GroupBy(o => o.BillId, StringComparer.Ordinal).ToArray();
++        if (linked.Length == 0) return "Audience: retained reports have no bill identity; independent crowds cannot be counted. Review their sources. Individual draw and portable following remain unknown.";
++        int rooms = linked.SelectMany(g => g).Select(o => o.RoomId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count();
++        int places = linked.SelectMany(g => g).Select(o => o.PlaceId).Where(id => !string.IsNullOrEmpty(id)).Distinct(StringComparer.Ordinal).Count();
++        bool conflict = linked.Any(g => Disagree(g));
++        return $"Audience: {linked.Length} distinct whole-bill record(s), {rooms} recorded room(s), {places} recorded town(s). " +
++            (conflict ? "Reports disagree on at least one bill; review the sources. " : "") +
++            "Crowd size includes the other acts and room context; individual draw and portable following remain unknown.";
++    }
++
++    public static IReadOnlyList<string> Details(ScoutingDossier dossier) {
++        var reports = Reports(dossier);
++        var lines = new List<string> { Summary(dossier) };
++        foreach (var group in reports.Select((o, i) => (o, key: !string.IsNullOrEmpty(o.BillId) ? o.BillId : $"unlinked|{i}"))
++            .GroupBy(x => x.key, StringComparer.Ordinal)) {
++            var observations = group.Select(x => x.o).ToArray();
++            var first = observations[0];
++            lines.Add($"{Room(first)} · {Date(first.OccurredDay)} · whole bill" +
++                (string.IsNullOrEmpty(first.BillId) ? " · bill identity unknown" : "") +
++                (Disagree(observations) ? " · conflicting reports" : "") + ".");
++            foreach (var report in observations) {
++                string receipt = Date(report.AcquiredDay) + (report.AcquiredMinute.HasValue ? $" at {report.AcquiredMinute / 60:00}:{report.AcquiredMinute % 60:00}" : " at unknown time");
++                string audience = report.Kind == ScoutingEvidenceKind.BookerClaim
++                    ? $"{report.SourceName ?? "Unnamed source"}'s retained report: {report.BillAttendance} attendees against {report.BillCapacity} capacity"
++                    : $"Your listening: {Fullness(report)} against {report.BillCapacity} capacity; {report.Coverage:P0} of the scheduled set heard";
++                string location = report.RoomId != first.RoomId || report.OccurredDay != first.OccurredDay
++                    ? $" Reported at {Room(report)}, {Date(report.OccurredDay)}." : "";
++                lines.Add($"{audience}. {Context(report)}.{location} Received {receipt}. " + (report.Credibility ?? "source credibility not recorded") + ".");
++            }
++        }
++        if (reports.Length == 0) lines.Add("Listening before a bill completes does not supply its final attendance. Later calendar results do not fill old notes automatically.");
++        lines.Add("A second set, listener or report from one bill is still one crowd. These records do not establish who came for this act, who stayed for it, or who would travel to another room. Capacity, admission, other acts and the room itself can differ.");
++        return lines.AsReadOnly();
++    }
++}
+diff --git a/SimTools/ScoutingAudienceChecks.cs b/SimTools/ScoutingAudienceChecks.cs
+new file mode 100644
+--- /dev/null
++++ b/SimTools/ScoutingAudienceChecks.cs
+@@ -0,0 +1,108 @@
++using System;
++using System.Linq;
++using System.Text.Json;
++using Godot;
++
++public static class ScoutingAudienceChecks {
++    // Controlled retained observations only; no extra bills, fans, fees or world performances.
++    public static ScoutingDossier ContextFixture(ScoutingObservation heard) {
++        var first = LocalSceneRoomService.Copy(heard);
++        first.BillAttendance = 149; first.BillCapacity = 200; first.BillListedActs = 3; first.BillAdmissionQuote = 2;
++        var report = LocalSceneRoomService.Copy(first);
++        report.Id = "audience-source-one"; report.EventId = report.Id; report.Kind = ScoutingEvidenceKind.BookerClaim;
++        report.SourceId = "controlled-booker"; report.SourceName = "Fixture booker"; report.BillAttendance = 150;
++        report.BillAdmissionQuote = null; report.Claim = "Controlled whole-bill record"; report.AcquiredDay += 1;
++        report.Credibility = "controlled local source record; limited to this room";
++        var other = LocalSceneRoomService.Copy(report);
++        other.Id = "audience-source-two"; other.EventId = other.Id; other.BillId = "controlled-other-bill";
++        other.RoomId = "controlled-other-room"; other.RoomName = "Comparison Hall"; other.PlaceId = "controlled-other-town";
++        other.PlaceName = "Comparison town";
++        other.OccurredDay += 2; other.AcquiredDay += 2; other.BillAttendance = 20; other.BillCapacity = 500; other.BillListedActs = 1;
++        return new() { ArtistId = heard.ArtistId, ArtistName = heard.ArtistName, Observations = new() { first, report, other } };
++    }
++    public static void Run() {
++        int checks = 0;
++        void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCOUTING_AUDIENCE_FAILED: " + why); checks++; }
++        string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
++        var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
++        Check(desk.FoundLabel("Audience Evidence", "nashville", out string message), "found: " + message);
++        var plan = desk.ScoutingItinerary().First();
++        var bill = LocalSceneRoomService.Bill(plan.BillId); var room = SceneRoomCatalog.Get(plan.RoomId);
++        int listed = bill.Appearances.Select(a => a.ArtistId).Distinct(StringComparer.Ordinal).Count();
++        float quote = SceneLiveEconomics.Admission(room, bill.Year);
++        Check(desk.WaitForSceneAppearance(plan.BillId, plan.EventId, out message) && desk.ListenSceneAppearance(plan.BillId, plan.EventId, out message), "actual scheduled set: " + message);
++        var dossier = desk.ScoutingDossiers.Single(d => d.ArtistId == plan.ArtistId);
++        var heard = dossier.Observations.Single(o => o.Kind == ScoutingEvidenceKind.Performance);
++        Check(heard.BillListedActs == listed && heard.BillAdmissionQuote == quote && heard.PlaceId == room.PlaceId && heard.PlaceName == ScenePlaceRegistry.Get(room.PlaceId)?.Name, "real listening retains posted context");
++        clock.EndDay(); clock.RestoreClock(clock.CurrentDate, room.OpenHour);
++        var answer = desk.PreviewScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience);
++        Check(answer.Available && answer.BillId == bill.Id && answer.BillListedActs == listed, "actual completed-bill answer");
++        int minute = clock.CurrentHour * 60 + clock.CurrentMinute;
++        Check(desk.AskScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience, answer.QuoteId, out message), "real paid-time source answer: " + message);
++        dossier = desk.ScoutingDossiers.Single(d => d.ArtistId == plan.ArtistId);
++        var sourced = dossier.Observations.Last();
++        Check(dossier.Observations.Single(o => o.Kind == ScoutingEvidenceKind.Performance).BillAttendance == heard.BillAttendance, "ordinary bill completion cannot retroactively fill listening notes");
++        Check(sourced.BillListedActs == listed && sourced.BillAdmissionQuote == null && sourced.PlaceId == room.PlaceId && sourced.AcquiredMinute == minute + 60, "source freezes listed bill, occurrence and real receipt, without inventing historical admission");
++        Check(ScoutingAudience.Summary(dossier).Contains("1 distinct whole-bill") && !ScoutingAudience.Summary(dossier).Contains("Reports disagree"), "listening and booker are one crowd, not independent bills");
++        Check(!desk.AskScoutingSource(room.Id, plan.ArtistId, ScoutingSourceQuestion.BillAudience, answer.QuoteId, out _) && clock.CurrentHour * 60 + clock.CurrentMinute == minute + 60, "duplicate source acquisition has no time or crowd progress");
++        var fixture = ContextFixture(heard);
++        string Detail(ScoutingDossier d) => string.Join("\n", ScoutingAudience.Details(d));
++        Check(ScoutingAudience.Summary(fixture).Contains("2 distinct whole-bill") && ScoutingAudience.Summary(fixture).Contains("2 recorded room") && ScoutingAudience.Summary(fixture).Contains("2 recorded town"), "different retained bills, rooms and towns counted independently");
++        Check(Detail(fixture).Contains("150 attendees against 200 capacity") && !Detail(fixture).Contains("149 attendees") && Detail(fixture).Contains("roughly three-quarters full"), "visual observation stays coarse while source count retains denominator");
++        Check(Detail(fixture).Contains("3 listed act") && Detail(fixture).Contains("$2.00 posted admission") && Detail(fixture).Contains("Received") && Detail(fixture).Contains("Fixture booker"), "source, receipt and room/bill context are explicit");
++        Check(!ScoutingAudience.Summary(fixture).Contains("Reports disagree"), "exact source count within the visual band is not a contradiction");
++        var sameBill = LocalSceneRoomService.Copy(fixture); var secondSet = LocalSceneRoomService.Copy(sameBill.Observations[0]);
++        secondSet.Id = "second-set"; secondSet.EventId = "second-appearance"; sameBill.Observations.Add(secondSet);
++        Check(ScoutingAudience.Summary(sameBill) == ScoutingAudience.Summary(fixture), "two actual appearance identities on one bill remain one crowd");
++        var sameDate = LocalSceneRoomService.Copy(fixture); sameDate.Observations[2].OccurredDay = sameDate.Observations[0].OccurredDay;
++        Check(ScoutingAudience.Summary(sameDate).Contains("2 distinct whole-bill"), "two bill identities on one date remain distinct crowds");
++        var changed = LocalSceneRoomService.Copy(fixture); changed.Observations[1].BillAttendance = 190;
++        Check(ScoutingAudience.Summary(changed).Contains("Reports disagree") && Detail(changed).Contains("conflicting reports"), "visibly incompatible reports remain disputed");
++        changed = LocalSceneRoomService.Copy(fixture); var contrary = LocalSceneRoomService.Copy(changed.Observations[1]);
++        contrary.Id = "other-source"; contrary.EventId = "other-source-event"; contrary.SourceId = "other-source"; contrary.BillAttendance = 151; changed.Observations.Add(contrary);
++        Check(ScoutingAudience.Summary(changed).Contains("Reports disagree") && Detail(changed).Contains("151 attendees"), "different exact source counts remain separate, without silent averaging");
++        changed = LocalSceneRoomService.Copy(fixture); var copy = LocalSceneRoomService.Copy(changed.Observations[1]); copy.Id = "copied-note"; changed.Observations.Add(copy);
++        Check(ScoutingAudience.Summary(changed) == ScoutingAudience.Summary(fixture) && Detail(changed) == Detail(fixture), "copied event and source deduplicate");
++        var opinion = LocalSceneRoomService.Copy(heard); opinion.Kind = ScoutingEvidenceKind.ListenerOpinion; opinion.BillId = "not-another-crowd"; changed.Observations.Add(opinion);
++        var demo = LocalSceneRoomService.Copy(opinion); demo.Kind = ScoutingEvidenceKind.DemoSample; changed.Observations.Add(demo);
++        Check(Detail(changed) == Detail(fixture), "listener judgments and studio samples do not create audience evidence");
++        changed = LocalSceneRoomService.Copy(fixture); foreach (var o in changed.Observations) { o.BillListedActs = null; o.BillAdmissionQuote = null; o.PlaceId = null; o.PlaceName = null; }
++        Check(Detail(changed).Contains("bill size not recorded") && Detail(changed).Contains("admission not recorded") && ScoutingAudience.Summary(changed).Contains("0 recorded town"), "legacy fields remain unknown rather than reconstructed from today's room");
++        Check(Detail(changed).Contains("town name not recorded"), "missing historical town name stays unknown");
++        changed = LocalSceneRoomService.Copy(fixture); foreach (var o in changed.Observations) o.BillId = null;
++        Check(ScoutingAudience.Summary(changed).Contains("independent crowds cannot be counted") && Detail(changed).Contains("bill identity unknown"), "missing identity cannot establish independent crowds");
++        changed = LocalSceneRoomService.Copy(fixture); foreach (var o in changed.Observations) o.BillCapacity = 0;
++        Check(ScoutingAudience.Summary(changed).Contains("no usable"), "missing denominator cannot support occupancy");
++        changed = LocalSceneRoomService.Copy(fixture); foreach (var o in changed.Observations) o.BillAttendance = o.BillCapacity + 1;
++        Check(ScoutingAudience.Summary(changed).Contains("no usable"), "malformed attendance cannot exceed capacity");
++        changed = LocalSceneRoomService.Copy(fixture); foreach (var o in changed.Observations) o.BillAttendance = -1;
++        Check(ScoutingAudience.Summary(changed).Contains("no usable"), "negative attendance cannot supply evidence");
++        changed = LocalSceneRoomService.Copy(fixture); foreach (var o in changed.Observations) o.BillAttendance = 0;
++        Check(Detail(changed).Contains("0 attendees") && Detail(changed).Contains("sparsely occupied") && !Detail(changed).Contains("weak music"), "quiet room is real audience evidence, not a musical verdict");
++        changed = LocalSceneRoomService.Copy(fixture); changed.Observations[0].BillAttendance = null; changed.Observations.RemoveRange(1, 2);
++        Check(Detail(changed).Contains("Later calendar results do not fill old notes automatically"), "unfinished listening cannot borrow later final attendance");
++        var player = desk.CaptureState(); player.ScoutingKnowledge.Dossiers = new() { fixture };
++        Check(desk.RestoreState(player, out message), "restore controlled retained context");
++        string world = Json(WorldStateService.Capture()), knowledge = Json(desk.CaptureState());
++        GD.Seed(872); uint draw = GD.Randi(); GD.Seed(872);
++        var detail = desk.ScoutingAudienceDetails(plan.ArtistId).ToArray(); var summary = desk.ScoutingSummary(plan.ArtistId);
++        Check(summary.Count(l => l.StartsWith("Audience:")) == 1 && summary.Single(l => l.StartsWith("Audience:")).Contains("2 distinct whole-bill"), "notebook uses retained history once");
++        Check(world == Json(WorldStateService.Capture()) && knowledge == Json(desk.CaptureState()) && GD.Randi() == draw, "audience views preserve full world, player and RNG");
++        var captured = desk.CaptureState(); captured.ScoutingKnowledge.Dossiers.Single().Observations[0].BillAttendance = 1;
++        Check(desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "capture is detached");
++        var rooms = LocalSceneRoomService.Copy(WorldStateService.Capture().SceneRooms); rooms.Bills.RemoveAll(b => b.Id == bill.Id);
++        LocalSceneRoomService.BeginRestore(rooms); LocalSceneRoomService.CompleteRestore();
++        Check(desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "calendar pruning cannot rewrite retained audience evidence");
++        Check(desk.SetScoutingPriority(plan.ArtistId, ScoutingPriority.Archived) && desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "archive retains history");
++        foreach (var flag in new[] { "--disable-scouting-experience", "--observe-scouting-experience" }) {
++            LocalScenes.Configure(new[] { flag }); Check(desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "off mode retains acquired audience: " + flag);
++        }
++        LocalScenes.Configure(Array.Empty<string>());
++        string slot = "Audience " + Guid.NewGuid().ToString("N");
++        try {
++            Check(SaveGameService.Save(slot, out message) && SaveGameService.Load(slot, out message), "compressed save/load: " + message);
++            Check(desk.ScoutingAudienceDetails(plan.ArtistId).SequenceEqual(detail), "full load reproduces source/denominator/context exactly");
++        } finally { SaveGameService.Delete(slot); }
++        GD.Print($"SCOUTING_AUDIENCE_PASS checks={checks}");
++    }
++}

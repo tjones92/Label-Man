@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json.Serialization.Metadata;
@@ -91,6 +91,32 @@ public sealed class WorldSaveData {
 	public CompositionSaveData Composition { get; set; }
 
 	// Phase 4 (cont.): radio.
+
+	// --- Band-member simulation (save v4) --- the person pool, the band-life world seed and the annual
+	// pass bookkeeping. Relations, alumni, partners and member fields ride inside the artists themselves.
+	// Absent in a v3 save: the pool starts empty and every person keeps today's defaults.
+	public BandLifeSaveData BandLife { get; set; }
+	// v5: separate seed/content contract; entities retain geographic identity inline, never duplicated.
+	public SceneIdentitySaveData SceneIdentity { get; set; }
+	public ScenePersistenceSaveData ScenePersistence { get; set; }
+    public SceneRoomSaveData SceneRooms { get; set; }
+    public SceneEcosystemSaveData SceneEcosystem { get; set; }
+	// Remembered relationships and session work (ContactNetworkService). Absent in older saves: starts empty.
+	public ContactNetworkSaveData ContactNetwork { get; set; }
+}
+
+/// <summary>Band-member simulation world state that does not live on an artist or a musician.</summary>
+public sealed class BandLifeSaveData {
+	public List<PooledPerson> Pool { get; set; } = new();
+	public ulong? WorldSeed { get; set; }
+	public int LastAnnualYear { get; set; }
+	public int FormationDebt { get; set; }
+	/// <summary>Band-life dissolutions not yet refilled by the formation servo.</summary>
+	public int FormationCredit { get; set; }
+	public Dictionary<int, int> DeparturesByYear { get; set; } = new();
+	/// <summary>Phase 5: the population centres growth is written relative to.</summary>
+	public float GrowthTechnicalCentre { get; set; }
+	public float GrowthCreativityCentre { get; set; }
 }
 
 /// <summary>The composition catalogue (CompositionCatalogService). Songs, writers, publishers, and the writer
@@ -117,7 +143,11 @@ public sealed class CompositionSaveData {
 	public List<ProfessionalSongwriter> ProfessionalWriters { get; set; } = new();
 	public List<MusicPublisher> Publishers { get; set; } = new();
 	public Dictionary<string, CompositionCatalogService.WriterCreditLedgerEntry> WriterLedger { get; set; } = new();
+	// v4: per-stint (personId|artistId) credit ledger. Absent in older saves -> empty.
+	public Dictionary<string, CompositionCatalogService.WriterCreditLedgerEntry> WriterStintLedger { get; set; } = new();
 	public int SongCounter { get; set; }
+	/// <summary>Phase 4c: staff writers have been paired into standing teams in this world.</summary>
+	public bool ProTeamsBuilt { get; set; }
 	public bool HasRng { get; set; }
 	public ulong RngState { get; set; }
 	public ulong RngSeed { get; set; }
@@ -190,16 +220,23 @@ public sealed class WorldLabelSaveData {
 	};
 }
 
+/// <summary>Marks a plain data class the world save writes by declared fields only, as it does Godot objects.
+/// See <see cref="WorldJsonContracts.FieldsOnly"/>.</summary>
+public interface IFieldsOnlySave { }
+
 /// <summary>System.Text.Json contract tweaks for the world save.</summary>
 public static class WorldJsonContracts {
 	/// <summary>Restricts the world's whole-serialized entities to their declared fields, dropping every
 	/// property. Applies to:
 	/// <list type="bullet">
-	/// <item>every Godot <see cref="GodotObject"/>-derived type (AILabel, Record, Album, AlbumTrack, ...) --
+	/// <item>every Godot <see cref="GodotObject"/>-derived type (AILabel, ...) --
 	/// dropping their computed properties (e.g. AILabel.distributionStrength, whose setter would corrupt
 	/// ownedReach on load) and the inherited GodotObject/Resource members (NativeInstance, ResourcePath, ...)
 	/// that are otherwise unserializable. Applying this to <i>all</i> GodotObject types means a new Resource
 	/// added to the graph is handled automatically -- no enumeration to maintain;</item>
+	/// <item>every <see cref="IFieldsOnlySave"/> type (Record, Album, AlbumTrack): former Resources made plain
+	/// C# classes, which keep the same field-only shape (Record.PlugMasterId, AlbumTrack.HasStoredComponents
+	/// stay out of the save);</item>
 	/// <item><see cref="GameDate"/>, a struct whose computed properties build a System.DateTime (DayOfWeek,
 	/// IsFriday, ...); a default (year 0) GameDate anywhere in the graph would otherwise throw
 	/// "un-representable DateTime" on serialize. Fields-only serializes it as {year,month,day}.</item>
@@ -210,7 +247,8 @@ public static class WorldJsonContracts {
 	/// treatment; the round-trip probe surfaces any field that fails to restore.</summary>
 	public static void FieldsOnly(JsonTypeInfo typeInfo) {
 		if (typeInfo.Kind != JsonTypeInfoKind.Object) return;
-		bool fieldOnly = typeInfo.Type == typeof(GameDate) || typeof(GodotObject).IsAssignableFrom(typeInfo.Type);
+		bool fieldOnly = typeInfo.Type == typeof(GameDate) || typeof(GodotObject).IsAssignableFrom(typeInfo.Type) ||
+			typeof(IFieldsOnlySave).IsAssignableFrom(typeInfo.Type);
 		if (!fieldOnly) return;
 		bool isLabel = typeInfo.Type == typeof(AILabel);
 		for (int i = typeInfo.Properties.Count - 1; i >= 0; i--) {
@@ -241,6 +279,12 @@ public static class WorldStateService {
 		CompetitorManager.Instance?.CaptureEconomy(world);
 		RosterManager.Instance?.CaptureCaches(world);
 		CompositionCatalogService.CaptureWorld(world);
+		BandLifeService.CaptureWorld(world);
+		ContactNetworkService.CaptureWorld(world);
+		LocalSceneIdentityService.CaptureWorld(world);
+		LocalScenePersistenceService.CaptureWorld(world);
+        LocalSceneRoomService.CaptureWorld(world);
+        SceneEcosystemService.CaptureWorld(world);
 		return world;
 	}
 
@@ -248,8 +292,25 @@ public static class WorldStateService {
 	/// is a no-op -- the freshly generated world is left standing and the player layer restores over it.
 	/// Order matters: artists first, then labels (whose rosters relink to those artists), then the lifecycle
 	/// (whose active list is the very same object as the label list).</summary>
-	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed) {
-		if (world == null) return;
+	public static void Apply(WorldSaveData world, GameDate date, ulong? worldSeed, bool deferSceneRelink = false) {
+        SceneAttentionFeedback.Reset(); // derived prior-week cache must not survive a load/rollback
+		if (world == null) {
+			if (deferSceneRelink) {
+                LocalScenePersistenceService.BeginRestore(null);
+                LocalSceneRoomService.BeginRestore(null);
+                SceneEcosystemService.BeginRestore(null);
+                LocalSceneIdentityService.BeginRestore(null, worldSeed);
+            }
+			return;
+		}
+		// Validate scene versions before mutating managers. Real player loads defer migration until success.
+		LocalScenePersistenceService.ValidateRestore(world.ScenePersistence);
+        LocalSceneRoomService.ValidateRestore(world.SceneRooms);
+        SceneEcosystemService.ValidateRestore(world.SceneEcosystem);
+		LocalSceneIdentityService.BeginRestore(world.SceneIdentity, worldSeed);
+		LocalScenePersistenceService.BeginRestore(world.ScenePersistence);
+        LocalSceneRoomService.BeginRestore(world.SceneRooms);
+        SceneEcosystemService.BeginRestore(world.SceneEcosystem);
 
 		TimeManager.Instance?.RestoreClock(date, world.Hour, world.Minute);
 		ArtistManager.Instance?.RehydrateWorld(world);
@@ -259,6 +320,8 @@ public static class WorldStateService {
 		CompetitorManager.Instance?.RehydrateEconomy(world);
 		RosterManager.Instance?.RehydrateCaches(world);
 		CompositionCatalogService.RehydrateWorld(world);
+		BandLifeService.RehydrateWorld(world, date.year);
+		ContactNetworkService.RehydrateWorld(world);
 		ChartManager.Instance?.RestoreChartWeek(world.ChartWeek);
 		// Restore the frozen "for week ending" date. A pre-fix save (year 0) never stored it, so recover the most
 		// recent week-ending Saturday from the restored calendar date.
@@ -270,6 +333,7 @@ public static class WorldStateService {
 
 		// Reseed the global RNG deterministically so repeated loads of this save continue identically.
 		GD.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
+		if (!deferSceneRelink) LocalSceneIdentityService.CompleteRestore();
 	}
 
 	/// <summary>SplitMix64-style mix of the world seed and the resumed week into a stable global RNG seed.</summary>

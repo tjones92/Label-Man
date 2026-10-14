@@ -37,6 +37,43 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (TimeManager.Instance == null || ChartManager.Instance == null)
 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
 
+			if (OS.GetCmdlineUserArgs().Contains("--scouting-business-check")) { ScoutingBusinessChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-check")) { ScoutingOpeningChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-runway-check")) { ScoutingRunwayChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-commitment-planning-check")) { ScoutingCommitmentPlanningChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-founding-history-check")) { ScoutingFoundingHistoryChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-audience-check")) { ScoutingAudienceChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-offer-planning-check")) { ScoutingOfferPlanningChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-continuity-check")) { ScoutingContractContinuityChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-session-promise-check")) { ScoutingSessionPromiseChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-contract-outlook-check")) { ScoutingContractOutlookChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-credible-offers-check")) { ScoutingCredibleOffersChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-rival-courtship-check")) { ScoutingRivalCourtshipChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--scouting-contract-outlook-survey=", StringComparison.Ordinal)) is string survey) {
+                ScoutingContractOutlookChecks.Survey(survey["--scouting-contract-outlook-survey=".Length..]); GetTree().Quit(0); return;
+            }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-terms-check")) { ScoutingTermsChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-market-history-check")) { ScoutingMarketHistoryChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-hired-listener-check")) { ScoutingHiredListenerChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-listener-check")) { ScoutingListenerChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scouting-experience-check")) { ScoutingExperienceChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scene-information-check")) { SceneInformationChecks.Run(); GetTree().Quit(0); return; }
+            if (OS.GetCmdlineUserArgs().Contains("--scene-source-check")) { SceneSourceChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-ecosystem-check")) { SceneEcosystemChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-feedback-check")) { SceneFeedbackChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-dynamics-check")) { SceneDynamicsChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-city-placement-check")) { SceneCityPlacementChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-recruitment-check")) { SceneRecruitmentChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-room-check")) { LocalSceneRoomChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-room-prewarm-check")) { SceneRoomPrewarmChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--scene-room-rotation-check")) { SceneRoomRotationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--local-scene-persistence-check")) { LocalScenePersistenceChecks.Run(); GetTree().Quit(0); return; }
+
+			if (OS.GetCmdlineUserArgs().Contains("--local-scene-identity-check")) { LocalSceneIdentityChecks.Run(); GetTree().Quit(0); return; }
+
 			// Inspecting a real save loads it over the freshly generated world; it must NOT be run forward first.
 			if (inspectSlot != null) { RunInspect(inspectSlot, weeks); return; }
 			if (mechanicalCheck) { RunMechanicalRoyaltyCheck(); return; }
@@ -53,6 +90,14 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (polarDataCheck) { PolarSongDataChecks.Run(); GetTree().Quit(0); return; }
 			if (polarFitCheck) { PolarSongFitChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--polar-song-behavior-check")) { PolarSongBehaviorChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--contact-network-check")) {
+				for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
+				ContactNetworkChecks.Run(); GetTree().Quit(0); return;
+			}
+			if (OS.GetCmdlineUserArgs().Contains("--band-life-check")) {
+				for (int w = 0; w < weeks && !TimeManager.Instance.IsGameOver; w++) AdvanceOneChartWeek();
+				BandLifeChecks.Run(); GetTree().Quit(0); return;
+			}
 			if (OS.GetCmdlineUserArgs().Contains("--polar-recording-realization-check")) { PolarRecordingRealizationChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--polar-rock-songbook-check")) { PolarRockSongbookChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--polar-player-perception-check")) { PolarPlayerPerceptionChecks.Run(); GetTree().Quit(0); return; }
@@ -308,6 +353,13 @@ public partial class SaveLoadRoundTripRunner : Node {
 				.Select(s => s.ReportsToStationIds.Count)
 				.DefaultIfEmpty(0).Max();
 
+            var infoSave = PlayerDesk.Instance.CaptureState();
+            infoSave.SceneInformation = new SceneInformationKnowledge {
+                Contacts = new() { new() { ContactId = "probe-contact", HeardBillIds = new() { "probe-bill-1", "probe-bill-2" } } },
+                Leads = new() { new() { Id = "probe-lead", ArtistId = "probe-artist", ContactId = "probe-contact", BillId = "probe-bill", RoomId = cityId + ":road", ReceivedDay = 1, PerformanceDay = 10, ExpiresDay = 10, Evidence = "Gzip information fixture" } },
+                ReadEvents = new() { ["probe-news"] = 3 } };
+            if (!PlayerDesk.Instance.RestoreState(infoSave, out _)) throw new InvalidOperationException("Information fixture restore failed.");
+            string sceneInformation0 = JsonSerializer.Serialize(PlayerDesk.Instance.CaptureState().SceneInformation, SaveGameService.TestJsonOptions);
 			// Save-time snapshot of world + player.
 			int week0 = ChartManager.Instance.GetCurrentChartWeek();
 			int labels0 = ChartManager.Instance.GetAllLabels().Count;
@@ -325,6 +377,9 @@ public partial class SaveLoadRoundTripRunner : Node {
 
 			if (!SaveGameService.Load(slot, out string loadMsg)) { GD.Print($"SAVELOAD_INTEGRATION_FAIL reason=load:{loadMsg}"); GetTree().Quit(1); return; }
 
+            if (sceneInformation0 != JsonSerializer.Serialize(PlayerDesk.Instance.CaptureState().SceneInformation, SaveGameService.TestJsonOptions))
+                throw new InvalidOperationException("Scene information gzip roundtrip differs.");
+            GD.Print("SCENE_INFORMATION_GZIP_PASS");
 			// Verify everything is back to the save-time state.
 			int week1 = ChartManager.Instance.GetCurrentChartWeek();
 			int labels1 = ChartManager.Instance.GetAllLabels().Count;

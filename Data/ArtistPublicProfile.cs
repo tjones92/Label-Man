@@ -8,7 +8,13 @@ public class ArtistPublicProfile
 	public ArtistType artistType;
 	public bool isBand;
 	public string homeRegion;
-	public string homeCity { get => homeRegion; set => homeRegion = value; }
+	// Display formation hometown independently of the mutable working base and sales region.
+	public string homeCity;
+	public string baseCity;
+	public string formationPlaceId;
+	public string basePlaceId;
+	public PlaceEvidence originEvidence;
+	public PlaceEvidence baseEvidence;
 	public Genre primaryGenre;
 	public Genre secondaryGenre;
 	public int formedYear;
