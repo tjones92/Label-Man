@@ -190,6 +190,47 @@ Results:
   refused for $2 of gas once cash is negative. One smoke run sat stranded in Philadelphia for 30 days until the
   credit line closed it. The probe now only travels with the round trip + $50 in hand.
 
+## Weak singles sink: counter and route saturation (`SimLogs/ocl-fair3-fairness.md`, 140 runs; NOT committed)
+
+Author (2026-10-14): weak records were "probably" too kind. In fair2, 82 of 92 bottom-quartile singles cleared
+first-run break-even (204 copies), median 281. The sources found (regional custom pressings of 200–1,000 copies,
+"most sold very few") point the other way.
+
+Attribution: a dud's copies came mostly from shop shelves. Pitches placed only ~12 copies, but service top-ups
+restocked ~310 at home. A shelf sells `Placed × 0.07 × appeal × decay`, every service resets the decay, and appeal
+is linear (a dud at 0.30 sells at 60% of the pace of a strong 0.50). So restocking reopened the counter's full
+appetite for any record. Hop tables still gave a dud ~110 copies through their linear 4% take-up floor.
+
+Change (`Systems/PlayerDesk.TableCrowd.cs`, `ProcessTrunkDay`):
+- Shop counters and jukebox routes now remember who has bought each title (`PlayerStop.TableCrowds`, now kept
+  for every stop kind and saved as before).
+- A counter serves 150–500 record-buying regulars and a route 60–200 machines, using the `CrowdSize` trait.
+- The share that will ever take the title is `lerp(1%, 25%, t^1.5)`, where `t` is appeal across 0.30–0.80.
+- The day's shelf sell-through is thinned by the share of those buyers still left, and never exceeds them; 5% of
+  the crowd turns over each week.
+- Tables moved to the same convex curve, `lerp(1%, 40%, t^1.5)` (was a linear 4–32%).
+- Local airplay still lifts appeal through buzz, so a weak-sounding record the radio is playing still sells.
+- Authored values, not sourced. AI-only 52-week seed 1001 matches `ref-c566f24-1001-52` on 84/84 CSVs.
+
+Results (fair2 → fair3):
+
+| hook quartile | singles | median copies | sold ≥ break-even | on a label that closed |
+|---|---|---|---|---|
+| bottom | 92 | 281 → **169** | 82 → **21 (23%)** | 28 → 39 |
+| 2nd | 35 | 393 → 291 | 35 → 26 (74%) | 12 → 12 |
+| 3rd | 24 | 529 → 401 | 23 → **24 (100%)** | 0 → 1 |
+| top | 3 | 401 → 266 | 3 → 3 | 0 → 0 |
+
+- Hook now moves copies ×1.47 per SD (×1.32 in fair2, ×1.03 before table crowds). Production stays inert (×1.03).
+- Closures 26 → 37. Two-single staggered openings still carry most of them (eager 16/40, replay 16/20). One-single
+  openings now close 5 of 60, all in New York or LA on day 152. Four were bottom-quartile records. One was a
+  53rd-percentile oracle single in New York that sold 216 copies (past break-even), and the $175 overhead still
+  closed the label. That's a New York cost question, not a weak-record one.
+- Median copies per single by town: 150–228 (was 257–372).
+- Caveats: the one-stop carton is still record-blind once a demand call opens it (a dud in a smoke run sold one
+  70-copy carton COD). Its returns window was not measured. The oracle's truth proxy (act traits, catalog hook)
+  is weak: its singles' median hook percentile was ~0.19, so the top quartile is still only n=3.
+
 ## §6.4 preparation probes (`ocl-p-*`, discerning, New York and Detroit)
 
 - **Dealer-first:** 14–21 acetate pitches → 2–3 advance orders per town, all delivered COD on arrival, none lapsed

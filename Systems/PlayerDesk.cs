@@ -808,11 +808,11 @@ public partial class PlayerDesk : Node {
 		/// region by the same fraction. Assigned at generation like <see cref="BuyerNerve"/>.</summary>
 		public float AudienceLean = 0.5f;
 
-		/// <summary>Venue only: how many regulars this hop, club or church hall draws, 0-1 (see
-		/// <see cref="TableCrowdCeiling"/>). A fixed fact about the room, assigned at generation like
+		/// <summary>How many regulars this table, counter or jukebox route serves, 0-1 (see <see cref="TableCrowdCeiling"/>
+		/// and <see cref="CounterCrowdCeiling"/>). A fixed fact about the room, assigned at generation like
 		/// <see cref="BuyerNerve"/>, so it needs no save field.</summary>
 		public float CrowdSize = 0.5f;
-		/// <summary>Venue only: per title, how much of this room's crowd has already bought it off the table. The
+		/// <summary>Venue, Shop and Op: per title, how much of this stop's crowd has already bought it. The
 		/// same regulars don't buy the same 45 twice; new faces arrive slowly (<see cref="TableCrowdTurnoverPerWeek"/>).</summary>
 		public readonly Dictionary<string, TableCrowd> TableCrowds = new(StringComparer.Ordinal);
 
@@ -4913,13 +4913,18 @@ public partial class PlayerDesk : Node {
 				// lot always is -- a 4-copy lot of a #1 record moved 0.24 a day and therefore never sold one
 				// copy in its life. Bank the remainder and spend it when it adds up to a whole copy.
 				float expected = lot.Placed * TrunkDailyBaseFraction * appeal * decay * luck;
+				// The counter's customers who want this title and don't have it yet (PlayerDesk.TableCrowd.cs): a restock
+				// refills the shelf, not the town's interest in the record.
+				GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+				expected *= CounterBuyersLeft(stop, recordId, appeal, today, out float buyersLeft);
 				float pool = expected + lot.SellThroughCarry;
 				int wanted = Mathf.FloorToInt(pool);
 				lot.SellThroughCarry = pool - wanted;   // only ever the fraction, so a dead lot can't hoard demand
-				int units = Mathf.Min(lot.Remaining, wanted);
+				int units = Mathf.Min(Mathf.Min(lot.Remaining, wanted), Mathf.FloorToInt(buyersLeft));
 				lot.DaysSinceRestock++;
 				if (units <= 0) continue;
 				lot.Remaining -= units;
+				NoteTableSale(stop, recordId, units, today);
 				// Runner-sourced stock is HIS collection, not the player standing in town -- cash timing
 				// turns on terms alone (he's out there collecting regardless of where the player is), and
 				// BookRunnerSale takes his commission off the top before the label ever sees it (directive §7).
