@@ -193,6 +193,26 @@ public static class SessionEmploymentService {
 			CapableSinger(p.person)).Select(p => p.person));
 		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
 	}
+	/// <summary>Horn players in a town who could play a written line on a session: members of acts based and present there,
+	/// and pooled people, who play sax or trumpet (as their part or a double) and read. Read-only, like the players' list.</summary>
+	public static IReadOnlyList<Musician> HornCandidates(string place, int day) {
+		if (!Enabled || ArtistManager.Instance == null) return Array.Empty<Musician>();
+		var candidates = new List<Musician>();
+		foreach (string id in LocalSceneIdentityService.ArtistsBasedAt(place)) {
+			var act = ArtistManager.Instance.GetArtist(id);
+			if (act?.lifecycleStatus != ArtistLifecycleStatus.Active ||
+				!LocalScenePersistenceService.Present(act, place, day / 7) || !SceneEcosystemService.AvailableAt(id, place, day)) continue;
+			candidates.AddRange(act.members.Where(m => m.isActive && CapableHorn(m)));
+		}
+		candidates.AddRange(PersonPool.Ordered().Where(p => LocalScenePersistenceService.SceneIdFor(p.person.geography?.basePlaceId) == place &&
+			CapableHorn(p.person)).Select(p => p.person));
+		return candidates.Where(m => !string.IsNullOrEmpty(m.personId)).GroupBy(m => m.personId, StringComparer.Ordinal).Select(g => g.First()).OrderBy(m => m.personId, StringComparer.Ordinal).ToArray();
+	}
+	/// <summary>Horns read more than rhythm players had to: a written line is the job. Provisional authored bars.</summary>
+	public const float HornSkillBar = 0.60f, HornReadingBar = 0.55f;
+	private static bool CapableHorn(Musician m) =>
+		m.lifeState == MemberLifeState.Active && m.technicalSkill >= HornSkillBar && m.sightReading >= HornReadingBar &&
+		(MemberRoleService.Plays(m, MusicianRole.Saxophone) || MemberRoleService.Plays(m, MusicianRole.Trumpet));
 	/// <summary>A backing singer needs a voice that holds a part (control counts more than power) and enough reading or
 	/// ear to learn it quickly. Provisional authored bars, below the players' because parts are taught in the room.</summary>
 	public const float SingerBar = 0.55f, SingerReadingBar = 0.40f;

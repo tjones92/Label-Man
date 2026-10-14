@@ -12,6 +12,8 @@ public partial class PlayerDeskPanel {
     private bool studioCompare, studioReview, studioBacking;
     private readonly HashSet<string> studioSongs = new(), studioOpenTakes = new();
     private int studioRoomIndex, studioHours = 3, studioBrief;
+    private int studioLayout, studioDays = 1;
+    private bool studioEvening, studioLate, studioProducer;
     private string studioRoomId;
     private readonly Dictionary<string, string> studioEngineerAsk = new();   // room id -> engineer asked for by name
     private static string StudioSongKey(PlayerDesk.MaterialChoice choice) => $"{choice.Kind}|{choice.SongId}|{choice.Title}";
@@ -62,6 +64,18 @@ public partial class PlayerDeskPanel {
     }
 
     private static Control StudioSpacer() => new() { SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Ignore };
+
+    /// <summary>A highlighted note on the floor (an idea, a suggestion, a shortage) with a heading. Returns its body.</summary>
+    private static VBoxContainer StudioNotice(Container host, string heading) {
+        var panel = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(PaperTheme.Highlighter, 0.30f), BorderColor = Rust,
+            BorderWidthLeft = 4, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+            ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 8, ContentMarginBottom = 8 });
+        var box = new VBoxContainer(); box.AddThemeConstantOverride("separation", 6); panel.AddChild(box);
+        StudioText(box, heading, 13, Rust, PaperTheme.SansBold);
+        host.AddChild(panel);
+        return box;
+    }
 
     /// <summary>A sheet of the studio's own paperwork, headed with the room's name.</summary>
     private WorkOrder.Form StudioSheet(string room, string kind, string key, string stamp = null, Color? stampInk = null) {
@@ -137,7 +151,7 @@ public partial class PlayerDeskPanel {
         var shapes = new Dictionary<PlayerDesk.MaterialChoice, StudioSongStructure>();
         foreach (PlayerDesk.MaterialChoice option in options) {
             string key = StudioSongKey(option);
-            if (incremental) shapes[option] = StudioSongStructures.For(option, artist);
+            if (incremental) shapes[option] = StudioSongStructures.For(option, artist, TimeManager.Instance?.CurrentDate.year ?? 1960);
             string shape = incremental ? $"   ·   {StudioSongStructures.Length(shapes[option].DurationSeconds)}, {StudioSongStructures.FormName(shapes[option].Form)}" : "";
             var box = Check(option.Describe() + shape, studioSongs.Contains(key));
             box.Toggled += selected => { if (selected) studioSongs.Add(key); else studioSongs.Remove(key); };
@@ -253,6 +267,65 @@ public partial class PlayerDeskPanel {
         foreach (var item in checks) item.Box.Toggled += _ => UpdateBackingTalk();
         UpdateBackingTalk();
 
+        // 5. How the date goes on tape, how long the room is held, and who directs it.
+        StudioCrewOffer producerOffer = null;
+        CheckBox eveningBox = null, lateBox = null, producerBox = null;
+        SpinBox daysInput = null;
+        if (incremental && !offer.Overnight) {
+            sheet.AddChild(WorkOrder.Section("5   On tape"));
+            StudioText(sheet, StudioEquipment.LayoutText(Math.Max(1, offer.Room.Tracks)) + ".", 14, Ink);
+            var layouts = StudioFlow(sheet);
+            foreach (StudioLayout layout in Enum.GetValues<StudioLayout>()) {
+                var choice = Btn(PlayerDesk.StudioLayoutName(layout));
+                bool allowed = PlayerDesk.StudioLayoutAllowed(layout, Math.Max(1, offer.Room.Tracks));
+                if (!allowed && studioLayout == (int)layout) studioLayout = 0;
+                StyleToggle(choice, studioLayout == (int)layout);
+                choice.Disabled = !allowed;
+                choice.TooltipText = layout switch {
+                    StudioLayout.VocalApart => allowed ? "The singer goes behind a screen on the second track. Cleaner to balance, and the vocal can be sung again over a kept backing; the singer loses a little of the room." : "Needs a machine with two tracks.",
+                    StudioLayout.ThreeTrack => allowed ? "Band, vocal, and a spare track: a part can be added later, on top of a kept take." : "Needs a machine with three tracks.",
+                    _ => "Everyone at once, as the act plays. Nothing can be separated later; plenty of great records were made this way."
+                };
+                int index = (int)layout;
+                choice.Pressed += () => { if (studioLayout == index) return; studioLayout = index; RefreshKeepingScroll(); };
+                layouts.AddChild(choice);
+            }
+            var lockRow = StudioRow(sheet, 16);
+            daysInput = Spin(1, PlayerDesk.StudioMaxLockoutDays, 1, studioDays);
+            lockRow.AddChild(WorkOrder.Field("Days (lockout)", daysInput, 140));
+            StudioText(lockRow, "Hold the room for more than one day at a block rate. It stays set up overnight; the band sleeps off most of the day's wear.", 13, Heard);
+            if (offer.Room.EveningWork) {
+                int startAt = now + offer.DriveHours * 60;
+                bool eveningOpen = startAt >= PlayerDesk.StudioEveningStartHour * 60;
+                if (!eveningOpen) studioEvening = false;
+                eveningBox = Check($"Evening rate ({PlayerDesk.StudioEveningRateFactor:P0} of the day rate, from {PlayerDesk.StudioEveningStartHour - 12} p.m.; the band comes in tired)", studioEvening);
+                eveningBox.Disabled = !eveningOpen;
+                eveningBox.TooltipText = eveningOpen ? "" : $"The owner takes evening work from {PlayerDesk.StudioEveningStartHour - 12} p.m.";
+                eveningBox.Toggled += on => studioEvening = on;
+                sheet.AddChild(eveningBox);
+                // Booked to run late, the evening goes on past midnight to the small hours; the next morning starts late.
+                if (!studioEvening) studioLate = false;
+                lateBox = Check("Run on past midnight (to 2 a.m. at the latest; the small hours tire the band, and you sleep in the next morning)", studioLate);
+                lateBox.Disabled = !studioEvening;
+                lateBox.TooltipText = studioEvening ? "" : "Tick the evening rate first: a late night is an evening date that runs on.";
+                lateBox.Toggled += on => studioLate = on;
+                eveningBox.Toggled += on => { lateBox.Disabled = !on; if (!on) lateBox.ButtonPressed = false; };
+                sheet.AddChild(lateBox);
+            }
+            int pStart = now + offer.DriveHours * 60;
+            producerOffer = desk.StudioProducerOffer(offer.Room.CityId, artist, time?.CurrentDate ?? GameDate.StartDate, pStart, pStart + studioHours * 60);
+            if (producerOffer != null) {
+                producerBox = Check($"Bring in a producer: {producerOffer.Text}", studioProducer);
+                producerBox.Toggled += on => studioProducer = on;
+                sheet.AddChild(producerBox);
+            } else studioProducer = false;
+        }
+        int Days() => (int)(daysInput?.Value ?? 1);
+        bool Evening() => eveningBox?.ButtonPressed == true;
+        bool Late() => Evening() && lateBox?.ButtonPressed == true;
+        float ProducerFee() => producerBox?.ButtonPressed == true ? producerOffer.Fee : 0;
+        StudioBookingOptions Options() => new() { Layout = (StudioLayout)studioLayout, Days = Days(), Evening = Evening(), LateNight = Late(), ProducerId = producerBox?.ButtonPressed == true ? producerOffer.PersonId : null };
+
         // Quote
         sheet.AddChild(WorkOrder.Section("Quote"));
         var quote = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -287,14 +360,14 @@ public partial class PlayerDeskPanel {
         }
         int drive = offer?.DriveHours ?? 0;
         float gas = offer?.Gas ?? 0;
-        float RoomCost(int hours) => incremental ? PlayerDesk.StudioRoomCost(offer.Room, hours) : desk.SessionCost(tier, hours);
+        float RoomCost(int hours) => incremental ? Mathf.Round(PlayerDesk.StudioRoomCost(offer.Room, hours) * PlayerDesk.StudioLockoutFactor(Days()) * (Evening() ? PlayerDesk.StudioEveningRateFactor : 1)) : desk.SessionCost(tier, hours);
         bool onThisTrip = desk.ActiveStudioTrip is { } myTrip && myTrip.ArtistId == artist.artistId && myTrip.CityId == desk.CurrentCityId;
         float houseFee = incremental && offer.House?.Insists == true ? offer.House.Fee : 0;
         float BackingFee() => backingBox?.ButtonPressed == true ? backingOffer.Fee : 0;
         void UpdateCost() {
             int hours = (int)hoursInput.Value;
             float roomCost = RoomCost(hours);
-            float musicianFee = (incremental ? desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0 : 0) + houseFee + BackingFee();
+            float musicianFee = (incremental ? desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0 : 0) + houseFee + BackingFee() + ProducerFee();
             int songCount = checks.Count(check => check.Box.ButtonPressed);
             foreach (Node child in quote.GetChildren()) { quote.RemoveChild(child); child.QueueFree(); }
             float rate = incremental ? offer.Room.HourlyRate : desk.StudioHourlyRate(tier);
@@ -321,25 +394,30 @@ public partial class PlayerDeskPanel {
             float after = desk.Label.cashReserves - roomCost - musicianFee - gas;
             int start = now + drive * 60;
             window.Text = $"{StudioClockStrip.ClockText(start)} to {StudioClockStrip.ClockText(start + hours * 60)}" + (drive > 0 ? $", after a {drive}h drive" : ", starting now");
-            QuoteLine($"Room, {hours} h at ${rate:N0}" + (incremental && offer.Room.BaseRate > 0 && rate > offer.Room.BaseRate ? $" (was ${offer.Room.BaseRate:N0} before its records got around)" : ""), $"${rate * hours:N0}");
-            if (incremental && offer.Room.EngineerPremium > 0) QuoteLine($"{offer.Room.EngineerName} asked for by name, {hours} h at ${offer.Room.EngineerPremium:N0}", $"${offer.Room.EngineerPremium * hours:N0}");
+            float factor = incremental ? PlayerDesk.StudioLockoutFactor(Days()) * (Evening() ? PlayerDesk.StudioEveningRateFactor : 1) : 1;
+            QuoteLine($"Room, {hours} h at ${rate:N0}" + (Days() > 1 ? $" a day, {Days()} days at the block rate" : "") + (Evening() ? ", evening rate" : "") +
+                (incremental && offer.Room.BaseRate > 0 && rate > offer.Room.BaseRate ? $" (was ${offer.Room.BaseRate:N0} before its records got around)" : ""), $"${Mathf.Round(rate * hours * factor):N0}");
+            if (incremental && offer.Room.EngineerPremium > 0) QuoteLine($"{offer.Room.EngineerName} {(offer.Room.EngineerHomeRoomId != null ? "brought in from across town" : "asked for by name")}, {hours} h at ${offer.Room.EngineerPremium:N0}", $"${Mathf.Round(offer.Room.EngineerPremium * hours * factor):N0}");
             if (incremental && desk.SessionPlayerFor(artist.artistId) is { } bandRoom) QuoteLine("Booked session musician", $"${bandRoom.Fee:N0}");
             if (houseFee > 0) QuoteLine($"House players ({offer.House.Players.Count}), at the owner's insistence", $"${houseFee:N0}");
             if (BackingFee() > 0) QuoteLine($"Backing singers: {backingOffer.GroupName}", $"${BackingFee():N0}");
+            if (ProducerFee() > 0) QuoteLine($"Producer: {producerOffer.Name}", $"${ProducerFee():N0}");
             if (drive > 0) QuoteLine($"Gas for the {drive}h drive out (the drive home costs the same)", $"${gas:N0}");
-            if (incremental) QuoteLine("Setup, tape stock, playback, house finish", "included");
+            if (incremental) QuoteLine($"Setup, tape stock (about {PlayerDesk.StudioStockIncluded(Math.Max(1, songCount), hours * Days(), checks.Where(c => c.Box.ButtonPressed).Select(c => StudioSongStructures.PassMinutes(shapes[c.Choice])).DefaultIfEmpty(PlayerDesk.StudioTakeMinutes).Average())} passes), playback, house finish", "included");
             QuoteLine("Total", $"${roomCost + musicianFee + gas:N0}", true);
             QuoteLine("Cash after", Money(after));
 
             var passes = checks.Where(check => check.Box.ButtonPressed).Select(check => incremental ? StudioSongStructures.PassMinutes(shapes[check.Choice]) : PlayerDesk.StudioTakeMinutes).ToList();
             int setup = incremental ? offer.Room.SetupMinutes : PlayerDesk.StudioSetupMinutes;
             int minimum = setup + passes.Sum() + songCount * PlayerDesk.StudioFinishMinutesPerSide;
-            bool tooTight = incremental && minimum > hours * 60;
-            bool lateDrive = drive > 0 && time != null && (drive + hours) * 60 > time.MinutesRemainingWithOvertime;
+            bool tooTight = incremental && minimum > hours * 60 * Days();
+            bool lateDrive = drive > 0 && time != null && (drive + (incremental && Late() ? 0 : hours)) * 60 > time.MinutesRemainingWithOvertime;
             string problem = offer?.Locked != null ? "No introduction yet: this room books its regulars and people who come recommended."
                 : songCount == 0 ? "Tick at least one song to book."
                 : !desk.AtHome && !onThisTrip ? "You need to be back in town, or up here with this act on a studio trip, to book a room."
                 : lateDrive ? $"The drive and a {hours}h date won't fit before the {time.HardStopTime} hard stop. Book this room early in the day."
+                : incremental && Late() && now + drive * 60 + hours * 60 > PlayerDesk.StudioLateStopMinute ? $"A late night runs to 2 a.m. at the latest. Book fewer hours."
+                : incremental && Evening() && !Late() && time != null && hours * 60 > time.MinutesRemainingWithOvertime ? $"An evening date ends at the {time.HardStopTime} hard stop. Run it on past midnight, or book fewer hours."
                 : after < 0 ? $"You're {Money(-after)} short of this booking."
                 : tooTight ? "Not enough time: setup, a pass per song and finishing won't fit. Add an hour or drop a song."
                 : null;
@@ -352,6 +430,10 @@ public partial class PlayerDeskPanel {
                 time != null && drive * 60 > time.MinutesRemainingWithOvertime;
         }
         hoursInput.ValueChanged += value => { studioHours = (int)value; UpdateCost(); };
+        if (daysInput != null) daysInput.ValueChanged += value => { studioDays = (int)value; UpdateCost(); };
+        if (eveningBox != null) eveningBox.Toggled += _ => UpdateCost();
+        if (lateBox != null) lateBox.Toggled += _ => UpdateCost();
+        if (producerBox != null) producerBox.Toggled += _ => UpdateCost();
         foreach (var item in checks) item.Box.Toggled += _ => UpdateCost();
         if (backingBox != null) backingBox.Toggled += _ => UpdateCost();
         UpdateCost();
@@ -369,15 +451,15 @@ public partial class PlayerDeskPanel {
             var brief = (StudioBrief)studioBrief;
             bool backing = backingBox?.ButtonPressed == true;
             var responses = PlayerDesk.Instance.MaterialRefusals(artist, chosen, tier);
-            if (responses.Count > 0) { RefusalDialog(artist, chosen, tier, (int)hoursInput.Value, responses, checks, brief, roomId, engineerId, backing); return; }
+            if (responses.Count > 0) { RefusalDialog(artist, chosen, tier, (int)hoursInput.Value, responses, checks, brief, roomId, engineerId, backing, incremental ? Options() : null); return; }
             int bookHours = (int)hoursInput.Value;
             void Book() {
-                bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, bookHours, out string message, brief: brief, roomId: roomId, engineerId: engineerId, backingSingers: backing);
-                if (ok) { studioSide = 0; studioReview = false; studioOpenTakes.Clear(); studioBacking = false; }
+                bool ok = PlayerDesk.Instance.StartSession(artist, chosen, tier, bookHours, out string message, brief: brief, roomId: roomId, engineerId: engineerId, backingSingers: backing, options: incremental ? Options() : null);
+                if (ok) { studioSide = 0; studioReview = false; studioOpenTakes.Clear(); studioBacking = false; studioProducer = false; studioEvening = false; studioLate = false; studioDays = 1; }
                 Say(message, ok);
                 Refresh();
             }
-            float dateCost = RoomCost(bookHours) + (desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0) + houseFee + BackingFee() + gas;
+            float dateCost = RoomCost(bookHours) + (desk.SessionPlayerFor(artist.artistId)?.Fee ?? 0) + houseFee + BackingFee() + ProducerFee() + gas;
             if (!WarnIfUnderOverhead($"{roomName} for {bookHours}h", dateCost, $"BOOK IT — ${dateCost:N0}", Book)) Book();
         };
     }
@@ -477,15 +559,25 @@ public partial class PlayerDeskPanel {
         if (desk.StudioRenownText(room) is { } renown) Row("Reputation", renown);
         if (room.EngineerName != null) {
             string first = room.EngineerName.Split(' ')[0];
-            string role = room.CapabilityVersion >= 4 ? room.EngineerHouse ? "chief engineer" : "second engineer" : room.EngineerHouse ? "house engineer" : "relief engineer";
-            Row("Engineer", $"{room.EngineerName}, {role}{(room.EngineerRequested ? ", as you asked" : "")}. {first} {StudioPeople.HabitText(room.EngineerHabit)}.");
-            // The room's other engineer: ask for them by name when they're in.
-            var other = offer.Engineers.FirstOrDefault(e => e.Id != room.EngineerId);
-            if (other != null) {
+            Row("Engineer", $"{room.EngineerName}, {StudioPeople.RoleText(room)}{(room.EngineerRequested ? ", as you asked" : "")}. {first} {StudioPeople.HabitText(room.EngineerHabit)}." +
+                (room.EngineerHomeRoomId != null ? $" ${room.EngineerPremium:N0} an hour on top of the room; with a board to learn, setup runs {room.SetupMinutes}m." : ""));
+            HBoxContainer EngineerLine() {
                 var line = new HBoxContainer { MouseFilter = MouseFilterEnum.Pass };
                 line.AddThemeConstantOverride("separation", 10);
                 body.AddChild(line);
                 line.AddChild(new Control { CustomMinimumSize = new Vector2(92, 0), MouseFilter = MouseFilterEnum.Ignore });
+                return line;
+            }
+            if (room.EngineerHomeRoomId != null) {
+                string hostId = room.Id;
+                var back = Btn("LET THE ROOM CHOOSE");
+                back.Pressed += () => { studioEngineerAsk.Remove(hostId); RefreshKeepingScroll(); };
+                EngineerLine().AddChild(back);
+            }
+            // The room's other engineer: ask for them by name when they're in.
+            var other = room.EngineerHomeRoomId != null ? null : offer.Engineers.FirstOrDefault(e => e.Id != room.EngineerId);
+            if (other != null) {
+                var line = EngineerLine();
                 bool knows = desk.StudioVisits.Any(v => v.EngineerId == other.Id && v.ArtistId == artist.artistId);
                 string otherRole = other.Chief ? "the chief" : "the second engineer";
                 if (other.Away) Text(line, $"{other.Name}, {otherRole}, is cutting a date elsewhere today{(knows ? " (and knows this act)" : "")}.", 14, Heard);
@@ -500,6 +592,22 @@ public partial class PlayerDeskPanel {
                     if (knows && !asking) Text(line, $"{other.Name.Split(' ')[0]} knows this act.", 14, new Color("3f6b3a"));
                 }
             }
+            // Engineers the label has worked with at other rooms in town: they come across on a quiet day at their own room.
+            if (room.EngineerHomeRoomId == null)
+                foreach (var (guest, home, fee, refusal) in desk.StudioGuestEngineers(room, artist.artistId, offer.StaffedFor)) {
+                    var line = EngineerLine();
+                    string guestFirst = guest.Name.Split(' ')[0];
+                    bool knows = desk.StudioVisits.Any(v => v.EngineerId == guest.Id && v.ArtistId == artist.artistId);
+                    if (refusal != null) { Text(line, refusal, 14, Heard); continue; }
+                    var bring = Btn($"BRING IN {guest.Name.ToUpperInvariant()} FROM {home.Name.ToUpperInvariant()}  ·  +${fee:N0}/h");
+                    bring.TooltipText = $"{guestFirst}, {(guest.Chief ? "the chief" : "the second engineer")} at {home.Name}, {StudioPeople.HabitText(guest.Habit)}. " +
+                        $"{guestFirst} brings an ear and hands but not the room: this room's sound stays its own, and a strange board takes {StudioPeople.GuestSetupMinutes} more minutes to set up." +
+                        (knows ? $" {guestFirst} has worked with this act before." : "");
+                    string hostId = room.Id, guestId = guest.Id;
+                    bring.Pressed += () => { studioEngineerAsk[hostId] = guestId; RefreshKeepingScroll(); };
+                    line.AddChild(bring);
+                    if (knows) Text(line, $"{guestFirst} knows this act.", 14, new Color("3f6b3a"));
+                }
         }
         if (desk.StudioMemory(room, artist.artistId) is { } memory) Row("Remembers", memory, new Color("3f6b3a"));
         Row("Finishing", string.Join(" · ", PlayerDesk.StudioFinishes(room).Select(PlayerDesk.FinishName)));
@@ -584,10 +692,15 @@ public partial class PlayerDeskPanel {
         if (incremental) facts.AddChild(WorkOrder.Typed("Brief", BriefNames[Mathf.Clamp((int)session.Brief, 0, BriefNames.Length - 1)], 250));
         if (!string.IsNullOrEmpty(session.Room?.EngineerName)) facts.AddChild(WorkOrder.Typed("Engineer", session.Room.EngineerName, 200));
         foreach (var hire in session.Hires.Where(h => h.Kind != StudioHireKind.BackingVoice))
-            facts.AddChild(WorkOrder.Typed((hire.Kind == StudioHireKind.HousePlayer ? "House " : "Session ") + PlayerDesk.RoleWord(hire.Role).ToLowerInvariant(),
+            facts.AddChild(WorkOrder.Typed(hire.Kind == StudioHireKind.Producer ? "Producer" : hire.Kind == StudioHireKind.Arranger ? "Arranger" : (hire.Kind == StudioHireKind.HousePlayer ? "House " : "Session ") + PlayerDesk.RoleWord(hire.Role).ToLowerInvariant(),
                 hire.Replaces ? $"{hire.Name} for {hire.ReplacesName}" : hire.Name, 260));
         foreach (var group in session.Hires.Where(h => h.Kind == StudioHireKind.BackingVoice).GroupBy(h => h.GroupName))
             facts.AddChild(WorkOrder.Typed("Backing vocals", $"{group.Key} ({group.Count()})", 260));
+        if (incremental && session.Work is { } dateWork) {
+            facts.AddChild(WorkOrder.Typed("On tape", PlayerDesk.StudioLayoutName(dateWork.Layout), 200));
+            facts.AddChild(WorkOrder.Typed("Tape left", $"~{PlayerDesk.StudioStockLeft(session)} passes", 120));
+            if (dateWork.LockoutDays > 1) facts.AddChild(WorkOrder.Typed("Lockout", $"day {Math.Max(1, desk.StudioDayIndex(session) + 1)} of {dateWork.LockoutDays}", 130));
+        }
 
         // The room's clock.
         if (incremental) {
@@ -606,7 +719,14 @@ public partial class PlayerDeskPanel {
                 modal.Body.AddChild(scroll); modal.AddButton("BACK TO THE DATE", null);
             };
             clockHead.AddChild(log);
+            if (desk.StudioHasFault(PlayerDesk.StudioBuzzFault)) {
+                var fix = Btn($"FIND THE BUZZ  ·  {PlayerDesk.StudioFixMinutes}m");
+                fix.TooltipText = "An amplifier is buzzing onto the tape. Every pass carries it until it's found.";
+                fix.Pressed += () => { bool ok = desk.FixStudioFault(out string m); Say(m, ok); Refresh(); };
+                clockHead.AddChild(fix);
+            }
             sheet.AddChild(new StudioClockStrip().Set(session.StartMinute, session.Hours * 60, session.Hours * 60 - left, held));
+            if (desk.StudioSleepsOn) StudioText(sheet, "The room is yours again tomorrow: when today's work is done, end the day from the calendar and come back in the morning. The kit stays set up.", 13, Heard);
         }
 
         // The tapes: one per song on the date.
@@ -624,6 +744,15 @@ public partial class PlayerDeskPanel {
             sides.AddChild(sideButton);
         }
 
+        // The running order, while nothing has been cut: the band is freshest for the first song.
+        if (incremental && studioSide > 0 && session.Cuts.All(c => c.Takes.Count == 0)) {
+            var first = Btn($"CUT \"{cut.Choice.Title.ToUpperInvariant()}\" FIRST");
+            first.TooltipText = "Change the running order before tape rolls. The band is freshest for the first song, and the producer works in this order.";
+            first.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+            first.Pressed += () => { bool ok = desk.CutStudioSideFirst(studioSide, out string m); if (ok) studioSide = 0; Say(m, ok); Refresh(); };
+            sheet.AddChild(first);
+        }
+
         // The song on the floor.
         sheet.AddChild(WorkOrder.Section(finishingStage ? "Finishing" : "On the floor"));
         StudioText(sheet, $"\"{cut.Choice.Title}\"  ({cut.Choice.Detail})", 22, Ink, PaperTheme.SerifBold);
@@ -634,6 +763,15 @@ public partial class PlayerDeskPanel {
                 .Select(p => cut.PartRehearsals[(int)p] == 1 ? "the " + StudioSongStructures.PartName(p) : $"the {StudioSongStructures.PartName(p)} \u00d7{cut.PartRehearsals[(int)p]}").ToList();
             if (practised.Count > 0) rehearsed += "; worked on " + string.Join(", ", practised);
             StudioText(sheet, $"{PlayerDesk.ArrangementName(cut.Arrangement)}  ·  {direction}  ·  {rehearsed}", 14, Heard);
+            if (cut.Work != null) {
+                var shapeWords = new List<string>();
+                if (cut.Work.KeyShift != 0) shapeWords.Add(cut.Work.KeyShift < 0 ? "a step lower" : "a step higher");
+                if (cut.Work.TempoShift != 0) shapeWords.Add(cut.Work.TempoShift > 0 ? "tempo pushed" : "tempo eased");
+                if (cut.Work.Trimmed) shapeWords.Add("short intro, clean ending");
+                if (cut.Work.KeepPickup) shapeWords.Add("with the pickup");
+                if (cut.Work.Balance != StudioBalance.Natural) shapeWords.Add(PlayerDesk.BalanceName(cut.Work.Balance).ToLowerInvariant());
+                if (shapeWords.Count > 0) StudioText(sheet, string.Join("  ·  ", shapeWords), 14, Heard);
+            }
             if (cut.Structure is { } map) StudioText(sheet, $"Song map ({StudioSongStructures.FormName(map.Form)}, {StudioSongStructures.Length(map.DurationSeconds)}):  " +
                 string.Join("  ›  ", map.Sections.Select(x => x.Label.Replace("the ", ""))), 13, Heard);
         }
@@ -666,7 +804,7 @@ public partial class PlayerDeskPanel {
             StudioText(sheet, $"Finish for take {cut.Takes[cut.KeptTake].Number}. The house finish comes with the room; other processing treats the whole tape and takes a few minutes.", 14, Heard);
             var finishes = StudioFlow(sheet);
             int side = studioSide;
-            foreach (StudioFinish finish in PlayerDesk.StudioFinishes(session.Room)) {
+            foreach (StudioFinish finish in PlayerDesk.StudioFinishes(session.Room, cut.Takes[cut.KeptTake])) {
                 var finishButton = Btn(PlayerDesk.FinishName(finish));
                 bool current = cut.Finish == finish;
                 StyleToggle(finishButton, current);
@@ -711,9 +849,25 @@ public partial class PlayerDeskPanel {
             ? "Hand the remaining work to the producer under your brief. Same clock, same notes, and your kept choices stay. You still review and print."
             : "The producer picks from the listening notes for the sides you haven't kept.";
         delegateChoice.Pressed += () => {
-            if (incremental) { bool ok = desk.RunStudioDate(out string m); Say(m, ok); }
-            else { desk.DelegateTakeSelection(); Say("The producer chose from the listening notes for the unselected sides.", true); }
-            Refresh();
+            if (!incremental) { desk.DelegateTakeSelection(); Say("The producer chose from the listening notes for the unselected sides.", true); Refresh(); return; }
+            var dialog = PaperModal.Open(this, "RUN THE REST OF THE DATE", 720);
+            dialog.AddText("The producer works on under your brief: the same clock, notes and refusals as you. Your kept takes stay kept. Set what may be spent and when to hand back.");
+            var limitRow = new HBoxContainer(); limitRow.AddThemeConstantOverride("separation", 12);
+            var limit = Spin(0, 200, 5, 0);
+            limitRow.AddChild(WorkOrder.Field("Spending limit ($)", limit, 160));
+            var limitNote = new Label { Text = "Zero: hire nobody and buy nothing. Otherwise tape stock and backing singers, up to the limit.", AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            limitNote.AddThemeColorOverride("font_color", Heard);
+            limitRow.AddChild(limitNote);
+            dialog.Body.AddChild(limitRow);
+            var promising = Check("Stop at a take that sounds like the record", true);
+            var idea = Check("Stop when someone has an idea for the song", true);
+            var threat = Check("Stop if a side is running out of time", true);
+            foreach (var box in new[] { promising, idea, threat }) dialog.Body.AddChild(box);
+            dialog.AddButton("RUN IT", () => {
+                bool ok = desk.RunStudioDate(new StudioDelegation { SpendLimit = (float)limit.Value, StopAtPromising = promising.ButtonPressed, StopAtIdea = idea.ButtonPressed, StopAtThreat = threat.ButtonPressed }, out string m);
+                Say(m, ok); Refresh();
+            }, PaperModal.ButtonKind.Primary);
+            dialog.AddButton("NOT YET", null);
         };
         buttons.AddChild(delegateChoice);
         buttons.AddChild(StudioSpacer());
@@ -770,6 +924,45 @@ public partial class PlayerDeskPanel {
             keep.Pressed += () => { bool ok = desk.DeclineBackingSingers(out string m); Say(m, ok); Refresh(); };
             choices.AddChild(keep);
             sheet.AddChild(panel);
+        }
+        // Ideas from the room: who had it, who likes it, and a free choice to try it or pass.
+        foreach (var idea in desk.StudioIdeas(side)) {
+            var box = StudioNotice(sheet, $"AN IDEA FROM {idea.From.ToUpperInvariant()}");
+            StudioText(box, idea.Text, 15, Ink);
+            if (idea.Favors.Count + idea.Resists.Count > 0)
+                StudioText(box, (idea.Favors.Count > 0 ? $"For it: {string.Join(", ", idea.Favors)}. " : "") + (idea.Resists.Count > 0 ? $"Against: {string.Join(", ", idea.Resists)}." : ""), 13, Heard);
+            var choices = StudioFlow(box);
+            string id = idea.Id;
+            var tryIt = Primary("TRY IT");
+            tryIt.Pressed += () => { bool ok = desk.TakeStudioIdea(side, id, out string m); Say(m, ok); Refresh(); };
+            choices.AddChild(tryIt);
+            var notNow = Btn("NOT NOW");
+            notNow.Pressed += () => { bool ok = desk.PassOnStudioIdea(side, id, out string m); Say(m, ok); Refresh(); };
+            choices.AddChild(notNow);
+        }
+        // Out of tape: buy a reel, or choose a take to record over (and confirm it).
+        if (session.Work != null && PlayerDesk.StudioStockLeft(session) <= 0) {
+            var box = StudioNotice(sheet, "OUT OF TAPE");
+            StudioText(box, "Every reel on the quote is used. Buy another, or record over a take you don't need. A take recorded over is gone.", 15, Ink);
+            var choices = StudioFlow(box);
+            var buy = Primary($"BUY A REEL  ·  ${PlayerDesk.StudioReelPrice:N0}");
+            buy.Pressed += () => { bool ok = desk.BuyStudioStock(out string m); Say(m, ok); Refresh(); };
+            choices.AddChild(buy);
+            for (int c = 0; c < session.Cuts.Count; c++) {
+                var each = session.Cuts[c];
+                for (int t = 0; t < each.Takes.Count; t++) {
+                    if (!PlayerDesk.StudioTakeReusable(each, t)) continue;
+                    int cutIndex = c, takeIndex = t;
+                    var over = Btn($"RECORD OVER {SideLetter(c)} TAKE {each.Takes[t].Number}…");
+                    over.Pressed += () => {
+                        var confirm = PaperModal.Open(this, "RECORD OVER THIS TAKE?", 600);
+                        confirm.AddText($"\"{each.Choice.Title}\", take {each.Takes[takeIndex].Number}: {each.Takes[takeIndex].ProducerNote} Recording over it frees tape for one pass. It cannot be kept afterwards.");
+                        confirm.AddButton("KEEP IT", null);
+                        confirm.AddButton("RECORD OVER IT", () => { bool ok = desk.ReuseStudioTape(cutIndex, takeIndex, out string m); Say(m, ok); Refresh(); }, PaperModal.ButtonKind.Danger);
+                    };
+                    choices.AddChild(over);
+                }
+            }
         }
         var work = StudioFlow(sheet);
         int passMinutes = PlayerDesk.StudioPassMinutes(cut), rehearsalMinutes = PlayerDesk.StudioRehearsalMinutesFor(cut);
@@ -831,13 +1024,49 @@ public partial class PlayerDeskPanel {
             dialog.AddButton("NEVER MIND", null);
         };
         work.AddChild(talkback);
+        if (session.RulesVersion >= 2) {
+            var reshape = Btn("KEY, TEMPO & ENDS…");
+            reshape.TooltipText = "Change the key, the tempo or how long the intro and ending run. Asking is free.";
+            reshape.Pressed += () => {
+                var dialog = PaperModal.Open(this, "THE SHAPE OF THE SONG", 820);
+                foreach (StudioShapeChange change in desk.StudioShapeOptions(side)) {
+                    StudioShapeChange chosen = change;
+                    var heading = new Label { Text = PlayerDesk.ShapeName(change).ToUpperInvariant() };
+                    heading.AddThemeFontOverride("font", PaperTheme.SansBold); heading.AddThemeColorOverride("font_color", Rust);
+                    dialog.Body.AddChild(heading);
+                    dialog.AddText(desk.StudioShapeProposal(side, change));
+                    var go = Primary(PlayerDesk.ShapeName(change).ToUpperInvariant());
+                    go.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+                    go.Pressed += () => { dialog.Cancel(); bool ok = desk.ShapeStudio(side, chosen, out string m); Say(m, ok); Refresh(); };
+                    dialog.Body.AddChild(go);
+                }
+                dialog.AddButton("LEAVE IT AS IT IS", null);
+            };
+            work.AddChild(reshape);
+            var balance = Btn("ROOM BALANCE…");
+            balance.TooltipText = "Move the microphones: favour the vocal or open up the band. It applies to the next passes.";
+            balance.Pressed += () => {
+                var dialog = PaperModal.Open(this, "ROOM BALANCE", 720);
+                foreach (StudioBalance b in Enum.GetValues<StudioBalance>()) {
+                    if (b == (cut.Work?.Balance ?? StudioBalance.Natural)) continue;
+                    StudioBalance chosen = b;
+                    dialog.AddText(desk.StudioBalanceProposal(side, b));
+                    var go = Primary(PlayerDesk.BalanceName(b).ToUpperInvariant() + $"  ·  {PlayerDesk.StudioBalanceMinutes}m");
+                    go.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+                    go.Pressed += () => { dialog.Cancel(); bool ok = desk.BalanceStudio(side, chosen, out string m); Say(m, ok); Refresh(); };
+                    dialog.Body.AddChild(go);
+                }
+                dialog.AddButton("NEVER MIND", null);
+            };
+            work.AddChild(balance);
+        }
 
         var arrange = Btn("TRY ANOTHER ARRANGEMENT…");
         arrange.TooltipText = "Hear the producer's ideas for a different arrangement. Asking is free; preparing one takes time.";
         arrange.Pressed += () => {
             var dialog = PaperModal.Open(this, "ANOTHER ARRANGEMENT", 820);
             dialog.AddText($"Now prepared: {PlayerDesk.ArrangementName(cut.Arrangement)}.");
-            foreach (StudioArrangement alternative in Enum.GetValues<StudioArrangement>()) {
+            foreach (StudioArrangement alternative in desk.StudioArrangementOptions(session)) {
                 if (alternative == cut.Arrangement) continue;
                 StudioArrangement chosen = alternative;
                 var heading = new Label { Text = PlayerDesk.ArrangementName(alternative).ToUpperInvariant() };
@@ -849,6 +1078,22 @@ public partial class PlayerDeskPanel {
                 prepare.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
                 prepare.Pressed += () => { dialog.Cancel(); bool ok = desk.ArrangeStudio(side, chosen, out string m); Say(m, ok); Refresh(); };
                 dialog.Body.AddChild(prepare);
+            }
+            if (session.RulesVersion >= 2) {
+                var hires = new HFlowContainer(); hires.AddThemeConstantOverride("h_separation", 8);
+                if (desk.StudioHornOffer() is { } horn) {
+                    var b = Btn($"HIRE A HORN: {horn.Name.ToUpperInvariant()}  ·  ${horn.Fee:N0}  ·  {PlayerDesk.StudioHornArrivalMinutes}m");
+                    b.TooltipText = horn.Text;
+                    b.Pressed += () => { dialog.Cancel(); bool ok = desk.HireStudioCrew(StudioHireKind.Horn, out string m); Say(m, ok); Refresh(); };
+                    hires.AddChild(b);
+                }
+                if (desk.StudioArrangerOffer() is { } arranger) {
+                    var b = Btn($"HIRE AN ARRANGER: {arranger.Name.ToUpperInvariant()}  ·  ${arranger.Fee:N0}");
+                    b.TooltipText = arranger.Text;
+                    b.Pressed += () => { dialog.Cancel(); bool ok = desk.HireStudioCrew(StudioHireKind.Arranger, out string m); Say(m, ok); Refresh(); };
+                    hires.AddChild(b);
+                }
+                if (hires.GetChildCount() > 0) { dialog.AddText("Help from town for a part the act can't play or write:"); dialog.Body.AddChild(hires); }
             }
             dialog.AddButton("KEEP WORKING AS WE ARE", null);
         };
@@ -895,6 +1140,11 @@ public partial class PlayerDeskPanel {
             .Where(n => n != null).ToArray();
         foreach (string note in open ? all : all.Where(n => n.StartsWith("Producer: ", StringComparison.Ordinal)))
             StudioText(notes, note, 15, Heard);
+        if (take.Work != null) {
+            var setup = PlayerDesk.StudioTakeSetup(PlayerDesk.Instance.Session, take).Where(l => l != take.Work.IncidentNote).ToList();
+            if (setup.Count > 0) StudioText(notes, string.Join("  ·  ", setup), 13, Heard);
+            if (take.Work.IncidentNote != null) StudioText(notes, take.Work.IncidentNote, 14, Rust);
+        }
         if (!openByDefault) {
             var more = new LinkButton { Text = open ? "fewer notes" : "everyone's notes", Underline = LinkButton.UnderlineMode.OnHover };
             more.AddThemeColorOverride("font_color", Rust);
@@ -903,7 +1153,28 @@ public partial class PlayerDeskPanel {
             notes.AddChild(more);
         }
 
-        if (kept) line.AddChild(new RubberStamp().Set("Kept", RubberStamp.Red, -0.12f, 18));
+        if (incremental && take.Work != null && !take.Work.Erased && PlayerDesk.Instance.Session is { } here) {
+            var desk = PlayerDesk.Instance;
+            bool vocal = desk.StudioVocalOverdubBlocked(side, index) == null;
+            var parts = desk.StudioOverdubOptions(side, index).Where(o => o.Blocked == null).ToList();
+            var partners = Enumerable.Range(0, cut.Takes.Count).Where(j => desk.StudioSpliceBlocked(side, index, j) == null).ToList();
+            if (vocal || parts.Count > 0 || partners.Count > 0) {
+                var more = Btn("TAPE…");
+                more.TooltipText = "What this take's tape allows: a new vocal, an added part, or a splice.";
+                more.SizeFlagsVertical = SizeFlags.ShrinkBegin;
+                more.Pressed += () => {
+                    var dialog = PaperModal.Open(this, $"TAKE {take.Number}: THE TAPE", 720);
+                    dialog.AddText("Each of these makes a new take. This one stays as it is.");
+                    if (vocal) dialog.AddButton("SING THE VOCAL AGAIN OVER THIS BACKING", () => { bool ok = desk.OverdubStudioVocal(side, index, out string m); Say(m, ok); Refresh(); });
+                    foreach (var p in parts) { var part = p.Part; dialog.AddButton($"ADD {PlayerDesk.OverdubPartName(part).ToUpperInvariant()} ON THE SPARE TRACK", () => { bool ok = desk.OverdubStudioPart(side, index, part, out string m); Say(m, ok); Refresh(); }); }
+                    foreach (int j in partners) { int other = j; dialog.AddButton($"SPLICE INTO TAKE {cut.Takes[other].Number} AT {cut.Structure.Sections[desk.StudioSplicePoint(cut, index, other)].Label.ToUpperInvariant()}  ·  {PlayerDesk.StudioSpliceMinutes}m", () => { bool ok = desk.SpliceStudio(side, index, other, out string m); Say(m, ok); Refresh(); }); }
+                    dialog.AddButton("NEVER MIND", null);
+                };
+                line.AddChild(more);
+            }
+        }
+        if (take.Work?.Erased == true) line.AddChild(new RubberStamp().Set("Recorded over", RubberStamp.Blue, 0.08f, 15));
+        else if (kept) line.AddChild(new RubberStamp().Set("Kept", RubberStamp.Red, -0.12f, 18));
         else if (take.Incomplete) line.AddChild(new RubberStamp().Set(take.FalseStart ? "False start" : "Incomplete", RubberStamp.Blue, 0.08f, 15));
         else {
             var keep = Btn($"KEEP TAKE {take.Number}");

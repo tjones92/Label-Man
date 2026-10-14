@@ -62,7 +62,11 @@ public static class StudioSongStructures {
         _ => (130, 160)
     };
 
-    public static StudioSongStructure For(PlayerDesk.MaterialChoice choice, SimulatedArtist artist) {
+    /// <summary>How much longer the period's singles ran than in 1960-64: steady to 1964, then about four percent a year
+    /// (three-minute sides were common by 1967 and much longer ones charted by 1968). Provisional authored drift.</summary>
+    public static float PeriodLength(int year) => 1f + .04f * Math.Clamp(year - 1964, 0, 6);
+
+    public static StudioSongStructure For(PlayerDesk.MaterialChoice choice, SimulatedArtist artist, int year = 1960) {
         var table = PolarSongTable.Current;
         var song = string.IsNullOrEmpty(choice?.SongId) ? null : CompositionCatalogService.GetSong(choice.SongId);
         string key = $"structure:{choice?.SongId ?? (artist?.artistId + ":" + choice?.Title)}";
@@ -94,7 +98,7 @@ public static class StudioSongStructures {
         structure.FeelDemand = Math.Clamp(axes[(int)SongAxis.Musicianship], .2f, 1);
         var (low, high) = LengthRange(structure.Archetype);
         structure.DurationSeconds = authoredLength is > 60 and < 900 ? (int)Math.Round(authoredLength.Value)
-            : low + (int)Math.Round(StudioTakeEvidence.Unit(key + "|length") * (high - low));
+            : (int)Math.Round((low + StudioTakeEvidence.Unit(key + "|length") * (high - low)) * PeriodLength(year));
         structure.Sections = Build(form, structure.DurationSeconds, structure.Instrumental);
         return structure;
     }
@@ -268,7 +272,7 @@ public static class StudioSongStructures {
         if (capture + (StudioTakeEvidence.Unit(key + "|balance") - .5) * uncertainty >= .45) return null;
         var loud = s.Sections.LastOrDefault(x => x.Kind == StudioSectionKind.Chorus) ?? s.Sections.LastOrDefault(x => x.Kind == StudioSectionKind.Break)
             ?? s.Sections.LastOrDefault(x => x.Final) ?? s.Sections[^1];
-        var roles = artist?.members.Where(m => m.isActive).SelectMany(m => new[] { m.primaryRole, m.secondaryRole }).ToHashSet() ?? new();
+        var roles = artist?.members.Where(m => m.isActive).SelectMany(m => new[] { m.primaryRole, MemberRoleService.Secondary(m) }).ToHashSet() ?? new();
         string source = roles.Contains(MusicianRole.LeadGuitar) || roles.Contains(MusicianRole.RhythmGuitar) ? "The guitar"
             : roles.Contains(MusicianRole.Organ) ? "The organ" : roles.Contains(MusicianRole.Saxophone) || roles.Contains(MusicianRole.Trumpet) ? "The horns"
             : roles.Contains(MusicianRole.Piano) ? "The piano" : roles.Contains(MusicianRole.Drums) ? "The drums" : "The band";

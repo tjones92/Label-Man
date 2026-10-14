@@ -28,6 +28,11 @@ public sealed class StudioRoomSnapshot {
     // reputation and demand (busier staff, a higher rate, a full calendar), never a quality stat. Zero on older saves.
     public float Renown, BaseRate;
     public bool ActCutAHit;         // this act cut a charting record here: the owner keeps time and the chief for them
+    // v21: the machine (tracks; 0 on older snapshots, read as mono) and whether the owner takes evening work.
+    public int Tracks;
+    public bool EveningWork;
+    // v21: an engineer brought in from another room in town, by that room's id. Null when the room's own staff runs the board.
+    public string EngineerHomeRoomId;
     public StudioRoomSnapshot Copy() => (StudioRoomSnapshot)MemberwiseClone();
 }
 
@@ -102,6 +107,9 @@ public static class StudioRoomCatalog {
     public static void Staff(StudioRoomSnapshot room, PlayerDesk.StudioTier tier, GameDate date, string requestedEngineerId = null) {
         if (!room.Specialist) (room.Intimacy, room.Liveliness, room.Control) = StudioPeople.Acoustics(tier);
         StudioPeople.StaffFor(room, tier, date, requestedEngineerId);
+        room.Tracks = StudioEquipment.TracksFor(room, tier, date.year);
+        if (room.Tracks > 1) room.Layout = StudioEquipment.LayoutText(room.Tracks);
+        room.EveningWork = StudioTakeEvidence.Unit(room.Id + "|evenings") < .5;
         room.CapabilityVersion = 4;
     }
 }

@@ -20,12 +20,14 @@ public partial class ArtistManager : Node {
 	// to the downstream commercial system. Runtime never reads analysis outputs,
 	// and the bands exclude Surf Rock and Blues Rock before emergence.
 	private static readonly (float Upper, Genre Genre)[] EnabledInitial1960GenreBands = {
-		(.0900f, Genre.TraditionalPop), (.2554f, Genre.RockAndRoll), (.3589f, Genre.TeenPop),
-		(.5021f, Genre.RnB), (.5659f, Genre.Country), (.7151f, Genre.Soul),
-		(.7601f, Genre.EasyListening), (.8023f, Genre.Jazz), (.8382f, Genre.DooWop),
-		(.8935f, Genre.Folk), (.9295f, Genre.Blues), (.9599f, Genre.Classical),
-		(.9762f, Genre.Gospel), (.9853f, Genre.LatinPop), (.9932f, Genre.Comedy),
-		(.9977f, Genre.Childrens), (1f, Genre.TexMex)
+		// Soul cut 14.9% -> 9.3% (2026-10-14): the 1960 Soul overshoot came from this table,
+		// not the keyframes. The freed weight is spread proportionally over every other genre.
+		(.0959f, Genre.TraditionalPop), (.2723f, Genre.RockAndRoll), (.3826f, Genre.TeenPop),
+		(.5353f, Genre.RnB), (.6033f, Genre.Country), (.6963f, Genre.Soul),
+		(.7443f, Genre.EasyListening), (.7892f, Genre.Jazz), (.8275f, Genre.DooWop),
+		(.8865f, Genre.Folk), (.9248f, Genre.Blues), (.9573f, Genre.Classical),
+		(.9746f, Genre.Gospel), (.9843f, Genre.LatinPop), (.9928f, Genre.Comedy),
+		(.9975f, Genre.Childrens), (1f, Genre.TexMex)
 	};
 	public static ArtistManager Instance { get; private set; }
 	
@@ -340,6 +342,8 @@ public sealed class LaborMarketWeeklySnapshot {
 		// Band-member Phase 1b: split axes, keyed on the world seed and person id and anchored on the roles
 		// just configured. Consumes nothing from the population or global stream; nothing reads them yet.
 		MemberAxesService.EnsureAxes(artist, year);
+		// Second roles (MemberRoleService): keyed, read only by player-side studio code.
+		MemberRoleService.Ensure(artist, year);
 		artist.stageName = type is ArtistType.SoloMale or ArtistType.SoloFemale
 			? artist.members[0].FullName
 			: GenerateStageName(type, primaryGenre, year);
@@ -1262,6 +1266,7 @@ public sealed class LaborMarketWeeklySnapshot {
 		foreach (Musician member in artist.members ?? new List<Musician>())
 			if (member != null && !string.IsNullOrEmpty(member.personId)) musicianRegistry[member.personId] = member;
 		MemberAxesService.EnsureAxes(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
+		MemberRoleService.Ensure(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
 		unsignedArtists.RemoveAll(candidate => candidate.artistId == artist.artistId);
 		LocalSceneIdentityService.EnsureArtist(artist);
 	}
@@ -1383,6 +1388,7 @@ public sealed class LaborMarketWeeklySnapshot {
 			// A v3 save predates member axes: generate them now from the stored technicalSkill (keyed, so the
 			// same person gets the same axes they would have been born with).
 			MemberAxesService.EnsureAxes(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
+			MemberRoleService.Ensure(artist, TimeManager.Instance?.CurrentDate.year ?? artist.formedYear);
 		}
 		foreach (string id in w.UnsignedArtistIds ?? new List<string>())
 			if (id != null && artistRegistry.TryGetValue(id, out SimulatedArtist artist)) unsignedArtists.Add(artist);

@@ -34,7 +34,8 @@ public partial class PlayerDesk {
 
     /// <summary>The room's renown on a date, in [0, 1): saturating, so a second hit adds less than the first.</summary>
     public float StudioRenown(string roomId, GameDate date) {
-        float sum = StudioHitsAt(roomId).Sum(h => StudioHitWeight(h.Peak) * StudioHitPull(LocalSceneRoomService.Day(date) - LocalSceneRoomService.Day(h.Charted)));
+        float sum = StudioHitsAt(roomId).Sum(h => StudioHitWeight(h.Peak) * StudioHitPull(LocalSceneRoomService.Day(date) - LocalSceneRoomService.Day(h.Charted)))
+            + StudioMarketPull(roomId, date);
         return 1f - MathF.Exp(-sum / 1.5f);
     }
 
@@ -66,7 +67,13 @@ public partial class PlayerDesk {
     public string StudioRenownText(StudioRoomSnapshot room) {
         if (room == null) return null;
         var hits = StudioHitsAt(room.Id).OrderBy(h => h.Peak).ThenBy(h => h.RecordId, StringComparer.Ordinal).ToList();
-        if (hits.Count == 0) return null;
+        var market = studioMarketHits.Where(h => h.RoomId == room.Id).OrderBy(h => h.Peak).ThenBy(h => h.RecordId, StringComparer.Ordinal).ToList();
+        if (hits.Count == 0 && market.Count == 0) return null;
+        if (hits.Count == 0) {
+            var top = market[0];
+            string others = $"Known for \"{top.Title}\" by {top.ArtistName} on {top.LabelName} (#{top.Peak}){(market.Count > 1 ? $" and {market.Count - 1} more records by other labels" : "")}.";
+            return room.Renown < .01f ? others + " The rate and calendar haven't moved yet." : others + (room.HourlyRate > room.BaseRate ? $" The posted rate went up from ${room.BaseRate:N0} to ${room.HourlyRate:N0}." : "") + " The chief is booked more often.";
+        }
         var best = hits[0];
         string known = $"Known for \"{best.Title}\" by {best.ArtistName} (#{best.Peak}){(hits.Count > 1 ? $" and {hits.Count - 1} more of your records" : "")}.";
         if (room.Renown < .01f) return known + " Word of it hasn't got around yet; the rate and calendar are unchanged.";

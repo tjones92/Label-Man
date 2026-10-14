@@ -6,6 +6,7 @@ using Godot;
 /// <summary>One of a specialist room's house players on a booking: who, on what, and whom they sit in for (if anyone).</summary>
 public sealed class StudioHousePlayer {
     public string PersonId, Name, ReplacesPersonId, ReplacesName;
+    public string DeputyFor;   // the regular this player is standing in for, when the crew's own is out
     public MusicianRole Role;
     public float Skill, Reading, Fee;
 }
@@ -51,7 +52,7 @@ public partial class PlayerDesk {
     private static readonly MusicianRole[] HouseRhythm = { MusicianRole.Drums, MusicianRole.Bass };
     private static readonly MusicianRole[] ChordRoles = { MusicianRole.Piano, MusicianRole.Organ, MusicianRole.RhythmGuitar, MusicianRole.LeadGuitar, MusicianRole.MultiInstrumentalist };
 
-    private static bool PlaysRole(Musician m, MusicianRole role) => m.primaryRole == role || m.secondaryRole == role || m.primaryRole == MusicianRole.MultiInstrumentalist;
+    private static bool PlaysRole(Musician m, MusicianRole role) => MemberRoleService.Plays(m, role) || m.primaryRole == MusicianRole.MultiInstrumentalist;
     private static List<Musician> ActivePeople(SimulatedArtist act) => act.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).ToList();
     private static string OwnerName(StudioRoomSnapshot room) => room.Name.Split(' ')[0];
 
@@ -95,11 +96,20 @@ public partial class PlayerDesk {
             return plan;
         }
         var pool = town.Where(m => !LocalSceneRoomService.HasPersonBooking(m.personId, day, startMinute, endMinute, null)).ToList();
+        var crew = HouseCrewFor(room, day, date.year);
+        if (crew != null) plan.Reason += $" The house band is {crew.Name}.";
         foreach (var role in roles) {
             // The house players are the owner's regulars: the same best readers come up date after date.
-            var player = pool.Where(m => PlaysRole(m, role) && plan.Players.All(p => p.PersonId != m.personId))
-                .OrderByDescending(m => m.technicalSkill + m.sightReading + .5f * (float)StudioTakeEvidence.Unit($"{room.Id}|house|{m.personId}"))
-                .ThenBy(m => m.personId, StringComparer.Ordinal).FirstOrDefault();
+            // The crew's regular on this part when free; otherwise the owner calls a deputy, the next best free reader.
+            var regular = crew?.Seats.FirstOrDefault(s => s.Role == role);
+            var player = regular == null ? null : pool.FirstOrDefault(m => m.personId == regular.PersonId && plan.Players.All(p => p.PersonId != m.personId));
+            string deputyFor = null;
+            if (player == null) {
+                player = pool.Where(m => PlaysRole(m, role) && plan.Players.All(p => p.PersonId != m.personId))
+                    .OrderByDescending(m => m.technicalSkill + m.sightReading + .5f * (float)StudioTakeEvidence.Unit($"{room.Id}|house|{m.personId}"))
+                    .ThenBy(m => m.personId, StringComparer.Ordinal).FirstOrDefault();
+                if (player != null && regular != null) deputyFor = regular.Name;
+            }
             if (player == null) {
                 plan.Locked = $"{owner}'s house {RoleWord(role).ToLowerInvariant()} player is out on another date today, and the owner won't record {act.stageName} without the house band. Try another day.";
                 plan.Players.Clear(); return plan;
@@ -107,7 +117,7 @@ public partial class PlayerDesk {
             var sits = singer ? null : own.Where(m => m.primaryRole == role).OrderBy(m => m.personId, StringComparer.Ordinal).FirstOrDefault();
             plan.Players.Add(new StudioHousePlayer {
                 PersonId = player.personId, Name = player.FullName, Role = role, Skill = player.technicalSkill, Reading = player.sightReading,
-                Fee = SessionPlayerFee(player.sightReading), ReplacesPersonId = sits?.personId, ReplacesName = sits?.firstName
+                Fee = SessionPlayerFee(player.sightReading), ReplacesPersonId = sits?.personId, ReplacesName = sits?.firstName, DeputyFor = deputyFor
             });
         }
         return plan;
@@ -130,19 +140,42 @@ public partial class PlayerDesk {
             session.SessionLift = Math.Min(.10f, session.SessionLift + hire.Lift);
             session.Cost += hire.Fee;
             if (town.FirstOrDefault(m => m.personId == p.PersonId) is { } person) SessionEmploymentService.OnPlayerSession(person, Label.labelId, artist, hire.Fee);
-            session.ActionLog.Add($"House player: {hire.Name} on {RoleWord(hire.Role).ToLowerInvariant()}{(member != null ? $", in place of {member.firstName}" : "")} (${hire.Fee:N0}).");
+            session.ActionLog.Add($"House player: {hire.Name} on {RoleWord(hire.Role).ToLowerInvariant()}{(member != null ? $", in place of {member.firstName}" : "")}{(p.DeputyFor != null ? $", deputising for {p.DeputyFor}" : "")} (${hire.Fee:N0}).");
         }
     }
 
     // ---- Backing singers ----
 
     /// <summary>A singer needs backing voices when nobody else in the act can sing behind them: no one else is a singer,
-    /// and no player has the voice to hold a harmony part. The bar sits below a hired singer's: a bandmate learns the part
-    /// over months, not in the room. At .45 about a quarter of the opening population's bands have a harmony voice.</summary>
+    /// nobody sings harmony on stage (a second role, with a voice that holds a part), and no player has the voice to pick
+    /// a part up unprompted. That last bar sits below a hired singer's: a bandmate learns the part over months, not in the
+    /// room. At .45 alone about a quarter of the opening population's bands had a harmony voice.</summary>
     public const float StudioHarmonyBar = .45f;
+    /// <summary>The studio rules a new date is booked under (PendingSession.RulesVersion). 2: own harmony singers.</summary>
+    public const int StudioRulesCurrent = 2;
     public static bool StudioNeedsBacking(SimulatedArtist act) =>
         act != null && !act.instrumentalPerformance && !ActivePeople(act).Any(m => !m.isLeadVocalist &&
-            (Sings(m.primaryRole) || SessionEmploymentService.BackingVoice(m) >= StudioHarmonyBar));
+            (MemberRoleService.SingsHarmony(m) || SessionEmploymentService.BackingVoice(m) >= StudioHarmonyBar));
+
+    /// <summary>The act's own voices behind the lead on this date: members (not sitting out) who sing a part, best three.
+    /// Empty for dates booked before own harmony counted (RulesVersion &lt; 2).</summary>
+    internal static List<Musician> StudioOwnHarmony(PendingSession session, SimulatedArtist act) {
+        if (session == null || act == null || act.instrumentalPerformance || session.RulesVersion < 2) return new();
+        var sittingOut = session.Hires.Where(h => h.Replaces).Select(h => h.ReplacesPersonId).ToHashSet();
+        return ActivePeople(act).Where(m => !sittingOut.Contains(m.personId) && !m.isLeadVocalist &&
+                (MemberRoleService.SingsHarmony(m) || SessionEmploymentService.BackingVoice(m) >= StudioHarmonyBar))
+            .OrderByDescending(SessionEmploymentService.BackingVoice).ThenBy(m => m.personId, StringComparer.Ordinal).Take(3).ToList();
+    }
+
+    /// <summary>The voices behind the lead on this pass, -1 for none: a hired group when there is one (they take the
+    /// parts), otherwise the act's own singers, whose average voice is discounted when only one or two sing.</summary>
+    internal static float StudioHarmonyVoiceOn(PendingSession session, SimulatedArtist act) {
+        float hired = StudioBackingVoiceOn(session);
+        if (hired >= 0) return hired;
+        var own = StudioOwnHarmony(session, act);
+        if (own.Count == 0) return -1;
+        return own.Average(SessionEmploymentService.BackingVoice) * (own.Count == 1 ? .6f : own.Count == 2 ? .85f : 1f);
+    }
 
     /// <summary>How much a song calls for voices behind the lead, 0-1: pop numbers, big ballads, gospel shouts and the
     /// Nashville sound call loudly; blues, folk and message songs barely at all. Provisional authored weights.</summary>

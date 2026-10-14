@@ -6,7 +6,7 @@ using Godot;
 /// <summary>Why an outsider is on the date: a session player the label chose in place of a member, a specialist room's
 /// house player the owner insisted on (in place of a member, or filling a part a singer has no one for), or one voice of
 /// a hired backing group. Older saves hold only replacements.</summary>
-public enum StudioHireKind { Replacement, HousePlayer, BackingVoice }
+public enum StudioHireKind { Replacement, HousePlayer, BackingVoice, Horn, Arranger, Producer }
 
 /// <summary>A named session musician on a studio date, in place of one member. Credited on every master whose kept take
 /// they played on; a take cut before they arrived is the band's own performance.</summary>
@@ -22,6 +22,7 @@ public sealed class StudioSessionHire {
     public StudioSessionHire Copy() => (StudioSessionHire)MemberwiseClone();
     public bool Valid => !string.IsNullOrEmpty(PersonId) && !string.IsNullOrEmpty(Name) && Enum.IsDefined(Kind) && Enum.IsDefined(Role) &&
         (Kind != StudioHireKind.Replacement || Replaces) && (Kind != StudioHireKind.BackingVoice || !Replaces && !string.IsNullOrEmpty(GroupName) && Lift == 0 && EnsembleLift == 0) &&
+        (Kind is not (StudioHireKind.Horn or StudioHireKind.Arranger or StudioHireKind.Producer) || !Replaces && Lift == 0 && EnsembleLift == 0) &&
         new[] { Skill, Reading, Fee, Lift, EnsembleLift }.All(float.IsFinite) && Fee >= 0 && Lift is >= 0 and <= .10f && EnsembleLift is >= 0 and <= .06f;
 }
 
@@ -92,7 +93,7 @@ public partial class PlayerDesk {
             if (voice != null) return (voice.personId, voice.firstName, MemberSinging(voice), false);
         }
         var players = members.Where(m => !Sings(m.primaryRole)).Select(m => (PersonId: m.personId, Name: m.firstName, Skill: MemberPlaying(m), Hired: false))
-            .Concat(session.Hires.Where(h => h.Kind != StudioHireKind.BackingVoice).Select(h => (h.PersonId, Name: h.Name.Split(' ')[0], h.Skill, Hired: true)))
+            .Concat(session.Hires.Where(h => h.Kind is StudioHireKind.Replacement or StudioHireKind.HousePlayer or StudioHireKind.Horn).Select(h => (h.PersonId, Name: h.Name.Split(' ')[0], h.Skill, Hired: true)))
             .OrderBy(x => x.Skill).ThenBy(x => x.PersonId, StringComparer.Ordinal).ToList();
         if (players.Count > 0) return players[0];
         var anyone = members.OrderBy(m => m.personId, StringComparer.Ordinal).FirstOrDefault();
@@ -160,7 +161,7 @@ public partial class PlayerDesk {
     private IEnumerable<Musician> StudioSessionCandidates(string cityId, Musician member, SimulatedArtist act, GameDate date, int endMinute) {
         int day = LocalSceneRoomService.Day(date), now = (TimeManager.Instance?.CurrentHour ?? 9) * 60 + (TimeManager.Instance?.CurrentMinute ?? 0);
         return SessionEmploymentService.ListeningCandidates(cityId, day)
-            .Where(m => (m.primaryRole == member.primaryRole || m.secondaryRole == member.primaryRole || m.primaryRole == MusicianRole.MultiInstrumentalist) &&
+            .Where(m => (MemberRoleService.Plays(m, member.primaryRole) || m.primaryRole == MusicianRole.MultiInstrumentalist) &&
                 !act.members.Any(x => x.personId == m.personId) && !LocalSceneRoomService.HasPersonBooking(m.personId, day, now, endMinute, null))
             .OrderByDescending(m => m.sightReading + m.technicalSkill + SessionEmploymentService.RegularScore(Label.labelId, m.personId))
             .ThenBy(m => m.personId, StringComparer.Ordinal);
@@ -210,9 +211,13 @@ public partial class PlayerDesk {
     /// backing group once, by its name, with its voices.</summary>
     public static List<string> StudioSessionCredits(PendingSession session, SessionTake take) {
         var on = session.Hires.Where(h => take.SessionPersonIds?.Contains(h.PersonId) == true).ToList();
-        return on.Where(h => h.Kind != StudioHireKind.BackingVoice).Select(h => $"{h.Name} ({RoleWord(h.Role).ToLowerInvariant()}" +
+        bool horns = take.Arrangement == StudioArrangement.HornLine || take.Work?.Parts?.Contains(StudioOverdubPart.HornLine) == true;
+        return on.Where(h => h.Kind is StudioHireKind.Replacement or StudioHireKind.HousePlayer || h.Kind == StudioHireKind.Horn && horns).Select(h => $"{h.Name} ({RoleWord(h.Role).ToLowerInvariant()}" +
                 (h.Kind == StudioHireKind.HousePlayer ? ", the room's house player" : "") + (h.Replaces ? $", in place of {h.ReplacesName})" : ")"))
             .Concat(on.Where(h => h.Kind == StudioHireKind.BackingVoice).GroupBy(h => h.GroupName)
-                .Select(g => $"{g.Key} (backing vocals: {string.Join(", ", g.Select(h => h.Name))})")).ToList();
+                .Select(g => $"{g.Key} (backing vocals: {string.Join(", ", g.Select(h => h.Name))})"))
+            .Concat(on.Where(h => h.Kind == StudioHireKind.Arranger && horns)
+                .Select(h => $"{h.Name} (arranger)"))
+            .Concat(on.Where(h => h.Kind == StudioHireKind.Producer).Select(h => $"{h.Name} (producer)")).ToList();
     }
 }

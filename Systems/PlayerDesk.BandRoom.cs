@@ -85,6 +85,11 @@ public partial class PlayerDesk {
 		// A named local session player (null on older bookings, and when nobody local plays the part).
 		public string PersonId;
 		public MusicianRole Role;
+		// A player driven in from another town (null when local): where from, the travel pay inside Fee, and the first
+		// day they can be in the room (a day's notice, so never the day of booking).
+		public string FromCityId;
+		public float TravelFee;
+		public int ArrivesDay;
 	}
 
 	/// <summary>A writing session in progress: two writers in a room, a song at the end of it.</summary>
@@ -582,7 +587,7 @@ public partial class PlayerDesk {
 		foreach (PooledPerson p in PoolCandidatesFor(a, role, lead, 3))
 			opts.Add(new BandOption {
 				verb = BandVerb.HireFromPool, targetPersonId = p.person.personId,
-				label = $"Hire {p.person.FullName} ({RoleWord(p.person.primaryRole)}, ex-{p.lastStageName}, {p.person.GetAge(YearNow)})",
+				label = $"Hire {p.person.FullName} ({RoleWord(p.person.primaryRole)}{SecondRoleWords(p.person)}, ex-{p.lastStageName}, {p.person.GetAge(YearNow)})",
 				subLabel = $"{SkillWord(p.person.technicalSkill)}. Free since {p.sinceYear}.{(p.person.personalRecognition > 0.02f ? " People know the name." : "")}" +
 					(ContactNetworkService.Describe(p.person, a) is string known ? " " + known : "")
 			});
@@ -617,7 +622,15 @@ public partial class PlayerDesk {
 		MusicianRole.LeadVocals => "singer", MusicianRole.BackingVocals => "harmony singer", MusicianRole.LeadGuitar => "lead guitar",
 		MusicianRole.RhythmGuitar => "rhythm guitar", MusicianRole.Bass => "bass", MusicianRole.Drums => "drums", MusicianRole.Piano => "piano",
 		MusicianRole.Organ => "organ", MusicianRole.Saxophone => "sax", MusicianRole.Trumpet => "trumpet", MusicianRole.Harmonica => "harp",
-		MusicianRole.Violin => "fiddle", MusicianRole.Percussion => "percussion", _ => "plays anything"
+		MusicianRole.Violin => "fiddle", MusicianRole.Percussion => "percussion", MusicianRole.None => "nothing else", _ => "plays anything"
+	};
+
+	/// <summary>", sings harmony" or ", also piano" for a member with a second role; empty without one.</summary>
+	public static string SecondRoleWords(Musician m) => MemberRoleService.Secondary(m) switch {
+		MusicianRole.None => "",
+		MusicianRole.BackingVocals => ", sings harmony",
+		MusicianRole.LeadVocals => ", can sing lead",
+		var r => ", also " + RoleWord(r)
 	};
 
 	public static string SkillWord(float skill) => skill > 0.7f ? "A real player" : skill > 0.5f ? "Solid" : skill > 0.35f ? "Can keep up" : "Rough";
@@ -1037,20 +1050,55 @@ public partial class PlayerDesk {
 		string key = $"session|{a.artistId}|{replaced.personId}|{ChartWeekNow}";
 		// A real local player who plays the part comes first; otherwise the best reader in the pool, as before.
 		Musician local = Sings(replaced.primaryRole) ? null : StudioSessionCandidates(Label.homeCityId, replaced, a, StudioToday, 0).FirstOrDefault();
+		// Nobody in town plays the part: call the nearest town within a day's drive that has someone, as small-town
+		// producers did. They are paid for the road both ways and need a day's notice. Only past that does the old
+		// placeless pool fallback apply.
+		var driven = local != null || Sings(replaced.primaryRole) ? default : StudioDrivenInPlayer(replaced, a);
+		if (driven.Person != null) local = driven.Person;
 		PooledPerson pooled = local != null ? null : PersonPool.Ordered().Where(p => p.person.lifeState == MemberLifeState.Active && p.person.sightReading >= 0.55f)
 			.OrderByDescending(p => p.person.sightReading + p.person.technicalSkill).ThenBy(p => p.person.personId, StringComparer.Ordinal).FirstOrDefault();
 		Musician person = local ?? pooled?.person;
 		float skill = person?.technicalSkill ?? Mathf.Clamp(0.62f + 0.12f * BandLife.Normal(key + "|skill"), 0.35f, 0.95f);
 		float reading = person?.sightReading ?? Mathf.Clamp(0.70f + 0.10f * BandLife.Normal(key + "|read"), 0.4f, 1f);
 		string name = person?.FullName ?? string.Join(" ", BandLifeNames.Person(true, key).First, BandLifeNames.Person(true, key).Last);
-		float fee = SessionPlayerFee(reading);
-		if (Label.cashReserves < fee) { message = $"A session man who reads like that costs ${fee:N0}."; return false; }
+		float travel = driven.Person != null ? StudioDrivenInTravelFee(driven.Hours, driven.Gas) : 0f;
+		float fee = SessionPlayerFee(reading) + travel;
+		if (Label.cashReserves < fee) { message = $"A session man who reads like that costs ${fee:N0}{(travel > 0 ? $", with ${travel:N0} for the drive" : "")}."; return false; }
 		sessionPlayers[a.artistId] = new SessionPlayerBooking { ArtistId = a.artistId, ReplacesPersonId = replaced.personId, Name = name, Skill = skill, SightReading = reading, Fee = fee,
-			PersonId = local?.personId, Role = replaced.primaryRole };
-		message = $"{name}{(local != null ? $", who plays {RoleWord(replaced.primaryRole).ToLowerInvariant()} on sessions in town," : "")} will sit in for {replaced.firstName} at the next session (${fee:N0}, paid at the date).";
+			PersonId = local?.personId, Role = replaced.primaryRole,
+			FromCityId = driven.Person != null ? driven.CityId : null, TravelFee = travel, ArrivesDay = driven.Person != null ? LocalSceneRoomService.Day(StudioToday) + 1 : 0 };
+		string fromTown = driven.Person != null ? DistanceModel.GetCityById(driven.CityId)?.name ?? driven.CityId : null;
+		message = driven.Person != null
+			? $"{name}, who plays {RoleWord(replaced.primaryRole).ToLowerInvariant()} on sessions in {fromTown}, will drive in ({driven.Hours}h each way) and sit in for {replaced.firstName} at the next session from tomorrow (${fee:N0} with ${travel:N0} for the road, paid at the date)."
+			: $"{name}{(local != null ? $", who plays {RoleWord(replaced.primaryRole).ToLowerInvariant()} on sessions in town," : "")} will sit in for {replaced.firstName} at the next session (${fee:N0}, paid at the date).";
 		Note($"Booked session man {name} in place of {replaced.firstName} ({a.stageName}).");
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>Travel pay for a driven-in session player: the road both ways at a provisional $2 an hour, plus gas both
+	/// ways. Authored, not an AFM schedule (no 1960 travel-scale figure was confirmed).</summary>
+	public static float StudioDrivenInTravelFee(int hours, float gas) => Mathf.Round(2f * 2 * hours + 2 * gas);
+
+	/// <summary>The nearest town within a same-day drive of home that has a free session player for this part, and its
+	/// best reader there. Read-only; draws nothing. Billings, with no such town in reach, gets nobody.</summary>
+	private (Musician Person, string CityId, int Hours, float Gas) StudioDrivenInPlayer(Musician replaced, SimulatedArtist a) {
+		MarketCity home = DistanceModel.GetCityById(Label.homeCityId);
+		if (home == null) return default;
+		foreach (var town in DistanceModel.GetCities().Where(c => c.cityId != home.cityId && CanReach(home, c))
+			.Select(c => (City: c, Quote: DriveQuote(home.cityId, c.cityId))).Where(x => x.Quote.Hours <= MaxStudioDriveHours)
+			.OrderBy(x => x.Quote.Hours).ThenBy(x => x.City.cityId, StringComparer.Ordinal)) {
+			var person = StudioSessionCandidates(town.City.cityId, replaced, a, StudioToday, 0).FirstOrDefault();
+			if (person != null) return (person, town.City.cityId, town.Quote.Hours, town.Quote.Gas);
+		}
+		return default;
+	}
+
+	/// <summary>A driven-in player booked today is still on the road; refuses a date before they can arrive.</summary>
+	private bool SessionPlayerArrived(SimulatedArtist a, out string message) {
+		message = "";
+		if (SessionPlayerFor(a?.artistId) is not { FromCityId: not null } b || LocalSceneRoomService.Day(StudioToday) >= b.ArrivesDay) return true;
+		message = $"{b.Name} is driving in from {DistanceModel.GetCityById(b.FromCityId)?.name ?? b.FromCityId} and can't be here before tomorrow."; return false;
 	}
 
 	public SessionPlayerBooking SessionPlayerFor(string artistId) => artistId != null && sessionPlayers.TryGetValue(artistId, out var b) ? b : null;
@@ -1063,7 +1111,7 @@ public partial class PlayerDesk {
 		used = b;
 		Musician replaced = a.members.FirstOrDefault(m => m.personId == b.ReplacesPersonId);
 		float lift = ApplySessionHire(a, replaced, b.Name, b.Skill, b.SightReading, b.Fee);
-		if (b.PersonId != null && SessionEmploymentService.ListeningCandidates(Label.homeCityId, LocalSceneRoomService.Day(StudioToday))
+		if (b.PersonId != null && SessionEmploymentService.ListeningCandidates(b.FromCityId ?? Label.homeCityId, LocalSceneRoomService.Day(StudioToday))
 			.FirstOrDefault(m => m.personId == b.PersonId) is { } person) SessionEmploymentService.OnPlayerSession(person, Label.labelId, a, b.Fee);
 		return lift;
 	}
@@ -1239,7 +1287,7 @@ public partial class PlayerDesk {
 		ExecutiveInstinctProfile i = InstinctProfile;
 		foreach (Musician m in a.members.Where(x => x.isActive)) {
 			var card = new MemberCard { Member = m, Trust = TrustOf(m.personId) };
-			card.Line = $"{m.FullName}, {m.GetAge(year)} -- {RoleWord(m.primaryRole)}{(m.isLeadVocalist && m.primaryRole != MusicianRole.LeadVocals ? " and lead voice" : "")}" +
+			card.Line = $"{m.FullName}, {m.GetAge(year)} -- {RoleWord(m.primaryRole)}{(m.isLeadVocalist && m.primaryRole != MusicianRole.LeadVocals ? " and lead voice" : "")}{SecondRoleWords(m)}" +
 				$"{(m.isPrimaryWriter ? ", writes" : "")}{(m.isBandLeader ? ", leads the band" : "")}";
 			int reads = Math.Max(i.TheEar, Math.Max(i.TheStreet, i.TheFixer));
 			card.Personality = reads >= 4 ? DeepRead(m) : reads >= 2 ? ClearRead(m) : "You don't know them well enough yet to say.";

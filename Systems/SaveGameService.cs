@@ -31,7 +31,7 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 20; // v20: house players, backing singers, room renown, studio trips; v16: arrangements; v17: retained source-bound mono finishes; v18: song structure, part rehearsal, located reads; v19: breakdowns, named session players, travel, chief/second engineers
+	public const int CurrentVersion = 21; // v21: member second roles, per-date studio rules version; v20: house players, backing singers, room renown, studio trips; v16: arrangements; v17: retained source-bound mono finishes; v18: song structure, part rehearsal, located reads; v19: breakdowns, named session players, travel, chief/second engineers
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -350,6 +350,9 @@ public sealed class PlayerSaveData {
     public List<StudioVisit> StudioVisits { get; set; }
     /// <summary>Optional (v20): a band driven up to a studio town ahead of its date. Older saves hold none.</summary>
     public StudioTrip StudioTrip { get; set; }
+    // v21: specialist rooms' standing crews, and other labels' hits attributed to rooms.
+    public List<StudioHouseCrew> StudioHouseCrews { get; set; }
+    public List<StudioMarketHit> StudioMarketHits { get; set; }
     public List<string> GeneratedProspectIds { get; set; }
     public List<SceneDiscovery> SceneDiscoveries { get; set; }
     public SceneInformationKnowledge SceneInformation { get; set; }
@@ -736,7 +739,8 @@ public sealed class PendingSessionSaveData {
 				EngineerNote = t.EngineerNote, PerformerNote = t.PerformerNote, ProducerNote = t.ProducerNote,
 				TakeId = t.TakeId, Vocal = t.Vocal, Ensemble = t.Ensemble, Feel = t.Feel, Capture = t.Capture,
 				Direction = t.Direction, BandNote = t.BandNote, Arrangement = t.Arrangement, ArrangementRevision = t.ArrangementRevision,
-				Incomplete = t.Incomplete, FalseStart = t.FalseStart, FaultPersonId = t.FaultPersonId, SessionPersonIds = t.SessionPersonIds?.ToList() }).ToList()
+				Incomplete = t.Incomplete, FalseStart = t.FalseStart, FaultPersonId = t.FaultPersonId, SessionPersonIds = t.SessionPersonIds?.ToList(), Work = t.Work?.Copy() }).ToList(),
+			Work = cut.Work?.Copy()
 		}).ToList()
 	};
 
@@ -766,6 +770,10 @@ public sealed class PendingSessionSaveData {
 					t.SessionPersonIds != null && t.SessionPersonIds.Any(id => session.Hires.All(h => h.PersonId != id))))
 				throw new InvalidOperationException("Invalid saved studio take.");
 			cut.Takes.AddRange(saved.Takes);
+			// v21: the song's shape and each take's setup, incident and source. Absent on older dates, which keep their rules.
+			if (saved.Work != null && (session.RulesVersion < 2 || !saved.Work.Valid) || !PlayerDesk.StudioTakeWorkValid(session, saved.Takes, cut.KeptTake))
+				throw new InvalidOperationException("Invalid saved studio work.");
+			cut.Work = saved.Work?.Copy();
 			if (session.FlowVersion > 0) {
 				// v17 and earlier dates had no song structure. It is a pure derivation, so derive it now;
 				// their paid takes keep the flat pass time and gain no located reads after the fact.
@@ -791,7 +799,7 @@ public sealed class PendingSessionSaveData {
 		return session.Cuts.Count == 0 ? null : session;
 	}
 	private static bool StudioFinishValid(PlayerDesk.PendingSession session, PlayerDesk.SessionCut cut, StudioFinishWork work) =>
-		session.FlowVersion > 0 && PlayerDesk.StudioFinishes(session.Room).Contains(work.Finish) &&
+		session.FlowVersion > 0 && PlayerDesk.StudioFinishes(session.Room, cut.Takes.FirstOrDefault(t => t.TakeId == work.TakeId)).Contains(work.Finish) &&
 		!string.IsNullOrEmpty(work.TakeId) && cut.Takes.Any(t => t.TakeId == work.TakeId) && !string.IsNullOrEmpty(work.Note) &&
 		work.Minutes == PlayerDesk.StudioProcessingMinutes && work.ActionNumber > 0 && work.ActionNumber <= session.ActionNumber &&
 		float.IsFinite(work.HookChange) && Math.Abs(work.HookChange) <= .05f &&
@@ -810,6 +818,7 @@ public sealed class SessionCutSaveData {
 	public PlayerDesk.MaterialChoice Choice { get; set; }
 	public List<PlayerDesk.SessionTake> Takes { get; set; } = new();
 	public int KeptTake { get; set; }
+	public StudioCutWork Work { get; set; }
 }
 
 public sealed class RepertoireSaveData {

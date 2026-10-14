@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using Godot;
 
@@ -163,7 +164,8 @@ public partial class StudioAccessRunner : Node {
                     for (int i = 0; i < 3; i++) if (!desk.CutStudioTake(0, out string why) && sample.Count < 3) GD.Print($"STUDIO_ACCESS cut refused: {why} same={ReferenceEquals(ArtistManager.Instance.GetArtist(act.artistId), act)} label={act.labelId} desk={desk.Label.labelId} lineup={string.Join(",", desk.Session.ParticipantIds)} members={string.Join(",", act.members.Where(m => m.isActive && m.lifeState == MemberLifeState.Active).Select(m => m.personId))}");
                     var takes = desk.Session.Cuts[0].Takes;
                     sample.Add((act, takes.Count, takes.Count(t => t.Incomplete && !t.FalseStart), takes.Count(t => t.FalseStart)));
-                    Check(takes.Where(t => t.FalseStart).All(t => t.FaultPersonId == null && t.Minutes < PlayerDesk.StudioPassMinutes(desk.Session.Cuts[0]) && desk.StudioCallIn() == null),
+                    Check(takes.Where(t => t.FalseStart).All(t => t.FaultPersonId == null && t.Minutes < PlayerDesk.StudioPassMinutes(desk.Session.Cuts[0])) &&
+                        (desk.StudioCallIn() is not { } callIn || callIn.Breakdowns == takes.Count(t => t.Incomplete && !t.FalseStart && t.FaultPersonId == callIn.MemberId)),
                         "A false start costs a minute or two, blames nobody's part and never brings a call-in");
                 }
                 Check(desk.RestoreState(baseline, out message), "Reset after sampling: " + message);
@@ -300,12 +302,64 @@ public partial class StudioAccessRunner : Node {
             Check(desk.BookSessionPlayer(artist, drummer, out message), "Band Room booking: " + message);
             var booking = desk.SessionPlayerFor(artist.artistId);
             var localDrummers = SessionEmploymentService.ListeningCandidates("atlanta", LocalSceneRoomService.Day(clock.CurrentDate))
-                .Where(m => m.primaryRole == MusicianRole.Drums || m.secondaryRole == MusicianRole.Drums || m.primaryRole == MusicianRole.MultiInstrumentalist).ToList();
-            Check(localDrummers.Count == 0 ? booking.PersonId == null : localDrummers.Any(m => m.personId == booking.PersonId && m.FullName == booking.Name),
+                .Where(m => MemberRoleService.Plays(m, MusicianRole.Drums) || m.primaryRole == MusicianRole.MultiInstrumentalist).ToList();
+            Check(localDrummers.Count == 0 ? booking.PersonId == null || booking.FromCityId != null : localDrummers.Any(m => m.personId == booking.PersonId && m.FullName == booking.Name),
                 $"The booked session player is a named local drummer when there is one ({booking.Name}; {localDrummers.Count} in town)");
             Check(desk.StartSession(artist, one, PlayerDesk.StudioTier.Budget, 3, out message, overrideRefusal: true), "Book with the session player: " + message);
             Check(desk.Session.Hires.Count == 1 && desk.Session.Hires[0].Name == booking.Name && !desk.Session.Hires[0].CalledIn && desk.SessionPlayerFor(artist.artistId) == null,
                 "A Band Room booking arrives on the date as a named hire");
+
+            // ---- A small town with no local player for the part: one is driven in from the nearest town in a day's drive. ----
+            desk.ScrapSession();
+            {
+                string realHome = desk.Label.homeCityId, realRegion = desk.Label.homeRegion;
+                var cityField = typeof(PlayerDesk).GetField("currentCityId", BindingFlags.NonPublic | BindingFlags.Instance);
+                object realCurrent = cityField.GetValue(desk);
+                int today = LocalSceneRoomService.Day(clock.CurrentDate);
+                bool HasPlayer(string city, MusicianRole role) => SessionEmploymentService.ListeningCandidates(city, today)
+                    .Any(m => MemberRoleService.Plays(m, role) || m.primaryRole == MusicianRole.MultiInstrumentalist);
+                var parts = artist.members.Where(m => m.isActive && m.personId != null && !(m.isLeadVocalist || m.primaryRole is MusicianRole.LeadVocals or MusicianRole.BackingVocals)).ToList();
+                var thin = DistanceModel.GetCities().SelectMany(c => parts.Where(m => !HasPlayer(c.cityId, m.primaryRole)).Select(m => (City: c, Member: m)))
+                    .OrderBy(x => x.City.cityId, StringComparer.Ordinal).ThenBy(x => x.Member.personId, StringComparer.Ordinal).ToList();
+                GD.Print($"STUDIO_ACCESS drivenIn townsMissingAPart={thin.Count} ({string.Join(" ", thin.Select(x => x.City.cityId + ":" + x.Member.primaryRole))})");
+                bool drivenChecked = false;
+                foreach (var (town, part) in thin) {
+                    desk.Label.homeCityId = town.cityId; desk.Label.homeRegion = town.parentRegionId; cityField.SetValue(desk, null);
+                    Morning(startDate.AddDays(5));
+                    Check(desk.BookSessionPlayer(artist, part, out message), $"Band Room booking in {town.cityId}: " + message);
+                    var far = desk.SessionPlayerFor(artist.artistId);
+                    if (far.FromCityId == null) {
+                        Check(far.PersonId == null && far.TravelFee == 0, $"{town.cityId}: nobody in a day's drive, so the old placeless fallback ({far.Name})");
+                        GD.Print($"STUDIO_ACCESS drivenIn {town.cityId}: nobody within {PlayerDesk.MaxStudioDriveHours}h; fallback {far.Name}");
+                        continue;
+                    }
+                    var quote = desk.DriveQuote(town.cityId, far.FromCityId);
+                    var there = SessionEmploymentService.ListeningCandidates(far.FromCityId, today).FirstOrDefault(m => m.personId == far.PersonId);
+                    Check(there != null && quote.Hours <= PlayerDesk.MaxStudioDriveHours && far.FromCityId != town.cityId,
+                        $"{town.cityId}: the driven-in player is a real session player in {far.FromCityId}, {quote.Hours}h away");
+                    Check(Math.Abs(far.TravelFee - PlayerDesk.StudioDrivenInTravelFee(quote.Hours, quote.Gas)) < .01f && far.TravelFee > 0 &&
+                        Math.Abs(far.Fee - PlayerDesk.SessionPlayerFee(far.SightReading) - far.TravelFee) < .01f && message.Contains("drive in"),
+                        $"{town.cityId}: the fee is scale plus the road both ways (${far.Fee:N0} = ${far.Fee - far.TravelFee:N0} + ${far.TravelFee:N0})");
+                    float cashBefore = desk.Label.cashReserves;
+                    Check(!desk.StartSession(artist, one, PlayerDesk.StudioTier.Budget, 3, out message, overrideRefusal: true) && message.Contains("tomorrow") &&
+                        desk.Session == null && desk.Label.cashReserves == cashBefore && desk.SessionPlayerFor(artist.artistId) != null,
+                        $"{town.cityId}: a date the day of booking is refused, free, and keeps the booking: {message}");
+                    var restored = JsonSerializer.Deserialize<PlayerSaveData>(Json(desk.CaptureState()), SaveGameService.TestJsonOptions);
+                    Check(restored.BandRoom.SessionPlayers.Any(x => x.FromCityId == far.FromCityId && x.ArrivesDay == far.ArrivesDay && x.TravelFee == far.TravelFee),
+                        $"{town.cityId}: the driven-in booking survives a save");
+                    Morning(startDate.AddDays(6));
+                    Check(desk.StartSession(artist, one, PlayerDesk.StudioTier.Budget, 3, out message, overrideRefusal: true) &&
+                        desk.Session.Hires.Count == 1 && desk.Session.Hires[0].PersonId == far.PersonId && desk.Session.Hires[0].Fee == far.Fee,
+                        $"{town.cityId}: the next day the driven-in player is on the date: {message}");
+                    GD.Print($"STUDIO_ACCESS drivenIn {town.cityId}: {far.Name} from {far.FromCityId} {quote.Hours}h, ${far.Fee - far.TravelFee:N0}+${far.TravelFee:N0}");
+                    desk.ScrapSession();
+                    drivenChecked = true;
+                    break;
+                }
+                GD.Print($"STUDIO_ACCESS drivenIn exercised={drivenChecked}");
+                desk.Label.homeCityId = realHome; desk.Label.homeRegion = realRegion; cityField.SetValue(desk, realCurrent);
+                ((Dictionary<string, PlayerDesk.SessionPlayerBooking>)typeof(PlayerDesk).GetField("sessionPlayers", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(desk)).Remove(artist.artistId);
+            }
 
             // ---- The booking sheet: one card per room, the chosen one opened up. ----
             desk.ScrapSession();

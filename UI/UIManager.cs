@@ -925,7 +925,7 @@ public partial class UIManager : Control
 
 	public void OnClick_Calendar()
 	{
-		if (StudioBlocksCalendar()) return;
+		if (StudioBlocksCalendar(oneDay: true)) return;
 		if (isUIOpen) return;
 		if (TimeManager.Instance == null) return;
 		TimeManager.Instance.SkipDays(1);
@@ -934,7 +934,7 @@ public partial class UIManager : Control
 
 	public void AdvanceOneDayFromDesk()
 	{
-		if (StudioBlocksCalendar()) return;
+		if (StudioBlocksCalendar(oneDay: true)) return;
 		if (PlayerDesk.Instance?.HasLabel != true || TimeManager.Instance == null) return;
 		TimeManager.Instance.SkipDays(1);
 	}
@@ -970,8 +970,10 @@ public partial class UIManager : Control
 		calendarPopup.PopupCentered(new Vector2I(500, 300));
 	}
 
-	private bool StudioBlocksCalendar() {
+	private bool StudioBlocksCalendar(bool oneDay = false) {
 		if (PlayerDesk.Instance?.InStudio != true) return false;
+		// A lockout keeps the room overnight: the calendar may move to the next booked day, and no further.
+		if (oneDay && PlayerDesk.Instance.StudioSleepsOn) return false;
 		ShowAnnouncement("Finish or abandon the paid studio date before advancing the calendar.");
 		return true;
 	}

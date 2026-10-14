@@ -336,6 +336,8 @@ public partial class PlayerDesk : Node {
 		public string FaultPersonId;
 		public List<string> SessionPersonIds;
 		public int Minutes;
+		// v21: shape, layout, incident, derivation and erasure (null on takes from earlier dates).
+		public StudioTakeWork Work;
 		public int Number;
 		public float Hook;         // the performance captured on this pass, before the song is weighed in
 		public float Production;
@@ -356,6 +358,8 @@ public partial class PlayerDesk : Node {
 		public StudioDirection Direction;
 		public StudioArrangement Arrangement;
 		public int ArrangementRevision;
+		// v21: key, tempo, trimmed ends, balance and ideas taken up (null on dates booked before rules v2).
+		public StudioCutWork Work;
 		public MaterialChoice Choice;
 		public readonly List<SessionTake> Takes = new();
 		public int KeptTake = -1;  // -1 is explicitly unselected
@@ -378,6 +382,11 @@ public partial class PlayerDesk : Node {
 		public List<StudioSessionHire> Hires = new();
 		public List<string> DeclinedCallIns = new();
 		public int BreakdownVersion;
+		// v21: which studio rules this date was booked under (PlayerDesk.StudioRulesCurrent). 0 = slice-9 rules, so a date
+		// paid for before a rule existed never gains it. 2 = the act's own harmony singers.
+		public int RulesVersion;
+		// v21: layout, tape stock, open faults, lockout days, night rate (null on dates booked before rules v2).
+		public StudioDateWork Work;
 		public string ArtistId;
 		public StudioTier Tier;
 		public int Hours;
@@ -1077,6 +1086,7 @@ public partial class PlayerDesk : Node {
 			// by the time this runs, so the solvency check reads the post-overhead balance.
 			TimeManager.Instance.OnMonthChanged += OnMonthChanged;
 			TimeManager.Instance.PlayerStopProbe = ProbeSkipStop;
+			TimeManager.Instance.LateStopProbe = StudioLateStop;
 		}
 		if (RosterManager.Instance != null) {
 			RosterManager.Instance.OnDailyTalentMarketAppointment += OnRivalTalentMarketAppointment;
@@ -1098,6 +1108,7 @@ public partial class PlayerDesk : Node {
 			TimeManager.Instance.OnWeekEnded -= OnWeekEnded;
 			TimeManager.Instance.OnMonthChanged -= OnMonthChanged;
 			if (TimeManager.Instance.PlayerStopProbe == ProbeSkipStop) TimeManager.Instance.PlayerStopProbe = null;
+			if (TimeManager.Instance.LateStopProbe == StudioLateStop) TimeManager.Instance.LateStopProbe = null;
 		}
 		if (RosterManager.Instance != null) RosterManager.Instance.OnDailyTalentMarketAppointment -= OnRivalTalentMarketAppointment;
 		if (Instance == this) Instance = null;
@@ -2498,7 +2509,7 @@ public partial class PlayerDesk : Node {
 	}
 
 	public bool StartSession(SimulatedArtist artist, IReadOnlyList<MaterialChoice> choices, StudioTier tier, int hours, out string message, bool overrideRefusal = false,
-		StudioBrief brief = StudioBrief.CaptureLiveAct, string roomId = null, string engineerId = null, bool backingSingers = false) {
+		StudioBrief brief = StudioBrief.CaptureLiveAct, string roomId = null, string engineerId = null, bool backingSingers = false, StudioBookingOptions options = null) {
 		if (pendingSession != null) { message = "There's already a session on the console -- print or scrap it first."; return false; }
 		// Up in another town with this act on a studio trip, the rooms there are the studio.
 		if (StudioTripHere(artist?.artistId) == null && !RequireHome(out message)) return false;
@@ -2512,7 +2523,7 @@ public partial class PlayerDesk : Node {
 		}
 		if (!overrideRefusal && refusals.Count > 0) { message = string.Join("\n", refusals); return false; }
 		hours = Mathf.Clamp(hours, MinSessionHours, MaxSessionHours);
-		if (StudioExperience.Enabled) return StartStudioDate(artist, cutting, roomId ?? StudioRoomCatalog.LocalId(Label.homeCityId, tier), engineerId, hours, brief, out message, backingSingers);
+		if (StudioExperience.Enabled) return StartStudioDate(artist, cutting, roomId ?? StudioRoomCatalog.LocalId(Label.homeCityId, tier), engineerId, hours, brief, out message, backingSingers, options);
         var studioClock = TimeManager.Instance;
         int studioNow = studioClock.CurrentHour * 60 + studioClock.CurrentMinute;
         if (LocalSceneRoomService.HasStudioAppointment(Label.labelId, LocalSceneRoomService.Day(studioClock.CurrentDate), studioNow, studioNow + hours * 60)) {
@@ -2587,7 +2598,7 @@ public partial class PlayerDesk : Node {
 		if (pendingSession == null) return;
 		if (cutIndex < 0 || cutIndex >= pendingSession.Cuts.Count) return;
 		SessionCut cut = pendingSession.Cuts[cutIndex];
-		if (takeIndex < 0 || takeIndex >= cut.Takes.Count || cut.Takes[takeIndex].Incomplete) return;
+		if (takeIndex < 0 || takeIndex >= cut.Takes.Count || cut.Takes[takeIndex].Incomplete || cut.Takes[takeIndex].Work?.Erased == true) return;
 		if (cut.KeptTake != takeIndex) cut.Finish = StudioFinish.House;
 		cut.KeptTake = takeIndex;
 		Changed?.Invoke();
@@ -2626,7 +2637,7 @@ public partial class PlayerDesk : Node {
 		int printed = 0, mastersBefore = masters.Count;
 		foreach (SessionCut cut in pendingSession.Cuts) {
 			SessionTake take = cut.Takes[Mathf.Clamp(cut.KeptTake, 0, cut.Takes.Count - 1)];
-			if (PrintMaster(artist, cut.Choice, take, perMasterCost, pendingSession.Date, year, week, SelectedStudioFinish(cut), cut.Structure)) printed++;
+			if (PrintMaster(artist, cut.Choice, take, perMasterCost, pendingSession.Date, year, week, SelectedStudioFinish(cut), StudioStructureOf(cut, take))) printed++;
 		}
 		Note($"Printed {printed} master(s) from the {StudioTierName(pendingSession.Tier)} date with {artist.stageName}.");
 		RememberStudioVisit(pendingSession, true, masters.Skip(mastersBefore).Select(m => m.Record?.recordId).Where(id => id != null).ToList());
@@ -2679,8 +2690,7 @@ public partial class PlayerDesk : Node {
 		}
 		// The arrangement belongs to this recorded performance, after the shared material blend.
 		// It changes the pulse, never the composition or its writing credits.
-		if (take.Arrangement == StudioArrangement.HalfTime) record.danceability *= .70f;
-		else if (take.Arrangement == StudioArrangement.SimplerRhythm) record.danceability *= .95f;
+		ApplyArrangementToRecord(record, take);
 		ApplyStudioFinish(record, finish);
 		// The recorded length is a fact of this performance, stored on its master rather than the composition.
 		if (structure != null && PolarSongMetadataService.Get(record.masterId)?.taxonomy is { } recorded) recorded.durationSeconds = structure.DurationSeconds;
@@ -4669,6 +4679,7 @@ public partial class PlayerDesk : Node {
 		}
 		ChargeHotelIfAway();
 		ProcessStudioTripDawn(date);
+		ProcessStudioLockoutDawn(date);
 		ProcessRivalCrowding(date);
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);
@@ -5511,6 +5522,7 @@ public partial class PlayerDesk : Node {
 		LogWeeklyPlayerOutcomes();
 		// Rooms become known for the label's records cut there: note how they charted this week.
 		UpdateStudioHits(date);
+		UpdateStudioMarketHits(date);
 		// Rolodex settlement lands before the books are drawn up so any payola penalty shows in this
 		// week's Cash figure: expire spent advocacy, apply busts, settle the pitches you staked your
 		// word on against what the records actually sold.
@@ -5860,6 +5872,7 @@ public partial class PlayerDesk : Node {
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
             StudioTrip = studioTrip?.Copy(),
+            StudioHouseCrews = CaptureStudioHouseCrews(), StudioMarketHits = CaptureStudioMarketHits(),
 			Label = LabelSaveData.From(Label),
             ScoutingKnowledge = CaptureScoutingKnowledge(),
             GeneratedProspectIds = generatedProspectIds.Count == 0 ? null : generatedProspectIds.OrderBy(id => id, StringComparer.Ordinal).ToList(),
@@ -6032,6 +6045,7 @@ public partial class PlayerDesk : Node {
         if (!ValidateRosterDepartures(data.RosterDepartures, data.Label.labelId, out message)) return false;
         if (!ValidateStudioVisits(data.StudioVisits, out message)) return false;
         if (!ValidateStudioTrip(data.StudioTrip, out message)) return false;
+        if (!ValidateStudioRooms(data.StudioHouseCrews, data.StudioMarketHits, out message)) return false;
         if (!ValidateSavedOutlooks(data, out message)) return false;
 
 		// A load lifts any game-over: you're picking the label back up from a solvent point in its history.
@@ -6349,6 +6363,7 @@ public partial class PlayerDesk : Node {
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
         studioTrip = data.StudioTrip?.Copy();
+        RestoreStudioRooms(data.StudioHouseCrews, data.StudioMarketHits);
         LocalSceneIdentityService.CompleteDirectPlayerRestore();
         if (LocalScenes.Persisting) AdoptLegacyDiscoveries();
 		Note(message);

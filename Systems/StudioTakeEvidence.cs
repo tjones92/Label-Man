@@ -46,7 +46,7 @@ public static class StudioTakeEvidence {
     }
 
     /// <summary>The producer's pick from the attributed notes; -1 when no pass is complete (a pass that fell apart can't be kept).</summary>
-    public static int Choose(IReadOnlyList<PlayerDesk.SessionTake> takes) => Enumerable.Range(0, takes.Count).Where(i => !takes[i].Incomplete)
+    public static int Choose(IReadOnlyList<PlayerDesk.SessionTake> takes) => Enumerable.Range(0, takes.Count).Where(i => !takes[i].Incomplete && takes[i].Work?.Erased != true)
         .OrderByDescending(i => Array.IndexOf(Delivery, takes[i].ProducerNote))
         .ThenByDescending(i => Array.IndexOf(Capture, takes[i].EngineerNote)).ThenBy(i => i).DefaultIfEmpty(-1).First();
 }

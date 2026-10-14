@@ -90,6 +90,33 @@ public static class StudioPeople {
         room.EngineerEar = on.Ear; room.EngineerHands = on.Hands; room.EngineerHabit = on.Habit;
         room.EngineerRequested = asked != null && !asked.OnByDefault;
         room.EngineerPremium = room.EngineerRequested && on.Chief ? ChiefPremium(room) : 0;
+        room.EngineerHomeRoomId = null;
+    }
+
+    /// <summary>The room an engineer is on the staff of: the id before the role suffix.</summary>
+    public static string HomeRoomId(string engineerId) => string.IsNullOrEmpty(engineerId) ? null : engineerId.Split('|')[0];
+
+    /// <summary>What an engineer charges to come across town for a date, by the hour: the chief more than the second.
+    /// Paid on top of the host room's rate, which still covers the room. Provisional authored figures.</summary>
+    public static float GuestFee(StudioRoomSnapshot home, bool chief) =>
+        chief ? Math.Max(4, (float)Math.Round(home.HourlyRate * .35f)) : Math.Max(3, (float)Math.Round(home.HourlyRate * .2f));
+
+    /// <summary>Minutes a visiting engineer needs on top of setup to learn a board and room they haven't worked.</summary>
+    public const int GuestSetupMinutes = 10;
+
+    /// <summary>Puts a visiting engineer on the board: their own ear, hands and habit; the host room keeps its acoustics.</summary>
+    public static void SeatGuest(StudioRoomSnapshot room, Engineer guest, StudioRoomSnapshot home) {
+        room.EngineerId = guest.Id; room.EngineerName = guest.Name; room.EngineerHouse = guest.Chief;
+        room.EngineerEar = guest.Ear; room.EngineerHands = guest.Hands; room.EngineerHabit = guest.Habit;
+        room.EngineerRequested = true; room.EngineerHomeRoomId = home.Id;
+        room.EngineerPremium = GuestFee(home, guest.Chief);
+    }
+
+    /// <summary>The engineer's place on this date, as a phrase: "chief engineer", or "the chief at the X, brought in".</summary>
+    public static string RoleText(StudioRoomSnapshot room) {
+        if (room.EngineerHomeRoomId != null)
+            return $"{(room.EngineerHouse ? "the chief" : "the second engineer")} at {StudioRoomCatalog.ById(room.EngineerHomeRoomId, out _)?.Name ?? "another room"}, brought in for the date";
+        return room.CapabilityVersion >= 4 ? room.EngineerHouse ? "chief engineer" : "second engineer" : room.EngineerHouse ? "house engineer" : "relief engineer";
     }
 
     public static string HabitText(StudioEngineerHabit habit) => habit switch {

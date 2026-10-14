@@ -244,3 +244,160 @@ Not done:
 - Overnight trips are one stay before a date; multi-day lockouts and late-night (Petty-style) dates are not modelled.
 - Backing singers are not offered on dates run by the producer.
 - Human playthroughs and economic calibration remain outstanding.
+
+(Slices 10-13 below close the first four of these.)
+
+## Studio rules v2: second roles, the creative palette, people, rooms and selective recording (slices 10-13)
+
+Every behaviour below applies only to dates booked under **studio rules v2** (`PendingSession.RulesVersion`, set at booking to `PlayerDesk.StudioRulesCurrent` = 2). A date paid for under earlier rules keeps them: no own harmony, no reshaping, no new arrangements, no stock, no incidents. Save v21 adds per-date (`StudioDateWork`), per-side (`StudioCutWork`) and per-take (`StudioTakeWork`) state; all three are null on older dates.
+
+### Members' second roles
+
+`Musician.secondaryRole` was declared and read by studio code but never written, so it read as `LeadVocals` for everyone. `MemberRoleService` now assigns it once per person (`secondaryRoleVersion`), keyed on the world seed and person id, using the voice and instrument axes where they exist and their expected value otherwise (so it never generates axes early). `MusicianRole.None` is appended to the enum (saved roles keep their numbers). Generation, pooled-person creation, joins and the formation slot swap all assign it; a person whose main part changes keeps the old part as their double. Older saves assign it on first read.
+
+- **Harmony** (`BackingVocals` as a second role) goes to non-singing members by genre (surf .65, beat .60, folk .55, country and rock-and-roll .45, doo-wop .40, soul/R&B .25, blues .15, jazz .08), less for drummers (×.6) and horn players (×.3), scaled by the member's voice. These are provisional authored rates from broad period practice (Beach Boys, Beatles and folk trios built on members' harmonies; Don Rich in the Buckaroos), not a census.
+- **Doubles:** singers in folk (.70 guitar), country (.55) and blues (.40 guitar, .20 harp) play; pianists double on organ, organists on piano, drummers on percussion, fiddlers on guitar, and so on.
+- **Readers:** a bandmate who sings harmony with a voice of at least .35 now counts as a harmony voice (`MemberRoleService.SingsHarmony`). On rules-v2 dates the act's own harmony singers (best three, discounted when only one or two sing) act like a backing group on a pass: they lift a song that calls for voices and clutter one that doesn't. Member cards show the double ("bass, sings harmony").
+- **Measured, seed 1001:** 812 of 2,499 drummer bands have a harmony singer by role; 56% of folk lead singers play guitar.
+- **AI economy unaffected:** only studio code reads the role. A 104-week canonical run, hashed against a fresh reference at 7a95367 (`SimLogs/ref-7a95367-1001-104`), matched on all 92 economy CSVs.
+
+### The creative palette (directive §5, §7)
+
+- **Key, tempo, ends.** Lower or raise the key (15 min), push or ease the tempo (10), shorten the intro and ending by 12 seconds (10). A change reshapes the side's structure (its length and vocal demand; the parts stay so located reads keep their meaning) and halves the drilling of a key or tempo change. Each take records the shape it was cut in, and its master is printed in that shape: length, danceability (±5% for tempo), hook (+.01 trimmed). Raising the key showcases a strong voice and strains a weak one; lowering it holds up late in the day and darkens the record.
+- **Room balance.** Bring the vocal forward (fixes what crowded the last pass; costs some blend) or open the band up (more feel, harder to hear clearly). 8 minutes, applies to later passes.
+- **New arrangements.** Piano carries the figure (needs someone who plays piano, a second role counts), a horn line (needs a horn and a written part), handclaps, backing answers (needs voices). The originals' effects are unchanged. Arrangements and parts change the record's hook and danceability after the shared material blend, never the composition.
+- **Who favours and who resists.** Every proposal names the members for and against it (whose part grows or shrinks; strong egos dislike gimmicks). Going ahead over objections raises room tension (logged by name). An act with creative control refuses when its leader objects and the room is tense.
+- **Incidents.** About 12% of complete passes (more when tired or tense): an amplifier buzz that stays on every pass until fixed (10 min), a broken string that stops the pass (never blamed on a part), a late entrance, a pickup into the first verse nobody planned, or a harmony somebody sang unasked. Census of 400 keyed rolls on one act: buzz 16, string 17, late 11, pickup 5 (that act had no voice of .40 for an unasked harmony).
+- **Ideas from the room.** At most two at a time, read-only and stable: the player who played the pickup, a pianist with a figure, the harmony singer, the horn player, the producer after a part fell apart twice or the top kept straining, the engineer after a crowded pass, a restless member after four passes the same way, a hired producer. Try it (same time and cost as asking directly) or pass (free; a proud member goes quiet).
+
+### Stock, help and delegation (directive §6, §8, §10)
+
+- **Tape stock.** The quote includes about four passes a side plus two, or enough for passes over 60% of the booked time, whichever is more. Out of stock, a pass is refused with two choices: buy a reel ($8, four passes; studio cost, recouped like the room) or record over a take you don't need, confirmed at the point of reuse. A take recorded over can never be kept or chosen; kept takes and the sources of finishes or derived takes can't be reused.
+- **Horn players and arrangers** come from the town's real people (`SessionEmploymentService.HornCandidates`: sax or trumpet, as their part or a double, reading ≥ .55). A horn line needs somebody to write it: a member who reads and has ideas, or a hired arranger. Horn players and arrangers are credited only on takes with the horns.
+- **A producer** can be brought in at booking: the town's best free reader with ideas, $40 + $60 × craft, directing at their craft, with a leaning from who they are (an ideas person likes to explore). Credited on the masters.
+- **Delegation** takes a hard spending limit (zero hires nobody and buys nothing) and stop points: a take that sounds like the record, an idea someone has, a side running out of time. Within the limit the producer buys stock and calls backing singers in when a song sounds bare. The hand-back names the producer and counts the passes and money.
+
+### Rooms (directive §4, §9)
+
+- **Standing house crews.** A specialist room's house band is now a named crew ("the Holt Rhythm Section", "Holt's Regulars"), formed once from the town's session players by the same reading-and-skill rule and saved. Its regulars play date after date; a regular who has left town, retired or died is replaced, and on a day a regular is booked elsewhere the owner calls a deputy, credited as such.
+- **Other labels' hits.** AI labels record in their home town, so each charting top-40 AI record is attributed (keyed per record, weighted toward the better rooms and the specialist) to a room there. Those hits add to a room's renown at a quarter of the weight of the label's own, with the same lag and decay. The label's regular's rate still applies only to rooms made known by its own records. Seed 1001, start of 1960: 50 records attributed, New York's specialist the busiest.
+- **Lockouts.** Book a room for up to three days at a block rate (10% off each day). The room stays set up; the calendar may move one day (and only one) while the date is open. Each morning the room is the label's from nine; the band sleeps off 70% of the previous day's wear and, away from home, sleeps in a motel at the label's expense.
+- **Evening dates.** Half the rooms take evening work from 6 p.m. at 75% of the day rate. The band arrives with 25 minutes of the day already on them. Evening dates run to the hard stop. Norman Petty's Clovis nights are the period model, but a true after-midnight date needs a different clock.
+
+### Selective recording (directive slice 4)
+
+- **Dated equipment.** Each room has a machine dated by role and town (`StudioEquipment.TracksFor`): top rooms and specialists 2 tracks from 1957, 3 from 1959, 4 from 1963, 8 from 1966; mid rooms 1960/63/65/69; cheap services 1963/66/68/72. Strong recording towns adopt a year earlier, weak ones a year later, and each room's purchase falls within a keyed two-year window. Anchors: Ampex Sel-Sync and three-track as the working pop format into the mid-sixties; Atlantic's 1958 eight-track as an exception; four-track machines what a dealer sold by 1963 (Abbey Road's J37 in 1964); Motown's eight-track around 1964-65 ([History of multitrack recording](https://en.wikipedia.org/wiki/History_of_multitrack_recording), the directive's Abbey Road sources, a Motown draughtsman's recollection on [soul-source.co.uk](https://www.soul-source.co.uk/forums/topic/125127-studio-a-equipment)). Track count is a layout, never a quality ceiling.
+- **Capture layouts** chosen at booking: everyone together (always), the vocal on its own track (2+ tracks), or band, vocal and a spare track (3+). A separated vocal is cleaner to balance (+capture with the engineer's hands) and costs the singer a little of the room's feel.
+- **Vocal overdub.** Over a complete separated take: sing the vocal again over its backing (song × 2 + 4 minutes, one pass of stock). The new take keeps the backing's ensemble and capture (a generation down on two tracks), with a fresh vocal read and the singer's fatigue.
+- **Part overdub.** Onto a three-track take's spare track: backing voices, handclaps or a horn line, with the same requirements as the arrangements. A spare track used is gone; four tracks leave room for two parts.
+- **Splice.** Two passes of the same arrangement, key, tempo and layout can be cut together at the part where the first went wrong (or its middle). The first may be a breakdown that got somewhere: the "usable fragment" the directive asks editing to give meaning to. It takes 12 minutes and no tape; an engineer with unsteady hands (< .35) won't do it, and a large difference in feel leaves an audible join.
+- **Vocal-forward finish.** Only on a kept take whose vocal is on its own track. A take recorded with everyone together still cannot have its vocal or drums changed independently.
+
+### Song length and radio
+
+- **Period lengths.** Derived song lengths stay at the early-sixties ranges through 1964 and grow about 4% a year after (+24% by 1970). Older dates derive with the 1960 lengths.
+- **Radio.** Station candidacy reads a side's length: early-sixties Top 40 favours sides well under three minutes (×1.04) and discounts longer ones (to ×0.70). The tolerance widens 15 seconds a year from 1965, and non-Top-40 formats feel half the effect. Only the player's studio writes a master's performed length, so every AI record multiplies by exactly 1. Provisional authored curve.
+
+### Philadelphia's session community
+
+The slice-9 note that Philadelphia sometimes had no session players was not reproduced. A new `--session-supply-audit` census in `ChartAuditRunner` counts, every day, the session players, horns and singers the studio could book in nine recording centres. On seed 1001 over 104 weeks Philadelphia never had fewer than 44 bookable session players, and the new runner found at least 44 on every day of the opening month. Philadelphia did place fewer acts than Memphis or Nashville, despite its 1960 role, which the sources support:
+
+- Dave Appell's Applejacks were Cameo-Parkway's house band, backing Chubby Checker, Bobby Rydell, the Dovells and Dee Dee Sharp.
+- Chancellor, Swan and Jamie recorded in town, and *American Bandstand* went out from WFIL.
+- Frank Virtue opened his Broad Street studio in late 1962.
+- The Uptown Theater's house band launched Earl Young, Norman Harris and Ronnie Baker (later MFSB) from 1963.
+- The city had two AFM locals (77 and 274) and a deep jazz scene.
+
+Sources: [Dave Appell](https://en.wikipedia.org/wiki/Dave_Appell), [Please Kill Me on Cameo-Parkway](https://pleasekillme.com/philadelphia-cameo-parkway/), [Norman Harris](https://en.wikipedia.org/wiki/Norman_Harris_(musician)), [Philadelphia Music Alliance: Baker, Harris, Young](https://www.philadelphiamusicalliance.org/walk-of-fame/baker-harris-young-2/), [Virtue Recording Studios](https://fleamarketfunk.com/2017/05/04/virtue-recording-studios/), [Unions and jazz in Philadelphia](https://swarthmorephoenix.com/2024/03/07/unions-and-jazz-in-philadelphia-a-problematic-informative-and-instructive-history/).
+
+`SceneCityPlacement` gives Philadelphia a 1.8 fit for teen pop, doo-wop and girl groups and 1.4 for jazz, behind `--enable-philadelphia-recording-center`. It is **opt-in** because a population change needs a decade A/B before it becomes the default.
+
+104-week canonical A/B, seeds 1001 and 2002 (`SimLogs/philly-{off,on}-*-104`; the seed-1001 control is `roles-1001-104`):
+
+- Philadelphia-based acts rose 474 → 523 and 431 → 488; mean bookable session players 51 → 62 and 52 → 55; minimums 44 → 53 and 41 → 43.
+- Total market units moved by at most 0.24%.
+- Genre shares (sum of absolute changes 6-14 points a year) and year-end slots (20-30 moved) went in opposite directions on the two seeds: the usual reshuffle when placement changes.
+- Major-family chart share in 1961 rose on both seeds, by 7.2 and 6.5 points. That agreement is why the change stays opt-in until a decade A/B on two or three seeds.
+
+### Validation
+
+- Build: zero warnings and errors.
+- New `StudioCraftRunner.tscn`: 114 / 112 checks on seeds 1001 / 1002, covering:
+  - roles: assignment, purity, saves, old-save first read and doubles after a role change;
+  - Philadelphia session supply on every day of the opening month;
+  - equipment and booking: dated machines, layouts refused by a mono room, the morning evening-rate refusal, the lockout rate charged once;
+  - the palette: free shape proposals that draw no randomness, shape changes and their per-take record, balance under identical draws, incidents (and a 400-roll census), buzz fixing, ideas (stable, declinable, taken up), resistance raising tension;
+  - help: piano and horn requirements, horn and arranger hires, horn credits only on horn takes, the original three arrangements on old dates;
+  - stock: running out, reusing a take with confirmation, reels paid once and recouped;
+  - selective recording: vocal and part overdubs with sources untouched, the spare track used once, the vocal-forward finish only on separated takes, splices;
+  - saves: v21 save/load plus five kinds of damaged-save refusal;
+  - time: the lockout's second day and its end, printing in the kept take's own shape and length, evening dates, a hired producer, delegation with a zero limit and with stops, the running order;
+  - rooms: standing crews and other labels' hits, including save/load;
+  - lengths and radio: period lengths and the radio length fit;
+  - own harmony under identical draws, and the real console's shape, balance and tape controls.
+- Regressions:
+  - `StudioDateRunner --studio-breakdowns=off`: 121 on both seeds.
+  - `StudioAccessRunner`: 179 / 183. Its false-start assertion was narrowed to its intent (false starts never count toward a call-in), because broken strings now make false starts commoner alongside real breakdowns.
+  - `StudioReturnVisitRunner`: 35.
+  - `StudioRoomsRunner`: 88 / 86.
+  - Legacy foundation (`--studio-experience=off`): 23.
+  - Funded scouting promise: 65.
+- The pre-existing `--scene-room-audit` startup failure at 7a95367 is unrelated and filed separately.
+
+Not done:
+- (Closed in slice 14) An engineer can't be booked away from their own room.
+- (Closed in slice 14) A true after-midnight date needs a clock that runs past the hard stop.
+- Bouncing and larger setups belong to directive slice 5.
+- Human playthroughs and economic calibration remain outstanding.
+
+## Guest engineers and late nights (slice 14)
+
+Both are rules-independent booking options. With no guest asked for and no late night booked, every listing, staffing, rate and clock value is unchanged.
+
+### Bringing an engineer in from another room
+
+Staff engineers were the period norm, so this is narrow:
+
+- **Who.** Only an engineer the label has worked a date with (a remembered visit) can be asked.
+- **Where.** Only to another ordinary room in the engineer's own town. A specialist owner keeps his own engineers on the board.
+- **When.** On a quiet day at the engineer's own room. A chief comes out on a day the regulars haven't booked him; a second comes out when the chief is minding the room. Neither comes on a day they're away cutting elsewhere, or when their room is booked solid. On seed 1001 the first engineer the label met was free on 21 of 60 days.
+- **What they bring.** Their own ear, hands and habit, and their familiarity with the act (familiar setup, closer read). The host room keeps its own acoustics and rate.
+- **Cost.** A fee by the hour on top of the room: 35% of the engineer's own room rate for a chief (at least $4), 20% for a second (at least $3). It is charged through the room-cost owner, like the chief's premium, and recouped the same way.
+- **Setup.** A strange board takes 10 more minutes, until they have engineered a date for the label in that room.
+- **Surfaces.** The booking card lists known engineers from across town with a "bring in" button, or says why each can't come. The quote names the fee. The date log says "brought in for the date". The Rolodex files the engineer under their own room.
+- **Saves.** `StudioRoomSnapshot.EngineerHomeRoomId`, within save v21; null on older dates. A saved guest is rejected when the snapshot is pre-v4, the host is a specialist, the "home" is the host room, the engineer's id is not from that room, the request flag is missing, or the home room is in another town.
+
+### Late-night dates
+
+An evening booking can run on past midnight, to 2 a.m. at the latest. Norman Petty's Clovis nights are the period model.
+
+- **The clock.** `TimeManager.LateStopProbe` lets the open late-night date extend the day's stop to 26:00. Hours 24-25 stay on the same calendar day until the day is ended, and display as 12-1 a.m. Only the desk's late-night date answers the probe, and other desk work is already blocked during a paid date.
+- **Booking.** `StudioBookingOptions.LateNight` needs `Evening`, so it starts at 6 p.m. or later at the evening rate. It can be booked for up to 8 hours, provided the date ends by 2 a.m. A plain evening date still ends at the hard stop. The booking sheet has a "Run on past midnight" box under the evening rate. It warns when an evening date won't fit before the hard stop, and when a late night runs past 2 a.m.
+- **The cost of the small hours.** Every minute of work after midnight adds a quarter again to the band's workload. The date log notes once that midnight came and went.
+- **Afterwards.** When the date ends, the clock stops: nothing else runs at 1:30 a.m. A night that ran past midnight is slept off, and the next day starts 8 hours after the finish, never before nine. A 1:30 finish starts the next day at 9:30. An ordinary day still starts at nine.
+- **Saves.** `StudioDateWork.LateNight`; a saved late night must also be an evening (`Night`) single-day booking. The clock's hour can be saved past 23.
+
+### Validation
+
+- Build: zero warnings and errors.
+- New `StudioNightRunner.tscn`: 41 checks on each of seeds 1001 and 1002. It covers:
+  - who can be asked, and who can't: an engineer the label never met, a specialist room, another town;
+  - the card's list, availability as a pure keyed function, and a busy day refused without a charge;
+  - the guest's ear, hands and habit with the host's sound and rate, the fee, and a setup that is familiar with the act but not the board;
+  - charging once, the date log, and save/load, plus three damaged saves refused;
+  - a remembered guest date making the next setup familiar, and the Rolodex firm;
+  - plain evening dates still ending at the hard stop, a late night needing an evening, and the 2 a.m. limit;
+  - the clock to 2 a.m. at the evening rate, and the same rehearsal tiring the band more after midnight;
+  - midnight logged once, the 12:xx AM display on the same day, a pass after midnight, and save/load plus a damaged save;
+  - nothing running after the date ends, the 9:30 start after a 1:30 finish, and an ordinary day still starting at nine.
+- Regressions, all at their previous counts:
+  - `StudioCraftRunner` 114 / 112;
+  - `StudioAccessRunner` 179;
+  - `StudioRoomsRunner` 88;
+  - `StudioReturnVisitRunner` 35;
+  - `StudioDateRunner --studio-breakdowns=off` 121;
+  - legacy foundation (`--studio-experience=off`) 23;
+  - funded scouting promise 65.
+- Logs are in ignored `SimLogs/studio-night-*.log`. No rendered capture was taken of the new booking controls.
+
+Not done: a guest engineer travelling to another town with the label; a late night carrying into a lockout. Fees and the 2 a.m. limit are provisional.

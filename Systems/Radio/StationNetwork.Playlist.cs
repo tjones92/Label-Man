@@ -491,8 +491,24 @@ public sealed partial class StationNetwork {
 		int weeks = rt.weeksInPlaylist.TryGetValue(f.id, out int w) ? w : 0;
 		float freshness = weeks > BURN_ONSET ? Mathf.Pow(BURN_DECAY, weeks - BURN_ONSET) : 1f;
 
+		// length: programmers' preference for short sides. Player-only: only the player's studio writes a master's
+		// performed length, so every AI record reads as unknown and multiplies by exactly 1.
+		float length = f.rec?.baseRecord is { isPlayerOwned: true } own
+			? LengthFit((int)(PolarSongMetadataService.Get(own.masterId)?.taxonomy?.durationSeconds ?? 0), currentYear, station.format) : 1f;
+
 		return formatMatch * qualityTaste * salesSupport * relationship * advocacy * payola * freshness * f.heatPull
-			* f.vitality * GenreChartGuard(f.canonical);
+			* f.vitality * GenreChartGuard(f.canonical) * length;
+	}
+
+	/// <summary>How a station's programmer takes a side's length. Early-sixties Top 40 wanted records under three minutes,
+	/// and a long side had to earn its time; "Like a Rolling Stone" (6:00, 1965) is remembered for breaking that rule. The
+	/// tolerance widens fifteen seconds a year from 1965. Non-Top 40 formats feel half the effect. 1 for an unknown length.
+	/// Provisional authored curve, not a measured programming rule.</summary>
+	public static float LengthFit(int seconds, int year, StationFormat format) {
+		if (seconds <= 0) return 1f;
+		int tolerance = 180 + 15 * Mathf.Max(0, year - 1964);
+		float fit = seconds <= tolerance - 20 ? 1.04f : seconds <= tolerance ? 1f : Mathf.Max(.7f, 1f - .12f * (seconds - tolerance) / 60f);
+		return format == StationFormat.Top40 ? fit : 1f + (fit - 1f) * .5f;
 	}
 
 	/// <summary>0 excludes the record entirely; else the genre's routed reach into the format's segments,

@@ -75,10 +75,55 @@ public partial class PlayerDesk {
         var date = on ?? StudioToday;
         ApplyStudioRenown(room, artistId, date);
         StudioRoomCatalog.Staff(room, tier, date, engineerId);
+        if (engineerId != null && room.EngineerId != engineerId && StudioGuestEngineer(room, artistId, engineerId, date, out var guest, out var home) == null)
+            StudioPeople.SeatGuest(room, guest, home);
         var last = StudioPeople.LastWith(studioVisits, room.EngineerId, artistId);
         room.FamiliarDates = studioVisits.Count(v => v.EngineerId == room.EngineerId && v.ArtistId == artistId);
         room.SetupMinutes = StudioPeople.SetupMinutes(room, last != null);
+        // A visiting engineer learns the board first, unless they've engineered a date for the label in this room before.
+        if (room.EngineerHomeRoomId != null && !studioVisits.Any(v => v.EngineerId == room.EngineerId && v.RoomId == room.Id))
+            room.SetupMinutes += StudioPeople.GuestSetupMinutes;
         return room;
+    }
+
+    /// <summary>Whether an engineer from another room in town can come and run the board here on this date: null when
+    /// they can (with them and their room), otherwise why not. Engineers were mostly staff, so only an engineer the label
+    /// has worked with is asked; they come on a quiet day at their own room, and a specialist owner keeps his own board.
+    /// Pure and keyed: asking draws no gameplay randomness.</summary>
+    public string StudioGuestEngineer(StudioRoomSnapshot host, string artistId, string engineerId, GameDate date, out StudioPeople.Engineer guest, out StudioRoomSnapshot home) {
+        guest = null; home = null;
+        string homeId = StudioPeople.HomeRoomId(engineerId);
+        if (host == null || homeId == null || homeId == host.Id) return "That engineer is not in the building today.";
+        home = StudioRoomCatalog.ById(homeId, out var homeTier);
+        var known = studioVisits.FirstOrDefault(v => v.EngineerId == engineerId);
+        if (home == null || known == null) return "The label hasn't worked with that engineer, so there's nobody to ask.";
+        string first = known.EngineerName?.Split(' ')[0] ?? "The engineer";
+        if (home.CityId != host.CityId) return $"{first} works at {home.Name} in {DistanceModel.GetCityById(home.CityId)?.name ?? "another town"}; book that room to work with them.";
+        if (host.Specialist) return $"{host.Name}'s owner keeps his own engineers on the board.";
+        ApplyStudioRenown(home, artistId, date);
+        guest = StudioPeople.Engineers(home, homeTier, date).FirstOrDefault(e => e.Id == engineerId);
+        if (guest == null) return "The label hasn't worked with that engineer, so there's nobody to ask.";
+        if (guest.Away) return $"{first} is cutting a date out of town that day.";
+        // The chief comes out on a day the regulars haven't booked him; the second when the chief is minding the room.
+        bool busy = guest.Chief ? !guest.OnByDefault : !StudioPeople.Engineers(home, homeTier, date).First(e => e.Chief).OnByDefault;
+        if (busy || StudioBookedSolid(home, date) != null) return $"{first} is on the board at {home.Name} that day.";
+        return null;
+    }
+
+    /// <summary>Engineers the label has worked with at other ordinary rooms in this room's town, each with why they can't
+    /// come (null when they can). For the booking card. Empty at a specialist room.</summary>
+    public List<(StudioPeople.Engineer Engineer, StudioRoomSnapshot Home, float Fee, string Refusal)> StudioGuestEngineers(StudioRoomSnapshot host, string artistId, GameDate date) {
+        var list = new List<(StudioPeople.Engineer, StudioRoomSnapshot, float, string)>();
+        if (host == null || host.Specialist || !StudioExperience.Enabled) return list;
+        foreach (string id in studioVisits.Select(v => v.EngineerId).Distinct().OrderBy(id => id, StringComparer.Ordinal)) {
+            string homeId = StudioPeople.HomeRoomId(id);
+            if (homeId == host.Id || StudioRoomCatalog.ById(homeId, out var tier) is not { } shape || shape.CityId != host.CityId) continue;
+            string refusal = StudioGuestEngineer(host, artistId, id, date, out var guest, out var home);
+            guest ??= home == null ? null : StudioPeople.Engineers(home, tier, date).FirstOrDefault(e => e.Id == id);
+            if (guest == null) continue;
+            list.Add((guest, home, StudioPeople.GuestFee(home, guest.Chief), refusal));
+        }
+        return list;
     }
 
     public StudioRoomSnapshot StudioRoomFor(StudioTier tier, string artistId) =>

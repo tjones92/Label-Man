@@ -53,6 +53,8 @@ public sealed class GenreProfile {
 }
 
 public static class GenreCatalog {
+	/// <summary>TEMPORARY A/B control (2026-10-13): restores the pre-trim Soul and R&B keyframes. Remove after the decade A/B.</summary>
+	private static readonly bool RsControl = Array.IndexOf(OS.GetCmdlineUserArgs(), "--rs-keyframes-control") >= 0;
 	private static readonly Dictionary<Genre, GenreProfile> Profiles = new();
 	private static readonly Dictionary<string, GenreProfile> ProfilesById = new(StringComparer.Ordinal);
 	private static readonly ReadOnlyCollection<GenreProfile> AllProfiles;
@@ -144,7 +146,7 @@ public static class GenreCatalog {
 		// (17 vs 14 at 1960) is a hit-making singles genre charting hard, near the noise floor; accepted.
 		// The authored late-decade decline is deliberately preserved: the year-end benchmark's late RnR
 		// counts are misclassification of genre-ambiguous records, not a surviving commercial category.
-		Add("rock-and-roll", Genre.RockAndRoll, GenreFamily.Rock, 1955, null, .85f, .85f, .35f,.42f,.42f,.22f,.15f,.10f,.07f);
+		Add("rock-and-roll", Genre.RockAndRoll, GenreFamily.Rock, 1955, null, .85f, .85f, .45f,.42f,.42f,.22f,.15f,.10f,.07f);
 		// Emergence 1961 -> 1960: "Walk Don't Run" charted in 1960, so the genre exists at the
 		// game's start date rather than opening a year in.
 		Add("surf-rock", Genre.SurfRock, GenreFamily.Rock, 1960, 1966, .90f, .70f, .12f,.48f,.78f,.26f,.20f,.16f,.06f);
@@ -200,7 +202,14 @@ public static class GenreCatalog {
 	// share, which makes the chart guard damp it LESS and lets its remaining records chart higher. Same
 	// self-healing shape as the absorption-trim result. So 1966 is restored to keep the guard engaged
 	// there, not because the cut "did damage" in the direction first claimed.
-	Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .34f,.44f,.42f,.44f,.41f,.26f,.18f);
+	// LATE RESTORE (2026-10). The late taper above rested on "there is no market-share target row for R&B", which was
+	// false: AdjustedHistoricalGenreShareTargets has carried R&B at 8.8/8.4/7.7% for 1967-69 since 1cc64f5 (Jul 26), and the
+	// .26/.18 keyframes realised 1.7% and 0.7% (two-seed mean). In 1967-69 Soul's excess (+8-10) was R&B's shortfall, so the
+	// family was on target and the miss was a labelling split. History keeps the category: Billboard's chart was "Rhythm &
+	// Blues" until it became "Best Selling Soul Singles" on Aug 23 1969, and blues-based R&B kept charting (Little Milton's
+	// 1965 #1 and 1969 "If Walls Could Talk", B.B. King's "The Thrill Is Gone", #3 R&B/#15 pop). Restored .26/.18 -> .40/.38,
+	// accepting some late Hot 100 R&B slots against the recap's 0 (which counts relabelled records as Soul).
+	Add("rnb", Genre.RnB, GenreFamily.RhythmAndSoul, 1949, null, .70f, .80f, .34f,.44f,.42f,.44f,.41f, RsControl ? .26f : .40f, RsControl ? .18f : .38f);
 		// Soul was cut too far by the previous pass and is now the single largest under-supply in the
 		// catalog. It realised 1.9 / 3.5 / 4.7 / 6.7 / 9.1 / 11.4 / 14.0 percent of the market at
 		// 1960/62/64/66/67/68/69 against targets of 7.9 / 10.2 / 12.2 / 16.0 / 18.1 / 18.5 / 17.5,
@@ -223,7 +232,11 @@ public static class GenreCatalog {
 	// fixed here and is NOT a routing problem -- a pass-3 orientation ramp was tested on two seeds and
 	// left it at ~7% (see LateFormatOrientationOverrides): soul album is bounded by the RhythmAndSoul
 	// segment album buyer pool, which is the open lever for it.
-	Add("soul", Genre.Soul, GenreFamily.RhythmAndSoul, 1960, null, .75f, .66f, .52f,.63f,.73f,.75f,.76f,.72f,.70f);
+	// FAMILY TRIM (2026-10). Soul then ran ~2x target every year (two-seed mean, rotation on: 16.4/21.1/22.6/26.7/28.7/27.1/
+	// 23.5% vs 7.9/10.2/12.2/16.0/18.1/18.5/17.5) and crowded R&B inside the shared segment pool, so R&B lost ground 1964-67
+	// at a flat baseline. Each keyframe scaled by sqrt(target/current): .70/.70/.74/.77/.79/.83/.87, rounded down slightly
+	// late because the R&B restore above now competes for the same late share.
+	Add("soul", Genre.Soul, GenreFamily.RhythmAndSoul, 1960, null, .75f, .66f, RsControl ? new[]{.52f,.63f,.73f,.75f,.76f,.72f,.70f} : new[]{.36f,.44f,.54f,.58f,.60f,.58f,.58f});
 		Add("funk", Genre.Funk, GenreFamily.RhythmAndSoul, 1967, null, .80f, .70f, .02f,.05f,.10f,.25f,.40f,.55f,.70f);
 		Add("doo-wop", Genre.DooWop, GenreFamily.RhythmAndSoul, 1954, 1965, .80f, .85f, .84f,.37f,.11f,.04f,.04f,.02f,.01f);
 		// Gospel's EARLY years were already correct (1.1% realised against a 1.1% target at 1960);

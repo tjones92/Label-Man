@@ -1,0 +1,316 @@
+--- a/Systems/LocalSceneRoomService.cs
++++ b/Systems/LocalSceneRoomService.cs
+@@ -251,8 +251,13 @@ public static partial class LocalSceneRoomService {
+     public static IReadOnlyList<SceneBill> Calendar(string placeId, GameDate date) {
+         if (!LocalScenes.Rooms) return Array.Empty<SceneBill>();
+         EnsureCalendar(date);
++        return AnnouncedCalendar(placeId, date);
++    }
++    // Planning reads only the calendar already posted by the world clock.
++    public static IReadOnlyList<SceneBill> AnnouncedCalendar(string placeId, GameDate date) {
++        if (!LocalScenes.Rooms || state == null) return Array.Empty<SceneBill>();
+         string scene = LocalScenePersistenceService.SceneIdFor(placeId);
+-        return Array.AsReadOnly(Copy(State.Bills.Where(b => SceneRoomCatalog.Get(b.RoomId)?.PlaceId == scene && b.Day >= Day(date)).ToArray()));
++        return Array.AsReadOnly(Copy(state.Bills.Where(b => SceneRoomCatalog.Get(b.RoomId)?.PlaceId == scene && b.Day >= Day(date)).ToArray()));
+     }
+     public static SceneBill CurrentBill(string roomId, GameDate date, int hour) {
+         if (!LocalScenes.Rooms) return null;
+--- a/Systems/PlayerDesk.ScoutingFollowUp.cs
++++ b/Systems/PlayerDesk.ScoutingFollowUp.cs
+@@ -2,6 +2,14 @@ using System;
+ using System.Linq;
+ 
+ public sealed class ScoutingOpportunity {
++    public string ArtistId { get; init; }
++    public string ArtistName { get; init; }
++    public string CityId { get; init; }
++    public int DaysUntil { get; init; }
++    public int WaitingMinutes { get; init; }
++    public int TravelMinutes { get; init; }
++    public float TravelCost { get; init; }
++    public bool Affordable { get; init; }
+     public string BillId { get; init; }
+     public string EventId { get; init; }
+     public string RoomId { get; init; }
+@@ -37,24 +45,43 @@ public partial class PlayerDesk {
+         ScoutingComparison.Read(dossier, dossier.Question, "Follow-up: ");
+ 
+     public ScoutingOpportunity NextReachableScoutingSet(string artistId) {
+-        if (!LocalScenes.Rooms || !LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver) return null;
++        return ScoutingItinerary().FirstOrDefault(o => o.ArtistId == artistId);
++    }
++
++    // Local choices first; circuit choices require an actual drive that fits today.
++    // Affordability is a current quote, never a guarantee about cash after future settlement.
++    public System.Collections.Generic.IReadOnlyList<ScoutingOpportunity> ScoutingItinerary(bool includeCircuit = false) {
++        var choices = new System.Collections.Generic.List<ScoutingOpportunity>();
++        if (Label == null || IsGameOver || !LocalScenes.Rooms || !LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver) return choices;
+         var clock = TimeManager.Instance;
+         int day = LocalSceneRoomService.Day(clock.CurrentDate), now = clock.CurrentHour * 60 + clock.CurrentMinute;
+-        var next = LocalSceneRoomService.Calendar(CurrentCityId, clock.CurrentDate)
+-            .SelectMany(b => b.Appearances.Select(a => (bill: b, slot: a)))
+-            .Where(x => x.bill.Status == SceneBillStatus.Scheduled && x.slot.Status == SceneBillStatus.Scheduled &&
+-                x.slot.ArtistId == artistId && x.slot.EndHour <= clock.HardStopHour &&
+-                (x.bill.Day > day || x.bill.Day == day && x.slot.EndHour * 60 > now) &&
+-                !HasObservedPerformance(ScenePerformanceService.EventId(x.bill, x.slot)))
+-            .OrderBy(x => x.bill.Day).ThenBy(x => x.slot.StartHour).ThenBy(x => x.bill.Id, StringComparer.Ordinal).FirstOrDefault();
+-        if (next.bill == null) return null;
+-        var room = SceneRoomCatalog.Get(next.bill.RoomId);
+-        if (room == null) return null;
+-        bool playing = next.bill.Day == day && next.slot.StartHour * 60 <= now;
+-        return new() { BillId = next.bill.Id, EventId = ScenePerformanceService.EventId(next.bill, next.slot),
+-            RoomId = room.Id, RoomName = room.Name, Day = next.bill.Day,
+-            StartMinute = next.slot.StartHour * 60, EndMinute = next.slot.EndHour * 60, Playing = playing,
+-            ListeningMinutes = next.slot.EndHour * 60 - (playing ? now : next.slot.StartHour * 60),
+-            Admission = AdmissionForVisit(next.bill, room, now) };
++        var cities = new[] { CurrentCityId }.Concat(includeCircuit ? ReachableCities().Select(c => c.cityId) : Array.Empty<string>());
++        foreach (string city in cities) {
++            bool local = city == CurrentCityId;
++            var travel = local ? (Hours: 0, Gas: 0f) : DriveQuote(CurrentCityId, city);
++            if (travel.Hours * 60 > clock.MinutesRemainingWithOvertime) continue;
++            foreach (var bill in LocalSceneRoomService.AnnouncedCalendar(city, clock.CurrentDate).Where(b => b.Status == SceneBillStatus.Scheduled)) {
++                var room = SceneRoomCatalog.Get(bill.RoomId);
++                if (room == null || bill.Day > LocalSceneRoomService.Day(GameDate.EndDate)) continue;
++                var hearable = LocalSceneRoomService.Hear(bill).Select(a => a.artistId).ToHashSet();
++                foreach (var slot in bill.Appearances.Where(a => a.Status == SceneBillStatus.Scheduled)) {
++                    string eventId = ScenePerformanceService.EventId(bill, slot);
++                    int start = slot.StartHour * 60, end = slot.EndHour * 60;
++                    if (end > clock.HardStopHour * 60 || !hearable.Contains(slot.ArtistId) || HasObservedPerformance(eventId)) continue;
++                    int arrival = bill.Day == day ? now + travel.Hours * 60 : clock.WorkdayStartHour * 60;
++                    if (end <= arrival || bill.Day > day && start < arrival || !local && bill.Day == day && start < arrival) continue;
++                    bool playing = local && bill.Day == day && start <= now;
++                    float admission = local && bill.Day == day ? AdmissionForVisit(bill, room, now) : SceneLiveEconomics.Admission(room, bill.Year);
++                    choices.Add(new() { ArtistId = slot.ArtistId, ArtistName = ArtistManager.Instance.GetArtist(slot.ArtistId)?.stageName,
++                        CityId = city, DaysUntil = bill.Day - day, WaitingMinutes = Math.Max(0, start - arrival),
++                        TravelMinutes = travel.Hours * 60, TravelCost = travel.Gas, Affordable = Label.cashReserves >= admission + travel.Gas,
++                        BillId = bill.Id, EventId = eventId, RoomId = room.Id, RoomName = room.Name, Day = bill.Day,
++                        StartMinute = start, EndMinute = end, Playing = playing,
++                        ListeningMinutes = end - (playing ? now : start), Admission = admission });
++                }
++            }
++        }
++        return choices.OrderBy(o => o.TravelMinutes > 0).ThenBy(o => o.Day).ThenBy(o => o.StartMinute)
++            .ThenBy(o => o.Admission + o.TravelCost).ThenBy(o => o.EventId, StringComparer.Ordinal).ToArray();
+     }
+-}
+\ No newline at end of file
++}
+--- a/Systems/PlayerDesk.SceneRooms.cs
++++ b/Systems/PlayerDesk.SceneRooms.cs
+@@ -96,6 +96,7 @@ public partial class PlayerDesk {
+         int day = LocalSceneRoomService.Day(clock.CurrentDate), now = clock.CurrentHour * 60 + clock.CurrentMinute;
+         if (bill.Day < day || bill.Day == day && slot.StartHour * 60 < now) { message = "The set has already started; catch the remaining performance or choose another date."; return false; }
+         if (slot.EndHour > clock.HardStopHour) { message = "This appearance ends after your hard stop. Choose an earlier set."; return false; }
++        if (bill.Day > day && slot.StartHour < clock.WorkdayStartHour) { message = "This start is before your working day. Choose a later set."; return false; }
+         while (LocalSceneRoomService.Day(clock.CurrentDate) < bill.Day && !clock.IsGameOver && !IsGameOver) clock.EndDay();
+         if (clock.IsGameOver || IsGameOver) { message = "The waiting ended with the label's operating window."; return false; }
+         bool staying = scoutingKnowledge.Visit?.BillId == bill.Id && scoutingKnowledge.Visit.Day == bill.Day &&
+--- a/UI/PlayerDeskPanel.SceneRooms.cs
++++ b/UI/PlayerDeskPanel.SceneRooms.cs
+@@ -4,8 +4,15 @@ using Godot;
+ 
+ public partial class PlayerDeskPanel {
+     private string selectedSceneRoomId;
++    private bool showScoutingItinerary = true;
+     private void SceneRoomsBoard(PlayerDesk desk) {
+-        Body($"Available today: {TimeManager.Instance?.HoursRemainingWithOvertime ?? 0}h · cash {Money(desk.Label.cashReserves)}. Waiting advances the ordinary world, including expenses and other labels' decisions.");
++        Body($"Available today: {TimeManager.Instance?.MinutesRemainingWithOvertime ?? 0}min · cash {Money(desk.Label.cashReserves)}. Waiting advances the ordinary world, including expenses and other labels' decisions.");
++        if (LocalScenes.ScoutingExperience && !LocalScenes.ScoutingExperienceObserver) {
++            var browse = Btn(showScoutingItinerary ? "BROWSE ALL ROOM CALENDARS" : "SHOW NEXT AFFORDABLE SETS");
++            browse.Pressed += () => { showScoutingItinerary = !showScoutingItinerary; Refresh(); };
++            content.AddChild(browse);
++            if (showScoutingItinerary) ScoutingItineraryBoard(desk);
++        }
+         var rooms = SceneRoomCatalog.ForPlace(desk.CurrentCityId);
+         var date = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+         int hour = TimeManager.Instance?.CurrentHour ?? 9;
+@@ -94,6 +101,7 @@ public partial class PlayerDeskPanel {
+                 if (playing) {
+                     float admission = desk.AdmissionForVisit(bill, selected, now);
+                     var hear = Btn($"LISTEN ({slot.EndHour * 60 - now}min · {Money(admission)} admission)");
++                    hear.Disabled = slot.EndHour > (TimeManager.Instance?.HardStopHour ?? 21) || admission > desk.Label.cashReserves;
+                     hear.Pressed += () => Act(() => { bool ok = desk.ListenSceneAppearance(bill.Id, eventId, out string result); Say(result, ok); return ok; }); row.AddChild(hear);
+                 } else {
+                     var wait = Btn($"WAIT UNTIL {LocalSceneRoomService.Date(bill.Day).ToHeadlineString()} · {Hour12(slot.StartHour)}");
+@@ -113,4 +121,40 @@ public partial class PlayerDeskPanel {
+         listen.Pressed += () => Act(() => { bool ok = desk.ScoutSceneRoom(selected.Id, out string message); Say(message, ok); return ok; });
+         content.AddChild(listen);
+     }
++
++    private void ScoutingItineraryBoard(PlayerDesk desk) {
++        if (!LocalScenes.ScoutingExperience || LocalScenes.ScoutingExperienceObserver) return;
++        var local = desk.ScoutingItinerary();
++        var options = local.Where(o => o.Affordable).DistinctBy(o => o.BillId).Take(2).ToArray();
++        bool circuit = options.Length == 0;
++        if (circuit) options = desk.ScoutingItinerary(true).Where(o => o.Affordable && o.TravelMinutes > 0)
++            .DistinctBy(o => o.CityId).Take(2).ToArray();
++        Body(circuit ? "PLAN A LISTEN — no affordable unheard local set is currently reachable." : "PLAN A LISTEN — next affordable local bills");
++        if (options.Length == 0) {
++            Body(local.Count > 0 ? $"The lowest local admission quote is {Money(local.Min(o => o.Admission))}. Check your cash and the room calendar."
++                : "No unheard set fits the remaining posted calendar and your working hours. Rest for a fresh day, check the connected towns, or review an existing notebook lead.");
++            return;
++        }
++        foreach (var option in options) {
++            string timing = option.Playing
++                ? (option.ListeningMinutes < option.EndMinute - option.StartMinute ? "playing now; partial set" : "playing now; full set available")
++                : option.DaysUntil == 0 ? "today" : option.DaysUntil == 1 ? "tomorrow" : $"in {option.DaysUntil} days";
++            string town = circuit ? DistanceModel.GetCityById(option.CityId)?.name + " · " : "";
++            Body($"{town}{option.RoomName} · {option.ArtistName} · {LocalSceneRoomService.Date(option.Day).ToHeadlineString()} · {Hour12(option.StartMinute / 60)}–{Hour12(option.EndMinute / 60)}\n" +
++                $"{timing} · {option.WaitingMinutes}min wait on set day · {option.ListeningMinutes}min listening · {Money(option.Admission)} admission" +
++                (circuit ? $" · {option.TravelMinutes / 60}h drive now · {Money(option.TravelCost)} one-way gas; return trip separate" : ""));
++            var action = Btn(circuit ? "DRIVE TO THIS TOWN" : option.Playing ? "LISTEN TO THIS SET" : "WAIT FOR THIS SET");
++            action.TooltipText = circuit ? "Travel uses the existing drive action. On arrival, check the local list and wait or listen."
++                : "Waiting and listening are separate choices. Admission is charged by listening; signed and uninterested acts also appear on bills.";
++            action.Pressed += () => Act(() => {
++                string result;
++                bool ok = circuit ? desk.DriveTo(option.CityId, out result) : option.Playing
++                    ? desk.ListenSceneAppearance(option.BillId, option.EventId, out result)
++                    : desk.WaitForSceneAppearance(option.BillId, option.EventId, out result);
++                Say(result, ok); return ok;
++            });
++            content.AddChild(action);
++        }
++        Body("These are calendar choices. Browse all rooms for other bills. Quotes use current cash; waiting can change expenses and bills.");
++    }
+ }
+--- a/UI/PlayerDeskPanel.cs
++++ b/UI/PlayerDeskPanel.cs
+@@ -1106,9 +1106,9 @@ public partial class PlayerDeskPanel : Control {
+ 		negotiating = null;
+ 
+ 		Heading("A&R — WORK THE SCENE");
+-		Body($"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only " +
+-			"draws a crowd at its own hours. What you hear is your read on the act, not the truth — a better ear " +
+-			"narrows the gap.");
++		Body(LocalScenes.Rooms
++            ? "Choose a room and an announced set. Listening time and admission are shown before you go. Your ear shapes the impression; judging the act is your decision."
++            : $"Pick a room and go hear who's playing it. Costs {PlayerDesk.ScoutHours} hours, and each room only draws a crowd at its own hours. Your ear shapes the impression; judging the act is your decision.");
+ 		if (LocalScenes.Rooms) SceneRoomsBoard(desk);
+         else {
+         if (!hasUserSelectedVenue) {
+--- a/SimTools/SaveLoadRoundTripRunner.cs
++++ b/SimTools/SaveLoadRoundTripRunner.cs
+@@ -38,6 +38,7 @@ public partial class SaveLoadRoundTripRunner : Node {
+ 				throw new InvalidOperationException("TimeManager and ChartManager autoloads must be available.");
+ 
+ 			if (OS.GetCmdlineUserArgs().Contains("--scouting-business-check")) { ScoutingBusinessChecks.Run(); GetTree().Quit(0); return; }
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-check")) { ScoutingOpeningChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-appointment-check")) { ScoutingAppointmentChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-meeting-check")) { ScoutingMeetingChecks.Run(); GetTree().Quit(0); return; }
+             if (OS.GetCmdlineUserArgs().Contains("--scouting-comparison-check")) { ScoutingComparisonChecks.Run(); GetTree().Quit(0); return; }
+--- a/SimTools/SceneRoomUiRunner.cs
++++ b/SimTools/SceneRoomUiRunner.cs
+@@ -21,6 +21,34 @@ public partial class SceneRoomUiRunner : Node {
+             var fold = Descendants(this).OfType<Button>().FirstOrDefault(b => b.IsVisibleInTree() && b.Text == "FOLD THE PAPER  ×");
+             fold?.EmitSignal(Button.SignalName.Pressed);
+             for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++            if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-ui-check")) {
++                TimeManager.Instance.RestoreClock(GameDate.StartDate, 9);
++                panel.OpenAtTab("A&R");
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                var waits = Descendants(panel).OfType<Button>().Where(b => !b.IsQueuedForDeletion() && b.Text == "WAIT FOR THIS SET").ToArray();
++                if (waits.Length == 0 || waits.Length > 2) throw new InvalidOperationException("Opening planner needs a short list of real wait choices.");
++                var browseRooms = Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "BROWSE ALL ROOM CALENDARS");
++                browseRooms.EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (Descendants(panel).OfType<Button>().Any(b => !b.IsQueuedForDeletion() && b.Text == "WAIT FOR THIS SET") || desk.ScoutingDossiers.Count != 0)
++                    throw new InvalidOperationException("Browsing all rooms must hide the short list without acquiring evidence.");
++                Descendants(panel).OfType<Button>().Single(b => !b.IsQueuedForDeletion() && b.Text == "SHOW NEXT AFFORDABLE SETS").EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                waits = Descendants(panel).OfType<Button>().Where(b => !b.IsQueuedForDeletion() && b.Text == "WAIT FOR THIS SET").ToArray();
++                string openingDir = ProjectSettings.GlobalizePath("res://SimLogs/scouting-opening-ui-v1"); Directory.CreateDirectory(openingDir);
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(openingDir, "planner.png"));
++                waits[0].EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (desk.ScoutingDossiers.Count != 0) throw new InvalidOperationException("Waiting must not acquire music evidence.");
++                var listenPlan = Descendants(panel).OfType<Button>().First(b => !b.IsQueuedForDeletion() && b.Text == "LISTEN TO THIS SET");
++                listenPlan.EmitSignal(Button.SignalName.Pressed);
++                for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
++                if (desk.ScoutingDossiers.Count != 1 || desk.Label.roster.Count != 0) throw new InvalidOperationException("Planner must use real listening without signing an act.");
++                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
++                GetViewport().GetTexture().GetImage().SavePng(Path.Combine(openingDir, "after-listening.png"));
++                GD.Print("SCOUTING_OPENING_UI_PASS planner=true waiting=true evidence=true noSigning=true"); GetTree().Quit(0); return;
++            }
+             var cards = Descendants(panel).OfType<VenueHandbill>().Where(c => !c.IsQueuedForDeletion()).ToArray();
+             if (cards.Length != 6) throw new InvalidOperationException("The board must show six named rooms.");
+             foreach (var card in cards) foreach (var label in Descendants(card).OfType<Label>()) {
+--- /dev/null
++++ b/SimTools/ScoutingOpeningChecks.cs
+@@ -0,0 +1,76 @@
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Text.Json;
++using Godot;
++
++public static class ScoutingOpeningChecks {
++    public static void Run() {
++        int checks = 0;
++        void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("SCOUTING_OPENING_FAILED: " + why); checks++; }
++        string Json(object value) => JsonSerializer.Serialize(value, SaveGameService.TestJsonOptions);
++        var desk = PlayerDesk.Instance; var clock = TimeManager.Instance;
++        Check(desk.FoundLabel("Opening Checks", "nashville", out string message), "found label: " + message);
++        var opening = desk.CaptureState();
++        // Audit actual posted topology from every founding city, with each starting cash profile.
++        // Moving the fixture's viewpoint creates no people, bills, introductions or signings.
++        var rows = new List<object>();
++        foreach (var city in DistanceModel.GetCities().OrderBy(c => c.cityId, StringComparer.Ordinal)) {
++            opening.CurrentCityId = city.cityId;
++            Check(desk.RestoreState(opening, out message), "viewpoint: " + city.cityId + " " + message);
++            foreach (var profile in FoundingArchetypeData.All) {
++                desk.Label.cashReserves = profile.Value.Capital;
++                var local = desk.ScoutingItinerary();
++                var circuit = desk.ScoutingItinerary(true);
++                Check(local.All(o => o.TravelMinutes == 0 && o.CityId == city.cityId), "local geography: " + city.cityId);
++                Check(circuit.All(o => o.EndMinute <= clock.HardStopHour * 60 && o.ListeningMinutes > 0 && o.TravelMinutes <= clock.MinutesRemainingWithOvertime), "reachable clock: " + city.cityId);
++                Check(circuit.All(o => o.Affordable == (o.Admission + o.TravelCost <= profile.Value.Capital)), "actual quote: " + city.cityId);
++                var next = circuit.FirstOrDefault(o => o.Affordable);
++                rows.Add(new { city = city.cityId, archetype = profile.Key.ToString(), cash = profile.Value.Capital,
++                    localSets = local.Count, affordableLocal = local.Count(o => o.Affordable), circuitSets = circuit.Count(o => o.TravelMinutes > 0 && o.Affordable),
++                    nextDay = next?.DaysUntil, nextRoom = next?.RoomName, nextCity = next?.CityId, admission = next?.Admission, gas = next?.TravelCost });
++                Check(next != null, "no affordable posted route from " + city.cityId + " for " + profile.Key);
++            }
++        }
++        string dir = ProjectSettings.GlobalizePath("res://SimLogs"); Directory.CreateDirectory(dir);
++        File.WriteAllText(Path.Combine(dir, "scouting-opening-audit-" + OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--seed="))?.Substring(7) + ".json"), Json(rows));
++        opening.CurrentCityId = "nashville";
++        Check(desk.RestoreState(opening, out message), "restore home viewpoint");
++        desk.Label.cashReserves = 800;
++        string world = Json(WorldStateService.Capture()), player = Json(desk.CaptureState());
++        GD.Seed(917); uint draw = GD.Randi(); GD.Seed(917);
++        var plans = desk.ScoutingItinerary(true); desk.ScoutingItinerary(true);
++        Check(Json(WorldStateService.Capture()) == world && Json(desk.CaptureState()) == player && GD.Randi() == draw, "planning preserves world, player and RNG");
++        Check(plans.Select(o => o.EventId).Distinct().Count() == plans.Count, "no duplicated appearances");
++        Check(plans.Any(o => !string.IsNullOrEmpty(ArtistManager.Instance.GetArtist(o.ArtistId)?.labelId)), "signed performers remain useful listening choices");
++        var savedPlayer = JsonSerializer.Deserialize<PlayerSaveData>(player, SaveGameService.TestJsonOptions);
++        string itinerary = Json(plans);
++        Check(desk.RestoreState(savedPlayer, out _) && Json(desk.ScoutingItinerary(true)) == itinerary, "save restore retains identical logistical choices");
++        // Cash changes filter logistics only, not the posted cast or any assessment.
++        desk.Label.cashReserves = 0;
++        var poor = desk.ScoutingItinerary();
++        Check(poor.Select(o => o.EventId).SequenceEqual(plans.Where(o => o.TravelMinutes == 0).Select(o => o.EventId)) && poor.Any(o => o.Affordable), "cash changes affordability, not the cast; free authored local path");
++        desk.Label.cashReserves = 800;
++        var plan = desk.ScoutingItinerary().First(o => o.Affordable && !o.Playing);
++        float cash = desk.Label.cashReserves;
++        Check(desk.WaitForSceneAppearance(plan.BillId, plan.EventId, out message), "ordinary wait: " + message);
++        Check(desk.ScoutingDossiers.Count == 0 && desk.CurrentCityId == "nashville", "waiting does not discover or travel");
++        var now = desk.ScoutingItinerary().Single(o => o.EventId == plan.EventId);
++        Check(now.Playing && now.WaitingMinutes == 0 && clock.CurrentHour * 60 + clock.CurrentMinute == plan.StartMinute, "arrival at exact announced start");
++        Check(desk.ListenSceneAppearance(now.BillId, now.EventId, out message), "listen: " + message);
++        Check(desk.ScoutingDossiers.Count == 1 && desk.Label.cashReserves == cash - now.Admission && desk.Label.roster.Count == 0, "listening acquires evidence, not a signing");
++        Check(!desk.ScoutingItinerary().Any(o => o.EventId == now.EventId), "heard event no longer proposed");
++        int minute = clock.CurrentHour * 60 + clock.CurrentMinute;
++        cash = desk.Label.cashReserves;
++        Check(!desk.ListenSceneAppearance(now.BillId, now.EventId, out _) && clock.CurrentHour * 60 + clock.CurrentMinute == minute && desk.Label.cashReserves == cash, "repeat click consumes no cost");
++        clock.RestoreClock(clock.CurrentDate, clock.HardStopHour);
++        Check(desk.ScoutingItinerary().All(o => o.DaysUntil > 0) && desk.ScoutingItinerary(true).All(o => o.TravelMinutes == 0), "late-day plans defer listening and driving");
++        foreach (string flag in new[] { "--disable-scouting-experience", "--observe-scouting-experience" }) {
++            LocalScenes.Configure(new[] { flag });
++            Check(desk.ScoutingItinerary(true).Count == 0, "no actionable plan in " + flag);
++        }
++        LocalScenes.Configure(Array.Empty<string>());
++        GD.Print($"SCOUTING_OPENING_CHECK_PASS checks={checks} cities={DistanceModel.GetCities().Count} profiles={FoundingArchetypeData.All.Count}");
++    }
++}

@@ -14,7 +14,10 @@ public class Musician {
 	public int birthYear;
 
 	public MusicianRole primaryRole;
+	/// <summary>What else this person plays or sings (None for nothing). Assigned by MemberRoleService; read it through
+	/// MemberRoleService.Secondary, which assigns it for people loaded from saves made before it existed.</summary>
 	public MusicianRole secondaryRole;
+	public int secondaryRoleVersion;
 	public bool isLeadVocalist;
 	public bool isPrimaryWriter;
 	public bool isBandLeader;
@@ -160,5 +163,7 @@ public class Musician {
 
 public enum MusicianRole {
 	LeadVocals, BackingVocals, LeadGuitar, RhythmGuitar, Bass, Drums, Piano, Organ, 
-	Saxophone, Trumpet, Harmonica, Violin, Percussion, MultiInstrumentalist
+	Saxophone, Trumpet, Harmonica, Violin, Percussion, MultiInstrumentalist,
+	/// <summary>No part: only meaningful as a second role. Last, so saved roles keep their numbers.</summary>
+	None
 }
