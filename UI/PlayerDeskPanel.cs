@@ -3003,9 +3003,10 @@ public partial class PlayerDeskPanel : Control {
 		Body($"Signing advances must leave more than ${2f * label.GetMonthlyOverhead():N0} cash (two months of overhead). " +
 			$"The overdraft ceiling is ${-desk.CreditFloor:N0}, but it is not a loan. {PlayerDesk.SolvencyRuleText}");
 		var check = desk.NextSolvencyCheck(label.cashReserves);
-		Body($"Next check: {check.Date.ToHeadlineString()} ({check.Days} day{(check.Days == 1 ? "" : "s")}), after ${check.Overhead:N0} overhead: {Money(check.CashAfter)} if nothing else moves -- {check.Outcome}.");
+		Body($"Next check: {check.Date.ToHeadlineString()} ({check.Days} day{(check.Days == 1 ? "" : "s")}), after ${check.Overhead:N0} overhead{(check.BackerPayment > 0.005f ? $" and ${check.BackerPayment:N0} to the backer" : "")}: {Money(check.CashAfter)} if nothing else moves -- {check.Outcome}.");
 		BuildReleaseRoute(desk);
 		BuildCashOptions(desk);
+		BuildBacker(desk);
 
 		Heading("LAST WEEK'S SETTLEMENT");
 		PlayerDesk.WeekBooks latest = desk.Books.FirstOrDefault();
@@ -3968,12 +3969,69 @@ public partial class PlayerDeskPanel : Control {
 		}
 	}
 
+	/// <summary>Early-game §4.3: the one backer agreement -- who, what he'd want, the open offer, or the loan's ledger.</summary>
+	private void BuildBacker(PlayerDesk desk) {
+		var loan = desk.Backer;
+		var prospect = desk.BackerProspectFor();
+		if (loan == null && prospect == null) return;
+		Heading("BACKER", "One backer per label. A loan, not income: the money is paid back on the 1st, after the overhead and before the bank's check, " +
+			"from cash above $0 only. What can't be paid is arrears, and costs you standing with him.");
+		if (loan == null) {
+			Body($"{prospect.Name}, {prospect.Title}. Up to ${prospect.Capacity:N0}. He wants {prospect.Wants}. {PlayerDesk.BackerMeetingHours}h {prospect.Where}, {prospect.Hours}.");
+			var offer = desk.PendingBackerOffer;
+			if (offer != null) {
+				if (offer.Objection != null) Body(offer.Objection);
+				for (int i = 0; i < offer.Terms.Count; i++) {
+					int pick = i;
+					var t = offer.Terms[i];
+					var accept = Btn($"{t.Answer.ToUpperInvariant()}: ${t.Principal:N0} AT {t.Rate:P0}");
+					accept.TooltipText = $"{t.Why} {PlayerDesk.BackerInstallments} monthly payments of a twelfth of the principal plus interest, the first on the {PlayerDesk.BackerGraceFirsts}rd 1st from now.";
+					accept.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.AcceptBackerTerms(pick, out string m); Say(m, ok); return ok; });
+					content.AddChild(accept);
+				}
+				Body($"The offer stands until {offer.Expires.ToShortString()}.");
+				return;
+			}
+			string block = desk.BackerMeetingBlock(prospect);
+			if (desk.BackerRefusal is { } r && r.Evidence == desk.BackerEvidence()) { Body(r.Reason + " That stands until something changes."); return; }
+			var meet = Btn($"MEET {prospect.Name.ToUpperInvariant()} ({PlayerDesk.BackerMeetingHours}h)");
+			meet.Disabled = block != null;
+			meet.TooltipText = block ?? "He hears you out and answers on what you can show him. He never hears what you haven't cut.";
+			meet.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.MeetBacker(out string m); Say(m, ok); return ok; });
+			content.AddChild(meet);
+			if (block != null) Body(block);
+			return;
+		}
+		var today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		var rows = new List<LedgerTable.Row> {
+			LedgerTable.Entry($"Borrowed from {loan.BackerName}, {loan.Signed.ToShortString()}, {loan.Rate:P0} a year", LedgerTable.Money(loan.Principal)),
+			LedgerTable.Entry("Principal repaid", LedgerTable.Deduct(loan.PrincipalPaid)),
+			LedgerTable.Total("Still owed", LedgerTable.Money(loan.Outstanding)),
+			LedgerTable.Entry("Interest charged to date", LedgerTable.Money(loan.InterestAccrued)),
+			LedgerTable.Entry("Interest unpaid", LedgerTable.Money(loan.InterestDue)),
+			LedgerTable.Entry("Principal overdue", LedgerTable.Money(loan.PrincipalArrears(today))),
+		};
+		content.AddChild(new LedgerTable().Set(loan.Repaid ? "The backer: paid off" : "The backer", null, rows));
+		if (loan.Repaid) { Body($"Square with {loan.BackerName}. One backer per label: there's no second ask."); return; }
+		var next = loan.NextDue(today);
+		Body($"Payments of ${loan.Installment:N2} plus interest on the 1st, from {loan.FirstDue.ToShortString()}" +
+			(next.HasValue ? $"; next {next.Value.ToShortString()}" : "") + $". Missed so far: {loan.Missed}. Standing with him: {loan.Standing:P0}." +
+			(loan.Source == PlayerDesk.BackerSource.MerchantLender ? $" Your pressed stock is his security: {PlayerDesk.BackerSeizeAfterMisses} misses in a row and he takes copies at ${PlayerDesk.DealerPrice:F2}." : ""));
+		float owedNow = loan.Outstanding + loan.InterestDue;
+		var payOff = Btn($"PAY HIM ${Mathf.Min(owedNow, Mathf.Max(0f, desk.Label.cashReserves)):N2}");
+		payOff.Disabled = desk.Label.cashReserves <= 0f;
+		payOff.TooltipText = "Interest first, then anything overdue, then principal ahead of schedule. Never more than you owe or have.";
+		payOff.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.RepayBacker(owedNow, out string m); Say(m, ok); return ok; });
+		content.AddChild(payOff);
+	}
+
 	/// <summary>F7: the overhead is taken on the 1st and the bank checks cash straight after it.</summary>
 	private static string MonthEndCashPreview(AILabel label, float cashAfterAction) {
 		var check = PlayerDesk.Instance?.NextSolvencyCheck(cashAfterAction);
 		if (check == null || label == null) return "";
 		var c = check.Value;
-		return $"  ·  ${c.Overhead:N0} overhead taken {c.Date.ShortMonthName} {c.Date.day} ({c.Days} day{(c.Days == 1 ? "" : "s")}), then the bank's check: {Money(c.CashAfter)}, {c.Outcome}";
+		string backer = c.BackerPayment > 0.005f ? $", ${c.BackerPayment:N0} to {PlayerDesk.Instance.Backer?.BackerName ?? "your backer"}" : "";
+		return $"  ·  ${c.Overhead:N0} overhead taken {c.Date.ShortMonthName} {c.Date.day} ({c.Days} day{(c.Days == 1 ? "" : "s")}){backer}, then the bank's check: {Money(c.CashAfter)}, {c.Outcome}";
 	}
 
 	/// <summary>Directive §6: a one-stop takes no Pitch/Consign/Service -- it's "locked as a customer

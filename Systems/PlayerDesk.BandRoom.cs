@@ -1026,7 +1026,7 @@ public partial class PlayerDesk {
 			if (!Require(BookerPitchHours, out message)) return false;
 			Spend(BookerPitchHours);
 			int shows = LocalSceneRoomService.ShowsAt(room.Id, a.artistId);
-			if (GD.Randf() >= BookerAcceptChance(a, shows) * ResidencyAskFactor) {
+			if (GD.Randf() >= Mathf.Max(0.05f, BookerAcceptChance(a, shows) - BackerRoomPenalty(room.Id)) * ResidencyAskFactor) {
 				b.ResidencyRefusedRoomId = room.Id; b.ResidencyRefusedDay = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate); b.ResidencyRefusedShows = shows;
 				message = $"{room.ContactName} likes {a.stageName} fine for a night, but won't give them a standing run at {room.Name}.";
 				Note(message);

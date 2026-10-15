@@ -91,7 +91,7 @@ public partial class PlayerDesk {
 	public float TableRightsChance(SceneRoomProfile room) {
 		float shows = Mathf.Min(1f, LabelShowsAt(room.Id) / (float)LocalSceneRoomService.StandingSaturation);
 		bool knewYou = roomTableRights.TryGetValue(room.Id, out var prior) && prior.Granted;
-		return Mathf.Clamp(0.20f + 0.45f * shows + RoomTableOpenness(room.Kind) + (knewYou ? 0.20f : 0f), 0.05f, 0.85f);
+		return Mathf.Clamp(0.20f + 0.45f * shows + RoomTableOpenness(room.Kind) + (knewYou ? 0.20f : 0f) - BackerRoomPenalty(room.Id), 0.05f, 0.85f);
 	}
 
 	/// <summary>Ask a room's booker, in person, for the right to sell your records at a table on his nights.</summary>

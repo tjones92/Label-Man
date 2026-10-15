@@ -140,7 +140,7 @@ public partial class PlayerDesk {
 
 		// He can only book an act that is actually working this scene; he'd know.
 		bool present = LocalSceneRoomService.Eligible(act, room, day);
-		bool yes = present && GD.Randf() < BookerAcceptChance(act, shows);
+		bool yes = present && GD.Randf() < Mathf.Max(0.05f, BookerAcceptChance(act, shows) - BackerRoomPenalty(roomId));
 		LocalSceneRoomService.RecordPitch(new SceneBookerPitch { RoomId = roomId, ArtistId = artistId, LabelId = Label.labelId, Day = today, Accepted = yes, ShowsAtPitch = shows });
 		string night = LocalSceneRoomService.Date(day).ToHeadlineString();
 		if (!yes) {

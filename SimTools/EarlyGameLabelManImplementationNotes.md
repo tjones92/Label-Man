@@ -16,9 +16,11 @@ money. A §4.3 backer, if built, must come from a non-family source.
 | 1B §6.1 | DJ courtesy calls: introduce the label, ask what's moving, arrange a listen | `Systems/PlayerDesk.CourtesyCalls.cs`; Rolodex verbs/entry/scene |
 | 1B §6.2 | Dealer advance orders off an acetate; shared record appeal; pre-orders held past arrival | `Systems/PlayerDesk.Groundwork.cs`; `PlayerDesk.cs` |
 | 1B §6.3 | Pitch an act to a real booker; dated nights placed by the scene scheduler | `Systems/LocalSceneRoomService.Bookings.cs`, `Data/LocalSceneRooms.cs`, `PlayerDesk.Groundwork.cs`; UI `PlayerDeskPanel.SceneRooms.cs` |
+| 2 §4.3 | One backer agreement per label, non-family sources, ledger, 1st-of-month payments | `Systems/PlayerDesk.Backer.cs`; gate `SimTools/BackerChecks.*`; UI `BuildBacker` in `PlayerDeskPanel.cs` |
+| 3 F1-F3 | Room tables, audience saturation, local appeal | `Systems/PlayerDesk.RoomTables.cs`, `PlayerDesk.LocalAppeal.cs`; gate `SimTools/RoomTableChecks.*` |
 
-Phase 3 (F1-F3) built 2026-10-14, see below. Not started: Phase 2 (backer, non-family only), 4 (paid demos),
-5/5A (master shopping, song placement), 5B (F5 gig pay), later/deferred items.
+Phase 3 built 2026-10-14 and Phase 2 on 2026-10-14 after it, see below. Not started: 4 (paid demos), 5/5A (master
+shopping, song placement), 5B (F5 gig pay), later/deferred items.
 
 ## Design choices worth knowing
 
@@ -326,3 +328,64 @@ the size.
 - **New York still runs red** on both plans (final -$213 to -$326; one waiting run closed day 152). F3 doesn't change
   the New York overhead question.
 - Booker acceptance stays easy (bookings fell through 2 of 26); table rights were won about 60% of asks.
+
+## Phase 2: one backer agreement (§4.3), 2026-10-14
+
+Built (`Systems/PlayerDesk.Backer.cs`). Author decisions: no family money; the Ex-Musician's backer is a club owner from
+the home scene; the Pawn-Shop Owner's pledge is the label's pressed stock.
+
+- **Sources, all from the world or a named private person:** Ex-Musician, the man who runs a home-scene club (roadhouse
+  if none), up to $500 ($400 roadhouse). Pawn-Shop Owner, a merchant lender against pressed stock, $600. Promo Man, the
+  home town's jukebox operator (a real Op account), $500. Trade Insider, a private backer a trade contact introduced, $800.
+  Private names are keyed (`SceneRoomCharacter.PersonName`) and draw on no stream.
+- **The ask** is a 2h meeting in his hours (club owner from 2 p.m. at his room; the others 9-5 at the office). He reads a
+  signed act, whether anything is recorded (master, acetate or release), and the completion budget (remaining route + two
+  months' overhead, in fifties, floored at $300 and capped by his means). He never reads the hidden hook. The answer is
+  deterministic, so asking again on unchanged evidence can't reroll it; a no stands until the evidence changes. Unheard,
+  he objects ("I haven't heard a note of it") and the terms change: a smaller sum ($300 at 6%), or 75% of the budget at 9%.
+  With a record to play him, the full budget at 6%. An offer stays open 14 days. The operator also wants something
+  recorded. Room fit was tried for the club owner and dropped: it made the backer depend on which club the catalog lists
+  first (the New York smoke run was refused 111 days running).
+- **Terms (authored):** simple interest on outstanding principal, actual/365 from the day the money is paid; first
+  payment on the third 1st after signing; 12 installments of a twelfth plus all accrued interest. Taken on the 1st after
+  the overhead and before the bank's check, interest first, then overdue principal, then this month's, **from cash above
+  zero only**, so a payment can never turn a check red. What isn't paid is arrears: standing -0.15 per miss, +0.05 per
+  on-time payment. Consequences by source: the club owner's booker subtracts up to 0.30 x (1 - standing) from bookings,
+  residencies and table rights at his room; the operator's account loses 0.10 relationship per miss; the private backer
+  costs 0.01 label reputation per miss; the merchant lender, after two misses in a row, takes copies on hand at the dealer
+  price ($0.63) against the arrears (no cash, no sale, no chart); with no stock the arrears stand. No separate game-over.
+  Principal is financing (cash, not revenue); interest is an expense; early repayment any time. One agreement per label,
+  ever. Windfall collection is not built.
+- **Ledger:** every disbursement, accrual, payment, miss and seizure is a ledger line; `LedgerAgrees()` recomputes the
+  balances from it. Saved as `PlayerSaveData.Backer` (optional; older saves hold none) with the offer and standing refusal.
+- **Forecasts:** `NextSolvencyCheck` (now also returns `BackerPayment`) and `ClosureCheckIfNothingChanges` run the same
+  `Settle` on a copy, so the forecast and the clock can't disagree. CASH OPTIONS lists the ask (blocked, with what he
+  wants, until he'd say yes; speculative, up to his means, after), or the open offer as agreed. UI: BACKER in the books.
+
+Verification:
+- **AI-only identity:** `egl-p2-1001-52` matches `ref-c566f24-1001-52` on 84/84 CSVs.
+- `BackerChecks` 49/49 on the real clock: sources; hours; a no stands and is free to repeat; an act changes the evidence;
+  the objection and its terms; principal not booked as revenue; first payment on the third 1st; forecast = clock
+  ($29.49); interest before principal; a miss keeps the check black and costs standing, read by his booker (table rights
+  .200 -> .155) and no other room; catching up; early payoff; no second backer; the full budget once a record exists;
+  the lender's seizure (176 copies clear $110.75) and a seizure with no stock.
+- `SaveLoadRoundTripRunner --integration` passes (`BACKER_ROUNDTRIP ok=True`). `CashPlanningChecks` 30/30 (the fresh-label
+  card is no longer empty: its only line is the blocked backer ask). `RoomTableChecks` 49/49.
+- `--inspect-slot` prints the agreement and whether its ledger agrees.
+
+## Backer matrix (`SimLogs/ocl-p2-backer.md`, MATRIX=backer, stopped at 27 pairs)
+
+Ex-Musician, every channel worked, New York / LA / Detroit x {eager, replay staggered; discerning one-single} x seeds
+1001-1003, `--backer=ask` (meet as soon as he'd say yes, sign the largest terms) against `none`. Seed 1004 was stopped
+part-way (direction was already clear). Paired runs share a seed, not a world.
+
+- **Closures 15 -> 8. No label closed with a backer that survived without one.** 27/27 ledgers agree.
+- **It mostly buys time.** Of the 7 closures avoided, one (Detroit 1001 replay, +$18) ended solvent; the other six ended
+  day 180 with negative cash (-$35 to -$245) and arrears. All 8 remaining closures moved from day 121 to 152. 10 of the
+  19 surviving ask runs end open but negative or in arrears, so a longer horizon would close some of them.
+- **Arrears are the norm where the label runs red:** every closure-prone cell missed payments (often all three it
+  reached), because payments come only from cash above zero. Detroit eager/discerning paid on time.
+- New York borrows at 9% ($350, unheard) because the act is signed before anything is recorded; elsewhere $300 at 6%.
+- Reading: the backer is an option with a cost, not a rescue. Whether repayment "from cash above zero only" is too soft
+  (a red label never pays and loses only standing) is the author's call: the alternative is letting a payment take cash
+  below zero, which would make it a closure accelerator.

@@ -53,7 +53,9 @@ public partial class CashPlanningChecks : Node {
 			Check(!bothShort.Contains("Already working for you"), "No qualification without stock, runs or receivables");
 
 			// CASH OPTIONS can be empty, and says so (§4.2: the never-empty invariant is removed).
-			Check(desk.CashOptions().Count == 0, "A fresh label with nothing pressed has no cash routes");
+			// The only line is the backer ask (§4.3), blocked until there's an act to back.
+			Check(desk.CashOptions().All(o => o.Route == "Ask a backer" && !o.Executable && o.Certainty == PlayerDesk.CashCertainty.Blocked),
+				"A fresh label with nothing pressed has no executable cash route; the backer ask is blocked until an act is signed");
 
 			// Stranded-away fix: out of town on negative cash, the drive home still goes, gas on the tab like
 			// the motel; any other trip stays gated on cash.

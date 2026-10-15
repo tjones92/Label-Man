@@ -19,15 +19,18 @@ public partial class PlayerDesk {
 
 	/// <summary>The next solvency check: its date, the overhead taken just before it, and what cash would read then if
 	/// nothing else came in or went out. Overhead uses today's rate.</summary>
-	public (GameDate Date, int Days, float Overhead, float CashAfter, bool WouldClose, string Outcome) NextSolvencyCheck(float cashNow) {
+	public (GameDate Date, int Days, float Overhead, float CashAfter, bool WouldClose, string Outcome, float BackerPayment) NextSolvencyCheck(float cashNow) {
 		var today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		var first = FirstOfNextMonth(today);
 		float overhead = Label?.GetMonthlyOverhead() ?? 0f, after = cashNow - overhead;
+		// The backer is paid between the overhead and the check, from cash above zero only (§4.3).
+		float backerPayment = ForecastBackerPayment(first, after);
+		after -= backerPayment;
 		bool close = after < CreditFloor || after < 0f && monthsInTheRed + 1 >= MaxMonthsInTheRed;
 		string outcome = after < CreditFloor ? "below the overdraft ceiling: the label closes"
 			: after < 0f ? (close ? $"red check {monthsInTheRed + 1} of {MaxMonthsInTheRed}: the label closes" : $"red check {monthsInTheRed + 1} of {MaxMonthsInTheRed}")
 			: monthsInTheRed > 0 ? "in the black: the red count resets" : "in the black";
-		return (first, DaysBetween(today, first), overhead, after, close, outcome);
+		return (first, DaysBetween(today, first), overhead, after, close, outcome, backerPayment);
 	}
 
 	/// <summary>The last date money can still count toward survival: the check that would close the label if cash stays
@@ -38,8 +41,10 @@ public partial class PlayerDesk {
 		float cash = Label.cashReserves, overhead = Label.GetMonthlyOverhead();
 		int red = monthsInTheRed;
 		var check = FirstOfNextMonth(today);
+		var loan = backer != null && !backer.Repaid ? backer.Copy() : null;
 		for (int i = 0; i < 6; i++, check = FirstOfNextMonth(check)) {
 			cash -= overhead;
+			loan?.Settle(check, ref cash);
 			if (cash < CreditFloor) return check;
 			if (cash < 0f) { if (++red >= MaxMonthsInTheRed) return check; } else red = 0;
 		}
@@ -277,6 +282,24 @@ public partial class PlayerDesk {
 			var next = AddDays(today, 7 - (DaysBetween(GameDate.StartDate, today) % 7));
 			list.Add(new("Booked engagements", $"{act.stageName}: {booking.WeeksRemaining} week(s) left", residency ? "residency" : "on the road",
 				0f, weekly * booking.WeeksRemaining, next, CashCertainty.Accepted, !TooLate(next), $"${weekly:N0} a week as each week settles." + Late(next)));
+		}
+		// §4.3: one backer agreement. An open offer is money agreed if you sign; before the meeting it's an ask.
+		if (backer == null && BackerProspectFor() is { } prospect) {
+			if (PendingBackerOffer is { } offer) {
+				var best = offer.Terms.OrderByDescending(t => t.Principal).First();
+				list.Add(new("Backer's offer", $"Sign with {prospect.Name}", string.Join("; ", offer.Terms.Select(t => $"{t.Answer.ToLowerInvariant()}: ${t.Principal:N0} at {t.Rate:P0}")),
+					0f, best.Principal, today, CashCertainty.Accepted, true,
+					$"Paid over when you shake on it. A loan, not income: {BackerInstallments} monthly payments from {BackerGraceFirsts} months out. Open until {offer.Expires.ToShortString()}."));
+			} else {
+				string block = BackerMeetingBlock(prospect);
+				bool refused = backerRefusal is { } r && r.Evidence == BackerEvidence();
+				// He says what he wants up front; a meeting without it is a certain no, so it isn't offered as a route.
+				bool unmet = !refused && EvaluateBacker(prospect).Refusal != null;
+				list.Add(new("Ask a backer", $"Meet {prospect.Name}, {prospect.Title}", $"{BackerMeetingHours}h {prospect.Where}, {prospect.Hours}; wants {prospect.Wants}",
+					0f, prospect.Capacity, today, refused || unmet ? CashCertainty.Blocked : CashCertainty.Speculative, !refused && !unmet && block == null && !TooLate(today),
+					(refused ? backerRefusal.Value.Reason : unmet ? $"Not yet: he wants {prospect.Wants}."
+						: block ?? $"Up to ${prospect.Capacity:N0}, sized to what finishing a release needs; he may offer less.") + Late(today)));
+			}
 		}
 		return list.AsReadOnly();
 	}

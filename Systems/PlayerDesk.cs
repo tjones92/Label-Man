@@ -1150,6 +1150,9 @@ public partial class PlayerDesk : Node {
 	/// </summary>
 	private void OnMonthChanged(GameDate date) {
 		if (Label == null || IsGameOver) return;
+		// Early-game §4.3: the backer's payment comes out after the overhead and before the bank looks. It is taken from
+		// cash above zero only, so it can't turn a check red.
+		SettleBacker(date);
 		if (Label.cashReserves < CreditFloor) {
 			GameOver($"You ran past your ${-CreditFloor:N0} credit line. The creditors have closed {Label.labelName} down.");
 			return;
@@ -5927,6 +5930,7 @@ public partial class PlayerDesk : Node {
             RivalOffers = CaptureRivalOffers(),
             RivalCourtships = CaptureRivalCourtships(),
             RoomTables = CaptureRoomTables(),
+            Backer = CaptureBacker(),
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
             StudioTrip = studioTrip?.Copy(),
@@ -6428,6 +6432,7 @@ public partial class PlayerDesk : Node {
         RestoreRivalOffers(data.RivalOffers);
         RestoreRivalCourtships(data.RivalCourtships);
         RestoreRoomTables(data.RoomTables);
+        RestoreBacker(data.Backer);
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
         studioTrip = data.StudioTrip?.Copy();

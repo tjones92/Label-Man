@@ -369,6 +369,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 				LocalSceneRoomService.RecordPitch(new SceneBookerPitch { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 3, Accepted = false, ShowsAtPitch = 2 });
 			}
 
+			// Early-game §4.3: a backer agreement four payments in (one missed), its ledger, standing and an open offer.
+			var probeLoan = PlayerDesk.NewAgreementForChecks(PlayerDesk.BackerSource.MerchantLender, "Probe Lender", null, 500f, PlayerDesk.BackerRate, TimeManager.Instance.CurrentDate);
+			{
+				var due = probeLoan.FirstDue;
+				foreach (float cashThen in new[] { 400f, 0f, 400f, 400f }) { float c = cashThen; probeLoan.Settle(due, ref c); due = PlayerDesk.NextFirstForChecks(due); }
+			}
+			PlayerDesk.Instance.StageBackerForChecks(probeLoan, new PlayerDesk.BackerOffer { Made = TimeManager.Instance.CurrentDate, Expires = PlayerDesk.NextFirstForChecks(TimeManager.Instance.CurrentDate),
+				Objection = "probe objection", Terms = { new PlayerDesk.BackerTerms("Take a smaller sum", 300f, PlayerDesk.BackerRate, "probe") } });
+
             var infoSave = PlayerDesk.Instance.CaptureState();
             infoSave.SceneInformation = new SceneInformationKnowledge {
                 Contacts = new() { new() { ContactId = "probe-contact", HeardBillIds = new() { "probe-bill-1", "probe-bill-2" } } },
@@ -557,6 +566,18 @@ public partial class SaveLoadRoundTripRunner : Node {
 				bool crowdOk = crowd1 != null && Math.Abs(crowd1.Bought - 17.5f) < 0.001f && crowd1.LastSale.Equals(crowdStop.TableCrowds["probe_record_1"].LastSale);
 				GD.Print($"TABLE_CROWD_ROUNDTRIP stop={crowdStop.StopId} bought={crowd1?.Bought} ok={crowdOk}");
 				if (!crowdOk) fails.Add("hop-table crowd lost on round-trip");
+			}
+			{
+				var loan1 = PlayerDesk.Instance.Backer;
+				bool backerOk = loan1 != null && loan1.Source == PlayerDesk.BackerSource.MerchantLender && loan1.BackerName == "Probe Lender"
+					&& Math.Abs(loan1.Principal - 500f) < 0.001f && Math.Abs(loan1.PrincipalPaid - probeLoan.PrincipalPaid) < 0.001f
+					&& Math.Abs(loan1.InterestAccrued - probeLoan.InterestAccrued) < 0.001f && Math.Abs(loan1.InterestPaid - probeLoan.InterestPaid) < 0.001f
+					&& loan1.Missed == probeLoan.Missed && probeLoan.Missed == 1 && loan1.ConsecutiveMissed == probeLoan.ConsecutiveMissed
+					&& Math.Abs(loan1.Standing - probeLoan.Standing) < 0.001f && loan1.FirstDue.Equals(probeLoan.FirstDue) && loan1.LastAccrual.Equals(probeLoan.LastAccrual)
+					&& loan1.Ledger.Count == probeLoan.Ledger.Count && loan1.LedgerAgrees()
+					&& PlayerDesk.Instance.PendingBackerOffer?.Terms.Count == 1 && PlayerDesk.Instance.PendingBackerOffer.Objection == "probe objection";
+				GD.Print($"BACKER_ROUNDTRIP paid={loan1?.PrincipalPaid} interest={loan1?.InterestPaid} missed={loan1?.Missed} ledger={loan1?.Ledger.Count} ok={backerOk}");
+				if (!backerOk) fails.Add("backer agreement/ledger/offer lost on round-trip");
 			}
 			if (tableRoom != null) {
 				var rights1 = PlayerDesk.Instance.LastTableRightsAsk(tableRoom);
@@ -757,6 +778,14 @@ public partial class SaveLoadRoundTripRunner : Node {
 			GD.Print($"  DISCOGRAPHY {record.baseRecord.recordId} \"{record.baseRecord.title}\" by {record.baseRecord.artistName}" +
 				$" released={record.baseRecord.releaseDate} weeks={record.weeksSinceRelease} units={record.totalUnitsSold}");
 		}
+
+		// Early-game §4.3: the backer's agreement and whether its balances still agree with its ledger.
+		if (desk.Backer is { } loan)
+			GD.Print($"  BACKER {loan.Source} \"{loan.BackerName}\" principal={loan.Principal:F2} rate={loan.Rate:P1} signed={loan.Signed} firstDue={loan.FirstDue}" +
+				$" owed={loan.Outstanding:F2} interestDue={loan.InterestDue:F2} arrears={loan.PrincipalArrears(TimeManager.Instance.CurrentDate):F2}" +
+				$" missed={loan.Missed} standing={loan.Standing:F2} repaid={loan.Repaid} ledger={loan.Ledger.Count} ledgerAgrees={loan.LedgerAgrees()}");
+		else if (desk.PendingBackerOffer is { } offer)
+			GD.Print($"  BACKER_OFFER expires={offer.Expires} terms={string.Join(";", offer.Terms.Select(t => $"{t.Principal:F0}@{t.Rate:P0}"))}");
 
 		int unresolved = 0;
 		foreach ((string cityName, string stopName, string title, int remaining) in desk.StopStock()) {

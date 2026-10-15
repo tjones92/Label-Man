@@ -13,6 +13,14 @@ if [ "${MATRIX:-base}" = prep ]; then
   # §6.4: distinct preparation plans against waiting, matched fixtures (same seed, town, act policy).
   for seed in 1001 1002; do for town in new_york detroit; do
     for prep in none dealer radio live; do echo "$seed $town ExMusician discerning none $prep"; done; done; done > "$jobs_file"
+elif [ "${MATRIX:-base}" = backer ]; then
+  # Phase 2 (§4.3): the closure-prone openings (two singles, staggered, every channel worked) with and without the
+  # founder's backer, matched on seed, town and act policy; plus a one-single discerning control. ExMusician (club owner).
+  for seed in 1001 1002 1003 1004; do for town in new_york los_angeles detroit; do
+    for b in none ask; do
+      for policy in eager replay; do echo "$seed $town ExMusician $policy none none working staggered $b"; done
+      echo "$seed $town ExMusician discerning none none working batch $b"
+    done; done; done > "$jobs_file"
 elif [ "${MATRIX:-base}" = live ]; then
   # Phase 3 (F1-F3): live-first preparation against waiting, both selling every channel, so room tables and the
   # following from played sets are actually worked. Matched fixtures: same seed, town and act policy.
@@ -44,13 +52,14 @@ for seed in 1001 1002; do
 done > "$jobs_file"
 fi
 run_one() {
-  read -r seed town arch policy road prep sell seq <<<"$1"; prep=${prep:-none}; sell=${sell:-home}; seq=${seq:-batch}
-  name="ocl-$TAG-$seed-$town-$arch-$policy-$road"; [ "$prep" = none ] || name="$name-$prep"; [ "$seq" = batch ] || name="$name-$seq"; name=${name//_/-}
+  read -r seed town arch policy road prep sell seq backer <<<"$1"; prep=${prep:-none}; sell=${sell:-home}; seq=${seq:-batch}; backer=${backer:-none}
+  name="ocl-$TAG-$seed-$town-$arch-$policy-$road"; [ "$prep" = none ] || name="$name-$prep"; [ "$seq" = batch ] || name="$name-$seq"
+  [ "$backer" = none ] || name="$name-backer"; name=${name//_/-}
   [ -f "SimLogs/$name-opening.json" ] && return 0
   # The reverse worker never touches a job the forward one has started (its log exists).
   [ -n "${REVERSE:-}" ] && [ -f "SimLogs/$name.log" ] && return 0
   "$GODOT" --headless --path . SimTools/OpeningCashLockRunner.tscn -- --seed=$seed --enable-genre-market-v2 \
-    --enable-artist-population-lifecycle --archetype=$arch --town=$town --policy=$policy --road=$road --prep=$prep --sell=$sell --sequence=$seq \
+    --enable-artist-population-lifecycle --archetype=$arch --town=$town --policy=$policy --road=$road --prep=$prep --sell=$sell --sequence=$seq --backer=$backer \
     --days=$DAYS --run=$name > "SimLogs/$name.log" 2>&1
   grep -q OPENING_CASH_LOCK_DONE "SimLogs/$name.log" && echo "ok   $name" || echo "FAIL $name"
 }

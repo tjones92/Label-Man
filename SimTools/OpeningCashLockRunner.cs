@@ -27,7 +27,10 @@ public partial class OpeningCashLockRunner : Node {
 
 	private PlayerDesk Desk => PlayerDesk.Instance;
 	private TimeManager Clock => TimeManager.Instance;
-	private string run, town, policy, road, prep, sell, sequence;
+	private string run, town, policy, road, prep, sell, sequence, backerPlan;
+	// Phase 2 (§4.3): --backer=ask meets the founder's backer as soon as he'd say yes (an act he'd back), and signs the
+	// largest terms he offers. none never asks. Report-only either way.
+	private int? backerMeetDay, backerSignedDay, backerRefusals;
 	private FoundingArchetype archetype;
 	private int days;
 
@@ -67,6 +70,8 @@ public partial class OpeningCashLockRunner : Node {
 			prep = Arg("prep", "none");
 			sell = Arg("sell", "home");
 			sequence = Arg("sequence", "batch");
+			backerPlan = Arg("backer", "none");
+			if (backerPlan is not ("none" or "ask")) throw new InvalidOperationException("Unknown backer plan " + backerPlan);
 			days = int.Parse(Arg("days", "120"));
 			archetype = Enum.Parse<FoundingArchetype>(Arg("archetype", "ExMusician"));
 			run = Arg("run", $"opening-{SimulationSeedBootstrap.RequestedSeed}-{archetype}-{town}-{policy}");
@@ -104,6 +109,7 @@ public partial class OpeningCashLockRunner : Node {
 
 	private void Step() {
 		if (!Desk.AtHome) Act(Desk.DriveHome(out var home), "drive-home", home);
+		AskBacker();
 		switch (stage) {
 			case Stage.Scout: Scout(); break;
 			case Stage.Negotiate: Negotiate(); break;
@@ -115,6 +121,40 @@ public partial class OpeningCashLockRunner : Node {
 				if (road == "residency" && signedIds.Count > 0 && Desk.AtHome) { WorkTheRooms(); AskForResidencies(); }
 				break;
 		}
+	}
+
+	/// <summary>§4.3 policy: once the backer would say yes on what he's told he wants, meet him in his hours and sign the
+	/// largest terms. The meeting's hours are spent like any player's; nothing is forced.</summary>
+	private void AskBacker() {
+		if (backerPlan != "ask" || Desk.Backer != null) return;
+		var p = Desk.BackerProspectFor();
+		if (p == null) return;
+		if (Desk.PendingBackerOffer is { } open) { Sign(open); return; }
+		if (Desk.EvaluateBacker(p).Refusal is { } wont) { if (signedIds.Count > 0) Repeat("backer-wont: " + wont); return; }
+		int from = p.Source == PlayerDesk.BackerSource.ClubOwner ? PlayerDesk.BookerFromHour : PlayerDesk.BackerOfficeFromHour;
+		if (Clock.CurrentHour < from && Desk.BackerMeetingBlock(p) is { } hours && !hours.Contains("said no")) Desk.PassTime(Desk.HoursUntil(from), out _);
+		if (Desk.BackerMeetingBlock(p) is { } block) { Repeat("backer-blocked: " + block); return; }
+		bool ok = Desk.MeetBacker(out var message);
+		Act(ok, "backer-meet", message, p.Source.ToString(), p.Name);
+		backerMeetDay ??= dayIndex;
+		if (Desk.PendingBackerOffer is { } offer) Sign(offer); else backerRefusals = (backerRefusals ?? 0) + 1;
+
+		void Sign(PlayerDesk.BackerOffer o) {
+			int best = o.Terms.FindIndex(t => t.Principal == o.Terms.Max(x => x.Principal));
+			if (Act(Desk.AcceptBackerTerms(best, out var signed), "backer-sign", signed, o.Terms[best].Principal, o.Terms[best].Rate)) backerSignedDay = dayIndex;
+		}
+	}
+
+	private object BackerSummary() {
+		var loan = Desk.Backer;
+		var today = Clock.CurrentDate;
+		return new {
+			plan = backerPlan, source = Desk.BackerProspectFor()?.Source.ToString(), meetDay = backerMeetDay, signedDay = backerSignedDay, refusals = backerRefusals,
+			principal = loan?.Principal, rate = loan?.Rate, principalPaid = loan?.PrincipalPaid, interestPaid = loan?.InterestPaid,
+			outstanding = loan?.Outstanding, interestDue = loan?.InterestDue, arrears = loan?.PrincipalArrears(today), missed = loan?.Missed, standing = loan?.Standing,
+			seizedCopies = loan?.Ledger.Where(e => e.Kind is PlayerDesk.BackerLedgerKind.CollateralInterest or PlayerDesk.BackerLedgerKind.CollateralPrincipal).Sum(e => e.Copies),
+			repaid = loan?.Repaid, ledgerAgrees = loan?.LedgerAgrees(),
+		};
 	}
 
 	// Off-market acts asked to think an offer over (PlayerDesk.DirectApproach), kept until their side answers.
@@ -754,6 +794,7 @@ public partial class OpeningCashLockRunner : Node {
 			firstPreL1Day, firstPreL1Detail, firstL1Day, firstL1Shortfall, firstL1Detail, firstL1Routes, firstCashOptions, firstNoRouteDay,
 			firstReleaseDay, firstSaleDay, stockoutDays, firstUnpressableDay, unpressableDays, roadTrips, citiesWorked, channelActs,
 			prepared = PrepSummary(),
+			backer = BackerSummary(),
 			violations,
 			records = RecordTruth(),
 			day30 = CashAt(30), day60 = CashAt(60), day90 = CashAt(90),
