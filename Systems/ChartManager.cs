@@ -31,6 +31,9 @@ public partial class ChartManager : Node {
 	[Export] private bool artistRecognitionEnabled = false;
 	[Export] private bool managersEnabled = false;
 	[Export] private bool seedStarCanopyEnabled = false;
+	// Media atmosphere (SimTools/MediaAtmosphereDirective.md): observe mode books rival acts onto TV and prints the
+	// listings; it writes nothing the economy reads. --disable-media-atmosphere turns it off.
+	[Export] private bool mediaAtmosphereObserve = true;
 	// Band-member simulation (SimTools/BandMemberSimulationDirective.md). Cowriting credits and member axes are
 	// economy-inert (proved by probe hash); roster-scoped churn touches only the player's own acts. World-scope
 	// churn is on by default since Phase 4's A/B and the 4d2 window passed (author, 2026-10-08); it overrides the
@@ -344,6 +347,7 @@ public partial class ChartManager : Node {
 		LocalScenes.ValidateDependencies();
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
 		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
+		MediaAtmosphere.Configure(mediaAtmosphereObserve, OS.GetCmdlineUserArgs());
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
 		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
 		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
@@ -444,6 +448,7 @@ public partial class ChartManager : Node {
 		StartupProfile.Mark("room-prewarm");
         LocalSceneRoomService.EnsureCalendar(start);
 		StartupProfile.Mark("room-calendar");
+		MediaAtmosphereService.Initialize(start, this);
 	}
 
 	public override void _ExitTree() {
@@ -678,6 +683,9 @@ public partial class ChartManager : Node {
 			if (OnWeekSettlement != null && lastCompletedWeekSettlement?.IsAuditAcknowledged != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement.SettlementId} was not acknowledged by its audit consumer.");
 		}
+		// Media reads the chart this week froze and books the coming week. An explicit step, after settlement and
+		// before anything else moves, so producers always see the same chart (directive §15.1). Observe-only.
+		MediaAtmosphereService.AfterCompletedWeek(date, this);
 
 		foreach (var record in allRecords) {
 			if (record.isGrammyWinner && record.weeksOfGrammyBump > 0) {

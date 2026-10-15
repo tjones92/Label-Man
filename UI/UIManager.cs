@@ -395,7 +395,7 @@ public partial class UIManager : Control
 			paperExtraBand.Visible = extra;
 			paperEdition.Text = extra ? "SPECIAL EXTRA EDITION" : $"{today.DayName.ToUpperInvariant()} EDITION";
 			paperPrice.Text = extra || today.DayOfWeek == System.DayOfWeek.Sunday ? "TEN CENTS" : "FIVE CENTS";
-			RenderPaper(dayDigests, digests.Length > 1, currentDesk.TakeTradeNews());
+			RenderPaper(dayDigests, digests.Length > 1, currentDesk.TakeTradeNews(), currentDesk.TelevisionColumn(today));
 			paperScroll.ScrollVertical = 0;
 			if (!morningPaper.Visible) uiOpenBeforePaper = isUIOpen;
 			morningPaper.Show();
@@ -426,7 +426,8 @@ public partial class UIManager : Control
 	/// <summary>Lays the paper out like a paper: the day's front-page story as a headline across the top, other front-page
 	/// items under it, and the small stuff (then the trade) in two ruled columns. A multi-day skip groups each day under
 	/// its dateline.</summary>
-	private void RenderPaper(string[] dayDigests, bool multiDay, System.Collections.Generic.IReadOnlyList<string> trade) {
+	private void RenderPaper(string[] dayDigests, bool multiDay, System.Collections.Generic.IReadOnlyList<string> trade,
+		System.Collections.Generic.IReadOnlyList<string> television = null) {
 		foreach (Node child in paperBody.GetChildren()) child.QueueFree();
 		Color ink = new("30291d"), rust = new("6b3a1c"), body = new("4a4132"), rule = new("867655");
 		string DigestDate(string digest) {
@@ -465,7 +466,7 @@ public partial class UIManager : Control
 			}
 			foreach (string story in front.Skip(1)) paperBody.AddChild(PaperText(story, 23, ink, PaperTheme.SerifBold));
 			bool lastDay = ReferenceEquals(digest, dayDigests[^1]);
-			bool hasTrade = trade != null && trade.Count > 0 && lastDay;
+			bool hasTrade = (trade != null && trade.Count > 0 || television != null && television.Count > 0) && lastDay;
 			if (rest.Count == 0 && !hasTrade) { if (multiDay) paperBody.AddChild(PaperRule(1, rule)); continue; }
 
 			if (lead != null) paperBody.AddChild(PaperRule(1, rule));
@@ -497,6 +498,15 @@ public partial class UIManager : Control
 			target.AddChild(PaperRule(1, rule));
 			target.AddChild(PaperText("THE TRADE", 15, rust, PaperTheme.SansSemiBold));
 			foreach (string line in trade) target.AddChild(PaperText(line, 17, body));
+		}
+		// The television listings and last night's audiences (media directive §14): the other column, so the two
+		// rubrics sit side by side rather than one long run.
+		if (television != null && television.Count > 0 && lastLeft != null) {
+			VBoxContainer target = leftChars <= rightChars ? lastLeft : lastRight;
+			if (trade != null && trade.Count > 0) target = ReferenceEquals(target, lastLeft) ? lastRight : lastLeft;
+			target.AddChild(PaperRule(1, rule));
+			target.AddChild(PaperText("ON TELEVISION", 15, rust, PaperTheme.SansSemiBold));
+			foreach (string line in television) target.AddChild(PaperText(line, 17, body));
 		}
 		// A quiet day is filled, not hidden: the weather, the price board and an ad, so there is always a paper to read.
 		int storyCount = dayDigests.Sum(digest => digest.Split("  •  ", System.StringSplitOptions.RemoveEmptyEntries).Length);
