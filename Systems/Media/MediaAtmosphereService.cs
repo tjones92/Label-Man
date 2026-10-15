@@ -28,6 +28,20 @@ public sealed class MediaAppearance {
 	public PerformanceMethod Method;
 	public BroadcastMethod Broadcast;
 	public List<MediaAiring> Airings = new();
+	/// <summary>Resolved at booking from the performers' own skills and the rehearsal arranged; shown only after air (§4.5).</summary>
+	public MediaPerformanceResult Performance;
+	public MediaPreparation Preparation = MediaPreparation.Standard;
+	public string StandardsQueryId;
+	/// <summary>The producer or network removed the segment: nobody saw it (§6, §7.3).</summary>
+	public bool Cut;
+	/// <summary>Set when the act sang a different song than the record booked (an alternate offered to standards).</summary>
+	public string OriginalTitle;
+	public bool PlayerBooking;
+	/// <summary>The advertised headliner of the episode (an announced hold), and the hype it carried into the air date.</summary>
+	public bool Headliner;
+	public float Hype, EventLift, TuneIn;
+	/// <summary>The player's office has been told how it went (once-only receipt).</summary>
+	public bool Reported;
 }
 
 public sealed class MediaEpisode {
@@ -43,9 +57,12 @@ public sealed class MediaActTally {
 	public int Appearances, NationalAppearances, LocalAppearances;
 	public double ViewerMinutes, EstimatedReach, TeenImpressions;
 	public string LastProgramId;
-	public GameDate LastDate;
+	public GameDate LastDate = GameDate.StartDate;
 	/// <summary>Programs this act has aired on: a second visit to the same show reaches mostly the same regular viewers.</summary>
 	public List<string> ProgramsSeen = new();
+	public int PressItems;
+	public double PeakEpisodeAudience;
+	public string BestNight;
 }
 
 public sealed class MediaSaveData {
@@ -54,6 +71,25 @@ public sealed class MediaSaveData {
 	public List<MediaEpisode> Episodes { get; set; } = new();
 	public List<MediaAppearance> Appearances { get; set; } = new();
 	public Dictionary<string, MediaActTally> Tallies { get; set; } = new();
+	// Phase 2 (all media-owned; nothing the economy reads).
+	public List<StandardsQuery> StandardsQueries { get; set; } = new();
+	public List<MediaStory> Stories { get; set; } = new();
+	public Dictionary<string, MediaProgramMemory> ProgramMemory { get; set; } = new();
+	public Dictionary<string, MediaContactMemory> Contacts { get; set; } = new();
+	/// <summary>Audience attitude per act: [artistic, family, teen], small and signed, drifting 10% a week toward neutral (§2).</summary>
+	public Dictionary<string, float[]> Credibility { get; set; } = new();
+	public List<MediaControversy> Controversies { get; set; } = new();
+	public List<MediaHold> Holds { get; set; } = new();
+	/// <summary>Weeks each current record has spent at No. 1 (media's own count; the chart keeps no such field).</summary>
+	public Dictionary<string, int> WeeksAtNumberOne { get; set; } = new();
+	/// <summary>recordId|regionId pairs already reported as breaking, so a breakout is news once.</summary>
+	public HashSet<string> BreakoutsReported { get; set; } = new();
+	public List<MediaPitch> Pitches { get; set; } = new();
+	public List<MediaInquiry> Inquiries { get; set; } = new();
+	public List<MediaExclusive> Exclusives { get; set; } = new();
+	public int PlayerSequence { get; set; }
+	/// <summary>Running average of a No. 1 record's weekly units: the yardstick for "bigger than an ordinary No. 1".</summary>
+	public float NumberOneUnits { get; set; }
 }
 
 /// <summary>
@@ -65,7 +101,7 @@ public sealed class MediaSaveData {
 /// explicit step of <c>ChartManager.OnWeekEnded</c>, never as an event subscriber (§15.1).
 /// </para>
 /// </summary>
-public static class MediaAtmosphereService {
+public static partial class MediaAtmosphereService {
 	private const int HistoryWeeks = 26;
 	private const int MaxNationalPerActPerWeek = 2;
 	private const float RepeatNovelty = 0.55f;
@@ -89,7 +125,7 @@ public static class MediaAtmosphereService {
 	public static void Initialize(GameDate start, ChartManager charts) {
 		if (!MediaAtmosphere.Observing || charts == null) return;
 		if (state.BookedThroughDay >= 0) return;
-		BookThrough(start.AddDays(start.DaysUntilFriday), start, charts);
+		BookThrough(start.AddDays(start.DaysUntilFriday), start, new Evidence(charts));
 	}
 
 	/// <summary>Called by ChartManager after the completed week's settlement. Tallies the airings that ran this week,
@@ -98,7 +134,15 @@ public static class MediaAtmosphereService {
 		if (!MediaAtmosphere.Observing || charts == null) return;
 		long started = System.Diagnostics.Stopwatch.GetTimestamp();
 		TallyAiredThrough(weekEnd);
-		BookThrough(weekEnd.AddDays(7), weekEnd.AddDays(1), charts);
+		var evidence = new Evidence(charts);
+		// The order is the contract (§15.1): what aired is tallied, the frozen chart is read, headline dates are
+		// announced, the press writes about all of it, and only then is next week booked, so a booking's hype counts
+		// only items already scheduled to run before its air date.
+		UpdateChartMemory(evidence);
+		PlaceHolds(evidence, weekEnd);
+		PressWeek(evidence, weekEnd);
+		BookThrough(weekEnd.AddDays(7), weekEnd.AddDays(1), evidence);
+		DecayAttitudes(weekEnd);
 		Prune(weekEnd);
 		elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
 		if (weekEnd.month == 12 && weekEnd.day >= 25) PrintYear(weekEnd.year);
@@ -111,13 +155,22 @@ public static class MediaAtmosphereService {
 		var top = state.Tallies.Values.OrderByDescending(t => t.EstimatedReach).FirstOrDefault();
 		Godot.GD.Print($"MEDIA_YEAR year={year} appearances(last26w)={mine.Count} national={mine.Count(a => MediaOutletCatalog.Get(a.ProgramId)?.Network != TvNetwork.Local)} " +
 			$"acts={state.Tallies.Count} topAct=\"{top?.ArtistName}\" topReachM={(top?.EstimatedReach ?? 0) / 1e6:F1} weeklyStepMs={elapsedTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency:F0}");
+		// Phase 2 texture: what the press ran, what standards asked, and the biggest single night of the year.
+		var items = state.Stories.Where(s => s.Status == StoryStatus.Scheduled && s.IssueDay >= BroadcastExposure.DayIndex(new GameDate(year, 1, 1))).ToList();
+		var byFamily = items.GroupBy(s => MediaOutletCatalog.GetPress(s.OutletId)?.Family.ToString() ?? "?").OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count());
+		var queries = state.StandardsQueries.Where(q => q.AirDate.year == year).ToList();
+		var bestNight = mine.Where(a => a.Airings.Count > 0).OrderByDescending(a => a.Airings[0].Exposure.UniqueReach).FirstOrDefault();
+		Godot.GD.Print($"MEDIA_PRESS year={year} items(last26w)={items.Count} [{string.Join(" ", byFamily)}] standards={queries.Count} " +
+			$"[{string.Join(" ", queries.GroupBy(q => q.Resolution).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
+			$"controversies={state.Controversies.Count(c => FromDayIndex(c.StartDay).year == year)} " +
+			$"outcomes=[{string.Join(" ", mine.Where(a => a.Performance != null).GroupBy(a => a.Performance.Outcome).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
+			$"bestNight=\"{bestNight?.ArtistName}\" {MediaOutletCatalog.Get(bestNight?.ProgramId ?? "")?.Name} {(bestNight?.Airings[0].Exposure.UniqueReach ?? 0) / 1e6:F1}M hype={bestNight?.Hype ?? 0:F2}");
 	}
 
-	private static void BookThrough(GameDate last, GameDate firstCandidate, ChartManager charts) {
+	private static void BookThrough(GameDate last, GameDate firstCandidate, Evidence evidence) {
 		int firstDay = Math.Max(state.BookedThroughDay + 1, BroadcastExposure.DayIndex(firstCandidate));
 		int lastDay = BroadcastExposure.DayIndex(last);
 		if (lastDay < firstDay) return;
-		var evidence = new Evidence(charts);
 		byArtist = state.Appearances.GroupBy(a => a.ArtistId, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
 		episodeIds = new HashSet<string>(state.Episodes.Select(e => e.Id), StringComparer.Ordinal);
 		for (int day = firstDay; day <= lastDay; day++) {
@@ -135,18 +188,26 @@ public static class MediaAtmosphereService {
 
 	/// <summary>What bookers can see this week: the national chart and each region's best-selling singles. Built once per
 	/// booking pass from read-only accessors; nothing here is written back.</summary>
-	private sealed class Evidence {
+	internal sealed class Evidence {
 		public readonly List<RecordRuntimeData> Chart;
+		/// <summary>The full national chart, player records included: the press reports on everyone (§9.4).</summary>
+		public readonly List<RecordRuntimeData> FullChart;
 		public readonly Dictionary<string, List<(RecordRuntimeData Record, int Units)>> RegionalBest = new(StringComparer.Ordinal);
 		public readonly IReadOnlyList<MarketRegion> Regions;
 		public readonly float BreakoutBar;
+		public readonly Dictionary<string, RecordRuntimeData> ById = new(StringComparer.Ordinal);
+		public readonly List<RecordRuntimeData> Singles;
 		private readonly Dictionary<string, string> artistCity = new(StringComparer.Ordinal);
 
 		public Evidence(ChartManager charts) {
-			Chart = charts.GetCurrentChart().Where(Eligible).ToList();
+			FullChart = charts.GetCurrentChart().Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single).ToList();
+			Chart = FullChart.Where(Eligible).ToList();
 			Regions = charts.GetAllRegions();
 			BreakoutBar = CompetitorManager.Instance?.RegionalBreakoutDealThreshold ?? 0.20f;
+			foreach (RecordRuntimeData r in charts.GetAllRecords())
+				if (r?.baseRecord?.recordId != null) ById[r.baseRecord.recordId] = r;
 			var singles = charts.GetAllRecords().Where(Eligible).ToList();
+			Singles = singles;
 			foreach (MarketRegion region in Regions) {
 				RegionalBest[region.regionId] = singles
 					.Select(r => (Record: r, Units: r.regionalData.TryGetValue(region.regionId, out var rd) ? rd.unitsSoldThisWeek : 0))
@@ -169,6 +230,8 @@ public static class MediaAtmosphereService {
 		}
 
 		public bool Broke(RecordRuntimeData r) => r.regionalData.Values.Any(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
+		public int BrokeCount(RecordRuntimeData r) => r.regionalData.Values.Count(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
+		public float Breadth(RecordRuntimeData r) => Regions.Count == 0 ? 0f : BrokeCount(r) / (float)Regions.Count;
 	}
 
 	// ---- booking ------------------------------------------------------------------------------------------------
@@ -177,6 +240,10 @@ public static class MediaAtmosphereService {
 		public RecordRuntimeData Record;
 		public float Score;
 		public bool Discovery;
+		public bool Headliner;
+		public MediaPitch Pitch;
+		public StandardsQuery Query;
+		public RecordRuntimeData Alternate;
 	}
 
 	private static void BookEpisode(TvProgram program, BroadcastScheduleVersion version, GameDate date, Evidence evidence) {
@@ -186,38 +253,179 @@ public static class MediaAtmosphereService {
 		state.Episodes.Add(episode);
 		if (episode.Repeat) { BookRepeat(program, version, episode); return; }
 
+		int day = BroadcastExposure.DayIndex(date);
 		List<Candidate> pool = Candidates(program, date, evidence);
 		var chosen = new List<Candidate>();
 		int slots = program.GuestSlots;
+		// The player's confirmed dates were reserved against this episode before it was booked (§5.1): they hold their slots.
+		foreach (MediaPitch reserved in state.Pitches.Where(p => p.Status == PitchStatus.Confirmed && p.ProgramId == program.Id && p.AirDay == day)) {
+			if (slots <= 0 || !evidence.ById.TryGetValue(reserved.RecordId ?? "", out RecordRuntimeData mine)) continue;
+			chosen.Add(new Candidate { Record = mine, Score = 0.5f, Discovery = reserved.Discovery, Pitch = reserved });
+			slots--;
+		}
+		// An announced headliner (§4.5 advertised guest) takes the bill's top spot.
+		MediaHold hold = state.Holds.FirstOrDefault(h => h.ProgramId == program.Id && h.Day == day);
+		if (hold != null && slots > 0 && evidence.ById.TryGetValue(hold.RecordId, out RecordRuntimeData held) && Available(held, program, date)) {
+			chosen.Add(new Candidate { Record = held, Score = 10f, Headliner = true });
+			slots--;
+		}
 		// The discovery slot: an eligible record below the top of the chart, chosen on fit and evidence, never guaranteed.
-		if (program.DiscoverySlot) {
-			Candidate pick = pool.Where(c => c.Discovery && Available(c.Record, program, date)).OrderByDescending(c => Rank(c, program, date, "discovery")).FirstOrDefault();
+		if (program.DiscoverySlot && slots > 0 && !chosen.Any(c => c.Discovery)) {
+			Candidate pick = pool.Where(c => c.Discovery && Available(c.Record, program, date) && chosen.All(x => x.Record.baseRecord.artistId != c.Record.baseRecord.artistId))
+				.OrderByDescending(c => Rank(c, program, date, "discovery")).FirstOrDefault();
 			if (pick != null) { chosen.Add(pick); slots--; }
 		}
-		foreach (Candidate c in pool.Where(c => !c.Discovery).OrderByDescending(c => Rank(c, program, date, "slot"))) {
-			if (slots <= 0) break;
-			if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date)) continue;
-			chosen.Add(c); slots--;
+		var queue = pool.Where(c => !c.Discovery).OrderByDescending(c => Rank(c, program, date, "slot")).ToList();
+		int next = 0;
+		void Fill() {
+			while (slots > 0 && next < queue.Count) {
+				Candidate c = queue[next++];
+				if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date)) continue;
+				chosen.Add(c); slots--;
+			}
 		}
+		Fill();
+
+		// Standards review (§7.2) before the bill is final: a rival act that withdraws frees its slot for the next in line.
+		// The player's queries were raised and answered when the date was offered.
+		foreach (Candidate c in chosen.ToList()) {
+			if (c.Pitch != null) continue;
+			StandardsQuery query = MediaStandards.Review(program, date, episodeId + "|" + c.Record.baseRecord.recordId, c.Record, RegionOf(program), date.AddDays(-6));
+			if (query == null) continue;
+			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(c.Record.baseRecord.artistId);
+			RecordRuntimeData alternate = AlternateFor(c.Record, evidence);
+			StandardsResponse response = MediaStandards.AiChoice(query, artist, program.Method, alternate != null);
+			Settle(query, response, program, version, artist, alternate);
+			state.StandardsQueries.Add(query);
+			c.Query = query;
+			c.Alternate = alternate;
+			if (query.Resolution == StandardsResolution.Withdrawn) {
+				chosen.Remove(c); slots++;
+				Remember(program.Id, c.Record.baseRecord.artistId, m => { m.Withdrawn++; m.LastNote = "withdrew rather than change the song"; });
+			}
+		}
+		Fill();
 		if (chosen.Count == 0) return;
 
 		// Running order: a variety bill closes on its biggest name; a dance show plays them as they come.
 		List<Candidate> order = program.Kind == TvProgramKind.PrimetimeVariety
 			? chosen.OrderBy(c => c.Score).ToList()
-			: chosen.OrderByDescending(c => Rank(c, program, date, "order")).ToList();
+			: chosen.OrderByDescending(c => c.Headliner ? 99f : Rank(c, program, date, "order")).ToList();
+
+		// The advertised headliner's hype lifts the whole episode: viewers come for the event and stay for the bill.
+		Candidate top = order.FirstOrDefault(c => c.Headliner);
+		float hype = top == null ? 0f : Hype(top.Record, program, day, evidence);
+		(float eventLift, float tuneIn) = EventDraw(hype, program);
+
 		for (int i = 0; i < order.Count; i++) {
-			RecordRuntimeData record = order[i].Record;
+			Candidate c = order[i];
+			RecordRuntimeData record = c.Record;
 			var appearance = new MediaAppearance {
 				Id = episodeId + "|" + i, ProgramId = program.Id, EpisodeId = episodeId, Date = date, SlotIndex = i, SlotCount = order.Count,
 				ArtistId = record.baseRecord.artistId, ArtistName = record.baseRecord.artistName, RecordId = record.baseRecord.recordId,
 				Title = record.baseRecord.title, LabelId = record.baseRecord.labelId, Genre = record.baseRecord.primaryGenre,
-				ChartPosition = record.currentPosition, Discovery = order[i].Discovery, Method = program.Method, Broadcast = version.Broadcast,
+				ChartPosition = record.currentPosition, Discovery = c.Discovery, Method = program.Method, Broadcast = version.Broadcast,
+				PlayerBooking = c.Pitch != null, Headliner = c.Headliner, Hype = c.Headliner ? hype : 0f, EventLift = eventLift, TuneIn = tuneIn,
+				Preparation = c.Pitch?.Preparation ?? AiPreparation(record.baseRecord.labelId),
 			};
+			if (c.Pitch != null) {
+				c.Pitch.AppearanceId = appearance.Id;
+				c.Query = c.Pitch.QueryId == null ? null : state.StandardsQueries.FirstOrDefault(q => q.Id == c.Pitch.QueryId);
+				if (c.Query?.Resolution == StandardsResolution.SongChanged) c.Alternate = AlternateFor(record, evidence, includePlayer: true);
+			}
+			if (c.Query != null) {
+				appearance.StandardsQueryId = c.Query.Id;
+				c.Query.AppearanceId = appearance.Id;
+				if (c.Query.Resolution == StandardsResolution.SongChanged) {
+					appearance.OriginalTitle = appearance.Title;
+					appearance.Title = c.Alternate?.baseRecord.title ?? "a song from their stage set";
+				}
+				if (c.Query.Resolution == StandardsResolution.Cut) appearance.Cut = true;
+			}
+			SimulatedArtist act = ArtistManager.Instance?.GetArtist(appearance.ArtistId);
+			if (!appearance.Cut) appearance.Performance = MediaPerformance.Resolve(appearance.Id, appearance.Method, appearance.Broadcast, act, appearance.Preparation);
+			// A taped breakdown nobody would retake is cut in the edit; a live one goes out as it happened.
+			if (appearance.Performance is { Outcome: PerformanceOutcome.Breakdown } && appearance.Broadcast == BroadcastMethod.Taped) appearance.Cut = true;
 			float guestDraw = i == order.Count - 1 && record.currentPosition > 0 && record.currentPosition <= 40 ? 0.10f * (1f - (record.currentPosition - 1) / 40f) : 0f;
 			AddAirings(appearance, program, version, guestDraw, 1f, evidence.Regions);
 			Store(appearance);
 			episode.AppearanceIds.Add(appearance.Id);
 		}
+		if (hold != null) state.Holds.Remove(hold);
+		MediaAppearance headline = top == null ? null : state.Appearances.LastOrDefault(a => a.EpisodeId == episodeId && a.Headliner);
+		if (headline != null && headline.Airings.Count > 0)
+			Godot.GD.Print($"MEDIA_EVENT date={date.ToShortString()} program={program.Id} act=\"{headline.ArtistName}\" hype={hype:F2} lift={eventLift:F2} tuneIn={tuneIn:F2} " +
+				$"reachM={headline.Airings[0].Exposure.UniqueReach / 1e6:F1} cut={headline.Cut}");
+	}
+
+	private static string RegionOf(TvProgram program) =>
+		program.HomeCityId == null ? null : DistanceModel.GetCityById(program.HomeCityId)?.parentRegionId;
+
+	/// <summary>Another current single by the same act to offer standards instead (§7.3 "offer another song").</summary>
+	private static RecordRuntimeData AlternateFor(RecordRuntimeData record, Evidence evidence, bool includePlayer = false) {
+		string artist = record.baseRecord.artistId;
+		IEnumerable<RecordRuntimeData> pool = includePlayer ? evidence.ById.Values : evidence.Singles;
+		return pool.Where(r => r.baseRecord.artistId == artist && r.baseRecord.recordId != record.baseRecord.recordId && r.baseRecord.format == ReleaseFormat.Single
+				&& MediaStandards.FindingsFor(r).Count == 0)
+			.OrderByDescending(r => r.unitsThisWeek).ThenBy(r => r.baseRecord.recordId, StringComparer.Ordinal).FirstOrDefault();
+	}
+
+	/// <summary>How much rehearsal a rival label arranges: the established houses prepare; a small shop sends the act as it is.</summary>
+	private static MediaPreparation AiPreparation(string labelId) {
+		AILabel label = CompetitorManager.Instance?.GetLabel(labelId);
+		if (label == null) return MediaPreparation.Standard;
+		float u = MediaAtmosphere.Unit("prep|" + labelId);
+		return label.tier == LabelTier.Major ? (u < 0.5f ? MediaPreparation.Extra : MediaPreparation.Standard)
+			: label.tier == LabelTier.Small || label.tier == LabelTier.Boutique ? (u < 0.35f ? MediaPreparation.Minimal : MediaPreparation.Standard)
+			: MediaPreparation.Standard;
+	}
+
+	/// <summary>Carry a response through to its resolution (§7.3). Producer support and network clearance can diverge; a
+	/// promise broken on a live microphone airs, on tape it is usually caught and the segment removed.</summary>
+	internal static void Settle(StandardsQuery query, StandardsResponse response, TvProgram program, BroadcastScheduleVersion version, SimulatedArtist artist, RecordRuntimeData alternate) {
+		query.Response = response;
+		switch (response) {
+			case StandardsResponse.ComplyEdit:
+				query.Resolution = StandardsResolution.Edited;
+				query.Outcome = "Agreed to the change for the broadcast; the record itself is untouched.";
+				break;
+			case StandardsResponse.AlternateSong:
+				query.Resolution = StandardsResolution.SongChanged;
+				query.Outcome = alternate != null ? $"Offered \"{alternate.baseRecord.title}\" instead; standards cleared it." : "Did another song from the act's set instead.";
+				break;
+			case StandardsResponse.ProducerDefends:
+				if (MediaStandards.NetworkClears(query, program)) {
+					query.Resolution = StandardsResolution.Cleared;
+					query.Outcome = "The producer argued for the original and " + query.Authority + " let it through.";
+				} else if (program.Method != PerformanceMethod.Mime && MediaStandards.ActConsents(artist, StandardsResponse.ComplyEdit, query.Id)) {
+					query.Resolution = StandardsResolution.Edited;
+					query.Outcome = "The producer argued for it and lost; the act agreed to the change.";
+				} else {
+					query.Resolution = StandardsResolution.Withdrawn;
+					query.Outcome = "The producer argued for it and lost; the act withdrew.";
+				}
+				break;
+			case StandardsResponse.PromiseThenDefy:
+				bool caught = version.Broadcast == BroadcastMethod.Taped && MediaStandards.CaughtOnTape(query);
+				query.Resolution = caught ? StandardsResolution.Cut : StandardsResolution.Defied;
+				query.Outcome = caught ? "Promised the change, sang the original at the taping; the segment was cut before broadcast."
+					: "Promised the change, then sang the original line on the air.";
+				break;
+			case StandardsResponse.AcceptRemoval:
+				query.Resolution = StandardsResolution.Cut;
+				query.Outcome = "The segment was removed.";
+				break;
+			default:
+				query.Resolution = StandardsResolution.Withdrawn;
+				query.Outcome = "Withdrew from the date rather than change the song.";
+				break;
+		}
+	}
+
+	private static void Remember(string programId, string artistId, Action<MediaProgramMemory> change) {
+		string key = programId + "|" + artistId;
+		if (!state.ProgramMemory.TryGetValue(key, out var memory)) state.ProgramMemory[key] = memory = new MediaProgramMemory { ProgramId = programId, ArtistId = artistId };
+		change(memory);
 	}
 
 	/// <summary>A summer rerun: the slot replays an earlier appearance. No new booking, fee or incident (§4.5).</summary>
@@ -228,7 +436,8 @@ public static class MediaAtmosphereService {
 		if (original == null) return;
 		foreach (string id in original.AppearanceIds) {
 			MediaAppearance old = state.Appearances.FirstOrDefault(a => a.Id == id);
-			if (old == null) continue;
+			// A cut segment has nothing to repeat, and a repeat never replays an incident (§4.5).
+			if (old == null || old.Cut) continue;
 			var repeat = new MediaAppearance {
 				Id = episode.Id + "|r" + old.SlotIndex, ProgramId = program.Id, EpisodeId = episode.Id, Date = episode.Date, SlotIndex = old.SlotIndex,
 				SlotCount = old.SlotCount, ArtistId = old.ArtistId, ArtistName = old.ArtistName, RecordId = old.RecordId, Title = old.Title,
@@ -250,10 +459,14 @@ public static class MediaAtmosphereService {
 	private static void AddAirings(MediaAppearance appearance, TvProgram program, BroadcastScheduleVersion version, float guestDraw, float novelty,
 		IReadOnlyList<MarketRegion> regions) {
 		var markets = BroadcastExposure.Markets(program, version, appearance.Date, regions);
+		// A cut segment keeps one empty airing record so its date still settles once; nobody saw it.
 		appearance.Airings.Add(new MediaAiring {
 			Date = appearance.Date, StartMinute = version.StartMinute, CityId = program.Network == TvNetwork.Local ? program.HomeCityId : null,
-			Exposure = BroadcastExposure.Estimate(program, version.DurationMinutes, appearance.SlotIndex, appearance.SlotCount, guestDraw, markets, novelty),
+			Exposure = appearance.Cut ? new ExposureEstimate()
+				: BroadcastExposure.Estimate(program, version.DurationMinutes, appearance.SlotIndex, appearance.SlotCount, guestDraw, markets, novelty,
+					appearance.EventLift, appearance.TuneIn),
 		});
+		if (appearance.Cut) return;
 		// One recorded appearance travels as tape: each syndication market is its own dated airing, never a multiplier.
 		foreach (BroadcastExposure.Market market in BroadcastExposure.SyndicatedAirings(program, appearance.Date))
 			appearance.Airings.Add(new MediaAiring {
@@ -307,6 +520,11 @@ public static class MediaAtmosphereService {
 		string artist = record.baseRecord.artistId;
 		int today = BroadcastExposure.DayIndex(date);
 		int nationalThisWeek = 0;
+		// A breached agreement shuts that program's door for a while (§7.3); the network's other shows only grow wary
+		// for a year, never an industry-wide blacklist (§2).
+		if (state.ProgramMemory.TryGetValue(program.Id + "|" + artist, out var memory) && memory.ExcludedUntilDay > today) return false;
+		if (program.Network != TvNetwork.Local && state.ProgramMemory.TryGetValue("network:" + program.Network + "|" + artist, out var review)
+			&& review.ExcludedUntilDay > today && MediaAtmosphere.Unit("network-review|" + program.Id + "|" + artist + "|" + today) < 0.5f) return false;
 		if (!byArtist.TryGetValue(artist, out var mine)) return true;
 		foreach (MediaAppearance a in mine) {
 			if (a.RepeatOfId != null) continue;
@@ -331,9 +549,15 @@ public static class MediaAtmosphereService {
 					state.Tallies[a.ArtistId] = t = new MediaActTally { ArtistId = a.ArtistId, ArtistName = a.ArtistName };
 				t.ArtistName = a.ArtistName;
 				if (!airing.Repeat && !airing.Syndicated) {
+					AfterAir(a, airing);
+					if (a.Cut) continue;
 					t.Appearances++;
 					if (MediaOutletCatalog.Get(a.ProgramId)?.Network == TvNetwork.Local) t.LocalAppearances++; else t.NationalAppearances++;
 					t.LastProgramId = a.ProgramId; t.LastDate = a.Date;
+					if (airing.Exposure.UniqueReach > t.PeakEpisodeAudience) {
+						t.PeakEpisodeAudience = airing.Exposure.UniqueReach;
+						t.BestNight = MediaOutletCatalog.Get(a.ProgramId)?.Name + ", " + a.Date.ToShortString();
+					}
 				}
 				t.ViewerMinutes += airing.Exposure.ViewerMinutes;
 				t.TeenImpressions += airing.Exposure.AverageByGroup[(int)ViewerGroup.Teen];

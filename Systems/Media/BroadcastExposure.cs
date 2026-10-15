@@ -130,12 +130,30 @@ public static class BroadcastExposure {
 		return baseline;
 	}
 
-	/// <summary>Program share of the viewers available in a group, bounded below one (§4.2). The guest's draw is a bounded
-	/// substitution between programs, at most 10% of the baseline share.</summary>
-	public static float ProgramShare(TvProgram program, ViewerGroup group, GameDate date, int localMinute, float guestDraw) {
+	/// <summary>Program share of the viewers available in a group, bounded below one (§4.2). A routine guest's draw is a
+	/// bounded substitution between programs, at most 10% of the baseline share. An announced event appearance (an
+	/// advertised headliner with real hype behind it) may substitute far more, up to <see cref="MaxEventLift"/> of the
+	/// baseline share, still taken from the competing programs, never from viewers who aren't there.</summary>
+	public static float ProgramShare(TvProgram program, ViewerGroup group, GameDate date, int localMinute, float guestDraw, float eventLift = 0f) {
 		float a = program.Attraction[(int)group];
 		float share = a / (a + Competition(date, localMinute, program));
-		return Math.Min(0.95f, share * (1f + Math.Clamp(guestDraw, 0f, 0.10f)));
+		return Math.Min(0.95f, share * (1f + Math.Clamp(guestDraw, 0f, 0.10f) + Math.Clamp(eventLift, 0f, MaxEventLift)));
+	}
+
+	/// <summary>Ceiling on an event's share substitution: a 0.33 family share can roughly double toward the 60% an
+	/// exceptional night has been estimated at (initial design value).</summary>
+	public const float MaxEventLift = 0.90f;
+	/// <summary>Ceiling on an event's tune-in: people who would not have watched television at all that hour (§4.2's
+	/// "not watching" outcome) turning a set on. A share of the absent, bounded by the population (initial design value).</summary>
+	public const float MaxTuneIn = 0.35f;
+	private const float TunedInCeiling = 0.92f;
+
+	/// <summary>Viewing likelihood with an event's tune-in: a fraction of the group not watching switches on. Bounded so
+	/// the whole group can never exceed <see cref="TunedInCeiling"/> of itself.</summary>
+	public static float TunedIn(float likelihood, float tuneIn) {
+		if (tuneIn <= 0f) return likelihood;
+		float lifted = likelihood + Math.Clamp(tuneIn, 0f, MaxTuneIn) * (1f - likelihood);
+		return Math.Min(Math.Max(likelihood, TunedInCeiling), lifted);
 	}
 
 	/// <summary>Viewers still watching at a segment's position in the running order (§4.5): no universal best slot. An
@@ -213,7 +231,7 @@ public static class BroadcastExposure {
 	/// models a repeat: fewer new viewers, never the original incident again.
 	/// </summary>
 	public static ExposureEstimate Estimate(TvProgram program, int durationMinutes, int slotIndex, int slotCount, float guestDraw,
-		IEnumerable<Market> markets, float novelty = 1f) {
+		IEnumerable<Market> markets, float novelty = 1f, float eventLift = 0f, float tuneIn = 0f) {
 		var result = new ExposureEstimate();
 		int segmentMinutes = Math.Max(3, Math.Min(6, durationMinutes / Math.Max(2, slotCount + 1)));
 		int offset = (int)((durationMinutes - segmentMinutes) * (slotCount <= 1 ? 0.5f : slotIndex / (float)(slotCount - 1)));
@@ -232,8 +250,8 @@ public static class BroadcastExposure {
 				for (int g = 0; g < 4; g++) {
 					var group = (ViewerGroup)g;
 					double available = market.Population * GroupShare(group, market.Date.year) * TvAccess(market.Date.year, market.RegionId)
-						* ViewingLikelihood(group, market.Date, minute);
-					double viewers = available * market.Clearance * ProgramShare(program, group, market.Date, minute, guestDraw) * retention * novelty;
+						* TunedIn(ViewingLikelihood(group, market.Date, minute), tuneIn);
+					double viewers = available * market.Clearance * ProgramShare(program, group, market.Date, minute, guestDraw, eventLift) * retention * novelty;
 					bucketViewers += viewers;
 					double vm = viewers * span;
 					switch (g) { case 0: groupMinutes0 += vm; break; case 1: groupMinutes1 += vm; break; case 2: groupMinutes2 += vm; break; default: groupMinutes3 += vm; break; }

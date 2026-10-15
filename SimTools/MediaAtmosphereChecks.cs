@@ -25,6 +25,13 @@ public partial class MediaAtmosphereChecks : Node {
 			ContentTags();
 			Trade();
 			Bookings();
+			Performance();
+			Standards();
+			EventNights();
+			PressAndPrivacy();
+			PlayerLoop();
+			PlayerPress();
+			PhaseTwoSave();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -187,5 +194,265 @@ public partial class MediaAtmosphereChecks : Node {
 			back.Appearances.Zip(MediaAtmosphereService.Appearances).All(p => p.First.Id == p.Second.Id && p.First.Airings.Count == p.Second.Airings.Count &&
 				p.First.Airings.Zip(p.Second.Airings).All(x => x.First.Tallied == x.Second.Tallied && Math.Abs(x.First.Exposure.UniqueReach - x.Second.Exposure.UniqueReach) < 1e-6)),
 			$"Media state survives a save round trip ({json.Length / 1024} KB)");
+	}
+
+	// ---- Phase 2 --------------------------------------------------------------------------------------------------
+
+	private static SimulatedArtist ProbeAct(string id, float vocal, float hands, float presence, float reliability) {
+		var a = new SimulatedArtist { artistId = id, stageName = id, primaryGenre = Genre.TeenPop };
+		a.members.Add(new Musician { personId = id + "-lead", firstName = "Lead", lastName = id, isLeadVocalist = true, vocalControl = vocal, vocalPower = vocal,
+			diction = vocal, instrumentalSkill = hands, technicalSkill = hands, stagePresence = presence, reliability = reliability, ego = 0.5f });
+		for (int i = 0; i < 2; i++)
+			a.members.Add(new Musician { personId = id + "-" + i, firstName = "Player", lastName = id + i, instrumentalSkill = hands, technicalSkill = hands,
+				stagePresence = presence, reliability = reliability, ego = 0.5f });
+		return a;
+	}
+
+	// Fixture 6: a strong live act usually delivers; a weak unprepared singer has a worse tail; a failed mime is a picture problem.
+	private void Performance() {
+		var strong = ProbeAct("strong", 0.85f, 0.85f, 0.8f, 0.85f);
+		var weak = ProbeAct("weak", 0.25f, 0.4f, 0.3f, 0.35f);
+		const int n = 800;
+		int Bad(SimulatedArtist a, MediaPreparation p, PerformanceMethod m, BroadcastMethod b) =>
+			Enumerable.Range(0, n).Count(i => MediaPerformance.Resolve("probe-" + i, m, b, a, p).Outcome <= PerformanceOutcome.Weak);
+		int strongBad = Bad(strong, MediaPreparation.Standard, PerformanceMethod.LiveBandAndVocal, BroadcastMethod.Live);
+		int weakBad = Bad(weak, MediaPreparation.Minimal, PerformanceMethod.LiveBandAndVocal, BroadcastMethod.Live);
+		int weakPrepared = Bad(weak, MediaPreparation.Extra, PerformanceMethod.LiveBandAndVocal, BroadcastMethod.Live);
+		Check(strongBad < n * 0.05 && weakBad > 3 * strongBad, $"Prepared professionals usually deliver ({strongBad}/{n} bad); an unprepared weak singer has a tail ({weakBad}/{n})");
+		Check(weakPrepared < weakBad, $"Rehearsal trims the avoidable errors ({weakPrepared} vs {weakBad}), not all of them");
+		int weakTaped = Bad(weak, MediaPreparation.Minimal, PerformanceMethod.LiveBandAndVocal, BroadcastMethod.Taped);
+		Check(weakTaped < weakBad, $"Tape forgives a bad take the producer lets them reshoot ({weakTaped} vs {weakBad} live)");
+		var mimes = Enumerable.Range(0, n).Select(i => MediaPerformance.Resolve("mime-" + i, PerformanceMethod.Mime, BroadcastMethod.Live, weak, MediaPreparation.Minimal)).ToList();
+		Check(mimes.All(r => r.SoundFromMaster) && mimes.Any(r => r.Outcome <= PerformanceOutcome.Weak),
+			$"A mime's sound is the master; its failures are on camera ({mimes.Count(r => r.Outcome <= PerformanceOutcome.Weak)} of {n})");
+		var greatHandsWeakVoice = ProbeAct("hands", 0.2f, 0.95f, 0.6f, 0.8f);
+		var goodVoice = ProbeAct("voice", 0.8f, 0.4f, 0.6f, 0.8f);
+		Check(MediaPerformance.MusicalSkill(PerformanceMethod.LiveVocalOverTrack, greatHandsWeakVoice) < MediaPerformance.MusicalSkill(PerformanceMethod.LiveVocalOverTrack, goodVoice),
+			"A strong guitarist doesn't rescue a weak live singer");
+		float before = weak.members.Sum(m => m.vocalControl + m.stagePresence + m.reliability + m.personalRecognition);
+		var again = MediaPerformance.Resolve("probe-7", PerformanceMethod.LiveBandAndVocal, BroadcastMethod.Live, weak, MediaPreparation.Minimal);
+		Check(before == weak.members.Sum(m => m.vocalControl + m.stagePresence + m.reliability + m.personalRecognition)
+			&& again.Outcome == MediaPerformance.Resolve("probe-7", PerformanceMethod.LiveBandAndVocal, BroadcastMethod.Live, weak, MediaPreparation.Minimal).Outcome,
+			"Resolving a segment writes nothing to the musicians and always resolves the same way");
+	}
+
+	// Fixture 7: an edit, another song, an honest refusal and a broken promise are four different consequences.
+	private void Standards() {
+		var sullivan = MediaOutletCatalog.Get("ed_sullivan");
+		var local = MediaOutletCatalog.Programs.First(p => p.Network == TvNetwork.Local && p.Method == PerformanceMethod.Mime);
+		Check(MediaStandards.Strictness(sullivan, SongContentTags.DrugReference, ContentSeverity.Marked, D(1964, 2, 9), null) >= 1f &&
+			MediaStandards.Strictness(local, SongContentTags.Alcohol, ContentSeverity.Mild, D(1964, 2, 9), "greatlakes") == 0f,
+			"Family variety always queries a marked drug reference; a local dance show lets a mild drinking word through");
+		var q = new StandardsQuery { Id = "probe-q", ProgramId = "ed_sullivan", ProducerSympathetic = false };
+		var mimeOptions = MediaStandards.Options(q, PerformanceMethod.Mime, true).ToList();
+		Check(!mimeOptions.Contains(StandardsResponse.ComplyEdit) && !mimeOptions.Contains(StandardsResponse.PromiseThenDefy) && mimeOptions.Contains(StandardsResponse.AlternateSong),
+			"A fixed mime track can't sing a different lyric, or defy one");
+
+		var state = MediaAtmosphereService.State;
+		void Run(string id, StandardsResponse response, BroadcastMethod broadcast) {
+			var query = new StandardsQuery { Id = "probe-std-" + id, ProgramId = "ed_sullivan", ArtistId = "probe-act-" + id, ArtistName = "Probe " + id, Title = "Mary Jane",
+				Tag = SongContentTags.DrugReference, Severity = ContentSeverity.Marked, AirDate = D(1960, 3, 6), Authority = MediaStandards.Authority(sullivan) };
+			var version = new BroadcastScheduleVersion { Broadcast = broadcast };
+			MediaAtmosphereService.Settle(query, response, sullivan, version, null, null);
+			state.StandardsQueries.Add(query);
+			var a = new MediaAppearance { Id = "probe-app-" + id, ProgramId = "ed_sullivan", ArtistId = query.ArtistId, ArtistName = query.ArtistName, Title = query.Title,
+				Date = query.AirDate, StandardsQueryId = query.Id, Broadcast = broadcast, Method = PerformanceMethod.LiveVocalOverTrack,
+				Cut = query.Resolution == StandardsResolution.Cut, Performance = new MediaPerformanceResult { Outcome = PerformanceOutcome.FlatAdequate } };
+			if (query.Resolution != StandardsResolution.Withdrawn) MediaAtmosphereService.AfterAir(a, new MediaAiring { Date = a.Date, Exposure = new ExposureEstimate() });
+		}
+		int day = BroadcastExposure.DayIndex(D(1960, 3, 6));
+		Run("edit", StandardsResponse.ComplyEdit, BroadcastMethod.Live);
+		Run("song", StandardsResponse.AlternateSong, BroadcastMethod.Live);
+		Run("withdraw", StandardsResponse.Withdraw, BroadcastMethod.Live);
+		Run("defy", StandardsResponse.PromiseThenDefy, BroadcastMethod.Live);
+		var edit = MediaAtmosphereService.ProgramMemoryFor("ed_sullivan", "probe-act-edit");
+		var song = MediaAtmosphereService.ProgramMemoryFor("ed_sullivan", "probe-act-song");
+		var defy = MediaAtmosphereService.ProgramMemoryFor("ed_sullivan", "probe-act-defy");
+		Check(edit.Delivered == 1 && edit.ExcludedUntilDay < day && song.Delivered == 1 && song.ExcludedUntilDay < day, "An agreed edit and another song both keep the act welcome");
+		Check(MediaAtmosphereService.ProgramMemoryFor("ed_sullivan", "probe-act-withdraw") == null && state.StandardsQueries.First(x => x.Id == "probe-std-withdraw").Resolution == StandardsResolution.Withdrawn,
+			"An honest refusal loses the date and leaves no breach");
+		float[] att = MediaAtmosphereService.AttitudeOf("probe-act-defy");
+		Check(defy.Breaches == 1 && defy.ExcludedUntilDay > day + 1000 && att[0] > 0 && att[1] < 0 &&
+			MediaAtmosphereService.Controversies.Any(c => c.ArtistId == "probe-act-defy" && c.Verified),
+			"A promise broken on a live microphone: the program shuts its door, the artistic audience warms, the family audience cools, and it is a public incident");
+		var taped = new StandardsQuery { Id = "probe-taped" };
+		MediaAtmosphereService.Settle(taped, StandardsResponse.PromiseThenDefy, sullivan, new BroadcastScheduleVersion { Broadcast = BroadcastMethod.Taped }, null, null);
+		Check(taped.Resolution is StandardsResolution.Cut or StandardsResolution.Defied, $"On tape a broken promise is usually caught and cut ({taped.Resolution})");
+		var queries = MediaAtmosphereService.StandardsQueries.Where(x => !x.Id.StartsWith("probe")).ToList();
+		Check(MediaAtmosphereService.Appearances.Where(a => a.StandardsQueryId != null).All(a => queries.Any(x => x.Id == a.StandardsQueryId))
+			&& MediaAtmosphereService.Appearances.Where(a => a.Cut).All(a => a.Airings.All(x => x.Exposure.UniqueReach == 0)),
+			$"Real bookings carry their queries ({queries.Count}: {string.Join(", ", queries.GroupBy(x => x.Resolution).Select(g => g.Key + " " + g.Count()))}); a cut segment reaches nobody");
+		foreach (var x in queries.Take(3)) GD.Print($"  standards: {x.ArtistName} \"{x.Title}\" on {x.ProgramId}: {x.Evidence} -> {x.Outcome}");
+	}
+
+	// The Beatles-night question: an event is possible with the right conjunction, and nothing routine gets near it.
+	private void EventNights() {
+		var sullivan = MediaOutletCatalog.Get("ed_sullivan");
+		GameDate night = D(1964, 2, 9);
+		var regions = ChartManager.Instance.GetAllRegions();
+		var markets = BroadcastExposure.Markets(sullivan, sullivan.VersionOn(night), night, regions);
+		double population = regions.Sum(r => r.population) * 1e6;
+		ExposureEstimate At(float hype) {
+			var (lift, tune) = MediaAtmosphereService.EventDraw(hype, sullivan);
+			return BroadcastExposure.Estimate(sullivan, 60, 1, 2, 0.1f, markets, 1f, lift, tune);
+		}
+		var routine = At(0f); var hot = At(0.45f); var big = At(0.7f); var peak = At(1f);
+		GD.Print($"  Sullivan, Feb 9 1964, closing spot: routine {routine.UniqueReach / 1e6:F1}M, hype .45 {hot.UniqueReach / 1e6:F1}M, hype .7 {big.UniqueReach / 1e6:F1}M, " +
+			$"hype 1.0 {peak.UniqueReach / 1e6:F1}M of {population / 1e6:F0}M (peak simultaneous {peak.PeakViewers / 1e6:F1}M)");
+		Check(MediaAtmosphereService.EventDraw(0.24f, sullivan) == (0f, 0f), "Below the hype floor an appearance is routine: no event draw at all");
+		Check(peak.UniqueReach > 2.2 * routine.UniqueReach && peak.UniqueReach > population * 0.28 && peak.UniqueReach < population * 0.6,
+			$"A maximal event night reaches {peak.UniqueReach / population:P0} of the country ({peak.UniqueReach / 1e6:F0}M, {peak.UniqueReach / routine.UniqueReach:F1}x a routine closing spot), and never the whole population");
+		Check(routine.UniqueReach < hot.UniqueReach && hot.UniqueReach < big.UniqueReach && big.UniqueReach < peak.UniqueReach, "Event audiences grow smoothly with hype");
+		var local = MediaOutletCatalog.Programs.First(p => p.Network == TvNetwork.Local);
+		Check(MediaAtmosphereService.EventDraw(1f, local) == (0f, 0f), "A local dance show has no event night");
+		Check(BroadcastExposure.ProgramShare(sullivan, ViewerGroup.Adult, night, 20 * 60, 5f) <= BroadcastExposure.ProgramShare(sullivan, ViewerGroup.Adult, night, 20 * 60, 0f) * 1.10001f,
+			"A routine guest's draw is still capped at 10%");
+		Check(BroadcastExposure.TunedIn(0.62f, 1f) < 0.92f && BroadcastExposure.TunedIn(0.62f, 0.35f) > 0.62f && BroadcastExposure.TunedIn(0.95f, 0.35f) >= 0.95f,
+			"Tune-in draws from people not watching, bounded below everyone");
+		var chart = ChartManager.Instance.GetCurrentChart();
+		var precursors = chart.Where(r => r?.baseRecord != null)
+			.Select(r => MediaAtmosphereService.Precursor(r, chart, regions.Count, CompetitorManager.Instance?.RegionalBreakoutDealThreshold ?? 0.2f)).ToList();
+		GD.Print($"  event precursors on today's chart: max {precursors.DefaultIfEmpty(0).Max():F2}, records over the hold bar {precursors.Count(p => p >= 0.3f)}; holds placed {MediaAtmosphereService.Holds.Count}");
+	}
+
+	// Fixture 8 and the press machinery: no private state leaks, budgets hold, roots are counted once.
+	private void PressAndPrivacy() {
+		var chart = ChartManager.Instance.GetCurrentChart().Where(r => r?.baseRecord?.artistId != null).ToList();
+		int marked = 0;
+		foreach (var r in chart) {
+			var artist = ArtistManager.Instance.GetArtist(r.baseRecord.artistId);
+			if (artist == null) continue;
+			foreach (var m in artist.members) { m.substanceLoad = 1f; marked++; }
+		}
+		Check(!Enum.GetNames<EvidenceSource>().Any(n => n.Contains("Private") || n.Contains("Musician") || n.Contains("Substance")), "No evidence source can carry private state");
+		var clock = TimeManager.Instance;
+		for (int i = 0; i < 28; i++) clock.EndDay();
+		var stories = MediaAtmosphereService.Stories.Where(s => s.Status == StoryStatus.Scheduled && !s.Id.StartsWith("probe")).ToList();
+		Check(stories.Count > 30, $"The press ran {stories.Count} items in four weeks ({string.Join(", ", stories.GroupBy(s => MediaOutletCatalog.GetPress(s.OutletId).Family).Select(g => g.Key + " " + g.Count()))})");
+		foreach (var s in stories.Where(s => s.IssueDay <= BroadcastExposure.DayIndex(clock.CurrentDate)).OrderByDescending(s => s.Interest).Take(6))
+			GD.Print($"  press: {MediaOutletCatalog.GetPress(s.OutletId).Name}, {MediaAtmosphereService.FromDayIndex(s.IssueDay).ToShortString()}: {MediaPress.Sentence(MediaPress.Headline(s))} {MediaPress.Body(s)}");
+		Check(stories.All(s => s.Evidence.All(e => !e.Fact.Contains("substance") && !e.Fact.Contains("addict") && !e.Fact.Contains("drug use")))
+			&& stories.Where(s => s.Angle == StoryAngle.Controversy).All(s => MediaAtmosphereService.StandardsQueries.Any(q => s.RootId.EndsWith(q.Id) && q.Resolution == StandardsResolution.Defied)),
+			$"With {marked} charting musicians at maximum private substance load, no item reports it; every controversy traces to a witnessed broadcast");
+		Check(stories.GroupBy(s => (s.OutletId, s.RootId)).All(g => g.Count() == 1), "One item per story root per outlet: repeated coverage of one event is one story");
+		bool budgets = stories.Where(s => s.Angle is not StoryAngle.Correction and not StoryAngle.OrdersFollowUp)
+			.GroupBy(s => (s.OutletId, MediaOutletCatalog.GetPress(s.OutletId).Cadence == PressCadence.Daily ? s.IssueDay / 7 : s.IssueDay))
+			.All(g => g.Count() <= MediaOutletCatalog.GetPress(g.Key.OutletId).Slots);
+		Check(budgets, "No issue carries more music items than its page budget");
+		Check(stories.All(s => MediaOutletCatalog.GetPress(s.OutletId).Publishing(MediaAtmosphereService.FromDayIndex(s.IssueDay))),
+			"Every item runs in an outlet that existed that day (no Tiger Beat, Crawdaddy! or Rolling Stone in 1960)");
+		int mainstream = stories.Count(s => MediaOutletCatalog.GetPress(s.OutletId).Family == PressFamily.Mainstream);
+		Check(mainstream <= 4, $"Mainstream magazines rarely cover popular music ({mainstream} items in four weeks)");
+		var desk = PlayerDesk.Instance;
+		GD.Seed(777); desk.PressColumn(clock.CurrentDate); RolodexDirectory.Cards(desk, RolodexRole.Press); uint a = GD.Randi();
+		GD.Seed(777); uint b = GD.Randi();
+		Check(a == b && desk.PressColumn(clock.CurrentDate).SequenceEqual(desk.PressColumn(clock.CurrentDate)), "Reading the press column and the press cards draws nothing and reads the same twice");
+		foreach (string line in desk.PressColumn(clock.CurrentDate)) GD.Print("  paper: " + line);
+	}
+
+	// Fixture 1 and the label's television loop: a plausible local act gets a local date; a network show can still say no.
+	private void PlayerLoop() {
+		var desk = PlayerDesk.Instance;
+		var clock = TimeManager.Instance;
+		string home = desk.Label.homeCityId;
+		string region = DistanceModel.GetCityById(home).parentRegionId;
+		var locals = MediaAtmosphereService.PitchablePrograms(home, home, clock.CurrentDate).Where(p => p.Network == TvNetwork.Local && p.HomeCityId == home).ToList();
+		Check(locals.Count > 0, $"The label's town has a local show to pitch ({string.Join(", ", locals.Select(p => p.Name))})");
+		var records = ChartManager.Instance.GetAllRecords()
+			.Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && !r.baseRecord.isPlayerOwned && r.regionalData.TryGetValue(region, out var rd) && rd != null && rd.unitsSoldThisWeek > 0)
+			.OrderByDescending(r => r.regionalData[region].unitsSoldThisWeek).ThenBy(r => r.baseRecord.recordId).Take(12).ToList();
+		var uncharted = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && r.currentPosition <= 0 && r.unitsThisWeek > 0)
+			.Take(8).ToList();
+		foreach (var r in records) MediaAtmosphereService.PitchTelevision(desk, r, locals[0].Id, out _);
+		foreach (var r in uncharted) MediaAtmosphereService.PitchTelevision(desk, r, "ed_sullivan", out _);
+		for (int i = 0; i < 6; i++) clock.EndDay();
+		var local = MediaAtmosphereService.Pitches.Where(p => p.ProgramId == locals[0].Id).ToList();
+		var national = MediaAtmosphereService.Pitches.Where(p => p.ProgramId == "ed_sullivan").ToList();
+		Check(local.Count(p => p.Status == PitchStatus.Offered) >= 2 && local.All(p => p.Status != PitchStatus.Sent),
+			$"Records the town is buying get local dates: {local.Count(p => p.Status == PitchStatus.Offered)} offers, {local.Count(p => p.Status == PitchStatus.Declined)} declined");
+		Check(national.Count > 0 && national.All(p => p.Status == PitchStatus.Declined), $"The Ed Sullivan Show declines {national.Count} uncharted records");
+		foreach (var p in local.Take(3)) GD.Print($"  pitch: {p.ArtistName} -> {p.Status} {p.Reason} {(p.Status == PitchStatus.Offered ? MediaAtmosphereService.FromDayIndex(p.AirDay).ToShortString() + " reach " + MediaText.Audience(p.ReachHigh) : "")}");
+		var offer = local.First(p => p.Status == PitchStatus.Offered);
+		Check(offer.AirDay > MediaAtmosphereService.State.BookedThroughDay && offer.ReachHigh > 0 && offer.CostNote.Contains("estimate"),
+			"An offer names an unbooked date, an audience range, and costs marked as estimates");
+		var query = offer.QueryId == null ? null : MediaAtmosphereService.StandardsQueries.First(x => x.Id == offer.QueryId);
+		if (query != null) foreach (var r in MediaAtmosphereService.StandardsOptions(query)) if (desk.AnswerStandardsQuery(query.Id, r, out _)) break;
+		float cash = desk.Label.cashReserves;
+		int hour = clock.CurrentHour;
+		Check(desk.AnswerTelevisionOffer(offer.Id, true, MediaPreparation.Extra, out string msg) && offer.Status == PitchStatus.Confirmed, "Confirming the date: " + msg);
+		Check(desk.Label.cashReserves == cash && clock.CurrentHour == hour, "Observe mode charges neither cash nor diary time");
+		int air = offer.AirDay;
+		for (int guard = 0; guard < 40 && BroadcastExposure.DayIndex(clock.CurrentDate) <= air + 1; guard++) clock.EndDay();
+		var mine = MediaAtmosphereService.Appearances.FirstOrDefault(a => a.PlayerBooking && a.RecordId == offer.RecordId);
+		Check(mine != null && mine.Reported && (mine.Cut || mine.Performance != null) && mine.Preparation == MediaPreparation.Extra && offer.Status == PitchStatus.Aired,
+			$"The date aired and the office heard how it went: {mine?.Performance?.Account} ({mine?.Airings.FirstOrDefault()?.Exposure.UniqueReach:N0} reached)");
+		var contact = MediaAtmosphereService.ContactFor(MediaAtmosphereService.ProducerKey(locals[0]));
+		Check(contact != null && contact.Lines.Count >= 3, $"The producer remembers the label: \"{contact?.Lines.FirstOrDefault()}\"");
+	}
+
+	// Fixtures 9 and 10: a sheet is a submission, not a guarantee; figures get checked; photo terms have scope and expiry.
+	private void PlayerPress() {
+		var desk = PlayerDesk.Instance;
+		var clock = TimeManager.Instance;
+		int tradeBefore = desk.TradeSubmissions.Count;
+		string home = desk.Label.homeCityId;
+		var records = ChartManager.Instance.GetAllRecords().Where(r => r?.baseRecord != null && r.baseRecord.format == ReleaseFormat.Single && r.unitsThisWeek > 0)
+			.OrderBy(r => r.baseRecord.recordId).Take(10).ToList();
+		var daily = MediaOutletCatalog.GetPress("daily_" + home);
+		foreach (var r in records) MediaAtmosphereService.PitchPress(desk, r, daily.Id, StoryAngle.Hometown, out _);
+		for (int i = 0; i < 8; i++) clock.EndDay();
+		var sheets = MediaAtmosphereService.Pitches.Where(p => p.Kind == PitchKind.Press && p.OutletId == daily.Id).ToList();
+		Check(sheets.All(p => p.Status is PitchStatus.Placed or PitchStatus.Passed) && sheets.Any(p => p.Status == PitchStatus.Passed),
+			$"A press sheet is a submission: {sheets.Count(p => p.Status == PitchStatus.Placed)} placed, {sheets.Count(p => p.Status == PitchStatus.Passed)} passed");
+		Check(desk.TradeSubmissions.Count == tradeBefore, "Named press desks don't create or multiply trade-review submissions");
+
+		var state = MediaAtmosphereService.State;
+		int today = BroadcastExposure.DayIndex(clock.CurrentDate);
+		var artist = ArtistManager.Instance.GetArtist(records[0].baseRecord.artistId);
+		MediaStory Story(string id, PressFamily family, StoryAngle angle, int issue) {
+			var outlet = MediaOutletCatalog.Press.First(o => o.Family == family && o.Publishing(clock.CurrentDate));
+			var s = new MediaStory { Id = id, RootId = id, OutletId = outlet.Id, Angle = angle, Status = StoryStatus.Scheduled, IssueDay = issue, LeadDay = today,
+				PlayerSubject = true, ArtistId = artist.artistId, ArtistName = artist.stageName, RecordId = records[0].baseRecord.recordId, Title = records[0].baseRecord.title };
+			state.Stories.Add(s);
+			return s;
+		}
+		var orders = Story("probe-orders", PressFamily.Trade, StoryAngle.Breakout, today + 5);
+		state.Inquiries.Add(new MediaInquiry { Id = "probe-inq-orders", Kind = InquiryKind.OrdersQuestion, OutletId = orders.OutletId, StoryId = orders.Id, ArtistId = artist.artistId,
+			RecordId = orders.RecordId, Title = orders.Title, Day = today, DeadlineDay = today + 4 });
+		Check(desk.AnswerMediaInquiry("probe-inq-orders", "inflate", null, out _) && orders.Inaccurate && orders.ClaimedUnits > 0
+			&& state.Inquiries.First(i => i.Id == "probe-inq-orders").CheckDay > today, "An inflated figure is a claim on the record, scheduled to meet the dealers' reports");
+
+		int exclusives = 0, refusals = 0;
+		for (int i = 0; i < 30; i++) {
+			var s = Story("probe-teen-" + i, PressFamily.TeenFan, StoryAngle.TeenFeature, today + 40);
+			state.Inquiries.Add(new MediaInquiry { Id = "probe-photo-" + i, Kind = InquiryKind.PhotoRequest, OutletId = s.OutletId, StoryId = s.Id, ArtistId = artist.artistId,
+				ArtistName = artist.stageName, Day = today, DeadlineDay = today + 10 });
+			if (desk.AnswerMediaInquiry("probe-photo-" + i, "exclusive", i % 2 == 0 ? "plant" : "private", out _)) exclusives++; else refusals++;
+		}
+		var made = MediaAtmosphereService.Exclusives.Where(e => e.ArtistId == artist.artistId).ToList();
+		Check(exclusives > 0 && refusals > 0 && made.All(e => e.UntilDay == e.FromDay + 28 && !string.IsNullOrEmpty(e.Scope)),
+			$"Photo terms have a scope and a four-week expiry; the act can refuse ({exclusives} agreed, {refusals} refused)");
+		Check(made.Where(e => e.Romance == "plant").All(e => e.PlantedClaim && e.ContradictionDay > today), "A planted romance is stored as a claim that can later be contradicted");
+
+		var wrong = Story("probe-wrong", PressFamily.LocalDaily, StoryAngle.Hometown, today);
+		wrong.Inaccurate = true; wrong.InaccurateClaim = "the label's home town printed wrong";
+		Check(desk.RequestPressCorrection(wrong.Id, out _) && wrong.Corrected && state.Stories.Any(s => s.Angle == StoryAngle.Correction && s.RootId == wrong.RootId)
+			&& state.Stories.Contains(wrong), "A correction runs under the same root and the original stays in history");
+	}
+
+	private void PhaseTwoSave() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var world = new WorldSaveData();
+		MediaAtmosphereService.CaptureWorld(world);
+		string json = JsonSerializer.Serialize(world.Media, opts);
+		var back = JsonSerializer.Deserialize<MediaSaveData>(json, opts);
+		var now = world.Media;
+		Check(back.Stories.Count == now.Stories.Count && back.StandardsQueries.Count == now.StandardsQueries.Count && back.Pitches.Count == now.Pitches.Count
+			&& back.Contacts.Count == now.Contacts.Count && back.Inquiries.Count == now.Inquiries.Count && back.Exclusives.Count == now.Exclusives.Count
+			&& back.ProgramMemory.Count == now.ProgramMemory.Count && back.Credibility.Count == now.Credibility.Count && back.BreakoutsReported.Count == now.BreakoutsReported.Count
+			&& back.PlayerSequence == now.PlayerSequence
+			&& back.Appearances.Zip(now.Appearances).All(p => p.First.Performance?.Outcome == p.Second.Performance?.Outcome && p.First.Cut == p.Second.Cut && p.First.Reported == p.Second.Reported)
+			&& back.Stories.Zip(now.Stories).All(p => p.First.Id == p.Second.Id && p.First.Evidence.Count == p.Second.Evidence.Count && p.First.IssueDay == p.Second.IssueDay),
+			$"Phase 2 media state survives a save round trip ({json.Length / 1024} KB: {now.Stories.Count} items, {now.Contacts.Count} contacts, {now.Pitches.Count} pitches)");
 	}
 }

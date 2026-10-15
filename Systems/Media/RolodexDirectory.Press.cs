@@ -30,6 +30,16 @@ public static partial class RolodexDirectory {
 			}
 		}
 		if (desk.TradeSubmissions.Count > 0) cards.Add(TradeDeskCard(desk, today));
+		if (MediaAtmosphere.Observing && desk.Label != null) {
+			var outlets = new List<(PressOutlet, PressRole)>();
+			foreach (PressOutlet o in MediaOutletCatalog.Press.Where(o => o.Publishing(today) && o.HomeCityId != null && o.HomeCityId == desk.Label.homeCityId))
+				outlets.Add((o, MediaPress.RoleFor(o, StoryAngle.LabelPitch)));
+			// Anyone the label has dealt with stays in the book, wherever they are.
+			foreach (PressOutlet o in MediaOutletCatalog.Press)
+				foreach (PressRole role in Enum.GetValues<PressRole>())
+					if (MediaAtmosphereService.ContactFor(MediaPress.ContactKey(o, role)) != null && !outlets.Contains((o, role))) outlets.Add((o, role));
+			foreach (var (o, role) in outlets) cards.Add(PressDeskCard(o, role, today));
+		}
 		return cards;
 	}
 
@@ -58,7 +68,46 @@ public static partial class RolodexDirectory {
 		if (recent.Count > 0) card.Facts.Add(("Recent guests: " + string.Join("; ", recent) + ".", false));
 		if (version.RepeatMonths.Length > 0)
 			card.Facts.Add(($"Repeats in {string.Join(" and ", version.RepeatMonths.Select(m => new GameDate(1960, m, 1).MonthName))}: no new guests booked then.", false));
-		card.Facts.Add(("Pitching your own acts to this desk isn't open from the office yet.", true));
+		AddMemory(card, MediaAtmosphereService.ContactFor(MediaAtmosphereService.ProducerKey(program)));
+		card.GoToTab = "OFFICE";
+		card.GoToLabel = "PITCH FROM THE OFFICE";
+		return card;
+	}
+
+	/// <summary>Concrete memory instead of a friendship percentage (§14): what this person remembers of the label.</summary>
+	private static void AddMemory(DirectoryCard card, MediaContactMemory memory) {
+		if (memory == null || memory.Lines.Count == 0) return;
+		foreach (string line in memory.Lines.Take(3)) card.Facts.Add(("Remembers: " + line, memory.Trust < -0.2f));
+	}
+
+	/// <summary>A press desk the label can reach or has dealt with: its town's daily and community papers, and every desk
+	/// that has a memory of the label.</summary>
+	private static DirectoryCard PressDeskCard(PressOutlet outlet, PressRole role, GameDate today) {
+		string key = MediaPress.ContactKey(outlet, role);
+		bool female = Portraits.Hash(key + "|female") % 3 == 0;
+		var card = new DirectoryCard {
+			Role = RolodexRole.Press, Key = key, Name = MediaPress.ContactName(outlet, role), Title = MediaPress.RoleTitle(outlet, role),
+			Firm = outlet.Name, Place = outlet.HomeCityId == null ? "National" : DistanceModel.GetCityById(outlet.HomeCityId)?.name,
+			Figure = Portraits.Businessman(key, female), GoToTab = "OFFICE", GoToLabel = "SEND A SHEET FROM THE OFFICE",
+		};
+		string rhythm = outlet.Cadence switch {
+			PressCadence.Daily => "Daily; the music items fit in a few inches a week.",
+			PressCadence.Monthly => $"Monthly, closing about {outlet.LeadDays / 7} weeks before it reaches the stands.",
+			_ => $"Weekly, out {outlet.IssueDay}s; copy closes about {outlet.LeadDays} days ahead.",
+		};
+		card.Facts.Add((rhythm, false));
+		card.Facts.Add((outlet.Family switch {
+			PressFamily.LocalDaily => "Wants a home-town angle: a local act, a local record business, a show nearby.",
+			PressFamily.Specialist => "Writes for its own readers, and they listen to it. " + (outlet.Note ?? ""),
+			PressFamily.Trade => "Wants business evidence: orders, regional action, distribution. Figures get checked.",
+			PressFamily.TeenFan => "Prints the faces the readers write in about.",
+			PressFamily.RockCriticism => "Responds to the record itself, and may not like it.",
+			_ => "Covers popular music only when it's become a story about everyone.",
+		}, false));
+		var recent = MediaAtmosphereService.Stories.Where(s => s.OutletId == outlet.Id && s.Status == StoryStatus.Scheduled && s.IssueDay < BroadcastExposure.DayIndex(today))
+			.OrderByDescending(s => s.IssueDay).Take(2).Select(s => MediaPress.Headline(s)).ToList();
+		if (recent.Count > 0) card.Facts.Add(("Recently ran: " + string.Join("; ", recent) + ".", false));
+		AddMemory(card, MediaAtmosphereService.ContactFor(key));
 		return card;
 	}
 

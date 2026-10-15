@@ -22,7 +22,7 @@ public static class MediaAtmosphere {
 	public static bool Observing => mode == MediaAtmosphereMode.Observe;
 
 	/// <summary>Bumped whenever a catalog, curve or booking rule changes what a seeded world would show.</summary>
-	public const int ConfigVersion = 1;
+	public const int ConfigVersion = 2;
 
 	public static void Configure(bool sceneDefault, IEnumerable<string> arguments) {
 		if (configured) return;

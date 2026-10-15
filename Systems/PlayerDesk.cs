@@ -4765,6 +4765,8 @@ public partial class PlayerDesk : Node {
 		ResolvePendingMailings();
 		ScanForCoversOfOwnSongs();
 		CheckBreakoutHeadlines();
+		// Producers answer pitches, aired dates are reported, reporters' deadlines pass (media directive Phase 2).
+		MediaAtmosphereService.PlayerDay(this, date);
 		GatherTradeNews();
 		// Last, so the paper also carries what the morning itself turned up (a pressing arriving, a record
 		// going out, a market breaking) instead of holding it back a day.

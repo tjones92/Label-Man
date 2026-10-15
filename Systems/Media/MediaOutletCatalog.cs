@@ -79,7 +79,9 @@ public sealed class TvProgram {
 
 public enum PressFamily { Trade, TeenFan, Mainstream, RockCriticism, LocalDaily, Specialist }
 
-/// <summary>A publication with its real opening date (§8). Phase 1 only catalogs them; desks and reporters come in Phase 2.</summary>
+public enum PressCadence { Daily, Weekly, Monthly }
+
+/// <summary>A publication with its real opening date (§8), its issue rhythm, print lead time and a finite music budget.</summary>
 public sealed class PressOutlet {
 	public string Id, Name;
 	public PressFamily Family;
@@ -88,6 +90,20 @@ public sealed class PressOutlet {
 	public string Note;
 	public SourceConfidence Confidence;
 	public bool Publishing(GameDate date) => date >= From && date <= Until;
+	public PressCadence Cadence = PressCadence.Weekly;
+	/// <summary>Cover date of a weekly. A monthly is on the stands the first of its month; a daily's entertainment page runs every day.</summary>
+	public DayOfWeek IssueDay = DayOfWeek.Saturday;
+	/// <summary>Days between the editor's decision and the issue: a monthly's feature can reach the stands after the campaign peaked.</summary>
+	public int LeadDays = 4;
+	/// <summary>Music items an issue can carry (a daily: per week). Finite page space is the editor's real constraint (§8).</summary>
+	public int Slots = 4;
+	/// <summary>A city paper's home; null for a national publication.</summary>
+	public string HomeCityId;
+	/// <summary>The audience the outlet speaks for (§8: specialist influence is real inside its audience).</summary>
+	public Func<Genre, float> Fit = _ => 1f;
+	/// <summary>Readers in millions, pass-along included (initial design values, not audited circulation).</summary>
+	public float ReadersMillions = 0.1f;
+	public bool National => HomeCityId == null;
 }
 
 /// <summary>
@@ -399,33 +415,118 @@ public static class MediaOutletCatalog {
 
 	// ---- press -------------------------------------------------------------------------------------------------
 
+	// ---- press audiences: an emphasis, not a gate (§8) -------------------------------------------------------
+
+	public static float SoulPressFit(Genre g) => g switch {
+		Genre.RnB or Genre.Soul or Genre.Motown or Genre.Gospel or Genre.Funk or Genre.Blues => 1.0f,
+		Genre.DooWop or Genre.Jazz or Genre.Boogaloo or Genre.GirlGroup => 0.8f,
+		Genre.RockAndRoll or Genre.BluesRock => 0.45f,
+		_ => 0.12f,
+	};
+	public static float CountryPressFit(Genre g) => g switch {
+		Genre.Country => 1.0f, Genre.CountryRock or Genre.TexMex => 0.75f, Genre.Folk or Genre.Gospel => 0.35f, _ => 0.08f,
+	};
+	public static float JazzPressFit(Genre g) => g switch {
+		Genre.Jazz => 1.0f, Genre.BossaNova or Genre.Blues => 0.7f, Genre.Soul or Genre.RnB or Genre.Funk => 0.4f, _ => 0.08f,
+	};
+	public static float FolkPressFit(Genre g) => g switch {
+		Genre.Folk or Genre.ContemporaryFolk => 1.0f, Genre.FolkRock or Genre.SingerSongwriter => 0.8f, Genre.Country or Genre.Blues or Genre.Gospel => 0.35f, _ => 0.05f,
+	};
+	public static float CriticFit(Genre g) => g switch {
+		Genre.FolkRock or Genre.PsychedelicRock or Genre.Psychedelic or Genre.AcidRock or Genre.BluesRock or Genre.BritishBlues or Genre.SingerSongwriter
+			or Genre.BaroquePop or Genre.ProtoPunk or Genre.ProgressiveRock or Genre.HardRock => 1.0f,
+		Genre.Soul or Genre.Folk or Genre.ContemporaryFolk or Genre.BritishBeat or Genre.Blues or Genre.CountryRock or Genre.GarageRock or Genre.Jazz => 0.7f,
+		Genre.Motown or Genre.Funk or Genre.SunshinePop or Genre.PopRock or Genre.RockAndRoll or Genre.BritishPop => 0.45f,
+		_ => 0.15f,
+	};
+
+	private static readonly string[] Mastheads = { "Herald", "Press", "Courier", "Evening Star", "Times-Union", "Journal", "Daily News", "Register", "Gazette", "Post" };
+
 	private static List<PressOutlet> BuildPress() {
 		var list = new List<PressOutlet> {
 			new() { Id = "billboard", Name = "Billboard", Family = PressFamily.Trade, From = D(1894, 11, 1), Confidence = SourceConfidence.Documented,
-				Note = "Breadth of industry and radio reporting." },
+				Note = "Breadth of industry and radio reporting.", IssueDay = DayOfWeek.Monday, LeadDays = 5, Slots = 9, ReadersMillions = 0.05f },
 			new() { Id = "cash_box", Name = "Cash Box", Family = PressFamily.Trade, From = D(1942, 7, 1), Confidence = SourceConfidence.Documented,
-				Note = "Operator- and retail-facing." },
+				Note = "Operator- and retail-facing.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 8, ReadersMillions = 0.03f },
 			new() { Id = "music_vendor", Name = "Music Vendor", Family = PressFamily.Trade, From = D(1946, 1, 1), Until = D(1964, 9, 30), Confidence = SourceConfidence.Approximate,
-				Note = "Renamed Record World in 1964; a Sep 26 1964 issue still carries the old masthead." },
+				Note = "Renamed Record World in 1964; a Sep 26 1964 issue still carries the old masthead.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 6, ReadersMillions = 0.02f },
 			new() { Id = "record_world", Name = "Record World", Family = PressFamily.Trade, From = D(1964, 10, 1), Confidence = SourceConfidence.Approximate,
-				Note = "Competing reviews and trade coverage." },
+				Note = "Competing reviews and trade coverage.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 7, ReadersMillions = 0.02f },
 			new() { Id = "sixteen", Name = "16", Family = PressFamily.TeenFan, From = D(1957, 1, 1), Confidence = SourceConfidence.Documented,
-				Note = "Reader mail decides which faces it prints." },
+				Note = "Reader mail decides which faces it prints.", Cadence = PressCadence.Monthly, LeadDays = 42, Slots = 6, Fit = TeenFit, ReadersMillions = 1.5f },
 			new() { Id = "tiger_beat", Name = "Tiger Beat", Family = PressFamily.TeenFan, From = D(1965, 9, 1), Confidence = SourceConfidence.Documented,
-				Note = "First issue September 1965 (Northwestern catalog)." },
-			new() { Id = "life", Name = "Life", Family = PressFamily.Mainstream, From = D(1936, 11, 23), Confidence = SourceConfidence.Documented, Note = "Photo essays." },
-			new() { Id = "look", Name = "Look", Family = PressFamily.Mainstream, From = D(1937, 1, 5), Confidence = SourceConfidence.Documented, Note = "Photo essays." },
-			new() { Id = "time", Name = "Time", Family = PressFamily.Mainstream, From = D(1923, 3, 3), Confidence = SourceConfidence.Documented, Note = "Sourced, skeptical features." },
-			new() { Id = "newsweek", Name = "Newsweek", Family = PressFamily.Mainstream, From = D(1933, 2, 17), Confidence = SourceConfidence.Documented, Note = "Sourced, skeptical features." },
+				Note = "First issue September 1965 (Northwestern catalog).", Cadence = PressCadence.Monthly, LeadDays = 42, Slots = 6, Fit = TeenFit, ReadersMillions = 1.2f },
+			new() { Id = "life", Name = "Life", Family = PressFamily.Mainstream, From = D(1936, 11, 23), Confidence = SourceConfidence.Documented, Note = "Photo essays.",
+				IssueDay = DayOfWeek.Friday, LeadDays = 14, Slots = 1, ReadersMillions = 20f },
+			new() { Id = "look", Name = "Look", Family = PressFamily.Mainstream, From = D(1937, 1, 5), Confidence = SourceConfidence.Documented, Note = "Photo essays, every other week.",
+				IssueDay = DayOfWeek.Tuesday, LeadDays = 21, Slots = 1, ReadersMillions = 16f },
+			new() { Id = "time", Name = "Time", Family = PressFamily.Mainstream, From = D(1923, 3, 3), Confidence = SourceConfidence.Documented, Note = "Sourced, skeptical features.",
+				IssueDay = DayOfWeek.Friday, LeadDays = 7, Slots = 1, ReadersMillions = 12f },
+			new() { Id = "newsweek", Name = "Newsweek", Family = PressFamily.Mainstream, From = D(1933, 2, 17), Confidence = SourceConfidence.Documented, Note = "Sourced, skeptical features.",
+				IssueDay = DayOfWeek.Monday, LeadDays = 7, Slots = 1, ReadersMillions = 8f },
 			new() { Id = "village_voice", Name = "The Village Voice", Family = PressFamily.RockCriticism, From = D(1955, 10, 26), Confidence = SourceConfidence.Documented,
-				Note = "Founded 1955; its music coverage grows with the scene." },
+				Note = "Founded 1955; its music coverage grows with the scene.", HomeCityId = "new_york", IssueDay = DayOfWeek.Thursday, LeadDays = 6, Slots = 2, Fit = CriticFit, ReadersMillions = 0.15f },
 			new() { Id = "crawdaddy", Name = "Crawdaddy!", Family = PressFamily.RockCriticism, From = D(1966, 2, 7), Confidence = SourceConfidence.Approximate,
-				Note = "Small, influential readership from 1966." },
+				Note = "Small, influential readership from 1966.", Cadence = PressCadence.Monthly, LeadDays = 21, Slots = 4, Fit = CriticFit, ReadersMillions = 0.02f },
 			new() { Id = "rolling_stone", Name = "Rolling Stone", Family = PressFamily.RockCriticism, From = D(1967, 11, 9), Confidence = SourceConfidence.Documented,
-				Note = "First issue November 9, 1967; small at first." },
+				Note = "First issue November 9, 1967; small at first.", IssueDay = DayOfWeek.Saturday, LeadDays = 14, Slots = 4, Fit = CriticFit, ReadersMillions = 0.04f },
+
+			// Specialist and community press (§8): highly influential inside an audience, not a lesser tier.
+			new() { Id = "chicago_defender", Name = "The Chicago Defender", Family = PressFamily.Specialist, From = D(1905, 5, 5), HomeCityId = "chicago",
+				Confidence = SourceConfidence.Documented, Note = "Black daily with a national readership.", Cadence = PressCadence.Daily, LeadDays = 1, Slots = 3, Fit = SoulPressFit, ReadersMillions = 0.25f },
+			new() { Id = "pittsburgh_courier", Name = "The Pittsburgh Courier", Family = PressFamily.Specialist, From = D(1907, 1, 15), HomeCityId = "pittsburgh",
+				Confidence = SourceConfidence.Approximate, Note = "Black weekly with national editions.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 3, Fit = SoulPressFit, ReadersMillions = 0.2f },
+			new() { Id = "amsterdam_news", Name = "The Amsterdam News", Family = PressFamily.Specialist, From = D(1909, 12, 4), HomeCityId = "new_york",
+				Confidence = SourceConfidence.Documented, Note = "Harlem's weekly.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 3, Fit = SoulPressFit, ReadersMillions = 0.12f },
+			new() { Id = "afro_american", Name = "The Afro-American", Family = PressFamily.Specialist, From = D(1892, 8, 13), HomeCityId = "baltimore",
+				Confidence = SourceConfidence.Documented, Note = "Black weekly with regional editions.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 3, Fit = SoulPressFit, ReadersMillions = 0.15f },
+			new() { Id = "philadelphia_tribune", Name = "The Philadelphia Tribune", Family = PressFamily.Specialist, From = D(1884, 11, 1), HomeCityId = "philadelphia",
+				Confidence = SourceConfidence.Documented, Note = "Black newspaper of record in Philadelphia.", IssueDay = DayOfWeek.Tuesday, LeadDays = 3, Slots = 2, Fit = SoulPressFit, ReadersMillions = 0.06f },
+			new() { Id = "michigan_chronicle", Name = "The Michigan Chronicle", Family = PressFamily.Specialist, From = D(1936, 1, 1), HomeCityId = "detroit",
+				Confidence = SourceConfidence.Approximate, Note = "Detroit's Black weekly.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 3, Fit = SoulPressFit, ReadersMillions = 0.06f },
+			new() { Id = "la_sentinel", Name = "The Los Angeles Sentinel", Family = PressFamily.Specialist, From = D(1933, 1, 1), HomeCityId = "los_angeles",
+				Confidence = SourceConfidence.Approximate, Note = "Black weekly in Los Angeles.", IssueDay = DayOfWeek.Thursday, LeadDays = 4, Slots = 2, Fit = SoulPressFit, ReadersMillions = 0.05f },
+			new() { Id = "atlanta_daily_world", Name = "The Atlanta Daily World", Family = PressFamily.Specialist, From = D(1928, 8, 5), HomeCityId = "atlanta",
+				Confidence = SourceConfidence.Approximate, Note = "Black daily in Atlanta.", Cadence = PressCadence.Daily, LeadDays = 1, Slots = 2, Fit = SoulPressFit, ReadersMillions = 0.03f },
+			new() { Id = "call_and_post", Name = "The Call and Post", Family = PressFamily.Specialist, From = D(1927, 1, 1), HomeCityId = "cleveland",
+				Confidence = SourceConfidence.Approximate, Note = "Cleveland's Black weekly.", IssueDay = DayOfWeek.Saturday, LeadDays = 4, Slots = 2, Fit = SoulPressFit, ReadersMillions = 0.04f },
+			new() { Id = "jet", Name = "Jet", Family = PressFamily.Specialist, From = D(1951, 11, 1), Confidence = SourceConfidence.Documented,
+				Note = "Weekly national news magazine for Black readers.", IssueDay = DayOfWeek.Thursday, LeadDays = 10, Slots = 3, Fit = SoulPressFit, ReadersMillions = 2.0f },
+			new() { Id = "ebony", Name = "Ebony", Family = PressFamily.Specialist, From = D(1945, 11, 1), Confidence = SourceConfidence.Documented,
+				Note = "Monthly picture magazine.", Cadence = PressCadence.Monthly, LeadDays = 42, Slots = 2, Fit = SoulPressFit, ReadersMillions = 3.0f },
+			new() { Id = "country_song_roundup", Name = "Country Song Roundup", Family = PressFamily.Specialist, From = D(1949, 1, 1), Confidence = SourceConfidence.Approximate,
+				Note = "Lyrics and stories for country fans.", Cadence = PressCadence.Monthly, LeadDays = 42, Slots = 4, Fit = CountryPressFit, ReadersMillions = 0.3f },
+			new() { Id = "music_city_news", Name = "Music City News", Family = PressFamily.Specialist, From = D(1963, 7, 1), HomeCityId = "nashville", Confidence = SourceConfidence.Approximate,
+				Note = "Nashville's country paper from 1963.", Cadence = PressCadence.Monthly, LeadDays = 21, Slots = 5, Fit = CountryPressFit, ReadersMillions = 0.1f },
+			new() { Id = "down_beat", Name = "Down Beat", Family = PressFamily.Specialist, From = D(1934, 7, 1), HomeCityId = "chicago", Confidence = SourceConfidence.Documented,
+				Note = "The jazz magazine; reviews by the musicians' own standard.", IssueDay = DayOfWeek.Thursday, LeadDays = 21, Slots = 3, Fit = JazzPressFit, ReadersMillions = 0.1f },
+			new() { Id = "sing_out", Name = "Sing Out!", Family = PressFamily.Specialist, From = D(1950, 5, 1), HomeCityId = "new_york", Confidence = SourceConfidence.Documented,
+				Note = "The folk song magazine.", Cadence = PressCadence.Monthly, LeadDays = 42, Slots = 3, Fit = FolkPressFit, ReadersMillions = 0.03f },
+			new() { Id = "broadside", Name = "Broadside", Family = PressFamily.Specialist, From = D(1962, 2, 1), HomeCityId = "new_york", Confidence = SourceConfidence.Approximate,
+				Note = "Mimeographed topical-song sheet.", Cadence = PressCadence.Monthly, LeadDays = 14, Slots = 2, Fit = FolkPressFit, ReadersMillions = 0.005f },
+			// The underground press: small, local, and the first to write about a scene.
+			new() { Id = "la_free_press", Name = "The Los Angeles Free Press", Family = PressFamily.RockCriticism, From = D(1964, 5, 1), HomeCityId = "los_angeles",
+				Confidence = SourceConfidence.Approximate, Note = "Underground weekly from 1964.", IssueDay = DayOfWeek.Friday, LeadDays = 5, Slots = 2, Fit = CriticFit, ReadersMillions = 0.03f },
+			new() { Id = "east_village_other", Name = "The East Village Other", Family = PressFamily.RockCriticism, From = D(1965, 10, 1), HomeCityId = "new_york",
+				Confidence = SourceConfidence.Approximate, Note = "Underground paper from 1965.", IssueDay = DayOfWeek.Wednesday, LeadDays = 7, Slots = 2, Fit = CriticFit, ReadersMillions = 0.02f },
+			new() { Id = "berkeley_barb", Name = "The Berkeley Barb", Family = PressFamily.RockCriticism, From = D(1965, 8, 13), HomeCityId = "san_francisco",
+				Confidence = SourceConfidence.Approximate, Note = "Underground weekly across the bay.", IssueDay = DayOfWeek.Friday, LeadDays = 5, Slots = 2, Fit = CriticFit, ReadersMillions = 0.02f },
 		};
+		// Every playable city has a daily paper with an entertainment column (§8 local general press): fictional mastheads,
+		// keyed per world. Often the first earned clipping a small label ever gets.
+		foreach (string city in metro1960.Keys.OrderBy(c => c, StringComparer.Ordinal)) {
+			string cityName = DistanceModel.GetCityById(city)?.name ?? city;
+			string masthead = Mastheads[(int)(MediaAtmosphere.Unit("daily|" + city) * Mastheads.Length) % Mastheads.Length];
+			list.Add(new PressOutlet {
+				Id = "daily_" + city, Name = $"The {cityName} {masthead}", Family = PressFamily.LocalDaily, From = D(1900, 1, 1), HomeCityId = city,
+				Confidence = SourceConfidence.Fictional, Note = "A city daily's entertainment page (fictional masthead).",
+				Cadence = PressCadence.Daily, LeadDays = 1, Slots = 2, ReadersMillions = MetroPopulationMillions(city, 1960) * 0.25f,
+			});
+		}
 		return list;
 	}
+
+	public static PressOutlet GetPress(string id) => Press.FirstOrDefault(p => p.Id == id);
 
 	/// <summary>Probe hook: forget the seed-keyed build so a different seed rebuilds it.</summary>
 	internal static void Reset() { programs = null; press = null; }

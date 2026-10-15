@@ -2861,6 +2861,9 @@ public partial class PlayerDeskPanel : Control {
 			}
 		}
 
+		// --- PRESS & TELEVISION (media directive Phase 2): producers, editors, standards, reporters on deadline ---
+		MediaSection(desk);
+
 		// --- ARTIST BUY-IN (office only): an act buys a run of its own pressed single outright, cash now ---
 		ArtistBuyInSection(desk);
 
