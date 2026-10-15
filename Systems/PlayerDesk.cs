@@ -4413,7 +4413,7 @@ public partial class PlayerDesk : Node {
 		Master master = masters.FirstOrDefault(m => m.Record?.recordId == recordId);
 		if (master != null) return master.SongTitle;
 		RecordRuntimeData released = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
-		return released?.baseRecord?.title ?? recordId;
+		return released?.baseRecord?.title ?? masterDeals.LastOrDefault(d => d.RecordId == recordId)?.Title ?? recordId;
 	}
 
 	/// <summary>
@@ -4747,6 +4747,7 @@ public partial class PlayerDesk : Node {
 			planned.Remove(release);
 			FireRelease(release, date);
 		}
+		ProcessMasterDealsDawn(date);
 		ProcessTrunkDay();
 		CheckWeeklyInboundCalls();
 		CheckWeeklyRunner();
@@ -5740,9 +5741,9 @@ public partial class PlayerDesk : Node {
 	// existing AI-side type to build on and is a separate, later piece of work.
 	// ========================================================================
 
-	// Master lease/sale: which titles are out, and for how long. Sold is forever; leased comes back at
-	// the recorded chart week. A record can only be in one of these at a time (MasterDealEligible
-	// already refuses a title that's out).
+	// Legacy master lease/sale (before early-game Phase 5): titles a save says were sold or leased through the old
+	// cash-only buttons, which had no buyer behind them. Kept so those saves still read the title as out; nothing new
+	// writes them -- every master deal now goes through PlayerDesk.MasterDeals with a real buyer.
 	private readonly HashSet<string> soldMasterRecordIds = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, int> leasedMasterExpiryWeek = new(StringComparer.Ordinal);
 	// "Once a one-stop knows the title" (§9) -- SellCartonToOneStop doesn't otherwise leave a mark on
@@ -5751,94 +5752,21 @@ public partial class PlayerDesk : Node {
 	// doesn't un-know it.
 	private readonly HashSet<string> oneStopKnownRecordIds = new(StringComparer.Ordinal);
 
-	public const int MasterDealHours = SignHours; // a real sit-down, same weight as any other contract talk
-	private const float MasterSaleValueMultiple = 3.0f;   // permanent -- the bigger number buys the whole future
-	private const float MasterLeaseValueMultiple = 1.25f; // temporary -- a slice, not the whole future
+	/// <summary>Weeks a legacy (pre-Phase 5) lease ran; only old saves and the save probe use it.</summary>
 	public const int MasterLeaseTermWeeks = 26;
-	// An $800 company's real floor -- directive §9 frames this as "an honorable success," never a token
-	// payout once a title has actually earned the gate below.
-	private const float MasterDealValueFloor = 150f;
 
-	/// <summary>True while a title is out on lease or sold outright -- the player's own sale verbs
-	/// (PitchAtStop/ConsignAtStop/ServiceStop via ValidateStopAction, SellCartonToOneStop, ArtistBuyIn,
-	/// OrderPressing) all refuse it. A lease expires on its own; a sale never does.</summary>
+	/// <summary>True while a title is out on a master deal (awaiting the buyer's release, leased, or sold), or on a
+	/// legacy lease or sale from an older save -- the player's own sale verbs (PitchAtStop/ConsignAtStop/ServiceStop via
+	/// ValidateStopAction, SellCartonToOneStop, ArtistBuyIn, OrderPressing) all refuse it.</summary>
 	public bool IsMasterOut(string recordId) {
 		if (string.IsNullOrEmpty(recordId)) return false;
-		if (soldMasterRecordIds.Contains(recordId)) return true;
+		if (MasterDealHolds(recordId) || soldMasterRecordIds.Contains(recordId)) return true;
 		return leasedMasterExpiryWeek.TryGetValue(recordId, out int expiry)
 			&& (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) < expiry;
 	}
 
-	/// <summary>
-	/// Directive §9: "on the table once a station and a one-stop both know the title." Station
-	/// knowledge reuses <see cref="StrangerRadioThreshold"/> -- the same regional radioPlay bar that
-	/// already makes a stranger's call plausible (§4), so this is not a second buzz meter. One-stop
-	/// knowledge is <see cref="oneStopKnownRecordIds"/>, set the moment a carton of the title actually
-	/// moves through a metro counter (§6). Below both, there is nobody shopping for this title yet.
-	/// </summary>
-	public bool MasterDealEligible(string recordId) {
-		if (string.IsNullOrEmpty(recordId) || IsMasterOut(recordId)) return false;
-		if (!IsOneStopKnown(recordId)) return false;
-		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
-		return rec != null && rec.regionalData.Values.Any(rd => rd != null && rd.radioPlay >= StrangerRadioThreshold);
-	}
-
-	/// <summary>Whether this title has ever moved through a metro one-stop counter -- half of the §9
-	/// master-deal gate, and worth showing on its own in the UI ("a one-stop already knows this one").</summary>
+	/// <summary>Whether this title has ever moved through a metro one-stop counter ("a one-stop already knows this one").</summary>
 	public bool IsOneStopKnown(string recordId) => !string.IsNullOrEmpty(recordId) && oneStopKnownRecordIds.Contains(recordId);
-
-	// The record's own lifetimeLabelNet is the one number on the books that already prices "how much
-	// this title has proven it can pull" -- a buyer pays a multiple of that for the right to keep
-	// collecting elsewhere, floored so a genuine hit is never sold for a token sum.
-	private float MasterDealValue(string recordId, float multiple) {
-		RecordRuntimeData rec = ReleasedRecords.FirstOrDefault(r => r.baseRecord?.recordId == recordId);
-		return Mathf.Max(MasterDealValueFloor, (rec?.lifetimeLabelNet ?? 0f) * multiple);
-	}
-
-	public float MasterSaleValue(string recordId) => MasterDealValue(recordId, MasterSaleValueMultiple);
-	public float MasterLeaseValue(string recordId) => MasterDealValue(recordId, MasterLeaseValueMultiple);
-
-	/// <summary>Sell a title's master outright -- cash now, forever, no more collecting on it through any
-	/// of the player's own channels. The bigger of the two payouts, because it's the whole future.</summary>
-	public bool SellMaster(string recordId, out string message) {
-		message = null;
-		if (Label == null) { message = "You don't have a label yet."; return false; }
-		if (!MasterDealEligible(recordId)) { message = "Nobody's shopping for that one yet -- it needs real airplay and a one-stop that already knows it."; return false; }
-		if (!Require(MasterDealHours, out message)) return false;
-		Spend(MasterDealHours);
-
-		float cash = MasterSaleValue(recordId);
-		soldMasterRecordIds.Add(recordId);
-		Label.cashReserves += cash;
-		Label.monthlyRevenue += cash;
-
-		string title = TitleForRecord(recordId);
-		Note($"Sold the master to \"{title}\" outright for ${cash:N0} -- it's someone else's record to work now.");
-		message = $"Sold \"{title}\" for ${cash:N0} cash, for good.";
-		Changed?.Invoke();
-		return true;
-	}
-
-	/// <summary>Lease a title out for <see cref="MasterLeaseTermWeeks"/> -- smaller cash now, the title
-	/// comes back to the player's own channels once the term runs out.</summary>
-	public bool LeaseMaster(string recordId, out string message) {
-		message = null;
-		if (Label == null) { message = "You don't have a label yet."; return false; }
-		if (!MasterDealEligible(recordId)) { message = "Nobody's shopping for that one yet -- it needs real airplay and a one-stop that already knows it."; return false; }
-		if (!Require(MasterDealHours, out message)) return false;
-		Spend(MasterDealHours);
-
-		float cash = MasterLeaseValue(recordId);
-		leasedMasterExpiryWeek[recordId] = (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) + MasterLeaseTermWeeks;
-		Label.cashReserves += cash;
-		Label.monthlyRevenue += cash;
-
-		string title = TitleForRecord(recordId);
-		Note($"Leased out \"{title}\" for ${cash:N0} -- {MasterLeaseTermWeeks} weeks before it's yours to work again.");
-		message = $"Leased \"{title}\" for ${cash:N0} cash, {MasterLeaseTermWeeks} weeks.";
-		Changed?.Invoke();
-		return true;
-	}
 
 	// P&D distribution deal: a pitch generates a real offer that sits on the desk until the player
 	// decides. Only one live at a time -- walk away or sign before pursuing another.
@@ -5933,6 +5861,7 @@ public partial class PlayerDesk : Node {
             RoomTables = CaptureRoomTables(),
             Backer = CaptureBacker(),
             Demos = CaptureDemos(),
+            MasterDeals = CaptureMasterDeals(),
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
             StudioTrip = studioTrip?.Copy(),
@@ -6436,6 +6365,7 @@ public partial class PlayerDesk : Node {
         RestoreRoomTables(data.RoomTables);
         RestoreBacker(data.Backer);
         RestoreDemos(data.Demos);
+        RestoreMasterDeals(data.MasterDeals);
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
         studioTrip = data.StudioTrip?.Copy();

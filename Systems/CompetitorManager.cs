@@ -1081,6 +1081,15 @@ public partial class CompetitorManager : Node {
 			// decision with a decade run behind it. See SimTools/ContractNegotiationDirective.md.
 			// AI keeps `artistPayment` here, so its economy is byte-identical.
 			float royaltyExpense = label.isPlayerOwned ? royaltyToArtist : artistPayment;
+			// Early-game Phase 5 (§5.2): a master the player leased or sold to this label. The contract decides who
+			// is owed what on these units (the licensor's royalty, the act's, the producer's), so it replaces the
+			// royalty leg here. Null on every AI-made record: unreachable in an AI-only world.
+			if (runtimeData.baseRecord.playerMasterDealId != null && PlayerDesk.Instance != null) {
+				var dealWeek = PlayerDesk.Instance.SettleMasterDealWeek(runtimeData.baseRecord.playerMasterDealId, artist,
+					Mathf.RoundToInt(weeklyUnits), artistPayment, recouped, royaltyExpense);
+				artistPayment = dealWeek.ArtistPayment; recouped = dealWeek.ArtistRecouped;
+				royaltyToArtist = artistPayment - recouped; royaltyExpense = dealWeek.Expense;
+			}
 			// The decomposition identity gross - cogs - skim - royalty = net has to hold, so the royalty
 			// leg books what the label actually bore.
 			float recordRevenue = grossAfterCogs - skimAmount - royaltyExpense;
@@ -4808,6 +4817,67 @@ public partial class CompetitorManager : Node {
 		WeeklySingleReleases++;
 		RecordArtistRelease(artist, record.recordId, record.format);
 		return true;
+	}
+
+	/// <summary>
+	/// Early-game Phase 5 (§5.4): an AI label releases a master it leased or bought from the player, tagged with the
+	/// contract id. The buyer funds the pressing (per-unit COGS in its own settlement) and the launch campaign, on its
+	/// own marketing rule; the recording was paid for by the player, so no production cost is charged here. Only the
+	/// player desk calls this.
+	/// </summary>
+	public bool ReleaseLicensedPlayerMaster(AILabel buyer, SimulatedArtist artist, Record record, string dealId, float perceivedQuality, GameDate date) {
+		if (buyer == null || record == null || ChartManager.Instance == null || !buyer.IsActive || buyer.isPlayerOwned) return false;
+		record.labelId = buyer.labelId;
+		record.isPlayerOwned = false;
+		record.playerMasterDealId = dealId;
+		record.releaseDate = date;
+		record.projectRole = ProjectRecordRole.OrphanSingle;
+		record.albumProjectId = string.Empty;
+
+		float marketingBudget = artist != null ? buyer.GetMarketingBudget(artist) : 0f;
+		float minReserve = buyer.GetMonthlyOverhead();
+		if (buyer.cashReserves - marketingBudget < minReserve) marketingBudget = Mathf.Max(0f, (buyer.cashReserves - minReserve) * 0.8f);
+		RecordExpense(buyer, marketingBudget);
+		WeeklyMarketingSpend += marketingBudget;
+		WeeklyMarketingEvents++;
+
+		// Same order as the AI's own single (TryReleaseRecord): release, then the label's campaign on what it heard.
+		float perceivedQualityMult = 0.6f + Mathf.Clamp(perceivedQuality, 0f, 1f) * 0.8f;
+		ChartManager.Instance.ReleaseRecord(record);
+		RecordRuntimeData runtimeData = ChartManager.Instance.GetRecordRuntimeData(record.recordId);
+		if (runtimeData == null) return false;
+		runtimeData.sunkProductionCost = 0f;
+		runtimeData.revenueMemoryEligible = false;   // the buyer's format memory learns from its own records
+		runtimeData.releaseMemoryWeek = ChartManager.Instance.GetCurrentChartWeek();
+		runtimeData.projectRole = record.projectRole;
+		if (artist != null) ApplyReleasePromotion(record, artist, buyer, marketingBudget, perceivedQualityMult);
+		TrackRelease(buyer.labelId, record.recordId);
+		WeeklySingleReleases++;
+		if (artist != null) RecordArtistRelease(artist, record.recordId, record.format);
+		return true;
+	}
+
+	/// <summary>
+	/// Early-game Phase 5: one live record changes hands (a regional pickup, or a lease reverting), keeping its chart
+	/// history -- one runtime record per master, never a second chart entry. The new owner's shops are stocked by its
+	/// own reach; the old owner's copies in stores are withdrawn. A player owner sells only where it has a line, as at
+	/// release. <paramref name="dealId"/> is the contract tag (null when the record comes home to the player).
+	/// </summary>
+	public void TransferRecordToLabel(RecordRuntimeData runtimeData, AILabel to, string dealId) {
+		if (runtimeData?.baseRecord == null || to == null) return;
+		string recordId = runtimeData.baseRecord.recordId;
+		string from = runtimeData.baseRecord.labelId;
+		if (!string.IsNullOrEmpty(from) && labelActiveRecords.TryGetValue(from, out var fromIds)) fromIds.Remove(recordId);
+		runtimeData.baseRecord.labelId = to.labelId;
+		runtimeData.baseRecord.isPlayerOwned = to.isPlayerOwned;
+		runtimeData.baseRecord.playerMasterDealId = dealId;
+		float quality = runtimeData.perceivedQualityMultiplier > 0f ? runtimeData.perceivedQualityMultiplier : 1f;
+		foreach (var pair in runtimeData.regionalData) {
+			if (pair.Value == null) continue;
+			pair.Value.unitsInStores = to.isPlayerOwned && !to.HasDistributionInRegion(pair.Key) ? 0
+				: ChartSimulator.CalculateInitialRegionalStock(to, pair.Key, 1f, quality, recordId);
+		}
+		TrackRelease(to.labelId, recordId);
 	}
 
 	/// <summary>Whether label has proven a real regional breakout in regionId -- the exact evidence bar

@@ -387,6 +387,33 @@ public partial class SaveLoadRoundTripRunner : Node {
 				PlayerDesk.Instance.StageDemoForChecks(demoAct, dq with { Day = 501 }).Status = PlayerDesk.DemoStatus.Delivered;
 			}
 
+			// Early-game §5: a lease out with its ledger, an unreleased master held for a buyer, an open offer, a pass, a tape
+			// in the post and a call with an appointment.
+			var probeBuyer = CompetitorManager.Instance.GetOperatingLabels().First(l => !l.isPlayerOwned && l.IsActive);
+			int pd = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+			var probeLease = new MasterDeal { Id = "probe_md_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName, RecordId = "probe_record_9",
+				Title = "Probe Lease", ArtistId = "probe-act", ArtistName = "Probe Act", Status = MasterDealStatus.Out, SignedDay = 10, ReleasedDay = 30, ExpiresDay = pd + 364,
+				NextStatementDay = pd + 91, Units = 400, Earned = 27.44f, Recouped = 27.44f, ActUnitsUnsettled = 400, StockCopies = 12, StockValue = 1.68f,
+				Terms = new MasterDealTerms { Kind = MasterDealKind.Lease, Advance = 300f, RoyaltyRate = .07f, TermWeeks = 52, ReleaseWithinDays = 42, Why = "probe lease" } };
+			probeLease.Ledger.AddRange(new[] {
+				new MasterLedgerEntry { Day = 10, Kind = MasterLedgerKind.Advance, Amount = 300f },
+				new MasterLedgerEntry { Day = 10, Kind = MasterLedgerKind.Stock, Amount = 1.68f, Units = 12 },
+				new MasterLedgerEntry { Day = 30, Kind = MasterLedgerKind.Released },
+				new MasterLedgerEntry { Day = 37, Kind = MasterLedgerKind.Earned, Amount = 27.44f, Units = 400 },
+				new MasterLedgerEntry { Day = 37, Kind = MasterLedgerKind.Recouped, Amount = 27.44f } });
+			PlayerDesk.Instance.StageMasterDealForChecks(probeLease);
+			var heldRecord = new Record { recordId = "probe_held", title = "Probe Held", artistId = "probe-act", artistName = "Probe Act", hookStrength = .6f, productionQuality = .4f };
+			PlayerDesk.Instance.StageMasterDealForChecks(new MasterDeal { Id = "probe_md_2", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				RecordId = "probe_held", Title = "Probe Held", ArtistId = "probe-act", Status = MasterDealStatus.AwaitingRelease, SignedDay = 50, ReleaseDay = pd + 20, ReleaseByDay = pd + 42,
+				Terms = new MasterDealTerms { Kind = MasterDealKind.Sale, Advance = 500f } },
+				new PlayerDesk.Master { Record = heldRecord, ArtistId = "probe-act", SongTitle = "Probe Held", ProductionCost = 55f, Cut = TimeManager.Instance.CurrentDate });
+			PlayerDesk.Instance.StageMasterOfferForChecks(new MasterDealOffer { Id = "probe_mo_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				RecordId = "probe_record_1", Title = "Probe Offer", Route = MasterRoute.Inbound, MadeDay = 1, ExpiresDay = 9999, Read = .7f, Answer = "probe answer",
+				Terms = { new MasterDealTerms { Kind = MasterDealKind.SaleWithAct, Advance = 450f, RoyaltyRate = .03f,
+					ActTerms = new ContractTermSheet(40f, .05f, 3, 4, true, false, .2f, ManagerArchetype.None, null, "probe act terms") } } });
+			PlayerDesk.Instance.StageMasterPassForChecks(new MasterPass { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_2", Day = 4, Evidence = "unreleased", Reason = "probe pass" });
+			PlayerDesk.Instance.StageMasterPostingForChecks(new MasterPosting { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_3", SentDay = pd, AnswerDay = pd + 21, Solicited = true });
+
             var infoSave = PlayerDesk.Instance.CaptureState();
             infoSave.SceneInformation = new SceneInformationKnowledge {
                 Contacts = new() { new() { ContactId = "probe-contact", HeardBillIds = new() { "probe-bill-1", "probe-bill-2" } } },
@@ -596,6 +623,23 @@ public partial class SaveLoadRoundTripRunner : Node {
 				GD.Print($"DEMO_ROUNDTRIP jobs={jobs1.Count} held={b1?.DepositHeld} ok={demoOk}");
 				if (!demoOk) fails.Add("demo bookings lost on round-trip");
 			}
+			{
+				var desk1 = PlayerDesk.Instance;
+				var lease1 = desk1.MasterDeals.FirstOrDefault(d => d.Id == "probe_md_1");
+				var held1 = desk1.MasterDeals.FirstOrDefault(d => d.Id == "probe_md_2");
+				var offer1 = desk1.MasterOffers.FirstOrDefault(o => o.Id == "probe_mo_1");
+				bool masterOk = lease1 != null && lease1.Status == MasterDealStatus.Out && lease1.Terms.Kind == MasterDealKind.Lease && Math.Abs(lease1.Terms.Advance - 300f) < .001f
+					&& lease1.Units == 400 && lease1.ActUnitsUnsettled == 400 && lease1.ExpiresDay == pd + 364 && lease1.Ledger.Count == 5 && lease1.LedgerAgrees()
+					&& held1 != null && held1.Status == MasterDealStatus.AwaitingRelease && desk1.HoldsMasterForChecks("probe_md_2") && desk1.IsMasterOut("probe_held")
+					&& desk1.IsMasterOut("probe_record_9")
+					&& offer1 != null && offer1.Terms.Count == 1 && offer1.Terms[0].ActTerms?.DemandSummary == "probe act terms" && offer1.Route == MasterRoute.Inbound
+					&& desk1.MasterPasses.Any(p => p.Reason == "probe pass") && desk1.MasterPostings.Any(p => p.RecordId == "probe_record_3" && p.Solicited && p.AnswerDay == pd + 21);
+				GD.Print($"MASTER_SHOP_ROUNDTRIP deals={desk1.MasterDeals.Count} offers={desk1.MasterOffers.Count} ledger={lease1?.Ledger.Count} " +
+					$"lease={lease1?.Status}/{lease1?.Units}/{lease1?.ActUnitsUnsettled}/{lease1?.ExpiresDay}=={pd + 364}/{lease1?.LedgerAgrees()} " +
+					$"held={held1?.Status}/{desk1.HoldsMasterForChecks("probe_md_2")}/{desk1.IsMasterOut("probe_held")} offer={offer1?.Terms.Count}/{offer1?.Terms.FirstOrDefault()?.ActTerms?.DemandSummary} " +
+					$"pass={desk1.MasterPasses.Count} post={desk1.MasterPostings.Count} ok={masterOk}");
+				if (!masterOk) fails.Add("master deals/offers/passes/postings lost on round-trip");
+			}
 			if (tableRoom != null) {
 				var rights1 = PlayerDesk.Instance.LastTableRightsAsk(tableRoom);
 				bool tableOk = rights1 != null && rights1.Granted && rights1.AskedDay == 5 && rights1.ExpiresDay == 5 + PlayerDesk.TableRightsTermDays
@@ -803,6 +847,14 @@ public partial class SaveLoadRoundTripRunner : Node {
 				$" missed={loan.Missed} standing={loan.Standing:F2} repaid={loan.Repaid} ledger={loan.Ledger.Count} ledgerAgrees={loan.LedgerAgrees()}");
 		else if (desk.PendingBackerOffer is { } offer)
 			GD.Print($"  BACKER_OFFER expires={offer.Expires} terms={string.Join(";", offer.Terms.Select(t => $"{t.Principal:F0}@{t.Rate:P0}"))}");
+
+		// Early-game §5: master deals, their balances, and whether each ledger still agrees.
+		foreach (var d in desk.MasterDeals)
+			GD.Print($"  MASTER_DEAL {d.Id} {d.Terms.Kind} \"{d.Title}\" to {d.BuyerName} status={d.Status} advance={d.Terms.Advance:F2} rate={d.Terms.RoyaltyRate:P1}" +
+				$" units={d.Units} earned={d.Earned:F2} recouped={d.Recouped:F2} paid={d.Paid:F2} actPaid={d.ActPaid:F2} owedNow={d.OwedNow:F2}" +
+				$" nextStatement={d.NextStatementDay} expires={d.ExpiresDay} ledger={d.Ledger.Count} ledgerAgrees={d.LedgerAgrees()}");
+		foreach (var o in desk.MasterOffers)
+			GD.Print($"  MASTER_OFFER {o.BuyerName} on \"{o.Title}\" via {o.Route} expires={o.ExpiresDay} terms={string.Join(";", o.Terms.Select(t => $"{t.Kind}:{t.Advance:F0}"))}");
 
 		int unresolved = 0;
 		foreach ((string cityName, string stopName, string title, int remaining) in desk.StopStock()) {

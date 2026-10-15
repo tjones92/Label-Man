@@ -260,13 +260,12 @@ public partial class PlayerDesk {
 				today, CashCertainty.Accepted, AtHome, AtHome ? $"${ArtistBuyInPrice:F2} a copy, cash today; no chart credit." : "Back at the office only."));
 		}
 
-		// Existing late exits (§1.2): master deals and the plant's credit run.
+		// §5: master deals -- an open offer is money agreed if you sign; shopping a title is speculative.
+		list.AddRange(MasterDealCashOptions(today, TooLate, Late));
+		// The plant's credit run (§1.2).
 		foreach (var rec in ReleasedRecords) {
 			string id = rec.baseRecord?.recordId;
 			if (id == null || IsMasterOut(id)) continue;
-			if (MasterDealEligible(id))
-				list.Add(new("Lease or sell the master", $"\"{TitleForRecord(id)}\"", "airplay and a one-stop that knows it", 0f, MasterLeaseValue(id), today,
-					CashCertainty.Accepted, true, $"Lease ${MasterLeaseValue(id):N0} or sell ${MasterSaleValue(id):N0}; the title leaves your own channels."));
 			if (PlantCreditEligible(id))
 				list.Add(new("Plant credit run", $"\"{TitleForRecord(id)}\"", $"open calls for {OpenCallDemand(id):N0}", 0f, 0f, null, CashCertainty.Accepted, AtHome,
 					$"{PlantCreditQuantity:N0} copies with no cash down; ${PressingCost(PlantCreditQuantity, HasBeenPressed(id)):N0} is due in {PlantCreditTermWeeks} weeks. Stock, not cash."));

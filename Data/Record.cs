@@ -94,6 +94,11 @@ public partial class Record : IFieldsOnlySave {
 	/// <summary>True once the sides have been reversed at least once (directive invariant 4: a disc
 	/// reverses at most once). False means the disc still ships as pressed -- the A-side plugged.</summary>
 	[Export] public bool bSideIsPlugSide;
+
+	// Early-game directive V2, Phase 5 (§5.4): the one tag on a buyer's release of a master the player leased or sold
+	// to it -- the PlayerDesk.MasterDeals contract id. Null on every record an AI label made itself, so every branch
+	// that reads it is unreachable in an AI-only world.
+	[Export] public string playerMasterDealId;
 }
 
 public enum ReleaseFormat { Single, Album, EP }

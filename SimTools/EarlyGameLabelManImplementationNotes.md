@@ -19,9 +19,10 @@ money. A §4.3 backer, if built, must come from a non-family source.
 | 2 §4.3 | One backer agreement per label, non-family sources, ledger, 1st-of-month payments | `Systems/PlayerDesk.Backer.cs`; gate `SimTools/BackerChecks.*`; UI `BuildBacker` in `PlayerDeskPanel.cs` |
 | 4 §7.1 | Paid demos: real unsigned clients, held deposits, producer fee, demo sample | `Systems/PlayerDesk.Demos.cs`; gate `SimTools/DemoChecks.*`; UI `PaidDemos` in `PlayerDeskPanel.SceneRooms.cs` |
 | 3 F1-F3 | Room tables, audience saturation, local appeal | `Systems/PlayerDesk.RoomTables.cs`, `PlayerDesk.LocalAppeal.cs`; gate `SimTools/RoomTableChecks.*` |
+| 5 §5 | Shop the master: one deal state machine, real buyers that release, lease/sale/sale-with-act, regional pickup | `Systems/PlayerDesk.MasterDeals.cs`; seams in `CompetitorManager.cs`, `RosterManager.cs`, `Data/Record.cs`; gate `SimTools/MasterDealChecks.*`; UI `UI/PlayerDeskPanel.MasterDeals.cs` |
 
-Phases 3, 2 and 4 built 2026-10-14 (in that order), see below. Not started: 5/5A (master
-shopping, song placement), 5B (F5 gig pay), later/deferred items.
+Phases 3, 2, 4 and 5 built 2026-10-14 (in that order), see below. Not started: 5A (song placement), 5B (F5 gig
+pay), later/deferred items.
 
 ## Design choices worth knowing
 
@@ -451,3 +452,98 @@ acts after the day's work) against `none`, New York / LA / Detroit / Memphis x s
 - Reading: demos do not need guaranteed clients to matter; worked every night, they cover about half of New York's
   overhead. Whether that is too generous an escape (directive: "they need not ... rescue every lock") is the author's
   call; the levers are the fee, the savings cap and the acceptance weights, not an income ceiling.
+
+## Phase 5: shop the master (§5), 2026-10-14
+
+Built (`Systems/PlayerDesk.MasterDeals.cs`; UI "SHOP THE MASTER" in the books). Author decision (2026-10-14): three
+contracts, **Lease, Sale, and Sale with the act**, in one deal state machine. They replace the old cash-only
+`SellMaster`/`LeaseMaster` buttons, which had no buyer behind them (the title just went dark). Legacy sold/leased ids in
+older saves still read as out; nothing new writes them.
+
+- **Buyers are real AI labels:** active, the record's genre in their lists (own sound) or the same family (near it, bar
+  +0.04), and able to pay an advance today (`CanAffordToSign`). Their offices are their home towns.
+- **Access routes** (§5.1). A *call* from the office (1h, 9-5, toll $0.50 + $0.004/mile) gets public answers only: not
+  our kind of record, not buying, or "send a tape" plus an appointment 3-7 days out when the office is in driving
+  range. A repeat call inside 28 days is refused free. A *posted tape* (1h, $5 dub + $1.50 postage) is answered 14-28
+  days later, if anyone plays it: 90% after a call asked for it, 40% unsolicited. No reply means another tape waits 91
+  days. A *visit* (2h, in their town, in their hours, with an acetate, or a pressed copy for a released title) is
+  always heard on an appointment day. A walk-in is seen in half the weeks (a fixed draw per buyer and week). Driving
+  rules apply, so a far office can only be called or posted.
+- **The ear** reads hook x0.60 + production x0.40, plus the buyer's own noise (the AI's scouting-ability range,
+  x1.4 off a tape), plus regional evidence for a released title (+0.04 per breakout market up to +0.12, plus copies
+  sold/5,000 up to +0.08). The noise is a fixed draw per buyer and title, so **a pass stands until the evidence
+  changes** (the record comes out, or breaks in another market). A different buyer is a different ear. Bars by tier:
+  Major .66, MidTier .60, Independent .54, Small/Boutique .50. Answers are words ("I hear a record"), never the score.
+- **Contracts** (authored; §5.2's $150-600 is the lease reference):
+  - *Lease:* exclusive, national, 52 weeks from the buyer's release (or takeover). An unreleased master must be out
+    within 42 days of signing, or the rights revert and the advance is kept. The advance is $150-600 by interest and
+    tier; on a breakout it is the larger of that and $150 per market + $0.10 per copy sold, capped at $1,500. It is
+    against 7% of list (8% when the buyer likes it a lot) per payable unit, recouped first, with quarterly statements.
+    The act stays, and the player owes it its royalty on the buyer's units, settled on each statement against its
+    advance. At term the record comes home with its chart history; the buyer's shop copies are withdrawn.
+  - *Sale:* the master is the buyer's for good, at 2.5x the lease advance, not recoupable, no royalty. Offered when the
+    buyer likes it a lot, or on a breakout. The buyer pays the act's royalty on its sales directly, at the act's rate.
+    The player's advance to the act recoups only from royalties the player pays.
+  - *Sale with the act:* released titles with a breakout, offered by an Independent or bigger with roster room **and
+    scene access to the act** (the same `SceneRecruitmentService.CanAccess` test every rival signing needs). The master
+    is sold and the act signs with the buyer on that label's own terms (`RivalOfferTerms`). The player keeps a
+    producer's 3% of list on that master, against 1.5x the lease advance, with quarterly statements. The act's
+    unrecouped balance with the player is left behind.
+  - Payable units are the units the buyer's own settlement bills (AI returns aren't modelled). Publishing is never part
+    of a master deal (that is 5A's job).
+- **Stock** (§5.2 "existing stock, pressings in flight"): on signing the buyer takes the player's pressed copies (office,
+  promo and shop lots) at $0.14 each, reimburses runs at the plant, and its salesmen take over open calls and
+  pre-orders. There is no player sell-off: the title leaves every player channel that day. That is what prevents double
+  sales: the trunk never sells a title the buyer is billing.
+- **The buyer releases it itself** (§5.4): `CompetitorManager.ReleaseLicensedPlayerMaster` follows the AI's own single
+  path. The buyer funds the pressing (its COGS) and a launch campaign on its own marketing rule, sized by what it heard,
+  with no production cost (the player paid for the session). The record is tagged `Record.playerMasterDealId`. A
+  regional pickup instead moves the live record (`TransferRecordToLabel`): one runtime record per master throughout, so
+  there is never a second chart entry. AI competitor loops can't re-release it, because a lease's act isn't on their
+  roster.
+- **Settlement:** one branch in the AI weekly settlement, taken only for tagged records (`SettleMasterDealWeek`),
+  replaces the royalty leg. Lease: the buyer bears the royalty after recoupment and no artist royalty. Sale: the act's
+  royalty at its rate, no recoupment. With the act: the buyer's own artist terms, plus the producer royalty after
+  recoupment. Accrued money is paid on the quarterly statement at dawn. Every advance, stock payment, week's units,
+  recoupment, statement and act settlement is a ledger line, and `LedgerAgrees()` recomputes the balances.
+- **Regional pickup** (§5.3): when a released single's breakout count changes, the best-fitting buyer that would hear a
+  record may phone. The chance is 0.35 + 0.15 per extra market + 0.30 x interest, capped at 0.85, on a fixed draw per
+  evidence: likely, not guaranteed, and one call per change of evidence. The call is an ordinary offer, open 14 days
+  (letters 21).
+- **Failure paths:** a buyer that goes under, or misses the release deadline, returns an unreleased master to the shelf
+  (advance kept). A lease reverts early if its buyer folds. A record the buyer's cull already retired comes back as
+  rights only ("it had already run its course"); reissues aren't built.
+- CASH OPTIONS lists open offers (agreed, signable from the office or at theirs) and each shoppable title (speculative,
+  from $150, a call, tape or visit away). Saved as `PlayerSaveData.MasterDeals` (optional). The buyer's record travels
+  in the world save with its tag; `--inspect-slot` prints every deal and whether its ledger agrees.
+- **Shared-world effects** in player-present games (§0.1, intended): buyer cash (advances, stock, royalties, campaign),
+  buyer catalogue and chart entries, buyer roster (sale with the act), and the AI RNG stream (the buyer's release
+  promotion draws). All values above are authored, not sourced. The historical anchors are only the kinds of transaction
+  (the Miracles lease to End, Tamla's regional break, and the UA pickup with Marv Johnson's signing).
+
+Verification:
+- **AI-only identity:** `egl-p5-1001-52` and, on the final DLL, `egl-p5b-1001-52` match `ref-c566f24-1001-52` on
+  84/84 CSVs, byte for byte.
+- `SaveLoadRoundTripRunner --integration --weeks=26` passes (new `MASTER_SHOP_ROUNDTRIP ok=True`: a lease with its
+  ledger, a held master, an offer with act terms, a pass, a posted tape). CashPlanning 30/30, Backer 49/49, RoomTable
+  49/49, Demo 30/30. Note: at `--weeks=4` the backer row fails because the perturbation week crosses a 1st and settles
+  the staged loan object in place; that is a fixture artifact, and 26 weeks is the documented setting.
+- `MasterDealChecks` 69/69 on the real clock (Detroit, a Soul act). The gate covers:
+  - Buyers are real labels, ranked; calls (hours, toll, public answers, no repeat); posted tapes (cost, timing, one in
+    flight, the letter); the no-copy refusal.
+  - An appointment visit: Atlantic (New York) offers a $600 lease at 8% and a $1,500 sale for the strong side and passes
+    on the weak one. The pass stands, free. CASH OPTIONS shows the offer.
+  - The lease: $600 comes out of Atlantic's cash and the master is held. Atlantic releases it on day 21 (tagged, one
+    chart entry, not in the player's catalogue) and bills 12,475 units in four weeks ($978.05 at 7.8c, $600 recouped).
+    The buyer pays the act nothing. The statement pays $378.05 and settles the act's $550.15 ($100 against its advance,
+    $450.15 paid). Reversion brings the same record home.
+  - A missed release deadline returns the master, advance kept. A breakout brings at most one call per change of
+    evidence (Baltimore Sound phoned).
+  - The pickup lease takes 170 copies at cost, a shop lot and the open calls. The buyer folding reverts the lease.
+  - Sale with the act goes to Mercury, which works the act's scene (Atlantic doesn't, so it never offered it), and moves
+    the act onto Mercury's roster. Hand-settled lease and sale weeks check recoupment and who pays the act. Every ledger
+    agrees.
+- Found and fixed by the gate: two deals on one title in one day shared an id, so the buyer's settlement booked against
+  the dead lease. Ids now carry a saved running ordinal.
+- **Not yet run:** an opening-probe matrix with a master-shopping policy (how often an opening finds a buyer, and what
+  it is worth against overhead).

@@ -816,10 +816,15 @@ public partial class OpeningCashLockRunner : Node {
 		var lines = new List<string>(); int exec = 0, spec = 0, blocked = 0;
 		void Line(string kind, string text) { lines.Add(kind + ": " + text); if (kind == "executable") exec++; else if (kind == "speculative") spec++; else blocked++; }
 		var releasedIds = Desk.ReleasedRecords.Select(r => r.baseRecord.recordId).ToList();
-		if (releasedIds.Count == 0) Line("blocked", "master sale/lease: nothing released");
+		foreach (var offer in Desk.MasterOffers)
+			Line("executable", $"master offer from {offer.BuyerName} on {offer.RecordId}: best ${offer.Terms.Max(t => t.Advance):F0}");
+		var shoppable = Desk.ShoppableMasterIds().ToList();
+		if (shoppable.Count == 0) Line("blocked", "master deal: nothing recorded to shop");
+		foreach (string id in shoppable) {
+			int buyers = Desk.MasterBuyersFor(id).Count(b => b.Block == null);
+			Line(buyers > 0 ? "speculative" : "blocked", $"shop the master {id}: {buyers} label(s) in its sound with cash to pay");
+		}
 		foreach (string id in releasedIds) {
-			if (Desk.MasterDealEligible(id)) Line("executable", $"master lease ${Desk.MasterLeaseValue(id):F0} / sale ${Desk.MasterSaleValue(id):F0} on {id}");
-			else Line("blocked", $"master deal on {id}: one-stop known={Desk.IsOneStopKnown(id)}, needs regional radio too");
 			if (Desk.PlantCreditEligible(id)) Line("executable", $"plant credit on {id} (open calls {Desk.OpenCallDemand(id)})");
 			else Line("blocked", $"plant credit on {id}: open calls {Desk.OpenCallDemand(id)} under threshold or one owed");
 		}

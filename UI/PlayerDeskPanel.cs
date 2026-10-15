@@ -3098,29 +3098,11 @@ public partial class PlayerDeskPanel : Control {
 			content.AddChild(new LedgerTable().Set(null, new[] { "record", "units", "this wk", "peak", "earned", "tape", "net" }, recordRows));
 			Body("Net is what a record has earned against its tape. In parentheses, it still has that much to make back.");
 
-			foreach (RecordRuntimeData record in released) {
-				string recordId = record.baseRecord.recordId;
-				// Directive §9: a one-off transaction on this one title, distinct from the P&D deal
-				// above (which covers the whole catalog). Only on the table once a station and a
-				// one-stop both know it -- MasterDealEligible is the single source of truth for that.
-				if (desk.IsMasterOut(recordId)) {
+			foreach (RecordRuntimeData record in released)
+				if (desk.IsMasterOut(record.baseRecord.recordId))
 					Body($"\"{record.baseRecord.title}\" — the master's out on this one; not yours to sell right now.");
-				} else if (desk.MasterDealEligible(recordId)) {
-					Body($"\"{record.baseRecord.title}\" — a one-off deal on the master:");
-					var dealRow = new HBoxContainer();
-					dealRow.AddThemeConstantOverride("separation", 10);
-					var leaseBtn = Btn($"LEASE THE MASTER (${desk.MasterLeaseValue(recordId):N0}, {PlayerDesk.MasterLeaseTermWeeks}wk)");
-					leaseBtn.CustomMinimumSize = new Vector2(260, 36);
-					leaseBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.LeaseMaster(recordId, out string message); Say(message, ok); return ok; });
-					dealRow.AddChild(leaseBtn);
-					var sellBtn = Btn($"SELL THE MASTER (${desk.MasterSaleValue(recordId):N0})");
-					sellBtn.CustomMinimumSize = new Vector2(220, 36);
-					sellBtn.Pressed += () => Act(() => { bool ok = PlayerDesk.Instance.SellMaster(recordId, out string message); Say(message, ok); return ok; });
-					dealRow.AddChild(sellBtn);
-					content.AddChild(dealRow);
-				}
-			}
 		}
+		BuildMasterDeals(desk);
 
 		Heading("ARTIST ACCOUNTS");
 		var roster = desk.Roster.ToList();
