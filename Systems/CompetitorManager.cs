@@ -1156,7 +1156,15 @@ public partial class CompetitorManager : Node {
 					AILabel controller = routing.ControllerLabelId != null && settlementLabelLookup != null
 						&& settlementLabelLookup.TryGetValue(routing.ControllerLabelId, out AILabel cl) ? cl : null;
 					if (controller != null && !ReferenceEquals(controller, label)) {
-						// Early-game Phase 5A: a cut of a song the player placed here. The placement's advance recoups first
+						// The player's songs on an AI record earn the period mechanical, not the AI economy's 11%
+							// composition pool (~9.8c a copy, five times the 1909 Act's 2c). The pool's remainder stays
+							// with the buyer. Player-owned controllers only, so AI-to-AI routing is untouched.
+							if (controller.isPlayerOwned && publishingPool > 0f) {
+								float overPeriod = transferSlice * (1f - Mathf.Min(1f, weeklyUnits * MechanicalRoyaltyService.RatePerCopy / publishingPool));
+								recordRevenue += overPeriod;
+								transferSlice -= overPeriod;
+							}
+							// Early-game Phase 5A: a cut of a song the player placed here. The placement's advance recoups first
 						// out of this slice (the buyer, which paid it, keeps that part); the rest accrues to the player's
 						// statement instead of this week's receipts. Null on every AI-chosen record.
 						float buyerKeeps = runtimeData.baseRecord.playerPlacementId != null && controller.isPlayerOwned && PlayerDesk.Instance != null

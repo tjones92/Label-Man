@@ -161,8 +161,8 @@ public partial class PlacementChecks : Node {
 			Check(deal.Units > 0 && deal.Units <= runtime.totalUnitsSold && deal.Units >= runtime.totalUnitsSold - runtime.unitsThisWeek,
 				$"{deal.Units} units billed of {runtime.totalUnitsSold} sold (a week's lag at most)");
 			float perUnit = deal.Earned / Mathf.Max(1, deal.Units);
-			Check(perUnit > CompetitorManager.PublishingShareOfGross * .5f && perUnit < CompetitorManager.PublishingShareOfGross * 1.5f,
-				$"${deal.Earned:F2} earned, {perUnit * 100f:F2}c a copy: the {CompetitorManager.PublishingShareOfGross:P0} slice of their gross");
+			Check(perUnit > MechanicalRoyaltyService.RatePerCopy * .9f && perUnit < MechanicalRoyaltyService.RatePerCopy * 1.1f,
+				$"${deal.Earned:F2} earned, {perUnit * 100f:F2}c a copy: the 2c statutory mechanical, not the AI's 11% pool");
 			Check(Near(deal.Recouped, Mathf.Min(deal.Advance, deal.Earned)) && deal.LedgerAgrees(), $"${deal.Recouped:F2} against the advance; ledger agrees");
 			Check(Near(label.lifetimePublishingReceived, published0), "None of it reached you as weekly receipts: it waits for the statement");
 

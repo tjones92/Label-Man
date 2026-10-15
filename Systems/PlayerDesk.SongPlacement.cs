@@ -125,7 +125,9 @@ public sealed class SongPlacementCall {
 ///   The label's act cuts it as its next single, when it next makes one and would have recorded an outside song (an act
 ///   about to record its own song keeps to it). No cut in the hold: the hold lapses and the advance is kept.
 /// - The song's income is the publishing slice the buyer's settlement already pays out of every record's gross
-///   (<see cref="CompetitorManager.PublishingShareOfGross"/>). It is routed off the song's rights exactly as for any other
+///   (<see cref="CompetitorManager.PublishingShareOfGross"/>), cut to the period mechanical (2c a copy sold,
+///   <see cref="MechanicalRoyaltyService.RatePerCopy"/>) when the controller is the player: the AI pool is a calibration
+///   figure about five times the 1909 Act's rate, and the remainder stays with the buyer. It is routed off the song's rights exactly as for any other
 ///   record of a song an in-game label controls; this contract only recoups the advance from it first (the buyer keeps that
 ///   part) and pays the rest on a quarterly statement from the record's release. No separate mechanical is charged: an AI
 ///   record's composition cost is that slice. Under the act's contract the label keeps the publishing, so, as on the
@@ -282,13 +284,13 @@ public partial class PlayerDesk {
 		float advance = Mathf.Clamp(Round5(Mathf.Lerp(PlacementAdvanceMin, PlacementAdvanceMax, s) * MasterTierScale(buyer)), PlacementAdvanceMin, PlacementAdvanceMax);
 		bool cover = PlayerRecordOfSong(songId) != null;
 		int today = TodayIndex();
-		float cents = CompetitorManager.PublishingShareOfGross * ListPrice * 100f;
+		float cents = MechanicalRoyaltyService.RatePerCopy * 100f;
 		return (null, new SongPlacementOffer {
 			Id = $"po-{songId}-{buyer.labelId}-{today}-{++placementOrdinal}", BuyerLabelId = buyer.labelId, BuyerName = buyer.labelName,
 			SongId = songId, Title = song.title, Route = route, MadeDay = today, Read = read, Advance = advance, HoldDays = PlacementHoldDays, Cover = cover,
 			ExpiresDay = today + (route == MasterRoute.Post ? PlacementLetterOfferDays : PlacementOfferDays),
 			Answer = $"{buyer.labelName}: " + (s < 0.33f ? "\"One of our people could do something with that.\"" : s < 0.66f ? "\"That's a song.\"" : "\"I know exactly who should sing that.\""),
-			Why = $"${advance:N0} now, against the song's share of their record ({CompetitorManager.PublishingShareOfGross:P0} of their sales, about {cents:F1}c a copy at list), " +
+			Why = $"${advance:N0} now, against the song's mechanical on their record ({cents:F0}c a copy sold, the statutory rate), " +
 				$"paid quarterly once the advance is back. They hold it {PlacementHoldDays / 7} weeks for one of their {(fit.Value ? "" : "nearby ")}acts to cut first" +
 				(cover ? ", as a cover of your record" : "") + "; no cut in that time and the advance is yours anyway. The song stays yours; the record is theirs.",
 		});
