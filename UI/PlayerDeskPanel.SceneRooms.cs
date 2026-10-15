@@ -37,7 +37,59 @@ public partial class PlayerDeskPanel {
             content.AddChild(grid);
         }
         BookYourActs(desk);
+        SellAtTheRooms(desk);
         ScoutingSceneContacts(desk);
+    }
+
+    /// <summary>Early-game F1: record tables at the town's rooms on their show nights. Rights come from the booker (or
+    /// your act being on the bill); the table goes up an hour before the first set and settles when the bill ends.</summary>
+    private void SellAtTheRooms(PlayerDesk desk) {
+        if (desk.Label == null || !PlayerDesk.RoomTablesActive(desk.CurrentCityId)) return;
+        var rooms = SceneRoomCatalog.ForPlace(desk.CurrentCityId).Where(PlayerDesk.RoomSellsRecords).ToList();
+        ScoutingText("SELL AT THE ROOMS", 18, ScoutingVenueInk, PaperTheme.SansBold);
+        ScoutingText($"A record table needs the booker's say-so (ask him in person, {PlayerDesk.TableRightsHours}h) or one of your acts on the bill. " +
+            "Set up an hour before the first set and stay to the end; you sell to whoever came, and the same regulars don't buy a record twice. " +
+            "A night that doesn't go ahead sells nothing.", 14, Heard);
+        foreach (var room in rooms) {
+            var rights = desk.TableRightsAt(room.Id);
+            var last = desk.LastTableRightsAsk(room.Id);
+            string state = rights != null ? $"table through {LocalSceneRoomService.Date(rights.ExpiresDay).ToShortString()}, room takes {rights.Cut:P0}"
+                : last != null && !last.Granted ? $"said no on {LocalSceneRoomService.Date(last.AskedDay).ToShortString()}"
+                : $"no table yet (room would take {PlayerDesk.RoomTableCut(room.Kind):P0})";
+            ScoutingText($"{room.Name} ({SceneRoomCharacter.KindName(room.Kind)}): {state}.", 14, Ink);
+        }
+        var ask = new HFlowContainer(); ask.AddThemeConstantOverride("h_separation", 8);
+        var roomPick = Option(); foreach (var r in rooms) roomPick.AddItem(r.Name);
+        var askBtn = Btn($"ASK FOR A TABLE  ({PlayerDesk.TableRightsHours}h)");
+        askBtn.Pressed += () => Act(() => {
+            var room = rooms[Mathf.Clamp(roomPick.Selected, 0, rooms.Count - 1)];
+            bool ok = desk.AskForTableRights(room.Id, out string message); Say(message, ok); return true;
+        });
+        ask.AddChild(roomPick); ask.AddChild(askBtn); content.AddChild(ask);
+
+        var nights = desk.RoomTableNights(desk.CurrentCityId).Take(6).ToList();
+        var onHand = desk.PressedSinglesOnHand().ToList();
+        if (nights.Count == 0) { ScoutingText("No announced nights where you can put a table out.", 14, Heard); return; }
+        int today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+        foreach (var night in nights) {
+            var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8);
+            var when = LocalSceneRoomService.Date(night.Bill.Day);
+            var label = new Label { Text = $"{night.Room.Name}, {when.ToHeadlineString()} {Hour12(night.Bill.StartHour)}–{Hour12(night.Bill.EndHour)}" +
+                (night.OwnAct ? " · your act is on the bill" : "") };
+            label.AddThemeColorOverride("font_color", Ink);
+            row.AddChild(label);
+            if (night.Bill.Day == today && onHand.Count > 0) {
+                var pick = Option(); foreach (var s in onHand) pick.AddItem($"{s.Title} ({s.OnHand})");
+                var work = Btn($"WORK THE TABLE  (to {Hour12(night.Bill.EndHour)})");
+                var room = night.Room;
+                work.Pressed += () => Act(() => {
+                    var (recordId, _, _) = onHand[Mathf.Clamp(pick.Selected, 0, onHand.Count - 1)];
+                    bool ok = desk.WorkRoomTable(room.Id, recordId, out string message); Say(message, ok); return true;
+                });
+                row.AddChild(pick); row.AddChild(work);
+            }
+            content.AddChild(row);
+        }
     }
 
     /// <summary>Early-game §6.3: ask a room's booker for a night for one of your acts, and see what was promised and what

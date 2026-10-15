@@ -344,7 +344,69 @@ public partial class OpeningCashLockRunner : Node {
 				}
 			}
 		}
+		// F1: a room's table is a dated night. An early bill (a hall or roadhouse afternoon) comes first; otherwise the
+		// counters until the booker's hours, ask for table rights, the counters until set-up, then the night.
+		var tonight = TableNightToday();
+		int setUp = tonight != null ? tonight.Bill.StartHour - 1 : 99;
+		if (tonight != null && setUp < PlayerDesk.BookerFromHour) {
+			foreach (string id in selling) if (!WorkTown(Desk.CurrentCityId, id, setUp)) return;
+			WorkTableNight(tonight, selling); tonight = null;
+		}
+		foreach (string id in selling) if (!WorkTown(Desk.CurrentCityId, id, Math.Min(setUp, PlayerDesk.BookerFromHour))) return;
+		AskTableRights();
+		if (tonight != null) {
+			foreach (string id in selling) if (!WorkTown(Desk.CurrentCityId, id, setUp)) return;
+			WorkTableNight(tonight, selling);
+		}
 		foreach (string id in selling) if (!WorkTown(Desk.CurrentCityId, id)) return;
+	}
+
+	// ── F1 room tables ─────────────────────────────────────────────────────────────────────────
+	private int tableAsks, tableRightsWon, tableNights, tableNightsCancelled, tableNightsEmpty, tableCopies, tableNightsOwnAct;
+	private readonly Dictionary<string, int> tableAskedDay = new(StringComparer.Ordinal);
+
+	private PlayerDesk.RoomTableNight TableNightToday() {
+		if (!PlayerDesk.RoomTablesActive(Desk.CurrentCityId)) return null;
+		int today = LocalSceneRoomService.Day(Clock.CurrentDate), now = Clock.CurrentHour * 60 + Clock.CurrentMinute;
+		return Desk.RoomTableNights(Desk.CurrentCityId).Where(n => n.Bill.Day == today && (n.Bill.StartHour - 1) * 60 >= now)
+			.OrderByDescending(n => n.OwnAct).ThenByDescending(n => n.Bill.ExpectedAudience).ThenBy(n => n.Room.Id, StringComparer.Ordinal).FirstOrDefault();
+	}
+
+	/// <summary>At home, once a term per room: ask each selling room's booker for a table (the desk enforces a standing no).</summary>
+	private void AskTableRights() {
+		if (!Desk.AtHome || !PlayerDesk.RoomTablesActive(Desk.CurrentCityId)) return;
+		if (Clock.CurrentHour > PlayerDesk.BookerFromHour) return;
+		var rooms = SceneRoomCatalog.ForPlace(Desk.CurrentCityId).Where(PlayerDesk.RoomSellsRecords)
+			.Where(r => Desk.TableRightsAt(r.Id) == null && (!tableAskedDay.TryGetValue(r.Id, out int last) || dayIndex - last >= PlayerDesk.TableRightsTermDays / 3)).ToList();
+		if (rooms.Count == 0) return;
+		if (Clock.CurrentHour < PlayerDesk.BookerFromHour && !Desk.PassTime(Desk.HoursUntil(PlayerDesk.BookerFromHour), out _)) return;
+		foreach (var room in rooms) {
+			if (Clock.CurrentHour >= room.CloseHour) continue;
+			tableAskedDay[room.Id] = dayIndex;
+			bool ok = Desk.AskForTableRights(room.Id, out var message);
+			if (!ok) { Repeat("table-rights-not-now"); continue; }
+			tableAsks++;
+			bool won = Desk.TableRightsAt(room.Id) != null; if (won) tableRightsWon++;
+			Act(true, won ? "table-rights-won" : "table-rights-refused", message, room.Name);
+		}
+	}
+
+	/// <summary>Set up an hour before the first set with the title the room's regulars want most, and stay to the end.</summary>
+	private void WorkTableNight(PlayerDesk.RoomTableNight night, List<string> selling) {
+		string id = selling.Where(s => (Desk.StockFor(s)?.Remaining ?? 0) > 0).OrderByDescending(s => Desk.RoomTableBuyersLeft(night.Room.Id, s)).ThenBy(s => s, StringComparer.Ordinal).FirstOrDefault();
+		if (id == null) return;
+		int setUp = night.Bill.StartHour - 1;
+		if (Clock.CurrentHour < setUp && !Desk.PassTime(Desk.HoursUntil(setUp), out _)) return;
+		int before = Desk.StockFor(id).Remaining;
+		bool ok = Desk.WorkRoomTable(night.Room.Id, id, out var message);
+		Act(ok, "room-table", message, night.Room.Name, night.OwnAct);
+		if (!ok) return;
+		int sold = before - (Desk.StockFor(id)?.Remaining ?? 0);
+		tableNights++; tableCopies += sold;
+		if (night.OwnAct) tableNightsOwnAct++;
+		if (message.Contains("didn't go ahead")) tableNightsCancelled++;
+		else if (sold == 0) tableNightsEmpty++;
+		if (sold > 0) { Channel("room-table"); firstSaleDay ??= dayIndex; }
 	}
 
 	/// <summary>Repress a title that sold out: to fill open calls, or when it has already moved half a run.</summary>
@@ -369,11 +431,12 @@ public partial class OpeningCashLockRunner : Node {
 	}
 
 	/// <summary>Work every account in a town for one title. False once the day is spent.</summary>
-	private bool WorkTown(string cityId, string id) {
+	private bool WorkTown(string cityId, string id, int untilHour = 99) {
 		bool Out() => (Desk.StockFor(id)?.Remaining ?? 0) <= 0;
 		bool Full(bool ok, string message) => !ok && message != null && message.Contains("hard stop");
 		foreach (var stop in Desk.StopsInCity(cityId).ToList()) {
 			if (Out()) return true;
+			if (Clock.CurrentHour + 2 > untilHour) return true;   // leave time for a booker or a table night
 			if (Desk.HasWorkedStopToday(stop.StopId)) continue;
 			bool ok; string message; string verb;
 			switch (stop.Kind) {
@@ -388,6 +451,7 @@ public partial class OpeningCashLockRunner : Node {
 					else { ok = Desk.PitchAtStop(stop.StopId, id, out message); verb = "pitch"; }
 					break;
 				case PlayerDesk.StopKind.Venue:
+					if (PlayerDesk.RoomTablesActive(cityId)) continue;   // tables are room nights now (WorkTableNight)
 					ok = Desk.WorkTheHopTable(stop.StopId, id, out message); verb = "table";
 					break;
 				case PlayerDesk.StopKind.OneStop:
@@ -567,6 +631,11 @@ public partial class OpeningCashLockRunner : Node {
 			bookingsPerformed = bookings.Count(b => b.Status == SceneBillStatus.Performed),
 			bookingsFellThrough = bookings.Count(b => b.Status == SceneBillStatus.Cancelled),
 			residencyAsks, residenciesWon,
+			tableAsks, tableRightsWon, tableNights, tableNightsOwnAct, tableNightsCancelled, tableNightsEmpty, tableCopies,
+			following = signedIds.Select(a => new {
+				act = a, home = Math.Round(Desk.LocalFollowing(a, Desk.Label?.homeCityId), 3),
+				lift = Desk.Label == null ? 0 : Math.Round(Desk.LocalAppealLift(a, ArtistManager.Instance.GetArtist(a)?.primaryGenre ?? default, Desk.Label.homeCityId), 3),
+			}).ToList(),
 			bookingNotes = bookings.Select(b => $"{b.RoomId} d{b.Day} {b.Status}: {b.Note}").ToList()
 		};
 	}

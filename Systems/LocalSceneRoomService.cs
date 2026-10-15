@@ -375,6 +375,19 @@ public static partial class LocalSceneRoomService {
             b.Appearances.Any(a => a.ArtistId == artistId && a.Status == SceneBillStatus.Performed))
         .OrderByDescending(b => b.Day).ThenByDescending(b => b.EndHour).ThenBy(b => b.Id, StringComparer.Ordinal).FirstOrDefault());
     public static SceneBill Bill(string id) => Copy(state?.Bills.FirstOrDefault(b => b.Id == id));
+    /// <summary>Checks only: change the lineup of up to <paramref name="count"/> of a bill's still-scheduled sets, as if a
+    /// member had left since booking. Nothing is cancelled here; the clock's own resolution finds the mismatch and cancels
+    /// those sets (and the bill, if none is left). Returns how many sets were changed.</summary>
+    internal static int BreakLineupsForChecks(string billId, int count) {
+        var bill = state?.Bills.FirstOrDefault(b => b.Id == billId);
+        if (bill == null) return 0;
+        int broken = 0;
+        foreach (var slot in bill.Appearances.Where(s => s.Status == SceneBillStatus.Scheduled).Take(count)) {
+            slot.PersonIds = slot.PersonIds.Append("checks-departed-member").ToList();
+            broken++;
+        }
+        return broken;
+    }
     public static IReadOnlyList<SimulatedArtist> Hear(SceneBill bill, int? fromHour = null, int? throughHour = null) {
         if (!LocalScenes.Rooms || bill == null) return Array.Empty<SimulatedArtist>();
         if ((throughHour ?? bill.EndHour) <= (fromHour ?? bill.StartHour)) return Array.Empty<SimulatedArtist>();

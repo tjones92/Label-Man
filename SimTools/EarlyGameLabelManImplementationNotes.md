@@ -17,7 +17,7 @@ money. A §4.3 backer, if built, must come from a non-family source.
 | 1B §6.2 | Dealer advance orders off an acetate; shared record appeal; pre-orders held past arrival | `Systems/PlayerDesk.Groundwork.cs`; `PlayerDesk.cs` |
 | 1B §6.3 | Pitch an act to a real booker; dated nights placed by the scene scheduler | `Systems/LocalSceneRoomService.Bookings.cs`, `Data/LocalSceneRooms.cs`, `PlayerDesk.Groundwork.cs`; UI `PlayerDeskPanel.SceneRooms.cs` |
 
-Not started: Phase 2 (backer, non-family only), 3 (F1-F3 venue access/saturation), 4 (paid demos),
+Phase 3 (F1-F3) built 2026-10-14, see below. Not started: Phase 2 (backer, non-family only), 4 (paid demos),
 5/5A (master shopping, song placement), 5B (F5 gig pay), later/deferred items.
 
 ## Design choices worth knowing
@@ -190,7 +190,7 @@ Results:
   refused for $2 of gas once cash is negative. One smoke run sat stranded in Philadelphia for 30 days until the
   credit line closed it. The probe now only travels with the round trip + $50 in hand.
 
-## Weak singles sink: counter and route saturation (`SimLogs/ocl-fair3-fairness.md`, 140 runs; NOT committed)
+## Weak singles sink: counter and route saturation (`SimLogs/ocl-fair3-fairness.md`, 140 runs; committed 95c4467)
 
 Author (2026-10-14): weak records were "probably" too kind. In fair2, 82 of 92 bottom-quartile singles cleared
 first-run break-even (204 copies), median 281. The sources found (regional custom pressings of 200–1,000 copies,
@@ -264,3 +264,65 @@ stream.
 ## Stranded-away fix (drive home on the tab)
 
 Found by the ocl-fair2 probe: out of town on negative cash, `ChargeHotelIfAway` kept booking $9 motel nights into debt while `Travel` refused the ~$2 drive home ("You're $391 short of the $2 gas"), until the credit line closed the label. `Travel` now skips the cash gate when the destination is home: gas books on the tab like the motel, and the monthly solvency check still applies. Outbound trips stay gated on cash. `CashPlanning`'s "collect balances" row no longer marks the home town unaffordable. `CashPlanningChecks` covers it (30 checks pass). Player-only. **AI-only identity verified:** `dh-fix-1001-52` matches `ref-c566f24-1001-52` on all 84 CSVs, and `SaveLoadRoundTripRunner --integration` passes.
+
+## Phase 3: real room tables and local appeal (F1-F3), 2026-10-14
+
+Built (author chose Phase 3 next):
+- **F1 room tables** (`Systems/PlayerDesk.RoomTables.cs`). With the room calendar on, a record table is a seat at a dated
+  bill in one of the town's `SceneRoomCatalog` rooms: club, community hall, roadhouse or coffeehouse. Listening/supper
+  rooms and trade appointments put no table out. Permission is the booker's: your own act on tonight's bill brings its
+  records to its own show (no cut); otherwise `AskForTableRights` (1h, booker hours) gives a 91-day term at the room's
+  cut of the table gross (club 25%, roadhouse 20%, coffeehouse 15%, hall 10%). A no stands for the term unless one of
+  your acts plays the room. `WorkRoomTable` sets up an hour before the first set and stays to the end; the sale is read
+  off the resolved bill, so a show that doesn't go ahead sells nothing (the hours are still spent). Arriving late sells
+  in proportion to the bill staffed. The walk-up `WorkTheHopTable` is refused in room towns; the synthetic Venue stops
+  stay as record-hop sites.
+- **F2 saturation** on room tables: a pool of ~3x capacity regulars; interest is the shared convex appeal curve (1-40%),
+  halved off the room's music; tonight's reach is attendance / pool, doubled when your act played; at most 30% of the
+  house and 40 copies a night; buyers remembered per room and title, 35% of the town's other room-table buyers count
+  against this room, 5%/week turnover. The record hop now sells only to the hall crowd's interested buyers not yet served
+  (it had no memory at all).
+- **F3 local appeal** (`Systems/PlayerDesk.LocalAppeal.cs`), one term inside `RecordAppeal`/`TrunkAppeal`, so counters,
+  order sizes, shelves, acetate pitches and room tables all read it. Following is derived from existing room history
+  (`LocalSceneRoomService.LocalDraw`: each room's attributed arrivals x share that stayed, 8-week half-life from the act's
+  last night there), saturated as 1 - exp(-heads/120), worth up to +0.06. Taste is 0.025 x ln(`SceneCityPlacement.Fit`)
+  within +-0.04 (size cancels, so sparse cities read neutral). Jointly clamped to [-0.04, +0.08]. Not written to
+  awareness or buzz; the existing live-draw recognition channel feeds national recognition, which appeal doesn't read.
+- CASH OPTIONS lists the next room-table night as speculative (too late if after the closing check). UI: "SELL AT THE
+  ROOMS" on the venues board; the old venue row loses its walk-up button in room towns.
+- **Migration:** synthetic Venue stops never held stock, balances or calls (`ValidateStopAction` refuses Venue; calls
+  exclude it), so retiring the walk-up table moves nothing. Their crowd memory carries on for hops. No table right is
+  inferred from an old save. New state: `PlayerSaveData.RoomTables` (optional; older saves hold none).
+
+All values above are authored, not sourced.
+
+Verification:
+- **AI-only identity:** `egl-p3-1001-52` matches `ref-c566f24-1001-52` on 84/84 CSVs, byte for byte.
+- `RoomTableChecks` 28/28 at first build (walk-up retired, booker hours, refusal stands, rights lapse, supper rooms refuse, no stock,
+  cross-room overlap, taste bounds/direction, draw fades by a half-life, following saturates, joint lift bounds).
+- `SaveLoadRoundTripRunner --integration` passes (new `ROOM_TABLE_ROUNDTRIP ok=True`). `CashPlanningChecks` 30/30.
+- **Cancelled night, forced** (`RoomTableChecks`, now 49/49). The probe never met one (0 of 501 nights), so the check
+  forces it: a checks-only `LocalSceneRoomService.BreakLineupsForChecks` gives every set on a real Detroit club bill a
+  departed member after booking, and the clock's own `Resolve` cancels them while the table is up. Result: the bill
+  resolves Cancelled with 0 in; the player is told it didn't go ahead; no copies leave the box, no sale, no room cut, no
+  buyers remembered; the hours are still spent; the night drops off the table list and can't be worked again. Control:
+  dropping one set of three leaves the night Performed on two (38 in), and the table sells within the night's ceiling
+  with buyers remembered to match. Not changed: if your own act's set falls through but the rest of the bill plays, a
+  table you set up on its strength still sells, at the room's usual cut.
+
+## Live-first vs waiting (`SimLogs/ocl-p3-live.md`, MATRIX=live, 24 runs, 180 days)
+
+Discerning act, every channel worked, seeds 1001-1004 x New York / Detroit / Memphis, `--prep=live` (pitch bookers
+during the plant wait) against `none`. Paired runs share a seed, not a world: the player's actions move the shared stream,
+so the signed act and songs differ in several pairs (hook percentile .61 vs .48 in 1001 Detroit). Read the direction, not
+the size.
+
+- **Tables are small and earned.** 501 table nights across 24 runs sold 10-130 copies a run (room cut $2-17). Tables no
+  longer lead the channel mix (counters and service do). A dud's table goes dry: 1003 Memphis (hook pct .03) worked 102
+  nights, 89 sold nothing. 0 cancelled nights, 0 invariant violations.
+- **Live-first helps a little, in the right direction.** Following in the home town was higher in 10/12 pairs, table
+  copies in 9/12, final cash in 8/12 (median +$14); units ahead in only 6/12 (median +20), inside the stream-drift noise.
+  Acts in the waiting plan already build some following from the scene's own rotation (Memphis 1001 none: 0.69).
+- **New York still runs red** on both plans (final -$213 to -$326; one waiting run closed day 152). F3 doesn't change
+  the New York overhead question.
+- Booker acceptance stays easy (bookings fell through 2 of 26); table rights were won about 60% of asks.

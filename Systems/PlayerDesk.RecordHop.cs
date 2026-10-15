@@ -76,9 +76,16 @@ public partial class PlayerDesk : Node {
 		Spend(RecordHopHours);
 		if (fee > 0f) { Label.cashReserves -= fee; Label.monthlyExpenses += fee; }
 
-		int qty = Mathf.Min(Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * RecordHopWholesaleMultiplier), stockOnHand.Remaining);
+		// Early-game F2: a hop gathers the hall's whole crowd, but it's the same crowd -- buyers it already served don't
+		// buy again (the table memory), so a second hop for the same 45 sells to the new faces only.
+		GameDate today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
+		int interestedLeft = Mathf.FloorToInt(Mathf.Max(0f, TableCrowdCeiling(stop, recordId) - TableBought(stop, recordId, today)));
+		int qty = Mathf.Min(Mathf.Min(Mathf.RoundToInt(SuggestedPlacement(stop, recordId) * RecordHopWholesaleMultiplier), interestedLeft), stockOnHand.Remaining);
 		stockOnHand.Remaining -= qty;
-		BookTrunkSale(rec, qty, stop, cashNow: true);
+		if (qty > 0) {
+			NoteTableSale(stop, recordId, qty, today);
+			BookTrunkSale(rec, qty, stop, cashNow: true);
+		}
 		TouchStop(stop, 0.06f);
 		workedCities.Add(stop.CityId);
 

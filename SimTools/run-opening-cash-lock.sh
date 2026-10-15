@@ -13,6 +13,11 @@ if [ "${MATRIX:-base}" = prep ]; then
   # §6.4: distinct preparation plans against waiting, matched fixtures (same seed, town, act policy).
   for seed in 1001 1002; do for town in new_york detroit; do
     for prep in none dealer radio live; do echo "$seed $town ExMusician discerning none $prep"; done; done; done > "$jobs_file"
+elif [ "${MATRIX:-base}" = live ]; then
+  # Phase 3 (F1-F3): live-first preparation against waiting, both selling every channel, so room tables and the
+  # following from played sets are actually worked. Matched fixtures: same seed, town and act policy.
+  for seed in 1001 1002 1003 1004; do for town in new_york detroit memphis; do
+    for prep in none live; do echo "$seed $town ExMusician discerning none $prep working batch"; done; done; done > "$jobs_file"
 elif [ "${MATRIX:-base}" = fair ]; then
   # Fairness: every selling channel worked (--sell=working). One-single openings (careless, competent, truth-picked)
   # beside the playtest's order: a second session cut and pressed after the first single is out (staggered).

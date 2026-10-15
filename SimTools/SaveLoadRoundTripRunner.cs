@@ -360,6 +360,9 @@ public partial class SaveLoadRoundTripRunner : Node {
 			// Hop-table crowd saturation: what a room's regulars already bought survives the save.
 			PlayerDesk.PlayerStop crowdStop = homeStops.FirstOrDefault(st => st.Kind == PlayerDesk.StopKind.Venue);
 			if (crowdStop != null) crowdStop.TableCrowds["probe_record_1"] = new PlayerDesk.TableCrowd { Bought = 17.5f, LastSale = TimeManager.Instance.CurrentDate };
+			// Early-game F1: a room's table rights and its regulars' record memory survive the save.
+			string tableRoom = SceneRoomCatalog.All.FirstOrDefault(PlayerDesk.RoomSellsRecords)?.Id;
+			if (tableRoom != null) PlayerDesk.Instance.StageRoomTableForChecks(tableRoom, true, 5, .2f, "probe_record_1", 12.25f, TimeManager.Instance.CurrentDate);
 			string bookingRoom = SceneRoomCatalog.All.FirstOrDefault(r => r.IsPerformance)?.Id;
 			if (bookingRoom != null) {
 				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 400, Status = SceneBillStatus.Scheduled, Note = "probe booking" });
@@ -555,8 +558,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 				GD.Print($"TABLE_CROWD_ROUNDTRIP stop={crowdStop.StopId} bought={crowd1?.Bought} ok={crowdOk}");
 				if (!crowdOk) fails.Add("hop-table crowd lost on round-trip");
 			}
+			if (tableRoom != null) {
+				var rights1 = PlayerDesk.Instance.LastTableRightsAsk(tableRoom);
+				bool tableOk = rights1 != null && rights1.Granted && rights1.AskedDay == 5 && rights1.ExpiresDay == 5 + PlayerDesk.TableRightsTermDays
+					&& Math.Abs(rights1.Cut - .2f) < 0.001f && Math.Abs(PlayerDesk.Instance.RoomTableCrowdForChecks(tableRoom, "probe_record_1") - 12.25f) < 0.001f;
+				GD.Print($"ROOM_TABLE_ROUNDTRIP room={tableRoom} ok={tableOk}");
+				if (!tableOk) fails.Add("room table rights/crowd lost on round-trip");
+			}
 			if (bookingRoom != null) {
-				var booking1 = LocalSceneRoomService.Bookings.FirstOrDefault(b => b.ArtistId == "probe-act");
+				var booking1 =LocalSceneRoomService.Bookings.FirstOrDefault(b => b.ArtistId == "probe-act");
 				var pitch1 = LocalSceneRoomService.LastPitch(bookingRoom, "probe-act");
 				bool bookingOk = booking1 != null && booking1.Day == 400 && booking1.Status == SceneBillStatus.Scheduled && booking1.Note == "probe booking"
 					&& pitch1 != null && !pitch1.Accepted && pitch1.ShowsAtPitch == 2 && pitch1.Day == 3;

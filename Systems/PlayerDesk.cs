@@ -3182,16 +3182,17 @@ public partial class PlayerDesk : Node {
 		if (rec?.baseRecord != null) return TrunkAppeal(rec, cityId, 0f);
 		Record unreleased = masters.FirstOrDefault(m => m.Record?.recordId == recordId)?.Record;
 		if (unreleased == null) return null;
-		return Mathf.Clamp(unreleased.hookStrength * 0.45f + unreleased.productionQuality * 0.25f, 0.04f, 1f);
+		return Mathf.Clamp(unreleased.hookStrength * 0.45f + unreleased.productionQuality * 0.25f + LocalAppealLift(unreleased, cityId), 0.04f, 1f);
 	}
 
 	/// <summary>How well a record moves across a counter in this town: its hook and its pressing, plus how
-	/// many people around here have actually heard it. The single appeal model -- <see cref="ProcessTrunkDay"/>
+	/// many people around here have actually heard it, plus the act's following and the town's taste (F3,
+	/// <see cref="LocalAppealLift(string, Genre, string)"/>). The single appeal model -- <see cref="ProcessTrunkDay"/>
 	/// sells the shelf on it and <see cref="EarForRecord"/> sizes the order on it, so a dealer never takes
 	/// a box of something that then refuses to sell, or two copies of something the town is asking for.</summary>
 	private float TrunkAppeal(RecordRuntimeData rec, string cityId, float windowCard) =>
 		Mathf.Clamp(rec.baseRecord.hookStrength * 0.45f + rec.baseRecord.productionQuality * 0.25f
-			+ RegionalBuzz(rec, cityId) * 0.30f + windowCard, 0.04f, 1f);
+			+ RegionalBuzz(rec, cityId) * 0.30f + windowCard + LocalAppealLift(rec.baseRecord, cityId), 0.04f, 1f);
 
 	// What a cold, unknown rep gets on the strength of showing up alone, what the relationship adds on
 	// top, and what the record itself is worth in the conversation. The record is the biggest single term
@@ -3467,6 +3468,12 @@ public partial class PlayerDesk : Node {
 		PlayerStop stop = GetStop(stopId);
 		if (stop == null || stop.Kind != StopKind.Venue) { message = "No such table."; return false; }
 		if (stop.CityId != CurrentCityId) { message = "You have to be in town for that."; return false; }
+		// Early-game F1: with the room calendar on, a table is a seat at a real night with the booker's say-so
+		// (WorkRoomTable). A walk-up table with no show behind it is retired; the hall stays for record hops.
+		if (RoomTablesActive(stop.CityId)) {
+			message = $"Nobody's at {stop.DisplayName} without a show on. Sell at a room's table on a bill night -- ask the booker, or get your act on his stage.";
+			return false;
+		}
 		if (!CheckDailyApproach(stop, out message)) return false;
 		if (string.IsNullOrEmpty(recordId)) { message = "Pick a single to sell."; return false; }
 		if (IsMasterOut(recordId)) { message = $"\"{TitleForRecord(recordId)}\" isn't yours to sell right now -- the master's out."; return false; }
@@ -5919,6 +5926,7 @@ public partial class PlayerDesk : Node {
             ContractCommitments = CaptureContractCommitments(),
             RivalOffers = CaptureRivalOffers(),
             RivalCourtships = CaptureRivalCourtships(),
+            RoomTables = CaptureRoomTables(),
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
             StudioTrip = studioTrip?.Copy(),
@@ -6419,6 +6427,7 @@ public partial class PlayerDesk : Node {
         RestoreContractCommitments(data.ContractCommitments);
         RestoreRivalOffers(data.RivalOffers);
         RestoreRivalCourtships(data.RivalCourtships);
+        RestoreRoomTables(data.RoomTables);
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
         studioTrip = data.StudioTrip?.Copy();

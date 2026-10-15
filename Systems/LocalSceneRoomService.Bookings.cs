@@ -56,6 +56,21 @@ public static partial class LocalSceneRoomService {
         }
     }
 
+    /// <summary>Early-game F3: the people who came in for an act's sets in a town and stayed, summed over the town's rooms
+    /// from each room's own draw record (<see cref="SceneRoomStanding.DrawTotal"/> x the average share that stayed). Each
+    /// room's tally fades with <paramref name="halfLifeDays"/> from the act's last night there. Repeat listeners are in the
+    /// sum more than once; the caller saturates it. A pure read: nothing here is written, so AI worlds are untouched.</summary>
+    public static float LocalDraw(string artistId, string placeId, int day, float halfLifeDays) {
+        if (state == null || string.IsNullOrEmpty(artistId) || halfLifeDays <= 0f) return 0f;
+        float heads = 0f;
+        foreach (var room in SceneRoomCatalog.ForPlace(placeId)) {
+            if (!room.IsPerformance || !standing.TryGetValue(StandingKey(room.Id, artistId), out var s) || s.DrawSets <= 0) continue;
+            float stayed = s.StayedTotal / s.DrawSets;
+            heads += s.DrawTotal * stayed * (float)Math.Pow(0.5, Math.Max(0, day - s.LastDay) / halfLifeDays);
+        }
+        return heads;
+    }
+
     /// <summary>When a billed set resolves, the booking takes its outcome.</summary>
     private static void SettleBooking(SceneBill bill, SceneAppearance slot) {
         foreach (var booking in State.Bookings.Where(b => b.RoomId == bill.RoomId && b.Day == bill.Day && b.ArtistId == slot.ArtistId && b.Billed && b.Status == SceneBillStatus.Scheduled)) {

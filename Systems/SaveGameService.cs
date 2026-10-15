@@ -345,6 +345,8 @@ public sealed class PlayerSaveData {
     public List<RivalOffer> RivalOffers { get; set; }
     /// <summary>Optional: rival courtships (inquiry, meeting, offer) and what the player heard of them (PlayerDesk.RivalCourtship).</summary>
     public List<RivalCourtship> RivalCourtships { get; set; }
+    /// <summary>Optional (early-game F1): room table rights and each room's record memory. Older saves hold none.</summary>
+    public List<RoomTableSaveData> RoomTables { get; set; }
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
     public List<StudioVisit> StudioVisits { get; set; }

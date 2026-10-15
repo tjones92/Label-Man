@@ -241,6 +241,13 @@ public partial class PlayerDesk {
 				0f, 0f, today, CashCertainty.Speculative, accounts > 0, accounts > 0 ? "A buyer can take a handful or pass; nothing is promised." : "Every account here has been worked today or passed."));
 		}
 
+		// Early-game F1: a table at a room's show night -- cash at list on the night, if the show goes ahead and anyone buys.
+		if (PressedSinglesOnHand().Any() && RoomTableNights(CurrentCityId ?? home).FirstOrDefault() is { } tableNight) {
+			GameDate night = LocalSceneRoomService.Date(tableNight.Bill.Day);
+			list.Add(new("Work a room's table", tableNight.Room.Name, tableNight.OwnAct ? "your act is on the bill" : $"table rights, the room takes {tableNight.Rights.Cut:P0}",
+				0f, 0f, night, CashCertainty.Speculative, !TooLate(night), $"{night.ToShortString()} from {Clock12(tableNight.Bill.StartHour - 1)}; sells to whoever came, and nothing if the bill falls through." + Late(night)));
+		}
+
 		// Act buy-in: cash today at a deep discount, where an act has enough of its own single on hand.
 		foreach (var (artist, recordId, title, onHand) in BuyInEligible()) {
 			int take = Math.Min(ArtistBuyInMax, onHand);

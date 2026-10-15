@@ -4062,18 +4062,21 @@ public partial class PlayerDeskPanel : Control {
 			row.AddChild(tomorrow);
 		}
 
-		string estHours = PlayerDesk.StopVisitEstimate(PlayerDesk.StopKind.Venue);
-		var work = Btn($"WORK THE TABLE ({estHours})");
-		work.Disabled = workedToday;
-		work.CustomMinimumSize = new Vector2(170, 32);
-		work.Pressed += () => Act(() => {
-			if (onHand.Count == 0) return false;
-			(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
-			bool ok = PlayerDesk.Instance.WorkTheHopTable(stop.StopId, recordId, out string message);
-			Say(message, ok);
-			return true;
-		});
-		row.AddChild(work);
+		// Early-game F1: where the town's rooms sell, tables run on their show nights (venues board), not here.
+		if (!PlayerDesk.RoomTablesActive(stop.CityId)) {
+			string estHours = PlayerDesk.StopVisitEstimate(PlayerDesk.StopKind.Venue);
+			var work = Btn($"WORK THE TABLE ({estHours})");
+			work.Disabled = workedToday;
+			work.CustomMinimumSize = new Vector2(170, 32);
+			work.Pressed += () => Act(() => {
+				if (onHand.Count == 0) return false;
+				(string recordId, _, _) = onHand[Mathf.Clamp(singlePick.Selected, 0, onHand.Count - 1)];
+				bool ok = PlayerDesk.Instance.WorkTheHopTable(stop.StopId, recordId, out string message);
+				Say(message, ok);
+				return true;
+			});
+			row.AddChild(work);
+		}
 
 		// Directive §8: the record hop -- the act appears, an MC'd table moves several times what a
 		// bare one does, and (win or lose the room) a jock trusted enough to book gets a real advocacy
