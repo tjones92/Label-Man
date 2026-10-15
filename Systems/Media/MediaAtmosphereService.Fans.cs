@@ -170,6 +170,9 @@ public static partial class MediaAtmosphereService {
 				NationalExposure = nationalExposure.Contains(id),
 				Extraordinary = record != null && (record.currentPosition is >= 1 and <= 3 && evidence.Breadth(record) >= 0.6f || Precursor(record, evidence) >= 0.5f),
 			};
+			if (MediaFans.Diagnostics && week.WarmRegions >= 2)
+				Godot.GD.Print($"MEDIA_FANS_WEEK day={today} act=\"{fs.ArtistName}\" id={id} att={string.Join(";", fs.Attachment.Values.OrderByDescending(v => v).Select(v => v.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)))} " +
+					$"selling={week.SellingRegions} fam={(int)week.Families} natex={(week.NationalExposure ? 1 : 0)} extra={(week.Extraordinary ? 1 : 0)} pos={record?.currentPosition ?? 0} state={fs.State}");
 			if (MediaFans.Advance(fs, week, r)) {
 				string line = $"{FromDayIndex(today).ToShortString()}  {MediaFans.Describe(fs.State)}" +
 					(fs.State == FanEpisodeState.Cooldown ? $" (was {MediaFans.Describe(fs.TransitionFrom)})" : "");

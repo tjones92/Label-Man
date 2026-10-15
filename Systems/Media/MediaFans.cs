@@ -62,7 +62,14 @@ public sealed class MediaFanState {
 public static class MediaFans {
 	public const int WindowWeeks = 4;
 	public const int CooldownDays = 56;
-	public const float WarmAt = 0.25f, HotAt = 0.45f;
+	// Hot was 0.45, above the deposit ceiling (a region's No. 1 seller every week settles near 0.435), so no act ever
+	// ran hot and 1963-66 had no national episode at all. 0.36 is about the yearly peak of the top two or three acts
+	// (SimTools/MediaAtmospherePhase3Notes.md, "Mid-decade check").
+	public const float WarmAt = 0.25f, DefaultHotAt = 0.36f;
+	/// <summary>Hot attachment. Audit runs may override it (<c>--media-fan-hot=</c>) to tune episode rarity; observe-only either way.</summary>
+	public static float HotAt { get; internal set; } = DefaultHotAt;
+	/// <summary>Audit-only: print every act's weekly fan evidence (MEDIA_FANS_WEEK) so the episode rules can be replayed offline.</summary>
+	public static bool Diagnostics { get; internal set; }
 	/// <summary>Weekly retention for an eight-week half-life.</summary>
 	public static readonly float WeeklyRetention = (float)Math.Pow(0.5, 1.0 / 8.0);
 	/// <summary>Spotlight fades over about half a year.</summary>

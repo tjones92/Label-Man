@@ -30,6 +30,9 @@ public static class MediaAtmosphere {
 		foreach (string argument in arguments ?? Array.Empty<string>()) {
 			if (argument == "--disable-media-atmosphere") disable = true;
 			if (argument == "--observe-media-atmosphere") observe = true;
+			if (argument.StartsWith("--media-fan-hot=", StringComparison.Ordinal))
+				MediaFans.HotAt = float.Parse(argument["--media-fan-hot=".Length..], CultureInfo.InvariantCulture);
+			if (argument == "--media-fan-diagnostics") MediaFans.Diagnostics = true;
 			if (argument == "--enable-media-atmosphere" || argument == "--causal-media-atmosphere")
 				throw new ArgumentException($"{argument}: the causal media mode is not implemented (directive §12, Phase 4).");
 		}

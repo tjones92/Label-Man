@@ -78,3 +78,70 @@ That rarity is intended but untested against mid-decade worlds.
 - The episode thresholds and gains are initial design values. They need a mid-decade world to check that national
   sensations stay rare and phenomena rarer. A 1960-61 window says little about 1964.
 - The office's THE FANS block was exercised headlessly (`FanLines`), not yet in the real game window.
+
+## Mid-decade check (1963-66, seed 1001)
+
+A 1960 run saved the world at 1/4/1963 (`SimLogs/worlds/media-p3-1001-1963.world.json.gz`, 15 min). Each arm then
+resumed it for 209 weeks with `--enable-genre-market-v2 --enable-artist-population-lifecycle --aggregate-only`, taking
+about 40 min solo or 52 min two-wide.
+
+**Sensations were absent at the shipped thresholds.** Every year from 1960 to 1966 had zero national sensations and
+zero phenomena. The cause is arithmetic. At full youth fit, a region's No. 1 seller every week settles near 0.435
+attachment. TV and teen press add to that only in the weeks they happen, and the 8-week half-life takes it back. The
+highest attachment any act reached in a third region, by year, was .39 / .37 / .43 / .43 (1963-66). `HotAt = 0.45`
+sat above everything the deposit could produce, so the national gate (three hot regions) never opened.
+
+**Change: `MediaFans.DefaultHotAt` 0.45 → 0.36.** That is about the yearly peak of the top two or three acts. Nothing
+else moved: two families, national exposure, two-of-four persistence and the cooldown all still apply. Two audit-only
+switches were added: `--media-fan-hot=X` overrides the value, and `--media-fan-diagnostics` prints `MEDIA_FANS_WEEK`
+(each act's weekly regional attachment, selling regions, families, exposure and extraordinary flag). An offline replay
+of `Level/Advance` from those lines predicted the live 0.38 arm exactly (one act, three weeks). The script is
+`replay_fans.py` in the session notes folder.
+
+| Year | 0.45 (shipped) | 0.38 | 0.36 (new default, live) | Phenomena |
+|---|---|---|---|---|
+| 1963 | 0 | 0 | 0 | 0 |
+| 1964 | 0 | 0 | 0 | 0 |
+| 1965 | 0 | 1 | 1: The Precious Miracles, Oct 15 - Nov 5 | 0 |
+| 1966 | 0 | 0 | 2: The Reckless Blessings, Jan 14 - Feb 4; Lowell and the Drovers, Nov 18 - Dec 2 | 0 |
+
+Three sensations in four years, 2-3 weeks each, reads as rare. Lower values become routine fast. The replay gives
+0.34 → 3 + 4 in 1965-66, and 0.32 → 1 / 4 / 6 in 1964-66 with 19 act-weeks in 1966. 1963-64 stay empty at any
+plausible value. Their best acts (Del and the Miracles, Jeff Reed) never had a second evidence family in the weeks they
+ran hot, and this world produced no 1964-sized breakout.
+
+**Phenomena are structurally out of reach, not threshold-bound.** Extraordinary weeks (a top-three record, broken in
+most markets) come while attachment is still climbing. Marie Price had seven straight extraordinary weeks while her
+third region rose from .25 to .40, and most of those weeks had only the Sales family. Four consecutive level-4 weeks
+never happen. Relaxing persistence to three of four doesn't help either (replay: zero at every threshold). Fixing it
+means changing how fast attachment can follow a record (gains, or credit for back-to-back hits), which is a design
+question for Phase 4, not a threshold.
+
+**Hype.** No headline night passed 0.5 in any arm. The year bests were 0.00 (1963, the only headline night), 0.33 (Roosevelt Barnes and the
+Riffs, Sullivan, Sep 6 1964), 0.20 (1965) and 0.17 (1966). None of the three sensations held a headline date while
+national, so `HypeCap` has still never bound above 0.5. The precursor (reign, size, breadth) limits hype first.
+
+**Bills.** Network bills fill completely every year (`slots-network-filled` 620 → 463 / 340 / 978 / 884 for 1960 and
+1963-66, tracking the catalog: Bandstand's cut, then Shindig! and Hullabaloo). No `slots-network-empty-*` counter
+appeared. Local slot-days are filled about half the time, and every empty one is `-declined` (budget), never `-nopool`:
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 | 1965 | 1966 |
+|---|---|---|---|---|---|---|---|
+| local filled | 3,169 | 2,670 | 2,607 | 2,910 | 2,585 | 2,413 | 2,063 |
+| local empty (declined) | 2,340 | 3,084 | 3,412 | 3,768 | 3,588 | 2,721 | 1,510 |
+| fill rate | 58% | 46% | 43% | 44% | 42% | 47% | 58% |
+
+**Step cost.** `weeklyStepMs` is cumulative per process, so per year: 4.8 / 6.7 / 6.8 s (1960-62) and 7.3 / 8.3 /
+8.0 / 10.1 s (1963-66 solo), about 140-195 ms a week. It grows with the tallied act count (650 → 3,181) but stays
+around 1% of wall. The diagnostics flag adds output only.
+
+**Verification.** `MEDIA_ATMOSPHERE_CHECKS_PASS checks=122` after the change (fixture 11 drives HotRegions directly,
+so it doesn't depend on the value). All 84 CSVs of the 0.36 and 0.45 resumes, same world and flags, are
+byte-identical, so the change is economy-inert. `MediaAtmosphere.ConfigVersion` stays at 3. Bumping it would reshuffle
+every keyed media draw and break comparability with these arms; bump it at the next catalog or rule change.
+
+**Open, not touched here.** National programs book only from this week's singles chart, and media reads neither
+`careerState`, the seeded star canopy nor `publicRecognition`. A Superstar crooner with no current top-25 single can't
+get on Sullivan. Real 1960-63 bills were mostly adult pop, Broadway, opera and comedy booked on standing fame. Fans
+also start at zero in 1960, seeded idols included. Both are booking changes, so they wait for a design decision. See
+`SimTools/CelebrityAuditHandoff.md`.
