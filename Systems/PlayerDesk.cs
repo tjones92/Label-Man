@@ -4736,6 +4736,7 @@ public partial class PlayerDesk : Node {
 		ProcessStudioTripDawn(date);
 		ProcessStudioLockoutDawn(date);
 		SettlePastDemos();
+		CollectBookingCommissions();
 		ProcessRivalCrowding(date);
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);

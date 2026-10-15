@@ -20,10 +20,11 @@ money. A §4.3 backer, if built, must come from a non-family source.
 | 4 §7.1 | Paid demos: real unsigned clients, held deposits, producer fee, demo sample | `Systems/PlayerDesk.Demos.cs`; gate `SimTools/DemoChecks.*`; UI `PaidDemos` in `PlayerDeskPanel.SceneRooms.cs` |
 | 3 F1-F3 | Room tables, audience saturation, local appeal | `Systems/PlayerDesk.RoomTables.cs`, `PlayerDesk.LocalAppeal.cs`; gate `SimTools/RoomTableChecks.*` |
 | 5 §5 | Shop the master: one deal state machine, real buyers that release, lease/sale/sale-with-act, regional pickup | `Systems/PlayerDesk.MasterDeals.cs`; seams in `CompetitorManager.cs`, `RosterManager.cs`, `Data/Record.cs`; gate `SimTools/MasterDealChecks.*`; UI `UI/PlayerDeskPanel.MasterDeals.cs` |
-| 5A §7.2 | Place a song: real labels' acts cut the player's songs; advance, hold, settlement off the existing publishing slice | `Systems/PlayerDesk.SongPlacement.cs`; seams in `CompetitorManager.cs`, `CompositionCatalogService.cs`, `Data/Record.cs`; gate `SimTools/PlacementChecks.*`; UI `BuildSongPlacements` in `UI/PlayerDeskPanel.MasterDeals.cs` |
+| 5A §7.2 | Place a song: real labels' acts cut the player's songs; advance, hold, settlement at the period mechanical | `Systems/PlayerDesk.SongPlacement.cs`; seams in `CompetitorManager.cs`, `CompositionCatalogService.cs`, `Data/Record.cs`; gate `SimTools/PlacementChecks.*`; UI `BuildSongPlacements` in `UI/PlayerDeskPanel.MasterDeals.cs` |
+| 5B F5 | Gig pay is the performers': booking commission off each played set the label booked; residencies are dated nights; tours pay the label nothing | `Systems/LocalSceneRoomService.Bookings.cs` (+ fee split in `LocalSceneRoomService.cs`), `PlayerDesk.BandRoom.cs`, `PlayerDesk.Groundwork.cs`, `PlayerDesk.CashPlanning.cs`; gate `SimTools/GigPayChecks.*` |
 
-Phases 3, 2, 4, 5 and 5A built 2026-10-14 (in that order), see below. Not started: 5B (F5 gig
-pay), later/deferred items.
+Phases 3, 2, 4, 5, 5A and 5B built 2026-10-14 (in that order), see below. Not started: later/deferred items (F6
+route convenience, §4.4 partner).
 
 ## Design choices worth knowing
 
@@ -577,7 +578,7 @@ Built (`Systems/PlayerDesk.SongPlacement.cs`; UI "PLACE A SONG" in the books, af
   the `playerPlacementId` tag. The cut counts only once the record is on the chart; an AI single dropped for want of cash
   leaves the song held.
 - **Settlement:** no new money. The song's income is the existing publishing slice (`PublishingShareOfGross`, 11% of the
-  buyer's retail gross) that live routing already transfers to the controlling label. For a tagged record the transfer
+  buyer's retail gross; cut to the 2c mechanical since, see below) that live routing already transfers to the controlling label. For a tagged record the transfer
   branch calls `SettlePlacementWeek`: the advance recoups first (that part stays in the buyer's net, since it paid the
   advance), and the rest accrues on the placement instead of the week's `weeklyPublishingReceipts`, paid on a quarterly
   statement from the cut's release. No 2c mechanical is charged (an AI record's composition cost is that slice), so nothing
@@ -595,15 +596,74 @@ Verification:
   calls, tape, visit, refusals free; the strong song offered $100 and the weak one passed (the pass stands); CASH OPTIONS;
   signing pays from Mercury's cash and holds the song; a self-writing act's single keeps to its own song; Mercury's act cut
   it 9 days after signing in a real AI session, tagged, the player's publishing intact, not a cover; units accrue at the
-  11% slice (9.8c a copy), the advance recoups first, nothing reaches weekly receipts, the statement pays the rest;
+  2c mechanical (9.8c a copy at the original 11% slice), the advance recoups first, nothing reaches weekly receipts, the statement pays the rest;
   hand-settled recoupment; a folded buyer ends it with a final statement; a dropped single leaves the hold; an uncut hold
   lapses with the advance kept; a cut of a released song is a cover of the player's record; every ledger agrees.
 - `SaveLoadRoundTripRunner --integration --weeks=26` passes (new `SONG_PLACEMENT_ROUNDTRIP ok=True`). CashPlanning 30/30,
   Backer 49/49, RoomTable 49/49, Demo 30/30, MasterDeal 69/69.
 
-**Balance flag for the author:** the gate's fixture song (craft .95) became a Mercury hit: 263,224 copies in four weeks,
-$25,770 to the player through the 11% slice, against $175 a month of New York overhead. The slice is the AI economy's
-existing calibrated composition pool (it already pays the player when an AI act covers a player hit organically), so it
-was kept for consistency rather than invented anew. If a placed hit is too rich for the early game, the levers are paying
-the publisher's half only, or the 1960 mechanical alone (1c a side to the publisher) for player-controlled songs. Real
-player songs sit far below .95 craft; a probe matrix would show how often an opening places a song at all.
+**Placed songs earn the period mechanical (author question, 2026-10-14).** The gate's fixture song (craft .95) became a
+Mercury hit: 263,224 copies in four weeks. At the AI economy's 11% composition pool that paid the player $25,770, about
+9.8c a copy. The 1909 Act's compulsory rate was 2c a song per copy sold, unchanged until 1978, and the game already charges
+the player exactly that (`MechanicalRoyaltyService.RatePerCopy`) when it sells someone else's song. So the 11% was about
+five times the period rate, and believability was the issue, not that a hit pays.
+
+Now, when the song's controller is the player's label, the transfer out of an AI record's publishing pool is cut to 2c per
+unit (`CompetitorManager`, the transfer branch). The rest of the pool stays in the buyer's net, so no money appears or
+vanishes. This covers placements and organic AI covers of a player-controlled song alike. AI-to-AI routing is unchanged.
+The same hit now pays about $5,265. Still not modelled: performance (BMI/ASCAP) income on airplay, which was real money
+for a hit's publisher, and paying the writer's half to the act (the game's label-owned-publishing convention keeps it
+with the label, as on the label's own sales). `PlacementChecks` 57/57 with the per-copy check now at 2c.
+
+## Phase 5B: gig pay belongs to the performers (F5), 2026-10-14
+
+Built:
+- **Booking commission off the played set.** When a set the player's label booked (a §6.3 night or a residency night) is
+  played and its fee paid, `LocalSceneRoomService.TakeBookingCommission` sets 10% of the act's fee on the booking, and the
+  band splits only the rest (`Resolve`'s fee loop). So the commission is deducted once from the act's gross, and no
+  second copy of the fee exists. The label collects it the next morning (`CollectBookingCommissions`, dawn) and gets a note.
+  A set that never plays, whether it was cancelled, not billed or fell through, pays nothing. Saved on `SceneBooking`
+  (`Residency`, `Commission`, `CommissionCollected`; optional, older saves read zero).
+- **A residency is its nights.** `BookRoad` still needs the booker's yes at a room the act has played twice. It now writes
+  dated `SceneBooking`s: the room's first 3 open nights in each calendar week, from the first night past the announced
+  calendar (or after the act's last booked night there). Each night is billed under every ordinary rule, so it can fall
+  through. `ResidencyWeeklyCommission` is now only the estimate shown to the player.
+- **Tours pay the label nothing.** The flat $30/week is gone. A tour is road load and momentum; the label books no dates
+  it could bill. The weekly $ inflow in `RunRoadBookings` is removed for residencies too.
+- CASH OPTIONS lists the label's booked nights by act and room (accepted, with the estimated commission, cash the morning
+  after the first night), from `BookedNightsAhead`. Booker and residency wording, and the roster-card tooltips, say the
+  door is the band's.
+- **Legacy:** a residency booked before this change has no nights behind it, so it keeps its road load and pays nothing
+  further (the same treatment as pre-room residencies).
+- Authored, not sourced: the 10% rate (§6.3 says it is not a documented Robey rate) and 3 nights a week.
+- Not changed: `MemberLiveIncome`/`SceneLiveEconomics.MemberLiveIncome` reads realized `FeeShare`, which is now net of
+  commission. So the members' estimated live income falls by exactly what the label took, and nothing is counted twice.
+- Observation, not changed: community halls and roadhouses open noon-3 p.m., so their booker's window (from 2 p.m.) is one
+  hour.
+
+Verification:
+- **AI-only identity:** `egl-p5b-1001-52` matches `ref-c566f24-1001-52` on 84/84 CSVs, byte for byte. The fee split
+  subtracts 0 when no bookings exist, which is exact in floating point.
+- `GigPayChecks` 22/22 on the real clock (Detroit). A tour adds momentum and no label income, and CASH OPTIONS shows no
+  tour money. A residency (won on the 6th ask) wrote 24 dated nights, on open nights, at most 3 a week, past the calendar.
+  CASH OPTIONS lists them. Played nights: fees $14.38 and $15.12, commissions $1.44 and $1.51. The band's realized pay rose
+  by fee less commission, and label cash rose by the commission at dawn. A forced fall-through was cancelled with no
+  commission.
+- `SaveLoadRoundTripRunner --integration --weeks=26` passes (the booking round-trip now covers the new fields).
+  CashPlanning 30/30, Placement 57/57, RoomTable 49/49, Backer 49/49, Demo 30/30, MasterDeal 69/69, BandLife 43/43.
+
+## Gig matrix: residency with the flat inflow removed (`SimLogs/ocl-p5b-gig.md`, MATRIX=gig, 48 runs, 180 days)
+
+ExMusician, every channel worked, seeds 1001-1003 x New York / LA / Detroit / Memphis x {discerning one-single batch,
+eager two-single staggered} x {no road, residency}. Paired runs share a seed, not a world.
+
+- **No new locks.** Closures are 6/24 in both arms, and they are the same six cells: eager staggered in New York and LA,
+  all on day 121, as in fair3. The one-single discerning opening closed 0 of 24. Sensible openings stay viable with no
+  flat live income.
+- **Residencies are earned and small.** 22 of 24 residency runs won one (30 yes from 81 asks). 536 nights were booked
+  and 474 played (62 fell through). Commission per run had a median of $17 (range $1-$154). That is about **$2.45 per
+  residency week** (median), against $67-175 of monthly overhead. It opens the room, the following and table nights;
+  it doesn't carry the label.
+- Residency was ahead on final cash in 18/24 pairs (median +$27), partly through commission and partly through more played
+  nights in the home town (units up in 15/24, within stream noise).
+- 0 probe failures, 0 invariant violations.

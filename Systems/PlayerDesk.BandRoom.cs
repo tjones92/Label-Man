@@ -28,10 +28,9 @@ public partial class PlayerDesk {
 	// door money is the band's, and the label that booked it takes a commission. Authored values, not sourced.
 	public const int ResidencyMinShows = 2;
 	public const int ResidencyNightsPerWeek = 3;
-	public const float ResidencyBookingCommission = 0.10f;
+	public const float ResidencyBookingCommission = LocalSceneRoomService.BookingCommissionRate;
 	/// <summary>A run of weeks is a bigger ask than one night: the §6.3 acceptance chance, scaled down.</summary>
 	public const float ResidencyAskFactor = 0.6f;
-	public const float TourWeeklyNet = 30f;
 	public const float LabelCutInShare = 0.25f;
 	public const int LabelCutInSongs = 3;
 	/// <summary>Below this much money of their own, a married member with children asks for an advance (§4.15).</summary>
@@ -78,8 +77,8 @@ public partial class PlayerDesk {
 		public int TimeOffUntilWeek = -1;
 		public string DryingOutPersonId;
 		public int DryOutUntilWeek = -1;
-		/// <summary>The room that gave the residency, and the label's weekly commission on its door. Null and 0 on a
-		/// residency booked before rooms gated it: road load only, no label income.</summary>
+		/// <summary>The room that gave the residency, and an estimate of the label's weekly commission (paid per night played,
+		/// not weekly). Null and 0 on a residency booked before rooms gated it: road load only, no label income.</summary>
 		public string ResidencyRoomId;
 		public float ResidencyWeeklyCommission;
 		/// <summary>The last residency refusal, which stands for a quarter unless the act plays the room meanwhile.</summary>
@@ -1041,14 +1040,26 @@ public partial class PlayerDesk {
 			if (!Require(1, out message)) return false;
 			Spend(1);
 		}
+		// F5: a residency is its nights, each a dated booking on the room's bill; the commission comes off each played set.
+		int firstNight = -1, nightCount = 0;
+		if (residencyWeeks > 0 && SceneRoomCatalog.Get(b.ResidencyRoomId) is { } residencyRoom) {
+			foreach (int night in LocalSceneRoomService.ResidencyNights(residencyRoom, a.artistId, residencyWeeks, ResidencyNightsPerWeek)) {
+				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = residencyRoom.Id, ArtistId = a.artistId, LabelId = Label.labelId, Day = night,
+					Status = SceneBillStatus.Scheduled, Residency = true, Note = "Residency night; goes on the bill when the week is drawn up." });
+				if (firstNight < 0) firstNight = night;
+				nightCount++;
+			}
+			room ??= residencyRoom;
+		}
 		b.ResidencyWeeks = Mathf.Clamp(b.ResidencyWeeks + residencyWeeks, 0, 40);
 		b.TourWeeks = Mathf.Clamp(b.TourWeeks + tourWeeks, 0, 40);
 		b.WeeksRemaining = Mathf.Clamp(b.WeeksRemaining + residencyWeeks + tourWeeks, 0, 48);
 		b.TimeOffUntilWeek = -1;
 		Note($"Booked {a.stageName}: {(residencyWeeks > 0 ? $"{residencyWeeks} weeks' residency{(room != null ? $" at {room.Name}" : "")}" : "")}{(residencyWeeks > 0 && tourWeeks > 0 ? " and " : "")}{(tourWeeks > 0 ? $"{tourWeeks} weeks on the road" : "")}.");
 		message = room != null
-			? $"{room.ContactName} gives {a.stageName} {residencyWeeks} weeks at {room.Name}, {ResidencyNightsPerWeek} nights a week. The door is the band's; the label's booking commission comes to about ${b.ResidencyWeeklyCommission:N0} a week."
-			: $"{a.stageName} are booked.";
+			? $"{room.ContactName} gives {a.stageName} {residencyWeeks} weeks at {room.Name}: {nightCount} nights from {LocalSceneRoomService.Date(Math.Max(0, firstNight)).ToShortString()}. " +
+				$"The door is the band's; the label takes {LocalSceneRoomService.BookingCommissionRate:P0} of each night they play, about ${b.ResidencyWeeklyCommission:N0} a week."
+			: tourWeeks > 0 ? $"{a.stageName} are booked on the road. The money is theirs: the label books no dates it could bill." : $"{a.stageName} are booked.";
 		Changed?.Invoke();
 		return true;
 	}
@@ -1096,9 +1107,8 @@ public partial class PlayerDesk {
 			if (a == null || a.labelId != Label.labelId) continue;
 			b.WeeksRemaining--;
 			bool residency = b.ResidencyWeeks >= b.TourWeeks;
-			float pay = residency ? b.ResidencyWeeklyCommission : TourWeeklyNet;
-			Label.cashReserves += pay;
-			Label.monthlyRevenue += pay;
+			// F5: road weeks are load, not label income. The gig money is the performers'; the label's commission on a
+			// residency comes off each night actually played (LocalSceneRoomService.TakeBookingCommission), collected at dawn.
 			// Live work builds a little local name and momentum; growth itself is Phase 5's.
 			a.momentum = Mathf.Clamp(a.momentum + (residency ? 0.002f : 0.004f), 0f, 1f);
 		}

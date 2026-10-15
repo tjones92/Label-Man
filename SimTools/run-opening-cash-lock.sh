@@ -40,6 +40,14 @@ elif [ "${MATRIX:-base}" = fair ]; then
     echo "$seed $town ExMusician discerning residency none working batch"
     echo "$seed $town ExMusician eager residency none working staggered"
   done; done > "$jobs_file"
+elif [ "${MATRIX:-base}" = gig ]; then
+  # Phase 5B (F5): the flat road inflow is gone; a residency is booked nights that pay a commission off each set played.
+  # Residency against none on the same openings (one-single discerning; two-single eager staggered), every channel worked.
+  for seed in 1001 1002 1003; do for town in new_york los_angeles detroit memphis; do
+    for road in none residency; do
+      echo "$seed $town ExMusician discerning $road none working batch"
+      echo "$seed $town ExMusician eager $road none working staggered"
+    done; done; done > "$jobs_file"
 elif [ "${MATRIX:-base}" = quality ]; then
   # Closures earned or imposed: a careless pick (frugal) against a competent one (discerning), more seeds, same towns.
   for seed in 1001 1002 1003 1004; do for town in new_york los_angeles detroit memphis billings; do

@@ -71,6 +71,44 @@ public static partial class LocalSceneRoomService {
         return heads;
     }
 
+    /// <summary>Early-game F5: the label's share of a played set it booked, as a fraction of the act's fee (authored).</summary>
+    public const float BookingCommissionRate = 0.10f;
+
+    /// <summary>When a booked set's fee is paid: the label's commission is set on the booking and returned, so the caller
+    /// splits only the rest among the band. Once per booking; zero for any set nobody booked.</summary>
+    private static float TakeBookingCommission(SceneBill bill, SceneAppearance slot) {
+        var booking = State.Bookings.FirstOrDefault(b => b.RoomId == bill.RoomId && b.Day == bill.Day && b.ArtistId == slot.ArtistId
+            && b.Status == SceneBillStatus.Performed && !string.IsNullOrEmpty(b.LabelId) && b.Commission == 0f && !b.CommissionCollected);
+        if (booking == null || slot.Fee <= 0f) return 0f;
+        booking.Commission = (float)Math.Round(slot.Fee * BookingCommissionRate, 2);
+        return booking.Commission;
+    }
+
+    /// <summary>The label's commissions from played sets not yet collected; marks them collected. Called at dawn by the
+    /// player desk, so the money arrives after the engagement settles.</summary>
+    internal static List<SceneBooking> CollectCommissions(string labelId) {
+        var due = (State.Bookings ?? new()).Where(b => b.LabelId == labelId && b.Status == SceneBillStatus.Performed && b.Commission > 0f && !b.CommissionCollected).ToList();
+        foreach (var b in due) b.CommissionCollected = true;
+        return due.Select(Copy).ToList();
+    }
+
+    /// <summary>The nights of a residency: the room's first <paramref name="nightsPerWeek"/> open nights in each calendar
+    /// week, starting from the first night past the announced calendar (or after the act's last night already booked
+    /// there). Each is an ordinary booking, billed under every rule, so a night can still fall through.</summary>
+    internal static List<int> ResidencyNights(SceneRoomProfile room, string artistId, int weeks, int nightsPerWeek) {
+        var nights = new List<int>();
+        if (room == null || weeks <= 0) return nights;
+        int last = (State.Bookings ?? new()).Where(b => b.RoomId == room.Id && b.ArtistId == artistId && b.Status == SceneBillStatus.Scheduled)
+            .Select(b => b.Day).DefaultIfEmpty(-1).Max();
+        int start = Math.Max(FirstBookableDay, last < 0 ? 0 : (last / 7 + 1) * 7);
+        for (int w = 0; w < weeks; w++) {
+            int weekStart = (start / 7 + w) * 7, taken = 0;
+            for (int d = Math.Max(weekStart, start); d < weekStart + 7 && taken < nightsPerWeek; d++)
+                if (SceneLiveEconomics.OpenOn(room, Date(d).DayOfWeek)) { nights.Add(d); taken++; }
+        }
+        return nights;
+    }
+
     /// <summary>When a billed set resolves, the booking takes its outcome.</summary>
     private static void SettleBooking(SceneBill bill, SceneAppearance slot) {
         foreach (var booking in State.Bookings.Where(b => b.RoomId == bill.RoomId && b.Day == bill.Day && b.ArtistId == slot.ArtistId && b.Billed && b.Status == SceneBillStatus.Scheduled)) {

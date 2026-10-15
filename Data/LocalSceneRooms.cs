@@ -123,6 +123,12 @@ public sealed class SceneBooking {
     public SceneBillStatus Status { get; set; }
     public bool Billed { get; set; }
     public string Note { get; set; }
+    /// <summary>Early-game F5: one night of a residency the label booked, rather than a single night pitched.</summary>
+    public bool Residency { get; set; }
+    /// <summary>Early-game F5: the label's booking commission on the played set, taken once out of the act's fee before
+    /// the band splits it. Zero until the set is played and paid.</summary>
+    public float Commission { get; set; }
+    public bool CommissionCollected { get; set; }
 }
 public sealed class SceneBookerPitch {
     public string RoomId { get; set; }

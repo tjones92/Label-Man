@@ -248,10 +248,12 @@ public static partial class LocalSceneRoomService {
                 if (!room.IsPerformance) continue;
                 slot.Fee = SceneLiveEconomics.SlotFee(room, bill, slot, performed.Length);
                 int band = slot.PersonIds.Count + (slot.BackingPersonIds?.Count ?? 0);
-                foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).FeeShare += slot.Fee / band;
+                // A night the player's label booked: its commission comes out of the act's fee once, before the split.
+                float share = (slot.Fee - (HasBookings ? TakeBookingCommission(bill, slot) : 0f)) / band;
+                foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).FeeShare += share;
                 foreach (string person in slot.BackingPersonIds ?? new()) {
-                    Account(slot.ArtistId, person, bill.Year, backed: true).FeeShare += slot.Fee / band;
-                    AddBacking(person, bill.Year, 0f, slot.Fee / band);
+                    Account(slot.ArtistId, person, bill.Year, backed: true).FeeShare += share;
+                    AddBacking(person, bill.Year, 0f, share);
                 }
             }
             RecordRoomYear(room, bill, performed);

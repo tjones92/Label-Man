@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -103,8 +104,8 @@ public partial class PlayerDesk {
 	/// §6.3: ask a room's booker, in person, for a night for one of your acts. The room has to suit the act's music and
 	/// the act has to be working that scene; the night must be one the room opens, past the announced calendar and within
 	/// six weeks. A yes is a dated booking placed on that night's bill when it is drawn up, under every ordinary rule, so
-	/// it can still fall through -- and only a set actually played counts. The gig's money is the performers' (the label
-	/// takes nothing here; commissions are F5's). A no stands for a quarter unless the act plays the room meanwhile.
+	/// it can still fall through -- and only a set actually played counts. The gig's money is the performers'; the label
+	/// takes its booking commission (F5) out of the act's fee for a set played, collected the morning after. A no stands for a quarter unless the act plays the room meanwhile.
 	/// </summary>
 	public bool PitchActToBooker(string roomId, string artistId, int day, out string message) {
 		if (Label == null) { message = "You don't have a label yet."; return false; }
@@ -151,10 +152,40 @@ public partial class PlayerDesk {
 			return true;
 		}
 		LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = roomId, ArtistId = artistId, LabelId = Label.labelId, Day = day, Status = SceneBillStatus.Scheduled, Note = "Promised; goes on the bill when the week is drawn up." });
-		message = $"{room.ContactName} pencils {act.stageName} in at {room.Name} on {night}. The door money is the band's; it goes on the bill when that week's drawn up.";
+		message = $"{room.ContactName} pencils {act.stageName} in at {room.Name} on {night}. The door money is the band's, less your {LocalSceneRoomService.BookingCommissionRate:P0} if they play; it goes on the bill when that week's drawn up.";
 		Note(message);
 		Changed?.Invoke();
 		return true;
+	}
+
+	/// <summary>F5: the booking commission on every set the label booked that was played and paid, collected the morning
+	/// after. It came out of the act's fee before the band split it, so nobody is paid twice.</summary>
+	private void CollectBookingCommissions() {
+		if (Label == null) return;
+		foreach (var b in LocalSceneRoomService.CollectCommissions(Label.labelId)) {
+			Label.cashReserves += b.Commission;
+			Label.monthlyRevenue += b.Commission;
+			var room = SceneRoomCatalog.Get(b.RoomId);
+			string act = ArtistManager.Instance?.GetArtist(b.ArtistId)?.stageName ?? "your act";
+			Note($"Booking commission: ${b.Commission:N2} from {act}'s {(b.Residency ? "residency night" : "night")} at {room?.Name ?? "the room"} ({LocalSceneRoomService.Date(b.Day).ToShortString()}).");
+		}
+	}
+
+	/// <summary>The label's booked nights still to play, grouped by act and room: count, first night and an estimate of the
+	/// commission (the room's usual night pay for the act's players; the door decides the real fee).</summary>
+	public List<(SimulatedArtist Act, SceneRoomProfile Room, int Nights, int FirstDay, float Estimate)> BookedNightsAhead() {
+		var list = new List<(SimulatedArtist, SceneRoomProfile, int, int, float)>();
+		if (Label == null) return list;
+		foreach (var g in LocalSceneRoomService.Bookings.Where(b => b.LabelId == Label.labelId && b.Status == SceneBillStatus.Scheduled)
+			.GroupBy(b => (b.ArtistId, b.RoomId)).OrderBy(g => g.Min(b => b.Day))) {
+			var act = ArtistManager.Instance?.GetArtist(g.Key.ArtistId);
+			var room = SceneRoomCatalog.Get(g.Key.RoomId);
+			if (act == null || room == null) continue;
+			int players = Mathf.Max(1, act.members.Count(m => m.isActive && m.lifeState == MemberLifeState.Active));
+			float per = LocalSceneRoomService.BookingCommissionRate * players * SceneLiveEconomics.ExpectedPlayerNightPay(room, LocalSceneRoomService.Date(g.Min(b => b.Day)).year, players);
+			list.Add((act, room, g.Count(), g.Min(b => b.Day), Mathf.Round(per * g.Count() * 100f) / 100f));
+		}
+		return list;
 	}
 
 	/// <summary>The advance orders held for a title: accounts, copies and the COD value at the dealer price. A reservation

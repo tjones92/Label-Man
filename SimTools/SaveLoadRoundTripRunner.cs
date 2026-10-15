@@ -365,7 +365,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (tableRoom != null) PlayerDesk.Instance.StageRoomTableForChecks(tableRoom, true, 5, .2f, "probe_record_1", 12.25f, TimeManager.Instance.CurrentDate);
 			string bookingRoom = SceneRoomCatalog.All.FirstOrDefault(r => r.IsPerformance)?.Id;
 			if (bookingRoom != null) {
-				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 400, Status = SceneBillStatus.Scheduled, Note = "probe booking" });
+				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 400, Status = SceneBillStatus.Scheduled, Note = "probe booking", Residency = true, Commission = 1.25f });
 				LocalSceneRoomService.RecordPitch(new SceneBookerPitch { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 3, Accepted = false, ShowsAtPitch = 2 });
 			}
 
@@ -686,7 +686,7 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (bookingRoom != null) {
 				var booking1 =LocalSceneRoomService.Bookings.FirstOrDefault(b => b.ArtistId == "probe-act");
 				var pitch1 = LocalSceneRoomService.LastPitch(bookingRoom, "probe-act");
-				bool bookingOk = booking1 != null && booking1.Day == 400 && booking1.Status == SceneBillStatus.Scheduled && booking1.Note == "probe booking"
+				bool bookingOk = booking1 != null && booking1.Day == 400 && booking1.Status == SceneBillStatus.Scheduled && booking1.Note == "probe booking" && booking1.Residency && Math.Abs(booking1.Commission - 1.25f) < 0.001f && !booking1.CommissionCollected
 					&& pitch1 != null && !pitch1.Accepted && pitch1.ShowsAtPitch == 2 && pitch1.Day == 3;
 				GD.Print($"EARLY_GAME_ROUNDTRIP courtesy={courtesy1?.labelIntroduced}/{courtesy1?.movingReadWeek} booking={booking1 != null} pitch={pitch1 != null} ok={bookingOk}");
 				if (!bookingOk) fails.Add("scene booking / booker pitch lost on round-trip");

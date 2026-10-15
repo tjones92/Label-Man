@@ -273,16 +273,14 @@ public partial class PlayerDesk {
 					$"{PlantCreditQuantity:N0} copies with no cash down; ${PressingCost(PlantCreditQuantity, HasBeenPressed(id)):N0} is due in {PlantCreditTermWeeks} weeks. Stock, not cash."));
 		}
 
-		// Engagements the label booked: a residency's booking commission, a tour's net (F5 will move tour money to the performers).
-		foreach (var act in Roster) {
-			var booking = RoadBookingFor(act.artistId);
-			if (booking == null || booking.WeeksRemaining <= 0) continue;
-			bool residency = booking.ResidencyWeeks >= booking.TourWeeks;
-			float weekly = residency ? booking.ResidencyWeeklyCommission : TourWeeklyNet;
-			if (weekly <= 0f) continue;   // a residency with no room behind it pays the label nothing
-			var next = AddDays(today, 7 - (DaysBetween(GameDate.StartDate, today) % 7));
-			list.Add(new("Booked engagements", $"{act.stageName}: {booking.WeeksRemaining} week(s) left", residency ? "residency" : "on the road",
-				0f, weekly * booking.WeeksRemaining, next, CashCertainty.Accepted, !TooLate(next), $"${weekly:N0} a week as each week settles." + Late(next)));
+		// F5: nights the label booked pay its commission out of the act's fee, the morning after each set is played. Tours
+		// and the performers' own gigs pay the label nothing.
+		foreach (var n in BookedNightsAhead()) {
+			if (n.Estimate <= 0f) continue;
+			var next = LocalSceneRoomService.Date(n.FirstDay + 1);
+			list.Add(new("Booked engagements", $"{n.Act.stageName} at {n.Room.Name}: {n.Nights} night(s)", $"first {LocalSceneRoomService.Date(n.FirstDay).ToShortString()}",
+				0f, n.Estimate, next, CashCertainty.Accepted, !TooLate(next),
+				$"About ${n.Estimate:N0} in all: {LocalSceneRoomService.BookingCommissionRate:P0} of the act's fee for each night played, paid the morning after. The door sets the fee; a night can fall through." + Late(next)));
 		}
 		// §7.1: paid demos. A booked one pays its fee when you produce it; tonight's unsigned acts are a pitch.
 		foreach (var job in demoJobs.Where(j => j.Status == DemoStatus.Booked)) {

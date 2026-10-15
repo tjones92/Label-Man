@@ -14,7 +14,8 @@ using Godot;
 /// keeps the scenarios independent. Arguments (after --):
 ///   --seed=1001 --archetype=ExMusician --town=new_york --policy=frugal|eager|replay|extras --days=120
 ///   [--road=none|residency]  residency: pitch bookers for nights for every signed act, then ask each room that has had
-///     the act twice for a standing run (residencies are a booker's yes since 2026-10-14, paying a booking commission).
+///     the act twice for a standing run (residencies are a booker's yes since 2026-10-14, paying a booking commission
+///     out of each night the act plays, since F5).
 ///   [--sell=home|working]  home = pitch/consign at home-town shops and ops only; working = also service reorders, work
 ///     the hop tables, open the one-stop, drop promos at stations, repress a selling title, and take a weekly road trip.
 ///   [--sequence=batch|staggered]  staggered cuts the second session only after the first single is out (the playtest order).
@@ -734,6 +735,8 @@ public partial class OpeningCashLockRunner : Node {
 			bookingsPerformed = bookings.Count(b => b.Status == SceneBillStatus.Performed),
 			bookingsFellThrough = bookings.Count(b => b.Status == SceneBillStatus.Cancelled),
 			residencyAsks, residenciesWon,
+			commissionNights = bookings.Count(b => b.CommissionCollected), commissionsCollected = Math.Round(bookings.Where(b => b.CommissionCollected).Sum(b => b.Commission), 2),
+			residencyNightsBooked = bookings.Count(b => b.Residency), residencyNightsPlayed = bookings.Count(b => b.Residency && b.Status == SceneBillStatus.Performed),
 			tableAsks, tableRightsWon, tableNights, tableNightsOwnAct, tableNightsCancelled, tableNightsEmpty, tableCopies,
 			following = signedIds.Select(a => new {
 				act = a, home = Math.Round(Desk.LocalFollowing(a, Desk.Label?.homeCityId), 3),
@@ -828,8 +831,8 @@ public partial class OpeningCashLockRunner : Node {
 			if (Desk.PlantCreditEligible(id)) Line("executable", $"plant credit on {id} (open calls {Desk.OpenCallDemand(id)})");
 			else Line("blocked", $"plant credit on {id}: open calls {Desk.OpenCallDemand(id)} under threshold or one owed");
 		}
-		int residencies = signedIds.Count(id => Desk.RoadBookingFor(id)?.WeeksRemaining > 0);
-		if (residencies > 0) Line("executable", $"{residencies} active residency booking(s) paying ${signedIds.Sum(id => Desk.RoadBookingFor(id)?.ResidencyWeeklyCommission ?? 0f):F0}/wk in commission");
+		var ahead = Desk.BookedNightsAhead();
+		if (ahead.Count > 0) Line("speculative", $"{ahead.Sum(n => n.Nights)} booked night(s) ahead, about ${ahead.Sum(n => n.Estimate):F0} in commission if played");
 		else if (signedIds.Count > 0) Line("speculative", "ask a room the act has played twice for a residency (booking commission)");
 		else Line("blocked", "road income: no signed act");
 		Line("speculative", "distribution deal: an offer may or may not come and pays nothing up front");
