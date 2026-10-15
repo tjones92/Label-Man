@@ -283,6 +283,21 @@ public partial class PlayerDesk {
 			list.Add(new("Booked engagements", $"{act.stageName}: {booking.WeeksRemaining} week(s) left", residency ? "residency" : "on the road",
 				0f, weekly * booking.WeeksRemaining, next, CashCertainty.Accepted, !TooLate(next), $"${weekly:N0} a week as each week settles." + Late(next)));
 		}
+		// §7.1: paid demos. A booked one pays its fee when you produce it; tonight's unsigned acts are a pitch.
+		foreach (var job in demoJobs.Where(j => j.Status == DemoStatus.Booked)) {
+			var day = LocalSceneRoomService.Date(job.Day);
+			list.Add(new("Produce a booked demo", $"{job.ArtistName} at {job.RoomName}", $"{day.ToShortString()} from {Clock12(job.StartHour)}, {job.Hours}h; you have to be there",
+				0f, job.Fee, day, CashCertainty.Accepted, !TooLate(day),
+				$"Their deposit pays the room and the dub; your ${job.Fee:N0} is paid on delivery. Miss it and you pay the room yourself." + Late(day)));
+		}
+		if (DemoProspects(CurrentCityId ?? home).FirstOrDefault(p => p.Block == null) is { Act: not null } pitch) {
+			var quote = DemoQuoteFor(pitch.Act);
+			var day = LocalSceneRoomService.Date(quote.Day);
+			list.Add(new("Pitch a paid demo", $"{pitch.Act.stageName}, on at {SceneRoomCatalog.Get(pitch.Bill.RoomId)?.Name} tonight", $"{DemoOfferHours}h between sets",
+				0f, quote.Fee, day, CashCertainty.Speculative, !TooLate(day),
+				$"${quote.Gross:N0} to them; your ${quote.Fee:N0} is paid when you produce it on {day.ToShortString()}. They can say no." + Late(day)));
+		}
+
 		// §4.3: one backer agreement. An open offer is money agreed if you sign; before the meeting it's an ask.
 		if (backer == null && BackerProspectFor() is { } prospect) {
 			if (PendingBackerOffer is { } offer) {

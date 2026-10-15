@@ -21,6 +21,10 @@ elif [ "${MATRIX:-base}" = backer ]; then
       for policy in eager replay; do echo "$seed $town ExMusician $policy none none working staggered $b"; done
       echo "$seed $town ExMusician discerning none none working batch $b"
     done; done; done > "$jobs_file"
+elif [ "${MATRIX:-base}" = demo ]; then
+  # Phase 4 (§7.1): paid demos worked every evening against not, on the one-single discerning opening, every channel.
+  for seed in 1001 1002; do for town in new_york los_angeles detroit memphis; do
+    for d in none work; do echo "$seed $town ExMusician discerning none none working batch none $d"; done; done; done > "$jobs_file"
 elif [ "${MATRIX:-base}" = live ]; then
   # Phase 3 (F1-F3): live-first preparation against waiting, both selling every channel, so room tables and the
   # following from played sets are actually worked. Matched fixtures: same seed, town and act policy.
@@ -52,14 +56,14 @@ for seed in 1001 1002; do
 done > "$jobs_file"
 fi
 run_one() {
-  read -r seed town arch policy road prep sell seq backer <<<"$1"; prep=${prep:-none}; sell=${sell:-home}; seq=${seq:-batch}; backer=${backer:-none}
+  read -r seed town arch policy road prep sell seq backer demos <<<"$1"; prep=${prep:-none}; sell=${sell:-home}; seq=${seq:-batch}; backer=${backer:-none}; demos=${demos:-none}
   name="ocl-$TAG-$seed-$town-$arch-$policy-$road"; [ "$prep" = none ] || name="$name-$prep"; [ "$seq" = batch ] || name="$name-$seq"
-  [ "$backer" = none ] || name="$name-backer"; name=${name//_/-}
+  [ "$backer" = none ] || name="$name-backer"; [ "$demos" = none ] || name="$name-demos"; name=${name//_/-}
   [ -f "SimLogs/$name-opening.json" ] && return 0
   # The reverse worker never touches a job the forward one has started (its log exists).
   [ -n "${REVERSE:-}" ] && [ -f "SimLogs/$name.log" ] && return 0
   "$GODOT" --headless --path . SimTools/OpeningCashLockRunner.tscn -- --seed=$seed --enable-genre-market-v2 \
-    --enable-artist-population-lifecycle --archetype=$arch --town=$town --policy=$policy --road=$road --prep=$prep --sell=$sell --sequence=$seq --backer=$backer \
+    --enable-artist-population-lifecycle --archetype=$arch --town=$town --policy=$policy --road=$road --prep=$prep --sell=$sell --sequence=$seq --backer=$backer --demos=$demos \
     --days=$DAYS --run=$name > "SimLogs/$name.log" 2>&1
   grep -q OPENING_CASH_LOCK_DONE "SimLogs/$name.log" && echo "ok   $name" || echo "FAIL $name"
 }

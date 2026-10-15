@@ -17,9 +17,10 @@ money. A §4.3 backer, if built, must come from a non-family source.
 | 1B §6.2 | Dealer advance orders off an acetate; shared record appeal; pre-orders held past arrival | `Systems/PlayerDesk.Groundwork.cs`; `PlayerDesk.cs` |
 | 1B §6.3 | Pitch an act to a real booker; dated nights placed by the scene scheduler | `Systems/LocalSceneRoomService.Bookings.cs`, `Data/LocalSceneRooms.cs`, `PlayerDesk.Groundwork.cs`; UI `PlayerDeskPanel.SceneRooms.cs` |
 | 2 §4.3 | One backer agreement per label, non-family sources, ledger, 1st-of-month payments | `Systems/PlayerDesk.Backer.cs`; gate `SimTools/BackerChecks.*`; UI `BuildBacker` in `PlayerDeskPanel.cs` |
+| 4 §7.1 | Paid demos: real unsigned clients, held deposits, producer fee, demo sample | `Systems/PlayerDesk.Demos.cs`; gate `SimTools/DemoChecks.*`; UI `PaidDemos` in `PlayerDeskPanel.SceneRooms.cs` |
 | 3 F1-F3 | Room tables, audience saturation, local appeal | `Systems/PlayerDesk.RoomTables.cs`, `PlayerDesk.LocalAppeal.cs`; gate `SimTools/RoomTableChecks.*` |
 
-Phase 3 built 2026-10-14 and Phase 2 on 2026-10-14 after it, see below. Not started: 4 (paid demos), 5/5A (master
+Phases 3, 2 and 4 built 2026-10-14 (in that order), see below. Not started: 5/5A (master
 shopping, song placement), 5B (F5 gig pay), later/deferred items.
 
 ## Design choices worth knowing
@@ -389,3 +390,64 @@ part-way (direction was already clear). Paired runs share a seed, not a world.
 - Reading: the backer is an option with a cost, not a rescue. Whether repayment "from cash above zero only" is too soft
   (a red label never pays and loses only standing) is the author's call: the alternative is letting a payment take cash
   below zero, which would make it a closure accelerator.
+
+## Phase 4: paid demos (§7.1), 2026-10-14
+
+Built (`Systems/PlayerDesk.Demos.cs`; UI "PAID DEMOS" on the scene board). Paid production in a hired room: the label
+owns no studio.
+
+- **Clients are real acts:** unsigned, on a bill in your town tonight, a seeking or latent prospect, with the money.
+  Their money is read, never written: their people's realized scene pay this year and last
+  (`LocalSceneRoomService.Realized`), their holdings (`Musician.wealth`), and, for a day-job act (not
+  `LocalSceneRoomService.FullTime`), day-job savings of $2 a member a week up to half a year's worth (author decision,
+  2026-10-14: the first build read room pay alone and 270 of 271 Detroit act-nights in 120 days could not pay; median $4).
+  Less what they've spent on demos with you in the last half-year. A demo can cost at most two-thirds of it.
+- **The ask** is in person between sets (1h, from the bill's start). Chance 0.20 + 0.25 seeking (0.10 latent) +
+  0.25 x label reputation + 0.15 if your acts' people know theirs + 0.10 if you've heard them - 0.30 x (gross/means
+  above a third), clamped 0.05-0.85. A no stands 91 days. (First weights had -0.40 x gross/means, which double-counted
+  the affordability gate: 2 bookings from 37 pitches in 90 days.)
+- **The quote:** the cheapest free local room (studio sheet rooms, rates and booked-solid calendar; specialist rooms
+  excluded) for 3h from 10 a.m. on the first day 3-14 days out when none of the act's people has a bill and you have no
+  other demo, + a $20 acetate dub + the $20 producer fee. Detroit: $54 + 20 + 20 = $94.
+- **Money:** the room and the dub are the deposit, paid by the client on agreement and **held**, never label cash. On
+  delivery the deposit pays the room and the cutting room and the client pays the fee: the label's only income
+  (booked as revenue). The label never advances a session.
+- **Delivery:** the founder produces it at the room (3h). The act takes an acetate of its own song: no master,
+  publishing, option or signing. The label gets a `DemoSample` observation on the act's scouting file ("Your demo
+  session", keyed noise like the scouting demo).
+- **Cancellations:** the act can't come (broken up, nobody left, left town) -> the room keeps half its fee from their
+  deposit, the rest goes back, nothing to the label. The founder misses it -> full deposit back, the label pays the
+  room's half, reputation -0.01, that act refuses for a year. Called off a day or more ahead -> free; on the day ->
+  the room's half is the label's. Settled the morning after (`OnDayStarted`).
+- Saved as `PlayerSaveData.Demos` (optional). CASH OPTIONS lists booked demos (agreed, fee on the day) and tonight's
+  first pitchable act (speculative).
+- Authored, not sourced: the fee, dub, session length, lead days, savings rate and cap, acceptance weights, the
+  two-thirds rule and the room's half. Historical anchor is only the kind of service (custom recording, Rayber demos).
+
+Verification:
+- **AI-only identity:** `egl-p4-1001-52` matches `ref-c566f24-1001-52` on 84/84 CSVs.
+- `DemoChecks` 30/30 on the real clock (Detroit): a real client appears (day 0 after savings; day 22 before); quote at
+  the room's own rate, in the $35-100 reference; the pitch costs an hour and no money; a no stands; the deposit is held,
+  not cash, and comes off the client's means; CASH OPTIONS lists the fee; not before its day; delivery pays only the
+  fee as revenue, takes 3h, leaves a demo sample and no signing; a missed session (refund, room's half, reputation,
+  a year's refusal); an act that broke up (half the room from its deposit, nothing owed); free and same-day cancels.
+- `SaveLoadRoundTripRunner --integration` passes (`DEMO_ROUNDTRIP ok=True`). CashPlanning 30/30, Backer 49/49,
+  RoomTable 49/49.
+
+## Demo matrix (`SimLogs/ocl-p4-demos.md`, MATRIX=demo, 16 runs, 180 days)
+
+Discerning one-single, every channel worked, `--demos=work` (produce each booked demo; pitch up to two of tonight's
+acts after the day's work) against `none`, New York / LA / Detroit / Memphis x seeds 1001-1002.
+
+- **$62/month in fees on average** (147 delivered of 152 booked from 498 pitches; 4 missed). New York $54-98/month =
+  **31-56% of its $175 overhead**, inside the §7.1 30-60% diagnostic. Detroit $30-78 (38-97% of $80), Memphis $44-71
+  (66-106% of $67), LA $61 (49% of $125).
+- **It moves the label's cash a lot:** final cash rose in all 8 pairs (New York -267 -> +32 and -213 -> +303). Units
+  were not hurt (stream noise either way). No closures in either arm.
+- **Supply binds, not demand:** most unsigned act-nights can't pay (duos and solos hold too little), many aren't on
+  yet when pitched, and refusals stand. Every client is a real act with real money.
+- **Cost in time:** about 3.3 pitches (1h each) per booking plus the 3h session: roughly $3 an hour of the founder's
+  day, worked every evening the probe could.
+- Reading: demos do not need guaranteed clients to matter; worked every night, they cover about half of New York's
+  overhead. Whether that is too generous an escape (directive: "they need not ... rescue every lock") is the author's
+  call; the levers are the fee, the savings cap and the acceptance weights, not an income ceiling.

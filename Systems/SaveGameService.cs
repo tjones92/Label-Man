@@ -349,6 +349,8 @@ public sealed class PlayerSaveData {
     public List<RoomTableSaveData> RoomTables { get; set; }
     /// <summary>Optional: the early-game backer agreement, its ledger, an open offer or a standing refusal. Older saves hold none.</summary>
     public BackerSaveData Backer { get; set; }
+    /// <summary>Optional: paid demo bookings (held deposits, outcomes) and standing refusals. Older saves hold none.</summary>
+    public DemoSaveData Demos { get; set; }
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
     public List<StudioVisit> StudioVisits { get; set; }

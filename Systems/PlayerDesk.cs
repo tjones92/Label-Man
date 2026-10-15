@@ -4735,6 +4735,7 @@ public partial class PlayerDesk : Node {
 		ChargeHotelIfAway();
 		ProcessStudioTripDawn(date);
 		ProcessStudioLockoutDawn(date);
+		SettlePastDemos();
 		ProcessRivalCrowding(date);
 		TrackRosterDepartures(date);
 		ProcessCallbacksAtDawn(date);
@@ -5931,6 +5932,7 @@ public partial class PlayerDesk : Node {
             RivalCourtships = CaptureRivalCourtships(),
             RoomTables = CaptureRoomTables(),
             Backer = CaptureBacker(),
+            Demos = CaptureDemos(),
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
             StudioTrip = studioTrip?.Copy(),
@@ -6433,6 +6435,7 @@ public partial class PlayerDesk : Node {
         RestoreRivalCourtships(data.RivalCourtships);
         RestoreRoomTables(data.RoomTables);
         RestoreBacker(data.Backer);
+        RestoreDemos(data.Demos);
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
         studioTrip = data.StudioTrip?.Copy();

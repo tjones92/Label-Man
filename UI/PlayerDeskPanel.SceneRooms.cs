@@ -38,6 +38,7 @@ public partial class PlayerDeskPanel {
         }
         BookYourActs(desk);
         SellAtTheRooms(desk);
+        PaidDemos(desk);
         ScoutingSceneContacts(desk);
     }
 
@@ -87,6 +88,49 @@ public partial class PlayerDeskPanel {
                     bool ok = desk.WorkRoomTable(room.Id, recordId, out string message); Say(message, ok); return true;
                 });
                 row.AddChild(pick); row.AddChild(work);
+            }
+            content.AddChild(row);
+        }
+    }
+
+    /// <summary>Early-game §7.1: paid demos. Unsigned acts on tonight's bills you could pitch between sets, and the demos
+    /// already booked, with their held deposits. The act pays the room and the dub; the label earns the producer's fee.</summary>
+    private void PaidDemos(PlayerDesk desk) {
+        if (desk.Label == null || !LocalScenes.Rooms) return;
+        var prospects = desk.DemoProspects(desk.CurrentCityId);
+        var booked = desk.DemoJobs.Where(j => j.Status == PlayerDesk.DemoStatus.Booked).ToList();
+        if (prospects.Count == 0 && booked.Count == 0) return;
+        ScoutingText("PAID DEMOS", 18, ScoutingVenueInk, PaperTheme.SansBold);
+        ScoutingText($"Produce a demo for an unsigned act in a hired room: they pay the room and an acetate dub up front (held for the room, not yours), " +
+            $"and your ${PlayerDesk.DemoProducerFee:N0} when you hand it over. They keep their song and their freedom; you get to hear them work. " +
+            $"Pitch them at the bar between sets ({PlayerDesk.DemoOfferHours}h).", 14, Heard);
+        foreach (var job in booked) {
+            var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8);
+            var label = new Label { Text = $"{job.ArtistName} at {job.RoomName}, {LocalSceneRoomService.Date(job.Day).ToHeadlineString()} {Hour12(job.StartHour)}, {job.Hours}h · " +
+                $"deposit ${job.DepositHeld:N2} held · your fee ${job.Fee:N0}" };
+            label.AddThemeColorOverride("font_color", Ink);
+            row.AddChild(label);
+            string id = job.Id;
+            var produce = Btn($"PRODUCE IT  ({job.Hours}h)");
+            produce.Pressed += () => Act(() => { bool ok = desk.ProduceDemo(id, out string m); Say(m, ok); return ok; });
+            var cancel = Btn("CALL IT OFF");
+            cancel.TooltipText = "Free a day or more ahead; on the day the room bills you half its fee.";
+            cancel.Pressed += () => Act(() => { bool ok = desk.CancelDemo(id, out string m); Say(m, ok); return ok; });
+            row.AddChild(produce); row.AddChild(cancel);
+            content.AddChild(row);
+        }
+        foreach (var (act, bill, block) in prospects) {
+            var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8);
+            var quote = block == null ? desk.DemoQuoteFor(act) : null;
+            var label = new Label { Text = $"{act.stageName}, on at {SceneRoomCatalog.Get(bill.RoomId)?.Name} {Hour12(bill.StartHour)}–{Hour12(bill.EndHour)}" +
+                (quote != null ? $" · ${quote.Gross:N0} at {quote.RoomName} on {LocalSceneRoomService.Date(quote.Day).ToShortString()}" : $" · {block}") };
+            label.AddThemeColorOverride("font_color", block == null ? Ink : Heard);
+            row.AddChild(label);
+            if (block == null) {
+                string artistId = act.artistId;
+                var pitch = Btn($"PITCH A DEMO  ({PlayerDesk.DemoOfferHours}h)");
+                pitch.Pressed += () => Act(() => { bool ok = desk.OfferDemo(artistId, out string m); Say(m, ok); return ok; });
+                row.AddChild(pitch);
             }
             content.AddChild(row);
         }

@@ -71,6 +71,8 @@ public partial class OpeningCashLockRunner : Node {
 			sell = Arg("sell", "home");
 			sequence = Arg("sequence", "batch");
 			backerPlan = Arg("backer", "none");
+			demoPlan = Arg("demos", "none");
+			if (demoPlan is not ("none" or "work")) throw new InvalidOperationException("Unknown demo plan " + demoPlan);
 			if (backerPlan is not ("none" or "ask")) throw new InvalidOperationException("Unknown backer plan " + backerPlan);
 			days = int.Parse(Arg("days", "120"));
 			archetype = Enum.Parse<FoundingArchetype>(Arg("archetype", "ExMusician"));
@@ -110,6 +112,7 @@ public partial class OpeningCashLockRunner : Node {
 	private void Step() {
 		if (!Desk.AtHome) Act(Desk.DriveHome(out var home), "drive-home", home);
 		AskBacker();
+		ProduceDemosToday();
 		switch (stage) {
 			case Stage.Scout: Scout(); break;
 			case Stage.Negotiate: Negotiate(); break;
@@ -121,6 +124,66 @@ public partial class OpeningCashLockRunner : Node {
 				if (road == "residency" && signedIds.Count > 0 && Desk.AtHome) { WorkTheRooms(); AskForResidencies(); }
 				break;
 		}
+		PitchDemos();
+	}
+
+	// Phase 4 (§7.1): --demos=work produces every booked demo on its morning and, after the day's work, pitches up to two
+	// of tonight's unsigned acts between sets. none never does. Report-only.
+	private string demoPlan;
+	private int demoPitches, demoNightsTried;
+	private readonly Dictionary<string, int> demoBlocks = new();
+	private readonly Dictionary<string, float> demoFeesByMonth = new();
+
+	private void ProduceDemosToday() {
+		if (demoPlan != "work" || !Desk.AtHome) return;
+		int today = LocalSceneRoomService.Day(Clock.CurrentDate);
+		foreach (var job in Desk.DemoJobs.Where(j => j.Status == PlayerDesk.DemoStatus.Booked && j.Day == today).ToList()) {
+			if (Clock.CurrentHour < job.StartHour) Desk.PassTime(job.StartHour - Clock.CurrentHour, out _);
+			bool ok = Desk.ProduceDemo(job.Id, out var message);
+			Act(ok, "demo-produce", message, job.ArtistName, job.Fee);
+			if (ok && job.Status == PlayerDesk.DemoStatus.Delivered) {
+				string month = $"{Clock.CurrentDate.year}-{Clock.CurrentDate.month:00}";
+				demoFeesByMonth[month] = demoFeesByMonth.GetValueOrDefault(month) + job.Fee;
+			}
+		}
+	}
+
+	private void PitchDemos() {
+		if (demoPlan != "work" || !Desk.AtHome || Desk.IsGameOver) return;
+		var tonight = Desk.DemoProspects(Desk.CurrentCityId);
+		if (tonight.Count == 0) return;
+		demoNightsTried++;
+		foreach (var p in tonight) {
+			string why = p.Block == null ? "pitchable" : p.Block.Contains("looking") ? "not looking" : p.Block.Contains("money") ? "no money"
+				: p.Block.Contains("said no") ? "said no" : p.Block.Contains("booked") ? "already booked" : p.Block.Contains("room") ? "no room" : "not yet on";
+			demoBlocks[why] = demoBlocks.GetValueOrDefault(why) + 1;
+		}
+		int pitched = 0;
+		foreach (var p in tonight.Where(p => p.Block == null || p.Block.StartsWith("Catch them")).ToList()) {
+			if (pitched >= 2) break;
+			if (Clock.CurrentHour < p.Bill.StartHour) {
+				if (Clock.HoursRemainingWithOvertime < p.Bill.StartHour - Clock.CurrentHour + PlayerDesk.DemoOfferHours) break;
+				Desk.PassTime(p.Bill.StartHour - Clock.CurrentHour, out _);
+			}
+			bool ok = Desk.OfferDemo(p.Act.artistId, out var message);
+			Act(ok, "demo-pitch", message, p.Act.stageName);
+			if (ok) { demoPitches++; pitched++; }
+			if (!ok && message != null && message.Contains("hard stop")) break;
+		}
+	}
+
+	private object DemoSummary() {
+		var jobs = Desk.DemoJobs;
+		return new {
+			plan = demoPlan, nightsTried = demoNightsTried, pitches = demoPitches, booked = jobs.Count,
+			delivered = jobs.Count(j => j.Status == PlayerDesk.DemoStatus.Delivered),
+			missed = jobs.Count(j => j.Status == PlayerDesk.DemoStatus.LabelMissed),
+			clientCancelled = jobs.Count(j => j.Status == PlayerDesk.DemoStatus.ClientCancelled),
+			stillBooked = jobs.Count(j => j.Status == PlayerDesk.DemoStatus.Booked),
+			fees = jobs.Where(j => j.Status == PlayerDesk.DemoStatus.Delivered).Sum(j => j.Fee),
+			feesByMonth = demoFeesByMonth, blocks = demoBlocks,
+			grossToClients = jobs.Where(j => j.Status == PlayerDesk.DemoStatus.Delivered).Sum(j => j.Gross),
+		};
 	}
 
 	/// <summary>§4.3 policy: once the backer would say yes on what he's told he wants, meet him in his hours and sign the
@@ -795,6 +858,7 @@ public partial class OpeningCashLockRunner : Node {
 			firstReleaseDay, firstSaleDay, stockoutDays, firstUnpressableDay, unpressableDays, roadTrips, citiesWorked, channelActs,
 			prepared = PrepSummary(),
 			backer = BackerSummary(),
+			demos = DemoSummary(),
 			violations,
 			records = RecordTruth(),
 			day30 = CashAt(30), day60 = CashAt(60), day90 = CashAt(90),

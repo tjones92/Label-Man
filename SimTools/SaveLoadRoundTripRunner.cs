@@ -378,6 +378,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 			PlayerDesk.Instance.StageBackerForChecks(probeLoan, new PlayerDesk.BackerOffer { Made = TimeManager.Instance.CurrentDate, Expires = PlayerDesk.NextFirstForChecks(TimeManager.Instance.CurrentDate),
 				Objection = "probe objection", Terms = { new PlayerDesk.BackerTerms("Take a smaller sum", 300f, PlayerDesk.BackerRate, "probe") } });
 
+			// Early-game §7.1: a booked demo with its held deposit, a delivered one, and a standing refusal.
+			var demoAct = ArtistManager.Instance.GetAllArtists().FirstOrDefault(a => string.IsNullOrEmpty(a.labelId));
+			PlayerDesk.DemoJob demoBooked = null;
+			if (demoAct != null) {
+				var dq = new PlayerDesk.DemoQuote("probe_room", "Probe Room", 500, PlayerDesk.DemoStartHour, PlayerDesk.DemoHours, 48f, PlayerDesk.DemoDubCost, PlayerDesk.DemoProducerFee);
+				demoBooked = PlayerDesk.Instance.StageDemoForChecks(demoAct, dq);
+				PlayerDesk.Instance.StageDemoForChecks(demoAct, dq with { Day = 501 }).Status = PlayerDesk.DemoStatus.Delivered;
+			}
+
             var infoSave = PlayerDesk.Instance.CaptureState();
             infoSave.SceneInformation = new SceneInformationKnowledge {
                 Contacts = new() { new() { ContactId = "probe-contact", HeardBillIds = new() { "probe-bill-1", "probe-bill-2" } } },
@@ -578,6 +587,14 @@ public partial class SaveLoadRoundTripRunner : Node {
 					&& PlayerDesk.Instance.PendingBackerOffer?.Terms.Count == 1 && PlayerDesk.Instance.PendingBackerOffer.Objection == "probe objection";
 				GD.Print($"BACKER_ROUNDTRIP paid={loan1?.PrincipalPaid} interest={loan1?.InterestPaid} missed={loan1?.Missed} ledger={loan1?.Ledger.Count} ok={backerOk}");
 				if (!backerOk) fails.Add("backer agreement/ledger/offer lost on round-trip");
+			}
+			if (demoBooked != null) {
+				var jobs1 = PlayerDesk.Instance.DemoJobs;
+				var b1 = jobs1.FirstOrDefault(j => j.Id == demoBooked.Id);
+				bool demoOk = jobs1.Count == 2 && b1 != null && b1.Status == PlayerDesk.DemoStatus.Booked && Math.Abs(b1.DepositHeld - (48f + PlayerDesk.DemoDubCost)) < 0.001f
+					&& b1.Day == 500 && b1.RoomName == "Probe Room" && b1.ArtistId == demoAct.artistId && jobs1.Count(j => j.Status == PlayerDesk.DemoStatus.Delivered) == 1;
+				GD.Print($"DEMO_ROUNDTRIP jobs={jobs1.Count} held={b1?.DepositHeld} ok={demoOk}");
+				if (!demoOk) fails.Add("demo bookings lost on round-trip");
 			}
 			if (tableRoom != null) {
 				var rights1 = PlayerDesk.Instance.LastTableRightsAsk(tableRoom);
