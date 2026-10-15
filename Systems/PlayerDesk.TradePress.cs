@@ -156,33 +156,65 @@ public partial class PlayerDesk : Node {
 	/// <summary>Directive §5's mailing-landing stub: "a trade review bonus here... plugs in once §6.1
 	/// exists." §6.3's breakout listing gives the same kind of story to a cold mailing, so it stacks.</summary>
 	public float TradeMailingLandingBonus(string recordId) {
-		float bonus = ActiveTradeOutcome(recordId) switch {
+		float pick = ActiveTradeOutcome(recordId) switch {
 			TradeOutcome.Spotlight => 0.25f,
 			TradeOutcome.FourStar => 0.15f,
 			TradeOutcome.TwoLineMention => 0.06f,
 			_ => 0f,
 		};
-		if (HasAnyBreakout(recordId)) bonus += 0.15f;
 		TradeAd ad = ActiveTradeAd(recordId);
-		if (ad != null) bonus += TradeAdMailingBonus(ad.Tier);
-		return bonus;
+		float press = PressVoice(pick, ad != null ? TradeAdMailingBonus(ad.Tier) : 0f);
+		float evidence = 0.15f * BreakoutBreadth(recordId);
+		// Two independent reasons to open the envelope: the trade's word, and the record's own action.
+		return 1f - (1f - press) * (1f - evidence);
 	}
 
 	/// <summary>Directive §6.1 ("big multiplier on InboundCall generation") and §6.3 ("the loudest
 	/// inbound generator in the game") both act on the same lever -- GenerateInboundCalls' stranger and
 	/// OneStopTest rolls -- rather than each inventing its own channel.</summary>
 	public float TradeInboundCallMultiplier(string recordId) {
-		float mult = 1f + ActiveTradeOutcome(recordId) switch {
+		float pick = ActiveTradeOutcome(recordId) switch {
 			TradeOutcome.Spotlight => 1.5f,
 			TradeOutcome.FourStar => 0.8f,
 			TradeOutcome.TwoLineMention => 0.3f,
 			_ => 0f,
 		};
-		if (HasAnyBreakout(recordId)) mult += 1.8f;
 		TradeAd ad = ActiveTradeAd(recordId);
-		if (ad != null) mult += TradeAdInboundBonus(ad.Tier);
-		return mult;
+		return 1f + PressVoice(pick, ad != null ? TradeAdInboundBonus(ad.Tier) : 0f) + 1.8f * BreakoutBreadth(recordId);
 	}
+
+	// ── how the trade's signals add up (Media Atmosphere directive §8.1) ─────────────────────────
+	//
+	// A review pick and a paid ad say the same thing to the same readers: "this label is working this
+	// record." The second voice reaches the readers who missed the first, so it adds, but far less than
+	// its face value; the press channel saturates instead of stacking. The record's own action is a
+	// different kind of signal: a distributor reads a regional breakout as evidence, and evidence grows
+	// with breadth. One market breaking is a story; five at once is the phone ringing off the hook.
+	// Each signal alone keeps its exact old value, so nothing changes for a record with one reason.
+	// Nothing here is a hard cap: a record breaking everywhere earns its flood, and ads can't buy it.
+
+	private const float PressRepeatWeight = 0.35f;
+
+	/// <summary>The trade's editorial pick and its advertising pages as one saturating voice.</summary>
+	internal static float PressVoice(float pick, float ad) => Mathf.Max(pick, ad) + PressRepeatWeight * Mathf.Min(pick, ad);
+
+	/// <summary>0 with no breakout, 1 for one market, growing with the square root of the markets breaking.</summary>
+	private float BreakoutBreadth(string recordId) => BreadthFor(BreakoutRegionNames(recordId).Count());
+	internal static float BreadthFor(int markets) => markets == 0 ? 0f : 1f + 0.5f * (Mathf.Sqrt(markets) - 1f);
+
+	/// <summary>Regions where the record is breaking right now (current score over the bar, not its peak). The weekly
+	/// stranger-call allowance grows only with these: a national breakout fills the office line, then it cools.</summary>
+	public int LiveBreakoutMarkets(string recordId) {
+		RecordRuntimeData rec = FindReleasedRecord(recordId);
+		if (rec == null) return 0;
+		float threshold = CompetitorManager.Instance?.RegionalBreakoutDealThreshold ?? 0.20f;
+		return rec.regionalData.Values.Count(rd => rd != null && rd.breakoutScore >= threshold);
+	}
+
+	/// <summary>Stranger calls one record can draw in a week: one, plus one more for every two further markets breaking
+	/// at once. Three live markets is rare; seven is a phenomenon. Press and ads never raise it.</summary>
+	public int StrangerCallAllowance(string recordId) => AllowanceFor(LiveBreakoutMarkets(recordId));
+	internal static int AllowanceFor(int liveMarkets) => liveMarkets >= 3 ? 1 + (liveMarkets - 1) / 2 : 1;
 
 	/// <summary>Directive §6.1: "a bonus to house-visit acceptance." PlaceLine isn't pitched with one
 	/// particular record in hand, so this reads the label's best live trade standing across its whole

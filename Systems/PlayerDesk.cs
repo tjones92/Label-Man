@@ -40,7 +40,8 @@ public partial class PlayerDesk : Node {
 	private const float StrangerAwarenessThreshold = 0.22f;  // regional awareness that makes a never-visited shop plausible
 	private const float StrangerRadioThreshold = 0.15f;      // regional radioPlay that does the same
 	private const float StrangerCallChancePerWeek = 0.35f;   // even with real signal, not every week rings
-	private const int StrangerCallsPerRecordPerWeek = 1;     // keep the office list legible, not a flood
+	// Stranger calls per record per week: one, more only for a record breaking in several markets at once
+	// (StrangerCallAllowance in PlayerDesk.TradePress.cs). Keeps the office list legible until there's a real flood.
 	// A shop or op calling and getting no answer is not that out of the ordinary -- one miss barely dents
 	// it. What actually costs you is a pattern: the penalty compounds with each consecutive unanswered
 	// call at the same stop, capped so a bad month is bruising, not fatal to the account.
@@ -3908,7 +3909,7 @@ public partial class PlayerDesk : Node {
 		foreach (RecordRuntimeData rec in ReleasedRecords) {
 			if (rec?.baseRecord == null) continue;
 			string recordId = rec.baseRecord.recordId;
-			int strangerCallsThisRecord = 0;
+			int strangerCallsThisRecord = 0, strangerAllowance = StrangerCallAllowance(recordId);
 
 			foreach (var pair in rec.regionalData) {
 				string regionId = pair.Key;
@@ -3934,7 +3935,7 @@ public partial class PlayerDesk : Node {
 				// "Never carried" rather than "never visited" so a stop that passed on this one COD (§3.3
 				// addendum: a pass sticks) is exactly as reachable here as a true never-visited shop once
 				// the record earns real evidence -- this call is the "potential success" that reopens it.
-				if (strangerCallsThisRecord < StrangerCallsPerRecordPerWeek) {
+				if (strangerCallsThisRecord < strangerAllowance) {
 					bool strangerSignal = rd.awareness >= StrangerAwarenessThreshold || rd.radioPlay >= StrangerRadioThreshold;
 					if (strangerSignal) {
 						// Venue excluded alongside OneStop: it keeps no OnHand history to be "untried" against,
