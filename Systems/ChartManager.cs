@@ -2000,20 +2000,19 @@ public partial class ChartManager : Node {
 				: strength * 0.001f;
 			localAwarenessGain *= discoveryScale;
 			localRadioGain *= discoveryScale;
-			source.awareness = Mathf.Min(0.58f, source.awareness + localAwarenessGain);
+			localAwarenessGain = AddWithinHeadroom(ref source.awareness, localAwarenessGain, 0.58f);
 			// Regional discovery still builds awareness and jukebox presence in a market whose
 			// stations have cut the record -- people hear about it, and the box in the diner does not
 			// take orders from a programme director -- but it cannot put it back on the playlist. The
 			// drop is a one-way latch and every writer of radioPlay has to honour it or it leaks.
 			if (!source.stationsDropped) {
-				source.radioPlay = Mathf.Min(0.45f, source.radioPlay + localRadioGain);
-				source.breakoutRadioGain += localRadioGain;
+				source.breakoutRadioGain += AddWithinHeadroom(ref source.radioPlay, localRadioGain, 0.45f);
 			}
-			source.jukeboxPlay = Mathf.Min(0.55f, source.jukeboxPlay + strength * 0.006f * discoveryScale);
+			AddWithinHeadroom(ref source.jukeboxPlay, strength * 0.006f * discoveryScale, 0.55f);
 			source.breakoutAwarenessGain += localAwarenessGain;
 
 			float womGain = strength * (source.breakoutStage >= RegionalBreakoutStage.RegionalBreakout ? 0.005f : 0.001f) * discoveryScale;
-			record.wordOfMouth = Mathf.Min(0.72f, record.wordOfMouth + womGain);
+			womGain = AddWithinHeadroom(ref record.wordOfMouth, womGain, 0.72f);
 			source.breakoutWordOfMouthGain += womGain;
 			nationalGain += womGain * 0.30f;
 
@@ -2029,18 +2028,32 @@ public partial class ChartManager : Node {
 					neighbor.breakoutStage = RegionalBreakoutStage.NeighboringMarketTest;
 				float neighborAwarenessGain = 0.002f + testGain * 0.040f;
 				float neighborRadioGain = testGain * 0.012f;
-				neighbor.awareness = Mathf.Min(0.34f, neighbor.awareness + neighborAwarenessGain);
+				neighborAwarenessGain = AddWithinHeadroom(ref neighbor.awareness, neighborAwarenessGain, 0.34f);
 				if (!neighbor.stationsDropped) {
-					neighbor.radioPlay = Mathf.Min(0.24f, neighbor.radioPlay + neighborRadioGain);
-					neighbor.breakoutRadioGain += neighborRadioGain;
+					neighbor.breakoutRadioGain += AddWithinHeadroom(ref neighbor.radioPlay, neighborRadioGain, 0.24f);
 				}
 				neighbor.breakoutAwarenessGain += neighborAwarenessGain;
 			}
 		}
 		float crossoverBreadth = Mathf.Clamp((record.crossoverCandidateStrength - 0.15f) / 0.35f, 0f, 1f);
 		float crossoverGain = crossoverBreadth * 0.015f * discoveryScale;
-		record.awareness = Mathf.Min(0.60f,
-			record.awareness + Mathf.Min(0.005f * discoveryScale, nationalGain) + crossoverGain);
+		AddWithinHeadroom(ref record.awareness, Mathf.Min(0.005f * discoveryScale, nationalGain) + crossoverGain, NationalSingleAwarenessCeiling);
+		// Not a discovery cap: this runs for every single every week and pulls national awareness grown in
+		// step 1 (chart visibility, radio, word of mouth) back to the ceiling. The economy was calibrated
+		// with it in place, so it stays until it is removed deliberately and measured on its own.
+		record.awareness = Mathf.Min(NationalSingleAwarenessCeiling, record.awareness);
+	}
+
+	internal const float NationalSingleAwarenessCeiling = 0.60f;
+
+	// Discovery ceilings bound what discovery itself can build, not the stock. Awareness or rotation
+	// earned above a ceiling through another channel stays put: a discovery deposit adds into the
+	// remaining headroom or nothing, never pulls the stock down to the ceiling. Returns the gain applied.
+	internal static float AddWithinHeadroom(ref float stock, float gain, float ceiling) {
+		if (gain <= 0f || stock >= ceiling) return 0f;
+		float before = stock;
+		stock = Mathf.Min(ceiling, stock + gain);
+		return stock - before;
 	}
 
 	public static string[] GetNeighborRegionIds(string regionId) => regionId switch {

@@ -929,25 +929,30 @@ public partial class CompetitorManager : Node {
 			// sell, and the settlement this bills against is already units sold, so charging
 			// it again would take the same loss twice.
 			float collectable = billed * house.reportingHonesty;
-			label.wholesaleReceivables.Add(new WholesaleReceivable(
-				currentWeek + house.paymentTermWeeks, house.distributorId, collectable));
-			label.outstandingWholesaleReceivables += collectable;
 			label.lifetimeWholesaleWriteOffs += billed - collectable;
 			deferred += billed;
 
 			// Dealer-margin-and-flip directive §4, R3: the real returns mechanism the comment above is
-			// correctly refusing to model as a second charge here -- a HOLD ON CASH, booked alongside the
-			// receivable, never a haircut on billed. Player-only: an AI label never gets a row here, which
-			// is the whole inertness proof (SimTools/DealerMarginFlipReturnsDirective.md §6) -- no branch,
-			// no flag read, just an empty list nothing ever appends to.
+			// correctly refusing to model as a second charge here -- a HOLD ON CASH, never a haircut on
+			// billed. The house withholds the reserve OUT OF what it owes, so receivable + reserve is the
+			// collectable amount: release pays back the withheld part, forfeiture writes it off, and
+			// receipts plus losses always reconcile to billed. (It was once booked ON TOP of the full
+			// receivable, so a surviving relationship paid out 1 + returnAllowance of collectable.)
+			// Player-only: an AI label never gets a row here, which is the whole inertness proof
+			// (SimTools/DealerMarginFlipReturnsDirective.md §6) -- for AI, withheld is always zero.
+			float withheld = 0f;
 			if (label.isPlayerOwned) {
-				float reserve = billed * house.returnAllowance;
-				if (reserve > 0f) {
+				withheld = Mathf.Min(collectable, billed * house.returnAllowance);
+				if (withheld > 0f) {
 					label.wholesaleReturnsReserves.Add(new WholesaleReturnsReserve(
-						currentWeek + house.paymentTermWeeks, house.distributorId, pair.Key, reserve));
-					label.outstandingWholesaleReturnsReserve += reserve;
+						currentWeek + house.paymentTermWeeks, house.distributorId, pair.Key, withheld));
+					label.outstandingWholesaleReturnsReserve += withheld;
 				}
 			}
+			float receivable = collectable - withheld;
+			label.wholesaleReceivables.Add(new WholesaleReceivable(
+				currentWeek + house.paymentTermWeeks, house.distributorId, receivable));
+			label.outstandingWholesaleReceivables += receivable;
 		}
 		return deferred;
 	}
@@ -1073,14 +1078,13 @@ public partial class CompetitorManager : Node {
 				? Mathf.Min(Mathf.Max(0f, artist.unrecoupedAdvance), artistPayment)
 				: 0f;
 			float royaltyToArtist = artistPayment - recouped;   // what the act actually banks
-			// PLAYER-ONLY, DELIBERATELY. Withholding the recouped slice is the correct behavior and the
-			// AI path is a real bug -- it charges the label the FULL royalty while the recouped slice
-			// reaches nobody, so the money is destroyed and every AI advance is paid twice. It is left
-			// alone because the AI economy is calibrated against that double-pay: label survival, roster
-			// growth and tier distribution were all tuned with it in place, and flipping it is a separate
-			// decision with a decade run behind it. See SimTools/ContractNegotiationDirective.md.
-			// AI keeps `artistPayment` here, so its economy is byte-identical.
-			float royaltyExpense = label.isPlayerOwned ? royaltyToArtist : artistPayment;
+			// The label bears only what the act actually banks; the recouped slice stays with the label
+			// that already paid it out as the advance. AI labels used to be charged the FULL royalty here
+			// while the recouped slice reached nobody -- money destroyed, every AI advance paid twice --
+			// and the AI economy was calibrated with that in place (CelebrityEconomyAudit-2026-10-15 §14).
+			// Seeded 1960 balances (RosterManager.InitialSignArtist) are pre-1960 advances the opening
+			// cash already reflects, so recouping them is a real artist-to-label transfer, not new money.
+			float royaltyExpense = royaltyToArtist;
 			// Early-game Phase 5 (§5.2): a master the player leased or sold to this label. The contract decides who
 			// is owed what on these units (the licensor's royalty, the act's, the producer's), so it replaces the
 			// royalty leg here. Null on every AI-made record: unreachable in an AI-only world.
