@@ -166,7 +166,9 @@ public static partial class MediaAtmosphereService {
 		bool seenHere = t?.ProgramsSeen.Contains(program.Id) == true;
 		bool seenPrimetime = t?.ProgramsSeen.Any(p => MediaOutletCatalog.Get(p)?.Kind == TvProgramKind.PrimetimeVariety) == true;
 		float novelty = (seenHere ? 0.4f : 1f) * (seenPrimetime ? 0.85f : 1f);
-		return precursor * novelty * (0.3f + 0.7f * Coverage(record.baseRecord.artistId, airDay));
+		float hype = precursor * novelty * (0.3f + 0.7f * Coverage(record.baseRecord.artistId, airDay));
+		// Phase 3 gate: tune-in and the ceiling belong to acts the public already behaves toward as a sensation or a phenomenon.
+		return Math.Min(hype, MediaFans.HypeCap(EpisodeOf(record.baseRecord.artistId)));
 	}
 
 	/// <summary>Advance coverage in [0,1]: distinct press families running an item about the act in the six weeks before
@@ -227,6 +229,9 @@ public static partial class MediaAtmosphereService {
 				if (fit < 0.6f) continue;
 				float precursor = Precursor(r, evidence);
 				if (precursor < HoldPrecursorBar) continue;
+				// Announce only a date the label would take (§13): a specialist or artistic house can turn a booker down.
+				MediaPolicy? policy = PolicyOf(r.baseRecord.labelId, artist, today);
+				if (policy != null && !AiMediaPlanner.Considers(program, policy.Value, ArtistManager.Instance?.GetArtist(artist), r.baseRecord.primaryGenre, target, out _)) continue;
 				float score = precursor * fit * (0.9f + 0.2f * MediaAtmosphere.Unit("hold|" + program.Id + "|" + target + "|" + r.baseRecord.recordId));
 				if (score > bestScore) { bestScore = score; best = r; }
 			}
@@ -397,9 +402,16 @@ public static partial class MediaAtmosphereService {
 			MediaActTally t = TallyFor(r.baseRecord.artistId);
 			int teenShows = t?.ProgramsSeen.Count(p => MediaOutletCatalog.Get(p)?.Kind is TvProgramKind.NationalTeen or TvProgramKind.LocalTeenDance) ?? 0;
 			if (teenShows == 0) continue;
+			// Editors know which faces generate mail (§8.2): a following lifts the feature, and the letters name a member.
+			MediaFanState fans = FanStateFor(r.baseRecord.artistId);
+			float following = fans?.State switch {
+				FanEpisodeState.CulturalPhenomenon => 0.4f, FanEpisodeState.NationalSensation => 0.3f, FanEpisodeState.RegionalFavorite => 0.15f, _ => 0f,
+			};
 			var lead = NewLead("teen|" + r.baseRecord.artistId + "|" + weekEnd.year + "-" + weekEnd.month, StoryAngle.TeenFeature, r, today,
-				0.3f + 0.12f * Math.Min(3, teenShows) + (r.currentPosition <= 5 ? 0.2f : 0f), evidence);
+				0.3f + 0.12f * Math.Min(3, teenShows) + (r.currentPosition <= 5 ? 0.2f : 0f) + following, evidence);
 			lead.Story.Tone = StoryTone.Admiring;
+			lead.Story.Face = MediaFans.Face(fans);
+			lead.Story.FanState = fans?.State ?? FanEpisodeState.None;
 			Fact(lead, EvidenceSource.BroadcastAiring, $"seen on {teenShows} teen program(s)", today);
 			Fact(lead, EvidenceSource.NationalChart, $"No. {r.currentPosition} this week", today);
 			lead.Outlets.AddRange(Outlets(PressFamily.TeenFan));
@@ -410,6 +422,8 @@ public static partial class MediaAtmosphereService {
 		foreach (RecordRuntimeData r in evidence.FullChart.Where(x => x.currentPosition >= 1 && x.currentPosition <= 3)) {
 			float precursor = Precursor(r, evidence);
 			if (precursor < 0.65f || state.WeeksAtNumberOne.GetValueOrDefault(r.baseRecord.recordId) < 4) continue;
+			// A chart run alone is one evidence family; the mainstream assignment waits for the fans to be part of the story (§10.2).
+			if (!IsNational(EpisodeOf(r.baseRecord.artistId))) continue;
 			var lead = NewLead("phenomenon|" + r.baseRecord.artistId + "|" + year + "q" + ((weekEnd.month - 1) / 3), StoryAngle.CulturalPhenomenon, r, today,
 				0.9f + 0.5f * (precursor - 0.65f) / 0.35f, evidence);
 			float u = MediaAtmosphere.Unit("phenomenon-tone|" + lead.Story.Id);
@@ -432,9 +446,13 @@ public static partial class MediaAtmosphereService {
 			leads.Add(lead);
 		}
 
+		FanLeads(leads, evidence, today);
+		AiPressLeads(leads, evidence, today);
 		PlayerPressLeads(leads, evidence, today);
+		Ledger("press-leads", leads.Count);
 		MediaPress.Decide(leads, state, today);
 		AfterDecide(today);
+		AiAfterDecide(today);
 		foreach (MediaStory s in state.Stories.Where(s => s.Status == StoryStatus.Scheduled && s.IssueDay >= today && s.IssueDay < today + 7 && s.ArtistId != null)) {
 			MediaActTally t = TallyFor(s.ArtistId);
 			if (t != null) t.PressItems++;

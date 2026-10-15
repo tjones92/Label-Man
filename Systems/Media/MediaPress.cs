@@ -8,7 +8,7 @@ public enum PressRole { Editor, Reporter, Reviewer, Columnist, Photographer }
 /// <summary>The story an item tells. Structured first; the words are composed from it afterwards (§9.4).</summary>
 public enum StoryAngle {
 	ChartNews, Breakout, TvAdvance, TvNotice, Hometown, CommunityNews, TeenFeature, CulturalPhenomenon, Review,
-	StandardsDispute, Controversy, LabelPitch, OrdersFollowUp, Correction,
+	StandardsDispute, Controversy, LabelPitch, OrdersFollowUp, Correction, FanScene,
 }
 
 public enum StoryTone { Neutral, Admiring, Curious, Skeptical, Alarmed }
@@ -53,6 +53,9 @@ public sealed class MediaStory {
 	public bool PlayerSubject;
 	/// <summary>The label declined to comment: the item runs shorter, not suppressed (§9.3).</summary>
 	public bool Declined;
+	/// <summary>Phase 3: the fan episode an item reports, the member the fans write about, and how the photographs were got.</summary>
+	public FanEpisodeState FanState;
+	public string Face, PhotoNote;
 	public List<MediaEvidence> Evidence = new();
 	public bool PublishedBy(int day) => Status == StoryStatus.Scheduled && IssueDay <= day;
 }
@@ -175,7 +178,9 @@ public static class MediaPress {
 			.GroupBy(s => (s.OutletId, s.ArtistId)).ToDictionary(g => g.Key, g => g.Count());
 
 		var offers = new List<(MediaStory Template, PressOutlet Outlet, float Score)>();
-		foreach (Lead lead in leads.Take(MaxLeadsPerWeek)) {
+		// The desks read the label's own sheets and the strongest leads first; a crowded week drops the weakest, never a sent sheet.
+		foreach (Lead lead in leads.OrderByDescending(l => l.Story.PlayerSubject).ThenByDescending(l => l.Story.Interest)
+			.ThenBy(l => l.Story.Id, StringComparer.Ordinal).Take(MaxLeadsPerWeek)) {
 			foreach (string outletId in lead.Outlets.Distinct()) {
 				PressOutlet outlet = MediaOutletCatalog.GetPress(outletId);
 				if (outlet == null || !outlet.Publishing(MediaAtmosphereService.FromDayIndex(today))) continue;
@@ -220,7 +225,7 @@ public static class MediaPress {
 			ArtistId = t.ArtistId, ArtistName = t.ArtistName, RecordId = t.RecordId, Title = t.Title, LabelId = t.LabelId, CityId = t.CityId,
 			ProgramId = t.ProgramId, AppearanceId = t.AppearanceId, Genre = t.Genre, LeadDay = t.LeadDay, IssueDay = issueDay, Interest = score,
 			ChartPosition = t.ChartPosition, Regions = t.Regions, ClaimedUnits = t.ClaimedUnits, Inaccurate = t.Inaccurate, InaccurateClaim = t.InaccurateClaim,
-			PlayerSubject = t.PlayerSubject, Declined = t.Declined, Evidence = t.Evidence.ToList(),
+			PlayerSubject = t.PlayerSubject, Declined = t.Declined, Evidence = t.Evidence.ToList(), FanState = t.FanState, Face = t.Face, PhotoNote = t.PhotoNote,
 		};
 		// Critics can be wrong, partisan or surprised (§8.4): the tone is theirs, keyed per outlet, not the record's verdict.
 		if (t.Angle == StoryAngle.Review) s.Tone = CriticTone(t, outlet);
@@ -261,6 +266,13 @@ public static class MediaPress {
 			StoryAngle.CommunityNews => $"{who}: {title}",
 			StoryAngle.TeenFeature => $"Meet {who}!",
 			StoryAngle.CulturalPhenomenon => $"What is it about {who}?",
+			StoryAngle.FanScene => s.FanState switch {
+				FanEpisodeState.LocalExcitement => $"{city ?? "Local"} teenagers turn out for {who}",
+				FanEpisodeState.RegionalFavorite => s.Regions > 1 ? $"{who} the talk of {s.Regions} markets" : $"{who} the talk of the town",
+				FanEpisodeState.NationalSensation => $"{who}: the fans can't get enough",
+				FanEpisodeState.Cooldown => $"Whatever happened to {who}?",
+				_ => $"The fans and {who}",
+			},
 			StoryAngle.Review => s.Tone switch { StoryTone.Admiring => $"{title}: {who} get it right", StoryTone.Skeptical => $"{title}: not much there", _ => $"On {who}'s {title}" },
 			StoryAngle.StandardsDispute => $"{who} and the censors",
 			StoryAngle.Controversy => $"{who} defy the network",
@@ -276,6 +288,8 @@ public static class MediaPress {
 		string basis = s.Evidence.Count == 0 ? "" : Sentence(s.Evidence[0].Fact);
 		if (s.ClaimedUnits > 0 && s.Angle != StoryAngle.OrdersFollowUp) basis += $" The label puts sales at {s.ClaimedUnits:N0}.";
 		if (s.Declined) basis += " The label declined to comment.";
+		if (s.Face != null && s.Angle is StoryAngle.TeenFeature or StoryAngle.FanScene) basis += $" The letters are mostly about {s.Face}.";
+		if (s.PhotoNote != null) basis += " " + Sentence(s.PhotoNote);
 		return basis.Trim();
 	}
 

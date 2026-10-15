@@ -90,6 +90,14 @@ public sealed class MediaSaveData {
 	public int PlayerSequence { get; set; }
 	/// <summary>Running average of a No. 1 record's weekly units: the yardstick for "bigger than an ordinary No. 1".</summary>
 	public float NumberOneUnits { get; set; }
+	// Phase 3 (media-owned; nothing the economy reads).
+	/// <summary>Teen attachment, fan episodes and member spotlight by act (§2, §10).</summary>
+	public Dictionary<string, MediaFanState> Fans { get; set; } = new();
+	/// <summary>AI campaign allocation views by record (§12.2): estimates of an envelope already charged, with reservation receipts.</summary>
+	public Dictionary<string, AiMediaAllocation> AiAllocations { get; set; } = new();
+	public List<AiMediaPitch> AiPitches { get; set; } = new();
+	/// <summary>This year's AI planner counters (policies, pitches, acceptances, declines by reason), printed and cleared at year end.</summary>
+	public Dictionary<string, int> AiLedger { get; set; } = new();
 }
 
 /// <summary>
@@ -133,12 +141,15 @@ public static partial class MediaAtmosphereService {
 	public static void AfterCompletedWeek(GameDate weekEnd, ChartManager charts) {
 		if (!MediaAtmosphere.Observing || charts == null) return;
 		long started = System.Diagnostics.Stopwatch.GetTimestamp();
+		labelIndex = null;
 		TallyAiredThrough(weekEnd);
 		var evidence = new Evidence(charts);
-		// The order is the contract (§15.1): what aired is tallied, the frozen chart is read, headline dates are
-		// announced, the press writes about all of it, and only then is next week booked, so a booking's hype counts
-		// only items already scheduled to run before its air date.
+		// The order is the contract (§15.1): what aired is tallied, the frozen chart is read, the fans respond to the
+		// completed week, rival labels plan, headline dates are announced, the press writes about all of it, and only then
+		// is next week booked, so a booking's hype counts only items already scheduled to run before its air date.
 		UpdateChartMemory(evidence);
+		FansWeek(evidence, weekEnd);
+		AiPlanWeek(evidence, weekEnd);
 		PlaceHolds(evidence, weekEnd);
 		PressWeek(evidence, weekEnd);
 		BookThrough(weekEnd.AddDays(7), weekEnd.AddDays(1), evidence);
@@ -165,6 +176,17 @@ public static partial class MediaAtmosphereService {
 			$"controversies={state.Controversies.Count(c => FromDayIndex(c.StartDay).year == year)} " +
 			$"outcomes=[{string.Join(" ", mine.Where(a => a.Performance != null).GroupBy(a => a.Performance.Outcome).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
 			$"bestNight=\"{bestNight?.ArtistName}\" {MediaOutletCatalog.Get(bestNight?.ProgramId ?? "")?.Name} {(bestNight?.Airings[0].Exposure.UniqueReach ?? 0) / 1e6:F1}M hype={bestNight?.Hype ?? 0:F2}");
+		// Phase 3: where the fans are, and what rival labels did with the envelopes they already had.
+		var fans = state.Fans.Values.ToList();
+		var loud = LoudestFans(1).FirstOrDefault();
+		Godot.GD.Print($"MEDIA_FANS_YEAR year={year} acts={fans.Count} [{string.Join(" ", fans.GroupBy(f => f.State).OrderBy(g => g.Key).Select(g => g.Key + ":" + g.Count()))}] " +
+			$"everNational={fans.Count(f => IsNational(f.Peak))} everPhenomenon={fans.Count(f => f.Peak == FanEpisodeState.CulturalPhenomenon)} " +
+			$"loudest=\"{loud?.ArtistName}\" {loud?.State} face=\"{MediaFans.Face(loud)}\"");
+		var allocations = state.AiAllocations.Values.ToList();
+		Godot.GD.Print($"MEDIA_AI year={year} allocations={allocations.Count} balanced={allocations.All(a => a.Balanced)} " +
+			$"tvReserved=${allocations.Sum(a => a.TvReservedCents) / 100.0:N0} of ${allocations.Sum(a => a.TvCents) / 100.0:N0} " +
+			$"[{string.Join(" ", state.AiLedger.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + ":" + p.Value))}]");
+		state.AiLedger.Clear();
 	}
 
 	private static void BookThrough(GameDate last, GameDate firstCandidate, Evidence evidence) {
@@ -173,6 +195,7 @@ public static partial class MediaAtmosphereService {
 		if (lastDay < firstDay) return;
 		byArtist = state.Appearances.GroupBy(a => a.ArtistId, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
 		episodeIds = new HashSet<string>(state.Episodes.Select(e => e.Id), StringComparer.Ordinal);
+		pitchedTv = new HashSet<string>(state.AiPitches.Where(p => p.Kind == PitchKind.Television && p.Status == PitchStatus.Sent).Select(p => p.RecordId + "|" + p.ProgramId), StringComparer.Ordinal);
 		for (int day = firstDay; day <= lastDay; day++) {
 			GameDate date = FromDayIndex(day);
 			foreach (TvProgram program in MediaOutletCatalog.Programs) {
@@ -229,6 +252,20 @@ public static partial class MediaAtmosphereService {
 			return city;
 		}
 
+		private readonly Dictionary<string, List<(RecordRuntimeData Record, int Units)>> regionalLocals = new(StringComparer.Ordinal);
+
+		/// <summary>Records by acts based in a region that sell there at all, best first: the town's own acts a local producer
+		/// can call on when the visiting names can't come. Built once per region per pass.</summary>
+		public List<(RecordRuntimeData Record, int Units)> RegionalLocals(string regionId) {
+			if (regionalLocals.TryGetValue(regionId, out var list)) return list;
+			list = Singles.Where(r => DistanceModel.GetCityById(CityOf(r.baseRecord.artistId) ?? "")?.parentRegionId == regionId)
+				.Select(r => (Record: r, Units: r.regionalData.TryGetValue(regionId, out var rd) && rd != null ? rd.unitsSoldThisWeek : 0))
+				.Where(x => x.Units > 0).OrderByDescending(x => x.Units).ThenBy(x => x.Record.baseRecord.recordId, StringComparer.Ordinal)
+				.Take(LocalCandidatesPerRegion / 2).ToList();
+			regionalLocals[regionId] = list;
+			return list;
+		}
+
 		public bool Broke(RecordRuntimeData r) => r.regionalData.Values.Any(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
 		public int BrokeCount(RecordRuntimeData r) => r.regionalData.Values.Count(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
 		public float Breadth(RecordRuntimeData r) => Regions.Count == 0 ? 0f : BrokeCount(r) / (float)Regions.Count;
@@ -244,6 +281,8 @@ public static partial class MediaAtmosphereService {
 		public MediaPitch Pitch;
 		public StandardsQuery Query;
 		public RecordRuntimeData Alternate;
+		/// <summary>The rehearsal a rival label can afford for this date (null: its usual).</summary>
+		public MediaPreparation? Prep;
 	}
 
 	private static void BookEpisode(TvProgram program, BroadcastScheduleVersion version, GameDate date, Evidence evidence) {
@@ -255,6 +294,7 @@ public static partial class MediaAtmosphereService {
 
 		int day = BroadcastExposure.DayIndex(date);
 		List<Candidate> pool = Candidates(program, date, evidence);
+		episodeDeclines = 0;
 		var chosen = new List<Candidate>();
 		int slots = program.GuestSlots;
 		// The player's confirmed dates were reserved against this episode before it was booked (§5.1): they hold their slots.
@@ -266,13 +306,15 @@ public static partial class MediaAtmosphereService {
 		// An announced headliner (§4.5 advertised guest) takes the bill's top spot.
 		MediaHold hold = state.Holds.FirstOrDefault(h => h.ProgramId == program.Id && h.Day == day);
 		if (hold != null && slots > 0 && evidence.ById.TryGetValue(hold.RecordId, out RecordRuntimeData held) && Available(held, program, date)) {
-			chosen.Add(new Candidate { Record = held, Score = 10f, Headliner = true });
-			slots--;
+			var headliner = new Candidate { Record = held, Score = 10f, Headliner = true };
+			// The label still has to say yes and afford the trip (§13); a declined headline date goes to the regular bill.
+			if (AiAccepts(headliner, program, date, episodeId, evidence)) { chosen.Add(headliner); slots--; }
 		}
 		// The discovery slot: an eligible record below the top of the chart, chosen on fit and evidence, never guaranteed.
+		// Rival labels answer the producer's call in turn; a label that says no passes the slot to the next in line.
 		if (program.DiscoverySlot && slots > 0 && !chosen.Any(c => c.Discovery)) {
 			Candidate pick = pool.Where(c => c.Discovery && Available(c.Record, program, date) && chosen.All(x => x.Record.baseRecord.artistId != c.Record.baseRecord.artistId))
-				.OrderByDescending(c => Rank(c, program, date, "discovery")).FirstOrDefault();
+				.OrderByDescending(c => Rank(c, program, date, "discovery")).FirstOrDefault(c => AiAccepts(c, program, date, episodeId, evidence));
 			if (pick != null) { chosen.Add(pick); slots--; }
 		}
 		var queue = pool.Where(c => !c.Discovery).OrderByDescending(c => Rank(c, program, date, "slot")).ToList();
@@ -281,6 +323,7 @@ public static partial class MediaAtmosphereService {
 			while (slots > 0 && next < queue.Count) {
 				Candidate c = queue[next++];
 				if (chosen.Any(x => x.Record.baseRecord.artistId == c.Record.baseRecord.artistId) || !Available(c.Record, program, date)) continue;
+				if (!AiAccepts(c, program, date, episodeId, evidence)) continue;
 				chosen.Add(c); slots--;
 			}
 		}
@@ -294,17 +337,21 @@ public static partial class MediaAtmosphereService {
 			if (query == null) continue;
 			SimulatedArtist artist = ArtistManager.Instance?.GetArtist(c.Record.baseRecord.artistId);
 			RecordRuntimeData alternate = AlternateFor(c.Record, evidence);
-			StandardsResponse response = MediaStandards.AiChoice(query, artist, program.Method, alternate != null);
+			StandardsResponse response = AiStandardsChoice(query, artist, program, alternate != null, c.Record.baseRecord.labelId, day);
 			Settle(query, response, program, version, artist, alternate);
 			state.StandardsQueries.Add(query);
 			c.Query = query;
 			c.Alternate = alternate;
 			if (query.Resolution == StandardsResolution.Withdrawn) {
 				chosen.Remove(c); slots++;
+				ReleaseReservation(c, episodeId);
 				Remember(program.Id, c.Record.baseRecord.artistId, m => { m.Withdrawn++; m.LastNote = "withdrew rather than change the song"; });
 			}
 		}
 		Fill();
+		// Telemetry: how much of the finite bill the combined pool filled (player, rivals who said yes).
+		Ledger(program.Network == TvNetwork.Local ? "slots-local-filled" : "slots-network-filled", chosen.Count);
+		if (slots > 0) Ledger((program.Network == TvNetwork.Local ? "slots-local-empty" : "slots-network-empty") + (episodeDeclines > 0 ? "-declined" : "-nopool"), slots);
 		if (chosen.Count == 0) return;
 
 		// Running order: a variety bill closes on its biggest name; a dance show plays them as they come.
@@ -326,8 +373,13 @@ public static partial class MediaAtmosphereService {
 				Title = record.baseRecord.title, LabelId = record.baseRecord.labelId, Genre = record.baseRecord.primaryGenre,
 				ChartPosition = record.currentPosition, Discovery = c.Discovery, Method = program.Method, Broadcast = version.Broadcast,
 				PlayerBooking = c.Pitch != null, Headliner = c.Headliner, Hype = c.Headliner ? hype : 0f, EventLift = eventLift, TuneIn = tuneIn,
-				Preparation = c.Pitch?.Preparation ?? AiPreparation(record.baseRecord.labelId),
+				Preparation = c.Pitch?.Preparation ?? c.Prep ?? AiPreparation(record.baseRecord.labelId),
 			};
+			if (c.Pitch == null && pitchedTv.Contains(record.baseRecord.recordId + "|" + program.Id)) {
+				AiMediaPitch sent = state.AiPitches.FirstOrDefault(p => p.Kind == PitchKind.Television && p.Status == PitchStatus.Sent
+					&& p.RecordId == record.baseRecord.recordId && p.ProgramId == program.Id);
+				if (sent != null) { sent.Status = PitchStatus.Confirmed; Ledger("pitch-booked"); }
+			}
 			if (c.Pitch != null) {
 				c.Pitch.AppearanceId = appearance.Id;
 				c.Query = c.Pitch.QueryId == null ? null : state.StandardsQueries.FirstOrDefault(q => q.Id == c.Pitch.QueryId);
@@ -489,6 +541,13 @@ public static partial class MediaAtmosphereService {
 				bool discovery = hometown || record.currentPosition == 0 || record.currentPosition > 60;
 				list.Add(new Candidate { Record = record, Score = score, Discovery = discovery });
 			}
+			// The region's own acts, further down the reports: cheap to bring in, and a local show's natural bench (§3.1).
+			foreach (var (record, units) in evidence.RegionalLocals(region)) {
+				if (list.Any(c => c.Record == record)) continue;
+				bool hometown = evidence.CityOf(record.baseRecord.artistId) == program.HomeCityId;
+				float score = program.GenreFit(record.baseRecord.primaryGenre) * (0.3f + 0.5f * units / (float)Math.Max(1, top)) * (hometown ? 1.6f : 1f);
+				list.Add(new Candidate { Record = record, Score = score, Discovery = hometown || record.currentPosition == 0 || record.currentPosition > 60 });
+			}
 			return list;
 		}
 		foreach (RecordRuntimeData record in evidence.Chart) {
@@ -513,7 +572,17 @@ public static partial class MediaAtmosphereService {
 	/// <summary>Producer judgment: fit and evidence, with a keyed spread so the same chart doesn't book the same bill
 	/// everywhere. Keyed on program, date and record, so a reload or a second read gives the same answer.</summary>
 	private static float Rank(Candidate c, TvProgram program, GameDate date, string purpose) =>
-		c.Score * (0.55f + 0.9f * MediaAtmosphere.Unit(program.Id + "|" + BroadcastExposure.DayIndex(date) + "|" + c.Record.baseRecord.recordId + "|" + purpose));
+		c.Score * Interest(c, program) * (0.55f + 0.9f * MediaAtmosphere.Unit(program.Id + "|" + BroadcastExposure.DayIndex(date) + "|" + c.Record.baseRecord.recordId + "|" + purpose));
+
+	/// <summary>What makes a booker look twice (§5.2, §10.2): a disc on the desk from the label, and fans already asking.</summary>
+	private static float Interest(Candidate c, TvProgram program) {
+		float k = pitchedTv.Contains(c.Record.baseRecord.recordId + "|" + program.Id) ? 1.2f : 1f;
+		FanEpisodeState fans = EpisodeOf(c.Record.baseRecord.artistId);
+		k *= program.Kind == TvProgramKind.PrimetimeVariety
+			? fans switch { FanEpisodeState.CulturalPhenomenon => 1.3f, FanEpisodeState.NationalSensation => 1.1f, _ => 1f }
+			: fans switch { FanEpisodeState.CulturalPhenomenon => 1.4f, FanEpisodeState.NationalSensation => 1.25f, FanEpisodeState.RegionalFavorite => 1.1f, _ => 1f };
+		return k;
+	}
 
 	/// <summary>Finite calendars (§5.1): one booking per act per day, a rebooking gap per program, a cap on national dates a week.</summary>
 	private static bool Available(RecordRuntimeData record, TvProgram program, GameDate date) {
@@ -540,11 +609,13 @@ public static partial class MediaAtmosphereService {
 
 	private static void TallyAiredThrough(GameDate weekEnd) {
 		int cutoff = BroadcastExposure.DayIndex(weekEnd);
+		airedThisWeek.Clear();
 		double population = (ChartManager.Instance?.GetAllRegions() ?? new List<MarketRegion>()).Sum(r => r.population) * 1e6;
 		foreach (MediaAppearance a in state.Appearances) {
 			foreach (MediaAiring airing in a.Airings) {
 				if (airing.Tallied || BroadcastExposure.DayIndex(airing.Date) > cutoff) continue;
 				airing.Tallied = true;
+				airedThisWeek.Add((a, airing));
 				if (!state.Tallies.TryGetValue(a.ArtistId, out MediaActTally t))
 					state.Tallies[a.ArtistId] = t = new MediaActTally { ArtistId = a.ArtistId, ArtistName = a.ArtistName };
 				t.ArtistName = a.ArtistName;

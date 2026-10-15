@@ -189,12 +189,30 @@ public static class MediaStandards {
 	/// takes the edit, an ambitious one offers another song or asks the producer, and a rare volatile act with a live
 	/// microphone and the creative say promises and then sings the original. Keyed: the same query always gets the same answer.
 	/// </summary>
-	public static StandardsResponse AiChoice(StandardsQuery query, SimulatedArtist artist, PerformanceMethod method, bool hasAlternate) {
+	public static StandardsResponse AiChoice(StandardsQuery query, SimulatedArtist artist, PerformanceMethod method, bool hasAlternate,
+		MediaPolicy policy = MediaPolicy.OpportunisticPublicity) {
 		var options = Options(query, method, hasAlternate).ToList();
 		ArtistEvolutionProfile d = artist?.evolution;
 		float ambition = d?.artisticAmbition ?? 0.5f, pragmatism = d?.commercialPragmatism ?? 0.5f, volatility = d?.volatility ?? 0.3f;
 		float u = MediaAtmosphere.Unit("standards-ai|" + query.Id);
 		bool control = artist?.artistCreativeControl == true || artist?.manager == ManagerArchetype.Visionary;
+		// The house's habit comes first (§13), the act's own consent always binds (§7.3): a commercial or cautious house takes
+		// the workable edit, an artistic one offers another song or asks the producer to fight, a specialist house would
+		// rather send a different record than change one. Opportunists fall through to the act's own disposition.
+		switch (policy) {
+			case MediaPolicy.CommercialPragmatism or MediaPolicy.CautiousCrisis or MediaPolicy.TeenPopCultivation:
+				if (options.Contains(StandardsResponse.ComplyEdit) && ActConsents(artist, StandardsResponse.ComplyEdit, query.Id)) return StandardsResponse.ComplyEdit;
+				if (options.Contains(StandardsResponse.AlternateSong)) return StandardsResponse.AlternateSong;
+				return policy == MediaPolicy.CautiousCrisis ? StandardsResponse.Withdraw : options.Contains(StandardsResponse.ProducerDefends) ? StandardsResponse.ProducerDefends : StandardsResponse.Withdraw;
+			case MediaPolicy.ArtisticProtection:
+				if (control && volatility > 0.6f && ambition > pragmatism && u < 0.12f) break; // a volatile act with control makes its own call
+				if (options.Contains(StandardsResponse.AlternateSong) && u < 0.5f) return StandardsResponse.AlternateSong;
+				if (options.Contains(StandardsResponse.ProducerDefends)) return StandardsResponse.ProducerDefends;
+				break;
+			case MediaPolicy.SpecialistCommunity:
+				if (options.Contains(StandardsResponse.AlternateSong)) return StandardsResponse.AlternateSong;
+				break;
+		}
 		if (options.Contains(StandardsResponse.PromiseThenDefy) && control && volatility > 0.6f && ambition > pragmatism && u < 0.12f)
 			return StandardsResponse.PromiseThenDefy;
 		if (options.Contains(StandardsResponse.ProducerDefends) && ambition > 0.55f && u < 0.5f) return StandardsResponse.ProducerDefends;

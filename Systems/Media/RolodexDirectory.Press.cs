@@ -107,6 +107,12 @@ public static partial class RolodexDirectory {
 		var recent = MediaAtmosphereService.Stories.Where(s => s.OutletId == outlet.Id && s.Status == StoryStatus.Scheduled && s.IssueDay < BroadcastExposure.DayIndex(today))
 			.OrderByDescending(s => s.IssueDay).Take(2).Select(s => MediaPress.Headline(s)).ToList();
 		if (recent.Count > 0) card.Facts.Add(("Recently ran: " + string.Join("; ", recent) + ".", false));
+		// A fan editor remembers a face (§14 completion): the members the readers keep writing in about, from the mail.
+		if (outlet.Family == PressFamily.TeenFan) {
+			var faces = MediaAtmosphereService.LoudestFans(6).Select(f => (Fan: f, Face: MediaFans.Face(f))).Where(x => x.Face != null).Take(2)
+				.Select(x => $"{x.Face} of {x.Fan.ArtistName}").ToList();
+			if (faces.Count > 0) card.Facts.Add(("The readers keep writing in about " + string.Join(" and ", faces) + ".", false));
+		}
 		AddMemory(card, MediaAtmosphereService.ContactFor(key));
 		return card;
 	}

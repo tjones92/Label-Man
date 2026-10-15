@@ -105,10 +105,11 @@ public static partial class MediaAtmosphereService {
 		string where = program.Network == TvNetwork.Local ? program.HomeCityId : program.VersionOn(TimeManager.Instance?.CurrentDate ?? GameDate.StartDate)?.ProductionCityId
 			?? program.Schedule.Last().ProductionCityId;
 		if (where == null || where == homeCity) return "no travel";
+		if (program.Network != TvNetwork.Local) return $"{DistanceModel.GetCityById(where)?.name}: the production pays guests' fares and hotel";
 		float miles = DistanceModel.GetRoadMilesBetween(homeCity, where);
-		int nights = miles > 600 ? 3 : 2;
-		float fare = miles > 600 ? 0.05f * miles * 2 : 0.02f * miles * 2;
-		return $"{DistanceModel.GetCityById(where)?.name}: about {miles:N0} miles; ~${fare + nights * PlayerDesk.HotelNightly * 3:N0} travel and {nights} nights for a trio";
+		int nights = AiMediaPlanner.TravelNights(miles);
+		string stay = nights == 0 ? "a day trip" : nights == 1 ? "one night" : $"{nights} nights";
+		return $"{DistanceModel.GetCityById(where)?.name}: about {miles:N0} miles; ~${AiMediaPlanner.TravelCents(miles, 3) / 100.0:N0} travel and {stay} for a trio";
 	}
 
 	public static string PreparationNote(MediaPreparation prep) => prep switch {
@@ -344,23 +345,10 @@ public static partial class MediaAtmosphereService {
 			PressOutlet outlet = MediaOutletCatalog.GetPress(pitch.OutletId);
 			if (outlet == null || !evidence.ById.TryGetValue(pitch.RecordId ?? "", out RecordRuntimeData r)) { pitch.Status = PitchStatus.Passed; continue; }
 			int broke = evidence.BrokeCount(r);
-			string region = outlet.HomeCityId == null ? null : DistanceModel.GetCityById(outlet.HomeCityId)?.parentRegionId;
-			float local = region != null && r.regionalData.TryGetValue(region, out var rd) && rd != null ? Math.Clamp(rd.awareness * 1.5f + Math.Min(1f, rd.unitsSoldThisWeek / 400f), 0f, 1f) : 0f;
 			bool hometown = outlet.HomeCityId != null && evidence.CityOf(r.baseRecord.artistId) == outlet.HomeCityId
 				|| outlet.HomeCityId != null && PlayerDesk.Instance?.Label?.homeCityId == outlet.HomeCityId;
-			float interest = outlet.Family switch {
-				PressFamily.LocalDaily => 0.25f + (hometown ? 0.3f : 0f) + 0.3f * local,
-				PressFamily.Specialist => 0.2f + 0.3f * local + 0.1f * Math.Min(3, broke),
-				PressFamily.Trade => 0.15f + 0.12f * Math.Min(4, broke) + (r.currentPosition > 0 ? 0.25f : 0f),
-				PressFamily.TeenFan => r.currentPosition > 0 && r.currentPosition <= 30 ? 0.35f : 0.05f,
-				PressFamily.RockCriticism => 0.25f + 0.3f * (r.baseRecord.hookStrength + r.baseRecord.productionQuality) * 0.5f,
-				_ => r.currentPosition == 1 ? 0.6f : 0.02f,
-			};
-			// Angle fit: the hometown story suits the hometown paper; the breakout sheet suits the trades.
-			if (pitch.Angle == StoryAngle.Hometown && outlet.Family == PressFamily.LocalDaily && hometown) interest += 0.1f;
-			if (pitch.Angle == StoryAngle.Breakout && broke == 0) interest -= 0.15f;
 			MediaContactMemory contact = ContactFor(pitch.ContactKey);
-			interest += 0.1f * (contact?.Trust ?? 0f);
+			float interest = SheetInterest(outlet, r, evidence, hometown, pitch.Angle, contact?.Trust ?? 0f);
 			var lead = NewLead("pitch|" + pitch.Id, outlet.Family == PressFamily.RockCriticism ? StoryAngle.Review : StoryAngle.LabelPitch, r, today, interest, evidence);
 			lead.Story.Angle = outlet.Family == PressFamily.RockCriticism ? StoryAngle.Review : pitch.Angle == StoryAngle.Hometown ? StoryAngle.Hometown : StoryAngle.LabelPitch;
 			lead.Story.PlayerSubject = true;
@@ -373,6 +361,26 @@ public static partial class MediaAtmosphereService {
 			pitch.Status = PitchStatus.Passed; // until the editor's decision says otherwise (AfterDecide)
 			pitch.Reason = "pitch|" + pitch.Id;
 		}
+	}
+
+	/// <summary>How interesting an editor finds a label's press sheet: the same rule for the player's sheets and the rivals'
+	/// (§13: outlets choose from the combined pool on frozen evidence). Trust is the desk's working trust in the sender.</summary>
+	private static float SheetInterest(PressOutlet outlet, RecordRuntimeData r, Evidence evidence, bool hometown, StoryAngle angle, float trust) {
+		int broke = evidence.BrokeCount(r);
+		string region = outlet.HomeCityId == null ? null : DistanceModel.GetCityById(outlet.HomeCityId)?.parentRegionId;
+		float local = region != null && r.regionalData.TryGetValue(region, out var rd) && rd != null ? Math.Clamp(rd.awareness * 1.5f + Math.Min(1f, rd.unitsSoldThisWeek / 400f), 0f, 1f) : 0f;
+		float interest = outlet.Family switch {
+			PressFamily.LocalDaily => 0.25f + (hometown ? 0.3f : 0f) + 0.3f * local,
+			PressFamily.Specialist => 0.2f + 0.3f * local + 0.1f * Math.Min(3, broke),
+			PressFamily.Trade => 0.15f + 0.12f * Math.Min(4, broke) + (r.currentPosition > 0 ? 0.25f : 0f),
+			PressFamily.TeenFan => r.currentPosition > 0 && r.currentPosition <= 30 ? 0.35f : 0.05f,
+			PressFamily.RockCriticism => 0.25f + 0.3f * (r.baseRecord.hookStrength + r.baseRecord.productionQuality) * 0.5f,
+			_ => r.currentPosition == 1 ? 0.6f : 0.02f,
+		};
+		// Angle fit: the hometown story suits the hometown paper; the breakout sheet suits the trades.
+		if (angle == StoryAngle.Hometown && outlet.Family == PressFamily.LocalDaily && hometown) interest += 0.1f;
+		if (angle == StoryAngle.Breakout && broke == 0) interest -= 0.15f;
+		return interest + 0.1f * trust;
 	}
 
 	/// <summary>After editors decide: tell the label which sheets made the paper, and let reporters call about items on the
@@ -482,6 +490,12 @@ public static partial class MediaAtmosphereService {
 					FromDay = day, UntilDay = day + (exclusive ? 28 : 0), Romance = romance ?? "private", PlantedClaim = plant,
 					ContradictionDay = plant ? day + 28 + (int)(MediaAtmosphere.Unit("romance-check|" + inquiry.Id) * 56) : -1,
 				});
+				// The photographs put a face in front of the readers: media spotlight only, never canonical recognition (§12.4).
+				string face = artist == null ? null : PhotographMember(EnsureFanState(inquiry.ArtistId, inquiry.ArtistName), artist, inquiry.Id, today.year);
+				if (story != null) {
+					story.PhotoNote = exclusive ? (face != null ? $"exclusive new photographs, {face} on the cover" : "exclusive new photographs") : "photographs supplied by the label";
+					story.Face ??= face;
+				}
 				contact.Trust = Math.Min(1f, contact.Trust + (exclusive ? 0.15f : 0.05f));
 				contact.Remember(today, exclusive ? $"Gave an exclusive session with {inquiry.ArtistName} (four weeks)." : $"Sent photographs of {inquiry.ArtistName}.");
 				message = exclusive ? $"An exclusive session for {outlet.Name}: their pictures, first use, for four weeks. Not every photograph forever."

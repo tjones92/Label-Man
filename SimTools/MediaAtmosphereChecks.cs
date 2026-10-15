@@ -32,6 +32,10 @@ public partial class MediaAtmosphereChecks : Node {
 			PlayerLoop();
 			PlayerPress();
 			PhaseTwoSave();
+			FanArithmetic();
+			FansInTheWorld();
+			AiPlanner();
+			PhaseThreeSave();
 			GD.Print($"MEDIA_ATMOSPHERE_CHECKS_PASS checks={checks}");
 			GetTree().Quit(0);
 		} catch (Exception e) {
@@ -438,6 +442,164 @@ public partial class MediaAtmosphereChecks : Node {
 		wrong.Inaccurate = true; wrong.InaccurateClaim = "the label's home town printed wrong";
 		Check(desk.RequestPressCorrection(wrong.Id, out _) && wrong.Corrected && state.Stories.Any(s => s.Angle == StoryAngle.Correction && s.RootId == wrong.RootId)
 			&& state.Stories.Contains(wrong), "A correction runs under the same root and the original stays in history");
+	}
+
+	// ---- Phase 3 --------------------------------------------------------------------------------------------------
+
+	private static FanWeek Week(int day, int warm, int hot, int selling, FanEvidence families, bool national, bool extraordinary = false) =>
+		new() { Day = day, WarmRegions = warm, HotRegions = hot, SellingRegions = selling, Families = families, NationalExposure = national, Extraordinary = extraordinary };
+
+	// Fixture 11 and §10.2 persistence: a local favorite can stay regional; one week is not a sensation; one event retold is one family.
+	private void FanArithmetic() {
+		const int regions = 10;
+		float a = 0f;
+		for (int i = 0; i < 200; i++) a = MediaFans.Deposit(a, 1f);
+		Check(a <= 1f && MediaFans.Deposit(0.9f, 0.12f) - 0.9f < MediaFans.Deposit(0.1f, 0.12f) - 0.1f && MediaFans.Deposit(0f, 5f) == MediaFans.MaxWeeklyGain,
+			"Attachment saturates below 1 with diminishing returns, and a week can add at most the weekly cap");
+		Check(Math.Abs(Math.Pow(MediaFans.WeeklyRetention, 8) - 0.5) < 1e-3, "Teen attachment halves in eight weeks without fresh response");
+
+		var local = new MediaFanState { ArtistId = "probe-local" };
+		for (int w = 0; w < 16; w++) MediaFans.Advance(local, Week(7 * w, 2, 1, 2, FanEvidence.Sales | FanEvidence.Coverage, national: false), regions);
+		Check(local.State == FanEpisodeState.RegionalFavorite && local.Peak == FanEpisodeState.RegionalFavorite,
+			"A beloved regional favorite with no national exposure stays a regional favorite for months");
+
+		var hit = new MediaFanState { ArtistId = "probe-hit" };
+		var strong = Week(0, 6, 4, 5, FanEvidence.Sales | FanEvidence.Coverage, national: true);
+		MediaFans.Advance(hit, strong, regions);
+		Check(hit.State != FanEpisodeState.NationalSensation, $"One qualifying week is not a national sensation ({hit.State})");
+		strong.Day = 7; MediaFans.Advance(hit, strong, regions);
+		Check(hit.State == FanEpisodeState.NationalSensation, "Two qualifying weeks in the window are");
+
+		var retold = new MediaFanState { ArtistId = "probe-retold" };
+		for (int w = 0; w < 8; w++) MediaFans.Advance(retold, Week(7 * w, 10, 10, 0, FanEvidence.Coverage, national: true, extraordinary: true), regions);
+		Check(retold.State == FanEpisodeState.None, "Coverage alone, however wide, is not audience behavior: no episode at all");
+		var tvOnly = new MediaFanState { ArtistId = "probe-tv" };
+		for (int w = 0; w < 8; w++) MediaFans.Advance(tvOnly, Week(7 * w, 10, 10, 0, FanEvidence.TvResponse, national: true, extraordinary: true), regions);
+		Check(tvOnly.State < FanEpisodeState.NationalSensation, "Mail after one program, with no record selling, never makes a sensation");
+
+		var phen = new MediaFanState { ArtistId = "probe-phen" };
+		var huge = Week(0, 10, 8, 9, FanEvidence.Sales | FanEvidence.TvResponse | FanEvidence.Coverage, national: true, extraordinary: true);
+		for (int w = 0; w < 3; w++) { huge.Day = 7 * w; MediaFans.Advance(phen, huge, regions); }
+		Check(phen.State == FanEpisodeState.NationalSensation, "Three extraordinary weeks make a sensation, not yet a phenomenon");
+		huge.Day = 21; MediaFans.Advance(phen, huge, regions);
+		Check(phen.State == FanEpisodeState.CulturalPhenomenon, "Four in a row, with two independent families including audience behavior, make a cultural phenomenon");
+
+		var quiet = Week(0, 0, 0, 0, FanEvidence.None, national: false);
+		int day = 28;
+		for (int w = 0; w < 4 && phen.State != FanEpisodeState.Cooldown; w++) { quiet.Day = day; day += 7; MediaFans.Advance(phen, quiet, regions); }
+		Check(phen.State == FanEpisodeState.Cooldown && phen.CooldownUntilDay >= day - 7 + MediaFans.CooldownDays - 7, $"When the response fades the episode ends in a cooldown (until day {phen.CooldownUntilDay})");
+		int until = phen.CooldownUntilDay;
+		for (; day < until; day += 7) { huge.Day = day; MediaFans.Advance(phen, huge, regions); }
+		Check(phen.State == FanEpisodeState.Cooldown, "No new national episode inside the eight-week cooldown, whatever the evidence");
+		huge.Day = day; MediaFans.Advance(phen, huge, regions);
+		Check(MediaAtmosphereService.IsNational(phen.State) && phen.Peak == FanEpisodeState.CulturalPhenomenon, $"After the cooldown, fresh persistent evidence can start a new one ({phen.State})");
+
+		Check(MediaFans.HypeCap(FanEpisodeState.None) <= 0.5f && MediaFans.HypeCap(FanEpisodeState.Cooldown) <= 0.5f && MediaFans.HypeCap(FanEpisodeState.NationalSensation) < 1f
+			&& MediaFans.HypeCap(FanEpisodeState.CulturalPhenomenon) == 1f, "Event tune-in waits for a sensation, the ceiling for a phenomenon");
+
+		var band = ProbeAct("faces", 0.6f, 0.6f, 0.5f, 0.8f);
+		var shares = MediaFans.CameraShares(band, "probe-show", 1964);
+		Check(Math.Abs(shares.Sum(s => s.Weight) - 1f) < 1e-4 && shares.SequenceEqual(MediaFans.CameraShares(band, "probe-show", 1964)), "Camera shares sum to one and are keyed: a re-read never moves the lens");
+		int leadTop = Enumerable.Range(0, 400).Count(i => MediaFans.CameraShares(band, "probe-" + i, 1964).OrderByDescending(s => s.Weight).First().Member.isLeadVocalist);
+		Check(leadTop > 200 && leadTop < 400, $"The singer usually gets the camera ({leadTop}/400), but not always: a drummer can catch it");
+		var fs = new MediaFanState();
+		fs.Spotlight["a"] = 0.30f; fs.Spotlight["b"] = 0.10f; fs.Faces["a"] = "Ann"; fs.Faces["b"] = "Bo";
+		var even = new MediaFanState();
+		even.Spotlight["a"] = 0.30f; even.Spotlight["b"] = 0.28f; even.Faces["a"] = "Ann"; even.Faces["b"] = "Bo";
+		Check(MediaFans.Face(fs) == "Ann" && MediaFans.Face(even) == null, "The letters name a member only when one stands clearly ahead");
+	}
+
+	// The world's own fans after a season of play: every act through the same arithmetic, nothing private, nothing economic.
+	private void FansInTheWorld() {
+		var clock = TimeManager.Instance;
+		var acts = ArtistManager.Instance.GetAllArtists().Take(400).ToList();
+		float recognition = acts.Sum(x => x.publicRecognition + x.culturalStanding + x.members.Sum(m => m.personalRecognition));
+		for (int i = 0; i < 35; i++) clock.EndDay();
+		var fans = MediaAtmosphereService.Fans.Values.ToList();
+		GD.Print($"  fans: {fans.Count} acts [{string.Join(", ", fans.GroupBy(f => f.State).OrderBy(g => g.Key).Select(g => g.Key + " " + g.Count()))}], " +
+			$"{fans.Count(f => f.Spotlight.Count > 0)} with a spotlight, letters {fans.Sum(f => f.Letters):N0}");
+		foreach (var f in MediaAtmosphereService.LoudestFans(4))
+			GD.Print($"  fans: {f.ArtistName}: {MediaFans.Describe(f.State)}, warm in {string.Join(", ", MediaAtmosphereService.WarmRegionNames(f, 3))}, face {MediaFans.Face(f) ?? "-"}, history {f.History.FirstOrDefault()}");
+		Check(fans.Count > 0 && fans.Any(f => f.State != FanEpisodeState.None), "Rival acts acquire followings from their own careers");
+		Check(fans.All(f => f.Attachment.Values.All(v => v >= 0f && v <= 1f) && f.Spotlight.Values.All(v => v >= 0f && v <= 1f)), "Attachment and spotlight stay in [0,1]");
+		Check(fans.All(f => f.Spotlight.Keys.All(k => ArtistManager.Instance.GetArtist(f.ArtistId)?.members.Any(m => m.personId == k) != false)),
+			"Spotlight is held by real members of the act");
+		Check(MediaAtmosphereService.Stories.Where(s => s.Angle == StoryAngle.FanScene).All(s => s.Evidence.All(e => e.Source is EvidenceSource.RegionalSales or EvidenceSource.BroadcastAiring or EvidenceSource.OtherPublication)),
+			$"Fan stories cite sales reports, program mail and other papers, nothing private ({MediaAtmosphereService.Stories.Count(s => s.Angle == StoryAngle.FanScene)} so far)");
+		float after = acts.Sum(x => x.publicRecognition + x.culturalStanding + x.members.Sum(m => m.personalRecognition));
+		GD.Print($"  canonical recognition across 400 acts moved {after - recognition:F4} in five weeks (the economy's own milestones; media writes none)");
+		var desk = PlayerDesk.Instance;
+		GD.Seed(9191); desk.FanLines(); MediaAtmosphereService.LoudestFans(5); RolodexDirectory.Cards(desk, RolodexRole.Press); uint r1 = GD.Randi();
+		GD.Seed(9191); uint r2 = GD.Randi();
+		Check(r1 == r2 && desk.FanLines().SequenceEqual(desk.FanLines()), "Reading the fan lines and the teen desks draws nothing and reads the same twice");
+		foreach (string line in desk.FanLines()) GD.Print("  office: " + line);
+	}
+
+	// Fixture 14 and §13: allocations sum to the existing envelope and reserve once; rivals use the same slots; policies differ.
+	private void AiPlanner() {
+		foreach (MediaPolicy p in Enum.GetValues<MediaPolicy>())
+			for (int i = 0; i < 300; i++) {
+				var a = AiMediaPlanner.Allocate("probe", "probe", "probe", p, 0.37f + i * 13.731f, 0);
+				if (!a.Balanced) throw new InvalidOperationException($"allocation for {p} at {a.EnvelopeCents} cents does not sum");
+			}
+		Check(true, "Every policy's allocation sums to its envelope to the cent (1,800 envelopes)");
+		var labels = CompetitorManager.Instance.GetAllLabels().Where(l => !l.isPlayerOwned).ToList();
+		var policies = labels.GroupBy(AiMediaPlanner.LabelPolicy).ToDictionary(g => g.Key, g => g.Count());
+		Check(policies.Count >= 4, $"Rival labels have recognizably different publicity policies ({string.Join(", ", policies.Select(p => p.Key + " " + p.Value))})");
+		var bandstand = MediaOutletCatalog.Get("american_bandstand");
+		Check(!AiMediaPlanner.Considers(bandstand, MediaPolicy.SpecialistCommunity, null, Genre.Country, 100, out string why) && why == "policy",
+			"A specialist country house doesn't chase a national teen slot for a country record");
+		var upbeat = MediaOutletCatalog.Get("upbeat");
+		long near = AiMediaPlanner.AppearanceCents(upbeat, D(1966, 3, 5), upbeat.HomeCityId, 3, MediaPreparation.Standard);
+		long far = AiMediaPlanner.AppearanceCents(upbeat, D(1966, 3, 5), "los_angeles", 3, MediaPreparation.Standard);
+		long network = AiMediaPlanner.AppearanceCents(MediaOutletCatalog.Get("ed_sullivan"), D(1966, 3, 6), "los_angeles", 3, MediaPreparation.Standard);
+		Check(near == AiMediaPlanner.PreparationCents(MediaPreparation.Standard) && far > 20 * near && network == near,
+			$"A local show at home costs the rehearsal, across the country ${far / 100.0:N0}; a network production pays its guests' way");
+
+		double cash = labels.Sum(l => (double)l.cashReserves), expenses = labels.Sum(l => (double)l.monthlyExpenses);
+		GD.Seed(5150);
+		foreach (var l in labels.Take(50)) {
+			var artist = ArtistManager.Instance.GetAllArtists().FirstOrDefault(x => x.labelId == l.labelId);
+			AiMediaPlanner.EnvelopeEstimate(l, artist);
+			AiMediaPlanner.PhotoAnswer(AiMediaPlanner.LabelPolicy(l), artist, "probe-" + l.labelId);
+		}
+		uint r1 = GD.Randi(); GD.Seed(5150); uint r2 = GD.Randi();
+		Check(r1 == r2 && cash == labels.Sum(l => (double)l.cashReserves) && expenses == labels.Sum(l => (double)l.monthlyExpenses),
+			"Estimating envelopes and answering for rival labels draws nothing and touches no label's money");
+
+		var allocations = MediaAtmosphereService.AiAllocations.Values.ToList();
+		Check(allocations.Count > 0 && allocations.All(a => a.Balanced && a.TvReservedCents <= a.TvCents && a.PressReservedCents <= a.PressCents
+				&& a.Receipts.Values.Sum() == a.TvReservedCents + a.PressReservedCents),
+			$"{allocations.Count} live campaign allocations: balanced, reservations within their lines, every reserved cent has one receipt");
+		var ledger = MediaAtmosphereService.AiLedger;
+		GD.Print($"  ai ledger: {string.Join(", ", ledger.OrderBy(p => p.Key).Select(p => p.Key + " " + p.Value))}");
+		Check(ledger.Keys.Any(k => k.StartsWith("accept")) && ledger.Keys.Any(k => k.StartsWith("pitch-")), "Rival labels pitch, and take the dates they want and can afford");
+		Check(MediaAtmosphereService.AiPitches.All(p => p.Kind == PitchKind.Television ? MediaOutletCatalog.Get(p.ProgramId) != null : MediaOutletCatalog.GetPress(p.OutletId) != null)
+			&& MediaAtmosphereService.AiPitches.GroupBy(p => (p.LabelId, p.Day)).All(g => g.Count() <= 2 * AiMediaPlanner.FocusRecordsPerLabel),
+			$"The planner is bounded: at most one disc and one sheet per focus record per week ({MediaAtmosphereService.AiPitches.Count} pitches)");
+
+		// Same slots, same dates: every episode's bill, player and rival together, fits its program's guest slots.
+		var byEpisode = MediaAtmosphereService.Appearances.Where(a => a.RepeatOfId == null).GroupBy(a => a.EpisodeId).ToList();
+		Check(byEpisode.All(g => g.Count() <= MediaOutletCatalog.Get(g.First().ProgramId).GuestSlots),
+			$"Player and rival bookings share each episode's finite slots ({byEpisode.Count} episodes)");
+		var mine = MediaAtmosphereService.Appearances.FirstOrDefault(a => a.PlayerBooking);
+		if (mine != null) GD.Print($"  shared bill: {string.Join(" / ", MediaAtmosphereService.Appearances.Where(a => a.EpisodeId == mine.EpisodeId).Select(a => a.ArtistName + (a.PlayerBooking ? " (yours)" : "")))}");
+		var rivalTeen = MediaAtmosphereService.Stories.Where(s => s.Angle == StoryAngle.TeenFeature && !s.PlayerSubject && s.PhotoNote != null).ToList();
+		GD.Print($"  rival photo answers: {string.Join(", ", rivalTeen.GroupBy(s => s.PhotoNote.Split(';')[0]).Select(g => g.Key + " " + g.Count()))}");
+	}
+
+	private void PhaseThreeSave() {
+		var opts = new JsonSerializerOptions { IncludeFields = true };
+		var world = new WorldSaveData();
+		MediaAtmosphereService.CaptureWorld(world);
+		string json = JsonSerializer.Serialize(world.Media, opts);
+		var back = JsonSerializer.Deserialize<MediaSaveData>(json, opts);
+		var now = world.Media;
+		Check(back.Fans.Count == now.Fans.Count && back.AiAllocations.Count == now.AiAllocations.Count && back.AiPitches.Count == now.AiPitches.Count
+			&& back.Fans.All(p => now.Fans[p.Key].State == p.Value.State && now.Fans[p.Key].Levels.SequenceEqual(p.Value.Levels) && now.Fans[p.Key].CooldownUntilDay == p.Value.CooldownUntilDay
+				&& p.Value.Attachment.All(x => Math.Abs(now.Fans[p.Key].Attachment[x.Key] - x.Value) < 1e-6) && p.Value.Spotlight.Count == now.Fans[p.Key].Spotlight.Count)
+			&& back.AiAllocations.All(p => now.AiAllocations[p.Key].TvReservedCents == p.Value.TvReservedCents && p.Value.Receipts.Count == now.AiAllocations[p.Key].Receipts.Count && p.Value.Balanced),
+			$"Phase 3 state survives a save round trip ({json.Length / 1024} KB: {now.Fans.Count} fan records, {now.AiAllocations.Count} allocations, {now.AiPitches.Count} AI pitches)");
 	}
 
 	private void PhaseTwoSave() {

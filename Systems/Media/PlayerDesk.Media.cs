@@ -58,6 +58,34 @@ public partial class PlayerDesk {
 	private const int PressColumnLines = 3;
 
 	/// <summary>
+	/// THE FANS in the office (§10, §14): where the label's own acts have a following and whose face the letters are about,
+	/// then the loudest rival episodes. Proportional to the evidence: a regional favorite is never called a phenomenon.
+	/// Read-only; media spotlight is shown as the fans' attention, distinct from the act's earned recognition.
+	/// </summary>
+	public IReadOnlyList<string> FanLines() {
+		var lines = new List<string>();
+		if (!MediaAtmosphere.Observing || Label == null) return lines;
+		var ours = new HashSet<string>((ChartManager.Instance?.GetAllRecords() ?? new List<RecordRuntimeData>())
+			.Where(r => r.baseRecord?.isPlayerOwned == true && r.baseRecord.artistId != null).Select(r => r.baseRecord.artistId), StringComparer.Ordinal);
+		var mine = MediaAtmosphereService.Fans.Values.Where(f => ours.Contains(f.ArtistId) || ArtistManager.Instance?.GetArtist(f.ArtistId)?.labelId == Label.labelId)
+			.Where(f => f.Attachment.Count > 0 || f.State != FanEpisodeState.None)
+			.OrderByDescending(f => f.Attachment.Values.Sum()).ThenBy(f => f.ArtistId, StringComparer.Ordinal).Take(3);
+		foreach (MediaFanState f in mine) {
+			var warm = MediaAtmosphereService.WarmRegionNames(f, 3);
+			string where = warm.Count > 0 ? "the kids are asking for them in " + string.Join(", ", warm) : "a few listeners, no following yet";
+			string face = MediaFans.Face(f);
+			string letters = f.Letters > 0 ? $"; about {MediaAtmosphereService.RoundLetters(f.Letters):N0} letters to the TV shows so far" : "";
+			lines.Add($"{f.ArtistName}: {MediaFans.Describe(f.State)}; {where}{letters}." + (face != null ? $" The letters are mostly about {face}." : ""));
+		}
+		foreach (MediaFanState f in MediaAtmosphereService.LoudestFans(6).Where(f => MediaAtmosphereService.IsNational(f.State) || f.State == FanEpisodeState.Cooldown).Take(2)) {
+			if (lines.Any(l => l.StartsWith(f.ArtistName + ":"))) continue;
+			string face = MediaFans.Face(f);
+			lines.Add($"Elsewhere: {f.ArtistName} — {MediaFans.Describe(f.State)}" + (f.State == FanEpisodeState.Cooldown ? "." : face != null ? $", and the magazines can't print enough of {face}." : "."));
+		}
+		return lines;
+	}
+
+	/// <summary>
 	/// The paper's IN THE PAPERS rubric: today's items about the label's own acts first, then this town's paper, then the
 	/// biggest national items. Read-only, composed from items already scheduled (§9.4: text never decides anything).
 	/// </summary>

@@ -175,6 +175,12 @@ public partial class PlayerDeskPanel {
 			}
 		}
 
+		var fans = desk.FanLines();
+		if (fans.Count > 0) {
+			Body("The fans (what the mail, the shops and the teen papers say; the act's standing in the business is a separate thing):");
+			foreach (string line in fans) Body("    " + line);
+		}
+
 		if (clippings.Count > 0) {
 			Body("Clippings:");
 			foreach (MediaStory s in clippings) {
