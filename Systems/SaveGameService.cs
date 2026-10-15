@@ -353,6 +353,8 @@ public sealed class PlayerSaveData {
     public DemoSaveData Demos { get; set; }
     /// <summary>Optional: master-deal offers, signed deals and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
     public MasterDealsSaveData MasterDeals { get; set; }
+    /// <summary>Optional: song placement offers, signed placements and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
+    public SongPlacementsSaveData SongPlacements { get; set; }
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
     public List<StudioVisit> StudioVisits { get; set; }

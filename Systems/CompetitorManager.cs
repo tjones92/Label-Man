@@ -1156,8 +1156,16 @@ public partial class CompetitorManager : Node {
 					AILabel controller = routing.ControllerLabelId != null && settlementLabelLookup != null
 						&& settlementLabelLookup.TryGetValue(routing.ControllerLabelId, out AILabel cl) ? cl : null;
 					if (controller != null && !ReferenceEquals(controller, label)) {
-						controller.weeklyPublishingReceipts += transferSlice;
-						publishingTransferOut = transferSlice;
+						// Early-game Phase 5A: a cut of a song the player placed here. The placement's advance recoups first
+						// out of this slice (the buyer, which paid it, keeps that part); the rest accrues to the player's
+						// statement instead of this week's receipts. Null on every AI-chosen record.
+						float buyerKeeps = runtimeData.baseRecord.playerPlacementId != null && controller.isPlayerOwned && PlayerDesk.Instance != null
+							? PlayerDesk.Instance.SettlePlacementWeek(runtimeData.baseRecord.playerPlacementId, runtimeData.baseRecord.recordId,
+								Mathf.RoundToInt(weeklyUnits), transferSlice)
+							: -1f;
+						if (buyerKeeps < 0f) controller.weeklyPublishingReceipts += transferSlice;
+						else recordRevenue += buyerKeeps;
+						publishingTransferOut = transferSlice - Mathf.Max(0f, buyerKeeps);
 					} else {
 						leakSlice += transferSlice;
 					}
@@ -3280,7 +3288,15 @@ public partial class CompetitorManager : Node {
 			int chartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
 			SelectedSongMaterial material = SongMaterialSelectionService.ChooseMaterial(label, artist, record, record.primaryGenre, year, chartWeek);
 			if (PolarSongBehavior.UsePolarFitSelection && material == null) return null;
+			// Early-game Phase 5A (§7.2): a song the player placed with this label, cut in place of the outside song the act
+			// was about to record. Injected after the label's own choice, so its draws are unchanged; a world with no player
+			// holds no placements and never takes this branch.
+			string placementId = null;
+			if (format == ReleaseFormat.Single && PlayerDesk.Instance != null
+					&& PlayerDesk.Instance.PlacedSongFor(label, artist, record, material, year, out placementId) is { } placed)
+				material = placed;
 			SongMaterialApplicationService.Apply(record, material, label, artist);
+			if (placementId != null) PlayerDesk.Instance.StampPlacedCut(record, placementId);
 			if (record.format == ReleaseFormat.Single) SongMaterialSelectionService.ObserveMasterAssignment(artist, record, material, "single");
 		} else {
 			CompositionCatalogService.AttachArtistOriginal(record, artist, label, year);

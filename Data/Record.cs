@@ -99,6 +99,10 @@ public partial class Record : IFieldsOnlySave {
 	// to it -- the PlayerDesk.MasterDeals contract id. Null on every record an AI label made itself, so every branch
 	// that reads it is unreachable in an AI-only world.
 	[Export] public string playerMasterDealId;
+
+	// Early-game directive V2, Phase 5A (§7.2): an AI label's cut of a song the player placed with it -- the
+	// PlayerDesk.SongPlacement contract id. Null on every record an AI label chose its own material for.
+	[Export] public string playerPlacementId;
 }
 
 public enum ReleaseFormat { Single, Album, EP }

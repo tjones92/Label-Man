@@ -262,6 +262,8 @@ public partial class PlayerDesk {
 
 		// §5: master deals -- an open offer is money agreed if you sign; shopping a title is speculative.
 		list.AddRange(MasterDealCashOptions(today, TooLate, Late));
+		// §7.2: song placements -- an open offer is an advance agreed if you sign; a statement is owed; plugging a song is speculative.
+		list.AddRange(PlacementCashOptions(today, TooLate, Late));
 		// The plant's credit run (§1.2).
 		foreach (var rec in ReleasedRecords) {
 			string id = rec.baseRecord?.recordId;

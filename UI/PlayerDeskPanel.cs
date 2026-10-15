@@ -3103,6 +3103,7 @@ public partial class PlayerDeskPanel : Control {
 					Body($"\"{record.baseRecord.title}\" — the master's out on this one; not yours to sell right now.");
 		}
 		BuildMasterDeals(desk);
+		BuildSongPlacements(desk);
 
 		Heading("ARTIST ACCOUNTS");
 		var roster = desk.Roster.ToList();

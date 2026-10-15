@@ -414,6 +414,28 @@ public partial class SaveLoadRoundTripRunner : Node {
 			PlayerDesk.Instance.StageMasterPassForChecks(new MasterPass { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_2", Day = 4, Evidence = "unreleased", Reason = "probe pass" });
 			PlayerDesk.Instance.StageMasterPostingForChecks(new MasterPosting { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_3", SentDay = pd, AnswerDay = pd + 21, Solicited = true });
 
+			// Early-game §7.2: a placement out with its ledger, one held with a cut pending, an open offer, a pass and a tape.
+			// The placement out points at a live chart record: a dawn runs before the check, and a record off the chart ends it.
+			string probeCutRecord = ChartManager.Instance.GetAllRecords().First(r => r.baseRecord != null && !r.baseRecord.isPlayerOwned).baseRecord.recordId;
+			var probeCut = new SongPlacement { Id = "probe_sp_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName, SongId = "probe_song_1",
+				Title = "Probe Placed", Advance = 60f, Status = SongPlacementStatus.Out, SignedDay = 12, HoldUntilDay = 194, RecordId = probeCutRecord,
+				ArtistId = "probe-cutter", ArtistName = "Probe Cutter", ReleasedDay = 40, NextStatementDay = pd + 91, Units = 900, Earned = 85.5f, Recouped = 60f, Paid = 0f };
+			probeCut.Ledger.AddRange(new[] {
+				new SongPlacementLedgerEntry { Day = 12, Kind = SongPlacementLedgerKind.Advance, Amount = 60f },
+				new SongPlacementLedgerEntry { Day = 40, Kind = SongPlacementLedgerKind.Cut },
+				new SongPlacementLedgerEntry { Day = 47, Kind = SongPlacementLedgerKind.Earned, Amount = 85.5f, Units = 900 },
+				new SongPlacementLedgerEntry { Day = 47, Kind = SongPlacementLedgerKind.Recouped, Amount = 60f } });
+			PlayerDesk.Instance.StagePlacementForChecks(probeCut);
+			PlayerDesk.Instance.StagePlacementForChecks(new SongPlacement { Id = "probe_sp_2", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				SongId = "probe_song_2", Title = "Probe Held Song", Advance = 25f, Status = SongPlacementStatus.Held, SignedDay = pd, HoldUntilDay = pd + 182,
+				PendingRecordId = "probe_pending_cut", PendingDay = pd + 365,   // a dawn passes before the check; keep the pending cut unresolved
+				Ledger = { new SongPlacementLedgerEntry { Day = pd, Kind = SongPlacementLedgerKind.Advance, Amount = 25f } } });
+			PlayerDesk.Instance.StagePlacementOfferForChecks(new SongPlacementOffer { Id = "probe_po_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				SongId = "probe_song_3", Title = "Probe Song Offer", Route = MasterRoute.Post, MadeDay = 1, ExpiresDay = 9999, Read = .61f, Answer = "probe song answer",
+				Advance = 45f, HoldDays = 182, Cover = true, Why = "probe why" });
+			PlayerDesk.Instance.StagePlacementPassForChecks(new SongPlacementPass { BuyerLabelId = probeBuyer.labelId, SongId = "probe_song_4", Day = 6, Evidence = "unreleased", Reason = "probe song pass" });
+			PlayerDesk.Instance.StagePlacementPostingForChecks(new SongPlacementPosting { BuyerLabelId = probeBuyer.labelId, SongId = "probe_song_5", SentDay = pd, AnswerDay = pd + 19, Solicited = false });
+
             var infoSave = PlayerDesk.Instance.CaptureState();
             infoSave.SceneInformation = new SceneInformationKnowledge {
                 Contacts = new() { new() { ContactId = "probe-contact", HeardBillIds = new() { "probe-bill-1", "probe-bill-2" } } },
@@ -640,6 +662,20 @@ public partial class SaveLoadRoundTripRunner : Node {
 					$"pass={desk1.MasterPasses.Count} post={desk1.MasterPostings.Count} ok={masterOk}");
 				if (!masterOk) fails.Add("master deals/offers/passes/postings lost on round-trip");
 			}
+			{
+				var desk1 = PlayerDesk.Instance;
+				var cut1 = desk1.Placements.FirstOrDefault(d => d.Id == "probe_sp_1");
+				var held1 = desk1.Placements.FirstOrDefault(d => d.Id == "probe_sp_2");
+				var offer1 = desk1.PlacementOffers.FirstOrDefault(o => o.Id == "probe_po_1");
+				bool placementOk = cut1 != null && cut1.Status == SongPlacementStatus.Out && cut1.Units == 900 && Math.Abs(cut1.Earned - 85.5f) < .001f
+					&& Math.Abs(cut1.OwedNow - 25.5f) < .001f && cut1.ReleasedDay == 40 && cut1.RecordId == probeCutRecord && cut1.Ledger.Count == 4 && cut1.LedgerAgrees()
+					&& held1 != null && held1.Status == SongPlacementStatus.Held && held1.PendingRecordId == "probe_pending_cut" && held1.HoldUntilDay == pd + 182
+					&& offer1 != null && offer1.Cover && Math.Abs(offer1.Advance - 45f) < .001f && offer1.Route == MasterRoute.Post
+					&& desk1.PlacementPasses.Any(p => p.Reason == "probe song pass") && desk1.PlacementPostings.Any(p => p.SongId == "probe_song_5" && p.AnswerDay == pd + 19);
+				GD.Print($"SONG_PLACEMENT_ROUNDTRIP placements={desk1.Placements.Count} offers={desk1.PlacementOffers.Count} cut={cut1?.Status}/{cut1?.Units}/{cut1?.OwedNow}/{cut1?.LedgerAgrees()} " +
+					$"held={held1?.Status}/{held1?.PendingRecordId} offer={offer1?.Advance}/{offer1?.Cover} pass={desk1.PlacementPasses.Count} post={desk1.PlacementPostings.Count} ok={placementOk}");
+				if (!placementOk) fails.Add("song placements/offers/passes/postings lost on round-trip");
+			}
 			if (tableRoom != null) {
 				var rights1 = PlayerDesk.Instance.LastTableRightsAsk(tableRoom);
 				bool tableOk = rights1 != null && rights1.Granted && rights1.AskedDay == 5 && rights1.ExpiresDay == 5 + PlayerDesk.TableRightsTermDays
@@ -855,6 +891,14 @@ public partial class SaveLoadRoundTripRunner : Node {
 				$" nextStatement={d.NextStatementDay} expires={d.ExpiresDay} ledger={d.Ledger.Count} ledgerAgrees={d.LedgerAgrees()}");
 		foreach (var o in desk.MasterOffers)
 			GD.Print($"  MASTER_OFFER {o.BuyerName} on \"{o.Title}\" via {o.Route} expires={o.ExpiresDay} terms={string.Join(";", o.Terms.Select(t => $"{t.Kind}:{t.Advance:F0}"))}");
+
+		// Early-game §7.2: song placements, their balances, and whether each ledger still agrees.
+		foreach (var p in desk.Placements)
+			GD.Print($"  SONG_PLACEMENT {p.Id} \"{p.Title}\" with {p.BuyerName} status={p.Status} advance={p.Advance:F2} act={p.ArtistName} record={p.RecordId}" +
+				$" units={p.Units} earned={p.Earned:F2} recouped={p.Recouped:F2} paid={p.Paid:F2} owedNow={p.OwedNow:F2} hold={p.HoldUntilDay}" +
+				$" nextStatement={p.NextStatementDay} ledger={p.Ledger.Count} ledgerAgrees={p.LedgerAgrees()}");
+		foreach (var o in desk.PlacementOffers)
+			GD.Print($"  SONG_OFFER {o.BuyerName} on \"{o.Title}\" via {o.Route} expires={o.ExpiresDay} advance={o.Advance:F0} cover={o.Cover}");
 
 		int unresolved = 0;
 		foreach ((string cityName, string stopName, string title, int remaining) in desk.StopStock()) {

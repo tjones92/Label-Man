@@ -20,8 +20,9 @@ money. A §4.3 backer, if built, must come from a non-family source.
 | 4 §7.1 | Paid demos: real unsigned clients, held deposits, producer fee, demo sample | `Systems/PlayerDesk.Demos.cs`; gate `SimTools/DemoChecks.*`; UI `PaidDemos` in `PlayerDeskPanel.SceneRooms.cs` |
 | 3 F1-F3 | Room tables, audience saturation, local appeal | `Systems/PlayerDesk.RoomTables.cs`, `PlayerDesk.LocalAppeal.cs`; gate `SimTools/RoomTableChecks.*` |
 | 5 §5 | Shop the master: one deal state machine, real buyers that release, lease/sale/sale-with-act, regional pickup | `Systems/PlayerDesk.MasterDeals.cs`; seams in `CompetitorManager.cs`, `RosterManager.cs`, `Data/Record.cs`; gate `SimTools/MasterDealChecks.*`; UI `UI/PlayerDeskPanel.MasterDeals.cs` |
+| 5A §7.2 | Place a song: real labels' acts cut the player's songs; advance, hold, settlement off the existing publishing slice | `Systems/PlayerDesk.SongPlacement.cs`; seams in `CompetitorManager.cs`, `CompositionCatalogService.cs`, `Data/Record.cs`; gate `SimTools/PlacementChecks.*`; UI `BuildSongPlacements` in `UI/PlayerDeskPanel.MasterDeals.cs` |
 
-Phases 3, 2, 4 and 5 built 2026-10-14 (in that order), see below. Not started: 5A (song placement), 5B (F5 gig
+Phases 3, 2, 4, 5 and 5A built 2026-10-14 (in that order), see below. Not started: 5B (F5 gig
 pay), later/deferred items.
 
 ## Design choices worth knowing
@@ -547,3 +548,62 @@ Verification:
   the dead lease. Ids now carry a saved running ordinal.
 - **Not yet run:** an opening-probe matrix with a master-shopping policy (how often an opening finds a buyer, and what
   it is worth against overhead).
+
+## Phase 5A: place a song (§7.2), 2026-10-14
+
+Built (`Systems/PlayerDesk.SongPlacement.cs`; UI "PLACE A SONG" in the books, after SHOP THE MASTER; seams in
+`CompetitorManager.cs`, `CompositionCatalogService.SongsControlledBy`, `Data/Record.cs`).
+
+- **What can be placed:** a composition whose publishing the player's label controls (LabelAffiliate/LabelBuyout with the
+  label as controller, i.e. its own act's song under label-owned publishing), with a master the player cut of it (shelf,
+  released, held or out on a master deal) to play from. Songs the act kept, commissioned songs, standards and covers are
+  refused. Publishing is separate from the master: a sold or leased master leaves its song placeable.
+- **Buyers are real AI labels** with an act on the roster in the song's sound (its genre = own sound; same family = near,
+  bar +0.04) that can find a $25 advance. A route-to-route copy of the master-shopping contacts: call (1h, toll, public
+  answers, appointment if in driving range, no repeat inside 28 days), posted tape ($5 + $1.50, answered in 14-28 days, 90%
+  solicited / 40% not, 91-day quiet), visit (2h, their town and hours, an acetate or a pressed copy). The walk-in front desk
+  is shared with master visits.
+- **The ear** reads the song, not the recording: craft score x0.5 + composition hook x0.5, with the buyer's fixed noise
+  (x1.4 off a tape) plus the evidence of the player's own record of it if it is out (breakouts, copies). A pass stands until
+  that evidence changes. Bars: Major .62, MidTier .58, Independent .54, smaller .50. Answers are words.
+- **Contract (authored):** an advance of $25-100 by interest and tier, paid from the buyer's cash on signing; a 182-day hold
+  during which the song can't be pitched elsewhere; no cut in the hold = lapse, advance kept. After a cut the song may be
+  pitched to other labels again, never twice to the same one.
+- **The cut** is injected in `GenerateRecordFromArtist` after the AI's own `ChooseMaterial`: when the label holds a song
+  its releasing act can sing and the act was about to record an outside song (not `ArtistWritten`/co-written), the placed
+  song is cut instead (`BuildProfessionalForSong`, or `BuildCoverForSong` when the player's record of it is out, so it is a
+  cover with `originalRecordId` = the player's record and the trades notice sees it). `StampPlacedCut` restores the song's
+  rights after `Apply` (so `PublishingCaptureService` can't take the player's song), gives the record the song's title and
+  the `playerPlacementId` tag. The cut counts only once the record is on the chart; an AI single dropped for want of cash
+  leaves the song held.
+- **Settlement:** no new money. The song's income is the existing publishing slice (`PublishingShareOfGross`, 11% of the
+  buyer's retail gross) that live routing already transfers to the controlling label. For a tagged record the transfer
+  branch calls `SettlePlacementWeek`: the advance recoups first (that part stays in the buyer's net, since it paid the
+  advance), and the rest accrues on the placement instead of the week's `weeklyPublishingReceipts`, paid on a quarterly
+  statement from the cut's release. No 2c mechanical is charged (an AI record's composition cost is that slice), so nothing
+  is charged twice. Under label-owned publishing the label keeps the writer's half too, the same convention as its own
+  sales and the AI routing, so no separate writer line is paid. With `--disable-publishing-routing` a placement earns only
+  its advance. When the record leaves the chart or the buyer folds, a final statement settles and the placement ends.
+- CASH OPTIONS: open offers (agreed), statements owed (owed, on the statement date), placeable songs (speculative, from
+  $25). Saved as `PlayerSaveData.SongPlacements` (optional). `--inspect-slot` prints placements and ledger agreement.
+- Not built: a route to a cash-holding publisher/plugger (the catalogue's publishers hold no cash in the sim, so a
+  publisher deal would be money from nowhere); writer payouts on placements (see above); a probe matrix.
+
+Verification:
+- **AI-only identity:** `egl-p5a-1001-52` matches `ref-c566f24-1001-52` on 84/84 CSVs, byte for byte.
+- `PlacementChecks` 57/57 on the real clock (Detroit act, Mercury in Chicago): what can and can't be placed; real buyers;
+  calls, tape, visit, refusals free; the strong song offered $100 and the weak one passed (the pass stands); CASH OPTIONS;
+  signing pays from Mercury's cash and holds the song; a self-writing act's single keeps to its own song; Mercury's act cut
+  it 9 days after signing in a real AI session, tagged, the player's publishing intact, not a cover; units accrue at the
+  11% slice (9.8c a copy), the advance recoups first, nothing reaches weekly receipts, the statement pays the rest;
+  hand-settled recoupment; a folded buyer ends it with a final statement; a dropped single leaves the hold; an uncut hold
+  lapses with the advance kept; a cut of a released song is a cover of the player's record; every ledger agrees.
+- `SaveLoadRoundTripRunner --integration --weeks=26` passes (new `SONG_PLACEMENT_ROUNDTRIP ok=True`). CashPlanning 30/30,
+  Backer 49/49, RoomTable 49/49, Demo 30/30, MasterDeal 69/69.
+
+**Balance flag for the author:** the gate's fixture song (craft .95) became a Mercury hit: 263,224 copies in four weeks,
+$25,770 to the player through the 11% slice, against $175 a month of New York overhead. The slice is the AI economy's
+existing calibrated composition pool (it already pays the player when an AI act covers a player hit organically), so it
+was kept for consistency rather than invented anew. If a placed hit is too rich for the early game, the levers are paying
+the publisher's half only, or the 1960 mechanical alone (1c a side to the publisher) for player-controlled songs. Real
+player songs sit far below .95 craft; a probe matrix would show how often an opening places a song at all.

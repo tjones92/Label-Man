@@ -4748,6 +4748,7 @@ public partial class PlayerDesk : Node {
 			FireRelease(release, date);
 		}
 		ProcessMasterDealsDawn(date);
+		ProcessSongPlacementsDawn();
 		ProcessTrunkDay();
 		CheckWeeklyInboundCalls();
 		CheckWeeklyRunner();
@@ -5862,6 +5863,7 @@ public partial class PlayerDesk : Node {
             Backer = CaptureBacker(),
             Demos = CaptureDemos(),
             MasterDeals = CaptureMasterDeals(),
+            SongPlacements = CaptureSongPlacements(),
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
             StudioTrip = studioTrip?.Copy(),
@@ -6366,6 +6368,7 @@ public partial class PlayerDesk : Node {
         RestoreBacker(data.Backer);
         RestoreDemos(data.Demos);
         RestoreMasterDeals(data.MasterDeals);
+        RestoreSongPlacements(data.SongPlacements);
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
         studioTrip = data.StudioTrip?.Copy();
