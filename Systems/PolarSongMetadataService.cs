@@ -43,9 +43,12 @@ public static class PolarSongMetadataService {
 
 	public static void EnsureComposition(SongComposition song) {
 		CompositionShapeVariation.Ensure(song);
-		if (song == null || song.demoTaxonomy != null) return;
-		song.demoTaxonomy = new SongTaxonomy { primaryGenre = song.primaryGenre, secondaryGenre = song.secondaryGenre,
-			tags = ClassifyLegacyTags(song.genreTagIds) };
+		if (song == null) return;
+		if (song.demoTaxonomy == null)
+			song.demoTaxonomy = new SongTaxonomy { primaryGenre = song.primaryGenre, secondaryGenre = song.secondaryGenre,
+				tags = ClassifyLegacyTags(song.genreTagIds) };
+		// Content is read from the title and lyric mode only; nothing reads it but the media layer (draw-free, idempotent).
+		SongContentTags.Author(song);
 	}
 
 	/// <summary>Freeze only at a committed, explicitly derived first master. No preview-time writes.

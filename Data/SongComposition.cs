@@ -149,6 +149,11 @@ public sealed class SongComposition {
 	public SongForm defaultForm;
 	public float? wordDensity;
 	public string[] contentTagIds = Array.Empty<string>();
+	// SongContentTags (media directive §7.1): "tag|severity|evidence" per finding, what was examined, and the title it
+	// was read from. Null basis = never authored (older saves); re-read on load.
+	public string[] contentTagEvidence = Array.Empty<string>();
+	public string contentTagsBasis;
+	public string contentTagsTitle;
 	public float? plasticity;
 	public bool plasticityFrozen;
 	public string firstCommittedMasterId;
