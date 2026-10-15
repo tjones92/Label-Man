@@ -97,11 +97,29 @@ public static class ArtistRecognitionService {
 	/// </summary>
 	public static void OnChartRunComplete(SimulatedArtist artist, RecordRuntimeData record) {
 		if (!ArtistRecognition.Observing || artist == null || record == null) return;
-		if (record.peakPosition <= 0 || record.peakPosition > 100) return;   // never charted -> no sustain to reward
-		float sustain = 0.020f * Mathf.Clamp(record.weeksOnChart / 40f, 0f, 1f);
-		float topTen  = 0.030f * Mathf.Clamp(record.weeksInTopTen / 12f, 0f, 1f);
-		float breadth = 0.020f * Mathf.Clamp(record.regionalBreakoutCount / 6f, 0f, 1f);
+		CreditChartRun(artist, record.peakPosition, record.weeksOnChart, record.weeksInTopTen, record.regionalBreakoutCount);
+	}
+
+	/// <summary>The run-complete credit from its facts alone, so a pre-1960 history (OpeningCareerService) is replayed
+	/// through exactly the rule a live record pays.</summary>
+	internal static void CreditChartRun(SimulatedArtist artist, int peakPosition, int weeksOnChart, int weeksInTopTen, int regionalBreakouts) {
+		if (peakPosition <= 0 || peakPosition > 100) return;   // never charted -> no sustain to reward
+		float sustain = 0.020f * Mathf.Clamp(weeksOnChart / 40f, 0f, 1f);
+		float topTen  = 0.030f * Mathf.Clamp(weeksInTopTen / 12f, 0f, 1f);
+		float breadth = 0.020f * Mathf.Clamp(regionalBreakouts / 6f, 0f, 1f);
 		AddPublicRecognition(artist, sustain + topTen + breadth);
+	}
+
+	/// <summary>The weekly calendar decay applied <paramref name="weeks"/> times to one act and its members, for the
+	/// pre-1960 replay. Same per-week rates as <see cref="DecayRegistryForWeek"/>; touches no week guard.</summary>
+	internal static void DecayActForWeeks(SimulatedArtist artist, int weeks) {
+		if (!ArtistRecognition.Observing || artist == null) return;
+		for (int i = 0; i < weeks; i++) {
+			if (artist.publicRecognition > 0f) artist.publicRecognition *= PublicRecognitionDecay;
+			if (artist.culturalStanding > 0f) artist.culturalStanding *= CulturalStandingDecay;
+			if (artist.members != null)
+				foreach (Musician member in artist.members) DecayMemberRecognition(member);
+		}
 	}
 
 	// ---- calendar decay ------------------------------------------------------------------------

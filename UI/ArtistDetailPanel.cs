@@ -149,7 +149,15 @@ public partial class ArtistDetailPanel : Control
 	private void ShowDiscography()
 	{
 		var records = GetRecords();
-		if (records.Count == 0) { AddHeading("RELEASES"); AddBody("No releases on file."); return; }
+		var history = artist.publicHistory ?? new List<PublicReleaseEntry>();
+		if (records.Count == 0 && history.Count == 0) { AddHeading("RELEASES"); AddBody("No releases on file."); return; }
+		ShowCurrentReleases(records);
+		ShowEarlierRecords(history);
+	}
+
+	private void ShowCurrentReleases(List<RecordRuntimeData> records)
+	{
+		if (records.Count == 0) return;
 		// Grouped by era when the act has an arc on file, so the discography reads as a
 		// biography rather than a list. The view model is assembled here and discarded with
 		// the panel; it is never stored on the artist.
@@ -164,6 +172,23 @@ public partial class ArtistDetailPanel : Control
 		}
 		if (discography.Unassigned.Count == 0) return;
 		AddHeading("UNDATED"); AddReleases(discography.Unassigned);
+	}
+
+	// The public discography before the game began (OpeningCareerService): what the trade papers printed. The
+	// charted sides are listed; the rest are counted, so a forty-side career reads as a career and not a ledger.
+	private void ShowEarlierRecords(List<PublicReleaseEntry> history)
+	{
+		if (history.Count == 0) return;
+		int first = history.Min(e => e.year), last = history.Max(e => e.year);
+		AddHeading(first == last ? $"EARLIER RECORDS — {first}" : $"EARLIER RECORDS — {first}–{last}");
+		int lps = history.Count(e => e.format == ReleaseFormat.Album);
+		AddBody($"{history.Count - lps} singles and {lps} long-players before {last + 1}.");
+		foreach (var e in history.Where(e => e.peakPosition > 0).OrderByDescending(e => e.year).ThenBy(e => e.peakPosition))
+		{
+			string chart = e.format == ReleaseFormat.Album ? "LP chart" : "singles";
+			string reach = e.regionId != null && e.peakPosition > 40 ? "  •  a regional seller" : "";
+			AddBody($"“{e.title}”{(e.format == ReleaseFormat.Album ? " (LP)" : "")}  —  {e.year}, {e.labelName}\nPeak #{e.peakPosition} on the {chart}  •  {e.weeksCharted} {(e.weeksCharted == 1 ? "week" : "weeks")}{reach}");
+		}
 	}
 
 	private void AddReleases(List<RecordRuntimeData> records)

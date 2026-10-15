@@ -133,7 +133,9 @@ public static partial class MediaAtmosphereService {
 	public static void Initialize(GameDate start, ChartManager charts) {
 		if (!MediaAtmosphere.Observing || charts == null) return;
 		if (state.BookedThroughDay >= 0) return;
-		BookThrough(start.AddDays(start.DaysUntilFriday), start, new Evidence(charts));
+		var evidence = new Evidence(charts);
+		SeedOpeningAttachment(evidence, start);
+		BookThrough(start.AddDays(start.DaysUntilFriday), start, evidence);
 	}
 
 	/// <summary>Called by ChartManager after the completed week's settlement. Tallies the airings that ran this week,

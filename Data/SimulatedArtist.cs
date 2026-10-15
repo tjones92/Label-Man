@@ -119,6 +119,12 @@ public class SimulatedArtist {
 	public int consecutiveFlops;
 	public int totalUnitsSold;
 
+	// The act's public career before the simulation started (SimTools/OpeningCareersDesign.md). Display and
+	// derivation only: these sides have no demand, stock or chart presence. The counters above were summed
+	// from it and the recognition stocks replayed from it, so the file and the numbers tell one story.
+	public List<PublicReleaseEntry> publicHistory = new List<PublicReleaseEntry>();
+	public OpeningCareerArchetype openingArchetype;
+
 	public int weeksSinceLastRelease = 999;
 	public List<string> releaseHistory = new List<string>();
 	public List<string> releasedSingleIds = new List<string>();

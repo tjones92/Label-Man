@@ -1823,6 +1823,7 @@ artistEvolutionEnabled = true
 artistRecognitionEnabled = true
 managersEnabled = true
 seedStarCanopyEnabled = true
+openingCareersEnabled = true
 cowritingEnabled = true
 memberAxesEnabled = true
 rosterLineupChurnEnabled = true

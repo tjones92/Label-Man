@@ -216,7 +216,10 @@ public partial class RosterManager : Node {
 				label.operatingRosterTargetSource = LabelOperatingTargetReason.LaunchPopulation.ToString();
 			}
 		}
-		if (StarCanopy.Enabled) SeedInitialStarCanopy(labels, year);
+		// Opening careers supersede the quality-ranked canopy: the same Superstar/Star counts, chosen by genre
+		// and given a history the counters, ages and recognition are derived from (OpeningCareerService).
+		if (OpeningCareers.Enabled) OpeningCareerService.Seed(labels, year);
+		else if (StarCanopy.Enabled) SeedInitialStarCanopy(labels, year);
 		if (debugMode) PrintRosterStats(labels);
 		GD.Print("RosterManager: Initialization complete");
 	}

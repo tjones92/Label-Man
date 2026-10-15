@@ -31,6 +31,7 @@ public partial class ChartManager : Node {
 	[Export] private bool artistRecognitionEnabled = false;
 	[Export] private bool managersEnabled = false;
 	[Export] private bool seedStarCanopyEnabled = false;
+	[Export] private bool openingCareersEnabled = false;
 	// Media atmosphere (SimTools/MediaAtmosphereDirective.md): observe mode books rival acts onto TV and prints the
 	// listings; it writes nothing the economy reads. --disable-media-atmosphere turns it off.
 	[Export] private bool mediaAtmosphereObserve = true;
@@ -350,6 +351,7 @@ public partial class ChartManager : Node {
 		MediaAtmosphere.Configure(mediaAtmosphereObserve, OS.GetCmdlineUserArgs());
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
 		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
+		OpeningCareers.Configure(openingCareersEnabled, OS.GetCmdlineUserArgs());
 		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
 			worldLineupChurnEnabled ? LineupChurnScope.World :
 			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs(),

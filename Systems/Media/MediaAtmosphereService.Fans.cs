@@ -10,6 +10,29 @@ using System.Linq;
 /// through exactly the same arithmetic. Everything lands in <see cref="MediaSaveData.Fans"/>; nothing outside media reads it.
 /// </summary>
 public static partial class MediaAtmosphereService {
+	/// <summary>
+	/// A teen idol walks into January 1960 with the attachment their last two years of hits built
+	/// (OpeningCareerService history; audit §9: seeded idols started at zero). Sized off the sales-only deposit
+	/// (0.06 a week at the top) so the biggest idols start warm and none starts hot: an episode still has to be
+	/// earned by what happens next. Adults are not given teen attachment; their audience is not a teen one.
+	/// </summary>
+	private static void SeedOpeningAttachment(Evidence evidence, GameDate start) {
+		if (ArtistManager.Instance == null || evidence.Regions == null) return;
+		int today = BroadcastExposure.DayIndex(start);
+		foreach (SimulatedArtist a in ArtistManager.Instance.GetAllArtists()) {
+			if (a?.openingArchetype != OpeningCareerArchetype.CurrentHitmaker || a.publicHistory == null) continue;
+			float recent = a.publicHistory.Where(e => e.year >= start.year - 2)
+				.Sum(e => e.peakPosition == 1 ? 1f : e.peakPosition is > 0 and <= 10 ? 0.6f : e.peakPosition is > 0 and <= 40 ? 0.3f : 0f);
+			float youth = 0.3f + 0.7f * MediaOutletCatalog.TeenFit(a.primaryGenre);
+			float level = Math.Min(0.32f, 0.07f * recent) * youth;
+			if (level < 0.01f) continue;
+			var fs = new MediaFanState { ArtistId = a.artistId, ArtistName = a.stageName, LastActiveDay = today };
+			foreach (MarketRegion region in evidence.Regions)
+				fs.Attachment[region.regionId] = level * (0.85f + 0.3f * BandLife.Unit($"opening-attachment|{a.artistId}|{region.regionId}"));
+			state.Fans[a.artistId] = fs;
+		}
+	}
+
 	/// <summary>Original and syndicated airings tallied in this weekly step; consumed by the fan pass in the same step, never saved.</summary>
 	private static readonly List<(MediaAppearance Appearance, MediaAiring Airing)> airedThisWeek = new();
 	private const int SalesRankDepth = 20;
