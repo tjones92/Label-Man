@@ -363,10 +363,13 @@ public static partial class LocalSceneRoomService {
         string scene = LocalScenePersistenceService.SceneIdFor(placeId);
         return Array.AsReadOnly(Copy(state.Bills.Where(b => SceneRoomCatalog.Get(b.RoomId)?.PlaceId == scene && b.Day >= Day(date)).ToArray()));
     }
+    /// <summary>The bill running at this hour: started and not yet over. Same test as listening itself (ListenSceneRoom accepts
+    /// any bill whose end is after now and takes partial coverage), so the board's Open stamp can't say Shut for a room you
+    /// could walk into. It used to also demand ScoutHours still on the clock, which struck a 12-3 bill Shut at 2pm.</summary>
     public static SceneBill CurrentBill(string roomId, GameDate date, int hour) {
         if (!LocalScenes.Rooms) return null;
         EnsureCalendar(date);
-        return Copy(State.Bills.FirstOrDefault(b => b.RoomId == roomId && b.Day == Day(date) && b.StartHour <= hour && b.EndHour >= hour + PlayerDesk.ScoutHours && b.Status == SceneBillStatus.Scheduled));
+        return Copy(State.Bills.FirstOrDefault(b => b.RoomId == roomId && b.Day == Day(date) && b.StartHour <= hour && b.EndHour > hour && b.Status == SceneBillStatus.Scheduled));
     }
     /// <summary>Every appearance the room remembers for the act, including pre-rolled history.</summary>
     public static int ShowsAt(string roomId, string artistId) => standing.GetValueOrDefault(StandingKey(roomId, artistId)) is { } s ? s.Shows + s.PriorShows : 0;

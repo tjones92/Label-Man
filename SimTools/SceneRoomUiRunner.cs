@@ -238,15 +238,16 @@ public partial class SceneRoomUiRunner : Node {
                 typeof(PlayerDeskPanel).GetField("negotiating", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).SetValue(panel, prospect);
                 panel.OpenAtTab("A&R");
                 for (int n = 0; n < 4; n++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                var resource = Descendants(panel).OfType<Label>().Single(l => !l.IsQueuedForDeletion() && l.Name == "OfferResourcePlan");
-                if (!resource.Text.Contains("Recording estimate") || !resource.Text.Contains("passes an agreed start") || !resource.TooltipText.Contains(booking.ArtistName))
+                var resource = Descendants(panel).OfType<Control>().Single(l => !l.IsQueuedForDeletion() && l.Name == "OfferResourcePlan");
+                string ResourceText() => string.Join("\n", Descendants(resource).OfType<Label>().Where(l => !l.IsQueuedForDeletion()).Select(l => l.Text));
+                if (!ResourceText().Contains("Recording estimate") || !ResourceText().Contains("passes an agreed start") || !resource.TooltipText.Contains(booking.ArtistName))
                     throw new InvalidOperationException("Contract needs recording estimate, named unpaid fee and actual appointment conflict.");
                 var inputs = Descendants(panel).OfType<SpinBox>().Where(s => !s.IsQueuedForDeletion()).ToArray();
                 var advanceInput = inputs.Single(s => s.MaxValue == 100000);
                 float cash = desk.Label.cashReserves; int evidence = desk.ScoutingDossiers.Sum(d => d.Observations.Count);
-                string before = resource.Text;
+                string before = ResourceText();
                 advanceInput.Value = cash - booking.Fee + 1;
-                if (resource.Text == before || !resource.Text.Contains("exceeds current cash") || desk.Label.cashReserves != cash ||
+                if (ResourceText() == before || !ResourceText().Contains("exceeds current cash") || desk.Label.cashReserves != cash ||
                     desk.ScoutingDossiers.Sum(d => d.Observations.Count) != evidence || desk.ScoutingMeetings.Single().Paid)
                     throw new InvalidOperationException("Editing must update the combined shortfall without spending money or acquiring evidence.");
                 advanceInput.Value = 100;

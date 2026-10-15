@@ -1423,16 +1423,37 @@ public partial class PlayerDeskPanel : Control {
 		royalty.ValueChanged += _ => UpdateLowball();
 		UpdateLowball();
 
-		var commitment = new Label { Name = "OfferResourcePlan", AutowrapMode = TextServer.AutowrapMode.WordSmart, MouseFilter = MouseFilterEnum.Stop };
-		commitment.AddThemeColorOverride("font_color", Ink);
+		// What this advance does to the label: a ruled ledger of short rows, with the fine print set small underneath.
+		form.AddChild(new ColorRect { Color = new Color(carbonInk, 0.35f), CustomMinimumSize = new Vector2(0, 1), MouseFilter = MouseFilterEnum.Ignore });
+		form.AddChild(Typed("WHAT THIS COSTS THE LABEL", 14,carbonInk, true));
+		var commitment = new VBoxContainer { Name = "OfferResourcePlan", SizeFlagsHorizontal = SizeFlags.ExpandFill, MouseFilter = MouseFilterEnum.Stop };
+		commitment.AddThemeConstantOverride("separation", 6);
 		form.AddChild(commitment);
+		Label Wrapped(string text, int size, Color color) {
+			var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(120, 0) };
+			label.AddThemeFontSizeOverride("font_size", size);
+			label.AddThemeColorOverride("font_color", color);
+			return label;
+		}
 		void UpdateCommitment() {
 			var plan = PlayerDesk.Instance?.PreviewOfferResources((float)advance.Value, renewal);
-			// Early-game §4.1: the release route this advance leaves, past the one-session estimate in the summary.
-			string completion = plan == null ? null : PlayerDesk.Instance.CompletionWarning((float)advance.Value + plan.PendingAppointmentFees, PlayerDesk.CompletionStageKind.Signing);
-			commitment.Text = (plan?.Summary ?? "No label cash available.") + (completion == null ? "" : "\n" + completion);
-			commitment.TooltipText = plan == null ? "" : string.Join("\n", plan.FeeDetails);
-			commitment.AddThemeColorOverride("font_color", plan?.AdvanceAffordable == true ? Ink : Rust);
+			foreach (var old in commitment.GetChildren()) { commitment.RemoveChild(old); old.QueueFree(); }
+			if (plan == null) { commitment.AddChild(Wrapped("No label cash available.", 15, Rust)); commitment.TooltipText = ""; return; }
+			var ledger = new GridContainer { Columns = 2, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+			ledger.AddThemeConstantOverride("h_separation", 18);
+			ledger.AddThemeConstantOverride("v_separation", 6);
+			foreach (var row in plan.Rows) {
+				var rubric = Wrapped(row.Rubric, 15,row.Warn ? Rust : new Color("45381f"));
+				rubric.SizeFlagsHorizontal = SizeFlags.Fill; rubric.CustomMinimumSize = new Vector2(170, 0);
+				ledger.AddChild(rubric);
+				ledger.AddChild(Wrapped(row.Value, 15, row.Warn ? Rust : Ink));
+			}
+			commitment.AddChild(ledger);
+			// Early-game §4.1: the release route this advance leaves, past the one-session estimate in the ledger.
+			string completion = PlayerDesk.Instance.CompletionWarning((float)advance.Value + plan.PendingAppointmentFees, PlayerDesk.CompletionStageKind.Signing);
+			if (completion != null) commitment.AddChild(Wrapped(completion, 15, Rust));
+			commitment.AddChild(Wrapped(plan.FinePrint, 13, new Color("6a5c42")));
+			commitment.TooltipText = string.Join("\n", plan.FeeDetails);
 		}
 		advance.ValueChanged += _ => UpdateCommitment();
 		UpdateCommitment();
