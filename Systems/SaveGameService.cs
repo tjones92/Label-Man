@@ -345,6 +345,18 @@ public sealed class PlayerSaveData {
     public List<RivalOffer> RivalOffers { get; set; }
     /// <summary>Optional: rival courtships (inquiry, meeting, offer) and what the player heard of them (PlayerDesk.RivalCourtship).</summary>
     public List<RivalCourtship> RivalCourtships { get; set; }
+    /// <summary>Optional (early-game F1): room table rights and each room's record memory. Older saves hold none.</summary>
+    public List<RoomTableSaveData> RoomTables { get; set; }
+    /// <summary>Optional: the early-game backer agreement, its ledger, an open offer or a standing refusal. Older saves hold none.</summary>
+    public BackerSaveData Backer { get; set; }
+    /// <summary>Optional: paid demo bookings (held deposits, outcomes) and standing refusals. Older saves hold none.</summary>
+    public DemoSaveData Demos { get; set; }
+    /// <summary>Optional: master-deal offers, signed deals and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
+    public MasterDealsSaveData MasterDeals { get; set; }
+    /// <summary>Optional: song placement offers, signed placements and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
+    public SongPlacementsSaveData SongPlacements { get; set; }
+    /// <summary>Optional: the publishing books (radio performances logged and paid, writer's half of the mechanical). Older saves hold none.</summary>
+    public PublishingRoyaltyBooks Publishing { get; set; }
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
     public List<StudioVisit> StudioVisits { get; set; }
@@ -1349,6 +1361,16 @@ public sealed class PlayerStopSaveData {
 	public bool OneStopTrusted { get; set; }
 	// Shop only (directive §7.3): permanently burned after a hype-the-count detection.
 	public bool HypeBurned { get; set; }
+	// Venue only: how much of the room's crowd already bought each title off the table (absent in older saves).
+	public List<TableCrowdSaveData> TableCrowds { get; set; } = new();
+}
+
+public sealed class TableCrowdSaveData {
+	public string RecordId { get; set; }
+	public float Bought { get; set; }
+	public int Year { get; set; }
+	public int Month { get; set; }
+	public int Day { get; set; }
 }
 
 public sealed class InboundCallSaveData {

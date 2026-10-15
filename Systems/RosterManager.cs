@@ -726,6 +726,26 @@ public partial class RosterManager : Node {
 		return rival;
 	}
 
+	/// <summary>
+	/// Early-game Phase 5 (§5.2, "artist retention is a deal variable"): a buyer that takes the player's master AND the act.
+	/// The act leaves the player's roster and signs with that label on exactly the terms it offered, if it still has the
+	/// room and the cash for that advance today. Commits through the same calls as <see cref="SignRivalOfferToPlayerAct"/>.
+	/// No draws. Returns false (nothing changed) when the buyer can no longer take the act.
+	/// </summary>
+	public bool SignPlayerActToMasterBuyer(SimulatedArtist artist, AILabel playerLabel, AILabel buyer, ContractTermSheet terms, GameDate date) {
+		if (artist == null || buyer == null || !buyer.IsActive || buyer.isPlayerOwned) return false;
+		if (buyer.CurrentRosterSize >= buyer.maxRosterSize || !buyer.CanAffordToSign(terms.Advance)) return false;
+		int week = ChartManager.Instance?.GetCurrentChartWeek() ?? CalendarChartWeek(date);
+		if (!SceneRecruitmentService.CanAccess(buyer, artist, week)) return false;   // the same reach every rival signing needs
+		ArtistManager.Instance?.DropArtist(artist, date.year, playerLabel, ArtistDropReason.Voluntary);
+		float advance = buyer.SignArtist(artist, date.year, terms);
+		CompetitorManager.Instance?.RecordExpense(buyer, advance);
+		ArtistManager.SigningTransition transition = ArtistManager.Instance.SignArtist(artist, buyer.labelId, date.year);
+		SceneRecruitmentService.RecordSigning(buyer, artist, ChartManager.Instance?.GetCurrentChartWeek() ?? 0, date.year, "MasterBuyer");
+		WeeklySignings++; RecordSigning(buyer.tier, artist, transition.IsReSigning);
+		return true;
+	}
+
 	/// <summary>The rival record man who would get to this act first today, without signing anyone -- the
 	/// player desk uses it to say who is circling an act before the deal lands. Null while the player has
 	/// shaken hands on the act, or when nobody in that market can take them.</summary>

@@ -116,6 +116,11 @@ public static class SceneRoomCharacter {
     public static string BookerName(string roomId) =>
         FirstNames[Pick(FirstNames.Length, roomId + "|booker-first")] + " " + Surnames[Pick(Surnames.Length, roomId + "|booker-last")];
 
+    /// <summary>A stable local name for someone keyed on <paramref name="key"/>, from the bookers' name lists. Draws on no
+    /// stream, so naming a person moves nothing else.</summary>
+    public static string PersonName(string key) =>
+        FirstNames[Pick(FirstNames.Length, key + "|person-first")] + " " + Surnames[Pick(Surnames.Length, key + "|person-last")];
+
     /// <summary>The year the booker started booking this room: what their booking memory can cover.</summary>
     public static int BookingSince(string roomId) => 1946 + Pick(14, roomId + "|booker-since");
 

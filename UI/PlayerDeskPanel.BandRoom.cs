@@ -302,7 +302,9 @@ public partial class PlayerDeskPanel {
 		var residency = Btn("BOOK A RESIDENCY (8 wks)");
 		residency.Pressed += () => Act(() => { desk.BookRoad(captured, 8, 0, out string m); Say(m); return true; });
 		road.AddChild(residency);
+		residency.TooltipText = $"A booker's yes at a room they've played: {PlayerDesk.ResidencyNightsPerWeek} dated nights a week. The door is the band's; the label takes {LocalSceneRoomService.BookingCommissionRate:P0} of each night played.";
 		var tour = Btn("BOOK A TOUR (4 wks)");
+		tour.TooltipText = "Weeks on the road: miles, wear and a little momentum. The money is the band's; the label books no dates it can bill.";
 		tour.Pressed += () => Act(() => { desk.BookRoad(captured, 0, 4, out string m); Say(m); return true; });
 		road.AddChild(tour);
 		var cut = Btn("CUT THE LABEL IN");

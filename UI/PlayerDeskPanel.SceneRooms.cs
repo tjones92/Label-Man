@@ -36,7 +36,148 @@ public partial class PlayerDeskPanel {
             }
             content.AddChild(grid);
         }
+        BookYourActs(desk);
+        SellAtTheRooms(desk);
+        PaidDemos(desk);
         ScoutingSceneContacts(desk);
+    }
+
+    /// <summary>Early-game F1: record tables at the town's rooms on their show nights. Rights come from the booker (or
+    /// your act being on the bill); the table goes up an hour before the first set and settles when the bill ends.</summary>
+    private void SellAtTheRooms(PlayerDesk desk) {
+        if (desk.Label == null || !PlayerDesk.RoomTablesActive(desk.CurrentCityId)) return;
+        var rooms = SceneRoomCatalog.ForPlace(desk.CurrentCityId).Where(PlayerDesk.RoomSellsRecords).ToList();
+        ScoutingText("SELL AT THE ROOMS", 18, ScoutingVenueInk, PaperTheme.SansBold);
+        ScoutingText($"A record table needs the booker's say-so (ask him in person, {PlayerDesk.TableRightsHours}h) or one of your acts on the bill. " +
+            "Set up an hour before the first set and stay to the end; you sell to whoever came, and the same regulars don't buy a record twice. " +
+            "A night that doesn't go ahead sells nothing.", 14, Heard);
+        foreach (var room in rooms) {
+            var rights = desk.TableRightsAt(room.Id);
+            var last = desk.LastTableRightsAsk(room.Id);
+            string state = rights != null ? $"table through {LocalSceneRoomService.Date(rights.ExpiresDay).ToShortString()}, room takes {rights.Cut:P0}"
+                : last != null && !last.Granted ? $"said no on {LocalSceneRoomService.Date(last.AskedDay).ToShortString()}"
+                : $"no table yet (room would take {PlayerDesk.RoomTableCut(room.Kind):P0})";
+            ScoutingText($"{room.Name} ({SceneRoomCharacter.KindName(room.Kind)}): {state}.", 14, Ink);
+        }
+        var ask = new HFlowContainer(); ask.AddThemeConstantOverride("h_separation", 8);
+        var roomPick = Option(); foreach (var r in rooms) roomPick.AddItem(r.Name);
+        var askBtn = Btn($"ASK FOR A TABLE  ({PlayerDesk.TableRightsHours}h)");
+        askBtn.Pressed += () => Act(() => {
+            var room = rooms[Mathf.Clamp(roomPick.Selected, 0, rooms.Count - 1)];
+            bool ok = desk.AskForTableRights(room.Id, out string message); Say(message, ok); return true;
+        });
+        ask.AddChild(roomPick); ask.AddChild(askBtn); content.AddChild(ask);
+
+        var nights = desk.RoomTableNights(desk.CurrentCityId).Take(6).ToList();
+        var onHand = desk.PressedSinglesOnHand().ToList();
+        if (nights.Count == 0) { ScoutingText("No announced nights where you can put a table out.", 14, Heard); return; }
+        int today = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+        foreach (var night in nights) {
+            var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8);
+            var when = LocalSceneRoomService.Date(night.Bill.Day);
+            var label = new Label { Text = $"{night.Room.Name}, {when.ToHeadlineString()} {Hour12(night.Bill.StartHour)}–{Hour12(night.Bill.EndHour)}" +
+                (night.OwnAct ? " · your act is on the bill" : "") };
+            label.AddThemeColorOverride("font_color", Ink);
+            row.AddChild(label);
+            if (night.Bill.Day == today && onHand.Count > 0) {
+                var pick = Option(); foreach (var s in onHand) pick.AddItem($"{s.Title} ({s.OnHand})");
+                var work = Btn($"WORK THE TABLE  (to {Hour12(night.Bill.EndHour)})");
+                var room = night.Room;
+                work.Pressed += () => Act(() => {
+                    var (recordId, _, _) = onHand[Mathf.Clamp(pick.Selected, 0, onHand.Count - 1)];
+                    bool ok = desk.WorkRoomTable(room.Id, recordId, out string message); Say(message, ok); return true;
+                });
+                row.AddChild(pick); row.AddChild(work);
+            }
+            content.AddChild(row);
+        }
+    }
+
+    /// <summary>Early-game §7.1: paid demos. Unsigned acts on tonight's bills you could pitch between sets, and the demos
+    /// already booked, with their held deposits. The act pays the room and the dub; the label earns the producer's fee.</summary>
+    private void PaidDemos(PlayerDesk desk) {
+        if (desk.Label == null || !LocalScenes.Rooms) return;
+        var prospects = desk.DemoProspects(desk.CurrentCityId);
+        var booked = desk.DemoJobs.Where(j => j.Status == PlayerDesk.DemoStatus.Booked).ToList();
+        if (prospects.Count == 0 && booked.Count == 0) return;
+        ScoutingText("PAID DEMOS", 18, ScoutingVenueInk, PaperTheme.SansBold);
+        ScoutingText($"Produce a demo for an unsigned act in a hired room: they pay the room and an acetate dub up front (held for the room, not yours), " +
+            $"and your ${PlayerDesk.DemoProducerFee:N0} when you hand it over. They keep their song and their freedom; you get to hear them work. " +
+            $"Pitch them at the bar between sets ({PlayerDesk.DemoOfferHours}h).", 14, Heard);
+        foreach (var job in booked) {
+            var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8);
+            var label = new Label { Text = $"{job.ArtistName} at {job.RoomName}, {LocalSceneRoomService.Date(job.Day).ToHeadlineString()} {Hour12(job.StartHour)}, {job.Hours}h · " +
+                $"deposit ${job.DepositHeld:N2} held · your fee ${job.Fee:N0}" };
+            label.AddThemeColorOverride("font_color", Ink);
+            row.AddChild(label);
+            string id = job.Id;
+            var produce = Btn($"PRODUCE IT  ({job.Hours}h)");
+            produce.Pressed += () => Act(() => { bool ok = desk.ProduceDemo(id, out string m); Say(m, ok); return ok; });
+            var cancel = Btn("CALL IT OFF");
+            cancel.TooltipText = "Free a day or more ahead; on the day the room bills you half its fee.";
+            cancel.Pressed += () => Act(() => { bool ok = desk.CancelDemo(id, out string m); Say(m, ok); return ok; });
+            row.AddChild(produce); row.AddChild(cancel);
+            content.AddChild(row);
+        }
+        foreach (var (act, bill, block) in prospects) {
+            var row = new HFlowContainer(); row.AddThemeConstantOverride("h_separation", 8);
+            var quote = block == null ? desk.DemoQuoteFor(act) : null;
+            var label = new Label { Text = $"{act.stageName}, on at {SceneRoomCatalog.Get(bill.RoomId)?.Name} {Hour12(bill.StartHour)}–{Hour12(bill.EndHour)}" +
+                (quote != null ? $" · ${quote.Gross:N0} at {quote.RoomName} on {LocalSceneRoomService.Date(quote.Day).ToShortString()}" : $" · {block}") };
+            label.AddThemeColorOverride("font_color", block == null ? Ink : Heard);
+            row.AddChild(label);
+            if (block == null) {
+                string artistId = act.artistId;
+                var pitch = Btn($"PITCH A DEMO  ({PlayerDesk.DemoOfferHours}h)");
+                pitch.Pressed += () => Act(() => { bool ok = desk.OfferDemo(artistId, out string m); Say(m, ok); return ok; });
+                row.AddChild(pitch);
+            }
+            content.AddChild(row);
+        }
+    }
+
+    /// <summary>Early-game §6.3: ask a room's booker for a night for one of your acts, and see what was promised and what
+    /// came of it. Only rooms whose music suits the act are offered; the night list is the room's open nights past the
+    /// announced calendar. A booking is an opportunity, not a show, until the set is played.</summary>
+    private void BookYourActs(PlayerDesk desk) {
+        var acts = desk.Roster.ToList();
+        if (acts.Count == 0) return;
+        var date = TimeManager.Instance.CurrentDate;
+        var rooms = SceneRoomCatalog.ForPlace(desk.CurrentCityId).Where(r => r.IsPerformance).ToList();
+        ScoutingText("BOOK YOUR ACTS", 18, ScoutingVenueInk, PaperTheme.SansBold);
+        ScoutingText($"See a booker in person (1h, from {PlayerDesk.BookerFromHour - 12} p.m. until his room closes) and ask for a night. " +
+            "He can say no; a yes goes on that night's bill when it is drawn up, and only a played set counts. The door money is the band's.", 14, Heard);
+        foreach (var b in LocalSceneRoomService.Bookings.Where(b => b.LabelId == desk.Label.labelId).OrderByDescending(b => b.Day).Take(6)) {
+            var room = SceneRoomCatalog.Get(b.RoomId);
+            string state = b.Status == SceneBillStatus.Performed ? "played" : b.Status == SceneBillStatus.Cancelled ? "fell through" : b.Billed ? "on the bill" : "promised";
+            ScoutingText($"{ArtistManager.Instance.GetArtist(b.ArtistId)?.stageName ?? "?"} at {room?.Name ?? b.RoomId}, {LocalSceneRoomService.Date(b.Day).ToHeadlineString()}: {state}. {b.Note}", 14, Ink);
+        }
+        if (rooms.Count == 0) return;
+        var form = new HFlowContainer(); form.AddThemeConstantOverride("h_separation", 8);
+        var actPick = Option(); foreach (var a in acts) actPick.AddItem(a.stageName);
+        var roomPick = Option(); var nightPick = Option();
+        var nights = new System.Collections.Generic.List<int>();
+        int first = LocalSceneRoomService.FirstBookableDay;
+        void FillNights() {
+            nightPick.Clear(); nights.Clear();
+            var room = rooms[Mathf.Clamp(roomPick.Selected, 0, rooms.Count - 1)];
+            for (int d = first; d <= first + LocalSceneRoomService.BookingHorizonDays; d++)
+                if (SceneLiveEconomics.OpenOn(room, LocalSceneRoomService.Date(d).DayOfWeek)) { nights.Add(d); nightPick.AddItem(LocalSceneRoomService.Date(d).ToHeadlineString()); }
+        }
+        foreach (var r in rooms) roomPick.AddItem(r.Name);
+        roomPick.ItemSelected += _ => FillNights();
+        FillNights();
+        var pitch = Btn($"PITCH THE BOOKER  ({PlayerDesk.BookerPitchHours}h)");
+        pitch.Pressed += () => Act(() => {
+            if (nights.Count == 0) { Say("That room has no open nights in the booking window.", false); return true; }
+            var room = rooms[Mathf.Clamp(roomPick.Selected, 0, rooms.Count - 1)];
+            var act = acts[Mathf.Clamp(actPick.Selected, 0, acts.Count - 1)];
+            bool ok = desk.PitchActToBooker(room.Id, act.artistId, nights[Mathf.Clamp(nightPick.Selected, 0, nights.Count - 1)], out string message);
+            Say(message, ok);
+            return true;
+        });
+        form.AddChild(actPick); form.AddChild(roomPick); form.AddChild(nightPick); form.AddChild(pitch);
+        content.AddChild(form);
     }
     private void ScoutingSceneContacts(PlayerDesk desk) {
         var news = desk.LocalSceneNews();

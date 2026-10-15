@@ -24,8 +24,13 @@ public partial class PlayerDesk {
 	public const int WritingSessionHours = 3;
 	public const int RequestCooldownWeeks = 26;
 	public const float DefaultTrust = 0.5f;
-	public const float ResidencyWeeklyPay = 22f;
-	public const float TourWeeklyNet = 30f;
+	// A residency is a booker's yes at a real room the act has already played (early-game F5 direction, 2026-10-14): the
+	// door money is the band's, and the label that booked it takes a commission. Authored values, not sourced.
+	public const int ResidencyMinShows = 2;
+	public const int ResidencyNightsPerWeek = 3;
+	public const float ResidencyBookingCommission = LocalSceneRoomService.BookingCommissionRate;
+	/// <summary>A run of weeks is a bigger ask than one night: the §6.3 acceptance chance, scaled down.</summary>
+	public const float ResidencyAskFactor = 0.6f;
 	public const float LabelCutInShare = 0.25f;
 	public const int LabelCutInSongs = 3;
 	/// <summary>Below this much money of their own, a married member with children asks for an advance (§4.15).</summary>
@@ -72,6 +77,14 @@ public partial class PlayerDesk {
 		public int TimeOffUntilWeek = -1;
 		public string DryingOutPersonId;
 		public int DryOutUntilWeek = -1;
+		/// <summary>The room that gave the residency, and an estimate of the label's weekly commission (paid per night played,
+		/// not weekly). Null and 0 on a residency booked before rooms gated it: road load only, no label income.</summary>
+		public string ResidencyRoomId;
+		public float ResidencyWeeklyCommission;
+		/// <summary>The last residency refusal, which stands for a quarter unless the act plays the room meanwhile.</summary>
+		public string ResidencyRefusedRoomId;
+		public int ResidencyRefusedDay = -1;
+		public int ResidencyRefusedShows;
 	}
 
 	/// <summary>A session player hired for the act's next date in the studio.</summary>
@@ -1005,16 +1018,76 @@ public partial class PlayerDesk {
 		if (SceneEcosystemService.Moves.Any(m => m.ArtistId == a.artistId && m.Status == SceneMoveStatus.Planned)) {
 			message = "The act already has a relocation arranged."; return false;
 		}
-		if (!Require(1, out message)) return false;
-		Spend(1);
 		RoadBooking b = BookingFor(a);
+		SceneRoomProfile room = null;
+		if (residencyWeeks > 0 && b.ResidencyRoomId == null) {
+			if (!ResidencyRoom(a, b, out room, out message)) return false;
+			if (!Require(BookerPitchHours, out message)) return false;
+			Spend(BookerPitchHours);
+			int shows = LocalSceneRoomService.ShowsAt(room.Id, a.artistId);
+			if (GD.Randf() >= Mathf.Max(0.05f, BookerAcceptChance(a, shows) - BackerRoomPenalty(room.Id)) * ResidencyAskFactor) {
+				b.ResidencyRefusedRoomId = room.Id; b.ResidencyRefusedDay = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate); b.ResidencyRefusedShows = shows;
+				message = $"{room.ContactName} likes {a.stageName} fine for a night, but won't give them a standing run at {room.Name}.";
+				Note(message);
+				Changed?.Invoke();
+				return true;
+			}
+			int year = TimeManager.Instance.CurrentDate.year, players = Mathf.Max(1, a.members.Count(m => m.isActive && m.lifeState == MemberLifeState.Active));
+			b.ResidencyRoomId = room.Id;
+			b.ResidencyWeeklyCommission = Mathf.Round(ResidencyBookingCommission * ResidencyNightsPerWeek * players
+				* SceneLiveEconomics.ExpectedPlayerNightPay(room, year, players) * 100f) / 100f;
+		} else {
+			if (!Require(1, out message)) return false;
+			Spend(1);
+		}
+		// F5: a residency is its nights, each a dated booking on the room's bill; the commission comes off each played set.
+		int firstNight = -1, nightCount = 0;
+		if (residencyWeeks > 0 && SceneRoomCatalog.Get(b.ResidencyRoomId) is { } residencyRoom) {
+			foreach (int night in LocalSceneRoomService.ResidencyNights(residencyRoom, a.artistId, residencyWeeks, ResidencyNightsPerWeek)) {
+				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = residencyRoom.Id, ArtistId = a.artistId, LabelId = Label.labelId, Day = night,
+					Status = SceneBillStatus.Scheduled, Residency = true, Note = "Residency night; goes on the bill when the week is drawn up." });
+				if (firstNight < 0) firstNight = night;
+				nightCount++;
+			}
+			room ??= residencyRoom;
+		}
 		b.ResidencyWeeks = Mathf.Clamp(b.ResidencyWeeks + residencyWeeks, 0, 40);
 		b.TourWeeks = Mathf.Clamp(b.TourWeeks + tourWeeks, 0, 40);
 		b.WeeksRemaining = Mathf.Clamp(b.WeeksRemaining + residencyWeeks + tourWeeks, 0, 48);
 		b.TimeOffUntilWeek = -1;
-		Note($"Booked {a.stageName}: {(residencyWeeks > 0 ? $"{residencyWeeks} weeks' residency" : "")}{(residencyWeeks > 0 && tourWeeks > 0 ? " and " : "")}{(tourWeeks > 0 ? $"{tourWeeks} weeks on the road" : "")}.");
-		message = $"{a.stageName} are booked.";
+		Note($"Booked {a.stageName}: {(residencyWeeks > 0 ? $"{residencyWeeks} weeks' residency{(room != null ? $" at {room.Name}" : "")}" : "")}{(residencyWeeks > 0 && tourWeeks > 0 ? " and " : "")}{(tourWeeks > 0 ? $"{tourWeeks} weeks on the road" : "")}.");
+		message = room != null
+			? $"{room.ContactName} gives {a.stageName} {residencyWeeks} weeks at {room.Name}: {nightCount} nights from {LocalSceneRoomService.Date(Math.Max(0, firstNight)).ToShortString()}. " +
+				$"The door is the band's; the label takes {LocalSceneRoomService.BookingCommissionRate:P0} of each night they play, about ${b.ResidencyWeeklyCommission:N0} a week."
+			: tourWeeks > 0 ? $"{a.stageName} are booked on the road. The money is theirs: the label books no dates it could bill." : $"{a.stageName} are booked.";
 		Changed?.Invoke();
+		return true;
+	}
+
+	/// <summary>The room a residency would be asked of: a performance room in the act's own scene, suited to its music, where
+	/// it has already played <see cref="ResidencyMinShows"/> sets and is working now. The player has to be in that town,
+	/// in the booker's hours, as for a single night (§6.3).</summary>
+	private bool ResidencyRoom(SimulatedArtist a, RoadBooking b, out SceneRoomProfile room, out string message) {
+		room = null;
+		var clock = TimeManager.Instance;
+		if (clock == null) { message = "No clock."; return false; }
+		int today = LocalSceneRoomService.Day(clock.CurrentDate);
+		string place = LocalScenePersistenceService.SceneIdFor(a.geography?.basePlaceId);
+		var candidates = SceneRoomCatalog.ForPlace(place).Where(r => r.IsPerformance && LocalSceneRoomService.Eligible(a, r, today))
+			.Select(r => (Room: r, Shows: LocalSceneRoomService.ShowsAt(r.Id, a.artistId)))
+			.OrderByDescending(x => x.Shows).ThenBy(x => x.Room.Id, StringComparer.Ordinal).ToList();
+		var known = candidates.Where(x => x.Shows >= ResidencyMinShows).ToList();
+		if (known.Count == 0) {
+			message = $"No room will give {a.stageName} a standing run before it has seen them: get them {ResidencyMinShows} nights somewhere first (a booker will pencil in a night)."; return false;
+		}
+		var pick = known.FirstOrDefault(x => !(x.Room.Id == b.ResidencyRefusedRoomId && today - b.ResidencyRefusedDay < BookerRefusalDays && x.Shows <= b.ResidencyRefusedShows));
+		if (pick.Room == null) { message = $"{known[0].Room.ContactName} already said no to a run for {a.stageName}. Let them play the room again first."; return false; }
+		room = pick.Room;
+		if (LocalScenePersistenceService.SceneIdFor(CurrentCityId) != room.PlaceId) { message = $"You have to be in town to see the booker at {room.Name}."; return false; }
+		if (clock.CurrentHour < BookerFromHour || clock.CurrentHour >= room.CloseHour) {
+			message = $"{room.ContactName} is in from {BookerFromHour - 12} p.m. until {room.Name} closes."; return false;
+		}
+		message = null;
 		return true;
 	}
 
@@ -1034,9 +1107,8 @@ public partial class PlayerDesk {
 			if (a == null || a.labelId != Label.labelId) continue;
 			b.WeeksRemaining--;
 			bool residency = b.ResidencyWeeks >= b.TourWeeks;
-			float pay = residency ? ResidencyWeeklyPay : TourWeeklyNet;
-			Label.cashReserves += pay;
-			Label.monthlyRevenue += pay;
+			// F5: road weeks are load, not label income. The gig money is the performers'; the label's commission on a
+			// residency comes off each night actually played (LocalSceneRoomService.TakeBookingCommission), collected at dawn.
 			// Live work builds a little local name and momentum; growth itself is Phase 5's.
 			a.momentum = Mathf.Clamp(a.momentum + (residency ? 0.002f : 0.004f), 0f, 1f);
 		}

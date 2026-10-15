@@ -353,6 +353,102 @@ public partial class SaveLoadRoundTripRunner : Node {
 				.Select(s => s.ReportsToStationIds.Count)
 				.DefaultIfEmpty(0).Max();
 
+			// Early-game directive V2 §6.1 / §6.3: a Rolodex card's courtesy-call state and a booker's night and answer.
+			PlayerDesk.Instance.WorkThePhones(out _);
+			RolodexEntry courtesyEntry = PlayerDesk.Instance.Rolodex.FirstOrDefault();
+			if (courtesyEntry != null) { courtesyEntry.labelIntroduced = true; courtesyEntry.movingReadWeek = 7; }
+			// Hop-table crowd saturation: what a room's regulars already bought survives the save.
+			PlayerDesk.PlayerStop crowdStop = homeStops.FirstOrDefault(st => st.Kind == PlayerDesk.StopKind.Venue);
+			if (crowdStop != null) crowdStop.TableCrowds["probe_record_1"] = new PlayerDesk.TableCrowd { Bought = 17.5f, LastSale = TimeManager.Instance.CurrentDate };
+			// Early-game F1: a room's table rights and its regulars' record memory survive the save.
+			string tableRoom = SceneRoomCatalog.All.FirstOrDefault(PlayerDesk.RoomSellsRecords)?.Id;
+			if (tableRoom != null) PlayerDesk.Instance.StageRoomTableForChecks(tableRoom, true, 5, .2f, "probe_record_1", 12.25f, TimeManager.Instance.CurrentDate);
+			string bookingRoom = SceneRoomCatalog.All.FirstOrDefault(r => r.IsPerformance)?.Id;
+			if (bookingRoom != null) {
+				LocalSceneRoomService.AddBooking(new SceneBooking { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 400, Status = SceneBillStatus.Scheduled, Note = "probe booking", Residency = true, Commission = 1.25f });
+				LocalSceneRoomService.RecordPitch(new SceneBookerPitch { RoomId = bookingRoom, ArtistId = "probe-act", LabelId = PlayerDesk.Instance.Label.labelId, Day = 3, Accepted = false, ShowsAtPitch = 2 });
+			}
+
+			// Early-game §4.3: a backer agreement four payments in (one missed), its ledger, standing and an open offer.
+			var probeLoan = PlayerDesk.NewAgreementForChecks(PlayerDesk.BackerSource.MerchantLender, "Probe Lender", null, 500f, PlayerDesk.BackerRate, TimeManager.Instance.CurrentDate);
+			{
+				var due = probeLoan.FirstDue;
+				foreach (float cashThen in new[] { 400f, 0f, 400f, 400f }) { float c = cashThen; probeLoan.Settle(due, ref c); due = PlayerDesk.NextFirstForChecks(due); }
+			}
+			PlayerDesk.Instance.StageBackerForChecks(probeLoan, new PlayerDesk.BackerOffer { Made = TimeManager.Instance.CurrentDate, Expires = PlayerDesk.NextFirstForChecks(TimeManager.Instance.CurrentDate),
+				Objection = "probe objection", Terms = { new PlayerDesk.BackerTerms("Take a smaller sum", 300f, PlayerDesk.BackerRate, "probe") } });
+
+			// Early-game §7.1: a booked demo with its held deposit, a delivered one, and a standing refusal.
+			var demoAct = ArtistManager.Instance.GetAllArtists().FirstOrDefault(a => string.IsNullOrEmpty(a.labelId));
+			PlayerDesk.DemoJob demoBooked = null;
+			if (demoAct != null) {
+				var dq = new PlayerDesk.DemoQuote("probe_room", "Probe Room", 500, PlayerDesk.DemoStartHour, PlayerDesk.DemoHours, 48f, PlayerDesk.DemoDubCost, PlayerDesk.DemoProducerFee);
+				demoBooked = PlayerDesk.Instance.StageDemoForChecks(demoAct, dq);
+				PlayerDesk.Instance.StageDemoForChecks(demoAct, dq with { Day = 501 }).Status = PlayerDesk.DemoStatus.Delivered;
+			}
+
+			// Early-game §5: a lease out with its ledger, an unreleased master held for a buyer, an open offer, a pass, a tape
+			// in the post and a call with an appointment.
+			var probeBuyer = CompetitorManager.Instance.GetOperatingLabels().First(l => !l.isPlayerOwned && l.IsActive);
+			int pd = LocalSceneRoomService.Day(TimeManager.Instance.CurrentDate);
+			var probeLease = new MasterDeal { Id = "probe_md_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName, RecordId = "probe_record_9",
+				Title = "Probe Lease", ArtistId = "probe-act", ArtistName = "Probe Act", Status = MasterDealStatus.Out, SignedDay = 10, ReleasedDay = 30, ExpiresDay = pd + 364,
+				NextStatementDay = pd + 91, Units = 400, Earned = 27.44f, Recouped = 27.44f, ActUnitsUnsettled = 400, StockCopies = 12, StockValue = 1.68f,
+				Terms = new MasterDealTerms { Kind = MasterDealKind.Lease, Advance = 300f, RoyaltyRate = .07f, TermWeeks = 52, ReleaseWithinDays = 42, Why = "probe lease" } };
+			probeLease.Ledger.AddRange(new[] {
+				new MasterLedgerEntry { Day = 10, Kind = MasterLedgerKind.Advance, Amount = 300f },
+				new MasterLedgerEntry { Day = 10, Kind = MasterLedgerKind.Stock, Amount = 1.68f, Units = 12 },
+				new MasterLedgerEntry { Day = 30, Kind = MasterLedgerKind.Released },
+				new MasterLedgerEntry { Day = 37, Kind = MasterLedgerKind.Earned, Amount = 27.44f, Units = 400 },
+				new MasterLedgerEntry { Day = 37, Kind = MasterLedgerKind.Recouped, Amount = 27.44f } });
+			PlayerDesk.Instance.StageMasterDealForChecks(probeLease);
+			var heldRecord = new Record { recordId = "probe_held", title = "Probe Held", artistId = "probe-act", artistName = "Probe Act", hookStrength = .6f, productionQuality = .4f };
+			PlayerDesk.Instance.StageMasterDealForChecks(new MasterDeal { Id = "probe_md_2", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				RecordId = "probe_held", Title = "Probe Held", ArtistId = "probe-act", Status = MasterDealStatus.AwaitingRelease, SignedDay = 50, ReleaseDay = pd + 20, ReleaseByDay = pd + 42,
+				Terms = new MasterDealTerms { Kind = MasterDealKind.Sale, Advance = 500f } },
+				new PlayerDesk.Master { Record = heldRecord, ArtistId = "probe-act", SongTitle = "Probe Held", ProductionCost = 55f, Cut = TimeManager.Instance.CurrentDate });
+			PlayerDesk.Instance.StageMasterOfferForChecks(new MasterDealOffer { Id = "probe_mo_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				RecordId = "probe_record_1", Title = "Probe Offer", Route = MasterRoute.Inbound, MadeDay = 1, ExpiresDay = 9999, Read = .7f, Answer = "probe answer",
+				Terms = { new MasterDealTerms { Kind = MasterDealKind.SaleWithAct, Advance = 450f, RoyaltyRate = .03f,
+					ActTerms = new ContractTermSheet(40f, .05f, 3, 4, true, false, .2f, ManagerArchetype.None, null, "probe act terms") } } });
+			PlayerDesk.Instance.StageMasterPassForChecks(new MasterPass { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_2", Day = 4, Evidence = "unreleased", Reason = "probe pass" });
+			PlayerDesk.Instance.StageMasterPostingForChecks(new MasterPosting { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_3", SentDay = pd, AnswerDay = pd + 21, Solicited = true });
+
+			// Early-game publishing books: a settled quarter with its statement, an unsettled quarter far ahead, a writer's-half line.
+			{
+				var books = new PublishingRoyaltyBooks { Performances = 3000, PerformanceEarned = 60f, PerformancePaid = 20f, WriterPerformancePaid = 20f, WriterMechanicalPaid = 4.5f };
+				books.Lines.AddRange(new[] {
+					new PublishingRoyaltyLine { Day = 7, Kind = PublishingLineKind.PerformanceLogged, SongId = "probe_song_1", Title = "Probe Aired", RecordId = "probe_record_1",
+						ArtistId = "probe-writer", Performances = 1000, Amount = 20f, WriterAmount = 20f, PayOnDay = 182, Settled = true },
+					new PublishingRoyaltyLine { Day = 182, Kind = PublishingLineKind.PerformanceStatement, Performances = 1000, Amount = 20f, WriterAmount = 20f },
+					new PublishingRoyaltyLine { Day = pd, Kind = PublishingLineKind.PerformanceLogged, SongId = "probe_song_1", Title = "Probe Aired", RecordId = "probe_record_1",
+						ArtistId = "probe-writer", Performances = 2000, Amount = 40f, WriterAmount = 40f, PayOnDay = pd + 1000 },
+					new PublishingRoyaltyLine { Day = pd, Kind = PublishingLineKind.WriterMechanical, ArtistId = "probe-writer", Title = "Probe Writer", Units = 450, Amount = 4.5f } });
+				PlayerDesk.Instance.StagePublishingForChecks(books);
+			}
+
+			// Early-game §7.2: a placement out with its ledger, one held with a cut pending, an open offer, a pass and a tape.
+			// The placement out points at a live chart record: a dawn runs before the check, and a record off the chart ends it.
+			string probeCutRecord = ChartManager.Instance.GetAllRecords().First(r => r.baseRecord != null && !r.baseRecord.isPlayerOwned).baseRecord.recordId;
+			var probeCut = new SongPlacement { Id = "probe_sp_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName, SongId = "probe_song_1",
+				Title = "Probe Placed", Advance = 60f, Status = SongPlacementStatus.Out, SignedDay = 12, HoldUntilDay = 194, RecordId = probeCutRecord,
+				ArtistId = "probe-cutter", ArtistName = "Probe Cutter", ReleasedDay = 40, NextStatementDay = pd + 91, Units = 900, Earned = 85.5f, Recouped = 60f, Paid = 0f };
+			probeCut.Ledger.AddRange(new[] {
+				new SongPlacementLedgerEntry { Day = 12, Kind = SongPlacementLedgerKind.Advance, Amount = 60f },
+				new SongPlacementLedgerEntry { Day = 40, Kind = SongPlacementLedgerKind.Cut },
+				new SongPlacementLedgerEntry { Day = 47, Kind = SongPlacementLedgerKind.Earned, Amount = 85.5f, Units = 900 },
+				new SongPlacementLedgerEntry { Day = 47, Kind = SongPlacementLedgerKind.Recouped, Amount = 60f } });
+			PlayerDesk.Instance.StagePlacementForChecks(probeCut);
+			PlayerDesk.Instance.StagePlacementForChecks(new SongPlacement { Id = "probe_sp_2", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				SongId = "probe_song_2", Title = "Probe Held Song", Advance = 25f, Status = SongPlacementStatus.Held, SignedDay = pd, HoldUntilDay = pd + 182,
+				PendingRecordId = "probe_pending_cut", PendingDay = pd + 365,   // a dawn passes before the check; keep the pending cut unresolved
+				Ledger = { new SongPlacementLedgerEntry { Day = pd, Kind = SongPlacementLedgerKind.Advance, Amount = 25f } } });
+			PlayerDesk.Instance.StagePlacementOfferForChecks(new SongPlacementOffer { Id = "probe_po_1", BuyerLabelId = probeBuyer.labelId, BuyerName = probeBuyer.labelName,
+				SongId = "probe_song_3", Title = "Probe Song Offer", Route = MasterRoute.Post, MadeDay = 1, ExpiresDay = 9999, Read = .61f, Answer = "probe song answer",
+				Advance = 45f, HoldDays = 182, Cover = true, Why = "probe why" });
+			PlayerDesk.Instance.StagePlacementPassForChecks(new SongPlacementPass { BuyerLabelId = probeBuyer.labelId, SongId = "probe_song_4", Day = 6, Evidence = "unreleased", Reason = "probe song pass" });
+			PlayerDesk.Instance.StagePlacementPostingForChecks(new SongPlacementPosting { BuyerLabelId = probeBuyer.labelId, SongId = "probe_song_5", SentDay = pd, AnswerDay = pd + 19, Solicited = false });
+
             var infoSave = PlayerDesk.Instance.CaptureState();
             infoSave.SceneInformation = new SceneInformationKnowledge {
                 Contacts = new() { new() { ContactId = "probe-contact", HeardBillIds = new() { "probe-bill-1", "probe-bill-2" } } },
@@ -534,6 +630,89 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (!tradeAdOk) fails.Add("TradeAd lost on round-trip");
 			if (!knowsReportsOk) fails.Add("knownReportingStopIds lost on round-trip");
 			if (!fanOutOk) fails.Add($"reporting fan-out {worstFanOut} stations per dealer (expected <= 2)");
+			var courtesy1 = courtesyEntry == null ? null : PlayerDesk.Instance.Rolodex.FirstOrDefault(e => e.djId == courtesyEntry.djId);
+			if (courtesyEntry != null && (courtesy1 == null || !courtesy1.labelIntroduced || courtesy1.movingReadWeek != 7)) fails.Add("Rolodex courtesy-call state lost on round-trip");
+			if (crowdStop != null) {
+				var crowd1 = PlayerDesk.Instance.StopsInCity(cityId).FirstOrDefault(st => st.StopId == crowdStop.StopId)?.TableCrowds is { } tc && tc.TryGetValue("probe_record_1", out var c1) ? c1 : null;
+				bool crowdOk = crowd1 != null && Math.Abs(crowd1.Bought - 17.5f) < 0.001f && crowd1.LastSale.Equals(crowdStop.TableCrowds["probe_record_1"].LastSale);
+				GD.Print($"TABLE_CROWD_ROUNDTRIP stop={crowdStop.StopId} bought={crowd1?.Bought} ok={crowdOk}");
+				if (!crowdOk) fails.Add("hop-table crowd lost on round-trip");
+			}
+			{
+				var loan1 = PlayerDesk.Instance.Backer;
+				bool backerOk = loan1 != null && loan1.Source == PlayerDesk.BackerSource.MerchantLender && loan1.BackerName == "Probe Lender"
+					&& Math.Abs(loan1.Principal - 500f) < 0.001f && Math.Abs(loan1.PrincipalPaid - probeLoan.PrincipalPaid) < 0.001f
+					&& Math.Abs(loan1.InterestAccrued - probeLoan.InterestAccrued) < 0.001f && Math.Abs(loan1.InterestPaid - probeLoan.InterestPaid) < 0.001f
+					&& loan1.Missed == probeLoan.Missed && probeLoan.Missed == 1 && loan1.ConsecutiveMissed == probeLoan.ConsecutiveMissed
+					&& Math.Abs(loan1.Standing - probeLoan.Standing) < 0.001f && loan1.FirstDue.Equals(probeLoan.FirstDue) && loan1.LastAccrual.Equals(probeLoan.LastAccrual)
+					&& loan1.Ledger.Count == probeLoan.Ledger.Count && loan1.LedgerAgrees()
+					&& PlayerDesk.Instance.PendingBackerOffer?.Terms.Count == 1 && PlayerDesk.Instance.PendingBackerOffer.Objection == "probe objection";
+				GD.Print($"BACKER_ROUNDTRIP paid={loan1?.PrincipalPaid} interest={loan1?.InterestPaid} missed={loan1?.Missed} ledger={loan1?.Ledger.Count} ok={backerOk}");
+				if (!backerOk) fails.Add("backer agreement/ledger/offer lost on round-trip");
+			}
+			if (demoBooked != null) {
+				var jobs1 = PlayerDesk.Instance.DemoJobs;
+				var b1 = jobs1.FirstOrDefault(j => j.Id == demoBooked.Id);
+				bool demoOk = jobs1.Count == 2 && b1 != null && b1.Status == PlayerDesk.DemoStatus.Booked && Math.Abs(b1.DepositHeld - (48f + PlayerDesk.DemoDubCost)) < 0.001f
+					&& b1.Day == 500 && b1.RoomName == "Probe Room" && b1.ArtistId == demoAct.artistId && jobs1.Count(j => j.Status == PlayerDesk.DemoStatus.Delivered) == 1;
+				GD.Print($"DEMO_ROUNDTRIP jobs={jobs1.Count} held={b1?.DepositHeld} ok={demoOk}");
+				if (!demoOk) fails.Add("demo bookings lost on round-trip");
+			}
+			{
+				var desk1 = PlayerDesk.Instance;
+				var lease1 = desk1.MasterDeals.FirstOrDefault(d => d.Id == "probe_md_1");
+				var held1 = desk1.MasterDeals.FirstOrDefault(d => d.Id == "probe_md_2");
+				var offer1 = desk1.MasterOffers.FirstOrDefault(o => o.Id == "probe_mo_1");
+				bool masterOk = lease1 != null && lease1.Status == MasterDealStatus.Out && lease1.Terms.Kind == MasterDealKind.Lease && Math.Abs(lease1.Terms.Advance - 300f) < .001f
+					&& lease1.Units == 400 && lease1.ActUnitsUnsettled == 400 && lease1.ExpiresDay == pd + 364 && lease1.Ledger.Count == 5 && lease1.LedgerAgrees()
+					&& held1 != null && held1.Status == MasterDealStatus.AwaitingRelease && desk1.HoldsMasterForChecks("probe_md_2") && desk1.IsMasterOut("probe_held")
+					&& desk1.IsMasterOut("probe_record_9")
+					&& offer1 != null && offer1.Terms.Count == 1 && offer1.Terms[0].ActTerms?.DemandSummary == "probe act terms" && offer1.Route == MasterRoute.Inbound
+					&& desk1.MasterPasses.Any(p => p.Reason == "probe pass") && desk1.MasterPostings.Any(p => p.RecordId == "probe_record_3" && p.Solicited && p.AnswerDay == pd + 21);
+				GD.Print($"MASTER_SHOP_ROUNDTRIP deals={desk1.MasterDeals.Count} offers={desk1.MasterOffers.Count} ledger={lease1?.Ledger.Count} " +
+					$"lease={lease1?.Status}/{lease1?.Units}/{lease1?.ActUnitsUnsettled}/{lease1?.ExpiresDay}=={pd + 364}/{lease1?.LedgerAgrees()} " +
+					$"held={held1?.Status}/{desk1.HoldsMasterForChecks("probe_md_2")}/{desk1.IsMasterOut("probe_held")} offer={offer1?.Terms.Count}/{offer1?.Terms.FirstOrDefault()?.ActTerms?.DemandSummary} " +
+					$"pass={desk1.MasterPasses.Count} post={desk1.MasterPostings.Count} ok={masterOk}");
+				if (!masterOk) fails.Add("master deals/offers/passes/postings lost on round-trip");
+			}
+			{
+				var desk1 = PlayerDesk.Instance;
+				var cut1 = desk1.Placements.FirstOrDefault(d => d.Id == "probe_sp_1");
+				var held1 = desk1.Placements.FirstOrDefault(d => d.Id == "probe_sp_2");
+				var offer1 = desk1.PlacementOffers.FirstOrDefault(o => o.Id == "probe_po_1");
+				bool placementOk = cut1 != null && cut1.Status == SongPlacementStatus.Out && cut1.Units == 900 && Math.Abs(cut1.Earned - 85.5f) < .001f
+					&& Math.Abs(cut1.OwedNow - 25.5f) < .001f && cut1.ReleasedDay == 40 && cut1.RecordId == probeCutRecord && cut1.Ledger.Count == 4 && cut1.LedgerAgrees()
+					&& held1 != null && held1.Status == SongPlacementStatus.Held && held1.PendingRecordId == "probe_pending_cut" && held1.HoldUntilDay == pd + 182
+					&& offer1 != null && offer1.Cover && Math.Abs(offer1.Advance - 45f) < .001f && offer1.Route == MasterRoute.Post
+					&& desk1.PlacementPasses.Any(p => p.Reason == "probe song pass") && desk1.PlacementPostings.Any(p => p.SongId == "probe_song_5" && p.AnswerDay == pd + 19);
+				GD.Print($"SONG_PLACEMENT_ROUNDTRIP placements={desk1.Placements.Count} offers={desk1.PlacementOffers.Count} cut={cut1?.Status}/{cut1?.Units}/{cut1?.OwedNow}/{cut1?.LedgerAgrees()} " +
+					$"held={held1?.Status}/{held1?.PendingRecordId} offer={offer1?.Advance}/{offer1?.Cover} pass={desk1.PlacementPasses.Count} post={desk1.PlacementPostings.Count} ok={placementOk}");
+				if (!placementOk) fails.Add("song placements/offers/passes/postings lost on round-trip");
+			}
+			{
+				var pub1 = PlayerDesk.Instance.Publishing;
+				var open1 = pub1.Lines.FirstOrDefault(l => l.Kind == PublishingLineKind.PerformanceLogged && !l.Settled);
+				bool publishingOk = pub1.Lines.Count == 4 && pub1.Performances == 3000 && Math.Abs(pub1.PerformanceOwed - 40f) < .001f && pub1.LedgerAgrees()
+					&& open1 != null && open1.PayOnDay == pd + 1000 && open1.ArtistId == "probe-writer" && Math.Abs(open1.WriterAmount - 40f) < .001f
+					&& Math.Abs(pub1.WriterMechanicalPaid - 4.5f) < .001f;
+				GD.Print($"PUBLISHING_ROUNDTRIP lines={pub1.Lines.Count} plays={pub1.Performances} owed={pub1.PerformanceOwed} open={open1?.PayOnDay}=={pd + 1000} ledger={pub1.LedgerAgrees()} ok={publishingOk}");
+				if (!publishingOk) fails.Add("publishing books lost on round-trip");
+			}
+			if (tableRoom != null) {
+				var rights1 = PlayerDesk.Instance.LastTableRightsAsk(tableRoom);
+				bool tableOk = rights1 != null && rights1.Granted && rights1.AskedDay == 5 && rights1.ExpiresDay == 5 + PlayerDesk.TableRightsTermDays
+					&& Math.Abs(rights1.Cut - .2f) < 0.001f && Math.Abs(PlayerDesk.Instance.RoomTableCrowdForChecks(tableRoom, "probe_record_1") - 12.25f) < 0.001f;
+				GD.Print($"ROOM_TABLE_ROUNDTRIP room={tableRoom} ok={tableOk}");
+				if (!tableOk) fails.Add("room table rights/crowd lost on round-trip");
+			}
+			if (bookingRoom != null) {
+				var booking1 =LocalSceneRoomService.Bookings.FirstOrDefault(b => b.ArtistId == "probe-act");
+				var pitch1 = LocalSceneRoomService.LastPitch(bookingRoom, "probe-act");
+				bool bookingOk = booking1 != null && booking1.Day == 400 && booking1.Status == SceneBillStatus.Scheduled && booking1.Note == "probe booking" && booking1.Residency && Math.Abs(booking1.Commission - 1.25f) < 0.001f && !booking1.CommissionCollected
+					&& pitch1 != null && !pitch1.Accepted && pitch1.ShowsAtPitch == 2 && pitch1.Day == 3;
+				GD.Print($"EARLY_GAME_ROUNDTRIP courtesy={courtesy1?.labelIntroduced}/{courtesy1?.movingReadWeek} booking={booking1 != null} pitch={pitch1 != null} ok={bookingOk}");
+				if (!bookingOk) fails.Add("scene booking / booker pitch lost on round-trip");
+			}
 
 			SaveGameService.Delete(slot);
 			if (fails.Count == 0) {
@@ -717,6 +896,38 @@ public partial class SaveLoadRoundTripRunner : Node {
 			titles++;
 			GD.Print($"  DISCOGRAPHY {record.baseRecord.recordId} \"{record.baseRecord.title}\" by {record.baseRecord.artistName}" +
 				$" released={record.baseRecord.releaseDate} weeks={record.weeksSinceRelease} units={record.totalUnitsSold}");
+		}
+
+		// Early-game §4.3: the backer's agreement and whether its balances still agree with its ledger.
+		if (desk.Backer is { } loan)
+			GD.Print($"  BACKER {loan.Source} \"{loan.BackerName}\" principal={loan.Principal:F2} rate={loan.Rate:P1} signed={loan.Signed} firstDue={loan.FirstDue}" +
+				$" owed={loan.Outstanding:F2} interestDue={loan.InterestDue:F2} arrears={loan.PrincipalArrears(TimeManager.Instance.CurrentDate):F2}" +
+				$" missed={loan.Missed} standing={loan.Standing:F2} repaid={loan.Repaid} ledger={loan.Ledger.Count} ledgerAgrees={loan.LedgerAgrees()}");
+		else if (desk.PendingBackerOffer is { } offer)
+			GD.Print($"  BACKER_OFFER expires={offer.Expires} terms={string.Join(";", offer.Terms.Select(t => $"{t.Principal:F0}@{t.Rate:P0}"))}");
+
+		// Early-game §5: master deals, their balances, and whether each ledger still agrees.
+		foreach (var d in desk.MasterDeals)
+			GD.Print($"  MASTER_DEAL {d.Id} {d.Terms.Kind} \"{d.Title}\" to {d.BuyerName} status={d.Status} advance={d.Terms.Advance:F2} rate={d.Terms.RoyaltyRate:P1}" +
+				$" units={d.Units} earned={d.Earned:F2} recouped={d.Recouped:F2} paid={d.Paid:F2} actPaid={d.ActPaid:F2} owedNow={d.OwedNow:F2}" +
+				$" nextStatement={d.NextStatementDay} expires={d.ExpiresDay} ledger={d.Ledger.Count} ledgerAgrees={d.LedgerAgrees()}");
+		foreach (var o in desk.MasterOffers)
+			GD.Print($"  MASTER_OFFER {o.BuyerName} on \"{o.Title}\" via {o.Route} expires={o.ExpiresDay} terms={string.Join(";", o.Terms.Select(t => $"{t.Kind}:{t.Advance:F0}"))}");
+
+		// Early-game §7.2: song placements, their balances, and whether each ledger still agrees.
+		foreach (var p in desk.Placements)
+			GD.Print($"  SONG_PLACEMENT {p.Id} \"{p.Title}\" with {p.BuyerName} status={p.Status} advance={p.Advance:F2} act={p.ArtistName} record={p.RecordId}" +
+				$" units={p.Units} earned={p.Earned:F2} recouped={p.Recouped:F2} paid={p.Paid:F2} owedNow={p.OwedNow:F2} hold={p.HoldUntilDay}" +
+				$" nextStatement={p.NextStatementDay} ledger={p.Ledger.Count} ledgerAgrees={p.LedgerAgrees()}");
+		foreach (var o in desk.PlacementOffers)
+			GD.Print($"  SONG_OFFER {o.BuyerName} on \"{o.Title}\" via {o.Route} expires={o.ExpiresDay} advance={o.Advance:F0} cover={o.Cover}");
+		// Early-game: the publishing books (radio performances, statements, the writer's half of the mechanical).
+		{
+			var pub = desk.Publishing;
+			var due = pub.Lines.Where(l => l.Kind == PublishingLineKind.PerformanceLogged && !l.Settled).GroupBy(l => l.PayOnDay).OrderBy(g => g.Key)
+				.Select(g => $"{g.Key}:{g.Sum(l => l.Amount):F2}+{g.Sum(l => l.WriterAmount):F2}w");
+			GD.Print($"  PUBLISHING plays={pub.Performances} earned={pub.PerformanceEarned:F2} paid={pub.PerformancePaid:F2} writersPerf={pub.WriterPerformancePaid:F2}" +
+				$" writersMech={pub.WriterMechanicalPaid:F2} owed={pub.PerformanceOwed:F2} due=[{string.Join(" ", due)}] lines={pub.Lines.Count} ledgerAgrees={pub.LedgerAgrees()}");
 		}
 
 		int unresolved = 0;

@@ -103,6 +103,11 @@ public static class SceneCityPlacement {
         };
         return opportunity * fit;
     }
+    /// <summary>Early-game F3: how far this city leans toward a genre beyond its size -- the fit term of <see cref="Weight"/>.
+    /// 1 for a city with no specialism there, or one outside the table. Size cancels, so a sparse city never reads as an
+    /// extreme taste. A proxy for local buyer preference, not measured demand.</summary>
+    public static double Fit(string cityId, Genre genre, int year = 1960) =>
+        cityId != null && Opportunity.TryGetValue(cityId, out double opportunity) && opportunity > 0 ? Weight(cityId, genre, year) / opportunity : 1;
     public static string Assign(ulong seed, string entityId, string region, Genre genre, ArtistCohort cohort, int year = 1960) {
         // Unknown/foreign legacy geography must not silently acquire a domestic identity.
         if (SceneRegionAdapter.ToId(region) == null) return null;

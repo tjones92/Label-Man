@@ -442,6 +442,10 @@ public static class CompositionCatalogService {
 	public static SongComposition GetSong(string songId) =>
 		!string.IsNullOrEmpty(songId) && songs.TryGetValue(songId, out var song) ? song : null;
 	internal static IReadOnlyCollection<SongComposition> AllSongs => songs.Values;
+	/// <summary>Every composition a label's publishing controls (its own acts' songs, and catalogues it took over).
+	/// Early-game Phase 5A reads it for the player's placeable songs. Empty for an unknown label.</summary>
+	public static IReadOnlyList<SongComposition> SongsControlledBy(string labelId) =>
+		labelId != null && songsByControllerLabel.TryGetValue(labelId, out var list) ? list : Array.Empty<SongComposition>();
 
 	private static readonly List<SongComposition> emptySongs = new();
 

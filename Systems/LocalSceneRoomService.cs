@@ -101,6 +101,7 @@ public static partial class LocalSceneRoomService {
                 var candidates = rotation ? NightOrder(room, day, members, regularIds, asOfDay.HasValue) : members.OrderBy(a => regularIds.Contains(a.artistId) ? 0 : 1)
                     .ThenBy(a => Draw($"engagement|{room.Id}|{term}|{a.artistId}"))
                     .ThenBy(a => a.artistId, StringComparer.Ordinal);
+                if (HasBookings) candidates = WithBookedActs(room, day, candidates, regularIds);   // early-game §6.3; never in AI-only worlds
                 foreach (var act in candidates) {
                     if (bill.Appearances.Count == slots) break;
                     bool fullTime = workingWeek && FullTime(act, engaged);
@@ -151,6 +152,7 @@ public static partial class LocalSceneRoomService {
                 double standingDraw = rotation && bill.Appearances.Count > 0 ? .01 * prior * drawing / bill.Appearances.Count : .01 * prior;
                 bill.ExpectedAudience = bill.Appearances.Count == 0 ? 0 : Math.Min(bill.Capacity,
                     (int)(bill.Capacity * (.30 + .15 * drawing + standingDraw)));
+                if (HasBookings) PlaceBookings(bill, room);
                 State.Bills.Add(bill);
                 billed?.Add((room.Id, day));
             }
@@ -163,9 +165,13 @@ public static partial class LocalSceneRoomService {
             .Concat(CompositionCatalogService.GetStandardsForFamily(family)).Where(s => s != null && s.originYear <= year && LiveRepertoire.EligibleLive(s, artist))
             .DistinctBy(s => s.songId).OrderBy(s => Draw($"set|{bill}|{artist.artistId}|{s.songId}")).Take(3)
             .Select(s => new SceneSetSong { SongId = s.songId, Title = s.title, Genre = s.primaryGenre, ContentContext = s.contentContext }).ToList();
-        if (artist.songwritingAbility > .3f) songs.Insert(0, new() { Title = "Unrecorded original", Genre = artist.primaryGenre, Original = true });
+        if (artist.songwritingAbility > .3f) songs.Insert(0, new() { Title = OriginalTitle(artist, year), Genre = artist.primaryGenre, Original = true });
         return songs.Take(3).ToList();
     }
+    /// <summary>The title of a scene act's own unrecorded song: keyed on the act, the year and its place in the act's own
+    /// material, so every bill and every read names the same song the same way, and drawing it moves no title stream.</summary>
+    internal static string OriginalTitle(SimulatedArtist artist, int year, int index = 0) =>
+        NameGenerator.Instance?.KeyedSongTitle(artist.primaryGenre, year, $"scene-original|{artist.artistId}|{year}|{index}") ?? "Their own song";
     /// <summary>Called by the clock, independently of visits. Resolve each shared fact exactly once.</summary>
     public static void Advance(GameDate date, int hour) {
         if (!LocalScenes.Rooms || restoring) return;
@@ -203,6 +209,7 @@ public static partial class LocalSceneRoomService {
                 bool available = Eligible(act, room, bill.Day) && StagePeople(act).SequenceEqual(slot.PersonIds);
                 slot.Status = available ? SceneBillStatus.Performed : SceneBillStatus.Cancelled;
                 if (!available) slot.CancellationReason = "The act's presence, career or lineup changed after booking.";
+                if (HasBookings) SettleBooking(bill, slot);
                 if (available && LocalScenes.ScoutingExperience) slot.Performance ??= ScenePerformanceService.Resolve(bill, slot, act);
                 if (!available || !room.IsPerformance) continue;
                 string key = StandingKey(room.Id, slot.ArtistId);
@@ -241,10 +248,12 @@ public static partial class LocalSceneRoomService {
                 if (!room.IsPerformance) continue;
                 slot.Fee = SceneLiveEconomics.SlotFee(room, bill, slot, performed.Length);
                 int band = slot.PersonIds.Count + (slot.BackingPersonIds?.Count ?? 0);
-                foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).FeeShare += slot.Fee / band;
+                // A night the player's label booked: its commission comes out of the act's fee once, before the split.
+                float share = (slot.Fee - (HasBookings ? TakeBookingCommission(bill, slot) : 0f)) / band;
+                foreach (string person in slot.PersonIds) Account(slot.ArtistId, person, bill.Year).FeeShare += share;
                 foreach (string person in slot.BackingPersonIds ?? new()) {
-                    Account(slot.ArtistId, person, bill.Year, backed: true).FeeShare += slot.Fee / band;
-                    AddBacking(person, bill.Year, 0f, slot.Fee / band);
+                    Account(slot.ArtistId, person, bill.Year, backed: true).FeeShare += share;
+                    AddBacking(person, bill.Year, 0f, share);
                 }
             }
             RecordRoomYear(room, bill, performed);
@@ -368,6 +377,19 @@ public static partial class LocalSceneRoomService {
             b.Appearances.Any(a => a.ArtistId == artistId && a.Status == SceneBillStatus.Performed))
         .OrderByDescending(b => b.Day).ThenByDescending(b => b.EndHour).ThenBy(b => b.Id, StringComparer.Ordinal).FirstOrDefault());
     public static SceneBill Bill(string id) => Copy(state?.Bills.FirstOrDefault(b => b.Id == id));
+    /// <summary>Checks only: change the lineup of up to <paramref name="count"/> of a bill's still-scheduled sets, as if a
+    /// member had left since booking. Nothing is cancelled here; the clock's own resolution finds the mismatch and cancels
+    /// those sets (and the bill, if none is left). Returns how many sets were changed.</summary>
+    internal static int BreakLineupsForChecks(string billId, int count) {
+        var bill = state?.Bills.FirstOrDefault(b => b.Id == billId);
+        if (bill == null) return 0;
+        int broken = 0;
+        foreach (var slot in bill.Appearances.Where(s => s.Status == SceneBillStatus.Scheduled).Take(count)) {
+            slot.PersonIds = slot.PersonIds.Append("checks-departed-member").ToList();
+            broken++;
+        }
+        return broken;
+    }
     public static IReadOnlyList<SimulatedArtist> Hear(SceneBill bill, int? fromHour = null, int? throughHour = null) {
         if (!LocalScenes.Rooms || bill == null) return Array.Empty<SimulatedArtist>();
         if ((throughHour ?? bill.EndHour) <= (fromHour ?? bill.StartHour)) return Array.Empty<SimulatedArtist>();

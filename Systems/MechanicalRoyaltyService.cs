@@ -20,6 +20,12 @@
 /// </summary>
 public static class MechanicalRoyaltyService {
 	public const float RatePerCopy = 0.02f;
+	/// <summary>The writer's share of a song's publishing income (the period's even publisher/writer split).</summary>
+	public const float WriterShare = 0.50f;
+
+	/// <summary>Player-side books: the writer's half of a mechanical was paid to an act (writer, amount, units). Set by
+	/// PlayerDesk; null in AI-only runs, where nothing here executes anyway.</summary>
+	public static System.Action<SimulatedArtist, float, int> WriterHalfPaid;
 
 	/// <summary>The share of a record's A-side writer credit held by the selling label itself (a cut-in).</summary>
 	public static float LabelCutInShare(Record record, AILabel label) {
@@ -59,6 +65,20 @@ public static class MechanicalRoyaltyService {
 		// The payer's total is fixed the moment the fractions are drawn -- whether transferSlice lands
 		// on a live label or leaks (its controller vanished) changes who receives it, never what it cost.
 		float totalExpense = writerSlice + transferSlice + leakSlice;
+
+		// Early-game: the songwriter's half. In 1960 the 2c was split between publisher and writer, so a label that
+		// publishes its own act's song keeps only the publisher's cent and owes the writer the other. (A cut-in's share of
+		// the writer's half is the label's own, as above.) Public-domain material has no writer to pay.
+		if (routing.Counterparty == PublishingCounterparty.LabelKeeps
+			&& control is PublishingControlType.LabelAffiliate or PublishingControlType.LabelBuyout) {
+			float writerHalf = pool * WriterShare * (1f - System.Math.Clamp(sellingLabelWriterCutIn, 0f, 1f));
+			SimulatedArtist writer = (!string.IsNullOrEmpty(controllerArtistId) ? getArtist?.Invoke(controllerArtistId) : null) ?? performingArtist;
+			if (writer != null && writerHalf > 0f) {
+				writer.writerRoyaltyEarnings += writerHalf;
+				totalExpense += writerHalf;
+				WriterHalfPaid?.Invoke(writer, writerHalf, units);
+			}
+		}
 
 		if (writerSlice > 0f) {
 			SimulatedArtist writer = (!string.IsNullOrEmpty(routing.ControllerArtistId)

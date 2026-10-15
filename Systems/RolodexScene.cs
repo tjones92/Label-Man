@@ -80,6 +80,11 @@ public enum RolodexApproach {
 	// out, nothing is serviced, so he gives his honest ear and nothing is bought or promised either way.
 	PlayTheAcetate,
 	HangUp,
+	// Early-game directive V2 §6.1: courtesy calls before there is anything to pitch (PlayerDesk.CourtesyCalls).
+	// Appended after HangUp so existing ordinals never move.
+	IntroduceLabel,
+	AskWhatsMoving,
+	ArrangeListen,
 }
 
 /// <summary>Where the scene currently sits. The UI renders one stage at a time.</summary>
