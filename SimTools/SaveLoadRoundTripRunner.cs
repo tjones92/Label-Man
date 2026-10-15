@@ -414,6 +414,19 @@ public partial class SaveLoadRoundTripRunner : Node {
 			PlayerDesk.Instance.StageMasterPassForChecks(new MasterPass { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_2", Day = 4, Evidence = "unreleased", Reason = "probe pass" });
 			PlayerDesk.Instance.StageMasterPostingForChecks(new MasterPosting { BuyerLabelId = probeBuyer.labelId, RecordId = "probe_record_3", SentDay = pd, AnswerDay = pd + 21, Solicited = true });
 
+			// Early-game publishing books: a settled quarter with its statement, an unsettled quarter far ahead, a writer's-half line.
+			{
+				var books = new PublishingRoyaltyBooks { Performances = 3000, PerformanceEarned = 60f, PerformancePaid = 20f, WriterPerformancePaid = 20f, WriterMechanicalPaid = 4.5f };
+				books.Lines.AddRange(new[] {
+					new PublishingRoyaltyLine { Day = 7, Kind = PublishingLineKind.PerformanceLogged, SongId = "probe_song_1", Title = "Probe Aired", RecordId = "probe_record_1",
+						ArtistId = "probe-writer", Performances = 1000, Amount = 20f, WriterAmount = 20f, PayOnDay = 182, Settled = true },
+					new PublishingRoyaltyLine { Day = 182, Kind = PublishingLineKind.PerformanceStatement, Performances = 1000, Amount = 20f, WriterAmount = 20f },
+					new PublishingRoyaltyLine { Day = pd, Kind = PublishingLineKind.PerformanceLogged, SongId = "probe_song_1", Title = "Probe Aired", RecordId = "probe_record_1",
+						ArtistId = "probe-writer", Performances = 2000, Amount = 40f, WriterAmount = 40f, PayOnDay = pd + 1000 },
+					new PublishingRoyaltyLine { Day = pd, Kind = PublishingLineKind.WriterMechanical, ArtistId = "probe-writer", Title = "Probe Writer", Units = 450, Amount = 4.5f } });
+				PlayerDesk.Instance.StagePublishingForChecks(books);
+			}
+
 			// Early-game §7.2: a placement out with its ledger, one held with a cut pending, an open offer, a pass and a tape.
 			// The placement out points at a live chart record: a dawn runs before the check, and a record off the chart ends it.
 			string probeCutRecord = ChartManager.Instance.GetAllRecords().First(r => r.baseRecord != null && !r.baseRecord.isPlayerOwned).baseRecord.recordId;
@@ -676,6 +689,15 @@ public partial class SaveLoadRoundTripRunner : Node {
 					$"held={held1?.Status}/{held1?.PendingRecordId} offer={offer1?.Advance}/{offer1?.Cover} pass={desk1.PlacementPasses.Count} post={desk1.PlacementPostings.Count} ok={placementOk}");
 				if (!placementOk) fails.Add("song placements/offers/passes/postings lost on round-trip");
 			}
+			{
+				var pub1 = PlayerDesk.Instance.Publishing;
+				var open1 = pub1.Lines.FirstOrDefault(l => l.Kind == PublishingLineKind.PerformanceLogged && !l.Settled);
+				bool publishingOk = pub1.Lines.Count == 4 && pub1.Performances == 3000 && Math.Abs(pub1.PerformanceOwed - 40f) < .001f && pub1.LedgerAgrees()
+					&& open1 != null && open1.PayOnDay == pd + 1000 && open1.ArtistId == "probe-writer" && Math.Abs(open1.WriterAmount - 40f) < .001f
+					&& Math.Abs(pub1.WriterMechanicalPaid - 4.5f) < .001f;
+				GD.Print($"PUBLISHING_ROUNDTRIP lines={pub1.Lines.Count} plays={pub1.Performances} owed={pub1.PerformanceOwed} open={open1?.PayOnDay}=={pd + 1000} ledger={pub1.LedgerAgrees()} ok={publishingOk}");
+				if (!publishingOk) fails.Add("publishing books lost on round-trip");
+			}
 			if (tableRoom != null) {
 				var rights1 = PlayerDesk.Instance.LastTableRightsAsk(tableRoom);
 				bool tableOk = rights1 != null && rights1.Granted && rights1.AskedDay == 5 && rights1.ExpiresDay == 5 + PlayerDesk.TableRightsTermDays
@@ -899,6 +921,14 @@ public partial class SaveLoadRoundTripRunner : Node {
 				$" nextStatement={p.NextStatementDay} ledger={p.Ledger.Count} ledgerAgrees={p.LedgerAgrees()}");
 		foreach (var o in desk.PlacementOffers)
 			GD.Print($"  SONG_OFFER {o.BuyerName} on \"{o.Title}\" via {o.Route} expires={o.ExpiresDay} advance={o.Advance:F0} cover={o.Cover}");
+		// Early-game: the publishing books (radio performances, statements, the writer's half of the mechanical).
+		{
+			var pub = desk.Publishing;
+			var due = pub.Lines.Where(l => l.Kind == PublishingLineKind.PerformanceLogged && !l.Settled).GroupBy(l => l.PayOnDay).OrderBy(g => g.Key)
+				.Select(g => $"{g.Key}:{g.Sum(l => l.Amount):F2}+{g.Sum(l => l.WriterAmount):F2}w");
+			GD.Print($"  PUBLISHING plays={pub.Performances} earned={pub.PerformanceEarned:F2} paid={pub.PerformancePaid:F2} writersPerf={pub.WriterPerformancePaid:F2}" +
+				$" writersMech={pub.WriterMechanicalPaid:F2} owed={pub.PerformanceOwed:F2} due=[{string.Join(" ", due)}] lines={pub.Lines.Count} ledgerAgrees={pub.LedgerAgrees()}");
+		}
 
 		int unresolved = 0;
 		foreach ((string cityName, string stopName, string title, int remaining) in desk.StopStock()) {

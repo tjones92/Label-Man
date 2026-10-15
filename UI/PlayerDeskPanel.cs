@@ -3104,13 +3104,15 @@ public partial class PlayerDeskPanel : Control {
 		}
 		BuildMasterDeals(desk);
 		BuildSongPlacements(desk);
+		BuildPublishingRoyalties(desk);
 
 		Heading("ARTIST ACCOUNTS");
 		var roster = desk.Roster.ToList();
 		if (roster.Count == 0) { Body("Nobody signed."); return; }
-		content.AddChild(new LedgerTable().Set(null, new[] { "act", "unrecouped", "paid through", "of retail" },
+		content.AddChild(new LedgerTable().Set(null, new[] { "act", "unrecouped", "paid through", "of retail", "as writers" },
 			roster.Select(artist => LedgerTable.Entry(artist.stageName, LedgerTable.Money(artist.unrecoupedAdvance),
-				LedgerTable.Money(artist.totalRoyaltyEarnings), $"{artist.royaltyRate:P1}"))));
+				LedgerTable.Money(artist.totalRoyaltyEarnings), $"{artist.royaltyRate:P1}", LedgerTable.Money(artist.writerRoyaltyEarnings)))));
+		Body("As writers: the writer's half of the 2c mechanical on songs you publish, and their half of the radio money. It isn't recoupable.");
 	}
 
 	// ========================================================================

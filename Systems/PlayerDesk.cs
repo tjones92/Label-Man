@@ -1108,10 +1108,12 @@ public partial class PlayerDesk : Node {
 		// Acts that agreed to think over the player's approach go back to the population owner's weekly activation pass.
 		if (ArtistManager.Instance != null) ArtistManager.Instance.DirectApproachProvider = DirectApproachIds;
 		InitBandRoom();
+		MechanicalRoyaltyService.WriterHalfPaid = OnWriterHalfPaid;
 	}
 
 	public override void _ExitTree() {
 		TeardownBandRoom();
+		if (MechanicalRoyaltyService.WriterHalfPaid == OnWriterHalfPaid) MechanicalRoyaltyService.WriterHalfPaid = null;
 		if (TimeManager.Instance != null) {
 			TimeManager.Instance.OnDayStarted -= OnDayStarted;
 			TimeManager.Instance.OnHourChanged -= OnHourChanged;
@@ -1152,6 +1154,8 @@ public partial class PlayerDesk : Node {
 		if (Label == null || IsGameOver) return;
 		// Early-game §4.3: the backer's payment comes out after the overhead and before the bank looks. It is taken from
 		// cash above zero only, so it can't turn a check red.
+		// The performing-rights statement lands that morning, before either (a quarter's radio plays, a quarter late).
+		PerformanceStatement(date);
 		SettleBacker(date);
 		if (Label.cashReserves < CreditFloor) {
 			GameOver($"You ran past your ${-CreditFloor:N0} credit line. The creditors have closed {Label.labelName} down.");
@@ -5584,6 +5588,8 @@ public partial class PlayerDesk : Node {
 	private void OnWeekEnded(GameDate date) {
 		if (Label == null) return;
 		LogWeeklyPlayerOutcomes();
+		// The week's radio plays of the label's songs, logged for the performing-rights statement.
+		LogPerformanceWeek();
 		// Rooms become known for the label's records cut there: note how they charted this week.
 		UpdateStudioHits(date);
 		UpdateStudioMarketHits(date);
@@ -5865,6 +5871,7 @@ public partial class PlayerDesk : Node {
             Demos = CaptureDemos(),
             MasterDeals = CaptureMasterDeals(),
             SongPlacements = CaptureSongPlacements(),
+            Publishing = CapturePublishing(),
             RosterDepartures = CaptureRosterDepartures(),
             StudioVisits = CaptureStudioVisits(),
             StudioTrip = studioTrip?.Copy(),
@@ -6370,6 +6377,7 @@ public partial class PlayerDesk : Node {
         RestoreDemos(data.Demos);
         RestoreMasterDeals(data.MasterDeals);
         RestoreSongPlacements(data.SongPlacements);
+        RestorePublishing(data.Publishing);
         RestoreRosterDepartures(data.RosterDepartures);
         RestoreStudioVisits(data.StudioVisits);
         studioTrip = data.StudioTrip?.Copy();

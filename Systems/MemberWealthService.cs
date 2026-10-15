@@ -110,7 +110,10 @@ public static class MemberWealthService {
 		double units = CompositionCatalogService.GetPersonShareUnits(m.personId);
 		double delta = Math.Max(0d, units - m.writerUnitsAtYearStart);
 		m.writerUnitsAtYearStart = units;
-		return (float)(delta * WriterMechanicalPerUnit);
+		// Radio performance money the person was actually paid (player-published songs only; zero in AI-only worlds).
+		double performance = Math.Max(0d, m.writerPerformanceEarnings - m.writerPerformanceAtYearStart);
+		m.writerPerformanceAtYearStart = m.writerPerformanceEarnings;
+		return (float)(delta * WriterMechanicalPerUnit) + (float)performance;
 	}
 
 	private static void BaselineAct(SimulatedArtist a, List<Musician> present) {
@@ -129,6 +132,7 @@ public static class MemberWealthService {
 		m.wealthBaselined = true;
 		double units = CompositionCatalogService.GetPersonShareUnits(m.personId);
 		m.writerUnitsAtYearStart = units;
+		m.writerPerformanceAtYearStart = m.writerPerformanceEarnings;
 		m.wealth += (float)(units * WriterMechanicalPerUnit * SeedRetention);
 	}
 

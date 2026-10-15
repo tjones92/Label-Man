@@ -160,9 +160,16 @@ public partial class PlacementChecks : Node {
 			for (int i = 0; i < 28; i++) clock.EndDay();
 			Check(deal.Units > 0 && deal.Units <= runtime.totalUnitsSold && deal.Units >= runtime.totalUnitsSold - runtime.unitsThisWeek,
 				$"{deal.Units} units billed of {runtime.totalUnitsSold} sold (a week's lag at most)");
-			float perUnit = deal.Earned / Mathf.Max(1, deal.Units);
-			Check(perUnit > MechanicalRoyaltyService.RatePerCopy * .9f && perUnit < MechanicalRoyaltyService.RatePerCopy * 1.1f,
-				$"${deal.Earned:F2} earned, {perUnit * 100f:F2}c a copy: the 2c statutory mechanical, not the AI's 11% pool");
+			float perUnit = deal.Earned / Mathf.Max(1, deal.Units), publisherCent = MechanicalRoyaltyService.RatePerCopy * (1f - MechanicalRoyaltyService.WriterShare);
+			Check(perUnit > publisherCent * .9f && perUnit < publisherCent * 1.1f,
+				$"${deal.Earned:F2} earned, {perUnit * 100f:F2}c a copy: the publisher's half of the 2c statutory mechanical, not the AI's 11% pool");
+			float writerPaid = desk.Publishing.Lines.Where(l => l.Kind == PublishingLineKind.WriterMechanical && l.RecordId == deal.RecordId).Sum(l => l.Amount);
+			Check(Near(writerPaid, deal.Earned, Mathf.Max(.05f, deal.Earned * .02f)) && Near(act.writerRoyaltyEarnings, writerPaid, .05f),
+				$"The writer's half, ${writerPaid:F2}, went to {act.stageName} as writer (not to you, not against the advance)");
+			var aired = desk.Publishing.Lines.Where(l => l.Kind == PublishingLineKind.PerformanceLogged && l.RecordId == deal.RecordId).ToList();
+			Check(aired.Count > 0 && aired.All(l => !l.Settled && l.PayOnDay == PlayerDesk.PerformancePayDay(l.Day) && l.ArtistId == act.artistId && Near(l.Amount, l.WriterAmount)),
+				$"Their record's radio plays are logged for you as publisher: {aired.Sum(l => l.Performances):N0} plays in {aired.Count} weeks, " +
+				$"${aired.Sum(l => l.Amount):F2} to you and ${aired.Sum(l => l.WriterAmount):F2} to the writers, first paid {(aired.Count > 0 ? LocalSceneRoomService.Date(aired[0].PayOnDay).ToShortString() : "never")}");
 			Check(Near(deal.Recouped, Mathf.Min(deal.Advance, deal.Earned)) && deal.LedgerAgrees(), $"${deal.Recouped:F2} against the advance; ledger agrees");
 			Check(Near(label.lifetimePublishingReceived, published0), "None of it reached you as weekly receipts: it waits for the statement");
 

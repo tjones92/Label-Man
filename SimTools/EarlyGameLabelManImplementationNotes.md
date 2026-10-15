@@ -21,9 +21,10 @@ money. A §4.3 backer, if built, must come from a non-family source.
 | 3 F1-F3 | Room tables, audience saturation, local appeal | `Systems/PlayerDesk.RoomTables.cs`, `PlayerDesk.LocalAppeal.cs`; gate `SimTools/RoomTableChecks.*` |
 | 5 §5 | Shop the master: one deal state machine, real buyers that release, lease/sale/sale-with-act, regional pickup | `Systems/PlayerDesk.MasterDeals.cs`; seams in `CompetitorManager.cs`, `RosterManager.cs`, `Data/Record.cs`; gate `SimTools/MasterDealChecks.*`; UI `UI/PlayerDeskPanel.MasterDeals.cs` |
 | 5A §7.2 | Place a song: real labels' acts cut the player's songs; advance, hold, settlement at the period mechanical | `Systems/PlayerDesk.SongPlacement.cs`; seams in `CompetitorManager.cs`, `CompositionCatalogService.cs`, `Data/Record.cs`; gate `SimTools/PlacementChecks.*`; UI `BuildSongPlacements` in `UI/PlayerDeskPanel.MasterDeals.cs` |
+| 5C §7.2 | Publishing: radio performance royalties on the label's songs; the writer's half of the mechanical paid to the writers | `Systems/PlayerDesk.Publishing.cs`; seams in `MechanicalRoyaltyService.cs`, `CompetitorManager.cs` (transfer branch), `MemberWealthService.cs`, `Data/SimulatedArtist.cs`, `Data/Musician.cs`; gate `SimTools/PublishingRoyaltyChecks.*`; UI `BuildPublishingRoyalties` in `UI/PlayerDeskPanel.MasterDeals.cs` |
 | 5B F5 | Gig pay is the performers': booking commission off each played set the label booked; residencies are dated nights; tours pay the label nothing | `Systems/LocalSceneRoomService.Bookings.cs` (+ fee split in `LocalSceneRoomService.cs`), `PlayerDesk.BandRoom.cs`, `PlayerDesk.Groundwork.cs`, `PlayerDesk.CashPlanning.cs`; gate `SimTools/GigPayChecks.*` |
 
-Phases 3, 2, 4, 5, 5A and 5B built 2026-10-14 (in that order), see below. Not started: later/deferred items (F6
+Phases 3, 2, 4, 5, 5A and 5B built 2026-10-14 (in that order), 5C on 2026-10-15, see below. Not started: later/deferred items (F6
 route convenience, §4.4 partner).
 
 ## Design choices worth knowing
@@ -611,9 +612,8 @@ five times the period rate, and believability was the issue, not that a hit pays
 Now, when the song's controller is the player's label, the transfer out of an AI record's publishing pool is cut to 2c per
 unit (`CompetitorManager`, the transfer branch). The rest of the pool stays in the buyer's net, so no money appears or
 vanishes. This covers placements and organic AI covers of a player-controlled song alike. AI-to-AI routing is unchanged.
-The same hit now pays about $5,265. Still not modelled: performance (BMI/ASCAP) income on airplay, which was real money
-for a hit's publisher, and paying the writer's half to the act (the game's label-owned-publishing convention keeps it
-with the label, as on the label's own sales). `PlacementChecks` 57/57 with the per-copy check now at 2c.
+The same hit now pays about $5,265. `PlacementChecks` 57/57 with the per-copy check now at 2c. (Performance income and the
+writer's half were left out here; both are built in Phase 5C below, which halves the label's share to 1c.)
 
 ## Phase 5B: gig pay belongs to the performers (F5), 2026-10-14
 
@@ -667,3 +667,71 @@ eager two-single staggered} x {no road, residency}. Paired runs share a seed, no
 - Residency was ahead on final cash in 18/24 pairs (median +$27), partly through commission and partly through more played
   nights in the home town (units up in 15/24, within stream noise).
 - 0 probe failures, 0 invariant violations.
+
+## Phase 5C: radio performance royalties and the writer's half (§7.2), 2026-10-15
+
+Built (author request: the two publishing gaps 5A left; touring left alone). `Systems/PlayerDesk.Publishing.cs`.
+
+- **The writer's half of the mechanical.** In 1960 the 2c was the publisher's and the writer's, half each
+  (`MechanicalRoyaltyService.WriterShare` = 0.50). The label used to keep both halves of its own songs.
+  - *Own sales:* `ChargeSide` now charges the selling label 1c a copy on a song it publishes (LabelAffiliate/LabelBuyout
+    with the label as controller) and pays it to the writing act. A label cut-in keeps its share of the writer's half.
+    It runs on every existing call site (trunk, one-stop carton, runner, and the player branch of the wholesale
+    settlement), so the week's books show it inside the mechanical line. Songs the act kept still pay the act the whole
+    2c, and public-domain songs pay nobody, as before.
+  - *Other labels' records of the player's songs* (placements, organic AI covers, leased or sold masters): in the AI
+    settlement's transfer branch, after the cut to 2c, the writer's half goes to the writing act
+    (`PayWriterHalfOnCut`, the song's `originArtistId`). Only the publisher's cent reaches the player's label, or the
+    placement's statement. **A placement's advance now recoups from the publisher's cent only.** The buyer still pays 2c
+    in total, so no money appears or vanishes.
+  - *Where it lands:* `SimulatedArtist.writerRoyaltyEarnings`, a new display field, not `totalRoyaltyEarnings` (the
+    performer's royalty). That's because `MemberWealthService` already gives each person 1c per charted unit of writer
+    income, derived from their credits and charged to no one. So people's wealth does not change; what changes is that
+    the label now actually pays the money they were already credited with. Not recoupable against the record advance.
+- **Radio performance royalties (BMI-style).** A song the player's label publishes earns a performing-rights royalty when
+  a station plays it, on anyone's record of it (own, leased or sold master, placement, AI cover). Only the plug side is
+  played, so a flip logs the B-side's song.
+  - *Logged plays:* each chart week (`OnWeekEnded`), plays = Σ regions radioPlay × the region's `totalRadioStations`
+    (5,105 in all) × 14 plays a week at full rotation.
+  - *Rate:* 4c a play, split evenly. The publisher's half goes to the label. The writer's half goes to the writers
+    directly, by credit share, onto `Musician.writerPerformanceEarnings`, or evenly across the act when no person is
+    credited. It never passes through the label's cash, because the society paid writers itself. If no writer is known,
+    the society holds it.
+  - *Payment:* a quarter's plays are paid on the 1st of the quarter after next (January to March on 1 July). The
+    statement lands in `OnMonthChanged` before the backer and the bank's check. `NextSolvencyCheck` and
+    `ClosureCheckIfNothingChanges` include it, and the gate confirms forecast equals clock.
+  - *Wealth:* `MemberWealthService` adds the year's increase in `writerPerformanceEarnings` to each person's writer
+    income, which is zero in AI-only worlds.
+  - *Where the money comes from:* outside the modelled economy (the stations' blanket licence fees), as it did. Every
+    player publisher is assumed to be a society affiliate.
+- **Books:** a `PublishingRoyaltyBooks` ledger with logged plays (one line per song per week), statements, and the
+  writer's-half lines (merged per act per day). `LedgerAgrees()` recomputes the totals. It is saved as
+  `PlayerSaveData.Publishing` (optional; older saves hold none). CASH OPTIONS lists logged plays as owed on the next
+  statement date. UI: a PUBLISHING block in the books, plus an "as writers" column in ARTIST ACCOUNTS. The placement
+  offer text now says the label earns the publisher's cent. `--inspect-slot` prints the books.
+- **Authored, not sourced:** 14 plays a week at full rotation, the quarter-after-next lag, and universal society
+  affiliation. The 4c is loosely anchored on a reported 1942 BMI rate of 4c per local performance (secondary source,
+  not verified, and not a 1960 schedule). The 50/50 split is the period convention.
+- **Scale (seed 1001, Jan 1960):** the #1 record would log 12,753 plays a week ($255 to its publisher, $255 to its
+  writers), and #100 would log 5,561. Airplay is fairly flat down the chart, so a #100 earns almost half what a #1 does
+  in a week. That's a property of radioPlay, not of this phase. Watch it if performance money looks too kind to weak
+  chart records. The placed Mercury hit in `PlacementChecks` logged 60,613 plays in 5 weeks ($1,212 to the label),
+  against $2,632 of publisher mechanical on 263k copies: performance runs at about half the mechanical on a big seller.
+
+Verification:
+- **AI-only identity:** `egl-pub-1001-52` matches `ref-c566f24-1001-52` on 84/84 CSVs, byte for byte. That DLL held
+  every economy-path change; the later edits were UI, offer text, checks and save staging only.
+- `PublishingRoyaltyChecks` 24/24 on the real clock (Detroit). The gate covers:
+  - Own-sale writer's half ($5.00 on 500 copies), booked once; a cut-in halves it; an act-kept song still pays 2c;
+    public domain pays nothing.
+  - Plays = airplay × stations × 14, with nothing logged for songs not published by the label.
+  - A cover and a flip's plug side are each logged once, at 4c split evenly, paid on the quarter after next.
+  - CASH OPTIONS shows the amount owed, and nothing is due a day early.
+  - The statement on the 1st matches the forecast to the cent ($2,000 − $80 + $451.54). The writer's half reaches
+    the act and its people, and their wealth year counts it.
+- `PlacementChecks` 59/59: the cut now earns 1.00c a copy for the label, the writer's $2,632.24 went to the act, and
+  the record's radio plays were logged.
+- `SaveLoadRoundTripRunner --integration --weeks=26` passes (new `PUBLISHING_ROUNDTRIP ok=True`).
+- Also passing: CashPlanning 30/30, MasterDeal 69/69, Backer 49/49, Demo 30/30, RoomTable 49/49, GigPay 22/22.
+- Not run: an opening-probe matrix. Early labels rarely chart, so the expected effect is small: a regional record's
+  plays in one or two regions, paid six months later, and 1c a copy less on the label's own sales.

@@ -355,6 +355,8 @@ public sealed class PlayerSaveData {
     public MasterDealsSaveData MasterDeals { get; set; }
     /// <summary>Optional: song placement offers, signed placements and their ledgers, passes, posted tapes and calls. Older saves hold none.</summary>
     public SongPlacementsSaveData SongPlacements { get; set; }
+    /// <summary>Optional: the publishing books (radio performances logged and paid, writer's half of the mechanical). Older saves hold none.</summary>
+    public PublishingRoyaltyBooks Publishing { get; set; }
     /// <summary>Optional: acts that left the player's roster and how (PlayerDesk.Reputation). Older saves hold none.</summary>
     public List<RosterDeparture> RosterDepartures { get; set; }
     public List<StudioVisit> StudioVisits { get; set; }

@@ -23,6 +23,8 @@ public partial class PlayerDesk {
 		var today = TimeManager.Instance?.CurrentDate ?? GameDate.StartDate;
 		var first = FirstOfNextMonth(today);
 		float overhead = Label?.GetMonthlyOverhead() ?? 0f, after = cashNow - overhead;
+		// A performing-rights statement due that morning is already logged money (OnMonthChanged pays it first).
+		after += PerformanceDueBy(LocalSceneRoomService.Day(first));
 		// The backer is paid between the overhead and the check, from cash above zero only (§4.3).
 		float backerPayment = ForecastBackerPayment(first, after);
 		after -= backerPayment;
@@ -42,8 +44,12 @@ public partial class PlayerDesk {
 		int red = monthsInTheRed;
 		var check = FirstOfNextMonth(today);
 		var loan = backer != null && !backer.Repaid ? backer.Copy() : null;
+		float performanceCounted = 0f;
 		for (int i = 0; i < 6; i++, check = FirstOfNextMonth(check)) {
 			cash -= overhead;
+			float performance = PerformanceDueBy(LocalSceneRoomService.Day(check));
+			cash += performance - performanceCounted;
+			performanceCounted = performance;
 			loan?.Settle(check, ref cash);
 			if (cash < CreditFloor) return check;
 			if (cash < 0f) { if (++red >= MaxMonthsInTheRed) return check; } else red = 0;
@@ -264,6 +270,8 @@ public partial class PlayerDesk {
 		list.AddRange(MasterDealCashOptions(today, TooLate, Late));
 		// §7.2: song placements -- an open offer is an advance agreed if you sign; a statement is owed; plugging a song is speculative.
 		list.AddRange(PlacementCashOptions(today, TooLate, Late));
+		// Radio plays of the label's songs already logged: the publisher's half, owed on the society's next statement.
+		list.AddRange(PublishingCashOptions(today, TooLate, Late));
 		// The plant's credit run (§1.2).
 		foreach (var rec in ReleasedRecords) {
 			string id = rec.baseRecord?.recordId;

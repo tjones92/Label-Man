@@ -290,8 +290,10 @@ public partial class PlayerDesk {
 			SongId = songId, Title = song.title, Route = route, MadeDay = today, Read = read, Advance = advance, HoldDays = PlacementHoldDays, Cover = cover,
 			ExpiresDay = today + (route == MasterRoute.Post ? PlacementLetterOfferDays : PlacementOfferDays),
 			Answer = $"{buyer.labelName}: " + (s < 0.33f ? "\"One of our people could do something with that.\"" : s < 0.66f ? "\"That's a song.\"" : "\"I know exactly who should sing that.\""),
-			Why = $"${advance:N0} now, against the song's mechanical on their record ({cents:F0}c a copy sold, the statutory rate), " +
-				$"paid quarterly once the advance is back. They hold it {PlacementHoldDays / 7} weeks for one of their {(fit.Value ? "" : "nearby ")}acts to cut first" +
+			Why = $"${advance:N0} now, against the publisher's half of the song's mechanical on their record ({cents * (1f - MechanicalRoyaltyService.WriterShare):F0}c " +
+				$"of the statutory {cents:F0}c a copy sold; the writer's {cents * MechanicalRoyaltyService.WriterShare:F0}c goes to your act), paid quarterly once the advance is back. " +
+				"Their radio plays pay you as publisher too, through the performing-rights society. " +
+				$"They hold it {PlacementHoldDays / 7} weeks for one of their {(fit.Value ? "" : "nearby ")}acts to cut first" +
 				(cover ? ", as a cover of your record" : "") + "; no cut in that time and the advance is yours anyway. The song stays yours; the record is theirs.",
 		});
 	}

@@ -103,6 +103,9 @@ public class Musician {
 	public float wealth;
 	public bool wealthBaselined;
 	public double writerUnitsAtYearStart; // share-weighted charted units already paid into wealth
+	// Early-game: the writer's half of radio performance royalties on songs the player's label publishes, paid to the person on
+	// the performing-rights statement. Zero in AI-only worlds. MemberWealthService adds the year's increase to writer income.
+	public double writerPerformanceEarnings, writerPerformanceAtYearStart;
 	public float lastYearIncome, lastYearWriterIncome;
 	/// <summary>Gross live pay last year (rooms plus the unrealized working year); a quarter of it reaches wealth.</summary>
 	public float lastYearLiveIncome;

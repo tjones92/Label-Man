@@ -126,6 +126,10 @@ public class SimulatedArtist {
 	public float royaltyRate;
 	public float unrecoupedAdvance;
 	public float totalRoyaltyEarnings;
+	/// <summary>Early-game: songwriter money the act's publisher (the player's label) paid it: the writer's half of the 2c
+	/// mechanical and of radio performance royalties. Kept apart from <see cref="totalRoyaltyEarnings"/> (the performer's
+	/// royalty) because MemberWealthService derives each person's writer income itself. Display only.</summary>
+	public float writerRoyaltyEarnings;
 	public int contractExpiresYear;
 	public int contractLength;
 	// Year granularity was tolerable at four-to-seven-year terms and is not at one-to-two:

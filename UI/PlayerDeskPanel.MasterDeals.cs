@@ -104,14 +104,32 @@ public partial class PlayerDeskPanel {
 public partial class PlayerDeskPanel {
 	/// <summary>Early-game Phase 5A (§7.2): songs whose publishing the label controls, plugged to real labels for their own
 	/// acts to cut -- open offers, signed placements with their statements, and who might take each song.</summary>
+	private void BuildPublishingRoyalties(PlayerDesk desk) {
+		var books = desk.Publishing;
+		if (books.Lines.Count == 0) return;
+		Heading("PUBLISHING", "As publisher you keep a cent of the 2c mechanical on every copy of your songs, on any label, and pay the writer the " +
+			"other. Radio plays of your songs, on anyone's record, are logged by the performing-rights society: about 4c a play, half to you and half " +
+			"paid straight to the writers, a quarter's plays paid on the 1st of the quarter after next.");
+		var owed = books.Lines.Where(l => l.Kind == PublishingLineKind.PerformanceLogged && !l.Settled)
+			.GroupBy(l => l.PayOnDay).OrderBy(g => g.Key).ToList();
+		var rows = books.Lines.Where(l => l.Kind == PublishingLineKind.PerformanceLogged).GroupBy(l => l.Title ?? l.SongId)
+			.OrderByDescending(g => g.Sum(l => l.Performances)).Take(8)
+			.Select(g => LedgerTable.Entry($"\"{g.Key}\"", $"{g.Sum(l => l.Performances):N0}", LedgerTable.Money(g.Sum(l => l.Amount)),
+				LedgerTable.Money(g.Where(l => l.Settled).Sum(l => l.Amount)), LedgerTable.Money(g.Sum(l => l.WriterAmount)))).ToList();
+		if (rows.Count > 0) content.AddChild(new LedgerTable().Set(null, new[] { "song", "radio plays", "yours", "paid you", "writers'" }, rows));
+		foreach (var g in owed)
+			Body($"Statement {LocalSceneRoomService.Date(g.Key).ToShortString()}: ${g.Sum(l => l.Amount):N2} to you, ${g.Sum(l => l.WriterAmount):N2} to the writers.");
+		if (books.WriterMechanicalPaid > 0f) Body($"Writer's half of the mechanical paid to your acts so far: ${books.WriterMechanicalPaid:N2}.");
+	}
+
 	private void BuildSongPlacements(PlayerDesk desk) {
 		var offers = desk.PlacementOffers;
 		var deals = desk.Placements.Where(d => d.Live || d.Ledger.Count > 1).ToList();
 		var placeable = desk.PlaceableSongIds().Take(4).ToList();
 		if (offers.Count == 0 && deals.Count == 0 && placeable.Count == 0) return;
 		Heading("PLACE A SONG", "When the publishing is yours, plug the song to a label for one of its own acts to cut. They pay a small " +
-			$"advance and hold it {PlayerDesk.PlacementHoldDays / 7} weeks; if they cut it, the song's share of their sales comes to you once the advance " +
-			"is back, on a quarterly statement. Their record competes with yours. The song stays yours.");
+			$"advance and hold it {PlayerDesk.PlacementHoldDays / 7} weeks; if they cut it, the publisher's cent of the 2c on their sales comes to you once the " +
+			"advance is back, on a quarterly statement; the writer's cent goes to your act. Their record competes with yours. The song stays yours.");
 
 		foreach (var offer in offers) {
 			Body($"{offer.Answer} On \"{offer.Title}\". Open until {LocalSceneRoomService.Date(offer.ExpiresDay).ToShortString()}." +

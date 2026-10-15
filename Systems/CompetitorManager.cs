@@ -1164,6 +1164,12 @@ public partial class CompetitorManager : Node {
 								recordRevenue += overPeriod;
 								transferSlice -= overPeriod;
 							}
+							// Early-game: the 2c was the publisher's and the writer's, half each. The writer's half of a
+							// player-published song goes to its writer; only the publisher's half reaches the player's label.
+							float writerHalf = controller.isPlayerOwned && PlayerDesk.Instance != null
+								? PlayerDesk.Instance.PayWriterHalfOnCut(runtimeData.baseRecord, transferSlice, Mathf.RoundToInt(weeklyUnits))
+								: 0f;
+							transferSlice -= writerHalf;
 							// Early-game Phase 5A: a cut of a song the player placed here. The placement's advance recoups first
 						// out of this slice (the buyer, which paid it, keeps that part); the rest accrues to the player's
 						// statement instead of this week's receipts. Null on every AI-chosen record.
@@ -1173,7 +1179,7 @@ public partial class CompetitorManager : Node {
 							: -1f;
 						if (buyerKeeps < 0f) controller.weeklyPublishingReceipts += transferSlice;
 						else recordRevenue += buyerKeeps;
-						publishingTransferOut = transferSlice - Mathf.Max(0f, buyerKeeps);
+						publishingTransferOut = transferSlice - Mathf.Max(0f, buyerKeeps) + writerHalf;
 					} else {
 						leakSlice += transferSlice;
 					}
