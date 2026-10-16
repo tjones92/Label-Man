@@ -34,6 +34,8 @@ public partial class ChartManager : Node {
 	[Export] private bool openingCareersEnabled = false;
 	// Regional audience 3b (SimTools/RegionalAudienceDesign.md). Off until its short check passes.
 	[Export] private bool localLifecycleClockEnabled = false;
+	// Regional audience 3c. Off until its short check passes.
+	[Export] private bool localRadioFatigueEnabled = false;
 	// Media atmosphere (SimTools/MediaAtmosphereDirective.md): observe mode books rival acts onto TV and prints the
 	// listings; it writes nothing the economy reads. --disable-media-atmosphere turns it off.
 	[Export] private bool mediaAtmosphereObserve = true;
@@ -354,7 +356,7 @@ public partial class ChartManager : Node {
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
 		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
 		OpeningCareers.Configure(openingCareersEnabled, OS.GetCmdlineUserArgs());
-		RegionalAudience.Configure(localLifecycleClockEnabled, OS.GetCmdlineUserArgs());
+		RegionalAudience.Configure(localLifecycleClockEnabled, localRadioFatigueEnabled, OS.GetCmdlineUserArgs());
 		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
 			worldLineupChurnEnabled ? LineupChurnScope.World :
 			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs(),
@@ -1074,6 +1076,7 @@ public partial class ChartManager : Node {
 		stationNetwork?.UpdatePlaylists(allRecords, allRegions, currentChartWeek, year);
 
 		// === STEP 3: Update regional awareness/radio ===
+		if (RegionalAudience.LocalRadioFatigue && genreMarketLive) UpdateLocalSalesRanks();
 		foreach (var record in allRecords) {
 			if (record.baseRecord.format == ReleaseFormat.Album) {
 				foreach (var data in record.regionalData.Values) AlbumSimulator.UpdateRegionalState(record, data);
@@ -1678,6 +1681,7 @@ public partial class ChartManager : Node {
 		// One decision per region per week, taken against this week's settled sales -- step 2 has
 		// already run FinalizeWeeklySales, so the support ratio and the weeks-since-peak clock are
 		// current, and a drop landing here reaches the same week's chart points in step 4.
+		bool localRadio = RegionalAudience.LocalRadioFatigue && genreMarketLive;
 		float stationDropChance = ChartSimulator.GetStationDropChance(
 			ChartSimulator.GetSalesSupportRatio(record), record.weeksSincePeakUnits);
 		float carriedPanelWeight = 0f, totalPanelWeight = 0f;
@@ -1685,6 +1689,20 @@ public partial class ChartManager : Node {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
 				data = new RegionalRecordData(region.regionId);
 				record.regionalData[region.regionId] = data;
+			}
+			// Regional audience 3c: a region's programme directors read their own sales reports. The drop is
+			// judged on this region's support against its own best week, and the rotation target blends the
+			// national heat with what this region's sales list would earn.
+			float regionHeat = record.radioHeat;
+			if (localRadio) {
+				int weeksSinceLocalPeak = data.WeeksSinceLocalPeak(record.weeksSinceRelease);
+				float localSupport = data.localPeakUnits > 0
+					? Mathf.Clamp(data.unitsSoldThisWeek / (float)data.localPeakUnits, 0f, 1f) : 1f;
+				stationDropChance = ChartSimulator.GetStationDropChance(localSupport, weeksSinceLocalPeak);
+				float localHeat = ChartSimulator.GetLocalRadioHeatTarget(record.radioHeatBaseTargetThisWeek,
+					data.localSalesRank, data.unitsSoldThisWeek / Mathf.Max(0.001f, GetRegionalBuyingFraction(region)),
+					weeksSinceLocalPeak);
+				regionHeat = Mathf.Lerp(record.radioHeat, localHeat, RegionalAudience.LocalHeatWeight);
 			}
 
 			// Awareness decay
@@ -1728,7 +1746,7 @@ public partial class ChartManager : Node {
 				float radioBuild = ChartSimulator.GetRadioBuildWeight(record.weeksSinceRelease);
 				// tailAccess is 1 in Phase 2a (folded in when the reporter/tail format split is dialled
 				// in at Phase 2b), so this expression is arithmetically identical to the former target.
-				float targetRegionalRadio = (seasonalRadio ? record.radioHeat / radioDifficulty * radioOpportunity * genreRadio : record.radioHeat / radioDifficulty * genreRadio) * radioBuild;
+				float targetRegionalRadio = (seasonalRadio ? regionHeat / radioDifficulty * radioOpportunity * genreRadio : regionHeat / radioDifficulty * genreRadio) * radioBuild;
 				// Stations phase a record out of rotation rather than dropping it, and this is the whole
 				// plateau: sales fall to 65% of peak in a single week, so airplay only holds a record up
 				// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to
@@ -1885,6 +1903,38 @@ public partial class ChartManager : Node {
 			}
 		}
 	}
+
+	/// <summary>
+	/// Each region's single sales list for this settled week (regional audience 3c): rank 1 is the region's best
+	/// seller, ties broken by record id; a single with no sales there is unranked (0). Sorting only, no draws.
+	/// </summary>
+	private void UpdateLocalSalesRanks() {
+		var singles = new List<RecordRuntimeData>();
+		foreach (var record in allRecords) if (record.baseRecord.format != ReleaseFormat.Album) singles.Add(record);
+		var ranked = new List<(int Units, string Id, RegionalRecordData Data)>(singles.Count);
+		foreach (MarketRegion region in allRegions) {
+			ranked.Clear();
+			foreach (var record in singles) {
+				if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+				data.localSalesRank = 0;
+				if (data.unitsSoldThisWeek > 0) ranked.Add((data.unitsSoldThisWeek, record.baseRecord.recordId, data));
+			}
+			ranked.Sort((a, b) => a.Units != b.Units ? b.Units.CompareTo(a.Units) : string.CompareOrdinal(a.Id, b.Id));
+			for (int i = 0; i < ranked.Count; i++) ranked[i].Data.localSalesRank = i + 1;
+		}
+	}
+
+	/// <summary>This region's share of the nation's record-buying population, to restate local units at national scale.</summary>
+	private float GetRegionalBuyingFraction(MarketRegion region) {
+		if (region == null) return 1f;
+		if (regionalBuyingFractionById.TryGetValue(region.regionId, out float cached)) return cached;
+		float total = 0f;
+		foreach (MarketRegion candidate in allRegions) if (candidate != null) total += candidate.GetRecordBuyingPopulation();
+		float fraction = total > 0f ? region.GetRecordBuyingPopulation() / total : 1f;
+		regionalBuyingFractionById[region.regionId] = fraction;
+		return fraction;
+	}
+	private readonly Dictionary<string, float> regionalBuyingFractionById = new(System.StringComparer.Ordinal);
 
 	private void UpdateRegionalBreakoutState(RecordRuntimeData record, int year) {
 		AILabel label = GetLabelById(record.baseRecord.labelId);

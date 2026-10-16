@@ -852,18 +852,12 @@ public static class ChartSimulator {
 		
 		float targetHeat = (qualityFactor + pushFactor + momentumFactor) * genreAcceptance;
 		targetHeat += record.artistHeat * 0.12f;
-		
-		// Earned by sales, not by the position itself -- see RADIO_POSITION_BONUS_SALES_FLOOR.
-		float positionBonusGate = Mathf.Clamp(record.unitsThisWeek / RADIO_POSITION_BONUS_SALES_FLOOR, 0f, 1f);
-		if (record.currentPosition > 0 && record.currentPosition <= 10) {
-			targetHeat += 0.25f * positionBonusGate;
-		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {
-			targetHeat += 0.1f * positionBonusGate;
-		}
-		
-		if (record.weeksSincePeakUnits > 0) {
-			targetHeat *= Mathf.Pow(RADIO_FATIGUE_DECAY, record.weeksSincePeakUnits);
-		}
+		// The record-wide half of the target (song, campaign, momentum, the act), which a region's own
+		// heat reuses with its own chart standing and fatigue (regional audience 3c).
+		record.radioHeatBaseTargetThisWeek = targetHeat;
+
+		targetHeat += GetRadioPositionBonus(record.currentPosition, record.unitsThisWeek);
+		targetHeat *= GetRadioFatigue(record.weeksSincePeakUnits);
 
 		float lerpRate = (targetHeat > record.radioHeat) ? 0.28f :
 						(record.weeksSinceRelease > 12) ? 0.22f : 0.10f;
@@ -871,6 +865,27 @@ public static class ChartSimulator {
 		record.radioHeat = Mathf.Lerp(record.radioHeat, targetHeat, lerpRate);
 		record.radioHeat = Mathf.Clamp(record.radioHeat, 0f, 1f);
 	}
+
+	/// <summary>Earned by sales, not by the position itself -- see RADIO_POSITION_BONUS_SALES_FLOOR.</summary>
+	internal static float GetRadioPositionBonus(int position, float unitsThisWeek) {
+		float positionBonusGate = Mathf.Clamp(unitsThisWeek / RADIO_POSITION_BONUS_SALES_FLOOR, 0f, 1f);
+		if (position > 0 && position <= 10) return 0.25f * positionBonusGate;
+		if (position > 0 && position <= 40) return 0.1f * positionBonusGate;
+		return 0f;
+	}
+
+	internal static float GetRadioFatigue(int weeksSincePeak) =>
+		weeksSincePeak > 0 ? Mathf.Pow(RADIO_FATIGUE_DECAY, weeksSincePeak) : 1f;
+
+	/// <summary>
+	/// Regional audience 3c: the heat a region's own programmers would give a record -- the record-wide target, the
+	/// position bonus earned on this region's sales list (local units restated at national scale so the national
+	/// sales floor still gates it), and fatigue counted from this region's best week rather than the nation's.
+	/// </summary>
+	internal static float GetLocalRadioHeatTarget(float baseTarget, int localRank, float localUnitsAtNationalScale,
+		int weeksSinceLocalPeak) =>
+		Mathf.Clamp((baseTarget + GetRadioPositionBonus(localRank, localUnitsAtNationalScale)) *
+			GetRadioFatigue(weeksSinceLocalPeak), 0f, 1f);
 	
 	/// <summary>
 	/// How much of its eventual rotation a record has earned this week. Stations added a record over

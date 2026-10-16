@@ -130,11 +130,49 @@ Media is observe-only, so this is economy-inert and can land first.
 - Result to require: in the mid-decade replay, "7 → 0 qualifying regions in one week" transitions drop from 185 to
   near zero; acts still losing all regions over several weeks is fine.
 
+### 3g. Hometown audience: a local seed for local state (proposed after 3c, awaiting approval)
+
+**Measured reason (3b, 3c).** With local clocks and local radio both on, the local share of weekly demand change is
+1.2% (control 0.4%) and the median peak-week spread is still 1 week. Each region now runs on its own state, but
+every input to that state is common, so the regions settle on the same ranks and peak in the same week. A local
+feedback loop amplifies a local difference; nothing creates one. 3d (local rack exposure) has the same problem: it
+would rank on lists that are already 87% identical.
+
+**What historically seeded the difference** was mostly people, not noise: an act's home town (local gigs, local
+DJs championing local talent, the local paper), and the label's home and strong markets. The model already records
+`SimulatedArtist.homeRegion`, but no market reads it. The label side is already causal through
+`GetRegionalLaunchFactor` (strong 1.35, covered 0.55–1.0, uncovered 0.12–0.30).
+
+Proposal: make the artist's home region a real audience, through the channels that already have to earn sales
+(awareness and local radio), never as a conversion multiplier (audit §7: no hidden demand factors).
+- **Launch:** a single's awareness in the act's home region gets a headroom deposit of `0.06 + 0.10 × localStanding`,
+  where `localStanding` is the act's live following in its home region's towns. It reuses the player's
+  `LocalFollowing` arithmetic: `1 − exp(−LocalSceneRoomService.LocalDraw(artist, city, day, 56) / 120)`, the
+  highest across the region's cities. It is 0 for an act that has not played there. Static and draw-free.
+- **Live following in any region**, not only home: the same following term feeds that region's launch awareness,
+  so an act that tours a region's rooms has an audience waiting there.
+- **Local radio:** in 3c's `localHeat`, the home region adds `+0.10 × (1 − nationalFame)`, where nationalFame is
+  `EffectiveRecognition`. Local DJs champion an unknown local act; a national star gets no extra hometown push.
+- **No new draws.** The home region already exists, and the renown term reads saved state.
+
+Expected: a record by an act with a home market climbs there first, crosses the breakout and neighbour-test gates
+earlier, and reaches other regions later through the existing propagation. That is the "local surprise"
+scenario, and it is also what 3b's local clock needs in order to bite. Risks: home-region concentration
+(NYC/LA host the most acts, so they gain the most; see the specialist-cities memory), and Major share, since
+Majors sign more acts from big markets. Mapping `homeRegion` names to market region ids needs checking.
+
+**Rejected alternative:** a keyed per-record × region "taste" multiplier. It would hit the overlap target by
+construction, but it is the "unrelated regional randomness" the audit warns against.
+
+If 3g also fails to move the timing metrics, the honest conclusion is that the target band needs staggered
+launches. Independents historically broke a record in one city before shipping nationally, and that is a
+distribution-policy change outside this step.
+
 ## RNG, switches, order
 
-- All new state is deterministic; no new draws. 3c's drop roll is the same `GD.RandRange` per region, only its
-  probability changes, so the stream position is unchanged (draw count is gated by `IsStationDropCandidate`, which
-  does not change). 3d adds sorts, not draws.
+- All new state is deterministic; no new draws. **Correction (3c):** the drop roll is gated by
+  `stationDropChance > 0` as well as `IsStationDropCandidate`, so a per-region chance changes how many rolls are
+  made and 3c reshuffles the shared stream. 3d adds sorts, not draws.
 - One switch per sub-step on `ChartManager` (`LocalLifecycleClock`, `LocalRadioFatigue`, `LocalRankExposure`,
   `RegionalAwarenessDeposit`) plus `MediaFans.SoftSalesStanding`; scene defaults flip on as each passes its short
   check; `--no-…` controls for the decade A/B.

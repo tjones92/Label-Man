@@ -103,6 +103,8 @@ public class RecordRuntimeData {
 	public float momentum;            // -1 to +1: Is it trending up or down?
 	public float saturation;          // 0-1: What % of potential buyers already own it?
 	public float radioHeat;           // 0-1: How much are stations playing it?
+	// Week-local: radioHeat's record-wide target before chart bonus and fatigue, reused by each region's own heat.
+	public float radioHeatBaseTargetThisWeek;
 	// This week's survey draw. Billboard did not count units before 1973 -- it polled about 110
 	// outlets by hand, so the published chart was a small, coarsely graded SAMPLE of popularity and
 	// not a census of it. Drawn once per record per week in ChartManager and stored here rather than

@@ -66,6 +66,23 @@ Control sync baseline, `ref-781a445-1001-104` (104 weeks, 280,613 record-weeks):
 
 | 3b | `RegionalAudience.LocalLifecycleClock` (new `Systems/RegionalAudience.cs`; scene default on, `--no-local-lifecycle-clock` control): in live demand the post-week-8 `DEMAND_AGE_DECAY_RATE` term reads the region's `LocalAge`; an unreached region is not aged. Release ramp unchanged. | `local3b-1001-104` vs `ref-781a445-1001-104`: no catastrophe (table below) | Done |
 
+| 3c | `RegionalAudience.LocalRadioFatigue` (scene default on, `--no-local-radio-fatigue`): live weeks only. Station drops use the region's own support (`units / localPeakUnits`) and weeks since its local peak; the regional rotation target uses `Lerp(radioHeat, localHeat, 0.35)`, where `localHeat` = the record-wide radio target + the position bonus on the region's own sales rank (local units restated at national scale for the 15k gate) × fatigue from the local peak. `UpdateRadioHeat` refactored into `GetRadioPositionBonus` / `GetRadioFatigue` (exact). New `localSalesRank`, `radioHeatBaseTargetThisWeek` (week-local). | `local3c-off-1001-104` vs `local3b-1001-104`: 84/84 byte-identical (refactor exact). `local3c-1001-104`: no catastrophe; no convexity renormalization needed | Done, **no sync effect** |
+
+3c result (vs control / 3b): single units 153.2M / 154.2M (control 152.0 / 154.4); airplay share of top-40 points
+15.8% / 17.3% (control 16.2 / 16.5, inside ±3 pts); #1 records 24 / 24 (3b's 32 did not recur, so it was likely
+noise); Major-family share 52.8% / 58.1%; closures / bankruptcies 167 / 57 (control 154 / 45; step-1/2 runs ranged
+161–169 / 55, so inside the single-seed spread); media all-7 → 0: 7.
+
+Sync is unchanged from 3b: local share of weekly change 1.16% (3b 1.15%, control 0.39%), local share of awareness
+change 0.45% (3b 0.44%), peak-week spread median 1 week with 9.9% ≥ 4 and 0.41% ≥ 8, top-11 overlap 87.0%.
+
+**Why 3b and 3c cannot move it alone.** Both make each region's clocks and radio read that region's own state, and
+that state is now local. But every input to it is common: the record-wide radio target, quality, label scale,
+national launch, and genre acceptance, which differs by region but is fixed per genre. Regions therefore reach the
+same local ranks and peak in the same week, and the local feedback copies the national result. A region-local
+mechanism only diverges if something local seeds the difference. In the current model only two things do: label
+distribution coverage at launch and the 0.13-weight reporter panel. See the design's "3g" section.
+
 3b result (seed 1001, 104 weeks; `SimTools/analyze_regional_guards.py`, `analyze_regional_sync.py`):
 
 | | Control | 3b |

@@ -1825,6 +1825,7 @@ managersEnabled = true
 seedStarCanopyEnabled = true
 openingCareersEnabled = true
 localLifecycleClockEnabled = true
+localRadioFatigueEnabled = true
 cowritingEnabled = true
 memberAxesEnabled = true
 rosterLineupChurnEnabled = true

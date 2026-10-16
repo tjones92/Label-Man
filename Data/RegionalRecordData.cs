@@ -104,6 +104,8 @@ public class RegionalRecordData {
 	public int localIntroAge = -1;
 	public int localPeakUnits;
 	public int localPeakAge = -1;
+	// This week's rank on the region's single sales list (1 = best seller), 0 if unranked or not computed.
+	public int localSalesRank;
 
 	/// <summary>Weeks this region has had the record in play, counting the arrival week as 1; 0 before it arrives.</summary>
 	public int LocalAge(int weeksSinceRelease) => localIntroAge < 0 ? 0 : Math.Max(1, weeksSinceRelease - localIntroAge + 1);
