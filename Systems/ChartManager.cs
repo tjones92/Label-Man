@@ -1068,7 +1068,9 @@ public partial class ChartManager : Node {
 			UpdateRegionalBreakoutState(record, year);
 			// Regional sync 5a: arrival reads this week's breakout state and last week's chart, before restock.
 			if (RegionalAudience.RegionalArrival && genreMarketLive)
-				foreach (RegionalRecordData data in record.regionalData.Values) RegionalAudience.TryArrive(record, data);
+				foreach (MarketRegion region in allRegions)
+					if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data))
+						RegionalAudience.TryArrive(record, data, GetRegionalDemandScale(region));
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===

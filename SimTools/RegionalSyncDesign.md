@@ -293,8 +293,44 @@ Read:
    Their out-of-territory tail is still mostly never delivered. Major share swings ±4 pts between arms, the same
    size as 5d's own swing, so it is noise on one seed.
 
-Next levers, if pursued: a lower arrival bar for a held region's own route, e.g. backorders ≥ a region-scaled order
-size, the way a one-stop actually responded to requests. Or a larger `h`. Measure either one on two seeds.
+### One-stop order trigger (`arr4`, seeds 1001 and 2002)
+
+A fifth trigger, checked last: a held region gets the record once its unfilled requests (`unitsBackordered`) reach
+`OneStopOrderUnits` (100) × its demand scale. Hearsay stays at 0.25. Each seed is compared with its own 5d-only control.
+
+| Metric | 5d 1001 | Arrival 1001 | 5d 2002 | Arrival 2002 |
+|---|---:|---:|---:|---:|
+| Held / arrived (one-stop share) | — | 22,617 / 16,500 (100%) | — | 20,561 / 15,000 (100%) |
+| Mean arrival age of held regions | — | 4.6 wk | — | 4.7 wk |
+| Local share of weekly change | 0.94% | **20.2%** | 0.95% | **20.3%** |
+| Local share of level | 1.8% | 9.3% | 1.8% | 9.2% |
+| Arrival spread ≥4 wk | 0.04% | 8.2% | 0% | 8.1% |
+| Settled peak spread median, ≥4 / ≥8 | 1, 8.7% / 0.21% | 1, 10.8% / 0.82% | 1, 8.0% / 0.42% | 1, 10.5% / 0.21% |
+| Top-11 overlap | 87.8% | 89.2% | 89.3% | 88.2% |
+| Single units 1960 / 1961 | 152.7M / 154.5M | −1.2% / +0.3% | 154.3M / 157.8M | −0.3% / −0.8% |
+| Major share 1960 / 1961 | 51.6 / 55.0 | 55.7 / 50.4 | 62.9 / 56.8 | 62.5 / 51.3 |
+| Airplay share of top-40 pts 1960 / 1961 | 15.6 / 15.3 | 17.9 / 18.5 | 15.8 / 17.5 | 18.2 / 15.9 |
+| Charted records | 1048 | 1081 | 1052 | 1029 |
+| Closures / bankruptcies | 153 / 51 | 171 / 68 | 156 / 44 | 163 / 58 |
+
+Read:
+
+1. **Delivery is fixed.** 73% of held region-launches now arrive (from 8%), almost all by one-stop order, and
+   the other triggers no longer get the chance: the order bar is reached first, at about week 4.
+2. **The two seeds agree.** Local share of change is 20.2% / 20.3%, and arrival ages rise the same way, so the
+   change is structural.
+3. **But the lockstep is broken only in demand, not in the settled sales the targets are written on.** The ≥ 8-week
+   settled spread is 0.8% / 0.2%, against 7.2% for the no-route arm and a 5–15% target. Overlap goes *up* (89%). A
+   fixed ~3-week delay for nearly every held region is a uniform lag: it shifts the uncovered regions together
+   instead of letting each one find the record on its own evidence. The order bar is too low, and its trade-off
+   against the no-route arm is now bracketed: no route gives timing without delivery, a 100-unit bar gives delivery
+   without timing.
+4. **Bankruptcies rise on both seeds** (+17, +14; closures +18, +7) in every arrival arm so far. That is now a
+   consistent sign, not noise. The likely source: independents lose the first weeks of their out-of-territory sales,
+   where the launch stock used to sell. Major share is mixed (±5) and not readable.
+
+Next, if pursued: raise the order bar so that only a record people actually ask for gets ordered (between 100 and
+the breakout floor), and look at which labels go bankrupt before tuning further. Both switches stay off.
 
 ## 7. Risks
 

@@ -80,6 +80,9 @@ public static class RegionalAudience {
 	public const int ArrivalChartDepth = 40;
 	/// <summary>5b: the share of the national awareness blend a region hears of before the record arrives there.</summary>
 	public const float HearsayShare = 0.25f;
+	/// <summary>A one-stop's minimum order in the largest market, scaled by region: a held region whose shops have this
+	/// many unfilled requests on the books gets the record ordered in.</summary>
+	public const float OneStopOrderUnits = 100f;
 
 	/// <summary>This week's local sales evidence for a region: raw demand under 5d, else cleared units; 0 before arrival.</summary>
 	public static int LocalSignalUnits(RegionalRecordData data) {
@@ -118,16 +121,18 @@ public static class RegionalAudience {
 
 	/// <summary>
 	/// 5a weekly: a waiting region takes the record the week any local-access path fires -- a neighbour test, its
-	/// own breakout, a rack jobber buying it on regional proof, or the national top 40. The held launch seed lands
+	/// own breakout, a rack jobber buying it on regional proof, the national top 40, or a one-stop order once the
+	/// region's unfilled requests reach <see cref="OneStopOrderUnits"/> x its demand scale. The held launch seed lands
 	/// then. Reads settled state only; no draws.
 	/// </summary>
-	public static void TryArrive(RecordRuntimeData record, RegionalRecordData data) {
+	public static void TryArrive(RecordRuntimeData record, RegionalRecordData data, float regionScale) {
 		if (data == null || !data.awaitingArrival) return;
 		int trigger =
 			record.currentPosition >= 1 && record.currentPosition <= ArrivalChartDepth ? 0
 			: data.neighboringMarketTestStrength >= ArrivalTestMarketStrength ? 1
 			: data.breakoutScore > ArrivalBreakoutScore ? 2
 			: ChartSimulator.GetRackJobberAccess(0, data.peakBreakoutScore) > 0f ? 3
+			: data.unitsBackordered >= OneStopOrderUnits * regionScale ? 4
 			: -1;
 		if (trigger < 0) return;
 		int age = Math.Max(1, record.weeksSinceRelease);
@@ -145,12 +150,12 @@ public static class RegionalAudience {
 	}
 	// Console diagnostics only (no CSV reads them).
 	private static int arrivedAtLaunch, held;
-	private static readonly int[] arrivalsByTrigger = new int[4];
+	private static readonly int[] arrivalsByTrigger = new int[5];
 	private static long arrivalAgeSum;
-	private static int ArrivalCount() => arrivalsByTrigger[0] + arrivalsByTrigger[1] + arrivalsByTrigger[2] + arrivalsByTrigger[3];
+	private static int ArrivalCount() => arrivalsByTrigger[0] + arrivalsByTrigger[1] + arrivalsByTrigger[2] + arrivalsByTrigger[3] + arrivalsByTrigger[4];
 	private static void PrintArrival() =>
 		Godot.GD.Print($"REGIONAL_ARRIVAL atLaunch={arrivedAtLaunch} held={held} chart={arrivalsByTrigger[0]} " +
-			$"test={arrivalsByTrigger[1]} breakout={arrivalsByTrigger[2]} rack={arrivalsByTrigger[3]} " +
+			$"test={arrivalsByTrigger[1]} breakout={arrivalsByTrigger[2]} rack={arrivalsByTrigger[3]} oneStop={arrivalsByTrigger[4]} " +
 			$"meanAge={arrivalAgeSum / (double)Math.Max(1, ArrivalCount()):F2}");
 
 	public static void ApplyLaunchProbe(RecordRuntimeData record, AILabel label) {
