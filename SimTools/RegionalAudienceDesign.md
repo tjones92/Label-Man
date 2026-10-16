@@ -1,6 +1,6 @@
 # Regional audience causality (audit step 3)
 
-**Status: approved 2026-10-15 with the recommended values; 3a built.** Remedies [CelebrityEconomyAudit-2026-10-15.md](CelebrityEconomyAudit-2026-10-15.md)
+**Status: approved 2026-10-15 with the recommended values; 3a, 3f, 3b built (3b's effect waits on 3c).** Remedies [CelebrityEconomyAudit-2026-10-15.md](CelebrityEconomyAudit-2026-10-15.md)
 §3 and §4. Progress and the decade watch list are in [CelebrityAuditProgress.md](CelebrityAuditProgress.md).
 
 Audit acceptance for this step: *local peaks occur at different times; a national ranking decline does not erase

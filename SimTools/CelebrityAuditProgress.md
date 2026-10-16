@@ -64,6 +64,31 @@ Control sync baseline, `ref-781a445-1001-104` (104 weeks, 280,613 record-weeks):
 
 | 3f | Media fan sales evidence (observe-only): `SalesStandingWeek` ranks each act's smoothed share of a region's single sales (all its singles summed; rises at once, 3-week half-life down); top-seller latch enters at rank 9, leaves outside rank 17. `FanWeek.SellingRegions` → `TopSellerRegions`. Switch `MediaFans.SoftSalesStanding` (default on), control `--media-hard-sales-rank`. State in `MediaSaveData.SalesStanding / TopSellerIn`. | `local3f-1001-104` and `local3f-hard-1001-104` vs `ref-781a445-1001-104`: both 84/84 economy CSVs byte-identical. Media checks 125/125 (3 new). | Done |
 
+| 3b | `RegionalAudience.LocalLifecycleClock` (new `Systems/RegionalAudience.cs`; scene default on, `--no-local-lifecycle-clock` control): in live demand the post-week-8 `DEMAND_AGE_DECAY_RATE` term reads the region's `LocalAge`; an unreached region is not aged. Release ramp unchanged. | `local3b-1001-104` vs `ref-781a445-1001-104`: no catastrophe (table below) | Done |
+
+3b result (seed 1001, 104 weeks; `SimTools/analyze_regional_guards.py`, `analyze_regional_sync.py`):
+
+| | Control | 3b |
+|---|---:|---:|
+| Single units 1960 / 1961 | 152.0M / 154.4M | 151.7M / 154.1M |
+| Airplay share of top-40 points 1960 / 1961 | 16.2% / 16.5% | 17.0% / 18.8% |
+| Major-family chart share 1960 / 1961 | 57.9% / 56.0% | 54.7% / 59.5% |
+| #1 records 1960 / 1961 | 24 / 23 | 23 / **32** |
+| Units at #1 / #10 / #100, 1961 (median week) | 45.3k / 31.5k / 3.7k | 51.0k / 37.0k / 3.7k |
+| Genre chart-vs-market gap 1960 / 1961 | 0.316 / 0.374 | 0.341 / 0.402 |
+| Closures / bankruptcies | 154 / 45 | 142 / 36 |
+| Local share of weekly demand change | 0.4% | 1.2% |
+| Local share of conversion change | 0.01% | 0.7% |
+| Peak-week spread median / ≥4 wk / ≥8 wk | 1 / 9.6% / 0.21% | 1 / 10.7% / 0.35% |
+| Top-11 overlap | 88.3% | 87.9% |
+| Media all-7 → 0 in one week | 6 (3f arm) | 11 |
+
+The clock works but has little to act on: launch gives covered regions ≥ ~0.55× national awareness, and regional
+radio (lerping to national `radioHeat`, +0.12×radioPlay awareness a week) lifts the rest over the 0.08 introduction
+line within a week or two, so almost every region's clock starts in weeks 1–3. The arrival is still national. 3b
+should show its effect once 3c makes regional radio local; scoring it alone against the timing targets is not
+meaningful. With 3b on by default, `local3b-1001-104` is the control for 3c. Inference from the launch and radio code, not measured: `localIntroAge` is not exported to telemetry.
+
 3f result (seed 1001, 104 weeks, from `MEDIA_FANS_TOPSELLERS` diagnostics; script `scratchpad/topsellers.py` → fold
 into SimTools if reused):
 
@@ -94,3 +119,6 @@ them yet, so 3b's check is where that matters).
   run. Expected direction (the seeded stars sit on Majors and now launch with recognition 0.4-0.7 instead of ~0), but
   inside the single-seed spread. Also watch: veteran members (40-55) reaching band-life age exits; former stars
   (Declining) being dropped early; Folk holds 4 of 12 established-hitmaker Stars.
+- **Local lifecycle clock (3b).** 1961 had 32 distinct #1 records vs 23 in the control (52 weeks either way), with
+  units at #1 and #10 up ~12-17%; 1960 was unchanged (23 vs 24). Single seed, one year: may be noise, but more #1s
+  means shorter tenure, which works against the #1-returns history (memory: tenure is returns, not run length).

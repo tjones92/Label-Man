@@ -508,8 +508,14 @@ public static class ChartSimulator {
 
 		// Records eventually leave the active demand cycle even when chart
 		// visibility keeps their effective awareness artificially high.
-		if (record.weeksSinceRelease > 8) {
-			int weeksOverThreshold = record.weeksSinceRelease - 8;
+		// Regional audience 3b: in live demand the clock is this region's own -- weeks since the record
+		// came into play here -- so a market that finds a record late is not handed one already aged
+		// elsewhere. A region the record has not reached yet is not aged at all.
+		int demandAge = stagedLiveDemand && RegionalAudience.LocalLifecycleClock
+			? regionalData.LocalAge(record.weeksSinceRelease)
+			: record.weeksSinceRelease;
+		if (demandAge > 8) {
+			int weeksOverThreshold = demandAge - 8;
 			conversionRate *= Mathf.Pow(DEMAND_AGE_DECAY_RATE, weeksOverThreshold);
 		}
 		
