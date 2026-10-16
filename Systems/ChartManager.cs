@@ -38,6 +38,9 @@ public partial class ChartManager : Node {
 	[Export] private bool localRadioFatigueEnabled = false;
 	// Regional audience 3g (hometown audience).
 	[Export] private bool hometownAudienceEnabled = false;
+	// Regional sync 5d and 5a-5c (SimTools/RegionalSyncDesign.md). Off until their short checks pass.
+	[Export] private bool localSignalsReadDemandEnabled = false;
+	[Export] private bool regionalArrivalEnabled = false;
 	// Media atmosphere (SimTools/MediaAtmosphereDirective.md): observe mode books rival acts onto TV and prints the
 	// listings; it writes nothing the economy reads. --disable-media-atmosphere turns it off.
 	[Export] private bool mediaAtmosphereObserve = true;
@@ -358,7 +361,8 @@ public partial class ChartManager : Node {
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
 		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
 		OpeningCareers.Configure(openingCareersEnabled, OS.GetCmdlineUserArgs());
-		RegionalAudience.Configure(localLifecycleClockEnabled, localRadioFatigueEnabled, hometownAudienceEnabled, OS.GetCmdlineUserArgs());
+		RegionalAudience.Configure(localLifecycleClockEnabled, localRadioFatigueEnabled, hometownAudienceEnabled,
+			localSignalsReadDemandEnabled, regionalArrivalEnabled, OS.GetCmdlineUserArgs());
 		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
 			worldLineupChurnEnabled ? LineupChurnScope.World :
 			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs(),
@@ -934,6 +938,7 @@ public partial class ChartManager : Node {
 		if (genreMarketLive && TimeManager.Instance != null)
 			RegionalAudience.ApplyLaunchDeposit(record, promotedArtist, TimeManager.Instance.CurrentDate);
 		if (genreMarketLive) RegionalAudience.ApplyLaunchProbe(record, label);
+		if (genreMarketLive) RegionalAudience.HoldUntilArrival(record, label, promotedArtist);
 		ArtistRecognitionService.RecordLaunchAudit(promotedArtist, record);
 
 		if (debugMode) {
@@ -1061,6 +1066,9 @@ public partial class ChartManager : Node {
 			if (record.baseRecord.format == ReleaseFormat.Album) continue;
 			UpdateLocalLifecycle(record);
 			UpdateRegionalBreakoutState(record, year);
+			// Regional sync 5a: arrival reads this week's breakout state and last week's chart, before restock.
+			if (RegionalAudience.RegionalArrival && genreMarketLive)
+				foreach (RegionalRecordData data in record.regionalData.Values) RegionalAudience.TryArrive(record, data);
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
@@ -1527,6 +1535,8 @@ public partial class ChartManager : Node {
 				// proved out on the chart -- reintroducing the phantom national sales (and distributor skim) that
 				// the release-time seed guard removes. Inert for AI records (never player-owned).
 				if (record.baseRecord.isPlayerOwned && !isCovered) continue;
+				// Regional sync 5a: nothing ships to a region the record has not reached; its held stock lands on arrival.
+				if (data.awaitingArrival) continue;
 
 				int stockBeforeSales = data.unitsInStores + data.unitsSoldThisWeek;
 				bool specialistUnchartedService = IsSpecialistUnchartedRestockEligible(record.baseRecord.primaryGenre,
@@ -1703,12 +1713,13 @@ public partial class ChartManager : Node {
 			float regionHeat = record.radioHeat;
 			if (localRadio) {
 				int weeksSinceLocalPeak = data.WeeksSinceLocalPeak(record.weeksSinceRelease);
+				int localUnits = RegionalAudience.LocalSignalUnits(data);
 				float localSupport = data.localPeakUnits > 0
-					? Mathf.Clamp(data.unitsSoldThisWeek / (float)data.localPeakUnits, 0f, 1f) : 1f;
+					? Mathf.Clamp(localUnits / (float)data.localPeakUnits, 0f, 1f) : 1f;
 				stationDropChance = ChartSimulator.GetStationDropChance(localSupport, weeksSinceLocalPeak);
 				float localHeat = ChartSimulator.GetLocalRadioHeatTarget(
 					record.radioHeatBaseTargetThisWeek + RegionalAudience.HometownRadioBoost(hometownArtist, region.regionId),
-					data.localSalesRank, data.unitsSoldThisWeek / Mathf.Max(0.001f, GetRegionalBuyingFraction(region)),
+					data.localSalesRank, localUnits / Mathf.Max(0.001f, GetRegionalBuyingFraction(region)),
 					weeksSinceLocalPeak);
 				regionHeat = Mathf.Lerp(record.radioHeat, localHeat, RegionalAudience.LocalHeatWeight);
 			}
@@ -1755,6 +1766,8 @@ public partial class ChartManager : Node {
 				// tailAccess is 1 in Phase 2a (folded in when the reporter/tail format split is dialled
 				// in at Phase 2b), so this expression is arithmetically identical to the former target.
 				float targetRegionalRadio = (seasonalRadio ? regionHeat / radioDifficulty * radioOpportunity * genreRadio : regionHeat / radioDifficulty * genreRadio) * radioBuild;
+				// Regional sync 5c: a station cannot programme a record it has not been serviced.
+				if (data.awaitingArrival) targetRegionalRadio = 0f;
 				// Stations phase a record out of rotation rather than dropping it, and this is the whole
 				// plateau: sales fall to 65% of peak in a single week, so airplay only holds a record up
 				// after its sales peak if it decays slower than that. The old 0.85/0.20 pair settled to
@@ -1902,11 +1915,15 @@ public partial class ChartManager : Node {
 		int age = record.weeksSinceRelease;
 		foreach (MarketRegion region in allRegions) {
 			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+			// Regional sync 5a: a region still waiting for the record has not had it in play; TryArrive sets
+			// the intro age the week it lands. 5d: local volume is demand, not restock-bound cleared units.
+			if (data.awaitingArrival) continue;
+			int localUnits = RegionalAudience.LocalSignalUnits(data);
 			if (data.localIntroAge < 0 && (data.awareness >= LocalIntroAwareness ||
-				data.unitsSoldThisWeek >= 150f * GetRegionalDemandScale(region)))
+				localUnits >= 150f * GetRegionalDemandScale(region)))
 				data.localIntroAge = age;
-			if (data.unitsSoldThisWeek > data.localPeakUnits) {
-				data.localPeakUnits = data.unitsSoldThisWeek;
+			if (localUnits > data.localPeakUnits) {
+				data.localPeakUnits = localUnits;
 				data.localPeakAge = age;
 			}
 		}
@@ -1925,7 +1942,8 @@ public partial class ChartManager : Node {
 			foreach (var record in singles) {
 				if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
 				data.localSalesRank = 0;
-				if (data.unitsSoldThisWeek > 0) ranked.Add((data.unitsSoldThisWeek, record.baseRecord.recordId, data));
+				int localUnits = RegionalAudience.LocalSignalUnits(data);
+				if (localUnits > 0) ranked.Add((localUnits, record.baseRecord.recordId, data));
 			}
 			ranked.Sort((a, b) => a.Units != b.Units ? b.Units.CompareTo(a.Units) : string.CompareOrdinal(a.Id, b.Id));
 			for (int i = 0; i < ranked.Count; i++) ranked[i].Data.localSalesRank = i + 1;

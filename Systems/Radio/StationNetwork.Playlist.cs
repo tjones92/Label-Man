@@ -325,6 +325,9 @@ public sealed partial class StationNetwork {
 			float formatMatch = FormatMatch(f.profile, station.format, f.family, integration, rockCrossover, station.latinLeaning);
 			if (formatMatch <= 0f) continue;                        // format never admits this genre
 			if (!incumbent && !f.inCirculation) continue;           // not on the air and not circulating
+			// Regional sync 5c: a station cannot add a record it has not been serviced (not yet arrived here).
+			if (!incumbent && f.rec.regionalData.TryGetValue(station.regionId, out RegionalRecordData local) &&
+				local.awaitingArrival) continue;
 
 			// Re-add hysteresis: a record this station dropped cannot re-enter for MIN_READD_WEEKS.
 			bool everDropped = rt.droppedOnWeek.TryGetValue(f.id, out int droppedWeek);

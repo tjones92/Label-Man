@@ -39,12 +39,14 @@ public static class RegionalAudience {
 	public const float HometownRadioHeat = 0.10f;
 
 	public static void Configure(bool localLifecycleClockDefault, bool localRadioFatigueDefault, bool hometownAudienceDefault,
-		IEnumerable<string> arguments) {
+		bool localSignalsReadDemandDefault, bool regionalArrivalDefault, IEnumerable<string> arguments) {
 		if (configured) return;
 		var args = new List<string>(arguments ?? Array.Empty<string>());
 		localLifecycleClock = Switch(args, "local-lifecycle-clock", localLifecycleClockDefault);
 		localRadioFatigue = Switch(args, "local-radio-fatigue", localRadioFatigueDefault);
 		hometownAudience = Switch(args, "hometown-audience", hometownAudienceDefault);
+		localSignalsReadDemand = Switch(args, "local-signals-read-demand", localSignalsReadDemandDefault);
+		regionalArrival = Switch(args, "regional-arrival", regionalArrivalDefault);
 		probeRegionalAwarenessOnly = args.Contains("--probe-sync-regional-awareness-only");
 		probeNoFloors = probeRegionalAwarenessOnly || args.Contains("--probe-sync-no-floors");
 		probeNoBlend = probeRegionalAwarenessOnly || args.Contains("--probe-sync-no-blend");
@@ -60,6 +62,96 @@ public static class RegionalAudience {
 	private static bool probeRegionalAwarenessOnly, probeLateUncovered, probeNoFloors, probeNoBlend;
 	public static bool ProbeNoFloors => probeNoFloors;
 	public static bool ProbeNoBlend => probeNoBlend;
+
+	// Regional sync (SimTools/RegionalSyncDesign.md). 5d: the local readers -- local peak and intro, the region's
+	// sales list, the 3c support ratio and local heat, the 3f sales standing -- read the week's raw demand instead of
+	// cleared units, so they measure buyers rather than restock timing. 5a-5c: a live single reaches a region its
+	// label does not ship to only when one of the existing local-access paths fires; until then it has no launch
+	// seed, no national awareness blend and no rotation target there.
+	private static bool localSignalsReadDemand, regionalArrival;
+	public static bool LocalSignalsReadDemand => localSignalsReadDemand;
+	public static bool RegionalArrival => regionalArrival;
+	/// <summary>The neighbour-market strength ChartManager already counts as a test market.</summary>
+	public const float ArrivalTestMarketStrength = 0.08f;
+	/// <summary>The region's own breakout score at which CalculateRegionalSales starts paying it discovery.</summary>
+	public const float ArrivalBreakoutScore = 0.24f;
+	/// <summary>One-stops racked the national list: a national top-40 record ships everywhere. The pass reads last
+	/// week's chart and the deposit reaches demand the week after, which is the one-week shipping lag.</summary>
+	public const int ArrivalChartDepth = 40;
+	/// <summary>5b: the share of the national awareness blend a region hears of before the record arrives there.</summary>
+	public const float HearsayShare = 0.25f;
+
+	/// <summary>This week's local sales evidence for a region: raw demand under 5d, else cleared units; 0 before arrival.</summary>
+	public static int LocalSignalUnits(RegionalRecordData data) {
+		if (data == null || data.awaitingArrival) return 0;
+		return localSignalsReadDemand ? Math.Max(0, (int)Math.Round(data.rawDemandThisWeek)) : data.unitsSoldThisWeek;
+	}
+
+	/// <summary>
+	/// 5a launch: a live single arrives at once where its label ships it, in the label's strong regions and in the
+	/// act's home region. Everywhere else the launch seed the launch loop just drew is held aside -- the draws are
+	/// unchanged -- and the region waits for <see cref="TryArrive"/>.
+	/// </summary>
+	public static void HoldUntilArrival(RecordRuntimeData record, AILabel label, SimulatedArtist artist) {
+		if (!regionalArrival || record?.regionalData == null || label == null) return;
+		if (record.baseRecord.format == ReleaseFormat.Album || record.baseRecord.isPlayerOwned) return;
+		string home = HomeRegionId(artist);
+		int age = Math.Max(1, record.weeksSinceRelease);
+		foreach (var pair in record.regionalData) {
+			RegionalRecordData data = pair.Value;
+			if (label.HasDistributionInRegionForRecord(pair.Key, record.baseRecord.recordId) ||
+				(label.strongRegions != null && Array.IndexOf(label.strongRegions, pair.Key) >= 0) || pair.Key == home) {
+				data.arrivalAge = age;
+				arrivedAtLaunch++;
+				continue;
+			}
+			data.awaitingArrival = true;
+			data.pendingLaunchAwareness = data.awareness;
+			data.pendingLaunchRadio = data.radioPlay;
+			data.pendingLaunchStock = data.unitsInStores;
+			data.awareness = 0f;
+			data.radioPlay = 0f;
+			data.unitsInStores = 0;
+			if (++held % 2000 == 0) PrintArrival();
+		}
+	}
+
+	/// <summary>
+	/// 5a weekly: a waiting region takes the record the week any local-access path fires -- a neighbour test, its
+	/// own breakout, a rack jobber buying it on regional proof, or the national top 40. The held launch seed lands
+	/// then. Reads settled state only; no draws.
+	/// </summary>
+	public static void TryArrive(RecordRuntimeData record, RegionalRecordData data) {
+		if (data == null || !data.awaitingArrival) return;
+		int trigger =
+			record.currentPosition >= 1 && record.currentPosition <= ArrivalChartDepth ? 0
+			: data.neighboringMarketTestStrength >= ArrivalTestMarketStrength ? 1
+			: data.breakoutScore > ArrivalBreakoutScore ? 2
+			: ChartSimulator.GetRackJobberAccess(0, data.peakBreakoutScore) > 0f ? 3
+			: -1;
+		if (trigger < 0) return;
+		int age = Math.Max(1, record.weeksSinceRelease);
+		data.awaitingArrival = false;
+		data.arrivalAge = age;
+		if (data.localIntroAge < 0) data.localIntroAge = age;
+		data.awareness = Math.Clamp(data.awareness + data.pendingLaunchAwareness, 0f, 1f);
+		data.radioPlay = Math.Clamp(data.radioPlay + data.pendingLaunchRadio, 0f, 1f);
+		data.unitsInStores += data.pendingLaunchStock;
+		data.pendingLaunchAwareness = data.pendingLaunchRadio = 0f;
+		data.pendingLaunchStock = 0;
+		arrivalsByTrigger[trigger]++;
+		arrivalAgeSum += age;
+		if (ArrivalCount() % 250 == 0) PrintArrival();
+	}
+	// Console diagnostics only (no CSV reads them).
+	private static int arrivedAtLaunch, held;
+	private static readonly int[] arrivalsByTrigger = new int[4];
+	private static long arrivalAgeSum;
+	private static int ArrivalCount() => arrivalsByTrigger[0] + arrivalsByTrigger[1] + arrivalsByTrigger[2] + arrivalsByTrigger[3];
+	private static void PrintArrival() =>
+		Godot.GD.Print($"REGIONAL_ARRIVAL atLaunch={arrivedAtLaunch} held={held} chart={arrivalsByTrigger[0]} " +
+			$"test={arrivalsByTrigger[1]} breakout={arrivalsByTrigger[2]} rack={arrivalsByTrigger[3]} " +
+			$"meanAge={arrivalAgeSum / (double)Math.Max(1, ArrivalCount()):F2}");
 
 	public static void ApplyLaunchProbe(RecordRuntimeData record, AILabel label) {
 		if (!probeLateUncovered || record?.regionalData == null || label == null) return;
@@ -136,7 +228,9 @@ public static class RegionalAudience {
 		return enable || (!disable && sceneDefault);
 	}
 
-	internal static void ConfigureForProbe(bool localClock, bool localRadio = false, bool hometown = false) {
+	internal static void ConfigureForProbe(bool localClock, bool localRadio = false, bool hometown = false,
+		bool signalsReadDemand = false, bool arrival = false) {
 		configured = true; localLifecycleClock = localClock; localRadioFatigue = localRadio; hometownAudience = hometown;
+		localSignalsReadDemand = signalsReadDemand; regionalArrival = arrival;
 	}
 }

@@ -106,6 +106,13 @@ public class RegionalRecordData {
 	public int localPeakAge = -1;
 	// This week's rank on the region's single sales list (1 = best seller), 0 if unranked or not computed.
 	public int localSalesRank;
+	// Regional arrival (RegionalSyncDesign 5a). Only ever set while RegionalAudience.RegionalArrival is on, so the
+	// default (false) means "in play" for albums, player records, older saves and switched-off runs. While waiting,
+	// the launch seed drawn for this region is held in the pending fields and lands on arrival.
+	public bool awaitingArrival;
+	public int arrivalAge = -1;
+	public float pendingLaunchAwareness, pendingLaunchRadio;
+	public int pendingLaunchStock;
 
 	/// <summary>Weeks this region has had the record in play, counting the arrival week as 1; 0 before it arrives.</summary>
 	public int LocalAge(int weeksSinceRelease) => localIntroAge < 0 ? 0 : Math.Max(1, weeksSinceRelease - localIntroAge + 1);

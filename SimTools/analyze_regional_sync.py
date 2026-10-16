@@ -61,8 +61,7 @@ def settlement(path, min_units):
     idx = big.groupby(["recordId", "regionId"], observed=True).finalCleared.idxmax()
     pk = big.loc[idx, ["recordId", "week"]]
     s = pk.groupby("recordId", observed=True).week.agg(lambda w: w.max() - w.min())
-    out["peakSpread"] = {"records": int(len(s)), "median": float(s.median()), "share0": round(float((s == 0).mean()), 4),
-                         "shareGe4": round(float((s >= 4).mean()), 4), "shareGe8": round(float((s >= 8).mean()), 4)}
+    out["peakSpread"] = spread_stats(s)
     top = d[d.finalCleared > 0].sort_values("finalCleared", ascending=False).groupby(["week", "regionId"], observed=True).head(11)
     overlaps = []
     for _, wk in top.groupby("week"):
@@ -74,6 +73,31 @@ def settlement(path, min_units):
     return out
 
 
+def spread_stats(s):
+    return {"records": int(len(s)), "median": float(s.median()), "share0": round(float((s == 0).mean()), 4),
+            "shareGe4": round(float((s >= 4).mean()), 4), "shareGe8": round(float((s >= 8).mean()), 4)}
+
+
+def raw_timing(path, min_units):
+    """Peak and arrival timing on raw demand (before stock), so stockouts cannot fake regional timing.
+    Arrival: the first week a region's demand reaches 10% of its own peak (RegionalSyncDesign.md section 2)."""
+    d = pd.read_csv(path, usecols=["week", "recordId", "region", "rawDemand"],
+                    dtype={"recordId": "category", "region": "category"})
+    tot = d.groupby("recordId", observed=True).rawDemand.sum()
+    d = d[d.recordId.isin(tot[tot >= min_units].index)]
+    d = d[d.groupby("recordId", observed=True).region.transform("nunique") == d.region.nunique()]
+    start = d.groupby("recordId", observed=True).week.transform("min")
+    d = d.assign(age=d.week - start + 1)
+    g = d.groupby(["recordId", "region"], observed=True)
+    pk = d.loc[g.rawDemand.idxmax(), ["recordId", "region", "age", "rawDemand"]]
+    peak = pk.groupby("recordId", observed=True).age.agg(lambda w: w.max() - w.min())
+    d = d.merge(pk[["recordId", "region", "rawDemand"]].rename(columns={"rawDemand": "peak"}), on=["recordId", "region"])
+    arr = d[d.rawDemand >= 0.1 * d.peak].groupby(["recordId", "region"], observed=True).age.min().reset_index()
+    spread = arr.groupby("recordId", observed=True).age.agg(lambda w: w.max() - w.min())
+    return {"rawPeakSpread": spread_stats(peak), "arrivalSpread": spread_stats(spread),
+            "meanArrivalAgeByRegion": {str(k): round(float(v), 2) for k, v in arr.groupby("region", observed=True).age.mean().items()}}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("prefix")
@@ -82,7 +106,9 @@ def main():
     res = {"prefix": a.prefix}
     stages = a.prefix + "-single-demand-stages.csv"
     settle = a.prefix + "-completed-week-settlement-regional.csv"
-    if os.path.exists(stages): res["decomposition"] = decompose(stages)
+    if os.path.exists(stages):
+        res["decomposition"] = decompose(stages)
+        res["rawTiming"] = raw_timing(stages, a.min_units)
     if os.path.exists(settle): res["settlement"] = settlement(settle, a.min_units)
     if len(res) == 1: sys.exit("no input CSVs for " + a.prefix)
     print(json.dumps(res, indent=2))

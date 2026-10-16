@@ -446,8 +446,15 @@ public static class ChartSimulator {
 		float effectiveAwareness = (record.awareness * 0.4f) + (regionalData.awareness * 0.6f);
 		bool stagedLiveDemand = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		if (stagedLiveDemand && RegionalAudience.ProbeNoBlend) effectiveAwareness = regionalData.awareness;
-		
-		if (stagedLiveDemand && RegionalAudience.ProbeNoFloors) { }
+		// Regional sync 5b: national awareness reaches a region through its own channels, so a region the record
+		// has not arrived in sees what its own breakout and neighbours gave it plus only a hearsay share of the
+		// national stock -- and no chart floor, since the floors stand in for that same stock. With no shelf stock
+		// before arrival, the hearsay demand is unserved: it piles up as backorders and feeds the region's breakout.
+		bool awaitingArrival = stagedLiveDemand && regionalData.awaitingArrival;
+		if (awaitingArrival)
+			effectiveAwareness = regionalData.awareness * 0.6f + record.awareness * 0.4f * RegionalAudience.HearsayShare;
+
+		if (awaitingArrival || (stagedLiveDemand && RegionalAudience.ProbeNoFloors)) { }
 		else if (record.currentPosition > 0 && record.currentPosition <= 10) {
 			effectiveAwareness = Mathf.Max(effectiveAwareness, 0.7f);
 		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {

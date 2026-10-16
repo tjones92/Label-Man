@@ -72,7 +72,7 @@ public static partial class MediaAtmosphereService {
 			var units = new Dictionary<string, long>(StringComparer.Ordinal);
 			long total = 0;
 			foreach (RecordRuntimeData s in singles) {
-				int u = s.regionalData.TryGetValue(region, out var rd) && rd != null ? rd.unitsSoldThisWeek : 0;
+				int u = s.regionalData.TryGetValue(region, out var rd) ? RegionalAudience.LocalSignalUnits(rd) : 0;
 				if (u <= 0) continue;
 				units[s.baseRecord.artistId] = units.GetValueOrDefault(s.baseRecord.artistId) + u;
 				total += u;
@@ -145,7 +145,7 @@ public static partial class MediaAtmosphereService {
 		if (MediaFans.SoftSalesStanding) SalesStandingWeek(regions, singles, sales, topSeller);
 		else for (int i = 0; i < r; i++) {
 			string region = regions[i].regionId;
-			var ranked = singles.Select(s => (Record: s, Units: s.regionalData.TryGetValue(region, out var rd) && rd != null ? rd.unitsSoldThisWeek : 0))
+			var ranked = singles.Select(s => (Record: s, Units: s.regionalData.TryGetValue(region, out var rd) ? RegionalAudience.LocalSignalUnits(rd) : 0))
 				.Where(x => x.Units > 0).OrderByDescending(x => x.Units).ThenBy(x => x.Record.baseRecord.recordId, StringComparer.Ordinal).Take(SalesRankDepth).ToList();
 			for (int k = 0; k < ranked.Count; k++) {
 				float[] row = Row(sales, ranked[k].Record.baseRecord.artistId);

@@ -3793,6 +3793,7 @@ public partial class CompetitorManager : Node {
 		if (ChartManager.Instance?.IsGenreMarketV2Live == true && TimeManager.Instance != null)
 			RegionalAudience.ApplyLaunchDeposit(runtimeData, artist, TimeManager.Instance.CurrentDate);
 		if (ChartManager.Instance?.IsGenreMarketV2Live == true) RegionalAudience.ApplyLaunchProbe(runtimeData, label);
+		if (ChartManager.Instance?.IsGenreMarketV2Live == true) RegionalAudience.HoldUntilArrival(runtimeData, label, artist);
 		ArtistRecognitionService.RecordLaunchAudit(artist, runtimeData);
 
 		if (debugMode) GD.Print($"  Promotion: Awareness={runtimeData.awareness:F2}, Radio={runtimeData.radioHeat:F2}");
