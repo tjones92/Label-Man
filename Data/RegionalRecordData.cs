@@ -97,6 +97,20 @@ public class RegionalRecordData {
 	public int tractionWeeks;
 	public int collapseWeeks;
 
+	// Local lifecycle (regional audience design 3a). A region has its own arrival and its own best
+	// week, so its clocks can run apart from the national ones. Ages are record ages
+	// (weeksSinceRelease), like stationDropAge, so they need no chart-week bookkeeping on load.
+	// -1 = the record is not yet in play here.
+	public int localIntroAge = -1;
+	public int localPeakUnits;
+	public int localPeakAge = -1;
+
+	/// <summary>Weeks this region has had the record in play, counting the arrival week as 1; 0 before it arrives.</summary>
+	public int LocalAge(int weeksSinceRelease) => localIntroAge < 0 ? 0 : Math.Max(1, weeksSinceRelease - localIntroAge + 1);
+
+	/// <summary>Weeks since this region's best week, the regional twin of weeksSincePeakUnits; 0 before any sale.</summary>
+	public int WeeksSinceLocalPeak(int weeksSinceRelease) => localPeakAge < 0 ? 0 : Math.Max(0, weeksSinceRelease - localPeakAge);
+
 	// Demand-led discovery state. This is intentionally independent of restocking.
 	public float breakoutScore;
 	public float peakBreakoutScore;
@@ -142,6 +156,8 @@ public class RegionalRecordData {
 		jukeboxPlay = 0f;
 		stationsDropped = false;
 		stationDropAge = -1;
+		localIntroAge = -1;
+		localPeakAge = -1;
 		unitsInStores = 0;
 		unitsBackordered = 0;
 		unitsSoldThisWeek = 0;

@@ -44,6 +44,27 @@ lowers regional names' recognition.
 Not verified: `--no-opening-careers` byte-identity against the canopy path, and a player save/load of `publicHistory`
 (audit-world saves carry it).
 
+## Step 3 — regional audience causality
+
+Design: [RegionalAudienceDesign.md](RegionalAudienceDesign.md) (approved 2026-10-15: λ 0.35, μ 0.30, target band as
+written, 3d last and optional). Order 3a → 3f → 3b → 3c → 3d → 3e. Metric: `SimTools/analyze_regional_sync.py <prefix>`
+(needs a full-telemetry run, not `--calibration`). Control for this step: `SimLogs/ref-781a445-1001-104` (full telemetry).
+
+Baseline (audit seed-1001 13-week run): demand level 98.3% common, weekly change 99.3% common (conversion 72.9%,
+awareness 26.4%), awareness floors bind on 1.5% of rows, top-11 overlap 85.1%. Mid-decade 50k+ records: regional
+peak-week spread median 1 week, 1.3% ≥ 8 weeks.
+
+| Sub-step | Change | Short check | Status |
+|---|---|---|---|
+| 3a | `RegionalRecordData.localIntroAge / localPeakUnits / localPeakAge` (record ages; intro = awareness ≥ 0.08 or units ≥ 150 × regionScale), written weekly for singles before the breakout pass; nothing reads them. Saved (old saves: a region that has sold is in play from age 1). | `local3a-1001-104` vs `ref-781a445-1001-104`: all 84 CSVs byte-identical (inert, as designed) | Done |
+
+Control sync baseline, `ref-781a445-1001-104` (104 weeks, 280,613 record-weeks): level 98.9% common, weekly change
+99.6% common (conversion 74.6%, awareness 25.0%), peak-week spread median 1 week (20.3% same week, 9.6% ≥ 4, 0.2% ≥ 8;
+1,461 records over 50k units), top-11 overlap 88.3%. Every later sub-step is scored against these numbers.
+
+Not verified: player save/load round-trip of the three new fields (`SaveLoadRoundTripRunner` not run; nothing reads
+them yet, so 3b's check is where that matters).
+
 ## Decade watch list (end-of-audit A/B)
 
 - **Major-family chart share / concentration.** Short run, 1961: Major-family share 47.5% → 56.7%, C4 0.150 →

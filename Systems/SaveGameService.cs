@@ -1082,6 +1082,10 @@ public sealed class RegionalRecordSaveData {
 	public int sustainedGrowthWeeks { get; set; }
 	public int tractionWeeks { get; set; }
 	public int collapseWeeks { get; set; }
+	// Local lifecycle (regional audience 3a). Null in saves written before it existed.
+	public int? localIntroAge { get; set; }
+	public int localPeakUnits { get; set; }
+	public int localPeakAge { get; set; } = -1;
 
 	public static RegionalRecordSaveData From(RegionalRecordData d) => new() {
 		regionId = d.regionId, awareness = d.awareness, sentiment = d.sentiment, radioPlay = d.radioPlay,
@@ -1089,7 +1093,8 @@ public sealed class RegionalRecordSaveData {
 		stationDropAge = d.stationDropAge, unitsInStores = d.unitsInStores, unitsBackordered = d.unitsBackordered,
 		unitsSoldTotal = d.unitsSoldTotal, breakoutScore = d.breakoutScore, peakBreakoutScore = d.peakBreakoutScore,
 		breakoutStage = (int)d.breakoutStage, salesVelocity = d.salesVelocity,
-		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks
+		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks,
+		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge
 	};
 
 	public RegionalRecordData ToRegional() {
@@ -1099,7 +1104,11 @@ public sealed class RegionalRecordSaveData {
 			unitsInStores = unitsInStores, unitsBackordered = unitsBackordered, unitsSoldTotal = unitsSoldTotal,
 			breakoutScore = breakoutScore, peakBreakoutScore = peakBreakoutScore,
 			breakoutStage = (RegionalBreakoutStage)breakoutStage, salesVelocity = salesVelocity,
-			sustainedGrowthWeeks = sustainedGrowthWeeks, tractionWeeks = tractionWeeks, collapseWeeks = collapseWeeks
+			sustainedGrowthWeeks = sustainedGrowthWeeks, tractionWeeks = tractionWeeks, collapseWeeks = collapseWeeks,
+			// An older save has no arrival; a region that has already sold is treated as in play from
+			// release, which is what every region's clock was before local clocks existed.
+			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
+			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge
 		};
 		return d;
 	}

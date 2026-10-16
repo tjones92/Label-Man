@@ -1048,7 +1048,9 @@ public partial class ChartManager : Node {
 		// Demand evidence is evaluated before replenishment so inventory exhaustion
 		// cannot masquerade as audience growth.
 		foreach (var record in allRecords) {
-			if (record.baseRecord.format != ReleaseFormat.Album) UpdateRegionalBreakoutState(record, year);
+			if (record.baseRecord.format == ReleaseFormat.Album) continue;
+			UpdateLocalLifecycle(record);
+			UpdateRegionalBreakoutState(record, year);
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
@@ -1857,6 +1859,28 @@ public partial class ChartManager : Node {
 		float rawVolume = Mathf.Clamp((rawDemandThisWeek - 150f * scale) / (3500f * scale), 0f, 1f);
 		float fulfilledVolume = Mathf.Clamp(unitsSoldThisWeek / (3000f * scale), 0f, 1f);
 		return rawVolume * 0.70f + fulfilledVolume * 0.30f;
+	}
+
+	// A region has a record "in play" once its audience knows it or it sells there at the volume the
+	// breakout pass already treats as real demand. Regional audience design 3a: written, not yet read.
+	internal const float LocalIntroAwareness = 0.08f;
+
+	/// <summary>
+	/// Each region's own arrival and best week for a single, against this week's settled sales. Pure
+	/// state bookkeeping: no draws, and nothing reads it until the local clocks are switched on.
+	/// </summary>
+	private void UpdateLocalLifecycle(RecordRuntimeData record) {
+		int age = record.weeksSinceRelease;
+		foreach (MarketRegion region in allRegions) {
+			if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) continue;
+			if (data.localIntroAge < 0 && (data.awareness >= LocalIntroAwareness ||
+				data.unitsSoldThisWeek >= 150f * GetRegionalDemandScale(region)))
+				data.localIntroAge = age;
+			if (data.unitsSoldThisWeek > data.localPeakUnits) {
+				data.localPeakUnits = data.unitsSoldThisWeek;
+				data.localPeakAge = age;
+			}
+		}
 	}
 
 	private void UpdateRegionalBreakoutState(RecordRuntimeData record, int year) {
