@@ -56,6 +56,70 @@ public static partial class MediaAtmosphereService {
 	private static bool FanCoverage(StoryAngle angle) =>
 		angle is StoryAngle.TeenFeature or StoryAngle.TvNotice or StoryAngle.FanScene or StoryAngle.Hometown or StoryAngle.CulturalPhenomenon or StoryAngle.TvAdvance;
 
+	/// <summary>
+	/// Regional audience 3f. Each act's share of each region's single sales this week (every single it has out, summed)
+	/// updates its smoothed standing; acts are ranked on standing within the region. The sales row keeps the former
+	/// 1 - k/20 scale so attachment deposits are comparable; the top-seller latch enters at rank 9 and leaves outside
+	/// rank 17, so a soft week costs an act ranks, not every region at once.
+	/// </summary>
+	private static void SalesStandingWeek(IReadOnlyList<MarketRegion> regions, List<RecordRuntimeData> singles,
+		Dictionary<string, float[]> sales, Dictionary<string, bool[]> topSeller) {
+		int r = regions.Count;
+		var standing = state.SalesStanding;
+		var latched = state.TopSellerIn;
+		for (int i = 0; i < r; i++) {
+			string region = regions[i].regionId;
+			var units = new Dictionary<string, long>(StringComparer.Ordinal);
+			long total = 0;
+			foreach (RecordRuntimeData s in singles) {
+				int u = s.regionalData.TryGetValue(region, out var rd) && rd != null ? rd.unitsSoldThisWeek : 0;
+				if (u <= 0) continue;
+				units[s.baseRecord.artistId] = units.GetValueOrDefault(s.baseRecord.artistId) + u;
+				total += u;
+			}
+			var ids = new SortedSet<string>(units.Keys, StringComparer.Ordinal);
+			foreach (var pair in standing) if (pair.Value.ContainsKey(region)) ids.Add(pair.Key);
+			var ranked = new List<(string Id, float Standing)>();
+			foreach (string id in ids) {
+				float share = total > 0 ? units.GetValueOrDefault(id) / (float)total : 0f;
+				standing.TryGetValue(id, out var byRegion);
+				float next = MediaFans.NextStanding(byRegion != null && byRegion.TryGetValue(region, out float s) ? s : 0f, share);
+				if (next < MediaFans.StandingPruneShare) {
+					if (byRegion != null) { byRegion.Remove(region); if (byRegion.Count == 0) standing.Remove(id); }
+					continue;
+				}
+				if (byRegion == null) standing[id] = byRegion = new Dictionary<string, float>(StringComparer.Ordinal);
+				byRegion[region] = next;
+				ranked.Add((id, next));
+			}
+			ranked.Sort((a, b) => a.Standing != b.Standing ? b.Standing.CompareTo(a.Standing) : string.CompareOrdinal(a.Id, b.Id));
+			var rankOf = new Dictionary<string, int>(StringComparer.Ordinal);
+			for (int k = 0; k < ranked.Count && k < Math.Max(SalesRankDepth, MediaFans.TopSellerExitRank); k++) {
+				rankOf[ranked[k].Id] = k + 1;
+				if (k < SalesRankDepth) {
+					if (!sales.TryGetValue(ranked[k].Id, out float[] row)) sales[ranked[k].Id] = row = new float[r];
+					row[i] = 1f - k / (float)SalesRankDepth;
+				}
+			}
+			var ever = new SortedSet<string>(rankOf.Keys, StringComparer.Ordinal);
+			foreach (var pair in latched) if (pair.Value.Contains(region)) ever.Add(pair.Key);
+			foreach (string id in ever) {
+				latched.TryGetValue(id, out var set);
+				bool was = set != null && set.Contains(region);
+				bool now = MediaFans.TopSeller(was, rankOf.GetValueOrDefault(id));
+				if (now) {
+					if (set == null) latched[id] = set = new HashSet<string>(StringComparer.Ordinal);
+					set.Add(region);
+					if (!topSeller.TryGetValue(id, out bool[] flags)) topSeller[id] = flags = new bool[r];
+					flags[i] = true;
+				} else if (set != null) {
+					set.Remove(region);
+					if (set.Count == 0) latched.Remove(id);
+				}
+			}
+		}
+	}
+
 	private static void FansWeek(Evidence evidence, GameDate weekEnd) {
 		var regions = evidence.Regions;
 		int r = regions.Count;
@@ -77,7 +141,9 @@ public static partial class MediaAtmosphereService {
 			string artist = s.baseRecord.artistId;
 			if (!best.TryGetValue(artist, out var cur) || Better(s, cur)) best[artist] = s;
 		}
-		for (int i = 0; i < r; i++) {
+		var topSeller = new Dictionary<string, bool[]>(StringComparer.Ordinal);
+		if (MediaFans.SoftSalesStanding) SalesStandingWeek(regions, singles, sales, topSeller);
+		else for (int i = 0; i < r; i++) {
 			string region = regions[i].regionId;
 			var ranked = singles.Select(s => (Record: s, Units: s.regionalData.TryGetValue(region, out var rd) && rd != null ? rd.unitsSoldThisWeek : 0))
 				.Where(x => x.Units > 0).OrderByDescending(x => x.Units).ThenBy(x => x.Record.baseRecord.recordId, StringComparer.Ordinal).Take(SalesRankDepth).ToList();
@@ -86,6 +152,8 @@ public static partial class MediaAtmosphereService {
 				row[i] = Math.Max(row[i], 1f - k / (float)SalesRankDepth);
 			}
 		}
+		if (!MediaFans.SoftSalesStanding)
+			foreach (var pair in sales) topSeller[pair.Key] = pair.Value.Select(v => v >= 0.5f).ToArray();
 
 		// Television: the share of a region's teenagers who saw the act this week, scaled by how it went.
 		var tv = new Dictionary<string, float[]>(StringComparer.Ordinal);
@@ -147,7 +215,7 @@ public static partial class MediaAtmosphereService {
 		var acts = new SortedSet<string>(StringComparer.Ordinal);
 		acts.UnionWith(state.Fans.Keys); acts.UnionWith(tv.Keys); acts.UnionWith(press.Keys);
 		// Selling alone opens a record only where it sells near the top: a fan record isn't kept for every single in the shops.
-		foreach (var pair in sales) if (pair.Value.Any(v => v >= 0.5f)) acts.Add(pair.Key);
+		foreach (var pair in topSeller) if (pair.Value.Any(v => v)) acts.Add(pair.Key);
 
 		foreach (string id in acts) {
 			sales.TryGetValue(id, out float[] sv);
@@ -184,18 +252,22 @@ public static partial class MediaAtmosphereService {
 				foreach (var (key, teens, spark) in shotList) SpotlightDeposit(fs, artist, "tv|" + key, (float)(0.12 * Math.Min(1.0, teens / 3e6) * spark / 1.2), year);
 			if (letters.TryGetValue(id, out long mail)) fs.Letters += mail;
 
+			int topSellerRegions = topSeller.TryGetValue(id, out bool[] ts) ? ts.Count(x => x) : 0;
 			var week = new FanWeek {
 				Day = today,
-				Families = (sv != null && sv.Any(x => x >= 0.5f) ? FanEvidence.Sales : 0) | (tvResponse.Contains(id) ? FanEvidence.TvResponse : 0) | (covered.Contains(id) ? FanEvidence.Coverage : 0),
+				Families = (topSellerRegions > 0 ? FanEvidence.Sales : 0) | (tvResponse.Contains(id) ? FanEvidence.TvResponse : 0) | (covered.Contains(id) ? FanEvidence.Coverage : 0),
 				WarmRegions = fs.Attachment.Values.Count(x => x >= MediaFans.WarmAt),
 				HotRegions = fs.Attachment.Values.Count(x => x >= MediaFans.HotAt),
-				SellingRegions = sv?.Count(x => x >= 0.5f) ?? 0,
+				TopSellerRegions = topSellerRegions,
 				NationalExposure = nationalExposure.Contains(id),
 				Extraordinary = record != null && (record.currentPosition is >= 1 and <= 3 && evidence.Breadth(record) >= 0.6f || Precursor(record, evidence) >= 0.5f),
 			};
 			if (MediaFans.Diagnostics && week.WarmRegions >= 2)
 				Godot.GD.Print($"MEDIA_FANS_WEEK day={today} act=\"{fs.ArtistName}\" id={id} att={string.Join(";", fs.Attachment.Values.OrderByDescending(v => v).Select(v => v.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)))} " +
-					$"selling={week.SellingRegions} fam={(int)week.Families} natex={(week.NationalExposure ? 1 : 0)} extra={(week.Extraordinary ? 1 : 0)} pos={record?.currentPosition ?? 0} state={fs.State}");
+					$"topSellers={week.TopSellerRegions} fam={(int)week.Families} natex={(week.NationalExposure ? 1 : 0)} extra={(week.Extraordinary ? 1 : 0)} pos={record?.currentPosition ?? 0} state={fs.State}");
+			if (MediaFans.Diagnostics && week.TopSellerRegions != fs.LastTopSellerRegions)
+				Godot.GD.Print($"MEDIA_FANS_TOPSELLERS day={today} id={id} from={fs.LastTopSellerRegions} to={week.TopSellerRegions} of={r} pos={record?.currentPosition ?? 0} units={record?.unitsThisWeek ?? 0}");
+			fs.LastTopSellerRegions = week.TopSellerRegions;
 			if (MediaFans.Advance(fs, week, r)) {
 				string line = $"{FromDayIndex(today).ToShortString()}  {MediaFans.Describe(fs.State)}" +
 					(fs.State == FanEpisodeState.Cooldown ? $" (was {MediaFans.Describe(fs.TransitionFrom)})" : "");

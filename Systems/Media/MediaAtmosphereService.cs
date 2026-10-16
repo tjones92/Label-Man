@@ -93,6 +93,10 @@ public sealed class MediaSaveData {
 	// Phase 3 (media-owned; nothing the economy reads).
 	/// <summary>Teen attachment, fan episodes and member spotlight by act (§2, §10).</summary>
 	public Dictionary<string, MediaFanState> Fans { get; set; } = new();
+	/// <summary>Regional audience 3f: each act's smoothed share of a region's single sales, by artistId then regionId.</summary>
+	public Dictionary<string, Dictionary<string, float>> SalesStanding { get; set; } = new();
+	/// <summary>Regional audience 3f: the regions where each act is latched as a top seller.</summary>
+	public Dictionary<string, HashSet<string>> TopSellerIn { get; set; } = new();
 	/// <summary>AI campaign allocation views by record (§12.2): estimates of an envelope already charged, with reservation receipts.</summary>
 	public Dictionary<string, AiMediaAllocation> AiAllocations { get; set; } = new();
 	public List<AiMediaPitch> AiPitches { get; set; } = new();

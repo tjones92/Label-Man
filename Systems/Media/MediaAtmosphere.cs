@@ -33,6 +33,7 @@ public static class MediaAtmosphere {
 			if (argument.StartsWith("--media-fan-hot=", StringComparison.Ordinal))
 				MediaFans.HotAt = float.Parse(argument["--media-fan-hot=".Length..], CultureInfo.InvariantCulture);
 			if (argument == "--media-fan-diagnostics") MediaFans.Diagnostics = true;
+			if (argument == "--media-hard-sales-rank") MediaFans.SoftSalesStanding = false;
 			if (argument == "--enable-media-atmosphere" || argument == "--causal-media-atmosphere")
 				throw new ArgumentException($"{argument}: the causal media mode is not implemented (directive §12, Phase 4).");
 		}

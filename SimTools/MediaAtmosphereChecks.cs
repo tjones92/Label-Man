@@ -447,7 +447,7 @@ public partial class MediaAtmosphereChecks : Node {
 	// ---- Phase 3 --------------------------------------------------------------------------------------------------
 
 	private static FanWeek Week(int day, int warm, int hot, int selling, FanEvidence families, bool national, bool extraordinary = false) =>
-		new() { Day = day, WarmRegions = warm, HotRegions = hot, SellingRegions = selling, Families = families, NationalExposure = national, Extraordinary = extraordinary };
+		new() { Day = day, WarmRegions = warm, HotRegions = hot, TopSellerRegions = selling, Families = families, NationalExposure = national, Extraordinary = extraordinary };
 
 	// Fixture 11 and §10.2 persistence: a local favorite can stay regional; one week is not a sensation; one event retold is one family.
 	private void FanArithmetic() {
@@ -457,6 +457,15 @@ public partial class MediaAtmosphereChecks : Node {
 		Check(a <= 1f && MediaFans.Deposit(0.9f, 0.12f) - 0.9f < MediaFans.Deposit(0.1f, 0.12f) - 0.1f && MediaFans.Deposit(0f, 5f) == MediaFans.MaxWeeklyGain,
 			"Attachment saturates below 1 with diminishing returns, and a week can add at most the weekly cap");
 		Check(Math.Abs(Math.Pow(MediaFans.WeeklyRetention, 8) - 0.5) < 1e-3, "Teen attachment halves in eight weeks without fresh response");
+
+		// Regional audience 3f: standing rises at once, falls on a three-week half-life; the top-seller latch has hysteresis.
+		Check(MediaFans.NextStanding(0.01f, 0.02f) == 0.02f && Math.Abs(MediaFans.NextStanding(0.02f, 0f) - 0.02f * MediaFans.StandingRetention) < 1e-6f
+			&& Math.Abs(Math.Pow(MediaFans.StandingRetention, 3) - 0.5) < 1e-3, "Sales standing takes a better week at once and halves in three weeks of no sales");
+		Check(MediaFans.TopSeller(false, 9) && !MediaFans.TopSeller(false, 10) && MediaFans.TopSeller(true, 17) && !MediaFans.TopSeller(true, 18)
+			&& !MediaFans.TopSeller(true, 0), "A region is entered at rank 9 and left only outside rank 17");
+		float st = 0.025f; int weeksAbove = 0;
+		for (int w = 0; w < 12 && st >= 0.0074f; w++, weeksAbove++) st = MediaFans.NextStanding(st, 0.005f);
+		Check(weeksAbove >= 4, $"A #1 that falls to #25-level sales stays above #17-level standing for {weeksAbove} weeks, not zero");
 
 		var local = new MediaFanState { ArtistId = "probe-local" };
 		for (int w = 0; w < 16; w++) MediaFans.Advance(local, Week(7 * w, 2, 1, 2, FanEvidence.Sales | FanEvidence.Coverage, national: false), regions);

@@ -62,6 +62,20 @@ Control sync baseline, `ref-781a445-1001-104` (104 weeks, 280,613 record-weeks):
 99.6% common (conversion 74.6%, awareness 25.0%), peak-week spread median 1 week (20.3% same week, 9.6% ≥ 4, 0.2% ≥ 8;
 1,461 records over 50k units), top-11 overlap 88.3%. Every later sub-step is scored against these numbers.
 
+| 3f | Media fan sales evidence (observe-only): `SalesStandingWeek` ranks each act's smoothed share of a region's single sales (all its singles summed; rises at once, 3-week half-life down); top-seller latch enters at rank 9, leaves outside rank 17. `FanWeek.SellingRegions` → `TopSellerRegions`. Switch `MediaFans.SoftSalesStanding` (default on), control `--media-hard-sales-rank`. State in `MediaSaveData.SalesStanding / TopSellerIn`. | `local3f-1001-104` and `local3f-hard-1001-104` vs `ref-781a445-1001-104`: both 84/84 economy CSVs byte-identical. Media checks 125/125 (3 new). | Done |
+
+3f result (seed 1001, 104 weeks, from `MEDIA_FANS_TOPSELLERS` diagnostics; script `scratchpad/topsellers.py` → fold
+into SimTools if reused):
+
+| Arm | All 7 → 0 in one week | Drops of ≥4 regions | First entries | National episodes |
+|---|---:|---:|---:|---:|
+| Hard rank (old) | 58 (median act still selling 23.7k units; one at #8) | 164 | 253 | 0 |
+| Soft standing | 6 (all at #31–77, 5–11k units) | 103 | 170 | 1 sensation → cooldown |
+
+Drops of 4+ regions remain common because the regions' sales still fall together: that is the demand-side
+synchronization 3b/3c target, not the media rule. Thresholds were set on rank, not share, because shares drift
+with record count (1960-61 median share: #1 2.5%, #9 1.2%, #17 0.74%).
+
 Not verified: player save/load round-trip of the three new fields (`SaveLoadRoundTripRunner` not run; nothing reads
 them yet, so 3b's check is where that matters).
 

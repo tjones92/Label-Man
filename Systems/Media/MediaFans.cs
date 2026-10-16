@@ -16,8 +16,13 @@ public enum FanEvidence { None = 0, Sales = 1, TvResponse = 2, Coverage = 4 }
 public sealed class FanWeek {
 	public int Day;
 	public FanEvidence Families;
-	/// <summary>Regions with attachment at the warm and hot thresholds, and regions where a record of the act sells near the top.</summary>
-	public int WarmRegions, HotRegions, SellingRegions;
+	/// <summary>
+	/// Regions with attachment at the warm and hot thresholds, and regions where the act is a standing top seller: in the
+	/// soft model, regions it has entered and not yet left (<see cref="MediaFans.SoftSalesStanding"/>); in the hard
+	/// control, regions where a record of the act ranks in this week's top eleven. Counts top sellers, not regions with
+	/// any sales: an act out of every list usually still sells everywhere (audit §3).
+	/// </summary>
+	public int WarmRegions, HotRegions, TopSellerRegions;
 	/// <summary>A national airing or a teen-magazine item in the last four weeks.</summary>
 	public bool NationalExposure;
 	/// <summary>Extraordinary response: a top-three record broken in most regional markets, or an event-sized precursor.</summary>
@@ -50,6 +55,8 @@ public sealed class MediaFanState {
 	public long Letters;
 	public int TransitionDay = -1;
 	public FanEpisodeState TransitionFrom;
+	/// <summary>Last week's <see cref="FanWeek.TopSellerRegions"/>, for the diagnostics' week-on-week transitions.</summary>
+	public int LastTopSellerRegions;
 	public List<string> History = new();
 	public int LastActiveDay;
 }
@@ -74,6 +81,28 @@ public static class MediaFans {
 	public static readonly float WeeklyRetention = (float)Math.Pow(0.5, 1.0 / 8.0);
 	/// <summary>Spotlight fades over about half a year.</summary>
 	public static readonly float SpotlightRetention = (float)Math.Pow(0.5, 1.0 / 26.0);
+
+	/// <summary>
+	/// Regional audience design 3f. On: a region's sales evidence is the act's smoothed share of that region's single
+	/// sales (all its singles together), ranked against every other act's, and "top seller" is a latch with separate
+	/// entry and exit ranks. Off (<c>--media-hard-sales-rank</c>): this week's best single's top-twenty rank, with top
+	/// eleven counting, so one soft week took an act from every region to none at once. Observe-only either way.
+	/// </summary>
+	public static bool SoftSalesStanding { get; internal set; } = true;
+	/// <summary>Standing rises at once to a better week and falls with a three-week half-life.</summary>
+	public static readonly float StandingRetention = (float)Math.Pow(0.5, 1.0 / 3.0);
+	/// <summary>Enter the top-seller latch at rank 9 or better; leave it only once outside the top 17.</summary>
+	public const int TopSellerEnterRank = 9, TopSellerExitRank = 17;
+	/// <summary>Standing below this share is dropped (rank 20 holds ~0.65% of a region's singles in 1960-61).</summary>
+	public const float StandingPruneShare = 0.001f;
+
+	/// <summary>One week of smoothed standing: rise immediately, decay toward a weaker week.</summary>
+	public static float NextStanding(float standing, float share) =>
+		share >= standing ? share : standing * StandingRetention + share * (1f - StandingRetention);
+
+	/// <summary>The latch: in stays in through rank <see cref="TopSellerExitRank"/>; out needs <see cref="TopSellerEnterRank"/>. Ranks are 1-based, 0 = unranked.</summary>
+	public static bool TopSeller(bool wasTopSeller, int rank) =>
+		rank > 0 && rank <= (wasTopSeller ? TopSellerExitRank : TopSellerEnterRank);
 	/// <summary>Most any one region's attachment can move in a week, however much happened (§10.1 weekly saturation).</summary>
 	public const float MaxWeeklyGain = 0.12f;
 	public const int PlateauDays = 7 * 16;
@@ -93,7 +122,7 @@ public static class MediaFans {
 		bool sales = (w.Families & FanEvidence.Sales) != 0;
 		int level = 0;
 		if (w.WarmRegions >= 1 && sales) level = 1;
-		if (level == 1 && w.WarmRegions >= 2 && w.SellingRegions >= 2) level = 2;
+		if (level == 1 && w.WarmRegions >= 2 && w.TopSellerRegions >= 2) level = 2;
 		bool national = level == 2 && w.HotRegions >= Math.Max(3, (int)Math.Ceiling(0.3 * regions)) && w.WarmRegions >= (int)Math.Ceiling(0.5 * regions)
 			&& w.NationalExposure && Count(w.Families) >= 2 && Behavior(w.Families);
 		if (national) level = 3;
