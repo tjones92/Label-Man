@@ -83,6 +83,25 @@ same local ranks and peak in the same week, and the local feedback copies the na
 mechanism only diverges if something local seeds the difference. In the current model only two things do: label
 distribution coverage at launch and the 0.13-weight reporter panel. See the design's "3g" section.
 
+| 3g | `RegionalAudience.HometownAudience` (scene default on, `--no-hometown-audience`): live weeks, AI singles. Home region = the act's scene base place's market region, else its legacy `homeRegion` name (resolved for 100% of launches). Launch deposit into regional awareness headroom (ceiling 0.58): `0.06` in the home region + `0.10 × following` in any region, following = best town's `1 − exp(−LocalDraw(56d)/120)`. Home region's local heat target gets `+0.10 × (1 − EffectiveRecognition)` before fatigue. No draws. | `local3g-1001-104` vs `local3c-1001-104`: no catastrophe | Done, **no sync effect**; kept on for its local state |
+
+3g result (vs 3c, seed 1001, 104 weeks). Diagnostics: a following exists in ~8% of launch-regions (mean 0.27),
+so the deposit is almost all the flat home term: 0.069 regional awareness per launch. Guards: single units
+152.5M / 154.7M (3c 153.2 / 154.2); airplay share of top-40 points 17.0% / 17.4% (3c 15.8 / 17.3); #1 records
+24 / 19 (3c 24 / 24); Major-family share 55.7% / 50.0% (3c 52.8 / 58.1; single-seed spread); closures /
+bankruptcies 148 / 44 (3c 167 / 57).
+
+Sync barely moves: local share of weekly demand change 1.30% (3c 1.16%), of awareness level 0.94% (3c 0.70%);
+peak-week spread median 1 week, 9.1% ≥ 4, 0.28% ≥ 8; top-11 overlap 88.2% (3c 87.0%, so it went the wrong way).
+
+**Why the seed is too small.** The deposit lands once, at launch, in regional awareness, which then decays ×0.92
+a week and is rebuilt from regional radio. Effective awareness takes 0.6 of it, so the home region starts about
++0.04 ahead. Within two or three weeks that edge is gone under common radio and conversion, which carry ~98% of
+the level. The radio term is `0.35 × 0.10` = +0.035 heat at most, for an unknown act only. Read against the
+design's own fallback ("if 3g also fails, the target band needs staggered launches"), the next lever is launch
+timing, not a larger hometown constant: a constant big enough to move the overlap would be the hidden regional
+demand factor the audit rules out.
+
 3b result (seed 1001, 104 weeks; `SimTools/analyze_regional_guards.py`, `analyze_regional_sync.py`):
 
 | | Control | 3b |

@@ -36,6 +36,8 @@ public partial class ChartManager : Node {
 	[Export] private bool localLifecycleClockEnabled = false;
 	// Regional audience 3c. Off until its short check passes.
 	[Export] private bool localRadioFatigueEnabled = false;
+	// Regional audience 3g (hometown audience).
+	[Export] private bool hometownAudienceEnabled = false;
 	// Media atmosphere (SimTools/MediaAtmosphereDirective.md): observe mode books rival acts onto TV and prints the
 	// listings; it writes nothing the economy reads. --disable-media-atmosphere turns it off.
 	[Export] private bool mediaAtmosphereObserve = true;
@@ -356,7 +358,7 @@ public partial class ChartManager : Node {
 		ManagerSystem.Configure(managersEnabled, OS.GetCmdlineUserArgs());
 		StarCanopy.Configure(seedStarCanopyEnabled, OS.GetCmdlineUserArgs());
 		OpeningCareers.Configure(openingCareersEnabled, OS.GetCmdlineUserArgs());
-		RegionalAudience.Configure(localLifecycleClockEnabled, localRadioFatigueEnabled, OS.GetCmdlineUserArgs());
+		RegionalAudience.Configure(localLifecycleClockEnabled, localRadioFatigueEnabled, hometownAudienceEnabled, OS.GetCmdlineUserArgs());
 		BandLife.Configure(cowritingEnabled, memberAxesEnabled,
 			worldLineupChurnEnabled ? LineupChurnScope.World :
 			rosterLineupChurnEnabled ? LineupChurnScope.Roster : LineupChurnScope.Off, OS.GetCmdlineUserArgs(),
@@ -929,6 +931,8 @@ public partial class ChartManager : Node {
 		SimulatedArtist promotedArtist = ArtistManager.Instance?.GetArtist(record.baseRecord.artistId);
 		record.launchCareerState = promotedArtist?.careerState ?? CareerState.Unsigned;
 		record.perceivedQualityMultiplier = perceivedQualityMult;
+		if (genreMarketLive && TimeManager.Instance != null)
+			RegionalAudience.ApplyLaunchDeposit(record, promotedArtist, TimeManager.Instance.CurrentDate);
 		ArtistRecognitionService.RecordLaunchAudit(promotedArtist, record);
 
 		if (debugMode) {
@@ -1682,6 +1686,8 @@ public partial class ChartManager : Node {
 		// already run FinalizeWeeklySales, so the support ratio and the weeks-since-peak clock are
 		// current, and a drop landing here reaches the same week's chart points in step 4.
 		bool localRadio = RegionalAudience.LocalRadioFatigue && genreMarketLive;
+		SimulatedArtist hometownArtist = localRadio && RegionalAudience.HometownAudience
+			? ArtistManager.Instance?.GetArtist(record.baseRecord.artistId) : null;
 		float stationDropChance = ChartSimulator.GetStationDropChance(
 			ChartSimulator.GetSalesSupportRatio(record), record.weeksSincePeakUnits);
 		float carriedPanelWeight = 0f, totalPanelWeight = 0f;
@@ -1699,7 +1705,8 @@ public partial class ChartManager : Node {
 				float localSupport = data.localPeakUnits > 0
 					? Mathf.Clamp(data.unitsSoldThisWeek / (float)data.localPeakUnits, 0f, 1f) : 1f;
 				stationDropChance = ChartSimulator.GetStationDropChance(localSupport, weeksSinceLocalPeak);
-				float localHeat = ChartSimulator.GetLocalRadioHeatTarget(record.radioHeatBaseTargetThisWeek,
+				float localHeat = ChartSimulator.GetLocalRadioHeatTarget(
+					record.radioHeatBaseTargetThisWeek + RegionalAudience.HometownRadioBoost(hometownArtist, region.regionId),
 					data.localSalesRank, data.unitsSoldThisWeek / Mathf.Max(0.001f, GetRegionalBuyingFraction(region)),
 					weeksSinceLocalPeak);
 				regionHeat = Mathf.Lerp(record.radioHeat, localHeat, RegionalAudience.LocalHeatWeight);

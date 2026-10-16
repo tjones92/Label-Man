@@ -1826,6 +1826,7 @@ seedStarCanopyEnabled = true
 openingCareersEnabled = true
 localLifecycleClockEnabled = true
 localRadioFatigueEnabled = true
+hometownAudienceEnabled = true
 cowritingEnabled = true
 memberAxesEnabled = true
 rosterLineupChurnEnabled = true

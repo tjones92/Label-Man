@@ -3790,6 +3790,8 @@ public partial class CompetitorManager : Node {
 		runtimeData.initialLaunchStock = runtimeData.regionalData.Values.Sum(data => data.unitsInStores);
 		runtimeData.launchCareerState = artist.careerState;
 		runtimeData.perceivedQualityMultiplier = perceivedQualityMult;
+		if (ChartManager.Instance?.IsGenreMarketV2Live == true && TimeManager.Instance != null)
+			RegionalAudience.ApplyLaunchDeposit(runtimeData, artist, TimeManager.Instance.CurrentDate);
 		ArtistRecognitionService.RecordLaunchAudit(artist, runtimeData);
 
 		if (debugMode) GD.Print($"  Promotion: Awareness={runtimeData.awareness:F2}, Radio={runtimeData.radioHeat:F2}");

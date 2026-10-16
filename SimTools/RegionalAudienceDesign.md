@@ -1,6 +1,7 @@
 # Regional audience causality (audit step 3)
 
-**Status: approved 2026-10-15 with the recommended values; 3a, 3f, 3b built (3b's effect waits on 3c).** Remedies [CelebrityEconomyAudit-2026-10-15.md](CelebrityEconomyAudit-2026-10-15.md)
+**Status: approved 2026-10-15 with the recommended values; 3a, 3f, 3b, 3c, 3g built. 3b, 3c, 3g on: none moves
+the timing metrics (see the progress file).** Remedies [CelebrityEconomyAudit-2026-10-15.md](CelebrityEconomyAudit-2026-10-15.md)
 §3 and §4. Progress and the decade watch list are in [CelebrityAuditProgress.md](CelebrityAuditProgress.md).
 
 Audit acceptance for this step: *local peaks occur at different times; a national ranking decline does not erase
@@ -130,7 +131,7 @@ Media is observe-only, so this is economy-inert and can land first.
 - Result to require: in the mid-decade replay, "7 → 0 qualifying regions in one week" transitions drop from 185 to
   near zero; acts still losing all regions over several weeks is fine.
 
-### 3g. Hometown audience: a local seed for local state (proposed after 3c, awaiting approval)
+### 3g. Hometown audience: a local seed for local state (built 2026-10-15; no sync effect, kept on)
 
 **Measured reason (3b, 3c).** With local clocks and local radio both on, the local share of weekly demand change is
 1.2% (control 0.4%) and the median peak-week spread is still 1 week. Each region now runs on its own state, but
