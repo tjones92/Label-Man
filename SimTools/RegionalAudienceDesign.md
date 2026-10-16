@@ -1,7 +1,7 @@
 # Regional audience causality (audit step 3)
 
 **Status: approved 2026-10-15 with the recommended values; 3a, 3f, 3b, 3c, 3g built. 3b, 3c, 3g on: none moves
-the timing metrics (see the progress file).** Remedies [CelebrityEconomyAudit-2026-10-15.md](CelebrityEconomyAudit-2026-10-15.md)
+the timing metrics (see the progress file). Why, and the proposed fix: [RegionalSyncDesign.md](RegionalSyncDesign.md).** Remedies [CelebrityEconomyAudit-2026-10-15.md](CelebrityEconomyAudit-2026-10-15.md)
 §3 and §4. Progress and the decade watch list are in [CelebrityAuditProgress.md](CelebrityAuditProgress.md).
 
 Audit acceptance for this step: *local peaks occur at different times; a national ranking decline does not erase
@@ -29,7 +29,8 @@ latest regional peak week is **median 1 week**; 19% peak in the same week everyw
 Three conclusions change the audit's list of suspects:
 
 1. **The awareness floors are not the problem.** Only 0.9% / 0.6% of record-region-weeks sit on the 0.70 / 0.40
-   floor. Removing them is a semantic fix, not the lever.
+   floor. Removing them is a semantic fix, not the lever. *(Correction, RegionalSyncDesign §4: by units the floors
+   carry 17% of demand and 36% of charted demand. The conclusion still holds: a no-floors probe changes nothing.)*
 2. **Conversion is the synchronizer, and its movement is entirely record-wide.** It carries ~73% of every week's
    change and has *zero* local variation. Its moving parts are the release ramp and the post-week-8 age decay (both
    keyed to `record.weeksSinceRelease`) and the Hesbacher rank exposure (keyed to national rank). Quality and label

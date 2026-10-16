@@ -933,6 +933,7 @@ public partial class ChartManager : Node {
 		record.perceivedQualityMultiplier = perceivedQualityMult;
 		if (genreMarketLive && TimeManager.Instance != null)
 			RegionalAudience.ApplyLaunchDeposit(record, promotedArtist, TimeManager.Instance.CurrentDate);
+		if (genreMarketLive) RegionalAudience.ApplyLaunchProbe(record, label);
 		ArtistRecognitionService.RecordLaunchAudit(promotedArtist, record);
 
 		if (debugMode) {

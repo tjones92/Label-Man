@@ -45,7 +45,30 @@ public static class RegionalAudience {
 		localLifecycleClock = Switch(args, "local-lifecycle-clock", localLifecycleClockDefault);
 		localRadioFatigue = Switch(args, "local-radio-fatigue", localRadioFatigueDefault);
 		hometownAudience = Switch(args, "hometown-audience", hometownAudienceDefault);
+		probeRegionalAwarenessOnly = args.Contains("--probe-sync-regional-awareness-only");
+		probeNoFloors = probeRegionalAwarenessOnly || args.Contains("--probe-sync-no-floors");
+		probeNoBlend = probeRegionalAwarenessOnly || args.Contains("--probe-sync-no-blend");
+		probeLateUncovered = args.Contains("--probe-sync-late-uncovered");
 		configured = true;
+	}
+
+	// Sync diagnostics (SimTools/RegionalSyncDesign.md), off unless named. Not calibrated, never scene defaults.
+	// Regional-awareness-only: live single demand reads regional awareness alone, with no national blend and no
+	// top-10/top-40 floors. Late-uncovered: a single launches with zero awareness and rotation in regions its
+	// label does not ship to, so those regions start from nothing and are driven only by the weekly radio pass.
+	// The two halves of regional-awareness-only can be named alone: --probe-sync-no-floors, --probe-sync-no-blend.
+	private static bool probeRegionalAwarenessOnly, probeLateUncovered, probeNoFloors, probeNoBlend;
+	public static bool ProbeNoFloors => probeNoFloors;
+	public static bool ProbeNoBlend => probeNoBlend;
+
+	public static void ApplyLaunchProbe(RecordRuntimeData record, AILabel label) {
+		if (!probeLateUncovered || record?.regionalData == null || label == null) return;
+		if (record.baseRecord.format == ReleaseFormat.Album || record.baseRecord.isPlayerOwned) return;
+		foreach (var pair in record.regionalData) {
+			if (label.HasDistributionInRegionForRecord(pair.Key, record.baseRecord.recordId)) continue;
+			pair.Value.awareness = 0f;
+			pair.Value.radioPlay = 0f;
+		}
 	}
 
 	/// <summary>The market region the act is based in: its scene base place, else its legacy home-region name.</summary>

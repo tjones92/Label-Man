@@ -94,6 +94,10 @@ bankruptcies 148 / 44 (3c 167 / 57).
 Sync barely moves: local share of weekly demand change 1.30% (3c 1.16%), of awareness level 0.94% (3c 0.70%);
 peak-week spread median 1 week, 9.1% ≥ 4, 0.28% ≥ 8; top-11 overlap 88.2% (3c 87.0%, so it went the wrong way).
 
+**Follow-up investigation: [RegionalSyncDesign.md](RegionalSyncDesign.md).** Demand is 99.8% region gain × common
+week shape. The settled-unit spread is mostly stockouts. The lockstep is held by the simultaneous launch AND the
+0.4 national awareness blend; probes removing both raise the local share of weekly change 1.25% → 26%.
+
 **Why the seed is too small.** The deposit lands once, at launch, in regional awareness, which then decays ×0.92
 a week and is rebuilt from regional radio. Effective awareness takes 0.6 of it, so the home region starts about
 +0.04 ahead. Within two or three weeks that edge is gone under common radio and conversion, which carry ~98% of

@@ -445,8 +445,10 @@ public static class ChartSimulator {
 		// === 2. AWARENESS FILTER ===
 		float effectiveAwareness = (record.awareness * 0.4f) + (regionalData.awareness * 0.6f);
 		bool stagedLiveDemand = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
+		if (stagedLiveDemand && RegionalAudience.ProbeNoBlend) effectiveAwareness = regionalData.awareness;
 		
-		if (record.currentPosition > 0 && record.currentPosition <= 10) {
+		if (stagedLiveDemand && RegionalAudience.ProbeNoFloors) { }
+		else if (record.currentPosition > 0 && record.currentPosition <= 10) {
 			effectiveAwareness = Mathf.Max(effectiveAwareness, 0.7f);
 		} else if (record.currentPosition > 0 && record.currentPosition <= 40) {
 			effectiveAwareness = Mathf.Max(effectiveAwareness, 0.4f);
