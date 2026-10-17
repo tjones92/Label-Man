@@ -100,6 +100,19 @@ class HistoricalConcentrationReviewTests(unittest.TestCase):
             self.assertEqual(result["cr8Top10SlotsPct"], 80)
             self.assertEqual(result["operatingLabelsWithAnyTop10"], 10)
 
+            # A label may exit before the end-of-run directory is written. Its
+            # display name must survive without changing the slot arithmetic.
+            directory_path = prefix + "-label-directory.csv"
+            directory = pd.read_csv(directory_path)
+            directory[directory.labelId.ne("label-1")].to_csv(directory_path, index=False)
+            pd.DataFrame([dict(releaseLabelId="label-1", labelName="Exited Label")]).to_csv(
+                prefix + "-first-chart-events.csv", index=False)
+            exited = analyze(prefix)["annual"][1960]
+            names = {row["labelId"]: row["labelName"] for row in exited["leadingTop10OperatingLabels"]}
+            self.assertEqual(names["label-1"], "Exited Label")
+            self.assertEqual(exited["cr4Top10SlotsPct"], result["cr4Top10SlotsPct"])
+            self.assertEqual(exited["cr8Top10SlotsPct"], result["cr8Top10SlotsPct"])
+
 
 if __name__ == "__main__":
     unittest.main()

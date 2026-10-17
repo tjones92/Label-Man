@@ -154,6 +154,13 @@ def analyze(prefix):
     assert not records.duplicated(["week", "recordId"]).any()
     concentration = pd.read_csv(prefix + "-concentration.csv").set_index("year")
     directory = pd.read_csv(prefix + "-label-directory.csv").set_index("labelId")
+    # The directory is written at run end, so a label that charted and later exited is missing from it; take its
+    # name from the first-chart log instead. Names are display only -- shares are keyed by labelId.
+    first_path = Path(prefix + "-first-chart-events.csv")
+    first_names = (pd.read_csv(first_path, usecols=["releaseLabelId", "labelName"])
+                   .drop_duplicates("releaseLabelId").set_index("releaseLabelId").labelName
+                   if first_path.exists() else pd.Series(dtype=object))
+    label_name = lambda label_id: directory.labelName.get(label_id, first_names.get(label_id, label_id))
     events = pd.read_csv(prefix + "-artist-population-events.csv", usecols=[
         "week", "eventType", "artistId", "currentPrimaryGenre", "labelTier",
         "priorContractCount"])
@@ -189,7 +196,7 @@ def analyze(prefix):
                 tier: float(100 * top.labelTier.eq(tier).sum() / len(top))
                 for tier in TIERS},
             "leadingTop10OperatingLabels": [
-                {"labelId": label_id, "labelName": directory.loc[label_id, "labelName"],
+                {"labelId": label_id, "labelName": label_name(label_id),
                  "slots": int(count), "sharePct": float(100 * count / len(top))}
                 for label_id, count in slots.head(8).items()],
         }
@@ -215,7 +222,7 @@ def analyze(prefix):
         "midTierTeenPopNoSigningEventUnitSharePct": float(
             100 * (mid_units - recent_units) / mid_units),
         "leadingMidTierTeenPopLabels": [
-            {"labelId": label_id, "labelName": directory.loc[label_id, "labelName"],
+            {"labelId": label_id, "labelName": label_name(label_id),
              "chartUnits": int(units), "shareOfMidTierTeenPopPct": float(100 * units / mid_units)}
             for label_id, units in by_label.items()],
     }

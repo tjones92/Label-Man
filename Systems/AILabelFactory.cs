@@ -88,6 +88,26 @@ public static class AILabelFactory {
 		new LabelTemplate("Downey", "Los Angeles", LabelArchetype.RockRebel, new[] { Genre.SurfRock, Genre.GarageRock }),
 	};
 	
+	// §17l probe, read only with --seed-head-templates (HeadScaleTemplates). The 1960 second rank by operating label
+	// was MGM (rank 3, 40 Top 10 slots), Warner Bros. (23), ABC-Paramount (23) and Cameo-Parkway (28 with Parkway);
+	// Liberty followed with 42 in 1961. MGM and Warner Bros. were film-studio labels, ABC-Paramount the broadcaster's,
+	// all self-distributed. They are appended after every other template so label_0001-0042 keep their ids.
+	private static readonly LabelTemplate[] headScaleTemplates = {
+		new LabelTemplate("MGM", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TraditionalPop, Genre.TeenPop, Genre.RockAndRoll }, LabelTier.MidTier) { headScale = true },
+		new LabelTemplate("ABC-Paramount", "New York", LabelArchetype.CorporateGiant, new[] { Genre.TeenPop, Genre.RnB, Genre.TraditionalPop }, LabelTier.MidTier) { headScale = true },
+		// Lost at least $3 million in 1958-60 before the Everly Brothers and Bob Newhart, so it opens at the bottom of the band.
+		new LabelTemplate("Warner Bros.", "Los Angeles", LabelArchetype.CorporateGiant, new[] { Genre.RockAndRoll, Genre.TeenPop, Genre.Comedy, Genre.TraditionalPop }, LabelTier.MidTier) { headScale = true, lowCash = true },
+	};
+
+	// Replace the default template of the same name with the switch on. Liberty was a teen-pop house (Bobby Vee,
+	// the Chipmunks, Snuff Garrett) rather than a rockabilly rebel. Vee-Jay was a national R&B label in 1960 with
+	// 3 Top 10 slots; its head years came from a 1962 signing, so it opens as a standard MidTier and must earn the rest.
+	private static readonly Dictionary<string, LabelTemplate> headScaleUpgrades = new() {
+		["Cameo-Parkway"] = new LabelTemplate("Cameo-Parkway", "Philadelphia", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.DooWop, Genre.RockAndRoll }, LabelTier.MidTier) { headScale = true },
+		["Liberty"] = new LabelTemplate("Liberty", "Los Angeles", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.RockAndRoll, Genre.EasyListening }, LabelTier.MidTier) { headScale = true },
+		["Vee-Jay"] = new LabelTemplate("Vee-Jay", "Chicago", LabelArchetype.RegionalHustler, new[] { Genre.RnB, Genre.Soul, Genre.DooWop }, LabelTier.MidTier),
+	};
+
 	private static readonly string[] northeastCities = { "New York", "Philadelphia", "Newark", "Boston", "Pittsburgh", "Baltimore", "Washington D.C." };
 	private static readonly string[] greatLakesCities = { "Chicago", "Detroit", "Cleveland", "Cincinnati", "Indianapolis", "Milwaukee" };
 	private static readonly string[] greatPlainsCities = { "Minneapolis", "St. Louis", "Kansas City", "Omaha" };
@@ -110,7 +130,14 @@ public static class AILabelFactory {
 		foreach (var template in jazzTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Boutique, ref idCounter));
 		foreach (var template in gospelTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Independent, ref idCounter));
 		foreach (var template in surfGarageTemplates) labels.Add(CreateFromTemplate(template, LabelTier.Small, ref idCounter));
-		
+		if (HeadScaleTemplates.Enabled) {
+			foreach (var template in headScaleTemplates) labels.Add(CreateFromTemplate(template, LabelTier.MidTier, ref idCounter));
+			foreach (var label in labels.Where(l => l.isHistorical && IsHeadScaleProbeTemplate(l.labelName)))
+				GD.Print($"HEAD_SCALE_TEMPLATE id={label.labelId} name={label.labelName} tier={label.tier} archetype={label.archetype} " +
+					$"impact={ChartSimulator.GetCampaignImpact(label):F3} reach={label.nationalReach:F3} distribution={label.distributionStrength:F3} " +
+					$"releasesPerMonth={label.releasesPerMonth:F2} maxRoster={label.maxRosterSize} regions={label.distributionRegions.Length} cash={label.cashReserves:F0}");
+		}
+
 		int remaining = targetCount - labels.Count;
 		for (int i = 0; i < remaining; i++) labels.Add(GenerateProceduralLabel(ref idCounter));
 		
@@ -118,7 +145,13 @@ public static class AILabelFactory {
 		return labels;
 	}
 	
+	/// <summary>True for the six templates the §17l switch seeds or changes, read by name for telemetry and checks.</summary>
+	internal static bool IsHeadScaleProbeTemplate(string labelName) =>
+		!string.IsNullOrEmpty(labelName) && headScaleTemplates.Select(t => t.baseName).Concat(headScaleUpgrades.Keys)
+			.Any(name => labelName == name || labelName.StartsWith(name + " ", System.StringComparison.Ordinal));
+
 	private static AILabel CreateFromTemplate(LabelTemplate template, LabelTier defaultTier, ref int idCounter) {
+		if (HeadScaleTemplates.Enabled && headScaleUpgrades.TryGetValue(template.baseName, out var upgrade)) template = upgrade;
 		var label = new AILabel();
 		LabelTier tier = template.tier ?? defaultTier;
 		idCounter++;
@@ -135,9 +168,11 @@ public static class AILabelFactory {
 		label.preferredGenres = template.genres;
 		label.secondaryGenres = GetRelatedGenres(template.genres[0]);
 		
-		ApplyTierStats(label, tier, template.archetype);
+		ApplyTierStats(label, tier, template.archetype, template.headScale);
+		if (template.lowCash) label.cashReserves = LabelStartingFinances.Cash(LabelTier.Major, 0.0);
 		label.strongRegions = GetRegionalStrength(template.city);
-		label.distributionRegions = GetDistributionRegions(tier, template.city);
+		// A head firm sold nationally through its own branches, so it takes the Major region count.
+		label.distributionRegions = GetDistributionRegions(template.headScale ? LabelTier.Major : tier, template.city);
 		SmallLabelHomeTerritory.Apply(label, tier);
 		DistanceModel.AssignHomeCity(label);
 		return label;
@@ -173,7 +208,11 @@ public static class AILabelFactory {
 		return label;
 	}
 	
-	private static void ApplyTierStats(AILabel label, LabelTier tier, LabelArchetype archetype) {
+	// headScale (§17l, HeadScaleTemplates) gives a MidTier template the Major launch-channel envelope -- budget,
+	// marketing, distribution and reach, which feed every launch read of GetCampaignImpact -- with about 70% of
+	// Major release volume, the historical ratio of a 1960 second-rank firm's Top 10 slots to a Big-5 label's.
+	// Scouting, production and the behavioural draws stay MidTier.
+	private static void ApplyTierStats(AILabel label, LabelTier tier, LabelArchetype archetype, bool headScale = false) {
 		// Capacity remains strongly tiered, while scouting and production retain
 		// enough overlap for a focused small label to identify or polish a great record.
 		(float budgetMin, float budgetMax, float marketingMin, float marketingMax,
@@ -186,6 +225,8 @@ public static class AILabelFactory {
 			LabelTier.Small => (0.10f, 0.40f, 0.18f, 0.56f, 0.12f, 0.42f, 0.07f, 0.30f, 0.34f, 0.84f, 0.28f, 0.80f),
 			_ => (0.25f, 0.60f, 0.30f, 0.70f, 0.25f, 0.60f, 0.15f, 0.50f, 0.40f, 0.85f, 0.40f, 0.85f)
 		};
+		if (headScale) (budgetMin, budgetMax, marketingMin, marketingMax, distributionMin, distributionMax, reachMin, reachMax) =
+			(0.78f, 1.00f, 0.70f, 0.98f, 0.75f, 1.00f, 0.75f, 1.00f);
 
 		label.budgetLevel = (float)GD.RandRange(budgetMin, budgetMax);
 		label.marketingPower = (float)GD.RandRange(marketingMin, marketingMax);
@@ -195,7 +236,7 @@ public static class AILabelFactory {
 		label.productionQuality = (float)GD.RandRange(productionMin, productionMax);
 		float tierMod = (budgetMin + budgetMax) * 0.5f;
 		
-		label.releasesPerMonth = tier switch {
+		label.releasesPerMonth = headScale ? (float)GD.RandRange(1.6f, 2.4f) : tier switch {
 			LabelTier.Major => (float)GD.RandRange(2f, 4f), LabelTier.MidTier => (float)GD.RandRange(1f, 2.5f),
 			LabelTier.Independent => (float)GD.RandRange(0.5f, 1.5f), LabelTier.Small => (float)GD.RandRange(0.2f, 0.8f),
 			LabelTier.Boutique => (float)GD.RandRange(0.3f, 0.8f), _ => (float)GD.RandRange(0.5f, 1.5f)
@@ -253,8 +294,9 @@ public static class AILabelFactory {
 		// sustained quarters and charting last year, so they mean "observed operating
 		// for N months". Seeding it with pre-1960 history bypassed those gates and
 		// promoted seeded incumbents past tiers they had not earned in-run.
-		label.cashReserves = LabelStartingFinances.DrawCash(tier);
-		label.maxRosterSize = tier switch {
+		// Major cash: Major-scale volume on MidTier cash would run a year of losses and demote the template.
+		label.cashReserves = LabelStartingFinances.DrawCash(headScale ? LabelTier.Major : tier);
+		label.maxRosterSize = headScale ? (int)GD.RandRange(25, 40) : tier switch {
 			LabelTier.Major => (int)GD.RandRange(30, 60), LabelTier.MidTier => (int)GD.RandRange(15, 35),
 			LabelTier.Independent => (int)GD.RandRange(8, 20), LabelTier.Small => (int)GD.RandRange(3, 10),
 			LabelTier.Boutique => (int)GD.RandRange(5, 12), _ => 10
@@ -444,6 +486,8 @@ public static class AILabelFactory {
 		/// national independents. Null keeps the array's default.
 		/// </summary>
 		public LabelTier? tier;
+		/// <summary>§17l head envelope (HeadScaleTemplates); lowCash opens at the bottom of the Major cash band.</summary>
+		public bool headScale, lowCash;
 		public LabelTemplate(string name, string city, LabelArchetype arch, Genre[] genres, LabelTier? tier = null) {
 			this.baseName = name; this.city = city; this.archetype = arch; this.genres = genres; this.tier = tier;
 		}

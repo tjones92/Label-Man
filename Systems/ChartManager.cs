@@ -318,6 +318,7 @@ public partial class ChartManager : Node {
 
 	// Artist heat cache
 	private Dictionary<string, float> artistHeatCache = new Dictionary<string, float>();
+	private Dictionary<string, ArtistHeatAttribution.HeatSplit> artistHeatAttributionCache = new Dictionary<string, ArtistHeatAttribution.HeatSplit>();
 	private int artistHeatCacheWeek = -1;
 
 	public List<AILabel> GetAllLabels() {
@@ -361,6 +362,13 @@ public partial class ChartManager : Node {
 		RegionalHitDealGate.Configure(OS.GetCmdlineUserArgs());
 		WholesaleSpreadGate.Configure(OS.GetCmdlineUserArgs());
 		RadioPushSpread.Configure(OS.GetCmdlineUserArgs());
+		AirplayRotationCeiling.Configure(OS.GetCmdlineUserArgs());
+		ChartInertiaProbe.Configure(OS.GetCmdlineUserArgs());
+		LabelHoldCapacity.Configure(OS.GetCmdlineUserArgs());
+		HeadScaleTemplates.Configure(OS.GetCmdlineUserArgs());
+		LaunchPushSaturation.Configure(OS.GetCmdlineUserArgs());
+		ArtistMomentumHalfLife.Configure(OS.GetCmdlineUserArgs());
+		ArtistHeatAttribution.Configure(OS.GetCmdlineUserArgs());
 		SmallLabelHomeTerritory.Configure(OS.GetCmdlineUserArgs());
 		LocalScenes.ValidateDependencies();
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
@@ -580,9 +588,10 @@ public partial class ChartManager : Node {
 	// ARTIST HEAT
 	// ========================================================================
 
-	private float CalculateArtistHeat(string artistId) {
+	private float CalculateArtistHeat(string artistId, ReleaseFormat format) {
 		if (artistHeatCacheWeek != currentChartWeek) {
 			artistHeatCache.Clear();
+			artistHeatAttributionCache.Clear();
 			artistHeatCacheWeek = currentChartWeek;
 
 			var artistRecords = allRecords
@@ -613,10 +622,18 @@ public partial class ChartManager : Node {
 
 				heat += Mathf.Min(hitCount * 0.05f, 0.3f);
 				artistHeatCache[group.Key] = Mathf.Clamp(heat, 0f, 1f);
+				if ((ArtistHeatAttribution.AdjustsSingles && IsGenreMarketV2Live) || ArtistHeatAttribution.TraceWeek(currentChartWeek)) {
+					var split = ArtistHeatAttribution.Describe(group, heat);
+					artistHeatAttributionCache[group.Key] = split;
+					ArtistHeatAttribution.CaptureHeat(currentChartWeek, TimeManager.Instance?.CurrentDate.year ?? 1960, group.Key, split);
+				}
 			}
 		}
 
 		float baseHeat = artistHeatCache.TryGetValue(artistId, out float cachedHeat) ? cachedHeat : 0f;
+		artistHeatAttributionCache.TryGetValue(artistId, out var attribution);
+		baseHeat = ArtistHeatAttribution.SelectHeat(format, baseHeat,
+			attribution.SinglesOnly, attribution.CurrentAlbums, IsGenreMarketV2Live);
 		// The Shark's promotion machine adds a standing push (Scouting Mechanic Phase 5), reaching even
 		// a not-yet-charting act the cache above omits. Inert (None -> +0) when managers are off.
 		SimulatedArtist heatArtist = ArtistManager.Instance?.GetArtist(artistId);
@@ -970,6 +987,8 @@ public partial class ChartManager : Node {
 		var albumSubstitutionByGenre = new Dictionary<Genre, float>();
 
 		// === STEP 1: Update global record state ===
+		// Off unless --label-hold-capacity is named; no RNG, so the disabled week is unchanged.
+		if (LabelHoldCapacity.Enabled) LabelHoldCapacity.BeginWeek(allRecords, currentChartWeek);
 		foreach (var record in allRecords) {
 			record.weeksSinceRelease++;
 
@@ -991,7 +1010,7 @@ public partial class ChartManager : Node {
 					genreAcceptance = Mathf.Clamp(radioAcceptance * GenreCatalog.GetRadioAcceptance(canonicalPrimary), 0f, 1f);
 				} else genreAcceptance = GetEffectiveGenreAcceptance(record.baseRecord.primaryGenre);
 			}
-			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId);
+			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId, record.baseRecord.format);
 
 			if (isAlbum) {
 				long albumProfileStart = SimulationPerformanceProfiler.Begin();

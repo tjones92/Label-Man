@@ -41,6 +41,13 @@ public partial class SaveLoadRoundTripRunner : Node {
 			if (OS.GetCmdlineUserArgs().Contains("--label-pressing-check")) { LabelPressingEconomicsChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--regional-hit-deal-check")) { RegionalHitDealGateChecks.Run(); GetTree().Quit(0); return; }
 			if (OS.GetCmdlineUserArgs().Contains("--radio-push-spread-check")) { RadioPushSpreadChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--airplay-rotation-ceiling-check")) { AirplayRotationCeilingChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--chart-inertia-base-check")) { ChartInertiaProbeChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--label-hold-capacity-check")) { LabelHoldCapacityChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--artist-heat-attribution-check")) { ArtistHeatAttributionChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--seed-head-templates-check")) { HeadScaleTemplatesChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--launch-push-saturation-check")) { LaunchPushSaturationChecks.Run(); GetTree().Quit(0); return; }
+			if (OS.GetCmdlineUserArgs().Contains("--artist-momentum-half-life-check")) { ArtistMomentumHalfLifeChecks.Run(); GetTree().Quit(0); return; }
 
 			if (OS.GetCmdlineUserArgs().Contains("--scouting-business-check")) { ScoutingBusinessChecks.Run(); GetTree().Quit(0); return; }
             if (OS.GetCmdlineUserArgs().Contains("--scouting-opening-check")) { ScoutingOpeningChecks.Run(); GetTree().Quit(0); return; }

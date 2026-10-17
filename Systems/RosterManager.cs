@@ -473,6 +473,9 @@ public partial class RosterManager : Node {
 		// Recognition fades from the mass market on the calendar, whether or not the act
 		// releases again. Idempotent per artist per week; inert unless recognition is observing.
 		ArtistRecognitionService.DecayRegistryForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		// "Hot now" cools on the calendar too (§17p probe); a no-op unless --artist-momentum-half-life is named.
+		if (ArtistMomentumHalfLife.Enabled)
+			ArtistMomentumHalfLife.DecayRegistryForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;

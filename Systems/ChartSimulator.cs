@@ -842,10 +842,12 @@ public static class ChartSimulator {
 		float salesGate = Mathf.Clamp(record.unitsThisWeek / MIN_SALES_FOR_FULL_INERTIA, 0f, 1f);
 		float quality = record.GetQuality();
 		float qualityAdjustment = (1f - quality) * INERTIA_QUALITY_OVERRIDE;
-		float inertia = Mathf.Max(0f, BASE_INERTIA - qualityAdjustment) * salesGate;
+		// ChartInertiaProbe is a probe on this base only; it returns BASE_INERTIA unless --chart-inertia-base is named.
+		float baseInertia = ChartInertiaProbe.Apply(BASE_INERTIA);
+		float inertia = Mathf.Max(0f, baseInertia - qualityAdjustment) * salesGate;
 
 		if (previousPosition <= 40 && record.momentum > 0f) {
-			inertia = Mathf.Min(BASE_INERTIA, inertia + record.momentum * HIT_MOMENTUM_BONUS * salesGate);
+			inertia = Mathf.Min(baseInertia, inertia + record.momentum * HIT_MOMENTUM_BONUS * salesGate);
 		}
 
 		int rawDrop = rawPosition - previousPosition;
@@ -1089,6 +1091,17 @@ public static class ChartSimulator {
 		return allocated;
 	}
 
+	/// <summary>The weekly campaign's release-age taper, before the top-20 and momentum floors.</summary>
+	internal static float GetReleaseAgePushFactor(int weeksSinceRelease) => weeksSinceRelease switch {
+		0 or 1 => 1.0f,
+		2 or 3 => 0.9f,
+		4 or 5 => 0.6f,
+		6 or 7 => 0.3f,
+		_ => 0.1f
+	};
+
+	internal static void UpdateLabelPushForChecks(RecordRuntimeData record, AILabel label) => UpdateLabelPush(record, label);
+
 	private static void UpdateLabelPush(RecordRuntimeData record, AILabel label) {
 		if (label == null) {
 			record.currentLabelPush = 0.02f;
@@ -1098,15 +1111,11 @@ public static class ChartSimulator {
 		// RadioPushSpread is a probe on this weekly radio push only; identity unless --radio-push-spread is named.
 		float basePush = RadioPushSpread.Apply(GetCampaignImpact(label));
 
-		float weekFactor = record.weeksSinceRelease switch {
-			0 or 1 => 1.0f,
-			2 or 3 => 0.9f,
-			4 or 5 => 0.6f,
-			6 or 7 => 0.3f,
-			_ => 0.1f
-		};
-		
-		if (record.currentPosition > 0 && record.currentPosition <= 20) {
+		float weekFactor = GetReleaseAgePushFactor(record.weeksSinceRelease);
+
+		// LabelHoldCapacity is a probe on the top-20 hold only; IsOverflow is always false unless
+		// --label-hold-capacity is named. An overflow record falls through to the momentum rule.
+		if (record.currentPosition > 0 && record.currentPosition <= 20 && !LabelHoldCapacity.IsOverflow(record)) {
 			weekFactor = Mathf.Max(weekFactor, 0.85f);
 		} else if (record.momentum > 0.15f && record.weeksSinceRelease < 14) {
 			weekFactor = Mathf.Max(weekFactor, 0.7f);
@@ -1276,7 +1285,8 @@ public static class ChartSimulator {
 				// divided back out, the record's own rotation carries the exponent, and access is then
 				// paid back linearly.
 				float access = data.genreRadioOpportunityThisWeek > 0f ? data.genreRadioOpportunityThisWeek : 1f;
-				float ownRotation = data.radioPlay / access;
+				// AirplayRotationCeiling is a probe on this payout only; identity unless --airplay-rotation-ceiling is named.
+				float ownRotation = AirplayRotationCeiling.Apply(data.radioPlay / access);
 				float rotation = AIRPLAY_REFERENCE_PLAY *
 					Mathf.Pow(ownRotation / AIRPLAY_REFERENCE_PLAY, AIRPLAY_CONVEXITY) * access;
 				airplayPoints += rotation * region.media.radioReach * region.population *

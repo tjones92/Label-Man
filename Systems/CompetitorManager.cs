@@ -3814,7 +3814,8 @@ public partial class CompetitorManager : Node {
 		runtimeData.awareness = Mathf.Clamp((isAlbum ? 0.04f : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
 
 		float baseRadio = quality * 0.3f;
-		float pushRadio = ChartSimulator.GetCampaignImpact(label) * 0.3f;
+		// LaunchPushSaturation is a probe on the launch reads of campaign impact only; identity unless named.
+		float pushRadio = LaunchPushSaturation.Apply(ChartSimulator.GetCampaignImpact(label)) * 0.3f;
 		float payolaRadio = label.payolaWillingness * 0.15f;
 		// Phase D: a small programmer-confidence lift for recognized acts. Singles only, weaker than
 		// the awareness lift, and it rides the same /radioDifficulty regional divide downstream.
@@ -3903,12 +3904,13 @@ public partial class CompetitorManager : Node {
 	}
 
 	private float GetSeasonalMarketingImpact(float marketingBudget, AILabel label) {
-		if (!MarketSeasonality.Enabled) return BudgetToImpact(marketingBudget, label.tier) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		float campaignImpact = LaunchPushSaturation.Apply(ChartSimulator.GetCampaignImpact(label));
+		if (!MarketSeasonality.Enabled) return BudgetToImpact(marketingBudget, label.tier) * campaignImpact * 0.35f;
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
 		float impact = BudgetToImpact(marketingBudget, label.tier) *
 			MarketSeasonality.GetMarketingEfficiencyMultiplier(year, month, liveTick: true);
-		return Mathf.Clamp(impact, 0f, 1f) * ChartSimulator.GetCampaignImpact(label) * 0.35f;
+		return Mathf.Clamp(impact, 0f, 1f) * campaignImpact * 0.35f;
 	}
 	
 	private float GetGenreFit(Genre genre, MarketRegion region) {

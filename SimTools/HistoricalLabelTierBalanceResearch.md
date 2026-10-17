@@ -950,6 +950,1903 @@ Big-5 single, and drop events carry no label.
   the slots but behaves like everyone else on persistence and run length.
 - The Big-5 timing lag is real but secondary. It would matter for a Major-share-by-year guard more than for CR4.
 
+## 17. Top 10 duration: the excess is the shape of the top of the chart, not how long records stay
+
+Logs only, no new runs. Script: `SimTools/analyze_top10_duration.py`, output
+`SimLogs/top10-fiveyear-review-v1/top10-duration.json`. It reads the three `top10-fiveyear-review-v1` runs and the
+1960-64 Billboard Top 10 reconstruction. It also reads two older paired probes whose logs survive: the five-seed 1960
+push-spread probe (section 10) and the seed-1001 no-chart-floors probe from the regional-sync work
+(`sync-ctl-1001-52` against `sync-floors-1001-52`, `--probe-sync-no-floors`). Unless a table says "within year",
+it counts each record's whole Top 10 stay over 1960-64. It excludes records whose stay touches the first or last
+week of the window. Reproduce with
+`python SimTools/analyze_top10_duration.py --output SimLogs/top10-fiveyear-review-v1/top10-duration.json`.
+
+### 17a. Decomposition of the extra Top 10 weeks
+
+**Stays by peak position already match history. The sim has too few records that peak at #7-10.**
+
+| 1960-64, uncensored | Top 10 records | Weeks | Entry → peak | Peak → exit | Re-entries | Gone the week after entering at #8-10 |
+|---|---:|---:|---:|---:|---:|---:|
+| History | 509 | **4.93** | 1.70 | 2.38 | 2.9% | **17.3%** |
+| Seeds 1001 / 2002 / 3003 | 440 / 444 / 445 | **5.74 / 5.71 / 5.67** | 1.66-1.71 | 3.00-3.06 | 0.5-1.6% | **7.7-9.5%** |
+
+| Peak band | History: share / weeks | Sim (three seeds): share / weeks |
+|---|---:|---:|
+| #1 | 18.9% / 8.39 | 22-27% / 7.76-8.38 |
+| #2-3 | 20.6% / 6.48 | 28-32% / 6.38-6.41 |
+| #4-6 | 27.1% / 4.53 | 25-30% / 4.74-4.86 |
+| #7-10 | **33.4%** / 2.36 | **14-22%** / 2.62-2.94 |
+
+Records climb to their peak on history's schedule. Within each peak band they stay about as long as history's
+records, up to 0.4 weeks longer in the lower bands. The difference is the mix. History's Top 10 has many records
+that reach #7-10 for two or three weeks and leave. The sim has half as many. Its Top 10 records go on to #1-4. If
+the sim's per-band stays are combined with history's peak mix, the result is **4.95 / 5.20 / 5.09 weeks**, against
+history's 4.93. **The peak mix accounts for about 80% of the excess.** The rest is in the lower bands' tails (see
+inertia below).
+
+**The peak mix is set by how far apart the ranks are in chart points.** A record peaks at rank k when its best
+week falls between the points of rank k and rank k-1. So peaks per rank should follow the log-points spacing
+between adjacent ranks. They do, in both series. Peaks per unit of spacing are roughly constant: 144-232 in the
+sim and 532-773 in history.
+
+| Rank | History peaks | Sim peaks (mean of three seeds) | Sim log spacing to rank above | Hesbacher spacing | Sim points / #10 | Hesbacher / #10 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 96 | 107.7 | - | - | **6.41** | **1.91** |
+| 2 | 50 | 75.0 | 0.49 | 0.092 | 3.92 | 1.74 |
+| 3 | 55 | 55.3 | 0.29 | 0.085 | 2.95 | 1.60 |
+| 5 | 48 | 38.3 | 0.22 | 0.074 | 1.89 | 1.37 |
+| 7 | 51 | 26.7 | 0.13 | 0.066 | 1.39 | 1.20 |
+| 9 | 42 | 16.7 | 0.10 | 0.060 | 1.11 | 1.06 |
+| 10 | 38 | 15.0 | 0.10 | 0.057 | 1.00 | 1.00 |
+| 11 | - | 29.7 | 0.09 | 0.054 | 0.91 | 0.95 |
+
+History's peaks are flat across #2-10, which is what Hesbacher's nearly even spacing produces. The sim's
+published #1 runs at **6.4x #10** (median weekly ratio; 5.0-9.1x across seed-years, steeper in no particular
+year), against Hesbacher's 1.91x. Its gaps between ranks are five times Hesbacher's at the top and twice
+Hesbacher's at #7-10, so peaks pile up at #1-3 and thin out at #7-10. The handoff measured #1/#10 at 2.44x on
+`d7-drop-decade-522-1001` (August). Every records log that survives, from 2026-10-15 on, reads 5-9x, so when the
+top steepened cannot be dated from these logs.
+
+**The spread is airplay.** Medians, as a ratio to the #10 record in the same week:
+
+| Rank | Points | Units | Airplay points |
+|---:|---:|---:|---:|
+| 1 | 6.2-6.6 | 1.43-1.77 | **16.8-24.2** |
+| 5 | 1.80-1.96 | 1.10-1.30 | 3.5-4.2 |
+| 10 | 1.00 | 1.00 | 1.00 |
+| 20 | 0.44-0.47 | 0.54-0.64 | 0.10-0.19 |
+
+Units are nearly flat across the Top 10. Ranks inside the Top 10 are set by the fifth-power airplay term
+(`AIRPLAY_CONVEXITY`). For records still climbing, airplay is about 56% of the points at #10 and 84% at #1. At Top 10 entry, the stay
+a record eventually gets is predicted by airplay and heat, not units. Rank correlations: age at entry −0.58,
+airplay points +0.34, radio heat +0.28, quality +0.22, units −0.08, momentum −0.12. The records that stay seven
+weeks or more enter in week 5 of their life, against week 8 for records that stay one or two weeks, with 2.4x the
+airplay and the same units. Saturation is negligible: 0.003-0.005 at entry. National awareness is 0.60 in every
+Top 10 row. Word of mouth correlates negatively, through age.
+
+**Two other mechanisms were measured.**
+- *The #10/#11 step is real but not the cause.* Entering the Top 10 raises next-week units growth from 1.15-1.19x
+  to 1.35-1.46x. Radio heat growth rises from 0.012 to 0.055 a week, from the radio position bonus (0.25 against
+  0.10). The units step is the 0.7 awareness floor plus the chart signal (3.0 against 2.0). In the control's demand
+  stages, the aware fraction is 0.78 at #9-10 and 0.56 at #11-12. Removing all floors (`sync-floors`) took the units
+  step from 1.215 to 1.029. It left Top 10 records at 96 and weeks per record at 5.42, both unchanged (one seed,
+  52 weeks).
+- *Inertia (`GetInertiaPositionCap`, `BASE_INERTIA` 0.80) holds 6.9-7.2% of Top 10 slot-weeks* for records whose
+  raw rank is 11-13 (median 12). It is label-neutral: Big-5 6.4-7.5%, others 6.9-7.3%. It also denies 26-35 records
+  per seed (about 6 a year) any Top 10 week at all. They stall at a published #11, which is why #11 has twice the
+  peaks of #10. As a static upper bound it is about 6 of the 15-20 missing records a year. Within-year weeks per
+  record would fall from about 5.2 to about 4.8 if held slots went to the raw top ten.
+
+### 17b. The Big-5 premium is label push in the airplay term
+
+Upper-half quality is quality ≥ 0.792, the median of uncensored Top 10 records. Whole stays, 1960-64:
+
+| Weeks per Top 10 record | Big-5, upper half | Others, upper half |
+|---|---:|---:|
+| Seed 1001 / 2002 / 3003 | 6.64 / 7.36 / 7.61 | 6.23 / 5.87 / 5.84 |
+| Pooled | **7.19** | **5.99** |
+| Big-5 per-band stays at the others' peak mix | 6.83 | - |
+| Others' per-band stays at the Big-5 peak mix | - | 6.34 |
+
+- **About 30% of the 1.20-week premium is higher peaks.** 42.7% of Big-5 upper-half Top 10 records reach #1,
+  against 24.1% of others'. **About 70% is longer stays at the same peak:** +1.05 weeks at #1, +1.03 at #2-3,
+  +0.75 at #4-6, +0.27 at #7-10.
+- With launch controls (quality, log launch stock, launch awareness, launch career state, genre, seed), the Big-5
+  premium is **+0.81 weeks**. It is +0.48 with the peak band also held fixed. Launch stock and launch awareness do
+  not separate.
+- **Units are not the carrier.** For upper-half records peaking at #1-3, aligned on each record's own peak-units
+  week, Big-5 units over the Top 10 cutoff run 1.25 / 1.05 / 0.88 / 0.80 at weeks 0 / 2 / 3 / 4. Others' run
+  1.12 / 0.98 / 0.85 / 0.74. Big-5 airplay over the cutoff runs 3.38 / 3.05 / 1.65 / 0.63, against 2.63 / 1.66 /
+  0.55 / 0.18 for others: **1.3x at the peak, then 1.8x, 3.0x and 3.5x.** Big-5 radio heat is 0.10-0.12 higher
+  throughout. That matches the push gap of about 0.15 x acceptance that `UpdateLabelPush` keeps in the heat target
+  while a record is in the top 20. The Big-5 records also keep their station panel longer (1.00 against 0.87 at
+  week 4). At week 4, 91% of Big-5 records are still in the Top 10, against 70% of others'. At week 5 it is 67%
+  against 36%.
+- **Causal check: the push-spread probe closes the premium but not the excess** (five seeds, 1960, paired):
+
+| 1960, five seeds | Control | `--radio-push-spread=0.5` |
+|---|---:|---:|
+| Big-5 upper-half weeks per Top 10 record | 6.47 | 6.04 |
+| Others' upper-half | 5.52 | 5.99 |
+| Premium | **0.95** | **0.05** |
+| All Top 10 records: weeks / distinct records | 5.20 / 100.0 | 5.32 / 97.8 |
+
+Compressing push moves the extra weeks from Big-5 records to other labels' records. It does not shorten the Top 10.
+This squares with section 10's +0.01-week closed chart life: push sets *whose* records the convex top holds, and
+the convexity sets *how long* it holds them.
+
+### 17c. Proposed lever and guards (nothing changed)
+
+**Superseded by 17d: this lever was built as a probe and rejected.** The guard table remains the checklist for the next lever.
+
+**Lever: saturate rotation at the top of the airplay ladder.** Add an off-by-default probe switch in
+`ChartSimulator.CalculateChartPoints`, for example `--airplay-rotation-ceiling=c`. It would soft-cap each
+region's `ownRotation` near `c` before the fifth power: `x / (1 + (x/c)^m)^(1/m)` with m ≈ 4, identity when off.
+It leaves `AIRPLAY_CONVEXITY` alone, along with radio heat, awareness and demand. Below the ceiling the exponent is
+untouched: the body of the chart, debut climb, Top 40 life and genre ordering below the top. The physical claim is
+that a Top 40 station's heavy rotation saturated. The records in its top ten were all on the hourly cycle, so
+spins could not keep growing 5x per step of heat. One lever reaches both misses:
+- *Duration:* it flattens the rank spacing that sets the peak mix. History's mix with the sim's per-band stays gives
+  4.95-5.20 uncensored weeks. That is about 4.6 within-year weeks and about 112 distinct Top 10 records a year,
+  against history's 4.5 and 111-119.
+- *Big-5 premium:* both halves of the premium live where rotation is highest: the extra reach to #1 and 1.8-3.5x
+  airplay in the weeks after the peak. A ceiling caps what push buys once a record is already in heavy rotation.
+  Unlike push-spread, it does not hand those weeks to other labels' hits, because their airplay is capped the same
+  way. Arithmetic only: section 16's 1961 head (29.7 records) at about 4.9 weeks per record gives CR4 about 28,
+  against the band of 22-32.
+
+**Calibration path (needs approval, short runs only).** (1) Build and check byte-identity with the switch off,
+against one review seed. (2) Run a one-seed 52-week sweep of `c` and read the published #1/#10 ratio, a weekly
+aggregate that a 52-week run can resolve. Aim for about 2-3x, not Hesbacher's 1.91x (see the #1 returns guard).
+(3) Run three 260-week seeds at the chosen `c`, paired with `top10-fiveyear-review-v1`. That is about 30 minutes in
+parallel. No decade run.
+
+**Guards** (current three-seed values; history in brackets):
+
+| Guard | Current | Pass condition |
+|---|---|---|
+| Target: Top 10 weeks per record, within year | 4.95-5.42 | toward 4.5 (history 4.5; 4.9 in 1960) |
+| Target: peaks per rank, #2-10 | 75 falling to 15 | roughly flat (38-55) |
+| Target: gone after entering at #8-10 | 7.7-9.5% | toward 17% |
+| #1 tenure (whole stay / spell) | 2.17-2.55 / 2.10-2.36 | stays near 2.55 / 2.48 |
+| **#1 returns** | 3.3-7.8% | ≤ about 8% (2.9%; decade 4-5%) |
+| Closed chart life | 7.31-7.68 weeks | within seed noise (7.48) |
+| Hot 100 / Top 40 entries per week | 12.9-13.7 / 4.23-4.32 | within seed noise |
+| Genre Top 10 slot shares | TradPop 21-23, RnB 18-21, TeenPop 19-21, R&R 10-12, Soul 6-8% | no genre moves more than seed noise; check `genre-decade-shape` slot error |
+| CR4 / CR8 (`analyze_label_tier_historical_benchmarks.py`) | 1960 33.8 / 50.3; 1961 35.7 / 49.1 | 1960 within 30-40 / 48-58; 1961-64 within 22-32 / 38-48 |
+| Single units | - | within about 1% (the ceiling changes points, but rank feeds demand) |
+
+**#1 returns is the binding guard.** The sim's median #1/#2 gap is now 1.6x (log 0.49). The survey's two-draw
+noise at the top is about 0.13. A top as flat as Hesbacher's (#1/#2 log gap 0.09) would put the gap inside the
+noise and bring back ping-pong (`no1-tenure-is-returns-not-run-length`). The ceiling therefore has to stop at a
+#1/#10 of about 2-3x. The full Hesbacher flatness at the very top also needs trajectory divergence, which is out of
+scope here.
+
+**Secondary lever: inertia.** Lowering `BASE_INERTIA` (0.80) would free about 7% of Top 10 slot-weeks and admit
+about 6 more records a year, with no label tilt. It may also hold former #1s close enough to return, so it moves
+the returns guard in the same direction. Try it only if the ceiling alone leaves the record count short.
+
+### 17d. Probe result: the rotation ceiling flattens the top but lengthens stays (rejected)
+
+**Switch.** `Systems/AirplayRotationCeiling.cs` adds `--airplay-rotation-ceiling=C`, which is off unless named. In
+`CalculateChartPoints` it replaces each region's `ownRotation` with `x / (1 + (x/C)^8)^(1/8)` before the fifth power.
+Nothing else reads it. `--airplay-rotation-ceiling-check` (`SimTools/AirplayRotationCeilingChecks.cs`, run through
+`SaveLoadRoundTripRunner.tscn`) asserts that it is an identity when off and monotone, capped and nearly untouched
+below C/2 when on. It passed, as did `--radio-push-spread-check`. The scale came from logged airplay: the
+uniform-equivalent rotation is about 0.40 at #1, 0.29 at #5 and 0.21 at #10.
+
+**Inertness.** Debug build `F97501FB…7322`. A switch-off seed-1001 52-week run (`rotceil-off-check`) is
+**byte-identical** to `historical-top10-review-v2-default-1001-52` across all 80 CSVs. All five runs passed, exit 0,
+with empty error logs. They were launched four at a time by a scratchpad twin of `RunSmallCostPilot.ps1`, with the
+same args (`-Modes default -Compact`) and one `runs.json` per tag under `SimLogs/rotceil-*`. Comparison:
+`SimTools/analyze_rotation_ceiling_probe.py`, output `SimLogs/rotceil-sweep/sweep-1001-52.json`.
+
+| Seed 1001, 1960 | Control | C = 0.34 | 0.30 | 0.27 | 0.24 |
+|---|---:|---:|---:|---:|---:|
+| Published #1 / #10 | 6.63 | 2.71 | 2.40 | 2.15 | 2.25 |
+| #1 / #2 | 1.62 | 1.10 | 1.13 | 1.11 | 1.13 |
+| Airplay share of #1's points | 0.86 | 0.54 | 0.40 | 0.26 | 0.17 |
+| **Distinct Top 10 records** | **101** | 93 | 94 | 100 | 91 |
+| **Top 10 weeks per record** | **5.15** | 5.59 | 5.53 | 5.20 | 5.71 |
+| Peaks #1-3 / #4-6 / #7-10 / #11-14 | 32 / 19 / 9 / 14 | 32 / 14 / 10 / 20 | 34 / 11 / 9 / 25 | 38 / 11 / 12 / 12 | 31 / 18 / 6 / 20 |
+| Gone after entering at #8-10 | 7.3% | 4.1% | 6.7% | 18.5% | 12.5% |
+| #1 records / returns | 23 / 4.3% | 25 / 8.0% | 30 / 13.3% | 30 / 3.3% | 22 / 13.6% |
+| Closed chart life | 6.22 | 6.44 | 6.14 | 6.06 | 6.09 |
+| Hot 100 / Top 40 entries per week | 13.2 / 4.1 | 12.9 / 4.1 | 13.5 / 4.2 | 13.3 / 4.1 | 13.5 / 4.3 |
+| Single units vs control | - | +0.6% | +0.6% | +1.0% | +0.3% |
+| TraditionalPop / TeenPop / RnB Top 10 slots | 24.6 / 29.8 / 11.3 | 21.5 / 37.7 / 11.9 | 21.0 / 37.1 / 14.8 | 11.3 / 33.5 / 15.4 | 12.9 / 35.6 / 17.1 |
+| CR4 / CR8 | 26.9 / 43.1 | 36.3 / 54.2 | 31.5 / 46.3 | 35.0 / 52.9 | 32.7 / 45.6 |
+
+**The spacing target is reached and the duration target moves the wrong way at every C.** Weeks per Top 10 record
+rise by 0.05-0.57 and distinct records fall by 1-10. Peaks do not shift toward #7-10. One seed and 52 weeks is
+noisy, but the sign is the same at all four settings. The guards also fail where predicted: #1/#2 collapses to
+1.10-1.13, which is inside the survey noise, and #1 returns reach 8-14% at three of four settings. TraditionalPop
+loses up to half its Top 10 slots once the genre amplifier at the top is cut.
+
+**Why the section 17a counterfactual was wrong.** It held the per-band stays fixed while changing the spacing, but
+the two are one mechanism. Aligned on each Top 10 record's peak-units week:
+
+| Weeks after peak units | 0 | 2 | 3 | 4 | 5 |
+|---|---:|---:|---:|---:|---:|
+| Control: units / #10 cutoff | 0.79 | 0.67 | 0.59 | 0.45 | 0.36 |
+| Control: airplay / cutoff | 1.77 | 0.56 | 0.18 | 0.05 | 0.02 |
+| Control: still in Top 10 | 96% | 74% | 54% | 32% | 13% |
+| C = 0.30: units / cutoff | 1.10 | 0.98 | 0.84 | 0.67 | 0.55 |
+| C = 0.30: airplay / cutoff | 0.72 | 0.42 | 0.18 | 0.07 | 0.03 |
+| C = 0.30: still in Top 10 | 95% | 78% | 66% | 48% | 27% |
+
+In the control, the convex airplay term is also what ejects a record: rotation falling from 0.40 to 0.25 costs it
+90% of its airplay within two or three weeks of the sales peak. The ceiling removes that collapse as well as the
+spread. It also lowers the #10 cutoff (the top's airplay shrinks), so units alone now hold records in. Units still
+cover 67% of the cutoff four weeks after the peak, against 45% before. **The sim's Top 10 sales tail is the slow
+clock; convex airplay was both spreading the top and shortening the stay.** Rank spacing and stay length cannot be
+tuned separately through airplay.
+
+**Decision: the ceiling is not a lever.** No 260-week seeds were run. The switch stays in the tree, off and inert,
+pending the user's decision on whether to keep it.
+
+**What this leaves.** Stay length is set by how fast a Top 10 record's points fall after its sales peak. Units
+fall about 0.8x a week from week 2: 0.79 → 0.45 of the cutoff in four weeks. That is slow beside history's 2.4
+weeks from peak to exit. Inertia (section 17a: about 7% of Top 10 slot-weeks, about 6 records a year kept out)
+works on the same clock. Next probes, in order:
+1. `BASE_INERTIA`. It is label-neutral and needs only an off-by-default switch.
+2. The Top 10 sales tail itself: the post-peak decline of a charted record's demand. The 0.7 awareness floor is
+   one candidate. Removing it had no effect in the convex regime (17a). Its effect here is untested.
+
+Both need the same #1 tenure and returns guards. Neither touches the Big-5 premium. That premium remains push in the
+airplay term (17b): its only tested lever is push spread, which redistributes the weeks rather than removing them.
+
+### 17e. Probe result: lower chart inertia (one seed, 52 weeks)
+
+**Switch.** `Systems/ChartInertiaProbe.cs` adds `--chart-inertia-base=B`, which is off unless named. It replaces
+`BASE_INERTIA` (0.80) in `GetInertiaPositionCap`, including the cap on the momentum bonus. B = 0 removes the cap.
+`--chart-inertia-base-check` (`SimTools/ChartInertiaProbeChecks.cs`) asserts that it returns the authored base
+bit-for-bit when off, that a lower base lets a falling record drop further, that B = 0 returns the raw position, and
+that a rising record is never held. It passed, as did the ceiling check (a throwing check exits 3 from
+`SaveLoadRoundTripRunner`). The build is Debug `9D6A45FE…a5c0`, and it carries both probe switches. The switch-off run
+(`inertia-off-check`) is **byte-identical** to `historical-top10-review-v2-default-1001-52` across all 80 CSVs. All
+five runs passed, exit 0, with empty error logs. Output: `SimLogs/inertia-sweep/sweep-1001-52.json`.
+
+| Seed 1001, 1960 | Control (0.80) | B = 0.6 | 0.4 | 0.2 | 0 |
+|---|---:|---:|---:|---:|---:|
+| Top 10 slot-weeks held by inertia | 7.5% | 2.5% | 1.2% | 0 | 0 |
+| Records kept out of the Top 10 | 6 | 3 | 1 | 0 | 0 |
+| **Distinct Top 10 records** | **101** | 99 | 106 | 104 | 109 |
+| **Top 10 weeks per record** | **5.15** | 5.25 | 4.91 | 5.00 | 4.77 |
+| Peaks #1-3 / #4-6 / #7-10 / #11-14 | 32 / 19 / 9 / 14 | 31 / 21 / 6 / 23 | 37 / 16 / 17 / 23 | 40 / 12 / 14 / 16 | 38 / 18 / 13 / 20 |
+| Published #1 / #10 | 6.63 | 6.70 | 6.46 | 5.94 | 5.46 |
+| #1 records / tenure / returns | 23 / 2.26 / 4.3% | 22 / 2.36 / 0% | 23 / 2.26 / 8.7% | 27 / 1.93 / 0% | 24 / 2.17 / 0% |
+| **Closed chart life** | **6.22** | 5.66 | 6.21 | 5.52 | **5.29** |
+| Hot 100 / Top 40 entries per week | 13.2 / 4.1 | 13.8 / 4.3 | 13.7 / 4.7 | 14.1 / 4.5 | 14.3 / 4.5 |
+| Single units vs control | - | −0.6% | +0.4% | −0.5% | +0.5% |
+| CR4 / CR8 | 26.9 / 43.1 | 33.5 / 46.0 | 34.8 / 49.4 | 31.2 / 45.2 | 35.2 / 49.6 |
+
+**Read.**
+- *The mechanism works as measured in 17a.* Held slots and kept-out records go to zero. The Top 10 gains up to 8
+  records, and weeks per record fall by up to 0.38 (7%), at B ≤ 0.4. It does not touch the top's spacing or the
+  peak mix in a systematic way. It is the secondary lever 17a sized, about 6 records a year, not a fix for the whole
+  excess.
+- *The effect is about the size of the noise.* Unrelated ceiling arms moved Top 10 records over 91-101 on this
+  seed. B = 0.6 moved the wrong way. The trend from 0.4 to 0 is consistent but small, and one seed cannot separate
+  it.
+- *The wrong year for the target.* 1960 is the one year where the sim's Top 10 count already matches history (102).
+  The excess is in 1961-64 (111-119 historical against 96-105), which only the 260-week seeds can test.
+- *Chart-life guard.* Inertia acts on the whole Hot 100, not only the Top 10. At B = 0, closed chart life falls 15%
+  (6.22 → 5.29) and Hot 100 entries rise 8%. B = 0.4 leaves life at 6.21 and entries at 13.7 on this seed, so it is
+  the only setting that clears this guard here.
+- *CR4 and Big-5.* CR4 rises in every arm (31-35 against 26.9), but seed 1001 is the low 1960 seed (the three-seed
+  mean is 33.8), and any change reshuffles the stream (`one-conversion-reshuffles-the-rng-stream`). It cannot be
+  read at one seed. Inertia does not act on the Big-5 premium, which is airplay (17b).
+
+**Candidate for the 260-week check: B = 0.4,** paired with `top10-fiveyear-review-v1` (seeds 1001, 2002, 3003).
+Run in 17f.
+
+### 17f. Three 260-week seeds at `--chart-inertia-base=0.4` (`inertia040-fiveyear-v1`)
+
+Seeds 1001, 2002 and 3003, 260 weeks, `-Modes default -Compact` arguments plus `--chart-inertia-base=0.4`. Assembly
+`9D6A45FE…a5c0` (the 17e build; its switch-off run is byte-identical to the 1960 control). All three passed, exit 0,
+with empty error logs, in about 29 minutes in parallel. They were launched by a scratchpad twin of
+`RunSmallCostPilot.ps1` that writes one combined `runs.json`. Paired against `top10-fiveyear-review-v1` (assembly
+`37E62AA3…`, the same sources without the switches). Outputs in `SimLogs/inertia040-fiveyear-v1/`: `paired-<seed>.json`
+and `paired.txt` (`analyze_rotation_ceiling_probe.py`), `review.json` and `review.txt`
+(`analyze_label_tier_historical_benchmarks.py`), and `lag.json` (`analyze_top10_1961_lag.py`).
+
+`analyze_label_tier_historical_benchmarks.py` crashed on this run. A runtime-founded Independent ("Chancellor",
+`gen_chancellor_6740`) led seed 1001's 1961 Top 10 and had exited before the end-of-run label directory was written.
+The script now takes such a label's name from `first-chart-events.csv`. Names are display only, and the control's
+re-run `reviews` block is identical to `top10-fiveyear-review-v1/review.json`.
+
+**Target: Top 10 turnover (three-seed means).**
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---:|---:|---:|---:|---:|
+| Distinct Top 10 records: control | 100.3 | 100.0 | 99.0 | 99.0 | 99.7 |
+| B = 0.4 | 105.0 | **108.3** | **106.0** | 101.3 | **109.3** |
+| History | 102 | 115 | 115 | 119 | 111 |
+| Weeks per record, within year: control | 5.18 | 5.20 | 5.26 | 5.25 | 5.22 |
+| B = 0.4 | 4.95 | 4.80 | 4.91 | 5.13 | 4.76 |
+| History | 5.10 | 4.52 | 4.52 | 4.37 | 4.68 |
+
+Every seed gains Top 10 records in every year except one seed-year (3003's 1963, −1). Over the whole run, records
+rise by 30-39 per seed and weeks per uncensored record fall by 0.36-0.44. Held slots fall from 6.9-7.2% to 0.8%, and
+kept-out records from 26-35 to 3-6. **It closes about 44% of the 1961-64 record gap (99.4 → 106.2 against 115).**
+1960 overshoots history slightly (105 against 102). The Top 10 peak mix does not move consistently: #7-10 peakers
+go 58 / 92 / 79 → 88 / 90 / 74. The gain comes from records that inertia was holding or keeping out.
+
+**Guards (three-seed means).**
+
+| Guard | Control | B = 0.4 | History | Read |
+|---|---:|---:|---:|---|
+| #1 records (five years) | 110.7 | 103.7 | 102 | pass, toward history |
+| #1 tenure / spell | 2.36 / 2.24 | 2.51 / 2.41 | 2.55 / 2.48 | pass, toward history |
+| #1 returns | 5.2% | 4.2% | 2.9% | pass |
+| Closed chart life | 7.50 | **7.20** | 7.48 (decade) | −4%: falls 0.28 below history, outside the 0.37 seed spread in two seeds |
+| Hot 100 entries per week | 13.28 | 13.81 | about 13.4 | +4%, now slightly above history |
+| Top 40 entries per week | 4.29 | **4.68** | - | +9%, the largest guard move |
+| Single units | - | +0.2 / +0.6 / −0.0% | - | pass |
+| Genre Top 10 slot shares | - | largest moves RnB +2.9, Soul −2.0, TeenPop +2.0 points | - | pass (within about 3 points) |
+
+**CR4 / CR8 review: one flag traded for two.**
+
+| Year | Control CR4 / CR8 | B = 0.4 CR4 / CR8 | Band | B = 0.4 status |
+|---|---|---|---|---|
+| 1960 | 33.78 / 50.26 | 31.15 / **46.92** | 30-40 / 48-58 | **REVIEW** (CR8 low) |
+| 1961 | **35.71 / 49.10** | 28.27 / 42.37 | 22-32 / 38-48 | WITHIN_BANDS (was REVIEW) |
+| 1962 | 27.05 / 42.56 | 28.97 / 42.95 | 22-32 / 38-48 | WITHIN_BANDS |
+| 1963 | 29.55 / 45.00 | **35.51 / 50.83** | 22-32 / 38-48 | **REVIEW** |
+| 1964 | 27.44 / 39.94 | 27.56 / 45.19 | 22-32 / 38-48 | WITHIN_BANDS |
+
+The 1963 rise is systematic: CR4 is 34.4 / 35.0 / 37.1 in the three seeds, against 25.0-32.3 in the controls.
+
+| 1963 | Head Top 10 records | Head weeks per record | Rest weeks per record |
+|---|---:|---:|---:|
+| History | 31 | 4.42 | 4.35 |
+| Control (1001 / 2002 / 3003) | 28 / 21 / 28 | 6.00 / 6.19 / 5.82 | 5.03 / 5.06 / 4.89 |
+| B = 0.4 | 32 / 29 / 30 | 6.03 / 6.17 / 6.07 | 4.67 / 4.67 / 4.83 |
+
+**Inertia shortens the rest of the Top 10 and leaves the head alone.** The head's stays are held by airplay, which
+the cap does not touch (17b). The rest's stays include the inertia-held weeks. So lowering inertia widens the
+head-rest gap: 1963's head premium goes from about +1.0 to +1.4 weeks. In the years where the sim's head has as many
+records as history's or more, that raises CR4. Big-5 upper-half Top 10 stays in 1961-63 stay at 6.36-7.62 weeks,
+against 4.99-5.47 for other labels' upper-half records. The premium persists. In 1961 the effect runs the other
+way, because there the extra records go to the rest and the head's record count falls (29.7 → 28.0).
+
+**Verdict: a real partial lever, not adoptable alone.** B = 0.4 moves Top 10 turnover about 44% of the way to
+history. It brings #1 tenure and #1 records closer to history and keeps returns under control. It costs about 4%
+of closed chart life and 9% more Top 40 entries. Because it acts only on non-head records, it shifts the CR4
+excess from 1961 to 1963 instead of removing it. Any adoptable fix has to shorten the head's airplay-held stays as
+well. The only tested lever on those is push spread (17b, section 10). That probe moved the weeks to other labels,
+which is exactly what this lever would then remove. **Next candidate:** B = 0.4 combined with
+`--radio-push-spread=0.5`, three 260-week seeds, same guards. Push spread still carries section 10's late-decade
+Major-share caveat.
+
+**Not levers, on this evidence:** the push spread (it moves the premium between labels and leaves duration as it
+is); the Top 10 awareness floor and chart-signal step (removing them changed nothing); `AIRPLAY_CONVEXITY` itself
+(it carries #1 tenure, Top 40 life and the genre ordering throughout the chart, while the defect is only at the
+top).
+
+### 17g. Combined inertia / push-spread investigation (2026-10-17)
+
+**Screen before confirmation.** The requested starting point was B = 0.4 with
+`--radio-push-spread=0.5`. Three 260-week runs were initially dispatched as
+`inertia040-push050-fiveyear-v2`. Their completed 1960 charts already miss the
+adopted CR8 band: CR4 **31.41**, CR8 **45.26** (band 30-40 / 48-58), with 104
+distinct Top 10 records per seed on average (history 102). Per-seed CR4 / CR8:
+30.38 / 43.08, 35.58 / 51.73, 28.27 / 40.96. These are observed completed-year
+screens, not a formal review of completed five-year runs.
+
+The user directed that balancing use short runs and five-year runs confirm a
+good candidate. All three long runs were stopped at 104-108 observed weeks;
+their manifest is marked `STOPPED_AFTER_FAILED_1960_SCREEN`, with `passed=false`.
+The unfinished final year and unflushed final audit outputs must not enter a
+formal review. The preceding `...-v1` attempt crashed in Godot before startup
+under the sandbox and contributes no simulation data.
+
+**Short-run protocol.** Use seeds 1001, 2002 and 3003, 52 weeks, default mode and
+compact output, with the same flags and assembly as 17f (`9D6A45FE...a5c0`).
+Require both 1960 concentration bands on the three-seed mean, and inspect paired
+chart life, entries, sales, turnover and genre changes before promotion. #1
+tenure cannot be resolved by a 52-week screen. A setting that clears screening
+still needs the 1961-64 concentration and turnover checks in confirmation;
+later-decade Major share remains a separate limitation.
+
+`SimTools/RunTop10BalanceProbe.ps1` supplies the same flags as
+`RunSmallCostPilot.ps1 -Modes default -Compact`, dispatches at most five engine
+processes, defaults to **52 weeks**, records assembly/arguments/completion, and
+counts observed weeks from `records.csv` because compact `weeks.csv` is
+header-only. `SimTools/analyze_top10_balance_probe.py` compares completed 52- or
+260-week configurations, reuses the adopted annual review, reports head/rest
+stays and every genre's Top 10 share, and rejects stopped manifests.
+
+**Analysis repair and validation.** The 17f label-name fallback required
+`first-chart-events.csv` even for older/minimal logs that did not need it. It now
+reads that optional display-name source only when present, otherwise falling
+back to the label ID. The existing six review tests pass, including an added
+exited-label case; shares are unchanged. The new comparison reproduces the old
+control and 17f annual `reviews` blocks exactly, and comparing an arm with
+itself produces zero paired changes. Debug build passed with zero warnings or
+errors. Both existing probe checks passed with the two switches enabled.
+
+**Completed three-seed 1960 screens (same seeds as 17f).**
+
+| Inertia / push spread | CR4 | CR8 | Distinct Top 10 | Closed chart life | Outcome |
+|---|---:|---:|---:|---:|---|
+| Defaults 0.8 / 1 | 33.78 | 50.26 | 100.3 | 6.213 | Within concentration bands |
+| 0.4 / 0.5 (stopped long runs) | 31.41 | 45.26 | 104.0 | unavailable | Reject: CR8 low |
+| 0.4 / 0.75 | 27.24 | 42.82 | 105.0 | 5.817 | Reject: both low; chart life -6.4% |
+| 0.6 / 0.75 | 30.71 | 45.06 | 103.7 | 5.853 | Reject: CR8 low; chart life -5.8% |
+| 0.6 / 0.9 | 32.18 | 47.44 | 105.7 | 6.075 | CR8 0.56 below band; expand short-run sample |
+
+The 0.4/0.75 runs were dispatched one seed at a time under
+`inertia040-push075-screen-<seed>`; `inertia040-push075-screen-v1/runs.json`
+combines those three unchanged manifests after verifying their assembly and
+flags match. Other short-run tags are `inertia060-push075-screen-v1` and
+`inertia060-push090-screen-v1`. Each directory has `comparison.json` and
+`comparison.md` from the new analyzer. These chart-life values use the same
+52-week window as the control, not the decade's 7.48-week historical reference.
+
+At 0.6/0.9, single units move -0.50% to +0.42% per seed; mean Hot 100 entries
+are 13.065 versus 13.052, and Top 40 entries 4.216 versus 4.033. The Big-5
+upper-quality stay falls from 6.42 to 5.77 weeks and others from 5.69 to 5.33.
+The mean #1 tenure is 1.96 versus 2.23, so multi-year confirmation must guard
+that direction. Before further parameter changes, the unchanged setting is
+being screened on 4004 and 5005, the two extra seeds used in the established
+five-seed 1960 review. Retain the original three-seed miss when reporting the
+expanded sample; the extra seeds must not replace or erase it.
+
+**Expanded 1960 screen: 0.6/0.9 clears the five-seed concentration bands.**
+All five 52-week runs passed with empty error logs. `inertia060-push090-screen-holdout-v1`
+holds 4004 and 5005; `inertia060-push090-screen-five-seed-v1/runs.json` combines
+them with the original three, retaining every seed. The paired control is the
+established five-seed 1960 sample, merged as `top10-balance-control-five-seed`.
+
+| Five-seed 1960 mean | Defaults | 0.6/0.9 |
+|---|---:|---:|
+| CR4 / CR8 | 37.85 / 55.00 | **36.69 / 52.08** |
+| Distinct Top 10 / within-year weeks per record | 100.0 / 5.20 | 103.6 / 5.03 |
+| Closed chart life | 6.081 | 6.118 |
+| Hot 100 / Top 40 entries per week | 12.926 / 4.008 | 13.165 / 4.204 |
+| #1 records / tenure / spell | 22.8 / 2.30 / 2.29 | 25.4 / 2.06 / 1.99 |
+| #1 returns | 0.87% | 3.37% |
+| Single units | - | -0.33% aggregate; -1.18% to +0.42% paired |
+
+The larger sample clears concentration and restores the chart-life guard, but
+the original three-seed CR8 miss remains 47.44. #1 tenure moves the wrong way
+in these short runs. This is a **confirmation candidate, not an adopted default**.
+This amends the initial three-seed screening rule for the near-boundary result:
+use the established five-seed sample without changing parameters or dropping
+seeds, and confirm using those same five seeds. The largest five-seed mean genre
+shift is RnB +3.04 points (TraditionalPop -1.96); retain that as a guard too.
+`inertia060-push090-fiveyear-confirm-v1` therefore tests the same five seeds for
+260 weeks, checking complete annual concentration while running and stopping
+on a miss. No new parameter setting was chosen after inspecting the extra seeds.
+
+**Why the initial combination misses CR8.** Against the three-seed control, its
+1960 top four lose 2.37 slot-share points and ranks five to eight lose another
+2.63. The five points go to firms below the top eight. Narrowing push is not a
+transfer from the head into the second rank of hitmakers; on this evidence it
+reduces the concentration of both groups. This is a comparison of full-system
+outcomes, including the reshuffled random stream, not a fixed-record counterfactual.
+
+The analyzer's explicit `--screen --seeds ...` mode reads frozen CSV bytes and
+checks only years with all 52 weeks and 520 unique Top 10 slots. Its output is
+marked `formalRunReview=false`; it does not treat a running or stopped process
+as a completed audit or supply missing final guard outputs.
+
+**0.6/0.9 confirmation: rejected at the completed 1962 checkpoint.** All five
+confirmations reproduce their corresponding 52-week `records.csv` rows
+byte-for-byte (`first-year-identity.json`). Complete annual slot screens:
+
+| Year | CR4 | CR8 | Distinct Top 10 | Status |
+|---|---:|---:|---:|---|
+| 1960 | 36.69 | 52.08 | 103.6 | Within screen bands |
+| 1961 | 29.96 | 44.85 | 103.0 | Within screen bands |
+| 1962 | **35.12** | **48.04** | 101.2 | Outside screen bands |
+
+The five processes were stopped at 162-171 observed weeks; their manifest is
+`STOPPED_AFTER_FAILED_1962_CONFIRMATION`, with `passed=false`. No completed
+five-year review or final multi-year guard result is claimed. Evidence:
+`inertia060-push090-fiveyear-confirm-v1/annual-screen.json` and
+`1962-head-diagnosis.json`.
+
+The original three seeds' 1962 CR4 mean is 30.13, within band. Seeds 4004 and
+5005 are 39.42 and 45.77. Their heads have **37 and 41 records**, versus
+history's 25, with **5.54 and 5.80 weeks per record**, versus history's 5.56.
+Thus these two high-concentration seeds have a head hit-count excess, not the
+large stay premium diagnosed in the original three-seed 1961 review. Their
+Big-5 slot shares are 37.1% and 48.5%. A stay-only correction cannot address
+that particular failure without pushing head stays below history.
+
+Before another confirmation, the existing 0.6/0.75 short screen is being
+completed on 4004 and 5005 (`inertia060-push075-screen-holdout-v1`), using the
+same five-seed sample for both candidate and control. Its original three-seed
+CR8 miss remains recorded above.
+
+**0.6/0.75 expanded screen: reject before confirmation.** The five-seed 1960
+mean is CR4 **33.31**, CR8 **47.38**: the low CR8 persists. Turnover is 102.4
+records, closed chart life 6.001 versus 6.081, #1 tenure 2.174 versus 2.304, and
+#1 returns 1.74% versus 0.87%. Output:
+`inertia060-push075-screen-five-seed-v1/comparison.*`. No long run was launched.
+
+**Next bounded interpolation screen:** B = 0.6, F = **0.825**, the midpoint of
+0.75 (1960 CR8 low) and 0.9 (1960 passes, 1962 CR4 high). Screen all five
+established seeds for 52 weeks as `inertia060-push0825-screen-v1`; require the
+same concentration bands and inspect the same guards before any confirmation.
+
+**0.6/0.825 screen: concentration passes; #1 is the confirmation risk.** All five
+52-week runs passed, empty error logs. CR4 **33.35**, CR8 **49.77**, distinct
+Top 10 records **103.0**, within-year weeks 5.05; closed chart life 6.076 versus
+6.081. Single units -0.08% aggregate (-0.75% to +0.29% paired); Hot 100 / Top 40
+entries 13.137 / 4.157 versus 12.926 / 4.008. But #1 records rise 22.8 -> 27.2,
+tenure falls 2.304 -> **1.913**, spell 2.286 -> **1.796**, and returns rise
+0.87% -> **6.70%**. These are warnings, not a claim that #1 tenure is resolved
+by one opening year. `inertia060-push0825-fiveyear-confirm-v1` tests the same
+five seeds, with the same annual concentration stop rule and #1 behavior a
+binding adoption guard. Source screen: `inertia060-push0825-screen-v1/comparison.*`.
+
+Its five confirmation runs reproduce the first-year record logs byte-for-byte.
+The completed 1961 screen passes at **28.92 / 42.19**, with 102.8 distinct Top 10
+records (history 115). Through both complete years, #1 tenure rises from the
+opening year's 1.91 to **2.11**, spell 2.02 and returns 4.92%. That recovery does
+not clear the historical #1 guard yet. Evidence: `annual-screen.json`,
+`first-year-identity.json`, and the matched-original-three-seed
+`no1-checkpoint-1961.json` under the confirmation tag.
+
+**0.6/0.825 confirmation: reject at 1962; no default adopted.** The complete
+five-seed 1962 mean is **CR4 34.69 / CR8 50.00**, outside 22-32 / 38-48. Top 10
+records are 103.2, versus history's 115. All five runs were stopped at 162-172
+observed weeks and marked `STOPPED_AFTER_FAILED_1962_CONFIRMATION`. Their
+incomplete 1963 charts and missing final guard outputs are excluded. #1 through
+the three complete years remains short at **2.18 tenure / 2.07 spell**, returns
+**5.08%**. That is not the #1 improvement seen with inertia 0.4 alone in 17f.
+
+The 1962 head accounting now differs from the original duration diagnosis:
+
+| 1962 | Historical head | 0.6/0.825 five-seed mean |
+|---|---:|---:|
+| Head records | **25** | **32.6** |
+| Head weeks per record | **5.56** | **5.46** |
+| Rest weeks per record | 4.23 | 4.81 |
+| CR4 | 26.73 | **34.69** |
+
+The original three seeds pass 1962 CR4 at 27.76. Seeds 4004 / 5005 are 43.08 /
+47.12, with 40 / 39 head records. One seed-5005 Big-5 label alone contributes
+**21 Top 10 records and 143 slot-weeks (27.5%)**. These are full-system outcomes,
+not a paired causal estimate for the two additional seeds: they have no matching
+five-year default control in the existing archive.
+
+**Accounting counterfactual only:** holding the candidate's mean head record
+count at 32.6 and replacing its stay with history's 5.56 gives CR4 **34.86**;
+replacing the count with history's 25 at the candidate's mean stay gives
+**26.24**. Thus further shortening the head is not the supported repair for
+this expanded-sample failure. The head's hit count is high while the rest still
+runs long. `1962-head-diagnosis.json` retains the per-seed firms and quantities.
+
+**Verdict for the tested combination family.** The requested 0.4/0.5 pairing
+fails its completed 1960 screen. Increasing inertia and weakening compression
+can restore the five-seed opening-year concentration, chart-life and sales
+guards, but both promoted candidates (0.6/0.9 and 0.6/0.825) fail 1962. The latter
+also retains a #1 tenure penalty. No setting tested here has cleared all
+historical concentration bands and chart guards; no simulation default was
+changed and nothing was committed. All requested probe processes are stopped.
+
+The next investigation should distinguish **hit conversion/volume of the
+prolific head firms** from **stay length of the rest**, and preserve the second
+rank's share rather than sending head slots to the whole tail. These results
+do not establish that every possible constant inertia/spread pairing fails;
+they do establish that neither the suggested pair nor the screened/confirmed
+alternatives justify adoption. Further interpolation without that diagnosis
+would risk selecting a reshuffled random stream instead of a durable repair.
+
+Reproduce a completed short comparison:
+
+```text
+python SimTools/analyze_top10_balance_probe.py --candidate SimLogs/inertia060-push0825-screen-v1/runs.json --control SimLogs/top10-balance-control-five-seed/runs.json --output SimLogs/inertia060-push0825-screen-v1/comparison.json
+```
+
+Reproduce the explicitly partial confirmation screen (not a completed-run review):
+
+```text
+python SimTools/analyze_top10_balance_probe.py --candidate SimLogs/inertia060-push0825-fiveyear-confirm-v1/runs.json --screen --seeds 1001 2002 3003 4004 5005 --output SimLogs/inertia060-push0825-fiveyear-confirm-v1/annual-screen.json
+```
+
+Final checks: all six historical-review tests pass; the snapshot reproduces all
+five baseline annual concentration reviews exactly and its cumulative #1 values
+match the existing completed-run analyzer. All three stopped manifests are
+rejected by completed-run analysis. The launcher parses successfully and cleans
+up both the console shim and its verified engine child on failure. `git diff
+--check` passed; process inspection found zero remaining requested Godot probes.
+
+### 17h. Head hit conversion and volume: matched controls and artist-heat attribution (2026-10-17)
+
+**Question.** The 0.6 / 0.825 midpoint clears the five-seed 1960 and 1961
+concentration means, then fails 1962 with 32.6 head records against 25 in the
+reconstruction. Does the head release more records, or convert more of its
+releases into hits? Short screens precede long confirmation.
+
+**Matched controls change the interpretation.** Two new, completed **168-week**
+default runs supply the missing seeds 4004 and 5005. Together with the archived
+three 260-week controls, all five now have complete 1960–62 charts. This
+supersedes §17g's missing-control caveat for these years, but supplies no new
+1963–64 control evidence. Annual figures below are equally weighted seed means;
+firms are ranked within each seed/year.
+
+| Setting | 1960 CR4 / CR8 | 1961 CR4 / CR8 | 1962 CR4 / CR8 |
+|---|---:|---:|---:|
+| Defaults, five seeds | 37.85 / 55.00 | **37.27 / 50.77** | 30.85 / 46.15 |
+| Inertia 0.6 / push 0.825, five seeds | 33.35 / 49.77 | 28.92 / 42.19 | **34.69 / 50.00** |
+
+Thus 1962 is not intrinsically outside the bands under every setting. The
+midpoint repairs 1961's mean while producing a different 1962 concentration
+excess. Its 1962 head stay remains 5.46 weeks against 5.56 historically; defaults
+have 27.8 head visitors and a 5.82-week mean stay. Further shortening stays alone
+does not address the midpoint's excess hit count.
+
+**Cohort method.** `analyze_head_hit_conversion.py` maps ordinary singles by
+`recordId` and album-promoted singles by **`promoSingleId`**, excluding standalone
+albums. Cohorts use releases in the first **48 audit weeks of each year**, each
+followed for **eight weeks**, with every input observed through week 160. A
+release never charting in that window remains in the denominator. Calendar-year
+fields on release decisions differ at boundaries, so cohort year is
+`1960 + (week - 1) // 52`; the original `releaseCalendarYear` is retained. The
+analyzer requires all 100 chart ranks in **every** observation week, unique
+record/week and launch identities, and reconciles inferred release ages to
+launch weeks. Annual visitors include older releases and carryover, so they
+must not be divided by the unrelated release cohort.
+
+| 1962 Big-5 release cohorts, pooled across the same five seeds | Defaults | Midpoint |
+|---|---:|---:|
+| Actual single launches | 1,060 | 1,063 |
+| Hot 100 entrants within eight weeks | 496 | 533 |
+| Top 10 hits within eight weeks | 107 | 138 |
+| Hot 100 entry rate | 46.79% | 50.14% |
+| Top 10 conversion among entrants | 21.57% | 25.89% |
+| Launch quality estimate, all cohort releases | 0.5792 | 0.5806 |
+| Actual quality, entrants within the window | 0.7025 | 0.7037 |
+
+The **31 extra cohort hits** decompose exactly as `launches × entry rate ×
+conditional conversion`, changing factors in that order: **0.30** from launch
+volume, **7.68** from chart entry, and **23.02** from conditional Top 10
+conversion. This is descriptive accounting, not an isolated causal effect of
+one parameter. Quality averages are close, but averages do not establish equal
+quality distributions; actual quality in the old logs is observable only for
+chart entrants. Big-5 is a stable label set, whereas the annual head is ranked
+after observing outcomes and can include newly founded labels.
+
+A descriptive check using actual entrant-quality bins
+`[0, .5, .6, .65, .7, .75, .8, .85, 1.01]` covers **all 496 default entrants**.
+Reweighting the midpoint's bin-specific conversion rates to the default quality
+mix gives **25.81%**, almost unchanged from its observed 25.89%, against
+21.57% in defaults. Thus this coarse quality-mix check explains very little of
+the conditional-conversion gap. It is not a randomized quality intervention.
+
+**The strongest failure is conversion, not extra Mercury release slots.** In
+seed 5005, Mercury (`label_0005`) has **52 launches** in every year for both
+defaults and the midpoint. Its annual Top 10 visitors are **12 → 13 → 21** in
+the midpoint, against **15 → 6 → 9** in defaults. Its matched eight-week cohorts
+give:
+
+| Mercury, seed 5005 | Cohort launches | Hot 100 entrants | Top 10 hits | Entry rate | Conditional Top 10 conversion |
+|---|---:|---:|---:|---:|---:|
+| Midpoint 1960 | 48 | 33 | 11 | 68.75% | 33.33% |
+| Midpoint 1961 | 48 | 31 | 9 | 64.58% | 29.03% |
+| Midpoint 1962 | 48 | 38 | 17 | 79.17% | 44.74% |
+| Defaults 1962 | 48 | 36 | 7 | 75.00% | 19.44% |
+
+Relative to defaults in 1962, the midpoint's ten extra cohort hits account for
+**zero** volume effect, **0.39** entry effect and **9.61** conditional-conversion
+effect. Relative to its own 1960, the six-hit rise accounts for zero volume,
+1.67 entry and 4.33 conversion. These decompositions depend on factor order.
+
+It is not just an album-promo launch flood. The midpoint's 1962 Mercury cohort
+has 25 promos / 23 ordinary singles, with 10 / 7 hits; defaults have **more**
+promos, 37 / 11, with 5 / 2 hits. Nor are the 21 annual visitors all from one
+opening act: they span 13 artists. Reserve/runtime population contributes
+39.58% of the midpoint's 1962 release cohort, against 2.08% in 1960. Population
+cohort describes how an artist entered the world, not proof of an opening label
+contract. In seed 4004 the 40 head visitors are spread over RCA Victor (17),
+Capitol (11), Mercury Music (7) and Phoenix Sound (5), so the head problem is not
+identical to a Big-5-only or Mercury-only problem.
+
+**First causal diagnostic: album contributions to singles' artist heat.**
+`ChartManager.CalculateArtistHeat` sums current chart standing and retained
+peak standing across both singles and albums, plus a hit-count bonus. A Top 10
+album alone can contribute 0.45 before the shared 1.0 clamp. Singles receive this
+heat in the radio target at a 0.12 coefficient. Album persistence therefore
+offers a plausible path from a growing album catalog to later single success;
+the old compact logs have no populated album chart with which to measure it.
+This is a hypothesis, not a demonstrated explanation for 1962.
+
+The new **off-by-default** `--head-hit-attribution` flag records actual quality
+and launch traits for **all** ordinary/promo singles, including chart misses,
+and samples each artist's singles/album heat components every four weeks.
+The separate **off-by-default** `--single-artist-heat-no-albums` diagnostic uses
+only single contributions as the live singles' heat input. Albums keep the
+authored input; prewarm is unchanged. It introduces no year-specific rule,
+label targeting or release cap.
+
+Instrumentation validation: a 52-week default seed-5005 replay has **all 80
+shared CSV files byte-identical** to the archived control, with exactly two
+expected additional trace files. The midpoint's new seed-5005 measurement
+replay also reproduces all first-52-week records, release decisions and finance
+rows exactly. The focused Godot attribution checks exit successfully; they
+cover format gating, disabled identity, prewarm, and preserving authored float
+addition order for a single-only catalog. The build succeeds with zero warnings
+or errors. New runs retain the assembly SHA-256 and flags in their manifests.
+
+**Completed diagnostic, two selected failure seeds.** The 168-week runs finish
+cleanly with empty error logs. Seed 5005's new measurement replay matches the
+archived midpoint through **all 160 observation weeks** exactly: 16,000 chart
+rows, 16,421 release-decision rows and 101,039 finance rows. Seed 4004's comparator
+is the archived midpoint. These seeds were selected for their high midpoint
+1962 concentration, so this two-seed contrast is provisional and does not
+replace a five-seed acceptance mean.
+
+| 1962 diagnostic | Midpoint CR4 / CR8 | Singles-only heat CR4 / CR8 | Head visitors, before → after |
+|---|---:|---:|---:|
+| Seed 4004 | 43.08 / 57.12 | 36.35 / 48.65 | 40 → 31 |
+| Seed 5005 | 47.12 / 60.00 | 41.15 / 52.31 | 39 → 36 |
+
+Mercury in seed 5005 falls from **21 to 14 annual Top 10 visitors**, and from
+143 to 80 slot-weeks. Its fixed 48-launch cohort falls from 17 to 12 hits,
+with 38 → 35 Hot 100 entrants and 44.74% → 34.29% conditional conversion.
+The intervention has a useful full-system effect on this failure, but does not
+by itself bring either selected seed into the later-year bands. No individual
+seed result constitutes an ensemble acceptance or rejection.
+
+The telemetry supports the proposed feedback path. In Mercury's **sampled
+Top 10 slot observations**, album contributions raise artist heat by **0.065 /
+0.150 / 0.253** in 1960 / 1961 / 1962. In 1962 the original input averages
+0.804, against 0.551 using singles only, and 30 of 35 sampled slots have a
+positive album contribution. These are conditional, slot-weighted samples,
+not means over all artists or a longitudinally fixed artist cohort. Zero-cache
+artists are retained with zero heat rather than dropped from the denominator.
+
+The contrast includes downstream changes in artists, careers and release mix:
+Mercury's actual quality across all 48 launches shifts from 0.6635 to 0.6313.
+It cannot assign every removed hit to a direct radio-heat effect while holding
+everything else constant. Within the two seeds' Big-5 chart entrants, quality
+standardization still leaves conditional conversion lower (24.24% versus the
+midpoint's 28.70%; observed treatment 22.76%). This is supportive descriptive
+evidence, with a small selected sample and a changed simulation path.
+
+The completed 168-week seed-5005 pair also shows a tradeoff: #1 tenure falls
+2.333 → 2.127 weeks, spell length 2.182 → 2.074, while returning #1 records fall
+6.94% → 2.53%. Closed chart life changes 7.270 → 7.149 weeks and total single
+units rise 0.25%. The median #1/#10 points ratio remains steep, 5.169 → 5.133.
+These are matched 168-week comparisons, not five-year historical confirmation.
+
+**Fame preservation constraint and narrower follow-up.** The user explicitly
+required successful albums to raise hype and single buying (the Beatles case).
+Wholesale album-heat removal is therefore retained as a diagnostic only. The
+remaining three 52-week ablation runs completed; combined with the first-year
+charts of the two 168-week runs, its opening-year mean is **35.46 / 52.08**, with
+104.0 distinct Top 10 records. That is a concentration-only screen with mixed
+source horizons, not a final lifecycle/economic review. Passing that mean does
+not make the full ablation an acceptable fame model.
+
+Code inspection confirms album milestones still feed the enabled persistent
+recognition stock. Recognition then raises a new single's launch awareness,
+initial retail stock and initial radio exposure. Separately, weekly artist heat
+credits both an album's current chart rank and its old peak plus hit-count bonus
+for as long as that album remains in the active record set. These are different
+mechanisms; the data do not by themselves prove every shared contribution is
+erroneous double counting.
+
+The new, also **off-by-default**, `--single-artist-heat-current-albums` diagnostic
+preserves **all current-album chart heat**, including 0.30 from a current Top 10
+album. It excludes only album peak/hit-count terms from the extra weekly
+singles' heat input. Persistent recognition, milestone credit, launch fame
+lifts, album simulation and prewarm retain their authored behavior. Both
+diagnostic switches cannot be supplied together. Focused checks pass for the
+current-album contribution, disabled identity, unchanged album/prewarm inputs
+and single-only addition order.
+
+This narrower target follows the attribution: in the failing Mercury run, the
+approximately 0.253 album contribution at sampled 1962 Top 10 slots splits into
+**0.091 from current album chart heat** and **0.161 from retained peak/hit
+credit** after the shared clamp. The latter was only 0.019 in 1960, while the
+current-chart part was 0.046. These are descriptive component differences in
+the same observed world; their full-system effects still require a new run.
+All five 52-week opening screens of the narrower diagnostic complete cleanly.
+Their equally weighted mean is **CR4 34.65 / CR8 51.73**, within the 1960 bands,
+with **101.6** distinct Top 10 visitors against 102 historically. Mean closed
+chart life is 6.184 versus 6.081 default weeks, and mean single units are
+156.18m versus 156.69m (−0.33%). Per-seed single-unit changes range −1.35% to
++0.42%. #1 tenure is 2.067 versus 2.304 default weeks, spell length 1.975 versus
+2.286, and returns 4.77% versus 0.87%; these short-run #1 quantities require
+multi-year confirmation and are a concern, not an acceptance claim.
+
+The narrower candidate is promoted to **five 260-week runs**, checked only at
+common complete year checkpoints. No later-year result is inferred from its
+1960 screen. Results are recorded in
+`SimLogs/head-hit-current-albums-opening-v1/comparison.json` and
+`SimLogs/head-hit-current-albums-confirm-v1/runs.json`. Simulation defaults
+remain unchanged; all research switches are explicit and nothing is committed.
+
+**Narrower candidate confirmation: closer, still outside in 1962.** Its five
+first-year replays match the corresponding completed 52-week runs exactly in
+chart records, release decisions, finance and both new attribution streams.
+The common completed-year screen gives:
+
+| Year | Current-album hype retained, CR4 / CR8 | Concentration screen |
+|---|---:|---|
+| 1960 | 34.65 / 51.73 | within |
+| 1961 | 28.88 / 44.15 | within |
+| 1962 | **33.31 / 46.88** | CR4 high; CR8 within |
+
+In 1962, head records fall 32.6 → **31.0**, head stay moves 5.46 → **5.60**
+weeks (history 5.56), and total Top 10 visitors rise 103.2 → **104.0**. The
+32% CR4 ceiling is still exceeded by 1.31 points. This confirms progress on the
+CR8/second-rank distribution but not a complete historical repair. All five
+confirmation engines are stopped after this failed checkpoint (164–173 observed
+weeks); their manifests mark them incomplete and they cannot enter a completed
+260-week review. No 1963–64 outcome is established.
+
+The remaining failure is no longer chiefly seed 5005's Mercury. Per-seed 1962
+CR4 is **44.23 / 29.23 / 26.92 / 31.35 / 34.81** for seeds 1001–5005. Seed
+1001 now has 42 head visitors, including RCA Victor's 17 and Mercury's 14.
+RCA still has 52 annual launch slots; its fixed 48-launch cohort has 26 Hot 100
+entries and 15 hits, a 57.69% conditional conversion. Removing the old album
+peak term helps the earlier failure cases, but these results do not establish
+it as the sole source of excessive head conversion.
+
+Cumulative three-year #1 tenure/spell are **2.234 / 2.145** weeks and returns
+**4.09%**. At the common two-year horizon, the same five seeds give default
+2.337 / 2.293, midpoint 2.114 / 2.017, and current-album variant 2.243 / 2.141;
+the narrower variant partially recovers the midpoint's #1 penalty. The
+historical five-year reference still requires an actual five-year comparison.
+
+One adjacent follow-up retains the same fame-preserving rule and inertia 0.6,
+with push-spread **0.8** instead of 0.825. Its five 52-week screens complete
+cleanly at **CR4 35.85 / CR8 51.23**, with **102.2** Top 10 visitors. #1 tenure /
+spell are 2.451 / 2.378 weeks and returns 2.55%, more promising than the earlier
+short screen but not a later-year result. Closed chart life is 6.225 weeks and
+mean single units are −0.24% versus defaults. Top 40 entries rise 4.008 → 4.302
+per week, requiring attention in long confirmation. Evidence is under
+`SimLogs/head-hit-current-albums-push080-opening-v1/`. It is promoted to five
+260-week runs in `SimLogs/head-hit-current-albums-push080-confirm-v1/`, with
+the same complete-year stopping rule and all fame-preserving behavior retained.
+
+The push-0.8 candidate clears the common **1961 and 1962** checkpoints as well:
+**31.42 / 44.85** and **29.42 / 45.00**, respectively. Cumulative three-year
+#1 tenure / spell are **2.394 / 2.312** weeks, against **2.269 / 2.191** in the
+same five default seeds over exactly the same 156 chart weeks. Returns are
+3.30% versus 3.53%. Thus its three-year #1 behavior moves toward the historical
+five-year reference rather than repeating the midpoint's #1 penalty.
+
+Matched three-year closed chart life is 7.337 versus 7.464 default weeks, Hot
+100 / Top 40 entries per week are 13.430 / 4.382 versus 13.132 / 4.208, and mean
+single units are 472.38m versus 473.16m (−0.16%). All five paired single-unit
+changes lie within −0.62% to +0.13%. Mean album units rise 0.70%, with per-seed
+changes ranging −0.84% to +3.69%; the correction does not disable album demand.
+These are common-horizon comparisons using three complete annual unit rollups
+and only non-left-censored lifecycle exits observed by week 156. They are
+recorded in `common-three-year-guards.json` under the confirmation directory.
+Confirmation continues through 1963–64; the later-year result follows.
+
+**Push-0.8 five-year result: four years within, 1963 `REVIEW`.** All five
+260-week runs complete (`passed`, exit 0, 260 observed weeks, one assembly
+`2C500CBF…`). The formal review (`formal-review.json`) gives:
+
+| Year | CR4 / CR8 | Status | Top 10 records (history) | Head records × stay (history) |
+|---|---:|---|---:|---:|
+| 1960 | 35.85 / 51.23 | within | 102.2 (102) | 34.4 × 5.42 |
+| 1961 | 31.42 / 44.85 | within | 104.6 (115) | 29.8 × 5.51 |
+| 1962 | 29.42 / 45.00 | within | 101.8 (115) | 25.4 × 6.02 |
+| 1963 | **33.42** / 45.92 | **`REVIEW`** (CR4 +1.42) | 98.2 (119) | 27.6 × 6.37 (31 × 4.42) |
+| 1964 | 31.96 / 46.92 | within (0.04 under the ceiling) | 101.4 (111) | 30.0 × 5.57 |
+
+CR8 is inside its band in every year. Five-year guards (five-seed means):
+#1 records 106.4 (history 102), tenure / spell **2.448 / 2.347** (2.55 / 2.48),
+returns 4.13% (2.9%), closed chart life 7.30 (7.48), Hot 100 entries 13.60 per
+week (about 13.4), Top 40 entries 4.47 per week.
+
+Against the three-seed 260-week references (`comparison-seeds1001-3003.json`,
+seeds 1001–3003 only, because no five-year defaults exist for 4004/5005), the
+candidate is **within the bands in all five years**, and its 1963 (29.04 / 40.71)
+is lower than both defaults (29.55 / 45.00) and inertia 0.4 (35.51 / 50.83).
+Paired single units move −0.20% to +0.32%, and the largest genre Top 10 slot
+change is 2.42 points. #1 tenure is 2.405 against 2.360 (defaults) and returns
+are 3.34% against 5.24%. Closed chart life falls 7.497 → 7.363 (−1.8%), Top 40
+entries rise 4.288 → 4.472 (+4.3%), and held slots fall 7.0% → 2.7%. The weak
+point is turnover: only **12.8%** of the 1961–64 Top 10 record gap closes,
+against about 44% for inertia 0.4 alone, and 1963 head stays lengthen
+(6.00 → 6.54 weeks against 4.42 historically).
+
+**The remaining excess belongs to seeds 4004 and 5005 under every setting.**
+Per-seed five-year mean CR4 is 29.7 / 29.7 / 27.0 / **38.9 / 36.7** for seeds
+1001–5005. Pooled over every complete seed-year of the five comparable runs
+(defaults, midpoint 0.6 / 0.825, 0.6 / 0.9, current-albums 0.825, and this
+candidate), seeds 4004 and 5005 exceed the CR4 ceiling in **24 of 34** seed-years,
+while seeds 1001–3003 do so in 6 of 57. Their mean CR4 sits +5.0 / +4.7 points
+above the configuration-year mean, against −2.7 to −3.2 for the other three seeds.
+The defaults already show the pattern in 1960–62 (4004: 45.4 / 41.0 / 35.4;
+5005: 42.5 / 38.3 / 37.7). The tested levers have only moved the excess
+from one year to another inside these two worlds
+(`seed-concentration-by-variant.csv`).
+
+In each of these two seeds, one Big-5 label dominates.
+In seed 4004, RCA Victor (`label_0002`) holds 112 / 127 / 41 / 85 Top 10 slots in
+1960–63 (21.5% / 24.4% / 7.9% / 16.3%; RCA held 66 slots in the 1960
+reconstruction). In seed 5005, Mercury grows 54 → 62 → 82 → 88. Neither is a
+single superstar or the opening cast. RCA's 1960 slots come from 17 records by
+13 artists, 102 of 112 from acts without an opening archetype, spread evenly
+through the year (35 / 26 / 23 / 28 by quarter). Mercury's 1963 slots come from
+12 records by 8 artists. In seed 4004, RCA converts **48.8%** of its 1960 Hot 100
+entrants into Top 10 hits, and 58.1% in 1961. The other Big-5 labels convert 26.9%
+and 21.9%. Yet RCA's entrants have *lower* launch awareness (0.340 vs 0.381),
+initial stock and recognition (0.043 vs 0.104), and similar quality (0.693 vs 0.685).
+Their Top 10 records' mean quality is 0.736, against 0.760 for every other label's.
+
+Two observations point at label push rather than music. Across seed × Big-5
+label × year (1960–61, 50 points), Top 10 slots correlate with the logged label
+marketing (r = 0.47) and spread campaign impact (0.51), but not with quality
+(−0.01) or hook (−0.30). These label traits differ by seed. And in RCA's first six
+chart weeks in seed 4004, its units are 1.24× and radio heat 1.10× those of the
+other Big-5 labels, but its mean chart points are **1.83×**. That is consistent
+with the airplay convexity turning a small push edge into a head premium (17b).
+Label traits do not fully explain it. Seed 2002's Mercury has similar marketing,
+campaign and payola values (0.96 / 0.83 / 0.56 against RCA-4004's 0.92 / 0.81 /
+0.55) and holds 61 slots in 1960, not 112. These are descriptive comparisons
+from one run per seed, not interventions.
+
+**Reading.** This is the best candidate tested so far: within the bands in 1960–62
+and 1964, CR8 within in every year, the #1 guards moving toward history, and units
+neutral. The single `REVIEW` is 1.42 CR4 points in 1963, against a five-seed CR4
+SD of 6.8 (standard error about 3.0). It comes from two worlds where one major's hit conversion runs
+away under every tested setting. A further global push-spread or inertia step
+would trade years again, as §17f–g did. If the 1963 flag needs closing, the next
+target is the **per-label conversion premium**: the path from label marketing and
+campaign strength to radio heat inside the convexity. Year and seed rules are not
+a fix. The candidate still leaves Top 10 turnover short of history, and that gap
+remains open. Simulation defaults are unchanged and nothing is committed. Codex
+started this run; Claude carried out the review because Codex's usage limit ran out.
+
+Evidence: `SimLogs/head-hit-current-albums-push080-confirm-v1/` holds `runs.json`,
+`formal-review.json`, `runs-seeds1001-3003.json`, `comparison-seeds1001-3003.json`
+/ `.md` and `seed-concentration-by-variant.csv`. The ad hoc diagnostic scripts
+that produced the label, launch-trait and radio comparisons are in its
+`diagnostics/` folder. Reproduce the paired comparison with
+`python SimTools/analyze_top10_balance_probe.py --candidate SimLogs/head-hit-current-albums-push080-confirm-v1/runs-seeds1001-3003.json --output SimLogs/head-hit-current-albums-push080-confirm-v1/comparison-seeds1001-3003.json`.
+
+### 17i. The per-label conversion premium: where push enters radio heat, and a capacity lever (2026-10-17)
+
+**Question.** In seeds 4004 and 5005 one major (RCA, Mercury) converts Hot 100
+entrants to Top 10 hits at about twice the rate of the other majors. Its records
+have equal or lower quality and recognition (§17h). How does label marketing
+reach radio heat, and which lever acts the same way in every seed? All
+measurements come from the push-0.8 confirmation runs, 1960–64. Nothing was changed.
+
+**Where the trait comes from.** `ChartSimulator.GetCampaignImpact` is
+`marketingPower × (0.45 + 0.55 × budgetLevel)`. `AILabelFactory.ApplyTierStats`
+draws both traits per seed, uniformly inside the Major envelope (marketing
+0.70–0.98, budget 0.78–1.00). So a major's impact ranges from **0.62 to 0.98**, and
+after `--radio-push-spread=0.8` from 0.59 to 0.88. Payola (0.1–0.7) is drawn
+separately. The same label is a different-strength promoter in every world. RCA's
+marketing is 0.94 / 0.75 / 0.77 / 0.92 / 0.84 in seeds 1001–5005.
+
+**Five routes from campaign impact to the chart** (code trace):
+
+| Route | Where | Size | When |
+|---|---|---|---|
+| Launch awareness | `ChartManager` release (0.15 × impact), `PromoteRecordAI` broad launch (impact × (0.10 + 0.10 × reach)) | about +0.05 awareness across the Major range | launch only |
+| Launch radio seed | release (0.12 × impact), `PromoteRecordAI` (+0.12 × impact), `CompetitorManager.ApplyReleasePromotion` (0.3 × impact + 0.15 × payola) | heat seed, decays at the 0.10–0.28 lerp | launch only |
+| Sales ramp floor | `GetReleaseRampWeight(weeks, currentLabelPush)` | floor rises with push | first weeks |
+| AI promo awareness | `GetSeasonalMarketingImpact` (budget impact × campaign impact × 0.35) | awareness | launch |
+| **Weekly push in the radio target** | `UpdateLabelPush` → `UpdateRadioHeat`: `currentLabelPush × 0.40 × acceptance` | 0.10–0.16 of target heat | **every week; floored at 0.85 while the record is in the top 20** |
+
+The release-age factor drops weekly push to 0.6 / 0.3 / 0.1 after week 3. But
+`weekFactor = max(weekFactor, 0.85)` for any record at positions 1–20. A record
+that has reached the top 20 therefore keeps 85% of its label's full campaign for
+as long as it stays there. That **top-20 hold** is the binding channel. It is
+active in **89–99% of every major's Top 10 slot-weeks** in every seed: the head is
+almost entirely carried with the hold on. Here push sits inside the fifth-power
+airplay convexity. The 1.10× radio-heat edge of RCA-4004's early chart weeks
+becomes 1.83× chart points (§17h), as described in
+`airplay-convexity-amplifies-label-push`.
+
+**The runaway is concurrency, not one record.** The hold is paid in full to
+*every* record a label has in the top 20, however many there are.
+
+| Big-5 label, 1960–64 | Mean records in the top 20 per week | Weeks with 3+ in the top 20 | Top 10 slots |
+|---|---:|---:|---:|
+| RCA, seed 4004 (lead) | **2.53** | **128** of 260 | 405 |
+| Mercury, seed 5005 (lead) | **2.26** | **98** | 335 |
+| Leading label, seeds 1001–3003 | 1.30–1.58 | 20–47 | 196–261 |
+| All other Big-5 labels | 0.52–1.64 | 0–56 | 38–244 |
+
+Across the 25 seed × label pairs, Top 10 slots correlate 0.63 with campaign
+impact and 0.98 with concurrency. Concurrency partly *is* the outcome, so that
+correlation is not causal. It does mark where an additional hold pays out: on a
+label's third and later records.
+
+**History sets a reference for concurrency.** Matching the weekly Billboard Top 10
+(`historical-top10-YEAR/top10_weekly_YEAR.csv`) to the reconstruction's operating
+labels (over 98% matched each year):
+
+| 1960–64 | Mean of the top label's concurrent Top 10 records | Weeks one label holds 3+ of the Top 10 | 4+ |
+|---|---:|---:|---:|
+| History | 1.74 | **8.9%** | 0.8% |
+| Seeds 1001 / 2002 / 3003 | 1.66 / 1.55 / 1.56 | 7.3 / 4.6 / 6.2% | 0 |
+| Seed 4004 | 2.15 | **31.5%** | 6.2% |
+| Seed 5005 | 1.92 | **14.2%** | 1.2% |
+
+History allowed a label two concurrent Top 10 hits routinely and three
+occasionally. The three ordinary seeds match that, or run slightly under it. The
+two failing seeds exceed it by 1.6–3.5×. It is a sharper discriminator than annual
+CR4 and a record-level mechanism rather than a year-specific target.
+
+**Proposed lever (not built): promotion capacity on the top-20 hold.** Add an
+off-by-default switch such as `--label-hold-capacity=H`. Each week, before
+`UpdateLabelPush`, rank each label's *held* records: positions 1–20 by the
+position `UpdateLabelPush` reads, whose release-age factor is below 0.85. The H
+best-placed keep the 0.85 floor. Any further held records fall back to their
+release-age factor (0.1–0.3 after week 7). Launch awareness, launch heat, the
+ramp, the momentum floor (0.7) and the push spread are untouched, and it needs no
+RNG draw, so with the switch off a run is byte-identical. The physical claim is
+that a label's promotion staff and distributors' promo men were finite: they
+worked the label's biggest records and let its third or fourth chart record ride.
+This is the same constraint the player's promo mechanic already prices in
+copies, hours and miles. It reads no seed, label identity, year or tier. It applies
+to every label every week, including any Independent that builds a hot streak.
+
+**Ranked, not split.** A proportional split (`0.85 × H / n` for all held
+records) would also cut a label's #1. The static exposure of the two forms at the
+observed paths differs sharply:
+
+| Static exposure, 1960–64 | Ranked H = 2 | Split H = 2 | Ranked H = 3 |
+|---|---:|---:|---:|
+| Top 10 weeks touched, seeds 1001–3003 | 0.5–0.9% | 4.8–6.2% | 0–0.1% |
+| Top 10 weeks touched, seeds 4004 / 5005 | **3.8 / 1.6%** | 16.6 / 10.7% | 0.8 / 0.1% |
+| Lead label's Top 10 weeks touched, 1001–3003 vs 4004 / 5005 | 2.0–4.2% vs **16.3 / 6.3%** | 13.8–25.7% vs 60.5 / 33.7% | 0–0.5% vs 4.2 / 0.3% |
+| #1 weeks touched | **0** | some | 0 |
+| Mean heat-target cut where touched | 0.11–0.16 | 0.08–0.11 | 0.07–0.16 |
+
+Ranked H = 2 is the candidate. It barely touches the three ordinary worlds,
+concentrates on the runaway label in 4004 and 5005, and never removes push from a
+#1. The cut where it bites is about the size of the Big-5 heat premium in §17b. H = 3
+would miss seed 5005's Mercury almost completely. The table understates exposure:
+the same rule also cuts the label's held records at #11–20 and slows their climb,
+and the freed weeks then reshuffle. It is a static count on the observed path, not
+a prediction. Only a run can say where the freed weeks go.
+
+**Calibration path (needs approval).** (1) Build the switch and confirm byte
+identity with it off against one push-0.8 seed (`probe-run-byte-comparison`).
+(2) Run five 260-week seeds with ranked H = 2 on the current candidate stack
+(inertia 0.6, push 0.8, current-album heat, about 55 minutes in parallel). (3) If it
+clears, run one arm with the push spread restored to 1.0. A capacity that acts only
+on overflow might make the global spread unnecessary. That would return the push
+spread's turnover cost (§10, §17b), and the late-decade Major-share caveat would
+no longer apply.
+
+**Guards** (in addition to §17c's table):
+
+| Guard | Current (push-0.8) | Pass condition |
+|---|---|---|
+| CR4 / CR8, every year 1960–64 | 1963 CR4 33.42 `REVIEW` | all within bands |
+| Seed 4004 / 5005 five-year mean CR4 | 38.9 / 36.7 | toward the 27–30 of the other seeds |
+| Weeks one label holds 3+ of the Top 10 | 4.6–31.5% by seed | toward history's 8.9%; seeds 1001–3003 not driven below about 4% |
+| #1 tenure / spell / returns | 2.448 / 2.347 / 4.13% | no worse; ranked form should not move #1s |
+| Closed chart life, Hot 100 / Top 40 entries | 7.30, 13.60 / 4.47 | within seed noise |
+| Major tier slot share; late-decade Major share | 38.1% (1963) | no structural fall; must not block the 1968–69 consolidation goal |
+| Single units, genre Top 10 slots | - | within about 1%, about 3 points |
+
+**Open risks.** The freed weeks may go to the same label's next record or to the
+second major in the same world. Concentration would then move rather than fall,
+and CR8 would be the warning sign. The rule makes a label's later hits weaker
+during a streak, and that is visible to the player. It should also bind the
+player's label to the same capacity, but that path is not yet checked. The
+seed-specific trait draw (impact 0.62–0.98) remains. Narrowing the Major
+marketing envelope is a separate option. It is identity-level, flattens label
+personality, and would not have separated RCA-4004 from Mercury-2002 (similar
+traits, 112 vs 61 slots), so it is not recommended as the first lever.
+
+Evidence and scripts: `SimLogs/head-hit-current-albums-push080-confirm-v1/diagnostics/`
+(`push_hold_concurrency.py`, `hold_capacity_exposure.py`, `hold_capacity_ranked.py`,
+`concurrent_top10_history.py`).
+
+### 17j. Probe result: ranked hold capacity H = 2 (`label-hold-h2-confirm-v2`, stopped at 1962)
+
+**Build.** `Systems/LabelHoldCapacity.cs` adds the off-by-default
+`--label-hold-capacity=H` switch. `ChartManager.SimulateWeek` ranks each label's
+held singles before the update loop: positions 1–20, read before the week's chart,
+with a release-age factor below 0.85 after the week's increment. Records beyond the
+H best-placed skip the top-20 floor in `UpdateLabelPush` and fall through to the
+momentum rule (0.7 if momentum > 0.15 before week 14), else their release-age
+factor. The release-age taper moved unchanged into
+`ChartSimulator.GetReleaseAgePushFactor`. The switch draws no random numbers and
+logs a `LABEL_HOLD_CAPACITY` line with yearly held and overflow record-weeks.
+`--label-hold-capacity-check` (`SimTools/LabelHoldCapacityChecks.cs`) covers the
+taper, ranking, kept and overflow push, the momentum fall-through, other labels,
+young records, albums and switching off. It passes, as do the push-spread and
+inertia checks. The build has 0 warnings and 0 errors (assembly `984F88DA…`).
+
+**Inertness with the switch off.** A 52-week seed-5005 run on the push-0.8 stack
+(`label-hold-off-identity-v1`) is byte-identical to
+`head-hit-current-albums-push080-opening-v1` in **all 82 CSV files**.
+
+**Run and stopping rule.** Five 260-week seeds were run on the push-0.8 stack plus
+`--label-hold-capacity=2`, with a yearly watch. The run was to stop at the first
+complete year whose five-seed mean CR4 or CR8 left its band. The first launch
+(`-v1`) died about 60 seconds in, when `RunTop10BalanceProbe.ps1` read an empty
+`records.csv` tail; that progress line is now guarded. The `-v2` relaunch was
+**stopped after 1962** at weeks 160–168, so its manifest marks every run
+incomplete. It cannot enter a five-year review. Only 1960–62 are established.
+
+| Year | push-0.8 CR4 / CR8 | H = 2 CR4 / CR8 | Screen | Top 10 records (push-0.8 → H = 2) | Weeks one label holds 3+ of the Top 10 |
+|---|---:|---:|---|---:|---:|
+| 1960 | 35.85 / 51.23 | 33.73 / 49.69 | within | 102.2 → 103.8 | 15.0 → 12.7% |
+| 1961 | 31.42 / 44.85 | 30.81 / 45.85 | within | 104.6 → 101.8 | 15.4 → **8.8%** |
+| 1962 | 29.42 / 45.00 | **32.08** / 46.12 | **breach (+0.08)** | 101.8 → 100.4 | 5.8 → 11.2% |
+
+**It removes the targeted runaway once, then the concentration comes back.** In
+1961 the lever does what §17i predicted. Seed 4004's CR4 falls 45.4 → **31.0**, its
+label 3+ weeks 48.1 → 5.8%, and the five-seed concurrency lands on history's 8.9%.
+But the three-year mean CR4 is unchanged: **32.21 against 32.23**. By seed over
+1960–62, CR4 changes −4.8 in 4004 and +1.2 in 5005, +2.1 / +1.6 / −0.1 in 1001 /
+2002 / 3003. In 1962, RCA in seed 4004 holds 76 slots (41 under push-0.8) and
+Mercury in seed 5005 holds 74. The leading label's share rises 9.85 → 11.88%. The
+freed hold weeks did not spread to the field. Labels in the runaway worlds keep
+dominating through their two kept holds plus full release-week push, which the cap
+does not touch, and the reshuffled RNG stream moves the peak year.
+
+**Other guards (1960–62, 156 weeks).** #1 tenure / spell fall to **2.250 / 2.204**,
+from 2.394 / 2.312 (history 2.55 / 2.48), returns fall 3.30 → 2.22%, and there are
+69.6 #1 records against 65.4. Chart units change −2.08% to +0.89% by seed. Top 10
+turnover does not improve.
+
+**Verdict: not adoptable at H = 2.** The capacity is a real mechanism: it takes out
+a label's third-and-later held record, and it pulls 1961 concurrency to history.
+But it does not lower the multi-year concentration mean. It costs about 0.14 weeks
+of #1 tenure, the opposite of the historical gap. The excess in seeds 4004 and 5005
+is broader than overflow holds. It reaches the first two held records and
+release-week push, through a seed-drawn campaign impact of 0.62–0.98 inside the
+fifth-power convexity. A tighter H = 1 would cut each label's second record too
+(static exposure about 21% of Top 10 weeks in split form), with a larger #1 cost.
+Simulation defaults are unchanged. The switch stays in the tree, off by default,
+and nothing is committed.
+
+Evidence: `SimLogs/label-hold-h2-confirm-v2/` (manifest, console logs) and its
+`diagnostics/` folder: `yearly-watch.log`, `yearly_band_watch.py`,
+`h2_stopped_diag.py`, `compare_run_csvs.py`. The identity run is
+`SimLogs/label-hold-off-identity-v1/`.
+
+### 17k. Why seed 5005 keeps breaking the bands, and why H = 2 did not help (2026-10-17, analysis only)
+
+All figures come from completed logs: push-0.8 confirmation 1960–64, defaults
+1960–62, and the stopped H = 2 run 1960–62. No new simulation was run.
+
+**Seed 5005 is not a 4004-style runaway; it is a majors-collectively world.**
+Seed 4004's excess is one label's *conversion*: RCA turns 38.8% of its entrants into
+Top 10 hits, against 9–36% for the other majors. Seed 5005's majors convert at an
+ordinary rate (22.1%), but put **146.6 records a year into the Hot 100**, against
+111–119 in the other seeds. Launch volume is not the difference: 5005 has 250 Big-5
+singles a year and 1001 has 246. The difference is **Hot 100 entry**, 56.9% of Big-5
+launches against 44.9–51.0% elsewhere. In 5005, three majors enter at 61–76%:
+Columbia 65.3%, RCA 61.5% and Mercury 75.8%. The majors' collective Top 10 share
+*rises* 33.5 → 35.6 → 37.5 → **44.2** → 38.1% over 1960–64. In history it falls
+34.2 → 20.6 → 21.2 → 26.0 → 18.7%. Three or four of seed 5005's top four firms are
+majors every year.
+
+**What predicts a major's Hot 100 entry rate** (25 seed × Big-5 pairs, push-0.8,
+1960–64): launch awareness (r = 0.78), campaign impact (0.64), the share of launches
+by Established/Star/Superstar acts (0.61) and launch recognition (0.59). The share of
+new signings predicts it negatively (−0.66). Distribution reach does not (−0.03 to
+−0.05), and neither does quality (0.35). Record-level entry is 89% for Star and
+Superstar launches against 38% for new signings, and 17.5% → 82.9% across
+launch-stock quintiles. Mercury-5005 has the highest senior share (0.435), recognition
+(0.190) and launch stock (83.6k) of any major. Its senior share snowballs from 0.28
+in 1960 to 0.57 in 1964, while its slots run 54 → 62 → 82 → 88 → 52. The pattern is
+not universal: RCA-4004 started with the *least* senior roster (0.09) and still took
+112 slots. Columbia-3003 had the most senior roster (0.37–0.51) and middling slots.
+Fame is one input to entry, not the whole explanation.
+
+A label edge is not wrong in itself. A major's Top 10 slots carry over year to year
+at r = **0.67** in the sim (within-seed-year demeaned; 0.47 in defaults), against
+**0.66** in history over the same five majors. What is wrong is the level.
+
+**The common defect is the majors' collective share after 1960.** Across the
+push-0.8 seed-years, CR4 tracks the Big-5's combined slot share at r = 0.85 (0.72 in
+defaults). In 1961–64, CR4 ≈ 10.6 + 0.69 × Big-5 share.
+
+| 1961–64 mean | History | Sim (five seeds) |
+|---|---:|---:|
+| Big-5 share of Top 10 slots | **21.6%** | **30.8%** (by seed 1960–64: 29.9 / 32.8 / 25.8 / 35.4 / 37.8) |
+| Big-5 firms among the top four | **1.75** | **3.05** |
+| CR4 implied by the fit | 25.5 | 31.9 |
+
+History's 1961–64 top four were filled by national independents and new majors:
+Liberty and Parkway in 1961; ABC-Paramount, Cameo and Vee-Jay in 1962; Philips,
+Epic and Motown in 1964. The sim's second rank of non-majors is thinner. The top four
+non-major firms hold 55–136 slots a year (history 90–114), and 0–4 non-major firms
+reach 20+ slots in a year (history 3–5). Seed 5005's non-major field is not unusually
+weak on this measure (69–103). Its distinction is the majors' entry rate. To centre
+CR4 near 27 in 1961–64, the fit needs the majors' combined share near 24%, about
+7 points below today's mean. This confirms §11's "only five firms have head-scale
+access" from the year-by-year side. History's majors lost ground after 1960; the
+sim's do not.
+
+**Why H = 2 gave no concentration gain.** The cap is small and points at the wrong
+level:
+
+- *Small.* The overflow telemetry shows **14–117 overflow record-weeks a year per
+  seed**, out of about 1,020–1,135 held record-weeks (1–10%), a fraction of one
+  record per week chart-wide. Over 1960–62 the leading label's share falls only
+  11.82 → 10.64% of Top 10 slots.
+- *Wrong level.* In seed 4004 the freed weeks went to the field: the lead fell
+  17.9 → 14.7%, other majors 20.0 → 17.9%, the rest 62.1 → 67.4%. In seed 5005 they
+  went to the *other majors*: Mercury fell 12.7 → 9.6% and the other Big-5 rose
+  22.8 → **28.0%**. Pooled over the five seeds, the Big-5 excluding the lead moved
+  21.13 → 21.42% and the rest 67.05 → 67.94%. The cap acts on one label's third
+  record, while the excess sits in the majors as a group, at launch entry.
+
+**Why #1 tenure fell, and how much of it is real.** No #1 week was ever an overflow
+record: ranking keeps the best-placed record, so the direct channel is zero. Over
+1960–62, tenure fell 2.394 → 2.250, #1 records rose 65.4 → 69.6, one-week #1s rose
+35.2 → 38.7%, and the median #1/#2 points ratio fell 1.415 → 1.378. The per-seed
+changes are −0.18 / +0.32 / −0.43 / −0.25 / −0.18. The mean of −0.144 is about
+**1.2 standard errors**. Neighbouring configurations already differ by that much: the
+current-albums variant at push 0.825 against 0.8 gave three-year tenures of 2.234
+against 2.394 (§17h). The flatter #1/#2 gap points in the same direction, with less
+separation at the very top when a label's third and fourth records lose push. But
+the drop is not established as an effect of the lever. It is within the
+realization noise that any small change brings by reshuffling the RNG stream.
+
+**Implications.**
+
+1. Seed 5005 is the clearest case of a defect every seed shows: the Big-5 hold
+   about 9 points too much of the 1961–64 Top 10 collectively. Seed 3003, the
+   lowest-CR4 seed, is the closest to history (Big-5 18–27%).
+2. Levers acting inside the top 20 can move weeks *between majors* (push spread,
+   hold capacity) but cannot lower the majors' collective entry. The binding channel
+   is launch-side: awareness, stock and radio seed, which all read campaign impact,
+   plus the recognition of senior acts. That is the Big-5 0.66 against MidTier 0.28
+   Hot 100 entry per launch of §11.
+3. The historical mechanism is the rise of national independents after 1960, not a
+   decline in the majors' promotion. A fix that only taxes major launches would
+   lower CR4, but leave the second rank as thin as it is and cost the late-decade
+   Major-share goal. Two candidate directions, neither built: a sourced set of
+   head-scale 1960 independent templates (§11's probe: MGM, ABC-Paramount, Dot,
+   Liberty, Cameo-Parkway, Vee-Jay), or a performance-earned path to head-scale
+   access for non-majors that chart (`midtier-bucket-cannot-grow-by-promotion`).
+
+Scripts (scratch analyses, saved with the evidence):
+`SimLogs/label-hold-h2-confirm-v2/diagnostics/` (`seed_world_profile.py`,
+`big5_launch_volume.py`, `entry_rate_drivers.py`, `roster_snowball.py`,
+`residual_label_effect.py`, `label_persistence.py`, `big5_share_by_year.py`,
+`cr4_vs_big5.py`, `nonmajor_heads.py`, `h2_where_weeks_went.py`).
+
+Reproduce the existing-controls conversion analysis:
+
+```text
+python SimTools/analyze_head_hit_conversion.py --include-new-controls --output SimLogs/head-hit-conversion-investigation-v1/analysis.json
+python -m unittest discover -s SimTools -p test_head_hit_conversion.py -v
+```
+
+Evidence: `SimLogs/head-hit-default-controls-v1/runs.json`,
+`SimLogs/head-hit-conversion-investigation-v1/analysis.json` and its companion
+firm, artist and launch-cohort CSVs; `accounting.json`, `trace-identity.json`
+and `combo-replay-through160.json` in the same investigation directory. The
+diagnostic analysis is `heat-diagnostic.json` with companion CSVs and
+`heat-diagnostic-guards.json`. The new opening screens are recorded in
+`SimLogs/head-hit-singleheat-opening-v1/runs.json`.
+
+### 17l. Probe design: head-scale 1960 non-major templates (2026-10-17, proposal, not built)
+
+This is §17k's first direction. It uses the existing Billboard reconstruction, the template roster in
+`AILabelFactory`, and the Wikipedia history of each label. No simulation was run and no code was changed.
+
+**Three of the six named labels are already templates, and two of them are below head scale.** Cameo-Parkway is
+MidTier `TeenHitMachine`. Liberty is Independent `RockRebel`. Vee-Jay is Independent `RegionalHustler`, which
+lowers budget, distribution and reach. MGM, ABC-Paramount and Dot are not in the roster. Warner Bros. is also
+absent, although it ranks 6th by operating label in 1960 (§12).
+
+**Top 10 slots by operating label, 1960-64** (`SimLogs/head-template-candidates/label_slots_1960_64.txt`;
+the owned-imprint figure is in brackets where it differs):
+
+| Label | 1960 | 1961 | 1962 | 1963 | 1964 | Total | 1960 parent / standing (source) |
+|---|---:|---:|---:|---:|---:|---:|---|
+| MGM (+ Cub) | 40 (56) | 13 | 22 | 1 (5) | 10 (14) | 86 (110) | Film-studio label from 1946; "self-distributed", with its own pressing plant |
+| ABC-Paramount (+ Chancellor, distributed) | 23 | 11 (14) | 32 | 18 | 4 (10) | 88 (97) | American Broadcasting-Paramount Theatres, 1955; self-distributed; distributed Chancellor from 1957 |
+| Cameo + Parkway | 28 | 31 | 54 | 26 | 4 | 143 | Lowe and Mann, Philadelphia, Dec 1956; Parkway 1958; peak ends with *Bandstand*'s move in Feb 1964 |
+| Warner Bros. | 23 | 8 | 12 | 21 (26) | 5 (21) | 69 (90) | Film studio, March 1958; lost at least $3M by 1960; Everly Brothers and Newhart that year |
+| Liberty (+ Dolton) | 7 | 42 | 8 | 13 (15) | 12 (27) | 82 (99) | Waronker, Hollywood, 1955; Bobby Vee, Chipmunks, Cochran; sold to Avnet in 1963 |
+| Vee-Jay | 3 | 14 | 28 | 13 | 20 (39) | 78 (97) | Carter and Bracken, 1953, Chicago; R&B and blues until the Four Seasons (1962) and the Beatles (1963-64) |
+| Dot | 0 | 19 | 5 | 22 | 0 | 46 | Randy Wood, 1950; sold to Paramount Pictures in 1957; Pat Boone, Billy Vaughn, Welk; strongest on albums |
+| *Big-5 operating labels* | *178* | *107* | *110* | *135* | *97* | | *34.2 / 20.6 / 21.2 / 26.0 / 18.7% of slots* |
+
+The first five rows together hold **23.3 / 20.2 / 24.6 / 15.2 / 6.7%** of the Top 10 in 1960-64. In 1960-62
+that is about 4.5% per firm, or about 24 slots a year: two-thirds to three-quarters of a Big-5 operating label.
+In 1963-64 they fade (*Bandstand* leaves Philadelphia, MGM goes quiet, the British Invasion arrives).
+
+**Proposed template list**
+
+| Firm | Action | Tier | Envelope | Archetype | City | Genres |
+|---|---|---|---|---|---|---|
+| MGM | **new** | MidTier | head | CorporateGiant | New York (to verify) | TraditionalPop, TeenPop, RockAndRoll |
+| ABC-Paramount | **new** | MidTier | head | CorporateGiant | New York | TeenPop, RnB, TraditionalPop |
+| Warner Bros. | **new** (not in the original list) | MidTier | head, low cash | CorporateGiant | Los Angeles | RockAndRoll, TeenPop, Comedy, TraditionalPop |
+| Cameo-Parkway | upgrade | MidTier (unchanged) | head | TeenHitMachine (unchanged) | Philadelphia | unchanged |
+| Liberty | upgrade | Independent → MidTier | head | RockRebel → TeenHitMachine | Los Angeles | TeenPop, RockAndRoll, EasyListening |
+| Vee-Jay | upgrade | Independent → MidTier | **standard MidTier** | unchanged | Chicago | unchanged |
+| Dot | optional new | MidTier | **standard MidTier** | CorporateGiant | Los Angeles | TraditionalPop, EasyListening, TeenPop |
+
+- **Vee-Jay is not seeded at head scale.** Its 1960 was 3 slots. Its head years came from a 1962 signing and the
+  1963-64 Beatles licence. Starting it at head scale would write that history in advance. It was a national R&B
+  label in 1960, so standard MidTier is the sourced position. Its rise should be left to the run.
+- **Dot is optional and not head scale.** It had no 1960 Top 10 and a lumpy 0-22 after that. It was an album and
+  easy-listening house. Warner Bros. is the better fifth head firm on the 1960 evidence.
+- **Head firms are MidTier, not Major.** A Major tier makes a label a Major-distribution and consolidation actor and
+  adds it to every tier-based Major-share measure. A MidTier can distribute up to 6 clients, which matches the
+  "ABC around seven, MGM about five" note in `IsEligibleDistributor`. The Big-5 stay `label_0001`-`0005`, so the
+  Big-5 share analyses are unaffected.
+
+**Head envelope** (applied only with the switch on). The Big-5 envelope is used for the launch channels, because
+§11's structural hypothesis is about access, and about 70% of Big-5 volume, because that is the historical ratio:
+
+| Trait | MidTier | **Head** | Major |
+|---|---|---|---|
+| marketingPower | 0.48-0.82 | **0.70-0.98** | 0.70-0.98 |
+| budgetLevel | 0.52-0.82 | **0.78-1.00** | 0.78-1.00 |
+| distributionStrength / nationalReach | 0.50-0.82 / 0.45-0.78 | **0.75-1.00 / 0.75-1.00** | same as head |
+| Extra distribution regions | 2-4 | **5-8 (national)** | 5-8 |
+| releasesPerMonth | 1.0-2.5 | **1.6-2.4** | 2.0-4.0 |
+| maxRosterSize | 15-35 | **25-40** | 30-60 |
+| Starting cash | MidTier band | **Major band** (Warner Bros. at the bottom of it) | Major band |
+| Scouting, production, payola, loyalty, risk | tier draw | MidTier draw | - |
+
+Major-band cash is needed. Major-scale release volume on MidTier cash would trip `consecutiveLossMonths > 12`
+and demote the template for an economics artifact. Tier-keyed channels stay MidTier: the prewarm quota weight (3
+against 5), the album and contract multipliers, `SongMaterialSelectionService` access (0.65), and opening-career
+eligibility (both tiers are already in `Big`).
+
+**Switch and inertness.** An off-by-default `--seed-head-templates` flag. With it off, no template is created and no
+envelope changes, so a run must be byte-identical to a reference probe (`probe-run-byte-comparison`). New templates
+go after the existing 42, so `label_0001`-`0042` keep their ids. With it on, the RNG stream changes, so the
+comparison has to be multi-seed. Three of the 600 procedural slots are given up.
+
+**Prediction.** By §17k's fit (CR4 ≈ 10.6 + 0.69 × Big-5 share), centring 1961-64 CR4 near 27 needs the Big-5
+near 24%, from 30.8. §11's null model with ten head firms gives CR4 28.6-34.6, CR8 47-59 and firms 5-8 18-25.
+The probe works if the head templates take their slots **from the Big-5** (opening careers, launch-week radio and
+attention), not from the field.
+
+**Pass / kill (five 260-week seeds, against a paired control on the same assembly):**
+
+| Guard | Pass | Kill |
+|---|---|---|
+| 1960 CR4 / CR8 | 30-40 / 48-58 | CR4 above 40 (§12's warning that MGM raises CR4) |
+| 1961-64 CR4 / CR8, five-seed mean by year | 22-32 / 38-48 every year | any year out of band and worse than the control |
+| Big-5 share of the Top 10, 1961-64 | down at least 3 points, toward 21.6 | down less than 3 points |
+| Big-5 firms among the top four, 1961-64 | toward 1.75 (control 3.05) | no change |
+| Non-major firms with 20+ slots a year | 3-5 | - |
+| **Field share**: slots held by labels that are neither Big-5 nor templates | falls by less than the Big-5 share does | falls by more than the Big-5 share does |
+| **Labels with a Top 10 hit** a year | 48 or more (history 49-55) | below 45 |
+| **First-time Top 10 labels** a year | within seed noise of the control | clearly below it |
+| Template outcomes across seeds | spread out: some template outside the top 20 in some seed-years | every template in the top 10 firms in every seed-year |
+| Template share, 1963-64 | allowed to fall (history 15.2 → 6.7%) | reported; persistence is a finding, not a kill |
+| Templates absorbed / promoted to Major | absorbed 0; promotions logged | any absorption |
+| #1 tenure, chart life, single units, genre Top 10 slots, Small closures | within seed noise | outside it |
+
+**Known interactions.** The operating-label review counts Cameo and Parkway, and MGM and Cub, as separate labels. A
+single template for each therefore reads slightly high on CR4 against the reconstruction (about +1 point in 1960
+from Cameo-Parkway). A head template can earn Major promotion (16 charting records, roster of 25, capability
+0.78 for four quarters). That would make it a Major distributor and change the late-decade owner-Major path. It is
+logged, not blocked, for this probe. Chancellor stays its own template. Seeding its 1957 ABC-Paramount
+distribution deal is a separate, deal-seeding question.
+
+**Railroading.** The templates reserve no slots and script no hits. They are AI labels with seeded names and
+starting traits, run by the same rules. Procedural labels and the player keep every channel they have. The player
+still starts Small, at 0.02 reach, with distribution earned market by market. What does change is competition: the
+Top 10 is fixed at 520 slots a year, and stronger firms take a share. The field-share, label-count and
+first-time-label guards are there so the slots come out of the Big-5's excess and not out of everyone else. The
+control currently has 50-67 labels with a Top 10 hit against history's 51-55, so there is some room. Head
+templates as MidTier distributors also add six-client distribution capacity each, which is another route to
+national reach for independents. The template fix covers only the 1960 starting roster. Later history (a
+Vee-Jay or Motown rising) stays open only if non-majors can earn head-scale access. That is §17k's second
+direction (`midtier-bucket-cannot-grow-by-promotion`), and it should follow this probe.
+
+**Sources.** Wikipedia histories: MGM Records, ABC Records, Warner Records, Dot Records, Liberty Records,
+Vee-Jay Records, Cameo-Parkway Records (read 2026-10-17); slots from the §12-13 reconstruction. MGM's 1960 office
+city is not stated in its article and still needs a check.
+
+### 17m. Probe result: head-scale templates (`headtpl-on-v1`, stopped after 1961)
+
+**Build.** `Systems/HeadScaleTemplates.cs` adds the off-by-default `--seed-head-templates` switch. With it on,
+`AILabelFactory` appends MGM, ABC-Paramount and Warner Bros. as `label_0043`-`0045`. It replaces Cameo-Parkway
+(`label_0015`) and Liberty (`label_0014`) with head-envelope MidTier templates, and Vee-Jay (`label_0020`) with a
+standard MidTier, all as specified in §17l. `HEAD_SCALE_TEMPLATE` console lines record each seed's drawn traits.
+Archetype modifiers apply as for every label, so the two TeenHitMachine templates draw 1.8-2.6 releases a month.
+Reputation follows the budget envelope, as the factory already does.
+`--seed-head-templates-check` (`SimTools/HeadScaleTemplatesChecks.cs`, run through `SaveLoadRoundTripRunner`)
+passes. The build has 0 warnings and 0 errors.
+
+**Inertness with the switch off.** A 52-week seed-5005 run on adopted defaults (`headtpl-off-identity`) is
+byte-identical to a reference built before the edit (`headtpl-preedit-ref`) in **all 80 CSV files**. It is also
+byte-identical to `historical-top10-review-v2-ext-default-5005-52`, an older assembly. The controls are therefore
+reused rather than rerun. Seeds 1001-3003 use `top10-fiveyear-review-v1`, which has the same flags. Seeds 4004 and
+5005 use `head-hit-default-controls-v1`, a 168-week run that covers 1960-62.
+
+**Stopping rule.** Five 260-week seeds with a yearly watch
+(`SimLogs/headtpl-on-v1/diagnostics/yearly_watch.py`). The run stops when the five-seed mean CR4 or CR8 is more
+than 2 points outside its band. It stopped after **1961**, at weeks 106-110, so only 1960-61 are established.
+
+| Five-seed mean | 1960 control | 1960 templates | 1961 control | 1961 templates | History 1960 / 1961 |
+|---|---:|---:|---:|---:|---:|
+| CR4 | 37.8 | 36.6 | 37.3 | 34.6 | 34.6 / 27.9 |
+| CR8 | 55.0 | 54.3 | 50.8 | **52.0** (band 38-48) | 52.7 / 43.5 |
+| Big-5 share of the Top 10 | 40.4 | 29.1 | 33.8 | **31.3** | 34.2 / 20.6 |
+| Big-5 firms in the top four | 3.2 | 2.0 | 3.0 | 2.2 | - |
+| Template firms | 1.9 | 26.4 | 1.8 | 21.4 | 23.3 / 20.2 |
+| Field: Independent | 26.8 | 18.8 | 30.3 | **21.1** | - |
+| Field: MidTier (procedural) | 21.4 | 17.1 | 22.5 | 16.2 | - |
+| Field, total (neither Big-5 nor template) | 57.8 | 44.5 | 64.4 | **47.3** | - |
+| Labels with a Top 10 hit | 47.6 | 45.4 | 52.4 | 49.0 | 49 / 51 |
+
+**The templates' share is historical. Where it came from is not.** In 1960 the templates took 26.4 points. They
+took 11.3 from the Big-5, but 13.3 from the field. In 1961 they held 21.4 points, almost exactly history's 20.2, but
+the Big-5 gave up only **2.4** of them. Independents lost 9.2 and procedural MidTiers 6.3. The field fell 17.1
+points. That fails three §17l guards in 1961: CR8 (more than 2 points out of band), the field share (it fell by
+more than the Big-5 share), and the Big-5 share (it fell by less than 3 points). It is the railroading outcome the
+field guard was there to catch. Labels with a Top 10 hit stay above the kill line (49.0 against 45), so smaller
+labels still chart. Their share of slots is what falls.
+
+**By seed** (`stopped_1961_diag.txt`):
+
+- **The head envelope is too strong in some worlds.** Cameo-Parkway holds 73 slots in seed 2002's 1960 (history 28
+  with Parkway) and 50-65 in 1961 in seeds 2002 and 5005. Liberty holds 53 in seed 4004. MGM holds 52 in seed 3003.
+  At Big-5 launch access, a template can become a rank 1-3 firm, which history's second rank never was (its
+  1960 maximum was MGM's 40). That is what drives CR8 up: ranks 5-8 fill with 20-40-slot firms on top of an
+  intact Big-5 head.
+- **The Big-5 excess is not displaced by competition.** Seed 1001's control Big-5 had already fallen to a
+  history-like 20.8% in 1961. With the templates it is **31.0%**: the reshuffled stream gave its majors a stronger
+  year. In seeds 4004 and 5005 the Big-5 1961 share is 37.9 and 37.3 with templates, against 36.5 and 41.3 without.
+
+**Verdict: not adoptable as specified.** The test confirms §12's warning and §17k's diagnosis from the other side.
+Adding firms with head-scale access does not draw slots out of the majors. Their excess sits in their own launch
+entry (§17k: 57% Hot 100 entry in seed 5005, senior-act share, launch awareness). Under a fixed 520 slots,
+new head mass is paid for by the field. A weaker envelope would cut the runaway templates and CR8, but it still
+cannot make the Big-5 give up share, because nothing here acts on Big-5 entry. Templates are a sensible
+historical roster only *together with* a lever on the Big-5's launch-side entry. Alone, they move slots from
+independents to named firms. Simulation defaults are unchanged. The switch stays in the tree, off by default, and
+nothing is committed. The 4004/5005 260-week controls were not run, because the stop came inside their existing
+168-week coverage.
+
+Evidence: `SimLogs/headtpl-on-v1/` (manifest, console logs with `HEAD_SCALE_TEMPLATE` lines) and its `diagnostics/`
+folder (`yearly_watch.py`, `yearly-watch.log`, `stopped_1961_diag.py`, `stopped_1961_diag.txt`). The identity pair
+is `SimLogs/headtpl-preedit-ref/` and `SimLogs/headtpl-off-identity/`. A paired-review script for a completed run is
+`SimTools/analyze_head_templates_probe.py`, written for this probe and not yet exercised.
+
+### 17n. The Big-5 launch-side entry edge, and a lever on it (2026-10-17, proposal, not built)
+
+All figures come from completed logs: the push-0.8 confirmation (`head-hit-current-albums-push080-confirm-v1`, five
+seeds, 1960-64, singles from `single-launch-attribution.csv`), with a cross-check on the default seeds
+`top10-fiveyear-review-v1`. No simulation was run and no code was changed.
+
+**The edge is per launch, and it is the same in every genre.** Per launch, 1960-64, pooled:
+
+| Group | Launches / firm-year | Hot 100 entry | Top 10 / launch | Campaign impact | Launch awareness | Launch stock | Senior share of launches | Quality |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Big-5 | 46.3 | **49.9%** | 11.8% | 0.726 | 0.469 | 72.8k | 31.5% | 0.635 |
+| Procedural Major | 28.3 | 36.1% | 6.0% | 0.689 | 0.397 | 68.8k | 20.0% | 0.587 |
+| MidTier | 25.2 | 22.3% | 3.3% | 0.521 | 0.287 | 56.7k | 8.8% | 0.617 |
+| Independent | 12.8 | 11.6% | 1.2% | 0.381 | 0.198 | 46.1k | 2.1% | 0.606 |
+
+The gap holds at equal career state. New signings enter at 37.8% (Big-5), 16.9% (MidTier) and 9.9% (Independent).
+Established acts enter at 58.3%, 47.6% and 40.6%. It also holds within each genre. Big-5 entry against everyone
+else's is 64 / 14% in TraditionalPop, 75 / 25% in TeenPop, 60 / 16% in RnB, 65 / 17% in Soul and 38 / 6% in
+RockAndRoll. This is not a genre or A&R mismatch: the Big-5 enter at 2.5-5x the field whatever they release.
+
+**Four launch inputs account for the whole newcomer gap, and campaign impact is the largest.** A logit of entry on
+log launch stock, launch awareness, campaign impact, payola, quality and hook (genre, year and seed fixed; pseudo
+R² 0.67) predicts Big-5 newcomer entry at 35.1%. Moving one input at a time to the MidTier mean:
+
+| Big-5 newcomers, input set to the MidTier mean | Predicted entry |
+|---|---:|
+| None | 35.1% |
+| Quality | 32.2% |
+| Log launch stock | 33.4% |
+| Launch awareness | 29.1% |
+| **Campaign impact** | **25.9%** |
+| All four | **17.2%** (observed MidTier 16.9%) |
+
+Against Independents, all four give 9.1% (observed 9.9%). For Established acts, campaign impact alone accounts
+for almost the whole gap: 57.7% predicted, 47.0% with MidTier impact, against 47.6% observed MidTier. The impact
+coefficient is label-level, so this logit cannot separate launch push from the weekly push in a record's first
+weeks. Treat these figures as an upper bound for a launch-only lever. Launch awareness carries impact as well,
+because the marketing term in `ApplyReleasePromotion` is `BudgetToImpact × GetCampaignImpact × 0.35`.
+
+**Senior acts amplify the edge; they are not where it starts.** The Big-5 senior share of launches rises from
+19.4% in 1960 to 30.7 / 33.5 / 36.5 / **38.1%** in 1961-64. The senior share of Big-5 Top 10 slots rises from
+37.5% to 60 / 61 / 70 / **75%**. The default seeds show the same climb (17 → 52%, 32 → 49%, 47 → 65%). In
+1961-64, senior acts hold 64.9% of Big-5 slots, against 22.8% of everyone else's. The Big-5 grow these acts
+themselves:
+
+- **They sign no senior acts.** All 1,400 Big-5 signings in 1960-64 (five seeds) entered as NewSigning.
+- **Senior launches by origin, 1960 → 1964:** opening careers 120 → 64 (falling); acts on the 1960 roster promoted
+  on the ladder, about 190 → 245; acts signed during the run and promoted, 0 → **121**.
+- **They rarely fall back.** The ladder's Established → Declining rule needs three flops in a row, and at 58% entry
+  that is rare. Big-5 launches by Declining acts number 44, against 1,167 by Established acts (ratio 0.04). The ratio
+  is 0.24 for MidTier and 0.55 for Independents.
+
+The snowball is the newcomer edge compounded by the shared ladder. Its timing matches the defect. In the push-0.8
+log, the Big-5 hold 35.0% of the launch-attributed slots in 1960, close to history's 34.2%, and 29-35% after that,
+where history holds about 21%. A lever on the newcomer edge also slows the snowball, and the effect grows after
+1960, as the gap does. A lever on seniority alone would hit every label's stars and the shared ladder, while
+leaving the source untouched.
+
+**A historical anchor on per-release entry (approximate, to verify).** The sim's Big-5 release about 46 singles
+a firm a year, and half of them enter the Hot 100. RCA Victor's 1960 pop singles run through at least catalog
+numbers 47-7705 to 47-7777 (Neil Sedaka's "Stairway to Heaven" at 47-7709, Sam Cooke at 47-7730, Elvis Presley's
+"It's Now or Never" at 47-7777, July 1960). That is on the order of 100-200 singles a year for one major. A major's
+historical entry rate per single was therefore probably well under 50%. The sim gets the 1960 Big-5 share
+roughly right with too few releases at too high an entry rate. This rate is a diagnostic, not a target: Hot 100
+entries by label for 1960-64 have not been reconstructed (§12-13 cover the Top 10 only).
+
+**What is not proposed, and why:**
+
+- *A senior-act lever* (ladder decay, a seniority discount): it treats the amplifier. Separately, a cleanup finding:
+  `AILabel.GetMarketingBudget` still scales the launch marketing budget by discrete careerState (0.8x for a new
+  signing to 2.5x for a Superstar), and that budget feeds launch awareness. This counts seniority twice, alongside
+  the recognition awareness lift, which the recognition directive said should replace careerState in launch
+  demand. It also sets spending, so changing it is an economics change. It belongs in its own pass.
+- *A genre / A&R lever*: the Big-5 edge is 2.5-5x in every genre.
+- *Launch stock and distribution*: the smallest carrier (about 2 points), and the majors' distribution advantage
+  is sourced.
+- *Weekly push and top-20 hold* (§10, §17d, §17j): these move weeks between records already charting. §10's weekly
+  push 0.5 also pushed 1960 CR8 below band, because the freed weeks went to the long tail.
+
+**Lever: launch-push saturation.** An off-by-default probe switch, `--launch-push-saturation=F` (F in [0, 1],
+identity at 1). Above a fixed knee K = 0.55, just above the MidTier mean impact of 0.52, the campaign impact that a
+**launch** reads becomes `K + F × (impact − K)`. Below the knee it is unchanged. It applies to two launch reads:
+
+1. `CompetitorManager.ApplyReleasePromotion`'s `pushRadio`, the launch radio heat of every AI single, including
+   promo singles and buyouts.
+2. `CompetitorManager.GetSeasonalMarketingImpact`, the marketing term in launch awareness. This covers singles,
+   the album snapshot and the format-decision projection (`ProjectLaunchAwareness`), which must see the same
+   value as the real launch.
+
+It does not touch weekly `UpdateLabelPush`, launch stock, distribution, `AlbumSimulator`, the
+`ChartManager` minor paths or label cash. Labels below the knee get byte-identical launch inputs: Independents,
+Small, Boutique, most MidTiers and the player, who starts Small. The lever is one-sided on purpose. Compressing
+toward a pivot, as in §10, would also raise roughly 110,000 small-label launches. A saturation only removes the part
+of the majors' launch edge above regional-label scale. The freed entries are then shared out by merit across the
+whole field.
+
+*Physical claim (to be argued, not yet sourced in this document):* after the 1959-60 payola hearings, Top 40
+stations worked from tight playlists and added records on local sales and request evidence. A national campaign
+bought trade advertising and distributor attention, but beyond a point it could not buy the station add that put
+a new record on the Hot 100. What it could still buy, through distribution, stock and a star's name, is left alone.
+
+*Side benefit:* the §17m head templates (MidTier head envelope, impact 0.70-0.98) sit above the knee too, so the
+lever would also cut the runaway templates (Cameo-Parkway 73 slots). §17m concluded that templates can only be
+adopted together with a Big-5 entry lever. This is that lever.
+
+**Prediction (offline, upper bound).** At F = 0.5, Big-5 launch impact goes from about 0.79 to about 0.67, roughly
+half the distance to MidTier. On the logit, that is about −5 points of newcomer entry from radio push, plus about −2
+from marketing awareness. Big-5 entry would fall from 50% to about 43% (−14% entries), the 1961-64 Big-5 share from
+30.8% to about 26.5% straight away, and lower as the snowball slows. Centring 1961-64 CR4 near 27 needs about
+24% (§17k), so F = 0.25 may be needed. In 1960 the lever bites as well. That is welcome in defaults (Big-5 1960
+40.4% against 34.2%), but it puts the 1960 CR8 floor at risk, as in §10.
+
+**Calibration path (needs approval):**
+
+1. Build the switch and a `--launch-push-saturation-check` (identity off; knee arithmetic; a label below the knee
+   gets the same launch awareness and radio heat). Run 52 weeks on seed 5005 with the switch off, and require
+   byte-identity with `headtpl-off-identity` in all 80 CSVs, so the existing controls stay valid.
+2. **Screen:** five seeds at F ∈ {0.5, 0.25}, 156 weeks (1960-62), with a yearly watch and §17m's stopping rule.
+   Controls are reused: `top10-fiveyear-review-v1` (1001-3003) and `head-hit-default-controls-v1` (4004/5005,
+   168 weeks). That is ten runs, four at a time, about 45 minutes.
+3. **Confirm** the chosen F over five seeds × 260 weeks. This needs the 4004/5005 260-week controls (two extra
+   runs).
+4. Then lever + head templates (§17l) as its own paired probe.
+5. Two-seed decade A/B at the end of the audit (`decade-ab-only-at-audit-end`). The lever does not depend on era,
+   so it lowers Big-5 own-label entry in 1968-69 too. The late-decade goal is owner-family share through
+   absorption (`major-share-late-decade-consolidation-goal`), which is a different measure, but it must be read.
+
+**Pass / kill (five seeds, paired against the control):**
+
+| Guard | Pass | Kill |
+|---|---|---|
+| Big-5 share of the Top 10, 1961-64 | down ≥ 3 points, toward 21.6 (aim about 24) | down < 3 points |
+| Big-5 share, 1960 | 30-38 (history 34.2) | below 28 |
+| Big-5 firms among the top four, 1961-64 | toward 1.75 (control 3.05) | no change |
+| CR4 / CR8, 1960 | 30-40 / 48-58 | CR8 below 46 (§10's tail failure) |
+| CR4 / CR8, 1961-64, five-seed mean by year | 22-32 / 38-48 | any year out of band and worse than the control |
+| **Field share** (slots of non-Big-5 labels) | rises by what the Big-5 lose, with no single procedural firm taking more than a third of the freed slots | freed slots concentrate in one or two firms |
+| **Labels with a Top 10 hit** a year | ≥ 48 (history 49-55) | < 45 |
+| First-time Top 10 labels a year | within seed noise of the control, or higher | clearly below |
+| Non-major firms with 20+ slots a year | toward 3-5 | — |
+| Big-5 Hot 100 entry per launch; senior share of Big-5 launches and slots, 1964 | reported (diagnostics: 50% → about 40; 38% / 75% expected to fall) | — |
+| **Genre Top 10 slot shares**, TraditionalPop first | within seed noise | TraditionalPop falls outside noise. The Big-5 hold 58% of TraditionalPop slots and enter it at 64% against 14% for others, so freed slots may change genre |
+| Big-5 economics | no Big-5 demotion; cash and `consecutiveLossMonths` reported | any Big-5 demotion |
+| #1 tenure, closed chart life, Hot 100 / Top 40 entries per week, single units, Small closures | within seed noise | outside it |
+
+**Known risks.** (1) The logit's impact coefficient includes the weekly push. If the screen shows less than half
+the predicted cut, the next step is to extend the saturation to the weekly push of records **not yet in the top
+40** (the entry funnel), never to the top-20 hold. (2) A Major record that misses entry loses launch revenue, which
+moves label cash over five years. (3) Changing the outcome shuffles the RNG stream (`one-conversion-reshuffles-the-rng-stream`),
+so only multi-seed means count.
+
+Evidence: `SimLogs/big5-launch-entry-v1/diagnostics/` (`big5_entry_decomp.py`, `big5_newsigning_decomp.py`,
+`big5_senior_origin.py`, `big5_genre_and_drops.py`, with their `.txt` outputs). Catalog numbers: RPM-archive
+listings and *Music Vendor*, 18 July 1960 (worldradiohistory.com), found 2026-10-17. They are not a complete
+discography.
+
+### 17o. Screen result: launch-push saturation (`launchsat-050-screen-v1`, `launchsat-025-screen-v1`)
+
+**Build.** `Systems/LaunchPushSaturation.cs` adds `--launch-push-saturation=F`, as specified in §17n: knee 0.55,
+one-sided, applied to `pushRadio` in `ApplyReleasePromotion` and to `GetSeasonalMarketingImpact`. It is configured
+in `ChartManager` next to the other probes. `--launch-push-saturation-check`
+(`SimTools/LaunchPushSaturationChecks.cs`, through `SaveLoadRoundTripRunner`) passes: identity when off, identity at
+or below the knee, order kept, factor 0.5 halves the excess over the knee. The build has 0 warnings and 0 errors.
+
+**Inertness.** A 52-week seed-5005 run with the switch off (`launchsat-off-identity`) is **byte-identical** to
+`headtpl-off-identity` in all 80 CSVs, so the §17m controls stay valid: `top10-fiveyear-review-v1` (1001-3003)
+and `head-hit-default-controls-v1` (4004/5005).
+
+**Screen.** Five seeds, 156 weeks, default flags plus the switch. There was a yearly watch, and the stop rule was
+tightened to §17n's form: a band missed by more than 2 points **and** by more than the control misses it. F = 0.5
+completed all five seeds with empty error logs. F = 0.25 was **stopped after 1960** (`STOPPED.txt` in its folder).
+
+| Five-seed mean | 1960 ctl | F = 0.5 | F = 0.25 | 1961 ctl | F = 0.5 | 1962 ctl | F = 0.5 | History 1960 / 61 / 62 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CR4 [band] | 37.85 | 35.46 | 31.62 | 37.27 | **29.27** | 30.85 | 28.58 | 34.6 / 27.9 / - |
+| CR8 [band] | 55.00 | 49.92 | **45.54** (below 48) | 50.77 | **43.04** | 46.15 | 43.50 | 52.7 / 43.5 / - |
+| Big-5 share of the Top 10 | 40.38 | 34.85 | 29.62 | 33.77 | 28.12 | 29.85 | 28.15 | 34.2 / 20.6 / 21.2 |
+| Big-5 firms in the top four | 3.2 | 3.2 | 2.8 | 3.0 | **3.0** | 3.2 | **3.4** | - |
+| Labels with a Top 10 hit | 47.6 | 52.6 | 55.8 | 52.4 | 56.8 | 56.4 | 58.2 | 49 / 51 / - |
+| First-time Top 10 labels | 47.6 | 52.6 | 55.8 | 27.0 | 31.0 | 26.6 | 25.6 | - |
+| Non-major firms with 20+ slots | 2.0 | 2.2 | 1.8 | 2.0 | 1.6 | 2.0 | 2.6 | 3-5 |
+| TraditionalPop share of Top 10 | 26.2 | 23.5 | **21.0** | 20.4 | 23.0 | 17.8 | 19.0 | - |
+| #1 tenure (weeks) | 2.30 | 2.45 | 2.01 | 2.33 | 2.30 | 2.06 | 2.29 | - |
+| Hot 100 new entries a week | 12.68 | 12.63 | 12.60 | 15.02 | 14.76 | 14.98 | 14.93 | - |
+
+Per-seed paired Big-5 deltas at F = 0.5: 1960 **−5.5** (SE 2.0; all five seeds down), 1961 **−5.7** (SE 2.5;
+all five down), 1962 **−1.7** (SE 4.7; −1.5 / +8.5 / +3.5 / +0.4 / −19.2). CR4 in 1961 is −8.0 (SE 1.5). No Big-5
+label was demoted. Freed slots spread out: Boutique and Independent gain 3-5 points each in 1960-61, the largest
+single gaining firm takes 10-36 slots in a seed-year, and the reshuffle is as large as the Big-5 loss. MidTier
+*loses* about 2 points in 1960-61, because its strongest firms sit above the knee.
+
+**F = 0.25 is killed.** 1960 CR8 is 45.5, below the floor while the control sits inside the band, and below §17n's
+kill line of 46. TraditionalPop loses 5.2 points (SE 1.3, all seeds down), which fails the genre guard.
+
+**F = 0.5 passes the concentration and breadth guards but fails the head-composition guard, and its effect
+fades.** CR4 and CR8 are within band in all three years, including 1961, which the control misses and no earlier
+probe had fixed. Labels with a hit, first-time labels and field share all rise. The guard on "Big-5 firms in the top
+four", however, does not move at all (3.0 against 3.0 in 1961, 3.4 against 3.2 in 1962). §17n made "no change"
+there a kill. The 1962 Big-5 cut is inside the noise. TraditionalPop is −2.8 in 1960 (SE 1.2) and then +2.6 and
++1.3. #1 tenure is +0.23 in 1962 (SE 0.09), about the size of the neighbouring-configuration differences in §17k.
+
+**Why it fades: the lever reaches newcomers, not senior acts.** Big-5 Top 10 slots per seed-year by launch career
+state (`big5-slots-by-career-050.txt`):
+
+| Big-5 slots | 1960 ctl / F = 0.5 | 1961 | 1962 |
+|---|---:|---:|---:|
+| NewSigning | 79.4 / **64.0** | 48.4 / **33.2** | 39.0 / **31.2** |
+| Rising | 41.6 / 25.0 | 29.0 / 25.0 | 30.0 / 26.2 |
+| Established + Star + Superstar | 63.4 / 65.6 | 94.8 / 87.2 | 86.2 / 88.0 |
+
+Newcomer slots fall by 8-16 a seed-year. Senior slots do not move, although senior Hot 100 *entries* fall
+somewhat (1962: 49.6 → 42.0 records). Once a senior record is in, it converts to the Top 10 as before. By 1962,
+seniors hold most Big-5 slots, so a launch-only lever loses its grip, and the top four stay Big-5. The §17n
+prediction that slower promotion would damp the snowball inside three years did not hold. The 1960 roster's
+promotions already happened, and senior Top 10 conversion is carried by something the lever does not touch. The
+candidates are the top-20 weekly hold push (§17b), the recognition stock and radio lift, and senior-act quality.
+
+**Verdict.** F = 0.25 is rejected. F = 0.5 is the first lever to bring 1961 into band, and it widens the field
+without crowding it, unlike §17m. But it misses a pre-registered kill (Big-5 top-four count), and its Big-5 cut is
+not established beyond 1961. It is **not adopted and not confirmed**. Simulation defaults are unchanged, and the
+switch stays in the tree, off by default. A 260-week confirmation at F = 0.5 alone is not recommended until the
+senior-slot channel is identified. The next step is analysis only, on the F = 0.5 logs and controls: which input
+converts a Big-5 senior entry into Top 10 weeks (weekly hold push, recognition stock and radio lift, or quality),
+and whether that channel has a historical reason to be weaker for the majors' senior acts after 1960.
+
+Evidence: `SimLogs/launchsat-050-screen-v1/`, `SimLogs/launchsat-025-screen-v1/` (manifests, console and error
+logs, `STOPPED.txt`), `SimLogs/launchsat-off-identity/`, and `SimLogs/launchsat-screen-diagnostics/`
+(`yearly_watch.py`, `screen_review.py`, `review-050.txt`, `review-050-025.txt`, `big5-slots-by-career-050.txt`).
+The F = 0.25 Big-5 entry-per-launch figure is not usable, because its `release-outcomes.csv` was not flushed.
+
+### 17p. What carries a Big-5 senior entry into the Top 10, and a momentum half-life (2026-10-17, proposal, not built)
+
+This is analysis only, on the F = 0.5 screen and its controls (weekly chart rows) and on the push-0.8
+confirmation, the only runs that log every single launch and sample artist heat. No simulation was run, and no code
+was changed beyond the §17o switch.
+
+**Conversion after entry.** Hot 100 entrants that debut in 1961-62, five seeds:
+
+| Entrants | Per seed-year (ctl) | P(Top 10), ctl / F = 0.5 | Top 10 weeks per entrant, ctl | Quality | Launch awareness | Launch recognition |
+|---|---:|---:|---:|---:|---:|---:|
+| Big-5 senior | 45.7 | **28.7 / 31.1%** | 1.86 | **0.700** | 0.757 | 0.361 |
+| Big-5 junior | 63.0 | 19.2 / 17.0% | 1.07 | 0.698 | 0.378 | 0.041 |
+| Other senior | 68.7 | 21.1 / 20.6% | 1.19 | 0.724 | 0.582 | 0.290 |
+| Other junior | 510.7 | 9.4 / 9.9% | 0.49 | 0.746 | 0.226 | 0.020 |
+
+Big-5 senior records are the *lowest*-quality entrants, yet they convert best. The F = 0.5 lever did not touch them.
+Their conversion rose, and their launch awareness moved only 0.757 → 0.745. A logit of Top 10 on entry
+(quality, launch recognition, log stock, launch awareness, artist heat, Big-5 and senior dummies, genre, year,
+seed, arm; pseudo R² 0.45) predicts 31.6% for Big-5 senior entrants:
+
+| Big-5 senior entrants, one input changed | Predicted P(Top 10) |
+|---|---:|
+| As predicted | 31.6% |
+| Big-5 dummy off (label push, launch and weekly) | 20.6% |
+| Launch awareness at the other-senior mean (0.75 → 0.58) | 24.6% |
+| Launch awareness at the Big-5 junior mean (0.75 → 0.37) | **17.2%** |
+| Quality at the other-senior mean | 38.5% (higher: quality is not a carrier) |
+| Singles-only artist heat set to 0 | 31.0% |
+
+Recognition enters only through awareness and stock. Its direct coefficient is negative once awareness is held.
+Seniority converts through **launch awareness**, and the Big-5 premium on top of that through **label push**.
+
+**What senior launch awareness is made of** (push-0.8 log; terms computed from the authored formula in
+`ApplyReleasePromotion`, with seasonality and perceived-quality multipliers taken as 1):
+
+| 1961-64 singles | Awareness | Marketing (`BudgetToImpact` × impact × 0.35) | Recognition × 0.115 | Residual: momentum × 0.5 + reputation × 0.3 + label reputation × 0.1 |
+|---|---:|---:|---:|---:|
+| Big-5 NewSigning | 0.331 | 0.154 | 0.001 | 0.096 |
+| Big-5 Established | 0.580 | 0.201 | 0.023 | **0.275** |
+| Big-5 Star | 0.910 | 0.233 | 0.053 | **0.544** |
+| Big-5 Superstar | 0.994 | 0.237 | 0.079 | **0.598** |
+| Other Established | 0.446 | 0.090 | 0.022 | 0.254 |
+
+The recognition stock, the bounded fame input of the recognition directive, contributes 0.02-0.08. The legacy
+artist term (`momentum × 0.5 + reputation × 0.3`) contributes 0.18-0.50 above the newcomer baseline. That makes
+it the largest fame input at launch, and it is uncapped. The discrete careerState multiplier in
+`GetMarketingBudget` adds another 0.05-0.08. Among Big-5 senior launches, the residual is 0.583 for opening-career
+acts, 0.326 for the pre-1960 roster and reservoir, and 0.316 for acts formed in the run. Opening-career and pre-1960
+acts make up **80%** of Big-5 senior launches.
+
+**Artist momentum has no time decay.** `SimulatedArtist.momentum` starts at 0 for a generated act. Chart outcomes
+alone move it: +0.02 for a Top 40, +0.10 for a Top 10 and +0.18 for a #1 (credited when the peak is reached), and
+−0.05 / −0.10 / −0.15 when a run completes at peak 41-60, 61-100 or uncharted. Nothing decays it with time: no
+writer outside the chart-run path, the opening seed, the 1960 roster seed and the player band room. A 1960 seed
+value (initial roster 0.1-0.5, opening careers `0.10 + 0.22 × recent`, up to 0.9) persists until the act flops, and
+at Big-5 entry rates it rarely does. This contradicts the authored intent in `OpeningCareerService`: "Momentum is
+what the last two years did; reputation is the whole record. A former star keeps the name and loses the heat." At
+runtime the heat is never lost. Momentum also reads beyond awareness. It feeds release priority
+(`AILabel.CalculateReleasePriority` + 0.4 × momentum; the artist pick + 0.5 × momentum), which is one route by
+which the Big-5 senior share of launches climbs from 19% to 38%. It also feeds re-signing (`ShouldResignArtist`:
+Rising with momentum above 0.2), contract pricing and evolution confidence.
+
+A chart-history reconstruction of momentum covers only acts formed in the run, starting at 0
+(`momentum_reconstruction.py`). It gives Big-5 senior launches a mean of 0.10-0.17, and capping it changes
+predicted entry by only 1-2 points. The reconstruction is collinear with recognition, and its awareness slope
+(0.13) is far below the authored 0.5, so it does not identify the term. The seeded 1960 values, which carry the
+80% majority, are not observable in any current log.
+
+**The second senior channel is album heat in the weekly radio target.** In the push-0.8 attribution, Big-5 senior
+entrants carry a default artist heat of 0.380, of which 0.296 is album-caused (0.262 retained album peak and hit
+credit). Other seniors carry 0.254 (0.136 album), and juniors 0.015-0.045. At 0.12 × heat, that is +0.046 to the
+radio target, against +0.030. This is §17h's channel. The current-albums diagnostic already tests it, under the
+user's constraint that a successful album must still raise single hype. It is not re-proposed here.
+
+**Proposal: an artist momentum half-life.** An off-by-default switch, `--artist-momentum-half-life=W` (weeks). Each
+week, every artist's momentum is multiplied by `0.5^(1/W)`. It runs in `RosterManager.OnWeekEndedCore` next to
+`ArtistRecognitionService.DecayRegistryForWeek`, idempotent per artist per week, and applies to every artist,
+player-signed ones included. Hits still add the same increments, and reputation (the "whole record") is untouched.
+Opening-career momentum is already a two-year-window value at seeding, so it is not decayed again at seed time.
+Inertness: a run without the switch must be byte-identical in all 80 CSVs. The decay draws no randomness.
+
+*Why it is the right kind of fix:* it is a realism fix to the author's own definition, label-blind, with no
+Big-5 targeting. Its expected Big-5 effect is compositional, and time-profiled like the defect. Per launch it bites
+Big-5 and other seniors equally: the median gap since the act's last charting single is 35 weeks for Big-5 seniors
+and 30 for others, so a 52-week half-life keeps 56% and 57% of the last credit, and 104 weeks keeps 73% and 74%. It
+lands on the Big-5 because seniors hold 65% of their 1961-64 slots against 23% for everyone else, and because 80% of
+their senior launches are 1960-seeded acts whose seed momentum otherwise never cools. History's majors lost Top 10
+share after 1960 as their 1950s star system faded. This lets the sim's seeded star system fade on a clock, not
+only on flops.
+
+*Size: not predictable offline.* The seeded momentum that matters most is unlogged. The build therefore adds two
+columns, `artistMomentum` and `artistReputation` at launch, to the off-by-default `--head-hit-attribution`
+single-launch log, which §17h showed leaves the default CSVs byte-identical. That decomposes the residual term
+directly in the screen.
+
+**Screen (five seeds × 156 weeks, paired with the §17o controls; same watch and stop rule):**
+
+| Arm | Switches | Question |
+|---|---|---|
+| A | `--artist-momentum-half-life=104 --head-hit-attribution` | Does the decay alone move the Big-5 senior arm, at the author's two-year window? |
+| B | A + `--launch-push-saturation=0.5` | Do the newcomer and senior levers together move the top-four count and keep 1962 down? |
+| C (only if B's 1962 cut is under 3 points) | `--artist-momentum-half-life=52` + F = 0.5 | A stronger senior lever |
+
+**Guards** (on top of §17n's table, which still applies in full):
+
+| Guard | Pass | Kill |
+|---|---|---|
+| Big-5 firms in the top four, 1961-62 | below the control (3.0 / 3.2) | no change (§17o's failure) |
+| Big-5 share, 1962 | down ≥ 3 points, all-seed mean | inside noise again |
+| Big-5 senior slots per seed-year | down | unchanged |
+| Other-senior Top 10 slots | fall less, in proportion, than Big-5 senior slots | fall as much or more |
+| Senior share of all Top 10 slots | reported (control: Big-5 65%, others 23%) | — |
+| TraditionalPop share | within seed noise (79% of Big-5 TraditionalPop slots are senior, so it is exposed) | outside it |
+| Drops, performance departures, re-signings | within noise (`turnover-is-90-percent-firing`; Rising re-signing reads momentum > 0.2) | drops or departures up more than 20% |
+| Genre conversions | within noise (evolution confidence reads momentum) | clearly up |
+| Recognition-concentration screen (top 1% / 10% act slot share, #1 acts) | within noise | top 10% up more than 3 points |
+
+**Not in scope:** removing the retained album heat (§17h, user constraint), reshaping reputation, and the
+`GetMarketingBudget` careerState multiplier (an economics pass, because it also sets spending).
+
+Evidence: `SimLogs/launchsat-screen-diagnostics/` (`senior_conversion.py` / `.txt`, `senior_channels.py` /
+`.txt`, `momentum_reconstruction.py` / `.txt`, `momentum_decay_sizing.txt`).
+
+### 17q. Screen result: momentum half-life, alone and with launch saturation (arms A-C, 2026-10-17)
+
+**Build.** `Systems/ArtistMomentumHalfLife.cs` adds `--artist-momentum-half-life=W`. It is an idempotent weekly
+pass in `RosterManager.OnWeekEndedCore` right after the recognition decay, multiplying every artist's momentum by
+`0.5^(1/W)`. Reputation is untouched, and it draws no RNG. `--artist-momentum-half-life-check` passes: off is
+bit-for-bit, 104 steps halve, a repeat in the same week is a no-op, reputation is unchanged. The
+`--head-hit-attribution` launch log gains `artistMomentum`, `artistReputation`, `labelReputation` and
+`launchCampaignImpact`. The build has 0 warnings and 0 errors. A 52-week seed-5005 run with the switch off
+(`momhl-off-identity`) is **byte-identical** to `headtpl-off-identity` in all 80 CSVs. All 15 screen runs passed
+with empty error logs. Each arm is five seeds × 156 weeks against the §17o controls.
+
+| Five-seed mean | Control | F = 0.5 (§17o) | **A**: W = 104 | **B**: W = 104 + F = 0.5 | **C**: W = 52 + F = 0.5 | History |
+|---|---:|---:|---:|---:|---:|---:|
+| Big-5 share 1960 / 61 / 62 | 40.4 / 33.8 / 29.9 | 34.9 / 28.1 / 28.2 | 35.4 / 31.2 / 29.5 | 32.3 / 29.1 / 29.4 | **31.2 / 28.2 / 24.2** | 34.2 / 20.6 / 21.2 |
+| Paired Big-5 Δ (SE) 1960 / 61 / 62 | — | −5.5 / −5.7 / −1.7 (4.7) | −5.0 / −2.6 / −0.4 (3.9) | −8.0 / −4.7 / −0.4 (4.6) | **−9.2 / −5.5 / −5.7** (2.4 / 3.5 / 3.2) | |
+| CR4 1960 / 61 / 62 | 37.9 / 37.3 / 30.9 | 35.5 / 29.3 / 28.6 | 36.3 / 31.9 / 31.1 | 34.3 / 30.2 / 29.5 | 32.3 / 27.2 / 25.0 | 34.6 / 27.9 / - |
+| CR8 1960 / 61 / 62 | 55.0 / 50.8 / 46.2 | 49.9 / 43.0 / 43.5 | 52.4 / 45.3 / 45.1 | 49.0 / 43.2 / 42.4 | **47.7** / 40.0 / **38.1** | 52.7 / 43.5 / - |
+| Big-5 firms in the top four 1960 / 61 / 62 | 3.2 / 3.0 / 3.2 | 3.2 / 3.0 / 3.4 | 3.0 / 3.2 / 3.2 | 2.8 / 3.0 / 3.2 | 2.6 / **3.0 / 3.0** | 1.75 (1961-64) |
+| Big-5 senior Top 10 slots 1960 / 61 / 62 | 63 / 95 / 86 | 66 / 87 / 88 | 62 / 86 / 92 | 53 / 90 / 93 | **53 / 65 / 74** | |
+| Other-senior Top 10 slots 1960 / 61 / 62 | 53 / 88 / 87 | 55 / 74 / 86 | 69 / 86 / **108** | 64 / 84 / 76 | 70 / 68 / 79 | |
+| Senior share of all slots 1962 | 33.4 | 33.5 | **38.5** | 32.5 | 29.6 | |
+| Labels with a Top 10 hit 1960 / 61 / 62 | 47.6 / 52.4 / 56.4 | 52.6 / 56.8 / 58.2 | 50.8 / 54.8 / 54.0 | 50.6 / 55.8 / 57.6 | **51.6 / 59.0 / 60.2** | 49 / 51 / - |
+| First-time Top 10 labels 1961 / 62 | 27.0 / 26.6 | 31.0 / 25.6 | 29.0 / 25.4 | 32.0 / 27.0 | 34.4 / 28.6 | |
+| Non-major firms with 20+ slots 1961 / 62 | 2.0 / 2.0 | 1.6 / 2.6 | 1.4 / 2.0 | 1.2 / 1.0 | 1.0 / 1.4 | 3-5 |
+| #1 tenure 1962 (paired Δ, SE) | 2.06 | +0.23 (0.09) | +0.15 (0.18) | **+0.58 (0.24)** | +0.20 (0.26) | |
+| TraditionalPop share 1960 / 61 / 62 | 26.2 / 20.4 / 17.8 | 23.5 / 23.0 / 19.0 | 23.5 / 21.9 / 17.0 | 26.7 / 20.9 / 19.3 | 25.2 / 20.6 / 18.2 | |
+| Drops / perf. departures / re-signings 1962 | 1164 / 617 / 145 | 1166 / 623 / 156 | 1149 / 630 / 159 | 1157 / 620 / 152 | 1154 / 618 / 144 | |
+| Genre conversions 1960 / 61 / 62 | 6.4 / 21.4 / 19.0 | 7.8 / 18.4 / 23.2 | 7.2 / 25.8 / 20.2 | 6.2 / 26.8 / 27.4 | 4.8 / 22.4 / 23.6 | |
+| Top 10% acts' share of Hot 100 slot-weeks 1962 | 31.2 | 30.6 | 31.4 | 31.9 | 31.5 | |
+
+**What the telemetry shows.** Big-5 senior momentum at launch in 1961-62 is 0.31 / 0.29 at W = 104 and **0.21 /
+0.17** at W = 52, with launch awareness 0.63 / 0.60 against 0.58 / 0.54. Hits keep refilling momentum, so a two-year
+half-life trims it by about a third and a one-year half-life by about half. Opening-career acts keep reputation
+0.87-0.98, which by design does not decay. Each Big-5 senior launch then reads 0.26-0.29 awareness from reputation
+alone. With W = 52, Big-5 senior launches also fall (1961 / 62: 293 / 332, against 336 / 358 at W = 104), because
+release priority reads momentum.
+
+**Arm A (W = 104 alone): near-inert on concentration.** The Big-5 cut is −5.0 in 1960 and then within noise. Big-5
+senior slots do not fall. Other-senior slots and the senior share of all slots *rise* in 1962 (108 against 87;
+38.5% against 33.4%; about 1 SE). A two-year half-life is a realism fix that does not move the label structure.
+
+**Arm B (W = 104 + F = 0.5): not additive.** It fades in 1962 just like F = 0.5 alone. Its #1 tenure in 1962 is
++0.58 weeks (SE 0.24), with 18.8 distinct #1 acts against 23.2. That is the largest #1 move of any arm, and a
+concern.
+
+**Arm C (W = 52 + F = 0.5): the first combination that holds its Big-5 cut through 1962.** The cut is −9.2 / −5.5 /
+−5.7 with every SE under 3.6. The 1962 Big-5 share of 24.2% is the closest to history (21.2%) of any run so far.
+Big-5 senior slots fall at last (−11 / −30 / −12). Other seniors fall proportionally less (1961: −31% Big-5 against
+−23% other; 1962: −14% against −9%), which passes the §17p proportionality guard. Labels with a hit and first-time
+labels rise every year. TraditionalPop, #1 tenure, drops, departures, re-signings and act concentration are all
+within noise. Genre conversions are 22-24 against 19-21, inside the range of the other arms.
+
+**Where C fails:**
+
+1. **Big-5 firms in the top four stay at 3.0** in 1961-62, which §17n pre-registered as a kill. It cannot pass by
+   cutting the Big-5 alone. Non-major firms with 20+ slots *fall* to 1.0-1.4 (history 3-5). The freed slots spread
+   across the long tail, so no non-major grows big enough to displace a major from the top four. That is §11's
+   structural finding again: the second rank needs head-scale non-majors.
+2. **CR8 sits at the floor:** 47.7 in 1960 (band 48-58, inside the 2-point margin) and 38.1 in 1962 (band
+   38-48). This is the same thin-second-rank cause seen from the other side.
+
+**Verdict.** A is a realism fix with no concentration effect. B adds nothing over F = 0.5 and moves #1 tenure.
+**C is the best candidate so far** on Big-5 share, field breadth and chart health, but it misses the top-four guard
+and is at the CR8 floor, because the sim has no second rank to receive the freed slots. Nothing is adopted. All three
+switches stay off by default, and nothing is committed. The natural next probe is the one §17m called for:
+**C together with the §17l head templates**. The lever supplies the Big-5 cut that templates alone could not
+produce. The templates supply the 20-40-slot non-majors whose absence keeps the majors in the top four and pins CR8
+to its floor. Because the templates have head-envelope impact above the 0.55 knee, the saturation also damps the
+template runaway §17m saw (Cameo-Parkway at 73 slots). A 260-week confirmation of C alone would establish 1963-64,
+but it cannot clear the top-four kill.
+
+Evidence: `SimLogs/momhl104-screen-v1/`, `SimLogs/momhl104-launchsat050-screen-v1/`,
+`SimLogs/momhl052-launchsat050-screen-v1/` and `SimLogs/momhl-off-identity/` (manifests and logs; each run's
+`single-launch-attribution.csv` carries the new columns). In `SimLogs/launchsat-screen-diagnostics/`:
+`review-armsABC.txt` (all arms, per-seed deltas), `review-momhl104.txt`, `momhl104-telemetry.txt` and
+`fade-1962.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
