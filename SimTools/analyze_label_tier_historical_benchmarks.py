@@ -27,17 +27,51 @@ HISTORY = {
     1969: (48, 31, 14, 42, 64),
 }
 TIERS = ["Major", "MidTier", "Independent", "Boutique", "Small"]
-REVIEW_1960_BANDS = {"cr4Top10SlotsPct": (23.0, 33.0), "cr8Top10SlotsPct": (47.0, 57.0)}
+# Billboard weekly Top 10 reconstruction, operating label, slots (HistoricalLabelTierBalanceResearch.md
+# sections 12-13; SimLogs/historical-top10-summary.csv): CR4, CR8, firms 5-8, labels with a Top 10 hit.
+# P-B's series above consolidates firms and does not reproduce, so only the reconstruction sets bands.
+RECONSTRUCTION = {
+    1960: (34.6, 52.7, 18.1, 49),
+    1961: (27.9, 43.5, 15.6, 51),
+    1962: (26.7, 43.3, 16.5, 53),
+    1963: (26.3, 41.9, 15.6, 54),
+    1964: (29.2, 43.7, 14.4, 55),
+    1968: (28.1, 44.0, 16.0, 49),
+    1969: (26.0, 43.3, 17.3, 48),
+}
+# 1961-69 differ by less than one year's bootstrap noise (~4 pts), so they share one pooled band;
+# 1965-67 were not reconstructed and use it too. Bands are about +/-5 pts, ~1.2 bootstrap SDs.
+POOLED_1961_69 = (27.4, 43.3, 15.9, 52)
+REVIEW_BANDS = {
+    1960: {"cr4Top10SlotsPct": (30.0, 40.0), "cr8Top10SlotsPct": (48.0, 58.0)},
+    "1961-69": {"cr4Top10SlotsPct": (22.0, 32.0), "cr8Top10SlotsPct": (38.0, 48.0)},
+}
 MINIMUM_REVIEW_SEEDS = 3
 
 
-def review_1960(runs, manifest):
+def review_bands(year):
+    if year == 1960:
+        return REVIEW_BANDS[1960]
+    if 1961 <= year <= 1969:
+        return REVIEW_BANDS["1961-69"]
+    raise ValueError(f"No operating-label review band for {year}")
+
+
+def reference(year):
+    cr4, cr8, firms_5_to_8, labels = RECONSTRUCTION.get(year, POOLED_1961_69)
+    return {"cr4Top10SlotsPct": cr4, "cr8Top10SlotsPct": cr8, "firms5to8Top10SlotsPct": firms_5_to_8,
+            "operatingLabelsWithAnyTop10": labels,
+            "basis": "reconstructed year" if year in RECONSTRUCTION else "pooled 1961-69 mean (not reconstructed)"}
+
+
+def review(runs, manifest, year=1960):
     """Review equal-weight seed means from a single completed configuration.
 
     Require a launcher manifest so an old control, a duplicate seed, a different
-    flag stack or a partial opening year cannot silently enter the sample.
+    flag stack or a partial year cannot silently enter the sample.
     These are advisory historical bands, not simulation acceptance gates.
     """
+    bands = review_bands(year)
     if not manifest.get("assemblySha256"):
         raise ValueError("Review requires a recorded simulation assembly hash")
     results = manifest.get("results", [])
@@ -66,17 +100,17 @@ def review_1960(runs, manifest):
             raise ValueError("Review runs must use the same flags and duration")
         configuration = flags
         annual = inputs[result["name"]]["annual"]
-        row = annual.get(1960, annual.get("1960"))
+        row = annual.get(year, annual.get(str(year)))
         if row is None or row["chartWeeks"] != 52 or row["top10Slots"] != 520:
-            raise ValueError(f"{result['name']}: review requires all 52 weeks of 1960")
-        values = {metric: float(row[metric]) for metric in REVIEW_1960_BANDS}
+            raise ValueError(f"{result['name']}: review requires all 52 weeks of {year}")
+        values = {metric: float(row[metric]) for metric in bands}
         if not all(0 <= value <= 100 for value in values.values()):
             raise ValueError("Review shares must be finite percentages in [0, 100]")
         per_seed.append({"seed": seed, "run": result["name"], **values})
     enough = len(per_seed) >= MINIMUM_REVIEW_SEEDS
     metrics = {}
     warnings = []
-    for metric, (lower, upper) in REVIEW_1960_BANDS.items():
+    for metric, (lower, upper) in bands.items():
         values = [row[metric] for row in per_seed]
         average = mean(values) if values else None
         within = lower <= average <= upper if average is not None else None
@@ -88,12 +122,13 @@ def review_1960(runs, manifest):
             "meanWithinBand": within,
         }
         if enough and not within:
-            warnings.append(f"1960 {metric} seed mean {average:.2f}% is outside {lower:g}-{upper:g}%")
+            warnings.append(f"{year} {metric} seed mean {average:.2f}% is outside {lower:g}-{upper:g}%")
     if not enough:
-        warnings.append(f"1960 review needs at least {MINIMUM_REVIEW_SEEDS} distinct seeds; found {len(per_seed)}")
+        warnings.append(f"{year} review needs at least {MINIMUM_REVIEW_SEEDS} distinct seeds; found {len(per_seed)}")
     return {
-        "year": 1960, "status": ("INSUFFICIENT_SEEDS" if not enough else
+        "year": year, "status": ("INSUFFICIENT_SEEDS" if not enough else
                                   "REVIEW" if warnings else "WITHIN_BANDS"),
+        "historicalReference": reference(year),
         "advisoryOnly": True, "seedCount": len(per_seed),
         "minimumSeedCount": MINIMUM_REVIEW_SEEDS,
         "aggregation": "Unweighted mean of each seed's separately ranked annual Top 10 slot shares",
@@ -101,7 +136,8 @@ def review_1960(runs, manifest):
         "configurationArgsWithoutRunAndSeed": list(configuration or []),
         "perSeed": sorted(per_seed, key=lambda row: row["seed"]),
         "metrics": metrics, "historicalWarnings": warnings,
-        "interpretation": "Design review bands, not historical confidence intervals; operating-label ownership proxy",
+        "interpretation": ("Bands centered on the Billboard operating-label reconstruction, about +/-5 pts; "
+                           "not confidence intervals; simulation operating label vs historical operating label"),
     }
 
 
@@ -144,6 +180,7 @@ def analyze(prefix):
             "totalChartUnits": total,
             "cr4Top10SlotsPct": float(100 * slots.head(4).sum() / len(top)),
             "cr8Top10SlotsPct": float(100 * slots.head(8).sum() / len(top)),
+            "firms5to8Top10SlotsPct": float(100 * slots.iloc[4:8].sum() / len(top)),
             "operatingLabelsWithAnyTop10": len(slots),
             "operatingLabelsWithNewTop10": int(new_hits.labelId.nunique()),
             "distinctTop10Records": int(top.recordId.nunique()),
@@ -189,7 +226,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("prefixes", nargs="+")
     parser.add_argument("--output", required=True)
-    parser.add_argument("--review-manifest", help="Review one matched multi-seed configuration against the 1960 bands")
+    parser.add_argument("--review-manifest",
+                        help="Review one matched multi-seed configuration against each complete year's band")
     args = parser.parse_args()
     history = {year: dict(zip([
         "labels", "firms", "firmsWithOneHit", "cr4Top10SlotsPct", "cr8Top10SlotsPct"
@@ -198,6 +236,8 @@ def main():
         "historicalSource": "https://people.uncw.edu/ricej/art/cycles%20in%20symbol%20production.pdf",
         "historicalSourcePages": "160 (table), 170-171 (method)",
         "historical": history,
+        "reconstructionOperatingLabel": {year: reference(year) for year in RECONSTRUCTION},
+        "reviewBands": {str(key): value for key, value in REVIEW_BANDS.items()},
         "limitations": [
             "Simulation businesses are operating-label proxies; historical firms consolidate imprints/affiliations.",
             "1960 first-observed Top 10 hits cannot exclude 1959 carryover in these logs.",
@@ -210,27 +250,43 @@ def main():
     }
     if args.review_manifest:
         manifest = json.loads(Path(args.review_manifest).read_text(encoding="utf-8-sig"))
-        result["review1960"] = review_1960(result["runs"], manifest)
+        years = sorted(set.intersection(*[
+            {year for year, row in run["annual"].items()
+             if 1960 <= year <= 1969 and row["chartWeeks"] == 52 and row["top10Slots"] == 520}
+            for run in result["runs"]]))
+        result["reviews"] = {year: review(result["runs"], manifest, year) for year in years}
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+
+    def marked(year, metric, value):
+        lower, upper = review_bands(year)[metric]
+        return f"{value:.2f}%" + ("" if lower <= value <= upper else "*")
+
     for run in result["runs"]:
         print(run["prefix"])
         for year, row in run["annual"].items():
-            print(f"  {year}: CR4 {row['cr4Top10SlotsPct']:.2f}%, "
-                  f"CR8 {row['cr8Top10SlotsPct']:.2f}%, "
-                  f"{row['operatingLabelsWithNewTop10']} firms with new Top 10 hits")
+            if not 1960 <= year <= 1969:
+                continue
+            ref = reference(year)
+            print(f"  {year}: CR4 {marked(year, 'cr4Top10SlotsPct', row['cr4Top10SlotsPct'])} "
+                  f"(hist {ref['cr4Top10SlotsPct']:g}), "
+                  f"CR8 {marked(year, 'cr8Top10SlotsPct', row['cr8Top10SlotsPct'])} "
+                  f"(hist {ref['cr8Top10SlotsPct']:g}), "
+                  f"5-8 {row['firms5to8Top10SlotsPct']:.2f}% (hist {ref['firms5to8Top10SlotsPct']:g}), "
+                  f"{row['operatingLabelsWithAnyTop10']} labels with a Top 10 "
+                  f"(hist {ref['operatingLabelsWithAnyTop10']})")
         opening = run["openingYear"]
         print("  MidTier first signings, all / TeenPop:",
               opening["midTierFirstTimeSigningsAllGenres"],
               opening["midTierFirstTimeSigningsCurrentGenreTeenPop"])
-    if "review1960" in result:
-        review = result["review1960"]
-        print(f"1960 multi-seed review: {review['status']} ({review['seedCount']} seeds)")
-        for metric, row in review["metrics"].items():
+    print("  (* = outside that year's operating-label review band)")
+    for year, row_review in result.get("reviews", {}).items():
+        print(f"{year} multi-seed review: {row_review['status']} ({row_review['seedCount']} seeds)")
+        for metric, row in row_review["metrics"].items():
             average = "unavailable" if row["meanPct"] is None else f"{row['meanPct']:.2f}%"
             print(f"  {metric}: {average}; review band {row['bandPct'][0]:g}-{row['bandPct'][1]:g}%")
-        for warning in review["historicalWarnings"]:
+        for warning in row_review["historicalWarnings"]:
             print("  REVIEW:", warning)
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from analyze_label_tier_historical_benchmarks import analyze, review_1960
+from analyze_label_tier_historical_benchmarks import analyze, review
 
 
 class HistoricalConcentrationReviewTests(unittest.TestCase):
@@ -23,44 +23,56 @@ class HistoricalConcentrationReviewTests(unittest.TestCase):
 
     def test_outlier_seeds_do_not_replace_the_multi_seed_mean(self):
         runs, manifest = self.sample()
-        review = review_1960(runs, manifest)
-        self.assertEqual(review["status"], "WITHIN_BANDS")
-        self.assertEqual(review["metrics"]["cr4Top10SlotsPct"]["meanPct"], 30)
-        self.assertEqual(review["metrics"]["cr8Top10SlotsPct"]["meanPct"], 50)
+        result = review(runs, manifest)
+        self.assertEqual(result["status"], "WITHIN_BANDS")
+        self.assertEqual(result["metrics"]["cr4Top10SlotsPct"]["meanPct"], 30)
+        self.assertEqual(result["metrics"]["cr8Top10SlotsPct"]["meanPct"], 50)
 
     def test_inclusive_boundaries_and_advisory_departures(self):
-        runs, manifest = self.sample(((23, 57),) * 3)
-        self.assertEqual(review_1960(runs, manifest)["status"], "WITHIN_BANDS")
+        runs, manifest = self.sample(((30, 58),) * 3)
+        self.assertEqual(review(runs, manifest)["status"], "WITHIN_BANDS")
         for run in runs:
-            run["annual"][1960]["cr4Top10SlotsPct"] = 34
-        review = review_1960(runs, manifest)
-        self.assertEqual(review["status"], "REVIEW")
-        self.assertTrue(review["advisoryOnly"])
-        self.assertEqual(len(review["historicalWarnings"]), 1)
+            run["annual"][1960]["cr4Top10SlotsPct"] = 40.5
+        result = review(runs, manifest)
+        self.assertEqual(result["status"], "REVIEW")
+        self.assertTrue(result["advisoryOnly"])
+        self.assertEqual(len(result["historicalWarnings"]), 1)
+
+    def test_later_years_use_the_pooled_band_not_the_1960_band(self):
+        runs, manifest = self.sample(((35, 53),) * 3)
+        for run in runs:
+            run["annual"][1962] = dict(run["annual"][1960])
+        self.assertEqual(review(runs, manifest, 1960)["status"], "WITHIN_BANDS")
+        later = review(runs, manifest, 1962)
+        self.assertEqual(later["status"], "REVIEW")
+        self.assertEqual(later["metrics"]["cr4Top10SlotsPct"]["bandPct"], [22.0, 32.0])
+        self.assertEqual(later["historicalReference"]["cr4Top10SlotsPct"], 26.7)
+        with self.assertRaisesRegex(ValueError, "No operating-label review band"):
+            review(runs, manifest, 1970)
 
     def test_two_seeds_are_provisional_and_duplicate_seeds_are_rejected(self):
         runs, manifest = self.sample(((28, 52),) * 2)
-        self.assertEqual(review_1960(runs, manifest)["status"], "INSUFFICIENT_SEEDS")
+        self.assertEqual(review(runs, manifest)["status"], "INSUFFICIENT_SEEDS")
         manifest["results"][1]["args"][2] = "--seed=1"
         with self.assertRaisesRegex(ValueError, "Duplicate seed"):
-            review_1960(runs, manifest)
+            review(runs, manifest)
 
     def test_partial_failed_or_mismatched_runs_cannot_enter_review(self):
         runs, manifest = self.sample()
         partial = copy.deepcopy(runs)
         partial[0]["annual"][1960]["chartWeeks"] = 51
         with self.assertRaisesRegex(ValueError, "52 weeks"):
-            review_1960(partial, manifest)
+            review(partial, manifest)
         failed = copy.deepcopy(manifest)
         failed["results"][0]["passed"] = False
         with self.assertRaisesRegex(ValueError, "did not complete"):
-            review_1960(runs, failed)
+            review(runs, failed)
         with self.assertRaisesRegex(ValueError, "match the manifest"):
-            review_1960(runs[:-1], manifest)
+            review(runs[:-1], manifest)
         different_flags = copy.deepcopy(manifest)
         different_flags["results"][1]["args"].append("--no-small-home-territory")
         with self.assertRaisesRegex(ValueError, "same flags"):
-            review_1960(runs, different_flags)
+            review(runs, different_flags)
 
     def test_top10_slots_do_not_use_unit_concentration_or_rank_11(self):
         root = Path(__file__).resolve().parent.parent / "SimLogs"

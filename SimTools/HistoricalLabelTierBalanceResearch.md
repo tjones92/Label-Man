@@ -826,6 +826,37 @@ the eight section 12 issues. Each year's directory holds `top10_weekly_YEAR.csv`
 `records_YEAR_grouped.csv` (operating label, owned and affiliated firm), `concentration_YEAR.csv` and, except
 1960, `print_issues_YEAR.csv`.
 
+## 14. Adopted: reconstruction-centered operating-label bands (2026-10-16)
+
+The user adopted the section 13 bands. `analyze_label_tier_historical_benchmarks.py` now reviews every complete
+1960-69 year that all runs share: **1960 CR4 30-40, CR8 48-58**; **1961-69 (pooled) CR4 22-32, CR8 38-48**. The
+Peterson-Berger series stays in the output as a description only. Each year's review also carries the reconstructed
+reference (CR4, CR8, firms 5-8, labels with a Top 10), and each run's annual line marks out-of-band values with `*`.
+The section 8 bands (23-33 / 47-57) are retired. `--radio-push-spread` stays off: it was the fix for a flag that
+these bands remove, and it moves CR8 and firms 5-8 away from the reconstruction (section 12).
+
+**1960, five seeds (re-review, no new runs):** `WITHIN_BANDS`, CR4 37.85 and CR8 55.00. Seeds 1001 (low) and
+4004 and 5005 (high) are individually out of band; the review judges the seed mean, as before.
+Output: `SimLogs/historical-top10-review-v3/review-five-seed-1960.json`.
+
+**1961-64, descriptive only (one seed, no manifest review possible):**
+
+| Seed 2002 | 1961 | 1962 | 1963 | 1964 | History 1961-64 |
+|---|---|---|---|---|---|
+| Adopted defaults (`smallcost-fiveyear-v1-paired-home`), CR4 / CR8 | **37.5 / 53.1** | 26.0 / 42.5 | 25.0 / 40.2 | 28.9 / 41.2 | 27.9-29.2 / 41.9-43.7 |
+| Firms 5-8 | 15.6 | 16.5 | 15.2 | 12.3 | 14.4-16.5 |
+| Labels with a Top 10 | 50 | 59 | 64 | 60 | 51-55 |
+| Older control (`ab5ctl-2002-260`), CR4 / CR8 | 27.9 / **49.2** | **35.2 / 50.4** | 26.4 / 44.4 | 31.7 / **49.8** | |
+
+On the adopted defaults, 1962-64 sit within 2.6 points of history on both measures. 1961 is out of band on both,
+but it is one seed in one year, and the 1960 seed SD is about 7 points. The adopted run also has more labels with
+a Top 10 hit in 1962-64 (59-64 against 53-55). `ab5ctl-1001-260` is an incomplete run (empty label directory,
+truncated deal ledger) and was excluded. Output: `SimLogs/historical-top10-review-v3/five-year-descriptive.*`.
+
+A formal 1961-64 review needs three five-year seeds on one assembly. The seed-2002 run was built on assembly
+`E682FC70…54A7`; the current build is `21A2517C…E8CC`, so it cannot be merged into a new manifest. About 30 minutes
+per five-year run.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
