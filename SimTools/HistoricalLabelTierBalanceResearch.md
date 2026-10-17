@@ -2847,6 +2847,114 @@ Evidence: `SimLogs/momhl104-screen-v1/`, `SimLogs/momhl104-launchsat050-screen-v
 `review-armsABC.txt` (all arms, per-seed deltas), `review-momhl104.txt`, `momhl104-telemetry.txt` and
 `fade-1962.txt`.
 
+### 17r. Screen result: arm C with the head templates (`momhl052-launchsat050-headtpl-screen-v1`, 2026-10-17)
+
+**Run.** Five seeds × 156 weeks with default flags plus `--artist-momentum-half-life=52 --launch-push-saturation=0.5
+--seed-head-templates --head-hit-attribution`, paired against the §17o controls (`top10-fiveyear-review-v1` for
+1001-3003, `head-hit-default-controls-v1` for 4004/5005). It was built from commit `d4fb234` with 0 warnings and 0
+errors. All five seeds passed with empty error logs, in about 19 minutes. The yearly watch (§17o stop rule) reported
+every year as WITHIN band and never stopped the run. Guards are §17l (templates), §17n (launch saturation) and §17p
+(momentum half-life). "Templates" means the six template ids (`label_0014`, `0015`, `0020`, `0043`-`0045`), and
+the control's figure for them is the three ordinary templates on those ids. "Field" is every label that is neither
+Big-5 nor a template.
+
+| Five-seed mean | 1960 ctl | **C + T** | C alone | T alone | 1961 ctl | **C + T** | C alone | T alone | 1962 ctl | **C + T** | C alone | History 1960 / 61 / 62 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| CR4 [band] | 37.9 | **31.6** | 32.3 | 36.6 | 37.3 | **27.1** | 27.2 | 34.6 | 30.9 | **28.1** | 25.0 | 34.6 / 27.9 / - |
+| CR8 [band] | 55.0 | **51.1** | 47.7 | 54.3 | 50.8 | **41.7** | 40.0 | 52.0 | 46.2 | **42.2** | 38.1 | 52.7 / 43.5 / - |
+| Big-5 share of the Top 10 | 40.4 | **29.1** | 31.2 | 29.1 | 33.8 | **23.2** | 28.2 | 31.3 | 29.9 | **18.2** | 24.2 | 34.2 / 20.6 / 21.2 |
+| Big-5 firms in the top four | 3.2 | 2.6 | 2.6 | 2.0 | 3.0 | **2.4** | 3.0 | 2.2 | 3.2 | **1.8** | 3.0 | 1.75 (1961-64) |
+| Template share | 1.9 | 24.1 | 2.4 | 26.4 | 1.9 | 18.8 | 2.2 | 21.4 | 2.1 | 18.8 | 1.5 | 23.3 / 20.2 / 24.6 |
+| Field share | 57.8 | 46.8 | 66.5 | 44.5 | 64.4 | 58.0 | 69.6 | 47.3 | 68.0 | 63.1 | 74.4 | - |
+| Non-major firms with 20+ slots | 2.0 | **4.4** | 2.8 | 3.8 | 2.0 | **3.4** | 1.0 | 3.2 | 2.0 | **3.0** | 1.4 | 3-5 |
+| Labels with a Top 10 hit | 47.6 | 46.4 | 51.6 | 45.4 | 52.4 | 55.0 | 59.0 | 49.0 | 56.4 | 59.0 | 60.2 | 49 / 51 / - |
+| First-time Top 10 labels | 47.6 | 46.4 | 51.6 | 45.4 | 27.0 | 29.4 | 34.4 | 24.0 | 26.6 | 24.8 | 28.6 | - |
+| Big-5 senior Top 10 slots | 63 | 52 | 53 | 50 | 95 | 56 | 65 | 75 | 86 | 58 | 74 | |
+| Other-senior Top 10 slots | 53 | 82 | 70 | 81 | 88 | 96 | 68 | 108 | 87 | 102 | 79 | |
+| Big-5 Hot 100 entry per single launch, % | 56.1 | 46.5 | 52.4 | 45.1 | 48.0 | 42.1 | 42.9 | 43.1 | 45.7 | 38.4 | 39.6 | |
+| TraditionalPop share | 26.2 | **22.9** | 25.2 | 22.6 | 20.4 | 21.4 | 20.6 | 22.2 | 17.8 | 18.4 | 18.2 | |
+| #1 tenure (weeks) | 2.30 | 2.19 | 2.07 | 2.34 | 2.33 | 2.06 | 2.20 | 2.33 | 2.06 | 2.32 | 2.26 | |
+
+The "T alone" columns are §17m's stopped run, which covers only 1960-61.
+
+**Paired deltas, C + T against the control** (mean, SE, per seed 1001-5005; `review.txt`, `extra-deltas.txt`):
+
+| Measure | 1960 | 1961 | 1962 |
+|---|---|---|---|
+| Big-5 share | −11.3 (2.2; −3.8 −11.7 −10.2 −13.3 −17.5) | −10.6 (5.1; **+9.6** −17.7 −12.9 −17.5 −14.4) | **−11.7 (1.9; all five down)** |
+| Big-5 firms in the top four | −0.6 (0.4) | −0.6 (0.4) | **−1.4 (0.24; all five down)** |
+| CR4 / CR8 | −6.2 / −3.9 | −10.2 / −9.0 | −2.8 / −3.9 |
+| Field share | −10.9 (2.6) | −6.4 (4.2) | −5.0 (4.5) |
+| Big-5 senior / other-senior slots | −11 / +29 | −38 / +8 | −28 / +15 |
+| TraditionalPop share | **−3.3 (0.87; all five down)** | +1.1 (1.5) | +0.6 (1.3) |
+| RnB / RockAndRoll share | +1.2 / +2.0 | +3.4 (1.0) / −0.9 | **+3.9 (1.3) / −3.2 (1.2)** |
+| Field entry per single launch (pts) | −0.9 (0.3) | −0.8 (0.2) | −0.7 (0.4) |
+| #1 tenure / closed chart life | −0.11 / +0.46 (0.21) | −0.27 / −0.03 | +0.26 / +0.15 |
+| Re-signings / performance departures | +0 / +1 | **−29 (3.8)** / −21 | +12 / +32 (16) |
+| Small closures, Hot 100 units, genre conversions, top-10% act share | within noise | within noise | within noise |
+
+**This is the first configuration to clear every concentration guard in all three years.**
+
+- **Concentration is inside its band every year,** and the CR8 floor problem from C alone is gone (51.1 / 41.7 /
+  42.2, against 47.7 / 40.0 / 38.1).
+- **The Big-5 cut holds and stays large:** −11.3 / −10.6 / −11.7. In 1962 every seed is down, with SE 1.9.
+- **The top-four count moves at last.** It is 2.6 / 2.4 / 1.8. In 1962 it is down in every seed (−1.4, SE 0.24),
+  against a target of 1.75. Every earlier arm failed this kill (§17o, §17q).
+- **The second rank appears.** Non-majors with 20+ slots are 4.4 / 3.4 / 3.0, inside the 3-5 band. C alone gave
+  1.0-2.8.
+
+The two halves do what §17q predicted. The lever supplies the Big-5 cut, which templates alone could not keep (T
+alone was −2.5 in 1961). The templates take the freed head slots, and with C the field gives up less to them: field
+−6.4 against −17.1 in 1961. The saturation damps the templates' own entry: template launch entry falls from 42.5% /
+40.4% with T alone to 36.2% / 38.2%. The field falls by less than the Big-5 every year, but only just in 1960 (−10.9
+against −11.3). The senior guards pass: Big-5 senior slots fall, and other-senior slots rise. Templates are spread
+out. Every seed-year has some template outside the top 20, and no seed-year has all six in the top 10. Nothing is
+absorbed. No Big-5 label is demoted. #1 tenure, chart life, units, Small closures and act concentration stay within
+noise.
+
+**Where it fails or needs a decision:**
+
+1. **1960 is over-corrected at the Big-5 and costs TraditionalPop.** The 1960 Big-5 share is 29.1, below §17n's
+   30-38 pass range. Per seed it is 26.0 / 27.3 / 29.4 / 31.9 / 30.8, so two seeds are under the kill line of 28.
+   TraditionalPop loses 3.3 points in every seed. That is a genre-guard failure, and it comes from the templates:
+   T alone gave −3.65, C alone −1.0. In 1960 labels with a hit are 46.4, between the kill line (45) and the pass
+   line (48). Two seeds are at 43-44.
+2. **1962 overshoots history.** The Big-5 are at 18.2% against 21.2%. Seeds 1001 and 2002 are at 12.9 and 10.6.
+   The 1961 cut also has one inverted seed (1001, +9.6), so the 1961 SE is 5.1.
+3. **Genre mix shifts after 1960.** RnB gains 3.4 / 3.9 points (about 3 SE), and RockAndRoll loses 3.2 in 1962.
+   C alone already showed most of this (RnB +3.0 and the same RockAndRoll figure in 1962), so it belongs to the
+   lever, not the templates. It is outside noise and must be read in the confirmation.
+4. **Head templates promote to Major in year one.** Liberty is promoted MidTier → Major at week 48 of 1960 in
+   **all five seeds**, with 17-25 recent charting records, a roster of 25-30 and owned reach 0.78-0.94. Warner Bros.
+   is promoted in four seeds (week 48 of 1960 in two, 1962 in two). Vee-Jay is demoted to Independent in three.
+   §17l logs this rather than blocking it, so it is not a kill. It is ahistorical, though: neither label was a
+   major. It also makes them Major distributors and puts them in every tier-keyed Major measure. That moves the
+   late-decade owner-Major path, and in this screen it moves the `tier_Major` row as well. The cause is the
+   promotion gate's volume test (`major-promotion-gate-unperformance-gated`): head-envelope volume clears it on
+   launches alone.
+5. **One seed still runs away.** In seed 2002, Cameo-Parkway and Liberty hold 116 / 121 / 127 slots. Cameo-Parkway
+   has 86 in 1961 (history 31), and Liberty 63 in 1962 (history 8). CR4 is 38.3 / 33.3 / 34.4. The other four seeds
+   are damped relative to §17m.
+6. **The field's per-launch entry dips** by about 0.8 points (10.1% → 9.2%) in every year. Procedural MidTiers lose
+   3.5-6 points of slots to the templates.
+
+**Verdict.** C + T is the best result of the review so far, and the first to clear the top-four kill. It is **not
+adopted**. Defaults are unchanged, all three switches stay off, and it is not yet confirmed past 1962. Before a
+260-week confirmation, two things need a decision:
+
+- whether head templates may earn Major promotion in their first year (item 4);
+- whether to accept the 1960 TraditionalPop / Big-5 floor cost (item 1). That cost is the templates' 1960 entry,
+  so a smaller 1960 envelope, or seeding fewer templates at head scale, is the obvious next variant.
+
+The confirmation itself needs the 4004/5005 260-week controls, the 1963-64 template-share fade (history 15.2 →
+6.7%), and the genre-mix check in item 3.
+
+Evidence: `SimLogs/momhl052-launchsat050-headtpl-screen-v1/` (manifest, console logs with `HEAD_SCALE_TEMPLATE`
+lines, empty error logs) and `SimLogs/momhl052-launchsat050-headtpl-diagnostics/` (`yearly_watch.py`,
+`yearly-watch.log`, `paired_review.py`, `review.txt` with all four arms and per-seed template ranks and events,
+`extra_deltas.py`, `extra-deltas.txt`). The T-alone tier rows in `review.txt` fall back to the control's label
+directory, because that run never flushed its own. Read them only by label id.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
