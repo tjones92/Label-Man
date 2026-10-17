@@ -857,6 +857,39 @@ A formal 1961-64 review needs three five-year seeds on one assembly. The seed-20
 `E682FC70…54A7`; the current build is `21A2517C…E8CC`, so it cannot be merged into a new manifest. About 30 minutes
 per five-year run.
 
+## 15. Formal 1960-64 review, three five-year seeds (`top10-fiveyear-review-v1`)
+
+Seeds 1001, 2002 and 3003, 260 weeks, adopted defaults, `-Modes default -Compact` arguments, one assembly
+(`37E62AA3…`, a rebuild of the committed tree with no source changes since `21A2517C…`). The three were dispatched
+in parallel with a scratchpad variant of `RunSmallCostPilot.ps1` that passes identical args and writes the same manifest
+shape. The sequential equivalent (slower, same args) is
+`& '.\SimTools\RunSmallCostPilot.ps1' -RunTag '<new tag>' -Weeks 260 -Seeds @(1001,2002,3003) -Modes @('default') -Compact`.
+All passed, exit 0, empty error logs. Seed 2002 reproduces `smallcost-fiveyear-v1-paired-home-2002-260` year
+for year, and the 1960 values of all three seeds match `historical-top10-review-v2`. Output:
+`SimLogs/top10-fiveyear-review-v1/` (`runs.json`, `review.json`, `review.txt`).
+
+| Year | CR4 mean (seeds) | CR4 band / hist | CR8 mean (seeds) | CR8 band / hist | Status |
+|---|---|---|---|---|---|
+| 1960 | 33.78 (26.9 / 37.1 / 37.3) | 30-40 / 34.6 | 50.26 (43.1 / 56.7 / 51.0) | 48-58 / 52.7 | WITHIN_BANDS |
+| 1961 | **35.71** (32.9 / 37.5 / 36.7) | 22-32 / 27.9 | **49.10** (44.2 / 53.1 / 50.0) | 38-48 / 43.5 | **REVIEW** |
+| 1962 | 27.05 | 22-32 / 26.7 | 42.56 | 38-48 / 43.3 | WITHIN_BANDS |
+| 1963 | 29.55 | 22-32 / 26.3 | 45.00 | 38-48 / 41.9 | WITHIN_BANDS |
+| 1964 | 27.44 | 22-32 / 29.2 | 39.94 | 38-48 / 43.7 | WITHIN_BANDS |
+
+**1961 is a lag, not a level problem.** History falls from 34.6 to 27.9 in 1961; the sim holds its 1960
+concentration for one more year and only reaches history in 1962. Every seed is above 32 in 1961. In seeds 2002 and
+3003 the Major tier keeps 36-40% of 1961 Top 10 slots and drops to about 29% in 1962. Seed 1001 differs: its Majors
+already fall to 24% in 1961, and a MidTier label (Surreal Sound, 10.6%) leads instead. So the 1961 head has two
+carriers across seeds. The cause of the 1961-62 step was not investigated. One candidate is the opening roster and
+its pre-1960 careers carrying over a second year.
+
+**Side finding: Top 10 turnover is low in every year.** The sim has 96-105 distinct Top 10 records a year, against
+102 in 1960 and 111-119 in 1961-64 historically. This is separate from the 1961 excess, because it holds in the
+years that pass.
+
+Firms 5-8 run 11-17.5 against history's 14.4-16.5, and labels with a Top 10 hit run 50-67 against 51-55. Both are
+descriptive, not banded.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
