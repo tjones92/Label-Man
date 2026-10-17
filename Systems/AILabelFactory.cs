@@ -100,11 +100,13 @@ public static class AILabelFactory {
 	};
 
 	// Replace the default template of the same name with the switch on. Liberty was a teen-pop house (Bobby Vee,
-	// the Chipmunks, Snuff Garrett) rather than a rockabilly rebel. Vee-Jay was a national R&B label in 1960 with
-	// 3 Top 10 slots; its head years came from a 1962 signing, so it opens as a standard MidTier and must earn the rest.
+	// the Chipmunks, Snuff Garrett) rather than a rockabilly rebel, but its 1960 was 7 Top 10 slots and its head
+	// year (42) was 1961; seeded at head scale it ran to 53-63 slots and promoted to Major in every §17r seed, so,
+	// like Vee-Jay, it opens as a standard MidTier (§17s). Vee-Jay was a national R&B label in 1960 with 3 Top 10
+	// slots; its head years came from a 1962 signing. Both must earn the rest.
 	private static readonly Dictionary<string, LabelTemplate> headScaleUpgrades = new() {
 		["Cameo-Parkway"] = new LabelTemplate("Cameo-Parkway", "Philadelphia", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.DooWop, Genre.RockAndRoll }, LabelTier.MidTier) { headScale = true },
-		["Liberty"] = new LabelTemplate("Liberty", "Los Angeles", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.RockAndRoll, Genre.EasyListening }, LabelTier.MidTier) { headScale = true },
+		["Liberty"] = new LabelTemplate("Liberty", "Los Angeles", LabelArchetype.TeenHitMachine, new[] { Genre.TeenPop, Genre.RockAndRoll, Genre.EasyListening }, LabelTier.MidTier),
 		["Vee-Jay"] = new LabelTemplate("Vee-Jay", "Chicago", LabelArchetype.RegionalHustler, new[] { Genre.RnB, Genre.Soul, Genre.DooWop }, LabelTier.MidTier),
 	};
 

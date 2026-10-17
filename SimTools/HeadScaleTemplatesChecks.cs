@@ -9,7 +9,7 @@ public static class HeadScaleTemplatesChecks {
 		void Check(bool ok, string why) { if (!ok) throw new InvalidOperationException("Head-scale templates: " + why); }
 		bool was = HeadScaleTemplates.Enabled;
 		string[] added = { "MGM", "ABC-Paramount", "Warner Bros." };
-		string[] head = { "MGM", "ABC-Paramount", "Warner Bros.", "Cameo-Parkway", "Liberty" };
+		string[] head = { "MGM", "ABC-Paramount", "Warner Bros.", "Cameo-Parkway" };
 		List<AILabel> Generate(bool on) { HeadScaleTemplates.SetEnabledForChecks(on); GD.Seed(17017); return AILabelFactory.GenerateAllLabels(600); }
 		AILabel Named(List<AILabel> labels, string name) {
 			var found = labels.Where(l => l.isHistorical && AILabelFactory.IsHeadScaleProbeTemplate(l.labelName) &&
@@ -52,6 +52,29 @@ public static class HeadScaleTemplatesChecks {
 			AILabel liberty = Named(on, "Liberty");
 			Check(liberty.archetype == LabelArchetype.TeenHitMachine && liberty.preferredGenres.Contains(Genre.EasyListening),
 				"Liberty must become a TeenHitMachine with EasyListening");
+			Check(liberty.tier == LabelTier.MidTier && liberty.budgetLevel <= 0.82f && liberty.distributionRegions.Length <= 5,
+				$"Liberty must be a standard MidTier, not head scale ({Traits(liberty)})");
+
+			// Stand-in year-one Major promotion hold (§17s): probe templates only, first 12 months only, on only.
+			AILabel mgm = Named(on, "MGM");
+			AILabel procedural = on.First(l => !l.isHistorical && l.tier == LabelTier.MidTier);
+			int mgmMonths = mgm.monthsActive, procMonths = procedural.monthsActive;
+			try {
+				mgm.monthsActive = HeadScaleTemplates.MajorPromotionHoldMonths - 1;
+				Check(HeadScaleTemplates.HoldsMajorPromotion(mgm), "a template must be held in its first year");
+				Check(HeadScaleTemplates.HoldsMajorPromotion(liberty) == (liberty.monthsActive < HeadScaleTemplates.MajorPromotionHoldMonths),
+					"a standard-envelope template must be held too");
+				mgm.monthsActive = HeadScaleTemplates.MajorPromotionHoldMonths;
+				Check(!HeadScaleTemplates.HoldsMajorPromotion(mgm), "the hold must end after twelve months");
+				procedural.monthsActive = 0;
+				Check(!HeadScaleTemplates.HoldsMajorPromotion(procedural), "a procedural label must never be held");
+				mgm.monthsActive = 0;
+				HeadScaleTemplates.SetEnabledForChecks(false);
+				Check(!HeadScaleTemplates.HoldsMajorPromotion(mgm), "the hold must be off with the switch off");
+				HeadScaleTemplates.SetEnabledForChecks(true);
+			} finally {
+				mgm.monthsActive = mgmMonths; procedural.monthsActive = procMonths;
+			}
 			AILabel veeJay = Named(on, "Vee-Jay");
 			Check(veeJay != null && veeJay.tier == LabelTier.MidTier && veeJay.budgetLevel <= 0.82f && veeJay.releasesPerMonth <= 2.5f &&
 				veeJay.distributionRegions.Length <= 5, $"Vee-Jay must be a standard MidTier ({(veeJay == null ? "missing" : Traits(veeJay))})");

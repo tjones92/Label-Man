@@ -648,7 +648,8 @@ public partial class LabelLifecycleManager : Node {
 				PromoteLabel(label, LabelTier.MidTier);
 				return true;
 			case LabelTier.MidTier when label.sustainedCapabilityQuarters >= 4 && label.CurrentRosterSize >= MajorRosterThreshold &&
-				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label):
+				chartingLastYear >= MajorPromotionChartingRecords && CanSupportMajorBranches(label) &&
+				!HeadScaleTemplates.HoldsMajorPromotion(label):
 				PromoteLabel(label, LabelTier.Major);
 				return true;
 			default:

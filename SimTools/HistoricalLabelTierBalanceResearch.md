@@ -2955,6 +2955,117 @@ lines, empty error logs) and `SimLogs/momhl052-launchsat050-headtpl-diagnostics/
 `extra_deltas.py`, `extra-deltas.txt`). The T-alone tier rows in `review.txt` fall back to the control's label
 directory, because that run never flushed its own. Read them only by label id.
 
+### 17s. Templates v2: Liberty at standard MidTier, a year-one promotion hold, and the genre check (2026-10-17)
+
+**What the promotion gate reads (clarifying §17r item 4).** The MidTier → Major gate has a chart term. Since
+`14ef670` (2026-07-31) it requires `MajorPromotionChartingRecords = 16` records charting in the last 52 weeks.
+That term is a Hot 100 **entry count**, and release volume clears it: Liberty promoted with 17-25. It reads nothing
+of head performance (Top 10 slots, chart share) and nothing beyond one year. The gate needs real
+chart-performance evidence.
+
+**Changes, inside `--seed-head-templates` only** (the switch stays off by default):
+
+1. **Year-one Major promotion hold, as a stand-in.** `HeadScaleTemplates.HoldsMajorPromotion` keeps the six probe
+   templates from promoting MidTier → Major while `monthsActive < 12`. It is read in
+   `LabelLifecycleManager.TryPromoteLabel`. **This is a stand-in, not the fix.** The fix is chart-performance
+   evidence in the MidTier → Major gate for every label, and that will be necessary. The code comment says to remove
+   the hold once the gate is fixed.
+2. **Liberty opens as a standard MidTier.** It keeps the TeenHitMachine archetype and its genres, but not the head
+   envelope. Its 1960 was 7 Top 10 slots, and its head year (42) was 1961. Seeded at head scale, it reached 53-63
+   slots and promoted in every §17r seed. This is §17l's Vee-Jay argument applied to Liberty: a 1961 rise is left
+   for the run to earn.
+
+`--seed-head-templates-check` was extended and passes. It checks Liberty's standard envelope; the hold for a template
+at 11 months, none at 12 months, none for a procedural label, and none with the switch off. The build has 0 warnings
+and 0 errors. A 52-week seed-5005 run with every switch off (`headtpl-v2-off-identity`) is **byte-identical** to
+`headtpl-off-identity` in all 80 CSVs.
+
+**Screen V1** (`momhl052-launchsat050-headtpl2-screen-v1`): arm C with templates v2, five seeds × 156 weeks,
+against the §17o controls. All seeds passed with empty error logs, and the watch reported every year WITHIN band.
+
+| Five-seed mean | 1960 ctl | **V1** | §17r v1 | 1961 ctl | **V1** | §17r v1 | 1962 ctl | **V1** | §17r v1 | History 1960 / 61 / 62 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| CR4 [band] | 37.9 | 34.0 | 31.6 | 37.3 | 30.5 | 27.1 | 30.9 | 27.7 | 28.1 | 34.6 / 27.9 / - |
+| CR8 [band] | 55.0 | 51.1 | 51.1 | 50.8 | 46.4 | 41.7 | 46.2 | 43.3 | 42.2 | 52.7 / 43.5 / - |
+| Big-5 share | 40.4 | **30.6** | 29.1 | 33.8 | 25.9 | 23.2 | 29.9 | **21.3** | 18.2 | 34.2 / 20.6 / 21.2 |
+| Paired Big-5 Δ (SE) | | −9.8 (2.7) | −11.3 (2.2) | | −7.9 (2.7) | −10.6 (5.1) | | **−8.6 (0.9)** | −11.7 (1.9) | |
+| Big-5 firms in the top four | 3.2 | 2.6 | 2.6 | 3.0 | 2.8 | 2.4 | 3.2 | **2.0** | 1.8 | 1.75 |
+| Template share | 1.9 | 18.2 | 24.1 | 1.9 | 15.6 | 18.8 | 2.1 | 16.9 | 18.8 | 23.3 / 20.2 / 24.6 |
+| Field share | 57.8 | 51.3 | 46.8 | 64.4 | 58.5 | 58.0 | 68.0 | 61.8 | 63.1 | - |
+| Non-major firms with 20+ slots | 2.0 | 3.8 | 4.4 | 2.0 | 3.2 | 3.4 | 2.0 | 3.6 | 3.0 | 3-5 |
+| Labels with a Top 10 hit | 47.6 | 47.6 | 46.4 | 52.4 | 52.4 | 55.0 | 56.4 | 57.0 | 59.0 | 49 / 51 / - |
+| TraditionalPop share of the Top 10 | 26.2 | 22.4 | 22.9 | 20.4 | 21.4 | 21.4 | 17.8 | 18.4 | 18.4 | |
+| #1 tenure (weeks) | 2.30 | 2.09 | 2.19 | 2.33 | 2.12 | 2.06 | 2.06 | **2.39** | 2.32 | 2.55 (1960-64) |
+
+Per seed, V1's Big-5 share is 29.8 / 22.5 / 27.5 / 35.8 / 37.3 in 1960 and 15.6 / 14.6 / 20.8 / 28.1 / 27.3 in 1962.
+The 1962 top-four count is 2 in every seed.
+
+**What v2 fixed:**
+
+- **The 1960 over-correction.** The Big-5 are back inside §17n's 30-38 range. Templates fall from 24.1 to 18.2. The
+  field gives up 6.5 points, against 9.8 for the Big-5. Labels with a hit equal the control.
+- **The 1962 overshoot.** The Big-5 share is 21.3 against history's 21.2, with the tightest paired SE of any arm
+  (0.9, all five seeds down).
+- **The field guard passes every year with margin:** field −6.5 / −5.9 / −6.2 against Big-5 −9.8 / −7.9 / −8.6.
+  The second rank holds at 3.2-3.8 non-majors with 20+ slots.
+
+**What it gave back:** the 1961 top-four count is 2.8 (−0.2, SE 0.37). That is inside noise against the control's
+3.0. In 1961 history needs a strong Liberty, and v2 deliberately leaves Liberty to earn it. In V1 it does so in
+only one seed (26 slots in 4004).
+
+**The hold only delays promotion, as expected for a stand-in.** Warner Bros. promotes MidTier → Major in 1961 in
+three seeds, at weeks 61-74, with 16-17 charting records: the first or second review after the hold expires, at
+the bar exactly. Liberty no longer promotes, and in seed 1001 it demotes to Independent in 1962. Vee-Jay demotes in
+three seeds. Nothing is absorbed, and no Big-5 label is demoted.
+
+**Genre check, against the year-end benchmark** (`genre_check.py`; `GenreCatalog.ChartSlotBenchmark`, which counts
+year-end Hot 100 slots). Summed |sim − benchmark| over the 12 benchmarked 1960-62 genres:
+
+| | 1960 | 1961 | 1962 |
+|---|---:|---:|---:|
+| Control | 23.6 | 31.6 | 33.0 |
+| C alone (§17q) | 26.8 | 30.6 | 40.8 |
+| §17r C + T v1 | 29.0 | 35.8 | 43.8 |
+| **V1** | **24.8** | 36.0 | **35.4** |
+
+- *TraditionalPop in 1960.* V1's Top 10 share is still −3.8 against the control (SE 1.6). Year-end TraditionalPop
+  is 20.4 against a benchmark of 22, and the control's 23.0 sits on the other side. So this is a guard miss against
+  the control, not against history. In the Top 10, the Big-5 give up 26 TraditionalPop slots, the templates take 14
+  and the field loses 8. The templates are TeenPop-heavy (about 50 slots in 1960), and they take most of those from
+  the field.
+- *RnB / RockAndRoll.* §17r's 1962 shift (RockAndRoll 7.0 year-end slots against a benchmark of 12; RnB 31.4
+  against 28) **does not replicate** in V1 under the same lever: 9.4 and 29.0, against a control at 9.6 and 28.6.
+  §17r attributed the shift to the lever. That was wrong. It belongs to those runs' streams, or to head-scale
+  Liberty's RockAndRoll genre, not to C.
+- *Still worse than the control:* Soul in 1961-62 (3.8 / 4.2 year-end slots against 5.2 and a benchmark of 9 / 7).
+  The templates squeeze the field, which holds most Soul.
+
+**Open items:**
+
+1. **#1 tenure in 1962 is +0.33 weeks (SE 0.12), with 3.8 fewer distinct #1 acts (SE 1.9).** That is outside noise
+   against the control, which is the guard as pre-registered. It is toward history's 1960-64 tenure of 2.55
+   (§17h), but the 1962 control figure (2.06) is the reference, so it is reported as a miss.
+2. **One template a seed can still run away.** ABC-Paramount reaches 61-66 slots (seed 3003 1961, seed 5005 1962),
+   and Cameo-Parkway 76 in seed 2002's 1960. Seed 5005's 1962 CR8 is 57.9, above band. History's largest
+   non-major year was Cameo-Parkway's 54 (1962). Which firm runs away changes from seed to seed, so this is
+   spread, not a scripted winner. But the tail is too long.
+3. **The real promotion fix** (above).
+
+**Decision on screen V2 (a softer lever): not run.** It was proposed to answer §17r's 1962 overshoot and its
+RockAndRoll loss. V1 lands 1962 at history and does not reproduce the RockAndRoll loss. A softer lever would move
+1961 (25.9 against 20.6) further from history.
+
+**Verdict.** V1 is the new front-runner: C (`--artist-momentum-half-life=52 --launch-push-saturation=0.5`) with
+`--seed-head-templates` v2. It is better than §17r on the 1960 floor, the 1962 level and genre fit, and slightly
+weaker on the 1961 top-four count. Nothing is adopted, and defaults are unchanged. The 260-week five-seed
+confirmation (`momhl052-launchsat050-headtpl2-confirm-v1`) and the 4004/5005 260-week default controls follow.
+They establish 1963-64, including the template fade (history 15.2 → 6.7%).
+
+Evidence: `SimLogs/momhl052-launchsat050-headtpl2-screen-v1/`, `SimLogs/headtpl-v2-off-identity/`, and in
+`SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `review-v1.txt`, `extra-deltas-v1.txt`, `genre_check.py`,
+`genre-check.txt` (control / C / §17r / T alone; T alone's 1962 column is a partial year and is not usable),
+`genre-check-v1.txt` and `yearly-watch-v1.log`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
