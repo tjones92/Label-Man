@@ -890,6 +890,66 @@ years that pass.
 Firms 5-8 run 11-17.5 against history's 14.4-16.5, and labels with a Top 10 hit run 50-67 against 51-55. Both are
 descriptive, not banded.
 
+## 16. The 1961 excess is Top 10 run length, not roster or volume
+
+Logs only: the three `top10-fiveyear-review-v1` runs and the reconstruction. Script:
+`SimTools/analyze_top10_1961_lag.py`, output `SimLogs/top10-fiveyear-review-v1/lag-1961.json`. "Opening roster"
+means artists with no `RuntimeFormation` or `EnabledInitialReserve` cohort, i.e. on a label at the start of the run.
+
+**Accounting.** CR4 = (top-four firms' Top 10 records) x (their weeks per Top 10 record) / 520, both counted within
+the year as in the historical files.
+
+| 1961 | Head Top 10 records | Head weeks per record | Rest weeks per record | CR4 |
+|---|---:|---:|---:|---:|
+| History | 32 | **4.53** | 4.52 | 27.9 |
+| Sim, seeds 1001 / 2002 / 3003 | 27 / 31 / 31 | **6.33 / 6.29 / 6.16** | 4.72 / 4.85 / 4.70 | 32.9 / 37.5 / 36.7 |
+
+The sim's head has about as many Top 10 records as history's (29.7 against 32). With history's 4.53 weeks per
+record they would give CR4 25.9. History's 32 records at the sim's 6.26 weeks would give 38.5. **The 1961 excess is
+all run length.** The head's Top 10 record count also falls from 1961 to 1962 by about the same amount in both
+(sim 29.7 to 23.3, history 32 to 25).
+
+**Who carries the 1961 head.** Opening-roster artists: 59-100% of each head firm's 1961 slots, 3-9 acts per firm.
+In seeds 2002 and 3003 the head is the one or two Big-5 firms whose opening rosters were strongest (Mercury and
+RCA; Decca and RCA). In seed 1001 it is two opening-roster MidTier labels (Surreal Sound, Glide).
+
+**The opening roster is the population, not the cause.**
+- *Artist persistence is not high.* Share of a year's Top 10 slots held by artists with a Top 10 slot the previous
+  year is 22.5 / 41.2 / 30.2% in 1961, against 39.2% in history (normalized artist names; 1962: sim 23-32,
+  history 41).
+- *Opening-roster records do not run longer.* Their 1961-63 Top 10 weeks per record are 5.30 / 5.16 / 5.30, against
+  5.28 / 5.22 / 5.13 for later artists.
+- *What runs longer:* every Top 10 record does, by about 15% (5.2 weeks against history's 4.5). In two seeds, Big-5
+  upper-half-quality records also add more: 6.79 and 7.62 weeks, against 5.19 and 5.31 for other labels' upper-half
+  records. Seed 1001 has a smaller gap (6.11 against 5.76), and its head premium comes from MidTier firms.
+- *The head premium is steady in the sim and alternates in history.* Head minus rest is +1.2 to +1.6 weeks in the
+  sim's 1961. History's is +1.84, +0.01, +1.33, +0.07 and +0.75 in 1960-64. History's 1961 is a no-premium year,
+  so part of the gap is history's own single draw. The 1961 bootstrap SD is 3.7 points, and the gap is 7.8.
+
+**The 1962 Major step-down is a one-year lag of a historical dip, and it recovers in 1963.**
+
+| Big-5 Top 10 slot share | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---:|---:|---:|---:|---:|
+| History (RCA Victor, Columbia, Capitol, Decca, Mercury operating labels) | 34.2 | **20.6** | 21.2 | 26.0 | 18.7 |
+| Sim, three-seed mean | 36.1 | 30.3 | **24.6** | 29.9 | 24.8 |
+
+Big-5 Hot 100 entries (three-seed mean) are 154 / 103 / 90 / 107 / 119 for 1960-64. Entries by opening-roster
+artists decay 152, 81, 55, 55, 44. Later artists' entries build 2, 23, 35, 52, 75. The 1962 trough is the point
+where the opening roster has faded and the replacements are not yet charting. Big-5 Hot 100 to Top 10 conversion is
+21-26% for 1960-63 releases (16% in 1964; by release year), so the dip is volume, not conversion. The cause of the
+opening roster's decay rate (releases, drops or ageing) was not separated: `release-strategy.csv` does not log every
+Big-5 single, and drop events carry no label.
+
+**Implications (nothing changed).**
+- The lever for the 1961 flag is Top 10 duration: about 15% too long overall, plus a Big-5 premium on
+  upper-half-quality records. That is the same quantity as the section 15 turnover finding, since 520 slots
+  divided among about 100 records (history: about 115) is the weeks per record. A fix should target it directly and be checked on the #1 tenure and
+  chart-life guards, since those share the duration. The premium is not attributed. The push-spread probe
+  (section 10) moved closed chart life by only +0.01 weeks, so weekly label push is not an established cause.
+- Roster, signing and opening-career changes are not supported by this evidence. The opening roster carries
+  the slots but behaves like everyone else on persistence and run length.
+- The Big-5 timing lag is real but secondary. It would matter for a Major-share-by-year guard more than for CR4.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
