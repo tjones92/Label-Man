@@ -61,6 +61,8 @@ public class RegionalRecordData {
 	public float salesEffectiveAwarenessThisWeek;
 	public float salesRadioHeatThisWeek;
 	public float salesRegionalRadioPlayThisWeek;
+	// Derived before the live demand pass; the national campaign's unserved audience allocated to this market.
+	public float campaignAwarenessThisWeek;
 	public float previousRawDemand;
 	public float rawDemandThisWeek;
 	// Enabled Single demand-stage audit. These values are captured before supply
@@ -108,7 +110,9 @@ public class RegionalRecordData {
 	public int localSalesRank;
 	// Regional arrival (RegionalSyncDesign 5a). Only ever set while RegionalAudience.RegionalArrival is on, so the
 	// default (false) means "in play" for albums, player records, older saves and switched-off runs. While waiting,
-	// the launch seed drawn for this region is held in the pending fields and lands on arrival.
+	// the promotion seed drawn for this region is held in the pending fields and lands on arrival. With sparse
+	// retail access, unitsInStores can already contain a finite shop allocation and pendingLaunchStock is zero.
+	// Campaign focus may redirect pendingLaunchAwareness into served markets, leaving no duplicate deposit here.
 	public bool awaitingArrival;
 	public int arrivalAge = -1;
 	public float pendingLaunchAwareness, pendingLaunchRadio;
@@ -126,6 +130,9 @@ public class RegionalRecordData {
 	public RegionalBreakoutStage breakoutStage;
 	public float neighboringMarketTestStrength;
 	public string breakoutSourceRegionId;
+	// Record age of the last week this region was a regional hit by RegionalHitDealGate's bar, or -1. Written
+	// only while that switch is on; the switched-off deal gate reads peakBreakoutScore instead.
+	public int dealEvidenceAge = -1;
 	public float breakoutVolumeInput;
 	public float breakoutVelocityInput;
 	public float breakoutAudienceInput;

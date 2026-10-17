@@ -138,6 +138,7 @@ public static class AILabelFactory {
 		ApplyTierStats(label, tier, template.archetype);
 		label.strongRegions = GetRegionalStrength(template.city);
 		label.distributionRegions = GetDistributionRegions(tier, template.city);
+		SmallLabelHomeTerritory.Apply(label, tier);
 		DistanceModel.AssignHomeCity(label);
 		return label;
 	}
@@ -156,7 +157,8 @@ public static class AILabelFactory {
 		label.homeRegion = CityToRegion(city);
 		label.archetype = archetype;
 		label.tier = tier;
-		label.foundedYear = (int)GD.RandRange(1948, 1962);
+		// Display only, but a 1960 label must not show a 1961-62 founding. Same single draw as before.
+		label.foundedYear = (int)GD.RandRange(1948, 1960);
 		label.isHistorical = false;
 		label.status = LabelStatus.Stable;
 		
@@ -166,6 +168,7 @@ public static class AILabelFactory {
 		ApplyTierStats(label, tier, archetype);
 		label.strongRegions = GetRegionalStrength(city);
 		label.distributionRegions = GetDistributionRegions(tier, city);
+		SmallLabelHomeTerritory.Apply(label, tier);
 		DistanceModel.AssignHomeCity(label);
 		return label;
 	}
@@ -250,11 +253,7 @@ public static class AILabelFactory {
 		// sustained quarters and charting last year, so they mean "observed operating
 		// for N months". Seeding it with pre-1960 history bypassed those gates and
 		// promoted seeded incumbents past tiers they had not earned in-run.
-		label.cashReserves = tier switch {
-			LabelTier.Major => (float)GD.RandRange(50000f, 200000f), LabelTier.MidTier => (float)GD.RandRange(15000f, 60000f),
-			LabelTier.Independent => (float)GD.RandRange(5000f, 20000f), LabelTier.Small => (float)GD.RandRange(1000f, 8000f),
-			LabelTier.Boutique => (float)GD.RandRange(3000f, 15000f), _ => 5000f
-		};
+		label.cashReserves = LabelStartingFinances.DrawCash(tier);
 		label.maxRosterSize = tier switch {
 			LabelTier.Major => (int)GD.RandRange(30, 60), LabelTier.MidTier => (int)GD.RandRange(15, 35),
 			LabelTier.Independent => (int)GD.RandRange(8, 20), LabelTier.Small => (int)GD.RandRange(3, 10),

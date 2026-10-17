@@ -71,6 +71,11 @@ public class RecordRuntimeData {
 	public float radioPanelShare = 1f;
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
+	// LabelPressingEconomics pressing book: copies pressed and copies booked sold. Pressed minus sold at
+	// retirement is the unsold stock the label paid for. Untouched while the switch is off.
+	public bool pressingBookOpened;
+	public int unitsPressed;
+	public int pressingBookSold;
 	public bool revenueMemoryEligible;
 	// Immutable-at-launch context for normalized, opportunity-relative memory.
 	public float releaseTimeExpectedNet;
@@ -195,6 +200,9 @@ public class RecordRuntimeData {
 		radioPanelShare = 1f;
 		lifetimeLabelNet = 0f;
 		sunkProductionCost = 0f;
+		pressingBookOpened = false;
+		unitsPressed = 0;
+		pressingBookSold = 0;
 		revenueMemoryEligible = false;
 		
 		// Simulation forces - all start at zero

@@ -79,6 +79,11 @@ public partial class AILabel : Resource {
 	[Export] public float monthlyRevenue;
 	[Export] public float monthlyExpenses;
 	public float lastMonthlyProfit;
+	// Last three completed months of actual net cash flow. Persisted with the label, including
+	// the missed-payment grace, so loading cannot erase financial distress. Old saves start empty.
+	public List<float> recentMonthlyCashFlows = new();
+	public int insolventMonthEnds;
+	public float RecentMonthlyCashFlow => recentMonthlyCashFlows?.Count > 0 ? recentMonthlyCashFlows.Average() : 0f;
 	[Export] public float debtLevel;
 	[Export] public float marketShare;
 	
@@ -132,6 +137,17 @@ public partial class AILabel : Resource {
 	// terms, and what finally arrived from invoices billed months ago.
 	public float weeklyWholesaleDeferred;
 	public float weeklyWholesaleCollected;
+	// LabelPressingEconomics: copies pressed this week, paid to the plant in cash (never deferred with the
+	// wholesale billings), and the label's own geometric memory of lifetime copies per release, which sizes the
+	// next initial run. Zero on old saves and switched-off runs: no history, so a first run is the plant minimum.
+	public float weeklyPressingSpend;
+	// --plant-credit: plant invoices on terms, and what was paid on them this week. Empty and zero when off.
+	// Not readonly: deserialized whole by the full-world save.
+	public List<PlantPayable> plantPayables = new();
+	public float outstandingPlantPayables;
+	public float weeklyPlantPaid;
+	public float pressingForecastSingleLogUnits;
+	public float pressingForecastAlbumLogUnits;
 	// Publishing goldmine (Phase 3b). Composition income this label collects when OTHER labels record a
 	// song it controls; accrued during any label's settlement and banked in a pass after the main loop.
 	public float weeklyPublishingReceipts;
@@ -329,7 +345,8 @@ public partial class AILabel : Resource {
 	}
 	
 	public bool CanAffordToSign(float advanceCost) {
-		float minReserve = GetMonthlyOverhead() * 2f;
+		float minReserve = EconomicLabelLifecycle.Enabled && !isPlayerOwned
+			? EconomicLabelLifecycle.CommitmentReserve(this, signing: true) : GetMonthlyOverhead() * 2f;
 		return cashReserves - advanceCost > minReserve;
 	}
 	

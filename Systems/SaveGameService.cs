@@ -1086,6 +1086,8 @@ public sealed class RegionalRecordSaveData {
 	public int? localIntroAge { get; set; }
 	public int localPeakUnits { get; set; }
 	public int localPeakAge { get; set; } = -1;
+	// RegionalHitDealGate's last qualifying week; absent (-1) in older saves and switched-off runs.
+	public int dealEvidenceAge { get; set; } = -1;
 
 	public static RegionalRecordSaveData From(RegionalRecordData d) => new() {
 		regionId = d.regionId, awareness = d.awareness, sentiment = d.sentiment, radioPlay = d.radioPlay,
@@ -1094,7 +1096,8 @@ public sealed class RegionalRecordSaveData {
 		unitsSoldTotal = d.unitsSoldTotal, breakoutScore = d.breakoutScore, peakBreakoutScore = d.peakBreakoutScore,
 		breakoutStage = (int)d.breakoutStage, salesVelocity = d.salesVelocity,
 		sustainedGrowthWeeks = d.sustainedGrowthWeeks, tractionWeeks = d.tractionWeeks, collapseWeeks = d.collapseWeeks,
-		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge
+		localIntroAge = d.localIntroAge, localPeakUnits = d.localPeakUnits, localPeakAge = d.localPeakAge,
+		dealEvidenceAge = d.dealEvidenceAge
 	};
 
 	public RegionalRecordData ToRegional() {
@@ -1108,7 +1111,7 @@ public sealed class RegionalRecordSaveData {
 			// An older save has no arrival; a region that has already sold is treated as in play from
 			// release, which is what every region's clock was before local clocks existed.
 			localIntroAge = localIntroAge ?? (unitsSoldTotal > 0 ? 1 : -1),
-			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge
+			localPeakUnits = localPeakUnits, localPeakAge = localPeakAge, dealEvidenceAge = dealEvidenceAge
 		};
 		return d;
 	}
@@ -1146,6 +1149,10 @@ public sealed class RuntimeRecordSaveData {
 	public float radioPanelShare { get; set; }
 	public float lifetimeLabelNet { get; set; }
 	public float sunkProductionCost { get; set; }
+	// LabelPressingEconomics pressing book; absent on old saves, which load as an unopened book.
+	public bool pressingBookOpened { get; set; }
+	public int unitsPressed { get; set; }
+	public int pressingBookSold { get; set; }
 	public bool revenueMemoryEligible { get; set; }
 	public float releaseTimeExpectedNet { get; set; }
 	public float releaseTimeOpportunityScale { get; set; }
@@ -1183,6 +1190,7 @@ public sealed class RuntimeRecordSaveData {
 		unitsThisWeek = r.unitsThisWeek, unitsPreviousWeek = r.unitsPreviousWeek, totalUnitsSold = r.totalUnitsSold,
 		peakWeeklyUnits = r.peakWeeklyUnits, weeksSincePeakUnits = r.weeksSincePeakUnits, radioPanelShare = r.radioPanelShare,
 		lifetimeLabelNet = r.lifetimeLabelNet, sunkProductionCost = r.sunkProductionCost, revenueMemoryEligible = r.revenueMemoryEligible,
+		pressingBookOpened = r.pressingBookOpened, unitsPressed = r.unitsPressed, pressingBookSold = r.pressingBookSold,
 		releaseTimeExpectedNet = r.releaseTimeExpectedNet, releaseTimeOpportunityScale = r.releaseTimeOpportunityScale,
 		releaseMemoryWeek = r.releaseMemoryWeek, awareness = r.awareness, momentum = r.momentum, saturation = r.saturation,
 		radioHeat = r.radioHeat, wordOfMouth = r.wordOfMouth, artistHeat = r.artistHeat, artistPreviousHits = r.artistPreviousHits,
@@ -1205,6 +1213,7 @@ public sealed class RuntimeRecordSaveData {
 			unitsThisWeek = unitsThisWeek, unitsPreviousWeek = unitsPreviousWeek, totalUnitsSold = totalUnitsSold,
 			peakWeeklyUnits = peakWeeklyUnits, weeksSincePeakUnits = weeksSincePeakUnits, radioPanelShare = radioPanelShare,
 			lifetimeLabelNet = lifetimeLabelNet, sunkProductionCost = sunkProductionCost, revenueMemoryEligible = revenueMemoryEligible,
+			pressingBookOpened = pressingBookOpened, unitsPressed = unitsPressed, pressingBookSold = pressingBookSold,
 			releaseTimeExpectedNet = releaseTimeExpectedNet, releaseTimeOpportunityScale = releaseTimeOpportunityScale,
 			releaseMemoryWeek = releaseMemoryWeek, awareness = awareness, momentum = momentum, saturation = saturation,
 			radioHeat = radioHeat, wordOfMouth = wordOfMouth, artistHeat = artistHeat, artistPreviousHits = artistPreviousHits,

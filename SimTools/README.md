@@ -10,6 +10,21 @@ directives and hand-written handoffs. Everything a run or an analysis script
 reports, logs, before-edit snapshots) is written under `SimLogs/` and is not
 committed. New JSON under `SimTools/` is gitignored to enforce this.
 
+The adopted 1960 concentration review uses **weekly Top 10 slots**, with bands
+of **23-33% for the leading four firms** and **47-57% for the leading eight**.
+`analyze_label_tier_historical_benchmarks.py PREFIX ... --review-manifest MANIFEST
+--output SimLogs/REPORT.json` reviews equal-weight means from at least three
+distinct seeds in one completed configuration. Supply the `runs.json` emitted by
+`RunSmallCostPilot.ps1` and exactly its run prefixes. The manifest records the
+assembly and flags; partial years, repeated seeds and mixed configurations are
+rejected. Out-of-band means produce advisory `historicalWarnings`, not a native
+simulation failure. Two seeds remain `INSUFFICIENT_SEEDS`. These are design review
+bands, not historical confidence intervals. The ownership grouping remains an
+operating-label proxy, so the analysis refuses runs containing absorptions.
+The existing `c4ChartShare` / `c8ChartShare` fields continue to measure chart
+**units** and are not used for this review. See `HistoricalLabelTierBalanceResearch.md`
+for sources and interpretation.
+
 Example (PowerShell):
 
 ```powershell
@@ -22,6 +37,23 @@ per-record stream while retaining weekly stock/flow and lifecycle telemetry.
 When `--seed` is present, the first autoload applies it before any population
 generation. The runner reapplies the same seed after startup/prewarm so both the
 initialized world and measured 52-week period are reproducible across processes.
+
+Dealer-price pressing, plant credit, the regional-hit deal gate and slower
+wholesale spread now default on. Their old comparison paths use
+`--no-dealer-price-pressing`, `--no-plant-credit`,
+`--no-regional-hit-deal-gate` and `--no-slow-wholesale-spread`.
+Sourced single/LP pressing costs and home-only Small starting territory also
+default on after the five-year validation. `--legacy-pressing-costs` (alias
+`--legacy-single-costs`) retains the old bundled costs, and
+`--no-small-home-territory` restores the former extra starting regions. See
+`SmallLabelAttritionAndChartMethod.md` for assumptions and results.
+
+`RunSmallCostPilot.ps1` starts with short matched cost/territory comparisons.
+Its `-Compact` option uses `--calibration --small-label-finance`: weekly label
+finance, charted singles and chart-life rows stay available while the large
+diagnostic streams are suppressed. Both all-firm starting-cohort closures and
+financial exits before first promotion are reported by
+`analyze_small_cost_pilots.py`; these are different outcomes.
 
 The runner also writes `*-label-finance.csv` with weekly gross, COGS,
 distribution skim/income, artist royalty, net revenue, cash, and status. Use

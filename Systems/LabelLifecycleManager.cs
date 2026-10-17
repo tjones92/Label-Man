@@ -289,6 +289,9 @@ public partial class LabelLifecycleManager : Node {
 	private float CalculateMomentum(AILabel label) => Mathf.Clamp(label.reputation + (label.top40Hits * 0.05f), 0f, 1f);
 	
 	private void CheckForDeath(AILabel label) {
+		// The economic path closes unpaid firms in ProcessLabelMonth; cash-funded firms
+		// retain their runway regardless of loss count, chart history, tier or age.
+		if (EconomicLabelLifecycle.Enabled) return;
 		if (label.status != LabelStatus.Dying) return;
 		if (label.tier == LabelTier.Major) return;
 		
@@ -315,6 +318,8 @@ public partial class LabelLifecycleManager : Node {
 		label.status = LabelStatus.Defunct;
 		defunctLabels.Add(label);
 		DefunctThisYear++;
+		if (EconomicLabelLifecycle.Enabled && reason == "Bankruptcy")
+			GD.Print($"LABEL_INSOLVENCY id={label.labelId} cash={label.cashReserves:F2} monthlyCashFlow={label.RecentMonthlyCashFlow:F2} missedMonthEnds={label.insolventMonthEnds}");
 		GD.Print($"[LabelManager] {label.labelName} has closed. Reason: {reason}. Operated for {label.monthsActive} months.");
 		// Phase 3b catalog succession: a bankrupt label's publishing catalog is bought by a surviving
 		// major rather than leaking. Covers of its old hits then pay the successor.
@@ -384,7 +389,7 @@ public partial class LabelLifecycleManager : Node {
 	
 	private void SpawnNewLabel() {
 		LabelTier tier = SelectRuntimeFoundingTier(GD.Randf(), runtimeSmallFoundingShare);
-		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier);
+		AILabel newLabel = generator.GenerateSingleLabel(regions, currentYear, tier, legacyIdentity: !ArtistPopulationLifecycle.Enabled);
 		if (ArtistPopulationLifecycle.Enabled) {
 			GameDate birthDate = TimeManager.Instance?.CurrentDate ?? new GameDate(currentYear, currentMonth, 1);
 			newLabel.populationOrigin = LabelPopulationOrigin.RuntimeFounded;
@@ -429,6 +434,7 @@ public partial class LabelLifecycleManager : Node {
 	/// or the ordinary signing/release paths from viable labels.
 	/// </summary>
 	private void TryApplyCompetitiveExit(AILabel label) {
+		if (EconomicLabelLifecycle.Enabled) return;
 		if (!ArtistPopulationLifecycle.Enabled) return;
 		int chartingLastYear = CompetitorManager.Instance?.GetRecentChartingRecordCount(label.labelId, 52) ?? 0;
 		float chance = GetCompetitiveExitChance(label, chartingLastYear);

@@ -219,6 +219,8 @@ public partial class CompetitorManager : Node {
 	// LocalTractionActivationScore: the offer-attempt telemetry showed the sign rate
 	// cliff sitting exactly on this boundary (~36% just below, ~84% just above), so the
 	// two must move together or a record can climb the chart ramp yet be denied the deal.
+	// Under --regional-hit-deal-gate the P&D pull gate stops reading this and uses RegionalHitDealGate's
+	// current-hit bar instead; wholesale placement, trade press and media still read it.
 	[Export(PropertyHint.Range, "0,1,0.01")] private float regionalBreakoutDealThreshold = 0.20f;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyLow = DealDependencyLow;
 	[Export(PropertyHint.Range, "0,1,0.01")] private float dealDependencyHigh = DealDependencyHigh;
@@ -484,10 +486,13 @@ public partial class CompetitorManager : Node {
 		if (label.distributionDependentHitmaker) return;
 
 		var proven = GetProvenBreakoutRegions(label);
-		if (proven.Count == 0) return;
+		// WholesaleSpreadGate: a hop to a bordering market needs a regional hit in the source market, so the hop
+		// sources are separate from the proven markets and can be the only evidence a label has this month.
+		HashSet<string> hopSources = WholesaleSpreadGate.Enabled ? GetRecentHitRegions(label) : proven;
+		if (proven.Count == 0 && hopSources.Count == 0) return;
 
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		string target = SelectIndependentDistributionTarget(label, proven, currentWeek);
+		string target = SelectIndependentDistributionTarget(label, proven, currentWeek, hopSources);
 		if (target == null) return;
 
 		IndependentDistributor house = SelectIndependentHouse(label, target, currentWeek);
@@ -532,19 +537,34 @@ public partial class CompetitorManager : Node {
 	/// </summary>
 	private HashSet<string> GetProvenBreakoutRegions(AILabel label) {
 		var proven = new HashSet<string>(System.StringComparer.Ordinal);
+		bool sustained = WholesaleSpreadGate.Enabled;
 		foreach (RecordRuntimeData record in ChartManager.Instance?.GetAllRecords() ?? Enumerable.Empty<RecordRuntimeData>()) {
 			if (record?.baseRecord?.labelId != label.labelId) continue;
 			foreach (var pair in record.regionalData) {
-				if ((pair.Value?.peakBreakoutScore ?? 0f) >= regionalBreakoutDealThreshold) proven.Add(pair.Key);
+				// WholesaleSpreadGate: proof is a record holding LocalTraction there now, not a peak it once touched.
+				if (sustained ? WholesaleSpreadGate.IsSustained(pair.Value)
+					: (pair.Value?.peakBreakoutScore ?? 0f) >= regionalBreakoutDealThreshold) proven.Add(pair.Key);
 			}
 		}
 		return proven;
 	}
 
+	/// <summary>Markets where one of this label's records is a regional hit now (RegionalHitDealGate's bar and window).</summary>
+	private static HashSet<string> GetRecentHitRegions(AILabel label) {
+		var hits = new HashSet<string>(System.StringComparer.Ordinal);
+		foreach (RecordRuntimeData record in ChartManager.Instance?.GetAllRecords() ?? Enumerable.Empty<RecordRuntimeData>()) {
+			if (record?.baseRecord?.labelId != label.labelId) continue;
+			foreach (var pair in record.regionalData)
+				if (RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) hits.Add(pair.Key);
+		}
+		return hits;
+	}
+
 	// Proven markets first, then the markets bordering them. A house that took the line had
 	// standing arrangements with its peers one region over, which is how a regional hit
-	// spread before it was a national one.
-	private string SelectIndependentDistributionTarget(AILabel label, HashSet<string> proven, int currentWeek) {
+	// spread before it was a national one. hopSources is the proven set itself unless
+	// WholesaleSpreadGate is on, when only a market with a current regional hit can hop.
+	private string SelectIndependentDistributionTarget(AILabel label, HashSet<string> proven, int currentWeek, HashSet<string> hopSources) {
 		// Only markets that can actually be placed in are candidates. Counting a market with
 		// no independent trade -- the Rockies -- would have consumed the month's opportunity
 		// and then failed, which left all 18 Rockies-home labels unable to place a single
@@ -553,7 +573,7 @@ public partial class CompetitorManager : Node {
 		foreach (string regionId in proven)
 			if (CanPlaceLineIn(label, regionId)) candidates.Add(regionId);
 		if (candidates.Count == 0) {
-			foreach (string regionId in proven)
+			foreach (string regionId in hopSources)
 				foreach (string neighbour in DistanceModel.GetAdjacentRegions(regionId))
 					if (CanPlaceLineIn(label, neighbour) && !candidates.Contains(neighbour)) candidates.Add(neighbour);
 		}
@@ -852,6 +872,8 @@ public partial class CompetitorManager : Node {
 			label.weeklyWholesaleDeferred = 0f;
 			label.weeklyWholesaleCollected = 0f;
 			label.weeklyPublishingReceipts = 0f;
+			label.weeklyPressingSpend = 0f;
+			label.weeklyPlantPaid = 0f;
 		}
 		foreach (var label in aiLabels) {
 			// A frozen enabled settlement may still contain a record from a label whose
@@ -874,6 +896,17 @@ public partial class CompetitorManager : Node {
 			label.monthlyRevenue += weeklyRevenue;
 			if (labelFinancials.TryGetValue(label.labelId, out var financials)) {
 				financials.lastMonthRevenue += weeklyRevenue;
+			}
+			// LabelPressingEconomics: the pressing plant is paid on its own bill, whatever the houses still owe.
+			// Under --plant-credit the bill is booked on terms and what falls due this week is paid instead.
+			float plantPaid = LabelPressingEconomics.PlantCredit
+				? LabelPressingEconomics.SettlePlantAccount(label, label.weeklyPressingSpend, ChartManager.Instance?.GetCurrentChartWeek() ?? 0)
+				: label.weeklyPressingSpend;
+			label.weeklyPlantPaid = plantPaid;
+			if (plantPaid > 0f) {
+				label.cashReserves -= plantPaid;
+				label.monthlyExpenses += plantPaid;
+				if (financials != null) financials.lastMonthExpenses += plantPaid;
 			}
 		}
 		// Publishing goldmine banking pass (Phase 3b): credit each label the composition income it
@@ -1041,9 +1074,11 @@ public partial class CompetitorManager : Node {
 			// directive's ladder is the 45's); the existing marginSkim below is then the distributor's cut
 			// of that dealer price, exactly as it already was -- no new number, no double count. AI records
 			// (and player albums, out of the directive's scope) keep GetPricePerUnit(format) untouched.
+			bool pressingBook = LabelPressingEconomics.Enabled && !runtimeData.baseRecord.isPlayerOwned;
+			float listPrice = GetPricePerUnit(format);
 			float pricePerUnit = runtimeData.baseRecord.isPlayerOwned && format == ReleaseFormat.Single
 				? PlayerDesk.DealerPrice
-				: GetPricePerUnit(format);
+				: pressingBook ? LabelPressingEconomics.LabelPrice(format, listPrice) : listPrice;
 			float pressingCost = GetPressingCostPerUnit(format);
 			if (format == ReleaseFormat.Album) pressingCost += albumPackagingCostPerUnit * (runtimeData.baseRecord.album?.packaging ?? 0f);
 			// Player-only: the player pressed and paid for the vinyl up front when ordering the run, so
@@ -1056,11 +1091,26 @@ public partial class CompetitorManager : Node {
 			float skimFraction = GetSettlementDistributionSkimFraction(label, runtimeData, weeklyUnits,
 				liveSettlement: GenreMarketV2.Enabled && settlement.SettlementId > 0);
 			float retailGross = weeklyUnits * pricePerUnit;
+			// LabelPressingEconomics: the act and the composition are still paid on list, not on the dealer price
+			// the label now books. Off, this is retailGross exactly.
+			float royaltyBasisGross = pressingBook ? weeklyUnits * listPrice : retailGross;
 			// DISTANCE-4B: 4a sums by current-region hub with a neutral cost factor; 4b
 			// makes manufacturing margin, skim basis, and artist recoupment region-weighted.
 			float cogs = CalculateRegionalCogs(label, runtimeData, pressingCost);
+			float compositionCost = !runtimeData.baseRecord.isPlayerOwned
+				? weeklyUnits * LabelPressingEconomics.CompositionUnitCost(runtimeData.baseRecord) : 0f;
+			cogs += compositionCost;
 			float grossAfterCogs = Mathf.Max(0f, retailGross - cogs);
 			float skimAmount = grossAfterCogs * skimFraction;
+			// The skim stays the distributor's cut after manufacturing, as before. The label's own manufacturing
+			// bill becomes freight on what sold plus the plant bill for whatever its pressing book ran this week.
+			float bookedCogs = cogs, pressingSpend = 0f, initialRunSpend = 0f;
+			if (pressingBook) {
+				bookedCogs = Mathf.Max(0f, cogs - weeklyUnits * pressingCost);
+				LabelPressingEconomics.PressingWeek press = LabelPressingEconomics.Press(runtimeData, label, Mathf.RoundToInt(weeklyUnits));
+				initialRunSpend = LabelPressingEconomics.PlantBill(format, press.InitialRun, false, pressingCost);
+				pressingSpend = initialRunSpend + LabelPressingEconomics.PlantBill(format, press.Repressed, true, pressingCost);
+			}
 			// Keep the existing artist contract convention (royalty on retail). The
 			// distribution skim is based on revenue after manufacturing cost.
 			// Dealer-margin directive §2.4/A5: a player single's royalty is flat off suggested list
@@ -1069,7 +1119,7 @@ public partial class CompetitorManager : Node {
 			// directive's scope), keep the existing retail-based convention untouched.
 			float artistPayment = runtimeData.baseRecord.isPlayerOwned && format == ReleaseFormat.Single
 				? weeklyUnits * PlayerDesk.RoyaltyPerUnit(artist)
-				: retailGross * artistRoyalty;
+				: royaltyBasisGross * artistRoyalty;
 			// RECOUPMENT. The advance is cash the label already paid out (RecordExpense at signing), and
 			// the period convention is that it comes back out of the artist's royalty account before the
 			// artist sees a cent. Both figures below are computed for everyone and the artist-side
@@ -1096,7 +1146,7 @@ public partial class CompetitorManager : Node {
 			}
 			// The decomposition identity gross - cogs - skim - royalty = net has to hold, so the royalty
 			// leg books what the label actually bore.
-			float recordRevenue = grossAfterCogs - skimAmount - royaltyExpense;
+			float recordRevenue = (pressingBook ? retailGross - bookedCogs : grossAfterCogs) - skimAmount - royaltyExpense;
 			// Publishing & Cover-Song Directive Part II, §II.0: the compulsory mechanical, 2c per
 			// composition per copy, on wholesale-settled units. PLAYER-ONLY, DELIBERATELY -- an AI record's
 			// composition cost is already folded into its calibrated pressing/COGS numbers, so this stays
@@ -1127,7 +1177,7 @@ public partial class CompetitorManager : Node {
 			// publishing (a Visionary deal) the label forgoes this slice: it comes off the label's net
 			// and accrues to the artist (publishing is the artist's own composition income, not
 			// advance-recoupable). PublishingShareOfGross is a calibration guess - start conservative.
-			float publishingPool = retailGross * PublishingShareOfGross;
+			float publishingPool = royaltyBasisGross * PublishingShareOfGross;
 			// Phase 3: resolve the counterparty from the composition's control type. Computed ALWAYS so
 			// the telemetry reflects the would-be routing; the money only follows it when routing is live.
 			PublishingRoutingService.Decision routing =
@@ -1210,7 +1260,8 @@ public partial class CompetitorManager : Node {
 				entry.ArtistRoyalty = artistPayment + (artistOwnsPublishing ? publishingPool : 0f);
 			}
 			entry.Gross = retailGross;
-			entry.ManufacturingCost = cogs;
+			entry.ManufacturingCost = bookedCogs;
+			entry.PressingCost = pressingSpend;
 			entry.DistributionSkim = skimAmount;
 			entry.LabelNet = recordRevenue;
 			entry.MarketNet = recordRevenue;
@@ -1225,19 +1276,23 @@ public partial class CompetitorManager : Node {
 			entry.DistributionIncome = 0f;
 			entry.DistributionRecipientLabelId = string.Empty;
 			entry.BookedCount = 1;
-			runtimeData.lifetimeLabelNet += recordRevenue;
+			// The plant bill is paid in cash by the caller, outside the receipts a wholesale house may defer. The
+			// initial run is a release-time commitment, so it joins sunk production cost; re-presses follow sales.
+			runtimeData.lifetimeLabelNet += recordRevenue - (pressingSpend - initialRunSpend);
+			runtimeData.sunkProductionCost += initialRunSpend;
 			totalRevenue += recordRevenue;
 			label.weeklyGrossRevenue += retailGross;
-			label.weeklyCogs += cogs;
+			label.weeklyCogs += bookedCogs + pressingSpend;
 			label.weeklyDistributionSkim += skimAmount;
 			label.weeklyArtistRoyalty += royaltyExpense;
-			label.weeklyNetRevenue += recordRevenue;
+			label.weeklyNetRevenue += recordRevenue - pressingSpend;
+			label.weeklyPressingSpend += pressingSpend;
 			RevenueTelemetry formatRevenue = GetOrCreateRevenueTelemetry(label.labelId, format);
 			formatRevenue.gross += retailGross;
-			formatRevenue.cogs += cogs;
+			formatRevenue.cogs += bookedCogs + pressingSpend;
 			formatRevenue.distributionSkim += skimAmount;
 			formatRevenue.artistRoyalty += royaltyExpense;
-			formatRevenue.labelNet += recordRevenue;
+			formatRevenue.labelNet += recordRevenue - pressingSpend;
 			RouteDistributionSkim(label, skimAmount, format, entry);
 			
 			// Artist-side bookkeeping is unchanged for everyone -- this is exactly what the pre-existing
@@ -1324,6 +1379,10 @@ public partial class CompetitorManager : Node {
 	public float GetPricePerUnitForAudit(ReleaseFormat format) => GetPricePerUnit(format);
 
 	private float GetPressingCostPerUnit(ReleaseFormat format) {
+		return LabelPressingEconomics.UnitPressingCost(format, GetLegacyPressingCostPerUnit(format));
+	}
+
+	private float GetLegacyPressingCostPerUnit(ReleaseFormat format) {
 		string key = format.ToString();
 		return pressingCostPerUnitByFormat != null && pressingCostPerUnitByFormat.TryGetValue(key, out float cost)
 			? cost
@@ -1570,8 +1629,11 @@ public partial class CompetitorManager : Node {
 				runtimeData.peakPosition > 0 && runtimeData.peakPosition <= 40));
 		}
 
+		if (LabelPressingEconomics.Enabled) LabelPressingEconomics.Learn(GetLabel(labelId), runtimeData);
 		float realizedNet = runtimeData.lifetimeLabelNet - runtimeData.sunkProductionCost;
 		OnReleaseOutcome?.Invoke(new ReleaseOutcomeTelemetry {
+			unitsPressed = runtimeData.unitsPressed,
+			pressingBookSold = runtimeData.pressingBookSold,
 			labelId = labelId,
 			recordId = recordId,
 			format = runtimeData.baseRecord.format,
@@ -1920,8 +1982,10 @@ public partial class CompetitorManager : Node {
 		float productionCost = CalculateProductionCost(label, record, date);
 		float marketingBudget = label.GetMarketingBudget(artist) * perceivedQualityMult;
 		float totalCost = productionCost + marketingBudget;
-		float minReserve = label.GetMonthlyOverhead();
-		
+		float minReserve = (EconomicLabelLifecycle.Enabled && !label.isPlayerOwned
+			? EconomicLabelLifecycle.CommitmentReserve(label, signing: false) : label.GetMonthlyOverhead())
+			+ InitialRunReserve(label, record);
+
 		if (label.cashReserves - totalCost < minReserve) {
 			float available = label.cashReserves - minReserve - productionCost;
 			if (available < 0) return false;
@@ -2134,7 +2198,8 @@ public partial class CompetitorManager : Node {
 
 		float firstMarketing = plan.strategy == ReleaseStrategy.AlbumStandalone ? albumMarketingPlanned : promoMarketingBudget;
 		float productionTotal = albumProductionCost + promoProductionCost;
-		if (!TryClampFirstEventCost(label, productionTotal, ref firstMarketing)) return false;
+		float pressingReserve = InitialRunReserve(label, album) + (promo != null ? InitialRunReserve(label, promo) : 0f);
+		if (!TryClampFirstEventCost(label, productionTotal, ref firstMarketing, pressingReserve)) return false;
 		if (plan.strategy == ReleaseStrategy.AlbumStandalone) albumMarketingPlanned = firstMarketing;
 		else promoMarketingBudget = firstMarketing;
 		ChargeProjectCost(label, artist, productionTotal + firstMarketing, productionTotal);
@@ -2207,8 +2272,17 @@ public partial class CompetitorManager : Node {
 		return 0.6f + perceivedQuality * 0.8f;
 	}
 
-	private bool TryClampFirstEventCost(AILabel label, float productionCost, ref float marketingBudget) {
-		float minReserve = label.GetMonthlyOverhead();
+	/// <summary>LabelPressingEconomics: the record's expected initial run at its own unit pressing cost (0 when off).</summary>
+	private float InitialRunReserve(AILabel label, Record record) {
+		if (!LabelPressingEconomics.Enabled || record == null) return 0f;
+		float unit = GetPressingCostPerUnit(record.format);
+		if (record.format == ReleaseFormat.Album) unit += albumPackagingCostPerUnit * (record.album?.packaging ?? 0f);
+		return LabelPressingEconomics.InitialRunReserve(label, record.format, unit);
+	}
+
+	private bool TryClampFirstEventCost(AILabel label, float productionCost, ref float marketingBudget, float pressingReserve = 0f) {
+		float minReserve = (EconomicLabelLifecycle.Enabled && !label.isPlayerOwned
+			? EconomicLabelLifecycle.CommitmentReserve(label, signing: false) : label.GetMonthlyOverhead()) + pressingReserve;
 		if (label.cashReserves - productionCost - marketingBudget >= minReserve) return true;
 		float available = label.cashReserves - minReserve - productionCost;
 		if (available < 0f) return false;
@@ -2335,7 +2409,7 @@ public partial class CompetitorManager : Node {
 		decision.unexpectedCareerState = unexpectedCareerState;
 		float compCostWeight = CalculateCompilationCostWeight(artist.primaryGenre, year);
 		HitInventory hitInventory = ResolveHitInventory(artist);
-		float priorSingle = CalculateSinglePriorNet(decision);
+		float priorSingle = SinglePriorNetAtBookedPrice(decision);
 		float priorAlbum = CalculateAlbumPriorNet(label, artist, year, decision, compCostWeight, hitInventory, out AlbumPriorDiagnostics albumPrior);
 		bool useResponsiveMemory = GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true;
 		// Live choices read only the estimator that answers that exact decision.
@@ -2419,7 +2493,7 @@ public partial class CompetitorManager : Node {
 		float meanAlbumDropGapWeeks = (albumDropGapWeeksMin + albumDropGapWeeksMax) * 0.5f;
 		float expectedOverlapFraction = Mathf.Clamp(
 			(expectedOverlapWeeks - meanAlbumDropGapWeeks) / Mathf.Max(1f, expectedOverlapWeeks), 0f, 1f);
-		float expectedPromoSingleNet = CalculateSinglePriorNet(decision);
+		float expectedPromoSingleNet = SinglePriorNetAtBookedPrice(decision);
 		float promoConfidence = useResponsiveMemory ? promoResponsive.Confidence : confidenceSingle;
 		if (useResponsiveMemory) expectedPromoSingleNet += promoConfidence * promoResponsive.Residual * Mathf.Max(1f, Mathf.Abs(expectedPromoSingleNet));
 		float expectedSingleUnits = Mathf.Max(0f,
@@ -2811,6 +2885,22 @@ public partial class CompetitorManager : Node {
 		};
 	}
 
+	/// <summary>
+	/// The single prior's contribution table was fitted at the counter price. Under LabelPressingEconomics it is
+	/// rescaled by the per-unit margin the label now actually books, as the album prior already re-prices itself,
+	/// so neither format gains a spurious edge from the price change. Off, this is CalculateSinglePriorNet.
+	/// </summary>
+	private float SinglePriorNetAtBookedPrice(DecisionContext decision) {
+		float net = CalculateSinglePriorNet(decision);
+		if (!LabelPressingEconomics.Enabled) return net;
+		float list = GetPricePerUnit(ReleaseFormat.Single), pressing = GetPressingCostPerUnit(ReleaseFormat.Single);
+		float composition = LabelPressingEconomics.PeriodSingleCosts ? LabelPressingEconomics.SingleCompositionCost : 0f;
+		float royalty = list * 0.05f;
+		float scale = Mathf.Max(0f, LabelPressingEconomics.LabelPrice(ReleaseFormat.Single, list) - pressing - composition - royalty) /
+			Mathf.Max(0.01f, list - GetLegacyPressingCostPerUnit(ReleaseFormat.Single) - royalty);
+		return (net + decision.singleProductionCost) * scale - decision.singleProductionCost;
+	}
+
 	private static float CalculateSinglePriorNet(DecisionContext decision) {
 		float expectedContribution = SinglePriorNormalizedContribution[decision.qualityQuartile, decision.careerBand]
 			* decision.reachFactor * decision.genreSinglesMarketFactor;
@@ -2839,7 +2929,11 @@ public partial class CompetitorManager : Node {
 		float expectedUnits = CalculateFormatTiltedAlbumExpectedUnits(
 			preTiltAffinityUnits, weightedHitUnits, opportunity.FormatTilt);
 		float manufacturingPerUnit = GetPressingCostPerUnit(ReleaseFormat.Album) + albumPackagingCostPerUnit * priorAssumedAlbumPackaging;
-		float grossAfterManufacturing = Mathf.Max(0f, GetPricePerUnit(ReleaseFormat.Album) - manufacturingPerUnit);
+		if (LabelPressingEconomics.PeriodAlbumCosts) manufacturingPerUnit += LabelPressingEconomics.ExpectedAlbumCompositionCost;
+		float albumBookedPrice = LabelPressingEconomics.Enabled
+			? LabelPressingEconomics.LabelPrice(ReleaseFormat.Album, GetPricePerUnit(ReleaseFormat.Album))
+			: GetPricePerUnit(ReleaseFormat.Album);
+		float grossAfterManufacturing = Mathf.Max(0f, albumBookedPrice - manufacturingPerUnit);
 		float skimFraction = label.activeDeal != null
 			? Mathf.Clamp(label.activeDeal.marginSkim, 0f, 1f)
 			: 0.25f * (1f - label.ownedReach);
@@ -3869,10 +3963,11 @@ public partial class CompetitorManager : Node {
 		
 		float netIncome = financials.lastMonthRevenue - financials.lastMonthExpenses;
 		label.lastMonthlyProfit = netIncome;
+		float cashBeforeExpansion = label.cashReserves;
 		ReinvestDistributionProfit(label, netIncome);
 		GrowSelfBuiltDistributionReach(label, netIncome);
 		PursueIndependentDistribution(label);
-		UpdateLabelStatus(label, financials, netIncome);
+		UpdateLabelStatus(label, financials, netIncome, netIncome + label.cashReserves - cashBeforeExpansion);
 		
 		label.monthlyRevenue = 0f;
 		label.monthlyExpenses = 0f;
@@ -4247,6 +4342,11 @@ public partial class CompetitorManager : Node {
 		// deal must cover from the moment it is signed.
 		string earningRecordId = null;
 		float earningRecordPeak = 0f;
+		// RegionalHitDealGate: evidence is a regional hit within the last few weeks, not the running peak, and the
+		// deal carries the record that is selling now (highest current score among the qualifying ones).
+		bool hitGate = RegionalHitDealGate.Enabled;
+		string hitRecordId = null;
+		float hitRecordScore = -1f;
 		foreach (RecordRuntimeData record in records ?? System.Array.Empty<RecordRuntimeData>()) {
 			if (record?.baseRecord?.labelId != labelId) continue;
 			float quality = record.GetQuality();
@@ -4257,7 +4357,15 @@ public partial class CompetitorManager : Node {
 				float peak = Mathf.Max(0f, pair.Value?.peakBreakoutScore ?? 0f);
 				bestAny = Mathf.Max(bestAny, peak);
 				recordBestPeak = Mathf.Max(recordBestPeak, peak);
-				if (peak >= boundedThreshold) recordHasPersistentEvidence = true;
+				if (hitGate) {
+					if (RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) {
+						recordHasPersistentEvidence = true;
+						if (pair.Value.breakoutScore > hitRecordScore) {
+							hitRecordScore = pair.Value.breakoutScore;
+							hitRecordId = record.baseRecord.recordId;
+						}
+					}
+				} else if (peak >= boundedThreshold) recordHasPersistentEvidence = true;
 				if (!strongRegions.Contains(pair.Key)) continue;
 				bestStrong = Mathf.Max(bestStrong, peak);
 				if ((pair.Value?.unitsSoldThisWeek ?? 0) > 0) currentStrongSale = true;
@@ -4276,6 +4384,7 @@ public partial class CompetitorManager : Node {
 			if (record.peakRegionalBreakoutStrength >= boundedThreshold &&
 				quality > 0.70f && currentStrongSale) legacy = true;
 		}
+		if (hitRecordId != null) earningRecordId = hitRecordId;
 		return new RegionalDealEvidence(bestAny, bestStrong, bestEvidenceQuality, persistent, legacy, earningRecordId);
 	}
 
@@ -4634,7 +4743,13 @@ public partial class CompetitorManager : Node {
 		});
 	}
 	
-	private void UpdateLabelStatus(AILabel label, LabelFinancialHistory financials, float netIncome) {
+	private void UpdateLabelStatus(AILabel label, LabelFinancialHistory financials, float netIncome, float netCashFlow) {
+		if (EconomicLabelLifecycle.Enabled && !label.isPlayerOwned) {
+			financials.consecutiveLossMonths = netIncome < 0f ? financials.consecutiveLossMonths + 1 : 0;
+			label.consecutiveLossMonths = financials.consecutiveLossMonths;
+			EconomicLabelLifecycle.ReviewMonth(label, netCashFlow, enableBankruptcy);
+			return;
+		}
 		if (netIncome < 0) financials.consecutiveLossMonths++;
 		else financials.consecutiveLossMonths = Mathf.Max(0, financials.consecutiveLossMonths - 1);
 		label.consecutiveLossMonths = financials.consecutiveLossMonths;
@@ -5247,6 +5362,8 @@ public sealed class ReleaseOutcomeTelemetry {
 	public float lifetimeLabelNet;
 	public float sunkProductionCost;
 	public float realizedNet;
+	// LabelPressingEconomics book at retirement (0 / 0 while the switch is off).
+	public int unitsPressed, pressingBookSold;
 }
 
 public sealed class FormatMemoryRevisionTelemetry {

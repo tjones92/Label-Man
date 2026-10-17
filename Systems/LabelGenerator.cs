@@ -33,120 +33,36 @@ public class LabelGenerator {
 		"Clark", "Stone", "Williams", "Jackson", "Robinson", "Ross", "Wilson", "Martin"
 	};
 
-	public List<AILabel> GenerateHistoricalMajors(MarketRegion[] regions) {
-		List<AILabel> majors = new List<AILabel>();
-		majors.Add(CreateHistoricalMajor("Columbia Records", "New York", 1888, new[] { Genre.TraditionalPop, Genre.Jazz, Genre.EasyListening }));
-		majors.Add(CreateHistoricalMajor("RCA Victor", "New York", 1901, new[] { Genre.TraditionalPop, Genre.Country, Genre.RockAndRoll }));
-		majors.Add(CreateHistoricalMajor("Capitol Records", "Los Angeles", 1942, new[] { Genre.TraditionalPop, Genre.Jazz, Genre.EasyListening }));
-		majors.Add(CreateHistoricalMajor("Decca Records", "New York", 1934, new[] { Genre.TraditionalPop, Genre.Country, Genre.Jazz }));
-		majors.Add(CreateHistoricalMajor("Mercury Records", "Chicago", 1945, new[] { Genre.RnB, Genre.RockAndRoll, Genre.Country }));
-		majors.Add(CreateHistoricalMajor("MGM Records", "New York", 1946, new[] { Genre.TraditionalPop, Genre.EasyListening }));
-		
-		majors.Add(CreateHistoricalIndie("Atlantic Records", "New York", 1947, LabelTier.MidTier, LabelArchetype.SoulFactory, new[] { Genre.RnB, Genre.Soul, Genre.Jazz }));
-		majors.Add(CreateHistoricalIndie("Chess Records", "Chicago", 1950, LabelTier.MidTier, LabelArchetype.BluesRoots, new[] { Genre.RnB, Genre.RockAndRoll }));
-		majors.Add(CreateHistoricalIndie("Sun Records", "Memphis", 1952, LabelTier.Independent, LabelArchetype.RockRebel, new[] { Genre.RockAndRoll, Genre.Country }));
-		majors.Add(CreateHistoricalIndie("King Records", "Cincinnati", 1943, LabelTier.MidTier, LabelArchetype.SoulFactory, new[] { Genre.RnB, Genre.Soul, Genre.Country }));
-		majors.Add(CreateHistoricalIndie("Imperial Records", "Los Angeles", 1947, LabelTier.Independent, LabelArchetype.RockRebel, new[] { Genre.RnB, Genre.RockAndRoll }));
-		majors.Add(CreateHistoricalIndie("Liberty Records", "Los Angeles", 1955, LabelTier.MidTier, LabelArchetype.TeenHitMachine, new[] { Genre.RockAndRoll, Genre.TraditionalPop }));
-		majors.Add(CreateHistoricalIndie("Motown", "Detroit", 1959, LabelTier.Independent, LabelArchetype.SoulFactory, new[] { Genre.Soul, Genre.RnB }));
-		majors.Add(CreateHistoricalIndie("Stax Records", "Memphis", 1957, LabelTier.Small, LabelArchetype.SoulFactory, new[] { Genre.Soul, Genre.RnB }));
-			
-		foreach (var label in majors) usedNames.Add(label.labelName);
-		return majors;
-	}
-	
-	private AILabel CreateHistoricalMajor(string name, string city, int founded, Genre[] genres) {
-		var label = new AILabel();
-		
-		label.labelName = name;
-		label.labelId = "hist_" + name.Replace(" ", "").ToLower();
-		label.headquartersCity = city;
-		label.foundedYear = founded;
-		label.isHistorical = true;
-		label.tier = LabelTier.Major;
-		label.status = LabelStatus.Stable;
-		label.archetype = LabelArchetype.CorporateGiant;
-		
-		label.preferredGenres = genres.Take(2).ToArray();
-		label.secondaryGenres = genres.Skip(2).ToArray();
-		
-		label.nationalReach = (float)GD.RandRange(0.85, 0.98);
-		label.distributionStrength = (float)GD.RandRange(0.85, 0.98);
-		label.budgetLevel = (float)GD.RandRange(0.85, 1.0);
-		label.productionQuality = (float)GD.RandRange(0.75, 0.95);
-		label.scoutingAbility = (float)GD.RandRange(0.5, 0.7);
-		label.marketingPower = (float)GD.RandRange(0.8, 0.95);
-		label.riskTolerance = (float)GD.RandRange(0.1, 0.3);
-		label.artistLoyalty = (float)GD.RandRange(0.4, 0.6);
-		label.releasesPerMonth = (float)GD.RandRange(4f, 8f);
-		label.maxRosterSize = 50;
-		label.cashReserves = (float)GD.RandRange(5000f, 15000f);
-		label.reputation = (float)GD.RandRange(0.7, 0.9);
-		label.marketShare = (float)GD.RandRange(0.08, 0.15);
-		label.monthsActive = (1960 - founded) * 12;
-		label.totalReleases = label.monthsActive * 3;
-		label.top40Hits = (int)GD.RandRange(50, 150);
-		label.numberOneHits = (int)GD.RandRange(10, 40);
-		
-		return label;
-	}
-	
-	private AILabel CreateHistoricalIndie(string name, string city, int founded, LabelTier tier, LabelArchetype archetype, Genre[] genres) {
-		var label = new AILabel();
-		label.labelName = name;
-		label.labelId = "hist_" + name.Replace(" ", "").ToLower();
-		label.headquartersCity = city;
-		label.foundedYear = founded;
-		label.isHistorical = true;
-		label.tier = tier;
-		label.status = LabelStatus.Stable;
-		label.archetype = archetype;
-		
-		label.preferredGenres = genres.Take(2).ToArray();
-		if (genres.Length > 2) label.secondaryGenres = genres.Skip(2).ToArray();
-		
-		ApplyArchetypeStats(label, archetype, tier);
-		
-		int yearsActive = 1960 - founded;
-		label.monthsActive = yearsActive * 12;
-		label.totalReleases = yearsActive * 20;
-		label.top40Hits = tier == LabelTier.MidTier ? (int)GD.RandRange(15, 40) : (int)GD.RandRange(3, 15);
-		label.numberOneHits = tier == LabelTier.MidTier ? (int)GD.RandRange(2, 10) : (int)GD.RandRange(0, 3);
-		return label;
-	}
-	
-	public List<AILabel> GenerateLabels(MarketRegion[] regions, int count, int year) {
-		List<AILabel> labels = new List<AILabel>();
-		int midTier = Mathf.RoundToInt(count * 0.15f);
-		int independent = Mathf.RoundToInt(count * 0.35f);
-		int small = count - midTier - independent;
-		
-		for (int i = 0; i < midTier; i++) labels.Add(GenerateSingleLabel(regions, year, LabelTier.MidTier));
-		for (int i = 0; i < independent; i++) labels.Add(GenerateSingleLabel(regions, year, LabelTier.Independent));
-		for (int i = 0; i < small; i++) labels.Add(GenerateSingleLabel(regions, year, LabelTier.Small));
-		return labels;
-	}
-	
-	public AILabel GenerateSingleLabel(MarketRegion[] regions, int year, LabelTier tier) {
+	/// <summary>
+	/// A runtime-founded label's name, city, regions and opening finances. With the artist population lifecycle
+	/// on (every current run), <see cref="RuntimeLabelProfileFactory"/> then assigns the archetype, genres,
+	/// operating profile, founding year and track record from its own stable PRNG, so drawing them here was
+	/// overwritten on every birth. <paramref name="legacyIdentity"/> keeps those draws, in their original order,
+	/// for the lifecycle-off compatibility path only, which has no other source for them.
+	/// </summary>
+	public AILabel GenerateSingleLabel(MarketRegion[] regions, int year, LabelTier tier, bool legacyIdentity) {
 		var label = new AILabel();
 		label.labelName = GenerateUniqueName();
 		label.labelId = "gen_" + label.labelName.Replace(" ", "").ToLower() + "_" + (int)GD.RandRange(1000, 9999);
 		label.founderName = GenerateFounderName();
 		label.headquartersCity = cities[(int)GD.RandRange(0, cities.Length - 1)];
-		label.foundedYear = (int)GD.RandRange(year - 5, year + 1);
+		if (legacyIdentity) label.foundedYear = (int)GD.RandRange(year - 5, year + 1);
 		label.isHistorical = false;
 		label.tier = tier;
 		label.status = GD.Randf() > 0.3f ? LabelStatus.Stable : LabelStatus.Rising;
-		label.archetype = GenerateArchetype(year, tier);
-		AssignGenresFromArchetype(label);
-		ApplyArchetypeStats(label, label.archetype, tier);
+		if (legacyIdentity) {
+			label.archetype = GenerateArchetype(year, tier);
+			AssignGenresFromArchetype(label);
+		}
 		AssignRegions(label, regions, tier);
 		InitializeFinancials(label, tier);
-		
-		int yearsActive = Mathf.Max(1, year - label.foundedYear);
-		label.monthsActive = yearsActive * 12;
-		InitializeTrackRecord(label, tier, yearsActive);
-		
+
+		if (legacyIdentity) {
+			int yearsActive = Mathf.Max(1, year - label.foundedYear);
+			label.monthsActive = yearsActive * 12;
+			InitializeTrackRecord(label, tier, yearsActive);
+		}
+
 		usedNames.Add(label.labelName);
 		return label;
 	}
@@ -240,18 +156,6 @@ public class LabelGenerator {
 		}
 	}
 	
-	private void ApplyArchetypeStats(AILabel label, LabelArchetype archetype, LabelTier tier) {
-		float tierBudget = tier switch {
-			LabelTier.Major => 1.0f, LabelTier.MidTier => 0.6f, LabelTier.Independent => 0.35f, LabelTier.Small => 0.15f, _ => 0.2f
-		};
-		
-		// Legacy generator compatibility shell: this method intentionally remains
-		// incomplete. Completing it would add shared GD RNG draws and alter the
-		// disabled replay. Enabled runtime-founded labels receive their complete
-		// deterministic profile in RuntimeLabelProfileFactory instead. The broader
-		// launch-generator duplication remains deferred work.
-	}
-	
 	private void AssignRegions(AILabel label, MarketRegion[] regions, LabelTier tier) {
 		if (regions == null || regions.Length == 0) return;  // .Count → .Length
 		
@@ -280,15 +184,15 @@ public class LabelGenerator {
 		label.distributionRegions = distList.ToArray();
 	}
 	
+	// Births are only ever Small or Independent (LabelLifecycleManager.SelectRuntimeFoundingTier). Opening cash
+	// comes from the table the 1960 world uses, so the two cannot drift apart again.
 	private void InitializeFinancials(AILabel label, LabelTier tier) {
-		(float minCash, float maxCash, float minRep, float maxRep, float minShare, float maxShare) = tier switch {
-			LabelTier.Major => (5000f, 15000f, 0.7f, 0.9f, 0.08f, 0.15f),
-			LabelTier.MidTier => (500f, 2000f, 0.4f, 0.7f, 0.02f, 0.06f),
-			LabelTier.Independent => (5000f, 20000f, 0.2f, 0.5f, 0.005f, 0.02f),
-			LabelTier.Small => (1000f, 8000f, 0.05f, 0.25f, 0.001f, 0.005f),
-			_ => (50f, 200f, 0.1f, 0.3f, 0.002f, 0.01f)
-		};
-		label.cashReserves = (float)GD.RandRange(minCash, maxCash);
+		if (tier != LabelTier.Small && tier != LabelTier.Independent)
+			throw new System.InvalidOperationException($"Runtime-founded labels begin at Small or Independent tier, not {tier}.");
+		(float minRep, float maxRep, float minShare, float maxShare) = tier == LabelTier.Small
+			? (0.05f, 0.25f, 0.001f, 0.005f)
+			: (0.2f, 0.5f, 0.005f, 0.02f);
+		label.cashReserves = LabelStartingFinances.DrawCash(tier);
 		label.reputation = (float)GD.RandRange(minRep, maxRep);
 		label.marketShare = (float)GD.RandRange(minShare, maxShare);
 		label.debtLevel = tier == LabelTier.Small ? (float)GD.RandRange(0f, 50f) : 0f;

@@ -329,8 +329,34 @@ Read:
    consistent sign, not noise. The likely source: independents lose the first weeks of their out-of-territory sales,
    where the launch stock used to sell. Major share is mixed (±5) and not readable.
 
-Next, if pursued: raise the order bar so that only a record people actually ask for gets ordered (between 100 and
-the breakout floor), and look at which labels go bankrupt before tuning further. Both switches stay off.
+### Who goes bankrupt (`analyze_arrival_bankruptcies.py`, arr4 against 5d, both seeds)
+
+| | 5d 1001 | Arrival 1001 | 5d 2002 | Arrival 2002 |
+|---|---:|---:|---:|---:|
+| Bankrupt labels | 51 | 70 | 44 | 58 |
+| …that never sold a single | 36 | 43 | 32 | 34 |
+| …that sold singles | **15** | **27** | **12** | **24** |
+| Bankrupt sellers in the Small tier | 9 | 23 | 10 | 18 |
+| Small-tier single units (sellers) | 13.6M | 11.7M (−14%) | 14.8M | 10.9M (−26%) |
+| Small-tier median units per label | 66.1k | 41.0k (−38%) | 65.2k | 46.5k (−29%) |
+| Independent-tier single units | 142.5M | 145.2M (+2%) | 126.4M | 137.0M (+8%) |
+| Boutique-tier single units | 30.6M | 32.7M (+7%) | 41.4M | 43.5M (+5%) |
+
+1. **The whole excess is Small-tier labels that sell singles: +12 bankruptcies on each seed.** Labels that never
+   sold a single go bankrupt at about the same rate in every arm (+7, +2), so they are not the effect.
+2. **It is lost revenue, not stranded stock.** COGS is booked per unit sold (`CalculateRegionalCogs`), so held launch
+   stock costs a label nothing. The Small tier loses 14–26% of its single units and about a third of the median
+   label's, and its out-of-home share falls. The Independent and Boutique tiers *gain* (+2–8%): the volume moves up
+   to them rather than to the Majors.
+3. **Coverage alone does not pick the victims.** Bankrupt sellers sit at a median of 2 covered regions in every arm,
+   and the rise falls in different coverage bins on each seed (≤ 1 and 4–7 regions on 1001, 2–4 on 2002). What
+   they share is size: a Small label's median life is about 65k units over two years, and the out-of-territory
+   launch weeks are a large share of that.
+
+So the order bar is not the main lever for this cost. A Small label's held region gets the record a few weeks late
+and the launch weeks are gone, at any bar. Options: arrival at launch where the label has a one-stop or independent
+distributor line (the Small tier's real channel), or keep the launch-week sales in held regions and gate only the
+blend and rotation. Both switches stay off.
 
 ## 7. Risks
 

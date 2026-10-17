@@ -448,11 +448,14 @@ public static class ChartSimulator {
 		if (stagedLiveDemand && RegionalAudience.ProbeNoBlend) effectiveAwareness = regionalData.awareness;
 		// Regional sync 5b: national awareness reaches a region through its own channels, so a region the record
 		// has not arrived in sees what its own breakout and neighbours gave it plus only a hearsay share of the
-		// national stock -- and no chart floor, since the floors stand in for that same stock. With no shelf stock
-		// before arrival, the hearsay demand is unserved: it piles up as backorders and feeds the region's breakout.
+		// national stock -- and no chart floor, since the floors stand in for that same stock. Sparse retail access
+		// can fulfil this demand from the finite launch allocation; otherwise it remains unserved. Backorders
+		// are demand evidence only, never an automatic grant of regional arrival.
 		bool awaitingArrival = stagedLiveDemand && regionalData.awaitingArrival;
 		if (awaitingArrival)
 			effectiveAwareness = regionalData.awareness * 0.6f + record.awareness * 0.4f * RegionalAudience.HearsayShare;
+		else if (stagedLiveDemand && RegionalAudience.RegionalCampaignFocus && !record.baseRecord.isPlayerOwned)
+			effectiveAwareness += regionalData.campaignAwarenessThisWeek;
 
 		if (awaitingArrival || (stagedLiveDemand && RegionalAudience.ProbeNoFloors)) { }
 		else if (record.currentPosition > 0 && record.currentPosition <= 10) {
@@ -1092,8 +1095,9 @@ public static class ChartSimulator {
 			return;
 		}
 		
-		float basePush = GetCampaignImpact(label);
-		
+		// RadioPushSpread is a probe on this weekly radio push only; identity unless --radio-push-spread is named.
+		float basePush = RadioPushSpread.Apply(GetCampaignImpact(label));
+
 		float weekFactor = record.weeksSinceRelease switch {
 			0 or 1 => 1.0f,
 			2 or 3 => 0.9f,

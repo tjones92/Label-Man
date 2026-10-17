@@ -283,6 +283,8 @@ public partial class ChartManager : Node {
 		// compulsory 2c/composition/copy mechanical charged this week on wholesale-settled units, already
 		// netted out of LabelNet above.
 		public float MechanicalRoyalty;
+		// LabelPressingEconomics plant bill run this week, paid in cash outside LabelNet (0 while the switch is off).
+		public float PressingCost;
 		public string DistributionRecipientLabelId;
 		public int BookedCount, AuditedCount;
 		public bool RetiredAfterSettlement;
@@ -354,6 +356,12 @@ public partial class ChartManager : Node {
 		MarketSeasonality.Configure(marketSeasonalityEnabled, OS.GetCmdlineUserArgs());
 		GenreMarketV2.Configure(genreMarketV2Enabled, OS.GetCmdlineUserArgs());
 		ArtistPopulationLifecycle.Configure(artistPopulationLifecycleEnabled, OS.GetCmdlineUserArgs());
+		EconomicLabelLifecycle.Configure(OS.GetCmdlineUserArgs());
+		LabelPressingEconomics.Configure(OS.GetCmdlineUserArgs());
+		RegionalHitDealGate.Configure(OS.GetCmdlineUserArgs());
+		WholesaleSpreadGate.Configure(OS.GetCmdlineUserArgs());
+		RadioPushSpread.Configure(OS.GetCmdlineUserArgs());
+		SmallLabelHomeTerritory.Configure(OS.GetCmdlineUserArgs());
 		LocalScenes.ValidateDependencies();
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
 		ArtistRecognition.Configure(artistRecognitionEnabled, OS.GetCmdlineUserArgs());
@@ -1067,10 +1075,12 @@ public partial class ChartManager : Node {
 			UpdateLocalLifecycle(record);
 			UpdateRegionalBreakoutState(record, year);
 			// Regional sync 5a: arrival reads this week's breakout state and last week's chart, before restock.
-			if (RegionalAudience.RegionalArrival && genreMarketLive)
+			if (RegionalAudience.RegionalArrival && genreMarketLive) {
+				AILabel arrivalLabel = GetLabelById(record.baseRecord.labelId);
 				foreach (MarketRegion region in allRegions)
 					if (record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data))
-						RegionalAudience.TryArrive(record, data, GetRegionalDemandScale(region));
+						RegionalAudience.TryArrive(record, data, arrivalLabel);
+			}
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
@@ -1182,6 +1192,7 @@ public partial class ChartManager : Node {
 			AILabel label = GetLabelById(record.baseRecord.labelId);
 			bool isAlbum = record.baseRecord.format == ReleaseFormat.Album;
 			float legacyMomentum = !isAlbum ? GetGenreMomentum(record.baseRecord.primaryGenre) : 0f;
+			RegionalAudience.PrepareCampaignAudience(record, allRegions);
 			foreach (MarketRegion region in allRegions) {
 				if (!record.regionalData.TryGetValue(region.regionId, out RegionalRecordData data)) {
 					data = new RegionalRecordData(region.regionId);
@@ -1764,7 +1775,7 @@ public partial class ChartManager : Node {
 				// Stations add a record over several weeks. Without this the release ramp throttled sales
 				// to 8.7% of peak in week one while rotation arrived at full campaign strength, leaving
 				// airplay at 77.3% of a new record's chart points and debuts near #73 instead of #90.
-				float radioBuild = ChartSimulator.GetRadioBuildWeight(record.weeksSinceRelease);
+				float radioBuild = ChartSimulator.GetRadioBuildWeight(RegionalAudience.RadioBuildAge(record.weeksSinceRelease, data));
 				// tailAccess is 1 in Phase 2a (folded in when the reporter/tail format split is dialled
 				// in at Phase 2b), so this expression is arithmetically identical to the former target.
 				float targetRegionalRadio = (seasonalRadio ? regionHeat / radioDifficulty * radioOpportunity * genreRadio : regionHeat / radioDifficulty * genreRadio) * radioBuild;
@@ -2024,6 +2035,7 @@ public partial class ChartManager : Node {
 			float response = evidence >= data.breakoutScore ? 0.48f : 0.28f;
 			data.breakoutScore = Mathf.Lerp(data.breakoutScore, evidence, response);
 			data.peakBreakoutScore = Mathf.Max(data.peakBreakoutScore, data.breakoutScore);
+			RegionalHitDealGate.Observe(data, volumeInput, record.weeksSinceRelease);
 
 			if (data.breakoutScore >= LocalTractionActivationScore) {
 				data.tractionWeeks++;

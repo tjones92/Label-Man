@@ -44,17 +44,23 @@ def decompose(path):
 
     out["level"] = split(d, ["lnD", "lnAware", "lnConv"], "level")
     d = d.sort_values(["recordId", "region", "week"])
+    d["weekGap"] = d.groupby(["recordId", "region"]).week.diff()
     for c in ["lnD", "lnAware", "lnConv"]:
         d["d" + c] = d.groupby(["recordId", "region"])[c].diff()
     ch = d.dropna(subset=["dlnD"])
+    out["excludedNonconsecutiveRows"] = int(ch.weekGap.gt(1).sum())
+    ch = ch[ch.weekGap == 1]
     ch = ch[ch.groupby(["week", "recordId"]).region.transform("count") == d.region.nunique()]
+    out["changeRecordWeeks"] = int(ch.groupby(["week", "recordId"]).ngroups)
     out["change"] = split(ch, ["dlnD", "dlnAware", "dlnConv"], "change")
     return out
 
 
-def settlement(path, min_units):
+def settlement(path, min_units, record_ids=None):
     d = pd.read_csv(path, usecols=["week", "recordId", "regionId", "finalCleared"],
                     dtype={"recordId": "category", "regionId": "category"})
+    if record_ids is not None:
+        d = d[d.recordId.isin(record_ids)]
     out = {}
     tot = d.groupby("recordId", observed=True).finalCleared.sum()
     big = d[d.recordId.isin(tot[tot >= min_units].index)]
@@ -62,14 +68,27 @@ def settlement(path, min_units):
     pk = big.loc[idx, ["recordId", "week"]]
     s = pk.groupby("recordId", observed=True).week.agg(lambda w: w.max() - w.min())
     out["peakSpread"] = spread_stats(s)
+    # An all-zero market has no sales peak. Its first observed row must not be
+    # mistaken for an early regional peak in a delayed-distribution experiment.
+    sold = big[big.finalCleared > 0]
+    sold_pk = sold.loc[sold.groupby(["recordId", "regionId"], observed=True).finalCleared.idxmax(),
+                       ["recordId", "week"]]
+    sold_pk = sold_pk[sold_pk.groupby("recordId", observed=True).week.transform("size") >= 2]
+    out["soldPeakSpread"] = spread_stats(sold_pk.groupby("recordId", observed=True).week.agg(lambda w: w.max() - w.min()))
+    out["regionsWithoutSales"] = int(big.groupby(["recordId", "regionId"], observed=True).finalCleared.sum().eq(0).sum())
     top = d[d.finalCleared > 0].sort_values("finalCleared", ascending=False).groupby(["week", "regionId"], observed=True).head(11)
-    overlaps = []
+    overlaps, by_pair = [], {}
     for _, wk in top.groupby("week"):
-        sets = [set(v) for _, v in wk.groupby("regionId", observed=True).recordId]
+        sets = sorted((str(r), set(v)) for r, v in wk.groupby("regionId", observed=True).recordId)
         for i in range(len(sets)):
             for j in range(i + 1, len(sets)):
-                overlaps.append(len(sets[i] & sets[j]) / 11)
+                ov = len(sets[i][1] & sets[j][1]) / 11
+                overlaps.append(ov)
+                by_pair.setdefault(sets[i][0] + "-" + sets[j][0], []).append(ov)
     out["top11Overlap"] = round(float(np.mean(overlaps)), 4) if overlaps else None
+    out["top11OverlapMedian"] = round(float(np.median(overlaps)), 4) if overlaps else None
+    # Historical station pairs fall off with distance (SmallLabelAttritionAndChartMethod.md section 4).
+    out["top11OverlapByPair"] = {p: round(float(np.mean(v)), 4) for p, v in sorted(by_pair.items())}
     return out
 
 
@@ -89,7 +108,10 @@ def raw_timing(path, min_units):
     start = d.groupby("recordId", observed=True).week.transform("min")
     d = d.assign(age=d.week - start + 1)
     g = d.groupby(["recordId", "region"], observed=True)
-    pk = d.loc[g.rawDemand.idxmax(), ["recordId", "region", "age", "rawDemand"]]
+    positive = d[d.rawDemand > 0]
+    pk = positive.loc[positive.groupby(["recordId", "region"], observed=True).rawDemand.idxmax(),
+                      ["recordId", "region", "age", "rawDemand"]]
+    pk = pk[pk.groupby("recordId", observed=True).region.transform("size") >= 2]
     peak = pk.groupby("recordId", observed=True).age.agg(lambda w: w.max() - w.min())
     d = d.merge(pk[["recordId", "region", "rawDemand"]].rename(columns={"rawDemand": "peak"}), on=["recordId", "region"])
     arr = d[d.rawDemand >= 0.1 * d.peak].groupby(["recordId", "region"], observed=True).age.min().reset_index()
@@ -109,7 +131,14 @@ def main():
     if os.path.exists(stages):
         res["decomposition"] = decompose(stages)
         res["rawTiming"] = raw_timing(stages, a.min_units)
-    if os.path.exists(settle): res["settlement"] = settlement(settle, a.min_units)
+    if os.path.exists(settle):
+        national = a.prefix + "-completed-week-settlement.csv"
+        if not os.path.exists(national):
+            sys.exit("Single-format settlement classification requires " + national)
+        formats = pd.read_csv(national, usecols=["recordId", "format"])
+        single_ids = set(formats.loc[formats["format"] == "Single", "recordId"])
+        res["settlementFormat"] = "Single"
+        res["settlement"] = settlement(settle, a.min_units, single_ids)
     if len(res) == 1: sys.exit("no input CSVs for " + a.prefix)
     print(json.dumps(res, indent=2))
 
