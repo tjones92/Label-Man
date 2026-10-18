@@ -4206,6 +4206,98 @@ Evidence: `SimLogs/hitcad-d-screen-v1/` (manifest, consoles, empty error logs). 
 `yearly-watch-cadence-d.log`, `cadence_d_readout.py` / `cadence-d-readout.txt`, and `genre-check-cadence-d.txt`
 (`genre_check_260.py`).
 
+### 17ae. The lane's genre error: a genre-blind lane meets genre-unequal follow-ups (2026-10-18, analysis only)
+
+Analysis only, on control, D, V1 and LR, five seeds, 1961-64. No simulation was run and no code was changed. A
+launch is *hot* when its act had a record reach the Top 40 in the 52 weeks before it. Single launches are
+`release-strategy.csv`'s orphan singles plus album promo singles, which are logged on the album's row
+(`promoSingleId`). Without the promo singles, half of all Hot 100 slot-weeks were unattributed. With them, 95% are
+attributed.
+
+**1. Size, paired per seed** (14-genre year-end error, computed per seed and then averaged):
+
+| | 1961 | 1962 | 1963 | 1964 | 1961-64 (SE) | Seeds |
+|---|---:|---:|---:|---:|---:|---|
+| D − control | +3.4 | +6.6 | +1.2 | +4.4 | **+3.9 (1.8)** | +8.2 +6.5 +5.0 +1.0 −1.2 |
+| LR − V1 | −1.8 | +1.4 | +4.2 | +4.2 | **+2.0 (2.6)** | +3.2 −0.5 +10.5 +2.5 −5.8 |
+
+**Correction to §17ad.** §17ad reported the error of the five-seed mean slots (D +2.8 to +10.6, LR above V1 in
+four years). Paired per seed, the cost on defaults is +3.9, about two SE, with four of five seeds up. On V1, LR's
++2.0 is inside noise, with three of five seeds up. Resolving 2 points would take about four times the seeds. So the
+error is a real but modest cost on defaults, and **unresolved for LR, the actual candidate.**
+
+**2. Where it lands** (year-end slots a year, 1961-64; paired change, SE):
+
+| Genre | Bench | Control → D | D − control | V1 → LR | LR − V1 |
+|---|---:|---:|---:|---:|---:|
+| TeenPop | 12.8 | 21.1 → 22.2 | +1.1 (1.2) | 21.0 → 22.1 | **+1.1 (0.4)** |
+| RnB | 19.2 | 19.8 → 22.4 | **+2.7 (0.5)** | 21.6 → 21.5 | −0.1 (1.6) |
+| Soul | 11.2 | 7.7 → 6.5 | −1.1 (0.6) | 5.8 → 4.6 | −1.2 (1.0) |
+| Country | 6.0 | 3.0 → 2.5 | −0.4 (0.3) | 2.7 → 3.2 | +0.5 (0.8) |
+| Folk | 3.5 | 0.6 → 0.1 | **−0.5 (0.1)** | 1.2 → 0.3 | −0.9 (0.6) |
+
+The lane pushes TeenPop further over target (already 1.65× the benchmark), and on defaults RnB past it. It pulls
+Soul and Folk further under. On V1, BritishBeat (+0.8, SE 0.3) and DooWop (+0.5, SE 0.2) improve, which is why
+LR's net is smaller.
+
+**3. Mechanism: the lane is genre-blind, and the payoff of a follow-up is not.**
+
+The lane roughly doubles hot single launches in **every** genre (×1.6-2.7). They are paid for by cold launches,
+which fall 4-8% in nearly every genre. But how much an extra hot launch adds varies about tenfold by genre:
+
+| Hot launches (1961-64) | Extra hot launches a year, D / LR | Extra hot slot-weeks a year, D / LR | Slot-weeks per extra launch, D / LR | Hot entry %, control → D | Big-5 % of hot launches (D) |
+|---|---:|---:|---:|---:|---:|
+| TeenPop | +59 / +67 | +221 / +254 | **3.7 / 3.8** | 50 → 46 | 14 |
+| RnB | +61 / +51 | +186 / +135 | **3.0 / 2.6** | 39 → 37 | 12 |
+| RockAndRoll | +15 / +20 | +40 / +49 | 2.7 / 2.4 | 46 → 40 | 17 |
+| TraditionalPop | +45 / +48 | +54 / +39 | 1.2 / 0.8 | 56 → 37 | 39 |
+| Country | +23 / +32 | +23 / +48 | 1.0 / 1.5 | 42 → 31 | 31 |
+| Soul | +20 / +12 | +7 / −21 | **0.3 / < 0** | 52 → 35 | 7 |
+| EasyListening, Folk, Jazz | +5 to +13 each | −10 to −2 | ≈ 0 | 41-49 → 19-32 | 30-40 |
+
+- **TeenPop's and RnB's follow-ups keep charting.** Their hot entry rate barely moves (50 → 46, 39 → 37), so each
+  extra single adds 3-4 Hot 100 weeks. Soul's, the adult genres' and Country's follow-ups mostly miss: hot entry
+  falls 11-21 points, and the extra launches add almost nothing.
+- **It is not a label effect.** Soul's hot launches are 7% Big-5, about the same as RnB's (12%). TraditionalPop's are
+  39% Big-5, yet still convert badly. The split is by genre.
+- **The cold side funds it.** Cold Hot 100 slot-weeks fall most in TeenPop (−176 / −151), Country (−101 on
+  defaults) and Soul (−71 / −78, SE 41-48). TeenPop more than refills its loss from hot acts. Soul does not.
+- **Fewer Soul acts break through:** Soul hit acts fall 19.7 → 16.9 (D) and 16.7 → 12.5 (LR). The cold Soul
+  launches that produced new Soul hit acts are the rolls the lane takes.
+
+**Reading.** The lane reallocates rolls from cold launches to hit acts' follow-ups, in proportion to where hit acts
+already are. Where a follow-up converts (TeenPop, RnB, RockAndRoll), the genre gains. Where it does not (Soul,
+Country, Folk, EasyListening, Jazz, TraditionalPop), the genre loses the cold launches and gets little back. History's
+Soul share rose through 1963-64 (benchmark 7 → 15 → 14) under the quarterly hit-act cadence that §17x measured
+across all genres. So a Soul follow-up that fails to enter is most likely a defect the lane exposes, not one it
+creates. History's cadence has not been measured by genre, so this is not confirmed.
+
+Two candidate causes, not tested here:
+- **Genre single-market size.** Entry is a launch-week units bar ([[top40-is-a-launch-week-bar]]). A follow-up in a
+  small single pool (Soul, Folk, Jazz) or an album-leaning one (TraditionalPop, EasyListening) cannot clear it.
+- **Same-act cannibalization.** The act's audience splits between its own singles, and that may bind harder in a
+  small genre pool.
+
+**Verdict.**
+
+- Genre error is a modest cost of the lane on defaults: +3.9 points a year, SE 1.8. For LR it is unresolved: +2.0,
+  SE 2.6. It does not disqualify LR, which **stays the best candidate of the arc.**
+- The cost has a clear mechanism. A genre-blind lane meets genre-unequal follow-up entry. Restricting the lane by
+  genre would be targeting, and is not proposed. The defensible fix is on the entry side: why a hot Soul or Country
+  follow-up misses the Hot 100 at twice TeenPop's rate.
+
+**Next.**
+
+- *Analysis:* for hot follow-ups, compare launch-week units and the Hot 100 cutoff by genre (Soul, Country and
+  TraditionalPop against TeenPop and RnB). Then split the miss between genre pool size and same-act
+  cannibalization (an act with two singles live against one). This is the same entry question as §17y's cadence
+  shortfall, now with a genre address.
+- *Analysis (still owed from §17ac):* split LR's fall in Big-5 conversion between the same-act split and dilution,
+  with D as the no-saturation contrast.
+
+Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `genre_error_cadence.py` /
+`genre-error-cadence.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
