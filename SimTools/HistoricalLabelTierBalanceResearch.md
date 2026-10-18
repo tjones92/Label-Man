@@ -4298,6 +4298,108 @@ Two candidate causes, not tested here:
 Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `genre_error_cadence.py` /
 `genre-error-cadence.txt`.
 
+### 17af. Why weak-genre follow-ups miss: the lane turns album promo singles into orphan singles; no same-act cannibalization (2026-10-18, analysis only)
+
+Analysis only, on V1 and LR, five seeds, launches 1961-64. Only these arms carry `single-launch-attribution.csv`, the
+per-launch log that includes chart misses. No simulation was run and no code was changed. *Hot* is as in §17ae.
+*Weak genres* are Soul, Country, TraditionalPop, EasyListening, Folk and Jazz, and *good genres* are TeenPop, RnB and
+RockAndRoll (§17ae's split). Calibration mode leaves out the weekly genre-market and breakout logs, so a miss's
+launch-week units cannot be seen. Lifetime sell-in (`release-outcomes.csv` `pressingBookSold`, about 1.5× units at
+the last chart week) stands in for size.
+
+**1. The genre term is real, but it predates the lane.** A linear probability model of hot-launch entry was fitted on
+the launch inputs (quality, hook, stock, awareness, recognition, campaign impact) and genre. Each genre's entry gap
+to TeenPop splits into what its inputs explain and the genre itself:
+
+| Gap to TeenPop, points | V1: gap = inputs + genre | LR: gap = inputs + genre | LR cold launches: genre |
+|---|---|---|---:|
+| Soul | +3.6 = +14.1 − 10.4 | −14.1 = −3.7 − 10.4 | −8.5 |
+| Country | −2.1 = +6.5 − 8.6 | −11.4 = −4.1 − 7.2 | −6.0 |
+| TraditionalPop | +7.1 = +25.9 − 18.9 | −8.8 = +7.8 − 16.5 | −10.2 |
+| EasyListening | −5.5 = +20.7 − 26.2 | −21.1 = −0.4 − 20.7 | −14.0 |
+| Folk | −2.0 = +20.7 − 22.7 | −19.2 = −2.7 − 16.5 | −10.4 |
+| Jazz | −16.5 = +17.1 − 33.5 | −23.9 = +4.0 − 27.9 | −15.9 |
+
+Quality carries the inputs: +32 to +34 entry points per SD, against +6 to +8 for campaign impact and awareness.
+The genre term is about the same in V1 and LR (Soul −10.4 in both), and cold launches show the same pattern. So it
+is a property of the genre market the lane did not change. Its source is not resolved: smaller single pools, or the
+per-genre radio acceptance in the airplay exponent ([[radio-acceptance-split]]). Settling it needs the weekly genre-market
+log, which calibration mode does not write. Entrants clear the cutoff the same way in every genre (median 1.19-1.31×
+the cutoff, 2.7-4.2k units in the entry week).
+
+**What the lane changed is the inputs.** In V1, weak-genre hot launches carried better material than TeenPop's
+(Soul quality 0.70 and hook 0.77, against TeenPop's 0.65 / 0.67), and that offset the genre term. In LR the edge is
+gone (Soul 0.64 / 0.61, TeenPop 0.64 / 0.61). For Soul, the whole V1 → LR swing (−17.7 points) is in the inputs.
+
+**2. Where the material went: the album override.** When a lane pick's label would have started an album project,
+the lane makes it an orphan single (`HitActCadence.ShouldForceSingle`, `CompetitorManager.cs:1967`). That happened on
+**48%** of lane picks: 1,321-1,559 of 2,771-3,079 per seed through 1963 (`HIT_ACT_CADENCE` console lines). An album's
+promo single is its best track. An orphan single is whatever the act has.
+
+| Hot launches, 1961-64 | V1 album promo | V1 orphan | LR album promo | LR orphan |
+|---|---|---|---|---|
+| Weak genres: n, quality / hook, entry | 1,479, 0.717 / 0.809, **59.8%** | 818, 0.639 / 0.594, 27.5% | 193, 0.699 / 0.794, 44.6% | 4,479, 0.638 / 0.594, **29.9%** |
+| Good genres | 829, 0.661 / 0.781, 51.6% | 1,796, 0.638 / 0.591, 41.4% | 147, 0.642 / 0.745, 35.4% | 5,248, 0.633 / 0.581, 40.1% |
+
+- In V1, **64% of weak-genre follow-ups were album promo singles**, against 32% in good genres. That matches the
+  album-leaning genres. Their follow-up entered on the album's best track.
+- The orphan path converts the same in both arms (weak 27.5 → 29.9%, good 41.4 → 40.1%). Only the mix changed.
+- **The mix shift accounts for the whole drop.** At V1's entry rate for each path, LR's mix (4% promo) gives weak
+  genres 28.8%, and LR observes 30.5% (V1 48.3%). For good genres the same shift costs about 3 points (44.6 → 41.7).
+  That is §17ae's genre asymmetry.
+- Hot-launch material by weeks since the previous single says the same. In LR, weak-genre follow-ups at the lane's
+  13-16 weeks have quality 0.640 and hook 0.596. Those within 12 weeks, which the lane does not schedule, have 0.674 / 0.718.
+
+**3. Same-act cannibalization: none worth the name.**
+
+- *The lane's coded split* divides only the new single's launch radio seed (label push and recognition airplay) by
+  1 + the act's singles on the Hot 100. It cuts each predecessor's radio heat by 10%. Stock and awareness are whole.
+- *The new single:* hot launches with an act single already charting enter **more** often than those without (LR 39.5
+  against 33.3%, V1 45.6 against 45.2%). Strong acts are the ones still charting. The visible cost is height: in V1
+  such launches peaked at 27 against 40, and in LR both peak at 45. That is the split working as designed (§17y:
+  more, smaller records).
+- *The predecessor*, matched on chart position and weeks on chart against records with no act or label launch that
+  week:
+
+  | LR, act launched an orphan single that week | Good genres | Weak genres |
+  |---|---:|---:|
+  | Off the chart within 4 weeks, vs matched | −1.0 pts | +0.9 pts |
+  | Next-week places, vs matched | +0.6 | +2.7 |
+  | Next-week units, vs matched | +1.4% | +0.6% |
+
+  The weak-genre +2.7 places is the 10% radio cut. Survival and units do not move. A launch by another act on the
+  same label does nothing either (−0.5 places, +4% units).
+- *V1 is confounded and was not used.* In V1 a sibling launch comes with a +44% units jump for the charting single
+  even with no album nearby. Radio heat is flat (−0.005), so this is not airplay. Without the lane, a label tends to
+  release for an act whose single is surging, so the surge comes before the release. The lane's fixed 13-week clock
+  removes that selection, and LR shows +1.2%. An album by the act within two weeks comes with +61-66% in both arms.
+  That is timing, or album synergy.
+- *No demand-level link exists:* the market has no per-act audience, so an act's two singles compete only like any
+  two records in the genre.
+
+**Corrections to §17ae.** Neither of §17ae's two candidate causes is the cause. Genre pool size, or any genre
+term, is present at the same size without the lane. Same-act cannibalization is absent. The lane's genre error comes
+from **its album override**. It removes the album-promo follow-up that the album-leaning genres relied on, and
+replaces it with an orphan single of average material.
+
+**Proposal (not built): let the lane keep the album.** When a lane pick's label chooses an album, the album goes
+ahead and its promo single is the follow-up. Only a single-or-nothing pick is forced. A probe switch is needed,
+since the override is part of `--hit-act-cadence`.
+
+- *Prediction:* weak-genre hot entry back toward V1's level (30 → 45-50%), most of LR's genre-error cost gone, and
+  §17ae's Soul and Folk losses reversed.
+- *Risks:*
+  - Album projects take weeks to deliver, so follow-ups arrive later, and the cadence gain (§17ac: 1.81 / 0.94 Hot 100
+    debuts per hit act) may shrink.
+  - Promo singles carry album synergy, so the Big-5 conversion ratio (1.19) and Top 10 heights need re-reading.
+- *Screen:* one arm against LR, five seeds × 260 weeks. Read first: weak-genre hot entry, the genre error per seed
+  (paired), Hot 100 debuts per hit act, then §17ac's Big-5 share and ratio. Kill: Hot 100 debuts per hit act below
+  1.4 / 0.85, or the Big-5 share above LR by more than its paired SE in two years.
+
+Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `followup_entry_genre.py` /
+`followup-entry-genre.txt`, and `sibling_units_check.py` / `sibling-units-check.txt`. Lane counts are in
+`SimLogs/hitcad-lr-screen-v1/*-console.log`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
