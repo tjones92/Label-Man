@@ -476,6 +476,9 @@ public partial class RosterManager : Node {
 		// "Hot now" cools on the calendar too (§17p probe); a no-op unless --artist-momentum-half-life is named.
 		if (ArtistMomentumHalfLife.Enabled)
 			ArtistMomentumHalfLife.DecayRegistryForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
+		// A senior act a year past its last Top 40 steps down the ladder (§17u probe); a no-op unless --senior-cooling is named.
+		if (SeniorCooling.LadderEnabled)
+			SeniorCooling.CoolLadderForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;

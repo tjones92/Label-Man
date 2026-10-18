@@ -3714,7 +3714,7 @@ public partial class CompetitorManager : Node {
 		// applied downstream is untouched.
 		SimulatedArtist albumArtist = ArtistManager.Instance?.GetArtist(record.artistId);
 		float careerStockScale = ArtistRecognition.Enabled && albumArtist != null
-			? 1f + ArtistRecognitionService.EffectiveRecognition(albumArtist) * ArtistRecognitionService.MaxStockBonus
+			? 1f + ArtistRecognitionService.LaunchRecognition(albumArtist) * ArtistRecognitionService.MaxStockBonus
 			: snapshot.careerState switch {
 				CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 				CareerState.Rising => 1.2f, _ => 1.0f
@@ -3822,7 +3822,7 @@ public partial class CompetitorManager : Node {
 		// Airplay sits inside a high exponent ([[airplay-convexity-amplifies-label-push]]), so this
 		// is the smallest of the three ceilings on purpose. Off: byte-identical.
 		float recognitionRadio = ArtistRecognition.Enabled
-			? ArtistRecognitionService.EffectiveRecognition(artist) * ArtistRecognitionService.MaxRadioLift : 0f;
+			? ArtistRecognitionService.LaunchRecognition(artist) * ArtistRecognitionService.MaxRadioLift : 0f;
 		runtimeData.radioHeat = isAlbum ? 0f : Mathf.Clamp(baseRadio + pushRadio + payolaRadio + recognitionRadio, 0f, 1f);
 		
 		var regions = ChartManager.Instance.GetAllRegions();
@@ -3830,7 +3830,7 @@ public partial class CompetitorManager : Node {
 		// by a continuous recognition multiplier capped at ~1.3x that any act climbs to over time,
 		// not a cliff five acts stand on (directive §0/§3). Off: byte-identical careerState switch.
 		float stockScale = ArtistRecognition.Enabled
-			? 1f + ArtistRecognitionService.EffectiveRecognition(artist) * ArtistRecognitionService.MaxStockBonus
+			? 1f + ArtistRecognitionService.LaunchRecognition(artist) * ArtistRecognitionService.MaxStockBonus
 			: artist.careerState switch {
 				CareerState.Superstar => 2.5f, CareerState.Star => 2.0f, CareerState.Established => 1.5f,
 				CareerState.Rising => 1.2f, _ => 1.0f

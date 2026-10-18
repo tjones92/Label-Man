@@ -3147,6 +3147,288 @@ Evidence: `SimLogs/momhl052-launchsat050-headtpl2-confirm-v1/`, `SimLogs/top10-d
 `genre_check_260.py` (benchmark through 1964, BritishBeat and BritishPop added), `genre-check-confirm.txt`,
 `senior_origin.py` and `senior-origin-1963-64.txt`.
 
+### 17u. What keeps senior acts at the head in 1963-64, and a senior cooling clock (2026-10-17, analysis only, proposal not built)
+
+This is analysis only, on the §17t confirmation (V1, five seeds × 260 weeks, which carries the single-launch log) and
+its five-seed default controls. It adds a label-blind historical comparison, using the `billboard.com` weekly Top 10
+files from §13 for 1960-64. No simulation was run and no code was changed.
+
+**History measures turnover by act, so the sim is measured the same way.** Take each act with a Top 10 record before
+year Y (the window starts in 1960, so both sides are left-censored the same way). Does it debut another Top 10
+record in Y? Split by how many Top 10 records it already has (n) and by the years since its last one (k). The table
+pools 1962-64. Sim figures are acts per seed:
+
+| Act's cell at the start of Y | History acts | History P(return) | Control | V1 |
+|---|---:|---:|---:|---:|
+| n = 1, k = 1 | 156 | 13.5% | 11.1% | 10.9% |
+| n = 1, k = 2 | 127 | 3.9% | 5.1% | 5.0% |
+| n = 1, k ≥ 3 | 120 | 2.5% | 2.9% | 2.2% |
+| **n ≥ 2, k = 1 (a hot repeater)** | 96 | **38.5%** | **37.5%** | **38.7%** |
+| **n ≥ 2, k = 2 (one fallow year)** | 43 | **9.3%** | **22.9%** | **15.4%** |
+| **n ≥ 2, k ≥ 3** | 31 | **0.0%** | **7.1%** | **4.6%** |
+
+The rows hold without 1964, before the British Invasion: in 1962-63 history gives 46.8% / 12.0% / 0 of 9.
+
+- **A hot senior act returns at history's rate.** Neither the control nor V1 over-rewards an act that had a Top 10
+  last year. This rules out a decay keyed on career age. It would cut the one cell that is already right, and
+  history has about twice the sim's count of third-or-later Top 10 records (120 against 61-67 in 1961-64).
+- **The excess is the cold return.** Once a multi-hit act misses a year, history's return rate drops by a factor of
+  4, and after two missed years nobody returns. In the sim it drops by a factor of 1.6 (control) or 2.5 (V1; the
+  momentum half-life already helped), and acts still come back after two years. One-hit acts are on history at every
+  k.
+- **The repo's own files show the pattern** (Top 10 records per year, 1960-64). Connie Francis 5/4/4/0/0, the Everly
+  Brothers 4/2/2/0/0, Neil Sedaka 1/2/3/0/0, Paul Anka 3/1/0/0/0, Brenda Lee 4/4/3/1/0, Chubby Checker 1/4/4/1/0,
+  Elvis Presley 3/6/4/3/0. Streaks end abruptly and do not resume inside the window. This is the author's own rule
+  in `OpeningCareerService`: "A former star keeps the name and loses the heat."
+
+**Top 10 slots a year, 1962-64, by the act's cell** (sim: five-seed mean; Big-5 + template share in brackets):
+
+| Cell | History | Control | V1 |
+|---|---:|---:|---:|
+| New (no earlier Top 10) | 344.7 | 326.3 (20%) | 326.4 (29%) |
+| n = 1, k = 1 | 59.7 | 57.3 (39%) | 63.7 (44%) |
+| n ≥ 2, k = 1 | 98.7 | 86.1 (50%) | 89.8 (70%) |
+| **Cold: any n, k ≥ 2** | **17.0** | **50.2 (61-65%)** | **40.1 (63-100%)** |
+
+Cold returns hold 3.3% of history's Top 10, against 9.7% in the control and 7.7% in V1. That is an excess of about
+23 slots a year in V1, and 63-70% of it sits at the Big-5 and the templates, against their 38-46% share of all
+slots. The rule that would fix it is label-blind, and its incidence lands at the head.
+
+**Which rule carries a cold senior.** These are V1 1963-64 single launches by acts at Established or above with no
+in-run Top 10 entry in the last 52 weeks: 128 a seed-year, 9.4% reach the Top 10, and they hold 71 slots, 64% of
+them at Big-5 or template labels. The counterfactuals come from a logit of Top 10 on the launch (awareness, quality,
+log stock, campaign impact, recognition radio lift, holder group, genre, year, seed; 1961-64; pseudo R² 0.69). The
+fit stopped short of full convergence on sparse genre cells, so the predictions are used only as relative
+counterfactuals:
+
+| Cold senior launches, one input changed | P(Top 10) |
+|---|---:|
+| As predicted | 9.2% |
+| `GetMarketingBudget` multiplier one rung down (Established 1.5 → Declining 0.5, Star → 1.5, Superstar → 2.0) | 8.8% |
+| Recognition → 0 (awareness lift, stock bonus, radio lift) | 7.4% |
+| Reputation → NewSigning mean | 8.6% |
+| Momentum → 0 | 8.8% |
+| All four together | **6.3%** |
+| Quality → NewSigning mean (0.662 → 0.604) | 0.3% |
+| Observed: Rising / NewSigning launches | 5.2% / 0.8% |
+
+For every 1963-64 run-grown senior launch the ranking is the same: careerState budget multiplier at 1.0 −0.3
+points, recognition −2.2, reputation −0.4, momentum −0.7, all four 11.8 → 8.4%. For 1960-seeded seniors, recognition
+is −4.7 of 21.2.
+
+1. **`GetMarketingBudget` is the smallest carrier.** Its careerState part adds 0.023 to a run-grown senior's launch
+   awareness, and neutralizing it moves P(Top 10) by 0.3 points. §17n's "counts seniority twice" is real but small.
+   It stays an economics cleanup, not the lever.
+2. **Recognition is the largest measured input.** The stock has a 277-week half-life, and the launch consumes it
+   through awareness (up to 0.115), stock (up to 1.3x) and radio (up to 0.075) with no reference to how recently the
+   act had a hit.
+3. **The ladder carries status, not conversion.** With recognition on, careerState no longer feeds launch awareness
+   or stock directly. Its reads are the budget multiplier, release priority, the release cooldown, drop protection
+   and re-signing. It is sticky. Of 281 acts that were senior at their first 1963 launch and launched in 1964, 264
+   (94%) were still senior at their last 1964 launch. The fall-back counts only flops peaking below 60: a 41-60
+   peak is neutral and one Top 40 resets the count. 41 senior launches a seed-year (22%) follow three or more
+   straight Top 40 misses. They convert at 6.1% and hold 16 slots. Release volume is a weak channel: launches per
+   launching act-year are 1.83 for run-grown seniors, 1.73 for Rising acts and 1.45 for new signings.
+4. **Most of a cold senior's edge is the song.** Cold seniors launch at Rising quality (0.662), well above new
+   signings (0.604). The fame inputs together are about a third of their conversion (9.2 → 6.3%). History's cold
+   stars did not lose talent. Their audience and their sound dated, and the sim has no channel for that. The
+   proposal below does not try to supply one. It removes the fame premium that outlives the heat, which is the part
+   the author's rule says should go.
+
+**Correction to §17t's reading.** The templates' 1963 slots, split by time since the act's previous Top 10, are:
+new 48.0, ≤ 52 weeks 30.4, 53-104 weeks 10.8, > 104 weeks 0.2. Their senior slots are hot repeaters, and hot
+repeaters return at history's rate. Template persistence is head-scale access producing new hit acts and hot
+streaks, not stale seniority. A senior decay reaches about 11 of their 89 slots. Their 1964 fade in history was
+external, as §17t noted. The Big-5's 1963 cold slots are 33.2 of 150 (control 41.6). Those a cooling clock would
+reach.
+
+**A second shape mismatch, recorded but not acted on: repeat hits run longer in the sim and shorter in history.**
+Top 10 weeks per record, 1961-64:
+
+| | 1st Top 10 record | 2nd | 3rd+ |
+|---|---:|---:|---:|
+| History | 5.10 | 4.26 | 4.41 |
+| Control | 5.46 | 5.73 | 6.12 |
+| V1 | 5.44 | 5.85 | 6.63 |
+
+The inversion holds in every holder group, field included. In an OLS of Top 10 weeks on V1 launches, the 3rd+
+premium is +1.16 weeks raw and +0.52 (SE 0.24) after launch inputs. The fame block (awareness, recognition,
+momentum, carried single heat) accounts for about +0.9 weeks and the label's campaign impact for +0.5, against
+quality's −0.5. History's stars had more hits, and shorter ones. In 1960-62 Connie Francis put 4-5 records a year
+into the Top 10, against the sim's 1.8 single launches per senior act-year. That is a release-cadence question for
+hot acts, and the cooling below does not touch it.
+
+**Proposal: a senior cooling clock** (an off-by-default switch, `--senior-cooling`; label-blind; applies to every
+act, player-signed ones included).
+
+- *Clock.* `weeksSinceLastTop40`, reset when any record by the act enters the Top 40, the ladder's own hit
+  definition (`RegisterTop40Hit` already resets flops). Top 40 rather than Top 10 keeps an act that is still
+  charting a steady #15-#30 hot. On V1 that clock marks 86 cold senior launches a seed-year (47% of senior
+  launches, 48.5 slots, 69% at the Big-5 or templates). The Top 10 clock would mark 128 (69%). Opening careers seed
+  the clock from their keyed pre-1960 history. Other 1960 seniors start at 0, so they begin cooling only after a
+  hitless 1960.
+- *Launch reads cool, the stock does not.* Multiply reputation × 0.3 and the three recognition launch reads
+  (awareness lift, stock bonus, radio lift; singles and the album stock path) by
+  `cool(k) = 1` for k ≤ G, and `F + (1 − F) · 0.5^((k − G)/H)` after it, with **G = 52, H = 26, F = 0.35**. The
+  grace G protects the hot-repeater cell that already matches history. The floor F is "keeps the name". The
+  recognition stock, cultural standing and every UI read are untouched. Momentum is excluded because V1's half-life
+  already decays it, and cooling it too would count it twice.
+- *The ladder cools in step.* A weekly, idempotent pass next to `ArtistMomentumHalfLife`: a senior act whose clock
+  passes G steps down one rung, and steps again every further H weeks (Superstar → Star → Established → Declining).
+  The existing comeback is unchanged (Declining → Established on one Top 40). A hit resets the clock. It does not
+  restore rungs, which are re-earned under the usual rules. So the budget multiplier, release priority, drop review
+  and contract leverage all read a status that matches the act's heat. The pass draws no RNG.
+- *Inertness.* With the switch off, all 80 CSVs must be byte-identical. A check suite covers the clock reset, the
+  cool(k) values at G, G + H and the floor, one rung per H, the comeback path, and stock and UI reads unchanged.
+
+*Size: rough only.* The fame block's full removal cuts cold conversion by about 31%. At this cool(k), the cold
+launches keep roughly half of it, so conversion drops by about 14%, or about 7 slots. Ladder cooling then halves
+an Established act's release priority (0.7 → 0.25 base), and the label's freed launches go mostly to juniors who
+convert at 0.8-5%. That could take another 10-15 slots. **Expected effect: 15-25 Top 10 slots a seed-year leave
+cold seniors**, against the roughly 23-slot excess the history comparison measures. About half the Big-5's share of
+cold slots is reachable, so **the expected Big-5 effect is −1.5 to −2.5 points in 1963-64**. On its own, the clock
+will probably not clear §17n's ≥ 3-point Big-5 guard. Its job is to put the cold-return cells on history. It is not
+a Big-5 lever.
+
+**Screen (five seeds × 260 weeks; the effect starts in 1961 and matters in 1963-64):**
+
+| Arm | Switches | Question |
+|---|---|---|
+| A | V1 + `--senior-cooling` with the ladder pass disabled | The launch-read half alone |
+| B | V1 + `--senior-cooling` | Both halves: do the cold-return cells reach history? |
+| D | defaults + `--senior-cooling` | Paired against the default controls, because a realism fix must stand on defaults too |
+
+**Guards** (on top of §17n's table, which applies to arms B and D in full):
+
+| Guard | Pass | Kill |
+|---|---|---|
+| n ≥ 2, k = 1 return rate (hot repeaters) | within 4 points of the control (history 38.5%) | down more than 5 points |
+| n ≥ 2, k = 2 return rate | ≤ 12% (history 9.3%, 12.0% before 1964) | unchanged from V1 (15.4%) |
+| n ≥ 2, k ≥ 3 return rate | ≤ 2% | above V1 |
+| Cold-return slots a year | toward history's 17 from V1's 40 | unchanged |
+| n = 1 return rates | within noise (already on history) | any cell off by more than 3 points |
+| Top 10 weeks per record by nth hit | reported | — |
+| Drops, performance departures, re-signings | within +20% (Declining with two flops is dropped half the time) | up more than 20% |
+| TraditionalPop Top 10 share | within seed noise (its slots are senior-heavy) | outside it |
+| Recognition-concentration screen | within noise | top 10% act slot share up more than 3 points |
+
+**Not in scope:** an appeal decay on the song (the 2/3 of a cold senior's edge that is quality; it would also reach
+one-hit acts, which already match history), the hot-act release cadence above, the retained album heat (§17h, user
+constraint), and the `GetMarketingBudget` economics pass.
+
+Evidence, all in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `senior_hazard.py` / `senior-hazard.txt`
+(return rates and cell slots, with history), `senior_gap_slots.py` / `senior-gap-slots.txt` (slots by gap and by
+holder group), `senior_turnover.py` / `senior-turnover.txt` (act-level repeat rates and concentration),
+`senior_retention.py` / `senior-retention.txt` (launch classes, awareness decomposition, ladder stickiness,
+logit counterfactuals), `senior_clock40.py` / `senior-clock40.txt` (Top 40 against Top 10 clock), and
+`senior_duration.py` / `senior-duration.txt` (weeks per record by nth hit).
+
+### 17v. Screen result: the senior cooling clock (arms A, B, D; rejected, 2026-10-18)
+
+**Build.** `Systems/SeniorCooling.cs` adds `--senior-cooling` (both halves) and `--senior-cooling-launch-only` (arm
+A), as §17u specified: G = 52, H = 26, F = 0.35. The clock is `SimulatedArtist.seniorCoolingLastTop40Week`, written
+in `RegisterTop40Hit` only while the switch is on. Opening careers seed it from their last pre-1960 Top 40, placed
+mid-year; every other act starts it at the first read. The launch-side cooling sits in
+`ArtistRecognitionService.LaunchRecognition`, which is read by single and album stock, single radio and the
+recognition launch audit, and in the reputation and recognition terms of `GetNewReleaseAwarenessBonus`. The ladder
+pass runs in `RosterManager.OnWeekEndedCore` after the momentum half-life. `--senior-cooling-check` passes: off is
+bit-for-bit, the cool(k) values at G, G + H and the floor, the clock seed and reset, ladder steps at G + 1 and
+then every H, the comeback path, a fresh grace year after a hit, and no ladder pass in launch-only mode. The build
+has 0 warnings and 0 errors. A 52-week seed-5005 run with the switch off (`senior-cooling-off-identity`) is
+**byte-identical** to `headtpl-v2-off-identity` in all 80 CSVs. A mid-run smoke check (seed 1001, 1961-62) confirmed
+that the reads cool: cold senior launches read recognition 0.207 → 0.159 and awareness 0.442 → 0.399, while hot
+seniors and juniors were unchanged.
+
+**Runs.** Five seeds × 260 weeks per arm: A = V1 + launch-only, B = V1 + both halves, D = defaults + both halves.
+All 15 runs passed with empty error logs. The yearly watch (`yearly_watch_cooling.py`, A and B against V1, D
+against the control) never stopped a run. It reported A WITHIN every year, B MARGINAL in 1962 (CR8 37.8, below
+band) and D MARGINAL in 1961-64.
+
+**The mechanism guards fail in every arm** (1962-64 pooled; the §17u table):
+
+| | History | Control | V1 | A | B | D |
+|---|---:|---:|---:|---:|---:|---:|
+| n ≥ 2, k = 1 return rate (hot) | 38.5 | 37.5 | 38.7 | 38.1 | 35.4 | 38.7 |
+| n ≥ 2, k = 2 return rate (pass ≤ 12) | 9.3 | 22.9 | 15.4 | 14.4 | **12.0** | 18.4 |
+| n ≥ 2, k ≥ 3 return rate (kill if above the base) | 0.0 | 7.1 | 4.6 | **11.4** | **5.8** | **13.0** |
+| Cold-return slots a year (toward 17) | 17.0 | 50.3 | 40.1 | 44.5 | 39.1 | 48.5 |
+| Hot-repeater slots (n ≥ 2, k = 1) | 98.7 | 86.1 | 89.8 | 84.6 | **72.6** | 95.4 |
+
+Cold-return slots do not move in any arm. Arm B reaches the k = 2 pass line, but at the cost of 17 hot-repeater slots
+a year, the one cell that already matched history. The k ≥ 3 cell is small (about 20 acts per seed) and noisy, but
+it points the wrong way in all three arms. Per the pre-registered table, that is a kill.
+
+**Why cold returns did not fall.** Split each cold-return Top 10 record by the act's clock at launch (slots a year):
+
+| Clock at launch | V1 | A | B | D |
+|---|---:|---:|---:|---:|
+| Warm: a Top 40 within 52 weeks, so never cooled | 18.6 | 22.9 | 22.3 | 23.6 |
+| 53-104 weeks | 14.3 | 14.1 | 12.2 | 15.9 |
+| > 104 weeks | 7.1 | 7.5 | 4.7 | 9.0 |
+
+- **About half of the cold returns are out of the clock's reach.** These acts had no Top 10 for two years but kept
+  charting #11-#40, so the Top 40 reset kept them hot. §17u sized the cold set on a Top 10 clock and specified a
+  Top 40 reset. The two describe different populations.
+- **Where the clock did run, the reduction is 0-4 slots,** within noise. §17u estimated −7 from the launch half
+  and −10 to −15 from the ladder half. The ladder half mostly relabels: Declining cold-return slots rise 2.2 → 8.1
+  (B) and 10.9 (D).
+
+**Head concentration (paired; mean with SE, per seed):**
+
+| | 1962 | 1963 | 1964 |
+|---|---|---|---|
+| A − V1, Big-5 share | +1.7 (2.0) | **−5.8 (3.3)**; +0.2 +1.7 −3.5 −12.7 −14.6 | −3.9 (2.1) |
+| A − V1, CR8 | −2.8 (3.1) | **−6.9 (2.4)**, all five down | −3.1 (3.5) |
+| B − V1, Big-5 share | −2.5 (3.2) | −2.4 (1.7) | −0.8 (2.8) |
+| B − V1, field share | +5.0 (5.2) | **+3.9 (1.1)**, all five up | +2.1 (3.6) |
+| B − V1, labels with a Top 10 hit | +4.0 (2.8) | **+5.8 (1.2)**, all five up | +3.6 (3.4) |
+| D − control, Big-5 share | +2.5 (4.0) | +2.4 (2.9) | **+4.7 (2.0)**; +5.2 +9.2 +3.3 −2.1 +7.9 |
+| D − control, field share | −2.7 (4.0) | −1.9 (2.3) | **−4.7 (1.9)** |
+
+- **A's 1963 cut is two seeds.** 4004 and 5005 carry it. Those are the two seeds that rebounded in V1 (§17t).
+  B, which differs from A only by adding the ladder half, lands the same years at −2.4 and −0.8. Two
+  configurations this close should not differ by this much, so at five seeds the Big-5 mean is dominated by the
+  stream, not the lever.
+- **B's one robust gain is the field:** 1963 field +3.9 and labels with a hit +5.8, every seed. It came with lower
+  hot-repeater slots, not lower cold returns, and it does not meet §17n's ≥ 3-point Big-5 guard.
+- **On defaults the cooling helps the Big-5.** D's Big-5 senior slots rise +9.0 and +18.4 in 1963-64, while
+  other labels' seniors fall in every year from 1961 (−8 to −19). The 1964 Big-5 share is +4.7, four of five seeds.
+  A label-blind cut to an artist's own fame is **not label-neutral**. Fame is the part of launch awareness that a
+  small label's act carries itself. Label push, the other large input, is untouched. So the cut takes more from
+  field seniors in relative terms, and the fixed 520 slots go to push. In V1 the launch saturation trims push and
+  the templates compete for the freed slots, which is why A and B do not show this.
+
+**Other guards** (A and B against V1, D against the control). Drops and performance departures are within +5%
+(the guard is +20%). #1 tenure, closed chart life, chart units, the top-10%-acts share and genre conversions are
+within noise. D's top-10% share is +1.2 in 1964 (SE 0.2, all five seeds), inside the 3-point line. Soul is
+−1.2 to −2.7 in D in 1960-62 (SE 0.5-0.7), a further step from a benchmark it already misses. **Year-end genre
+error worsens in 1964** in every arm: A 42.4, B 43.8, D 44.2, against control 37.6 and V1 37.8. Weeks per record
+by nth hit barely move (3rd+ 6.46-6.51, against 6.63 in V1); §17u expected no change there.
+
+**Verdict: rejected.** The clock does not reach the cell it was built for. It fails the k ≥ 3 kill in every arm and
+leaves cold-return slots unchanged. Its ladder half costs hot repeaters. Its head effects are seed-driven in A,
+small in B and harmful on defaults. Defaults are unchanged and the switch stays off. Nothing is adopted. V1
+remains the best 1960-62 configuration and is still not confirmed for 1963-64.
+
+**What this changes for the next pass.**
+
+1. **The cold-return excess cannot be reached through fame reads.** In §17u the fame block was a third of a cold
+   senior's edge, and quality was two-thirds. Cutting the third, even before the Top 40 reset leaked half the
+   cells, could not reach a 23-slot excess. The remaining routes are on the song side, which §17u ruled out of
+   scope, or on why a cold act gets a release at all.
+2. **Any artist-side, label-blind cut must be paired with a push-side check on defaults.** D shows that the slot pool
+   re-weights toward label push. This generalizes [[one-conversion-reshuffles-the-rng-stream]]: a five-seed
+   Big-5 mean moves ±5 points from stream effects alone (A against B in 1963).
+3. **The clock definition matters as much as the decay.** If a cooling probe is ever re-run, the clock and the
+   measured cells must use the same hit definition (Top 10 throughout), and the guard on hot repeaters must be on
+   slots as well as return rate.
+
+Evidence: `SimLogs/senior-cooling-off-identity/`, `SimLogs/seniorcool-{a,b,d}-v1/`, and in
+`SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `identity_compare.py` / `identity-senior-cooling-off.txt`,
+`cooling_smoke.py`, `yearly_watch_cooling.py` / `yearly-watch-cooling.log`, `cooling_review.py` /
+`cooling-review.txt` (and the earlier `cooling-review-a.txt`, `cooling-review-ab.txt`), `cold_slot_split.py` /
+`cold-slot-split.txt`, `senior_origin_ab.py` / `senior-origin-ab.txt`, and `genre-check-cooling.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.

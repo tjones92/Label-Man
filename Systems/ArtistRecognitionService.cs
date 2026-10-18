@@ -63,6 +63,13 @@ public static class ArtistRecognitionService {
 		artist == null ? 0f : Mathf.Clamp(artist.publicRecognition + artist.culturalStanding * StandingLaunchWeight
 			+ BestMakerReputation(artist) * MakerStandingWeight, 0f, 1f);
 
+	/// <summary>
+	/// What a launch consumes: <see cref="EffectiveRecognition"/>, cooled by --senior-cooling once the act has gone a
+	/// year without a Top 40 (§17u). The stock itself is not touched. Exactly EffectiveRecognition when off.
+	/// </summary>
+	public static float LaunchRecognition(SimulatedArtist artist) =>
+		SeniorCooling.Enabled ? EffectiveRecognition(artist) * SeniorCooling.LaunchFactor(artist) : EffectiveRecognition(artist);
+
 	// ---- gains, with diminishing returns on every deposit --------------------------------------
 	// The anti-monopoly core: a #1 does not mint a permanent franchise. Each gain buys less the
 	// higher the stock already is, so recognition saturates rather than compounds.
@@ -171,7 +178,7 @@ public static class ArtistRecognitionService {
 	/// </summary>
 	public static ArtistRecognitionLaunchProfile GetLaunchProfile(SimulatedArtist artist, RecordRuntimeData runtime) {
 		if (artist == null) return default;
-		float effective = EffectiveRecognition(artist);
+		float effective = LaunchRecognition(artist);
 		return new ArtistRecognitionLaunchProfile(
 			artist.publicRecognition, artist.culturalStanding, effective,
 			effective * MaxAwarenessLift,

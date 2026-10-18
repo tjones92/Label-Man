@@ -92,6 +92,11 @@ public class SimulatedArtist {
 
 	public float momentum;
 	public float reputation;
+	// --senior-cooling probe (§17u): chart week of the act's last Top 40 entry, and of its last cooling step.
+	// Written only while the switch is on; SeniorCooling.Unset otherwise.
+	public int seniorCoolingLastTop40Week = SeniorCooling.Unset;
+	public int seniorCoolingLastStepWeek = SeniorCooling.Unset;
+	public int seniorCoolingSteps;
 	public float criticalAcclaim;
 
 	// Celebrity-recognition stock (SimTools/CelebrityRecognitionDirective.md). Both [0,1],
@@ -269,6 +274,7 @@ public class SimulatedArtist {
 		consecutiveFlops = 0;
 		momentum = Mathf.Clamp(momentum + 0.02f, 0f, 1f);
 		reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
+		SeniorCooling.OnTop40(this);
 		if (ArtistPopulationLifecycle.Enabled && IsContractEvaluationPending() && creditCurrentContract) {
 			contractTop40Hits++;
 			contractConsecutiveFlops = 0;
@@ -407,9 +413,12 @@ public class SimulatedArtist {
 		// momentum ("hot now") and reputation ("quality track record") are orthogonal to durable
 		// recognition and stay in both regimes. Phase B swaps the discrete careerState awareness
 		// arm for the continuous recognition stock -- a REPLACEMENT, not a stack (directive §0/§3).
-		float baseTerm = (momentum * 0.5f) + (reputation * 0.3f);
+		// --senior-cooling (§17u) cools the durable fame reads, reputation and recognition, once the act has gone a
+		// year without a Top 40. The identity when off.
+		float cool = SeniorCooling.LaunchFactor(this);
+		float baseTerm = (momentum * 0.5f) + (SeniorCooling.Enabled ? reputation * cool : reputation) * 0.3f;
 		if (ArtistRecognition.Enabled)
-			return baseTerm + ArtistRecognitionService.EffectiveRecognition(this) * ArtistRecognitionService.MaxAwarenessLift;
+			return baseTerm + ArtistRecognitionService.LaunchRecognition(this) * ArtistRecognitionService.MaxAwarenessLift;
 		return baseTerm + (careerState switch {
 			CareerState.Superstar => 0.25f, CareerState.Star => 0.15f, CareerState.Established => 0.08f,
 			CareerState.Rising => 0.04f, _ => 0f
