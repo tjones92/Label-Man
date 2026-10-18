@@ -3429,6 +3429,100 @@ Evidence: `SimLogs/senior-cooling-off-identity/`, `SimLogs/seniorcool-{a,b,d}-v1
 `cooling-review.txt` (and the earlier `cooling-review-a.txt`, `cooling-review-ab.txt`), `cold_slot_split.py` /
 `cold-slot-split.txt`, `senior_origin_ab.py` / `senior-origin-ab.txt`, and `genre-check-cooling.txt`.
 
+### 17w. Why cold hits keep returning: height, not frequency, and hit acts that release too little (2026-10-18, analysis only)
+
+Analysis only, on the V1 confirmation and the five-seed default controls. No simulation was run and no code was
+changed. **New data:** the billboard.com pages that `research_top10_fetch.py` cached for §13 hold the whole Hot 100,
+although the fetch kept only rows 1-10. `hist_hot100_extract.py` recovers all 260 weekly charts for 1960-64, 100
+positions each, to `SimLogs/historical-hot100-1960-64/hot100_weekly.csv`. Positions 11-100 are now available for
+history.
+
+**1. The cold-return excess is mostly height, not return frequency.** Decomposing 1962-64 cold-return slots (the
+act's last Top 10 debut two or more calendar years back) into pool × return rate × records per returner × slots
+per record:
+
+| Per year | Pool (acts) | P(return) | Cold-return records | Slots per record | Slots |
+|---|---:|---:|---:|---:|---:|
+| History | 107.0 | 3.7% | 4.7 | **3.64** | 17.0 |
+| Control | 128.1 | 5.9% | 8.9 | 5.59 | 50.3 |
+| V1 | 130.3 | 4.6% | 7.3 | **5.46** | 40.1 |
+
+At history's slots per record, V1 would hold 26.7 cold slots. So about **13 of the 23-slot excess is how long each
+cold return stays**. The other 10 come from 1.5x too many cold-return records, split about evenly between a larger
+one-hit pool (113 acts against 82, at history's n = 1 rate) and the doubled n ≥ 2 return rate that §17u targeted.
+At best, the cooling clock addressed about a fifth of the excess.
+
+**Stay length is set by peak, and cold returns peak too high.** Per peak band, Top 10 weeks match history in every
+cell (a #1 runs about 8 weeks, #4-6 about 4.4-5.3, #7-10 about 2-3), as §17a found for all records. History's cold
+returns are weak hits: mean peak 5.9, no #1, 36% stall at #8-10, and they peak about one week after entry. V1's
+peak at 3.9, 55% reach the top three, and 15% stall at #8-10. History's known acts peak **lower** than its new acts
+(new 4.8, hot 5.3, cold 5.9). In V1, hot acts peak **higher** (new 4.1, hot 3.0, 68% top three; cold 3.9). Among
+Top 10 records, launch inputs explain little of the peak (R² 0.06; quality the largest per-SD term). Radio heat at
+the peak explains much more (R² 0.29). Cold returns carry the highest launch campaign impact of any cell (0.63
+against 0.51 for new acts), and 67% of them are at Big-5 or template labels. The §17a steep top (airplay's fifth
+power) turns each of them into a climber.
+
+**2. Correction to §17v: the Top 40 "leak" is historical.** Of history's 14 cold Top 10 returns in 1962-64, 10 came
+from acts with a Top 40 entry in the previous 52 weeks. In both series, faded acts that return are still charting.
+§17v's lesson that a cooling clock and the cells it is measured on must share one hit definition still holds, but
+the leak itself is not a sim defect.
+
+**3. In history, a faded act's chart records rarely reach the top; in the sim there is no such ceiling.** Records first
+entering the Top 40 in 1962-64, by time since the act's last Top 10:
+
+| Cell at Top 40 entry | History: entries a year / P(Top 10) | V1: entries a year / P(Top 10) | Control |
+|---|---:|---:|---:|
+| New (no earlier Top 10) | 125.3 / **43.9%** | 159.2 / **33.6%** | 153.2 / 34.9% |
+| Hot (last Top 10 ≤ 52 weeks back) | **120.7** / **30.7%** | **31.0** / **59.1%** | 31.3 / 58.4% |
+| Warm (53-104 weeks) | 17.3 / 30.8% | 14.0 / 45.2% | 15.9 / 49.6% |
+| Cold (> 104 weeks) | 5.3 / 37.5% (16 records) | 6.7 / 41.6% | 8.1 / 43.0% |
+| All Top 40 entries a year | 293 | about 211 | about 209 |
+
+Faded acts put about the same number of records into the Top 40 in both series (about 21-23 a year). In history,
+those records convert below a new act's rate. In the sim they convert above it: at Big-5 labels the rate is 52-55%,
+while field acts' cold records convert at 30%, on history. The ordering is inverted for hot acts too.
+
+**4. The larger mismatch: hit acts release too little.** For acts with a Top 10 debut in year Y − 1, their records in
+Y (1962-64 pooled; sim per seed):
+
+| | Hot act-years | Top 40 records per act-year | Top 10 records per act-year | P(Top 10 \| Top 40) | Single launches per act-year |
+|---|---:|---:|---:|---:|---:|
+| History | 252 | **1.17** | **0.36** | **31%** | — |
+| Control | 243 | 0.43 | 0.25 | 58% | — |
+| V1 | 238 | **0.44** | **0.24** | **55%** | 1.23 |
+
+History's hit acts put 2.7x as many records into the Top 40 and still had 1.5x as many Top 10s. Each record was a
+smaller event: one of three or four sides a year, splitting the act's fans, radio and the label's push. The sim's hit
+act releases about one single a year, and each release carries the act's whole fame and the label's whole push. That
+explains three findings at once: §17u's longer repeat hits (2nd 5.85 and 3rd+ 6.63 Top 10 weeks against history's
+4.26 / 4.41), V1's tall hot-act peaks, and cold returns that hit as hard as new breakouts. It also explains part of
+§17a's turnover gap: 211 Top 40 entries a year against 293.
+
+**Reading.** Senior status is not over-held at the act level. Hot repeaters return at history's rate (§17u), and
+hot acts produce fewer Top 10 records than history's, not more. The fame and push behind an act are spent on too few
+records, so each one runs too tall and too long. This applies whether the act is hot or cold. A fame decay (§17u/v)
+cannot fix that. It reduces the stake on each record, not the number of records the stake is spread over.
+
+**Next (proposal, not built): hit-act cadence with a same-act split.** Diagnostic first, on these logs:
+(a) what caps a hot act's single launches at 1.23 a year (`UpdateArtistCooldowns`, release priority, label release
+capacity, the album cycle); (b) whether two records by one act on the chart at once compete for anything (fans,
+radio adds, push) or simply stack; (c) history targets from the recovered Hot 100: Top 40 entries per hot act-year
+(1.17), P(Top 10 | Top 40) by cell, and how often an act has two records in the Top 40 at once. A probe would pair a
+shorter cooldown for acts with a recent Top 40 with a same-act split of awareness and push across that act's
+concurrent records, so that more releases buy more, smaller hits rather than more big ones. Risk: hot acts sit at
+head labels, so more of their records could raise concentration unless the split holds. The §17n guards and the
+§17u cell table both apply.
+
+**Arms A/B/D stay rejected.** One robust signal is left unexplained: A's 1963 CR8 fell in all five seeds (−6.9, SE
+2.4), and B's field rose in all five (+3.9, SE 1.1). Neither came through cold returns, B's cost was 17 hot-repeater
+slots a year (a cell already short of history's output), and D reverses the sign on defaults. Without a mechanism,
+these are not grounds to adopt.
+
+Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `cold_return_decomp.py` /
+`cold-return-decomp.txt`, `cold_return_shape.py` / `cold-return-shape.txt`, `cold_return_height.py` /
+`cold-return-height.txt`, `cold_top40_ceiling.py` / `cold-top40-ceiling.txt`, `hist_hot100_extract.py`,
+`hist_top40_ceiling.py` / `hist-top40-ceiling.txt`, `hot_act_cadence.py` / `hot-act-cadence.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
