@@ -71,6 +71,7 @@ public static class CompositionCatalogService {
 		PolarSongMetadataService.Reset();
 		PolarSongBehavior.ResetTaste();
 		PolarSongBehavior.ResetTaste();
+		ResetEstablishment();
 		songs.Clear();
 		standardsByGenre.Clear();
 		catalogByGenre.Clear();
@@ -437,6 +438,18 @@ public static class CompositionCatalogService {
 		AdmitUnpublished(song,TimeManager.Instance?.CurrentDate.year??song.originYear,record.masterId);
 	}
 
+	// ---- Establishment change log ---------------------------------------------------------------
+	// Every write that can move RepertoireProvenance.EstablishedAsOf for an existing song appends that song here,
+	// so a cached establishment filter (SongMaterialSelectionService.StandardPoolsFor) re-tests only those songs.
+	// Catalogue resets, loads and audit-phase or migration rewrites advance the epoch instead, discarding every
+	// cache. Runtime only; never saved. A new write site that changes establishment inputs must touch the song.
+	internal static int EstablishmentEpoch { get; private set; }
+	private static readonly List<SongComposition> establishmentTouches = new();
+	internal static int EstablishmentTouchCount => establishmentTouches.Count;
+	internal static SongComposition EstablishmentTouch(int index) => establishmentTouches[index];
+	internal static void TouchEstablishment(SongComposition song) { if (song != null) establishmentTouches.Add(song); }
+	internal static void ResetEstablishment() { EstablishmentEpoch++; establishmentTouches.Clear(); }
+
 	// ---- Lookups & helpers -------------------------------------------------------------------
 
 	public static SongComposition GetSong(string songId) =>
@@ -589,6 +602,7 @@ public static class CompositionCatalogService {
 		// Familiarity rises toward saturation with hit size (a #1 imprints far more than a #38).
 		float lift = Mathf.Max(peakStrength, unitStrength * 0.5f) * 0.25f;
 		song.nationalFamiliarity = Mathf.Clamp(song.nationalFamiliarity + (1f - song.nationalFamiliarity) * lift, 0f, 1f);
+		TouchEstablishment(song);
 
 		// A top-40 hit becomes a live cover candidate. Artist-originals were registered song-only; this
 		// is what promotes them into the recent-hit pool for future covers.
@@ -781,13 +795,13 @@ public static class CompositionCatalogService {
 	public static void AdmitRepertoire(SongComposition song,string route,int year,string recordId=null) {
 		if(song==null||!song.isCoverable)return;
 		if(!song.repertoireAdmissionRoutes.Contains(route)) {
-			song.repertoireAdmissionRoutes.Add(route);RegisterCoverableHit(song);
+			song.repertoireAdmissionRoutes.Add(route);TouchEstablishment(song);RegisterCoverableHit(song);
 			RepertoireProvenance.Admit(song,route,song.repertoireSeedFamily,year,recordId);
 		}
 	}
 	public static void RecordRepertoireRelease(SongComposition song,int year,string recordId,bool album) {
 		if(song==null||LiveRepertoire.AuditPhase<5)return;
-		if(song.repertoireFirstReleaseYear==0)song.repertoireFirstReleaseYear=year;
+		if(song.repertoireFirstReleaseYear==0){song.repertoireFirstReleaseYear=year;TouchEstablishment(song);}
 		if(album)AdmitRepertoire(song,"albumRepertoire",year,recordId);
 		else if(song.commercialHook>=.55f)AdmitRepertoire(song,"locallyFamiliar",year,recordId);
 		if(song.originKind is SongOriginKind.ProfessionalOffice or SongOriginKind.LabelStaff)AdmitRepertoire(song,"suppliedProfessional",year,recordId);
@@ -871,6 +885,7 @@ public static class CompositionCatalogService {
 	internal static void ApplyRepertoireAuditPhase(int phase,int startYear) {
 		if(phase!=LiveRepertoire.AuditPhase+1)throw new InvalidOperationException("Causal probe phases must advance sequentially");
 		LiveRepertoire.AuditPhase=phase;
+		ResetEstablishment();
 		if(phase==1)foreach(var a in RepertoireProvenance.Admissions.Where(a=>a.Route is "seedFamily" or "seededRecentHit").ToArray())
 			RepertoireTaxonomy.Assign(GetSong(a.SongId),a.Family,startYear);
 		if(phase==5) {
@@ -927,6 +942,7 @@ public static class CompositionCatalogService {
 
 	internal static int MigrateComedyRepertoire(IEnumerable<SongComposition> catalogue) {
 		int changed=0;
+		ResetEstablishment();
 		foreach(var song in catalogue.Where(RepertoireProvenance.ComedyRoutine))if(song.establishedYear.HasValue||song.isStandard) {
 			song.establishedYear=null;song.isStandard=false;changed++;
 		}
@@ -940,6 +956,7 @@ public static class CompositionCatalogService {
 		PolarSongBehavior.UsePolarFitSelection = c.UsePolarFitSelection;
 		PolarSongBehavior.RestoreTaste(c.PolarTaste);
 
+		ResetEstablishment();
 		songs.Clear();
 		foreach (var kv in c.Songs ?? new Dictionary<string, SongComposition>()) if (kv.Value != null) songs[kv.Key] = kv.Value;
 		if(c.RepertoireSchemaVersion<2){MigrateComedyRepertoire(songs.Values);c.RepertoireSchemaVersion=2;}

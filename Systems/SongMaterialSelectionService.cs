@@ -592,15 +592,72 @@ public static class SongMaterialSelectionService {
 		var pools = new IReadOnlyList<SongComposition>[fams.Length];
 		var establishment = RepertoireProvenance.CurrentEstablishmentRule();
 		for (int i = 0; i < fams.Length; i++) {
-			var merged = MergedStandards(fams[i]);
-			var pool = new List<SongComposition>();
-			for (int j = 0; j < merged.Count; j++) {
-				var s = merged[j];
-				if (RepertoireProvenance.GameplayStandard(s,year,establishment)&&MediaCutRecordingAccess(s,genre)) pool.Add(s);
+			pools[i] = EstablishedPool(fams[i], genre, year, establishment);
+			if (StartupCaches.Verify) {
+				var fresh = FilterEstablished(MergedStandards(fams[i]), 0, genre, year, establishment);
+				if (!fresh.SequenceEqual(pools[i], ReferenceEqualityComparer.Instance))
+					throw new System.InvalidOperationException($"STANDARD_POOL_CACHE_MISMATCH family={fams[i]} genre={genre} year={year} cached={pools[i].Count} fresh={fresh.Count}");
 			}
-			pools[i] = pool.ToArray();
 		}
 		return pools;
+	}
+	private static List<SongComposition> FilterEstablished(List<SongComposition> merged, int from, Genre genre, int year,
+			RepertoireProvenance.EstablishmentRule establishment) {
+		var pool = new List<SongComposition>();
+		for (int j = from; j < merged.Count; j++) {
+			var s = merged[j];
+			if (RepertoireProvenance.GameplayStandard(s,year,establishment)&&MediaCutRecordingAccess(s,genre)) pool.Add(s);
+		}
+		return pool;
+	}
+
+	// The filtered pool above, kept between calls per family (and Easy Listening's media-cut access). Its inputs are the
+	// year, the establishment rule and audit flags (all keyed), the merged union (append-only until MergedStandards
+	// replaces it), and per-song state that only changes through writes CompositionCatalogService logs. So a call
+	// re-tests only the songs logged since the last one plus any newly appended songs, and re-filters the family in
+	// merged order only when a logged song actually enters or leaves it. Re-filtering every song per call was ~21% of
+	// a late-decade window. --verify-runtime-caches recomputes each call from scratch and throws on any difference.
+	private sealed class EstablishedPoolCache {
+		public List<SongComposition> Merged; public int Synced, Year, Epoch, Touches, Phase; public bool Repair;
+		public RepertoireProvenance.EstablishmentRule Rule;
+		public readonly HashSet<SongComposition> InMerged = new(ReferenceEqualityComparer.Instance);
+		public readonly HashSet<SongComposition> Members = new(ReferenceEqualityComparer.Instance);
+		public readonly List<SongComposition> Songs = new();
+		public SongComposition[] Snapshot;
+	}
+	private static readonly Dictionary<(GenreFamily, bool), EstablishedPoolCache> establishedPools = new();
+	private static IReadOnlyList<SongComposition> EstablishedPool(GenreFamily family, Genre genre, int year,
+			RepertoireProvenance.EstablishmentRule establishment) {
+		var merged = MergedStandards(family);
+		int epoch = CompositionCatalogService.EstablishmentEpoch, touches = CompositionCatalogService.EstablishmentTouchCount;
+		var key = (family, genre == Genre.EasyListening);
+		if (!establishedPools.TryGetValue(key, out var c) || !ReferenceEquals(c.Merged, merged) || c.Synced > merged.Count ||
+				c.Year != year || c.Epoch != epoch || touches < c.Touches || !c.Rule.Equals(establishment) ||
+				c.Phase != LiveRepertoire.AuditPhase || c.Repair != LiveRepertoire.AuditGenreRepair) {
+			c = new EstablishedPoolCache { Merged = merged, Year = year, Epoch = epoch, Touches = touches, Rule = establishment,
+				Phase = LiveRepertoire.AuditPhase, Repair = LiveRepertoire.AuditGenreRepair };
+			establishedPools[key] = c;
+		}
+		bool Qualifies(SongComposition s) => RepertoireProvenance.GameplayStandard(s,year,establishment)&&MediaCutRecordingAccess(s,genre);
+		bool moved = false;
+		for (int i = c.Touches; i < touches; i++) {
+			var s = CompositionCatalogService.EstablishmentTouch(i);
+			if (!c.InMerged.Contains(s) || Qualifies(s) == c.Members.Contains(s)) continue;
+			if (!c.Members.Add(s)) c.Members.Remove(s);
+			moved = true;
+		}
+		c.Touches = touches;
+		if (moved) {
+			c.Songs.Clear();
+			for (int i = 0; i < c.Synced; i++) if (c.Members.Contains(c.Merged[i])) c.Songs.Add(c.Merged[i]);
+			c.Snapshot = null;
+		}
+		while (c.Synced < merged.Count) {
+			var s = merged[c.Synced++];
+			c.InMerged.Add(s);
+			if (Qualifies(s)) { c.Members.Add(s); c.Songs.Add(s); c.Snapshot = null; }
+		}
+		return c.Snapshot ??= c.Songs.ToArray();
 	}
 
 	// The standards-plus-hits union, distinct by song id in first-seen order. Both sources are append-only (a load

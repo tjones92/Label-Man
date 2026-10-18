@@ -110,7 +110,7 @@ public static class RepertoireTaxonomy {
    tags=PolarSongMetadataService.ClassifyLegacyTags(song.genreTagIds),pace=shape.Pace,mood=shape.Mood,mappingId="repertoire-v1"};
   song.wordDensity=chosen.Density;song.defaultForm=Enum.Parse<SongForm>(chosen.Form);song.defaultMeter=Enum.Parse<SongMeter>(chosen.Meter);
   if(chosen.Context!=null)CompositionShapeVariation.AuthorContext(song,Enum.Parse<SongContentContext>(chosen.Context),"procedural-repertoire-authoring:"+family+":"+chosen.Archetype);
-  song.repertoireSchemaVersion=1;song.repertoireSeedFamily=family;song.repertoireVariation=new float[SongProfile.AxisCount];
+  song.repertoireSchemaVersion=1;song.repertoireSeedFamily=family;CompositionCatalogService.TouchEstablishment(song);song.repertoireVariation=new float[SongProfile.AxisCount];
   for(int i=0;i<song.repertoireVariation.Length;i++)song.repertoireVariation[i]=(Unit(song.songId+"|variation|"+i)*2-1)*table.N(i<SongProfile.DemandCount?"demandVariation":"identityVariation");
  }
 }

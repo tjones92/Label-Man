@@ -111,5 +111,45 @@ Room calendar about 14% lower, simulation window about 5%. Remaining room target
 trace: the set-list `StableSmallSelection.Take` (6%), house-band `Pick` (6.4%; per-musician
 string keys and contact-edge lookups) and member eligibility building (~8.7%).
 
+## Late-world pass (standards pools, person pool)
+
+The 1969 fixture costs about 10x per week what fresh LR does, so the next trace ran there.
+`StandardPoolsFor` alone was 21.6% of sampled CPU. Every AI cover choice re-tested
+establishment for every song in its families' standards-plus-hits union (thousands by 1969),
+then sampled about a dozen. `PersonPool.Ordered()` re-sorted the whole pool by person id per
+call. The house-band `Players` called it once per town per week, and each band replacement
+hire called it again.
+
+- **Standards pools** are kept per family (plus Easy Listening's media-cut access) between
+  calls. Year, establishment rule and audit flags key the cache. The merged union is
+  append-only until `MergedStandards` replaces it. Per-song inputs change only at writes
+  that now log the song in `CompositionCatalogService` (recording plus familiarity,
+  first-release year, admission route, taxonomy assignment). Resets, loads, migrations and
+  audit-phase changes advance an epoch. A call re-tests only logged and newly appended songs,
+  and re-filters in merged order only when one enters or leaves.
+- **Person pool order** is a sorted array, edited by binary-search insert or remove on each
+  join or hire (copy-on-write, so a running enumeration keeps its snapshot). It is rebuilt
+  after expiry, reset or load. Enumeration stays deferred, as `OrderBy` was.
+- **Replacement search** is one argmax pass over that order; first maximum equals the old
+  `OrderByDescending(score).ThenBy(id).First()`.
+- `--verify-runtime-caches` recomputes both caches from scratch on every read and throws on
+  any difference. It passed on the 1969 window (including departures) and on a 60-week LR
+  crossing 1960 to 1961.
+
+Identity: 1969 all 80 CSVs, LR all 82 CSVs and both saved worlds match the previous build.
+Worlds are compared by streaming SHA-256 of the decompressed JSON without the `Flags`
+array. Never `json.load` a late world: a 1969 world is several GB as JSON.
+
+Timing, 1969 fixture, 4 weeks, three interleaved pairs (HEAD `c7b1883` vs this pass):
+
+| Seconds | HEAD | This pass |
+| --- | ---: | ---: |
+| Simulation window | 37.19 / 37.47 / 37.58 | 29.07 / 29.09 / 29.77 |
+| Competitor week | 10.49 / 10.63 / 13.59 | 5.33 / 5.36 / 5.49 |
+| Material selection | 7.42 / 7.46 / 10.43 | 2.46 / 2.47 / 2.54 |
+
+About 22% off the late-world window. Earlier 1969 windows in this file (53-60 s) were
+measured under heavy memory pressure; after a restart the same build measured 37 s.
+
 The subsequent RNG pilot has its own explicit behavior boundary and audit. Its
 experimental results must not be mixed with these byte-identical measurements.

@@ -16,6 +16,35 @@ using System.Linq;
 public static class PersonPool {
 	private static readonly Dictionary<string, PooledPerson> pool = new(StringComparer.Ordinal);
 	private static int lastDecayWeek = int.MinValue;
+	// The pool sorted by person id. Searches read it many times a week (every town's house-band players, every
+	// replacement hire), and a departure season alternates joins and hires, so a join or hire edits a copy in
+	// place (binary search) instead of re-sorting; an enumeration already under way keeps its own snapshot.
+	// Expiry, reset and load drop it and the next read sorts afresh.
+	private static PooledPerson[] ordered;
+	private static int IndexOf(PooledPerson[] sorted, string personId) {
+		int lo = 0, hi = sorted.Length - 1;
+		while (lo <= hi) {
+			int mid = lo + ((hi - lo) >> 1), order = StringComparer.Ordinal.Compare(sorted[mid].person.personId, personId);
+			if (order == 0) return mid;
+			if (order < 0) lo = mid + 1; else hi = mid - 1;
+		}
+		return ~lo;
+	}
+	private static PooledPerson[] WithEntry(PooledPerson[] sorted, PooledPerson entry) {
+		int at = IndexOf(sorted, entry.person.personId);
+		if (at >= 0) { var replaced = (PooledPerson[])sorted.Clone(); replaced[at] = entry; return replaced; }
+		at = ~at;
+		var grown = new PooledPerson[sorted.Length + 1];
+		Array.Copy(sorted, grown, at); grown[at] = entry; Array.Copy(sorted, at, grown, at + 1, sorted.Length - at);
+		return grown;
+	}
+	private static PooledPerson[] WithoutId(PooledPerson[] sorted, string personId) {
+		int at = IndexOf(sorted, personId);
+		if (at < 0) return null;   // out of step with the pool: rebuild on the next read
+		var shrunk = new PooledPerson[sorted.Length - 1];
+		Array.Copy(sorted, shrunk, at); Array.Copy(sorted, at + 1, shrunk, at, sorted.Length - at - 1);
+		return shrunk;
+	}
 
 	/// <summary>The generation median of technicalSkill (ArtistManager draws N(.45, .22) clamped to [0,1]).
 	/// "Skill above the population median" is read against this rather than a live scan of 80k people.</summary>
@@ -44,18 +73,27 @@ public static class PersonPool {
 	public static void Add(PooledPerson entry) {
 		if (entry?.person == null || string.IsNullOrEmpty(entry.person.personId)) return;
 		pool[entry.person.personId] = entry;
+		if (ordered != null) ordered = WithEntry(ordered, entry);
 	}
 
 	/// <summary>Takes a person out of the pool to join an act. Null if they are not here.</summary>
 	public static PooledPerson Take(string personId) {
 		if (personId == null || !pool.TryGetValue(personId, out var entry)) return null;
 		pool.Remove(personId);
+		if (ordered != null) ordered = WithoutId(ordered, personId);
 		return entry;
 	}
 
 	/// <summary>The pool in a stable order (person id), so any search over it is independent of how the
 	/// dictionary happens to lay itself out after removals or a load.</summary>
-	public static IEnumerable<PooledPerson> Ordered() => pool.Values.OrderBy(p => p.person.personId, StringComparer.Ordinal);
+	/// Deferred like the OrderBy it replaces: the snapshot is taken when enumeration starts.
+	public static IEnumerable<PooledPerson> Ordered() {
+		ordered ??= pool.Values.OrderBy(p => p.person.personId, StringComparer.Ordinal).ToArray();
+		if (StartupCaches.Verify && !ordered.SequenceEqual(pool.Values.OrderBy(p => p.person.personId, StringComparer.Ordinal)))
+			throw new InvalidOperationException("PERSON_POOL_ORDER_MISMATCH count=" + pool.Count);
+		foreach (PooledPerson p in ordered)
+			yield return p;
+	}
 
 	/// <summary>Recognition decay for people between acts, once per week (the act registry has its own guard).</summary>
 	public static void ForEachPersonOncePerWeek(int week, Action<Musician> action) {
@@ -72,11 +110,13 @@ public static class PersonPool {
 			 LocalSceneRoomService.Backing(p.person.personId, year).Hours <= 0f))
 			.OrderBy(p => p.person.personId, StringComparer.Ordinal).ToList();
 		foreach (PooledPerson p in gone) pool.Remove(p.person.personId);
+		if (gone.Count > 0) ordered = null;
 		return gone;
 	}
 
 	public static void Reset() {
 		pool.Clear();
+		ordered = null;
 		lastDecayWeek = int.MinValue;
 	}
 
@@ -86,6 +126,7 @@ public static class PersonPool {
 
 	public static void Rehydrate(IEnumerable<PooledPerson> saved) {
 		pool.Clear();
+		ordered = null;
 		lastDecayWeek = int.MinValue;
 		foreach (PooledPerson entry in saved ?? Enumerable.Empty<PooledPerson>())
 			if (entry?.person != null && !string.IsNullOrEmpty(entry.person.personId)) pool[entry.person.personId] = entry;
