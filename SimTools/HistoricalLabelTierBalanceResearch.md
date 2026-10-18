@@ -4382,6 +4382,14 @@ term, is present at the same size without the lane. Same-act cannibalization is 
 from **its album override**. It removes the album-promo follow-up that the album-leaning genres relied on, and
 replaces it with an orphan single of average material.
 
+**Note added after review (2026-10-18).** Hook is not on the same scale across the two paths. The chart reads
+`(hook + production) / 2`, and promo singles carry a lower production read: 0.535 against orphans' 0.671 across
+all V1 launches in 1961-64. Over all launches, promos enter at 12.6% against orphans' 11.6%. At equal realized
+quality the two paths enter alike, and entry is a cliff in realized quality: below 0.64 it is 0.1-2.7%, above 0.70
+it is 44-51%. The hot-act entry rates above stand as measured. What carries them is the realized-quality edge of a
+hot act's best album track, not the hook contrast. The broader fix, release judgement by song, is drafted in
+`SimTools/ReleaseJudgementDirective.md`. Its Phase 5 absorbs the proposal below.
+
 **Proposal (not built): let the lane keep the album.** When a lane pick's label chooses an album, the album goes
 ahead and its promo single is the follow-up. Only a single-or-nothing pick is forced. A probe switch is needed,
 since the override is part of `--hit-act-cadence`.
