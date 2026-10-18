@@ -3066,6 +3066,87 @@ Evidence: `SimLogs/momhl052-launchsat050-headtpl2-screen-v1/`, `SimLogs/headtpl-
 `genre-check.txt` (control / C / §17r / T alone; T alone's 1962 column is a partial year and is not usable),
 `genre-check-v1.txt` and `yearly-watch-v1.log`.
 
+### 17t. Confirmation: V1 over 1960-64 (`momhl052-launchsat050-headtpl2-confirm-v1`, 2026-10-17)
+
+**Runs.** V1's flags, five seeds × 260 weeks, all passed with empty error logs. The new 4004/5005 default controls
+(`top10-default-controls-260-v1`, 260 weeks) also passed. Over weeks 1-156 they reproduce
+`head-hit-default-controls-v1` row for row in `records.csv`, so every control is now a full five-seed 260-week set.
+The confirmation's 1960-62 equals V1's to the decimal: same seeds and flags, and the runs are deterministic. Its
+new information is 1963-64. The yearly watch reported 1963 MARGINAL and 1964 WITHIN, and never stopped the run.
+
+| Five-seed mean | 1962 ctl | V1 | 1963 ctl | **V1** | 1964 ctl | **V1** | History 1962 / 63 / 64 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Big-5 share | 29.9 | 21.3 | 29.2 | **28.9** | 27.9 | **24.7** | 21.2 / 26.0 / 18.7 |
+| Paired Big-5 Δ (SE; per seed) | | −8.6 (0.9) | | **−0.3** (3.3; −6.3 −5.8 −4.8 **+6.9 +8.5**) | | −3.1 (2.8; −7.9 +2.5 +3.1 −11.3 −1.9) | |
+| CR4 [22-32] | 30.9 | 27.7 | 28.5 | **32.5** | 30.0 | 28.7 | |
+| CR8 [38-48] | 46.2 | 43.3 | 44.0 | **49.1** | 44.1 | 46.0 | |
+| Big-5 firms in the top four | 3.2 | 2.0 | 3.0 | 2.4 | 2.6 | 2.4 | 1.75 |
+| Template share | 2.1 | 16.9 | 3.0 | **17.2** | 2.2 | **14.1** | 24.6 / 15.2 / 6.7 |
+| Field share (paired Δ) | 68.0 | 61.8 (−6.2) | 67.8 | **53.9 (−13.9, SE 3.1)** | 70.0 | 61.2 (−8.8, SE 4.9) | |
+| Labels with a Top 10 hit | 56.4 | 57.0 | 57.6 | **49.2** (−8.4, SE 2.9) | 56.6 | 54.4 | |
+| First-time Top 10 labels | 26.6 | 25.8 | 24.0 | 19.0 (−5.0, SE 3.8) | 22.4 | 19.6 | |
+| Non-major firms with 20+ slots | 2.0 | 3.6 | 2.2 | 3.6 | 1.8 | 3.8 | 3-5 |
+| Big-5 Hot 100 entry per single launch, % | 45.7 | 41.1 | 48.8 | 39.7 | 48.4 | 41.0 | |
+| #1 tenure (paired Δ) | 2.06 | +0.33 (0.12) | 2.38 | +0.13 (0.12) | 2.61 | +0.09 (0.13) | |
+| Year-end genre error, 14 genres (control) | | 35.4 (33.0) | | 45.0 (41.4) | | 37.8 (37.6) | |
+
+**1963-64 fail the pre-registered guards:**
+
+- **The Big-5 cut fails in 1963.** The paired change is −0.3 against §17n's ≥3, and 1964 is −3.1 with SE 2.8.
+  Seeds 1001-3003 keep a cut of about −5.6 in 1963, but 4004 and 5005 go up (+6.9, +8.5).
+- **CR4 and CR8 are out of band in 1963 and worse than the control** (32.5 / 49.1 against 28.5 / 44.0). That is
+  §17l's kill condition. It is inside the watch's 2-point stop margin.
+- **The field guard fails in 1963 and 1964:** the field loses 13.9 and 8.8 points, while the Big-5 lose 0.3 and
+  3.1. Labels with a hit fall 8.4 in 1963 (49.2, still above the 48 pass line). First-time labels fall 5.0.
+- **Templates persist.** They hold 17.2 / 14.1% against history's 15.2 / 6.7. §17l made this a finding, not a kill.
+  Their slots are about half senior (41.6 of 89.4 a seed-year in 1963). Most of those acts reached senior status
+  during the run: only 16 of the 42 were already senior in 1960.
+- **More templates promote once the hold has expired:** Warner Bros. in seed 3003 and MGM in seed 4004 (both 1964),
+  on top of Warner Bros.' 1961 promotions in three seeds. The stand-in delays promotion; it does not prevent it.
+
+What still holds in 1963-64: the top-four count stays below the control (2.4 / 2.4 against 3.0 / 2.6), the second
+rank holds at 3.6-3.8, Big-5 entry per launch is still 7-9 points lower, no Big-5 label is demoted, nothing is
+absorbed, and #1 tenure, chart life, units, Small closures and genre fit are within noise. The 1962 #1-tenure miss
+(+0.33) does not persist.
+
+**Where the 1963 slots went** (Top 10 slots per seed-year; `senior-origin-1963-64.txt`):
+
+| 1963, ctl → V1 | Slots | Senior-act slots | Of which senior since 1960 |
+|---|---:|---:|---:|
+| Big-5 | 151.8 → 150.2 | 93.8 → 94.4 | 37.0 → 30.8 |
+| Templates | 15.8 → 89.4 | 5.2 → 41.6 | 1.2 → 16.2 |
+| Field | 352.4 → 280.4 | 91.6 → 61.8 | 34.8 → 16.0 |
+
+In 1963 the Big-5 hold exactly the control's senior slots, although their 1962 senior slots were −29. The templates'
+gain comes out of the field, junior and senior alike.
+
+**Reading.** V1 works for as long as the excess sits in the Big-5's 1950s inheritance: the seeded stars the
+half-life cools, and the newcomer edge the saturation trims. By 1963 the excess is in **senior acts grown during
+the run, at any head-scale label**. That is the Big-5's own replacement stars and the templates' new ones alike. The
+momentum half-life leaves these alone, because hits keep refilling momentum, and nothing in the career ladder makes
+a successful act fall back (§17n: Established → Declining needs three flops in a row). So the templates do not fade
+the way history's did. Part of history's 1963-64 fade was external: *Bandstand* left Philadelphia, MGM went quiet,
+the British Invasion arrived. The sim models none of these, so some persistence is expected. Template persistence,
+plus the 1963 Big-5 rebound in seeds 4004 and 5005, is the same mechanism seen in two places: the senior snowball
+does not depend on the label, and head-scale access is what feeds it.
+
+**Verdict.** V1 is **not confirmed for 1960-64**. It remains the best 1960-62 configuration of the review: inside
+band, at history on the 1962 Big-5 share, the top-four count moving, and a second rank. Its 1963-64 failure points
+to the shared career ladder, not to anything Big-5-specific. Defaults are unchanged. All switches stay off by
+default, and the year-one hold stays a stand-in for the MidTier → Major gate fix.
+
+**Next (proposal, not built):** analysis only, on these logs. Which rule keeps a run-grown senior act charting at
+the head? Candidates: the career ladder's fall-back rule, the `GetMarketingBudget` careerState multiplier (§17n
+flagged it as counting seniority twice, an economics pass), and the recognition stock. Is there a label-blind,
+historically argued decay of senior status, for example career age or time since the last Top 10? That would let
+1963-64 heads turn over without targeting any label.
+
+Evidence: `SimLogs/momhl052-launchsat050-headtpl2-confirm-v1/`, `SimLogs/top10-default-controls-260-v1/`, and in
+`SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `yearly_watch_260.py`, `yearly-watch-confirm.log`,
+`paired_review_260.py`, `review-confirm.txt`, `extra_deltas_260.py`, `extra-deltas-confirm.txt`,
+`genre_check_260.py` (benchmark through 1964, BritishBeat and BritishPop added), `genre-check-confirm.txt`,
+`senior_origin.py` and `senior-origin-1963-64.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
