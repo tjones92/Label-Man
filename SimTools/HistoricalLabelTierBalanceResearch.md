@@ -4110,6 +4110,102 @@ error logs). In `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `run_caden
 `screen-cadence-launch.log`, `yearly_watch_cadence.py` / `yearly-watch-cadence.log`, and `cadence_screen_readout.py`
 / `cadence-screen-readout.txt`.
 
+### 17ad. Arm D: the lane on defaults keeps the head flat but not the conversion ratio (`hitcad-d-screen-v1`, 2026-10-18)
+
+**Runs.** Build `e7a39d2` (Debug rebuilt), defaults + `--hit-act-cadence --hit-act-retention`, five seeds × 260
+weeks, paired against the five-seed default controls (`top10-fiveyear-review-v1` 1001-3003,
+`top10-default-controls-260-v1` 4004/5005). As in §17v's arm D, no V1 flag is set. All five runs passed in about 42
+minutes with empty error logs. The yearly watch (`yearly_watch_cadence.py`, D against the control, LR alongside)
+reported WITHIN every year 1960-64.
+
+**§17v's question: does an artist-side change hand slots to label push on defaults?** No. §17v's arm D raised the
+Big-5 share +2.5 / +2.4 / +4.7 in 1962-64. The lane does not:
+
+| Big-5 Top 10 share | 1961 | 1962 | 1963 | 1964 |
+|---|---:|---:|---:|---:|
+| History | 20.6 | 21.2 | 26.0 | 18.7 |
+| Control | 33.8 | 29.8 | 29.2 | 27.8 |
+| **D** | **30.7** | **31.6** | **28.8** | **26.8** |
+| D − control, paired (SE) | −3.0 (3.1) | +1.7 (4.9) | −0.4 (3.1) | −1.0 (1.8) |
+
+Every year is inside noise, and the 1962 mean rests on seed 2002 (+18.7). Concentration is unchanged: CR4 / CR8 are
+30.5-31.0 / 44.2-45.3 in 1961-64, against the control's 28.5-37.3 / 44.0-50.8, and 1961 is closer to band than the
+control. The lane does not move the head on defaults either way. History's lower Big-5 share stays out of reach
+without V1's push-side flags.
+
+**The cadence gains carry over, and they are the robust result:**
+
+| 1961-64 | History | Control | D | V1 | LR |
+|---|---:|---:|---:|---:|---:|
+| Hot 100 debuts per hit act, Big-5 / other | 3.28 / 2.18 | 1.00 / 0.69 | **1.95 / 0.97** | 0.92 / 0.72 | 1.81 / 0.94 |
+| Acts on the Hot 100 a year | 386 | 619-654 | **574-604** | 627-670 | 560-616 |
+| Hot 100 records per charting act | 2.03 | 1.22-1.26 | **1.33-1.36** | 1.21-1.24 | 1.31-1.37 |
+| Cold-return slots a year, 1962-64 | 17 | 38.8 / 60.2 / 51.8 | **18.2 / 24.4 / 32.6** | — | 29.0 / 22.2 / 28.0 |
+
+Acts on the Hot 100 fall by 41-61 a year, in every seed and every year (SE 5-8). Cold-return slots fall by half,
+from 50.3 to 25.1 a year, the same cut LR made on V1. That cut is the lane's: it holds on both bases.
+
+**The conversion ratio does not carry over. It gets worse:**
+
+| Hit-act Top 10 per Hot 100 debut, 1961-64 | History | Control | D | V1 | LR |
+|---|---:|---:|---:|---:|---:|
+| Big-5 / other | 15.96 / 15.93% | 38.5 / 28.0% | **34.9 / 19.7%** | 37.4 / 27.0% | 26.1 / 22.0% |
+| **Ratio** | **1.00** ± 0.18 | 1.37 | **1.77** | 1.38 | 1.19 |
+| Ratio by seed | | 1.11-1.96 | 1.47-1.99 | 0.67-2.00 | 0.92-1.55 |
+
+On defaults the Big-5's hit acts double their Hot 100 debuts and keep converting (38.5 → 34.9%). Other labels'
+hit acts gain fewer debuts, and those convert less (28.0 → 19.7%). On V1 the Big-5's extra singles were the ones
+that converted less (37.4 → 26.1%). The difference between the bases is V1's launch-push saturation, which trims a
+Big-5 launch's push. So **LR's move to 1.19 came from the lane meeting V1's saturation, not from the lane alone.**
+The Big-5 share still holds because the Big-5 have fewer hit acts in D (402 against 496, pooled 1961-64), each more
+prolific.
+
+**Other guards, D against the control:**
+
+- *Top 10 turnover:* 98.8-102.2 records a year at 5.10-5.27 weeks, unchanged (paired +0.0 to +4.4, inside noise).
+- *#1 tenure:* 2.06-2.40 against 2.06-2.61. The 1961 change is −0.27 (SE 0.11), with all five seeds down, so it
+  moves away from history's 2.55. 1962-64 are inside noise.
+- *Performance departures:* **+8.1%**, inside the +20% line (LR +7.9%). Contract-expiry drops fall 10-12% every
+  year.
+- *Year-end genre error worsens every year:*
+
+  | Year-end genre error, 14 genres | 1960 | 1961 | 1962 | 1963 | 1964 |
+  |---|---:|---:|---:|---:|---:|
+  | Control | 23.6 | 31.6 | 33.0 | 41.4 | 37.6 |
+  | D | 26.4 | 37.8 | 43.6 | 46.2 | 44.0 |
+  | V1 | 24.8 | 36.0 | 35.4 | 45.0 | 37.8 |
+  | LR | 26.2 | 35.4 | 39.6 | 48.8 | 44.0 |
+
+  D is +2.8 to +10.6 above the control in all five years, and LR is above V1 in four. The largest moves are RnB
+  over target (1962 32.2 against 28, control 28.6), and Soul, RockAndRoll and Country further under. This was
+  LR's open "read genre error" item. It is a cost of the lane on both bases. It is not sized against seed noise yet.
+
+**Verdict.**
+
+- **§17v's defaults test: passed.** The lane does not hand slots to label push on defaults. The Big-5 share,
+  CR4/CR8, turnover and departures all hold.
+- **The lane's effects split in two.** The cadence effects belong to the lane and hold on both bases: fewer
+  charting acts, more records per act, cold returns halved. The fair-conversion effect (ratio → 1.19) needs V1's
+  launch-push saturation, and on defaults it reverses (1.77).
+- **The lane cannot ship alone on defaults.** Its best form is LR, the lane on top of V1. That ties it to V1's
+  open 1963-64 question (§17t), although LR's 1963-64 is better than V1's (Big-5 25.3 / 19.0 against 28.9 / 24.7).
+- **New cost:** year-end genre error rises 3-11 points a year on defaults and up to 6 on V1. That has to be
+  explained before any adoption.
+
+**Next.**
+
+- *Analysis:* which genres' hit acts the lane favours, and why RnB gains and Soul, RockAndRoll and Country lose.
+  Then size the genre error against paired seed noise. The likely channel is labels' genre mix: the lane serves
+  the hot acts a label already has.
+- *Analysis:* split LR's fall in Big-5 conversion between the same-act split and dilution (still owed from §17ac),
+  now with D as the no-saturation contrast.
+- *The cadence shortfall* is unchanged: 1.95 / 0.97 Hot 100 debuts per hit act against 3.28 / 2.18.
+
+Evidence: `SimLogs/hitcad-d-screen-v1/` (manifest, consoles, empty error logs). In
+`SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `run_cadence_arm_d.ps1` / `screen-cadence-d-launch.log`,
+`yearly-watch-cadence-d.log`, `cadence_d_readout.py` / `cadence-d-readout.txt`, and `genre-check-cadence-d.txt`
+(`genre_check_260.py`).
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
