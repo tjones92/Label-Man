@@ -224,9 +224,8 @@ Every phase ships behind its own switch, off by default, and must meet the house
   `single-launch-attribution.csv`, which is on only with `--head-hit-attribution`. Make the realized-quality column
   part of the default compact set.
 - Write the baseline tables above for the default controls, as well as V1.
-- ~~Find a historical anchor for release volume.~~ Done: *Billboard* 1966 (decision 5) and the cadence study
-  ("Historical release behaviour"). Still open: an LP count for 1960-64 from the same *Billboard* table, and
-  release months for a lead-time measurement.
+- ~~Find historical anchors for singles and LP volume.~~ Done: *Billboard* 1966, with a coverage band (decision 5),
+  and the cadence study ("Historical release behaviour"). Still open: release months, for a lead-time measurement.
 - Add the per-act release table (`release_cadence_compare.py`) to the standard screen readout, so every phase reads
   singles per act-year by group.
 
@@ -266,7 +265,9 @@ Every phase ships behind its own switch, off by default, and must meet the house
 
 - Add the format rules in design point 4 on top of the margin model.
 - Move LPs onto their own production track, off the singles roll. Targets: stars about 2.5 LPs a year, mid acts
-  1.5-2, about one LP for every two singles for a star.
+  1.5-2, about one LP for every two singles for a star. Market-wide, the LP-to-single ratio should hold near 0.55
+  from 1960, not ramp from 0.31. That means more 1960-62 titles, within the *Billboard* LP band, with the runtime
+  cost measured.
 - Gate compilations on hits, about three or more charting hits. Target: about 0.5 a year for stars and rare below.
 - Retire the lane's album override.
 - Read: album titles and LP unit share, the album chart's genre mix, runtime, and weak-genre follow-up entry
@@ -352,5 +353,37 @@ Every phase ships behind its own switch, off by default, and must meet the house
    The sim counts orphan singles plus album promo singles from `release-strategy.csv`. V1 and LR are within 2% of
    the controls. **The sim already releases 10-18% fewer singles than history.** So the bar must not cut volume, and
    decision 2 (pass, don't lapse) is required, not optional. History's volume peaks in 1962 and then levels off,
-   while the sim's rises every year. Album projects run from 1,573 (1960) to 3,814 (1964). The same *Billboard*
-   table may give LP counts, which would anchor Phase 5.
+   while the sim's rises every year.
+
+   **LP albums, same source:**
+
+   | Year | 1960 | 1961 | 1962 | 1963 | 1964 |
+   |---|---:|---:|---:|---:|---:|
+   | Billboard, LP albums released | 3,112 | 2,927 | 3,655 | 3,686 | 3,553 |
+   | Per week | 60 | 56 | 70 | 71 | 68 |
+   | Sim, album projects (default controls) | 1,573 | 1,779 | 2,360 | 3,074 | 3,814 |
+   | Sim ÷ Billboard | 0.51 | 0.61 | 0.65 | 0.83 | 1.07 |
+   | LPs per single: Billboard / sim | 0.54 / 0.31 | 0.48 / 0.34 | 0.55 / 0.43 | 0.56 / 0.54 | 0.55 / 0.65 |
+
+   **The coverage band.** *Billboard* called these "estimated" counts, and they may miss small-label and regional
+   pressings. An outside suggestion was to treat them as 85-90% of true output. That gives singles of about 6,600 /
+   6,900 / 7,600 / 7,500 / 7,400, and LPs about 10-15% above the table. The 85-90% coverage is an assumption, not a
+   measurement. So the anchor is a **band**: *Billboard*'s count is the floor, and *Billboard* ÷ 0.875 is the top.
+   Against that band:
+   - *Singles:* the sim is below the floor in every year (0.82-0.90 of the floor, 0.72-0.78 of the top).
+   - *LPs:* the sim is half of the floor in 1960 (0.51) and inside the band only in 1964 (1.07 of the floor, 0.94 of
+     the top).
+
+   **What the LP anchor adds:**
+   - **History's LP-to-single ratio was flat at about 0.55 every year.** The discography sample's stars gave 0.52,
+     an independent match. The sim's ratio climbs from 0.31 to 0.65. So the sim has **too few albums early and too
+     steep a ramp.** History's LP output was already near its 1964 level in 1960, and the sim's era ramp builds it in
+     over the decade.
+   - **This quantifies a known gap.** 1960 LP unit share was supply-bound below the channel, and needed more album
+     titles ([[album-creation-is-margin-driven]], [[album-1960-levers-bind-in-sequence]]). The anchor says that
+     means about 1,500 more titles in 1960, about double. Runtime scales with album count
+     ([[runtime-is-album-count-bound]]), so Phase 5 has to budget for it.
+   - **Like-for-like caveat.** *Billboard*'s LP count includes classical, spoken word, children's, budget and reissue
+     lines that the sim does not model as artist albums. The sim count is artist album projects (including
+     compilations), and excludes the soundtracks minted by `ExternalMediaService`. Read the LP band as an upper
+     bound for the sim, and the **LP-to-single ratio** as the more robust target.
