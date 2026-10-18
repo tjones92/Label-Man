@@ -3523,6 +3523,102 @@ Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `cold_return_
 `cold-return-height.txt`, `cold_top40_ceiling.py` / `cold-top40-ceiling.txt`, `hist_hot100_extract.py`,
 `hist_top40_ceiling.py` / `hist-top40-ceiling.txt`, `hot_act_cadence.py` / `hot-act-cadence.txt`.
 
+### 17x. Hit-act cadence diagnostic: what caps a hit act's releases, and the history targets (2026-10-18, analysis only)
+
+Analysis only, on the V1 confirmation (five seeds, 1962-64) and the recovered 1960-64 Hot 100 (§17w). No simulation
+was run and no code was changed. A "hit act-year" is an act with a Top 10 debut in Y − 1, observed in Y.
+
+**History's targets.** History lists artist credits as printed, so a duo credited two ways counts as two acts. That
+lowers history's per-act figures slightly.
+
+| 1962-64 | History | V1 |
+|---|---:|---:|
+| Hot 100 debuts per hit act-year | **2.19** | 0.75 |
+| Top 40 / Top 10 records per hit act-year | 1.09 / 0.33 | 0.43 / 0.24 |
+| Median weeks between a hit act's consecutive Hot 100 debuts (p25-p75) | **13** (9-17) | 27 (17-44) |
+| Hit acts' charting weeks with 2+ of their records on the Hot 100 | **9.4%** | 1.5% |
+| All acts' charting weeks with 2+ records on the Hot 100 / in the Top 40 | 6.7% / 4.0% | 0.7% / 0.3% |
+| Top 40 records whose act's next record debuts while they are still in the Top 40 | 13.6%, at week 7 of the Top 40 run | 3.6%, at week 11 |
+| Remaining Top 40 weeks after that follow-up, against all records of the same age | 3.07 against 4.05 (−24%) | 1.47 against 1.84 (−20%) |
+| Acts on the Hot 100 in a year | **386** | **645** |
+| Hot 100 records / weeks per charting act-year | **2.03 / 13.9** | 1.24 / 8.3 |
+| Acts charting in Y − 1 that chart again in Y | **43.9%** | 35.5% |
+
+History's hit acts released a single about every quarter, timed so that it arrived as the previous one peaked. The
+sim spreads the Hot 100 across 1.7x as many acts, each charting once and briefly. That matches the user's
+observation that few artists stay on the chart. The follow-up effect cannot be read as competition alone. The sim
+shows −20% with no same-act coupling in its code (below), so part of history's −24% is selection: follow-ups go out
+as a record fades.
+
+**What caps a hit act at 1.23 single launches a year.** In V1, every release roll launches one single: an
+`OrphanSingle`, or an `AlbumWithPromo` that launches its promo single. Three limits stack:
+
+1. **The release cooldown does not bind.** `GetMinimumReleaseCooldown` is 8-12 weeks, which would allow 4-6 releases
+   a year. A hit act's median gap is 22 weeks (p25 17, p75 32), and only 12% of gaps fall within two weeks of the
+   cooldown.
+2. **The label's release lottery is nearly flat, and it binds.** `CalculateWeeklyReleaseChance` gives each label one
+   roll a week at most (`releasesPerMonth / 4`). `GetArtistForRelease` hands the roll to one eligible roster act,
+   weighted by `CalculateReleasePriority`: career priority (Superstar 1.0 … NewSigning 0.4), momentum × 0.4, a
+   cooldown bonus up to 0.2, genre heat and 0-0.15 noise. A Major rolled 40 times a year (median 43) across 28-33
+   acts it released. A hit act at a Major took 4.0% of its label's rolls, against 3.3% for an even split. At a
+   MidTier the figures were 6.5% against 5.3%, and at an Independent 15.9% against 13.9%. A Top 10 act buys about
+   1.2x an average act's share, and Major hit acts got 1.7 releases a year.
+3. **Albums take more than half of a hit act's rolls.** Per hit act-year: 0.68 `AlbumWithPromo` against 0.54
+   `OrphanSingle`. History's acts issued albums alongside a quarterly singles schedule. In the sim, an album uses the
+   act's roll and resets its cooldown, so the album cycle replaces singles.
+
+**Hit acts are lost.** 31% of hit act-years have no release roll in Y. The first event after the hit is a contract
+expiry without re-sign (9.9% of hit act-years), a performance departure (8.8%), a move to another label (4.3%),
+disbandment (2.9%), or none: still rostered, never picked (4.6%). Counting every drop or departure in the year after
+the hit, about 83 of 238 hit acts a seed (35%) leave their label:
+
+- **Contract expiry, 30 a seed.** 93% are Rising with no flops in the contract. `ShouldResignArtist` re-signs a
+  Rising act only while `momentum > 0.2`. Otherwise it falls to `GD.Randf() < artistLoyalty` (0.28-0.78). Momentum
+  fades between releases, and faster under V1's half-life, so a hit act whose option comes up 29 weeks (median)
+  after its hit is renewed on a coin flip.
+- **Performance departure, 51 a seed.** All are Declining at the event, a median 51 weeks after the hit. The ladder
+  falls back on three straight flops peaking below 60, and `ShouldDropArtist` drops a Declining act with two flops
+  half the time at each monthly review. History's hit acts stayed with their labels through years of flops; the
+  sim's lose their label within about a year.
+
+**Concurrent records by one act do not interact.** Outside the observe-only media layer (§ media atmosphere),
+nothing in chart, demand, radio or push reads an act's other records. `ChartManager.GetArtistChartingRecords` has no
+callers. The only modeled cannibalization is between an album and its own promo single (`release-strategy`
+substitution terms). Two singles by one act on the chart stack at full strength. So raising cadence without a split
+would multiply big hits, not spread them.
+
+**Reading.** The sim's hit acts are under-released and under-retained, and both are label-side rules, not demand.
+A Major has the release capacity (40 rolls a year) to give each of its hit acts a quarterly single. It spends that
+capacity on an almost even lottery across 30 acts. History's labels did the opposite: the hit act came first, and
+the rest of the roster got what was left. This supports §17w's reading and widens it. The sim's chart has too many
+acts, each with one or two big records. History's had fewer acts, each with a steady run of medium ones.
+
+**Next (proposal, not built): a hit-act cadence probe, off by default, label-blind.**
+
+- *Follow-up lane.* An act with a Top 40 entry in the last 26 weeks becomes due for its next single 13 weeks after
+  its previous release, matching history's median. When it is due, it takes the label's next roll ahead of the
+  lottery. The label's `releasesPerMonth` is unchanged, so the extra hit-act singles come out of juniors' rolls.
+  That is the history shape (fewer acts, more records each), and it adds no volume. An album project for a due act
+  does not displace the follow-up single.
+- *Same-act split.* While two or more of an act's singles are on the Hot 100, the launch awareness, push and
+  recognition radio lift of the newer one are divided with the older, sized so that the predecessor loses about a
+  week of Top 40 life. Without the split, the lane multiplies big hits.
+- *Retention (separate arm).* `ShouldResignArtist` renews any act with a Top 40 under the current contract. The
+  Declining drop does not count flops released within 52 weeks of a Top 10.
+- *Targets:* 2.19 Hot 100 debuts and 1.09 Top 40 per hit act-year, a 13-week debut gap, 9.4% concurrent weeks,
+  386 acts a year on the Hot 100, 44% year-to-year persistence, P(Top 10 | Top 40) for hot acts toward 31%, and
+  §17w's cold-return slots toward 17.
+- *Guards:* §17n's concentration table in full (the lane favors acts at head labels unless the split holds), #1
+  tenure, Top 10 weeks per record by nth hit (§17u), label release counts unchanged, drops and re-signings, genre
+  error, and the off-switch byte-identity check.
+- *Screen:* five seeds × 260 weeks. Arm L is V1 + lane + split. Arm R is V1 + retention. Arm D is defaults + lane +
+  split, paired against the controls (§17v: an artist-side change must also stand on defaults).
+
+Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `hot_act_release_gaps.py` /
+`hot-act-release-gaps.txt`, `hot_act_formats.py` / `hot-act-formats.txt`, `hot_act_silence.py` /
+`hot-act-silence.txt`, `hot_act_losses.py` / `hot-act-losses.txt`, `hist_cadence_targets.py` /
+`hist-cadence-targets.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
