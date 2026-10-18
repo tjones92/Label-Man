@@ -98,6 +98,12 @@ public static class RepertoireTaxonomy {
   hash^=hash>>33;hash=unchecked(hash*0xff51afd7ed558ccdUL);hash^=hash>>33;hash=unchecked(hash*0xc4ceb9fe1a85ec53UL);return hash^(hash>>33);
  }
  public static float Unit(string key)=>(Hash(key)>>40)/(float)(1UL<<24);
+ // Hash split into prefix, appends and finish, so many keys sharing a prefix hash it once. Finish(Append(Begin(), a+b)) == Hash(a+b).
+ public static ulong BeginHash()=>14695981039346656037UL;
+ public static ulong AppendHash(ulong hash,ReadOnlySpan<char> text){foreach(char c in text){hash^=c;hash=unchecked(hash*1099511628211UL);}return hash;}
+ public static float FinishUnit(ulong hash){
+  hash^=hash>>33;hash=unchecked(hash*0xff51afd7ed558ccdUL);hash^=hash>>33;hash=unchecked(hash*0xc4ceb9fe1a85ec53UL);return ((hash^(hash>>33))>>40)/(float)(1UL<<24);
+ }
  public static void Assign(SongComposition song,string family,int observationYear) {
   var table=PolarRepertoireTable.Current;
   var rows=table.Assignments[family].Where(r=>PolarSongTable.Current.Row(Enum.Parse<SongArchetype>(r.Archetype)).FromYear<=observationYear).ToArray();

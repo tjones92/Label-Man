@@ -34,7 +34,9 @@ if ($ResumeWorld) {
             $benchmarkHeader = [string]::new($benchmarkBuffer,0,$benchmarkCount)
             $benchmarkMatch = [regex]::Match($benchmarkHeader,'"Flags"\s*:\s*(\[.*?\])',[Text.RegularExpressions.RegexOptions]::Singleline)
             if (!$benchmarkMatch.Success) { throw 'World flag metadata is missing.' }
-            $benchmarkFlags = @($benchmarkMatch.Groups[1].Value | ConvertFrom-Json)
+            # Windows PowerShell 5.1 emits a parsed JSON array as one object; assign before wrapping.
+            $benchmarkParsedFlags = ConvertFrom-Json $benchmarkMatch.Groups[1].Value
+            $benchmarkFlags = @($benchmarkParsedFlags)
             if ($benchmarkFlags -notcontains "--seed=$Seed") { throw 'World seed differs from the requested seed.' }
         } finally { $benchmarkReader.Dispose() }
     } finally { $benchmarkStream.Dispose() }

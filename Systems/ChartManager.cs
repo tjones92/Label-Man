@@ -711,17 +711,17 @@ public partial class ChartManager : Node {
 		SimulateWeek(triggerEvents: true);
 		PolarSongBehavior.ObserveCompletedWeek(currentChart, currentChartWeek);
 		if (GenreMarketV2.Enabled) {
-			long freezeProfileStart = SimulationPerformanceProfiler.Begin();
+			var freezeProfileStart = SimulationPerformanceProfiler.Begin();
 			FreezeCompletedWeekSettlement(date);
 			SimulationPerformanceProfiler.EndFreezeSettlement(freezeProfileStart);
 			// Booking is an explicit state transition, not an unordered event subscriber.
 			// It must complete before the immutable settlement becomes visible to audit.
-			long bookProfileStart = SimulationPerformanceProfiler.Begin();
+			var bookProfileStart = SimulationPerformanceProfiler.Begin();
 			CompetitorManager.Instance?.BookCompletedWeekSettlement(lastCompletedWeekSettlement);
 			SimulationPerformanceProfiler.EndBookSettlement(bookProfileStart);
 			if (lastCompletedWeekSettlement?.IsBooked != true)
 				throw new InvalidOperationException($"Settlement {lastCompletedWeekSettlement?.SettlementId} was not booked.");
-			long auditEventProfileStart = SimulationPerformanceProfiler.Begin();
+			var auditEventProfileStart = SimulationPerformanceProfiler.Begin();
 			OnWeekSettlement?.Invoke(lastCompletedWeekSettlement);
 			SimulationPerformanceProfiler.EndSettlementAuditEvent(auditEventProfileStart);
 			if (OnWeekSettlement != null && lastCompletedWeekSettlement?.IsAuditAcknowledged != true)
@@ -737,16 +737,16 @@ public partial class ChartManager : Node {
 			}
 		}
 
-		long momentumProfileStart = SimulationPerformanceProfiler.Begin();
+		var momentumProfileStart = SimulationPerformanceProfiler.Begin();
 		UpdateGenreMomentum();
 		SimulationPerformanceProfiler.EndGenreMomentum(momentumProfileStart);
 
-		long cullProfileStart = SimulationPerformanceProfiler.Begin();
+		var cullProfileStart = SimulationPerformanceProfiler.Begin();
 		CullDeadRecords(includeChartedRecords: currentChartWeek % 4 == 0);
 		SimulationPerformanceProfiler.EndCullDeadRecords(cullProfileStart);
 		// Directive 6 owns one explicit post-chart sequence.  Formation is never
 		// reached by prewarm because this method only runs on a live weekly tick.
-		long lifecycleProfileStart = SimulationPerformanceProfiler.Begin();
+		var lifecycleProfileStart = SimulationPerformanceProfiler.Begin();
 		ArtistManager.Instance?.AdvancePopulationLifecycle(date);
 		LocalScenePersistenceService.Advance(currentChartWeek, date.year);
 		SimulationPerformanceProfiler.EndPopulationLifecycle(lifecycleProfileStart);
@@ -887,6 +887,7 @@ public partial class ChartManager : Node {
 		}
 
 		allRecords.Add(runtimeData);
+		recordsVersion++;
 		recordById[runtimeData.baseRecord.recordId] = runtimeData;
 		CompositionCatalogService.OnRecordReleased(record);
 
@@ -983,7 +984,7 @@ public partial class ChartManager : Node {
 	// ========================================================================
 
 	private void SimulateWeek(bool triggerEvents) {
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		int month = TimeManager.Instance?.CurrentDate.month ?? 1;
 		bool genreMarketLive = GenreMarketV2.Enabled && currentChartWeek > 0;
@@ -993,7 +994,7 @@ public partial class ChartManager : Node {
 		var albumSubstitutionByGenre = new Dictionary<Genre, float>();
 
 		// === STEP 1: Update global record state ===
-		long stateProfileStart = SimulationPerformanceProfiler.Begin();
+		var stateProfileStart = SimulationPerformanceProfiler.Begin();
 		// Off unless --label-hold-capacity is named; no RNG, so the disabled week is unchanged.
 		if (LabelHoldCapacity.Enabled) LabelHoldCapacity.BeginWeek(allRecords, currentChartWeek);
 		foreach (var record in allRecords) {
@@ -1020,7 +1021,7 @@ public partial class ChartManager : Node {
 			float artistHeat = CalculateArtistHeat(record.baseRecord.artistId, record.baseRecord.format);
 
 			if (isAlbum) {
-				long albumProfileStart = SimulationPerformanceProfiler.Begin();
+				var albumProfileStart = SimulationPerformanceProfiler.Begin();
 				if (!albumSubstitutionByGenre.TryGetValue(record.baseRecord.primaryGenre, out float substitutionPropensity)) {
 					substitutionPropensity = CompetitorManager.Instance?.CalculateSubstitutionPropensity(
 						record.baseRecord.primaryGenre, year) ?? 0f;
@@ -1111,7 +1112,7 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
-		long restockProfileStart = SimulationPerformanceProfiler.Begin();
+		var restockProfileStart = SimulationPerformanceProfiler.Begin();
 		RestockHotRecords();
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.Restock, restockProfileStart);
 
@@ -1127,12 +1128,12 @@ public partial class ChartManager : Node {
 		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio
 		// aggregation reads them (design doc a 3.1). Uses the network's own RNG, so while
 		// REPORTER_PANEL_WEIGHT is 0 this is computed-but-unconsumed and simulation output is unchanged.
-		long playlistProfileStart = SimulationPerformanceProfiler.Begin();
+		var playlistProfileStart = SimulationPerformanceProfiler.Begin();
 		stationNetwork?.UpdatePlaylists(allRecords, allRegions, currentChartWeek, year);
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.Playlists, playlistProfileStart);
 
 		// === STEP 3: Update regional awareness/radio ===
-		long regionalStateProfileStart = SimulationPerformanceProfiler.Begin();
+		var regionalStateProfileStart = SimulationPerformanceProfiler.Begin();
 		if (RegionalAudience.LocalRadioFatigue && genreMarketLive) UpdateLocalSalesRanks();
 		foreach (var record in allRecords) {
 			if (record.baseRecord.format == ReleaseFormat.Album) {
@@ -1145,7 +1146,7 @@ public partial class ChartManager : Node {
 
 		// === STEP 4: Calculate chart points ===
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalState, regionalStateProfileStart);
-		long rankingProfileStart = SimulationPerformanceProfiler.Begin();
+		var rankingProfileStart = SimulationPerformanceProfiler.Begin();
 		// The week's survey is drawn first and cached on each record. Billboard polled about 110
 		// outlets by hand rather than counting units, so the published score is a sample. Drawing here
 		// -- once per record, before anything reads a point total -- is what keeps the ranking, the
@@ -1224,7 +1225,7 @@ public partial class ChartManager : Node {
 		int intentCount = 0;
 		// Demand evaluation deliberately retains record-major / region-minor order so
 		// the existing sales jitter consumes precisely the same RNG sequence.
-		long demandProfileStart = SimulationPerformanceProfiler.Begin();
+		var demandProfileStart = SimulationPerformanceProfiler.Begin();
 		foreach (RecordRuntimeData record in allRecords) {
 			float quality = record.GetQuality();
 			AILabel label = GetLabelById(record.baseRecord.labelId);
@@ -1267,7 +1268,7 @@ public partial class ChartManager : Node {
 		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalDemand, demandProfileStart);
 		// Drop unused tails immediately so a shrinking market cannot pin retired records.
 		if (marketIntentScratch.Count > intentCount) marketIntentScratch.RemoveRange(intentCount, marketIntentScratch.Count - intentCount);
-		long clearingProfileStart = SimulationPerformanceProfiler.Begin();
+		var clearingProfileStart = SimulationPerformanceProfiler.Begin();
 		var summariesByRegion = new Dictionary<string, MarketClearingRegionalSummary>(StringComparer.Ordinal);
 		// Stage A: retain the accepted common local clearing unchanged.
 		foreach (MarketRegion region in allRegions) {
@@ -2458,6 +2459,7 @@ public partial class ChartManager : Node {
 		if (recordsToRetire.Count > 0) {
 			var retired = new HashSet<RecordRuntimeData>(recordsToRetire);
 			allRecords.RemoveAll(retired.Contains);
+			recordsVersion++;
 		}
 
 		if (debugMode && recordsToRetire.Count > 0) {
@@ -2547,6 +2549,30 @@ public partial class ChartManager : Node {
 	private void RebuildRecordIndex() {
 		recordById.Clear();
 		foreach (RecordRuntimeData record in allRecords) recordById[record.baseRecord.recordId] = record;
+		recordsVersion++;
+	}
+
+	// The live records grouped by owning label, in allRecords order. Label-scoped questions (deal evidence, recent
+	// hits) used to copy and scan every live record per label. Rebuilt on the first read after any change to the
+	// set (or a transfer between labels, which must call NoteRecordOwnershipChanged).
+	private int recordsVersion, recordsByLabelVersion = -1;
+	private readonly Dictionary<string, List<RecordRuntimeData>> recordsByLabel = new(StringComparer.Ordinal);
+	public void NoteRecordOwnershipChanged() => recordsVersion++;
+	/// <summary>The live records whose base record belongs to <paramref name="labelId"/>, in GetAllRecords order. Read-only;
+	/// valid until the record set changes. A null id gets GetAllRecords filtered to null owners.</summary>
+	public IReadOnlyList<RecordRuntimeData> GetRecordsForLabel(string labelId) {
+		if (labelId == null) return allRecords.Where(record => record?.baseRecord != null && record.baseRecord.labelId == null).ToList();
+		if (recordsByLabelVersion != recordsVersion) {
+			foreach (var list in recordsByLabel.Values) list.Clear();
+			foreach (RecordRuntimeData record in allRecords) {
+				string owner = record?.baseRecord?.labelId;
+				if (owner == null) continue;
+				if (!recordsByLabel.TryGetValue(owner, out var list)) recordsByLabel.Add(owner, list = new List<RecordRuntimeData>());
+				list.Add(record);
+			}
+			recordsByLabelVersion = recordsVersion;
+		}
+		return recordsByLabel.TryGetValue(labelId, out var records) ? records : (IReadOnlyList<RecordRuntimeData>)System.Array.Empty<RecordRuntimeData>();
 	}
 
 	/// <summary>

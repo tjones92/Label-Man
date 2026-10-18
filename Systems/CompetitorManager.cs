@@ -538,8 +538,7 @@ public partial class CompetitorManager : Node {
 	private HashSet<string> GetProvenBreakoutRegions(AILabel label) {
 		var proven = new HashSet<string>(System.StringComparer.Ordinal);
 		bool sustained = WholesaleSpreadGate.Enabled;
-		foreach (RecordRuntimeData record in ChartManager.Instance?.GetAllRecords() ?? Enumerable.Empty<RecordRuntimeData>()) {
-			if (record?.baseRecord?.labelId != label.labelId) continue;
+		foreach (RecordRuntimeData record in ChartManager.Instance?.GetRecordsForLabel(label.labelId) ?? (IEnumerable<RecordRuntimeData>)System.Array.Empty<RecordRuntimeData>()) {
 			foreach (var pair in record.regionalData) {
 				// WholesaleSpreadGate: proof is a record holding LocalTraction there now, not a peak it once touched.
 				if (sustained ? WholesaleSpreadGate.IsSustained(pair.Value)
@@ -552,8 +551,7 @@ public partial class CompetitorManager : Node {
 	/// <summary>Markets where one of this label's records is a regional hit now (RegionalHitDealGate's bar and window).</summary>
 	private static HashSet<string> GetRecentHitRegions(AILabel label) {
 		var hits = new HashSet<string>(System.StringComparer.Ordinal);
-		foreach (RecordRuntimeData record in ChartManager.Instance?.GetAllRecords() ?? Enumerable.Empty<RecordRuntimeData>()) {
-			if (record?.baseRecord?.labelId != label.labelId) continue;
+		foreach (RecordRuntimeData record in ChartManager.Instance?.GetRecordsForLabel(label.labelId) ?? (IEnumerable<RecordRuntimeData>)System.Array.Empty<RecordRuntimeData>()) {
 			foreach (var pair in record.regionalData)
 				if (RegionalHitDealGate.IsRecent(pair.Value, record.weeksSinceRelease)) hits.Add(pair.Key);
 		}
@@ -793,7 +791,7 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private void OnWeekEnded(GameDate date) {
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		OnWeekEndedCore(date);
 		SimulationPerformanceProfiler.EndCompetitorWeek(profileStart);
 	}
@@ -1050,11 +1048,11 @@ public partial class CompetitorManager : Node {
 	
 	private float CalculateLabelRevenue(AILabel label, ChartManager.CompletedWeekSettlement settlement) {
 		if (settlement?.Entries == null) return 0f;
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		float totalRevenue = 0f;
 		
 		foreach (ChartManager.CompletedWeekSettlementEntry entry in settlement.EntriesForLabel(label.labelId)) {
-			long lookupProfileStart = SimulationPerformanceProfiler.Begin();
+			var lookupProfileStart = SimulationPerformanceProfiler.Begin();
 			var runtimeData = entry.Record;
 			SimulationPerformanceProfiler.EndRecordLookup(lookupProfileStart);
 			if (runtimeData == null) continue;
@@ -3775,7 +3773,7 @@ public partial class CompetitorManager : Node {
 	}
 
 	private void ProcessDueAlbumProjects(GameDate date) {
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		for (int index = 0; index < pendingAlbumProjects.Count;) {
 			AlbumProject project = pendingAlbumProjects[index];
 			if (project.dropWeek > pipelineWeek) {
@@ -4251,7 +4249,7 @@ public partial class CompetitorManager : Node {
 		DistributionOffersAccepted++;
 
 		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
-			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
 		offer.Cover(evidence.EarningRecordId);
 		if (dropped != null) {
 			// The dropped imprint keeps what a completed term leaves behind, exactly as an
@@ -4280,7 +4278,7 @@ public partial class CompetitorManager : Node {
 		if (!CanSignDistributionDeal(client.tier)) return;
 
 		RegionalDealEvidence regionalEvidence = EvaluateRegionalDealEvidence(
-			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
 		// A scalar national-awareness estimate is not a physical network. The old
 		// <0.40 test excluded every otherwise-qualified runtime Independent above
 		// that arbitrary line even when a distributor still had six new regions to
@@ -4599,7 +4597,7 @@ public partial class CompetitorManager : Node {
 		}
 
 		RegionalDealEvidence evidence = EvaluateRegionalDealEvidence(
-			ChartManager.Instance?.GetAllRecords(), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
+			ChartManager.Instance?.GetRecordsForLabel(client.labelId), client.labelId, client.strongRegions, regionalBreakoutDealThreshold);
 		if (!IsPullDealTrigger(client, evidence)) {
 			message = "Nobody's biting -- you don't have the regional proof to bring to this table yet.";
 			return null;
@@ -5059,6 +5057,7 @@ public partial class CompetitorManager : Node {
 		string from = runtimeData.baseRecord.labelId;
 		if (!string.IsNullOrEmpty(from) && labelActiveRecords.TryGetValue(from, out var fromIds)) fromIds.Remove(recordId);
 		runtimeData.baseRecord.labelId = to.labelId;
+		ChartManager.Instance?.NoteRecordOwnershipChanged();
 		runtimeData.baseRecord.isPlayerOwned = to.isPlayerOwned;
 		runtimeData.baseRecord.playerMasterDealId = dealId;
 		float quality = runtimeData.perceivedQualityMultiplier > 0f ? runtimeData.perceivedQualityMultiplier : 1f;
@@ -5181,7 +5180,7 @@ public partial class CompetitorManager : Node {
 
 	public int GetRecentChartingRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
-		int active = ChartManager.Instance.GetAllRecords().Count(record =>
+		int active = ChartManager.Instance.GetRecordsForLabel(labelId).Count(record =>
 			record.baseRecord.labelId == labelId && IsRecentChartingRecord(record, maxAgeWeeks));
 		return active + RecentRetiredChartingCount(labelId, maxAgeWeeks);
 	}
@@ -5206,7 +5205,7 @@ public partial class CompetitorManager : Node {
 
 	public int GetRecentReleasedRecordCount(string labelId, int maxAgeWeeks = 52) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
-		int active = ChartManager.Instance.GetAllRecords().Count(record =>
+		int active = ChartManager.Instance.GetRecordsForLabel(labelId).Count(record =>
 			record.baseRecord.labelId == labelId &&
 			record.weeksSinceRelease <= maxAgeWeeks);
 		return active + CountRecentRetiredRecordEvidence(
@@ -5216,7 +5215,7 @@ public partial class CompetitorManager : Node {
 
 	private int GetRecentTop40RecordCount(string labelId, int maxAgeWeeks) {
 		if (string.IsNullOrEmpty(labelId) || ChartManager.Instance == null) return 0;
-		int active = ChartManager.Instance.GetAllRecords().Count(record =>
+		int active = ChartManager.Instance.GetRecordsForLabel(labelId).Count(record =>
 			record.baseRecord.labelId == labelId &&
 			record.weeksSinceRelease <= maxAgeWeeks &&
 			record.peakPosition > 0 && record.peakPosition <= 40);

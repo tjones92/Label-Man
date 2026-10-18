@@ -85,24 +85,51 @@ public static partial class LocalSceneRoomService {
             }
             return room.Families.Contains(family) && PeopleFor(act).Length > 0;
         }
-        var reservations = new HashSet<string>(StringComparer.Ordinal);
-        var personPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
-        var actPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
+        // A town's acts that can take the stage on a day, with their family that year: what EligibleForRoom tests,
+        // less the room's own years and families. Every room in the town reads the one list, in MembersOf order.
+        var townActs = new Dictionary<(string Place, int Day), (SimulatedArtist Act, GenreFamily Family)[]>();
+        SimulatedArtist[] MembersForRoom(SceneRoomProfile room, int day) {
+            if (!cacheReads) return LocalScenePersistenceService.MembersOf(room.PlaceId)
+                .Select(ArtistManager.Instance.GetArtist).Where(a => EligibleForRoom(a, room, day)).ToArray();
+            int year = Date(day).year;
+            if (!townActs.TryGetValue((room.PlaceId, day), out var acts)) {
+                var list = new List<(SimulatedArtist, GenreFamily)>();
+                foreach (string artistId in LocalScenePersistenceService.MembersOf(room.PlaceId)) {
+                    var act = ArtistManager.Instance.GetArtist(artistId);
+                    if (act == null || !LocalScenePersistenceService.Present(act, room.PlaceId, day / 7) ||
+                        !SceneEcosystemService.AvailableAt(act.artistId, room.PlaceId, day) || PeopleFor(act).Length == 0) continue;
+                    var familyKey = (act, year);
+                    if (!families.TryGetValue(familyKey, out var family)) {
+                        family = GenreCatalog.Get(GenreCatalog.MapLegacy(act.primaryGenre, year)).Family;
+                        families.Add(familyKey, family);
+                    }
+                    list.Add((act, family));
+                }
+                townActs.Add((room.PlaceId, day), acts = list.ToArray());
+            }
+            if (year < room.FromYear || year > room.ThroughYear) return Array.Empty<SimulatedArtist>();
+            var members = new List<SimulatedArtist>(acts.Length);
+            foreach (var (act, family) in acts) if (room.Families.Contains(family)) members.Add(act);
+            return members.ToArray();
+        }
+        var reservations = new HashSet<(int Day, int Hour, string Person)>();
+        var personPlaces = new Dictionary<(int Day, string Person), string>();
+        var actPlaces = new Dictionary<(int Day, string Artist), string>();
         // Each person's and act's sets by day, for a second room (WorkingWeek). Only kept when double rooms are on.
-        var actSets = new Dictionary<string, List<DaySet>>(StringComparer.Ordinal);
-        var personSets = new Dictionary<string, List<DaySet>>(StringComparer.Ordinal);
+        var actSets = new Dictionary<(int Day, string Id), List<DaySet>>();
+        var personSets = new Dictionary<(int Day, string Id), List<DaySet>>();
         bool doubles = LocalScenes.DoubleRooms, workingWeek = LocalScenes.DayJobs || doubles;
         void Track(SceneBill b, SceneAppearance slot) {
-            AddDaySet(actSets, $"{b.Day}|{slot.ArtistId}", new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
-            foreach (string person in slot.PersonIds) AddDaySet(personSets, $"{b.Day}|{person}", new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
-            foreach (string person in slot.BackingPersonIds ?? new()) AddDaySet(personSets, $"{b.Day}|{person}", new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, true));
+            AddDaySet(actSets, (b.Day, slot.ArtistId), new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
+            foreach (string person in slot.PersonIds) AddDaySet(personSets, (b.Day, person), new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, false));
+            foreach (string person in slot.BackingPersonIds ?? new()) AddDaySet(personSets, (b.Day, person), new(b.RoomId, slot.ArtistId, slot.StartHour, slot.EndHour, true));
         }
         foreach (var bill in State.Bills) foreach (var slot in bill.Appearances) {
             foreach (string person in slot.PersonIds.Concat(slot.BackingPersonIds ?? new())) {
-                personPlaces[$"{bill.Day}|{person}"] = bill.RoomId;
-                for (int h = slot.StartHour; h < slot.EndHour; h++) reservations.Add($"{bill.Day}|{h}|{person}");
+                personPlaces[(bill.Day, person)] = bill.RoomId;
+                for (int h = slot.StartHour; h < slot.EndHour; h++) reservations.Add((bill.Day, h, person));
             }
-            actPlaces[$"{bill.Day}|{slot.ArtistId}"] = bill.RoomId;
+            actPlaces[(bill.Day, slot.ArtistId)] = bill.RoomId;
             if (doubles) Track(bill, slot);
         }
         for (int day = Math.Max(week * 7, earliestDay); day < week * 7 + 7 && Date(day) <= GameDate.EndDate; day++) {
@@ -117,8 +144,7 @@ public static partial class LocalSceneRoomService {
                 // A funded program's extra set runs past the room's usual close.
                 var bill = new SceneBill { Id = id, RoomId = room.Id, Day = day, Year = date.year,
                     StartHour = room.OpenHour, EndHour = Math.Max(room.CloseHour, room.OpenHour + slots) };
-                var members = asOfDay.HasValue ? EligibleBefore(room, day, asOfDay.Value) : LocalScenePersistenceService.MembersOf(room.PlaceId)
-                    .Select(ArtistManager.Instance.GetArtist).Where(a => EligibleForRoom(a, room, day)).ToArray();
+                var members = asOfDay.HasValue ? EligibleBefore(room, day, asOfDay.Value) : MembersForRoom(room, day);
                 int term = Term(day);
                 if (!engagementsByRoom.TryGetValue(room.Id, out var roomEngagements))
                     engagementsByRoom.Add(room.Id, roomEngagements = new());
@@ -144,11 +170,11 @@ public static partial class LocalSceneRoomService {
                     int hour = rotation ? room.OpenHour + slots - 1 - bill.Appearances.Count : room.OpenHour + bill.Appearances.Count;
                     // No cross-city teleporting or shared-musician overlap. Without double rooms a performer's whole
                     // day stays in one room; with them, a full-time act may cross town to one more room (WorkingWeek).
-                    if (doubles ? people.Any(p => reservations.Contains($"{day}|{hour}|{p}")) ||
+                    if (doubles ? people.Any(p => reservations.Contains((day, hour, p))) ||
                             !DayAllows(act, room, day, hour, people, fullTime, actSets, personSets)
-                        : actPlaces.TryGetValue($"{day}|{act.artistId}", out var ar) && ar != room.Id ||
-                        people.Any(p => reservations.Contains($"{day}|{hour}|{p}") ||
-                            personPlaces.TryGetValue($"{day}|{p}", out var pr) && pr != room.Id)) continue;
+                        : actPlaces.TryGetValue((day, act.artistId), out var ar) && ar != room.Id ||
+                        people.Any(p => reservations.Contains((day, hour, p)) ||
+                            personPlaces.TryGetValue((day, p), out var pr) && pr != room.Id)) continue;
                     // Rotation: only an earned engagement makes a regular (OfferEngagements); otherwise booking confers one.
                     bool regular = rotation ? regularIds.Contains(act.artistId) : Regular(act, room);
                     if (!rotation && regular && !regularIds.Contains(act.artistId)) {
@@ -160,11 +186,11 @@ public static partial class LocalSceneRoomService {
                     bill.Appearances.Add(new() { ArtistId = act.artistId, PersonIds = people.ToList(), StartHour = hour, EndHour = hour + 1,
                         Role = bill.Appearances.Count == 0 ? "opening set" : "closing set", Residency = regular,
                         Set = asOfDay.HasValue ? new() : SetFor(act, id, date.year, setPools, originalTitles), BackingPersonIds = backers?.Count > 0 ? backers : null });
-                    actPlaces[$"{day}|{act.artistId}"] = room.Id;
-                    foreach (string person in people.Concat(backers ?? new())) { reservations.Add($"{day}|{hour}|{person}"); personPlaces[$"{day}|{person}"] = room.Id; }
+                    actPlaces[(day, act.artistId)] = room.Id;
+                    foreach (string person in people.Concat(backers ?? new())) { reservations.Add((day, hour, person)); personPlaces[(day, person)] = room.Id; }
                     // A player crossing town to a second room is nobody's house band today: backers stay in one room.
-                    if (doubles && actSets.TryGetValue($"{day}|{act.artistId}", out var earlier) && earlier.Any(x => x.RoomId != room.Id))
-                        foreach (string person in people) personPlaces[$"{day}|{person}"] = SecondRoom;
+                    if (doubles && actSets.TryGetValue((day, act.artistId), out var earlier) && earlier.Any(x => x.RoomId != room.Id))
+                        foreach (string person in people) personPlaces[(day, person)] = SecondRoom;
                 }
                 if (rotation) {
                     // Filled from the top of the bill back: close any gap at the start, then list in running order.
@@ -235,14 +261,34 @@ public static partial class LocalSceneRoomService {
             pools.Add(key, pool);
         }
         ulong prefix = LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.BeginAssignment(LocalSceneIdentityService.KeyedSeed), $"room-v1|set|{bill}|{artist.artistId}|".AsSpan());
-        var songs = StableSmallSelection.Take(pool, 3,
-                s => LocalSceneIdentityService.FinishAssignment(LocalSceneIdentityService.AppendAssignment(prefix, s.songId.AsSpan())), Comparer<double>.Default)
+        var songs = KeyedSample(pool, 3, prefix)
             .Select(s => new SceneSetSong { SongId = s.songId, Title = s.title, Genre = s.primaryGenre, ContentContext = s.contentContext }).ToList();
         if (artist.songwritingAbility > .3f) {
             if (!titles.TryGetValue(key, out string title)) titles.Add(key, title = OriginalTitle(artist, year));
             songs.Insert(0, new() { Title = title, Genre = artist.primaryGenre, Original = true });
         }
         return songs.Take(3).ToList();
+    }
+    /// <summary>A bill's covers: <paramref name="count"/> songs drawn uniformly without replacement, keyed on the bill and act.
+    /// It used to rank the whole pool by a keyed hash and keep the lowest three, which is the same uniform draw but hashed
+    /// every standard in the genre and family per bill (a 1969 pool runs to thousands). This draws only the indices.</summary>
+    private static SongComposition[] KeyedSample(SongComposition[] pool, int count, ulong prefix) {
+        if (pool.Length <= count)
+            return StableSmallSelection.Take(pool, count,
+                s => LocalSceneIdentityService.FinishAssignment(LocalSceneIdentityService.AppendAssignment(prefix, s.songId.AsSpan())), Comparer<double>.Default);
+        var picked = new SongComposition[count];
+        Span<int> chosen = stackalloc int[count];
+        Span<char> tag = stackalloc char[3];
+        for (int k = 0; k < count; k++) {
+            int index = 0;
+            for (int attempt = 0; ; attempt++) {
+                tag[0] = '#'; tag[1] = (char)k; tag[2] = (char)attempt;
+                index = (int)(LocalSceneIdentityService.FinishAssignment(LocalSceneIdentityService.AppendAssignment(prefix, tag)) * pool.Length);
+                if (chosen[..k].IndexOf(index) < 0) break;
+            }
+            chosen[k] = index; picked[k] = pool[index];
+        }
+        return picked;
     }
     /// <summary>The title of a scene act's own unrecorded song: keyed on the act, the year and its place in the act's own
     /// material, so every bill and every read names the same song the same way, and drawing it moves no title stream.</summary>

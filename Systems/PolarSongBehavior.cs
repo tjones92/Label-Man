@@ -83,7 +83,19 @@ public static class PolarSongBehavior {
 		var master = PolarSongMetadataService.Get(explicitId);
 		if (explicitId != null) return master != null && master.songId == song.songId && master.recordingYear <= year ? master : null;
 		// Only known completed releases, never an unshipped master or a future outcome.
-		foreach (var memory in (song.recordings ?? new()).Where(r => r.year <= year)
+		// The latest recording (then the ordinal-first id) almost always qualifies, so find it in one pass and
+		// sort the rest only when it does not. A popular standard carries many recordings; sorting them per
+		// material choice was ~2% of a late window.
+		var recordings = song.recordings;
+		if (recordings == null || recordings.Count == 0) return null;
+		SongRecordingMemory latest = null;
+		foreach (var r in recordings)
+			if (r.year <= year && (latest == null || r.year > latest.year ||
+				r.year == latest.year && StringComparer.Ordinal.Compare(r.recordId, latest.recordId) < 0)) latest = r;
+		if (latest == null) return null;
+		master = PolarSongMetadataService.Get(latest.recordId);
+		if (master != null && master.songId == song.songId && master.recordingYear <= year) return master;
+		foreach (var memory in recordings.Where(r => r.year <= year)
 			.OrderByDescending(r => r.year).ThenBy(r => r.recordId, StringComparer.Ordinal)) {
 			master = PolarSongMetadataService.Get(memory.recordId);
 			if (master != null && master.songId == song.songId && master.recordingYear <= year) return master;

@@ -25,9 +25,22 @@ public sealed class PolarSongTable {
 	internal static bool AuditLegacyRepair;
 	public float N(string key) => Numbers[key];
 	public PolarArchetypeRow Row(SongArchetype archetype) {
+		// Profile derivation asks this per candidate reading; index the first row of each name once per Archetypes array.
+		if (!ReferenceEquals(rowIndexSource, Archetypes)) {
+			rowIndex.Clear();
+			foreach (SongArchetype value in Enum.GetValues<SongArchetype>()) {
+				string valueName = value.ToString();
+				var first = Archetypes?.FirstOrDefault(r => r.Name == valueName);
+				if (first != null) rowIndex[value] = first;
+			}
+			rowIndexSource = Archetypes;
+		}
+		if (rowIndex.TryGetValue(archetype, out var row)) return row;
 		string name = archetype.ToString();
 		return Archetypes.First(r => r.Name == name);
 	}
+	private PolarArchetypeRow[] rowIndexSource;
+	private readonly Dictionary<SongArchetype, PolarArchetypeRow> rowIndex = new();
 	public PolarStylePrior Prior(Genre genre) => derivedPriors.TryGetValue(genre, out var center) ? center : LegacyPrior(genre);
 	private PolarStylePrior LegacyPrior(Genre genre) => GenreOverrides.TryGetValue(genre.ToString(), out var p) ? p :
 		Families[GenreCatalog.TryGet(genre, out var g) ? g.Family.ToString() : GenreFamily.Pop.ToString()];

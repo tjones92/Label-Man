@@ -43,6 +43,8 @@ public static class CompositionCatalogService {
 	// member holds on the act's originals (written when the credit is, not when a run completes), which is
 	// what the CreditAndMoney strain reads as a share.
 	private static readonly Dictionary<string, WriterCreditLedgerEntry> writerStintLedger = new(StringComparer.Ordinal);
+	// People with songs > 0 on any stint, so HasAnyWriterCredit need not scan the stint ledger per departing member.
+	private static readonly HashSet<string> stintSongwriters = new(StringComparer.Ordinal);
 	// Phase 3b catalog succession: label-controlled compositions indexed by controller label, so a dying
 	// label's publishing catalog can pass to a successor instead of silently leaking (covers of its hits
 	// then pay the successor). Only artist-originals carry a song-level controller label.
@@ -85,6 +87,7 @@ public static class CompositionCatalogService {
 		publishers.Clear();
 		writerLedger.Clear();
 		writerStintLedger.Clear();
+		stintSongwriters.Clear();
 		songsByControllerLabel.Clear();
 		songCounter = 0;
 		rng = new RandomNumberGenerator {
@@ -666,6 +669,7 @@ public static class CompositionCatalogService {
 			WriterCreditLedgerEntry entry = StintEntry(credit.writerId, artist.artistId, credit.writerName);
 			entry.creditMass += credit.share;
 			entry.songs++;
+			stintSongwriters.Add(credit.writerId);
 			if (memberWriters > 1) entry.coWrittenSongs++;
 		}
 	}
@@ -699,8 +703,7 @@ public static class CompositionCatalogService {
 	public static bool HasAnyWriterCredit(string personId) {
 		if (string.IsNullOrEmpty(personId)) return false;
 		if (writerLedger.ContainsKey(personId)) return true;
-		foreach (WriterCreditLedgerEntry e in writerStintLedger.Values) if (e.personId == personId && e.songs > 0) return true;
-		return false;
+		return stintSongwriters.Contains(personId);
 	}
 
 	/// <summary>Per-person accumulation of songwriting chart credits (Phase 5, telemetry-only). The same type
@@ -985,6 +988,8 @@ public static class CompositionCatalogService {
 		foreach (var kv in c.WriterLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerLedger[kv.Key] = kv.Value;
 		writerStintLedger.Clear();
 		foreach (var kv in c.WriterStintLedger ?? new Dictionary<string, WriterCreditLedgerEntry>()) writerStintLedger[kv.Key] = kv.Value;
+		stintSongwriters.Clear();
+		foreach (WriterCreditLedgerEntry e in writerStintLedger.Values) if (e.songs > 0 && e.personId != null) stintSongwriters.Add(e.personId);
 
 		songCounter = c.SongCounter;
 		proTeamsBuilt = c.ProTeamsBuilt;

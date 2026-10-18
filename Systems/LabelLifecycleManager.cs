@@ -255,7 +255,7 @@ public partial class LabelLifecycleManager : Node {
 	}
 
 	private void OnMonthChanged(GameDate date) {
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		ProcessMonth(date.year, date.month);
 		SimulationPerformanceProfiler.EndLabelLifecycleMonth(profileStart);
 	}

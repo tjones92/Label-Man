@@ -11,24 +11,38 @@ public static class SceneRecruitmentService {
             Route == "RoadCircuit" ? .5f : 0f;
     }
 
-    public static Access Explain(AILabel label, SimulatedArtist artist, int week) {
+    public static Access Explain(AILabel label, SimulatedArtist artist, int week) => Explain(label, artist, week, null);
+
+    /// <param name="placeAccess">One slate's memo of the label-and-town part of the answer (everything after the guest test),
+    /// keyed by the act's base place. That part reads only the label, the two places and the week.</param>
+    private static Access Explain(AILabel label, SimulatedArtist artist, int week, Dictionary<string, Access> placeAccess) {
         ScenePlace hq = ScenePlaceRegistry.Get(label?.geography?.basePlaceId);
         ScenePlace home = ScenePlaceRegistry.Get(artist?.geography?.basePlaceId);
-        Access Result(bool eligible, string route, float? miles = null, float weight = 0f, string evidence = null) =>
-            new(eligible, route, hq?.Id, home?.Id, miles, weight, evidence);
-        if (hq == null || home == null) return Result(false, "UnknownPlace");
+        if (hq == null || home == null) return new(false, "UnknownPlace", hq?.Id, home?.Id, null, 0f, null);
         string hqScene = hq.PlayableCityId ?? hq.Id;
         string homeScene = home.PlayableCityId ?? home.Id;
         if (hq.CountryCode == home.CountryCode && hqScene == homeScene)
-            return Result(true, "Catchment", 0f, 1f);
+            return new(true, "Catchment", hq.Id, home.Id, 0f, 1f, null);
         // A dated guest encounter is a real nonlocal route. Expired/future/alumnus rows do not qualify.
-        var guest = artist.sceneParticipations?.Where(p => p.sceneId == hqScene &&
-            p.relationship is not (SceneRelationship.Resident or SceneRelationship.Alumnus) &&
-            p.startWeek <= week && p.endWeek.HasValue && p.endWeek.Value >= week &&
-            !string.IsNullOrWhiteSpace(p.provenance)).OrderBy(p => p.startWeek)
-            .ThenBy(p => p.provenance, StringComparer.Ordinal).FirstOrDefault();
+        // The earliest start wins, then the ordinal-first provenance; the first such row on a full tie.
+        SceneParticipation guest = null;
+        if (artist.sceneParticipations != null)
+            foreach (var p in artist.sceneParticipations) {
+                if (p.sceneId != hqScene || p.relationship is SceneRelationship.Resident or SceneRelationship.Alumnus ||
+                    p.startWeek > week || !p.endWeek.HasValue || p.endWeek.Value < week || string.IsNullOrWhiteSpace(p.provenance)) continue;
+                if (guest == null || p.startWeek < guest.startWeek ||
+                    p.startWeek == guest.startWeek && StringComparer.Ordinal.Compare(p.provenance, guest.provenance) < 0) guest = p;
+            }
         if (guest != null)
-            return Result(true, "LocalVisitor", null, .85f, guest.provenance);
+            return new(true, "LocalVisitor", hq.Id, home.Id, null, .85f, guest.provenance);
+        if (placeAccess == null) return ExplainBeyondGuest(label, hq, home, week);
+        if (!placeAccess.TryGetValue(home.Id, out var access)) placeAccess.Add(home.Id, access = ExplainBeyondGuest(label, hq, home, week));
+        return access;
+    }
+
+    private static Access ExplainBeyondGuest(AILabel label, ScenePlace hq, ScenePlace home, int week) {
+        Access Result(bool eligible, string route, float? miles = null, float weight = 0f, string evidence = null) =>
+            new(eligible, route, hq.Id, home.Id, miles, weight, evidence);
         if (hq.CountryCode == "GB" && home.CountryCode == "GB" &&
             SceneSourceService.Connection(label, home.Id, week) is { } sourceCircuit)
             return Result(true, "SourceCircuit", null, .25f, sourceCircuit.Id + ": " + sourceCircuit.Provenance);
@@ -62,13 +76,19 @@ public static class SceneRecruitmentService {
 
     public static List<SimulatedArtist> Slate(AILabel label, IEnumerable<SimulatedArtist> pool,
         int week, int window, int count, out int accessibleCount) {
-        var accessible = pool.Select(a => (Artist: a, Access: Explain(label, a, week)))
-            .Where(x => x.Access.Eligible).ToList();
+        var placeAccess = new Dictionary<string, Access>(StringComparer.Ordinal);
+        var accessible = new List<(SimulatedArtist Artist, Access Access)>();
+        foreach (var a in pool) {
+            var access = Explain(label, a, week, placeAccess);
+            if (access.Eligible) accessible.Add((a, access));
+        }
         accessibleCount = accessible.Count;
         // Weighted sampling without replacement. Attention remains finite, including recovery.
-        double Key(SimulatedArtist artist) => -Math.Log(Math.Max(1e-12,
-            LocalSceneIdentityService.AssignmentUnit(LocalSceneIdentityService.KeyedSeed,
-                $"recruitment-v1|{label.labelId}|{artist.artistId}|{window}")));
+        ulong keyPrefix = LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.BeginAssignment(LocalSceneIdentityService.KeyedSeed),
+            $"recruitment-v1|{label.labelId}|".AsSpan());
+        string windowSuffix = "|" + window.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        double Key(SimulatedArtist artist) => -Math.Log(Math.Max(1e-12, LocalSceneIdentityService.FinishAssignment(
+            LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.AppendAssignment(keyPrefix, artist.artistId.AsSpan()), windowSuffix.AsSpan()))));
         double Seen(SimulatedArtist artist) => ActVisibility?.Invoke(artist) ?? 1d;
         if (!LocalScenes.AttentionFeedback)
             return accessible.OrderBy(x => Key(x.Artist) / (x.Access.Weight * Seen(x.Artist)))

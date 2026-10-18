@@ -463,7 +463,7 @@ public partial class RosterManager : Node {
 	}
 	
 	private void OnWeekEnded(GameDate date) {
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		OnWeekEndedCore(date);
 		SimulationPerformanceProfiler.EndRosterWeek(profileStart);
 	}
@@ -498,7 +498,7 @@ public partial class RosterManager : Node {
 
 	private void OnDayStarted(GameDate date) {
 		if (!IsLiveGenreMarket()) return;
-		long profileStart = SimulationPerformanceProfiler.Begin();
+		var profileStart = SimulationPerformanceProfiler.Begin();
 		ProcessDailyTalentMarket(date);
 		SimulationPerformanceProfiler.EndDailyTalentMarket(profileStart);
 	}
@@ -1588,17 +1588,20 @@ public partial class RosterManager : Node {
 				owners.Add(label);
 			}
 		}
-		foreach ((SimulatedArtist artist, List<AILabel> owners) in memberships) {
-			AILabel owner = !string.IsNullOrEmpty(artist.labelId)
-				? allLabels.FirstOrDefault(label => label.labelId == artist.labelId)
-				: null;
-			if (owner == null) {
-				foreach (AILabel roster in owners) roster.roster.RemoveAll(candidate => candidate == artist);
-				continue;
-			}
-			foreach (AILabel roster in owners) roster.roster.RemoveAll(candidate => candidate == artist);
-			owner.roster.Add(artist);
+		// Every artist leaves every roster it is on and rejoins only its owner's, in membership order. Done artist by
+		// artist that was a RemoveAll per roster per artist plus a linear owner search: quadratic in roster size. Each
+		// roster ends as its null slots followed by the artists it owns in membership order, so build that directly.
+		var ownerById = new Dictionary<string, AILabel>(System.StringComparer.Ordinal);
+		foreach (AILabel label in allLabels) if (label.labelId != null) ownerById.TryAdd(label.labelId, label);
+		var owned = new Dictionary<AILabel, List<SimulatedArtist>>();
+		foreach (SimulatedArtist artist in memberships.Keys) {
+			AILabel owner = !string.IsNullOrEmpty(artist.labelId) ? ownerById.GetValueOrDefault(artist.labelId) : null;
+			if (owner == null) continue;
+			if (!owned.TryGetValue(owner, out var list)) owned[owner] = list = new List<SimulatedArtist>();
+			list.Add(artist);
 		}
+		foreach (AILabel label in allLabels) label.roster.RemoveAll(candidate => candidate != null && memberships.ContainsKey(candidate));
+		foreach ((AILabel owner, List<SimulatedArtist> artists) in owned) owner.roster.AddRange(artists);
 		ArtistManager.Instance?.ReconcileEnabledUnsignedPool();
 	}
 

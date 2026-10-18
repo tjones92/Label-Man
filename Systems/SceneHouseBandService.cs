@@ -24,16 +24,23 @@ public static class SceneHouseBandService {
 
 	/// <summary>Backers for one set, chosen at scheduling. Nobody already working another room that day or this hour.</summary>
 	public static List<string> Pick(SceneRoomProfile room, SimulatedArtist act, int day, int hour, string[] people,
-		Dictionary<string, string> personPlaces, HashSet<string> reservations, Func<string, string, int> regularShows) {
+		Dictionary<(int Day, string Person), string> personPlaces, HashSet<(int Day, int Hour, string Person)> reservations,
+		Func<string, string, int> regularShows) {
 		var pool = Players(room.PlaceId, day / 7);
 		var eligible = pool
 			.Where(m => m.lifeState == MemberLifeState.Active && !people.Contains(m.personId) &&
-				!reservations.Contains($"{day}|{hour}|{m.personId}") &&
-				!(personPlaces.TryGetValue($"{day}|{m.personId}", out var place) && place != room.Id));
+				!reservations.Contains((day, hour, m.personId)) &&
+				!(personPlaces.TryGetValue((day, m.personId), out var place) && place != room.Id));
+		// The singer's good contacts, gathered once rather than an edge lookup per member per candidate.
+		var contacts = new HashSet<string>(StringComparer.Ordinal);
+		foreach (string p in people)
+			foreach (string other in ContactNetworkService.ContactsOf(p))
+				if (ContactNetworkService.Edge(p, other) is { Fallout: false }) contacts.Add(other);
+		ulong drawPrefix = BandLife.UnitPrefix($"house|{room.Id}|{day}|");
 		return StableSmallSelection.Take(eligible, BandSize,
 			m => RegularBonus * Math.Min(1f, regularShows(room.Id, m.personId) / (float)RegularSaturation)
-				+ (people.Any(p => ContactNetworkService.Edge(p, m.personId) is { Fallout: false }) ? ContactBonus : 0f)
-				+ m.technicalSkill + 0.1f * BandLife.Unit($"house|{room.Id}|{day}|{m.personId}"), descendingScore, m => m.personId)
+				+ (contacts.Contains(m.personId) ? ContactBonus : 0f)
+				+ m.technicalSkill + 0.1f * BandLife.UnitAfter(drawPrefix, m.personId), descendingScore, m => m.personId)
 			.Select(m => m.personId).ToList();
 	}
 
