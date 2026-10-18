@@ -4019,6 +4019,97 @@ Evidence, in `SimLogs/`: `known-act-off-identity/`, `known-act-smoke/` (consoles
 `momhl052-launchsat050-headtpl-diagnostics/`: `identity_compare.py` / `identity-known-act-off.txt`,
 `known_act_smoke.py` / `known-act-smoke.txt`, `known_act_mechanism.py` / `known-act-mechanism.txt`.
 
+### 17ac. Screen result: the lane does not lift the Big-5; known-act airplay rejected (`hitcad-*-screen-v1`, 2026-10-18)
+
+**Runs.** Build `6aaac2e`, five seeds × 260 weeks per arm. Each arm runs V1's flags + `--hit-act-cadence
+--hit-act-retention`; A60 adds `--known-act-airplay` and A40 adds `--known-act-airplay=0.40`. The yearly watch
+(`yearly_watch_cadence.py`, the §17o stop rule) read LR against V1, and A60 and A40 against LR.
+
+- **LR and A60** completed all 10 runs: 260 weeks each, about 39 minutes, empty error logs. The watch reported LR
+  WITHIN band every year, and A60 WITHIN through 1963 with 1964 MARGINAL (CR8 37.2).
+- **A40 was stopped after 1960** at week 57-60, with Godot left at 0. Its 1960 CR8 was 45.7 against the 48-58 band,
+  while LR stood at 50.3 and V1 at 51.1. Its Big-5 share was 25.0 (LR 31.4, history 34.2). P = 0.40 cuts the
+  opening year that history leads with the majors.
+
+**1. Hit-act conversion per Hot 100 debut** (1961-64, five seeds pooled):
+
+| | History | V1 | LR | A60 |
+|---|---:|---:|---:|---:|
+| Big-5 / other hit acts | 15.96 / 15.93% | 37.4 / 27.0% | 26.1 / 22.0% | 27.4 / 21.9% |
+| **Ratio** | **1.00** ± 0.18 | 1.38 | **1.19** | 1.25 |
+| Ratio by seed | | 0.67 0.92 2.00 1.31 1.50 | 0.92 1.55 1.50 1.09 1.10 | 1.73 1.02 1.22 1.02 1.41 |
+| Hot 100 debuts per hit act, Big-5 / other | 3.28 / 2.18 | 0.92 / 0.72 | 1.81 / 0.94 | 1.74 / 0.98 |
+
+The lane alone took the ratio from 1.38 to 1.19, just inside history's interval. Big-5 hit acts doubled their
+Hot 100 debuts (0.92 → 1.81), and each converted less often (37.4 → 26.1%). A60 added nothing (1.25), and the
+per-seed ratios run 0.67-2.00, so the ratio is noisy at five seeds.
+
+**2. Big-5 Top 10 share:**
+
+| | 1961 | 1962 | 1963 | 1964 |
+|---|---:|---:|---:|---:|
+| History | 20.6 | 21.2 | 26.0 | 18.7 |
+| V1 | 25.9 | 21.3 | 28.9 | 24.7 |
+| **LR** | **21.8** | **21.5** | **25.3** | **19.0** |
+| A60 | 23.9 | 26.1 | 22.7 | 18.2 |
+| LR − V1, paired (SE) | −4.0 (4.4) | +0.2 (2.4) | −3.6 (3.0) | −5.7 (3.4) |
+| A60 − LR, paired (SE) | +2.1 (1.8) | **+4.6** (1.8) | −2.6 (3.8) | −0.8 (2.3) |
+
+LR sits within 1.2 points of history in every year 1961-64. A60 raised the share in 1961-62. In 1962 four of five
+seeds moved up, by +4.6 at an SE of 1.8, the wrong way. A60 fails both the pass rule (at or below LR in four of
+five seeds every year) and the kill rule.
+
+**3. Top 10 turnover** is unchanged in every arm: 97-101 Top 10 records a year (history 105) at 5.1-5.4 weeks each.
+§17y's one-seed turnover worry (89 records, 5.36 weeks) did not hold.
+
+**Other guards, five-seed means 1961-64:**
+
+| | History | V1 | LR | A60 |
+|---|---:|---:|---:|---:|
+| Acts on the Hot 100 a year | 386 | 627-670 | 560-616 | 554-597 |
+| Hot 100 records per charting act | 2.03 | 1.21-1.24 | 1.31-1.37 | 1.33-1.39 |
+| #1 weeks per #1 record | 2.55 | 2.12-2.69 | 2.13-2.67 | 2.23-2.67 |
+| Cold-return slots a year, 1962-64 (watch) | 17 | 24-49 | 22-29 | — |
+| Performance departures vs V1 | | | **+7.9%** | +7.4% |
+| Contract-expiry drops | | 848-1,796 | 770-1,678 | 774-1,658 |
+| CR8, 1961-64 (band 38-48) | | 43.3-49.1 | 38.2-41.3 | 37.2-45.9 |
+
+**Correction to §17z and §17aa.** The lane's projected +4 to +5 Big-5 points did not happen: LR is 0 to 6 points
+*below* V1. §17z held each group's Top 10 yield per launch fixed and scaled launch counts. But the lane adds
+launches to the *same* acts, and a hit act's extra singles convert less often. That is history's shape (§17w:
+more, smaller records), and the fixed-yield projection could not see it. The 9.6-point jump that started §17z was
+seed 1001's draw: LR's seed 1001 is +9.6 against V1 in 1961, and the other four seeds fall. §17aa's history finding
+stands, since history's hit acts did convert at the field's rate. But the premium it measured was partly an
+artefact of V1's under-release, and the lane removes most of it.
+
+**Verdicts.**
+
+- **Known-act airplay: rejected at both P.** A60 does not cut the Big-5 share and does not lower the conversion
+  ratio; A40 breaks 1960. The switch stays in the tree, off by default.
+- **The lane + retention (LR): the best candidate of this arc, not adopted.** It is the first arm to put the Big-5
+  share on history in all four years, with the conversion ratio inside history's interval, cold returns down by
+  half, 10% fewer charting acts, and turnover and #1 tenure unchanged. Performance departures are +7.9%, inside
+  the +20% line.
+- **LR's open items:**
+  - CR8 sits at the floor of the band (38.2 in 1964, 40.1 in 1961).
+  - Cadence is still half of history's (1.81 / 0.94 Hot 100 debuts per hit act, against 3.28 / 2.18).
+  - Other labels' hit acts gained least.
+  - §17v requires an artist-side change to stand on defaults as well, so arm D is owed.
+
+**Next.**
+
+- *Arm D:* defaults + lane + retention, five seeds × 260 weeks against the default controls. One batch, about 40
+  minutes.
+- *Analysis:* split LR's fall in Big-5 conversion between the same-act split and plain dilution, and read genre
+  error.
+- *The cadence shortfall* is the entry question §17y left open: a non-Big-5 hit act's follow-up still reaches the
+  Hot 100 well under half the time.
+
+Evidence: `SimLogs/hitcad-lr-screen-v1/`, `hitcad-a60-screen-v1/`, `hitcad-a40-screen-v1/` (manifests, consoles,
+error logs). In `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `run_cadence_screen.ps1` /
+`screen-cadence-launch.log`, `yearly_watch_cadence.py` / `yearly-watch-cadence.log`, and `cadence_screen_readout.py`
+/ `cadence-screen-readout.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.
