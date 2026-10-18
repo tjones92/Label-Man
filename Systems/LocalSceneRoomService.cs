@@ -52,12 +52,15 @@ public static partial class LocalSceneRoomService {
     /// <param name="asOfDay">Pre-roll only: book the past with the world as it stands on this day (see Prewarm).</param>
     private static void Schedule(int week, int earliestDay, int? asOfDay = null) {
         bool cacheReads = StartupCaches.Enabled;
+        standardsBases.Clear();
         var billed = cacheReads ? State.Bills.Select(b => (b.RoomId, b.Day)).ToHashSet() : null;
         var lineups = new Dictionary<string, string[]>(StringComparer.Ordinal);
         var setPools = new Dictionary<(SimulatedArtist Artist, int Year), SongComposition[]>();
         var originalTitles = new Dictionary<(SimulatedArtist Artist, int Year), string>();
         var presence = new Dictionary<(SimulatedArtist Artist, string Place, int Day), bool>();
         var families = new Dictionary<(SimulatedArtist Artist, int Year), GenreFamily>();
+        var engagementsByRoom = State.Engagements.GroupBy(e => e.RoomId)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
         string[] PeopleFor(SimulatedArtist act) {
             if (!cacheReads) return StagePeople(act);
             if (!lineups.TryGetValue(act.artistId, out var people)) lineups.Add(act.artistId, people = StagePeople(act));
@@ -117,9 +120,15 @@ public static partial class LocalSceneRoomService {
                 var members = asOfDay.HasValue ? EligibleBefore(room, day, asOfDay.Value) : LocalScenePersistenceService.MembersOf(room.PlaceId)
                     .Select(ArtistManager.Instance.GetArtist).Where(a => EligibleForRoom(a, room, day)).ToArray();
                 int term = Term(day);
-                var regularIds = State.Engagements.Where(e => e.RoomId == room.Id && e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal);
+                if (!engagementsByRoom.TryGetValue(room.Id, out var roomEngagements))
+                    engagementsByRoom.Add(room.Id, roomEngagements = new());
+                var regularIds = roomEngagements.Where(e => e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal);
                 bool rotation = LocalScenes.RoomRotation;
-                if (rotation) OfferEngagements(room, day, members, regularIds, asOfDay.HasValue);
+                if (rotation) {
+                    int firstNewEngagement = State.Engagements.Count;
+                    OfferEngagements(room, day, members, regularIds, asOfDay.HasValue);
+                    for (int i = firstNewEngagement; i < State.Engagements.Count; i++) roomEngagements.Add(State.Engagements[i]);
+                }
                 engaged?.UnionWith(regularIds);
                 var candidates = rotation ? NightOrder(room, day, members, regularIds, asOfDay.HasValue) : members.OrderBy(a => regularIds.Contains(a.artistId) ? 0 : 1)
                     .ThenBy(a => Draw($"engagement|{room.Id}|{term}|{a.artistId}"))
@@ -142,8 +151,10 @@ public static partial class LocalSceneRoomService {
                             personPlaces.TryGetValue($"{day}|{p}", out var pr) && pr != room.Id)) continue;
                     // Rotation: only an earned engagement makes a regular (OfferEngagements); otherwise booking confers one.
                     bool regular = rotation ? regularIds.Contains(act.artistId) : Regular(act, room);
-                    if (!rotation && regular && !regularIds.Contains(act.artistId))
-                        State.Engagements.Add(new() { RoomId = room.Id, ArtistId = act.artistId, StartDay = day, ThroughDay = (term + 1) * 91 - 1 });
+                    if (!rotation && regular && !regularIds.Contains(act.artistId)) {
+                        var engagement = new SceneEngagement { RoomId = room.Id, ArtistId = act.artistId, StartDay = day, ThroughDay = (term + 1) * 91 - 1 };
+                        State.Engagements.Add(engagement); roomEngagements.Add(engagement);
+                    }
                     var backers = SceneHouseBandService.Needs(act, room)
                         ? SceneHouseBandService.Pick(room, act, day, hour, people, personPlaces, reservations, HouseShows) : null;
                     bill.Appearances.Add(new() { ArtistId = act.artistId, PersonIds = people.ToList(), StartHour = hour, EndHour = hour + 1,
@@ -182,6 +193,31 @@ public static partial class LocalSceneRoomService {
         }
         State.Bills = State.Bills.OrderBy(b => b.Day).ThenBy(b => b.RoomId, StringComparer.Ordinal).ToList();
     }
+    // The genre-and-family standards in effect for a year, first copy of each songId in catalogue order.
+    // Shared by every act of that genre in one scheduling pass (cleared by Schedule; the count check
+    // also catches a catalogue that grows mid-pass). Filtering per act after deduplicating keeps the
+    // same songs only when a repeated songId is the same object, so any other catalogue returns null
+    // and the caller uses the original per-act filter.
+    private static readonly Dictionary<(Genre, GenreFamily, int), (int Genre, int Family, SongComposition[] Songs)> standardsBases = new();
+    private static SongComposition[] StandardsBasis(Genre genre, GenreFamily family, int year) {
+        var byGenre = CompositionCatalogService.GetStandardsForGenre(genre);
+        var byFamily = CompositionCatalogService.GetStandardsForFamily(family);
+        if (standardsBases.TryGetValue((genre, family, year), out var hit) && hit.Genre == byGenre.Count && hit.Family == byFamily.Count)
+            return hit.Songs;
+        var first = new Dictionary<string, SongComposition>(byGenre.Count + byFamily.Count, StringComparer.Ordinal);
+        var songs = new List<SongComposition>();
+        bool sameObjects = true;
+        foreach (var source in new[] { byGenre, byFamily })
+            foreach (var s in source) {
+                if (s == null || s.originYear > year) continue;
+                if (s.songId == null) { sameObjects = false; continue; }
+                if (first.TryGetValue(s.songId, out var earlier)) { sameObjects &= ReferenceEquals(earlier, s); continue; }
+                first.Add(s.songId, s); songs.Add(s);
+            }
+        var result = sameObjects ? songs.ToArray() : null;
+        standardsBases[(genre, family, year)] = (byGenre.Count, byFamily.Count, result);
+        return result;
+    }
     private static List<SceneSetSong> SetFor(SimulatedArtist artist, string bill, int year,
             Dictionary<(SimulatedArtist Artist, int Year), SongComposition[]> pools,
             Dictionary<(SimulatedArtist Artist, int Year), string> titles) {
@@ -190,13 +226,17 @@ public static partial class LocalSceneRoomService {
         var key = (artist, year);
         if (!pools.TryGetValue(key, out var pool)) {
             GenreFamily family = GenreCatalog.Get(GenreCatalog.MapLegacy(artist.primaryGenre, year)).Family;
-            pool = CompositionCatalogService.GetStandardsForGenre(artist.primaryGenre)
+            var basis = StandardsBasis(artist.primaryGenre, family, year);
+            pool = basis != null ? basis.Where(s => LiveRepertoire.EligibleLive(s, artist)).ToArray()
+                : CompositionCatalogService.GetStandardsForGenre(artist.primaryGenre)
                 .Concat(CompositionCatalogService.GetStandardsForFamily(family))
                 .Where(s => s != null && s.originYear <= year && LiveRepertoire.EligibleLive(s, artist))
                 .DistinctBy(s => s.songId).ToArray();
             pools.Add(key, pool);
         }
-        var songs = pool.OrderBy(s => Draw($"set|{bill}|{artist.artistId}|{s.songId}")).Take(3)
+        ulong prefix = LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.BeginAssignment(LocalSceneIdentityService.KeyedSeed), $"room-v1|set|{bill}|{artist.artistId}|".AsSpan());
+        var songs = StableSmallSelection.Take(pool, 3,
+                s => LocalSceneIdentityService.FinishAssignment(LocalSceneIdentityService.AppendAssignment(prefix, s.songId.AsSpan())), Comparer<double>.Default)
             .Select(s => new SceneSetSong { SongId = s.songId, Title = s.title, Genre = s.primaryGenre, ContentContext = s.contentContext }).ToList();
         if (artist.songwritingAbility > .3f) {
             if (!titles.TryGetValue(key, out string title)) titles.Add(key, title = OriginalTitle(artist, year));

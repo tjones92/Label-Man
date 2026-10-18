@@ -31,7 +31,20 @@ public static class SimulationOptimizationChecks {
                     Check(reference.SequenceEqual(actual), "repeat enumeration");
                 }
             }
+            foreach (int take in new[] { 1, 2, 3 }) {
+                double Key(SimulatedArtist a) => a.reputation == 0 ? double.NaN : a.reputation;
+                Check(members.OrderBy(Key).Take(take).SequenceEqual(StableSmallSelection.Take(members, take, Key, Comparer<double>.Default)), "small ascending stable prefix");
+                Check(members.OrderByDescending(Key).ThenBy(a => a.artistId, StringComparer.Ordinal).Take(take)
+                    .SequenceEqual(StableSmallSelection.Take(members, take, Key, Comparer<double>.Create((a, b) => b.CompareTo(a)), a => a.artistId)), "small descending tied prefix");
+            }
         }
+        foreach (ulong seed in new[] { 0UL, 1001UL, ulong.MaxValue })
+            foreach (string prefix in new[] { "", "room-v1|set|", "café|🎵|" })
+                foreach (string suffix in new[] { "", "song-123", "夜|\0" }) {
+                    ulong hash = LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.BeginAssignment(seed), prefix.AsSpan());
+                    Check(LocalSceneIdentityService.AssignmentUnit(seed, prefix + suffix) ==
+                        LocalSceneIdentityService.FinishAssignment(LocalSceneIdentityService.AppendAssignment(hash, suffix.AsSpan())), "partitioned hash equals original key");
+                }
         GD.Print($"SIMULATION_OPTIMIZATION_CHECK_PASS checks={checks}");
     }
 }

@@ -80,12 +80,19 @@ public static class LocalScenePersistenceService {
     }
     internal static bool Present(SimulatedArtist act, string scene, int week) {
         if (!Performs(act) || act.sceneParticipations == null) return false;
-        var current = act.sceneParticipations.Where(p => p.startWeek <= week && (!p.endWeek.HasValue || p.endWeek.Value >= week) &&
-            p.relationship != SceneRelationship.Alumnus).ToArray();
-        bool hasAwayPresence = current.Any(p => p.relationship != SceneRelationship.Resident && p.sceneId != scene);
-        return current.Any(p => p.sceneId == scene && (p.relationship != SceneRelationship.Resident ||
-            !hasAwayPresence && !p.endWeek.HasValue && SceneIdFor(act.geography?.basePlaceId) == scene));
+        // Room scheduling asks this per act, room and day. Two passes over the same current rows,
+        // without materializing them; predicates and evaluation order are unchanged.
+        var rows = act.sceneParticipations;
+        bool hasAwayPresence = false;
+        foreach (var p in rows)
+            if (CurrentAt(p, week) && p.relationship != SceneRelationship.Resident && p.sceneId != scene) { hasAwayPresence = true; break; }
+        foreach (var p in rows)
+            if (CurrentAt(p, week) && p.sceneId == scene && (p.relationship != SceneRelationship.Resident ||
+                !hasAwayPresence && !p.endWeek.HasValue && SceneIdFor(act.geography?.basePlaceId) == scene)) return true;
+        return false;
     }
+    private static bool CurrentAt(SceneParticipation p, int week) =>
+        p.startWeek <= week && (!p.endWeek.HasValue || p.endWeek.Value >= week) && p.relationship != SceneRelationship.Alumnus;
     private static bool Fits(SimulatedArtist act, PlayerDesk.ScoutingVenue venue, int year) {
         var family = GenreCatalog.Get(GenreCatalog.MapLegacy(act.primaryGenre, year)).Family;
         return AlbumLegitimacyService.IsEligibleFamily(family) &&

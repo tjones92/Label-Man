@@ -40,7 +40,9 @@ public static partial class LocalSceneRoomService {
     /// by a weighted draw keyed to this room and night (Efraimidis-Spirakis: largest log(u)/w first).</summary>
     private static IEnumerable<SimulatedArtist> NightOrder(SceneRoomProfile room, int day, IReadOnlyCollection<SimulatedArtist> members,
             HashSet<string> regularIds, bool preRoll) {
-        double Key(SimulatedArtist a) => Math.Log(Math.Max(1e-12, Draw($"night|{room.Id}|{day}|{a.artistId}"))) / BookingWeight(room, a, preRoll);
+        ulong prefix = LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.BeginAssignment(LocalSceneIdentityService.KeyedSeed), $"room-v1|night|{room.Id}|{day}|".AsSpan());
+        double Key(SimulatedArtist a) => Math.Log(Math.Max(1e-12,
+            LocalSceneIdentityService.FinishAssignment(LocalSceneIdentityService.AppendAssignment(prefix, a.artistId.AsSpan())))) / BookingWeight(room, a, preRoll);
         return OrderBookings(members, Key, regularIds);
     }
 
