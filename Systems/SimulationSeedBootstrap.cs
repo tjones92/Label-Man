@@ -53,5 +53,10 @@ public partial class SimulationSeedBootstrap : Node {
 			GD.Print($"SIMULATION_SEED_APPLIED seed={RequestedSeed.Value} phase=pre_autoload_population");
 			break;
 		}
+		try { RegionalSalesRandom.Configure(args); }
+		catch (Exception ex) {
+			GD.PrintErr("REGIONAL_SALES_RNG_FLAGS_REJECTED: " + ex.Message);
+			GetTree().Quit(2);
+		}
 	}
 }

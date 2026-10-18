@@ -625,7 +625,7 @@ public static class ChartSimulator {
 		}
 		
 		rawSales = Mathf.Min(rawSales, totalCapacity);
-		rawSales *= (float)GD.RandRange(0.96, 1.04);
+		rawSales *= RegionalSalesRandom.Multiplier(record, region, 0.96, 1.04);
 		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) {
 			// Frozen disabled/prewarm behavior, including the historical post-jitter
 			// rounding semantics, is intentionally retained unchanged.

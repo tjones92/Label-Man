@@ -82,7 +82,7 @@ public partial class ChartAuditRunner {
 	private void SaveAuditWorld(string name) {
 		GameDate now = TimeManager.Instance.CurrentDate;
 		var file = new AuditWorldFile {
-			Version = SaveGameService.CurrentVersion,
+			Version = SaveGameService.WritingVersion,
 			WorldSeed = SimulationSeedBootstrap.RequestedSeed,
 			Year = now.year, Month = now.month, Day = now.day,
 			Flags = SimulationFlags(),

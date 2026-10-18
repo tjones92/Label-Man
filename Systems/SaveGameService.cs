@@ -31,7 +31,10 @@ public static class SaveGameService {
 	// v8: contract-time geographic recruitment evidence; legacy contracts remain unannotated.
 	// v9: programs/moves; v10: source demos; v11: scouting; v12: conversations;
 	// v13: unsigned sessions, lineup reservations and paid samples.
-	public const int CurrentVersion = 21; // v21: member second roles, per-date studio rules version; v20: house players, backing singers, room renown, studio trips; v16: arrangements; v17: retained source-bound mono finishes; v18: song structure, part rehearsal, located reads; v19: breakdowns, named session players, travel, chief/second engineers
+	public const int CurrentVersion = 22; // v22: optional keyed regional-sales RNG; v21: member second roles and per-date studio rules.
+	// Legacy-mode worlds still use exactly the v21 schema. Only experimental RNG
+	// worlds need v22, so older executables cannot silently change their dice on load.
+	public static int WritingVersion => RegionalSalesRandom.Version == 0 ? 21 : CurrentVersion;
 	private const string SaveDir = "user://saves";
 
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -233,7 +236,7 @@ public static class SaveGameService {
 		slot = slot.Trim();
 
 		var envelope = new SaveEnvelope {
-			Version = CurrentVersion,
+			Version = WritingVersion,
 			SavedAtUtc = DateTime.UtcNow.ToString("o"),
 			WorldSeed = SimulationSeedBootstrap.RequestedSeed,
 			Player = PlayerDesk.Instance.CaptureState(),
@@ -328,7 +331,7 @@ public static class SaveGameService {
 
 /// <summary>The top-level save file. The reserved world section is Phase 4 (full-world save).</summary>
 public sealed class SaveEnvelope {
-	public int Version { get; set; } = SaveGameService.CurrentVersion;
+	public int Version { get; set; } = SaveGameService.WritingVersion;
 	public string SavedAtUtc { get; set; }
 	public ulong? WorldSeed { get; set; }
 	public int Year { get; set; }

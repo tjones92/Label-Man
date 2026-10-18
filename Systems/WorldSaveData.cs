@@ -30,6 +30,10 @@ public sealed class WorldSaveData {
 	public int ChartWeek { get; set; }
 	public int Hour { get; set; }
 	public int Minute { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public int RegionalSalesRngVersion { get; set; }
+	[System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+	public ulong RegionalSalesRngSeed { get; set; }
 	// The Saturday the currently-displayed chart is dated to (frozen "for week ending" header). Stored as ints
 	// because GameDate isn't a save DTO type; 0 = pre-fix save, recovered from the calendar on load.
 	public int ChartWeekEndingYear { get; set; }
@@ -270,6 +274,8 @@ public static class WorldStateService {
 			ChartWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0,
 			Hour = TimeManager.Instance?.CurrentHour ?? 0,
 			Minute = TimeManager.Instance?.CurrentMinute ?? 0,
+			RegionalSalesRngVersion = RegionalSalesRandom.Version,
+			RegionalSalesRngSeed = RegionalSalesRandom.SavedSeed,
 			ChartWeekEndingYear = ending.year,
 			ChartWeekEndingMonth = ending.month,
 			ChartWeekEndingDay = ending.day
@@ -307,6 +313,7 @@ public static class WorldStateService {
 			return;
 		}
 		// Validate scene versions before mutating managers. Real player loads defer migration until success.
+		RegionalSalesRandom.Validate(world.RegionalSalesRngVersion);
 		LocalScenePersistenceService.ValidateRestore(world.ScenePersistence);
         LocalSceneRoomService.ValidateRestore(world.SceneRooms);
         SceneEcosystemService.ValidateRestore(world.SceneEcosystem);
@@ -338,6 +345,7 @@ public static class WorldStateService {
 		// Reseed the global RNG deterministically so repeated loads of this save continue identically.
 		GD.Seed(DeriveRngSeed(worldSeed ?? 0UL, world.ChartWeek));
 		if (!deferSceneRelink) LocalSceneIdentityService.CompleteRestore();
+		RegionalSalesRandom.Restore(world.RegionalSalesRngVersion, world.RegionalSalesRngSeed, worldSeed);
 	}
 
 	/// <summary>SplitMix64-style mix of the world seed and the resumed week into a stable global RNG seed.</summary>

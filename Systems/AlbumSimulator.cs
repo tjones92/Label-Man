@@ -117,7 +117,7 @@ public static class AlbumSimulator {
 			rawSales = data.unitsInStores;
 		}
 		float capacity = (region.distribution.recordStoreCount * 130f + region.distribution.departmentStoreCount * 300f) * region.distribution.inventoryDepth;
-		rawSales = Mathf.Min(rawSales, capacity) * (float)GD.RandRange(0.97, 1.03);
+		rawSales = Mathf.Min(rawSales, capacity) * RegionalSalesRandom.Multiplier(record, region, 0.97, 1.03);
 		if (!(GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true)) {
 			return Mathf.Max(0, Mathf.RoundToInt(rawSales));
 		}
