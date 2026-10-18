@@ -7,6 +7,7 @@ using System.Text;
 
 /// <summary>Data-only master registry. No RNG, fitting, selection, rights routing or market mutation.</summary>
 public static class PolarSongMetadataService {
+	private static readonly JsonSerializerOptions fingerprintJsonOptions = new() { IncludeFields = true };
 	private static readonly Dictionary<string, SongMasterMetadata> masters = new(StringComparer.Ordinal);
 	private static readonly Dictionary<string, List<SongMasterMetadata>> mastersBySong = new(StringComparer.Ordinal);
 	// Shadow metadata maintenance only. This flag cannot enable selection or chart behavior.
@@ -119,7 +120,7 @@ public static class PolarSongMetadataService {
 			// Existing recording shapes are historical facts. H affects future resolutions only.
 			if (CompositionShapeVariation.ActiveVersion > 0 && master.cachedProfile != null) continue;
 			string inputs = JsonSerializer.Serialize(new { master.taxonomy, song.wordDensity, song.defaultMeter, song.defaultForm, song.repertoireVariation,
-				song.plasticity, song.plasticityFrozen, table.ContentFingerprint }, new JsonSerializerOptions { IncludeFields = true });
+				song.plasticity, song.plasticityFrozen, table.ContentFingerprint }, fingerprintJsonOptions);
 			string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inputs)));
 			if (master.cachedProfile != null && master.profileFingerprint == fingerprint) continue;
 			master.cachedProfile = SongProfileDeriver.Derive(song, master.taxonomy, table);

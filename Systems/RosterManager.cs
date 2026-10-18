@@ -535,6 +535,7 @@ public partial class RosterManager : Node {
 		summary.SupplySnapshotCount = supplySnapshot.Count;
 		summary.FreshSupplySnapshotCount = supplySnapshot.Count(IsFreshSupplyCandidate);
 		summary.ExperiencedSupplySnapshotCount = summary.SupplySnapshotCount - summary.FreshSupplySnapshotCount;
+		var supplyIndex = new DailySupplyIndex(supplySnapshot, chartWeek, date.year);
 		var nominations = new List<DailyNomination>();
 		var appointments = new List<DailyTalentMarketAppointment>();
 
@@ -562,7 +563,7 @@ public partial class RosterManager : Node {
 				continue;
 			}
 
-			DailyNomination nomination = NominateFromDailySnapshot(label, date.year, service, supplySnapshot, appointment, observation);
+			DailyNomination nomination = NominateFromDailySnapshot(label, date.year, service, supplySnapshot, appointment, observation, supplyIndex);
 			if (nomination != null) { nominations.Add(nomination); summary.Nominations++; }
 			label.lastScoutingOutcome = appointment.Outcome;
 			FinalizeTalentServiceState(label, service);
@@ -623,9 +624,9 @@ public partial class RosterManager : Node {
 	}
 
 	private DailyNomination NominateFromDailySnapshot(AILabel label, int year, TalentServiceState service, List<SimulatedArtist> snapshot,
-		DailyTalentMarketAppointment appointment, LabelScoutingVacancyObservation observation) {
-		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, snapshot, out int discoveryPoolCount);
-		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out _);
+		DailyTalentMarketAppointment appointment, LabelScoutingVacancyObservation observation, DailySupplyIndex supplyIndex) {
+		List<SimulatedArtist> fresh = GetEnabledSupplyCandidates(label, year, true, false, snapshot, out int discoveryPoolCount, supplyIndex);
+		List<SimulatedArtist> experienced = GetEnabledSupplyCandidates(label, year, false, false, snapshot, out _, supplyIndex);
 		// Fog the live read: same window GetEnabledSupplyCandidates uses, so a scout's perception is
 		// stable within the 4-week window and re-evaluation cannot launder it.
 		int discoveryWindow = Mathf.Max(0, (ChartManager.Instance?.GetCurrentChartWeek() ?? 0) - 1) / DiscoveryRefreshWindowWeeks;
@@ -641,7 +642,7 @@ public partial class RosterManager : Node {
 			selected = SelectAffordableCandidate(label, freshEvaluation.CandidateScores, .3f, false, "RegionalFreshRecovery");
 			lane = selected == null ? null : "FreshPotential";
 			if (selected == null && !LocalScenes.Recruitment) {
-				List<SimulatedArtist> national = GetEnabledSupplyCandidates(label, year, true, true, snapshot, out _);
+				List<SimulatedArtist> national = GetEnabledSupplyCandidates(label, year, true, true, snapshot, out _, supplyIndex);
 				AILabel.SigningEvaluation nationalEvaluation = label.EvaluateFreshPotential(national, discoveryWindow);
 				selected = SelectAffordableCandidate(label, nationalEvaluation.CandidateScores, 0f, true, "NationalFreshRecovery");
 				lane = selected == null ? null : "FreshPotential";
@@ -1276,6 +1277,28 @@ public partial class RosterManager : Node {
 	private static bool IsInScoutingRegion(SimulatedArtist artist, MarketRegion region) => artist != null && region != null &&
 		NormalizeRegionName(artist.homeRegion) == NormalizeRegionName(region.regionName);
 
+	// Nominations share an immutable daily snapshot; ownership changes only in the
+	// later commit pass. Filter eligibility and partition its lanes/regions once,
+	// preserving snapshot order and every label's own discovery keys and scoring.
+	private sealed class DailySupplyIndex {
+		private readonly List<SimulatedArtist> all, fresh, experienced;
+		private readonly Dictionary<(bool? Fresh, MarketRegion Region), List<SimulatedArtist>> regional = new();
+		public DailySupplyIndex(List<SimulatedArtist> snapshot, int week, int year) {
+			all = snapshot.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, week))
+				.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
+				.Where(artist => Instance?.IsHeldForPlayer(artist.artistId) != true).ToList();
+			fresh = all.Where(IsFreshSupplyCandidate).ToList();
+			experienced = all.Where(artist => !IsFreshSupplyCandidate(artist)).ToList();
+		}
+		public List<SimulatedArtist> Lane(bool? freshLane) => !freshLane.HasValue ? all : freshLane.Value ? fresh : experienced;
+		public List<SimulatedArtist> Regional(bool? freshLane, MarketRegion region) {
+			var key = (freshLane, region);
+			if (!regional.TryGetValue(key, out var pool))
+				regional.Add(key, pool = Lane(freshLane).Where(artist => IsInScoutingRegion(artist, region)).ToList());
+			return pool;
+		}
+	}
+
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, out int discoveryPoolCount) =>
 		GetEnabledSupplyCandidates(label, year, null, false, out discoveryPoolCount);
 
@@ -1286,22 +1309,22 @@ public partial class RosterManager : Node {
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool freshLane, bool nationalFreshRecovery,
 		out int discoveryPoolCount) => GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, out discoveryPoolCount);
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool freshLane, bool nationalFreshRecovery,
-		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount) =>
-		GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, supplySnapshot, out discoveryPoolCount);
+		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount, DailySupplyIndex supplyIndex = null) =>
+		GetEnabledSupplyCandidates(label, year, (bool?)freshLane, nationalFreshRecovery, supplySnapshot, out discoveryPoolCount, supplyIndex);
 
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool? freshLane, bool nationalFreshRecovery,
 		out int discoveryPoolCount) => GetEnabledSupplyCandidates(label, year, freshLane, nationalFreshRecovery, null, out discoveryPoolCount);
 
 	private static List<SimulatedArtist> GetEnabledSupplyCandidates(AILabel label, int year, bool? freshLane, bool nationalFreshRecovery,
-		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount) {
+		List<SimulatedArtist> supplySnapshot, out int discoveryPoolCount, DailySupplyIndex supplyIndex = null) {
 		MarketRegion region = ChartManager.Instance?.GetRegionById(label.homeRegion);
 		int currentWeek = ChartManager.Instance?.GetCurrentChartWeek() ?? 0;
-		List<SimulatedArtist> eligible = (supplySnapshot ?? ArtistManager.Instance.GetUnsignedArtists())
+		List<SimulatedArtist> eligible = supplyIndex?.Lane(freshLane) ?? (supplySnapshot ?? ArtistManager.Instance.GetUnsignedArtists())
 			.Where(artist => !ArtistPopulationLifecycle.Enabled || ArtistManager.Instance.IsEligibleForPopulationSigning(artist, currentWeek))
 			.Where(artist => GenreSupplyService.IsAvailableForNewSupply(artist.primaryGenre, year))
 			.Where(artist => Instance?.IsHeldForPlayer(artist.artistId) != true)
 			.ToList();
-		if (freshLane.HasValue) eligible = eligible.Where(artist => freshLane.Value
+		if (supplyIndex == null && freshLane.HasValue) eligible = eligible.Where(artist => freshLane.Value
 			? artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance
 			: !(artist.contractSequence == 0 && artist.lastDropReason != ArtistDropReason.Performance)).ToList();
 		int slateSize = GetDiscoverySlateSize(label.scoutingAbility);
@@ -1313,7 +1336,7 @@ public partial class RosterManager : Node {
 					GenreSupplyService.GetSupplyWeight(a.primaryGenre, label, a, region, year))
 				.ThenBy(a => a.artistId, StringComparer.Ordinal).ToList();
 		}
-		List<SimulatedArtist> regional = eligible.Where(artist => IsInScoutingRegion(artist, region)).ToList();
+		List<SimulatedArtist> regional = supplyIndex?.Regional(freshLane, region) ?? eligible.Where(artist => IsInScoutingRegion(artist, region)).ToList();
 		// A regional call now exhausts the available regional supply even when it
 		// cannot fill the entire slate. National supply is a separate Recovery pass,
 		// not an automatic replacement for a thin home market.

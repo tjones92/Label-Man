@@ -31,6 +31,28 @@ Example (PowerShell):
 & $godot --headless --path . SimTools/ChartAuditRunner.tscn -- --weeks=52 --run=baseline-1 --seed=1001
 ```
 
+For short performance windows, `RunSimulationBenchmark.ps1 -Run NAME -Weeks 8
+-ResumeWorld WORLD` restores the bookmarked world's own flags, records its assembly
+hash and process time, and writes phase timings even below 52 weeks. Omit
+`-ResumeWorld` for a fresh world; use `-ExtraArgs` for a research configuration
+and `-SaveWorld NAME` to retain the final state. `-Detailed` retains the normal
+diagnostic streams. Use a fresh run and output-world name each time. World
+bookmarks live in `SimLogs/worlds`; their creation flags and date are retained.
+
+`compare_simulation_benchmarks.py SimLogs/BEFORE SimLogs/AFTER` checks every
+non-timing CSV, including empty/missing streams. Add `--before-world PATH
+--after-world PATH` to also hash and compare the complete decompressed saves.
+Pass `--output SimLogs/RESULT.json` to retain evidence. A resumed control must
+resume the same world as its treatment: loading reseeds the global RNG, so its
+continuation is not the original uninterrupted trajectory. Older bookmarks
+provide scaling workloads; fresh runs with the current research flags establish
+current-version identity.
+
+The editor/headless Debug assembly now enables compiler optimization while
+retaining symbols. `dotnet build 'Label Man.sln' -p:Optimize=false` restores
+unoptimized debugging when source stepping requires it. The build option does
+not change any simulation settings.
+
 For long pool-stability runs, add `--aggregate-only` to omit the large
 per-record stream while retaining weekly stock/flow and lifecycle telemetry.
 

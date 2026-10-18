@@ -146,7 +146,8 @@ public partial class TimeManager : Node {
 	}
 
 	private void ProcessDayEnd() {
-		LocalSceneRoomService.Advance(currentDate, 24);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.RoomAdvance))
+			LocalSceneRoomService.Advance(currentDate, 24);
 		OnDayEnded?.Invoke(currentDate);
 		if (currentDate.IsFriday) {
 			OnWeekEnded?.Invoke(currentDate);
@@ -187,8 +188,10 @@ public partial class TimeManager : Node {
 			return;
 		}
 
-		SceneEcosystemService.Advance(currentDate);
-		LocalSceneRoomService.EnsureCalendar(currentDate);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.SceneEcosystem))
+			SceneEcosystemService.Advance(currentDate);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.RoomCalendar))
+			LocalSceneRoomService.EnsureCalendar(currentDate);
 		TriggerEventsForDate(currentDate);
 		OnDayStarted?.Invoke(currentDate);
 	}

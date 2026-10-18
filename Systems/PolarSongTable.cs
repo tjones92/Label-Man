@@ -24,7 +24,10 @@ public sealed class PolarSongTable {
 	// Only the bounded development probes may select the frozen pre-repair fixture.
 	internal static bool AuditLegacyRepair;
 	public float N(string key) => Numbers[key];
-	public PolarArchetypeRow Row(SongArchetype archetype) => Archetypes.First(r => r.Name == archetype.ToString());
+	public PolarArchetypeRow Row(SongArchetype archetype) {
+		string name = archetype.ToString();
+		return Archetypes.First(r => r.Name == name);
+	}
 	public PolarStylePrior Prior(Genre genre) => derivedPriors.TryGetValue(genre, out var center) ? center : LegacyPrior(genre);
 	private PolarStylePrior LegacyPrior(Genre genre) => GenreOverrides.TryGetValue(genre.ToString(), out var p) ? p :
 		Families[GenreCatalog.TryGet(genre, out var g) ? g.Family.ToString() : GenreFamily.Pop.ToString()];

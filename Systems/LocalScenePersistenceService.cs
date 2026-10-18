@@ -112,6 +112,7 @@ public static class LocalScenePersistenceService {
     /// <summary>One world-owned pass per chart week. Advances every place whether visited or not.</summary>
     public static void Advance(int week, int year) {
         if (!LocalScenes.Persisting || restoring || week <= State.LastProcessedWeek) return;
+        using var profile = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.SceneWindows);
         Reconcile();
         State.Windows.Clear();
         foreach (string scene in ScenePlaceRegistry.All.Select(p => SceneIdFor(p.Id)).Where(s => s != null).Distinct().OrderBy(s => s, StringComparer.Ordinal))

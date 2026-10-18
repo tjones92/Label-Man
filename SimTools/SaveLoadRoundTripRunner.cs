@@ -19,6 +19,7 @@ using Godot;
 public partial class SaveLoadRoundTripRunner : Node {
 	public override void _Ready() {
 		try {
+			if (OS.GetCmdlineUserArgs().Contains("--simulation-optimization-check")) { SimulationOptimizationChecks.Run(); GetTree().Quit(0); return; }
 			int weeks = 26;
 			bool integration = false;
 			bool mechanicalCheck = false;

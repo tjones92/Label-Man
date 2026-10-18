@@ -61,6 +61,7 @@ public static class SongMaterialSelectionService {
 		AILabel label, SimulatedArtist artist, Record record, Genre genre, int year, int chartWeek,
 		SongMaterialSource? forcedSource = null
 	) {
+		using var timingScope = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.MaterialSelection);
 		// AlbumMaterialPlan (§15): an album slot may dictate the source (pick the song WITHIN it, don't
 		// re-roll the source). Empty pool -> fall through to the normal mix so a slot is never starved.
 		if (forcedSource.HasValue) {

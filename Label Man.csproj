@@ -4,6 +4,9 @@
     <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>LabelMan</RootNamespace>
+    <!-- Headless audits load Debug just like the editor. Keep symbols, but allow
+         the JIT to optimize the simulation; use -p:Optimize=false for full stepping. -->
+    <Optimize>true</Optimize>
   </PropertyGroup>
   <!-- Standalone naming-Core regression harness: its own project + Main, excluded from the game build. -->
   <ItemGroup>

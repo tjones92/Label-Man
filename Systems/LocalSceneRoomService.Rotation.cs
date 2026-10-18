@@ -41,9 +41,36 @@ public static partial class LocalSceneRoomService {
     private static IEnumerable<SimulatedArtist> NightOrder(SceneRoomProfile room, int day, IReadOnlyCollection<SimulatedArtist> members,
             HashSet<string> regularIds, bool preRoll) {
         double Key(SimulatedArtist a) => Math.Log(Math.Max(1e-12, Draw($"night|{room.Id}|{day}|{a.artistId}"))) / BookingWeight(room, a, preRoll);
-        var ordered = members.OrderByDescending(Key).ThenBy(a => a.artistId, StringComparer.Ordinal).ToList();
-        var top = ordered.FirstOrDefault(a => regularIds.Contains(a.artistId));
-        return top == null ? ordered : ordered.Where(a => !ReferenceEquals(a, top)).Prepend(top);
+        return OrderBookings(members, Key, regularIds);
+    }
+
+    // Rooms usually consume only two or three acts. Heapify once and read that
+    // prefix instead of sorting every local act. Ordinal position preserves the
+    // stable LINQ ordering even for equal keys and repeated IDs.
+    private readonly record struct BookingPriority(double Key, string Id, int Ordinal);
+    private static readonly IComparer<BookingPriority> bookingComparer = Comparer<BookingPriority>.Create((a, b) => {
+        int order = b.Key.CompareTo(a.Key);
+        if (order == 0) order = StringComparer.Ordinal.Compare(a.Id, b.Id);
+        return order != 0 ? order : a.Ordinal.CompareTo(b.Ordinal);
+    });
+    internal static IEnumerable<SimulatedArtist> OrderBookings(IReadOnlyCollection<SimulatedArtist> members,
+            Func<SimulatedArtist, double> key, HashSet<string> regularIds) {
+        var entries = new (SimulatedArtist Element, BookingPriority Priority)[members.Count];
+        int index = 0, topIndex = -1;
+        foreach (var artist in members) {
+            var priority = new BookingPriority(key(artist), artist.artistId, index);
+            entries[index] = (artist, priority);
+            if (regularIds.Contains(artist.artistId) && (topIndex < 0 || bookingComparer.Compare(priority, entries[topIndex].Priority) < 0)) topIndex = index;
+            index++;
+        }
+        return Ordered();
+        IEnumerable<SimulatedArtist> Ordered() {
+            var top = topIndex < 0 ? null : entries[topIndex].Element;
+            if (top != null) yield return top;
+            var queue = new PriorityQueue<SimulatedArtist, BookingPriority>(entries, bookingComparer);
+            while (queue.TryDequeue(out var artist, out _))
+                if (top == null || !ReferenceEquals(artist, top)) yield return artist;
+        }
     }
 
     /// <summary>Offer standing engagements, up to the room's regulars, through the term's end: the booker's strongest

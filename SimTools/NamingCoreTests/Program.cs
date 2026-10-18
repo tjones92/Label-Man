@@ -339,6 +339,31 @@ public static class Program {
 			return sb.ToString();
 		}
 		Eq("template determinism", Batch(99UL), Batch(99UL));
+
+		// Replay the original scanning path against warmed membership caches. Compare
+		// the whole output sequence and the remaining RNG draw, including demographic
+		// changes, mood constraints, empty pools and cache invalidation after lexicon edits.
+		var reference = new TemplateEngine(lex, ont, mood, infl) { CacheFilterPools = false };
+		var cached = new TemplateEngine(lex, ont, mood, infl);
+		var referenceContext = new NamingContext { Rng = new DeterministicRandom(1834UL) };
+		var cachedContext = new NamingContext { Rng = new DeterministicRandom(1834UL) };
+		bool identical = true;
+		for (int i = 0; i < 1200; i++) {
+			var genre = i % 2 == 0 ? blues : gos;
+			var template = i % 3 == 0 ? honT : i % 3 == 1 ? trouble : pair;
+			foreach (var context in new[] { referenceContext, cachedContext }) {
+				context.Year = 1960 + i % 10;
+				context.Genre = genre.Id;
+				context.TagSets = new() { ["name"] = new List<string> { i % 3 == 0 ? "female" : i % 3 == 1 ? "male" : "neutral" } };
+			}
+			if (i == 600) {
+				AddWords(lex, "noun", new[] { "lonesome road" }, "travel", "melancholy");
+				lex.ClassifyAll(ont); reference.ClearCaches(); cached.ClearCaches();
+			}
+			identical &= reference.Fill(template, referenceContext, genre) == cached.Fill(template, cachedContext, genre);
+		}
+		True("cached slot filters preserve 1200 mixed-context outputs", identical);
+		True("cached slot filters preserve RNG state", referenceContext.Rng.NextDouble() == cachedContext.Rng.NextDouble());
 	}
 
 	static void TestBlend() {

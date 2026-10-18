@@ -425,6 +425,7 @@ public partial class ChartAuditRunner : Node {
         WriteSceneRecruitmentCensus("start");
 
 			var annualWallTime = Stopwatch.StartNew();
+			GD.Print($"CHART_AUDIT_STARTED run={runName} weeks={requestedWeeks} date={TimeManager.Instance.CurrentDate.ToShortString()}");
 		for (int week = 1; week <= requestedWeeks; week++) {
 			CheckPolarResearchStop();
 			currentAuditWeek = week;
@@ -447,6 +448,8 @@ public partial class ChartAuditRunner : Node {
 					annualWallTime.Restart();
 				}
 			}
+			if (requestedWeeks % 52 != 0)
+				WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds, requestedWeeks % 52);
 			if (OS.GetCmdlineUserArgs().Contains("--polar-final-audit") && requestedWeeks == 521) {
 				while (TimeManager.Instance.CurrentDate < GameDate.EndDate) TimeManager.Instance.DebugAdvanceDay();
 				GD.Print($"POLAR_FINAL_DATE date={TimeManager.Instance.CurrentDate.ToShortString()} enabled={PolarSongBehavior.UsePolarFitSelection}");
@@ -474,6 +477,7 @@ public partial class ChartAuditRunner : Node {
 
 			FlushPolarResearch();
 			SavePolarCheckpoint("complete");
+			if (!string.IsNullOrWhiteSpace(saveWorldAtEndName)) SaveAuditWorld(saveWorldAtEndName);
 			FlushAndClose();
 			if (scoutingReport) WriteScoutingReport();
 			GD.Print($"CHART_AUDIT_COMPLETE run={runName} weeks={requestedWeeks}");
@@ -1266,7 +1270,7 @@ public partial class ChartAuditRunner : Node {
 		// bookSettlementSeconds is inclusive of calculateLabelRevenueSeconds. The live-record
 		// inertness columns answer handoff 35.4: whether the album pile-up in the hot loop is
 		// economically live catalog or stock-less, awareness-less residue.
-		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups,freezeSettlementSeconds,bookSettlementSeconds,settlementAuditEventSeconds,genreMomentumSeconds,cullDeadRecordsSeconds,populationLifecycleSeconds,competitorWeekSeconds,rosterWeekSeconds,dailyTalentMarketSeconds,labelLifecycleMonthSeconds,activeAlbums,activeSingles,albumsOffChart,albumsZeroStock,albumsZeroAwareness,albumsZeroUnitsThisWeek,inertAlbums,inertSingles");
+		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups,freezeSettlementSeconds,bookSettlementSeconds,settlementAuditEventSeconds,genreMomentumSeconds,cullDeadRecordsSeconds,populationLifecycleSeconds,competitorWeekSeconds,rosterWeekSeconds,dailyTalentMarketSeconds,labelLifecycleMonthSeconds,activeAlbums,activeSingles,albumsOffChart,albumsZeroStock,albumsZeroAwareness,albumsZeroUnitsThisWeek,inertAlbums,inertSingles," + string.Join(",", Enum.GetNames<SimulationPerformanceProfiler.Phase>().Select(name => name + "Seconds")) + ",measuredWeeks");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			birthTierByLabel[label.labelId] = label.tier;
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
@@ -3568,7 +3572,7 @@ public partial class ChartAuditRunner : Node {
 		return varianceX > 0d && varianceY > 0d ? covariance / Math.Sqrt(varianceX * varianceY) : null;
 	}
 
-	private void WritePerformanceYear(int year, double wallSeconds) {
+	private void WritePerformanceYear(int year, double wallSeconds, int measuredWeeks = 52) {
 		if (performanceProfileWriter == null) return;
 		SimulationPerformanceProfiler.Snapshot profile = SimulationPerformanceProfiler.TakeSnapshotAndReset();
 		List<RecordRuntimeData> liveRecords = ChartManager.Instance.GetAllRecords();
@@ -3585,8 +3589,11 @@ public partial class ChartAuditRunner : Node {
 			F(profile.CompetitorWeekSeconds), F(profile.RosterWeekSeconds), F(profile.DailyTalentMarketSeconds),
 			F(profile.LabelLifecycleMonthSeconds),
 			N(inertness.Albums), N(inertness.Singles), N(inertness.AlbumsOffChart), N(inertness.AlbumsZeroStock),
-			N(inertness.AlbumsZeroAwareness), N(inertness.AlbumsZeroUnits), N(inertness.InertAlbums), N(inertness.InertSingles)
+			N(inertness.AlbumsZeroAwareness), N(inertness.AlbumsZeroUnits), N(inertness.InertAlbums), N(inertness.InertSingles),
+			string.Join(",", SimulationPerformanceProfiler.TakePhaseSecondsAndReset().Select(value => F(value))), N(measuredWeeks)
 		}));
+		performanceProfileWriter.Flush();
+		GD.Print($"SIMULATION_PROFILE run={runName} year={year} wallSeconds={wallSeconds:F3} records={liveRecords.Count}");
 	}
 
 	private readonly record struct LiveRecordInertness(int Albums, int Singles, int AlbumsOffChart,

@@ -54,10 +54,33 @@ public static partial class LocalSceneRoomService {
         bool cacheReads = StartupCaches.Enabled;
         var billed = cacheReads ? State.Bills.Select(b => (b.RoomId, b.Day)).ToHashSet() : null;
         var lineups = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        var setPools = new Dictionary<(SimulatedArtist Artist, int Year), SongComposition[]>();
+        var originalTitles = new Dictionary<(SimulatedArtist Artist, int Year), string>();
+        var presence = new Dictionary<(SimulatedArtist Artist, string Place, int Day), bool>();
+        var families = new Dictionary<(SimulatedArtist Artist, int Year), GenreFamily>();
         string[] PeopleFor(SimulatedArtist act) {
             if (!cacheReads) return StagePeople(act);
             if (!lineups.TryGetValue(act.artistId, out var people)) lineups.Add(act.artistId, people = StagePeople(act));
             return people;
+        }
+        bool EligibleForRoom(SimulatedArtist act, SceneRoomProfile room, int day) {
+            if (!cacheReads) return Eligible(act, room, day);
+            if (act == null || room == null) return false;
+            var presenceKey = (act, room.PlaceId, day);
+            if (!presence.TryGetValue(presenceKey, out bool present)) {
+                present = LocalScenePersistenceService.Present(act, room.PlaceId, day / 7) &&
+                    SceneEcosystemService.AvailableAt(act.artistId, room.PlaceId, day);
+                presence.Add(presenceKey, present);
+            }
+            if (!present) return false;
+            int year = Date(day).year;
+            if (year < room.FromYear || year > room.ThroughYear) return false;
+            var familyKey = (act, year);
+            if (!families.TryGetValue(familyKey, out var family)) {
+                family = GenreCatalog.Get(GenreCatalog.MapLegacy(act.primaryGenre, year)).Family;
+                families.Add(familyKey, family);
+            }
+            return room.Families.Contains(family) && PeopleFor(act).Length > 0;
         }
         var reservations = new HashSet<string>(StringComparer.Ordinal);
         var personPlaces = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -92,7 +115,7 @@ public static partial class LocalSceneRoomService {
                 var bill = new SceneBill { Id = id, RoomId = room.Id, Day = day, Year = date.year,
                     StartHour = room.OpenHour, EndHour = Math.Max(room.CloseHour, room.OpenHour + slots) };
                 var members = asOfDay.HasValue ? EligibleBefore(room, day, asOfDay.Value) : LocalScenePersistenceService.MembersOf(room.PlaceId)
-                    .Select(ArtistManager.Instance.GetArtist).Where(a => Eligible(a, room, day)).ToArray();
+                    .Select(ArtistManager.Instance.GetArtist).Where(a => EligibleForRoom(a, room, day)).ToArray();
                 int term = Term(day);
                 var regularIds = State.Engagements.Where(e => e.RoomId == room.Id && e.StartDay <= day && e.ThroughDay >= day).Select(e => e.ArtistId).ToHashSet(StringComparer.Ordinal);
                 bool rotation = LocalScenes.RoomRotation;
@@ -125,7 +148,7 @@ public static partial class LocalSceneRoomService {
                         ? SceneHouseBandService.Pick(room, act, day, hour, people, personPlaces, reservations, HouseShows) : null;
                     bill.Appearances.Add(new() { ArtistId = act.artistId, PersonIds = people.ToList(), StartHour = hour, EndHour = hour + 1,
                         Role = bill.Appearances.Count == 0 ? "opening set" : "closing set", Residency = regular,
-                        Set = asOfDay.HasValue ? new() : SetFor(act, id, date.year), BackingPersonIds = backers?.Count > 0 ? backers : null });
+                        Set = asOfDay.HasValue ? new() : SetFor(act, id, date.year, setPools, originalTitles), BackingPersonIds = backers?.Count > 0 ? backers : null });
                     actPlaces[$"{day}|{act.artistId}"] = room.Id;
                     foreach (string person in people.Concat(backers ?? new())) { reservations.Add($"{day}|{hour}|{person}"); personPlaces[$"{day}|{person}"] = room.Id; }
                     // A player crossing town to a second room is nobody's house band today: backers stay in one room.
@@ -159,13 +182,26 @@ public static partial class LocalSceneRoomService {
         }
         State.Bills = State.Bills.OrderBy(b => b.Day).ThenBy(b => b.RoomId, StringComparer.Ordinal).ToList();
     }
-    private static List<SceneSetSong> SetFor(SimulatedArtist artist, string bill, int year) {
-        GenreFamily family = GenreCatalog.Get(GenreCatalog.MapLegacy(artist.primaryGenre, year)).Family;
-        var songs = CompositionCatalogService.GetStandardsForGenre(artist.primaryGenre)
-            .Concat(CompositionCatalogService.GetStandardsForFamily(family)).Where(s => s != null && s.originYear <= year && LiveRepertoire.EligibleLive(s, artist))
-            .DistinctBy(s => s.songId).OrderBy(s => Draw($"set|{bill}|{artist.artistId}|{s.songId}")).Take(3)
+    private static List<SceneSetSong> SetFor(SimulatedArtist artist, string bill, int year,
+            Dictionary<(SimulatedArtist Artist, int Year), SongComposition[]> pools,
+            Dictionary<(SimulatedArtist Artist, int Year), string> titles) {
+        // Scheduling commits no compositions or lineup changes. Reuse membership
+        // within this one scheduling pass; each bill still draws its own order.
+        var key = (artist, year);
+        if (!pools.TryGetValue(key, out var pool)) {
+            GenreFamily family = GenreCatalog.Get(GenreCatalog.MapLegacy(artist.primaryGenre, year)).Family;
+            pool = CompositionCatalogService.GetStandardsForGenre(artist.primaryGenre)
+                .Concat(CompositionCatalogService.GetStandardsForFamily(family))
+                .Where(s => s != null && s.originYear <= year && LiveRepertoire.EligibleLive(s, artist))
+                .DistinctBy(s => s.songId).ToArray();
+            pools.Add(key, pool);
+        }
+        var songs = pool.OrderBy(s => Draw($"set|{bill}|{artist.artistId}|{s.songId}")).Take(3)
             .Select(s => new SceneSetSong { SongId = s.songId, Title = s.title, Genre = s.primaryGenre, ContentContext = s.contentContext }).ToList();
-        if (artist.songwritingAbility > .3f) songs.Insert(0, new() { Title = OriginalTitle(artist, year), Genre = artist.primaryGenre, Original = true });
+        if (artist.songwritingAbility > .3f) {
+            if (!titles.TryGetValue(key, out string title)) titles.Add(key, title = OriginalTitle(artist, year));
+            songs.Insert(0, new() { Title = title, Genre = artist.primaryGenre, Original = true });
+        }
         return songs.Take(3).ToList();
     }
     /// <summary>The title of a scene act's own unrecorded song: keyed on the act, the year and its place in the act's own

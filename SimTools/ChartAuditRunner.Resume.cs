@@ -23,6 +23,7 @@ public partial class ChartAuditRunner {
 	private readonly SortedSet<int> saveWorldYears = new();
 	private string saveWorldName;
 	private string resumeWorldName;
+	private string saveWorldAtEndName;
 	private bool keepExactSaveName;
 
 	/// <summary>The world file. Lives under SimLogs (gitignored): a run artifact, not source.</summary>
@@ -50,6 +51,8 @@ public partial class ChartAuditRunner {
 				saveWorldName = argument["--save-world=".Length..];
 			else if (argument.StartsWith("--resume-world=", StringComparison.Ordinal))
 				resumeWorldName = argument["--resume-world=".Length..];
+			else if (argument.StartsWith("--save-world-at-end=", StringComparison.Ordinal))
+				saveWorldAtEndName = argument["--save-world-at-end=".Length..];
 		}
 		keepExactSaveName = saveWorldYears.Count == 1 && !string.IsNullOrWhiteSpace(saveWorldName);
 		if (saveWorldYears.Count > 0 && string.IsNullOrWhiteSpace(saveWorldName)) saveWorldName = runName;
@@ -73,6 +76,10 @@ public partial class ChartAuditRunner {
 		int target = saveWorldYears.Max(y => y <= TimeManager.Instance.CurrentDate.year ? y : int.MinValue);
 		saveWorldYears.RemoveWhere(y => y <= target);
 		string name = keepExactSaveName ? saveWorldName : $"{saveWorldName}-{target}";
+		SaveAuditWorld(name);
+	}
+
+	private void SaveAuditWorld(string name) {
 		GameDate now = TimeManager.Instance.CurrentDate;
 		var file = new AuditWorldFile {
 			Version = SaveGameService.CurrentVersion,

@@ -804,13 +804,19 @@ public sealed class LaborMarketWeeklySnapshot {
 			// is observing or lineup churn is on; draws nothing from any stream (every chance is keyed).
 			if (rollover) BandLifeService.OnYearBoundary(date.year);
 		}
-		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
-		ApplyLifecycleExits(date.year);
-		MaterializeRuntimeFormation(date);
-		ExpireCompletedProspectSearchSpells(date.year);
-		RotateRestedLatentProspects();
-		ActivateProspectsForHiringOpportunities();
-		ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: false);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationOwnership))
+			ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: true);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationExits))
+			ApplyLifecycleExits(date.year);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationFormation))
+			MaterializeRuntimeFormation(date);
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationProspects)) {
+			ExpireCompletedProspectSearchSpells(date.year);
+			RotateRestedLatentProspects();
+			ActivateProspectsForHiringOpportunities();
+		}
+		using (SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.PopulationOwnership))
+			ReconcileLifecycleAndOwnership(date.year, week, advanceUnownedWeeks: false);
 	}
 
 	private void MaterializeRuntimeFormation(GameDate date) {

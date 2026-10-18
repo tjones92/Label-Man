@@ -1,6 +1,24 @@
 using System.Diagnostics;
 
 public static class SimulationPerformanceProfiler {
+	// Detailed spans; release/material and population substeps are inclusive of their children.
+	public enum Phase { RecordState, RegionalDemand, MarketClearing, Restock, Playlists, RegionalState, ChartRanking,
+		RevenueMemory, ReleaseDecisions, MaterialSelection, RoomAdvance, RoomCalendar, SceneEcosystem,
+		PopulationOwnership, PopulationExits, PopulationFormation, PopulationProspects, SceneWindows, CompetitorMonth }
+	public readonly struct Scope : System.IDisposable {
+		private readonly Phase phase;
+		private readonly long start;
+		public Scope(Phase phase) { this.phase = phase; start = Begin(); }
+		public void Dispose() => End(phase, start);
+	}
+	public static Scope Measure(Phase phase) => new(phase);
+	private static readonly long[] phaseTicks = new long[System.Enum.GetValues<Phase>().Length];
+	public static void End(Phase phase, long start) { if (start != 0L) phaseTicks[(int)phase] += Elapsed(start); }
+	public static double[] TakePhaseSecondsAndReset() {
+		var seconds = new double[phaseTicks.Length];
+		for (int i = 0; i < seconds.Length; i++) { seconds[i] = (double)phaseTicks[i] / Stopwatch.Frequency; phaseTicks[i] = 0L; }
+		return seconds;
+	}
 	public readonly record struct Snapshot(
 		double SimulateWeekSeconds,
 		double CalculateLabelRevenueSeconds,

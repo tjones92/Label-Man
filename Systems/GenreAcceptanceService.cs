@@ -73,10 +73,21 @@ public static class GenreAcceptanceService {
 			Normalization = normalization;
 		}
 	}
-	private readonly record struct RegionalDemandKey(Genre Primary, Genre Secondary, ulong RegionInstanceId, int YearBits, int MomentumBits,
+	internal readonly record struct RegionalDemandKey(Genre Primary, Genre Secondary, ulong RegionInstanceId, int YearBits, int MomentumBits,
 		bool IncludeCenteredSpecialistTexture);
 	private static readonly Dictionary<RegionalDemandKey, float> RegionalDemandCache = new();
 	private static int cacheYearBits = int.MinValue;
+	private static RegionalDemandEvaluation activeEvaluation;
+	// A demand pass reads fixed region/genre inputs, but interleaves integer-year
+	// Album pools with fractional-year Singles. Retain both sets of pure results
+	// within that pass while keeping the historical single-year cache transitions.
+	internal sealed class RegionalDemandEvaluation : IDisposable {
+		private readonly RegionalDemandEvaluation previous;
+		internal readonly Dictionary<RegionalDemandKey, float> Values = new();
+		internal RegionalDemandEvaluation() { previous = activeEvaluation; activeEvaluation = this; }
+		public void Dispose() { activeEvaluation = previous; }
+	}
+	internal static RegionalDemandEvaluation MemoizeRegionalDemand() => new();
 	private readonly record struct SpecialistSingleNormalizerKey(Genre Primary, Genre Secondary, int Year);
 	private static readonly Dictionary<SpecialistSingleNormalizerKey, float> SpecialistSingleNormalizerCache = new();
 
@@ -117,6 +128,8 @@ public static class GenreAcceptanceService {
 		var key = new RegionalDemandKey(primary, secondary, region.GetInstanceId(), yearBits, BitConverter.SingleToInt32Bits(legacyMomentum),
 			includeCenteredSpecialistTexture);
 		if (RegionalDemandCache.TryGetValue(key, out float cached)) return cached;
+		if (activeEvaluation?.Values.TryGetValue(key, out cached) == true)
+			return RegionalDemandCache[key] = cached;
 		float secondaryWeight = primary == secondary ? 0f : .20f;
 		float primaryWeight = 1f - secondaryWeight;
 		Genre canonicalPrimary = GenreCatalog.MapLegacy(primary, (int)MathF.Floor(year));
@@ -135,7 +148,9 @@ public static class GenreAcceptanceService {
 				legacyMomentum, includeCenteredSpecialistTexture).Effective * secondaryWeight;
 			total += capacity * acceptance;
 		}
-		return RegionalDemandCache[key] = Mathf.Clamp(total, 0f, 1f);
+		float result = Mathf.Clamp(total, 0f, 1f);
+		if (activeEvaluation != null) activeEvaluation.Values[key] = result;
+		return RegionalDemandCache[key] = result;
 	}
 
 	/// <summary>Pure audit decomposition that exactly follows the blended regional acceptance calculation.</summary>

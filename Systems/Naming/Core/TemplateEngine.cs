@@ -302,6 +302,8 @@ namespace LabelMan.Naming {
 		private readonly IWordCoiner _coiner;
 		private readonly Diminutives _dim;
 		private readonly PoolCache _pools = new();   // Layer 7 L1: memoized prefix-sum pools
+		private readonly Dictionary<(string Pos, string Filter, Locale Locale), WordEntry[]> _matchingPools = new();
+		internal bool CacheFilterPools = true; // Paired replay seam for the standalone Core checks.
 		// SatisfiableFor(t, genre) is a pure function of the template + genre (no ctx/rng dependence),
 		// but FillConstraint re-runs it for every candidate template on every single Generate() call --
 		// with 14-24 templates per genre's songTitle set and ~4,800 launch-catalog title draws, that
@@ -334,7 +336,18 @@ namespace LabelMan.Naming {
 		}
 
 		/// <summary>Evict derived pools — call at a sim year-tick after the lexicon changes (doc 7 §12).</summary>
-		public void ClearCaches() { _pools.Clear(); _satisfiableCache.Clear(); }
+		public void ClearCaches() { _pools.Clear(); _satisfiableCache.Clear(); _matchingPools.Clear(); }
+
+		private IReadOnlyList<WordEntry> MatchingPool(string pos, IReadOnlyList<WordEntry> pool, DomainFilter filter, Locale locale) {
+			var key = (pos, filter.Signature, locale);
+			if (_matchingPools.TryGetValue(key, out var matching)) return matching;
+			// Context-resolved demographic filters share only their resolved signature.
+			// Bound this independently of the number of artists and generated titles.
+			if (_matchingPools.Count >= 4096) _matchingPools.Clear();
+			matching = pool.Where(e => (filter.IsEmpty || filter.Matches(e, _ont)) && TagOntology.LocaleEligible(e.LocaleClass, locale)).ToArray();
+			_matchingPools.Add(key, matching);
+			return matching;
+		}
 
 		/// <summary>Fill a template against a genre profile. Returns null if it cannot satisfy its
 		/// constraints within budget (caller falls back to a simpler template).</summary>
@@ -400,11 +413,14 @@ namespace LabelMan.Naming {
 			}
 
 			// weighted candidate list (biased path, or fallback when the cached pool was empty)
+			// Filter and locale are invariant across mood-biased draws. Keep weighting,
+			// subtraction order and random draws exactly as before; cache only membership.
+			if (pick == null && CacheFilterPools) pool = MatchingPool(spec.Pos, pool, filt, genre.Orthography);
 			double total = 0; var cands = new List<(WordEntry e, double w)>();
 			if (pick == null)
 			foreach (var e in pool) {
-				if (!filt.IsEmpty && !filt.Matches(e, _ont)) continue;
-				if (!TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue; // keep non-English out of non-matching genres
+				if (!CacheFilterPools && !filt.IsEmpty && !filt.Matches(e, _ont)) continue;
+				if (!CacheFilterPools && !TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue;
 				double aff = genre.AffinityFor(e);
 				if (aff <= 0) continue;                               // suppressed
 				double bias = _mood.BiasMultiplier(e.Moods, locked, genre.Voice.MoodStrictness);
@@ -420,8 +436,8 @@ namespace LabelMan.Naming {
 				// agreement (e.g. a female act getting a male-only honorific). If even the filtered pool
 				// is empty, fail the draw so the template is rejected and a fallback template takes over.
 				foreach (var e in pool) {
-					if (!filt.IsEmpty && !filt.Matches(e, _ont)) continue;
-					if (!TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue;
+					if (!CacheFilterPools && !filt.IsEmpty && !filt.Matches(e, _ont)) continue;
+					if (!CacheFilterPools && !TagOntology.LocaleEligible(e.LocaleClass, genre.Orthography)) continue;
 					double aff = genre.AffinityFor(e); if (aff > 0) { cands.Add((e, aff)); total += aff; }
 				}
 				if (cands.Count == 0) { if (spec.Optional) { st.Surface[slotRef] = ""; return true; } return false; }

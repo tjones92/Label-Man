@@ -301,6 +301,9 @@ public partial class ChartManager : Node {
 		public int Cleared;
 		public float Fraction;
 	}
+	// These private scratch objects never leave a clearing pass. Reuse them rather
+	// than allocating one object per active record per region every week.
+	private readonly List<MarketIntent> marketIntentScratch = new();
 
 	internal readonly struct FormatClearingBudget {
 		public readonly int Single, Album;
@@ -990,6 +993,7 @@ public partial class ChartManager : Node {
 		var albumSubstitutionByGenre = new Dictionary<Genre, float>();
 
 		// === STEP 1: Update global record state ===
+		long stateProfileStart = SimulationPerformanceProfiler.Begin();
 		// Off unless --label-hold-capacity is named; no RNG, so the disabled week is unchanged.
 		if (LabelHoldCapacity.Enabled) LabelHoldCapacity.BeginWeek(allRecords, currentChartWeek);
 		foreach (var record in allRecords) {
@@ -1028,6 +1032,7 @@ public partial class ChartManager : Node {
 			else ChartSimulator.UpdateRecord(record, label, genreAcceptance, artistHeat);
 		}
 
+		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RecordState, stateProfileStart);
 		// === STEP 2: Calculate regional sales ===
 		// The frozen route intentionally remains byte-for-byte the former immediate
 		// commit path.  Common clearing is enabled only after the live boundary.
@@ -1106,7 +1111,9 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 2.5: RESTOCK HOT RECORDS ===
+		long restockProfileStart = SimulationPerformanceProfiler.Begin();
 		RestockHotRecords();
+		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.Restock, restockProfileStart);
 
 		// Payola ledger tick (radio doc d): decay/expire arrangements and adjudicate scandal before the
 		// playlist meeting reads the boost cache. Inert while there are no player arrangements.
@@ -1120,9 +1127,12 @@ public partial class ChartManager : Node {
 		// Reporter stations re-cut their playlists against this week's settled sales, BEFORE the radio
 		// aggregation reads them (design doc a 3.1). Uses the network's own RNG, so while
 		// REPORTER_PANEL_WEIGHT is 0 this is computed-but-unconsumed and simulation output is unchanged.
+		long playlistProfileStart = SimulationPerformanceProfiler.Begin();
 		stationNetwork?.UpdatePlaylists(allRecords, allRegions, currentChartWeek, year);
+		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.Playlists, playlistProfileStart);
 
 		// === STEP 3: Update regional awareness/radio ===
+		long regionalStateProfileStart = SimulationPerformanceProfiler.Begin();
 		if (RegionalAudience.LocalRadioFatigue && genreMarketLive) UpdateLocalSalesRanks();
 		foreach (var record in allRecords) {
 			if (record.baseRecord.format == ReleaseFormat.Album) {
@@ -1134,6 +1144,8 @@ public partial class ChartManager : Node {
 		}
 
 		// === STEP 4: Calculate chart points ===
+		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalState, regionalStateProfileStart);
+		long rankingProfileStart = SimulationPerformanceProfiler.Begin();
 		// The week's survey is drawn first and cached on each record. Billboard polled about 110
 		// outlets by hand rather than counting units, so the published score is a sample. Drawing here
 		// -- once per record, before anything reads a point total -- is what keeps the ranking, the
@@ -1200,15 +1212,19 @@ public partial class ChartManager : Node {
 		UpdateRecordRelevanceClocks();
 		previousChartPoints = chartPoints;
 		SimulationPerformanceProfiler.EndSimulateWeek(profileStart);
+		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.ChartRanking, rankingProfileStart);
 	}
 
 	private void CalculateLiveRegionalSalesWithMarketClearing(int year, int month, bool triggerEvents,
 		float acceptanceYear, float singleOpportunityNormalization) {
+		using var demandCache = GenreAcceptanceService.MemoizeRegionalDemand();
 		lastMarketClearingSummaries.Clear();
 		lastMarketSpilloverTransfers.Clear();
-		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(), StringComparer.Ordinal);
+		var intentsByRegion = allRegions.ToDictionary(region => region.regionId, _ => new List<MarketIntent>(allRecords.Count), StringComparer.Ordinal);
+		int intentCount = 0;
 		// Demand evaluation deliberately retains record-major / region-minor order so
 		// the existing sales jitter consumes precisely the same RNG sequence.
+		long demandProfileStart = SimulationPerformanceProfiler.Begin();
 		foreach (RecordRuntimeData record in allRecords) {
 			float quality = record.GetQuality();
 			AILabel label = GetLabelById(record.baseRecord.labelId);
@@ -1238,10 +1254,20 @@ public partial class ChartManager : Node {
 				serviceable = Mathf.Clamp(serviceable, 0, Mathf.Max(0, physicalLimit));
 				data.serviceableIntentThisWeek = serviceable;
 				data.marketDisplacedDemandThisWeek = 0;
-				intentsByRegion[region.regionId].Add(new MarketIntent { Record = record, Data = data, Serviceable = serviceable });
+				MarketIntent intent;
+				if (intentCount < marketIntentScratch.Count) intent = marketIntentScratch[intentCount];
+				else marketIntentScratch.Add(intent = new MarketIntent());
+				intentCount++;
+				intent.Record = record; intent.Data = data; intent.Serviceable = serviceable;
+				intent.SpilloverCleared = intent.Cleared = 0; intent.Fraction = 0f;
+				intentsByRegion[region.regionId].Add(intent);
 			}
 		}
 
+		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.RegionalDemand, demandProfileStart);
+		// Drop unused tails immediately so a shrinking market cannot pin retired records.
+		if (marketIntentScratch.Count > intentCount) marketIntentScratch.RemoveRange(intentCount, marketIntentScratch.Count - intentCount);
+		long clearingProfileStart = SimulationPerformanceProfiler.Begin();
 		var summariesByRegion = new Dictionary<string, MarketClearingRegionalSummary>(StringComparer.Ordinal);
 		// Stage A: retain the accepted common local clearing unchanged.
 		foreach (MarketRegion region in allRegions) {
@@ -1325,6 +1351,7 @@ public partial class ChartManager : Node {
 			ChartSimulator.FinalizeWeeklySales(record, totalSales);
 			if (record.baseRecord.format != ReleaseFormat.Album) ChartSimulator.UpdateSaturation(record, allRegions);
 		}
+		SimulationPerformanceProfiler.End(SimulationPerformanceProfiler.Phase.MarketClearing, clearingProfileStart);
 	}
 
 	private sealed class SpilloverFlowEdge {
@@ -2594,6 +2621,7 @@ public partial class ChartManager : Node {
 	public void RebuildRadioForLoad() => BuildRadioPanel(TimeManager.Instance?.CurrentDate.year ?? 1960);
 
 	public void RehydrateRecords(WorldSaveData w) {
+		marketIntentScratch.Clear();
 		allRecords.Clear();
 		foreach (RecordRuntimeData record in w.Records ?? new List<RecordRuntimeData>())
 			if (record?.baseRecord != null) allRecords.Add(record);

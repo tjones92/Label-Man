@@ -1739,6 +1739,7 @@ public partial class CompetitorManager : Node {
 			out bool replacedPriorRevision, out int revisionOrdinal)) return;
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = maturity;
+		InvalidateResponsiveMemory(memory);
 		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
 			releaseId = releaseId, labelId = runtimeData.baseRecord.labelId, format = runtimeData.baseRecord.format,
 			projectId = runtimeData.albumProjectId, releaseLane = runtimeData.projectRole, estimatorLane = lane,
@@ -1787,7 +1788,10 @@ public partial class CompetitorManager : Node {
 	}
 
 	private (float Residual, float EffectiveWeight, float Confidence) GetResponsiveMemory(FormatRevenueMemory memory, int currentWeek) {
+		using var profile = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.RevenueMemory);
 		if (memory?.observations == null) return (0f, 0f, 0f);
+		ResponsiveMemorySummary summary = responsiveMemorySummaries.GetValue(memory.observations, _ => new());
+		if (summary.Week == currentWeek && summary.Count == memory.observations.Count) return summary.Value;
 		float weightedResidual = 0f, weight = 0f;
 		foreach (FormatMemoryObservation observation in memory.observations) {
 			int age = Mathf.Max(0, currentWeek - observation.releaseWeek);
@@ -1798,8 +1802,20 @@ public partial class CompetitorManager : Node {
 			weight += itemWeight;
 		}
 		float confidence = CalculateResponsiveMemoryConfidence(weight);
-		return (weight > 0f ? weightedResidual / weight : 0f, weight, confidence);
+		summary.Week = currentWeek;
+		summary.Count = memory.observations.Count;
+		return summary.Value = (weight > 0f ? weightedResidual / weight : 0f, weight, confidence);
 	}
+
+	// A release decision used to re-walk the entire pooled project history for every
+	// label. Reuse the exact ordered sum until its week, list length or evidence changes.
+	// Weak keys also discard summaries when a save loads replacement observation lists.
+	private sealed class ResponsiveMemorySummary {
+		public int Week = int.MinValue, Count = -1;
+		public (float Residual, float EffectiveWeight, float Confidence) Value;
+	}
+	private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<List<FormatMemoryObservation>, ResponsiveMemorySummary> responsiveMemorySummaries = new();
+	private static void InvalidateResponsiveMemory(FormatRevenueMemory memory) => responsiveMemorySummaries.Remove(memory.observations);
 
 	private static float CalculateResponsiveMemoryConfidence(float effectiveWeight) =>
 		Mathf.Min(ResponsiveMemoryMaximumConfidence,
@@ -1849,6 +1865,7 @@ public partial class CompetitorManager : Node {
 			out bool replacedPriorRevision, out int revisionOrdinal)) return;
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = finalized ? 1f : Mathf.Clamp((promoMaturity + albumMaturity) * .5f, .05f, 1f);
+		InvalidateResponsiveMemory(memory);
 		UpdatePooledAlbumWithPromoObservation(project, projectAge, finalized, residual, observation.maturityWeight);
 		OnFormatMemoryRevision?.Invoke(new FormatMemoryRevisionTelemetry {
 			releaseId = project.projectId, projectId = project.projectId, labelId = project.currentLabelId,
@@ -1899,6 +1916,7 @@ public partial class CompetitorManager : Node {
 		if (!TryAdvanceResponsiveMemoryRevision(observation, projectAge, finalized, out _, out _)) return;
 		observation.normalizedResidual = residual;
 		observation.maturityWeight = maturityWeight;
+		InvalidateResponsiveMemory(pooledAlbumWithPromoMemory);
 	}
 
 	private float GetProjectComponentOutcomeDelta(string recordId, float? heldOutcome, float expectedNet,
@@ -2407,6 +2425,7 @@ public partial class CompetitorManager : Node {
 	};
 
 	private ReleasePlan DecideRelease(AILabel label, SimulatedArtist artist, int year, DecisionContext decision) {
+		using var profile = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.ReleaseDecisions);
 		if (!enableAlbums) return new() { format = ReleaseFormat.Single, strategy = ReleaseStrategy.OrphanSingle };
 
 		decision.qualityQuartile = GetQualityQuartile(decision.qualityEstimate);
@@ -3959,6 +3978,7 @@ public partial class CompetitorManager : Node {
 	}
 	
 	private void OnMonthChanged(GameDate date) {
+		using var timingScope = SimulationPerformanceProfiler.Measure(SimulationPerformanceProfiler.Phase.CompetitorMonth);
 		foreach (var label in aiLabels) ProcessLabelMonth(label, date);
 		if (date.month == 1) ProcessIndependentTradeDecline(date.year);
 		ProcessDistributionDeals(date);
