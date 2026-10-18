@@ -1,4 +1,5 @@
 param([string]$RunTag='scene6-final-v1', [string]$PriorRoot='C:\Users\grohl\.codex\worktrees\local-scene-phase-5-feedback\Label-Man')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 $sceneRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $scenePrior=$PriorRoot

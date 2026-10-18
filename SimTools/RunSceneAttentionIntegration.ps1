@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param([string]$RunTag='scene5-attention-integration-v1')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 $sceneRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $sceneGodot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe'

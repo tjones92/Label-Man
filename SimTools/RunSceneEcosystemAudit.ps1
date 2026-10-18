@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([string]$RunTag='scene5-price-two-year-v1', [int]$Weeks=104,
  [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 $sceneRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 # Rebuild before hashing so the audit never silently uses a stale game assembly.

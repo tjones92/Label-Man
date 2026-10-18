@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([string]$RunTag='scene4-major-fill-seeds-v1', [int]$Weeks=1, [int[]]$Seeds=@(3003,4004,5005,6006,7007,8008,9009,10010),
  [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 $sceneRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $sceneFolder=Join-Path $sceneRoot "SimLogs/$RunTag"

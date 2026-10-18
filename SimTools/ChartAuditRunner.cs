@@ -425,6 +425,7 @@ public partial class ChartAuditRunner : Node {
         WriteSceneRecruitmentCensus("start");
 
 			var annualWallTime = Stopwatch.StartNew();
+			MarkGcBaseline();
 			GD.Print($"CHART_AUDIT_STARTED run={runName} weeks={requestedWeeks} date={TimeManager.Instance.CurrentDate.ToShortString()}");
 		for (int week = 1; week <= requestedWeeks; week++) {
 			CheckPolarResearchStop();
@@ -446,6 +447,7 @@ public partial class ChartAuditRunner : Node {
 					WritePerformanceYear(TimeManager.Instance.CurrentDate.year, annualWallTime.Elapsed.TotalSeconds);
 					FlushAnnualStreams();
 					annualWallTime.Restart();
+					MarkGcBaseline();
 				}
 			}
 			if (requestedWeeks % 52 != 0)
@@ -1270,7 +1272,7 @@ public partial class ChartAuditRunner : Node {
 		// bookSettlementSeconds is inclusive of calculateLabelRevenueSeconds. The live-record
 		// inertness columns answer handoff 35.4: whether the album pile-up in the hot loop is
 		// economically live catalog or stock-less, awareness-less residue.
-		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups,freezeSettlementSeconds,bookSettlementSeconds,settlementAuditEventSeconds,genreMomentumSeconds,cullDeadRecordsSeconds,populationLifecycleSeconds,competitorWeekSeconds,rosterWeekSeconds,dailyTalentMarketSeconds,labelLifecycleMonthSeconds,activeAlbums,activeSingles,albumsOffChart,albumsZeroStock,albumsZeroAwareness,albumsZeroUnitsThisWeek,inertAlbums,inertSingles," + string.Join(",", Enum.GetNames<SimulationPerformanceProfiler.Phase>().Select(name => name + "Seconds")) + ",measuredWeeks");
+		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups,freezeSettlementSeconds,bookSettlementSeconds,settlementAuditEventSeconds,genreMomentumSeconds,cullDeadRecordsSeconds,populationLifecycleSeconds,competitorWeekSeconds,rosterWeekSeconds,dailyTalentMarketSeconds,labelLifecycleMonthSeconds,activeAlbums,activeSingles,albumsOffChart,albumsZeroStock,albumsZeroAwareness,albumsZeroUnitsThisWeek,inertAlbums,inertSingles," + string.Join(",", Enum.GetNames<SimulationPerformanceProfiler.Phase>().Select(name => name + "Seconds")) + ",measuredWeeks,gcPauseSeconds,gen0Collections,gen1Collections,gen2Collections,allocatedMB,heapMB,committedMB");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			birthTierByLabel[label.labelId] = label.tier;
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
@@ -3572,6 +3574,14 @@ public partial class ChartAuditRunner : Node {
 		return varianceX > 0d && varianceY > 0d ? covariance / Math.Sqrt(varianceX * varianceY) : null;
 	}
 
+	private TimeSpan gcBaselinePause;
+	private readonly int[] gcBaselineCounts = new int[3];
+	private long gcBaselineAllocated;
+	private void MarkGcBaseline() {
+		gcBaselinePause = GC.GetTotalPauseDuration();
+		for (int g = 0; g < 3; g++) gcBaselineCounts[g] = GC.CollectionCount(g);
+		gcBaselineAllocated = GC.GetTotalAllocatedBytes();
+	}
 	private void WritePerformanceYear(int year, double wallSeconds, int measuredWeeks = 52) {
 		if (performanceProfileWriter == null) return;
 		SimulationPerformanceProfiler.Snapshot profile = SimulationPerformanceProfiler.TakeSnapshotAndReset();
@@ -3590,7 +3600,12 @@ public partial class ChartAuditRunner : Node {
 			F(profile.LabelLifecycleMonthSeconds),
 			N(inertness.Albums), N(inertness.Singles), N(inertness.AlbumsOffChart), N(inertness.AlbumsZeroStock),
 			N(inertness.AlbumsZeroAwareness), N(inertness.AlbumsZeroUnits), N(inertness.InertAlbums), N(inertness.InertSingles),
-			string.Join(",", SimulationPerformanceProfiler.TakePhaseSecondsAndReset().Select(value => F(value))), N(measuredWeeks)
+			string.Join(",", SimulationPerformanceProfiler.TakePhaseSecondsAndReset().Select(value => F(value))), N(measuredWeeks),
+			// GC pauses land inside whichever span is running, so they are reported on their own as well.
+			F((GC.GetTotalPauseDuration() - gcBaselinePause).TotalSeconds),
+			N(GC.CollectionCount(0) - gcBaselineCounts[0]), N(GC.CollectionCount(1) - gcBaselineCounts[1]), N(GC.CollectionCount(2) - gcBaselineCounts[2]),
+			F((GC.GetTotalAllocatedBytes() - gcBaselineAllocated) / 1048576d), F(GC.GetGCMemoryInfo().HeapSizeBytes / 1048576d),
+			F(GC.GetGCMemoryInfo().TotalCommittedBytes / 1048576d)
 		}));
 		performanceProfileWriter.Flush();
 		GD.Print($"SIMULATION_PROFILE run={runName} year={year} wallSeconds={wallSeconds:F3} records={liveRecords.Count}");

@@ -7,6 +7,7 @@ param(
     [switch]$AllowConcurrentProbes,
     [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe'
 )
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 $probeRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $probeFolder=Join-Path $probeRoot "SimLogs/$RunTag"

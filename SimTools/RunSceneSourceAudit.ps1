@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([string]$RunTag='scene7-source-year-v1', [int]$Weeks=52,
  [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 if($RunTag -notmatch '^[a-z0-9-]+$'){throw 'Use a valid run tag.'}
 if(@(Get-Process | Where-Object ProcessName -Match '^Godot|^Label Man$').Count){throw 'Another game is active.'}

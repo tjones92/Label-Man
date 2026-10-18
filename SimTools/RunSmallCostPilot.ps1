@@ -2,6 +2,7 @@
 param([string]$RunTag='smallcost-v1', [int]$Weeks=26, [int[]]$Seeds=@(2002), [switch]$Compact,
  [string[]]$Modes=@('legacy','period','home'), [string[]]$ExtraArgs=@(),
  [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 $pilotRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $pilotFolder=Join-Path $pilotRoot "SimLogs/$RunTag"

@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([string]$RunTag='scene5-observation-v1',
  [string]$Godot='C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe')
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference='Stop'
 $sceneRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $sceneFolder=Join-Path $sceneRoot "SimLogs/$RunTag"

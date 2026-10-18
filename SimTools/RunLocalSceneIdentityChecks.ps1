@@ -4,6 +4,7 @@ param(
     [string]$Godot = 'C:/Users/grohl/Downloads/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64/Godot_v4.7-stable_mono_win64_console.exe',
     [int]$MinimumFreeMiB = 768
 )
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 
 # Invoke only within a user-authorized game test window. Tests run serially.
 $ErrorActionPreference = 'Stop'

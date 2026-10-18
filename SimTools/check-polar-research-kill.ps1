@@ -2,6 +2,7 @@ param(
  [string]$Run = 'polar-research-kill-check-1001',
  [string]$Godot = 'C:\Users\grohl\Downloads\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64\Godot_v4.7-stable_mono_win64_console.exe'
 )
+. (Join-Path $PSScriptRoot 'AuditGcEnvironment.ps1')
 $ErrorActionPreference = 'Stop'
 $polarKillRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if ($Run -notmatch '^[a-zA-Z0-9-]+$') { throw 'Invalid run name' }
