@@ -556,6 +556,12 @@ public partial class AILabel : Resource {
 	
 	public SimulatedArtist GetArtistForRelease(int currentYear) {
 		if (roster == null || roster.Count == 0) return null;
+		// --hit-act-cadence (§17x): a hit act due its follow-up single takes the roll ahead of the lottery. Off: never read.
+		if (HitActCadence.LaneEnabled && !isPlayerOwned) {
+			SimulatedArtist due = HitActCadence.PickDue(roster.Where(a => IsEligibleForRelease(a, currentYear)));
+			HitActCadence.MarkPick(due != null);
+			if (due != null) return due;
+		}
 		var candidates = new List<(SimulatedArtist artist, float priority)>();
 		
 		foreach (var artist in roster) {
@@ -778,6 +784,8 @@ public partial class AILabel : Resource {
 	
 	public bool ShouldDropArtist(SimulatedArtist artist) {
 		if (artist.careerState == CareerState.Superstar) return false;
+		// --hit-act-retention (§17y): an act with a Top 40 in the last year is not let go on flops. Off: never read.
+		if (HitActCadence.RetentionEnabled && HitActCadence.ProtectsFromDrop(artist)) return false;
 		// Contract probation excludes stale history only while it is unresolved.
 		// Once a current-contract Top 40 clears probation, ordinary career-state
 		// review is again authoritative.

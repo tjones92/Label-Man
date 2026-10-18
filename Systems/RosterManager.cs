@@ -479,6 +479,8 @@ public partial class RosterManager : Node {
 		// A senior act a year past its last Top 40 steps down the ladder (§17u probe); a no-op unless --senior-cooling is named.
 		if (SeniorCooling.LadderEnabled)
 			SeniorCooling.CoolLadderForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0, ArtistManager.Instance?.GetAllArtists());
+		if (HitActCadence.AnyEnabled) HitActCadence.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
+		if (KnownActAirplay.Enabled) KnownActAirplay.ReportForWeek(ChartManager.Instance?.GetCurrentChartWeek() ?? 0);
 		UpdateArtistCooldowns();
 		WeeklyScoutingRolls = 0;
 		WeeklySignings = 0;
@@ -1379,6 +1381,8 @@ public partial class RosterManager : Node {
 	
 	private bool ShouldResignArtist(AILabel label, SimulatedArtist artist) {
 		if (artist.careerState >= CareerState.Star) return true;
+		// --hit-act-retention (§17x): any Top 40 under this contract earns the renewal. Off: never read.
+		if (HitActCadence.RetentionEnabled && HitActCadence.ShouldRenew(artist)) return true;
 		if (artist.careerState == CareerState.Rising && artist.momentum > 0.2f) return true;
 		if (artist.careerState == CareerState.Established && artist.consecutiveFlops < 2) return true;
 		if (artist.careerState == CareerState.Declining) return false;

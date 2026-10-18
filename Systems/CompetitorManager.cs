@@ -1963,6 +1963,11 @@ public partial class CompetitorManager : Node {
 		decision.nonRetainedEmergingProject = IsNonRetainedEmergingProjectForFormatMemory(projectGenre,
 			projectSelection.RetainedIdentity, date.year, GenreMarketV2.Enabled && ChartManager.Instance?.IsGenreMarketV2Live == true);
 		ReleasePlan plan = DecideRelease(label, decisionArtist, date.year, decision);
+		// --hit-act-cadence (§17x): a lane release is the act's follow-up single; its album waits for a later roll.
+		if (HitActCadence.LaneEnabled && HitActCadence.ShouldForceSingle(plan.format == ReleaseFormat.Album)) {
+			plan.format = ReleaseFormat.Single;
+			plan.strategy = ReleaseStrategy.OrphanSingle;
+		}
 		if (!explicitProjectIdentity) {
 			artist.primaryGenre = artistPrimary;
 			artist.secondaryGenre = artistSecondary;
@@ -3810,6 +3815,15 @@ public partial class CompetitorManager : Node {
 		float artistAwareness = artist.GetNewReleaseAwarenessBonus();
 		float marketingAwareness = GetSeasonalMarketingImpact(marketingBudget, label);
 		float labelAwareness = label.reputation * 0.1f;
+		// --hit-act-cadence (§17y): a single launched while the act already has singles on the Hot 100 shares the act's
+		// airplay with them (push and recognition radio), and cools theirs. Fans still buy it: awareness and stock are
+		// whole. share is exactly 1 when off or when nothing else by the act is charting.
+		float share = 1f;
+		if (HitActCadence.SplitEnabled && !isAlbum) {
+			List<RecordRuntimeData> predecessors = HitActCadence.ChartingPredecessors(artist.artistId, record.recordId);
+			share = HitActCadence.LaunchShare(predecessors.Count);
+			HitActCadence.CutPredecessors(predecessors);
+		}
 
 		runtimeData.awareness = Mathf.Clamp((isAlbum ? 0.04f : 0.08f) + artistAwareness + marketingAwareness + labelAwareness, 0f, 1f);
 
@@ -3823,6 +3837,7 @@ public partial class CompetitorManager : Node {
 		// is the smallest of the three ceilings on purpose. Off: byte-identical.
 		float recognitionRadio = ArtistRecognition.Enabled
 			? ArtistRecognitionService.LaunchRecognition(artist) * ArtistRecognitionService.MaxRadioLift : 0f;
+		if (share < 1f) { pushRadio *= share; recognitionRadio *= share; }
 		runtimeData.radioHeat = isAlbum ? 0f : Mathf.Clamp(baseRadio + pushRadio + payolaRadio + recognitionRadio, 0f, 1f);
 		
 		var regions = ChartManager.Instance.GetAllRegions();

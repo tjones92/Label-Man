@@ -97,6 +97,9 @@ public class SimulatedArtist {
 	public int seniorCoolingLastTop40Week = SeniorCooling.Unset;
 	public int seniorCoolingLastStepWeek = SeniorCooling.Unset;
 	public int seniorCoolingSteps;
+	// --hit-act-cadence / --hit-act-retention probe (§17y): chart week of the act's last Top 40 entry.
+	// Written only while a switch is on; HitActCadence.Unset otherwise.
+	public int hitCadenceLastTop40Week = HitActCadence.Unset;
 	public float criticalAcclaim;
 
 	// Celebrity-recognition stock (SimTools/CelebrityRecognitionDirective.md). Both [0,1],
@@ -275,6 +278,7 @@ public class SimulatedArtist {
 		momentum = Mathf.Clamp(momentum + 0.02f, 0f, 1f);
 		reputation = Mathf.Clamp(reputation + 0.01f, 0f, 1f);
 		SeniorCooling.OnTop40(this);
+		HitActCadence.OnTop40(this);
 		if (ArtistPopulationLifecycle.Enabled && IsContractEvaluationPending() && creditCurrentContract) {
 			contractTop40Hits++;
 			contractConsecutiveFlops = 0;
@@ -348,6 +352,9 @@ public class SimulatedArtist {
 		// evidence. Normal careers retain the established state-transition rules.
 		if (ArtistPopulationLifecycle.Enabled && IsContractPerformanceProbationPending() &&
 			nextState == CareerState.Dropped && !ShouldDepartForCurrentContractPerformance()) nextState = priorState;
+		// --hit-act-retention (§17y): the ladder does not drop an act within a year of its last Top 40. Off: never read.
+		if (HitActCadence.RetentionEnabled && nextState == CareerState.Dropped && priorState != CareerState.Dropped &&
+			HitActCadence.ProtectsFromDrop(this)) nextState = priorState;
 		if (nextState == CareerState.Dropped && priorState != CareerState.Dropped) {
 			if (ArtistPopulationLifecycle.Enabled) {
 				lastPerformanceEvaluationMode = GetPerformanceEvaluationMode();

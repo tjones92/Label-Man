@@ -861,7 +861,8 @@ public static class ChartSimulator {
 		
 	private static void UpdateRadioHeat(RecordRuntimeData record, AILabel label, float quality, float genreAcceptance) {
 		float qualityFactor = Mathf.Pow(quality, 1.8f) * RADIO_QUALITY_WEIGHT; 
-		float pushFactor = record.currentLabelPush * RADIO_LABEL_WEIGHT;
+		// KnownActAirplay is a probe on this read only; it returns currentLabelPush unless --known-act-airplay is named.
+		float pushFactor = KnownActAirplay.ForRadio(record) * RADIO_LABEL_WEIGHT;
 		float momentumFactor = Mathf.Max(0, record.momentum) * RADIO_MOMENTUM_WEIGHT;
 		
 		float targetHeat = (qualityFactor + pushFactor + momentumFactor) * genreAcceptance;
@@ -1105,6 +1106,7 @@ public static class ChartSimulator {
 	private static void UpdateLabelPush(RecordRuntimeData record, AILabel label) {
 		if (label == null) {
 			record.currentLabelPush = 0.02f;
+			record.knownActRadioPush = -1f;
 			return;
 		}
 		
@@ -1123,6 +1125,8 @@ public static class ChartSimulator {
 		
 		record.currentLabelPush = basePush * weekFactor;
 		record.totalLabelInvestment += record.currentLabelPush;
+		// Off unless --known-act-airplay is named: a hot act's charting single is played at a label-blind push.
+		if (KnownActAirplay.Enabled) record.knownActRadioPush = KnownActAirplay.RadioPush(record, weekFactor);
 	}
 	
 	// =======================================================================

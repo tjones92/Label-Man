@@ -3619,6 +3619,406 @@ Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `hot_act_rele
 `hot-act-silence.txt`, `hot_act_losses.py` / `hot-act-losses.txt`, `hist_cadence_targets.py` /
 `hist-cadence-targets.txt`.
 
+### 17y. Build: the hit-act cadence probe (`--hit-act-cadence`, `--hit-act-retention`; 2026-10-18, screen not run)
+
+**Build.** `Systems/HitActCadence.cs` adds two switches. Both are off unless named and label-blind.
+
+- **`--hit-act-cadence`, the follow-up lane with the same-act split.** This is the change to the one-roll-a-week
+  lottery. When a label's weekly release roll fires, `AILabel.GetArtistForRelease` first looks for a *due* act:
+  release-eligible, a Top 40 entry in the last 52 weeks, and 13 or more weeks since its last release. If one is
+  due, it takes the roll (the longest wait wins, ties go to the lower artist id, no RNG drawn). Otherwise the
+  lottery runs as before. A lane release is a single: if `DecideRelease` chose an album, `TryReleaseRecord`
+  overrides it to an `OrphanSingle`, and the album waits for a later roll. The roll rate itself
+  (`releasesPerMonth`, at most one roll a week) is unchanged. So the lane reallocates capacity from the rest of the
+  roster to hit acts and adds no volume. §17x showed total Hot 100 entries are already near history's; the
+  allocation is what's wrong.
+  In `ApplyReleasePromotion`, a single launched while the same act has other singles on the Hot 100 gets
+  `share = 1 / (1 + charting predecessors)` of its airplay reads: label push radio and the recognition radio lift.
+  Each charting predecessor's radio heat is cut by 10% (`PredecessorRadioCut`). Launch awareness and stock stay
+  whole: fans still buy a known act's new single, while programmers ration its airplay. In history, fame bought
+  entry, not height (§17w). The 10% cut is a first guess, still to be sized against history's follow-up effect
+  (§17x: −24%, part of it selection). The split is market-side and applies to every single, the player's
+  included. The lane never touches the player's releases.
+- **`--hit-act-retention`.** `ShouldResignArtist` renews any act with a Top 40 under the current contract, still
+  subject to `CanAffordToSign`. No act is let go within 52 weeks of its last Top 40, whether by `ShouldDropArtist`
+  or by the career ladder's own fall to `Dropped` in `UpdateCareerState`, which `RecordChartRunComplete` turns into
+  a performance departure. The window is the lane's own hot window. Both rules are AI-only.
+- **Clock.** `SimulatedArtist.hitCadenceLastTop40Week` is written in `RegisterTop40Hit`, only while a switch is
+  on. Opening careers seed it from their last pre-1960 Top 40, placed mid-year. Other acts count as never hot until
+  their first in-run Top 40.
+- **Telemetry.** No CSV schema changes, so the off run can be byte-compared. While a switch is on, the console
+  prints a cumulative `HIT_ACT_CADENCE` line each year: lane picks, lane album overrides, split launches, retention
+  renewals, protected reviews. Lane releases appear in `release-strategy.csv` as `OrphanSingle` rows.
+
+**Checks.** `--hit-act-cadence-check` (`SimTools/HitActCadenceChecks.cs`) passes. Off: no clock writes, share 1, no
+predecessors, no forced single, no renewal or protection, no radio cut, and the ladder's drop untouched. On: clock
+seeding from public history (a 1958 Top 40 counts, a 1959 #55 does not); the due edges (52 weeks hot inclusive, 53
+not; 12 weeks since release not due, 13 due); the pick order (longest wait, then id, fall-through when none is due);
+the forced single only for a lane pick that chose an album; share = 1, 1/2, 1/3; the predecessor filter (the act's
+other charting singles only, not its album or other acts); the radio cut; renewal and protection edges (52 weeks
+protected, 53 not); and the ladder hold (a Declining act with three flops stays put inside the year and still drops
+outside it). Each switch alone leaves the other off. `--senior-cooling-check` still passes. The Debug build has 0
+warnings and 0 errors.
+
+**Inertness.** A 52-week seed-5005 run with both switches off (`hit-cadence-off-identity4`) is **byte-identical**
+to `senior-cooling-off-identity` in all 80 CSVs, with an empty error log. The identity run was repeated after each
+code change below (`-identity` to `-identity4`), and every time all 80 CSVs were identical.
+
+**Smoke runs (one seed, not a screen).** V1's flags plus both switches, seed 1001, 104 weeks, compared on 1961
+against V1's own seed 1001 (deterministic over the shared weeks) and history. Four iterations, each fixing what the
+previous one showed:
+
+- *v1:* a 26-week hot window, a split of fame and push, retention on a Top 10. Hit acts launched more (1.36 →
+  1.80), but follow-ups launched while the act was charting made the Hot 100 49% of the time against 78%. The split
+  was cutting entry, not height. Performance departures rose 420 → 503, because the career ladder's own fall to
+  `Dropped` (Rising → Declining on two flops, then Dropped on three) bypassed `ShouldDropArtist`. More releases made
+  hit acts flop out faster.
+- *v2:* the split moved to radio only, and retention also holds the ladder's drop.
+- *v3:* the hot window widened to 52 weeks. Only 37 of 85 hit acts had reached three launches, because one
+  follow-up that missed the Top 40 ended the chain.
+- *v4 (the build as it stands):* retention keyed on a Top 40 within 52 weeks, the lane's own population. v3's extra
+  departures were Declining acts with a Top 40 but no Top 10 (150 → 270).
+
+| 1961, seed 1001 | History | V1 | v4 |
+|---|---:|---:|---:|
+| Single launches per hit act (Top 10 in 1960) | — | 1.36 | **2.49** |
+| Median weeks between a hit act's launches | — | 19 | **13** |
+| Hit acts with no launch / 3+ launches | — | 18 / 7 of 80 | 11 / 45 of 79 |
+| Hot 100 / Top 40 / Top 10 records per hit act | 2.58 / 1.34 / 0.42 | 0.70 / 0.31 / 0.16 | **1.15 / 0.61 / 0.34** |
+| Median weeks between a hit act's Hot 100 debuts | 12 | 22 | 15 |
+| Hit acts' weeks with 2+ records on the Hot 100 | 14.0% | 1.8% | 3.9% |
+| Acts on the Hot 100 | 395 | 647 | **588** |
+| Hot 100 records per charting act | 1.98 | 1.21 | 1.32 |
+| Hot 100 debuts / release rolls (volume) | 690 / — | 692 / 5,401 | 687 / 5,489 |
+| *Guard:* Top 10 records / Top 10 weeks per record | 105 / 4.52 | 98 / 4.86 | **89 / 5.36** |
+| *Guard:* Big-5 Top 10 share | — | 17.3% | **26.9%** |
+| *Guard:* performance departures / contract-expiry drops | — | 420 / 886 | 514 / 788 |
+
+**Reading.** The lane works as designed. A hit act now gets a quarterly single, almost none go silent, and the
+Hot 100 spreads over fewer acts with more records each. Release volume is unchanged (+1.6% rolls, Hot 100 debuts
+flat). It closes about a third of the per-hit-act gap to history (Hot 100 debuts 0.70 → 1.15 against 2.58). The
+rest is entry: a hit act's single reaches the Hot 100 only about 41% of the time, with or without the lane. At a
+quarterly cadence, history's 2.19-2.58 debuts imply roughly 55-75%.
+
+Three guard signals on this one seed point the wrong way, and they are the risk §17x predicted. The Big-5 Top 10
+share rose 9.6 points: hit acts sit at head labels, and their Top 10 conversion per launch held at 11-13%. The Top
+10 turned over less (89 records, 5.36 weeks each). Performance departures stayed +22%, above the +20% line; the
+remaining extras are Declining acts past the hot window. One seed in one year cannot separate these from stream
+noise ([[single-seed-decade-ab-noise-floor]]: ±5 Big-5 points on a stream reshuffle). They are what the screen must
+decide.
+
+**Screen (not launched; awaiting review):** five seeds × 260 weeks. Arm L = V1 + `--hit-act-cadence`. Arm LR = V1
++ both switches. Arm D = defaults + both, paired against the five-seed controls. Targets and guards as in §17x, with
+the §17n Big-5 and Top 10 turnover guards read first. Open sizing questions: the predecessor cut (10%), and whether
+entry for a known act (the ~41% Hot 100 rate) is a separate lever.
+
+Evidence: `SimLogs/hit-cadence-off-identity/` (four identity runs), `SimLogs/hit-cadence-smoke/` (v1-v4), and in
+`SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `identity-hit-cadence-off.txt`, `cadence_smoke.py` /
+`cadence-smoke.txt` / `cadence-smoke3.txt` / `cadence-smoke4.txt`, `cadence_smoke_releases.py` /
+`cadence-smoke-releases.txt`.
+
+### 17z. Why the lane raised the Big-5 Top 10 share (2026-10-18, analysis only)
+
+Analysis only, on the v4 smoke and V1's five seeds. No simulation was run and no code was changed. A launch is *hot*
+when its act had an in-run Top 40 in the 52 weeks before it, which is the lane's own population.
+
+**Seed 1001, 1961.** Of the +50 Big-5 Top 10 slot-weeks (90 → 140 of 520), +55 come from hot Big-5 acts. Cold Big-5
+acts lost 5. Other labels' hot acts gained 17, and other labels' cold acts lost 67.
+
+| 1961, seed 1001 | Launches V1 → v4 | Per act | Top 10 / launch | Top 10 slot-weeks |
+|---|---:|---:|---:|---:|
+| Big-5, hot | 47 → **104** | 1.38 → 2.67 | 10.6 → 14.4% | 36 → **91** |
+| Other, hot | 286 → 495 | 1.59 → 2.29 | 6.6 → 4.9% | 130 → 147 |
+| Big-5, cold | 202 → 138 | | 5.0 → 5.1% | 54 → 49 |
+| Other, cold | 4,866 → 4,752 | | 1.05 → 0.67% | 300 → 233 |
+
+The lane is label-blind. It gave Big-5 hot acts +93% launches per act and other hot acts +44%. The Big-5 hot acts
+were fewer (33 of the 196 acts with a 1960 Top 40, against 45 of 198 in V1), but they got more of the lane. A Major
+rolls about 40 times a year across a handful of hot acts, so every due act is served on time. A smaller label's
+hot act waits for a roll the label rarely makes. Each extra Big-5 hot launch then carries §17n's per-launch edge.
+
+**Five seeds, projected.** Per seed-year in V1, 1961-64, Top 10 slot-weeks per launch were measured for the four
+groups. The lane was applied as seed 1001's launch multipliers (Big-5 hot ×2.21, other hot ×1.73, cold launches
+cut to keep total rolls), with slot-weeks renormalized to 520. This shows only the allocation effect: yields are held
+fixed, with no crowding and no stream noise.
+
+| Five-seed mean | 1961 | 1962 | 1963 | 1964 |
+|---|---:|---:|---:|---:|
+| V1 Big-5 share | 25.9 | 21.3 | 28.9 | 24.7 |
+| Projected with the lane | 31.1 | 25.3 | 34.1 | 28.8 |
+| Δ (SE) | **+5.2** (1.7) | **+4.0** (1.9) | **+5.2** (1.3) | **+4.1** (0.6) |
+
+19 of 20 seed-years rise. Pooled, a hot Big-5 launch yields **1.41** Top 10 slot-weeks against **0.55** for a hot
+launch elsewhere (2.6x). On seed 1001, allocation accounts for +3.1 of the observed +9.6. The rest is Big-5 hot
+conversion rising from 10.6 to 14.4% (15 Top 10 records against about 11 expected, inside Poisson noise on that count)
+and longer Top 10 stays.
+
+**Reading.** The jump is mostly mechanism, and about a third of it is seed 1001's draw. The lane does what history
+did: hit acts get a quarterly single. History's Big-5 held 20.6 / 21.2 / 26.0 / 18.7% of the Top 10 in 1961-64 with
+that cadence. The sim's hot Big-5 launch converts at 2.6x everyone else's. That is §17n's edge, and §17o/§17p found
+it is carried by senior acts. The lane multiplies whatever a hot launch is worth, so it exposes that edge. The
+same-act split cannot offset it: it binds only while two singles chart together (3.9% of hit-act weeks).
+
+The §17y screen as specified would very likely fail the §17n Big-5 guard by 4-5 points in every year. Arm D, on
+defaults (Big-5 near 30%), would start further out. The question to settle before the screen: what makes a hot
+Big-5 launch worth 2.6x a hot launch elsewhere at the same hotness? The candidates are launch stock and awareness,
+campaign impact, the recognition radio lift, and the weekly hold push. Each is in `single-launch-attribution.csv`
+and `records.csv`, and each can be tested on V1's logs. If one channel carries most of the gap and has a historical
+reason to be weaker, it pairs with the lane in the screen. If none does, the lane cannot ship alone.
+
+Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `cadence_big5_decomp.py` /
+`cadence-big5-decomp.txt`, `cadence_big5_projection.py` / `cadence-big5-projection.txt`.
+
+### 17aa. What makes a hot Big-5 launch worth 2.6x: a post-entry premium history does not have (2026-10-18, analysis only)
+
+Analysis only, on V1's five seeds (hot launches 1961-64, as in §17z), the v4 smoke, and the 1960-64 Hot 100 and
+labelled Top 10 files. No simulation was run and no code was changed.
+
+**The funnel.** Pooled hot launches, 1961-64:
+
+| Hot launches | Per seed-year | Hot 100 entry | Top 10 / entry | Top 10 weeks / Top 10 record | Yield (Top 10 weeks / launch) |
+|---|---:|---:|---:|---:|---:|
+| Big-5 | 45.9 | 69.9% | 28.9% | 6.59 | **1.33** |
+| Procedural Major | 17.4 | 51.0% | 32.2% | 6.19 | 1.02 |
+| MidTier | 101.5 | 53.0% | 24.3% | 6.18 | 0.80 |
+| Independent | 116.0 | 30.6% | 14.5% | 5.65 | 0.25 |
+| All non-Big-5 | 250.2 | 40.5% | 21.2% | 6.04 | 0.52 |
+
+The 2.56x splits into entry 1.72 × conversion after entry 1.36 × stay 1.09. Per seed it runs from 1.44 (1001) to
+3.67 (4004). It is a tier gradient, not a Big-5 effect. Procedural Majors come within 1.3x, and most of the
+comparison pool is Independents, whose hot acts yield a fifth as much.
+
+**Which inputs carry it.** Three stage models on hot launches: an entry logit, a Top 10 | entry logit and a stay
+OLS, with year and seed fixed (pseudo R² 0.70 / 0.50, R² 0.42). Each row moves one input group of the Big-5 rows to
+the comparison pool's mean, in linear-predictor terms. The rows are not additive.
+
+| Big-5 hot launches, one group moved | Gap closed: to MidTier | to all non-Big-5 |
+|---|---:|---:|
+| Label push (campaign impact, payola) | **73%** | **74%** |
+| Record (quality 0.684 against 0.673 / 0.652, hook) | 34% | 45% |
+| Artist fame (momentum, reputation, recognition) | 18% | 17% |
+| Big-5 / Major dummies (residual label effect) | 13% | 9% |
+| Label reputation | 13% | 12% |
+| Career state | 9% | 8% |
+| Opening career | 6% | 6% |
+| Format | 1% | 1% |
+| Genre | **−131%** | **−74%** |
+| All groups | 57% | 95% |
+
+Campaign impact is the largest term in all three stages (z 12.9 entry, 8.1 conversion, 5.3 stay). Genre runs the
+other way: 33% of Big-5 hot launches are TraditionalPop and 14% Country, which convert worse, against 25% TeenPop and
+21% RnB elsewhere. The Big-5 edge holds despite its genre mix.
+
+**History has the per-act edge, but not this one.** History labels only its Top 10 records, so a per-launch yield
+cannot be measured there. A per-hit-act yield can: a hit act has a record first reaching the Top 10 in Y − 1, and
+carries that record's operating label. Its Hot 100 debuts come from the weekly Hot 100 by normalized artist name.
+Pooled 1961-64:
+
+| Per hit act in Y | History Big-5 | History other | **Ratio** | V1 Big-5 | V1 other | **Ratio** |
+|---|---:|---:|---:|---:|---:|---:|
+| Hit acts per year | 16.3 | 62.8 | | 19.3 | 61.0 | |
+| Top 10 slot-weeks | 3.43 | 1.89 | **1.82** | 2.74 | 1.65 | **1.66** |
+| Hot 100 debuts | 3.28 | 2.18 | **1.51** | 0.92 | 0.72 | 1.29 |
+| Top 10 per Hot 100 debut | 15.96% | 15.93% | **1.00** | 37.4% | 27.0% | **1.38** |
+| Top 10 weeks per Top 10 record (debuts 1961-63) | 4.97 | 4.83 | 1.03 | 6.13 | 5.77 | 1.06 |
+
+History's Big-5 hit acts out-charted the rest by 1.8x, all of it through cadence. They put 1.5x as many records on
+the Hot 100, and each converted at exactly the field's rate. On history's counts (34 of 213 against 87 of 546), the
+conversion ratio is 1.00 ± 0.18, so V1's 1.38 is about two SE above it. V1 reaches history's per-act edge (1.66
+against 1.82) only by offsetting two errors. Big-5 hit acts are the most under-released (the flat lottery across
+30-act rosters, §17x), and each of their entries carries a post-entry premium that history lacks.
+
+The lane removes the first error and exposes the second. On seed 1001 in 1961, the v4 smoke gives Big-5 hit acts
+2.12 Hot 100 debuts each (history 2.83, V1 0.58), but other hit acts only 0.90 (history 2.76, V1 0.75).
+
+**Projection.** Applied to §17z's five-seed projection, removing the premium (Big-5 hot yield ÷ 1.38) cancels the
+lane's Big-5 rise:
+
+| Five-seed mean, Big-5 share | 1961 | 1962 | 1963 | 1964 |
+|---|---:|---:|---:|---:|
+| V1 | 25.9 | 21.3 | 28.9 | 24.7 |
+| Lane | 31.0 | 25.3 | 34.0 | 28.8 |
+| Lane, no post-entry premium | **26.9** | **21.8** | **29.5** | **24.9** |
+| V1, no post-entry premium | 23.2 | 19.1 | 25.9 | 22.4 |
+| History | 20.6 | 21.2 | 26.0 | 18.7 |
+
+**The carrier after entry is radio heat.** For hot Hot 100 entrants, awareness reaches its 0.60 ceiling by week 3
+in every tier, so it carries nothing after entry. Radio heat differs from the entry week and stays apart. Big-5
+entrants run 0.47-0.55, procedural Majors 0.46-0.54, MidTier 0.42-0.50 and Independents 0.35-0.42 over chart weeks
+0-8. At matched quality (0.66-0.74) the gap is the same: 0.47 against 0.35 at entry. Independents enter on *more*
+units (3.5k against 2.9k) and less radio, then fall behind as radio compounds. Their station panel also thins
+sooner (0.77 against 0.93 at week 8). This is §17i's weekly push in the radio target
+(`currentLabelPush × 0.40 × acceptance`, held at 0.85 while a record is in the top 20) inside the airplay
+convexity. Per §17b, it sets *whose* records the top holds.
+
+**The second gap is other labels' hit-act entry.** Non-Big-5 hit acts put 0.72 records a year on the Hot 100,
+against history's 2.18. The lane takes seed 1001 to 0.90. Hot launches enter at 31% (Independent), 53% (MidTier)
+and 70% (Big-5), and campaign impact is the strongest entry term. Label push gates both entry and height. History
+says a known act's follow-ups charted wherever it was signed (§17w: fame bought entry, not height).
+
+**Reading.** The lane is historically right, and it cannot ship alone. Its partner must make a hit act's airplay
+label-blind after entry. It should do that by bringing the Big-5 down to the field, not the field up: conversion
+per Hot 100 debut is already 27-37% against history's 16% at every tier. Entry for other labels' hit acts is a
+separate shortfall, and the cadence targets need it. It should not be closed by raising height.
+
+**Candidate partners (not built):**
+
+- *Existing: `--radio-push-spread`.* It compresses campaign impact toward the mean for every record. At 0.5 it closed
+  §17b's stay premium (0.95 → 0.05 weeks) but not the excess. It needs no build. It reaches entry and launch as well
+  as the post-entry weekly term, and it is not specific to hot acts.
+- *New, narrow: a known-act airplay floor.* For a record whose act is hot (the lane's 52-week window), the weekly
+  label-push term in the radio target becomes label-blind: the field-mean push for that tier-blind population, in
+  place of the label's own. That cuts the Big-5 and Major premium after entry and lifts Independent hot acts a little.
+  Cold records keep label push, which is history's channel for breaking new acts. Its sizing target is history's
+  1.00 conversion ratio for hit acts, and overall hit-act conversion must not rise.
+- *Entry for known acts* (§17y's open question): launch entry for hot acts read more from the act's recognition and
+  less from campaign impact. It is sized against non-Big-5 hit acts' 2.18 Hot 100 debuts a year.
+
+**Screen implication.** Arm L as specified in §17y will fail §17n's Big-5 guard. The useful screen pairs the lane
+with one post-entry partner. Measured first: Top 10 per Hot 100 debut for hit acts, Big-5 against others (target
+ratio 1.0, level falling toward 16%), Hot 100 debuts per hit act by group (targets 3.3 / 2.2), then §17n's table.
+
+Caveats: a history hit act carries the label of its Y − 1 hit, so later label moves are missed. Artist credits are
+normalized by name and "with" / "and his" suffixes. History has 65 Big-5 hit act-years in four years. The model
+cannot separate the launch-week from the weekly part of campaign impact; the radio-heat profile is what places the
+premium after entry.
+
+Evidence, in `SimLogs/momhl052-launchsat050-headtpl-diagnostics/`: `hot_edge_common.py`, `hot_edge_funnel.py` /
+`hot-edge-funnel.txt`, `hot_edge_model.py` / `hot-edge-model.txt`, `hot_edge_history.py` / `hot-edge-history.txt`,
+`hot_edge_history2.py` / `hot-edge-history2.txt`, `hot_edge_projection2.py` / `hot-edge-projection2.txt`,
+`hot-edge-weekly.txt` (an inline weekly-profile query on the same pickles).
+
+### 17ab. Build: known-act airplay (`--known-act-airplay[=P]`; 2026-10-18, screen proposed, not run)
+
+**Build.** `Systems/KnownActAirplay.cs`, off unless named. It applies to a single whose act was hot at launch: a Top
+40 within the lane's 52-week window, on the lane's clock, with opening careers seeded from public history. While
+that single is on the Hot 100 (positions 1-100), the weekly label push read by `UpdateRadioHeat` uses campaign
+impact `P` in place of the label's own. The release-age taper and the top-20 hold still apply, so only the label's
+strength is replaced. `P` defaults to **0.60**, the mean raw campaign impact of V1's hot Hot 100 entrants
+(1961-64, five seeds; Big-5 0.80, procedural Major 0.75, MidTier 0.62, Independent 0.38). At that value the
+population's average push is unchanged and only the label spread goes.
+
+- *Where it is read.* `UpdateLabelPush` writes `RecordRuntimeData.knownActRadioPush`, using the week factor it has
+  just computed. `UpdateRadioHeat` reads it through `KnownActAirplay.ForRadio`, which returns `currentLabelPush`
+  unless the probe wrote a value. The regional heat inherits the change through `radioHeatBaseTargetThisWeek`.
+  The release ramp in sales, awareness, launch stock, the launch radio seed and `totalLabelInvestment` all still
+  read the label's own push.
+- *Hot at launch* is decided once, on the record's first weekly update with the switch on, and stored in
+  `knownActHotAtLaunch`. That update comes before the record can credit its own Top 40, which lands when its
+  chart peak reaches 40 (`ArtistManager.OnRecordChartUpdated`). So a cold launch stays cold after its own hit, and
+  a hot launch stays hot as the act cools. Before entry the label's push stands: label push breaking a new
+  record is history's channel and stays as it was.
+- *Clock.* `HitActCadence.ClockEnabled` (the lane, retention or this switch) now gates `OnTop40`, so the switch
+  works without the lane. Both fields are runtime-only, like the lane's clock, and are not saved.
+- *Scope.* Market-side and label-blind, so the player's records are included. A label-less record keeps its
+  0.02 push and clears any known-act value.
+- *Telemetry.* No CSV schema change. A cumulative `KNOWN_ACT_AIRPLAY` console line each year gives P, hot and cold
+  launch decisions, and record-weeks applied.
+
+**Checks.** `--known-act-airplay-check` (`SimTools/KnownActAirplayChecks.cs`) passes.
+
+- *Off:* no push written, nothing decided, `ForRadio` reads `currentLabelPush`, the clock stays unset, and
+  `UpdateLabelPush` leaves both fields at −1.
+- *On, the clock and window:* the switch alone writes the clock without turning on the lane or retention. 52
+  weeks after a Top 40 is hot and 53 is cold. A 1959 Top 40 is hot at week 0 and a 1958 one is not.
+- *On, the push:* `P × week factor`, with P = 0.40 at factor 0.5 giving 0.20. The decision is made once, and an
+  unknown act is cold.
+- *On, the scope:* the push applies at #100 and not at #101, not before entry (though the launch is already
+  decided), and never to an album. A label-less record is reset.
+- *Parse:* absent, the bare switch and `=P`. Out-of-range, non-numeric and repeated values throw.
+
+The `--hit-act-cadence-check`, `--senior-cooling-check`, `--radio-push-spread-check` and
+`--label-hold-capacity-check` checks still pass. The Debug build has 0 warnings and 0 errors.
+
+**Inertness.** A 52-week seed-5005 run with the switch off (`known-act-off-identity`) is **byte-identical** to
+`hit-cadence-off-identity4` in all 80 CSVs, with an empty error log (`identity-known-act-off.txt`). The §17y and
+earlier controls stay valid.
+
+**Smoke (one seed, not a screen).** V1's flags + `--hit-act-cadence --hit-act-retention` + the switch at P = 0.60
+and P = 0.40. Seed 1001, 104 weeks, read on 1961. Both runs completed with empty error logs. In year one the switch
+was applied on 1,879 record-weeks (P = 0.60), from 857 hot and 4,633 cold launch decisions.
+
+| 1961, seed 1001 | History | V1 | Lane (v4) | Lane + P 0.60 | Lane + P 0.40 |
+|---|---:|---:|---:|---:|---:|
+| **Big-5 Top 10 share** | 20.6 | 17.3 | 26.9 | **26.7** | **14.8** |
+| Top 10 records / Top 10 weeks per record | 105 / 4.52 | 98 / 4.86 | 89 / 5.36 | 89 / 5.36 | 91 / 5.25 |
+| Hot 100 debuts per hit act | 2.58 | 0.70 | 1.15 | 1.37 | 1.22 |
+| Acts on the Hot 100 | 395 | 647 | 588 | **527** | 561 |
+| Hot 100 records per charting act | 1.98 | 1.21 | 1.32 | 1.46 | 1.37 |
+| Hit acts, Big-5 / other | 18 / 50 | 24 / 56 | 16 / 63 | 20 / 59 | 13 / 73 |
+| Hit-act Top 10 per Hot 100 debut, Big-5 / other | 25.5 / 16.7% | 21.4 / 23.8% | 32.4 / 28.1% | 31.7 / 16.4% | 32.0 / 17.5% |
+| Performance departures / contract-expiry drops | — | 420 / 886 | 514 / 788 | 505 / 813 | 515 / 831 |
+
+Hot launches, 1960-61 pooled, by tier (`known-act-mechanism.txt`):
+
+| Hot launches | Radio heat, chart wk 0-6: lane → P 0.60 → P 0.40 | Top 10 / entry: lane → 0.60 → 0.40 | Yield: lane → 0.60 → 0.40 |
+|---|---:|---:|---:|
+| Big-5 | 0.454 → **0.428** → **0.415** | 34.9 → 23.9 → 19.8% | 0.94 → 0.82 → 0.56 |
+| Procedural Major | 0.447 → 0.445 → 0.428 | 9.5 → 35.3 → 14.3% (n ≈ 20) | 0.12 → 0.72 → 0.38 |
+| MidTier | 0.419 → 0.410 → 0.401 | 24.7 → 16.4 → 19.3% | 0.51 → 0.43 → 0.50 |
+| Independent | 0.363 → 0.360 → 0.364 | 8.5 → 12.1 → 14.3% | 0.07 → 0.16 → 0.18 |
+
+**Reading (one seed; ±5 Big-5 points of stream noise, [[single-seed-decade-ab-noise-floor]]).**
+
+- *It does what it was built to.* Hot Big-5 entrants lose radio heat (−0.026 at P 0.60, −0.039 at P 0.40), and
+  their Top 10 conversion after entry falls to the MidTier level or below. Independent hot conversion rises. The
+  lift in Independents' radio heat is too small to see across runs whose populations differ: at their week
+  factors (rarely top 20) it is about +0.02 in the target, against a lerp of 0.28.
+- *P 0.60 does not move the 1961 Big-5 share on this seed* (26.9 → 26.7). Big-5 hot entry rose 45.5 → 54.5%, and
+  the yield fell only 13%. *P 0.40 overshoots* (14.8 against history's 20.6), with the Big-5 hot yield at 0.56.
+  One seed cannot place P, but the two values bracket the target.
+- *The cadence side improved with the switch.* At P 0.60, acts on the Hot 100 fell to 527 (history 395, V1 647),
+  and Hot 100 records per charting act rose to 1.46 (history 1.98). Top 10 turnover is unchanged from the lane
+  (89 records, 5.36 weeks each), so the switch does not fix §17y's turnover guard.
+- *Retention's departures guard still fails* in every arm: +20-23% performance departures against V1. That is
+  §17y's open item, not this switch's.
+
+**Screen (proposed, not launched): five seeds × 260 weeks, paired.** Every arm runs V1's flags +
+`--hit-act-cadence --hit-act-retention`. The partner's effect is read against arm LR, and the whole bundle against
+V1's existing five-seed controls (`momhl052-launchsat050-headtpl2-confirm-v1`, reused).
+
+| Arm | Adds | Question |
+|---|---|---|
+| LR | nothing (§17y's LR arm) | The lane's own Big-5 rise across five seeds; §17z projects +4 to +5 points a year |
+| A60 | `--known-act-airplay` | Does an average-preserving label-blind push cancel that rise? |
+| A40 | `--known-act-airplay=0.40` | A stronger cut: does it overshoot history's Big-5 share? |
+
+That is 15 runs, about 46 minutes per batch of five in parallel, so about 2.5 hours. Arm D (defaults + lane +
+retention + the better P), required by §17v for an artist-side change, waits for this result. It would be one
+more batch of five against the default controls.
+
+*Read first, in order:*
+
+1. Hit-act Top 10 per Hot 100 debut, Big-5 against others (history ratio 1.00 ± 0.18; V1 1.38), and its level
+   (history 16%).
+2. Big-5 Top 10 share by year (history 20.6 / 21.2 / 26.0 / 18.7), paired against LR and V1.
+3. Top 10 turnover: records and weeks per record.
+
+*Then:*
+
+- Hot 100 debuts per hit act, Big-5 and others (history 3.3 / 2.2).
+- Acts on the Hot 100 (386).
+- The §17x cadence targets.
+- §17n's concentration table in full.
+- #1 tenure.
+- Drops and departures (the +20% line).
+- Genre error.
+
+*Stop rule:* the §17o yearly watch, unchanged. An arm stops when a band is missed by more than 2 points and by more
+than V1 misses it.
+
+*Pass for a partner arm:*
+
+- Big-5 share at or below LR in four of five seeds every year, and within 3 points of history's 1961-64 mean.
+- The conversion ratio below 1.2.
+- No new guard failures beyond LR's.
+
+*Kill:* the Big-5 share inside LR's noise (paired SE) in 1962-64, or Top 10 turnover worse than LR's.
+
+Evidence, in `SimLogs/`: `known-act-off-identity/`, `known-act-smoke/` (consoles, empty error logs), and in
+`momhl052-launchsat050-headtpl-diagnostics/`: `identity_compare.py` / `identity-known-act-off.txt`,
+`known_act_smoke.py` / `known-act-smoke.txt`, `known_act_mechanism.py` / `known-act-mechanism.txt`.
+
 ## Reproduction and evidence
 
 New analysis: `SimTools/analyze_label_tier_historical_benchmarks.py`.

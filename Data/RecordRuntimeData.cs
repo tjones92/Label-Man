@@ -125,6 +125,10 @@ public class RecordRuntimeData {
 	// === LABEL PUSH ===
 	public float currentLabelPush;    // 0-1: How hard is the label pushing THIS WEEK
 	public float totalLabelInvestment;// Running total of label push
+	// Known-act airplay probe (Systems/KnownActAirplay.cs), written only while --known-act-airplay is named:
+	// whether the act was hot at launch (-1 undecided), and this week's radio push in place of currentLabelPush (-1 none).
+	public sbyte knownActHotAtLaunch = -1;
+	public float knownActRadioPush = -1f;
 
 	// === AUDIT TELEMETRY (write-only from launch paths) ===
 	public float initialLaunchAwareness;

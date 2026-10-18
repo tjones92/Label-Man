@@ -369,6 +369,8 @@ public partial class ChartManager : Node {
 		LaunchPushSaturation.Configure(OS.GetCmdlineUserArgs());
 		ArtistMomentumHalfLife.Configure(OS.GetCmdlineUserArgs());
 		SeniorCooling.Configure(OS.GetCmdlineUserArgs());
+		HitActCadence.Configure(OS.GetCmdlineUserArgs());
+		KnownActAirplay.Configure(OS.GetCmdlineUserArgs());
 		ArtistHeatAttribution.Configure(OS.GetCmdlineUserArgs());
 		SmallLabelHomeTerritory.Configure(OS.GetCmdlineUserArgs());
 		LocalScenes.ValidateDependencies();
