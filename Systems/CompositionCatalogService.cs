@@ -258,6 +258,10 @@ public static class CompositionCatalogService {
 		// Label-affiliated in-house shops (Motown/Memphis-style) attach to a label if one exists.
 		AddPublisher("pub_detroit", "Detroit In-House", PublishingScene.DetroitInHouse, null,
 			new[] { Genre.Motown, Genre.Soul, Genre.RnB });
+		// Probe (--rock-hit-writers): rock & roll and vocal-group staff writers. Appended last so the existing
+		// offices keep their ids; the staff-writer draw below still re-deals across one more office.
+		if (RockHitWriters.Enabled)
+			AddPublisher("pub_rnr_hits", "Rock & Roll Hit Office", PublishingScene.NewYorkPopFactory, null, RockHitWriters.OfficeFocus);
 
 		// Staff writers, distributed across the scenes. Metadata only: no P&L, no agency yet.
 		int writerCount = 120;

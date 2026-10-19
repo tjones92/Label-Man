@@ -1279,6 +1279,78 @@ Ranked by how ahistorical they look:
 Evidence: `SimLogs/awtp-on-*`, `awra-on-*`, `awratp-on-*`, `awhs2-on-1001-260-*`. `awra_summary.py`,
 `awtp_vs_ctl.txt`, `awra_vs_awhs.txt`, `launch_awra.py` and `launch_awtp.py` are in the session notes folder.
 
+### 2026-10-19: Screen result, `--rock-hit-writers` on the hook-scale + TradPop base (`awrw-on-*` against `awtp-on-*`)
+
+**The change** (`Systems/RockHitWriters.cs`, off unless named):
+
+1. A generic NY-scale "Rock & Roll Hit Office" (90 titles), focused on RockAndRoll, DooWop and RnB, is appended
+   after the five existing offices.
+2. RockAndRoll gets its own source anchor in place of the rock-family default:
+   - 1960: artist-written .30, professional .35, standards .05, hit covers .25, traditional .05;
+   - 1969: .62 / .15 / .03 / .18 / .02.
+   - Standards and traditional still carry the rock songbook factor .02.
+3. R&R professional availability is 0.60 easing to 0.30 by 1968 (was 0.28 → 0.16). In the live path this is
+   only an on/off gate.
+
+A flag-off rerun (`awtp2-on-1001`) is **byte-identical to `awtp-on-1001` (84/84)**.
+
+**Hooks (1960-64):**
+
+- R&R 0.533 → **0.595** (5/5) and DooWop 0.559 → **0.612** (5/5). Nothing else moves by more than 0.02.
+- The order is now R&R .60 < DooWop .61 < R&B .62 < TeenPop .65 < … < Soul .77. Self-writing still pulls rock's
+  average below the staff-led genres.
+
+**Head, the 1960 test** (cells read control | hook | +TP | +TP+RW):
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| Top 10 CR8 (floor 48 in 1960) | 48.1 \| 44.3 / 44.0 / **44.1** | 38.5 \| 41.6 / 44.4 / 40.2 | 38.4 \| 39.6 / 36.8 / 39.0 | 40.4 \| 39.1 / 36.9 / 42.0 | 40.8 \| 42.1 / 36.2 / 37.6 |
+| Big-5 Top 10 share [history] | 33.8 \| 28.1 / 29.9 / 30.4 [34.2] | 24.3 \| 25.2 / 28.4 / 25.6 [20.6] | 25.6 \| 23.3 / 23.0 / 26.5 [21.2] | 26.9 \| 24.4 / 21.2 / 26.9 [26.0] | 27.0 \| 18.8 / 21.0 / 22.1 [18.7] |
+| Big-5 % of **R&R** Top 10 weeks | 22.0 \| — / 16.8 / **30.4** | 19.0 \| — / 14.2 / 12.0 | 25.6 \| — / 14.9 / 13.9 | 14.4 \| — / 5.5 / 14.8 | 29.1 \| — / 11.6 / 6.7 |
+
+- **The hypothesis holds for R&R but does not lift the 1960 head.** Professional material moves 1960 R&R Top 10
+  weeks to the majors (16.8% → 30.4%), as Elvis on RCA and Holly on Decca did.
+- But R&R's own 1960 Top 10 weeks fall (83 → 73 a seed) and TradPop's Big-5 share eases, so CR8 stays at 44.1.
+- **Why the majors gain so little:** at equal fit, labels barely differ on professional material. A Major's R&R
+  hook is 0.619 against an Independent's 0.596, because label access enters only through `polish × 0.10`.
+  - Historically, publishers and song-pluggers pitched their best songs to major-label acts first. That pecking
+    order is missing, and it is the remaining historically grounded route to the 1960 floor.
+- **Every other lever is spent.** RA and keyframes cannot reach the 1960 head without harm (RA drains Soul; TP
+  leaves CR8 at 44).
+
+**Genres:**
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| R&R share | 10.0 \| 13.4 / 13.0 / **16.0** [13.5] | 7.5 \| 11.6 / 11.0 / **13.7** [12.8] | 6.0 \| 9.8 / 10.1 / 11.5 [11.5] | 5.1 \| 8.6 / 8.9 / 9.9 [10.0] | 3.6 \| 7.0 / 7.2 / 7.6 [6.8] |
+| R&R slots | 12.6 \| 15.0 / 14.8 / 17.2 [14] | 12.0 \| 15.2 / 16.2 / 14.4 [12] | 7.8 \| 12.0 / 14.6 / 13.8 [12] | 9.4 \| 16.0 / 15.2 / 15.4 [11] | 4.2 \| 10.8 / 10.4 / 9.4 [8] |
+| BritishBeat slots | | | | | 21.8 \| 19.0 / 16.2 / **22.4** [24] |
+| Sum abs share error | 25.3 \| 24.3 / 22.4 / 25.4 | 28.1 \| 22.8 / 21.8 / 22.6 | 28.5 \| 22.1 / 23.2 / 22.2 | 28.3 \| 27.1 / 23.6 / 23.4 | 31.6 \| 28.8 / 27.8 / 28.9 |
+| Sum abs slot error | 28.8 \| 32.8 / 30.8 / 32.0 | 35.0 \| 36.2 / 33.8 / 39.0 | 40.8 \| 38.4 / 38.8 / 38.4 | 45.4 \| 49.4 / 44.6 / 45.4 | 47.4 \| 37.4 / 44.6 / **35.0** |
+
+- R&R's 1962-64 share is now on history (11.5 / 9.9 / 7.6).
+- **1960-61 overshoot** (16.0 / 13.7 against 13.5 / 12.8; slots 17.2 against 14 in 1960; 1961 slot error +5.2,
+  5/5). This is the old 1960 R&R over-supply that `GenreCatalog`'s keyframe history describes cutting (.48 → .40
+  → .35); the keyframe now sits at .45.
+  - With real hooks and writers it is a market quantity again. The transfer law sizes the 1960 keyframe at
+    √(13.5/16.0) ≈ ×0.92 (.45 → .41).
+- **BritishBeat 1964 recovers** (22.4 against 24), 1964 slot error is the best of any arm (35.0), and 1963 Big-5
+  lands on history (26.9 against 26.0).
+
+**Verdict.**
+
+- The rock hit-writer office does what the audit asked: realistic R&R and doo-wop material without a genre cap, with
+  majors converting the professional share.
+- Keep it in the candidate bundle (hook scale + TP + RW), still off by default.
+- Owed next, in order:
+  1. R&R 1960 keyframe ×0.92, a market fix and the transfer-law size.
+  2. A publisher pitch order, where majors' acts see the office's best songs first. That is the 1960-head route.
+  3. Then the polar execution trace (audit item 3) and the songbook constants (audit item 2).
+  4. Then a two-seed decade A/B of the bundle.
+
+Evidence: `SimLogs/awrw-on-{1001,...,5005}-260-*` and `awtp2-on-1001-260-*`. `rr_big5.py`, `awrw_vs_awtp.txt`,
+`awrw_vs_ctl.txt` and `launch_awrw.py` are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic

@@ -389,6 +389,7 @@ public static class SongMaterialSelectionService {
 			Genre.Soul or Genre.Motown => Mathf.Clamp(0.45f + 0.25f * SmoothYear(1960f, 1966f, year), 0f, 1f),
 			Genre.Country => 0.70f,
 			Genre.RnB => 0.45f,
+			Genre.RockAndRoll when RockHitWriters.Enabled => RockHitWriters.RockAndRollAvailability(SmoothYear(1963f, 1968f, year)),
 			Genre.RockAndRoll or Genre.GarageRock or Genre.PsychedelicRock or Genre.Psychedelic =>
 				Mathf.Clamp(0.28f - 0.12f * SmoothYear(1964f, 1968f, year), 0f, 1f),
 			_ => 0.35f
@@ -416,6 +417,8 @@ public static class SongMaterialSelectionService {
 	private struct Mix { public float Aw, Pro, Std, Hit, Trad; public Mix(float a,float p,float s,float h,float t){Aw=a;Pro=p;Std=s;Hit=h;Trad=t;} }
 
 	private static Mix Anchor1960(Genre g) => g switch {
+		// --rock-hit-writers: 1960 rock & roll was staff-writer-led (std/trad still carry the rock songbook factor).
+		Genre.RockAndRoll when RockHitWriters.Enabled => new Mix(.30f, .35f, .05f, .25f, .05f),
 		Genre.TeenPop        => new Mix(.06f, .56f, .14f, .14f, .10f),
 		Genre.Bubblegum      => new Mix(.06f, .56f, .14f, .14f, .10f),
 		Genre.GirlGroup      => new Mix(.08f, .54f, .14f, .14f, .10f),
@@ -439,6 +442,7 @@ public static class SongMaterialSelectionService {
 	};
 
 	private static Mix Anchor1969(Genre g) => g switch {
+		Genre.RockAndRoll when RockHitWriters.Enabled => new Mix(.62f, .15f, .03f, .18f, .02f),
 		Genre.TeenPop        => new Mix(.20f, .55f, .04f, .16f, .05f),
 		Genre.Bubblegum      => new Mix(.15f, .60f, .04f, .16f, .05f),
 		Genre.GirlGroup      => new Mix(.25f, .45f, .06f, .18f, .06f),
