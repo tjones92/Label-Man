@@ -370,6 +370,7 @@ public partial class ChartManager : Node {
 		LabelHoldCapacity.Configure(OS.GetCmdlineUserArgs());
 		HeadScaleTemplates.Configure(OS.GetCmdlineUserArgs());
 		LaunchPushSaturation.Configure(OS.GetCmdlineUserArgs());
+		ArtistWrittenHookScale.Configure(OS.GetCmdlineUserArgs());
 		ArtistMomentumHalfLife.Configure(OS.GetCmdlineUserArgs());
 		SeniorCooling.Configure(OS.GetCmdlineUserArgs());
 		HitActCadence.Configure(OS.GetCmdlineUserArgs());

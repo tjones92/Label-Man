@@ -310,7 +310,7 @@ public static class AiRepertoireService {
 			float era = SongMaterialSelectionService.GetArtistWrittenEraWeight(genre, year);
 			float noise = (ReleaseJudgement.Unit($"craft|{artist.artistId}|{key}") - 0.5f) * 0.10f;
 			c.Craft = Mathf.Clamp(craft * 0.80f + era * 0.10f + noise, 0f, 1f);
-			c.Hook = Mathf.Clamp(c.Craft * 0.75f + MeanPerformanceHook(artist, label) * 0.15f, 0f, 1f);
+			c.Hook = ArtistWrittenHookScale.Hook(c.Craft, craft, noise, MeanPerformanceHook(artist, label), 0f);
 			c.Lyric = Mathf.Clamp(craft * 0.70f + era * 0.10f, 0f, 1f);
 			c.Originality = Mathf.Clamp(artist.members.Count > 0 ? artist.members[0].creativity * 0.6f + 0.2f : 0.4f, 0f, 1f);
 			c.TitleSeed = RepertoireTaxonomy.Hash(BandLife.WorldSeed.ToString(System.Globalization.CultureInfo.InvariantCulture) +

@@ -1077,6 +1077,92 @@ against `AdjustedHistoricalGenreShareTargets.csv`; slots are against the §3 han
 Evidence: `SimLogs/rj2asp10-ctl-{1001,...,5005}-260-*`. `g64_shape.py`, `g64_family.py`, `g64_funnel.py`,
 `g64_singles.py`, `g64_material.py`, `g64_creativity.py` and `g64_hookbins.py` are in the session notes folder.
 
+### 2026-10-19: Screen result, `--artist-written-hook-scale` (`awhs-on-*` against `rj2asp10-ctl-*`)
+
+**The change** (`Systems/ArtistWrittenHookScale.cs`, off unless named).
+
+- An artist-original's composition hook becomes `0.85 × (writer craft + noise) + 0.15 × performance hook + team lift`.
+  That is the same 0-1 scale catalogue songs are minted on (professional mean 0.68).
+- **No genre term.** The genre-weighted era factor leaves the hook. It stays in craft score, lyric, identity fit
+  and the source-mix preference.
+- So a genre's hook level now comes only from **how talented its writers are** and **how often it self-writes**.
+- Writer craft is genre-neutral (median 0.51-0.59 in every genre, p90 0.77-0.87).
+- It applies to both the live builder (`BuildArtistWritten`) and the Release Judgement shadow candidate.
+- Pure arithmetic, no draws.
+- A flag-off rerun (`awhs-off-1001`) is **byte-identical to `rj2asp10-ctl-1001` (84/84 CSVs)**.
+
+**Hooks (1960-64, five seeds, paired):**
+
+| Genre | Median, control → flag | p99 | Singles ≥ 0.80 |
+|---|---|---|---|
+| RockAndRoll | 0.43 → 0.54 | 0.79 → 0.94 | 0.9% → 7.3% |
+| SurfRock | 0.52 → 0.64 | 0.91 → 0.95 | 4.9% → 14.3% |
+| BritishBeat | 0.56 → 0.66 | 0.94 → 0.95 | 11.9% → 18.2% |
+| Soul | 0.76 → 0.78 | 0.97 | 36.6% → 43.1% |
+| TraditionalPop | 0.74 → 0.75 | 0.97 | 32.6% → 35.9% |
+
+- Top rock writers now reach staff-grade hooks.
+- Rock's average stays below Soul's and TradPop's, because those genres still draw more professional material.
+
+**Genres** (flag against control, five seeds, with history in brackets):
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| R&R share | 10.0 → **13.4** [13.5] | 7.5 → **11.6** [12.8] | 6.0 → **9.8** [11.5] | 5.1 → **8.6** [10.0] | 3.6 → **7.0** [6.8] |
+| R&R slots | 12.6 → 15.0 [14] | 12.0 → 15.2 [12] | 7.8 → 12.0 [12] | 9.4 → 16.0 [11] | 4.2 → 10.8 [8] |
+| TeenPop share | 19.1 → 17.0 [13.4] | 16.0 → 13.9 [12.5] | 14.2 → 12.8 [12.3] | 11.9 → 10.0 [10.8] | 10.6 → 8.4 [7.9] |
+| TeenPop slots | 32.0 → 32.0 [28] | 26.2 → 24.8 [18] | 27.6 → 27.6 [20] | 15.0 → 14.4 [8] | 13.8 → 10.8 [5] |
+| TradPop share | 14.2 → 13.0 [15.0] | 14.2 → 13.1 [15.0] | 13.7 → 12.6 [14.5] | 13.9 → 12.0 [13.2] | 12.6 → 10.6 [11.0] |
+| TradPop slots | 23.0 → 18.8 [22] | 18.6 → 18.6 [16] | 18.0 → 15.2 [15] | 25.4 → 23.0 [20] | 18.8 → 16.8 [14] |
+| Soul share | 7.1 → 6.4 [7.9] | 8.8 → 8.3 [8.9] | 9.4 → 8.8 [10.2] | 9.8 → 8.9 [11.5] | 9.9 → 10.3 [12.2] |
+| Soul slots | 2.8 → 1.6 [6] | 5.4 → 5.0 [9] | 4.4 → 5.4 [7] | 8.4 → 7.2 [15] | 8.8 → 10.4 [14] |
+| Sum abs share error | 25.3 → 24.3 | 28.1 → **22.8** (0/5 up) | 28.5 → **22.1** (0/5) | 28.3 → 27.1 | 31.6 → **28.8** (0/5) |
+| Sum abs slot error | 28.8 → 32.8 | 35.0 → 36.2 | 40.8 → 38.4 | 45.4 → 49.4 | 47.4 → **37.4** (0/5) |
+
+- **R&R market share lands on history in every year.** It was ×0.53-0.74, and every seed moves up (SE ≈ 0.5).
+  - The market table is the benchmark that sets demand (§2 rule), so this is the headline. Genre share error
+    falls in every year.
+- **R&R now over-charts at a correct share:** +1 to +5 slots in 1960-61 and 1963-64.
+  - That is the "market on target, chart over" pattern `RadioAcceptance[RockAndRoll] = 1.10` was left to tolerate.
+    That RA, and the 1960 keyframe history in `GenreCatalog.cs`, were set against the low hooks. A chart-side
+    retune is owed (RA, not the keyframe).
+- **TeenPop and TradPop shares fall by 1-2 points.**
+  - TeenPop moves toward history. 1964 slots go 13.8 → 10.8, still about double.
+  - TradPop's 1960-62 share is now 1.4-2.0 under.
+- **Soul is barely moved**, as predicted (§3 above: its channel is RA 0.55, not hooks).
+- **BritishBeat 1964:** slots 21.8 → 19.0 (SE 2.6, 2/5 up) against 24. Share is unchanged at 4.9 against 8.5.
+  Within noise, but the wrong side.
+- **SurfRock** share goes over in 1963-64 (4.4 / 5.2 against 3.4 / 2.5). Slots 9.4 are on 9.
+
+**Head:**
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| Big-5 Top 10 share, control → flag [history] | 33.8 → 28.1 [34.2] | 24.3 → 25.2 [20.6] | 25.7 → 23.3 [21.2] | 26.9 → 24.4 [26.0] | 27.0 → **18.8** [18.7] |
+| Top 10 CR8 (1960 band 48-58) | 48.2 → **44.3** (SE 4.5, 2/5 up) | 38.5 → 41.6 | 39.7 | 39.1 | 42.1 |
+| Hot 100 debuts / yr | −2.8 | +20.4 | +23.2 | +8.0 | −6.8 |
+
+- **The 1964 Big-5 excess is gone** (−8.2, 0/5 up, landing on history). That confirms it was genre, not push.
+- **1960 breaks the CR8 floor** (44.3 against 48). Self-writing R&R independents take 1960 Top 10 weeks from the
+  Big-5's TradPop. The SE is wide, but it is a stop-rule hit.
+
+**Verdict.**
+
+- The recalibration is right on its own terms. It is genre-neutral by construction and puts R&R's market on history
+  without any genre term. It cuts share error in every year, takes 1964 slot error −10, and removes the 1964 Big-5
+  excess.
+- **It stays off by default for now.** Two compensations that were tuned against the old low hooks have to come
+  out with it:
+  1. R&R's chart conversion (RA 1.10), which now over-charts at a correct share;
+  2. the 1960 head (CR8 floor), probably together with TradPop's 1960-62 share, which is now 1.4-2.0 under.
+     A TradPop 1960-62 keyframe nudge of about sqrt(15/13) ≈ ×1.07 is the transfer-law size.
+- Then a two-seed decade A/B, because self-writing grows to 76% of rock by 1969, so the late decade is where this
+  matters most.
+- Soul's RA 0.55 and TeenPop's rising 1964 keyframe are separate and untouched here.
+
+Evidence: `SimLogs/awhs-on-{1001,...,5005}-260-*` and `awhs-off-1001-260-*`. `awhs_screen.py`,
+`awhs_screen5.txt`, `hashcmp.py` and `launch_awhs.py` are in the session notes folder.
+
 ## What to keep, and what to change
 
 Keep persistent repertoire, uncertain A&R reads, commissioning and covers through the publishing system, economic
