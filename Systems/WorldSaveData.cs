@@ -109,6 +109,8 @@ public sealed class WorldSaveData {
 	public ContactNetworkSaveData ContactNetwork { get; set; }
 	// Television bookings, airings and per-act media tallies (MediaAtmosphereService). Absent in older saves: starts empty.
 	public MediaSaveData Media { get; set; }
+	// Release Judgement Phase 1 shadow shortlists (AiRepertoireService, save v23). Null unless the shadow ran.
+	public AiRepertoireSaveData AiRepertoire { get; set; }
 }
 
 /// <summary>Band-member simulation world state that does not live on an artist or a musician.</summary>
@@ -290,6 +292,7 @@ public static class WorldStateService {
 		BandLifeService.CaptureWorld(world);
 		ContactNetworkService.CaptureWorld(world);
 		MediaAtmosphereService.CaptureWorld(world);
+		AiRepertoireService.CaptureWorld(world);
 		LocalSceneIdentityService.CaptureWorld(world);
 		LocalScenePersistenceService.CaptureWorld(world);
         LocalSceneRoomService.CaptureWorld(world);
@@ -333,6 +336,7 @@ public static class WorldStateService {
 		BandLifeService.RehydrateWorld(world, date.year);
 		ContactNetworkService.RehydrateWorld(world);
 		MediaAtmosphereService.RehydrateWorld(world);
+		AiRepertoireService.RehydrateWorld(world);
 		ChartManager.Instance?.RestoreChartWeek(world.ChartWeek);
 		// Restore the frozen "for week ending" date. A pre-fix save (year 0) never stored it, so recover the most
 		// recent week-ending Saturday from the restored calendar date.

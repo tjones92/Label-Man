@@ -2048,6 +2048,7 @@ public partial class CompetitorManager : Node {
 		TrackRelease(label.labelId, record.recordId);
 		WeeklySingleReleases++;
 		RecordArtistRelease(artist, record.recordId, record.format);
+		AiRepertoireService.ObserveSingleRelease(label, artist, record, ReleaseStrategy.OrphanSingle, date);
 		annualFormatDecisions++;
 		OnCalibrationDecision?.Invoke(new CalibrationDecisionTelemetry {
 			recordId = record.recordId,
@@ -2274,6 +2275,7 @@ public partial class CompetitorManager : Node {
 				ProjectRecordRole.PromoSingle, projectId);
 			ApplyReleasePromotion(promo, artist, label, promoMarketingBudget, promoPerceivedMult);
 			CaptureSingleOpportunity(ChartManager.Instance.GetRecordRuntimeData(promo.recordId), label, date.year);
+			AiRepertoireService.ObserveSingleRelease(label, artist, promo, ReleaseStrategy.AlbumWithPromo, date);
 		}
 		artist.weeksSinceLastRelease = 0;
 		EmitAlbumDecisionTelemetry(label, artist, decision, plan, album, project);

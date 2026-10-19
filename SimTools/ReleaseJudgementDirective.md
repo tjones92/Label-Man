@@ -1,6 +1,7 @@
 # Release Judgement Directive
 
-Status: **revised design draft; this revision implements no simulation behaviour** (2026-10-18).
+Status: **revised design draft; Phases 0 and 1 built (observe-only, byte-inert); Phase 2 next** (2026-10-18).
+See "Implementation log" below for what exists in code.
 Source: the Top 10 review arc in `HistoricalLabelTierBalanceResearch.md`, §17x-§17af, the original directive,
 review of the current code, and the historical sources linked below. The original measurements are retained;
 new rules and parameter ranges are proposals unless explicitly described as existing behaviour or measured evidence.
@@ -13,6 +14,92 @@ work that exists. It should not create its own evidence by inventing a song afte
 **Scope of this document:** revise the design, not start its implementation or run its multi-seed programme.
 Instructions and historical author decisions inherited from other documents are design inputs, not additional
 authorization. Preserve their useful constraints, but resolve conflicts explicitly here before a later build.
+
+## Implementation log
+
+### 2026-10-18: Phase 0 (measurement) and Phase 1 (shadow song pool), base 094cf89
+
+**Built.**
+
+- *Phase 0, default on, new files only:*
+  - `<run>-single-launch-quality.csv`: one row per AI single launch, with `(hook + production) / 2`, hook,
+    production, runtime quality and weeks since the act's previous single (−1 if the run has not seen one).
+  - `<run>-act-release-years.csv`: one row per act-year, with signed weeks, orphan/promo singles, standalone
+    and scheduled LPs, distinct Hot 100 records and year-start lifetime counters.
+  - `SimTools/release_cadence_screen.py <run-prefix>... [--years A-B]` reads both. It prints the retrospective
+    groups beside the discography sample, active-week denominators, zero-release signed years, lagged-status
+    cohorts, single gaps and entry by quality quintile at the V1 edges.
+  - Writers: `ChartAuditRunner.ReleaseJudgement.cs`.
+- *Phase 1, `--release-judgement-shadow`, off by default:*
+  - `Systems/ReleaseJudgement/AiRepertoireService.cs` keeps a saved shortlist per AI act, capped at 8 active.
+  - Arrivals are keyed and dated: artist-written, professional, standard, recent-hit cover and traditional.
+    `SourceMix` sets the arrival rate, not a pick at release.
+  - Each song gets a 1-4 week readiness delay and a polar fit read when it becomes recordable. The existing
+    refusal rule applies.
+  - The label read is truth ± a persistent label/act bias ± song error fixed per evidence version. The band is
+    0.12→0.04 by `scoutingAbility`, ×1.5 for an unheard offer.
+  - At each legacy orphan or promo single, the best perceived recordable song is logged and marked
+    `ShadowIssued`, so depletion is visible.
+  - Catalogue songs are referenced by `SongId`, never registered. Shadow originals carry fixed traits and a fixed
+    title seed but no title: authoring waits for a phase that commits masters.
+  - Outputs: `release-judgements-shadow.csv`, `repertoire-health.csv`, and `material-events.csv` with
+    `--release-judgement-events`.
+  - Saves write `WorldSaveData.AiRepertoire` and v23 only when the shadow has state. Otherwise saves stay
+    v21/v22 and unchanged.
+  - Any other `--release-judgement-*` flag is rejected.
+
+**Gates passed.**
+
+- *Inertness:*
+  - Reference `ref-094cf89-1001-52`: base commit, default-control flags, full telemetry.
+  - All 84 pre-existing CSVs are SHA-256 identical in both `rj-off-1001-52` and `rj-shadow-1001-52`. The shadow arm
+    also had `--release-judgement-events` on.
+- *`SimTools/ReleaseJudgementChecks.tscn`, 23/23 passing:*
+  - 60 shadow weeks leave the global RNG state, catalogue song count, record count, label cash and release
+    counters unchanged.
+  - Shortlists stay within the cap, with no duplicate songs and unique ids. Every reference resolves, and
+    archives are pruned.
+  - A reread or reversed enumeration returns the same pick and changes no state. Every read stays inside its
+    band.
+  - Removing one act leaves its labelmate's and another label's shortlists identical.
+  - Two loads of one save continue identically, and also equal the never-saved run (21 MB indented JSON at 2,967
+    acts).
+  - Off means nothing is tracked, saved or versioned.
+
+**First shadow read: one seed, 1960 only; a smoke, not a result.**
+
+- 5,308 legacy single launches; 99.2% had a recordable shadow song.
+- Shadow pick's true expected quality 0.661, against 0.612 for what legacy actually shipped. 61.5% sit above the
+  0.639 cliff, against 41.2%.
+- Regret against the oracle is 0.003 (82% picked the oracle song). Read error SD is 0.026.
+- Pick sources: professional 40%, recent-hit cover 23%, standard 17%, artist-written 17%, traditional 4%.
+- Expected gain by tier: Major +0.060, Small +0.043.
+- Phase 0 readout on the same run: Q5 entry 41-47% and Q1-Q2 entry about 0%, so the cliff is present on today's
+  defaults. Unknown acts still issue 75% of singles.
+
+**Open before Phase 2 relies on any of this.**
+
+1. *The pool saturates.* About 720 arrivals a week against about 100 shadow issues; 173 a week archived as
+   passed-over. Best-of-8 is almost always available, which flatters selection (risks 1 and 11). Tune arrival
+   rates against a recording-throughput constraint before reading a 2A gain.
+2. *Reads may be too accurate.* With SD 0.026 and regret 0.003, labels nearly know the truth (risk 8). The band is
+   a parameter hypothesis; Phase 2A must compare it with wider bands.
+3. *The gain leans toward the head:* Major +0.060 against Small +0.043, from `labelAccess` in professional
+   arrivals (risk 7). Read Big-5 / CR4 / CR8 in the first paired screen.
+4. *The shadow refused nothing.* Refusal needs low identity and high stretch together. Confirm against the
+   legacy refusal count before calling it correct.
+5. *Shadow originals omit team-writing craft.* `TeamWritingService` is keyed on a record id. It must be added when
+   originals are authored for real.
+6. *Accounting limits of the readout:*
+   - `act-release-years` counts an LP when it is scheduled, so a December promo's album lands in that year.
+   - Orphan singles whose economics were not evaluated emit no strategy event, so they are absent from both
+     Phase 0 files (none on default controls).
+7. *Contract-counter audit (Phase 0; not changed):*
+   - `contractSinglesObligation` (3-8 for NewSigning/Rising, through 1966) is described as sides.
+   - `contractReleases` counts release events: an orphan single +1, a standalone LP +1, an AlbumWithPromo
+     project +2 (promo, then album drop).
+   - A linked project therefore meets a "sides" deliverable twice as fast as an orphan single, and no event
+     counts two sides. Repair belongs in its own accounting checkpoint (§6).
 
 ## What to keep, and what to change
 

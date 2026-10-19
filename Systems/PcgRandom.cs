@@ -110,6 +110,8 @@ public sealed class PcgRandom : IDisposable {
 /// </summary>
 public static class GameRandom {
 	private static readonly PcgRandom Global = PcgRandom.CreateGodotDefault();
+	/// <summary>Probe-only: lets an observe-only check prove it drew nothing from the global stream.</summary>
+	internal static ulong StateForChecks => Global.State;
 
 	public static void Seed(ulong seed) {
 		Global.Seed = seed;

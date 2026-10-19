@@ -375,6 +375,7 @@ public partial class ChartManager : Node {
 		HitActCadence.Configure(OS.GetCmdlineUserArgs());
 		KnownActAirplay.Configure(OS.GetCmdlineUserArgs());
 		ArtistHeatAttribution.Configure(OS.GetCmdlineUserArgs());
+		ReleaseJudgement.Configure(OS.GetCmdlineUserArgs());
 		SmallLabelHomeTerritory.Configure(OS.GetCmdlineUserArgs());
 		LocalScenes.ValidateDependencies();
 		ArtistEvolution.Configure(artistEvolutionEnabled, OS.GetCmdlineUserArgs());
@@ -484,6 +485,7 @@ public partial class ChartManager : Node {
         LocalSceneRoomService.EnsureCalendar(start);
 		StartupProfile.Mark("room-calendar");
 		MediaAtmosphereService.Initialize(start, this);
+		AiRepertoireService.Reset();
 	}
 
 	public override void _ExitTree() {
@@ -730,6 +732,8 @@ public partial class ChartManager : Node {
 		// Media reads the chart this week froze and books the coming week. An explicit step, after settlement and
 		// before anything else moves, so producers always see the same chart (directive §15.1). Observe-only.
 		MediaAtmosphereService.AfterCompletedWeek(date, this);
+		// Release Judgement Phase 1: the shadow shortlists advance from the same completed week. Observe-only.
+		AiRepertoireService.AfterCompletedWeek(date);
 
 		foreach (var record in allRecords) {
 			if (record.isGrammyWinner && record.weeksOfGrammyBump > 0) {

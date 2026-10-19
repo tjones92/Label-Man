@@ -505,7 +505,7 @@ public static class SongMaterialSelectionService {
 
 	// ---- Scoring helpers ---------------------------------------------------------------------
 
-	private static float ArtistWriterCraft(SimulatedArtist artist) {
+	internal static float ArtistWriterCraft(SimulatedArtist artist) {
 		float best = 0f;
 		if (artist.members != null) foreach (var m in artist.members) if (m.creativity > best) best = m.creativity;
 		return Mathf.Clamp(artist.songwritingAbility * 0.6f + best * 0.4f, 0f, 1f);

@@ -436,6 +436,7 @@ public partial class ChartAuditRunner : Node {
 			RosterManager.Instance?.ReconcileEnabledLifecycleForCurrentWeek();
 			var captureProfileStart = SimulationPerformanceProfiler.Begin();
 				CaptureWeek(week);
+				CaptureReleaseJudgementWeek(week);
 				CapturePolarFinalWeek(week);
 				CaptureSessionSupplyWeek(week);
 				CapturePolarCensus();
@@ -1079,6 +1080,7 @@ public partial class ChartAuditRunner : Node {
 		string outputDirectory = ProjectSettings.GlobalizePath("res://SimLogs");
 		Directory.CreateDirectory(outputDirectory);
 		ArtistHeatAttribution.Open(Path.Combine(outputDirectory, runName));
+		OpenReleaseJudgementOutputs(outputDirectory);
 		recordWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-records.csv"));
 		songMaterialWriter = CreateWriter(Path.Combine(outputDirectory, $"{runName}-song-material.csv"));
 		if (OS.GetCmdlineUserArgs().Contains("--polar-song-shadow")) polarSongShadow = new PolarSongShadowTelemetry(outputDirectory, runName);
@@ -1813,6 +1815,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void OnReleaseStrategy(ReleaseStrategyTelemetry strategy) {
 		ArtistHeatAttribution.CaptureLaunch(currentAuditWeek, strategy);
+		CaptureLaunchQuality(strategy);
 		int year = TimeManager.Instance?.CurrentDate.year ?? 1960;
 		if (formatMemoryAdjustmentWriter != null && ChartManager.Instance?.IsGenreMarketV2Live == true) {
 			formatMemoryAdjustmentWriter.WriteLine(string.Join(",", new[] {
@@ -3881,6 +3884,7 @@ public partial class ChartAuditRunner : Node {
 
 	private void FlushAndClose() {
 		ArtistHeatAttribution.Close();
+		CloseReleaseJudgementOutputs();
 		ClosePolarFinalAudit();
 		if (ChartManager.Instance != null) {
 			ChartManager.Instance.OnRecordRetired -= OnRecordRetired;
