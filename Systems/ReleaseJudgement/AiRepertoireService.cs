@@ -250,10 +250,13 @@ public static class AiRepertoireService {
 
 	// ---- arrivals ----------------------------------------------------------------------------------------------
 
-	private static float LabelAccess(LabelTier tier) => tier switch {
-		LabelTier.Major => 0.90f, LabelTier.MidTier => 0.65f, LabelTier.Boutique => 0.50f,
-		LabelTier.Independent => 0.38f, LabelTier.Small => 0.25f, _ => 0.35f
-	};
+	/// <summary>
+	/// How readily publishers' pluggers bring a label professional songs: its own A&amp;R strength, not its tier. v3 used a
+	/// tier table (Major 0.90 .. Small 0.25), which gave Majors ~1.9x the professional arrivals of a Small label, deeper
+	/// shortlists and most of 2A's head drift (2026-10-19 five-seed screen). Scouting is drawn per label from overlapping
+	/// tier envelopes, so Majors still lead on average. 0.63 holds the act-weighted mean arrival multiplier at v3's (~0.93).
+	/// </summary>
+	private static float LabelAccess(AILabel label) => 0.63f * Mathf.Clamp(label.scoutingAbility, 0f, 1f);
 
 	private static Genre ProjectGenre(SimulatedArtist artist, int year) => GenreCatalog.MapLegacy(artist.primaryGenre, year);
 
@@ -265,7 +268,7 @@ public static class AiRepertoireService {
 		return source switch {
 			SongMaterialSource.ArtistWritten => b * shares.Aw * (0.4f + 1.2f * SongMaterialSelectionService.ArtistWriterCraft(artist)),
 			SongMaterialSource.ExternalProfessional => SongMaterialSelectionService.GetProfessionalMaterialAvailability(genre, year) <= 0.01f ? 0f
-				: b * shares.Pro * (0.5f + LabelAccess(label.tier)),
+				: b * shares.Pro * (0.5f + LabelAccess(label)),
 			SongMaterialSource.CoverStandard => b * shares.Std,
 			SongMaterialSource.CoverRecentHit => b * shares.Hit,
 			SongMaterialSource.TraditionalPublicDomain => b * shares.Trad,
@@ -390,7 +393,7 @@ public static class AiRepertoireService {
 				SongMaterialSource.ArtistWritten => 0.50f, SongMaterialSource.ExternalProfessional => 0.68f,
 				SongMaterialSource.CoverRecentHit => 0.72f, SongMaterialSource.CoverStandard => 0.62f, _ => 0.50f
 			};
-			float polish = c.Source == SongMaterialSource.ExternalProfessional ? Mathf.Clamp(c.Craft * 0.7f + LabelAccess(label.tier) * 0.3f, 0f, 1f) : 0f;
+			float polish = c.Source == SongMaterialSource.ExternalProfessional ? Mathf.Clamp(c.Craft * 0.7f + LabelAccess(label) * 0.3f, 0f, 1f) : 0f;
 			hook = Mathf.Clamp(Mathf.Lerp(performanceHook, c.Hook, authority) + polish * 0.04f, 0f, 1f);
 			production = Mathf.Clamp(production + polish * 0.035f, 0f, 1f);
 			spread = 0.5f * Mathf.Sqrt(Sq(hookSd * (1f - authority)) + Sq(productionSd));

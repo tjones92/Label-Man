@@ -1,8 +1,9 @@
 # Release Judgement Directive
 
 Status: **revised design draft; Phases 0-1 built and calibrated (shadow ConfigVersion 3); Phase 2A built behind
-`--release-judgement-select` (2026-10-19), five-seed screened and not adopted: the ranking's head effect is real
-(5/5 seeds). Next: fix the tier gradient in pool access / reads, re-screen 2A, read-level fix, then 2B.**
+`--release-judgement-select` (2026-10-19), five-seed screened; v4 (access by scouting, not tier) halved the tier
+gradient. Not adopted: the residual head shift is chart conversion and needs an author decision. Then read-level
+fix and 2B.**
 See "Implementation log" below for what exists in code.
 Source: the Top 10 review arc in `HistoricalLabelTierBalanceResearch.md`, §17x-§17af, the original directive,
 review of the current code, and the historical sources linked below. The original measurements are retained;
@@ -479,6 +480,105 @@ Bold = an arm outside the band. The control is itself 2.5 above the CR4 band in 
   - **The read-level bias fix before Phase 3**, unchanged from the entry above.
 
 Evidence: `SimLogs/rj2a-{ctl,per,fit}-{1001,2002,3003,4004,5005}-260-*`.
+
+### 2026-10-19: ConfigVersion 4, professional access by label scouting, not tier
+
+**Diagnosis first (control arms, five seeds, shadow log).** The shadow's gain over legacy splits into pool headroom
+(oracle minus what legacy shipped) and read regret (oracle minus the pick):
+
+| Tier | Recordable at issue | Read band | Regret | Headroom | Shadow gain |
+|---|---|---|---|---|---|
+| Major | 3.90 | 0.102 | 0.0091 | **0.0356** | 0.0265 |
+| Boutique | 3.43 | 0.112 | 0.0096 | 0.0335 | 0.0240 |
+| MidTier | 3.12 | 0.112 | 0.0083 | 0.0293 | 0.0211 |
+| Independent | 2.97 | 0.116 | 0.0089 | **0.0208** | 0.0119 |
+| Small | 3.14 | 0.126 | 0.0103 | 0.0205 | 0.0102 |
+
+- **The read band is not the channel.** Regret is 0.008-0.010 in every tier, about 0.001 of a ~0.015 gap.
+  - `scoutingAbility` is drawn per label from overlapping tier envelopes (Major 0.68-0.96, Independent 0.44-0.91,
+    Small 0.34-0.84). It is an on-average edge, not a blanket bonus, so it is unchanged.
+- **The gap is pool headroom.** Majors hold deeper shortlists, and their best song beats the pool mean by more.
+- **The one true blanket bonus is `LabelAccess(tier)`:** a fixed table (Major 0.90, MidTier 0.65, Boutique 0.50,
+  Independent 0.38, Small 0.25). It scales professional arrivals, so a Major got ~1.9× a Small label's.
+
+**Change.**
+
+- `LabelAccess(label) = 0.63 × scoutingAbility`. Publishers' pluggers now reach a label through its A&R strength.
+- The 0.63 holds the orphan-weighted mean arrival multiplier at v3's (~0.93). The professional pick share is
+  unchanged: 38.8% perceived, 34.9% fit.
+- The Major / Small multiplier ratio falls from 1.87 to about 1.17, and individual labels overlap across tiers.
+- The legacy-realization `polish` term (polar off only) reads the same function.
+- `ConfigVersion` 4 (a v3 shadow save resets on load). `StreamVersion` is unchanged, and the change adds no draws.
+
+**Gates.**
+
+- `ReleaseJudgementChecks` passes 32/32.
+- `rj2a-v4inert-1001` (shadow on, selection off, 52 weeks, full telemetry) matches all 84 legacy CSVs in
+  `ref-094cf89-1001-52`. The controls `rj2a-ctl-*-260` are therefore still valid and were reused.
+
+**Five-seed screen** (`rj2a4-{per,fit}-<seed>-260`, same flags). Changes are against the v3 arms above.
+
+| | v3 | v4 |
+|---|---|---|
+| Orphan quality, perceived − control | +0.029 | +0.029 (5/5) |
+| Orphan Hot 100 entry, perceived − control | +2.8 pts | +2.6 pts (5/5) |
+| Quality gain: Major / Independent / Small | +0.044 / +0.024 / +0.025 | +0.037 / +0.027 / +0.027 |
+| Major − Independent gain gap | 0.020, no seed overlap | **0.010**, ranges overlap |
+| Top 40 Independent, perceived − fit | −6.4 (0/5) | **−1.6** (3/5, SE 4.0) |
+| Top 40 Independent, perceived − control | −10.1 (0/5) | −4.3 (1/5) |
+| Top 40 Boutique, perceived − fit | +5.3 (5/5) | +2.8 (5/5) |
+| Top 40 Major, perceived − fit | +7.3 (5/5) | +7.7 (5/5) |
+| Major-family share, perceived − fit | +2.1 (5/5) | +2.0 (4/5, SE 1.2) |
+| CR4 / CR8, perceived − fit | +2.2 / +2.7 | +1.9 / +2.0 (5/5) |
+| Big-5 share of the Top 10, perceived − fit | +2.7 (3/5) | +4.3 (5/5) |
+| Major-family share, fit − control | +1.7 | +0.8 (3/5) |
+| Hot 100 debuts / yr, perceived − control | +19.2 | +16.4 (5/5) |
+| Small closures over 5 years, perceived − control | −9.0 (5/5 fewer) | −3.8 (mixed) |
+
+**Yearly Top 10, perceived v4:**
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| CR4 | 35.5 | 31.7 | **35.7** | **36.9** | 30.9 |
+| CR8 | 51.3 | 46.4 | **50.6** | **51.1** | 43.5 |
+
+- 1961 is now inside both bands.
+- 1962-63 still breach the §17n stop rule, by 2.6-4.9 points. The control misses only 1963 CR4, by 2.5.
+- The fit arm is inside the bands both years (1962 CR4 32.1, at the edge), so this breach is now the ranking's alone.
+
+**Against the pass conditions set above:**
+
+1. **Pass:** Independent Top 40 ≥ −2 with mixed signs.
+2. **Fail:** perceived − fit major-family share within 1 SE of zero. It is +2.0 at 1.6 SE.
+3. **Half:** Top 10 CR4 is inside the stop rule in 1961 but not in 1962-63.
+
+**What is left is conversion, not material.** Control Top 40 rate by tier, five seeds:
+
+| Orphan quality | Major | MidTier | Independent | Boutique | Small |
+|---|---|---|---|---|---|
+| 0.639-0.68 | 18.3% | 5.3% | 0.6% | 0.3% | 0.1% |
+| > 0.68 | 59.5% | 33.4% | 17.0% | 12.9% | 4.3% |
+
+- A Major single at the cliff band reaches the Top 40 about 30× as often as an Independent one.
+- Within a band, perceived does not raise any tier's Top 40 rate over fit; every tier is 0 to −5 pts, from more
+  competition.
+- The residual head shift is therefore the existing launch / promotion conversion gap (Mode A,
+  `top40-is-a-launch-week-bar`) applied to better material, plus the 0.010 average quality edge from better A&R. No
+  song-selection rule can remove it without handicapping the Majors' A&R.
+
+**Status.**
+
+- v4 is kept. It removes a hard-coded tier bonus, halves the tier gradient and ends the Independent Top 40 loss
+  against fit. It is inert when off.
+- 2A stays off by default. Adoption needs one of two things:
+  - an author decision that a residual +2 major-family share and the 1962-63 Top 10 breach are acceptable when they
+    come from conversion;
+  - or a fix to the conversion gap itself, which belongs to the chart / launch work, not Release Judgement.
+- Still owed: the debut overshoot (control +47 over the guard; perceived +16), the decade source-mix read, and
+  the read-level bias fix before Phase 3.
+
+Evidence: `SimLogs/rj2a4-{per,fit}-{1001,...,5005}-260-*`, `SimLogs/rj2a-v4inert-1001-*`, with controls
+`SimLogs/rj2a-ctl-*-260-*`.
 
 ## What to keep, and what to change
 

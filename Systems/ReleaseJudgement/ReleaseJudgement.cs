@@ -25,8 +25,9 @@ public static class ReleaseJudgement {
 	public const string TuneSwitch = "--release-judgement-shadow-tune";
 	public const string SelectSwitch = "--release-judgement-select";
 	/// <summary>Bumped whenever an arrival, readiness or perception rule changes what a seeded world would hold.
-	/// v3: shadow originals get a provisional polar fit at readiness instead of an assumed full capability.</summary>
-	public const int ConfigVersion = 3;
+	/// v3: shadow originals get a provisional polar fit at readiness instead of an assumed full capability.
+	/// v4: professional arrivals scale with the label's scouting, not a tier table.</summary>
+	public const int ConfigVersion = 4;
 	/// <summary>The keyed-draw namespace. Separate from <see cref="ConfigVersion"/> so a rule change that adds no draw
 	/// does not re-key every arrival and read (re-keying alone moved tier gains by up to 0.008 on one seed).</summary>
 	public const int StreamVersion = 2;
