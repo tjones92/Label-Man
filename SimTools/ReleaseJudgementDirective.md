@@ -2,8 +2,8 @@
 
 Status: **revised design draft; Phases 0-1 built and calibrated (shadow ConfigVersion 4); Phase 2A built behind
 `--release-judgement-select` (2026-10-19), five-seed screened; v4 (access by scouting, not tier) halved the tier
-gradient. Not adopted: launch-push saturation F = 0.75 removes its Top 40 head effect, but a ~+3.5 Big-5 Top 10
-edge (post-entry push) remains. Then read-level fix and 2B.**
+gradient. Not adopted: under launch saturation F = 0.75 + push spread 0.25 its head effect is a small entry-side
++2.6 Big-5 Top 10 points; adoption is an author call on that, genre +1.8 and debuts +24. Then read-level fix and 2B.**
 See "Implementation log" below for what exists in code.
 Source: the Top 10 review arc in `HistoricalLabelTierBalanceResearch.md`, §17x-§17af, the original directive,
 review of the current code, and the historical sources linked below. The original measurements are retained;
@@ -818,6 +818,105 @@ campaign's excess over the 0.55 knee is trimmed, against half at F = 0.5. All 15
 
 Evidence: `SimLogs/rj2als75-{ctl,per,fit}-{1001,...,5005}-260-*`; `ls_vs_base_g.py`, `screen_ls75.txt` and
 `yearly_ls75.txt` are in the session notes folder.
+
+### 2026-10-19: The post-entry push, diagnosed and probed (`rj2asp25-*`: F = 0.75 + `--radio-push-spread=0.25`)
+
+**Diagnosis (F = 0.75 arms).** Big-5 Top 10 slot-weeks a year split into entrants × P(Top 10 | entry) × Top 10
+weeks per Top 10 record. Perceived − control is +29.6 (SE 11.5), of which:
+
+- entrants +1.5, conversion +17.9, stay +9.8, so almost all of it comes after entry;
+- Big-5 entrant quality is +0.017.
+
+In the control at matched entry quality (records quality 0.775-0.836, five seeds):
+
+| | Big-5 | MidTier | Independent |
+|---|---|---|---|
+| P(Top 10 \| entry), new signings (recognition ≈ 0) | **35%** | 20% | **11%** |
+| P(Top 10 \| entry), established acts | 53% | 36% | 18% |
+| Radio heat, chart weeks 1-6, new signings | 0.45-0.47 | 0.38-0.41 | 0.35-0.37 |
+
+The premium holds for acts with no recognition, so it belongs to the label, not the act. The radio target's label
+term is `0.4 × push × weekFactor`, where push is campaign impact after `--radio-push-spread=0.5` (Big-5 about 0.62,
+Independent 0.41). At a week factor of 0.85-1 that is about 0.07-0.085 of the 0.12 heat gap. The rest is the
+position bonus that sales earn, which compounds the same push.
+
+**Probe.** No build: the existing `--radio-push-spread` reads exactly that weekly push. At 0.25, Big-5 push is about
+0.55 and Independent about 0.45, against 0.62 / 0.41 at 0.5. Launch reads stay under saturation F = 0.75. Fifteen
+runs, all completed cleanly.
+
+**1. The control.**
+
+- **1960 passes.** Top 10 CR8 is 47.1 against the base's 48.0 and F = 0.75's 47.9. That is paired −0.8 (seeds
+  −8.2 / +6.0 / +0.9 / +2.1 / −4.8), 0.9 under the floor.
+  - Big-5 1960 share is 33.7 (history 34.2).
+- **1961-64:**
+
+  | | 1961 | 1962 | 1963 | 1964 |
+  |---|---|---|---|---|
+  | Big-5 Top 10 share | 27.4 | 23.1 | 29.0 | 26.1 |
+  | Paired against the base | −4.4 | −6.2 | −7.1 | −4.8 |
+  | History | 20.6 | 21.2 | 26.0 | 18.7 |
+
+  - That is +4.8 over history, against +2.3 for F = 0.75 alone. The two are inside each other's noise
+    (SE 4-6), so spread 0.25 does not cut the control's head further.
+- Top 10 CR4 / CR8 sit in band 1961-64.
+- Top 10 turnover (96.5 records a year, 5.39 weeks each) and #1 tenure (2.27) are unchanged.
+- Genre error is +0.9 (SE 2.8).
+
+**2. 2A under it.**
+
+- **Material gain:** quality +0.030 (5/5), entry +2.8 pts, Top 40 +1.2 pts.
+- **The post-entry part of 2A's Big-5 Top 10 gain is cut.** It is a fifth to a half of the other bases', depending
+  on the base:
+
+| Perceived − control, Big-5 Top 10 slot-weeks a year | Total (SE) | Entrants | Conversion | Stay |
+|---|---|---|---|---|
+| v4 base (spread 0.5, no saturation) | +15.0 (14.9) | +2.7 | +8.8 | +3.8 |
+| F = 0.5 | +12.2 (21.6) | −0.8 | +8.2 | +5.4 |
+| F = 0.75 | +29.6 (11.5) | +1.5 | +17.9 | +9.8 |
+| **F = 0.75 + spread 0.25** | **+13.7 (3.7)** | **+8.4** | **+4.0** | **+1.2** |
+
+- **The total edge does not shrink.** F = 0.75's +29.6 was the high draw. Spread 0.25 moves the edge from
+  post-entry to entry: Big-5 entrants +6.4 (SE 1.8), the weekly push before entry.
+- It also tightens the edge a lot (SE 3.7 against 11.5-21.6). It is +2.6 Big-5 Top 10 points (SE 0.7, 4/5).
+
+| | Perceived − control | Perceived − fit |
+|---|---|---|
+| Major-family share | **−0.8** (SE 1.2, 2/5) | +1.0 (0.9, 3/5) |
+| Top 40 Major / Independent / MidTier | +5.8 (5/5) / +6.0 (3/5) / −7.8 (1/5) | +3.2 / −1.6 (mixed) / −1.3 |
+| Top 10 CR4 | +1.8 (0.6, 4/5) | +2.3 (1.1) |
+| Big-5 share of the Top 10 | **+2.6** (0.7, 4/5) | +4.7 (1.4, 5/5) |
+| Hot 100 debuts / yr | +23.8 (5/5) | +21.9 |
+| Year-end genre error | **+1.8** (SE 0.6, 5/5) | |
+
+**Against the pass conditions:**
+
+1. Independent Top 40 ≥ −2 with mixed signs: **pass** (−1.6 against fit, mixed; +6.0 against the control).
+2. Perceived − fit major-family share within 1 SE: **borderline**, +1.0 at 1.2 SE. Against the control it is −0.8.
+   The fit arm again sits under its control (−1.8).
+3. Top 10 CR4 inside the stop rule in 1961-63: **pass**. 1962 is 33.6, a 1.6 miss, under the 2-point margin.
+
+**Flag:** perceived 1960 Top 10 CR8 is 44.4, 3.6 under the floor, while the control misses by 0.9. That trips the
+stop rule in the *low* direction. At F = 0.75 the same arm was +2.65 in 1960, so this looks like seed noise, but it
+is a rule hit.
+
+**Verdict.**
+
+- **Spread 0.25 does what was asked of it.** It removes most of the post-entry push behind 2A's Big-5 Top 10 gain
+  (conversion and stay +5.2 slot-weeks, against +12.6 to +27.7 elsewhere). It costs 1960 nothing and moves no
+  turnover, tenure or genre guard.
+- **What remains of 2A's head effect is small and entry-side:** about +2.6 Big-5 Top 10 points. Major-family share
+  does not rise against the control, and Independents gain Top 40 entries. MidTier pays (−7.8).
+- **2A's own costs are now resolved at five seeds:**
+  - genre error +1.8 (SE 0.6, 5/5);
+  - Hot 100 debuts +24 a year (5/5) on a control already about 48 over the ~690 guard (738 a year);
+  - the professional-for-artist-written source shift.
+- **2A is not adopted here.** It stays off by default. Adoption is now an author decision on those three costs and on
+  the +2.6 point edge, on a lever base (F = 0.75 + spread 0.25) that needs its own decade confirmation under the
+  label-tier arc.
+
+Evidence: `SimLogs/rj2asp25-{ctl,per,fit}-{1001,...,5005}-260-*`. `t10_funnel_g.py`, `t10_career.py`,
+`screen_sp25.txt` and `yearly_sp25.txt` are in the session notes folder.
 
 ## What to keep, and what to change
 
