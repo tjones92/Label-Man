@@ -1,7 +1,8 @@
 # Release Judgement Directive
 
 Status: **revised design draft; Phases 0-1 built and calibrated (shadow ConfigVersion 3); Phase 2A built behind
-`--release-judgement-select` (2026-10-19), not adopted. Next: 5-seed 2A head screen, read-level fix, then 2B.**
+`--release-judgement-select` (2026-10-19), five-seed screened and not adopted: the ranking's head effect is real
+(5/5 seeds). Next: fix the tier gradient in pool access / reads, re-screen 2A, read-level fix, then 2B.**
 See "Implementation log" below for what exists in code.
 Source: the Top 10 review arc in `HistoricalLabelTierBalanceResearch.md`, §17x-§17af, the original directive,
 review of the current code, and the historical sources linked below. The original measurements are retained;
@@ -356,6 +357,128 @@ All arms issue about 1.8 singles per signed act-year.
 - Before Phase 3's bar, fix the read model's level bias (crew lift and proposal capability), because a bar reads
   absolute levels.
 - Before 2B, revisit arrival rates. Consumption doubles once B-sides draw from stock.
+
+### 2026-10-19: Phase 2A five-seed paired head screen (measurement only, 6bf67b1)
+
+**Method.**
+
+- Seeds 1001-5005, 260 weeks, default-control flags with `--calibration`. Three arms per seed: control
+  (`--release-judgement-shadow`), perceived and fit (`--release-judgement-select=perceived|fit`).
+- 1001/2002 are the earlier screen's runs. 3003/4004/5005 are new; all nine exited cleanly. They were renamed to the
+  same `SimLogs/rj2a-{ctl,per,fit}-<seed>-260-*` scheme.
+- Read with `release_selection_screen.py` over all five pairs. The yearly view came from `concentration.csv` and
+  weekly Top 10 slot-weeks in `records.csv`, using the §17o definitions (Top 10 CR4 / CR8, Big-5 = `label_0001-0005`).
+  Closures are a label's first `Defunct` week in `label-finance.csv`.
+- "Run mean" averages the five chart years. SE is the across-seed SD / √5. The sign count is the number of seeds
+  above zero out of 5.
+
+**1. Material gain: robust in every seed.**
+
+| Arm − control | Perceived, mean (seed range) | Fit, mean (seed range) |
+|---|---|---|
+| Orphan realized quality | **+0.029** (+0.028 to +0.031) | +0.003 (+0.002 to +0.005) |
+| Orphan > 0.639 cliff | +11.5 pts (+10.7 to +12.3) | +1.4 pts (+0.9 to +2.2) |
+| Orphan Hot 100 entry | +2.8 pts (+2.3 to +3.4) | +0.6 pt (−0.1 to +1.1) |
+| Orphan Top 40 | +1.0 pt (+1.0 to +1.1) | +0.2 pt (+0.1 to +0.5) |
+
+- **The tier gradient is structural.** Perceived quality gain by tier, five-seed mean (range):
+  - Major +0.044 (0.036-0.054), Boutique +0.038, MidTier +0.036.
+  - Independent +0.024 (0.022-0.027), Small +0.025 (0.022-0.030).
+  - Major's lowest seed beats Small's highest. The ~0.02 head-to-field gap that Phase 1 predicted holds in all five
+    seeds.
+- **The shipped mix moves in every seed.** Perceived picks 37.8-39.1% professional and 27.4-29.0% artist-written.
+  Fit picks 33.7-35.5% and 30.7-32.6% from the same pool.
+
+**2. The ranking's head effect (perceived − fit) is established.** Run means; chart shares are in points.
+
+| Perceived − fit | Mean | SE | Seeds > 0 |
+|---|---|---|---|
+| Major-family chart share | +2.1 | 0.9 | **5/5** |
+| CR4 / CR8 (chart units) | +2.2 / +2.7 | 0.9 / 1.3 | 4/5, 4/5 |
+| Top 10 CR4 / CR8 (slot-weeks) | +2.1 / +2.5 | 1.5 / 1.5 | 4/5, 4/5 |
+| Big-5 share of the Top 10 | +2.7 | 1.5 | 3/5 |
+| Top 40 entries a year: Major | +7.3 | 1.9 | **5/5** |
+| Top 40: Boutique | +5.3 | 1.1 | **5/5** |
+| Top 40: MidTier | −2.9 | 2.2 | 1/5 |
+| Top 40: Independent | −6.4 | 0.9 | **0/5** |
+| Hot 100 debuts a year | +14.5 | 2.8 | 5/5 |
+
+- **Seed 3003 is the only reversal** on CR4 / CR8, and it is small (−1.0 / −1.5).
+- **The tiers that gain least lose chart space.** Independent loses Top 40 in every seed, and its quality gain is
+  the smallest (+0.024). Boutique gains slots (+0.038) as Majors do. This follows the per-tier quality gradient, not
+  firm size alone.
+- **It is not reshuffle.** The fit arm takes the same pool and consumption and gains +0.003 in quality. The head moves
+  with the ranking's quality gain.
+
+**3. The shared pool-versus-legacy shift (fit − control) is mostly reshuffle noise.**
+
+| Fit − control | Two-seed mean (earlier screen) | Five-seed mean (SE) | Seeds > 0 |
+|---|---|---|---|
+| Major-family share | +3.6 | +1.7 (1.2) | 4/5 |
+| CR4 / CR8 | +0.3 / +1.3 | +0.4 / +1.0 (1.1 / 1.3) | 3/5, 3/5 |
+| Top 10 CR4 | | +0.6 (1.6) | 3/5 |
+| Top 40 Major / Independent | +3.7 / −7.3 | +1.4 / −3.7 (5.3 / 2.5) | 3/5, 2/5 |
+
+- The two original seeds were the high ones; 2002 alone gave +5.4 major-family share. Concentration's share is gone.
+- A +1.7 major-family residual (1.5 SE) may be a small real pool effect. Five seeds cannot confirm it, and nothing
+  in it is large enough to act on.
+- Perceived − control is therefore mostly ranking (55-85% of each head row below), with the rest shared or noise:
+  - Major-family share +3.9 (SE 1.3, 4/5); CR4 +2.6 (1.5, 4/5); CR8 +3.7 (1.6, 4/5).
+  - Top 40 Major +8.7 (4/5); Top 40 Independent −10.1 (**0/5**).
+
+**4. Yearly watch (§17n/§17o review bands; Top 10 slot-weeks).**
+
+| Year | Top 10 CR4: ctl / per / fit | Band | Top 10 CR8: ctl / per / fit | Band |
+|---|---|---|---|---|
+| 1960 | 34.5 / 36.2 / 34.5 | 30-40 | 48.0 / 52.7 / 50.4 | 48-58 |
+| 1961 | 31.8 / **34.2** / 30.3 | 22-32 | 47.0 / **49.6** / 44.4 | 38-48 |
+| 1962 | 29.5 / **36.5** / **35.0** | 22-32 | 43.3 / **51.3** / **48.7** | 38-48 |
+| 1963 | 34.5 / **36.0** / 34.4 | 22-32 | 48.0 / **49.0** / 48.2 | 38-48 |
+| 1964 | 31.4 / 32.0 / 30.5 | 22-32 | 43.0 / 46.1 / 44.6 | 38-48 |
+
+Bold = an arm outside the band. The control is itself 2.5 above the CR4 band in 1963.
+
+- **Perceived breaches the §17n stop rule** (more than 2 points outside the band and worse than the control):
+  - CR4 in 1961 (2.2), 1962 (4.5) and 1963 (4.0, against the control's 2.5).
+  - CR8 in 1962 (3.3).
+- **Fit also breaches in 1962** (CR4 3.0), so that year is partly shared. 1961 and 1963 are the perceived arm alone.
+- Big-5 firms in the top four do not move (+0.0 per − fit). The head gain spreads across the top eight rather than
+  displacing a Big-5 leader.
+
+**5. Other guards.**
+
+- **Hot 100 debuts:**
+  - The control is already above the ~690 guard: 737 a year (719-748).
+  - Perceived adds +19.2 a year (5/5, SE 3.5), to about 756 (+9.6% over the guard). Fit adds +4.7 (3/5).
+  - Top 10 records a year are unchanged (+0.7; guard 105).
+- **Small-label closures fall under perceived:**
+  - −9.0 over five years (5/5, SE 1.1), against a control of 59-82 per seed. All closures fall −12.6 (4/5).
+  - Fit gives −5.8 (2/5), and perceived − fit is −3.2 (2/2/1 split).
+  - Better material helps small labels survive, partly through the shared pool. Nothing here is a guard failure.
+- Promo-single quality and orphan volume do not move: +0.001, and +24 a year on about 2,960 (mixed signs).
+
+**Recommendation: do not adopt 2A as built. Keep it behind the flag, off by default.**
+
+- The material gain is real, robust and large: +0.029 quality and +2.8 pts entry in 5/5 seeds.
+- But it is delivered unevenly, and the unevenness reaches the chart in every seed:
+  - perceived − fit major-family share +2.1 (5/5);
+  - Top 40 Major +7.3 (5/5) against Independent −6.4 (0/5);
+  - Top 10 CR4 out of band in 1961-63.
+- This is risk 7 and Phase 1 open item 3, now measured on the chart. The ~0.02 gradient comes from `labelAccess`
+  in professional arrivals (pool depth) and from Majors' narrower read band. Selection converts both into a quality
+  edge.
+- Fix the source before re-screening, rather than adding a head brake:
+  - move access from arrival *count* to arrival *quality* (or flatten it);
+  - or decouple the read band from tier-correlated `scoutingAbility` for pool ranking.
+  Then re-run this five-seed screen. The pass condition is Independent Top 40 ≥ −2 with mixed signs, perceived − fit
+  major-family share within 1 SE of zero, and the 1961-63 Top 10 CR4 inside the stop rule.
+- Carry these forward:
+  - **The debut overshoot.** Perceived widens an existing +47 over the guard to +66. The guard needs its own
+    look, in the control first.
+  - **The source-mix shift.** Professional +4 pts and artist-written −3 pts against fit. It still needs a decade read.
+  - **The read-level bias fix before Phase 3**, unchanged from the entry above.
+
+Evidence: `SimLogs/rj2a-{ctl,per,fit}-{1001,2002,3003,4004,5005}-260-*`.
 
 ## What to keep, and what to change
 
