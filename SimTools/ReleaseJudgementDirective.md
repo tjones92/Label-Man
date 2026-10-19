@@ -1,6 +1,7 @@
 # Release Judgement Directive
 
-Status: **revised design draft; Phases 0 and 1 built (observe-only, byte-inert); Phase 2 next** (2026-10-18).
+Status: **revised design draft; Phases 0 and 1 built (observe-only, byte-inert), Phase 1 calibrated as
+ConfigVersion 2 (2026-10-19); Phase 2 next.**
 See "Implementation log" below for what exists in code.
 Source: the Top 10 review arc in `HistoricalLabelTierBalanceResearch.md`, §17x-§17af, the original directive,
 review of the current code, and the historical sources linked below. The original measurements are retained;
@@ -100,6 +101,162 @@ authorization. Preserve their useful constraints, but resolve conflicts explicit
      project +2 (promo, then album drop).
    - A linked project therefore meets a "sides" deliverable twice as fast as an orphan single, and no event
      counts two sides. Repair belongs in its own accounting checkpoint (§6).
+
+### 2026-10-19: Phase 1 calibration (pool depth and read accuracy), still observe-only
+
+Covers open items 1-4 above. `ConfigVersion` is now 2, which re-keys every shadow draw. A v1 shadow save resets on
+load, as designed.
+
+**Method.**
+
+- 21 seed-1001 arms on default-control flags, with `--release-judgement-shadow --release-judgement-events`:
+  - 18 run 52 weeks; 3 run 104 weeks (0.07 / 3, 0.07 / 2 and 0.05 / 2).
+  - The control arm also has `--polar-followup-audit`.
+- Every 52-week arm matches all 84 pre-existing CSVs in `ref-094cf89-1001-52` by SHA-256. The legacy world is
+  therefore identical in every arm, and releases pair by `recordId`.
+- The refactored v1 control reproduces the original Phase 1 shadow files byte for byte.
+- New probe switch: `--release-judgement-shadow-tune=Name:value,...`. It requires the shadow, overrides
+  `ReleaseJudgement.Parameters` for a sweep, and rejects unknown names. A tuned save carries the same
+  `ConfigVersion`, so use it for probes only.
+- `ReleaseJudgementChecks.tscn` passes 23/23 on the new defaults. The 60-week probe state fell from 21 MB to 9 MB.
+- Definitions:
+  - "Strong" means best expected quality ≥ the 0.639 V1 cliff.
+  - An empty shortlist counts as not strong. For quality gaps it falls back to what legacy shipped, so its gain is 0.
+  - Regret is the oracle's expected quality minus the pick's.
+  - A false positive (FP) is a pick read ≥ 0.639 whose truth is below 0.639, as a share of picks read ≥ 0.639.
+
+**1. Pool depth.** Read band held at v1 (0.12 / 0.04 / 0.5); weekly rates are means over weeks 2-52.
+
+| Base rate / init | Arrivals per act-yr | Empty | No strong song, H2 | Recordable at issue | Act-weeks at cap | Passed over / wk | Seeded picks | Gain vs legacy (H2) |
+|---|---|---|---|---|---|---|---|---|
+| 0.22 / 3 (v1) | 9.9 | 0.8% | 36.6% | 5.3 | 27.4% | 176 | 41% | +0.049 (+0.058) |
+| 0.14 / 3 | 6.4 | 1.4% | 44.2% | 4.5 | 11.0% | 46 | 49% | +0.036 (+0.041) |
+| 0.10 / 3 | 4.6 | 2.0% | 49.5% | 3.8 | 4.2% | 13 | 56% | +0.028 (+0.029) |
+| 0.07 / 3 | 3.3 | 3.1% | 55.6% | 3.3 | 1.4% | 3 | 64% | +0.020 (+0.017) |
+| 0.05 / 3 | 2.4 | 3.9% | 60.5% | 2.9 | 0.4% | 0.7 | 70% | +0.014 (+0.007) |
+| 0.035 / 3 | 1.7 | 5.0% | 64.8% | 2.6 | 0.1% | 0.2 | 77% | +0.009 (−0.001) |
+| 0.07 / 2 | 3.2 | 6.3% | 60.6% | 2.5 | 0.5% | 1.2 | 56% | +0.008 (+0.009) |
+| 0.05 / 2 | 2.3 | 8.4% | 66.3% | 2.1 | 0.1% | 0.3 | 63% | +0.002 (−0.001) |
+| 0.07 / 1 | 3.2 | 15.2% | 65.0% | 1.7 | 0.2% | 0.4 | 42% | −0.005 (+0.003) |
+| 0.07 / 3, cap 5 | 3.3 | 3.1% | 55.6% | 3.1 | 15.2% | 33 | 64% | +0.020 (+0.017) |
+
+All arms issue about 1.8 singles per signed act-year.
+
+- **Initial stock decides a one-year read.**
+  - At init 3, seeded songs are 64% of first-year picks, and the year flatters itself. The 104-week 0.07 / 3 arm
+    shows this: gain falls from +0.021 (1960) to +0.015 (1961), and passed-over rises from 3 to 13 a week as stock
+    climbs back toward the cap.
+  - At 0.07 / 2 the run is stationary:
+
+    | | 1960 | 1961 |
+    |---|---|---|
+    | Empty | 6.3% | 8.0% |
+    | Gain vs legacy | +0.0086 | +0.0088 |
+    | Seeded share of picks | 55% | 28% |
+    | Recordable per act at year end | 2.8 | 3.0 |
+
+  - Init 1 is too thin: one song per new act gives 15% empty, and the shadow does worse than legacy.
+  - 0.05 / 2 runs empty 8.5% then 13.1%, with gain ≈ 0 both years.
+- **The cap does not bind once arrivals are credible.** Cap 5 changes no pick at 0.07; it only adds 33 passed-over
+  archives a week. Cap 8 stays as the bound on state size.
+- **Legacy is not a lottery baseline.** `ChooseMaterial` takes the best of a 6-song sample per source, weighted by an
+  exact fit score, from an unlimited refill. A thin shortlist can therefore lose to it, and does at init 1 and at
+  0.05 in steady state.
+  - The v1 gain of +0.05 was mostly pool depth.
+  - With a credible pool, a 2A selection gain is about +0.01, not +0.05.
+
+**2. Read accuracy.** Pool held at 0.07 / 2, which leaves about 2.5 recordable songs at issue.
+
+| Max / Min / BiasShare | Song-error half-width (max → min) | Read error SD | Regret | Oracle pick | Winner's curse | FP | FN | Gain vs legacy |
+|---|---|---|---|---|---|---|---|---|
+| 0.12 / 0.04 / 0.50 (v1) | 0.06 → 0.02 | 0.026 | 0.0015 | 89% | +0.002 | 11% | 9% | +0.008 |
+| 0.12 / 0.04 / 0.25 | 0.09 → 0.03 | 0.029 | 0.0031 | 85% | +0.005 | 13% | 9% | +0.007 |
+| 0.20 / 0.08 / 0.50 | 0.10 → 0.04 | 0.047 | 0.0042 | 83% | +0.007 | 19% | 14% | +0.006 |
+| **0.20 / 0.08 / 0.25** | 0.15 → 0.06 | 0.051 | 0.0081 | 78% | +0.014 | 24% | 14% | +0.004 |
+| 0.30 / 0.12 / 0.50 | 0.15 → 0.06 | 0.069 | 0.0081 | 78% | +0.013 | 28% | 18% | +0.004 |
+| 0.30 / 0.12 / 0.25 | 0.23 → 0.09 | 0.075 | 0.0143 | 71% | +0.027 | 34% | 17% | −0.001 |
+| 0.40 / 0.16 / 0.25 | 0.30 → 0.12 | 0.098 | 0.0198 | 67% | +0.040 | 42% | 19% | −0.005 |
+
+- **Only the song-specific error ranks one act's candidates.** 0.20 / 0.25 and 0.30 / 0.50 have the same song error
+  and pick identically (regret 0.0081 each). They differ only in the persistent bias: FP 24% against 28%.
+  - Selection accuracy is therefore governed by `band × (1 − BiasShare)`.
+  - A later bar's false positives are governed by the bias.
+- **Regret scales with pool depth.** In the saturated v1 pool, 0.30 / 0.12 / 0.25 has regret 0.024, picks the
+  oracle 54% of the time, and still gains +0.030. In the credible pool the same reads lose to legacy.
+- **Chosen: 0.20 / 0.08 / 0.25.**
+  - It keeps the persistent-bias half-width where v1 had it (0.05 → 0.02, against 0.06 → 0.02).
+  - It widens only the song error, 2.5×. Song-error SD is about 0.035-0.087, against a best-minus-mean shortlist
+    spread of about 0.040.
+  - Labels pick the best available song about three times in four. Regret is 5× v1, and the shadow still edges
+    legacy.
+  - Wider reads make the shadow strictly worse than legacy's exact-fit sampling. That would test a wrong
+    comparison rather than A&R.
+
+**3. Head concentration.** Shadow gain by tier, seed 1001:
+
+| Setting | Major | MidTier | Boutique | Independent | Small | Major − Small |
+|---|---|---|---|---|---|---|
+| v1 (0.22 / 3, v1 reads) | +0.059 | +0.041 | +0.055 | +0.049 | +0.043 | 0.016 |
+| 0.07 / 3, v1 reads | +0.032 | +0.012 | +0.025 | +0.021 | +0.015 | 0.017 |
+| 0.07 / 2, v1 reads | +0.020 | −0.001 | +0.011 | +0.010 | +0.003 | 0.017 |
+| 0.07 / 2, 0.20 / 0.08 / 0.25 (tuned) | +0.017 | −0.005 | +0.005 | +0.006 | −0.003 | 0.020 |
+| v2 defaults (re-keyed) | +0.014 | −0.001 | +0.013 | +0.001 | −0.005 | 0.019 |
+
+- **The absolute Major − Small gap does not move with the setting.** It is 0.015-0.020 under every pool and read
+  setting, while every tier's gain shrinks. In relative terms the shadow's gain becomes almost all head.
+- **Where it comes from:**
+  - At 0.07 / 3, Majors hold 3.65 recordable songs at issue against 3.29 for Small, through `labelAccess` in
+    professional arrivals.
+  - Their read band is narrower: 0.099 against 0.125 on v2.
+  - Their legacy baseline is also higher: 0.630 against 0.593.
+- **Re-keying alone moved tier gains by up to ±0.008.** Compare the tuned row with the v2 row; Boutique went from
+  +0.005 to +0.013. Tier differences below about 0.01 are noise on one seed.
+- **Phase 2A must read the head on paired seeds.** Read Big-5 / CR4 / CR8 with ≥ 2 seeds, and consider moving
+  access from arrival count to arrival quality before reading tier outcomes.
+
+**4. Refusals.** In the same world, legacy refusals are also zero:
+
+- `polar-refusal-avoidance.csv` has 0 events ("excluded", "unfilled" and "live-unfilled" alike).
+- 0 of 21,244 polar master assignments (3,736 singles, 17,508 album tracks) carry `strongRefusal`.
+- Refusal needs identity < threshold and stretch ≥ 0.9 × capability at once:
+  - The AI threshold is at most (0.30 + 0.35) × 0.5 = 0.325, because AI acts have no `PlayerDesk` songbook and
+    get `emptySongbookSoftening`.
+  - Shipped identity is never below 0.55, and stretch never exceeds 0.33 against median capability 0.98.
+- **The shadow's zero is therefore correct: the rule is dormant for AI acts on 1960 defaults.**
+- The shadow is the stricter of the two:
+  - It passes `emptySongbook: false`, an unsoftened threshold up to 0.65.
+  - It reads the raw `Fit` rather than `Prepare`'s arrangement proposal.
+- `emptySongbook: false` stays: once the shortlist is the songbook, an AI act has songs. Phase 2A should judge
+  refusal on the proposal fit it will actually realize.
+
+**Chosen v2 defaults:**
+
+- `BaseArrivalRate` 0.07, about 3.2 arrivals per signed act-year in 1960 and 3.9 in 1961.
+- `InitialStock` 2.
+- `ShortlistCap` 8, unchanged.
+- Reads 0.20 / 0.08 / `BiasShare` 0.25.
+- `RecentHitWindowWeeks` and the retention windows are unchanged.
+
+**v2 default arm `rjt-v2-1001-52`:**
+
+- Inertness: 84/84 hashes match.
+- Pool: empty 6.1% (H2 8.1%); no strong song 60.8%; 2.5 recordable at issue; 0.5% of act-weeks at cap.
+- Turnover per week: 0.9 passed over, 16 window-closed, 96 issued. Stock now turns over through issue and the
+  recent-hit window, not at the cap.
+- Reads: regret 0.0079, oracle pick 77%, read error SD 0.051, FP 23%.
+- Gain vs legacy +0.003.
+
+**Tradeoffs to carry into Phase 2:**
+
+- **0.07 is about twice the A-side issue rate.** The shadow consumes one song per single. Once 2B populates
+  B-sides from stock, consumption roughly doubles, and 0.07 will deplete hard. Re-tune arrivals together with 2B
+  rather than reuse this number.
+- **Arrivals rise into 1961** (3.2 → 3.9 a year, passed-over 1 → 8 a week) as recent hits accumulate in the
+  catalogue. Watch decade drift before trusting a late-decade read.
+- **2A's honest expected gain on this pool is about +0.003-0.009 per single.** That is within one-seed noise, so it
+  needs paired seeds.
+- **A gain only appears with a deeper pool, with more accurate reads, or both.** Both are levers that favour the
+  head (item 3).
 
 ## What to keep, and what to change
 

@@ -15,8 +15,9 @@ using System.Linq;
 public static class ReleaseJudgement {
 	public const string ShadowSwitch = "--release-judgement-shadow";
 	public const string EventsSwitch = "--release-judgement-events";
+	public const string TuneSwitch = "--release-judgement-shadow-tune";
 	/// <summary>Bumped whenever an arrival, readiness or perception rule changes what a seeded world would hold.</summary>
-	public const int ConfigVersion = 1;
+	public const int ConfigVersion = 2;
 
 	private static bool configured;
 	public static bool Shadow { get; private set; }
@@ -29,9 +30,15 @@ public static class ReleaseJudgement {
 		Shadow = args.Contains(ShadowSwitch);
 		Events = args.Contains(EventsSwitch);
 		if (Events && !Shadow) throw new ArgumentException($"{EventsSwitch} requires {ShadowSwitch}.");
-		foreach (string argument in args)
+		foreach (string argument in args) {
+			if (argument.StartsWith(TuneSwitch + "=", StringComparison.Ordinal)) {
+				if (!Shadow) throw new ArgumentException($"{TuneSwitch} requires {ShadowSwitch}.");
+				Parameters.Tune(argument[(TuneSwitch.Length + 1)..]);
+				continue;
+			}
 			if (argument.StartsWith("--release-judgement-", StringComparison.Ordinal) && argument != ShadowSwitch && argument != EventsSwitch)
 				throw new ArgumentException($"{argument}: only the Phase 1 shadow exists (directive Phase 2+ is not implemented).");
+		}
 		configured = true;
 	}
 
@@ -46,22 +53,59 @@ public static class ReleaseJudgement {
 		RepertoireTaxonomy.Unit(BandLife.WorldSeed.ToString(CultureInfo.InvariantCulture) + "|release-judgement|v" + ConfigVersion + "|" + key);
 
 	/// <summary>Phase 1 parameter hypotheses (directive "Decisions to settle with probes"). Starting probes, not constants.</summary>
+	/// <para>
+	/// <c>--release-judgement-shadow-tune=Name:value,...</c> overrides them for a calibration sweep. A tuned run's shadow
+	/// state is not comparable with the defaults' (its save carries the same ConfigVersion), so tune probes only.
+	/// </para>
 	public static class Parameters {
 		/// <summary>Active-consideration cap per act; not a cap on the live set, catalogue or masters.</summary>
-		public const int ShortlistCap = 8;
-		/// <summary>Opportunities per signed act-week before source and act modifiers (~11 a year).</summary>
-		public const float BaseArrivalRate = 0.22f;
-		/// <summary>Candidates an act is seeded with on first sight, already recordable (initialization provenance).</summary>
-		public const int InitialStock = 3;
+		public static int ShortlistCap { get; private set; }
+		/// <summary>Opportunities per signed act-week before source and act modifiers (~3.3-3.9 arrivals a signed act-year,
+		/// about twice the A-sides an act issues; 0.22 saturated the shortlist, 2026-10-19 sweep).</summary>
+		public static float BaseArrivalRate { get; private set; }
+		/// <summary>Candidates an act is seeded with on first sight, already recordable (initialization provenance).
+		/// Three made seeded songs 64% of first-year picks and flattered year one; one left a debut a single song.</summary>
+		public static int InitialStock { get; private set; }
 		/// <summary>A recent-hit cover loses its commercial window this many weeks after it reached the act.</summary>
-		public const int RecentHitWindowWeeks = 40;
+		public static int RecentHitWindowWeeks { get; private set; }
 		/// <summary>Archived or shadow-issued entries are dropped from saved state after this many weeks.</summary>
-		public const int ArchiveRetentionWeeks = 26;
+		public static int ArchiveRetentionWeeks { get; private set; }
 		/// <summary>An act off every AI roster this long stops being tracked.</summary>
-		public const int UntrackAfterWeeks = 104;
+		public static int UntrackAfterWeeks { get; private set; }
 		/// <summary>Label read error band at scoutingAbility 0 and 1 (heard material); an unheard offer reads 1.5x wider.</summary>
-		public const float ReadBandMax = 0.12f, ReadBandMin = 0.04f, UnheardBandScale = 1.5f;
-		/// <summary>Share of the band that is a persistent label/act bias rather than song-specific error.</summary>
-		public const float BiasShare = 0.5f;
+		public static float ReadBandMax { get; private set; }
+		public static float ReadBandMin { get; private set; }
+		public static float UnheardBandScale { get; private set; }
+		/// <summary>Share of the band that is a persistent label/act bias rather than song-specific error. Only the song
+		/// error ranks one act's candidates; the bias moves every read of that act together (a later bar's error).</summary>
+		public static float BiasShare { get; private set; }
+
+		static Parameters() => Reset();
+
+		internal static void Reset() {
+			ShortlistCap = 8; BaseArrivalRate = 0.07f; InitialStock = 2; RecentHitWindowWeeks = 40; ArchiveRetentionWeeks = 26;
+			UntrackAfterWeeks = 104; ReadBandMax = 0.20f; ReadBandMin = 0.08f; UnheardBandScale = 1.5f; BiasShare = 0.25f;
+		}
+
+		/// <summary>Applies <c>Name:value</c> pairs; an unknown name or unparseable value throws.</summary>
+		internal static void Tune(string spec) {
+			foreach (string pair in spec.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
+				string[] kv = pair.Split(':');
+				if (kv.Length != 2) throw new ArgumentException($"{TuneSwitch}: '{pair}' is not Name:value.");
+				float f = float.Parse(kv[1], CultureInfo.InvariantCulture);
+				int i = (int)f;
+				switch (kv[0]) {
+					case nameof(ShortlistCap): ShortlistCap = i; break;
+					case nameof(BaseArrivalRate): BaseArrivalRate = f; break;
+					case nameof(InitialStock): InitialStock = i; break;
+					case nameof(RecentHitWindowWeeks): RecentHitWindowWeeks = i; break;
+					case nameof(ReadBandMax): ReadBandMax = f; break;
+					case nameof(ReadBandMin): ReadBandMin = f; break;
+					case nameof(UnheardBandScale): UnheardBandScale = f; break;
+					case nameof(BiasShare): BiasShare = f; break;
+					default: throw new ArgumentException($"{TuneSwitch}: unknown parameter '{kv[0]}'.");
+				}
+			}
+		}
 	}
 }
