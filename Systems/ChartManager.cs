@@ -1457,7 +1457,16 @@ public partial class ChartManager : Node {
 			int units = Mathf.FloorToInt(exact); intent.Cleared += units; intent.SpilloverCleared += units; intent.Fraction = exact - units; assigned += units;
 		}
 		int remaining = allocated - assigned;
-		foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction).ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) { intent.Cleared++; intent.SpilloverCleared++; }
+		foreach (MarketIntent intent in LargestRemainders(intents, remaining)) { intent.Cleared++; intent.SpilloverCleared++; }
+	}
+
+	// The intents that take the leftover units: largest fraction first, then record id. Fractions are never negative, so
+	// when enough are positive the winners are all among them and the zero-fraction catalogue need not be sorted.
+	private static IEnumerable<MarketIntent> LargestRemainders(List<MarketIntent> intents, int remaining) {
+		if (remaining <= 0) return Enumerable.Empty<MarketIntent>();
+		List<MarketIntent> positive = intents.Where(intent => intent.Fraction > 0f).ToList();
+		return (positive.Count >= remaining ? positive : intents).OrderByDescending(intent => intent.Fraction)
+			.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining);
 	}
 
 	private static void AllocateProportionalLocal(List<MarketIntent> intents, int budget) {
@@ -1472,19 +1481,20 @@ public partial class ChartManager : Node {
 			assigned += intent.Cleared;
 		}
 		int remaining = allocated - assigned;
-		foreach (MarketIntent intent in intents.OrderByDescending(intent => intent.Fraction)
-			.ThenBy(intent => intent.Record.baseRecord.recordId, StringComparer.Ordinal).Take(remaining)) intent.Cleared++;
+		foreach (MarketIntent intent in LargestRemainders(intents, remaining)) intent.Cleared++;
 	}
 
 	private static int GetAllocatableResidual(List<MarketIntent> intents, MarketClearingRegionalSummary summary) {
-		int single = intents.Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Single)
-			.Sum(intent => intent.Serviceable - intent.Cleared);
-		int albumCleared = intents.Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Album)
-			.Sum(intent => intent.Cleared);
-		int album = Mathf.Min(
-			Mathf.Max(0, summary.AlbumFormatBudget - albumCleared),
-			intents.Where(intent => intent.Record.baseRecord.format == ReleaseFormat.Album)
-				.Sum(intent => intent.Serviceable - intent.Cleared));
+		// One pass for the three sums (checked, as Enumerable.Sum is). Asked several times per region per week.
+		int single = 0, albumCleared = 0, albumResidual = 0;
+		checked {
+			foreach (MarketIntent intent in intents) {
+				ReleaseFormat format = intent.Record.baseRecord.format;
+				if (format == ReleaseFormat.Single) single += intent.Serviceable - intent.Cleared;
+				else if (format == ReleaseFormat.Album) { albumCleared += intent.Cleared; albumResidual += intent.Serviceable - intent.Cleared; }
+			}
+		}
+		int album = Mathf.Min(Mathf.Max(0, summary.AlbumFormatBudget - albumCleared), albumResidual);
 		return Mathf.Max(0, single + album);
 	}
 

@@ -264,7 +264,13 @@ public static partial class MediaAtmosphereService {
 		/// can call on when the visiting names can't come. Built once per region per pass.</summary>
 		public List<(RecordRuntimeData Record, int Units)> RegionalLocals(string regionId) {
 			if (regionalLocals.TryGetValue(regionId, out var list)) return list;
-			list = Singles.Where(r => DistanceModel.GetCityById(CityOf(r.baseRecord.artistId) ?? "")?.parentRegionId == regionId)
+			// Each single's home region is found once per pass, not once per region asked about.
+			if (singleRegions == null) {
+				singleRegions = new string[Singles.Count];
+				for (int i = 0; i < Singles.Count; i++)
+					singleRegions[i] = DistanceModel.GetCityById(CityOf(Singles[i].baseRecord.artistId) ?? "")?.parentRegionId;
+			}
+			list = Singles.Where((r, i) => singleRegions[i] == regionId)
 				.Select(r => (Record: r, Units: r.regionalData.TryGetValue(regionId, out var rd) && rd != null ? rd.unitsSoldThisWeek : 0))
 				.Where(x => x.Units > 0).OrderByDescending(x => x.Units).ThenBy(x => x.Record.baseRecord.recordId, StringComparer.Ordinal)
 				.Take(LocalCandidatesPerRegion / 2).ToList();
@@ -272,7 +278,15 @@ public static partial class MediaAtmosphereService {
 			return list;
 		}
 
-		public bool Broke(RecordRuntimeData r) => r.regionalData.Values.Any(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
+		private string[] singleRegions;
+		// Peaks are frozen with the settlement for the whole pass; programs ask about the same records day after day.
+		private readonly Dictionary<RecordRuntimeData, bool> broke = new();
+		public bool Broke(RecordRuntimeData r) {
+			if (broke.TryGetValue(r, out bool result)) return result;
+			result = r.regionalData.Values.Any(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
+			broke.Add(r, result);
+			return result;
+		}
 		public int BrokeCount(RecordRuntimeData r) => r.regionalData.Values.Count(rd => rd != null && rd.peakBreakoutScore >= BreakoutBar);
 		public float Breadth(RecordRuntimeData r) => Regions.Count == 0 ? 0f : BrokeCount(r) / (float)Regions.Count;
 	}

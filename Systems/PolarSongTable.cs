@@ -24,6 +24,32 @@ public sealed class PolarSongTable {
 	// Only the bounded development probes may select the frozen pre-repair fixture.
 	internal static bool AuditLegacyRepair;
 	public float N(string key) => Numbers[key];
+	/// <summary>The material-fit constants, read once per Numbers dictionary: Evaluate runs per candidate reading per song.</summary>
+	internal FitNumbers Fit {
+		get {
+			if (fitNumbers == null || !ReferenceEquals(fitNumbersSource, Numbers)) { fitNumbers = new FitNumbers(this); fitNumbersSource = Numbers; }
+			return fitNumbers;
+		}
+	}
+	private FitNumbers fitNumbers;
+	private Dictionary<string, float> fitNumbersSource;
+	internal sealed class FitNumbers {
+		public readonly float CapabilityPenalty, HeadroomBonus, IdentityBasePenalty, RigidityPenalty, NeutralMoment, MomentPenalty;
+		public FitNumbers(PolarSongTable table) {
+			CapabilityPenalty = table.N("capabilityPenalty"); HeadroomBonus = table.N("headroomBonus");
+			IdentityBasePenalty = table.N("identityBasePenalty"); RigidityPenalty = table.N("rigidityPenalty");
+			NeutralMoment = table.N("neutralMoment"); MomentPenalty = table.N("momentPenalty");
+		}
+	}
+	/// <summary><c>IdentityWeights.Sum()</c>, computed once per array.</summary>
+	internal float IdentityWeightSum {
+		get {
+			if (!ReferenceEquals(identityWeightSumSource, IdentityWeights)) { identityWeightSum = IdentityWeights.Sum(); identityWeightSumSource = IdentityWeights; }
+			return identityWeightSum;
+		}
+	}
+	private float identityWeightSum;
+	private float[] identityWeightSumSource;
 	public PolarArchetypeRow Row(SongArchetype archetype) {
 		// Profile derivation asks this per candidate reading; index the first row of each name once per Archetypes array.
 		if (!ReferenceEquals(rowIndexSource, Archetypes)) {

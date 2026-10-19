@@ -4812,7 +4812,26 @@ public partial class CompetitorManager : Node {
 		}
 	}
 	
-	public AILabel GetLabel(string labelId) => aiLabels?.FirstOrDefault(l => l.labelId == labelId);
+	public AILabel GetLabel(string labelId) {
+		if (aiLabels == null) return null;
+		if (labelId == null) return aiLabels.FirstOrDefault(l => l.labelId == null);
+		// The first label with this id, as a linear search finds it. The list is shared with ChartManager and only ever
+		// grows or is cleared and refilled on load, so the index is current while the list, its count and its end
+		// entries are unchanged.
+		int count = aiLabels.Count;
+		if (!ReferenceEquals(labelIndexList, aiLabels) || labelIndexCount != count ||
+			count > 0 && (!ReferenceEquals(labelIndexFirst, aiLabels[0]) || !ReferenceEquals(labelIndexLast, aiLabels[count - 1]))) {
+			labelIndex.Clear();
+			foreach (AILabel label in aiLabels) if (label.labelId != null) labelIndex.TryAdd(label.labelId, label);
+			labelIndexList = aiLabels; labelIndexCount = count;
+			labelIndexFirst = count > 0 ? aiLabels[0] : null; labelIndexLast = count > 0 ? aiLabels[count - 1] : null;
+		}
+		return labelIndex.TryGetValue(labelId, out AILabel found) ? found : null;
+	}
+	private readonly Dictionary<string, AILabel> labelIndex = new(System.StringComparer.Ordinal);
+	private List<AILabel> labelIndexList;
+	private int labelIndexCount;
+	private AILabel labelIndexFirst, labelIndexLast;
 	public IReadOnlyList<AILabel> GetAllLabels() => aiLabels ?? (IReadOnlyList<AILabel>)System.Array.Empty<AILabel>();
 
 	// ========================================================================

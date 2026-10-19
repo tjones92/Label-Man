@@ -87,17 +87,28 @@ public static partial class LocalSceneRoomService {
         }
         // A town's acts that can take the stage on a day, with their family that year: what EligibleForRoom tests,
         // less the room's own years and families. Every room in the town reads the one list, in MembersOf order.
+        // Presence is weekly, so the town's present acts are found once per week and each day only drops the acts
+        // whose planned move has begun (the departures snapshot; scheduling moves no one).
         var townActs = new Dictionary<(string Place, int Day), (SimulatedArtist Act, GenreFamily Family)[]>();
+        var townWeekActs = new Dictionary<(string Place, int Week), SimulatedArtist[]>();
+        var departures = cacheReads ? SceneEcosystemService.PlannedDepartures() : null;
         SimulatedArtist[] MembersForRoom(SceneRoomProfile room, int day) {
             if (!cacheReads) return LocalScenePersistenceService.MembersOf(room.PlaceId)
                 .Select(ArtistManager.Instance.GetArtist).Where(a => EligibleForRoom(a, room, day)).ToArray();
             int year = Date(day).year;
             if (!townActs.TryGetValue((room.PlaceId, day), out var acts)) {
-                var list = new List<(SimulatedArtist, GenreFamily)>();
-                foreach (string artistId in LocalScenePersistenceService.MembersOf(room.PlaceId)) {
-                    var act = ArtistManager.Instance.GetArtist(artistId);
-                    if (act == null || !LocalScenePersistenceService.Present(act, room.PlaceId, day / 7) ||
-                        !SceneEcosystemService.AvailableAt(act.artistId, room.PlaceId, day) || PeopleFor(act).Length == 0) continue;
+                if (!townWeekActs.TryGetValue((room.PlaceId, day / 7), out var present)) {
+                    var stage = new List<SimulatedArtist>();
+                    foreach (string artistId in LocalScenePersistenceService.MembersOf(room.PlaceId)) {
+                        var candidate = ArtistManager.Instance.GetArtist(artistId);
+                        if (candidate != null && LocalScenePersistenceService.Present(candidate, room.PlaceId, day / 7) &&
+                            PeopleFor(candidate).Length > 0) stage.Add(candidate);
+                    }
+                    townWeekActs.Add((room.PlaceId, day / 7), present = stage.ToArray());
+                }
+                var list = new List<(SimulatedArtist, GenreFamily)>(present.Length);
+                foreach (var act in present) {
+                    if (act.artistId != null && departures.TryGetValue(act.artistId, out int departure) && day >= departure) continue;
                     var familyKey = (act, year);
                     if (!families.TryGetValue(familyKey, out var family)) {
                         family = GenreCatalog.Get(GenreCatalog.MapLegacy(act.primaryGenre, year)).Family;
@@ -250,18 +261,24 @@ public static partial class LocalSceneRoomService {
         // Scheduling commits no compositions or lineup changes. Reuse membership
         // within this one scheduling pass; each bill still draws its own order.
         var key = (artist, year);
+        ulong prefix = LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.BeginAssignment(LocalSceneIdentityService.KeyedSeed), $"room-v1|set|{bill}|{artist.artistId}|".AsSpan());
+        SongComposition[] picked = null;
         if (!pools.TryGetValue(key, out var pool)) {
             GenreFamily family = GenreCatalog.Get(GenreCatalog.MapLegacy(artist.primaryGenre, year)).Family;
             var basis = StandardsBasis(artist.primaryGenre, family, year);
-            pool = basis != null ? basis.Where(s => LiveRepertoire.EligibleLive(s, artist)).ToArray()
-                : CompositionCatalogService.GetStandardsForGenre(artist.primaryGenre)
-                .Concat(CompositionCatalogService.GetStandardsForFamily(family))
-                .Where(s => s != null && s.originYear <= year && LiveRepertoire.EligibleLive(s, artist))
-                .DistinctBy(s => s.songId).ToArray();
-            pools.Add(key, pool);
+            // Most acts can play most of the pool live, so draw straight from it and skip what they can't play; the
+            // filtered pool is built (and kept for the pass) only when the draw keeps missing.
+            if (basis != null) picked = KeyedEligibleSample(basis, 3, prefix, artist);
+            if (picked == null) {
+                pool = basis != null ? basis.Where(s => LiveRepertoire.EligibleLive(s, artist)).ToArray()
+                    : CompositionCatalogService.GetStandardsForGenre(artist.primaryGenre)
+                    .Concat(CompositionCatalogService.GetStandardsForFamily(family))
+                    .Where(s => s != null && s.originYear <= year && LiveRepertoire.EligibleLive(s, artist))
+                    .DistinctBy(s => s.songId).ToArray();
+                pools.Add(key, pool);
+            }
         }
-        ulong prefix = LocalSceneIdentityService.AppendAssignment(LocalSceneIdentityService.BeginAssignment(LocalSceneIdentityService.KeyedSeed), $"room-v1|set|{bill}|{artist.artistId}|".AsSpan());
-        var songs = KeyedSample(pool, 3, prefix)
+        var songs = (picked ?? KeyedSample(pool, 3, prefix))
             .Select(s => new SceneSetSong { SongId = s.songId, Title = s.title, Genre = s.primaryGenre, ContentContext = s.contentContext }).ToList();
         if (artist.songwritingAbility > .3f) {
             if (!titles.TryGetValue(key, out string title)) titles.Add(key, title = OriginalTitle(artist, year));
@@ -290,6 +307,29 @@ public static partial class LocalSceneRoomService {
         }
         return picked;
     }
+    /// <summary>The same uniform draw as <see cref="KeyedSample"/> over the songs <paramref name="artist"/> can play live,
+    /// taken from the unfiltered pool by rejection: an unplayable or repeated index is drawn again. Every playable song
+    /// is equally likely on every draw, so giving up (null) after <see cref="SetRejectionLimit"/> misses, which happens
+    /// when few songs are playable, leaves the draw uniform too; the caller then filters the pool.</summary>
+    private static SongComposition[] KeyedEligibleSample(SongComposition[] pool, int count, ulong prefix, SimulatedArtist artist) {
+        if (pool.Length < count * 4) return null;
+        var picked = new SongComposition[count];
+        Span<int> chosen = stackalloc int[count];
+        Span<char> tag = stackalloc char[3];
+        int misses = 0;
+        for (int k = 0; k < count; k++) {
+            for (int attempt = 0; ; attempt++) {
+                if (misses >= SetRejectionLimit) return null;
+                tag[0] = '$'; tag[1] = (char)k; tag[2] = (char)attempt;
+                int index = (int)(LocalSceneIdentityService.FinishAssignment(LocalSceneIdentityService.AppendAssignment(prefix, tag)) * pool.Length);
+                if (chosen[..k].IndexOf(index) >= 0 || !LiveRepertoire.EligibleLive(pool[index], artist)) { misses++; continue; }
+                chosen[k] = index; picked[k] = pool[index];
+                break;
+            }
+        }
+        return picked;
+    }
+    private const int SetRejectionLimit = 24;
     /// <summary>The title of a scene act's own unrecorded song: keyed on the act, the year and its place in the act's own
     /// material, so every bill and every read names the same song the same way, and drawing it moves no title stream.</summary>
     internal static string OriginalTitle(SimulatedArtist artist, int year, int index = 0) =>

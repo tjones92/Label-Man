@@ -11,12 +11,13 @@ public static class SceneRecruitmentService {
             Route == "RoadCircuit" ? .5f : 0f;
     }
 
-    public static Access Explain(AILabel label, SimulatedArtist artist, int week) => Explain(label, artist, week, null);
+    public static Access Explain(AILabel label, SimulatedArtist artist, int week) =>
+        Explain(label, artist, week, null, ScenePlaceRegistry.Get(label?.geography?.basePlaceId));
 
     /// <param name="placeAccess">One slate's memo of the label-and-town part of the answer (everything after the guest test),
     /// keyed by the act's base place. That part reads only the label, the two places and the week.</param>
-    private static Access Explain(AILabel label, SimulatedArtist artist, int week, Dictionary<string, Access> placeAccess) {
-        ScenePlace hq = ScenePlaceRegistry.Get(label?.geography?.basePlaceId);
+    /// <param name="hq">The label's base place, looked up once by the caller.</param>
+    private static Access Explain(AILabel label, SimulatedArtist artist, int week, Dictionary<ScenePlace, Access> placeAccess, ScenePlace hq) {
         ScenePlace home = ScenePlaceRegistry.Get(artist?.geography?.basePlaceId);
         if (hq == null || home == null) return new(false, "UnknownPlace", hq?.Id, home?.Id, null, 0f, null);
         string hqScene = hq.PlayableCityId ?? hq.Id;
@@ -36,7 +37,7 @@ public static class SceneRecruitmentService {
         if (guest != null)
             return new(true, "LocalVisitor", hq.Id, home.Id, null, .85f, guest.provenance);
         if (placeAccess == null) return ExplainBeyondGuest(label, hq, home, week);
-        if (!placeAccess.TryGetValue(home.Id, out var access)) placeAccess.Add(home.Id, access = ExplainBeyondGuest(label, hq, home, week));
+        if (!placeAccess.TryGetValue(home, out var access)) placeAccess.Add(home, access = ExplainBeyondGuest(label, hq, home, week));
         return access;
     }
 
@@ -76,10 +77,12 @@ public static class SceneRecruitmentService {
 
     public static List<SimulatedArtist> Slate(AILabel label, IEnumerable<SimulatedArtist> pool,
         int week, int window, int count, out int accessibleCount) {
-        var placeAccess = new Dictionary<string, Access>(StringComparer.Ordinal);
+        // Keyed by the registry's place object (one per id), which hashes faster than its id string.
+        var placeAccess = new Dictionary<ScenePlace, Access>(ReferenceEqualityComparer.Instance);
+        ScenePlace hq = ScenePlaceRegistry.Get(label?.geography?.basePlaceId);
         var accessible = new List<(SimulatedArtist Artist, Access Access)>();
         foreach (var a in pool) {
-            var access = Explain(label, a, week, placeAccess);
+            var access = Explain(label, a, week, placeAccess, hq);
             if (access.Eligible) accessible.Add((a, access));
         }
         accessibleCount = accessible.Count;
