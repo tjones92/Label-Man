@@ -1,9 +1,9 @@
 # Release Judgement Directive
 
-Status: **revised design draft; Phases 0-1 built and calibrated (shadow ConfigVersion 3); Phase 2A built behind
+Status: **revised design draft; Phases 0-1 built and calibrated (shadow ConfigVersion 4); Phase 2A built behind
 `--release-judgement-select` (2026-10-19), five-seed screened; v4 (access by scouting, not tier) halved the tier
-gradient. Not adopted: the residual head shift is chart conversion and needs an author decision. Then read-level
-fix and 2B.**
+gradient. Not adopted: launch-push saturation F = 0.75 removes its Top 40 head effect, but a ~+3.5 Big-5 Top 10
+edge (post-entry push) remains. Then read-level fix and 2B.**
 See "Implementation log" below for what exists in code.
 Source: the Top 10 review arc in `HistoricalLabelTierBalanceResearch.md`, §17x-§17af, the original directive,
 review of the current code, and the historical sources linked below. The original measurements are retained;
@@ -747,6 +747,77 @@ seeds up):
 
 Evidence: `SimLogs/rj2als-{ctl,per,fit}-{1001,...,5005}-260-*`. Scripts `ls_vs_base.py` and `rj2a_yearly_g.py`
 and their outputs are in the session notes folder.
+
+### 2026-10-19: Screen result, F = 0.75 (`rj2als75-*`): the saturation control passes; 2A keeps a Top 10 edge
+
+**Runs.** The same 15-run design as `rj2als-*`, with `--launch-push-saturation=0.75`: a quarter of a launch
+campaign's excess over the 0.55 knee is trimmed, against half at F = 0.5. All 15 completed cleanly.
+
+**1. Saturation control against the base control** (paired, SE, seeds up):
+
+| | 1960 | 1961 | 1962 | 1963 | 1964 |
+|---|---|---|---|---|---|
+| Top 10 CR8: base / F 0.75 (band) | 48.0 / **47.9** (48-58) | 47.0 / 39.9 (38-48) | 43.3 / 42.1 | 48.0 / 40.2 | 43.0 / 38.0 |
+| Δ Top 10 CR8 | −0.2 (2.6) | −7.2 (4.0) | −1.2 (2.5) | −7.8 (4.5) | −5.0 (3.3) |
+| Top 10 CR4: F 0.75 (band) | 31.3 (30-40) | 25.1 (22-32) | 28.7 | 26.7 | 25.4 |
+| Big-5 Top 10 share: base / F 0.75 / history | 31.7 / 32.1 / 34.2 | 31.8 / **24.5** / 20.6 | 29.2 / **25.5** / 21.2 | 36.1 / **24.3** / 26.0 | 30.9 / **21.3** / 18.7 |
+| Δ Big-5 Top 10 share | +0.3 (2.8) | −7.4 (3.6), 0/5 | −3.7 (4.0) | −11.8 (2.5), 0/5 | −9.5 (4.3) |
+| Δ Big-5 firms in the top four | +0.4 | −0.4 | −0.6 | −0.8 | −1.2 |
+
+- **1960 clears.** CR8 sits at the floor with the base control (47.9 against 48.0), and the Big-5 lead is unchanged.
+- **1961-64 keep the move.** Big-5 Top 10 excess over history falls from +10.4 (base) to **+2.3**; F = 0.5 gave
+  +4.2.
+  - The two factors are inside each other's noise after 1960, so the extra trim at 0.5 bought nothing but the
+    1960 break.
+  - 1963 is now 1.7 under history.
+- **"Big-5 in the top four"** falls every year from 1961 (0/5 seeds up in 1962-64). That is §17o's failed guard.
+- **Other guards:** 1964 CR8 is at the band floor (38.0). Year-end genre error is +0.3 (SE 1.6). Debuts,
+  closures and major-family share all stay inside noise.
+- **F = 0.75 passes every guard read here.** It is the first conversion lever on these defaults to move the 1961-64
+  head to history without breaking 1960.
+
+**2. 2A under F = 0.75.**
+
+- **Material gain:** quality +0.029 (5/5), Hot 100 entry +2.7 pts, Top 40 +1.0 pt. The pool is used 93.7% of the
+  time.
+- **Head:**
+
+| | Perceived − control | Perceived − fit |
+|---|---|---|
+| Major-family share | **−0.1** (SE 1.2, 2/5) | +1.9 (0.8, 4/5) |
+| Top 40 Major / Independent | +3.5 (3.0, 2/5) / +2.4 (3.2, 4/5) | +2.3 (1.7) / +0.5 (1.5, mixed) |
+| CR4 / CR8 (units) | +1.9 / +1.5 (3/5) | +0.8 / +0.9 |
+| Top 10 CR4 | **+4.8** (2.1, 4/5) | +2.6 (0.9, 5/5) |
+| Big-5 share of the Top 10 | **+5.7** (2.2, 4/5) | +2.0 (0.8, 4/5) |
+| Hot 100 debuts / yr | +19.8 (5/5) | +18.2 |
+| Year-end genre error | +1.3 (SE 1.3) | |
+
+- **Against the pass conditions:**
+  1. Independent Top 40 ≥ −2 with mixed signs: **pass** (+0.5 against fit, +2.4 against the control).
+  2. Perceived − fit major-family share within 1 SE: **fail** (+1.9 at 2.5 SE). Against the control it is −0.1;
+     the fit arm sits −2.0 under its control here (+1.7, +0.8, −1.3, −2.0 across the four screens), so this
+     contrast carries fit's own reshuffle.
+  3. Top 10 CR4 inside the stop rule in 1961-63: **fail by a hair**. 1963 is 34.2 against a ceiling of 32, a 2.2
+     miss with the control inside.
+- **The residual is a Top 10 edge, not a Top 40 one.** The Top 10 rows are the only head rows that hold across
+  conditions. Perceived − control Big-5 Top 10 share was +2.9 on the v4 base, +2.4 at F = 0.5 and +5.7 at F = 0.75.
+  That pools to about +3.5.
+- Saturation trims only the launch reads. Above the Top 40, conversion is post-entry: the weekly label push in the
+  radio target (§17aa). That is where perceived selection's better Big-5 records turn into extra Top 10 weeks.
+
+**Verdict.**
+
+- **Saturation F = 0.75 is the candidate conversion lever.** It passes the 1960 floor, moves 1961-64 to within
+  +2.3 of history, and fixes the top-four count. It needs its own confirmation as a default (decade read, #1
+  tenure, turnover) under the label-tier research arc. That is not part of 2A.
+- **2A stays off.** Under F = 0.75 its Top 40 head effect is gone. A Big-5 Top 10 edge of about +3.5 points
+  remains, which takes 1963 just past the stop rule. Adopting 2A needs the post-entry channel addressed, or an
+  author call that +3.5 Big-5 Top 10 points is acceptable on a base now 2.3 over history.
+- 2A's other open items stand: +18 to +23 Hot 100 debuts a year, the source-mix decade read, and the read-level
+  bias.
+
+Evidence: `SimLogs/rj2als75-{ctl,per,fit}-{1001,...,5005}-260-*`; `ls_vs_base_g.py`, `screen_ls75.txt` and
+`yearly_ls75.txt` are in the session notes folder.
 
 ## What to keep, and what to change
 
