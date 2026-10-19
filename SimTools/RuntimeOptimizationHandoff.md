@@ -17,7 +17,43 @@ same distribution by construction.
 | `9bdd754` | Server GC env for audit runners (`AuditGcEnvironment.ps1`); GC columns in the profile CSV | 1969 −15%, LR −9%, byte-identical |
 | `1a1359e` | Indexed lookups, per-town room caches, keyed set lists (details in the commit) | 5-year 581.7 → 414.9 s (−29%) |
 | after `1a1359e` | Weekly room presence + planned-move index, `GetLabel` index, media memos, fit constants, set-list rejection sampling, single-pass market residuals | 5-year → 359.6 s (−38% vs HEAD `9bdd754`) |
-| third session (uncommitted at writing) | Managed Godot RNG (`Systems/PcgRandom.cs`: `PcgRandom` for every `RandomNumberGenerator`, `GameRandom` for every `GD.Seed/Randf/Randi/RandRange`), cached `MarketRegion.CachedInstanceId`, per-format price/pressing cache in `CompetitorManager` | 5-year 359.6 → 353.2 s (−1.8%); all 80 CSVs byte-identical to `prof5-new8` |
+| `806a3e7` | Managed Godot RNG (`Systems/PcgRandom.cs`: `PcgRandom` for every `RandomNumberGenerator`, `GameRandom` for every `GD.Seed/Randf/Randi/RandRange`), cached `MarketRegion.CachedInstanceId`, per-format price/pressing cache in `CompetitorManager` | 5-year 359.6 → 353.2 s (−1.8%); all 80 CSVs byte-identical to `prof5-new8` |
+
+| fourth session (see below) | CPU: playlist FormatMatch table, prepared song-profile derivation, capability-only fit, leader-only taxonomy copies, act base-place and guest-row caches, seasonality closure/sum cache, hoisted `GetBaseline` keyframes. Memory: shared empty arrays, pooled fingerprints/provenance/evidence strings, pooled strings + shared empty arrays on world load, `liveMB` profile column | 5-year 359.6 → 317.1 s (−12%, `prof5-opt2`); allocation 113 → 75 GB; decade see below; all CSVs byte-identical |
+
+## Fourth session (2026-10-18, night)
+
+- **Single-seed calibration decade on HEAD `806a3e7`: 1,049 s summed wall (17.7 min process)**, `dec-base-806a`.
+  Fresh runs reach ~2.0 GB `heapMB` by 1967-69, the same as the 1969 fixture, so the late heap is real growth,
+  not only load duplication.
+- **What a fresh 1969 world holds** (`dotnet-dump collect --type Heap` on the Godot child, then `dotnet run -c Release
+  --project SimTools/HeapScan -- <dump>`; 1.57 GB live): strings 296 MB
+  (157 MB of it duplicate values), `string[]` 114 MB (4.07M arrays, mostly empty), `SongTaxonomy` 89 MB +
+  `PolarSongTags` 50 MB (one each per master and composition, 694k), `SongComposition` 87 MB, `AlbumTrack` 69 MB,
+  `SongProfile` + axes 47 MB (masters' cached profiles), ~132k `HashSet<string>` 56 MB (probably
+  `ContactNetworkService.adjacency`, one per person). Distinct empty arrays: 85 MB, 70 MB of it the seven tag
+  arrays on each master's `PolarSongTags`, all from `Clone()` in `Copy()`.
+- **Exact memory fixes:** `PolarSongTags.CloneOrShareEmpty` (tags and taxonomy arrays), empty content-tag arrays,
+  pooled `profileFingerprint` (SHA-256 hex, thousands of masters share each), cached `"first-master:"+version`
+  (207,899 copies), pooled `contextAuthorshipEvidence`. World loads (`--resume-world`) go through
+  `PooledStringJsonConverter.For`: pooled strings plus shared empty primitive/enum/string arrays. The 1969 fixture's
+  heap fell 2,005 → 1,365 MB from the string pool alone, and its 4-week window 19.5 → 17.0 s.
+- **Allocation hot spots found by a temporary per-thread allocation probe** (`GC.GetAllocatedBytesForCurrentThread`
+  brackets, removed): `MarketSeasonality.GetLiveFridayCount` allocated a capturing closure on every call (24 per
+  record x region); `GenreProfile.GetBaseline` allocated its keyframe-year array per call. RegionalDemand went
+  ~2 KB per record x region to ~0.
+- **Machine noise:** `prof5-opt3` ran 10-15% slow in spans it did not touch (room calendar, scene windows), so
+  trust `prof5-opt2` (317 s). The guest-row cache's own gain is inside that noise.
+- **Two seeds in parallel now beat back-to-back** (`par-dec-1/2`, seeds 1001/2002, final build): 1,316 s wall for
+  both decades vs ~1,877 s sequential (single seed 938 s). Each job runs 1.33-1.38x slower than alone through 1968,
+  1.49x in 1969 (free RAM bottomed at 0.10 GB); live heap tops out at 1.43 / 1.33 GB. Before the memory fixes the
+  1969 fixture pair ran ~3x slower per job. Paired seed-1001 output is byte-identical to the solo run. A third seed
+  would page.
+- **Single-seed calibration decade on the final build: 938 s summed wall** (`dec-opt5`, 1,049 s at `806a3e7`),
+  byte-identical; `liveMB` 1,247 MB end-1968, 1,434 MB end-1969.
+- **Next memory targets:** per-person contact `HashSet`s (order-sensitive; needs care), per-master taxonomy/tags
+  objects (shareable only if never mutated after commit), masters' cached `SongProfile` (derivable, but costs CPU),
+  and server-GC fragmentation (281 MB free space in the dump).
 
 ## Third session findings (2026-10-18, late)
 

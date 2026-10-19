@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 /// <summary>
@@ -300,9 +301,24 @@ public sealed partial class StationNetwork {
 			if (!stationsByRegion.TryGetValue(region.regionId, out List<RadioStation> roster)) continue;
 			float integration = region.currentIntegration;
 			float rockCrossover = RockCrossover(year);
+			// FormatMatch depends only on genre, format and these region terms: one table per region.
+			foreach (float[] table in formatMatchTables.Values) Array.Fill(table, float.NaN);
 			foreach (RadioStation station in roster)
 				DecideStationPlaylist(station, integration, rockCrossover, week);
 		}
+	}
+
+	// Per-region FormatMatch by canonical genre, keyed by (format, latin-leaning); NaN = not yet computed.
+	private readonly Dictionary<(StationFormat, bool), float[]> formatMatchTables = new();
+	private static readonly int GenreSlots = Enum.GetValues<Genre>().Max(g => (int)g) + 1;
+
+	private float[] FormatMatchTable(StationFormat format, bool latinLeaning) {
+		if (!formatMatchTables.TryGetValue((format, latinLeaning), out float[] table)) {
+			table = new float[GenreSlots];
+			Array.Fill(table, float.NaN);
+			formatMatchTables[(format, latinLeaning)] = table;
+		}
+		return table;
 	}
 
 	private readonly List<(string id, float adjusted, SpinTier prior)> primaryScratch = new();
@@ -316,13 +332,16 @@ public sealed partial class StationNetwork {
 
 		primaryScratch.Clear();
 		readdScratch.Clear();
+		float[] formatMatches = FormatMatchTable(station.format, station.latinLeaning);
 
 		foreach (RecordFactors f in factorScratch) {
 			float quality = f.quality;
 			SpinTier prior = rt.TierOf(f.id);
 			bool incumbent = prior != SpinTier.None;
 
-			float formatMatch = FormatMatch(f.profile, station.format, f.family, integration, rockCrossover, station.latinLeaning);
+			float formatMatch = formatMatches[(int)f.canonical];
+			if (float.IsNaN(formatMatch))
+				formatMatch = formatMatches[(int)f.canonical] = FormatMatch(f.profile, station.format, f.family, integration, rockCrossover, station.latinLeaning);
 			if (formatMatch <= 0f) continue;                        // format never admits this genre
 			if (!incumbent && !f.inCirculation) continue;           // not on the air and not circulating
 			// Regional sync 5c: a station cannot add a record it has not been serviced (not yet arrived here).

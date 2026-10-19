@@ -1274,7 +1274,7 @@ public partial class ChartAuditRunner : Node {
 		// economically live catalog or stock-less, awareness-less residue.
 		performanceProfileWriter?.WriteLine("seed,year,wallSeconds,activeRecords,simulateWeekSeconds,calculateLabelRevenueSeconds,recordLookupSeconds,revenueArithmeticSeconds,albumUpdateSeconds,processDueAlbumProjectsSeconds,captureWeekSeconds,recordLookups,freezeSettlementSeconds,bookSettlementSeconds,settlementAuditEventSeconds,genreMomentumSeconds,cullDeadRecordsSeconds,populationLifecycleSeconds,competitorWeekSeconds,rosterWeekSeconds,dailyTalentMarketSeconds,labelLifecycleMonthSeconds,activeAlbums,activeSingles,albumsOffChart,albumsZeroStock,albumsZeroAwareness,albumsZeroUnitsThisWeek,inertAlbums,inertSingles," + string.Join(",", Enum.GetNames<SimulationPerformanceProfiler.Phase>().Select(name => name + "Seconds")) + ",measuredWeeks,gcPauseSeconds,gen0Collections,gen1Collections,gen2Collections,allocatedMB,heapMB,committedMB,threadAllocatedMB,"
 			+ string.Join(",", SimulationPerformanceProfiler.PhaseNames.Select(name => name + "AllocMB")) + ","
-			+ string.Join(",", SimulationPerformanceProfiler.SpanNames.Select(name => name + "AllocMB")));
+			+ string.Join(",", SimulationPerformanceProfiler.SpanNames.Select(name => name + "AllocMB")) + ",liveMB");
 		foreach (AILabel label in CompetitorManager.Instance.GetAllLabels().OrderBy(label => label.labelId, StringComparer.Ordinal)) {
 			birthTierByLabel[label.labelId] = label.tier;
 			labelDirectoryWriter.WriteLine(string.Join(",", new[] { Csv(label.labelId), Csv(label.labelName), Csv(label.archetype.ToString()),
@@ -3611,7 +3611,10 @@ public partial class ChartAuditRunner : Node {
 			F(GC.GetGCMemoryInfo().TotalCommittedBytes / 1048576d),
 			F((GC.GetAllocatedBytesForCurrentThread() - gcBaselineThreadAllocated) / 1048576d),
 			string.Join(",", SimulationPerformanceProfiler.TakePhaseAllocatedMBAndReset().Select(value => F(value))),
-			string.Join(",", SimulationPerformanceProfiler.TakeSpanAllocatedMBAndReset().Select(value => F(value)))
+			string.Join(",", SimulationPerformanceProfiler.TakeSpanAllocatedMBAndReset().Select(value => F(value))),
+			// Reachable heap after a forced full collection; heapMB above includes whatever garbage the last GC left.
+			// Taken last and outside the wall/GC baselines, so it changes no other column.
+			F(GC.GetTotalMemory(forceFullCollection: true) / 1048576d)
 		}));
 		performanceProfileWriter.Flush();
 		GD.Print($"SIMULATION_PROFILE run={runName} year={year} wallSeconds={wallSeconds:F3} records={liveRecords.Count}");

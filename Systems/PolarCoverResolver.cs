@@ -13,7 +13,7 @@ public static class PolarCoverResolver {
 		var pulled = PolarMaterialFit.Pull(heard, act);
 		float demandReach = act.interpretiveReach * heard.plasticity * table.N("candidateDemandReach");
 		for (int i = 0; i < SongProfile.DemandCount; i++) pulled.axes[i] += Math.Clamp(act.axes[i] - heard.axes[i], -demandReach, demandReach);
-		pulled.dominantDemand = pulled.axes.Take(SongProfile.DemandCount).Max();
+		pulled.dominantDemand = SongProfileDeriver.MaxDemand(pulled.axes);
 		var projected = PolarMaterialFit.Evaluate(heard, pulled, act, taste, week, table);
 		string family = GenreCatalog.TryGet(projectGenre, out var genre) ? genre.Family.ToString() : GenreFamily.Pop.ToString();
 		bool instrumentalReading = LiveRepertoire.AuditPhase>=1 && act.hasKnownPerformers && !act.hasVocalist && source.vocalPresence == SongVocalPresence.Present;
@@ -24,31 +24,39 @@ public static class PolarCoverResolver {
 		float lyricFlipStretch = table.N("lyricFlipStretch"), lyricFlipReach = table.N("lyricFlipReach"), nearTie = table.N("nearTie");
 		float identityWeight = table.N("resolverIdentityWeight"), executionWeight = table.N("resolverExecutionWeight");
 		ulong tiePrefix = AppendHash(14695981039346656037UL, plannedMasterId + "|");
+		// Rows differ only in archetype/pace/mood. Everything else on the reading is the same for each row, so one
+		// template carries it and Derive is prepared once; a row's own taxonomy is built only when it leads.
+		SongTaxonomy template = null;
+		SongProfileDeriver.Prepared prepared = null;
 		foreach (var row in candidates) {
 			if (heard.plasticity * act.interpretiveReach <= 0) continue;
-			// Each candidate only reassigns fields, so it can share the source's arrays; the winner is deep-copied below.
-			var taxonomy = source.ShallowCopy(); taxonomy.archetype = ParseArchetype(row.Name);
-			if(instrumentalReading)taxonomy.vocalPresence=SongVocalPresence.Instrumental;
-			taxonomy.primaryGenre = projectGenre;
-			taxonomy.secondaryGenre = source.primaryGenre == projectGenre ? source.secondaryGenre : source.primaryGenre;
-			taxonomy.pace = row.Pace; taxonomy.mood = row.Mood; taxonomy.mappingId = table.Version;
-			if (act.hasVocalist && act.vocalApproach != SongVocalApproach.Unknown) taxonomy.vocalApproaches = new[] { act.vocalApproach };
-			if (projected.Stretch >= lyricFlipStretch && act.interpretiveReach >= lyricFlipReach &&
-				(taxonomy.lyricModes ?? Array.Empty<SongLyricMode>()).Contains(SongLyricMode.RomanticAddress))
-				taxonomy.lyricModes = family == GenreFamily.RhythmAndSoul.ToString() ?
-					new[] { SongLyricMode.DemandBoast, SongLyricMode.CallAndResponse } : new[] { SongLyricMode.DemandBoast };
-			var realized = SongProfileDeriver.Derive(song, taxonomy, table); realized.plasticity = heard.plasticity;
+			SongArchetype archetype = ParseArchetype(row.Name);
+			if (template == null) {
+				// It only reassigns fields, so it can share the source's arrays; the winner is deep-copied below.
+				template = source.ShallowCopy();
+				if(instrumentalReading)template.vocalPresence=SongVocalPresence.Instrumental;
+				template.primaryGenre = projectGenre;
+				template.secondaryGenre = source.primaryGenre == projectGenre ? source.secondaryGenre : source.primaryGenre;
+				template.mappingId = table.Version;
+				if (act.hasVocalist && act.vocalApproach != SongVocalApproach.Unknown) template.vocalApproaches = new[] { act.vocalApproach };
+				if (projected.Stretch >= lyricFlipStretch && act.interpretiveReach >= lyricFlipReach &&
+					(template.lyricModes ?? Array.Empty<SongLyricMode>()).Contains(SongLyricMode.RomanticAddress))
+					template.lyricModes = family == GenreFamily.RhythmAndSoul.ToString() ?
+						new[] { SongLyricMode.DemandBoast, SongLyricMode.CallAndResponse } : new[] { SongLyricMode.DemandBoast };
+				prepared = SongProfileDeriver.Prepare(song, template, table);
+			}
+			var realized = SongProfileDeriver.Derive(prepared, archetype, projectGenre); realized.plasticity = heard.plasticity;
 			if (PolarMaterialFit.IdentityDistance(realized.axes, heard.axes, table) > heard.plasticity * act.interpretiveReach) continue;
 			float demandDistance = 0;
 			for (int i = 0; i < SongProfile.DemandCount; i++) { float d = realized.axes[i] - pulled.axes[i]; demandDistance += d * d; }
 			float identityDistance = PolarMaterialFit.IdentityDistance(realized.axes, pulled.axes, table);
 			float distance = demandDistance / SongProfile.DemandCount + identityDistance * identityDistance * identityWeight;
 			// A nearer shape is not plausible when the performers cannot realize its demands.
-			var execution = PolarMaterialFit.Evaluate(heard, realized, act, null, week, table);
-			distance += (1 - execution.Capability) * executionWeight;
+			distance += (1 - PolarMaterialFit.Capability(realized, act, table)) * executionWeight;
 			ulong tie = AppendHash(tiePrefix, row.Name);
 			if (distance < bestDistance - nearTie || (Math.Abs(distance - bestDistance) <= nearTie && tie < bestTie)) {
-				bestDistance = distance; bestTie = tie; best = taxonomy; bestProfile = realized;
+				bestDistance = distance; bestTie = tie; bestProfile = realized;
+				best = template.ShallowCopy(); best.archetype = archetype; best.pace = row.Pace; best.mood = row.Mood;
 			}
 		}
 		// Empty/era-ineligible pools return an explicit straight-reading proposal, never invent a standard.

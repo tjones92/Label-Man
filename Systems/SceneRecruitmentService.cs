@@ -18,7 +18,7 @@ public static class SceneRecruitmentService {
     /// keyed by the act's base place. That part reads only the label, the two places and the week.</param>
     /// <param name="hq">The label's base place, looked up once by the caller.</param>
     private static Access Explain(AILabel label, SimulatedArtist artist, int week, Dictionary<ScenePlace, Access> placeAccess, ScenePlace hq) {
-        ScenePlace home = ScenePlaceRegistry.Get(artist?.geography?.basePlaceId);
+        ScenePlace home = artist?.geography?.ResolveBasePlace();
         if (hq == null || home == null) return new(false, "UnknownPlace", hq?.Id, home?.Id, null, 0f, null);
         string hqScene = hq.PlayableCityId ?? hq.Id;
         string homeScene = home.PlayableCityId ?? home.Id;
@@ -27,10 +27,11 @@ public static class SceneRecruitmentService {
         // A dated guest encounter is a real nonlocal route. Expired/future/alumnus rows do not qualify.
         // The earliest start wins, then the ordinal-first provenance; the first such row on a full tie.
         SceneParticipation guest = null;
-        if (artist.sceneParticipations != null)
-            foreach (var p in artist.sceneParticipations) {
-                if (p.sceneId != hqScene || p.relationship is SceneRelationship.Resident or SceneRelationship.Alumnus ||
-                    p.startWeek > week || !p.endWeek.HasValue || p.endWeek.Value < week || string.IsNullOrWhiteSpace(p.provenance)) continue;
+        // Only dated non-resident rows with provenance can qualify; the act keeps that subset, in order.
+        var guestRows = artist.RecruitmentGuestRows();
+        if (guestRows != null)
+            foreach (var p in guestRows) {
+                if (p.sceneId != hqScene || p.startWeek > week || p.endWeek.Value < week) continue;
                 if (guest == null || p.startWeek < guest.startWeek ||
                     p.startWeek == guest.startWeek && StringComparer.Ordinal.Compare(p.provenance, guest.provenance) < 0) guest = p;
             }

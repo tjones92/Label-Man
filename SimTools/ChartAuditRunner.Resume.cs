@@ -105,7 +105,8 @@ public partial class ChartAuditRunner {
 		AuditWorldFile file;
 		using (FileStream stream = File.OpenRead(path))
 		using (var gzip = new GZipStream(stream, CompressionMode.Decompress))
-			file = JsonSerializer.Deserialize<AuditWorldFile>(gzip, SaveGameService.TestJsonOptions);
+			// Pooled: a late world otherwise holds one string copy per occurrence of every id.
+			file = JsonSerializer.Deserialize<AuditWorldFile>(gzip, PooledStringJsonConverter.For(SaveGameService.TestJsonOptions));
 		if (file?.World == null) throw new InvalidDataException($"Saved world '{resumeWorldName}' is unreadable.");
 		if (file.Version > SaveGameService.CurrentVersion) throw new InvalidDataException($"Saved world '{resumeWorldName}' is from a newer save version.");
 

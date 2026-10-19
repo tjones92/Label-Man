@@ -115,7 +115,7 @@ public static class PolarSongMetadataService {
 	private static void WarmComposition(SongComposition song, PolarSongTable table) {
 		var first = Get(song.firstCommittedMasterId);
 		if (!song.plasticityFrozen && first != null) FreezePlasticity(song, first.masterId,
-			SongProfileDeriver.Derive(song, first.taxonomy, table).plasticity, "first-master:" + table.Version);
+			SongProfileDeriver.Derive(song, first.taxonomy, table).plasticity, FirstMasterProvenance(table));
 		foreach (var master in mastersBySong.GetValueOrDefault(song.songId) ?? new()) {
 			// Existing recording shapes are historical facts. H affects future resolutions only.
 			if (CompositionShapeVariation.ActiveVersion > 0 && master.cachedProfile != null) continue;
@@ -124,8 +124,24 @@ public static class PolarSongMetadataService {
 			string fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(inputs)));
 			if (master.cachedProfile != null && master.profileFingerprint == fingerprint) continue;
 			master.cachedProfile = SongProfileDeriver.Derive(song, master.taxonomy, table);
-			master.profileFingerprint = fingerprint;
+			master.profileFingerprint = PooledFingerprint(fingerprint);
 		}
+	}
+	// Both strings repeat across the catalogue: one provenance per table version, and identical inputs give one
+	// fingerprint (thousands of masters share each). Reuse the instance; the values are unchanged.
+	private static string firstMasterProvenance, firstMasterProvenanceVersion;
+	private static string FirstMasterProvenance(PolarSongTable table) {
+		if (firstMasterProvenance == null || firstMasterProvenanceVersion != table.Version) {
+			firstMasterProvenance = "first-master:" + table.Version;
+			firstMasterProvenanceVersion = table.Version;
+		}
+		return firstMasterProvenance;
+	}
+	private static readonly Dictionary<string, string> fingerprintPool = new(StringComparer.Ordinal);
+	private static string PooledFingerprint(string fingerprint) {
+		if (fingerprintPool.TryGetValue(fingerprint, out string shared)) return shared;
+		fingerprintPool.Add(fingerprint, fingerprint);
+		return fingerprint;
 	}
 	private static void IndexMaster(SongMasterMetadata master) {
 		if (string.IsNullOrEmpty(master.songId)) return;

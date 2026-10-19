@@ -21,9 +21,13 @@ public sealed class GenreProfile {
 		SegmentWeights = new ReadOnlyDictionary<string, float>(GenreSegmentRouting.Create(genre, family, audience));
 	}
 
+	// Keyframe years for BaselineKeyframes. Hoisted: the baseline is read per record x region x segment, and a
+	// local array literal allocated on every call.
+	private static readonly int[] BaselineYears = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+
 	public float GetBaseline(float year) {
 		float clamped = Mathf.Clamp(year, 1960f, 1969f);
-		int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+		int[] years = BaselineYears;
 		for (int i = 0; i < years.Length - 1; i++) if (clamped <= years[i + 1]) return Mathf.Lerp(BaselineKeyframes[i], BaselineKeyframes[i + 1], (clamped - years[i]) / (years[i + 1] - years[i]));
 		return BaselineKeyframes[^1];
 	}
@@ -34,7 +38,7 @@ public sealed class GenreProfile {
 	/// genre is past its own peak.</summary>
 	public float GetBaselinePeakThrough(float year) {
 		float clamped = Mathf.Clamp(year, 1960f, 1969f);
-		int[] years = { 1960, 1962, 1964, 1966, 1967, 1968, 1969 };
+		int[] years = BaselineYears;
 		float peak = GetBaseline(clamped);
 		for (int i = 0; i < years.Length; i++) {
 			if (years[i] > clamped) break;

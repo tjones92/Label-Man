@@ -39,6 +39,20 @@ public static class PolarMaterialFit {
 		}
 		return new MaterialFit(capability, identity, moment, deficit, worst, stretch, IdentityDistance(reference.axes, act.axes, table), hasMarket);
 	}
+	/// <summary>Evaluate(...).Capability alone, by the same operations; the cover resolver needs nothing else per row.</summary>
+	public static float Capability(SongProfile realized, ActProfile act, PolarSongTable table) {
+		var numbers = table.Fit;
+		float penalty = 0, deficit = 0;
+		int dominant = 0;
+		for (int i = 0; i < SongProfile.DemandCount; i++) {
+			if (realized.axes[i] > realized.axes[dominant]) dominant = i;
+			float d = Math.Max(0, realized.axes[i] - act.axes[i]);
+			if (d > deficit) deficit = d;
+			penalty += realized.axes[i] * d * d * numbers.CapabilityPenalty;
+		}
+		float headroom = Math.Max(0, act.axes[dominant] - realized.axes[dominant]);
+		return SongProfileDeriver.Clamp(MathF.Exp(-penalty) + headroom * numbers.HeadroomBonus);
+	}
 	public static float IdentityDistance(float[] a, float[] b, PolarSongTable table) {
 		float distance = 0;
 		for (int i = 0; i < SongProfile.IdentityCount; i++) {

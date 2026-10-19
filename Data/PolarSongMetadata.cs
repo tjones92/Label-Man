@@ -57,8 +57,8 @@ public sealed class SongTaxonomy {
 
 	public SongTaxonomy Copy() => new() {
 		schemaVersion = schemaVersion, mappingId = mappingId, archetype = archetype,
-		lyricModes = (SongLyricMode[])(lyricModes ?? Array.Empty<SongLyricMode>()).Clone(),
-		vocalApproaches = (SongVocalApproach[])(vocalApproaches ?? Array.Empty<SongVocalApproach>()).Clone(),
+		lyricModes = PolarSongTags.CloneOrShareEmpty(lyricModes),
+		vocalApproaches = PolarSongTags.CloneOrShareEmpty(vocalApproaches),
 		pace = pace, mood = mood, primaryGenre = primaryGenre, secondaryGenre = secondaryGenre,
 		meterOverride = meterOverride, formOverride = formOverride, production = production,
 		function = function, backingPerformers = backingPerformers, vocalPerformers = vocalPerformers,
@@ -83,7 +83,10 @@ public sealed class PolarSongTags {
 		instrumentation = Clone(instrumentation), technique = Clone(technique), production = Clone(production),
 		scene = Clone(scene), release = Clone(release), content = Clone(content), unclassified = Clone(unclassified)
 	};
-	private static string[] Clone(string[] values) => (string[])(values ?? Array.Empty<string>()).Clone();
+	private static string[] Clone(string[] values) => CloneOrShareEmpty(values);
+	/// <summary>A copy that shares the one empty array: a zero-length array cannot be written, and every master and
+	/// composition copied seven of them (~85 MB of distinct empty arrays in a 1969 world).</summary>
+	internal static T[] CloneOrShareEmpty<T>(T[] values) => values == null || values.Length == 0 ? Array.Empty<T>() : (T[])values.Clone();
 }
 
 /// <summary>Durable master metadata, independent of a market release or Godot Resource.

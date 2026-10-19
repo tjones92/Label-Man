@@ -42,6 +42,18 @@ public sealed class GeographicIdentity {
     public string assignmentSource;
     public int assignmentVersion;
     public List<PlaceMove> moves;
+
+    // Recruitment resolves the act's base place once per (label, act) pair per day; the registry is immutable,
+    // so resolve once per basePlaceId value. A method, not a property, so saves never see it.
+    private string resolvedBasePlaceId;
+    private ScenePlace resolvedBasePlace;
+    public ScenePlace ResolveBasePlace() {
+        if (!ReferenceEquals(resolvedBasePlaceId, basePlaceId)) {
+            resolvedBasePlace = ScenePlaceRegistry.Get(basePlaceId);
+            resolvedBasePlaceId = basePlaceId;
+        }
+        return resolvedBasePlace;
+    }
 }
 
 // Admit institutions before programming/bills arrive. These types imply no invented opening dates.

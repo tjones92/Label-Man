@@ -19,6 +19,24 @@ public class SimulatedArtist {
 	// Phase 1 observation metadata. Existing economic identity fields remain authoritative.
 	public GeographicIdentity geography;
 	public List<SceneParticipation> sceneParticipations;
+	// Recruitment asks every label x act per day whether a dated guest row reaches the label's scene. Only these rows
+	// can answer yes, and they are append-only with fixed fields (ObserveArtist edits Resident rows alone), so the
+	// filtered view stays valid until the list is replaced or grows. Private: saves never see it.
+	private List<SceneParticipation> guestRowsSource;
+	private int guestRowsCount = -1;
+	private List<SceneParticipation> guestRows;
+	internal List<SceneParticipation> RecruitmentGuestRows() {
+		if (!ReferenceEquals(guestRowsSource, sceneParticipations) || guestRowsCount != (sceneParticipations?.Count ?? -1)) {
+			guestRowsSource = sceneParticipations;
+			guestRowsCount = sceneParticipations?.Count ?? -1;
+			guestRows = null;
+			if (sceneParticipations != null)
+				foreach (var p in sceneParticipations)
+					if (p.relationship is not (SceneRelationship.Resident or SceneRelationship.Alumnus) && p.endWeek.HasValue &&
+						!string.IsNullOrWhiteSpace(p.provenance)) (guestRows ??= new()).Add(p);
+		}
+		return guestRows;
+	}
 	public List<SceneRecruitmentRecord> sceneRecruitmentHistory;
 	public List<SceneMarketDecision> sceneMarketHistory; // Optional, bounded, completed decisions only; never an AI reader.
 	public int formedYear;

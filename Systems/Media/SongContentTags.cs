@@ -144,8 +144,9 @@ public static class SongContentTags {
 		if (song == null) return;
 		if (song.contentTagsBasis == Basis && song.contentTagsTitle == song.title) return;
 		List<Finding> findings = Classify(song.title, song.demoTaxonomy?.lyricModes, song.contentContext);
-		song.contentTagIds = findings.Select(f => f.Tag).Distinct().ToArray();
-		song.contentTagEvidence = findings.Select(f => f.Tag + "|" + f.Severity + "|" + f.Evidence).ToArray();
+		// Most titles carry no finding; share the empty array instead of allocating one per song.
+		song.contentTagIds = findings.Count == 0 ? Array.Empty<string>() : findings.Select(f => f.Tag).Distinct().ToArray();
+		song.contentTagEvidence = findings.Count == 0 ? Array.Empty<string>() : findings.Select(f => f.Tag + "|" + f.Severity + "|" + f.Evidence).ToArray();
 		song.contentTagsBasis = Basis;
 		song.contentTagsTitle = song.title;
 	}
